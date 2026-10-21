@@ -125,8 +125,27 @@ static void* original_for(const char* name) {
     if (strcmp(name, "FollowCamera_ApplyOverrides") == 0) return (void*)game_camera;
     return (void*)game_void;
 }
+/* A hook point's permanent id (the SDK's C++ layer asks by it) to the name the port also takes, as the
+ * port's loader resolves ids and aliases (OpenRAC's docs/port/MODS.md, section 4). */
+static const char* canonical(const char* name) {
+    static const char* const k_ids[][2] = {
+        {"rac1.pad.process_report", "Pad_ProcessReport"},
+        {"rac1.player.update_motion_input", "Hero_UpdateMotionInput"},
+        {"rac1.player.turn_to_heading", "Hero_TurnToHeading"},
+        {"rac1.player.set_planar_velocity", "Hero_SetPlanarVelocity"},
+        {"rac1.camera.follow.apply_overrides", "FollowCamera_ApplyOverrides"},
+        {"rac1.player.advance_animation", "Hero_AdvanceAnimation"},
+    };
+    for (unsigned i = 0; i < sizeof(k_ids) / sizeof(k_ids[0]); ++i) {
+        if (strcmp(name, k_ids[i][0]) == 0) {
+            return k_ids[i][1];
+        }
+    }
+    return name;
+}
 static int host_hook(openrac_mod* mod, const char* name, const char* signature, void* replacement, void** original) {
     (void)mod;
+    name = canonical(name);
     CHECK(s_hook_count < 16);
     s_hooks[s_hook_count].name = name;
     s_hooks[s_hook_count].signature = signature;
