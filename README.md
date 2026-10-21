@@ -45,6 +45,15 @@ A native mod is a program: it runs with the game's rights. Install native mods
 from sources you trust. A script mod runs in the game's sandbox; the game stops
 one that errs or runs too long, and says which.
 
+## Making your own
+
+The [modding guides](https://github.com/OpenRAC/OpenRAC/blob/master/sdk/docs/README.md)
+cover everything: [getting started](https://github.com/OpenRAC/OpenRAC/blob/master/sdk/docs/getting-started.md)
+from the SDK's template to a mod players install by pasting your repository's
+link, script mods in Luau and native mods in C or C++, settings, hooks and
+their stable ids, and releasing with a tag. They also ship in the SDK's
+archive, under `docs/`.
+
 ## Building
 
 Script mods need no build. For the native ones you need CMake 3.20 or newer, a C and C++17 compiler (Clang, GCC or MSVC), Ninja
@@ -61,8 +70,8 @@ python3 tools/fetch_sdk.py                                    # the pinned SDK, 
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build                                        # each mod's tests
-python3 .sdk/openrac-mod-sdk-1.0.3/tools/package_mod.py build/package/* -o dist   # dist/<id>-<version>-<platform>.zip
-python3 .sdk/openrac-mod-sdk-1.0.3/tools/package_mod.py button-swap -o dist        # dist/button-swap-1.0.0.zip, a script mod
+python3 .sdk/openrac-mod-sdk-1.1.0/tools/package_mod.py build/package/* -o dist   # dist/<id>-<version>-<platform>.zip
+python3 .sdk/openrac-mod-sdk-1.1.0/tools/package_mod.py button-swap -o dist        # dist/button-swap-1.0.0.zip, a script mod
 ```
 
 To build against another SDK (a newer one, or `sdk/` in a checkout of OpenRAC
