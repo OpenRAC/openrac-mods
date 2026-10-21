@@ -1,0 +1,40 @@
+{
+  "format": 2,
+  "id": "lock-strafe",
+  "name": "Lock-strafe",
+  "version": "1.0.0",
+  "author": "OpenRAC contributors",
+  "description": "Strafe as in the later games. Lock with weapons: with a weapon that fires ahead in hand, Ratchet always faces where the camera looks, the right stick turns him and the left stick strafes (Up Your Arsenal's lock-strafe). Hold L2 or R2: the camera swings behind him and he strafes while it is held (Going Commando's). L1 still looks and R1 still crouches.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/main/lock-strafe",
+  "api": "1.0",
+  "games": { "rac1": ["pal", "ntsc"] },
+  "hooks": [
+    "Pad_ProcessReport",
+    "Hero_UpdateMotionInput",
+    "Hero_TurnToHeading",
+    "Hero_SetPlanarVelocity",
+    "FollowCamera_ApplyOverrides",
+    "Hero_AdvanceAnimation"
+  ],
+  "settings": [
+    {
+      "key": "mode",
+      "name": "Mode",
+      "type": "choice",
+      "default": "lock",
+      "choices": [
+        { "value": "lock", "name": "Lock with weapons" },
+        { "value": "hold", "name": "Hold L2 or R2" }
+      ],
+      "description": "Lock: always with a weapon that fires ahead, Hold otherwise. Hold: only while L2 or R2 is held."
+    },
+    {
+      "key": "trace",
+      "name": "Trace",
+      "type": "bool",
+      "default": false,
+      "description": "For bug reports: a line in the game's log for each pad report, with what the strafe does."
+    }
+  ]
+}
