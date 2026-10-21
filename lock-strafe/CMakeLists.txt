@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# The lock-strafe (README.md): the mod's library and the strafe decision's test.
-openrac_add_mod(lock_strafe MANIFEST openrac-mod.json SOURCES src/lock_strafe.c)
+# The lock-strafe (README.md): the mod's library (C++, on the SDK's openrac/mod.hpp) and its tests.
+openrac_add_mod(lock_strafe MANIFEST openrac-mod.json SOURCES src/lock_strafe.cpp)
 target_include_directories(lock_strafe PRIVATE src)
 if(NOT MSVC)
   target_compile_options(lock_strafe PRIVATE -Wall -Wextra -ffp-contract=off)

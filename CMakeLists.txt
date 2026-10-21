@@ -6,7 +6,7 @@
 #   cmake --build build && ctest --test-dir build
 #   python3 .sdk/openrac-mod-sdk-*/tools/package_mod.py build/package/* -o dist
 cmake_minimum_required(VERSION 3.20)
-project(rac1_mods LANGUAGES C)
+project(rac1_mods LANGUAGES C CXX)
 
 # The SDK: the release sdk.lock pins, which tools/fetch_sdk.py puts in .sdk/. OPENRAC_SDK=<dir> (an
 # unpacked SDK, or sdk/ in a checkout of OpenRAC) or OpenRACMod_DIR=<dir>/cmake build against another.
