@@ -28,3 +28,4 @@ find_package(OpenRACMod 1.0 REQUIRED)
 include(CTest)
 
 add_subdirectory(lock-strafe)
+add_subdirectory(item-randomizer)

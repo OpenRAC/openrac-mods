@@ -1,0 +1,48 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026 the OpenRAC contributors
+ *
+ * What the item randomizer uses of the game on each disc it knows: the addresses of the globals
+ * it reads and writes (each through relocate_data, which leaves an address outside the level's
+ * relocated range as it is), the banner function it calls by its name in that disc's build
+ * (openrac_api.function), and the banner's text. PAL's are games/rac1's names; NTSC-U's are the
+ * same globals in games/rac1/ntsc (its __asm__ labels) and OpenRAC's
+ * port/game/rac1-ntsc/host/rac1_version.h.
+ */
+#ifndef ITEM_RANDOMIZER_DISCS_H
+#define ITEM_RANDOMIZER_DISCS_H
+
+#include <stdint.h>
+
+typedef struct rando_disc {
+    const char* version;    /* openrac_api.version */
+    uint32_t owned;         /* u8[0x25]: the items owned (D_0013D5C8; GiveItem, the hero, the menus) */
+    uint32_t obtained;      /* u8[0x25]: the items given (D_0013D5F0; the pickups' and NPCs' test) */
+    uint32_t planets;       /* u8[20]: the planets unlocked (D_0013DE48) */
+    uint32_t gold_bolts;    /* u8[20][4]: the gold bolts collected (D_0014BFC0) */
+    uint32_t triggers;      /* u8[20][16]: the levels' trigger slots, 0xFF done (D_0014C150) */
+    uint32_t level;         /* i32: the level loaded (D_0015EE84) */
+    uint32_t vendor_stock;  /* u8[12]: the vendor's stock, 0xFF-terminated (D_0015EED0) */
+    const char* show_banner;   /* void (int text, int ticks): a line of text on screen (ShowBanner) */
+    int32_t gold_bolt_text;    /* the gold bolt's banner (GoldBoltUpdate's) */
+} rando_disc;
+
+static const rando_disc k_rando_discs[] = {
+    {"pal", 0x0013D5C8u, 0x0013D5F0u, 0x0013DE48u, 0x0014BFC0u, 0x0014C150u, 0x0015EE84u, 0x0015EED0u,
+     "func_L00_00264DB8", 0x53B8},
+    {"ntsc", 0x0013D4C0u, 0x0013D4E8u, 0x0013DD40u, 0x0014BEC0u, 0x0014C050u, 0x0015ED84u, 0x0015EDD0u,
+     "FUN_L00_00263d40", 0x53B3},
+};
+
+/* The moby's fields it reads (games/rac1/include/moby.h; the same on both discs). */
+#define MOBY_STATE 0x20u   /* u8 */
+#define MOBY_PVARS 0x78u   /* u32: the pvars' address */
+#define MOBY_MISSION 0xB0u /* u8: its trigger slot, 0xFF none */
+/* The infobot's pvars (struct Infobot, vendor_002D1168.c): the planet it unlocks. */
+#define INFOBOT_PLANET 0x04u /* i32 */
+/* The state an infobot shows its planet's banner in, once it has unlocked it (InfobotUpdate). */
+#define INFOBOT_STATE_BANNER 11
+
+/* The levels past the game (VendorStockLevelInit gives everything there): left as the game has them. */
+#define RANDO_LAST_LEVEL 0x12
+
+#endif /* ITEM_RANDOMIZER_DISCS_H */
