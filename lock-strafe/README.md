@@ -67,7 +67,7 @@ locks (`PadState.mode`) take buttons out for a poll, and keeps them for the
 strafe. So L1 still looks and R1 still crouches, and L2 and R2 strafe.
 Scenes, menus, vendors, vehicles and state 0x81 keep them.
 
-**The strafe**, in [src/lock_strafe.c](src/lock_strafe.c), in the run
+**The strafe**, in [src/lock_strafe.cpp](src/lock_strafe.cpp), in the run
 (states 2 and 0x73), the jump (7) and standing (0), on level ground:
 `Hero_TurnToHeading` eases the facing toward the camera's yaw, and while
 Hold's swing lasts toward the facing latched when L2 or R2 went down;
@@ -138,4 +138,5 @@ took mods as plugins (docs/port/MODS.md); with the mod off, the game is the
 console's. Its history in OpenRAC: `d5fe4f64` (the first lock-strafe, PAL and
 US), `e67d5a80` and `0ca783b9` (Hold L2-R2 and Lock with weapons), `17a034ea`
 (Hold follows the camera after its swing), `81e687b2` (the walk or run played
-backwards while strafing back).
+backwards while strafing back). It was written in C on the interface's table at first, and
+is now the SDK's reference C++ mod (openrac/mod.hpp), with the same behaviour and tests.

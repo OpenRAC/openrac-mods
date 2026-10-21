@@ -37,7 +37,7 @@ sources you trust.
 
 ## Building
 
-You need CMake 3.20 or newer, a C compiler (Clang, GCC or MSVC), Ninja
+You need CMake 3.20 or newer, a C and C++17 compiler (Clang, GCC or MSVC), Ninja
 (optional) and Python 3. No copy of OpenRAC: the mods build against the
 released [mod SDK](https://github.com/OpenRAC/OpenRAC/blob/master/sdk/README.md)
 (the headers, the CMake package and the packaging script), the version and

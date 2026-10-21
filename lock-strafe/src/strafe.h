@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (c) 2026 the OpenRAC contributors
  *
- * Ratchet & Clank: the strafe decision (the lock-strafe mod, lock_strafe.c), apart from game memory
+ * Ratchet & Clank: the strafe decision (the lock-strafe mod, lock_strafe.cpp), apart from game memory
  * so that a test can run it (tests/hero_strafe_test.c). Moved from OpenRAC's port/game/rac1/host.
  *
  * How the game turns the stick into a heading. Each tick the hero's state code calls the stick
@@ -23,7 +23,7 @@
  * On foot the game gives the shoulder buttons in pairs: L1 or L2 looks in first person (state 1,
  * from standing: held & 5), R1 or R2 crouches (held & 0xA: the crouch, the crouch-jumps, the
  * slide from a run). With the setting on, in play on foot, the game sees L2 and R2 as not held
- * (lock_strafe.c takes them out of the pad's state at each report, as the game's own input locks take
+ * (lock_strafe.cpp takes them out of the pad's state at each report, as the game's own input locks take
  * buttons out), so L1 still looks and R1 still crouches, and L2 and R2 strafe. State 0x81 keeps
  * them: it has its strafe of its own on them. Scenes, menus, vendors and vehicles keep them too.
  *
@@ -90,7 +90,7 @@ typedef struct rac1_strafe_input {
     int vehicle_mode; /* hero +0x20A4: 0 on foot */
     int slot_state;   /* hero +0x1090 + 0x24: slot 0's state */
     int slot_item;    /* hero +0x1090 + 0x28: slot 0's item */
-    uint32_t held;    /* the pad's buttons as the player holds them (+0x1A0, L2 and R2 from before lock_strafe.c takes them) */
+    uint32_t held;    /* the pad's buttons as the player holds them (+0x1A0, L2 and R2 from before lock_strafe.cpp takes them) */
     float facing;     /* hero +0x98 */
     float camera;     /* the camera's yaw (D_L00_00166ED8) */
     float look_x;     /* the right stick sideways (PadState.analog[0], +0x100) */
@@ -213,7 +213,7 @@ static inline float rac1_strafe_planar_angle(int kind, float requested, float mo
     return kind != RAC1_STRAFE_NONE && !(requested <= 3.14159274f) ? move_yaw : requested;
 }
 
-/* Whether lock_strafe.c turns him toward the camera itself early in the hero's update: standing, where
+/* Whether lock_strafe.cpp turns him toward the camera itself early in the hero's update: standing, where
  * the game's standing state does not turn him, in Lock and in Hold once its swing is done. */
 static inline int rac1_strafe_turns_standing(int kind, int state, const rac1_strafe_hold* hold) {
     return state == RAC1_STRAFE_STATE_STAND
@@ -226,14 +226,14 @@ static inline int rac1_strafe_turns_standing(int kind, int state, const rac1_str
  * (func_L00_00232EF0) moving it on by that speed times the key's rate (+0xA94). That advance only
  * goes forward (a negative speed would leave the blend below 0, never stepping a key back, unlike
  * the advance other mobys get from their +0x58), so while he strafes away from where he faces,
- * lock_strafe.c steps the walk or the run back itself and the advance adds nothing more: the cycle
+ * lock_strafe.cpp steps the walk or the run back itself and the advance adds nothing more: the cycle
  * plays backwards, at the speed the game chose. It starts with the move yaw more than 110 degrees
  * from his facing and stops under 100 (no flicker at the edge). */
 #define RAC1_STRAFE_SEQ_WALK 3
 #define RAC1_STRAFE_SEQ_RUN 4
 #define RAC1_STRAFE_BACK_ENTER 1.91986218f /* 110 degrees */
 #define RAC1_STRAFE_BACK_LEAVE 1.74532926f /* 100 degrees */
-/* The highest blend lock_strafe.c leaves: the advance takes one from 0.99 up as 1 and steps forward. */
+/* The highest blend lock_strafe.cpp leaves: the advance takes one from 0.99 up as 1 and steps forward. */
 #define RAC1_STRAFE_BACK_TOP 0.985f
 
 /* Whether he backpedals this tick (was: last tick's answer). */
