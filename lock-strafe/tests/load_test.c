@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
     memset(&info, 0, sizeof info);
     info.size = sizeof info;
     query(&info);
-    CHECK(info.api_major == 1 && info.api_minor == 0);
+    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == OPENRAC_MOD_API_MINOR);
     CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.0.0") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
