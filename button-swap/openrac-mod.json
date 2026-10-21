@@ -1,0 +1,29 @@
+{
+  "format": 2,
+  "id": "button-swap",
+  "name": "Button swap",
+  "version": "1.0.0",
+  "author": "OpenRAC contributors",
+  "description": "Swaps two of the controller's buttons for the game: Cross and Square, Circle and Triangle, or L1 and R1.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/rac1-mods",
+  "type": "script",
+  "api": "1.1",
+  "scripts": ["main.luau"],
+  "games": { "rac1": ["pal", "ntsc"] },
+  "hooks": [],
+  "settings": [
+    {
+      "key": "pair",
+      "name": "Swap",
+      "type": "choice",
+      "default": "cross-square",
+      "choices": [
+        { "value": "cross-square", "name": "Cross and Square" },
+        { "value": "circle-triangle", "name": "Circle and Triangle" },
+        { "value": "l1-r1", "name": "L1 and R1" }
+      ],
+      "description": "The two buttons that trade places, for both controllers."
+    }
+  ]
+}
