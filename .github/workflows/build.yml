@@ -1,0 +1,166 @@
+# Every mod built and tested for Windows, Linux and macOS, each platform's build packaged
+# (OpenRAC's sdk/tools/package_mod.py), and the platforms joined into one archive per mod,
+# <id>-<version>.zip, which the OpenRAC launcher's Mods tab installs. All are the run's artifacts
+# (Actions, the run, "Artifacts"). A tag `v*` also puts the joined archives on a draft release of
+# that name, to be looked over and published by hand.
+#
+# The SDK is the OpenRAC release sdk.lock pins (tools/fetch_sdk.py downloads it and checks its
+# SHA-256), as a modder without a copy of OpenRAC builds them.
+#
+# One job per system, a row of the `build` matrix. The libraries are not signed.
+#
+# Every action is pinned to a commit, as in OpenRAC.
+name: build
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Visual Studio's compiler, x64, through its own generator (no environment to set up).
+          - name: windows-x86_64
+            os: windows-latest
+            configure: -G "Visual Studio 17 2022" -A x64
+            config: Release
+          # Ubuntu 22.04, the oldest the runners offer: a library built here needs glibc 2.35 or
+          # later, what the launcher's Linux game needs too.
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            configure: -G Ninja -DCMAKE_BUILD_TYPE=Release
+            config: Release
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+            configure: -G Ninja -DCMAKE_BUILD_TYPE=Release
+            config: Release
+          # Apple silicon, and Intel cross-built on the same runner (one architecture per build).
+          - name: macos-arm64
+            os: macos-latest
+            configure: -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+            config: Release
+          - name: macos-x86_64
+            os: macos-latest
+            configure: -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+            config: Release
+            # An Intel build's tests cannot run on an Apple silicon runner without Rosetta.
+            skip_tests: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: The SDK sdk.lock pins
+        run: echo "SDK=$(python tools/fetch_sdk.py)" >> "$GITHUB_ENV"
+      - name: Configure
+        run: cmake -S . -B build ${{ matrix.configure }} 
+      - name: Build
+        run: cmake --build build --config ${{ matrix.config }} --parallel
+      - name: Test
+        if: ${{ !matrix.skip_tests }}
+        run: ctest --test-dir build -C ${{ matrix.config }} --output-on-failure
+      - name: Package
+        run: |
+          # Each mod's folder as openrac_add_mod laid it out, checked and zipped for this platform.
+          python "$SDK/tools/package_mod.py" build/package/* -o dist
+          ls -l dist
+          for zip in dist/*.zip; do
+            case "$zip" in
+              *-"$NAME".zip) ;;
+              *) echo "::error::$zip is not for $NAME"; exit 1 ;;
+            esac
+          done
+        env:
+          NAME: ${{ matrix.name }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mods-${{ matrix.name }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  # Each mod's archives of every platform joined into one, <id>-<version>.zip.
+  merge:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: The SDK sdk.lock pins
+        run: echo "SDK=$(python tools/fetch_sdk.py)" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: mods-*
+          path: platforms
+          merge-multiple: true
+      - name: Join the platforms
+        run: |
+          mkdir -p dist
+          # <id>-<version>-<platform>.zip: the platform is the last two words, the rest the mod.
+          for mod in $(ls platforms/*.zip | sed -E 's#.*/(.*)-[a-z]+-[a-z0-9_]+\.zip#\1#' | sort -u); do
+            python "$SDK/tools/package_mod.py" --merge platforms/"$mod"-*.zip -o dist/"$mod".zip
+          done
+          ls -l dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mods
+          path: dist/*.zip
+          if-no-files-found: error
+
+  # A tag `v*`: the joined archives on a draft release. Nothing is published until someone
+  # publishes the draft.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: merge
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mods
+          path: dist
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          printf 'Mods built by the build workflow from %s, against the OpenRAC mod SDK %s.\n' \
+            "$GITHUB_SHA" "$(python3 -c 'import json; print(json.load(open("sdk.lock"))["version"])')" > notes.md
+          gh release create "$TAG" --draft --title "$TAG" --notes-file notes.md dist/*.zip
