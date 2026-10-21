@@ -121,4 +121,7 @@ repository.
 
 ## License
 
-GPL-3.0-or-later, as OpenRAC ([LICENSE](LICENSE)).
+The mods here are GPL-3.0-or-later, as OpenRAC's port ([LICENSE](LICENSE)).
+The OpenRAC mod SDK they are built with is MIT, so mods elsewhere may choose
+their own license; `tools/fetch_sdk.py` and `.github/workflows/build.yml` are
+the SDK's files and keep its MIT notice.
