@@ -9,6 +9,7 @@ PlayStation 2 game does.
 | Mod | What it does | Discs |
 |---|---|---|
 | [lock-strafe](lock-strafe/README.md) | Strafe as in the later games: Up Your Arsenal's lock-strafe with weapons that fire ahead, Going Commando's strafe while L2 or R2 is held | PAL, NTSC-U |
+| [item-randomizer](item-randomizer/README.md) | Shuffles the gadgets, weapons, vendor stock, gold bolts and infobots, with logic so every seed can be finished; seed codes to share, a spoiler log | PAL, NTSC-U |
 
 ## Installing a mod
 
