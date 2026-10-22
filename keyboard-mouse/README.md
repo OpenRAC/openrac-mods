@@ -54,6 +54,9 @@ In menus, scenes and movies the same keys do what you'd expect there:
 | | Escape, Backspace or right click | back (Triangle); at the top of the pause menu this closes it |
 | | Tab or M | close the pause menu (Select) |
 | | Left Ctrl or C, V | R1 and L1: the next or previous slot or planet where a page uses them |
+| | E | Circle, where a page reads it: the Quit page's quit, a setting stepped back |
+| The map (ship's or pause menu's) | Enter or left click | travel to the planet shown (Circle) |
+| | Space | the map's next page (Cross) |
 | "Quit?" questions | Enter, Space or left click | Cross (what the game shows as Cross) |
 | | Escape | go on playing |
 | | Backspace or right click | Triangle (what the game shows as Triangle) |

@@ -57,6 +57,7 @@ enum class Action : int {
     MenuDown,
     MenuLeft,
     MenuRight,
+    MenuCircle,
     Count,
 };
 inline constexpr int kActionCount = static_cast<int>(Action::Count);
@@ -107,6 +108,7 @@ inline constexpr std::array<ActionInfo, kActionCount> kActions = {{
     {"menu_down", "ArrowDown,WheelDown", Group::Menu},
     {"menu_left", "ArrowLeft", Group::Menu},
     {"menu_right", "ArrowRight", Group::Menu},
+    {"menu_circle", "KeyE", Group::Menu},
 }};
 
 inline constexpr int kMaxBinds = 2;
@@ -507,8 +509,10 @@ inline constexpr int kDialogQuitRace = 0;
 // Backspace, right click) Triangle, except where that would quit: in a "Quit?" dialog, Escape goes
 // on (Cross), and only Backspace or right click is Triangle; in a scene, a movie, the ship or a
 // slideshow, every one of them is Start (and Cross for the ship's landing and take-off), which
-// skips. The directions are not here: the stick and the d-pad come apart (step()).
-inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind) {
+// skips. On the map (map_screen) confirm is Circle, which travels. Menus' own Circle (the quit
+// page's quit, a cycled value's step back) has a bind of its own. The directions are not here: the
+// stick and the d-pad come apart (step()).
+inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind, bool map_screen = false) {
     const auto on = [&](Action a) { return (held & bit(a)) != 0; };
     const bool confirm = on(Action::Jump) || on(Action::MenuConfirm);
     const bool back = on(Action::MenuBack);
@@ -535,7 +539,15 @@ inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind) {
             break;
         case Context::Menu:
         case Context::Vendor:
-            set(confirm, kCross);
+            if (map_screen) {
+                // The map (the ship's and the pause menu's): Circle goes to the planet shown,
+                // Cross turns the page; so confirm (Enter, a click) travels and Space turns.
+                set(on(Action::MenuConfirm), kCircle);
+                set(on(Action::Jump), kCross);
+            } else {
+                set(confirm, kCross);
+            }
+            set(on(Action::MenuCircle), kCircle);  // Circle where a page reads it (quit, a value back)
             set(back || escape, kTriangle);
             set(on(Action::Fire), kCircle);  // the map's Circle: go to the planet
             set(on(Action::Wrench), kSquare);

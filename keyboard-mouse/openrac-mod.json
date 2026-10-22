@@ -2,7 +2,7 @@
   "format": 2,
   "id": "keyboard-mouse",
   "name": "Keyboard and mouse",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "OpenRAC contributors",
   "description": "Plays Ratchet & Clank with a keyboard and mouse: WASD moves, the mouse aims the camera, left click fires, holding right click opens the Quick Select and the mouse picks its slot, Space jumps, Escape pauses, the number keys and the wheel change weapons. In menus the arrows and WASD move, Enter or Space confirm, Escape or Backspace go back, and the mouse points, clicks and scrolls; Space, Enter or Escape skip scenes and movies. Every action can be bound to any key, mouse button or wheel direction, two binds each, with Left-handed and Arrow keys presets. A gamepad keeps working beside it.",
   "license": "GPL-3.0-or-later",
@@ -298,7 +298,7 @@
       "type": "keybind",
       "default": "Enter,MouseLeft",
       "group": "menu",
-      "description": "Cross in menus and dialogs; Space does it too. Skips a scene or a movie."
+      "description": "Cross in menus and dialogs (Space does it too); on the map it travels (Circle). Skips a scene or a movie."
     },
     {
       "key": "menu_back",
@@ -336,6 +336,14 @@
       "type": "keybind",
       "default": "ArrowRight",
       "group": "menu"
+    },
+    {
+      "key": "menu_circle",
+      "name": "Menu: Circle",
+      "type": "keybind",
+      "default": "KeyE",
+      "group": "menu",
+      "description": "Circle in menus, where a page reads it: the Quit page's quit, a value stepped back. On the map, Enter and a click already travel."
     }
   ],
   "presets": [

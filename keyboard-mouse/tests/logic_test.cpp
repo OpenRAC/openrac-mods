@@ -307,7 +307,20 @@ void buttons() {
         CHECK(b(c, {Action::Pause}) == kbm::kTriangle);
         CHECK(b(c, {Action::Map}) == kbm::kSelect);
         CHECK(b(c, {Action::Crouch, Action::FirstPerson}) == (kbm::kR1 | kbm::kL1));
+        CHECK(b(c, {Action::MenuCircle}) == kbm::kCircle);
     }
+    // The map: Enter and a click travel (Circle), Space turns the page (Cross).
+    const auto map = [](std::initializer_list<Action> actions) {
+        kbm::ActionSet set = 0;
+        for (Action a : actions) {
+            set |= kbm::bit(a);
+        }
+        return kbm::buttons_for(Context::Menu, set, -1, true);
+    };
+    CHECK(map({Action::MenuConfirm}) == kbm::kCircle);
+    CHECK(map({Action::Jump}) == kbm::kCross);
+    CHECK(map({Action::Pause}) == kbm::kTriangle && map({Action::MenuBack}) == kbm::kTriangle);
+    CHECK(b(Context::Play, {Action::MenuCircle}) == 0);
     // Dialogs: "Quit?" (1, 4): Escape goes on (Cross), Backspace quits (Triangle); "Quit race?" (0):
     // Escape goes on (Start), Backspace Circle; a message: confirm Cross, back Triangle.
     for (int kind : {1, 4}) {

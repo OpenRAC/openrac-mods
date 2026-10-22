@@ -329,6 +329,15 @@ void step(const openrac_input* in, std::uint16_t pad_buttons) {
         s_click_wait = 0;
     }
 
+    // The map is focused: its handler (the widget's update or draw) is DrawMapScreen.
+    bool map = false;
+    if (t.where == Context::Menu) {
+        const gaddr page = menu_page();
+        const gaddr focused = page != 0 ? read<std::uint32_t>(page + KBM_PAGE_FOCUS) : 0;
+        map = plausible(focused)
+              && (read<std::uint32_t>(focused) == s_disc->map_screen || read<std::uint32_t>(focused + 4u) == s_disc->map_screen);
+    }
+
     kbm::Virtual v;
     // A click on a menu item not yet focused waits for the focus; then it confirms.
     const bool click = t.pointer && (held & kbm::bit(Action::MenuConfirm)) != 0
@@ -337,10 +346,10 @@ void step(const openrac_input* in, std::uint16_t pad_buttons) {
         if (!menu_mouse(t, click)) {
             held &= ~kbm::bit(Action::MenuConfirm);
             s_click_wait = 4;
-            s_click_button = kbm::buttons_for(t.where, kbm::bit(Action::MenuConfirm), dialog_kind);
+            s_click_button = kbm::buttons_for(t.where, kbm::bit(Action::MenuConfirm), dialog_kind, map);
         }
     }
-    v.held = kbm::buttons_for(t.where, held, dialog_kind);
+    v.held = kbm::buttons_for(t.where, held, dialog_kind, map);
     if (s_click_wait > 0 && --s_click_wait == 0) {
         s_pulses.push(s_click_button);
     }
@@ -510,4 +519,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("keyboard-mouse", "1.1.0", load)
+OPENRAC_MOD_CPP("keyboard-mouse", "1.1.1", load)

@@ -484,6 +484,41 @@ void run(const char* library) {
             crossed = read_pad().held(kbm::kCross);
         }
         CHECK(crossed);
+        // The map focused (its handler DrawMapScreen): Enter and a click travel (Circle), Space
+        // turns the page (Cross), Escape goes back; E is Circle on any page.
+        at<std::uint32_t>(w1 + 4u) = d.map_screen;
+        tick();
+        g_input.captured = 0;
+        read_pad();
+        tick();
+        g_input.captured = 0;
+        press(40);
+        r = read_pad();
+        CHECK(r.held(kbm::kCircle) && !r.held(kbm::kCross));
+        tick();
+        g_input.captured = 0;
+        press(44);
+        r = read_pad();
+        CHECK(r.held(kbm::kCross) && !r.held(kbm::kCircle));
+        tick();
+        g_input.captured = 0;
+        g_input.pointer_inside = 1;
+        g_input.mouse_held = g_input.mouse_pressed = OPENRAC_MOUSE_LEFT;
+        r = read_pad();
+        CHECK(r.held(kbm::kCircle));
+        tick();
+        r = read_pad();
+        tick();
+        press(41);
+        r = read_pad();
+        CHECK(r.held(kbm::kTriangle));
+        at<std::uint32_t>(w1 + 4u) = 0;
+        tick();
+        r = read_pad();
+        tick();
+        press(8);  // E
+        r = read_pad();
+        CHECK(r.held(kbm::kCircle) && !r.held(kbm::kCross));
         at<std::uint32_t>(menus + 4u) = 0;
     }
 
