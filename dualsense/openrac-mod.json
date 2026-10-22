@@ -1,0 +1,261 @@
+{
+  "format": 2,
+  "id": "dualsense",
+  "name": "DualSense",
+  "version": "1.0.0",
+  "author": "OpenRAC contributors",
+  "description": "Gives a PlayStation 5 DualSense what the PlayStation 2 never had: its touchpad, its microphone button and the DualSense Edge's paddles become extra PlayStation 2 buttons, its light bar shows Ratchet's health, and the controller vibrates when Ratchet is hit, hits something, breaks a crate, picks something up or finds a gold bolt. The game itself asks for no vibration, so the one here is the mod's own.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/dualsense",
+  "api": "1.3",
+  "games": {
+    "rac1": [
+      "pal",
+      "ntsc"
+    ]
+  },
+  "hooks": [
+    "rac1.player.take_damage",
+    "rac1.combat.get_hit",
+    "rac1.moby.record_death",
+    "rac1.item.give",
+    "rac1.gold_bolt.count_collected"
+  ],
+  "settings": [
+    {
+      "key": "touchpad",
+      "name": "Touchpad click",
+      "type": "choice",
+      "default": "circle",
+      "choices": [
+        {
+          "value": "none",
+          "name": "Nothing"
+        },
+        {
+          "value": "cross",
+          "name": "Cross (jump)"
+        },
+        {
+          "value": "square",
+          "name": "Square (the wrench)"
+        },
+        {
+          "value": "circle",
+          "name": "Circle (the gadget)"
+        },
+        {
+          "value": "triangle",
+          "name": "Triangle (the Quick Select)"
+        },
+        {
+          "value": "l1",
+          "name": "L1"
+        },
+        {
+          "value": "r1",
+          "name": "R1"
+        },
+        {
+          "value": "l2",
+          "name": "L2"
+        },
+        {
+          "value": "r2",
+          "name": "R2"
+        },
+        {
+          "value": "select",
+          "name": "Select"
+        },
+        {
+          "value": "start",
+          "name": "Start"
+        }
+      ],
+      "description": "What the touchpad's click does. Circle by default: the gadget fires, as it does with the button."
+    },
+    {
+      "key": "left_paddle",
+      "name": "Left paddle",
+      "type": "choice",
+      "default": "triangle",
+      "choices": [
+        {
+          "value": "none",
+          "name": "Nothing"
+        },
+        {
+          "value": "cross",
+          "name": "Cross (jump)"
+        },
+        {
+          "value": "square",
+          "name": "Square (the wrench)"
+        },
+        {
+          "value": "circle",
+          "name": "Circle (the gadget)"
+        },
+        {
+          "value": "triangle",
+          "name": "Triangle (the Quick Select)"
+        },
+        {
+          "value": "l1",
+          "name": "L1"
+        },
+        {
+          "value": "r1",
+          "name": "R1"
+        },
+        {
+          "value": "l2",
+          "name": "L2"
+        },
+        {
+          "value": "r2",
+          "name": "R2"
+        },
+        {
+          "value": "select",
+          "name": "Select"
+        },
+        {
+          "value": "start",
+          "name": "Start"
+        }
+      ],
+      "description": "What the DualSense Edge's left paddle does. Triangle by default: the Quick Select opens without lifting the thumb off the stick. Only a DualSense Edge has paddles."
+    },
+    {
+      "key": "right_paddle",
+      "name": "Right paddle",
+      "type": "choice",
+      "default": "square",
+      "choices": [
+        {
+          "value": "none",
+          "name": "Nothing"
+        },
+        {
+          "value": "cross",
+          "name": "Cross (jump)"
+        },
+        {
+          "value": "square",
+          "name": "Square (the wrench)"
+        },
+        {
+          "value": "circle",
+          "name": "Circle (the gadget)"
+        },
+        {
+          "value": "triangle",
+          "name": "Triangle (the Quick Select)"
+        },
+        {
+          "value": "l1",
+          "name": "L1"
+        },
+        {
+          "value": "r1",
+          "name": "R1"
+        },
+        {
+          "value": "l2",
+          "name": "L2"
+        },
+        {
+          "value": "r2",
+          "name": "R2"
+        },
+        {
+          "value": "select",
+          "name": "Select"
+        },
+        {
+          "value": "start",
+          "name": "Start"
+        }
+      ],
+      "description": "What the DualSense Edge's right paddle does. Square by default: the wrench swings, and the hoverboard boosts. Only a DualSense Edge has paddles."
+    },
+    {
+      "key": "microphone",
+      "name": "Microphone button",
+      "type": "choice",
+      "default": "none",
+      "choices": [
+        {
+          "value": "none",
+          "name": "Nothing"
+        },
+        {
+          "value": "cross",
+          "name": "Cross (jump)"
+        },
+        {
+          "value": "square",
+          "name": "Square (the wrench)"
+        },
+        {
+          "value": "circle",
+          "name": "Circle (the gadget)"
+        },
+        {
+          "value": "triangle",
+          "name": "Triangle (the Quick Select)"
+        },
+        {
+          "value": "l1",
+          "name": "L1"
+        },
+        {
+          "value": "r1",
+          "name": "R1"
+        },
+        {
+          "value": "l2",
+          "name": "L2"
+        },
+        {
+          "value": "r2",
+          "name": "R2"
+        },
+        {
+          "value": "select",
+          "name": "Select"
+        },
+        {
+          "value": "start",
+          "name": "Start"
+        }
+      ],
+      "description": "What the microphone button does. Nothing by default: L1 and R1 are read by the game as part of the free-look and crouch chords, so they are left alone."
+    },
+    {
+      "key": "vibration",
+      "name": "Vibration",
+      "type": "bool",
+      "default": true,
+      "description": "Whether the controller vibrates. The game asks for no vibration of its own, so this is the mod's own."
+    },
+    {
+      "key": "strength",
+      "name": "Vibration strength",
+      "type": "int",
+      "default": 100,
+      "min": 0,
+      "max": 100,
+      "description": "How hard the controller vibrates, in percent."
+    },
+    {
+      "key": "light_bar",
+      "name": "Light bar",
+      "type": "bool",
+      "default": true,
+      "description": "Whether the light bar shows Ratchet's health: green when he is well, red when he is nearly out. It flashes white when a gold bolt is found."
+    }
+  ]
+}
