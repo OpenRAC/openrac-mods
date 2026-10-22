@@ -19,6 +19,7 @@ section 11):
 | [lock-strafe](lock-strafe/README.md) | native | Strafe as in the later games: Up Your Arsenal's lock-strafe with weapons that fire ahead, Going Commando's strafe while L2 or R2 is held | PAL, NTSC-U |
 | [button-swap](button-swap/README.md) | script | Swaps two buttons: Cross and Square, Circle and Triangle, or L1 and R1 | PAL, NTSC-U |
 | [item-randomizer](item-randomizer/README.md) | native | Shuffles the gadgets, weapons, vendor stock, gold bolts and infobots, with logic so every seed can be finished; seed codes to share, a spoiler log | PAL, NTSC-U |
+| [difficulty](difficulty-mod/README.md) | native | A slider for everything: enemy count, damage both ways, enemy and Ratchet speed, weapon and ammo prices, ammo per shot, max ammo, bolt drops, health; presets Easy, Retail, Hard, Brutal and a seeded Chaos | PAL, NTSC-U |
 
 ## Installing a mod
 
