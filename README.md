@@ -22,7 +22,7 @@ section 11):
 | [item-randomizer](item-randomizer/README.md) | native | Shuffles the gadgets, weapons, vendor stock, gold bolts and infobots, with logic so every seed can be finished; seed codes to share, a spoiler log | PAL, NTSC-U |
 | [difficulty](difficulty-mod/README.md) | native | A slider for everything: enemy count, damage both ways, enemy and Ratchet speed, weapon and ammo prices, ammo per shot, max ammo, bolt drops, health; presets Easy, Retail, Hard, Brutal and a seeded Chaos | PAL, NTSC-U |
 | [live-splits](live-splits/README.md) | native | Splits a LiveSplit timer as the player goes from planet to planet: the mod talks to LiveSplit's own server and splits at every planet, so a speedrunner does not touch the timer | PAL, NTSC-U |
-| [dualsense](dualsense/README.md) | native | A PlayStation 5 DualSense's own buttons as extra PlayStation 2 buttons (the touchpad, the microphone button, the DualSense Edge's paddles), its light bar showing Ratchet's health, and a vibration when Ratchet is hit, hits something, breaks a crate, picks something up or finds a gold bolt | PAL, NTSC-U |
+| [dualsense](dualsense/README.md) | native | A PlayStation 5 DualSense's own buttons as extra PlayStation 2 buttons (the touchpad, the microphone button, the DualSense Edge's paddles), its light bar showing Ratchet's health, a vibration when Ratchet is hit, hits something, breaks a crate, picks something up or finds a gold bolt, and a feel of its own for each weapon in the motors | PAL, NTSC-U |
 
 ## Installing a mod
 

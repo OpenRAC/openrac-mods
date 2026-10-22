@@ -11,6 +11,11 @@ native port of Ratchet & Clank (PAL and NTSC-U).
   is nearly out, a white flash when a gold bolt is found.
 - **The controller vibrates** when Ratchet is hit, hits something, breaks a
   crate, picks something up or finds a gold bolt.
+- **Each weapon has its own feel in the motors**: a heavy click for the Walloper
+  and the Devastator, a lighter click for the Bomb Glove, the Visibomb Gun and
+  the gloves, a kick for the Blaster, a buzz for the R.Y.N.O., a hum for the
+  Pyrocitor and a steady rumble for the Suck Cannon. The game asks for none of
+  it, so it is the mod's own.
 
 The mod refuses to load when no DualSense is connected, and says so.
 
@@ -121,11 +126,20 @@ the game does:
 | [src/ps2_pad.cpp](src/ps2_pad.cpp), [src/ps2_pad.hpp](src/ps2_pad.hpp) | The PlayStation 2's buttons and the report the game reads |
 | [src/rumble.cpp](src/rumble.cpp), [src/rumble.hpp](src/rumble.hpp) | The vibration: the envelope and the strengths the motors take |
 | [src/weapons.cpp](src/weapons.cpp), [src/weapons.hpp](src/weapons.hpp) | The weapons' feels, and what the game is doing with them |
+| [src/game_state.hpp](src/game_state.hpp) | The hero's fields and where they are: the offsets, the PAL and NTSC-U bases, and the guard that keeps a pointer outside the game's RAM from being followed |
 
 The controller is reached through **SDL3**, which the port already uses for
 the pad. The mod links its own copy of SDL3, so it works with a port that has
 SDL3 built in (the `standalone` preset, what the launcher ships) and with one
 that uses the system's.
+
+The mod reads the hero and the equipped weapon through the game's own
+structure: the hero's base plus the offsets in `hero.h`, the same addresses the
+port's host code and script binding use. The weapon slot's `moby` is a pointer
+the game writes, so before following it to the weapon's counters the mod checks
+that it — and the bytes after it — are inside the guest's 32 MB of RAM. A slot
+the game has not filled yet is skipped, not followed: that is what the RAM
+guard in [src/game_state.hpp](src/game_state.hpp) is for.
 
 The extra buttons are written into the report the game reads, through the
 port's pad report hook (`rac1.pad.process_report`). The report is **active
@@ -161,7 +175,8 @@ ctest --test-dir build -R dualsense
 ```
 
 - **logic**: the vibration's envelope and the strengths it gives the motors, the
-  buttons and the report they are written into;
+  buttons and the report they are written into, the hero addresses on both discs,
+  and the RAM guard;
 - **weapons**: the weapons' feels, and the rule that says whether a weapon is
   firing and whether a shot just went off;
 - **load**: the library as the port loads it, against a host table of the
@@ -169,7 +184,7 @@ ctest --test-dir build -R dualsense
   another disc, takes the hooks, and refuses with a reason when no DualSense
   is connected.
 
-Two more, for a machine that has a controller attached:
+Three more, for a machine that has a controller attached:
 
 ```sh
 ./build/dualsense/dualsense_probe        # what the controller reports
@@ -184,17 +199,19 @@ On a **DualSense Wireless Controller** (USB, `054c:0ce6`, firmware 1584):
 | | |
 |---|---|
 | SDL3 sees it | type **PS5**, vendor `054c`, product `0ce6` |
-| The touchpad's click | there, and SDL reads it |
+| The touchpad's click | there, SDL reads it, and a press reached Circle in the game |
 | The microphone button | there, and SDL reads it |
 | The Edge's paddles | not on this controller, as expected: it is not an Edge. The binding then never fires, and nothing else changes |
 | The light bar | the controller takes the colour (`SDL_SetGamepadLED` succeeds) |
 | The motors | the controller takes the vibration (`SDL_RumbleGamepad` succeeds) |
 | Two copies of SDL3 | the mod's own copy finds the controller while the port's copy holds it open, and the port's copy still works afterwards |
 
-The button *presses* were not exercised: the machine the mod was written on had
-no one at the controller. The wiring that carries them — the report the mod
-writes into, and the bit each button is read from — is covered by the logic
-test.
+The touchpad's click was exercised in the game: with it bound to Circle, the
+press reached the game as Circle. The microphone button and the Edge's paddles
+were not pressed — there is no Edge on this machine, and the microphone button
+is bound to nothing by default. The wiring that carries any of them — the report
+the mod writes into, and the bit each button is read from — is covered by the
+logic test.
 
 ## What it does not do
 
