@@ -1,0 +1,171 @@
+# The difficulty mod's moby classes: what it does with each (README.md, "Which mobys count as enemies").
+# tools/gen_classes.py writes src/classes.h from this table and the SDK's behaviour catalogue
+# (catalogue/rac1/classes.json); tests/classes_test.cpp checks that every catalogue class whose name
+# says enemy, turret, mine, boss, ship or thief is here.
+#
+# role:
+#   enemy     copied (Enemy count above 1), dropped (below 1), sped up or slowed, hit harder or softer
+#   roamer    dropped, sped up or slowed, hit harder or softer; never copied (the reason says why)
+#   turret    sped up or slowed (aim and fire rate), hit harder or softer; never copied or dropped
+#   boss      hit harder or softer only
+#   excluded  left as the game has it (the reason says why)
+#
+# id	role	name	reason
+28	enemy	plasmabot	-
+211	enemy	plasmabot	-
+31	enemy	minibomber	-
+35	enemy	sharkigator	-
+1059	enemy	sharkigator	-
+44	enemy	sentrybot	-
+52	enemy	seeker	-
+63	enemy	robosquawker	-
+123	enemy	spiderbot	-
+133	enemy	amoeboid	-
+572	enemy	large_amoeboid	-
+865	enemy	medium_amoeboid	-
+866	enemy	small_amoeboid	-
+217	enemy	big_axebot	-
+252	enemy	scoutbot	-
+294	enemy	blarg_trooper	-
+427	enemy	blarg_trooper	-
+333	enemy	blarg_bombthrower	-
+340	enemy	circular_saw_enemy	-
+459	enemy	birdbot	-
+563	enemy	woodcut_bot	-
+573	enemy	robot_dog	-
+1382	enemy	robot_dog	-
+577	enemy	peckbot	-
+578	enemy	mine_layer	-
+580	enemy	sand_shark	-
+623	enemy	extermibot	-
+625	enemy	extermitank	-
+638	enemy	blarg_elite_commando	-
+749	enemy	horny_toad	-
+1048	enemy	alien_snapper	-
+1068	enemy	blarg_space_commando	-
+1262	enemy	blarg_space_commando	-
+1196	enemy	screamer	-
+1202	enemy	toxic_crab	-
+1231	enemy	psytcopus	-
+1246	enemy	puffoid	-
+1371	enemy	blarg_commander	-
+1445	enemy	chomper	-
+1564	roamer	pterodactyl	flies a path: copies would fly inside the original
+1023	roamer	blarg_paratrooper	drops in from a ship on a script's cue: copies would land at once, before the cue
+253	roamer	bomber_tank	a vehicle the size of a building: a copy beside it would sit inside a wall or the original
+631	roamer	blarg_helicopter	flies a path: copies would fly inside the original
+326	roamer	blarg_helicopter	flies a path: copies would fly inside the original
+29	turret	blarg_turret	fixed to the level: a copy would hang in the air beside it
+30	turret	machinegun_turret	fixed to the level
+1126	turret	machinegun_turret	fixed to the level
+36	turret	blarg_gunner	a gun emplacement (its update is the gem lock turret's)
+344	turret	blarg_gun	fixed to the level
+347	turret	dreks_fleet_turret	fixed to the ship
+1201	turret	turret	fixed to the level
+1267	turret	hoven_turret	fixed to the level
+1346	turret	gun	fixed to the level
+1051	boss	alien_queen	a boss
+1106	boss	snagglebeast	a boss
+1130	boss	commando	Batalia's boss
+1422	boss	drek_final_boss_robot	the last boss
+1454	boss	rocket_tank	a boss's vehicle on Veldin
+491	excluded	ultramech_unlimited	the Ultramech fight's scripted boss on Quartu: its timing is the fight's
+419	excluded	giant_clank	the player's own giant Clank
+1440	excluded	veldin_robot_enemy	its update is shared with the vendor's
+8	excluded	blarg_heavy_interceptor	space combat: the ship levels are left as they are
+1417	excluded	blarg_heavy_interceptor	space combat
+101	excluded	blarg_space_fighter	space combat
+111	excluded	blarg_space_fighter	space combat
+69	excluded	fighter_jet	space combat
+660	excluded	fighter_jet	space combat
+1379	excluded	fighter_jet	space combat
+1242	excluded	jet_fighter	the player's ship
+688	excluded	bomber_jet	space combat
+1229	excluded	blarg_ship	a ship of a scene or a space fight
+1319	excluded	blarg_ship	a ship of a scene or a space fight
+1805	excluded	blarg_ship	a ship of a scene or a space fight
+1843	excluded	blarg_ship	a ship of a scene or a space fight
+388	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+389	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+390	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+391	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+392	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+393	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+394	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+395	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+396	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+399	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+400	excluded	qwarks_starfighter_part	a part of Qwark's ship in his fight
+452	excluded	bolt_thief	a scripted chase: the bolts it steals are the level's
+923	excluded	bolt_thief	a scripted chase
+1401	excluded	bolt_thief	a scripted chase
+74	excluded	mine	a hazard laid out by the level, in patterns
+77	excluded	mine	a hazard laid out by the level
+83	excluded	mine	a hazard laid out by the level
+568	excluded	mine	a hazard laid out by the level
+627	excluded	mine	a hazard laid out by the level
+643	excluded	mine	a hazard laid out by the level
+933	excluded	mine	a hazard laid out by the level
+1112	excluded	mine	a hazard laid out by the level
+1269	excluded	mine	a hazard laid out by the level
+1110	excluded	homing_mine	no hook point for its update yet
+1281	excluded	homing_mine_spawner	a spawner: what it makes is the game's
+455	excluded	spawner	a spawner: it reuses its group's placed enemies as templates
+1885	excluded	spawner	a spawner
+1886	excluded	spawner_egg	a spawner's egg
+668	excluded	sand_shark_nest	a spawner
+755	excluded	sandshark_egg	a spawner's egg
+302	excluded	gadgebot_spawn_container	a spawner of helpers, not of enemies
+303	excluded	gadgebot_spawn_pad	a spawner of helpers
+351	excluded	gadgebot_telepot_pad	a helpers' pad
+857	excluded	gadgebot	a helper
+1906	excluded	gadgebot	a helper
+186	excluded	doom_bot	the player's Glove of Doom's bots
+479	excluded	drone	the player's Drone Device
+250	excluded	plasmabot_hatch	a hatch the plasmabots come out of
+408	excluded	sentrybot_alarm	the alarm the sentrybots answer
+1144	excluded	batalia_deserter	an NPC
+914	excluded	robot_qwark	scenery
+612	excluded	constructorbot	a worker, not known to attack
+1208	excluded	constructorbot	a worker, not known to attack
+282	excluded	miner	a worker, not known to attack
+437	excluded	sand_mouse	wildlife, harmless
+1818	excluded	sandmouse	wildlife, harmless
+604	excluded	sandmouse_house	scenery
+827	excluded	frog	wildlife, harmless
+492	excluded	bombthrower_grass	its update is the grass's and the plants'
+939	excluded	bombthrower_grass	a timed shooter hidden in the scenery
+1041	excluded	bombomatic	scripted
+1428	excluded	codebot	a helper
+1430	excluded	codebot_slot	a slot for a helper
+1434	excluded	deplanetizer_gun	the story's gun
+1568	excluded	deplanetizer_gun	the story's gun
+1301	excluded	bot_elevator	a lift
+1302	excluded	bot_door_lock	a door
+1933	excluded	robot_arm	scenery
+1934	excluded	robot_arm	scenery
+1663	excluded	robot_head	scenery
+1264	excluded	oil_tanker_front	scenery
+488	excluded	circular_saw_ship	Eudora's logging machinery
+490	excluded	chainsaw_ship	Eudora's logging machinery
+493	excluded	tank_ship	Eudora's logging machinery
+499	excluded	gun	its update is the butterflies'
+570	excluded	axe	its update is the butterflies'
+733	excluded	rocket_launcher	scenery
+735	excluded	rocket_door1	a door
+736	excluded	rocket_door2	a door
+1178	excluded	seesaw_platform	a platform
+233	excluded	helicopter	scenery or a ride
+336	excluded	helicopter	scenery or a ride
+480	excluded	grab_helicopter	a ride
+498	excluded	log_ship_carrier	Eudora's logging machinery
+555	excluded	log_ship_end	Eudora's logging machinery
+1181	excluded	airship_part	Gaspar's airship, scenery
+1182	excluded	airship_part	Gaspar's airship, scenery
+1183	excluded	airship_part	Gaspar's airship, scenery
+1184	excluded	airship_part	Gaspar's airship, scenery
+1185	excluded	airship_part	Gaspar's airship, scenery
+1186	excluded	airship_part	Gaspar's airship, scenery
+1187	excluded	airship_part	Gaspar's airship, scenery
+1188	excluded	airship_part	Gaspar's airship, scenery
+1189	excluded	airship_part	Gaspar's airship, scenery

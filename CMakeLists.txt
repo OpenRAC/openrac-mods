@@ -29,3 +29,4 @@ include(CTest)
 
 add_subdirectory(lock-strafe)
 add_subdirectory(item-randomizer)
+add_subdirectory(difficulty-mod)
