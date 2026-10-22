@@ -23,7 +23,7 @@ if(NOT OpenRACMod_DIR)
     endif()
   endif()
 endif()
-find_package(OpenRACMod 1.2 REQUIRED)
+find_package(OpenRACMod 1.3 REQUIRED)
 
 include(CTest)
 

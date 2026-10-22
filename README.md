@@ -72,8 +72,8 @@ python3 tools/fetch_sdk.py                                    # the pinned SDK, 
 cmake -S . -B build -G Ninja
 cmake --build build
 ctest --test-dir build                                        # each mod's tests
-python3 .sdk/openrac-mod-sdk-1.2.1/tools/package_mod.py build/package/* -o dist   # dist/<id>-<version>-<platform>.zip
-python3 .sdk/openrac-mod-sdk-1.2.1/tools/package_mod.py button-swap -o dist        # dist/button-swap-1.0.0.zip, a script mod
+python3 .sdk/openrac-mod-sdk-1.3.0/tools/package_mod.py build/package/* -o dist   # dist/<id>-<version>-<platform>.zip
+python3 .sdk/openrac-mod-sdk-1.3.0/tools/package_mod.py button-swap -o dist        # dist/button-swap-1.0.0.zip, a script mod
 ```
 
 To build against another SDK (a newer one, or `sdk/` in a checkout of OpenRAC
