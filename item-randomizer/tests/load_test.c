@@ -285,7 +285,8 @@ int main(int argc, char** argv) {
     memset(&info, 0, sizeof info);
     info.size = sizeof info;
     query(&info);
-    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == OPENRAC_MOD_API_MINOR);
+    /* The interface its manifest names (1.1), whatever the SDK it was built with. */
+    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
     CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "1.0.0") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
