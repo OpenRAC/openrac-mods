@@ -21,6 +21,7 @@ section 11):
 | [keyboard-mouse](keyboard-mouse/README.md) | native | Keyboard and mouse: WASD, mouse camera, click to fire, right click held for the Quick Select, number keys and wheel for weapons; every action rebindable in the launcher, with presets; a gamepad keeps working | PAL, NTSC-U |
 | [item-randomizer](item-randomizer/README.md) | native | Shuffles the gadgets, weapons, vendor stock, gold bolts and infobots, with logic so every seed can be finished; seed codes to share, a spoiler log | PAL, NTSC-U |
 | [difficulty](difficulty-mod/README.md) | native | A slider for everything: enemy count, damage both ways, enemy and Ratchet speed, weapon and ammo prices, ammo per shot, max ammo, bolt drops, health; presets Easy, Retail, Hard, Brutal and a seeded Chaos | PAL, NTSC-U |
+| [live-splits](live-splits/README.md) | native | Splits a LiveSplit timer as the player goes from planet to planet: the mod talks to LiveSplit's own server and splits at every planet, so a speedrunner does not touch the timer | PAL, NTSC-U |
 
 ## Installing a mod
 

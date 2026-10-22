@@ -1,0 +1,72 @@
+{
+  "format": 2,
+  "id": "live-splits",
+  "name": "Live splits",
+  "version": "1.0.0",
+  "author": "OpenRAC contributors",
+  "description": "Splits a LiveSplit timer as the player goes from planet to planet: the mod talks to LiveSplit's own server and splits at every planet, so a speedrunner does not have to touch the timer.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/live-splits",
+  "api": "1.0",
+  "games": { "rac1": ["pal", "ntsc"] },
+  "hooks": ["rac1.level.load_gameplay"],
+  "settings": [
+    {
+      "key": "split",
+      "name": "Split",
+      "type": "choice",
+      "default": "reached",
+      "choices": [
+        { "value": "reached", "name": "When a planet is reached" },
+        { "value": "left", "name": "When a planet is left" }
+      ],
+      "description": "When the timer is split. Reached: the split is taken when the planet's level is loaded, so the flight and the loading are in the segment before. Left: the split is taken when the game goes back to the galaxy map, so they are in the segment after."
+    },
+    {
+      "key": "start",
+      "name": "Start",
+      "type": "choice",
+      "default": "first",
+      "choices": [
+        { "value": "first", "name": "At the first planet (the mod resets and starts the timer)" },
+        { "value": "hand", "name": "By hand (the mod only splits)" }
+      ],
+      "description": "Who starts the timer. At the first planet: the mod resets LiveSplit and starts it when the run's first planet is loaded. By hand: the mod never resets or starts the timer; start it yourself, before the first split."
+    },
+    {
+      "key": "game_time",
+      "name": "Game time",
+      "type": "bool",
+      "default": true,
+      "description": "Send the game's own time (its ticks) to LiveSplit, for the Game Time timing method. With the timer started by hand, the time is counted from the first planet, not from the moment you start the timer."
+    },
+    {
+      "key": "port",
+      "name": "Server port",
+      "type": "int",
+      "default": 27500,
+      "min": 1,
+      "max": 65535,
+      "description": "The port LiveSplit's server listens on (its Settings, the LiveSplit Server group)."
+    },
+    {
+      "key": "protocol",
+      "name": "Protocol",
+      "type": "choice",
+      "default": "auto",
+      "choices": [
+        { "value": "auto", "name": "Ask the server" },
+        { "value": "tcp", "name": "TCP" },
+        { "value": "websocket", "name": "WebSocket" }
+      ],
+      "description": "How the mod talks to LiveSplit's server. Ask the server: the mod tries the TCP server and, when that is not there, the WebSocket one."
+    },
+    {
+      "key": "trace",
+      "name": "Trace",
+      "type": "bool",
+      "default": false,
+      "description": "For bug reports: a line in the game's log for every planet reached and left, and for the timer the mod starts."
+    }
+  ]
+}
