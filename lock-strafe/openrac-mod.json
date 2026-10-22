@@ -10,12 +10,12 @@
   "api": "1.1",
   "games": { "rac1": ["pal", "ntsc"] },
   "hooks": [
-    "Pad_ProcessReport",
-    "Hero_UpdateMotionInput",
-    "Hero_TurnToHeading",
-    "Hero_SetPlanarVelocity",
-    "FollowCamera_ApplyOverrides",
-    "Hero_AdvanceAnimation"
+    "rac1.pad.process_report",
+    "rac1.player.update_motion_input",
+    "rac1.player.turn_to_heading",
+    "rac1.player.set_planar_velocity",
+    "rac1.camera.follow.apply_overrides",
+    "rac1.player.advance_animation"
   ],
   "settings": [
     {

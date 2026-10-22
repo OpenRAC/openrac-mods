@@ -15,7 +15,7 @@
     ]
   },
   "hooks": [
-    "FollowCamera_ApplyOverrides"
+    "rac1.camera.follow.apply_overrides"
   ],
   "settings": [
     {
