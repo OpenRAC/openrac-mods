@@ -105,7 +105,8 @@ ctest --test-dir build -R live_splits
   planet he left), the run's end, and the time as LiveSplit's parser reads it;
 - **load**: the library as the port loads it, against a host of the test's own: its refusals, its
   hook point and its signature, and, against a LiveSplit server the test makes, the commands it
-  sends over TCP, over a WebSocket and when it asks the server which one it is.
+  sends over TCP, over a WebSocket and when it asks the server which one it is; and with no server
+  at all, that it says so and goes on.
 
 ## What it needs
 

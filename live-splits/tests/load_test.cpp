@@ -529,6 +529,34 @@ void run(const char* library) {
     if (unload != nullptr) {
         unload();
     }
+
+    // And with no server at all: the mod says so and goes on.
+    g_port = 1;
+    g_protocol = "tcp";
+    g_level = -1;
+    g_failed.clear();
+    openrac_api alone = make_api();
+    CHECK(load(&alone, reinterpret_cast<openrac_mod*>(1)) == 0);
+    CHECK(g_failed.empty());
+    g_level = 0;
+    tick(true);
+    g_level = 1;
+    tick(true);
+    /* The client tries the connection on its thread: a moment, and a tick that reads what it
+     * knows. */
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    tick(false);
+    bool said = false;
+    for (const std::string& text : g_log) {
+        if (text.find("no LiveSplit server") != std::string::npos) {
+            said = true;
+        }
+    }
+    CHECK(said);
+
+    if (unload != nullptr) {
+        unload();
+    }
 }
 
 }  // namespace
