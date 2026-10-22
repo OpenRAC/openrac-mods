@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// The difficulty mod's rules, apart from the game: the sliders and their ranges, the presets, what
-// a preset and the sliders give together, the Chaos preset's roll for each level and its timed
-// events, and the arithmetic that turns a multiplier into whole hits, bolts, prices and cells. No
+// The difficulty mod's rules, apart from the game: the sliders and their ranges, what plays with
+// them and Chaos, Chaos's roll for each level and its timed events, and the arithmetic that turns a multiplier into whole hits, bolts, prices and cells. No
 // game memory here: tests/rules_test.cpp checks it all.
 #ifndef DIFFICULTY_RULES_H
 #define DIFFICULTY_RULES_H
@@ -34,22 +33,10 @@ struct KnobInfo {
     const char* key;              // the setting's key
     const char* name;             // what the log calls it
     double min, max;              // the slider's range (1.0 = retail inside it)
-    double chaos_min, chaos_max;  // the Chaos preset's range for each level
+    double chaos_min, chaos_max;  // Chaos's range for each level
 };
 
 extern const KnobInfo k_knobs[KNOB_COUNT];
-
-enum Preset {
-    PRESET_CUSTOM,
-    PRESET_EASY,
-    PRESET_RETAIL,
-    PRESET_HARD,
-    PRESET_BRUTAL,
-    PRESET_CHAOS,
-    PRESET_COUNT
-};
-
-extern const char* const k_preset_keys[PRESET_COUNT];  // the "preset" setting's values
 
 struct Values {
     double v[KNOB_COUNT];
@@ -59,21 +46,20 @@ struct Values {
     double operator[](int k) const { return v[k]; }
 };
 
+// Every knob at 1.0. The presets (Easy, Retail, Hard, Brutal, Chaos) are the manifest's: the
+// launcher sets the sliders and the "chaos" switch from them.
 Values retail();
-// A preset's values; the Chaos preset's are its roll for a level (chaos_roll), Custom's are retail.
-Values preset_values(Preset preset);
-Preset preset_from_key(const std::string& key);  // an unknown key is Retail
 
 // A slider's value in its range: NaN and infinities are 1.0 (retail).
 double clamp_knob(int knob, double value);
 
-// What plays: the preset's values, and each slider moved off 1.0 in their place (moving a slider
-// makes the preset Custom from that slider on, README.md). The Chaos preset rolls for `level`.
-Values effective(Preset preset, const Values& sliders, std::uint64_t seed, int level);
-// Whether any slider is off 1.0 (the log then says Custom).
+// What plays: the sliders, clamped. With Chaos, each slider left at 1.0 takes its roll for
+// `level` instead, and one moved off 1.0 holds (README.md).
+Values effective(bool chaos, const Values& sliders, std::uint64_t seed, int level);
+// Whether any slider is off 1.0.
 bool sliders_moved(const Values& sliders);
 
-// The Chaos preset's values for one level: each knob in its chaos range, log-uniform around 1.0,
+// Chaos's values for one level: each knob in its chaos range, log-uniform around 1.0,
 // from the seed and the level only, so the same seed gives the same game.
 Values chaos_roll(std::uint64_t seed, int level);
 

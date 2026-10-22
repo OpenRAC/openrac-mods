@@ -2,7 +2,7 @@
   "format": 2,
   "id": "difficulty",
   "name": "Difficulty",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "OpenRAC contributors",
   "description": "A slider for everything that makes Ratchet & Clank hard or easy: how many enemies there are, the damage Ratchet takes and deals, how fast the enemies and Ratchet move, weapon and ammo prices, ammo per shot and max ammo, bolt drops, max health and health pickups. Presets fill them: Easy, Retail, Hard, Brutal, and Chaos, which rolls new values for each level from a seed (and, if you like, a random event every few minutes). Every slider at 1.0 plays as the original game.",
   "license": "GPL-3.0-or-later",
@@ -15,99 +15,66 @@
     ]
   },
   "hooks": [
-    "Hero_TakeDamage",
-    "Moby_GetHitMessage",
-    "Weapon_TakeAmmo",
-    "Moby_RecordDeath",
-    "Level_LoadGameplay",
-    "Hero_ApproachSpeed",
-    "Moby_NanotechBall_Update",
-    "Moby_Plasmabot_Update",
-    "Moby_BlargTurret_Update",
-    "Moby_MachinegunTurret30_Update",
-    "Moby_Minibomber_Update",
-    "Moby_Sharkigator_Update",
-    "Moby_BlargGunner_Update",
-    "Moby_Sentrybot_Update",
-    "Moby_Seeker_Update",
-    "Moby_Robosquawker_Update",
-    "Moby_Spiderbot_Update",
-    "Moby_Amoeboid_Update",
-    "Moby_Plasmabot211_Update",
-    "Moby_BigAxebot_Update",
-    "Moby_Scoutbot_Update",
-    "Moby_BomberTank_Update",
-    "Moby_BlargTrooper294_Update",
-    "Moby_BlargHelicopter326_Update",
-    "Moby_BlargBombthrower_Update",
-    "Moby_CircularSawEnemy_Update",
-    "Moby_BlargGun_Update",
-    "Moby_DreksFleetTurret_Update",
-    "Moby_BlargTrooper_Update",
-    "Moby_Birdbot_Update",
-    "Moby_WoodcutBot_Update",
-    "Moby_LargeAmoeboid_Update",
-    "Moby_RobotDog_Update",
-    "Moby_Peckbot_Update",
-    "Moby_MineLayer_Update",
-    "Moby_SandShark_Update",
-    "Moby_Extermibot_Update",
-    "Moby_Extermitank_Update",
-    "Moby_BlargHelicopter_Update",
-    "Moby_BlargEliteCommando_Update",
-    "Moby_HornyToad_Update",
-    "Moby_BlargParatrooper_Update",
-    "Moby_AlienSnapper_Update",
-    "Moby_Sharkigator1059_Update",
-    "Moby_BlargSpaceCommando_Update",
-    "Moby_MachinegunTurret_Update",
-    "Moby_Screamer_Update",
-    "Moby_Turret_Update",
-    "Moby_ToxicCrab_Update",
-    "Moby_Psytcopus_Update",
-    "Moby_Puffoid_Update",
-    "Moby_BlargSpaceCommando1262_Update",
-    "Moby_HovenTurret_Update",
-    "Moby_Gun_Update",
-    "Moby_BlargCommander_Update",
-    "Moby_RobotDog1382_Update",
-    "Moby_Chomper_Update",
-    "Moby_Pterodactyl_Update"
+    "rac1.player.take_damage",
+    "rac1.combat.get_hit",
+    "rac1.weapon.take_ammo",
+    "rac1.moby.record_death",
+    "rac1.level.load_gameplay",
+    "rac1.player.approach_speed",
+    "rac1.moby.nanotech_ball.update",
+    "rac1.moby.plasmabot.update",
+    "rac1.moby.blarg_turret.update",
+    "rac1.moby.machinegun_turret_30.update",
+    "rac1.moby.minibomber.update",
+    "rac1.moby.sharkigator_35.update",
+    "rac1.moby.gem_lock_turret.update",
+    "rac1.moby.sentrybot.update",
+    "rac1.moby.moby52.update",
+    "rac1.moby.robosquawker.update",
+    "rac1.moby.spiderbot.update",
+    "rac1.moby.grazing_critter.update",
+    "rac1.moby.moby211.update",
+    "rac1.moby.big_axebot.update",
+    "rac1.moby.scoutbot.update",
+    "rac1.moby.bomber_tank.update",
+    "rac1.moby.moby294.update",
+    "rac1.moby.moby326.update",
+    "rac1.moby.blarg_bomb_thrower.update",
+    "rac1.moby.circular_saw.update",
+    "rac1.moby.blarg_gun.update",
+    "rac1.moby.fleet_turret.update",
+    "rac1.moby.blarg_trooper.update",
+    "rac1.moby.birdbot.update",
+    "rac1.moby.wb_moby.update",
+    "rac1.moby.amoeboid.update",
+    "rac1.moby.moby573.update",
+    "rac1.moby.peckbot.update",
+    "rac1.moby.trooper.update",
+    "rac1.moby.sand_shark.update",
+    "rac1.moby.extermibot.update",
+    "rac1.moby.extermitank.update",
+    "rac1.moby.helicopter_gunship.update",
+    "rac1.moby.floating_enemy.update",
+    "rac1.moby.horny_toad.update",
+    "rac1.moby.paratrooper.update",
+    "rac1.moby.moby1048.update",
+    "rac1.moby.sharkigator_1059.update",
+    "rac1.moby.moby1068.update",
+    "rac1.moby.machinegun_turret_1126.update",
+    "rac1.moby.moby1196.update",
+    "rac1.moby.mountable_turret.update",
+    "rac1.moby.toxic_crab.update",
+    "rac1.moby.psytcopus.update",
+    "rac1.moby.moby1246.update",
+    "rac1.moby.blarg_space_commando.update",
+    "rac1.moby.moby1267.update",
+    "rac1.moby.linked_turret.update",
+    "rac1.moby.blarg_commander.update",
+    "rac1.moby.moby1382.update",
+    "rac1.moby.wandering_helper.update",
+    "rac1.moby.path_follow_moby.update"
   ],
   "settings": [
-    {
-      "key": "preset",
-      "name": "Preset",
-      "type": "choice",
-      "default": "retail",
-      "choices": [
-        {
-          "value": "easy",
-          "name": "Easy"
-        },
-        {
-          "value": "retail",
-          "name": "Retail"
-        },
-        {
-          "value": "hard",
-          "name": "Hard"
-        },
-        {
-          "value": "brutal",
-          "name": "Brutal"
-        },
-        {
-          "value": "chaos",
-          "name": "Chaos"
-        },
-        {
-          "value": "custom",
-          "name": "Custom"
-        }
-      ],
-      "description": "The values every slider left at 1.0 takes. A slider you move off 1.0 wins over the preset (Custom from that slider on). Chaos rolls new values for each level from the seed. Custom: only the sliders."
-    },
     {
       "key": "enemy_count",
       "name": "Enemy count",
@@ -145,7 +112,7 @@
       "default": 1.0,
       "min": 0.5,
       "max": 2.0,
-      "step": 0.1,
+      "step": 0.05,
       "description": "How fast enemies and turrets move, turn, animate and fire (what their own clocks run on)."
     },
     {
@@ -165,7 +132,7 @@
       "default": 1.0,
       "min": 0.1,
       "max": 5.0,
-      "step": 0.1,
+      "step": 0.05,
       "description": "What the Gadgetron vendor and the NPCs ask for weapons and gadgets."
     },
     {
@@ -229,6 +196,13 @@
       "description": "Cells each nanotech pickup gives, on average. 0: none."
     },
     {
+      "key": "chaos",
+      "name": "Chaos",
+      "type": "bool",
+      "default": false,
+      "description": "Each level rolls its own value for every slider left at 1.0, from the seed (the Chaos preset). A slider moved off 1.0 holds on every level."
+    },
+    {
       "key": "seed",
       "name": "Seed",
       "type": "string",
@@ -258,6 +232,103 @@
       "type": "bool",
       "default": false,
       "description": "For bug reports: more lines in the game's log (each level's values, max health changes)."
+    }
+  ],
+  "presets": [
+    {
+      "id": "easy",
+      "name": "Easy",
+      "values": {
+        "enemy_count": 0.75,
+        "damage_taken": 0.5,
+        "damage_dealt": 1.5,
+        "enemy_speed": 0.85,
+        "player_speed": 1.1,
+        "weapon_cost": 0.75,
+        "ammo_cost": 0.5,
+        "ammo_use": 0.75,
+        "max_ammo": 1.5,
+        "bolts": 1.5,
+        "max_health": 2.0,
+        "health_pickups": 2.0,
+        "chaos": false
+      }
+    },
+    {
+      "id": "default",
+      "name": "Retail",
+      "values": {
+        "enemy_count": 1.0,
+        "damage_taken": 1.0,
+        "damage_dealt": 1.0,
+        "enemy_speed": 1.0,
+        "player_speed": 1.0,
+        "weapon_cost": 1.0,
+        "ammo_cost": 1.0,
+        "ammo_use": 1.0,
+        "max_ammo": 1.0,
+        "bolts": 1.0,
+        "max_health": 1.0,
+        "health_pickups": 1.0,
+        "chaos": false
+      }
+    },
+    {
+      "id": "hard",
+      "name": "Hard",
+      "values": {
+        "enemy_count": 1.5,
+        "damage_taken": 2.0,
+        "damage_dealt": 0.75,
+        "enemy_speed": 1.2,
+        "player_speed": 1.0,
+        "weapon_cost": 1.5,
+        "ammo_cost": 1.5,
+        "ammo_use": 1.25,
+        "max_ammo": 0.75,
+        "bolts": 0.75,
+        "max_health": 1.0,
+        "health_pickups": 0.75,
+        "chaos": false
+      }
+    },
+    {
+      "id": "brutal",
+      "name": "Brutal",
+      "values": {
+        "enemy_count": 2.0,
+        "damage_taken": 3.0,
+        "damage_dealt": 0.5,
+        "enemy_speed": 1.4,
+        "player_speed": 1.0,
+        "weapon_cost": 2.5,
+        "ammo_cost": 2.5,
+        "ammo_use": 1.5,
+        "max_ammo": 0.5,
+        "bolts": 0.5,
+        "max_health": 0.5,
+        "health_pickups": 0.5,
+        "chaos": false
+      }
+    },
+    {
+      "id": "chaos",
+      "name": "Chaos",
+      "values": {
+        "enemy_count": 1.0,
+        "damage_taken": 1.0,
+        "damage_dealt": 1.0,
+        "enemy_speed": 1.0,
+        "player_speed": 1.0,
+        "weapon_cost": 1.0,
+        "ammo_cost": 1.0,
+        "ammo_use": 1.0,
+        "max_ammo": 1.0,
+        "bolts": 1.0,
+        "max_health": 1.0,
+        "health_pickups": 1.0,
+        "chaos": true
+      }
     }
   ]
 }

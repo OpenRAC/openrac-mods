@@ -208,7 +208,7 @@ double setting_float(openrac_mod*, const char* key) {
 
 const char* setting_string(openrac_mod*, const char* key) {
     static std::string out;
-    out = g_strings.count(key) ? g_strings[key] : (std::strcmp(key, "preset") == 0 ? "retail" : "");
+    out = g_strings.count(key) ? g_strings[key] : "";
     return out.c_str();
 }
 
@@ -448,7 +448,7 @@ int main(int argc, char** argv) {
     query(&info);
     // The interface its manifest names (1.1), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.0.0") == 0);
+    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.1.0") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -688,7 +688,8 @@ int main(int argc, char** argv) {
 
     // Chaos: each level's values from the seed, the same for the same seed.
     g_floats.clear();
-    g_strings = {{"preset", "chaos"}, {"seed", "0A1B2C3D"}};
+    g_strings = {{"seed", "0A1B2C3D"}};
+    g_bools["chaos"] = 1;
     CHECK(load_with("ntsc") && g_failed.empty());
 
     std::free(g_mem);

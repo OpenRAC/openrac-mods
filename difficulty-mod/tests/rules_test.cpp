@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The difficulty mod's rules (src/rules.h): the presets' tables, the sliders' ranges and clamping,
-// a preset with sliders moved, Chaos's rolls (the same seed and level always give the same values,
+// The difficulty mod's rules (src/rules.h): the sliders' ranges and clamping, what plays with
+// the sliders and with Chaos, Chaos's rolls (the same seed and level always give the same values,
 // each in its range) and its timed events, the accumulators that make whole hits and rounds of a
 // multiplier, prices and max health, and the pool's budget.
 #include <cmath>
@@ -21,36 +21,15 @@
 
 using namespace dm;
 
-static void presets() {
-    // Retail and Custom are 1.0 everywhere; every preset is in the sliders' ranges.
+static void ranges() {
+    // 1.0 (retail) is in every slider's range, and Chaos's range inside it around 1.0. The presets
+    // are the manifest's (tests/presets_test.py).
     for (int k = 0; k < KNOB_COUNT; ++k) {
-        CHECK(preset_values(PRESET_RETAIL)[k] == 1.0);
-        CHECK(preset_values(PRESET_CUSTOM)[k] == 1.0);
+        CHECK(retail()[k] == 1.0);
         CHECK(k_knobs[k].min <= 1.0 && 1.0 <= k_knobs[k].max);
         CHECK(k_knobs[k].min <= k_knobs[k].chaos_min && k_knobs[k].chaos_min <= 1.0);
         CHECK(1.0 <= k_knobs[k].chaos_max && k_knobs[k].chaos_max <= k_knobs[k].max);
-        for (const Preset p : {PRESET_EASY, PRESET_HARD, PRESET_BRUTAL}) {
-            CHECK(clamp_knob(k, preset_values(p)[k]) == preset_values(p)[k]);
-        }
     }
-    // Easy is easier and Brutal harder than Hard, where it counts.
-    CHECK(
-        preset_values(PRESET_EASY)[DAMAGE_TAKEN] < 1.0
-        && preset_values(PRESET_HARD)[DAMAGE_TAKEN] > 1.0
-    );
-    CHECK(preset_values(PRESET_BRUTAL)[DAMAGE_TAKEN] > preset_values(PRESET_HARD)[DAMAGE_TAKEN]);
-    CHECK(preset_values(PRESET_BRUTAL)[ENEMY_COUNT] > preset_values(PRESET_HARD)[ENEMY_COUNT]);
-    CHECK(preset_values(PRESET_BRUTAL)[DAMAGE_DEALT] < preset_values(PRESET_HARD)[DAMAGE_DEALT]);
-    CHECK(
-        preset_values(PRESET_EASY)[MAX_HEALTH] > 1.0
-        && preset_values(PRESET_BRUTAL)[MAX_HEALTH] < 1.0
-    );
-    // The keys round-trip; an unknown key is Retail.
-    for (int p = 0; p < PRESET_COUNT; ++p) {
-        CHECK(preset_from_key(k_preset_keys[p]) == p);
-    }
-    CHECK(preset_from_key("nightmare") == PRESET_RETAIL);
-    CHECK(preset_from_key("") == PRESET_RETAIL);
 }
 
 static void clamping() {
@@ -65,27 +44,27 @@ static void clamping() {
 
 static void effective_values() {
     const Values ones = retail();
-    // Retail with the sliders untouched: everything 1.0, the game as it is.
-    Values v = effective(PRESET_RETAIL, ones, 1234, 3);
+    // The sliders untouched: everything 1.0, the game as it is.
+    Values v = effective(false, ones, 1234, 3);
     for (int k = 0; k < KNOB_COUNT; ++k) {
         CHECK(v[k] == 1.0);
     }
     CHECK(!sliders_moved(ones));
-    // A preset, then a slider moved: that slider wins, the rest stay the preset's.
+    // The sliders are what plays (a preset fills them).
     Values sliders = ones;
     sliders[ENEMY_SPEED] = 1.7;
+    sliders[DAMAGE_TAKEN] = 2.0;
     CHECK(sliders_moved(sliders));
-    v = effective(PRESET_HARD, sliders, 1, 1);
-    CHECK(v[ENEMY_SPEED] == 1.7);
-    CHECK(v[DAMAGE_TAKEN] == preset_values(PRESET_HARD)[DAMAGE_TAKEN]);
+    v = effective(false, sliders, 1, 1);
+    CHECK(v[ENEMY_SPEED] == 1.7 && v[DAMAGE_TAKEN] == 2.0 && v[BOLTS] == 1.0);
     // A slider out of range counts clamped.
     sliders[ENEMY_SPEED] = 9.0;
-    CHECK(effective(PRESET_CUSTOM, sliders, 1, 1)[ENEMY_SPEED] == 2.0);
+    CHECK(effective(false, sliders, 1, 1)[ENEMY_SPEED] == 2.0);
     // Chaos with a slider moved: the slider holds on every level, the rest roll.
     sliders = ones;
     sliders[BOLTS] = 0.0;
     for (int level = 0; level < 19; ++level) {
-        const Values c = effective(PRESET_CHAOS, sliders, 77, level);
+        const Values c = effective(true, sliders, 77, level);
         CHECK(c[BOLTS] == 0.0);
         CHECK(c[DAMAGE_TAKEN] == chaos_roll(77, level)[DAMAGE_TAKEN]);
     }
@@ -252,7 +231,7 @@ static void budget() {
 }
 
 int main() {
-    presets();
+    ranges();
     clamping();
     effective_values();
     chaos();

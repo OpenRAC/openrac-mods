@@ -7,7 +7,7 @@ move, what weapons and ammo cost, how much ammo a shot takes and a weapon
 holds, how many bolts drop, Ratchet's health and what health pickups give.
 Presets fill them in: **Easy**, **Retail**, **Hard**, **Brutal** and
 **Chaos**, which rolls new values for every level from a seed. With every
-slider at 1.0 and the Retail preset, or with the mod off, the game is the
+slider at 1.0 (the Retail preset), or with the mod off, the game is the
 PlayStation 2 game.
 
 It needs an OpenRAC built from master on 2026-10-21 or later (the game's
@@ -21,7 +21,12 @@ Install it from the launcher's **Mods** tab (**Add from a link**:
 and play. Settings count from the game's next start; the enemy count and the
 prices from the next level loaded.
 
-### The preset
+### The presets
+
+The presets are buttons above the settings in the Mods tab: each sets every
+slider and the Chaos switch, and the button of the values the sliders have is
+lit. Move a slider after and that is what plays (no button is lit then). This
+mod's presets need an OpenRAC launcher built on 2026-10-22 or later.
 
 | Preset | |
 |---|---|
@@ -29,14 +34,11 @@ prices from the next level loaded.
 | **Easy** | Fewer enemies (0.75), half the damage to Ratchet, 1.5 times the damage to enemies, slower enemies, cheaper weapons and ammo, more ammo, more bolts, 8 cells of health, double health pickups |
 | **Hard** | 1.5 times the enemies, twice the damage to Ratchet, enemies 1.2 times as fast, 1.5 times the prices, a quarter more ammo per shot, less ammo and fewer bolts and pickups |
 | **Brutal** | Twice the enemies, three times the damage to Ratchet, half the damage to enemies, enemies 1.4 times as fast, 2.5 times the prices, half the max ammo, the bolts and the pickups, and 2 cells of health |
-| **Chaos** | Each level rolls its own values, every slider within its Chaos range below, from the **seed** |
-| **Custom** | Only the sliders |
+| **Chaos** | Every slider at 1.0 and the **Chaos** switch on: each level rolls its own values, every slider within its Chaos range below, from the **seed** |
 
-The preset gives the value of every slider **left at 1.0**. A slider you
-move off 1.0 wins over the preset: that slider is Custom, the others keep
-the preset's values. (The game's log says which: `preset hard, with sliders
-moved (custom)`, and then every value that plays.) To go back to the preset's
-value, put the slider back to 1.0.
+With Chaos on, a slider you move off 1.0 holds on every level and the others
+roll. The game's log says what plays: `sliders`, `retail` or `chaos`, and then
+every value.
 
 The full table, slider by slider:
 
@@ -76,7 +78,8 @@ The full table, slider by slider:
 
 | Setting | Default | |
 |---|---|---|
-| Seed | blank | For the Chaos preset (and the events): the 8-character code the log shows (`seed 0A1B2C3D`) plays the same rolls again, and any other word gives its own. Blank: a new seed at each start, shown in the log |
+| Chaos | off | Each level rolls its own value for every slider left at 1.0, from the seed (the Chaos preset switches it on) |
+| Seed | blank | For Chaos (and the events): the 8-character code the log shows (`seed 0A1B2C3D`) plays the same rolls again, and any other word gives its own. Blank: a new seed at each start, shown in the log |
 | Chaos events | off | Every few minutes of play, one of these for 45 seconds: **Turbo Ratchet** (1.5 times as fast), **Slow motion** (the enemies at half speed), **Frenzy** (the enemies 1.5 times as fast), **Double time** (both), **Glass cannon** (twice the damage both ways), **Iron hide** (half the damage to Ratchet), **Bolt rain** (three times the bolts), **Ammo famine** (twice the ammo a shot), **Trigger happy** (a quarter), **Nanotech surge** (three times the health pickups). The log says when one starts and ends. With any preset |
 | Minutes between events | 3 | |
 | Trace | off | For bug reports: each level's values and every max health change in the game's log |
@@ -152,7 +155,8 @@ Saves: the mod writes nothing into a save. Max health, prices and the
 enemies come back as the game has them when it is off; only the ammo you
 had stays as it was when you saved.
 
-The [tests](tests/) check the presets' tables, the sliders' ranges and
+The [tests](tests/) check the presets (each sets every slider and Chaos, in
+range, Easy easier and Brutal harder than Hard), the sliders' ranges and
 clamping, that Chaos's rolls and events are the same for the same seed, that
 every catalogue class that fights is classified, the pool's guard on a level
 laid out in memory, and the library as the port loads it.

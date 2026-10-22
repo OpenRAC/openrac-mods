@@ -24,15 +24,7 @@ const KnobInfo k_knobs[KNOB_COUNT] = {
     {"health_pickups", "health pickups", 0.0, 4.0, 0.5, 2.0},
 };
 
-const char* const k_preset_keys[PRESET_COUNT] =
-    {"custom", "easy", "retail", "hard", "brutal", "chaos"};
-
 namespace {
-
-// The presets, in the knobs' order.
-const Values k_easy = {{0.75, 0.5, 1.5, 0.85, 1.1, 0.75, 0.5, 0.75, 1.5, 1.5, 2.0, 2.0}};
-const Values k_hard = {{1.5, 2.0, 0.75, 1.2, 1.0, 1.5, 1.5, 1.25, 0.75, 0.75, 1.0, 0.75}};
-const Values k_brutal = {{2.0, 3.0, 0.5, 1.4, 1.0, 2.5, 2.5, 1.5, 0.5, 0.5, 0.5, 0.5}};
 
 // What an event may push a knob to, past the sliders' ranges but no further.
 const double k_event_min[KNOB_COUNT] =
@@ -47,28 +39,6 @@ Values retail() {
         x = 1.0;
     }
     return v;
-}
-
-Values preset_values(Preset preset) {
-    switch (preset) {
-        case PRESET_EASY:
-            return k_easy;
-        case PRESET_HARD:
-            return k_hard;
-        case PRESET_BRUTAL:
-            return k_brutal;
-        default:
-            return retail();
-    }
-}
-
-Preset preset_from_key(const std::string& key) {
-    for (int i = 0; i < PRESET_COUNT; ++i) {
-        if (key == k_preset_keys[i]) {
-            return static_cast<Preset>(i);
-        }
-    }
-    return PRESET_RETAIL;
 }
 
 double clamp_knob(int knob, double value) {
@@ -88,11 +58,11 @@ bool sliders_moved(const Values& sliders) {
     return false;
 }
 
-Values effective(Preset preset, const Values& sliders, std::uint64_t seed, int level) {
-    Values out = preset == PRESET_CHAOS ? chaos_roll(seed, level) : preset_values(preset);
+Values effective(bool chaos, const Values& sliders, std::uint64_t seed, int level) {
+    Values out = chaos ? chaos_roll(seed, level) : retail();
     for (int k = 0; k < KNOB_COUNT; ++k) {
         const double s = clamp_knob(k, sliders[k]);
-        if (s != 1.0) {
+        if (!chaos || s != 1.0) {
             out[k] = s;
         }
     }

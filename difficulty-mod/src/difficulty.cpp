@@ -2,8 +2,8 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Ratchet & Clank: the difficulty mod, a mod of OpenRAC's native port (README.md). A slider for
-// each thing that makes the game hard or easy, presets that fill them, and a Chaos preset that
-// rolls them for each level from a seed. Each value is changed where the game takes it, through a
+// each thing that makes the game hard or easy, presets that fill them (the manifest's), and Chaos,
+// which rolls them for each level from a seed. Each value is changed where the game takes it, through a
 // hook point (OpenRAC's rac1 hook points: docs/port/MODS.md, section 4), or once a level at its
 // source (the items' table of prices and ammo), never by patching memory each frame; with every
 // slider at 1.0 each hook calls the game's own function as it was called, so the game is retail.
@@ -103,7 +103,7 @@ openrac::Mod* s_mod;
 const dm_disc* s_disc;
 
 // What the player chose (load), what plays on the level loaded, and with the event on.
-dm::Preset s_preset;
+bool s_chaos;
 dm::Values s_sliders;
 uint64_t s_seed;
 bool s_trace;
@@ -735,12 +735,12 @@ uint32_t load_gameplay(Original original, int32_t full) {
     if (level < 0 || level >= k_levels) {
         return cursor;
     }
-    s_level = dm::effective(s_preset, s_sliders, s_seed, level);
+    s_level = dm::effective(s_chaos, s_sliders, s_seed, level);
     set_active();
     s_anim.clear();
     std::memset(s_hit_owner, 0, sizeof s_hit_owner);
     s_rng = dm::Rng(dm::mix(s_seed, 0x3000u + static_cast<uint64_t>(level)));
-    if (s_preset == dm::PRESET_CHAOS || s_trace) {
+    if (s_chaos || s_trace) {
         s_mod->info("level " + std::to_string(level) + ": " + describe(s_level));
     }
     rewrite_items(level);
@@ -776,7 +776,7 @@ void load(openrac::Mod& mod) {
         s_classes[c.id] = &c;
     }
 
-    s_preset = dm::preset_from_key(mod.setting<std::string>("preset"));
+    s_chaos = mod.setting<bool>("chaos");
     for (int k = 0; k < dm::KNOB_COUNT; ++k) {
         s_sliders[k] = dm::clamp_knob(k, mod.setting<double>(dm::k_knobs[k].key));
     }
@@ -796,7 +796,7 @@ void load(openrac::Mod& mod) {
     if (!(s_clock.every >= 60.0)) {
         s_clock.every = 180.0;
     }
-    s_level = dm::effective(s_preset, s_sliders, s_seed, -1);
+    s_level = dm::effective(s_chaos, s_sliders, s_seed, -1);
     set_active();
     s_damage = {};
     s_pickups = {};
@@ -884,21 +884,21 @@ void load(openrac::Mod& mod) {
         keep_max_health();
     });
 
-    std::string mode = dm::k_preset_keys[s_preset];
-    if (s_preset != dm::PRESET_CUSTOM && dm::sliders_moved(s_sliders)) {
-        mode += ", with sliders moved (custom)";
+    std::string mode = s_chaos ? "chaos" : dm::sliders_moved(s_sliders) ? "sliders" : "retail";
+    if (s_chaos && dm::sliders_moved(s_sliders)) {
+        mode += ", with sliders moved off 1.0 holding";
     }
     mod.info(
-        "preset " + mode + " on the " + std::string(mod.version()) + " disc; seed "
+        mode + " on the " + std::string(mod.version()) + " disc; seed "
         + dm::seed_code(s_seed) + " (put it in Seed to play the same rolls again); "
         + std::to_string(timed) + " enemy updates timed"
         + (s_events_on ? "; chaos events every " + fmt(s_clock.every / 60.0) + " min" : "")
     );
-    if (s_preset != dm::PRESET_CHAOS) {
+    if (!s_chaos) {
         mod.info(describe(s_level));
     }
 }
 
 }  // namespace
 
-OPENRAC_MOD_CPP("difficulty", "1.0.0", load)
+OPENRAC_MOD_CPP("difficulty", "1.1.0", load)
