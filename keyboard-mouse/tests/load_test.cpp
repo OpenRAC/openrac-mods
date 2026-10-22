@@ -94,7 +94,7 @@ void host_fail(openrac_mod*, const char* reason) {
     g_failed = reason;
 }
 int setting_bool(openrac_mod*, const char* key) {
-    return std::strcmp(key, "capture_cursor") == 0 ? 1 : 0;
+    return std::strcmp(key, "capture_cursor") == 0 || std::strcmp(key, "menu_mouse") == 0 ? 1 : 0;
 }
 std::int64_t setting_int(openrac_mod*, const char*) {
     return 0;
@@ -242,7 +242,7 @@ void run(const char* library) {
     openrac_mod_info info{};
     info.size = sizeof info;
     query(&info);
-    CHECK(std::strcmp(info.id, "keyboard-mouse") == 0 && info.api_major == 1 && info.api_minor == 2);
+    CHECK(std::strcmp(info.id, "keyboard-mouse") == 0 && info.api_major == 1 && info.api_minor == 3);
 
     for (const char* version : {"ntsc", "pal"}) {
         g_version = version;
@@ -343,19 +343,203 @@ void run(const char* library) {
     CHECK(at<std::int32_t>(hero + KBM_HERO_PENDING) == 0);
     at<std::uint8_t>(hero + KBM_HERO_VEHICLE) = 0;
 
-    // Escape pauses (Start); on the pause screen the cursor goes, Enter confirms, the mouse rests.
+    // Escape pauses (Start). Still held as the pause menu opens, it does not also go back there;
+    // let go and pressed again, it does (Triangle). On the pause screen the cursor goes, Enter and
+    // Space confirm (Cross), Backspace goes back, the arrows are the d-pad, and a left click over
+    // the game is Cross; the play binds of the mouse (Fire's Circle) do nothing there.
     tick();
     press(41);
     r = read_pad();
     CHECK(r.held(kbm::kStart));
     at<std::int32_t>(d.level_mode) = 3;
     tick();
+    hold(41);
+    r = read_pad();
+    CHECK(!r.held(kbm::kTriangle) && !r.held(kbm::kStart) && g_capture == 0);
+    tick();
+    r = read_pad();
+    tick();
+    press(41);
+    r = read_pad();
+    CHECK(r.held(kbm::kTriangle) && !r.held(kbm::kStart));
+    tick();
     press(40);
     hold(82);
-    g_input.mouse_held = OPENRAC_MOUSE_LEFT;
     r = read_pad();
-    CHECK(g_capture == 0);
     CHECK(r.held(kbm::kCross) && r.held(kbm::kUp) && !r.held(kbm::kCircle));
+    tick();
+    press(44);
+    r = read_pad();
+    CHECK(r.held(kbm::kCross));
+    tick();
+    press(42);
+    r = read_pad();
+    CHECK(r.held(kbm::kTriangle));
+    tick();
+    g_input.captured = 0;
+    g_input.pointer_inside = 1;
+    g_input.mouse_held = g_input.mouse_pressed = OPENRAC_MOUSE_LEFT;
+    r = read_pad();
+    CHECK(r.held(kbm::kCross) && !r.held(kbm::kCircle));
+    tick();
+    g_input.captured = 0;
+    g_input.mouse_held = OPENRAC_MOUSE_LEFT;  // the cursor off the game's picture: nothing
+    g_input.pointer_inside = 0;
+    r = read_pad();
+    CHECK(!r.held(kbm::kCross));
+    // A key tapped between two ticks (down and up again) still presses for one.
+    tick();
+    g_input.keys[40] = OPENRAC_KEY_PRESSED;
+    r = read_pad();
+    CHECK(r.held(kbm::kCross));
+    // A held arrow repeats: let go one tick in six after 24.
+    int ups = 0;
+    bool was = false;
+    for (int i = 0; i < 60; ++i) {
+        tick();
+        hold(82);
+        r = read_pad();
+        if (r.held(kbm::kUp) && !was) {
+            ++ups;
+        }
+        was = r.held(kbm::kUp);
+    }
+    CHECK(ups == 6);  // the press, then once after each tick let go (at 30, 36, 42, 48 and 54)
+    // The wheel: each notch one press, let go between.
+    tick();
+    g_input.pointer_inside = 1;
+    g_input.captured = 0;
+    g_input.wheel_y = -1.0f;
+    r = read_pad();
+    CHECK(r.held(kbm::kDown));
+    tick();
+    g_input.pointer_inside = 1;
+    g_input.captured = 0;
+    g_input.wheel_y = -1.0f;
+    r = read_pad();
+    CHECK(!r.held(kbm::kDown));  // let go between
+    tick();
+    r = read_pad();
+    CHECK(r.held(kbm::kDown));
+
+    // The pause menu's page under the mouse: over an item not focused, the focus moves there (the
+    // page's pending focus, as the d-pad asks for it); over the focused list's third row, the d-pad
+    // steps the selection down to it.
+    {
+        const std::uint32_t menus = d.page_menu, page = 0x00180000u, w0 = 0x00181000u, w1 = 0x00182000u,
+                            items = 0x00183000u;
+        at<std::uint32_t>(menus + 4u) = page;
+        at<std::uint32_t>(page + KBM_PAGE_FOCUS) = w0;
+        at<std::uint32_t>(page + KBM_PAGE_WIDGETS) = w0;
+        at<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u) = w1;
+        at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
+        const std::int32_t r0[4] = {100, 100, 200, 100};  // a list of three rows: 25 apart from y 125
+        const std::int32_t r1[4] = {100, 250, 200, 40};
+        std::memcpy(g_memory.data() + w0 + KBM_WIDGET_RECT, r0, 16);
+        std::memcpy(g_memory.data() + w1 + KBM_WIDGET_RECT, r1, 16);
+        at<std::uint32_t>(w0 + KBM_LIST_ITEMS) = items;
+        at<std::int32_t>(w0 + KBM_LIST_SELECTED) = 0;
+        for (int i = 0; i < 3; ++i) {
+            at<std::int16_t>(items + KBM_LIST_ITEM_SIZE * static_cast<std::uint32_t>(i)) = static_cast<std::int16_t>(10 + i);
+        }
+        const auto point = [](float gx, float gy) {
+            tick();
+            g_input.captured = 0;
+            g_input.pointer_inside = 1;
+            g_input.pointer_x = gx / kbm::kScreenWidth;
+            g_input.pointer_y = gy / kbm::kScreenHeight;
+            g_input.mouse_dx = 1.0f;
+        };
+        point(150.0f, 270.0f);  // over the second item
+        read_pad();
+        CHECK(at<std::uint32_t>(page + KBM_PAGE_PENDING) == w1);
+        at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
+        point(150.0f, 176.0f);  // over the list's third row
+        r = read_pad();
+        CHECK(r.held(kbm::kDown));
+        at<std::int32_t>(w0 + KBM_LIST_SELECTED) = 1;
+        tick();
+        g_input.captured = 0;
+        r = read_pad();  // let go
+        point(150.0f, 176.0f);
+        r = read_pad();
+        CHECK(r.held(kbm::kDown));
+        at<std::int32_t>(w0 + KBM_LIST_SELECTED) = 2;
+        tick();
+        r = read_pad();
+        point(150.0f, 177.0f);  // on it: nothing more
+        r = read_pad();
+        CHECK(!r.held(kbm::kDown) && !r.held(kbm::kUp));
+        // A click on the other item: focus first, then Cross.
+        point(150.0f, 270.0f);
+        g_input.mouse_held = g_input.mouse_pressed = OPENRAC_MOUSE_LEFT;
+        r = read_pad();
+        CHECK(!r.held(kbm::kCross) && at<std::uint32_t>(page + KBM_PAGE_PENDING) == w1);
+        at<std::uint32_t>(page + KBM_PAGE_FOCUS) = w1;
+        at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
+        bool crossed = false;
+        for (int i = 0; i < 6 && !crossed; ++i) {
+            tick();
+            g_input.captured = 0;
+            crossed = read_pad().held(kbm::kCross);
+        }
+        CHECK(crossed);
+        at<std::uint32_t>(menus + 4u) = 0;
+    }
+
+    // A cutscene (mode 2), a movie (1), a slideshow (7): Space, Enter, Escape and a click are Start.
+    for (int mode : {2, 1, 7}) {
+        at<std::int32_t>(d.level_mode) = mode;
+        for (int key : {44, 40, 41}) {
+            tick();
+            r = read_pad();
+            tick();
+            press(key);
+            r = read_pad();
+            CHECK(r.held(kbm::kStart) && !r.held(kbm::kCross));
+        }
+    }
+    // The ship (mode 6): Start and Cross.
+    at<std::int32_t>(d.level_mode) = 6;
+    tick();
+    r = read_pad();
+    tick();
+    press(44);
+    r = read_pad();
+    CHECK(r.held(kbm::kStart) && r.held(kbm::kCross));
+    // A "Quit?" dialog (mode 4, kind 1): Escape goes on (Cross), Backspace quits (Triangle).
+    at<std::int32_t>(d.level_mode) = 4;
+    at<std::int32_t>(d.dialog) = 1;
+    tick();
+    r = read_pad();
+    tick();
+    press(41);
+    r = read_pad();
+    CHECK(r.held(kbm::kCross) && !r.held(kbm::kTriangle));
+    tick();
+    press(42);
+    r = read_pad();
+    CHECK(r.held(kbm::kTriangle));
+
+    // The title, with no level (the boot program's mode word): Space, Enter or Escape is Start;
+    // its main menu (mode 3 there) has the menu's keys; WASD is the left stick everywhere.
+    g_level = -1;
+    at<std::int32_t>(d.boot_mode) = 0;
+    tick();
+    r = read_pad();
+    tick();
+    press(40);
+    r = read_pad();
+    CHECK(r.held(kbm::kStart) && g_capture == 0);
+    at<std::int32_t>(d.boot_mode) = 3;
+    tick();
+    r = read_pad();
+    tick();
+    press(42);
+    hold(22);  // S
+    r = read_pad();
+    CHECK(r.held(kbm::kTriangle) && kbm::game_axis(r.bytes[5]) > 0.0f);
+    g_level = 0;
     at<std::int32_t>(d.level_mode) = 0;
     tick();
     hold(82);  // in play the menu's arrows do nothing
@@ -364,7 +548,7 @@ void run(const char* library) {
     // The port's overlay open: the keys are left to it.
     tick();
     g_input.overlay = 1;
-    hold(44);
+    press(44);
     r = read_pad();
     CHECK(!r.held(kbm::kCross) && g_capture == 0);
 

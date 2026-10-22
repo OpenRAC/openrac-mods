@@ -2,12 +2,12 @@
   "format": 2,
   "id": "keyboard-mouse",
   "name": "Keyboard and mouse",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "OpenRAC contributors",
-  "description": "Plays Ratchet & Clank with a keyboard and mouse: WASD moves, the mouse aims the camera, left click fires, holding right click opens the Quick Select and the mouse picks its slot, Space jumps, Escape pauses, the number keys and the wheel change weapons. Every action can be bound to any key, mouse button or wheel direction, two binds each, with Left-handed and Arrow keys presets. A gamepad keeps working beside it.",
+  "description": "Plays Ratchet & Clank with a keyboard and mouse: WASD moves, the mouse aims the camera, left click fires, holding right click opens the Quick Select and the mouse picks its slot, Space jumps, Escape pauses, the number keys and the wheel change weapons. In menus the arrows and WASD move, Enter or Space confirm, Escape or Backspace go back, and the mouse points, clicks and scrolls; Space, Enter or Escape skip scenes and movies. Every action can be bound to any key, mouse button or wheel direction, two binds each, with Left-handed and Arrow keys presets. A gamepad keeps working beside it.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/keyboard-mouse",
-  "api": "1.2",
+  "api": "1.3",
   "games": {
     "rac1": [
       "pal",
@@ -67,6 +67,13 @@
       "type": "bool",
       "default": true,
       "description": "Hides the cursor and keeps it in the window while you play; menus and pausing let it go."
+    },
+    {
+      "key": "menu_mouse",
+      "name": "Mouse in menus",
+      "type": "bool",
+      "default": true,
+      "description": "In menus the cursor points at the game's items, a click confirms, right click goes back and the wheel scrolls."
     },
     {
       "key": "walk_speed",
@@ -139,7 +146,7 @@
       "type": "keybind",
       "default": "Space",
       "group": "play",
-      "description": "Cross."
+      "description": "Cross. Also confirms in menus and skips scenes and movies."
     },
     {
       "key": "fire",
@@ -211,7 +218,7 @@
       "type": "keybind",
       "default": "Escape,KeyP",
       "group": "play",
-      "description": "Start: the pause menu."
+      "description": "Start in play: the pause menu. In menus it goes back; in a scene or a movie it skips."
     },
     {
       "key": "weapon_1",
@@ -289,31 +296,31 @@
       "key": "menu_confirm",
       "name": "Menu: confirm",
       "type": "keybind",
-      "default": "Enter,NumpadEnter",
+      "default": "Enter,MouseLeft",
       "group": "menu",
-      "description": "Cross, in menus."
+      "description": "Cross in menus and dialogs; Space does it too. Skips a scene or a movie."
     },
     {
       "key": "menu_back",
       "name": "Menu: back",
       "type": "keybind",
-      "default": "Backspace",
+      "default": "Backspace,MouseRight",
       "group": "menu",
-      "description": "Triangle, in menus."
+      "description": "Triangle in menus; Escape does it too. Skips a scene or a movie."
     },
     {
       "key": "menu_up",
       "name": "Menu: up",
       "type": "keybind",
-      "default": "ArrowUp",
+      "default": "ArrowUp,WheelUp",
       "group": "menu",
-      "description": "The d-pad, in menus."
+      "description": "The d-pad in menus (held, it repeats); WASD move there too."
     },
     {
       "key": "menu_down",
       "name": "Menu: down",
       "type": "keybind",
-      "default": "ArrowDown",
+      "default": "ArrowDown,WheelDown",
       "group": "menu"
     },
     {
@@ -360,11 +367,7 @@
         "move_right": "ArrowRight",
         "walk": "AltRight",
         "crouch": "ControlRight,KeyC",
-        "strafe": "ShiftRight",
-        "menu_up": "",
-        "menu_down": "",
-        "menu_left": "",
-        "menu_right": ""
+        "strafe": "ShiftRight"
       }
     }
   ]

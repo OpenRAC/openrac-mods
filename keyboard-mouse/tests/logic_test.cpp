@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <initializer_list>
 #include <map>
 #include <sstream>
 #include <string>
@@ -259,6 +260,149 @@ void weapon_wheel() {
     CHECK(kbm::cycle_item(none, 0x08, 1) == 0x08);
 }
 
+void contexts() {
+    using kbm::Context;
+    // A level's mode word with a level loaded; the boot program's without one.
+    CHECK(kbm::context_of(3, 0, 99) == Context::Play);
+    CHECK(kbm::context_of(3, 1, 0) == Context::Movie);
+    CHECK(kbm::context_of(3, 2, 0) == Context::Cutscene);
+    CHECK(kbm::context_of(3, 3, 0) == Context::Menu);
+    CHECK(kbm::context_of(3, 4, 0) == Context::Dialog);
+    CHECK(kbm::context_of(3, 5, 0) == Context::Vendor);
+    CHECK(kbm::context_of(3, 6, 0) == Context::Flight);
+    CHECK(kbm::context_of(3, 7, 0) == Context::Slideshow);
+    CHECK(kbm::context_of(3, -1, 0) == Context::Menu);  // the debug menu, and anything unknown
+    CHECK(kbm::context_of(-1, 0, 0) == Context::Title);
+    CHECK(kbm::context_of(-1, 0, 3) == Context::Menu);  // the main menu
+    CHECK(kbm::context_of(-1, 0, 4) == Context::Dialog);
+    CHECK(kbm::context_of(-1, 0, 6) == Context::Flight);
+    CHECK(kbm::context_of(-1, 0, 1) == Context::Movie);
+}
+
+void buttons() {
+    using kbm::Context;
+    const auto b = [](Context c, std::initializer_list<Action> actions, int kind = 2) {
+        kbm::ActionSet set = 0;
+        for (Action a : actions) {
+            set |= kbm::bit(a);
+        }
+        return kbm::buttons_for(c, set, kind);
+    };
+    // Play: the console's layout.
+    CHECK(b(Context::Play, {Action::Jump}) == kbm::kCross);
+    CHECK(b(Context::Play, {Action::Pause}) == kbm::kStart);
+    CHECK(b(Context::Play, {Action::Fire, Action::Wrench}) == (kbm::kCircle | kbm::kSquare));
+    CHECK(b(Context::Play, {Action::Crouch, Action::Strafe, Action::FirstPerson, Action::Map})
+          == (kbm::kR1 | kbm::kL2 | kbm::kL1 | kbm::kSelect));
+    CHECK(b(Context::Play, {Action::MenuConfirm, Action::MenuBack}) == 0);
+    // The title: Space, Enter, Escape all start.
+    for (Action a : {Action::Jump, Action::MenuConfirm, Action::Pause}) {
+        CHECK(b(Context::Title, {a}) == kbm::kStart);
+    }
+    // Menus and the vendor: confirm Cross, back Triangle (Escape too), Select closes, L1 R1 page.
+    for (Context c : {Context::Menu, Context::Vendor}) {
+        CHECK(b(c, {Action::Jump}) == kbm::kCross);
+        CHECK(b(c, {Action::MenuConfirm}) == kbm::kCross);
+        CHECK(b(c, {Action::MenuBack}) == kbm::kTriangle);
+        CHECK(b(c, {Action::Pause}) == kbm::kTriangle);
+        CHECK(b(c, {Action::Map}) == kbm::kSelect);
+        CHECK(b(c, {Action::Crouch, Action::FirstPerson}) == (kbm::kR1 | kbm::kL1));
+    }
+    // Dialogs: "Quit?" (1, 4): Escape goes on (Cross), Backspace quits (Triangle); "Quit race?" (0):
+    // Escape goes on (Start), Backspace Circle; a message: confirm Cross, back Triangle.
+    for (int kind : {1, 4}) {
+        CHECK(b(Context::Dialog, {Action::Pause}, kind) == kbm::kCross);
+        CHECK(b(Context::Dialog, {Action::MenuBack}, kind) == kbm::kTriangle);
+        CHECK(b(Context::Dialog, {Action::MenuConfirm}, kind) == kbm::kCross);
+    }
+    CHECK(b(Context::Dialog, {Action::Pause}, 0) == kbm::kStart);
+    CHECK(b(Context::Dialog, {Action::MenuBack}, 0) == kbm::kCircle);
+    CHECK(b(Context::Dialog, {Action::Jump}, 0) == kbm::kCross);
+    CHECK(b(Context::Dialog, {Action::MenuBack}, 8) == kbm::kTriangle);
+    // Scenes, movies, slideshows: everything that confirms or goes back skips (Start); the ship
+    // Start and Cross.
+    for (Context c : {Context::Cutscene, Context::Movie, Context::Slideshow}) {
+        for (Action a : {Action::Jump, Action::MenuConfirm, Action::Pause, Action::MenuBack}) {
+            CHECK(b(c, {a}) == kbm::kStart);
+        }
+        CHECK(b(c, {Action::Fire}) == 0);
+    }
+    CHECK(b(Context::Flight, {Action::Pause}) == (kbm::kStart | kbm::kCross));
+}
+
+void press_edges() {
+    using kbm::Context;
+    // Held across a change of where the game is: out until let go. Pressed just then: in.
+    kbm::Latch latch;
+    const kbm::ActionSet esc = kbm::bit(Action::Pause);
+    CHECK(latch.filter(Context::Play, esc) == esc);
+    CHECK(latch.filter(Context::Menu, esc) == 0);
+    CHECK(latch.filter(Context::Menu, esc) == 0);
+    CHECK(latch.filter(Context::Menu, 0) == 0);
+    CHECK(latch.filter(Context::Menu, esc) == esc);
+    const kbm::ActionSet enter = kbm::bit(Action::MenuConfirm);
+    CHECK(latch.filter(Context::Menu, 0) == 0);
+    CHECK(latch.filter(Context::Cutscene, enter) == enter);  // down this very tick
+    // Pulses: each one a tick down and a tick up, in order.
+    kbm::Pulser p;
+    p.push(kbm::kDown);
+    p.push(kbm::kDown);
+    p.push(kbm::kCross);
+    CHECK(p.step() == kbm::kDown && p.step() == 0 && p.step() == kbm::kDown && p.step() == 0);
+    CHECK(p.step() == kbm::kCross && !p.idle() && p.step() == 0 && p.idle());
+    for (int i = 0; i < 9; ++i) {
+        p.push(kbm::kUp);
+    }
+    CHECK(p.count == 4);  // at most four wait
+    // A held direction repeats: down 24 ticks, then up one tick in six.
+    kbm::Repeat r;
+    int edges = 0;
+    bool was = false;
+    for (int t = 1; t <= 60; ++t) {
+        const bool now = r.step(true);
+        edges += now && !was ? 1 : 0;
+        was = now;
+        if (t <= 24) {
+            CHECK(now);
+        }
+    }
+    CHECK(edges == 6);
+    CHECK(!r.step(false) && r.step(true));  // let go: the next press is at once
+}
+
+void menu_mouse() {
+    // The widget under the point.
+    const kbm::Rect rects[3] = {{100, 100, 200, 30}, {100, 140, 200, 30}, {0, 0, 0, 0}};
+    CHECK(kbm::hit_widget(rects, 3, 150.0f, 110.0f) == 0);
+    CHECK(kbm::hit_widget(rects, 3, 150.0f, 155.0f) == 1);
+    CHECK(kbm::hit_widget(rects, 3, 50.0f, 155.0f) == -1);
+    CHECK(kbm::hit_widget(rects, 3, 301.0f, 155.0f) == 1);  // a margin of two pixels
+    CHECK(kbm::hit_widget(rects, 3, 0.0f, 0.0f) == -1);     // an empty rectangle is nothing
+    // A list's rows: spread (row i's text at y + h / (n + 1) * (i + 1)).
+    const kbm::Rect list{100, 100, 200, 100};
+    CHECK(kbm::list_row(list, 3, 0, 110.0f) == 0);
+    CHECK(kbm::list_row(list, 3, 0, 125.0f) == 0);
+    CHECK(kbm::list_row(list, 3, 0, 150.0f) == 1);
+    CHECK(kbm::list_row(list, 3, 0, 176.0f) == 2);
+    CHECK(kbm::list_row(list, 3, 0, 199.0f) == 2);
+    CHECK(kbm::list_row(list, 3, 0, 99.0f) == -1);
+    CHECK(kbm::list_row(list, 3, 0, 200.0f) == -1);
+    // Packed (flag 0x10): 15 apart with the 12 font, 17 with flag 4.
+    CHECK(kbm::list_row(list, 5, 0x10, 114.0f) == 0 && kbm::list_row(list, 5, 0x10, 116.0f) == 1);
+    CHECK(kbm::list_row(list, 5, 0x14, 116.0f) == 0 && kbm::list_row(list, 5, 0x14, 118.0f) == 1);
+    CHECK(kbm::list_row(list, 5, 0x10, 199.0f) == 4);  // past the last row: the last
+    // The pointer's 0..1 to the game's screen.
+    CHECK(kbm::kScreenWidth == 512.0f && kbm::kScreenHeight == 416.0f);
+    // Stepping: 48 pixels along the way it mostly goes.
+    kbm::Stepper s;
+    CHECK(s.step(30.0f, 0.0f) == 0);
+    CHECK(s.step(30.0f, 5.0f) == kbm::kRight);
+    CHECK(s.step(0.0f, -60.0f) == kbm::kUp);
+    CHECK(s.step(-60.0f, 0.0f) == kbm::kLeft);
+    s.reset();
+    CHECK(s.step(0.0f, 100.0f) == kbm::kDown && s.step(0.0f, 0.0f) == kbm::kDown && s.step(0.0f, 0.0f) == 0);
+}
+
 // Each action's setting in the manifest, with the table's default and group.
 void manifest(const char* path) {
     std::ifstream f(path);
@@ -291,6 +435,10 @@ int main(int argc, char** argv) {
     quick_select();
     report();
     weapon_wheel();
+    contexts();
+    buttons();
+    press_edges();
+    menu_mouse();
     if (argc > 1) {
         manifest(argv[1]);
     }

@@ -17,7 +17,7 @@ is replaced by the bindings below, and you can change every one of them.
    switched on straight away.
 4. Play.
 
-You need an OpenRAC with mod interface 1.2 or newer. With an older one, the
+You need an OpenRAC with mod interface 1.3 or newer. With an older one, the
 mod's row says that it needs a newer OpenRAC, and the game starts without it.
 
 To install by hand, download `keyboard-mouse-<version>.zip` from the
@@ -43,8 +43,28 @@ To install by hand, download `keyboard-mouse-<version>.zip` from the
 | Pause | Escape, P | Start |
 | Quick Select slots 1 to 8 | 1 to 8 | none (equips the item at once) |
 | Next / previous weapon | wheel down / wheel up | none |
-| Menus: confirm, back | Enter, Backspace | Cross, Triangle |
-| Menus: move | the arrow keys | d-pad |
+
+In menus, scenes and movies the same keys do what you'd expect there:
+
+| Where | Keys | What happens |
+|---|---|---|
+| Title screen | Space, Enter, Escape or left click | Start |
+| Menus (main menu, pause menu and its pages, the ship's map, vendor, save and load) | arrows or WASD; wheel up and down | move (a held arrow repeats) |
+| | Enter, Space or left click | confirm (Cross) |
+| | Escape, Backspace or right click | back (Triangle); at the top of the pause menu this closes it |
+| | Tab or M | close the pause menu (Select) |
+| | Left Ctrl or C, V | R1 and L1: the next or previous slot or planet where a page uses them |
+| "Quit?" questions | Enter, Space or left click | Cross (what the game shows as Cross) |
+| | Escape | go on playing |
+| | Backspace or right click | Triangle (what the game shows as Triangle) |
+| Cutscenes, movies, the slideshow | Space, Enter, Escape, Backspace or a click | skip (Start) |
+| The ship's landing, take-off and flight | the same | skip (Start and Cross) |
+
+A key you are still holding when the game switches between play, a menu or a
+scene is ignored until you let it go. So the Escape that opened the pause menu
+doesn't also close it, and the Space that skipped a scene doesn't also jump.
+Skipping a cutscene needs OpenRAC's *Skip cutscenes* option (on by default),
+exactly as Start on a pad does.
 
 - **Quick Select.** Hold right click to open the ring. Move the mouse
   towards the slot you want, then let go to take that item. Slot 1 is at the
@@ -59,8 +79,21 @@ To install by hand, download `keyboard-mouse-<version>.zip` from the
 - **Camera behind Ratchet.** Q swings the camera round behind him and
   levels it. Moving the mouse stops the swing.
 - **The cursor.** It is hidden and kept inside the window while you play.
-  You get it back in menus, on the pause screen, when you switch to another
-  window, and when OpenRAC's own overlay (F3) is open.
+  You get it back in menus, on the title screen, during scenes, when you
+  switch to another window, and when OpenRAC's own overlay (F3) is open.
+- **The mouse in menus.** With the cursor free, it points at the game's own
+  menus:
+  - **Hover selects.** This works on the main menu and on the pause menu and
+    its pages (Options, Help, Goodies…): the item under the cursor gets the
+    focus, and in a list the selection moves to the row under it.
+  - **Elsewhere, moving the mouse steps the selection** the way it moves, as
+    the d-pad would. This covers the vendor, the "Quit?" questions, the item
+    grids (Weapons, Gadgets, the Quick Select editor) and the ship's map.
+  - **Clicks and the wheel.** Left click confirms; clicking an item that isn't
+    selected yet selects it first, then confirms. Right click goes back, and
+    the wheel scrolls lists.
+  - The *Mouse in menus* setting turns hover and stepping off, leaving only
+    the clicks and the wheel.
 - **There is only one Quick Select** in the first game. It holds eight slots.
   In a vehicle, right click opens the vehicle's own ring.
 
@@ -98,6 +131,7 @@ These settings also adjust how the mouse and keys feel:
 | Invert the mouse's up and down | off | Mouse up tilts the camera down |
 | Camera tilt | Stays | *Stays*: the camera keeps the tilt you give it. *Levels out*: it comes back level when the mouse rests |
 | Capture the cursor in play | on | Off leaves the cursor visible; the mouse then doesn't turn the camera |
+| Mouse in menus | on | The cursor points at menu items (hover or steps); off keeps only clicks and the wheel |
 | Walk speed | 0.5 | How fast the walk key moves Ratchet, from 0.2 to 0.9 |
 | Stick ramp (ms) | 60 | How long the movement keys take to reach full speed: a tap nudges, holding runs |
 | Quick Select dead zone | 30 | How far, in pixels, the mouse has to move before the ring picks a slot |
@@ -124,6 +158,11 @@ See the [repository's README](../README.md#building). The tests check:
 - reading the binds and finding clashes;
 - how the keys move the stick and how the mouse turns the camera;
 - how the mouse's direction picks a Quick Select slot;
+- which state the game is in (title, menus, vendor, dialogs, cutscenes,
+  movies, the ship) and what each key presses there;
+- that every press reaches the game as a press: taps, held arrows repeating,
+  wheel notches, keys held across a change of state;
+- which menu item and list row lie under the mouse;
 - the report the game reads.
 
 The library is also loaded the way the game loads it: `ctest -R keyboard_mouse`.

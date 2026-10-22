@@ -61,9 +61,11 @@ enum class Action : int {
 };
 inline constexpr int kActionCount = static_cast<int>(Action::Count);
 
-// When an action's binds count: "play" ones always (the keyboard's; the mouse's while the cursor
-// is captured), "menu" ones only out of play (a menu, the pause screen, a cutscene). Two actions
-// of the same group may not share an input; of different groups they may.
+// When an action's binds count: "play" ones always (the keyboard's; the mouse's only in play, with
+// the cursor captured), "menu" ones only out of play (the title, a menu, the pause screen, a
+// dialog, a cutscene or movie; the mouse's while the cursor is over the game's picture). What a
+// bind presses depends on where the game is (Context, buttons_for). Two actions of the same group
+// may not share an input; of different groups they may.
 enum class Group : int { Play, Menu };
 
 struct ActionInfo {
@@ -99,10 +101,10 @@ inline constexpr std::array<ActionInfo, kActionCount> kActions = {{
     {"weapon_8", "Digit8", Group::Play},
     {"weapon_next", "WheelDown", Group::Play},
     {"weapon_prev", "WheelUp", Group::Play},
-    {"menu_confirm", "Enter,NumpadEnter", Group::Menu},
-    {"menu_back", "Backspace", Group::Menu},
-    {"menu_up", "ArrowUp", Group::Menu},
-    {"menu_down", "ArrowDown", Group::Menu},
+    {"menu_confirm", "Enter,MouseLeft", Group::Menu},
+    {"menu_back", "Backspace,MouseRight", Group::Menu},
+    {"menu_up", "ArrowUp,WheelUp", Group::Menu},
+    {"menu_down", "ArrowDown,WheelDown", Group::Menu},
     {"menu_left", "ArrowLeft", Group::Menu},
     {"menu_right", "ArrowRight", Group::Menu},
 }};
@@ -443,6 +445,271 @@ inline int cycle_item(const std::array<std::int32_t, 8>& slots, std::int32_t cur
         }
     }
     return current;
+}
+
+// ---- Where the game is ----
+
+// What the game is doing, which decides what the keys press. From the game's mode word: a level's
+// (its program's copy) when a level is loaded, else the boot program's (the title and the main
+// menu run there, with no level).
+enum class Context : int {
+    Play,       // a level, mode 0
+    Title,      // the boot program's "Press Start" (mode 0 there): Start or Cross starts
+    Menu,       // the main menu, the pause menu and its pages, the ship's map (mode 3)
+    Vendor,     // the vendor (mode 5)
+    Dialog,     // a frozen game asking (mode 4): quit?, a memory card message
+    Cutscene,   // a level's in-game scene (mode 2): Start skips (the port adds what the game needs)
+    Movie,      // a movie (mode 1, and the port's own player): Start skips
+    Flight,     // the ship: landing, take-off, the flight between planets (mode 6)
+    Slideshow,  // mode 7: Start skips
+};
+
+// The boot program's and a level's modes (games/rac1 map_002465F8.c's dispatch).
+inline Context context_of(int loaded_level, int level_mode, int boot_mode) {
+    const int mode = loaded_level >= 0 ? level_mode : boot_mode;
+    switch (mode) {
+        case 0:
+            return loaded_level >= 0 ? Context::Play : Context::Title;
+        case 1:
+            return Context::Movie;
+        case 2:
+            return Context::Cutscene;
+        case 4:
+            return Context::Dialog;
+        case 5:
+            return Context::Vendor;
+        case 6:
+            return Context::Flight;
+        case 7:
+            return Context::Slideshow;
+        default:  // 3, the debug menu's -1, and anything new: a menu's keys are the safe ones
+            return Context::Menu;
+    }
+}
+
+inline bool skips(Context c) {
+    return c == Context::Cutscene || c == Context::Movie || c == Context::Flight || c == Context::Slideshow;
+}
+
+// A set of actions, one bit each.
+using ActionSet = std::uint64_t;
+inline constexpr ActionSet bit(Action a) {
+    return ActionSet{1} << static_cast<int>(a);
+}
+
+// The freeze dialogs' kinds (the record's +0): 0 "Quit race?" (Cross quits, Circle or Start goes
+// on), 1 and 4 "Quit?" (Triangle quits, Cross goes on); the rest are messages Cross or Triangle
+// closes.
+inline constexpr int kDialogQuitRace = 0;
+
+// The pad's buttons the held actions press where the game is. In play, the console's layout; in
+// the title, menus and dialogs, confirm (Space, Enter, left click) is Cross and back (Escape,
+// Backspace, right click) Triangle, except where that would quit: in a "Quit?" dialog, Escape goes
+// on (Cross), and only Backspace or right click is Triangle; in a scene, a movie, the ship or a
+// slideshow, every one of them is Start (and Cross for the ship's landing and take-off), which
+// skips. The directions are not here: the stick and the d-pad come apart (step()).
+inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind) {
+    const auto on = [&](Action a) { return (held & bit(a)) != 0; };
+    const bool confirm = on(Action::Jump) || on(Action::MenuConfirm);
+    const bool back = on(Action::MenuBack);
+    const bool escape = on(Action::Pause);
+    std::uint16_t b = 0;
+    const auto set = [&](bool when, std::uint16_t button) {
+        if (when) {
+            b = static_cast<std::uint16_t>(b | button);
+        }
+    };
+    switch (c) {
+        case Context::Play:
+            set(on(Action::Jump), kCross);
+            set(on(Action::Fire), kCircle);
+            set(on(Action::Wrench), kSquare);
+            set(on(Action::Crouch), kR1);
+            set(on(Action::Strafe), kL2);
+            set(on(Action::FirstPerson), kL1);
+            set(on(Action::Map), kSelect);
+            set(on(Action::Pause), kStart);
+            break;
+        case Context::Title:
+            set(confirm || escape, kStart);
+            break;
+        case Context::Menu:
+        case Context::Vendor:
+            set(confirm, kCross);
+            set(back || escape, kTriangle);
+            set(on(Action::Fire), kCircle);  // the map's Circle: go to the planet
+            set(on(Action::Wrench), kSquare);
+            set(on(Action::Crouch), kR1);    // next slot, next planet
+            set(on(Action::FirstPerson), kL1);
+            set(on(Action::Map), kSelect);   // closes the pause menu
+            break;
+        case Context::Dialog:
+            set(confirm, kCross);
+            if (dialog_kind == kDialogQuitRace) {
+                set(escape, kStart);  // goes on racing
+                set(back, kCircle);
+            } else {
+                set(escape, kCross);  // goes on
+                set(back, kTriangle);
+            }
+            break;
+        case Context::Cutscene:
+        case Context::Movie:
+        case Context::Slideshow:
+            set(confirm || back || escape, kStart);
+            break;
+        case Context::Flight:
+            set(confirm || back || escape, static_cast<std::uint16_t>(kStart | kCross));
+            break;
+    }
+    return b;
+}
+
+// Actions held when the game changes where it is stay out until they are let go: Escape that
+// paused does not also go back in the menu it opened, Space that confirmed does not jump.
+struct Latch {
+    ActionSet blocked = 0;
+    ActionSet before = 0;  // what was held the tick before
+    Context last = Context::Play;
+    bool first = true;
+
+    // A key pressed just as the game changes (down this tick, not the last) is a new press, and
+    // counts.
+    ActionSet filter(Context now, ActionSet held) {
+        if (first || now != last) {
+            blocked = first ? 0 : held & before;
+            last = now;
+            first = false;
+        }
+        before = held;
+        blocked &= held;  // let go: free again
+        return held & ~blocked;
+    }
+};
+
+// Presses the game sees one at a time: each pulse is held one tick and let go the next, so the
+// game, which acts on a button's press, sees each. For the wheel in menus, the mouse's steps and
+// its hover. At most four wait.
+struct Pulser {
+    std::array<std::uint16_t, 4> queue{};
+    int count = 0;
+    bool resting = false;
+
+    void push(std::uint16_t buttons) {
+        if (count < static_cast<int>(queue.size())) {
+            queue[static_cast<std::size_t>(count++)] = buttons;
+        }
+    }
+    bool idle() const { return count == 0 && !resting; }
+    void clear() {
+        count = 0;
+        resting = false;
+    }
+    // This tick's buttons.
+    std::uint16_t step() {
+        if (resting || count == 0) {
+            resting = false;
+            return 0;
+        }
+        const std::uint16_t b = queue[0];
+        for (int i = 1; i < count; ++i) {
+            queue[static_cast<std::size_t>(i - 1)] = queue[static_cast<std::size_t>(i)];
+        }
+        --count;
+        resting = true;
+        return b;
+    }
+};
+
+// A held direction in a menu repeats, as a keyboard does: the game moves once a press, so after
+// `delay` ticks held the button is let go for one tick every `every` ticks.
+struct Repeat {
+    int ticks = 0;
+    bool step(bool held, int delay = 24, int every = 6) {
+        if (!held) {
+            ticks = 0;
+            return false;
+        }
+        ++ticks;
+        return !(ticks > delay && (ticks - delay) % every == 0);
+    }
+};
+
+// The mouse moved over a menu with nothing under it to point at: each `distance` pixels along the
+// way it mostly goes is a step of the d-pad that way.
+struct Stepper {
+    float x = 0.0f, y = 0.0f;
+    std::uint16_t step(float dx, float dy, float distance = 48.0f) {
+        x += dx;
+        y += dy;
+        if (std::fabs(x) >= std::fabs(y)) {
+            y *= 0.5f;  // across the way it goes: forgotten slowly
+            if (x >= distance) {
+                x -= distance;
+                return kRight;
+            }
+            if (x <= -distance) {
+                x += distance;
+                return kLeft;
+            }
+        } else {
+            x *= 0.5f;
+            if (y >= distance) {
+                y -= distance;
+                return kDown;
+            }
+            if (y <= -distance) {
+                y += distance;
+                return kUp;
+            }
+        }
+        return 0;
+    }
+    void reset() { x = y = 0.0f; }
+};
+
+// ---- The menus under the mouse ----
+
+// The game's 2D screen, which the pointer (openrac_input.pointer_*, 0..1) maps onto.
+inline constexpr float kScreenWidth = 512.0f;
+inline constexpr float kScreenHeight = 416.0f;
+
+// A page widget's rectangle as the game writes it each frame (widget +0x18: x, y, width, height in
+// the game's screen pixels).
+struct Rect {
+    std::int32_t x = 0, y = 0, w = 0, h = 0;
+    bool contains(float px, float py, float margin = 2.0f) const {
+        return w > 0 && h > 0 && px >= x - margin && px < x + w + margin && py >= y - margin && py < y + h + margin;
+    }
+};
+
+// The widget under the point, the first of them (-1 for none).
+inline int hit_widget(const Rect* rects, int count, float px, float py) {
+    for (int i = 0; i < count; ++i) {
+        if (rects[i].contains(px, py)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// The row of a text list under a point (DrawMenuItemList, games/rac1 pause.c): `count` rows. Spread
+// over the rectangle (flags without 0x10), row i's text sits at about rect.y + h / (count + 1) *
+// (i + 1); packed (flag 0x10), the rows are the font's height and 3 apart from the top (the font
+// 12 high, 14 with flag 4, 10 with flag 8). -1 off the list.
+inline int list_row(const Rect& r, int count, std::uint32_t flags, float py) {
+    if (count <= 0 || r.h <= 0 || py < r.y || py >= r.y + r.h) {
+        return -1;
+    }
+    float row;
+    if ((flags & 0x10u) != 0) {
+        const float font = (flags & 4u) != 0 ? 14.0f : (flags & 8u) != 0 ? 10.0f : 12.0f;
+        row = std::floor((py - static_cast<float>(r.y)) / (font + 3.0f));
+    } else {
+        const float spacing = static_cast<float>(r.h) / static_cast<float>(count + 1);
+        row = std::floor((py - static_cast<float>(r.y)) / spacing - 0.5f);
+    }
+    return static_cast<int>(std::max(0.0f, std::min(row, static_cast<float>(count - 1))));
 }
 
 }  // namespace kbm
