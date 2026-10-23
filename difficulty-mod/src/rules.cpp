@@ -1,14 +1,63 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// The difficulty mod's rules (rules.h).
+// The difficulty mod's rules (rules.h), with no game memory in them: the sliders' ranges and what
+// plays with them, Chaos's per-level roll and its timed events, the splitmix64 random stream and
+// the seed's code, the accumulators and roundings that turn a multiplier into whole hits, bolts,
+// prices and cells, and the moby pool's budget. Every random value comes from a seed, so the same
+// seed and level always give the same values.
 #include "rules.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
+#include <string>
 
 namespace dm {
 
+namespace {
+
+// splitmix64's increment and its two multipliers (documented: Steele, Lea and Flood, "Fast
+// splittable pseudorandom number generators", 2014), and the shifts of its finalizer.
+constexpr std::uint64_t kSplitIncrement = 0x9E3779B97F4A7C15ull;
+constexpr std::uint64_t kSplitMulA = 0xBF58476D1CE4E5B9ull;
+constexpr std::uint64_t kSplitMulB = 0x94D049BB133111EBull;
+constexpr int kSplitShiftA = 30;
+constexpr int kSplitShiftB = 27;
+constexpr int kSplitShiftC = 31;
+// A double's 53 bits of mantissa: the stream's top 53 bits over 2^53 are a value in [0, 1).
+constexpr int kUnitShift = 11;
+constexpr double kUnitScale = 1.0 / 9007199254740992.0;
+
+// FNV-1a's offset basis and prime, 64 bits (documented: the FNV specification).
+constexpr std::uint64_t kFnvBasis = 0xCBF29CE484222325ull;
+constexpr std::uint64_t kFnvPrime = 0x100000001B3ull;
+
+// A seed is 32 bits; its code is this many hex digits.
+constexpr std::uint64_t kSeedMask = 0xFFFFFFFFull;
+constexpr std::size_t kSeedCodeDigits = 8;
+
+// The salts that keep Chaos's rolls and the events' picks on streams of their own.
+constexpr std::uint64_t kChaosRollSalt = 0x1000u;
+constexpr std::uint64_t kEventPickSalt = 0x2000u;
+
+// Chaos's values are rounded to hundredths.
+constexpr double kRollRounding = 100.0;
+// The slack that keeps a whole number from falling just under itself in floating point.
+constexpr double kWholeSlack = 1e-9;
+
+// The HUD's counts of cells of health: 1 to 5 and 8 only (documented: rules.h: max_health).
+constexpr int kAllowedCells[] = {1, 2, 3, 4, 5, 8};
+
+// A spawned moby's own pvars, in bytes (documented: pool.h: k_spare_pvars).
+constexpr int kSparePvarBytes = 0x80;
+// Gaspar's level number (documented: rules.h: k_gaspar_sparks).
+constexpr int kGasparLevel = 9;
+
+}  // namespace
+
+// The sliders: the setting's key, what the log calls it, its range and Chaos's range (the
+// manifest's "settings" are in the same order).
 const KnobInfo k_knobs[KNOB_COUNT] = {
     {"enemy_count", "enemy count", 0.25, 4.0, 0.5, 2.5},
     {"damage_taken", "damage to Ratchet", 0.25, 4.0, 0.5, 3.0},
@@ -36,6 +85,7 @@ const double k_event_max[KNOB_COUNT] = {4.0, 6.0, 6.0, 2.5, 2.5, 5.0, 5.0, 6.0, 
 Values retail() {
     Values v;
 
+    // Every knob.
     for (double& x : v.v) {
         x = 1.0;
     }
@@ -44,6 +94,7 @@ Values retail() {
 }
 
 double clamp_knob(int knob, double value) {
+    // Not a number, or infinite: retail.
     if (!std::isfinite(value)) {
         return 1.0;
     }
@@ -53,7 +104,9 @@ double clamp_knob(int knob, double value) {
 }
 
 bool sliders_moved(const Values& sliders) {
+    // Each slider, as the game would use it.
     for (int k = 0; k < KNOB_COUNT; ++k) {
+        // This one is off 1.0.
         if (clamp_knob(k, sliders[k]) != 1.0) {
             return true;
         }
@@ -65,9 +118,11 @@ bool sliders_moved(const Values& sliders) {
 Values effective(bool chaos, const Values& sliders, std::uint64_t seed, int level) {
     Values out = chaos ? chaos_roll(seed, level) : retail();
 
+    // Each slider, clamped.
     for (int k = 0; k < KNOB_COUNT; ++k) {
         const double s = clamp_knob(k, sliders[k]);
 
+        // Without Chaos every slider plays; with it only one moved off 1.0 does, and holds.
         if (!chaos || s != 1.0) {
             out[k] = s;
         }
@@ -77,47 +132,51 @@ Values effective(bool chaos, const Values& sliders, std::uint64_t seed, int leve
 }
 
 std::uint64_t mix(std::uint64_t a, std::uint64_t b) {
-    Rng r(a ^ (b * 0x9E3779B97F4A7C15ull));
+    Rng r(a ^ (b * kSplitIncrement));
     r.next();
     return r.next();
 }
 
 std::uint64_t Rng::next() {
-    std::uint64_t z = (state += 0x9E3779B97F4A7C15ull);
-    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
-    z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
-    return z ^ (z >> 31);
+    std::uint64_t z = (state += kSplitIncrement);
+    z = (z ^ (z >> kSplitShiftA)) * kSplitMulA;
+    z = (z ^ (z >> kSplitShiftB)) * kSplitMulB;
+    return z ^ (z >> kSplitShiftC);
 }
 
 double Rng::unit() {
-    return static_cast<double>(next() >> 11) * (1.0 / 9007199254740992.0);
+    return static_cast<double>(next() >> kUnitShift) * kUnitScale;
 }
 
 Values chaos_roll(std::uint64_t seed, int level) {
-    Rng rng(mix(seed, 0x1000u + static_cast<std::uint64_t>(level)));
+    Rng rng(mix(seed, kChaosRollSalt + static_cast<std::uint64_t>(level)));
     Values out;
 
+    // Each knob: log-uniform in its Chaos range.
     for (int k = 0; k < KNOB_COUNT; ++k) {
         const double lo = std::log(k_knobs[k].chaos_min);
         const double hi = std::log(k_knobs[k].chaos_max);
         // Rounded to hundredths, so that the log reads as what plays.
-        out[k] = std::round(std::exp(lo + (hi - lo) * rng.unit()) * 100.0) / 100.0;
+        out[k] = std::round(std::exp(lo + (hi - lo) * rng.unit()) * kRollRounding) / kRollRounding;
     }
 
     return out;
 }
 
 std::uint64_t seed_from_text(const std::string& text) {
-    if (text.size() == 8) {
+    // The size of a code: it may be one.
+    if (text.size() == kSeedCodeDigits) {
         std::uint64_t v = 0;
         bool hex = true;
 
+        // Each character, as a hex digit.
         for (const char c : text) {
             const int d = c >= '0' && c <= '9'   ? c - '0'
                           : c >= 'A' && c <= 'F' ? c - 'A' + 10
                           : c >= 'a' && c <= 'f' ? c - 'a' + 10
                                                  : -1;
 
+            // Not a hex digit: this is a word, not a code.
             if (d < 0) {
                 hex = false;
                 break;
@@ -126,36 +185,40 @@ std::uint64_t seed_from_text(const std::string& text) {
             v = v << 4 | static_cast<std::uint64_t>(d);
         }
 
+        // All eight were digits: the code is the seed.
         if (hex) {
             return v;
         }
     }
 
-    std::uint64_t h = 0xCBF29CE484222325ull;  // FNV-1a, folded to the 32 bits a code shows
+    std::uint64_t h = kFnvBasis;  // FNV-1a, folded to the 32 bits a code shows
 
+    // Each byte of the text.
     for (const unsigned char c : text) {
-        h = (h ^ c) * 0x100000001B3ull;
+        h = (h ^ c) * kFnvPrime;
     }
 
-    return (h ^ (h >> 32)) & 0xFFFFFFFFull;
+    return (h ^ (h >> 32)) & kSeedMask;
 }
 
 std::string seed_code(std::uint64_t seed) {
     char out[16];
-    std::snprintf(out, sizeof out, "%08X", static_cast<unsigned>(seed & 0xFFFFFFFFull));
+    std::snprintf(out, sizeof out, "%08X", static_cast<unsigned>(seed & kSeedMask));
     return out;
 }
 
 int Accumulator::take(double rate, int units) {
     carry += rate * units;
 
+    // Negative or not a number: start again from none.
     if (!(carry >= 0.0)) {
         carry = 0.0;
     }
 
-    const double whole = std::floor(carry + 1e-9);
+    const double whole = std::floor(carry + kWholeSlack);
     carry -= whole;
 
+    // The slack took more than the carry had.
     if (carry < 0.0) {
         carry = 0.0;
     }
@@ -164,6 +227,7 @@ int Accumulator::take(double rate, int units) {
 }
 
 int scale_count(int n, double m, Rng& rng) {
+    // Nothing to scale, or retail.
     if (n <= 0 || m == 1.0) {
         return n;
     }
@@ -175,6 +239,7 @@ int scale_count(int n, double m, Rng& rng) {
 }
 
 int scale_amount(int value, double m, int limit) {
+    // None stays none, and retail stays as it is.
     if (value <= 0 || m == 1.0) {
         return value;
     }
@@ -184,16 +249,17 @@ int scale_amount(int value, double m, int limit) {
 }
 
 int max_health(int retail_cells, double m) {
-    static const int allowed[] = {1, 2, 3, 4, 5, 8};
-
+    // Retail stays as it is.
     if (m == 1.0) {
         return retail_cells;
     }
 
-    const double want = std::floor(retail_cells * m + 1e-9);
+    const double want = std::floor(retail_cells * m + kWholeSlack);
     int out = 1;
 
-    for (const int a : allowed) {
+    // Each count the HUD can show, the largest one not over what was asked for.
+    for (const int a : kAllowedCells) {
+        // This count is not over.
         if (a <= want) {
             out = a;
         }
@@ -219,13 +285,16 @@ const Event k_events[] = {
 const int k_event_count = static_cast<int>(sizeof k_events / sizeof k_events[0]);
 
 int EventClock::advance(double dt) {
+    // No time passed (or not a number).
     if (!(dt > 0.0)) {
         return 0;
     }
 
     clock += dt;
 
+    // An event is on.
     if (current >= 0) {
+        // Its time is up.
         if (clock >= ends) {
             current = -1;
             return -1;
@@ -234,8 +303,9 @@ int EventClock::advance(double dt) {
         return 0;
     }
 
+    // Time for the next event: one is picked from the seed and how many there have been.
     if (clock >= every * (count + 1)) {
-        Rng rng(mix(seed, 0x2000u + static_cast<std::uint64_t>(count)));
+        Rng rng(mix(seed, kEventPickSalt + static_cast<std::uint64_t>(count)));
         current = static_cast<int>(rng.next() % static_cast<std::uint64_t>(k_event_count));
         ends = clock + lasts;
         ++count;
@@ -248,13 +318,16 @@ int EventClock::advance(double dt) {
 Values with_event(const Values& values, int event) {
     Values out = values;
 
+    // No event on (or one that is not there).
     if (event < 0 || event >= k_event_count) {
         return out;
     }
 
     const Event& e = k_events[event];
 
+    // The event's two knobs.
     for (int i = 0; i < 2; ++i) {
+        // The second is the first again: not scaled twice.
         if (i == 1 && e.knob[1] == e.knob[0]) {
             break;
         }
@@ -269,12 +342,12 @@ Values with_event(const Values& values, int event) {
 }
 
 int clone_budget(int free_slots, int level) {
-    const int b = free_slots - k_pool_reserve - (level == 9 ? k_gaspar_sparks : 0);
+    const int b = free_slots - k_pool_reserve - (level == kGasparLevel ? k_gaspar_sparks : 0);
     return b > 0 ? b : 0;
 }
 
 int pvar_slots(int size) {
-    return size <= 0x80 ? 0 : (size + 0x7F) / 0x80;
+    return size <= kSparePvarBytes ? 0 : (size + kSparePvarBytes - 1) / kSparePvarBytes;
 }
 
 }  // namespace dm
