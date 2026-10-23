@@ -34,16 +34,19 @@ bool has(const std::vector<Action>& actions, Action action) {
             return true;
         }
     }
+
     return false;
 }
 
 std::size_t count(const std::vector<Action>& actions, Action action) {
     std::size_t n = 0;
+
     for (const Action a : actions) {
         if (a == action) {
             ++n;
         }
     }
+
     return n;
 }
 
@@ -61,11 +64,13 @@ void test_reached() {
     // The same planet again (Ratchet died and the level was loaded again): nothing.
     actions = splits.reached(0);
     CHECK(actions.empty());
+
     // Every planet after it: a split.
     for (std::size_t i = 1; i < kRouteLength; ++i) {
         actions = splits.reached(kRoute[i]);
         CHECK(count(actions, Action::kSplit) == 1);
     }
+
     // Leaving a planet in the middle: nothing (the split was taken when it was reached).
     actions = splits.left(5);
     CHECK(actions.empty());
@@ -92,6 +97,7 @@ void test_left() {
     // Leaving it again (the player went back and left once more): nothing.
     actions = splits.left(0);
     CHECK(actions.empty());
+
     // The rest of the route: a split a planet.
     for (std::size_t i = 1; i < kRouteLength; ++i) {
         actions = splits.reached(kRoute[i]);

@@ -116,12 +116,15 @@ const char* setting_string(openrac_mod*, const char* key) {
     if (std::strcmp(key, "split") == 0) {
         return "reached";
     }
+
     if (std::strcmp(key, "start") == 0) {
         return "first";
     }
+
     if (std::strcmp(key, "protocol") == 0) {
         return g_protocol.c_str();
     }
+
     return "";
 }
 
@@ -219,25 +222,32 @@ public:
 
     bool listen() {
         fd_ = socket(AF_INET, SOCK_STREAM, 0);
+
         if (fd_ == kNoSocket) {
             return false;
         }
+
         int yes = 1;
         setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&yes), sizeof yes);
         sockaddr_in address{};
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         address.sin_port = 0;
+
         if (bind(fd_, reinterpret_cast<sockaddr*>(&address), sizeof address) != 0) {
             return false;
         }
+
         if (::listen(fd_, 4) != 0) {
             return false;
         }
+
         socklen_t length = sizeof address;
+
         if (getsockname(fd_, reinterpret_cast<sockaddr*>(&address), &length) != 0) {
             return false;
         }
+
         port_ = ntohs(address.sin_port);
         return true;
     }
@@ -251,16 +261,19 @@ public:
     bool accept(int timeout_ms) {
         const auto deadline =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+
         while (std::chrono::steady_clock::now() < deadline) {
             fd_set set;
             FD_ZERO(&set);
             FD_SET(fd_, &set);
             timeval tv{0, 50000};
+
             if (select(static_cast<int>(fd_) + 1, &set, nullptr, nullptr, &tv) > 0) {
                 client_ = ::accept(fd_, nullptr, nullptr);
                 return client_ != kNoSocket;
             }
         }
+
         return false;
     }
 
@@ -269,19 +282,24 @@ public:
         if (websocket_) {
             return frame(out, timeout_ms);
         }
+
         const auto deadline =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+
         while (std::chrono::steady_clock::now() < deadline) {
             const std::size_t newline = buffer_.find('\n');
+
             if (newline != std::string::npos) {
                 out = buffer_.substr(0, newline);
                 buffer_.erase(0, newline + 1);
                 return true;
             }
+
             if (!read_more(50)) {
                 continue;
             }
         }
+
         return false;
     }
 
@@ -289,8 +307,10 @@ public:
     bool handshake(int timeout_ms) {
         const auto deadline =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+
         while (std::chrono::steady_clock::now() < deadline) {
             const std::size_t end = buffer_.find("\r\n\r\n");
+
             if (end != std::string::npos) {
                 buffer_.erase(0, end + 4);
                 const std::string answer = "HTTP/1.1 101 Switching Protocols\r\n"
@@ -300,10 +320,12 @@ public:
                 ::send(client_, answer.data(), static_cast<int>(answer.size()), 0);
                 return true;
             }
+
             if (!read_more(50)) {
                 continue;
             }
         }
+
         return false;
     }
 
@@ -320,14 +342,18 @@ private:
         FD_ZERO(&set);
         FD_SET(client_, &set);
         timeval tv{0, 50000};
+
         if (select(static_cast<int>(client_) + 1, &set, nullptr, nullptr, &tv) <= 0) {
             return false;
         }
+
         char chunk[512];
         const int n = ::recv(client_, chunk, sizeof chunk, 0);
+
         if (n <= 0) {
             return false;
         }
+
         buffer_.append(chunk, static_cast<std::size_t>(n));
         return true;
     }
@@ -336,12 +362,14 @@ private:
     bool frame(std::string& out, int timeout_ms) {
         const auto deadline =
             std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+
         while (std::chrono::steady_clock::now() < deadline) {
             if (buffer_.size() >= 2) {
                 const unsigned char first = static_cast<unsigned char>(buffer_[0]);
                 const unsigned char second = static_cast<unsigned char>(buffer_[1]);
                 std::size_t length = second & 0x7Fu;
                 std::size_t offset = 2;
+
                 if (length == 126) {
                     if (buffer_.size() < 4) {
                         length = 0;
@@ -353,27 +381,34 @@ private:
                 } else if (length == 127) {
                     length = 0;
                 }
+
                 if (length != 0 && buffer_.size() >= offset + 4 + length) {
                     unsigned char mask[4];
+
                     for (int i = 0; i < 4; ++i) {
                         mask[i] = static_cast<unsigned char>(
                             buffer_[offset + static_cast<std::size_t>(i)]
                         );
                     }
+
                     std::string payload = buffer_.substr(offset + 4, length);
                     buffer_.erase(0, offset + 4 + length);
+
                     for (std::size_t i = 0; i < payload.size(); ++i) {
                         payload[i] =
                             static_cast<char>(static_cast<unsigned char>(payload[i]) ^ mask[i % 4]);
                     }
+
                     out = payload;
                     return true;
                 }
             }
+
             if (!read_more(50)) {
                 continue;
             }
         }
+
         return false;
     }
 
@@ -390,6 +425,7 @@ void tick(bool gameplay_loaded) {
     if (gameplay_loaded && g_hook != nullptr) {
         reinterpret_cast<std::uint32_t (*)(std::int32_t)>(g_hook)(1);
     }
+
     g_frame(g_frame_user);
 }
 
@@ -474,11 +510,13 @@ void run(const char* library) {
 
     // The mod's log names the connection.
     bool named = false;
+
     for (const std::string& text : g_log) {
         if (text.find("connected") != std::string::npos) {
             named = true;
         }
     }
+
     CHECK(named);
 
     if (unload != nullptr) {
@@ -550,15 +588,18 @@ void run(const char* library) {
     /* The client tries the connection on its thread: ticks that read what it knows, for up to
      * five seconds (Windows retries a refused connection for a second or more before it says so). */
     bool said = false;
+
     for (int wait = 0; wait < 50 && !said; ++wait) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         tick(false);
+
         for (const std::string& text : g_log) {
             if (text.find("no LiveSplit server") != std::string::npos) {
                 said = true;
             }
         }
     }
+
     CHECK(said);
 
     if (unload != nullptr) {
@@ -573,6 +614,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "usage: load_test <library>\n");
         return 2;
     }
+
     run(argv[1]);
     std::puts("live splits load: all passed");
     return 0;
