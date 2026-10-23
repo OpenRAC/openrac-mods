@@ -35,7 +35,9 @@ enum {
 
 /* The settings the options give. remembered: seed.txt's text, or null; fresh: a new random seed
  * for a blank seed with none remembered. Returns SEED_FROM_*. */
-int rando_settings_of(const rando_options* o, const char* remembered, uint64_t fresh, rando_settings* s);
+int rando_settings_of(
+    const rando_options* o, const char* remembered, uint64_t fresh, rando_settings* s
+);
 
 #ifdef __cplusplus
 }

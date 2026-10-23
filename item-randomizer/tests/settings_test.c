@@ -26,13 +26,20 @@ int main(int argc, char** argv) {
 
     /* The switches. */
     CHECK(rando_settings_of(&o, NULL, 0x1234567890FFull, &s) == SEED_FROM_NEW);
-    CHECK(s.pools == POOL_ALL && s.keep_start == 1 && s.difficulty == DIFFICULTY_STANDARD && s.seed == (0x1234567890FFull & RANDO_SEED_MASK));
+    CHECK(
+        s.pools == POOL_ALL && s.keep_start == 1 && s.difficulty == DIFFICULTY_STANDARD
+        && s.seed == (0x1234567890FFull & RANDO_SEED_MASK)
+    );
     const int bits[5] = {POOL_WEAPONS, POOL_GADGETS, POOL_GOLD, POOL_PLANETS, POOL_VENDOR};
+
     for (int i = 0; i < 5; ++i) {
         rando_options one = {"x", i == 0, i == 1, i == 2, i == 3, i == 4, 0, "expert"};
-        CHECK(rando_settings_of(&one, NULL, 0, &s) == SEED_FROM_WORD && s.pools == bits[i] && s.keep_start == 0
-              && s.difficulty == DIFFICULTY_EXPERT);
+        CHECK(
+            rando_settings_of(&one, NULL, 0, &s) == SEED_FROM_WORD && s.pools == bits[i]
+            && s.keep_start == 0 && s.difficulty == DIFFICULTY_EXPERT
+        );
     }
+
     o.difficulty = "relaxed";
     CHECK(rando_settings_of(&o, NULL, 0, &s) && s.difficulty == DIFFICULTY_RELAXED);
     o.difficulty = "nonsense";
@@ -43,7 +50,10 @@ int main(int argc, char** argv) {
     /* A word: its hash, the switches as they are. */
     o.seed = "Qwark";
     o.gold_bolts = 0;
-    CHECK(rando_settings_of(&o, NULL, 99, &s) == SEED_FROM_WORD && s.seed == rando_seed_of_text("Qwark") && s.pools == (POOL_ALL & ~POOL_GOLD));
+    CHECK(
+        rando_settings_of(&o, NULL, 99, &s) == SEED_FROM_WORD
+        && s.seed == rando_seed_of_text("Qwark") && s.pools == (POOL_ALL & ~POOL_GOLD)
+    );
 
     /* A code: its own settings, whatever the switches say. */
     const rando_settings shared = {0xABCDEull, POOL_GADGETS | POOL_PLANETS, 0, DIFFICULTY_RELAXED};
@@ -51,19 +61,25 @@ int main(int argc, char** argv) {
     rando_encode(&shared, code);
     o.seed = code;
     CHECK(rando_settings_of(&o, NULL, 99, &s) == SEED_FROM_CODE);
-    CHECK(s.seed == shared.seed && s.pools == shared.pools && s.keep_start == 0 && s.difficulty == DIFFICULTY_RELAXED);
+    CHECK(
+        s.seed == shared.seed && s.pools == shared.pools && s.keep_start == 0
+        && s.difficulty == DIFFICULTY_RELAXED
+    );
 
     /* Blank: the remembered seed (only its seed: these switches), else the fresh one. */
     o.seed = "";
     o.gold_bolts = 1;
     o.difficulty = "standard";
-    CHECK(rando_settings_of(&o, code, 99, &s) == SEED_FROM_REMEMBERED && s.seed == shared.seed && s.pools == POOL_ALL
-          && s.difficulty == DIFFICULTY_STANDARD);
+    CHECK(
+        rando_settings_of(&o, code, 99, &s) == SEED_FROM_REMEMBERED && s.seed == shared.seed
+        && s.pools == POOL_ALL && s.difficulty == DIFFICULTY_STANDARD
+    );
     CHECK(rando_settings_of(&o, "not a code", 99, &s) == SEED_FROM_NEW && s.seed == 99);
     o.seed = NULL;
     CHECK(rando_settings_of(&o, NULL, 7, &s) == SEED_FROM_NEW && s.seed == 7);
 
     /* The manifest declares what the mod reads. */
+
     if (argc > 1) {
         FILE* f = fopen(argv[1], "rb");
         CHECK(f != NULL);
@@ -71,18 +87,30 @@ int main(int argc, char** argv) {
         const size_t n = fread(text, 1, sizeof text - 1, f);
         fclose(f);
         text[n] = 0;
-        static const char* const keys[] = {"\"seed\"", "\"difficulty\"", "\"shuffle_gadgets\"", "\"shuffle_weapons\"",
-                                           "\"shuffle_vendor\"", "\"shuffle_gold_bolts\"", "\"shuffle_infobots\"",
-                                           "\"keep_starting_gear\"", "\"spoiler_log\"", "\"Item_Give\"", "\"Moby_Edwina_Update\""};
+        static const char* const keys[] =
+            {"\"seed\"",
+             "\"difficulty\"",
+             "\"shuffle_gadgets\"",
+             "\"shuffle_weapons\"",
+             "\"shuffle_vendor\"",
+             "\"shuffle_gold_bolts\"",
+             "\"shuffle_infobots\"",
+             "\"keep_starting_gear\"",
+             "\"spoiler_log\"",
+             "\"Item_Give\"",
+             "\"Moby_Edwina_Update\""};
+
         for (size_t i = 0; i < sizeof keys / sizeof keys[0]; ++i) {
             if (strstr(text, keys[i]) == NULL) {
                 fprintf(stderr, "the manifest has no %s\n", keys[i]);
                 exit(1);
             }
         }
+
         CHECK(strstr(text, "\"id\": \"item-randomizer\"") != NULL);
         CHECK(strstr(text, "\"default\": \"standard\"") != NULL);
     }
+
     printf("settings_test: ok\n");
     return 0;
 }

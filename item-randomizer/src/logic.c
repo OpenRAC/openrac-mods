@@ -73,12 +73,14 @@ static const char* const k_items[RANDO_ITEM_COUNT] = {
 };
 
 static const char* const k_planets[LEVEL_COUNT] = {
-    "Veldin", "Novalis", "Aridia", "Kerwan", "Eudora", "Rilgar", "Blarg", "Umbris", "Batalia", "Gaspar",
-    "Orxon", "Pokitaru", "Hoven", "Gemlik", "Oltanis", "Quartu", "Kalebo III", "Drek's Fleet", "Veldin (return)",
+    "Veldin",  "Novalis", "Aridia",     "Kerwan",       "Eudora",          "Rilgar", "Blarg",
+    "Umbris",  "Batalia", "Gaspar",     "Orxon",        "Pokitaru",        "Hoven",  "Gemlik",
+    "Oltanis", "Quartu",  "Kalebo III", "Drek's Fleet", "Veldin (return)",
 };
 
 const char* rando_item_name(int item) {
-    return item >= 0 && item < RANDO_ITEM_COUNT && k_items[item] != 0 ? k_items[item] : "an unknown item";
+    return item >= 0 && item < RANDO_ITEM_COUNT && k_items[item] != 0 ? k_items[item]
+                                                                      : "an unknown item";
 }
 
 const char* rando_planet_name(int planet) {
@@ -98,7 +100,8 @@ const char* rando_planet_name(int planet) {
 #define HOLO BIT(ITEM_HOLOGUISE)
 #define TRESP BIT(ITEM_TRESPASSER)
 
-const uint64_t rando_progression_items = HELI | HYDROPACK | O2 | HELMET | SWING | HYDRO | MAGNE | GRIND | HOVER | HOLO | TRESP;
+const uint64_t rando_progression_items =
+    HELI | HYDROPACK | O2 | HELMET | SWING | HYDRO | MAGNE | GRIND | HOVER | HOLO | TRESP;
 
 /* What a gold bolt asks beyond its level's: they are the levels' hidden corners. */
 #define GOLD_SOFT (HELI | SWING)
@@ -109,24 +112,47 @@ const uint64_t rando_progression_items = HELI | HYDROPACK | O2 | HELMET | SWING 
 #define NONE {REWARD_NONE, 0}
 
 /* An NPC or pickup's item: weapons and gadgets are two pools. */
-#define GIVE_W(name, level, item, step, flags, hard, soft) {name, LOC_GIVE, level, item, POOL_WEAPONS, ITEM(item), step, flags, hard, soft}
-#define GIVE_G(name, level, item, step, flags, hard, soft) {name, LOC_GIVE, level, item, POOL_GADGETS, ITEM(item), step, flags, hard, soft}
-#define VENDOR(name, level, item, step, flags) {name, LOC_VENDOR, level, item, POOL_VENDOR, ITEM(item), step, flags, 0, 0}
-#define INFOBOT(name, level, mission, planet, step, hard, soft) {name, LOC_INFOBOT, level, mission, POOL_PLANETS, PLANET(planet), step, 0, hard, soft}
-#define GOLDBOLT(name, level, slot, step, hard, soft) {name, LOC_GOLD, level, slot, POOL_GOLD, GOLD, step, 0, hard, (soft) | GOLD_SOFT}
-#define FIXED(name, level, reward, step, flags, hard, soft) {name, LOC_FIXED, level, 0, 0, reward, step, flags, hard, soft}
+#define GIVE_W(name, level, item, step, flags, hard, soft)                                         \
+    {name, LOC_GIVE, level, item, POOL_WEAPONS, ITEM(item), step, flags, hard, soft}
+#define GIVE_G(name, level, item, step, flags, hard, soft)                                         \
+    {name, LOC_GIVE, level, item, POOL_GADGETS, ITEM(item), step, flags, hard, soft}
+#define VENDOR(name, level, item, step, flags)                                                     \
+    {name, LOC_VENDOR, level, item, POOL_VENDOR, ITEM(item), step, flags, 0, 0}
+#define INFOBOT(name, level, mission, planet, step, hard, soft)                                    \
+    {name, LOC_INFOBOT, level, mission, POOL_PLANETS, PLANET(planet), step, 0, hard, soft}
+#define GOLDBOLT(name, level, slot, step, hard, soft)                                              \
+    {name, LOC_GOLD, level, slot, POOL_GOLD, GOLD, step, 0, hard, (soft) | GOLD_SOFT}
+#define FIXED(name, level, reward, step, flags, hard, soft)                                        \
+    {name, LOC_FIXED, level, 0, 0, reward, step, flags, hard, soft}
 
 const rando_location rando_locations[] = {
     /* Veldin: the game's start. The Bomb Glove: VendorStockLevelInit gives it at a level start while
      * none is owned. The ship's way to Novalis is open from the start. */
-    {"Veldin: the starting Bomb Glove", LOC_START, LEVEL_VELDIN, ITEM_BOMB_GLOVE, POOL_WEAPONS, ITEM(ITEM_BOMB_GLOVE), 0, 0, 0, 0},
+    {"Veldin: the starting Bomb Glove",
+     LOC_START,
+     LEVEL_VELDIN,
+     ITEM_BOMB_GLOVE,
+     POOL_WEAPONS,
+     ITEM(ITEM_BOMB_GLOVE),
+     0,
+     0,
+     0,
+     0},
     FIXED("Veldin: the way to Novalis", LEVEL_VELDIN, PLANET(LEVEL_NOVALIS), 1, 0, 0, 0),
 
     /* Novalis: the vendor's first weapon; the coordinates of Aridia (TalkingNpcUpdate,
      * func_L01_003004F0) and Kerwan (AgnoggShipUpdate, func_L01_002FC140). */
     VENDOR("Novalis: the vendor's Pyrocitor", LEVEL_NOVALIS, ITEM_PYROCITOR, 2, 0),
     FIXED("Novalis: the coordinates of Aridia", LEVEL_NOVALIS, PLANET(LEVEL_ARIDIA), 2, 0, 0, 0),
-    FIXED("Novalis: Agnogg's ship, the coordinates of Kerwan", LEVEL_NOVALIS, PLANET(LEVEL_KERWAN), 3, 0, 0, 0),
+    FIXED(
+        "Novalis: Agnogg's ship, the coordinates of Kerwan",
+        LEVEL_NOVALIS,
+        PLANET(LEVEL_KERWAN),
+        3,
+        0,
+        0,
+        0
+    ),
     GOLDBOLT("Novalis: gold bolt 1", LEVEL_NOVALIS, 0, 3, 0, 0),
     GOLDBOLT("Novalis: gold bolt 2", LEVEL_NOVALIS, 1, 3, 0, 0),
     GOLDBOLT("Novalis: gold bolt 3", LEVEL_NOVALIS, 2, 3, 0, 0),
@@ -156,17 +182,41 @@ const rando_location rando_locations[] = {
      * coordinates of Blarg (UnlockPlanetPad_Update, func_L04_002E4458). */
     VENDOR("Eudora: the vendor's Glove of Doom", LEVEL_EUDORA, ITEM_GLOVE_OF_DOOM, 12, 0),
     GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, 0, HELI | SWING),
-    FIXED("Eudora: the coordinates of Blarg", LEVEL_EUDORA, PLANET(LEVEL_BLARG), 13, 0, 0, HELI | SWING),
+    FIXED(
+        "Eudora: the coordinates of Blarg",
+        LEVEL_EUDORA,
+        PLANET(LEVEL_BLARG),
+        13,
+        0,
+        0,
+        HELI | SWING
+    ),
     GOLDBOLT("Eudora: gold bolt", LEVEL_EUDORA, 0, 13, 0, 0),
 
     /* Blarg: the Hydrodisplacer's pickup (class 1016, Moby1005Update), Fred (Moby1105Update,
      * func_L06_003024C8), the infobot to Rilgar and the shuttle (ShuttleUpdate, func_L06_003039B8),
      * which gives Rilgar too. */
     VENDOR("Blarg: the vendor's Taunter", LEVEL_BLARG, ITEM_TAUNTER, 14, 0),
-    GIVE_G("Blarg: the Hydrodisplacer's pickup", LEVEL_BLARG, ITEM_HYDRODISPLACER, 14, 0, 0, HELI | SWING),
+    GIVE_G(
+        "Blarg: the Hydrodisplacer's pickup",
+        LEVEL_BLARG,
+        ITEM_HYDRODISPLACER,
+        14,
+        0,
+        0,
+        HELI | SWING
+    ),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, 0, HELI | SWING),
     INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, 0, HELI | SWING),
-    FIXED("Blarg: the shuttle, the coordinates of Rilgar", LEVEL_BLARG, PLANET(LEVEL_RILGAR), 16, 0, 0, HELI | SWING),
+    FIXED(
+        "Blarg: the shuttle, the coordinates of Rilgar",
+        LEVEL_BLARG,
+        PLANET(LEVEL_RILGAR),
+        16,
+        0,
+        0,
+        HELI | SWING
+    ),
     GOLDBOLT("Blarg: gold bolt 1", LEVEL_BLARG, 0, 17, 0, 0),
     GOLDBOLT("Blarg: gold bolt 2", LEVEL_BLARG, 1, 17, 0, 0),
 
@@ -175,14 +225,30 @@ const rando_location rando_locations[] = {
      * after the hoverboard race. */
     VENDOR("Rilgar: the vendor's Mine Glove", LEVEL_RILGAR, ITEM_MINE_GLOVE, 18, 0),
     GIVE_W("Rilgar: the shady salesman", LEVEL_RILGAR, ITEM_RYNO, 18, LOCF_COSTLY, 0, HELI | SWING),
-    FIXED("Rilgar: the bouncer, the coordinates of Umbris", LEVEL_RILGAR, PLANET(LEVEL_UMBRIS), 19, 0, HOVER, HELI | SWING),
+    FIXED(
+        "Rilgar: the bouncer, the coordinates of Umbris",
+        LEVEL_RILGAR,
+        PLANET(LEVEL_UMBRIS),
+        19,
+        0,
+        HOVER,
+        HELI | SWING
+    ),
     GOLDBOLT("Rilgar: gold bolt 1", LEVEL_RILGAR, 0, 20, 0, HYDRO | HOVER),
     GOLDBOLT("Rilgar: gold bolt 2", LEVEL_RILGAR, 1, 20, 0, HYDRO | HOVER),
 
     /* Umbris: drained with the Hydrodisplacer. The infobot to Batalia and the coordinates its
      * story gives too (Moby436Update, func_L07_002F6F20). */
     INFOBOT("Umbris: the infobot", LEVEL_UMBRIS, 3, LEVEL_BATALIA, 21, HYDRO, HELI | SWING),
-    FIXED("Umbris: the coordinates of Batalia", LEVEL_UMBRIS, PLANET(LEVEL_BATALIA), 21, 0, HYDRO, HELI | SWING),
+    FIXED(
+        "Umbris: the coordinates of Batalia",
+        LEVEL_UMBRIS,
+        PLANET(LEVEL_BATALIA),
+        21,
+        0,
+        HYDRO,
+        HELI | SWING
+    ),
     GOLDBOLT("Umbris: gold bolt 1", LEVEL_UMBRIS, 0, 22, HYDRO, 0),
     GOLDBOLT("Umbris: gold bolt 2", LEVEL_UMBRIS, 1, 22, HYDRO, 0),
 
@@ -190,15 +256,41 @@ const rando_location rando_locations[] = {
      * coordinates of Orxon (CommandoUpdate, func_L08_003041A8) and the deserter's of Gaspar
      * (DeserterUpdate, func_L08_00306730). */
     VENDOR("Batalia: the vendor's Devastator", LEVEL_BATALIA, ITEM_DEVASTATOR, 23, LOCF_COSTLY),
-    GIVE_G("Batalia: the plumber", LEVEL_BATALIA, ITEM_METAL_DETECTOR, 23, 0, 0, HELI | SWING | GRIND),
-    FIXED("Batalia: the commando, the coordinates of Orxon", LEVEL_BATALIA, PLANET(LEVEL_ORXON), 24, 0, 0, HELI | SWING | GRIND),
-    FIXED("Batalia: the deserter, the coordinates of Gaspar", LEVEL_BATALIA, PLANET(LEVEL_GASPAR), 24, 0, 0, HELI | SWING | GRIND),
+    GIVE_G(
+        "Batalia: the plumber", LEVEL_BATALIA, ITEM_METAL_DETECTOR, 23, 0, 0, HELI | SWING | GRIND
+    ),
+    FIXED(
+        "Batalia: the commando, the coordinates of Orxon",
+        LEVEL_BATALIA,
+        PLANET(LEVEL_ORXON),
+        24,
+        0,
+        0,
+        HELI | SWING | GRIND
+    ),
+    FIXED(
+        "Batalia: the deserter, the coordinates of Gaspar",
+        LEVEL_BATALIA,
+        PLANET(LEVEL_GASPAR),
+        24,
+        0,
+        0,
+        HELI | SWING | GRIND
+    ),
     GOLDBOLT("Batalia: gold bolt 1", LEVEL_BATALIA, 0, 25, 0, GRIND),
     GOLDBOLT("Batalia: gold bolt 2", LEVEL_BATALIA, 1, 25, 0, GRIND),
 
     /* Gaspar: the Pilot's Helmet's pickup (Moby1290Update, class 1290). */
     VENDOR("Gaspar: the vendor's Walloper", LEVEL_GASPAR, ITEM_WALLOPER, 26, 0),
-    GIVE_G("Gaspar: the Pilot's Helmet's pickup", LEVEL_GASPAR, ITEM_PILOTS_HELMET, 26, 0, 0, HELI | SWING),
+    GIVE_G(
+        "Gaspar: the Pilot's Helmet's pickup",
+        LEVEL_GASPAR,
+        ITEM_PILOTS_HELMET,
+        26,
+        0,
+        0,
+        HELI | SWING
+    ),
     GOLDBOLT("Gaspar: gold bolt 1", LEVEL_GASPAR, 0, 27, 0, 0),
     GOLDBOLT("Gaspar: gold bolt 2", LEVEL_GASPAR, 1, 27, 0, 0),
 
@@ -224,13 +316,29 @@ const rando_location rando_locations[] = {
      * (Moby1267Update, func_L12_00304920). */
     VENDOR("Hoven: the vendor's Drone Device", LEVEL_HOVEN, ITEM_DRONE_DEVICE, 36, 0),
     GIVE_G("Hoven: Edwina", LEVEL_HOVEN, ITEM_HYDRO_PACK, 36, 0, 0, HELI | SWING),
-    FIXED("Hoven: the coordinates of Gemlik", LEVEL_HOVEN, PLANET(LEVEL_GEMLIK), 37, 0, 0, HELI | SWING | GRIND | HYDROPACK),
+    FIXED(
+        "Hoven: the coordinates of Gemlik",
+        LEVEL_HOVEN,
+        PLANET(LEVEL_GEMLIK),
+        37,
+        0,
+        0,
+        HELI | SWING | GRIND | HYDROPACK
+    ),
     GOLDBOLT("Hoven: gold bolt 1", LEVEL_HOVEN, 0, 38, 0, GRIND | HYDROPACK),
     GOLDBOLT("Hoven: gold bolt 2", LEVEL_HOVEN, 1, 38, 0, GRIND | HYDROPACK),
 
     /* Gemlik Base: its walls are walked with the Magneboots; Qwark's fight gives Oltanis
      * (Moby1353Update, func_L13_0030CAE0). */
-    FIXED("Gemlik: the coordinates of Oltanis", LEVEL_GEMLIK, PLANET(LEVEL_OLTANIS), 39, 0, MAGNE, SWING | HELMET | HELI),
+    FIXED(
+        "Gemlik: the coordinates of Oltanis",
+        LEVEL_GEMLIK,
+        PLANET(LEVEL_OLTANIS),
+        39,
+        0,
+        MAGNE,
+        SWING | HELMET | HELI
+    ),
     GOLDBOLT("Gemlik: gold bolt", LEVEL_GEMLIK, 0, 39, MAGNE, 0),
 
     /* Oltanis: the PDA (Moby851Update, func_L14_002FCEA8), the Morph-o-Ray's pickup
@@ -238,8 +346,24 @@ const rando_location rando_locations[] = {
      * func_L14_00300468). */
     VENDOR("Oltanis: the vendor's Tesla Claw", LEVEL_OLTANIS, ITEM_TESLA_CLAW, 40, LOCF_COSTLY),
     GIVE_G("Oltanis: the PDA's seller", LEVEL_OLTANIS, ITEM_PDA, 40, 0, 0, HELI | SWING),
-    GIVE_W("Oltanis: the Morph-o-Ray's pickup", LEVEL_OLTANIS, ITEM_MORPH_O_RAY, 41, 0, 0, HELI | SWING | MAGNE),
-    FIXED("Oltanis: Sam, the coordinates of Quartu", LEVEL_OLTANIS, PLANET(LEVEL_QUARTU), 42, 0, 0, HELI | SWING | MAGNE),
+    GIVE_W(
+        "Oltanis: the Morph-o-Ray's pickup",
+        LEVEL_OLTANIS,
+        ITEM_MORPH_O_RAY,
+        41,
+        0,
+        0,
+        HELI | SWING | MAGNE
+    ),
+    FIXED(
+        "Oltanis: Sam, the coordinates of Quartu",
+        LEVEL_OLTANIS,
+        PLANET(LEVEL_QUARTU),
+        42,
+        0,
+        0,
+        HELI | SWING | MAGNE
+    ),
     GOLDBOLT("Oltanis: gold bolt 1", LEVEL_OLTANIS, 0, 43, 0, MAGNE | GRIND),
     GOLDBOLT("Oltanis: gold bolt 2", LEVEL_OLTANIS, 1, 43, 0, MAGNE | GRIND),
     GOLDBOLT("Oltanis: gold bolt 3", LEVEL_OLTANIS, 2, 43, 0, MAGNE | GRIND),
@@ -249,21 +373,57 @@ const rando_location rando_locations[] = {
      * coordinates of Kalebo III (UltramechScientistUpdate, func_L15_002EDB50); in disguise (the
      * Hologuise, from Kalebo III), the coordinates of Drek's Fleet (Moby1419Update,
      * func_L15_002EC8B0). */
-    GIVE_G("Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, 44, 0, 0, HELI | SWING | MAGNE),
-    FIXED("Quartu: the scientist, the coordinates of Kalebo III", LEVEL_QUARTU, PLANET(LEVEL_KALEBO), 45, 0, 0, HELI | SWING | MAGNE),
-    FIXED("Quartu: in disguise, the coordinates of Drek's Fleet", LEVEL_QUARTU, PLANET(LEVEL_FLEET), 49, 0, HOLO, HELI | SWING | MAGNE),
+    GIVE_G(
+        "Quartu: the Bolt Grabber's pickup",
+        LEVEL_QUARTU,
+        ITEM_BOLT_GRABBER,
+        44,
+        0,
+        0,
+        HELI | SWING | MAGNE
+    ),
+    FIXED(
+        "Quartu: the scientist, the coordinates of Kalebo III",
+        LEVEL_QUARTU,
+        PLANET(LEVEL_KALEBO),
+        45,
+        0,
+        0,
+        HELI | SWING | MAGNE
+    ),
+    FIXED(
+        "Quartu: in disguise, the coordinates of Drek's Fleet",
+        LEVEL_QUARTU,
+        PLANET(LEVEL_FLEET),
+        49,
+        0,
+        HOLO,
+        HELI | SWING | MAGNE
+    ),
     GOLDBOLT("Quartu: gold bolt 1", LEVEL_QUARTU, 0, 48, 0, MAGNE | GRIND),
     GOLDBOLT("Quartu: gold bolt 2", LEVEL_QUARTU, 1, 48, 0, MAGNE | GRIND),
 
     /* Kalebo III: the Gadgetron CEO's challenge (ChallengeNpcUpdate, func_L16_002E7C70) and the
      * help desk (WatcherUpdate, func_L16_002E45F8), on its grind rails. */
-    GIVE_G("Kalebo III: the Gadgetron CEO", LEVEL_KALEBO, ITEM_HOLOGUISE, 46, 0, GRIND, HELI | SWING | MAGNE),
-    GIVE_G("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, 47, 0, 0, HELI | SWING | GRIND),
+    GIVE_G(
+        "Kalebo III: the Gadgetron CEO",
+        LEVEL_KALEBO,
+        ITEM_HOLOGUISE,
+        46,
+        0,
+        GRIND,
+        HELI | SWING | MAGNE
+    ),
+    GIVE_G(
+        "Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, 47, 0, 0, HELI | SWING | GRIND
+    ),
     GOLDBOLT("Kalebo III: gold bolt 1", LEVEL_KALEBO, 0, 48, 0, GRIND | MAGNE),
     GOLDBOLT("Kalebo III: gold bolt 2", LEVEL_KALEBO, 1, 48, 0, GRIND | MAGNE),
 
     /* Drek's Fleet: the infobot home. */
-    INFOBOT("Drek's Fleet: the infobot", LEVEL_FLEET, 3, LEVEL_VELDIN2, 50, MAGNE, HELI | SWING | O2),
+    INFOBOT(
+        "Drek's Fleet: the infobot", LEVEL_FLEET, 3, LEVEL_VELDIN2, 50, MAGNE, HELI | SWING | O2
+    ),
     GOLDBOLT("Drek's Fleet: gold bolt 1", LEVEL_FLEET, 0, 51, MAGNE, O2),
     GOLDBOLT("Drek's Fleet: gold bolt 2", LEVEL_FLEET, 1, 51, MAGNE, O2),
 
@@ -271,7 +431,15 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Veldin (return): gold bolt 1", LEVEL_VELDIN2, 0, 52, 0, MAGNE | GRIND),
     GOLDBOLT("Veldin (return): gold bolt 2", LEVEL_VELDIN2, 1, 52, 0, MAGNE | GRIND),
     GOLDBOLT("Veldin (return): gold bolt 3", LEVEL_VELDIN2, 2, 52, 0, MAGNE | GRIND),
-    FIXED("Veldin (return): Drek", LEVEL_VELDIN2, NONE, 53, LOCF_GOAL, SWING | MAGNE, HELI | GRIND | O2),
+    FIXED(
+        "Veldin (return): Drek",
+        LEVEL_VELDIN2,
+        NONE,
+        53,
+        LOCF_GOAL,
+        SWING | MAGNE,
+        HELI | GRIND | O2
+    ),
 };
 
 const size_t rando_location_count = sizeof rando_locations / sizeof rando_locations[0];

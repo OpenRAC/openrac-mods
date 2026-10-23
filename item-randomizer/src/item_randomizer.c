@@ -41,11 +41,10 @@
 #include <string.h>
 #include <time.h>
 
-#include "openrac/openrac_mod.h"
-
 #include "config.h"
 #include "discs.h"
 #include "hooks.h"
+#include "openrac/openrac_mod.h"
 #include "paths.h"
 #include "rando.h"
 
@@ -176,6 +175,7 @@ static void swaps_resume(void) {
 
 static int had(int location) {
     const rando_location* l = &rando_locations[location];
+
     switch (l->kind) {
         case LOC_GIVE:
         case LOC_VENDOR:
@@ -215,16 +215,19 @@ static int sold_by_vendor(int item) {
             return 1;
         }
     }
+
     return 0;
 }
 
 /* Whether item is some had location's reward. */
 static int received(int item) {
     for (size_t i = 0; i < rando_location_count; ++i) {
-        if (s_plan.shuffled[i] && s_plan.reward[i].kind == REWARD_ITEM && s_plan.reward[i].value == item && had((int)i)) {
+        if (s_plan.shuffled[i] && s_plan.reward[i].kind == REWARD_ITEM
+            && s_plan.reward[i].value == item && had((int)i)) {
             return 1;
         }
     }
+
     return 0;
 }
 
@@ -238,6 +241,7 @@ static void log_line(int level, const char* text) {
 static void give_reward(int location, int32_t equip, int mark) {
     const rando_reward r = s_plan.reward[location];
     swaps_suspend();
+
     if (r.kind == REWARD_ITEM) {
         const uint8_t before = *obtained(r.value);
         /* GiveItem marks a vendor weapon bought in the stock (or adds it): for a weapon that is a
@@ -245,14 +249,19 @@ static void give_reward(int location, int32_t equip, int mark) {
         uint8_t* stock = byte_at(s_disc->vendor_stock);
         uint8_t kept[VENDOR_STOCK_SIZE];
         const int slot = vendor_slot(r.value) >= 0;
+
         if (slot) {
             memcpy(kept, stock, sizeof kept);
         }
+
         s_item_give(r.value, equip);
+
         if (slot) {
             memcpy(stock, kept, sizeof kept);
         }
-        if (rando_locations[location].key != r.value || rando_locations[location].kind >= LOC_INFOBOT) {
+
+        if (rando_locations[location].key != r.value
+            || rando_locations[location].kind >= LOC_INFOBOT) {
             *obtained(r.value) = before;
         }
     } else if (r.kind == REWARD_PLANET) {
@@ -260,9 +269,11 @@ static void give_reward(int location, int32_t equip, int mark) {
     } else if (r.kind == REWARD_GOLD_BOLT && s_show_banner != NULL) {
         s_show_banner(s_disc->gold_bolt_text, -1);
     }
+
     if (mark >= 0) {
         *obtained(mark) = 1;
     }
+
     swaps_resume();
 }
 
@@ -279,11 +290,15 @@ static uint8_t* vendor_purchase(int item) {
     if (vendor_slot(item) < 0) {
         return NULL;
     }
+
     uint8_t* menu = level_byte_at(s_disc->vendor_menu);
     const int32_t cursor = get32(menu + VENDOR_CURSOR);
-    if (get32(menu + VENDOR_DIALOG) != VENDOR_DIALOG_BUY || cursor < 0 || cursor >= VENDOR_MAX_ENTRIES) {
+
+    if (get32(menu + VENDOR_DIALOG) != VENDOR_DIALOG_BUY || cursor < 0
+        || cursor >= VENDOR_MAX_ENTRIES) {
         return NULL;
     }
+
     uint8_t* entry = menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE;
     return get32(entry) == item && get32(entry + 4) == 0 ? entry : NULL;
 }
@@ -294,13 +309,16 @@ static int s_bought = -1;
 /* GiveItem(id, equip): id's location's reward, and the location had. */
 static void item_give(int32_t id, int32_t equip) {
     const int location = id >= 0 && id < RANDO_ITEM_COUNT ? s_by_item[id] : -1;
+
     if (location < 0 || !playing_level()) {
         s_item_give(id, equip);
         return;
     }
+
     uint8_t* entry = vendor_purchase(id);
     give_reward(location, equip, id);
     s_seen[location] = 1;
+
     if (entry != NULL) {
         /* Right after GiveItem the dialog takes the entry's item as the one bought, whose demo
          * plays as the menu closes and which the hero is then handed: the reward when it is one of
@@ -308,7 +326,9 @@ static void item_give(int32_t id, int32_t equip) {
          * was (GiveItem has equipped the reward already). */
         const rando_reward r = s_plan.reward[location];
         const int demo = r.kind == REWARD_ITEM && sold_by_vendor(r.value);
-        set32(entry, demo ? r.value : get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT));
+        set32(
+            entry, demo ? r.value : get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT)
+        );
         s_bought = id;
     }
 }
@@ -323,31 +343,39 @@ static void planet_unlock(int32_t planet) {
         s_seen[location] = 1; /* the game marks its trigger slot next */
         return;
     }
+
     s_planet_unlock(planet); /* an NPC's coordinates, or the planet arrived at */
 }
 
 static void infobot_update(openrac_gaddr moby) {
     const int level = current_level();
     const int mission = OPENRAC_GREF(s_api, uint8_t, moby + MOBY_MISSION);
-    const int location = level >= 0 && level < LEVEL_COUNT && mission < 16 ? s_by_infobot[level][mission] : -1;
+    const int location =
+        level >= 0 && level < LEVEL_COUNT && mission < 16 ? s_by_infobot[level][mission] : -1;
     const openrac_gaddr pvars = OPENRAC_GREF(s_api, openrac_gaddr, moby + MOBY_PVARS);
     const int planet = location >= 0 && pvars != 0 ? i32_at(pvars + INFOBOT_PLANET) : -1;
+
     if (location < 0 || planet != rando_locations[location].vanilla.value) {
         s_infobot_update(moby);
         return;
     }
+
     swap_push(planet_flag(planet), location);
     s_infobot = location;
     /* Its last state shows its planet's banner: the planet it gave, when it gave one. */
     const rando_reward r = s_plan.reward[location];
     const int banner = OPENRAC_GREF(s_api, uint8_t, moby + MOBY_STATE) == INFOBOT_STATE_BANNER;
+
     if (banner && r.kind == REWARD_PLANET) {
         put_i32(pvars + INFOBOT_PLANET, r.value);
     }
+
     s_infobot_update(moby);
+
     if (banner && r.kind == REWARD_PLANET) {
         put_i32(pvars + INFOBOT_PLANET, planet);
     }
+
     s_infobot = -1;
     swap_pop();
 }
@@ -356,10 +384,12 @@ static void infobot_update(openrac_gaddr moby) {
  * location's had state. */
 static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int item) {
     const int location = s_by_item[item];
+
     if (location < 0) {
         update(moby);
         return;
     }
+
     swap_push(owned(item), location);
     update(moby);
     swap_pop();
@@ -368,15 +398,19 @@ static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int ite
 static void helmet_update(openrac_gaddr moby) {
     run_shown(s_helmet_update, moby, ITEM_PILOTS_HELMET);
 }
+
 static void helga_update(openrac_gaddr moby) {
     run_shown(s_helga_update, moby, ITEM_SWINGSHOT);
 }
+
 static void big_al_update(openrac_gaddr moby) {
     run_shown(s_big_al_update, moby, ITEM_HELI_PACK);
 }
+
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
 }
+
 static void edwina_update(openrac_gaddr moby) {
     run_shown(s_edwina_update, moby, ITEM_HYDRO_PACK);
 }
@@ -392,6 +426,7 @@ static void sync_seen(void) {
 static void init_level_stock(void) {
     sync_seen();
     const int start = s_by_item[ITEM_BOMB_GLOVE];
+
     if (start >= 0 && rando_locations[start].kind == LOC_START && playing_level()) {
         /* The game gives the Bomb Glove (the reward, through item_give), then puts it first in the
          * stock and makes it the weapon a double tap goes back to: when the reward was something
@@ -404,19 +439,25 @@ static void init_level_stock(void) {
         swap_push(owned(ITEM_BOMB_GLOVE), start);
         s_init_level_stock();
         swap_pop();
-        if (!*owned(ITEM_BOMB_GLOVE) && stock[0] == (ITEM_BOMB_GLOVE | 0x40) && before[0] != stock[0]) {
+
+        if (!*owned(ITEM_BOMB_GLOVE) && stock[0] == (ITEM_BOMB_GLOVE | 0x40)
+            && before[0] != stock[0]) {
             memmove(stock, stock + 1, VENDOR_STOCK_SIZE - 1);
             stock[VENDOR_STOCK_SIZE - 1] = 0xFF;
+
             if (before[0] != 0xFF && stock[VENDOR_STOCK_SIZE - 1] == 0xFF) {
                 int present = 0;
+
                 for (int i = 0; i < VENDOR_STOCK_SIZE && stock[i] != 0xFF; ++i) {
                     present |= (stock[i] & 0x3F) == (before[0] & 0x3F);
                 }
+
                 if (!present) {
                     memmove(stock + 1, stock, VENDOR_STOCK_SIZE - 1);
                     stock[0] = before[0];
                 }
             }
+
             if (get32(last) == ITEM_BOMB_GLOVE) {
                 set32(last, last_before);
             }
@@ -424,6 +465,7 @@ static void init_level_stock(void) {
     } else {
         s_init_level_stock();
     }
+
     sync_seen();
 }
 
@@ -435,22 +477,28 @@ static void init_level_stock(void) {
  *   - a weapon owned whose slot is still for sale: its ammo too, after the rest;
  *   - anything else as it is, but the ammo of an item not owned.
  * Each item's ammo is listed once. */
-static void vendor_stock_shown(const uint8_t real[VENDOR_STOCK_SIZE], uint8_t shown[VENDOR_STOCK_SIZE]) {
+static void vendor_stock_shown(
+    const uint8_t real[VENDOR_STOCK_SIZE], uint8_t shown[VENDOR_STOCK_SIZE]
+) {
     uint8_t list[VENDOR_STOCK_SIZE];
     int bought[VENDOR_STOCK_SIZE];
     uint8_t ammo[RANDO_ITEM_COUNT] = {0}, sale[RANDO_ITEM_COUNT] = {0};
     int n = 0;
+
     for (int i = 0; i < VENDOR_STOCK_SIZE && real[i] != 0xFF; ++i) {
         const int item = real[i] & 0x3F;
         const int location = item < RANDO_ITEM_COUNT ? vendor_slot(item) : -1;
         bought[n] = -1;
+
         if (location < 0) {
             if ((real[i] & 0x40) && (item >= RANDO_ITEM_COUNT || !*owned(item) || ammo[item])) {
                 continue;
             }
+
             if (real[i] & 0x40) {
                 ammo[item] = 1;
             }
+
             list[n++] = real[i];
         } else if (!had(location)) {
             sale[item] = 1;
@@ -460,13 +508,17 @@ static void vendor_stock_shown(const uint8_t real[VENDOR_STOCK_SIZE], uint8_t sh
             list[n++] = 0xFF;
         }
     }
+
     for (int i = 0; i < n; ++i) {
         if (bought[i] < 0) {
             continue;
         }
+
         const rando_reward r = s_plan.reward[bought[i]];
         const int own = rando_locations[bought[i]].key;
-        if (r.kind == REWARD_ITEM && r.value < RANDO_ITEM_COUNT && *owned(r.value) && !ammo[r.value]) {
+
+        if (r.kind == REWARD_ITEM && r.value < RANDO_ITEM_COUNT && *owned(r.value)
+            && !ammo[r.value]) {
             ammo[r.value] = 1;
             list[i] = (uint8_t)(r.value | 0x40);
         } else if (*owned(own) && !ammo[own]) {
@@ -474,17 +526,21 @@ static void vendor_stock_shown(const uint8_t real[VENDOR_STOCK_SIZE], uint8_t sh
             list[i] = (uint8_t)(own | 0x40);
         }
     }
+
     int m = 0;
+
     for (int i = 0; i < n; ++i) {
         if (list[i] != 0xFF) {
             shown[m++] = list[i];
         }
     }
+
     for (int item = 0; item < RANDO_ITEM_COUNT && m < VENDOR_STOCK_SIZE; ++item) {
         if (sale[item] && *owned(item) && !ammo[item]) {
             shown[m++] = (uint8_t)(item | 0x40);
         }
     }
+
     memset(shown + m, 0xFF, (size_t)(VENDOR_STOCK_SIZE - m));
 }
 
@@ -500,17 +556,22 @@ static void build_item_list(int32_t skip_unflagged) {
     /* Right after a purchase: the list may hold another entry where the slot was (its reward's
      * ammo), or one fewer. The cursor stays on the list, and the menu shows the item now under it
      * (the game redraws it only when the cursor moves, or when a weapon for sale is under it). */
+
     if (s_bought >= 0) {
         uint8_t* menu = level_byte_at(s_disc->vendor_menu);
         const int32_t count = get32(menu + VENDOR_COUNT);
         int32_t cursor = get32(menu + VENDOR_CURSOR);
+
         if (count > 0 && cursor >= count) {
             cursor = count - 1;
             set32(menu + VENDOR_CURSOR, cursor);
         }
-        if (cursor >= 0 && cursor < VENDOR_MAX_ENTRIES && get32(menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE) != s_bought) {
+
+        if (cursor >= 0 && cursor < VENDOR_MAX_ENTRIES
+            && get32(menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE) != s_bought) {
             set32(level_byte_at(s_disc->vendor_redraw), 1);
         }
+
         s_bought = -1;
     }
 }
@@ -519,10 +580,13 @@ static int32_t count_gold_bolts_hook(void) {
     if (!(s_plan.settings.pools & POOL_GOLD)) {
         return s_count_gold_bolts();
     }
+
     int n = 0;
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         n += s_plan.shuffled[i] && s_plan.reward[i].kind == REWARD_GOLD_BOLT && had((int)i);
     }
+
     return n < 40 ? n : 40;
 }
 
@@ -531,23 +595,31 @@ static int32_t count_gold_bolts_hook(void) {
  * just loaded has its rewards). A place that wrote its own item's bytes gives that item back. */
 static void each_tick(void* user) {
     (void)user;
+
     if (!playing_level()) {
         return;
     }
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (!s_plan.shuffled[i]) {
             continue;
         }
+
         const int now = had((int)i);
+
         if (now && !s_seen[i]) {
             const rando_location* l = &rando_locations[i];
-            if ((l->kind == LOC_GIVE || l->kind == LOC_VENDOR || l->kind == LOC_START) && *owned(l->key) && !received(l->key)) {
+
+            if ((l->kind == LOC_GIVE || l->kind == LOC_VENDOR || l->kind == LOC_START)
+                && *owned(l->key) && !received(l->key)) {
                 *owned(l->key) = 0;
             }
+
             if (!held(s_plan.reward[i])) {
                 give_reward((int)i, 0, -1);
             }
         }
+
         s_seen[i] = (uint8_t)now;
     }
 }
@@ -557,19 +629,36 @@ static void each_tick(void* user) {
 static int take(int result, const char* point) {
     if (result != OPENRAC_HOOK_OK) {
         char reason[160];
-        snprintf(reason, sizeof reason, "this OpenRAC cannot hook %s (%s): it needs an OpenRAC with the item hook points",
-                 point, result == OPENRAC_HOOK_SIGNATURE ? "its signature is another" : "no such hook point");
+        snprintf(
+            reason,
+            sizeof reason,
+            "this OpenRAC cannot hook %s (%s): it needs an OpenRAC with the item hook points",
+            point,
+            result == OPENRAC_HOOK_SIGNATURE ? "its signature is another" : "no such hook point"
+        );
         s_api->fail(s_mod, reason);
         return 0;
     }
+
     return 1;
 }
 
-#define HOOK(point, fn, original) take(s_api->hook(s_mod, OPENRAC_RAC1_HOOK_##point, OPENRAC_RAC1_SIG_##point, (void*)(fn), (void**)(original)), #point)
+#define HOOK(point, fn, original)                                                                  \
+    take(                                                                                          \
+        s_api->hook(                                                                               \
+            s_mod,                                                                                 \
+            OPENRAC_RAC1_HOOK_##point,                                                             \
+            OPENRAC_RAC1_SIG_##point,                                                              \
+            (void*)(fn),                                                                           \
+            (void**)(original)                                                                     \
+        ),                                                                                         \
+        #point                                                                                     \
+    )
 
 /* Twelve letters and digits, hyphens and spaces aside: meant as a code. */
 static int looks_like_code(const char* text) {
     int n = 0;
+
     for (const char* p = text != NULL ? text : ""; *p != 0; ++p) {
         if ((*p >= '0' && *p <= '9') || (*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
             ++n;
@@ -577,6 +666,7 @@ static int looks_like_code(const char* text) {
             return 0;
         }
     }
+
     return n == 12;
 }
 
@@ -588,22 +678,26 @@ static uint64_t fresh_seed(void) {
 /* The remembered seed, the spoiler log: in the mod's data folder. */
 static void write_files(int source) {
     char dir[1024], path[1200];
+
     if (rando_data_dir(dir, sizeof dir) != 0) {
         log_line(OPENRAC_LOG_WARN, "no data folder for the spoiler log (no home folder)");
         return;
     }
+
     if (source == SEED_FROM_NEW) {
         rando_join(path, sizeof path, dir, "seed.txt");
         char line[RANDO_CODE_SIZE + 1];
         snprintf(line, sizeof line, "%s\n", s_code);
         rando_write_file(path, line, strlen(line));
     }
+
     if (s_api->setting_bool(s_mod, "spoiler_log")) {
         static char text[64 * 1024];
         const size_t need = rando_spoiler(&s_plan, MOD_VERSION, text, sizeof text);
         char name[64];
         snprintf(name, sizeof name, "spoiler-%s.txt", s_code);
         rando_join(path, sizeof path, dir, name);
+
         if (rando_write_file(path, text, strlen(text)) == 0 && need <= sizeof text) {
             char line[1300];
             snprintf(line, sizeof line, "spoiler log: %s", path);
@@ -616,18 +710,26 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_api = api;
     s_mod = mod;
     s_disc = NULL;
+
     if (strcmp(api->game, "rac1") != 0) {
         api->fail(mod, "the item randomizer is for Ratchet & Clank (rac1)");
         return 1;
     }
+
     for (size_t i = 0; i < sizeof k_rando_discs / sizeof k_rando_discs[0]; ++i) {
         if (strcmp(api->version, k_rando_discs[i].version) == 0) {
             s_disc = &k_rando_discs[i];
         }
     }
+
     if (s_disc == NULL) {
         char reason[96];
-        snprintf(reason, sizeof reason, "the item randomizer knows the PAL and NTSC-U discs, not %s", api->version);
+        snprintf(
+            reason,
+            sizeof reason,
+            "the item randomizer knows the PAL and NTSC-U discs, not %s",
+            api->version
+        );
         api->fail(mod, reason);
         return 1;
     }
@@ -635,10 +737,12 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     /* The settings and the seed. */
     char dir[1024], path[1200], remembered[64] = "";
     int have_remembered = 0;
+
     if (rando_data_dir(dir, sizeof dir) == 0) {
         rando_join(path, sizeof path, dir, "seed.txt");
         have_remembered = rando_read_file(path, remembered, sizeof remembered) == 0;
     }
+
     const rando_options options = {
         api->setting_string(mod, "seed"),
         api->setting_bool(mod, "shuffle_weapons"),
@@ -650,26 +754,38 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         api->setting_string(mod, "difficulty"),
     };
     rando_settings settings;
-    const int source = rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
+    const int source =
+        rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
+
     if (rando_solve(&settings, &s_plan) != 0) {
         api->fail(mod, "no placement for these settings (please report them)");
         return 1;
     }
+
     rando_encode(&s_plan.settings, s_code);
+
     if (source == SEED_FROM_WORD && looks_like_code(options.seed)) {
-        log_line(OPENRAC_LOG_WARN, "the seed setting looks like a seed code but is not one (a character mistyped?): it is read "
-                                   "as a word, so this is not the shared game");
+        log_line(
+            OPENRAC_LOG_WARN,
+            "the seed setting looks like a seed code but is not one (a character mistyped?): it is "
+            "read "
+            "as a word, so this is not the shared game"
+        );
     }
 
     for (int i = 0; i < RANDO_ITEM_COUNT; ++i) {
         s_by_item[i] = -1;
     }
+
     memset(s_by_infobot, 0xFF, sizeof s_by_infobot);
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
+
         if (!s_plan.shuffled[i]) {
             continue;
         }
+
         if (l->kind == LOC_INFOBOT) {
             s_by_infobot[l->level][l->key] = (int)i;
         } else if (l->kind != LOC_GOLD) {
@@ -678,8 +794,10 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     }
 
     s_show_banner = (void (*)(int32_t, int32_t))api->function(s_disc->show_banner);
+
     if (s_plan.settings.pools != 0) {
-        if (!HOOK(Item_Give, item_give, &s_item_give) || !HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
+        if (!HOOK(Item_Give, item_give, &s_item_give)
+            || !HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
             || !HOOK(Vendor_InitLevelStock, init_level_stock, &s_init_level_stock)
             || !HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)
             || !HOOK(GoldBolts_CountCollected, count_gold_bolts_hook, &s_count_gold_bolts)
@@ -691,14 +809,24 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
             || !HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update)) {
             return 1;
         }
+
         api->on_frame(mod, each_tick, NULL);
     }
 
     char line[256];
-    static const char* const k_sources[] = {"", "from the code", "from the word", "remembered", "new"};
-    snprintf(line, sizeof line, "seed %s (%s), %s, on the %s disc: %d placement%s tried", s_code, k_sources[source],
-             rando_difficulty_name(s_plan.settings.difficulty), api->version, s_plan.attempts,
-             s_plan.attempts == 1 ? "" : "s");
+    static const char* const k_sources[] =
+        {"", "from the code", "from the word", "remembered", "new"};
+    snprintf(
+        line,
+        sizeof line,
+        "seed %s (%s), %s, on the %s disc: %d placement%s tried",
+        s_code,
+        k_sources[source],
+        rando_difficulty_name(s_plan.settings.difficulty),
+        api->version,
+        s_plan.attempts,
+        s_plan.attempts == 1 ? "" : "s"
+    );
     log_line(OPENRAC_LOG_INFO, line);
     write_files(source);
     return 0;

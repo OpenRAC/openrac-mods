@@ -97,7 +97,12 @@ const char* rando_planet_name(int planet);
 
 /* ---- rewards ---- */
 
-enum { REWARD_NONE = 0, REWARD_ITEM, REWARD_PLANET, REWARD_GOLD_BOLT };
+enum {
+    REWARD_NONE = 0,
+    REWARD_ITEM,
+    REWARD_PLANET,
+    REWARD_GOLD_BOLT
+};
 
 typedef struct rando_reward {
     uint8_t kind;  /* REWARD_* */
@@ -128,16 +133,16 @@ enum {
 #define LOCF_GOAL 0x02u   /* beating the game: what every seed must reach */
 
 typedef struct rando_location {
-    const char* name;    /* for the spoiler log: "Kerwan: Helga" */
-    uint8_t kind;        /* LOC_* */
-    uint8_t level;       /* where it is (its planet must be unlocked) */
-    uint8_t key;         /* LOC_GIVE/VENDOR/START: the item id; INFOBOT: mission; GOLD: slot */
-    uint8_t pool;        /* POOL_*, 0 for LOC_FIXED */
+    const char* name;     /* for the spoiler log: "Kerwan: Helga" */
+    uint8_t kind;         /* LOC_* */
+    uint8_t level;        /* where it is (its planet must be unlocked) */
+    uint8_t key;          /* LOC_GIVE/VENDOR/START: the item id; INFOBOT: mission; GOLD: slot */
+    uint8_t pool;         /* POOL_*, 0 for LOC_FIXED */
     rando_reward vanilla; /* what the game gives there */
-    uint16_t step;       /* the order the game's own route reaches it in */
-    uint8_t flags;       /* LOCF_* */
-    uint64_t hard;       /* items it cannot be had without (every difficulty) */
-    uint64_t soft;       /* items the game's route has there and play expects (not "expert") */
+    uint16_t step;        /* the order the game's own route reaches it in */
+    uint8_t flags;        /* LOCF_* */
+    uint64_t hard;        /* items it cannot be had without (every difficulty) */
+    uint64_t soft;        /* items the game's route has there and play expects (not "expert") */
 } rando_location;
 
 extern const rando_location rando_locations[];
@@ -158,13 +163,17 @@ extern const uint64_t rando_progression_items;
 
 /* ---- settings and the seed code (seed.c) ---- */
 
-enum { DIFFICULTY_RELAXED = 0, DIFFICULTY_STANDARD = 1, DIFFICULTY_EXPERT = 2 };
+enum {
+    DIFFICULTY_RELAXED = 0,
+    DIFFICULTY_STANDARD = 1,
+    DIFFICULTY_EXPERT = 2
+};
 
 typedef struct rando_settings {
-    uint64_t seed;       /* 40 bits */
-    uint8_t pools;       /* POOL_* */
-    uint8_t keep_start;  /* 1: the starting Bomb Glove stays where it is */
-    uint8_t difficulty;  /* DIFFICULTY_* */
+    uint64_t seed;      /* 40 bits */
+    uint8_t pools;      /* POOL_* */
+    uint8_t keep_start; /* 1: the starting Bomb Glove stays where it is */
+    uint8_t difficulty; /* DIFFICULTY_* */
 } rando_settings;
 
 #define RANDO_SEED_BITS 40
@@ -203,9 +212,9 @@ uint32_t rando_below(rando_rng* r, uint32_t n);
 
 typedef struct rando_plan {
     rando_settings settings;
-    uint8_t shuffled[RANDO_MAX_LOCATIONS];      /* 1: in a pool the settings shuffle */
-    rando_reward reward[RANDO_MAX_LOCATIONS];   /* what each location gives with this seed */
-    int attempts;                               /* fills tried before one held */
+    uint8_t shuffled[RANDO_MAX_LOCATIONS];    /* 1: in a pool the settings shuffle */
+    rando_reward reward[RANDO_MAX_LOCATIONS]; /* what each location gives with this seed */
+    int attempts;                             /* fills tried before one held */
 } rando_plan;
 
 /* Whether a location is shuffled with these settings. */

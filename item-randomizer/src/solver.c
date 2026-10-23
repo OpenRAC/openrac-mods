@@ -26,24 +26,29 @@
 #define NOWHERE 0xFFFFu
 
 static int is_progression(rando_reward r) {
-    return r.kind == REWARD_PLANET || (r.kind == REWARD_ITEM && (rando_progression_items & BIT(r.value)) != 0);
+    return r.kind == REWARD_PLANET
+           || (r.kind == REWARD_ITEM && (rando_progression_items & BIT(r.value)) != 0);
 }
 
 int rando_location_shuffled(const rando_settings* s, const rando_location* l) {
     if (l->kind == LOC_FIXED) {
         return 0;
     }
+
     if (l->kind == LOC_START && s->keep_start) {
         return 0;
     }
+
     return (s->pools & l->pool) != 0;
 }
 
 uint64_t rando_requirement(int difficulty, size_t location) {
     const rando_location* l = &rando_locations[location];
+
     if (difficulty == DIFFICULTY_EXPERT) {
         return l->hard;
     }
+
     return l->hard | l->soft;
 }
 
@@ -64,6 +69,7 @@ static void prepare(void) {
                 s_need[d][i] = rando_requirement(d, i);
             }
         }
+
         s_need_ready = 1;
     }
 }
@@ -86,6 +92,7 @@ static void take(sweep* w, rando_reward r) {
 static void play(sweep* w, int difficulty, const rando_reward* reward) {
     for (int more = 1; more;) {
         more = 0;
+
         for (size_t i = 0; i < rando_location_count; ++i) {
             if (!w->had[i] && reachable(w, difficulty, i)) {
                 w->had[i] = 1;
@@ -108,6 +115,7 @@ static size_t goal(void) {
             return i;
         }
     }
+
     return 0;
 }
 
@@ -115,12 +123,15 @@ static size_t goal(void) {
  * gold bolts and costly purchases, standard out of costly purchases. */
 static int fits(int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
+
     if (difficulty == DIFFICULTY_EXPERT) {
         return 1;
     }
+
     if (l->flags & LOCF_COSTLY) {
         return 0;
     }
+
     return difficulty != DIFFICULTY_RELAXED || l->kind != LOC_GOLD;
 }
 
@@ -136,13 +147,16 @@ static void shuffle(rando_rng* r, rando_reward* a, size_t n) {
 static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan) {
     rando_reward prog[RANDO_MAX_LOCATIONS], rest[RANDO_MAX_LOCATIONS];
     size_t np = 0, nr = 0;
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
         plan->shuffled[i] = (uint8_t)rando_location_shuffled(s, l);
         plan->reward[i] = l->vanilla;
+
         if (plan->shuffled[i]) {
             plan->reward[i].kind = REWARD_NONE;
             plan->reward[i].value = 0;
+
             if (is_progression(l->vanilla)) {
                 prog[np++] = l->vanilla;
             } else {
@@ -150,43 +164,57 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan) {
             }
         }
     }
+
     shuffle(rng, prog, np);
     shuffle(rng, rest, nr);
     const int d = s->difficulty;
     size_t candidates[RANDO_MAX_LOCATIONS];
+
     while (np > 0) {
         const rando_reward r = prog[--np];
         sweep w;
         start(&w);
+
         for (size_t k = 0; k < np; ++k) {
             take(&w, prog[k]); /* assumed: the rewards still to place */
         }
+
         play(&w, d, plan->reward);
         size_t nc = 0;
+
         for (size_t i = 0; i < rando_location_count; ++i) {
-            if (plan->shuffled[i] && plan->reward[i].kind == REWARD_NONE && w.had[i] && fits(d, i)) {
+            if (plan->shuffled[i] && plan->reward[i].kind == REWARD_NONE && w.had[i]
+                && fits(d, i)) {
                 candidates[nc++] = i;
             }
         }
+
         if (nc == 0) {
             return -1;
         }
+
         size_t at = candidates[rando_below(rng, (uint32_t)nc)];
+
         if (d == DIFFICULTY_RELAXED) {
             /* Early: the earliest in the game's route of three drawn. */
+
             for (int k = 0; k < 2; ++k) {
                 const size_t other = candidates[rando_below(rng, (uint32_t)nc)];
                 at = rando_locations[other].step < rando_locations[at].step ? other : at;
             }
         }
+
         plan->reward[at] = r;
     }
+
     size_t k = 0;
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (plan->shuffled[i] && plan->reward[i].kind == REWARD_NONE) {
             plan->reward[i] = rest[k++];
         }
     }
+
     return k == nr ? 0 : -1;
 }
 
@@ -196,6 +224,7 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
     plan->settings = *s;
     plan->settings.seed &= RANDO_SEED_MASK;
     plan->settings.pools &= POOL_ALL;
+
     if (plan->settings.difficulty > DIFFICULTY_EXPERT) {
         plan->settings.difficulty = DIFFICULTY_STANDARD;
     }
@@ -203,12 +232,15 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
     char code[RANDO_CODE_SIZE];
     rando_encode(&plan->settings, code);
     rando_rng rng = {rando_seed_of_text(code) ^ (plan->settings.seed << 13)};
+
     for (int attempt = 1; attempt <= 500; ++attempt) {
         plan->attempts = attempt;
+
         if (fill(&plan->settings, &rng, plan) == 0 && rando_beatable(plan, 0)) {
             return 0;
         }
     }
+
     return -1;
 }
 
@@ -217,32 +249,39 @@ int rando_beatable(const rando_plan* plan, int* spheres) {
     const int d = plan->settings.difficulty;
     sweep w;
     start(&w);
+
     if (spheres) {
         for (size_t i = 0; i < rando_location_count; ++i) {
             spheres[i] = -1;
         }
     }
     /* Sphere by sphere: what is reachable with what was had before it. */
+
     for (int sphere = 0;; ++sphere) {
         uint8_t now[RANDO_MAX_LOCATIONS];
         size_t found = 0;
+
         for (size_t i = 0; i < rando_location_count; ++i) {
             now[i] = !w.had[i] && reachable(&w, d, i);
             found += now[i];
         }
+
         if (found == 0) {
             break;
         }
+
         for (size_t i = 0; i < rando_location_count; ++i) {
             if (now[i]) {
                 w.had[i] = 1;
                 take(&w, plan->reward[i]);
+
                 if (spheres) {
                     spheres[i] = sphere;
                 }
             }
         }
     }
+
     return w.had[goal()];
 }
 
@@ -263,6 +302,7 @@ static void put(out* o, const char* fmt, ...) {
     const size_t room = o->used < o->size ? o->size - o->used : 0;
     const int n = vsnprintf(at, room, fmt, ap);
     va_end(ap);
+
     if (n > 0) {
         o->used += (size_t)n;
     }
@@ -286,17 +326,23 @@ static void reward_text(rando_reward r, char* buf, size_t n) {
 
 size_t rando_spoiler(const rando_plan* plan, const char* mod_version, char* text, size_t size) {
     out o = {text, size, 0};
+
     if (size > 0) {
         text[0] = 0;
     }
+
     const rando_settings* s = &plan->settings;
     char code[RANDO_CODE_SIZE];
     rando_encode(s, code);
     put(&o, "Ratchet & Clank item randomizer %s: spoiler log\n\n", mod_version);
     put(&o, "Seed code   %s\n", code);
     put(&o, "Difficulty  %s\n", rando_difficulty_name(s->difficulty));
-    put(&o, "Shuffled    %s%s%s%s%s\n", (s->pools & POOL_WEAPONS) ? "weapons " : "", (s->pools & POOL_GADGETS) ? "gadgets " : "",
-        (s->pools & POOL_GOLD) ? "gold-bolts " : "", (s->pools & POOL_PLANETS) ? "infobots " : "",
+    put(&o,
+        "Shuffled    %s%s%s%s%s\n",
+        (s->pools & POOL_WEAPONS) ? "weapons " : "",
+        (s->pools & POOL_GADGETS) ? "gadgets " : "",
+        (s->pools & POOL_GOLD) ? "gold-bolts " : "",
+        (s->pools & POOL_PLANETS) ? "infobots " : "",
         (s->pools & POOL_VENDOR) ? "vendor " : "");
     put(&o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
 
@@ -304,35 +350,49 @@ size_t rando_spoiler(const rando_plan* plan, const char* mod_version, char* text
     const int ok = rando_beatable(plan, spheres);
     put(&o, "Where everything is (* marks a reward that opens the way)\n");
     int level = -1;
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
+
         if (!plan->shuffled[i]) {
             continue;
         }
+
         if (l->level != level) {
             level = l->level;
             put(&o, "\n%s\n", rando_planet_name(level));
         }
+
         char r[64];
         reward_text(plan->reward[i], r, sizeof r);
         put(&o, "  %-52s %s%s\n", l->name, is_progression(plan->reward[i]) ? "* " : "  ", r);
     }
+
     put(&o, "\nA playthrough (each sphere needs only what the spheres before it give)\n");
+
     for (int sphere = 0; sphere < RANDO_MAX_LOCATIONS; ++sphere) {
         int any = 0;
+
         for (size_t i = 0; i < rando_location_count; ++i) {
-            if (spheres[i] != sphere || !(is_progression(plan->reward[i]) || (rando_locations[i].flags & LOCF_GOAL))) {
+            if (spheres[i] != sphere
+                || !(is_progression(plan->reward[i]) || (rando_locations[i].flags & LOCF_GOAL))) {
                 continue;
             }
+
             if (!any) {
                 put(&o, "\nSphere %d\n", sphere + 1);
                 any = 1;
             }
+
             char r[64];
             reward_text(plan->reward[i], r, sizeof r);
-            put(&o, "  %-52s %s\n", rando_locations[i].name, (rando_locations[i].flags & LOCF_GOAL) ? "the end" : r);
+            put(&o,
+                "  %-52s %s\n",
+                rando_locations[i].name,
+                (rando_locations[i].flags & LOCF_GOAL) ? "the end" : r);
         }
     }
+
     put(&o, "\n%s\n", ok ? "Beatable." : "NOT BEATABLE: please report this seed code.");
     return o.used + 1;
 }

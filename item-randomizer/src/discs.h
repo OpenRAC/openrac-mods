@@ -14,26 +14,51 @@
 #include <stdint.h>
 
 typedef struct rando_disc {
-    const char* version;    /* openrac_api.version */
-    uint32_t owned;         /* u8[0x25]: the items owned (D_0013D5C8; GiveItem, the hero, the menus) */
-    uint32_t obtained;      /* u8[0x25]: the items given (D_0013D5F0; the pickups' and NPCs' test) */
-    uint32_t planets;       /* u8[20]: the planets unlocked (D_0013DE48) */
-    uint32_t gold_bolts;    /* u8[20][4]: the gold bolts collected (D_0014BFC0) */
-    uint32_t triggers;      /* u8[20][16]: the levels' trigger slots, 0xFF done (D_0014C150) */
-    uint32_t level;         /* i32: the level loaded (D_0015EE84) */
-    uint32_t vendor_stock;  /* u8[12]: the vendor's stock, 0xFF-terminated (D_0015EED0) */
-    uint32_t last_weapon;   /* i32: the weapon a double tap with the wrench goes back to (D_00141760) */
-    uint32_t vendor_menu;   /* the vendor's menu, level 0's address (D_L00_001CA7C0; VENDOR_* below) */
-    uint32_t vendor_redraw; /* i32: nonzero, the menu shows its item again next frame (D_L00_00161F34) */
-    const char* show_banner;   /* void (int text, int ticks): a line of text on screen (ShowBanner) */
-    int32_t gold_bolt_text;    /* the gold bolt's banner (GoldBoltUpdate's) */
+    const char* version; /* openrac_api.version */
+    uint32_t owned;      /* u8[0x25]: the items owned (D_0013D5C8; GiveItem, the hero, the menus) */
+    uint32_t obtained;   /* u8[0x25]: the items given (D_0013D5F0; the pickups' and NPCs' test) */
+    uint32_t planets;    /* u8[20]: the planets unlocked (D_0013DE48) */
+    uint32_t gold_bolts; /* u8[20][4]: the gold bolts collected (D_0014BFC0) */
+    uint32_t triggers;   /* u8[20][16]: the levels' trigger slots, 0xFF done (D_0014C150) */
+    uint32_t level;      /* i32: the level loaded (D_0015EE84) */
+    uint32_t vendor_stock; /* u8[12]: the vendor's stock, 0xFF-terminated (D_0015EED0) */
+    uint32_t
+        last_weapon; /* i32: the weapon a double tap with the wrench goes back to (D_00141760) */
+    uint32_t
+        vendor_menu; /* the vendor's menu, level 0's address (D_L00_001CA7C0; VENDOR_* below) */
+    uint32_t
+        vendor_redraw; /* i32: nonzero, the menu shows its item again next frame (D_L00_00161F34) */
+    const char* show_banner; /* void (int text, int ticks): a line of text on screen (ShowBanner) */
+    int32_t gold_bolt_text;  /* the gold bolt's banner (GoldBoltUpdate's) */
 } rando_disc;
 
 static const rando_disc k_rando_discs[] = {
-    {"pal", 0x0013D5C8u, 0x0013D5F0u, 0x0013DE48u, 0x0014BFC0u, 0x0014C150u, 0x0015EE84u, 0x0015EED0u,
-     0x00141760u, 0x001CA7C0u, 0x00161F34u, "func_L00_00264DB8", 0x53B8},
-    {"ntsc", 0x0013D4C0u, 0x0013D4E8u, 0x0013DD40u, 0x0014BEC0u, 0x0014C050u, 0x0015ED84u, 0x0015EDD0u,
-     0x00141660u, 0x001CA4C0u, 0x00161E38u, "FUN_L00_00263d40", 0x53B3},
+    {"pal",
+     0x0013D5C8u,
+     0x0013D5F0u,
+     0x0013DE48u,
+     0x0014BFC0u,
+     0x0014C150u,
+     0x0015EE84u,
+     0x0015EED0u,
+     0x00141760u,
+     0x001CA7C0u,
+     0x00161F34u,
+     "func_L00_00264DB8",
+     0x53B8},
+    {"ntsc",
+     0x0013D4C0u,
+     0x0013D4E8u,
+     0x0013DD40u,
+     0x0014BEC0u,
+     0x0014C050u,
+     0x0015ED84u,
+     0x0015EDD0u,
+     0x00141660u,
+     0x001CA4C0u,
+     0x00161E38u,
+     "FUN_L00_00263d40",
+     0x53B3},
 };
 
 /* The moby's fields it reads (games/rac1/include/moby.h; the same on both discs). */
@@ -49,15 +74,15 @@ static const rando_disc k_rando_discs[] = {
  * item bought last, whose demo plays as the menu closes; the entry under the cursor; the buy
  * dialog's state (4: the purchase); the list's entries, each its item and whether it sells the
  * item's ammo (1) or the item (0); how many there are. */
-#define VENDOR_STOCK_SIZE 12      /* the stock's bytes */
+#define VENDOR_STOCK_SIZE 12     /* the stock's bytes */
 #define VENDOR_LAST_BOUGHT 0x48u /* i32 */
 #define VENDOR_CURSOR 0x58u      /* i32 */
 #define VENDOR_DIALOG 0x5Cu      /* i32 */
 #define VENDOR_DIALOG_BUY 4
-#define VENDOR_ENTRIES 0xD0u     /* {i32 item, i32 ammo, ...}[16] */
+#define VENDOR_ENTRIES 0xD0u /* {i32 item, i32 ammo, ...}[16] */
 #define VENDOR_ENTRY_SIZE 0x14u
 #define VENDOR_MAX_ENTRIES 16
-#define VENDOR_COUNT 0x210u      /* i32 */
+#define VENDOR_COUNT 0x210u /* i32 */
 
 /* The levels past the game (VendorStockLevelInit gives everything there): left as the game has them. */
 #define RANDO_LAST_LEVEL 0x12
