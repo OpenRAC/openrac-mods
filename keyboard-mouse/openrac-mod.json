@@ -2,9 +2,9 @@
   "format": 2,
   "id": "keyboard-mouse",
   "name": "Keyboard and mouse",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "author": "OpenRAC contributors",
-  "description": "Plays Ratchet & Clank with a keyboard and mouse: WASD moves, the mouse aims the camera, left click fires, holding right click opens the Quick Select and the mouse picks its slot, Space jumps, Escape pauses, the number keys and the wheel change weapons. In menus the arrows and WASD move, Enter or Space confirm, Escape or Backspace go back, and the mouse points, clicks and scrolls; Space, Enter or Escape skip scenes and movies. Every action can be bound to any key, mouse button or wheel direction, two binds each, with Left-handed and Arrow keys presets. A gamepad keeps working beside it.",
+  "description": "Plays Ratchet & Clank with a keyboard and mouse: WASD moves, the mouse turns the camera directly (right turns right, up looks up), left click fires, holding right click opens the Quick Select and the mouse picks its slot, Space jumps, Escape pauses, the number keys and the wheel change weapons. In menus the arrows and WASD move, Enter or Space confirm, Escape or Backspace go back, and the mouse points, clicks and scrolls; Space, Enter or Escape skip scenes and movies. Every action can be bound to any key, mouse button or wheel direction, two binds each, with Left-handed and Arrow keys presets. A gamepad keeps working beside it.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/keyboard-mouse",
   "api": "1.3",
@@ -26,7 +26,7 @@
       "min": 0.1,
       "max": 10.0,
       "step": 0.1,
-      "description": "How far the camera turns for the mouse's motion."
+      "description": "How far the camera turns for the mouse's motion: at 1, about 9 degrees for 100 pixels. The camera turns as the mouse moves, with no easing."
     },
     {
       "key": "mouse_acceleration",
@@ -42,7 +42,8 @@
       "key": "invert_y",
       "name": "Invert the mouse's up and down",
       "type": "bool",
-      "default": false
+      "default": false,
+      "description": "Mouse up looks down. The game's own invert options are for the controller and never change the mouse."
     },
     {
       "key": "camera_tilt",
@@ -59,7 +60,7 @@
           "name": "Levels out"
         }
       ],
-      "description": "Whether the camera keeps the tilt the mouse gives it, or levels out when the mouse rests."
+      "description": "Whether the camera behind Ratchet keeps the tilt the mouse gives it, or levels out as the game does when the mouse rests."
     },
     {
       "key": "capture_cursor",

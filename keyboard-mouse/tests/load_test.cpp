@@ -3,7 +3,8 @@
 // (openrac_mod.h, interface 1.2): it reports its id and interface, takes the keyboard and the
 // mouse, its pad callback and the follow camera's hook point, and finds the game's functions by
 // each disc's names. Then, on a game memory made here, tick by tick: keys and buttons into the
-// report, the mouse into the right stick, the Quick Select held by right click and pointed by the
+// report, the mouse turning the follow camera and the first-person view itself (and any other
+// camera as the right stick), the Quick Select held by right click and pointed by the
 // mouse, a number key taking a slot's item, the cursor captured in play and let go on the pause
 // screen, menu keys only there, and the camera's reset asking to look along Ratchet's facing.
 //
@@ -224,13 +225,167 @@ struct Report {
     bool held(std::uint16_t button) const { return (buttons() & button) == 0; }
 };
 
-// The pad's report as the port hands it with nothing held, through the mod's callback.
-Report read_pad() {
+// The pad's report as the port hands it with nothing held (or its right stick's x off centre),
+// through the mod's callback.
+Report read_pad(std::uint8_t right_x = 0x80) {
     Report r{};
     r.bytes[0] = r.bytes[1] = 0xFF;
     r.bytes[2] = r.bytes[3] = r.bytes[4] = r.bytes[5] = 0x80;
+    r.bytes[2] = right_x;
     g_pad(g_pad_user, 0, r.bytes, 18);
     return r;
+}
+
+kbm::Vec3 vec_at(std::uint32_t address) {
+    return {at<float>(address), at<float>(address + 4u), at<float>(address + 8u)};
+}
+void set_vec(std::uint32_t address, kbm::Vec3 v) {
+    at<float>(address) = v.x;
+    at<float>(address + 4u) = v.y;
+    at<float>(address + 8u) = v.z;
+}
+bool close_to(float a, float b, float within = 1e-4f) {
+    return std::fabs(a - b) <= within;
+}
+
+// The camera in use (0 for none) and its id, as the game's camera block has them.
+constexpr std::uint32_t kCamera = 0x00180000u;
+constexpr std::uint32_t kCameraState = 0x00181000u;
+void use_camera(std::uint32_t camera, int id) {
+    at<std::uint32_t>(disc().cameras + KBM_CAMERAS_CURRENT) = camera;
+    at<std::int16_t>(kCamera + KBM_CAMERA_ID) = static_cast<std::int16_t>(id);
+    at<std::uint32_t>(kCamera + KBM_CAMERA_STATE) = kCameraState;
+}
+
+// The follow camera and the first-person view turned by the mouse itself: at once and in
+// proportion, mouse right to the right and mouse up looking up whatever the game's invert option,
+// the tilt held through the game's own target, the pad's stick and the game's locks left alone.
+void direct_camera() {
+    const kbm_disc& d = disc();
+    auto camera = reinterpret_cast<void (*)(std::uint32_t)>(g_camera_hook);
+    const kbm::Vec3 target{10.0f, 20.0f, 5.0f};
+    const kbm::Vec3 orbit{-4.0f, 0.0f, 1.0f};  // the eye west of Ratchet and above him: it looks east
+    use_camera(kCamera, 0);
+    set_vec(d.cameras + KBM_CAMERAS_UP, {0.0f, 0.0f, 1.0f});
+    set_vec(kCameraState + KBM_FOLLOW_TARGET, target);
+    set_vec(kCameraState + KBM_FOLLOW_ORBIT, orbit);
+    set_vec(kCameraState + KBM_FOLLOW_ORBIT_SMOOTH, orbit);
+    set_vec(kCameraState + KBM_FOLLOW_EYE, kbm::plus(target, orbit));
+    at<std::int32_t>(kCameraState + KBM_FOLLOW_LOCKS) = 0;
+    at<std::int32_t>(d.tilt_invert) = 0;
+    at<float>(d.pad_sticks + 4u) = 0.0f;
+
+    // Mouse right: no stick; the hook point turns the orbit, its smoothed copy and the eye's last
+    // place by the tick's motion, about up, the view to the right (south).
+    tick();
+    g_input.mouse_dx = 30.0f;
+    Report r = read_pad();
+    CHECK(r.bytes[2] == 0x80 && r.bytes[3] == 0x80);
+    camera(kCamera);
+    kbm::LookTuning tuning;
+    const kbm::Vec3 turned = kbm::rotate(orbit, kbm::kWorldUp, kbm::DirectLook::yaw(30.0f, 0.0f, tuning));
+    const kbm::Vec3 o = vec_at(kCameraState + KBM_FOLLOW_ORBIT);
+    CHECK(close_to(o.x, turned.x) && close_to(o.y, turned.y) && close_to(o.z, turned.z));
+    CHECK(-o.y < -0.1f);  // the view (eye to Ratchet) turned south: right
+    CHECK(close_to(vec_at(kCameraState + KBM_FOLLOW_ORBIT_SMOOTH).y, turned.y));
+    CHECK(close_to(vec_at(kCameraState + KBM_FOLLOW_EYE).y, target.y + turned.y));
+    CHECK(at<float>(d.pad_sticks + 4u) == 0.0f);  // no tilt asked for: the stick's y untouched
+    // The motion is the tick's: the next call has none.
+    camera(kCamera);
+    CHECK(close_to(vec_at(kCameraState + KBM_FOLLOW_ORBIT).y, turned.y));
+
+    // Mouse up: the eye goes down (the view looks up), and the game is asked to hold it there.
+    const float before = kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp);
+    tick();
+    g_input.mouse_dy = -40.0f;
+    r = read_pad();
+    CHECK(r.bytes[3] == 0x80);
+    camera(kCamera);
+    const float after = kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp);
+    CHECK(close_to(after, before + kbm::DirectLook::pitch(0.0f, -40.0f, tuning)) && after < before);
+    const float w = at<float>(kCameraState + KBM_FOLLOW_TILT);
+    CHECK(close_to(w, kbm::follow_target_of(after)) && at<float>(kCameraState + KBM_FOLLOW_TILT_RATE) == 0.0f);
+    CHECK(at<float>(d.pad_sticks + 4u) == kbm::follow_stick_for(w, false));
+    // The game's vertical invert on: the same mouse, the same way; only the stick's y written flips.
+    at<std::int32_t>(d.tilt_invert) = 1;
+    tick();
+    g_input.mouse_dy = -40.0f;
+    read_pad();
+    camera(kCamera);
+    const float again = kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp);
+    CHECK(again < after - 0.01f);
+    CHECK(at<float>(d.pad_sticks + 4u) == kbm::follow_stick_for(kbm::follow_target_of(again), true));
+    // At rest the tilt stays (Camera tilt: Stays): the target asked for again each tick.
+    at<float>(d.pad_sticks + 4u) = 0.0f;
+    tick();
+    read_pad();
+    camera(kCamera);
+    CHECK(at<float>(d.pad_sticks + 4u) == kbm::follow_stick_for(kbm::follow_target_of(again), true));
+    CHECK(close_to(kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp), again));
+    at<std::int32_t>(d.tilt_invert) = 0;
+
+    // The pad's right stick off centre: the camera is the pad's; the mouse's hold lets go.
+    const kbm::Vec3 still = vec_at(kCameraState + KBM_FOLLOW_ORBIT);
+    at<float>(d.pad_sticks + 4u) = 0.25f;
+    tick();
+    g_input.mouse_dx = 30.0f;
+    r = read_pad(0xF0);
+    CHECK(r.bytes[2] == 0xF0);
+    camera(kCamera);
+    CHECK(vec_at(kCameraState + KBM_FOLLOW_ORBIT).y == still.y && at<float>(d.pad_sticks + 4u) == 0.25f);
+    tick();
+    read_pad();
+    camera(kCamera);
+    CHECK(at<float>(d.pad_sticks + 4u) == 0.25f);  // not held any more
+    // The game's lock on turning (a camera volume's) stops the mouse's turn too.
+    at<std::int32_t>(kCameraState + KBM_FOLLOW_LOCKS) = 1;
+    tick();
+    g_input.mouse_dx = 30.0f;
+    read_pad();
+    camera(kCamera);
+    CHECK(vec_at(kCameraState + KBM_FOLLOW_ORBIT).y == still.y);
+    at<std::int32_t>(kCameraState + KBM_FOLLOW_LOCKS) = 0;
+
+    // First person (camera 4): the way it looks turned and tilted before the game's update, its
+    // tilt kept where the game keeps it; no stick.
+    use_camera(kCamera, KBM_CAMERA_FIRST_PERSON);
+    set_vec(kCamera, {1.0f, 0.0f, 0.0f});  // looking east
+    at<float>(kCameraState + KBM_FIRST_PERSON_TILT) = 0.0f;
+    at<std::uint32_t>(d.hero + KBM_HERO_MOBY) = 0;  // no moby: up is the world's
+    tick();
+    g_input.mouse_dx = 30.0f;
+    g_input.mouse_dy = -30.0f;
+    r = read_pad();
+    CHECK(r.bytes[2] == 0x80 && r.bytes[3] == 0x80);
+    const kbm::Vec3 look = vec_at(kCamera);
+    CHECK(look.y < -0.01f && look.z > 0.01f);  // right, and up
+    CHECK(close_to(kbm::length(look), 1.0f));
+    const float tilt = at<float>(kCameraState + KBM_FIRST_PERSON_TILT);
+    CHECK(close_to(tilt, kbm::DirectLook::pitch(30.0f, -30.0f, tuning)) && tilt < 0.0f);
+    CHECK(close_to(kbm::elevation(look, kbm::kWorldUp), -tilt));
+    // It stops at the game's 64 degrees.
+    for (int i = 0; i < 40; ++i) {
+        tick();
+        g_input.mouse_dy = -100.0f;
+        read_pad();
+    }
+    CHECK(close_to(at<float>(kCameraState + KBM_FIRST_PERSON_TILT), -kbm::kFirstPersonTiltLimit));
+    CHECK(close_to(kbm::elevation(vec_at(kCamera), kbm::kWorldUp), kbm::kFirstPersonTiltLimit, 1e-3f));
+
+    // Any other camera (a scene's own): the mouse as the right stick, as before.
+    use_camera(kCamera, 7);
+    for (int i = 0; i < 4; ++i) {  // the follow camera's hook has not run for a while
+        tick();
+        read_pad();
+    }
+    tick();
+    g_input.mouse_dx = 24.0f;
+    read_pad();
+    tick();
+    g_input.mouse_dx = 24.0f;
+    r = read_pad();
+    CHECK(kbm::game_axis(r.bytes[2]) == 1.0f);
+    use_camera(0, 0);
 }
 
 void run(const char* library) {
@@ -300,6 +455,8 @@ void run(const char* library) {
     g_input.mouse_dx = 50.0f;
     r = read_pad();
     CHECK(!r.held(kbm::kCircle) && r.bytes[2] == 0x80);
+
+    direct_camera();
 
     // Right click held: Triangle held, the mouse pointing the ring's slot by the left stick.
     tick();

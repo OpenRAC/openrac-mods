@@ -169,6 +169,103 @@ void mouse_stick() {
     CHECK(m.y == 0.0f);
 }
 
+// The game's FollowCamera_ReadStickInput and Cam_SteerHeadingFromStick from the stick's y to the
+// eased tilt target w: the option's invert, the resting fallback, the dead zone.
+float game_follow_target(float stick_y, bool game_inverts, bool* fallback) {
+    float b = game_inverts ? -stick_y : stick_y;
+    *fallback = b == 0.0f;
+    if (b < -0.3f) {
+        b = (b + 0.3f) * 1.4285715f;
+    } else if (0.3f < b) {
+        b = (b - 0.3f) * 1.4285715f;
+    } else {
+        b = 0.0f;
+    }
+    return b;
+}
+
+// The view's direction from the follow camera's orbit (Ratchet to the eye): the other way.
+kbm::Vec3 view_of(kbm::Vec3 orbit) {
+    return kbm::scaled(orbit, -1.0f);
+}
+
+void direct_look() {
+    using kbm::Vec3;
+    kbm::LookTuning t;
+    const Vec3 up = kbm::kWorldUp;
+
+    // In proportion to the motion, at once: no easing over ticks, no ramp, the same each tick.
+    const float one = kbm::DirectLook::yaw(10.0f, 0.0f, t);
+    CHECK(near(one, -10.0f * kbm::kRadiansPerPixel, 1e-6f));
+    CHECK(near(kbm::DirectLook::yaw(20.0f, 0.0f, t), 2.0f * one, 1e-6f));
+    CHECK(kbm::DirectLook::yaw(0.0f, 0.0f, t) == 0.0f && kbm::DirectLook::pitch(0.0f, 0.0f, t) == 0.0f);
+    CHECK(near(kbm::DirectLook::yaw(-10.0f, 0.0f, t), -one, 1e-6f));
+    t.sensitivity = 2.0f;
+    CHECK(near(kbm::DirectLook::yaw(10.0f, 0.0f, t), 2.0f * one, 1e-6f));
+    t.sensitivity = 1.0f;
+    // The mod's acceleration, when asked for, turns a fast motion further than its share.
+    t.acceleration = 1.0f;
+    CHECK(std::fabs(kbm::DirectLook::yaw(40.0f, 0.0f, t)) > 4.0f * std::fabs(kbm::DirectLook::yaw(10.0f, 0.0f, t)));
+    t.acceleration = 0.0f;
+
+    // Mouse right turns the view right. The follow camera west of Ratchet looks east (+x); right of
+    // that is south (-y), with z up. The game's turn is about up, right-handed (rotate).
+    const Vec3 orbit{-4.0f, 0.0f, 1.0f};
+    Vec3 turned = kbm::rotate(orbit, up, kbm::DirectLook::yaw(30.0f, 0.0f, t));
+    CHECK(view_of(turned).y < -0.1f && near(view_of(turned).x, 4.0f, 0.1f));
+    CHECK(near(kbm::length(turned), kbm::length(orbit), 1e-4f) && near(turned.z, orbit.z, 1e-5f));
+    turned = kbm::rotate(orbit, up, kbm::DirectLook::yaw(-30.0f, 0.0f, t));
+    CHECK(view_of(turned).y > 0.1f);  // left
+    // The first-person view's way of looking (east) turns the same way.
+    const Vec3 ahead = kbm::rotate(Vec3{1.0f, 0.0f, 0.0f}, up, kbm::DirectLook::yaw(30.0f, 0.0f, t));
+    CHECK(ahead.y < -0.01f);
+
+    // Mouse up looks up: pitch < 0 (looking down is > 0); the follow camera's eye goes down below
+    // Ratchet for it, so the view looks up at him. Invert Y swaps it, and only it.
+    CHECK(kbm::DirectLook::pitch(0.0f, -10.0f, t) < 0.0f && kbm::DirectLook::pitch(0.0f, 10.0f, t) > 0.0f);
+    CHECK(near(kbm::DirectLook::pitch(0.0f, -10.0f, t), -10.0f * kbm::kRadiansPerPixel, 1e-6f));
+    const float e0 = kbm::elevation(orbit, up);
+    const Vec3 lowered = kbm::with_elevation(orbit, up, e0 + kbm::DirectLook::pitch(0.0f, -40.0f, t));
+    CHECK(kbm::elevation(lowered, up) < e0 && view_of(lowered).z > view_of(orbit).z);
+    CHECK(near(kbm::length(lowered), kbm::length(orbit), 1e-4f));
+    CHECK(near(std::atan2(lowered.y, lowered.x), std::atan2(orbit.y, orbit.x), 1e-5f));  // the same way round
+    t.invert_y = true;
+    CHECK(kbm::DirectLook::pitch(0.0f, -10.0f, t) > 0.0f);
+    CHECK(near(kbm::DirectLook::yaw(10.0f, 0.0f, t), one, 1e-6f));
+    t.invert_y = false;
+
+    // The vectors' helpers.
+    CHECK(near(kbm::elevation(Vec3{1.0f, 0.0f, 1.0f}, up), 0.785398f, 1e-5f));
+    CHECK(near(kbm::elevation(kbm::with_elevation(Vec3{3.0f, 4.0f, 0.0f}, up, -0.5f), up), -0.5f, 1e-5f));
+    const Vec3 straight{0.0f, 0.0f, 2.0f};
+    CHECK(kbm::with_elevation(straight, up, 0.0f).z == 2.0f);  // no way round: left alone
+    CHECK(kbm::unit_or(Vec3{}, up).z == 1.0f && near(kbm::unit_or(Vec3{0.0f, 0.0f, 5.0f}, Vec3{}).z, 1.0f));
+    CHECK(near(kbm::length(kbm::rotate(Vec3{1.0f, 2.0f, 3.0f}, kbm::unit_or(Vec3{1.0f, 1.0f, 0.0f}, up), 1.0f)),
+               kbm::length(Vec3{1.0f, 2.0f, 3.0f}), 1e-4f));
+
+    // The follow camera's tilt held through the game's own target: for every elevation the mouse
+    // can reach, the stick's y written reads back, through the game's code, as the target that
+    // holds it, whichever way the game's invert option is set; never the resting fallback.
+    const float limit = kbm::follow_max_elevation();
+    CHECK(near(limit, 0.99563f, 1e-4f));
+    CHECK(near(kbm::follow_target_of(limit), 1.0f, 1e-4f) && near(kbm::follow_target_of(-limit), -1.0f, 1e-4f));
+    for (float e = -limit; e <= limit; e += 0.05f) {
+        const float w = kbm::follow_target_of(e);
+        // The game aims the eye at atan(sin(elevation)) = w * 40 degrees.
+        CHECK(near(std::atan(std::sin(e)), w * kbm::kFollowTiltRange, 1e-4f));
+        for (bool inverts : {false, true}) {
+            bool fallback = true;
+            const float stick = kbm::follow_stick_for(w, inverts);
+            CHECK(std::fabs(stick) <= 1.0f);
+            CHECK(near(game_follow_target(stick, inverts, &fallback), w, 1e-5f) && !fallback);
+        }
+    }
+    bool fallback = true;
+    CHECK(game_follow_target(kbm::follow_stick_for(0.0f, true), true, &fallback) == 0.0f && !fallback);
+    // The same eye, whatever the game's option: the stick's y it is held with flips with it.
+    CHECK(kbm::follow_stick_for(0.5f, true) == -kbm::follow_stick_for(0.5f, false));
+}
+
 void quick_select() {
     // The game's ring: slot 0 at the top, clockwise.
     CHECK(kbm::ring_slot(0.0f, -1.0f) == 0);
@@ -445,6 +542,7 @@ int main(int argc, char** argv) {
     conflicts();
     key_stick();
     mouse_stick();
+    direct_look();
     quick_select();
     report();
     weapon_wheel();

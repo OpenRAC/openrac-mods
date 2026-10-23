@@ -3,8 +3,8 @@
 //
 // The keyboard and mouse mod's own logic, apart from the game and the port so it is tested alone:
 // the actions and their binds, conflicts between them, the keys to the left stick, the mouse to
-// the right stick, the mouse to the Quick Select ring's direction, and the DualShock report the
-// game reads. keyboard_mouse.cpp joins it to the game.
+// the right stick and to the camera itself, the mouse to the Quick Select ring's direction, and
+// the DualShock report the game reads. keyboard_mouse.cpp joins it to the game.
 #ifndef KBM_HPP
 #define KBM_HPP
 
@@ -293,6 +293,131 @@ struct MouseLook {
 
     static float clamp1(float v) { return std::max(-1.0f, std::min(1.0f, v)); }
 };
+
+// ---- The camera turned by the mouse itself ----
+//
+// The follow camera (behind Ratchet) and the first-person view are turned by the mouse directly:
+// a tick's motion turns the view by an angle in proportion to it, that same tick, with none of the
+// stick's easing, ramp or smoothing, and whatever the game's own invert options say (those are the
+// pad's). Mouse right turns the view right, mouse up looks up (unless the mod's own Invert is on).
+// The game's frame: z up, x and y level; its rotations (build_look_at_matrix) are right-handed, so
+// a positive angle about up turns a view to the left as seen from above.
+
+struct Vec3 {
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+};
+
+inline float dot(Vec3 a, Vec3 b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+inline Vec3 cross(Vec3 a, Vec3 b) {
+    return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+}
+inline Vec3 scaled(Vec3 a, float k) {
+    return {a.x * k, a.y * k, a.z * k};
+}
+inline Vec3 plus(Vec3 a, Vec3 b) {
+    return {a.x + b.x, a.y + b.y, a.z + b.z};
+}
+inline Vec3 minus(Vec3 a, Vec3 b) {
+    return {a.x - b.x, a.y - b.y, a.z - b.z};
+}
+inline float length(Vec3 a) {
+    return std::sqrt(dot(a, a));
+}
+inline float clamp(float v, float lo, float hi) {
+    return std::max(lo, std::min(hi, v));
+}
+
+// `v` at unit length; `fallback` for a vector too short to say a direction (or not a number).
+inline Vec3 unit_or(Vec3 v, Vec3 fallback) {
+    const float n = length(v);
+    if (!(n > 1e-6f) || !std::isfinite(n)) {
+        return fallback;
+    }
+    return scaled(v, 1.0f / n);
+}
+inline constexpr Vec3 kWorldUp{0.0f, 0.0f, 1.0f};
+
+// `v` turned by `angle` about the unit axis `axis`, right-handed, as the game turns its vectors.
+inline Vec3 rotate(Vec3 v, Vec3 axis, float angle) {
+    const float c = std::cos(angle);
+    const float s = std::sin(angle);
+    const Vec3 along = scaled(axis, dot(axis, v) * (1.0f - c));
+    return plus(plus(scaled(v, c), scaled(cross(axis, v), s)), along);
+}
+
+// How far `v` points above level (radians, below level < 0), against the unit `up`.
+inline float elevation(Vec3 v, Vec3 up) {
+    const float n = length(v);
+    if (!(n > 1e-6f)) {
+        return 0.0f;
+    }
+    return std::asin(std::max(-1.0f, std::min(1.0f, dot(v, up) / n)));
+}
+
+// `v` with its elevation set to `e`: the same length and the same way round about up. A vector
+// straight up or down, with no way round, is left as it is.
+inline Vec3 with_elevation(Vec3 v, Vec3 up, float e) {
+    const float n = length(v);
+    const Vec3 level = minus(v, scaled(up, dot(v, up)));
+    const float h = length(level);
+    if (!(n > 1e-6f) || !(h > 1e-6f * n)) {
+        return v;
+    }
+    return plus(scaled(level, n * std::cos(e) / h), scaled(up, n * std::sin(e)));
+}
+
+// A tick's motion at sensitivity 1: radians a pixel (a 1,000-pixel sweep turns about 86 degrees).
+inline constexpr float kRadiansPerPixel = 0.0015f;
+
+// The turn and the tilt a tick's mouse motion asks for. yaw is the angle about up (the game's
+// sense: > 0 turns the view left, so mouse right gives < 0); pitch > 0 looks down (mouse down,
+// or mouse up with Invert on). The mod's acceleration, off by default, is the only curve.
+struct DirectLook {
+    static float scale(float dx, float dy, const LookTuning& t) {
+        const float speed = std::sqrt(dx * dx + dy * dy);
+        return std::max(t.sensitivity, 0.0f) * MouseLook::gain(speed, t) * kRadiansPerPixel;
+    }
+    static float yaw(float dx, float dy, const LookTuning& t) { return -dx * scale(dx, dy, t); }
+    static float pitch(float dx, float dy, const LookTuning& t) {
+        return (t.invert_y ? -dy : dy) * scale(dx, dy, t);
+    }
+};
+
+// The follow camera's tilt. The game keeps the eye at an elevation above Ratchet that its right
+// stick sets: the stick's y (past a dead zone of 0.3, then scaled back to 0..1) is a target w in
+// -1..1, eased, and the eye is turned toward an elevation whose atan(sin) is w times 40 degrees
+// (FollowCamera_ReadStickInput and Cam_SteerHeadingFromStick). An eye above Ratchet looks down.
+inline constexpr float kFollowTiltRange = 0.69813168f;    // 40 degrees, the target at w = 1
+inline constexpr float kFollowDeadZone = 0.3f;
+inline constexpr float kFollowDeadZoneScale = 1.4285715f;  // 1 / 0.7
+// The eye's elevation at w = +-1: asin(tan(40 degrees)), about 57 degrees.
+inline float follow_max_elevation() {
+    return std::asin(std::tan(kFollowTiltRange));
+}
+// The game's target for an eye at elevation `e` (radians): the w that holds it there.
+inline float follow_target_of(float e) {
+    const float w = std::atan(std::sin(e)) / kFollowTiltRange;
+    return std::max(-1.0f, std::min(1.0f, w));
+}
+// The stick's y the game reads as the target w, whichever way its own vertical invert option is
+// set (`game_inverts`: the option's word nonzero, which makes the game read the stick's y negated).
+// Never 0: a stick at rest makes the game use its own resting height instead.
+inline float follow_stick_for(float w, bool game_inverts) {
+    w = std::max(-1.0f, std::min(1.0f, w));
+    float in = kFollowDeadZone;  // just at the dead zone's edge: w = 0
+    if (w > 0.0f) {
+        in = w / kFollowDeadZoneScale + kFollowDeadZone;
+    } else if (w < 0.0f) {
+        in = w / kFollowDeadZoneScale - kFollowDeadZone;
+    }
+    return game_inverts ? -in : in;
+}
+
+// The first-person view's tilt: the game keeps how far it looks down (radians, up < 0) and eases
+// it off past 64 degrees either way; the mouse stops there.
+inline constexpr float kFirstPersonTiltLimit = 1.1170107f;
 
 // ---- The Quick Select ring from the mouse ----
 

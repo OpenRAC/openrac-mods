@@ -5,13 +5,16 @@
 // them in the launcher, pressed into the first pad's report each tick, on top of a gamepad's. What
 // a key presses follows where the game is (kbm::Context): in play the console's layout; in the
 // title, the menus and the dialogs confirm and back; in a scene, a movie or the ship, a skip. In
-// play the mouse turns the camera as the right stick does, and while the Quick Select is held open
-// picks its slot by the way it moves; in the menus the cursor is free, points at the game's own
+// play the mouse turns the camera itself (kbm::DirectLook: the follow camera through its hook
+// point, the first-person view before its update), and while the Quick Select is held open picks
+// its slot by the way it moves; in the menus the cursor is free, points at the game's own
 // menu items, clicks, and its wheel scrolls. Takes the keyboard from the port (its own WASD table
 // stops) and the cursor while in play.
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 
 #include "discs.h"
@@ -50,6 +53,16 @@ bool s_ring_open = false;
 std::uint32_t s_tick = 0xFFFFFFFFu;
 int s_asked_capture = -1;
 int s_reset_ticks = 0;  // the camera's swing behind Ratchet, while it lasts
+
+// The mouse's turn of the follow camera: the tick's motion, for its hook point to apply; the tick
+// the hook point last ran (the follow camera is the one in use); whether the mouse holds the tilt,
+// and where (the eye's elevation).
+float s_follow_dx = 0.0f;
+float s_follow_dy = 0.0f;
+std::uint32_t s_follow_tick = 0xFFFFFFFFu;
+bool s_tilt_held = false;
+float s_tilt = 0.0f;
+bool s_pad_look = false;  // the gamepad's right stick is off centre: the camera is the pad's
 int s_click_wait = 0;   // a click on an item not yet focused: Cross once the focus has moved
 std::uint16_t s_click_button = 0;
 
@@ -74,6 +87,30 @@ gaddr hero() {
 // A game address worth reading: in the console's 32 MB, aligned.
 bool plausible(gaddr address) {
     return address >= 0x00100000u && address < 0x02000000u && (address & 3u) == 0;
+}
+
+kbm::Vec3 read_vec(gaddr address) {
+    return {read<float>(address), read<float>(address + 4u), read<float>(address + 8u)};
+}
+void write_vec(gaddr address, kbm::Vec3 v) {
+    s_mod->memory().write<float>(address, v.x);
+    s_mod->memory().write<float>(address + 4u, v.y);
+    s_mod->memory().write<float>(address + 8u, v.z);
+}
+
+// The camera in use, 0 for none; its id in *id.
+gaddr current_camera(int* id) {
+    *id = -1;
+    if (s_mod->loaded_level() < 0) {
+        return 0;
+    }
+    const gaddr cameras = s_mod->relocate_level(0, s_disc->cameras);
+    const gaddr camera = read<std::uint32_t>(cameras + KBM_CAMERAS_CURRENT);
+    if (!plausible(camera)) {
+        return 0;
+    }
+    *id = read<std::int16_t>(camera + KBM_CAMERA_ID);
+    return camera;
 }
 
 // Where the game is: a level's mode word (its program's copy) with a level loaded, else the boot
@@ -293,16 +330,129 @@ bool menu_mouse(const Tick& t, bool click) {
     return true;
 }
 
+// ---- The camera from the mouse ----
+
+// The first-person view turned by the tick's motion, before the game's update of it (which turns
+// it by the sticks, 0 from the mouse, and squares its rows up again): the way it looks turned
+// about Ratchet's up, and tilted, its tilt kept where the game keeps it.
+void first_person_look(gaddr camera, float dx, float dy) {
+    const gaddr state = read<std::uint32_t>(camera + KBM_CAMERA_STATE);
+    if (!plausible(state) || (dx == 0.0f && dy == 0.0f)) {
+        return;
+    }
+    const gaddr moby = read<std::uint32_t>(hero() + KBM_HERO_MOBY);
+    const kbm::Vec3 up =
+        plausible(moby) ? kbm::unit_or(read_vec(moby + 0xE0u), kbm::kWorldUp) : kbm::kWorldUp;
+    kbm::Vec3 look = read_vec(camera);
+    look = kbm::rotate(look, up, kbm::DirectLook::yaw(dx, dy, s_look_tuning));
+    const float tilt = read<float>(state + KBM_FIRST_PERSON_TILT);
+    if (std::isfinite(tilt)) {
+        const float wanted = tilt + kbm::DirectLook::pitch(dx, dy, s_look_tuning);
+        const float limit = kbm::kFirstPersonTiltLimit;
+        const float now = kbm::clamp(wanted, -limit, limit);
+        const float moved = kbm::clamp(tilt, -limit, limit);
+        // Looking down lowers the view's elevation.
+        look = kbm::with_elevation(look, up, kbm::elevation(look, up) - (now - moved));
+        s_mod->memory().write<float>(state + KBM_FIRST_PERSON_TILT, now);
+    }
+    write_vec(camera, look);
+}
+
+// The follow camera's tilt target where the mouse holds the eye (s_tilt): its eased target there
+// and at rest, and the stick's y it reads this tick asking for the same.
+void hold_tilt(gaddr state) {
+    const float w = kbm::follow_target_of(s_tilt);
+    s_mod->memory().write<float>(state + KBM_FOLLOW_TILT, w);
+    s_mod->memory().write<float>(state + KBM_FOLLOW_TILT_RATE, 0.0f);
+    const bool inverts = read<std::int32_t>(s_mod->relocate(s_disc->tilt_invert)) != 0;
+    const gaddr stick_y = s_mod->relocate(s_disc->pad_sticks) + 4u;
+    s_mod->memory().write<float>(stick_y, kbm::follow_stick_for(w, inverts));
+}
+
+// The follow camera turned by the tick's motion, from its hook point, before the game moves it on:
+// the orbit (and its smoothed copy, and the eye's last place with them, so that neither the
+// smoothing nor the follow pulls it back) turned about up, then tilted. The tilt stays where the
+// mouse leaves it (Camera tilt: Stays) through the game's own target: its eased target set there
+// at rest and the stick's y it reads written so that it asks for the same, whatever the game's
+// invert option. The game's locks (a camera volume's) stop the mouse as they stop the stick.
+void follow_look(gaddr camera) {
+    s_follow_tick = s_tick;
+    const float dx = s_follow_dx;
+    const float dy = s_follow_dy;
+    s_follow_dx = s_follow_dy = 0.0f;
+    const gaddr state = read<std::uint32_t>(camera + KBM_CAMERA_STATE);
+    if (!plausible(state) || s_pad_look) {
+        s_tilt_held = false;
+        return;
+    }
+    const std::int32_t locks = read<std::int32_t>(state + KBM_FOLLOW_LOCKS);
+    if (dx == 0.0f && dy == 0.0f) {
+        if (!s_look_tuning.pitch_holds || (locks & 2) != 0) {
+            s_tilt_held = false;
+        }
+        if (s_tilt_held) {
+            hold_tilt(state);
+        }
+        return;
+    }
+    const gaddr cameras = s_mod->relocate_level(0, s_disc->cameras);
+    const kbm::Vec3 up = kbm::unit_or(read_vec(cameras + KBM_CAMERAS_UP), kbm::kWorldUp);
+    const gaddr orbit = state + KBM_FOLLOW_ORBIT;
+    const gaddr smooth = state + KBM_FOLLOW_ORBIT_SMOOTH;
+    const kbm::Vec3 target = read_vec(state + KBM_FOLLOW_TARGET);
+    kbm::Vec3 o = read_vec(orbit);
+    kbm::Vec3 m = read_vec(smooth);
+    kbm::Vec3 e = kbm::minus(read_vec(state + KBM_FOLLOW_EYE), target);
+
+    if (dx != 0.0f && (locks & 1) == 0) {
+        const float yaw = kbm::DirectLook::yaw(dx, dy, s_look_tuning);
+        o = kbm::rotate(o, up, yaw);
+        m = kbm::rotate(m, up, yaw);
+        e = kbm::rotate(e, up, yaw);
+    }
+    if ((locks & 2) != 0) {
+        s_tilt_held = false;  // the game holds the tilt
+    } else if (dy != 0.0f) {
+        if (!s_tilt_held || !s_look_tuning.pitch_holds) {
+            s_tilt = kbm::elevation(o, up);
+        }
+        s_tilt_held = true;
+        // Looking down lifts the eye above Ratchet.
+        const float limit = kbm::follow_max_elevation();
+        const float pitch = kbm::DirectLook::pitch(dx, dy, s_look_tuning);
+        const float now = kbm::clamp(s_tilt + pitch, -limit, limit);
+        const float moved = now - s_tilt;
+        s_tilt = now;
+        const auto tilt = [&](kbm::Vec3 v) {
+            const float e = kbm::clamp(kbm::elevation(v, up) + moved, -1.5f, 1.5f);
+            return kbm::with_elevation(v, up, e);
+        };
+        o = tilt(o);
+        m = tilt(m);
+        e = tilt(e);
+    } else if (!s_look_tuning.pitch_holds) {
+        s_tilt_held = false;  // the mouse not tilting: the game levels the camera out
+    }
+    write_vec(orbit, o);
+    write_vec(smooth, m);
+    write_vec(state + KBM_FOLLOW_EYE, kbm::plus(target, e));
+    if (s_tilt_held) {
+        hold_tilt(state);
+    }
+}
+
 // ---- The tick ----
 
 // The tick's pad from the keyboard and mouse: once a tick, when the port has read them anew.
-void step(const openrac_input* in, std::uint16_t pad_buttons) {
+void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
     Tick t;
     t.in = in;
     int dialog_kind = -1;
     t.where = context_now(&dialog_kind);
     const bool play = t.where == Context::Play;
     t.play = play && in->captured != 0 && in->overlay == 0;
+    s_pad_look = pad_look;
+    s_follow_dx = s_follow_dy = 0.0f;
     t.pointer = !play && in->pointer_inside != 0 && in->focused != 0 && in->overlay == 0
                 && in->size >= offsetof(openrac_input, reserved2);
 
@@ -396,20 +546,36 @@ void step(const openrac_input* in, std::uint16_t pad_buttons) {
         v.left_y = s_keys.y;
     }
 
-    // The camera: the mouse as the right stick, in play and out of the ring.
+    // The camera, in play and out of the ring: the follow camera and the first-person view turned
+    // by the mouse itself; any other camera (a scene's own) by the mouse as the right stick.
     if (t.play && !ring) {
-        const bool first_person = ((v.held | pad_buttons) & kbm::kL1) != 0;
-        s_look.step(in->mouse_dx, in->mouse_dy, first_person, s_look_tuning);
-        v.right_x = s_look.x;
-        v.right_y = s_look.y;
+        int id = -1;
+        const gaddr camera = current_camera(&id);
+        const bool follow =
+            id == 0 || (s_follow_tick != 0xFFFFFFFFu && s_tick - s_follow_tick <= 2u);
+        if (camera != 0 && id == KBM_CAMERA_FIRST_PERSON) {
+            first_person_look(camera, in->mouse_dx, in->mouse_dy);
+            s_look.reset();
+        } else if (camera != 0 && follow) {
+            s_follow_dx = in->mouse_dx;
+            s_follow_dy = in->mouse_dy;
+            s_look.reset();
+        } else {
+            const bool first_person = ((v.held | pad_buttons) & kbm::kL1) != 0;
+            s_look.step(in->mouse_dx, in->mouse_dy, first_person, s_look_tuning);
+            v.right_x = s_look.x;
+            v.right_y = s_look.y;
+        }
         if (s_reset_ticks > 0 && in->mouse_dx != 0.0f) {
             s_reset_ticks = 0;  // the player turns it: the swing stops
         }
     } else if (!play) {
         s_look.x = s_look.y = 0.0f;
+        s_tilt_held = false;
     }
     if (play && pressed_now(t, Action::CameraReset)) {
         s_look.reset();
+        s_tilt_held = false;  // the swing levels it
         s_reset_ticks = 30;
     }
 
@@ -426,22 +592,33 @@ void on_pad(int port, std::uint8_t* report, int size) {
     if (in->tick != s_tick) {
         s_tick = in->tick;
         const std::uint16_t pad_held = static_cast<std::uint16_t>(~(report[0] | (report[1] << 8)));
-        step(in, pad_held);
+        // The pad's right stick past the game's dead zone (0.3): the camera is the pad's.
+        const bool pad_look = std::abs(report[2] - 0x80) > 38 || std::abs(report[3] - 0x80) > 38;
+        step(in, pad_held, pad_look);
     }
     kbm::merge(s_pad, report, size);
 }
 
-// The follow camera's per-tick requests: after the game's (and any mod's before this one), while
-// the camera's reset lasts, a request to look along the way Ratchet faces, as the game's own
-// camera volumes ask for a heading.
+// The follow camera's per-tick requests: after the game's (and any mod's before this one), the
+// mouse's turn (follow_look); while the camera's reset lasts, instead, a request to look along the
+// way Ratchet faces, as the game's own camera volumes ask for a heading.
 template <class Original>
 void camera_overrides(Original original, gaddr camera) {
     original(camera);
     int kind = 0;
-    if (s_reset_ticks <= 0 || context_now(&kind) != Context::Play) {
+    if (context_now(&kind) != Context::Play) {
         s_reset_ticks = 0;
+        s_tilt_held = false;
+        s_follow_dx = s_follow_dy = 0.0f;
         return;
     }
+    if (s_reset_ticks <= 0) {
+        s_reset_ticks = 0;
+        follow_look(camera);
+        return;
+    }
+    s_follow_tick = s_tick;
+    s_follow_dx = s_follow_dy = 0.0f;
     --s_reset_ticks;
     const float facing = s_mod->memory().read<float>(hero() + KBM_HERO_FACING);
     openrac::StackFrame frame(*s_mod, 16);
@@ -508,6 +685,10 @@ void load(openrac::Mod& mod) {
     s_asked_capture = -1;
     s_reset_ticks = 0;
     s_click_wait = 0;
+    s_follow_dx = s_follow_dy = 0.0f;
+    s_follow_tick = 0xFFFFFFFFu;
+    s_tilt_held = false;
+    s_pad_look = false;
 
     mod.take_input(OPENRAC_INPUT_KEYBOARD | OPENRAC_INPUT_MOUSE);
     mod.on_pad([](int port, std::uint8_t* report, int size) { on_pad(port, report, size); });
@@ -519,4 +700,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("keyboard-mouse", "1.1.1", load)
+OPENRAC_MOD_CPP("keyboard-mouse", "1.2.0", load)

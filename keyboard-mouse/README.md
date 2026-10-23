@@ -30,7 +30,7 @@ To install by hand, download `keyboard-mouse-<version>.zip` from the
 |---|---|---|
 | Move | W A S D | left stick |
 | Walk (hold) | Left Alt | left stick, half way |
-| Camera | the mouse | right stick |
+| Camera | the mouse | none (the mod turns the camera itself) |
 | Jump | Space | Cross |
 | Fire | Left click | Circle |
 | Quick Select (hold) | Right click | Triangle |
@@ -79,6 +79,23 @@ exactly as Start on a pad does.
   hold something. In a vehicle, these keys do nothing.
 - **Strafe.** Left Shift holds L2. With the [lock-strafe](../lock-strafe/README.md)
   mod in its *Hold L2 or R2* mode, holding Left Shift strafes.
+- **The mouse camera.** The mouse turns the camera itself, as in a PC
+  game: the view turns as far as the mouse moves, in the same frame, with
+  none of the slow easing and speed-up the console's right stick has.
+  - Mouse right turns the view right and mouse up looks up, always. The
+    game's own camera options (*Normal* or *Inverted*) are for the
+    controller and don't change the mouse. If you want mouse up to look
+    down, turn on *Invert the mouse's up and down* in the mod's settings.
+  - This works for the camera behind Ratchet and for the first-person view
+    (hold V). Behind Ratchet, the tilt stays where you leave it, unless you
+    set *Camera tilt* to *Levels out*.
+  - The game still moves the camera where it always does: it follows
+    Ratchet, and a few places lock it or swing it round. In those places
+    it stops the mouse just as it stops the right stick.
+  - Moving a controller's right stick hands the camera back to the
+    controller, which then works exactly as on the console.
+  - A few scenes have a camera of their own. There the mouse still acts as
+    the right stick.
 - **Camera behind Ratchet.** Q swings the camera round behind him and
   levels it. Moving the mouse stops the swing.
 - **The cursor.** It is hidden and kept inside the window while you play.
@@ -129,10 +146,10 @@ These settings also adjust how the mouse and keys feel:
 
 | Setting | Default | What it does |
 |---|---|---|
-| Mouse sensitivity | 1.0 | How far the camera turns for a given mouse movement |
-| Mouse acceleration | 0 | Above 0, a fast flick turns further than a slow drag |
-| Invert the mouse's up and down | off | Mouse up tilts the camera down |
-| Camera tilt | Stays | *Stays*: the camera keeps the tilt you give it. *Levels out*: it comes back level when the mouse rests |
+| Mouse sensitivity | 1.0 | How far the camera turns for a given mouse movement. At 1, moving the mouse 100 pixels turns it about 9 degrees |
+| Mouse acceleration | 0 | Above 0, a fast flick turns further than a slow drag. At 0 the turn is always in proportion to the movement |
+| Invert the mouse's up and down | off | Mouse up tilts the camera down. The game's own invert options never change the mouse |
+| Camera tilt | Stays | *Stays*: the camera behind Ratchet keeps the tilt you give it. *Levels out*: it comes back level when the mouse rests, as it does with a controller |
 | Capture the cursor in play | on | Off leaves the cursor visible; the mouse then doesn't turn the camera |
 | Mouse in menus | on | The cursor points at menu items (hover or steps); off keeps only clicks and the wheel |
 | Walk speed | 0.5 | How fast the walk key moves Ratchet, from 0.2 to 0.9 |
@@ -145,9 +162,9 @@ OpenRAC is installed, so updating OpenRAC or the mod keeps them.
 
 ## Good to know
 
-- The camera works the way the console's right stick does. The mouse sets
-  how fast the camera turns, so it eases in and out as it does with a pad;
-  this is not a direct mouse aim.
+- Before version 1.2.0 the mouse acted as the right stick: the camera eased
+  in and out as it does with a pad, and followed the game's invert options.
+  Now the mouse turns it directly.
 - If OpenRAC's own keys (F2, F3, F9 to F11) are bound to an action, they
   still do OpenRAC's thing as well.
 - When a bug report asks for it, the game's log shows the line
@@ -159,7 +176,11 @@ OpenRAC is installed, so updating OpenRAC or the mod keeps them.
 See the [repository's README](../README.md#building). The tests check:
 
 - reading the binds and finding clashes;
-- how the keys move the stick and how the mouse turns the camera;
+- how the keys move the stick and how the mouse turns the camera: the turn
+  and tilt for a movement, which way they go whatever the game's invert
+  options, and the tilt held through the game's own target;
+- the follow camera and the first-person view turned through the game's
+  memory, the controller's stick and the game's camera locks left alone;
 - how the mouse's direction picks a Quick Select slot;
 - which state the game is in (title, menus, vendor, dialogs, cutscenes,
   movies, the ship) and what each key presses there;
