@@ -23,6 +23,7 @@ section 11):
 | [difficulty](difficulty-mod/README.md) | native | A slider for everything: enemy count, damage both ways, enemy and Ratchet speed, weapon and ammo prices, ammo per shot, max ammo, bolt drops, health; presets Easy, Retail, Hard, Brutal and a seeded Chaos | PAL, NTSC-U |
 | [live-splits](live-splits/README.md) | native | Splits a LiveSplit timer as the player goes from planet to planet: the mod talks to LiveSplit's own server and splits at every planet, so a speedrunner does not touch the timer | PAL, NTSC-U |
 | [dualsense](dualsense/README.md) | native | A PlayStation 5 DualSense's own buttons as extra PlayStation 2 buttons (the touchpad, the microphone button, the DualSense Edge's paddles), its light bar showing Ratchet's health, a vibration when Ratchet is hit, hits something, breaks a crate, picks something up or finds a gold bolt, and a feel of its own for each weapon in the motors | PAL, NTSC-U |
+| [ammo-max](ammo-max/README.md) | native | At the vendor, buying ammo starts at the most you can buy (the rounds the weapon has room for, or as many as your bolts pay for) instead of 1; Down still lowers it | PAL, NTSC-U |
 
 ## Installing a mod
 
