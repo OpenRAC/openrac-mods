@@ -95,8 +95,11 @@ is full the game cannot make what it wants, and on Gaspar its lava sparks
 nearly fill it on a console already. So the copies take only what the game
 can spare: **160 slots always stay free** for the game, and a level's copies
 take at most the rest (95 of 255). An enemy whose own data is larger than a
-spawned object's place (0x80 bytes) costs slots for that too. **Gaspar gets
-no copies.** The log says what each level got: `level 4: 41 copies of 23
+spawned object's place (0x80 bytes) costs slots for that too, and nearly
+every enemy's is (0x1C0 to 0x460 bytes): a copy takes 5 to 10 slots, so a
+level gets about 11 to 17 copies at most (Rilgar's smaller amoeboids, about
+28), fewer where few of its enemies are free of its scripts (Umbris none).
+**Gaspar gets no copies.** The log says what each level got: `level 4: 41 copies of 23
 enemies (255 free slots, room for 95 beside the 160 kept for the game; 60
 reserved for pvars; 3 without a clear spot)`. With a high enemy count the
 copies are spread: each enemy gets one before any gets a second.
@@ -127,8 +130,11 @@ Everything not in the table is left as it is.
 
 And among the enemies, only those free of the level's scripts are copied or
 left out: a moby in a group (a wave, a door that opens when all are
-defeated), one tied to a mission, one another object names, or one the
-level's file does not describe is left as it is.
+defeated), one another object names, one that names another, or one the
+level's file does not describe is left as it is. When in the story an enemy
+is there (before its planet's mission is done, after it, or both) is the
+level's own: the game places only the enemies of the part of the story being
+played, and only those are copied.
 
 ## How it works
 

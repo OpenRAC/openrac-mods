@@ -528,6 +528,8 @@ gaddr copy_moby(
     put<float>(m + 0x14u, spot[1]);
     put<float>(m + 0x18u, spot[2]);
     // Not a placed moby: no save id (its death marks nothing killed, SetDeathBits), and no bolts.
+    // Its mission the original's, for the classes whose update reads it.
+    put<uint8_t>(m + 0xB0u, get<uint8_t>(orig + 0xB0u));
     put<uint8_t>(m + 0xB1u, 0xFE);
     put<uint16_t>(m + 0xB2u, 0xFFFF);
     put<int16_t>(m + 0xB4u, 0);
@@ -619,9 +621,10 @@ void adjust_enemies(int level) {
                 continue;
             }
             if (list == 0x50u) {
-                names_moby.insert(blk);
+                // A field left at -1 names no moby: a copy of it names none either.
                 const int32_t target = get<int32_t>(x + off);
                 if (target >= 0) {
+                    names_moby.insert(blk);
                     named.insert(pool.base + static_cast<uint32_t>(target) * dm::k_moby_size);
                 }
             } else {
@@ -650,9 +653,10 @@ void adjust_enemies(int level) {
         }
         const auto pl = by_pvars.find(get<uint32_t>(m + 0x78u));
         // Only a moby free of the level's scripts: no group (the waves, the "defeat them all"
-        // doors), no mission, no other moby naming it, and found in the file.
-        if (pl == by_pvars.end() || get<uint8_t>(m + 0x21u) != 0xFF || (pl->second.flags & 3) != 0
-            || named.count(m)) {
+        // doors), no other moby naming it, and found in the file. Its record's flags 1 and 2 (in
+        // play before its mission is done, after it, or both) do not count: nearly every enemy has
+        // them, and the load has already left out those of the other part of the story.
+        if (pl == by_pvars.end() || get<uint8_t>(m + 0x21u) != 0xFF || named.count(m)) {
             continue;
         }
         ++eligible;
@@ -901,4 +905,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("difficulty", "1.1.0", load)
+OPENRAC_MOD_CPP("difficulty", "1.1.1", load)

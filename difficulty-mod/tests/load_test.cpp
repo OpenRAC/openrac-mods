@@ -375,7 +375,15 @@ struct Placed {
     std::uint32_t pvar_size;
 };
 
-void lay_level(const std::vector<Placed>& placed, int n2) {
+// The gameplay file's moby links (+0x50): {pvar block, offset in it} and the moby index the field
+// holds after the load (-1: none).
+struct Link {
+    int32_t block;
+    std::uint32_t offset;
+    int32_t target;
+};
+
+void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link>& links = {}) {
     const dm_disc& d = disc();
     std::memset(g_mem + kHeader, 0, 0x00180000u);
     const std::uint32_t n = static_cast<std::uint32_t>(placed.size());
@@ -415,6 +423,18 @@ void lay_level(const std::vector<Placed>& placed, int n2) {
         }
         pv += (placed[i].pvar_size + 0xFu) & ~0xFu;
     }
+    if (!links.empty()) {
+        put<std::uint32_t>(kHeader + 0x50u, 0x60000u);
+        std::uint32_t q = kHeader + 0x60000u;
+        for (const Link& l : links) {
+            put<int32_t>(q, l.block);
+            put<std::uint32_t>(q + 4u, l.offset);
+            const std::uint32_t block = get<std::uint32_t>(kHeader + 0x40000u + 8u * l.block);
+            put<int32_t>(block + l.offset, l.target);
+            q += 8u;
+        }
+        put<int32_t>(q, -1);
+    }
     g_mem[spare + 0x20] = 0xFF;
     g_created = g_deleted = g_built = 0;
 }
@@ -448,7 +468,7 @@ int main(int argc, char** argv) {
     query(&info);
     // The interface its manifest names (1.1), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.1.0") == 0);
+    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.1.1") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -653,10 +673,39 @@ int main(int argc, char** argv) {
     const std::uint32_t pv = get<std::uint32_t>(spare40 + 0x78u);
     CHECK(pv >= get<std::uint32_t>(d.pool + 0x10u) + (pool_word(2) - spare40) / 2u);
     CHECK(std::memcmp(g_mem + pv, g_mem + kPlacedPvars, 0x210) == 0);
-    // Waves, missions, bosses, turrets and mines: never copied.
+    // The flags of the discs' own records: nearly every enemy is in play before its mission is
+    // done (1), after it (2) or both (3), and is copied all the same, with its mission.
+    lay_level(
+        {Placed{427, 0xFF, 1, 0x40}, Placed{427, 0xFF, 2, 0x40}, Placed{427, 0xFF, 3, 0x40}}, 256
+    );
+    g_mem[kBase + 0xB0] = 4;
+    load_gameplay(1);
+    CHECK(g_created == 9);
+    {
+        const std::uint32_t first = pool_word(1);
+        CHECK(g_mem[first + 0xB0] == 4 && g_mem[first + 0xB1] == 0xFE);
+    }
+    // A link field left at -1 names no moby: copied. One naming a moby: neither is copied.
+    lay_level(
+        {Placed{427, 0xFF, 3, 0x40}, Placed{427, 0xFF, 3, 0x40}, Placed{427, 0xFF, 3, 0x40}},
+        256,
+        {Link{0, 0x10, -1}, Link{1, 0x10, 2}}
+    );
+    load_gameplay(1);
+    CHECK(g_created == 3);
+    CHECK(get<int16_t>(pool_word(1) + 0xA6u) == 427);
+    {
+        // All three copies are of the first: the same pvars.
+        bool all_first = true;
+        for (std::uint32_t m = pool_word(1); m < pool_word(1) + 3u * 0x100u; m += 0x100u) {
+            const std::uint8_t* pv = g_mem + get<std::uint32_t>(m + 0x78u);
+            all_first = all_first && std::memcmp(pv, g_mem + kPlacedPvars, 0x40) == 0;
+        }
+        CHECK(all_first);
+    }
+    // Waves, bosses, turrets and mines: never copied.
     lay_level(
         {Placed{427, 3, 0, 0x40},
-         Placed{427, 0xFF, 1, 0x40},
          Placed{1130, 0xFF, 0, 0x40},
          Placed{29, 0xFF, 0, 0x40},
          Placed{74, 0xFF, 0, 0x40}},
