@@ -2,19 +2,29 @@
 # The difficulty mod (README.md): the mod's library (C++, on the SDK's openrac/mod.hpp) and its tests:
 # the rules (ranges, Chaos's rolls and events), the manifest's presets, the moby pool's guard, the
 # classes' table against the SDK's behaviour catalogue, and the library as the port loads it.
+#
+# The rules and the moby pool are the mod's core, compiled into the library and, for the tests, into
+# a static library of their own so they run without a host.
+
+# The sources shared by the mod's library and the tests of the rules and the pool.
 set(difficulty_core src/rules.cpp src/pool.cpp)
 
+# The mod's library and the manifest it is packaged with.
 openrac_add_mod(difficulty MANIFEST openrac-mod.json SOURCES src/difficulty.cpp ${difficulty_core})
 target_include_directories(difficulty PRIVATE src)
+# Warnings on, for compilers that take these flags.
 if(NOT MSVC)
   target_compile_options(difficulty PRIVATE -Wall -Wextra)
 endif()
 
+# The tests build only when testing is on.
 if(BUILD_TESTING)
+  # The core as a library of its own for the tests that need no host.
   add_library(difficulty_core STATIC ${difficulty_core})
   target_include_directories(difficulty_core PUBLIC src)
   target_compile_features(difficulty_core PUBLIC cxx_std_17)
 
+  # One test program each for the rules and the pool, over the core.
   foreach(test rules pool)
     add_executable(difficulty_${test}_test tests/${test}_test.cpp)
     target_link_libraries(difficulty_${test}_test PRIVATE difficulty_core)
@@ -24,6 +34,7 @@ if(BUILD_TESTING)
   # The classes' table: every class the catalogue names as an enemy, a turret, a mine, a boss, a
   # ship or a thief is in classes.tsv, and src/classes.h says what classes.tsv says. The presets:
   # every slider and the Chaos switch, inside the sliders' ranges (rules.cpp's).
+  # These two checks are Python scripts, so they run only when Python is found.
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)
     add_test(NAME difficulty_classes
