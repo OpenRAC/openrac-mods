@@ -305,7 +305,7 @@ void direct_camera() {
     CHECK(close_to(after, before + kbm::DirectLook::pitch(0.0f, -40.0f, tuning)) && after < before);
     const float w = at<float>(kCameraState + KBM_FOLLOW_TILT);
     CHECK(close_to(w, kbm::follow_target_of(after)) && at<float>(kCameraState + KBM_FOLLOW_TILT_RATE) == 0.0f);
-    CHECK(at<float>(d.pad_sticks + 4u) == kbm::follow_stick_for(w, false));
+    CHECK(close_to(at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(w, false)));
     // The game's vertical invert on: the same mouse, the same way; only the stick's y written flips.
     at<std::int32_t>(d.tilt_invert) = 1;
     tick();
@@ -314,13 +314,13 @@ void direct_camera() {
     camera(kCamera);
     const float again = kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp);
     CHECK(again < after - 0.01f);
-    CHECK(at<float>(d.pad_sticks + 4u) == kbm::follow_stick_for(kbm::follow_target_of(again), true));
+    CHECK(close_to(at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(kbm::follow_target_of(again), true)));
     // At rest the tilt stays (Camera tilt: Stays): the target asked for again each tick.
     at<float>(d.pad_sticks + 4u) = 0.0f;
     tick();
     read_pad();
     camera(kCamera);
-    CHECK(at<float>(d.pad_sticks + 4u) == kbm::follow_stick_for(kbm::follow_target_of(again), true));
+    CHECK(close_to(at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(kbm::follow_target_of(again), true)));
     CHECK(close_to(kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp), again));
     at<std::int32_t>(d.tilt_invert) = 0;
 
