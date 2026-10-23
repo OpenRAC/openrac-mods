@@ -55,11 +55,13 @@ bouncer, the commando and the deserter, Sam, the scientist, ...): only the
 infobots' are shuffled. Gold weapons, ammo and bolts are the game's.
 
 **What you will notice.** A vendor slot shows the weapon it stands for, at
-that weapon's price, and gives the seed's reward; once bought, the slot is
-gone. An NPC or pickup plays its own scene and then gives the seed's
+that weapon's price, and gives the seed's reward: it goes into your
+inventory and quick select as if the game had sold it, and stays when you
+switch weapons. Once bought, the slot becomes ammo for the reward, if the
+reward takes ammo. Ammo for a weapon you own whose slot is still for sale is
+sold too. An NPC or pickup plays its own scene and then gives the seed's
 reward, with that reward's banner. An infobot shows its own planet's video.
-A gold bolt's place shows the gold bolt's scene, then the reward. Ammo for a
-weapon the vendor still has as a slot is bought once the slot is.
+A gold bolt's place shows the gold bolt's scene, then the reward.
 
 ## How it works
 
@@ -106,10 +108,10 @@ catalogue's):
 
 | Hook point | Id | PAL / NTSC-U | What the mod does |
 |---|---|---|---|
-| `Item_Give` | `rac1.item.give` | `func_L00_002618D8` / `FUN_L00_00260860` | the location of the item the game gives gives its reward; the location is marked had |
+| `Item_Give` | `rac1.item.give` | `func_L00_002618D8` / `FUN_L00_00260860` | the location of the item the game gives gives its reward; the location is marked had. After a purchase the hero holds the reward (or, for a reward with no store demo, the weapon held before), never the slot's own weapon |
 | `Planet_Unlock` | `rac1.planet.unlock` | `func_L00_00261848` / `FUN_L00_002607d0` | inside an infobot's update: the infobot's reward instead of its planet. Elsewhere (NPCs, the planet arrived at) the game's |
-| `Vendor_InitLevelStock` | `rac1.vendor.init_level_stock` | `func_L00_0023DB30` / `FUN_L00_0023d198` | a level's start: the mod takes the had states as they are (a save just loaded); with the starting gear shuffled, the Bomb Glove's test as below |
-| `Vendor_BuildItemList` | `rac1.vendor.build_item_list` | `func_L00_0029B770` / `FUN_L00_0029a400` | the stock as the menu sees it: slots not bought for sale, bought ones as their item's ammo when owned |
+| `Vendor_InitLevelStock` | `rac1.vendor.init_level_stock` | `func_L00_0023DB30` / `FUN_L00_0023d198` | a level's start: the mod takes the had states as they are (a save just loaded); with the starting gear shuffled, the Bomb Glove is taken back out of the stock and the double-tap weapon when it was not the reward |
+| `Vendor_BuildItemList` | `rac1.vendor.build_item_list` | `func_L00_0029B770` / `FUN_L00_0029a400` | the stock as the menu sees it: slots not bought for sale, bought ones as their reward's ammo; the cursor stays on the list and the item is drawn again |
 | `GoldBolts_CountCollected` | `rac1.gold_bolt.count_collected` | `func_002160E0` / `FUN_00215290` | with gold bolts shuffled: the gold bolt rewards had |
 | `Moby_Infobot_Update` | `rac1.moby.infobot.update` | `func_L00_002D7298` / `FUN_L00_002d5de8` | the infobot tests its planet's flag before it appears: while it runs, the flag shows the infobot's had state |
 | `Moby_Helga_Update`, `Moby_BigAl_Update`, `Moby_Bob_Update`, `Moby_Edwina_Update`, `Moby_PilotsHelmet_Update` | `rac1.moby.quest_giver.update`, `.guide.`, `.moby90.`, `.edwina.`, `.moby1290.` | Kerwan, Kerwan, Pokitaru, Hoven, the pickup on Gaspar | these five test *owned* rather than *obtained*: while each runs, its item's owned byte shows its had state, so that Helga is still there when you have the Swingshot from elsewhere |
@@ -152,7 +154,9 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
   manifest declares every key the mod reads;
 - `load`: the library as the port loads it, against a host of the test's
   own: its refusals, its eleven hook points and their signatures, and each
-  hook against a game memory that behaves as the game's bytes do.
+  hook against a game memory that behaves as the game's bytes do, and every
+  vendor slot bought over 13 seeds and every kind of reward: the hero holds
+  the reward, the inventory keeps it, and the store's list stays whole.
 
 ## What it needs
 
