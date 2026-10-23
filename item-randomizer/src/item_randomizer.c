@@ -10,9 +10,12 @@
  *   - Item_Give (GiveItem): the game gives item X at X's own place (an NPC, a pickup, a vendor
  *     purchase, the starting Bomb Glove). The mod gives that location's reward instead and marks
  *     the location had: X's "obtained" byte, which the game's pickups test before they appear and
- *     which the save keeps. A reward that is an item Y is given by GiveItem itself (its banner,
- *     ammo, quick select, the vendor's mark), with Y's obtained byte put back as it was, so that it
- *     stays Y's own location's.
+ *     which the save keeps. A reward that is an item Y is given by GiveItem itself (owned, its
+ *     banner, ammo, quick select, equipped), with Y's obtained byte put back as it was, so that it
+ *     stays Y's own location's, and the vendor's stock as it was when Y is a vendor slot.
+ *   - A vendor purchase: the buy dialog then takes the entry's item as the weapon bought, whose
+ *     demo plays as the menu closes and which the hero is handed; the mod makes that the reward
+ *     when it is a vendor weapon (else the one bought before), never the slot's weapon.
  *   - Five places test "owned" instead of "obtained" before they give (Helga, Big Al, Bob,
  *     Edwina, the Pilot's Helmet's pickup), and the starting Bomb Glove does too: while their update
  *     runs, the mod shows the game their item's owned byte as the location's had state, and puts
@@ -22,7 +25,10 @@
  *   - GoldBolts_CountCollected: with gold bolts shuffled, the count the pause screen shows and the
  *     gold weapons spend is the gold bolt rewards had, not the gold bolt places visited.
  *   - Vendor_BuildItemList: the vendor's stock as the menu sees it is the slots not yet bought
- *     for sale and the items owned as ammo, whatever GiveItem marked.
+ *     for sale, a bought slot as its reward's ammo, and the weapons owned as ammo; after a
+ *     purchase the cursor stays on the list and the menu shows the entry now under it.
+ *   - Vendor_InitLevelStock: with the starting gear shuffled, the Bomb Glove the game puts in the
+ *     stock and as the double tap's weapon is taken out again when the reward was another.
  *   - Each tick (on_frame), a location the game marked had another way (a gold bolt picked up, a
  *     route that writes the bytes itself) gets its reward then.
  *
@@ -44,7 +50,7 @@
 #include "rando.h"
 
 #define MOD_ID "item-randomizer"
-#define MOD_VERSION "1.0.0"
+#define MOD_VERSION "1.0.1"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -89,6 +95,21 @@ static int32_t i32_at(openrac_gaddr a) {
 
 static void put_i32(openrac_gaddr a, int32_t v) {
     memcpy(OPENRAC_G(s_api, a), &v, 4);
+}
+
+/* A level program's global, by level 0's address (the vendor's menu is in each level's). */
+static uint8_t* level_byte_at(uint32_t address) {
+    return (uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(0, address));
+}
+
+static int32_t get32(const uint8_t* p) {
+    int32_t v;
+    memcpy(&v, p, 4);
+    return v;
+}
+
+static void set32(uint8_t* p, int32_t v) {
+    memcpy(p, &v, 4);
 }
 
 static int current_level(void) {
@@ -181,6 +202,22 @@ static int held(rando_reward r) {
     }
 }
 
+/* The vendor slot of item, when the vendor's weapons are shuffled; -1 for none. */
+static int vendor_slot(int item) {
+    const int location = item >= 0 && item < RANDO_ITEM_COUNT ? s_by_item[item] : -1;
+    return location >= 0 && rando_locations[location].kind == LOC_VENDOR ? location : -1;
+}
+
+/* Whether the vendor sells item in the game (logic.c's vendor slots, shuffled or not). */
+static int sold_by_vendor(int item) {
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (rando_locations[i].kind == LOC_VENDOR && rando_locations[i].key == item) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* Whether item is some had location's reward. */
 static int received(int item) {
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -203,7 +240,18 @@ static void give_reward(int location, int32_t equip, int mark) {
     swaps_suspend();
     if (r.kind == REWARD_ITEM) {
         const uint8_t before = *obtained(r.value);
+        /* GiveItem marks a vendor weapon bought in the stock (or adds it): for a weapon that is a
+         * slot, the stock is the slots', so it stays as it was (the list sells its ammo). */
+        uint8_t* stock = byte_at(s_disc->vendor_stock);
+        uint8_t kept[VENDOR_STOCK_SIZE];
+        const int slot = vendor_slot(r.value) >= 0;
+        if (slot) {
+            memcpy(kept, stock, sizeof kept);
+        }
         s_item_give(r.value, equip);
+        if (slot) {
+            memcpy(stock, kept, sizeof kept);
+        }
         if (rando_locations[location].key != r.value || rando_locations[location].kind >= LOC_INFOBOT) {
             *obtained(r.value) = before;
         }
@@ -225,6 +273,24 @@ static int playing_level(void) {
 
 /* ---- the hooks ---- */
 
+/* The vendor's menu entry the buy dialog is buying slot `item` from: the entry under the cursor,
+ * while the dialog makes its purchase; null for any other GiveItem. */
+static uint8_t* vendor_purchase(int item) {
+    if (vendor_slot(item) < 0) {
+        return NULL;
+    }
+    uint8_t* menu = level_byte_at(s_disc->vendor_menu);
+    const int32_t cursor = get32(menu + VENDOR_CURSOR);
+    if (get32(menu + VENDOR_DIALOG) != VENDOR_DIALOG_BUY || cursor < 0 || cursor >= VENDOR_MAX_ENTRIES) {
+        return NULL;
+    }
+    uint8_t* entry = menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE;
+    return get32(entry) == item && get32(entry + 4) == 0 ? entry : NULL;
+}
+
+/* A purchase whose list the vendor builds next (build_item_list): the slot's item, -1 for none. */
+static int s_bought = -1;
+
 /* GiveItem(id, equip): id's location's reward, and the location had. */
 static void item_give(int32_t id, int32_t equip) {
     const int location = id >= 0 && id < RANDO_ITEM_COUNT ? s_by_item[id] : -1;
@@ -232,8 +298,19 @@ static void item_give(int32_t id, int32_t equip) {
         s_item_give(id, equip);
         return;
     }
+    uint8_t* entry = vendor_purchase(id);
     give_reward(location, equip, id);
     s_seen[location] = 1;
+    if (entry != NULL) {
+        /* Right after GiveItem the dialog takes the entry's item as the one bought, whose demo
+         * plays as the menu closes and which the hero is then handed: the reward when it is one of
+         * the vendor's weapons (each level has their demos), else the one bought before, as it
+         * was (GiveItem has equipped the reward already). */
+        const rando_reward r = s_plan.reward[location];
+        const int demo = r.kind == REWARD_ITEM && sold_by_vendor(r.value);
+        set32(entry, demo ? r.value : get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT));
+        s_bought = id;
+    }
 }
 
 /* The infobot whose update is running, and the location it is; -1 for none. */
@@ -316,37 +393,126 @@ static void init_level_stock(void) {
     sync_seen();
     const int start = s_by_item[ITEM_BOMB_GLOVE];
     if (start >= 0 && rando_locations[start].kind == LOC_START && playing_level()) {
+        /* The game gives the Bomb Glove (the reward, through item_give), then puts it first in the
+         * stock and makes it the weapon a double tap goes back to: when the reward was something
+         * else, the stock and that weapon are put back as they were. */
+        uint8_t* stock = byte_at(s_disc->vendor_stock);
+        uint8_t* last = byte_at(s_disc->last_weapon);
+        uint8_t before[VENDOR_STOCK_SIZE];
+        memcpy(before, stock, sizeof before);
+        const int32_t last_before = get32(last);
         swap_push(owned(ITEM_BOMB_GLOVE), start);
         s_init_level_stock();
         swap_pop();
+        if (!*owned(ITEM_BOMB_GLOVE) && stock[0] == (ITEM_BOMB_GLOVE | 0x40) && before[0] != stock[0]) {
+            memmove(stock, stock + 1, VENDOR_STOCK_SIZE - 1);
+            stock[VENDOR_STOCK_SIZE - 1] = 0xFF;
+            if (before[0] != 0xFF && stock[VENDOR_STOCK_SIZE - 1] == 0xFF) {
+                int present = 0;
+                for (int i = 0; i < VENDOR_STOCK_SIZE && stock[i] != 0xFF; ++i) {
+                    present |= (stock[i] & 0x3F) == (before[0] & 0x3F);
+                }
+                if (!present) {
+                    memmove(stock + 1, stock, VENDOR_STOCK_SIZE - 1);
+                    stock[0] = before[0];
+                }
+            }
+            if (get32(last) == ITEM_BOMB_GLOVE) {
+                set32(last, last_before);
+            }
+        }
     } else {
         s_init_level_stock();
     }
     sync_seen();
 }
 
-/* The vendor's stock as the menu is built from it: a slot not bought is for sale, one bought is
- * its item's ammo when that item is owned, and gone when not. */
-static void build_item_list(int32_t skip_unflagged) {
-    uint8_t* stock = byte_at(s_disc->vendor_stock);
-    uint8_t real[12], shown[12];
-    memcpy(real, stock, sizeof real);
-    memset(shown, 0xFF, sizeof shown);
+/* The vendor's stock as the menu is built from it (the game lists each byte: the item for sale,
+ * or with 0x40 its ammo; then the ammo of every other weapon owned):
+ *   - a slot not bought: its weapon, for sale at its price;
+ *   - a slot bought: in its place the ammo of its reward when that is a weapon owned, else of its
+ *     own weapon when owned (from elsewhere), else nothing;
+ *   - a weapon owned whose slot is still for sale: its ammo too, after the rest;
+ *   - anything else as it is, but the ammo of an item not owned.
+ * Each item's ammo is listed once. */
+static void vendor_stock_shown(const uint8_t real[VENDOR_STOCK_SIZE], uint8_t shown[VENDOR_STOCK_SIZE]) {
+    uint8_t list[VENDOR_STOCK_SIZE];
+    int bought[VENDOR_STOCK_SIZE];
+    uint8_t ammo[RANDO_ITEM_COUNT] = {0}, sale[RANDO_ITEM_COUNT] = {0};
     int n = 0;
-    for (int i = 0; i < 12 && real[i] != 0xFF; ++i) {
+    for (int i = 0; i < VENDOR_STOCK_SIZE && real[i] != 0xFF; ++i) {
         const int item = real[i] & 0x3F;
-        const int location = s_by_item[item];
-        if (location < 0 || rando_locations[location].kind != LOC_VENDOR) {
-            shown[n++] = real[i];
+        const int location = item < RANDO_ITEM_COUNT ? vendor_slot(item) : -1;
+        bought[n] = -1;
+        if (location < 0) {
+            if ((real[i] & 0x40) && (item >= RANDO_ITEM_COUNT || !*owned(item) || ammo[item])) {
+                continue;
+            }
+            if (real[i] & 0x40) {
+                ammo[item] = 1;
+            }
+            list[n++] = real[i];
         } else if (!had(location)) {
-            shown[n++] = (uint8_t)item;
-        } else if (*owned(item)) {
-            shown[n++] = (uint8_t)(item | 0x40);
+            sale[item] = 1;
+            list[n++] = (uint8_t)item;
+        } else {
+            bought[n] = location;
+            list[n++] = 0xFF;
         }
     }
+    for (int i = 0; i < n; ++i) {
+        if (bought[i] < 0) {
+            continue;
+        }
+        const rando_reward r = s_plan.reward[bought[i]];
+        const int own = rando_locations[bought[i]].key;
+        if (r.kind == REWARD_ITEM && r.value < RANDO_ITEM_COUNT && *owned(r.value) && !ammo[r.value]) {
+            ammo[r.value] = 1;
+            list[i] = (uint8_t)(r.value | 0x40);
+        } else if (*owned(own) && !ammo[own]) {
+            ammo[own] = 1;
+            list[i] = (uint8_t)(own | 0x40);
+        }
+    }
+    int m = 0;
+    for (int i = 0; i < n; ++i) {
+        if (list[i] != 0xFF) {
+            shown[m++] = list[i];
+        }
+    }
+    for (int item = 0; item < RANDO_ITEM_COUNT && m < VENDOR_STOCK_SIZE; ++item) {
+        if (sale[item] && *owned(item) && !ammo[item]) {
+            shown[m++] = (uint8_t)(item | 0x40);
+        }
+    }
+    memset(shown + m, 0xFF, (size_t)(VENDOR_STOCK_SIZE - m));
+}
+
+static void build_item_list(int32_t skip_unflagged) {
+    uint8_t* stock = byte_at(s_disc->vendor_stock);
+    uint8_t real[VENDOR_STOCK_SIZE], shown[VENDOR_STOCK_SIZE];
+    memcpy(real, stock, sizeof real);
+    vendor_stock_shown(real, shown);
     memcpy(stock, shown, sizeof shown);
     s_build_item_list(skip_unflagged);
     memcpy(stock, real, sizeof real);
+
+    /* Right after a purchase: the list may hold another entry where the slot was (its reward's
+     * ammo), or one fewer. The cursor stays on the list, and the menu shows the item now under it
+     * (the game redraws it only when the cursor moves, or when a weapon for sale is under it). */
+    if (s_bought >= 0) {
+        uint8_t* menu = level_byte_at(s_disc->vendor_menu);
+        const int32_t count = get32(menu + VENDOR_COUNT);
+        int32_t cursor = get32(menu + VENDOR_CURSOR);
+        if (count > 0 && cursor >= count) {
+            cursor = count - 1;
+            set32(menu + VENDOR_CURSOR, cursor);
+        }
+        if (cursor >= 0 && cursor < VENDOR_MAX_ENTRIES && get32(menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE) != s_bought) {
+            set32(level_byte_at(s_disc->vendor_redraw), 1);
+        }
+        s_bought = -1;
+    }
 }
 
 static int32_t count_gold_bolts_hook(void) {

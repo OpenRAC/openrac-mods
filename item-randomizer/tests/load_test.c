@@ -9,8 +9,16 @@
  *     reward's own place unhad; a place left as it is gives its own item;
  *   - Helga's update sees the Swingshot's owned byte as her place's had state, and the real one is
  *     back after it; an infobot's update and UnlockPlanet give the infobot's reward;
- *   - the vendor's list is built from the stock as the slots stand; the gold bolt count is the
- *     gold bolt rewards had; a gold bolt picked up gives its reward at the next tick.
+ *   - the vendor, with a purchase as the game's buy dialog makes it, for each vendor slot: the
+ *     reward is owned (so it stays when the hero changes weapons), the weapon the dialog hands the
+ *     hero after is the reward (never the slot's weapon, which is not owned), the stock is the
+ *     slots', the list sells only slots not bought and the ammo of weapons owned, the bought
+ *     slot's place is its reward's ammo, the cursor stays on the list and the menu redraws the
+ *     item under it when that changed;
+ *   - with the starting gear shuffled, the level start gives the start's reward, and the Bomb
+ *     Glove is neither in the stock nor the double tap's weapon unless it was the reward;
+ *   - the gold bolt count is the gold bolt rewards had; a gold bolt picked up gives its reward at
+ *     the next tick.
  *
  * Run with the library's path: load_test <item_randomizer.dylib|.so|.dll>.
  */
@@ -79,25 +87,125 @@ static openrac_frame_fn s_frame;
 /* ---- the game's functions, as the test plays them ---- */
 
 static int s_gives, s_unlocks, s_banners, s_list_builds, s_counted;
-static uint8_t s_helga_saw = 0xEE, s_stock_seen[12];
+static uint8_t s_helga_saw = 0xEE;
+static int s_keep_start = 1;
 
-/* GiveItem as the game's: owned and obtained set. */
+static int32_t get32(const uint8_t* p) {
+    int32_t v;
+    memcpy(&v, p, 4);
+    return v;
+}
+static void set32(uint8_t* p, int32_t v) {
+    memcpy(p, &v, 4);
+}
+
+/* The weapons the vendor sells (the game's table of one new weapon per planet). */
+static int vendor_weapon(int item) {
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (rando_locations[i].kind == LOC_VENDOR && rando_locations[i].key == item) {
+            return 1;
+        }
+    }
+    return 0;
+}
+/* Whether the vendor sells an item's ammo (the test's own table: the weapons but the Taunter and
+ * the Walloper). */
+static int has_ammo(int item) {
+    return item >= ITEM_SUCK_CANNON && item <= ITEM_DECOY_GLOVE && item != ITEM_TAUNTER && item != ITEM_WALLOPER;
+}
+
+/* GiveItem as the game's: obtained set; the first time, owned set, and a vendor weapon marked
+ * bought in the stock (its byte with 0x40, added when it is not there). */
 static void game_give(int32_t id, int32_t equip) {
     (void)equip;
-    s_memory[D->owned + (uint32_t)id] = 1;
     s_memory[D->obtained + (uint32_t)id] = 1;
+    if (s_memory[D->owned + (uint32_t)id] == 0) {
+        s_memory[D->owned + (uint32_t)id] = 1;
+        if (vendor_weapon(id)) {
+            uint8_t* stock = s_memory + D->vendor_stock;
+            for (int j = 0; j < VENDOR_STOCK_SIZE; ++j) {
+                if ((stock[j] & 0x3F) == id || stock[j] == 0xFF) {
+                    stock[j] = (uint8_t)(id | 0x40);
+                    break;
+                }
+            }
+        }
+    }
     ++s_gives;
 }
 static void game_unlock(int32_t planet) {
     s_memory[D->planets + (uint32_t)planet] = 1;
     ++s_unlocks;
 }
-static void game_void(void) {
-}
+/* VendorBuildItemList as the game's: the stock's bytes (for sale, or with 0x40 ammo, when the
+ * item has ammo), then the ammo of each other item owned. */
 static void game_build(int32_t skip) {
-    (void)skip;
-    memcpy(s_stock_seen, s_memory + D->vendor_stock, 12);
+    const uint8_t* stock = s_memory + D->vendor_stock;
+    uint8_t* menu = s_memory + D->vendor_menu;
+    int n = 0;
+    for (int i = 0; i < VENDOR_STOCK_SIZE && stock[i] != 0xFF; ++i) {
+        const int item = stock[i] & 0x3F;
+        if ((stock[i] & 0x40) ? !has_ammo(item) : skip) {
+            continue;
+        }
+        set32(menu + VENDOR_ENTRIES + (uint32_t)n * VENDOR_ENTRY_SIZE, item);
+        set32(menu + VENDOR_ENTRIES + (uint32_t)n * VENDOR_ENTRY_SIZE + 4, (stock[i] & 0x40) != 0);
+        ++n;
+    }
+    for (int k = 0; k < RANDO_ITEM_COUNT; ++k) {
+        int listed = 0;
+        for (int j = 0; j < n; ++j) {
+            listed |= get32(menu + VENDOR_ENTRIES + (uint32_t)j * VENDOR_ENTRY_SIZE) == k;
+        }
+        if (s_memory[D->owned + (uint32_t)k] && has_ammo(k) && !listed) {
+            set32(menu + VENDOR_ENTRIES + (uint32_t)n * VENDOR_ENTRY_SIZE, k);
+            set32(menu + VENDOR_ENTRIES + (uint32_t)n * VENDOR_ENTRY_SIZE + 4, 1);
+            ++n;
+        }
+    }
+    set32(menu + VENDOR_COUNT, n);
     ++s_list_builds;
+}
+
+/* The buy dialog's purchase of the entry at cursor, as VendorBuyDialogUpdate makes it: GiveItem,
+ * the entry's item taken as the one bought, the list built again; on a weapon for sale the cursor
+ * kept on the list and the item redrawn. */
+static int s_redraws;
+static void game_buy(openrac_rac1_Item_Give give, openrac_rac1_Vendor_BuildItemList build, int cursor) {
+    uint8_t* menu = s_memory + D->vendor_menu;
+    uint8_t* entry = menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE;
+    set32(menu + VENDOR_CURSOR, cursor);
+    set32(menu + VENDOR_DIALOG, VENDOR_DIALOG_BUY);
+    give(get32(entry), 1);
+    set32(menu + VENDOR_LAST_BOUGHT, get32(entry));
+    build(0);
+    const int32_t idx = get32(menu + VENDOR_CURSOR);
+    if (get32(menu + VENDOR_ENTRIES + (uint32_t)idx * VENDOR_ENTRY_SIZE + 4) != 1) {
+        if (get32(menu + VENDOR_COUNT) - 1 < idx) {
+            set32(menu + VENDOR_CURSOR, get32(menu + VENDOR_COUNT) - 1);
+        }
+        ++s_redraws;
+    }
+    set32(menu + VENDOR_DIALOG, 0);
+}
+
+/* VendorStockLevelInit's start, as the game's: the Bomb Glove given when it is not owned, put first
+ * in the stock and made the double tap's weapon; then the level's weapon added (the Blaster). */
+static openrac_rac1_Item_Give s_give_hook;
+static void game_init(void) {
+    uint8_t* stock = s_memory + D->vendor_stock;
+    if (s_memory[D->owned + ITEM_BOMB_GLOVE] == 0) {
+        s_give_hook(ITEM_BOMB_GLOVE, 1);
+        stock[0] = ITEM_BOMB_GLOVE | 0x40;
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+    }
+    int j = 0;
+    while ((stock[j] & 0x3F) != ITEM_BLASTER && stock[j] != 0xFF) {
+        ++j;
+    }
+    if (stock[j] == 0xFF) {
+        stock[j] = ITEM_BLASTER;
+    }
 }
 static int32_t game_count(void) {
     ++s_counted;
@@ -139,7 +247,8 @@ static void host_fail(openrac_mod* mod, const char* reason) {
 }
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
-    return strcmp(key, "keep_starting_gear") == 0 || strncmp(key, "shuffle_", 8) == 0 || strcmp(key, "spoiler_log") == 0;
+    return (strcmp(key, "keep_starting_gear") == 0 && s_keep_start) || strncmp(key, "shuffle_", 8) == 0
+           || strcmp(key, "spoiler_log") == 0;
 }
 static int64_t setting_int(openrac_mod* mod, const char* key) {
     (void)mod, (void)key;
@@ -159,7 +268,7 @@ static const char* setting_string(openrac_mod* mod, const char* key) {
 static void* original_for(const char* name) {
     if (strcmp(name, OPENRAC_RAC1_HOOK_Item_Give) == 0) return (void*)game_give;
     if (strcmp(name, OPENRAC_RAC1_HOOK_Planet_Unlock) == 0) return (void*)game_unlock;
-    if (strcmp(name, OPENRAC_RAC1_HOOK_Vendor_InitLevelStock) == 0) return (void*)game_void;
+    if (strcmp(name, OPENRAC_RAC1_HOOK_Vendor_InitLevelStock) == 0) return (void*)game_init;
     if (strcmp(name, OPENRAC_RAC1_HOOK_Vendor_BuildItemList) == 0) return (void*)game_build;
     if (strcmp(name, OPENRAC_RAC1_HOOK_GoldBolts_CountCollected) == 0) return (void*)game_count;
     if (strcmp(name, OPENRAC_RAC1_HOOK_Moby_Helga_Update) == 0) return (void*)game_helga;
@@ -274,6 +383,113 @@ static int had_here(const rando_location* l) {
     }
 }
 
+/* The kinds of reward the vendor checks met: a vendor weapon, another item, a planet, a gold
+ * bolt; an item without ammo. */
+static int s_vendor_kinds[5];
+
+/* Each of plan's vendor slots bought as the buy dialog buys it, from a list of the Bomb Glove's
+ * ammo, the slot and another slot for sale; returns how many. */
+static int check_vendor(const rando_plan* plan, openrac_rac1_Item_Give give, openrac_rac1_Vendor_BuildItemList build) {
+    uint8_t* stock = s_memory + D->vendor_stock;
+    uint8_t* menu = s_memory + D->vendor_menu;
+    int vendor_slots = 0;
+    for (size_t v = 0; v < rando_location_count; ++v) {
+        const rando_location* vl = &rando_locations[v];
+        if (vl->kind != LOC_VENDOR || !plan->shuffled[v]) {
+            continue;
+        }
+        ++vendor_slots;
+        const int x = vl->key;
+        const int z = x == ITEM_BLASTER ? ITEM_PYROCITOR : ITEM_BLASTER; /* another slot */
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->planets, 0, RANDO_PLANET_COUNT);
+        memset(s_memory + D->gold_bolts, 0, 4 * LEVEL_COUNT);
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = s_memory[D->obtained + ITEM_BOMB_GLOVE] = 1;
+        memset(stock, 0xFF, VENDOR_STOCK_SIZE);
+        stock[0] = ITEM_BOMB_GLOVE | 0x40;
+        stock[1] = (uint8_t)x;
+        stock[2] = (uint8_t)z;
+        uint8_t stock_before[VENDOR_STOCK_SIZE];
+        memcpy(stock_before, stock, sizeof stock_before);
+        memset(menu, 0, VENDOR_COUNT + 4);
+        set32(menu + VENDOR_LAST_BOUGHT, -1);
+        set32(s_memory + D->vendor_redraw, 0);
+        s_frame(NULL);
+        build(0); /* the menu opens */
+        CHECK(get32(menu + VENDOR_COUNT) == 3);
+        CHECK(get32(menu + VENDOR_ENTRIES + VENDOR_ENTRY_SIZE) == x && get32(menu + VENDOR_ENTRIES + VENDOR_ENTRY_SIZE + 4) == 0);
+
+        const rando_reward vr = plan->reward[v];
+        s_vendor_kinds[vr.kind == REWARD_ITEM ? (vendor_weapon(vr.value) ? 0 : 1) : vr.kind == REWARD_PLANET ? 2 : 3] = 1;
+        s_vendor_kinds[4] |= vr.kind == REWARD_ITEM && !has_ammo(vr.value);
+        s_gives = s_unlocks = s_banners = s_redraws = 0;
+        game_buy(give, build, 1);
+        s_frame(NULL);
+        CHECK(s_memory[D->obtained + x] == 1); /* the slot is had */
+        const int32_t handed = get32(menu + VENDOR_LAST_BOUGHT);
+        if (vr.kind == REWARD_ITEM) {
+            /* Owned: it stays when the hero changes weapons; and, when the vendor has its demo, it
+             * is what the hero is handed (else nothing is). */
+            CHECK(s_gives == 1 && s_memory[D->owned + vr.value] == 1);
+            CHECK(handed == (vendor_weapon(vr.value) ? vr.value : -1));
+            CHECK(vr.value == x || s_memory[D->owned + x] == 0);
+        } else {
+            CHECK(handed == -1); /* nothing to hand: no demo */
+            CHECK(vr.kind != REWARD_PLANET || s_memory[D->planets + vr.value] == 1);
+            CHECK(vr.kind != REWARD_GOLD_BOLT || s_banners == 1);
+        }
+        /* The stock is the slots' (a weapon reward does not mark itself bought in it). */
+        CHECK(vr.kind != REWARD_ITEM || !vendor_weapon(vr.value) || memcmp(stock, stock_before, VENDOR_STOCK_SIZE) == 0);
+        /* The list: weapons for sale are slots not bought, ammo only of items owned, nothing twice. */
+        const int32_t n = get32(menu + VENDOR_COUNT);
+        const int32_t cursor = get32(menu + VENDOR_CURSOR);
+        CHECK(n >= 1 && cursor >= 0 && cursor < n);
+        for (int32_t i = 0; i < n; ++i) {
+            const int32_t item = get32(menu + VENDOR_ENTRIES + (uint32_t)i * VENDOR_ENTRY_SIZE);
+            const int32_t ammo = get32(menu + VENDOR_ENTRIES + (uint32_t)i * VENDOR_ENTRY_SIZE + 4);
+            CHECK(item >= 0 && item < RANDO_ITEM_COUNT);
+            if (ammo) {
+                CHECK(s_memory[D->owned + item] == 1);
+            } else {
+                CHECK(item == z && s_memory[D->obtained + z] == 0);
+            }
+            for (int32_t j = 0; j < i; ++j) {
+                CHECK(get32(menu + VENDOR_ENTRIES + (uint32_t)j * VENDOR_ENTRY_SIZE) != item
+                      || get32(menu + VENDOR_ENTRIES + (uint32_t)j * VENDOR_ENTRY_SIZE + 4) != ammo);
+            }
+        }
+        /* Every weapon owned that has ammo is in it as ammo. */
+        for (int k = 0; k < RANDO_ITEM_COUNT; ++k) {
+            int listed = 0;
+            for (int32_t i = 0; i < n; ++i) {
+                listed |= get32(menu + VENDOR_ENTRIES + (uint32_t)i * VENDOR_ENTRY_SIZE) == k
+                          && get32(menu + VENDOR_ENTRIES + (uint32_t)i * VENDOR_ENTRY_SIZE + 4) == 1;
+            }
+            CHECK(!s_memory[D->owned + k] || !has_ammo(k) || listed);
+        }
+        /* The bought slot's place: its reward's ammo, when the reward is a weapon with ammo. */
+        const int32_t under = get32(menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE);
+        if (vr.kind == REWARD_ITEM && has_ammo(vr.value)) {
+            CHECK(cursor == 1 && under == vr.value && get32(menu + VENDOR_ENTRIES + VENDOR_ENTRY_SIZE + 4) == 1);
+        }
+        /* The menu shows the item now under the cursor. */
+        CHECK(under == x || get32(s_memory + D->vendor_redraw) == 1 || s_redraws == 1);
+        CHECK(under != x || get32(s_memory + D->vendor_redraw) == 0);
+
+        /* Bought again from the list (now its ammo, if anything): no second reward. */
+        s_gives = s_unlocks = s_banners = 0;
+        build(0);
+        CHECK(s_gives + s_unlocks + s_banners == 0);
+    }
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->gold_bolts, 0, 4 * LEVEL_COUNT);
+    memset(stock, 0xFF, VENDOR_STOCK_SIZE);
+    s_frame(NULL);
+    return vendor_slots;
+}
+
 int main(int argc, char** argv) {
     CHECK(argc == 2);
     void* lib = open_library(argv[1]);
@@ -287,7 +503,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.1), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "1.0.0") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "1.0.1") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -353,6 +569,7 @@ int main(int argc, char** argv) {
     openrac_rac1_Vendor_InitLevelStock init = (openrac_rac1_Vendor_InitLevelStock)hook_named("Vendor_InitLevelStock");
     s_unlock_hook = (openrac_rac1_Planet_Unlock)hook_named("Planet_Unlock");
     CHECK(give && helga && infobot && build && count && init && s_unlock_hook);
+    s_give_hook = give;
 
     /* On Kerwan, in play. */
     const int32_t kerwan = LEVEL_KERWAN;
@@ -413,17 +630,41 @@ int main(int argc, char** argv) {
     CHECK(br.kind != REWARD_PLANET || s_memory[D->planets + br.value] == 1);
     printf("the infobot gave %d/%d\n", br.kind, br.value);
 
-    /* The vendor: Kerwan's Blaster slot not bought is for sale; a bought slot whose item is not
-     * owned is gone; the Bomb Glove (not a slot) is as it is. */
+    /* The vendor: every slot bought, with this seed and others. */
     uint8_t* stock = s_memory + D->vendor_stock;
-    stock[0] = 0x4A;                      /* the Bomb Glove, owned */
-    stock[1] = ITEM_BLASTER | 0x40;       /* marked bought by some GiveItem */
-    stock[2] = ITEM_PYROCITOR;            /* not bought */
-    s_memory[D->obtained + ITEM_PYROCITOR] = 1; /* ...but had (bought), its item not owned */
-    s_memory[D->owned + ITEM_PYROCITOR] = 0;
-    build(0);
-    CHECK(s_list_builds == 1 && s_stock_seen[0] == 0x4A && s_stock_seen[1] == ITEM_BLASTER && s_stock_seen[2] == 0xFF);
-    CHECK(stock[1] == (ITEM_BLASTER | 0x40) && stock[2] == ITEM_PYROCITOR); /* the real stock back */
+    CHECK(check_vendor(&plan, give, build) > 0);
+    static const char* const vendor_seeds[] = {"vendor-1", "vendor-2", "vendor-3", "vendor-4", "vendor-5", "vendor-6",
+                                               "vendor-7", "vendor-8", "vendor-9", "vendor-10", "vendor-11", "vendor-12"};
+    for (size_t k = 0; k < sizeof vendor_seeds / sizeof vendor_seeds[0]; ++k) {
+        s_seed = vendor_seeds[k];
+        s_hook_count = 0;
+        CHECK(load(&api, mod) == 0);
+        rando_options vo = o;
+        vo.seed = s_seed;
+        rando_settings vs;
+        static rando_plan vplan;
+        CHECK(rando_settings_of(&vo, NULL, 0, &vs) == SEED_FROM_WORD && rando_solve(&vs, &vplan) == 0);
+        rando_encode(&vs, code);
+        snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, code);
+        remove(path);
+        give = (openrac_rac1_Item_Give)hook_named("Item_Give");
+        build = (openrac_rac1_Vendor_BuildItemList)hook_named("Vendor_BuildItemList");
+        s_give_hook = give;
+        CHECK(check_vendor(&vplan, give, build) > 0);
+    }
+    /* Each kind of reward was bought from a slot. */
+    CHECK(s_vendor_kinds[0] && s_vendor_kinds[1] && s_vendor_kinds[2] && s_vendor_kinds[3] && s_vendor_kinds[4]);
+    printf("the vendor's slots bought, %zu seeds\n", 1 + sizeof vendor_seeds / sizeof vendor_seeds[0]);
+    s_seed = "load-test";
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    rando_encode(&settings, code);
+    snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, code);
+    remove(path);
+    give = (openrac_rac1_Item_Give)hook_named("Item_Give");
+    count = (openrac_rac1_GoldBolts_CountCollected)hook_named("GoldBolts_CountCollected");
+    init = (openrac_rac1_Vendor_InitLevelStock)hook_named("Vendor_InitLevelStock");
+    s_give_hook = give;
 
     /* Gold bolts: the count is the gold bolt rewards had, and a gold bolt picked up gives its
      * place's reward at the next tick. */
@@ -448,6 +689,46 @@ int main(int argc, char** argv) {
     s_frame(NULL); /* once */
     CHECK(s_gives + s_unlocks + s_banners <= 1);
     CHECK(count() == want + (gr.kind == REWARD_GOLD_BOLT));
+
+    /* The starting gear shuffled: a new game's first level start gives the start's reward; the
+     * Bomb Glove is in the stock and the double tap's weapon only when it was the reward. */
+    s_keep_start = 0;
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    s_give_hook = (openrac_rac1_Item_Give)hook_named("Item_Give");
+    init = (openrac_rac1_Vendor_InitLevelStock)hook_named("Vendor_InitLevelStock");
+    CHECK(s_give_hook != NULL && init != NULL);
+    o.keep_start = 0;
+    CHECK(rando_settings_of(&o, NULL, 0, &settings) == SEED_FROM_WORD);
+    CHECK(rando_solve(&settings, &plan) == 0);
+    rando_encode(&settings, code);
+    snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, code);
+    CHECK(remove(path) == 0);
+    const int start = location_of(LOC_START, 0, ITEM_BOMB_GLOVE);
+    CHECK(start >= 0 && plan.shuffled[start]);
+    const rando_reward sr = plan.reward[start];
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->planets, 0, RANDO_PLANET_COUNT);
+    memset(stock, 0xFF, VENDOR_STOCK_SIZE);
+    set32(s_memory + D->last_weapon, 0);
+    s_gives = s_unlocks = s_banners = 0;
+    init();
+    CHECK(s_memory[D->obtained + ITEM_BOMB_GLOVE] == 1); /* the start is had */
+    CHECK(s_gives + s_unlocks + s_banners == 1);
+    if (sr.kind == REWARD_ITEM && sr.value == ITEM_BOMB_GLOVE) {
+        CHECK(stock[0] == (ITEM_BOMB_GLOVE | 0x40) && get32(s_memory + D->last_weapon) == ITEM_BOMB_GLOVE);
+    } else {
+        CHECK(s_memory[D->owned + ITEM_BOMB_GLOVE] == 0);
+        CHECK(stock[0] == ITEM_BLASTER && stock[1] == 0xFF); /* the level's weapon, first */
+        CHECK(get32(s_memory + D->last_weapon) == 0);
+        CHECK(sr.kind != REWARD_ITEM || s_memory[D->owned + sr.value] == 1);
+    }
+    printf("the start gave %d/%d\n", sr.kind, sr.value);
+    s_gives = s_unlocks = s_banners = 0;
+    init(); /* the next level start: given once */
+    CHECK(s_gives + s_unlocks + s_banners == 0);
+    s_keep_start = 1;
 
     /* The remembered seed: a blank seed rolls one and keeps it. */
     s_seed = "";
