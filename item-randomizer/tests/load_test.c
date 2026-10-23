@@ -20,6 +20,9 @@
  *   - the gold bolt count is the gold bolt rewards had; a gold bolt picked up gives its reward at
  *     the next tick.
  *
+ * Game addresses are the PAL and NTSC-U rows of src/discs.h; the test's game functions copy what
+ * the routines named in src/item_randomizer.c's header do to those bytes.
+ *
  * Run with the library's path: load_test <item_randomizer.dylib|.so|.dll>.
  */
 #if !defined(_WIN32)

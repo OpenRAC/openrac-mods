@@ -6,13 +6,16 @@
  * relocated range as it is), the banner function it calls by its name in that disc's build
  * (openrac_api.function), and the banner's text. PAL's are games/rac1's names; NTSC-U's are the
  * same globals in games/rac1/ntsc (its __asm__ labels) and OpenRAC's
- * port/game/rac1-ntsc/host/rac1_version.h.
+ * port/game/rac1-ntsc/host/rac1_version.h. Each address is the decompilation's global named in its
+ * comment (seen in game code); each offset below is a field of the game's own structure, with the
+ * routine that uses it.
  */
 #ifndef ITEM_RANDOMIZER_DISCS_H
 #define ITEM_RANDOMIZER_DISCS_H
 
 #include <stdint.h>
 
+/* One disc's addresses (a row of k_rando_discs): the globals the mod reads and writes. */
 typedef struct rando_disc {
     const char* version; /* openrac_api.version */
     uint32_t owned;      /* u8[0x25]: the items owned (D_0013D5C8; GiveItem, the hero, the menus) */
@@ -32,6 +35,7 @@ typedef struct rando_disc {
     int32_t gold_bolt_text;  /* the gold bolt's banner (GoldBoltUpdate's) */
 } rando_disc;
 
+/* The discs the mod knows, by openrac_api.version; the fields are in the order of the struct. */
 static const rando_disc k_rando_discs[] = {
     {"pal",
      0x0013D5C8u,

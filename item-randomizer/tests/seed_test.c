@@ -2,6 +2,9 @@
  * The item randomizer's seed code (src/seed.c): every setting survives a round trip, a code is
  * read whatever its case and hyphens, a mistyped code is refused, a word gives the same seed on
  * every system, and the random numbers are the same everywhere (fixed values).
+ *
+ * The fixed values (the code of a fixed setting, the hash of "ratchet", the generator's first
+ * draw) are pinned from this implementation: a change to one is a change to every shared seed.
  */
 #include <stdio.h>
 #include <stdlib.h>

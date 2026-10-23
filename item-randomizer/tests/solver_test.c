@@ -7,7 +7,8 @@
  *     a placement only moves the rewards of the shuffled locations among them, and progression
  *     rewards keep out of what a difficulty keeps them out of;
  *   - one fixed seed's placement is a fixed hash: the same on every system (CI runs it on macOS,
- *     Linux and Windows).
+ *     Linux and Windows); its hash is pinned from this implementation, so a change to the tables
+ *     or the fill shows up here.
  *
  *   solver_test [COUNT [FIRST]]   COUNT seeds from FIRST for each setting (default 200 from 0)
  */
