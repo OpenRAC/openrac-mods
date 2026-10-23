@@ -65,59 +65,78 @@ void host_fail(openrac_mod*, const char* reason) {
 int setting_bool(openrac_mod*, const char*) {
     return 1;
 }
+
 std::int64_t setting_int(openrac_mod*, const char*) {
     return 100;
 }
+
 double setting_float(openrac_mod*, const char*) {
     return 0.0;
 }
+
 const char* setting_string(openrac_mod*, const char* key) {
     if (std::strcmp(key, "touchpad") == 0) {
         return "circle";
     }
+
     if (std::strcmp(key, "left_paddle") == 0) {
         return "triangle";
     }
+
     if (std::strcmp(key, "right_paddle") == 0) {
         return "square";
     }
+
     return "none";
 }
+
 int host_hook(openrac_mod*, const char*, const char*, void*, void**) {
     return OPENRAC_HOOK_OK;
 }
+
 int host_on_frame(openrac_mod*, openrac_frame_fn, void*) {
     return 0;
 }
+
 int host_on_pad(openrac_mod*, openrac_pad_fn, void*) {
     return 0;
 }
+
 void* host_function(const char*) {
     return nullptr;
 }
+
 void* host_function_at(openrac_gaddr) {
     return nullptr;
 }
+
 openrac_gaddr host_relocate(openrac_gaddr a) {
     return a;
 }
+
 openrac_gaddr host_relocate_level(int, openrac_gaddr a) {
     return a;
 }
+
 int host_loaded_level() {
     return -1;
 }
+
 openrac_gaddr host_stack_push(std::uint32_t size, openrac_gaddr* saved) {
     *saved = 0x001F0000u;
     return 0x001F0000u - size;
 }
+
 void host_stack_pop(openrac_gaddr) {}
+
 const openrac_input* host_input() {
     return nullptr;
 }
+
 int host_take_input(openrac_mod*, std::uint32_t) {
     return 0;
 }
+
 void host_capture_mouse(openrac_mod*, int) {}
 
 std::vector<std::uint8_t> g_memory(0x00200000u);
@@ -181,6 +200,7 @@ void bind(void* lib, const char* name, T& into) {
 bool open_port_sdl(PortSdl& sdl) {
 #if defined(__APPLE__)
     sdl.lib = open_library("/opt/homebrew/lib/libSDL3.dylib");
+
     if (sdl.lib == nullptr) {
         sdl.lib = open_library("/usr/local/lib/libSDL3.dylib");
     }
@@ -191,6 +211,7 @@ bool open_port_sdl(PortSdl& sdl) {
         std::fprintf(stderr, "the system's SDL3 would not open\n");
         return false;
     }
+
     bind(sdl.lib, "SDL_Init", sdl.init);
     bind(sdl.lib, "SDL_Quit", sdl.quit);
     bind(sdl.lib, "SDL_GetGamepads", sdl.get_gamepads);
@@ -217,29 +238,41 @@ int main(int argc, char** argv) {
 
     // The port's copy: the system's SDL3, opened and used here.
     PortSdl port;
+
     if (!open_port_sdl(port)) {
         std::fprintf(stderr, "the system's SDL3 would not open\n");
         return 3;
     }
+
     CHECK(port.init(0x00002000u) != 0);  // SDL_INIT_GAMEPAD
     int count = 0;
     std::uint32_t* ids = port.get_gamepads(&count);
     std::printf("the port's copy: %d gamepad(s)\n", count);
     CHECK(ids != nullptr && count > 0);
+
     for (int i = 0; i < count; ++i) {
         void* candidate = port.open_gamepad(ids[i]);
+
         if (candidate == nullptr) {
             continue;
         }
-        std::printf("the port's copy: %s, type %d, vendor %04x product %04x\n",
-                    port.get_gamepad_name(candidate), port.get_gamepad_type(candidate),
-                    port.get_gamepad_vendor(candidate), port.get_gamepad_product(candidate));
+
+        std::printf(
+            "the port's copy: %s, type %d, vendor %04x product %04x\n",
+            port.get_gamepad_name(candidate),
+            port.get_gamepad_type(candidate),
+            port.get_gamepad_vendor(candidate),
+            port.get_gamepad_product(candidate)
+        );
+
         if (port.get_gamepad_type(candidate) == 6) {  // SDL_GAMEPAD_TYPE_PS5
             port.pad = candidate;
             break;
         }
+
         port.close_gamepad(candidate);
     }
+
     CHECK(port.pad != nullptr);
 
     // The mod's copy: its own static SDL3, inside the library. Loading it and running its load
@@ -256,21 +289,28 @@ int main(int argc, char** argv) {
     g_failed.clear();
     openrac_api api = make_api();
     const int result = load(&api, reinterpret_cast<openrac_mod*>(1));
+
     if (result != 0) {
         std::fprintf(stderr, "the mod refused: %s\n", g_failed.c_str());
         std::exit(4);
     }
+
     CHECK(g_failed.empty());
 
     // The port's copy still has the controller, and it still answers.
-    std::printf("the port's copy still has it: %s\n",
-                port.get_gamepad_button(port.pad, 20) ? "the touchpad is down" : "the touchpad is up");
-    std::printf("the port's copy can still light the bar: %s\n",
-                port.set_gamepad_led(port.pad, 0, 0, 255) ? "yes" : "no");
+    std::printf(
+        "the port's copy still has it: %s\n",
+        port.get_gamepad_button(port.pad, 20) ? "the touchpad is down" : "the touchpad is up"
+    );
+    std::printf(
+        "the port's copy can still light the bar: %s\n",
+        port.set_gamepad_led(port.pad, 0, 0, 255) ? "yes" : "no"
+    );
 
     if (unload != nullptr) {
         unload();
     }
+
     port.close_gamepad(port.pad);
     port.quit();
     std::puts("two instances: all passed");

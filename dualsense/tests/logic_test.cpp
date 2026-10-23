@@ -35,9 +35,11 @@ std::vector<std::uint8_t> released_report() {
     std::vector<std::uint8_t> report(dualsense::kPadReportSize, 0);
     report[0] = 0xFF;
     report[1] = 0xFF;
+
     for (int i = 2; i < 6; ++i) {
         report[static_cast<std::size_t>(i)] = 0x80;  // the sticks at their centre
     }
+
     return report;
 }
 
@@ -91,8 +93,8 @@ void test_the_pointer_guard() {
     /* A pointer the game did not mean must not be followed. The slot holds
      * whatever was in it when no weapon is out, and the crash reports show it
      * can be a game's address well past its RAM. */
-    CHECK(!dualsense::in_ram(0x80000000u, 4));   // what the slot held
-    CHECK(dualsense::in_ram(0x001404E0u, 4));    // a moby in the data
+    CHECK(!dualsense::in_ram(0x80000000u, 4));  // what the slot held
+    CHECK(dualsense::in_ram(0x001404E0u, 4));   // a moby in the data
     CHECK(dualsense::in_ram(0x001404E0u, 0x7Cu));
     CHECK(dualsense::in_ram(0x00100000u, 0x100u));
     CHECK(!dualsense::in_ram(0x01FFFFFFu, 0x100u));  // the end of the RAM
@@ -108,7 +110,9 @@ void test_press_button() {
     CHECK(!held(report, dualsense::kSquare));
     CHECK(!held(report, dualsense::kStart));
     // The touchpad becomes Circle: the bit is cleared.
-    CHECK(dualsense::press_button(report.data(), static_cast<int>(report.size()), dualsense::kCircle));
+    CHECK(
+        dualsense::press_button(report.data(), static_cast<int>(report.size()), dualsense::kCircle)
+    );
     CHECK(held(report, dualsense::kCircle));
     // The other buttons are untouched.
     CHECK(!held(report, dualsense::kCross));
@@ -210,15 +214,18 @@ void test_stopping() {
 void test_the_vibrations_of_the_events() {
     // Every event makes something, and nothing makes more than it should.
     const char* kinds[] = {"damage", "hit", "break", "pickup", "gold", "land"};
+
     for (const char* kind : kinds) {
         const std::vector<RumbleStep> steps = dualsense::rumble_for(kind, 100);
         CHECK(!steps.empty());
+
         for (const RumbleStep& step : steps) {
             CHECK(step.heavy <= dualsense::kFull);
             CHECK(step.light <= dualsense::kFull);
             CHECK(step.ms > 0);
         }
     }
+
     // An event the mod does not know: nothing.
     CHECK(dualsense::rumble_for("nonsense", 100).empty());
     CHECK(dualsense::rumble_for(nullptr, 100).empty());

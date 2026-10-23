@@ -16,9 +16,18 @@ struct NamedButton {
 
 // The order the manifest lists them in.
 constexpr NamedButton kNamedButtons[] = {
-    {"cross", kCross},   {"square", kSquare},   {"circle", kCircle}, {"triangle", kTriangle},
-    {"l1", kL1},         {"r1", kR1},           {"l2", kL2},        {"r2", kR2},
-    {"select", kSelect}, {"start", kStart},     {"l3", kL3},        {"r3", kR3},
+    {"cross", kCross},
+    {"square", kSquare},
+    {"circle", kCircle},
+    {"triangle", kTriangle},
+    {"l1", kL1},
+    {"r1", kR1},
+    {"l2", kL2},
+    {"r2", kR2},
+    {"select", kSelect},
+    {"start", kStart},
+    {"l3", kL3},
+    {"r3", kR3},
 };
 
 }  // namespace
@@ -29,6 +38,7 @@ const char* button_name(Ps2Button button) {
             return named.name;
         }
     }
+
     return "none";
 }
 
@@ -37,32 +47,41 @@ Ps2Button button_from_name(const char* name, bool* found) {
         if (found != nullptr) {
             *found = false;
         }
+
         return kSelect;
     }
+
     for (const NamedButton& named : kNamedButtons) {
         const char* a = named.name;
         const char* b = name;
         bool same = true;
+
         while (*a != '\0' && *b != '\0') {
             const char ca = (*a >= 'A' && *a <= 'Z') ? static_cast<char>(*a - 'A' + 'a') : *a;
             const char cb = (*b >= 'A' && *b <= 'Z') ? static_cast<char>(*b - 'A' + 'a') : *b;
+
             if (ca != cb) {
                 same = false;
                 break;
             }
+
             ++a;
             ++b;
         }
+
         if (same && *a == '\0' && *b == '\0') {
             if (found != nullptr) {
                 *found = true;
             }
+
             return named.button;
         }
     }
+
     if (found != nullptr) {
         *found = false;
     }
+
     return kSelect;
 }
 

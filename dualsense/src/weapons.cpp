@@ -54,27 +54,44 @@ constexpr std::int32_t kHeroStateWalloper = 0x20;
 
 const WeaponFeel* feel_for(std::int32_t item_id) {
     switch (item_id) {
-        case kItemSuckCannon: return &kFeels[0];
-        case kItemBombGlove: return &kFeels[1];
-        case kItemDevastator: return &kFeels[2];
-        case kItemVisibombGun: return &kFeels[3];
-        case kItemTaunter: return &kFeels[4];
-        case kItemBlaster: return &kFeels[5];
-        case kItemPyrocitor: return &kFeels[6];
-        case kItemMineGlove: return &kFeels[7];
-        case kItemWalloper: return &kFeels[8];
-        case kItemTeslaClaw: return &kFeels[9];
-        case kItemGloveOfDoom: return &kFeels[10];
-        case kItemMorphORay: return &kFeels[11];
-        case kItemRyno: return &kFeels[12];
-        case kItemDroneDevice: return &kFeels[13];
-        case kItemDecoyGlove: return &kFeels[14];
-        default: return nullptr;
+        case kItemSuckCannon:
+            return &kFeels[0];
+        case kItemBombGlove:
+            return &kFeels[1];
+        case kItemDevastator:
+            return &kFeels[2];
+        case kItemVisibombGun:
+            return &kFeels[3];
+        case kItemTaunter:
+            return &kFeels[4];
+        case kItemBlaster:
+            return &kFeels[5];
+        case kItemPyrocitor:
+            return &kFeels[6];
+        case kItemMineGlove:
+            return &kFeels[7];
+        case kItemWalloper:
+            return &kFeels[8];
+        case kItemTeslaClaw:
+            return &kFeels[9];
+        case kItemGloveOfDoom:
+            return &kFeels[10];
+        case kItemMorphORay:
+            return &kFeels[11];
+        case kItemRyno:
+            return &kFeels[12];
+        case kItemDroneDevice:
+            return &kFeels[13];
+        case kItemDecoyGlove:
+            return &kFeels[14];
+        default:
+            return nullptr;
     }
 }
 
 WeaponMoment weapon_moment(const WeaponState& now, const WeaponState& before) {
     WeaponMoment moment;
+
     switch (now.item_id) {
         case kItemWalloper:
             // The Walloper plays a sound and never raises the flag; it has its
@@ -108,8 +125,7 @@ WeaponMoment weapon_moment(const WeaponState& now, const WeaponState& before) {
 
     // The firing just began: the flag was down and it is up now, or the weapon
     // was another one and now is this one.
-    moment.began = moment.firing &&
-                   (!before.flag || before.item_id != now.item_id);
+    moment.began = moment.firing && (!before.flag || before.item_id != now.item_id);
     return moment;
 }
 

@@ -52,6 +52,7 @@ inline bool press_button(std::uint8_t* report, int size, Ps2Button button) {
     if (size < kButtonBytes) {
         return false;
     }
+
     const auto bit = static_cast<std::uint16_t>(button);
     std::uint16_t buttons = read_buttons(report);
     buttons = static_cast<std::uint16_t>(buttons & ~bit);

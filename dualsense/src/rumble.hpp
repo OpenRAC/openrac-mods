@@ -39,6 +39,7 @@ public:
 
     // The strengths now: what the motors should be at.
     std::uint16_t heavy() const { return heavy_; }
+
     std::uint16_t light() const { return light_; }
 
     // True while a vibration is playing.
@@ -50,8 +51,8 @@ public:
 private:
     std::vector<RumbleStep> steps_;
     std::size_t index_ = 0;
-    std::uint32_t until_ = 0;   // when the current step ends
-    std::uint32_t started_ = 0; // when the current step began
+    std::uint32_t until_ = 0;    // when the current step ends
+    std::uint32_t started_ = 0;  // when the current step began
     std::uint16_t heavy_ = 0;
     std::uint16_t light_ = 0;
 };

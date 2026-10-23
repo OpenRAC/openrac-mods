@@ -20,8 +20,8 @@ namespace {
 
 using dualsense::Feel;
 using dualsense::ItemId;
-using dualsense::kItemBombGlove;
 using dualsense::kItemBlaster;
+using dualsense::kItemBombGlove;
 using dualsense::WeaponFeel;
 using dualsense::WeaponMoment;
 using dualsense::WeaponState;
@@ -29,10 +29,23 @@ using dualsense::WeaponState;
 void test_the_table() {
     // Every weapon in the table has a feel, and every feel is one of them.
     const std::int32_t weapons[] = {
-        dualsense::kItemSuckCannon, dualsense::kItemBombGlove,   dualsense::kItemDevastator, dualsense::kItemVisibombGun, dualsense::kItemTaunter,
-        dualsense::kItemBlaster,    dualsense::kItemPyrocitor,   dualsense::kItemTeslaClaw,  dualsense::kItemMorphORay,   dualsense::kItemRyno,
-        dualsense::kItemDroneDevice, dualsense::kItemDecoyGlove, dualsense::kItemMineGlove,   dualsense::kItemGloveOfDoom,  dualsense::kItemWalloper,
+        dualsense::kItemSuckCannon,
+        dualsense::kItemBombGlove,
+        dualsense::kItemDevastator,
+        dualsense::kItemVisibombGun,
+        dualsense::kItemTaunter,
+        dualsense::kItemBlaster,
+        dualsense::kItemPyrocitor,
+        dualsense::kItemTeslaClaw,
+        dualsense::kItemMorphORay,
+        dualsense::kItemRyno,
+        dualsense::kItemDroneDevice,
+        dualsense::kItemDecoyGlove,
+        dualsense::kItemMineGlove,
+        dualsense::kItemGloveOfDoom,
+        dualsense::kItemWalloper,
     };
+
     for (const std::int32_t id : weapons) {
         const WeaponFeel* feel = dualsense::feel_for(id);
         CHECK(feel != nullptr);
@@ -40,6 +53,7 @@ void test_the_table() {
         // The steady part or the shot part, at least one of them.
         CHECK(feel->steady != 0 || feel->shot != 0);
     }
+
     // The weapons that are not in the table have none.
     CHECK(dualsense::feel_for(dualsense::kItemWrench) == nullptr);
     CHECK(dualsense::feel_for(dualsense::kItemSwingshot) == nullptr);
@@ -60,9 +74,15 @@ void test_the_table() {
     CHECK(dualsense::feel_for(dualsense::kItemDroneDevice)->feel == Feel::kSteady);
 
     // The heavy click is heavier than the light one.
-    CHECK(dualsense::feel_for(dualsense::kItemWalloper)->shot > dualsense::feel_for(dualsense::kItemBombGlove)->shot);
+    CHECK(
+        dualsense::feel_for(dualsense::kItemWalloper)->shot
+        > dualsense::feel_for(dualsense::kItemBombGlove)->shot
+    );
     // The R.Y.N.O. buzzes harder than the hum.
-    CHECK(dualsense::feel_for(dualsense::kItemRyno)->steady > dualsense::feel_for(dualsense::kItemPyrocitor)->steady);
+    CHECK(
+        dualsense::feel_for(dualsense::kItemRyno)->steady
+        > dualsense::feel_for(dualsense::kItemPyrocitor)->steady
+    );
 }
 
 void test_the_games_own_flag() {

@@ -15,11 +15,11 @@
 namespace dualsense {
 
 // From the hero's base.
-inline constexpr std::uint32_t kHeroHealthOffset = 0x22A8;     // health.hp
-inline constexpr std::uint32_t kHeroItemIdOffset = 0x10B8;     // items[0].item_id
+inline constexpr std::uint32_t kHeroHealthOffset = 0x22A8;      // health.hp
+inline constexpr std::uint32_t kHeroItemIdOffset = 0x10B8;      // items[0].item_id
 inline constexpr std::uint32_t kHeroWeaponMobyOffset = 0x1090;  // items[0].moby
-inline constexpr std::uint32_t kHeroFireFlagOffset = 0x20A8;   // unk20A8
-inline constexpr std::uint32_t kHeroFireAgeOffset = 0x1BC;     // unk1BC
+inline constexpr std::uint32_t kHeroFireFlagOffset = 0x20A8;    // unk20A8
+inline constexpr std::uint32_t kHeroFireAgeOffset = 0x1BC;      // unk1BC
 inline constexpr std::uint32_t kHeroStateOffset = 0x2084;       // state.current
 
 // The hero's base, per disc.

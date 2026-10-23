@@ -82,9 +82,11 @@ int setting_bool(openrac_mod*, const char* key) {
     if (std::strcmp(key, "vibration") == 0) {
         return g_vibration;
     }
+
     if (std::strcmp(key, "light_bar") == 0) {
         return g_light_bar;
     }
+
     return 0;
 }
 
@@ -92,6 +94,7 @@ std::int64_t setting_int(openrac_mod*, const char* key) {
     if (std::strcmp(key, "strength") == 0) {
         return g_strength;
     }
+
     return 0;
 }
 
@@ -103,26 +106,35 @@ const char* setting_string(openrac_mod*, const char* key) {
     if (std::strcmp(key, "touchpad") == 0) {
         return g_touchpad.c_str();
     }
+
     if (std::strcmp(key, "left_paddle") == 0) {
         return g_left_paddle.c_str();
     }
+
     if (std::strcmp(key, "right_paddle") == 0) {
         return g_right_paddle.c_str();
     }
+
     if (std::strcmp(key, "microphone") == 0) {
         return g_microphone.c_str();
     }
+
     return "";
 }
 
 /* The game's own functions the hooks go on to. */
 void game_pad_process_report(std::uint32_t, std::uint32_t, std::int32_t) {}
+
 void game_take_damage(std::int32_t) {}
+
 std::uint32_t game_get_hit(std::uint32_t, std::int32_t, std::int32_t) {
     return 0;
 }
+
 void game_record_death(std::uint32_t, std::int32_t, std::int32_t) {}
+
 void game_item_give(std::int32_t, std::int32_t) {}
+
 std::int32_t game_gold_bolts() {
     return 0;
 }
@@ -133,6 +145,7 @@ int host_hook(
     g_hooks.emplace_back(name);
     g_hook_signatures.emplace_back(signature);
     /* The game's own function goes on to, so the hook's replacement can call it. */
+
     if (std::strcmp(name, "rac1.pad.process_report") == 0) {
         *original = reinterpret_cast<void*>(&game_pad_process_report);
     } else if (std::strcmp(name, "rac1.player.take_damage") == 0) {
@@ -148,6 +161,7 @@ int host_hook(
     } else {
         *original = nullptr;
     }
+
     (void)replacement;
     return OPENRAC_HOOK_OK;
 }
@@ -239,6 +253,7 @@ bool has_hook(const std::vector<std::string>& hooks, const char* name) {
             return true;
         }
     }
+
     return false;
 }
 
@@ -247,6 +262,7 @@ void make_report(std::vector<std::uint8_t>& report) {
     report.assign(18, 0);
     report[0] = 0xFF;
     report[1] = 0xFF;
+
     for (int i = 2; i < 6; ++i) {
         report[static_cast<std::size_t>(i)] = 0x80;
     }
@@ -294,6 +310,7 @@ void run(const char* library) {
         g_failed.clear();
         openrac_api api = make_api();
         const int result = load(&api, reinterpret_cast<openrac_mod*>(1));
+
         if (result != 0) {
             // No controller on this machine: the reason must say which one is missing.
             CHECK(g_failed.find("DualSense") != std::string::npos);
@@ -342,6 +359,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "usage: load_test <library>\n");
         return 2;
     }
+
     run(argv[1]);
     std::puts("dualsense load: all passed");
     return 0;

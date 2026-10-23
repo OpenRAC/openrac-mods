@@ -67,11 +67,11 @@ const WeaponFeel* feel_for(std::int32_t item_id);
 
 // What the mod reads of the game about the weapon, this tick.
 struct WeaponState {
-    std::int32_t item_id = 0;    // the equipped weapon
-    bool flag = false;           // the game's own flag: the fire animation runs
+    std::int32_t item_id = 0;     // the equipped weapon
+    bool flag = false;            // the game's own flag: the fire animation runs
     std::int32_t age = 0;         // frames since the fire animation started
     std::int32_t hero_state = 0;  // the hero's state
-    bool pressed = false;        // the fire button went down this tick
+    bool pressed = false;         // the fire button went down this tick
     std::int32_t counter = 0;     // the weapon's own counter (the shot's cooldown)
     std::int32_t shots = 0;       // the R.Y.N.O.'s missiles fired
 };

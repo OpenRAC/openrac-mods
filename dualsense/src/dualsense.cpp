@@ -13,18 +13,17 @@
 // Ratchet & Clank 1 asks for no vibration of its own -- the retail program links no motor
 // command at all -- so the vibration here is the mod's own.
 
-#include <SDL3/SDL.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
 
-#include "openrac/games/rac1.hpp"
-#include "openrac/mod.hpp"
+#include <SDL3/SDL.h>
 
 #include "game_state.hpp"
+#include "openrac/games/rac1.hpp"
+#include "openrac/mod.hpp"
 #include "ps2_pad.hpp"
 #include "rumble.hpp"
 #include "weapons.hpp"
@@ -33,9 +32,9 @@ namespace {
 
 // The DualSense's own buttons, as SDL names them.
 struct ExtraButton {
-    const char* setting;                        // the manifest's key
-    int sdl_button;                              // SDL_GAMEPAD_BUTTON_*
-    dualsense::Ps2Button button;                 // the PlayStation 2 button it becomes
+    const char* setting;          // the manifest's key
+    int sdl_button;               // SDL_GAMEPAD_BUTTON_*
+    dualsense::Ps2Button button;  // the PlayStation 2 button it becomes
     bool enabled = true;
 };
 
@@ -84,7 +83,6 @@ constexpr Disc kDiscs[] = {
      dualsense::kHeroBaseNtsc + dualsense::kHeroStateOffset},
 };
 
-
 // The state the mod keeps between the ticks.
 struct State {
     SDL_Gamepad* pad = nullptr;
@@ -111,8 +109,8 @@ struct State {
     // The weapon the game is using, and what it was doing before.
     dualsense::WeaponState weapon;
     dualsense::WeaponState weapon_before;
-    bool fire_pressed = false;   // the fire button went down this tick
-    bool fire_held = false;      // the fire button is down
+    bool fire_pressed = false;     // the fire button went down this tick
+    bool fire_held = false;        // the fire button is down
     std::uint16_t hold_heavy = 0;  // the steady part of the weapon's feel
     std::uint16_t hold_light = 0;
 
@@ -138,10 +136,12 @@ bool disc_for(const std::string& version, Disc* out) {
         *out = kDiscs[0];
         return true;
     }
+
     if (version == "ntsc") {
         *out = kDiscs[1];
         return true;
     }
+
     return false;
 }
 
@@ -150,33 +150,43 @@ bool disc_for(const std::string& version, Disc* out) {
 SDL_Gamepad* find_dualsense() {
     int count = 0;
     SDL_JoystickID* ids = SDL_GetGamepads(&count);
+
     for (int i = 0; i < count; ++i) {
         SDL_Gamepad* pad = SDL_OpenGamepad(ids[i]);
+
         if (pad == nullptr) {
             continue;
         }
+
         if (SDL_GetGamepadType(pad) == SDL_GAMEPAD_TYPE_PS5) {
             return pad;
         }
+
         const std::uint16_t vendor = SDL_GetGamepadVendor(pad);
         const std::uint16_t product = SDL_GetGamepadProduct(pad);
+
         if (vendor == 0x054C && (product == 0x0CE6 || product == 0x0DF2)) {
             return pad;
         }
+
         SDL_CloseGamepad(pad);
     }
+
     return nullptr;
 }
 
 // A colour between two, by `t` in 0..1.
 std::uint8_t mix(std::uint8_t a, std::uint8_t b, float t) {
     const float value = static_cast<float>(a) + (static_cast<float>(b) - static_cast<float>(a)) * t;
+
     if (value < 0.0f) {
         return 0;
     }
+
     if (value > 255.0f) {
         return 255;
     }
+
     return static_cast<std::uint8_t>(value + 0.5f);
 }
 
@@ -190,8 +200,10 @@ void play(const char* kind, std::uint32_t fall_ms = 0) {
     if (!g_state.vibration) {
         return;
     }
+
     const std::vector<dualsense::RumbleStep> steps =
         dualsense::rumble_for(kind, g_state.strength, fall_ms);
+
     if (!steps.empty()) {
         g_state.rumble.play(steps);
     }
@@ -203,30 +215,38 @@ void update_light_bar(openrac::Mod& mod) {
         g_state.red = g_state.green = g_state.blue = 0;
         return;
     }
+
     if (g_state.now < g_state.flash_until) {
         g_state.red = kFlash[0];
         g_state.green = kFlash[1];
         g_state.blue = kFlash[2];
         return;
     }
+
     int health = 0;
     int maximum = 3;
+
     if (g_state.have_disc) {
         health = read_word(mod, g_state.disc.health);
         const int value = read_word(mod, g_state.disc.max_health);
+
         if (value > 0) {
             maximum = value;
         }
     }
+
     if (maximum <= 0) {
         maximum = 3;
     }
+
     if (health < 0) {
         health = 0;
     }
+
     if (health > maximum) {
         health = maximum;
     }
+
     // Full health is green, the last life is red.
     const float t = maximum > 0 ? static_cast<float>(health) / static_cast<float>(maximum) : 0.0f;
     g_state.red = mix(kHealthLow[0], kHealthFull[0], t);
@@ -244,20 +264,25 @@ std::uint16_t strength_of(std::uint8_t strength) {
     if (strength == 0) {
         return 0;
     }
+
     if (strength >= 8) {
         return dualsense::kFull;
     }
-    return static_cast<std::uint16_t>(static_cast<std::uint32_t>(dualsense::kFull) *
-                                       static_cast<std::uint32_t>(strength) / 8u);
+
+    return static_cast<std::uint16_t>(
+        static_cast<std::uint32_t>(dualsense::kFull) * static_cast<std::uint32_t>(strength) / 8u
+    );
 }
 
 // Reads what the game is doing with the weapon: the equipped weapon, the
 // game's own flag that it is firing, and the weapon's own counters.
 dualsense::WeaponState read_weapon(openrac::Mod& mod) {
     dualsense::WeaponState state;
+
     if (!g_state.have_disc) {
         return state;
     }
+
     const Disc& disc = g_state.disc;
     state.item_id = read_word(mod, disc.item_id);
     state.flag = mod.memory().read<std::uint8_t>(disc.fire_flag) != 0;
@@ -269,13 +294,17 @@ dualsense::WeaponState read_weapon(openrac::Mod& mod) {
     // only there when a weapon is out: with none, the slot holds whatever was
     // in it, so the pointer is checked before it is followed.
     const std::uint32_t moby = mod.memory().read<std::uint32_t>(disc.weapon_moby);
+
     if (dualsense::in_ram(moby, dualsense::kMobyPvarsOffset + 4)) {
-        const std::uint32_t pvars = mod.memory().read<std::uint32_t>(moby + dualsense::kMobyPvarsOffset);
+        const std::uint32_t pvars =
+            mod.memory().read<std::uint32_t>(moby + dualsense::kMobyPvarsOffset);
+
         if (dualsense::in_ram(pvars, dualsense::kPvarShots + 4)) {
             state.counter = read_word(mod, pvars + dualsense::kPvarCounter);
             state.shots = mod.memory().read<std::uint8_t>(pvars + dualsense::kPvarShots);
         }
     }
+
     return state;
 }
 
@@ -288,7 +317,9 @@ void load(openrac::Mod& mod) {
     if (mod.game() != "rac1") {
         throw openrac::Error("this mod is for Ratchet & Clank");
     }
+
     g_state.have_disc = disc_for(std::string(mod.version()), &g_state.disc);
+
     if (!g_state.have_disc) {
         throw openrac::Error("this mod does not know the " + std::string(mod.version()) + " disc");
     }
@@ -298,11 +329,14 @@ void load(openrac::Mod& mod) {
     if (!SDL_Init(SDL_INIT_GAMEPAD)) {
         throw openrac::Error(std::string("SDL would not start: ") + SDL_GetError());
     }
+
     g_state.pad = find_dualsense();
+
     if (g_state.pad == nullptr) {
         SDL_Quit();
         throw openrac::Error("no PlayStation 5 DualSense is connected");
     }
+
     mod.info(std::string("DualSense: ") + SDL_GetGamepadName(g_state.pad));
 
     // The extra buttons: what the port's own table leaves out.
@@ -310,24 +344,32 @@ void load(openrac::Mod& mod) {
         const char* setting;
         int sdl_button;
     };
+
     const Extra extras[] = {
         {"touchpad", SDL_GAMEPAD_BUTTON_TOUCHPAD},
         {"left_paddle", SDL_GAMEPAD_BUTTON_LEFT_PADDLE1},
         {"right_paddle", SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1},
         {"microphone", SDL_GAMEPAD_BUTTON_MISC1},
     };
+
     for (const Extra& extra : extras) {
         const std::string name = mod.setting<std::string>(extra.setting);
+
         if (name == "none" || name.empty()) {
             continue;
         }
+
         bool found = false;
         const dualsense::Ps2Button button = dualsense::button_from_name(name.c_str(), &found);
+
         if (!found) {
-            mod.warn(std::string("the ") + extra.setting + " setting names no button (" + name +
-                     "); it does nothing");
+            mod.warn(
+                std::string("the ") + extra.setting + " setting names no button (" + name
+                + "); it does nothing"
+            );
             continue;
         }
+
         Binding binding;
         binding.sdl_button = extra.sdl_button;
         binding.button = button;
@@ -337,12 +379,15 @@ void load(openrac::Mod& mod) {
 
     g_state.vibration = mod.setting<bool>("vibration");
     g_state.strength = static_cast<int>(mod.setting<long long>("strength"));
+
     if (g_state.strength < 0) {
         g_state.strength = 0;
     }
+
     if (g_state.strength > 100) {
         g_state.strength = 100;
     }
+
     g_state.light_bar = mod.setting<bool>("light_bar");
 
     // The pad report: the extra buttons are written into it before the game reads it.
@@ -350,9 +395,12 @@ void load(openrac::Mod& mod) {
         if (port != 0 || g_state.pad == nullptr || size < dualsense::kButtonBytes) {
             return;
         }
+
         for (const Binding& binding : g_state.bindings) {
-            const bool down =
-                SDL_GetGamepadButton(g_state.pad, static_cast<SDL_GamepadButton>(binding.sdl_button));
+            const bool down = SDL_GetGamepadButton(
+                g_state.pad, static_cast<SDL_GamepadButton>(binding.sdl_button)
+            );
+
             if (down) {
                 dualsense::press_button(report, size, binding.button);
             }
@@ -383,6 +431,7 @@ void load(openrac::Mod& mod) {
         // at the shot.
         g_state.hold_heavy = 0;
         g_state.hold_light = 0;
+
         if (feel != nullptr) {
             if (feel->feel == dualsense::Feel::kSteady && moment.firing) {
                 g_state.hold_heavy = strength_of(feel->steady);
@@ -393,6 +442,7 @@ void load(openrac::Mod& mod) {
             } else if (feel->feel == dualsense::Feel::kBuzzRumble && moment.firing) {
                 g_state.hold_light = strength_of(feel->steady);
             }
+
             if (moment.shot) {
                 if (feel->feel == dualsense::Feel::kBuzzRumble) {
                     // The R.Y.N.O.: every missile of the salvo is a full rumble.
@@ -402,9 +452,10 @@ void load(openrac::Mod& mod) {
                     g_state.rumble.play({{strength_of(feel->shot), 0, 60}});
                 } else if (feel->feel == dualsense::Feel::kClick) {
                     // A stiff wall that snaps: the click, and then the shot.
-                    g_state.rumble.play({{0, strength_of(feel->shot), 40},
-                                          {static_cast<std::uint16_t>(strength_of(feel->shot) / 2),
-                                           0, 90}});
+                    g_state.rumble.play(
+                        {{0, strength_of(feel->shot), 40},
+                         {static_cast<std::uint16_t>(strength_of(feel->shot) / 2), 0, 90}}
+                    );
                 }
             }
         }
@@ -413,22 +464,26 @@ void load(openrac::Mod& mod) {
         // made happen.
         std::uint16_t heavy = g_state.rumble.heavy();
         std::uint16_t light = g_state.rumble.light();
+
         if (g_state.hold_heavy > heavy) {
             heavy = g_state.hold_heavy;
         }
+
         if (g_state.hold_light > light) {
             light = g_state.hold_light;
         }
+
         if (g_state.vibration) {
             SDL_RumbleGamepad(g_state.pad, heavy, light, 60);
         }
 
         // The light bar, written when its colour changes.
         update_light_bar(mod);
-        if (g_state.red != g_state.last_red || g_state.green != g_state.last_green ||
-            g_state.blue != g_state.last_blue) {
-            if (!SDL_SetGamepadLED(g_state.pad, g_state.red, g_state.green, g_state.blue) &&
-                !g_state.said_no_light) {
+
+        if (g_state.red != g_state.last_red || g_state.green != g_state.last_green
+            || g_state.blue != g_state.last_blue) {
+            if (!SDL_SetGamepadLED(g_state.pad, g_state.red, g_state.green, g_state.blue)
+                && !g_state.said_no_light) {
                 g_state.said_no_light = true;
                 mod.error(std::string("the light bar would not light: ") + SDL_GetError());
             }
@@ -449,23 +504,27 @@ void load(openrac::Mod& mod) {
     mod.hook<openrac::rac1::Moby_GetHitMessage>(
         [](auto original, std::uint32_t moby, std::int32_t mask, std::int32_t keep) {
             const std::uint32_t record = original(moby, mask, keep);
+
             if (record != 0 && record != g_state.last_hit) {
                 g_state.last_hit = record;
                 play("hit");
             }
             return record;
-        });
+        }
+    );
     mod.hook<openrac::rac1::Moby_RecordDeath>(
         [](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t index) {
             play("break");
             return original(moby, flags, index);
-        });
+        }
+    );
     mod.hook<openrac::rac1::Item_Give>([](auto original, std::int32_t id, std::int32_t equip) {
         play("pickup");
         return original(id, equip);
     });
     mod.hook<openrac::rac1::GoldBolts_CountCollected>([](auto original) {
         const std::int32_t count = original();
+
         if (count < 0 || static_cast<std::uint32_t>(count) != g_state.last_gold_bolts) {
             g_state.last_gold_bolts = static_cast<std::uint32_t>(count);
             play("gold");
@@ -486,5 +545,6 @@ extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
         SDL_CloseGamepad(g_state.pad);
         g_state.pad = nullptr;
     }
+
     SDL_Quit();
 }
