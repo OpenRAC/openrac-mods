@@ -8,6 +8,7 @@
 
 namespace livesplit {
 
+/* The name of each planet, indexed by the level the game plays it in (seen in game code). */
 inline constexpr const char* kPlanetNames[19] = {
     "Veldin",  "Novalis", "Aridia",     "Kerwan",       "Eudora",         "Rilgar", "Blarg Station",
     "Umbris",  "Batalia", "Gaspar",     "Orxon",        "Pokitaru",       "Hoven",  "Gemlik Base",

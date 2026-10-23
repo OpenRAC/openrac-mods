@@ -33,9 +33,11 @@ enum class Action {
     kSplit, /* "split": the segment is over, the next one begins */
 };
 
-/* The planets, by the level the game plays them in (the port's own names, front_end.c). */
+/* How many planets there are, by the level the game plays them in (the port's own names,
+ * front_end.c) (seen in game code). */
 inline constexpr int kPlanetCount = 19;
-/* Veldin (the last one), where the last boss is: leaving it ends the run. */
+/* The level of Veldin (the last one), where the last boss is: leaving it ends the run (seen in game
+ * code). */
 inline constexpr int kLastPlanet = 18;
 
 /* A time as LiveSplit's parser reads it: minutes, seconds and hundredths ("12:34.56"). */

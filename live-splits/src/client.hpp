@@ -48,30 +48,52 @@ public:
     std::string state() const;
 
 private:
+    /* The client thread's loop; it is the only one to touch the socket and its buffer. */
     void run();
+    /* Connects and prepares the protocol; true when the connection is ready. */
     bool open();
+    /* The WebSocket upgrade request and its answer; true when the server accepts. */
     bool handshake();
+    /* The "auto" protocol's ping, which tells a TCP server from a WebSocket one. */
     bool probe();
+    /* Closes the socket and forgets what was read. */
     void close();
+    /* Writes every queued command to the server. */
+    void write_queued();
+    /* Reads what the server says and drops it. */
+    void discard_replies();
     void write_all(const char* data, std::size_t length);
     bool fill(int timeout_ms);          /* reads into the buffer; false when nothing came */
     bool read_line(std::string& line);  /* the TCP server's answers */
     bool read_frame(std::string& text); /* the WebSocket server's answers */
     void write_frame(const std::string& text);
 
+    /* The address and protocol given at construction; never change, so any thread may read them. */
     const std::string host_;
     const int port_;
     const Protocol protocol_;
+
+    /* Set by stop, read by the client thread, to end its loop. */
     std::atomic<bool> stop_{false};
+    /* Whether a server is connected now: written by the client thread, read by the game's thread. */
     std::atomic<bool> connected_{false};
+    /* Whether a server has ever been connected: it tells a stale command from an early one. */
     std::atomic<bool> ever_connected_{false};
+    /* The client's thread. Started and joined by the game's thread. */
     std::thread thread_;
+    /* Guards queue_ and state_, which both threads touch. */
     mutable std::mutex mutex_;
+    /* Wakes the client thread when a command is queued or the client is stopped. */
     std::condition_variable ready_;
+    /* The commands the game's thread has given and the client's thread has not yet written. */
     std::deque<std::string> queue_;
+    /* What the client knows of the connection, for the log. Under mutex_. */
     std::string state_ = "not connected";
-    std::string buffer_; /* the bytes read and not yet used */
+    /* The client thread's own: the bytes read and not yet used. */
+    std::string buffer_;
+    /* The client thread's own: the socket, -1 when none (an int on Unix, a SOCKET on Windows). */
     std::intptr_t socket_ = -1;
+    /* The client thread's own: whether the server speaks WebSocket rather than TCP. */
     bool websocket_ = false;
 };
 

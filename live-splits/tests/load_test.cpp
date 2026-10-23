@@ -9,6 +9,8 @@
 // the game leaves Veldin.
 //
 // Run with the library's path: load_test <live_splits.dylib|.so|.dll>.
+//
+// Expected commands and replies are those the README describes, written out by hand.
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>

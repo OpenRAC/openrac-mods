@@ -7,6 +7,8 @@
 // The two ways to split, the two ways to start the timer, and the game's own ways of surprising
 // the mod: Ratchet dies and the level is loaded again, the player goes back to a planet he left,
 // and the run ends when the game leaves Veldin for the last time.
+//
+// Expected commands are those the mod's README says it sends, written out by hand.
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
