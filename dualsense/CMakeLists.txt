@@ -31,6 +31,11 @@ else()
   set(SDL_TESTS OFF CACHE BOOL "" FORCE)
   set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
   set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
+  # The mod opens no window, only the controller: on Linux it builds without the X11 or Wayland
+  # headers too (the arm64 runner has neither), and SDL still uses them when they are there.
+  if(UNIX AND NOT APPLE)
+    set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
+  endif()
   # The static library goes into the mod, which is a shared object: it has to be position
   # independent. SDL3 does not ask for that itself.
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
