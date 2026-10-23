@@ -90,16 +90,19 @@ the same seed is the same game: share the code from the log.
 ## How many enemies
 
 The game keeps one pool of 255 slots per level for everything it makes as it
-goes: shots, sparks, bolts, debris, pickups (Drek's fleet has 399). When it
-is full the game cannot make what it wants, and on Gaspar its lava sparks
-nearly fill it on a console already. So the copies take only what the game
-can spare: **160 slots always stay free** for the game, and a level's copies
-take at most the rest (95 of 255). An enemy whose own data is larger than a
-spawned object's place (0x80 bytes) costs slots for that too, and nearly
-every enemy's is (0x1C0 to 0x460 bytes): a copy takes 5 to 10 slots, so a
-level gets about 11 to 17 copies at most (Rilgar's smaller amoeboids, about
-28), fewer where few of its enemies are free of its scripts (Umbris none).
-**Gaspar gets no copies.** The log says what each level got: `level 4: 41 copies of 23
+goes: shots, sparks, bolts, debris, pickups (Drek's fleet has 399). OpenRAC's
+port gives most levels 767 (all but Rilgar, Blarg Station and Quartu, which
+keep 255); the mod reads the pool's size from the game as each level loads.
+When the pool is full the game cannot make what it wants, and on Gaspar its
+lava sparks nearly fill a console's 255 already. So the copies take only what
+the game can spare: **160 slots always stay free** for the game, and a level's
+copies take at most the rest (95 of 255, 607 of 767). An enemy whose own data
+is larger than a spawned object's place (0x80 bytes) costs slots for that too,
+and nearly every enemy's is (0x1C0 to 0x460 bytes): a copy takes 5 to 10
+slots, so a level of 255 gets about 11 to 17 copies at most (Rilgar's smaller
+amoeboids, about 28) and a level of 767 about 60 to 100, fewer where few of
+its enemies are free of its scripts (Umbris none). **On Gaspar the sparks keep
+another 255**: no copies in a pool of 255, up to 352 in one of 767. The log says what each level got: `level 4: 41 copies of 23
 enemies (255 free slots, room for 95 beside the 160 kept for the game; 60
 reserved for pvars; 3 without a clear spot)`. With a high enemy count the
 copies are spread: each enemy gets one before any gets a second.

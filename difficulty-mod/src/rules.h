@@ -124,8 +124,11 @@ Values with_event(const Values& values, int event);
 // The moby pool's guard (README.md, "How many enemies"): the spawned mobys' pool keeps this many
 // free slots for what the game spawns (effects, shots, bolts), whatever the enemy count asks for.
 constexpr int k_pool_reserve = 160;
-// Slots the copies may take on a level: none on Gaspar (level 9), whose lava sparks alone nearly
-// fill the pool on a console.
+// On Gaspar (level 9) the lava sparks alone nearly fill a console's pool of 255: there the copies
+// leave that many free for them too, so they get none in a pool of a console's size and the rest of
+// a bigger one (OpenRAC's port gives most levels 767).
+constexpr int k_gaspar_sparks = 255;
+// Slots the copies may take on a level with free_slots free.
 int clone_budget(int free_slots, int level);
 // Extra slots a copy whose pvars are size bytes needs for them (a spawned moby has 0x80).
 int pvar_slots(int size);

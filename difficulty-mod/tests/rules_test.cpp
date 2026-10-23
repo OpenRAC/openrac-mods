@@ -222,7 +222,10 @@ static void budget() {
     CHECK(clone_budget(255, 4) == 255 - k_pool_reserve);
     CHECK(clone_budget(399, 17) == 399 - k_pool_reserve);
     CHECK(clone_budget(100, 4) == 0);
-    CHECK(clone_budget(255, 9) == 0);  // Gaspar
+    CHECK(clone_budget(255, 9) == 0);  // Gaspar, a console's pool: the sparks need it all
+    // OpenRAC's bigger pool: 767 free; on Gaspar the sparks keep a console's 255 besides.
+    CHECK(clone_budget(767, 4) == 767 - k_pool_reserve);
+    CHECK(clone_budget(767, 9) == 767 - k_pool_reserve - k_gaspar_sparks);
     CHECK(pvar_slots(0) == 0 && pvar_slots(0x80) == 0);
     CHECK(
         pvar_slots(0x81) == 2 && pvar_slots(0x100) == 2 && pvar_slots(0x101) == 3

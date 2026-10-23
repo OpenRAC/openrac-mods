@@ -233,10 +233,7 @@ Values with_event(const Values& values, int event) {
 }
 
 int clone_budget(int free_slots, int level) {
-    if (level == 9) {
-        return 0;
-    }
-    const int b = free_slots - k_pool_reserve;
+    const int b = free_slots - k_pool_reserve - (level == 9 ? k_gaspar_sparks : 0);
     return b > 0 ? b : 0;
 }
 
