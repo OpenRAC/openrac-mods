@@ -407,6 +407,11 @@ void run(const char* library) {
     CHECK(std::strcmp(info.id, "live-splits") == 0);
     CHECK(info.api_major == 1 && info.api_minor == 0);
 
+#if defined(_WIN32)
+    // The test's server needs Winsock of its own: the mod starts it only for its client.
+    WSADATA wsa;
+    CHECK(WSAStartup(MAKEWORD(2, 2), &wsa) == 0);
+#endif
     Server server;
     CHECK(server.listen());
     g_port = server.port();
