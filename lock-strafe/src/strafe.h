@@ -84,16 +84,17 @@
 
 /* What the decision reads of the hero and the pad. */
 typedef struct rac1_strafe_input {
-    int playing;      /* a level loaded and its game mode 0 (D_L00_0015F6A8: not a scene, a menu, a vendor) */
+    int playing; /* a level loaded and its game mode 0 (D_L00_0015F6A8: not a scene, a menu, a vendor) */
     int state;        /* hero +0x2084 */
     int frame_mode;   /* hero +0x20B3: 0 on level ground; others turn the hero's own frame */
     int vehicle_mode; /* hero +0x20A4: 0 on foot */
     int slot_state;   /* hero +0x1090 + 0x24: slot 0's state */
     int slot_item;    /* hero +0x1090 + 0x28: slot 0's item */
-    uint32_t held;    /* the pad's buttons as the player holds them (+0x1A0, L2 and R2 from before lock_strafe.cpp takes them) */
-    float facing;     /* hero +0x98 */
-    float camera;     /* the camera's yaw (D_L00_00166ED8) */
-    float look_x;     /* the right stick sideways (PadState.analog[0], +0x100) */
+    uint32_t
+        held; /* the pad's buttons as the player holds them (+0x1A0, L2 and R2 from before lock_strafe.cpp takes them) */
+    float facing; /* hero +0x98 */
+    float camera; /* the camera's yaw (D_L00_00166ED8) */
+    float look_x; /* the right stick sideways (PadState.analog[0], +0x100) */
 } rac1_strafe_input;
 
 /* What Hold remembers from tick to tick. */
@@ -107,12 +108,15 @@ typedef struct rac1_strafe_hold {
 /* b - a, within -pi..pi. */
 static inline float rac1_strafe_angle_diff(float a, float b) {
     float d = b - a;
+
     while (d > 3.14159274f) {
         d -= 6.28318548f;
     }
+
     while (d < -3.14159274f) {
         d += 6.28318548f;
     }
+
     return d;
 }
 
@@ -151,12 +155,15 @@ static inline int rac1_strafe_takes_buttons(int mode, const rac1_strafe_input* i
 /* Hold's memory, once a tick at the pad's report: L2 or R2 going down on foot latches the
  * facing and starts the swing; the swing ends with the camera behind that facing, the right stick
  * pushed sideways or the ticks run out; letting both go, or the setting off, forgets it all. */
-static inline void rac1_strafe_hold_update(int mode, const rac1_strafe_input* in, rac1_strafe_hold* hold) {
+static inline void rac1_strafe_hold_update(
+    int mode, const rac1_strafe_input* in, rac1_strafe_hold* hold
+) {
     if (mode == RAC1_STRAFE_OFF || (in->held & RAC1_STRAFE_BUTTONS) == 0) {
         hold->latched = 0;
         hold->swinging = 0;
         return;
     }
+
     if (!hold->latched) {
         if (rac1_strafe_on_foot(in)) {
             hold->latched = 1;
@@ -164,30 +171,39 @@ static inline void rac1_strafe_hold_update(int mode, const rac1_strafe_input* in
             hold->ticks = 0;
             hold->yaw = in->facing;
         }
+
         return;
     }
+
     if (hold->swinging) {
         const float d = rac1_strafe_angle_diff(in->camera, hold->yaw);
         const float x = in->look_x < 0.0f ? -in->look_x : in->look_x;
-        if ((d < RAC1_STRAFE_SWING_DONE && d > -RAC1_STRAFE_SWING_DONE) || x >= RAC1_STRAFE_SWING_STICK
-            || ++hold->ticks >= RAC1_STRAFE_SWING_TICKS) {
+
+        if ((d < RAC1_STRAFE_SWING_DONE && d > -RAC1_STRAFE_SWING_DONE)
+            || x >= RAC1_STRAFE_SWING_STICK || ++hold->ticks >= RAC1_STRAFE_SWING_TICKS) {
             hold->swinging = 0;
         }
     }
 }
 
 /* What the strafe does this tick (RAC1_STRAFE_NONE, _HELD, _LOCKED). */
-static inline int rac1_strafe_kind(int mode, const rac1_strafe_input* in, const rac1_strafe_hold* hold) {
+static inline int rac1_strafe_kind(
+    int mode, const rac1_strafe_input* in, const rac1_strafe_hold* hold
+) {
     if (mode == RAC1_STRAFE_OFF || !in->playing || in->vehicle_mode != 0 || in->frame_mode != 0) {
         return RAC1_STRAFE_NONE;
     }
-    if (in->state != RAC1_STRAFE_STATE_STAND && in->state != RAC1_STRAFE_STATE_RUN && in->state != RAC1_STRAFE_STATE_RUN_ALT
-        && in->state != RAC1_STRAFE_STATE_JUMP) {
+
+    if (in->state != RAC1_STRAFE_STATE_STAND && in->state != RAC1_STRAFE_STATE_RUN
+        && in->state != RAC1_STRAFE_STATE_RUN_ALT && in->state != RAC1_STRAFE_STATE_JUMP) {
         return RAC1_STRAFE_NONE;
     }
-    if (mode == RAC1_STRAFE_LOCK && in->slot_state == RAC1_STRAFE_SLOT_READY && rac1_strafe_aimable(in->slot_item)) {
+
+    if (mode == RAC1_STRAFE_LOCK && in->slot_state == RAC1_STRAFE_SLOT_READY
+        && rac1_strafe_aimable(in->slot_item)) {
         return RAC1_STRAFE_LOCKED;
     }
+
     return hold->latched ? RAC1_STRAFE_HELD : RAC1_STRAFE_NONE;
 }
 
@@ -199,11 +215,13 @@ static inline int rac1_strafe_swings_camera(int kind, const rac1_strafe_hold* ho
 /* The yaw Hero_TurnToHeading eases the facing toward: while strafing (its first argument 0, the
  * turns that follow the move yaw) the latched yaw while Hold's swing lasts, the camera's after it
  * and in Lock; else the move yaw, as the game has it. */
-static inline float rac1_strafe_turn_target(int kind, int mode, float move_yaw, float camera_yaw,
-                                            const rac1_strafe_hold* hold) {
+static inline float rac1_strafe_turn_target(
+    int kind, int mode, float move_yaw, float camera_yaw, const rac1_strafe_hold* hold
+) {
     if (mode != 0 || kind == RAC1_STRAFE_NONE) {
         return move_yaw;
     }
+
     return rac1_strafe_swings_camera(kind, hold) ? hold->yaw : camera_yaw;
 }
 
@@ -237,14 +255,20 @@ static inline int rac1_strafe_turns_standing(int kind, int state, const rac1_str
 #define RAC1_STRAFE_BACK_TOP 0.985f
 
 /* Whether he backpedals this tick (was: last tick's answer). */
-static inline int rac1_strafe_backpedal(int kind, int state, float facing, float move_yaw, int was) {
-    if (kind == RAC1_STRAFE_NONE || (state != RAC1_STRAFE_STATE_RUN && state != RAC1_STRAFE_STATE_RUN_ALT)) {
+static inline int rac1_strafe_backpedal(
+    int kind, int state, float facing, float move_yaw, int was
+) {
+    if (kind == RAC1_STRAFE_NONE
+        || (state != RAC1_STRAFE_STATE_RUN && state != RAC1_STRAFE_STATE_RUN_ALT)) {
         return 0;
     }
+
     float d = rac1_strafe_angle_diff(facing, move_yaw);
+
     if (d < 0.0f) {
         d = -d;
     }
+
     return d > (was ? RAC1_STRAFE_BACK_LEAVE : RAC1_STRAFE_BACK_ENTER);
 }
 
@@ -260,22 +284,29 @@ typedef struct rac1_strafe_anim {
  * below 0 it moves to the interval before, key B taking key A and key A the one before it (the
  * last after key 0), with that key's rate; the mirror of the advance's step forward. count: the
  * sequence's keys, rates: each key's rate. */
-static inline void rac1_strafe_anim_back(rac1_strafe_anim* a, float step, int count, const float* rates) {
+static inline void rac1_strafe_anim_back(
+    rac1_strafe_anim* a, float step, int count, const float* rates
+) {
     if (count <= 0 || a->key < 0 || a->key >= count) {
         return;
     }
+
     float f = a->fraction - step;
+
     for (int n = 0; f < 0.0f; ++n) {
-        if (!(a->rate > 0.0f) || n > count) { /* no rate, or a whole loop in a tick: stop at a key */
+        if (!(a->rate > 0.0f)
+            || n > count) { /* no rate, or a whole loop in a tick: stop at a key */
             f = 0.0f;
             break;
         }
+
         const float ticks = -f / a->rate; /* what is left of the step, in ticks */
         a->next_key = a->key;
         a->key = a->key == 0 ? count - 1 : a->key - 1;
         a->rate = rates[a->key];
         f = 1.0f - ticks * a->rate;
     }
+
     a->fraction = f > RAC1_STRAFE_BACK_TOP ? RAC1_STRAFE_BACK_TOP : f;
 }
 

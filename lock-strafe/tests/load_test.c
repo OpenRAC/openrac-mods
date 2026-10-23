@@ -11,25 +11,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../src/discs.h"
+#include "../src/strafe.h"
 #include "openrac/games/rac1.h"
 #include "openrac/openrac_mod.h"
 
-#include "../src/discs.h"
-#include "../src/strafe.h"
-
 #if defined(_WIN32)
 #include <windows.h>
+
 static void* open_library(const char* path) {
     return (void*)LoadLibraryA(path);
 }
+
 static void* symbol(void* lib, const char* name) {
     return (void*)GetProcAddress((HMODULE)lib, name);
 }
 #else
 #include <dlfcn.h>
+
 static void* open_library(const char* path) {
     return dlopen(path, RTLD_NOW | RTLD_LOCAL);
 }
+
 static void* symbol(void* lib, const char* name) {
     return dlsym(lib, name);
 }
@@ -56,40 +59,50 @@ static struct {
     const char* signature;
     void* replacement;
 } s_hooks[16];
+
 static int s_hook_count;
 
 /* What the hook points go on to: the game's, here counting calls. */
 static int s_original_calls;
 static float s_move_yaw_seen;
+
 static void game_pad(openrac_gaddr pad, openrac_gaddr report, int32_t size) {
     (void)pad, (void)report, (void)size;
     ++s_original_calls;
 }
+
 static void game_void(void) {
     ++s_original_calls;
 }
+
 static void game_turn(int32_t mode, float accel, float damping, float limit) {
     (void)mode, (void)accel, (void)damping, (void)limit;
     memcpy(&s_move_yaw_seen, s_memory + k_lock_strafe_discs[0].hero + 0x180u, 4);
     ++s_original_calls;
 }
+
 static void game_float(float angle) {
     (void)angle;
     ++s_original_calls;
 }
+
 static void game_camera(openrac_gaddr camera) {
     (void)camera;
     ++s_original_calls;
 }
+
 static float game_cos(float a) {
     return a;
 }
+
 static void game_int(int32_t a) {
     (void)a;
 }
+
 static void game_two(float a, float b) {
     (void)a, (void)b;
 }
+
 static void game_look(openrac_gaddr d, float a, float b) {
     (void)d, (void)a, (void)b;
 }
@@ -98,33 +111,52 @@ static void host_log(openrac_mod* mod, int level, const char* text) {
     (void)mod;
     printf("[%d] lock-strafe: %s\n", level, text);
 }
+
 static void host_fail(openrac_mod* mod, const char* reason) {
     (void)mod;
     snprintf(s_failed, sizeof s_failed, "%s", reason);
 }
+
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod, (void)key;
     return 0;
 }
+
 static int64_t setting_int(openrac_mod* mod, const char* key) {
     (void)mod, (void)key;
     return 0;
 }
+
 static double setting_float(openrac_mod* mod, const char* key) {
     (void)mod, (void)key;
     return 0.0;
 }
+
 static const char* setting_string(openrac_mod* mod, const char* key) {
     (void)mod;
     return strcmp(key, "mode") == 0 ? s_setting_mode : "";
 }
+
 static void* original_for(const char* name) {
-    if (strcmp(name, "Pad_ProcessReport") == 0) return (void*)game_pad;
-    if (strcmp(name, "Hero_TurnToHeading") == 0) return (void*)game_turn;
-    if (strcmp(name, "Hero_SetPlanarVelocity") == 0) return (void*)game_float;
-    if (strcmp(name, "FollowCamera_ApplyOverrides") == 0) return (void*)game_camera;
+    if (strcmp(name, "Pad_ProcessReport") == 0) {
+        return (void*)game_pad;
+    }
+
+    if (strcmp(name, "Hero_TurnToHeading") == 0) {
+        return (void*)game_turn;
+    }
+
+    if (strcmp(name, "Hero_SetPlanarVelocity") == 0) {
+        return (void*)game_float;
+    }
+
+    if (strcmp(name, "FollowCamera_ApplyOverrides") == 0) {
+        return (void*)game_camera;
+    }
+
     return (void*)game_void;
 }
+
 /* A hook point's permanent id (the SDK's C++ layer asks by it) to the name the port also takes, as the
  * port's loader resolves ids and aliases (OpenRAC's docs/port/MODS.md, section 4). */
 static const char* canonical(const char* name) {
@@ -136,14 +168,19 @@ static const char* canonical(const char* name) {
         {"rac1.camera.follow.apply_overrides", "FollowCamera_ApplyOverrides"},
         {"rac1.player.advance_animation", "Hero_AdvanceAnimation"},
     };
+
     for (unsigned i = 0; i < sizeof(k_ids) / sizeof(k_ids[0]); ++i) {
         if (strcmp(name, k_ids[i][0]) == 0) {
             return k_ids[i][1];
         }
     }
+
     return name;
 }
-static int host_hook(openrac_mod* mod, const char* name, const char* signature, void* replacement, void** original) {
+
+static int host_hook(
+    openrac_mod* mod, const char* name, const char* signature, void* replacement, void** original
+) {
     (void)mod;
     name = canonical(name);
     CHECK(s_hook_count < 16);
@@ -154,46 +191,74 @@ static int host_hook(openrac_mod* mod, const char* name, const char* signature, 
     *original = original_for(name);
     return OPENRAC_HOOK_OK;
 }
+
 static int host_on_frame(openrac_mod* mod, openrac_frame_fn fn, void* user) {
     (void)mod, (void)fn, (void)user;
     return 0;
 }
+
 static int host_on_pad(openrac_mod* mod, openrac_pad_fn fn, void* user) {
     (void)mod, (void)fn, (void)user;
     return 0;
 }
+
 /* The game's functions by name: only the disc's own names are found. */
 static int s_functions_asked;
+
 static void* host_function(const char* name) {
-    const lock_strafe_disc* d = strcmp(s_disc, "pal") == 0 ? &k_lock_strafe_discs[0] : &k_lock_strafe_discs[1];
+    const lock_strafe_disc* d =
+        strcmp(s_disc, "pal") == 0 ? &k_lock_strafe_discs[0] : &k_lock_strafe_discs[1];
     ++s_functions_asked;
-    if (strcmp(name, d->fast_cos) == 0 || strcmp(name, d->fast_sin) == 0) return (void*)game_cos;
-    if (strcmp(name, d->camera_slide) == 0) return (void*)game_int;
-    if (strcmp(name, d->camera_spring) == 0) return (void*)game_two;
-    if (strcmp(name, d->camera_pan_off) == 0) return (void*)game_void;
-    if (strcmp(name, d->camera_look_along) == 0) return (void*)game_look;
+
+    if (strcmp(name, d->fast_cos) == 0 || strcmp(name, d->fast_sin) == 0) {
+        return (void*)game_cos;
+    }
+
+    if (strcmp(name, d->camera_slide) == 0) {
+        return (void*)game_int;
+    }
+
+    if (strcmp(name, d->camera_spring) == 0) {
+        return (void*)game_two;
+    }
+
+    if (strcmp(name, d->camera_pan_off) == 0) {
+        return (void*)game_void;
+    }
+
+    if (strcmp(name, d->camera_look_along) == 0) {
+        return (void*)game_look;
+    }
+
     return NULL;
 }
+
 static void* host_function_at(openrac_gaddr a) {
     (void)a;
     return NULL;
 }
+
 static openrac_gaddr identity(openrac_gaddr a) {
     return a;
 }
+
 static openrac_gaddr identity_level(int level, openrac_gaddr a) {
     (void)level;
     return a;
 }
+
 static int loaded_level(void) {
     return s_level;
 }
+
 static openrac_gaddr s_sp = 0x001F0000u;
+
 static openrac_gaddr stack_push(uint32_t size, openrac_gaddr* saved) {
     *saved = s_sp;
     s_sp -= (size + 15u) & ~15u;
     return s_sp;
 }
+
 static void stack_pop(openrac_gaddr saved) {
     s_sp = saved;
 }
@@ -234,20 +299,24 @@ static void* hook_named(const char* name) {
             return s_hooks[i].replacement;
         }
     }
+
     return NULL;
 }
 
 static void put_u32(openrac_gaddr a, uint32_t v) {
     memcpy(s_memory + a, &v, 4);
 }
+
 static uint32_t get_u32(openrac_gaddr a) {
     uint32_t v;
     memcpy(&v, s_memory + a, 4);
     return v;
 }
+
 static void put_f32(openrac_gaddr a, float v) {
     memcpy(s_memory + a, &v, 4);
 }
+
 static float get_f32(openrac_gaddr a) {
     float v;
     memcpy(&v, s_memory + a, 4);
@@ -297,11 +366,16 @@ int main(int argc, char** argv) {
         {OPENRAC_RAC1_HOOK_Hero_UpdateMotionInput, OPENRAC_RAC1_SIG_Hero_UpdateMotionInput},
         {OPENRAC_RAC1_HOOK_Hero_TurnToHeading, OPENRAC_RAC1_SIG_Hero_TurnToHeading},
         {OPENRAC_RAC1_HOOK_Hero_SetPlanarVelocity, OPENRAC_RAC1_SIG_Hero_SetPlanarVelocity},
-        {OPENRAC_RAC1_HOOK_FollowCamera_ApplyOverrides, OPENRAC_RAC1_SIG_FollowCamera_ApplyOverrides},
+        {OPENRAC_RAC1_HOOK_FollowCamera_ApplyOverrides,
+         OPENRAC_RAC1_SIG_FollowCamera_ApplyOverrides},
         {OPENRAC_RAC1_HOOK_Hero_AdvanceAnimation, OPENRAC_RAC1_SIG_Hero_AdvanceAnimation},
     };
+
     for (int i = 0; i < 6; ++i) {
-        CHECK(strcmp(s_hooks[i].name, k_points[i][0]) == 0 && strcmp(s_hooks[i].signature, k_points[i][1]) == 0);
+        CHECK(
+            strcmp(s_hooks[i].name, k_points[i][0]) == 0
+            && strcmp(s_hooks[i].signature, k_points[i][1]) == 0
+        );
     }
 
     /* The hero running on level ground in play, the Blaster ready, L2 held. */
@@ -312,8 +386,10 @@ int main(int argc, char** argv) {
     put_u32(d->level_mode, 0);
     put_f32(d->camera_yaw, 1.25f);
     put_f32(d->hero + 0x180u, -0.5f);
-    openrac_rac1_Pad_ProcessReport pad = (openrac_rac1_Pad_ProcessReport)hook_named("Pad_ProcessReport");
-    openrac_rac1_Hero_TurnToHeading turn = (openrac_rac1_Hero_TurnToHeading)hook_named("Hero_TurnToHeading");
+    openrac_rac1_Pad_ProcessReport pad =
+        (openrac_rac1_Pad_ProcessReport)hook_named("Pad_ProcessReport");
+    openrac_rac1_Hero_TurnToHeading turn =
+        (openrac_rac1_Hero_TurnToHeading)hook_named("Hero_TurnToHeading");
     CHECK(pad != NULL && turn != NULL);
 
     /* Out of play (no level): the game sees L2. */

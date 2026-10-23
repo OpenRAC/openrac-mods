@@ -17,10 +17,9 @@
 #include <cstring>
 #include <string>
 
+#include "discs.h"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
-
-#include "discs.h"
 #include "strafe.h"
 
 namespace {
@@ -43,7 +42,8 @@ void (*s_camera_look_along)(gaddr, float, float);
 
 // The PadState words with button bits (pad.h: held, pressed, released, raw_held, raw_pressed,
 // raw_released and the unmasked three).
-constexpr uint32_t k_pad_words[] = {0x1A0u, 0x1A4u, 0x1A8u, 0x1B0u, 0x1B4u, 0x1B8u, 0x1C0u, 0x1C4u, 0x1C8u};
+constexpr uint32_t k_pad_words[] =
+    {0x1A0u, 0x1A4u, 0x1A8u, 0x1B0u, 0x1B4u, 0x1B8u, 0x1C0u, 0x1C4u, 0x1C8u};
 
 uint32_t s_buttons;  // L2 and R2 as the player holds them, from the last report
 rac1_strafe_hold s_hold;
@@ -53,21 +53,27 @@ template <class T>
 T& ref(gaddr address) {
     return s_mod->memory().ref<T>(address);
 }
+
 float get_float(gaddr at) {
     return s_mod->memory().read<float>(at);
 }
+
 void put_float(gaddr at, float v) {
     s_mod->memory().write<float>(at, v);
 }
+
 gaddr hero() {
     return s_disc->hero;
 }
+
 gaddr pad() {
     return s_disc->pad;
 }
+
 gaddr level0(uint32_t address) {
     return s_mod->relocate_level(0, address);
 }
+
 float camera_yaw() {
     return get_float(level0(s_disc->camera_yaw));
 }
@@ -97,6 +103,7 @@ int anim_byte(unsigned at) {
     const gaddr moby = ref<gaddr>(hero() + 0x2080u);
     return moby != 0 ? ref<uint8_t>(moby + at) : -1;
 }
+
 float anim_float(unsigned at) {
     const gaddr moby = ref<gaddr>(hero() + 0x2080u);
     return moby != 0 ? get_float(moby + at) : 0.0f;
@@ -111,18 +118,43 @@ void trace() {
     if (!s_trace) {
         return;
     }
+
     rac1_strafe_input in;
     read_input(&in);
     char line[512];
-    std::snprintf(line, sizeof line,
-                  "mode %d kind %d playing %d state %#x vehicle %d item %#x/%d held %#x seen %#x latched %d/%d/%.3f "
-                  "look %.2f facing %.3f move %.3f camera %.3f pos %.3f %.3f back %d anim %d/%d %d-%d %.3f speed %.3f",
-                  s_mode, rac1_strafe_kind(s_mode, &in, &s_hold), in.playing, static_cast<unsigned>(in.state),
-                  in.vehicle_mode, static_cast<unsigned>(in.slot_item), in.slot_state, static_cast<unsigned>(in.held),
-                  ref<uint32_t>(pad() + 0x1A0u), s_hold.latched, s_hold.swinging, d(s_hold.yaw), d(in.look_x),
-                  d(in.facing), d(get_float(hero() + 0x180u)), d(camera_yaw()), d(get_float(hero() + 0x80u)),
-                  d(get_float(hero() + 0x84u)), s_backpedal, anim_byte(0x52u), anim_byte(0x53u), anim_byte(0x50u),
-                  anim_byte(0x51u), d(anim_float(0x54u)), d(get_float(hero() + 0xA90u)));
+    std::snprintf(
+        line,
+        sizeof line,
+        "mode %d kind %d playing %d state %#x vehicle %d item %#x/%d held %#x seen %#x latched "
+        "%d/%d/%.3f "
+        "look %.2f facing %.3f move %.3f camera %.3f pos %.3f %.3f back %d anim %d/%d %d-%d %.3f "
+        "speed %.3f",
+        s_mode,
+        rac1_strafe_kind(s_mode, &in, &s_hold),
+        in.playing,
+        static_cast<unsigned>(in.state),
+        in.vehicle_mode,
+        static_cast<unsigned>(in.slot_item),
+        in.slot_state,
+        static_cast<unsigned>(in.held),
+        ref<uint32_t>(pad() + 0x1A0u),
+        s_hold.latched,
+        s_hold.swinging,
+        d(s_hold.yaw),
+        d(in.look_x),
+        d(in.facing),
+        d(get_float(hero() + 0x180u)),
+        d(camera_yaw()),
+        d(get_float(hero() + 0x80u)),
+        d(get_float(hero() + 0x84u)),
+        s_backpedal,
+        anim_byte(0x52u),
+        anim_byte(0x53u),
+        anim_byte(0x50u),
+        anim_byte(0x51u),
+        d(anim_float(0x54u)),
+        d(get_float(hero() + 0xA90u))
+    );
     s_mod->info(line);
 }
 
@@ -144,20 +176,25 @@ void turn_toward(float yaw, int32_t mode, float accel, float damping, float limi
 template <class Original>
 void pad_process_report(Original original, gaddr pad_state, gaddr report, int32_t size) {
     original(pad_state, report, size);
+
     if (pad_state != pad()) {
         return;
     }
+
     s_buttons = ref<uint32_t>(pad() + 0x1A0u) & RAC1_STRAFE_BUTTONS;
     rac1_strafe_input in;
     read_input(&in);
     rac1_strafe_hold_update(s_mode, &in, &s_hold);
+
     if (rac1_strafe_takes_buttons(s_mode, &in)) {
         for (const uint32_t word : k_pad_words) {
             ref<uint32_t>(pad() + word) &= ~RAC1_STRAFE_BUTTONS;
         }
+
         const int last = (ref<int16_t>(pad() + 0x18Eu) + 29) % 30;  // hist_btn[hist_idx - 1]
         ref<uint32_t>(pad() + 0x1E0u + 4u * static_cast<unsigned>(last)) &= ~RAC1_STRAFE_BUTTONS;
     }
+
     trace();
 }
 
@@ -168,11 +205,13 @@ template <class Original>
 void update_motion_input(Original original) {
     rac1_strafe_input in;
     read_input(&in);
+
     if (rac1_strafe_turns_standing(rac1_strafe_kind(s_mode, &in, &s_hold), in.state, &s_hold)) {
         const float frame = get_float(s_mod->relocate(s_disc->frame_scale));
         const float step = get_float(s_mod->relocate(s_disc->turn_step));
         turn_toward(camera_yaw(), 0, frame * 0.017f, frame * 0.3f, step * 4.712389f);
     }
+
     original();
 }
 
@@ -181,12 +220,19 @@ void update_motion_input(Original original) {
 template <class Original>
 void turn_to_heading(Original original, int32_t mode, float accel, float damping, float limit) {
     const int kind = mode == 0 ? strafe_kind() : RAC1_STRAFE_NONE;
+
     if (kind == RAC1_STRAFE_NONE) {
         original(mode, accel, damping, limit);
         return;
     }
-    turn_toward(rac1_strafe_turn_target(kind, mode, get_float(hero() + 0x180u), camera_yaw(), &s_hold), mode, accel,
-                damping, limit);
+
+    turn_toward(
+        rac1_strafe_turn_target(kind, mode, get_float(hero() + 0x180u), camera_yaw(), &s_hold),
+        mode,
+        accel,
+        damping,
+        limit
+    );
 }
 
 // The follow camera's per-tick requests from the hero's state (the camera moby's update calls it
@@ -204,10 +250,12 @@ template <class Original>
 void camera_overrides(Original original, gaddr camera) {
     const int kind = strafe_kind();
     const gaddr data = ref<gaddr>(camera + 0x70u);
+
     if (kind == RAC1_STRAFE_NONE) {
         original(camera);
         return;
     }
+
     const gaddr pan = level0(s_disc->camera_pan);
     const float pan_before = get_float(pan);
     original(camera);
@@ -218,6 +266,7 @@ void camera_overrides(Original original, gaddr camera) {
     ref<int16_t>(data + 0x12u) = 0;
     ref<int16_t>(data + 0x14u) = 0;
     ref<int16_t>(data + 0x16u) = 0;
+
     if (rac1_strafe_swings_camera(kind, &s_hold)) {
         // The heading as the game's camera volumes give theirs: (FastCos, FastSin, 0), on the
         // game's stack, where the game reads it.
@@ -239,6 +288,7 @@ void set_planar_velocity(Original original, float angle) {
     if (!(angle <= 3.14159274f)) {
         angle = rac1_strafe_planar_angle(strafe_kind(), angle, get_float(hero() + 0x180u));
     }
+
     original(angle);
 }
 
@@ -254,36 +304,51 @@ void advance_animation(Original original) {
     rac1_strafe_input in;
     read_input(&in);
     const int kind = rac1_strafe_kind(s_mode, &in, &s_hold);
-    s_backpedal = rac1_strafe_backpedal(kind, in.state, in.facing, get_float(hero() + 0x180u), s_backpedal);
+    s_backpedal =
+        rac1_strafe_backpedal(kind, in.state, in.facing, get_float(hero() + 0x180u), s_backpedal);
     const gaddr moby = ref<gaddr>(hero() + 0x2080u);
+
     if (!s_backpedal || moby == 0) {
         original();
         return;
     }
+
     const int seq = ref<uint8_t>(moby + 0x53u);
-    if (ref<uint8_t>(moby + 0x52u) != seq || (seq != RAC1_STRAFE_SEQ_WALK && seq != RAC1_STRAFE_SEQ_RUN)
+
+    if (ref<uint8_t>(moby + 0x52u) != seq
+        || (seq != RAC1_STRAFE_SEQ_WALK && seq != RAC1_STRAFE_SEQ_RUN)
         || ref<int32_t>(hero() + 0xAB0u) != -1 || ref<int32_t>(hero() + 0xAB8u) != 0) {
         original();
         return;
     }
-    const gaddr sequence = ref<gaddr>(ref<gaddr>(moby + 0x24u) + 0x48u + 4u * static_cast<unsigned>(seq));
+
+    const gaddr sequence =
+        ref<gaddr>(ref<gaddr>(moby + 0x24u) + 0x48u + 4u * static_cast<unsigned>(seq));
     const int count = ref<uint8_t>(sequence + 0x10u);
+
     if (ref<uint8_t>(moby + 0x50u) >= count || ref<uint8_t>(moby + 0x51u) >= count) {
         original();
         return;
     }
+
     float rates[256];
+
     for (int i = 0; i < count; ++i) {
         rates[i] = get_float(ref<gaddr>(sequence + 0x1Cu + 4u * static_cast<unsigned>(i)));
     }
+
     const float step = get_float(hero() + 0xA90u) * get_float(hero() + 0xA94u);
-    rac1_strafe_anim a = {ref<uint8_t>(moby + 0x50u), ref<uint8_t>(moby + 0x51u), get_float(moby + 0x54u),
-                          get_float(hero() + 0xA94u)};
+    rac1_strafe_anim a =
+        {ref<uint8_t>(moby + 0x50u),
+         ref<uint8_t>(moby + 0x51u),
+         get_float(moby + 0x54u),
+         get_float(hero() + 0xA94u)};
     rac1_strafe_anim_back(&a, step, count, rates);
     ref<uint8_t>(moby + 0x50u) = static_cast<uint8_t>(a.key);
     ref<uint8_t>(moby + 0x51u) = static_cast<uint8_t>(a.next_key);
     ref<gaddr>(moby + 0x68u) = ref<gaddr>(sequence + 0x1Cu + 4u * static_cast<unsigned>(a.key));
-    ref<gaddr>(moby + 0x6Cu) = ref<gaddr>(sequence + 0x1Cu + 4u * static_cast<unsigned>(a.next_key));
+    ref<gaddr>(moby + 0x6Cu) =
+        ref<gaddr>(sequence + 0x1Cu + 4u * static_cast<unsigned>(a.next_key));
     put_float(hero() + 0xA94u, a.rate);
     // The advance adds speed times the rate it now reads: the step of the interval stepped into.
     put_float(moby + 0x54u, a.fraction - get_float(hero() + 0xA90u) * a.rate);
@@ -294,26 +359,35 @@ void advance_animation(Original original) {
 template <class Fn>
 Fn game_function(const char* name) {
     Fn fn = s_mod->function<Fn>(name);
+
     if (fn == nullptr) {
-        throw openrac::Error(std::string("this OpenRAC has no game function ") + name + " on the "
-                             + std::string(s_mod->version()) + " disc");
+        throw openrac::Error(
+            std::string("this OpenRAC has no game function ") + name + " on the "
+            + std::string(s_mod->version()) + " disc"
+        );
     }
+
     return fn;
 }
 
 void load(openrac::Mod& mod) {
     s_mod = &mod;
     s_disc = nullptr;
+
     if (mod.game() != "rac1") {
         throw openrac::Error("lock-strafe is for Ratchet & Clank (rac1)");
     }
+
     for (const auto& disc : k_lock_strafe_discs) {
         if (mod.version() == disc.version) {
             s_disc = &disc;
         }
     }
+
     if (s_disc == nullptr) {
-        throw openrac::Error("lock-strafe knows the PAL and NTSC-U discs, not " + std::string(mod.version()));
+        throw openrac::Error(
+            "lock-strafe knows the PAL and NTSC-U discs, not " + std::string(mod.version())
+        );
     }
 
     s_mode = mod.setting<std::string>("mode") == "hold" ? RAC1_STRAFE_HOLD : RAC1_STRAFE_LOCK;
@@ -331,21 +405,29 @@ void load(openrac::Mod& mod) {
 
     // A hook point this OpenRAC lacks throws: the load is refused with its name, and the port lets
     // go of the hooks already taken.
-    mod.hook<rac1::Pad_ProcessReport>([](auto original, uint32_t pad_state, uint32_t report, int32_t size) {
-        pad_process_report(original, pad_state, report, size);
-    });
+    mod.hook<rac1::Pad_ProcessReport>(
+        [](auto original, uint32_t pad_state, uint32_t report, int32_t size) {
+            pad_process_report(original, pad_state, report, size);
+        }
+    );
     mod.hook<rac1::Hero_UpdateMotionInput>([](auto original) { update_motion_input(original); });
-    mod.hook<rac1::Hero_TurnToHeading>([](auto original, int32_t m, float accel, float damping, float limit) {
-        turn_to_heading(original, m, accel, damping, limit);
+    mod.hook<rac1::Hero_TurnToHeading>(
+        [](auto original, int32_t m, float accel, float damping, float limit) {
+            turn_to_heading(original, m, accel, damping, limit);
+        }
+    );
+    mod.hook<rac1::Hero_SetPlanarVelocity>([](auto original, float angle) {
+        set_planar_velocity(original, angle);
     });
-    mod.hook<rac1::Hero_SetPlanarVelocity>([](auto original, float angle) { set_planar_velocity(original, angle); });
     mod.hook<rac1::FollowCamera_ApplyOverrides>([](auto original, uint32_t camera) {
         camera_overrides(original, camera);
     });
     mod.hook<rac1::Hero_AdvanceAnimation>([](auto original) { advance_animation(original); });
 
-    mod.info(std::string(s_mode == RAC1_STRAFE_HOLD ? "Hold L2 or R2" : "Lock with weapons") + " on the "
-             + std::string(mod.version()) + " disc" + (s_trace ? ", tracing each pad report" : ""));
+    mod.info(
+        std::string(s_mode == RAC1_STRAFE_HOLD ? "Hold L2 or R2" : "Lock with weapons") + " on the "
+        + std::string(mod.version()) + " disc" + (s_trace ? ", tracing each pad report" : "")
+    );
 }
 
 }  // namespace
