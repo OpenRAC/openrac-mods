@@ -63,7 +63,7 @@ std::uint32_t s_follow_tick = 0xFFFFFFFFu;
 bool s_tilt_held = false;
 float s_tilt = 0.0f;
 bool s_pad_look = false;  // the gamepad's right stick is off centre: the camera is the pad's
-int s_click_wait = 0;   // a click on an item not yet focused: Cross once the focus has moved
+int s_click_wait = 0;     // a click on an item not yet focused: Cross once the focus has moved
 std::uint16_t s_click_button = 0;
 
 float (*s_fast_cos)(float) = nullptr;
@@ -92,6 +92,7 @@ bool plausible(gaddr address) {
 kbm::Vec3 read_vec(gaddr address) {
     return {read<float>(address), read<float>(address + 4u), read<float>(address + 8u)};
 }
+
 void write_vec(gaddr address, kbm::Vec3 v) {
     s_mod->memory().write<float>(address, v.x);
     s_mod->memory().write<float>(address + 4u, v.y);
@@ -101,14 +102,18 @@ void write_vec(gaddr address, kbm::Vec3 v) {
 // The camera in use, 0 for none; its id in *id.
 gaddr current_camera(int* id) {
     *id = -1;
+
     if (s_mod->loaded_level() < 0) {
         return 0;
     }
+
     const gaddr cameras = s_mod->relocate_level(0, s_disc->cameras);
     const gaddr camera = read<std::uint32_t>(cameras + KBM_CAMERAS_CURRENT);
+
     if (!plausible(camera)) {
         return 0;
     }
+
     *id = read<std::int16_t>(camera + KBM_CAMERA_ID);
     return camera;
 }
@@ -117,7 +122,8 @@ gaddr current_camera(int* id) {
 // program's (the title and the main menu).
 Context context_now(int* dialog_kind) {
     const int level = s_mod->loaded_level();
-    const int level_mode = level >= 0 ? read<std::int32_t>(s_mod->relocate_level(0, s_disc->level_mode)) : -1;
+    const int level_mode =
+        level >= 0 ? read<std::int32_t>(s_mod->relocate_level(0, s_disc->level_mode)) : -1;
     const int boot_mode = level < 0 ? read<std::int32_t>(s_disc->boot_mode) : -1;
     const Context c = kbm::context_of(level, level_mode, boot_mode);
     *dialog_kind = c == Context::Dialog ? read<std::int32_t>(s_mod->relocate(s_disc->dialog)) : -1;
@@ -138,23 +144,29 @@ struct Tick {
 // overlay leaves the input to the game.
 bool active(const Tick& t, Action a) {
     const bool menu = kbm::kActions[static_cast<std::size_t>(a)].group == kbm::Group::Menu;
+
     if (menu && t.where == Context::Play) {
         return false;
     }
+
     if (t.in->overlay != 0) {
         return false;
     }
+
     for (int b : s_binds.of(a)) {
         if (b == 0) {
             continue;
         }
+
         if (kbm::is_mouse(b) && !(menu ? t.pointer : t.play)) {
             continue;
         }
+
         if (openrac_bind_held(t.in, b) || openrac_bind_pressed(t.in, b)) {
             return true;
         }
     }
+
     return false;
 }
 
@@ -162,12 +174,16 @@ bool pressed_now(const Tick& t, Action a) {
     if (t.in->overlay != 0) {
         return false;
     }
+
     const bool menu = kbm::kActions[static_cast<std::size_t>(a)].group == kbm::Group::Menu;
+
     for (int b : s_binds.of(a)) {
-        if (b != 0 && !(kbm::is_mouse(b) && !(menu ? t.pointer : t.play)) && openrac_bind_pressed(t.in, b)) {
+        if (b != 0 && !(kbm::is_mouse(b) && !(menu ? t.pointer : t.play))
+            && openrac_bind_pressed(t.in, b)) {
             return true;
         }
     }
+
     return false;
 }
 
@@ -175,24 +191,30 @@ bool pressed_now(const Tick& t, Action a) {
 // whether one of its other binds is down.
 bool wheel_notch(const Tick& t, Action a) {
     for (int b : s_binds.of(a)) {
-        if (b >= OPENRAC_BIND_WHEEL_UP && t.pointer && t.in->overlay == 0 && openrac_bind_pressed(t.in, b)) {
+        if (b >= OPENRAC_BIND_WHEEL_UP && t.pointer && t.in->overlay == 0
+            && openrac_bind_pressed(t.in, b)) {
             return true;
         }
     }
+
     return false;
 }
+
 bool held_not_wheel(const Tick& t, Action a) {
     if (t.in->overlay != 0) {
         return false;
     }
+
     for (int b : s_binds.of(a)) {
         if (b == 0 || b >= OPENRAC_BIND_WHEEL_UP || (kbm::is_mouse(b) && !t.pointer)) {
             continue;
         }
+
         if (openrac_bind_held(t.in, b) || openrac_bind_pressed(t.in, b)) {
             return true;
         }
     }
+
     return false;
 }
 
@@ -206,28 +228,38 @@ void take_item(std::int32_t item) {
 
 std::array<std::int32_t, 8> quick_select_slots() {
     std::array<std::int32_t, 8> slots{};
+
     for (std::size_t i = 0; i < slots.size(); ++i) {
         slots[i] = ref<std::int32_t>(s_disc->quick_select + static_cast<gaddr>(4 * i));
     }
+
     return slots;
 }
 
 void weapons(const Tick& t) {
-    if (t.where != Context::Play || ref<std::uint8_t>(hero() + KBM_HERO_VEHICLE) != 0 || s_ring_open) {
+    if (t.where != Context::Play || ref<std::uint8_t>(hero() + KBM_HERO_VEHICLE) != 0
+        || s_ring_open) {
         return;
     }
+
     const auto slots = quick_select_slots();
+
     for (int n = 0; n < 8; ++n) {
         if (pressed_now(t, static_cast<Action>(static_cast<int>(Action::Weapon1) + n))) {
             take_item(slots[static_cast<std::size_t>(n)]);
             return;
         }
     }
-    const int step = pressed_now(t, Action::WeaponNext) ? 1 : pressed_now(t, Action::WeaponPrev) ? -1 : 0;
+
+    const int step = pressed_now(t, Action::WeaponNext)   ? 1
+                     : pressed_now(t, Action::WeaponPrev) ? -1
+                                                          : 0;
+
     if (step != 0) {
         // From the item asked for and not yet in hand, so turning the wheel twice goes two on.
         const std::int32_t pending = ref<std::int32_t>(hero() + KBM_HERO_PENDING);
-        const std::int32_t current = pending != 0 ? pending : ref<std::int32_t>(hero() + KBM_HERO_ITEM);
+        const std::int32_t current =
+            pending != 0 ? pending : ref<std::int32_t>(hero() + KBM_HERO_ITEM);
         take_item(kbm::cycle_item(slots, current, step));
     }
 }
@@ -243,17 +275,23 @@ gaddr menu_page() {
 // A text list's rows: how many, and the selected one; false for a widget that is no text list.
 bool text_list(gaddr widget, int* count, int* selected) {
     const gaddr items = read<std::uint32_t>(widget + KBM_LIST_ITEMS);
+
     if (!plausible(items)) {
         return false;
     }
+
     int n = 0;
+
     while (n < 32 && read<std::int16_t>(items + KBM_LIST_ITEM_SIZE * static_cast<gaddr>(n)) != 0) {
         ++n;
     }
+
     const std::int32_t sel = read<std::int32_t>(widget + KBM_LIST_SELECTED);
+
     if (n == 0 || n == 32 || sel < 0 || sel >= n) {
         return false;
     }
+
     *count = n;
     *selected = sel;
     return true;
@@ -276,57 +314,80 @@ kbm::Rect rect_of(gaddr widget) {
 bool menu_mouse(const Tick& t, bool click) {
     const openrac_input* in = t.in;
     const bool moved = in->mouse_dx != 0.0f || in->mouse_dy != 0.0f;
+
     if (!t.pointer || !s_menu_mouse) {
         return true;
     }
+
     const float px = in->pointer_x * kbm::kScreenWidth;
     const float py = in->pointer_y * kbm::kScreenHeight;
     const gaddr page = (t.where == Context::Menu) ? menu_page() : 0;
+
     if (page != 0) {
         std::array<kbm::Rect, KBM_PAGE_WIDGET_COUNT> rects{};
         std::array<gaddr, KBM_PAGE_WIDGET_COUNT> widgets{};
         int count = 0;
+
         for (int i = 0; i < KBM_PAGE_WIDGET_COUNT; ++i) {
-            const gaddr w = read<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u * static_cast<gaddr>(i));
+            const gaddr w =
+                read<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u * static_cast<gaddr>(i));
+
             if (plausible(w)) {
                 widgets[static_cast<std::size_t>(count)] = w;
                 rects[static_cast<std::size_t>(count)] = rect_of(w);
                 ++count;
             }
         }
+
         const int hit = kbm::hit_widget(rects.data(), count, px, py);
+
         if (hit >= 0) {
             const gaddr widget = widgets[static_cast<std::size_t>(hit)];
             const gaddr focused = read<std::uint32_t>(page + KBM_PAGE_FOCUS);
+
             if (widget != focused) {
                 if ((moved || click) && read<std::uint32_t>(page + KBM_PAGE_PENDING) == 0) {
                     ref<std::uint32_t>(page + KBM_PAGE_PENDING) = widget;
                 }
+
                 return !click;
             }
+
             int rows = 0;
             int selected = 0;
+
             if (moved && text_list(widget, &rows, &selected) && rows > 1 && s_pulses.idle()) {
-                const int row = kbm::list_row(rects[static_cast<std::size_t>(hit)], rows,
-                                              read<std::uint32_t>(widget + KBM_LIST_FLAGS), py);
+                const int row = kbm::list_row(
+                    rects[static_cast<std::size_t>(hit)],
+                    rows,
+                    read<std::uint32_t>(widget + KBM_LIST_FLAGS),
+                    py
+                );
+
                 if (row >= 0 && row != selected) {
                     s_pulses.push(row < selected ? kbm::kUp : kbm::kDown);
                 }
+
                 s_stepper.reset();
                 return true;
             }
+
             if (!moved || text_list(widget, &rows, &selected)) {
                 return true;
             }
+
             // A grid's cells: stepped below.
         }
     }
+
     if (moved && t.where != Context::Title) {
         const std::uint16_t dir = s_stepper.step(in->mouse_dx, in->mouse_dy);
+
         if (dir != 0) {
             s_pulses.push(dir);
         }
     }
+
     return true;
 }
 
@@ -337,15 +398,18 @@ bool menu_mouse(const Tick& t, bool click) {
 // about Ratchet's up, and tilted, its tilt kept where the game keeps it.
 void first_person_look(gaddr camera, float dx, float dy) {
     const gaddr state = read<std::uint32_t>(camera + KBM_CAMERA_STATE);
+
     if (!plausible(state) || (dx == 0.0f && dy == 0.0f)) {
         return;
     }
+
     const gaddr moby = read<std::uint32_t>(hero() + KBM_HERO_MOBY);
     const kbm::Vec3 up =
         plausible(moby) ? kbm::unit_or(read_vec(moby + 0xE0u), kbm::kWorldUp) : kbm::kWorldUp;
     kbm::Vec3 look = read_vec(camera);
     look = kbm::rotate(look, up, kbm::DirectLook::yaw(dx, dy, s_look_tuning));
     const float tilt = read<float>(state + KBM_FIRST_PERSON_TILT);
+
     if (std::isfinite(tilt)) {
         const float wanted = tilt + kbm::DirectLook::pitch(dx, dy, s_look_tuning);
         const float limit = kbm::kFirstPersonTiltLimit;
@@ -355,6 +419,7 @@ void first_person_look(gaddr camera, float dx, float dy) {
         look = kbm::with_elevation(look, up, kbm::elevation(look, up) - (now - moved));
         s_mod->memory().write<float>(state + KBM_FIRST_PERSON_TILT, now);
     }
+
     write_vec(camera, look);
 }
 
@@ -381,20 +446,26 @@ void follow_look(gaddr camera) {
     const float dy = s_follow_dy;
     s_follow_dx = s_follow_dy = 0.0f;
     const gaddr state = read<std::uint32_t>(camera + KBM_CAMERA_STATE);
+
     if (!plausible(state) || s_pad_look) {
         s_tilt_held = false;
         return;
     }
+
     const std::int32_t locks = read<std::int32_t>(state + KBM_FOLLOW_LOCKS);
+
     if (dx == 0.0f && dy == 0.0f) {
         if (!s_look_tuning.pitch_holds || (locks & 2) != 0) {
             s_tilt_held = false;
         }
+
         if (s_tilt_held) {
             hold_tilt(state);
         }
+
         return;
     }
+
     const gaddr cameras = s_mod->relocate_level(0, s_disc->cameras);
     const kbm::Vec3 up = kbm::unit_or(read_vec(cameras + KBM_CAMERAS_UP), kbm::kWorldUp);
     const gaddr orbit = state + KBM_FOLLOW_ORBIT;
@@ -410,12 +481,14 @@ void follow_look(gaddr camera) {
         m = kbm::rotate(m, up, yaw);
         e = kbm::rotate(e, up, yaw);
     }
+
     if ((locks & 2) != 0) {
         s_tilt_held = false;  // the game holds the tilt
     } else if (dy != 0.0f) {
         if (!s_tilt_held || !s_look_tuning.pitch_holds) {
             s_tilt = kbm::elevation(o, up);
         }
+
         s_tilt_held = true;
         // Looking down lifts the eye above Ratchet.
         const float limit = kbm::follow_max_elevation();
@@ -433,9 +506,11 @@ void follow_look(gaddr camera) {
     } else if (!s_look_tuning.pitch_holds) {
         s_tilt_held = false;  // the mouse not tilting: the game levels the camera out
     }
+
     write_vec(orbit, o);
     write_vec(smooth, m);
     write_vec(state + KBM_FOLLOW_EYE, kbm::plus(target, e));
+
     if (s_tilt_held) {
         hold_tilt(state);
     }
@@ -459,6 +534,7 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
     // The cursor: captured in play, free everywhere else, and (the port does it too) while the
     // window is not focused or the overlay is open.
     const int want = s_capture && play && in->focused != 0 && in->overlay == 0 ? 1 : 0;
+
     if (want != s_asked_capture) {
         s_mod->capture_mouse(want != 0);
         s_asked_capture = want;
@@ -466,13 +542,16 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
 
     // The actions held this tick, less those held since before the game changed where it is.
     kbm::ActionSet held = 0;
+
     for (int a = 0; a < kbm::kActionCount; ++a) {
         if (active(t, static_cast<Action>(a))) {
             held |= kbm::ActionSet{1} << a;
         }
     }
+
     const kbm::Context before = s_latch.last;
     held = s_latch.filter(t.where, held);
+
     if (before != t.where) {
         s_pulses.clear();
         s_stepper.reset();
@@ -481,42 +560,52 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
 
     // The map is focused: its handler (the widget's update or draw) is DrawMapScreen.
     bool map = false;
+
     if (t.where == Context::Menu) {
         const gaddr page = menu_page();
         const gaddr focused = page != 0 ? read<std::uint32_t>(page + KBM_PAGE_FOCUS) : 0;
         map = plausible(focused)
-              && (read<std::uint32_t>(focused) == s_disc->map_screen || read<std::uint32_t>(focused + 4u) == s_disc->map_screen);
+              && (read<std::uint32_t>(focused) == s_disc->map_screen
+                  || read<std::uint32_t>(focused + 4u) == s_disc->map_screen);
     }
 
     kbm::Virtual v;
     // A click on a menu item not yet focused waits for the focus; then it confirms.
     const bool click = t.pointer && (held & kbm::bit(Action::MenuConfirm)) != 0
                        && pressed_now(t, Action::MenuConfirm);
+
     if (!play) {
         if (!menu_mouse(t, click)) {
             held &= ~kbm::bit(Action::MenuConfirm);
             s_click_wait = 4;
-            s_click_button = kbm::buttons_for(t.where, kbm::bit(Action::MenuConfirm), dialog_kind, map);
+            s_click_button =
+                kbm::buttons_for(t.where, kbm::bit(Action::MenuConfirm), dialog_kind, map);
         }
     }
+
     v.held = kbm::buttons_for(t.where, held, dialog_kind, map);
+
     if (s_click_wait > 0 && --s_click_wait == 0) {
         s_pulses.push(s_click_button);
     }
 
     // The menus' directions: the d-pad, a held key repeating; a wheel notch is one step.
     if (!play) {
-        const Action dirs[4] = {Action::MenuUp, Action::MenuDown, Action::MenuLeft, Action::MenuRight};
+        const Action dirs[4] =
+            {Action::MenuUp, Action::MenuDown, Action::MenuLeft, Action::MenuRight};
         const std::uint16_t pads[4] = {kbm::kUp, kbm::kDown, kbm::kLeft, kbm::kRight};
+
         for (int i = 0; i < 4; ++i) {
             const bool on = (held & kbm::bit(dirs[i])) != 0 && held_not_wheel(t, dirs[i]);
             const bool notch = (held & kbm::bit(dirs[i])) != 0 && !on && wheel_notch(t, dirs[i]);
+
             if (notch) {
                 s_pulses.push(pads[i]);
             } else if (s_repeat[static_cast<std::size_t>(i)].step(on)) {
                 v.held = static_cast<std::uint16_t>(v.held | pads[i]);
             }
         }
+
         v.held = static_cast<std::uint16_t>(v.held | s_pulses.step());
     } else {
         s_pulses.clear();
@@ -524,24 +613,37 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
 
     // The Quick Select: Triangle held while its bind is, the mouse pointing the left stick at a slot.
     const bool ring = play && (held & kbm::bit(Action::QuickSelect)) != 0;
+
     if (ring && !s_ring_open) {
         s_ring.reset();
     }
+
     s_ring_open = ring;
-    const auto key = [&](Action a) { return (held & kbm::bit(a)) != 0; };
+    const auto key = [&](Action a) {
+        return (held & kbm::bit(a)) != 0;
+    };
+
     if (ring) {
         v.held = static_cast<std::uint16_t>(v.held | kbm::kTriangle);
+
         if (t.play) {
             s_ring.add(in->mouse_dx, in->mouse_dy, s_ring_dead_zone);
         }
+
         const auto [x, y] = s_ring.stick(s_ring_dead_zone);
         v.left_x = x;
         v.left_y = y;
         s_keys = kbm::KeyStick{};
     } else {
         // The movement keys are the left stick everywhere: in a menu the game reads it as the d-pad.
-        s_keys.step(key(Action::MoveForward), key(Action::MoveBack), key(Action::MoveLeft), key(Action::MoveRight),
-                    key(Action::Walk), s_move);
+        s_keys.step(
+            key(Action::MoveForward),
+            key(Action::MoveBack),
+            key(Action::MoveLeft),
+            key(Action::MoveRight),
+            key(Action::Walk),
+            s_move
+        );
         v.left_x = s_keys.x;
         v.left_y = s_keys.y;
     }
@@ -553,6 +655,7 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
         const gaddr camera = current_camera(&id);
         const bool follow =
             id == 0 || (s_follow_tick != 0xFFFFFFFFu && s_tick - s_follow_tick <= 2u);
+
         if (camera != 0 && id == KBM_CAMERA_FIRST_PERSON) {
             first_person_look(camera, in->mouse_dx, in->mouse_dy);
             s_look.reset();
@@ -566,6 +669,7 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
             v.right_x = s_look.x;
             v.right_y = s_look.y;
         }
+
         if (s_reset_ticks > 0 && in->mouse_dx != 0.0f) {
             s_reset_ticks = 0;  // the player turns it: the swing stops
         }
@@ -573,6 +677,7 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
         s_look.x = s_look.y = 0.0f;
         s_tilt_held = false;
     }
+
     if (play && pressed_now(t, Action::CameraReset)) {
         s_look.reset();
         s_tilt_held = false;  // the swing levels it
@@ -588,7 +693,9 @@ void on_pad(int port, std::uint8_t* report, int size) {
     if (port != 0 || size < 6) {
         return;
     }
+
     const openrac_input* in = s_mod->api().input();
+
     if (in->tick != s_tick) {
         s_tick = in->tick;
         const std::uint16_t pad_held = static_cast<std::uint16_t>(~(report[0] | (report[1] << 8)));
@@ -596,6 +703,7 @@ void on_pad(int port, std::uint8_t* report, int size) {
         const bool pad_look = std::abs(report[2] - 0x80) > 38 || std::abs(report[3] - 0x80) > 38;
         step(in, pad_held, pad_look);
     }
+
     kbm::merge(s_pad, report, size);
 }
 
@@ -606,17 +714,20 @@ template <class Original>
 void camera_overrides(Original original, gaddr camera) {
     original(camera);
     int kind = 0;
+
     if (context_now(&kind) != Context::Play) {
         s_reset_ticks = 0;
         s_tilt_held = false;
         s_follow_dx = s_follow_dy = 0.0f;
         return;
     }
+
     if (s_reset_ticks <= 0) {
         s_reset_ticks = 0;
         follow_look(camera);
         return;
     }
+
     s_follow_tick = s_tick;
     s_follow_dx = s_follow_dy = 0.0f;
     --s_reset_ticks;
@@ -639,25 +750,34 @@ void load(openrac::Mod& mod) {
     if (mod.game() != "rac1") {
         throw openrac::Error("this mod is for Ratchet & Clank");
     }
+
     if (!mod.has_input()) {
         throw openrac::Error("needs OpenRAC with mod interface 1.3 (the keyboard and mouse)");
     }
+
     s_mod = &mod;
     s_disc = nullptr;
+
     for (const kbm_disc& d : k_kbm_discs) {
         if (mod.version() == d.version) {
             s_disc = &d;
         }
     }
+
     if (s_disc == nullptr) {
         throw openrac::Error("no addresses for the " + std::string(mod.version()) + " disc");
     }
+
     s_binds = kbm::read_bindings([&](const char* key) { return mod.setting<std::string>(key); });
+
     for (const kbm::Conflict& c : kbm::conflicts(s_binds)) {
-        mod.warn(std::string(openrac_bind_to_name(c.bind)) + " is bound to both "
-                 + kbm::kActions[static_cast<std::size_t>(c.a)].key + " and "
-                 + kbm::kActions[static_cast<std::size_t>(c.b)].key + ": it does both");
+        mod.warn(
+            std::string(openrac_bind_to_name(c.bind)) + " is bound to both "
+            + kbm::kActions[static_cast<std::size_t>(c.a)].key + " and "
+            + kbm::kActions[static_cast<std::size_t>(c.b)].key + ": it does both"
+        );
     }
+
     s_move.walk = static_cast<float>(mod.setting<double>("walk_speed"));
     s_move.rise_ticks = static_cast<float>(mod.setting<double>("stick_ramp_ms")) * 60.0f / 1000.0f;
     s_look_tuning.sensitivity = static_cast<float>(mod.setting<double>("mouse_sensitivity"));

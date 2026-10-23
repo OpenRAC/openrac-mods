@@ -67,7 +67,10 @@ inline constexpr int kActionCount = static_cast<int>(Action::Count);
 // dialog, a cutscene or movie; the mouse's while the cursor is over the game's picture). What a
 // bind presses depends on where the game is (Context, buttons_for). Two actions of the same group
 // may not share an input; of different groups they may.
-enum class Group : int { Play, Menu };
+enum class Group : int {
+    Play,
+    Menu
+};
 
 struct ActionInfo {
     const char* key;       // the setting's key in openrac-mod.json
@@ -123,28 +126,37 @@ inline bool parse_binds(std::string_view text, Binds& out) {
     out = {};
     int count = 0;
     std::size_t i = 0;
+
     while (i < text.size()) {
         if (text[i] == ',' || text[i] == ' ') {
             ++i;
             continue;
         }
+
         std::size_t end = i;
+
         while (end < text.size() && text[end] != ',' && text[end] != ' ') {
             ++end;
         }
+
         const int bind = openrac_bind_from_name_n(text.data() + i, end - i);
-        if (bind == OPENRAC_BIND_NONE || count == kMaxBinds || std::find(out.begin(), out.end(), bind) != out.end()) {
+
+        if (bind == OPENRAC_BIND_NONE || count == kMaxBinds
+            || std::find(out.begin(), out.end(), bind) != out.end()) {
             out = {};
             return false;
         }
+
         out[static_cast<std::size_t>(count++)] = bind;
         i = end;
     }
+
     return true;
 }
 
 struct Bindings {
     std::array<Binds, kActionCount> binds{};
+
     const Binds& of(Action a) const { return binds[static_cast<std::size_t>(a)]; }
 };
 
@@ -152,12 +164,15 @@ struct Bindings {
 template <class Text>
 Bindings read_bindings(Text&& text) {
     Bindings b;
+
     for (int a = 0; a < kActionCount; ++a) {
         const ActionInfo& info = kActions[static_cast<std::size_t>(a)];
+
         if (!parse_binds(text(info.key), b.binds[static_cast<std::size_t>(a)])) {
             parse_binds(info.fallback, b.binds[static_cast<std::size_t>(a)]);
         }
     }
+
     return b;
 }
 
@@ -170,11 +185,14 @@ struct Conflict {
 // Inputs bound to two actions of the same group: each pair once, a before b.
 inline std::vector<Conflict> conflicts(const Bindings& b) {
     std::vector<Conflict> out;
+
     for (int x = 0; x < kActionCount; ++x) {
         for (int y = x + 1; y < kActionCount; ++y) {
-            if (kActions[static_cast<std::size_t>(x)].group != kActions[static_cast<std::size_t>(y)].group) {
+            if (kActions[static_cast<std::size_t>(x)].group
+                != kActions[static_cast<std::size_t>(y)].group) {
                 continue;
             }
+
             for (int bx : b.binds[static_cast<std::size_t>(x)]) {
                 for (int by : b.binds[static_cast<std::size_t>(y)]) {
                     if (bx != 0 && bx == by) {
@@ -184,6 +202,7 @@ inline std::vector<Conflict> conflicts(const Bindings& b) {
             }
         }
     }
+
     return out;
 }
 
@@ -211,14 +230,17 @@ struct KeyStick {
         float tx = (right ? 1.0f : 0.0f) - (left ? 1.0f : 0.0f);
         float ty = (back ? 1.0f : 0.0f) - (forward ? 1.0f : 0.0f);
         const float length = std::sqrt(tx * tx + ty * ty);
+
         if (length > 1.0f) {
             tx /= length;
             ty /= length;
         }
+
         if (walk) {
             tx *= t.walk;
             ty *= t.walk;
         }
+
         const float rise = t.rise_ticks <= 0.0f ? 2.0f : 1.0f / t.rise_ticks;
         x = approach(x, tx, rise);
         y = approach(y, ty, rise);
@@ -228,9 +250,11 @@ struct KeyStick {
         // Toward the centre (a key let go, or the other way pressed): twice as fast.
         const bool slowing = std::fabs(target) < std::fabs(now) || target * now < 0.0f;
         const float step = slowing ? rise * 2.0f : rise;
+
         if (now < target) {
             return std::min(now + step, target);
         }
+
         return std::max(now - step, target);
     }
 };
@@ -265,6 +289,7 @@ struct MouseLook {
         if (t.acceleration <= 0.0f) {
             return 1.0f;
         }
+
         return 1.0f + t.acceleration * std::min(speed / kPixelsForFullTurn, 2.0f);
     }
 
@@ -275,17 +300,22 @@ struct MouseLook {
         last_dx = dx;
         const float speed = std::sqrt(smooth_dx * smooth_dx + dy * dy);
         x = clamp1(smooth_dx * sens * gain(speed, t) / kPixelsForFullTurn);
+
         if (first_person) {
             y = clamp1(dy * ydir * sens * gain(speed, t) / kPixelsForFullTurn);
             return;
         }
+
         tilt = clamp1(tilt + dy * ydir * sens / kPixelsForFullTilt);
+
         if (!t.pitch_holds && dy == 0.0f) {
             tilt *= 0.9f;
+
             if (std::fabs(tilt) < 0.01f) {
                 tilt = 0.0f;
             }
         }
+
         y = tilt;
     }
 
@@ -310,21 +340,27 @@ struct Vec3 {
 inline float dot(Vec3 a, Vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
+
 inline Vec3 cross(Vec3 a, Vec3 b) {
     return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
+
 inline Vec3 scaled(Vec3 a, float k) {
     return {a.x * k, a.y * k, a.z * k};
 }
+
 inline Vec3 plus(Vec3 a, Vec3 b) {
     return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
+
 inline Vec3 minus(Vec3 a, Vec3 b) {
     return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
+
 inline float length(Vec3 a) {
     return std::sqrt(dot(a, a));
 }
+
 inline float clamp(float v, float lo, float hi) {
     return std::max(lo, std::min(hi, v));
 }
@@ -332,11 +368,14 @@ inline float clamp(float v, float lo, float hi) {
 // `v` at unit length; `fallback` for a vector too short to say a direction (or not a number).
 inline Vec3 unit_or(Vec3 v, Vec3 fallback) {
     const float n = length(v);
+
     if (!(n > 1e-6f) || !std::isfinite(n)) {
         return fallback;
     }
+
     return scaled(v, 1.0f / n);
 }
+
 inline constexpr Vec3 kWorldUp{0.0f, 0.0f, 1.0f};
 
 // `v` turned by `angle` about the unit axis `axis`, right-handed, as the game turns its vectors.
@@ -350,9 +389,11 @@ inline Vec3 rotate(Vec3 v, Vec3 axis, float angle) {
 // How far `v` points above level (radians, below level < 0), against the unit `up`.
 inline float elevation(Vec3 v, Vec3 up) {
     const float n = length(v);
+
     if (!(n > 1e-6f)) {
         return 0.0f;
     }
+
     return std::asin(std::max(-1.0f, std::min(1.0f, dot(v, up) / n)));
 }
 
@@ -362,9 +403,11 @@ inline Vec3 with_elevation(Vec3 v, Vec3 up, float e) {
     const float n = length(v);
     const Vec3 level = minus(v, scaled(up, dot(v, up)));
     const float h = length(level);
+
     if (!(n > 1e-6f) || !(h > 1e-6f * n)) {
         return v;
     }
+
     return plus(scaled(level, n * std::cos(e) / h), scaled(up, n * std::sin(e)));
 }
 
@@ -379,7 +422,9 @@ struct DirectLook {
         const float speed = std::sqrt(dx * dx + dy * dy);
         return std::max(t.sensitivity, 0.0f) * MouseLook::gain(speed, t) * kRadiansPerPixel;
     }
+
     static float yaw(float dx, float dy, const LookTuning& t) { return -dx * scale(dx, dy, t); }
+
     static float pitch(float dx, float dy, const LookTuning& t) {
         return (t.invert_y ? -dy : dy) * scale(dx, dy, t);
     }
@@ -389,29 +434,34 @@ struct DirectLook {
 // stick sets: the stick's y (past a dead zone of 0.3, then scaled back to 0..1) is a target w in
 // -1..1, eased, and the eye is turned toward an elevation whose atan(sin) is w times 40 degrees
 // (FollowCamera_ReadStickInput and Cam_SteerHeadingFromStick). An eye above Ratchet looks down.
-inline constexpr float kFollowTiltRange = 0.69813168f;    // 40 degrees, the target at w = 1
+inline constexpr float kFollowTiltRange = 0.69813168f;  // 40 degrees, the target at w = 1
 inline constexpr float kFollowDeadZone = 0.3f;
 inline constexpr float kFollowDeadZoneScale = 1.4285715f;  // 1 / 0.7
+
 // The eye's elevation at w = +-1: asin(tan(40 degrees)), about 57 degrees.
 inline float follow_max_elevation() {
     return std::asin(std::tan(kFollowTiltRange));
 }
+
 // The game's target for an eye at elevation `e` (radians): the w that holds it there.
 inline float follow_target_of(float e) {
     const float w = std::atan(std::sin(e)) / kFollowTiltRange;
     return std::max(-1.0f, std::min(1.0f, w));
 }
+
 // The stick's y the game reads as the target w, whichever way its own vertical invert option is
 // set (`game_inverts`: the option's word nonzero, which makes the game read the stick's y negated).
 // Never 0: a stick at rest makes the game use its own resting height instead.
 inline float follow_stick_for(float w, bool game_inverts) {
     w = std::max(-1.0f, std::min(1.0f, w));
     float in = kFollowDeadZone;  // just at the dead zone's edge: w = 0
+
     if (w > 0.0f) {
         in = w / kFollowDeadZoneScale + kFollowDeadZone;
     } else if (w < 0.0f) {
         in = w / kFollowDeadZoneScale - kFollowDeadZone;
     }
+
     return game_inverts ? -in : in;
 }
 
@@ -437,6 +487,7 @@ struct RingPointer {
         y += dy;
         const float limit = 2.0f * std::max(dead_zone, 1.0f);
         const float length = std::sqrt(x * x + y * y);
+
         if (length > limit) {
             x *= limit / length;
             y *= limit / length;
@@ -446,9 +497,11 @@ struct RingPointer {
     // The stick (x right, y down), unit length or (0, 0).
     std::pair<float, float> stick(float dead_zone) const {
         const float length = std::sqrt(x * x + y * y);
+
         if (length <= dead_zone || length == 0.0f) {
             return {0.0f, 0.0f};
         }
+
         return {x / length, y / length};
     }
 };
@@ -460,11 +513,14 @@ inline int ring_slot(float x, float y) {
     if (x == 0.0f && y == 0.0f) {
         return -1;
     }
+
     const float pi = 3.14159265f;
     float a = std::atan2(y, x) + pi / 2.0f;  // 0 at the top, clockwise
+
     while (a < 0.0f) {
         a += 2.0f * pi;
     }
+
     return static_cast<int>(std::floor(a / (pi / 4.0f) + 0.5f)) % 8;
 }
 
@@ -502,6 +558,7 @@ inline std::uint8_t stick_byte(float v) {
     if (v == 0.0f) {
         return 0x80;
     }
+
     const float magnitude = std::min(std::fabs(v), 1.0f);
     const float distance = 0x30 + 1 + magnitude * (0x4C - 1);
     const float b = 0x7F + (v > 0.0f ? distance : -distance);
@@ -512,9 +569,11 @@ inline std::uint8_t stick_byte(float v) {
 inline float game_axis(std::uint8_t b) {
     const int d = static_cast<int>(b) - 0x7F;
     const int m = d < 0 ? -d : d;
+
     if (m < 0x30) {
         return 0.0f;
     }
+
     const float v = std::min(1.0f, static_cast<float>(m - 0x30) / 0x4C);
     return d < 0 ? -v : v;
 }
@@ -533,16 +592,19 @@ inline void merge(const Virtual& v, std::uint8_t* report, int size) {
     if (size < 6) {
         return;
     }
+
     std::uint16_t buttons = static_cast<std::uint16_t>(report[0] | (report[1] << 8));
     buttons = static_cast<std::uint16_t>(buttons & ~v.held);
     report[0] = static_cast<std::uint8_t>(buttons);
     report[1] = static_cast<std::uint8_t>(buttons >> 8);
     const float axes[4] = {v.right_x, v.right_y, v.left_x, v.left_y};
+
     for (int i = 0; i < 4; ++i) {
         if (axes[i] != 0.0f) {
             report[2 + i] = stick_byte(axes[i]);
         }
     }
+
     for (int i = 0; i < 12 && 6 + i < size; ++i) {
         if ((v.held >> kPressureBits[static_cast<std::size_t>(i)]) & 1u) {
             report[6 + i] = 0xFF;
@@ -555,22 +617,28 @@ inline void merge(const Virtual& v, std::uint8_t* report, int size) {
 // from before the first slot (or after the last, going back).
 inline int cycle_item(const std::array<std::int32_t, 8>& slots, std::int32_t current, int step) {
     int at = -1;
+
     for (int i = 0; i < 8; ++i) {
-        if (slots[static_cast<std::size_t>(i)] != 0 && slots[static_cast<std::size_t>(i)] == current) {
+        if (slots[static_cast<std::size_t>(i)] != 0
+            && slots[static_cast<std::size_t>(i)] == current) {
             at = i;
             break;
         }
     }
+
     if (at < 0) {
         at = step > 0 ? -1 : 8;
     }
+
     for (int n = 1; n <= 8; ++n) {
         const int i = ((at + step * n) % 8 + 8) % 8;
         const std::int32_t item = slots[static_cast<std::size_t>(i)];
+
         if (item != 0 && item != current) {
             return item;
         }
     }
+
     return current;
 }
 
@@ -594,6 +662,7 @@ enum class Context : int {
 // The boot program's and a level's modes (games/rac1 map_002465F8.c's dispatch).
 inline Context context_of(int loaded_level, int level_mode, int boot_mode) {
     const int mode = loaded_level >= 0 ? level_mode : boot_mode;
+
     switch (mode) {
         case 0:
             return loaded_level >= 0 ? Context::Play : Context::Title;
@@ -615,11 +684,13 @@ inline Context context_of(int loaded_level, int level_mode, int boot_mode) {
 }
 
 inline bool skips(Context c) {
-    return c == Context::Cutscene || c == Context::Movie || c == Context::Flight || c == Context::Slideshow;
+    return c == Context::Cutscene || c == Context::Movie || c == Context::Flight
+           || c == Context::Slideshow;
 }
 
 // A set of actions, one bit each.
 using ActionSet = std::uint64_t;
+
 inline constexpr ActionSet bit(Action a) {
     return ActionSet{1} << static_cast<int>(a);
 }
@@ -637,8 +708,12 @@ inline constexpr int kDialogQuitRace = 0;
 // skips. On the map (map_screen) confirm is Circle, which travels. Menus' own Circle (the quit
 // page's quit, a cycled value's step back) has a bind of its own. The directions are not here: the
 // stick and the d-pad come apart (step()).
-inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind, bool map_screen = false) {
-    const auto on = [&](Action a) { return (held & bit(a)) != 0; };
+inline std::uint16_t buttons_for(
+    Context c, ActionSet held, int dialog_kind, bool map_screen = false
+) {
+    const auto on = [&](Action a) {
+        return (held & bit(a)) != 0;
+    };
     const bool confirm = on(Action::Jump) || on(Action::MenuConfirm);
     const bool back = on(Action::MenuBack);
     const bool escape = on(Action::Pause);
@@ -648,6 +723,7 @@ inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind, boo
             b = static_cast<std::uint16_t>(b | button);
         }
     };
+
     switch (c) {
         case Context::Play:
             set(on(Action::Jump), kCross);
@@ -672,16 +748,19 @@ inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind, boo
             } else {
                 set(confirm, kCross);
             }
-            set(on(Action::MenuCircle), kCircle);  // Circle where a page reads it (quit, a value back)
+
+            set(on(Action::MenuCircle),
+                kCircle);  // Circle where a page reads it (quit, a value back)
             set(back || escape, kTriangle);
             set(on(Action::Fire), kCircle);  // the map's Circle: go to the planet
             set(on(Action::Wrench), kSquare);
-            set(on(Action::Crouch), kR1);    // next slot, next planet
+            set(on(Action::Crouch), kR1);  // next slot, next planet
             set(on(Action::FirstPerson), kL1);
-            set(on(Action::Map), kSelect);   // closes the pause menu
+            set(on(Action::Map), kSelect);  // closes the pause menu
             break;
         case Context::Dialog:
             set(confirm, kCross);
+
             if (dialog_kind == kDialogQuitRace) {
                 set(escape, kStart);  // goes on racing
                 set(back, kCircle);
@@ -689,6 +768,7 @@ inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind, boo
                 set(escape, kCross);  // goes on
                 set(back, kTriangle);
             }
+
             break;
         case Context::Cutscene:
         case Context::Movie:
@@ -699,6 +779,7 @@ inline std::uint16_t buttons_for(Context c, ActionSet held, int dialog_kind, boo
             set(confirm || back || escape, static_cast<std::uint16_t>(kStart | kCross));
             break;
     }
+
     return b;
 }
 
@@ -718,6 +799,7 @@ struct Latch {
             last = now;
             first = false;
         }
+
         before = held;
         blocked &= held;  // let go: free again
         return held & ~blocked;
@@ -737,21 +819,27 @@ struct Pulser {
             queue[static_cast<std::size_t>(count++)] = buttons;
         }
     }
+
     bool idle() const { return count == 0 && !resting; }
+
     void clear() {
         count = 0;
         resting = false;
     }
+
     // This tick's buttons.
     std::uint16_t step() {
         if (resting || count == 0) {
             resting = false;
             return 0;
         }
+
         const std::uint16_t b = queue[0];
+
         for (int i = 1; i < count; ++i) {
             queue[static_cast<std::size_t>(i - 1)] = queue[static_cast<std::size_t>(i)];
         }
+
         --count;
         resting = true;
         return b;
@@ -762,11 +850,13 @@ struct Pulser {
 // `delay` ticks held the button is let go for one tick every `every` ticks.
 struct Repeat {
     int ticks = 0;
+
     bool step(bool held, int delay = 24, int every = 6) {
         if (!held) {
             ticks = 0;
             return false;
         }
+
         ++ticks;
         return !(ticks > delay && (ticks - delay) % every == 0);
     }
@@ -776,32 +866,40 @@ struct Repeat {
 // way it mostly goes is a step of the d-pad that way.
 struct Stepper {
     float x = 0.0f, y = 0.0f;
+
     std::uint16_t step(float dx, float dy, float distance = 48.0f) {
         x += dx;
         y += dy;
+
         if (std::fabs(x) >= std::fabs(y)) {
             y *= 0.5f;  // across the way it goes: forgotten slowly
+
             if (x >= distance) {
                 x -= distance;
                 return kRight;
             }
+
             if (x <= -distance) {
                 x += distance;
                 return kLeft;
             }
         } else {
             x *= 0.5f;
+
             if (y >= distance) {
                 y -= distance;
                 return kDown;
             }
+
             if (y <= -distance) {
                 y += distance;
                 return kUp;
             }
         }
+
         return 0;
     }
+
     void reset() { x = y = 0.0f; }
 };
 
@@ -815,8 +913,10 @@ inline constexpr float kScreenHeight = 416.0f;
 // the game's screen pixels).
 struct Rect {
     std::int32_t x = 0, y = 0, w = 0, h = 0;
+
     bool contains(float px, float py, float margin = 2.0f) const {
-        return w > 0 && h > 0 && px >= x - margin && px < x + w + margin && py >= y - margin && py < y + h + margin;
+        return w > 0 && h > 0 && px >= x - margin && px < x + w + margin && py >= y - margin
+               && py < y + h + margin;
     }
 };
 
@@ -827,6 +927,7 @@ inline int hit_widget(const Rect* rects, int count, float px, float py) {
             return i;
         }
     }
+
     return -1;
 }
 
@@ -838,7 +939,9 @@ inline int list_row(const Rect& r, int count, std::uint32_t flags, float py) {
     if (count <= 0 || r.h <= 0 || py < r.y || py >= r.y + r.h) {
         return -1;
     }
+
     float row;
+
     if ((flags & 0x10u) != 0) {
         const float font = (flags & 4u) != 0 ? 14.0f : (flags & 8u) != 0 ? 10.0f : 12.0f;
         row = std::floor((py - static_cast<float>(r.y)) / (font + 3.0f));
@@ -846,6 +949,7 @@ inline int list_row(const Rect& r, int count, std::uint32_t flags, float py) {
         const float spacing = static_cast<float>(r.h) / static_cast<float>(count + 1);
         row = std::floor((py - static_cast<float>(r.y)) / spacing - 0.5f);
     }
+
     return static_cast<int>(std::max(0.0f, std::min(row, static_cast<float>(count - 1))));
 }
 

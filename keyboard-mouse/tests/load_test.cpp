@@ -22,28 +22,32 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+
 static void* open_library(const char* path) {
     return reinterpret_cast<void*>(LoadLibraryA(path));
 }
+
 static void* symbol(void* lib, const char* name) {
     return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(lib), name));
 }
 #else
 #include <dlfcn.h>
+
 static void* open_library(const char* path) {
     return dlopen(path, RTLD_NOW | RTLD_LOCAL);
 }
+
 static void* symbol(void* lib, const char* name) {
     return dlsym(lib, name);
 }
 #endif
 
-#define CHECK(c)                                                              \
-    do {                                                                      \
-        if (!(c)) {                                                           \
-            std::fprintf(stderr, "%s:%d: CHECK(%s)\n", __FILE__, __LINE__, #c); \
-            std::exit(1);                                                     \
-        }                                                                     \
+#define CHECK(c)                                                                                   \
+    do {                                                                                           \
+        if (!(c)) {                                                                                \
+            std::fprintf(stderr, "%s:%d: CHECK(%s)\n", __FILE__, __LINE__, #c);                    \
+            std::exit(1);                                                                          \
+        }                                                                                          \
     } while (0)
 
 namespace {
@@ -77,12 +81,15 @@ T& at(std::uint32_t address) {
 void game_camera(std::uint32_t) {
     ++g_camera_calls;
 }
+
 float game_cos(float a) {
     return std::cos(a);
 }
+
 float game_sin(float a) {
     return std::sin(a);
 }
+
 void game_look_along(openrac_gaddr direction, float, float) {
     ++g_look_calls;
     std::memcpy(&g_look_x, g_memory.data() + direction, 4);
@@ -91,22 +98,39 @@ void game_look_along(openrac_gaddr direction, float, float) {
 void host_log(openrac_mod*, int level, const char* text) {
     std::printf("[%d] keyboard-mouse: %s\n", level, text);
 }
+
 void host_fail(openrac_mod*, const char* reason) {
     g_failed = reason;
 }
+
 int setting_bool(openrac_mod*, const char* key) {
     return std::strcmp(key, "capture_cursor") == 0 || std::strcmp(key, "menu_mouse") == 0 ? 1 : 0;
 }
+
 std::int64_t setting_int(openrac_mod*, const char*) {
     return 0;
 }
+
 double setting_float(openrac_mod*, const char* key) {
-    if (std::strcmp(key, "mouse_sensitivity") == 0) return 1.0;
-    if (std::strcmp(key, "walk_speed") == 0) return 0.5;
-    if (std::strcmp(key, "stick_ramp_ms") == 0) return 0.0;  // at once, for the test
-    if (std::strcmp(key, "quick_select_dead_zone") == 0) return 30.0;
+    if (std::strcmp(key, "mouse_sensitivity") == 0) {
+        return 1.0;
+    }
+
+    if (std::strcmp(key, "walk_speed") == 0) {
+        return 0.5;
+    }
+
+    if (std::strcmp(key, "stick_ramp_ms") == 0) {
+        return 0.0;  // at once, for the test
+    }
+
+    if (std::strcmp(key, "quick_select_dead_zone") == 0) {
+        return 30.0;
+    }
+
     return 0.0;
 }
+
 // The bindings as the manifest's defaults, as the port hands a setting the player left alone.
 const char* setting_string(openrac_mod*, const char* key) {
     for (const kbm::ActionInfo& a : kbm::kActions) {
@@ -114,59 +138,87 @@ const char* setting_string(openrac_mod*, const char* key) {
             return a.fallback;
         }
     }
+
     return std::strcmp(key, "camera_tilt") == 0 ? "hold" : "";
 }
-int host_hook(openrac_mod*, const char* name, const char* signature, void* replacement, void** original) {
-    CHECK(std::strcmp(name, "rac1.camera.follow.apply_overrides") == 0
-          || std::strcmp(name, "FollowCamera_ApplyOverrides") == 0);
+
+int host_hook(
+    openrac_mod*, const char* name, const char* signature, void* replacement, void** original
+) {
+    CHECK(
+        std::strcmp(name, "rac1.camera.follow.apply_overrides") == 0
+        || std::strcmp(name, "FollowCamera_ApplyOverrides") == 0
+    );
     CHECK(std::strcmp(signature, "void(u32)") == 0);
     g_camera_hook = replacement;
     *original = reinterpret_cast<void*>(&game_camera);
     return OPENRAC_HOOK_OK;
 }
+
 int host_on_frame(openrac_mod*, openrac_frame_fn, void*) {
     return 0;
 }
+
 int host_on_pad(openrac_mod*, openrac_pad_fn fn, void* user) {
     g_pad = fn;
     g_pad_user = user;
     return 0;
 }
+
 void* host_function(const char* name) {
     g_functions.emplace_back(name);
     const kbm_disc& d = disc();
-    if (std::strcmp(name, d.fast_cos) == 0) return reinterpret_cast<void*>(&game_cos);
-    if (std::strcmp(name, d.fast_sin) == 0) return reinterpret_cast<void*>(&game_sin);
-    if (std::strcmp(name, d.camera_look_along) == 0) return reinterpret_cast<void*>(&game_look_along);
+
+    if (std::strcmp(name, d.fast_cos) == 0) {
+        return reinterpret_cast<void*>(&game_cos);
+    }
+
+    if (std::strcmp(name, d.fast_sin) == 0) {
+        return reinterpret_cast<void*>(&game_sin);
+    }
+
+    if (std::strcmp(name, d.camera_look_along) == 0) {
+        return reinterpret_cast<void*>(&game_look_along);
+    }
+
     return nullptr;
 }
+
 void* host_function_at(openrac_gaddr) {
     return nullptr;
 }
+
 openrac_gaddr host_relocate(openrac_gaddr a) {
     return a;
 }
+
 openrac_gaddr host_relocate_level(int, openrac_gaddr a) {
     return a;
 }
+
 int host_loaded_level() {
     return g_level;
 }
+
 openrac_gaddr host_stack_push(std::uint32_t size, openrac_gaddr* saved) {
     *saved = g_sp;
     g_sp -= (size + 15u) & ~15u;
     return g_sp;
 }
+
 void host_stack_pop(openrac_gaddr saved) {
     g_sp = saved;
 }
+
 const openrac_input* host_input() {
     return &g_input;
 }
+
 int host_take_input(openrac_mod*, std::uint32_t devices) {
     g_taken |= devices;
     return 0;
 }
+
 void host_capture_mouse(openrac_mod*, int capture) {
     g_capture = capture;
 }
@@ -212,16 +264,20 @@ void tick() {
     g_input.focused = 1;
     g_input.captured = 1;
 }
+
 void hold(int key) {
     g_input.keys[key] = OPENRAC_KEY_HELD;
 }
+
 void press(int key) {
     g_input.keys[key] = OPENRAC_KEY_HELD | OPENRAC_KEY_PRESSED;
 }
 
 struct Report {
     std::uint8_t bytes[18];
+
     std::uint16_t buttons() const { return static_cast<std::uint16_t>(bytes[0] | (bytes[1] << 8)); }
+
     bool held(std::uint16_t button) const { return (buttons() & button) == 0; }
 };
 
@@ -239,11 +295,13 @@ Report read_pad(std::uint8_t right_x = 0x80) {
 kbm::Vec3 vec_at(std::uint32_t address) {
     return {at<float>(address), at<float>(address + 4u), at<float>(address + 8u)};
 }
+
 void set_vec(std::uint32_t address, kbm::Vec3 v) {
     at<float>(address) = v.x;
     at<float>(address + 4u) = v.y;
     at<float>(address + 8u) = v.z;
 }
+
 bool close_to(float a, float b, float within = 1e-4f) {
     return std::fabs(a - b) <= within;
 }
@@ -251,6 +309,7 @@ bool close_to(float a, float b, float within = 1e-4f) {
 // The camera in use (0 for none) and its id, as the game's camera block has them.
 constexpr std::uint32_t kCamera = 0x00180000u;
 constexpr std::uint32_t kCameraState = 0x00181000u;
+
 void use_camera(std::uint32_t camera, int id) {
     at<std::uint32_t>(disc().cameras + KBM_CAMERAS_CURRENT) = camera;
     at<std::int16_t>(kCamera + KBM_CAMERA_ID) = static_cast<std::int16_t>(id);
@@ -264,7 +323,9 @@ void direct_camera() {
     const kbm_disc& d = disc();
     auto camera = reinterpret_cast<void (*)(std::uint32_t)>(g_camera_hook);
     const kbm::Vec3 target{10.0f, 20.0f, 5.0f};
-    const kbm::Vec3 orbit{-4.0f, 0.0f, 1.0f};  // the eye west of Ratchet and above him: it looks east
+    const kbm::Vec3 orbit{
+        -4.0f, 0.0f, 1.0f
+    };  // the eye west of Ratchet and above him: it looks east
     use_camera(kCamera, 0);
     set_vec(d.cameras + KBM_CAMERAS_UP, {0.0f, 0.0f, 1.0f});
     set_vec(kCameraState + KBM_FOLLOW_TARGET, target);
@@ -283,7 +344,8 @@ void direct_camera() {
     CHECK(r.bytes[2] == 0x80 && r.bytes[3] == 0x80);
     camera(kCamera);
     kbm::LookTuning tuning;
-    const kbm::Vec3 turned = kbm::rotate(orbit, kbm::kWorldUp, kbm::DirectLook::yaw(30.0f, 0.0f, tuning));
+    const kbm::Vec3 turned =
+        kbm::rotate(orbit, kbm::kWorldUp, kbm::DirectLook::yaw(30.0f, 0.0f, tuning));
     const kbm::Vec3 o = vec_at(kCameraState + KBM_FOLLOW_ORBIT);
     CHECK(close_to(o.x, turned.x) && close_to(o.y, turned.y) && close_to(o.z, turned.z));
     CHECK(-o.y < -0.1f);  // the view (eye to Ratchet) turned south: right
@@ -304,7 +366,10 @@ void direct_camera() {
     const float after = kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp);
     CHECK(close_to(after, before + kbm::DirectLook::pitch(0.0f, -40.0f, tuning)) && after < before);
     const float w = at<float>(kCameraState + KBM_FOLLOW_TILT);
-    CHECK(close_to(w, kbm::follow_target_of(after)) && at<float>(kCameraState + KBM_FOLLOW_TILT_RATE) == 0.0f);
+    CHECK(
+        close_to(w, kbm::follow_target_of(after))
+        && at<float>(kCameraState + KBM_FOLLOW_TILT_RATE) == 0.0f
+    );
     CHECK(close_to(at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(w, false)));
     // The game's vertical invert on: the same mouse, the same way; only the stick's y written flips.
     at<std::int32_t>(d.tilt_invert) = 1;
@@ -314,13 +379,17 @@ void direct_camera() {
     camera(kCamera);
     const float again = kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp);
     CHECK(again < after - 0.01f);
-    CHECK(close_to(at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(kbm::follow_target_of(again), true)));
+    CHECK(close_to(
+        at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(kbm::follow_target_of(again), true)
+    ));
     // At rest the tilt stays (Camera tilt: Stays): the target asked for again each tick.
     at<float>(d.pad_sticks + 4u) = 0.0f;
     tick();
     read_pad();
     camera(kCamera);
-    CHECK(close_to(at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(kbm::follow_target_of(again), true)));
+    CHECK(close_to(
+        at<float>(d.pad_sticks + 4u), kbm::follow_stick_for(kbm::follow_target_of(again), true)
+    ));
     CHECK(close_to(kbm::elevation(vec_at(kCameraState + KBM_FOLLOW_ORBIT), kbm::kWorldUp), again));
     at<std::int32_t>(d.tilt_invert) = 0;
 
@@ -332,7 +401,10 @@ void direct_camera() {
     r = read_pad(0xF0);
     CHECK(r.bytes[2] == 0xF0);
     camera(kCamera);
-    CHECK(vec_at(kCameraState + KBM_FOLLOW_ORBIT).y == still.y && at<float>(d.pad_sticks + 4u) == 0.25f);
+    CHECK(
+        vec_at(kCameraState + KBM_FOLLOW_ORBIT).y == still.y
+        && at<float>(d.pad_sticks + 4u) == 0.25f
+    );
     tick();
     read_pad();
     camera(kCamera);
@@ -363,21 +435,27 @@ void direct_camera() {
     const float tilt = at<float>(kCameraState + KBM_FIRST_PERSON_TILT);
     CHECK(close_to(tilt, kbm::DirectLook::pitch(30.0f, -30.0f, tuning)) && tilt < 0.0f);
     CHECK(close_to(kbm::elevation(look, kbm::kWorldUp), -tilt));
+
     // It stops at the game's 64 degrees.
     for (int i = 0; i < 40; ++i) {
         tick();
         g_input.mouse_dy = -100.0f;
         read_pad();
     }
+
     CHECK(close_to(at<float>(kCameraState + KBM_FIRST_PERSON_TILT), -kbm::kFirstPersonTiltLimit));
-    CHECK(close_to(kbm::elevation(vec_at(kCamera), kbm::kWorldUp), kbm::kFirstPersonTiltLimit, 1e-3f));
+    CHECK(
+        close_to(kbm::elevation(vec_at(kCamera), kbm::kWorldUp), kbm::kFirstPersonTiltLimit, 1e-3f)
+    );
 
     // Any other camera (a scene's own): the mouse as the right stick, as before.
     use_camera(kCamera, 7);
+
     for (int i = 0; i < 4; ++i) {  // the follow camera's hook has not run for a while
         tick();
         read_pad();
     }
+
     tick();
     g_input.mouse_dx = 24.0f;
     read_pad();
@@ -397,7 +475,9 @@ void run(const char* library) {
     openrac_mod_info info{};
     info.size = sizeof info;
     query(&info);
-    CHECK(std::strcmp(info.id, "keyboard-mouse") == 0 && info.api_major == 1 && info.api_minor == 3);
+    CHECK(
+        std::strcmp(info.id, "keyboard-mouse") == 0 && info.api_major == 1 && info.api_minor == 3
+    );
 
     for (const char* version : {"ntsc", "pal"}) {
         g_version = version;
@@ -410,6 +490,7 @@ void run(const char* library) {
         CHECK(g_pad != nullptr && g_camera_hook != nullptr);
         CHECK(g_functions.size() == 3 && g_functions[2] == disc().camera_look_along);
     }
+
     // Another game is refused.
     {
         openrac_api other = make_api();
@@ -473,14 +554,17 @@ void run(const char* library) {
     CHECK(r.held(kbm::kTriangle));
     CHECK(kbm::ring_slot(kbm::game_axis(r.bytes[4]), kbm::game_axis(r.bytes[5])) == 3);
     CHECK(r.bytes[2] == 0x80);  // the camera stays still while the ring is open
-    tick();  // let go: Triangle up, the game takes the slot
+    tick();                     // let go: Triangle up, the game takes the slot
     r = read_pad();
     CHECK(!r.held(kbm::kTriangle) && r.bytes[4] == 0x80);
 
     // 3: the item in the Quick Select's third slot, put in hand; the wheel goes on from it.
     for (int i = 0; i < 8; ++i) {
-        at<std::int32_t>(d.quick_select + 4u * static_cast<std::uint32_t>(i)) = i == 2 ? 0x0B : i == 5 ? 0x15 : 0;
+        at<std::int32_t>(d.quick_select + 4u * static_cast<std::uint32_t>(i)) = i == 2   ? 0x0B
+                                                                                : i == 5 ? 0x15
+                                                                                         : 0;
     }
+
     at<std::int32_t>(hero + KBM_HERO_ITEM) = 0x08;
     at<std::int32_t>(hero + KBM_HERO_PENDING) = 0;
     tick();
@@ -552,15 +636,19 @@ void run(const char* library) {
     // A held arrow repeats: let go one tick in six after 24.
     int ups = 0;
     bool was = false;
+
     for (int i = 0; i < 60; ++i) {
         tick();
         hold(82);
         r = read_pad();
+
         if (r.held(kbm::kUp) && !was) {
             ++ups;
         }
+
         was = r.held(kbm::kUp);
     }
+
     CHECK(ups == 6);  // the press, then once after each tick let go (at 30, 36, 42, 48 and 54)
     // The wheel: each notch one press, let go between.
     tick();
@@ -583,22 +671,26 @@ void run(const char* library) {
     // page's pending focus, as the d-pad asks for it); over the focused list's third row, the d-pad
     // steps the selection down to it.
     {
-        const std::uint32_t menus = d.page_menu, page = 0x00180000u, w0 = 0x00181000u, w1 = 0x00182000u,
-                            items = 0x00183000u;
+        const std::uint32_t menus = d.page_menu, page = 0x00180000u, w0 = 0x00181000u,
+                            w1 = 0x00182000u, items = 0x00183000u;
         at<std::uint32_t>(menus + 4u) = page;
         at<std::uint32_t>(page + KBM_PAGE_FOCUS) = w0;
         at<std::uint32_t>(page + KBM_PAGE_WIDGETS) = w0;
         at<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u) = w1;
         at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
-        const std::int32_t r0[4] = {100, 100, 200, 100};  // a list of three rows: 25 apart from y 125
+        const std::int32_t r0[4] =
+            {100, 100, 200, 100};  // a list of three rows: 25 apart from y 125
         const std::int32_t r1[4] = {100, 250, 200, 40};
         std::memcpy(g_memory.data() + w0 + KBM_WIDGET_RECT, r0, 16);
         std::memcpy(g_memory.data() + w1 + KBM_WIDGET_RECT, r1, 16);
         at<std::uint32_t>(w0 + KBM_LIST_ITEMS) = items;
         at<std::int32_t>(w0 + KBM_LIST_SELECTED) = 0;
+
         for (int i = 0; i < 3; ++i) {
-            at<std::int16_t>(items + KBM_LIST_ITEM_SIZE * static_cast<std::uint32_t>(i)) = static_cast<std::int16_t>(10 + i);
+            at<std::int16_t>(items + KBM_LIST_ITEM_SIZE * static_cast<std::uint32_t>(i)) =
+                static_cast<std::int16_t>(10 + i);
         }
+
         const auto point = [](float gx, float gy) {
             tick();
             g_input.captured = 0;
@@ -635,11 +727,13 @@ void run(const char* library) {
         at<std::uint32_t>(page + KBM_PAGE_FOCUS) = w1;
         at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
         bool crossed = false;
+
         for (int i = 0; i < 6 && !crossed; ++i) {
             tick();
             g_input.captured = 0;
             crossed = read_pad().held(kbm::kCross);
         }
+
         CHECK(crossed);
         // The map focused (its handler DrawMapScreen): Enter and a click travel (Circle), Space
         // turns the page (Cross), Escape goes back; E is Circle on any page.
@@ -682,6 +776,7 @@ void run(const char* library) {
     // A cutscene (mode 2), a movie (1), a slideshow (7): Space, Enter, Escape and a click are Start.
     for (int mode : {2, 1, 7}) {
         at<std::int32_t>(d.level_mode) = mode;
+
         for (int key : {44, 40, 41}) {
             tick();
             r = read_pad();
@@ -691,6 +786,7 @@ void run(const char* library) {
             CHECK(r.held(kbm::kStart) && !r.held(kbm::kCross));
         }
     }
+
     // The ship (mode 6): Start and Cross.
     at<std::int32_t>(d.level_mode) = 6;
     tick();
@@ -753,9 +849,11 @@ void run(const char* library) {
     g_camera_calls = g_look_calls = 0;
     camera(0x1000);
     CHECK(g_camera_calls == 1 && g_look_calls == 1 && g_look_x == 1.0f);
+
     for (int i = 0; i < 40; ++i) {
         camera(0x1000);
     }
+
     CHECK(g_camera_calls == 41 && g_look_calls == 30);
     CHECK(g_sp == 0x001F0000u);
 }
@@ -767,6 +865,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "usage: load_test <library>\n");
         return 2;
     }
+
     run(argv[1]);
     std::puts("keyboard-mouse load: all passed");
     return 0;

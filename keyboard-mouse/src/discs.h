@@ -17,8 +17,8 @@ typedef struct kbm_disc {
     uint32_t quick_select; /* the Quick Select's eight slots: item ids, 0 for an empty one */
     uint32_t boot_mode;    /* the boot program's game mode: the title (0), the main menu (3), ... */
     /* The executable's, through relocate_data. */
-    uint32_t page_menu; /* the menus' state: +4 the page shown (0 while one changes) */
-    uint32_t dialog;    /* the freeze dialog (mode 4): +0 its kind */
+    uint32_t page_menu;  /* the menus' state: +4 the page shown (0 while one changes) */
+    uint32_t dialog;     /* the freeze dialog (mode 4): +0 its kind */
     uint32_t map_screen; /* DrawMapScreen: the map widget's handler, which reads Circle to travel */
     /* Level 0's program's, through relocate_level_data(0, ...). */
     uint32_t level_mode; /* the game mode: 0 in play, 3 the pause menu, 5 a vendor, ... */
@@ -77,10 +77,34 @@ typedef struct kbm_disc {
 #define KBM_HERO_PENDING 0x20B8u /* i32: the item to take next (what the Quick Select writes) */
 
 static const kbm_disc k_kbm_discs[] = {
-    {"pal", 0x0013F450u, 0x00141FA0u, 0x0015F6E8u, 0x001D5F70u, 0x00193400u, 0x0021CE60u, 0x0015F6A8u,
-     0x0013CB40u, 0x0015EEDCu, 0x00166D80u, "func_001F9F90", "func_001F9FA8", "func_L00_002E9DC8"},
-    {"ntsc", 0x0013F350u, 0x00141EA0u, 0x0015F604u, 0x001D5BF0u, 0x00193300u, 0x0021BE60u, 0x0015F5C4u,
-     0x0013CA40u, 0x0015EDDCu, 0x00166C80u, "FUN_001f9dc8", "FUN_001f9de0", "FUN_L00_002e8918"},
+    {"pal",
+     0x0013F450u,
+     0x00141FA0u,
+     0x0015F6E8u,
+     0x001D5F70u,
+     0x00193400u,
+     0x0021CE60u,
+     0x0015F6A8u,
+     0x0013CB40u,
+     0x0015EEDCu,
+     0x00166D80u,
+     "func_001F9F90",
+     "func_001F9FA8",
+     "func_L00_002E9DC8"},
+    {"ntsc",
+     0x0013F350u,
+     0x00141EA0u,
+     0x0015F604u,
+     0x001D5BF0u,
+     0x00193300u,
+     0x0021BE60u,
+     0x0015F5C4u,
+     0x0013CA40u,
+     0x0015EDDCu,
+     0x00166C80u,
+     "FUN_001f9dc8",
+     "FUN_001f9de0",
+     "FUN_L00_002e8918"},
 };
 
 #endif /* KBM_DISCS_H */
