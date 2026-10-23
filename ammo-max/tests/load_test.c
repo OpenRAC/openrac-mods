@@ -6,6 +6,9 @@
  * and only for ammo the game lets the count rise for.
  *
  * Run with the library's path: load_test <ammo_max.dylib|.so|.dll>.
+ *
+ * Expected values are worked out by hand from the rule in ammo_max.h, on a memory laid out at the
+ * discs' addresses in the same header.
  */
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * The count the vendor's buy dialog starts at (ammo_max.h): the rounds the weapon has room for,
  * or as many as the bolts pay for, whichever is fewer; none when no round can be bought.
+ *
+ * Expected counts are worked out by hand from that rule.
  */
 #include <stdio.h>
 #include <stdlib.h>
