@@ -11,23 +11,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "openrac/openrac_mod.h"
-
 #include "ammo_max.h"
+#include "openrac/openrac_mod.h"
 
 #if defined(_WIN32)
 #include <windows.h>
+
 static void* open_library(const char* path) {
     return (void*)LoadLibraryA(path);
 }
+
 static void* symbol(void* lib, const char* name) {
     return (void*)GetProcAddress((HMODULE)lib, name);
 }
 #else
 #include <dlfcn.h>
+
 static void* open_library(const char* path) {
     return dlopen(path, RTLD_NOW | RTLD_LOCAL);
 }
+
 static void* symbol(void* lib, const char* name) {
     return dlsym(lib, name);
 }
@@ -55,66 +58,82 @@ static void host_log(openrac_mod* mod, int level, const char* text) {
     ++s_trace_lines;
     printf("[%d] ammo-max: %s\n", level, text);
 }
+
 static void host_fail(openrac_mod* mod, const char* reason) {
     (void)mod;
     snprintf(s_failed, sizeof s_failed, "%s", reason);
 }
+
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
     return strcmp(key, "trace") == 0;
 }
+
 static int64_t setting_int(openrac_mod* mod, const char* key) {
     (void)mod, (void)key;
     return 0;
 }
+
 static double setting_float(openrac_mod* mod, const char* key) {
     (void)mod, (void)key;
     return 0.0;
 }
+
 static const char* setting_string(openrac_mod* mod, const char* key) {
     (void)mod, (void)key;
     return "";
 }
-static int host_hook(openrac_mod* mod, const char* name, const char* signature, void* replacement,
-                     void** original) {
+
+static int host_hook(
+    openrac_mod* mod, const char* name, const char* signature, void* replacement, void** original
+) {
     (void)mod, (void)name, (void)signature, (void)replacement, (void)original;
     ++s_hooks;
     return OPENRAC_HOOK_UNKNOWN;
 }
+
 static int host_on_frame(openrac_mod* mod, openrac_frame_fn fn, void* user) {
     (void)mod;
     s_tick = fn;
     s_tick_user = user;
     return OPENRAC_HOOK_OK;
 }
+
 static int host_on_pad(openrac_mod* mod, openrac_pad_fn fn, void* user) {
     (void)mod, (void)fn, (void)user;
     return OPENRAC_HOOK_OK;
 }
+
 static void* host_function(const char* name) {
     (void)name;
     return NULL;
 }
+
 static void* host_function_at(openrac_gaddr a) {
     (void)a;
     return NULL;
 }
+
 /* Level 0's globals as the level loaded has them: here 0x100 bytes on, to see they are asked for. */
 static openrac_gaddr identity(openrac_gaddr a) {
     return a;
 }
+
 static openrac_gaddr level_data(int level, openrac_gaddr a) {
     CHECK(level == 0);
     return a + 0x100u;
 }
+
 static int loaded_level(void) {
     return s_level;
 }
+
 static openrac_gaddr stack_push(uint32_t size, openrac_gaddr* saved) {
     (void)size;
     *saved = 0;
     return 0x001F0000u;
 }
+
 static void stack_pop(openrac_gaddr saved) {
     (void)saved;
 }
@@ -152,9 +171,11 @@ static openrac_api make_api(const char* game, const char* version) {
 static void put_s32(openrac_gaddr a, int32_t v) {
     memcpy(s_memory + a, &v, 4);
 }
+
 static void put_u16(openrac_gaddr a, uint16_t v) {
     memcpy(s_memory + a, &v, 2);
 }
+
 static int32_t get_s32(openrac_gaddr a) {
     int32_t v;
     memcpy(&v, s_memory + a, 4);
@@ -164,6 +185,7 @@ static int32_t get_s32(openrac_gaddr a) {
 /* The vendor of disc D: row 2 chosen, item 0x0B's ammo (10 bolts a round, 15 with the dialog's
  * other price, 160 at most), the player with `ammo` of it and `bolts`. */
 static const ammo_max_disc* s_d;
+
 static void lay_vendor(int32_t ammo, int32_t bolts) {
     const openrac_gaddr dialog = s_d->dialog + 0x100u, items = s_d->item_table + 0x100u;
     memset(s_memory + dialog, 0, 0x200);
@@ -176,12 +198,15 @@ static void lay_vendor(int32_t ammo, int32_t bolts) {
     put_s32(s_d->ammo + 4u * 0x0Bu, ammo);
     put_s32(s_d->bolts, bolts);
 }
+
 static int32_t state(void) {
     return get_s32(s_d->dialog + 0x100u + 0x5Cu);
 }
+
 static int32_t count(void) {
     return get_s32(s_d->count + 0x100u);
 }
+
 /* The game's state 1 as VendorBuyDialogUpdate runs it: the count 1, Up allowed when a round can be
  * bought, then state 2; and the tick's callback after it. */
 static void open_dialog(int can_raise) {
@@ -192,6 +217,7 @@ static void open_dialog(int can_raise) {
     put_s32(s_d->dialog + 0x100u + 0x5Cu, 2);
     s_tick(s_tick_user);
 }
+
 static void close_dialog(void) {
     put_s32(s_d->dialog + 0x100u + 0x5Cu, 3);
     s_tick(s_tick_user);

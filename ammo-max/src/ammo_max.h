@@ -29,6 +29,7 @@ typedef struct ammo_max_disc {
                             price (u16; +0xA while the dialog's +0x40 is set), +0xE max ammo */
     uint32_t dialog;     /* the vendor menu: +0x40 which price, +0x58 the row chosen, +0x5C the buy
                             dialog's state, +0xD0 the rows, 0x14 bytes each: +0 the item id, +4 1
+
                             for its ammo */
     uint32_t count;      /* the count the dialog asks for, s32 */
     uint32_t can_raise;  /* 1 when Up may raise it, s32 */
@@ -51,6 +52,7 @@ static inline int32_t ammo_max_count(int32_t bolts, int32_t price, int32_t ammo,
     if (price <= 0 || bolts < price || ammo >= max) {
         return 0;
     }
+
     const int32_t n = bolts / price;
     const int32_t room = max - ammo;
     return n < room ? n : room;
