@@ -547,14 +547,16 @@ void run(const char* library) {
     tick(true);
     g_level = 1;
     tick(true);
-    /* The client tries the connection on its thread: a moment, and a tick that reads what it
-     * knows. */
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    tick(false);
+    /* The client tries the connection on its thread: ticks that read what it knows, for up to
+     * five seconds (Windows retries a refused connection for a second or more before it says so). */
     bool said = false;
-    for (const std::string& text : g_log) {
-        if (text.find("no LiveSplit server") != std::string::npos) {
-            said = true;
+    for (int wait = 0; wait < 50 && !said; ++wait) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        tick(false);
+        for (const std::string& text : g_log) {
+            if (text.find("no LiveSplit server") != std::string::npos) {
+                said = true;
+            }
         }
     }
     CHECK(said);
