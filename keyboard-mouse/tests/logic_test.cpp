@@ -3,6 +3,9 @@
 // the keys' stick, the mouse's stick, the Quick Select's direction, the report the game reads and
 // the weapon wheel; and the manifest's keys and defaults against the action table.
 //
+// Expected values are worked out by hand from the behaviour the README.md and openrac-mod.json
+// describe, and from the game's own stick and Quick Select reading (as src/kbm.hpp quotes it).
+//
 // Run with the manifest's path: logic_test <openrac-mod.json>.
 #include <cmath>
 #include <cstdio>

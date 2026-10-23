@@ -8,6 +8,9 @@
 // mouse, a number key taking a slot's item, the cursor captured in play and let go on the pause
 // screen, menu keys only there, and the camera's reset asking to look along Ratchet's facing.
 //
+// Expected values are the mod's documented behaviour (README.md, openrac-mod.json) and the console's
+// pad report as the game reads it; the addresses come from src/discs.h.
+//
 // Run with the library's path: load_test <keyboard_mouse.dylib|.so|.dll>.
 #include <cmath>
 #include <cstdio>

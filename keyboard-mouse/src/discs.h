@@ -4,6 +4,8 @@
  * What the keyboard and mouse mod reads and calls of the game on each disc it knows, by the names
  * each disc's build of the port gives them (openrac_api.function). The PAL disc's are games/rac1's
  * in OpenRAC, the NTSC-U disc's its rac1/ntsc decompilation's, as in the lock-strafe's discs.h.
+ * Evidence: the per-disc addresses are (documented) by those decompilations; the structure offsets
+ * below are (assumed) where a comment gives no other source.
  */
 #ifndef KBM_DISCS_H
 #define KBM_DISCS_H

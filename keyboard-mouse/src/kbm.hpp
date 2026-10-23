@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 #include <utility>
@@ -72,6 +73,7 @@ enum class Group : int {
     Menu
 };
 
+// One row of the action table: the setting that binds the action and which group it counts in.
 struct ActionInfo {
     const char* key;       // the setting's key in openrac-mod.json
     const char* fallback;  // its default, as the manifest's
@@ -114,6 +116,7 @@ inline constexpr std::array<ActionInfo, kActionCount> kActions = {{
     {"menu_circle", "KeyE", Group::Menu},
 }};
 
+// How many binds one action may have (assumed: the launcher's two columns).
 inline constexpr int kMaxBinds = 2;
 
 // One action's binds (OPENRAC_BIND_*, a key's HID usage); 0 for an empty slot.
@@ -127,7 +130,9 @@ inline bool parse_binds(std::string_view text, Binds& out) {
     int count = 0;
     std::size_t i = 0;
 
+    // Walk the text one name at a time.
     while (i < text.size()) {
+        // A separator between names holds no bind: step over it.
         if (text[i] == ',' || text[i] == ' ') {
             ++i;
             continue;
@@ -135,12 +140,14 @@ inline bool parse_binds(std::string_view text, Binds& out) {
 
         std::size_t end = i;
 
+        // Find where this name ends.
         while (end < text.size() && text[end] != ',' && text[end] != ' ') {
             ++end;
         }
 
         const int bind = openrac_bind_from_name_n(text.data() + i, end - i);
 
+        // An unknown name, a third bind or a repeated one makes the whole setting invalid.
         if (bind == OPENRAC_BIND_NONE || count == kMaxBinds
             || std::find(out.begin(), out.end(), bind) != out.end()) {
             out = {};
@@ -154,6 +161,7 @@ inline bool parse_binds(std::string_view text, Binds& out) {
     return true;
 }
 
+// Every action's binds, indexed by Action.
 struct Bindings {
     std::array<Binds, kActionCount> binds{};
 
@@ -165,9 +173,11 @@ template <class Text>
 Bindings read_bindings(Text&& text) {
     Bindings b;
 
+    // Read each action's setting in turn.
     for (int a = 0; a < kActionCount; ++a) {
         const ActionInfo& info = kActions[static_cast<std::size_t>(a)];
 
+        // A text that is not a valid bind list falls back to the action's default.
         if (!parse_binds(text(info.key), b.binds[static_cast<std::size_t>(a)])) {
             parse_binds(info.fallback, b.binds[static_cast<std::size_t>(a)]);
         }
@@ -176,6 +186,7 @@ Bindings read_bindings(Text&& text) {
     return b;
 }
 
+// Two actions of one group that share an input (the port runs both; the mod only warns).
 struct Conflict {
     Action a;
     Action b;
@@ -186,15 +197,21 @@ struct Conflict {
 inline std::vector<Conflict> conflicts(const Bindings& b) {
     std::vector<Conflict> out;
 
+    // Take each action as the first of a pair.
     for (int x = 0; x < kActionCount; ++x) {
+        // Pair it with each later action, so a conflict is reported once.
         for (int y = x + 1; y < kActionCount; ++y) {
+            // Only actions of the same group conflict: a play bind and a menu bind never count together.
             if (kActions[static_cast<std::size_t>(x)].group
                 != kActions[static_cast<std::size_t>(y)].group) {
                 continue;
             }
 
+            // Compare each bind of the first action...
             for (int bx : b.binds[static_cast<std::size_t>(x)]) {
+                // ...with each bind of the second.
                 for (int by : b.binds[static_cast<std::size_t>(y)]) {
+                    // An empty slot (0) conflicts with nothing; the same input twice does.
                     if (bx != 0 && bx == by) {
                         out.push_back({static_cast<Action>(x), static_cast<Action>(y), bx});
                     }
@@ -213,6 +230,7 @@ inline bool is_mouse(int bind) {
 
 // ---- The left stick from keys ----
 
+// The player's settings for the movement keys.
 struct MoveTuning {
     float walk = 0.5f;        // how far the stick goes while walking (0..1)
     float rise_ticks = 4.0f;  // ticks from rest to full (0: at once)
@@ -226,16 +244,19 @@ struct KeyStick {
     float x = 0.0f;
     float y = 0.0f;
 
+    // One tick of the keys: moves x and y toward what the keys held ask for.
     void step(bool forward, bool back, bool left, bool right, bool walk, const MoveTuning& t) {
         float tx = (right ? 1.0f : 0.0f) - (left ? 1.0f : 0.0f);
         float ty = (back ? 1.0f : 0.0f) - (forward ? 1.0f : 0.0f);
         const float length = std::sqrt(tx * tx + ty * ty);
 
+        // Two keys held for a diagonal reach past the unit circle: scale back so a diagonal is no faster.
         if (length > 1.0f) {
             tx /= length;
             ty /= length;
         }
 
+        // Walking holds the stick part of the way.
         if (walk) {
             tx *= t.walk;
             ty *= t.walk;
@@ -246,11 +267,13 @@ struct KeyStick {
         y = approach(y, ty, rise);
     }
 
+    // `now` moved toward `target` by at most `rise`, or twice that when it is slowing.
     static float approach(float now, float target, float rise) {
         // Toward the centre (a key let go, or the other way pressed): twice as fast.
         const bool slowing = std::fabs(target) < std::fabs(now) || target * now < 0.0f;
         const float step = slowing ? rise * 2.0f : rise;
 
+        // Rising to a target above: do not overshoot it.
         if (now < target) {
             return std::min(now + step, target);
         }
@@ -261,6 +284,7 @@ struct KeyStick {
 
 // ---- The right stick from the mouse ----
 
+// The player's settings for the mouse's look.
 struct LookTuning {
     float sensitivity = 1.0f;   // the mouse's turn, 1 the default
     float acceleration = 0.0f;  // 0: none; more turns a fast flick further than a slow drag
@@ -269,9 +293,13 @@ struct LookTuning {
 };
 
 // The mouse's motion over a tick, at sensitivity 1, that pushes the stick all the way.
-inline constexpr float kPixelsForFullTurn = 24.0f;
+inline constexpr float kPixelsForFullTurn = 24.0f;  // (assumed)
 // The tilt's full travel, in pixels at sensitivity 1.
-inline constexpr float kPixelsForFullTilt = 160.0f;
+inline constexpr float kPixelsForFullTilt = 160.0f;  // (assumed)
+// How much of the held tilt stays each tick while Levels out eases it back (assumed).
+inline constexpr float kTiltEaseBack = 0.9f;
+// The held tilt below which Levels out snaps it to level (assumed).
+inline constexpr float kTiltSnap = 0.01f;
 
 // The mouse to the right stick. The follow camera turns at a rate the stick's x sets, so x is the
 // tick's motion (eased over two ticks, so a mouse polled unevenly against the game's ticks does
@@ -286,6 +314,7 @@ struct MouseLook {
 
     // The gain for a tick's motion of `speed` pixels: 1 without acceleration.
     static float gain(float speed, const LookTuning& t) {
+        // Without acceleration every speed has the same gain.
         if (t.acceleration <= 0.0f) {
             return 1.0f;
         }
@@ -293,6 +322,7 @@ struct MouseLook {
         return 1.0f + t.acceleration * std::min(speed / kPixelsForFullTurn, 2.0f);
     }
 
+    // One tick of the mouse's motion (dx right, dy down, in pixels) into x and y, as the stick.
     void step(float dx, float dy, bool first_person, const LookTuning& t) {
         const float sens = std::max(t.sensitivity, 0.0f);
         const float ydir = t.invert_y ? -1.0f : 1.0f;
@@ -301,6 +331,7 @@ struct MouseLook {
         const float speed = std::sqrt(smooth_dx * smooth_dx + dy * dy);
         x = clamp1(smooth_dx * sens * gain(speed, t) / kPixelsForFullTurn);
 
+        // In first person y is a rate like x, so it follows this tick's motion.
         if (first_person) {
             y = clamp1(dy * ydir * sens * gain(speed, t) / kPixelsForFullTurn);
             return;
@@ -308,10 +339,12 @@ struct MouseLook {
 
         tilt = clamp1(tilt + dy * ydir * sens / kPixelsForFullTilt);
 
+        // The player chose Levels out: the held tilt eases back to level while the mouse rests.
         if (!t.pitch_holds && dy == 0.0f) {
-            tilt *= 0.9f;
+            tilt *= kTiltEaseBack;
 
-            if (std::fabs(tilt) < 0.01f) {
+            // Snap the last sliver to level so that it does not creep on for ever.
+            if (std::fabs(tilt) < kTiltSnap) {
                 tilt = 0.0f;
             }
         }
@@ -321,6 +354,7 @@ struct MouseLook {
 
     void reset() { *this = MouseLook{}; }
 
+    // `v` kept within -1 to 1, a stick's travel.
     static float clamp1(float v) { return std::max(-1.0f, std::min(1.0f, v)); }
 };
 
@@ -333,8 +367,11 @@ struct MouseLook {
 // The game's frame: z up, x and y level; its rotations (build_look_at_matrix) are right-handed, so
 // a positive angle about up turns a view to the left as seen from above.
 
+// A vector in the game's frame, for the camera's turns.
 struct Vec3 {
-    float x = 0.0f, y = 0.0f, z = 0.0f;
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
 };
 
 inline float dot(Vec3 a, Vec3 b) {
@@ -369,6 +406,7 @@ inline float clamp(float v, float lo, float hi) {
 inline Vec3 unit_or(Vec3 v, Vec3 fallback) {
     const float n = length(v);
 
+    // A vector too short to give a direction, or not a number, has no unit vector.
     if (!(n > 1e-6f) || !std::isfinite(n)) {
         return fallback;
     }
@@ -376,6 +414,7 @@ inline Vec3 unit_or(Vec3 v, Vec3 fallback) {
     return scaled(v, 1.0f / n);
 }
 
+// The game's up (z), when the camera block gives none.
 inline constexpr Vec3 kWorldUp{0.0f, 0.0f, 1.0f};
 
 // `v` turned by `angle` about the unit axis `axis`, right-handed, as the game turns its vectors.
@@ -390,6 +429,7 @@ inline Vec3 rotate(Vec3 v, Vec3 axis, float angle) {
 inline float elevation(Vec3 v, Vec3 up) {
     const float n = length(v);
 
+    // A zero-length vector points nowhere, so it is level.
     if (!(n > 1e-6f)) {
         return 0.0f;
     }
@@ -404,6 +444,7 @@ inline Vec3 with_elevation(Vec3 v, Vec3 up, float e) {
     const Vec3 level = minus(v, scaled(up, dot(v, up)));
     const float h = length(level);
 
+    // A vector with no level part (straight up or down) has no way round to keep.
     if (!(n > 1e-6f) || !(h > 1e-6f * n)) {
         return v;
     }
@@ -412,7 +453,7 @@ inline Vec3 with_elevation(Vec3 v, Vec3 up, float e) {
 }
 
 // A tick's motion at sensitivity 1: radians a pixel (a 1,000-pixel sweep turns about 86 degrees).
-inline constexpr float kRadiansPerPixel = 0.0015f;
+inline constexpr float kRadiansPerPixel = 0.0015f;  // (assumed)
 
 // The turn and the tilt a tick's mouse motion asks for. yaw is the angle about up (the game's
 // sense: > 0 turns the view left, so mouse right gives < 0); pitch > 0 looks down (mouse down,
@@ -434,9 +475,13 @@ struct DirectLook {
 // stick sets: the stick's y (past a dead zone of 0.3, then scaled back to 0..1) is a target w in
 // -1..1, eased, and the eye is turned toward an elevation whose atan(sin) is w times 40 degrees
 // (FollowCamera_ReadStickInput and Cam_SteerHeadingFromStick). An eye above Ratchet looks down.
-inline constexpr float kFollowTiltRange = 0.69813168f;  // 40 degrees, the target at w = 1
+//
+// 40 degrees, the target at w = 1 (seen in game code).
+inline constexpr float kFollowTiltRange = 0.69813168f;
+// The stick's dead zone the game applies to the tilt (seen in game code).
 inline constexpr float kFollowDeadZone = 0.3f;
-inline constexpr float kFollowDeadZoneScale = 1.4285715f;  // 1 / 0.7
+// 1 / 0.7, what scales the stick past the dead zone back to 0..1 (seen in game code).
+inline constexpr float kFollowDeadZoneScale = 1.4285715f;
 
 // The eye's elevation at w = +-1: asin(tan(40 degrees)), about 57 degrees.
 inline float follow_max_elevation() {
@@ -456,6 +501,7 @@ inline float follow_stick_for(float w, bool game_inverts) {
     w = std::max(-1.0f, std::min(1.0f, w));
     float in = kFollowDeadZone;  // just at the dead zone's edge: w = 0
 
+    // Past the dead zone's edge on the side the target is on, so that the game reads it as w.
     if (w > 0.0f) {
         in = w / kFollowDeadZoneScale + kFollowDeadZone;
     } else if (w < 0.0f) {
@@ -466,7 +512,7 @@ inline float follow_stick_for(float w, bool game_inverts) {
 }
 
 // The first-person view's tilt: the game keeps how far it looks down (radians, up < 0) and eases
-// it off past 64 degrees either way; the mouse stops there.
+// it off past 64 degrees either way; the mouse stops there (seen in game code).
 inline constexpr float kFirstPersonTiltLimit = 1.1170107f;
 
 // ---- The Quick Select ring from the mouse ----
@@ -480,7 +526,10 @@ struct RingPointer {
     float x = 0.0f;
     float y = 0.0f;
 
-    void reset() { x = y = 0.0f; }
+    void reset() {
+        x = 0.0f;
+        y = 0.0f;
+    }
 
     void add(float dx, float dy, float dead_zone) {
         x += dx;
@@ -488,6 +537,7 @@ struct RingPointer {
         const float limit = 2.0f * std::max(dead_zone, 1.0f);
         const float length = std::sqrt(x * x + y * y);
 
+        // Keep the pointer within the limit, so that turning back the other way answers at once.
         if (length > limit) {
             x *= limit / length;
             y *= limit / length;
@@ -498,6 +548,7 @@ struct RingPointer {
     std::pair<float, float> stick(float dead_zone) const {
         const float length = std::sqrt(x * x + y * y);
 
+        // Within the dead zone the stick rests.
         if (length <= dead_zone || length == 0.0f) {
             return {0.0f, 0.0f};
         }
@@ -510,6 +561,7 @@ struct RingPointer {
 // slot 0 at the top and going clockwise (slot i's icon is at angle i * pi / 4 - pi / 2), each
 // taking the 45 degrees around it. -1 for a stick at rest. What the tests check the pointer against.
 inline int ring_slot(float x, float y) {
+    // A stick at rest points at no slot.
     if (x == 0.0f && y == 0.0f) {
         return -1;
     }
@@ -517,6 +569,7 @@ inline int ring_slot(float x, float y) {
     const float pi = 3.14159265f;
     float a = std::atan2(y, x) + pi / 2.0f;  // 0 at the top, clockwise
 
+    // Bring the angle into 0 to 2 pi.
     while (a < 0.0f) {
         a += 2.0f * pi;
     }
@@ -551,44 +604,58 @@ enum Button : std::uint16_t {
 // square, L1, R1, L2, R2.
 inline constexpr std::array<int, 12> kPressureBits = {5, 7, 4, 6, 12, 13, 14, 15, 10, 11, 8, 9};
 
+// The resting byte of a stick axis (seen in game code).
+inline constexpr std::uint8_t kStickRestByte = 0x80;
+// The byte the game counts a stick axis from (seen in game code).
+inline constexpr int kStickCentreByte = 0x7F;
+// How far from the centre byte the game ignores (seen in game code).
+inline constexpr int kStickDeadBytes = 0x30;
+// How far past the dead zone the game reads full travel (seen in game code).
+inline constexpr int kStickRangeBytes = 0x4C;
+
 // The game's stick reading: an axis's byte b counts from 0x7F, nothing within 0x30 of it, then
 // (|b - 0x7F| - 0x30) / 0x4C up to 1. A value v (-1..1) as the byte the game reads back as about
 // v, so a walk at 0.5 is a walk at 0.5 and not lost in the dead zone; 0 is the centre, 0x80.
 inline std::uint8_t stick_byte(float v) {
+    // A centred axis is the resting byte exactly.
     if (v == 0.0f) {
-        return 0x80;
+        return kStickRestByte;
     }
 
     const float magnitude = std::min(std::fabs(v), 1.0f);
-    const float distance = 0x30 + 1 + magnitude * (0x4C - 1);
-    const float b = 0x7F + (v > 0.0f ? distance : -distance);
+    const float distance = kStickDeadBytes + 1 + magnitude * (kStickRangeBytes - 1);
+    const float b = kStickCentreByte + (v > 0.0f ? distance : -distance);
     return static_cast<std::uint8_t>(std::max(0.0f, std::min(255.0f, std::round(b))));
 }
 
 // What the game makes of a byte (its own reading, for the tests).
 inline float game_axis(std::uint8_t b) {
-    const int d = static_cast<int>(b) - 0x7F;
+    const int d = static_cast<int>(b) - kStickCentreByte;
     const int m = d < 0 ? -d : d;
 
-    if (m < 0x30) {
+    // Within the game's dead zone the axis reads as 0.
+    if (m < kStickDeadBytes) {
         return 0.0f;
     }
 
-    const float v = std::min(1.0f, static_cast<float>(m - 0x30) / 0x4C);
+    const float v = std::min(1.0f, static_cast<float>(m - kStickDeadBytes) / kStickRangeBytes);
     return d < 0 ? -v : v;
 }
 
 // The pad as the keyboard and mouse hold it this tick.
 struct Virtual {
     std::uint16_t held = 0;  // Button bits held (set while held)
-    float left_x = 0.0f, left_y = 0.0f;
-    float right_x = 0.0f, right_y = 0.0f;
+    float left_x = 0.0f;
+    float left_y = 0.0f;
+    float right_x = 0.0f;
+    float right_y = 0.0f;
 };
 
 // Into the game's report (18 bytes: buttons, right stick, left stick, twelve pressures), on top of
 // the gamepad's: our buttons are held as well as the pad's, and each stick axis of ours that is
 // off centre takes that axis's place.
 inline void merge(const Virtual& v, std::uint8_t* report, int size) {
+    // A report too short for the sticks is left alone.
     if (size < 6) {
         return;
     }
@@ -599,26 +666,37 @@ inline void merge(const Virtual& v, std::uint8_t* report, int size) {
     report[1] = static_cast<std::uint8_t>(buttons >> 8);
     const float axes[4] = {v.right_x, v.right_y, v.left_x, v.left_y};
 
+    // Each of our axes that is off centre takes the place of the gamepad's.
     for (int i = 0; i < 4; ++i) {
+        // An axis at rest leaves the gamepad's byte as it is.
         if (axes[i] != 0.0f) {
             report[2 + i] = stick_byte(axes[i]);
         }
     }
 
+    // Each button of ours that has a pressure byte in the report presses it fully.
     for (int i = 0; i < 12 && 6 + i < size; ++i) {
+        // Only held buttons press their pressure byte.
         if ((v.held >> kPressureBits[static_cast<std::size_t>(i)]) & 1u) {
             report[6 + i] = 0xFF;
         }
     }
 }
 
+// The Quick Select's slots (seen in game code).
+inline constexpr int kQuickSelectSlots = 8;
+
 // The next item in the Quick Select's eight slots from `current` (`step` +1 or -1), skipping
 // empty slots (0); `current` itself when no other slot has one. An item not in the ring starts
 // from before the first slot (or after the last, going back).
-inline int cycle_item(const std::array<std::int32_t, 8>& slots, std::int32_t current, int step) {
+inline int cycle_item(
+    const std::array<std::int32_t, kQuickSelectSlots>& slots, std::int32_t current, int step
+) {
     int at = -1;
 
-    for (int i = 0; i < 8; ++i) {
+    // Find where the current item sits in the ring.
+    for (int i = 0; i < kQuickSelectSlots; ++i) {
+        // An empty slot never matches.
         if (slots[static_cast<std::size_t>(i)] != 0
             && slots[static_cast<std::size_t>(i)] == current) {
             at = i;
@@ -626,14 +704,17 @@ inline int cycle_item(const std::array<std::int32_t, 8>& slots, std::int32_t cur
         }
     }
 
+    // An item not in the ring starts from before the first slot, or after the last going back.
     if (at < 0) {
-        at = step > 0 ? -1 : 8;
+        at = step > 0 ? -1 : kQuickSelectSlots;
     }
 
-    for (int n = 1; n <= 8; ++n) {
-        const int i = ((at + step * n) % 8 + 8) % 8;
+    // Walk round the ring from there, one slot at a time.
+    for (int n = 1; n <= kQuickSelectSlots; ++n) {
+        const int i = ((at + step * n) % kQuickSelectSlots + kQuickSelectSlots) % kQuickSelectSlots;
         const std::int32_t item = slots[static_cast<std::size_t>(i)];
 
+        // The first slot that holds a different item is the one to take.
         if (item != 0 && item != current) {
             return item;
         }
@@ -663,6 +744,7 @@ enum class Context : int {
 inline Context context_of(int loaded_level, int level_mode, int boot_mode) {
     const int mode = loaded_level >= 0 ? level_mode : boot_mode;
 
+    // The mode word maps to one context each; anything unknown is a menu.
     switch (mode) {
         case 0:
             return loaded_level >= 0 ? Context::Play : Context::Title;
@@ -683,6 +765,7 @@ inline Context context_of(int loaded_level, int level_mode, int boot_mode) {
     }
 }
 
+// Whether the game is in a scene, a movie, the ship or a slideshow, where Start skips.
 inline bool skips(Context c) {
     return c == Context::Cutscene || c == Context::Movie || c == Context::Flight
            || c == Context::Slideshow;
@@ -691,6 +774,7 @@ inline bool skips(Context c) {
 // A set of actions, one bit each.
 using ActionSet = std::uint64_t;
 
+// The one-bit set of an action.
 inline constexpr ActionSet bit(Action a) {
     return ActionSet{1} << static_cast<int>(a);
 }
@@ -698,7 +782,7 @@ inline constexpr ActionSet bit(Action a) {
 // The freeze dialogs' kinds (the record's +0): 0 "Quit race?" (Cross quits, Circle or Start goes
 // on), 1 and 4 "Quit?" (Triangle quits, Cross goes on); the rest are messages Cross or Triangle
 // closes.
-inline constexpr int kDialogQuitRace = 0;
+inline constexpr int kDialogQuitRace = 0;  // (seen in game code)
 
 // The pad's buttons the held actions press where the game is. In play, the console's layout; in
 // the title, menus and dialogs, confirm (Space, Enter, left click) is Cross and back (Escape,
@@ -719,11 +803,13 @@ inline std::uint16_t buttons_for(
     const bool escape = on(Action::Pause);
     std::uint16_t b = 0;
     const auto set = [&](bool when, std::uint16_t button) {
+        // A button is added only when its condition holds.
         if (when) {
             b = static_cast<std::uint16_t>(b | button);
         }
     };
 
+    // Each context presses its own set of buttons.
     switch (c) {
         case Context::Play:
             set(on(Action::Jump), kCross);
@@ -740,6 +826,7 @@ inline std::uint16_t buttons_for(
             break;
         case Context::Menu:
         case Context::Vendor:
+            // On the map confirm travels (Circle) and Space turns the page (Cross).
             if (map_screen) {
                 // The map (the ship's and the pause menu's): Circle goes to the planet shown,
                 // Cross turns the page; so confirm (Enter, a click) travels and Space turns.
@@ -761,6 +848,7 @@ inline std::uint16_t buttons_for(
         case Context::Dialog:
             set(confirm, kCross);
 
+            // The race dialog goes on with Start and quits with Circle; the others go on with Cross.
             if (dialog_kind == kDialogQuitRace) {
                 set(escape, kStart);  // goes on racing
                 set(back, kCircle);
@@ -794,6 +882,7 @@ struct Latch {
     // A key pressed just as the game changes (down this tick, not the last) is a new press, and
     // counts.
     ActionSet filter(Context now, ActionSet held) {
+        // The first tick, or a change of where the game is, starts a new block.
         if (first || now != last) {
             blocked = first ? 0 : held & before;
             last = now;
@@ -815,11 +904,13 @@ struct Pulser {
     bool resting = false;
 
     void push(std::uint16_t buttons) {
+        // A pulse past the four that wait is dropped.
         if (count < static_cast<int>(queue.size())) {
             queue[static_cast<std::size_t>(count++)] = buttons;
         }
     }
 
+    // Whether nothing is waiting or resting, so that a new pulse goes out at once.
     bool idle() const { return count == 0 && !resting; }
 
     void clear() {
@@ -829,6 +920,7 @@ struct Pulser {
 
     // This tick's buttons.
     std::uint16_t step() {
+        // A pulse just sent rests for one tick, so that the game sees the button let go.
         if (resting || count == 0) {
             resting = false;
             return 0;
@@ -836,6 +928,7 @@ struct Pulser {
 
         const std::uint16_t b = queue[0];
 
+        // Move the rest of the queue up one place.
         for (int i = 1; i < count; ++i) {
             queue[static_cast<std::size_t>(i - 1)] = queue[static_cast<std::size_t>(i)];
         }
@@ -852,6 +945,7 @@ struct Repeat {
     int ticks = 0;
 
     bool step(bool held, int delay = 24, int every = 6) {
+        // A key let go starts the count again.
         if (!held) {
             ticks = 0;
             return false;
@@ -865,20 +959,24 @@ struct Repeat {
 // The mouse moved over a menu with nothing under it to point at: each `distance` pixels along the
 // way it mostly goes is a step of the d-pad that way.
 struct Stepper {
-    float x = 0.0f, y = 0.0f;
+    float x = 0.0f;
+    float y = 0.0f;
 
     std::uint16_t step(float dx, float dy, float distance = 48.0f) {
         x += dx;
         y += dy;
 
+        // The mouse went mostly sideways.
         if (std::fabs(x) >= std::fabs(y)) {
             y *= 0.5f;  // across the way it goes: forgotten slowly
 
+            // Far enough right: one step of the d-pad.
             if (x >= distance) {
                 x -= distance;
                 return kRight;
             }
 
+            // Far enough left: one step of the d-pad.
             if (x <= -distance) {
                 x += distance;
                 return kLeft;
@@ -886,11 +984,13 @@ struct Stepper {
         } else {
             x *= 0.5f;
 
+            // Far enough down: one step of the d-pad.
             if (y >= distance) {
                 y -= distance;
                 return kDown;
             }
 
+            // Far enough up: one step of the d-pad.
             if (y <= -distance) {
                 y += distance;
                 return kUp;
@@ -900,20 +1000,28 @@ struct Stepper {
         return 0;
     }
 
-    void reset() { x = y = 0.0f; }
+    void reset() {
+        x = 0.0f;
+        y = 0.0f;
+    }
 };
 
 // ---- The menus under the mouse ----
 
 // The game's 2D screen, which the pointer (openrac_input.pointer_*, 0..1) maps onto.
-inline constexpr float kScreenWidth = 512.0f;
-inline constexpr float kScreenHeight = 416.0f;
+inline constexpr float kScreenWidth = 512.0f;   // (seen in game code)
+inline constexpr float kScreenHeight = 416.0f;  // (seen in game code)
 
 // A page widget's rectangle as the game writes it each frame (widget +0x18: x, y, width, height in
 // the game's screen pixels).
 struct Rect {
-    std::int32_t x = 0, y = 0, w = 0, h = 0;
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+    std::int32_t w = 0;
+    std::int32_t h = 0;
 
+    // Whether the point is within the rectangle, with a margin round it (assumed: the pointer's
+    // hot spot is not exact).
     bool contains(float px, float py, float margin = 2.0f) const {
         return w > 0 && h > 0 && px >= x - margin && px < x + w + margin && py >= y - margin
                && py < y + h + margin;
@@ -922,7 +1030,9 @@ struct Rect {
 
 // The widget under the point, the first of them (-1 for none).
 inline int hit_widget(const Rect* rects, int count, float px, float py) {
+    // Test the widgets in order.
     for (int i = 0; i < count; ++i) {
+        // The first widget whose rectangle holds the point is the one hit.
         if (rects[i].contains(px, py)) {
             return i;
         }
@@ -936,12 +1046,14 @@ inline int hit_widget(const Rect* rects, int count, float px, float py) {
 // (i + 1); packed (flag 0x10), the rows are the font's height and 3 apart from the top (the font
 // 12 high, 14 with flag 4, 10 with flag 8). -1 off the list.
 inline int list_row(const Rect& r, int count, std::uint32_t flags, float py) {
+    // A point off the list, or a list with no rows, is on no row.
     if (count <= 0 || r.h <= 0 || py < r.y || py >= r.y + r.h) {
         return -1;
     }
 
     float row;
 
+    // Packed rows are as high as the font and 3 apart from the top; flags 4 and 8 pick the font.
     if ((flags & 0x10u) != 0) {
         const float font = (flags & 4u) != 0 ? 14.0f : (flags & 8u) != 0 ? 10.0f : 12.0f;
         row = std::floor((py - static_cast<float>(r.y)) / (font + 3.0f));
