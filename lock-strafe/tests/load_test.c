@@ -6,6 +6,9 @@
  * its turn hook turns toward the camera while locked, calling the original each time.
  *
  * Run with the library's path: load_test <lock_strafe.dylib|.so|.dll>.
+ *
+ * Expected values are worked out by hand from strafe.h, on a memory laid out at the discs'
+ * addresses in discs.h.
  */
 #include <stdio.h>
 #include <stdlib.h>

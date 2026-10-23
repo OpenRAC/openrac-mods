@@ -43,11 +43,18 @@
  *
  * Either is done in the run (states 2 and 0x73) and the jump (7), on level ground; both also turn
  * him standing (state 0) with the camera (Hold once its swing is done). Everything else is the game's own.
+ *
+ * This file is plain C with no game memory: each function takes what it reads as a struct and
+ * returns the answer, so tests/hero_strafe_test.c can run the decision alone. Its addresses and
+ * offsets are the decomp's, cited where they appear (seen in game code), and lock_strafe.cpp holds
+ * the rest of the mod (the settings, the hook points and the game memory).
  */
 #ifndef OPENRAC_RAC1_STRAFE_H
 #define OPENRAC_RAC1_STRAFE_H
 
 #include <stdint.h>
+
+/* ---- Constants ---- */
 
 /* The mode (the mod's setting "mode"; off is the mod switched off, the game's own). */
 #define RAC1_STRAFE_OFF 0
@@ -82,6 +89,23 @@
 #define RAC1_STRAFE_SWING_STICK 0.3f
 #define RAC1_STRAFE_SWING_TICKS 120
 
+/* Pi and two pi as 32-bit floats, as the game's own angle arithmetic has them (seen in game code). */
+#define RAC1_STRAFE_PI 3.14159274f
+#define RAC1_STRAFE_TWO_PI 6.28318548f
+
+/* The backpedal (explained below): the walk and the run sequences, by index, whose cycle is played
+ * backwards (seen in game code); the move yaw's angle from the facing at which the backpedal starts
+ * and at which it stops (assumed: chosen to avoid flicker at the edge); and the highest blend the
+ * mod leaves, since the advance takes one from 0.99 up as 1 and steps forward (assumed). */
+#define RAC1_STRAFE_SEQ_WALK 3
+#define RAC1_STRAFE_SEQ_RUN 4
+#define RAC1_STRAFE_BACK_ENTER 1.91986218f /* 110 degrees */
+#define RAC1_STRAFE_BACK_LEAVE 1.74532926f /* 100 degrees */
+/* The highest blend lock_strafe.cpp leaves: the advance takes one from 0.99 up as 1 and steps forward. */
+#define RAC1_STRAFE_BACK_TOP 0.985f
+
+/* ---- Types ---- */
+
 /* What the decision reads of the hero and the pad. */
 typedef struct rac1_strafe_input {
     int playing; /* a level loaded and its game mode 0 (D_L00_0015F6A8: not a scene, a menu, a vendor) */
@@ -105,16 +129,20 @@ typedef struct rac1_strafe_hold {
     float yaw;    /* the facing when it went down */
 } rac1_strafe_hold;
 
+/* ---- Decision ---- */
+
 /* b - a, within -pi..pi. */
 static inline float rac1_strafe_angle_diff(float a, float b) {
     float d = b - a;
 
-    while (d > 3.14159274f) {
-        d -= 6.28318548f;
+    // Above pi: wrap down by a turn, so the shortest way round is found.
+    while (d > RAC1_STRAFE_PI) {
+        d -= RAC1_STRAFE_TWO_PI;
     }
 
-    while (d < -3.14159274f) {
-        d += 6.28318548f;
+    // Below minus pi: wrap up by a turn.
+    while (d < -RAC1_STRAFE_PI) {
+        d += RAC1_STRAFE_TWO_PI;
     }
 
     return d;
@@ -127,6 +155,7 @@ static inline float rac1_strafe_angle_diff(float a, float b) {
  * punch), the Glove of Doom (its agents find their own way), the Hydrodisplacer, the Drone Device,
  * the Decoy Glove and the gadgets. */
 static inline int rac1_strafe_aimable(int item) {
+    // Each of Lock's weapons answers yes; every other item answers no.
     switch (item) {
         case 0x09: /* Suck Cannon */
         case 0x0A: /* Bomb Glove */
@@ -158,13 +187,16 @@ static inline int rac1_strafe_takes_buttons(int mode, const rac1_strafe_input* i
 static inline void rac1_strafe_hold_update(
     int mode, const rac1_strafe_input* in, rac1_strafe_hold* hold
 ) {
+    // With the setting off or both buttons up there is nothing to remember.
     if (mode == RAC1_STRAFE_OFF || (in->held & RAC1_STRAFE_BUTTONS) == 0) {
         hold->latched = 0;
         hold->swinging = 0;
         return;
     }
 
+    // The button has only just gone down: latch the facing, if the hero is on foot.
     if (!hold->latched) {
+        // Off foot (a vehicle, a scene, the game's own strafe state) the press is not Hold's.
         if (rac1_strafe_on_foot(in)) {
             hold->latched = 1;
             hold->swinging = 1;
@@ -175,10 +207,13 @@ static inline void rac1_strafe_hold_update(
         return;
     }
 
+    // While the swing lasts, check whether any of its three ends has come.
     if (hold->swinging) {
         const float d = rac1_strafe_angle_diff(in->camera, hold->yaw);
         const float x = in->look_x < 0.0f ? -in->look_x : in->look_x;
 
+        // The camera is behind the latched facing, the right stick was pushed, or the ticks ran out
+        // (a wall or a camera volume can keep the camera from getting there).
         if ((d < RAC1_STRAFE_SWING_DONE && d > -RAC1_STRAFE_SWING_DONE)
             || x >= RAC1_STRAFE_SWING_STICK || ++hold->ticks >= RAC1_STRAFE_SWING_TICKS) {
             hold->swinging = 0;
@@ -190,15 +225,18 @@ static inline void rac1_strafe_hold_update(
 static inline int rac1_strafe_kind(
     int mode, const rac1_strafe_input* in, const rac1_strafe_hold* hold
 ) {
+    // The setting off, no play, a vehicle, or the hero on a frame of his own: the game's.
     if (mode == RAC1_STRAFE_OFF || !in->playing || in->vehicle_mode != 0 || in->frame_mode != 0) {
         return RAC1_STRAFE_NONE;
     }
 
+    // A state the strafe does not work in (the game's own strafe state among them).
     if (in->state != RAC1_STRAFE_STATE_STAND && in->state != RAC1_STRAFE_STATE_RUN
         && in->state != RAC1_STRAFE_STATE_RUN_ALT && in->state != RAC1_STRAFE_STATE_JUMP) {
         return RAC1_STRAFE_NONE;
     }
 
+    // Lock: a forward-firing weapon ready in hand faces the camera.
     if (mode == RAC1_STRAFE_LOCK && in->slot_state == RAC1_STRAFE_SLOT_READY
         && rac1_strafe_aimable(in->slot_item)) {
         return RAC1_STRAFE_LOCKED;
@@ -218,6 +256,7 @@ static inline int rac1_strafe_swings_camera(int kind, const rac1_strafe_hold* ho
 static inline float rac1_strafe_turn_target(
     int kind, int mode, float move_yaw, float camera_yaw, const rac1_strafe_hold* hold
 ) {
+    // Not a turn that follows the move yaw, or no strafe: the game's target.
     if (mode != 0 || kind == RAC1_STRAFE_NONE) {
         return move_yaw;
     }
@@ -228,7 +267,7 @@ static inline float rac1_strafe_turn_target(
 /* The angle Hero_SetPlanarVelocity builds the velocity along: while strafing, a request for the
  * facing (an angle above pi) is the move yaw instead; an angle of the caller's own is kept. */
 static inline float rac1_strafe_planar_angle(int kind, float requested, float move_yaw) {
-    return kind != RAC1_STRAFE_NONE && !(requested <= 3.14159274f) ? move_yaw : requested;
+    return kind != RAC1_STRAFE_NONE && !(requested <= RAC1_STRAFE_PI) ? move_yaw : requested;
 }
 
 /* Whether lock_strafe.cpp turns him toward the camera itself early in the hero's update: standing, where
@@ -246,18 +285,13 @@ static inline int rac1_strafe_turns_standing(int kind, int state, const rac1_str
  * the advance other mobys get from their +0x58), so while he strafes away from where he faces,
  * lock_strafe.cpp steps the walk or the run back itself and the advance adds nothing more: the cycle
  * plays backwards, at the speed the game chose. It starts with the move yaw more than 110 degrees
- * from his facing and stops under 100 (no flicker at the edge). */
-#define RAC1_STRAFE_SEQ_WALK 3
-#define RAC1_STRAFE_SEQ_RUN 4
-#define RAC1_STRAFE_BACK_ENTER 1.91986218f /* 110 degrees */
-#define RAC1_STRAFE_BACK_LEAVE 1.74532926f /* 100 degrees */
-/* The highest blend lock_strafe.cpp leaves: the advance takes one from 0.99 up as 1 and steps forward. */
-#define RAC1_STRAFE_BACK_TOP 0.985f
+ * from his facing and stops under 100 (no flicker at the edge): the constants for it are above. */
 
 /* Whether he backpedals this tick (was: last tick's answer). */
 static inline int rac1_strafe_backpedal(
     int kind, int state, float facing, float move_yaw, int was
 ) {
+    // Only a strafe in the run's states can backpedal.
     if (kind == RAC1_STRAFE_NONE
         || (state != RAC1_STRAFE_STATE_RUN && state != RAC1_STRAFE_STATE_RUN_ALT)) {
         return 0;
@@ -265,6 +299,7 @@ static inline int rac1_strafe_backpedal(
 
     float d = rac1_strafe_angle_diff(facing, move_yaw);
 
+    // The angle's size is what matters, not its side.
     if (d < 0.0f) {
         d = -d;
     }
@@ -287,13 +322,16 @@ typedef struct rac1_strafe_anim {
 static inline void rac1_strafe_anim_back(
     rac1_strafe_anim* a, float step, int count, const float* rates
 ) {
+    // A sequence with no keys, or a key outside it, cannot be stepped.
     if (count <= 0 || a->key < 0 || a->key >= count) {
         return;
     }
 
     float f = a->fraction - step;
 
+    // While the step takes the fraction below 0, move to the interval before and carry the rest.
     for (int n = 0; f < 0.0f; ++n) {
+        // No rate to divide by, or a whole loop in one tick: stop at a key instead.
         if (!(a->rate > 0.0f)
             || n > count) { /* no rate, or a whole loop in a tick: stop at a key */
             f = 0.0f;

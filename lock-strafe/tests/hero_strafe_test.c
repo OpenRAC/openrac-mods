@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* The strafe's decision (lock-strafe/src/strafe.h): when the hero strafes and how, which ticks
  * the hero's update does not see L2 and R2, where his facing turns and which way his velocity
- * goes; with the setting off, always the game's own. */
+ * goes; with the setting off, always the game's own.
+ * Expected values are worked out by hand from the description in strafe.h. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
