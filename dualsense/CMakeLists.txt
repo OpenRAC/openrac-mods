@@ -8,14 +8,18 @@
 #
 #   -DOPENRAC_DUALSENSE_SHARED_SDL=ON   use the system's shared SDL3 instead (a quicker build;
 #                                       the mod then needs libSDL3 at run time)
+# The mod's library: its manifest and its four sources.
 include(FetchContent)
 openrac_add_mod(dualsense MANIFEST openrac-mod.json
   SOURCES src/dualsense.cpp src/ps2_pad.cpp src/rumble.cpp src/weapons.cpp)
+# The sources include one another by bare name.
 target_include_directories(dualsense PRIVATE src)
+# Warnings on for the mod's own code (not for MSVC, which has other flags).
 if(NOT MSVC)
   target_compile_options(dualsense PRIVATE -Wall -Wextra)
 endif()
 
+# Which SDL3 the mod links: the system's shared one, or a static copy fetched here.
 option(OPENRAC_DUALSENSE_SHARED_SDL "Use the system's shared SDL3 (the mod then needs it at run time)" OFF)
 if(OPENRAC_DUALSENSE_SHARED_SDL)
   find_package(SDL3 CONFIG REQUIRED)
@@ -52,8 +56,10 @@ else()
   FetchContent_MakeAvailable(SDL3)
   set(dualsense_sdl SDL3::SDL3-static)
 endif()
+# The mod links whichever SDL3 was chosen above.
 target_link_libraries(dualsense PRIVATE ${dualsense_sdl})
 
+# The tests and probes, built only when testing is on.
 if(BUILD_TESTING)
   # The vibration and the buttons alone: the envelope, the strengths, and the report.
   add_executable(dualsense_logic_test tests/logic_test.cpp src/ps2_pad.cpp src/rumble.cpp)

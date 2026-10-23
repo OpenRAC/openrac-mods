@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// The weapons' feels and what the game is doing with them (weapons.hpp).
+// The weapons' feels and what the game is doing with them (weapons.hpp). feel_for() maps an
+// item id to its row of the feel table; weapon_moment() reads the game's own flags and
+// counters, with a special case for the weapons that do not raise the fire flag, to say
+// whether the weapon is firing, whether a shot went off and whether the firing just began.
 
 #include "weapons.hpp"
 
@@ -46,13 +49,16 @@ const WeaponFeel kFeels[] = {
     {Feel::kClick, 0, 4},
 };
 
-// The hero's state the Walloper fires from (games/rac1/src/overlays/shared/
+// The hero's state the Walloper fires from (seen in game code: games/rac1/src/overlays/shared/
 // help_00221A98.c:3267).
 constexpr std::int32_t kHeroStateWalloper = 0x20;
 
 }  // namespace
 
+// The row of kFeels for a weapon's item id, or null for an item that is no weapon in the table
+// (the wrench, for one, has no feel).
 const WeaponFeel* feel_for(std::int32_t item_id) {
+    // Each weapon in the table maps to its own row, in the order of the item ids.
     switch (item_id) {
         case kItemSuckCannon:
             return &kFeels[0];
@@ -89,9 +95,11 @@ const WeaponFeel* feel_for(std::int32_t item_id) {
     }
 }
 
+// What the weapon is doing this tick (`now`) against the tick before (`before`).
 WeaponMoment weapon_moment(const WeaponState& now, const WeaponState& before) {
     WeaponMoment moment;
 
+    // Whether the weapon is firing: most weapons raise the game's flag, two do not.
     switch (now.item_id) {
         case kItemWalloper:
             // The Walloper plays a sound and never raises the flag; it has its
@@ -109,8 +117,8 @@ WeaponMoment weapon_moment(const WeaponState& now, const WeaponState& before) {
             break;
     }
 
-    // A shot. The weapons that fire on a counter reach it when the counter is
-    // back at zero; the R.Y.N.O. counts its missiles.
+    // Whether a shot went off. The weapons that fire on a counter reach it when the
+    // counter is back at zero; the R.Y.N.O. counts its missiles.
     switch (now.item_id) {
         case kItemBlaster:
         case kItemDevastator:

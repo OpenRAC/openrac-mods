@@ -3,6 +3,10 @@
 //
 // The weapons' feels and what the game is doing with them: the table, and the
 // rule that says whether a weapon is firing and whether a shot just went off.
+//
+// The expected values are written out here by hand from the table in weapons.cpp and the game
+// code it cites.
+
 #include <cstdio>
 #include <cstdlib>
 

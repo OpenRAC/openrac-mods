@@ -6,6 +6,10 @@
 //
 // The report the port's libpad2 replacement builds is active low: a button that is held reads
 // 0. The mod's job is to clear the bit of the button an extra button stands for.
+//
+// The expected values are written out here by hand: the strengths from the table in rumble.cpp,
+// the button bits from the console's own order in ps2_pad.hpp.
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

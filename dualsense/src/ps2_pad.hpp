@@ -41,7 +41,7 @@ enum Ps2Button : std::uint16_t {
 // The two bytes of buttons in the report: the low byte first.
 inline constexpr int kButtonBytes = 2;
 
-// A button of the report, read out of its two bytes.
+// The report's buttons, read out of its two bytes: one bit per button, a held button reads 0.
 inline std::uint16_t read_buttons(const std::uint8_t* report) {
     return static_cast<std::uint16_t>(report[0]) | static_cast<std::uint16_t>(report[1]) << 8;
 }
@@ -49,6 +49,7 @@ inline std::uint16_t read_buttons(const std::uint8_t* report) {
 // Presses a button in the report: the bit is cleared, the button is active low.
 // Returns false when the report is too short to carry the buttons.
 inline bool press_button(std::uint8_t* report, int size, Ps2Button button) {
+    // The report is too short to hold the two button bytes, so nothing is written.
     if (size < kButtonBytes) {
         return false;
     }

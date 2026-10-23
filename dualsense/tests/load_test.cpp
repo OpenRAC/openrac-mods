@@ -6,7 +6,11 @@
 // another disc, takes the pad report hook and the game's event hooks, and writes the
 // controller's extra buttons into the report the game reads.
 //
+// The expected values come from the host table's own interface (openrac_mod.h) and from the
+// mod's manifest settings, as written out in this file.
+//
 // Run with the library's path: load_test <dualsense.dylib|.so|.dll>.
+
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>

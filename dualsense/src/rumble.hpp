@@ -8,6 +8,10 @@
 // (the linker dead-stripped sceVibSetActParam, games/rac1/src/core/00125218.c), and the
 // waveform mixer that would have driven it has no caller. So the vibration here is the mod's
 // own: it makes one out of what the game does.
+//
+// A Rumble is a small player of such a list: play() gives it the steps, update() is called
+// once a frame with the clock, and heavy() and light() say what the motors should be at.
+// rumble_for() makes the list for each kind of game event.
 
 #pragma once
 
