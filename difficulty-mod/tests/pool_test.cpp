@@ -56,15 +56,18 @@ Pool lay_out(int placed, int n2) {
 // CreateMoby's search: the first free slot from spare to end, the mark moved on past a new one.
 std::uint32_t create() {
     const Pool p = Pool::read(g_mem.data(), kAt);
+
     for (std::uint32_t m = p.spare; m < p.end; m += k_moby_size) {
         if (g_mem[m + 0x20] >= 0xFE) {
             if (g_mem[m + 0x20] == 0xFF) {
                 g_mem[m + k_moby_size + 0x20] = 0xFF;
             }
+
             g_mem[m + 0x20] = 0;
             return m;
         }
     }
+
     return 0;
 }
 
@@ -94,16 +97,20 @@ int main() {
     CHECK(room == p.pvars + 243 * k_spare_pvars && size == 13 * k_spare_pvars);
     CHECK(room + size == p.pvars + 256 * k_spare_pvars);  // the end of the spare pvars
     CHECK(count_free(g_mem.data(), r) == 243);
+
     // CreateMoby never reaches the reserved slots: after every usable slot is taken it finds none.
     for (int i = 0; i < 243; ++i) {
         CHECK(create() != 0);
     }
+
     CHECK(create() == 0);
     // Refused once the mark has gone past where the new end would be, or for too many slots.
     p = lay_out(10, 256);
+
     for (int i = 0; i < 250; ++i) {
         create();
     }
+
     CHECK(!reserve_tail(g_mem.data(), kAt, 10, &room, &size));
     CHECK(Pool::read(g_mem.data(), kAt).end == p.end);
     p = lay_out(10, 256);
@@ -114,9 +121,11 @@ int main() {
     std::vector<CloneAsk> asks(200, CloneAsk{3, 0});
     ClonePlan plan = plan_clones(asks, clone_budget(255, 4));
     CHECK(plan.slots + plan.pvar_slots == 255 - k_pool_reserve);
+
     for (int n : plan.copies) {
         CHECK(n == 0 || n == 1);  // spread: one each before anyone gets a second
     }
+
     asks.assign(10, CloneAsk{3, 0});
     plan = plan_clones(asks, clone_budget(255, 4));
     CHECK(plan.slots == 30 && plan.pvar_slots == 0);
@@ -143,13 +152,16 @@ int main() {
         asks.assign(300, CloneAsk{3, pv});
         const int free = count_free(g_mem.data(), p);
         plan = plan_clones(asks, clone_budget(free, 3));
+
         if (plan.pvar_slots > 0) {
             CHECK(reserve_tail(g_mem.data(), kAt, plan.pvar_slots, &room, &size));
             CHECK(size >= static_cast<std::uint32_t>(plan.pvar_slots) * k_spare_pvars);
         }
+
         for (int i = 0; i < plan.slots; ++i) {
             CHECK(create() != 0);
         }
+
         CHECK(count_free(g_mem.data(), Pool::read(g_mem.data(), kAt)) >= k_pool_reserve);
     }
 

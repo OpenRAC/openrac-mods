@@ -46,9 +46,11 @@ static void effective_values() {
     const Values ones = retail();
     // The sliders untouched: everything 1.0, the game as it is.
     Values v = effective(false, ones, 1234, 3);
+
     for (int k = 0; k < KNOB_COUNT; ++k) {
         CHECK(v[k] == 1.0);
     }
+
     CHECK(!sliders_moved(ones));
     // The sliders are what plays (a preset fills them).
     Values sliders = ones;
@@ -63,6 +65,7 @@ static void effective_values() {
     // Chaos with a slider moved: the slider holds on every level, the rest roll.
     sliders = ones;
     sliders[BOLTS] = 0.0;
+
     for (int level = 0; level < 19; ++level) {
         const Values c = effective(true, sliders, 77, level);
         CHECK(c[BOLTS] == 0.0);
@@ -73,24 +76,30 @@ static void effective_values() {
 static void chaos() {
     // The same seed and level: the same values, each in its range; other levels and seeds differ.
     std::set<double> seen;
+
     for (std::uint64_t seed : {1ull, 0xDEADBEEFull, 42ull}) {
         for (int level = -1; level < 19; ++level) {
             const Values a = chaos_roll(seed, level), b = chaos_roll(seed, level);
+
             for (int k = 0; k < KNOB_COUNT; ++k) {
                 CHECK(a[k] == b[k]);
                 CHECK(a[k] >= k_knobs[k].chaos_min - 1e-9 && a[k] <= k_knobs[k].chaos_max + 1e-9);
                 CHECK(std::fabs(a[k] * 100.0 - std::round(a[k] * 100.0)) < 1e-6);
             }
+
             seen.insert(a[DAMAGE_TAKEN]);
         }
     }
+
     CHECK(seen.size() > 20);
     // A known roll stays the same from build to build (the seed a player shares means one game).
     const Values fixed = chaos_roll(0x12345678ull, 4);
     const Values again = chaos_roll(seed_from_text("12345678"), 4);
+
     for (int k = 0; k < KNOB_COUNT; ++k) {
         CHECK(fixed[k] == again[k]);
     }
+
     // Seeds: a code round-trips, any other text hashes the same way each time.
     CHECK(seed_code(0x0A1B2C3Dull) == "0A1B2C3D");
     CHECK(seed_from_text("0A1B2C3D") == 0x0A1B2C3Dull);
@@ -101,6 +110,7 @@ static void chaos() {
     CHECK(seed_from_text("ratchet") <= 0xFFFFFFFFull);
     // The generator is the same stream for the same seed.
     Rng r1(99), r2(99);
+
     for (int i = 0; i < 100; ++i) {
         const double u = r1.unit();
         CHECK(u == r2.unit() && u >= 0.0 && u < 1.0);
@@ -113,28 +123,35 @@ static void events() {
     clock.every = 60.0;
     clock.lasts = 10.0;
     int starts = 0, ends = 0;
+
     for (int tick = 0; tick < 60 * 330; ++tick) {  // five and a half minutes at 60 ticks a second
         const int c = clock.advance(1.0 / 60.0);
         starts += c > 0;
         ends += c < 0;
+
         if (c > 0) {
             CHECK(clock.current >= 0 && clock.current < k_event_count);
         }
     }
+
     CHECK(starts == 5 && ends == 5 && clock.current == -1);
     // The same seed: the same events in the same order.
     EventClock a, b;
     a.seed = b.seed = 1234;
     a.every = b.every = 30.0;
+
     for (int tick = 0; tick < 60 * 60 * 3; ++tick) {
         CHECK(a.advance(1.0 / 60.0) == b.advance(1.0 / 60.0));
         CHECK(a.current == b.current);
     }
+
     // An event changes only its knobs, within the safe ranges; none leaves a knob outside them.
     const Values ones = retail();
+
     for (int e = 0; e < k_event_count; ++e) {
         const Values v = with_event(ones, e);
         int changed = 0;
+
         for (int k = 0; k < KNOB_COUNT; ++k) {
             changed += v[k] != 1.0;
             CHECK(
@@ -144,6 +161,7 @@ static void events() {
                     : v[k] == 1.0
             );
         }
+
         CHECK(changed >= 1 && changed <= 2);
         Values high = ones;
         high[PLAYER_SPEED] = 2.0;
@@ -151,31 +169,38 @@ static void events() {
         const Values h = with_event(high, e);
         CHECK(h[PLAYER_SPEED] <= 2.5 && h[ENEMY_SPEED] <= 2.5);
     }
+
     CHECK(with_event(ones, -1)[PLAYER_SPEED] == 1.0);
 }
 
 static void accumulators() {
     // 1.0: one for one, always.
     Accumulator a;
+
     for (int i = 0; i < 1000; ++i) {
         CHECK(a.take(1.0) == 1);
     }
+
     // 0.5: every other one; 1.5: one, two, one, two; 0.25: one in four.
     Accumulator h;
     int total = 0;
+
     for (int i = 0; i < 100; ++i) {
         const int t = h.take(0.5);
         CHECK(t == (i % 2 == 1 ? 1 : 0));
         total += t;
     }
+
     CHECK(total == 50);
     Accumulator o;
     CHECK(o.take(1.5) == 1 && o.take(1.5) == 2 && o.take(1.5) == 1 && o.take(1.5) == 2);
     Accumulator q;
     total = 0;
+
     for (int i = 0; i < 400; ++i) {
         total += q.take(0.25);
     }
+
     CHECK(total == 100);
     // Several units at once (rounds of a shot, cells of a pickup).
     Accumulator s;
@@ -185,11 +210,13 @@ static void accumulators() {
     CHECK(scale_count(17, 1.0, rng) == 17);
     CHECK(scale_count(0, 3.0, rng) == 0);
     long sum = 0;
+
     for (int i = 0; i < 10000; ++i) {
         const int n = scale_count(10, 0.55, rng);
         CHECK(n == 5 || n == 6);
         sum += n;
     }
+
     CHECK(sum > 54000 && sum < 56000);
 }
 
@@ -210,6 +237,7 @@ static void amounts() {
     CHECK(max_health(4, 0.5) == 2);
     CHECK(max_health(4, 0.25) == 1);
     CHECK(max_health(5, 1.5) == 5);  // 7.5: no place for 6 or 7
+
     for (int r : {4, 5, 8}) {
         for (double m = 0.25; m <= 2.0; m += 0.25) {
             const int c = max_health(r, m);

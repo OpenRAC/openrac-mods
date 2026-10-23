@@ -143,11 +143,13 @@ std::uint32_t pool_word(int i) {
 std::uint32_t game_create(int32_t cls) {
     const std::uint32_t spare = pool_word(1), end = pool_word(2),
                         pvars = get<std::uint32_t>(disc().pool + 0x10u);
+
     for (std::uint32_t m = spare; m < end; m += 0x100u) {
         if (g_mem[m + 0x20] >= 0xFE) {
             if (g_mem[m + 0x20] == 0xFF) {
                 g_mem[m + 0x120] = 0xFF;
             }
+
             std::memset(g_mem + m, 0, 0x100);
             put<int16_t>(m + 0xA6u, static_cast<int16_t>(cls));
             g_mem[m + 0x21] = 0xFF;
@@ -157,6 +159,7 @@ std::uint32_t game_create(int32_t cls) {
             return m;
         }
     }
+
     return 0;
 }
 
@@ -216,24 +219,31 @@ void* original_for(const std::string& name) {
     if (name == "rac1.player.take_damage") {
         return (void*)game_take_damage;
     }
+
     if (name == "rac1.combat.get_hit") {
         return (void*)game_get_hit;
     }
+
     if (name == "rac1.weapon.take_ammo") {
         return (void*)game_take_ammo;
     }
+
     if (name == "rac1.moby.record_death") {
         return (void*)game_record_death;
     }
+
     if (name == "rac1.level.load_gameplay") {
         return (void*)game_load_gameplay;
     }
+
     if (name == "rac1.player.approach_speed") {
         return (void*)game_approach_speed;
     }
+
     if (name == "rac1.moby.nanotech_ball.update") {
         return (void*)game_ball;
     }
+
     return (void*)game_update;
 }
 
@@ -243,6 +253,7 @@ int host_hook(
     if (g_refuse_hook == name) {
         return OPENRAC_HOOK_UNKNOWN;
     }
+
     g_hooks.push_back({name, signature, replacement});
     *original = original_for(name);
     return OPENRAC_HOOK_OK;
@@ -263,21 +274,27 @@ int host_on_pad(openrac_mod*, openrac_pad_fn, void*) {
 
 void* host_function(const char* name) {
     const dm_disc& d = disc();
+
     if (std::strcmp(name, d.create_moby) == 0) {
         return (void*)game_create;
     }
+
     if (std::strcmp(name, d.delete_moby) == 0) {
         return (void*)game_delete;
     }
+
     if (std::strcmp(name, d.build_matrix) == 0) {
         return (void*)game_build;
     }
+
     if (std::strcmp(name, d.ground) == 0) {
         return (void*)game_ground;
     }
+
     if (std::strcmp(name, d.line) == 0) {
         return (void*)game_line;
     }
+
     return nullptr;
 }
 
@@ -345,6 +362,7 @@ void* hook(const std::string& name) {
             return t.replacement;
         }
     }
+
     return nullptr;
 }
 
@@ -402,6 +420,7 @@ void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link
     put<std::uint32_t>(section, n);
     put<std::uint32_t>(section + 4u, static_cast<std::uint32_t>(n2));
     std::uint32_t pv = kPlacedPvars;
+
     for (std::uint32_t i = 0; i < n; ++i) {
         const std::uint32_t rec = section + 0x10u + i * 0x88u;
         put<std::uint32_t>(rec, 0x88u);
@@ -418,14 +437,18 @@ void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link
         put<float>(m + 0x18u, 1.5f);
         put<int16_t>(m + 0xB2u, static_cast<int16_t>(i));
         g_mem[m + 0x20] = 0;
+
         for (std::uint32_t b = 0; b < placed[i].pvar_size; ++b) {
             g_mem[pv + b] = static_cast<std::uint8_t>(i + b);
         }
+
         pv += (placed[i].pvar_size + 0xFu) & ~0xFu;
     }
+
     if (!links.empty()) {
         put<std::uint32_t>(kHeader + 0x50u, 0x60000u);
         std::uint32_t q = kHeader + 0x60000u;
+
         for (const Link& l : links) {
             put<int32_t>(q, l.block);
             put<std::uint32_t>(q + 4u, l.offset);
@@ -433,8 +456,10 @@ void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link
             put<int32_t>(block + l.offset, l.target);
             q += 8u;
         }
+
         put<int32_t>(q, -1);
     }
+
     g_mem[spare + 0x20] = 0xFF;
     g_created = g_deleted = g_built = 0;
 }
@@ -442,12 +467,15 @@ void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link
 int free_slots() {
     const std::uint32_t spare = pool_word(1), end = pool_word(2);
     int free = 0;
+
     for (std::uint32_t m = spare; m < end; m += 0x100u) {
         if (g_mem[m + 0x20] == 0xFF) {
             return free + static_cast<int>((end - m) / 0x100u);
         }
+
         free += g_mem[m + 0x20] >= 0xFE;
     }
+
     return free;
 }
 
@@ -499,17 +527,22 @@ int main(int argc, char** argv) {
         {"rac1.moby.nanotech_ball.update", "void(u32)"},
     };
     const std::size_t updates = sizeof k_dm_update_hooks / sizeof k_dm_update_hooks[0];
+
     for (const char* version : {"ntsc", "pal"}) {
         CHECK(load_with(version) && g_failed.empty());
         CHECK(g_hooks.size() == 7 + updates);
+
         for (const auto& p : k_points) {
             bool found = false;
+
             for (const Taken& t : g_hooks) {
                 found |= t.name == p[0] && t.signature == p[1];
             }
+
             CHECK(found);
         }
     }
+
     const dm_disc& d = disc();
     auto take_damage = (void (*)(int32_t))hook("rac1.player.take_damage");
     auto get_hit = (std::uint32_t (*)(std::uint32_t, int32_t, int32_t))hook("rac1.combat.get_hit");
@@ -524,9 +557,11 @@ int main(int argc, char** argv) {
 
     // ---- Every slider at 1.0: the game's calls, as they were ----
     g_damage_calls.clear();
+
     for (int i = 0; i < 5; ++i) {
         take_damage(1);
     }
+
     take_damage(0);
     CHECK(g_damage_calls == (std::vector<int>{1, 1, 1, 1, 1, 0}));
     const std::uint32_t ring = d.hit_ring, enemy = 0x00600000u;
@@ -550,12 +585,14 @@ int main(int argc, char** argv) {
     put<float>(d.tick + 12u, 0.02f);
     update(enemy);
     CHECK(g_tick_seen == 0.02f);
+
     // The items' table and the level: as they were.
     for (std::uint32_t id = 0; id < 37; ++id) {
         put<int32_t>(d.item_table + id * 0x18u, 1000 + static_cast<int32_t>(id));
         put<uint16_t>(d.item_table + id * 0x18u + 8u, id % 3 ? 4 : 0);
         put<uint16_t>(d.item_table + id * 0x18u + 0xEu, id % 3 ? 40 : 0);
     }
+
     lay_level(std::vector<Placed>(50, Placed{427, 0xFF, 0, 0x40}), 256);
     CHECK(load_gameplay(1) == 0x00123450u && g_created == 0 && g_deleted == 0);
     CHECK(
@@ -697,10 +734,12 @@ int main(int argc, char** argv) {
     {
         // All three copies are of the first: the same pvars.
         bool all_first = true;
+
         for (std::uint32_t m = pool_word(1); m < pool_word(1) + 3u * 0x100u; m += 0x100u) {
             const std::uint8_t* pv = g_mem + get<std::uint32_t>(m + 0x78u);
             all_first = all_first && std::memcmp(pv, g_mem + kPlacedPvars, 0x40) == 0;
         }
+
         CHECK(all_first);
     }
     // Waves, bosses, turrets and mines: never copied.

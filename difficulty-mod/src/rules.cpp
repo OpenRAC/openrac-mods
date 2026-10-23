@@ -35,9 +35,11 @@ const double k_event_max[KNOB_COUNT] = {4.0, 6.0, 6.0, 2.5, 2.5, 5.0, 5.0, 6.0, 
 
 Values retail() {
     Values v;
+
     for (double& x : v.v) {
         x = 1.0;
     }
+
     return v;
 }
 
@@ -45,6 +47,7 @@ double clamp_knob(int knob, double value) {
     if (!std::isfinite(value)) {
         return 1.0;
     }
+
     const KnobInfo& k = k_knobs[knob];
     return value < k.min ? k.min : value > k.max ? k.max : value;
 }
@@ -55,17 +58,21 @@ bool sliders_moved(const Values& sliders) {
             return true;
         }
     }
+
     return false;
 }
 
 Values effective(bool chaos, const Values& sliders, std::uint64_t seed, int level) {
     Values out = chaos ? chaos_roll(seed, level) : retail();
+
     for (int k = 0; k < KNOB_COUNT; ++k) {
         const double s = clamp_knob(k, sliders[k]);
+
         if (!chaos || s != 1.0) {
             out[k] = s;
         }
     }
+
     return out;
 }
 
@@ -89,12 +96,14 @@ double Rng::unit() {
 Values chaos_roll(std::uint64_t seed, int level) {
     Rng rng(mix(seed, 0x1000u + static_cast<std::uint64_t>(level)));
     Values out;
+
     for (int k = 0; k < KNOB_COUNT; ++k) {
         const double lo = std::log(k_knobs[k].chaos_min);
         const double hi = std::log(k_knobs[k].chaos_max);
         // Rounded to hundredths, so that the log reads as what plays.
         out[k] = std::round(std::exp(lo + (hi - lo) * rng.unit()) * 100.0) / 100.0;
     }
+
     return out;
 }
 
@@ -102,25 +111,32 @@ std::uint64_t seed_from_text(const std::string& text) {
     if (text.size() == 8) {
         std::uint64_t v = 0;
         bool hex = true;
+
         for (const char c : text) {
             const int d = c >= '0' && c <= '9'   ? c - '0'
                           : c >= 'A' && c <= 'F' ? c - 'A' + 10
                           : c >= 'a' && c <= 'f' ? c - 'a' + 10
                                                  : -1;
+
             if (d < 0) {
                 hex = false;
                 break;
             }
+
             v = v << 4 | static_cast<std::uint64_t>(d);
         }
+
         if (hex) {
             return v;
         }
     }
+
     std::uint64_t h = 0xCBF29CE484222325ull;  // FNV-1a, folded to the 32 bits a code shows
+
     for (const unsigned char c : text) {
         h = (h ^ c) * 0x100000001B3ull;
     }
+
     return (h ^ (h >> 32)) & 0xFFFFFFFFull;
 }
 
@@ -132,14 +148,18 @@ std::string seed_code(std::uint64_t seed) {
 
 int Accumulator::take(double rate, int units) {
     carry += rate * units;
+
     if (!(carry >= 0.0)) {
         carry = 0.0;
     }
+
     const double whole = std::floor(carry + 1e-9);
     carry -= whole;
+
     if (carry < 0.0) {
         carry = 0.0;
     }
+
     return static_cast<int>(whole);
 }
 
@@ -147,6 +167,7 @@ int scale_count(int n, double m, Rng& rng) {
     if (n <= 0 || m == 1.0) {
         return n;
     }
+
     const double x = n * m;
     const double whole = std::floor(x);
     int out = static_cast<int>(whole) + (rng.unit() < x - whole ? 1 : 0);
@@ -157,22 +178,27 @@ int scale_amount(int value, double m, int limit) {
     if (value <= 0 || m == 1.0) {
         return value;
     }
+
     const double x = std::round(value * m);
     return x < 1.0 ? 1 : x > limit ? limit : static_cast<int>(x);
 }
 
 int max_health(int retail_cells, double m) {
     static const int allowed[] = {1, 2, 3, 4, 5, 8};
+
     if (m == 1.0) {
         return retail_cells;
     }
+
     const double want = std::floor(retail_cells * m + 1e-9);
     int out = 1;
+
     for (const int a : allowed) {
         if (a <= want) {
             out = a;
         }
     }
+
     return out;
 }
 
@@ -196,14 +222,18 @@ int EventClock::advance(double dt) {
     if (!(dt > 0.0)) {
         return 0;
     }
+
     clock += dt;
+
     if (current >= 0) {
         if (clock >= ends) {
             current = -1;
             return -1;
         }
+
         return 0;
     }
+
     if (clock >= every * (count + 1)) {
         Rng rng(mix(seed, 0x2000u + static_cast<std::uint64_t>(count)));
         current = static_cast<int>(rng.next() % static_cast<std::uint64_t>(k_event_count));
@@ -211,24 +241,30 @@ int EventClock::advance(double dt) {
         ++count;
         return 1;
     }
+
     return 0;
 }
 
 Values with_event(const Values& values, int event) {
     Values out = values;
+
     if (event < 0 || event >= k_event_count) {
         return out;
     }
+
     const Event& e = k_events[event];
+
     for (int i = 0; i < 2; ++i) {
         if (i == 1 && e.knob[1] == e.knob[0]) {
             break;
         }
+
         const int k = e.knob[i];
         double x = out[k] * e.factor[i];
         x = x < k_event_min[k] ? k_event_min[k] : x > k_event_max[k] ? k_event_max[k] : x;
         out[k] = x;
     }
+
     return out;
 }
 
