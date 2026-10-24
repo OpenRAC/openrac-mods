@@ -101,6 +101,8 @@ void game_look_along(openrac_gaddr direction, float, float) {
 // The menu widgets' updates (a widget's +0): an item grid's, a text list's, and a label's, at code
 // addresses of the test's own.
 constexpr std::uint32_t kGridCode = 0x00200000u, kListCode = 0x00200100u, kLabelCode = 0x00200200u;
+// The map's handler (DrawMapScreen) at two places: the executable's and a level's copy.
+constexpr std::uint32_t kMapCode = 0x00200400u, kMapCopyCode = 0x00270400u;
 
 // Each returns its own value: identical bodies may be folded into one function (MSVC's /OPT:ICF),
 // and the mod tells the kinds apart by the functions' addresses.
@@ -114,6 +116,10 @@ int game_list_update(std::uint32_t) {
 
 int game_label_update(std::uint32_t) {
     return 3;
+}
+
+int game_map_screen(std::uint32_t) {
+    return 4;
 }
 
 void host_log(openrac_mod*, int level, const char* text) {
@@ -210,6 +216,10 @@ void* host_function(const char* name) {
         return reinterpret_cast<void*>(&game_list_update);
     }
 
+    if (std::strcmp(name, d.map_screen) == 0) {
+        return reinterpret_cast<void*>(&game_map_screen);
+    }
+
     return nullptr;
 }
 
@@ -221,6 +231,9 @@ void* host_function_at(openrac_gaddr address) {
             return reinterpret_cast<void*>(&game_list_update);
         case kLabelCode:
             return reinterpret_cast<void*>(&game_label_update);
+        case kMapCode:
+        case kMapCopyCode:
+            return reinterpret_cast<void*>(&game_map_screen);
         default:
             return nullptr;
     }
@@ -526,8 +539,9 @@ void run(const char* library) {
         CHECK(g_failed.empty());
         CHECK(g_taken == (OPENRAC_INPUT_KEYBOARD | OPENRAC_INPUT_MOUSE));
         CHECK(g_pad != nullptr && g_camera_hook != nullptr);
-        CHECK(g_functions.size() == 5 && g_functions[2] == disc().camera_look_along);
+        CHECK(g_functions.size() == 6 && g_functions[2] == disc().camera_look_along);
         CHECK(g_functions[3] == disc().grid_update && g_functions[4] == disc().list_update);
+        CHECK(g_functions[5] == disc().map_screen);
     }
 
     // Another game is refused.
@@ -781,7 +795,7 @@ void run(const char* library) {
         CHECK(crossed);
         // The map focused (its handler DrawMapScreen): Enter and a click travel (Circle), Space
         // turns the page (Cross), Escape goes back; E is Circle on any page.
-        at<std::uint32_t>(w1 + 4u) = d.map_screen;
+        at<std::uint32_t>(w1 + 4u) = kMapCode;
         tick();
         g_input.captured = 0;
         read_pad();
@@ -807,6 +821,17 @@ void run(const char* library) {
         press(41);
         r = read_pad();
         CHECK(r.held(kbm::kTriangle));
+        // A level's copy of the handler, at another address, is the map too.
+        at<std::uint32_t>(w1 + 4u) = kMapCopyCode;
+        tick();
+        r = read_pad();
+        tick();
+        g_input.captured = 0;
+        press(40);
+        r = read_pad();
+        CHECK(r.held(kbm::kCircle) && !r.held(kbm::kCross));
+        tick();
+        r = read_pad();
         at<std::uint32_t>(w1 + 4u) = 0;
         tick();
         r = read_pad();

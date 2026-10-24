@@ -19,9 +19,11 @@ typedef struct kbm_disc {
     uint32_t quick_select; /* the Quick Select's eight slots: item ids, 0 for an empty one */
     uint32_t boot_mode;    /* the boot program's game mode: the title (0), the main menu (3), ... */
     /* The executable's, through relocate_data. */
-    uint32_t page_menu;  /* the menus' state: +4 the page shown (0 while one changes) */
-    uint32_t dialog;     /* the freeze dialog (mode 4): +0 its kind */
-    uint32_t map_screen; /* DrawMapScreen: the map widget's handler, which reads Circle to travel */
+    uint32_t page_menu; /* the menus' state: +4 the page shown (0 while one changes) */
+    uint32_t dialog;    /* the freeze dialog (mode 4): +0 its kind */
+    /* DrawMapScreen: the map widget's handler, which reads Circle to travel. Its name, not its
+     * address: in a level the menus run from that level's copy of it, at another address. */
+    const char* map_screen;
     /* Level 0's program's, through relocate_level_data(0, ...). */
     uint32_t level_mode; /* the game mode: 0 in play, 3 the pause menu, 5 a vendor, ... */
     /* The executable's, through relocate_data. */
@@ -97,7 +99,7 @@ static const kbm_disc k_kbm_discs[] = {
      0x0015F6E8u,
      0x001D5F70u,
      0x00193400u,
-     0x0021CE60u,
+     "func_0021CE60",
      0x0015F6A8u,
      0x0013CB40u,
      0x0015EEDCu,
@@ -113,7 +115,7 @@ static const kbm_disc k_kbm_discs[] = {
      0x0015F604u,
      0x001D5BF0u,
      0x00193300u,
-     0x0021BE60u,
+     "FUN_0021be60",
      0x0015F5C4u,
      0x0013CA40u,
      0x0015EDDCu,

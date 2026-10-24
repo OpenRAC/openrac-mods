@@ -191,6 +191,8 @@ void (*s_look_along)(gaddr, float, float) = nullptr;
 // text list's, as the port's functions; null where this disc's build has none.
 void* s_grid_update = nullptr;
 void* s_list_update = nullptr;
+// The map widget's handler (DrawMapScreen) as the port's function; null where the build has none.
+void* s_map_screen = nullptr;
 
 // ---- Game memory ----
 
@@ -816,6 +818,13 @@ kbm::ActionSet actions_held(const Tick& t) {
     return held;
 }
 
+// Whether a widget's handler is DrawMapScreen, in whichever program's copy (a level's own copy is
+// at another address than the executable's).
+bool is_map_screen(gaddr handler) {
+    return s_map_screen != nullptr && plausible(handler)
+           && reinterpret_cast<void*>(s_mod->function_at<void (*)()>(handler)) == s_map_screen;
+}
+
 // Whether the map is focused in the menu: its handler (the widget's update or draw) is
 // DrawMapScreen.
 bool map_focused(const Tick& t) {
@@ -827,8 +836,8 @@ bool map_focused(const Tick& t) {
     const gaddr page = menu_page();
     const gaddr focused = page != 0 ? read<std::uint32_t>(page + KBM_PAGE_FOCUS) : 0;
     return plausible(focused)
-           && (read<std::uint32_t>(focused) == s_disc->map_screen
-               || read<std::uint32_t>(focused + 4u) == s_disc->map_screen);
+           && (is_map_screen(read<std::uint32_t>(focused))
+               || is_map_screen(read<std::uint32_t>(focused + 4u)));
 }
 
 // The menus' directions into v: the d-pad, a held key repeating; a wheel notch is one step.
@@ -1169,6 +1178,7 @@ void load(openrac::Mod& mod) {
     // Without these the mouse moves no focus in the menus (it steps the d-pad there instead).
     s_grid_update = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->grid_update));
     s_list_update = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->list_update));
+    s_map_screen = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->map_screen));
 
     reset_state();
 
@@ -1182,4 +1192,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("keyboard-mouse", "1.2.1", load)
+OPENRAC_MOD_CPP("keyboard-mouse", "1.2.2", load)
