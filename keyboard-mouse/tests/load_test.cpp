@@ -102,16 +102,18 @@ void game_look_along(openrac_gaddr direction, float, float) {
 // addresses of the test's own.
 constexpr std::uint32_t kGridCode = 0x00200000u, kListCode = 0x00200100u, kLabelCode = 0x00200200u;
 
+// Each returns its own value: identical bodies may be folded into one function (MSVC's /OPT:ICF),
+// and the mod tells the kinds apart by the functions' addresses.
 int game_grid_update(std::uint32_t) {
-    return 0;
+    return 1;
 }
 
 int game_list_update(std::uint32_t) {
-    return 0;
+    return 2;
 }
 
 int game_label_update(std::uint32_t) {
-    return 0;
+    return 3;
 }
 
 void host_log(openrac_mod*, int level, const char* text) {
