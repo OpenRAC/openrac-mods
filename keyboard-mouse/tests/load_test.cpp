@@ -905,6 +905,80 @@ void run(const char* library) {
         at<std::uint32_t>(menus + 4u) = 0;
     }
 
+    // An item grid focused (the Quick Select's two rows of three): the selection goes to the cell
+    // under the mouse, a row at a time and then a column, wherever the mouse came from; a click on
+    // another cell steps there first, then confirms. The layout: a 240 by 160 rectangle at
+    // (60, 120), its frame 3 by 2 units (80 pixels a unit), the icons 0.8 units, the margins 0.1:
+    // the cells' icons are 64 pixels, 80 apart, from (68, 128).
+    {
+        const std::uint32_t menus = d.page_menu, page = 0x0018D000u, grid = 0x0018E000u,
+                            moby = 0x0018F000u, frame = 0x00190000u;
+        at<std::uint32_t>(menus + 4u) = page;
+        at<std::uint32_t>(page + KBM_PAGE_FOCUS) = grid;
+        at<std::uint32_t>(page + KBM_PAGE_WIDGETS) = grid;
+        at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
+        at<std::uint32_t>(grid) = kGridCode;
+        const std::int32_t rect[4] = {60, 120, 240, 160};
+        std::memcpy(g_memory.data() + grid + KBM_WIDGET_RECT, rect, 16);
+        at<std::uint32_t>(grid + KBM_WIDGET_MOBY) = moby;
+        at<std::uint32_t>(moby + KBM_MENU_MOBY_FRAME) = frame;
+        at<float>(frame + KBM_FRAME_SIZE) = 3.0f;
+        at<float>(frame + KBM_FRAME_SIZE + 4u) = 2.0f;
+        at<float>(d.grid_icon_size) = 0.8f;
+        at<float>(d.grid_icon_size + 4u) = 0.8f;
+        at<std::uint32_t>(grid + KBM_GRID_FLAGS) = 0;
+        at<float>(grid + KBM_GRID_MARGINS) = 0.1f;
+        at<float>(grid + KBM_GRID_MARGINS + 4u) = 0.1f;
+        at<std::int32_t>(grid + KBM_GRID_SELECTED) = 0;
+        at<std::int32_t>(grid + KBM_GRID_ROWS) = 2;
+        at<std::int32_t>(grid + KBM_GRID_COLS) = 3;
+
+        // The mouse at (gx, gy), moved this tick or at rest; the d-pad presses of the next ticks.
+        const auto presses = [](float gx, float gy, bool moved, bool click, int ticks) {
+            std::vector<std::uint16_t> seen;
+
+            for (int i = 0; i < ticks; ++i) {
+                tick();
+                g_input.captured = 0;
+                g_input.pointer_inside = 1;
+                g_input.pointer_x = gx / kbm::kScreenWidth;
+                g_input.pointer_y = gy / kbm::kScreenHeight;
+                g_input.mouse_dx = i == 0 && moved ? 1.0f : 0.0f;
+                g_input.mouse_held = i == 0 && click ? OPENRAC_MOUSE_LEFT : 0;
+                g_input.mouse_pressed = i == 0 && click ? OPENRAC_MOUSE_LEFT : 0;
+                const Report r = read_pad();
+
+                for (std::uint16_t b :
+                     {kbm::kUp, kbm::kDown, kbm::kLeft, kbm::kRight, kbm::kCross}) {
+                    if (r.held(b)) {
+                        seen.push_back(b);
+                    }
+                }
+            }
+
+            return seen;
+        };
+
+        // Over the last cell (the second row's third, its icon from (228, 208)): down, right, right.
+        std::vector<std::uint16_t> want = {kbm::kDown, kbm::kRight, kbm::kRight};
+        CHECK(presses(260.0f, 240.0f, true, false, 8) == want);
+        // There (the game moved the selection): nothing more, however far the mouse moves on it.
+        at<std::int32_t>(grid + KBM_GRID_SELECTED) = 5;
+        CHECK(presses(290.0f, 210.0f, true, false, 6).empty());
+        // In the gap between the first row's first two cells, nearer the second: one step there
+        // from the first.
+        at<std::int32_t>(grid + KBM_GRID_SELECTED) = 0;
+        want = {kbm::kRight};
+        CHECK(presses(145.0f, 160.0f, true, false, 6) == want);
+        // A click on the first cell from the last: up, left, left, then Cross.
+        at<std::int32_t>(grid + KBM_GRID_SELECTED) = 5;
+        want = {kbm::kUp, kbm::kLeft, kbm::kLeft, kbm::kCross};
+        CHECK(presses(90.0f, 150.0f, true, true, 12) == want);
+        at<std::uint32_t>(menus + 4u) = 0;
+        tick();
+        read_pad();
+    }
+
     // A cutscene (mode 2), a movie (1), a slideshow (7): Space, Enter, Escape and a click are Start.
     for (int mode : {2, 1, 7}) {
         at<std::int32_t>(d.level_mode) = mode;

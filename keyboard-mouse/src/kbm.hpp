@@ -1116,6 +1116,134 @@ inline int list_row(const Rect& r, int count, std::uint32_t flags, float py) {
     return static_cast<int>(std::max(0.0f, std::min(row, static_cast<float>(count - 1))));
 }
 
+// An item grid as the game lays it out (draw_menu_item_grid, games/rac1 pause.c): the widget's
+// rectangle; the frame it is laid out in (its menu moby's, in the game's own units) and an icon's
+// size in those units; the grid's margins in them, its rows, columns and flags (2: a fixed row
+// step).
+struct GridLayout {
+    Rect rect;
+    float frame_w = 0.0f;
+    float frame_h = 0.0f;
+    float icon_w = 0.0f;
+    float icon_h = 0.0f;
+    float margin_x = 0.0f;
+    float margin_y = 0.0f;
+    int rows = 0;
+    int cols = 0;
+    std::uint32_t flags = 0;
+};
+
+// The most rows or columns a grid read from the game may have before it is taken for no grid.
+inline constexpr int kMaxGridSide = 16;
+
+// The extra a fixed row step adds to an icon's height (draw_menu_item_grid's 0.15).
+inline constexpr float kGridFixedRowGap = 0.15f;
+
+// Whether a layout is one the game could draw: sides in range, sizes positive and finite.
+inline bool grid_layout_valid(const GridLayout& g) {
+    const auto positive = [](float v) {
+        return std::isfinite(v) && v > 0.0f;
+    };
+    return g.rows > 0 && g.cols > 0 && g.rows <= kMaxGridSide && g.cols <= kMaxGridSide
+           && g.rect.w > 0 && g.rect.h > 0 && positive(g.frame_w) && positive(g.frame_h)
+           && positive(g.icon_w) && positive(g.icon_h) && std::isfinite(g.margin_x)
+           && std::isfinite(g.margin_y);
+}
+
+// The cell under a point in the game's screen, as an index (row * cols + column); -1 for none.
+// The cells are where the game draws their icons: the columns spread across the frame between the
+// margins (one column centred), the rows the same (or a fixed step with flag 2), all scaled so the
+// frame's longer side fills the rectangle's longer side, from the rectangle's corner. A point in
+// the gap between two icons counts for the nearer one; outside the outer icons, by half a gap
+// (at least two pixels).
+inline int grid_cell_at(const GridLayout& g, float px, float py) {
+    // A grid the game could not draw has no cells.
+    if (!grid_layout_valid(g)) {
+        return -1;
+    }
+
+    float start_x;
+    float column_step;
+    float start_y;
+    float row_step;
+
+    // The columns: spread between the margins, or one in the middle.
+    if (g.cols >= 2) {
+        start_x = g.margin_x;
+        column_step = g.icon_w
+                      + (g.frame_w - (start_x + start_x) - g.icon_w * static_cast<float>(g.cols))
+                            / static_cast<float>(g.cols - 1);
+    } else {
+        column_step = 0.0f;
+        start_x = (g.frame_w - g.icon_w) * 0.5f;
+    }
+
+    // The rows: a fixed step, spread between the margins, or one in the middle.
+    if ((g.flags & 2u) != 0) {
+        row_step = g.icon_h + kGridFixedRowGap;
+        start_y = g.margin_y;
+    } else if (g.rows >= 2) {
+        start_y = g.margin_y;
+        row_step = g.icon_h
+                   + (g.frame_h - (start_y + start_y) - g.icon_h * static_cast<float>(g.rows))
+                         / static_cast<float>(g.rows - 1);
+    } else {
+        row_step = 0.0f;
+        start_y = (g.frame_h - g.icon_h) * 0.5f;
+    }
+
+    // The game's scale is in sixteenths of a pixel per unit; this is pixels per unit.
+    const float scale =
+        static_cast<float>(std::max(g.rect.w, g.rect.h)) / std::max(g.frame_w, g.frame_h);
+    const float icon_w = g.icon_w * scale;
+    const float icon_h = g.icon_h * scale;
+    const float gap_x = std::max(2.0f, (column_step * scale - icon_w) * 0.5f);
+    const float gap_y = std::max(2.0f, (row_step * scale - icon_h) * 0.5f);
+    const float lx = px - static_cast<float>(g.rect.x);
+    const float ly = py - static_cast<float>(g.rect.y);
+
+    // The column whose icon (with half the gap each side) holds the point.
+    int column = -1;
+
+    for (int j = 0; j < g.cols && column < 0; ++j) {
+        const float left = (start_x + column_step * static_cast<float>(j)) * scale;
+
+        if (lx >= left - gap_x && lx < left + icon_w + gap_x) {
+            column = j;
+        }
+    }
+
+    // The row, the same way.
+    int row = -1;
+
+    for (int i = 0; i < g.rows && row < 0; ++i) {
+        const float top = (start_y + row_step * static_cast<float>(i)) * scale;
+
+        if (ly >= top - gap_y && ly < top + icon_h + gap_y) {
+            row = i;
+        }
+    }
+
+    return column < 0 || row < 0 ? -1 : row * g.cols + column;
+}
+
+// The d-pad press that takes a grid's selection one step from cell `from` toward cell `to`
+// (update_menu_grid_selection: up and down a row, left and right a column): the row first. 0 when
+// they are the same cell, or either is off the grid.
+inline std::uint16_t grid_step(int from, int to, int rows, int cols) {
+    // Cells off the grid, or the same one: nothing to press.
+    if (cols <= 0 || from < 0 || to < 0 || from >= rows * cols || to >= rows * cols || from == to) {
+        return 0;
+    }
+
+    // Another row: up or down. The same row: left or right.
+    if (to / cols != from / cols) {
+        return to / cols < from / cols ? kUp : kDown;
+    }
+
+    return to % cols < from % cols ? kLeft : kRight;
+}
+
 }  // namespace kbm
 
 #endif  // KBM_HPP

@@ -105,12 +105,14 @@ exactly as Start on a pad does.
   menus:
   - **Hover selects.** This works on the main menu and on the pause menu and
     its pages (Options, Help, Goodies…): the item under the cursor gets the
-    focus, and in a list the selection moves to the row under it.
+    focus, and in a list the selection moves to the row under it. In the
+    item grids (Weapons, Gadgets, the Quick Select editor) it moves to the
+    cell under it.
     Only the items the arrows could move to take the focus: a label or the
     Quick Select's item preview never does.
   - **Elsewhere, moving the mouse steps the selection** the way it moves, as
-    the d-pad would. This covers the vendor, the "Quit?" questions, the item
-    grids (Weapons, Gadgets, the Quick Select editor) and the ship's map.
+    the d-pad would. This covers the vendor, the "Quit?" questions and the
+    ship's map.
   - **Clicks and the wheel.** Left click confirms; clicking an item that isn't
     selected yet selects it first, then confirms. Right click goes back, and
     the wheel scrolls lists.

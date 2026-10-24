@@ -610,6 +610,58 @@ void menu_mouse() {
         CHECK(kbm::reachable_widgets(4, page, 5, links) == 0u);  // a label leads nowhere
         CHECK(kbm::reachable_widgets(0, page, 5, links) == 0u);
     }
+    // An item grid's cells where the game draws their icons: two rows of three in a 240 by 160
+    // rectangle at (60, 120), a 3 by 2 unit frame (80 pixels a unit), 0.8 unit icons, 0.1
+    // margins. The icons are 64 pixels, 80 apart, from (68, 128); a gap counts half each side.
+    {
+        kbm::GridLayout g;
+        g.rect = {60, 120, 240, 160};
+        g.frame_w = 3.0f;
+        g.frame_h = 2.0f;
+        g.icon_w = 0.8f;
+        g.icon_h = 0.8f;
+        g.margin_x = 0.1f;
+        g.margin_y = 0.1f;
+        g.rows = 2;
+        g.cols = 3;
+        CHECK(kbm::grid_cell_at(g, 70.0f, 130.0f) == 0);
+        CHECK(kbm::grid_cell_at(g, 139.0f, 130.0f) == 0);  // the gap, nearer the first
+        CHECK(kbm::grid_cell_at(g, 141.0f, 130.0f) == 1);  // nearer the second
+        CHECK(kbm::grid_cell_at(g, 260.0f, 240.0f) == 5);
+        CHECK(kbm::grid_cell_at(g, 228.0f, 199.0f) == 2);
+        CHECK(kbm::grid_cell_at(g, 228.0f, 201.0f) == 5);
+        CHECK(kbm::grid_cell_at(g, 301.0f, 240.0f) == -1);  // past the last column's half gap
+        CHECK(kbm::grid_cell_at(g, 100.0f, 110.0f) == -1);  // above the grid
+        // One row of three (the Quick Select's first): centred in the frame's height.
+        g.rows = 1;
+        g.rect = {60, 120, 240, 80};
+        g.frame_h = 1.0f;
+        CHECK(kbm::grid_cell_at(g, 180.0f, 160.0f) == 1);
+        CHECK(kbm::grid_cell_at(g, 180.0f, 112.0f) == -1);
+        // A fixed row step (flag 2): rows 0.95 units apart from the margin.
+        g.rows = 3;
+        g.cols = 1;
+        g.flags = 2;
+        g.rect = {0, 0, 80, 240};
+        g.frame_w = 1.0f;
+        g.frame_h = 3.0f;
+        CHECK(kbm::grid_cell_at(g, 40.0f, 0.1f * 80.0f + 1.0f) == 0);
+        CHECK(kbm::grid_cell_at(g, 40.0f, 1.05f * 80.0f + 1.0f) == 1);
+        CHECK(kbm::grid_cell_at(g, 40.0f, 2.0f * 80.0f + 1.0f) == 2);
+        // A layout the game could not draw has no cells.
+        g.frame_w = 0.0f;
+        CHECK(kbm::grid_cell_at(g, 40.0f, 9.0f) == -1);
+        g.frame_w = 1.0f;
+        g.rows = 0;
+        CHECK(kbm::grid_cell_at(g, 40.0f, 9.0f) == -1);
+    }
+    // The press toward a cell: the row first, then the column.
+    CHECK(kbm::grid_step(0, 5, 2, 3) == kbm::kDown);
+    CHECK(kbm::grid_step(3, 5, 2, 3) == kbm::kRight);
+    CHECK(kbm::grid_step(5, 0, 2, 3) == kbm::kUp);
+    CHECK(kbm::grid_step(2, 0, 2, 3) == kbm::kLeft);
+    CHECK(kbm::grid_step(4, 4, 2, 3) == 0);
+    CHECK(kbm::grid_step(0, 6, 2, 3) == 0 && kbm::grid_step(-1, 2, 2, 3) == 0);
     // A list's rows: spread (row i's text at y + h / (n + 1) * (i + 1)).
     const kbm::Rect list{100, 100, 200, 100};
     CHECK(kbm::list_row(list, 3, 0, 110.0f) == 0);

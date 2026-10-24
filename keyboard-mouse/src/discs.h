@@ -41,6 +41,9 @@ typedef struct kbm_disc {
      * (update_menu_entry_actions). */
     const char* grid_update;
     const char* list_update;
+    /* The executable's, through relocate_data: an item grid icon's width and height (two floats, in
+     * the units of the frame the grid is laid out in; draw_menu_item_grid). */
+    uint32_t grid_icon_size;
 } kbm_disc;
 
 /* A menu page (page_menu +4): its focused widget, its widgets, the widget it moves to next. */
@@ -60,6 +63,17 @@ typedef struct kbm_disc {
  * none. */
 #define KBM_GRID_LINKS 0x4Cu
 #define KBM_GRID_LINK_COUNT 4
+/* An item grid (MenuItemGridData, draw_menu_item_grid): its flags, margins (two floats), selected
+ * cell, rows and columns; and the frame it is laid out in, its menu moby's (+0x14): the moby's
+ * +0x78 points at it, whose +0x40 is its width and height (two floats). */
+#define KBM_GRID_FLAGS 0x30u
+#define KBM_GRID_MARGINS 0x34u
+#define KBM_GRID_SELECTED 0x3Cu
+#define KBM_GRID_ROWS 0x40u
+#define KBM_GRID_COLS 0x44u
+#define KBM_WIDGET_MOBY 0x14u
+#define KBM_MENU_MOBY_FRAME 0x78u
+#define KBM_FRAME_SIZE 0x40u
 #define KBM_LIST_UP 0x38u
 #define KBM_LIST_DOWN 0x3Cu
 
@@ -108,7 +122,8 @@ static const kbm_disc k_kbm_discs[] = {
      "func_001F9FA8",
      "func_L00_002E9DC8",
      "func_0021C840",
-     "func_0021BB90"},
+     "func_0021BB90",
+     0x00160390u},
     {"ntsc",
      0x0013F350u,
      0x00141EA0u,
@@ -124,7 +139,8 @@ static const kbm_disc k_kbm_discs[] = {
      "FUN_001f9de0",
      "FUN_L00_002e8918",
      "FUN_0021b858",
-     "FUN_0021abf8"},
+     "FUN_0021abf8",
+     0x00160290u},
 };
 
 #endif /* KBM_DISCS_H */

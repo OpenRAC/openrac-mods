@@ -97,6 +97,10 @@ constexpr float kResetPitch = 0.20943952f;
 // How many bytes of game stack the swing's heading takes: four floats.
 constexpr int kHeadingFrameBytes = 16;
 
+// How many d-pad presses toward the cell under the mouse are queued at once: one of the pulse
+// queue's four places is left for a click's Cross.
+constexpr int kGridMaxQueuedSteps = 3;
+
 // How many ticks a click waits for the focus to move onto the item before it confirms (assumed).
 constexpr int kClickWaitTicks = 4;
 
@@ -504,10 +508,84 @@ kbm::Rect rect_of(gaddr widget) {
     return r;
 }
 
+// Whether a widget is an item grid: its update is the grid's (discs.h).
+bool is_grid(gaddr widget) {
+    const gaddr update = read<std::uint32_t>(widget);
+    return s_grid_update != nullptr && plausible(update)
+           && reinterpret_cast<void*>(s_mod->function_at<void (*)()>(update)) == s_grid_update;
+}
+
+// An item grid's layout as the game draws it (kbm::GridLayout); false where it cannot be read (no
+// grid, no menu moby or frame), so the mouse steps the d-pad over it instead.
+bool grid_layout(gaddr widget, kbm::GridLayout* g) {
+    // Only an item grid has this layout.
+    if (!is_grid(widget)) {
+        return false;
+    }
+
+    const gaddr moby = read<std::uint32_t>(widget + KBM_WIDGET_MOBY);
+    const gaddr frame = plausible(moby) ? read<std::uint32_t>(moby + KBM_MENU_MOBY_FRAME) : 0;
+
+    // The frame the grid is laid out in is where its menu moby points.
+    if (!plausible(frame)) {
+        return false;
+    }
+
+    const gaddr icon = s_mod->relocate(s_disc->grid_icon_size);
+    g->rect = rect_of(widget);
+    g->frame_w = read<float>(frame + KBM_FRAME_SIZE);
+    g->frame_h = read<float>(frame + KBM_FRAME_SIZE + 4u);
+    g->icon_w = read<float>(icon);
+    g->icon_h = read<float>(icon + 4u);
+    g->margin_x = read<float>(widget + KBM_GRID_MARGINS);
+    g->margin_y = read<float>(widget + KBM_GRID_MARGINS + 4u);
+    g->rows = read<std::int32_t>(widget + KBM_GRID_ROWS);
+    g->cols = read<std::int32_t>(widget + KBM_GRID_COLS);
+    g->flags = read<std::uint32_t>(widget + KBM_GRID_FLAGS);
+    return kbm::grid_layout_valid(*g);
+}
+
+// The mouse over the focused item grid: the selection steps to the cell under it, the presses
+// for the whole way queued at once (a row at a time, then a column). Returns the menu_mouse
+// result: false for a click that must wait for the selection to get there.
+bool mouse_on_grid(
+    gaddr widget, const kbm::GridLayout& g, bool moved, bool click, float px, float py
+) {
+    const int cell = kbm::grid_cell_at(g, px, py);
+    int at = read<std::int32_t>(widget + KBM_GRID_SELECTED);
+    s_stepper.reset();
+
+    // Between the cells, or already on the one under the mouse: nothing to step.
+    if (cell < 0 || cell == at || at < 0 || at >= g.rows * g.cols) {
+        return true;
+    }
+
+    // Steps already on their way (the selection is not where they lead yet): let them land.
+    if (!s_pulses.idle() || !(moved || click)) {
+        return !click;
+    }
+
+    // Queue the presses to the cell, leaving room for a click's Cross behind them.
+    for (int n = 0; n < kGridMaxQueuedSteps; ++n) {
+        const std::uint16_t dir = kbm::grid_step(at, cell, g.rows, g.cols);
+
+        // There: no more to press.
+        if (dir == 0) {
+            break;
+        }
+
+        s_pulses.push(dir);
+        at += dir == kbm::kUp ? -g.cols : dir == kbm::kDown ? g.cols : dir == kbm::kLeft ? -1 : 1;
+    }
+
+    return !click;
+}
+
 // The mouse over a menu page's item, at (px, py) in the game's screen: the item becomes the focused
-// one, or, once focused, a text list's row under the mouse is stepped to. Returns the menu_mouse
-// result where the mouse is over an item (false: the click must wait for the focus to move), and
-// nothing where it is over none, or over a grid, which the d-pad steps instead.
+// one, or, once focused, a text list's row or an item grid's cell under the mouse is stepped to.
+// Returns the menu_mouse result where the mouse is over an item (false: the click must wait for
+// the focus or the selection to move), and nothing where it is over none, or over a widget whose
+// rows it cannot read, which the d-pad steps instead.
 std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, float py) {
     std::array<gaddr, KBM_PAGE_WIDGET_COUNT> present{};
     int present_count = 0;
@@ -568,6 +646,13 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
         return !click;
     }
 
+    kbm::GridLayout grid;
+
+    // The focused item grid: the selection goes to the cell under the mouse, not by its motion.
+    if (grid_layout(widget, &grid)) {
+        return mouse_on_grid(widget, grid, moved, click, px, py);
+    }
+
     int rows = 0;
     int selected = 0;
 
@@ -590,7 +675,7 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
         return true;
     }
 
-    // At rest, or over a text list that does not step: nothing more to do. Over a grid's cells, the
+    // At rest, or over a text list that does not step: nothing more to do. Over another widget the
     // d-pad steps below.
     if (!moved || text_list(widget, &rows, &selected)) {
         return true;
@@ -601,8 +686,8 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
 
 // The mouse in a menu: over a page's item, it is the one the game focuses (as the d-pad moves the
 // focus between a page's items: the next tick's focus change plays the game's own sound); over a
-// row of the focused list, the d-pad steps the selection to it. Elsewhere (the vendor, the dialogs,
-// the item grids) its motion steps the d-pad. A click on an item not yet focused focuses it first.
+// row of the focused list or a cell of the focused item grid, the d-pad steps the selection to it.
+// Elsewhere (the vendor, the dialogs) its motion steps the d-pad. A click on an item not yet focused focuses it first.
 // Returns false when the click must wait for the focus to move.
 bool menu_mouse(const Tick& t, bool click) {
     const openrac_input* in = t.in;
@@ -1192,4 +1277,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("keyboard-mouse", "1.2.2", load)
+OPENRAC_MOD_CPP("keyboard-mouse", "1.2.3", load)
