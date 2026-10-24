@@ -98,6 +98,22 @@ void game_look_along(openrac_gaddr direction, float, float) {
     std::memcpy(&g_look_x, g_memory.data() + direction, 4);
 }
 
+// The menu widgets' updates (a widget's +0): an item grid's, a text list's, and a label's, at code
+// addresses of the test's own.
+constexpr std::uint32_t kGridCode = 0x00200000u, kListCode = 0x00200100u, kLabelCode = 0x00200200u;
+
+int game_grid_update(std::uint32_t) {
+    return 0;
+}
+
+int game_list_update(std::uint32_t) {
+    return 0;
+}
+
+int game_label_update(std::uint32_t) {
+    return 0;
+}
+
 void host_log(openrac_mod*, int level, const char* text) {
     std::printf("[%d] keyboard-mouse: %s\n", level, text);
 }
@@ -184,11 +200,28 @@ void* host_function(const char* name) {
         return reinterpret_cast<void*>(&game_look_along);
     }
 
+    if (std::strcmp(name, d.grid_update) == 0) {
+        return reinterpret_cast<void*>(&game_grid_update);
+    }
+
+    if (std::strcmp(name, d.list_update) == 0) {
+        return reinterpret_cast<void*>(&game_list_update);
+    }
+
     return nullptr;
 }
 
-void* host_function_at(openrac_gaddr) {
-    return nullptr;
+void* host_function_at(openrac_gaddr address) {
+    switch (address) {
+        case kGridCode:
+            return reinterpret_cast<void*>(&game_grid_update);
+        case kListCode:
+            return reinterpret_cast<void*>(&game_list_update);
+        case kLabelCode:
+            return reinterpret_cast<void*>(&game_label_update);
+        default:
+            return nullptr;
+    }
 }
 
 openrac_gaddr host_relocate(openrac_gaddr a) {
@@ -491,7 +524,8 @@ void run(const char* library) {
         CHECK(g_failed.empty());
         CHECK(g_taken == (OPENRAC_INPUT_KEYBOARD | OPENRAC_INPUT_MOUSE));
         CHECK(g_pad != nullptr && g_camera_hook != nullptr);
-        CHECK(g_functions.size() == 3 && g_functions[2] == disc().camera_look_along);
+        CHECK(g_functions.size() == 5 && g_functions[2] == disc().camera_look_along);
+        CHECK(g_functions[3] == disc().grid_update && g_functions[4] == disc().list_update);
     }
 
     // Another game is refused.
@@ -688,6 +722,11 @@ void run(const char* library) {
         std::memcpy(g_memory.data() + w1 + KBM_WIDGET_RECT, r1, 16);
         at<std::uint32_t>(w0 + KBM_LIST_ITEMS) = items;
         at<std::int32_t>(w0 + KBM_LIST_SELECTED) = 0;
+        // Two text lists, the second below the first (the first's down link).
+        at<std::uint32_t>(w0) = kListCode;
+        at<std::uint32_t>(w0 + KBM_LIST_DOWN) = w1;
+        at<std::uint32_t>(w1) = kListCode;
+        at<std::uint32_t>(w1 + KBM_LIST_UP) = w0;
 
         for (int i = 0; i < 3; ++i) {
             at<std::int16_t>(items + KBM_LIST_ITEM_SIZE * static_cast<std::uint32_t>(i)) =
@@ -773,6 +812,69 @@ void run(const char* library) {
         press(8);  // E
         r = read_pad();
         CHECK(r.held(kbm::kCircle) && !r.held(kbm::kCross));
+        at<std::uint32_t>(menus + 4u) = 0;
+    }
+
+    // The Quick Select page: two item grids (the second below the first), a label and the item
+    // preview, which reads the focused widget as a grid. The mouse never focuses the label or the
+    // preview, which the d-pad cannot reach (focusing one handed the preview a garbage item and
+    // the game crashed); over the label where it lies on the second grid, the grid is focused.
+    {
+        const std::uint32_t menus = d.page_menu, page = 0x00188000u, g0 = 0x00189000u,
+                            g1 = 0x0018A000u, label = 0x0018B000u, preview = 0x0018C000u;
+        at<std::uint32_t>(menus + 4u) = page;
+        at<std::uint32_t>(page + KBM_PAGE_FOCUS) = g0;
+        at<std::uint32_t>(page + KBM_PAGE_WIDGETS) = label;
+        at<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u) = preview;
+        at<std::uint32_t>(page + KBM_PAGE_WIDGETS + 8u) = g0;
+        at<std::uint32_t>(page + KBM_PAGE_WIDGETS + 12u) = g1;
+        at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
+        at<std::uint32_t>(g0) = kGridCode;
+        at<std::uint32_t>(g0 + KBM_GRID_LINKS + 4u) = g1;  // down
+        at<std::uint32_t>(g1) = kGridCode;
+        at<std::uint32_t>(g1 + KBM_GRID_LINKS) = g0;  // up
+        at<std::uint32_t>(label) = kLabelCode;
+        at<std::uint32_t>(preview) = 0x00200300u;  // a function the port does not know
+        const std::int32_t rg0[4] = {50, 50, 200, 100};
+        const std::int32_t rg1[4] = {50, 160, 200, 100};
+        const std::int32_t rlabel[4] = {50, 200, 400, 150};
+        const std::int32_t rpreview[4] = {300, 50, 150, 100};
+        std::memcpy(g_memory.data() + g0 + KBM_WIDGET_RECT, rg0, 16);
+        std::memcpy(g_memory.data() + g1 + KBM_WIDGET_RECT, rg1, 16);
+        std::memcpy(g_memory.data() + label + KBM_WIDGET_RECT, rlabel, 16);
+        std::memcpy(g_memory.data() + preview + KBM_WIDGET_RECT, rpreview, 16);
+
+        const auto point = [](float gx, float gy, bool click) {
+            tick();
+            g_input.captured = 0;
+            g_input.pointer_inside = 1;
+            g_input.pointer_x = gx / kbm::kScreenWidth;
+            g_input.pointer_y = gy / kbm::kScreenHeight;
+            g_input.mouse_dx = 1.0f;
+            g_input.mouse_held = g_input.mouse_pressed = click ? OPENRAC_MOUSE_LEFT : 0;
+        };
+
+        point(375.0f, 100.0f, false);  // over the preview
+        read_pad();
+        CHECK(at<std::uint32_t>(page + KBM_PAGE_PENDING) == 0);
+        point(375.0f, 100.0f, true);
+        read_pad();
+        CHECK(at<std::uint32_t>(page + KBM_PAGE_PENDING) == 0);
+        point(350.0f, 300.0f, true);  // over the label alone
+        read_pad();
+        CHECK(at<std::uint32_t>(page + KBM_PAGE_PENDING) == 0);
+        point(100.0f, 220.0f, false);  // over the label where it lies on the second grid
+        read_pad();
+        CHECK(at<std::uint32_t>(page + KBM_PAGE_PENDING) == g1);
+        at<std::uint32_t>(page + KBM_PAGE_PENDING) = 0;
+        // Without the link the second grid is out of reach too.
+        at<std::uint32_t>(g0 + KBM_GRID_LINKS + 4u) = 0;
+        point(100.0f, 220.0f, false);
+        read_pad();
+        CHECK(at<std::uint32_t>(page + KBM_PAGE_PENDING) == 0);
+        tick();
+        g_input.mouse_held = g_input.mouse_pressed = 0;
+        read_pad();
         at<std::uint32_t>(menus + 4u) = 0;
     }
 

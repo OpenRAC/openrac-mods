@@ -34,6 +34,11 @@ typedef struct kbm_disc {
     const char* fast_cos;          /* float (float) */
     const char* fast_sin;          /* float (float) */
     const char* camera_look_along; /* void (u32 direction, float, float): look along a heading */
+    /* The updates of the two kinds of menu widget the d-pad moves the focus between (a widget's
+     * update is at +0): an item grid's (update_menu_grid_selection) and a text list's
+     * (update_menu_entry_actions). */
+    const char* grid_update;
+    const char* list_update;
 } kbm_disc;
 
 /* A menu page (page_menu +4): its focused widget, its widgets, the widget it moves to next. */
@@ -48,6 +53,13 @@ typedef struct kbm_disc {
 #define KBM_LIST_ITEMS 0x34u
 #define KBM_LIST_SELECTED 0x40u
 #define KBM_LIST_ITEM_SIZE 12u
+/* The links the d-pad moves the focus along (games/rac1 pause.c, MenuItemGridData and
+ * MenuTextListData): an item grid's up, down, left and right; a text list's up and down. 0 for
+ * none. */
+#define KBM_GRID_LINKS 0x4Cu
+#define KBM_GRID_LINK_COUNT 4
+#define KBM_LIST_UP 0x38u
+#define KBM_LIST_DOWN 0x3Cu
 
 /* The camera block (cameras): the current camera, and the follow camera's up. */
 #define KBM_CAMERAS_CURRENT 0x180u
@@ -92,7 +104,9 @@ static const kbm_disc k_kbm_discs[] = {
      0x00166D80u,
      "func_001F9F90",
      "func_001F9FA8",
-     "func_L00_002E9DC8"},
+     "func_L00_002E9DC8",
+     "func_0021C840",
+     "func_0021BB90"},
     {"ntsc",
      0x0013F350u,
      0x00141EA0u,
@@ -106,7 +120,9 @@ static const kbm_disc k_kbm_discs[] = {
      0x00166C80u,
      "FUN_001f9dc8",
      "FUN_001f9de0",
-     "FUN_L00_002e8918"},
+     "FUN_L00_002e8918",
+     "FUN_0021b858",
+     "FUN_0021abf8"},
 };
 
 #endif /* KBM_DISCS_H */

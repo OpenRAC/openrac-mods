@@ -584,6 +584,32 @@ void menu_mouse() {
     CHECK(kbm::hit_widget(rects, 3, 50.0f, 155.0f) == -1);
     CHECK(kbm::hit_widget(rects, 3, 301.0f, 155.0f) == 1);  // a margin of two pixels
     CHECK(kbm::hit_widget(rects, 3, 0.0f, 0.0f) == -1);     // an empty rectangle is nothing
+    // The widgets the focus can move to, link by link: the Quick Select's grids (1, 2, 3, linked
+    // in a chain, 3 back to 1) but not its label (4) or preview (5), which nothing links to.
+    {
+        const std::uint32_t page[5] = {1, 2, 3, 4, 5};
+        const auto links = [](std::uint32_t w, std::uint32_t* out) {
+            switch (w) {
+                case 1:
+                    out[0] = 2;
+                    out[1] = 0;
+                    return 2;
+                case 2:
+                    out[0] = 3;
+                    out[1] = 1;
+                    return 2;
+                case 3:
+                    out[0] = 1;
+                    out[1] = 99;  // not one of the page's
+                    return 2;
+                default:
+                    return 0;
+            }
+        };
+        CHECK(kbm::reachable_widgets(1, page, 5, links) == 0x7u);
+        CHECK(kbm::reachable_widgets(4, page, 5, links) == 0u);  // a label leads nowhere
+        CHECK(kbm::reachable_widgets(0, page, 5, links) == 0u);
+    }
     // A list's rows: spread (row i's text at y + h / (n + 1) * (i + 1)).
     const kbm::Rect list{100, 100, 200, 100};
     CHECK(kbm::list_row(list, 3, 0, 110.0f) == 0);

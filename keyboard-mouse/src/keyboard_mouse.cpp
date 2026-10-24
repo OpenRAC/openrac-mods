@@ -187,6 +187,10 @@ std::uint16_t s_click_button = 0;
 float (*s_fast_cos)(float) = nullptr;
 float (*s_fast_sin)(float) = nullptr;
 void (*s_look_along)(gaddr, float, float) = nullptr;
+// The updates of the menu widgets the d-pad moves the focus between (discs.h): an item grid's and a
+// text list's, as the port's functions; null where this disc's build has none.
+void* s_grid_update = nullptr;
+void* s_list_update = nullptr;
 
 // ---- Game memory ----
 
@@ -456,6 +460,38 @@ bool text_list(gaddr widget, int* count, int* selected) {
     return true;
 }
 
+// A widget's links to the widgets the d-pad moves the focus to from it, into out (kbm::
+// reachable_widgets): an item grid's four, a text list's two, none for a widget of another kind.
+// The kind is its update's function (+0), in whichever program the menus are loaded from.
+int focus_links(gaddr widget, std::uint32_t* out) {
+    const gaddr update = read<std::uint32_t>(widget);
+
+    // A widget with no update, or one this disc's build has no functions to tell apart: no links.
+    if (!plausible(update) || (s_grid_update == nullptr && s_list_update == nullptr)) {
+        return 0;
+    }
+
+    void* const fn = reinterpret_cast<void*>(s_mod->function_at<void (*)()>(update));
+
+    // An item grid: up, down, left and right.
+    if (fn != nullptr && fn == s_grid_update) {
+        for (int i = 0; i < KBM_GRID_LINK_COUNT; ++i) {
+            out[i] = read<std::uint32_t>(widget + KBM_GRID_LINKS + 4u * static_cast<gaddr>(i));
+        }
+
+        return KBM_GRID_LINK_COUNT;
+    }
+
+    // A text list: up and down.
+    if (fn != nullptr && fn == s_list_update) {
+        out[0] = read<std::uint32_t>(widget + KBM_LIST_UP);
+        out[1] = read<std::uint32_t>(widget + KBM_LIST_DOWN);
+        return 2;
+    }
+
+    return 0;
+}
+
 // A widget's rectangle on the screen, as the game wrote it this frame.
 kbm::Rect rect_of(gaddr widget) {
     kbm::Rect r;
@@ -471,20 +507,43 @@ kbm::Rect rect_of(gaddr widget) {
 // result where the mouse is over an item (false: the click must wait for the focus to move), and
 // nothing where it is over none, or over a grid, which the d-pad steps instead.
 std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, float py) {
+    std::array<gaddr, KBM_PAGE_WIDGET_COUNT> present{};
+    int present_count = 0;
+
+    // Collect the page's widgets that are there (the slots are not all used).
+    for (int i = 0; i < KBM_PAGE_WIDGET_COUNT; ++i) {
+        const gaddr w = read<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u * static_cast<gaddr>(i));
+
+        // Only the page's widgets that are there.
+        if (plausible(w)) {
+            present[static_cast<std::size_t>(present_count++)] = w;
+        }
+    }
+
+    const gaddr focused = read<std::uint32_t>(page + KBM_PAGE_FOCUS);
+    const std::uint32_t reachable = kbm::reachable_widgets(
+        focused, present.data(), present_count, [](std::uint32_t w, std::uint32_t* out) {
+            return plausible(w) ? focus_links(w, out) : 0;
+        }
+    );
     std::array<kbm::Rect, KBM_PAGE_WIDGET_COUNT> rects{};
     std::array<gaddr, KBM_PAGE_WIDGET_COUNT> widgets{};
     int count = 0;
 
-    // Collect the page's widgets that are there.
-    for (int i = 0; i < KBM_PAGE_WIDGET_COUNT; ++i) {
-        const gaddr w = read<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u * static_cast<gaddr>(i));
+    // The widgets the mouse may point at: the focused one, and those the d-pad could take the
+    // focus to. Any other (a label, the item preview) the game never focuses, and some of its
+    // widgets break when it is (the Quick Select's preview reads the focus as an item grid).
+    for (int i = 0; i < present_count; ++i) {
+        const gaddr w = present[static_cast<std::size_t>(i)];
 
-        // Only the page's widgets that are there (the slots are not all used).
-        if (plausible(w)) {
-            widgets[static_cast<std::size_t>(count)] = w;
-            rects[static_cast<std::size_t>(count)] = rect_of(w);
-            ++count;
+        // Neither the focused widget nor one the focus can move to.
+        if (w != focused && (reachable & (1u << i)) == 0) {
+            continue;
         }
+
+        widgets[static_cast<std::size_t>(count)] = w;
+        rects[static_cast<std::size_t>(count)] = rect_of(w);
+        ++count;
     }
 
     const int hit = kbm::hit_widget(rects.data(), count, px, py);
@@ -495,7 +554,6 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
     }
 
     const gaddr widget = widgets[static_cast<std::size_t>(hit)];
-    const gaddr focused = read<std::uint32_t>(page + KBM_PAGE_FOCUS);
 
     // The item under the mouse is not the focused one: ask the game to move the focus to it, where
     // the mouse moved or clicked and no move is already asked for.
@@ -1108,6 +1166,9 @@ void load(openrac::Mod& mod) {
     s_fast_cos = game_function<float (*)(float)>(s_disc->fast_cos);
     s_fast_sin = game_function<float (*)(float)>(s_disc->fast_sin);
     s_look_along = game_function<void (*)(gaddr, float, float)>(s_disc->camera_look_along);
+    // Without these the mouse moves no focus in the menus (it steps the d-pad there instead).
+    s_grid_update = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->grid_update));
+    s_list_update = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->list_update));
 
     reset_state();
 
@@ -1121,4 +1182,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("keyboard-mouse", "1.2.0", load)
+OPENRAC_MOD_CPP("keyboard-mouse", "1.2.1", load)

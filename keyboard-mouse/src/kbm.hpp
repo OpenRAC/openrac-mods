@@ -1041,6 +1041,57 @@ inline int hit_widget(const Rect* rects, int count, float px, float py) {
     return -1;
 }
 
+// The most widgets a page has (the game's page holds 14 pointers).
+inline constexpr int kMaxPageWidgets = 14;
+
+// The most links a widget has to the widgets the d-pad moves the focus to (an item grid's up,
+// down, left and right).
+inline constexpr int kMaxWidgetLinks = 4;
+
+// The page's widgets (`widgets`, `count` of them) the d-pad can take the focus to from widget
+// `from`, one link after another, as bits by index (bit i: widgets[i]); `from` itself is not one
+// unless a link comes back to it. `links(w, out)` puts widget w's links into out (at most
+// kMaxWidgetLinks) and returns how many: none for a widget the game moves no focus from. Only the
+// links to the page's own widgets count.
+//
+// The game moves the focus only along these links (games/rac1 pause.c: update_menu_grid_selection
+// and update_menu_entry_actions set the page's pending focus to a link, nothing else does), and
+// some widgets read the focused one as the kind it can be: the Quick Select's item preview takes
+// it for an item grid and reads an item from it (update_item_preview_binding). Focusing any other
+// widget hands that preview a garbage item.
+template <class Links>
+std::uint32_t reachable_widgets(
+    std::uint32_t from, const std::uint32_t* widgets, int count, Links links
+) {
+    count = std::min(count, kMaxPageWidgets);
+    std::uint32_t found = 0;
+    std::uint32_t queue[kMaxPageWidgets + 1];
+    int head = 0;
+    int tail = 0;
+    queue[tail++] = from;
+
+    // Follow the links from each widget reached, once each.
+    while (head < tail) {
+        std::uint32_t out[kMaxWidgetLinks] = {};
+        const int n = std::min(links(queue[head++], out), kMaxWidgetLinks);
+
+        // Each link that leads to one of the page's widgets not reached yet.
+        for (int l = 0; l < n; ++l) {
+            for (int i = 0; i < count; ++i) {
+                // Not this widget, or reached already.
+                if (widgets[i] != out[l] || (found & (1u << i)) != 0) {
+                    continue;
+                }
+
+                found |= 1u << i;
+                queue[tail++] = widgets[i];
+            }
+        }
+    }
+
+    return found;
+}
+
 // The row of a text list under a point (DrawMenuItemList, games/rac1 pause.c): `count` rows. Spread
 // over the rectangle (flags without 0x10), row i's text sits at about rect.y + h / (count + 1) *
 // (i + 1); packed (flag 0x10), the rows are the font's height and 3 apart from the top (the font
