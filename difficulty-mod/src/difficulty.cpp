@@ -1418,4 +1418,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("difficulty", "1.2.0", load)
+OPENRAC_MOD_CPP("difficulty", "1.2.2", load)

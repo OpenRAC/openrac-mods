@@ -5,7 +5,9 @@
  * reads and writes, and the names of the game's functions it calls (as each disc's build of the
  * port names them: openrac_api.function). The PAL disc's (v2.00, SCES-50916) are OpenRAC's
  * games/rac1; the NTSC-U disc's (SCUS-97199) are the NTSC decomp's (games/rac1/ntsc), found from
- * the same code in its counterpart of each function (games/rac1/config/overlays/us_map.tsv).
+ * the same code in its counterpart of each function (games/rac1/config/overlays/us_map.tsv), except
+ * where the port has C of its own for the function: the name it gives that C then, which the NTSC
+ * decomp's spelling only redirects to (port/game/rac1-ntsc/no_c.tsv, "other spelling").
  */
 #ifndef DIFFICULTY_DISCS_H
 #define DIFFICULTY_DISCS_H
@@ -82,7 +84,7 @@ static const dm_disc k_dm_discs[] = {
         "FUN_0020c828",
         "FUN_L00_00250df8",
         "FUN_00213508",
-        "FUN_L00_001efc70",
+        "func_L00_001EFC70", /* the port's C (rac1/host/collision.c), not FUN_L00_001efc70 */
     },
 };
 
