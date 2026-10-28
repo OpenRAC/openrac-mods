@@ -248,6 +248,11 @@ bool decode(const Bytes& body, Message& out) {
             out.client_ms = r.i64();
             out.server_ms = r.i64();
             return r.ok();
+        case PacketId::kUdp:
+            out.kind = Message::Kind::kUdp;
+            out.token = r.i64();
+            out.udp_port = r.i32();
+            return r.ok();
         case PacketId::kParty:
             break;
         default:
@@ -289,6 +294,218 @@ bool decode(const Bytes& body, Message& out) {
             // CREATE, JOIN, LEAVE and FIND are the client's, and any other opcode is unknown.
             return false;
     }
+}
+
+Bytes datagram_bind(std::int32_t session, std::int64_t token) {
+    return Writer()
+        .i32(session)
+        .i64(token)
+        .u8(static_cast<std::uint8_t>(DatagramKind::kBind))
+        .bytes();
+}
+
+Bytes datagram_state(
+    std::int32_t session, std::int64_t token, std::int32_t target, const Bytes& payload
+) {
+    return Writer()
+        .i32(session)
+        .i64(token)
+        .u8(static_cast<std::uint8_t>(DatagramKind::kState))
+        .i32(target)
+        .raw(payload)
+        .bytes();
+}
+
+bool decode_datagram(const std::uint8_t* data, std::size_t size, Message& out) {
+    out = Message{};
+
+    // Longer than any server sends.
+    if (size > kMaxDatagramBytes) {
+        return false;
+    }
+
+    Reader r(data, size);
+
+    // STATE is the only kind a server sends.
+    if (r.u8() != static_cast<std::uint8_t>(DatagramKind::kState)) {
+        return false;
+    }
+
+    out.kind = Message::Kind::kData;
+    out.id = r.i32();
+    out.bytes = r.rest();
+    return r.ok();
+}
+
+Bytes hello_reply(std::int32_t session) {
+    return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).i32(session).bytes());
+}
+
+Bytes udp_offer(std::int64_t token, std::int32_t port) {
+    return frame(
+        Writer().u8(static_cast<std::uint8_t>(PacketId::kUdp)).i64(token).i32(port).bytes()
+    );
+}
+
+Bytes party_info(const std::string& code, std::int32_t host, const std::vector<Member>& members) {
+    Writer w = party(PartyOp::kInfo);
+    w.str(code).i32(host).u8(static_cast<std::uint8_t>(members.size()));
+
+    // Each member: its id and its name, as Session.serialize writes them.
+    for (const Member& m : members) {
+        w.i32(m.id).str(m.name);
+    }
+
+    return frame(w.bytes());
+}
+
+Bytes party_joined(const Member& member) {
+    return frame(party(PartyOp::kJoined).i32(member.id).str(member.name).bytes());
+}
+
+Bytes party_left(std::int32_t member) {
+    return frame(party(PartyOp::kLeft).i32(member).bytes());
+}
+
+Bytes party_end() {
+    return frame(party(PartyOp::kEnd).bytes());
+}
+
+Bytes chat_from(std::int32_t sender, const std::string& message) {
+    return frame(
+        Writer().u8(static_cast<std::uint8_t>(PacketId::kChat)).i32(sender).str(message).bytes()
+    );
+}
+
+Bytes data_from(std::int32_t sender, const Bytes& payload) {
+    return frame(
+        Writer().u8(static_cast<std::uint8_t>(PacketId::kData)).i32(sender).raw(payload).bytes()
+    );
+}
+
+Bytes error_reply(ErrorReason reason) {
+    return frame(
+        Writer()
+            .u8(static_cast<std::uint8_t>(PacketId::kError))
+            .u8(static_cast<std::uint8_t>(reason))
+            .bytes()
+    );
+}
+
+Bytes time_reply(std::int64_t client_ms, std::int64_t server_ms) {
+    return frame(
+        Writer()
+            .u8(static_cast<std::uint8_t>(PacketId::kTime))
+            .i64(client_ms)
+            .i64(server_ms)
+            .bytes()
+    );
+}
+
+Bytes datagram_state_from(std::int32_t sender, const Bytes& payload) {
+    return Writer()
+        .u8(static_cast<std::uint8_t>(DatagramKind::kState))
+        .i32(sender)
+        .raw(payload)
+        .bytes();
+}
+
+Request decode_request(const Bytes& body) {
+    Request out;
+    Reader r(body.data(), body.size());
+    const std::uint8_t id = r.u8();
+    Request::Kind kind = Request::Kind::kInvalid;
+
+    // By the packet id, as ServerPacketHandler.route; PARTY by its opcode.
+    switch (id) {
+        case static_cast<std::uint8_t>(PacketId::kHello):
+            kind = Request::Kind::kHello;
+            out.version = r.str();
+            out.text = r.str();
+            break;
+        case static_cast<std::uint8_t>(PacketId::kChat):
+            kind = Request::Kind::kChat;
+            out.text = r.str();
+            break;
+        case static_cast<std::uint8_t>(PacketId::kData):
+            kind = Request::Kind::kData;
+            out.target = r.i32();
+            out.bytes = r.rest();
+            break;
+        case static_cast<std::uint8_t>(PacketId::kTime):
+            kind = Request::Kind::kTime;
+            out.client_ms = r.i64();
+            break;
+        case static_cast<std::uint8_t>(PacketId::kParty):
+            // Only the client's requests; the notices are the server's.
+            switch (r.u8()) {
+                case static_cast<std::uint8_t>(PartyOp::kCreate):
+                    kind = Request::Kind::kCreate;
+                    break;
+                case static_cast<std::uint8_t>(PartyOp::kJoin):
+                    kind = Request::Kind::kJoin;
+                    out.text = r.str();
+                    break;
+                case static_cast<std::uint8_t>(PartyOp::kFind):
+                    kind = Request::Kind::kFind;
+                    break;
+                case static_cast<std::uint8_t>(PartyOp::kLeave):
+                    kind = Request::Kind::kLeave;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        default:
+            // ERROR and UDP are the server's, and any other id is unknown.
+            break;
+    }
+
+    // A body cut short is malformed.
+    out.kind = r.ok() ? kind : Request::Kind::kInvalid;
+    return out;
+}
+
+bool decode_client_datagram(const std::uint8_t* data, std::size_t size, ClientDatagram& out) {
+    out = ClientDatagram{};
+
+    // No client sends more.
+    if (size > kMaxDatagramBytes) {
+        return false;
+    }
+
+    Reader r(data, size);
+    out.session = r.i32();
+    out.token = r.i64();
+    const std::uint8_t kind = r.u8();
+
+    // BIND has no payload; STATE a target and the bytes; any other kind is unknown.
+    if (kind == static_cast<std::uint8_t>(DatagramKind::kBind)) {
+        out.kind = DatagramKind::kBind;
+    } else if (kind == static_cast<std::uint8_t>(DatagramKind::kState)) {
+        out.kind = DatagramKind::kState;
+        out.target = r.i32();
+        out.bytes = r.rest();
+    } else {
+        return false;
+    }
+
+    return r.ok();
+}
+
+std::size_t utf16_length(const std::string& text) {
+    std::size_t units = 0;
+
+    // A lead byte starts a code point; four-byte ones (past U+FFFF) are two UTF-16 units.
+    for (const char c : text) {
+        const auto b = static_cast<unsigned char>(c);
+
+        if ((b & 0xC0u) != 0x80u) {
+            units += b >= 0xF0u ? 2 : 1;
+        }
+    }
+
+    return units;
 }
 
 }  // namespace mp

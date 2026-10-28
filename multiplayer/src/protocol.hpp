@@ -34,8 +34,12 @@ constexpr std::size_t kMaxPartySize = 4;
 constexpr std::size_t kCodeLength = 6;
 constexpr const char* kCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/* The server's port when the mod's setting names none. */
+/* The server's port when the mod's setting names none, and the embedded host's by default. */
 constexpr int kDefaultPort = 7770;
+
+/* The party code an embedded host (Direct connect, host.hpp) gives its one party: it has no join
+ * codes, so INFO carries this instead (a lobby shows the host's address in its place). */
+constexpr const char* kDirectCode = "DIRECT";
 
 /* The packet ids (Packets.java), the PARTY opcodes and the ERROR reasons (Opcodes.java). */
 enum class PacketId : std::uint8_t {
@@ -44,7 +48,8 @@ enum class PacketId : std::uint8_t {
     kChat = 2,
     kData = 3,
     kError = 4,
-    kTime = 5
+    kTime = 5,
+    kUdp = 6
 };
 enum class PartyOp : std::uint8_t {
     kCreate = 0,
@@ -65,6 +70,24 @@ enum class ErrorReason : std::uint8_t {
 
 /* DATA's target for every other member of the party (session ids start at 1). */
 constexpr std::int32_t kBroadcast = 0;
+
+/* UDP (the server's README, UDP): optional, for game state only. After HELLO's answer the server
+ * sends UDP (a 64-bit token and its UDP port, the TCP port). A datagram has no length prefix; the
+ * client's is session id i32, token i64, kind u8, then the kind's payload; the server's is kind u8,
+ * then the payload. BIND (no payload) binds the sender's address, STATE carries target i32 + bytes
+ * from a client and sender i32 + bytes from the server. At most kMaxDatagramBytes either way;
+ * anything bigger, cut short, of an unknown kind or with the wrong token is dropped unanswered. */
+constexpr std::size_t kMaxDatagramBytes = 1200;
+enum class DatagramKind : std::uint8_t {
+    kBind = 0,
+    kState = 1
+};
+/* The bytes ahead of STATE's payload: in a client's datagram (id, token, kind, target), and in
+ * the server's (kind, sender). */
+constexpr std::size_t kClientStateHeader = 4 + 8 + 1 + 4;
+constexpr std::size_t kServerStateHeader = 1 + 4;
+/* A binding no valid datagram refreshed for this long is not trusted: state goes by TCP again. */
+constexpr int kUdpTimeoutMs = 15000;
 
 /* A body being written: bytes, big-endian integers, strings as the server reads them. */
 class Writer {
@@ -136,6 +159,12 @@ Bytes chat(const std::string& message);
 Bytes data(std::int32_t target, const Bytes& payload);
 Bytes time(std::int64_t client_ms);
 
+/* The client's datagrams (no frame): BIND, and STATE for `target`. */
+Bytes datagram_bind(std::int32_t session, std::int64_t token);
+Bytes datagram_state(
+    std::int32_t session, std::int64_t token, std::int32_t target, const Bytes& payload
+);
+
 /* A member of a party as the server lists it. */
 struct Member {
     std::int32_t id = 0;
@@ -153,7 +182,8 @@ struct Message {
         kChat,
         kData,
         kError,
-        kTime
+        kTime,
+        kUdp
     };
     Kind kind = Kind::kHello;
     /* HELLO: the session's id; JOINED and LEFT: the member's; CHAT and DATA: the sender's. */
@@ -171,11 +201,73 @@ struct Message {
     std::int64_t server_ms = 0;
     /* ERROR: why the server refused. */
     ErrorReason reason = ErrorReason::kPartyNotFound;
+    /* UDP: the session's token and the server's UDP port. */
+    std::int64_t token = 0;
+    std::int32_t udp_port = 0;
 };
 
 /* Reads a frame's body the server sent into `out`; false for one the client does not know (an
  * unknown id or opcode, a body cut short), which the client ignores. */
 bool decode(const Bytes& body, Message& out);
+
+/* Reads a datagram the server sent: a STATE becomes a kData message (the sender and the bytes), as
+ * the same state would have come by TCP. False for anything else, which the client drops. */
+bool decode_datagram(const std::uint8_t* data, std::size_t size, Message& out);
+
+/* The server's side, for the embedded host of Direct connect (host.hpp): the frames the server
+ * sends, and the client's frames and datagrams as the server reads them. */
+Bytes hello_reply(std::int32_t session);
+Bytes udp_offer(std::int64_t token, std::int32_t port);
+Bytes party_info(const std::string& code, std::int32_t host, const std::vector<Member>& members);
+Bytes party_joined(const Member& member);
+Bytes party_left(std::int32_t member);
+Bytes party_end();
+Bytes chat_from(std::int32_t sender, const std::string& message);
+Bytes data_from(std::int32_t sender, const Bytes& payload);
+Bytes error_reply(ErrorReason reason);
+Bytes time_reply(std::int64_t client_ms, std::int64_t server_ms);
+Bytes datagram_state_from(std::int32_t sender, const Bytes& payload);
+
+/* A client's frame as the server reads it. kInvalid: an id or opcode a client never sends (ERROR,
+ * UDP, the server's party notices, unknown ones) or a body cut short, which closes a connection. */
+struct Request {
+    enum class Kind {
+        kInvalid,
+        kHello,
+        kCreate,
+        kJoin,
+        kFind,
+        kLeave,
+        kChat,
+        kData,
+        kTime
+    };
+    Kind kind = Kind::kInvalid;
+    /* HELLO: the version and the name; JOIN: the code; CHAT: the message. */
+    std::string version;
+    std::string text;
+    /* DATA: the target and the bytes. */
+    std::int32_t target = 0;
+    Bytes bytes;
+    /* TIME: the client's clock. */
+    std::int64_t client_ms = 0;
+};
+
+Request decode_request(const Bytes& body);
+
+/* A client's datagram as the server reads it; false for one cut short or of an unknown kind. */
+struct ClientDatagram {
+    std::int32_t session = 0;
+    std::int64_t token = 0;
+    DatagramKind kind = DatagramKind::kBind;
+    std::int32_t target = 0;
+    Bytes bytes;
+};
+
+bool decode_client_datagram(const std::uint8_t* data, std::size_t size, ClientDatagram& out);
+
+/* A string's length as the server counts it (Java's String.length: UTF-16 units). */
+std::size_t utf16_length(const std::string& text);
 
 }  // namespace mp
 
