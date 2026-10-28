@@ -267,7 +267,7 @@ private:
 };
 
 /* How often the world says in the log what it did. */
-constexpr std::uint64_t kWorldLogMs = 10000;
+constexpr std::uint64_t kWorldLogMs = 5000;
 
 }  // namespace mp
 

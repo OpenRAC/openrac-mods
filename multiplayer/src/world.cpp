@@ -351,8 +351,9 @@ void World::log_counts(std::uint64_t now) {
     // A line in the log now and then of what went on.
     if (now - counts_ms_ >= kWorldLogMs) {
         const Counts& c = counts_;
-        if (c.snapshots + c.hits + c.kills + c.spawns + c.damage + c.bolts > 0) {
-            log("world: " + std::to_string(c.snapshots) + " snapshots, " + std::to_string(c.hits)
+        if (!mobys_.empty() || c.snapshots + c.hits + c.kills + c.spawns + c.damage + c.bolts > 0) {
+            log("world: " + std::to_string(mobys_.size()) + " mobys (" + std::to_string(driven_.size())
+                + " driven), " + std::to_string(c.snapshots) + " snapshots, " + std::to_string(c.hits)
                 + " hits, " + std::to_string(c.kills) + " kills, " + std::to_string(c.spawns)
                 + " spawns, " + std::to_string(c.damage) + " damage, " + std::to_string(c.bolts)
                 + " bolts");
