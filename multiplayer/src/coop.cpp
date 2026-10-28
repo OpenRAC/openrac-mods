@@ -318,6 +318,18 @@ void Coop::tick(std::uint64_t now) {
 }
 
 void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
+    // The scene's start and end in the log, and whether a skip ended it.
+    const bool scene = status.phase == kPhaseScene;
+
+    if (scene && !in_scene_) {
+        log(std::string("scene started (") + (session_.is_host() ? "host" : "member")
+            + (host_scene_ && !session_.is_host() ? ", the host's too" : "") + ")");
+    } else if (!scene && in_scene_) {
+        log(skip_asked_ ? "scene ended after the party's skip" : "scene ended");
+        skip_asked_ = false;
+    }
+
+    in_scene_ = scene;
     bool waiting = false;
 
     if (session_.is_host() && play_ != 0) {
@@ -336,19 +348,30 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     waiting = waiting && status.phase == kPhasePlaying;
 
     if (!waiting) {
+        if (hold_since_ != 0) {
+            log("everyone is out of the scene: going on");
+        }
+
         hold_since_ = 0;
         hold_ = false;
     } else {
         if (hold_since_ == 0) {
             hold_since_ = now;
-            log("waiting for the others to leave their scene");
+            log(session_.is_host() ? "waiting for the members to leave their scene"
+                                   : "waiting for the host's scene to end");
         }
 
         const std::uint64_t most = session_.is_host() ? kBarrierMs : kHostSceneMs;
         hold_ = now - hold_since_ < most;
     }
 
-    block_start_ = !session_.is_host() && play_ != 0 && status.phase == kPhaseScene && host_scene_;
+    const bool block = !session_.is_host() && play_ != 0 && status.phase == kPhaseScene && host_scene_;
+
+    if (block && !block_start_) {
+        log("Start in this scene is the host's to press");
+    }
+
+    block_start_ = block;
 }
 
 void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
@@ -441,10 +464,11 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     if (together && status.phase == kPhaseScene && host_out
         && (skip_ms_ == 0 || now - skip_ms_ >= kSkipMs)) {
         if (skip_ms_ == 0) {
-            log("the host is out of the scene: skipping it here");
+            log("skip requested: the host is out of the scene");
         }
 
         skip_ms_ = now;
+        skip_asked_ = true;
         game_.skip();
     } else if (status.phase != kPhaseScene) {
         skip_ms_ = 0;
@@ -581,6 +605,7 @@ void Coop::reset() {
     host_scene_ = sent_scene_ = false;
     hold_ = block_start_ = false;
     hold_since_ = skip_ms_ = host_out_since_ = 0;
+    in_scene_ = skip_asked_ = false;
     host_level_ = -1;
     sent_level_ = -2;
     pose_sent_ = false;

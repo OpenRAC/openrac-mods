@@ -917,6 +917,9 @@ void a_long_session() {
 // Start does nothing while the host's scene plays, and whoever is out first waits for the others.
 void scenes_end_together() {
     Player host(1), member(2);
+    std::vector<std::string> host_log, member_log;
+    host.coop.on_log([&](const std::string& l) { host_log.push_back(l); });
+    member.coop.on_log([&](const std::string& l) { member_log.push_back(l); });
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
     host.session.handle(info(both));
     member.session.handle(info(both));
@@ -957,6 +960,18 @@ void scenes_end_together() {
         tick({&host, &member}, 50);
     }
     CHECK(!host.coop.hold_input() && !member.coop.hold_input());
+    // What happened is in the logs: the scene's start, the skip asked, its end after it.
+    const auto has = [](const std::vector<std::string>& log, const std::string& line) {
+        return std::find(log.begin(), log.end(), line) != log.end();
+    };
+    CHECK(std::any_of(member_log.begin(), member_log.end(), [](const std::string& l) {
+        return l.rfind("scene started (member", 0) == 0;
+    }));
+    CHECK(has(host_log, "scene started (host)"));
+    CHECK(has(member_log, "Start in this scene is the host's to press"));
+    CHECK(has(member_log, "skip requested: the host is out of the scene"));
+    CHECK(has(member_log, "scene ended after the party's skip") && has(host_log, "scene ended"));
+    CHECK(has(host_log, "waiting for the members to leave their scene"));
     const std::size_t skips = member.game.calls.size();
     tick({&host, &member}, 1000);
     CHECK(member.game.calls.size() == skips);  // no skip out of a scene

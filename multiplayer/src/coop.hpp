@@ -287,6 +287,9 @@ private:
     std::uint64_t hold_since_ = 0;
     bool hold_ = false;
     bool block_start_ = false;
+    /* Whether this game played a scene at the last tick, and whether a skip was asked in it. */
+    bool in_scene_ = false;
+    bool skip_asked_ = false;
     int sent_level_ = -2;
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
