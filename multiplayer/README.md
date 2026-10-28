@@ -33,6 +33,33 @@ no party has, a full party, the host leaving).
 |---|---|---|
 | Server | `localhost:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
 
+## Direct connect
+
+Playing without a server: one player's game hosts, and the others join it by its address. The
+default stays the server; Direct connect is for a LAN, or for friends who can reach each other.
+
+- **Host directly**: your game listens on port **7770** (TCP, and UDP on the same port), and you are
+  the host of its one party. The page shows your address and port to give the others. A port
+  already taken (another host, or a server on the same computer) is refused with "Port 7770 is in
+  use".
+- **Join by address**: type the host's address as `address:port` (`192.168.1.20:7770`; the port may
+  be left out when it is 7770). You are in the host's party as soon as you are connected: there is
+  no code to type.
+
+On a LAN this works as it is. Over the internet the host has to forward the port (TCP and UDP 7770)
+on their router to their computer, and give out their public address; everyone in the party then
+sees the host's address, and the host sees theirs. When the host leaves or stops hosting, the party
+is over for everyone.
+
+The host's game runs a small copy of the server's party routing (`src/host.cpp`), so it speaks the
+same packets and datagrams, and the lobby and the game data behave the same in both modes. Its
+differences from the server: one party, whose code is `DIRECT` (a lobby shows the host's address
+instead); a client is put in it right after its hello (the party's INFO comes unasked), and Find
+match, Create match or Join by code (any code) put a client back in after it left; the host's own
+game is linked in-process, not by a socket. It keeps the server's limits: frames of 64 KiB, names
+of 1 to 32 characters and chat of 1 to 256, a party of 4, the same rates per connection with
+strikes, hello within 10 seconds, 8 connections an address (and 8 clients at once).
+
 ## How it works
 
 The mod needs OpenRAC's mod interface 1.7, whose pages of the game's own menus put the
@@ -54,6 +81,16 @@ for an empty one). The mod speaks all of it:
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
 | 4 ERROR | | the reason: no such party, full, already in one, not in one |
 | 5 TIME | its monotonic clock in ms, once after hello | the echo and the server's clock: the round trip, and the server's clock offset, smoothed (5 % a sample) |
+| 6 UDP | | the session's UDP token and the server's UDP port (an older server sends none) |
+
+**UDP**, for game state only (`Session::send_state`), when the server offers it: the connection
+binds a UDP socket to the server's address and that port, sends `BIND` (session id, token, kind 0)
+every 3 seconds to keep a NAT mapping open, and sends state as `STATE` datagrams (kind 1, the
+target, the bytes; at most 1,200 bytes a datagram, larger state goes as DATA). The server's STATE
+datagrams (kind 1, the sender, the bytes) arrive as the DATA they stand for. Until datagrams come
+back, state also goes as DATA, so blocked UDP loses nothing (state may then arrive twice, so it is
+stamped and the latest wins); once they come back within 15 seconds, UDP only. Lobby messages and
+game events always go as DATA.
 
 Ready and Start are the mod's own, carried in DATA, a kind byte first: **1** READY with a flag
 byte (a member to the host), **2** STATE with a count byte and an id int and a flag byte per member
@@ -73,11 +110,15 @@ python3 <OpenRAC>/sdk/tools/package_mod.py build/package/multiplayer -o dist
 ```
 
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
-lobby's logic against a recorder, and the connection against a small server on the loopback.
+lobby's logic against a recorder, the connection against a small server on the loopback, and
+Direct connect: a host and two clients on the loopback (the party, chat, DATA both ways, UDP state,
+leaving, the host stopping) and the server's limits held by the host.
 
 | File | |
 |---|---|
 | `src/multiplayer.cpp` | the mod: the main-menu item and its pages |
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, find, join, leave, Ready and Start |
-| `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting |
-| `src/protocol.hpp`, `.cpp` | the server's frames and packets |
+| `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
+| `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
+| `src/sockets.hpp` | the socket calls the connection and the host share (Winsock and POSIX) |
+| `src/protocol.hpp`, `.cpp` | the server's frames, packets and datagrams, both sides |
