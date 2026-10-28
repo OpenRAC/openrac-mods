@@ -17,7 +17,9 @@
 #include <cmath>
 #include <cstdio>
 #include <functional>
+#include <algorithm>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -25,6 +27,7 @@
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
+#include "world.hpp"
 
 namespace {
 
@@ -213,7 +216,11 @@ struct FakeGame : mp::Game {
     Bytes progress;
     int next_figure = 0;
     std::map<int, mp::Pose> figures;
-    mp::Pose hero_pose = pose_at(1.0f);
+    mp::Pose hero_pose = [] {
+        mp::Pose p = pose_at(1.0f);
+        p.health = 8;
+        return p;
+    }();
 
     mp::GameStatus status() override { return now; }
 
@@ -250,7 +257,91 @@ struct FakeGame : mp::Game {
     }
 
     void figure_remove(int id) override { figures.erase(id); }
+
+    // The world: a level's mobys by slot, the drives, kills, spawns, hits, stand-ins and bolts. The
+    // hero's moby is slot 99, figure id N is slot 100 + N.
+    std::vector<mp::MobyState> level;
+    std::set<int> drives;
+    std::vector<std::string> world_calls;
+    std::vector<mp::Hit> hits;
+    int stood = 0;
+    int bolt_count = 0;
+
+    std::vector<mp::MobyState> mobys() override { return level; }
+
+    int moby_slot(int key) override {
+        for (const mp::MobyState& m : level) {
+            if (m.key == key) {
+                return m.slot;
+            }
+        }
+        return -1;
+    }
+
+    bool moby_drive(int slot, bool on) override {
+        if (on) {
+            drives.insert(slot);
+        } else {
+            drives.erase(slot);
+        }
+        return true;
+    }
+
+    bool moby_pose(int slot, const mp::Pose& pose) override {
+        for (mp::MobyState& m : level) {
+            if (m.slot == slot) {
+                m.pose = pose;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool moby_kill(int slot) override {
+        const auto before = level.size();
+        level.erase(
+            std::remove_if(level.begin(), level.end(), [&](const mp::MobyState& m) { return m.slot == slot; }),
+            level.end()
+        );
+        world_calls.push_back("kill " + std::to_string(slot));
+        return level.size() != before;
+    }
+
+    int moby_spawn(int oclass, const mp::Pose& pose) override {
+        mp::MobyState m;
+        m.slot = 500 + static_cast<int>(level.size());
+        m.oclass = oclass;
+        m.pose = pose;
+        level.push_back(m);
+        world_calls.push_back("spawn " + std::to_string(oclass));
+        return m.slot;
+    }
+
+    int figure_slot(int id) override { return id < 0 ? 99 : 100 + id; }
+
+    bool stand_in(const float* position, int figure) override {
+        ++stood;
+        world_calls.push_back("stand " + std::to_string(static_cast<int>(position[0])) + " " + std::to_string(figure));
+        return true;
+    }
+
+    bool hit(const mp::Hit& h) override {
+        hits.push_back(h);
+        return true;
+    }
+
+    int bolts(int add) override { return bolt_count += add; }
 };
+
+mp::MobyState moby(int slot, int key, int oclass, std::uint32_t flags, float x) {
+    mp::MobyState m;
+    m.slot = slot;
+    m.key = key;
+    m.oclass = oclass;
+    m.flags = flags;
+    m.pose.position[0] = x;
+    return m;
+}
 
 struct Player {
     std::int32_t id;
@@ -259,13 +350,19 @@ struct Player {
     mp::Session session;
     FakeGame game;
     mp::Coop coop;
+    mp::World world;
 
     explicit Player(std::int32_t id_)
         : id(id_),
           session(link, "test/1", "P" + std::to_string(id_), [this] { return clock; }),
-          coop(session, game, [this] { return clock; }) {
+          coop(session, game, [this] { return clock; }),
+          world(session, game, coop, [this] { return clock; }) {
         session.on_data([this](std::int32_t sender, const Bytes& bytes) {
-            coop.handle(sender, bytes);
+            if (!bytes.empty() && bytes[0] >= static_cast<std::uint8_t>(mp::WorldKind::kWorld)) {
+                world.handle(sender, bytes);
+            } else {
+                coop.handle(sender, bytes);
+            }
         });
         mp::Message hello;
         hello.kind = mp::Message::Kind::kHello;
@@ -336,6 +433,7 @@ void tick(std::vector<Player*> players, std::uint64_t ms) {
     for (Player* p : players) {
         p->clock += ms;
         p->coop.tick(p->clock);
+        p->world.tick(p->clock);
     }
     route(players);
 }
@@ -499,6 +597,158 @@ void a_member_out_of_the_game_asks_for_it() {
     CHECK((member.game.calls == std::vector<std::string>{"start 0 0"}));
 }
 
+void world_bytes() {
+    mp::Pose p = pose_at(12.5f);
+    p.rotation[2] = -1.5f;
+    p.seq = 7;
+    p.frame = 3;
+    p.anim_time = 0.5f;
+    p.anim_speed = 2.0f;
+    std::vector<mp::WorldEntry> entries(mp::kWorldEntries + 5, mp::WorldEntry{0x8003, p});
+    const Bytes b = mp::encode_world(4, 123456, entries);
+    CHECK(b.size() == 1 + 1 + 8 + 1 + mp::kWorldEntries * mp::kWorldEntryBytes);
+    CHECK(b.size() <= mp::kMaxDatagramBytes - mp::kClientStateHeader);
+    int level = 0;
+    std::int64_t stamp = 0;
+    std::vector<mp::WorldEntry> out;
+    CHECK(mp::decode_world(b, level, stamp, out) && level == 4 && stamp == 123456);
+    CHECK(out.size() == mp::kWorldEntries && out[0].id == 0x8003 && out[0].pose.position[0] == 12.5f);
+    CHECK(std::fabs(out[0].pose.rotation[2] + 1.5f) < 1e-3f && out[0].pose.seq == 7 && out[0].pose.frame == 3);
+    CHECK(std::fabs(out[0].pose.anim_time - 0.5f) < 0.01f && out[0].pose.anim_speed == 2.0f);
+    CHECK(!mp::decode_world(Bytes(b.begin(), b.end() - 3), level, stamp, out));
+}
+
+// The host runs the level's world; the member drives its copy from it.
+void the_world_is_the_hosts() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+
+    // The same level in both: an enemy (key 0), a crate (key 1), a static rock (key 2, no
+    // update); the host also has a bolt it spawned (slot 300, class 13).
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, runs | mp::kMobyCreature, 10.0f), moby(1, 1, 500, runs, 20.0f),
+                         moby(2, 2, 77, mp::kMobyPlaced, 30.0f)};
+    }
+    host.game.level.push_back(moby(300, -1, 13, mp::kMobyUpdates, 11.0f));
+    host.game.hero_pose.position[0] = 100.0f;
+    member.game.hero_pose.position[0] = 12.0f;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+
+    // The member drives the enemy only (not the crate: each game's; not the rock: no update).
+    CHECK((member.game.drives == std::set<int>{0}));
+    CHECK(member.world.driven() == 2 && member.world.spawned() == 1);  // the enemy, the bolt
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 13") == 1);
+    CHECK(host.world.hosting() && !member.world.hosting());
+
+    // The host's enemy moves: the member's follows, a delay behind.
+    host.game.level[0].pose.position[0] = 15.0f;
+    host.game.level[0].pose.seq = 4;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(std::fabs(member.game.level[0].pose.position[0] - 15.0f) < 0.01f && member.game.level[0].pose.seq == 4);
+
+    // The enemy's update on the host: the member is nearer than the host, so it stands in; the
+    // bolts its update gave go to the member.
+    const int before = host.game.stood;
+    CHECK(!host.world.gate(0, mp::kMobyBefore));
+    host.game.bolt_count += 25;
+    CHECK(!host.world.gate(0, mp::kMobyAfter));
+    CHECK(host.game.stood == before + 1 && host.game.world_calls.back().rfind("stand 12", 0) == 0);
+    CHECK(host.game.bolt_count == 0);
+    // The crate's update keeps the host's hero.
+    host.world.gate(1, mp::kMobyBefore);
+    host.world.gate(1, mp::kMobyAfter);
+    CHECK(host.game.stood == before + 1);
+    tick({&host, &member}, 50);
+    CHECK(member.game.bolt_count == 25);
+
+    // The member's wrench on the driven enemy: to the host, which posts it from the member's
+    // figure; the member's own copy never sees it.
+    mp::Hit wrench;
+    wrench.victim = 0;
+    wrench.attacker = 99;
+    wrench.mask = 0x10000;
+    wrench.damage = 1.0f;
+    CHECK(member.world.hit(wrench));
+    route({&host, &member});
+    CHECK(host.game.hits.size() == 1 && host.game.hits[0].victim == 0 && host.game.hits[0].mask == 0x10000);
+    CHECK(host.game.hits[0].attacker == 100 + host.coop.figure_of(2));
+    // A hit on the member's own hero is its game's.
+    wrench.victim = 99;
+    CHECK(!member.world.hit(wrench));
+
+    // The enemy hits the member's figure on the host: the member's hero is hurt, by the enemy.
+    mp::Hit bite;
+    bite.victim = 100 + host.coop.figure_of(2);
+    bite.attacker = 0;
+    bite.mask = 1;
+    bite.damage = 2.0f;
+    CHECK(host.world.hit(bite));
+    route({&host, &member});
+    CHECK(member.game.hits.size() == 1 && member.game.hits[0].victim == 99 && member.game.hits[0].attacker == 0);
+    CHECK(member.game.hits[0].damage == 2.0f);
+
+    // The member breaks the crate: the host's goes too.
+    member.game.level.erase(member.game.level.begin() + 1);
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(host.game.moby_slot(1) == -1);
+
+    // The host's enemy dies, its bolt is picked up: gone in the member's game too.
+    host.game.level.erase(host.game.level.begin());
+    host.game.level.pop_back();
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(member.game.moby_slot(0) == -1 && member.world.spawned() == 0);
+    CHECK(member.game.level.size() == 1 && member.game.level[0].key == 2);
+}
+
+// A member of another build refuses the host's game; a member in the host's game goes back to the
+// title when the party ends.
+void builds_and_the_end() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.set_build("mp/0.5.0 1.0 pal");
+    member.coop.set_build("mp/0.5.0 1.0 ntsc");
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    CHECK(member.game.calls.empty() && member.coop.take_notice().find("Incompatible version") == 0);
+    // Not asked for again.
+    tick({&host, &member}, mp::kWantMs + 16);
+    CHECK(member.game.calls.empty());
+
+    // The same build: it plays, and when the party ends in a level it goes back to the title.
+    Player host2(1), member2(2);
+    host2.session.handle(info(both));
+    member2.session.handle(info(both));
+    host2.coop.choose({}, "New game");
+    CHECK(host2.coop.start());
+    route({&host2, &member2});
+    tick({&host2, &member2}, 16);
+    member2.game.now = {mp::kPhasePlaying, 0, 2};
+    tick({&host2, &member2}, 16);
+    mp::Message end;
+    end.kind = mp::Message::Kind::kPartyEnd;
+    member2.session.handle(end);
+    tick({&member2}, 16);
+    CHECK(member2.game.calls.back() == "travel -1" && !member2.coop.playing());
+}
+
 }  // namespace
 
 int main() {
@@ -510,6 +760,9 @@ int main() {
     the_host_starts_a_save_and_the_member_follows();
     a_new_game_and_a_late_member();
     a_member_out_of_the_game_asks_for_it();
+    world_bytes();
+    the_world_is_the_hosts();
+    builds_and_the_end();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

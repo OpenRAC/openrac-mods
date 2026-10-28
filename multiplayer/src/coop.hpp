@@ -7,7 +7,7 @@
  * calls in the mod, a fake in the tests), on the game's thread, once a tick.
  *
  * The game's own kinds of DATA (after the lobby's 1 to 3, session.hpp), the host's word first:
- *   4 PLAY   play i32, mode u8 (0 a new game, 1 a save), level i32, save size i32
+ *   4 PLAY   play i32, mode u8 (0 a new game, 1 a save), level i32, save size i32, build string
  *            the host to everyone (at Start) or to one member (who came late, or asked): play this;
  *            a save follows in CHUNKs. `play` names the host's game: a member plays each once.
  *   5 CHUNK  play i32, offset i32, bytes        a piece of PLAY's save, at most kChunkBytes;
@@ -22,7 +22,8 @@
  * The host plays what Create match chose: a new game (the first level) or a save of its memory
  * card. A member starts the same from the title (play_start), its own card untouched. Joining a
  * game that is on, a member gets the host's progress as it is now (save_capture), in the host's
- * level. The world is each game's own: only the players are shared (the next step shares the rest).
+ * level. A member whose build differs from the host's (the mod, OpenRAC, the disc) refuses it.
+ * When the party ends under a member in the host's game, it goes back to the title.
  */
 #ifndef MULTIPLAYER_COOP_H
 #define MULTIPLAYER_COOP_H
@@ -82,6 +83,32 @@ inline bool in_level(int phase) {
     return phase == kPhasePlaying || phase == kPhaseScene || phase == kPhaseMenu;
 }
 
+/* A moby of the level as the world sees it (the SDK's openrac_moby): its slot here, its key (the
+ * level's record, the same in every game; -1 for one spawned), class, flags, and pose. */
+struct MobyState {
+    int slot = -1;
+    int key = -1;
+    int oclass = 0;
+    std::uint32_t flags = 0;
+    Pose pose;
+};
+
+/* openrac_moby's flags. */
+constexpr std::uint32_t kMobyUpdates = 0x1;
+constexpr std::uint32_t kMobyDriven = 0x2;
+constexpr std::uint32_t kMobyPlaced = 0x4;
+constexpr std::uint32_t kMobyCreature = 0x8;
+
+/* A hit (the SDK's openrac_hit): victim and attacker by slot (-1 none). */
+struct Hit {
+    int victim = -1;
+    int attacker = -1;
+    std::uint32_t mask = 0;
+    float damage = 0;
+    float position[3] = {0, 0, 0};
+    float velocity[3] = {0, 0, 0};
+};
+
 /* What the co-op needs of the game: the SDK's play calls (multiplayer.cpp), or a test's. */
 class Game {
 public:
@@ -97,6 +124,19 @@ public:
     virtual int figure_create() = 0;
     virtual bool figure_pose(int id, const Pose& pose) = 0;
     virtual void figure_remove(int id) = 0;
+
+    /* The world (world.hpp; the SDK's 1.9 calls). A game without them lists nothing. */
+    virtual std::vector<MobyState> mobys() { return {}; }
+    virtual int moby_slot(int /*key*/) { return -1; }
+    virtual bool moby_drive(int /*slot*/, bool /*on*/) { return false; }
+    virtual bool moby_pose(int /*slot*/, const Pose& /*pose*/) { return false; }
+    virtual bool moby_kill(int /*slot*/) { return false; }
+    virtual int moby_spawn(int /*oclass*/, const Pose& /*pose*/) { return -1; }
+    virtual int figure_slot(int /*id*/) { return -1; }
+    virtual bool stand_in(const float* /*position*/, int /*figure*/) { return false; }
+    virtual bool hit(const Hit& /*hit*/) { return false; }
+    virtual void eyes(const std::vector<float>& /*xyz*/) {}
+    virtual int bolts(int /*add*/) { return 0; }
 };
 
 /* A remote player as the co-op keeps it: its poses and its figure. */
@@ -110,6 +150,10 @@ class Coop {
 public:
     /* `clock` gives the monotonic milliseconds poses arrive at (now_ms when none is given). */
     Coop(Session& session, Game& game, std::function<std::uint64_t()> clock = {});
+
+    /* What every game of a party must have the same of (the mod's version, OpenRAC's, the disc):
+     * the host sends it with PLAY, and a member with another refuses to start. */
+    void set_build(std::string build) { build_ = std::move(build); }
 
     /* The host's choice (Create match's save picker): a new game (no bytes) or a save, and what the
      * lobby and the list say of it. */
@@ -148,6 +192,12 @@ public:
 
     const std::map<std::int32_t, Remote>& remotes() const { return remotes_; }
 
+    /* A remote player's latest pose (its newest, not the played-back one) and its figure; false
+     * for one with none. */
+    bool latest(std::int32_t player, Pose& out) const;
+
+    int figure_of(std::int32_t player) const;
+
     /* The last thing worth a line (a start, a save that would not load); take_notice() gives it
      * once. */
     std::string take_notice();
@@ -166,6 +216,10 @@ private:
 
     Session& session_;
     Game& game_;
+    std::string build_;
+    /* Whether this game played a member's part of the host's game (it goes back to the title when
+     * the party ends). */
+    bool member_playing_ = false;
     std::function<std::uint64_t()> clock_;
     Bytes chosen_;
     std::string description_;

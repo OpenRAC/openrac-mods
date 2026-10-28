@@ -122,6 +122,7 @@ void Coop::send_play(std::int32_t target, const Bytes& save, int level) {
             .u8(save.empty() ? 0 : 1)
             .i32(level)
             .i32(static_cast<std::int32_t>(save.size()))
+            .str(build_)
             .bytes()
     );
 
@@ -159,10 +160,20 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const bool save = r.u8() != 0;
             const std::int32_t level = r.i32();
             const std::int32_t size = r.i32();
+            const std::string build = r.left() > 0 ? r.str() : std::string();
 
             // The host's word only, whole, and a save of a size a game has.
             if (!from_host || !r.ok() || play == 0 || size < 0
                 || static_cast<std::size_t>(size) > kMaxSaveBytes || (save && size == 0)) {
+                return;
+            }
+
+            // Another build plays another game: refused, and said why.
+            if (build != build_) {
+                notice_ = "Incompatible version: the host has " + (build.empty() ? "another" : build);
+                log("refused the host's game: its build is " + build + ", this one " + build_);
+                play_ = play;
+                applied_ = play;  // not asked for again
                 return;
             }
 
@@ -257,13 +268,21 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
 
 void Coop::tick(std::uint64_t now) {
     if (!session_.in_party()) {
-        // The party went: so does what was shown of it.
+        // The party went: so does what was shown of it, and a member in the host's game (whose
+        // world was the host's) goes back to the title.
         if (play_ != 0 || !remotes_.empty() || pending_) {
+            if (member_playing_ && game_.status().phase == kPhasePlaying && game_.travel(-1)) {
+                notice_ = "The party is over: back to the title";
+                log("the party is over: back to the title");
+            }
+
             reset();
         }
 
         return;
     }
+
+    member_playing_ = !session_.is_host() && play_ != 0 && applied_ == play_;
 
     const GameStatus status = game_.status();
 
@@ -417,8 +436,10 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
 
         Pose pose;
         const auto t = static_cast<double>(now);
+        // A player who died is not shown until it stands again (its health back).
         const bool shown = in_level(status.phase) && r.poses.at(t, pose)
-                           && r.poses.silence_ms(t) < kGoneMs && pose.level == status.level;
+                           && r.poses.silence_ms(t) < kGoneMs && pose.level == status.level
+                           && pose.health > 0;
 
         // Elsewhere, silent, or this game not in a level: no figure.
         if (!shown) {
@@ -447,6 +468,16 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
     }
 }
 
+bool Coop::latest(std::int32_t player, Pose& out) const {
+    const auto it = remotes_.find(player);
+    return it != remotes_.end() && it->second.poses.newest(out);
+}
+
+int Coop::figure_of(std::int32_t player) const {
+    const auto it = remotes_.find(player);
+    return it != remotes_.end() ? it->second.figure : -1;
+}
+
 void Coop::reset() {
     for (auto& entry : remotes_) {
         drop_figure(entry.second);
@@ -459,6 +490,7 @@ void Coop::reset() {
     save_.clear();
     expected_ = received_ = 0;
     applied_ = 0;
+    member_playing_ = false;
     host_level_ = -1;
     sent_level_ = -2;
     pose_sent_ = false;

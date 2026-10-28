@@ -106,6 +106,15 @@ public:
 
     bool empty() const { return samples_.empty(); }
 
+    /* The newest pose that came; false while none. */
+    bool newest(Pose& out) const {
+        if (samples_.empty()) {
+            return false;
+        }
+        out = samples_.back().pose;
+        return true;
+    }
+
     std::size_t size() const { return samples_.size(); }
 
     /* Whether the last at() jumped (a teleport or the cursor far behind). */
