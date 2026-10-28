@@ -4,9 +4,10 @@ Online multiplayer for Ratchet & Clank on OpenRAC's native port (PAL and NTSC-U 
 **Multiplayer** item in the game's main menu that connects to an OpenRAC server and puts you in a
 party with other players, or, with **Direct connect**, plays without a server: one player's game
 hosts and the others join it by its address. The host picks a save (or a new game), and its
-**Start** starts that game for the whole party. Everyone plays in the host's level, and sees the
-others' Ratchets running about in it. The world is still each game's own: enemies, crates, bolts
-and doors are not shared yet (the next version shares them).
+**Start** starts that game for the whole party. Everyone plays in the host's level, sees the
+others' Ratchets running about in it, and shares its world: the host's game runs the enemies,
+doors and platforms, the others show them and fight them, and an enemy goes for whichever player
+is nearest.
 
 With the mod off, the game is the PlayStation 2 game.
 
@@ -46,7 +47,23 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
    someone who quits to the title finds **Join the game** in the lobby in Ready's place, which
    asks the host for its game again.
 
-Each game plays its own enemies, crates, bolts and cutscenes for now; only the players are shared.
+The world is the host's:
+
+- **Enemies, doors, platforms, pickups** run in the host's game; the others' games show them where
+  the host's are (about a tenth of a second behind) and do not run them. A member's wrench or
+  weapon hitting one hits the host's, so it takes the damage there and dies for everyone.
+- **Enemies go for the nearest player**: in the host's game each one sees the player nearest it
+  as the hero, so it chases, aims at and hits that player; the hit hurts that player in their own
+  game (knocked back as the game does it).
+- **Crates** run in every game: the one who breaks a crate gets its bolts, and the crate is gone
+  in every game.
+- **Bolts** from enemies fly to the nearest player and are theirs: each player has their own bolts.
+- A placed enemy or pickup gone in the host's game is gone in everyone's, also for someone who
+  arrives in the level later.
+- A **cutscene, a vendor, the ship**: each game's own; the level a member is in follows the host's.
+
+When the party ends (the host leaves, or the connection goes) while a member plays the host's
+game, that member's game goes back to the title, whose lobby says why.
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
 what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again
@@ -98,12 +115,14 @@ strikes, hello within 10 seconds, 8 connections an address (and 8 clients at onc
 
 ## How it works
 
-The mod needs OpenRAC's mod interface 1.8: 1.7's pages of the game's own menus put the
+The mod needs OpenRAC's mod interface 1.9: 1.7's pages of the game's own menus put the
 **Multiplayer** item in the main menu under Load Game and let the mod say what its pages list
 (the port draws them with the game's widgets), and 1.8's play calls tell it what the game is doing,
 give it the hero's pose, make the figures that stand for the others (mobys of the hero's class
 that run none of his logic, collide with nothing and are no target), start a game or a save from
-the title, travel to a level, and read the memory card's saves. It keeps one TCP connection to the server
+the title, travel to a level, and read the memory card's saves; 1.9's world calls list the level's
+mobys, drive, pose, kill and make them, gate each moby's update (with the hero standing in for
+another player), watch and post hits, and keep mobys near other players running. It keeps one TCP connection to the server
 (TCP_NODELAY), opened the first time Home shows and kept until the game ends, on a thread of its own: the game's thread only queues frames
 and reads what came. The server is the OpenRAC server (the `Server` repository): it links players
 into parties and forwards their traffic, and the host's game is to be the authoritative one.
@@ -114,7 +133,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.4.0`) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.5.0`) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0) with the party's description (the save's words), JOIN code (1), LEAVE (2), LIST (8); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -139,11 +158,19 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 1 READY | a member | flag u8 | ready, or no longer |
 | 2 STATE | the host | count u8, then id i32 + flag u8 each | who is ready |
 | 3 START | the host | | the lobby's Start |
-| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32 | play this game; a save follows in CHUNKs. `play` names the host's game |
+| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc) differs refuses it: "Incompatible version" |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
 | 6 LEVEL | the host, to all | play i32, level i32 | the level the host plays (-1 none), once a second and at each change; a member in another level travels there |
 | 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000) | a player's Ratchet, 20 a second (65 bytes); a member's goes to the host, who passes it on to everyone |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
+| 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each) | the 48 mobys nearest that member that moved or animated, 15 times a second |
+| 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
+| 11 SPAWN, 12 DESPAWN | the host | level i8, net u16, class i16, position, yaw; or a list of nets | creatures and bolts the host's game made, and their end |
+| 13 HIT | a member | id u16, mask u32, damage f32, position, velocity | its hit on the host's moby |
+| 14 DAMAGE | the host | attacker id u16, mask u32, damage f32, position, velocity | an enemy hit that member |
+| 15 BOLTS | the host | count i32 | bolts that flew to that member in the host's game |
+| 16 ALIVE | the host | level i8, records u16, a bit each | the placed mobys alive in the host's level, for one arriving there |
+| 17 BROKE | a member | level i8, key u16 | it broke a crate |
 
 A member's game is started from the title with the host's save (`play_start`), its own card left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`) and
@@ -152,12 +179,25 @@ starts in the host's level. Each game shows the others' poses through a buffer p
 the position along a curve through each pose's velocity, the cursor running up to 15 % fast or slow
 to keep its delay, 150 ms of extrapolation past the newest pose, and a jump for a teleport (a level
 change, a respawn, a step longer than 8 units). A figure is made when a player is in the same level
-and removed when it leaves the level, goes silent for 5 seconds or leaves the party.
+and removed when it leaves the level, dies, goes silent for 5 seconds or leaves the party.
+
+The shared world (`src/world.hpp`) stands on interface 1.9's world calls. A placed moby is named by
+its key, its record in the level's file, the same in every game whatever was killed before. A member
+in the host's level drives every placed moby that has an update of its own (its game no longer
+runs it; its animation still plays and its collision follows it) and poses it from the host's
+WORLD snapshots through a buffer per moby. In the host's game the gate around each moby's update
+has the nearest player stand in for the hero (his position and his moby, the figure's), so the
+game's own enemy code chases and hits that player, and the bolts collected during it are moved to
+that player. Mobys near the members run in the host's game as if near its camera (eyes).
 
 ## Known limits
 
-- Only the players are shared: each game runs its own enemies, crates, bolts, doors, cutscenes and
-  progress. A cutscene or the ship's travel plays in each game on its own.
+- Progress is each game's: the host's save is where the party starts, and what a member collects
+  (gold bolts, items) and buys stays in that member's game; its card is never written by the party.
+- Cutscenes, vendors and the ship play in each game on its own. A member's own travel by ship is
+  undone (it is pulled back to the host's level).
+- An enemy that keeps a pointer to the hero across ticks, grabs him or rides him may act on the
+  host's hero instead of the player it went for; WORLD.md (in the plans) lists the classes tried.
 - A figure shows no weapon or gadget in its hand: only the held item's class is loaded in a level,
   so another player's weapon cannot be drawn yet. Its item id travels in the pose for later.
 - Names are not drawn over the figures (the mod interface has no drawing over the game yet).
@@ -167,7 +207,7 @@ and removed when it leaves the level, goes silent for 5 seconds or leaves the pa
 
 ## Building
 
-Built with the repository's other native mods (the top README), with an SDK of interface 1.8 or
+Built with the repository's other native mods (the top README), with an SDK of interface 1.9 or
 newer: until that SDK is released (`sdk.lock` pins an older one, and the top CMakeLists.txt then
 skips this mod), build against OpenRAC's own `sdk/`:
 
@@ -181,7 +221,11 @@ python3 <OpenRAC>/sdk/tools/package_mod.py build/package/multiplayer -o dist
 and late poses, teleports, a stall then a burst, extrapolation), and the co-op of a host and members
 through a router that does what the server does with DATA and fake games: Start with a save and
 with a new game, the level followed, a late joiner and a member that asks again, figures made in
-the same level only and gone with the level, the silence or the party.
+the same level only and gone with the level, the silence or the party; a build refused and the
+title after the party's end; and the world: WORLD's bytes, the member's drives (not the crates,
+not the static mobys), the host's spawned bolt, an enemy followed, the stand-in and its bolts, a
+member's hit on the host's enemy, an enemy's hit on a member, a crate broken by a member, and a
+kill and a pickup on the host.
 
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
 lobby's logic against a recorder, the connection against a small server on the loopback, and
@@ -196,6 +240,7 @@ chosen from the setting and the launcher's.
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, list, join, leave, Ready and Start |
 | `src/coop.hpp`, `.cpp` | playing together: PLAY and its save, LEVEL, WANT, poses sent and figures shown |
 | `src/play.hpp`, `.cpp` | the poses' bytes and the interpolation buffer |
+| `src/world.hpp`, `.cpp` | the shared world: snapshots, kills, spawns, hits, damage, bolts, stand-ins |
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
 | `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
 | `src/direct.hpp`, `.cpp` | Direct connect's page logic: the address's rows (64-choice rings), held steps, the hosting lines |

@@ -48,11 +48,12 @@
 #include "openrac/mod.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
+#include "world.hpp"
 
 namespace {
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kVersion = "rac1-multiplayer/0.4.0";
+constexpr const char* kVersion = "rac1-multiplayer/0.5.0";
 
 /* The question's tag: leaving the party (or hosting it). */
 constexpr std::uint32_t kAskLeave = 1;
@@ -135,6 +136,76 @@ public:
 
     void figure_remove(int id) override { mod_.figure_remove(id); }
 
+    std::vector<mp::MobyState> mobys() override {
+        std::vector<mp::MobyState> out;
+
+        for (const openrac_moby& m : mod_.moby_list()) {
+            mp::MobyState s;
+            s.slot = m.slot;
+            s.key = m.key;
+            s.oclass = m.oclass;
+            s.flags = m.flags;
+            std::copy(m.position, m.position + 3, s.pose.position);
+            std::copy(m.rotation, m.rotation + 3, s.pose.rotation);
+            s.pose.scale = m.scale;
+            s.pose.seq = m.seq;
+            s.pose.frame = m.frame;
+            s.pose.next_frame = m.next_frame;
+            s.pose.anim_time = m.anim_time;
+            s.pose.anim_speed = m.anim_speed;
+            out.push_back(s);
+        }
+
+        return out;
+    }
+
+    int moby_slot(int key) override { return mod_.moby_slot(key); }
+
+    bool moby_drive(int slot, bool on) override { return mod_.moby_drive(slot, on); }
+
+    bool moby_pose(int slot, const mp::Pose& pose) override { return mod_.moby_pose(slot, moby_of(pose)); }
+
+    bool moby_kill(int slot) override { return mod_.moby_kill(slot); }
+
+    int moby_spawn(int oclass, const mp::Pose& pose) override {
+        return mod_.moby_spawn(oclass, moby_of(pose));
+    }
+
+    int figure_slot(int id) override { return mod_.figure_slot(id); }
+
+    bool stand_in(const float* position, int figure) override {
+        return mod_.hero_stand_in(position, figure);
+    }
+
+    bool hit(const mp::Hit& h) override {
+        openrac_hit out{};
+        out.victim = h.victim;
+        out.attacker = h.attacker;
+        out.mask = h.mask;
+        out.damage = h.damage;
+        std::copy(h.position, h.position + 3, out.position);
+        std::copy(h.velocity, h.velocity + 3, out.velocity);
+        return mod_.moby_hit(out);
+    }
+
+    void eyes(const std::vector<float>& xyz) override { mod_.play_eyes(xyz); }
+
+    int bolts(int add) override { return mod_.bolts(add); }
+
+    static openrac_moby moby_of(const mp::Pose& p) {
+        openrac_moby out{};
+        out.size = sizeof out;
+        std::copy(p.position, p.position + 3, out.position);
+        std::copy(p.rotation, p.rotation + 3, out.rotation);
+        out.scale = p.scale;
+        out.seq = p.seq;
+        out.frame = p.frame;
+        out.next_frame = p.next_frame;
+        out.anim_time = p.anim_time;
+        out.anim_speed = p.anim_speed;
+        return out;
+    }
+
     /* The two poses are the same fields: one after its size, the other alone. */
     static mp::Pose from_sdk(const openrac_pose& p) {
         mp::Pose out;
@@ -188,6 +259,7 @@ struct State {
     std::unique_ptr<mp::Session> session;
     std::unique_ptr<ModGame> game;
     std::unique_ptr<mp::Coop> coop;
+    std::unique_ptr<mp::World> world;
     openrac::Mod* mod = nullptr;
     std::uint32_t generation = 0;  // the connection's, as the session last saw it
     openrac::UiPage home, code_page, direct_page, lobby, browse, saves;
@@ -869,9 +941,9 @@ void load(openrac::Mod& mod) {
     }
 
     // The pages of the game's own menus are interface 1.7's, playing together 1.8's.
-    if (!mod.has_ui() || !mod.has_play()) {
+    if (!mod.has_ui() || !mod.has_world()) {
         throw openrac::Error(
-            "this OpenRAC has no pages of the game's menus or play calls for mods (interface 1.8)"
+            "this OpenRAC has no pages of the game's menus or world calls for mods (interface 1.9)"
         );
     }
 
@@ -897,9 +969,33 @@ void load(openrac::Mod& mod) {
     g->mod = &mod;
     g->game = std::make_unique<ModGame>(mod);
     g->coop = std::make_unique<mp::Coop>(*g->session, *g->game);
+    g->coop->set_build(
+        std::string(kVersion) + " " + std::string(mod.openrac_version()) + " " + std::string(mod.version())
+    );
+    g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
+    g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
+    // The game's DATA: the world's kinds to the world, the rest to the co-op.
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
-        g->coop->handle(sender, bytes);
+        if (!bytes.empty() && bytes[0] >= static_cast<std::uint8_t>(mp::WorldKind::kWorld)) {
+            g->world->handle(sender, bytes);
+        } else {
+            g->coop->handle(sender, bytes);
+        }
+    });
+    // The game asks the world around each moby's update and of each hit it posts.
+    mod.on_moby_update(
+        [](void*, int slot, int phase) { return g->world->gate(slot, phase) ? 1 : 0; }
+    );
+    mod.on_moby_hit([](void*, const openrac_hit* hit) {
+        mp::Hit h;
+        h.victim = hit->victim;
+        h.attacker = hit->attacker;
+        h.mask = hit->mask;
+        h.damage = hit->damage;
+        std::copy(hit->position, hit->position + 3, h.position);
+        std::copy(hit->velocity, hit->velocity + 3, h.velocity);
+        return g->world->hit(h) ? 1 : 0;
     });
     g->home = mod.ui_page(on_home);
     g->code_page = mod.ui_page(on_code);
@@ -919,7 +1015,9 @@ void load(openrac::Mod& mod) {
     // game.
     mod.on_frame([] {
         poll();
-        g->coop->tick(mp::now_ms());
+        const std::uint64_t now = mp::now_ms();
+        g->coop->tick(now);
+        g->world->tick(now);
     });
     mod.info(
         "multiplayer: " + g->session->name() + ", server " + g->host + ":" + std::to_string(g->port)
@@ -929,7 +1027,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.4.0", load)
+OPENRAC_MOD_CPP("multiplayer", "0.5.0", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
