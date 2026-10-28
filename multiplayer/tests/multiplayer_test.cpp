@@ -1032,6 +1032,8 @@ void direct_page_logic() {
     CHECK(mp::choose_name("ab", "Ratchet") == "Ratchet");
     CHECK(mp::choose_name("has space", "Ratchet") == "Ratchet");
     CHECK(mp::choose_name("seventeen_letters", "Ratchet") == "Ratchet");
+    CHECK(mp::choose_name("${player_name}", "Ratchet") == "Ratchet");
+    CHECK(mp::choose_name("${player_name}", "no!").empty());
     CHECK(mp::choose_name("", "no!").empty());
     CHECK(mp::choose_name("", "").empty());
 }

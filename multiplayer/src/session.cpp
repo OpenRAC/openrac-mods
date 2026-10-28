@@ -326,8 +326,9 @@ bool valid_name(const std::string& name) {
 }
 
 std::string choose_name(const std::string& setting, const std::string& launcher) {
-    // The mod's own setting first, then the launcher's; an invalid one is passed over.
-    if (valid_name(setting)) {
+    // The mod's own setting first, then the launcher's; an invalid one is passed over. The
+    // placeholder default (an older launcher, or the raw default) is "not set".
+    if (setting != "${player_name}" && valid_name(setting)) {
         return setting;
     }
 

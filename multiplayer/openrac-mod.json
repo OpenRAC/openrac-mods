@@ -2,7 +2,7 @@
   "format": 2,
   "id": "multiplayer",
   "name": "Multiplayer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "OpenRAC contributors",
   "description": "Online multiplayer, first step: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) connect to an OpenRAC server, find or create a party or join one by its code, or play without a server with Direct connect (host directly, or join a host by its address), and show the lobby with your name. Nothing of the game is played together yet.",
   "license": "GPL-3.0-or-later",
@@ -23,9 +23,9 @@
       "key": "name",
       "name": "Name",
       "type": "string",
-      "default": "",
+      "default": "${player_name}",
       "max_length": 16,
-      "description": "Your name in multiplayer: 3 to 16 letters, digits or underscores. Empty uses the launcher's Multiplayer name."
+      "description": "Your name in multiplayer: 3 to 16 letters, digits or underscores. Defaults to the launcher's Multiplayer name."
     }
   ]
 }

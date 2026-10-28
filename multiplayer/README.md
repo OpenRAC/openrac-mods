@@ -12,7 +12,7 @@ With the mod off, the game is the PlayStation 2 game.
 
 1. Install the mod from the launcher's **Mods** tab, switch it on, and set **Server** to the
    OpenRAC server you play on (`localhost:7770` by default: a server on your own computer).
-2. Your name is the mod's **Name** setting, or, while that is empty (or not a valid name), the
+2. Your name is the mod's **Name** setting, or, while that is empty, `${player_name}` (the default) or not a valid name, the
    launcher's **Multiplayer name** (Settings, General), which the launcher makes up at its first
    start. Either way it is 3 to 16 letters, digits and underscores. Without either (the game started
    without the launcher), the mod makes one up (`Player` and three digits).
@@ -36,7 +36,7 @@ no party has, a full party, the host leaving).
 | Setting | Default | |
 |---|---|---|
 | Server | `localhost:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
-| Name | empty | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty (or not valid): the launcher's Multiplayer name |
+| Name | `${player_name}` (the launcher's Multiplayer name) | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty, `${player_name}` or not valid: the launcher's Multiplayer name |
 
 ## Direct connect
 
@@ -88,7 +88,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.3.0`) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.3.1`) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0), JOIN code (1), LEAVE (2), FIND (7) | INFO (3), JOINED (4), LEFT (5), END (6) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
