@@ -270,6 +270,8 @@ struct State {
     openrac::UiPage home, code_page, direct_page, lobby, browse, saves;
     std::uint64_t listed_ms = 0;   // when Browse last asked for the list
     bool home_greeted = false;     // whether Home last saw the server's hello
+    std::uint64_t frame_ms = 0;    // when the game last ticked (on_frame)
+    bool start_held = false;       // Start as the pad last reported it
     SavesFor saves_for = SavesFor::kCreate;
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
     std::string notice;  // the last refusal or news, until the next action
@@ -982,7 +984,7 @@ void load(openrac::Mod& mod) {
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The game's DATA: the world's kinds to the world, the rest to the co-op.
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
-        if (!bytes.empty() && bytes[0] >= static_cast<std::uint8_t>(mp::WorldKind::kWorld)) {
+        if (!bytes.empty() && mp::world_kind(bytes[0])) {
             g->world->handle(sender, bytes);
         } else {
             g->coop->handle(sender, bytes);
@@ -996,20 +998,37 @@ void load(openrac::Mod& mod) {
             }
         }
     );
-    // The scene barrier on the first pad: no control while the others finish their scene, and no
-    // Start (skip) for a member while the host's scene decides (coop.hpp). The report: buttons in
+    // The first pad: a Start in a scene or a movie skips it for the party, a party's skip presses
+    // Start for a movie playing here, and the scene barrier holds the control (coop.hpp). The report: buttons in
     // bytes 0 and 1 (a bit clear while held; Start 0x08), the sticks, then the pressures.
     mod.on_pad([](int port, std::uint8_t* report, int size) {
         if (port != 0 || size < 6) {
             return;
         }
 
+        const std::uint64_t now = mp::now_ms();
+
+        // A movie plays outside the game's ticks (no on_frame): the party's messages are read here.
+        if (now - g->frame_ms > 100) {
+            poll();
+        }
+
+        // Start pressed in a scene or a movie: the whole party skips it.
+        const bool start = (report[0] & 0x08) == 0;
+
+        if (start && !g->start_held) {
+            g->coop->own_skip(g->game->status().phase, now);
+        }
+
+        g->start_held = start;
+
         if (g->coop->hold_input()) {
             report[0] = report[1] = 0xFF;
             std::fill(report + 2, report + 6, static_cast<std::uint8_t>(0x80));
             std::fill(report + 6, report + size, static_cast<std::uint8_t>(0));
-        } else if (g->coop->block_start()) {
-            report[0] = static_cast<std::uint8_t>(report[0] | 0x08);
+        } else if (g->coop->movie_press(now)) {
+            // The party's skip of the movie playing: Start, for the movie player.
+            report[0] = static_cast<std::uint8_t>(report[0] & ~0x08);
         }
     });
     // The game asks the world around each moby's update and of each hit it posts.
@@ -1045,6 +1064,7 @@ void load(openrac::Mod& mod) {
     mod.on_frame([] {
         poll();
         const std::uint64_t now = mp::now_ms();
+        g->frame_ms = now;
         g->coop->tick(now);
         g->world->tick(now);
     });

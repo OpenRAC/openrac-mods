@@ -102,6 +102,37 @@ bool Coop::start() {
     return true;
 }
 
+void Coop::own_skip(int phase, std::uint64_t now) {
+    // Only a scene or a movie (a load: the title leaving, the flight between planets), in a game
+    // of the party's, once in a while.
+    if ((phase != kPhaseScene && phase != kPhaseLoading) || play_ == 0 || !session_.in_party()
+        || (own_skip_ms_ != 0 && now - own_skip_ms_ < kSkipMs)) {
+        return;
+    }
+
+    own_skip_ms_ = now;
+    ++skip_sequence_;
+    log("skip pressed here: the party skips it");
+    const Bytes bytes = Writer()
+                            .u8(static_cast<std::uint8_t>(GameKind::kSkip))
+                            .i32(session_.id())
+                            .u8(static_cast<std::uint8_t>(skip_sequence_ >> 8))
+                            .u8(static_cast<std::uint8_t>(skip_sequence_))
+                            .bytes();
+    session_.send_data(session_.is_host() ? kBroadcast : session_.host(), bytes);
+}
+
+bool Coop::movie_press(std::uint64_t now) {
+    if (movie_presses_ <= 0 || now >= skip_until_ || game_.status().phase != kPhaseLoading) {
+        movie_presses_ = 0;
+        return false;
+    }
+
+    // Pressed every other report: each press is a new one.
+    --movie_presses_;
+    return (movie_presses_ & 1) != 0;
+}
+
 bool Coop::rejoin() {
     if (session_.is_host() || play_ == 0 || pending_) {
         return false;
@@ -214,6 +245,35 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                 play_ = play;
                 host_level_ = level;
                 host_scene_ = scene;
+            }
+
+            break;
+        }
+        case GameKind::kSkip: {
+            const std::int32_t origin = r.i32();
+
+            // The origin's own game is skipping already; a member's word goes through the host.
+            if (!r.ok() || origin == session_.id() || play_ == 0
+                || (!from_host && !(session_.is_host() && member_of(session_, sender)))) {
+                return;
+            }
+
+            if (session_.is_host()) {
+                session_.send_data(kBroadcast, bytes);
+            }
+
+            const GameStatus status = game_.status();
+            const auto now = clock_();
+            log(std::string("skip requested by player ") + std::to_string(origin)
+                + (status.phase == kPhaseScene ? ": skipping the scene here"
+                   : status.phase == kPhaseLoading ? ": skipping the movie here" : ": nothing plays here"));
+            skip_until_ = now + 1500;
+            movie_presses_ = status.phase == kPhaseLoading ? 24 : 0;
+
+            if (status.phase == kPhaseScene) {
+                skip_ms_ = now;
+                skip_asked_ = true;
+                game_.skip();
             }
 
             break;
@@ -365,13 +425,12 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
         hold_ = now - hold_since_ < most;
     }
 
-    const bool block = !session_.is_host() && play_ != 0 && status.phase == kPhaseScene && host_scene_;
-
-    if (block && !block_start_) {
-        log("Start in this scene is the host's to press");
+    // A party's skip still to act on a scene of this game's.
+    if (skip_until_ != 0 && now < skip_until_ && status.phase == kPhaseScene && now - skip_ms_ >= kSkipMs) {
+        skip_ms_ = now;
+        skip_asked_ = true;
+        game_.skip();
     }
-
-    block_start_ = block;
 }
 
 void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
@@ -603,7 +662,9 @@ void Coop::reset() {
     applied_ = 0;
     member_playing_ = false;
     host_scene_ = sent_scene_ = false;
-    hold_ = block_start_ = false;
+    hold_ = false;
+    skip_until_ = 0;
+    movie_presses_ = 0;
     hold_since_ = skip_ms_ = host_out_since_ = 0;
     in_scene_ = skip_asked_ = false;
     host_level_ = -1;

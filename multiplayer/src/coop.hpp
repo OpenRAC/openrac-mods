@@ -17,18 +17,21 @@
  *   7 POSE   (play.hpp)                         each player's Ratchet, as state: a member's to the
  *            host, who passes everyone's on to everyone;
  *   8 WANT   play i32                           a member in the title's menus that has not played
- *            the host's game (it left it, or missed PLAY) asks for it again.
+ *            the host's game (it left it, or missed PLAY) asks for it again;
+ *  18 SKIP   origin i32, sequence u16           a player pressed Start in a scene or a movie: a
+ *            member's to the host, which skips its own and passes it on to everyone; each game
+ *            skips the scene or movie it plays (the origin's own is already skipping).
  * A member's DATA always reaches the host only; the host's goes to everyone or to one.
  *
  * The host plays what Create match chose: a new game (the first level) or a save of its memory
  * card. A member starts the same from the title (play_start), its own card untouched. Joining a
  * game that is on, a member gets the host's progress as it is now (save_capture), in the host's
  * level. A member whose build differs from the host's (the mod, OpenRAC, the disc) refuses it.
- * Scenes end together: only the host's skip counts (a member's Start does nothing while the host
- * plays a scene too); when the host is out of its scene (skipped, or played out), a member still in
- * one is skipped through the game's own skip (play_skip). Then nobody moves on until everyone is
- * out (the barrier: a player out first has no control, for at most kBarrierMs, a member while the
- * host's scene goes on).
+ * Scenes and movies end together: Start in a scene or a movie, in any game, skips it in every game
+ * (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed for the movie
+ * player); and when the host is out of its scene, a member still in one is skipped too. Then nobody
+ * moves on until everyone is out (the barrier: a player out first has no control, for at most
+ * kBarrierMs, a member while the host's scene goes on).
  * When the party ends under a member in the host's game, it goes back to the title. While the
  * party plays, no game pauses: the pause menu and the game's dialogs open over a world that keeps
  * running (the SDK's play_overlay_pause), so a player in a menu never stops the others.
@@ -54,8 +57,14 @@ enum class GameKind : std::uint8_t {
     kChunk = 5,
     kLevel = 6,
     kPose = kPoseKind,
-    kWant = 8
+    kWant = 8,
+    kSkip = 18
 };
+
+/* Whether a DATA kind is the world's (world.hpp: 9 to 17); the rest are the co-op's. */
+inline bool world_kind(std::uint8_t kind) {
+    return kind >= 9 && kind <= 17;
+}
 
 /* The most bytes of a save a CHUNK carries (a TCP frame takes 64 KiB; four make a save). */
 constexpr std::size_t kChunkBytes = 16000;
@@ -228,7 +237,12 @@ public:
      * host plays too: the host's skip decides). */
     bool hold_input() const { return hold_; }
 
-    bool block_start() const { return block_start_; }
+    /* This player pressed Start in a scene or a movie (`phase`): the party skips it. */
+    void own_skip(int phase, std::uint64_t now);
+
+    /* Whether the pad should press Start for a movie now (a party's skip of the movie playing):
+     * pressed and let go in turns for a while, so the movie player sees a press. */
+    bool movie_press(std::uint64_t now);
 
     bool host_scene() const { return host_scene_; }
 
@@ -286,7 +300,12 @@ private:
     std::uint64_t host_out_since_ = 0;
     std::uint64_t hold_since_ = 0;
     bool hold_ = false;
-    bool block_start_ = false;
+    /* Skips: this player's last (its sequence), the last told (origin, sequence), until when a
+     * skip asked of this game still acts, and the presses for a movie. */
+    std::uint16_t skip_sequence_ = 0;
+    std::uint64_t own_skip_ms_ = 0;
+    std::uint64_t skip_until_ = 0;
+    int movie_presses_ = 0;
     /* Whether this game played a scene at the last tick, and whether a skip was asked in it. */
     bool in_scene_ = false;
     bool skip_asked_ = false;
