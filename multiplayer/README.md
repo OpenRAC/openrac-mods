@@ -32,7 +32,7 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
 | Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
 | Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready, or no longer; once the game is on, **Join the game**) or **Start** (the host: the game starts for everyone), **Leave**, what the party plays (**Playing:** the save), then the members (up to 4) with the host and the ready ones marked, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
-| Pause menu (in a level) | **Options**, then **Multiplayer** (after Video): the party's code (a direct party: where it is), the host's level, each member with the host and you marked and its round trip to the server and whether its game state goes by UDP or TCP (updated every 2 seconds), then **Leave party**, which asks first (**End the party?** for the host, **Stop hosting?** for a direct host). Out of a party it says **Not in a party**. A member that leaves in the host's game goes back to the title once the menu is closed |
+| Pause menu (in a level) | **Options**, then **Multiplayer** (after Video): the party's code (a direct party: where it is), the host's level, each member with the host and you marked and its round trip to the server and whether its game state goes by UDP or TCP (updated every 2 seconds), then **Leave party**, which asks first (**End the party?** for the host, **Stop hosting?** for a direct host). Out of a party it says **Not in a party**. Leaving goes back to the title's Multiplayer page (below) |
 
 ## Playing together
 
@@ -84,8 +84,13 @@ The world is the host's:
   gets control back until everyone is out (at most 10 seconds for the host; a member waits for
   the host's scene to end). The ship's landing and take-off count, and so do level intros.
 
-When the party ends (the host leaves, or the connection goes) while a member plays the host's
-game, that member's game goes back to the title, whose lobby says why.
+Leaving. A player whose party goes while it plays (it chose Leave party, the host ended the party,
+or its connection went) leaves its level at once, from wherever it is (playing, a scene, the pause
+menu), for the title, which then opens the Multiplayer page; its footer says why when the player
+did not leave by itself (**The host left: the party is over**, **The host went away**, **The
+server went away**). The host leaving takes everyone there, the host too; a member leaving goes
+there alone, and the party plays on without it. A player already in the title's pages (the lobby)
+goes back to Home.
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
 what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again

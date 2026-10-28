@@ -578,6 +578,11 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    bool open_home() override {
+        calls.push_back("home");
+        return true;
+    }
+
     Bytes capture() override { return progress; }
 
     bool hero(mp::Pose& out) override {
@@ -1138,7 +1143,7 @@ void builds_and_the_end() {
 // The pause menu's Multiplayer page (menu.hpp): out of a party one line; in one the code, the
 // host's level, the members with their links as the party heard them (LINK, LINKS: a member's
 // reaches everyone through the host) and Leave party. Leaving from the pause menu in the host's
-// game goes back to the title once the menu closes.
+// game goes back to the title from under the menu (play_travel works there since 1.9).
 void the_pause_page_shows_the_party_and_leaves() {
     mp::PartyPageInput none;
     std::vector<mp::PartyLine> lines = mp::party_lines(none);
@@ -1195,17 +1200,15 @@ void the_pause_page_shows_the_party_and_leaves() {
     lines = mp::party_lines(in);
     CHECK(lines[0].label == "Direct" && lines[0].value == "10.0.0.2:7770" && lines[1].value == "None");
 
-    // Leave party from the pause menu: no travel under the menu, back to the title once it closes.
+    // Leave party from the pause menu: back to the title from under the menu, once.
     member.game.now = {mp::kPhaseMenu, 0, 2};
     tick({&member}, 16);
     member.session.leave();
     CHECK(!member.session.in_party() && member.session.link(1).ping_ms == -1);
     tick({&member}, 16);
-    CHECK(member.game.calls.back() != "travel -1");
+    CHECK(member.game.calls.back() == "travel -1" && member.coop.to_title());
     tick({&member}, 16);
-    member.game.now = {mp::kPhasePlaying, 0, 2};
-    tick({&member}, 16);
-    CHECK(member.game.calls.back() == "travel -1");
+    member.game.now = {mp::kPhaseLoading, -1, 2};
     tick({&member}, 16);
     CHECK(std::count(member.game.calls.begin(), member.game.calls.end(), "travel -1") == 1);
     // Out of a party nothing is reported.
@@ -1814,6 +1817,194 @@ void the_party_arrives_together() {
     CHECK(fast.coop.figures() == 2 && host.coop.figures() == 2);
 }
 
+// Leaving (coop.hpp). Three players in the host's level 4: each plays the party's game.
+struct Party {
+    Player host{1}, a{2}, b{3};
+    const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+
+    Party() {
+        host.session.handle(info(all));
+        a.session.handle(info(all));
+        b.session.handle(info(all));
+        host.coop.choose({}, "New game");
+        CHECK(host.coop.start());
+        route(players());
+        tick(players(), 16);
+
+        for (Player* p : players()) {
+            p->game.now = {mp::kPhasePlaying, 4, 2};
+            p->game.calls.clear();
+        }
+
+        tick(players(), 16);
+    }
+
+    std::vector<Player*> players() { return {&host, &a, &b}; }
+
+    // The server's word that `id` left, to everyone still in the party.
+    void left(std::int32_t id) {
+        mp::Message m;
+        m.kind = mp::Message::Kind::kPartyLeft;
+        m.id = id;
+
+        for (Player* p : players()) {
+            if (p->id != id && p->session.in_party()) {
+                p->session.handle(m);
+            }
+        }
+    }
+};
+
+std::size_t count_of(const FakeGame& game, const std::string& call) {
+    return static_cast<std::size_t>(std::count(game.calls.begin(), game.calls.end(), call));
+}
+
+// A player out of its level and into the title: Loading, then the title's main menu.
+void reach_title(Player& p) {
+    p.game.now = {mp::kPhaseLoading, -1, 3};
+    tick({&p}, 16);
+    p.game.now = {mp::kPhaseFrontEnd, -1, 3};
+    tick({&p}, 16);
+}
+
+// The host leaves (from its pause menu): the party ends, and the host and every member go back
+// to the title and its Multiplayer page; nobody stays in a level alone.
+void the_host_leaving_takes_everyone_home() {
+    Party party;
+    party.host.game.now = {mp::kPhaseMenu, 4, 2};
+    party.a.game.now = {mp::kPhaseScene, 4, 2};
+    tick(party.players(), 16);
+    party.host.session.leave();
+    mp::Message end;
+    end.kind = mp::Message::Kind::kPartyEnd;
+    party.a.session.handle(end);
+    party.b.session.handle(end);
+    tick(party.players(), 16);
+
+    // Each leaves its level at once: from the pause menu, a scene, playing.
+    for (Player* p : party.players()) {
+        CHECK(!p->session.in_party() && p->coop.to_title());
+        CHECK(p->game.calls.size() == 1 && p->game.calls[0] == "travel -1");
+    }
+
+    // Not asked again while the travel is under way; the page asked for once the title is up.
+    tick(party.players(), mp::kLeaveMs);
+    for (Player* p : party.players()) {
+        CHECK(count_of(p->game, "travel -1") == 1 && count_of(p->game, "home") == 0);
+        reach_title(*p);
+        CHECK(!p->coop.to_title() && p->coop.wants_home() && count_of(p->game, "home") == 1);
+    }
+
+    // The main menu not up yet: asked again until the page shows, then no more.
+    tick({&party.host}, mp::kHomeRetryMs);
+    CHECK(count_of(party.host.game, "home") == 2);
+    party.host.coop.home_shown();
+    tick({&party.host}, mp::kHomeRetryMs);
+    CHECK(count_of(party.host.game, "home") == 2 && !party.host.coop.wants_home());
+
+    // Never shown: given up after a while.
+    tick({&party.a}, mp::kHomeMs);
+    CHECK(!party.a.coop.wants_home());
+    const std::size_t asked = count_of(party.a.game, "home");
+    tick({&party.a}, mp::kHomeRetryMs);
+    CHECK(count_of(party.a.game, "home") == asked);
+
+    // The player who starts a game from the title meanwhile keeps it.
+    party.b.game.now = {mp::kPhaseLoading, -1, 4};
+    tick({&party.b}, mp::kHomeRetryMs);
+    CHECK(!party.b.coop.wants_home());
+}
+
+// A member leaves (from a scene): only it goes back to the title and its Multiplayer page; the
+// host and the other member play on, together.
+void a_member_leaving_goes_home_alone() {
+    Party party;
+    party.a.game.now = {mp::kPhaseScene, 4, 2};
+    tick(party.players(), 16);
+    party.a.session.leave();
+    party.left(2);
+    tick(party.players(), 16);
+    CHECK(party.a.game.calls.size() == 1 && party.a.game.calls[0] == "travel -1");
+    reach_title(party.a);
+    CHECK(count_of(party.a.game, "home") == 1);
+
+    for (int i = 0; i < 20; ++i) {
+        tick({&party.host, &party.b}, 50);
+    }
+
+    CHECK(party.host.session.in_party() && party.host.session.members().size() == 2);
+    CHECK(party.b.session.in_party() && party.b.coop.host_level() == 4);
+    CHECK(party.host.coop.playing() && party.b.coop.playing());
+    CHECK(party.host.coop.figures() == 1 && party.b.coop.figures() == 1);
+
+    for (Player* p : {&party.host, &party.b}) {
+        CHECK(count_of(p->game, "travel -1") == 0 && count_of(p->game, "home") == 0);
+        CHECK(!p->coop.to_title() && !p->coop.wants_home());
+    }
+}
+
+// The connection lost under a member (the host gone, or the server): it goes home as one that
+// left; the server tells the others it left, and they play on.
+void a_member_disconnected_goes_home_alone() {
+    Party party;
+    party.b.session.disconnected();
+    party.left(3);
+    tick(party.players(), 16);
+    CHECK(party.b.game.calls.size() == 1 && party.b.game.calls[0] == "travel -1");
+    reach_title(party.b);
+    CHECK(count_of(party.b.game, "home") == 1);
+    tick({&party.host, &party.a}, 1000);
+    CHECK(party.host.session.members().size() == 2 && party.a.coop.host_level() == 4);
+
+    for (Player* p : {&party.host, &party.a}) {
+        CHECK(count_of(p->game, "travel -1") == 0 && count_of(p->game, "home") == 0);
+    }
+
+    // The host's own link lost: it goes home too, alone in no level.
+    party.host.session.disconnected();
+    tick({&party.host}, 16);
+    CHECK(party.host.game.calls.back() == "travel -1");
+}
+
+// A player in the title's pages (the lobby: it never played, or left the host's game) when the
+// party ends stays there: no travel, and the lobby itself goes back to Home. One whose start was
+// just asked follows its game into the level and comes back.
+void leaving_from_the_title() {
+    Party party;
+    party.a.game.now = {mp::kPhaseFrontEnd, -1, 3};
+    tick(party.players(), mp::kStartingMs);
+    party.a.session.disconnected();
+    tick({&party.a}, 16);
+    tick({&party.a}, mp::kStartingMs);
+    CHECK(party.a.game.calls.empty() && !party.a.coop.to_title() && !party.a.coop.wants_home());
+
+    // The host's Start, then its party ended before the title left: back once in the level.
+    Player host(1);
+    host.session.handle(info({{1, "P1"}}));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    tick({&host}, 16);
+    host.session.leave();
+    tick({&host}, 16);
+    CHECK(host.coop.to_title() && host.game.calls.back() == "start 0 0");
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    tick({&host}, 16);
+    CHECK(host.game.calls.back() == "travel -1");
+
+    // Why the party went, for Home: nothing when the player left it.
+    CHECK(mp::leave_reason(true, true, false, "").empty());
+    CHECK(mp::leave_reason(false, false, false, "The host left: the party is over")
+          == "The host left: the party is over");
+    CHECK(mp::leave_reason(false, true, true, "") == "The host went away");
+    CHECK(mp::leave_reason(false, true, false, "") == "The server went away");
+    CHECK(mp::leave_reason(false, false, false, "") == "The party is over");
+
+    for (const char* reason : {"The host left: the party is over", "The host went away",
+                               "The server went away"}) {
+        CHECK(std::string(reason).size() <= mp::kFooterMax);
+    }
+}
+
 int main() {
     pose_bytes();
     held_and_shot_bytes();
@@ -1840,6 +2031,10 @@ int main() {
     held_items_and_shots_reach_the_figure();
     a_ship_travel_takes_the_party_along();
     the_party_arrives_together();
+    the_host_leaving_takes_everyone_home();
+    a_member_leaving_goes_home_alone();
+    a_member_disconnected_goes_home_alone();
+    leaving_from_the_title();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

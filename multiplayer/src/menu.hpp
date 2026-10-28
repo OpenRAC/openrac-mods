@@ -101,6 +101,21 @@ inline std::string status_text(const StatusInput& in) {
     return direct ? "Joined " + in.address : "Connected to the server";
 }
 
+/* Why the party went, for Home's status line when the player is brought back to it: nothing when
+ * the player left it (or stopped hosting), the session's word when it said one (the host ended
+ * it), the link that went (`lost`: the direct host's, or the server's), else that it is over. */
+inline std::string leave_reason(bool left, bool lost, bool direct, const std::string& notice) {
+    if (left) {
+        return "";
+    } else if (!notice.empty()) {
+        return notice;
+    } else if (lost) {
+        return direct ? "The host went away" : "The server went away";
+    }
+
+    return "The party is over";
+}
+
 /* ---- The pause menu's Multiplayer page (Options, in a level) ---- */
 
 /* A member as the page shows it: its name, whether it hosts, whether it is the player, its link

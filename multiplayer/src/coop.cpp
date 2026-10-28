@@ -115,6 +115,8 @@ bool Coop::start() {
         return false;
     }
 
+    start_ms_ = clock_();
+
     return true;
 }
 
@@ -397,36 +399,33 @@ void Coop::tick(std::uint64_t now) {
     }
 
     if (!session_.in_party()) {
-        // The party went: so does what was shown of it, and a member in the host's game (whose
-        // world was the host's) goes back to the title.
+        // The party went: so does what was shown of it, and a game playing the party's (the
+        // host's as a member's: alone, its world is no game) goes back to the title, then to the
+        // Multiplayer page. One in the title's pages stays.
         if (play_ != 0 || !remotes_.empty() || pending_) {
-            // Left from the pause menu (its Multiplayer page): back to the title once it closes.
-            title_after_menu_ = member_playing_ && game_.status().phase == kPhaseMenu;
+            const int phase = game_.status().phase;
+            const bool starting = start_ms_ != 0 && now - start_ms_ < kStartingMs;
 
-            if (member_playing_ && game_.status().phase == kPhasePlaying && game_.travel(-1)) {
-                notice_ = "The party is over: back to the title";
-                log("the party is over: back to the title");
+            if (party_game_ && phase != kPhaseNone && (phase != kPhaseFrontEnd || starting)) {
+                to_title_ = true;
+                title_since_ = now;
+                left_title_ = phase != kPhaseFrontEnd;
+                title_ms_ = 0;
+                title_taken_ = false;
+                home_ = false;
+                log("out of the party: back to the title");
             }
 
             reset();
-        } else if (title_after_menu_) {
-            const int phase = game_.status().phase;
-
-            if (phase == kPhasePlaying && game_.travel(-1)) {
-                title_after_menu_ = false;
-                notice_ = "The party is over: back to the title";
-                log("the party is over: back to the title");
-            } else if (!in_level(phase)) {
-                title_after_menu_ = false;
-            }
         }
 
+        tick_leaving(now);
         return;
     }
 
-    title_after_menu_ = false;
+    to_title_ = home_ = false;
 
-    member_playing_ = !session_.is_host() && play_ != 0 && applied_ == play_;
+    party_game_ = play_ != 0 && (session_.is_host() || applied_ == play_);
 
     // The clock asked again now and then, so a long session's stamps do not drift.
     if (clock_ms_ == 0) {
@@ -688,6 +687,7 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
 
             if (game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
                 applied_ = pending_play_;
+                start_ms_ = now;
                 log("started the host's game");
             } else {
                 notice_ = "The host's game would not start here";
@@ -946,6 +946,49 @@ int Coop::figure_of(std::int32_t player) const {
     return it != remotes_.end() ? it->second.figure : -1;
 }
 
+void Coop::tick_leaving(std::uint64_t now) {
+    const int phase = game_.status().phase;
+
+    if (to_title_) {
+        if (in_level(phase)) {
+            // In the level (playing, a scene, a menu over it): the game's way back to the title,
+            // asked again while it has not gone (a travel still to happen, or refused).
+            left_title_ = true;
+            const std::uint64_t wait = title_taken_ ? kTravelMs : kLeaveMs;
+
+            if (title_ms_ == 0 || now - title_ms_ >= wait) {
+                title_ms_ = now;
+                title_taken_ = game_.travel(-1);
+
+                if (title_taken_) {
+                    log("left the level for the title");
+                }
+            }
+        } else if (phase == kPhaseLoading) {
+            left_title_ = true;
+        } else if (phase == kPhaseNone
+                   || (phase == kPhaseFrontEnd
+                       && (left_title_ || now - title_since_ >= kStartingMs))) {
+            // In the title (or the game's start never left it): the Multiplayer page next.
+            to_title_ = false;
+            home_ = left_title_ && phase == kPhaseFrontEnd;
+            home_since_ = now;
+            home_ms_ = 0;
+        }
+    }
+
+    // Back in the title: the Multiplayer page asked for until it shows (the main menu may not be
+    // up yet), for a while, and not once the player left the title again.
+    if (home_) {
+        if (phase != kPhaseFrontEnd || now - home_since_ >= kHomeMs) {
+            home_ = false;
+        } else if (home_ms_ == 0 || now - home_ms_ >= kHomeRetryMs) {
+            home_ms_ = now;
+            game_.open_home();
+        }
+    }
+}
+
 void Coop::reset() {
     for (auto& entry : remotes_) {
         drop_figure(entry.second);
@@ -958,7 +1001,8 @@ void Coop::reset() {
     save_.clear();
     expected_ = received_ = 0;
     applied_ = 0;
-    member_playing_ = false;
+    party_game_ = false;
+    start_ms_ = 0;
     host_scene_ = sent_scene_ = false;
     hold_ = false;
     skip_until_ = 0;

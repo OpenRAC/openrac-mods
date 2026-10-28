@@ -42,7 +42,11 @@
  * level (or kArriveMs went by), nobody has control once out of its landing, no figure is shown and
  * the host's world sends nothing (world.hpp), so nothing of the old level carries over and nothing
  * of the new one moves before all are in.
- * When the party ends under a member in the host's game, it goes back to the title. While the
+ * Leaving. A player whose party goes while it plays the party's game (it left, the host ended the
+ * party, the connection went) leaves its level for the title at once, from wherever it is (playing,
+ * a scene, the pause menu: play_travel(-1)), and the title opens the mod's Multiplayer page (Home):
+ * the host leaving takes everyone there, a member leaving only itself (the host's party goes on
+ * with the others). A player in the title's pages (the lobby) stays where it is. While the
  * party plays, no game pauses: the pause menu and the game's dialogs open over a world that keeps
  * running (the SDK's play_overlay_pause), so a player in a menu never stops the others.
  */
@@ -113,6 +117,12 @@ constexpr std::uint64_t kArriveMs = 90000;
 constexpr std::uint64_t kLeaveMs = 1000;
 /* How long a refused ship travel is said over the game. */
 constexpr std::uint64_t kRefusedMs = 4000;
+/* Leaving for the title: how long after a start a game still in the title is on its way into the
+ * level (it goes back once there); how long the title is given to show its main menu, and how
+ * often the Multiplayer page is asked for meanwhile. */
+constexpr std::uint64_t kStartingMs = 3000;
+constexpr std::uint64_t kHomeMs = 30000;
+constexpr std::uint64_t kHomeRetryMs = 500;
 
 /* What the game is doing (the SDK's openrac_play_status). */
 struct GameStatus {
@@ -196,6 +206,9 @@ public:
     /* The shots the hero fired since the last call; a figure firing one (hitting nothing here). */
     virtual std::vector<Shot> hero_shots() { return {}; }
     virtual bool figure_shot(int /*id*/, const Shot& /*shot*/) { return false; }
+    /* The title's Multiplayer page opened (the mod's Home, from the title's main menu): true when
+     * asked. */
+    virtual bool open_home() { return false; }
 };
 
 /* A remote player as the co-op keeps it: its poses and its figure. */
@@ -246,6 +259,14 @@ public:
 
     /* The party is gone (left, ended, the connection lost): the figures go, nothing is pending. */
     void reset();
+
+    /* Leaving: whether this game is on its way back to the title after its party went, and whether
+     * the title's Multiplayer page is still to open; home_shown() says it did (its page showed). */
+    bool to_title() const { return to_title_; }
+
+    bool wants_home() const { return home_; }
+
+    void home_shown() { home_ = false; }
 
     /* What the pages show: whether the host's game is on (a member: PLAY came), whether a member
      * waits for its save, the level the host plays, the remote players shown now. */
@@ -319,13 +340,16 @@ private:
     void send_level(std::uint64_t now, int level, bool scene);
     void tick_arrival(std::uint64_t now, const GameStatus& status);
     void drop_figure(Remote& r);
+    void tick_leaving(std::uint64_t now);
 
     Session& session_;
     Game& game_;
     std::string build_;
-    /* Whether this game played a member's part of the host's game (it goes back to the title when
-     * the party ends). */
-    bool member_playing_ = false;
+    /* Whether this game plays the party's game (the host's own once started, a member's once it
+     * started the host's): it goes back to the title when the party goes. When it last started one
+     * (0 none). */
+    bool party_game_ = false;
+    std::uint64_t start_ms_ = 0;
     /* Whether the game was asked to keep its world running under its menus. */
     bool overlay_ = false;
     std::function<std::uint64_t()> clock_;
@@ -389,9 +413,17 @@ private:
     std::uint64_t refused_until_ = 0;
     /* The game's state last logged. */
     GameStatus logged_{-1, -2, 0};
-    /* A member that left the party in the host's game from a menu over it: back to the title once
-     * the menu is closed. */
-    bool title_after_menu_ = false;
+    /* Leaving for the title: since when, whether the game was out of the title meanwhile, when the
+     * travel was last asked (0 not yet), whether it was taken; then the Multiplayer page wanted,
+     * since when, when last asked. */
+    bool to_title_ = false;
+    std::uint64_t title_since_ = 0;
+    bool left_title_ = false;
+    std::uint64_t title_ms_ = 0;
+    bool title_taken_ = false;
+    bool home_ = false;
+    std::uint64_t home_since_ = 0;
+    std::uint64_t home_ms_ = 0;
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
     std::uint16_t sequence_ = 0;

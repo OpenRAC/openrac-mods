@@ -103,6 +103,9 @@ enum class DirectView {
 
 class ModGame : public mp::Game {
 public:
+    /* The title's Multiplayer page (Home), once made. */
+    openrac::UiPage* home = nullptr;
+
     explicit ModGame(openrac::Mod& mod) : mod_(mod) {}
 
     mp::GameStatus status() override {
@@ -344,6 +347,8 @@ public:
         return out;
     }
 
+    bool open_home() override { return home != nullptr && home->open(); }
+
 private:
     openrac::Mod& mod_;
 };
@@ -377,6 +382,8 @@ struct State {
     int pause_leave = -1;        // its Leave party item, -1 out of a party
     std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
     std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame
+    bool leaving = false;        // the player leaves the party (Leave, Stop hosting) this tick
+    std::string leave_reason;    // why the party went, for Home when it next shows
 };
 
 std::unique_ptr<State> g;
@@ -419,6 +426,9 @@ std::string status() {
 void poll() {
     const std::uint32_t generation = g->connection->generation();
     const bool connected = g->connection->state() == mp::Connection::State::kConnected;
+    const bool was_in = g->session->in_party();
+    const bool direct = g->session->direct()
+                        || g->connection->mode() == mp::Connection::Mode::kDirect;
 
     // A new connection: a new session on the server.
     if (connected && generation != g->generation) {
@@ -428,8 +438,6 @@ void poll() {
         // The connection went: so did the party.
         g->session->disconnected();
     }
-
-    const bool was_in = g->session->in_party();
 
     for (const mp::Message& m : g->connection->receive()) {
         g->session->handle(m);
@@ -445,8 +453,19 @@ void poll() {
         );
     }
 
-    // A refusal or news replaces the last.
-    if (std::string notice = g->session->take_notice(); !notice.empty()) {
+    // A refusal or news replaces the last; the party gone, why, for Home (none when the player
+    // left it).
+    std::string notice = g->session->take_notice();
+
+    if (was_in && !g->session->in_party()) {
+        g->leave_reason = mp::leave_reason(g->leaving, !connected, direct, notice);
+    } else if (g->session->in_party()) {
+        g->leave_reason.clear();
+    }
+
+    g->leaving = false;
+
+    if (!notice.empty()) {
         g->notice = notice;
     }
 
@@ -688,6 +707,7 @@ void show_pause() {
  * (its clients get END); anyone else leaves. */
 void leave_party() {
     g->notice.clear();
+    g->leaving = true;
 
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
         g->connection->stop_hosting();
@@ -743,7 +763,10 @@ void on_home(const openrac::UiPage& page, const openrac::UiEvent& e) {
     // Showing: linked to the server, opened the first time; it stays for the rest of the game.
     if (e.is(OPENRAC_UI_SHOW)) {
         back_to_server();
-        g->notice.clear();
+        // Brought back by a party that went (coop.hpp: leaving): why, on the status line.
+        g->notice = g->leave_reason;
+        g->leave_reason.clear();
+        g->coop->home_shown();
     } else if (e.is(OPENRAC_UI_CHOOSE)) {
         g->notice.clear();
 
@@ -1224,6 +1247,7 @@ void load(openrac::Mod& mod) {
     g->lobby = mod.ui_page(on_lobby, OPENRAC_UI_OWN_BACK);
     g->browse = mod.ui_page(on_browse);
     g->saves = mod.ui_page(on_saves);
+    g->game->home = &g->home;
     show_home();
     show_code();
     show_direct();
