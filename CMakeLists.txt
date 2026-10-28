@@ -46,8 +46,7 @@ add_subdirectory(dualsense)
 add_subdirectory(ammo-max)
 add_subdirectory(xbox-icons)
 # Multiplayer needs interface 1.7's pages of the game's own menus: built only with an SDK that has
-# them (until sdk.lock pins one, build it with -DOPENRAC_SDK=<OpenRAC>/sdk; an older SDK leaves it
-# out).
+# them (sdk.lock pins 1.7.0; an older SDK given with -DOPENRAC_SDK=... leaves it out).
 if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.7)
   add_subdirectory(multiplayer)
 else()
