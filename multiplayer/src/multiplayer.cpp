@@ -110,7 +110,7 @@ public:
 
     mp::GameStatus status() override {
         const openrac_play_status s = mod_.play_status();
-        return {s.phase, s.level, s.loads};
+        return {s.phase, s.level, s.loads, mod_.scene_playing()};
     }
 
     bool start(int level, const mp::Bytes& save) override {
@@ -239,6 +239,8 @@ public:
     void overlay_pause(bool on) override { mod_.play_overlay_pause(on); }
 
     void skip() override { mod_.play_skip(); }
+
+    bool play_scene(int scene) override { return mod_.play_scene(scene); }
 
     static openrac_moby moby_of(const mp::Pose& p) {
         openrac_moby out{};

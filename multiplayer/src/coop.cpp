@@ -352,6 +352,9 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
 
             break;
         }
+        case GameKind::kScene:
+            on_scene(from_host, r);
+            break;
         default:
             break;
     }
@@ -573,6 +576,8 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
         || now - level_ms_ >= kLevelMs) {
         send_level(now, level, scene);
     }
+
+    tick_host_scene(now, status);
 }
 
 void Coop::send_level(std::uint64_t now, int level, bool scene) {
@@ -713,7 +718,10 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
         host_out_since_ = host_scene_ ? 0 : now;
     }
 
-    const bool host_out = !host_scene_ && host_out_since_ != 0 && now - host_out_since_ >= kHostOutMs;
+    // A scene of the host's that started late here plays out as long as it was late (coop.hpp).
+    tick_member_scene(now, status);
+    const bool host_out =
+        !host_scene_ && host_out_since_ != 0 && now - host_out_since_ >= kHostOutMs + scene_lag_ms();
 
     if (together && status.phase == kPhaseScene && host_out
         && (skip_ms_ == 0 || now - skip_ms_ >= kSkipMs)) {
@@ -1022,6 +1030,7 @@ void Coop::reset() {
     leave_ms_ = 0;
     host_arriving_ = false;
     refused_until_ = 0;
+    reset_scenes();
 }
 
 }  // namespace mp

@@ -23,6 +23,11 @@
  *  18 SKIP   origin i32, sequence u16           a player pressed Start in a scene or a movie: a
  *            member's to the host, which skips its own and passes it on to everyone; each game
  *            skips the scene or movie it plays (the origin's own is already skipping).
+ *  20 SCENE  play i32, level i32, scene i32, sequence u16, elapsed u32
+ *            the host to everyone, when an in-level scene starts in its game (the level's number of
+ *            it, a new sequence each start), once a second while it plays, and when it ends (scene
+ *            -1): `elapsed` the ms it has played; a member in that level plays the same scene
+ *            (coop_scenes.cpp).
  * A member's DATA always reaches the host only; the host's goes to everyone or to one.
  *
  * The host plays what Create match chose: a new game (the first level) or a save of its memory
@@ -34,6 +39,13 @@
  * player); and when the host is out of its scene, a member still in one is skipped too. Then nobody
  * moves on until everyone is out (the barrier: a player out first has no control, for at most
  * kBarrierMs, a member while the host's scene goes on).
+ * The level's own scenes play in every game: the scenes the level's mobys start (a person spoken
+ * to, a place reached, Veldin's opening) run in the host's game only, since the members' copies of
+ * those mobys are driven from the host's (world.hpp), so the host says which scene starts (SCENE)
+ * and a member in the same level starts it too, from its start, through the game's own start
+ * (play_scene), as soon as its player is in control (late: from the start all the same, the
+ * barrier waiting for it). A member's scene that started late is skipped after the host's ends
+ * only once it had as long as it was late, so it plays out; the host's skip skips it at once.
  * Travel. Only the host flies the ship while the party plays: a member's planet select to another
  * planet lands the ship again where it is (ship_travel says no). When the host's ship leaves for
  * another planet, every member leaves its level that moment, from wherever it is (playing, a scene,
@@ -74,7 +86,8 @@ enum class GameKind : std::uint8_t {
     kPose = kPoseKind,
     kWant = 8,
     kSkip = 18,
-    kShot = kShotKind
+    kShot = kShotKind,
+    kScene = 20
 };
 
 /* Whether a DATA kind is the world's (world.hpp: 9 to 17); the rest are the co-op's. */
@@ -124,11 +137,20 @@ constexpr std::uint64_t kStartingMs = 3000;
 constexpr std::uint64_t kHomeMs = 30000;
 constexpr std::uint64_t kHomeRetryMs = 500;
 
+/* How often a member asks again for the host's scene its game has not started (a request the game
+ * dropped with a load), and the most a late member's scene is let play on after the host's ended
+ * (beyond this its lateness is not waited for: the host's barrier is kBarrierMs). */
+constexpr std::uint64_t kSceneAskMs = 3000;
+constexpr std::uint64_t kSceneLagMs = 15000;
+
 /* What the game is doing (the SDK's openrac_play_status). */
 struct GameStatus {
     int phase = 0;
     int level = -1;
     std::uint32_t loads = 0;
+    /* The level's in-game scene playing (its number in the level, the SDK's scene_playing), -1 for
+     * none (no scene, or a movie, a slideshow, the ship's landing). */
+    int scene = -1;
 };
 
 /* The phases (the SDK's OPENRAC_PLAY_*). */
@@ -160,6 +182,7 @@ constexpr std::uint32_t kMobyDriven = 0x2;
 constexpr std::uint32_t kMobyPlaced = 0x4;
 constexpr std::uint32_t kMobyCreature = 0x8;
 constexpr std::uint32_t kMobyDead = 0x10;
+constexpr std::uint32_t kMobyScene = 0x20;
 
 /* A hit (the SDK's openrac_hit): victim and attacker by slot (-1 none). */
 struct Hit {
@@ -203,6 +226,9 @@ public:
     virtual void overlay_pause(bool /*on*/) {}
     /* The scene playing skipped as the game's own skip does (the SDK's play_skip). */
     virtual void skip() {}
+    /* The level's scene `scene` started as the game's own trigger starts it, once the player is in
+     * control; -1 drops a request still waiting (the SDK's play_scene). False when it cannot. */
+    virtual bool play_scene(int /*scene*/) { return false; }
     /* The shots the hero fired since the last call; a figure firing one (hitting nothing here). */
     virtual std::vector<Shot> hero_shots() { return {}; }
     virtual bool figure_shot(int /*id*/, const Shot& /*shot*/) { return false; }
@@ -341,6 +367,14 @@ private:
     void tick_arrival(std::uint64_t now, const GameStatus& status);
     void drop_figure(Remote& r);
     void tick_leaving(std::uint64_t now);
+    /* The level's scenes played together (coop_scenes.cpp): SCENE heard, the host's scenes told,
+     * a member's started, and the lateness a member's scene is let play out for. */
+    void on_scene(bool from_host, Reader& r);
+    void tick_host_scene(std::uint64_t now, const GameStatus& status);
+    void tick_member_scene(std::uint64_t now, const GameStatus& status);
+    void send_scene(std::uint64_t now);
+    void reset_scenes();
+    std::uint64_t scene_lag_ms() const { return shared_lag_ms_; }
 
     Session& session_;
     Game& game_;
@@ -411,6 +445,23 @@ private:
     bool host_arriving_ = false;
     /* Until when the refusal of a member's ship travel is shown. */
     std::uint64_t refused_until_ = 0;
+    /* The level's scenes. The host's: the scene playing (-1 none), its level and sequence, when it
+     * started and was last told. A member's: the host's scene (-1 none), its sequence, level and
+     * when it started by this clock; whether it played here already, when it was asked for last
+     * (0: no request waiting), and the host's scene playing here and how late it started. */
+    int scene_ = -1;
+    int scene_level_ = -1;
+    std::uint16_t scene_sequence_ = 0;
+    std::uint64_t scene_start_ms_ = 0;
+    std::uint64_t scene_sent_ms_ = 0;
+    int host_scene_id_ = -1;
+    std::uint16_t host_scene_sequence_ = 0;
+    int host_scene_level_ = -1;
+    std::uint64_t host_scene_start_ms_ = 0;
+    bool scene_done_ = false;
+    std::uint64_t scene_asked_ms_ = 0;
+    int shared_scene_ = -1;
+    std::uint64_t shared_lag_ms_ = 0;
     /* The game's state last logged. */
     GameStatus logged_{-1, -2, 0};
     /* Leaving for the title: since when, whether the game was out of the title meanwhile, when the

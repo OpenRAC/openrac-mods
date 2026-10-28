@@ -79,8 +79,13 @@ The world is the host's:
   member is in follows the host's, and only the host's ship leaves for another planet.
 - **Menus do not pause** while the party plays: the pause menu and the game's dialogs open over a
   world that goes on (enemies, platforms, the other players); your Ratchet waits where he is.
+- **Scenes play for everyone**: a scene of the level's own that starts in the host's game (a
+  person spoken to, a place reached, Veldin's opening) starts in each member's game in that level
+  too, from its start, as soon as that member has control (a member in a menu starts it once the
+  menu is closed), with its own actors. A member who started it late sees it to the end.
 - **Scenes end together**: the host's skip counts (a member's Start does nothing while the host's
-  scene plays). When the host is out of its scene, a member still in one is skipped, and nobody
+  scene plays). When the host is out of its scene, a member still in one is skipped (one that
+  started the host's scene late only once it had as long as it was late), and nobody
   gets control back until everyone is out (at most 10 seconds for the host; a member waits for
   the host's scene to end). The ship's landing and take-off count, and so do level intros.
 
@@ -199,6 +204,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead in the host's level, for one arriving there |
 | 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup |
 | 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot a player fired (the Blaster's, a bomb); a member's goes to the host, who passes it on. Its figure fires it as far behind as its poses play, hitting nothing in that game |
+| 20 SCENE | the host, to all | play i32, level i32, scene i32, sequence u16, elapsed i32 (ms) | an in-level scene the host's game plays (the level's number of it; a new sequence each start), when it starts, once a second while it plays and when it ends (scene -1). A member in that level starts the same scene once it has control (the SDK's `play_scene`) |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 
@@ -226,8 +232,11 @@ that player. Mobys near the members run in the host's game as if near its camera
   (gold bolts, items) and buys stays in that member's game; its card is never written by the party.
 - Vendors and the ship are each game's own. A member's flight to the new planet is the game's
   flight between planets, not the host's take-off from the pad (members leave when the host's
-  ship does, and usually land first, then wait). A cutscene a moby of the host's world starts plays in the host's game
-  only; members wait for it (the barrier).
+  ship does, and usually land first, then wait).
+- A scene a member joins late starts from its beginning (a scene is read from the disc as it
+  plays: it cannot start part way); scripted camera shots that are not scenes (a gold bolt's, a
+  door's or a lift's camera, the level's camera scripts) play in the game whose moby runs them
+  only.
 - Under the pause menu the world goes on but the picture behind the menu stays as it was.
 - A member's crates drop their bolts in the member's game only.
 - An enemy that keeps a pointer to the hero across ticks, grabs him or rides him may act on the

@@ -446,11 +446,12 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
 }
 
 void World::tick_host(std::uint64_t now, const GameStatus& status) {
-    // The spawned mobys that count: creatures and bolts, never a figure (class 0).
+    // The spawned mobys that count: creatures and bolts, never a figure (class 0), nor a scene's
+    // actor (each game playing the scene makes its own: coop_scenes.cpp).
     std::set<int> seen;
 
     for (const auto& [slot, moby] : mobys_) {
-        const bool counts = moby.key < 0 && moby.oclass != 0
+        const bool counts = moby.key < 0 && moby.oclass != 0 && (moby.flags & kMobyScene) == 0
                             && ((moby.flags & kMobyCreature) != 0 || bolt_class(moby.oclass)
                                 || loot_class(moby.oclass));
 

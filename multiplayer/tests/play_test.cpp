@@ -694,6 +694,12 @@ struct FakeGame : mp::Game {
 
     void skip() override { calls.push_back("skip"); }
 
+    // A scene asked for (the test plays it by setting `now`), and -1 a request dropped.
+    bool play_scene(int scene) override {
+        calls.push_back("scene " + std::to_string(scene));
+        return mp::in_level(now.phase);
+    }
+
     int moby_spawn(int oclass, const mp::Pose& pose) override {
         mp::MobyState m;
         m.slot = 500 + static_cast<int>(level.size());
@@ -1507,6 +1513,147 @@ void scenes_end_together() {
     CHECK(!host.coop.hold_input());
 }
 
+// The level's scenes play in every game: the host's scene 3 starts in the member's game too (its
+// own start, once its player is in control: not under a menu), late; the member's scene plays out
+// after the host's has ended as long as it was late, the host waiting for it; a request the game
+// did not act on is dropped when the host's scene ends; a member in another level starts nothing;
+// the host's scene actors are not shared (each game has its own).
+void the_hosts_scenes_play_everywhere() {
+    Player host(1), member(2);
+    std::vector<std::string> host_log, member_log;
+    host.coop.on_log([&](const std::string& l) { host_log.push_back(l); });
+    member.coop.on_log([&](const std::string& l) { member_log.push_back(l); });
+    const auto has = [](const std::vector<std::string>& log, const std::string& start) {
+        return std::any_of(log.begin(), log.end(), [&](const std::string& l) { return l.rfind(start, 0) == 0; });
+    };
+    const auto asked = [&](const std::string& call) {
+        return std::count(member.game.calls.begin(), member.game.calls.end(), call);
+    };
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    member.game.calls.clear();
+
+    // Veldin's opening in the host's game (its actors: a creature it spawned for the scene), the
+    // member in its pause menu: nothing asked yet, the member's control held for the host's scene.
+    host.game.now = {mp::kPhaseScene, 0, 2, 3};
+    host.game.level.push_back(moby(310, -1, 1250, mp::kMobyUpdates | mp::kMobyCreature | mp::kMobyScene, 5.0f));
+    member.game.now.phase = mp::kPhaseMenu;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(has(host_log, "scene 3 of level 0 started here: the party plays it too"));
+    CHECK(has(member_log, "the host plays scene 3 of level 0"));
+    CHECK(asked("scene 3") == 0);
+    CHECK(member.world.spawned() == 0);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 1250") == 0);
+
+    // The member's menu closed: the same scene asked of its game, once (again only kSceneAskMs on).
+    member.game.now.phase = mp::kPhasePlaying;
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(asked("scene 3") == 1);
+    CHECK(has(member_log, "starting the host's scene 3 here"));
+    CHECK(member.coop.hold_input());
+    for (std::uint64_t t = 0; t < mp::kSceneAskMs; t += 50) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(asked("scene 3") == 2);
+
+    // Its game plays it (4 s after the host's started): no more asking, its own actors not counted.
+    member.game.now = {mp::kPhaseScene, 0, 2, 3};
+    member.game.level.push_back(moby(311, -1, 1250, mp::kMobyUpdates | mp::kMobyCreature | mp::kMobyScene, 5.0f));
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(has(member_log, "playing the host's scene 3 here, "));
+    CHECK(asked("scene 3") == 2 && asked("scene -1") == 0);
+    CHECK(!member.coop.hold_input() && !host.coop.hold_input());
+    CHECK(host.world.spawned() == 0 && member.world.spawned() == 0);
+
+    // The host's ends (its actors gone): the member's plays on, past kHostOutMs, the host waiting.
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    host.game.level.pop_back();
+    for (int i = 0; i < 50; ++i) {  // 2.5 s
+        tick({&host, &member}, 50);
+    }
+    CHECK(std::count(member.game.calls.begin(), member.game.calls.end(), "skip") == 0);
+    CHECK(host.coop.hold_input());
+    CHECK(has(host_log, "waiting for the members to leave their scene"));
+    // Its end: everyone goes on, nothing skipped.
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    member.game.level.pop_back();
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(!host.coop.hold_input() && !member.coop.hold_input());
+    CHECK(std::count(member.game.calls.begin(), member.game.calls.end(), "skip") == 0);
+    // Played once: not asked again while the host plays on.
+    tick({&host, &member}, 4000);
+    CHECK(asked("scene 3") == 2);
+
+    // Scene 5: asked, the member's game never starts it (as after a load), the host's ends: the
+    // request is dropped.
+    host.game.now = {mp::kPhaseScene, 0, 2, 5};
+    for (int i = 0; i < 6; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(asked("scene 5") == 1);
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    for (int i = 0; i < 6; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(asked("scene -1") == 1);
+    CHECK(has(member_log, "the host's scene is over: not starting it here"));
+
+    // Scene 3 again (a new start): played again. The member in another level: nothing asked.
+    member.game.calls.clear();
+    host.game.now = {mp::kPhaseScene, 0, 2, 3};
+    for (int i = 0; i < 6; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(asked("scene 3") == 1);
+    member.game.now = {mp::kPhaseScene, 0, 2, 3};
+    tick({&host, &member}, 50);
+    member.game.now = host.game.now = {mp::kPhasePlaying, 0, 2};
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    member.game.calls.clear();
+    member.game.now = {mp::kPhasePlaying, 4, 3};
+    host.game.now = {mp::kPhaseScene, 0, 2, 7};
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(asked("scene 7") == 0);
+
+    // A member that started late is let play only so long: the host's skip still skips it at once.
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    for (int i = 0; i < 30; ++i) {
+        tick({&host, &member}, 50);
+    }
+    host.game.now = {mp::kPhaseScene, 0, 2, 9};
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    member.game.now = {mp::kPhaseScene, 0, 2, 9};
+    tick({&host, &member}, 50);
+    member.game.calls.clear();
+    host.coop.own_skip(mp::kPhaseScene, host.clock);
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    route({&host, &member});
+    tick({&host, &member}, 50);
+    CHECK(std::count(member.game.calls.begin(), member.game.calls.end(), "skip") >= 1);
+}
+
 // A skip on any player skips for all: a member's Start in a scene skips the host's and the other
 // member's (through the host); the host's Start in a movie presses Start for the members' movie
 // player; a game where nothing plays does nothing.
@@ -2027,6 +2174,7 @@ int main() {
     classes_are_shared_as_they_should_be();
     a_long_session();
     scenes_end_together();
+    the_hosts_scenes_play_everywhere();
     a_skip_anywhere_skips_everywhere();
     held_items_and_shots_reach_the_figure();
     a_ship_travel_takes_the_party_along();
