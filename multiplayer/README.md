@@ -1,10 +1,12 @@
 # Multiplayer
 
-Online multiplayer for Ratchet & Clank on OpenRAC's native port (PAL and NTSC-U discs), first step:
-a **Multiplayer** item in the game's main menu that connects to an OpenRAC server and puts you in a
+Online multiplayer for Ratchet & Clank on OpenRAC's native port (PAL and NTSC-U discs): a
+**Multiplayer** item in the game's main menu that connects to an OpenRAC server and puts you in a
 party with other players, or, with **Direct connect**, plays without a server: one player's game
-hosts and the others join it by its address. **Nothing of the game is played together yet**: this version is the menu,
-the lobby and the connection. Seeing the other players in a level comes in a later version.
+hosts and the others join it by its address. The host picks a save (or a new game), and its
+**Start** starts that game for the whole party. Everyone plays in the host's level, and sees the
+others' Ratchets running about in it. The world is still each game's own: enemies, crates, bolts
+and doors are not shared yet (the next version shares them).
 
 With the mod off, the game is the PlayStation 2 game.
 
@@ -23,10 +25,28 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 
 | Page | What it does |
 |---|---|
-| Home | **Find match**: the server puts you in a waiting party that has room, or makes you the host of a new one others can find. **Create match**: a party of your own, which Find match fills and its code invites to. **Join by code**: the next page. The three wait for the server's hello. **Direct connect**: the next page, no server needed. Below them, your name |
+| Home | **Browse games**: the games others host. **Create match**: a party of your own, from a save (the next page), which Browse games lists and its code invites to. **Join by code**: the next page. The three wait for the server's hello (the cursor moves up to Browse games when it comes). **Direct connect**: the next page, no server needed. Below them, your name |
+| Browse games | **Refresh**, then a row for each game being hosted that has room: its host's name, its save ("Pokitaru, 12 gold bolts", or "New game") and how many are in it (`2/4`). Cross on a row joins it. The list is asked again every 3 seconds while the page shows; with none, a line says so and points at Create match |
+| Choose a save | **New game**, then your memory card's five saves, each with its planet, gold bolts and time played (an empty slot is dim). The one chosen is what the party plays; your card is never written by the party. Create match and Host directly both come here first |
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
 | Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
-| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready, or no longer) or **Start** (the host: it starts the game for everyone; in this version that is all it does), **Leave**, then the members (up to 4) with the host and the ready ones marked, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
+| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready, or no longer; once the game is on, **Join the game**) or **Start** (the host: the game starts for everyone), **Leave**, what the party plays (**Playing:** the save), then the members (up to 4) with the host and the ready ones marked, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
+
+## Playing together
+
+1. The host: **Create match** (or **Direct connect**, **Host directly**), then a save or **New game**.
+2. The others: **Browse games** and Cross on the host's game (or **Join by code**, or **Join by
+   address** for a direct one). Each says **Ready**.
+3. The host: **Start**. Every game leaves the menu and loads the host's game in the host's level:
+   a new game starts on Veldin, a save where it was saved. The others' cards are not touched.
+4. In a level each game shows the others' Ratchets where they are, running, jumping and standing
+   as they do, about a tenth of a second behind. They walk through you and nothing aims at them.
+5. When the host travels to another planet, everyone's game follows it there. Someone who joins
+   while the game is on gets the host's progress as it is then and starts in the host's level;
+   someone who quits to the title finds **Join the game** in the lobby in Ready's place, which
+   asks the host for its game again.
+
+Each game plays its own enemies, crates, bolts and cutscenes for now; only the players are shared.
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
 what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again
@@ -78,9 +98,12 @@ strikes, hello within 10 seconds, 8 connections an address (and 8 clients at onc
 
 ## How it works
 
-The mod needs OpenRAC's mod interface 1.7, whose pages of the game's own menus put the
+The mod needs OpenRAC's mod interface 1.8: 1.7's pages of the game's own menus put the
 **Multiplayer** item in the main menu under Load Game and let the mod say what its pages list
-(the port draws them with the game's widgets). It keeps one TCP connection to the server
+(the port draws them with the game's widgets), and 1.8's play calls tell it what the game is doing,
+give it the hero's pose, make the figures that stand for the others (mobys of the hero's class
+that run none of his logic, collide with nothing and are no target), start a game or a save from
+the title, travel to a level, and read the memory card's saves. It keeps one TCP connection to the server
 (TCP_NODELAY), opened the first time Home shows and kept until the game ends, on a thread of its own: the game's thread only queues frames
 and reads what came. The server is the OpenRAC server (the `Server` repository): it links players
 into parties and forwards their traffic, and the host's game is to be the authoritative one.
@@ -91,8 +114,8 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.3.2`) and the player's name, on every connection | the session id |
-| 1 PARTY | CREATE (0), JOIN code (1), LEAVE (2), FIND (7) | INFO (3), JOINED (4), LEFT (5), END (6) |
+| 0 HELLO | its version (`rac1-multiplayer/0.4.0`) and the player's name, on every connection | the session id |
+| 1 PARTY | CREATE (0) with the party's description (the save's words), JOIN code (1), LEAVE (2), LIST (8); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
 | 4 ERROR | | the reason: no such party, full, already in one, not in one |
@@ -108,14 +131,43 @@ back, state also goes as DATA, so blocked UDP loses nothing (state may then arri
 stamped and the latest wins); once they come back within 15 seconds, UDP only. Lobby messages and
 game events always go as DATA.
 
-Ready and Start are the mod's own, carried in DATA, a kind byte first: **1** READY with a flag
-byte (a member to the host), **2** STATE with a count byte and an id int and a flag byte per member
-(the host to everyone: who is ready), **3** START (the host to everyone). Any other first byte is
-left for the game data of a later version.
+The lobby and the game are the mod's own, carried in DATA (the server only forwards it; a member's
+DATA reaches the host only, the host's goes to everyone or to one), a kind byte first:
+
+| Kind | From | Bytes after the kind | |
+|---|---|---|---|
+| 1 READY | a member | flag u8 | ready, or no longer |
+| 2 STATE | the host | count u8, then id i32 + flag u8 each | who is ready |
+| 3 START | the host | | the lobby's Start |
+| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32 | play this game; a save follows in CHUNKs. `play` names the host's game |
+| 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
+| 6 LEVEL | the host, to all | play i32, level i32 | the level the host plays (-1 none), once a second and at each change; a member in another level travels there |
+| 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000) | a player's Ratchet, 20 a second (65 bytes); a member's goes to the host, who passes it on to everyone |
+| 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
+
+A member's game is started from the title with the host's save (`play_start`), its own card left
+alone; one who joins while the game is on gets the host's progress as it is (`save_capture`) and
+starts in the host's level. Each game shows the others' poses through a buffer per player
+(`src/play.hpp`, after INTERPOLATION.md): played back about 100 ms behind (more with jitter),
+the position along a curve through each pose's velocity, the cursor running up to 15 % fast or slow
+to keep its delay, 150 ms of extrapolation past the newest pose, and a jump for a teleport (a level
+change, a respawn, a step longer than 8 units). A figure is made when a player is in the same level
+and removed when it leaves the level, goes silent for 5 seconds or leaves the party.
+
+## Known limits
+
+- Only the players are shared: each game runs its own enemies, crates, bolts, doors, cutscenes and
+  progress. A cutscene or the ship's travel plays in each game on its own.
+- A figure shows no weapon or gadget in its hand: only the held item's class is loaded in a level,
+  so another player's weapon cannot be drawn yet. Its item id travels in the pose for later.
+- Names are not drawn over the figures (the mod interface has no drawing over the game yet).
+- A member already in a level when the host starts again keeps its own progress and only follows
+  the level.
+- Everyone needs the same disc and the same OpenRAC and mod versions.
 
 ## Building
 
-Built with the repository's other native mods (the top README), with an SDK of interface 1.7 or
+Built with the repository's other native mods (the top README), with an SDK of interface 1.8 or
 newer: until that SDK is released (`sdk.lock` pins an older one, and the top CMakeLists.txt then
 skips this mod), build against OpenRAC's own `sdk/`:
 
@@ -124,6 +176,12 @@ cmake -S . -B build -G Ninja -DOPENRAC_SDK=<OpenRAC>/sdk
 cmake --build build && ctest --test-dir build -R multiplayer
 python3 <OpenRAC>/sdk/tools/package_mod.py build/package/multiplayer -o dist
 ```
+
+`tests/play_test.cpp` checks the poses' bytes, the interpolation buffer (a steady stream, repeats
+and late poses, teleports, a stall then a burst, extrapolation), and the co-op of a host and members
+through a router that does what the server does with DATA and fake games: Start with a save and
+with a new game, the level followed, a late joiner and a member that asks again, figures made in
+the same level only and gone with the level, the silence or the party.
 
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
 lobby's logic against a recorder, the connection against a small server on the loopback, and
@@ -135,7 +193,9 @@ chosen from the setting and the launcher's.
 | File | |
 |---|---|
 | `src/multiplayer.cpp` | the mod: the main-menu item and its pages |
-| `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, find, join, leave, Ready and Start |
+| `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, list, join, leave, Ready and Start |
+| `src/coop.hpp`, `.cpp` | playing together: PLAY and its save, LEVEL, WANT, poses sent and figures shown |
+| `src/play.hpp`, `.cpp` | the poses' bytes and the interpolation buffer |
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
 | `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
 | `src/direct.hpp`, `.cpp` | Direct connect's page logic: the address's rows (64-choice rings), held steps, the hosting lines |

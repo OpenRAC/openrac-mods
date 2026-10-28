@@ -1,18 +1,23 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (c) 2026 the OpenRAC contributors
  *
- * Ratchet & Clank: online multiplayer, the first step (README.md): a Multiplayer item in the
- * title's main menu, under Load Game (mod interface 1.7), whose pages are the game's own menus:
- * they connect to the OpenRAC server, show the player's name (the `name` setting, else the
- * launcher's, OPENRAC_PLAYER_NAME), find a match (the server puts the player in a party with
- * room, or makes one), create one, or join one by its code, then show the lobby: the
- * code, the members with the host marked, Ready or Start, and Leave. Direct connect plays without
- * a server: this game hosts (connection.hpp's embedded host), or joins another's by its address.
- * Nothing of the game is played together yet: no gameplay is sent.
+ * Ratchet & Clank: online multiplayer (README.md): a Multiplayer item in the title's main menu,
+ * under Load Game, whose pages are the game's own menus (mod interface 1.7): they connect to the
+ * OpenRAC server, show the player's name (the `name` setting, else the launcher's,
+ * OPENRAC_PLAYER_NAME), list the games others host, create one from a save (or a new game), or
+ * join one by its code, then show the lobby: the code, the save, the members with the host marked,
+ * Ready or Start, and Leave. Direct connect plays without a server: this game hosts
+ * (connection.hpp's embedded host), or joins another's by its address. The host's Start starts the
+ * game for everyone, and each game shows the others' Ratchets in its level (coop.hpp, on the play
+ * calls of interface 1.8).
  *
  * The pages, drawn by the game (its frames, list, font, prompt box and sounds):
- *   Home    Find match (any party with room), Create match (one of the player's own), Join
- *           by code and Direct connect (the next pages), and the player's name;
+ *   Home    Browse games (the parties others host), Create match (a party of the player's own,
+ *           from a save), Join by code and Direct connect (the next pages), and the player's name;
+ *   Browse  Refresh, then a row per party with room (its host, its save, how many are in it);
+ *           Cross on one joins it; the list is asked again every few seconds;
+ *   Saves   New game and the memory card's saves (their planet, gold bolts and time): the one
+ *           chosen is what the party plays (Create match, and Host directly);
  *   Code    a row per character of the code, Left and Right step it through the server's code
  *           alphabet, then Join;
  *   Direct  Host directly and Join by address; Join by address's rows (the address's four octets
@@ -29,6 +34,7 @@
  *   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
  *           empty or invalid: the launcher's Multiplayer name.
  */
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -36,6 +42,7 @@
 #include <vector>
 
 #include "connection.hpp"
+#include "coop.hpp"
 #include "direct.hpp"
 #include "menu.hpp"
 #include "openrac/mod.hpp"
@@ -45,13 +52,13 @@
 namespace {
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kVersion = "rac1-multiplayer/0.3.2";
+constexpr const char* kVersion = "rac1-multiplayer/0.4.0";
 
 /* The question's tag: leaving the party (or hosting it). */
 constexpr std::uint32_t kAskLeave = 1;
 
 /* Home's buttons. */
-constexpr int kFindItem = 0;
+constexpr int kBrowseItem = 0;
 constexpr int kCreateItem = 1;
 constexpr int kCodeItem = 2;
 constexpr int kDirectItem = 3;
@@ -69,10 +76,107 @@ constexpr int kPortItem = 4;
 constexpr int kPortCoarseItem = 5;
 constexpr int kJoinAddressItem = 6;
 
+/* Browse's Refresh, its party rows after it (as many as fit), and how often the list is asked
+ * again while it shows. */
+constexpr int kRefreshItem = 0;
+constexpr std::size_t kBrowseRows = OPENRAC_UI_ITEMS_MAX - 2;
+constexpr std::uint64_t kListMs = 3000;
+
+/* The Saves page's New game, the card's slots after it; what the save chosen is for. */
+constexpr int kNewGameItem = 0;
+constexpr int kSaveSlots = 5;
+
+enum class SavesFor {
+    kCreate,
+    kHost
+};
+
 /* What the Direct page shows: its two buttons, or Join by address's rows. */
 enum class DirectView {
     kMenu,
     kJoin
+};
+
+// ---- The game, for the co-op (coop.hpp's Game, on interface 1.8's play calls) ----
+
+class ModGame : public mp::Game {
+public:
+    explicit ModGame(openrac::Mod& mod) : mod_(mod) {}
+
+    mp::GameStatus status() override {
+        const openrac_play_status s = mod_.play_status();
+        return {s.phase, s.level, s.loads};
+    }
+
+    bool start(int level, const mp::Bytes& save) override {
+        return mod_.play_start(level, save) == OPENRAC_HOOK_OK;
+    }
+
+    bool travel(int level) override { return mod_.play_travel(level) == OPENRAC_HOOK_OK; }
+
+    mp::Bytes capture() override { return mod_.save_capture(); }
+
+    bool hero(mp::Pose& out) override {
+        openrac_pose p{};
+
+        if (!mod_.hero_pose(p)) {
+            return false;
+        }
+
+        out = from_sdk(p);
+        return true;
+    }
+
+    int figure_create() override { return mod_.figure_create(); }
+
+    bool figure_pose(int id, const mp::Pose& pose) override {
+        return mod_.figure_pose(id, to_sdk(pose));
+    }
+
+    void figure_remove(int id) override { mod_.figure_remove(id); }
+
+    /* The two poses are the same fields: one after its size, the other alone. */
+    static mp::Pose from_sdk(const openrac_pose& p) {
+        mp::Pose out;
+        out.level = p.level;
+        std::copy(p.position, p.position + 3, out.position);
+        std::copy(p.rotation, p.rotation + 3, out.rotation);
+        out.scale = p.scale;
+        std::copy(p.velocity, p.velocity + 3, out.velocity);
+        out.state = p.state;
+        out.health = p.health;
+        out.item = p.item;
+        out.seq = p.seq;
+        out.frame = p.frame;
+        out.next_frame = p.next_frame;
+        out.anim_time = p.anim_time;
+        out.anim_speed = p.anim_speed;
+        out.flags = p.flags;
+        return out;
+    }
+
+    static openrac_pose to_sdk(const mp::Pose& p) {
+        openrac_pose out{};
+        out.size = sizeof out;
+        out.level = p.level;
+        std::copy(p.position, p.position + 3, out.position);
+        std::copy(p.rotation, p.rotation + 3, out.rotation);
+        out.scale = p.scale;
+        std::copy(p.velocity, p.velocity + 3, out.velocity);
+        out.state = p.state;
+        out.health = p.health;
+        out.item = p.item;
+        out.seq = p.seq;
+        out.frame = p.frame;
+        out.next_frame = p.next_frame;
+        out.anim_time = p.anim_time;
+        out.anim_speed = p.anim_speed;
+        out.flags = p.flags;
+        return out;
+    }
+
+private:
+    openrac::Mod& mod_;
 };
 
 // ---- State ----
@@ -82,8 +186,14 @@ struct State {
     int port = mp::kDefaultPort;
     std::unique_ptr<mp::Connection> connection;
     std::unique_ptr<mp::Session> session;
+    std::unique_ptr<ModGame> game;
+    std::unique_ptr<mp::Coop> coop;
+    openrac::Mod* mod = nullptr;
     std::uint32_t generation = 0;  // the connection's, as the session last saw it
-    openrac::UiPage home, code_page, direct_page, lobby;
+    openrac::UiPage home, code_page, direct_page, lobby, browse, saves;
+    std::uint64_t listed_ms = 0;   // when Browse last asked for the list
+    bool home_greeted = false;     // whether Home last saw the server's hello
+    SavesFor saves_for = SavesFor::kCreate;
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
     std::string notice;  // the last refusal or news, until the next action
     DirectView view = DirectView::kMenu;
@@ -142,12 +252,28 @@ void poll() {
         g->session->disconnected();
     }
 
+    const bool was_in = g->session->in_party();
+
     for (const mp::Message& m : g->connection->receive()) {
         g->session->handle(m);
     }
 
+    // Into a party or out of one: a line in the log.
+    if (g->session->in_party() != was_in) {
+        const mp::Session& s = *g->session;
+        g->mod->info(
+            s.in_party() ? "multiplayer: in party " + s.code() + (s.is_host() ? " as its host" : "")
+                               + " (" + std::to_string(s.members().size()) + " players)"
+                         : "multiplayer: out of the party"
+        );
+    }
+
     // A refusal or news replaces the last.
     if (std::string notice = g->session->take_notice(); !notice.empty()) {
+        g->notice = notice;
+    }
+
+    if (std::string notice = g->coop->take_notice(); !notice.empty()) {
         g->notice = notice;
     }
 }
@@ -173,7 +299,7 @@ void show_home() {
     openrac::UiContent c;
     c.title = "Multiplayer";
     c.items = {
-        openrac::UiItem::button("Find match", usable),
+        openrac::UiItem::button("Browse games", usable),
         openrac::UiItem::button("Create match", usable),
         openrac::UiItem::button("Join by code", usable),
         openrac::UiItem::button("Direct connect"),
@@ -269,9 +395,18 @@ void show_direct() {
 void show_lobby() {
     const mp::Session& s = *g->session;
     openrac::UiContent c;
-    const std::string first = s.is_host() ? "Start" : s.ready(s.id()) ? "Not ready" : "Ready";
+    // The host starts from the title once; a member says it is ready until then, and once the
+    // game is on, back in the title, joins it again.
+    const bool title = g->game->status().phase == mp::kPhaseFrontEnd;
+    const bool rejoin = !s.is_host() && g->coop->playing() && title;
+    const std::string first = s.is_host()         ? "Start"
+                              : rejoin            ? "Join the game"
+                              : s.ready(s.id())   ? "Not ready"
+                                                  : "Ready";
     c.items = {
-        openrac::UiItem::button(first, !s.started()),
+        openrac::UiItem::button(
+            first, rejoin ? !g->coop->receiving() : !s.started() && (!s.is_host() || title)
+        ),
         openrac::UiItem::button("Leave"),
     };
 
@@ -292,6 +427,17 @@ void show_lobby() {
         }
     } else {
         c.title = "Party at " + g->connection->address();
+    }
+
+    // What the party plays: the host's save (or a new game), as its INFO said.
+    const std::string& playing = s.is_host() ? g->coop->description() : s.description();
+
+    if (!playing.empty()) {
+        c.items.push_back(openrac::UiItem::text("Playing: " + playing));
+    }
+
+    if (g->coop->receiving()) {
+        c.items.push_back(openrac::UiItem::text("Receiving the host's game..."));
     }
 
     for (const mp::Member& m : s.members()) {
@@ -347,12 +493,13 @@ void on_home(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (e.is(OPENRAC_UI_CHOOSE)) {
         g->notice.clear();
 
-        // Find match and Create match ask the server for a party; Join by code asks for a code,
-        // Direct connect for a host or an address.
-        if (e.item() == kFindItem) {
-            s.find();
+        // Browse games lists the parties; Create match asks for a save first; Join by code asks
+        // for a code, Direct connect for a host or an address.
+        if (e.item() == kBrowseItem) {
+            g->browse.open();
         } else if (e.item() == kCreateItem) {
-            s.create();
+            g->saves_for = SavesFor::kCreate;
+            g->saves.open();
         } else if (e.item() == kCodeItem) {
             g->code_page.open();
         } else if (e.item() == kDirectItem) {
@@ -364,13 +511,20 @@ void on_home(const openrac::UiPage& page, const openrac::UiEvent& e) {
         }
     }
 
+    // The server's hello came while Home showed: the cursor, left on Direct connect while the rest
+    // was dim, goes up to Browse games.
+    if (s.greeted() && !g->home_greeted && page.cursor() == kDirectItem) {
+        page.set_cursor(kBrowseItem);
+    }
+
+    g->home_greeted = s.greeted();
+
     // In a party (found, made, or kept from before): the lobby.
     if (s.in_party()) {
         g->lobby.open();
     }
 
     show_home();
-    (void)page;
 }
 
 /* Code's events: a character stepped, Join; once in the party, the lobby in this page's place. */
@@ -449,14 +603,9 @@ void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
         if (e.item() == kHostItem) {
             g->notice.clear();
             g->direct_error.clear();
-
-            if (connection.start_hosting(mp::kDefaultPort)) {
-                poll();
-            } else {
-                const std::string error = connection.hosting().error;
-                g->direct_error = error.empty() ? "Cannot host here" : error;
-                page.sound(OPENRAC_UI_SOUND_DENIED);
-            }
+            g->saves_for = SavesFor::kHost;
+            g->saves.open();
+            return;
         } else if (e.item() == kByAddressItem) {
             switch_view(page, DirectView::kJoin, 0);
             return;
@@ -499,9 +648,13 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kReadyItem) {
         g->notice.clear();
 
-        // The host starts; a member says it is ready, or no longer.
+        // The host starts the game for everyone; a member says it is ready, or no longer.
         if (s.is_host()) {
-            s.start();
+            if (!g->coop->start()) {
+                page.sound(OPENRAC_UI_SOUND_DENIED);
+            }
+        } else if (g->coop->playing() && g->game->status().phase == mp::kPhaseFrontEnd) {
+            g->coop->rejoin();
         } else {
             s.toggle_ready();
         }
@@ -541,6 +694,171 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     show_lobby();
 }
 
+/* A save's row: "Save 1: Pokitaru, 3 gold bolts, 2:05", or empty. */
+std::string save_row(int slot, const openrac_save_info& info, bool there) {
+    const std::string name = "Save " + std::to_string(slot + 1) + ": ";
+
+    if (!there) {
+        return name + "empty";
+    }
+
+    const int minutes = info.seconds / 60;
+    const std::string time = std::to_string(minutes / 60) + ":" + (minutes % 60 < 10 ? "0" : "")
+                             + std::to_string(minutes % 60);
+    return name + mp::save_description(g->mod->level_name(info.level), info.gold_bolts, false) + ", "
+           + time;
+}
+
+/* The card's saves as the Saves page last read them (when it showed). */
+struct SlotRow {
+    openrac_save_info info{};
+    bool there = false;
+};
+std::vector<SlotRow> g_slots(kSaveSlots);
+
+void read_slots() {
+    for (int slot = 0; slot < kSaveSlots; ++slot) {
+        SlotRow& row = g_slots[static_cast<std::size_t>(slot)];
+        row.there = g->mod->save_slot(slot, row.info) == 1;
+    }
+}
+
+/* Saves: New game, then the card's saves (an empty slot dim). */
+void show_saves() {
+    openrac::UiContent c;
+    c.title = g->saves_for == SavesFor::kHost ? "Host with which save?" : "Play which save?";
+    c.items.push_back(openrac::UiItem::button("New game"));
+
+    for (int slot = 0; slot < kSaveSlots; ++slot) {
+        const SlotRow& row = g_slots[static_cast<std::size_t>(slot)];
+        c.items.push_back(openrac::UiItem::button(save_row(slot, row.info, row.there), row.there));
+    }
+
+    c.footer = {g->saves_for == SavesFor::kHost ? "No server: port 7770" : status(),
+                g->direct_error.empty() ? "The party plays it; your card is kept"
+                                        : g->direct_error,
+                mp::kSelectBackHints};
+    g->saves.set(c);
+}
+
+/* A save chosen (or a new game): the co-op keeps it, then the party is made, on the server or by
+ * this game hosting. */
+void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    if (e.is(OPENRAC_UI_SHOW)) {
+        g->direct_error.clear();
+        read_slots();
+    } else if (e.is(OPENRAC_UI_CHOOSE)) {
+        mp::Bytes save;
+        std::string description = mp::save_description("", 0, true);
+
+        if (e.item() > kNewGameItem) {
+            const int slot = e.item() - 1;
+            openrac_save_info info{};
+            save = g->mod->save_read(slot);
+
+            if (save.empty() || g->mod->save_slot(slot, info) != 1) {
+                page.sound(OPENRAC_UI_SOUND_DENIED);
+                show_saves();
+                return;
+            }
+
+            description =
+                mp::save_description(g->mod->level_name(info.level), info.gold_bolts, false);
+        }
+
+        g->coop->choose(save, description);
+        g->notice.clear();
+
+        if (g->saves_for == SavesFor::kCreate) {
+            g->session->create(description);
+        } else {
+            // Hosting: the party's description is the save's; a port taken stays here.
+            mp::HostConfig config;
+            config.description = description;
+            g->connection->set_host_config(config);
+
+            if (g->connection->start_hosting(mp::kDefaultPort)) {
+                poll();
+            } else {
+                const std::string error = g->connection->hosting().error;
+                g->direct_error = error.empty() ? "Cannot host here" : error;
+                page.sound(OPENRAC_UI_SOUND_DENIED);
+            }
+        }
+    }
+
+    // In the party: the lobby.
+    if (g->session->in_party() && !e.is(OPENRAC_UI_HIDE)) {
+        g->lobby.open();
+    }
+
+    show_saves();
+}
+
+/* A party's row in Browse: "Clank - Pokitaru, 3 gold bolts 2/4", cut to the page's width. */
+std::string party_row(const mp::Listing& l) {
+    const std::string count = " " + std::to_string(l.members) + "/" + std::to_string(l.size);
+    std::string text = l.host + (l.description.empty() ? "" : " - " + l.description);
+    const std::size_t room = OPENRAC_UI_TEXT_MAX - count.size();
+
+    if (text.size() > room) {
+        text = text.substr(0, room - 3) + "...";
+    }
+
+    return text + count;
+}
+
+/* Browse: Refresh, then the parties with room; none: a line saying so. */
+void show_browse() {
+    const mp::Session& s = *g->session;
+    openrac::UiContent c;
+    c.title = "Browse games";
+    c.items.push_back(openrac::UiItem::button("Refresh", s.greeted()));
+    const std::vector<mp::Listing>& parties = s.parties();
+
+    for (std::size_t i = 0; i < parties.size() && i < kBrowseRows; ++i) {
+        c.items.push_back(openrac::UiItem::button(party_row(parties[i])));
+    }
+
+    if (parties.empty()) {
+        c.items.push_back(
+            openrac::UiItem::text(
+                s.lists() == 0 ? "Asking the server..." : "No games are hosted: Create match hosts one"
+            )
+        );
+    }
+
+    c.footer = {status(), mp::kSelectBackHints};
+    g->browse.set(c);
+}
+
+/* Browse's events: the list asked for when it shows and every few seconds; Refresh asks at once;
+ * a row joins its party (by its code); in the party, the lobby. */
+void on_browse(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    mp::Session& s = *g->session;
+    const std::uint64_t now = mp::now_ms();
+
+    if (e.is(OPENRAC_UI_SHOW) || (e.is(OPENRAC_UI_FRAME) && now - g->listed_ms >= kListMs)
+        || (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefreshItem)) {
+        g->listed_ms = now;
+        s.list();
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() > kRefreshItem) {
+        const auto row = static_cast<std::size_t>(e.item() - 1);
+
+        if (row < s.parties().size()) {
+            g->notice.clear();
+            s.join(s.parties()[row].code);
+        }
+    }
+
+    if (s.in_party() && !e.is(OPENRAC_UI_HIDE)) {
+        g->lobby.open();
+    }
+
+    show_browse();
+    (void)page;
+}
+
 /* The port calls this when it loads the library: checks the game and the port, reads the server
  * address, makes the pages and puts Multiplayer in the main menu under Load Game. Throws
  * openrac::Error to refuse to run. */
@@ -550,10 +868,10 @@ void load(openrac::Mod& mod) {
         throw openrac::Error("this mod is for Ratchet & Clank");
     }
 
-    // The pages of the game's own menus are interface 1.7's.
-    if (!mod.has_ui()) {
+    // The pages of the game's own menus are interface 1.7's, playing together 1.8's.
+    if (!mod.has_ui() || !mod.has_play()) {
         throw openrac::Error(
-            "this OpenRAC has no pages of the game's menus for mods (interface 1.7)"
+            "this OpenRAC has no pages of the game's menus or play calls for mods (interface 1.8)"
         );
     }
 
@@ -576,18 +894,33 @@ void load(openrac::Mod& mod) {
     g->session = std::make_unique<mp::Session>(
         *g->connection, kVersion, player_name(mod.setting<std::string>("name"))
     );
+    g->mod = &mod;
+    g->game = std::make_unique<ModGame>(mod);
+    g->coop = std::make_unique<mp::Coop>(*g->session, *g->game);
+    g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
+    g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
+        g->coop->handle(sender, bytes);
+    });
     g->home = mod.ui_page(on_home);
     g->code_page = mod.ui_page(on_code);
     g->direct_page = mod.ui_page(on_direct, OPENRAC_UI_OWN_BACK);
     g->lobby = mod.ui_page(on_lobby, OPENRAC_UI_OWN_BACK);
+    g->browse = mod.ui_page(on_browse);
+    g->saves = mod.ui_page(on_saves);
     show_home();
     show_code();
     show_direct();
     show_lobby();
+    show_browse();
+    show_saves();
     mod.ui_main_item(OPENRAC_UI_LOAD_GAME, "Multiplayer", g->home);
 
-    // The session follows the server every tick, whether a page shows or not.
-    mod.on_frame([] { poll(); });
+    // The session follows the server every tick, whether a page shows or not, and the co-op the
+    // game.
+    mod.on_frame([] {
+        poll();
+        g->coop->tick(mp::now_ms());
+    });
     mod.info(
         "multiplayer: " + g->session->name() + ", server " + g->host + ":" + std::to_string(g->port)
     );
@@ -596,7 +929,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.3.2", load)
+OPENRAC_MOD_CPP("multiplayer", "0.4.0", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
