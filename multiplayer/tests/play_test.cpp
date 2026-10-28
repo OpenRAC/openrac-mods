@@ -724,6 +724,39 @@ struct FakeGame : mp::Game {
     }
 
     int bolts(int add) override { return bolt_count += add; }
+
+    // A moby hidden or shown (its listed flag), the deletions the game made (by slot), the camera.
+    bool moby_hide(int slot, bool hidden) override {
+        for (mp::MobyState& m : level) {
+            if (m.slot == slot) {
+                m.flags = hidden ? m.flags | mp::kMobyHidden : m.flags & ~mp::kMobyHidden;
+                world_calls.push_back((hidden ? "hide " : "show ") + std::to_string(slot));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::map<int, mp::MobyDeletion> deletions;
+
+    bool moby_deletion(int slot, int& by, int& by_class, bool& by_mod) override {
+        const auto it = deletions.find(slot);
+        if (it == deletions.end()) {
+            return false;
+        }
+        by = it->second.by;
+        by_class = it->second.by_class;
+        by_mod = it->second.by_mod;
+        return true;
+    }
+
+    bool camera(float* xyz) override {
+        xyz[0] = camera_x;
+        xyz[1] = xyz[2] = 0.0f;
+        return true;
+    }
+
+    float camera_x = 0.0f;
 };
 
 mp::MobyState moby(int slot, int key, int oclass, std::uint32_t flags, float x) {
@@ -1109,6 +1142,176 @@ void the_world_is_the_hosts() {
     tick({&host, &member}, 50);
     CHECK(member.game.moby_slot(0) == -1 && member.world.spawned() == 0);
     CHECK(member.game.moby_slot(2) == 2 && member.game.moby_slot(1) == -1);
+}
+
+// An enemy the host's game hides (its update: one waiting to appear) is hidden in the member's,
+// whose game does not run that update, and shown with the host's; one the host has not sent is held
+// as it is (a missing snapshot changes nothing).
+void the_hosts_hidden_mobys_are_hidden_here() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+
+    // Two enemies: key 0 near the member, key 1 far from it and still (sent once, then held).
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, runs, 10.0f), moby(1, 1, 301, runs, 900.0f)};
+    }
+    member.game.hero_pose.position[0] = 12.0f;
+    host.game.level[0].flags |= mp::kMobyHidden;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK((member.game.drives == std::set<int>{0, 1}));
+    CHECK((member.game.level[0].flags & mp::kMobyHidden) != 0);
+    CHECK((member.game.level[1].flags & mp::kMobyHidden) == 0);
+
+    // It appears in the host's game: shown in the member's.
+    host.game.level[0].flags &= ~mp::kMobyHidden;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK((member.game.level[0].flags & mp::kMobyHidden) == 0);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "hide 0") == 1);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "show 0") == 1);
+
+    // The host stops sending both (no snapshot for a long while): nothing hidden, nothing killed.
+    host.game.listing_blank = true;
+    const std::size_t calls = member.game.world_calls.size();
+    for (int i = 0; i < 40; ++i) {
+        tick({&host, &member}, 100);
+    }
+    CHECK(member.game.world_calls.size() == calls && member.game.moby_slot(0) == 0
+          && member.game.moby_slot(1) == 1);
+}
+
+// The despawn log's who and why, from each tick's listing against the last.
+void the_despawn_log_says_who_and_why() {
+    std::vector<std::string> lines;
+    std::map<int, mp::MobyDeletion> deleted;
+    mp::DespawnLog log;
+    log.out = [&](const std::string& l) { lines.push_back(l); };
+    log.deletion = [&](int slot, mp::MobyDeletion& d) {
+        const auto it = deleted.find(slot);
+        if (it == deleted.end()) {
+            return false;
+        }
+        d = it->second;
+        return true;
+    };
+    log.role = [](int slot, const mp::MobyState&) { return slot < 5 ? std::string("driven") : std::string("local"); };
+    mp::DespawnLog::View view;
+    view.hero = true;
+    view.hero_at[0] = 10.0f;
+    view.camera = true;
+    view.camera_at[0] = 14.0f;
+
+    const std::uint32_t placed = mp::kMobyPlaced | mp::kMobyUpdates;
+    std::vector<mp::MobyState> level;
+    for (int slot = 0; slot < 8; ++slot) {
+        level.push_back(moby(slot, slot < 6 ? slot : -1, 300 + slot, slot < 6 ? placed : mp::kMobyUpdates, 20.0f));
+    }
+    log.tick(1000, level, view);
+    CHECK(lines.empty());
+
+    // 0 killed by the sync, 1 by its own update, 2 by slot 7's update, 3 by another mod, 4 listed
+    // dead with no deletion seen, 6 (spawned) gone from the listing; 5 hidden, its death recorded
+    // for none.
+    log.note_sync(0, "KILLED", 1);
+    deleted[0] = {-1, -1, true, 300};
+    deleted[1] = {1, 301, false, 301};
+    deleted[2] = {7, 307, false, 302};
+    deleted[3] = {-1, -1, true, 303};
+    log.note_death(1);
+    std::vector<mp::MobyState> next = level;
+    for (int slot : {0, 1, 2, 3, 4}) {
+        next[static_cast<std::size_t>(slot)].flags |= mp::kMobyDead;
+    }
+    next[5].flags |= mp::kMobyHidden;
+    next.erase(next.begin() + 6);
+    log.tick(1050, next, view);
+
+    const auto has = [&](const std::string& text) {
+        return std::any_of(lines.begin(), lines.end(), [&](const std::string& l) { return l.find(text) != std::string::npos; });
+    };
+    CHECK(lines.size() == 7);
+    CHECK(has("despawn: gone class 300 key 0 slot 0 driven by sync (KILLED from 1) at 20.0 0.0 0.0, hero 10.0, camera 6.0"));
+    CHECK(has("gone class 301 key 1 slot 1 driven by game (its own update, its death recorded)"));
+    CHECK(has("gone class 302 key 2 slot 2 driven by game (the update of slot 7 class 307)"));
+    CHECK(has("gone class 303 key 3 slot 3 driven by mod (moby_kill, not the sync's)"));
+    CHECK(has("gone class 304 key 4 slot 4 driven vanished (listed dead, no deletion seen)"));
+    CHECK(has("gone class 306 key -1 slot 6 local vanished (left the listing, no deletion seen)"));
+    CHECK(has("hidden class 305 key 5 slot 5 local by game"));
+
+    // A dead one stays dead (no line again); an empty listing (a load) changes nothing.
+    lines.clear();
+    log.tick(1100, next, view);
+    log.tick(1150, {}, view);
+    log.tick(1200, next, view);
+    CHECK(lines.empty());
+
+    // A slot made again for another class: the old one gone.
+    next[5].flags &= ~mp::kMobyHidden;  // slot 5 shown
+    std::vector<mp::MobyState> again = next;
+    again.back().oclass = 999;  // slot 7 now another moby
+    log.tick(1250, again, view);
+    CHECK(lines.size() == 2 && has("shown class 305") && has("gone class 307 key -1 slot 7 local vanished"));
+
+    // The cap: 30 gone in one tick give 20 lines, and the next second says the other 10.
+    mp::DespawnLog many;
+    lines.clear();
+    many.out = [&](const std::string& l) { lines.push_back(l); };
+    std::vector<mp::MobyState> crowd;
+    for (int slot = 0; slot < 30; ++slot) {
+        crowd.push_back(moby(slot, -1, 13, mp::kMobyUpdates, 1.0f));
+    }
+    many.tick(5000, crowd, view);
+    many.tick(5016, {moby(100, -1, 13, 0, 0.0f)}, view);
+    CHECK(lines.size() == static_cast<std::size_t>(mp::kDespawnLinesPerSecond) && many.dropped() == 10);
+    many.tick(6100, {moby(100, -1, 13, 0, 0.0f)}, view);
+    CHECK(lines.size() == static_cast<std::size_t>(mp::kDespawnLinesPerSecond) + 1);
+    CHECK(lines.back() == "despawn: 10 more events in the last second left out (10 gone, 0 hidden or shown)");
+}
+
+// With the despawn log on, the member's line for a moby the host killed names the sync and the
+// sender, and the moby as one it drove.
+void the_world_logs_its_despawns() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    std::vector<std::string> member_log;
+    member.world.on_log([&](const std::string& l) { member_log.push_back(l); });
+    member.world.despawn_log(true);
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        // (and a rock: a level always lists some moby alive)
+        p->game.level = {moby(0, 0, 300, runs, 10.0f), moby(1, 1, 77, mp::kMobyPlaced, 30.0f)};
+    }
+    host.game.hero_pose.position[0] = 100.0f;
+    member.game.hero_pose.position[0] = 12.0f;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    host.game.die(0);
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(std::any_of(member_log.begin(), member_log.end(), [](const std::string& l) {
+        return l.rfind("despawn: gone class 300 key 0 slot 0 driven by sync (KILLED from 1)", 0) == 0
+               && l.find("host sent it") != std::string::npos;
+    }));
 }
 
 // A member of another build refuses the host's game; a member in the host's game goes back to the
@@ -2463,6 +2666,9 @@ int main() {
     a_member_out_of_the_game_asks_for_it();
     world_bytes();
     the_world_is_the_hosts();
+    the_hosts_hidden_mobys_are_hidden_here();
+    the_despawn_log_says_who_and_why();
+    the_world_logs_its_despawns();
     builds_and_the_end();
     the_pause_page_shows_the_party_and_leaves();
     a_menu_kills_nothing();

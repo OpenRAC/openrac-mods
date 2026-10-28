@@ -6,6 +6,14 @@
  * the Game (the SDK's 1.9 world calls) and the Coop (the players' poses and figures), on the game's
  * thread, once a tick, plus the game's gate and hits as they come.
  *
+ * A placed moby's own update hides and shows it (an enemy waiting to appear, a platform out of
+ * sight), so a member, whose game no longer runs the update of one it drives, would keep it as it
+ * was when the drive began: WORLD carries the host's (hidden or not), and the member hides or
+ * shows its copy so.
+ *
+ * With the `despawn_log` setting, a line for each moby that leaves the level, or is hidden or
+ * shown, here (despawn.hpp), on either side.
+ *
  * A death is known only from the game saying so (a placed moby listed dead), never from a moby
  * missing from a listing; a tick the game lists nothing (loading) changes nothing.
  *
@@ -28,7 +36,8 @@
  * The world's DATA kinds, after coop.hpp's:
  *    9 WORLD   level i8, stamp i64, count u8, then per moby: id u16 (a key; 0x8000 | a net id for
  *              one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq u8, frame u8,
- *              anim time u8 (/255), anim speed u8 (/32)            the host to a member, as state;
+ *              anim time u8 (/255), anim speed u8 (/32), flags u8 (1: hidden, drawn by nothing)
+ *                                                                  the host to a member, as state;
  *   10 KILLED  level i8, count u16, keys u16...                   the host to everyone;
  *   11 SPAWN   level i8, net u16, class i16, position 3 x f32, yaw i16     the host;
  *   12 DESPAWN level i8, count u16, nets u16...                   the host;
@@ -50,6 +59,7 @@
 #include <vector>
 
 #include "coop.hpp"
+#include "despawn.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
@@ -75,10 +85,10 @@ constexpr int kMobyAfter = 1;
 /* A spawned moby's id on the wire: 0x8000 | its net id. */
 constexpr std::uint16_t kSpawnedId = 0x8000;
 constexpr std::uint16_t kNoId = 0xFFFF;
-/* WORLD's entries a datagram (each 24 bytes), how often it goes to a member, how long an unchanged
+/* WORLD's entries a datagram (each 25 bytes), how often it goes to a member, how long an unchanged
  * moby near a member waits before it is sent again, and how near counts. */
-constexpr std::size_t kWorldEntries = 48;
-constexpr std::size_t kWorldEntryBytes = 24;
+constexpr std::size_t kWorldEntries = 46;
+constexpr std::size_t kWorldEntryBytes = 25;
 constexpr std::uint64_t kWorldMs = 66;
 constexpr std::uint64_t kWorldRefreshMs = 1000;
 constexpr float kWorldNear = 80.0f;
@@ -154,6 +164,7 @@ inline bool bolt_class(int oclass) {
 struct WorldEntry {
     std::uint16_t id = 0;
     Pose pose;
+    bool hidden = false;
 };
 
 Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries);
@@ -192,9 +203,21 @@ public:
 
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
+    /* The despawn log on or off (the `despawn_log` setting); the game recorded a moby's death. */
+    void despawn_log(bool on) { despawn_on_ = on; }
+
+    void note_death(int slot) {
+        if (despawn_on_) {
+            despawn_.note_death(slot);
+        }
+    }
+
+    const DespawnLog& despawn() const { return despawn_; }
+
 private:
     struct Sent {
         Pose pose;
+        bool hidden = false;
         std::uint64_t ms = 0;
     };
 
@@ -222,6 +245,12 @@ private:
     void send_spawn(std::int32_t target, int level, std::uint16_t net, const MobyState& moby);
     std::uint16_t id_of(int slot) const;
     int slot_of(std::uint16_t id) const;
+    void tick_despawn(std::uint64_t now, const std::vector<MobyState>& listing);
+    void note(int slot, const std::string& why, std::int32_t sender) {
+        if (despawn_on_) {
+            despawn_.note_sync(slot, why, sender);
+        }
+    }
     void log(const std::string& line) const {
         if (log_) {
             log_(line);
@@ -261,6 +290,11 @@ private:
     std::map<std::uint16_t, Interpolator> poses_;
     std::map<std::uint16_t, int> net_slot_;
     std::uint16_t world_sequence_ = 0;
+    /* Member: whether the host's copy of each is hidden, and when the host last sent each. */
+    std::map<std::uint16_t, bool> hidden_;
+    std::map<std::uint16_t, std::uint64_t> host_ms_;
+    bool despawn_on_ = false;
+    DespawnLog despawn_;
     /* What it did since the last line in the log (every kWorldLogMs when something happened). */
     struct Counts {
         int snapshots = 0, hits = 0, kills = 0, spawns = 0, damage = 0, bolts = 0;

@@ -191,12 +191,14 @@ inline bool in_level(int phase) {
 }
 
 /* A moby of the level as the world sees it (the SDK's openrac_moby): its slot here, its key (the
- * level's record, the same in every game; -1 for one spawned), class, flags, and pose. */
+ * level's record, the same in every game; -1 for one spawned), class, flags, the game's state
+ * byte, and pose. */
 struct MobyState {
     int slot = -1;
     int key = -1;
     int oclass = 0;
     std::uint32_t flags = 0;
+    std::uint32_t state = 0;
     Pose pose;
 };
 
@@ -207,6 +209,8 @@ constexpr std::uint32_t kMobyPlaced = 0x4;
 constexpr std::uint32_t kMobyCreature = 0x8;
 constexpr std::uint32_t kMobyDead = 0x10;
 constexpr std::uint32_t kMobyScene = 0x20;
+constexpr std::uint32_t kMobyHidden = 0x40;
+constexpr std::uint32_t kMobyDrawn = 0x80;
 
 /* A hit (the SDK's openrac_hit): victim and attacker by slot (-1 none). */
 struct Hit {
@@ -240,6 +244,13 @@ public:
     virtual bool moby_drive(int /*slot*/, bool /*on*/) { return false; }
     virtual bool moby_pose(int /*slot*/, const Pose& /*pose*/) { return false; }
     virtual bool moby_kill(int /*slot*/) { return false; }
+    /* A moby hidden from drawing or shown again; the game's last deletion of a slot (despawn.hpp's
+     * MobyDeletion: by, by_class, by_mod, oclass); where the camera is. False for none. */
+    virtual bool moby_hide(int /*slot*/, bool /*hidden*/) { return false; }
+    virtual bool moby_deletion(int /*slot*/, int& /*by*/, int& /*by_class*/, bool& /*by_mod*/) {
+        return false;
+    }
+    virtual bool camera(float* /*xyz*/) { return false; }
     virtual int moby_spawn(int /*oclass*/, const Pose& /*pose*/) { return -1; }
     virtual int figure_slot(int /*id*/) { return -1; }
     virtual bool stand_in(const float* /*position*/, int /*figure*/) { return false; }

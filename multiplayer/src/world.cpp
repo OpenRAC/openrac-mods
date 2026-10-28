@@ -89,7 +89,8 @@ Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>&
         w.u8(static_cast<std::uint8_t>(std::min<std::uint32_t>(e.pose.seq, 255)))
             .u8(static_cast<std::uint8_t>(std::min<std::uint32_t>(e.pose.frame, 255)))
             .u8(static_cast<std::uint8_t>(std::clamp(std::lround(e.pose.anim_time * 255.0f), 0L, 255L)))
-            .u8(static_cast<std::uint8_t>(std::clamp(std::lround(e.pose.anim_speed * 32.0f), 0L, 255L)));
+            .u8(static_cast<std::uint8_t>(std::clamp(std::lround(e.pose.anim_speed * 32.0f), 0L, 255L)))
+            .u8(e.hidden ? 1 : 0);
     }
 
     return w.bytes();
@@ -120,6 +121,7 @@ bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vect
         e.pose.next_frame = e.pose.frame + 1;
         e.pose.anim_time = static_cast<float>(r.u8()) / 255.0f;
         e.pose.anim_speed = static_cast<float>(r.u8()) / 32.0f;
+        e.hidden = (r.u8() & 1) != 0;
         e.pose.level = level;
         out.push_back(e);
     }
@@ -150,6 +152,9 @@ void World::reset() {
     placed_class_.clear();
     replays_.clear();
     loot_.clear();
+    hidden_.clear();
+    host_ms_.clear();
+    despawn_.reset();
     hosting_ = false;
     level_ = -1;
 }
@@ -225,9 +230,16 @@ void World::tick(std::uint64_t now) {
     std::map<int, MobyState> listed;
     std::set<int> alive;
     std::set<int> dead;
+    std::vector<MobyState> all;
 
     if (in_level(status.phase)) {
-        for (MobyState& m : game_.mobys()) {
+        all = game_.mobys();
+
+        if (despawn_on_) {
+            tick_despawn(now, all);
+        }
+
+        for (MobyState& m : all) {
             m.pose.level = status.level;
 
             if (m.key >= 0 && (m.flags & kMobyDead) != 0) {
@@ -318,6 +330,7 @@ void World::tick(std::uint64_t now) {
         if (moby == mobys_.end()) {
             it = replays_.erase(it);
         } else if (now >= it->second) {
+            note(it->first, "a replayed crate's break timed out", 0);
             game_.moby_kill(it->first);
             it = replays_.erase(it);
         } else {
@@ -414,7 +427,9 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         const std::uint16_t id = id_of(slot);
         const float d2 = distance2(moby.pose.position, at.position);
         const auto sent = m.sent.find(id);
+        const bool hidden = (moby.flags & kMobyHidden) != 0;
         const bool fresh = sent == m.sent.end() || changed(sent->second.pose, moby.pose)
+                           || sent->second.hidden != hidden
                            || (now - sent->second.ms >= kWorldRefreshMs && d2 <= kWorldNear * kWorldNear);
 
         if (fresh) {
@@ -430,9 +445,10 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
             break;
         }
 
-        const Pose& pose = mobys_[p.slot].pose;
-        entries.push_back({p.id, pose});
-        m.sent[p.id] = {pose, now};
+        const MobyState& moby = mobys_[p.slot];
+        const bool hidden = (moby.flags & kMobyHidden) != 0;
+        entries.push_back({p.id, moby.pose, hidden});
+        m.sent[p.id] = {moby.pose, hidden, now};
     }
 
     m.world_ms = now;
@@ -590,6 +606,68 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
             game_.moby_pose(slot, pose);
         }
     }
+
+    // Each driven moby hidden or shown as the host's is (its own update, which would, does not
+    // run here).
+    for (const auto& [id, hidden] : hidden_) {
+        const int slot = slot_of(id);
+        const auto moby = mobys_.find(slot);
+
+        if (moby == mobys_.end() || driven_.count(slot) == 0
+            || ((moby->second.flags & kMobyHidden) != 0) == hidden) {
+            continue;
+        }
+
+        if (game_.moby_hide(slot, hidden)) {
+            note(slot, hidden ? "hidden as the host's is" : "shown as the host's is", session_.host());
+        }
+    }
+}
+
+void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listing) {
+    DespawnLog::View view;
+    Pose hero;
+
+    if (game_.hero(hero)) {
+        view.hero = true;
+        std::copy(hero.position, hero.position + 3, view.hero_at);
+    }
+
+    view.camera = game_.camera(view.camera_at);
+
+    if (!despawn_.out) {
+        despawn_.out = [this](const std::string& line) { log(line); };
+        despawn_.deletion = [this](int slot, MobyDeletion& d) {
+            return game_.moby_deletion(slot, d.by, d.by_class, d.by_mod);
+        };
+        despawn_.role = [this](int slot, const MobyState& m) -> std::string {
+            if (hosting_) {
+                const bool placed_runs = m.key >= 0 && (m.flags & kMobyUpdates) != 0 && m.oclass != 0
+                                         && !local_class(m.oclass);
+                return placed_runs || shared_.count(slot) != 0 ? "shared" : "local";
+            }
+
+            return driven_.count(slot) != 0 ? "driven" : "local";
+        };
+        despawn_.host_seen = [this](int slot, const MobyState&) -> std::string {
+            if (hosting_ || session_.is_host()) {
+                return "";
+            }
+
+            const std::uint16_t id = id_of(slot);
+            const auto seen = id != kNoId ? host_ms_.find(id) : host_ms_.end();
+
+            if (seen == host_ms_.end()) {
+                return "host never sent it";
+            }
+
+            const std::uint64_t ago = clock_() - seen->second;
+            return "host sent it " + std::to_string(ago / 1000) + "." + std::to_string(ago % 1000 / 100)
+                   + " s ago" + (hidden_.count(id) != 0 && hidden_.at(id) ? " hidden" : "");
+        };
+    }
+
+    despawn_.tick(now, listing, view);
 }
 
 void World::handle(std::int32_t sender, const Bytes& bytes) {
@@ -610,8 +688,10 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
         // A crate breaks here as it broke there; a pickup taken there is gone here.
         if (slot >= 0 && it != mobys_.end() && crate_class(it->second.oclass)) {
+            note(slot, "BROKE, a crate broken as there", sender);
             replay_break(slot, clock_());
         } else if (slot >= 0 && it != mobys_.end() && pickup_class(it->second.oclass)) {
+            note(slot, "BROKE, a pickup taken there", sender);
             game_.moby_kill(slot);
         }
 
@@ -661,6 +741,8 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             for (const WorldEntry& e : entries) {
                 poses_[e.id].add(e.pose, sequence, time, now, false);
+                hidden_[e.id] = e.hidden;
+                host_ms_[e.id] = clock_();
             }
 
             ++counts_.snapshots;
@@ -677,9 +759,11 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
                 // A crate breaks here as it broke there; anything else goes.
                 if (slot >= 0 && moby != mobys_.end() && crate_class(moby->second.oclass)) {
+                    note(slot, "KILLED, a crate broken as there", sender);
                     replay_break(slot, clock_());
                     ++counts_.kills;
                 } else if (slot >= 0) {
+                    note(slot, "KILLED", sender);
                     game_.moby_kill(slot);
                     driven_.erase(slot);
                     ++counts_.kills;
@@ -733,6 +817,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 }
 
                 if (level == level_ && it != net_slot_.end()) {
+                    note(it->second, "DESPAWN", sender);
                     game_.moby_kill(it->second);
                     driven_.erase(it->second);
                     net_slot_.erase(it);
@@ -759,6 +844,10 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             for (const auto& [slot, moby] : mobys_) {
                 const bool dead = moby.key >= 0 && moby.key < records
                                   && (bits[static_cast<std::size_t>(moby.key / 8)] >> (moby.key % 8)) & 1;
+
+                if (dead) {
+                    note(slot, "DEAD", sender);
+                }
 
                 if (dead && game_.moby_kill(slot)) {
                     driven_.erase(slot);

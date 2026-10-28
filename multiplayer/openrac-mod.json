@@ -26,6 +26,13 @@
       "default": "${player_name}",
       "max_length": 16,
       "description": "Your name in multiplayer: 3 to 16 letters, digits or underscores. Defaults to the launcher's Multiplayer name."
+    },
+    {
+      "key": "despawn_log",
+      "name": "Despawn log",
+      "type": "bool",
+      "default": false,
+      "description": "For reports: a line in the game's log for each moby that leaves the level or is hidden in a party (which, where, who removed it and why), at most 20 a second."
     }
   ]
 }

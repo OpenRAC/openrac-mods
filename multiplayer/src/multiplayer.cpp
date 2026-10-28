@@ -189,6 +189,7 @@ public:
             s.key = m.key;
             s.oclass = m.oclass;
             s.flags = m.flags;
+            s.state = m.state;
             std::copy(m.position, m.position + 3, s.pose.position);
             std::copy(m.rotation, m.rotation + 3, s.pose.rotation);
             s.pose.scale = m.scale;
@@ -210,6 +211,32 @@ public:
     bool moby_pose(int slot, const mp::Pose& pose) override { return mod_.moby_pose(slot, moby_of(pose)); }
 
     bool moby_kill(int slot) override { return mod_.moby_kill(slot); }
+
+    bool moby_hide(int slot, bool hidden) override { return mod_.moby_hide(slot, hidden); }
+
+    bool moby_deletion(int slot, int& by, int& by_class, bool& by_mod) override {
+        openrac_moby_deletion d{};
+
+        if (!mod_.moby_deletion(slot, d)) {
+            return false;
+        }
+
+        by = d.by;
+        by_class = d.by_class;
+        by_mod = d.by_mod != 0;
+        return true;
+    }
+
+    bool camera(float* xyz) override {
+        float at[3] = {0, 0, 0};
+
+        if (!mod_.camera_position(at)) {
+            return false;
+        }
+
+        std::copy(at, at + 3, xyz);
+        return true;
+    }
 
     int moby_spawn(int oclass, const mp::Pose& pose) override {
         return mod_.moby_spawn(oclass, moby_of(pose));
@@ -1174,6 +1201,8 @@ void load(openrac::Mod& mod) {
     g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
+    // The despawn log (despawn.hpp): a line for each moby that leaves the level, or is hidden.
+    g->world->despawn_log(mod.setting<bool>("despawn_log"));
     // The game's DATA: the world's kinds to the world, the rest to the co-op.
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
         if (!bytes.empty() && mp::world_kind(bytes[0])) {
@@ -1185,6 +1214,8 @@ void load(openrac::Mod& mod) {
     // A crate broken here to show another game's break drops nothing (its bolts are the breaker's).
     mod.hook<openrac::rac1::Moby_RecordDeath>(
         [](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t bolts) {
+            g->world->note_death(g->mod->moby_slot_of(moby));
+
             if (!g->world->quiet_death(g->mod->moby_slot_of(moby))) {
                 original(moby, flags, bolts);
             }
