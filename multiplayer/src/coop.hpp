@@ -423,7 +423,7 @@ private:
     void update_barrier(std::uint64_t now, const GameStatus& status);
     void send_level(std::uint64_t now, int level, bool scene);
     void tick_arrival(std::uint64_t now, const GameStatus& status);
-    void drop_figure(Remote& r);
+    void drop_figure(std::int32_t player, Remote& r, const char* why);
     void tick_leaving(std::uint64_t now);
     /* The level's scenes played together (coop_scenes.cpp): SCENE heard, the host's scenes told,
      * a member's started, and the lateness a member's scene is let play out for. */

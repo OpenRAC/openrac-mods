@@ -2774,6 +2774,50 @@ void leaving_from_the_title() {
     }
 }
 
+// The host's pause menu up for 4.4 s (the logged report: phase 3 -> 5, the member playing on):
+// the member's figure stays, the same one; it goes when the member leaves the party, and says so.
+void a_long_pause_keeps_the_figure() {
+    Player host(1), member(2);
+    host.session.handle(info({{1, "P1"}, {2, "P2"}}));
+    member.session.handle(info({{1, "P1"}, {2, "P2"}}));
+    std::vector<std::string> host_log;
+    host.coop.on_log([&](const std::string& l) { host_log.push_back(l); });
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(host.game.figures.size() == 1 && host.coop.figures() == 1);
+    const int figure = host.game.figures.begin()->first;
+
+    host.game.now.phase = mp::kPhaseMenu;
+    for (int i = 0; i < 264; ++i) {
+        tick({&host, &member}, 17);
+        CHECK(host.game.figures.size() == 1 && host.game.figures.begin()->first == figure);
+    }
+    const auto dropped = [&] {
+        return std::count_if(host_log.begin(), host_log.end(), [](const std::string& l) {
+            return l.find("no longer shown") != std::string::npos;
+        });
+    };
+    CHECK(dropped() == 0);
+
+    // The member closes its game under the menu: out of the party, its figure goes.
+    mp::Message left;
+    left.kind = mp::Message::Kind::kPartyLeft;
+    left.id = 2;
+    host.session.handle(left);
+    tick({&host}, 17);
+    CHECK(host.game.figures.empty() && host.coop.figures() == 0);
+    CHECK(dropped() == 1);
+    CHECK(std::find(host_log.begin(), host_log.end(), "player 2 no longer shown: out of the party")
+          != host_log.end());
+}
+
 int main() {
     pose_bytes();
     held_and_shot_bytes();
@@ -2786,6 +2830,7 @@ int main() {
     recorded_poses_replay_smoothly();
     the_host_starts_a_save_and_the_member_follows();
     a_new_game_and_a_late_member();
+    a_long_pause_keeps_the_figure();
     a_member_out_of_the_game_asks_for_it();
     world_bytes();
     the_world_is_the_hosts();

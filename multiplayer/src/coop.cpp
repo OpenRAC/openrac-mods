@@ -883,10 +883,11 @@ void Coop::fire_shots(Remote& r, std::uint64_t now, const GameStatus& status) {
     }
 }
 
-void Coop::drop_figure(Remote& r) {
+void Coop::drop_figure(std::int32_t player, Remote& r, const char* why) {
     if (r.figure >= 0) {
         game_.figure_remove(r.figure);
         r.figure = -1;
+        log("player " + std::to_string(player) + " no longer shown: " + why);
     }
 }
 
@@ -905,7 +906,7 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
 
         // Out of the party: gone.
         if (!member_of(session_, it->first)) {
-            drop_figure(r);
+            drop_figure(it->first, r, "out of the party");
             it = remotes_.erase(it);
             continue;
         }
@@ -914,13 +915,25 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
         const auto t = static_cast<double>(now);
         // A player who died is not shown until it stands again (its health back).
         // Nor while the party arrives somewhere (the figures come once all are in).
-        const bool shown = !arriving_ && in_level(status.phase) && r.poses.at(t, pose)
-                           && r.poses.silence_ms(t) < kGoneMs && pose.level == status.level
-                           && pose.health > 0;
+        const char* hidden = nullptr;
+
+        if (arriving_) {
+            hidden = "the party arrives";
+        } else if (!in_level(status.phase)) {
+            hidden = "this game is out of a level";
+        } else if (!r.poses.at(t, pose)) {
+            hidden = "no pose";
+        } else if (r.poses.silence_ms(t) >= kGoneMs) {
+            hidden = "silent";
+        } else if (pose.level != status.level) {
+            hidden = "in another level";
+        } else if (pose.health <= 0) {
+            hidden = "dead";
+        }
 
         // Elsewhere, silent, or this game not in a level: no figure.
-        if (!shown) {
-            drop_figure(r);
+        if (hidden != nullptr) {
+            drop_figure(it->first, r, hidden);
             ++it;
             continue;
         }
@@ -1006,7 +1019,7 @@ void Coop::tick_leaving(std::uint64_t now) {
 
 void Coop::reset() {
     for (auto& entry : remotes_) {
-        drop_figure(entry.second);
+        drop_figure(entry.first, entry.second, "the party's game reset");
     }
 
     remotes_.clear();
