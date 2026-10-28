@@ -82,12 +82,15 @@ The world is the host's:
 - **Scenes play for everyone**: a scene of the level's own that starts in the host's game (a
   person spoken to, a place reached, Veldin's opening) starts in each member's game in that level
   too, from its start, as soon as that member has control (a member in a menu starts it once the
-  menu is closed), with its own actors. A member who started it late sees it to the end.
+  menu is closed), with its own actors. A member who started it late sees it to the end, even
+  when its menu or a load kept it until after the host's had ended.
 - **Scenes end together**: the host's skip counts (a member's Start does nothing while the host's
   scene plays). When the host is out of its scene, a member still in one is skipped (one that
   started the host's scene late only once it had as long as it was late), and nobody
   gets control back until everyone is out (at most 10 seconds for the host; a member waits for
-  the host's scene to end). The ship's landing and take-off count, and so do level intros.
+  the host's scene to end, and for its own copy of it to play). The ship's landing and take-off
+  count, and so do level intros. A skip ends only the scene or movie it was pressed in, never
+  the next one.
 
 Leaving. A player whose party goes while it plays (it chose Leave party, the host ended the party,
 or its connection went) leaves its level at once, from wherever it is (playing, a scene, the pause
@@ -203,8 +206,10 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 15 BOLTS | the host | count i32 | bolts that flew to that member in the host's game |
 | 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead in the host's level, for one arriving there |
 | 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup |
+| 18 SKIP | a member to the host, the host to all | origin i32, sequence u16, play i32, what u8 (0 a scene of the game's own, 1 the host's scene, 2 a movie), scene u16 (the host's scene by SCENE's sequence, else 0) | Start pressed in a scene or a movie: each game skips that one only, while it plays; a skip of an earlier scene of the host's, of another play, or without these fields (an older mod) skips nothing |
 | 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot a player fired (the Blaster's, a bomb); a member's goes to the host, who passes it on. Its figure fires it as far behind as its poses play, hitting nothing in that game |
 | 20 SCENE | the host, to all | play i32, level i32, scene i32, sequence u16, elapsed i32 (ms) | an in-level scene the host's game plays (the level's number of it; a new sequence each start), when it starts, once a second while it plays and when it ends (scene -1). A member in that level starts the same scene once it has control (the SDK's `play_scene`) |
+| 21 SCENE_STATE | a member to the host | play i32, sequence u16, state u8 (0 still to play, 1 playing, 2 out) | where a member is with the host's scene of that sequence, at each change and once a second; the host waits for those of its newest scene only |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 

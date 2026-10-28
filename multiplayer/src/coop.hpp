@@ -20,14 +20,23 @@
  *            host, who passes everyone's on to everyone;
  *   8 WANT   play i32                           a member in the title's menus that has not played
  *            the host's game (it left it, or missed PLAY) asks for it again;
- *  18 SKIP   origin i32, sequence u16           a player pressed Start in a scene or a movie: a
- *            member's to the host, which skips its own and passes it on to everyone; each game
- *            skips the scene or movie it plays (the origin's own is already skipping).
+ *  18 SKIP   origin i32, sequence u16, play i32, what u8, scene u16
+ *            a player pressed Start in a scene or a movie: a member's to the host, which skips its
+ *            own and passes it on to everyone; each game skips the scene or movie it plays (the
+ *            origin's own is already skipping), and only that one: `what` says what it was pressed
+ *            in (kSkipOther a scene of its game's own, kSkipShared the host's scene `scene`, by
+ *            SCENE's sequence, kSkipMovie a movie). A skip of an older scene of the host's, of
+ *            another play, or without these (an older build) skips nothing.
  *  20 SCENE  play i32, level i32, scene i32, sequence u16, elapsed u32
  *            the host to everyone, when an in-level scene starts in its game (the level's number of
  *            it, a new sequence each start), once a second while it plays, and when it ends (scene
  *            -1): `elapsed` the ms it has played; a member in that level plays the same scene
  *            (coop_scenes.cpp).
+ *  21 SCENE_STATE play i32, sequence u16, state u8
+ *            a member to the host, at each change and once a second while it knows of a host's
+ *            scene: where it is with the host's scene `sequence` (kScenePending to play,
+ *            kScenePlaying, kSceneOut played, skipped or given up); the host's barrier waits for
+ *            those of its newest scene only (a word of an older one is no word of this one).
  * A member's DATA always reaches the host only; the host's goes to everyone or to one.
  *
  * The host plays what Create match chose: a new game (the first level) or a save of its memory
@@ -87,8 +96,23 @@ enum class GameKind : std::uint8_t {
     kWant = 8,
     kSkip = 18,
     kShot = kShotKind,
-    kScene = 20
+    kScene = 20,
+    kSceneState = 21
 };
+
+/* What a skip was pressed in (SKIP's `what`), and where a member is with the host's scene
+ * (SCENE_STATE's `state`). */
+constexpr std::uint8_t kSkipOther = 0;
+constexpr std::uint8_t kSkipShared = 1;
+constexpr std::uint8_t kSkipMovie = 2;
+constexpr std::uint8_t kScenePending = 0;
+constexpr std::uint8_t kScenePlaying = 1;
+constexpr std::uint8_t kSceneOut = 2;
+
+/* Whether the host's scene sequence `a` is older than `b` (the count wraps). */
+inline bool older_scene(std::uint16_t a, std::uint16_t b) {
+    return static_cast<std::int16_t>(static_cast<std::uint16_t>(a - b)) < 0;
+}
 
 /* Whether a DATA kind is the world's (world.hpp: 9 to 17); the rest are the co-op's. */
 inline bool world_kind(std::uint8_t kind) {
@@ -375,6 +399,17 @@ private:
     void send_scene(std::uint64_t now);
     void reset_scenes();
     std::uint64_t scene_lag_ms() const { return shared_lag_ms_; }
+    /* Skips and the scenes they are for (coop_scenes.cpp): the game's scenes and loads counted as
+     * they start (each its own instance: a skip acts on the one it came in), SKIP heard, a skip
+     * begun on the scene playing here, the host's scene sequence of the one this game plays (0 for
+     * none), a member's SCENE_STATE sent and the host's heard. */
+    void note_phase(const GameStatus& status);
+    void on_skip(std::int32_t sender, bool from_host, const Bytes& bytes, Reader& r);
+    void skip_here(std::uint64_t now);
+    std::uint16_t shared_here(std::uint64_t now, const GameStatus& status);
+    void send_scene_state(std::uint64_t now);
+    void on_scene_state(std::int32_t sender, Reader& r);
+    bool members_in_scene(std::uint64_t now, const GameStatus& status) const;
 
     Session& session_;
     Game& game_;
@@ -415,8 +450,9 @@ private:
     std::uint64_t host_out_since_ = 0;
     std::uint64_t hold_since_ = 0;
     bool hold_ = false;
-    /* Skips: this player's last (its sequence), the last told (origin, sequence), until when a
-     * skip asked of this game still acts, and the presses for a movie. */
+    /* Skips: this player's last (its sequence), when it was pressed, until when a skip asked of
+     * this game still acts (on its scene or movie only: skip_scene_, movie_load_), and the presses
+     * for a movie. */
     std::uint16_t skip_sequence_ = 0;
     std::uint64_t own_skip_ms_ = 0;
     std::uint64_t skip_until_ = 0;
@@ -462,6 +498,33 @@ private:
     std::uint64_t scene_asked_ms_ = 0;
     int shared_scene_ = -1;
     std::uint64_t shared_lag_ms_ = 0;
+    /* A member's more: when the host's scene ended (0: it plays on, as far as this game knows),
+     * when this game was first asked to start it, whether it is still to play here (the barrier
+     * waits for it), the sequence of the one playing here, and its SCENE_STATE last sent. */
+    std::uint64_t host_scene_end_ms_ = 0;
+    std::uint64_t scene_first_ask_ms_ = 0;
+    bool scene_pending_ = false;
+    std::uint16_t shared_sequence_ = 0;
+    std::uint16_t state_sequence_ = 0;
+    std::uint8_t state_sent_ = 0xFF;
+    std::uint64_t state_ms_ = 0;
+    /* The host's: each member's last SCENE_STATE (its sequence, state, when heard). */
+    struct SceneState {
+        std::uint16_t sequence = 0;
+        std::uint8_t state = kSceneOut;
+        std::uint64_t ms = 0;
+    };
+    std::map<std::int32_t, SceneState> scene_states_;
+    /* Instances: the game's scenes and loads (a movie plays in one) counted as they start, its
+     * phase (not a menu) and scene last seen; the scene a party's skip acts on and the load its
+     * movie presses are for (0: none); the host's scene sequence the party skipped last (0 none). */
+    std::uint32_t scene_instance_ = 0;
+    std::uint32_t load_instance_ = 0;
+    int noted_phase_ = -1;
+    int noted_scene_ = -1;
+    std::uint32_t skip_scene_ = 0;
+    std::uint32_t movie_load_ = 0;
+    std::uint16_t party_skip_ = 0;
     /* The game's state last logged. */
     GameStatus logged_{-1, -2, 0};
     /* Leaving for the title: since when, whether the game was out of the title meanwhile, when the

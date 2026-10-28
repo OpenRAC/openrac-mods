@@ -130,18 +130,41 @@ void Coop::own_skip(int phase, std::uint64_t now) {
 
     own_skip_ms_ = now;
     ++skip_sequence_;
-    log("skip pressed here: the party skips it");
+
+    // What it was pressed in: the host's scene (by its sequence), a scene of this game's own, or a
+    // movie; the others skip that one only.
+    const GameStatus status = game_.status();
+    note_phase(status);
+    const std::uint16_t shared = phase == kPhaseScene ? shared_here(now, status) : 0;
+    const std::uint8_t what = phase != kPhaseScene ? kSkipMovie : shared != 0 ? kSkipShared : kSkipOther;
+
+    if (shared != 0) {
+        party_skip_ = shared;
+    }
+
+    log("skip pressed here: the party skips it"
+        + (shared != 0 ? std::string(" (the host's scene ") + std::to_string(shared) + ")"
+                       : std::string()));
     const Bytes bytes = Writer()
                             .u8(static_cast<std::uint8_t>(GameKind::kSkip))
                             .i32(session_.id())
                             .u8(static_cast<std::uint8_t>(skip_sequence_ >> 8))
                             .u8(static_cast<std::uint8_t>(skip_sequence_))
+                            .i32(play_)
+                            .u8(what)
+                            .u8(static_cast<std::uint8_t>(shared >> 8))
+                            .u8(static_cast<std::uint8_t>(shared))
                             .bytes();
     session_.send_data(session_.is_host() ? kBroadcast : session_.host(), bytes);
 }
 
 bool Coop::movie_press(std::uint64_t now) {
-    if (movie_presses_ <= 0 || now >= skip_until_ || game_.status().phase != kPhaseLoading) {
+    // Only for the movie the skip came in (the same load): never the next one, nor a scene.
+    const GameStatus status = game_.status();
+    note_phase(status);
+
+    if (movie_presses_ <= 0 || now >= skip_until_ || status.phase != kPhaseLoading
+        || movie_load_ != load_instance_) {
         movie_presses_ = 0;
         return false;
     }
@@ -303,35 +326,9 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
 
             break;
         }
-        case GameKind::kSkip: {
-            const std::int32_t origin = r.i32();
-
-            // The origin's own game is skipping already; a member's word goes through the host.
-            if (!r.ok() || origin == session_.id() || play_ == 0
-                || (!from_host && !(session_.is_host() && member_of(session_, sender)))) {
-                return;
-            }
-
-            if (session_.is_host()) {
-                session_.send_data(kBroadcast, bytes);
-            }
-
-            const GameStatus status = game_.status();
-            const auto now = clock_();
-            log(std::string("skip requested by player ") + std::to_string(origin)
-                + (status.phase == kPhaseScene ? ": skipping the scene here"
-                   : status.phase == kPhaseLoading ? ": skipping the movie here" : ": nothing plays here"));
-            skip_until_ = now + 1500;
-            movie_presses_ = status.phase == kPhaseLoading ? 24 : 0;
-
-            if (status.phase == kPhaseScene) {
-                skip_ms_ = now;
-                skip_asked_ = true;
-                game_.skip();
-            }
-
+        case GameKind::kSkip:
+            on_skip(sender, from_host, bytes, r);
             break;
-        }
         case GameKind::kWant: {
             const std::int32_t play = r.i32();
 
@@ -354,6 +351,9 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
         }
         case GameKind::kScene:
             on_scene(from_host, r);
+            break;
+        case GameKind::kSceneState:
+            on_scene_state(sender, r);
             break;
         default:
             break;
@@ -439,6 +439,7 @@ void Coop::tick(std::uint64_t now) {
     }
 
     const GameStatus status = game_.status();
+    note_phase(status);
 
     // Each change of the game's phase, level or load in the log, with the clock (the same on every
     // game of a machine): the party's timeline.
@@ -493,9 +494,13 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
                       || (r.scene && r.poses.newest(p) && p.level == status.level
                           && r.poses.silence_ms(static_cast<double>(now)) < 2000.0);
         }
+
+        // Or still to play (or playing) the host's newest scene, as its SCENE_STATE says.
+        waiting = waiting || members_in_scene(now, status);
     } else if (play_ != 0 && applied_ == play_ && host_level_ == status.level) {
-        // A member out of its scene while the host's goes on.
-        waiting = host_scene_;
+        // A member out of its scene while the host's goes on, or with the host's scene still to
+        // play here (until it played it, or the party skipped it).
+        waiting = host_scene_ || scene_pending_;
     }
 
     // The party on its way to a planet: nobody goes on until everyone is in.
@@ -505,7 +510,8 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     waiting = waiting && status.phase == kPhasePlaying;
 
     if (!waiting) {
-        if (hold_since_ != 0) {
+        // (Into a scene of its own meanwhile: nobody is out yet, the hold just ends.)
+        if (hold_since_ != 0 && status.phase == kPhasePlaying) {
             log("everyone is out of the scene: going on");
         }
 
@@ -526,8 +532,9 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
         hold_ = now - hold_since_ < most;
     }
 
-    // A party's skip still to act on a scene of this game's.
-    if (skip_until_ != 0 && now < skip_until_ && status.phase == kPhaseScene && now - skip_ms_ >= kSkipMs) {
+    // A party's skip still to act on the scene of this game's it came in (not one started since).
+    if (skip_scene_ != 0 && skip_scene_ == scene_instance_ && now < skip_until_
+        && status.phase == kPhaseScene && now - skip_ms_ >= kSkipMs) {
         skip_ms_ = now;
         skip_asked_ = true;
         game_.skip();
@@ -1015,6 +1022,7 @@ void Coop::reset() {
     hold_ = false;
     skip_until_ = 0;
     movie_presses_ = 0;
+    skip_scene_ = movie_load_ = 0;
     hold_since_ = skip_ms_ = host_out_since_ = 0;
     in_scene_ = skip_asked_ = false;
     host_level_ = -1;
