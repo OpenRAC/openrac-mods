@@ -2,9 +2,9 @@
 # Multiplayer (README.md): the mod's library (C++, on the SDK's openrac/mod.hpp) and its tests.
 #
 # The library is four sources built by the SDK's openrac_add_mod with the manifest: the mod's entry
-# point and page, the session (the party and the lobby), the connection (the socket, on its own
-# thread) and the protocol (the server's frames). It needs interface 1.5's menu pages, so the top
-# CMakeLists.txt adds this folder only with an SDK of 1.5 or newer.
+# point and pages, the session (the party and the lobby), the connection (the socket, on its own
+# thread) and the protocol (the server's frames). It needs interface 1.7's pages of the game's own
+# menus, so the top CMakeLists.txt adds this folder only with an SDK of 1.7 or newer.
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json

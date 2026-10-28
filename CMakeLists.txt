@@ -45,10 +45,11 @@ add_subdirectory(live-splits)
 add_subdirectory(dualsense)
 add_subdirectory(ammo-max)
 add_subdirectory(xbox-icons)
-# Multiplayer needs interface 1.5's menu pages: built only with an SDK that has them (sdk.lock
-# pins 1.5.0; an older SDK given with -DOPENRAC_SDK=... leaves it out).
-if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.5)
+# Multiplayer needs interface 1.7's pages of the game's own menus: built only with an SDK that has
+# them (until sdk.lock pins one, build it with -DOPENRAC_SDK=<OpenRAC>/sdk; an older SDK leaves it
+# out).
+if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.7)
   add_subdirectory(multiplayer)
 else()
-  message(STATUS "multiplayer: skipped, it needs the mod SDK 1.5 (this one is ${OpenRACMod_VERSION})")
+  message(STATUS "multiplayer: skipped, it needs the mod SDK 1.7 (this one is ${OpenRACMod_VERSION})")
 endif()

@@ -25,7 +25,7 @@ section 11):
 | [dualsense](dualsense/README.md) | native | A PlayStation 5 DualSense's own buttons as extra PlayStation 2 buttons (the touchpad, the microphone button, the DualSense Edge's paddles), its light bar showing Ratchet's health, a vibration when Ratchet is hit, hits something, breaks a crate, picks something up or finds a gold bolt, and a feel of its own for each weapon in the motors | PAL, NTSC-U |
 | [ammo-max](ammo-max/README.md) | native | At the vendor, buying ammo starts at the most you can buy (the rounds the weapon has room for, or as many as your bolts pay for) instead of 1; Down still lowers it | PAL, NTSC-U |
 | [xbox-icons](xbox-icons/README.md) | native | The game's PlayStation 2 button icons as an Xbox controller's, in the game's own style: A, B, X, Y on its dark buttons, LB, RB, LT, RT | PAL, NTSC-U |
-| [multiplayer](multiplayer/README.md) | native | Online multiplayer, first step: a Multiplayer page in the main menu's Options that connects to an OpenRAC server, finds or creates a party (or joins one by its code) and shows the lobby with your launcher name. Nothing of the game is played together yet. Needs OpenRAC's mod interface 1.5 | PAL, NTSC-U |
+| [multiplayer](multiplayer/README.md) | native | Online multiplayer, first step: a Multiplayer item in the main menu, under Load Game, whose pages are the game's own menus: it connects to an OpenRAC server, finds or creates a party (or joins one by its code) and shows the lobby with your launcher name. Nothing of the game is played together yet. Needs OpenRAC's mod interface 1.7 | PAL, NTSC-U |
 
 ## Installing a mod
 

@@ -1,9 +1,9 @@
 # Multiplayer
 
 Online multiplayer for Ratchet & Clank on OpenRAC's native port (PAL and NTSC-U discs), first step:
-a **Multiplayer** page in the game's menu that connects to an OpenRAC server and puts you in a party
-with other players. **Nothing of the game is played together yet**: this version is the menu, the
-lobby and the connection. Seeing the other players in a level comes in a later version.
+a **Multiplayer** item in the game's main menu that connects to an OpenRAC server and puts you in a
+party with other players. **Nothing of the game is played together yet**: this version is the menu,
+the lobby and the connection. Seeing the other players in a level comes in a later version.
 
 With the mod off, the game is the PlayStation 2 game.
 
@@ -13,21 +13,21 @@ With the mod off, the game is the PlayStation 2 game.
    OpenRAC server you play on (`localhost:7770` by default: a server on your own computer).
 2. Your name is the launcher's **Multiplayer name** (Settings, General). The launcher makes one up
    at its first start; change it there (3 to 16 letters, digits and underscores).
-3. Start the game. On the title's main menu, **Options**, then **Multiplayer**.
+3. Start the game. The title's main menu reads **New Game**, **Load Game**, **Multiplayer**,
+   **Options**: choose **Multiplayer**.
 
-The page:
+Its pages are the game's own menus: its frames, its list and font, its prompt box and sounds.
 
-| Screen | What it does |
+| Page | What it does |
 |---|---|
-| Home | **Find match**: the server puts you in an open party that has room, or makes you the host of a new one others can find. **Create match**: a private party, which only its code joins. **Join by code**: the next screen |
-| Join by code | The party's six characters: Up and Down change one, Left and Right move between them, Cross joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I) |
-| Lobby | The party's code, its members (up to 4) with the host marked and the ready ones in green, and the round trip to the server. A member's **Ready** says it is ready; the host's **Start** starts the game for everyone (in this version that is all it does: a line says so). **Leave** leaves the party; when the host leaves, the party is over for everyone |
+| Home | **Find match**: the server puts you in an open party that has room, or makes you the host of a new one others can find. **Create match**: a private party, which only its code joins. **Join by code**: the next page. The three wait for the server's hello. Below them, your name |
+| Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
+| Lobby | The party's code in the title, **Ready** (a member: it is ready, or no longer) or **Start** (the host: it starts the game for everyone; in this version that is all it does), **Leave**, then the members (up to 4) with the host and the ready ones marked, and the round trip to the server. **Leave** and Triangle ask first; when the host leaves, the party is over for everyone |
 
-Cross chooses, Triangle or Circle goes back. Back from the Home screen or from the Lobby returns to
-the game's menu; from the Lobby you stay in the party, and the page shows it again when you come
-back. The bottom line says what the connection is doing: connecting, connected, **server
-unreachable** (the mod tries again every few seconds), or **not connected** when the server went
-away, and the server's answers (a code no party has, a full party, the host leaving).
+Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
+what the connection is doing: connecting, connected, **server unreachable** (the mod tries again
+every few seconds), or **not connected** when the server went away, and the server's answers (a code
+no party has, a full party, the host leaving).
 
 | Setting | Default | |
 |---|---|---|
@@ -35,10 +35,10 @@ away, and the server's answers (a code no party has, a full party, the host leav
 
 ## How it works
 
-The mod needs OpenRAC's mod interface 1.5, whose menu pages put the **Multiplayer** entry in the
-front end's Options list (after the port's own Video) and let the mod draw its page with rectangles
-and text. It keeps one TCP connection to the server (TCP_NODELAY), opened the first time the page
-opens and kept until the game ends, on a thread of its own: the game's thread only queues frames
+The mod needs OpenRAC's mod interface 1.7, whose pages of the game's own menus put the
+**Multiplayer** item in the main menu under Load Game and let the mod say what its pages list
+(the port draws them with the game's widgets). It keeps one TCP connection to the server
+(TCP_NODELAY), opened the first time Home shows and kept until the game ends, on a thread of its own: the game's thread only queues frames
 and reads what came. The server is the OpenRAC server (the `Server` repository): it links players
 into parties and forwards their traffic, and the host's game is to be the authoritative one.
 
@@ -48,7 +48,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.1.0`) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.2.0`) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0), JOIN code (1), LEAVE (2), FIND (7) | INFO (3), JOINED (4), LEFT (5), END (6) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -62,7 +62,7 @@ left for the game data of a later version.
 
 ## Building
 
-Built with the repository's other native mods (the top README), with an SDK of interface 1.5 or
+Built with the repository's other native mods (the top README), with an SDK of interface 1.7 or
 newer: until that SDK is released (`sdk.lock` pins an older one, and the top CMakeLists.txt then
 skips this mod), build against OpenRAC's own `sdk/`:
 
@@ -77,7 +77,7 @@ lobby's logic against a recorder, and the connection against a small server on t
 
 | File | |
 |---|---|
-| `src/multiplayer.cpp` | the mod: the menu entry, its page and screens |
+| `src/multiplayer.cpp` | the mod: the main-menu item and its pages |
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, find, join, leave, Ready and Start |
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting |
 | `src/protocol.hpp`, `.cpp` | the server's frames and packets |
