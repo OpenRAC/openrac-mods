@@ -11,7 +11,7 @@
  *
  * The barrier (coop.cpp) waits for everyone as before. A member's scene that started late is
  * skipped after the host's has ended only once it has had as long as it was late (at most
- * kSceneLagMs), so it plays out in full; a skip in any game skips it at once (SKIP).
+ * kSceneLagMs), so it plays out in full; the host's skip skips it at once (SKIP: only the host's).
  *
  * Each start of a host's scene is its own (SCENE's sequence, the party's count of them, the host's):
  * a skip says which one it was pressed in, and a member's SCENE_STATE which one it is in or out of,
@@ -269,7 +269,7 @@ void Coop::skip_here(std::uint64_t now) {
     game_.skip();
 }
 
-void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& bytes, Reader& r) {
+void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& /*bytes*/, Reader& r) {
     const std::int32_t origin = r.i32();
     r.u8();
     r.u8();
@@ -279,9 +279,16 @@ void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& bytes, Read
     const std::uint8_t high = ids ? r.u8() : 0;
     const auto scene = static_cast<std::uint16_t>(high << 8 | (ids ? r.u8() : 0));
 
-    // The origin's own game is skipping already; a member's word goes through the host.
+    // The origin's own game is skipping already; a member's word reaches the host only.
     if (!r.ok() || origin == session_.id() || play_ == 0
         || (!from_host && !(session_.is_host() && in_party(session_, sender)))) {
+        return;
+    }
+
+    // Only the host skips: a member's (an older build's, or passed on by an older host) is ignored.
+    if (session_.is_host() || origin != session_.host()) {
+        log("skip requested by player " + std::to_string(origin)
+            + ": only the host skips, ignored");
         return;
     }
 
@@ -290,10 +297,6 @@ void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& bytes, Read
         log("skip requested by player " + std::to_string(origin)
             + " for no scene of this game's: ignored");
         return;
-    }
-
-    if (session_.is_host()) {
-        session_.send_data(kBroadcast, bytes);
     }
 
     const GameStatus status = game_.status();

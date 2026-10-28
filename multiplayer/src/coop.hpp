@@ -21,9 +21,9 @@
  *   8 WANT   play i32                           a member in the title's menus that has not played
  *            the host's game (it left it, or missed PLAY) asks for it again;
  *  18 SKIP   origin i32, sequence u16, play i32, what u8, scene u16
- *            a player pressed Start in a scene or a movie: a member's to the host, which skips its
- *            own and passes it on to everyone; each game skips the scene or movie it plays (the
- *            origin's own is already skipping), and only that one: `what` says what it was pressed
+ *            the host pressed Start in a scene or a movie: to everyone (a member's, from an older
+ *            build, the host ignores); each game skips the scene or movie it plays (the host's own
+ *            is already skipping), and only that one: `what` says what it was pressed
  *            in (kSkipOther a scene of its game's own, kSkipShared the host's scene `scene`, by
  *            SCENE's sequence, kSkipMovie a movie). A skip of an older scene of the host's, of
  *            another play, or without these (an older build) skips nothing.
@@ -43,9 +43,12 @@
  * card. A member starts the same from the title (play_start), its own card untouched. Joining a
  * game that is on, a member gets the host's progress as it is now (save_capture), in the host's
  * level. A member whose build differs from the host's (the mod, OpenRAC, the disc) refuses it.
- * Scenes and movies end together: Start in a scene or a movie, in any game, skips it in every game
- * (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed for the movie
- * player); and when the host is out of its scene, a member still in one is skipped too. Then nobody
+ * Scenes and movies end together: only the host skips them. Its Start in a scene or a movie skips
+ * it in every game (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed
+ * for the movie player); a member's Start there does nothing (the pad's Start taken out of the
+ * report: start_blocked) but say "Only the host can skip". When the host is out of its scene, a
+ * member still in one is skipped too. While this game plays a scene the other players' figures are
+ * hidden, their pieces with them, and their shots dropped; shown again after it. Then nobody
  * moves on until everyone is out (the barrier: a player out first has no control, for at most
  * kBarrierMs, a member while the host's scene goes on).
  * The level's own scenes play in every game: the scenes the level's mobys start (a person spoken
@@ -154,6 +157,8 @@ constexpr std::uint64_t kArriveMs = 90000;
 constexpr std::uint64_t kLeaveMs = 1000;
 /* How long a refused ship travel is said over the game. */
 constexpr std::uint64_t kRefusedMs = 4000;
+/* How long the banner says a member's skip is the host's. */
+constexpr std::uint64_t kSkipRefusedMs = 3000;
 /* Leaving for the title: how long after a start a game still in the title is on its way into the
  * level (it goes back once there); how long the title is given to show its main menu, and how
  * often the Multiplayer page is asked for meanwhile. */
@@ -376,12 +381,16 @@ public:
     std::uint64_t shots_fired() const { return shots_fired_; }
 
     /* The scene barrier, for the pad: whether this player's control is held (out of a scene while
-     * another player is still in one), and whether its Start is held back (a member in a scene the
-     * host plays too: the host's skip decides). */
+     * another player is still in one). */
     bool hold_input() const { return hold_; }
 
-    /* This player pressed Start in a scene or a movie (`phase`): the party skips it. */
+    /* This player pressed Start in a scene or a movie (`phase`): the host's skips it for the party;
+     * a member's skips nothing (start_blocked) and has the banner say only the host can. */
     void own_skip(int phase, std::uint64_t now);
+
+    /* Whether the pad's Start is taken out in `phase`: a member's in a scene or a movie of a game
+     * of the party's (only the host skips). */
+    bool start_blocked(int phase) const;
 
     /* Whether the pad should press Start for a movie now (a party's skip of the movie playing):
      * pressed and let go in turns for a while, so the movie player sees a press. */
@@ -518,6 +527,7 @@ private:
     bool host_arriving_ = false;
     /* Until when the refusal of a member's ship travel is shown. */
     std::uint64_t refused_until_ = 0;
+    std::uint64_t skip_refused_until_ = 0;
     /* The level's scenes. The host's: the scene playing (-1 none), its level and sequence, when it
      * started and was last told. A member's: the host's scene (-1 none), its sequence, level and
      * when it started by this clock; whether it played here already, when it was asked for last

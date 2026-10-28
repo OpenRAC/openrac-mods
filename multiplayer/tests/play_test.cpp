@@ -2020,62 +2020,6 @@ void the_hosts_scenes_play_everywhere() {
     CHECK(std::count(member.game.calls.begin(), member.game.calls.end(), "skip") >= 1);
 }
 
-// A skip on any player skips for all: a member's Start in a scene skips the host's and the other
-// member's (through the host); the host's Start in a movie presses Start for the members' movie
-// player; a game where nothing plays does nothing.
-void a_skip_anywhere_skips_everywhere() {
-    Player host(1), a(2), b(3);
-    const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
-    for (Player* p : {&host, &a, &b}) {
-        p->session.handle(info(all));
-    }
-    host.coop.choose({}, "New game");
-    CHECK(start_ready(host));
-    route({&host, &a, &b});
-    tick({&host, &a, &b}, 16);
-    for (Player* p : {&host, &a, &b}) {
-        p->game.now = {mp::kPhaseScene, 0, 2};
-        p->game.calls.clear();
-    }
-    tick({&host, &a, &b}, 16);
-
-    // Member a presses Start in the scene: the host's and b's are skipped, a's own is its game's.
-    a.coop.own_skip(mp::kPhaseScene, a.clock);
-    route({&host, &a, &b});
-    CHECK(!host.game.calls.empty() && host.game.calls.back() == "skip");
-    CHECK(!b.game.calls.empty() && b.game.calls.back() == "skip");
-    CHECK(a.game.calls.empty());
-    // Pressed again at once: no second skip (a while between).
-    const std::size_t host_calls = host.game.calls.size();
-    a.coop.own_skip(mp::kPhaseScene, a.clock + 10);
-    route({&host, &a, &b});
-    CHECK(host.game.calls.size() == host_calls);
-
-    // In a movie (a load): the host's Start presses Start for the members' movie player, pressed and
-    // let go in turns; not in the host's own game, and not in a member playing.
-    for (Player* p : {&host, &a, &b}) {
-        p->game.now = {mp::kPhaseLoading, -1, 2};
-    }
-    b.game.now.phase = mp::kPhasePlaying;
-    host.coop.own_skip(mp::kPhaseLoading, host.clock + 1000);
-    route({&host, &a, &b});
-    int presses = 0, releases = 0;
-    for (int i = 0; i < 6; ++i) {
-        (a.coop.movie_press(a.clock + 1100) ? presses : releases) += 1;
-    }
-    CHECK(presses == 3 && releases == 3);
-    CHECK(!host.coop.movie_press(host.clock + 1100) && !b.coop.movie_press(b.clock + 1100));
-    // Long after, nothing more is pressed.
-    CHECK(!a.coop.movie_press(a.clock + 5000));
-
-    // Start in the level (no scene, no movie) skips nothing anywhere.
-    host.game.now.phase = mp::kPhasePlaying;
-    a.game.now.phase = mp::kPhasePlaying;
-    const std::size_t b_calls = b.game.calls.size();
-    host.coop.own_skip(mp::kPhasePlaying, host.clock + 3000);
-    route({&host, &a, &b});
-    CHECK(b.game.calls.size() == b_calls);
-}
 
 
 // A party in level 0, everyone in control, the logs kept.
@@ -2126,6 +2070,94 @@ mp::Bytes skip_bytes(std::int32_t origin, std::int32_t play, std::uint8_t what, 
         .u8(static_cast<std::uint8_t>(scene >> 8))
         .u8(static_cast<std::uint8_t>(scene))
         .bytes();
+}
+
+// Only the host skips: a member's Start in a scene or a movie is taken out of its pad, said over
+// its game, and skips nothing anywhere (the scene plays on); the host's Start in a scene skips it
+// in every game, in a movie presses Start for the members' movie player; a game where nothing plays
+// does nothing. A member's SKIP (an older build's) the host ignores.
+void only_the_host_skips() {
+    Player host(1), a(2), b(3);
+    std::vector<std::string> host_log, a_log;
+    host.coop.on_log([&](const std::string& l) { host_log.push_back(l); });
+    a.coop.on_log([&](const std::string& l) { a_log.push_back(l); });
+    const auto has = [](const std::vector<std::string>& log, const std::string& start) {
+        return SceneParty::logged(log, start);
+    };
+    const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+    for (Player* p : {&host, &a, &b}) {
+        p->session.handle(info(all));
+    }
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &a, &b});
+    tick({&host, &a, &b}, 16);
+    for (Player* p : {&host, &a, &b}) {
+        p->game.now = {mp::kPhaseScene, 0, 2};
+        p->game.calls.clear();
+    }
+    tick({&host, &a, &b}, 16);
+
+    const auto skips = [](const FakeGame& g) { return std::count(g.calls.begin(), g.calls.end(), "skip"); };
+
+    // Member a presses Start in the scene: its Start is taken out, the banner says why, nothing is
+    // sent, and the scene plays on in every game.
+    CHECK(a.coop.start_blocked(mp::kPhaseScene) && a.coop.start_blocked(mp::kPhaseLoading));
+    CHECK(!a.coop.start_blocked(mp::kPhasePlaying) && !a.coop.start_blocked(mp::kPhaseMenu));
+    CHECK(!host.coop.start_blocked(mp::kPhaseScene) && !host.coop.start_blocked(mp::kPhaseLoading));
+    a.coop.own_skip(mp::kPhaseScene, a.clock);
+    CHECK(a.coop.banner(a.clock) == "Only the host can skip");
+    CHECK(has(a_log, "skip pressed here: only the host can skip"));
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &a, &b}, 16);
+    }
+    CHECK(skips(host.game) == 0 && skips(a.game) == 0 && skips(b.game) == 0);
+    CHECK(host.game.now.phase == mp::kPhaseScene);
+    // The banner goes after a while.
+    CHECK(a.coop.banner(a.clock + mp::kSkipRefusedMs) == "");
+
+    // A member's SKIP (an older build's) reaching the host: ignored, not passed on.
+    host.link.frames.clear();
+    host.coop.handle(2, skip_bytes(2, 0, mp::kSkipOther, 0));
+    CHECK(has(host_log, "skip requested by player 2: only the host skips, ignored"));
+    CHECK(host.link.frames.empty());
+    route({&host, &a, &b});
+    CHECK(skips(host.game) == 0 && skips(b.game) == 0);
+
+    // The host presses Start in the scene: every member's is skipped, the host's own is its game's.
+    host.coop.own_skip(mp::kPhaseScene, host.clock);
+    route({&host, &a, &b});
+    CHECK(skips(a.game) == 1 && skips(b.game) == 1);
+    CHECK(skips(host.game) == 0);
+    // Pressed again at once: no second skip (a while between).
+    host.coop.own_skip(mp::kPhaseScene, host.clock + 10);
+    route({&host, &a, &b});
+    CHECK(skips(a.game) == 1 && skips(b.game) == 1);
+
+    // In a movie (a load): the host's Start presses Start for the members' movie player, pressed and
+    // let go in turns; not in the host's own game, and not in a member playing.
+    for (Player* p : {&host, &a, &b}) {
+        p->game.now = {mp::kPhaseLoading, -1, 2};
+    }
+    b.game.now.phase = mp::kPhasePlaying;
+    host.coop.own_skip(mp::kPhaseLoading, host.clock + 1000);
+    route({&host, &a, &b});
+    int presses = 0, releases = 0;
+    for (int i = 0; i < 6; ++i) {
+        (a.coop.movie_press(a.clock + 1100) ? presses : releases) += 1;
+    }
+    CHECK(presses == 3 && releases == 3);
+    CHECK(!host.coop.movie_press(host.clock + 1100) && !b.coop.movie_press(b.clock + 1100));
+    // Long after, nothing more is pressed.
+    CHECK(!a.coop.movie_press(a.clock + 5000));
+
+    // Start in the level (no scene, no movie) skips nothing anywhere.
+    host.game.now.phase = mp::kPhasePlaying;
+    a.game.now.phase = mp::kPhasePlaying;
+    const std::size_t b_calls = b.game.calls.size();
+    host.coop.own_skip(mp::kPhasePlaying, host.clock + 3000);
+    route({&host, &a, &b});
+    CHECK(b.game.calls.size() == b_calls);
 }
 
 // The report's sequence: the host's Start skips the movies, then the level's opening (both games'
@@ -2944,7 +2976,7 @@ int main() {
     a_long_session();
     scenes_end_together();
     the_hosts_scenes_play_everywhere();
-    a_skip_anywhere_skips_everywhere();
+    only_the_host_skips();
     a_skip_ends_its_own_scene_only();
     a_late_member_plays_the_scene_after_the_host();
     the_hosts_skip_of_the_next_scene_skips_it();

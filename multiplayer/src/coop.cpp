@@ -121,6 +121,11 @@ bool Coop::start() {
     return true;
 }
 
+bool Coop::start_blocked(int phase) const {
+    return (phase == kPhaseScene || phase == kPhaseLoading) && play_ != 0 && session_.in_party()
+           && !session_.is_host();
+}
+
 void Coop::own_skip(int phase, std::uint64_t now) {
     // Only a scene or a movie (a load: the title leaving, the flight between planets), in a game
     // of the party's, once in a while.
@@ -130,6 +135,14 @@ void Coop::own_skip(int phase, std::uint64_t now) {
     }
 
     own_skip_ms_ = now;
+
+    // Only the host skips: a member's Start is taken out of its pad (start_blocked), and said so.
+    if (!session_.is_host()) {
+        skip_refused_until_ = now + kSkipRefusedMs;
+        log("skip pressed here: only the host can skip, it plays on");
+        return;
+    }
+
     ++skip_sequence_;
 
     // What it was pressed in: the host's scene (by its sequence), a scene of this game's own, or a
@@ -651,6 +664,10 @@ std::string Coop::banner(std::uint64_t now) const {
         return "Only the host flies the ship to another planet";
     }
 
+    if (now < skip_refused_until_) {
+        return "Only the host can skip";
+    }
+
     if (arriving_ && hold_) {
         return "Waiting for the other players to arrive";
     }
@@ -1101,6 +1118,7 @@ void Coop::reset() {
     leave_ms_ = 0;
     host_arriving_ = false;
     refused_until_ = 0;
+    skip_refused_until_ = 0;
     reset_scenes();
 }
 

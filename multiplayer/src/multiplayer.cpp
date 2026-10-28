@@ -477,6 +477,15 @@ std::string status() {
     return mp::status_text(in);
 }
 
+/* The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
+ * a wait for the others. */
+void show_banner(std::uint64_t now) {
+    if (std::string banner = g->coop->banner(now); banner != g->banner) {
+        g->banner = banner;
+        g->mod->play_notice(banner);
+    }
+}
+
 /* Brings the session up to date with the connection: hello on a new connection, the server's
  * messages, the last notice. Once a game tick. */
 void poll() {
@@ -1283,8 +1292,9 @@ void load(openrac::Mod& mod) {
         const int here = g->game->status().level;
         original(g->coop->ship_travel(dest, here) ? dest : here);
     });
-    // The first pad: a Start in a scene or a movie skips it for the party, a party's skip presses
-    // Start for a movie playing here, and the scene barrier holds the control (coop.hpp). The report: buttons in
+    // The first pad: the host's Start in a scene or a movie skips it for the party (a member's is
+    // taken out: only the host skips), a party's skip presses Start for a movie playing here, and
+    // the scene barrier holds the control (coop.hpp). The report: buttons in
     // bytes 0 and 1 (a bit clear while held; Start 0x08), the sticks, then the pressures.
     mod.on_pad([](int port, std::uint8_t* report, int size) {
         if (port != 0 || size < 6) {
@@ -1298,14 +1308,21 @@ void load(openrac::Mod& mod) {
             poll();
         }
 
-        // Start pressed in a scene or a movie: the whole party skips it.
+        // Start pressed in a scene or a movie: the host's skips it for the whole party; a member's
+        // does nothing here but say so (a movie has no game ticks: the banner is shown from here).
         const bool start = (report[0] & 0x08) == 0;
+        const int phase = g->game->status().phase;
 
         if (start && !g->start_held) {
-            g->coop->own_skip(g->game->status().phase, now);
+            g->coop->own_skip(phase, now);
+            show_banner(now);
         }
 
         g->start_held = start;
+
+        if (start && g->coop->start_blocked(phase)) {
+            report[0] = static_cast<std::uint8_t>(report[0] | 0x08);
+        }
 
         if (g->coop->hold_input()) {
             report[0] = report[1] = 0xFF;
@@ -1389,11 +1406,8 @@ void load(openrac::Mod& mod) {
             g->trace_file.flush();
         }
 
-        // The party's line over the game: a refused ship travel, a wait for the others.
-        if (std::string banner = g->coop->banner(now); banner != g->banner) {
-            g->banner = banner;
-            g->mod->play_notice(banner);
-        }
+        // The party's line over the game: a refused ship travel or skip, a wait for the others.
+        show_banner(now);
     });
     mod.info(
         "multiplayer: " + g->session->name() + ", server " + g->host + ":" + std::to_string(g->port)
