@@ -188,6 +188,8 @@ public:
 
     std::size_t spawned() const { return net_slot_.size(); }
 
+    std::size_t mobys() const { return mobys_.size(); }
+
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
 private:

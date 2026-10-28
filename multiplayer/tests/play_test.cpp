@@ -1198,6 +1198,73 @@ void a_menu_kills_nothing() {
     CHECK(!member.game.overlay);
 }
 
+// A pause as the port has it in a party (2026-10-28): the paused game's world goes on under its
+// menu and lists the level's mobys as before (phase Menu), its mobys sit still for a while (no
+// snapshot for them). Host pause, then member pause: nothing is killed or despawned on the
+// watching side, the spawned creature and the placed mobys keep their slots,
+// and a creature the host spawns while the member is paused comes to the member then.
+void a_pause_keeps_the_world_whole() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, runs | mp::kMobyCreature, 10.0f), moby(1, 1, 500, runs, 20.0f),
+                         moby(2, 2, 501, runs, 25.0f)};
+    }
+    // An enemy the host spawned (a creature, no key).
+    host.game.level.push_back(moby(300, -1, 301, mp::kMobyUpdates | mp::kMobyCreature, 12.0f));
+    member.game.hero_pose.position[0] = 12.0f;
+    for (int i = 0; i < 10; ++i) {
+        host.game.level[0].pose.position[1] = static_cast<float>(i);
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.world.driven() == 2 && member.world.spawned() == 1);
+    const auto listed = [](const Player& p) { return p.world.mobys(); };
+    const std::size_t member_mobys = listed(member);
+    const std::size_t member_calls = member.game.world_calls.size();
+    const std::size_t host_calls = host.game.world_calls.size();
+
+    // The host pauses: its world runs on, listed as before; its enemy stands still a second.
+    host.game.now.phase = mp::kPhaseMenu;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+        CHECK(listed(member) == member_mobys);
+    }
+    host.game.now.phase = mp::kPhasePlaying;
+
+    // The member pauses; the host spawns another enemy meanwhile.
+    member.game.now.phase = mp::kPhaseMenu;
+    host.game.level.push_back(moby(301, -1, 302, mp::kMobyUpdates | mp::kMobyCreature, 14.0f));
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    member.game.now.phase = mp::kPhasePlaying;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+
+    // Nothing killed or despawned in either game; the new enemy came to the member.
+    const auto removals = [](const std::vector<std::string>& calls, std::size_t from) {
+        return std::count_if(calls.begin() + static_cast<std::ptrdiff_t>(from), calls.end(),
+                             [](const std::string& c) { return c.rfind("kill", 0) == 0; });
+    };
+    CHECK(removals(member.game.world_calls, member_calls) == 0);
+    CHECK(removals(host.game.world_calls, host_calls) == 0);
+    CHECK(member.world.spawned() == 2 && member.world.driven() == 3);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 302") == 1);
+    for (Player* p : {&host, &member}) {
+        CHECK(p->game.moby_slot(0) == 0 && p->game.moby_slot(1) == 1 && p->game.moby_slot(2) == 2);
+    }
+    CHECK(host.coop.figures() == 1 && member.coop.figures() == 1);
+}
+
 // Each class as the inventory has it: a vendor is each game's own (not driven), a gold bolt a member
 // collects is gone in the host's game too (removed, no hit), ammo an enemy of the host drops is the
 // member's own to collect (made undriven, kept when the host's is taken).
@@ -1516,6 +1583,7 @@ int main() {
     the_world_is_the_hosts();
     builds_and_the_end();
     a_menu_kills_nothing();
+    a_pause_keeps_the_world_whole();
     classes_are_shared_as_they_should_be();
     a_long_session();
     scenes_end_together();
