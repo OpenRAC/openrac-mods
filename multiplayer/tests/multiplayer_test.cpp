@@ -98,8 +98,11 @@ mp::Message decoded(const Bytes& frame) {
 void client_frames_are_the_servers_bytes() {
     // HELLO "v1", "Bob": length 10, id 0, then two strings.
     CHECK(mp::hello("v1", "Bob") == (Bytes{0, 0, 0, 10, 0, 0, 2, 'v', '1', 0, 3, 'B', 'o', 'b'}));
-    // PARTY CREATE and LEAVE: id 1 and the opcode alone.
-    CHECK(mp::party_create() == (Bytes{0, 0, 0, 2, 1, 0}));
+    // PARTY CREATE: id 1, the opcode and the description (none: -1); LEAVE and LIST the opcode
+    // alone.
+    CHECK(mp::party_create() == (Bytes{0, 0, 0, 4, 1, 0, 0xFF, 0xFF}));
+    CHECK(mp::party_create("New game") == server(mp::Writer().u8(1).u8(0).str("New game")));
+    CHECK(mp::party_list() == (Bytes{0, 0, 0, 2, 1, 8}));
     CHECK(mp::party_leave() == (Bytes{0, 0, 0, 2, 1, 2}));
     // PARTY JOIN "abc123": opcode 1 and the code.
     CHECK(
@@ -589,9 +592,43 @@ void host_frames_are_the_servers_bytes() {
     CHECK(
         mp::party_info("DIRECT", 1, {{1, "A"}, {2, "B"}})
         == server(
-            mp::Writer().u8(1).u8(3).str("DIRECT").i32(1).u8(2).i32(1).str("A").i32(2).str("B")
+            mp::Writer().u8(1).u8(3).str("DIRECT").i32(1).u8(2).i32(1).str("A").i32(2).str("B").str(
+                ""
+            )
         )
     );
+    // LIST: a count, then code, host, members, size and description per party.
+    CHECK(
+        mp::party_list_reply({{"DIRECT", "Ann", 1, 4, "New game"}})
+        == server(mp::Writer().u8(1).u8(8).u8(1).str("DIRECT").str("Ann").u8(1).u8(4).str("New game"))
+    );
+    // The client reads LIST, and INFO's description (absent from an older server).
+    mp::Message list;
+    CHECK(
+        mp::decode(body_of(mp::party_list_reply({{"ABCDEF", "Bo", 2, 4, "Kerwan"}, {"GHJKLM", "Cy", 1, 4, ""}})), list)
+        && list.kind == mp::Message::Kind::kPartyList && list.parties.size() == 2
+        && list.parties[0].host == "Bo" && list.parties[0].members == 2
+        && list.parties[0].description == "Kerwan" && list.parties[1].description.empty()
+    );
+    mp::Message info;
+    CHECK(
+        mp::decode(body_of(mp::party_info("ABCDEF", 1, {{1, "A"}}, "Veldin")), info)
+        && info.description == "Veldin"
+    );
+    CHECK(
+        mp::decode(
+            body_of(server(mp::Writer().u8(1).u8(3).str("ABCDEF").i32(1).u8(1).i32(1).str("A"))),
+            info
+        )
+        && info.description.empty() && info.members.size() == 1
+    );
+    // The server's reading of CREATE (with and without a description) and LIST.
+    CHECK(mp::decode_request(body_of(mp::party_create("Pokitaru"))).text == "Pokitaru");
+    CHECK(mp::decode_request(body_of(server(mp::Writer().u8(1).u8(0)))).kind == mp::Request::Kind::kCreate);
+    CHECK(mp::decode_request(body_of(mp::party_list())).kind == mp::Request::Kind::kList);
+    // Descriptions kept as the server keeps them.
+    CHECK(mp::description_text("  Kerwan\x01, 3 gold\xC3\xA9  ") == "Kerwan, 3 gold");
+    CHECK(mp::description_text(std::string(60, 'a')).size() == mp::kMaxDescriptionLength);
     CHECK(mp::party_joined({2, "B"}) == server(mp::Writer().u8(1).u8(4).i32(2).str("B")));
     CHECK(mp::party_left(2) == server(mp::Writer().u8(1).u8(5).i32(2)));
     CHECK(mp::party_end() == server(mp::Writer().u8(1).u8(6)));
@@ -663,6 +700,9 @@ void direct_connect_plays_a_party() {
     Player a("Alice");
     Player b("Bob");
     const std::vector<Player*> all{&host, &a, &b};
+    mp::HostConfig config;
+    config.description = " Kerwan\n";  // kept as the server keeps one: "Kerwan"
+    host.connection.set_host_config(config);
 
     CHECK(host.connection.start_hosting(0));
     CHECK(host.connection.mode() == mp::Connection::Mode::kHosting);
@@ -762,11 +802,20 @@ void direct_connect_plays_a_party() {
 
     // A member leaves: the others hear it; FIND brings it back into the one party.
     const std::int32_t bob = b.session->id();
+    CHECK(a.session->description() == "Kerwan");
     b.session->leave();
     CHECK(pump_until(all, [&] {
         return host.count(mp::Message::Kind::kPartyLeft, bob) == 1
                && a.session->members().size() == 2;
     }));
+    // Out of it, Bob's LIST names the one party, with its room and description.
+    b.session->list();
+    CHECK(pump_until(all, [&] { return b.session->lists() == 1; }));
+    CHECK(
+        b.session->parties().size() == 1 && b.session->parties()[0].code == mp::kDirectCode
+        && b.session->parties()[0].host == "Host" && b.session->parties()[0].members == 2
+        && b.session->parties()[0].size == 4 && b.session->parties()[0].description == "Kerwan"
+    );
     b.session->find();
     CHECK(pump_until(all, [&] {
         return b.session->in_party() && host.session->members().size() == 3;
@@ -1087,7 +1136,7 @@ void direct_connect_ignores_the_server() {
     }
 
     // The notices the session raises fit too.
-    for (const char* notice : {"Game starting (not playable yet)", "The host left: the party is over",
+    for (const char* notice : {"Game starting", "The host left: the party is over",
                                "No party has that code", "That party is full",
                                "You are in a party already", "You are not in a party",
                                "The server refused"}) {

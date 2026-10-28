@@ -11,7 +11,7 @@
  *   1 READY  flag u8        a member to the host (the server sends a member's DATA to the host);
  *   2 STATE  count u8, then id i32 + flag u8 per member   the host to everyone: who is ready;
  *   3 START                 the host to everyone: the game starts.
- * Any other first byte is the game's own (the later puppets' poses): handed as it is to the
+ * Any other first byte is the game's own (coop.hpp: the game, the poses): handed as it is to the
  * callback set with on_data, and sent with send_data, with a monotonic clock (now_ms) to stamp it.
  */
 #ifndef MULTIPLAYER_SESSION_H
@@ -54,8 +54,10 @@ public:
 
     /* The player's actions; each does nothing when it makes no sense now (no hello yet, already in
      * a party, not the host). */
-    void create();
+    void create(const std::string& description = "");
     void find();
+    /* Asks for the parties with room (LIST; parties() once answered). Out of a party only. */
+    void list();
     void join(const std::string& code);
     void leave();
     void toggle_ready();
@@ -109,6 +111,14 @@ public:
 
     const std::vector<Member>& members() const { return members_; }
 
+    /* The party's description (its host's save), as INFO gave it. */
+    const std::string& description() const { return description_; }
+
+    /* The parties LIST last named, and how many answers came (a new count: a new list). */
+    const std::vector<Listing>& parties() const { return parties_; }
+
+    std::uint32_t lists() const { return lists_; }
+
     bool ready(std::int32_t member) const { return ready_.count(member) != 0; }
 
     bool started() const { return started_; }
@@ -135,6 +145,9 @@ private:
     std::string code_;
     std::int32_t host_ = 0;
     std::vector<Member> members_;
+    std::string description_;
+    std::vector<Listing> parties_;
+    std::uint32_t lists_ = 0;
     std::set<std::int32_t> ready_;
     bool started_ = false;
     bool waiting_ = false;

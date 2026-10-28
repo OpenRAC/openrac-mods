@@ -32,6 +32,10 @@ constexpr std::size_t kMaxNameLength = 32;
 constexpr std::size_t kMaxChatLength = 256;
 constexpr std::size_t kMaxPartySize = 4;
 constexpr std::size_t kCodeLength = 6;
+/* A party's description (CREATE's, the host's save: "Pokitaru, 12 gold bolts"), as the server keeps
+ * it: printable ASCII, at most this long; and the most parties LIST answers with. */
+constexpr std::size_t kMaxDescriptionLength = 48;
+constexpr std::size_t kMaxListedParties = 32;
 constexpr const char* kCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /* The server's port when the mod's setting names none, and the embedded host's by default. */
@@ -59,7 +63,8 @@ enum class PartyOp : std::uint8_t {
     kJoined = 4,
     kLeft = 5,
     kEnd = 6,
-    kFind = 7
+    kFind = 7,
+    kList = 8
 };
 enum class ErrorReason : std::uint8_t {
     kPartyNotFound = 0,
@@ -148,10 +153,13 @@ private:
 };
 
 /* The frames the client sends: HELLO first, then PARTY, CHAT, DATA and TIME. CREATE makes a
- * private party (joined by its code), FIND joins the oldest open party with room or hosts a new
- * open one; both are answered with INFO. TIME carries the client's clock in milliseconds. */
+ * party with a description (its host's save; LIST shows it, INFO carries it), joined by its code or
+ * from LIST; FIND joins the oldest party with room or hosts a new one; both are answered with INFO.
+ * LIST asks for the parties with room (the asker's own left out), answered with LIST. TIME carries
+ * the client's clock in milliseconds. */
 Bytes hello(const std::string& version, const std::string& name);
-Bytes party_create();
+Bytes party_create(const std::string& description = "");
+Bytes party_list();
 Bytes party_find();
 Bytes party_join(const std::string& code);
 Bytes party_leave();
@@ -171,6 +179,16 @@ struct Member {
     std::string name;
 };
 
+/* A party LIST names: its code, its host's name, how many are in it of how many it takes, and its
+ * description. */
+struct Listing {
+    std::string code;
+    std::string host;
+    int members = 0;
+    int size = 0;
+    std::string description;
+};
+
 /* What the server says, one frame of it. */
 struct Message {
     enum class Kind {
@@ -179,6 +197,7 @@ struct Message {
         kPartyJoined,
         kPartyLeft,
         kPartyEnd,
+        kPartyList,
         kChat,
         kData,
         kError,
@@ -188,10 +207,14 @@ struct Message {
     Kind kind = Kind::kHello;
     /* HELLO: the session's id; JOINED and LEFT: the member's; CHAT and DATA: the sender's. */
     std::int32_t id = 0;
-    /* INFO: the party's code, its host's id and its members (the host among them). */
+    /* INFO: the party's code, its host's id, its members (the host among them) and its description
+     * (empty from a server that sends none). */
     std::string code;
     std::int32_t host = 0;
     std::vector<Member> members;
+    std::string description;
+    /* LIST: the parties. */
+    std::vector<Listing> parties;
     /* JOINED: the member's name; CHAT: the message. */
     std::string text;
     /* DATA: the bytes the sender gave. */
@@ -218,7 +241,13 @@ bool decode_datagram(const std::uint8_t* data, std::size_t size, Message& out);
  * sends, and the client's frames and datagrams as the server reads them. */
 Bytes hello_reply(std::int32_t session);
 Bytes udp_offer(std::int64_t token, std::int32_t port);
-Bytes party_info(const std::string& code, std::int32_t host, const std::vector<Member>& members);
+Bytes party_info(
+    const std::string& code,
+    std::int32_t host,
+    const std::vector<Member>& members,
+    const std::string& description = ""
+);
+Bytes party_list_reply(const std::vector<Listing>& parties);
 Bytes party_joined(const Member& member);
 Bytes party_left(std::int32_t member);
 Bytes party_end();
@@ -237,13 +266,15 @@ struct Request {
         kCreate,
         kJoin,
         kFind,
+        kList,
         kLeave,
         kChat,
         kData,
         kTime
     };
     Kind kind = Kind::kInvalid;
-    /* HELLO: the version and the name; JOIN: the code; CHAT: the message. */
+    /* HELLO: the version and the name; JOIN: the code; CREATE: the description; CHAT: the
+     * message. */
     std::string version;
     std::string text;
     /* DATA: the target and the bytes. */

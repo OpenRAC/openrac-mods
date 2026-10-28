@@ -61,6 +61,9 @@ struct HostConfig {
     int udp_timeout_ms = kUdpTimeoutMs;
     /* Whether to offer UDP at all. */
     bool udp = true;
+    /* The party's description (the host's save), as CREATE gives the server one; kept as the server
+     * keeps it (description_text). */
+    std::string description;
     Rate chat{5, 1.0};
     Rate party{5, 1.0};
     Rate data{120, 60.0};
@@ -144,6 +147,10 @@ private:
     std::int32_t next_id_ = 1;
     std::int64_t started_ns_ = 0;
 };
+
+/* ServerPacketHandler.sanitizeDescription: printable ASCII only, trimmed, at most
+ * kMaxDescriptionLength characters. */
+std::string description_text(const std::string& text);
 
 /* This machine's addresses others may reach it on (IPv4, the loopback left out), for the page to
  * show beside the port. Empty when it cannot tell. */

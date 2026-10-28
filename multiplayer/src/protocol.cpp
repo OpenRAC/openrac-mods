@@ -181,8 +181,12 @@ Bytes hello(const std::string& version, const std::string& name) {
     );
 }
 
-Bytes party_create() {
-    return frame(party(PartyOp::kCreate).bytes());
+Bytes party_create(const std::string& description) {
+    return frame(party(PartyOp::kCreate).str(description).bytes());
+}
+
+Bytes party_list() {
+    return frame(party(PartyOp::kList).bytes());
 }
 
 Bytes party_find() {
@@ -276,6 +280,28 @@ bool decode(const Bytes& body, Message& out) {
                 out.members.push_back(m);
             }
 
+            // The description, from a server that sends one.
+            if (r.ok() && r.left() > 0) {
+                out.description = r.str();
+            }
+
+            return r.ok();
+        }
+        case PartyOp::kList: {
+            out.kind = Message::Kind::kPartyList;
+            const std::uint8_t count = r.u8();
+
+            // Each party: its code, host, members, size and description.
+            for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
+                Listing l;
+                l.code = r.str();
+                l.host = r.str();
+                l.members = r.u8();
+                l.size = r.u8();
+                l.description = r.str();
+                out.parties.push_back(l);
+            }
+
             return r.ok();
         }
         case PartyOp::kJoined:
@@ -347,13 +373,36 @@ Bytes udp_offer(std::int64_t token, std::int32_t port) {
     );
 }
 
-Bytes party_info(const std::string& code, std::int32_t host, const std::vector<Member>& members) {
+Bytes party_info(
+    const std::string& code,
+    std::int32_t host,
+    const std::vector<Member>& members,
+    const std::string& description
+) {
     Writer w = party(PartyOp::kInfo);
     w.str(code).i32(host).u8(static_cast<std::uint8_t>(members.size()));
 
-    // Each member: its id and its name, as Session.serialize writes them.
+    // Each member: its id and its name, as Session.serialize writes them; then the description.
     for (const Member& m : members) {
         w.i32(m.id).str(m.name);
+    }
+
+    return frame(w.str(description).bytes());
+}
+
+Bytes party_list_reply(const std::vector<Listing>& parties) {
+    const std::size_t count = std::min(parties.size(), kMaxListedParties);
+    Writer w = party(PartyOp::kList);
+    w.u8(static_cast<std::uint8_t>(count));
+
+    // As Party.serializeListing writes each.
+    for (std::size_t i = 0; i < count; ++i) {
+        const Listing& l = parties[i];
+        w.str(l.code)
+            .str(l.host)
+            .u8(static_cast<std::uint8_t>(l.members))
+            .u8(static_cast<std::uint8_t>(l.size))
+            .str(l.description);
     }
 
     return frame(w.bytes());
@@ -441,6 +490,15 @@ Request decode_request(const Bytes& body) {
             switch (r.u8()) {
                 case static_cast<std::uint8_t>(PartyOp::kCreate):
                     kind = Request::Kind::kCreate;
+
+                    // The description, from a client that sends one.
+                    if (r.left() > 0) {
+                        out.text = r.str();
+                    }
+
+                    break;
+                case static_cast<std::uint8_t>(PartyOp::kList):
+                    kind = Request::Kind::kList;
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kJoin):
                     kind = Request::Kind::kJoin;

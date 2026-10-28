@@ -52,19 +52,29 @@ void Session::reset_party() {
     code_.clear();
     host_ = 0;
     members_.clear();
+    description_.clear();
     ready_.clear();
     started_ = false;
     waiting_ = false;
 }
 
-void Session::create() {
+void Session::create(const std::string& description) {
     // Only a greeted session out of any party, with nothing pending.
     if (!greeted() || in_party() || waiting_) {
         return;
     }
 
     waiting_ = true;
-    transport_.send(party_create());
+    transport_.send(party_create(description));
+}
+
+void Session::list() {
+    // Only a greeted session; the list is of the parties it could join.
+    if (!greeted() || in_party()) {
+        return;
+    }
+
+    transport_.send(party_list());
 }
 
 void Session::find() {
@@ -139,7 +149,7 @@ void Session::start() {
     transport_.send(
         data(kBroadcast, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kStart)).bytes())
     );
-    notice_ = "Game starting (not playable yet)";
+    notice_ = "Game starting";
 }
 
 void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) {
@@ -202,6 +212,7 @@ void Session::handle(const Message& m) {
             code_ = m.code;
             host_ = m.host;
             members_ = m.members;
+            description_ = m.description;
             // The host first, the rest as the server lists them.
             std::stable_partition(members_.begin(), members_.end(), [&](const Member& x) {
                 return x.id == host_;
@@ -226,6 +237,10 @@ void Session::handle(const Message& m) {
                 members_.end()
             );
             ready_.erase(m.id);
+            break;
+        case Message::Kind::kPartyList:
+            parties_ = m.parties;
+            ++lists_;
             break;
         case Message::Kind::kPartyEnd:
             reset_party();
@@ -295,7 +310,7 @@ void Session::handle_data(const Message& m) {
     } else if (kind == LobbyKind::kStart && m.id == host_) {
         // The host started the game.
         started_ = true;
-        notice_ = "Game starting (not playable yet)";
+        notice_ = "Game starting";
     } else if (
         kind != LobbyKind::kReady && kind != LobbyKind::kState && kind != LobbyKind::kStart
         && on_data_

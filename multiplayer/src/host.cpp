@@ -85,6 +85,31 @@ bool valid(const std::string& text, std::size_t max) {
     return !strip(text).empty() && utf16_length(text) <= max;
 }
 
+}  // namespace
+
+std::string description_text(const std::string& text) {
+    std::string kept;
+
+    // Lists are drawn by clients with a plain font.
+    for (const char c : text) {
+        if (c >= 0x20 && c <= 0x7E) {
+            kept += c;
+        }
+    }
+
+    const auto begin = kept.find_first_not_of(' ');
+
+    // Spaces only: nothing is left.
+    if (begin == std::string::npos) {
+        return {};
+    }
+
+    kept = kept.substr(begin, kept.find_last_not_of(' ') - begin + 1);
+    return kept.substr(0, kMaxDescriptionLength);
+}
+
+namespace {
+
 /* A 64-bit token no one can guess from the outside. */
 std::int64_t new_token() {
     std::random_device random;
@@ -643,6 +668,7 @@ void Host::handle(Peer& peer, const Bytes& body) {
             case Request::Kind::kCreate:
             case Request::Kind::kJoin:
             case Request::Kind::kFind:
+            case Request::Kind::kList:
             case Request::Kind::kLeave:
                 within = peer.party.take();
                 break;
@@ -675,6 +701,23 @@ void Host::handle(Peer& peer, const Bytes& body) {
             // One party, so every way in is the same; the code is not read.
             join(peer);
             break;
+        case Request::Kind::kList: {
+            // The one party, while it has room, to those not in it (PartyController.list).
+            std::vector<Listing> parties;
+
+            if (!peer.in_party && !party_.empty() && party_.size() < config_.max_party_size) {
+                parties.push_back(
+                    {kDirectCode,
+                     party_.front()->name,
+                     static_cast<int>(party_.size()),
+                     static_cast<int>(config_.max_party_size),
+                     description_text(config_.description)}
+                );
+            }
+
+            send_to(peer, party_list_reply(parties));
+            break;
+        }
         case Request::Kind::kLeave:
             leave(peer, true);
             break;
@@ -754,7 +797,9 @@ void Host::hello(Peer& peer, const Request& q) {
     // The local game hosts the one party, and those who came early join it.
     peer.in_party = true;
     party_.assign(1, &peer);
-    send_to(peer, party_info(kDirectCode, peer.id, {peer.member()}));
+    send_to(
+        peer, party_info(kDirectCode, peer.id, {peer.member()}, description_text(config_.description))
+    );
 
     for (auto& p : peers_) {
         if (p->waiting && !p->dead) {
@@ -805,7 +850,10 @@ void Host::join(Peer& peer) {
         members.push_back(m->member());
     }
 
-    send_to(peer, party_info(kDirectCode, party_.front()->id, members));
+    send_to(
+        peer,
+        party_info(kDirectCode, party_.front()->id, members, description_text(config_.description))
+    );
 }
 
 void Host::leave(Peer& peer, bool asked) {
