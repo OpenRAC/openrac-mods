@@ -6,12 +6,15 @@
  * the Game (the SDK's 1.9 world calls) and the Coop (the players' poses and figures), on the game's
  * thread, once a tick, plus the game's gate and hits as they come.
  *
+ * A death is known only from the game saying so (a placed moby listed dead), never from a moby
+ * missing from a listing; a tick the game lists nothing (loading) changes nothing.
+ *
  * Host. Each moby the level placed is named by its key (its record in the level's file, the same in
  * every game). The host sends each member in its level, as state 15 times a second, the mobys
  * nearest that member that moved or animated (WORLD, at most kWorldEntries a datagram), tells
  * everyone of the placed ones that died (KILLED) and of the ones it spawns that count (creatures,
  * bolts: SPAWN and DESPAWN, by a net id of its own), and gives a member that arrives in its level
- * the placed mobys still alive there (ALIVE) and what it has spawned. Every moby's update runs with
+ * the placed mobys dead there (DEAD) and what it has spawned. Every moby's update runs with
  * the nearest player standing in for the hero (the gate): an enemy chases and hits that player's
  * figure, a bolt flies to it; a hit on a figure goes to its player (DAMAGE), the bolts a member's
  * stand-in collected go to it (BOLTS). Mobys near the members run as if near the host (eyes).
@@ -32,7 +35,7 @@
  *   13 HIT     id u16, mask u32, damage f32, position 3 x f32, velocity 3 x f32   a member;
  *   14 DAMAGE  attacker id u16 (0xFFFF none), mask u32, damage f32, position, velocity   the host;
  *   15 BOLTS   count i32                                          the host to a member;
- *   16 ALIVE   level i8, count u16 (records), then a bit a record, 1 alive   the host to a member;
+ *   16 DEAD    level i8, count u16 (records), then a bit a record, 1 dead   the host to a member;
  *   17 BROKE   level i8, key u16                                  a member broke a crate.
  */
 #ifndef MULTIPLAYER_WORLD_H
@@ -40,6 +43,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <map>
 #include <set>
 #include <string>
@@ -60,7 +64,7 @@ enum class WorldKind : std::uint8_t {
     kHit = 13,
     kDamage = 14,
     kBolts = 15,
-    kAlive = 16,
+    kDead = 16,
     kBroke = 17
 };
 
@@ -78,13 +82,67 @@ constexpr std::size_t kWorldEntryBytes = 24;
 constexpr std::uint64_t kWorldMs = 66;
 constexpr std::uint64_t kWorldRefreshMs = 1000;
 constexpr float kWorldNear = 80.0f;
+/* How long a crate replaying another game's break may take to break before it is deleted. */
+constexpr std::uint64_t kReplayMs = 3000;
 /* How far a moby may move between two snapshots before its buffer starts again (a respawn). */
 constexpr float kWorldSnap = 12.0f;
-/* The crates (classes 500 to 540: bolt, nanotech, metal, ammo crates...): every game runs its own,
- * since a crate looks at the wrench's own collision to break, and a crate broken in one game is
- * gone in all (BROKE to the host, KILLED from it). Its bolts are for whoever broke it. */
+/* How each class of the level's mobys is shared (WORLD.md's class inventory, from the catalogue):
+ *
+ * crates (500 bolt, 501 nanotech, 502 metal, 505 oom-oom box, 511 ammo crate): every game runs its
+ *   own (one breaks under its game's own hero), and a crate broken in one game breaks in all (BROKE
+ *   to the host, KILLED from it): the others post it a wrench's hit, so it breaks there with its
+ *   debris and sound, its drop left out. Its bolts are once in the world: whoever broke it.
+ * pickups (placed bolts, gold bolts, ammo, ammo and health crates of the ship levels, nanotech):
+ *   every game runs its own, so every player can collect one; the first collected is gone in every
+ *   game (removed, without its effect or a gold bolt's scene).
+ * interactables (vendors, the ship and its pads, people, infobots, help desks and triggers, the
+ *   respawn point, gold-weapon cases, story pickups, the hero's own equipment): each game's own, for
+ *   its own player; nothing is shared.
+ * everything else the level placed with an update of its own: the host's (members drive it).
+ */
+inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
+    for (const int c : classes) {
+        if (c == oclass) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+inline bool crate_class(int oclass) {
+    return any_of_class(oclass, {500, 501, 502, 505, 511});
+}
+
+inline bool pickup_class(int oclass) {
+    return any_of_class(
+        oclass,
+        {13, 14, 15, 16, 1134, 204, 213, 214, 222, 223, 225, 226, 1006, 1438, 1447, 1449, 224, 228,
+         1218, 1220, 806}
+    );
+}
+
+/* Pickups an enemy of the host's drops that every game gets its own of (ammo, health). */
+inline bool loot_class(int oclass) {
+    return pickup_class(oclass) && oclass > 16 && oclass != 1134;
+}
+
+inline bool interactable_class(int oclass) {
+    return any_of_class(
+               oclass,
+               {11,   298,  644,  1432, 1326, 925,  1973, 530,  666,  712,  816,  1012, 38,   1474,
+                998,  424,  557,  1109, 1448, 1766, 484,  1120, 318,  1135, 1190, 750,  774,  1283,
+                890,  909,  1377, 1455, 328,  90,   114,  1105, 805,  1324, 1341, 1342, 1348, 1561,
+                558,  304,  23,   18,   1354, 1038, 1040, 1297, 1100, 1101, 1102, 1531, 1532, 1559,
+                404,  405,  1388, 585,  607,  618,  849,  1289, 1290, 229,  1143, 71,   74,   121,
+                153,  163,  172,  203,  270,  457}
+           )
+           || (oclass >= 1456 && oclass <= 1465);
+}
+
+/* Every game runs its own copy: crates, pickups, interactables. */
 inline bool local_class(int oclass) {
-    return oclass >= 500 && oclass <= 540;
+    return crate_class(oclass) || pickup_class(oclass) || interactable_class(oclass);
 }
 
 /* The bolt classes (bolts, hexnut, starnut, circlenut), spawned and shared. */
@@ -116,6 +174,10 @@ public:
     bool gate(int slot, int phase);
     bool hit(const Hit& hit);
 
+    /* The game records a moby's death (its bolts dropped, its killed bits): false when the death is
+     * a crate's broken here only to show another game's break, whose bolts are not this game's. */
+    bool quiet_death(int slot);
+
     /* The party or the level is gone: nothing is kept. */
     void reset();
 
@@ -136,7 +198,7 @@ private:
 
     struct Member {
         int level = -1;
-        std::uint32_t told_load = 0;  // the host's load it was given ALIVE and SPAWNs for
+        std::uint32_t told_load = 0;  // the host's load it was given DEAD and SPAWNs for
         std::uint64_t world_ms = 0;
         std::map<std::uint16_t, Sent> sent;
         int bolts = 0;
@@ -150,7 +212,11 @@ private:
     void tick_host(std::uint64_t now, const GameStatus& status);
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at);
-    void send_alive(std::int32_t member, int level);
+    void send_dead(std::int32_t member, int level);
+    void log_counts(std::uint64_t now);
+    /* A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
+     * and sound), its drop left out; deleted if it has not broken by the deadline. */
+    void replay_break(int slot, std::uint64_t now);
     void send_spawn(std::int32_t target, int level, std::uint16_t net, const MobyState& moby);
     std::uint16_t id_of(int slot) const;
     int slot_of(std::uint16_t id) const;
@@ -172,6 +238,7 @@ private:
     /* This tick's mobys by slot, and the placed ones' keys alive. */
     std::map<int, MobyState> mobys_;
     std::set<int> alive_keys_;
+    std::set<int> dead_keys_;
     bool listed_ = false;
     /* Host: the spawned mobys it shares (by slot), the next net id, the members, the stand-in of the
      * update running (its player, 0 none) and the bolts before it. */
@@ -182,6 +249,10 @@ private:
     int bolts_before_ = 0;
     /* Member: the crates the host killed (not to be told back), last tick's placed mobys' classes. */
     std::set<int> host_killed_;
+    /* Crates breaking here for another game's break: their slots, until when they may take. */
+    std::map<int, std::uint64_t> replays_;
+    /* Member: the host's loot made here as this game's own, by net id. */
+    std::set<std::uint16_t> loot_;
     std::map<int, int> placed_class_;
     /* Member: the mobys it drives, their poses by id, the host's spawned ones by net id. */
     std::set<int> driven_;

@@ -267,11 +267,13 @@ struct FakeGame : mp::Game {
     int stood = 0;
     int bolt_count = 0;
 
-    std::vector<mp::MobyState> mobys() override { return level; }
+    std::vector<mp::MobyState> mobys() override {
+        return listing_blank ? std::vector<mp::MobyState>{} : level;
+    }
 
     int moby_slot(int key) override {
         for (const mp::MobyState& m : level) {
-            if (m.key == key) {
+            if (m.key == key && (m.flags & mp::kMobyDead) == 0) {
                 return m.slot;
             }
         }
@@ -297,15 +299,34 @@ struct FakeGame : mp::Game {
         return false;
     }
 
+    // A moby killed: a placed one stays listed, dead (as the port lists it), a spawned one goes.
     bool moby_kill(int slot) override {
-        const auto before = level.size();
-        level.erase(
-            std::remove_if(level.begin(), level.end(), [&](const mp::MobyState& m) { return m.slot == slot; }),
-            level.end()
-        );
         world_calls.push_back("kill " + std::to_string(slot));
-        return level.size() != before;
+        return die(slot);
     }
+
+    bool die(int slot) {
+        for (auto it = level.begin(); it != level.end(); ++it) {
+            if (it->slot != slot || (it->flags & mp::kMobyDead) != 0) {
+                continue;
+            }
+            if (it->key >= 0) {
+                it->flags |= mp::kMobyDead;
+            } else {
+                level.erase(it);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // The game's listing as a menu with its own mobys (or a load) gives it: nothing.
+    bool listing_blank = false;
+    bool overlay = false;
+
+    void overlay_pause(bool on) override { overlay = on; }
+
+    void skip() override { calls.push_back("skip"); }
 
     int moby_spawn(int oclass, const mp::Pose& pose) override {
         mp::MobyState m;
@@ -699,19 +720,25 @@ void the_world_is_the_hosts() {
     CHECK(member.game.hits.size() == 1 && member.game.hits[0].victim == 99 && member.game.hits[0].attacker == 0);
     CHECK(member.game.hits[0].damage == 2.0f);
 
-    // The member breaks the crate: the host's goes too.
-    member.game.level.erase(member.game.level.begin() + 1);
+    // The member breaks the crate: the host's breaks too (a wrench's hit posted to it, its drop
+    // kept quiet), and is deleted if it has not broken by the deadline.
+    const std::size_t hits_before = host.game.hits.size();
+    member.game.die(1);
     tick({&host, &member}, 50);
     tick({&host, &member}, 50);
-    CHECK(host.game.moby_slot(1) == -1);
+    CHECK(host.game.hits.size() == hits_before + 1 && host.game.hits.back().victim == 1);
+    CHECK(host.game.hits.back().mask == 0x10000 && host.game.hits.back().attacker == 99);
+    CHECK(host.world.quiet_death(1) && !host.world.quiet_death(0));
+    tick({&host, &member}, mp::kReplayMs + 50);
+    CHECK(host.game.moby_slot(1) == -1 && !host.world.quiet_death(1));
 
     // The host's enemy dies, its bolt is picked up: gone in the member's game too.
-    host.game.level.erase(host.game.level.begin());
-    host.game.level.pop_back();
+    host.game.die(0);
+    host.game.die(300);
     tick({&host, &member}, 50);
     tick({&host, &member}, 50);
     CHECK(member.game.moby_slot(0) == -1 && member.world.spawned() == 0);
-    CHECK(member.game.level.size() == 1 && member.game.level[0].key == 2);
+    CHECK(member.game.moby_slot(2) == 2 && member.game.moby_slot(1) == -1);
 }
 
 // A member of another build refuses the host's game; a member in the host's game goes back to the
@@ -749,6 +776,215 @@ void builds_and_the_end() {
     CHECK(member2.game.calls.back() == "travel -1" && !member2.coop.playing());
 }
 
+// A game in a menu (the pause menu's own mobys up, or a load) lists nothing: nothing is taken for
+// dead, on either side; the world is asked to run on under menus while the party plays.
+void a_menu_kills_nothing() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    CHECK(!host.game.overlay);
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    CHECK(host.game.overlay && member.game.overlay);
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, runs | mp::kMobyCreature, 10.0f), moby(1, 1, 500, runs, 20.0f),
+                         moby(2, 2, 501, runs, 25.0f)};
+    }
+    member.game.hero_pose.position[0] = 12.0f;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    const std::size_t member_kills = member.game.world_calls.size();
+    const std::size_t host_kills = host.game.world_calls.size();
+
+    // The host pauses (its listing goes blank for a while), then the member does.
+    host.game.now.phase = mp::kPhaseMenu;
+    host.game.listing_blank = true;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    host.game.now.phase = mp::kPhasePlaying;
+    host.game.listing_blank = false;
+    member.game.now.phase = mp::kPhaseMenu;
+    member.game.listing_blank = true;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    member.game.now.phase = mp::kPhasePlaying;
+    member.game.listing_blank = false;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+
+    // Nothing killed in either game, every moby still there, and the member still shown.
+    CHECK(member.game.world_calls.size() == member_kills);
+    CHECK(std::none_of(host.game.world_calls.begin() + static_cast<std::ptrdiff_t>(host_kills),
+                       host.game.world_calls.end(), [](const std::string& c) { return c.rfind("kill", 0) == 0; }));
+    for (Player* p : {&host, &member}) {
+        CHECK(p->game.moby_slot(0) == 0 && p->game.moby_slot(1) == 1 && p->game.moby_slot(2) == 2);
+    }
+    CHECK(host.coop.figures() == 1 && member.coop.figures() == 1);
+
+    // The party over: the game is the game again.
+    mp::Message end;
+    end.kind = mp::Message::Kind::kPartyEnd;
+    member.session.handle(end);
+    tick({&member}, 16);
+    CHECK(!member.game.overlay);
+}
+
+// Each class as the inventory has it: a vendor is each game's own (not driven), a gold bolt a member
+// collects is gone in the host's game too (removed, no hit), ammo an enemy of the host drops is the
+// member's own to collect (made undriven, kept when the host's is taken).
+void classes_are_shared_as_they_should_be() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 11, runs, 5.0f), moby(1, 1, 1134, runs, 6.0f),
+                         moby(2, 2, 300, runs | mp::kMobyCreature, 7.0f)};
+    }
+    member.game.hero_pose.position[0] = 6.0f;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK((member.game.drives == std::set<int>{2}));  // the enemy only
+
+    // The member takes the gold bolt: the host's is removed, without a hit.
+    const std::size_t hits = host.game.hits.size();
+    member.game.die(1);
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(host.game.moby_slot(1) == -1 && host.game.hits.size() == hits);
+
+    // An enemy of the host drops ammo (class 204): the member gets its own, undriven.
+    host.game.level.push_back(moby(301, -1, 204, mp::kMobyUpdates, 8.0f));
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    const auto ammo = std::find_if(member.game.level.begin(), member.game.level.end(),
+                                   [](const mp::MobyState& m) { return m.oclass == 204; });
+    CHECK(ammo != member.game.level.end() && member.game.drives.count(ammo->slot) == 0);
+    // The host collects its own: the member keeps its copy.
+    host.game.level.pop_back();
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(std::any_of(member.game.level.begin(), member.game.level.end(),
+                      [](const mp::MobyState& m) { return m.oclass == 204; }));
+}
+
+// A long session: the server's clock is asked again every kClockMs (TIME frames), the buffers stay
+// bounded however long poses come.
+void a_long_session() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
+    int times = 0;
+    for (int i = 0; i < 2000; ++i) {  // 100 seconds
+        host.game.hero_pose.position[0] = static_cast<float>(i) * 0.05f;
+        for (Player* p : {&host, &member}) {
+            p->clock += 50;
+            p->coop.tick(p->clock);
+            for (const Bytes& f : p->link.frames) {
+                times += f.size() > 4 && f[4] == static_cast<std::uint8_t>(mp::PacketId::kTime) ? 1 : 0;
+            }
+        }
+        route({&host, &member});
+    }
+    CHECK(times >= 6);  // each game about 3 times in 100 s
+    CHECK(member.coop.remotes().at(1).poses.size() <= mp::kBufferSamples);
+    CHECK(member.coop.figures() == 1);
+}
+
+// Scenes end together: the host's skip ends the member's scene (the game's own skip), the member's
+// Start does nothing while the host's scene plays, and whoever is out first waits for the others.
+void scenes_end_together() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    member.game.calls.clear();
+
+    // Both in the level's scene (a landing): the member's Start is held back, nobody is held.
+    host.game.now.phase = member.game.now.phase = mp::kPhaseScene;
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.coop.host_scene() && member.coop.block_start() && !host.coop.block_start());
+    CHECK(!member.coop.hold_input() && !host.coop.hold_input());
+    CHECK(member.game.calls.empty());
+
+    // The host skips: out of its scene; the member's is skipped a moment later (again until it is
+    // out), and the host waits for it.
+    host.game.now.phase = mp::kPhasePlaying;
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.calls.empty());  // not at once
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(!member.coop.host_scene() && !member.coop.block_start());
+    CHECK(!member.game.calls.empty() && member.game.calls.back() == "skip");
+    CHECK(host.coop.hold_input());
+    member.game.now.phase = mp::kPhasePlaying;
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(!host.coop.hold_input() && !member.coop.hold_input());
+    const std::size_t skips = member.game.calls.size();
+    tick({&host, &member}, 1000);
+    CHECK(member.game.calls.size() == skips);  // no skip out of a scene
+
+    // The host in a scene the member is out of: the member waits (its control held).
+    host.game.now.phase = mp::kPhaseScene;
+    for (int i = 0; i < 3; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.coop.hold_input() && !host.coop.hold_input());
+    host.game.now.phase = mp::kPhasePlaying;
+    for (int i = 0; i < 3; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(!member.coop.hold_input());
+
+    // A member that never leaves its scene does not hold the host for ever.
+    member.game.now.phase = mp::kPhaseScene;
+    for (int i = 0; i < 3; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(host.coop.hold_input());
+    for (std::uint64_t t = 0; t <= mp::kBarrierMs; t += 50) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(!host.coop.hold_input());
+}
+
 }  // namespace
 
 int main() {
@@ -763,6 +999,10 @@ int main() {
     world_bytes();
     the_world_is_the_hosts();
     builds_and_the_end();
+    a_menu_kills_nothing();
+    classes_are_shared_as_they_should_be();
+    a_long_session();
+    scenes_end_together();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

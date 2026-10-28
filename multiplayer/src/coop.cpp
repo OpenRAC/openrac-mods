@@ -208,10 +208,12 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
         case GameKind::kLevel: {
             const std::int32_t play = r.i32();
             const std::int32_t level = r.i32();
+            const bool scene = r.left() > 0 && r.u8() != 0;
 
             if (from_host && r.ok() && play != 0) {
                 play_ = play;
                 host_level_ = level;
+                host_scene_ = scene;
             }
 
             break;
@@ -263,10 +265,20 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
     const auto now = static_cast<double>(clock_());
     const double time =
         session_.has_clock() ? static_cast<double>(m.stamp_ms) - session_.clock_offset_ms() : now;
-    remotes_[m.owner].poses.add(m.pose, m.sequence, time, now, m.teleport);
+    Remote& r = remotes_[m.owner];
+    r.poses.add(m.pose, m.sequence, time, now, m.teleport);
+    r.scene = m.scene;
 }
 
 void Coop::tick(std::uint64_t now) {
+    // A party playing: the world runs on under the game's menus; otherwise the game as it is.
+    const bool overlay = session_.in_party() && play_ != 0;
+
+    if (overlay != overlay_) {
+        overlay_ = overlay;
+        game_.overlay_pause(overlay);
+    }
+
     if (!session_.in_party()) {
         // The party went: so does what was shown of it, and a member in the host's game (whose
         // world was the host's) goes back to the title.
@@ -284,6 +296,14 @@ void Coop::tick(std::uint64_t now) {
 
     member_playing_ = !session_.is_host() && play_ != 0 && applied_ == play_;
 
+    // The clock asked again now and then, so a long session's stamps do not drift.
+    if (clock_ms_ == 0) {
+        clock_ms_ = now;
+    } else if (now - clock_ms_ >= kClockMs) {
+        clock_ms_ = now;
+        session_.sync_clock();
+    }
+
     const GameStatus status = game_.status();
 
     if (session_.is_host()) {
@@ -294,6 +314,41 @@ void Coop::tick(std::uint64_t now) {
 
     send_pose(now, status);
     show_remotes(now, status);
+    update_barrier(now, status);
+}
+
+void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
+    bool waiting = false;
+
+    if (session_.is_host() && play_ != 0) {
+        // The host out of a scene while a member in its level still plays one.
+        for (const auto& [id, r] : remotes_) {
+            Pose p;
+            waiting = waiting
+                      || (r.scene && r.poses.newest(p) && p.level == status.level
+                          && r.poses.silence_ms(static_cast<double>(now)) < 2000.0);
+        }
+    } else if (play_ != 0 && applied_ == play_ && host_level_ == status.level) {
+        // A member out of its scene while the host's goes on.
+        waiting = host_scene_;
+    }
+
+    waiting = waiting && status.phase == kPhasePlaying;
+
+    if (!waiting) {
+        hold_since_ = 0;
+        hold_ = false;
+    } else {
+        if (hold_since_ == 0) {
+            hold_since_ = now;
+            log("waiting for the others to leave their scene");
+        }
+
+        const std::uint64_t most = session_.is_host() ? kBarrierMs : kHostSceneMs;
+        hold_ = now - hold_since_ < most;
+    }
+
+    block_start_ = !session_.is_host() && play_ != 0 && status.phase == kPhaseScene && host_scene_;
 }
 
 void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
@@ -329,12 +384,21 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
     // The level played, at each change and once a second.
     const int level = in_level(status.phase) ? status.level : -1;
 
-    if (level != sent_level_ || now - level_ms_ >= kLevelMs) {
+    const bool scene = status.phase == kPhaseScene;
+    host_scene_ = scene;
+
+    if (level != sent_level_ || scene != sent_scene_ || now - level_ms_ >= kLevelMs) {
         sent_level_ = level;
+        sent_scene_ = scene;
         level_ms_ = now;
         session_.send_data(
             kBroadcast,
-            Writer().u8(static_cast<std::uint8_t>(GameKind::kLevel)).i32(play_).i32(level).bytes()
+            Writer()
+                .u8(static_cast<std::uint8_t>(GameKind::kLevel))
+                .i32(play_)
+                .i32(level)
+                .u8(scene ? 1 : 0)
+                .bytes()
         );
     }
 }
@@ -362,6 +426,28 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
                 host_level_ = pending_level_;
             }
         }
+    }
+
+    // A scene of this game's that the host is out of (skipped there, or played out): skipped here,
+    // through the game's own skip, so the party goes on together.
+    const bool together = play_ != 0 && applied_ == play_ && host_level_ == status.level;
+
+    if (host_scene_ || host_out_since_ == 0) {
+        host_out_since_ = host_scene_ ? 0 : now;
+    }
+
+    const bool host_out = !host_scene_ && host_out_since_ != 0 && now - host_out_since_ >= kHostOutMs;
+
+    if (together && status.phase == kPhaseScene && host_out
+        && (skip_ms_ == 0 || now - skip_ms_ >= kSkipMs)) {
+        if (skip_ms_ == 0) {
+            log("the host is out of the scene: skipping it here");
+        }
+
+        skip_ms_ = now;
+        game_.skip();
+    } else if (status.phase != kPhaseScene) {
+        skip_ms_ = 0;
     }
 
     // In the host's game: in the host's level.
@@ -398,6 +484,7 @@ void Coop::send_pose(std::uint64_t now, const GameStatus& status) {
     m.teleport = !pose_sent_ || status.loads != pose_loads_ || m.pose.level != last_pose_.level
                  || step(m.pose, last_pose_) > kSnapDistance;
     m.owner = session_.id();
+    m.scene = status.phase == kPhaseScene;
     m.sequence = ++sequence_;
     m.stamp_ms = session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(now);
     pose_ms_ = now;
@@ -491,6 +578,9 @@ void Coop::reset() {
     expected_ = received_ = 0;
     applied_ = 0;
     member_playing_ = false;
+    host_scene_ = sent_scene_ = false;
+    hold_ = block_start_ = false;
+    hold_since_ = skip_ms_ = host_out_since_ = 0;
     host_level_ = -1;
     sent_level_ = -2;
     pose_sent_ = false;

@@ -138,6 +138,7 @@ World::World(Session& session, Game& game, Coop& coop, std::function<std::uint64
 void World::reset() {
     mobys_.clear();
     alive_keys_.clear();
+    dead_keys_.clear();
     listed_ = false;
     shared_.clear();
     members_.clear();
@@ -147,6 +148,8 @@ void World::reset() {
     net_slot_.clear();
     host_killed_.clear();
     placed_class_.clear();
+    replays_.clear();
+    loot_.clear();
     hosting_ = false;
     level_ = -1;
 }
@@ -217,71 +220,84 @@ void World::tick(std::uint64_t now) {
 
     hosting_ = session_.is_host() && coop_.playing() && in_level(status.phase);
 
-    // This tick's mobys.
-    const std::set<int> was_alive = alive_keys_;
-    mobys_.clear();
-    alive_keys_.clear();
+    // This tick's mobys. A tick the game lists none of (a level loading, a menu that has its own)
+    // changes nothing: what is known holds, and nothing is ever taken for dead by its absence.
+    std::map<int, MobyState> listed;
+    std::set<int> alive;
+    std::set<int> dead;
 
     if (in_level(status.phase)) {
         for (MobyState& m : game_.mobys()) {
-            if (m.key >= 0) {
-                alive_keys_.insert(m.key);
+            m.pose.level = status.level;
+
+            if (m.key >= 0 && (m.flags & kMobyDead) != 0) {
+                dead.insert(m.key);
+                continue;
             }
 
-            m.pose.level = status.level;
-            mobys_[m.slot] = m;
+            if (m.key >= 0) {
+                alive.insert(m.key);
+            }
+
+            listed[m.slot] = m;
         }
     }
+
+    if (listed.empty()) {
+        log_counts(now);
+        return;
+    }
+
+    // The placed mobys the game itself says died since the last listing (the only evidence).
+    std::vector<std::uint16_t> newly_dead;
+
+    for (const int key : dead) {
+        if (dead_keys_.count(key) == 0) {
+            newly_dead.push_back(static_cast<std::uint16_t>(key));
+        }
+    }
+
+    mobys_ = std::move(listed);
+    alive_keys_ = std::move(alive);
+    dead_keys_ = std::move(dead);
 
     if (hosting_) {
         tick_host(now, status);
 
-        // The placed mobys gone since the last tick: dead for everyone.
-        if (listed_) {
-            std::vector<std::uint16_t> killed;
+        // Dead for everyone.
+        for (std::size_t at = 0; at < newly_dead.size(); at += 500) {
+            Writer w;
+            w.u8(static_cast<std::uint8_t>(WorldKind::kKilled))
+                .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+            const std::size_t n = std::min<std::size_t>(500, newly_dead.size() - at);
+            u16(w, static_cast<std::uint16_t>(n));
 
-            for (const int key : was_alive) {
-                if (alive_keys_.count(key) == 0) {
-                    killed.push_back(static_cast<std::uint16_t>(key));
-                }
+            for (std::size_t i = 0; i < n; ++i) {
+                u16(w, newly_dead[at + i]);
             }
 
-            for (std::size_t at = 0; at < killed.size(); at += 500) {
-                Writer w;
-                w.u8(static_cast<std::uint8_t>(WorldKind::kKilled))
-                    .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
-                const std::size_t n = std::min<std::size_t>(500, killed.size() - at);
-                u16(w, static_cast<std::uint16_t>(n));
-
-                for (std::size_t i = 0; i < n; ++i) {
-                    u16(w, killed[at + i]);
-                }
-
-                session_.send_data(kBroadcast, w.bytes());
-                counts_.kills += static_cast<int>(n);
-            }
+            session_.send_data(kBroadcast, w.bytes());
+            counts_.kills += static_cast<int>(n);
         }
     } else if (!session_.is_host()) {
         tick_member(now, status);
 
-        // A crate gone here that the host did not kill: broken here, so gone in every game.
-        if (listed_ && coop_.playing() && status.level == coop_.host_level()) {
-            for (const int key : was_alive) {
+        // A crate broken here (the game says so) that the host did not kill: gone in every game.
+        if (coop_.playing() && status.level == coop_.host_level()) {
+            for (const std::uint16_t key : newly_dead) {
                 const auto cls = placed_class_.find(key);
 
-                if (alive_keys_.count(key) == 0 && host_killed_.count(key) == 0
-                    && cls != placed_class_.end() && local_class(cls->second)) {
+                if (host_killed_.count(key) == 0 && cls != placed_class_.end()
+                    && (crate_class(cls->second) || pickup_class(cls->second))) {
                     Writer w;
                     w.u8(static_cast<std::uint8_t>(WorldKind::kBroke))
                         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
-                    u16(w, static_cast<std::uint16_t>(key));
+                    u16(w, key);
                     session_.send_data(session_.host(), w.bytes());
                     ++counts_.kills;
                 }
             }
         }
-
-        placed_class_.clear();
 
         for (const auto& [slot, moby] : mobys_) {
             if (moby.key >= 0) {
@@ -290,8 +306,48 @@ void World::tick(std::uint64_t now) {
         }
     }
 
-    listed_ = in_level(status.phase);
+    // A replayed crate that has not broken by its deadline: deleted.
+    for (auto it = replays_.begin(); it != replays_.end();) {
+        const auto moby = mobys_.find(it->first);
 
+        if (moby == mobys_.end()) {
+            it = replays_.erase(it);
+        } else if (now >= it->second) {
+            game_.moby_kill(it->first);
+            it = replays_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    listed_ = true;
+
+    log_counts(now);
+}
+
+bool World::quiet_death(int slot) {
+    return replays_.count(slot) != 0;
+}
+
+void World::replay_break(int slot, std::uint64_t now) {
+    const auto it = mobys_.find(slot);
+
+    if (it == mobys_.end() || replays_.count(slot) != 0) {
+        return;
+    }
+
+    Hit h;
+    h.victim = slot;
+    h.attacker = game_.figure_slot(-1);
+    // A metal crate takes only an explosion's hit; the others a wrench's.
+    h.mask = it->second.oclass == 502 ? 0x20000u : 0x10000u;
+    h.damage = 1.0f;
+    std::copy(it->second.pose.position, it->second.pose.position + 3, h.position);
+    game_.hit(h);
+    replays_[slot] = now + kReplayMs;
+}
+
+void World::log_counts(std::uint64_t now) {
     // A line in the log now and then of what went on.
     if (now - counts_ms_ >= kWorldLogMs) {
         const Counts& c = counts_;
@@ -316,14 +372,14 @@ void World::send_spawn(std::int32_t target, int level, std::uint16_t net, const 
     session_.send_data(target, w.bytes());
 }
 
-void World::send_alive(std::int32_t member, int level) {
-    const int records = alive_keys_.empty() ? 0 : *alive_keys_.rbegin() + 1;
+void World::send_dead(std::int32_t member, int level) {
+    const int records = dead_keys_.empty() ? 0 : *dead_keys_.rbegin() + 1;
     Writer w;
-    w.u8(static_cast<std::uint8_t>(WorldKind::kAlive)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level)));
+    w.u8(static_cast<std::uint8_t>(WorldKind::kDead)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level)));
     u16(w, static_cast<std::uint16_t>(records));
     std::vector<std::uint8_t> bits(static_cast<std::size_t>((records + 7) / 8), 0);
 
-    for (const int key : alive_keys_) {
+    for (const int key : dead_keys_) {
         bits[static_cast<std::size_t>(key / 8)] |= static_cast<std::uint8_t>(1u << (key % 8));
     }
 
@@ -344,7 +400,8 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         const bool placed_runs = moby.key >= 0 && (moby.flags & kMobyUpdates) != 0 && moby.oclass != 0
                                  && !local_class(moby.oclass);
 
-        if (!placed_runs && shared_.count(slot) == 0) {
+        // The host's loot is every game's own once made: not posed from here.
+        if (!placed_runs && (shared_.count(slot) == 0 || loot_class(moby.oclass))) {
             continue;
         }
 
@@ -388,7 +445,8 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
 
     for (const auto& [slot, moby] : mobys_) {
         const bool counts = moby.key < 0 && moby.oclass != 0
-                            && ((moby.flags & kMobyCreature) != 0 || bolt_class(moby.oclass));
+                            && ((moby.flags & kMobyCreature) != 0 || bolt_class(moby.oclass)
+                                || loot_class(moby.oclass));
 
         if (!counts) {
             continue;
@@ -468,7 +526,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         if (m.told_load != loads_) {
             m.told_load = loads_;
             m.sent.clear();
-            send_alive(who.id, level_);
+            send_dead(who.id, level_);
 
             for (const auto& [slot, net] : shared_) {
                 send_spawn(who.id, level_, net.id, mobys_[slot]);
@@ -543,7 +601,10 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         const int slot = r.ok() && hosting_ && level == level_ ? game_.moby_slot(key) : -1;
         const auto it = mobys_.find(slot);
 
-        if (slot >= 0 && it != mobys_.end() && local_class(it->second.oclass)) {
+        // A crate breaks here as it broke there; a pickup taken there is gone here.
+        if (slot >= 0 && it != mobys_.end() && crate_class(it->second.oclass)) {
+            replay_break(slot, clock_());
+        } else if (slot >= 0 && it != mobys_.end() && pickup_class(it->second.oclass)) {
             game_.moby_kill(slot);
         }
 
@@ -605,8 +666,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             for (std::uint16_t i = 0; i < count && r.ok(); ++i) {
                 const std::uint16_t key = u16(r);
                 const int slot = level == level_ ? game_.moby_slot(key) : -1;
+                const auto moby = mobys_.find(slot);
 
-                if (slot >= 0) {
+                // A crate breaks here as it broke there; anything else goes.
+                if (slot >= 0 && moby != mobys_.end() && crate_class(moby->second.oclass)) {
+                    replay_break(slot, clock_());
+                    ++counts_.kills;
+                } else if (slot >= 0) {
                     game_.moby_kill(slot);
                     driven_.erase(slot);
                     ++counts_.kills;
@@ -633,7 +699,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             const int slot = game_.moby_spawn(oclass, pose);
 
-            if (slot >= 0) {
+            // Loot (ammo, health) an enemy dropped there is this game's own to collect.
+            if (slot >= 0 && loot_class(oclass)) {
+                game_.moby_drive(slot, false);
+                loot_.insert(net);
+                ++counts_.spawns;
+            } else if (slot >= 0) {
                 net_slot_[net] = slot;
                 driven_.insert(slot);
                 ++counts_.spawns;
@@ -649,6 +720,11 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 const std::uint16_t net = u16(r);
                 const auto it = net_slot_.find(net);
 
+                // Loot stays until this game's player collects it.
+                if (loot_.erase(net) != 0) {
+                    continue;
+                }
+
                 if (level == level_ && it != net_slot_.end()) {
                     game_.moby_kill(it->second);
                     driven_.erase(it->second);
@@ -660,7 +736,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             break;
         }
-        case WorldKind::kAlive: {
+        case WorldKind::kDead: {
             const int level = static_cast<std::int8_t>(r.u8());
             const std::uint16_t records = u16(r);
             const Bytes bits = r.rest();
@@ -669,20 +745,22 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 return;
             }
 
-            // A placed moby the host has not (killed there before this game came): gone here too.
+            // A placed moby dead in the host's game (killed there before this game came): dead
+            // here too.
             int killed = 0;
 
             for (const auto& [slot, moby] : mobys_) {
-                const bool alive = moby.key < records
-                                   && (bits[static_cast<std::size_t>(moby.key / 8)] >> (moby.key % 8)) & 1;
+                const bool dead = moby.key >= 0 && moby.key < records
+                                  && (bits[static_cast<std::size_t>(moby.key / 8)] >> (moby.key % 8)) & 1;
 
-                if (moby.key >= 0 && !alive && game_.moby_kill(slot)) {
+                if (dead && game_.moby_kill(slot)) {
                     driven_.erase(slot);
+                    host_killed_.insert(moby.key);
                     ++killed;
                 }
             }
 
-            log("the host's world: " + std::to_string(killed) + " placed mobys gone here too");
+            log("the host's world: " + std::to_string(killed) + " placed mobys dead here too");
             break;
         }
         case WorldKind::kDamage: {

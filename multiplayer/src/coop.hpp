@@ -11,8 +11,9 @@
  *            the host to everyone (at Start) or to one member (who came late, or asked): play this;
  *            a save follows in CHUNKs. `play` names the host's game: a member plays each once.
  *   5 CHUNK  play i32, offset i32, bytes        a piece of PLAY's save, at most kChunkBytes;
- *   6 LEVEL  play i32, level i32                the host to everyone, once a second and at each
- *            change: the level it plays (-1 none); a member in another level travels there;
+ *   6 LEVEL  play i32, level i32, scene u8      the host to everyone, once a second and at each
+ *            change: the level it plays (-1 none), and whether it plays a scene; a member in another
+ *            level travels there;
  *   7 POSE   (play.hpp)                         each player's Ratchet, as state: a member's to the
  *            host, who passes everyone's on to everyone;
  *   8 WANT   play i32                           a member in the title's menus that has not played
@@ -23,7 +24,14 @@
  * card. A member starts the same from the title (play_start), its own card untouched. Joining a
  * game that is on, a member gets the host's progress as it is now (save_capture), in the host's
  * level. A member whose build differs from the host's (the mod, OpenRAC, the disc) refuses it.
- * When the party ends under a member in the host's game, it goes back to the title.
+ * Scenes end together: only the host's skip counts (a member's Start does nothing while the host
+ * plays a scene too); when the host is out of its scene (skipped, or played out), a member still in
+ * one is skipped through the game's own skip (play_skip). Then nobody moves on until everyone is
+ * out (the barrier: a player out first has no control, for at most kBarrierMs, a member while the
+ * host's scene goes on).
+ * When the party ends under a member in the host's game, it goes back to the title. While the
+ * party plays, no game pauses: the pause menu and the game's dialogs open over a world that keeps
+ * running (the SDK's play_overlay_pause), so a player in a menu never stops the others.
  */
 #ifndef MULTIPLAYER_COOP_H
 #define MULTIPLAYER_COOP_H
@@ -62,6 +70,17 @@ constexpr std::uint64_t kWantMs = 5000;
 constexpr std::uint64_t kTravelMs = 4000;
 constexpr std::uint64_t kFigureRetryMs = 1000;
 constexpr double kGoneMs = 5000.0;
+/* How often the server's clock is asked again (TIME): the poses' stamps keep to it over a long
+ * session. */
+constexpr std::uint64_t kClockMs = 30000;
+/* A member's scene skipped again this often while the host is out of its own; the most a player
+ * out of a scene waits for the others (the host for the members; a member for the host). */
+constexpr std::uint64_t kSkipMs = 500;
+/* How long the host must have been out of scenes before a member's scene is skipped (the same
+ * scene may start in the member's game a moment before the host's word of its own comes). */
+constexpr std::uint64_t kHostOutMs = 1000;
+constexpr std::uint64_t kBarrierMs = 10000;
+constexpr std::uint64_t kHostSceneMs = 120000;
 
 /* What the game is doing (the SDK's openrac_play_status). */
 struct GameStatus {
@@ -98,6 +117,7 @@ constexpr std::uint32_t kMobyUpdates = 0x1;
 constexpr std::uint32_t kMobyDriven = 0x2;
 constexpr std::uint32_t kMobyPlaced = 0x4;
 constexpr std::uint32_t kMobyCreature = 0x8;
+constexpr std::uint32_t kMobyDead = 0x10;
 
 /* A hit (the SDK's openrac_hit): victim and attacker by slot (-1 none). */
 struct Hit {
@@ -137,11 +157,16 @@ public:
     virtual bool hit(const Hit& /*hit*/) { return false; }
     virtual void eyes(const std::vector<float>& /*xyz*/) {}
     virtual int bolts(int /*add*/) { return 0; }
+    /* The world kept running under the game's menus (the SDK's play_overlay_pause). */
+    virtual void overlay_pause(bool /*on*/) {}
+    /* The scene playing skipped as the game's own skip does (the SDK's play_skip). */
+    virtual void skip() {}
 };
 
 /* A remote player as the co-op keeps it: its poses and its figure. */
 struct Remote {
     Interpolator poses;
+    bool scene = false;  // its game plays a scene (its last pose said)
     int figure = -1;
     std::uint64_t retry_ms = 0;  // when a figure may be made again
 };
@@ -198,6 +223,15 @@ public:
 
     int figure_of(std::int32_t player) const;
 
+    /* The scene barrier, for the pad: whether this player's control is held (out of a scene while
+     * another player is still in one), and whether its Start is held back (a member in a scene the
+     * host plays too: the host's skip decides). */
+    bool hold_input() const { return hold_; }
+
+    bool block_start() const { return block_start_; }
+
+    bool host_scene() const { return host_scene_; }
+
     /* The last thing worth a line (a start, a save that would not load); take_notice() gives it
      * once. */
     std::string take_notice();
@@ -212,6 +246,7 @@ private:
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_pose(std::uint64_t now, const GameStatus& status);
     void show_remotes(std::uint64_t now, const GameStatus& status);
+    void update_barrier(std::uint64_t now, const GameStatus& status);
     void drop_figure(Remote& r);
 
     Session& session_;
@@ -220,6 +255,8 @@ private:
     /* Whether this game played a member's part of the host's game (it goes back to the title when
      * the party ends). */
     bool member_playing_ = false;
+    /* Whether the game was asked to keep its world running under its menus. */
+    bool overlay_ = false;
     std::function<std::uint64_t()> clock_;
     Bytes chosen_;
     std::string description_;
@@ -240,6 +277,16 @@ private:
     std::uint64_t want_ms_ = 0;
     std::uint64_t travel_ms_ = 0;
     std::uint64_t level_ms_ = 0;
+    std::uint64_t clock_ms_ = 0;
+    /* Scenes: the host's (as LEVEL says, or this game's for the host), the last sent, when a
+     * member's skip was last asked, the barrier's start. */
+    bool host_scene_ = false;
+    bool sent_scene_ = false;
+    std::uint64_t skip_ms_ = 0;
+    std::uint64_t host_out_since_ = 0;
+    std::uint64_t hold_since_ = 0;
+    bool hold_ = false;
+    bool block_start_ = false;
     int sent_level_ = -2;
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
