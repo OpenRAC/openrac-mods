@@ -8,6 +8,7 @@
 //     reader cutting frames however the bytes arrive;
 //   - the session's lobby against a recorder: hello, a party created and joined, members coming
 //     and going, Ready and Start in DATA, refusals, the host leaving, the game's own DATA passed on;
+//     Ready toggling, and Start refused until every member is ready (a newcomer is not);
 //   - the connection against a server made here on the loopback: TCP, hello sent, the answer read;
 //   - Direct connect: the embedded host (host.hpp) in-process with two clients on the loopback:
 //     hello, the unasked INFO, chat, DATA both ways, the lobby, leave and find again, UDP BIND and
@@ -694,6 +695,72 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::utf16_length("\xf0\x9f\x98\x80") == 2);
 }
 
+// Ready and Start: a member's Ready toggles; the host's Start waits for every member's; a member
+// who joins takes all-ready away until it says Ready; one who leaves no longer counts.
+void start_waits_for_everyone_ready() {
+    Recorder link;
+    mp::Session host(link, "v", "Hosty");
+    host.connected();
+    host.handle(decoded(server(mp::Writer().u8(0).i32(1))));
+    CHECK(!host.all_ready());  // no party
+    host.create();
+    host.handle(
+        decoded(server(mp::Writer().u8(1).u8(3).str("ABCDEF").i32(1).u8(1).i32(1).str("Hosty")))
+    );
+    // A host alone may start; then two members join, neither ready.
+    CHECK(host.all_ready());
+    host.handle(decoded(server(mp::Writer().u8(1).u8(4).i32(2).str("Guesty"))));
+    host.handle(decoded(server(mp::Writer().u8(1).u8(4).i32(3).str("Other"))));
+    CHECK(!host.all_ready());
+    const std::size_t sent = link.frames.size();
+    CHECK(!host.start() && !host.started() && link.frames.size() == sent);
+
+    // One ready is not enough; both are.
+    const auto ready = [&](std::int32_t id, std::uint8_t flag) {
+        host.handle(decoded(server(mp::Writer().u8(3).i32(id).u8(1).u8(flag))));
+    };
+    ready(2, 1);
+    CHECK(host.ready(2) && !host.all_ready() && !host.start());
+    ready(3, 1);
+    CHECK(host.all_ready());
+
+    // A newcomer is not ready: all-ready is gone until it says so.
+    host.handle(decoded(server(mp::Writer().u8(1).u8(4).i32(4).str("Late"))));
+    CHECK(!host.all_ready() && !host.ready(4) && !host.start());
+    ready(4, 1);
+    CHECK(host.all_ready());
+    // A member taking it back: not ready again.
+    ready(3, 0);
+    CHECK(!host.all_ready() && !host.start());
+    // One leaving no longer counts: the others are ready.
+    host.handle(decoded(server(mp::Writer().u8(1).u8(5).i32(3))));
+    CHECK(host.all_ready() && host.start() && host.started());
+    CHECK(link.frames.back() == mp::data(mp::kBroadcast, {3}));
+
+    // The member's side: Ready, then Not ready, a READY each way to the host.
+    Recorder guest_link;
+    mp::Session guest(guest_link, "v", "Guesty");
+    guest.connected();
+    guest.handle(decoded(server(mp::Writer().u8(0).i32(2))));
+    guest.join("ABCDEF");
+    guest.handle(decoded(server(
+        mp::Writer().u8(1).u8(3).str("ABCDEF").i32(1).u8(2).i32(1).str("Hosty").i32(2).str("Guesty")
+    )));
+    CHECK(!guest.ready(2) && !guest.all_ready());
+    guest.toggle_ready();
+    CHECK(guest.ready(2) && guest.all_ready() && guest_link.frames.back() == mp::data(1, {1, 1}));
+    guest.toggle_ready();
+    CHECK(!guest.ready(2) && guest_link.frames.back() == mp::data(1, {1, 0}));
+    CHECK(!guest.start());  // a member never starts
+
+    // A new party (INFO again) starts with nobody ready.
+    guest.toggle_ready();
+    guest.handle(decoded(server(
+        mp::Writer().u8(1).u8(3).str("ABCDEF").i32(1).u8(2).i32(1).str("Hosty").i32(2).str("Guesty")
+    )));
+    CHECK(!guest.ready(2));
+}
+
 // A host and two clients on the loopback, as three games would play.
 void direct_connect_plays_a_party() {
     Player host("Host");
@@ -770,11 +837,22 @@ void direct_connect_plays_a_party() {
     CHECK(a.count(mp::Message::Kind::kData, 0, &to_b) == 0);
     CHECK(host.count(mp::Message::Kind::kData, 0, &to_all) == 0);
 
-    // The lobby rides on it unchanged: Ready reaches the host, and its STATE the others.
+    // The lobby rides on it unchanged: Ready reaches the host, and its STATE the others. Start
+    // waits for everyone: refused with Bob not ready, then taken once he is.
     a.session->toggle_ready();
     CHECK(pump_until(all, [&] {
         return host.session->ready(a.session->id()) && b.session->ready(a.session->id());
     }));
+    CHECK(!host.session->all_ready() && !host.session->start() && !host.session->started());
+    b.session->toggle_ready();
+    CHECK(pump_until(all, [&] {
+        return host.session->all_ready() && a.session->ready(b.session->id());
+    }));
+    // Not ready again, and back: a toggle each way, as the host hears it.
+    b.session->toggle_ready();
+    CHECK(pump_until(all, [&] { return !host.session->all_ready(); }));
+    b.session->toggle_ready();
+    CHECK(pump_until(all, [&] { return host.session->all_ready(); }));
 
     // UDP: state over datagrams once bound, both ways; confirmed when datagrams come back.
     const Bytes pose_host{0x20, 1};
@@ -1199,6 +1277,7 @@ int main() {
     server_frames_are_read();
     frames_are_cut_however_they_arrive();
     a_party_is_created_joined_and_left();
+    start_waits_for_everyone_ready();
     match_finding_and_the_clock();
     names_and_addresses();
     the_connection_talks_tcp();

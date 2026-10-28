@@ -879,6 +879,21 @@ void tick(std::vector<Player*> players, std::uint64_t ms) {
     route(players);
 }
 
+// The host's Start, once every member has said Ready (as each member's READY reaching it would).
+bool start_ready(Player& host) {
+    for (const mp::Member& m : host.session.members()) {
+        if (m.id != host.session.id() && !host.session.ready(m.id)) {
+            mp::Message ready;
+            ready.kind = mp::Message::Kind::kData;
+            ready.id = m.id;
+            ready.bytes = {static_cast<std::uint8_t>(mp::LobbyKind::kReady), 1};
+            host.session.handle(ready);
+        }
+    }
+
+    return host.coop.start();
+}
+
 void the_host_starts_a_save_and_the_member_follows() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -898,6 +913,11 @@ void the_host_starts_a_save_and_the_member_follows() {
     }
     host.coop.choose(save, "Kerwan");
     CHECK(!member.coop.start());  // only the host starts
+    // Not before the member is ready: the host's Start is refused and nothing is sent.
+    CHECK(!host.coop.start() && host.game.calls.empty() && !host.session.started());
+    member.session.toggle_ready();
+    route({&host, &member});
+    CHECK(host.session.ready(2) && host.session.all_ready());
     CHECK(host.coop.start());
     CHECK(!host.coop.start());  // once
     CHECK((host.game.calls == std::vector<std::string>{"start -1 40000"}));
@@ -952,7 +972,7 @@ void a_new_game_and_a_late_member() {
     host.session.handle(info({{1, "P1"}, {2, "P2"}}));
     member.session.handle(info({{1, "P1"}, {2, "P2"}}));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     CHECK((member.game.calls == std::vector<std::string>{"start 0 0"}));
@@ -1021,7 +1041,7 @@ void a_member_out_of_the_game_asks_for_it() {
     host.session.handle(info({{1, "P1"}, {2, "P2"}}));
     // The member joins after the start, while the host is still loading: not told yet.
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     host.game.now = {mp::kPhaseLoading, 0, 1};
     tick({&host}, 16);
     member.session.handle(info({{1, "P1"}, {2, "P2"}}));
@@ -1064,7 +1084,7 @@ void the_world_is_the_hosts() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
 
@@ -1168,7 +1188,7 @@ void the_hosts_hidden_mobys_are_hidden_here() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
 
@@ -1304,7 +1324,7 @@ void the_world_logs_its_despawns() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     std::vector<std::string> member_log;
@@ -1342,7 +1362,7 @@ void the_verbose_log_traces_a_pause() {
         host.session.handle(info(both));
         member.session.handle(info(both));
         host.coop.choose({}, "New game");
-        CHECK(host.coop.start());
+        CHECK(start_ready(host));
         route({&host, &member});
         tick({&host, &member}, 16);
         std::vector<std::string> host_lines, member_lines;
@@ -1447,7 +1467,7 @@ void builds_and_the_end() {
     host.coop.set_build("mp/0.5.0 1.0 pal");
     member.coop.set_build("mp/0.5.0 1.0 ntsc");
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     CHECK(member.game.calls.empty() && member.coop.take_notice().find("Incompatible version") == 0);
@@ -1460,7 +1480,7 @@ void builds_and_the_end() {
     host2.session.handle(info(both));
     member2.session.handle(info(both));
     host2.coop.choose({}, "New game");
-    CHECK(host2.coop.start());
+    CHECK(start_ready(host2));
     route({&host2, &member2});
     tick({&host2, &member2}, 16);
     member2.game.now = {mp::kPhasePlaying, 0, 2};
@@ -1491,7 +1511,7 @@ void the_pause_page_shows_the_party_and_leaves() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     member.game.now = {mp::kPhasePlaying, 0, 2};
@@ -1558,7 +1578,7 @@ void a_menu_kills_nothing() {
     member.session.handle(info(both));
     CHECK(!host.game.overlay);
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     CHECK(host.game.overlay && member.game.overlay);
@@ -1622,7 +1642,7 @@ void a_pause_keeps_the_world_whole() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
@@ -1687,7 +1707,7 @@ void classes_are_shared_as_they_should_be() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
@@ -1732,7 +1752,7 @@ void a_long_session() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
@@ -1764,7 +1784,7 @@ void scenes_end_together() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
@@ -1859,7 +1879,7 @@ void the_hosts_scenes_play_everywhere() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
@@ -1998,7 +2018,7 @@ void a_skip_anywhere_skips_everywhere() {
         p->session.handle(info(all));
     }
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &a, &b});
     tick({&host, &a, &b}, 16);
     for (Player* p : {&host, &a, &b}) {
@@ -2058,7 +2078,7 @@ struct SceneParty {
         host.session.handle(info(both));
         member.session.handle(info(both));
         host.coop.choose({}, "New game");
-        CHECK(host.coop.start());
+        CHECK(start_ready(host));
         route({&host, &member});
         tick({&host, &member}, 16);
         host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
@@ -2343,7 +2363,7 @@ void held_items_and_shots_reach_the_figure() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = {mp::kPhasePlaying, 0, 2};
@@ -2432,7 +2452,7 @@ void a_ship_travel_takes_the_party_along() {
     host.session.handle(info(both));
     member.session.handle(info(both));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 11, 2};
@@ -2544,7 +2564,7 @@ void the_party_arrives_together() {
         p->session.handle(info(all));
     }
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &fast, &slow});
     tick({&host, &fast, &slow}, 16);
     for (Player* p : {&host, &fast, &slow}) {
@@ -2596,7 +2616,7 @@ struct Party {
         a.session.handle(info(all));
         b.session.handle(info(all));
         host.coop.choose({}, "New game");
-        CHECK(host.coop.start());
+        CHECK(start_ready(host));
         route(players());
         tick(players(), 16);
 
@@ -2751,7 +2771,7 @@ void leaving_from_the_title() {
     Player host(1);
     host.session.handle(info({{1, "P1"}}));
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     tick({&host}, 16);
     host.session.leave();
     tick({&host}, 16);
@@ -2783,7 +2803,7 @@ void a_long_pause_keeps_the_figure() {
     std::vector<std::string> host_log;
     host.coop.on_log([&](const std::string& l) { host_log.push_back(l); });
     host.coop.choose({}, "New game");
-    CHECK(host.coop.start());
+    CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = {mp::kPhasePlaying, 0, 2};

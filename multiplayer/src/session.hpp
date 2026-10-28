@@ -76,7 +76,9 @@ public:
     void join(const std::string& code);
     void leave();
     void toggle_ready();
-    void start();
+    /* The host starts the game for everyone, once, and only when all_ready(). Returns whether it
+     * did. */
+    bool start();
 
     /* DATA that is not the lobby's: `callback(sender, bytes)` gets each, in a party; send_data sends
      * bytes (their first not a LobbyKind) to `target` (kBroadcast: every other member; a member's
@@ -143,6 +145,12 @@ public:
     std::uint32_t lists() const { return lists_; }
 
     bool ready(std::int32_t member) const { return ready_.count(member) != 0; }
+
+    /* Whether every member but the host is ready (the host's Start is its own word), as the
+     * player last heard: true for a host alone, false out of a party. A member who joins is not
+     * ready yet, so it takes all-ready away until it says so. Every release of the mod sends
+     * READY (it came with the lobby in 0.1.0), so no member is exempt: an old one says Ready too. */
+    bool all_ready() const;
 
     bool started() const { return started_; }
 

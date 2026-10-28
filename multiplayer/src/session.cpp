@@ -140,10 +140,17 @@ void Session::toggle_ready() {
     }
 }
 
-void Session::start() {
-    // Only the host starts, once.
-    if (!is_host() || started_) {
-        return;
+bool Session::all_ready() const {
+    // Out of a party nobody is; in one, each member but the host.
+    return in_party() && std::all_of(members_.begin(), members_.end(), [&](const Member& m) {
+               return m.id == host_ || ready(m.id);
+           });
+}
+
+bool Session::start() {
+    // Only the host starts, once, and only with everyone ready.
+    if (!is_host() || started_ || !all_ready()) {
+        return false;
     }
 
     started_ = true;
@@ -151,6 +158,7 @@ void Session::start() {
         data(kBroadcast, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kStart)).bytes())
     );
     notice_ = "Game starting";
+    return true;
 }
 
 void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) {

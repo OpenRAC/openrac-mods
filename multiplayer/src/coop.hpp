@@ -328,7 +328,7 @@ public:
     const std::string& description() const { return description_; }
 
     /* The host's Start: everyone plays the chosen game, the host too. False when it cannot (not
-     * the host, already playing, the game not in the title). */
+     * the host, already playing, the game not in the title, a member not ready). */
     bool start();
 
     /* A member back in the title with the host's game on: asks for it again (WANT), as one that

@@ -641,9 +641,9 @@ void show_direct() {
     g->direct_page.set(c);
 }
 
-/* Lobby: Ready or Start, Leave, then the members (the host marked, the ready ones, the player). A
- * direct party's title says where it is: the host's own addresses (all that fit, the first in the
- * title), or the address joined. */
+/* Lobby: Ready or Start, Leave, then the members (the host marked, each ready or not, the player).
+ * Start is dim until every member is ready. A direct party's title says where it is: the host's
+ * own addresses (all that fit, the first in the title), or the address joined. */
 void show_lobby() {
     const mp::Session& s = *g->session;
     openrac::UiContent c;
@@ -655,10 +655,10 @@ void show_lobby() {
                               : rejoin            ? "Join the game"
                               : s.ready(s.id())   ? "Not ready"
                                                   : "Ready";
+    // Start waits for every member's Ready: dim until then, and the port refuses it.
+    const bool can = s.is_host() ? !s.started() && title && s.all_ready() : !s.started();
     c.items = {
-        openrac::UiItem::button(
-            first, rejoin ? !g->coop->receiving() : !s.started() && (!s.is_host() || title)
-        ),
+        openrac::UiItem::button(first, rejoin ? !g->coop->receiving() : can),
         openrac::UiItem::button("Leave"),
     };
 
@@ -694,18 +694,25 @@ void show_lobby() {
 
     for (const mp::Member& m : s.members()) {
         const bool host = m.id == s.host();
-        std::string line = m.name + (host ? " (host)" : s.ready(m.id) ? " (ready)" : "");
+        std::string line = m.name
+                           + (host            ? " (host)"
+                              : s.ready(m.id) ? " (ready)"
+                                              : " (not ready)");
         line += m.id == s.id() ? " - you" : "";
         c.items.push_back(openrac::UiItem::text(line));
     }
 
     const std::string ping = s.has_clock() ? ", ping " + std::to_string(s.rtt_ms()) + " ms" : "";
+    // The host is told why Start is dim (on the count line: the list is full with four members).
+    const std::string waiting =
+        s.is_host() && !s.started() && title && !s.all_ready() ? ", not all ready" : "";
     c.items.push_back(
         openrac::UiItem::text(
             std::to_string(s.members().size()) + " of " + std::to_string(mp::kMaxPartySize)
-            + " players" + ping
+            + " players" + ping + waiting
         )
     );
+
     c.footer = {status(), mp::kSelectLeaveHints};
     g->lobby.set(c);
 }

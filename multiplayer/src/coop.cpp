@@ -88,8 +88,9 @@ int Coop::figures() const {
 }
 
 bool Coop::start() {
-    // The host starts, once, from the title.
-    if (!session_.is_host() || play_ != 0 || game_.status().phase != kPhaseFrontEnd) {
+    // The host starts, once, from the title, when every member is ready.
+    if (!session_.is_host() || play_ != 0 || game_.status().phase != kPhaseFrontEnd
+        || !session_.all_ready()) {
         return false;
     }
 
