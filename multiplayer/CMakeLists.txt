@@ -49,6 +49,8 @@ if(BUILD_TESTING)
   add_executable(multiplayer_play_test tests/play_test.cpp src/session.cpp src/protocol.cpp
                  src/coop.cpp src/play.cpp src/world.cpp)
   target_include_directories(multiplayer_play_test PRIVATE src)
+  # Poses recorded from two games (a walk with stops, a stall of the sender's), replayed.
+  target_compile_definitions(multiplayer_play_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
   set_target_properties(multiplayer_play_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_play COMMAND multiplayer_play_test)
 endif()

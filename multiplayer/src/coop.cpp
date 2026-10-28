@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <utility>
 
 namespace mp {
@@ -22,6 +24,20 @@ double step(const Pose& a, const Pose& b) {
     }
 
     return std::sqrt(sum);
+}
+
+/* OPENRAC_ANIM_TRACE set: the poses sent, received and shown, a line each on stderr (ATRACE). */
+bool tracing() {
+    static const bool on = std::getenv("OPENRAC_ANIM_TRACE") != nullptr;
+    return on;
+}
+
+void trace(const char* what, double now, double extra, const Pose& p) {
+    std::fprintf(stderr,
+                 "ATRACE %s %.1f %.1f %d %u %.3f %.3f %.3f %.4f %.3f %.3f %.3f %d %u %u %u %.4f %.4f\n",
+                 what, now, extra, p.level, p.flags, p.position[0], p.position[1], p.position[2],
+                 p.rotation[2], p.velocity[0], p.velocity[1], p.velocity[2], p.state, p.seq, p.frame,
+                 p.next_frame, p.anim_time, p.anim_speed);
 }
 
 bool member_of(const Session& session, std::int32_t id) {
@@ -331,6 +347,11 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
     const double time =
         session_.has_clock() ? static_cast<double>(m.stamp_ms) - session_.clock_offset_ms() : now;
     Remote& r = remotes_[m.owner];
+    if (tracing()) {
+        std::fprintf(stderr, "ATRACE seq %u %d\n", m.sequence, m.teleport ? 1 : 0);
+        trace("R", now, time, m.pose);
+    }
+
     r.poses.add(m.pose, m.sequence, time, now, m.teleport);
     r.scene = m.scene;
 }
@@ -379,6 +400,15 @@ void Coop::tick(std::uint64_t now) {
 
     send_pose(now, status);
     send_shots(status);
+
+    if (tracing() && in_level(status.phase)) {
+        Pose hero;
+
+        if (game_.hero(hero)) {
+            trace("H", static_cast<double>(now), 0.0, hero);
+        }
+    }
+
     show_remotes(now, status);
     update_barrier(now, status);
 }
@@ -699,6 +729,10 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
                 log("player " + std::to_string(it->first) + " shown in level "
                     + std::to_string(status.level) + " (figure " + std::to_string(r.figure) + ")");
             }
+        }
+
+        if (tracing() && r.figure >= 0) {
+            trace("O", t, r.poses.delay_ms(), pose);
         }
 
         if (r.figure >= 0 && !game_.figure_pose(r.figure, pose)) {

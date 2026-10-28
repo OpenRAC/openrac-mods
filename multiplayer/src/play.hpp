@@ -25,11 +25,13 @@
  * The buffer. Each pose is stamped with the sender's estimate of the server's clock; the receiver
  * turns it into its own clock and plays the poses back a delay behind (about 100 ms at 20 a second,
  * more with jitter), between two of them: the position along a cubic Hermite curve through their
- * velocities (a jump stays an arc), the yaw the short way round, the animation and state from the
- * nearer one. The playback cursor runs up to 15 % fast or slow to keep its delay, so a change of
- * delay never jumps; far behind (a stall, then a burst), it jumps. Past the newest pose it goes on
- * along its velocity for at most 150 ms, then holds. A teleport (the sender's flag, a level change,
- * or a step of more than kSnapDistance) starts the buffer again: the figure is put there.
+ * velocities (a jump stays an arc), the yaw the short way round, the place in the animation's seq
+ * on from the one's to the other's (the game keeps the figure to it, play.c), and a new seq and the
+ * state from the nearer one. The playback cursor runs up to 15 % fast or slow to keep its delay, so
+ * a change of delay never jumps; far behind (a stall, then a burst), it jumps. Past the newest pose
+ * it goes on along its velocity for at most 150 ms, then holds (at once when it was slowing down: a
+ * stop). A teleport (the sender's flag, a level change, or a step of more than kSnapDistance) starts
+ * the buffer again: the figure is put there.
  */
 #ifndef MULTIPLAYER_PLAY_H
 #define MULTIPLAYER_PLAY_H
@@ -150,7 +152,8 @@ constexpr double kRateMax = 1.15;
 class Interpolator {
 public:
     /* A pose sent at `time_ms` (its stamp in this clock) that arrived at `arrival_ms`. One not
-     * newer than the newest (by sequence) is dropped; a teleport starts the buffer again. */
+     * newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport, or
+     * one after that silence, starts the buffer again. */
     void add(const Pose& pose, std::uint16_t sequence, double time_ms, double arrival_ms, bool teleport);
 
     /* The pose to show at `now_ms`; false while there is none. */

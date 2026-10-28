@@ -8,7 +8,11 @@
 //   - the interpolation buffer: a steady stream played back a delay behind, smoothly and in order;
 //     repeated and late poses dropped; a teleport put there at once; a stall then a burst caught
 //     up without a jump and the cursor never past the newest pose by more than the extrapolation;
-//     past the newest pose, on along its velocity for 150 ms, then held;
+//     past the newest pose, on along its velocity for 150 ms, then held, and at once when it was
+//     slowing down; a sender back after a silence with its count started again; poses recorded
+//     from two games replayed (tests/data): the seqs shown in the sender's order, the place in a
+//     seq running on without jumps, no stop overshot, repeated and reordered copies changing
+//     nothing;
 //   - the co-op (coop.hpp) with a host and a member, their sessions on recorders and a router that
 //     does what the server does with DATA, and fake games: the host's Start sends its save in
 //     pieces and the member starts it from the title; a new game; the member follows the host's
@@ -267,6 +271,276 @@ void past_the_newest_pose() {
     in.at(900, p);
     CHECK(p.position[0] == held);
     CHECK(in.stalled(2000) && !in.stalled(500));
+}
+
+// A sender slowing to a stop, then nothing more (a stall at the stop): held where the last pose
+// is, not carried on past it along the last velocity and pulled back when the next one comes.
+void a_stop_is_not_overshot() {
+    mp::Interpolator in;
+    const float speeds[] = {10.0f, 10.0f, 10.0f, 8.0f, 6.0f, 4.0f, 2.0f};
+    float x = 0.0f;
+    std::uint16_t seq = 0;
+
+    for (int i = 0; i < 7; ++i) {
+        in.add(pose_at(x, speeds[i]), ++seq, 50.0 * i, 50.0 * i, false);
+        x += speeds[i] * 0.05f;
+    }
+
+    const float stop = x - speeds[6] * 0.05f;
+    float worst = -1e9f;
+
+    for (double t = 300; t <= 1000; t += 16) {
+        mp::Pose p;
+        in.at(t, p);
+        worst = std::max(worst, p.position[0]);
+    }
+
+    CHECK(worst <= stop + 1e-3f);
+}
+
+// A sender gone quiet for longer than a stall and back with its count started again (a new
+// connection): taken, not dropped as older until the count comes round. And across the wrap.
+void a_count_started_again_and_the_wrap() {
+    mp::Interpolator in;
+    in.add(pose_at(0.0f), 40000, 0, 0, false);
+    in.add(pose_at(0.1f), 40001, 50, 50, false);
+    in.add(pose_at(0.2f), 1, 2050, 2050, false);
+    mp::Pose p;
+    CHECK(in.size() == 1 && in.newest(p) && p.position[0] == 0.2f);
+    in.add(pose_at(0.3f), 65535, 2100, 2100, false);  // 1 - 65535 wraps: older, dropped
+    CHECK(in.size() == 1);
+
+    mp::Interpolator w;
+    const std::uint16_t counts[] = {65534, 65535, 0, 1};
+
+    for (int i = 0; i < 4; ++i) {
+        w.add(pose_at(0.1f * i), counts[i], 50.0 * i, 50.0 * i, false);
+    }
+
+    w.add(pose_at(5.0f), 65535, 210, 210, false);  // a late copy from before the wrap
+    CHECK(w.size() == 4 && w.newest(p) && std::fabs(p.position[0] - 0.3f) < 1e-6f);
+}
+
+// A recorded pose: when it came, and what came.
+struct Recorded {
+    double arrival = 0;
+    double stamp = 0;
+    std::uint16_t sequence = 0;
+    bool teleport = false;
+    mp::Pose pose;
+};
+
+std::vector<Recorded> recorded(const char* name) {
+    std::vector<Recorded> out;
+    const std::string path = std::string(MP_TEST_DATA) + "/" + name;
+    std::FILE* f = std::fopen(path.c_str(), "r");
+    CHECK(f != nullptr);
+
+    if (f == nullptr) {
+        return out;
+    }
+
+    char line[512];
+
+    while (std::fgets(line, sizeof line, f) != nullptr) {
+        if (line[0] == '#') {
+            continue;
+        }
+
+        Recorded r;
+        mp::Pose& p = r.pose;
+        unsigned sequence = 0, teleport = 0, flags = 0, seq = 0, frame = 0, next = 0;
+        int level = 0, state = 0;
+        const int n = std::sscanf(
+            line, "%lf,%lf,%u,%u,%d,%u,%f,%f,%f,%f,%f,%f,%f,%d,%u,%u,%u,%f,%f", &r.arrival, &r.stamp,
+            &sequence, &teleport, &level, &flags, &p.position[0], &p.position[1], &p.position[2],
+            &p.rotation[2], &p.velocity[0], &p.velocity[1], &p.velocity[2], &state, &seq, &frame,
+            &next, &p.anim_time, &p.anim_speed
+        );
+
+        if (n != 19) {
+            continue;
+        }
+
+        r.sequence = static_cast<std::uint16_t>(sequence);
+        r.teleport = teleport != 0;
+        p.level = level;
+        p.flags = flags;
+        p.state = static_cast<int>(out.size());  // the index, for the checks (replays)
+        (void)state;
+        p.health = 4;
+        p.seq = seq;
+        p.frame = frame;
+        p.next_frame = next;
+        out.push_back(r);
+    }
+
+    std::fclose(f);
+    return out;
+}
+
+// The poses shown 60 times a second while `poses` arrive; with `copies`, each pose arrives again
+// later (a repeat) and an older one with it (reordered), as UDP and the TCP fallback may give them.
+std::vector<mp::Pose> replay(const std::vector<Recorded>& poses, bool copies) {
+    struct Arrival {
+        double at;
+        const Recorded* r;
+    };
+
+    std::vector<Arrival> arrivals;
+
+    for (std::size_t i = 0; i < poses.size(); ++i) {
+        arrivals.push_back({poses[i].arrival, &poses[i]});
+
+        if (copies) {
+            arrivals.push_back({poses[i].arrival + 30.0, &poses[i]});
+
+            if (i > 0) {
+                arrivals.push_back({poses[i].arrival + 1.0, &poses[i - 1]});
+            }
+        }
+    }
+
+    std::stable_sort(arrivals.begin(), arrivals.end(), [](const Arrival& a, const Arrival& b) {
+        return a.at < b.at;
+    });
+    mp::Interpolator in;
+    std::vector<mp::Pose> shown;
+    std::size_t next = 0;
+    const double end = poses.back().arrival + 500.0;
+
+    for (double t = poses.front().arrival; t <= end; t += 1000.0 / 60.0) {
+        for (; next < arrivals.size() && arrivals[next].at <= t; ++next) {
+            const Recorded& r = *arrivals[next].r;
+            in.add(r.pose, r.sequence, r.stamp, arrivals[next].at, r.teleport);
+        }
+
+        mp::Pose p;
+
+        if (in.at(t, p)) {
+            shown.push_back(p);
+        }
+    }
+
+    return shown;
+}
+
+// The seqs one after another (each change once).
+std::vector<std::uint32_t> seq_changes(const std::vector<mp::Pose>& poses) {
+    std::vector<std::uint32_t> out;
+
+    for (const mp::Pose& p : poses) {
+        if (out.empty() || out.back() != p.seq) {
+            out.push_back(p.seq);
+        }
+    }
+
+    return out;
+}
+
+void replays(const char* name) {
+    const std::vector<Recorded> poses = recorded(name);
+    CHECK(poses.size() > 30);
+
+    if (poses.size() <= 30) {
+        return;
+    }
+
+    std::vector<mp::Pose> sent;
+
+    for (const Recorded& r : poses) {
+        sent.push_back(r.pose);
+    }
+
+    const std::vector<mp::Pose> shown = replay(poses, false);
+    CHECK(!shown.empty());
+
+    // Every seq shown is the sender's next: none goes back to one it left (a short one may be
+    // passed over between two poses).
+    const std::vector<std::uint32_t> from = seq_changes(sent);
+    std::size_t at = 0;
+
+    for (const std::uint32_t seq : seq_changes(shown)) {
+        while (at < from.size() && from[at] != seq) {
+            ++at;
+        }
+
+        CHECK(at < from.size());
+        ++at;
+    }
+
+    // In a seq, the place runs on: a key or so a frame (the fastest run, 4 keys a tick at most
+    // in a burst less), never back, but where the seq comes round to its start.
+    for (std::size_t i = 1; i < shown.size(); ++i) {
+        const mp::Pose& a = shown[i - 1];
+        const mp::Pose& b = shown[i];
+
+        if (a.seq != b.seq || ((a.flags | b.flags) & mp::kPoseBlending) != 0) {
+            continue;
+        }
+
+        const double step = (b.frame + b.anim_time) - (a.frame + a.anim_time);
+        const bool round = step < 0.0 && b.frame <= 1;
+        CHECK(round || (step >= -1e-4 && step <= 2.0));
+
+        if (!(round || (step >= -1e-4 && step <= 2.0))) {
+            std::fprintf(stderr, "%s: seq %u from %u+%.3f to %u+%.3f\n", name, a.seq, a.frame,
+                         a.anim_time, b.frame, b.anim_time);
+        }
+    }
+
+    // Where the sender came to a stop (still for three poses or more), the figure never went past
+    // it on the way there or while it stood. A pose shown carries the index of the nearer pose
+    // sent in its state (replay's), so those of the stop are known.
+    for (std::size_t i = 1; i < sent.size();) {
+        const auto still = [&](std::size_t k) {
+            return std::fabs(sent[k].velocity[0]) < 1e-3f && std::fabs(sent[k].velocity[1]) < 1e-3f;
+        };
+
+        if (!still(i) || still(i - 1)) {
+            ++i;
+            continue;
+        }
+
+        std::size_t end = i;
+
+        while (end + 1 < sent.size() && still(end + 1)) {
+            ++end;
+        }
+
+        if (end - i >= 2) {
+            // The way it went, from the last poses that moved.
+            const std::size_t from = i >= 4 ? i - 4 : 0;
+            const float dx = sent[i].position[0] - sent[from].position[0];
+            const float dy = sent[i].position[1] - sent[from].position[1];
+            const float n = std::sqrt(dx * dx + dy * dy);
+
+            for (const mp::Pose& p : shown) {
+                if (n > 1e-3f && p.state >= static_cast<int>(from) && p.state <= static_cast<int>(end)) {
+                    const float past = ((p.position[0] - sent[i].position[0]) * dx
+                                        + (p.position[1] - sent[i].position[1]) * dy)
+                                       / n;
+                    CHECK(past < 0.02f);
+                }
+            }
+        }
+
+        i = end + 1;
+    }
+
+    // Repeated and reordered copies change nothing.
+    const std::vector<mp::Pose> again = replay(poses, true);
+    CHECK(again.size() == shown.size());
+
+    for (std::size_t i = 0; i < std::min(again.size(), shown.size()); ++i) {
+        CHECK(again[i].seq == shown[i].seq && again[i].frame == shown[i].frame
+              && again[i].position[0] == shown[i].position[0]);
+    }
+}
+
+void recorded_poses_replay_smoothly() {
+    replays("pose_stop.csv");
+    replays("pose_stall.csv");
 }
 
 // ---- The co-op, a host and a member ----
@@ -1232,6 +1506,9 @@ int main() {
     repeats_late_poses_and_teleports();
     a_stall_then_a_burst();
     past_the_newest_pose();
+    a_stop_is_not_overshot();
+    a_count_started_again_and_the_wrap();
+    recorded_poses_replay_smoothly();
     the_host_starts_a_save_and_the_member_follows();
     a_new_game_and_a_late_member();
     a_member_out_of_the_game_asks_for_it();

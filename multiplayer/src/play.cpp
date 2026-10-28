@@ -42,6 +42,33 @@ double distance(const Pose& a, const Pose& b) {
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+double speed(const Pose& p) {
+    return std::sqrt(p.velocity[0] * p.velocity[0] + p.velocity[1] * p.velocity[1]
+                     + p.velocity[2] * p.velocity[2]);
+}
+
+/* The animation `s` of the way from `a` to `b`, in `out`. Within one seq, neither blending, the
+ * place in it (key and time to the next key) runs on from a's to b's; otherwise (a new seq, a blend,
+ * a seq that came round to its start, whose keys are not known here) out keeps the nearer one's. */
+void animate(const Pose& a, const Pose& b, double s, Pose& out) {
+    if (a.seq != b.seq || ((a.flags | b.flags) & kPoseBlending) != 0) {
+        return;
+    }
+
+    const double from = a.frame + static_cast<double>(a.anim_time);
+    const double to = b.frame + static_cast<double>(b.anim_time);
+
+    if (to < from) {
+        return;
+    }
+
+    const double place = from + (to - from) * s;
+    out.frame = static_cast<std::uint32_t>(place);
+    out.anim_time = static_cast<float>(place - out.frame);
+    out.next_frame = out.frame == b.frame ? b.next_frame : out.frame == a.frame ? a.next_frame : out.frame + 1;
+    out.anim_speed = static_cast<float>(a.anim_speed + (b.anim_speed - a.anim_speed) * s);
+}
+
 }  // namespace
 
 Bytes encode_pose(const PoseMessage& m) {
@@ -283,12 +310,15 @@ void Interpolator::reset() {
 void Interpolator::add(
     const Pose& pose, std::uint16_t sequence, double time_ms, double arrival_ms, bool teleport
 ) {
-    // Late, repeated or reordered: the newest stands.
-    if (!samples_.empty() && !sequence_newer(sequence, sequence_)) {
+    // Late, repeated or reordered: the newest stands. After a silence (the sender gone and back,
+    // its count started again) whatever comes starts the buffer again.
+    const bool silent = !samples_.empty() && arrival_ms - last_arrival_ > kStallMs;
+
+    if (!samples_.empty() && !silent && !sequence_newer(sequence, sequence_)) {
         return;
     }
 
-    const bool restart = teleport || samples_.empty() || pose.level != samples_.back().pose.level
+    const bool restart = teleport || silent || samples_.empty() || pose.level != samples_.back().pose.level
                          || distance(pose, samples_.back().pose) > kSnapDistance;
 
     if (restart) {
@@ -355,9 +385,16 @@ bool Interpolator::at(double now_ms, Pose& out) {
         return true;
     }
 
-    // Past the newest: on along its velocity, slowing in the last kFadeMs, then held.
+    // Past the newest: on along its velocity, slowing in the last kFadeMs, then held; held at
+    // once when it was slowing down (a stop: on along its last velocity it would go past where it
+    // stops, then come back).
     if (cursor_ >= newest) {
         out = samples_.back().pose;
+
+        if (samples_.size() >= 2 && speed(out) < 0.95 * speed(samples_[samples_.size() - 2].pose)) {
+            return true;
+        }
+
         const double ahead = std::min(cursor_ - newest, kExtrapolateMs);
         const double fade = kExtrapolateMs - kFadeMs;
         // The time moved: all of it until the fade, then less and less.
@@ -393,6 +430,7 @@ bool Interpolator::at(double now_ms, Pose& out) {
     const double h11 = s3 - s2;
 
     out = s < 0.5 ? sa.pose : sb.pose;
+    animate(sa.pose, sb.pose, s, out);
 
     for (int i = 0; i < 3; ++i) {
         out.position[i] = static_cast<float>(
