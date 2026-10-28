@@ -8,7 +8,7 @@
  * The wire, the POSE kind of the game's DATA (coop.hpp), sent as state (UDP where offered), each
  * game about 20 a second:
  *   kind u8 (7), owner i32 (whose Ratchet), sequence u16, stamp i64 (the server's clock, ms),
- *   level i8, flags u8 (blending 1, teleport 2), position 3 x f32, rotation 3 x f32,
+ *   level i8, flags u8 (blending 1, teleport 2, in a scene 4), position 3 x f32, rotation 3 x f32,
  *   velocity 3 x f32, state i16, health i16, item i16, seq u8, frame u8, next frame u8,
  *   anim time u8 (0 to 255 for 0 to 1), anim speed i16 (thousandths)
  * 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32.
@@ -36,6 +36,7 @@ namespace mp {
 /* openrac_pose.flags: blending into `seq`. And the wire's teleport flag. */
 constexpr std::uint32_t kPoseBlending = 0x1;
 constexpr std::uint8_t kWireTeleport = 0x2;
+constexpr std::uint8_t kWireScene = 0x4;
 
 /* A pose of a Ratchet (the SDK's openrac_pose after its size; the game's units). */
 struct Pose {
@@ -61,6 +62,8 @@ struct PoseMessage {
     std::uint16_t sequence = 0;
     std::int64_t stamp_ms = 0;
     bool teleport = false;
+    /* The sender's game plays a scene (a cutscene, a landing): its player waits on it. */
+    bool scene = false;
     Pose pose;
 };
 

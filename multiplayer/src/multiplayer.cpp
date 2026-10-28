@@ -45,6 +45,7 @@
 #include "coop.hpp"
 #include "direct.hpp"
 #include "menu.hpp"
+#include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
@@ -53,7 +54,7 @@
 namespace {
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kVersion = "rac1-multiplayer/0.5.0";
+constexpr const char* kVersion = "rac1-multiplayer/0.6.0";
 
 /* The question's tag: leaving the party (or hosting it). */
 constexpr std::uint32_t kAskLeave = 1;
@@ -191,6 +192,10 @@ public:
     void eyes(const std::vector<float>& xyz) override { mod_.play_eyes(xyz); }
 
     int bolts(int add) override { return mod_.bolts(add); }
+
+    void overlay_pause(bool on) override { mod_.play_overlay_pause(on); }
+
+    void skip() override { mod_.play_skip(); }
 
     static openrac_moby moby_of(const mp::Pose& p) {
         openrac_moby out{};
@@ -983,6 +988,30 @@ void load(openrac::Mod& mod) {
             g->coop->handle(sender, bytes);
         }
     });
+    // A crate broken here to show another game's break drops nothing (its bolts are the breaker's).
+    mod.hook<openrac::rac1::Moby_RecordDeath>(
+        [](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t bolts) {
+            if (!g->world->quiet_death(g->mod->moby_slot_of(moby))) {
+                original(moby, flags, bolts);
+            }
+        }
+    );
+    // The scene barrier on the first pad: no control while the others finish their scene, and no
+    // Start (skip) for a member while the host's scene decides (coop.hpp). The report: buttons in
+    // bytes 0 and 1 (a bit clear while held; Start 0x08), the sticks, then the pressures.
+    mod.on_pad([](int port, std::uint8_t* report, int size) {
+        if (port != 0 || size < 6) {
+            return;
+        }
+
+        if (g->coop->hold_input()) {
+            report[0] = report[1] = 0xFF;
+            std::fill(report + 2, report + 6, static_cast<std::uint8_t>(0x80));
+            std::fill(report + 6, report + size, static_cast<std::uint8_t>(0));
+        } else if (g->coop->block_start()) {
+            report[0] = static_cast<std::uint8_t>(report[0] | 0x08);
+        }
+    });
     // The game asks the world around each moby's update and of each hit it posts.
     mod.on_moby_update(
         [](void*, int slot, int phase) { return g->world->gate(slot, phase) ? 1 : 0; }
@@ -1027,7 +1056,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.5.0", load)
+OPENRAC_MOD_CPP("multiplayer", "0.6.0", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

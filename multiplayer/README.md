@@ -55,12 +55,24 @@ The world is the host's:
 - **Enemies go for the nearest player**: in the host's game each one sees the player nearest it
   as the hero, so it chases, aims at and hits that player; the hit hurts that player in their own
   game (knocked back as the game does it).
-- **Crates** run in every game: the one who breaks a crate gets its bolts, and the crate is gone
-  in every game.
-- **Bolts** from enemies fly to the nearest player and are theirs: each player has their own bolts.
+- **Crates** run in every game: a crate broken in one game breaks in all, with its debris and
+  sound, and its bolts are there once, for whoever broke it.
+- **Pickups** (bolts lying about, gold bolts, ammo, nanotech) run in every game: anyone can collect
+  one, and the first to collect it takes it from every game. Ammo and health an enemy drops in the
+  host's game are dropped in every game, for each player to collect.
+- **Bolts** from the host's enemies fly to the nearest player and are theirs: each player has
+  their own bolts.
 - A placed enemy or pickup gone in the host's game is gone in everyone's, also for someone who
-  arrives in the level later.
-- A **cutscene, a vendor, the ship**: each game's own; the level a member is in follows the host's.
+  arrives in the level later. A moby goes only when a game says it died, never because a snapshot
+  is missing: a game that is loading or in a menu changes nothing in the others.
+- **Vendors, the ship, people, help desks**: each game's own, for its own player; the level a
+  member is in follows the host's.
+- **Menus do not pause** while the party plays: the pause menu and the game's dialogs open over a
+  world that goes on (enemies, platforms, the other players); your Ratchet waits where he is.
+- **Scenes end together**: the host's skip counts (a member's Start does nothing while the host's
+  scene plays). When the host is out of its scene, a member still in one is skipped, and nobody
+  gets control back until everyone is out (at most 10 seconds for the host; a member waits for
+  the host's scene to end). The ship's landing and take-off count, and so do level intros.
 
 When the party ends (the host leaves, or the connection goes) while a member plays the host's
 game, that member's game goes back to the title, whose lobby says why.
@@ -133,7 +145,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.5.0`) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.6.0`) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0) with the party's description (the save's words), JOIN code (1), LEAVE (2), LIST (8); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -160,8 +172,8 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 3 START | the host | | the lobby's Start |
 | 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc) differs refuses it: "Incompatible version" |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
-| 6 LEVEL | the host, to all | play i32, level i32 | the level the host plays (-1 none), once a second and at each change; a member in another level travels there |
-| 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000) | a player's Ratchet, 20 a second (65 bytes); a member's goes to the host, who passes it on to everyone |
+| 6 LEVEL | the host, to all | play i32, level i32, scene u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; a member in another level travels there, a member in a scene the host is out of skips it |
+| 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000) | a player's Ratchet, 20 a second (65 bytes); a member's goes to the host, who passes it on to everyone |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
 | 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each) | the 48 mobys nearest that member that moved or animated, 15 times a second |
 | 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
@@ -169,8 +181,8 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 13 HIT | a member | id u16, mask u32, damage f32, position, velocity | its hit on the host's moby |
 | 14 DAMAGE | the host | attacker id u16, mask u32, damage f32, position, velocity | an enemy hit that member |
 | 15 BOLTS | the host | count i32 | bolts that flew to that member in the host's game |
-| 16 ALIVE | the host | level i8, records u16, a bit each | the placed mobys alive in the host's level, for one arriving there |
-| 17 BROKE | a member | level i8, key u16 | it broke a crate |
+| 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead in the host's level, for one arriving there |
+| 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup |
 
 A member's game is started from the title with the host's save (`play_start`), its own card left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`) and
@@ -194,8 +206,11 @@ that player. Mobys near the members run in the host's game as if near its camera
 
 - Progress is each game's: the host's save is where the party starts, and what a member collects
   (gold bolts, items) and buys stays in that member's game; its card is never written by the party.
-- Cutscenes, vendors and the ship play in each game on its own. A member's own travel by ship is
-  undone (it is pulled back to the host's level).
+- Vendors and the ship are each game's own. A member's own travel by ship is undone (it is pulled
+  back to the host's level). A cutscene a moby of the host's world starts plays in the host's game
+  only; members wait for it (the barrier).
+- Under the pause menu the world goes on but the picture behind the menu stays as it was.
+- A member's crates drop their bolts in the member's game only.
 - An enemy that keeps a pointer to the hero across ticks, grabs him or rides him may act on the
   host's hero instead of the player it went for; WORLD.md (in the plans) lists the classes tried.
 - A figure shows no weapon or gadget in its hand: only the held item's class is loaded in a level,
