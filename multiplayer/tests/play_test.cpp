@@ -757,6 +757,21 @@ struct FakeGame : mp::Game {
     }
 
     float camera_x = 0.0f;
+
+    // The run list (the verbose log's): off until a test sets `run_on`; each slot's run, else
+    // `run`'s.
+    bool moby_run(int slot, mp::MobyRun& out) override {
+        if (!run_on) {
+            return false;
+        }
+        const auto it = slot_runs.find(slot);
+        out = it != slot_runs.end() ? it->second : run;
+        return true;
+    }
+
+    bool run_on = false;
+    mp::MobyRun run;
+    std::map<int, mp::MobyRun> slot_runs;
 };
 
 mp::MobyState moby(int slot, int key, int oclass, std::uint32_t flags, float x) {
@@ -1241,7 +1256,7 @@ void the_despawn_log_says_who_and_why() {
         return std::any_of(lines.begin(), lines.end(), [&](const std::string& l) { return l.find(text) != std::string::npos; });
     };
     CHECK(lines.size() == 7);
-    CHECK(has("despawn: gone class 300 key 0 slot 0 driven by sync (KILLED from 1) at 20.0 0.0 0.0, hero 10.0, camera 6.0"));
+    CHECK(has("gone class 300 key 0 slot 0 driven by sync (KILLED from 1) at 20.0 0.0 0.0, hero 10.0, camera 6.0"));
     CHECK(has("gone class 301 key 1 slot 1 driven by game (its own update, its death recorded)"));
     CHECK(has("gone class 302 key 2 slot 2 driven by game (the update of slot 7 class 307)"));
     CHECK(has("gone class 303 key 3 slot 3 driven by mod (moby_kill, not the sync's)"));
@@ -1263,23 +1278,25 @@ void the_despawn_log_says_who_and_why() {
     log.tick(1250, again, view);
     CHECK(lines.size() == 2 && has("shown class 305") && has("gone class 307 key -1 slot 7 local vanished"));
 
-    // The cap: 30 gone in one tick give 20 lines, and the next second says the other 10.
-    mp::DespawnLog many;
-    lines.clear();
-    many.out = [&](const std::string& l) { lines.push_back(l); };
-    std::vector<mp::MobyState> crowd;
-    for (int slot = 0; slot < 30; ++slot) {
-        crowd.push_back(moby(slot, -1, 13, mp::kMobyUpdates, 1.0f));
+    // The verbose log's cap: kTraceLinesPerSecond lines a second, the rest said in the next.
+    mp::Trace trace;
+    std::vector<std::string> traced;
+    trace.tick(5000, "host");
+    trace.line("run", "off: nothing");
+    CHECK(!trace.on() && trace.written() == 0);
+    trace.open([&](const std::string& l) { traced.push_back(l); });
+    trace.tick(5000, "host");
+    for (int i = 0; i < mp::kTraceLinesPerSecond + 10; ++i) {
+        trace.line("run", "far");
     }
-    many.tick(5000, crowd, view);
-    many.tick(5016, {moby(100, -1, 13, 0, 0.0f)}, view);
-    CHECK(lines.size() == static_cast<std::size_t>(mp::kDespawnLinesPerSecond) && many.dropped() == 10);
-    many.tick(6100, {moby(100, -1, 13, 0, 0.0f)}, view);
-    CHECK(lines.size() == static_cast<std::size_t>(mp::kDespawnLinesPerSecond) + 1);
-    CHECK(lines.back() == "despawn: 10 more events in the last second left out (10 gone, 0 hidden or shown)");
+    CHECK(traced.size() == static_cast<std::size_t>(mp::kTraceLinesPerSecond) && trace.dropped() == 10);
+    CHECK(traced.front() == "[mp-trace] f=2 t=5000 host run far");
+    trace.tick(6100, "host");
+    CHECK(traced.size() == static_cast<std::size_t>(mp::kTraceLinesPerSecond) + 1);
+    CHECK(traced.back() == "[mp-trace] f=3 t=6100 host trace dropped 10 lines in the last second (at most 2000 a second)");
 }
 
-// With the despawn log on, the member's line for a moby the host killed names the sync and the
+// With the verbose log on, the member's despawn line for a moby the host killed names the sync and the
 // sender, and the moby as one it drove.
 void the_world_logs_its_despawns() {
     Player host(1), member(2);
@@ -1291,8 +1308,9 @@ void the_world_logs_its_despawns() {
     route({&host, &member});
     tick({&host, &member}, 16);
     std::vector<std::string> member_log;
-    member.world.on_log([&](const std::string& l) { member_log.push_back(l); });
-    member.world.despawn_log(true);
+    mp::Trace trace;
+    trace.open([&](const std::string& l) { member_log.push_back(l); });
+    member.world.trace(&trace);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
@@ -1309,9 +1327,114 @@ void the_world_logs_its_despawns() {
         tick({&host, &member}, 50);
     }
     CHECK(std::any_of(member_log.begin(), member_log.end(), [](const std::string& l) {
-        return l.rfind("despawn: gone class 300 key 0 slot 0 driven by sync (KILLED from 1)", 0) == 0
+        return l.rfind("[mp-trace] ", 0) == 0
+               && l.find(" despawn gone class 300 key 0 slot 0 driven by sync (KILLED from 1)") != std::string::npos
                && l.find("host sent it") != std::string::npos;
     }));
+}
+
+// The verbose log: none of its lines while off; on, a pause with a moby going out of range, a
+// snapshot with a moby missing, a moby driven, KILLED, and a census's comings and goings.
+void the_verbose_log_traces_a_pause() {
+    for (const bool on : {false, true}) {
+        Player host(1), member(2);
+        const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+        host.session.handle(info(both));
+        member.session.handle(info(both));
+        host.coop.choose({}, "New game");
+        CHECK(host.coop.start());
+        route({&host, &member});
+        tick({&host, &member}, 16);
+        std::vector<std::string> host_lines, member_lines;
+        mp::Trace host_trace, member_trace;
+        if (on) {
+            host_trace.open([&](const std::string& l) { host_lines.push_back(l); });
+            member_trace.open([&](const std::string& l) { member_lines.push_back(l); });
+        }
+        host.world.on_log([&](const std::string& l) { host_lines.push_back(l); });
+        member.world.on_log([&](const std::string& l) { member_lines.push_back(l); });
+        host.world.trace(&host_trace);
+        member.world.trace(&member_trace);
+        const auto step = [&](int n) {
+            for (int i = 0; i < n; ++i) {
+                host.clock += 50;
+                member.clock += 50;
+                host_trace.tick(host.clock, "host");
+                member_trace.tick(member.clock, "member");
+                for (Player* p : {&host, &member}) {
+                    p->coop.tick(p->clock);
+                    p->world.tick(p->clock);
+                }
+                route({&host, &member});
+            }
+        };
+        const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+        for (Player* p : {&host, &member}) {
+            p->game.now = {mp::kPhasePlaying, 0, 2};
+            p->game.level = {moby(0, 0, 300, runs, 10.0f), moby(1, 1, 77, mp::kMobyPlaced, 30.0f),
+                             moby(2, 2, 301, runs, 1000.0f), moby(3, 3, 78, mp::kMobyPlaced, 40.0f)};
+            p->game.run_on = true;
+            p->game.run.ran = 3;  // near
+            p->game.run.update_dist = 50;
+            p->game.run.distance = 10.0f;
+        }
+        host.game.hero_pose.position[0] = 100.0f;
+        member.game.hero_pose.position[0] = 12.0f;
+        step(30);
+
+        // Only moby 0 moves: the next snapshot misses 2. A census later, 3 has gone.
+        host.game.level[0].pose.position[0] = 11.0f;
+        host.game.level.pop_back();
+        step(25);
+
+        // The host pauses: the pause menu's level camera put up; moby 0 left out by distance.
+        host.game.now.phase = mp::kPhaseMenu;
+        host.game.run.menu = 3;
+        host.game.run.menu_ticks = 1;
+        host.game.run.level_camera[0] = 99.0f;
+        host.game.camera_x = 256.0f;
+        step(1);
+        host.game.slot_runs[0] = host.game.run;
+        host.game.slot_runs[0].ran = 0;
+        host.game.slot_runs[0].distance = 60.0f;
+        host.game.run.menu_ticks = 2;
+        step(1);
+        host.game.now.phase = mp::kPhasePlaying;
+        host.game.slot_runs.clear();
+        step(1);
+        host.game.die(2);
+        step(4);
+
+        const auto has = [](const std::vector<std::string>& lines, const std::string& text) {
+            return std::any_of(lines.begin(), lines.end(), [&](const std::string& l) {
+                return l.rfind("[mp-trace] ", 0) == 0 && l.find(text) != std::string::npos;
+            });
+        };
+        const auto any_trace = [](const std::vector<std::string>& lines) {
+            return std::any_of(lines.begin(), lines.end(), [](const std::string& l) {
+                return l.find("[mp-trace]") != std::string::npos || l.find("despawn") != std::string::npos;
+            });
+        };
+        if (!on) {
+            CHECK(!any_trace(host_lines) && !any_trace(member_lines));
+            continue;
+        }
+        CHECK(has(host_lines, " host pause enter phase 5 level 0 mode 0 scene -1 camera_position 256.0 0.0 0.0"
+                              " run_camera 0.0 0.0 0.0 level_camera 99.0 0.0 0.0 menu level-camera menu_ticks 1"));
+        CHECK(has(host_lines, " host pause frame phase 5"));
+        CHECK(has(host_lines, " host run out slot 0 class 300 key 0 at 11.0 0.0 0.0 distance 60.0 update_dist 50"));
+        CHECK(has(host_lines, " host pause exit phase 3"));
+        CHECK(has(host_lines, " host run in slot 0 class 300"));
+        CHECK(has(host_lines, " host snap sent to 2 n=1 added [] missing [2]"));
+        CHECK(has(member_lines, " member snap received from 1 n=1 added [] missing [2]"));
+        CHECK(has(host_lines, " host census came [] went [k3]"));
+        CHECK(has(host_lines, " host eyes set n=1 2 at 12.0 0.0 0.0"));
+        CHECK(has(host_lines, " host msg sent KILLED to all level 0 n=1 keys [2]"));
+        CHECK(has(member_lines, " member msg received KILLED key 2 slot 2"));
+        CHECK(has(member_lines, " member despawn moby_kill slot 2 class 301 key 2"));
+        CHECK(has(member_lines, " member drive on slot 0 class 300 key 0"));
+        CHECK(has(member_lines, " member drive off slot 2 class 301 key 2"));
+    }
 }
 
 // A member of another build refuses the host's game; a member in the host's game goes back to the
@@ -2669,6 +2792,7 @@ int main() {
     the_hosts_hidden_mobys_are_hidden_here();
     the_despawn_log_says_who_and_why();
     the_world_logs_its_despawns();
+    the_verbose_log_traces_a_pause();
     builds_and_the_end();
     the_pause_page_shows_the_party_and_leaves();
     a_menu_kills_nothing();

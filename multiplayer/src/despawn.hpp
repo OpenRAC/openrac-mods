@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (c) 2026 the OpenRAC contributors
  *
- * The despawn log (despawn.cpp; the `despawn_log` setting): a line for each moby that leaves the
- * level in this game, and for each one hidden (or shown again) while it lives, with who removed it
- * and why. No socket and no game here: the World gives it each tick's listing and what it did
- * itself (the sync's removals), and asks the game how it deleted a moby (the port's
+ * The despawn lines of the verbose log (despawn.cpp, trace.hpp's `despawn`): a line for each moby
+ * that leaves the level in this game, and for each one hidden (or shown again) while it lives, with
+ * who removed it and why. No socket and no game here: the World gives it each tick's listing and
+ * what it did itself (the sync's removals), and asks the game how it deleted a moby (the port's
  * moby_deletion) as the moby goes.
  *
  * Who removed it:
@@ -18,8 +18,7 @@
  * Each line: what (gone, hidden, shown), class, key (-1 spawned), slot, driven (this game poses it
  * from the host's), shared (the host's that members pose) or local, who and why, its last place,
  * the distance from the local hero and the camera, its state and flags then, and on a member when
- * the host last sent it. At most kDespawnLinesPerSecond lines a second; the rest are counted and
- * said in one line when the second is over.
+ * the host last sent it. The verbose log caps them with its other lines (trace.hpp).
  */
 #ifndef MULTIPLAYER_DESPAWN_H
 #define MULTIPLAYER_DESPAWN_H
@@ -33,8 +32,6 @@
 #include "coop.hpp"
 
 namespace mp {
-
-constexpr int kDespawnLinesPerSecond = 20;
 
 /* How the game deleted a moby (the SDK's openrac_moby_deletion). */
 struct MobyDeletion {
@@ -74,10 +71,8 @@ public:
     /* A level load: nothing of the last is compared. */
     void reset();
 
-    /* For the tests: lines written and dropped so far. */
+    /* For the tests: lines written so far. */
     int written() const { return written_; }
-
-    int dropped() const { return dropped_total_; }
 
 private:
     struct Note {
@@ -93,18 +88,12 @@ private:
         const std::string& who_why,
         const View& view
     );
-    void flush(std::uint64_t now);
 
     std::map<int, MobyState> last_;
     std::map<int, std::string> roles_;
     std::map<int, Note> sync_;
     std::map<int, bool> deaths_;
-    std::uint64_t second_ms_ = 0;
-    int lines_ = 0;
-    int dropped_ = 0;
-    int dropped_gone_ = 0;
     int written_ = 0;
-    int dropped_total_ = 0;
 };
 
 /* The who/why of a moby gone (despawn.cpp; for the tests too): the sync's note, else the game's

@@ -222,6 +222,27 @@ struct Hit {
     float velocity[3] = {0, 0, 0};
 };
 
+/* How the game ran the level's mobys in the last tick, and one moby in it (the SDK's
+ * openrac_moby_run: the verbose log's, trace.hpp). */
+struct MobyRun {
+    std::uint32_t runs = 0;
+    float camera[3] = {0, 0, 0};
+    std::uint32_t menu_ticks = 0;
+    int menu = 0;
+    float level_camera[3] = {0, 0, 0};
+    int level_mode = 0;
+    int context = 0;
+    int update_dist = 0;
+    int draw_dist = 0;
+    int drawn = 0;
+    int ran = -1;
+    float distance = 0;
+};
+
+/* openrac_moby_run.ran and .menu (OPENRAC_MOBY_RUN_*, OPENRAC_RUN_MENU_*). */
+constexpr int kRunNone = -1;
+constexpr int kRunFar = 0;
+
 /* What the co-op needs of the game: the SDK's play calls (multiplayer.cpp), or a test's. */
 class Game {
 public:
@@ -251,6 +272,8 @@ public:
         return false;
     }
     virtual bool camera(float* /*xyz*/) { return false; }
+    /* How the last tick ran the level's mobys and the moby in `slot` (-1: none) in it. */
+    virtual bool moby_run(int /*slot*/, MobyRun& /*out*/) { return false; }
     virtual int moby_spawn(int /*oclass*/, const Pose& /*pose*/) { return -1; }
     virtual int figure_slot(int /*id*/) { return -1; }
     virtual bool stand_in(const float* /*position*/, int /*figure*/) { return false; }

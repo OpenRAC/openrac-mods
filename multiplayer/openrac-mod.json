@@ -28,11 +28,11 @@
       "description": "Your name in multiplayer: 3 to 16 letters, digits or underscores. Defaults to the launcher's Multiplayer name."
     },
     {
-      "key": "despawn_log",
-      "name": "Despawn log",
+      "key": "verbose_log",
+      "name": "Verbose log",
       "type": "bool",
       "default": false,
-      "description": "For reports: a line in the game's log for each moby that leaves the level or is hidden in a party (which, where, who removed it and why), at most 20 a second."
+      "description": "For reports: an [mp-trace] line for each event of the party's world (pauses and the cameras under them, mobys left out of the game's updates by distance, hidden, shown or removed with who removed them and why, snapshots, drives, kills and spawns, a census each second), in mp-trace.log beside the game's run.log. Also on with OPENRAC_MP_TRACE=1."
     }
   ]
 }

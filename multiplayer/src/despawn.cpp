@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (c) 2026 the OpenRAC contributors
  *
- * The despawn log (despawn.hpp): each tick's listing against the last one's.
+ * The despawn lines (despawn.hpp): each tick's listing against the last one's.
  */
 #include "despawn.hpp"
 
@@ -92,24 +92,6 @@ void DespawnLog::reset() {
     deaths_.clear();
 }
 
-void DespawnLog::flush(std::uint64_t now) {
-    // A new second: what the last one left out, in one line.
-    if (now - second_ms_ < 1000) {
-        return;
-    }
-
-    if (dropped_ > 0 && out) {
-        out("despawn: " + std::to_string(dropped_) + " more events in the last second left out ("
-            + std::to_string(dropped_gone_) + " gone, " + std::to_string(dropped_ - dropped_gone_)
-            + " hidden or shown)");
-    }
-
-    second_ms_ = now;
-    lines_ = 0;
-    dropped_ = 0;
-    dropped_gone_ = 0;
-}
-
 void DespawnLog::event(
     std::uint64_t now,
     const std::string& what,
@@ -118,16 +100,7 @@ void DespawnLog::event(
     const std::string& who_why,
     const View& view
 ) {
-    flush(now);
-
-    if (lines_ >= kDespawnLinesPerSecond) {
-        ++dropped_;
-        ++dropped_total_;
-        dropped_gone_ += what == "gone" ? 1 : 0;
-        return;
-    }
-
-    ++lines_;
+    (void)now;
     ++written_;
     char at[64];
     std::snprintf(
@@ -138,7 +111,7 @@ void DespawnLog::event(
         was.pose.position[1],
         was.pose.position[2]
     );
-    std::string line = "despawn: " + what + " class " + std::to_string(was.oclass) + " key "
+    std::string line = what + " class " + std::to_string(was.oclass) + " key "
                        + std::to_string(was.key) + " slot " + std::to_string(slot) + " "
                        + (roles_.count(slot) != 0 ? roles_[slot] : std::string("local")) + " "
                        + who_why + " at " + at;
@@ -161,8 +134,6 @@ void DespawnLog::event(
 }
 
 void DespawnLog::tick(std::uint64_t now, const std::vector<MobyState>& listing, const View& view) {
-    flush(now);
-
     // A tick the game lists nothing of (a load, a menu of its own) compares nothing.
     if (listing.empty()) {
         return;

@@ -155,6 +155,10 @@ void World::reset() {
     hidden_.clear();
     host_ms_.clear();
     despawn_.reset();
+    traced_.in_range.clear();
+    traced_.driven.clear();
+    traced_.sent.clear();
+    traced_.received.clear();
     hosting_ = false;
     level_ = -1;
 }
@@ -206,6 +210,14 @@ int World::slot_of(std::uint16_t id) const {
 }
 
 void World::tick(std::uint64_t now) {
+    tick_world(now);
+
+    if (tracing()) {
+        trace_tick(now);
+    }
+}
+
+void World::tick_world(std::uint64_t now) {
     if (!session_.in_party()) {
         if (level_ != -1 || !driven_.empty() || !members_.empty()) {
             reset();
@@ -289,11 +301,15 @@ void World::tick(std::uint64_t now) {
             const std::size_t n = std::min<std::size_t>(500, newly_dead.size() - at);
             u16(w, static_cast<std::uint16_t>(n));
 
+            std::string keys;
+
             for (std::size_t i = 0; i < n; ++i) {
                 u16(w, newly_dead[at + i]);
+                keys += (i != 0 ? " " : "") + std::to_string(newly_dead[at + i]);
             }
 
             session_.send_data(kBroadcast, w.bytes());
+            trace_line("msg", "sent KILLED to all level " + std::to_string(level_) + " n=" + std::to_string(n) + " keys [" + keys + "]");
             counts_.kills += static_cast<int>(n);
         }
     } else if (!session_.is_host()) {
@@ -311,6 +327,7 @@ void World::tick(std::uint64_t now) {
                         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
                     u16(w, key);
                     session_.send_data(session_.host(), w.bytes());
+                    trace_line("msg", "sent BROKE to host key " + std::to_string(key) + " class " + std::to_string(cls->second));
                     ++counts_.kills;
                 }
             }
@@ -331,7 +348,7 @@ void World::tick(std::uint64_t now) {
             it = replays_.erase(it);
         } else if (now >= it->second) {
             note(it->first, "a replayed crate's break timed out", 0);
-            game_.moby_kill(it->first);
+            kill(it->first, "a replayed crate's break timed out");
             it = replays_.erase(it);
         } else {
             ++it;
@@ -389,6 +406,8 @@ void World::send_spawn(std::int32_t target, int level, std::uint16_t net, const 
     vec(w, moby.pose.position);
     u16(w, static_cast<std::uint16_t>(angle_bits(moby.pose.rotation[2])));
     session_.send_data(target, w.bytes());
+    trace_line("msg", "sent SPAWN to " + std::to_string(target) + " net " + std::to_string(net) + " class "
+                          + std::to_string(moby.oclass) + " slot " + std::to_string(moby.slot) + " at " + xyz(moby.pose.position));
 }
 
 void World::send_dead(std::int32_t member, int level) {
@@ -404,6 +423,8 @@ void World::send_dead(std::int32_t member, int level) {
 
     w.raw(bits);
     session_.send_data(member, w.bytes());
+    trace_line("msg", "sent DEAD to " + std::to_string(member) + " level " + std::to_string(level) + " records "
+                          + std::to_string(records) + " dead " + std::to_string(dead_keys_.size()));
 }
 
 void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at) {
@@ -452,6 +473,16 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
     }
 
     m.world_ms = now;
+
+    if (!entries.empty() && tracing()) {
+        std::set<std::uint16_t> ids;
+
+        for (const WorldEntry& e : entries) {
+            ids.insert(e.id);
+        }
+
+        trace_snapshot("sent to " + std::to_string(member), traced_.sent[member], ids);
+    }
 
     if (!entries.empty()) {
         const std::int64_t stamp =
@@ -512,15 +543,20 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         w.u8(static_cast<std::uint8_t>(WorldKind::kDespawn)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
         u16(w, static_cast<std::uint16_t>(gone.size()));
 
+        std::string nets;
+
         for (const std::uint16_t net : gone) {
             u16(w, net);
+            nets += (nets.empty() ? "" : " ") + std::to_string(net);
         }
 
         session_.send_data(kBroadcast, w.bytes());
+        trace_line("msg", "sent DESPAWN to all n=" + std::to_string(gone.size()) + " nets [" + nets + "]");
     }
 
     // The members: where each is, what it is told, the eyes on them.
     std::vector<float> eyes;
+    std::string eye_players;
 
     for (auto it = members_.begin(); it != members_.end();) {
         it = std::any_of(session_.members().begin(), session_.members().end(),
@@ -560,6 +596,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
 
         if (eyes.size() < 3 * 8) {
             eyes.insert(eyes.end(), at.position, at.position + 3);
+            eye_players += " " + std::to_string(who.id) + " at " + xyz(at.position);
         }
 
         if (now - m.world_ms >= kWorldMs) {
@@ -574,6 +611,14 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
     }
 
     game_.eyes(eyes);
+
+    // Each change of their number, each tick a menu is up, else once a second.
+    if (tracing()
+        && (eyes.size() != traced_.eyes || status.phase == kPhaseMenu || now - traced_.eyes_ms >= 1000)) {
+        traced_.eyes = eyes.size();
+        traced_.eyes_ms = now;
+        trace_line("eyes", "set n=" + std::to_string(eyes.size() / 3) + (eye_players.empty() ? " (none)" : eye_players));
+    }
 }
 
 void World::tick_member(std::uint64_t now, const GameStatus& status) {
@@ -619,6 +664,7 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
         }
 
         if (game_.moby_hide(slot, hidden)) {
+            trace_line("vis", std::string(hidden ? "hide" : "show") + " by sync (the host's is) " + moby_name(slot));
             note(slot, hidden ? "hidden as the host's is" : "shown as the host's is", session_.host());
         }
     }
@@ -636,7 +682,7 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
     view.camera = game_.camera(view.camera_at);
 
     if (!despawn_.out) {
-        despawn_.out = [this](const std::string& line) { log(line); };
+        despawn_.out = [this](const std::string& line) { trace_line("despawn", line); };
         despawn_.deletion = [this](int slot, MobyDeletion& d) {
             return game_.moby_deletion(slot, d.by, d.by_class, d.by_mod);
         };
@@ -685,6 +731,8 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         const std::uint16_t key = u16(r);
         const int slot = r.ok() && hosting_ && level == level_ ? game_.moby_slot(key) : -1;
         const auto it = mobys_.find(slot);
+        trace_line("msg", "received BROKE from " + std::to_string(sender) + " level " + std::to_string(level) + " key "
+                              + std::to_string(key) + " slot " + std::to_string(slot));
 
         // A crate breaks here as it broke there; a pickup taken there is gone here.
         if (slot >= 0 && it != mobys_.end() && crate_class(it->second.oclass)) {
@@ -692,7 +740,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             replay_break(slot, clock_());
         } else if (slot >= 0 && it != mobys_.end() && pickup_class(it->second.oclass)) {
             note(slot, "BROKE, a pickup taken there", sender);
-            game_.moby_kill(slot);
+            kill(slot, "BROKE from " + std::to_string(sender));
         }
 
         return;
@@ -745,16 +793,35 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 host_ms_[e.id] = clock_();
             }
 
+            if (tracing()) {
+                std::set<std::uint16_t> ids;
+                std::string hidden;
+
+                for (const WorldEntry& e : entries) {
+                    ids.insert(e.id);
+                    hidden += e.hidden ? " " + std::to_string(e.id) : "";
+                }
+
+                trace_snapshot("received from " + std::to_string(sender), traced_.received, ids);
+
+                if (!hidden.empty()) {
+                    trace_line("snap", "received hidden ids [" + hidden.substr(1) + "]");
+                }
+            }
+
             ++counts_.snapshots;
             break;
         }
         case WorldKind::kKilled: {
             const int level = static_cast<std::int8_t>(r.u8());
             const std::uint16_t count = u16(r);
+            trace_line("msg", "received KILLED from " + std::to_string(sender) + " level " + std::to_string(level) + " n="
+                                  + std::to_string(count));
 
             for (std::uint16_t i = 0; i < count && r.ok(); ++i) {
                 const std::uint16_t key = u16(r);
                 const int slot = level == level_ ? game_.moby_slot(key) : -1;
+                trace_line("msg", "received KILLED key " + std::to_string(key) + " slot " + std::to_string(slot));
                 const auto moby = mobys_.find(slot);
 
                 // A crate breaks here as it broke there; anything else goes.
@@ -764,7 +831,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                     ++counts_.kills;
                 } else if (slot >= 0) {
                     note(slot, "KILLED", sender);
-                    game_.moby_kill(slot);
+                    kill(slot, "KILLED from " + std::to_string(sender));
                     driven_.erase(slot);
                     ++counts_.kills;
                 }
@@ -789,6 +856,9 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             }
 
             const int slot = game_.moby_spawn(oclass, pose);
+            trace_line("msg", "received SPAWN from " + std::to_string(sender) + " net " + std::to_string(net) + " class "
+                                  + std::to_string(oclass) + " at " + xyz(pose.position) + " made slot " + std::to_string(slot)
+                                  + (loot_class(oclass) ? " (loot, this game's own)" : ""));
 
             // Loot (ammo, health) an enemy dropped there is this game's own to collect.
             if (slot >= 0 && loot_class(oclass)) {
@@ -810,6 +880,9 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             for (std::uint16_t i = 0; i < count && r.ok(); ++i) {
                 const std::uint16_t net = u16(r);
                 const auto it = net_slot_.find(net);
+                trace_line("msg", "received DESPAWN from " + std::to_string(sender) + " level " + std::to_string(level) + " net "
+                                      + std::to_string(net) + " slot " + std::to_string(it != net_slot_.end() ? it->second : -1)
+                                      + (loot_.count(net) != 0 ? " (loot: kept)" : ""));
 
                 // Loot stays until this game's player collects it.
                 if (loot_.erase(net) != 0) {
@@ -818,7 +891,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
                 if (level == level_ && it != net_slot_.end()) {
                     note(it->second, "DESPAWN", sender);
-                    game_.moby_kill(it->second);
+                    kill(it->second, "DESPAWN from " + std::to_string(sender));
                     driven_.erase(it->second);
                     net_slot_.erase(it);
                 }
@@ -832,6 +905,9 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const int level = static_cast<std::int8_t>(r.u8());
             const std::uint16_t records = u16(r);
             const Bytes bits = r.rest();
+
+            trace_line("msg", "received DEAD from " + std::to_string(sender) + " level " + std::to_string(level) + " records "
+                                  + std::to_string(records));
 
             if (level != level_ || bits.size() < static_cast<std::size_t>((records + 7) / 8)) {
                 return;
@@ -849,7 +925,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                     note(slot, "DEAD", sender);
                 }
 
-                if (dead && game_.moby_kill(slot)) {
+                if (dead && kill(slot, "DEAD from " + std::to_string(sender))) {
                     driven_.erase(slot);
                     host_killed_.insert(moby.key);
                     ++killed;

@@ -37,6 +37,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -49,6 +51,7 @@
 #include "openrac/mod.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
+#include "trace.hpp"
 #include "world.hpp"
 
 namespace {
@@ -238,6 +241,28 @@ public:
         return true;
     }
 
+    bool moby_run(int slot, mp::MobyRun& out) override {
+        openrac_moby_run r{};
+
+        if (!mod_.moby_run(slot, r)) {
+            return false;
+        }
+
+        out.runs = r.runs;
+        std::copy(r.camera, r.camera + 3, out.camera);
+        out.menu_ticks = r.menu_ticks;
+        out.menu = r.menu;
+        std::copy(r.level_camera, r.level_camera + 3, out.level_camera);
+        out.level_mode = r.level_mode;
+        out.context = r.context;
+        out.update_dist = r.update_dist;
+        out.draw_dist = r.draw_dist;
+        out.drawn = r.drawn;
+        out.ran = r.ran;
+        out.distance = r.distance;
+        return true;
+    }
+
     int moby_spawn(int oclass, const mp::Pose& pose) override {
         return mod_.moby_spawn(oclass, moby_of(pose));
     }
@@ -392,6 +417,8 @@ struct State {
     std::unique_ptr<ModGame> game;
     std::unique_ptr<mp::Coop> coop;
     std::unique_ptr<mp::World> world;
+    mp::Trace trace;            // the verbose log (trace.hpp), off unless asked for
+    std::ofstream trace_file;   // mp-trace.log, where it goes
     openrac::Mod* mod = nullptr;
     std::uint32_t generation = 0;  // the connection's, as the session last saw it
     openrac::UiPage home, code_page, direct_page, lobby, browse, saves;
@@ -1201,8 +1228,30 @@ void load(openrac::Mod& mod) {
     g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
-    // The despawn log (despawn.hpp): a line for each moby that leaves the level, or is hidden.
-    g->world->despawn_log(mod.setting<bool>("despawn_log"));
+    // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
+    // to mp-trace.log in the game's working directory (beside run.log), else to the game's log.
+    const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
+
+    if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
+        std::error_code error;
+        std::filesystem::path path = std::filesystem::current_path(error) / "mp-trace.log";
+        path = std::filesystem::absolute(path, error);
+        g->trace_file.open(path, std::ios::out | std::ios::app);
+
+        if (g->trace_file) {
+            g->trace.open([](const std::string& line) { g->trace_file << line << '\n'; });
+            mod.info("multiplayer: verbose log on, its [mp-trace] lines in " + path.string());
+        } else {
+            g->trace.open([](const std::string& line) { g->mod->info(line); });
+            mod.warn("multiplayer: verbose log on, but " + path.string() + " does not open: its [mp-trace] lines go here");
+        }
+
+        if (!mod.has_moby_run()) {
+            mod.warn("multiplayer: this OpenRAC has no moby_run: the verbose log has no run lines or run cameras");
+        }
+    }
+
+    g->world->trace(&g->trace);
     // The game's DATA: the world's kinds to the world, the rest to the co-op.
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
         if (!bytes.empty() && mp::world_kind(bytes[0])) {
@@ -1319,8 +1368,19 @@ void load(openrac::Mod& mod) {
             show_pause();
         }
 
+        if (g->trace.on()) {
+            g->trace.tick(
+                now,
+                !g->session->in_party() ? "solo" : g->session->is_host() ? "host" : "member"
+            );
+        }
+
         g->coop->tick(now);
         g->world->tick(now);
+
+        if (g->trace.on() && g->trace_file.is_open()) {
+            g->trace_file.flush();
+        }
 
         // The party's line over the game: a refused ship travel, a wait for the others.
         if (std::string banner = g->coop->banner(now); banner != g->banner) {

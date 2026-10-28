@@ -11,8 +11,9 @@
  * was when the drive began: WORLD carries the host's (hidden or not), and the member hides or
  * shows its copy so.
  *
- * With the `despawn_log` setting, a line for each moby that leaves the level, or is hidden or
- * shown, here (despawn.hpp), on either side.
+ * With the verbose log on (the `verbose_log` setting: trace.hpp), a line for each moby that leaves
+ * the level, or is hidden or shown, here (despawn.hpp), on either side, and the world's pauses,
+ * run lists, snapshots, drives, messages and a census each second (world_trace.cpp).
  *
  * A death is known only from the game saying so (a placed moby listed dead), never from a moby
  * missing from a listing; a tick the game lists nothing (loading) changes nothing.
@@ -60,6 +61,7 @@
 
 #include "coop.hpp"
 #include "despawn.hpp"
+#include "trace.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
@@ -203,8 +205,12 @@ public:
 
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
-    /* The despawn log on or off (the `despawn_log` setting); the game recorded a moby's death. */
-    void despawn_log(bool on) { despawn_on_ = on; }
+    /* The verbose log (trace.hpp; null or off: none), its despawn lines with it; the game recorded
+     * a moby's death. */
+    void trace(Trace* trace) {
+        trace_ = trace;
+        despawn_on_ = tracing();
+    }
 
     void note_death(int slot) {
         if (despawn_on_) {
@@ -245,7 +251,20 @@ private:
     void send_spawn(std::int32_t target, int level, std::uint16_t net, const MobyState& moby);
     std::uint16_t id_of(int slot) const;
     int slot_of(std::uint16_t id) const;
+    void tick_world(std::uint64_t now);
     void tick_despawn(std::uint64_t now, const std::vector<MobyState>& listing);
+    /* The verbose log (world_trace.cpp): each tick's pause, run, vis, drive and census lines; a
+     * line of `what`; a WORLD's ids against the last one's; a moby deleted by the sync. */
+    bool tracing() const { return trace_ != nullptr && trace_->on(); }
+    void trace_tick(std::uint64_t now);
+    void trace_line(const std::string& what, const std::string& text) {
+        if (tracing()) {
+            trace_->line(what, text);
+        }
+    }
+    void trace_snapshot(const std::string& how, std::set<std::uint16_t>& last, const std::set<std::uint16_t>& ids);
+    bool kill(int slot, const std::string& why);
+    std::string moby_name(int slot) const;
     void note(int slot, const std::string& why, std::int32_t sender) {
         if (despawn_on_) {
             despawn_.note_sync(slot, why, sender);
@@ -295,6 +314,28 @@ private:
     std::map<std::uint16_t, std::uint64_t> host_ms_;
     bool despawn_on_ = false;
     DespawnLog despawn_;
+    Trace* trace_ = nullptr;
+    /* What the verbose log last saw: the phase, the level's mode, whether a menu was open and its
+     * far mobys listed, the menu updates; each slot's run (in range or not) and flags; the driven;
+     * the census's ids; the eyes; the snapshots' ids, sent by member and received. */
+    struct Traced {
+        int phase = -1;
+        std::uint32_t loads = 0xFFFFFFFFu;
+        int level_mode = -999;
+        bool menu = false;
+        bool menu_listed = false;
+        std::uint32_t menu_ticks = 0;
+        std::map<int, bool> in_range;
+        std::map<int, MobyState> listed;
+        std::set<int> driven;
+        std::set<std::string> census;
+        std::uint64_t census_ms = 0;
+        std::uint64_t run_ms = 0;
+        std::size_t eyes = 0;
+        std::uint64_t eyes_ms = 0;
+        std::map<std::int32_t, std::set<std::uint16_t>> sent;
+        std::set<std::uint16_t> received;
+    } traced_;
     /* What it did since the last line in the log (every kWorldLogMs when something happened). */
     struct Counts {
         int snapshots = 0, hits = 0, kills = 0, spawns = 0, damage = 0, bolts = 0;
