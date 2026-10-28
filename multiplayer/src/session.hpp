@@ -66,6 +66,11 @@ public:
      * DATA always goes to the host). For the gameplay to come; unused by the lobby itself. */
     void on_data(std::function<void(std::int32_t sender, const Bytes& bytes)> callback);
     void send_data(std::int32_t target, const Bytes& bytes);
+    /* As send_data, for game state the next update replaces anyway (poses): over UDP where the
+     * server or the embedded host offered it, else as DATA; it arrives through on_data the same
+     * way. It may arrive twice (by UDP and TCP while UDP is unconfirmed) or not at all, so state
+     * must be stamped and idempotent. */
+    void send_state(std::int32_t target, const Bytes& bytes);
 
     /* Asks the server's clock (TIME); done once after hello, and again whenever the mod wants a
      * fresher estimate. */
@@ -99,6 +104,9 @@ public:
 
     bool is_host() const { return in_party() && host_ == id_; }
 
+    /* Whether the party is an embedded host's (Direct connect), which has no code to show. */
+    bool direct() const { return code_ == kDirectCode; }
+
     const std::vector<Member>& members() const { return members_; }
 
     bool ready(std::int32_t member) const { return ready_.count(member) != 0; }
@@ -117,6 +125,8 @@ private:
     /* The host: tells everyone who is ready. */
     void send_state();
     void handle_data(const Message& message);
+    /* Whether game bytes may go: in a party, and not one of the lobby's kinds. */
+    bool game_bytes(const Bytes& bytes) const;
 
     Transport& transport_;
     const std::string version_;

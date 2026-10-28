@@ -146,15 +146,23 @@ void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) 
     on_data_ = std::move(callback);
 }
 
-void Session::send_data(std::int32_t target, const Bytes& bytes) {
+bool Session::game_bytes(const Bytes& bytes) const {
     // Game data goes only inside a party, and never as one of the lobby's kinds.
-    if (!in_party() || bytes.empty()
-        || (bytes[0] >= static_cast<std::uint8_t>(LobbyKind::kReady)
-            && bytes[0] <= static_cast<std::uint8_t>(LobbyKind::kStart))) {
-        return;
-    }
+    return in_party() && !bytes.empty()
+           && (bytes[0] < static_cast<std::uint8_t>(LobbyKind::kReady)
+               || bytes[0] > static_cast<std::uint8_t>(LobbyKind::kStart));
+}
 
-    transport_.send(data(target, bytes));
+void Session::send_data(std::int32_t target, const Bytes& bytes) {
+    if (game_bytes(bytes)) {
+        transport_.send(data(target, bytes));
+    }
+}
+
+void Session::send_state(std::int32_t target, const Bytes& bytes) {
+    if (game_bytes(bytes)) {
+        transport_.send_state(target, bytes);
+    }
 }
 
 void Session::send_state() {
@@ -233,6 +241,9 @@ void Session::handle(const Message& m) {
         case Message::Kind::kChat:
             // No chat on the page yet.
             break;
+        case Message::Kind::kUdp:
+            // The connection's own: it binds UDP with it.
+            break;
     }
 }
 
@@ -285,8 +296,10 @@ void Session::handle_data(const Message& m) {
         // The host started the game.
         started_ = true;
         notice_ = "Game starting (playing together comes in a later version)";
-    } else if (kind != LobbyKind::kReady && kind != LobbyKind::kState && kind != LobbyKind::kStart
-               && on_data_) {
+    } else if (
+        kind != LobbyKind::kReady && kind != LobbyKind::kState && kind != LobbyKind::kStart
+        && on_data_
+    ) {
         // Not the lobby's: the game's own data, as it came.
         on_data_(m.id, m.bytes);
     }
