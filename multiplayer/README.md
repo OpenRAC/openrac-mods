@@ -42,7 +42,12 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
    a new game starts on Veldin, a save where it was saved. The others' cards are not touched.
 4. In a level each game shows the others' Ratchets where they are, running, jumping and standing
    as they do, about a tenth of a second behind. They walk through you and nothing aims at them.
-5. When the host travels to another planet, everyone's game follows it there. Someone who joins
+5. Only the host flies the ship: when it picks another planet in the ship's planet select, every
+   member's game leaves its level at that moment, from wherever it is (playing, a scene, the pause
+   menu, a vendor), and flies there. Nobody gets control on the new planet, and nothing of the
+   host's world shows there, until everyone has arrived ("Waiting for the other players to arrive"
+   says why; at most 90 seconds for one that never comes). A member's own pick of another planet
+   lands the ship again where it is ("Only the host flies the ship to another planet"). Someone who joins
    while the game is on gets the host's progress as it is then and starts in the host's level;
    someone who quits to the title finds **Join the game** in the lobby in Ready's place, which
    asks the host for its game again.
@@ -70,7 +75,7 @@ The world is the host's:
   arrives in the level later. A moby goes only when a game says it died, never because a snapshot
   is missing: a game that is loading or in a menu changes nothing in the others.
 - **Vendors, the ship, people, help desks**: each game's own, for its own player; the level a
-  member is in follows the host's.
+  member is in follows the host's, and only the host's ship leaves for another planet.
 - **Menus do not pause** while the party plays: the pause menu and the game's dialogs open over a
   world that goes on (enemies, platforms, the other players); your Ratchet waits where he is.
 - **Scenes end together**: the host's skip counts (a member's Start does nothing while the host's
@@ -176,7 +181,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 3 START | the host | | the lobby's Start |
 | 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc) differs refuses it: "Incompatible version" |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
-| 6 LEVEL | the host, to all | play i32, level i32, scene u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; a member in another level travels there, a member in a scene the host is out of skips it |
+| 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
 | 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on to everyone. A pose that ends after 65 bytes (an older mod) wears nothing |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
 | 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each) | the 48 mobys nearest that member that moved or animated, 15 times a second |
@@ -211,8 +216,9 @@ that player. Mobys near the members run in the host's game as if near its camera
 
 - Progress is each game's: the host's save is where the party starts, and what a member collects
   (gold bolts, items) and buys stays in that member's game; its card is never written by the party.
-- Vendors and the ship are each game's own. A member's own travel by ship is undone (it is pulled
-  back to the host's level). A cutscene a moby of the host's world starts plays in the host's game
+- Vendors and the ship are each game's own. A member's flight to the new planet is the game's
+  flight between planets, not the host's take-off from the pad (members leave when the host's
+  ship does, and usually land first, then wait). A cutscene a moby of the host's world starts plays in the host's game
   only; members wait for it (the barrier).
 - Under the pause menu the world goes on but the picture behind the menu stays as it was.
 - A member's crates drop their bolts in the member's game only.
