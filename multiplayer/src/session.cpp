@@ -325,6 +325,15 @@ bool valid_name(const std::string& name) {
               });
 }
 
+std::string choose_name(const std::string& setting, const std::string& launcher) {
+    // The mod's own setting first, then the launcher's; an invalid one is passed over.
+    if (valid_name(setting)) {
+        return setting;
+    }
+
+    return valid_name(launcher) ? launcher : std::string();
+}
+
 const char* error_text(ErrorReason reason) {
     // Each reason its own words.
     switch (reason) {

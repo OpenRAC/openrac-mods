@@ -156,6 +156,10 @@ std::uint64_t now_ms();
  * underscores. */
 bool valid_name(const std::string& name);
 
+/* The player's name: the mod's `name` setting when it is a valid one, else the launcher's
+ * (OPENRAC_PLAYER_NAME) when valid, else empty (the mod then makes one up). */
+std::string choose_name(const std::string& setting, const std::string& launcher);
+
 /* The words for a refusal of the server. */
 const char* error_text(ErrorReason reason);
 

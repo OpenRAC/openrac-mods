@@ -11,7 +11,9 @@
 //   - the connection against a server made here on the loopback: TCP, hello sent, the answer read;
 //   - Direct connect: the embedded host (host.hpp) in-process with two clients on the loopback:
 //     hello, the unasked INFO, chat, DATA both ways, the lobby, leave and find again, UDP BIND and
-//     STATE, the host stopping or leaving (END); and the server's limits, from raw sockets.
+//     STATE, the host stopping or leaving (END); and the server's limits, from raw sockets;
+//   - Direct connect's page logic: the address's ring rows, held steps, the hosting lines, and
+//     the player's name chosen from the setting and the launcher's.
 //
 // The expected bytes are written out by hand from the server's README and its Java encoders.
 #include <chrono>
@@ -22,6 +24,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "direct.hpp"
 
 #if defined(_WIN32)
 #include <winsock2.h>
@@ -949,6 +953,89 @@ void the_host_keeps_the_servers_limits() {
     close_socket(extra);
 }
 
+// Direct connect's page logic (direct.hpp): the ring rows, holding, the address, the lobby's lines.
+void direct_page_logic() {
+    // A ring row: 64 choices, the value in the middle, around the ends.
+    std::vector<std::string> c = mp::ring_choices(0, mp::kOctetRing);
+    CHECK(c.size() == static_cast<std::size_t>(mp::kRingWindow) && c.size() <= 64);
+    CHECK(
+        c[mp::kRingCentre] == "0" && c[mp::kRingCentre - 1] == "255"
+        && c[mp::kRingCentre + 1] == "1"
+    );
+    CHECK(c.front() == "224" && c.back() == "31");
+    c = mp::ring_choices(7770, mp::kPortCoarseRing);
+    CHECK(
+        c[mp::kRingCentre] == "7770" && c[mp::kRingCentre + 1] == "7870"
+        && c[mp::kRingCentre - 1] == "7670"
+    );
+    c = mp::ring_choices(1, mp::kPortRing);
+    CHECK(c[mp::kRingCentre - 1] == "65535" && c[mp::kRingCentre + 1] == "2");
+
+    // Stepping: a choice either side of the middle, around the ends, and ten at a time.
+    CHECK(mp::ring_step(168, mp::kRingCentre + 1, mp::kOctetRing) == 169);
+    CHECK(mp::ring_step(0, mp::kRingCentre - 1, mp::kOctetRing) == 255);
+    CHECK(mp::ring_step(255, mp::kRingCentre + 1, mp::kOctetRing) == 0);
+    CHECK(mp::ring_step(250, mp::kRingCentre + 1, mp::kOctetRing, 10) == 4);
+    CHECK(mp::ring_step(7770, mp::kRingCentre, mp::kPortRing) == 7770);
+    CHECK(mp::ring_step(65535, mp::kRingCentre + 1, mp::kPortRing) == 1);
+    CHECK(mp::ring_step(7770, mp::kRingCentre - 1, mp::kPortCoarseRing) == 7670);
+    CHECK(mp::ring_step(65500, mp::kRingCentre + 1, mp::kPortCoarseRing) == 65);
+    CHECK(mp::ring_wrap(-1, mp::kOctetRing) == 255 && mp::ring_wrap(256, mp::kOctetRing) == 0);
+
+    // Holding: single steps, then ten once the port has repeated a while on one row.
+    mp::Acceleration a;
+    CHECK(a.times(0, 1000) == 1);
+    std::uint64_t t = 1250;  // the port's first repeat comes later than the gap: a new press
+    CHECK(a.times(0, t) == 1);
+    int fast_at = 0;
+    for (int i = 1; i <= 12; ++i) {
+        t += 67;
+        if (a.times(0, t) == mp::Acceleration::kFast && fast_at == 0) {
+            fast_at = i;
+        }
+    }
+    CHECK(fast_at == mp::Acceleration::kHeldRepeats);
+    CHECK(a.times(0, t + 67) == mp::Acceleration::kFast);
+    CHECK(a.times(1, t + 134) == 1);   // another row
+    CHECK(a.times(1, t + 1000) == 1);  // let go
+    a.reset();
+    CHECK(a.times(1, t + 1050) == 1);
+
+    // The address as connect_direct takes it, and as it parses back.
+    mp::DirectAddress address;
+    CHECK(address.text() == "192.168.1.1:7770");
+    address.octets = {10, 0, 0, 255};
+    address.port = 25565;
+    CHECK(address.text() == "10.0.0.255:25565");
+    std::string host;
+    int port = 0;
+    CHECK(mp::parse_address(address.text(), host, port) && host == "10.0.0.255" && port == 25565);
+
+    // The hosting lobby's lines: each address with the port, as many as fit; the port alone.
+    std::vector<std::string> lines = mp::hosting_lines({"192.168.1.20"}, 7770, 5);
+    CHECK(lines == std::vector<std::string>{"Hosting on 192.168.1.20:7770"});
+    lines = mp::hosting_lines({"192.168.1.20", "10.0.0.5", "172.16.0.2"}, 7770, 2);
+    CHECK(
+        lines
+        == (std::vector<std::string>{"Hosting on 192.168.1.20:7770", "Hosting on 10.0.0.5:7770"})
+    );
+    CHECK(mp::hosting_lines({}, 7770, 5) == std::vector<std::string>{"Hosting on port 7770"});
+    CHECK(
+        mp::hosting_lines({"192.168.1.20"}, 7770, 0)
+        == std::vector<std::string>{"Hosting on port 7770"}
+    );
+    CHECK(mp::hosting_lines({"255.255.255.255"}, 65535, 1)[0].size() <= 47);
+
+    // The player's name: the setting when valid, else the launcher's when valid, else none.
+    CHECK(mp::choose_name("Clank_2", "Ratchet") == "Clank_2");
+    CHECK(mp::choose_name("", "Ratchet") == "Ratchet");
+    CHECK(mp::choose_name("ab", "Ratchet") == "Ratchet");
+    CHECK(mp::choose_name("has space", "Ratchet") == "Ratchet");
+    CHECK(mp::choose_name("seventeen_letters", "Ratchet") == "Ratchet");
+    CHECK(mp::choose_name("", "no!").empty());
+    CHECK(mp::choose_name("", "").empty());
+}
+
 }  // namespace
 
 int main() {
@@ -963,6 +1050,7 @@ int main() {
     direct_connect_plays_a_party();
     the_host_leaving_ends_hosting();
     the_host_keeps_the_servers_limits();
+    direct_page_logic();
 
     // The count of failed checks is the whole verdict.
     if (g_failures == 0) {

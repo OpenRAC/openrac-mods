@@ -2,7 +2,8 @@
 
 Online multiplayer for Ratchet & Clank on OpenRAC's native port (PAL and NTSC-U discs), first step:
 a **Multiplayer** item in the game's main menu that connects to an OpenRAC server and puts you in a
-party with other players. **Nothing of the game is played together yet**: this version is the menu,
+party with other players, or, with **Direct connect**, plays without a server: one player's game
+hosts and the others join it by its address. **Nothing of the game is played together yet**: this version is the menu,
 the lobby and the connection. Seeing the other players in a level comes in a later version.
 
 With the mod off, the game is the PlayStation 2 game.
@@ -11,8 +12,10 @@ With the mod off, the game is the PlayStation 2 game.
 
 1. Install the mod from the launcher's **Mods** tab, switch it on, and set **Server** to the
    OpenRAC server you play on (`localhost:7770` by default: a server on your own computer).
-2. Your name is the launcher's **Multiplayer name** (Settings, General). The launcher makes one up
-   at its first start; change it there (3 to 16 letters, digits and underscores).
+2. Your name is the mod's **Name** setting, or, while that is empty (or not a valid name), the
+   launcher's **Multiplayer name** (Settings, General), which the launcher makes up at its first
+   start. Either way it is 3 to 16 letters, digits and underscores. Without either (the game started
+   without the launcher), the mod makes one up (`Player` and three digits).
 3. Start the game. The title's main menu reads **New Game**, **Load Game**, **Multiplayer**,
    **Options**: choose **Multiplayer**.
 
@@ -20,9 +23,10 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 
 | Page | What it does |
 |---|---|
-| Home | **Find match**: the server puts you in an open party that has room, or makes you the host of a new one others can find. **Create match**: a private party, which only its code joins. **Join by code**: the next page. The three wait for the server's hello. Below them, your name |
+| Home | **Find match**: the server puts you in an open party that has room, or makes you the host of a new one others can find. **Create match**: a private party, which only its code joins. **Join by code**: the next page. The three wait for the server's hello. **Direct connect**: the next page, no server needed. Below them, your name |
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
-| Lobby | The party's code in the title, **Ready** (a member: it is ready, or no longer) or **Start** (the host: it starts the game for everyone; in this version that is all it does), **Leave**, then the members (up to 4) with the host and the ready ones marked, and the round trip to the server. **Leave** and Triangle ask first; when the host leaves, the party is over for everyone |
+| Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
+| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready, or no longer) or **Start** (the host: it starts the game for everyone; in this version that is all it does), **Leave**, then the members (up to 4) with the host and the ready ones marked, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
 what the connection is doing: connecting, connected, **server unreachable** (the mod tries again
@@ -32,24 +36,33 @@ no party has, a full party, the host leaving).
 | Setting | Default | |
 |---|---|---|
 | Server | `localhost:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
+| Name | empty | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty (or not valid): the launcher's Multiplayer name |
 
 ## Direct connect
 
 Playing without a server: one player's game hosts, and the others join it by its address. The
 default stays the server; Direct connect is for a LAN, or for friends who can reach each other.
 
-- **Host directly**: your game listens on port **7770** (TCP, and UDP on the same port), and you are
-  the host of its one party. The page shows your address and port to give the others. A port
-  already taken (another host, or a server on the same computer) is refused with "Port 7770 is in
-  use".
-- **Join by address**: type the host's address as `address:port` (`192.168.1.20:7770`; the port may
-  be left out when it is 7770). You are in the host's party as soon as you are connected: there is
-  no code to type.
+Home, **Direct connect**:
 
-On a LAN this works as it is. Over the internet the host has to forward the port (TCP and UDP 7770)
-on their router to their computer, and give out their public address; everyone in the party then
-sees the host's address, and the host sees theirs. When the host leaves or stops hosting, the party
-is over for everyone.
+- **Host directly**: your game listens on port **7770** (TCP, and UDP on the same port), and you are
+  the host of its one party. The lobby's title shows your address and port to give the others
+  (`Hosting on 192.168.1.20:7770`; more lines when the computer has more than one address). A port
+  already taken (another host, or a server on the same computer) is refused: the page stays, and
+  its footer says "Port 7770 is in use". **Leave** asks "Stop hosting?" and ends the party.
+- **Join by address**: set the host's address with the rows (four parts and the port), then
+  **Join**. You are in the host's party as soon as you are connected: there is no code to type.
+  While it cannot reach the host, the footer says so and it keeps trying; Triangle gives up.
+
+The game has no text entry, so the address is stepped in with Left and Right. Leaving a direct
+party (or the host ending it) goes back to Home and to your server, so Find match, Create match and
+Join by code work again.
+
+On a LAN this works as it is: give the others the address the lobby shows. Over the internet the
+host has to forward the port (**TCP and UDP 7770**) on their router to their computer, and give out
+their public address (the lobby shows only the LAN ones). Addresses are visible: everyone in the
+party sees the host's address, and the host sees theirs. When the host leaves or stops hosting,
+the party is over for everyone.
 
 The host's game runs a small copy of the server's party routing (`src/host.cpp`), so it speaks the
 same packets and datagrams, and the lobby and the game data behave the same in both modes. Its
@@ -75,7 +88,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.2.0`) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.3.0`) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0), JOIN code (1), LEAVE (2), FIND (7) | INFO (3), JOINED (4), LEFT (5), END (6) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -112,7 +125,9 @@ python3 <OpenRAC>/sdk/tools/package_mod.py build/package/multiplayer -o dist
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
 lobby's logic against a recorder, the connection against a small server on the loopback, and
 Direct connect: a host and two clients on the loopback (the party, chat, DATA both ways, UDP state,
-leaving, the host stopping) and the server's limits held by the host.
+leaving, the host stopping) and the server's limits held by the host; and the pages' own logic:
+the address rows stepping around their ends and faster when held, the hosting lines, and the name
+chosen from the setting and the launcher's.
 
 | File | |
 |---|---|
@@ -120,5 +135,6 @@ leaving, the host stopping) and the server's limits held by the host.
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, find, join, leave, Ready and Start |
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
 | `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
+| `src/direct.hpp`, `.cpp` | Direct connect's page logic: the address's rows (64-choice rings), held steps, the hosting lines |
 | `src/sockets.hpp` | the socket calls the connection and the host share (Winsock and POSIX) |
 | `src/protocol.hpp`, `.cpp` | the server's frames, packets and datagrams, both sides |
