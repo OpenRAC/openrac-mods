@@ -368,6 +368,7 @@ struct State {
     SavesFor saves_for = SavesFor::kCreate;
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
     std::string notice;  // the last refusal or news, until the next action
+    std::string banner;  // the line shown over the game (play_notice)
     DirectView view = DirectView::kMenu;
     mp::DirectAddress address;  // Join by address's, the last joined kept for the game
     mp::Acceleration acceleration;
@@ -1091,6 +1092,12 @@ void load(openrac::Mod& mod) {
             }
         }
     );
+    // The ship's planet select: the host's travel takes the party along, a member's to another
+    // planet lands the ship again where it is (coop.hpp: only the host flies).
+    mod.hook<openrac::rac1::Ship_TravelTo>([](auto original, std::int32_t dest) {
+        const int here = g->game->status().level;
+        original(g->coop->ship_travel(dest, here) ? dest : here);
+    });
     // The first pad: a Start in a scene or a movie skips it for the party, a party's skip presses
     // Start for a movie playing here, and the scene barrier holds the control (coop.hpp). The report: buttons in
     // bytes 0 and 1 (a bit clear while held; Start 0x08), the sticks, then the pressures.
@@ -1160,6 +1167,12 @@ void load(openrac::Mod& mod) {
         g->frame_ms = now;
         g->coop->tick(now);
         g->world->tick(now);
+
+        // The party's line over the game: a refused ship travel, a wait for the others.
+        if (std::string banner = g->coop->banner(now); banner != g->banner) {
+            g->banner = banner;
+            g->mod->play_notice(banner);
+        }
     });
     mod.info(
         "multiplayer: " + g->session->name() + ", server " + g->host + ":" + std::to_string(g->port)

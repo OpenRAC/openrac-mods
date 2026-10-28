@@ -1566,6 +1566,176 @@ void held_items_and_shots_reach_the_figure() {
     CHECK(member.game.shots_out.empty() && member.coop.shots_sent() == sent);
 }
 
+// The host's ship travel: a member's own is refused; the host's takes every member along at once,
+// from a menu too, and the party arrives together: nobody goes on, no figure is shown and none of
+// the host's world arrives until all are in the new level; a slow member is waited for, a member
+// that never comes is not waited for ever.
+void a_ship_travel_takes_the_party_along() {
+    Player host(1), member(2);
+    std::vector<std::string> host_log, member_log;
+    host.coop.on_log([&](const std::string& l) { host_log.push_back(l); });
+    member.coop.on_log([&](const std::string& l) { member_log.push_back(l); });
+    const auto has = [](const std::vector<std::string>& log, const std::string& start) {
+        return std::any_of(log.begin(), log.end(), [&](const std::string& l) { return l.rfind(start, 0) == 0; });
+    };
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 11, 2};
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.coop.figures() == 1 && host.coop.figures() == 1);
+    member.game.calls.clear();
+
+    // A member's planet select: only the host flies; the same planet (a landing again) is the game's.
+    CHECK(!member.coop.ship_travel(5, 11));
+    CHECK(member.coop.take_notice() == "Only the host flies the ship to another planet");
+    CHECK(member.coop.banner(member.clock) == "Only the host flies the ship to another planet");
+    CHECK(member.coop.banner(member.clock + mp::kRefusedMs).empty());
+    CHECK(member.coop.ship_travel(11, 11) && host.coop.ship_travel(11, 11));
+    CHECK(!host.coop.arriving());
+    tick({&host, &member}, 50);
+    CHECK(member.game.calls.empty());
+
+    // The member is in the pause menu when the host's ship leaves for 5: it leaves at once (asked
+    // again a while later if its game has not gone), and the host's flight out pulls nobody back.
+    member.game.now.phase = mp::kPhaseMenu;
+    CHECK(host.coop.ship_travel(5, 11));
+    CHECK(host.coop.arriving() && host.coop.waiting_for() == 1);
+    host.game.now.phase = mp::kPhaseScene;
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    CHECK((member.game.calls == std::vector<std::string>{"travel 5"}));
+    CHECK(member.coop.arriving() && has(member_log, "leaving level 11 for 5 (phase 5)"));
+    tick({&host, &member}, 500);
+    CHECK(member.game.calls.size() == 1);
+    tick({&host, &member}, mp::kLeaveMs);
+    CHECK(member.game.calls.size() == 2 && member.game.calls.back() == "travel 5");
+    member.game.now = {mp::kPhaseLoading, 5, 3};
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(has(member_log, "left for level 5"));
+
+    // The member lands first, and is out of its landing while the host still flies out: it waits,
+    // with no figure and no travel back to the host's old level.
+    member.game.now = {mp::kPhasePlaying, 5, 3};
+    member.game.calls.clear();
+    for (int i = 0; i < 100; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.calls.empty() && member.coop.hold_input() && member.coop.figures() == 0);
+    CHECK(member.game.figures.empty());
+
+    // The host on its way, then in 5 with a bolt it spawned there: everyone is in, so all go on,
+    // the figures come back, and the host's world arrives only now.
+    host.game.now = {mp::kPhaseLoading, 5, 2};
+    tick({&host, &member}, 50);
+    host.game.level = {moby(300, -1, 13, mp::kMobyUpdates, 11.0f)};
+    host.game.now = {mp::kPhasePlaying, 5, 3};
+    for (int i = 0; i < 40; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(!host.coop.arriving() && !member.coop.arriving());
+    CHECK(!host.coop.hold_input() && !member.coop.hold_input());
+    CHECK(has(host_log, "everyone is in level 5: going on"));
+    CHECK(has(member_log, "everyone is in level 5: going on"));
+    CHECK(member.coop.figures() == 1 && host.coop.figures() == 1);
+    CHECK(member.world.spawned() == 1);
+    CHECK(member.game.calls.empty());
+
+    // The next travel, to 7: this time the host lands first; its control is held until the member
+    // is in.
+    member.game.now.phase = mp::kPhasePlaying;
+    CHECK(host.coop.ship_travel(7, 5));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    CHECK(member.game.calls.back() == "travel 7");
+    member.game.now = {mp::kPhaseLoading, 7, 4};
+    host.game.now = {mp::kPhasePlaying, 7, 4};
+    for (int i = 0; i < 200; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(host.coop.arriving() && host.coop.hold_input() && host.coop.waiting_for() == 1);
+    CHECK(has(host_log, "waiting for 1 players to arrive in level 7"));
+    CHECK(host.coop.banner(host.clock) == "Waiting for the other players to arrive");
+    member.game.now = {mp::kPhasePlaying, 7, 5};
+    for (int i = 0; i < 40; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(!host.coop.hold_input() && !member.coop.hold_input() && host.coop.figures() == 1);
+    CHECK(host.coop.banner(host.clock).empty());
+
+    // A member that never arrives (its game stuck in a load) does not hold the host for ever.
+    CHECK(host.coop.ship_travel(9, 7));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    member.game.now = {mp::kPhaseLoading, 9, 6};
+    host.game.now = {mp::kPhasePlaying, 9, 5};
+    tick({&host, &member}, 1000);
+    CHECK(host.coop.hold_input());
+    for (std::uint64_t t = 0; t <= mp::kArriveMs; t += 1000) {
+        tick({&host, &member}, 1000);
+    }
+    CHECK(!host.coop.arriving() && !host.coop.hold_input());
+}
+
+// Three players: one member in the new level waits, given nothing of the host's world and shown
+// nobody, until the slower one is in too.
+void the_party_arrives_together() {
+    Player host(1), fast(2), slow(3);
+    const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+    for (Player* p : {&host, &fast, &slow}) {
+        p->session.handle(info(all));
+    }
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &fast, &slow});
+    tick({&host, &fast, &slow}, 16);
+    for (Player* p : {&host, &fast, &slow}) {
+        p->game.now = {mp::kPhasePlaying, 11, 2};
+    }
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &fast, &slow}, 50);
+    }
+    CHECK(fast.coop.figures() == 2);
+
+    CHECK(host.coop.ship_travel(5, 11));
+    CHECK(host.coop.waiting_for() == 2);
+    route({&host, &fast, &slow});
+    tick({&host, &fast, &slow}, 16);
+    CHECK(fast.game.calls.back() == "travel 5" && slow.game.calls.back() == "travel 5");
+    for (Player* p : {&host, &fast, &slow}) {
+        p->game.now = {mp::kPhaseLoading, 5, 3};
+    }
+    tick({&host, &fast, &slow}, 50);
+
+    // The host and the fast member in 5 (the host's bolt there), the slow one still loading.
+    host.game.level = {moby(300, -1, 13, mp::kMobyUpdates, 11.0f)};
+    host.game.now = fast.game.now = {mp::kPhasePlaying, 5, 4};
+    for (int i = 0; i < 100; ++i) {
+        tick({&host, &fast, &slow}, 50);
+    }
+    CHECK(host.coop.arriving() && host.coop.waiting_for() == 1);
+    CHECK(host.coop.hold_input() && fast.coop.hold_input());
+    CHECK(fast.world.spawned() == 0 && fast.coop.figures() == 0 && host.coop.figures() == 0);
+
+    // The slow one in: everyone goes on, the world and the figures come.
+    slow.game.now = {mp::kPhasePlaying, 5, 4};
+    for (int i = 0; i < 40; ++i) {
+        tick({&host, &fast, &slow}, 50);
+    }
+    CHECK(!host.coop.arriving() && !fast.coop.arriving() && !slow.coop.arriving());
+    CHECK(!host.coop.hold_input() && !fast.coop.hold_input() && !slow.coop.hold_input());
+    CHECK(fast.world.spawned() == 1 && slow.world.spawned() == 1);
+    CHECK(fast.coop.figures() == 2 && host.coop.figures() == 2);
+}
+
 int main() {
     pose_bytes();
     held_and_shot_bytes();
@@ -1589,6 +1759,8 @@ int main() {
     scenes_end_together();
     a_skip_anywhere_skips_everywhere();
     held_items_and_shots_reach_the_figure();
+    a_ship_travel_takes_the_party_along();
+    the_party_arrives_together();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

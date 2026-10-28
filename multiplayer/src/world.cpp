@@ -261,7 +261,12 @@ void World::tick(std::uint64_t now) {
     alive_keys_ = std::move(alive);
     dead_keys_ = std::move(dead);
 
-    if (hosting_) {
+    // The party arriving after a ship travel: nothing of the host's world goes out until all are
+    // in (coop.hpp), what it learns meanwhile (the level's own dead) goes with the DEAD each member
+    // is given then.
+    if (hosting_ && coop_.arriving()) {
+        log_counts(now);
+    } else if (hosting_) {
         tick_host(now, status);
 
         // Dead for everyone.

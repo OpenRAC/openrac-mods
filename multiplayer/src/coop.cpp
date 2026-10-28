@@ -261,11 +261,42 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const std::int32_t play = r.i32();
             const std::int32_t level = r.i32();
             const bool scene = r.left() > 0 && r.u8() != 0;
+            // The host's travels (a host without them: none).
+            const bool travels = r.left() >= 7;
+            const std::uint8_t travel_high = travels ? r.u8() : 0;
+            const auto travel = static_cast<std::uint16_t>(travel_high << 8 | (travels ? r.u8() : 0));
+            const std::int32_t dest = travels ? r.i32() : -1;
+            const bool arriving = travels && r.u8() != 0;
 
-            if (from_host && r.ok() && play != 0) {
-                play_ = play;
-                host_level_ = level;
-                host_scene_ = scene;
+            if (!from_host || !r.ok() || play == 0) {
+                break;
+            }
+
+            play_ = play;
+            host_level_ = level;
+            host_scene_ = scene;
+            host_arriving_ = arriving;
+
+            if (!travels) {
+                break;
+            }
+
+            // The first word heard is where the host is now (this game starts there); a newer
+            // travel is a departure to follow.
+            if (!heard_travel_) {
+                heard_travel_ = true;
+                host_travel_ = travel;
+            } else if (travel != host_travel_) {
+                host_travel_ = travel;
+
+                if (dest >= 0 && applied_ == play_) {
+                    const auto now = clock_();
+                    leave_dest_ = travel_dest_ = dest;
+                    leave_ms_ = 0;
+                    arriving_ = true;
+                    depart_ms_ = now;
+                    log("the host's ship leaves for level " + std::to_string(dest) + ": leaving with it");
+                }
             }
 
             break;
@@ -392,6 +423,15 @@ void Coop::tick(std::uint64_t now) {
 
     const GameStatus status = game_.status();
 
+    // Each change of the game's phase, level or load in the log, with the clock (the same on every
+    // game of a machine): the party's timeline.
+    if (status.phase != logged_.phase || status.level != logged_.level || status.loads != logged_.loads) {
+        logged_ = status;
+        log("game at " + std::to_string(now) + " ms: phase " + std::to_string(status.phase) + ", level "
+            + std::to_string(status.level) + ", load " + std::to_string(status.loads)
+            + (arriving_ ? ", arriving" : ""));
+    }
+
     if (session_.is_host()) {
         tick_host(now, status);
     } else {
@@ -441,6 +481,10 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
         waiting = host_scene_;
     }
 
+    // The party on its way to a planet: nobody goes on until everyone is in.
+    const bool arrival = arriving_ && play_ != 0 && status.level == travel_dest_;
+    waiting = waiting || arrival;
+
     waiting = waiting && status.phase == kPhasePlaying;
 
     if (!waiting) {
@@ -453,11 +497,15 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     } else {
         if (hold_since_ == 0) {
             hold_since_ = now;
-            log(session_.is_host() ? "waiting for the members to leave their scene"
-                                   : "waiting for the host's scene to end");
+            log(arrival ? (session_.is_host() ? "waiting for " + std::to_string(waiting_for_.size())
+                                                    + " players to arrive in level " + std::to_string(status.level)
+                                              : "waiting for the party to arrive in level " + std::to_string(status.level))
+                : session_.is_host() ? "waiting for the members to leave their scene"
+                                     : "waiting for the host's scene to end");
         }
 
-        const std::uint64_t most = session_.is_host() ? kBarrierMs : kHostSceneMs;
+        // The arrival's own limit is kArriveMs (it ends the wait itself).
+        const std::uint64_t most = arrival ? kArriveMs : session_.is_host() ? kBarrierMs : kHostSceneMs;
         hold_ = now - hold_since_ < most;
     }
 
@@ -499,25 +547,121 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
         }
     }
 
+    tick_arrival(now, status);
+
     // The level played, at each change and once a second.
     const int level = in_level(status.phase) ? status.level : -1;
 
     const bool scene = status.phase == kPhaseScene;
     host_scene_ = scene;
 
-    if (level != sent_level_ || scene != sent_scene_ || now - level_ms_ >= kLevelMs) {
-        sent_level_ = level;
-        sent_scene_ = scene;
-        level_ms_ = now;
-        session_.send_data(
-            kBroadcast,
-            Writer()
-                .u8(static_cast<std::uint8_t>(GameKind::kLevel))
-                .i32(play_)
-                .i32(level)
-                .u8(scene ? 1 : 0)
-                .bytes()
-        );
+    if (level != sent_level_ || scene != sent_scene_ || arriving_ != sent_arriving_
+        || now - level_ms_ >= kLevelMs) {
+        send_level(now, level, scene);
+    }
+}
+
+void Coop::send_level(std::uint64_t now, int level, bool scene) {
+    sent_level_ = level;
+    sent_scene_ = scene;
+    sent_arriving_ = arriving_;
+    level_ms_ = now;
+    session_.send_data(
+        kBroadcast,
+        Writer()
+            .u8(static_cast<std::uint8_t>(GameKind::kLevel))
+            .i32(play_)
+            .i32(level)
+            .u8(scene ? 1 : 0)
+            .u8(static_cast<std::uint8_t>(travel_ >> 8))
+            .u8(static_cast<std::uint8_t>(travel_))
+            .i32(travel_dest_)
+            .u8(arriving_ ? 1 : 0)
+            .bytes()
+    );
+}
+
+bool Coop::ship_travel(int dest, int here) {
+    // A landing again where the ship is, or no party's game: as the game does.
+    if (dest == here || !session_.in_party() || play_ == 0) {
+        return true;
+    }
+
+    if (!session_.is_host()) {
+        if (applied_ != play_) {
+            return true;
+        }
+
+        notice_ = "Only the host flies the ship to another planet";
+        refused_until_ = clock_() + kRefusedMs;
+        log("the ship's travel to level " + std::to_string(dest) + " refused: only the host flies it");
+        return false;
+    }
+
+    // The host leaves: everyone who plays its game leaves with it, now, and is waited for there.
+    const auto now = clock_();
+    ++travel_;
+    travel_dest_ = dest;
+    arriving_ = true;
+    depart_ms_ = now;
+    depart_loads_ = game_.status().loads;
+    waiting_for_.clear();
+
+    for (const auto& [id, r] : remotes_) {
+        if (member_of(session_, id) && r.poses.silence_ms(static_cast<double>(now)) < kGoneMs) {
+            waiting_for_.push_back(id);
+        }
+    }
+
+    log("leaving for level " + std::to_string(dest) + " by ship (travel " + std::to_string(travel_)
+        + "): " + std::to_string(waiting_for_.size()) + " players leave too");
+    send_level(now, here, host_scene_);
+    return true;
+}
+
+std::string Coop::banner(std::uint64_t now) const {
+    if (now < refused_until_) {
+        return "Only the host flies the ship to another planet";
+    }
+
+    if (arriving_ && hold_) {
+        return "Waiting for the other players to arrive";
+    }
+
+    return {};
+}
+
+void Coop::tick_arrival(std::uint64_t now, const GameStatus& status) {
+    if (!arriving_) {
+        return;
+    }
+
+    // Each member waited for is in once its game plays the new level (its newest pose there).
+    waiting_for_.erase(
+        std::remove_if(
+            waiting_for_.begin(),
+            waiting_for_.end(),
+            [&](std::int32_t id) {
+                const auto it = remotes_.find(id);
+                Pose p;
+                return !member_of(session_, id)
+                       || (it != remotes_.end() && it->second.poses.newest(p) && p.level == travel_dest_
+                           && it->second.poses.silence_ms(static_cast<double>(now)) < 2000.0);
+            }
+        ),
+        waiting_for_.end()
+    );
+
+    const bool here = in_level(status.phase) && status.level == travel_dest_ && status.loads != depart_loads_;
+
+    if (here && waiting_for_.empty()) {
+        arriving_ = false;
+        log("everyone is in level " + std::to_string(travel_dest_) + ": going on ("
+            + std::to_string(now - depart_ms_) + " ms after leaving)");
+    } else if (now - depart_ms_ >= kArriveMs) {
+        arriving_ = false;
+        waiting_for_.clear();
+        log("going on in level " + std::to_string(status.level) + " without the players still on their way");
     }
 }
 
@@ -569,8 +713,39 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
         skip_ms_ = 0;
     }
 
-    // In the host's game: in the host's level.
-    if (play_ != 0 && applied_ == play_ && status.phase == kPhasePlaying && host_level_ >= 0
+    // The host's ship left: this game leaves too, from wherever it is in its level (playing, a
+    // scene, the pause menu, a vendor), asked again until a level load says it went; then the
+    // party arrives together (the host says when everyone is in).
+    if (leave_dest_ >= 0) {
+        if ((leave_ms_ != 0 && status.loads != leave_loads_)
+            || (in_level(status.phase) && status.level == leave_dest_)) {
+            log("left for level " + std::to_string(leave_dest_));
+            leave_dest_ = -1;
+        } else if (in_level(status.phase) && status.level != leave_dest_
+                   && (leave_ms_ == 0 || now - leave_ms_ >= kLeaveMs)) {
+            if (leave_ms_ == 0) {
+                log("leaving level " + std::to_string(status.level) + " for " + std::to_string(leave_dest_)
+                    + " (phase " + std::to_string(status.phase) + ")");
+            }
+
+            leave_ms_ = now;
+            leave_loads_ = status.loads;
+            game_.travel(leave_dest_);
+        }
+    }
+
+    if (arriving_) {
+        if (!host_arriving_ && in_level(status.phase) && host_level_ == status.level) {
+            arriving_ = false;
+            log("everyone is in level " + std::to_string(status.level) + ": going on");
+        } else if (now - depart_ms_ >= kArriveMs) {
+            arriving_ = false;
+            log("the party's arrival took too long: going on");
+        }
+    }
+
+    // In the host's game: in the host's level (not while the party is on its way to it).
+    if (play_ != 0 && applied_ == play_ && status.phase == kPhasePlaying && host_level_ >= 0 && !arriving_
         && status.level != host_level_ && (travel_ms_ == 0 || now - travel_ms_ >= kTravelMs)) {
         travel_ms_ = now;
         log("travelling to the host's level " + std::to_string(host_level_));
@@ -708,7 +883,8 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
         Pose pose;
         const auto t = static_cast<double>(now);
         // A player who died is not shown until it stands again (its health back).
-        const bool shown = in_level(status.phase) && r.poses.at(t, pose)
+        // Nor while the party arrives somewhere (the figures come once all are in).
+        const bool shown = !arriving_ && in_level(status.phase) && r.poses.at(t, pose)
                            && r.poses.silence_ms(t) < kGoneMs && pose.level == status.level
                            && pose.health > 0;
 
@@ -777,6 +953,16 @@ void Coop::reset() {
     host_level_ = -1;
     sent_level_ = -2;
     pose_sent_ = false;
+    travel_ = 0;
+    travel_dest_ = -1;
+    arriving_ = sent_arriving_ = false;
+    waiting_for_.clear();
+    heard_travel_ = false;
+    host_travel_ = 0;
+    leave_dest_ = -1;
+    leave_ms_ = 0;
+    host_arriving_ = false;
+    refused_until_ = 0;
 }
 
 }  // namespace mp

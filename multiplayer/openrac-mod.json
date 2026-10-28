@@ -9,7 +9,7 @@
   "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/multiplayer",
   "api": "1.9",
   "games": { "rac1": ["pal", "ntsc"] },
-  "hooks": ["rac1.moby.record_death"],
+  "hooks": ["rac1.moby.record_death", "rac1.ship.travel_to"],
   "settings": [
     {
       "key": "server",

@@ -11,9 +11,11 @@
  *            the host to everyone (at Start) or to one member (who came late, or asked): play this;
  *            a save follows in CHUNKs. `play` names the host's game: a member plays each once.
  *   5 CHUNK  play i32, offset i32, bytes        a piece of PLAY's save, at most kChunkBytes;
- *   6 LEVEL  play i32, level i32, scene u8      the host to everyone, once a second and at each
- *            change: the level it plays (-1 none), and whether it plays a scene; a member in another
- *            level travels there;
+ *   6 LEVEL  play i32, level i32, scene u8, travel u16, dest i32, arriving u8
+ *            the host to everyone, once a second and at each change: the level it plays (-1 none),
+ *            whether it plays a scene, its last ship travel (a count, and the planet it flies to)
+ *            and whether the party is still arriving there; a member in another level travels
+ *            there, and a member who has not left for the host's newest travel leaves at once;
  *   7 POSE   (play.hpp)                         each player's Ratchet, as state: a member's to the
  *            host, who passes everyone's on to everyone;
  *   8 WANT   play i32                           a member in the title's menus that has not played
@@ -32,6 +34,14 @@
  * player); and when the host is out of its scene, a member still in one is skipped too. Then nobody
  * moves on until everyone is out (the barrier: a player out first has no control, for at most
  * kBarrierMs, a member while the host's scene goes on).
+ * Travel. Only the host flies the ship while the party plays: a member's planet select to another
+ * planet lands the ship again where it is (ship_travel says no). When the host's ship leaves for
+ * another planet, every member leaves its level that moment, from wherever it is (playing, a scene,
+ * the pause menu, a vendor: the game's own way out of a level, then its flight and its landing),
+ * and the party arrives together: until every member who was in the host's game is in the new
+ * level (or kArriveMs went by), nobody has control once out of its landing, no figure is shown and
+ * the host's world sends nothing (world.hpp), so nothing of the old level carries over and nothing
+ * of the new one moves before all are in.
  * When the party ends under a member in the host's game, it goes back to the title. While the
  * party plays, no game pauses: the pause menu and the game's dialogs open over a world that keeps
  * running (the SDK's play_overlay_pause), so a player in a menu never stops the others.
@@ -96,6 +106,13 @@ constexpr std::uint64_t kSkipMs = 500;
 constexpr std::uint64_t kHostOutMs = 1000;
 constexpr std::uint64_t kBarrierMs = 10000;
 constexpr std::uint64_t kHostSceneMs = 120000;
+/* The longest the party waits for its members to arrive after a ship travel (from the host's
+ * departure: its flight out, the flight between planets, the load, the landing), and how often a
+ * member's leave is asked again while its game has not left. */
+constexpr std::uint64_t kArriveMs = 90000;
+constexpr std::uint64_t kLeaveMs = 1000;
+/* How long a refused ship travel is said over the game. */
+constexpr std::uint64_t kRefusedMs = 4000;
 
 /* What the game is doing (the SDK's openrac_play_status). */
 struct GameStatus {
@@ -266,6 +283,21 @@ public:
 
     bool host_scene() const { return host_scene_; }
 
+    /* The game's ship flies from `here` to `dest` (its planet select closed): true lets it, false
+     * has it land again where it is (a member's travel to another planet while the party plays:
+     * only the host flies). The host's departure: every member leaves with it. */
+    bool ship_travel(int dest, int here);
+
+    /* Whether the party is arriving after a ship travel (the barrier above): the world waits. */
+    bool arriving() const { return arriving_; }
+
+    /* The line to show over the game now (the SDK's play_notice), empty for none: a member's ship
+     * travel refused (a while), the party waiting for its players to arrive. */
+    std::string banner(std::uint64_t now) const;
+
+    /* The players the host still waits for (the host's side). */
+    std::size_t waiting_for() const { return waiting_for_.size(); }
+
     /* The last thing worth a line (a start, a save that would not load); take_notice() gives it
      * once. */
     std::string take_notice();
@@ -284,6 +316,8 @@ private:
     void on_shot(std::int32_t sender, const Bytes& bytes);
     void fire_shots(Remote& r, std::uint64_t now, const GameStatus& status);
     void update_barrier(std::uint64_t now, const GameStatus& status);
+    void send_level(std::uint64_t now, int level, bool scene);
+    void tick_arrival(std::uint64_t now, const GameStatus& status);
     void drop_figure(Remote& r);
 
     Session& session_;
@@ -333,6 +367,28 @@ private:
     bool in_scene_ = false;
     bool skip_asked_ = false;
     int sent_level_ = -2;
+    /* Ship travels. The host's: its count, the planet it flies to, whether the party is arriving
+     * there, since when, the level load it left from, the members it waits for, and whether the
+     * last LEVEL said it arrived. A member's: the host's last travel heard (whether any), the
+     * planet to leave for (-1 none), when it was last asked, the load it was asked in, and whether
+     * the host's LEVEL says the party still arrives. */
+    std::uint16_t travel_ = 0;
+    int travel_dest_ = -1;
+    bool arriving_ = false;
+    std::uint64_t depart_ms_ = 0;
+    std::uint32_t depart_loads_ = 0;
+    std::vector<std::int32_t> waiting_for_;
+    bool sent_arriving_ = false;
+    bool heard_travel_ = false;
+    std::uint16_t host_travel_ = 0;
+    int leave_dest_ = -1;
+    std::uint64_t leave_ms_ = 0;
+    std::uint32_t leave_loads_ = 0;
+    bool host_arriving_ = false;
+    /* Until when the refusal of a member's ship travel is shown. */
+    std::uint64_t refused_until_ = 0;
+    /* The game's state last logged. */
+    GameStatus logged_{-1, -2, 0};
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
     std::uint16_t sequence_ = 0;
