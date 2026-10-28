@@ -376,6 +376,7 @@ struct State {
     openrac::UiPage pause_page;  // the pause menu's Multiplayer page (Options, in a level)
     int pause_leave = -1;        // its Leave party item, -1 out of a party
     std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
+    std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame
 };
 
 std::unique_ptr<State> g;
@@ -1253,6 +1254,12 @@ void load(openrac::Mod& mod) {
             g->session->report_link(
                 g->session->has_clock() ? g->session->rtt_ms() : -1, g->connection->udp()
             );
+        }
+
+        // The pause page kept current while it is not open too, so it flies in with the party.
+        if (g->pause_page.id() >= 0 && now - g->pause_ms >= mp::kLinkMs / 4) {
+            g->pause_ms = now;
+            show_pause();
         }
 
         g->coop->tick(now);
