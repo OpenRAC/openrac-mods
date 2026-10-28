@@ -1,0 +1,23 @@
+{
+  "format": 2,
+  "id": "multiplayer",
+  "name": "Multiplayer",
+  "version": "0.1.0",
+  "author": "OpenRAC contributors",
+  "description": "Online multiplayer, first step: a Multiplayer page in the main menu's Options that connects to an OpenRAC server, creates a party or joins one by its code, and shows the lobby with your launcher name. Nothing of the game is played together yet.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/multiplayer",
+  "api": "1.5",
+  "games": { "rac1": ["pal", "ntsc"] },
+  "hooks": [],
+  "settings": [
+    {
+      "key": "server",
+      "name": "Server",
+      "type": "string",
+      "default": "localhost:7770",
+      "max_length": 255,
+      "description": "The OpenRAC server to connect to, as host:port (7770 when no port is given). Your name is the launcher's Multiplayer name (Settings)."
+    }
+  ]
+}

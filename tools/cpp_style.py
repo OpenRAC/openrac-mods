@@ -45,6 +45,7 @@ TREES = (
     "keyboard-mouse",
     "live-splits",
     "lock-strafe",
+    "multiplayer",
 )
 # Objective-C++ (.mm) is left out: .clang-format says `Language: Cpp`, which clang-format refuses
 # for it. The mods' plain C (.c) is laid out the same way as their C++.
