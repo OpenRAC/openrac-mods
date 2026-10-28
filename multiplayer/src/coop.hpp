@@ -40,6 +40,7 @@
 #define MULTIPLAYER_COOP_H
 
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <map>
 #include <string>
@@ -58,7 +59,8 @@ enum class GameKind : std::uint8_t {
     kLevel = 6,
     kPose = kPoseKind,
     kWant = 8,
-    kSkip = 18
+    kSkip = 18,
+    kShot = kShotKind
 };
 
 /* Whether a DATA kind is the world's (world.hpp: 9 to 17); the rest are the co-op's. */
@@ -79,6 +81,10 @@ constexpr std::uint64_t kWantMs = 5000;
 constexpr std::uint64_t kTravelMs = 4000;
 constexpr std::uint64_t kFigureRetryMs = 1000;
 constexpr double kGoneMs = 5000.0;
+/* A shot not fired this long after it was due (its figure not shown) is dropped; the most a remote
+ * player's shots wait. */
+constexpr double kShotLateMs = 1000.0;
+constexpr std::size_t kShotsWaiting = 32;
 /* How often the server's clock is asked again (TIME): the poses' stamps keep to it over a long
  * session. */
 constexpr std::uint64_t kClockMs = 30000;
@@ -170,6 +176,9 @@ public:
     virtual void overlay_pause(bool /*on*/) {}
     /* The scene playing skipped as the game's own skip does (the SDK's play_skip). */
     virtual void skip() {}
+    /* The shots the hero fired since the last call; a figure firing one (hitting nothing here). */
+    virtual std::vector<Shot> hero_shots() { return {}; }
+    virtual bool figure_shot(int /*id*/, const Shot& /*shot*/) { return false; }
 };
 
 /* A remote player as the co-op keeps it: its poses and its figure. */
@@ -178,6 +187,13 @@ struct Remote {
     bool scene = false;  // its game plays a scene (its last pose said)
     int figure = -1;
     std::uint64_t retry_ms = 0;  // when a figure may be made again
+    /* Its shots to fire, each when its figure is as far behind as its poses are played. */
+    struct PendingShot {
+        double due_ms = 0;
+        std::int32_t level = -1;
+        Shot shot;
+    };
+    std::deque<PendingShot> shots;
 };
 
 class Coop {
@@ -232,6 +248,10 @@ public:
 
     int figure_of(std::int32_t player) const;
 
+    /* The hero's shots sent, and the remote players' shots their figures fired. */
+    std::uint64_t shots_sent() const { return shots_sent_; }
+    std::uint64_t shots_fired() const { return shots_fired_; }
+
     /* The scene barrier, for the pad: whether this player's control is held (out of a scene while
      * another player is still in one), and whether its Start is held back (a member in a scene the
      * host plays too: the host's skip decides). */
@@ -260,6 +280,9 @@ private:
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_pose(std::uint64_t now, const GameStatus& status);
     void show_remotes(std::uint64_t now, const GameStatus& status);
+    void send_shots(const GameStatus& status);
+    void on_shot(std::int32_t sender, const Bytes& bytes);
+    void fire_shots(Remote& r, std::uint64_t now, const GameStatus& status);
     void update_barrier(std::uint64_t now, const GameStatus& status);
     void drop_figure(Remote& r);
 
@@ -315,6 +338,9 @@ private:
     std::uint16_t sequence_ = 0;
     std::uint32_t pose_loads_ = 0;
     bool pose_sent_ = false;
+    /* The shots sent and the remote players' shots fired, for the log and the tests. */
+    std::uint64_t shots_sent_ = 0;
+    std::uint64_t shots_fired_ = 0;
     Pose last_pose_;
     /* The level loads the figures were made in. */
     std::uint32_t figure_loads_ = 0;

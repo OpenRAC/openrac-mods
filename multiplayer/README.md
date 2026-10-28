@@ -47,6 +47,10 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
    someone who quits to the title finds **Join the game** in the lobby in Ready's place, which
    asks the host for its game again.
 
+Each player sees the others' Ratchets holding what they hold: the wrench, the weapon or gadget,
+Clank on the back, with their swings and throws, and their Blaster shots and bombs (shown only:
+what they hit is told by the shooter's game).
+
 The world is the host's:
 
 - **Enemies, doors, platforms, pickups** run in the host's game; the others' games show them where
@@ -173,7 +177,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc) differs refuses it: "Incompatible version" |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; a member in another level travels there, a member in a scene the host is out of skips it |
-| 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000) | a player's Ratchet, 20 a second (65 bytes); a member's goes to the host, who passes it on to everyone |
+| 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on to everyone. A pose that ends after 65 bytes (an older mod) wears nothing |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
 | 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each) | the 48 mobys nearest that member that moved or animated, 15 times a second |
 | 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
@@ -183,6 +187,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 15 BOLTS | the host | count i32 | bolts that flew to that member in the host's game |
 | 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead in the host's level, for one arriving there |
 | 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup |
+| 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot a player fired (the Blaster's, a bomb); a member's goes to the host, who passes it on. Its figure fires it as far behind as its poses play, hitting nothing in that game |
 
 A member's game is started from the title with the host's save (`play_start`), its own card left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`) and
@@ -213,8 +218,15 @@ that player. Mobys near the members run in the host's game as if near its camera
 - A member's crates drop their bolts in the member's game only.
 - An enemy that keeps a pointer to the hero across ticks, grabs him or rides him may act on the
   host's hero instead of the player it went for; WORLD.md (in the plans) lists the classes tried.
-- A figure shows no weapon or gadget in its hand: only the held item's class is loaded in a level,
-  so another player's weapon cannot be drawn yet. Its item id travels in the pose for later.
+- A figure holds what its player holds (the wrench, the weapon or gadget, Clank and the packs,
+  the boots), each loaded when this game can have it beside its own hero's (two weapon classes fit
+  at once): while it cannot (two other players with two other weapons, or under a menu), the
+  figure holds the wrench, or nothing when even that cannot be had.
+- Of the shots, the Blaster's and the Bomb Glove's are shown; the other weapons' (the Pyrocitor's
+  flame, the Devastator's missiles, the Visibomb, the gloves of Doom and mines, the Decoy, the
+  Tesla Claw, the R.Y.N.O.) are not yet. A figure's Blaster shot flies on its heading without
+  homing on the shooter's target. A thrown wrench is shown where it is 20 times a second, not
+  smoothed.
 - Names are not drawn over the figures (the mod interface has no drawing over the game yet).
 - A member already in a level when the host starts again keeps its own progress and only follows
   the level.
@@ -236,7 +248,8 @@ python3 <OpenRAC>/sdk/tools/package_mod.py build/package/multiplayer -o dist
 and late poses, teleports, a stall then a burst, extrapolation), and the co-op of a host and members
 through a router that does what the server does with DATA and fake games: Start with a save and
 with a new game, the level followed, a late joiner and a member that asks again, figures made in
-the same level only and gone with the level, the silence or the party; a build refused and the
+the same level only and gone with the level, the silence or the party; what a player holds on its
+figure and its shots fired there (a delay behind, in its level only); a build refused and the
 title after the party's end; and the world: WORLD's bytes, the member's drives (not the crates,
 not the static mobys), the host's spawned bolt, an enemy followed, the stand-in and its bolts, a
 member's hit on the host's enemy, an enemy's hit on a member, a crate broken by a member, and a

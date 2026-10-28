@@ -3,7 +3,8 @@
 //
 // Playing together, without the game or a socket:
 //   - a pose's bytes (play.hpp): 65 of them, read back as written, a broken one refused, a
-//     non-finite float read as 0, sequences compared across the wrap;
+//     non-finite float read as 0, sequences compared across the wrap; the pieces worn after them
+//     and a SHOT, read back as written, an older sender's pose wearing nothing;
 //   - the interpolation buffer: a steady stream played back a delay behind, smoothly and in order;
 //     repeated and late poses dropped; a teleport put there at once; a stall then a burst caught
 //     up without a jump and the cursor never past the newest pose by more than the extrapolation;
@@ -72,7 +73,8 @@ void pose_bytes() {
     m.pose.anim_speed = 1.25f;
     m.pose.flags = mp::kPoseBlending;
     const Bytes b = mp::encode_pose(m);
-    CHECK(b.size() == mp::kPoseBytes && b[0] == mp::kPoseKind);
+    // The pose, then a count of 0 pieces worn.
+    CHECK(b.size() == mp::kPoseBytes + 1 && b[0] == mp::kPoseKind);
     mp::PoseMessage r;
     CHECK(mp::decode_pose(b, r));
     CHECK(r.owner == 7 && r.sequence == 0xABCD && r.stamp_ms == 123456789012LL && r.teleport);
@@ -82,7 +84,7 @@ void pose_bytes() {
     CHECK(r.pose.next_frame == 8 && std::fabs(r.pose.anim_time - 0.5f) < 0.01f);
     CHECK(r.pose.anim_speed == 1.25f && r.pose.flags == mp::kPoseBlending);
     // Cut short, or another kind: refused.
-    CHECK(!mp::decode_pose(Bytes(b.begin(), b.end() - 1), r));
+    CHECK(!mp::decode_pose(Bytes(b.begin(), b.end() - 2), r));
     Bytes other = b;
     other[0] = 6;
     CHECK(!mp::decode_pose(other, r));
@@ -94,6 +96,72 @@ void pose_bytes() {
     CHECK(!mp::sequence_newer(5, 5) && mp::sequence_newer(6, 5));
     // Angles the short way round.
     CHECK(std::fabs(mp::lerp_angle(3.0f, -3.0f, 0.5f) - 3.1416f) < 0.01f);
+}
+
+mp::HeldPiece piece(int slot, int part, int item, int oclass, int joint) {
+    mp::HeldPiece h;
+    h.slot = slot;
+    h.part = part;
+    h.item = item;
+    h.oclass = oclass;
+    h.joint = joint;
+    h.seq = 1;
+    h.frame = 3;
+    h.next_frame = 4;
+    h.anim_time = 0.25f;
+    h.anim_speed = 1.0f;
+    return h;
+}
+
+void held_and_shot_bytes() {
+    mp::PoseMessage m;
+    m.owner = 2;
+    m.pose.level = 0;
+    m.pose.held_count = 3;
+    m.pose.held[0] = piece(0, 0, 8, 0x47, 5);  // the wrench in the hand
+    m.pose.held[1] = piece(3, 1, 2, 0x3D9, 2);  // on the back
+    m.pose.held[1].flags = mp::kHeldHidden | mp::kHeldBlending;
+    m.pose.held[2] = piece(0, 0, 8, 0x47, 5);  // a thrown wrench, loose
+    m.pose.held[2].flags = mp::kHeldLoose;
+    m.pose.held[2].position[0] = 101.5f;
+    m.pose.held[2].rotation[2] = -1.5f;
+    const Bytes b = mp::encode_pose(m);
+    CHECK(b.size() == mp::kPoseBytes + 1 + 13 * 3 + 24);
+    mp::PoseMessage r;
+    CHECK(mp::decode_pose(b, r) && r.pose.held_count == 3);
+    const mp::HeldPiece& w = r.pose.held[0];
+    CHECK(w.slot == 0 && w.part == 0 && w.item == 8 && w.oclass == 0x47 && w.joint == 5);
+    CHECK(w.seq == 1 && w.frame == 3 && w.next_frame == 4 && w.anim_speed == 1.0f);
+    CHECK(std::fabs(w.anim_time - 0.25f) < 0.01f && w.flags == 0);
+    CHECK(r.pose.held[1].oclass == 0x3D9 && r.pose.held[1].part == 1);
+    CHECK(r.pose.held[1].flags == (mp::kHeldHidden | mp::kHeldBlending));
+    CHECK(r.pose.held[2].flags == mp::kHeldLoose && r.pose.held[2].position[0] == 101.5f);
+    CHECK(r.pose.held[2].rotation[2] == -1.5f);
+    // An older sender's pose (no count): the same pose, wearing nothing.
+    CHECK(mp::decode_pose(Bytes(b.begin(), b.begin() + mp::kPoseBytes), r) && r.pose.held_count == 0);
+    // Its pieces cut short: the pose stands, wearing nothing.
+    CHECK(mp::decode_pose(Bytes(b.begin(), b.end() - 3), r) && r.pose.held_count == 0);
+    CHECK(r.pose.level == 0 && r.owner == 2);
+    // More pieces than a body has are not written.
+    m.pose.held_count = 40;
+    CHECK(mp::decode_pose(mp::encode_pose(m), r) && r.pose.held_count == mp::kHeldMax);
+
+    mp::ShotMessage s;
+    s.owner = 3;
+    s.level = 4;
+    s.shot.item = 0x0F;
+    s.shot.position[1] = 7.25f;
+    s.shot.velocity[2] = -0.5f;
+    s.shot.aim[0] = 1.0f;
+    s.shot.aim[3] = -0.25f;
+    const Bytes sb = mp::encode_shot(s);
+    CHECK(sb.size() == mp::kShotBytes && sb[0] == mp::kShotKind);
+    mp::ShotMessage sr;
+    CHECK(mp::decode_shot(sb, sr) && sr.owner == 3 && sr.level == 4 && sr.shot.item == 0x0F);
+    CHECK(sr.shot.position[1] == 7.25f && sr.shot.velocity[2] == -0.5f);
+    CHECK(sr.shot.aim[0] == 1.0f && sr.shot.aim[3] == -0.25f);
+    CHECK(!mp::decode_shot(Bytes(sb.begin(), sb.end() - 1), sr));
+    CHECK(!mp::decode_shot(b, sr));
 }
 
 // A pose every 50 ms moving at 10 units a second, sampled every 16 ms.
@@ -257,6 +325,24 @@ struct FakeGame : mp::Game {
     }
 
     void figure_remove(int id) override { figures.erase(id); }
+
+    // The hero's shots to give, and the figures' shots fired (figure id, shot).
+    std::vector<mp::Shot> shots_out;
+    std::vector<std::pair<int, mp::Shot>> shots_in;
+
+    std::vector<mp::Shot> hero_shots() override {
+        std::vector<mp::Shot> out;
+        out.swap(shots_out);
+        return out;
+    }
+
+    bool figure_shot(int id, const mp::Shot& shot) override {
+        if (figures.count(id) == 0) {
+            return false;
+        }
+        shots_in.emplace_back(id, shot);
+        return true;
+    }
 
     // The world: a level's mobys by slot, the drives, kills, spawns, hits, stand-ins and bolts. The
     // hero's moby is slot 99, figure id N is slot 100 + N.
@@ -1058,8 +1144,90 @@ void a_skip_anywhere_skips_everywhere() {
 
 }  // namespace
 
+// What a player holds reaches its figure with its pose; its shots are fired by its figure, a delay
+// behind, in its level only.
+void held_items_and_shots_reach_the_figure() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    host.game.hero_pose.held_count = 2;
+    host.game.hero_pose.held[0] = piece(0, 0, 8, 0x47, 5);
+    host.game.hero_pose.held[1] = piece(3, 1, 2, 0x3D9, 2);
+    member.game.hero_pose.held_count = 1;
+    member.game.hero_pose.held[0] = piece(0, 0, 0x0F, 0xA8, 5);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+
+    // Each figure holds what its player holds.
+    CHECK(member.game.figures.size() == 1 && host.game.figures.size() == 1);
+    const mp::Pose& on_member = member.game.figures.begin()->second;
+    CHECK(on_member.held_count == 2 && on_member.held[0].oclass == 0x47);
+    CHECK(on_member.held[1].slot == 3 && on_member.held[1].oclass == 0x3D9);
+    const mp::Pose& on_host = host.game.figures.begin()->second;
+    CHECK(on_host.held_count == 1 && on_host.held[0].item == 0x0F);
+
+    // The host takes out the Blaster: the member's figure of it holds it after its delay.
+    host.game.hero_pose.held_count = 1;
+    host.game.hero_pose.held[0] = piece(0, 0, 0x0F, 0xA8, 5);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    const mp::Pose& now_on_member = member.game.figures.begin()->second;
+    CHECK(now_on_member.held_count == 1 && now_on_member.held[0].oclass == 0xA8);
+
+    // The member fires: the host's figure of it fires the same shot, not at once (its poses'
+    // delay), once.
+    mp::Shot shot;
+    shot.item = 0x0F;
+    shot.position[0] = 12.0f;
+    shot.aim[0] = 0.5f;
+    member.game.shots_out.push_back(shot);
+    tick({&host, &member}, 16);
+    CHECK(member.coop.shots_sent() == 1 && host.game.shots_in.empty());
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(host.game.shots_in.size() == 1 && host.coop.shots_fired() == 1);
+    CHECK(host.game.shots_in[0].first == host.game.figures.begin()->first);
+    CHECK(host.game.shots_in[0].second.position[0] == 12.0f && host.game.shots_in[0].second.aim[0] == 0.5f);
+    // The member's own game never fires its own shot again.
+    CHECK(member.game.shots_in.empty());
+
+    // The host's shot reaches the member the same way.
+    host.game.shots_out.push_back(shot);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.shots_in.size() == 1);
+
+    // A shot fired in another level than this game's is dropped; and the figure goes with a
+    // level change, the pieces with it.
+    host.game.now = {mp::kPhasePlaying, 1, 3};
+    host.game.shots_out.push_back(shot);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.shots_in.size() == 1 && member.game.figures.empty());
+
+    // Shots outside a level are taken and never sent.
+    const std::uint64_t sent = member.coop.shots_sent();
+    member.game.now = {mp::kPhaseFrontEnd, -1, 3};
+    member.game.shots_out.push_back(shot);
+    tick({&host, &member}, 50);
+    CHECK(member.game.shots_out.empty() && member.coop.shots_sent() == sent);
+}
+
 int main() {
     pose_bytes();
+    held_and_shot_bytes();
     a_steady_stream_plays_smoothly();
     repeats_late_poses_and_teleports();
     a_stall_then_a_burst();
@@ -1075,6 +1243,7 @@ int main() {
     a_long_session();
     scenes_end_together();
     a_skip_anywhere_skips_everywhere();
+    held_items_and_shots_reach_the_figure();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

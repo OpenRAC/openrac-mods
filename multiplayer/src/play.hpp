@@ -11,7 +11,16 @@
  *   level i8, flags u8 (blending 1, teleport 2, in a scene 4), position 3 x f32, rotation 3 x f32,
  *   velocity 3 x f32, state i16, health i16, item i16, seq u8, frame u8, next frame u8,
  *   anim time u8 (0 to 255 for 0 to 1), anim speed i16 (thousandths)
- * 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32.
+ * 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32. Then what the
+ * Ratchet wears and holds (since 0.7.0; a pose without it is read as wearing nothing):
+ *   count u8, then a piece each: slot u8, part u8, item u8, class i16, joint u8, flags u8 (hidden
+ *   1, blending 2, loose 4), seq u8, frame u8, next frame u8, anim time u8, anim speed i16, and
+ *   for a loose piece its position 3 x f32 and rotation 3 x f32
+ * (13 bytes a piece, 37 a loose one).
+ *
+ * A SHOT (coop.hpp's kinds; reliable): kind u8 (19), owner i32, level i8, item i16, position
+ * 3 x f32, velocity 3 x f32, aim 4 x f32: 48 bytes. The figure fires it as far behind as its poses
+ * are played.
  *
  * The buffer. Each pose is stamped with the sender's estimate of the server's clock; the receiver
  * turns it into its own clock and plays the poses back a delay behind (about 100 ms at 20 a second,
@@ -38,7 +47,32 @@ constexpr std::uint32_t kPoseBlending = 0x1;
 constexpr std::uint8_t kWireTeleport = 0x2;
 constexpr std::uint8_t kWireScene = 0x4;
 
-/* A pose of a Ratchet (the SDK's openrac_pose after its size; the game's units). */
+/* A piece a Ratchet wears or holds (the SDK's openrac_held_piece): the game's slot and which of
+ * its mobys, the item, the moby's class, the body's joint it follows, kHeld* flags, where a loose
+ * one is, and its own animation. */
+constexpr std::uint32_t kHeldHidden = 0x1;
+constexpr std::uint32_t kHeldBlending = 0x2;
+constexpr std::uint32_t kHeldLoose = 0x4;
+constexpr std::size_t kHeldMax = 8;
+
+struct HeldPiece {
+    std::int32_t slot = 0;
+    std::int32_t part = 0;
+    std::int32_t item = 0;
+    std::int32_t oclass = 0;
+    std::int32_t joint = 0;
+    std::uint32_t flags = 0;
+    float position[3] = {0, 0, 0};
+    float rotation[3] = {0, 0, 0};
+    std::uint32_t seq = 0;
+    std::uint32_t frame = 0;
+    std::uint32_t next_frame = 0;
+    float anim_time = 0;
+    float anim_speed = 0;
+};
+
+/* A pose of a Ratchet (the SDK's openrac_pose after its size; the game's units), and what it wears
+ * and holds (the SDK's openrac_held: `held_count` of `held`). */
 struct Pose {
     std::int32_t level = -1;
     float position[3] = {0, 0, 0};
@@ -54,6 +88,8 @@ struct Pose {
     float anim_time = 0;
     float anim_speed = 0;
     std::uint32_t flags = 0;
+    std::uint32_t held_count = 0;
+    HeldPiece held[kHeldMax];
 };
 
 /* A POSE message: whose, its sequence and stamp, the teleport flag, the pose. */
@@ -74,6 +110,27 @@ constexpr std::size_t kPoseBytes = 65;
 Bytes encode_pose(const PoseMessage& message);
 /* False for bytes that are not a whole POSE. */
 bool decode_pose(const Bytes& bytes, PoseMessage& out);
+
+/* A shot a Ratchet fired (the SDK's openrac_shot), and the SHOT message: whose, in which level. */
+struct Shot {
+    std::int32_t item = 0;
+    float position[3] = {0, 0, 0};
+    float velocity[3] = {0, 0, 0};
+    float aim[4] = {0, 0, 0, 0};
+};
+
+struct ShotMessage {
+    std::int32_t owner = 0;
+    std::int32_t level = -1;
+    Shot shot;
+};
+
+constexpr std::uint8_t kShotKind = 19;
+constexpr std::size_t kShotBytes = 48;
+
+Bytes encode_shot(const ShotMessage& message);
+/* False for bytes that are not a whole SHOT. */
+bool decode_shot(const Bytes& bytes, ShotMessage& out);
 
 /* Whether sequence `a` is newer than `b`, 16 bits wrapping (serial arithmetic). */
 bool sequence_newer(std::uint16_t a, std::uint16_t b);

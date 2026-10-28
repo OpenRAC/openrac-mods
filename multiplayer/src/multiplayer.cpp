@@ -126,13 +126,53 @@ public:
         }
 
         out = from_sdk(p);
+        openrac_held held{};
+
+        // A port without the pieces: the pose wears nothing.
+        if (mod_.hero_held(held)) {
+            held_from_sdk(held, out);
+        }
+
         return true;
     }
 
     int figure_create() override { return mod_.figure_create(); }
 
     bool figure_pose(int id, const mp::Pose& pose) override {
-        return mod_.figure_pose(id, to_sdk(pose));
+        if (!mod_.figure_pose(id, to_sdk(pose))) {
+            return false;
+        }
+
+        if (mod_.has_held()) {
+            mod_.figure_held(id, held_to_sdk(pose));
+        }
+
+        return true;
+    }
+
+    std::vector<mp::Shot> hero_shots() override {
+        std::vector<mp::Shot> out;
+
+        for (const openrac_shot& s : mod_.hero_shots()) {
+            mp::Shot shot;
+            shot.item = s.item;
+            std::copy(s.position, s.position + 3, shot.position);
+            std::copy(s.velocity, s.velocity + 3, shot.velocity);
+            std::copy(s.aim, s.aim + 4, shot.aim);
+            out.push_back(shot);
+        }
+
+        return out;
+    }
+
+    bool figure_shot(int id, const mp::Shot& shot) override {
+        openrac_shot s{};
+        s.size = sizeof s;
+        s.item = shot.item;
+        std::copy(shot.position, shot.position + 3, s.position);
+        std::copy(shot.velocity, shot.velocity + 3, s.velocity);
+        std::copy(shot.aim, shot.aim + 4, s.aim);
+        return mod_.figure_shot(id, s);
     }
 
     void figure_remove(int id) override { mod_.figure_remove(id); }
@@ -229,6 +269,59 @@ public:
         out.anim_speed = p.anim_speed;
         out.flags = p.flags;
         return out;
+    }
+
+    /* The pieces: the same fields, the SDK's in openrac_held. */
+    static void held_from_sdk(const openrac_held& h, mp::Pose& out) {
+        const auto count = static_cast<std::size_t>(
+            std::clamp<std::int32_t>(h.count, 0, static_cast<std::int32_t>(mp::kHeldMax))
+        );
+        out.held_count = static_cast<std::uint32_t>(count);
+
+        for (std::size_t i = 0; i < count; ++i) {
+            const openrac_held_piece& s = h.pieces[i];
+            mp::HeldPiece& d = out.held[i];
+            d.slot = s.slot;
+            d.part = s.part;
+            d.item = s.item;
+            d.oclass = s.oclass;
+            d.joint = s.joint;
+            d.flags = s.flags;
+            std::copy(s.position, s.position + 3, d.position);
+            std::copy(s.rotation, s.rotation + 3, d.rotation);
+            d.seq = s.seq;
+            d.frame = s.frame;
+            d.next_frame = s.next_frame;
+            d.anim_time = s.anim_time;
+            d.anim_speed = s.anim_speed;
+        }
+    }
+
+    static openrac_held held_to_sdk(const mp::Pose& p) {
+        openrac_held h{};
+        h.size = sizeof h;
+        const std::size_t count = std::min<std::size_t>(p.held_count, OPENRAC_HELD_MAX);
+        h.count = static_cast<std::int32_t>(count);
+
+        for (std::size_t i = 0; i < count; ++i) {
+            const mp::HeldPiece& s = p.held[i];
+            openrac_held_piece& d = h.pieces[i];
+            d.slot = s.slot;
+            d.part = s.part;
+            d.item = s.item;
+            d.oclass = s.oclass;
+            d.joint = s.joint;
+            d.flags = s.flags;
+            std::copy(s.position, s.position + 3, d.position);
+            std::copy(s.rotation, s.rotation + 3, d.rotation);
+            d.seq = s.seq;
+            d.frame = s.frame;
+            d.next_frame = s.next_frame;
+            d.anim_time = s.anim_time;
+            d.anim_speed = s.anim_speed;
+        }
+
+        return h;
     }
 
     static openrac_pose to_sdk(const mp::Pose& p) {

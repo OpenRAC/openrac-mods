@@ -81,6 +81,40 @@ Bytes encode_pose(const PoseMessage& m) {
         .u8(static_cast<std::uint8_t>(std::clamp(std::lround(p.anim_time * 255.0f), 0L, 255L)))
         .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(speed) >> 8))
         .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(speed)));
+
+    // What it wears and holds.
+    const std::size_t count = std::min<std::size_t>(p.held_count, kHeldMax);
+    w.u8(static_cast<std::uint8_t>(count));
+
+    for (std::size_t i = 0; i < count; ++i) {
+        const HeldPiece& h = p.held[i];
+        const std::int16_t oclass = clamp16(h.oclass);
+        const std::int16_t piece_speed = clamp16(std::round(h.anim_speed * 1000.0));
+        w.u8(static_cast<std::uint8_t>(std::clamp(h.slot, 0, 255)))
+            .u8(static_cast<std::uint8_t>(std::clamp(h.part, 0, 255)))
+            .u8(static_cast<std::uint8_t>(std::clamp(h.item, 0, 255)))
+            .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(oclass) >> 8))
+            .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(oclass)))
+            .u8(static_cast<std::uint8_t>(std::clamp(h.joint, 0, 255)))
+            .u8(static_cast<std::uint8_t>(h.flags & (kHeldHidden | kHeldBlending | kHeldLoose)))
+            .u8(static_cast<std::uint8_t>(std::min<std::uint32_t>(h.seq, 255)))
+            .u8(static_cast<std::uint8_t>(std::min<std::uint32_t>(h.frame, 255)))
+            .u8(static_cast<std::uint8_t>(std::min<std::uint32_t>(h.next_frame, 255)))
+            .u8(static_cast<std::uint8_t>(std::clamp(std::lround(h.anim_time * 255.0f), 0L, 255L)))
+            .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(piece_speed) >> 8))
+            .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(piece_speed)));
+
+        if ((h.flags & kHeldLoose) != 0) {
+            for (const float f : h.position) {
+                w.i32(static_cast<std::int32_t>(float_bits(f)));
+            }
+
+            for (const float f : h.rotation) {
+                w.i32(static_cast<std::int32_t>(float_bits(f)));
+            }
+        }
+    }
+
     return w.bytes();
 }
 
@@ -127,6 +161,98 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     p.anim_time = static_cast<float>(r.u8()) / 255.0f;
     const auto high = static_cast<std::uint16_t>(r.u8() << 8);
     p.anim_speed = static_cast<float>(static_cast<std::int16_t>(high | r.u8())) / 1000.0f;
+
+    if (!r.ok()) {
+        return false;
+    }
+
+    // An older sender's pose ends here: it wears nothing.
+    if (r.left() == 0) {
+        return true;
+    }
+
+    const std::size_t count = std::min<std::size_t>(r.u8(), kHeldMax);
+
+    for (std::size_t i = 0; i < count; ++i) {
+        HeldPiece& h = p.held[i];
+        h.slot = r.u8();
+        h.part = r.u8();
+        h.item = r.u8();
+        const auto oclass_high = static_cast<std::uint16_t>(r.u8() << 8);
+        h.oclass = static_cast<std::int16_t>(oclass_high | r.u8());
+        h.joint = r.u8();
+        h.flags = r.u8() & (kHeldHidden | kHeldBlending | kHeldLoose);
+        h.seq = r.u8();
+        h.frame = r.u8();
+        h.next_frame = r.u8();
+        h.anim_time = static_cast<float>(r.u8()) / 255.0f;
+        const auto speed_high = static_cast<std::uint16_t>(r.u8() << 8);
+        h.anim_speed = static_cast<float>(static_cast<std::int16_t>(speed_high | r.u8())) / 1000.0f;
+
+        if ((h.flags & kHeldLoose) != 0) {
+            for (float& f : h.position) {
+                f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
+            }
+
+            for (float& f : h.rotation) {
+                f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
+            }
+        }
+    }
+
+    // A tail cut short: the pose stands, wearing nothing.
+    p.held_count = r.ok() ? static_cast<std::uint32_t>(count) : 0;
+    return true;
+}
+
+Bytes encode_shot(const ShotMessage& m) {
+    Writer w;
+    w.u8(kShotKind).i32(m.owner)
+        .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(m.level, -1, 127))));
+    const std::int16_t item = clamp16(m.shot.item);
+    w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(item) >> 8))
+        .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(item)));
+
+    for (const float f : m.shot.position) {
+        w.i32(static_cast<std::int32_t>(float_bits(f)));
+    }
+
+    for (const float f : m.shot.velocity) {
+        w.i32(static_cast<std::int32_t>(float_bits(f)));
+    }
+
+    for (const float f : m.shot.aim) {
+        w.i32(static_cast<std::int32_t>(float_bits(f)));
+    }
+
+    return w.bytes();
+}
+
+bool decode_shot(const Bytes& bytes, ShotMessage& out) {
+    if (bytes.size() < kShotBytes || bytes[0] != kShotKind) {
+        return false;
+    }
+
+    Reader r(bytes.data(), bytes.size());
+    r.u8();
+    out = ShotMessage{};
+    out.owner = r.i32();
+    out.level = static_cast<std::int8_t>(r.u8());
+    const auto high = static_cast<std::uint16_t>(r.u8() << 8);
+    out.shot.item = static_cast<std::int16_t>(high | r.u8());
+
+    for (float& f : out.shot.position) {
+        f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
+    }
+
+    for (float& f : out.shot.velocity) {
+        f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
+    }
+
+    for (float& f : out.shot.aim) {
+        f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
+    }
+
     return r.ok();
 }
 
