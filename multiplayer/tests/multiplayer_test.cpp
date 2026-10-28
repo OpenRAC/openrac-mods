@@ -12,10 +12,13 @@
 //   - Direct connect: the embedded host (host.hpp) in-process with two clients on the loopback:
 //     hello, the unasked INFO, chat, DATA both ways, the lobby, leave and find again, UDP BIND and
 //     STATE, the host stopping or leaving (END); and the server's limits, from raw sockets;
+//   - the pages' logic (menu.hpp): Home's server items follow the server, Direct connect never does,
+//     hosting and joining work while the server is unreachable, and every status line fits;
 //   - Direct connect's page logic: the address's ring rows, held steps, the hosting lines, and
 //     the player's name chosen from the setting and the launcher's.
 //
 // The expected bytes are written out by hand from the server's README and its Java encoders.
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -26,6 +29,7 @@
 #include <vector>
 
 #include "direct.hpp"
+#include "menu.hpp"
 
 #if defined(_WIN32)
 #include <winsock2.h>
@@ -1040,6 +1044,107 @@ void direct_page_logic() {
 
 }  // namespace
 
+// Direct connect does not depend on the server: which Home items are enabled, the status lines'
+// lengths, and hosting or joining with the server unreachable (a closed local port).
+void direct_connect_ignores_the_server() {
+    using Mode = mp::Connection::Mode;
+    using State = mp::Connection::State;
+
+    // Find match, Create match and Join by code need the server's hello; Direct connect is never
+    // asked (multiplayer.cpp gives it no flag).
+    CHECK(!mp::server_items_enabled(Mode::kNone, false));
+    CHECK(!mp::server_items_enabled(Mode::kServer, false));
+    CHECK(mp::server_items_enabled(Mode::kServer, true));
+    CHECK(!mp::server_items_enabled(Mode::kDirect, true));
+    CHECK(!mp::server_items_enabled(Mode::kHosting, true));
+
+    // Only the server link reconnects.
+    CHECK(mp::server_loop_wanted(Mode::kServer));
+    CHECK(!mp::server_loop_wanted(Mode::kNone) && !mp::server_loop_wanted(Mode::kDirect));
+    CHECK(!mp::server_loop_wanted(Mode::kHosting));
+
+    // Every status string fits the footer: none longer than the longest button line.
+    mp::StatusInput in;
+    in.address = "255.255.255.255:65535";
+    in.hosting_port = 65535;
+    const Mode modes[] = {Mode::kNone, Mode::kServer, Mode::kDirect, Mode::kHosting};
+    const State states[] = {
+        State::kIdle, State::kConnecting, State::kConnected, State::kUnreachable, State::kLost};
+    std::size_t longest = 0;
+
+    for (const Mode mode : modes) {
+        for (const State state : states) {
+            for (int bits = 0; bits < 4; ++bits) {
+                in.mode = mode;
+                in.state = state;
+                in.greeted = (bits & 1) != 0;
+                in.waiting = (bits & 2) != 0;
+                const std::string text = mp::status_text(in);
+                longest = std::max(longest, text.size());
+                CHECK(!text.empty() && text.size() <= mp::kFooterMax);
+            }
+        }
+    }
+
+    // The notices the session raises fit too.
+    for (const char* notice : {"Game starting (not playable yet)", "The host left: the party is over",
+                               "No party has that code", "That party is full",
+                               "You are in a party already", "You are not in a party",
+                               "The server refused"}) {
+        CHECK(std::strlen(notice) <= mp::kFooterMax);
+    }
+
+    std::printf("status lines: longest %zu, footer limit %zu\n", longest, mp::kFooterMax);
+    in.mode = Mode::kServer;
+    in.state = State::kUnreachable;
+    CHECK(mp::status_text(in) == "Server unreachable");
+
+    // A closed local port as the server: unreachable, yet hosting and joining work at once.
+    mp::Connection connection;
+    connection.open("127.0.0.1", 1);
+    CHECK(connection.mode() == Mode::kServer);
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+
+    while (connection.state() != State::kUnreachable && std::chrono::steady_clock::now() < until) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    CHECK(connection.state() == State::kUnreachable);
+    CHECK(connection.start_hosting(0));
+    CHECK(connection.mode() == Mode::kHosting && connection.state() == State::kConnected);
+    const int port = connection.hosting().port;
+
+    // Hosting runs no server retries: the state stays connected.
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    CHECK(connection.state() == State::kConnected);
+    connection.close();
+    CHECK(connection.mode() == Mode::kNone);
+
+    // Joining a host directly, from a server link that cannot connect.
+    Player host("Host");
+    Player guest("Guest");
+    const std::vector<Player*> all{&host, &guest};
+    CHECK(host.connection.start_hosting(0));
+    guest.connection.open("127.0.0.1", 1);
+    CHECK(guest.connection.connect_direct(
+        "127.0.0.1:" + std::to_string(host.connection.hosting().port)));
+    CHECK(pump_until(all, [&] { return guest.session->in_party(); }));
+    guest.connection.close();
+    host.connection.close();
+    (void)port;
+
+    // Switching away from a server that never answers does not wait out its connect: 192.0.2.1 is
+    // reserved for documentation and goes nowhere (or is refused at once, offline).
+    mp::Connection blackhole;
+    blackhole.open("192.0.2.1", 7770);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    const auto begun = std::chrono::steady_clock::now();
+    CHECK(blackhole.start_hosting(0));
+    const auto took = std::chrono::steady_clock::now() - begun;
+    CHECK(took < std::chrono::milliseconds(1000));
+    blackhole.close();
+}
+
 int main() {
     client_frames_are_the_servers_bytes();
     server_frames_are_read();
@@ -1053,6 +1158,7 @@ int main() {
     the_host_leaving_ends_hosting();
     the_host_keeps_the_servers_limits();
     direct_page_logic();
+    direct_connect_ignores_the_server();
 
     // The count of failed checks is the whole verdict.
     if (g_failures == 0) {

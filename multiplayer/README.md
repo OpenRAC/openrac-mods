@@ -29,9 +29,12 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 | Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready, or no longer) or **Start** (the host: it starts the game for everyone; in this version that is all it does), **Leave**, then the members (up to 4) with the host and the ready ones marked, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
-what the connection is doing: connecting, connected, **server unreachable** (the mod tries again
-every few seconds), or **not connected** when the server went away, and the server's answers (a code
-no party has, a full party, the host leaving).
+what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again
+every few seconds), or **The server went away**, and the server's answers (a code no party has, a
+full party, the host leaving). Only Find match, Create match and Join by code need the server (they
+are dim until it said hello); **Direct connect**, Host directly and Join by address are always
+selectable. Choosing Direct connect stops the server retries, and the Direct pages never show the
+server's state; leaving a direct party goes back to Home, which tries the server again.
 
 | Setting | Default | |
 |---|---|---|
@@ -88,7 +91,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.3.1`) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.3.2`) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0), JOIN code (1), LEAVE (2), FIND (7) | INFO (3), JOINED (4), LEFT (5), END (6) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |

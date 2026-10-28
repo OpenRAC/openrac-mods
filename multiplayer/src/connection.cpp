@@ -25,26 +25,37 @@ namespace {
 constexpr int kConnectMs = 3000;
 constexpr int kRetryMs = 3000;
 constexpr int kSliceMs = 20;
+/* How long one select waits in connect_to, so a stop is noticed. */
+constexpr int kWaitSliceMs = 50;
 
 /* The bytes one read takes at most. */
 constexpr std::size_t kReadChunkBytes = 4096;
 
 /* Waits at most `ms` for the socket to be readable (or writable); true when it is. */
-bool wait(socket_t fd, bool for_write, int ms) {
-    fd_set set;
-    FD_ZERO(&set);
-    FD_SET(fd, &set);
-    timeval tv{};
-    tv.tv_sec = ms / 1000;
-    tv.tv_usec = (ms % 1000) * 1000;
-    const int n = select(
-        static_cast<int>(fd) + 1,
-        for_write ? nullptr : &set,
-        for_write ? &set : nullptr,
-        nullptr,
-        &tv
-    );
-    return n > 0;
+bool wait(socket_t fd, bool for_write, int ms, const std::atomic<bool>& stop) {
+    // In short slices, so a stop (the game switching to Direct connect) is not kept waiting for
+    // an unreachable server's whole connect time.
+    for (int waited = 0; waited < ms && !stop.load(); waited += kWaitSliceMs) {
+        fd_set set;
+        FD_ZERO(&set);
+        FD_SET(fd, &set);
+        timeval tv{};
+        tv.tv_sec = 0;
+        tv.tv_usec = kWaitSliceMs * 1000;
+        const int n = select(
+            static_cast<int>(fd) + 1,
+            for_write ? nullptr : &set,
+            for_write ? &set : nullptr,
+            nullptr,
+            &tv
+        );
+
+        if (n != 0) {
+            return n > 0;
+        }
+    }
+
+    return false;
 }
 
 /* Connects to host:port, each address the name gives in turn, within kConnectMs each. The socket,
@@ -77,7 +88,7 @@ socket_t connect_to(const std::string& host, int port, const std::atomic<bool>& 
         socklen_t length = sizeof error;
 
         // Connected when the socket turns writable with no error pending.
-        if (wait(fd, true, kConnectMs)
+        if (wait(fd, true, kConnectMs, stop)
             && getsockopt(fd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &length) == 0
             && error == 0) {
             set_blocking(fd, true);

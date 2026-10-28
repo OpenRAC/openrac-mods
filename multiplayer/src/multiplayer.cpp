@@ -37,6 +37,7 @@
 
 #include "connection.hpp"
 #include "direct.hpp"
+#include "menu.hpp"
 #include "openrac/mod.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
@@ -44,7 +45,7 @@
 namespace {
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kVersion = "rac1-multiplayer/0.3.1";
+constexpr const char* kVersion = "rac1-multiplayer/0.3.2";
 
 /* The question's tag: leaving the party (or hosting it). */
 constexpr std::uint32_t kAskLeave = 1;
@@ -107,51 +108,23 @@ std::string player_name(const std::string& setting) {
     return "Player" + std::to_string(mp::now_ms() % 1000);
 }
 
-/* The status line: the connection, or the last notice. */
+/* The status line: the connection, or the last notice (menu.hpp). */
 std::string status() {
-    using Mode = mp::Connection::Mode;
-    const Mode mode = g->connection->mode();
-    const bool direct = mode == Mode::kDirect;
-    const std::string where =
-        direct ? g->connection->address() : g->host + ":" + std::to_string(g->port);
+    mp::StatusInput in;
+    in.mode = g->connection->mode();
+    in.state = g->connection->state();
+    in.greeted = g->session->greeted();
+    in.waiting = g->session->waiting();
+    in.notice = g->notice;
+    in.address = g->connection->address();
 
-    // Hosting is connected from the start; nothing linked is the moment after a failed host.
-    if (mode == Mode::kHosting) {
+    if (in.mode == mp::Connection::Mode::kHosting) {
         const mp::HostingStatus h = g->connection->hosting();
-
-        if (!g->notice.empty()) {
-            return g->notice;
-        }
-
-        return "Hosting on port " + std::to_string(h.port) + (h.udp ? "" : ", TCP only");
-    } else if (mode == Mode::kNone) {
-        return "Not connected";
+        in.hosting_port = h.port;
+        in.hosting_udp = h.udp;
     }
 
-    switch (g->connection->state()) {
-        case mp::Connection::State::kIdle:
-        case mp::Connection::State::kConnecting:
-            return "Connecting to " + where + "...";
-        case mp::Connection::State::kUnreachable:
-            return direct ? "Cannot reach " + where + ", trying again"
-                          : "Server unreachable, trying again";
-        case mp::Connection::State::kLost:
-            return direct ? "Not connected: the host went away"
-                          : "Not connected: the server went away";
-        case mp::Connection::State::kConnected:
-            break;
-    }
-
-    // Connected: a notice first, then what is going on.
-    if (!g->notice.empty()) {
-        return g->notice;
-    }
-
-    if (!g->session->greeted()) {
-        return "Connected, saying hello...";
-    }
-
-    return g->session->waiting() ? "Waiting for the server..." : "Connected to " + where;
+    return mp::status_text(in);
 }
 
 /* Brings the session up to date with the connection: hello on a new connection, the server's
@@ -196,7 +169,7 @@ std::string code_text() {
  * connect (always: it needs no server), the name. */
 void show_home() {
     const bool usable =
-        g->session->greeted() && g->connection->mode() == mp::Connection::Mode::kServer;
+        mp::server_items_enabled(g->connection->mode(), g->session->greeted());
     openrac::UiContent c;
     c.title = "Multiplayer";
     c.items = {
@@ -206,7 +179,7 @@ void show_home() {
         openrac::UiItem::button("Direct connect"),
         openrac::UiItem::text("Playing as " + g->session->name()),
     };
-    c.footer = {status(), OPENRAC_UI_CROSS " Select   " OPENRAC_UI_TRIANGLE " Back"};
+    c.footer = {status(), mp::kSelectBackHints};
     g->home.set(c);
 }
 
@@ -233,7 +206,7 @@ void show_code() {
     }
 
     c.items.push_back(openrac::UiItem::button("Join", g->session->greeted()));
-    c.footer = {status(), "Left, Right change   " OPENRAC_UI_CROSS " Join"};
+    c.footer = {status(), mp::kCodeHints};
     g->code_page.set(c);
 }
 
@@ -259,7 +232,7 @@ void show_direct() {
                 "No server: port " + std::to_string(mp::kDefaultPort) + ", TCP and UDP"
             ),
         };
-        hints = OPENRAC_UI_CROSS " Select   " OPENRAC_UI_TRIANGLE " Back";
+        hints = mp::kSelectBackHints;
     } else {
         const mp::DirectAddress& a = g->address;
         c.title = "Join " + a.text();
@@ -273,7 +246,7 @@ void show_direct() {
         c.items.push_back(ring_row("Port", a.port, mp::kPortRing));
         c.items.push_back(ring_row("Port, by 100", a.port, mp::kPortCoarseRing));
         c.items.push_back(openrac::UiItem::button("Join"));
-        hints = "Left, Right change   " OPENRAC_UI_CROSS " Join   " OPENRAC_UI_TRIANGLE " Back";
+        hints = mp::kJoinHints;
     }
 
     // Before a host or a join, the server's status says nothing of Direct connect.
@@ -335,7 +308,7 @@ void show_lobby() {
             + " players" + ping
         )
     );
-    c.footer = {status(), OPENRAC_UI_CROSS " Select   " OPENRAC_UI_TRIANGLE " Leave"};
+    c.footer = {status(), mp::kSelectLeaveHints};
     g->lobby.set(c);
 }
 
@@ -348,6 +321,16 @@ void back_to_server() {
         g->connection->open(g->host, g->port);
     } else if (mode != mp::Connection::Mode::kServer) {
         g->connection->connect_server(g->host, g->port);
+        poll();
+    }
+}
+
+/* Stops the server link and its reconnecting (a hosted or direct party is the only link then),
+ * nothing when hosting already. Home links to the server again when it shows. */
+void stop_server_loop() {
+    if (mp::server_loop_wanted(g->connection->mode())
+        || g->connection->mode() == mp::Connection::Mode::kDirect) {
+        g->connection->close();
         poll();
     }
 }
@@ -373,6 +356,8 @@ void on_home(const openrac::UiPage& page, const openrac::UiEvent& e) {
         } else if (e.item() == kCodeItem) {
             g->code_page.open();
         } else if (e.item() == kDirectItem) {
+            // Direct connect needs no server: its retries stop here, and resume at Home.
+            stop_server_loop();
             g->view = DirectView::kMenu;
             g->direct_error.clear();
             g->direct_page.open();
@@ -438,15 +423,18 @@ void switch_view(const openrac::UiPage& page, DirectView view, int item) {
  * goes from the rows back to the two buttons (giving up a join that is connecting), and from the
  * buttons back to Home. */
 void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
-    using Mode = mp::Connection::Mode;
     mp::Connection& connection = *g->connection;
+
+    // This page never has the server: showing it (also back from a party) stops its retries.
+    if (e.is(OPENRAC_UI_SHOW)) {
+        stop_server_loop();
+    }
 
     if (e.is(OPENRAC_UI_BACK)) {
         // From the rows: the two buttons again, and no join pending.
         if (g->view == DirectView::kJoin) {
-            if (connection.mode() == Mode::kDirect) {
-                back_to_server();
-            }
+            // Giving up a join: no link, and no server retries on this page.
+            stop_server_loop();
 
             switch_view(page, DirectView::kMenu, kByAddressItem);
             return;
@@ -504,6 +492,8 @@ void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
 void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Session& s = *g->session;
     const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
+    const bool direct_party = s.direct() || hosting
+                              || g->connection->mode() == mp::Connection::Mode::kDirect;
 
     // Ready or Start; Leave and Triangle ask before the party is left.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kReadyItem) {
@@ -540,7 +530,12 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     // Out of the party (left, ended by the host, or the connection gone): back to Home, which
     // links to the server again after a direct party.
     if (!s.in_party() && !e.is(OPENRAC_UI_HIDE)) {
-        page.back();
+        // A direct party returns to Home, not to the Direct page.
+        if (direct_party) {
+            g->home.open();
+        } else {
+            page.back();
+        }
     }
 
     show_lobby();
@@ -601,7 +596,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.3.1", load)
+OPENRAC_MOD_CPP("multiplayer", "0.3.2", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

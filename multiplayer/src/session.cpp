@@ -139,7 +139,7 @@ void Session::start() {
     transport_.send(
         data(kBroadcast, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kStart)).bytes())
     );
-    notice_ = "Game starting (playing together comes in a later version)";
+    notice_ = "Game starting (not playable yet)";
 }
 
 void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) {
@@ -295,7 +295,7 @@ void Session::handle_data(const Message& m) {
     } else if (kind == LobbyKind::kStart && m.id == host_) {
         // The host started the game.
         started_ = true;
-        notice_ = "Game starting (playing together comes in a later version)";
+        notice_ = "Game starting (not playable yet)";
     } else if (
         kind != LobbyKind::kReady && kind != LobbyKind::kState && kind != LobbyKind::kStart
         && on_data_
