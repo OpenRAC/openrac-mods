@@ -23,9 +23,11 @@ target_link_libraries(multiplayer PRIVATE Threads::Threads)
 if(NOT MSVC)
   target_compile_options(multiplayer PRIVATE -Wall -Wextra)
 endif()
-# On Windows the sockets come from Winsock.
+# On Windows the sockets come from Winsock, whose headers define min and max as macros unless told
+# not to (they broke std::min in host.cpp).
 if(WIN32)
   target_link_libraries(multiplayer PRIVATE ws2_32)
+  target_compile_definitions(multiplayer PRIVATE NOMINMAX)
 endif()
 
 # The tests build only when testing is on.
@@ -39,6 +41,7 @@ if(BUILD_TESTING)
   target_link_libraries(multiplayer_test PRIVATE Threads::Threads)
   if(WIN32)
     target_link_libraries(multiplayer_test PRIVATE ws2_32)
+    target_compile_definitions(multiplayer_test PRIVATE NOMINMAX)
   endif()
   add_test(NAME multiplayer COMMAND multiplayer_test)
   # Playing together, without the game: the poses' bytes, the interpolation buffer, and the co-op
