@@ -2,7 +2,7 @@
  * Copyright (c) 2026 the OpenRAC contributors
  *
  * The pages' logic that needs no game (multiplayer.cpp draws them): which of Home's items the
- * connection allows, and the status line's words. Header only, so the tests use it as the pages do.
+ * connection allows, the status line's words, and the lines of the pause menu's Multiplayer page. Header only, so the tests use it as the pages do.
  *
  * Only Find match, Create match and Join by code depend on the OpenRAC server. Direct connect (and
  * Host directly, Join by address) never do: they are always selectable, and the server's state
@@ -12,8 +12,10 @@
 #define MULTIPLAYER_MENU_H
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "connection.hpp"
 
@@ -97,6 +99,81 @@ inline std::string status_text(const StatusInput& in) {
     }
 
     return direct ? "Joined " + in.address : "Connected to the server";
+}
+
+/* ---- The pause menu's Multiplayer page (Options, in a level) ---- */
+
+/* A member as the page shows it: its name, whether it hosts, whether it is the player, its link
+ * (session.hpp's Link: the round trip, -1 not known, and UDP or TCP). */
+struct PartyMemberLine {
+    std::string name;
+    bool host = false;
+    bool you = false;
+    std::int32_t ping_ms = -1;
+    bool udp = false;
+};
+
+/* What the page is made of. */
+struct PartyPageInput {
+    bool in_party = false;
+    bool direct = false;     // a Direct connect party: no code, `where` instead
+    std::string code;        // the party's code
+    std::string where;       // a direct party's address ("192.168.1.5:7770")
+    std::string host_level;  // the host's level's name, empty when it is in none
+    std::vector<PartyMemberLine> members;  // the host first
+};
+
+/* A line of the page: a label and its value (a line of information, or the Leave button). */
+struct PartyLine {
+    enum class Kind {
+        kInfo,
+        kLeave,
+        kText
+    };
+    Kind kind = Kind::kInfo;
+    std::string label;
+    std::string value;
+};
+
+constexpr const char* kPartyPageTitle = "Multiplayer";
+constexpr const char* kLeavePartyLabel = "Leave party";
+
+/* A link as the page says it: "38 ms UDP", "... TCP" while the round trip is not known yet. */
+inline std::string link_text(std::int32_t ping_ms, bool udp) {
+    const std::string ping = ping_ms < 0 ? "..." : std::to_string(ping_ms) + " ms";
+    return ping + (udp ? " UDP" : " TCP");
+}
+
+/* The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
+ * host's level, a line per member (the host marked, the player's own), then Leave party. */
+inline std::vector<PartyLine> party_lines(const PartyPageInput& in) {
+    using Kind = PartyLine::Kind;
+
+    if (!in.in_party) {
+        return {{Kind::kText, "Not in a party", ""}};
+    }
+
+    std::vector<PartyLine> lines;
+    lines.push_back(in.direct ? PartyLine{Kind::kInfo, "Direct", in.where}
+                              : PartyLine{Kind::kInfo, "Party code", in.code});
+    lines.push_back({Kind::kInfo, "Host's level", in.host_level.empty() ? "None" : in.host_level});
+
+    for (const PartyMemberLine& m : in.members) {
+        const std::string mark = m.host && m.you ? " (host, you)"
+                                 : m.host        ? " (host)"
+                                 : m.you         ? " (you)"
+                                                 : "";
+        lines.push_back({Kind::kInfo, m.name + mark, link_text(m.ping_ms, m.udp)});
+    }
+
+    lines.push_back({Kind::kLeave, kLeavePartyLabel, ""});
+    return lines;
+}
+
+/* The question Leave party asks, short for the page's title box: the host leaving (or stopping a
+ * direct party it hosts) ends the party for everyone. */
+inline const char* pause_leave_question(bool hosting, bool host) {
+    return hosting ? "Stop hosting?" : host ? "End the party?" : "Leave the party?";
 }
 
 }  // namespace mp

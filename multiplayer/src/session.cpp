@@ -54,6 +54,7 @@ void Session::reset_party() {
     members_.clear();
     description_.clear();
     ready_.clear();
+    links_.clear();
     started_ = false;
     waiting_ = false;
 }
@@ -156,11 +157,59 @@ void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) 
     on_data_ = std::move(callback);
 }
 
+/* Whether a DATA's first byte is one of the lobby's kinds. */
+static bool lobby_kind(std::uint8_t kind) {
+    return (kind >= static_cast<std::uint8_t>(LobbyKind::kReady)
+            && kind <= static_cast<std::uint8_t>(LobbyKind::kStart))
+           || kind == static_cast<std::uint8_t>(LobbyKind::kLink)
+           || kind == static_cast<std::uint8_t>(LobbyKind::kLinks);
+}
+
 bool Session::game_bytes(const Bytes& bytes) const {
     // Game data goes only inside a party, and never as one of the lobby's kinds.
-    return in_party() && !bytes.empty()
-           && (bytes[0] < static_cast<std::uint8_t>(LobbyKind::kReady)
-               || bytes[0] > static_cast<std::uint8_t>(LobbyKind::kStart));
+    return in_party() && !bytes.empty() && !lobby_kind(bytes[0]);
+}
+
+void Session::report_link(std::int64_t ping_ms, bool udp) {
+    if (!in_party()) {
+        return;
+    }
+
+    const Link own{static_cast<std::int32_t>(std::clamp<std::int64_t>(ping_ms, -1, 99999)), udp};
+    links_[id_] = own;
+
+    // The host tells everyone; a member tells the host, who passes it on.
+    if (is_host()) {
+        send_links();
+    } else {
+        transport_.send(data(
+            host_,
+            Writer()
+                .u8(static_cast<std::uint8_t>(LobbyKind::kLink))
+                .i32(own.ping_ms)
+                .u8(own.udp ? 1 : 0)
+                .bytes()
+        ));
+    }
+}
+
+Link Session::link(std::int32_t member) const {
+    const auto it = links_.find(member);
+    return it != links_.end() ? it->second : Link{};
+}
+
+void Session::send_links() {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(LobbyKind::kLinks))
+        .u8(static_cast<std::uint8_t>(members_.size()));
+
+    // Every member, heard of or not (-1).
+    for (const Member& m : members_) {
+        const Link l = link(m.id);
+        w.i32(m.id).i32(l.ping_ms).u8(l.udp ? 1 : 0);
+    }
+
+    transport_.send(data(kBroadcast, w.bytes()));
 }
 
 void Session::send_data(std::int32_t target, const Bytes& bytes) {
@@ -237,6 +286,7 @@ void Session::handle(const Message& m) {
                 members_.end()
             );
             ready_.erase(m.id);
+            links_.erase(m.id);
             break;
         case Message::Kind::kPartyList:
             parties_ = m.parties;
@@ -311,10 +361,41 @@ void Session::handle_data(const Message& m) {
         // The host started the game.
         started_ = true;
         notice_ = "Game starting";
-    } else if (
-        kind != LobbyKind::kReady && kind != LobbyKind::kState && kind != LobbyKind::kStart
-        && on_data_
-    ) {
+    } else if (kind == LobbyKind::kLink && is_host()) {
+        // A member's link, at the host: kept and told to everyone.
+        const std::int32_t ping = r.i32();
+        const bool udp = r.u8() != 0;
+
+        // A cut-short message is ignored.
+        if (r.ok()) {
+            links_[m.id] = {ping, udp};
+            send_links();
+        }
+    } else if (kind == LobbyKind::kLinks && m.id == host_) {
+        // The host's word on everyone's link; the player's own stays as it reported it.
+        const std::uint8_t count = r.u8();
+        std::map<std::int32_t, Link> links;
+
+        for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
+            const std::int32_t member = r.i32();
+            const std::int32_t ping = r.i32();
+            const bool udp = r.u8() != 0;
+
+            // A member not heard of yet keeps none.
+            if (ping >= 0) {
+                links[member] = {ping, udp};
+            }
+        }
+
+        // A cut-short message is ignored.
+        if (r.ok()) {
+            if (const auto own = links_.find(id_); own != links_.end()) {
+                links[id_] = own->second;
+            }
+
+            links_ = std::move(links);
+        }
+    } else if (!lobby_kind(static_cast<std::uint8_t>(kind)) && on_data_) {
         // Not the lobby's: the game's own data, as it came.
         on_data_(m.id, m.bytes);
     }

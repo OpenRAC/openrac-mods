@@ -10,7 +10,12 @@
  * first:
  *   1 READY  flag u8        a member to the host (the server sends a member's DATA to the host);
  *   2 STATE  count u8, then id i32 + flag u8 per member   the host to everyone: who is ready;
- *   3 START                 the host to everyone: the game starts.
+ *   3 START                 the host to everyone: the game starts;
+ *  64 LINK   ping i32, udp u8   a member to the host: its round trip to the server (-1 not known
+ *                              yet) and whether its game state goes by UDP;
+ *  65 LINKS  count u8, then id i32 + ping i32 + udp u8 per member   the host to everyone: each
+ *                              member's link (its own among them), each time one comes or the host
+ *                              reports its own; for the pause menu's Multiplayer page.
  * Any other first byte is the game's own (coop.hpp: the game, the poses): handed as it is to the
  * callback set with on_data, and sent with send_data, with a monotonic clock (now_ms) to stamp it.
  */
@@ -19,6 +24,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -32,7 +38,16 @@ namespace mp {
 enum class LobbyKind : std::uint8_t {
     kReady = 1,
     kState = 2,
-    kStart = 3
+    kStart = 3,
+    kLink = 64,
+    kLinks = 65
+};
+
+/* A member's link to the server (or to the embedded host), as the party last heard it: its round
+ * trip in milliseconds (-1 not known) and whether its game state goes by UDP. */
+struct Link {
+    std::int32_t ping_ms = -1;
+    bool udp = false;
 };
 
 class Session {
@@ -73,6 +88,14 @@ public:
      * way. It may arrive twice (by UDP and TCP while UDP is unconfirmed) or not at all, so state
      * must be stamped and idempotent. */
     void send_state(std::int32_t target, const Bytes& bytes);
+
+    /* Tells the party this game's link (report it every few seconds): a member to the host, the
+     * host's own kept and every member's sent to everyone. Nothing out of a party. */
+    void report_link(std::int64_t ping_ms, bool udp);
+
+    /* A member's link as last heard: the player's own as last reported; a default Link (ping -1)
+     * for one not heard of. */
+    Link link(std::int32_t member) const;
 
     /* Asks the server's clock (TIME); done once after hello, and again whenever the mod wants a
      * fresher estimate. */
@@ -134,6 +157,8 @@ private:
     void reset_party();
     /* The host: tells everyone who is ready. */
     void send_state();
+    /* The host: tells everyone each member's link. */
+    void send_links();
     void handle_data(const Message& message);
     /* Whether game bytes may go: in a party, and not one of the lobby's kinds. */
     bool game_bytes(const Bytes& bytes) const;
@@ -149,6 +174,7 @@ private:
     std::vector<Listing> parties_;
     std::uint32_t lists_ = 0;
     std::set<std::int32_t> ready_;
+    std::map<std::int32_t, Link> links_;
     bool started_ = false;
     bool waiting_ = false;
     std::string notice_;
@@ -158,6 +184,9 @@ private:
     std::int64_t rtt_ms_ = 0;
     double offset_ms_ = 0.0;
 };
+
+/* How often a game in a party reports its link (Session::report_link). */
+constexpr std::uint64_t kLinkMs = 2000;
 
 /* How much one TIME answer moves the clock offset: an EWMA of 0.05 (INTERPOLATION.md). */
 constexpr double kOffsetSmoothing = 0.05;

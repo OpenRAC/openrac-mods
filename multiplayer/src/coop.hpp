@@ -389,6 +389,9 @@ private:
     std::uint64_t refused_until_ = 0;
     /* The game's state last logged. */
     GameStatus logged_{-1, -2, 0};
+    /* A member that left the party in the host's game from a menu over it: back to the title once
+     * the menu is closed. */
+    bool title_after_menu_ = false;
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
     std::uint16_t sequence_ = 0;

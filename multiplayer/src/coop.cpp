@@ -400,16 +400,31 @@ void Coop::tick(std::uint64_t now) {
         // The party went: so does what was shown of it, and a member in the host's game (whose
         // world was the host's) goes back to the title.
         if (play_ != 0 || !remotes_.empty() || pending_) {
+            // Left from the pause menu (its Multiplayer page): back to the title once it closes.
+            title_after_menu_ = member_playing_ && game_.status().phase == kPhaseMenu;
+
             if (member_playing_ && game_.status().phase == kPhasePlaying && game_.travel(-1)) {
                 notice_ = "The party is over: back to the title";
                 log("the party is over: back to the title");
             }
 
             reset();
+        } else if (title_after_menu_) {
+            const int phase = game_.status().phase;
+
+            if (phase == kPhasePlaying && game_.travel(-1)) {
+                title_after_menu_ = false;
+                notice_ = "The party is over: back to the title";
+                log("the party is over: back to the title");
+            } else if (!in_level(phase)) {
+                title_after_menu_ = false;
+            }
         }
 
         return;
     }
+
+    title_after_menu_ = false;
 
     member_playing_ = !session_.is_host() && play_ != 0 && applied_ == play_;
 

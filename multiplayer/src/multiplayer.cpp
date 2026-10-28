@@ -373,6 +373,9 @@ struct State {
     mp::DirectAddress address;  // Join by address's, the last joined kept for the game
     mp::Acceleration acceleration;
     std::string direct_error;  // why Host directly or Join failed, on the Direct page
+    openrac::UiPage pause_page;  // the pause menu's Multiplayer page (Options, in a level)
+    int pause_leave = -1;        // its Leave party item, -1 out of a party
+    std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
 };
 
 std::unique_ptr<State> g;
@@ -631,6 +634,83 @@ void show_lobby() {
     g->lobby.set(c);
 }
 
+/* The pause menu's Multiplayer page (Options, in a level; menu.hpp's party_lines): the party's code
+ * (or where a direct one is), the host's level, each member with its round trip and UDP or TCP
+ * (the host marked), and Leave party; out of a party, that it is in none. */
+void show_pause() {
+    const mp::Session& s = *g->session;
+    mp::PartyPageInput in;
+    in.in_party = s.in_party();
+    in.direct = s.direct();
+    in.code = s.code();
+
+    if (g->connection->mode() == mp::Connection::Mode::kHosting) {
+        in.where = "port " + std::to_string(g->connection->hosting().port);
+    } else {
+        in.where = g->connection->address();
+    }
+
+    // The host's level: the host's own, a member's as the host's LEVEL said.
+    const mp::GameStatus status = g->game->status();
+    const int level = s.is_host() ? (mp::in_level(status.phase) ? status.level : -1)
+                                  : g->coop->host_level();
+    in.host_level = level >= 0 ? g->mod->level_name(level) : "";
+
+    for (const mp::Member& m : s.members()) {
+        const mp::Link link = s.link(m.id);
+        in.members.push_back({m.name, m.id == s.host(), m.id == s.id(), link.ping_ms, link.udp});
+    }
+
+    openrac::UiContent c;
+    c.title = mp::kPartyPageTitle;
+    g->pause_leave = -1;
+
+    for (const mp::PartyLine& line : mp::party_lines(in)) {
+        switch (line.kind) {
+            case mp::PartyLine::Kind::kInfo:
+                c.items.push_back(openrac::UiItem::choice_of(line.label, {line.value}, 0));
+                break;
+            case mp::PartyLine::Kind::kLeave:
+                g->pause_leave = static_cast<int>(c.items.size());
+                c.items.push_back(openrac::UiItem::button(line.label));
+                break;
+            case mp::PartyLine::Kind::kText:
+                c.items.push_back(openrac::UiItem::text(line.label));
+                break;
+        }
+    }
+
+    g->pause_page.set(c);
+}
+
+/* Leaves the party (Lobby's and the pause page's Leave): a host of a direct party stops hosting
+ * (its clients get END); anyone else leaves. */
+void leave_party() {
+    g->notice.clear();
+
+    if (g->connection->mode() == mp::Connection::Mode::kHosting) {
+        g->connection->stop_hosting();
+        poll();
+    } else {
+        g->session->leave();
+    }
+}
+
+/* The pause page's events: Leave party asks first; the page follows the party each tick. */
+void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    const mp::Session& s = *g->session;
+
+    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
+        const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
+        page.confirm(mp::pause_leave_question(hosting, s.is_host()), kAskLeave);
+    } else if (e.is(OPENRAC_UI_ANSWER) && e.tag() == kAskLeave && e.value() == 1 && s.in_party()) {
+        g->mod->info("multiplayer: left the party from the pause menu");
+        leave_party();
+    }
+
+    show_pause();
+}
+
 /* Back to the configured server, from a direct link or none (a host stopped, a join given up), so
  * Find, Create and Join by code work again. Nothing while linked to the server already. */
 void back_to_server() {
@@ -837,15 +917,7 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
                                              : "Leave the party?";
         page.confirm(question, kAskLeave);
     } else if (e.is(OPENRAC_UI_ANSWER) && e.tag() == kAskLeave && e.value() == 1) {
-        g->notice.clear();
-
-        // The host's game stops listening (its clients get END); anyone else leaves.
-        if (hosting) {
-            g->connection->stop_hosting();
-            poll();
-        } else {
-            s.leave();
-        }
+        leave_party();
     }
 
     // The notice the action made shows at once.
@@ -1159,12 +1231,30 @@ void load(openrac::Mod& mod) {
     show_saves();
     mod.ui_main_item(OPENRAC_UI_LOAD_GAME, "Multiplayer", g->home);
 
+    // In a level, the pause menu's Options page has a Multiplayer item too (interface 1.9).
+    if (mod.has_pause_items()) {
+        g->pause_page = mod.ui_page(on_pause);
+        show_pause();
+        mod.ui_pause_item("Multiplayer", g->pause_page);
+    }
+
     // The session follows the server every tick, whether a page shows or not, and the co-op the
     // game.
     mod.on_frame([] {
         poll();
         const std::uint64_t now = mp::now_ms();
         g->frame_ms = now;
+
+        // In a party, the player's link every few seconds: a fresh round trip asked, the last one
+        // told to the party (the pause page's pings).
+        if (g->session->in_party() && now - g->link_ms >= mp::kLinkMs) {
+            g->link_ms = now;
+            g->session->sync_clock();
+            g->session->report_link(
+                g->session->has_clock() ? g->session->rtt_ms() : -1, g->connection->udp()
+            );
+        }
+
         g->coop->tick(now);
         g->world->tick(now);
 

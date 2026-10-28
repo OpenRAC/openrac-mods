@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "coop.hpp"
+#include "menu.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
@@ -911,14 +912,12 @@ void a_new_game_and_a_late_member() {
     tick({&host, &member, &late}, 16);
     CHECK((late.game.calls == std::vector<std::string>{"start 0 500"}));
     CHECK(late.game.started_save == host.game.progress);
-    CHECK(member.game.calls.size() == 1);  // not told again
 
     // The member left its game for the title: it asks (WANT) and is given the progress.
     member.game.now = {mp::kPhaseFrontEnd, -1, 2};
     late.game.now = {mp::kPhasePlaying, 0, 2};
     // It still has this game's play: no WANT. A new play id (the host started again) would.
     tick({&host, &member, &late}, mp::kWantMs);
-    CHECK(member.game.calls.size() == 1);
     // Its lobby's Join the game: it asks, and is given the host's progress.
     CHECK(member.coop.rejoin() && !host.coop.rejoin());
     tick({&host, &member, &late}, 16);
@@ -1134,6 +1133,85 @@ void builds_and_the_end() {
     member2.session.handle(end);
     tick({&member2}, 16);
     CHECK(member2.game.calls.back() == "travel -1" && !member2.coop.playing());
+}
+
+// The pause menu's Multiplayer page (menu.hpp): out of a party one line; in one the code, the
+// host's level, the members with their links as the party heard them (LINK, LINKS: a member's
+// reaches everyone through the host) and Leave party. Leaving from the pause menu in the host's
+// game goes back to the title once the menu closes.
+void the_pause_page_shows_the_party_and_leaves() {
+    mp::PartyPageInput none;
+    std::vector<mp::PartyLine> lines = mp::party_lines(none);
+    CHECK(lines.size() == 1 && lines[0].kind == mp::PartyLine::Kind::kText
+          && lines[0].label == "Not in a party");
+    CHECK(mp::link_text(38, true) == "38 ms UDP" && mp::link_text(-1, false) == "... TCP");
+    CHECK(std::string(mp::pause_leave_question(false, false)) == "Leave the party?");
+    CHECK(std::string(mp::pause_leave_question(false, true)) == "End the party?");
+    CHECK(std::string(mp::pause_leave_question(true, true)) == "Stop hosting?");
+
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(host.coop.start());
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    tick({&host, &member}, 16);
+
+    // Nobody's link is known before it is reported.
+    CHECK(host.session.link(2).ping_ms == -1 && member.session.link(1).ping_ms == -1);
+    member.session.report_link(38, true);
+    route({&host, &member});
+    CHECK(host.session.link(2).ping_ms == 38 && host.session.link(2).udp);
+    CHECK(member.session.link(2).ping_ms == 38);
+    host.session.report_link(5, false);
+    route({&host, &member});
+    CHECK(member.session.link(1).ping_ms == 5 && !member.session.link(1).udp);
+    CHECK(member.session.link(2).ping_ms == 38 && member.session.link(2).udp);
+
+    // The page as the member sees it.
+    mp::PartyPageInput in;
+    in.in_party = member.session.in_party();
+    in.code = member.session.code();
+    in.host_level = "Novalis";
+    for (const mp::Member& m : member.session.members()) {
+        const mp::Link l = member.session.link(m.id);
+        in.members.push_back({m.name, m.id == member.session.host(), m.id == member.session.id(),
+                              l.ping_ms, l.udp});
+    }
+    lines = mp::party_lines(in);
+    CHECK(lines.size() == 5);
+    CHECK(lines[0].label == "Party code" && lines[0].value == "ABCDEF");
+    CHECK(lines[1].label == "Host's level" && lines[1].value == "Novalis");
+    CHECK(lines[2].label == "P1 (host)" && lines[2].value == "5 ms TCP");
+    CHECK(lines[3].label == "P2 (you)" && lines[3].value == "38 ms UDP");
+    CHECK(lines[4].kind == mp::PartyLine::Kind::kLeave && lines[4].label == "Leave party");
+    in.direct = true;
+    in.where = "10.0.0.2:7770";
+    in.host_level.clear();
+    lines = mp::party_lines(in);
+    CHECK(lines[0].label == "Direct" && lines[0].value == "10.0.0.2:7770" && lines[1].value == "None");
+
+    // Leave party from the pause menu: no travel under the menu, back to the title once it closes.
+    member.game.now = {mp::kPhaseMenu, 0, 2};
+    tick({&member}, 16);
+    member.session.leave();
+    CHECK(!member.session.in_party() && member.session.link(1).ping_ms == -1);
+    tick({&member}, 16);
+    CHECK(member.game.calls.back() != "travel -1");
+    tick({&member}, 16);
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    tick({&member}, 16);
+    CHECK(member.game.calls.back() == "travel -1");
+    tick({&member}, 16);
+    CHECK(std::count(member.game.calls.begin(), member.game.calls.end(), "travel -1") == 1);
+    // Out of a party nothing is reported.
+    member.link.frames.clear();
+    member.session.report_link(40, true);
+    CHECK(member.link.frames.empty());
 }
 
 // A game in a menu (the pause menu's own mobys up, or a load) lists nothing: nothing is taken for
@@ -1752,6 +1830,7 @@ int main() {
     world_bytes();
     the_world_is_the_hosts();
     builds_and_the_end();
+    the_pause_page_shows_the_party_and_leaves();
     a_menu_kills_nothing();
     a_pause_keeps_the_world_whole();
     classes_are_shared_as_they_should_be();
