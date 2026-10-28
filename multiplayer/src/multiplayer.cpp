@@ -4,14 +4,14 @@
  * Ratchet & Clank: online multiplayer, the first step (README.md): a Multiplayer item in the
  * title's main menu, under Load Game (mod interface 1.7), whose pages are the game's own menus:
  * they connect to the OpenRAC server, show the player's name (the `name` setting, else the
- * launcher's, OPENRAC_PLAYER_NAME), find a match (the server puts the player in an open party with
- * room, or makes one), create a private party, or join one by its code, then show the lobby: the
+ * launcher's, OPENRAC_PLAYER_NAME), find a match (the server puts the player in a party with
+ * room, or makes one), create one, or join one by its code, then show the lobby: the
  * code, the members with the host marked, Ready or Start, and Leave. Direct connect plays without
  * a server: this game hosts (connection.hpp's embedded host), or joins another's by its address.
  * Nothing of the game is played together yet: no gameplay is sent.
  *
  * The pages, drawn by the game (its frames, list, font, prompt box and sounds):
- *   Home    Find match (any open party), Create match (a private one, joined by its code), Join
+ *   Home    Find match (any party with room), Create match (one of the player's own), Join
  *           by code and Direct connect (the next pages), and the player's name;
  *   Code    a row per character of the code, Left and Right step it through the server's code
  *           alphabet, then Join;
