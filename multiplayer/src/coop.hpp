@@ -300,6 +300,7 @@ struct Remote {
     Interpolator poses;
     bool scene = false;  // its game plays a scene (its last pose said)
     int figure = -1;
+    bool hidden = false;         // its figure hidden for a scene playing in this game
     std::uint64_t retry_ms = 0;  // when a figure may be made again
     /* Its shots to fire, each when its figure is as far behind as its poses are played. */
     struct PendingShot {
@@ -424,6 +425,8 @@ private:
     void send_level(std::uint64_t now, int level, bool scene);
     void tick_arrival(std::uint64_t now, const GameStatus& status);
     void drop_figure(std::int32_t player, Remote& r, const char* why);
+    /* A figure hidden for this game's scene, or shown again; false when the game cannot hide it. */
+    bool hide_figure(std::int32_t player, Remote& r, bool hidden);
     void tick_leaving(std::uint64_t now);
     /* The level's scenes played together (coop_scenes.cpp): SCENE heard, the host's scenes told,
      * a member's started, and the lateness a member's scene is let play out for. */

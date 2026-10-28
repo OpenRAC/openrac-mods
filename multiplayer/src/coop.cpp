@@ -855,6 +855,11 @@ void Coop::on_shot(std::int32_t sender, const Bytes& bytes) {
         return;
     }
 
+    // A scene playing here: the others' figures are hidden, their shots dropped.
+    if (game_.status().phase == kPhaseScene) {
+        return;
+    }
+
     Remote& r = remotes_[m.owner];
 
     if (r.shots.size() >= kShotsWaiting) {
@@ -873,8 +878,9 @@ void Coop::fire_shots(Remote& r, std::uint64_t now, const GameStatus& status) {
         const Remote::PendingShot shot = r.shots.front();
         r.shots.pop_front();
 
-        // Another level's, or one whose figure is not shown in time: dropped.
-        if (shot.level != status.level || r.figure < 0 || t - shot.due_ms > kShotLateMs) {
+        // Another level's, one whose figure is not shown in time, or one in a scene here: dropped.
+        if (shot.level != status.level || r.figure < 0 || r.hidden || status.phase == kPhaseScene
+            || t - shot.due_ms > kShotLateMs) {
             continue;
         }
 
@@ -890,6 +896,24 @@ void Coop::drop_figure(std::int32_t player, Remote& r, const char* why) {
         r.figure = -1;
         log("player " + std::to_string(player) + " no longer shown: " + why);
     }
+
+    r.hidden = false;
+}
+
+bool Coop::hide_figure(std::int32_t player, Remote& r, bool hidden) {
+    if (r.figure < 0 || r.hidden == hidden) {
+        return true;
+    }
+
+    const int slot = game_.figure_slot(r.figure);
+
+    if (slot < 0 || !game_.moby_hide(slot, hidden)) {
+        return false;
+    }
+
+    r.hidden = hidden;
+    log("player " + std::to_string(player) + (hidden ? " hidden for the scene" : " shown again"));
+    return true;
 }
 
 void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
@@ -899,8 +923,13 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
 
         for (auto& entry : remotes_) {
             entry.second.figure = -1;
+            entry.second.hidden = false;
         }
     }
+
+    // A scene playing in this game: the others' figures hidden (made only after it), shown again
+    // once it is over.
+    const bool scene = status.phase == kPhaseScene;
 
     for (auto it = remotes_.begin(); it != remotes_.end();) {
         Remote& r = it->second;
@@ -939,6 +968,18 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
             continue;
         }
 
+        // A game that cannot hide a figure has it taken out for the scene instead (and made again
+        // after it).
+        if (!hide_figure(it->first, r, scene)) {
+            drop_figure(it->first, r, scene ? "a scene plays here" : "it could not be shown again");
+        }
+
+        if (scene && r.figure < 0) {
+            r.shots.clear();
+            ++it;
+            continue;
+        }
+
         if (r.figure < 0 && now >= r.retry_ms) {
             r.figure = game_.figure_create();
 
@@ -955,8 +996,16 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
             trace("O", t, r.poses.delay_ms(), pose);
         }
 
+        // Hidden: its pieces too (they follow the figure, but are drawn by their own mobys).
+        if (r.hidden) {
+            for (std::uint32_t i = 0; i < pose.held_count && i < kHeldMax; ++i) {
+                pose.held[i].flags |= kHeldHidden;
+            }
+        }
+
         if (r.figure >= 0 && !game_.figure_pose(r.figure, pose)) {
             r.figure = -1;
+            r.hidden = false;
         }
 
         fire_shots(r, now, status);

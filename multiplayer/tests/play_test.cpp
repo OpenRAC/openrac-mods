@@ -726,7 +726,19 @@ struct FakeGame : mp::Game {
     int bolts(int add) override { return bolt_count += add; }
 
     // A moby hidden or shown (its listed flag), the deletions the game made (by slot), the camera.
+    // A figure's (slot 100 + id) hidden, by id.
+    std::set<int> hidden_figures;
+
     bool moby_hide(int slot, bool hidden) override {
+        if (slot >= 100 && figures.count(slot - 100) != 0) {
+            if (hidden) {
+                hidden_figures.insert(slot - 100);
+            } else {
+                hidden_figures.erase(slot - 100);
+            }
+            world_calls.push_back((hidden ? "hide " : "show ") + std::to_string(slot));
+            return true;
+        }
         for (mp::MobyState& m : level) {
             if (m.slot == slot) {
                 m.flags = hidden ? m.flags | mp::kMobyHidden : m.flags & ~mp::kMobyHidden;
@@ -2436,6 +2448,72 @@ void held_items_and_shots_reach_the_figure() {
     CHECK(member.game.shots_out.empty() && member.coop.shots_sent() == sent);
 }
 
+// While a scene plays in this game the other players' figures are hidden, not removed, their
+// pieces hidden with them, and their shots dropped; once it is over they are shown again.
+void figures_hide_in_a_scene() {
+    Player host(1), member(2);
+    std::vector<std::string> member_log;
+    member.coop.on_log([&](const std::string& l) { member_log.push_back(l); });
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = {mp::kPhasePlaying, 0, 2};
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    host.game.hero_pose.held_count = 2;
+    host.game.hero_pose.held[0] = piece(0, 0, 8, 0x47, 5);
+    host.game.hero_pose.held[1] = piece(3, 1, 2, 0x3D9, 2);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.figures.size() == 1);
+    const int figure = member.game.figures.begin()->first;
+    CHECK(member.game.hidden_figures.empty());
+    CHECK((member.game.figures[figure].held[0].flags & mp::kHeldHidden) == 0);
+
+    // A scene in the member's game: the host's figure hidden, kept, its pieces hidden too.
+    member.game.now = {mp::kPhaseScene, 0, 2, 5};
+    tick({&host, &member}, 50);
+    CHECK(member.game.hidden_figures.count(figure) == 1 && member.game.figures.count(figure) == 1);
+    CHECK(SceneParty::logged(member_log, "player 1 hidden for the scene"));
+    CHECK(!SceneParty::logged(member_log, "player 1 no longer shown"));
+    for (int i = 0; i < 4; ++i) {
+        tick({&host, &member}, 50);
+    }
+    const mp::Pose& hidden = member.game.figures[figure];
+    CHECK(hidden.held_count == 2);
+    CHECK((hidden.held[0].flags & mp::kHeldHidden) != 0 && (hidden.held[1].flags & mp::kHeldHidden) != 0);
+
+    // The host fires meanwhile: dropped here, then and later.
+    mp::Shot shot;
+    shot.item = 0x0F;
+    host.game.shots_out.push_back(shot);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.shots_in.empty());
+
+    // The scene over: the same figure shown again, its pieces with it; no shot fired late.
+    member.game.now = {mp::kPhasePlaying, 0, 2};
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.hidden_figures.empty() && member.game.figures.count(figure) == 1);
+    CHECK(member.game.figures.size() == 1);
+    CHECK(SceneParty::logged(member_log, "player 1 shown again"));
+    CHECK((member.game.figures[figure].held[0].flags & mp::kHeldHidden) == 0);
+    CHECK(member.game.shots_in.empty());
+    // A shot now reaches the figure again.
+    host.game.shots_out.push_back(shot);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.game.shots_in.size() == 1);
+}
+
 // The host's ship travel: a member's own is refused; the host's takes every member along at once,
 // from a menu too, and the party arrives together: nobody goes on, no figure is shown and none of
 // the host's world arrives until all are in the new level; a slow member is waited for, a member
@@ -2872,6 +2950,7 @@ int main() {
     the_hosts_skip_of_the_next_scene_skips_it();
     a_stale_skip_or_out_is_ignored();
     held_items_and_shots_reach_the_figure();
+    figures_hide_in_a_scene();
     a_ship_travel_takes_the_party_along();
     the_party_arrives_together();
     the_host_leaving_takes_everyone_home();
