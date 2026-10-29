@@ -1276,16 +1276,42 @@ void load(openrac::Mod& mod) {
             g->coop->handle(sender, bytes);
         }
     });
-    // A crate broken here to show another game's break drops nothing (its bolts are the breaker's).
+    // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
+    // or enemy drops them, and they come here as the host's): the death recorded as the game does it
+    // (its killed bits), its drop left out. SetDeathBits drops about the s16 at +0xB4, or (for a
+    // tallied source, +0xB1 not below 0) at least one of what +0xB6 has left: +0xB4 cleared (as the
+    // game clears it after) and +0xB1 untallied (0xFF; 0xFE, a death not recorded, is left) for
+    // the call, +0xB1 put back.
     mod.hook<openrac::rac1::Moby_RecordDeath>(
         [](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t bolts) {
-            g->world->note_death(g->mod->moby_slot_of(moby));
+            const int slot = g->mod->moby_slot_of(moby);
+            g->world->note_death(slot);
 
-            if (!g->world->quiet_death(g->mod->moby_slot_of(moby))) {
+            if (!g->world->quiet_drop(slot)) {
                 original(moby, flags, bolts);
+                return;
             }
+
+            openrac::Memory memory = g->mod->memory();
+            const auto source = memory.read<std::uint8_t>(moby + 0xB1u);
+            memory.write<std::int16_t>(moby + 0xB4u, 0);
+
+            if (source != 0xFEu) {
+                memory.write<std::uint8_t>(moby + 0xB1u, 0xFFu);
+            }
+
+            original(moby, flags, bolts);
+            memory.write<std::uint8_t>(moby + 0xB1u, source);
         }
     );
+    // A bolt reaching this game's Ratchet: in a member's game in the host's level, the host's to
+    // give (a claim; BOLTS brings its value), so nothing is added here; the bolt update deletes the
+    // bolt either way.
+    mod.hook<openrac::rac1::Moby_CollectBolt>([](auto original, std::uint32_t bolt) {
+        if (g->world->collect(g->mod->moby_slot_of(bolt))) {
+            original(bolt);
+        }
+    });
     // The ship's planet select: the host's travel takes the party along, a member's to another
     // planet lands the ship again where it is (coop.hpp: only the host flies).
     mod.hook<openrac::rac1::Ship_TravelTo>([](auto original, std::int32_t dest) {

@@ -66,12 +66,20 @@ The world is the host's:
   as the hero, so it chases, aims at and hits that player; the hit hurts that player in their own
   game (knocked back as the game does it).
 - **Crates** run in every game: a crate broken in one game breaks in all, with its debris and
-  sound, and its bolts are there once, for whoever broke it.
-- **Pickups** (bolts lying about, gold bolts, ammo, nanotech) run in every game: anyone can collect
-  one, and the first to collect it takes it from every game. Ammo and health an enemy drops in the
-  host's game are dropped in every game, for each player to collect.
-- **Bolts** from the host's enemies fly to the nearest player and are theirs: each player has
-  their own bolts.
+  sound.
+- **Bolts are the host's, once in the world.** Only the host's game drops them: its enemies' and
+  its crates', a crate a member broke too (the host's copy of it breaks and drops). The members'
+  games drop none of their own. Every player sees the same bolts fly out of the same crate or enemy
+  and land in the same places; once landed, each one hovers and flies to whichever Ratchet comes
+  near, in every game.
+- **A bolt is the first collector's.** A member's collected bolt (one dropped or one lying about
+  in the level) adds nothing in that member's game: it asks the host, who gives it to the first
+  to ask while it is still there, takes it from every game and sends that player its bolts. A
+  later collector of the same bolt gets nothing (its bolt has gone, without a count). The host's
+  own are the host's at once. Each player has their own bolt count.
+- **Other pickups** (gold bolts, ammo, nanotech) run in every game: anyone can collect one, and the
+  first to collect it takes it from every game. Ammo and health an enemy drops in the host's game,
+  and what a nanotech or ammo crate gives, are made in every game, for each player to collect.
 - A placed enemy or pickup gone in the host's game is gone in everyone's, also for someone who
   arrives in the level later. A moby goes only when a game says it died, never because a snapshot
   is missing: a game that is loading or in a menu changes nothing in the others.
@@ -203,18 +211,19 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
 | 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on to everyone. A pose that ends after 65 bytes (an older mod) wears nothing |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
-| 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden) | the 46 mobys nearest that member that moved or animated, 15 times a second |
+| 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden; 2: loose, a bolt landed in the host's game, which the member's game now runs as its own) | the 46 mobys nearest that member that moved or animated, 15 times a second (a landed bolt once, then once a second) |
 | 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
 | 11 SPAWN, 12 DESPAWN | the host | level i8, net u16, class i16, position, yaw; or a list of nets | creatures and bolts the host's game made, and their end |
 | 13 HIT | a member | id u16, mask u32, damage f32, position, velocity | its hit on the host's moby |
 | 14 DAMAGE | the host | attacker id u16, mask u32, damage f32, position, velocity | an enemy hit that member |
-| 15 BOLTS | the host | count i32 | bolts that flew to that member in the host's game |
+| 15 BOLTS | the host | count i32 | bolts that are that member's: a claim granted (the bolt's value), or what flew to its figure in the host's game |
 | 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead in the host's level, for one arriving there |
-| 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup |
+| 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup (not a bolt: CLAIM) |
 | 18 SKIP | the host, to all | origin i32, sequence u16, play i32, what u8 (0 a scene of the game's own, 1 the host's scene, 2 a movie), scene u16 (the host's scene by SCENE's sequence, else 0) | the host's Start pressed in a scene or a movie: each game skips that one only, while it plays (a member's SKIP, from an older mod, the host ignores); a skip of an earlier scene of the host's, of another play, or without these fields (an older mod) skips nothing |
 | 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot a player fired (the Blaster's, a bomb); a member's goes to the host, who passes it on. Its figure fires it as far behind as its poses play, hitting nothing in that game |
 | 20 SCENE | the host, to all | play i32, level i32, scene i32, sequence u16, elapsed i32 (ms) | an in-level scene the host's game plays (the level's number of it; a new sequence each start), when it starts, once a second while it plays and when it ends (scene -1). A member in that level starts the same scene once it has control (the SDK's `play_scene`) |
 | 21 SCENE_STATE | a member to the host | play i32, sequence u16, state u8 (0 still to play, 1 playing, 2 out) | where a member is with the host's scene of that sequence, at each change and once a second; the host waits for those of its newest scene only |
+| 22 CLAIM | a member | level i8, id u16 (a placed bolt's key; 0x8000 \| a net id for one the host dropped) | its Ratchet collected that bolt (its game added nothing): the host's first claim of a bolt still there gets BOLTS and the bolt's end everywhere (DESPAWN or KILLED); any other, nothing |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 
@@ -248,7 +257,12 @@ that player. Mobys near the members run in the host's game as if near its camera
   door's or a lift's camera, the level's camera scripts) play in the game whose moby runs them
   only.
 - Under the pause menu the world goes on but the picture behind the menu stays as it was.
-- A member's crates drop their bolts in the member's game only.
+- A crate a member broke drops its bolts a round trip later (the host's copy breaks when the
+  member's word gets there); one the host's copy has not broken within 3 seconds is deleted
+  without a drop.
+- A landed bolt a member collects leaves its game at once, and its count comes a round trip later
+  (BOLTS); one another player took first in the meantime brings nothing. The member's own collect
+  sparkle and counter do not show for it.
 - An enemy that keeps a pointer to the hero across ticks, grabs him or rides him may act on the
   host's hero instead of the player it went for; WORLD.md (in the plans) lists the classes tried.
 - A figure holds what its player holds (the wrench, the weapon or gadget, Clank and the packs,
@@ -286,7 +300,9 @@ figure and its shots fired there (a delay behind, in its level only); a build re
 title after the party's end; and the world: WORLD's bytes, the member's drives (not the crates,
 not the static mobys), the host's spawned bolt, an enemy followed, the stand-in and its bolts, a
 member's hit on the host's enemy, an enemy's hit on a member, a crate broken by a member, and a
-kill and a pickup on the host.
+kill and a pickup on the host; and the bolts: the host's crate's and a member's crate's drops made
+once, by the host, two claims of one bolt (the first credited), the host's own pickup, and the
+placed bolts.
 
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
 lobby's logic against a recorder, the connection against a small server on the loopback, and

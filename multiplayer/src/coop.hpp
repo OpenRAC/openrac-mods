@@ -117,9 +117,9 @@ inline bool older_scene(std::uint16_t a, std::uint16_t b) {
     return static_cast<std::int16_t>(static_cast<std::uint16_t>(a - b)) < 0;
 }
 
-/* Whether a DATA kind is the world's (world.hpp: 9 to 17); the rest are the co-op's. */
+/* Whether a DATA kind is the world's (world.hpp: 9 to 17, 22); the rest are the co-op's. */
 inline bool world_kind(std::uint8_t kind) {
-    return kind >= 9 && kind <= 17;
+    return (kind >= 9 && kind <= 17) || kind == 22;
 }
 
 /* The most bytes of a save a CHUNK carries (a TCP frame takes 64 KiB; four make a save). */

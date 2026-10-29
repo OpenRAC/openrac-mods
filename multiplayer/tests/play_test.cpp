@@ -1178,9 +1178,9 @@ void the_world_is_the_hosts() {
     tick({&host, &member}, 50);
     CHECK(host.game.hits.size() == hits_before + 1 && host.game.hits.back().victim == 1);
     CHECK(host.game.hits.back().mask == 0x10000 && host.game.hits.back().attacker == 99);
-    CHECK(host.world.quiet_death(1) && !host.world.quiet_death(0));
+    CHECK(!host.world.quiet_drop(1) && !host.world.quiet_drop(0) && member.world.quiet_drop(1));
     tick({&host, &member}, mp::kReplayMs + 50);
-    CHECK(host.game.moby_slot(1) == -1 && !host.world.quiet_death(1));
+    CHECK(host.game.moby_slot(1) == -1);
 
     // The host's enemy dies, its bolt is picked up: gone in the member's game too.
     host.game.die(0);
@@ -1754,6 +1754,161 @@ void classes_are_shared_as_they_should_be() {
     tick({&host, &member}, 50);
     CHECK(std::any_of(member.game.level.begin(), member.game.level.end(),
                       [](const mp::MobyState& m) { return m.oclass == 204; }));
+}
+
+// The slot in a game of the first live moby of a class (-1 none), and how many of it there are.
+int slot_of_class(const FakeGame& game, int oclass) {
+    for (const mp::MobyState& m : game.level) {
+        if (m.oclass == oclass && (m.flags & mp::kMobyDead) == 0) {
+            return m.slot;
+        }
+    }
+    return -1;
+}
+
+int count_of_class(const FakeGame& game, int oclass) {
+    return static_cast<int>(std::count_if(game.level.begin(), game.level.end(), [&](const mp::MobyState& m) {
+        return m.oclass == oclass && (m.flags & mp::kMobyDead) == 0;
+    }));
+}
+
+// Bolts are the host's, once in the world: its crates' and enemies' drops (also of a crate a
+// member broke) come to every member from it, a member's game drops none, and a bolt is the first
+// claimant's, gone from every game, its value given by the host only.
+void bolts_are_the_hosts() {
+    Player host(1), a(2), b(3);
+    const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+    for (Player* p : {&host, &a, &b}) {
+        p->session.handle(info(all));
+    }
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &a, &b});
+    tick({&host, &a, &b}, 16);
+
+    // A bolt crate (key 1), a placed hexnut (key 2, 5 bolts), another bolt crate (key 3), a placed
+    // bolt (key 4) in every game.
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+    for (Player* p : {&host, &a, &b}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(1, 1, 500, runs, 20.0f), moby(2, 2, 14, runs, 30.0f), moby(3, 3, 500, runs, 40.0f),
+                         moby(4, 4, 13, runs, 50.0f)};
+    }
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &a, &b}, 50);
+    }
+
+    // A member's game in the host's level drops nothing of its own; the host's drops.
+    CHECK(a.world.quiet_drop(1) && b.world.quiet_drop(3) && !host.world.quiet_drop(1));
+
+    // The host breaks crate 1: its game drops a bolt and a starnut (20), in flight (state 1).
+    host.game.die(1);
+    mp::MobyState bolt = moby(300, -1, 13, mp::kMobyUpdates, 21.0f);
+    mp::MobyState starnut = moby(301, -1, 15, mp::kMobyUpdates, 22.0f);
+    bolt.state = starnut.state = 1;
+    host.game.level.push_back(bolt);
+    host.game.level.push_back(starnut);
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+
+    // Every member has them once, from the host, flying out as the host's do (driven).
+    for (Player* p : {&a, &b}) {
+        CHECK(count_of_class(p->game, 13) == 2 && count_of_class(p->game, 15) == 1);  // placed 4 + the host's
+        CHECK(p->world.spawned() == 2 && p->world.driven() == 2);  // made driven (moby_spawn's)
+    }
+
+    // They land in the host's game: each member's copy runs in its own game.
+    for (mp::MobyState& m : host.game.level) {
+        if (m.key < 0) {
+            m.state = mp::kBoltHovering;
+            m.pose.position[2] += 0.5f;
+        }
+    }
+    tick({&host, &a, &b}, 100);
+    tick({&host, &a, &b}, 100);
+    for (Player* p : {&a, &b}) {
+        CHECK(p->world.driven() == 0 && p->world.spawned() == 2);
+    }
+
+    // Both members' Ratchets reach the starnut: neither game adds it, both claim; A's claim reaches
+    // the host first and only A is given its 20 bolts. It is gone from every game.
+    const int a_star = slot_of_class(a.game, 15);
+    const int b_star = slot_of_class(b.game, 15);
+    CHECK(!a.world.collect(a_star) && !b.world.collect(b_star));
+    a.game.die(a_star);
+    b.game.die(b_star);
+    route({&host, &a});
+    route({&host, &a, &b});
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(a.game.bolt_count == 20 && b.game.bolt_count == 0 && host.game.bolt_count == 0);
+    CHECK(count_of_class(host.game, 15) == 0 && count_of_class(a.game, 15) == 0 && count_of_class(b.game, 15) == 0);
+
+    // The host's Ratchet takes the bolt: its own credit (its game adds it), gone from the members';
+    // B's claim of it, late, is refused.
+    CHECK(host.world.collect(300));
+    host.game.bolt_count += 1;
+    int b_spawned = -1;
+    for (const mp::MobyState& m : b.game.level) {
+        if (m.oclass == 13 && m.key < 0) {
+            b_spawned = m.slot;
+        }
+    }
+    CHECK(b_spawned >= 0 && !b.world.collect(b_spawned));
+    b.game.die(b_spawned);
+    host.game.die(300);
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(host.game.bolt_count == 1 && b.game.bolt_count == 0 && a.game.bolt_count == 20);
+    CHECK(a.world.spawned() == 0 && b.world.spawned() == 0);
+    CHECK(std::none_of(a.game.level.begin(), a.game.level.end(),
+                       [](const mp::MobyState& m) { return m.key < 0 && mp::bolt_class(m.oclass); }));
+
+    // B breaks crate 3: its game drops nothing of its own, the host's copy breaks (a wrench's hit)
+    // and drops a hexnut, which every member gets once, from the host.
+    const std::size_t hits = host.game.hits.size();
+    CHECK(b.world.quiet_drop(3));
+    b.game.die(3);
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(host.game.hits.size() == hits + 1 && host.game.hits.back().victim == 3);
+    CHECK(!host.world.quiet_drop(3));
+    host.game.die(3);
+    host.game.level.push_back(moby(302, -1, 14, mp::kMobyUpdates, 41.0f));
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    for (Player* p : {&a, &b}) {
+        CHECK(std::count(p->game.world_calls.begin(), p->game.world_calls.end(), "spawn 14") == 1);
+        CHECK(count_of_class(p->game, 14) == 2);  // the placed hexnut (key 2) and the host's
+    }
+
+    // The placed hexnut (key 2): B and A both take theirs; B's claim reaches the host first. B gets
+    // 5, A nothing, and it is dead in the host's game (and so in everyone's); no BROKE for it.
+    CHECK(!b.world.collect(2) && !a.world.collect(2));
+    a.game.die(2);
+    b.game.die(2);
+    const std::size_t host_hits = host.game.hits.size();
+    route({&host, &b});
+    route({&host, &a, &b});
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(b.game.bolt_count == 5 && a.game.bolt_count == 20);
+    CHECK(host.game.moby_slot(2) == -1 && host.game.hits.size() == host_hits);
+
+    // The placed bolt (key 4) taken by the host: its own, dead in the members' games too, and a
+    // member's claim of it after is refused.
+    CHECK(host.world.collect(4));
+    host.game.bolt_count += 1;
+    host.game.die(4);
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(a.game.moby_slot(4) == -1 && b.game.moby_slot(4) == -1);
+    mp::Writer late;
+    late.u8(static_cast<std::uint8_t>(mp::WorldKind::kClaim)).u8(0).u8(0).u8(4);
+    host.world.handle(3, late.bytes());
+    route({&host, &a, &b});
+    CHECK(b.game.bolt_count == 5 && host.game.bolt_count == 2);
+
 }
 
 // A long session: the server's clock is asked again every kClockMs (TIME frames), the buffers stay
@@ -2973,6 +3128,7 @@ int main() {
     a_menu_kills_nothing();
     a_pause_keeps_the_world_whole();
     classes_are_shared_as_they_should_be();
+    bolts_are_the_hosts();
     a_long_session();
     scenes_end_together();
     the_hosts_scenes_play_everywhere();

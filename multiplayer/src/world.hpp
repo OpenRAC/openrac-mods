@@ -25,19 +25,32 @@
  * bolts: SPAWN and DESPAWN, by a net id of its own), and gives a member that arrives in its level
  * the placed mobys dead there (DEAD) and what it has spawned. Every moby's update runs with
  * the nearest player standing in for the hero (the gate): an enemy chases and hits that player's
- * figure, a bolt flies to it; a hit on a figure goes to its player (DAMAGE), the bolts a member's
- * stand-in collected go to it (BOLTS). Mobys near the members run as if near the host (eyes).
+ * figure; a hit on a figure goes to its player (DAMAGE), the bolts a member's stand-in collected go
+ * to it (BOLTS). Mobys near the members run as if near the host (eyes).
+ *
+ * Bolts are the host's, once in the world. Only the host's game drops them (its crates, those a
+ * member broke too, and its enemies); a member's game drops none of its own (Moby_RecordDeath:
+ * quiet_drop). Each one the host drops goes to the members (SPAWN); the member's copy flies out as
+ * the host's does (WORLD poses it) and, once the host's has landed (WORLD's loose flag), runs in the
+ * member's game, so it hovers and flies to that member's own Ratchet. A bolt collected in a member's
+ * game (Moby_CollectBolt: collect) adds nothing there: it is a claim to the host (CLAIM, by net id
+ * or a placed bolt's key). The host grants the first claim of each bolt, while its own copy is still
+ * there and nobody (the host included) has taken it: it deletes its copy (DESPAWN or KILLED for
+ * everyone) and gives the claimant the bolt's value (BOLTS). A later claim is refused, and its
+ * player gets nothing. The host's own collection is the host's credit, and goes from every game.
  *
  * Member. In the host's level it drives every placed moby that has an update of its own (the game
  * no longer runs it) and poses it from WORLD through a buffer per moby (play.hpp's, a delay
  * behind), kills what the host killed, makes what the host spawned (driven too). A hit its game
  * posts to a driven moby goes to the host (HIT) instead of the moby; a DAMAGE is posted to its own
- * hero (who is hurt as the game hurts him); BOLTS are added to its own.
+ * hero (who is hurt as the game hurts him); BOLTS are added to its own, the only bolts it gets in the
+ * host's level.
  *
  * The world's DATA kinds, after coop.hpp's:
  *    9 WORLD   level i8, stamp i64, count u8, then per moby: id u16 (a key; 0x8000 | a net id for
  *              one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq u8, frame u8,
- *              anim time u8 (/255), anim speed u8 (/32), flags u8 (1: hidden, drawn by nothing)
+ *              anim time u8 (/255), anim speed u8 (/32), flags u8 (1: hidden, drawn by nothing;
+ *              2: loose, a bolt landed in the host's game: the member's copy runs as its own)
  *                                                                  the host to a member, as state;
  *   10 KILLED  level i8, count u16, keys u16...                   the host to everyone;
  *   11 SPAWN   level i8, net u16, class i16, position 3 x f32, yaw i16     the host;
@@ -46,7 +59,8 @@
  *   14 DAMAGE  attacker id u16 (0xFFFF none), mask u32, damage f32, position, velocity   the host;
  *   15 BOLTS   count i32                                          the host to a member;
  *   16 DEAD    level i8, count u16 (records), then a bit a record, 1 dead   the host to a member;
- *   17 BROKE   level i8, key u16                                  a member broke a crate.
+ *   17 BROKE   level i8, key u16                                  a member broke a crate;
+ *   22 CLAIM   level i8, id u16 (a key; 0x8000 | a net id)        a member collected a bolt.
  */
 #ifndef MULTIPLAYER_WORLD_H
 #define MULTIPLAYER_WORLD_H
@@ -77,7 +91,8 @@ enum class WorldKind : std::uint8_t {
     kDamage = 14,
     kBolts = 15,
     kDead = 16,
-    kBroke = 17
+    kBroke = 17,
+    kClaim = 22
 };
 
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
@@ -94,6 +109,8 @@ constexpr std::size_t kWorldEntryBytes = 25;
 constexpr std::uint64_t kWorldMs = 66;
 constexpr std::uint64_t kWorldRefreshMs = 1000;
 constexpr float kWorldNear = 80.0f;
+/* The bolt update's state while the bolt hovers where it landed (bolt_update's 3). */
+constexpr std::uint32_t kBoltHovering = 3;
 /* How long a crate replaying another game's break may take to break before it is deleted. */
 constexpr std::uint64_t kReplayMs = 3000;
 /* How far a moby may move between two snapshots before its buffer starts again (a respawn). */
@@ -103,10 +120,12 @@ constexpr float kWorldSnap = 12.0f;
  * crates (500 bolt, 501 nanotech, 502 metal, 505 oom-oom box, 511 ammo crate): every game runs its
  *   own (one breaks under its game's own hero), and a crate broken in one game breaks in all (BROKE
  *   to the host, KILLED from it): the others post it a wrench's hit, so it breaks there with its
- *   debris and sound, its drop left out. Its bolts are once in the world: whoever broke it.
+ *   debris and sound. Its drop is the host's game's only (a member's is left out), its bolts
+ *   shared as the host's enemies' are (above).
  * pickups (placed bolts, gold bolts, ammo, ammo and health crates of the ship levels, nanotech):
  *   every game runs its own, so every player can collect one; the first collected is gone in every
- *   game (removed, without its effect or a gold bolt's scene).
+ *   game (removed, without its effect or a gold bolt's scene). A placed bolt is a claim as a
+ *   dropped one is (above); the others a member takes are its own and gone from the host's (BROKE).
  * interactables (vendors, the ship and its pads, people, infobots, help desks and triggers, the
  *   respawn point, gold-weapon cases, story pickups, the hero's own equipment): each game's own, for
  *   its own player; nothing is shared.
@@ -162,11 +181,28 @@ inline bool bolt_class(int oclass) {
     return oclass >= 13 && oclass <= 16;
 }
 
+/* What a bolt of the class is worth (collect_bolt's: 1, 5, 20, 50), 0 for another class. */
+inline int bolt_value(int oclass) {
+    switch (oclass) {
+        case 13:
+            return 1;
+        case 14:
+            return 5;
+        case 15:
+            return 20;
+        case 16:
+            return 50;
+        default:
+            return 0;
+    }
+}
+
 /* One moby in WORLD. */
 struct WorldEntry {
     std::uint16_t id = 0;
     Pose pose;
     bool hidden = false;
+    bool loose = false;
 };
 
 Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries);
@@ -187,9 +223,14 @@ public:
     bool gate(int slot, int phase);
     bool hit(const Hit& hit);
 
-    /* The game records a moby's death (its bolts dropped, its killed bits): false when the death is
-     * a crate's broken here only to show another game's break, whose bolts are not this game's. */
-    bool quiet_death(int slot);
+    /* The game records a moby's death (its killed bits, then its bolts dropped): true when its drop
+     * is left out (its killed bits kept), as in a member's game in the host's level, whose bolts are
+     * all the host's game's. */
+    bool quiet_drop(int slot);
+
+    /* The game collects a bolt (collect_bolt): true when its value is this game's to add. In a
+     * member's game in the host's level, a claim to the host instead (false). */
+    bool collect(int slot);
 
     /* The party or the level is gone: nothing is kept. */
     void reset();
@@ -224,6 +265,7 @@ private:
     struct Sent {
         Pose pose;
         bool hidden = false;
+        bool loose = false;
         std::uint64_t ms = 0;
     };
 
@@ -244,6 +286,8 @@ private:
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at);
     void send_dead(std::int32_t member, int level);
+    /* Host: a member's claim of a bolt, by its id (a key, or kSpawnedId | a net id). */
+    void claim(std::int32_t member, int level, std::uint16_t id);
     void log_counts(std::uint64_t now);
     /* A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
      * and sound), its drop left out; deleted if it has not broken by the deadline. */
@@ -297,6 +341,8 @@ private:
     std::map<std::int32_t, Member> members_;
     std::int32_t standing_ = 0;
     int bolts_before_ = 0;
+    /* Host: the bolts taken (granted to a member, or collected here), by id. */
+    std::set<std::uint16_t> claimed_;
     /* Member: the crates the host killed (not to be told back), last tick's placed mobys' classes. */
     std::set<int> host_killed_;
     /* Crates breaking here for another game's break: their slots, until when they may take. */
@@ -308,6 +354,8 @@ private:
     std::set<int> driven_;
     std::map<std::uint16_t, Interpolator> poses_;
     std::map<std::uint16_t, int> net_slot_;
+    /* Member: the host's bolts landed there and so run here, by net id. */
+    std::set<std::uint16_t> loose_;
     std::uint16_t world_sequence_ = 0;
     /* Member: whether the host's copy of each is hidden, and when the host last sent each. */
     std::map<std::uint16_t, bool> hidden_;
