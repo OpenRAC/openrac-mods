@@ -30,7 +30,7 @@
  * lasts until the game ends, reconnecting when the server goes; the session follows it every tick.
  *
  * Settings (openrac-mod.json):
- *   server  (string, default localhost:7770)  The OpenRAC server, host:port.
+ *   server  (string, default game.openrac.dev:7770)  The OpenRAC server, host:port.
  *   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
  *           empty or invalid: the launcher's Multiplayer name.
  */
@@ -1313,9 +1313,9 @@ void load(openrac::Mod& mod) {
 
     // An address that does not read is the default's.
     if (!mp::parse_address(server, g->host, g->port)) {
-        g->host = "localhost";
+        g->host = "game.openrac.dev";
         g->port = mp::kDefaultPort;
-        mod.warn("server \"" + server + "\" is not host:port; using localhost:7770");
+        mod.warn("server \"" + server + "\" is not host:port; using game.openrac.dev:7770");
     }
 
     g->connection = std::make_unique<mp::Connection>();

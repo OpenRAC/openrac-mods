@@ -15,7 +15,7 @@
       "key": "server",
       "name": "Server",
       "type": "string",
-      "default": "localhost:7770",
+      "default": "game.openrac.dev:7770",
       "max_length": 255,
       "description": "The OpenRAC server to connect to, as host:port (7770 when no port is given)."
     },

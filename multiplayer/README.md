@@ -18,7 +18,8 @@ cards, mods that differ from the host's, and more), and what already is, is in
 ## Playing
 
 1. Install the mod from the launcher's **Mods** tab, switch it on, and set **Server** to the
-   OpenRAC server you play on (`localhost:7770` by default: a server on your own computer).
+   OpenRAC server you play on (`game.openrac.dev:7770` by default, the public OpenRAC server;
+   `localhost:7770` for a server on your own computer).
 2. Your name is the mod's **Name** setting, or, while that is empty, `${player_name}` (the default) or not a valid name, the
    launcher's **Multiplayer name** (Settings, General), which the launcher makes up at its first
    start. Either way it is 3 to 16 letters, digits and underscores. Without either (the game started
@@ -135,7 +136,7 @@ server's state; leaving a direct party goes back to Home, which tries the server
 
 | Setting | Default | |
 |---|---|---|
-| Server | `localhost:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
+| Server | `game.openrac.dev:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
 | Name | `${player_name}` (the launcher's Multiplayer name) | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty, `${player_name}` or not valid: the launcher's Multiplayer name |
 | Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the game's working directory (beside its `run.log`; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
 
