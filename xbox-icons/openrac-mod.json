@@ -2,7 +2,7 @@
   "format": 2,
   "id": "xbox-icons",
   "name": "Xbox button icons",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "OpenRAC contributors",
   "description": "The game's PlayStation 2 button icons as an Xbox controller's, painted in the game's own style: A, B, X and Y on the game's dark buttons in green, red, blue and yellow, and LB, RB, LT and RT for L1, R1, L2 and R2. Everywhere the game prints a button: help, menus, the vendor.",
   "license": "GPL-3.0-or-later",

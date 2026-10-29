@@ -2,7 +2,7 @@
   "format": 2,
   "id": "live-splits",
   "name": "Live splits",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "OpenRAC contributors",
   "description": "Splits a LiveSplit timer as the player goes from planet to planet: the mod talks to LiveSplit's own server and splits at every planet, so a speedrunner does not have to touch the timer.",
   "license": "GPL-3.0-or-later",

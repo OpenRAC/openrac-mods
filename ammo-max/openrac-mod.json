@@ -2,7 +2,7 @@
   "format": 2,
   "id": "ammo-max",
   "name": "Ammo at the most",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "OpenRAC contributors",
   "description": "At the Gadgetron vendor, buying ammo starts at the most you can buy (the rounds the weapon has room for, or as many as your bolts pay for) instead of 1. Down still lowers it, Up raises it again, Square buys as before.",
   "license": "GPL-3.0-or-later",

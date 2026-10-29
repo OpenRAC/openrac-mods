@@ -2,7 +2,7 @@
   "format": 2,
   "id": "dualsense",
   "name": "DualSense",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "OpenRAC contributors",
   "description": "Gives a PlayStation 5 DualSense what the PlayStation 2 never had: its touchpad, its microphone button and the DualSense Edge's paddles become extra PlayStation 2 buttons, its light bar shows Ratchet's health, and the controller vibrates when Ratchet is hit, hits something, breaks a crate, picks something up or finds a gold bolt. The game itself asks for no vibration, so the one here is the mod's own.",
   "license": "GPL-3.0-or-later",
