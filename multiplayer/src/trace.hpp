@@ -18,7 +18,9 @@
  *             the last one; received, its stamp (the server's clock), the stamp in this game's
  *             clock, when it came and its time in transit;
  *   pose      a player's pose received (its sequence, stamp, the stamp in this clock, when it
- *             came, its transit); twice a second for each figure shown, what was shown (between
+ *             came, its transit, its position, velocity and state); twice a second this game's
+ *             hero: his z's range over the ticks and how many ticks it changed, where he is and his
+ *             velocity; twice a second for each figure shown, what was shown (between
  *             two poses, ahead of the newest, held, a jump, before the first), where, the playback
  *             cursor, the buffer (play.hpp's describe: delay, transit, jitter, interval, loss, how
  *             far ahead the newest pose is, how many are kept), how many frames showed each, and

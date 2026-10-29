@@ -625,6 +625,15 @@ private:
     std::uint64_t home_ms_ = 0;
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
+    /* The verbose log: this game's hero's z each tick, said twice a second (trace_hero). */
+    struct HeroZ {
+        std::uint64_t since_ms = 0;
+        int ticks = 0;
+        int changes = 0;
+        float low = 0, high = 0, last = 0;
+    };
+    HeroZ hero_z_;
+    void trace_hero(std::uint64_t now, const GameStatus& status);
     std::uint16_t sequence_ = 0;
     std::uint32_t pose_loads_ = 0;
     bool pose_sent_ = false;

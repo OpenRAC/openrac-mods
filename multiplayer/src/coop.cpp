@@ -406,11 +406,13 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
     r.scene = m.scene;
 
     if (trace_ != nullptr && trace_->on()) {
-        char text[192];
+        char text[320];
         std::snprintf(text, sizeof text,
-                      "recv player %d seq %u stamp %lld local %.0f arrival %.0f transit %.0f%s",
+                      "recv player %d seq %u stamp %lld local %.0f arrival %.0f transit %.0f at %.3f %.3f %.3f "
+                      "vel %.3f %.3f %.3f state %d%s",
                       m.owner, m.sequence, static_cast<long long>(m.stamp_ms), time, now, now - time,
-                      m.teleport ? " teleport" : "");
+                      m.pose.position[0], m.pose.position[1], m.pose.position[2], m.pose.velocity[0],
+                      m.pose.velocity[1], m.pose.velocity[2], m.pose.state, m.teleport ? " teleport" : "");
         trace_->line("pose", text);
     }
 }
@@ -820,7 +822,42 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     }
 }
 
+void Coop::trace_hero(std::uint64_t now, const GameStatus& status) {
+    Pose hero;
+
+    if (trace_ == nullptr || !trace_->on() || !in_level(status.phase) || !game_.hero(hero)) {
+        return;
+    }
+
+    // Each tick: the hero's z, how far it went and how often it changed (the ground's snap).
+    HeroZ& h = hero_z_;
+    const float z = hero.position[2];
+
+    if (h.ticks == 0) {
+        h.low = h.high = z;
+    } else {
+        h.low = std::min(h.low, z);
+        h.high = std::max(h.high, z);
+        h.changes += std::fabs(z - h.last) > 1e-4f ? 1 : 0;
+    }
+
+    h.last = z;
+    ++h.ticks;
+
+    if (now - h.since_ms >= kPoseTraceMs) {
+        char text[192];
+        std::snprintf(text, sizeof text, "hero ticks %d z %.3f..%.3f changes %d now %s vel %.3f %.3f %.3f",
+                      h.ticks, h.low, h.high, h.changes, xyz(hero.position).c_str(), hero.velocity[0],
+                      hero.velocity[1], hero.velocity[2]);
+        trace_->line("pose", text);
+        h = HeroZ{};
+        h.since_ms = now;
+    }
+}
+
 void Coop::send_pose(std::uint64_t now, const GameStatus& status) {
+    trace_hero(now, status);
+
     if (!in_level(status.phase) || now - pose_ms_ < kPoseMs) {
         return;
     }
