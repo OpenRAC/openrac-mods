@@ -7,7 +7,11 @@
  */
 #include "connection.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <utility>
 
@@ -362,9 +366,47 @@ void Connection::send_state(std::int32_t target, const Bytes& bytes) {
 }
 
 std::vector<Message> Connection::receive() {
-    const std::lock_guard lock(mutex_);
     std::vector<Message> out;
-    out.swap(inbox_);
+
+    {
+        const std::lock_guard lock(mutex_);
+        out.swap(inbox_);
+    }
+
+    if (lag_read_ == 0) {
+        lag_read_ = 1;
+        const char* lag = std::getenv("OPENRAC_MP_LAG");
+
+        if (lag != nullptr && std::sscanf(lag, "%lf,%lf", &lag_ms_, &lag_jitter_ms_) >= 1) {
+            lag_ms_ = std::max(0.0, lag_ms_);
+            lag_jitter_ms_ = std::max(0.0, lag_jitter_ms_);
+            std::fprintf(stderr, "multiplayer: OPENRAC_MP_LAG: %.0f ms more, jitter %.0f ms\n", lag_ms_, lag_jitter_ms_);
+        }
+    }
+
+    if (lag_ms_ <= 0.0 && lag_jitter_ms_ <= 0.0 && lagged_.empty()) {
+        return out;
+    }
+
+    using std::chrono::steady_clock;
+    const double now =
+        std::chrono::duration<double, std::milli>(steady_clock::now().time_since_epoch()).count();
+
+    for (Message& m : out) {
+        lag_random_ = lag_random_ * 6364136223846793005ull + 1442695040888963407ull;
+        const double u = static_cast<double>(lag_random_ >> 11) / 9007199254740992.0;
+        const double extra = -lag_jitter_ms_ * std::log(1.0 - 0.999 * u);
+        lag_last_ = std::max(lag_last_, now + lag_ms_ + extra);
+        lagged_.emplace_back(lag_last_, std::move(m));
+    }
+
+    out.clear();
+
+    while (!lagged_.empty() && lagged_.front().first <= now) {
+        out.push_back(std::move(lagged_.front().second));
+        lagged_.pop_front();
+    }
+
     return out;
 }
 

@@ -21,6 +21,10 @@
  * messages. send_state sends game state as a STATE datagram, and also as TCP DATA until datagrams
  * come back (UDP is confirmed, udp()), so blocked UDP never loses state; once confirmed, UDP only.
  * Without a UDP offer (an older server), state goes as DATA.
+ *
+ * Testing a bad link: OPENRAC_MP_LAG="<ms>[,<jitter ms>]" holds each message the server sent for
+ * that long more before receive() hands it on, plus a random extra of about the jitter (mostly
+ * less, now and then several times it), in the order they came (a TCP stream's stall and burst).
  */
 #ifndef MULTIPLAYER_CONNECTION_H
 #define MULTIPLAYER_CONNECTION_H
@@ -33,6 +37,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "host.hpp"
@@ -124,7 +129,8 @@ public:
 
     void send(Bytes frame) override;
     void send_state(std::int32_t target, const Bytes& bytes) override;
-    /* The messages the server sent since the last call, in order. */
+    /* The messages the server sent since the last call, in order (OPENRAC_MP_LAG: those whose
+     * extra delay is over). */
     std::vector<Message> receive();
 
     State state() const { return state_.load(); }
@@ -155,6 +161,14 @@ private:
 
     /* Set on the game's thread only. */
     Mode mode_ = Mode::kNone;
+    /* OPENRAC_MP_LAG: the extra delay and its jitter (ms; read once), the messages held and when
+     * each is handed on (steady ms), the last one's, and the jitter's random state. */
+    int lag_read_ = 0;
+    double lag_ms_ = 0;
+    double lag_jitter_ms_ = 0;
+    std::deque<std::pair<double, Message>> lagged_;
+    double lag_last_ = 0;
+    std::uint64_t lag_random_ = 0x9E3779B97F4A7C15ull;
     std::string address_;
     HostConfig host_config_;
     std::unique_ptr<Host> embedded_;
