@@ -11,6 +11,10 @@ is nearest.
 
 With the mod off, the game is the PlayStation 2 game.
 
+What is still to be decided (saving each player's progress, the game's own saves on members'
+cards, mods that differ from the host's, and more), and what already is, is in
+[DECISIONS.md](DECISIONS.md).
+
 ## Playing
 
 1. Install the mod from the launcher's **Mods** tab, switch it on, and set **Server** to the
