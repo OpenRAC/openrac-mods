@@ -77,6 +77,7 @@
 #ifndef MULTIPLAYER_COOP_H
 #define MULTIPLAYER_COOP_H
 
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -117,7 +118,8 @@ inline bool older_scene(std::uint16_t a, std::uint16_t b) {
     return static_cast<std::int16_t>(static_cast<std::uint16_t>(a - b)) < 0;
 }
 
-/* Whether a DATA kind is the world's (world.hpp: 9 to 17, 22); the rest are the co-op's. */
+/* Whether a DATA kind is the world's (world.hpp: 9 to 17, 22); 23 is the progress's (progress.hpp);
+ * the rest are the co-op's. */
 inline bool world_kind(std::uint8_t kind) {
     return (kind >= 9 && kind <= 17) || kind == 22;
 }
@@ -180,6 +182,26 @@ struct GameStatus {
     /* The level's in-game scene playing (its number in the level, the SDK's scene_playing), -1 for
      * none (no scene, or a movie, a slideshow, the ship's landing). */
     int scene = -1;
+};
+
+/* A game's progress that a party shares (progress.hpp), a byte each, non-zero had: the items owned
+ * (item_available: weapons, gadgets, the packs and the rest GiveItem gives), the gold bolts
+ * (gold_bolts_collected: level * 4 + the level's number of it; their count is how many are set)
+ * and the planets unlocked (level_available). */
+constexpr std::size_t kProgressItems = 40;
+constexpr std::size_t kProgressGoldBolts = 76;
+constexpr std::size_t kProgressPlanets = 20;
+
+struct ProgressBits {
+    std::array<std::uint8_t, kProgressItems> items{};
+    std::array<std::uint8_t, kProgressGoldBolts> gold{};
+    std::array<std::uint8_t, kProgressPlanets> planets{};
+
+    bool operator==(const ProgressBits& o) const {
+        return items == o.items && gold == o.gold && planets == o.planets;
+    }
+
+    bool operator!=(const ProgressBits& o) const { return !(*this == o); }
 };
 
 /* The phases (the SDK's OPENRAC_PLAY_*). */
@@ -285,6 +307,13 @@ public:
     virtual bool hit(const Hit& /*hit*/) { return false; }
     virtual void eyes(const std::vector<float>& /*xyz*/) {}
     virtual int bolts(int /*add*/) { return 0; }
+    /* The shared progress (progress.hpp): what this game has (false outside a level), and an item
+     * given as the game gives one (GiveItem, not in hand), a gold bolt marked collected, a planet
+     * unlocked as the game unlocks one (UnlockPlanet). Nothing is written to the memory card. */
+    virtual bool progress(ProgressBits& /*out*/) { return false; }
+    virtual bool give_item(int /*id*/) { return false; }
+    virtual bool give_gold_bolt(int /*index*/) { return false; }
+    virtual bool unlock_planet(int /*planet*/) { return false; }
     /* The world kept running under the game's menus (the SDK's play_overlay_pause). */
     virtual void overlay_pause(bool /*on*/) {}
     /* The scene playing skipped as the game's own skip does (the SDK's play_skip). */

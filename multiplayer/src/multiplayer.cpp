@@ -47,6 +47,7 @@
 #include "coop.hpp"
 #include "direct.hpp"
 #include "menu.hpp"
+#include "progress.hpp"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
 #include "protocol.hpp"
@@ -103,6 +104,24 @@ enum class DirectView {
 };
 
 // ---- The game, for the co-op (coop.hpp's Game, on interface 1.8's play calls) ----
+
+/* Where each disc keeps the progress a party shares (progress.hpp; rac1-decomp's names, the US
+ * addresses from OpenRAC's versionmap): item_available (40 bytes, a byte an item), the gold bolts
+ * (gold_bolts_collected, 4 a level), level_available (the planets, 20), and the game's own GiveItem
+ * (grant_inventory_item) and UnlockPlanet (unlock_planet). */
+struct ProgressDisc {
+    const char* version;
+    openrac::gaddr items;
+    openrac::gaddr gold;
+    openrac::gaddr planets;
+    const char* give_item;
+    const char* unlock_planet;
+};
+
+constexpr ProgressDisc kProgressDiscs[] = {
+    {"pal", 0x0013D5C8u, 0x0014BFC0u, 0x0013DE48u, "func_L00_002618D8", "func_L00_00261848"},
+    {"ntsc", 0x0013D4C0u, 0x0014BEC0u, 0x0013DD40u, "FUN_L00_00260860", "FUN_L00_002607d0"},
+};
 
 class ModGame : public mp::Game {
 public:
@@ -288,6 +307,56 @@ public:
 
     int bolts(int add) override { return mod_.bolts(add); }
 
+    bool progress(mp::ProgressBits& out) override {
+        const ProgressDisc* disc = progress_disc();
+
+        if (disc == nullptr || !mp::in_level(mod_.play_status().phase)) {
+            return false;
+        }
+
+        const openrac::Memory memory = mod_.memory();
+        read_bytes(memory, mod_.relocate(disc->items), out.items.data(), out.items.size());
+        read_bytes(memory, mod_.relocate(disc->gold), out.gold.data(), out.gold.size());
+        read_bytes(memory, mod_.relocate(disc->planets), out.planets.data(), out.planets.size());
+        return true;
+    }
+
+    // GiveItem(id, 0): as the game gives it, its banner and ammo, not put in hand.
+    bool give_item(int id) override {
+        const ProgressDisc* disc = progress_disc();
+        const auto give = disc != nullptr ? mod_.function<void (*)(std::int32_t, std::int32_t)>(disc->give_item) : nullptr;
+
+        if (give == nullptr) {
+            return false;
+        }
+
+        give(id, 0);
+        return true;
+    }
+
+    bool give_gold_bolt(int index) override {
+        const ProgressDisc* disc = progress_disc();
+
+        if (disc == nullptr || index < 0 || index >= static_cast<int>(mp::kProgressGoldBolts)) {
+            return false;
+        }
+
+        mod_.memory().write<std::uint8_t>(mod_.relocate(disc->gold) + static_cast<openrac::gaddr>(index), 1);
+        return true;
+    }
+
+    bool unlock_planet(int planet) override {
+        const ProgressDisc* disc = progress_disc();
+        const auto unlock = disc != nullptr ? mod_.function<void (*)(std::int32_t)>(disc->unlock_planet) : nullptr;
+
+        if (unlock == nullptr) {
+            return false;
+        }
+
+        unlock(planet);
+        return true;
+    }
+
     void overlay_pause(bool on) override { mod_.play_overlay_pause(on); }
 
     void skip() override { mod_.play_skip(); }
@@ -404,6 +473,23 @@ public:
     bool open_home() override { return home != nullptr && home->open(); }
 
 private:
+    /* This disc's progress places, null for a disc it does not know. */
+    const ProgressDisc* progress_disc() const {
+        for (const ProgressDisc& d : kProgressDiscs) {
+            if (mod_.version() == d.version) {
+                return &d;
+            }
+        }
+
+        return nullptr;
+    }
+
+    static void read_bytes(const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n) {
+        for (std::size_t i = 0; i < n; ++i) {
+            out[i] = memory.read<std::uint8_t>(at + static_cast<openrac::gaddr>(i));
+        }
+    }
+
     openrac::Mod& mod_;
 };
 
@@ -417,6 +503,7 @@ struct State {
     std::unique_ptr<ModGame> game;
     std::unique_ptr<mp::Coop> coop;
     std::unique_ptr<mp::World> world;
+    std::unique_ptr<mp::Progress> progress;
     mp::Trace trace;            // the verbose log (trace.hpp), off unless asked for
     std::ofstream trace_file;   // mp-trace.log, where it goes
     openrac::Mod* mod = nullptr;
@@ -1242,6 +1329,8 @@ void load(openrac::Mod& mod) {
         std::string(kVersion) + " " + std::string(mod.openrac_version()) + " " + std::string(mod.version())
     );
     g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
+    g->progress = std::make_unique<mp::Progress>(*g->session, *g->game, *g->coop);
+    g->progress->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
@@ -1268,10 +1357,13 @@ void load(openrac::Mod& mod) {
     }
 
     g->world->trace(&g->trace);
+    g->progress->trace(&g->trace);
     // The game's DATA: the world's kinds to the world, the rest to the co-op.
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
         if (!bytes.empty() && mp::world_kind(bytes[0])) {
             g->world->handle(sender, bytes);
+        } else if (!bytes.empty() && bytes[0] == mp::kProgressKind) {
+            g->progress->handle(sender, bytes);
         } else {
             g->coop->handle(sender, bytes);
         }
@@ -1427,6 +1519,7 @@ void load(openrac::Mod& mod) {
 
         g->coop->tick(now);
         g->world->tick(now);
+        g->progress->tick(now);
 
         if (g->trace.on() && g->trace_file.is_open()) {
             g->trace_file.flush();

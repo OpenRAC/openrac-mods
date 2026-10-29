@@ -33,6 +33,7 @@
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
+#include "progress.hpp"
 #include "world.hpp"
 
 namespace {
@@ -556,7 +557,7 @@ struct FakeGame : mp::Game {
     mp::GameStatus now{mp::kPhaseFrontEnd, -1, 1};
     std::vector<std::string> calls;
     Bytes started_save;
-    Bytes progress;
+    Bytes live_save;
     int next_figure = 0;
     std::map<int, mp::Pose> figures;
     mp::Pose hero_pose = [] {
@@ -583,7 +584,7 @@ struct FakeGame : mp::Game {
         return true;
     }
 
-    Bytes capture() override { return progress; }
+    Bytes capture() override { return live_save; }
 
     bool hero(mp::Pose& out) override {
         out = hero_pose;
@@ -725,6 +726,34 @@ struct FakeGame : mp::Game {
 
     int bolts(int add) override { return bolt_count += add; }
 
+    // The shared progress: what this game has (read in a level only), and what was given to it,
+    // in order ("item 5", "gold 6", "planet 3").
+    mp::ProgressBits owned;
+    std::vector<std::string> given;
+
+    bool progress(mp::ProgressBits& out) override {
+        out = owned;
+        return mp::in_level(now.phase);
+    }
+
+    bool give_item(int id) override {
+        owned.items[static_cast<std::size_t>(id)] = 1;
+        given.push_back("item " + std::to_string(id));
+        return true;
+    }
+
+    bool give_gold_bolt(int index) override {
+        owned.gold[static_cast<std::size_t>(index)] = 1;
+        given.push_back("gold " + std::to_string(index));
+        return true;
+    }
+
+    bool unlock_planet(int planet) override {
+        owned.planets[static_cast<std::size_t>(planet)] = 1;
+        given.push_back("planet " + std::to_string(planet));
+        return true;
+    }
+
     // A moby hidden or shown (its listed flag), the deletions the game made (by slot), the camera.
     // A figure's (slot 100 + id) hidden, by id.
     std::set<int> hidden_figures;
@@ -804,15 +833,19 @@ struct Player {
     FakeGame game;
     mp::Coop coop;
     mp::World world;
+    mp::Progress progress;
 
     explicit Player(std::int32_t id_)
         : id(id_),
           session(link, "test/1", "P" + std::to_string(id_), [this] { return clock; }),
           coop(session, game, [this] { return clock; }),
-          world(session, game, coop, [this] { return clock; }) {
+          world(session, game, coop, [this] { return clock; }),
+          progress(session, game, coop) {
         session.on_data([this](std::int32_t sender, const Bytes& bytes) {
             if (!bytes.empty() && mp::world_kind(bytes[0])) {
                 world.handle(sender, bytes);
+            } else if (!bytes.empty() && bytes[0] == mp::kProgressKind) {
+                progress.handle(sender, bytes);
             } else {
                 coop.handle(sender, bytes);
             }
@@ -887,6 +920,7 @@ void tick(std::vector<Player*> players, std::uint64_t ms) {
         p->clock += ms;
         p->coop.tick(p->clock);
         p->world.tick(p->clock);
+        p->progress.tick(p->clock);
     }
     route(players);
 }
@@ -971,7 +1005,7 @@ void the_host_starts_a_save_and_the_member_follows() {
 
     // The member back in the title asks for the host's game, and gets its progress.
     host.game.now = {mp::kPhasePlaying, 8, 3};
-    host.game.progress = Bytes(100, 9);
+    host.game.live_save = Bytes(100, 9);
     member.game.now = {mp::kPhaseFrontEnd, -1, 3};
     member.game.calls.clear();
     // Not asked while it plays the game it has; asked once out of it (it started this one).
@@ -991,7 +1025,7 @@ void a_new_game_and_a_late_member() {
 
     // The host in level 0 with progress; a third joins: told the game unasked, the progress.
     host.game.now = {mp::kPhasePlaying, 0, 2};
-    host.game.progress = Bytes(500, 3);
+    host.game.live_save = Bytes(500, 3);
     late.session.handle(info({{1, "P1"}, {2, "P2"}, {3, "P3"}}));
     mp::Message joined;
     joined.kind = mp::Message::Kind::kPartyJoined;
@@ -1002,7 +1036,7 @@ void a_new_game_and_a_late_member() {
     tick({&host, &member, &late}, 16);
     tick({&host, &member, &late}, 16);
     CHECK((late.game.calls == std::vector<std::string>{"start 0 500"}));
-    CHECK(late.game.started_save == host.game.progress);
+    CHECK(late.game.started_save == host.game.live_save);
 
     // The member left its game for the title: it asks (WANT) and is given the progress.
     member.game.now = {mp::kPhaseFrontEnd, -1, 2};
@@ -1909,6 +1943,117 @@ void bolts_are_the_hosts() {
     route({&host, &a, &b});
     CHECK(b.game.bolt_count == 5 && host.game.bolt_count == 2);
 
+}
+
+// Whether a game was given something (FakeGame's `given`), and whether it was asked for a scene.
+bool was_given(const FakeGame& game, const std::string& what) {
+    return std::find(game.given.begin(), game.given.end(), what) != game.given.end();
+}
+
+bool asked_scene(const FakeGame& game) {
+    return std::any_of(game.calls.begin(), game.calls.end(),
+                       [](const std::string& c) { return c.rfind("scene", 0) == 0 || c == "skip"; });
+}
+
+// The party's progress: a gold bolt one player collects counts for everyone (its flag set in every
+// game) and is gone from every game; its pickup scene is the collector's alone (its game stays in
+// play: nothing shared, nobody held, no figure hidden). An item or a planet one player gets, every
+// player has; given while in control only; a late member gets it all too.
+void progress_is_the_partys() {
+    Player host(1), a(2), b(3);
+    const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+    for (Player* p : {&host, &a, &b}) {
+        p->session.handle(info(all));
+    }
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &a, &b});
+    tick({&host, &a, &b}, 16);
+
+    // Level 1's two gold bolts (keys 1 and 2: gold bolt flags 4 and 5) in every game.
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+    for (Player* p : {&host, &a, &b}) {
+        p->game.now = {mp::kPhasePlaying, 1, 2};
+        p->game.level = {moby(1, 1, 1134, runs, 20.0f), moby(2, 2, 1134, runs, 30.0f),
+                         moby(3, 3, 77, mp::kMobyPlaced, 40.0f)};  // and a rock (a listing never empty)
+        p->game.calls.clear();
+    }
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &a, &b}, 50);
+    }
+    CHECK(host.game.given.empty() && a.game.given.empty() && b.game.given.empty());
+
+    // A collects the first: its scene plays in its game alone (its game in play, no scene of the
+    // level's), then the flag is set and the bolt gone there.
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &a, &b}, 50);
+    }
+    a.game.owned.gold[4] = 1;
+    a.game.die(1);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &a, &b}, 50);
+    }
+    CHECK(was_given(host.game, "gold 4") && was_given(b.game, "gold 4") && !was_given(a.game, "gold 4"));
+    CHECK(host.game.owned.gold[4] == 1 && b.game.owned.gold[4] == 1);
+    CHECK(host.game.moby_slot(1) == -1 && b.game.moby_slot(1) == -1);
+    for (Player* p : {&host, &a, &b}) {
+        CHECK(!asked_scene(p->game) && !p->coop.hold_input() && p->game.hidden_figures.empty());
+    }
+
+    // The host collects the second: the same, from the host.
+    host.game.owned.gold[5] = 1;
+    host.game.die(2);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &a, &b}, 50);
+    }
+    CHECK(was_given(a.game, "gold 5") && was_given(b.game, "gold 5") && !was_given(host.game, "gold 5"));
+    CHECK(a.game.moby_slot(2) == -1 && b.game.moby_slot(2) == -1);
+    for (Player* p : {&host, &a, &b}) {
+        CHECK(!asked_scene(p->game) && !p->coop.hold_input());
+    }
+
+    // B gets a weapon (item 10) and the host a planet (3): every game has both. A's menu is up as
+    // the host's arrive: given once it is back in play.
+    a.game.now.phase = mp::kPhaseMenu;
+    b.game.owned.items[10] = 1;
+    host.game.owned.planets[3] = 1;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &a, &b}, 50);
+    }
+    CHECK(was_given(host.game, "item 10") && was_given(b.game, "planet 3") && !was_given(b.game, "item 10"));
+    CHECK(a.game.owned.items[10] == 0 && a.game.owned.planets[3] == 0);
+    a.game.now.phase = mp::kPhasePlaying;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &a, &b}, 50);
+    }
+    CHECK(a.game.owned.items[10] == 1 && a.game.owned.planets[3] == 1);
+    CHECK(host.progress.here() == a.progress.here() && a.progress.here() == b.progress.here());
+
+    // A fourth player joins while the game is on: started with the host's live save, and given
+    // what the party has once it plays.
+    Player late(4);
+    const std::vector<mp::Member> four = {{1, "P1"}, {2, "P2"}, {3, "P3"}, {4, "P4"}};
+    late.session.handle(info(four));
+    mp::Message joined;
+    joined.kind = mp::Message::Kind::kPartyJoined;
+    joined.id = 4;
+    joined.text = "P4";
+    for (Player* p : {&host, &a, &b}) {
+        p->session.handle(joined);
+    }
+    host.game.live_save = Bytes(300, 7);
+    tick({&host, &a, &b, &late}, 16);
+    tick({&host, &a, &b, &late}, 16);
+    CHECK(late.game.started_save == host.game.live_save);
+    late.game.now = {mp::kPhasePlaying, 1, 2};
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &a, &b, &late}, 50);
+    }
+    CHECK(late.game.owned.gold[4] == 1 && late.game.owned.gold[5] == 1);
+    CHECK(late.game.owned.items[10] == 1 && late.game.owned.planets[3] == 1);
+    // Nothing given twice, and nothing taken.
+    CHECK(std::count(host.game.given.begin(), host.game.given.end(), "item 10") == 1);
+    CHECK(b.game.owned.items[10] == 1 && host.game.owned.gold[5] == 1);
 }
 
 // A long session: the server's clock is asked again every kClockMs (TIME frames), the buffers stay
@@ -3129,6 +3274,7 @@ int main() {
     a_pause_keeps_the_world_whole();
     classes_are_shared_as_they_should_be();
     bolts_are_the_hosts();
+    progress_is_the_partys();
     a_long_session();
     scenes_end_together();
     the_hosts_scenes_play_everywhere();

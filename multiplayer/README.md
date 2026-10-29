@@ -80,6 +80,13 @@ The world is the host's:
 - **Other pickups** (gold bolts, ammo, nanotech) run in every game: anyone can collect one, and the
   first to collect it takes it from every game. Ammo and health an enemy drops in the host's game,
   and what a nanotech or ammo crate gives, are made in every game, for each player to collect.
+- **Progress is the party's**: a gold bolt anyone collects counts for everyone (marked collected
+  in every game, so it is not there on a reload or the next visit either), and a weapon, gadget or
+  other item anyone gets (found, given or bought) and a planet anyone unlocks, everyone has. The
+  host's game keeps the party's progress: a member's goes to it, and from it to every game, given
+  as the game gives it (its banner) once that player is in control. Nothing is ever taken away.
+- **A gold bolt's scene is the collector's**: it plays in that player's game only; the others
+  keep playing, and nobody waits for it.
 - A placed enemy or pickup gone in the host's game is gone in everyone's, also for someone who
   arrives in the level later. A moby goes only when a game says it died, never because a snapshot
   is missing: a game that is loading or in a menu changes nothing in the others.
@@ -224,6 +231,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 20 SCENE | the host, to all | play i32, level i32, scene i32, sequence u16, elapsed i32 (ms) | an in-level scene the host's game plays (the level's number of it; a new sequence each start), when it starts, once a second while it plays and when it ends (scene -1). A member in that level starts the same scene once it has control (the SDK's `play_scene`) |
 | 21 SCENE_STATE | a member to the host | play i32, sequence u16, state u8 (0 still to play, 1 playing, 2 out) | where a member is with the host's scene of that sequence, at each change and once a second; the host waits for those of its newest scene only |
 | 22 CLAIM | a member | level i8, id u16 (a placed bolt's key; 0x8000 \| a net id for one the host dropped) | its Ratchet collected that bolt (its game added nothing): the host's first claim of a bolt still there gets BOLTS and the bolt's end everywhere (DESPAWN or KILLED); any other, nothing |
+| 23 PROGRESS | a member to the host; the host to all | items u8 count + a byte each, gold bolts u8 count + a byte each (level x 4 + its number), planets u8 count + a byte each (non-zero had) | a member: what its game has, at each change and every 5 s; the host: what the party has (its own game's, given what the members have), likewise and at each member that comes. Each game is given what it lacks; nothing is taken |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 
@@ -247,8 +255,12 @@ that player. Mobys near the members run in the host's game as if near its camera
 
 ## Known limits
 
-- Progress is each game's: the host's save is where the party starts, and what a member collects
-  (gold bolts, items) and buys stays in that member's game; its card is never written by the party.
+- The host's save is where the party starts. Bolts, ammo, health and what a member spends are
+  each player's own; only the items, gold bolts and planets are shared (above). The game's own saves
+  (a gold bolt's pickup, a story moment) still write that player's card: the party's starting it
+  does not (play_start), its saves later on do.
+- Only those three lists are shared: what the game keeps elsewhere (the gold weapons, the skill
+  points, a level's own story flags) stays each game's.
 - Vendors and the ship are each game's own. A member's flight to the new planet is the game's
   flight between planets, not the host's take-off from the pad (members leave when the host's
   ship does, and usually land first, then wait).
@@ -302,7 +314,9 @@ not the static mobys), the host's spawned bolt, an enemy followed, the stand-in 
 member's hit on the host's enemy, an enemy's hit on a member, a crate broken by a member, and a
 kill and a pickup on the host; and the bolts: the host's crate's and a member's crate's drops made
 once, by the host, two claims of one bolt (the first credited), the host's own pickup, and the
-placed bolts.
+placed bolts; and the progress: a member's gold bolt and the host's, gone and counted in every game
+with no scene shared or held, an item and a planet reaching every game (once in control), a late
+member given it all.
 
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
 lobby's logic against a recorder, the connection against a small server on the loopback, and
@@ -318,6 +332,7 @@ chosen from the setting and the launcher's.
 | `src/coop.hpp`, `.cpp` | playing together: PLAY and its save, LEVEL, WANT, poses sent and figures shown |
 | `src/play.hpp`, `.cpp` | the poses' bytes and the interpolation buffer |
 | `src/world.hpp`, `.cpp` | the shared world: snapshots, kills, spawns, hits, damage, bolts, stand-ins |
+| `src/progress.hpp`, `.cpp` | the shared progress: items, gold bolts, planets |
 | `src/trace.hpp`, `.cpp`, `src/world_trace.cpp`, `src/despawn.hpp`, `.cpp` | the verbose log: its lines and their cap; the world's pause, run, vis, drive and census lines; the despawn lines, who removed a moby and why |
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
 | `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
