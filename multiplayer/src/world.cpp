@@ -155,6 +155,7 @@ void World::reset() {
     loose_.clear();
     claimed_.clear();
     flights_.clear();
+    flight_eyes_ = false;
     host_killed_.clear();
     placed_class_.clear();
     replays_.clear();
@@ -349,6 +350,15 @@ void World::tick_world(std::uint64_t now) {
     }
 
     tick_flights(now);
+
+    // A member's game: an eye on each bolt flying to whoever took it, so it runs (flies) wherever
+    // the camera is; none once they are done.
+    if (!hosting_ && (!flights_.empty() || flight_eyes_)) {
+        std::vector<float> eyes;
+        add_flight_eyes(eyes);
+        game_.eyes(eyes);
+        flight_eyes_ = !eyes.empty();
+    }
 
     // A replayed crate that has not broken by its deadline: deleted.
     for (auto it = replays_.begin(); it != replays_.end();) {
@@ -580,6 +590,16 @@ void World::stand_flight(int slot) {
     }
 
     game_.stand_in(to, f.figure);
+}
+
+void World::add_flight_eyes(std::vector<float>& eyes) const {
+    for (const auto& [slot, flight] : flights_) {
+        const auto bolt = mobys_.find(slot);
+
+        if (bolt != mobys_.end() && eyes.size() < 3 * 8) {
+            eyes.insert(eyes.end(), bolt->second.pose.position, bolt->second.pose.position + 3);
+        }
+    }
 }
 
 void World::tick_flights(std::uint64_t now) {
@@ -852,6 +872,8 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         }
     }
 
+    // A bolt flying to whoever took it runs wherever the camera is (an eye on it).
+    add_flight_eyes(eyes);
     game_.eyes(eyes);
 
     // Each change of their number, each tick a menu is up, else once a second.

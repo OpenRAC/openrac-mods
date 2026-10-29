@@ -315,6 +315,8 @@ private:
     /* A flight's stand-in before its bolt's update; the flights done or out of time. */
     void stand_flight(int slot);
     void tick_flights(std::uint64_t now);
+    /* An eye (Game::eyes) on each bolt flying, so it runs wherever the camera is. */
+    void add_flight_eyes(std::vector<float>& eyes) const;
     void log_counts(std::uint64_t now);
     /* A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
      * and sound), its drop left out; deleted if it has not broken by the deadline. */
@@ -379,6 +381,8 @@ private:
         std::uint64_t until = 0;
     };
     std::map<int, Flight> flights_;
+    /* Member: whether its eyes are on flying bolts (to be cleared once none fly). */
+    bool flight_eyes_ = false;
     /* Member: the crates the host killed (not to be told back), last tick's placed mobys' classes. */
     std::set<int> host_killed_;
     /* Crates breaking here for another game's break: their slots, until when they may take. */

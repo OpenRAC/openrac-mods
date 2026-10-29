@@ -824,6 +824,11 @@ struct FakeGame : mp::Game {
 
     int bolts(int add) override { return bolt_count += add; }
 
+    // The eyes last set (x, y, z each).
+    std::vector<float> eyes_at;
+
+    void eyes(const std::vector<float>& xyz) override { eyes_at = xyz; }
+
     // The shared progress: what this game has (read in a level only), and what was given to it,
     // in order ("item 5", "gold 6", "planet 3").
     mp::ProgressBits owned;
@@ -2248,6 +2253,8 @@ void taken_bolts_fly_to_the_taker() {
     tick({&host, &member}, 16);
     CHECK(std::any_of(member.game.level.begin(), member.game.level.end(),
                       [&](const mp::MobyState& m) { return m.slot == copies[1]; }));
+    // An eye on it, so it runs (flies) wherever the member's camera is.
+    CHECK(member.game.eyes_at.size() == 3 && member.game.eyes_at[0] == 26.0f);
     CHECK(!member.world.gate(copies[1], mp::kMobyBefore));
     CHECK(member.game.world_calls.back() == "stand 25 " + std::to_string(host_figure));
     for (mp::MobyState& m : member.game.level) {
@@ -2265,6 +2272,7 @@ void taken_bolts_fly_to_the_taker() {
     route({&host, &member});
     tick({&host, &member}, 50);
     CHECK(member.game.bolt_count == 1 && host.game.bolt_count == 1);
+    CHECK(member.game.eyes_at.empty());
 
     // The host takes the third, and the member's copy is never updated: deleted after kFlightMs.
     CHECK(host.world.collect(302));
