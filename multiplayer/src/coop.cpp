@@ -883,9 +883,10 @@ void Coop::on_shot(std::int32_t sender, const Bytes& bytes) {
         r.shots.pop_front();
     }
 
-    // Fired when its figure is where the shooter was: its poses' delay behind.
+    // Fired when its figure is where the shooter was: as long after it came as its poses are
+    // shown after they come (the delay less the transit).
     const auto now = static_cast<double>(clock_());
-    r.shots.push_back({now + r.poses.delay_ms(), m.level, m.shot});
+    r.shots.push_back({now + r.poses.behind_ms(), m.level, m.shot});
 }
 
 void Coop::fire_shots(Remote& r, std::uint64_t now, const GameStatus& status) {

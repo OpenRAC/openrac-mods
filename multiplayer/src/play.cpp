@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 namespace mp {
@@ -301,29 +302,93 @@ float lerp_angle(float a, float b, float s) {
     return a + d * s;
 }
 
+const char* shown_name(Shown s) {
+    switch (s) {
+        case Shown::kBefore:
+            return "before";
+        case Shown::kBetween:
+            return "between";
+        case Shown::kAhead:
+            return "ahead";
+        case Shown::kHeld:
+            return "held";
+        case Shown::kJump:
+            return "jump";
+        case Shown::kNone:
+            break;
+    }
+
+    return "none";
+}
+
+std::string counts_text(const int by[6]) {
+    char text[128];
+    std::snprintf(text, sizeof text, "between %d ahead %d held %d jump %d before %d",
+                  by[static_cast<int>(Shown::kBetween)], by[static_cast<int>(Shown::kAhead)],
+                  by[static_cast<int>(Shown::kHeld)], by[static_cast<int>(Shown::kJump)],
+                  by[static_cast<int>(Shown::kBefore)]);
+    return text;
+}
+
+std::string Interpolator::describe() const {
+    char text[192];
+    std::snprintf(text, sizeof text, "delay %.0f transit %.0f jitter %.1f interval %.0f loss %.3f ahead %.0f depth %zu",
+                  delay_ms(), transit_, jitter_, interval_, loss_, ahead_ms(), samples_.size());
+    return text;
+}
+
 void Interpolator::reset() {
     samples_.clear();
     cursor_set_ = false;
     jumped_ = false;
+    shown_ = Shown::kNone;
+    shown_set_ = false;
+    std::fill(offset_, offset_ + 3, 0.0f);
 }
 
 void Interpolator::add(
     const Pose& pose, std::uint16_t sequence, double time_ms, double arrival_ms, bool teleport
 ) {
     // Late, repeated or reordered: the newest stands. After a silence (the sender gone and back,
-    // its count started again) whatever comes starts the buffer again.
+    // its count started again) whatever comes is taken.
     const bool silent = !samples_.empty() && arrival_ms - last_arrival_ > kStallMs;
 
     if (!samples_.empty() && !silent && !sequence_newer(sequence, sequence_)) {
         return;
     }
 
-    const bool restart = teleport || silent || samples_.empty() || pose.level != samples_.back().pose.level
-                         || distance(pose, samples_.back().pose) > kSnapDistance;
+    // The link: how long a pose is in transit (in this clock, so the clock estimates' error is in
+    // it too) and how much that varies. A far outlier (a burst after a stall) moves the average
+    // by no more than a few jitters.
+    const double transit = arrival_ms - time_ms;
 
-    if (restart) {
+    if (!link_set_) {
+        link_set_ = true;
+        transit_ = transit;
+        jitter_ = 0.0;
+    } else {
+        const double dev = transit - transit_;
+        jitter_ += 0.1 * (std::fabs(dev) - jitter_);
+        const double bound = 4.0 * jitter_ + 20.0;
+        transit_ += 0.05 * std::clamp(dev, -bound, bound);
+    }
+
+    const bool snap = teleport || samples_.empty() || pose.level != samples_.back().pose.level
+                      || distance(pose, samples_.back().pose) > kSnapDistance;
+
+    if (snap) {
         samples_.clear();
         cursor_set_ = false;
+    } else if (silent) {
+        // Back after a silence (a moby WORLD did not send while it stood, or a sender gone a
+        // while): on from where it stood, as if it stood until just before this pose.
+        Sample base = samples_.back();
+        samples_.clear();
+        base.time = time_ms - interval_;
+        std::fill(base.pose.velocity, base.pose.velocity + 3, 0.0f);
+        samples_.push_back(base);
+        cursor_set_ = true;
+        cursor_ = base.time;
     } else {
         // A stamp not after the newest (a sender's clock step) is moved just past it.
         const double gap = time_ms - samples_.back().time;
@@ -333,13 +398,15 @@ void Interpolator::add(
             // The send interval, learned from the gaps of a steady stream (not a pause).
             interval_ += 0.1 * (gap - interval_);
         }
-
-        // Jitter: how much the time in transit changes from one pose to the next.
-        const double transit = arrival_ms - time_ms;
-        jitter_ += 0.1 * (std::fabs(transit - last_transit_) - jitter_);
     }
 
-    last_transit_ = arrival_ms - time_ms;
+    // The poses lost on the way: the gaps in the sequence (a pose's own; WORLD's is its stamp's,
+    // and a moby it leaves out stood still).
+    if (!derive_ && !samples_.empty() && !silent && !snap) {
+        const double missing = static_cast<std::uint16_t>(sequence - sequence_) - 1.0;
+        loss_ += 0.05 * (std::min(missing, 4.0) / (missing + 1.0) - loss_);
+    }
+
     last_arrival_ = arrival_ms;
     sequence_ = sequence;
     samples_.push_back({time_ms, pose});
@@ -347,32 +414,137 @@ void Interpolator::add(
     if (samples_.size() > kBufferSamples) {
         samples_.pop_front();
     }
+
+    if (derive_) {
+        derive_velocities();
+    }
 }
 
-double Interpolator::delay_ms() const {
-    return std::clamp(2.5 * interval_ + 2.0 * jitter_, kMinDelayMs, kMaxDelayMs);
+void Interpolator::derive_velocities() {
+    const std::size_t n = samples_.size();
+
+    if (n < 2) {
+        if (n == 1) {
+            std::fill(samples_[0].pose.velocity, samples_[0].pose.velocity + 3, 0.0f);
+        }
+        return;
+    }
+
+    Sample& a = samples_[n - 2];
+    Sample& b = samples_[n - 1];
+    const double h1 = (b.time - a.time) / 1000.0;
+
+    for (int i = 0; i < 3; ++i) {
+        const double d1 = h1 > 0.0 ? (b.pose.position[i] - a.pose.position[i]) / h1 : 0.0;
+        // The newest: along its last step (it is the end of the curve until the next one comes).
+        b.pose.velocity[i] = static_cast<float>(d1);
+
+        if (n == 2) {
+            a.pose.velocity[i] = static_cast<float>(d1);
+            continue;
+        }
+
+        // The one before: the weighted harmonic mean of the steps either side, none where they go
+        // opposite ways (Fritsch and Carlson's monotone curve: never past a pose and back).
+        const Sample& z = samples_[n - 3];
+        const double h0 = (a.time - z.time) / 1000.0;
+        const double d0 = h0 > 0.0 ? (a.pose.position[i] - z.pose.position[i]) / h0 : 0.0;
+        double m = 0.0;
+
+        if (d0 * d1 > 0.0) {
+            m = 3.0 * (h0 + h1) / ((2.0 * h1 + h0) / d0 + (h1 + 2.0 * h0) / d1);
+        }
+
+        a.pose.velocity[i] = static_cast<float>(m);
+    }
 }
 
 bool Interpolator::at(double now_ms, Pose& out) {
-    jumped_ = false;
+    const double dt = shown_set_ ? std::max(0.0, now_ms - last_now_) : 0.0;
+    const Shown before = shown_;
 
-    if (samples_.empty()) {
+    if (!place(now_ms, out)) {
+        shown_set_ = false;
         return false;
     }
 
-    const double delay = delay_ms();
+    // Past the newest pose (on along a velocity, or held), then back between two: on from where
+    // it was shown by the step it was taking, eased onto the curve, not put there at once. A jump
+    // or a new start is put there.
+    const bool back = (before == Shown::kAhead || before == Shown::kHeld) && shown_ == Shown::kBetween;
+    const float ease = static_cast<float>(std::exp(-dt / kCatchUpMs));
+
+    if (!shown_set_ || shown_ == Shown::kJump || !cursor_set_) {
+        std::fill(offset_, offset_ + 3, 0.0f);
+    } else if (back) {
+        for (int i = 0; i < 3; ++i) {
+            offset_[i] = shown_at_[i] + shown_step_[i] - out.position[i];
+        }
+    }
+
+    if (std::sqrt(offset_[0] * offset_[0] + offset_[1] * offset_[1] + offset_[2] * offset_[2]) > kSnapDistance) {
+        std::fill(offset_, offset_ + 3, 0.0f);
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        if (!back) {
+            offset_[i] *= ease;
+        }
+        out.position[i] += offset_[i];
+        shown_step_[i] = shown_set_ ? out.position[i] - shown_at_[i] : 0.0f;
+        shown_at_[i] = out.position[i];
+    }
+
+    shown_set_ = true;
+    ++counts_.by[static_cast<int>(shown_)];
+    return true;
+}
+
+double Interpolator::wanted_ms() const {
+    // Past the transit: the next pose's interval (two without velocities: the one after a pose
+    // makes its velocity) and the jitter, and a frame.
+    // A lost pose leaves a gap of two: from 5 % lost, the margin covers it.
+    const double sends = derive_ ? 2.0 : 1.0 + std::min(1.0, 20.0 * loss_);
+    const double margin = std::clamp(sends * interval_ + 2.5 * jitter_ + 17.0, kMinBufferMs, kMaxBufferMs);
+    return std::clamp(transit_ + margin, 0.0, kMaxDelayMs);
+}
+
+double Interpolator::delay_ms() const {
+    return delay_set_ ? delay_ : wanted_ms();
+}
+
+bool Interpolator::place(double now_ms, Pose& out) {
+    jumped_ = false;
+
+    if (samples_.empty()) {
+        shown_ = Shown::kNone;
+        return false;
+    }
+
+    // The delay eases to what the link asks: up in about kDelayRiseMs, down in about kDelayFallMs.
+    const double dt = delay_set_ ? std::max(0.0, now_ms - last_now_) : 0.0;
+    const double wanted = wanted_ms();
+
+    if (!delay_set_) {
+        delay_set_ = true;
+        delay_ = wanted;
+    } else {
+        const double tau = wanted > delay_ ? kDelayRiseMs : kDelayFallMs;
+        delay_ += (wanted - delay_) * std::min(1.0, dt / tau);
+    }
+
+    const double delay = delay_;
     const double newest = samples_.back().time;
     const double target = std::min(now_ms - delay, newest);
 
     // The cursor: put on its target at first and after a jump; otherwise run to it, a little
-    // faster or slower.
-    if (!cursor_set_ || std::fabs(target - cursor_) > 2.5 * delay) {
+    // faster or slower (a deficit of 50 ms is made up at the most).
+    if (!cursor_set_ || std::fabs(target - cursor_) > std::max(2.5 * delay, 300.0)) {
         jumped_ = cursor_set_;
         cursor_set_ = true;
         cursor_ = target;
     } else {
-        const double deficit = (target - cursor_) / delay;
-        const double rate = std::clamp(1.0 + 2.0 * deficit, kRateMin, kRateMax);
+        const double rate = std::clamp(1.0 + (target - cursor_) / 500.0, kRateMin, kRateMax);
         cursor_ += std::max(0.0, now_ms - last_now_) * rate;
     }
 
@@ -382,16 +554,23 @@ bool Interpolator::at(double now_ms, Pose& out) {
     // Before the first pose: it stands there.
     if (cursor_ <= samples_.front().time) {
         out = samples_.front().pose;
+        shown_ = jumped_ ? Shown::kJump : Shown::kBefore;
         return true;
     }
 
     // Past the newest: on along its velocity, slowing in the last kFadeMs, then held; held at
     // once when it was slowing down (a stop: on along its last velocity it would go past where it
-    // stops, then come back).
+    // stops, then come back), and always for poses without velocities of their own.
     if (cursor_ >= newest) {
         out = samples_.back().pose;
+        shown_ = jumped_ ? Shown::kJump : Shown::kHeld;
 
-        if (samples_.size() >= 2 && speed(out) < 0.95 * speed(samples_[samples_.size() - 2].pose)) {
+        if (derive_) {
+            std::fill(out.velocity, out.velocity + 3, 0.0f);
+            return true;
+        }
+
+        if (samples_.size() >= 2 && speed(out) < 0.8 * speed(samples_[samples_.size() - 2].pose)) {
             return true;
         }
 
@@ -408,6 +587,7 @@ bool Interpolator::at(double now_ms, Pose& out) {
             out.position[i] += static_cast<float>(out.velocity[i] * moved / 1000.0);
         }
 
+        shown_ = jumped_ ? Shown::kJump : Shown::kAhead;
         return true;
     }
 
@@ -444,6 +624,7 @@ bool Interpolator::at(double now_ms, Pose& out) {
     out.rotation[0] = lerp_angle(sa.pose.rotation[0], sb.pose.rotation[0], static_cast<float>(s));
     out.rotation[1] = lerp_angle(sa.pose.rotation[1], sb.pose.rotation[1], static_cast<float>(s));
     out.rotation[2] = lerp_angle(sa.pose.rotation[2], sb.pose.rotation[2], static_cast<float>(s));
+    shown_ = jumped_ ? Shown::kJump : Shown::kBetween;
 
     // What is behind the cursor's pair is no longer needed (one older is kept).
     while (b > 2) {

@@ -53,4 +53,11 @@ if(BUILD_TESTING)
   target_compile_definitions(multiplayer_play_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
   set_target_properties(multiplayer_play_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_play COMMAND multiplayer_play_test)
+  # The interpolation buffer over a real network: late, uneven, reordered and lost poses, and the
+  # arrivals of a session through the public server, shown as smoothly as they should be.
+  add_executable(multiplayer_smooth_test tests/smooth_test.cpp src/play.cpp src/protocol.cpp)
+  target_include_directories(multiplayer_smooth_test PRIVATE src)
+  target_compile_definitions(multiplayer_smooth_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
+  set_target_properties(multiplayer_smooth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_smooth COMMAND multiplayer_smooth_test)
 endif()

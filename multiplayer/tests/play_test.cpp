@@ -197,8 +197,9 @@ void a_steady_stream_plays_smoothly() {
     CHECK(ordered);
     // 16 ms at 10 units a second is 0.16; a little more while the cursor runs fast.
     CHECK(worst_step < 0.3);
-    // A delay behind: 2.5 sends of 50 ms (at least 100 ms), about 1.25 units back.
-    CHECK(std::fabs(in.delay_ms() - 125.0) < 15.0);
+    // A delay behind: the 30 ms in transit and a margin of at least 100 ms past it, about 1.3
+    // units back.
+    CHECK(std::fabs(in.delay_ms() - 130.0) < 15.0);
     mp::Pose p;
     in.at(3030, p);
     CHECK(p.position[0] > 30.0 - 1.6 && p.position[0] < 30.0 - 0.6);
@@ -247,7 +248,10 @@ void a_stall_then_a_burst() {
         if (t % 16 == 0 && t > 200) {
             mp::Pose p;
             in.at(t, p);
-            worst_jump = std::max(worst_jump, std::fabs(p.position[0] - last_x));
+            // From the second frame shown (the first is where it starts).
+            if (t > 216) {
+                worst_jump = std::max(worst_jump, std::fabs(p.position[0] - last_x));
+            }
             last_x = p.position[0];
             // Never past the newest pose's place by more than 150 ms of its run (1.5 units).
             CHECK(p.position[0] <= static_cast<float>(t) / 100.0f + 1.5f + 1e-3f);
@@ -308,9 +312,10 @@ void a_count_started_again_and_the_wrap() {
     in.add(pose_at(0.1f), 40001, 50, 50, false);
     in.add(pose_at(0.2f), 1, 2050, 2050, false);
     mp::Pose p;
-    CHECK(in.size() == 1 && in.newest(p) && p.position[0] == 0.2f);
+    // On from where it stood (the last pose before the silence, just before this one).
+    CHECK(in.size() == 2 && in.newest(p) && p.position[0] == 0.2f);
     in.add(pose_at(0.3f), 65535, 2100, 2100, false);  // 1 - 65535 wraps: older, dropped
-    CHECK(in.size() == 1);
+    CHECK(in.size() == 2);
 
     mp::Interpolator w;
     const std::uint16_t counts[] = {65534, 65535, 0, 1};

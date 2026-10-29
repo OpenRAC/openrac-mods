@@ -23,22 +23,34 @@
  * are played.
  *
  * The buffer. Each pose is stamped with the sender's estimate of the server's clock; the receiver
- * turns it into its own clock and plays the poses back a delay behind (about 100 ms at 20 a second,
- * more with jitter), between two of them: the position along a cubic Hermite curve through their
- * velocities (a jump stays an arc), the yaw the short way round, the place in the animation's seq
- * on from the one's to the other's (the game keeps the figure to it, play.c), and a new seq and the
- * state from the nearer one. The playback cursor runs up to 15 % fast or slow to keep its delay, so
- * a change of delay never jumps; far behind (a stall, then a burst), it jumps. Past the newest pose
- * it goes on along its velocity for at most 150 ms, then holds (at once when it was slowing down: a
- * stop). A teleport (the sender's flag, a level change, or a step of more than kSnapDistance) starts
- * the buffer again: the figure is put there.
+ * turns it into its own clock and plays the poses back a delay behind their stamps. The delay is
+ * the link's: the time in transit as measured (arrival less stamp, averaged, so the clock
+ * estimates' error is in it too), and a margin past it of a send interval and the transit's
+ * jitter (at least kMinBufferMs), so the next pose is there before the cursor needs it; up to an
+ * interval more while poses are lost. It rises
+ * in about half a second when the link gets worse and falls in about four when it calms. Between
+ * two poses: the position along a cubic Hermite curve through their velocities (a jump stays an
+ * arc), the yaw the short way round, the place in the animation's seq on from the one's to the
+ * other's (the game keeps the figure to it, play.c), and a new seq and the state from the nearer
+ * one. Poses without velocities (the host's mobys and bolts, WORLD) get them from their
+ * neighbours, limited so the curve never goes past a pose and back (Fritsch and Carlson), and the
+ * margin has one interval more so a pose's neighbour after it is there before it plays. The
+ * playback cursor runs up to 10 % fast or slow to keep its delay, so a change of delay never
+ * jumps; far behind (a stall, then a burst), it jumps. Past the newest pose a figure goes on along
+ * its velocity for at most 150 ms, then holds (at once when it was slowing down: a stop); a moby
+ * holds where it is (WORLD stops sending one that stops). When the next pose comes, what is shown
+ * goes back onto the curve over about kCatchUpMs rather than at once. A teleport (the sender's flag, a level
+ * change, or a step of more than kSnapDistance) starts the buffer again: the figure is put there.
+ * One back after a silence (kStallMs) goes on from where it stood.
  */
 #ifndef MULTIPLAYER_PLAY_H
 #define MULTIPLAYER_PLAY_H
 
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <deque>
+#include <string>
 
 #include "protocol.hpp"
 
@@ -139,28 +151,86 @@ bool sequence_newer(std::uint16_t a, std::uint16_t b);
 
 /* The buffer's constants (INTERPOLATION.md, section 2), in milliseconds and game units. */
 constexpr std::size_t kBufferSamples = 32;
-constexpr double kMinDelayMs = 100.0;
-constexpr double kMaxDelayMs = 400.0;
+/* The least margin past the transit, the most, and the most delay in all. */
+constexpr double kMinBufferMs = 100.0;
+constexpr double kMaxBufferMs = 400.0;
+constexpr double kMaxDelayMs = 1000.0;
 constexpr double kExtrapolateMs = 150.0;
 constexpr double kFadeMs = 50.0;
 constexpr double kSnapDistance = 8.0;
 constexpr double kStallMs = 1000.0;
-constexpr double kRateMin = 0.85;
-constexpr double kRateMax = 1.15;
+constexpr double kRateMin = 0.9;
+constexpr double kRateMax = 1.1;
+/* How fast the delay follows the link, up and down (time constants), ms. */
+constexpr double kDelayRiseMs = 500.0;
+constexpr double kDelayFallMs = 4000.0;
+/* Back from past the newest pose onto the curve: the difference eased out in about this, ms. */
+constexpr double kCatchUpMs = 120.0;
 
-/* One remote player's poses, played back a delay behind. Times are this game's clock, ms. */
+/* What the last Interpolator::at showed: before the first pose, between two, on past the newest
+ * along its velocity, held at the newest, or put somewhere at once (a jump of the cursor). */
+enum class Shown : std::uint8_t { kNone, kBefore, kBetween, kAhead, kHeld, kJump };
+
+const char* shown_name(Shown s);
+
+/* Counts as "between B ahead A held H jump J before F" for the verbose log. */
+std::string counts_text(const int by[6]);
+
+/* One remote player's poses, or one moby's, played back a delay behind. Times are this game's
+ * clock, ms. */
 class Interpolator {
 public:
+    /* `derive`: the poses carry no velocities (WORLD's): made from the neighbours, and nothing
+     * is carried on past the newest. */
+    explicit Interpolator(bool derive = false) : derive_(derive) {}
+
     /* A pose sent at `time_ms` (its stamp in this clock) that arrived at `arrival_ms`. One not
-     * newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport, or
-     * one after that silence, starts the buffer again. */
+     * newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport
+     * starts the buffer again, and so does one after that silence but where it stood. */
     void add(const Pose& pose, std::uint16_t sequence, double time_ms, double arrival_ms, bool teleport);
 
     /* The pose to show at `now_ms`; false while there is none. */
     bool at(double now_ms, Pose& out);
 
-    /* The delay played behind now. */
+    /* The delay played behind the stamps now, and the part of it past the transit (how long after
+     * a message arrives what it says is shown). */
     double delay_ms() const;
+
+    double behind_ms() const { return std::max(0.0, delay_ms() - transit_); }
+
+    /* What the link looks like: the time in transit, its jitter, the send interval. */
+    double transit_ms() const { return transit_; }
+
+    double jitter_ms() const { return jitter_; }
+
+    /* The share of poses that never came (by the sequence's gaps; not for WORLD's). */
+    double loss() const { return loss_; }
+
+    double interval_ms() const { return interval_; }
+
+    /* The cursor (in the stamps' time), how far ahead of it the newest pose is (negative: past
+     * it), and what the last at() showed. */
+    double cursor_ms() const { return cursor_; }
+
+    double ahead_ms() const { return samples_.empty() ? 0.0 : samples_.back().time - cursor_; }
+
+    Shown shown() const { return shown_; }
+
+    /* How many at()s showed each kind (Shown's order) since the last take_counts(), which zeroes
+     * them. */
+    struct Counts {
+        int by[6] = {0, 0, 0, 0, 0, 0};
+    };
+
+    Counts take_counts() {
+        const Counts out = counts_;
+        counts_ = Counts{};
+        return out;
+    }
+
+    /* The buffer for the verbose log: "delay D transit T jitter J interval I loss L ahead A depth
+     * N" (ms; depth the poses kept). */
+    std::string describe() const;
 
     /* Whether nothing came for kStallMs (the figure holds), and how long since anything came. */
     bool stalled(double now_ms) const { return empty() || now_ms - last_arrival_ > kStallMs; }
@@ -191,16 +261,38 @@ private:
         Pose pose;
     };
 
+    /* at() before the way back to the curve. */
+    bool place(double now_ms, Pose& out);
+
+    /* The delay the link asks for now (the delay eases to it). */
+    double wanted_ms() const;
+
+    /* Velocities for the newest pose and the one before it, from their neighbours (derive_). */
+    void derive_velocities();
+
+    bool derive_ = false;
     std::deque<Sample> samples_;
     std::uint16_t sequence_ = 0;
     double interval_ = 50.0;
+    bool link_set_ = false;
+    double transit_ = 0.0;
     double jitter_ = 0.0;
+    double loss_ = 0.0;
+    bool delay_set_ = false;
+    double delay_ = 0.0;
     double last_arrival_ = 0.0;
-    double last_transit_ = 0.0;
     bool cursor_set_ = false;
     double cursor_ = 0.0;
     double last_now_ = 0.0;
     bool jumped_ = false;
+    Shown shown_ = Shown::kNone;
+    /* What was shown last, and the step that took it there; the way back to the curve after a
+     * stretch past the newest pose (eased out over kCatchUpMs). */
+    Counts counts_;
+    bool shown_set_ = false;
+    float shown_at_[3] = {0, 0, 0};
+    float shown_step_[3] = {0, 0, 0};
+    float offset_[3] = {0, 0, 0};
 };
 
 /* The yaw from `a` to `b` by `s` (0 to 1), the short way round. */

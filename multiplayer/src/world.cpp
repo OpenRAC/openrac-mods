@@ -943,7 +943,8 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                     continue;
                 }
 
-                poses_[e.id].add(e.pose, sequence, time, now, false);
+                // WORLD has no velocities: the buffer makes them (play.hpp).
+                poses_.try_emplace(e.id, true).first->second.add(e.pose, sequence, time, now, false);
                 hidden_[e.id] = e.hidden;
                 host_ms_[e.id] = clock_();
             }
