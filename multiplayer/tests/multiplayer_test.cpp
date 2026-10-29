@@ -242,11 +242,12 @@ void a_party_is_created_joined_and_left() {
         host_link.frames.back() == mp::data(mp::kBroadcast, {2, 2, 0, 0, 0, 1, 0, 0, 0, 0, 2, 1})
     );
 
-    // STATE from someone else than the host is not believed; from the host it is.
-    guest.handle(decoded(server(mp::Writer().u8(3).i32(2).u8(2).u8(1).i32(2).u8(0))));
-    CHECK(guest.ready(2));
-    guest.handle(decoded(server(mp::Writer().u8(3).i32(1).u8(2).u8(1).i32(2).u8(0))));
-    CHECK(!guest.ready(2));
+    // STATE from someone else than the host is not believed; from the host it is (for the others:
+    // this member's own word stands).
+    guest.handle(decoded(server(mp::Writer().u8(3).i32(2).u8(2).u8(1).i32(1).u8(1))));
+    CHECK(!guest.ready(1));
+    guest.handle(decoded(server(mp::Writer().u8(3).i32(1).u8(2).u8(2).i32(1).u8(1).i32(2).u8(0))));
+    CHECK(guest.ready(1) && guest.ready(2));
 
     // Start, from the host to everyone.
     host.start();
@@ -752,6 +753,24 @@ void start_waits_for_everyone_ready() {
     guest.toggle_ready();
     CHECK(!guest.ready(2) && guest_link.frames.back() == mp::data(1, {1, 0}));
     CHECK(!guest.start());  // a member never starts
+
+    // The host's STATE from before a toggle may arrive after it: the member keeps its own word,
+    // so the next toggle still flips what it last said (Ready, then a stale "not ready" STATE).
+    const auto state = [&](std::uint8_t host_ready, std::uint8_t guest_ready) {
+        guest.handle(decoded(server(
+            mp::Writer().u8(3).i32(1).u8(2).u8(2).i32(1).u8(host_ready).i32(2).u8(guest_ready)
+        )));
+    };
+    guest.toggle_ready();
+    state(0, 0);
+    CHECK(guest.ready(2));
+    guest.toggle_ready();
+    CHECK(!guest.ready(2) && guest_link.frames.back() == mp::data(1, {1, 0}));
+    state(0, 1);
+    CHECK(!guest.ready(2));
+    // The others' word still comes from the host.
+    state(1, 0);
+    CHECK(guest.ready(1) && !guest.ready(2));
 
     // A new party (INFO again) starts with nobody ready.
     guest.toggle_ready();

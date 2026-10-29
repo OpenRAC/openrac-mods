@@ -363,6 +363,14 @@ void Session::handle_data(const Message& m) {
 
         // A cut-short message is ignored.
         if (r.ok()) {
+            // This member's own word stands: the host only changes it on this member's READY,
+            // and a STATE sent before the last toggle may arrive after it.
+            if (ready_.count(id_) != 0) {
+                ready.insert(id_);
+            } else {
+                ready.erase(id_);
+            }
+
             ready_ = std::move(ready);
         }
     } else if (kind == LobbyKind::kStart && m.id == host_) {
