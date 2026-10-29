@@ -48,11 +48,13 @@ double speed(const Pose& p) {
                      + p.velocity[2] * p.velocity[2]);
 }
 
-/* The animation `s` of the way from `a` to `b`, in `out`. Within one seq, neither blending, the
- * place in it (key and time to the next key) runs on from a's to b's; otherwise (a new seq, a blend,
- * a seq that came round to its start, whose keys are not known here) out keeps the nearer one's. */
-void animate(const Pose& a, const Pose& b, double s, Pose& out) {
-    if (a.seq != b.seq || ((a.flags | b.flags) & kPoseBlending) != 0) {
+/* The animation `s` of the way from `a` to `b`, in `out` (a pose's, or a piece's: the same fields).
+ * Within one seq, neither blending, the place in it (key and time to the next key) runs on from
+ * a's to b's; otherwise (a new seq, a blend, a seq that came round to its start, whose keys are not
+ * known here) out keeps the nearer one's. */
+template <typename T>
+void run_on(const T& a, const T& b, bool blending, double s, T& out) {
+    if (a.seq != b.seq || blending) {
         return;
     }
 
@@ -68,6 +70,45 @@ void animate(const Pose& a, const Pose& b, double s, Pose& out) {
     out.anim_time = static_cast<float>(place - out.frame);
     out.next_frame = out.frame == b.frame ? b.next_frame : out.frame == a.frame ? a.next_frame : out.frame + 1;
     out.anim_speed = static_cast<float>(a.anim_speed + (b.anim_speed - a.anim_speed) * s);
+}
+
+/* The piece of `p` that is `piece` (the same slot, part and class), or none. */
+const HeldPiece* same_piece(const Pose& p, const HeldPiece& piece) {
+    for (std::uint32_t i = 0; i < p.held_count && i < kHeldMax; ++i) {
+        const HeldPiece& h = p.held[i];
+
+        if (h.slot == piece.slot && h.part == piece.part && h.oclass == piece.oclass) {
+            return &h;
+        }
+    }
+
+    return nullptr;
+}
+
+/* The body's animation, and each piece's that both poses have (a swing, a shot, the glove's
+ * throw): the way from a to b, as the body's; a piece off the body (a thrown wrench) moves along it
+ * too. */
+void animate(const Pose& a, const Pose& b, double s, Pose& out) {
+    run_on(a, b, ((a.flags | b.flags) & kPoseBlending) != 0, s, out);
+
+    for (std::uint32_t i = 0; i < out.held_count && i < kHeldMax; ++i) {
+        HeldPiece& piece = out.held[i];
+        const HeldPiece* pa = same_piece(a, piece);
+        const HeldPiece* pb = same_piece(b, piece);
+
+        if (pa == nullptr || pb == nullptr) {
+            continue;
+        }
+
+        run_on(*pa, *pb, ((pa->flags | pb->flags) & kHeldBlending) != 0, s, piece);
+
+        if ((pa->flags & pb->flags & kHeldLoose) != 0) {
+            for (int c = 0; c < 3; ++c) {
+                piece.position[c] = static_cast<float>(pa->position[c] + (pb->position[c] - pa->position[c]) * s);
+                piece.rotation[c] = lerp_angle(pa->rotation[c], pb->rotation[c], static_cast<float>(s));
+            }
+        }
+    }
 }
 
 }  // namespace

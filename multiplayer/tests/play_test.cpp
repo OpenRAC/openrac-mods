@@ -170,6 +170,99 @@ void held_and_shot_bytes() {
     CHECK(!mp::decode_shot(b, sr));
 }
 
+// A held item's animation (the wrench's swing, the Blaster's recoil, a glove's throw) plays on the
+// figure as the body's does: between two poses its key and time run on from the one's to the
+// other's, every frame, not only when a pose comes; a new seq or a blend keeps the nearer pose's;
+// a thrown wrench moves along between its two places.
+void held_item_animation_runs_on() {
+    // A swing: the wrench (seq 3) a key every 2 ticks (speed 0.5 a key), a pose every 50 ms.
+    auto swing = [](int ms) {
+        mp::Pose p = pose_at(0.0f);
+        p.seq = 7;
+        p.frame = 2;
+        p.next_frame = 3;
+        p.held_count = 2;
+        p.held[0] = piece(0, 0, 8, 0x47, 5);
+        const double place = ms * 60.0 / 1000.0 * 0.5;  // keys since the swing began
+        p.held[0].seq = 3;
+        p.held[0].frame = static_cast<std::uint32_t>(place);
+        p.held[0].next_frame = p.held[0].frame + 1;
+        p.held[0].anim_time = static_cast<float>(place - p.held[0].frame);
+        p.held[0].anim_speed = 1.0f;
+        p.held[1] = piece(3, 0, 2, 0x25F, 2);  // the pack on the back: still
+        p.held[1].seq = 0;
+        p.held[1].frame = p.held[1].next_frame = 0;
+        p.held[1].anim_time = 0.0f;
+        return p;
+    };
+
+    mp::Interpolator in;
+    std::uint16_t seq = 0;
+    double last = -1.0;
+    bool runs_on = true;
+    int between_keys = 0;
+
+    for (int t = 0; t <= 500; ++t) {
+        if (t % 50 == 0) {
+            in.add(swing(t), ++seq, t, t + 30, false);
+        }
+
+        if (t % 16 == 0 && t >= 200) {
+            mp::Pose p;
+            CHECK(in.at(t + 30, p) && p.held_count == 2);
+            const double place = p.held[0].frame + static_cast<double>(p.held[0].anim_time);
+            runs_on = runs_on && place >= last - 1e-6;
+            // Not a pose's own key: one the frames between two poses make.
+            const double ms_place = std::fmod(place / (60.0 / 1000.0 * 0.5), 50.0);
+            between_keys += ms_place > 1.0 && ms_place < 49.0 ? 1 : 0;
+            last = place;
+            CHECK(p.held[1].frame == 0 && p.held[1].anim_time == 0.0f && p.held[1].oclass == 0x25F);
+        }
+    }
+
+    CHECK(runs_on && last > 3.0 && between_keys > 5);
+
+    // By hand: half way between keys 2.0 and 3.5 of the swing is 2.75.
+    mp::Interpolator two;
+    mp::Pose a = swing(0), b = swing(0);
+    a.held[0].frame = 2;
+    a.held[0].next_frame = 3;
+    a.held[0].anim_time = 0.0f;
+    b.held[0].frame = 3;
+    b.held[0].next_frame = 4;
+    b.held[0].anim_time = 0.5f;
+    b.position[0] = 1.0f;
+    two.add(a, 1, 0, 0, false);
+    two.add(b, 2, 100, 100, false);
+    mp::Pose mid;
+    CHECK(two.at(50.0 + two.delay_ms(), mid));
+    const double mid_place = mid.held[0].frame + static_cast<double>(mid.held[0].anim_time);
+    CHECK(std::fabs(mid_place - 2.75) < 0.05 && mid.held[0].next_frame == 3);
+
+    // Another seq in the later pose (the swing ends, the wrench is put away): no running on, the
+    // nearer pose's.
+    mp::Interpolator other;
+    b.held[0].seq = 1;
+    b.held[0].frame = 0;
+    b.held[0].anim_time = 0.0f;
+    other.add(a, 1, 0, 0, false);
+    other.add(b, 2, 100, 100, false);
+    CHECK(other.at(30.0 + other.delay_ms(), mid) && mid.held[0].seq == 3 && mid.held[0].frame == 2
+          && mid.held[0].anim_time == 0.0f);
+    CHECK(other.at(70.0 + other.delay_ms(), mid) && mid.held[0].seq == 1 && mid.held[0].frame == 0);
+
+    // A thrown wrench (loose in both): along from one place to the other.
+    mp::Interpolator thrown;
+    a = swing(0);
+    b = swing(0);
+    a.held[0].flags = b.held[0].flags = mp::kHeldLoose;
+    a.held[0].position[0] = 10.0f;
+    b.held[0].position[0] = 20.0f;
+    thrown.add(a, 1, 0, 0, false);
+    thrown.add(b, 2, 100, 100, false);
+    CHECK(thrown.at(50.0 + thrown.delay_ms(), mid) && std::fabs(mid.held[0].position[0] - 15.0f) < 0.5f);
+}
+
 // A pose every 50 ms moving at 10 units a second, sampled every 16 ms.
 void a_steady_stream_plays_smoothly() {
     mp::Interpolator in;
@@ -2980,6 +3073,29 @@ void held_items_and_shots_reach_the_figure() {
     const mp::Pose& now_on_member = member.game.figures.begin()->second;
     CHECK(now_on_member.held_count == 1 && now_on_member.held[0].oclass == 0xA8);
 
+    // The Blaster's recoil (its seq 2, a key every 4 ticks) plays on the member's figure of it, its
+    // key and time running on between the poses.
+    std::uint32_t seen_keys = 0;
+    double last_place = -1.0;
+    bool forward = true;
+    for (int i = 0; i < 40; ++i) {
+        const double place = i * 16.0 * 60.0 / 1000.0 * 0.25;
+        host.game.hero_pose.held[0].seq = 2;
+        host.game.hero_pose.held[0].frame = static_cast<std::uint32_t>(place);
+        host.game.hero_pose.held[0].next_frame = host.game.hero_pose.held[0].frame + 1;
+        host.game.hero_pose.held[0].anim_time = static_cast<float>(place - host.game.hero_pose.held[0].frame);
+        host.game.hero_pose.held[0].anim_speed = 1.0f;
+        tick({&host, &member}, 16);
+        const mp::HeldPiece& shown = member.game.figures.begin()->second.held[0];
+        if (shown.seq == 2) {
+            const double at = shown.frame + static_cast<double>(shown.anim_time);
+            forward = forward && at >= last_place - 0.02;
+            seen_keys |= 1u << std::min<std::uint32_t>(shown.frame, 31);
+            last_place = at;
+        }
+    }
+    CHECK(forward && last_place > 1.0 && (seen_keys & 0x3u) == 0x3u);
+
     // The member fires: the host's figure of it fires the same shot, not at once (its poses'
     // delay), once.
     mp::Shot shot;
@@ -3493,6 +3609,7 @@ void a_long_pause_keeps_the_figure() {
 int main() {
     pose_bytes();
     held_and_shot_bytes();
+    held_item_animation_runs_on();
     a_steady_stream_plays_smoothly();
     repeats_late_poses_and_teleports();
     a_stall_then_a_burst();
