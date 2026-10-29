@@ -88,6 +88,7 @@
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
+#include "trace.hpp"
 
 namespace mp {
 
@@ -144,6 +145,8 @@ constexpr std::size_t kShotsWaiting = 32;
 /* How often the server's clock is asked again (TIME): the poses' stamps keep to it over a long
  * session. */
 constexpr std::uint64_t kClockMs = 30000;
+/* How often the verbose log says how each figure's poses are shown. */
+constexpr std::uint64_t kPoseTraceMs = 500;
 /* A member's scene skipped again this often while the host is out of its own; the most a player
  * out of a scene waits for the others (the host for the members; a member for the host). */
 constexpr std::uint64_t kSkipMs = 500;
@@ -336,6 +339,7 @@ struct Remote {
     int figure = -1;
     bool hidden = false;         // its figure hidden for a scene playing in this game
     std::uint64_t retry_ms = 0;  // when a figure may be made again
+    std::uint64_t traced_ms = 0;  // when the verbose log last said how its poses are shown
     /* Its shots to fire, each when its figure is as far behind as its poses are played. */
     struct PendingShot {
         double due_ms = 0;
@@ -349,6 +353,10 @@ class Coop {
 public:
     /* `clock` gives the monotonic milliseconds poses arrive at (now_ms when none is given). */
     Coop(Session& session, Game& game, std::function<std::uint64_t()> clock = {});
+
+    /* The verbose log (trace.hpp; null or off: none): each pose received (its stamp, when it came,
+     * its time in transit) and twice a second how each figure's poses are shown ("pose" lines). */
+    void trace(Trace* trace) { trace_ = trace; }
 
     /* What every game of a party must have the same of (the mod's version, OpenRAC's, the disc):
      * the host sends it with PLAY, and a member with another refuses to start. */
@@ -497,6 +505,7 @@ private:
     /* Whether the game was asked to keep its world running under its menus. */
     bool overlay_ = false;
     std::function<std::uint64_t()> clock_;
+    Trace* trace_ = nullptr;
     Bytes chosen_;
     std::string description_;
     /* The host's game (0: none yet): its id, and the members told of it. */

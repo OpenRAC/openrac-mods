@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <utility>
 
@@ -149,6 +150,7 @@ void World::reset() {
     standing_ = 0;
     driven_.clear();
     poses_.clear();
+    posed_at_.clear();
     net_slot_.clear();
     loose_.clear();
     claimed_.clear();
@@ -758,14 +760,57 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
 
     // Each driven moby where the host's snapshots put it, a delay behind.
     const auto t = static_cast<double>(now);
+    const bool trace_poses = tracing();
 
     for (auto& [id, poses] : poses_) {
         const int slot = slot_of(id);
         Pose pose;
 
         if (slot >= 0 && poses.at(t, pose)) {
+            // Moved by something else since it was put there (its own update or the game's)?
+            if (trace_poses) {
+                const auto was = posed_at_.find(slot);
+                const auto moby = mobys_.find(slot);
+
+                if (was != posed_at_.end() && moby != mobys_.end()
+                    && distance2(was->second.data(), moby->second.pose.position) > 1e-4f) {
+                    ++moved_since_;
+                }
+
+                posed_at_[slot] = {pose.position[0], pose.position[1], pose.position[2]};
+            }
+
             game_.moby_pose(slot, pose);
         }
+    }
+
+    // Once a second, how they are shown: what all the frames since showed, the buffers of three
+    // that moved, and how many were moved by something else between two ticks.
+    if (trace_poses && now - poses_traced_ms_ >= kWorldPoseTraceMs) {
+        poses_traced_ms_ = now;
+        int by[6] = {0, 0, 0, 0, 0, 0};
+        std::string some;
+        int described = 0;
+
+        for (auto& [id, poses] : poses_) {
+            const Interpolator::Counts counts = poses.take_counts();
+            int moving = 0;
+
+            for (int i = 0; i < 6; ++i) {
+                by[i] += counts.by[i];
+                moving += i == static_cast<int>(Shown::kBetween) || i == static_cast<int>(Shown::kAhead) ? counts.by[i] : 0;
+            }
+
+            // A few that moved: their buffers.
+            if (moving > 0 && described < 3) {
+                ++described;
+                some += " | id " + std::to_string(id) + " " + shown_name(poses.shown()) + " " + poses.describe();
+            }
+        }
+
+        trace_line("pose", "mobys " + std::to_string(poses_.size()) + " frames " + counts_text(by) + " moved by the game "
+                               + std::to_string(moved_since_) + some);
+        moved_since_ = 0;
     }
 
     // Each driven moby hidden or shown as the host's is (its own update, which would, does not
@@ -916,6 +961,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const double time =
                 session_.has_clock() ? static_cast<double>(stamp) - session_.clock_offset_ms() : now;
             const auto sequence = static_cast<std::uint16_t>(stamp >> 4);
+
+            if (tracing()) {
+                char text[160];
+                std::snprintf(text, sizeof text, "received stamp %lld local %.0f arrival %.0f transit %.0f n=%zu",
+                              static_cast<long long>(stamp), time, now, now - time, entries.size());
+                trace_line("snap", text);
+            }
 
             for (const WorldEntry& e : entries) {
                 const auto net = static_cast<std::uint16_t>(e.id & ~kSpawnedId);

@@ -65,6 +65,7 @@
 #ifndef MULTIPLAYER_WORLD_H
 #define MULTIPLAYER_WORLD_H
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
@@ -109,6 +110,8 @@ constexpr std::size_t kWorldEntryBytes = 25;
 constexpr std::uint64_t kWorldMs = 66;
 constexpr std::uint64_t kWorldRefreshMs = 1000;
 constexpr float kWorldNear = 80.0f;
+/* How often a member's verbose log says how the host's mobys are shown. */
+constexpr std::uint64_t kWorldPoseTraceMs = 1000;
 /* The bolt update's state while the bolt hovers where it landed (bolt_update's 3). */
 constexpr std::uint32_t kBoltHovering = 3;
 /* How long a crate replaying another game's break may take to break before it is deleted. */
@@ -353,6 +356,11 @@ private:
     /* Member: the mobys it drives, their poses by id, the host's spawned ones by net id. */
     std::set<int> driven_;
     std::map<std::uint16_t, Interpolator> poses_;
+    /* Member, for the verbose log: where each driven moby was put last tick (to see whether
+     * anything else moved it since), how many were, and when the log last said how they are shown. */
+    std::map<int, std::array<float, 3>> posed_at_;
+    int moved_since_ = 0;
+    std::uint64_t poses_traced_ms_ = 0;
     std::map<std::uint16_t, int> net_slot_;
     /* Member: the host's bolts landed there and so run here, by net id. */
     std::set<std::uint16_t> loose_;

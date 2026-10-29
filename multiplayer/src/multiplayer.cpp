@@ -1357,6 +1357,7 @@ void load(openrac::Mod& mod) {
     }
 
     g->world->trace(&g->trace);
+    g->coop->trace(&g->trace);
     g->progress->trace(&g->trace);
     // The game's DATA: the world's kinds to the world, the rest to the co-op.
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {

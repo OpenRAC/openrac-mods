@@ -399,11 +399,20 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
     Remote& r = remotes_[m.owner];
     if (tracing()) {
         std::fprintf(stderr, "ATRACE seq %u %d\n", m.sequence, m.teleport ? 1 : 0);
-        trace("R", now, time, m.pose);
+        mp::trace("R", now, time, m.pose);
     }
 
     r.poses.add(m.pose, m.sequence, time, now, m.teleport);
     r.scene = m.scene;
+
+    if (trace_ != nullptr && trace_->on()) {
+        char text[192];
+        std::snprintf(text, sizeof text,
+                      "recv player %d seq %u stamp %lld local %.0f arrival %.0f transit %.0f%s",
+                      m.owner, m.sequence, static_cast<long long>(m.stamp_ms), time, now, now - time,
+                      m.teleport ? " teleport" : "");
+        trace_->line("pose", text);
+    }
 }
 
 void Coop::tick(std::uint64_t now) {
@@ -477,7 +486,7 @@ void Coop::tick(std::uint64_t now) {
         Pose hero;
 
         if (game_.hero(hero)) {
-            trace("H", static_cast<double>(now), 0.0, hero);
+            mp::trace("H", static_cast<double>(now), 0.0, hero);
         }
     }
 
@@ -1011,7 +1020,21 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
         }
 
         if (tracing() && r.figure >= 0) {
-            trace("O", t, r.poses.delay_ms(), pose);
+            mp::trace("O", t, r.poses.delay_ms(), pose);
+        }
+
+        // Twice a second, how its poses are shown: the buffer, what the frames since showed, and
+        // this game's clock to the server's.
+        if (trace_ != nullptr && trace_->on() && now - r.traced_ms >= kPoseTraceMs) {
+            r.traced_ms = now;
+            const Interpolator::Counts counts = r.poses.take_counts();
+            trace_->line(
+                "pose", "shown player " + std::to_string(it->first) + " " + shown_name(r.poses.shown()) + " at "
+                            + xyz(pose.position) + " cursor " + std::to_string(std::llround(r.poses.cursor_ms()))
+                            + " " + r.poses.describe() + " frames " + counts_text(counts.by) + " clock rtt "
+                            + std::to_string(session_.rtt_ms()) + " offset "
+                            + std::to_string(std::llround(session_.clock_offset_ms()))
+            );
         }
 
         // Hidden: its pieces too (they follow the figure, but are drawn by their own mobys).

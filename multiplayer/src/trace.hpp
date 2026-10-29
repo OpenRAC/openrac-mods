@@ -15,7 +15,16 @@
  *   despawn   a moby gone (or hidden) with who removed it and why (despawn.hpp);
  *   eyes      the points the host's game runs the world around (play_eyes);
  *   snap      a WORLD snapshot sent or received: its count, the ids new and the ids missing since
- *             the last one;
+ *             the last one; received, its stamp (the server's clock), the stamp in this game's
+ *             clock, when it came and its time in transit;
+ *   pose      a player's pose received (its sequence, stamp, the stamp in this clock, when it
+ *             came, its transit); twice a second for each figure shown, what was shown (between
+ *             two poses, ahead of the newest, held, a jump, before the first), where, the playback
+ *             cursor, the buffer (play.hpp's describe: delay, transit, jitter, interval, loss, how
+ *             far ahead the newest pose is, how many are kept), how many frames showed each, and
+ *             the clock's round trip and offset; once a second the host's mobys driven here: the
+ *             frames each way, how many something else moved after they were put there, and three
+ *             of their buffers;
  *   drive     a moby driven from the host's or let go;
  *   msg       KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received;
  *   census    every second: the live mobys by class, and the ones that came and went.
