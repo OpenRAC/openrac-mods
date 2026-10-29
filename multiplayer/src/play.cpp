@@ -583,8 +583,14 @@ bool Interpolator::place(double now_ms, Pose& out) {
             moved = fade + f - f * f / (2.0 * kFadeMs);
         }
 
+        // Along an axis the last two poses did not move on, nothing: a standing Ratchet's
+        // velocity says he falls (the game's gravity, which the ground takes back each tick).
+        const Pose* before = samples_.size() >= 2 ? &samples_[samples_.size() - 2].pose : nullptr;
+
         for (int i = 0; i < 3; ++i) {
-            out.position[i] += static_cast<float>(out.velocity[i] * moved / 1000.0);
+            if (before == nullptr || std::fabs(out.position[i] - before->position[i]) >= kStillStep) {
+                out.position[i] += static_cast<float>(out.velocity[i] * moved / 1000.0);
+            }
         }
 
         shown_ = jumped_ ? Shown::kJump : Shown::kAhead;
@@ -613,9 +619,13 @@ bool Interpolator::place(double now_ms, Pose& out) {
     animate(sa.pose, sb.pose, s, out);
 
     for (int i = 0; i < 3; ++i) {
+        // Along an axis the two poses did not move on, a straight line (it stands): not a bump
+        // drawn through velocities that say otherwise (a standing Ratchet's says he falls).
+        const bool still = std::fabs(sb.pose.position[i] - sa.pose.position[i]) < kStillStep;
+        const double va = still ? 0.0 : sa.pose.velocity[i];
+        const double vb = still ? 0.0 : sb.pose.velocity[i];
         out.position[i] = static_cast<float>(
-            h00 * sa.pose.position[i] + h10 * h * sa.pose.velocity[i] + h01 * sb.pose.position[i]
-            + h11 * h * sb.pose.velocity[i]
+            h00 * sa.pose.position[i] + h10 * h * va + h01 * sb.pose.position[i] + h11 * h * vb
         );
         out.velocity[i] =
             static_cast<float>(sa.pose.velocity[i] + (sb.pose.velocity[i] - sa.pose.velocity[i]) * s);

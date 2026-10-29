@@ -12,7 +12,10 @@
 //   - the delay following the link: up when its jitter grows, slowly down when it calms, a
 //     larger one way;
 //   - a moby that stops (WORLD stops sending it) held where it stopped, and one that starts again
-//     after a silence going there along the way, not jumping.
+//     after a silence going there along the way, not jumping;
+//   - a Ratchet standing still, whose velocity says he falls (the game's gravity, which the ground
+//     takes back: tests/data/pose_stall.csv), with poses now and then late enough that the cursor
+//     runs past the newest: he does not bob; and his jump drawn along its arc all the same.
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -452,6 +455,75 @@ void a_moby_stops_and_goes_on() {
     CHECK(worst_step < 2.0 * speed * frame / 1000.0);
 }
 
+// Standing at z 31.2 with the game's -0.749 units a second of z velocity (as recorded), 20 poses a
+// second at 170 ms, every 37th pose 140 ms late (the cursor goes past the newest); from 6 s a jump
+// (10 units a second up, 30 down), then standing again.
+void standing_still_and_a_jump() {
+    const double ground = 31.2, up = 10.0, gravity = 30.0, start = 6000.0;
+    const double air = 2.0 * up / gravity * 1000.0;
+    const auto z_at = [&](double t) {
+        const double tau = (t - start) / 1000.0;
+        return t < start || t > start + air ? ground : ground + up * tau - gravity * tau * tau / 2.0;
+    };
+    const auto vz_at = [&](double t) {
+        return t < start || t > start + air ? -0.749 : up - gravity * (t - start) / 1000.0;
+    };
+    Random r(5);
+    std::vector<Packet> packets;
+    std::uint16_t sequence = 0;
+    int n = 0;
+
+    for (double t = 0; t <= 12000; t += 50.0) {
+        Packet p;
+        p.stamp = t;
+        p.sequence = ++sequence;
+        p.pose.level = 3;
+        p.pose.position[0] = 139.1f;
+        p.pose.position[1] = 118.8f;
+        p.pose.position[2] = static_cast<float>(z_at(t));
+        p.pose.velocity[2] = static_cast<float>(vz_at(t));
+        p.arrival = t + 170.0 + r.jitter(6.0) + (++n % 37 == 0 ? 140.0 : 0.0);
+        packets.push_back(p);
+    }
+
+    std::stable_sort(packets.begin(), packets.end(), [](const Packet& a, const Packet& b) {
+        return a.arrival < b.arrival;
+    });
+    mp::Interpolator in;
+    std::size_t next = 0;
+    double bob = 0, arc = 0;
+    int past = 0;
+
+    for (double t = 0; t <= 12500; t += 1000.0 / 60.0) {
+        for (; next < packets.size() && packets[next].arrival <= t; ++next) {
+            in.add(packets[next].pose, packets[next].sequence, packets[next].stamp, t, false);
+        }
+
+        mp::Pose p;
+
+        if (!in.at(t, p) || t < 1000) {
+            continue;
+        }
+
+        past += in.shown() == mp::Shown::kAhead || in.shown() == mp::Shown::kHeld ? 1 : 0;
+        const double c = in.cursor_ms();
+
+        // Standing (well clear of the jump): exactly the ground.
+        if (c < start - 100 || c > start + air + 300) {
+            bob = std::max(bob, std::fabs(p.position[2] - ground));
+        } else if (in.shown() == mp::Shown::kBetween) {
+            // In the air: on the arc at the cursor's time.
+            arc = std::max(arc, std::fabs(p.position[2] - z_at(c)));
+        }
+    }
+
+    std::printf("standing: bob %.4f units over %d frames past the newest; the jump off its arc by %.4f\n",
+                bob, past, arc);
+    CHECK(past > 5);
+    CHECK(bob < 0.002);
+    CHECK(arc < 0.05);
+}
+
 }  // namespace
 
 int main() {
@@ -461,6 +533,7 @@ int main() {
     reordered_and_repeated();
     the_delay_follows_the_link();
     a_moby_stops_and_goes_on();
+    standing_still_and_a_jump();
 
     if (g_failures == 0) {
         std::puts("smooth: all passed");

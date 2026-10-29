@@ -36,7 +36,9 @@
  * neighbours, limited so the curve never goes past a pose and back (Fritsch and Carlson), and the
  * margin has one interval more so a pose's neighbour after it is there before it plays. The
  * playback cursor runs up to 10 % fast or slow to keep its delay, so a change of delay never
- * jumps; far behind (a stall, then a burst), it jumps. Past the newest pose a figure goes on along
+ * jumps; far behind (a stall, then a burst), it jumps. Along an axis two poses did not move on
+ * (kStillStep), the velocities are not used: a standing Ratchet's says he falls at 0.75 units a
+ * second (gravity, which the ground takes back each tick). Past the newest pose a figure goes on along
  * its velocity for at most 150 ms, then holds (at once when it was slowing down: a stop); a moby
  * holds where it is (WORLD stops sending one that stops). When the next pose comes, what is shown
  * goes back onto the curve over about kCatchUpMs rather than at once. A teleport (the sender's flag, a level
@@ -158,6 +160,9 @@ constexpr double kMaxDelayMs = 1000.0;
 constexpr double kExtrapolateMs = 150.0;
 constexpr double kFadeMs = 50.0;
 constexpr double kSnapDistance = 8.0;
+/* A step between two poses along an axis below this is standing still on it: no velocity is
+ * drawn or carried on along it (a grounded Ratchet's z velocity is the game's gravity). */
+constexpr double kStillStep = 0.01;
 constexpr double kStallMs = 1000.0;
 constexpr double kRateMin = 0.9;
 constexpr double kRateMax = 1.1;
