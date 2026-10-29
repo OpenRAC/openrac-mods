@@ -154,6 +154,7 @@ void World::reset() {
     net_slot_.clear();
     loose_.clear();
     claimed_.clear();
+    flights_.clear();
     host_killed_.clear();
     placed_class_.clear();
     replays_.clear();
@@ -347,6 +348,8 @@ void World::tick_world(std::uint64_t now) {
         }
     }
 
+    tick_flights(now);
+
     // A replayed crate that has not broken by its deadline: deleted.
     for (auto it = replays_.begin(); it != replays_.end();) {
         const auto moby = mobys_.find(it->first);
@@ -384,6 +387,26 @@ bool World::collect(int slot) {
     const auto moby = mobys_.find(slot);
     const int oclass = moby != mobys_.end() ? moby->second.oclass : 0;
 
+    // A bolt another player took, arrived at that player (or at this game's Ratchet, for one taken
+    // for him there): given already, nothing added and nothing claimed; the bolt update deletes it.
+    if (const auto f = flights_.find(slot); f != flights_.end()) {
+        trace_line("bolts", moby_name(slot) + " id " + std::to_string(f->second.id) + " reaches player "
+                                + std::to_string(f->second.player) + (f->second.figure >= 0 ? "'s figure" : " here")
+                                + " (taken there: nothing added here)");
+        flights_.erase(f);
+
+        for (auto it = net_slot_.begin(); it != net_slot_.end(); ++it) {
+            if (it->second == slot) {
+                loose_.erase(it->first);
+                net_slot_.erase(it);
+                break;
+            }
+        }
+
+        driven_.erase(slot);
+        return false;
+    }
+
     // The host: its own Ratchet's, or the member's whose figure stood in for him (the bolt flew to
     // that figure: the nearest player), the bolt gone from every game (DESPAWN or KILLED at the
     // next tick); nobody's claim takes it after this.
@@ -392,6 +415,7 @@ bool World::collect(int slot) {
 
         if (id != kNoId && standing_ != 0) {
             claimed_.insert(id);
+            send_taken(id, standing_);
             members_[standing_].bolts += bolt_value(oclass);
             trace_line("bolts", "player " + std::to_string(standing_) + "'s figure collects " + moby_name(slot) + " id "
                                     + std::to_string(id) + " +" + std::to_string(bolt_value(oclass))
@@ -401,6 +425,7 @@ bool World::collect(int slot) {
 
         if (id != kNoId) {
             claimed_.insert(id);
+            send_taken(id, session_.id());
             trace_line("bolts", "host collects " + moby_name(slot) + " id " + std::to_string(id) + " +"
                                     + std::to_string(bolt_value(oclass)) + " (its own credit)");
         }
@@ -466,12 +491,111 @@ void World::claim(std::int32_t member, int level, std::uint16_t id) {
     }
 
     claimed_.insert(id);
-    note(slot, "CLAIM, a bolt taken there", member);
-    kill(slot, "CLAIM from " + std::to_string(member));
+    send_taken(id, member);
+
+    // Here it flies to the claimant's figure as the game's pickup does, then goes (DESPAWN or
+    // KILLED for everyone once its update deletes it); with no figure to fly to, at once.
+    if (!fly(slot, id, member, clock_())) {
+        note(slot, "CLAIM, a bolt taken there", member);
+        kill(slot, "CLAIM from " + std::to_string(member));
+    }
+
     session_.send_data(member, Writer().u8(static_cast<std::uint8_t>(WorldKind::kBolts)).i32(value).bytes());
     counts_.bolts += value;
     trace_line("bolts", "claim granted to " + std::to_string(member) + " id " + std::to_string(id) + " "
                             + moby_name(slot) + ": sent BOLTS +" + std::to_string(value));
+}
+
+void World::send_taken(std::uint16_t id, std::int32_t player) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(WorldKind::kTaken)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+    u16(w, id);
+    w.i32(player);
+    session_.send_data(kBroadcast, w.bytes());
+    trace_line("msg", "sent TAKEN to all id " + std::to_string(id) + " by " + std::to_string(player));
+}
+
+bool World::fly(int slot, std::uint16_t id, std::int32_t player, std::uint64_t now) {
+    const auto moby = mobys_.find(slot);
+
+    if (moby == mobys_.end() || !bolt_class(moby->second.oclass)) {
+        return false;
+    }
+
+    const bool here = player == session_.id();
+    const int figure = here ? -1 : coop_.figure_of(player);
+
+    if (!here && figure < 0) {
+        return false;
+    }
+
+    flights_[slot] = {player, figure, id, now + kFlightMs};
+    trace_line("bolts", moby_name(slot) + " id " + std::to_string(id) + " flies to player " + std::to_string(player)
+                            + (here ? " (this game's Ratchet)" : "'s figure"));
+    return true;
+}
+
+void World::stand_flight(int slot) {
+    const Flight& f = flights_.at(slot);
+    const MobyState& bolt = mobys_.at(slot);
+    float to[3] = {0, 0, 0};
+    bool found = false;
+
+    // Where the player is shown here: the figure (or this game's Ratchet).
+    if (f.figure >= 0) {
+        const auto shown = mobys_.find(game_.figure_slot(f.figure));
+        Pose p;
+
+        if (shown != mobys_.end()) {
+            std::copy(shown->second.pose.position, shown->second.pose.position + 3, to);
+            found = true;
+        } else if (coop_.latest(f.player, p)) {
+            std::copy(p.position, p.position + 3, to);
+            found = true;
+        }
+    } else {
+        Pose p;
+
+        if (game_.hero(p)) {
+            std::copy(p.position, p.position + 3, to);
+            found = true;
+        }
+    }
+
+    if (!found) {
+        return;
+    }
+
+    // Not yet set off (it hovers, lands or falls): the player stands within its reach, on the way
+    // to the player and at its height, so its own update sets it off toward them; then where they
+    // are, which it flies to.
+    if (bolt.state != kBoltFlying) {
+        const float dx = to[0] - bolt.pose.position[0];
+        const float dy = to[1] - bolt.pose.position[1];
+        const float d = std::sqrt(dx * dx + dy * dy);
+        const float k = d > kBoltReach ? kBoltReach / d : 1.0f;
+        to[0] = bolt.pose.position[0] + dx * k;
+        to[1] = bolt.pose.position[1] + dy * k;
+        to[2] = bolt.pose.position[2];
+    }
+
+    game_.stand_in(to, f.figure);
+}
+
+void World::tick_flights(std::uint64_t now) {
+    for (auto it = flights_.begin(); it != flights_.end();) {
+        const auto moby = mobys_.find(it->first);
+
+        if (moby == mobys_.end() || !bolt_class(moby->second.oclass)) {
+            it = flights_.erase(it);
+        } else if (now >= it->second.until) {
+            note(it->first, "a taken bolt's flight timed out", it->second.player);
+            kill(it->first, "a taken bolt's flight timed out");
+            it = flights_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 void World::replay_break(int slot, std::uint64_t now) {
@@ -1037,6 +1161,10 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                     note(slot, "KILLED, a crate broken as there", sender);
                     replay_break(slot, clock_());
                     ++counts_.kills;
+                } else if (slot >= 0 && flights_.count(slot) != 0) {
+                    // A placed bolt taken there, flying to whoever took it: it goes on arrival.
+                    trace_line("bolts", "KILLED of " + moby_name(slot) + " left to its flight");
+                    ++counts_.kills;
                 } else if (slot >= 0) {
                     note(slot, "KILLED", sender);
                     kill(slot, "KILLED from " + std::to_string(sender));
@@ -1100,7 +1228,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 loose_.erase(net);
                 ++counts_.despawns;
 
-                if (level == level_ && it != net_slot_.end()) {
+                if (level == level_ && it != net_slot_.end() && flights_.count(it->second) != 0) {
+                    // Taken there, flying to whoever took it: it goes on arrival.
+                    trace_line("bolts", "DESPAWN of " + moby_name(it->second) + " left to its flight");
+                    driven_.erase(it->second);
+                    net_slot_.erase(it);
+                } else if (level == level_ && it != net_slot_.end()) {
                     note(it->second, "DESPAWN", sender);
                     kill(it->second, "DESPAWN from " + std::to_string(sender));
                     driven_.erase(it->second);
@@ -1108,6 +1241,36 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 }
 
                 poses_.erase(static_cast<std::uint16_t>(kSpawnedId | net));
+            }
+
+            break;
+        }
+        case WorldKind::kTaken: {
+            const int level = static_cast<std::int8_t>(r.u8());
+            const std::uint16_t id = u16(r);
+            const std::int32_t player = r.i32();
+
+            if (!r.ok() || level != level_) {
+                return;
+            }
+
+            // A bolt that runs here by itself (one of the host's landed here, or a placed one):
+            // it flies to whoever took it. One the host's poses still drive shows the host's way.
+            int slot = -1;
+
+            if ((id & kSpawnedId) != 0) {
+                const auto net = static_cast<std::uint16_t>(id & ~kSpawnedId);
+                const auto it = net_slot_.find(net);
+                slot = it != net_slot_.end() && loose_.count(net) != 0 ? it->second : -1;
+            } else {
+                slot = game_.moby_slot(id);
+            }
+
+            trace_line("msg", "received TAKEN from " + std::to_string(sender) + " id " + std::to_string(id) + " by "
+                                  + std::to_string(player) + " slot " + std::to_string(slot));
+
+            if (slot >= 0 && driven_.count(slot) == 0 && flights_.count(slot) == 0) {
+                fly(slot, id, player, clock_());
             }
 
             break;
@@ -1179,6 +1342,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 }
 
 bool World::gate(int slot, int phase) {
+    // A bolt another player took flies to that player (in either game).
+    if (phase == kMobyBefore && flights_.count(slot) != 0 && mobys_.count(slot) != 0) {
+        stand_flight(slot);
+        return false;
+    }
+
     if (!hosting_ || members_.empty()) {
         return false;
     }

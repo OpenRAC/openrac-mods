@@ -39,6 +39,13 @@
  * everyone) and gives the claimant the bolt's value (BOLTS). A later claim is refused, and its
  * player gets nothing. The host's own collection is the host's credit, and goes from every game.
  *
+ * A bolt taken goes as the game takes one in every game that runs it: the host tells who took it
+ * (TAKEN), and each game where it hovers by itself (the host's for a member's claim, a member's
+ * for a bolt that landed, or a placed bolt) has it fly to that player (the taker's figure standing
+ * in for the hero during its update, the game's own pickup flight), then the bolt update deletes
+ * it there, nothing added (collect). DESPAWN or KILLED leave it to that flight; a bolt that has
+ * not arrived within kFlightMs is deleted.
+ *
  * Member. In the host's level it drives every placed moby that has an update of its own (the game
  * no longer runs it) and poses it from WORLD through a buffer per moby (play.hpp's, a delay
  * behind), kills what the host killed, makes what the host spawned (driven too). A hit its game
@@ -60,7 +67,8 @@
  *   15 BOLTS   count i32                                          the host to a member;
  *   16 DEAD    level i8, count u16 (records), then a bit a record, 1 dead   the host to a member;
  *   17 BROKE   level i8, key u16                                  a member broke a crate;
- *   22 CLAIM   level i8, id u16 (a key; 0x8000 | a net id)        a member collected a bolt.
+ *   22 CLAIM   level i8, id u16 (a key; 0x8000 | a net id)        a member collected a bolt;
+ *   24 TAKEN   level i8, id u16 (as CLAIM's), player i32          the host: who took a bolt.
  */
 #ifndef MULTIPLAYER_WORLD_H
 #define MULTIPLAYER_WORLD_H
@@ -93,7 +101,8 @@ enum class WorldKind : std::uint8_t {
     kBolts = 15,
     kDead = 16,
     kBroke = 17,
-    kClaim = 22
+    kClaim = 22,
+    kTaken = 24
 };
 
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
@@ -114,6 +123,13 @@ constexpr float kWorldNear = 80.0f;
 constexpr std::uint64_t kWorldPoseTraceMs = 1000;
 /* The bolt update's state while the bolt hovers where it landed (bolt_update's 3). */
 constexpr std::uint32_t kBoltHovering = 3;
+/* Its state while it flies to the Ratchet who takes it (bolt_update's 4), and how near that
+ * Ratchet stands in for its update while it has not set off (well within the hero's reach, which
+ * bolt_update's hover checks). How long a bolt taken by another player may fly before it is
+ * deleted. */
+constexpr std::uint32_t kBoltFlying = 4;
+constexpr float kBoltReach = 0.5f;
+constexpr std::uint64_t kFlightMs = 2000;
 /* How long a crate replaying another game's break may take to break before it is deleted. */
 constexpr std::uint64_t kReplayMs = 3000;
 /* How far a moby may move between two snapshots before its buffer starts again (a respawn). */
@@ -291,6 +307,14 @@ private:
     void send_dead(std::int32_t member, int level);
     /* Host: a member's claim of a bolt, by its id (a key, or kSpawnedId | a net id). */
     void claim(std::int32_t member, int level, std::uint16_t id);
+    /* Host: who took a bolt (TAKEN), to every member. */
+    void send_taken(std::uint16_t id, std::int32_t player);
+    /* A bolt taken by `player` flies to that player here before it goes (the host's copy of one a
+     * member claimed, or a member's copy that runs by itself); false when it cannot (no figure). */
+    bool fly(int slot, std::uint16_t id, std::int32_t player, std::uint64_t now);
+    /* A flight's stand-in before its bolt's update; the flights done or out of time. */
+    void stand_flight(int slot);
+    void tick_flights(std::uint64_t now);
     void log_counts(std::uint64_t now);
     /* A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
      * and sound), its drop left out; deleted if it has not broken by the deadline. */
@@ -346,6 +370,15 @@ private:
     int bolts_before_ = 0;
     /* Host: the bolts taken (granted to a member, or collected here), by id. */
     std::set<std::uint16_t> claimed_;
+    /* The bolts flying to the player who took them (fly), by slot: who, that player's figure here
+     * (-1: this game's Ratchet), its id, until when. */
+    struct Flight {
+        std::int32_t player = 0;
+        int figure = -1;
+        std::uint16_t id = 0;
+        std::uint64_t until = 0;
+    };
+    std::map<int, Flight> flights_;
     /* Member: the crates the host killed (not to be told back), last tick's placed mobys' classes. */
     std::set<int> host_killed_;
     /* Crates breaking here for another game's break: their slots, until when they may take. */

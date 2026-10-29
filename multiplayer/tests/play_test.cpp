@@ -1870,7 +1870,8 @@ void bolts_are_the_hosts() {
     }
 
     // Both members' Ratchets reach the starnut: neither game adds it, both claim; A's claim reaches
-    // the host first and only A is given its 20 bolts. It is gone from every game.
+    // the host first and only A is given its 20 bolts. In the host's game it flies to A's figure
+    // (A's figure stands in for its update), and goes there, nothing added; then from every game.
     const int a_star = slot_of_class(a.game, 15);
     const int b_star = slot_of_class(b.game, 15);
     CHECK(!a.world.collect(a_star) && !b.world.collect(b_star));
@@ -1878,6 +1879,17 @@ void bolts_are_the_hosts() {
     b.game.die(b_star);
     route({&host, &a});
     route({&host, &a, &b});
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(a.game.bolt_count == 20 && b.game.bolt_count == 0 && host.game.bolt_count == 0);
+    const int host_star = slot_of_class(host.game, 15);
+    CHECK(host_star >= 0);
+    CHECK(!host.world.gate(host_star, mp::kMobyBefore));
+    // Not yet off (it hovers): A stands within its reach, on the way to A (at x 1).
+    CHECK(host.game.world_calls.back() == "stand 21 " + std::to_string(host.coop.figure_of(2)));
+    CHECK(!host.world.collect(host_star));
+    host.world.gate(host_star, mp::kMobyAfter);
+    host.game.die(host_star);
     tick({&host, &a, &b}, 50);
     tick({&host, &a, &b}, 50);
     CHECK(a.game.bolt_count == 20 && b.game.bolt_count == 0 && host.game.bolt_count == 0);
@@ -1897,6 +1909,21 @@ void bolts_are_the_hosts() {
     b.game.die(b_spawned);
     host.game.die(300);
     tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(host.game.bolt_count == 1 && b.game.bolt_count == 0 && a.game.bolt_count == 20);
+    // In A's game, where it hovered by itself, it flies to the host's figure and goes there.
+    int a_spawned = -1;
+    for (const mp::MobyState& m : a.game.level) {
+        if (m.oclass == 13 && m.key < 0) {
+            a_spawned = m.slot;
+        }
+    }
+    CHECK(a_spawned >= 0 && !a.world.gate(a_spawned, mp::kMobyBefore));
+    CHECK(a.game.world_calls.back().rfind("stand ", 0) == 0
+          && a.game.world_calls.back().substr(a.game.world_calls.back().rfind(' ') + 1)
+                 == std::to_string(a.coop.figure_of(1)));
+    CHECK(!a.world.collect(a_spawned));
+    a.game.die(a_spawned);
     tick({&host, &a, &b}, 50);
     CHECK(host.game.bolt_count == 1 && b.game.bolt_count == 0 && a.game.bolt_count == 20);
     CHECK(a.world.spawned() == 0 && b.world.spawned() == 0);
@@ -1932,6 +1959,13 @@ void bolts_are_the_hosts() {
     tick({&host, &a, &b}, 50);
     tick({&host, &a, &b}, 50);
     CHECK(b.game.bolt_count == 5 && a.game.bolt_count == 20);
+    // The host's flies to B's figure first, then is dead there (and so in everyone's).
+    CHECK(host.game.moby_slot(2) == 2 && !host.world.gate(2, mp::kMobyBefore));
+    CHECK(!host.world.collect(2));
+    host.game.die(2);
+    tick({&host, &a, &b}, 50);
+    tick({&host, &a, &b}, 50);
+    CHECK(b.game.bolt_count == 5 && a.game.bolt_count == 20 && host.game.bolt_count == 1);
     CHECK(host.game.moby_slot(2) == -1 && host.game.hits.size() == host_hits);
 
     // The placed bolt (key 4) taken by the host: its own, dead in the members' games too, and a
@@ -1941,7 +1975,16 @@ void bolts_are_the_hosts() {
     host.game.die(4);
     tick({&host, &a, &b}, 50);
     tick({&host, &a, &b}, 50);
+    // In each member's game it flies to the host's figure, the host's KILLED left to that flight,
+    // and goes on arrival, nothing added.
+    for (Player* p : {&a, &b}) {
+        CHECK(p->game.moby_slot(4) == 4 && !p->world.gate(4, mp::kMobyBefore));
+        CHECK(!p->world.collect(4));
+        p->game.die(4);
+    }
+    tick({&host, &a, &b}, 50);
     CHECK(a.game.moby_slot(4) == -1 && b.game.moby_slot(4) == -1);
+    CHECK(b.game.bolt_count == 5 && a.game.bolt_count == 20);
     mp::Writer late;
     late.u8(static_cast<std::uint8_t>(mp::WorldKind::kClaim)).u8(0).u8(0).u8(4);
     host.world.handle(3, late.bytes());
@@ -2022,6 +2065,126 @@ void bolts_go_to_the_nearest() {
     CHECK(std::any_of(host_log.begin(), host_log.end(), [](const std::string& l) {
         return l.find(" 2 spawns, 2 despawns") != std::string::npos;
     }));
+}
+
+// A bolt that landed and hovers runs by itself in each game. Taken in one, it flies in the others
+// to whoever took it, as the game's own pickup flies (the taker's figure standing in for its
+// update: near it while it hovers, so it sets off, then where the figure is), and goes on arrival
+// with nothing added; the DESPAWN that follows leaves it to its flight. One that never arrives is
+// deleted after kFlightMs.
+void taken_bolts_fly_to_the_taker() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(1, 1, 77, mp::kMobyPlaced, 90.0f)};
+    }
+    host.game.hero_pose.position[0] = 10.0f;
+    member.game.hero_pose.position[0] = 40.0f;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+
+    // The host's game drops three bolts, which land: each member's copy runs by itself.
+    for (int i = 0; i < 3; ++i) {
+        mp::MobyState b = moby(300 + i, -1, 13, mp::kMobyUpdates, 25.0f + static_cast<float>(i));
+        b.state = 1;
+        host.game.level.push_back(b);
+    }
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    for (mp::MobyState& m : host.game.level) {
+        if (m.key < 0) {
+            m.state = mp::kBoltHovering;
+        }
+    }
+    tick({&host, &member}, 100);
+    tick({&host, &member}, 100);
+    CHECK(member.world.spawned() == 3 && member.world.driven() == 0);
+    std::vector<int> copies;
+    for (const mp::MobyState& m : member.game.level) {
+        if (m.key < 0 && m.oclass == 13) {
+            copies.push_back(m.slot);
+        }
+    }
+    CHECK(copies.size() == 3);
+    const int member_figure = host.coop.figure_of(2);
+    const int host_figure = member.coop.figure_of(1);
+    CHECK(member_figure >= 0 && host_figure >= 0);
+
+    // The member takes the first (x 25): its claim, granted. In the host's game it hovers on: the
+    // member's figure stands within its reach on the way to it (x 25.5), it sets off, then the
+    // figure stands where it is (x 40), and it goes on arrival, nothing added there.
+    CHECK(!member.world.collect(copies[0]));
+    member.game.die(copies[0]);
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    CHECK(member.game.bolt_count == 1 && slot_of_class(host.game, 13) == 300);
+    CHECK(!host.world.gate(300, mp::kMobyBefore));
+    CHECK(host.game.world_calls.back() == "stand 25 " + std::to_string(member_figure));
+    host.world.gate(300, mp::kMobyAfter);
+    for (mp::MobyState& m : host.game.level) {
+        if (m.slot == 300) {
+            m.state = mp::kBoltFlying;
+            m.pose.position[0] = 30.0f;
+        }
+    }
+    tick({&host, &member}, 16);
+    CHECK(!host.world.gate(300, mp::kMobyBefore));
+    CHECK(host.game.world_calls.back() == "stand 40 " + std::to_string(member_figure));
+    CHECK(!host.world.collect(300));
+    host.world.gate(300, mp::kMobyAfter);
+    host.game.die(300);
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(member.game.bolt_count == 1 && host.game.bolt_count == 0);
+
+    // The host takes the second (its own credit). In the member's game it flies to the host's
+    // figure: TAKEN, then the DESPAWN, which leaves it be; it goes on arrival, unclaimed.
+    CHECK(host.world.collect(301));
+    host.game.bolt_count += 1;
+    host.game.die(301);
+    tick({&host, &member}, 16);
+    tick({&host, &member}, 16);
+    CHECK(std::any_of(member.game.level.begin(), member.game.level.end(),
+                      [&](const mp::MobyState& m) { return m.slot == copies[1]; }));
+    CHECK(!member.world.gate(copies[1], mp::kMobyBefore));
+    CHECK(member.game.world_calls.back() == "stand 25 " + std::to_string(host_figure));
+    for (mp::MobyState& m : member.game.level) {
+        if (m.slot == copies[1]) {
+            m.state = mp::kBoltFlying;
+        }
+    }
+    tick({&host, &member}, 16);
+    CHECK(!member.world.gate(copies[1], mp::kMobyBefore));
+    CHECK(member.game.world_calls.back() == "stand 10 " + std::to_string(host_figure));
+    const std::size_t sent = member.link.frames.size();
+    CHECK(!member.world.collect(copies[1]));
+    CHECK(member.link.frames.size() == sent);  // no claim
+    member.game.die(copies[1]);
+    route({&host, &member});
+    tick({&host, &member}, 50);
+    CHECK(member.game.bolt_count == 1 && host.game.bolt_count == 1);
+
+    // The host takes the third, and the member's copy is never updated: deleted after kFlightMs.
+    CHECK(host.world.collect(302));
+    host.game.bolt_count += 1;
+    host.game.die(302);
+    tick({&host, &member}, 16);
+    tick({&host, &member}, 16);
+    CHECK(std::any_of(member.game.level.begin(), member.game.level.end(),
+                      [&](const mp::MobyState& m) { return m.slot == copies[2]; }));
+    tick({&host, &member}, mp::kFlightMs);
+    CHECK(std::none_of(member.game.level.begin(), member.game.level.end(),
+                       [&](const mp::MobyState& m) { return m.slot == copies[2]; }));
+    CHECK(member.game.bolt_count == 1 && host.game.bolt_count == 2 && member.world.spawned() == 0);
 }
 
 // Whether a game was given something (FakeGame's `given`), and whether it was asked for a scene.
@@ -3354,6 +3517,7 @@ int main() {
     classes_are_shared_as_they_should_be();
     bolts_are_the_hosts();
     bolts_go_to_the_nearest();
+    taken_bolts_fly_to_the_taker();
     progress_is_the_partys();
     a_long_session();
     scenes_end_together();
