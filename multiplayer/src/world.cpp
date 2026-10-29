@@ -382,10 +382,20 @@ bool World::collect(int slot) {
     const auto moby = mobys_.find(slot);
     const int oclass = moby != mobys_.end() ? moby->second.oclass : 0;
 
-    // The host: its own Ratchet's, the bolt gone from every game (DESPAWN or KILLED at the next
-    // tick); nobody's claim takes it after this.
+    // The host: its own Ratchet's, or the member's whose figure stood in for him (the bolt flew to
+    // that figure: the nearest player), the bolt gone from every game (DESPAWN or KILLED at the
+    // next tick); nobody's claim takes it after this.
     if (session_.is_host()) {
         const std::uint16_t id = hosting_ ? id_of(slot) : kNoId;
+
+        if (id != kNoId && standing_ != 0) {
+            claimed_.insert(id);
+            members_[standing_].bolts += bolt_value(oclass);
+            trace_line("bolts", "player " + std::to_string(standing_) + "'s figure collects " + moby_name(slot) + " id "
+                                    + std::to_string(id) + " +" + std::to_string(bolt_value(oclass))
+                                    + " (theirs: BOLTS; nothing added here)");
+            return false;
+        }
 
         if (id != kNoId) {
             claimed_.insert(id);
@@ -484,11 +494,11 @@ void World::log_counts(std::uint64_t now) {
     // A line in the log now and then of what went on.
     if (now - counts_ms_ >= kWorldLogMs) {
         const Counts& c = counts_;
-        if (!mobys_.empty() || c.snapshots + c.hits + c.kills + c.spawns + c.damage + c.bolts > 0) {
+        if (!mobys_.empty() || c.snapshots + c.hits + c.kills + c.spawns + c.despawns + c.damage + c.bolts > 0) {
             log("world: " + std::to_string(mobys_.size()) + " mobys (" + std::to_string(driven_.size())
                 + " driven), " + std::to_string(c.snapshots) + " snapshots, " + std::to_string(c.hits)
                 + " hits, " + std::to_string(c.kills) + " kills, " + std::to_string(c.spawns)
-                + " spawns, " + std::to_string(c.damage) + " damage, " + std::to_string(c.bolts)
+                + " spawns, " + std::to_string(c.despawns) + " despawns, " + std::to_string(c.damage) + " damage, " + std::to_string(c.bolts)
                 + " bolts");
         }
         counts_ = Counts{};
@@ -657,6 +667,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
 
         session_.send_data(kBroadcast, w.bytes());
         trace_line("msg", "sent DESPAWN to all n=" + std::to_string(gone.size()) + " nets [" + nets + "]");
+        counts_.despawns += static_cast<int>(gone.size());
     }
 
     // The members: where each is, what it is told, the eyes on them.
@@ -1034,6 +1045,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 }
 
                 loose_.erase(net);
+                ++counts_.despawns;
 
                 if (level == level_ && it != net_slot_.end()) {
                     note(it->second, "DESPAWN", sender);
@@ -1136,8 +1148,10 @@ bool World::gate(int slot, int phase) {
 
     const auto it = mobys_.find(slot);
 
-    // The hero's own class (figures) and the crates (each game's) keep the hero as he is.
-    if (it == mobys_.end() || it->second.oclass == 0 || local_class(it->second.oclass)) {
+    // The hero's own class (figures) and the crates, pickups and interactables (each game's)
+    // keep the hero as he is; but a bolt flies to the player nearest it, as an enemy goes for one.
+    if (it == mobys_.end() || it->second.oclass == 0
+        || (local_class(it->second.oclass) && !bolt_class(it->second.oclass))) {
         return false;
     }
 

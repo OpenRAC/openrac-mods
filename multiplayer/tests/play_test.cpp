@@ -1945,6 +1945,80 @@ void bolts_are_the_hosts() {
 
 }
 
+// A bolt in the host's game flies to the player nearest it: a member nearer stands in for the
+// hero during its update, and what that figure collects is the member's (BOLTS), nothing added in
+// the host's game; the host nearer collects it itself. The world's log line counts its spawns.
+void bolts_go_to_the_nearest() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    std::vector<std::string> host_log;
+    host.world.on_log([&](const std::string& line) { host_log.push_back(line); });
+
+    const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(1, 1, 500, runs, 20.0f), moby(2, 2, 77, mp::kMobyPlaced, 90.0f)};
+    }
+    // The member stands by the crate (x 20), the host far off (x 100).
+    host.game.hero_pose.position[0] = 100.0f;
+    member.game.hero_pose.position[0] = 21.0f;
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+
+    // The member breaks the crate: the host's copy breaks and drops a starnut at the crate.
+    member.game.die(1);
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    host.game.die(1);
+    host.game.level.push_back(moby(300, -1, 15, mp::kMobyUpdates, 20.5f));
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+
+    // Its update on the host: the member is nearer, so its figure stands in; the bolt reaches it
+    // and is collected there: the member's 20 bolts, none for the host.
+    const int stood = host.game.stood;
+    CHECK(!host.world.gate(300, mp::kMobyBefore));
+    CHECK(host.game.stood == stood + 1 && host.game.world_calls.back().rfind("stand 21", 0) == 0);
+    CHECK(!host.world.collect(300));
+    CHECK(!host.world.gate(300, mp::kMobyAfter));
+    host.game.die(300);
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(member.game.bolt_count == 20 && host.game.bolt_count == 0);
+    CHECK(member.world.spawned() == 0);
+
+    // Another bolt, the host now nearer than the member: its own, no stand-in.
+    host.game.hero_pose.position[0] = 30.0f;
+    member.game.hero_pose.position[0] = 60.0f;
+    host.game.level.push_back(moby(301, -1, 13, mp::kMobyUpdates, 31.0f));
+    for (int i = 0; i < 5; ++i) {
+        tick({&host, &member}, 50);
+    }
+    const int stood_again = host.game.stood;
+    CHECK(!host.world.gate(301, mp::kMobyBefore));
+    CHECK(host.game.stood == stood_again);
+    CHECK(host.world.collect(301));
+    host.game.bolt_count += 1;
+    host.world.gate(301, mp::kMobyAfter);
+    host.game.die(301);
+    tick({&host, &member}, 50);
+    tick({&host, &member}, 50);
+    CHECK(host.game.bolt_count == 1 && member.game.bolt_count == 20);
+
+    // The world's line in the log counts the two spawns and their ends.
+    tick({&host, &member}, mp::kWorldLogMs);
+    CHECK(std::any_of(host_log.begin(), host_log.end(), [](const std::string& l) {
+        return l.find(" 2 spawns, 2 despawns") != std::string::npos;
+    }));
+}
+
 // Whether a game was given something (FakeGame's `given`), and whether it was asked for a scene.
 bool was_given(const FakeGame& game, const std::string& what) {
     return std::find(game.given.begin(), game.given.end(), what) != game.given.end();
@@ -3274,6 +3348,7 @@ int main() {
     a_pause_keeps_the_world_whole();
     classes_are_shared_as_they_should_be();
     bolts_are_the_hosts();
+    bolts_go_to_the_nearest();
     progress_is_the_partys();
     a_long_session();
     scenes_end_together();

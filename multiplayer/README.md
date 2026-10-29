@@ -74,8 +74,10 @@ The world is the host's:
 - **Bolts are the host's, once in the world.** Only the host's game drops them: its enemies' and
   its crates', a crate a member broke too (the host's copy of it breaks and drops). The members'
   games drop none of their own. Every player sees the same bolts fly out of the same crate or enemy
-  and land in the same places; once landed, each one hovers and flies to whichever Ratchet comes
-  near, in every game.
+  and land in the same places. A bolt flies to the player nearest it (in the host's game that
+  player's figure stands in for the hero, as for an enemy), and what it brings is that player's:
+  break a crate next to it and its bolts are yours. Once landed, each one hovers and flies to
+  whichever Ratchet comes near, in every game.
 - **A bolt is the first collector's.** A member's collected bolt (one dropped or one lying about
   in the level) adds nothing in that member's game: it asks the host, who gives it to the first
   to ask while it is still there, takes it from every game and sends that player its bolts. A

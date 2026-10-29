@@ -386,7 +386,7 @@ private:
     } traced_;
     /* What it did since the last line in the log (every kWorldLogMs when something happened). */
     struct Counts {
-        int snapshots = 0, hits = 0, kills = 0, spawns = 0, damage = 0, bolts = 0;
+        int snapshots = 0, hits = 0, kills = 0, spawns = 0, despawns = 0, damage = 0, bolts = 0;
     } counts_;
     std::uint64_t counts_ms_ = 0;
 };
