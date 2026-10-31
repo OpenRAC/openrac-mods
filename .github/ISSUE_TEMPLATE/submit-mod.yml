@@ -81,7 +81,7 @@ body:
     id: rules
     attributes:
       label: Content rules
-      description: See [CONTENT.md](https://github.com/OpenRAC/rac1-mods/blob/master/CONTENT.md).
+      description: See [CONTENT.md](https://github.com/OpenRAC/openrac-mods/blob/master/CONTENT.md).
       options:
         - label: My mod follows the content rules
           required: true

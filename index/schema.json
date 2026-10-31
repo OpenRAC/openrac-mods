@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/OpenRAC/rac1-mods/blob/master/index/schema.json",
+  "$id": "https://github.com/OpenRAC/openrac-mods/blob/master/index/schema.json",
   "title": "OpenRAC mod index entry",
   "description": "index/<id>.json (an external mod, or a pack with type: pack) and <folder>/listing.json (an in-repo mod). Checked by tools/build_index.py.",
   "oneOf": [

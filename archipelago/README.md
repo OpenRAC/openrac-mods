@@ -13,7 +13,7 @@ With the mod off, the game is the PlayStation 2 game.
    it, or put it in Archipelago's `custom_worlds` folder), and generates with your player YAML
    (game `Ratchet & Clank`).
 2. Install the mod from the launcher's **Mods** tab (**Add from a link**:
-   `https://github.com/OpenRAC/rac1-mods`), switch it on and fill in its settings.
+   `https://github.com/OpenRAC/openrac-mods`), switch it on and fill in its settings.
 3. Start a **new game**. A line at the top of the screen says when the mod is connected, and what
    is found and received.
 

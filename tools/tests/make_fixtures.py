@@ -20,9 +20,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "fixtures" / "github"
-REPO = "https://github.com/OpenRAC/rac1-mods"
-API = "https://api.github.com/repos/OpenRAC/rac1-mods"
-RAW = "https://raw.githubusercontent.com/OpenRAC/rac1-mods"
+REPO = "https://github.com/OpenRAC/openrac-mods"
+API = "https://api.github.com/repos/OpenRAC/openrac-mods"
+RAW = "https://raw.githubusercontent.com/OpenRAC/openrac-mods"
 DL = REPO + "/releases/download"
 EXT = "https://github.com/someone/ext-hud"
 EXT_API = "https://api.github.com/repos/someone/ext-hud"
@@ -190,7 +190,7 @@ def main() -> None:
                  "created_at": "2026-10-30T00:00:00Z", "published_at": "2026-10-30T00:00:00Z", "body": "",
                  "assets": []})
     rels.sort(key=lambda r: r["published_at"], reverse=True)
-    route(f"{API}/releases?per_page=100&page=1", "api/rac1-mods/releases-1.json", rels)
+    route(f"{API}/releases?per_page=100&page=1", "api/openrac-mods/releases-1.json", rels)
 
     # An external mod, its own repo, released with v<version> tags.
     ext = manifest("ext-hud", "0.2.0", name="Extra HUD", api="1.2", homepage=EXT)

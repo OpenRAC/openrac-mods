@@ -6,7 +6,7 @@
   "author": "OpenRAC contributors",
   "description": "Strafe as in the later games. Lock with weapons: with a weapon that fires ahead in hand, Ratchet always faces where the camera looks, the right stick turns him and the left stick strafes (Up Your Arsenal's lock-strafe). Hold L2 or R2: the camera swings behind him and he strafes while it is held (Going Commando's). L1 still looks and R1 still crouches.",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/lock-strafe",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/lock-strafe",
   "api": "1.1",
   "games": { "rac1": ["pal", "ntsc"] },
   "hooks": [

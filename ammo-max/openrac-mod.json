@@ -6,7 +6,7 @@
   "author": "OpenRAC contributors",
   "description": "At the Gadgetron vendor, buying ammo starts at the most you can buy (the rounds the weapon has room for, or as many as your bolts pay for) instead of 1. Down still lowers it, Up raises it again, Square buys as before.",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/ammo-max",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ammo-max",
   "api": "1.1",
   "games": {
     "rac1": [

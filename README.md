@@ -31,7 +31,7 @@ section 11):
 ## Installing a mod
 
 **From the launcher**: open **Mods**, choose **Add from a link**, and paste
-`https://github.com/OpenRAC/rac1-mods`. The launcher lists the mods here with
+`https://github.com/OpenRAC/openrac-mods`. The launcher lists the mods here with
 what each is for and whether your game can load it; **Install** downloads a
 native mod built for your computer, or a script mod, from the latest release
 and checks it against the release's `SHA256SUMS`. It is listed for the game, on; choose its settings and
@@ -39,7 +39,7 @@ Play (settings count from the game's next start). The launcher offers updates
 when a newer release comes out, unless you keep the version you have.
 
 **By hand**: download the mod's `.zip` from this repository's
-[Releases](https://github.com/OpenRAC/rac1-mods/releases) (one archive holds
+[Releases](https://github.com/OpenRAC/openrac-mods/releases) (one archive holds
 the mod for Windows, Linux and macOS), then in the launcher's **Mods**, **Add
 a mod**, and choose it.
 
@@ -72,8 +72,8 @@ SHA-256 that [sdk.lock](sdk.lock) pins, which `tools/fetch_sdk.py` downloads
 into `.sdk/`.
 
 ```sh
-git clone https://github.com/OpenRAC/rac1-mods.git
-cd rac1-mods
+git clone https://github.com/OpenRAC/openrac-mods.git
+cd openrac-mods
 python3 tools/fetch_sdk.py                                    # the pinned SDK, checked, into .sdk/
 cmake -S . -B build -G Ninja
 cmake --build build
@@ -152,7 +152,7 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   tags with the archives and `SHA256SUMS` the SDK's workflow makes; new
   releases are picked up by themselves.
 
-- **Without git**: the [Submit a mod](https://github.com/OpenRAC/rac1-mods/issues/new?template=submit-mod.yml)
+- **Without git**: the [Submit a mod](https://github.com/OpenRAC/openrac-mods/issues/new?template=submit-mod.yml)
   issue form (or the wizard at https://openrac.dev/mods/submit). A bot checks
   it, takes the pictures you drag in, and opens the pull request; *Update a
   listing* and *Remove my mod* work the same way. You need write access to the

@@ -38,7 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import media  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = "https://github.com/OpenRAC/rac1-mods"
+SOURCE = "https://github.com/OpenRAC/openrac-mods"
 INDEX_TAG = "index"
 MEDIA_BASE = f"{SOURCE}/releases/download/{INDEX_TAG}/"
 INDEX_URL = MEDIA_BASE + "index.json"

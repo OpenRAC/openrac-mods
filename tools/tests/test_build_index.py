@@ -84,7 +84,7 @@ class Builder(unittest.TestCase):
         self.assertEqual(ls["readme"], "# Lock-strafe\n\nStrafe as in the later games.\n")
         self.assertEqual(ls["created"], "2026-09-01T12:00:00Z")
         self.assertEqual(ls["updated"], "2026-10-20T12:00:00Z")
-        self.assertEqual(ls["links"], {"bugs": "https://github.com/OpenRAC/rac1-mods/issues",
+        self.assertEqual(ls["links"], {"bugs": "https://github.com/OpenRAC/openrac-mods/issues",
                                        "discord": "https://discord.gg/example"})
 
     def test_manifest_becomes_version(self):
@@ -174,7 +174,7 @@ class Builder(unittest.TestCase):
             ls = mod(index, "lock-strafe")
             self.assertEqual(ls["downloads7d"], ls["downloads"] - 100)
             # The broken release's archives count too.
-            rels = json.loads((FIXTURE / "api/rac1-mods/releases-1.json").read_text())
+            rels = json.loads((FIXTURE / "api/openrac-mods/releases-1.json").read_text())
             want = sum(a["download_count"] for r in rels if r["tag_name"].startswith("lock-strafe-v")
                        for a in r["assets"] if a["name"] != "SHA256SUMS")
             self.assertEqual(ls["downloads"], want)
