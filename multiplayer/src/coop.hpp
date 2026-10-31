@@ -7,9 +7,11 @@
  * calls in the mod, a fake in the tests), on the game's thread, once a tick.
  *
  * The game's own kinds of DATA (after the lobby's 1 to 3, session.hpp), the host's word first:
- *   4 PLAY   play i32, mode u8 (0 a new game, 1 a save), level i32, save size i32, build string
+ *   4 PLAY   play i32, mode u8 (0 a new game, 1 a save), level i32, save size i32, build string,
+ *            joining u8
  *            the host to everyone (at Start) or to one member (who came late, or asked): play this;
  *            a save follows in CHUNKs. `play` names the host's game: a member plays each once.
+ *            `joining`: the game is on, this member comes into it (below).
  *   5 CHUNK  play i32, offset i32, bytes        a piece of PLAY's save, at most kChunkBytes;
  *   6 LEVEL  play i32, level i32, scene u8, travel u16, dest i32, arriving u8
  *            the host to everyone, once a second and at each change: the level it plays (-1 none),
@@ -66,6 +68,14 @@
  * level (or kArriveMs went by), nobody has control once out of its landing, no figure is shown and
  * the host's world sends nothing (world.hpp), so nothing of the old level carries over and nothing
  * of the new one moves before all are in.
+ * Joining. A member that comes into a game already on has none of the party's scenes to play and
+ * nobody to wait for it. Its game loads the host's level from the host's live save, which has
+ * everything it must get past on the way: the game's movies, the ship's landing, whatever story
+ * scene the level's mobys start at their first update. From PLAY's `joining` until it stands in the
+ * host's level with the host's world (World's SYNCED), this game presses through all of it by
+ * itself (Start for a movie, the game's own skip for a scene), says no scene of the host's is its
+ * to play, tells no scene in its poses, and is held by nothing, so no other player waits on it; the
+ * "only the host skips" rule is for scenes the party plays together, which this is not.
  * Leaving. A player whose party goes while it plays the party's game (it left, the host ended the
  * party, the connection went) leaves its level for the title at once, from wherever it is (playing,
  * a scene, the pause menu: play_travel(-1)), and the title opens the mod's Multiplayer page (Home):
@@ -176,6 +186,9 @@ constexpr std::uint64_t kHomeRetryMs = 500;
  * (beyond this its lateness is not waited for: the host's barrier is kBarrierMs). */
 constexpr std::uint64_t kSceneAskMs = 3000;
 constexpr std::uint64_t kSceneLagMs = 15000;
+/* The longest a member is taken to be joining (a game that never gets the host's world answers to
+ * the party's scenes again after this). */
+constexpr std::uint64_t kJoiningMs = 120000;
 
 /* What the game is doing (the SDK's openrac_play_status). */
 struct GameStatus {
@@ -464,8 +477,12 @@ public:
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
 private:
-    void send_play(std::int32_t target, const Bytes& save, int level);
+    void send_play(std::int32_t target, const Bytes& save, int level, bool joining);
+    void tick_joining(std::uint64_t now, const GameStatus& status);
     void on_pose(std::int32_t sender, const Bytes& bytes);
+    void on_poses(std::int32_t sender, Reader& r);
+    /* The host: the poses waiting to go out, with `own` when given, in as few datagrams as fit. */
+    void send_poses(const Bytes* own);
     void tick_host(std::uint64_t now, const GameStatus& status);
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_pose(std::uint64_t now, const GameStatus& status);
@@ -636,6 +653,9 @@ private:
     bool home_ = false;
     std::uint64_t home_since_ = 0;
     std::uint64_t home_ms_ = 0;
+    /* The host: each member's newest pose not passed on yet, and when they last went. */
+    std::map<std::int32_t, Bytes> relay_;
+    std::uint64_t relay_ms_ = 0;
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
     /* The verbose log: this game's hero's z each tick, said twice a second (trace_hero). */

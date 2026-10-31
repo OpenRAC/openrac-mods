@@ -159,6 +159,12 @@ void Coop::tick_member_scene(std::uint64_t now, const GameStatus& status) {
         && (now - host_scene_end_ms_ >= kSceneLagMs
             || (scene_first_ask_ms_ != 0
                 && now - std::max(scene_first_ask_ms_, host_scene_end_ms_) >= kSceneAskMs));
+
+    // A scene under way when this member joined the game is not its to play: it stands by.
+    if (joining_) {
+        scene_done_ = true;
+    }
+
     const bool wanted = here && host_scene_id_ >= 0 && !scene_done_ && !skipped && !given_up;
     scene_pending_ = wanted;
     send_scene_state(now);

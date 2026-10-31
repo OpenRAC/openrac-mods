@@ -98,7 +98,7 @@ bool Coop::start() {
     play_ = static_cast<std::int32_t>((clock_() * 2654435761u) | 1u);
     const int level = chosen_.empty() ? 0 : -1;
     session_.start();
-    send_play(kBroadcast, chosen_, level);
+    send_play(kBroadcast, chosen_, level, false);
     told_.clear();
 
     for (const Member& m : session_.members()) {
@@ -123,14 +123,14 @@ bool Coop::start() {
 
 bool Coop::start_blocked(int phase) const {
     return (phase == kPhaseScene || phase == kPhaseLoading) && play_ != 0 && session_.in_party()
-           && !session_.is_host();
+           && !session_.is_host() && !joining_;
 }
 
 void Coop::own_skip(int phase, std::uint64_t now) {
     // Only a scene or a movie (a load: the title leaving, the flight between planets), in a game
     // of the party's, once in a while.
     if ((phase != kPhaseScene && phase != kPhaseLoading) || play_ == 0 || !session_.in_party()
-        || (own_skip_ms_ != 0 && now - own_skip_ms_ < kSkipMs)) {
+        || (own_skip_ms_ != 0 && now - own_skip_ms_ < kSkipMs) || joining_) {
         return;
     }
 
@@ -177,6 +177,12 @@ bool Coop::movie_press(std::uint64_t now) {
     const GameStatus status = game_.status();
     note_phase(status);
 
+    // On its way into a game that is on: whatever plays on the way, press after press.
+    if (joining_ && status.phase == kPhaseLoading) {
+        joining_press_ = !joining_press_;
+        return joining_press_;
+    }
+
     if (movie_presses_ <= 0 || now >= skip_until_ || status.phase != kPhaseLoading
         || movie_load_ != load_instance_) {
         movie_presses_ = 0;
@@ -199,7 +205,7 @@ bool Coop::rejoin() {
     return true;
 }
 
-void Coop::send_play(std::int32_t target, const Bytes& save, int level) {
+void Coop::send_play(std::int32_t target, const Bytes& save, int level, bool joining) {
     session_.send_data(
         target,
         Writer()
@@ -209,6 +215,7 @@ void Coop::send_play(std::int32_t target, const Bytes& save, int level) {
             .i32(level)
             .i32(static_cast<std::int32_t>(save.size()))
             .str(build_)
+            .u8(joining ? 1 : 0)
             .bytes()
     );
 
@@ -252,6 +259,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const std::int32_t level = r.i32();
             const std::int32_t size = r.i32();
             const std::string build = r.left() > 0 ? r.str() : std::string();
+            const bool joining = r.left() > 0 && r.u8() != 0;
 
             // The host's word only, whole, and a save of a size a game has.
             if (!from_host || !r.ok() || play == 0 || size < 0
@@ -273,6 +281,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             pending_play_ = play;
             pending_level_ = level;
             pending_save_ = save;
+            pending_joining_ = joining;
             expected_ = save ? static_cast<std::size_t>(size) : 0;
             received_ = 0;
             save_.assign(expected_, 0);
@@ -355,9 +364,9 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                 log("player " + std::to_string(sender) + " asked for the game");
 
                 if (!live.empty()) {
-                    send_play(sender, live, status.level);
+                    send_play(sender, live, status.level, true);
                 } else {
-                    send_play(sender, chosen_, chosen_.empty() ? 0 : -1);
+                    send_play(sender, chosen_, chosen_.empty() ? 0 : -1, false);
                 }
             }
 
@@ -532,7 +541,7 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     const bool arrival = arriving_ && play_ != 0 && status.level == travel_dest_;
     waiting = waiting || arrival;
 
-    waiting = waiting && status.phase == kPhasePlaying;
+    waiting = waiting && status.phase == kPhasePlaying && !joining_;
 
     if (!waiting) {
         // (Into a scene of its own meanwhile: nobody is out yet, the hold just ends.)
@@ -591,7 +600,7 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
 
         if (!live.empty()) {
             log("player " + std::to_string(m.id) + " joins the game in level " + std::to_string(status.level));
-            send_play(m.id, live, status.level);
+            send_play(m.id, live, status.level, true);
             told_.push_back(m.id);
         }
     }
@@ -683,6 +692,10 @@ std::string Coop::banner(std::uint64_t now) const {
         return "Waiting for the other players to arrive";
     }
 
+    if (joining_) {
+        return "Joining the game";
+    }
+
     return {};
 }
 
@@ -729,7 +742,9 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
             if (game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
                 applied_ = pending_play_;
                 start_ms_ = now;
-                log("started the host's game");
+                joining_ = pending_joining_;
+                joining_since_ = now;
+                log(joining_ ? "joining the host's game" : "started the host's game");
             } else {
                 notice_ = "The host's game would not start here";
             }
@@ -745,6 +760,8 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
             }
         }
     }
+
+    tick_joining(now, status);
 
     // A scene of this game's that the host is out of (skipped there, or played out): skipped here,
     // through the game's own skip, so the party goes on together.
@@ -822,6 +839,28 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     }
 }
 
+void Coop::tick_joining(std::uint64_t now, const GameStatus& status) {
+    if (!joining_) {
+        return;
+    }
+
+    const bool there = status.phase == kPhasePlaying && status.level == host_level_ && world_ready_;
+
+    if (there || now - joining_since_ >= kJoiningMs) {
+        joining_ = false;
+        log(there ? "joined the host's game: " + std::to_string(now - joining_since_) + " ms"
+                  : "joining took too long: going on");
+        return;
+    }
+
+    // Whatever scene its load started is no scene of the party's.
+    if (status.phase == kPhaseScene && (skip_ms_ == 0 || now - skip_ms_ >= kSkipMs)) {
+        skip_ms_ = now;
+        skip_asked_ = true;
+        game_.skip();
+    }
+}
+
 void Coop::trace_hero(std::uint64_t now, const GameStatus& status) {
     Pose hero;
 
@@ -872,7 +911,7 @@ void Coop::send_pose(std::uint64_t now, const GameStatus& status) {
     m.teleport = !pose_sent_ || status.loads != pose_loads_ || m.pose.level != last_pose_.level
                  || step(m.pose, last_pose_) > kSnapDistance;
     m.owner = session_.id();
-    m.scene = status.phase == kPhaseScene;
+    m.scene = status.phase == kPhaseScene && !joining_;
     m.sequence = ++sequence_;
     m.stamp_ms = session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(now);
     pose_ms_ = now;
@@ -1151,6 +1190,8 @@ void Coop::reset() {
     }
 
     remotes_.clear();
+    relay_.clear();
+    joining_ = pending_joining_ = world_ready_ = false;
     play_ = 0;
     told_.clear();
     pending_ = false;
