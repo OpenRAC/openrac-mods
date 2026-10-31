@@ -24,6 +24,8 @@
 #include <functional>
 #include <algorithm>
 #include <map>
+#include <memory>
+#include <random>
 #include <set>
 #include <string>
 #include <vector>
@@ -3630,6 +3632,809 @@ void a_long_pause_keeps_the_figure() {
           != host_log.end());
 }
 
+// ---- The network as it is: a seeded link and a model of the server ----
+
+// What the server does with a player's packets (Server's README, Limits and UDP): DATA and state
+// each 60 a second over a burst of 120, state over it dropped without a word, DATA over it dropped
+// and a strike, 20 strikes (forgiven 1 a second) closing the connection; a member's traffic reaching
+// the host only. The link on either side of it loses, delays, reorders and repeats datagrams, and
+// delays TCP in order. All of it from one seed, on one clock.
+struct SimLink {
+    double loss = 0;       // of each datagram, each way
+    double latency = 0;    // ms, each way
+    double jitter = 0;     // ms more, at most
+    double reorder = 0;    // of each datagram: late by a good deal more
+    double duplicate = 0;  // of each datagram: arrives twice
+    bool udp = true;       // false: UDP is blocked, state goes by TCP
+};
+
+struct SimNet {
+    struct Packet {
+        double at = 0;
+        Player* to = nullptr;
+        std::int32_t from = 0;
+        Bytes bytes;
+    };
+
+    struct Limits {
+        mp::Pacer data{120, 60};
+        mp::Pacer state{120, 60};
+        mp::Pacer strikes{20, 1};
+        double tcp_last = 0;
+    };
+
+    SimLink link;
+    std::mt19937 random;
+    std::vector<Player*> players;
+    std::vector<Packet> flying;
+    std::map<std::int32_t, Limits> limits;
+    std::uint64_t now = 1000;
+    long data_drops = 0, state_drops = 0, kicked = 0, datagrams_lost = 0, state_sent = 0;
+
+    SimNet(std::vector<Player*> who, SimLink l, unsigned seed) : link(l), random(seed), players(std::move(who)) {
+        for (Player* p : players) {
+            p->link.udp = link.udp;
+        }
+    }
+
+    double uniform() { return std::uniform_real_distribution<double>(0.0, 1.0)(random); }
+
+    double delay() { return link.latency + uniform() * link.jitter; }
+
+    bool reaches(Player* from, std::int32_t target, Player* to) const {
+        return to != from && (from->id == 1 ? target == 0 || target == to->id : to->id == 1);
+    }
+
+    void tcp(Player* from, std::int32_t target, const Bytes& bytes) {
+        for (Player* to : players) {
+            if (reaches(from, target, to)) {
+                Limits& l = limits[to->id];
+                l.tcp_last = std::max(l.tcp_last, static_cast<double>(now) + 2 * delay());
+                flying.push_back({l.tcp_last, to, from->id, bytes});
+            }
+        }
+    }
+
+    void one_datagram(Player* from, Player* to, const Bytes& bytes) {
+        for (int leg = 0; leg < 2; ++leg) {
+            if (uniform() < link.loss) {
+                ++datagrams_lost;
+                return;
+            }
+        }
+
+        double at = static_cast<double>(now) + 2 * delay();
+        at += uniform() < link.reorder ? 60.0 + 3 * link.jitter : 0.0;
+        flying.push_back({at, to, from->id, bytes});
+
+        if (uniform() < link.duplicate) {
+            flying.push_back({at + 5.0, to, from->id, bytes});
+        }
+    }
+
+    void step(std::uint64_t ms) {
+        now += ms;
+
+        for (Player* p : players) {
+            p->clock = now;
+            Limits& l = limits[p->id];
+            std::vector<Bytes> frames;
+            frames.swap(p->link.frames);
+
+            for (const Bytes& frame : frames) {
+                mp::FrameReader r;
+                r.feed(frame.data(), frame.size());
+                Bytes body;
+
+                if (!r.next(body)) {
+                    continue;
+                }
+
+                const mp::Request q = mp::decode_request(body);
+
+                if (q.kind != mp::Request::Kind::kData) {
+                    continue;
+                }
+
+                if (!l.data.take(now)) {
+                    ++data_drops;
+                    kicked += l.strikes.take(now) ? 0 : 1;
+                    continue;
+                }
+
+                tcp(p, q.target, q.bytes);
+            }
+
+            std::vector<std::pair<std::int32_t, Bytes>> datagrams;
+            datagrams.swap(p->link.datagrams);
+
+            for (const auto& [target, bytes] : datagrams) {
+                ++state_sent;
+
+                if (!l.state.take(now)) {
+                    ++state_drops;
+                    continue;
+                }
+
+                for (Player* to : players) {
+                    if (reaches(p, target, to)) {
+                        one_datagram(p, to, bytes);
+                    }
+                }
+            }
+        }
+
+        std::vector<Packet> later;
+        std::sort(flying.begin(), flying.end(), [](const Packet& a, const Packet& b) { return a.at < b.at; });
+
+        for (Packet& f : flying) {
+            if (f.at > static_cast<double>(now)) {
+                later.push_back(std::move(f));
+            } else if (f.to->session.in_party()) {
+                mp::Message m;
+                m.kind = mp::Message::Kind::kData;
+                m.id = f.from;
+                m.bytes = f.bytes;
+                f.to->session.handle(m);
+            }
+        }
+
+        flying.swap(later);
+
+        for (Player* p : players) {
+            p->coop.tick(now);
+            p->world.tick(now);
+            p->progress.tick(now);
+            p->session.flush();
+        }
+    }
+};
+
+/* The games of a party in level 3, its mobys placed alike in each (each game's slots its own: one
+ * spot on per player, so a key is the only name they share): `enemies` driven ones spread over the
+ * level, `crates` crates among them. */
+struct SimWorld {
+    static constexpr std::uint32_t kRuns = mp::kMobyUpdates | mp::kMobyPlaced;
+    int enemies = 0;
+    int crates = 0;
+
+    std::vector<mp::MobyState> made(int shift, const std::set<int>& skipped = {}) const {
+        std::vector<mp::MobyState> out;
+        int slot = shift;
+
+        for (int key = 0; key < enemies + crates; ++key) {
+            if (skipped.count(key) != 0) {
+                continue;
+            }
+
+            const bool crate = key >= enemies;
+            mp::MobyState m = moby(slot++, key, crate ? 500 : 300, kRuns | (crate ? 0 : mp::kMobyCreature), 0.0f);
+            m.pose.position[0] = static_cast<float>(key % 40) * 8.0f;
+            m.pose.position[1] = static_cast<float>(key / 40) * 8.0f;
+            out.push_back(m);
+        }
+
+        return out;
+    }
+};
+
+void join_party(std::vector<Player*> all, const std::vector<mp::Member>& members) {
+    for (Player* p : all) {
+        p->session.handle(info(members));
+    }
+
+    for (Player* p : all) {
+        if (p->id != 1) {
+            p->session.toggle_ready();
+        }
+    }
+
+    route(all);
+}
+
+const mp::MobyState* by_key(const FakeGame& game, int key) {
+    for (const mp::MobyState& m : game.level) {
+        if (m.key == key) {
+            return &m;
+        }
+    }
+
+    return nullptr;
+}
+
+/* The game rebuilding its level as a death does: every moby new, the records `skipped` left out (so
+ * the slots after them move), the spawned gone, nothing driven; the same level. */
+void remake(Player& p, const SimWorld& w, const std::set<int>& skipped = {}, int shift = 0) {
+    p.game.level = w.made(shift, skipped);
+    p.game.drives.clear();
+    ++p.game.now.loads;
+}
+
+/* The placed mobys' slots in a run, clear of the fake's figures and spawns. */
+constexpr int kSimSlots = 1000;
+
+struct SimResult {
+    int wrong_place = 0, wrong_hidden = 0, wrong_crates = 0;
+    long bolts_made = 0, bolts_credited = 0;
+};
+
+/* One run: a party of 1 + `members` plays `seconds`: the host's enemies move and hide, crates go
+ * from every side, each break drops a bolt from the host that a member collects, and a member dies
+ * half way; then everything stops and the link gets 10 seconds, three rounds of the slowest refresh
+ * (kWorldFarMs), to settle. What differs then is a desync no time will mend. */
+SimResult run_sim(const SimLink& link, unsigned seed, int members, double seconds, SimNet** out = nullptr) {
+    static std::vector<std::unique_ptr<Player>> keep;
+    keep.clear();
+    keep.push_back(std::make_unique<Player>(1));
+    std::vector<Player*> all = {keep[0].get()};
+    std::vector<mp::Member> list = {{1, "P1"}};
+
+    for (int i = 0; i < members; ++i) {
+        keep.push_back(std::make_unique<Player>(2 + i));
+        all.push_back(keep.back().get());
+        list.push_back({2 + i, "P" + std::to_string(2 + i)});
+    }
+
+    join_party(all, list);
+    Player& host = *all[0];
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route(all);
+    SimWorld w{120, 30};
+
+    for (std::size_t i = 0; i < all.size(); ++i) {
+        all[i]->game.now = {mp::kPhasePlaying, 3, 2};
+        all[i]->game.level = w.made(kSimSlots + static_cast<int>(i) * 3);
+        all[i]->game.hero_pose.position[0] = 40.0f * static_cast<float>(i);
+    }
+
+    static SimNet* net_kept = nullptr;
+    static std::unique_ptr<SimNet> net;
+    net = std::make_unique<SimNet>(all, link, seed);
+    net_kept = net.get();
+    std::mt19937 rng(seed * 7 + 1);
+    SimResult r;
+    const auto ticks = static_cast<int>(seconds * 1000.0 / 16.0);
+    std::uint16_t next_bolt = 0;
+    bool died = false;
+    std::set<int> broken;
+
+    for (int t = 0; t < ticks + 10000 / 16; ++t) {
+        const bool playing = t < ticks;
+
+        // The host's enemies walk; some hide and show.
+        if (playing) {
+            for (mp::MobyState& m : host.game.level) {
+                if (m.key >= 0 && m.key < w.enemies) {
+                    m.pose.position[1] += 0.05f * (m.key % 2 == 0 ? 1.0f : -1.0f);
+
+                    if (rng() % 2000 == 0) {
+                        m.flags ^= mp::kMobyHidden;
+                    }
+                }
+            }
+
+            // Now and then a crate goes, here or there, unless it has.
+            if (rng() % 40 == 0) {
+                const int key = w.enemies + static_cast<int>(rng() % static_cast<unsigned>(w.crates));
+                Player& who = *all[rng() % all.size()];
+                const int slot = who.game.moby_slot(key);
+
+                if (slot >= 0 && broken.count(key) == 0) {
+                    broken.insert(key);
+                    who.game.die(slot);
+                }
+            }
+
+            // The first member dies half way.
+            if (!died && t == ticks / 2 && members > 0) {
+                died = true;
+                remake(*all[1], w, {0, 1, 2}, kSimSlots);  // records skipped: slots mean other mobys now
+            }
+        }
+
+        // A replayed break: the crate's own update takes the hit.
+        for (Player* p : all) {
+            for (const mp::Hit& h : p->game.hits) {
+                const auto it = std::find_if(p->game.level.begin(), p->game.level.end(), [&](const mp::MobyState& m) {
+                    return m.slot == h.victim;
+                });
+
+                if (it != p->game.level.end() && it->oclass == 500 && it->key >= 0) {
+                    const int key = it->key;
+                    p->game.die(h.victim);
+
+                    // The host's copy drops a bolt, landed by its next update.
+                    if (p == &host) {
+                        mp::MobyState bolt = moby(4000 + next_bolt++, -1, 13, mp::kMobyUpdates, 0.0f);
+                        bolt.pose.position[0] = static_cast<float>(key);
+                        bolt.state = mp::kBoltHovering;
+                        host.game.level.push_back(bolt);
+                        ++r.bolts_made;
+                    }
+                }
+            }
+
+            p->game.hits.clear();
+        }
+
+        // A bolt run by a member's game: it collects it (each once).
+        for (std::size_t i = 1; i < all.size(); ++i) {
+            Player& m = *all[i];
+            std::vector<int> mine;
+
+            for (const mp::MobyState& b : m.game.level) {
+                if (b.key < 0 && mp::bolt_class(b.oclass) && m.game.drives.count(b.slot) == 0 && b.slot >= 500) {
+                    mine.push_back(b.slot);
+                }
+            }
+
+            for (const int slot : mine) {
+                if (m.world.mobys() != 0 && m.world.collect(slot)) {
+                    ++r.bolts_credited;  // its own: never one of the host's
+                }
+
+                m.game.die(slot);
+            }
+        }
+
+        net->step(16);
+    }
+
+    // What differs now stays.
+    for (std::size_t i = 1; i < all.size(); ++i) {
+        const FakeGame& m = all[i]->game;
+
+        for (const mp::MobyState& h : host.game.level) {
+            if (h.key < 0) {
+                continue;
+            }
+
+            const mp::MobyState* c = by_key(m, h.key);
+            const bool here_dead = (h.flags & mp::kMobyDead) != 0;
+            const bool there_dead = c == nullptr || (c->flags & mp::kMobyDead) != 0;
+
+            if (h.oclass == 500) {
+                r.wrong_crates += here_dead != there_dead ? 1 : 0;
+            } else if (c != nullptr) {
+                const float dy = c->pose.position[1] - h.pose.position[1];
+                r.wrong_place += std::fabs(dy) > 0.5f ? 1 : 0;
+                r.wrong_hidden += ((c->flags ^ h.flags) & mp::kMobyHidden) != 0 ? 1 : 0;
+            }
+        }
+    }
+
+    if (out != nullptr) {
+        *out = net_kept;
+    }
+
+    return r;
+}
+
+void id_mapping_survives_a_respawn() {
+    // The member's level is packed differently after its death: the same key is another slot.
+    Player host(1), member(2);
+    std::vector<Player*> all = {&host, &member};
+    join_party(all, {{1, "P1"}, {2, "P2"}});
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route(all);
+    SimWorld w{4, 4};  // keys 0 to 3 enemies, 4 to 7 crates
+    host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
+    host.game.level = w.made(0);
+    member.game.level = w.made(0);
+    host.game.hero_pose.position[0] = 100.0f;
+    member.game.hero_pose.position[0] = 12.0f;
+
+    for (int i = 0; i < 20; ++i) {
+        tick(all, 50);
+    }
+
+    CHECK(member.world.synced() && member.game.drives.size() == 4);
+    // Two crates go: one by the host, one by the member.
+    host.game.die(host.game.moby_slot(5));
+    member.game.die(member.game.moby_slot(6));
+
+    for (int i = 0; i < 80; ++i) {
+        tick(all, 50);
+
+        for (Player* p : all) {
+            for (const mp::Hit& h : p->game.hits) {
+                p->game.die(h.victim);
+            }
+
+            p->game.hits.clear();
+        }
+    }
+
+    CHECK(by_key(host.game, 6) != nullptr && (by_key(host.game, 6)->flags & mp::kMobyDead) != 0);
+    CHECK((by_key(member.game, 5)->flags & mp::kMobyDead) != 0);
+    // A spawned moby of the host's is known to the member.
+    host.game.level.push_back(moby(300, -1, 13, mp::kMobyUpdates, 11.0f));
+    tick(all, 50);
+    tick(all, 50);
+    CHECK(member.world.spawned() == 1);
+
+    // The member dies: record 0 skipped, so every later record sits a slot lower, everything back
+    // but that, its slots' old drives gone, the load's count up, the level the same.
+    const std::size_t kills = member.game.world_calls.size();
+    remake(member, w, {0});
+    CHECK(member.game.moby_slot(1) == 0 && member.game.moby_slot(5) == 4);
+    // A message read before the tick has noticed: the spawned slot it names is gone, and is left
+    // alone (in the game, a deleted moby past the array's end stops the program).
+    mp::Writer despawn;
+    despawn.u8(static_cast<std::uint8_t>(mp::WorldKind::kDespawn)).u8(3).u8(0).u8(1).u8(0).u8(1);
+    mp::Message early;
+    early.kind = mp::Message::Kind::kData;
+    early.id = 1;
+    early.bytes = despawn.bytes();
+    member.session.handle(early);
+    CHECK(member.game.world_calls.size() == kills);
+    CHECK(member.world.spawned() == 0);
+    tick(all, 50);
+    tick(all, 50);
+    CHECK(member.world.spawned() == 1);
+
+    for (int i = 0; i < 40; ++i) {
+        tick(all, 50);
+    }
+
+    // Driven again, by the new slots: keys 1 to 3 at 0 to 2.
+    CHECK((member.game.drives == std::set<int>{0, 1, 2}));
+    // The crates dead for the party are dead here again, without a BROKE back.
+    CHECK(member.game.moby_slot(5) == -1 && member.game.moby_slot(6) == -1);
+    CHECK(member.game.moby_slot(4) >= 0 && member.game.moby_slot(7) >= 0);
+    CHECK(member.world.synced() && member.world.spawned() == 1);
+    // A key the host poses reaches the moby of that key, not the slot it used to be.
+    for (mp::MobyState& m : host.game.level) {
+        if (m.key == 2) {
+            m.pose.position[1] = 50.0f;
+        }
+    }
+
+    for (int i = 0; i < 20; ++i) {
+        tick(all, 50);
+    }
+
+    CHECK(std::fabs(by_key(member.game, 2)->pose.position[1] - 50.0f) < 1.0f);
+    CHECK(std::fabs(by_key(member.game, 3)->pose.position[1]) < 1.0f);
+}
+
+void a_host_death_loses_the_party_nothing() {
+    Player host(1), member(2);
+    std::vector<Player*> all = {&host, &member};
+    join_party(all, {{1, "P1"}, {2, "P2"}});
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route(all);
+    SimWorld w{2, 4};
+    host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
+    host.game.level = w.made(0);
+    member.game.level = w.made(0);
+    host.game.level.push_back(moby(300, -1, 13, mp::kMobyUpdates, 11.0f));
+
+    for (int i = 0; i < 20; ++i) {
+        tick(all, 50);
+    }
+
+    host.game.die(host.game.moby_slot(3));
+
+    for (int i = 0; i < 80; ++i) {
+        tick(all, 50);
+
+        for (const mp::Hit& h : member.game.hits) {
+            member.game.die(h.victim);
+        }
+
+        member.game.hits.clear();
+    }
+
+    CHECK(member.game.moby_slot(3) == -1 && member.world.spawned() == 1);
+    // The host dies: its crate is back in its own game, its bolt gone.
+    remake(host, w);
+    CHECK(host.game.moby_slot(3) >= 0);
+
+    for (int i = 0; i < 40; ++i) {
+        tick(all, 50);
+    }
+
+    // Dead for the party: deleted again there. What the host spawned is gone from the member too.
+    CHECK(host.game.moby_slot(3) == -1);
+    CHECK(member.world.spawned() == 0);
+    CHECK(member.world.synced());
+
+    // A member's break that reaches the host just as its level is made again is not lost.
+    host.game.hits.clear();
+    const int crate = host.game.moby_slot(5);
+    CHECK(crate >= 0);
+    remake(host, w);
+    mp::Message broke;
+    broke.kind = mp::Message::Kind::kData;
+    broke.id = 2;
+    broke.bytes = mp::Writer().u8(static_cast<std::uint8_t>(mp::WorldKind::kBroke)).u8(3).u8(0).u8(5).bytes();
+    host.session.handle(broke);
+    tick(all, 50);
+    tick(all, 50);
+    CHECK(host.game.hits.size() == 1 && host.game.hits[0].victim == host.game.moby_slot(5));
+}
+
+void a_late_member_gets_the_world_and_waits_for_nobody() {
+    Player host(1), late(3);
+    std::vector<Player*> all = {&host, &late};
+    host.session.handle(info({{1, "P1"}}));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    SimWorld w{2, 4};
+    host.game.now = {mp::kPhasePlaying, 3, 2};
+    host.game.level = w.made(0);
+    host.game.level.push_back(moby(300, -1, 13, mp::kMobyUpdates, 11.0f));
+    host.game.die(host.game.moby_slot(3));
+    host.game.live_save = Bytes(100, 7);
+
+    for (int i = 0; i < 20; ++i) {
+        tick({&host}, 50);
+    }
+
+    // The host plays a scene when the member comes.
+    host.game.now = {mp::kPhaseScene, 3, 2, 7};
+
+    for (int i = 0; i < 4; ++i) {
+        tick({&host}, 50);
+    }
+
+    mp::Message came;
+    came.kind = mp::Message::Kind::kPartyJoined;
+    came.id = 3;
+    came.text = "P3";
+    host.session.handle(came);
+    late.session.handle(info({{1, "P1"}, {3, "P3"}}));
+    late.game.now = {mp::kPhaseFrontEnd, -1, 0};
+    tick(all, 50);
+    tick(all, 50);
+    tick(all, 50);
+    CHECK(late.game.calls.size() >= 1 && late.game.calls[0] == "start 3 100");
+    CHECK(late.coop.joining());
+
+    // On its way, the game's own movies: Start goes through (and the pad's own is not taken out).
+    late.game.now = {mp::kPhaseLoading, 3, 0};
+    CHECK(!late.coop.start_blocked(mp::kPhaseLoading));
+    int presses = 0;
+
+    for (int i = 0; i < 20; ++i) {
+        presses += late.coop.movie_press(late.clock) ? 1 : 0;
+    }
+
+    CHECK(presses == 10);
+    // Its load: the ship's landing or a story scene of its own, no scene of the party's.
+    late.game.level = w.made(0);
+    late.game.level.push_back(moby(77, -1, 806, mp::kMobyUpdates, 3.0f));
+    late.game.now = {mp::kPhaseScene, 3, 3, -1};
+    tick(all, 50);
+    CHECK(count_of(late.game, "skip") >= 1);
+    const std::size_t asked = count_of(late.game, "scene 7");
+    // The host's own barrier does not see it: it plays no scene as far as anyone waits.
+    host.game.now = {mp::kPhasePlaying, 3, 2};
+    late.game.now = {mp::kPhaseScene, 3, 3, -1};
+
+    for (int i = 0; i < 20; ++i) {
+        tick(all, 50);
+        CHECK(!host.coop.hold_input());
+    }
+
+    // In control, in the host's level, with the host's world.
+    late.game.now = {mp::kPhasePlaying, 3, 3};
+
+    for (int i = 0; i < 40; ++i) {
+        tick(all, 50);
+
+        for (const mp::Hit& h : late.game.hits) {
+            late.game.die(h.victim);
+        }
+
+        late.game.hits.clear();
+    }
+
+    CHECK(late.world.synced() && !late.coop.joining() && !late.coop.hold_input());
+    CHECK(late.game.moby_slot(3) == -1);   // dead for the party
+    CHECK(late.world.spawned() == 1);      // the host's bolt
+    CHECK(count_of(late.game, "scene 7") == asked);  // never started the scene it missed
+    CHECK(!mp::world_kind(static_cast<std::uint8_t>(mp::GameKind::kPoses)));
+}
+
+void a_crates_own_loot_is_not_the_hosts() {
+    // A nanotech crate makes its pickup at its first update: every game's load has its own.
+    Player host(1), member(2);
+    std::vector<Player*> all = {&host, &member};
+    join_party(all, {{1, "P1"}, {2, "P2"}});
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route(all);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
+    host.game.level = {moby(0, 0, 501, mp::kMobyUpdates | mp::kMobyPlaced, 1.0f), moby(301, -1, 806, mp::kMobyUpdates, 1.0f)};
+    member.game.level = host.game.level;
+
+    for (int i = 0; i < 20; ++i) {
+        tick(all, 50);
+    }
+
+    const auto spawns = [&member] {
+        return std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 806");
+    };
+    CHECK(spawns() == 0);
+    // One an enemy drops later is shared as before.
+    host.game.level.push_back(moby(302, -1, 806, mp::kMobyUpdates, 2.0f));
+    tick(all, 50);
+    tick(all, 50);
+    CHECK(spawns() == 1);
+}
+
+void a_hello_ahead_of_the_first_pose_is_kept() {
+    // UDP's pose is lost or late, TCP's HELLO is not: the world still goes once the pose comes.
+    Player host(1), member(2);
+    std::vector<Player*> all = {&host, &member};
+    join_party(all, {{1, "P1"}, {2, "P2"}});
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route(all);
+    host.game.now = {mp::kPhasePlaying, 3, 2};
+    host.game.level = {moby(0, 0, 300, SimWorld::kRuns, 1.0f)};
+
+    for (int i = 0; i < 4; ++i) {
+        tick({&host}, 50);
+    }
+
+    // The member's HELLO reaches a host that has heard no pose from it.
+    mp::Message m;
+    m.kind = mp::Message::Kind::kData;
+    m.id = 2;
+    m.bytes = mp::Writer().u8(static_cast<std::uint8_t>(mp::WorldKind::kHello)).u8(3).i32(2).bytes();
+    host.session.handle(m);
+    tick({&host}, 50);
+    host.link.frames.clear();
+    // Then it stands in the level, and nothing asks again.
+    member.game.now = {mp::kPhasePlaying, 3, 2};
+    member.game.level = host.game.level;
+
+    for (int i = 0; i < 20; ++i) {
+        tick(all, 50);
+    }
+
+    for (mp::MobyState& e : host.game.level) {
+        e.pose.position[1] = 30.0f;
+    }
+
+    for (int i = 0; i < 20; ++i) {
+        tick(all, 50);
+    }
+
+    CHECK(std::fabs(by_key(member.game, 0)->pose.position[1] - 30.0f) < 1.0f);
+}
+
+void a_late_datagram_changes_nothing() {
+    Player host(1), member(2);
+    std::vector<Player*> all = {&host, &member};
+    join_party(all, {{1, "P1"}, {2, "P2"}});
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route(all);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
+    host.game.level = {moby(0, 0, 300, SimWorld::kRuns, 1.0f)};
+    member.game.level = host.game.level;
+
+    for (int i = 0; i < 10; ++i) {
+        tick(all, 50);
+    }
+
+    mp::WorldEntry e;
+    e.id = 0;
+    e.pose.level = 3;
+    e.hidden = true;
+    const Bytes newer = mp::encode_world(3, 200000, {e});
+    e.hidden = false;
+    const Bytes older = mp::encode_world(3, 199000, {e});
+    mp::Message m;
+    m.kind = mp::Message::Kind::kData;
+    m.id = 1;
+    m.bytes = newer;
+    member.session.handle(m);
+    m.bytes = older;
+    member.session.handle(m);
+    member.world.tick(member.clock += 16);
+    CHECK((by_key(member.game, 0)->flags & mp::kMobyHidden) != 0);
+}
+
+void bursts_stay_within_the_servers_rate() {
+    Player host(1), member(2);
+    std::vector<Player*> all = {&host, &member};
+    join_party(all, {{1, "P1"}, {2, "P2"}});
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route(all);
+    SimLink link;
+    link.latency = 15;
+    SimNet net(all, link, 3);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
+
+    for (int i = 0; i < 60; ++i) {
+        net.step(16);
+    }
+
+    // Everything an explosion can do in one tick: 400 bolts and creatures made, each a message.
+    for (int i = 0; i < 400; ++i) {
+        host.game.level.push_back(moby(1000 + i, -1, 13, mp::kMobyUpdates, static_cast<float>(i)));
+    }
+
+    for (int i = 0; i < 600; ++i) {
+        net.step(16);
+    }
+
+    CHECK(net.data_drops == 0 && net.kicked == 0);
+    CHECK(member.world.spawned() == 400);
+    CHECK(host.session.counts().data_frames < 100);  // batched, far below one a message
+}
+
+void events_that_cannot_batch_wait_their_turn() {
+    // One message each for another target than the last: no two share a DATA, so 600 are 600
+    // frames at once, five times the server's burst. They arrive all the same, in order, at its rate.
+    Player host(1), member(2), other(3);
+    std::vector<Player*> all = {&host, &member, &other};
+    join_party(all, {{1, "P1"}, {2, "P2"}, {3, "P3"}});
+    SimLink link;
+    link.latency = 15;
+    SimNet net(all, link, 5);
+    std::vector<int> heard;
+    member.session.on_data([&heard](std::int32_t, const Bytes& b) { heard.push_back(b[1] << 8 | b[2]); });
+
+    for (int i = 0; i < 600; ++i) {
+        const auto high = static_cast<std::uint8_t>(i >> 8);
+        host.session.send_data(i % 2 == 0 ? 2 : 3, {30, high, static_cast<std::uint8_t>(i)});
+    }
+
+    for (int i = 0; i < 1500; ++i) {
+        net.step(16);
+    }
+
+    CHECK(net.data_drops == 0 && net.kicked == 0);
+    CHECK(heard.size() == 300);
+
+    for (std::size_t i = 0; i < heard.size(); ++i) {
+        CHECK(heard[i] == static_cast<int>(2 * i));
+    }
+}
+
+void blocked_udp_never_floods_tcp() {
+    SimLink link;
+    link.udp = false;
+    link.latency = 30;
+    SimNet* net = nullptr;
+    const SimResult r = run_sim(link, 11, 3, 12.0, &net);
+    CHECK(net->data_drops == 0 && net->kicked == 0);
+    CHECK(r.wrong_crates == 0);
+    std::printf("no UDP, 4 players: %ld DATA dropped, kicked %ld, %d crates %d hidden wrong\n",
+                net->data_drops, net->kicked, r.wrong_crates, r.wrong_hidden);
+}
+
+void the_world_survives_a_bad_link() {
+    std::printf("%-6s %-6s %-8s %-8s %-8s %-8s %-8s %-8s\n", "loss%", "ms", "place", "hidden", "crates", "stateDrop", "dataDrop", "lost");
+
+    for (const double loss : {0.0, 1.0, 5.0, 15.0}) {
+        for (const double latency : {30.0, 100.0, 250.0}) {
+            SimLink link;
+            link.loss = loss / 100.0;
+            link.latency = latency / 2.0;
+            link.jitter = latency / 5.0;
+            link.reorder = 0.02;
+            link.duplicate = 0.01;
+            SimNet* net = nullptr;
+            const SimResult r = run_sim(link, 1000 + static_cast<unsigned>(loss * 10 + latency), 3, 14.0, &net);
+            std::printf("%-6.0f %-6.0f %-8d %-8d %-8d %-8ld %-8ld %-8ld\n", loss, latency, r.wrong_place, r.wrong_hidden,
+                        r.wrong_crates, net->state_drops, net->data_drops, net->datagrams_lost);
+            CHECK(r.wrong_place == 0 && r.wrong_hidden == 0 && r.wrong_crates == 0);
+            CHECK(net->state_drops == 0 && net->data_drops == 0 && net->kicked == 0);
+        }
+    }
+}
+
 int main() {
     pose_bytes();
     held_and_shot_bytes();
@@ -3676,6 +4481,16 @@ int main() {
     a_member_leaving_goes_home_alone();
     a_member_disconnected_goes_home_alone();
     leaving_from_the_title();
+    id_mapping_survives_a_respawn();
+    a_host_death_loses_the_party_nothing();
+    a_late_member_gets_the_world_and_waits_for_nobody();
+    a_crates_own_loot_is_not_the_hosts();
+    a_hello_ahead_of_the_first_pose_is_kept();
+    a_late_datagram_changes_nothing();
+    bursts_stay_within_the_servers_rate();
+    events_that_cannot_batch_wait_their_turn();
+    blocked_udp_never_floods_tcp();
+    the_world_survives_a_bad_link();
 
     if (g_failures == 0) {
         std::puts("play: all passed");
