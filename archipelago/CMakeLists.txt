@@ -71,11 +71,12 @@ add_executable(archipelago_dump_table tools/dump_table.c ${randomizer_src}/logic
 target_include_directories(archipelago_dump_table PRIVATE src ${randomizer_src})
 set_target_properties(archipelago_dump_table PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 find_package(Python3 COMPONENTS Interpreter)
-if(Python3_FOUND)
+# The tool runs on the build machine: not when cross-compiling (Android).
+if(Python3_FOUND AND NOT CMAKE_CROSSCOMPILING)
   set(apworld ${CMAKE_BINARY_DIR}/apworld/rac1.apworld)
   file(GLOB_RECURSE apworld_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/apworld/rac1/*)
   add_custom_command(OUTPUT ${apworld}
-    COMMAND archipelago_dump_table > ${CMAKE_CURRENT_BINARY_DIR}/table.json
+    COMMAND $<TARGET_FILE:archipelago_dump_table> > ${CMAKE_CURRENT_BINARY_DIR}/table.json
     COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tools/pack_apworld.py
             ${CMAKE_CURRENT_SOURCE_DIR}/apworld/rac1 ${CMAKE_CURRENT_BINARY_DIR}/table.json ${apworld}
     DEPENDS archipelago_dump_table ${apworld_sources} tools/pack_apworld.py

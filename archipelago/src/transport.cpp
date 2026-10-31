@@ -15,8 +15,11 @@
 #include <psa/crypto.h>
 
 #ifdef _WIN32
-#include <wincrypt.h>
+// windows.h first: wincrypt.h needs its types.
 #include <windows.h>
+// clang-format off
+#include <wincrypt.h>
+// clang-format on
 #endif
 
 namespace ap {
