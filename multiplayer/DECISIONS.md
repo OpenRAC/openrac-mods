@@ -107,6 +107,37 @@ co-op is confirmed working in play: squash PR #99 into a few meaningful commits 
 the port, the tests), then tag the SDK interface (1.9) and the mod (multiplayer-v0.7.0 or later),
 and pin the new SDK in `sdk.lock` so CI builds the mod.
 
+### 9. What a player's death does to the world
+
+The game's respawn remakes the level in one frame (LoadLevelGameplay): alone, enemies and crates come
+back. In a party the mod keeps what is dead for the party: a member's game gets it from the host, and
+a host's game has it deleted again, so one player's death brings nothing back for the others. Open:
+
+- **The host's spawned mobys** go with its respawn, for everyone (bolts lying about included).
+- **Missions.** A placed moby deleted because a mission moved on stays deleted in a host's game
+  whose checkpoint is before that point. Nothing in testing got stuck on it, but only level 0 and 3
+  were played that way. If one does, `World::remade` is the place to spare that class.
+
+Choices: (a) keep this, (b) a host's death also respawns every member at the same checkpoint, which
+is what a single world would do but pulls everyone back for one player's fall.
+
+Recommendation: **(a)**.
+
+### 10. Where a late joiner lands
+
+A joiner comes in where the level's start or the ship puts it, with the game's own landing passed by
+itself. Choices: (a) keep this, (b) put its Ratchet beside the host once it has the world: nicer, but
+a host on a moving platform or in a vehicle has no good spot beside it, and the SDK has no call for it
+yet.
+
+### 11. A member's metal detector and class 152
+
+The classes that act on the player standing in them now run in each player's game (`world.hpp`). Two
+things follow. Buried bolts (605) are found by each player, each getting the bolt from its own game,
+so two players can dig the same one; they could go through the host as a claim. Class 152
+(`bolt_pickup_update`, Batalia) adds to the count directly, with no call the mod sees, and no spawner
+was found: it stays the host's, and a member cannot collect it.
+
 ## Decided
 
 | What | Decision | When |

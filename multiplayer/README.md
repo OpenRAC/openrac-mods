@@ -53,10 +53,14 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
    menu, a vendor), and flies there. Nobody gets control on the new planet, and nothing of the
    host's world shows there, until everyone has arrived ("Waiting for the other players to arrive"
    says why; at most 90 seconds for one that never comes). A member's own pick of another planet
-   lands the ship again where it is ("Only the host flies the ship to another planet"). Someone who joins
-   while the game is on gets the host's progress as it is then and starts in the host's level;
-   someone who quits to the title finds **Join the game** in the lobby in Ready's place, which
-   asks the host for its game again.
+   lands the ship again where it is ("Only the host flies the ship to another planet"). Someone who
+   joins while the game is on gets the host's progress as it is then and goes straight to the
+   host's level ("Joining the game"): whatever would play on the way (the game's movies, the ship's
+   landing, a story scene of the level's) is passed by itself, no scene of the party's is that
+   player's to play, nobody waits for it, and once it stands in the level it has the host's world
+   as it is, broken crates, dead enemies, bolts on the ground and all. Someone who quits to the
+   title finds **Join the game** in the lobby in Ready's place, which asks the host for its game
+   again.
 
 Each player sees the others' Ratchets holding what they hold: the wrench, the weapon or gadget,
 Clank on the back, with their swings and throws, and their Blaster shots and bombs (shown only:
@@ -97,6 +101,11 @@ The world is the host's:
 - A placed enemy or pickup gone in the host's game is gone in everyone's, also for someone who
   arrives in the level later. A moby goes only when a game says it died, never because a snapshot
   is missing: a game that is loading or in a menu changes nothing in the others.
+- **A death puts nothing back for the party.** The game's own respawn makes the level again in one
+  frame: every moby as the level file has it. A member who dies gets the party's world again as
+  soon as its game is back, so what was broken stays broken for it. A host who dies keeps it too:
+  what was dead for the party is deleted again in its game. What the host had spawned (bolts lying
+  about, its enemies' spawn) goes for everyone with its respawn.
 - **Vendors, the ship, people, help desks**: each game's own, for its own player; the level a
   member is in follows the host's, and only the host's ship leaves for another planet.
 - **Menus do not pause** while the party plays: the pause menu and the game's dialogs open over a
@@ -138,7 +147,7 @@ server's state; leaving a direct party goes back to Home, which tries the server
 |---|---|---|
 | Server | `game.openrac.dev:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
 | Name | `${player_name}` (the launcher's Multiplayer name) | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty, `${player_name}` or not valid: the launcher's Multiplayer name |
-| Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the game's working directory (beside its `run.log`; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
+| Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the game's working directory (beside its `run.log`; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `net` (every 5 seconds, what went through the session so far: DATA frames and state sent, what the buckets held back, the most events queued, then per DATA kind `e` events, `s` state and `r` received as `e7=messages/bytes`), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
 
 ## Direct connect
 
@@ -195,7 +204,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.6.0`) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.8.0`) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0) with the party's description (the save's words), JOIN code (1), LEAVE (2), LIST (8); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -212,6 +221,22 @@ back, state also goes as DATA, so blocked UDP loses nothing (state may then arri
 stamped and the latest wins); once they come back within 15 seconds, UDP only. Lobby messages and
 game events always go as DATA.
 
+**The server's rates.** The server takes 60 DATA and 60 state datagrams a second from a session,
+over a burst of 120. Over that, state is dropped without a word; DATA is dropped and counted against
+the connection, which enough drops close. So nothing leaves the mod the server would drop
+(`src/session.hpp`): events queue, in order, and go as the session's bucket (50 a second, a burst of
+100) allows, those for one target side by side as one DATA (BATCH), so a burst comes late, never
+lost; state goes by its own bucket (52 a second, a burst of 60), and one it refuses is not taken as
+sent. The state itself stays within that: the host's Ratchet and the members' go out together as one
+POSES datagram, 20 a second however many players there are, and each member's WORLD has its share of
+the 30 a second left (15 each for one or two members, 10 each for three). State as DATA, while UDP is
+unconfirmed or blocked, takes only what events leave of the DATA bucket, so a blocked UDP slows the
+world and never closes the connection.
+
+**WORLD and lost datagrams.** Nothing rests on one datagram: a moby that changed stays in the next
+two snapshots however it stands, every moby comes again at least every second near a member and
+every 3 seconds anywhere, and a late datagram changes nothing about a moby a newer one spoke of.
+
 The lobby and the game are the mod's own, carried in DATA (the server only forwards it; a member's
 DATA reaches the host only, the host's goes to everyone or to one), a kind byte first:
 
@@ -220,18 +245,18 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 1 READY | a member | flag u8 | ready, or no longer |
 | 2 STATE | the host | count u8, then id i32 + flag u8 each | who is ready |
 | 3 START | the host | | the lobby's Start |
-| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc) differs refuses it: "Incompatible version" |
+| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string, joining u8 | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc) differs refuses it: "Incompatible version". `joining`: the game is on and this member comes into it |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
-| 7 POSE | everyone, as state | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on to everyone. A pose that ends after 65 bytes (an older mod) wears nothing |
+| 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
-| 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden; 2: loose, a bolt landed in the host's game, which the member's game now runs as its own) | the 46 mobys nearest that member that moved or animated, 15 times a second (a landed bolt once, then once a second) |
+| 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden; 2: loose, a bolt landed in the host's game, which the member's game now runs as its own) | the 46 mobys that member most needs of those that changed or are due again, 10 to 15 times a second (WORLD and lost datagrams, above; a landed bolt once, then once a second) |
 | 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
-| 11 SPAWN, 12 DESPAWN | the host | level i8, net u16, class i16, position, yaw; or a list of nets | creatures and bolts the host's game made, and their end |
+| 11 SPAWN, 12 DESPAWN | the host, to all | level i8, net u16, class i16, position, yaw; or a list of nets | creatures and bolts the host's game made, and their end |
 | 13 HIT | a member | id u16, mask u32, damage f32, position, velocity | its hit on the host's moby |
 | 14 DAMAGE | the host | attacker id u16, mask u32, damage f32, position, velocity | an enemy hit that member |
 | 15 BOLTS | the host | count i32 | bolts that are that member's: a claim granted (the bolt's value), or what flew to its figure in the host's game |
-| 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead in the host's level, for one arriving there |
+| 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead for the party in the host's level, for a member that said HELLO |
 | 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup (not a bolt: CLAIM) |
 | 18 SKIP | the host, to all | origin i32, sequence u16, play i32, what u8 (0 a scene of the game's own, 1 the host's scene, 2 a movie), scene u16 (the host's scene by SCENE's sequence, else 0) | the host's Start pressed in a scene or a movie: each game skips that one only, while it plays (a member's SKIP, from an older mod, the host ignores); a skip of an earlier scene of the host's, of another play, or without these fields (an older mod) skips nothing |
 | 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot a player fired (the Blaster's, a bomb); a member's goes to the host, who passes it on. Its figure fires it as far behind as its poses play, hitting nothing in that game |
@@ -239,12 +264,17 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 21 SCENE_STATE | a member to the host | play i32, sequence u16, state u8 (0 still to play, 1 playing, 2 out) | where a member is with the host's scene of that sequence, at each change and once a second; the host waits for those of its newest scene only |
 | 22 CLAIM | a member | level i8, id u16 (a placed bolt's key; 0x8000 \| a net id for one the host dropped) | its Ratchet collected that bolt (its game added nothing): the host's first claim of a bolt still there gets BOLTS and the bolt's end everywhere (DESPAWN or KILLED); any other, nothing |
 | 23 PROGRESS | a member to the host; the host to all | items u8 count + a byte each, gold bolts u8 count + a byte each (level x 4 + its number), planets u8 count + a byte each (non-zero had) | a member: what its game has, at each change and every 5 s; the host: what the party has (its own game's, given what the members have), likewise and at each member that comes. Each game is given what it lacks; nothing is taken |
+| 25 POSES | the host, to all, as state | count u8, then length u16 + a POSE each | the host's Ratchet and the members' newest, every 50 ms; a game skips its own |
+| 26 HELLO | a member | level i8, load u32 | its game has new mobys of that level (it arrived, or a death made them again): asked each second until SYNCED |
+| 27 RESET | the host, to all | level i8 | its level was made again: what it spawned is gone everywhere, every member says HELLO |
+| 28 SYNCED | the host | level i8, load u32 | all of the world came, ahead of this on the stream: DEAD, then a SPAWN for each spawned moby; WORLD follows |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
+| 66 BATCH | anyone | length u16 + a message, each | messages of the game for one target in one DATA, read as if each came alone |
 
 A member's game is started from the title with the host's save (`play_start`), its own card left
-alone; one who joins while the game is on gets the host's progress as it is (`save_capture`) and
-starts in the host's level. Each game shows the others' poses through a buffer per player
+alone; one who joins while the game is on gets the host's progress as it is (`save_capture`),
+starts in the host's level and has the world from the host once it says it is there (HELLO). Each game shows the others' poses through a buffer per player
 (`src/play.hpp`, after INTERPOLATION.md): played back about 100 ms behind (more with jitter),
 the position along a curve through each pose's velocity, the cursor running up to 15 % fast or slow
 to keep its delay, 150 ms of extrapolation past the newest pose, and a jump for a teleport (a level
@@ -293,6 +323,8 @@ that player. Mobys near the members run in the host's game as if near its camera
   Tesla Claw, the R.Y.N.O.) are not yet. A figure's Blaster shot flies on its heading without
   homing on the shooter's target. A thrown wrench is shown where it is 20 times a second, not
   smoothed.
+- A late joiner stands where the ship lands (or where its save's level starts), not beside the
+  host.
 - Names are not drawn over the figures (the mod interface has no drawing over the game yet).
 - A member already in a level when the host starts again keeps its own progress and only follows
   the level.
@@ -325,6 +357,14 @@ placed bolts; and the progress: a member's gold bolt and the host's, gone and co
 with no scene shared or held, an item and a planet reaching every game (once in control), a late
 member given it all.
 
+The last part of `tests/play_test.cpp` plays the party on a seeded network and a model of the
+server's limits (`SimNet`): every mix of 0, 1, 5 and 15 % loss and 30, 100 and 250 ms, with
+reordering and repeats, with no moby left anywhere else or hidden differently, no crate left
+different and nothing dropped by the server; bursts, UDP blocked; ids through a respawn that moves
+the slots; a host's death; a late member's world and its passing what plays on its way.
+
+`tests/e2e` does the same with the real game: see its README.
+
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
 lobby's logic against a recorder, the connection against a small server on the loopback, and
 Direct connect: a host and two clients on the loopback (the party, chat, DATA both ways, UDP state,
@@ -344,5 +384,6 @@ chosen from the setting and the launcher's.
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
 | `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
 | `src/direct.hpp`, `.cpp` | Direct connect's page logic: the address's rows (64-choice rings), held steps, the hosting lines |
+| `src/bot.hpp`, `.cpp` | the end-to-end tests' driver of the real game (only with `-DMULTIPLAYER_BOT=ON`, never in a release) |
 | `src/sockets.hpp` | the socket calls the connection and the host share (Winsock and POSIX) |
 | `src/protocol.hpp`, `.cpp` | the server's frames, packets and datagrams, both sides |
