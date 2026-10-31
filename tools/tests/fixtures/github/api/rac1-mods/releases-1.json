@@ -1,0 +1,331 @@
+[
+ {
+  "id": 8,
+  "tag_name": "index",
+  "name": "index",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-10-30T00:00:00Z",
+  "published_at": "2026-10-30T00:00:00Z",
+  "body": "",
+  "assets": []
+ },
+ {
+  "id": 6,
+  "tag_name": "button-swap-v1.1.0",
+  "name": "button-swap-v1.1.0",
+  "draft": false,
+  "prerelease": true,
+  "created_at": "2026-10-25T12:00:00Z",
+  "published_at": "2026-10-25T12:00:00Z",
+  "body": "## 1.1.0",
+  "assets": [
+   {
+    "name": "button-swap-1.1.0.zip",
+    "size": 588,
+    "download_count": 7,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/button-swap-v1.1.0/button-swap-1.1.0.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/600",
+    "digest": "sha256:efc66df8d92e9039336f63064d44841f2dc6004bab92dcb3e97f752f09b0df04"
+   },
+   {
+    "name": "SHA256SUMS",
+    "size": 88,
+    "download_count": 9,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/button-swap-v1.1.0/SHA256SUMS",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/601",
+    "digest": "sha256:6d129dbe023b419da84bdfe24c848e47646145e55fb42d3b2da0a25250d834e6"
+   }
+  ]
+ },
+ {
+  "id": 4,
+  "tag_name": "lock-strafe-v2.0.0-beta.1",
+  "name": "lock-strafe-v2.0.0-beta.1",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-10-20T12:00:00Z",
+  "published_at": "2026-10-20T12:00:00Z",
+  "body": "## 2.0.0-beta.1\n\n- Changes for 2.0.0-beta.1.",
+  "assets": [
+   {
+    "name": "lock-strafe-2.0.0-beta.1-linux-x86_64.zip",
+    "size": 958,
+    "download_count": 10,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v2.0.0-beta.1/lock-strafe-2.0.0-beta.1-linux-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/400",
+    "digest": "sha256:32b9d2eefc2ef4d2b1573176bd19d6066e05d66eabe1e49d336a7f15d131406e"
+   },
+   {
+    "name": "lock-strafe-2.0.0-beta.1-windows-x86_64.zip",
+    "size": 984,
+    "download_count": 11,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v2.0.0-beta.1/lock-strafe-2.0.0-beta.1-windows-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/401",
+    "digest": "sha256:af0c04c0d78a537aaaaa12a01e0d267a4eec49236ad543ccfab6d07fe7ebeeaa"
+   },
+   {
+    "name": "lock-strafe-2.0.0-beta.1-macos-arm64.zip",
+    "size": 952,
+    "download_count": 12,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v2.0.0-beta.1/lock-strafe-2.0.0-beta.1-macos-arm64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/402",
+    "digest": "sha256:a9a6701737d5a3b4a3e1e4ccd2dd4c7769aedd8f0f4c12814e3f828f5a4991c6"
+   },
+   {
+    "name": "lock-strafe-2.0.0-beta.1.zip",
+    "size": 1994,
+    "download_count": 13,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v2.0.0-beta.1/lock-strafe-2.0.0-beta.1.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/403",
+    "digest": "sha256:fed6b3ac681e2a33e3b981f2303e2088a7b3b165545a9d90f8f593e51d70320c"
+   },
+   {
+    "name": "SHA256SUMS",
+    "size": 420,
+    "download_count": 50,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v2.0.0-beta.1/SHA256SUMS",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/404",
+    "digest": "sha256:5cc64146ad3cf9d0b1e2f1c44831d3b71b780452f3730050ace1127f6788fd8e"
+   }
+  ]
+ },
+ {
+  "id": 3,
+  "tag_name": "lock-strafe-v1.2.0",
+  "name": "lock-strafe-v1.2.0",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-10-01T12:00:00Z",
+  "published_at": "2026-10-01T12:00:00Z",
+  "body": "## 1.2.0\n\n- Changes for 1.2.0.",
+  "assets": [
+   {
+    "name": "lock-strafe-1.2.0-linux-x86_64.zip",
+    "size": 880,
+    "download_count": 10,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0-linux-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/300",
+    "digest": "sha256:2bde3bf45f17024753a6ee6b198972c1865d5f82ca3b6614ca060d76462714d3"
+   },
+   {
+    "name": "lock-strafe-1.2.0-windows-x86_64.zip",
+    "size": 906,
+    "download_count": 11,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0-windows-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/301",
+    "digest": "sha256:9250e8bf3efb03c7480abf065777eb24141d859ab2bd038ed5942855c4084045"
+   },
+   {
+    "name": "lock-strafe-1.2.0-macos-arm64.zip",
+    "size": 874,
+    "download_count": 12,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0-macos-arm64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/302",
+    "digest": "sha256:e7fa2e28c417a98c9185533b876466ea310b76678372e7ed924e274fe0431632"
+   },
+   {
+    "name": "lock-strafe-1.2.0.zip",
+    "size": 1776,
+    "download_count": 13,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/303",
+    "digest": "sha256:f21aab9930ba640f95e865842096d976c2353b6ef74c09f289236e930e761670"
+   },
+   {
+    "name": "SHA256SUMS",
+    "size": 289,
+    "download_count": 50,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.2.0/SHA256SUMS",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/304",
+    "digest": "sha256:f9da2c82fe38cb8ea655d3c44ba2bdc44e9e048b40a8b00a6611ad17507eefaf"
+   }
+  ]
+ },
+ {
+  "id": 2,
+  "tag_name": "lock-strafe-v1.1.0",
+  "name": "lock-strafe-v1.1.0",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-09-15T12:00:00Z",
+  "published_at": "2026-09-15T12:00:00Z",
+  "body": "## 1.1.0\n\n- Changes for 1.1.0.",
+  "assets": [
+   {
+    "name": "lock-strafe-1.1.0-linux-x86_64.zip",
+    "size": 1048,
+    "download_count": 10,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.1.0/lock-strafe-1.1.0-linux-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/200",
+    "digest": "sha256:0016c6daee501ec9e6469c18bc99b5099fb3388e8f79635444700c3476f455e1"
+   },
+   {
+    "name": "lock-strafe-1.1.0-windows-x86_64.zip",
+    "size": 1074,
+    "download_count": 11,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.1.0/lock-strafe-1.1.0-windows-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/201",
+    "digest": "sha256:637079fa511066402f9dab945ff1ae8ad69e0d8d5f08f9bf00084ab34fef24b8"
+   },
+   {
+    "name": "lock-strafe-1.1.0-macos-arm64.zip",
+    "size": 1042,
+    "download_count": 12,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.1.0/lock-strafe-1.1.0-macos-arm64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/202",
+    "digest": "sha256:2c3b0ffc54d5bfa91982095069b43c93be855da67ae367b5a2498a2ca980d2dc"
+   },
+   {
+    "name": "lock-strafe-1.1.0.zip",
+    "size": 1944,
+    "download_count": 13,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.1.0/lock-strafe-1.1.0.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/203",
+    "digest": "sha256:731e9770b0c76d885e60448a920caaa969f7445ab271307eb6a772558ee62353"
+   },
+   {
+    "name": "SHA256SUMS",
+    "size": 392,
+    "download_count": 50,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.1.0/SHA256SUMS",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/204",
+    "digest": "sha256:de8ed12d5fd8689cce2c9bbe67be21dc774dcd55adf955771d105d3624b6e1cd"
+   }
+  ]
+ },
+ {
+  "id": 1,
+  "tag_name": "lock-strafe-v1.0.0",
+  "name": "lock-strafe-v1.0.0",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-09-01T12:00:00Z",
+  "published_at": "2026-09-01T12:00:00Z",
+  "body": "## 1.0.0\n\n- Changes for 1.0.0.",
+  "assets": [
+   {
+    "name": "lock-strafe-1.0.0-linux-x86_64.zip",
+    "size": 880,
+    "download_count": 10,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.0.0/lock-strafe-1.0.0-linux-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/100",
+    "digest": "sha256:46b91e1040e3824af1029f99dffb7a7d1f3fbf12e7dd3ff7ad9645c3c0baaa53"
+   },
+   {
+    "name": "lock-strafe-1.0.0-windows-x86_64.zip",
+    "size": 906,
+    "download_count": 11,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.0.0/lock-strafe-1.0.0-windows-x86_64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/101",
+    "digest": "sha256:d43be1f9cff0d34c274c204035205516b0048a3ae5dc9b05c5b121ebfc983720"
+   },
+   {
+    "name": "lock-strafe-1.0.0-macos-arm64.zip",
+    "size": 874,
+    "download_count": 12,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.0.0/lock-strafe-1.0.0-macos-arm64.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/102",
+    "digest": "sha256:104fd13abca67d7551c752aef5ada97da3e3c547e6d397f6aa98e39fbb4c71ce"
+   },
+   {
+    "name": "lock-strafe-1.0.0.zip",
+    "size": 1776,
+    "download_count": 13,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.0.0/lock-strafe-1.0.0.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/103",
+    "digest": "sha256:1ef3bf09fc4023814737da1406f04fb8bac59c5fd6483a5b9462cd5e28f50d4b"
+   },
+   {
+    "name": "SHA256SUMS",
+    "size": 392,
+    "download_count": 50,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/lock-strafe-v1.0.0/SHA256SUMS",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/104",
+    "digest": "sha256:4a677b3192b2d855df63da9bd8f51e54d464b23472abf176e0d3f155673fb024"
+   }
+  ]
+ },
+ {
+  "id": 5,
+  "tag_name": "button-swap-v1.0.0",
+  "name": "button-swap-v1.0.0",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-08-01T12:00:00Z",
+  "published_at": "2026-08-01T12:00:00Z",
+  "body": "## 1.0.0",
+  "assets": [
+   {
+    "name": "button-swap-1.0.0.zip",
+    "size": 588,
+    "download_count": 7,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/button-swap-v1.0.0/button-swap-1.0.0.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/500",
+    "digest": "sha256:a630820a8a56b204a521f9a7e1ea11d13dd4d120b9bfccd68d618a6258391779"
+   },
+   {
+    "name": "SHA256SUMS",
+    "size": 88,
+    "download_count": 9,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/button-swap-v1.0.0/SHA256SUMS",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/501",
+    "digest": "sha256:37a232ce0537db9b2123cf0a22eeb342d032f6f210874561eb7774524a5d3750"
+   }
+  ]
+ },
+ {
+  "id": 7,
+  "tag_name": "camera-base-v1.0.0",
+  "name": "camera-base-v1.0.0",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-07-01T12:00:00Z",
+  "published_at": "2026-07-01T12:00:00Z",
+  "body": "",
+  "assets": [
+   {
+    "name": "camera-base-1.0.0.zip",
+    "size": 429,
+    "download_count": 3,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/camera-base-v1.0.0/camera-base-1.0.0.zip",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/700",
+    "digest": "sha256:5cb84346735654572d34052c54204563b984a4866f66e016a76f9b0c91ea3497"
+   },
+   {
+    "name": "SHA256SUMS",
+    "size": 88,
+    "download_count": 3,
+    "state": "uploaded",
+    "browser_download_url": "https://github.com/OpenRAC/rac1-mods/releases/download/camera-base-v1.0.0/SHA256SUMS",
+    "url": "https://api.github.com/repos/OpenRAC/rac1-mods/releases/assets/701",
+    "digest": "sha256:444ef9f7c3f06a0c6a00337f150b5e79516331356952bda82eb03cc94cbf71e4"
+   }
+  ]
+ }
+]

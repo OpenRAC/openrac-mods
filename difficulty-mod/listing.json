@@ -1,0 +1,22 @@
+{
+  "description": "A slider for everything that makes the game hard or easy: enemy count, damage, speed, prices, ammo, bolts and health. Presets Easy, Retail, Hard, Brutal and a seeded Chaos.",
+  "tags": [
+    "gameplay"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "links": {
+    "bugs": "https://github.com/OpenRAC/rac1-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

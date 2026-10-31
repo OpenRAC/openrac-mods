@@ -1,0 +1,27 @@
+{
+ "id": "starter-pack",
+ "repo": "https://github.com/OpenRAC/rac1-mods",
+ "path": "",
+ "type": "pack",
+ "name": "Starter pack",
+ "author": "Community",
+ "description": "Lock-strafe and button swap together.",
+ "tags": [
+  "controls"
+ ],
+ "versions": [
+  {
+   "version": "1.0.0",
+   "released": "2026-10-30T18:00:00Z",
+   "requires": [
+    {
+     "id": "lock-strafe",
+     "version": ">=1.1.0"
+    },
+    {
+     "id": "button-swap"
+    }
+   ]
+  }
+ ]
+}

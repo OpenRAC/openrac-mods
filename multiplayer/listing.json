@@ -1,0 +1,23 @@
+{
+  "description": "Online co-op: host or join a game from the main menu, play in the host's level together, see each other's Ratchets and share its world.",
+  "tags": [
+    "multiplayer"
+  ],
+  "impact": [
+    "gameplay",
+    "online"
+  ],
+  "links": {
+    "bugs": "https://github.com/OpenRAC/rac1-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

@@ -1,0 +1,32 @@
+{
+ "format": 2,
+ "id": "lock-strafe",
+ "name": "Lock-strafe",
+ "version": "2.0.0-beta.1",
+ "author": "OpenRAC contributors",
+ "description": "Strafe as in the later games. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. Hold L2 or R2 to lock your facing. ",
+ "license": "GPL-3.0-or-later",
+ "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/lock-strafe",
+ "api": "1.0",
+ "games": {
+  "rac1": [
+   "pal",
+   "ntsc"
+  ]
+ },
+ "requires": [
+  {
+   "id": "camera-base",
+   "version": ">=1.0.0"
+  }
+ ],
+ "conflicts": [
+  {
+   "id": "button-swap",
+   "reason": "both take L2 and R2"
+  }
+ ],
+ "hooks": [
+  "rac1.pad.process_report"
+ ]
+}

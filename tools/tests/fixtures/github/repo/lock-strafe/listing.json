@@ -1,0 +1,28 @@
+{
+ "tags": [
+  "gameplay",
+  "controls"
+ ],
+ "impact": [
+  "gameplay"
+ ],
+ "recommends": [
+  "camera-base"
+ ],
+ "suggests": [
+  "ext-hud"
+ ],
+ "featured": true,
+ "links": {
+  "discord": "https://discord.gg/example"
+ },
+ "media": {
+  "icon": "media/icon.png",
+  "screenshots": [
+   {
+    "src": "media/shot1.png",
+    "caption": "Strafing"
+   }
+  ]
+ }
+}
