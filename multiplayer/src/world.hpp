@@ -178,8 +178,12 @@ constexpr float kWorldSnap = 12.0f;
  *   game (removed, without its effect or a gold bolt's scene). A placed bolt is a claim as a
  *   dropped one is (above); the others a member takes are its own and gone from the host's (BROKE).
  * interactables (vendors, the ship and its pads, people, infobots, help desks and triggers, the
- *   respawn point, gold-weapon cases, story pickups, the hero's own equipment): each game's own, for
- *   its own player; nothing is shared.
+ *   respawn point, gold-weapon cases, story pickups, the hero's own equipment), and what works on the
+ *   player standing in it (1378 updraft_vent, 1039 respawn_volume, 22 hero_relocation_trigger, 605
+ *   buried_bolts for the metal detector, 613 water_current, 610 wind_control, 679 grindrail): each
+ *   game's own, for its own player; nothing is shared. Host-driven, those would give a member nothing
+ *   and, with a member standing in for the host's hero, work on the host's hero instead: a member
+ *   in a 1039 kill volume would respawn the host.
  * everything else the level placed with an update of its own: the host's (members drive it).
  */
 inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
@@ -212,12 +216,12 @@ inline bool loot_class(int oclass) {
 inline bool interactable_class(int oclass) {
     return any_of_class(
                oclass,
-               {11,   298,  644,  1432, 1326, 925,  1973, 530,  666,  712,  816,  1012, 38,   1474,
-                998,  424,  557,  1109, 1448, 1766, 484,  1120, 318,  1135, 1190, 750,  774,  1283,
-                890,  909,  1377, 1455, 328,  90,   114,  1105, 805,  1324, 1341, 1342, 1348, 1561,
-                558,  304,  23,   18,   1354, 1038, 1040, 1297, 1100, 1101, 1102, 1531, 1532, 1559,
-                404,  405,  1388, 585,  607,  618,  849,  1289, 1290, 229,  1143, 71,   74,   121,
-                153,  163,  172,  203,  270,  457}
+               {11,   298,  644,  1432, 1326, 925,  530,  666,  712,  816,  1012, 38,   1474,
+                998,  424,  557,  1109, 1448, 1766, 484,  1120, 318,  1135, 1190, 750,  774,
+                1283, 890,  909,  1377, 1455, 328,  90,   114,  1105, 805,  1324, 1341, 1342,
+                1348, 1561, 558,  304,  23,   18,   1354, 1038, 1040, 1297, 1559, 1388, 585,
+                607,  618,  849,  1289, 1290, 229,  1143, 71,   74,   121,  153,  163,  172,
+                203,  270,  457,  1378, 1039, 22,   605,  613,  610,  679}
            )
            || (oclass >= 1456 && oclass <= 1465);
 }

@@ -667,8 +667,9 @@ void World::replay_break(int slot, std::uint64_t now) {
     Hit h;
     h.victim = slot;
     h.attacker = game_.figure_slot(-1);
-    // A metal crate takes only an explosion's hit; the others a wrench's.
-    h.mask = it->second.oclass == 502 ? 0x20000u : 0x10000u;
+    // A metal crate takes only an explosion's hit, and an oom-oom box goes off at once on one (on
+    // a wrench's, a few ticks later); the others a wrench's.
+    h.mask = it->second.oclass == 502 || it->second.oclass == 505 ? 0x20000u : 0x10000u;
     h.damage = 1.0f;
     std::copy(it->second.pose.position, it->second.pose.position + 3, h.position);
     game_.hit(h);
