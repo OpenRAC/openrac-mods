@@ -12,8 +12,7 @@ is nearest.
 With the mod off, the game is the PlayStation 2 game.
 
 What is still to be decided (saving each player's progress, the game's own saves on members'
-cards, mods that differ from the host's, and more), and what already is, is in
-[DECISIONS.md](DECISIONS.md).
+cards, and more), and what already is, is in [DECISIONS.md](DECISIONS.md).
 
 ## Playing
 
@@ -32,12 +31,14 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 | Page | What it does |
 |---|---|
 | Home | **Browse games**: the games others host. **Create match**: a party of your own, from a save (the next page), which Browse games lists and its code invites to. **Join by code**: the next page. The three wait for the server's hello (the cursor moves up to Browse games when it comes). **Direct connect**: the next page, no server needed. Below them, your name |
-| Browse games | **Refresh**, then a row for each game being hosted that has room: its host's name, its save ("Pokitaru, 12 gold bolts", or "New game") and how many are in it (`2/4`). Cross on a row joins it. The list is asked again every 3 seconds while the page shows; with none, a line says so and points at Create match |
+| Browse games | **Refresh**, then a row for each game being hosted that has room: its host's name, its save ("Pokitaru, 12 gold bolts", or "New game"), how many are in it (`2/4`), and **(differs)** when your game would not fit it: other gameplay mods, settings or versions; the footer says what that means. Cross on a row joins it, and a game marked (differs) then says how. The list is asked again every 3 seconds while the page shows; with none, a line says so and points at Create match |
 | Choose a save | **New game**, then your memory card's five saves, each with its planet, gold bolts and time played (an empty slot is dim). The one chosen is what the party plays; your card is never written by the party. Create match and Host directly both come here first |
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
 | Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
-| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)** or **(not ready)**, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
-| Pause menu (in a level) | **Options**, then **Multiplayer** (after Video): the party's code (a direct party: where it is), the host's level, each member with the host and you marked and its round trip to the server and whether its game state goes by UDP or TCP (updated every 2 seconds), then **Leave party**, which asks first (**End the party?** for the host, **Stop hosting?** for a direct host). Out of a party it says **Not in a party**. Leaving goes back to the title's Multiplayer page (below) |
+| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**; **Checking your mods...** until the host answers; **See why you can't join** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready, mods match)**, **(mods differ)** or **(checking mods)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
+| Refused | Shows by itself when your game cannot join the host's, and from the lobby's button: how yours differs, and what to do. See [Mods in a party](#mods-in-a-party) |
+| Party rules | From the lobby and the pause menu: what the party plays by, and what stays your own |
+| Pause menu (in a level) | **Options**, then **Multiplayer** (after Video): the party's code (a direct party: where it is), the host's level, each member with the host and you marked and its round trip to the server and whether its game state goes by UDP or TCP (updated every 2 seconds), then **Party rules** and **Leave party**, which asks first (**End the party?** for the host, **Stop hosting?** for a direct host). Out of a party it says **Not in a party**. Leaving goes back to the title's Multiplayer page (below) |
 
 ## Playing together
 
@@ -149,6 +150,74 @@ server's state; leaving a direct party goes back to Home, which tries the server
 | Name | `${player_name}` (the launcher's Multiplayer name) | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty, `${player_name}` or not valid: the launcher's Multiplayer name |
 | Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the game's working directory (beside its `run.log`; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `net` (every 5 seconds, what went through the session so far: DATA frames and state sent, what the buckets held back, the most events queued, then per DATA kind `e` events, `s` state and `r` received as `e7=messages/bytes`), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
 
+## Mods in a party
+
+Every game of a party plays the same game. So a gameplay mod must be the same in every game: its
+version and its gameplay settings. The check runs when a player joins, in the lobby and for someone
+joining a game that is on. Mods declare what they are in their `openrac-mod.json`:
+
+| `multiplayer` | Mods | In a party |
+|---|---|---|
+| `gameplay` (also a mod that says nothing) | Difficulty, Item Randomizer, Ammo Max | Must match the host's. A player with one the host lacks differs too |
+| `input` | Keyboard and Mouse, DualSense, Lock-strafe, Button Swap | Each player's own |
+| `cosmetic` | Xbox Icons, Live Splits | Each player's own |
+| `solo` | Archipelago | Cannot be played in a party: its checks and items belong to one Archipelago slot, and a party shares its items. It can neither host nor join: turn it off to play |
+
+A setting of a gameplay mod may say `"multiplayer": "own"`, each player's (Detailed log, Spoiler
+log), or `"multiplayer": "host"`, which the host's rules bring (the seeds). Neither is compared.
+
+**A player who does not match** can't say Ready, and the host can't Start while that player is in
+the party; the host gets no way around it, the player leaves or fixes it. The page says how, and
+shows by itself the first time:
+
+```
+You can't join this game
+  Leave party
+  Difficulty: the host has 1.3.0, you have 1.2.3
+  Your Difficulty settings differ:
+  Enemy count, Damage to Ratchet
+  Host has Item Randomizer, you don't
+  You have Ammo Max, the host doesn't
+Match the host in the launcher's Mods tab,
+then restart the game and join again.
+```
+
+The other lines it may have: `You have a different disc from the host`, `OpenRAC: the host has
+0.21.0, you have 0.20.0`, `Multiplayer: the host has 0.9.0, you have 0.8.0`, and `Archipelago
+can't be played in a party`, with `Turn it off in the launcher's Mods tab, then restart the game.`
+Settings count from the game's next start, so changing them needs a restart.
+
+The host's lobby has a line for each player who differs: `Bob: Difficulty settings, 1 more`,
+`Bob: no Item Randomizer`, `Bob: extra Ammo Max`, `Bob: Difficulty version`, `Bob: a different disc`,
+`Bob: an older Multiplayer`. **Browse games** marks the games that would not fit with **(differs)**:
+the party's listing carries a short digest of its host's build and gameplay mods.
+
+**The host's rules.** Party rules shows them before Start and in a level, for instance:
+
+```
+Party rules
+  Back
+  Difficulty 1.3.0
+  Bolts x2, Enemy count x1.5, Chaos on
+  Item Randomizer 1.1.0
+  Logic: standard, Shuffles gadgets, Shuffles weapons
+  Stays yours: your controls and looks
+  Detailed log, Keyboard and Mouse, Xbox Icons
+```
+
+A mod may publish rules for the party, through the SDK, and each member's same mod takes the host's
+before any level loads, also in a game that is on, and keeps them through every load and respawn
+until the party goes. With no party they change nothing.
+
+- **Difficulty**: members use the host's sliders, Chaos, resolved seed and each level's rolls. Only
+  the host's game makes copies of enemies or leaves some out: copies reach the others as the host's
+  spawned mobys, removals as dead placed mobys. Enemy speed is the host's, since its game runs the
+  enemies. Bolts are the host's too, only its game drops them. The host decides the Chaos events,
+  which reach everyone as they start and end.
+- **Item Randomizer**: members play the host's seed, so every game has the same placement. An item
+  passed on from another player is that item, and marks no place as had. A blank seed on a member is
+  never used.
+
 ## Direct connect
 
 Playing without a server: one player's game hosts, and the others join it by its address. The
@@ -186,7 +255,7 @@ strikes, hello within 10 seconds, 8 connections an address (and 8 clients at onc
 
 ## How it works
 
-The mod needs OpenRAC's mod interface 1.9: 1.7's pages of the game's own menus put the
+The mod needs OpenRAC's mod interface 1.11: 1.7's pages of the game's own menus put the
 **Multiplayer** item in the main menu under Load Game and let the mod say what its pages list
 (the port draws them with the game's widgets), and 1.8's play calls tell it what the game is doing,
 give it the hero's pose, make the figures that stand for the others (mobys of the hero's class
@@ -204,8 +273,8 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.8.0`) and the player's name, on every connection | the session id |
-| 1 PARTY | CREATE (0) with the party's description (the save's words), JOIN code (1), LEAVE (2), LIST (8); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description) |
+| 0 HELLO | its version (`rac1-multiplayer/0.9.0`) and the player's name, on every connection | the session id |
+| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest), JOIN code (1), LEAVE (2), LIST (8); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
 | 4 ERROR | | the reason: no such party, full, already in one, not in one |
@@ -245,7 +314,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 1 READY | a member | flag u8 | ready, or no longer |
 | 2 STATE | the host | count u8, then id i32 + flag u8 each | who is ready |
 | 3 START | the host | | the lobby's Start |
-| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string, joining u8 | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc) differs refuses it: "Incompatible version". `joining`: the game is on and this member comes into it |
+| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string, joining u8 | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc, the gameplay mods' digest) differs refuses it: "You can't join: your game differs from the host's". `joining`: the game is on and this member comes into it |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
 | 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing |
@@ -268,6 +337,9 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 26 HELLO | a member | level i8, load u32 | its game has new mobys of that level (it arrived, or a death made them again): asked each second until SYNCED |
 | 27 RESET | the host, to all | level i8 | its level was made again: what it spawned is gone everywhere, every member says HELLO |
 | 28 SYNCED | the host | level i8, load u32 | all of the world came, ahead of this on the stream: DEAD, then a SPAWN for each spawned moby; WORLD follows |
+| 29 MODS | a member; the host to that member | multiplayer's version, OpenRAC's and the disc (strings), count u8, per mod id, name, version (strings), kind u8 (0 gameplay, 1 input, 2 cosmetic, 3 solo), settings u8, per setting key, name, value, shown (strings), kind u8 (0 shared, 1 own, 2 host), default u8 | a member's game and mods, every 2 seconds until the host's come back (a player's own mods without their settings) |
+| 30 FITS | the host, to all | count u8, per member id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string) | what the host found, at each change; one silent for 6 seconds is an older game |
+| 31 RULES | the host, to a member or all | count u8, per mod id (string), length u16 + its bytes, its words (string) | the rules of the host's mods, to a member found matching, on the stream ahead of PLAY, and to all at each change (a Chaos event) |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 | 66 BATCH | anyone | length u16 + a message, each | messages of the game for one target in one DATA, read as if each came alone |
@@ -328,13 +400,18 @@ that player. Mobys near the members run in the host's game as if near its camera
 - Names are not drawn over the figures (the mod interface has no drawing over the game yet).
 - A member already in a level when the host starts again keeps its own progress and only follows
   the level.
-- Everyone needs the same disc and the same OpenRAC and mod versions.
+- Everyone needs the same disc and the same OpenRAC and mod versions (Mods in a party).
+- A host's death brings back the enemies its Difficulty copied, as a death does alone: they are made
+  again with the level, and the members get them from the host. Only placed mobys stay dead for the
+  party.
+- One player who does not match holds the host's Start until that player leaves: there is no kick.
+- A data pack (a map mod or an overrides pack) is not compared.
 
 ## Building
 
-Built with the repository's other native mods (the top README), with an SDK of interface 1.9 or
-newer: until that SDK is released (`sdk.lock` pins an older one, and the top CMakeLists.txt then
-skips this mod), build against OpenRAC's own `sdk/`:
+Built with the repository's other native mods (the top README), with an SDK of interface 1.11 or
+newer: until that SDK is released (`sdk.lock` names it, without a hash yet), build against OpenRAC's
+own `sdk/`:
 
 ```sh
 cmake -S . -B build -G Ninja -DOPENRAC_SDK=<OpenRAC>/sdk
@@ -363,6 +440,12 @@ reordering and repeats, with no moby left anywhere else or hidden differently, n
 different and nothing dropped by the server; bursts, UDP blocked; ids through a respawn that moves
 the slots; a host's death; a late member's world and its passing what plays on its way.
 
+It also checks the mods a party agrees on: a list's bytes and digest, every kind of difference and
+its words, each compared setting refusing and each exempt one not, the lines fitting a page, a
+differing member refused its Ready and the game (with the gates off, stopped by the digest at PLAY),
+a differing late member, the rules reaching a member before any level and again at an event, a
+respawn, the party's end, and an older game on either side.
+
 `tests/e2e` does the same with the real game: see its README.
 
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
@@ -378,6 +461,7 @@ chosen from the setting and the launcher's.
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, list, join, leave, Ready and Start |
 | `src/coop.hpp`, `.cpp` | playing together: PLAY and its save, LEVEL, WANT, poses sent and figures shown |
 | `src/play.hpp`, `.cpp` | the poses' bytes and the interpolation buffer |
+| `src/party_mods.hpp`, `.cpp` | the mods a party agrees on: the lists, their comparison and digest, the words for a player, the host's rules carried to the members |
 | `src/world.hpp`, `.cpp` | the shared world: snapshots, kills, spawns, hits, damage, bolts, stand-ins |
 | `src/progress.hpp`, `.cpp` | the shared progress: items, gold bolts, planets |
 | `src/trace.hpp`, `.cpp`, `src/world_trace.cpp`, `src/despawn.hpp`, `.cpp` | the verbose log: its lines and their cap; the world's pause, run, vis, drive and census lines; the despawn lines, who removed a moby and why |

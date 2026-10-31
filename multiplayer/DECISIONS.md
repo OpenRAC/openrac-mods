@@ -49,29 +49,6 @@ Choices:
 Recommendation: **(b)** if 1(b) is chosen, otherwise **(a)**, once the checkpoint question is
 answered. Until then the README warns that a member's card can be written.
 
-### 3. Gameplay mods that differ from the host's
-
-Each game runs its own mods. Mods that change how the game plays (difficulty, item randomizer,
-ammo-max, ...) make the games disagree: different enemy counts, damage, prices, items. Bolt drops
-already follow the host's settings, because only the host's game drops them.
-
-Choices:
-
-- **(a) Refuse the join** when the gameplay-affecting mods, their versions or their settings differ
-  from the host's ("Your mods don't match the host's", listing which). Mods that only change input
-  or looks (keyboard-mouse, dualsense, xbox-icons, lock-strafe) don't count. Each mod declares
-  whether it is gameplay-affecting in its `openrac-mod.json`.
-- **(b) The host's settings win:** the host sends its gameplay mods' settings and the members' mods
-  apply them for the party. Nicer, but every such mod must be able to take settings from outside.
-- **(c) Allow it** (today), and accept the drift.
-
-Recommendation: **(a)** now, **(b)** later for the mods that support it.
-
-### 4. Item randomizer seed
-
-With item-randomizer on, a shared item can be randomized differently in each game. If 3(a) or
-3(b) is chosen, the party should also use the host's seed so every game rolls the same items.
-
 ### 5. What progress is shared
 
 Shared today: owned items (weapons and gadgets), gold bolts and unlocked planets, merged across
@@ -156,3 +133,6 @@ was found: it stays the host's, and a member cannot collect it.
 | Friendly fire | Off | 2026-10-27 |
 | Party size | Up to 4 players | 2026-10-27 |
 | Verbose logging | A `verbose_log` setting, off unless turned on | 2026-10-28 |
+| Gameplay mods that differ from the host's (3) | The join is refused: a gameplay mod's id, version and gameplay settings must match the host's, also an extra one a member has. Input and cosmetic mods don't count, nor settings that are a player's own or the host's to give. Each mod declares this in its `openrac-mod.json`; undeclared counts as gameplay. A `solo` mod (Archipelago) cannot be played in a party. Decided by the user | 2026-10-31 |
+| Host-owned rules (3) | A mod may publish party rules; each member's same mod takes the host's before any level loads. Difficulty's members use the host's seed and values and make no enemy copies or removals of their own; the host decides Chaos events and the party shares them. Decided by the user | 2026-10-31 |
+| Item randomizer seed (4) | Members play the host's seed, so every game has the same placement; an item passed on from another player stays that item. Decided by the user | 2026-10-31 |

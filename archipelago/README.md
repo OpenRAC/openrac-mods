@@ -7,6 +7,9 @@ find for you comes to you as you play. Beat Drek to finish your part.
 
 With the mod off, the game is the PlayStation 2 game.
 
+Archipelago can't be played in a multiplayer party: its checks and items belong to one slot, and a
+party shares its items. With it on, the Multiplayer pages say so: turn it off to host or join.
+
 ## Playing
 
 1. Whoever makes the room installs `rac1.apworld` from this repository's release (double-click

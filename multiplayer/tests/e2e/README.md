@@ -23,6 +23,14 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `hostdeath` | the host dies: what the party broke stays broken in its game, the member gets the world again, nothing of its old spawned mobys is left |
 | `join` | a party in a level (`--level N`; leave `--skip-movies` out, so the game's movies are there), then a late member: its timeline until it stands in control in the host's level; `--host-scene N`: the host plays scene N as it joins |
 | `soak` | `--members N` standing in the level for `--seconds S`: what the network carried, by kind |
+| `enemies` | an enemy count off 1 (`--difficulty '{"enemy_count": 2}'`), in level `--level N`: every game lists the host's enemies, none twice, none of a member's own, also after a member's and the host's death |
+| `chaos` | `--difficulty '{"chaos": true, "chaos_events": true, "chaos_minutes": 1}'`, a blank seed: each level's values and the events are the host's, in levels `--level N`, `--level2 N`, for up to `--seconds S` |
+| `refuse` | a member whose settings or mods differ (`--member-difficulty`, `--member-mods`): told why, no Ready, no Start; the pages' lines measured in the game's font |
+| `midjoin` | a party under rules in `--level N`, then a late member: under the rules, or with `--late-difficulty ... --late-refused`, no game |
+
+`--mods-dir DIR` is a folder of packaged mods by id; `--difficulty JSON` gives every game the difficulty
+mod with those settings. The bolts scenario under `--difficulty '{"bolts": 3}'` reports each crate's
+bolts in its notes.
 
 `--link` takes `loss` and `reorder` and `duplicate` in %, `latency` and `jitter` in ms, each way
 between a game and the server. `--base N` gives a run its own address block, so runs can go at once.

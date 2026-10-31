@@ -27,6 +27,8 @@ IN_LEVEL = (PHASE_PLAYING, PHASE_SCENE, PHASE_MENU)
 MOBY_DRIVEN, MOBY_DEAD, MOBY_HIDDEN = 0x2, 0x10, 0x40
 CRATES = (500, 501, 502, 505, 511)
 BOLTS = (13, 14, 15, 16)
+BOLT_VALUE = {13: 1, 14: 5, 15: 20, 16: 50}
+MOBY_CREATURE = 0x8
 
 
 class Failed(Exception):
@@ -58,11 +60,18 @@ class Client:
         if mod.is_symlink() or mod.exists():
             mod.unlink()
         mod.symlink_to(self.env.mod)
+        extra = self.env.extra_mods(self.index)
+        for mod_id, _ in extra:
+            folder = plugins / mod_id
+            if folder.is_symlink() or folder.exists():
+                folder.unlink()
+            folder.symlink_to(self.env.mods_dir / mod_id)
         (plugins / "plugins.json").write_text(
             json.dumps(
                 {
                     "format": 1,
-                    "mods": [
+                    "mods": [{"id": i, "enabled": True, "settings": s} for i, s in extra]
+                    + [
                         {
                             "id": "multiplayer",
                             "enabled": True,
@@ -182,6 +191,11 @@ class Env:
         self.data = Path(args.data).resolve()
         self.levels = Path(args.levels).resolve()
         self.mod = Path(args.mod).resolve()
+        self.mods_dir = Path(args.mods_dir).resolve() if args.mods_dir else None
+        self.difficulty = json.loads(args.difficulty) if args.difficulty else None
+        self.member_difficulty = json.loads(args.member_difficulty) if args.member_difficulty else None
+        self.late_difficulty = json.loads(args.late_difficulty) if args.late_difficulty else None
+        self.member_mods = (args.member_mods or "").split(",") if args.member_mods else []
         self.server_jar = Path(args.server_jar).resolve()
         self.java = args.java
         self.base = args.base  # runs at once each take an address block of their own
@@ -193,6 +207,18 @@ class Env:
         self.server = None
         self.clients = []
         self.report = {"scenario": args.scenario, "link": args.link, "checks": [], "notes": {}}
+
+    def extra_mods(self, index):
+        """The gameplay mods client `index` plays with: the host's settings, the first member's own
+        when it has other ones, a later client's own when it has other ones."""
+        if self.difficulty is None:
+            return []
+        settings = self.difficulty
+        if index == 1 and self.member_difficulty is not None:
+            settings = self.member_difficulty
+        if index >= 2 and self.late_difficulty is not None:
+            settings = self.late_difficulty
+        return [("difficulty", settings)] + [(m, {}) for m in self.member_mods if index != 0]
 
     def start_server(self):
         env = dict(os.environ)
@@ -283,6 +309,7 @@ def party(env, host, members):
         wait(f"{m.name} greeted", lambda: m.status()["greeted"], 20)
         m.ask(f"join {code}")
         wait(f"{m.name} in the party", lambda: m.status()["code"] == code, 15)
+        wait(f"{m.name} told of the host's mods", lambda: m.json("mods")["heard_host"], 15)
         m.ask("ready")
     wait("all ready", lambda: host.status()["all_ready"], 15)
     return code
@@ -536,6 +563,7 @@ def scenario_bolts(env, args):
         time.sleep(0.6)
         before = {c.name: c.status()["bolts"] for c in (host, member)}
         loads = {c.name: c.status()["loads"] for c in (host, member)}
+        worth = 0
         answer = who.ask(f"hit {crate[1]} 10000")
         if answer != "ok":
             raise Failed(f"{who.name} could not hit crate {crate[1]}: {answer}")
@@ -543,7 +571,9 @@ def scenario_bolts(env, args):
         made = 0
         limit = time.monotonic() + 6
         while time.monotonic() < limit:
-            made = max(made, len(spawned_bolts(host)))
+            bolts = spawned_bolts(host)
+            made = max(made, len(bolts))
+            worth = max(worth, sum(BOLT_VALUE[m[2]] for m in bolts))
             who.ask(f"teleport {crate[5] + 0.5} {crate[6]} {crate[7] + 1.0}")
             time.sleep(0.3)
             if made and not spawned_bolts(host):
@@ -552,6 +582,9 @@ def scenario_bolts(env, args):
         after = {c.name: c.status()["bolts"] for c in (host, member)}
         delta = {n: after[n] - before[n] for n in after}
         gained[who.name] += delta[who.name]
+        env.report["notes"].setdefault("bolt_rounds", []).append(
+            {"crate": crate[1], "who": who.name, "bolts": made, "worth": worth, "delta": delta}
+        )
 
         # A hazard where the bot stood: a death takes the bolts with it, as the README says.
         if any(c.status()["loads"] != loads[c.name] for c in (host, member)):
@@ -594,6 +627,156 @@ def scenario_host_death(env, args):
     left = {c.name: len(spawned_bolts(c)) for c in (host, member)}
     env.check("no bolt left of the old world", not any(left.values()), json.dumps(left))
     compare_poses(env, host, [member], "after the host's death")
+
+
+def enemies_of(c):
+    """The creatures alive in a game: the placed by key, the spawned as class and place."""
+    placed, spawned = c.mobys()
+    alive = {k: m for k, m in placed.items() if live(m) and m[3] & MOBY_CREATURE and m[2] != 0}
+    made = [m for m in spawned if m[4] < 0x80 and m[3] & MOBY_CREATURE and m[2] != 0 and m[2] not in BOLTS]
+    return alive, made
+
+
+def log_lines(c, pattern):
+    return re.findall(pattern, (c.dir / "run.log").read_text(errors="replace"))
+
+
+def compare_enemies(env, games, label):
+    """The same placed enemies alive and the same spawned ones in every game, near each other: no
+    copy of a game's own, none twice."""
+    lists = [enemies_of(c) for c in games]
+    host_alive, host_made = lists[0]
+    env.report["notes"][f"{label}: enemies"] = {
+        c.name: {"placed": len(a), "spawned": len(m)} for c, (a, m) in zip(games, lists)
+    }
+    for c, (alive, made) in zip(games[1:], lists[1:]):
+        env.check(f"{label}: {c.name} has the host's placed enemies", set(alive) == set(host_alive), f"{len(alive)} of {len(host_alive)}")
+        count = lambda ms: sorted(m[2] for m in ms)
+        env.check(f"{label}: {c.name} has the host's spawned enemies, none twice", count(made) == count(host_made), f"{len(made)} of {len(host_made)}")
+        far = 0
+        for m in host_made:
+            near = min(((m[5] - o[5]) ** 2 + (m[6] - o[6]) ** 2 for o in made if o[2] == m[2]), default=1e9)
+            far += near > 25 ** 2
+        env.check(f"{label}: {c.name}'s spawned enemies stand where the host's do", far == 0, f"{far} far")
+    return lists
+
+
+def scenario_enemies(env, args):
+    """An enemy count off 1: the host's copies or removals in every game, none of a member's own,
+    through a member's death and the host's."""
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], args.level)
+    time.sleep(args.settle)
+    host_says = log_lines(host, r"level \d+: [^\n]*(?:copies of|left out)[^\n]*")
+    member_says = log_lines(member, r"level \d+: [^\n]*(?:copies of|left out)[^\n]*")
+    env.report["notes"]["host's load"] = host_says
+    env.check("the host made its count", len(host_says) >= 1, json.dumps(host_says[-1:]))
+    env.check("the member made none of its own", not member_says, json.dumps(member_says[-1:]))
+    env.check("the member plays by the host's rules", log_lines(member, r"playing by the host's rules, seed \w+"))
+    compare_enemies(env, [host, member], "in the level")
+    compare_worlds(env, [host, member], "in the level")
+    loads = member.status()["loads"]
+    member.ask("fall")
+    wait("the member's respawn", lambda: member.status()["loads"] != loads and member.status()["synced"], 40)
+    time.sleep(args.settle)
+    compare_enemies(env, [host, member], "after the member's death")
+    env.check("the member still made none of its own", not log_lines(member, r"(?:copies of|left out)"))
+    loads = host.status()["loads"]
+    host.ask("fall")
+    wait("the host's respawn", lambda: host.status()["loads"] != loads and host.status()["phase"] == PHASE_PLAYING, 40)
+    wait("the member's world again", lambda: member.status()["synced"], 30)
+    time.sleep(args.settle)
+    compare_enemies(env, [host, member], "after the host's death")
+
+
+def scenario_chaos(env, args):
+    """Chaos with a blank seed: both games roll the same for each level; the host decides the
+    events, and each comes to the member."""
+    host, member = start_two(env, args)
+    level_values = r"level \d+: enemy count [^\n]*"
+    for level in [args.level, args.level2]:
+        fly_to(env, host, [member], level)
+        time.sleep(args.settle)
+    host_values, member_values = log_lines(host, level_values), log_lines(member, level_values)
+    env.report["notes"]["host levels"] = host_values
+    shared = [v for v in member_values if v in host_values]
+    env.check("the levels' values were rolled", len(host_values) >= 2, str(len(host_values)))
+    env.check("every level the member played has the host's values", len(shared) == len(member_values) and shared, f"{len(shared)} of {len(member_values)}")
+    seeds = (log_lines(host, r"disc; seed (\w+)"), log_lines(member, r"host's rules, seed (\w+)"))
+    env.report["notes"]["seeds"] = seeds
+    env.check("the member took the host's seed, not its own", seeds[0] == seeds[1], json.dumps(seeds))
+    own = log_lines(member, r"disc; seed (\w+)")
+    env.check("the member's own blank seed was another", own != seeds[0], json.dumps(own))
+    limit = time.monotonic() + args.seconds
+    event = r"chaos: [^\n]*"
+    while time.monotonic() < limit and len(log_lines(host, event)) < 2:
+        time.sleep(1)
+    time.sleep(2)
+    events = (log_lines(host, event), log_lines(member, event))
+    env.report["notes"]["events"] = events
+    env.check("the host's events came", len(events[0]) >= 2, str(len(events[0])))
+    env.check("the member has the same events", events[0] == events[1], json.dumps(events))
+
+
+def page_fits(env, c, page, label):
+    lines = c.json(f"page {page}")
+    widths = c.json(f"widths {page}")
+    env.report["notes"][f"{label}: {page}"] = list(zip(lines, widths))
+    return lines, widths
+
+
+def scenario_refuse(env, args):
+    """A member whose gameplay differs: told why, cannot be Ready, gets no game; the host sees it."""
+    host = env.client("Host1", args.link_args)
+    member = env.client("Member1", args.link_args)
+    reach_title(host)
+    reach_title(member)
+    host.ask(f"connect {host.address} 7770")
+    wait("the host greeted", lambda: host.status()["greeted"], 20)
+    host.ask("create")
+    code = wait("the party", lambda: host.status()["code"], 15)
+    member.ask(f"connect {member.address} 7770")
+    wait("the member greeted", lambda: member.status()["greeted"], 20)
+    member.ask(f"join {code}")
+    wait("the member in the party", lambda: member.status()["code"] == code, 15)
+    mods = wait("the member told", lambda: (lambda m: m if m["heard_host"] else None)(member.json("mods")), 15)
+    env.report["notes"]["differences"] = mods["differences"]
+    env.check("the member is told how it differs", bool(mods["differences"]), json.dumps(mods["differences"]))
+    wait("the host's verdict", lambda: host.json("mods")["fits"].get("Member1") == 2, 15)
+    member.ask("ready")
+    time.sleep(1)
+    env.check("its Ready is not taken", not host.status()["all_ready"])
+    env.check("the host's Start is refused", host.ask("start").startswith("error"))
+    time.sleep(1)
+    env.check("no game started in either", host.status()["phase"] == PHASE_FRONT_END and member.status()["phase"] == PHASE_FRONT_END)
+    refused, widths = page_fits(env, member, "refused", "member")
+    lobby, lobby_widths = page_fits(env, host, "lobby", "host")
+    rules, rules_widths = page_fits(env, member, "rules", "member")
+    print(json.dumps({"refused": refused, "host lobby": lobby, "rules": rules}, indent=1), flush=True)
+    env.check("the host's lobby says why", any("Member1:" in line for line in lobby), json.dumps(lobby))
+    env.check("every line fits the safe area", max(widths + lobby_widths + rules_widths) <= 460, str(max(widths + lobby_widths + rules_widths)))
+
+
+def scenario_midjoin(env, args):
+    """A party playing by rules: a late member with the same mods comes in under them; with other
+    settings, it gets no game."""
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], args.level)
+    time.sleep(args.settle)
+    third, took = join_game(env, "Late1", args.link_args, host, seconds=args.join_seconds)
+    if args.late_refused:
+        env.check("the late member gets no game", took is None and third.status()["phase"] == PHASE_FRONT_END, str(took))
+        mods = third.json("mods")
+        env.report["notes"]["late differences"] = mods["differences"]
+        env.check("it is told why", bool(mods["differences"]), json.dumps(mods["differences"]))
+        return
+    env.check("the late member stands in the level", took is not None, str(took))
+    wait("the late member's world", lambda: third.status()["synced"], 30)
+    time.sleep(args.settle)
+    env.check("it plays by the host's rules", log_lines(third, r"playing by the host's rules"))
+    env.check("it made none of its own", not log_lines(third, r"(?:copies of|left out)"))
+    compare_enemies(env, [host, member, third], "with the late member")
+    compare_worlds(env, [host, third], "with the late member")
 
 
 def fly_to(env, host, others, level):
@@ -663,6 +846,10 @@ SCENARIOS = {
     "crates": scenario_crates,
     "join": scenario_join,
     "soak": scenario_soak,
+    "enemies": scenario_enemies,
+    "chaos": scenario_chaos,
+    "refuse": scenario_refuse,
+    "midjoin": scenario_midjoin,
 }
 
 
@@ -697,6 +884,13 @@ def main():
     parser.add_argument("--level", type=int, default=0)
     parser.add_argument("--host-scene", type=int, default=-1, help="a scene the host plays as the member joins")
     parser.add_argument("--join-seconds", type=int, default=120)
+    parser.add_argument("--level2", type=int, default=1, help="chaos: the second level flown to")
+    parser.add_argument("--mods-dir", help="a folder of packaged mods, by id, for the options below")
+    parser.add_argument("--difficulty", help="the difficulty mod's settings in JSON, every game's")
+    parser.add_argument("--member-difficulty", help="the first member's, when they are others")
+    parser.add_argument("--late-difficulty", help="the later members', when they are others")
+    parser.add_argument("--member-mods", help="more mods every member has and the host has not, by id")
+    parser.add_argument("--late-refused", action="store_true", help="midjoin: the late member differs")
     parser.add_argument("--game-arg", action="append")
     parser.add_argument("--game-env", action="append")
     args = parser.parse_args()
