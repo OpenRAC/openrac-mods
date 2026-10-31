@@ -647,8 +647,21 @@ void recorded_poses_replay_smoothly() {
 
 struct Recorder : mp::Transport {
     std::vector<Bytes> frames;
+    /* With `udp` on, state stays out of the frames: the datagrams, for SimNet, and their targets. */
+    bool udp = false;
+    std::vector<std::pair<std::int32_t, Bytes>> datagrams;
 
     void send(Bytes frame) override { frames.push_back(std::move(frame)); }
+
+    bool state_needs_tcp(std::size_t /*bytes*/) const override { return !udp; }
+
+    void send_state(std::int32_t target, const Bytes& bytes, bool tcp) override {
+        if (udp) {
+            datagrams.emplace_back(target, bytes);
+        } else if (tcp) {
+            send(mp::data(target, bytes));
+        }
+    }
 };
 
 struct FakeGame : mp::Game {
@@ -980,6 +993,7 @@ void route(std::vector<Player*> players) {
         moved = false;
 
         for (Player* from : players) {
+            from->session.flush();
             std::vector<Bytes> frames;
             frames.swap(from->link.frames);
 
@@ -1024,6 +1038,7 @@ void tick(std::vector<Player*> players, std::uint64_t ms) {
         p->coop.tick(p->clock);
         p->world.tick(p->clock);
         p->progress.tick(p->clock);
+        p->session.flush();
     }
     route(players);
 }
@@ -2980,6 +2995,7 @@ void a_stale_skip_or_out_is_ignored() {
     const std::int32_t play = [&] {
         // The play's id: what the host's skips say (one pressed where nothing plays).
         host.coop.own_skip(mp::kPhaseLoading, host.clock);
+        host.session.flush();
         mp::Bytes sent;
         for (const Bytes& f : host.link.frames) {
             sent = f;

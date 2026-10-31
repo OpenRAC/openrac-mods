@@ -21,6 +21,29 @@ constexpr std::size_t kMaxName = 16;
 
 }  // namespace
 
+double Pacer::level(std::uint64_t now) {
+    if (now > last_) {
+        tokens_ = std::min(capacity_, tokens_ + static_cast<double>(now - last_) * per_ms_);
+        last_ = now;
+    }
+
+    return tokens_;
+}
+
+bool Pacer::take(std::uint64_t now) {
+    if (level(now) < 1.0) {
+        return false;
+    }
+
+    tokens_ -= 1.0;
+    return true;
+}
+
+void Pacer::spend(std::uint64_t now) {
+    level(now);
+    tokens_ -= 1.0;
+}
+
 Session::Session(
     Transport& transport,
     std::string version,
@@ -30,6 +53,8 @@ Session::Session(
     : transport_(transport),
       version_(std::move(version)),
       name_(std::move(name)),
+      data_bucket_(kDataBurst, kDataRate),
+      state_bucket_(kStateBurst, kStateRate),
       clock_(std::move(clock)) {
     // Without a clock of the caller's, the monotonic one.
     if (!clock_) {
@@ -57,6 +82,7 @@ void Session::reset_party() {
     links_.clear();
     started_ = false;
     waiting_ = false;
+    queue_.clear();
 }
 
 void Session::create(const std::string& description) {
@@ -128,9 +154,7 @@ void Session::toggle_ready() {
     }
 
     const bool now = !ready(id_);
-    transport_.send(data(
-        host_, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes()
-    ));
+    send_lobby(host_, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes());
 
     // Shown at once; the host's STATE confirms it.
     if (now) {
@@ -154,9 +178,7 @@ bool Session::start() {
     }
 
     started_ = true;
-    transport_.send(
-        data(kBroadcast, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kStart)).bytes())
-    );
+    send_lobby(kBroadcast, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kStart)).bytes());
     notice_ = "Game starting";
     return true;
 }
@@ -170,7 +192,8 @@ static bool lobby_kind(std::uint8_t kind) {
     return (kind >= static_cast<std::uint8_t>(LobbyKind::kReady)
             && kind <= static_cast<std::uint8_t>(LobbyKind::kStart))
            || kind == static_cast<std::uint8_t>(LobbyKind::kLink)
-           || kind == static_cast<std::uint8_t>(LobbyKind::kLinks);
+           || kind == static_cast<std::uint8_t>(LobbyKind::kLinks)
+           || kind == static_cast<std::uint8_t>(LobbyKind::kBatch);
 }
 
 bool Session::game_bytes(const Bytes& bytes) const {
@@ -190,14 +213,14 @@ void Session::report_link(std::int64_t ping_ms, bool udp) {
     if (is_host()) {
         send_links();
     } else {
-        transport_.send(data(
+        send_lobby(
             host_,
             Writer()
                 .u8(static_cast<std::uint8_t>(LobbyKind::kLink))
                 .i32(own.ping_ms)
                 .u8(own.udp ? 1 : 0)
                 .bytes()
-        ));
+        );
     }
 }
 
@@ -217,19 +240,91 @@ void Session::send_links() {
         w.i32(m.id).i32(l.ping_ms).u8(l.udp ? 1 : 0);
     }
 
-    transport_.send(data(kBroadcast, w.bytes()));
+    send_lobby(kBroadcast, w.bytes());
+}
+
+void Session::send_lobby(std::int32_t target, const Bytes& bytes) {
+    data_bucket_.spend(clock_());
+    ++counts_.data_frames;
+    transport_.send(data(target, bytes));
 }
 
 void Session::send_data(std::int32_t target, const Bytes& bytes) {
     if (game_bytes(bytes)) {
-        transport_.send(data(target, bytes));
+        NetCounts::Kind& k = counts_.events_out[bytes[0]];
+        ++k.messages;
+        k.bytes += bytes.size();
+        queue_.push_back({target, bytes});
+        counts_.queue_most = std::max(counts_.queue_most, queue_.size());
     }
 }
 
-void Session::send_state(std::int32_t target, const Bytes& bytes) {
-    if (game_bytes(bytes)) {
-        transport_.send_state(target, bytes);
+void Session::flush() {
+    const std::uint64_t now = clock_();
+
+    while (!queue_.empty()) {
+        if (!data_bucket_.take(now)) {
+            ++counts_.waited;
+            return;
+        }
+
+        // Those for one target in a row go as one DATA; one alone as it is.
+        const std::int32_t target = queue_.front().target;
+        Bytes one = std::move(queue_.front().bytes);
+        queue_.pop_front();
+        ++counts_.data_frames;
+
+        if (queue_.empty() || queue_.front().target != target
+            || one.size() + 2 + queue_.front().bytes.size() + 3 > kBatchBytes) {
+            transport_.send(data(target, one));
+            continue;
+        }
+
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(LobbyKind::kBatch));
+        const auto put = [&w](const Bytes& b) {
+            w.u8(static_cast<std::uint8_t>(b.size() >> 8)).u8(static_cast<std::uint8_t>(b.size())).raw(b);
+        };
+        put(one);
+
+        while (!queue_.empty() && queue_.front().target == target
+               && w.bytes().size() + 2 + queue_.front().bytes.size() <= kBatchBytes) {
+            put(queue_.front().bytes);
+            queue_.pop_front();
+        }
+
+        transport_.send(data(target, w.bytes()));
     }
+}
+
+bool Session::send_state(std::int32_t target, const Bytes& bytes) {
+    if (!game_bytes(bytes)) {
+        return false;
+    }
+
+    const std::uint64_t now = clock_();
+
+    if (!state_bucket_.take(now)) {
+        ++counts_.state_held;
+        return false;
+    }
+
+    // Until UDP is known to work, the state goes as DATA too, from what events leave.
+    bool tcp = false;
+
+    if (transport_.state_needs_tcp(bytes.size())) {
+        tcp = data_bucket_.level(now) > kStateReserve && data_bucket_.take(now);
+        counts_.state_tcp += tcp ? 1 : 0;
+        counts_.data_frames += tcp ? 1 : 0;
+        counts_.state_tcp_held += tcp ? 0 : 1;
+    }
+
+    NetCounts::Kind& k = counts_.state_out[bytes[0]];
+    ++k.messages;
+    k.bytes += bytes.size();
+    ++counts_.state_datagrams;
+    transport_.send_state(target, bytes, tcp);
+    return true;
 }
 
 void Session::send_state() {
@@ -411,10 +506,38 @@ void Session::handle_data(const Message& m) {
 
             links_ = std::move(links);
         }
+    } else if (kind == LobbyKind::kBatch) {
+        // Several of the game's messages in one DATA: each as if it came alone.
+        while (r.left() >= 2) {
+            const std::size_t size = static_cast<std::size_t>(r.u8()) << 8 | r.u8();
+
+            if (size == 0 || size > r.left()) {
+                return;
+            }
+
+            Bytes one(size);
+
+            for (std::uint8_t& b : one) {
+                b = r.u8();
+            }
+
+            note_in(one);
+
+            if (on_data_ && !lobby_kind(one[0])) {
+                on_data_(m.id, one);
+            }
+        }
     } else if (!lobby_kind(static_cast<std::uint8_t>(kind)) && on_data_) {
         // Not the lobby's: the game's own data, as it came.
+        note_in(m.bytes);
         on_data_(m.id, m.bytes);
     }
+}
+
+void Session::note_in(const Bytes& bytes) {
+    NetCounts::Kind& k = counts_.in[bytes[0]];
+    ++k.messages;
+    k.bytes += bytes.size();
 }
 
 std::uint64_t now_ms() {

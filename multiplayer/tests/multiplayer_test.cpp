@@ -265,9 +265,11 @@ void a_party_is_created_joined_and_left() {
     guest.handle(decoded(server(mp::Writer().u8(3).i32(1).u8(16).u8(5))));
     CHECK(got == (Bytes{16, 5}));
     guest.send_data(1, {16, 6});
+    guest.flush();
     CHECK(guest_link.frames.back() == mp::data(1, {16, 6}));
     const std::size_t sent = guest_link.frames.size();
     guest.send_data(1, {3});  // a lobby kind: not sent
+    guest.flush();
     CHECK(guest_link.frames.size() == sent);
     CHECK(mp::now_ms() > 0);
 
@@ -838,6 +840,7 @@ void direct_connect_plays_a_party() {
     // DATA: a member's to the host only, whatever its target.
     const Bytes from_a{0x10, 1};
     a.session->send_data(b.session->id(), from_a);
+    a.session->flush();
     CHECK(pump_until(all, [&] {
         return host.count(mp::Message::Kind::kData, a.session->id(), &from_a) == 1;
     }));
@@ -848,6 +851,7 @@ void direct_connect_plays_a_party() {
     const Bytes to_b{0x10, 3};
     host.session->send_data(mp::kBroadcast, to_all);
     host.session->send_data(b.session->id(), to_b);
+    host.session->flush();
     CHECK(pump_until(all, [&] {
         return a.count(mp::Message::Kind::kData, 0, &to_all) == 1
                && b.count(mp::Message::Kind::kData, 0, &to_all) == 1

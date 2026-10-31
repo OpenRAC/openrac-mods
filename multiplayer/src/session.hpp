@@ -15,14 +15,27 @@
  *                              yet) and whether its game state goes by UDP;
  *  65 LINKS  count u8, then id i32 + ping i32 + udp u8 per member   the host to everyone: each
  *                              member's link (its own among them), each time one comes or the host
- *                              reports its own; for the pause menu's Multiplayer page.
+ *                              reports its own; for the pause menu's Multiplayer page;
+ *  66 BATCH  then per message length u16 + its bytes   several of the game's messages for one
+ *                              target in one DATA (below).
  * Any other first byte is the game's own (coop.hpp: the game, the poses): handed as it is to the
  * callback set with on_data, and sent with send_data, with a monotonic clock (now_ms) to stamp it.
+ *
+ * Pacing. The server counts DATA and state by the packet: 60 a second each, over a burst of 120. A
+ * DATA over it is dropped and a strike, and enough strikes close the connection; state over it goes
+ * without a word. So the game's data goes through here, and nothing is sent the server would drop:
+ * send_data queues, in order, and flush (once a tick) sends what is queued, messages for one target
+ * side by side going as one DATA (BATCH), as far as a bucket a little below the server's allows; the
+ * rest waits, late but whole. State is the next update's to replace, so send_state refuses one over
+ * its own bucket (and says so: the world keeps it to send again), and the fallback of state over TCP
+ * only takes what events leave.
  */
 #ifndef MULTIPLAYER_SESSION_H
 #define MULTIPLAYER_SESSION_H
 
+#include <array>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <map>
 #include <set>
@@ -40,7 +53,48 @@ enum class LobbyKind : std::uint8_t {
     kState = 2,
     kStart = 3,
     kLink = 64,
-    kLinks = 65
+    kLinks = 65,
+    kBatch = 66
+};
+
+/* A token bucket, as the server's RateLimit, on a clock of milliseconds. */
+class Pacer {
+public:
+    Pacer(double capacity, double per_second)
+        : capacity_(capacity), per_ms_(per_second / 1000.0), tokens_(capacity) {}
+
+    /* The tokens there are now. */
+    double level(std::uint64_t now);
+    /* One spent, if there is one. */
+    bool take(std::uint64_t now);
+    /* One spent regardless (what cannot wait: the lobby's few messages). */
+    void spend(std::uint64_t now);
+
+private:
+    double capacity_;
+    double per_ms_;
+    double tokens_;
+    std::uint64_t last_ = 0;
+};
+
+/* What went through the session, for the verbose log and the tests: each DATA kind's messages and
+ * bytes, out and in, by way of the reliable stream or as state; and what the buckets held back. */
+struct NetCounts {
+    struct Kind {
+        std::uint64_t messages = 0;
+        std::uint64_t bytes = 0;
+    };
+
+    std::array<Kind, 256> events_out{};
+    std::array<Kind, 256> state_out{};
+    std::array<Kind, 256> in{};
+    std::uint64_t data_frames = 0;      // DATA frames sent, the server's count
+    std::uint64_t state_datagrams = 0;  // state sent, the server's other count
+    std::uint64_t state_held = 0;       // state the bucket refused
+    std::uint64_t state_tcp = 0;        // state that also went as DATA
+    std::uint64_t state_tcp_held = 0;   // state whose TCP copy events left no room for
+    std::uint64_t waited = 0;           // flushes that left events queued for the bucket
+    std::size_t queue_most = 0;         // the most messages ever queued
 };
 
 /* A member's link to the server (or to the embedded host), as the party last heard it: its round
@@ -88,8 +142,12 @@ public:
     /* As send_data, for game state the next update replaces anyway (poses): over UDP where the
      * server or the embedded host offered it, else as DATA; it arrives through on_data the same
      * way. It may arrive twice (by UDP and TCP while UDP is unconfirmed) or not at all, so state
-     * must be stamped and idempotent. */
-    void send_state(std::int32_t target, const Bytes& bytes);
+     * must be stamped and idempotent. False when the bucket held it back: nothing went. */
+    bool send_state(std::int32_t target, const Bytes& bytes);
+    /* Sends what send_data queued, as the bucket allows. Once a tick, and at its end. */
+    void flush();
+
+    const NetCounts& counts() const { return counts_; }
 
     /* Tells the party this game's link (report it every few seconds): a member to the host, the
      * host's own kept and every member's sent to everyone. Nothing out of a party. */
@@ -163,11 +221,14 @@ public:
 
 private:
     void reset_party();
+    /* A message for the wire as a lobby's would go (spends from the bucket, never waits). */
+    void send_lobby(std::int32_t target, const Bytes& bytes);
     /* The host: tells everyone who is ready. */
     void send_state();
     /* The host: tells everyone each member's link. */
     void send_links();
     void handle_data(const Message& message);
+    void note_in(const Bytes& bytes);
     /* Whether game bytes may go: in a party, and not one of the lobby's kinds. */
     bool game_bytes(const Bytes& bytes) const;
 
@@ -175,6 +236,16 @@ private:
     const std::string version_;
     const std::string name_;
     std::int32_t id_ = 0;
+    /* What waits for the bucket, in order: each message and its target. */
+    struct Queued {
+        std::int32_t target = 0;
+        Bytes bytes;
+    };
+
+    std::deque<Queued> queue_;
+    Pacer data_bucket_;
+    Pacer state_bucket_;
+    NetCounts counts_;
     std::string code_;
     std::int32_t host_ = 0;
     std::vector<Member> members_;
@@ -192,6 +263,16 @@ private:
     std::int64_t rtt_ms_ = 0;
     double offset_ms_ = 0.0;
 };
+
+/* The buckets, a little below the server's 60 a second over a burst of 120 (its DATA_PER_SECOND,
+ * DATA_BURST) so a clock's difference or the lobby's own messages never tip it over. What state may
+ * take of the event bucket is what lies over kStateReserve. The most bytes in one BATCH. */
+constexpr double kDataRate = 50.0;
+constexpr double kDataBurst = 100.0;
+constexpr double kStateRate = 52.0;
+constexpr double kStateBurst = 60.0;
+constexpr double kStateReserve = 50.0;
+constexpr std::size_t kBatchBytes = 32000;
 
 /* How often a game in a party reports its link (Session::report_link). */
 constexpr std::uint64_t kLinkMs = 2000;

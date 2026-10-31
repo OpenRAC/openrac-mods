@@ -524,12 +524,38 @@ struct State {
     openrac::UiPage pause_page;  // the pause menu's Multiplayer page (Options, in a level)
     int pause_leave = -1;        // its Leave party item, -1 out of a party
     std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
+    std::uint64_t net_ms = 0;    // when the verbose log last gave the network's counts
     std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame
     bool leaving = false;        // the player leaves the party (Leave, Stop hosting) this tick
     std::string leave_reason;    // why the party went, for Home when it next shows
 };
 
 std::unique_ptr<State> g;
+
+/* How often the verbose log gives the network's counts. */
+constexpr std::uint64_t kNetTraceMs = 5000;
+
+/* One line of what went through the session so far: per DATA kind the messages and bytes as
+ * events, as state and received, and what the buckets held back. */
+void trace_net() {
+    const mp::NetCounts& c = g->session->counts();
+    std::string line = "frames " + std::to_string(c.data_frames) + " state " + std::to_string(c.state_datagrams)
+                       + " state held " + std::to_string(c.state_held) + " state by tcp " + std::to_string(c.state_tcp)
+                       + " tcp copy held " + std::to_string(c.state_tcp_held) + " flushes that waited "
+                       + std::to_string(c.waited) + " most queued " + std::to_string(c.queue_most);
+    const auto kinds = [&line](const char* what, const std::array<mp::NetCounts::Kind, 256>& all) {
+        for (std::size_t kind = 0; kind < all.size(); ++kind) {
+            if (all[kind].messages != 0) {
+                line += std::string(" ") + what + std::to_string(kind) + "=" + std::to_string(all[kind].messages) + "/"
+                        + std::to_string(all[kind].bytes);
+            }
+        }
+    };
+    kinds("e", c.events_out);
+    kinds("s", c.state_out);
+    kinds("r", c.in);
+    g->trace.line("net", line);
+}
 
 /* The player's name: the mod's `name` setting, else the launcher's (OPENRAC_PLAYER_NAME), else
  * one of the mod's own (neither valid, or started without the launcher). */
@@ -1521,6 +1547,13 @@ void load(openrac::Mod& mod) {
         g->coop->tick(now);
         g->world->tick(now);
         g->progress->tick(now);
+        g->session->flush();
+
+        // The network's own account, for reports of a bad link (README, Verbose log).
+        if (g->trace.on() && now - g->net_ms >= kNetTraceMs) {
+            g->net_ms = now;
+            trace_net();
+        }
 
         if (g->trace.on() && g->trace_file.is_open()) {
             g->trace_file.flush();

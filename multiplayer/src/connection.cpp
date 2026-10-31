@@ -336,7 +336,12 @@ void Connection::send(Bytes frame) {
     wake_.notify_all();
 }
 
-void Connection::send_state(std::int32_t target, const Bytes& bytes) {
+bool Connection::state_needs_tcp(std::size_t bytes) const {
+    return mode_ != Mode::kHosting
+           && !(udp() && kClientStateHeader + bytes <= kMaxDatagramBytes);
+}
+
+void Connection::send_state(std::int32_t target, const Bytes& bytes, bool tcp) {
     // Hosting: routed by the host itself.
     if (mode_ == Mode::kHosting) {
         if (embedded_ != nullptr) {
@@ -346,7 +351,7 @@ void Connection::send_state(std::int32_t target, const Bytes& bytes) {
         return;
     }
 
-    // Over UDP when it was offered and the datagram fits; TCP as well until UDP is confirmed.
+    // Over UDP when it was offered and the datagram fits; the session says when TCP goes as well.
     if (state_.load() == State::kConnected && udp_ready_.load()
         && kClientStateHeader + bytes.size() <= kMaxDatagramBytes) {
         {
@@ -356,13 +361,11 @@ void Connection::send_state(std::int32_t target, const Bytes& bytes) {
             );
         }
         wake_.notify_all();
-
-        if (udp()) {
-            return;
-        }
     }
 
-    send(data(target, bytes));
+    if (tcp) {
+        send(data(target, bytes));
+    }
 }
 
 std::vector<Message> Connection::receive() {
