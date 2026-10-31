@@ -50,6 +50,7 @@ add_subdirectory(xbox-icons)
 # -DOPENRAC_SDK=<OpenRAC>/sdk; an older SDK leaves it out).
 if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.9)
   add_subdirectory(multiplayer)
+  add_subdirectory(archipelago)
 else()
-  message(STATUS "multiplayer: skipped, it needs the mod SDK 1.9 (this one is ${OpenRACMod_VERSION})")
+  message(STATUS "multiplayer, archipelago: skipped, they need the mod SDK 1.9 (this one is ${OpenRACMod_VERSION})")
 endif()

@@ -172,11 +172,47 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
+  # The Archipelago world: rac1.apworld packed from archipelago/apworld and the table the mod's
+  # tool prints, then its tests run inside a pinned Archipelago.
+  apworld:
+    needs: detect
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ARCHIPELAGO: "0.6.8"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Ninja
+        run: python -m pip install ninja
+      - name: The SDK sdk.lock pins
+        run: echo "SDK=$(python tools/fetch_sdk.py)" >> "$GITHUB_ENV"
+      - name: Pack
+        run: |
+          cmake -S . -B build -G Ninja -DBUILD_TESTING=OFF
+          cmake --build build --target archipelago_apworld
+          mkdir -p dist && cp build/apworld/rac1.apworld dist/
+      - name: Test in Archipelago
+        run: |
+          git clone --quiet --depth 1 --branch "$ARCHIPELAGO" https://github.com/ArchipelagoMW/Archipelago.git ap
+          python -m pip install --quiet -r ap/requirements.txt pytest
+          python -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' dist/rac1.apworld ap/worlds
+          cd ap && python -m pytest worlds/rac1 -q
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mods-apworld
+          path: dist/rac1.apworld
+          if-no-files-found: error
+
   # Each native mod's archives of every platform joined into one, <id>-<version>.zip, beside the
   # script mods' archives, and SHA256SUMS over every archive, which the launcher checks each
   # download against.
   merge:
-    needs: [build, scripts]
+    needs: [build, scripts, apworld]
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -202,7 +238,7 @@ jobs:
           for mod in $(ls dist/*.zip | grep -E -- "$platforms" | sed -E 's#.*/(.*)-[a-z]+-[a-z0-9_]+\.zip#\1#' | sort -u); do
             python "$SDK/tools/package_mod.py" --merge dist/"$mod"-*.zip -o dist/"$mod".zip
           done
-          (cd dist && sha256sum *.zip > SHA256SUMS)
+          (cd dist && sha256sum *.zip *.apworld > SHA256SUMS)
           cat dist/SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -245,7 +281,9 @@ jobs:
               mod="${TAG%-v*}" version="${TAG##*-v}"
               ls dist/"$mod-$version"*.zip > /dev/null 2>&1 || { echo "::error::$TAG: no archive of $mod $version"; exit 1; }
               find dist -name '*.zip' ! -name "$mod-$version.zip" ! -name "$mod-$version-*.zip" -delete
-              (cd dist && sha256sum *.zip > SHA256SUMS)
+              # The APWorld goes with the Archipelago mod only.
+              [ "$mod" = archipelago ] || rm -f dist/*.apworld
+              (cd dist && sha256sum *.zip $(ls *.apworld 2>/dev/null) > SHA256SUMS)
               ;;
           esac
           ls dist

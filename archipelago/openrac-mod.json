@@ -1,0 +1,51 @@
+{
+  "format": 2,
+  "id": "archipelago",
+  "name": "Archipelago",
+  "version": "1.0.0",
+  "author": "OpenRAC contributors",
+  "description": "Plays the game in an Archipelago multiworld (archipelago.gg): the gadgets, weapons, vendor slots, gold bolts and infobots are locations, and what they hold may be another player's item, in another game. What the others find for you comes to you as you play. Beat Drek to finish your part. Needs a room made with the rac1.apworld from this mod's release.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/archipelago",
+  "api": "1.9",
+  "games": { "rac1": ["pal", "ntsc"] },
+  "hooks": [
+    "Item_Give",
+    "Planet_Unlock",
+    "Vendor_InitLevelStock",
+    "Vendor_BuildItemList",
+    "GoldBolts_CountCollected",
+    "Moby_Infobot_Update",
+    "Moby_PilotsHelmet_Update",
+    "Moby_Helga_Update",
+    "Moby_BigAl_Update",
+    "Moby_Bob_Update",
+    "Moby_Edwina_Update"
+  ],
+  "settings": [
+    {
+      "key": "server",
+      "name": "Server",
+      "type": "string",
+      "default": "archipelago.gg:38281",
+      "max_length": 128,
+      "description": "The room's address, as its page shows it: host:port (wss:// is tried first, then ws://), or with ws:// or wss:// to use only that."
+    },
+    {
+      "key": "slot",
+      "name": "Slot name",
+      "type": "string",
+      "default": "${player_name}",
+      "max_length": 16,
+      "description": "Your slot's name: the name in your player YAML."
+    },
+    {
+      "key": "password",
+      "name": "Password",
+      "type": "string",
+      "default": "",
+      "max_length": 64,
+      "description": "The room's password, blank for none."
+    }
+  ]
+}
