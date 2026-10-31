@@ -119,10 +119,10 @@ inline bool older_scene(std::uint16_t a, std::uint16_t b) {
     return static_cast<std::int16_t>(static_cast<std::uint16_t>(a - b)) < 0;
 }
 
-/* Whether a DATA kind is the world's (world.hpp: 9 to 17, 22, 24); 23 is the progress's
+/* Whether a DATA kind is the world's (world.hpp: 9 to 17, 22, 24, 26 to 28); 23 is the progress's
  * (progress.hpp); the rest are the co-op's. */
 inline bool world_kind(std::uint8_t kind) {
-    return (kind >= 9 && kind <= 17) || kind == 22 || kind == 24;
+    return (kind >= 9 && kind <= 17) || kind == 22 || kind == 24 || (kind >= 26 && kind <= 28);
 }
 
 /* The most bytes of a save a CHUNK carries (a TCP frame takes 64 KiB; four make a save). */
@@ -440,6 +440,12 @@ public:
      * only the host flies). The host's departure: every member leaves with it. */
     bool ship_travel(int dest, int here);
 
+    /* A member coming into a game already on (Joining, above), and the world telling it that it
+     * has the host's world of the level it stands in. */
+    bool joining() const { return joining_; }
+
+    void world_ready(bool ready) { world_ready_ = ready; }
+
     /* Whether the party is arriving after a ship travel (the barrier above): the world waits. */
     bool arriving() const { return arriving_; }
 
@@ -517,9 +523,16 @@ private:
     std::int32_t pending_play_ = 0;
     int pending_level_ = 0;
     bool pending_save_ = false;
+    bool pending_joining_ = false;
     std::size_t expected_ = 0;
     std::size_t received_ = 0;
     Bytes save_;
+    /* A member coming into a game on (Joining, above): since when, the world's word, whether the
+     * pad presses Start this report. */
+    bool joining_ = false;
+    std::uint64_t joining_since_ = 0;
+    bool world_ready_ = false;
+    bool joining_press_ = false;
     std::int32_t applied_ = 0;
     int host_level_ = -1;
     std::uint64_t want_ms_ = 0;

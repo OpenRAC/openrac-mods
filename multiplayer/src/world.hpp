@@ -68,7 +68,30 @@
  *   16 DEAD    level i8, count u16 (records), then a bit a record, 1 dead   the host to a member;
  *   17 BROKE   level i8, key u16                                  a member broke a crate;
  *   22 CLAIM   level i8, id u16 (a key; 0x8000 | a net id)        a member collected a bolt;
- *   24 TAKEN   level i8, id u16 (as CLAIM's), player i32          the host: who took a bolt.
+ *   24 TAKEN   level i8, id u16 (as CLAIM's), player i32          the host: who took a bolt;
+ *   26 HELLO   level i8, load u32                                 a member: its game has this
+ *              level's mobys as made by this load, nothing of the host's world on them yet;
+ *   27 RESET   level i8                                           the host: its level was made
+ *              again (a death): what it spawned is gone, each member asks for the world again;
+ *   28 SYNCED  level i8, load u32 (HELLO's)                       the host to a member: all of
+ *              the world came, ahead of this message on the reliable stream.
+ *
+ * What a game's own load does. A level is made more often than it is loaded: each death of a hero
+ * (the game's own respawn) runs the level's loader again in one frame, every moby back as the
+ * level file has it, the spawned ones gone (status.loads changes, level does not). So the world
+ * is never assumed to last. A member whose mobys were made, for whatever reason, says so (HELLO,
+ * again each kHelloMs until answered) and the host gives it the whole world as it stands, in order
+ * on the reliable stream: every placed moby dead (DEAD), every spawned one (SPAWN), SYNCED; WORLD
+ * goes to it from then on. A joiner's first load is no different, so a late joiner gets the same.
+ * What is dead for the party is the host's party_dead_, which outlives a respawn in the host's own
+ * game: there the mobys it kept are deleted again at once, and the members told (RESET) to drop
+ * what its game no longer has. One player's death puts nothing back for the others.
+ *
+ * WORLD is state and its datagrams are lost, so no moby's place rests on one datagram: a moby that
+ * changed goes again in the next kWorldRepeats snapshots however it stands, each moby in the
+ * snapshots at least every kWorldRefreshMs (kWorldFarMs far from the member), and a snapshot
+ * refused by the session's bucket counts as not sent. Entries older than one already taken are
+ * dropped, per moby, so a late datagram brings nothing back.
  */
 #ifndef MULTIPLAYER_WORLD_H
 #define MULTIPLAYER_WORLD_H
@@ -102,7 +125,10 @@ enum class WorldKind : std::uint8_t {
     kDead = 16,
     kBroke = 17,
     kClaim = 22,
-    kTaken = 24
+    kTaken = 24,
+    kHello = 26,
+    kReset = 27,
+    kSynced = 28
 };
 
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
@@ -112,13 +138,19 @@ constexpr int kMobyAfter = 1;
 /* A spawned moby's id on the wire: 0x8000 | its net id. */
 constexpr std::uint16_t kSpawnedId = 0x8000;
 constexpr std::uint16_t kNoId = 0xFFFF;
-/* WORLD's entries a datagram (each 25 bytes), how often it goes to a member, how long an unchanged
- * moby near a member waits before it is sent again, and how near counts. */
+/* WORLD's entries a datagram (each 25 bytes), how often it goes to a member (at the least: the
+ * host's state budget of kWorldBudget a second is shared by the members), how long an unchanged moby
+ * waits before it is sent again near a member and far from one, how near counts, how many
+ * snapshots after a change a moby stays in them, and how often a member says HELLO. */
 constexpr std::size_t kWorldEntries = 46;
 constexpr std::size_t kWorldEntryBytes = 25;
 constexpr std::uint64_t kWorldMs = 66;
+constexpr std::uint64_t kWorldBudget = 30;
 constexpr std::uint64_t kWorldRefreshMs = 1000;
+constexpr std::uint64_t kWorldFarMs = 3000;
 constexpr float kWorldNear = 80.0f;
+constexpr int kWorldRepeats = 2;
+constexpr std::uint64_t kHelloMs = 1000;
 /* How often a member's verbose log says how the host's mobys are shown. */
 constexpr std::uint64_t kWorldPoseTraceMs = 1000;
 /* The bolt update's state while the bolt hovers where it landed (bolt_update's 3). */
@@ -263,6 +295,9 @@ public:
 
     std::size_t mobys() const { return mobys_.size(); }
 
+    /* A member: whether the host gave it the world of the level as it stands. */
+    bool synced() const { return synced_; }
+
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
     /* The verbose log (trace.hpp; null or off: none), its despawn lines with it; the game recorded
@@ -286,11 +321,14 @@ private:
         bool hidden = false;
         bool loose = false;
         std::uint64_t ms = 0;
+        int repeats = 0;  // snapshots it stays in though unchanged
     };
 
     struct Member {
         int level = -1;
-        std::uint32_t told_load = 0;  // the host's load it was given DEAD and SPAWNs for
+        bool want = false;        // HELLO heard, the world not given yet
+        std::uint32_t load = 0;   // that HELLO's load
+        bool synced = false;      // given the world: WORLD goes to it
         std::uint64_t world_ms = 0;
         std::map<std::uint16_t, Sent> sent;
         int bolts = 0;
@@ -301,10 +339,20 @@ private:
         int oclass = 0;
     };
 
+    /* New mobys (status.loads, the level): nothing of the last ones stands. */
+    void follow_load(const GameStatus& status);
     void tick_host(std::uint64_t now, const GameStatus& status);
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at);
     void send_dead(std::int32_t member, int level);
+    /* Host: the whole world to one member that said HELLO (DEAD, SPAWNs, SYNCED). */
+    void give_world(std::int32_t id, Member& m);
+    /* Host: its level made again: the party's dead deleted here again, the members told. */
+    void remade();
+    /* Host: the members' breaks heard since the last listing, done here. */
+    void take_broke();
+    /* Member: what the host spawned, gone (RESET). */
+    void drop_spawned();
     /* Host: a member's claim of a bolt, by its id (a key, or kSpawnedId | a net id). */
     void claim(std::int32_t member, int level, std::uint16_t id);
     /* Host: who took a bolt (TAKEN), to every member. */
@@ -363,6 +411,18 @@ private:
     std::set<int> alive_keys_;
     std::set<int> dead_keys_;
     bool listed_ = false;
+    /* Host: every placed moby dead for the party in this level, whatever became of this game's
+     * mobys since; whether the level was made again and that is still to be dealt with; loot the
+     * level made itself at its load (a crate's own nanotech), not one of the host's to share. */
+    std::set<int> party_dead_;
+    bool remade_ = false;
+    /* Host: the members' BROKE to act on at the next listing, by key: who said so. */
+    std::map<int, std::int32_t> broke_;
+    std::set<int> level_own_;
+    /* Member: whether the host gave it the world of this load, and when it last asked. */
+    bool synced_ = false;
+    std::uint64_t hello_ms_ = 0;
+    bool placed_driven_ = false;
     /* Host: the spawned mobys it shares (by slot), the next net id, the members, the stand-in of the
      * update running (its player, 0 none) and the bolts before it. */
     std::map<int, Net> shared_;
@@ -390,6 +450,8 @@ private:
     /* Member: the host's loot made here as this game's own, by net id. */
     std::set<std::uint16_t> loot_;
     std::map<int, int> placed_class_;
+    /* Member: the crates and pickups gone here that the host was told of. */
+    std::set<int> reported_;
     /* Member: the mobys it drives, their poses by id, the host's spawned ones by net id. */
     std::set<int> driven_;
     std::map<std::uint16_t, Interpolator> poses_;
@@ -402,9 +464,11 @@ private:
     /* Member: the host's bolts landed there and so run here, by net id. */
     std::set<std::uint16_t> loose_;
     std::uint16_t world_sequence_ = 0;
-    /* Member: whether the host's copy of each is hidden, and when the host last sent each. */
+    /* Member: whether the host's copy of each is hidden, when the host last sent each, and the
+     * newest stamp taken of each (older datagrams leave it alone). */
     std::map<std::uint16_t, bool> hidden_;
     std::map<std::uint16_t, std::uint64_t> host_ms_;
+    std::map<std::uint16_t, std::int64_t> stamps_;
     bool despawn_on_ = false;
     DespawnLog despawn_;
     Trace* trace_ = nullptr;
