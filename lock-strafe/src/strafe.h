@@ -25,7 +25,7 @@
  * slide from a run). With the setting on, in play on foot, the game sees L2 and R2 as not held
  * (lock_strafe.cpp takes them out of the pad's state at each report, as the game's own input locks take
  * buttons out), so L1 still looks and R1 still crouches, and L2 and R2 strafe. State 0x81 keeps
- * them: it has its strafe of its own on them. Scenes, menus, vendors and vehicles keep them too.
+ * them: it has its strafe of its own on them. Scenes, menus, vendors, vehicles and the hoverboard keep them too.
  *
  * Two ways to strafe, the later games':
  *
@@ -74,6 +74,9 @@
 #define RAC1_STRAFE_STATE_JUMP 0x07
 /* The state with a strafe of its own on L2 and R2: left as the game has it. */
 #define RAC1_STRAFE_STATE_GAME 0x81
+/* The hero's control mode on the hoverboard (hero +0x208C; set by state 0x6B in Rilgar and Kalebo
+ * III, seen in game code): its tricks are on L2 and R2, so the game keeps them. */
+#define RAC1_STRAFE_CONTROL_HOVERBOARD 0x16
 /* Slot 0 ready (HeroItemSlot.state). */
 #define RAC1_STRAFE_SLOT_READY 2
 
@@ -112,6 +115,7 @@ typedef struct rac1_strafe_input {
     int state;        /* hero +0x2084 */
     int frame_mode;   /* hero +0x20B3: 0 on level ground; others turn the hero's own frame */
     int vehicle_mode; /* hero +0x20A4: 0 on foot */
+    int control_mode; /* hero +0x208C: RAC1_STRAFE_CONTROL_HOVERBOARD on the board */
     int slot_state;   /* hero +0x1090 + 0x24: slot 0's state */
     int slot_item;    /* hero +0x1090 + 0x28: slot 0's item */
     uint32_t
@@ -173,7 +177,9 @@ static inline int rac1_strafe_aimable(int item) {
 
 /* In play on foot, in a state the setting changes L2 and R2 in. */
 static inline int rac1_strafe_on_foot(const rac1_strafe_input* in) {
-    return in->playing && in->vehicle_mode == 0 && in->state != RAC1_STRAFE_STATE_GAME;
+    return in->playing && in->vehicle_mode == 0
+           && in->control_mode != RAC1_STRAFE_CONTROL_HOVERBOARD
+           && in->state != RAC1_STRAFE_STATE_GAME;
 }
 
 /* Whether the game sees L2 and R2 as not held this tick: the setting on, in play on foot. */
@@ -225,8 +231,9 @@ static inline void rac1_strafe_hold_update(
 static inline int rac1_strafe_kind(
     int mode, const rac1_strafe_input* in, const rac1_strafe_hold* hold
 ) {
-    // The setting off, no play, a vehicle, or the hero on a frame of his own: the game's.
-    if (mode == RAC1_STRAFE_OFF || !in->playing || in->vehicle_mode != 0 || in->frame_mode != 0) {
+    // The setting off, no play, a vehicle, the hoverboard, or the hero on a frame of his own: the game's.
+    if (mode == RAC1_STRAFE_OFF || !in->playing || in->vehicle_mode != 0
+        || in->control_mode == RAC1_STRAFE_CONTROL_HOVERBOARD || in->frame_mode != 0) {
         return RAC1_STRAFE_NONE;
     }
 

@@ -26,7 +26,7 @@
 /* The hero running on level ground on foot, the blaster ready, nothing held. */
 static rac1_strafe_input running(void) {
     rac1_strafe_input in =
-        {1, RAC1_STRAFE_STATE_RUN, 0, 0, RAC1_STRAFE_SLOT_READY, BLASTER, 0, 0.75f, 0.0f, 0.0f};
+        {1, RAC1_STRAFE_STATE_RUN, 0, 0, 0, RAC1_STRAFE_SLOT_READY, BLASTER, 0, 0.75f, 0.0f, 0.0f};
     return in;
 }
 
@@ -156,6 +156,11 @@ static void hold_mode(void) {
     CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
     CHECK(!rac1_strafe_takes_buttons(mode, &in));
     in.vehicle_mode = 0;
+    /* The hoverboard: its tricks keep L2 and R2. */
+    in.control_mode = RAC1_STRAFE_CONTROL_HOVERBOARD;
+    CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
+    CHECK(!rac1_strafe_takes_buttons(mode, &in));
+    in.control_mode = 0;
     /* A scene, a menu, a vendor (not game mode 0), or no level: the game keeps L2 and R2 and
      * nothing strafes. */
     in.playing = 0;

@@ -59,6 +59,9 @@ constexpr uint32_t k_hero_state = 0x2084u;
 // In the hero: 0 on level ground; other values turn the hero's own frame (seen in game code).
 constexpr uint32_t k_hero_frame_mode = 0x20B3u;
 
+// In the hero: his control mode, 0x16 on the hoverboard (seen in game code).
+constexpr uint32_t k_hero_control_mode = 0x208Cu;
+
 // In the hero: 0 on foot, else the vehicle he is in (seen in game code).
 constexpr uint32_t k_hero_vehicle_mode = 0x20A4u;
 
@@ -236,6 +239,7 @@ void read_input(rac1_strafe_input* in) {
     in->state = ref<int32_t>(hero() + k_hero_state);
     in->frame_mode = ref<uint8_t>(hero() + k_hero_frame_mode);
     in->vehicle_mode = ref<uint8_t>(hero() + k_hero_vehicle_mode);
+    in->control_mode = ref<int32_t>(hero() + k_hero_control_mode);
     in->slot_state = ref<int32_t>(hero() + k_hero_slot0 + k_slot_state);
     in->slot_item = ref<int32_t>(hero() + k_hero_slot0 + k_slot_item);
     in->held = (ref<uint32_t>(pad() + k_pad_held) & ~RAC1_STRAFE_BUTTONS) | s_buttons;
