@@ -65,7 +65,8 @@ on foot (`vehicle_mode` 0) and outside state 0x81, it takes L2 and R2 out of
 the pad's state at each report (`Pad_ProcessReport`), as the game's own input
 locks (`PadState.mode`) take buttons out for a poll, and keeps them for the
 strafe. So L1 still looks and R1 still crouches, and L2 and R2 strafe.
-Scenes, menus, vendors, vehicles and state 0x81 keep them.
+Scenes, menus, vendors, vehicles, state 0x81 and the hoverboard (control mode
+`0x16`, whose tricks are on L2 and R2) keep them.
 
 **The strafe**, in [src/lock_strafe.cpp](src/lock_strafe.cpp), in the run
 (states 2 and 0x73), the jump (7) and standing (0), on level ground:
