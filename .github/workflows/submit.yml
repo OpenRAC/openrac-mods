@@ -53,10 +53,25 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
+      contents: read
     steps:
+      # Act as openrac-bot (its name and logo on comments, issues, PRs and commits); its PRs start CI.
+      - id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
+          private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+      - name: Bot identity for commits
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: |
+          id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)
+          echo "BOT_NAME=${SLUG}[bot]" >> "$GITHUB_ENV"
+          echo "BOT_EMAIL=${id}+${SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -67,7 +82,7 @@ jobs:
           path: ${{ runner.temp }}/bot
       - name: Pull request and comment
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: python3 tools/submit_bot.py apply --event "$GITHUB_EVENT_PATH" --result "$RUNNER_TEMP/bot"
 
@@ -79,17 +94,33 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      actions: write
+      contents: read
     steps:
+      # Act as openrac-bot (its name and logo on comments, issues, PRs and commits); its PRs start CI.
+      - id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
+          private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+          permission-actions: write
+          permission-members: read
+      - name: Bot identity for commits
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: |
+          id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)
+          echo "BOT_NAME=${SLUG}[bot]" >> "$GITHUB_ENV"
+          echo "BOT_EMAIL=${id}+${SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Approve
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.bot.outputs.token }}
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: python3 tools/submit_bot.py approve --event "$GITHUB_EVENT_PATH"

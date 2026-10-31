@@ -33,6 +33,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_index as b  # noqa: E402
 import media  # noqa: E402
 
+
+# Who the bot's commits are by: openrac-bot, set by the workflow from its GitHub App (its avatar shows
+# on them); Actions' own account when run without it.
+BOT_NAME = os.environ.get("BOT_NAME") or "github-actions[bot]"
+BOT_EMAIL = os.environ.get("BOT_EMAIL") or "41898282+github-actions[bot]@users.noreply.github.com"
+
 ROOT = b.ROOT
 REPO_SLUG = b.SOURCE.removeprefix("https://github.com/")
 MAINTAINERS = "@OpenRAC/maintainers"
@@ -589,8 +595,8 @@ def apply(result: dict, files: Path, repo: Path, run=run_cmd, run_id: str = "") 
         branch = result["branch"]
         git = ["git", "-C", str(repo)]
         run(["gh", "auth", "setup-git"])
-        run(git + ["config", "user.name", "github-actions[bot]"])
-        run(git + ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"])
+        run(git + ["config", "user.name", BOT_NAME])
+        run(git + ["config", "user.email", BOT_EMAIL])
         run(git + ["switch", "-C", branch])
         run(git + ["add", "-A", "--", *sorted(set(result["changed"] + result["deleted"]))])
         run(git + ["commit", "-m", f"feat(index): {result['title']}"[:100]])
@@ -615,8 +621,8 @@ def push_master(repo: Path, paths: list[str], message: str, branch: str, run=run
     """Commits to master; if master refuses the push (protected), opens a pull request instead."""
     git = ["git", "-C", str(repo)]
     run(["gh", "auth", "setup-git"])
-    run(git + ["config", "user.name", "github-actions[bot]"])
-    run(git + ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"])
+    run(git + ["config", "user.name", BOT_NAME])
+    run(git + ["config", "user.email", BOT_EMAIL])
     run(git + ["add", "--", *paths])
     run(git + ["commit", "-m", message])
     try:

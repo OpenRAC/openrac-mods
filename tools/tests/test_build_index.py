@@ -454,12 +454,17 @@ class Schema(unittest.TestCase):
 
 class Workflow(unittest.TestCase):
     def test_no_expressions_in_scripts(self):
-        # ${{ }} only in if:, env values, paths and groups, never inside a run: script.
+        # ${{ }} only in if:, env values, paths and groups, never inside a run: script. The bot's App id
+        # and key go only to the pinned create-github-app-token action, as exactly these secrets.
         for name in ("index.yml", "test.yml", "submit.yml"):
             text = (ROOT / ".github" / "workflows" / name).read_text()
             for line in text.splitlines():
                 if "${{" in line:
-                    self.assertRegex(line.strip(), r"^(if:|group:|path:|[A-Z_]+:)", (name, line))
+                    ok = re.match(r"^(if:|group:|path:|[A-Z_]+:)", line.strip()) or line.strip() in (
+                        "app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}",
+                        "private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}",
+                    )
+                    self.assertTrue(ok, (name, line))
                 if line.strip().startswith("uses:") or line.strip().startswith("- uses:"):
                     self.assertRegex(line, r"@[0-9a-f]{40}\b", line)
 
