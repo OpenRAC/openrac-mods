@@ -102,7 +102,7 @@ that says why, without naming regions to players (only "a different disc").
 
 ### 8. Release
 
-The port side is PR #99 into `develop`; the mod is on rac1-mods master. Before merging, once the
+The port side is PR #99 into `develop`; the mod is on openrac-mods master. Before merging, once the
 co-op is confirmed working in play: squash PR #99 into a few meaningful commits (the SDK calls,
 the port, the tests), then tag the SDK interface (1.9) and the mod (multiplayer-v0.7.0 or later),
 and pin the new SDK in `sdk.lock` so CI builds the mod.

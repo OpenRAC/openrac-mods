@@ -70,9 +70,9 @@ class Base(unittest.TestCase):
         self.fx.route(f"https://api.github.com/repos/someone/ext-hud", {"private": False})
         self.fx.route("https://api.github.com/repos/someone/ext-hud/collaborators/stranger/permission",
                       {"permission": "read", "role_name": "read"})
-        self.fx.route("https://api.github.com/repos/OpenRAC/rac1-mods/collaborators/boss/permission",
+        self.fx.route("https://api.github.com/repos/OpenRAC/openrac-mods/collaborators/boss/permission",
                       {"permission": "admin", "role_name": "maintain"})
-        self.fx.route("https://api.github.com/repos/OpenRAC/rac1-mods/collaborators/stranger/permission",
+        self.fx.route("https://api.github.com/repos/OpenRAC/openrac-mods/collaborators/stranger/permission",
                       {"permission": "read", "role_name": "read"})
         (self.fx.dir / "extra" / "shot.png").write_bytes(png(640, 360))
         self.fx.routes[SHOT] = "extra/shot.png"
@@ -162,7 +162,7 @@ class Submit(Base):
         entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
         self.assertEqual(entry["description"], evil)
         self.assertNotIn("\n", bot.md(evil))
-        run = FakeRun({"pr list": "[]", "pr create": "https://github.com/OpenRAC/rac1-mods/pull/9",
+        run = FakeRun({"pr list": "[]", "pr create": "https://github.com/OpenRAC/openrac-mods/pull/9",
                        "issues/5/comments": "[]"})
         repo = Path(tempfile.mkdtemp())
         try:
@@ -176,7 +176,7 @@ class Submit(Base):
 
     def test_apply_opens_pr_and_comments(self):
         r = self.check(event(self.fields))
-        run = FakeRun({"pr list": "[]", "pr create": "https://github.com/OpenRAC/rac1-mods/pull/9\n",
+        run = FakeRun({"pr list": "[]", "pr create": "https://github.com/OpenRAC/openrac-mods/pull/9\n",
                        "issues/5/comments": "[]"})
         repo = Path(tempfile.mkdtemp())
         try:
@@ -187,10 +187,10 @@ class Submit(Base):
         cmds = [" ".join(a) for a, _ in run.calls]
         self.assertTrue(any("push --force origin HEAD:refs/heads/listing/ext-hud" in c for c in cmds))
         comment = next(i for a, i in run.calls if a[:3] == ["gh", "issue", "comment"])
-        self.assertIn("✅ Ready: https://github.com/OpenRAC/rac1-mods/pull/9", comment)
+        self.assertIn("✅ Ready: https://github.com/OpenRAC/openrac-mods/pull/9", comment)
         self.assertIn("| File | In | Out (1600w AVIF) | Saved | Notes |", comment)
         # An edit updates the bot's own comment.
-        run2 = FakeRun({"pr list": '[{"url": "https://github.com/OpenRAC/rac1-mods/pull/9"}]',
+        run2 = FakeRun({"pr list": '[{"url": "https://github.com/OpenRAC/openrac-mods/pull/9"}]',
                         "issues/5/comments": json.dumps([{"id": 77, "body": bot.MARKER + " old"}])})
         repo = Path(tempfile.mkdtemp())
         try:
@@ -353,7 +353,7 @@ class CoolDown(Base):
         self.assertTrue(any(c.startswith("gh issue close 3") for c in cmds))
 
     def test_approve_falls_back_to_pr(self):
-        run = FakeRun({"pr create": "https://github.com/OpenRAC/rac1-mods/pull/4"}, fail=("HEAD:refs/heads/master",))
+        run = FakeRun({"pr create": "https://github.com/OpenRAC/openrac-mods/pull/4"}, fail=("HEAD:refs/heads/master",))
         bot.approve(self.approve_event("boss"), self.fx.repo, b.Offline(self.fx.dir), run)
         self.assertTrue(any("approve/ext-hud-0.3.0" in " ".join(a) for a, _ in run.calls))
 

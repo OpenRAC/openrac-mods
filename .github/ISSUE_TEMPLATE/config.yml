@@ -4,5 +4,5 @@ contact_links:
     url: https://openrac.dev/mods/submit
     about: Checks your repository live and fills the submission form for you.
   - name: Content rules
-    url: https://github.com/OpenRAC/rac1-mods/blob/master/CONTENT.md
+    url: https://github.com/OpenRAC/openrac-mods/blob/master/CONTENT.md
     about: What may be listed, how to report a mod, and legal notices (info@openrac.dev).

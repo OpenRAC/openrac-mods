@@ -17,7 +17,7 @@ speed). An older one refuses the mod and names the missing hook point.
 ## Playing
 
 Install it from the launcher's **Mods** tab (**Add from a link**:
-`https://github.com/OpenRAC/rac1-mods`), switch it on, choose its settings
+`https://github.com/OpenRAC/openrac-mods`), switch it on, choose its settings
 and play. Settings count from the game's next start; the enemy count and the
 prices from the next level loaded.
 

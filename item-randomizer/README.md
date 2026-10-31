@@ -10,7 +10,7 @@ that gadget. With the mod off, the game is the PlayStation 2 game.
 ## Playing
 
 Install it from the launcher's **Mods** tab (**Add from a link**:
-`https://github.com/OpenRAC/rac1-mods`), switch it on, choose its settings
+`https://github.com/OpenRAC/openrac-mods`), switch it on, choose its settings
 and start a **new game**.
 
 | Setting | Default | |

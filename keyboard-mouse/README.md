@@ -12,7 +12,7 @@ is replaced by the bindings below, and you can change every one of them.
 ## Install
 
 1. Open the OpenRAC launcher and go to **Mods**.
-2. Choose **Add from a link** and paste `https://github.com/OpenRAC/rac1-mods`.
+2. Choose **Add from a link** and paste `https://github.com/OpenRAC/openrac-mods`.
 3. Find **Keyboard and mouse** in the list and choose **Install**. It is
    switched on straight away.
 4. Play.
@@ -21,7 +21,7 @@ You need an OpenRAC with mod interface 1.3 or newer. With an older one, the
 mod's row says that it needs a newer OpenRAC, and the game starts without it.
 
 To install by hand, download `keyboard-mouse-<version>.zip` from the
-[releases](https://github.com/OpenRAC/rac1-mods/releases), then choose
+[releases](https://github.com/OpenRAC/openrac-mods/releases), then choose
 **Add a mod** in the launcher's **Mods** tab and pick that file.
 
 ## Default controls

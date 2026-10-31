@@ -4,7 +4,7 @@
 
 - [OpenRAC](https://github.com/OpenRAC/OpenRAC) with your own PAL or NTSC-U disc.
 - The **Archipelago** mod: in the OpenRAC launcher, **Mods**, **Add from a link**,
-  `https://github.com/OpenRAC/rac1-mods`, then install **Archipelago**.
+  `https://github.com/OpenRAC/openrac-mods`, then install **Archipelago**.
 - `rac1.apworld` from the same release, for whoever makes the room (double-click it, or put it in
   Archipelago's `custom_worlds` folder).
 

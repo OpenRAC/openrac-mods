@@ -6,7 +6,7 @@
  "author": "OpenRAC contributors",
  "description": "The lock-strafe test mod.",
  "license": "GPL-3.0-or-later",
- "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/lock-strafe",
+ "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/lock-strafe",
  "api": "1.0",
  "games": {
   "rac1": [
