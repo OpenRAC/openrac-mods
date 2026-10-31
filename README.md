@@ -160,6 +160,10 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
 - A new version of a native mod from another repository reaches players 24 h
   after its release, once a maintainer has approved it on its review issue
   (`index/approved.json`).
+- The bot is **openrac-bot**, a GitHub App of the organization, installed on this
+  repository only. Its App id and private key are the repository secrets
+  `OPENRAC_BOT_APP_ID` and `OPENRAC_BOT_PRIVATE_KEY`; each job asks it for a
+  one-hour token with only the rights that job needs.
 
 Tags and impact come from fixed lists, in [`index/schema.json`](index/schema.json).
 Check before you open the pull request:
