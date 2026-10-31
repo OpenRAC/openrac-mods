@@ -133,3 +133,40 @@ The mods here are GPL-3.0-or-later, as OpenRAC's port ([LICENSE](LICENSE)).
 The OpenRAC mod SDK they are built with is MIT, so mods elsewhere may choose
 their own license; `tools/fetch_sdk.py` and `.github/workflows/build.yml` are
 the SDK's files and keep its MIT notice.
+
+## List your mod
+
+Every mod here, and external mods listed in [`index/`](index), make up the
+mod index: `index.json` on this repository's `index` pre-release, which the
+OpenRAC website's mod pages and the launcher read. It is rebuilt every hour
+by [`index.yml`](.github/workflows/index.yml) and signed.
+
+- **A mod in this repository** is listed by itself from its releases. An
+  optional `<folder>/listing.json` adds a short description, tags, impact,
+  links, mods it recommends or suggests, and media (`icon`, `banner`,
+  `screenshots: [{src, caption}]`, `videos: [{youtube, caption}]`, paths inside
+  the folder; videos are YouTube links only).
+- **A mod in your own repository** is a pull request adding
+  `index/<id>.json`: the same fields plus `repo` and `path` (the mod's folder,
+  `""` for the top). Your releases need `<id>-v<version>` (or `v<version>`)
+  tags with the archives and `SHA256SUMS` the SDK's workflow makes; new
+  releases are picked up by themselves.
+
+- **Without git**: the [Submit a mod](https://github.com/OpenRAC/rac1-mods/issues/new?template=submit-mod.yml)
+  issue form (or the wizard at https://openrac.dev/mods/submit). A bot checks
+  it, takes the pictures you drag in, and opens the pull request; *Update a
+  listing* and *Remove my mod* work the same way. You need write access to the
+  mod's repository.
+- A new version of a native mod from another repository reaches players 24 h
+  after its release, once a maintainer has approved it on its review issue
+  (`index/approved.json`).
+
+Tags and impact come from fixed lists, in [`index/schema.json`](index/schema.json).
+Check before you open the pull request:
+
+```sh
+python3 tools/build_index.py --check                     # the whole index
+python3 tools/build_index.py --check-entry index/<id>.json
+```
+
+Every listed mod follows the [content rules](CONTENT.md).

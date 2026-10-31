@@ -1,0 +1,17 @@
+{
+ "format": 2,
+ "id": "lock-strafe",
+ "name": "Lock-strafe",
+ "version": "2.0.0-beta.1",
+ "author": "OpenRAC contributors",
+ "description": "The lock-strafe test mod.",
+ "license": "GPL-3.0-or-later",
+ "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/lock-strafe",
+ "api": "1.11",
+ "games": {
+  "rac1": [
+   "pal",
+   "ntsc"
+  ]
+ }
+}

@@ -1,0 +1,95 @@
+# The listing bot (tools/submit_bot.py): the issue forms submit-mod, update-listing, remove-mod
+# and revoke become pull requests, with one checklist comment on the issue; the `approved` label
+# on a review issue publishes a held version. The issue text is read by Python from the event file
+# only, never put into a command line. Every action is pinned to a commit.
+name: submit
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions: {}
+
+concurrency:
+  group: submit-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  # Read-only: parse the form, check everything, collect the files to change.
+  check:
+    if: >-
+      github.event.issue.state == 'open' && (
+      contains(github.event.issue.labels.*.name, 'mod-submission') ||
+      contains(github.event.issue.labels.*.name, 'listing-update') ||
+      contains(github.event.issue.labels.*.name, 'mod-removal') ||
+      contains(github.event.issue.labels.*.name, 'mod-revoke')) &&
+      (github.event.action != 'labeled' || github.event.label.name != 'approved')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install vips (for the media table)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libvips-tools libheif-plugin-aomenc
+      - name: Check the form
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/submit_bot.py check --event "$GITHUB_EVENT_PATH" --out "$RUNNER_TEMP/bot"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bot
+          path: ${{ runner.temp }}/bot/
+          retention-days: 3
+
+  # Write: the branch, the pull request and the comment. Runs even if the check crashed, to say so.
+  apply:
+    needs: check
+    if: ${{ !cancelled() && needs.check.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: bot
+          path: ${{ runner.temp }}/bot
+      - name: Pull request and comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 tools/submit_bot.py apply --event "$GITHUB_EVENT_PATH" --result "$RUNNER_TEMP/bot"
+
+  # A maintainer's `approved` label on a "Review <id> <version>" issue (index/approved.json).
+  approve:
+    if: >-
+      github.event.action == 'labeled' && github.event.label.name == 'approved' &&
+      contains(github.event.issue.labels.*.name, 'mod-review')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Approve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 tools/submit_bot.py approve --event "$GITHUB_EVENT_PATH"

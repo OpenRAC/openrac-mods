@@ -1,0 +1,34 @@
+name: Report a mod
+description: A mod in the index breaks the content rules.
+title: "Report: "
+labels: [mod-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a legal notice (copyright, DMCA), do not open an issue: write to info@openrac.dev.
+  - type: input
+    id: mod
+    attributes:
+      label: Mod id
+    validations:
+      required: true
+  - type: dropdown
+    id: rule
+    attributes:
+      label: Rule
+      options:
+        - Game files or disc data
+        - Re-upload without permission
+        - Malware, hidden telemetry or obfuscated code
+        - NSFW content or harassment
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What breaks the rule, and where (version, file, picture).
+    validations:
+      required: true

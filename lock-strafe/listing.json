@@ -1,0 +1,23 @@
+{
+  "description": "Strafe as in the later games: Up Your Arsenal's lock-strafe with weapons that fire ahead, and Going Commando's strafe while L2 or R2 is held.",
+  "tags": [
+    "gameplay",
+    "controls"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "links": {
+    "bugs": "https://github.com/OpenRAC/rac1-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

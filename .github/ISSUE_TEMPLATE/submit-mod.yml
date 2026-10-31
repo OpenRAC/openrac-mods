@@ -1,0 +1,87 @@
+name: Submit a mod
+description: List your mod (or a modpack) in the OpenRAC mod index. The bot checks it and opens a pull request.
+title: "Submit: "
+labels: [mod-submission]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill what you can; the bot answers with a checklist, each problem with its fix.
+        Easier: the wizard at https://openrac.dev/mods/submit fills this form for you.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Mod
+        - Modpack
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: Repository
+      description: "Your mod's public GitHub repository, https://github.com/owner/repo (not needed for a modpack)."
+      placeholder: https://github.com/owner/repo
+  - type: input
+    id: mods
+    attributes:
+      label: Mod ids
+      description: "Comma-separated ids of the mods to list from the repository. For a modpack: the mods it includes, as id@>=1.0.0 (or just id)."
+      placeholder: lock-strafe, camera-tweaks
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Modpack name
+      description: Modpacks only. Its id is made from this name.
+  - type: textarea
+    id: description
+    attributes:
+      label: Short description
+      description: One paragraph, plain text, at most 300 characters. Empty takes the manifest's.
+  - type: input
+    id: tags
+    attributes:
+      label: Tags
+      description: "Comma-separated, from: gameplay, controls, cosmetic, qol, speedrun, randomizer, multiplayer, accessibility, camera, audio, ui, tools."
+  - type: input
+    id: impact
+    attributes:
+      label: Impact
+      description: "Comma-separated, from: cosmetic, gameplay, speedrun-safe, touches-saves, online."
+  - type: input
+    id: bugs
+    attributes:
+      label: Bug tracker
+      placeholder: https://github.com/owner/repo/issues
+  - type: input
+    id: discord
+    attributes:
+      label: Discord
+      placeholder: https://discord.gg/...
+  - type: input
+    id: docs
+    attributes:
+      label: Docs
+      placeholder: https://...
+  - type: input
+    id: video
+    attributes:
+      label: YouTube video
+      description: A YouTube link (youtube.com or youtu.be). No other video hosts.
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: "Drag pictures here (PNG, JPEG, WebP, AVIF or GIF, at most 15 MB each), one per line, with a caption after ' | '. A picture captioned icon or banner becomes the icon or banner."
+      placeholder: "![shot](https://github.com/user-attachments/assets/...) | Strafing in Blarg"
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Content rules
+      description: See [CONTENT.md](https://github.com/OpenRAC/rac1-mods/blob/master/CONTENT.md).
+      options:
+        - label: My mod follows the content rules
+          required: true

@@ -1,0 +1,431 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OpenRAC/rac1-mods/blob/master/index/schema.json",
+  "title": "OpenRAC mod index entry",
+  "description": "index/<id>.json (an external mod, or a pack with type: pack) and <folder>/listing.json (an in-repo mod). Checked by tools/build_index.py.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/entry"
+    },
+    {
+      "$ref": "#/$defs/listing"
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "https": {
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 500
+    },
+    "src": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))(?!.*://)[^\\\\]+$"
+    },
+    "caption": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "listing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "gameplay",
+              "controls",
+              "cosmetic",
+              "qol",
+              "speedrun",
+              "randomizer",
+              "multiplayer",
+              "accessibility",
+              "camera",
+              "audio",
+              "ui",
+              "tools"
+            ]
+          }
+        },
+        "impact": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "cosmetic",
+              "gameplay",
+              "speedrun-safe",
+              "touches-saves",
+              "online"
+            ]
+          }
+        },
+        "links": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bugs": {
+              "$ref": "#/$defs/https"
+            },
+            "discord": {
+              "$ref": "#/$defs/https"
+            },
+            "docs": {
+              "$ref": "#/$defs/https"
+            }
+          }
+        },
+        "recommends": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "suggests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "aliases": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "featured": {
+          "type": "boolean"
+        },
+        "media": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "icon": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/src"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "banner": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/src"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "screenshots": {
+              "type": "array",
+              "maxItems": 12,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "src"
+                ],
+                "properties": {
+                  "src": {
+                    "$ref": "#/$defs/src"
+                  },
+                  "caption": {
+                    "$ref": "#/$defs/caption"
+                  }
+                }
+              }
+            },
+            "videos": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "youtube"
+                ],
+                "properties": {
+                  "youtube": {
+                    "type": "string",
+                    "minLength": 11,
+                    "maxLength": 200
+                  },
+                  "caption": {
+                    "$ref": "#/$defs/caption"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "repo",
+        "path"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "gameplay",
+              "controls",
+              "cosmetic",
+              "qol",
+              "speedrun",
+              "randomizer",
+              "multiplayer",
+              "accessibility",
+              "camera",
+              "audio",
+              "ui",
+              "tools"
+            ]
+          }
+        },
+        "impact": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "cosmetic",
+              "gameplay",
+              "speedrun-safe",
+              "touches-saves",
+              "online"
+            ]
+          }
+        },
+        "links": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bugs": {
+              "$ref": "#/$defs/https"
+            },
+            "discord": {
+              "$ref": "#/$defs/https"
+            },
+            "docs": {
+              "$ref": "#/$defs/https"
+            }
+          }
+        },
+        "recommends": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "suggests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "aliases": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "featured": {
+          "type": "boolean"
+        },
+        "media": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "icon": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/src"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "banner": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/src"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "screenshots": {
+              "type": "array",
+              "maxItems": 12,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "src"
+                ],
+                "properties": {
+                  "src": {
+                    "$ref": "#/$defs/src"
+                  },
+                  "caption": {
+                    "$ref": "#/$defs/caption"
+                  }
+                }
+              }
+            },
+            "videos": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "youtube"
+                ],
+                "properties": {
+                  "youtube": {
+                    "type": "string",
+                    "minLength": 11,
+                    "maxLength": 200
+                  },
+                  "caption": {
+                    "$ref": "#/$defs/caption"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "repo": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "type": {
+          "enum": [
+            "pack"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "license": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "homepage": {
+          "$ref": "#/$defs/https"
+        },
+        "games": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "readme": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "version",
+              "released"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "type": "string",
+                "pattern": "^(\\d+)\\.(\\d+)\\.(\\d+)(?:-([0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*))?$"
+              },
+              "released": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "changelog": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "requires": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "$ref": "#/$defs/id"
+                    },
+                    "version": {
+                      "type": "string",
+                      "pattern": "^(>=|=)\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)?$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
