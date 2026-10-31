@@ -245,6 +245,7 @@ jobs:
           name: mods
           path: |
             dist/*.zip
+            dist/*.apworld
             dist/SHA256SUMS
           if-no-files-found: error
 
