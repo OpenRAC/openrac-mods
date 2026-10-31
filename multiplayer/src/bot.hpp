@@ -13,6 +13,9 @@
  *   start               the host's Start
  *   leave               Leave party
  *   status              the game and the party, one JSON object
+ *   mods                what the party's mod check knows, one JSON object
+ *   page NAME           what a page shows (lobby, refused, rules), a JSON list of its lines
+ *   widths NAME         how wide the game's font draws each line of that page, a JSON list
  *   dump                every moby of the level (slot, key, class, flags, state, position)
  *   stats               what the network layer counted
  *   teleport X Y Z      the hero there, held a few ticks
@@ -31,9 +34,11 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "connection.hpp"
 #include "coop.hpp"
+#include "party_mods.hpp"
 #include "session.hpp"
 #include "world.hpp"
 
@@ -47,8 +52,15 @@ public:
         Game& game;
         Coop& coop;
         World& world;
+        PartyMods& mods;
         /* The hero's position written to game memory. */
         std::function<void(const float*)> teleport;
+        /* What a page shows: lobby, refused or rules, line by line. */
+        std::function<std::vector<std::string>(const std::string&)> page;
+        /* How wide the game's font draws a line. */
+        std::function<int(const std::string&)> width;
+        /* The description a party is listed with. */
+        std::function<std::string()> listed;
     };
 
     explicit Bot(Parts parts);
@@ -68,6 +80,7 @@ private:
     std::string status();
     std::string dump();
     std::string stats();
+    std::string mods();
 
     Parts parts_;
     long listen_ = -1;

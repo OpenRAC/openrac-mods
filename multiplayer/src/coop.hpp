@@ -49,7 +49,8 @@
  * The host plays what Create match chose: a new game (the first level) or a save of its memory
  * card. A member starts the same from the title (play_start), its own card untouched. Joining a
  * game that is on, a member gets the host's progress as it is now (save_capture), in the host's
- * level. A member whose build differs from the host's (the mod, OpenRAC, the disc) refuses it.
+ * level. A member whose build differs from the host's (the mod, OpenRAC, the disc, the gameplay mods'
+ * digest: party_mods.hpp) refuses it, and the host gives no game to one the gate says differs.
  * Scenes and movies end together: only the host skips them. Its Start in a scene or a movie skips
  * it in every game (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed
  * for the movie player); a member's Start there does nothing (the pad's Start taken out of the
@@ -100,6 +101,7 @@
 #include <string>
 #include <vector>
 
+#include "party_mods.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
@@ -343,6 +345,11 @@ public:
     /* The level's scene `scene` started as the game's own trigger starts it, once the player is in
      * control; -1 drops a request still waiting (the SDK's play_scene). False when it cannot. */
     virtual bool play_scene(int /*scene*/) { return false; }
+    /* The rules this game's mods published, for a party it hosts; the host's rules for the mod
+     * `id` handed to this game's same mod (empty: there are none any more). False when it has no
+     * such mod, or it takes none (party_mods.hpp). */
+    virtual std::vector<PartyRules> party_rules() { return {}; }
+    virtual bool deliver_rules(const std::string& /*id*/, const Bytes& /*data*/) { return false; }
     /* The shots the hero fired since the last call; a figure firing one (hitting nothing here). */
     virtual std::vector<Shot> hero_shots() { return {}; }
     virtual bool figure_shot(int /*id*/, const Shot& /*shot*/) { return false; }
@@ -377,9 +384,13 @@ public:
      * its time in transit) and twice a second how each figure's poses are shown ("pose" lines). */
     void trace(Trace* trace) { trace_ = trace; }
 
-    /* What every game of a party must have the same of (the mod's version, OpenRAC's, the disc):
-     * the host sends it with PLAY, and a member with another refuses to start. */
+    /* What every game of a party must have the same of (the mod's version, OpenRAC's, the disc, the
+     * gameplay mods' digest): the host sends it with PLAY, and a member with another refuses to
+     * start. */
     void set_build(std::string build) { build_ = std::move(build); }
+
+    /* Who may get the host's game (party_mods.hpp: a member whose mods match); none set: anyone. */
+    void set_gate(std::function<bool(std::int32_t)> gate) { gate_ = std::move(gate); }
 
     /* The host's choice (Create match's save picker): a new game (no bytes) or a save, and what the
      * lobby and the list say of it. */
@@ -523,9 +534,13 @@ private:
     void on_scene_state(std::int32_t sender, Reader& r);
     bool members_in_scene(std::uint64_t now, const GameStatus& status) const;
 
+    /* Whether `member` may get the host's game. */
+    bool may_play(std::int32_t member) const { return !gate_ || gate_(member); }
+
     Session& session_;
     Game& game_;
     std::string build_;
+    std::function<bool(std::int32_t)> gate_;
     /* Whether this game plays the party's game (the host's own once started, a member's once it
      * started the host's): it goes back to the title when the party goes. When it last started one
      * (0 none). */

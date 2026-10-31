@@ -34,6 +34,28 @@ void nonblocking(int fd) {
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
+std::string quoted(const std::vector<std::string>& lines) {
+    std::string out = "[";
+
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        out += i != 0 ? ",\"" : "\"";
+
+        for (const char c : lines[i]) {
+            if (c == '"' || c == '\\') {
+                out += '\\';
+            }
+
+            if (static_cast<unsigned char>(c) >= 0x20) {
+                out += c;
+            }
+        }
+
+        out += "\"";
+    }
+
+    return out + "]";
+}
+
 std::string number(float f) {
     char text[32];
     std::snprintf(text, sizeof text, "%.3f", static_cast<double>(f));
@@ -168,6 +190,29 @@ std::string Bot::status() {
     return o.str();
 }
 
+std::string Bot::mods() {
+    const PartyMods& m = parts_.mods;
+    const Session& session = parts_.session;
+    std::ostringstream o;
+    std::vector<std::string> rules;
+
+    for (const PartyRules& r : m.rules()) {
+        rules.push_back(r.id + ": " + r.text);
+    }
+
+    o << "{\"digest\":\"" << digest_tag(mods_digest(m.own())) << "\",\"heard_host\":" << m.heard_host()
+      << ",\"host_silent\":" << m.host_silent() << ",\"solo\":" << m.solo() << ",\"fits\":{";
+    bool first = true;
+
+    for (const Member& member : session.members()) {
+        o << (first ? "" : ",") << "\"" << member.name << "\":" << static_cast<int>(m.fit(member.id));
+        first = false;
+    }
+
+    o << "},\"differences\":" << quoted(refusal_lines(m.differences())) << ",\"rules\":" << quoted(rules) << "}";
+    return o.str();
+}
+
 std::string Bot::dump() {
     std::ostringstream o;
     o << "[";
@@ -225,7 +270,7 @@ std::string Bot::run(const std::string& line) {
         parts_.connection.open(host, port);
     } else if (command == "create") {
         parts_.coop.choose({}, "New game");
-        parts_.session.create("New game");
+        parts_.session.create(parts_.listed());
     } else if (command == "join") {
         std::string code;
         in >> code;
@@ -242,6 +287,22 @@ std::string Bot::run(const std::string& line) {
         return dump();
     } else if (command == "stats") {
         return stats();
+    } else if (command == "mods") {
+        return mods();
+    } else if (command == "page") {
+        std::string name;
+        in >> name;
+        return quoted(parts_.page(name));
+    } else if (command == "widths") {
+        std::string name;
+        in >> name;
+        std::string out = "[";
+
+        for (const std::string& text : parts_.page(name)) {
+            out += (out.size() > 1 ? "," : "") + std::to_string(parts_.width(text));
+        }
+
+        return out + "]";
     } else if (command == "teleport") {
         in >> at_[0] >> at_[1] >> at_[2];
         teleport_ticks_ = kTeleportTicks;

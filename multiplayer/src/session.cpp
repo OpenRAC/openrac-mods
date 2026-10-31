@@ -149,7 +149,7 @@ void Session::leave() {
 
 void Session::toggle_ready() {
     // Only a member says it is ready; the host starts instead.
-    if (!in_party() || is_host() || started_) {
+    if (!in_party() || is_host() || started_ || (ready_gate_ && !ready_gate_(id_))) {
         return;
     }
 
@@ -167,7 +167,7 @@ void Session::toggle_ready() {
 bool Session::all_ready() const {
     // Out of a party nobody is; in one, each member but the host.
     return in_party() && std::all_of(members_.begin(), members_.end(), [&](const Member& m) {
-               return m.id == host_ || ready(m.id);
+               return m.id == host_ || (ready(m.id) && (!is_host() || !ready_gate_ || ready_gate_(m.id)));
            });
 }
 
@@ -428,8 +428,8 @@ void Session::handle_data(const Message& m) {
     if (kind == LobbyKind::kReady && is_host()) {
         const bool now = r.u8() != 0;
 
-        // A cut-short message is ignored.
-        if (!r.ok()) {
+        // A cut-short message is ignored, and so is one of a member that may not play.
+        if (!r.ok() || (now && ready_gate_ && !ready_gate_(m.id))) {
             return;
         }
 

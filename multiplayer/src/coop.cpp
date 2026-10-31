@@ -275,9 +275,10 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                 return;
             }
 
-            // Another build plays another game: refused, and said why.
+            // Another build plays another game: refused, and said why (the lobby's page has it
+            // in full: party_mods.hpp).
             if (build != build_) {
-                notice_ = "Incompatible version: the host has " + (build.empty() ? "another" : build);
+                notice_ = "You can't join: your game differs from the host's";
                 log("refused the host's game: its build is " + build + ", this one " + build_);
                 play_ = play;
                 applied_ = play;  // not asked for again
@@ -365,7 +366,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
 
             // The host answers a member that asks for the game that is on.
             if (session_.is_host() && r.ok() && play_ != 0 && play == play_
-                && member_of(session_, sender)) {
+                && member_of(session_, sender) && may_play(sender)) {
                 const GameStatus status = game_.status();
                 const Bytes live = in_level(status.phase) ? game_.capture() : Bytes{};
 
@@ -676,7 +677,7 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
     for (const Member& m : session_.members()) {
         const bool told = std::find(told_.begin(), told_.end(), m.id) != told_.end();
 
-        if (m.id == session_.id() || told || !in_level(status.phase)) {
+        if (m.id == session_.id() || told || !in_level(status.phase) || !may_play(m.id)) {
             continue;
         }
 

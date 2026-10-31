@@ -130,6 +130,10 @@ public:
     void join(const std::string& code);
     void leave();
     void toggle_ready();
+    /* Who may say Ready (party_mods.hpp: a member whose mods match the host's); none set: anyone. A
+     * host takes no Ready of one that may not, and it does not count as ready; a member's own
+     * toggle does nothing. */
+    void set_ready_gate(std::function<bool(std::int32_t)> gate) { ready_gate_ = std::move(gate); }
     /* The host starts the game for everyone, once, and only when all_ready(). Returns whether it
      * did. */
     bool start();
@@ -258,6 +262,7 @@ private:
     bool waiting_ = false;
     std::string notice_;
     std::function<void(std::int32_t, const Bytes&)> on_data_;
+    std::function<bool(std::int32_t)> ready_gate_;
     std::function<std::uint64_t()> clock_;
     int clock_samples_ = 0;
     std::int64_t rtt_ms_ = 0;
