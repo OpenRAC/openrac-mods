@@ -2,12 +2,13 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "author": "OpenRAC contributors",
   "description": "Shuffles what the game gives out: the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. The placement follows what each place needs, so every seed can be finished. Share a seed's code and a friend plays the same game. A spoiler log of each seed is written to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/item-randomizer",
-  "api": "1.1",
+  "api": "1.11",
+  "multiplayer": "gameplay",
   "games": { "rac1": ["pal", "ntsc"] },
   "hooks": [
     "Item_Give",
@@ -24,7 +25,7 @@
   ],
   "settings": [
     {
-      "key": "seed",
+      "key": "seed", "multiplayer": "host",
       "name": "Seed",
       "type": "string",
       "default": "",
@@ -49,6 +50,6 @@
     { "key": "shuffle_gold_bolts", "name": "Shuffle gold bolts", "type": "bool", "default": true, "description": "Gold bolts join the pool: a gold bolt's place may hold a gadget, and a gold bolt may be anywhere." },
     { "key": "shuffle_infobots", "name": "Shuffle infobots", "type": "bool", "default": true, "description": "The planets' coordinates the infobots give join the pool." },
     { "key": "keep_starting_gear", "name": "Keep the starting gear", "type": "bool", "default": true, "description": "Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too." },
-    { "key": "spoiler_log", "name": "Spoiler log", "type": "bool", "default": true, "description": "Write where everything is, and a way through, to the mod's data folder." }
+    { "key": "spoiler_log", "multiplayer": "own", "name": "Spoiler log", "type": "bool", "default": true, "description": "Write where everything is, and a way through, to the mod's data folder." }
   ]
 }

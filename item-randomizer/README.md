@@ -7,6 +7,14 @@ infobots carry. Each seed is a new route through the game, and every seed
 can be finished: a gadget is only ever placed where you can get it without
 that gadget. With the mod off, the game is the PlayStation 2 game.
 
+## In a multiplayer party
+
+The item randomizer is a gameplay mod: every player needs the same version and the same settings
+as the host, or the join is refused and the game says which differ. **Seed** and **Spoiler log** are
+not compared: everyone plays the host's seed, so every game has the same placement, and the log is
+your own. An item another player found comes to you as that item, and the place it would have come
+from still holds its own reward. With no party the mod works as below.
+
 ## Playing
 
 Install it from the launcher's **Mods** tab (**Add from a link**:

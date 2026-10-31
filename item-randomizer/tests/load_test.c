@@ -405,6 +405,32 @@ static void stack_pop(openrac_gaddr saved) {
     (void)saved;
 }
 
+/* The port's side of the party's rules: what the mod published, its listener, the replay switch. */
+static char s_published[64];
+static char s_published_text[256];
+static openrac_party_rules_fn s_rules_fn;
+static int s_replaying;
+
+static int host_rules_publish(openrac_mod* mod, const void* data, uint32_t size, const char* text) {
+    (void)mod;
+    CHECK(size < sizeof s_published);
+    memcpy(s_published, data, size);
+    s_published[size] = 0;
+    snprintf(s_published_text, sizeof s_published_text, "%s", text);
+    return OPENRAC_HOOK_OK;
+}
+
+static int host_on_rules(openrac_mod* mod, openrac_party_rules_fn fn, void* user) {
+    (void)mod;
+    (void)user;
+    s_rules_fn = fn;
+    return 0;
+}
+
+static int host_replaying(void) {
+    return s_replaying;
+}
+
 static openrac_api make_api(const char* game, const char* version) {
     openrac_api api;
     memset(&api, 0, sizeof api);
@@ -432,6 +458,9 @@ static openrac_api make_api(const char* game, const char* version) {
     api.loaded_level = loaded_level;
     api.stack_push = stack_push;
     api.stack_pop = stack_pop;
+    api.party_rules_publish = host_rules_publish;
+    api.on_party_rules = host_on_rules;
+    api.party_replaying = host_replaying;
     return api;
 }
 
@@ -618,9 +647,9 @@ int main(int argc, char** argv) {
     memset(&info, 0, sizeof info);
     info.size = sizeof info;
     query(&info);
-    /* The interface its manifest names (1.1), whatever the SDK it was built with. */
-    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "1.0.1") == 0);
+    /* The interface its manifest names (1.11), whatever the SDK it was built with. */
+    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 11);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "1.1.0") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -889,6 +918,76 @@ int main(int argc, char** argv) {
     init(); /* the next level start: given once */
     CHECK(s_gives + s_unlocks + s_banners == 0);
     s_keep_start = 1;
+
+    /* A party. The host's game publishes its seed's code, and words for a player. */
+    s_seed = "party-host";
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    char host_code[RANDO_CODE_SIZE];
+    snprintf(host_code, sizeof host_code, "%s", s_published);
+    rando_settings hs;
+    CHECK(rando_decode(host_code, &hs));
+    CHECK(strstr(s_published_text, "Logic: standard") != NULL && strstr(s_published_text, "Shuffles gadgets") != NULL);
+    static rando_plan host_plan, own_plan;
+    CHECK(rando_solve(&hs, &host_plan) == 0);
+    snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, host_code);
+    remove(path);
+
+    /* A member with a seed of its own takes the host's: a place gives what the host's plan puts
+     * there, not what its own does. */
+    s_seed = "party-member";
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    rando_settings ms;
+    CHECK(rando_decode(s_published, &ms) && ms.seed != hs.seed);
+    CHECK(rando_solve(&ms, &own_plan) == 0);
+    snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, s_published);
+    remove(path);
+    give = (openrac_rac1_Item_Give)hook_named("Item_Give");
+    s_rules_fn(NULL, host_code, (uint32_t)strlen(host_code));
+    int spot = -1;
+
+    /* A place the two plans fill differently, with an item, an item nobody has yet. */
+    for (size_t i = 0; i < rando_location_count && spot < 0; ++i) {
+        const rando_location* l = &rando_locations[i];
+
+        if (l->kind == LOC_GIVE && host_plan.shuffled[i] && own_plan.shuffled[i]
+            && host_plan.reward[i].kind == REWARD_ITEM && own_plan.reward[i].kind == REWARD_ITEM
+            && host_plan.reward[i].value != own_plan.reward[i].value) {
+            spot = (int)i;
+        }
+    }
+
+    CHECK(spot >= 0);
+    const int spot_item = rando_locations[spot].key;
+    const int host_gives = host_plan.reward[spot].value;
+    const int own_gives = own_plan.reward[spot].value;
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    give(spot_item, 0);
+    CHECK(s_memory[D->owned + host_gives] == 1 && s_memory[D->owned + own_gives] == 0);
+
+    /* Passed on from another player, an item is itself: no place had, no other reward. Mutation:
+     * the same give with the switch off is that item's place's reward instead. */
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    s_replaying = 1;
+    give(spot_item, 0);
+    s_replaying = 0;
+    CHECK(s_memory[D->owned + spot_item] == 1 && s_memory[D->obtained + spot_item] == 0);
+
+    if (host_gives != spot_item) {
+        CHECK(s_memory[D->owned + host_gives] == 0);
+    }
+
+    /* The party goes: its own seed's again. */
+    s_rules_fn(NULL, NULL, 0);
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    give(spot_item, 0);
+    CHECK(s_memory[D->owned + own_gives] == 1 && s_memory[D->owned + host_gives] == 0);
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
 
     /* The remembered seed: a blank seed rolls one and keeps it. */
     s_seed = "";

@@ -48,6 +48,12 @@
  * Nothing of the mod's goes into a save: what is had is the game's own bytes, and the placement
  * comes from the seed. A save made with the mod belongs to its seed; with the mod off the game is
  * the console's.
+ *
+ * In a party (multiplayer's README, Mods in a party) the host's seed counts: this game publishes its
+ * seed code (it carries the settings), and in a member's game the same mod takes it and plays that
+ * placement until the party goes. What a party shares is passed on as it is: while
+ * party_replaying() says so, GiveItem gives the item named, with no location had, since the player
+ * who found it already got its reward.
  */
 
 #include <stddef.h>
@@ -111,7 +117,7 @@
 #define SPOILER_SIZE (64 * 1024)
 
 #define MOD_ID "item-randomizer"
-#define MOD_VERSION "1.0.1"
+#define MOD_VERSION "1.1.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -137,6 +143,10 @@ static rando_plan s_plan;
 
 /* The seed's code ("XXXX-XXXX-XXXX"), for the log and the spoiler's file name. */
 static char s_code[RANDO_CODE_SIZE];
+
+/* The placement this game's own settings gave, for when a party's host's is over. */
+static rando_settings s_own_settings;
+static int s_following;
 
 /* Each location's index by its key: the item id (LOC_GIVE, LOC_VENDOR, LOC_START), the level and
  * mission (LOC_INFOBOT); -1 for none or not shuffled. Gold bolts are found by the check each tick. */
@@ -356,6 +366,31 @@ static void log_line(int level, const char* text) {
     s_api->log(s_mod, level, text);
 }
 
+/* Gives item through the game's GiveItem, as itself: its obtained byte (its own location's) and the
+ * vendor's stock left as they were. */
+static void give_as_itself(int item, int32_t equip) {
+    const uint8_t before = *obtained(item);
+    // GiveItem marks a vendor weapon bought in the stock (or adds it): for a weapon that is a
+    // slot, the stock is the slots', so it stays as it was (the list sells its ammo).
+    uint8_t* stock = byte_at(s_disc->vendor_stock);
+    uint8_t kept[VENDOR_STOCK_SIZE];
+    const int slot = vendor_slot(item) >= 0;
+
+    // A vendor slot's weapon: remember the stock to put it back after GiveItem.
+    if (slot) {
+        memcpy(kept, stock, sizeof kept);
+    }
+
+    s_item_give(item, equip);
+
+    // Put the slots' stock back, as said above.
+    if (slot) {
+        memcpy(stock, kept, sizeof kept);
+    }
+
+    *obtained(item) = before;
+}
+
 /* Gives location's reward: an item through the game's GiveItem (keeping that item's obtained
  * byte as it was: it is its own location's), a planet through UnlockPlanet, a gold bolt's banner.
  * mark: an item whose obtained byte is then set (the location's own, when it is GiveItem's), or -1. */
@@ -365,30 +400,14 @@ static void give_reward(int location, int32_t equip, int mark) {
 
     // The reward is an item, a planet or a gold bolt, each given its own way.
     if (r.kind == REWARD_ITEM) {
-        const uint8_t before = *obtained(r.value);
-        // GiveItem marks a vendor weapon bought in the stock (or adds it): for a weapon that is a
-        // slot, the stock is the slots', so it stays as it was (the list sells its ammo).
-        uint8_t* stock = byte_at(s_disc->vendor_stock);
-        uint8_t kept[VENDOR_STOCK_SIZE];
-        const int slot = vendor_slot(r.value) >= 0;
-
-        // A vendor slot's weapon: remember the stock to put it back after GiveItem.
-        if (slot) {
-            memcpy(kept, stock, sizeof kept);
-        }
-
-        s_item_give(r.value, equip);
-
-        // Put the slots' stock back, as said above.
-        if (slot) {
-            memcpy(stock, kept, sizeof kept);
-        }
-
-        // The reward's own obtained byte belongs to its own location: put it back, unless this
+        // The reward's own obtained byte belongs to its own location: it stays, unless this
         // location is that item's own and not an infobot's or gold bolt's.
-        if (rando_locations[location].key != r.value
-            || rando_locations[location].kind >= LOC_INFOBOT) {
-            *obtained(r.value) = before;
+        const int own = rando_locations[location].key == r.value
+                        && rando_locations[location].kind < LOC_INFOBOT;
+        give_as_itself(r.value, equip);
+
+        if (own) {
+            *obtained(r.value) = 1;
         }
     } else if (r.kind == REWARD_PLANET) {
         s_planet_unlock(r.value);
@@ -429,6 +448,12 @@ static uint8_t* vendor_purchase(int item) {
 
 /* Hook for GiveItem(id, equip): id's location's reward, and the location had. */
 static void item_give(int32_t id, int32_t equip) {
+    // Another player's item passed on: it, as it is, and no place of this game is had by it.
+    if (s_api->api_minor >= 11 && s_api->party_replaying() && id >= 0 && id < RANDO_ITEM_COUNT) {
+        give_as_itself(id, equip);
+        return;
+    }
+
     const int location = id >= 0 && id < RANDO_ITEM_COUNT ? s_by_item[id] : -1;
 
     // An item with no shuffled location, or any give outside a level, is the game's own.
@@ -961,6 +986,83 @@ static void index_locations(void) {
     }
 }
 
+/* What this game plays by, for a party it hosts: the seed code, which carries the settings, and the
+ * words for a player. */
+static void publish_rules(void) {
+    static const struct {
+        int pool;
+        const char* name;
+    } k_pools[] = {
+        {POOL_GADGETS, "gadgets"},
+        {POOL_WEAPONS, "weapons"},
+        {POOL_VENDOR, "the vendor"},
+        {POOL_GOLD, "gold bolts"},
+        {POOL_PLANETS, "infobots"},
+    };
+    char text[160];
+    int at = snprintf(text, sizeof text, "Logic: %s", rando_difficulty_name(s_plan.settings.difficulty));
+
+    // Only what this seed shuffles.
+    for (size_t i = 0; i < sizeof k_pools / sizeof k_pools[0]; ++i) {
+        if ((s_plan.settings.pools & k_pools[i].pool) != 0) {
+            at += snprintf(text + at, sizeof text - (size_t)at, "\nShuffles %s", k_pools[i].name);
+        }
+    }
+
+    s_api->party_rules_publish(s_mod, s_code, (uint32_t)strlen(s_code), text);
+}
+
+/* Plays the placement of `settings`: the solver finds one for every setting, the same on every
+ * computer. 1 when it did. */
+static int play_settings(const rando_settings* settings) {
+    if (rando_solve(settings, &s_plan) != 0) {
+        return 0;
+    }
+
+    rando_encode(&s_plan.settings, s_code);
+    index_locations();
+    return 1;
+}
+
+/* The host's rules reached this game: its seed's placement in place of this game's; none, the party
+ * went, and this game's own is back. A game in a level starts from what it has there. */
+static void on_party_rules(void* user, const void* data, uint32_t size) {
+    (void)user;
+    char line[96];
+
+    if (data == NULL) {
+        if (s_following) {
+            s_following = 0;
+            play_settings(&s_own_settings);
+            log_line(OPENRAC_LOG_INFO, "out of the party: this game's own seed counts again");
+        }
+
+        return;
+    }
+
+    char code[RANDO_CODE_SIZE];
+    rando_settings host;
+
+    if (size >= sizeof code || (memcpy(code, data, size), code[size] = 0, !rando_decode(code, &host))) {
+        log_line(OPENRAC_LOG_WARN, "the host's seed cannot be read here");
+        return;
+    }
+
+    if (!play_settings(&host)) {
+        log_line(OPENRAC_LOG_ERROR, "no placement for the host's seed");
+        return;
+    }
+
+    s_following = 1;
+
+    if (s_api->loaded_level() >= 0) {
+        sync_seen();
+    }
+
+    snprintf(line, sizeof line, "in a party: playing the host's seed %s", s_code);
+    log_line(OPENRAC_LOG_INFO, line);
+}
+
 /* The start-up log line: the seed, where it came from, the difficulty, the disc and how many
  * placements were tried. */
 static void log_start_up(int source) {
@@ -1063,14 +1165,24 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     index_locations();
     s_show_banner = (void (*)(int32_t, int32_t))api->function(s_disc->show_banner);
 
+    s_own_settings = s_plan.settings;
+    s_following = 0;
+    // A port with party rules may yet bring a host's seed that shuffles something.
+    const int rules = api->api_minor >= 11;
+
     // With no pool shuffled the mod changes nothing, so it hooks nothing.
-    if (s_plan.settings.pools != 0) {
+    if (s_plan.settings.pools != 0 || rules) {
         // The port refused a hook point; it has been told why, so the mod does not run.
         if (!install_hooks()) {
             return 1;
         }
 
         api->on_frame(mod, each_tick, NULL);
+    }
+
+    if (rules) {
+        publish_rules();
+        api->on_party_rules(mod, on_party_rules, NULL);
     }
 
     log_start_up(source);
