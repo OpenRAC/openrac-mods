@@ -2,12 +2,13 @@
   "format": 2,
   "id": "difficulty",
   "name": "Difficulty",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "author": "OpenRAC contributors",
   "description": "A slider for everything that makes Ratchet & Clank hard or easy: how many enemies there are, the damage Ratchet takes and deals, how fast the enemies and Ratchet move, weapon and ammo prices, ammo per shot and max ammo, bolt drops, max health and health pickups. Presets fill them: Easy, Retail, Hard, Brutal, and Chaos, which rolls new values for each level from a seed (and, if you like, a random event every few minutes). Every slider at 1.0 plays as the original game.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/difficulty-mod",
-  "api": "1.1",
+  "api": "1.11",
+  "multiplayer": "gameplay",
   "games": {
     "rac1": [
       "pal",
@@ -204,6 +205,7 @@
     },
     {
       "key": "seed",
+      "multiplayer": "host",
       "name": "Seed",
       "type": "string",
       "default": "",
@@ -228,7 +230,8 @@
     },
     {
       "key": "trace",
-      "name": "Trace",
+      "multiplayer": "own",
+      "name": "Detailed log",
       "type": "bool",
       "default": false,
       "description": "For bug reports: more lines in the game's log (each level's values, max health changes)."

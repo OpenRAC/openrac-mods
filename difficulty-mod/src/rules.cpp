@@ -315,6 +315,137 @@ int EventClock::advance(double dt) {
     return 0;
 }
 
+namespace {
+
+// What a player reads for each slider, in the manifest's order.
+constexpr const char* k_rule_names[KNOB_COUNT] = {
+    "Enemy count",
+    "Damage to Ratchet",
+    "Damage to enemies",
+    "Enemy speed",
+    "Ratchet's speed",
+    "Weapon prices",
+    "Ammo prices",
+    "Ammo per shot",
+    "Max ammo",
+    "Bolts",
+    "Max health",
+    "Health pickups",
+};
+
+// The bytes' format, and how many there are: format, chaos, events, minutes (u8 each), event (i8),
+// seed (u32), then the sliders (f64 bits each), big-endian.
+constexpr std::uint8_t k_rules_format = 1;
+constexpr std::size_t k_rules_bytes = 5 + 4 + 8 * KNOB_COUNT;
+
+// A multiplier as a player reads it: at most two decimals, no trailing zeros: x2, x1.5, x0.25.
+std::string times(double value) {
+    char text[32];
+    std::snprintf(text, sizeof text, "x%.2f", value);
+    std::string out = text;
+
+    while (out.back() == '0') {
+        out.pop_back();
+    }
+
+    if (out.back() == '.') {
+        out.pop_back();
+    }
+
+    return out;
+}
+
+}  // namespace
+
+std::vector<std::uint8_t> encode_party_rules(const PartyRules& rules) {
+    std::vector<std::uint8_t> out;
+    out.reserve(k_rules_bytes);
+    out.push_back(k_rules_format);
+    out.push_back(rules.chaos ? 1 : 0);
+    out.push_back(rules.events ? 1 : 0);
+    out.push_back(
+        static_cast<std::uint8_t>(
+            rules.minutes < 0     ? 0
+            : rules.minutes > 255 ? 255
+                                  : rules.minutes
+        )
+    );
+    out.push_back(static_cast<std::uint8_t>(static_cast<std::int8_t>(rules.event)));
+
+    for (int shift = 24; shift >= 0; shift -= 8) {
+        out.push_back(static_cast<std::uint8_t>(rules.seed >> shift));
+    }
+
+    for (int k = 0; k < KNOB_COUNT; ++k) {
+        std::uint64_t bits = 0;
+        std::memcpy(&bits, &rules.sliders.v[k], sizeof bits);
+
+        for (int shift = 56; shift >= 0; shift -= 8) {
+            out.push_back(static_cast<std::uint8_t>(bits >> shift));
+        }
+    }
+
+    return out;
+}
+
+bool decode_party_rules(const void* data, std::uint32_t size, PartyRules& out) {
+    const auto* b = static_cast<const std::uint8_t*>(data);
+
+    // Another format is another version's: the versions match in a party, so never read.
+    if (b == nullptr || size != k_rules_bytes || b[0] != k_rules_format) {
+        return false;
+    }
+
+    PartyRules r;
+    r.chaos = b[1] != 0;
+    r.events = b[2] != 0;
+    r.minutes = b[3];
+    r.event = static_cast<std::int8_t>(b[4]);
+    r.event = r.event < 0 || r.event >= k_event_count ? -1 : r.event;
+    std::size_t at = 5;
+
+    for (int i = 0; i < 4; ++i) {
+        r.seed = r.seed << 8 | b[at++];
+    }
+
+    for (int k = 0; k < KNOB_COUNT; ++k) {
+        std::uint64_t bits = 0;
+
+        for (int i = 0; i < 8; ++i) {
+            bits = bits << 8 | b[at++];
+        }
+
+        std::memcpy(&r.sliders.v[k], &bits, sizeof bits);
+        r.sliders.v[k] = clamp_knob(k, r.sliders.v[k]);
+    }
+
+    out = r;
+    return true;
+}
+
+std::string party_rules_text(const PartyRules& rules) {
+    std::string out;
+    const auto add = [&out](const std::string& line) {
+        out += (out.empty() ? "" : "\n") + line;
+    };
+
+    for (int k = 0; k < KNOB_COUNT; ++k) {
+        if (rules.sliders[k] != 1.0) {
+            add(std::string(k_rule_names[k]) + " " + times(rules.sliders[k]));
+        }
+    }
+
+    if (rules.chaos) {
+        add("Chaos on");
+    }
+
+    if (rules.events) {
+        add("Chaos events every " + std::to_string(rules.minutes) + " min");
+    }
+
+    return out.empty() ? "As in the game" : out;
+}
+
 Values with_event(const Values& values, int event) {
     Values out = values;
 

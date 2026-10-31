@@ -326,6 +326,55 @@ void stack_pop(openrac_gaddr saved) {
     g_sp = saved;
 }
 
+// The port's side of the party's rules: what the mod published, and its listener.
+std::vector<std::uint8_t> g_published;
+std::string g_published_text;
+int g_publishes;
+openrac_party_rules_fn g_rules_fn;
+
+int host_mod_count() {
+    return 0;
+}
+
+int host_mod_entry(int, openrac_mod_entry*) {
+    return OPENRAC_HOOK_UNKNOWN;
+}
+
+int host_mod_setting(int, int, openrac_mod_setting*) {
+    return OPENRAC_HOOK_UNKNOWN;
+}
+
+int host_rules_publish(openrac_mod*, const void* data, uint32_t size, const char* text) {
+    const auto* bytes = static_cast<const std::uint8_t*>(data);
+    g_published.assign(bytes, bytes + size);
+    g_published_text = text;
+    ++g_publishes;
+    return OPENRAC_HOOK_OK;
+}
+
+int host_rules_read(int, void*, uint32_t, uint32_t*) {
+    return -1;
+}
+
+const char* host_rules_text(int) {
+    return "";
+}
+
+int host_on_rules(openrac_mod*, openrac_party_rules_fn fn, void*) {
+    g_rules_fn = fn;
+    return 0;
+}
+
+int host_rules_deliver(int, const void*, uint32_t) {
+    return OPENRAC_HOOK_UNKNOWN;
+}
+
+void host_replay(int) {}
+
+int host_replaying() {
+    return 0;
+}
+
 openrac_api make_api(const char* game, const char* version) {
     openrac_api api;
     std::memset(&api, 0, sizeof api);
@@ -353,6 +402,16 @@ openrac_api make_api(const char* game, const char* version) {
     api.loaded_level = loaded_level;
     api.stack_push = stack_push;
     api.stack_pop = stack_pop;
+    api.mod_count = host_mod_count;
+    api.mod_entry = host_mod_entry;
+    api.mod_setting = host_mod_setting;
+    api.party_rules_publish = host_rules_publish;
+    api.party_rules_read = host_rules_read;
+    api.party_rules_text = host_rules_text;
+    api.on_party_rules = host_on_rules;
+    api.party_rules_deliver = host_rules_deliver;
+    api.party_replay = host_replay;
+    api.party_replaying = host_replaying;
     return api;
 }
 
@@ -494,9 +553,9 @@ int main(int argc, char** argv) {
     std::memset(&info, 0, sizeof info);
     info.size = sizeof info;
     query(&info);
-    // The interface its manifest names (1.1), whatever the SDK it was built with.
-    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.2.2") == 0);
+    // The interface its manifest names (1.11), whatever the SDK it was built with.
+    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 11);
+    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.3.0") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -779,6 +838,66 @@ int main(int argc, char** argv) {
     g_strings = {{"seed", "0A1B2C3D"}};
     g_bools["chaos"] = 1;
     CHECK(load_with("ntsc") && g_failed.empty());
+
+    // A party. The host's game publishes what it plays by, its blank seed resolved: enemy count 2
+    // here, Chaos off.
+    g_bools.clear();
+    g_strings.clear();
+    g_floats = {{"enemy_count", 2.0}, {"bolts", 3.0}};
+    g_publishes = 0;
+    CHECK(load_with("pal") && g_publishes == 1);
+    dm::PartyRules host;
+    CHECK(dm::decode_party_rules(g_published.data(), static_cast<std::uint32_t>(g_published.size()), host));
+    CHECK(host.seed != 0 && host.sliders[dm::ENEMY_COUNT] == 2.0 && host.sliders[dm::BOLTS] == 3.0 && !host.chaos);
+    CHECK(g_published_text == "Enemy count x2\nBolts x3");
+    const std::vector<std::uint8_t> host_bytes = g_published;
+    load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
+    record_death = (void (*)(std::uint32_t, int32_t, int32_t))hook("rac1.moby.record_death");
+    lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created > 0);
+
+    // A member, with its own sliders at 1.0 here: the host's count makes no copies of its own and
+    // leaves nothing out, and its bolts are the host's, not this game's.
+    g_floats.clear();
+    CHECK(load_with("pal"));
+    load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
+    record_death = (void (*)(std::uint32_t, int32_t, int32_t))hook("rac1.moby.record_death");
+    g_rules_fn(nullptr, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
+    lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created == 0 && g_deleted == 0);
+    put<int16_t>(kBase + 0xB4u, 10);
+    put<int16_t>(kBase + 0xB6u, 0);
+    record_death(kBase, 0, 0);
+    CHECK(g_bolts_seen[0] == 30);
+    // A respawn, the same load again: still none of its own.
+    lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created == 0 && g_deleted == 0);
+    // Removals below 1 are the host's too.
+    dm::PartyRules fewer = host;
+    fewer.sliders[dm::ENEMY_COUNT] = 0.5;
+    const std::vector<std::uint8_t> bytes = dm::encode_party_rules(fewer);
+    g_rules_fn(nullptr, bytes.data(), static_cast<std::uint32_t>(bytes.size()));
+    lay_level(std::vector<Placed>(200, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created == 0 && g_deleted == 0);
+    // The party gone: this game's own settings again, here retail.
+    g_rules_fn(nullptr, nullptr, 0);
+    lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created == 0 && g_deleted == 0);
+    put<int16_t>(kBase + 0xB4u, 10);
+    record_death(kBase, 0, 0);
+    CHECK(g_bolts_seen[0] == 10);
+    // Mutation: without the host's rules, a member's own enemy count would make its copies.
+    g_floats = {{"enemy_count", 2.0}};
+    CHECK(load_with("pal"));
+    load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
+    lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created > 0);
 
     std::free(g_mem);
     std::printf("difficulty_load_test: ok\n");

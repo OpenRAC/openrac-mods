@@ -47,7 +47,7 @@ if(BUILD_TESTING)
   # The library as the port loads it, against a host table and game memory of the test's own.
   add_executable(difficulty_load_test tests/load_test.cpp)
   target_include_directories(difficulty_load_test PRIVATE src)
-  target_link_libraries(difficulty_load_test PRIVATE OpenRAC::mod ${CMAKE_DL_LIBS})
+  target_link_libraries(difficulty_load_test PRIVATE OpenRAC::mod difficulty_core ${CMAKE_DL_LIBS})
   target_compile_features(difficulty_load_test PRIVATE cxx_std_17)
   add_dependencies(difficulty_load_test difficulty)
   add_test(NAME difficulty_load COMMAND difficulty_load_test $<TARGET_FILE:difficulty>)
