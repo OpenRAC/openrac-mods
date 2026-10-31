@@ -31,7 +31,7 @@ if(NOT OpenRACMod_DIR)
   endif()
 endif()
 # The SDK provides openrac_add_mod and the OpenRAC::mod target the tests link against.
-find_package(OpenRACMod 1.3 REQUIRED)
+find_package(OpenRACMod 1.11 REQUIRED)
 
 # CTest gives every mod's tests the BUILD_TESTING switch and the ctest command.
 include(CTest)
@@ -45,12 +45,5 @@ add_subdirectory(live-splits)
 add_subdirectory(dualsense)
 add_subdirectory(ammo-max)
 add_subdirectory(xbox-icons)
-# Multiplayer needs interface 1.7's pages of the game's own menus, 1.8's play calls and 1.9's world
-# calls: built only with an SDK that has them (until sdk.lock pins 1.9.0, build it with
-# -DOPENRAC_SDK=<OpenRAC>/sdk; an older SDK leaves it out).
-if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.9)
-  add_subdirectory(multiplayer)
-  add_subdirectory(archipelago)
-else()
-  message(STATUS "multiplayer, archipelago: skipped, they need the mod SDK 1.9 (this one is ${OpenRACMod_VERSION})")
-endif()
+add_subdirectory(multiplayer)
+add_subdirectory(archipelago)

@@ -73,7 +73,7 @@
 #define MAX_RECEIVED 1024
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "1.0.0"
+#define MOD_VERSION "1.0.1"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
