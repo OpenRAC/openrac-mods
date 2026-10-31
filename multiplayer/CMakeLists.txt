@@ -16,6 +16,12 @@ openrac_add_mod(multiplayer MANIFEST openrac-mod.json
                         src/direct.cpp src/protocol.cpp src/coop.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
+# The end-to-end tests' driver (src/bot.hpp, tests/e2e): a development build's, never a release's.
+option(MULTIPLAYER_BOT "Build the test bot into the multiplayer mod" OFF)
+if(MULTIPLAYER_BOT)
+  target_sources(multiplayer PRIVATE src/bot.cpp)
+  target_compile_definitions(multiplayer PRIVATE MULTIPLAYER_BOT)
+endif()
 # The connection runs on a thread of its own, so it needs the platform's thread library.
 find_package(Threads REQUIRED)
 target_link_libraries(multiplayer PRIVATE Threads::Threads)

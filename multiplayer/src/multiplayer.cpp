@@ -43,6 +43,7 @@
 #include <string>
 #include <vector>
 
+#include "bot.hpp"
 #include "connection.hpp"
 #include "coop.hpp"
 #include "direct.hpp"
@@ -504,6 +505,9 @@ struct State {
     std::unique_ptr<mp::Coop> coop;
     std::unique_ptr<mp::World> world;
     std::unique_ptr<mp::Progress> progress;
+#ifdef MULTIPLAYER_BOT
+    std::unique_ptr<mp::Bot> bot;  // the end-to-end tests' driver (bot.hpp)
+#endif
     mp::Trace trace;            // the verbose log (trace.hpp), off unless asked for
     std::ofstream trace_file;   // mp-trace.log, where it goes
     openrac::Mod* mod = nullptr;
@@ -1382,6 +1386,17 @@ void load(openrac::Mod& mod) {
         }
     }
 
+#ifdef MULTIPLAYER_BOT
+    g->bot = std::make_unique<mp::Bot>(mp::Bot::Parts{
+        *g->connection, *g->session, *g->game, *g->coop, *g->world, [](const float* at) {
+            // The hero's motion position (PAL; the bot is a test's).
+            openrac::Memory memory = g->mod->memory();
+            for (unsigned i = 0; i < 3; ++i) {
+                memory.write<float>(0x0013F4D0u + 4u * i, at[i]);
+            }
+        }
+    });
+#endif
     g->world->trace(&g->trace);
     g->coop->trace(&g->trace);
     g->progress->trace(&g->trace);
@@ -1451,7 +1466,15 @@ void load(openrac::Mod& mod) {
         // A movie plays outside the game's ticks (no on_frame): the party's messages are read here.
         if (now - g->frame_ms > 100) {
             poll();
+            g->session->flush();
+#ifdef MULTIPLAYER_BOT
+            g->bot->poll();
+#endif
         }
+
+#ifdef MULTIPLAYER_BOT
+        g->bot->pad(report, size);
+#endif
 
         // Start pressed in a scene or a movie: the host's skips it for the whole party; a member's
         // does nothing here but say so (a movie has no game ticks: the banner is shown from here).
@@ -1518,6 +1541,9 @@ void load(openrac::Mod& mod) {
     // game.
     mod.on_frame([] {
         poll();
+#ifdef MULTIPLAYER_BOT
+        g->bot->poll();
+#endif
         const std::uint64_t now = mp::now_ms();
         g->frame_ms = now;
 
