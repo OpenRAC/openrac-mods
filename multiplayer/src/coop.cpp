@@ -252,6 +252,14 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
     Reader r(bytes.data() + 1, bytes.size() - 1);
     const bool from_host = sender == session_.host() && !session_.is_host();
 
+    if (kind == GameKind::kPoses) {
+        if (from_host) {
+            on_poses(sender, r);
+        }
+
+        return;
+    }
+
     switch (kind) {
         case GameKind::kPlay: {
             const std::int32_t play = r.i32();
@@ -391,12 +399,12 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
     }
 
     if (session_.is_host()) {
-        // A member speaks for itself only; the host passes it on to everyone.
+        // A member speaks for itself only; the host passes it on with the next poses that go.
         if (sender != m.owner) {
             return;
         }
 
-        session_.send_state(kBroadcast, bytes);
+        relay_[m.owner] = bytes;
     } else if (sender != session_.host()) {
         return;
     }
@@ -424,6 +432,71 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
                       m.pose.velocity[1], m.pose.velocity[2], m.pose.state, m.teleport ? " teleport" : "");
         trace_->line("pose", text);
     }
+}
+
+void Coop::on_poses(std::int32_t sender, Reader& r) {
+    const std::uint8_t count = r.u8();
+
+    for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
+        const std::uint8_t high = r.u8();
+        const std::size_t size = static_cast<std::size_t>(high) << 8 | r.u8();
+
+        if (size == 0 || size > r.left()) {
+            return;
+        }
+
+        Bytes one(size);
+
+        for (std::uint8_t& b : one) {
+            b = r.u8();
+        }
+
+        on_pose(sender, one);
+    }
+}
+
+void Coop::send_poses(const Bytes* own) {
+    std::vector<const Bytes*> poses;
+
+    if (own != nullptr) {
+        poses.push_back(own);
+    }
+
+    for (const auto& [id, bytes] : relay_) {
+        poses.push_back(&bytes);
+    }
+
+    // Nothing to pass on: the host's own, as a POSE. (With one member it hears only the host.)
+    if (poses.size() == 1 && own != nullptr) {
+        session_.send_state(kBroadcast, *own);
+        relay_.clear();
+        return;
+    }
+
+    const std::size_t room = kMaxDatagramBytes - kClientStateHeader;
+
+    for (std::size_t at = 0; at < poses.size();) {
+        Writer w;
+        std::size_t size = 2;
+        std::size_t end = at;
+
+        while (end < poses.size() && size + 2 + poses[end]->size() <= room) {
+            size += 2 + poses[end]->size();
+            ++end;
+        }
+
+        w.u8(static_cast<std::uint8_t>(GameKind::kPoses)).u8(static_cast<std::uint8_t>(end - at));
+
+        for (std::size_t i = at; i < end; ++i) {
+            const auto length = poses[i]->size();
+            w.u8(static_cast<std::uint8_t>(length >> 8)).u8(static_cast<std::uint8_t>(length)).raw(*poses[i]);
+        }
+
+        session_.send_state(kBroadcast, w.bytes());
+        at = std::max(end, at + 1);
+    }
+
+    relay_.clear();
 }
 
 void Coop::tick(std::uint64_t now) {
@@ -492,6 +565,17 @@ void Coop::tick(std::uint64_t now) {
 
     send_pose(now, status);
     send_shots(status);
+
+    // The host out of a level has no pose of its own to go with the members': theirs go alone.
+    if (session_.is_host() && !relay_.empty() && now - relay_ms_ >= 2 * kPoseMs) {
+        relay_ms_ = now;
+
+        if (session_.members().size() > 2) {
+            send_poses(nullptr);
+        } else {
+            relay_.clear();
+        }
+    }
 
     if (tracing() && in_level(status.phase)) {
         Pose hero;
@@ -918,7 +1002,20 @@ void Coop::send_pose(std::uint64_t now, const GameStatus& status) {
     pose_loads_ = status.loads;
     pose_sent_ = true;
     last_pose_ = m.pose;
-    session_.send_state(session_.is_host() ? kBroadcast : session_.host(), encode_pose(m));
+
+    if (!session_.is_host()) {
+        session_.send_state(session_.host(), encode_pose(m));
+        return;
+    }
+
+    // With one member there is no one to pass its poses on to.
+    if (session_.members().size() <= 2) {
+        relay_.clear();
+    }
+
+    const Bytes own = encode_pose(m);
+    relay_ms_ = now;
+    send_poses(&own);
 }
 
 void Coop::send_shots(const GameStatus& status) {

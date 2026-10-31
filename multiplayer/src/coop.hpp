@@ -39,6 +39,11 @@
  *            scene: where it is with the host's scene `sequence` (kScenePending to play,
  *            kScenePlaying, kSceneOut played, skipped or given up); the host's barrier waits for
  *            those of its newest scene only (a word of an older one is no word of this one).
+ *  25 POSES  count u8, then per pose length u16 + its POSE
+ *            the host to everyone, as state, every kPoseMs: its own Ratchet's and the members'
+ *            newest, in one datagram (each POSE on its own would be 20 a second a player of the
+ *            server's 60 a second for the host); a game skips its own. With one member there is
+ *            nobody to pass poses on to, and a POSE goes.
  * A member's DATA always reaches the host only; the host's goes to everyone or to one.
  *
  * The host plays what Create match chose: a new game (the first level) or a save of its memory
@@ -112,7 +117,8 @@ enum class GameKind : std::uint8_t {
     kSkip = 18,
     kShot = kShotKind,
     kScene = 20,
-    kSceneState = 21
+    kSceneState = 21,
+    kPoses = 25
 };
 
 /* What a skip was pressed in (SKIP's `what`), and where a member is with the host's scene
