@@ -421,6 +421,25 @@ mp::ModList ModGame::mod_list() {
         list.family = list.disc;
     }
 
+    list.key = mod_.identity_key();
+
+    // A key this game could not send again is none.
+    if (!mp::valid_key(list.key)) {
+        list.key.clear();
+    }
+
+    openrac_packs_info packs{};
+    packs.size = sizeof packs;
+
+    if (mod_.packs_info(packs)) {
+        for (int i = 0; i < packs.count; ++i) {
+            mp::PackInfo p;
+
+            if (mod_.packs_entry(i, p.id, p.name, p.version, p.digest)) {
+                list.packs.push_back(std::move(p));
+            }
+        }
+    }
 
     for (const openrac::ModEntry& e : mod_.mods()) {
         if (e.id == "multiplayer") {

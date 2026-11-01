@@ -54,6 +54,16 @@ const ModSettingInfo* find_setting(const ModInfo& mod, const std::string& key) {
     return nullptr;
 }
 
+const PackInfo* find_pack(const ModList& list, const std::string& id) {
+    for (const PackInfo& p : list.packs) {
+        if (p.id == id) {
+            return &p;
+        }
+    }
+
+    return nullptr;
+}
+
 std::string with_more(const std::string& first, std::size_t others) {
     return others == 0 ? first : first + ", " + std::to_string(others) + " more";
 }
@@ -81,7 +91,15 @@ Bytes encode_mod_list(const ModList& list) {
         }
     }
 
-    w.str(list.family).str(list.modcode);
+    w.str(list.family).str(list.modcode).str(list.key);
+    const std::size_t packs = std::min<std::size_t>(list.packs.size(), 255);
+    w.u8(static_cast<std::uint8_t>(packs));
+
+    for (std::size_t i = 0; i < packs; ++i) {
+        const PackInfo& p = list.packs[i];
+        w.str(p.id).str(p.name).str(p.version).i32(static_cast<std::int32_t>(p.digest));
+    }
+
     return w.bytes();
 }
 
@@ -122,6 +140,24 @@ bool decode_mod_list(Reader& r, ModList& out) {
         out.modcode.clear();
     }
 
+    out.key = r.left() > 0 ? r.str() : "";
+
+    // A key goes on a line of the save's note: only one that fits there.
+    if (!valid_key(out.key)) {
+        out.key.clear();
+    }
+
+    const std::uint8_t packs = r.left() > 0 ? r.u8() : 0;
+
+    for (std::uint8_t i = 0; i < packs && r.ok(); ++i) {
+        PackInfo p;
+        p.id = r.str();
+        p.name = r.str();
+        p.version = r.str();
+        p.digest = static_cast<std::uint32_t>(r.i32());
+        out.packs.push_back(std::move(p));
+    }
+
     return r.ok();
 }
 
@@ -160,6 +196,11 @@ std::uint32_t mods_digest(const ModList& list) {
 
     for (const std::string& part : parts) {
         mix(hash, part);
+    }
+
+    // The packs in order: a later one wins where two overlap.
+    for (const PackInfo& p : list.packs) {
+        mix(hash, "pack " + p.id + " " + p.version + " " + std::to_string(p.digest));
     }
 
     return hash;
@@ -244,6 +285,35 @@ std::vector<Difference> compare_mods(const ModList& own, const ModList& host) {
     for (const ModInfo& m : own.mods) {
         if (m.party == kModGameplay && find_mod(host, m.id) == nullptr) {
             add(Kind::kYouOnly, m.name, m.version, "");
+        }
+    }
+
+    // The data packs: each of the host's here, holding the same; nothing more; in the same order.
+    const std::size_t before = out.size();
+
+    for (const PackInfo& h : host.packs) {
+        const PackInfo* p = find_pack(own, h.id);
+
+        if (p == nullptr) {
+            add(Kind::kHostOnly, h.name, "", h.version);
+        } else if (p->digest != h.digest || p->version != h.version) {
+            add(Kind::kPack, h.name, p->version, h.version);
+        }
+    }
+
+    for (const PackInfo& p : own.packs) {
+        if (find_pack(host, p.id) == nullptr) {
+            add(Kind::kYouOnly, p.name, p.version, "");
+        }
+    }
+
+    // Nothing else of theirs differs, so the same packs: a later one wins where two overlap.
+    if (out.size() == before) {
+        for (std::size_t i = 0; i < own.packs.size() && i < host.packs.size(); ++i) {
+            if (own.packs[i].id != host.packs[i].id) {
+                add(Kind::kPackOrder, "", "", "");
+                break;
+            }
         }
     }
 
@@ -357,6 +427,12 @@ std::vector<std::string> refusal_lines(
             case Kind::kSolo:
                 add(d.mod + " can't be played in a party");
                 break;
+            case Kind::kPack:
+                add("Your " + d.mod + " pack differs from the host's");
+                break;
+            case Kind::kPackOrder:
+                add("Your data packs are in another order than the host's");
+                break;
         }
     }
 
@@ -397,6 +473,12 @@ std::string refusal_short(const std::vector<Difference>& differences) {
             break;
         case Kind::kSolo:
             first = d.mod + " is solo only";
+            break;
+        case Kind::kPack:
+            first = d.mod + " pack";
+            break;
+        case Kind::kPackOrder:
+            first = "pack order";
             break;
     }
 
@@ -444,6 +526,10 @@ std::vector<std::string> rules_lines(
         }
 
         add(wrap_list(items, width));
+    }
+
+    for (const PackInfo& p : host.packs) {
+        add(wrap_text(p.name + (p.version.empty() ? "" : " " + p.version), width));
     }
 
     if (out.empty()) {
@@ -531,6 +617,11 @@ std::string PartyMods::why(std::int32_t member) const {
     return it != peers_.end() ? it->second.why : std::string();
 }
 
+std::string PartyMods::key(std::int32_t member) const {
+    const auto it = peers_.find(member);
+    return it != peers_.end() ? it->second.key : std::string();
+}
+
 bool PartyMods::may_play(std::int32_t member) const {
     return fit(member) == Fit::kMatch;
 }
@@ -567,8 +658,15 @@ void PartyMods::set_mod_code(const std::string& code) {
 }
 
 void PartyMods::send_mods(std::int32_t target) {
+    ModList list = own_;
+
+    // A key is for a host to ban by: a host has no one to show its own to.
+    if (session_.is_host()) {
+        list.key.clear();
+    }
+
     Writer w;
-    w.u8(static_cast<std::uint8_t>(ModsKind::kMods)).raw(encode_mod_list(own_));
+    w.u8(static_cast<std::uint8_t>(ModsKind::kMods)).raw(encode_mod_list(list));
     session_.send_data(target, w.bytes());
 }
 
@@ -623,6 +721,7 @@ void PartyMods::on_mods(std::int32_t sender, Reader& r) {
 
     Peer& peer = peers_[sender];
     const bool first = !peer.answered;
+    peer.key = theirs.key;
     const std::vector<Difference> differences = compare_mods(theirs, own_);
     const Fit fit = differences.empty() ? Fit::kMatch : Fit::kDiffers;
     const std::string why = refusal_short(differences);

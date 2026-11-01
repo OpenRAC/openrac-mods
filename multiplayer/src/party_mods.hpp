@@ -11,7 +11,9 @@
  *   29 MODS   multiplayer's version, OpenRAC's and the disc (3 strings), count u8, then per mod: id,
  *             name, version (strings), kind u8 (OPENRAC_PARTY_MOD_*), settings u8, per setting: key,
  *             name, value, shown (strings), kind u8 (OPENRAC_PARTY_SETTING_*), default u8; then the
- *             world family (string), the mod code (string, "" for none: modcode.hpp)
+ *             world family (string), the mod code (string, "" for none: modcode.hpp), the sender's
+ *             key (string: a member's, "" from the host), count u8, then per data pack: id, name,
+ *             version (strings), digest i32
  *             a member to the host every kModsMs until the host's comes; the host's to that member;
  *   30 FITS   count u8, then id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string)
  *             the host to everyone, at each change;
@@ -19,6 +21,10 @@
  *             the host to one member it found matching, and to all whenever its mods publish new
  *             rules (a Chaos event). On the reliable stream ahead of PLAY: a member has them before
  *             it loads any level.
+ *
+ * Data packs. Those that change the game (the SDK's packs_info: gameplay data, collision, a map) are
+ * compared as gameplay mods are, in order, by what they hold: a pack that holds the same on two discs
+ * has the same digest. One of looks alone is each player's own, and the port does not list it.
  *
  * Discs. Two discs of one world family (openrac_api.world_family) play together: the check, the
  * digest and the build follow the family, and the disc is only said. A level that still does not
@@ -97,6 +103,14 @@ struct ModInfo {
     bool counts() const { return party == kModGameplay || party == kModSolo; }
 };
 
+/* A data pack that changes the game. */
+struct PackInfo {
+    std::string id;
+    std::string name;
+    std::string version;
+    std::uint32_t digest = 0;
+};
+
 /* A game's build and its mods, Multiplayer's own left out. */
 struct ModList {
     std::string multiplayer;
@@ -105,6 +119,8 @@ struct ModList {
     std::string family;  // the world the disc belongs to: what is compared
     std::vector<ModInfo> mods;
     std::string modcode; // the mod code of this list, if it has one (modcode.hpp): never compared
+    std::string key;     // this installation's (the SDK's identity_key), for a ban: never compared
+    std::vector<PackInfo> packs;  // in the order they apply
 };
 
 Bytes encode_mod_list(const ModList& list);
@@ -124,7 +140,9 @@ struct Difference {
         kYouOnly,      // the player has `mod`, the host has not
         kVersion,      // `mod` at another version: mine, theirs
         kSettings,     // `mod`'s `settings` (their names) differ
-        kSolo          // `mod` cannot be played in a party
+        kSolo,         // `mod` cannot be played in a party
+        kPack,         // the data pack `mod` holds something else
+        kPackOrder     // the same data packs, applied in another order
     };
     Kind kind = Kind::kDisc;
     std::string mod;
@@ -206,6 +224,9 @@ public:
     /* What the host said of `member`'s mods, for its line ("Difficulty settings"). */
     std::string why(std::int32_t member) const;
 
+    /* The host: `member`'s key, as its MODS said; "" for none yet, or a game with none. */
+    std::string key(std::int32_t member) const;
+
     /* The host: whether `member` may be Ready and get the game. */
     bool may_play(std::int32_t member) const;
 
@@ -235,6 +256,7 @@ private:
         std::string why;
         std::uint64_t since = 0;
         bool answered = false;
+        std::string key;
     };
 
     void send_mods(std::int32_t target);
