@@ -27,6 +27,7 @@
 #include "cosave.hpp"
 #include "direct.hpp"
 #include "menu.hpp"
+#include "migrate.hpp"
 #include "modcode.hpp"
 #include "nametags.hpp"
 #include "progress.hpp"
