@@ -54,6 +54,17 @@ cmake -S . -B build -G Ninja && cmake --build build
 ctest --test-dir build -R archipelago
 ```
 
-`build/apworld/rac1.apworld` is the APWorld. Its `table.json` is printed by
-`tools/dump_table.c` at build time. To test it, put it in an Archipelago checkout's `worlds/` and
-run `python -m pytest worlds/rac1`.
+`build/apworld/rac1.apworld` is the APWorld: the `apworld/rac1` folder, zipped.
+
+`apworld/rac1/data.py` holds the locations, items and rules. It is written by `tools/dump_table.c`
+from the item randomizer's table, and committed so the logic can be read. Do not edit it. After a
+change to `item-randomizer/src/logic.c`, write it again; the `archipelago_data` test fails until
+you do:
+
+```
+cmake --build build --target archipelago_data
+```
+
+To test the world in an Archipelago checkout: put `rac1.apworld` in its `worlds/` and run
+`AP_TEST_WORLDS=rac1 python -m pytest test/general` (Archipelago's own checks, on the zip), then
+copy `apworld/rac1` to `worlds/rac1` instead and run `python -m pytest worlds/rac1`.

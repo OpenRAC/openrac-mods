@@ -65,21 +65,29 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux|Android")
   target_link_options(archipelago PRIVATE "LINKER:--exclude-libs,ALL")
 endif()
 
-# The table of locations and items, for the APWorld: printed by a small tool over logic.c, and
-# packed with apworld/rac1 into rac1.apworld (never written into the source tree).
+# The APWorld's data (apworld/rac1/data.py), printed by a small tool over logic.c. data.py is
+# committed so the logic can be reviewed; `cmake --build build --target archipelago_data` writes it
+# again after logic.c changes, and the archipelago_data test fails when it is out of date.
 add_executable(archipelago_dump_table tools/dump_table.c ${randomizer_src}/logic.c)
 target_include_directories(archipelago_dump_table PRIVATE src ${randomizer_src})
 set_target_properties(archipelago_dump_table PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+set(apworld_data ${CMAKE_CURRENT_SOURCE_DIR}/apworld/rac1/data.py)
+if(NOT CMAKE_CROSSCOMPILING)
+  add_custom_target(archipelago_data
+    COMMAND $<TARGET_FILE:archipelago_dump_table> > ${apworld_data}
+    DEPENDS archipelago_dump_table
+    COMMENT "Writing apworld/rac1/data.py")
+endif()
+
+# rac1.apworld: the apworld/rac1 folder as a zip, with its manifest's container fields.
 find_package(Python3 COMPONENTS Interpreter)
-# The tool runs on the build machine: not when cross-compiling (Android).
-if(Python3_FOUND AND NOT CMAKE_CROSSCOMPILING)
+if(Python3_FOUND)
   set(apworld ${CMAKE_BINARY_DIR}/apworld/rac1.apworld)
   file(GLOB_RECURSE apworld_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/apworld/rac1/*)
   add_custom_command(OUTPUT ${apworld}
-    COMMAND $<TARGET_FILE:archipelago_dump_table> > ${CMAKE_CURRENT_BINARY_DIR}/table.json
     COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/tools/pack_apworld.py
-            ${CMAKE_CURRENT_SOURCE_DIR}/apworld/rac1 ${CMAKE_CURRENT_BINARY_DIR}/table.json ${apworld}
-    DEPENDS archipelago_dump_table ${apworld_sources} tools/pack_apworld.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/apworld/rac1 ${apworld}
+    DEPENDS ${apworld_sources} tools/pack_apworld.py
     COMMENT "Packing rac1.apworld")
   add_custom_target(archipelago_apworld ALL DEPENDS ${apworld})
 endif()
@@ -91,8 +99,13 @@ if(BUILD_TESTING)
   set_target_properties(archipelago_unit_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME archipelago_unit COMMAND archipelago_unit_test)
 
-  # The table: every location and item has its own id, and the tool's JSON is whole.
+  # The table: every location and item has its own id, and data.py is what the tool prints.
   add_test(NAME archipelago_table COMMAND archipelago_dump_table --check)
+  if(NOT CMAKE_CROSSCOMPILING)
+    add_test(NAME archipelago_data
+      COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:archipelago_dump_table> -DDATA=${apworld_data}
+              -DOUT=${CMAKE_CURRENT_BINARY_DIR}/data.py -P ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_data.cmake)
+  endif()
 
   # The library as the port loads it, against a host of the test's own and an Archipelago server
   # on the loopback.
