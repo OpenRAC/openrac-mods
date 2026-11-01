@@ -956,7 +956,8 @@ struct SimNet {
         }
 
         std::vector<Packet> later;
-        std::sort(flying.begin(), flying.end(), [](const Packet& a, const Packet& b) { return a.at < b.at; });
+        // Stable: a stream's messages due at the same moment arrive in the order they went (TCP's).
+        std::stable_sort(flying.begin(), flying.end(), [](const Packet& a, const Packet& b) { return a.at < b.at; });
 
         for (Packet& f : flying) {
             if (f.at > static_cast<double>(now)) {
