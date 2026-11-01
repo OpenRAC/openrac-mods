@@ -630,6 +630,20 @@ public:
     void rejoined(std::uint64_t now);
     void member_back(std::int32_t member);
     void hold_for_host(bool on) { host_hold_ = on; }
+    /* While on, this game is named the host and is not one yet: it runs nothing of a host's. */
+    void between_hosts(bool on) { between_hosts_ = on; }
+    bool between_hosts() const { return between_hosts_; }
+
+    /* Who hosts changed (migrate.hpp; the table there says what becomes of what). A member: the new
+     * host's word replaces the old one's. This game: whether it can carry the game on, and doing so
+     * with what the party has of it. An old host back as a member: it comes in afresh. */
+    void host_changed();
+    bool can_take_over() const;
+    void take_over(std::uint16_t travel, std::uint16_t scene, Bytes save, std::uint64_t now);
+    void demoted();
+    /* The ledger's part: the travels and the scene sequence. */
+    std::uint16_t travels() const { return session_.role().host() ? travel_ : host_travel_; }
+    std::uint16_t scenes() const { return session_.role().host() ? scene_sequence_ : host_scene_sequence_; }
 
     /* Leaving: whether this game is on its way back to the title after its party went, and whether
      * the title's Multiplayer page is still to open; home_shown() says it did (its page showed). */
@@ -1024,8 +1038,11 @@ private:
     bool home_ = false;
     std::uint64_t home_since_ = 0;
     std::uint64_t home_ms_ = 0;
-    /* The party waits for its host (migrate.hpp): nobody moves. */
+    /* The party waits for its host (migrate.hpp): nobody moves. An old host back as a member, on
+     * its way out of its game. */
     bool host_hold_ = false;
+    bool between_hosts_ = false;
+    bool demoted_ = false;
     /* The host: each member's newest pose not passed on yet, and when they last went. */
     std::map<std::int32_t, Bytes> relay_;
     std::uint64_t relay_ms_ = 0;

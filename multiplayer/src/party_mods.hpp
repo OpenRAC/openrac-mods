@@ -295,6 +295,13 @@ private:
     std::map<std::int32_t, Peer> peers_;
     /* The rules in force, and the mods of this game that took the host's. */
     std::vector<PartyRules> rules_;
+    /* The party's host changed (migrate.hpp), so its epoch: the rules stand, and the new host goes on
+     * by the list everyone was checked against, not its own. */
+    void host_moved(std::uint64_t now);
+    const ModList& party_list() const { return inherited_ ? basis_ : own_; }
+    std::uint16_t party_epoch_ = 0;
+    bool inherited_ = false;
+    ModList basis_;
     std::vector<std::string> delivered_;
 };
 

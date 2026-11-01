@@ -100,6 +100,28 @@ void Session::drop() {
     events_.push_back({PartyEvent::Kind::kDropped, id_});
 }
 
+void Session::name_successors(const std::vector<std::int32_t>& members) {
+    if (is_host() && can_change_host() && !dropped_) {
+        transport_.send(party_successors(members));
+    }
+}
+
+void Session::decline_host() {
+    if (is_host() && can_change_host() && !dropped_) {
+        transport_.send(party_decline());
+    }
+}
+
+Bytes Session::stamped(const Bytes& bytes) const {
+    if (!is_host() || role_.epoch() == 0) {
+        return bytes;
+    }
+
+    Writer w;
+    w.u8(kind::kEpoch).u8(static_cast<std::uint8_t>(role_.epoch() >> 8)).u8(static_cast<std::uint8_t>(role_.epoch())).raw(bytes);
+    return w.bytes();
+}
+
 std::vector<PartyEvent> Session::take_events() {
     std::vector<PartyEvent> out;
     out.swap(events_);
@@ -300,7 +322,7 @@ void Session::send_links() {
 void Session::send_lobby(std::int32_t target, const Bytes& bytes) {
     data_bucket_.spend(clock_());
     ++counts_.data_frames;
-    transport_.send(data(target, bytes));
+    transport_.send(data(target, stamped(bytes)));
 }
 
 void Session::send_data(std::int32_t target, const Bytes& bytes) {
@@ -338,7 +360,7 @@ void Session::flush() {
 
         if (queue_.empty() || queue_.front().target != target
             || one.size() + 2 + queue_.front().bytes.size() + 3 > kBatchBytes) {
-            transport_.send(data(target, one));
+            transport_.send(data(target, stamped(one)));
             continue;
         }
 
@@ -355,7 +377,7 @@ void Session::flush() {
             queue_.pop_front();
         }
 
-        transport_.send(data(target, w.bytes()));
+        transport_.send(data(target, stamped(w.bytes())));
     }
 }
 
@@ -364,6 +386,7 @@ bool Session::send_state(std::int32_t target, const Bytes& bytes) {
         return false;
     }
 
+    const Bytes out = stamped(bytes);
     const std::uint64_t now = clock_();
 
     if (!state_bucket_.take(now)) {
@@ -374,7 +397,7 @@ bool Session::send_state(std::int32_t target, const Bytes& bytes) {
     // Until UDP is known to work, the state goes as DATA too, from what events leave.
     bool tcp = false;
 
-    if (transport_.state_needs_tcp(bytes.size())) {
+    if (transport_.state_needs_tcp(out.size())) {
         tcp = data_bucket_.level(now) > kStateReserve && data_bucket_.take(now);
         counts_.state_tcp += tcp ? 1 : 0;
         counts_.data_frames += tcp ? 1 : 0;
@@ -385,7 +408,7 @@ bool Session::send_state(std::int32_t target, const Bytes& bytes) {
     ++k.messages;
     k.bytes += bytes.size();
     ++counts_.state_datagrams;
-    transport_.send_state(target, bytes, tcp);
+    transport_.send_state(target, out, tcp);
     return true;
 }
 
@@ -399,7 +422,7 @@ void Session::send_state() {
         w.i32(m.id).u8(ready(m.id) ? 1 : 0);
     }
 
-    transport_.send(data(kBroadcast, w.bytes()));
+    transport_.send(data(kBroadcast, stamped(w.bytes())));
 }
 
 void Session::handle(const Message& m) {
@@ -441,6 +464,14 @@ void Session::handle(const Message& m) {
             }
 
             events_.push_back({m.back ? PartyEvent::Kind::kBack : PartyEvent::Kind::kAway, m.id});
+            break;
+        case Message::Kind::kPartyHostChanged:
+            role_.set(true, id_, m.host, static_cast<std::uint16_t>(m.epoch));
+            std::stable_partition(members_.begin(), members_.end(), [&](const Member& x) {
+                return x.id == role_.host_id();
+            });
+            kicking_.clear();
+            events_.push_back({PartyEvent::Kind::kHostChanged, m.host});
             break;
         case Message::Kind::kPartyJoined:
             members_.push_back({m.id, m.text});
@@ -539,6 +570,33 @@ void Session::handle_data(const Message& m) {
         return;
     }
 
+    if (m.bytes[0] != kind::kEpoch) {
+        // Unstamped from the host of a party that has changed hosts: the first host, come back.
+        if (role_.epoch() == 0 || m.id != role_.host_id()) {
+            take_data(m);
+        } else {
+            ++stale_;
+        }
+
+        return;
+    }
+
+    Reader stamp(m.bytes.data() + 1, m.bytes.size() - 1);
+    const std::uint8_t high = stamp.u8();
+    const auto epoch = static_cast<std::uint16_t>(high << 8 | stamp.u8());
+
+    if (!stamp.ok() || stamp.left() == 0
+        || static_cast<std::int16_t>(static_cast<std::uint16_t>(epoch - role_.epoch())) < 0) {
+        ++stale_;
+        return;
+    }
+
+    Message inner = m;
+    inner.bytes = stamp.rest();
+    take_data(inner);
+}
+
+void Session::take_data(const Message& m) {
     Reader r(m.bytes.data(), m.bytes.size());
     const auto kind = static_cast<LobbyKind>(r.u8());
 

@@ -194,6 +194,25 @@ enum class WorldKind : std::uint8_t {
     kRelease = kind::kRelease
 };
 
+/* What every member keeps of the host's world, for one of them to carry on from (migrate.hpp): small
+ * state only, never a moby's place. One spawned moby: its net id, class and where it was made. */
+struct LedgerMoby {
+    std::uint16_t net = 0;
+    int oclass = 0;
+    float position[3] = {0, 0, 0};
+    float yaw = 0;
+};
+
+struct LedgerWorld {
+    int level = -1;
+    bool revive = false;
+    std::uint16_t next_net = 1;
+    std::set<int> dead;
+    std::set<int> dug;
+    std::set<int> spared;
+    std::vector<LedgerMoby> spawned;
+};
+
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
 constexpr int kMobyBefore = 0;
 constexpr int kMobyAfter = 1;
@@ -531,6 +550,13 @@ public:
     void member_back(std::int32_t member);
     void host_back();
     void rejoined();
+
+    /* The host: what the ledger is to say of the world. */
+    LedgerWorld ledger() const;
+    /* This game hosts now: its copy of the world is matched to the ledger, then the game runs it. */
+    void take_over(const LedgerWorld& ledger);
+    /* The host: whether `member` has the world, and so could carry it on. */
+    bool has_world(std::int32_t member) const;
 
     /* What it does, for the pages and the tests. */
     bool hosting() const { return hosting_; }

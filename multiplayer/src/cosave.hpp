@@ -130,6 +130,10 @@ public:
     /* The player is leaving (Leave party, Stop hosting): the last save, to the party too. */
     void leaving();
 
+    /* Someone else hosts: a save on its way never comes whole, and is left out. The slot keeps its
+     * last whole one. */
+    void host_changed();
+
     /* Whether the game's saves are the party's now, and in which slot (-1: none). */
     bool on() const { return on_; }
     int slot() const { return slot_; }

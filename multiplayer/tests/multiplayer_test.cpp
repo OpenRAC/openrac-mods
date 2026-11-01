@@ -591,7 +591,7 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::hello_reply(7) == server(mp::Writer().u8(0).i32(7)));
     CHECK(
         mp::udp_offer(0x0102030405060708LL, 7770)
-        == server(mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770).u8(mp::kFeatureKick))
+        == server(mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770).u8(mp::kFeatureKick).i64(0))
     );
     CHECK(mp::party_kicked() == server(mp::Writer().u8(1).u8(12)));
     CHECK(mp::party_kick(7) == server(mp::Writer().u8(1).u8(11).i32(7)));
@@ -658,6 +658,10 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::decode(body_of(mp::party_away(7, false)), info) && info.kind == mp::Message::Kind::kPartyAway && !info.back);
     CHECK(mp::decode(body_of(mp::party_info("ABCDEF", 1, {{1, "A"}}, "d", 2, {3})), info) && info.epoch == 2
           && info.away == std::vector<std::int32_t>{3} && info.description == "d");
+    CHECK(mp::party_successors({4, 5}) == server(mp::Writer().u8(1).u8(9).u8(0).u8(2).i32(4).i32(5)));
+    CHECK(mp::party_decline() == server(mp::Writer().u8(1).u8(9).u8(1).u8(0)));
+    CHECK(mp::decode(body_of(server(mp::Writer().u8(1).u8(9).i32(4).i32(2))), info)
+          && info.kind == mp::Message::Kind::kPartyHostChanged && info.host == 4 && info.epoch == 2);
     CHECK(mp::decode_request(body_of(mp::party_resume("ABCDEF", 7, 9))).kind == mp::Request::Kind::kResume);
     CHECK(mp::decode_request(body_of(mp::party_resume("ABCDEF", 7, 9))).token == 9);
     CHECK((mp::decode_request(body_of(mp::hello("v", "N"))).features & mp::kClientResumes) != 0);

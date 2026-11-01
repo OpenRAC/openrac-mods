@@ -285,7 +285,7 @@ void World::tick_world(std::uint64_t now) {
     const GameStatus status = game_.status();
 
     follow_load(status);
-    hosting_ = session_.role().host() && coop_.playing() && in_level(status.phase);
+    hosting_ = session_.role().host() && !coop_.between_hosts() && coop_.playing() && in_level(status.phase);
 
     // This tick's mobys. A tick the game lists none of (a level loading, a menu that has its own)
     // changes nothing: what is known holds, and nothing is ever taken for dead by its absence.
@@ -378,7 +378,7 @@ void World::tick_world(std::uint64_t now) {
             trace_line("msg", "sent KILLED to all level " + std::to_string(level_) + " n=" + std::to_string(n) + " keys [" + keys + "]");
             counts_.kills += static_cast<int>(n);
         }
-    } else if (!session_.role().host()) {
+    } else if (!session_.role().host() && !coop_.between_hosts()) {
         tick_member(now, status);
 
         // A crate broken here (the game says so) that the host did not kill: gone in every game. A

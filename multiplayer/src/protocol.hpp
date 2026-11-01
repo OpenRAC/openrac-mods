@@ -192,6 +192,9 @@ Bytes party_leave();
 Bytes party_kick(std::int32_t member);
 /* RESUME, after HELLO on a new connection: this game's old session back, by its token. */
 Bytes party_resume(const std::string& code, std::int32_t session, std::int64_t token);
+/* HOST_CHANGED: the host names who may follow it, the first choice first; or a new host declines. */
+Bytes party_successors(const std::vector<std::int32_t>& members);
+Bytes party_decline();
 Bytes chat(const std::string& message);
 Bytes data(std::int32_t target, const Bytes& payload);
 Bytes time(std::int64_t client_ms);
@@ -229,6 +232,7 @@ struct Message {
         kPartyKicked,
         kPartyList,
         kPartyAway,
+        kPartyHostChanged,
         kChat,
         kData,
         kError,
@@ -245,7 +249,7 @@ struct Message {
     std::vector<Member> members;
     std::string description;
     /* INFO, past the description (a server that sends none: 0 and none): which host of the party
-     * this is, and the members whose connection dropped. */
+     * this is (HOST_CHANGED too, with `host`), and the members whose connection dropped. */
     std::int32_t epoch = 0;
     std::vector<std::int32_t> away;
     /* AWAY: whether the member came back. */

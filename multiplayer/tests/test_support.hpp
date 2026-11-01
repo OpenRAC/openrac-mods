@@ -679,7 +679,7 @@ struct Player {
           cam(session, game, coop, [this] { return clock; }),
           mods(session, game, {}, [this] { return clock; }),
           cosave(session, game, [this] { return clock; }),
-          migrate(session, coop, world, progress, shared, [this] { return clock; }) {
+          migrate(session, game, coop, world, progress, shared, mods, cosave, cam, [this] { return clock; }) {
         coop.set_save_hooks([this](std::int32_t target) { cosave.announce(target); },
                             [this](const Bytes& save) { cosave.starting(save); });
         coop.on_start_again([this] { cosave.start_again(); });
@@ -742,10 +742,10 @@ inline void route(std::vector<Player*> players) {
                 }
 
                 for (Player* to : players) {
-                    const bool host_sends = from->id == 1;
+                    const bool host_sends = from->session.is_host();
                     const bool reaches = to != from
                                          && (host_sends ? q.target == 0 || q.target == to->id
-                                                        : to->id == 1);
+                                                        : to->session.is_host());
 
                     if (reaches && to->session.in_party()) {
                         mp::Message m;
@@ -1019,6 +1019,18 @@ inline void lose(Player& p, const std::vector<Player*>& others) {
     p.session.disconnected();
     p.link.frames.clear();
     server_away(others, p.id);
+}
+
+// The server gives the party to `host`.
+inline void server_host(const std::vector<Player*>& players, std::int32_t host, std::int32_t epoch) {
+    mp::Message m;
+    m.kind = mp::Message::Kind::kPartyHostChanged;
+    m.host = host;
+    m.epoch = epoch;
+
+    for (Player* p : players) {
+        p->session.handle(m);
+    }
 }
 
 // Its answer to RESUME on a new connection, the party as `party` says.

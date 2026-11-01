@@ -68,6 +68,95 @@ void Coop::member_back(std::int32_t member) {
     level_ms_ = 0;
 }
 
+void Coop::host_changed() {
+    // A PLAY the old host did not finish is the new host's to send.
+    if (pending_) {
+        pending_ = false;
+        save_.clear();
+        expected_ = received_ = 0;
+        applied_ = applied_ == play_ ? applied_ : 0;
+    }
+
+    want_ms_ = 0;
+    reset_scenes();
+    host_scene_ = false;
+    host_out_since_ = 0;
+    hold_ = false;
+    barrier_open_ = false;
+    wait_ = Wait{};
+    votes_.clear();
+    voted_ = 0;
+    heard_travel_ = false;
+    world_ready_ = false;
+}
+
+bool Coop::can_take_over() const {
+    if (play_ == 0) {
+        return true;
+    }
+
+    // In the game, or between two of its levels; a joiner or one in the title has nothing to give.
+    const int phase = game_.status().phase;
+    return applied_ == play_ && !pending_ && !joining_ && !demoted_
+           && (in_level(phase) || (phase == kPhaseLoading && leave_dest_ >= 0));
+}
+
+void Coop::take_over(std::uint16_t travel, std::uint16_t scene, Bytes save, std::uint64_t now) {
+    const GameStatus status = game_.status();
+    const bool going = leave_dest_ >= 0 && status.level != leave_dest_;
+
+    // What the old host was doing ends here: a scene is skipped, a ship travel lands, nobody is
+    // waited for. The party stands where it stands.
+    if (status.phase == kPhaseScene) {
+        skip_asked_ = true;
+        game_.skip();
+    }
+
+    host_changed();
+    scene_sequence_ = scene;
+    joining_ = joining_hold_ = false;
+    placing_ = PlaceFor::kNone;
+    place_moving_ = false;
+    arriving_ = sent_arriving_ = false;
+    waiting_for_.clear();
+    travel_ = travel;
+    travel_dest_ = -1;
+    host_arriving_ = false;
+
+    // On its way with the party already: it finishes the trip, and LEVEL takes the others along.
+    if (going && in_level(status.phase)) {
+        game_.travel(leave_dest_);
+    }
+
+    leave_dest_ = -1;
+    host_level_ = in_level(status.phase) ? status.level : -1;
+    sent_level_ = -2;
+    level_ms_ = 0;
+    safe_ms_ = 0;
+    relay_.clear();
+    world_acks_.clear();
+    chosen_ = std::move(save);
+    host_played_ = true;
+    start_ms_ = start_ms_ != 0 ? start_ms_ : now;
+    told_.clear();
+
+    for (const Member& m : session_.members()) {
+        if (m.id != session_.id()) {
+            told_.push_back(m.id);
+        }
+    }
+}
+
+void Coop::demoted() {
+    // Asked for afresh once it is back in the title; rejoined() has done the rest.
+    joining_ = joining_hold_ = false;
+    applied_ = 0;
+    demoted_ = true;
+    again_ms_ = 0;
+    host_played_ = false;
+    told_.clear();
+}
+
 void Coop::send_play(std::int32_t target, const Bytes& save, int level, bool joining) {
     if (announce_) {
         announce_(target);

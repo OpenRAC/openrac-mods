@@ -198,8 +198,9 @@ void show_pause() {
 void leave_party() {
     g->notice.clear();
     g->leaving = true;
-    // The last save, while the party can still get it.
+    // The last save and the ledger, while the party can still get them.
     g->cosave->leaving();
+    g->migrate->leaving();
     g->session->flush();
 
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
@@ -216,7 +217,7 @@ void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
 
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
         const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
-        page.confirm(mp::pause_leave_question(hosting, s.is_host()), kAskLeave);
+        page.confirm(mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed()), kAskLeave);
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_save && g->pause_save >= 0) {
         page.sound(g->cosave->save_party() ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_go && g->pause_go >= 0) {

@@ -261,8 +261,8 @@ constexpr const char* kBackHints = "\x10 Select   \x12 Back";
 
 /* The question Leave party asks, short for the page's title box: the host leaving (or stopping a
  * direct party it hosts) ends the party for everyone. */
-inline const char* pause_leave_question(bool hosting, bool host) {
-    return hosting ? "Stop hosting?" : host ? "End the party?" : "Leave the party?";
+inline const char* pause_leave_question(bool hosting, bool host, bool followed = false) {
+    return hosting ? "Stop hosting?" : !host ? "Leave the party?" : followed ? "Leave the party? Another player takes over." : "End the party?";
 }
 
 }  // namespace mp

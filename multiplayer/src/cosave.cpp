@@ -339,6 +339,15 @@ bool CoSave::save_party() {
     return true;
 }
 
+void CoSave::host_changed() {
+    receiving_ = false;
+    in_bytes_.clear();
+    in_got_.clear();
+    in_size_ = 0;
+    acked_.clear();
+    sent_to_ = 0;
+}
+
 void CoSave::leaving() {
     if (!on_ || last_) {
         return;

@@ -216,6 +216,21 @@ Bytes party_resume(const std::string& code, std::int32_t session, std::int64_t t
     return frame(party(PartyOp::kResume).str(code).i32(session).i64(token).bytes());
 }
 
+Bytes party_successors(const std::vector<std::int32_t>& members) {
+    Writer w = party(PartyOp::kHostChanged);
+    w.u8(0).u8(static_cast<std::uint8_t>(members.size()));
+
+    for (const std::int32_t id : members) {
+        w.i32(id);
+    }
+
+    return frame(w.bytes());
+}
+
+Bytes party_decline() {
+    return frame(party(PartyOp::kHostChanged).u8(1).u8(0).bytes());
+}
+
 Bytes party_kick(std::int32_t member) {
     return frame(party(PartyOp::kKick).i32(member).bytes());
 }
@@ -350,6 +365,11 @@ bool decode(const Bytes& body, Message& out) {
             return r.ok();
         case PartyOp::kKicked:
             out.kind = Message::Kind::kPartyKicked;
+            return r.ok();
+        case PartyOp::kHostChanged:
+            out.kind = Message::Kind::kPartyHostChanged;
+            out.host = r.i32();
+            out.epoch = r.i32();
             return r.ok();
         case PartyOp::kResume:
             out.kind = Message::Kind::kPartyAway;

@@ -83,6 +83,138 @@ void World::rejoined() {
     log("back with the party: asking for the world again");
 }
 
+LedgerWorld World::ledger() const {
+    LedgerWorld l;
+    l.level = level_;
+    l.revive = revive_rule_;
+    l.next_net = next_net_;
+    l.dead = party_dead_;
+    l.dug = dug_;
+    l.spared = spared_;
+
+    for (const auto& [slot, net] : shared_) {
+        const auto moby = mobys_.find(slot);
+
+        if (moby != mobys_.end()) {
+            LedgerMoby m;
+            m.net = net.id;
+            m.oclass = net.oclass;
+            std::copy(moby->second.pose.position, moby->second.pose.position + 3, m.position);
+            m.yaw = moby->second.pose.rotation[2];
+            l.spawned.push_back(m);
+        }
+    }
+
+    return l;
+}
+
+bool World::has_world(std::int32_t member) const {
+    const auto it = members_.find(member);
+    return it != members_.end() && it->second.synced;
+}
+
+void World::take_over(const LedgerWorld& l) {
+    const bool here = l.level == level_ && level_ >= 0;
+    int killed = 0, made = 0;
+
+    release_holds();
+
+    // Each moby runs again. One that will not is that moby's trouble alone.
+    for (const int slot : driven_) {
+        game_.moby_drive(slot, false);
+    }
+
+    driven_.clear();
+    poses_.clear();
+    posed_at_.clear();
+    hidden_.clear();
+    host_ms_.clear();
+    stamps_.clear();
+    loose_.clear();
+    landed_early_.clear();
+    loot_.clear();
+    world_heard_ = false;
+    coop_.no_world_ack();
+    members_.clear();
+    aims_.clear();
+    deaths_.clear();
+    downs_.clear();
+    claimed_.clear();
+    broke_.clear();
+    broke_back_.clear();
+    host_killed_.clear();
+    reported_.clear();
+    restored_.clear();
+    digs_.clear();
+    dig_asked_.clear();
+    wipe_until_ = 0;
+    kept_bolts_.clear();
+    remade_ = false;
+    revive_rule_ = l.revive;
+    next_net_ = l.next_net;
+
+    // What it spawned goes on under the same ids; what this game lacks is made where it was made.
+    shared_.clear();
+    std::set<std::uint16_t> nets;
+
+    for (const auto& [net, slot] : net_slot_) {
+        const auto moby = mobys_.find(slot);
+
+        if (moby != mobys_.end()) {
+            shared_[slot] = {net, moby->second.oclass};
+            nets.insert(net);
+        }
+    }
+
+    net_slot_.clear();
+
+    if (here) {
+        party_dead_ = l.dead;
+        dug_ = l.dug;
+        spared_ = l.spared;
+
+        for (const LedgerMoby& m : l.spawned) {
+            if (nets.count(m.net) == 0) {
+                Pose pose;
+                std::copy(m.position, m.position + 3, pose.position);
+                pose.rotation[2] = m.yaw;
+                const int slot = game_.moby_spawn(m.oclass, pose);
+
+                if (slot >= 0) {
+                    shared_[slot] = {m.net, m.oclass};
+                    ++made;
+                }
+            }
+        }
+
+        // Dead for the party and not here: the ledger's word over this game's copy.
+        for (const int key : party_dead_) {
+            const int slot = game_.moby_slot(key);
+
+            if (slot >= 0 && mobys_.count(slot) != 0) {
+                note(slot, "dead for the party, by the ledger", 0);
+                kill(slot, "dead for the party (the ledger)");
+                ++killed;
+            }
+        }
+    }
+
+    // Loot made here is this game's own: it is nobody's to share.
+    level_own_.clear();
+
+    for (const auto& [slot, moby] : mobys_) {
+        if (moby.key < 0 && loot_class(moby.oclass) && shared_.count(slot) == 0) {
+            level_own_.insert(slot);
+        }
+    }
+
+    placed_driven_ = false;
+    synced_ = false;
+    log("this game hosts now: " + std::to_string(party_dead_.size()) + " dead for the party, "
+        + std::to_string(shared_.size()) + " spawned, " + std::to_string(killed) + " deleted and "
+        + std::to_string(made) + " made by the ledger");
+}
+
 void World::send_dead(std::int32_t member, int level) {
     const int records = party_dead_.empty() ? 0 : *party_dead_.rbegin() + 1;
     Writer w;

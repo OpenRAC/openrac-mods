@@ -459,7 +459,9 @@ void Coop::tick(std::uint64_t now) {
             + (arriving_ ? ", arriving" : ""));
     }
 
-    if (session_.role().host()) {
+    if (between_hosts_) {
+        // Nothing of either until the party is this game's.
+    } else if (session_.role().host()) {
         tick_host(now, status);
     } else {
         tick_member(now, status);
@@ -615,6 +617,14 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
         game_.travel(host_level_);
     }
 
+    // A host that lost the party: out of its game, then in as anyone (the old world is no one's).
+    if (demoted_ && in_level(status.phase) && (again_ms_ == 0 || now - again_ms_ >= kTravelMs)) {
+        again_ms_ = now;
+        game_.travel(-1);
+    } else if (demoted_ && !in_level(status.phase) && status.phase != kPhaseLoading) {
+        demoted_ = false;
+    }
+
     // Back in the title with the host's game on: asked for again.
     if (play_ != 0 && applied_ != play_ && !pending_ && status.phase == kPhaseFrontEnd
         && (want_ms_ == 0 || now - want_ms_ >= kWantMs)) {
@@ -670,6 +680,9 @@ void Coop::reset() {
     leave_dest_ = -1;
     leave_ms_ = 0;
     host_arriving_ = false;
+    host_hold_ = false;
+    between_hosts_ = false;
+    demoted_ = false;
     refused_until_ = 0;
     skip_refused_until_ = 0;
 }

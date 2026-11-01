@@ -600,7 +600,7 @@ PartyMods::PartyMods(
 }
 
 const ModList& PartyMods::host_list() const {
-    return session_.is_host() || !heard_host_ ? own_ : host_;
+    return session_.is_host() ? party_list() : !heard_host_ ? own_ : host_;
 }
 
 Fit PartyMods::fit(std::int32_t member) const {
@@ -639,6 +639,8 @@ void PartyMods::clear() {
 
     delivered_.clear();
     rules_.clear();
+    inherited_ = false;
+    basis_ = ModList{};
     peers_.clear();
     differences_.clear();
     heard_host_ = false;
@@ -657,8 +659,40 @@ void PartyMods::set_mod_code(const std::string& code) {
     }
 }
 
+void PartyMods::host_moved(std::uint64_t now) {
+    const bool had = heard_host_;
+    party_epoch_ = session_.role().epoch();
+    party_host_ = session_.host();
+
+    if (session_.is_host()) {
+        // Everyone in the party was checked against the first host's list, and its rules are what
+        // this game's mods play by. Only the disc is this game's own.
+        if (had) {
+            basis_ = host_;
+            basis_.disc = own_.disc;
+            basis_.family = own_.family;
+            inherited_ = true;
+        }
+
+        peers_.erase(session_.id());
+
+        // Each member says its mods to this game now, and its key with them.
+        for (auto& [id, peer] : peers_) {
+            peer.answered = false;
+            peer.since = now;
+        }
+
+        return;
+    }
+
+    // Its word is waited for, and the member's own said to it.
+    heard_host_ = false;
+    sent_ms_ = 0;
+    joined_ms_ = now;
+}
+
 void PartyMods::send_mods(std::int32_t target) {
-    ModList list = own_;
+    ModList list = session_.is_host() ? party_list() : own_;
 
     // A key is for a host to ban by: a host has no one to show its own to.
     if (session_.is_host()) {
@@ -722,7 +756,7 @@ void PartyMods::on_mods(std::int32_t sender, Reader& r) {
     Peer& peer = peers_[sender];
     const bool first = !peer.answered;
     peer.key = theirs.key;
-    const std::vector<Difference> differences = compare_mods(theirs, own_);
+    const std::vector<Difference> differences = compare_mods(theirs, party_list());
     const Fit fit = differences.empty() ? Fit::kMatch : Fit::kDiffers;
     const std::string why = refusal_short(differences);
     const bool changed = fit != peer.fit || why != peer.why;
@@ -828,6 +862,12 @@ void PartyMods::handle(std::int32_t sender, const Bytes& bytes) {
 }
 
 bool PartyMods::refresh_rules() {
+    // A host that took over keeps the party's rules: this game's mods play by them, and publish
+    // their own settings all the same.
+    if (inherited_) {
+        return false;
+    }
+
     std::vector<PartyRules> rules = game_.party_rules();
     const bool changed = rules.size() != rules_.size()
                          || !std::equal(
@@ -904,6 +944,11 @@ void PartyMods::tick(std::uint64_t now) {
         return;
     }
 
+    // The same party under another host: its rules stand.
+    if (in_party_ && session_.code() == party_code_ && session_.role().epoch() != party_epoch_) {
+        host_moved(now);
+    }
+
     // Another party than the last tick's, with no tick out of one between: nothing of it stands.
     if (in_party_ && (session_.host() != party_host_ || session_.code() != party_code_)) {
         clear();
@@ -916,6 +961,7 @@ void PartyMods::tick(std::uint64_t now) {
         sent_ms_ = 0;
         party_host_ = session_.host();
         party_code_ = session_.code();
+        party_epoch_ = session_.role().epoch();
 
         if (session_.is_host()) {
             rules_ = game_.party_rules();

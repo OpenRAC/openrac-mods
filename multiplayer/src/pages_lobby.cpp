@@ -174,8 +174,9 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
         open_remove(member);
     } else if ((e.is(OPENRAC_UI_CHOOSE) && e.item() == kLeaveItem) || e.is(OPENRAC_UI_BACK)) {
         const char* question = hosting       ? "Stop hosting? The party ends for everyone."
-                               : s.is_host() ? "Leave the party? It ends for everyone."
-                                             : "Leave the party?";
+                               : !s.is_host() ? "Leave the party?"
+                               : g->migrate->followed() ? "Leave the party? Another player takes over."
+                                                        : "Leave the party? It ends for everyone.";
         page.confirm(question, kAskLeave);
     } else if (e.is(OPENRAC_UI_ANSWER) && e.tag() == kAskLeave && e.value() == 1) {
         leave_party();

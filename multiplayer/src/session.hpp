@@ -38,6 +38,11 @@
  * party, its id and its token while the connection comes back, and asks for its slot before anything
  * else; nothing it sends goes meanwhile. The server's word on anyone's connection, and every change
  * in who hosts, are events for the party's own code to act on (take_events).
+ *
+ * The host's traffic carries the epoch once the party has changed hosts: 43 EPOCH, epoch u16, then
+ * the message, DATA and state alike, so an old host's datagram on its way, or anything the old host
+ * says should it come back, is refused here, ahead of everything the message would have changed.
+ * The first host sends none, so a party that never changes hosts pays nothing.
  */
 #ifndef MULTIPLAYER_SESSION_H
 #define MULTIPLAYER_SESSION_H
@@ -80,7 +85,8 @@ struct PartyEvent {
         kAway,      // a member's connection dropped, its slot waits
         kBack,      // it came back
         kDropped,   // this game's connection went
-        kResumed    // this game has its slot again
+        kResumed,   // this game has its slot again
+        kHostChanged  // someone else hosts now (`id`, this game among them)
     };
     Kind kind = Kind::kAway;
     std::int32_t id = 0;
@@ -158,6 +164,17 @@ public:
 
     /* Whether a member's connection dropped and its slot waits. */
     bool away(std::int32_t member) const { return away_.count(member) != 0; }
+
+    /* Who may follow this host, to the server that keeps the party going without it; a new host's
+     * word that it cannot. Each does nothing on a server that takes no RESUME, or out of a game. */
+    void name_successors(const std::vector<std::int32_t>& members);
+    void decline_host();
+
+    /* Whether the party can outlive its host here. */
+    bool can_change_host() const { return in_party() && server_resumes_ && !direct(); }
+
+    /* What was refused for coming from a host the party has moved on from. */
+    std::uint64_t stale() const { return stale_; }
 
     /* The player's actions; each does nothing when it makes no sense now (no hello yet, already in
      * a party, not the host). */
@@ -285,6 +302,10 @@ private:
     void drop();
     /* What to do with a word of the server about this session's slot. */
     void take_info(const Message& message);
+    /* A host's bytes once the party has changed hosts: the epoch first (EPOCH). */
+    Bytes stamped(const Bytes& bytes) const;
+    /* A DATA past its stamp. */
+    void take_data(const Message& message);
 
     Transport& transport_;
     const std::string version_;
@@ -319,6 +340,7 @@ private:
     bool resume_asked_ = false;  // RESUME went on this connection
     std::uint64_t dropped_ms_ = 0;
     std::vector<PartyEvent> events_;
+    std::uint64_t stale_ = 0;
     KickReason kick_reason_ = KickReason::kRemoved;
     std::string notice_;
     std::function<void(std::int32_t, const Bytes&)> on_data_;

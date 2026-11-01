@@ -302,7 +302,8 @@ void load(openrac::Mod& mod) {
     g->shared->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->camscripts = std::make_unique<mp::CamScripts>(*g->session, *g->game, *g->coop);
     g->camscripts->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
-    g->migrate = std::make_unique<mp::Migrate>(*g->session, *g->coop, *g->world, *g->progress, *g->shared);
+    g->migrate = std::make_unique<mp::Migrate>(*g->session, *g->game, *g->coop, *g->world, *g->progress, *g->shared, *g->mods,
+                                              *g->cosave, *g->camscripts);
     g->migrate->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
@@ -601,8 +602,8 @@ void load(openrac::Mod& mod) {
 
         g->migrate->tick(now);
         g->coop->tick(now);
-        // A host's rule: for a member, what its host said.
-        if (g->session->is_host()) {
+        // A host's rule: for a member, what its host said; one who took over keeps it.
+        if (g->session->is_host() && !g->migrate->took_over()) {
             g->world->rule_revive(g->revive);
         }
 
