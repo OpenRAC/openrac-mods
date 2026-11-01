@@ -49,9 +49,11 @@ static void a_code_places_the_same_everywhere(void) {
     CHECK(rando_spoiler(two, "1", text_two, sizeof text_two) == size);
     CHECK(memcmp(text_one, text_two, size) == 0);
     unsigned hash = 2166136261u;
+
     for (size_t i = 0; i < size; ++i) {
         hash = (hash ^ (unsigned char)text_one[i]) * 16777619u;
     }
+
     CHECK(hash == PINNED_HASH);
     free(one);
     free(two);

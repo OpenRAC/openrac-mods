@@ -322,8 +322,7 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
 
         // A fill that placed everything is played through once more from the start, to be sure.
         if (fill(&plan->settings, &rng, plan, attempt <= RELAXED_EARLY_ATTEMPTS) == 0
-            && rando_beatable(plan, 0)
-            && rando_stranded(plan) == 0) {
+            && rando_beatable(plan, 0) && rando_stranded(plan) == 0) {
             return 0;
         }
     }

@@ -37,8 +37,8 @@ typedef struct rando_disc {
     uint32_t banner_text;    /* char[]: the banner's text, level 0's address (banner_text_buffer) */
     uint32_t banner_ticks;   /* i32: how long the banner still shows, level 0's address */
     uint32_t hero_clank;     /* u8: Clank is the one playing (hero_globals_base + 0x2EC1) */
-    uint32_t hero_pending;   /* i32: the head item the hero is handed next (g_hero_pending_item_2) */
-    uint32_t drone_flag;     /* u8: set when the Drone Device is bought (update_vendor_purchase) */
+    uint32_t hero_pending; /* i32: the head item the hero is handed next (g_hero_pending_item_2) */
+    uint32_t drone_flag;   /* u8: set when the Drone Device is bought (update_vendor_purchase) */
 } rando_disc;
 
 /* The discs the mod knows, by openrac_api.version; the fields are in the order of the struct. */

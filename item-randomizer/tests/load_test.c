@@ -1021,7 +1021,10 @@ int main(int argc, char** argv) {
     snprintf(host_code, sizeof host_code, "%s", s_published);
     rando_settings hs;
     CHECK(rando_decode(host_code, &hs));
-    CHECK(strstr(s_published_text, "Logic: standard") != NULL && strstr(s_published_text, "Shuffles gadgets") != NULL);
+    CHECK(
+        strstr(s_published_text, "Logic: standard") != NULL
+        && strstr(s_published_text, "Shuffles gadgets") != NULL
+    );
     static rando_plan host_plan, own_plan;
     CHECK(rando_solve(&hs, &host_plan) == 0);
     snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, host_code);
@@ -1042,6 +1045,7 @@ int main(int argc, char** argv) {
     int spot = -1;
 
     /* A place the two plans fill differently, with an item, an item nobody has yet. */
+
     for (size_t i = 0; i < rando_location_count && spot < 0; ++i) {
         const rando_location* l = &rando_locations[i];
 
@@ -1105,8 +1109,8 @@ int main(int argc, char** argv) {
     int item_spot = -1;
 
     for (size_t i = 0; i < rando_location_count && item_spot < 0; ++i) {
-        if (sp.shuffled[i] && rando_locations[i].kind == LOC_GIVE && sp.reward[i].kind == REWARD_ITEM
-            && sp.reward[i].value != ITEM_HYDRO_PACK) {
+        if (sp.shuffled[i] && rando_locations[i].kind == LOC_GIVE
+            && sp.reward[i].kind == REWARD_ITEM && sp.reward[i].value != ITEM_HYDRO_PACK) {
             item_spot = (int)i;
         }
     }
@@ -1123,7 +1127,12 @@ int main(int argc, char** argv) {
     s_phase = OPENRAC_PLAY_PLAYING;
     s_frame(NULL);
     char shown_name[32];
-    snprintf(shown_name, sizeof shown_name, "\x0cm%X\x08", (unsigned)rando_reward_text(sp.reward[item_spot]));
+    snprintf(
+        shown_name,
+        sizeof shown_name,
+        "\x0cm%X\x08",
+        (unsigned)rando_reward_text(sp.reward[item_spot])
+    );
     CHECK(strcmp((char*)s_memory + D->banner_text, shown_name) == 0);
     /* The game's own banner for the place's item, a tick later, is written over. */
     strcpy((char*)s_memory + D->banner_text, "You've purchased a Swingshot");
@@ -1132,17 +1141,19 @@ int main(int argc, char** argv) {
 
     /* The Hydro-Pack is never put on the hero's back, nothing while Clank plays. Mutation: passing
      * the place's equip through leaves the pack over the Heli-Pack. */
+
     for (size_t i = 0; i < rando_location_count; ++i) {
-        if (sp.shuffled[i] && sp.reward[i].kind == REWARD_ITEM && sp.reward[i].value == ITEM_HYDRO_PACK
-            && rando_locations[i].kind == LOC_GIVE) {
+        if (sp.shuffled[i] && sp.reward[i].kind == REWARD_ITEM
+            && sp.reward[i].value == ITEM_HYDRO_PACK && rando_locations[i].kind == LOC_GIVE) {
             give(rando_locations[i].key, 1);
             CHECK(s_last_equip == 0);
         }
     }
 
     for (size_t i = 0; i < rando_location_count; ++i) {
-        if (sp.shuffled[i] && sp.reward[i].kind == REWARD_ITEM && sp.reward[i].value != ITEM_HYDRO_PACK
-            && rando_locations[i].kind == LOC_GIVE && (int)i != item_spot) {
+        if (sp.shuffled[i] && sp.reward[i].kind == REWARD_ITEM
+            && sp.reward[i].value != ITEM_HYDRO_PACK && rando_locations[i].kind == LOC_GIVE
+            && (int)i != item_spot) {
             s_memory[D->hero_clank] = 1;
             s_memory[D->owned + sp.reward[i].value] = 0;
             give(rando_locations[i].key, 1);
@@ -1153,6 +1164,7 @@ int main(int argc, char** argv) {
     }
 
     /* What is queued shows, one banner at a time. */
+
     for (int k = 0; k < 200; ++k) {
         memcpy(s_memory + D->banner_ticks, &(int32_t){0}, 4);
         s_frame(NULL);
@@ -1165,13 +1177,16 @@ int main(int argc, char** argv) {
     int gold_item = -1;
 
     for (size_t i = 0; i < rando_location_count && gold_item < 0; ++i) {
-        if (sp.shuffled[i] && rando_locations[i].kind == LOC_GOLD && sp.reward[i].kind == REWARD_ITEM) {
+        if (sp.shuffled[i] && rando_locations[i].kind == LOC_GOLD
+            && sp.reward[i].kind == REWARD_ITEM) {
             gold_item = (int)i;
         }
     }
 
     CHECK(gold_item >= 0);
-    s_memory[D->gold_bolts + (uint32_t)rando_locations[gold_item].level * 4u + rando_locations[gold_item].key] = 1;
+    s_memory
+        [D->gold_bolts + (uint32_t)rando_locations[gold_item].level * 4u
+         + rando_locations[gold_item].key] = 1;
     init();
     CHECK(s_memory[D->owned + sp.reward[gold_item].value] == 1);
     memset(s_memory + D->banner_text, 0, 32);
@@ -1194,8 +1209,10 @@ int main(int argc, char** argv) {
     memcpy(s_memory + D->level, &orxon, 4);
     s_memory[D->owned + ITEM_O2_MASK] = 1;
     s_memory[D->triggers + LEVEL_ORXON * 16 + ORXON_CLANK_MISSION] = 0;
-    openrac_rac1_Ship_InitTransition ship = (openrac_rac1_Ship_InitTransition)hook_named("Ship_InitTransition");
-    openrac_rac1_Moby_Class22_Update start22 = (openrac_rac1_Moby_Class22_Update)hook_named("Moby_Class22_Update");
+    openrac_rac1_Ship_InitTransition ship =
+        (openrac_rac1_Ship_InitTransition)hook_named("Ship_InitTransition");
+    openrac_rac1_Moby_Class22_Update start22 =
+        (openrac_rac1_Moby_Class22_Update)hook_named("Moby_Class22_Update");
     CHECK(ship && start22);
     ship(0);
     start22(0x00100000u);
@@ -1225,6 +1242,7 @@ int main(int argc, char** argv) {
 
     for (size_t i = 0; i < rando_item_help_count && other_help < 0; ++i) {
         const int place = location_of(LOC_GIVE, 0, rando_item_helps[i].item);
+
         if (place >= 0 && sp.reward[place].value != rando_item_helps[i].item) {
             other_help = rando_item_helps[i].message;
         }
@@ -1244,7 +1262,8 @@ int main(int argc, char** argv) {
     CHECK(s_memory[D->vendor_stock] == ITEM_PYROCITOR && s_drop_saw == ITEM_PYROCITOR);
 
     /* The line over the vendor: the slot under the cursor, gone when the menu closes. */
-    openrac_rac1_Vendor_MenuUpdate menu_update = (openrac_rac1_Vendor_MenuUpdate)hook_named("Vendor_MenuUpdate");
+    openrac_rac1_Vendor_MenuUpdate menu_update =
+        (openrac_rac1_Vendor_MenuUpdate)hook_named("Vendor_MenuUpdate");
     uint8_t* vmenu = s_memory + D->vendor_menu;
     memset(vmenu, 0, 0x220);
     set32(vmenu + VENDOR_COUNT, 1);

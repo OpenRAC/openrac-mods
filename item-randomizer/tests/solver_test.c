@@ -152,8 +152,12 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
 
         if (is_progression(p->reward[i])) {
             CHECK(l->kind != LOC_GOLD);
-            CHECK(s->difficulty == DIFFICULTY_EXPERT || !(l->flags & LOCF_COSTLY) || !p->shuffled[i]);
-            CHECK(s->difficulty != DIFFICULTY_RELAXED || !(l->flags & LOCF_PRICEY) || !p->shuffled[i]);
+            CHECK(
+                s->difficulty == DIFFICULTY_EXPERT || !(l->flags & LOCF_COSTLY) || !p->shuffled[i]
+            );
+            CHECK(
+                s->difficulty != DIFFICULTY_RELAXED || !(l->flags & LOCF_PRICEY) || !p->shuffled[i]
+            );
         }
     }
 

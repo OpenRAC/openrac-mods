@@ -240,17 +240,13 @@ const rando_location rando_locations[] = {
     // not say what lies behind it, so the Suck Cannon asks for it too.
     VENDOR("Eudora: the vendor's Glove of Doom", LEVEL_EUDORA, ITEM_GLOVE_OF_DOOM, 12, LOCF_PRICEY),
     GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, WALK | TRESP, 0),
-    FIXED(
-        "Eudora: the coordinates of Blarg", LEVEL_EUDORA, PLANET(LEVEL_BLARG), 13, 0, WALK, 0
-    ),
+    FIXED("Eudora: the coordinates of Blarg", LEVEL_EUDORA, PLANET(LEVEL_BLARG), 13, 0, WALK, 0),
     GOLDBOLT("Eudora: gold bolt", LEVEL_EUDORA, 0, 13),
 
     // Blarg: Clank "explore outside the station" without the O2 Mask, Ratchet with it: both lead
     // to the Hydrodisplacer's pickup, so it needs neither. "Buy Grindboots" from Fred.
     VENDOR("Blarg: the vendor's Taunter", LEVEL_BLARG, ITEM_TAUNTER, 14, 0),
-    GIVE_G(
-        "Blarg: the Hydrodisplacer's pickup", LEVEL_BLARG, ITEM_HYDRODISPLACER, 14, 0, WALK, 0
-    ),
+    GIVE_G("Blarg: the Hydrodisplacer's pickup", LEVEL_BLARG, ITEM_HYDRODISPLACER, 14, 0, WALK, 0),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, WALK, 0),
     INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, WALK, 0),
     FIXED(
@@ -324,9 +320,7 @@ const rando_location rando_locations[] = {
 
     // Gaspar: "Find the Pilot's Helmet".
     VENDOR("Gaspar: the vendor's Walloper", LEVEL_GASPAR, ITEM_WALLOPER, 27, LOCF_PRICEY),
-    GIVE_G(
-        "Gaspar: the Pilot's Helmet's pickup", LEVEL_GASPAR, ITEM_PILOTS_HELMET, 27, 0, WALK, 0
-    ),
+    GIVE_G("Gaspar: the Pilot's Helmet's pickup", LEVEL_GASPAR, ITEM_PILOTS_HELMET, 27, 0, WALK, 0),
     GOLDBOLT("Gaspar: gold bolt 1", LEVEL_GASPAR, 0, 28),
     GOLDBOLT("Gaspar: gold bolt 2", LEVEL_GASPAR, 1, 28),
 
@@ -348,13 +342,7 @@ const rando_location rando_locations[] = {
     VENDOR("Pokitaru: the vendor's Decoy Glove", LEVEL_POKITARU, ITEM_DECOY_GLOVE, 30, LOCF_PRICEY),
     GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 30, 0, WALK, 0),
     GIVE_G(
-        "Pokitaru: the resort owner",
-        LEVEL_POKITARU,
-        ITEM_O2_MASK,
-        31,
-        0,
-        THRUST | HELMET | WALK,
-        0
+        "Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 31, 0, THRUST | HELMET | WALK, 0
     ),
     FIXED_X(
         "Pokitaru: the Persuader",
@@ -407,13 +395,7 @@ const rando_location rando_locations[] = {
     VENDOR("Oltanis: the vendor's Tesla Claw", LEVEL_OLTANIS, ITEM_TESLA_CLAW, 41, LOCF_COSTLY),
     GIVE_G("Oltanis: the PDA's seller", LEVEL_OLTANIS, ITEM_PDA, 41, 0, WALK, 0),
     GIVE_W(
-        "Oltanis: the Morph-o-Ray's pickup",
-        LEVEL_OLTANIS,
-        ITEM_MORPH_O_RAY,
-        42,
-        0,
-        MAGNE | WALK,
-        0
+        "Oltanis: the Morph-o-Ray's pickup", LEVEL_OLTANIS, ITEM_MORPH_O_RAY, 42, 0, MAGNE | WALK, 0
     ),
     FIXED(
         "Oltanis: Sam, the coordinates of Quartu",
@@ -433,13 +415,7 @@ const rando_location rando_locations[] = {
     // Hologuise to explore the factory" and "You will need a Hydro-Pack upgrade to swim through
     // those Tri-Rings and open the door", on the way to the secure area and Drek's Fleet.
     GIVE_G(
-        "Quartu: the Bolt Grabber's pickup",
-        LEVEL_QUARTU,
-        ITEM_BOLT_GRABBER,
-        45,
-        0,
-        MAGNE | WALK,
-        0
+        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, 45, 0, MAGNE | WALK, 0
     ),
     FIXED(
         "Quartu: the scientist, the coordinates of Kalebo III",
@@ -473,9 +449,7 @@ const rando_location rando_locations[] = {
         HOVER | GRIND | MAGNE | WALK,
         0
     ),
-    GIVE_G(
-        "Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, 48, 0, GRIND | WALK, 0
-    ),
+    GIVE_G("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, 48, 0, GRIND | WALK, 0),
     GOLDBOLT("Kalebo III: gold bolt 1", LEVEL_KALEBO, 0, 49),
     GOLDBOLT("Kalebo III: gold bolt 2", LEVEL_KALEBO, 1, 49),
 
@@ -498,13 +472,7 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Veldin (return): gold bolt 2", LEVEL_VELDIN2, 1, 53),
     GOLDBOLT("Veldin (return): gold bolt 3", LEVEL_VELDIN2, 2, 53),
     FIXED(
-        "Veldin (return): Drek",
-        LEVEL_VELDIN2,
-        NONE,
-        54,
-        LOCF_GOAL,
-        MAGNE | GRIND | O2 | WALK,
-        0
+        "Veldin (return): Drek", LEVEL_VELDIN2, NONE, 54, LOCF_GOAL, MAGNE | GRIND | O2 | WALK, 0
     ),
 };
 
@@ -531,17 +499,39 @@ const size_t rando_item_help_count = sizeof rando_item_helps / sizeof rando_item
 /* The game's words for a reward: every level has these, unlike the ones a level gives its own items
  * in, and each is in the player's language (help_msgs). */
 static const uint16_t k_item_names[RANDO_ITEM_COUNT] = {
-    [ITEM_HELI_PACK] = 0x4E6E,      [ITEM_THRUSTER_PACK] = 0x4E6D, [ITEM_HYDRO_PACK] = 0x4E6F,
-    [ITEM_SONIC_SUMMONER] = 0x4E6A, [ITEM_O2_MASK] = 0x4E6B,       [ITEM_PILOTS_HELMET] = 0x4E6C,
-    [ITEM_WRENCH] = 0x4E46,         [ITEM_SUCK_CANNON] = 0x4E4A,   [ITEM_BOMB_GLOVE] = 0x4E48,
-    [ITEM_DEVASTATOR] = 0x4E4D,     [ITEM_SWINGSHOT] = 0x4E61,     [ITEM_VISIBOMB] = 0x4E4F,
-    [ITEM_TAUNTER] = 0x4E51,        [ITEM_BLASTER] = 0x4E47,       [ITEM_PYROCITOR] = 0x4E49,
-    [ITEM_MINE_GLOVE] = 0x4E43,     [ITEM_WALLOPER] = 0x4E45,      [ITEM_TESLA_CLAW] = 0x4E4B,
-    [ITEM_GLOVE_OF_DOOM] = 0x4E4C,  [ITEM_MORPH_O_RAY] = 0x4E44,   [ITEM_HYDRODISPLACER] = 0x4E62,
-    [ITEM_RYNO] = 0x4E4E,           [ITEM_DRONE_DEVICE] = 0x4E42,  [ITEM_DECOY_GLOVE] = 0x4E52,
-    [ITEM_TRESPASSER] = 0x4E63,     [ITEM_METAL_DETECTOR] = 0x4E65, [ITEM_MAGNEBOOTS] = 0x4E67,
-    [ITEM_GRINDBOOTS] = 0x4E68,     [ITEM_HOVERBOARD] = 0x4E69,    [ITEM_HOLOGUISE] = 0x4E64,
-    [ITEM_PDA] = 0x4E66,            [ITEM_MAP_O_MATIC] = 0x4E70,   [ITEM_BOLT_GRABBER] = 0x4E78,
+    [ITEM_HELI_PACK] = 0x4E6E,
+    [ITEM_THRUSTER_PACK] = 0x4E6D,
+    [ITEM_HYDRO_PACK] = 0x4E6F,
+    [ITEM_SONIC_SUMMONER] = 0x4E6A,
+    [ITEM_O2_MASK] = 0x4E6B,
+    [ITEM_PILOTS_HELMET] = 0x4E6C,
+    [ITEM_WRENCH] = 0x4E46,
+    [ITEM_SUCK_CANNON] = 0x4E4A,
+    [ITEM_BOMB_GLOVE] = 0x4E48,
+    [ITEM_DEVASTATOR] = 0x4E4D,
+    [ITEM_SWINGSHOT] = 0x4E61,
+    [ITEM_VISIBOMB] = 0x4E4F,
+    [ITEM_TAUNTER] = 0x4E51,
+    [ITEM_BLASTER] = 0x4E47,
+    [ITEM_PYROCITOR] = 0x4E49,
+    [ITEM_MINE_GLOVE] = 0x4E43,
+    [ITEM_WALLOPER] = 0x4E45,
+    [ITEM_TESLA_CLAW] = 0x4E4B,
+    [ITEM_GLOVE_OF_DOOM] = 0x4E4C,
+    [ITEM_MORPH_O_RAY] = 0x4E44,
+    [ITEM_HYDRODISPLACER] = 0x4E62,
+    [ITEM_RYNO] = 0x4E4E,
+    [ITEM_DRONE_DEVICE] = 0x4E42,
+    [ITEM_DECOY_GLOVE] = 0x4E52,
+    [ITEM_TRESPASSER] = 0x4E63,
+    [ITEM_METAL_DETECTOR] = 0x4E65,
+    [ITEM_MAGNEBOOTS] = 0x4E67,
+    [ITEM_GRINDBOOTS] = 0x4E68,
+    [ITEM_HOVERBOARD] = 0x4E69,
+    [ITEM_HOLOGUISE] = 0x4E64,
+    [ITEM_PDA] = 0x4E66,
+    [ITEM_MAP_O_MATIC] = 0x4E70,
+    [ITEM_BOLT_GRABBER] = 0x4E78,
     [ITEM_PERSUADER] = 0x4E73,
 };
 static const uint16_t k_planet_names[LEVEL_COUNT] = {

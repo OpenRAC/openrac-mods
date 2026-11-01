@@ -297,12 +297,16 @@ static uint8_t* planet_flag(int planet) {
 
 /* A level's trigger slot. */
 static uint8_t* trigger(int level, int mission) {
-    return byte_at(s_disc->triggers + (uint32_t)mission + (uint32_t)level * (uint32_t)TRIGGER_SLOTS);
+    return byte_at(
+        s_disc->triggers + (uint32_t)mission + (uint32_t)level * (uint32_t)TRIGGER_SLOTS
+    );
 }
 
 /* A gold bolt's byte. */
 static uint8_t* gold_bolt(int level, int slot) {
-    return byte_at(s_disc->gold_bolts + (uint32_t)level * (uint32_t)GOLD_BOLT_SLOTS + (uint32_t)slot);
+    return byte_at(
+        s_disc->gold_bolts + (uint32_t)level * (uint32_t)GOLD_BOLT_SLOTS + (uint32_t)slot
+    );
 }
 
 /* Whether a level of the story is loaded: the levels past it are left as the game has them
@@ -1315,7 +1319,9 @@ static void install_late_hooks(void) {
 
     // Said once, in the log a report comes with.
     if (help != OPENRAC_HOOK_OK || ship != OPENRAC_HOOK_OK) {
-        log_line(OPENRAC_LOG_WARN, "this OpenRAC is older than the mod: update it for Orxon's order");
+        log_line(
+            OPENRAC_LOG_WARN, "this OpenRAC is older than the mod: update it for Orxon's order"
+        );
     }
 }
 
@@ -1421,8 +1427,10 @@ static void publish_rules(void) {
         {POOL_GOLD, "gold bolts"},
         {POOL_PLANETS, "infobots"},
     };
+
     char text[160];
-    int at = snprintf(text, sizeof text, "Logic: %s", rando_difficulty_name(s_plan.settings.difficulty));
+    int at =
+        snprintf(text, sizeof text, "Logic: %s", rando_difficulty_name(s_plan.settings.difficulty));
 
     // Only what this seed shuffles.
     for (size_t i = 0; i < sizeof k_pools / sizeof k_pools[0]; ++i) {
@@ -1471,7 +1479,8 @@ static void on_party_rules(void* user, const void* data, uint32_t size) {
     char code[RANDO_CODE_SIZE];
     rando_settings host;
 
-    if (size >= sizeof code || (memcpy(code, data, size), code[size] = 0, !rando_decode(code, &host))) {
+    if (size >= sizeof code
+        || (memcpy(code, data, size), code[size] = 0, !rando_decode(code, &host))) {
         log_line(OPENRAC_LOG_WARN, "the host's seed cannot be read here");
         return;
     }
@@ -1500,11 +1509,10 @@ static void log_start_up(int source) {
     snprintf(
         line,
         sizeof line,
-        "seed %s (%s), %s, on the %s disc: %d placement%s tried",
+        "seed %s (%s), %s: %d placement%s tried",
         s_code,
         k_sources[source],
         rando_difficulty_name(s_plan.settings.difficulty),
-        s_api->version,
         s_plan.attempts,
         s_plan.attempts == 1 ? "" : "s"
     );
@@ -1541,10 +1549,7 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     if (s_disc == NULL) {
         char reason[96];
         snprintf(
-            reason,
-            sizeof reason,
-            "the item randomizer knows the PAL and NTSC-U discs, not %s",
-            api->version
+            reason, sizeof reason, "the item randomizer does not know this disc (%s)", api->version
         );
         api->fail(mod, reason);
         return 1;
@@ -1586,9 +1591,9 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     if (source == SEED_FROM_WORD && looks_like_code(options.seed)) {
         log_line(
             OPENRAC_LOG_WARN,
-            "the seed setting looks like a seed code but is not one (a character mistyped?): it is "
-            "read "
-            "as a word, so this is not the shared game"
+            "the seed setting looks like a seed code but is not one (a character mistyped, or a "
+            "code "
+            "from before version 2?): it is read as a word, so this is not the shared game"
         );
     }
 

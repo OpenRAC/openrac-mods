@@ -60,7 +60,8 @@ static void check_disc(const char* path, const char* want) {
         char disc[16], kind[16];
         int level, key, value;
 
-        if (line[0] == '#' || sscanf(line, "%15s %15s %d %d %d", disc, kind, &level, &key, &value) != 5
+        if (line[0] == '#'
+            || sscanf(line, "%15s %15s %d %d %d", disc, kind, &level, &key, &value) != 5
             || strcmp(disc, want) != 0) {
             continue;
         }
@@ -92,9 +93,12 @@ static void check_disc(const char* path, const char* want) {
 
 /* The game's words, row by row. */
 static void check_words(void) {
-#define NEEDS(name, item) CHECK(rando_locations[named(name)].hard & BIT(item))
+#define NEEDS(name, item) CHECK(rando_locations[named(name)].hard& BIT(item))
     NEEDS("Aridia: Skid's agent, after the race", ITEM_HOVERBOARD);
-    CHECK(rando_locations[named("Aridia: Skid's agent, after the race")].planets & (1u << LEVEL_RILGAR));
+    CHECK(
+        rando_locations[named("Aridia: Skid's agent, after the race")].planets
+        & (1u << LEVEL_RILGAR)
+    );
     NEEDS("Aridia: the Trespasser's pickup", ITEM_SWINGSHOT);
     NEEDS("Kerwan: Helga", ITEM_HELI_PACK);
     NEEDS("Kerwan: the infobot", ITEM_SWINGSHOT);
@@ -121,6 +125,7 @@ static void check_words(void) {
     CHECK(rando_locations[named("Orxon: Clank finds the Magneboots")].hard == 0);
 
     /* No gold bolt is ever reachable before all that opens a way. */
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (rando_locations[i].kind == LOC_GOLD) {
             CHECK(rando_locations[i].hard & BIT(ITEM_MAGNEBOOTS));
@@ -192,7 +197,9 @@ static void check_old_softlocks(void) {
 
     /* The Hoverboard at Skid's agent, who wants the race won on it. */
     CHECK(rando_solve(&s, &p) == 0);
-    swap_rewards(&p, where(&p, REWARD_ITEM, ITEM_HOVERBOARD), named("Aridia: Skid's agent, after the race"));
+    swap_rewards(
+        &p, where(&p, REWARD_ITEM, ITEM_HOVERBOARD), named("Aridia: Skid's agent, after the race")
+    );
     CHECK(!rando_beatable(&p, NULL) || rando_stranded(&p) > 0);
 
     /* The Hydro-Pack on Drek's Fleet, whose tanker it swims. */
@@ -212,7 +219,9 @@ static void check_old_softlocks(void) {
     CHECK(rando_beatable(&p, NULL));
     swap_rewards(&p, where(&p, REWARD_ITEM, ITEM_VISIBOMB), named("Oltanis: the PDA's seller"));
     CHECK(rando_beatable(&p, NULL));
-    swap_rewards(&p, where(&p, REWARD_ITEM, ITEM_DEVASTATOR), named("Oltanis: the Morph-o-Ray's pickup"));
+    swap_rewards(
+        &p, where(&p, REWARD_ITEM, ITEM_DEVASTATOR), named("Oltanis: the Morph-o-Ray's pickup")
+    );
     CHECK(!rando_beatable(&p, NULL));
 }
 
@@ -226,14 +235,14 @@ int main(int argc, char** argv) {
 
     static rando_plan p;
     long caught = 0;
-    const int pools[] = {POOL_ALL, POOL_GADGETS, POOL_GADGETS | POOL_VENDOR, POOL_GADGETS | POOL_PLANETS};
+    const int pools[] =
+        {POOL_ALL, POOL_GADGETS, POOL_GADGETS | POOL_VENDOR, POOL_GADGETS | POOL_PLANETS};
 
     for (size_t k = 0; k < sizeof pools / sizeof pools[0]; ++k) {
         for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) {
             for (long n = 0; n < seeds; ++n) {
-                const rando_settings s = {
-                    (uint64_t)n * 977u + 1u, (uint8_t)pools[k], 1, (uint8_t)d
-                };
+                const rando_settings s =
+                    {(uint64_t)n * 977u + 1u, (uint8_t)pools[k], 1, (uint8_t)d};
                 CHECK(rando_solve(&s, &p) == 0);
                 caught += mutate(&p);
             }
