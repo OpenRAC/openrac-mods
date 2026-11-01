@@ -48,7 +48,8 @@ class Client:
         self.name = name
         self.link = link
         self.dir = env.out / f"c{index}"
-        self.address = f"127.{env.base + 1}.1.{index + 1}"
+        self.address = env.client_address(index)
+        self.game_port = env.client_port(index)
         self.port = 21000 + 10 * env.base + index
         self.sock = None
         self.buffer = b""
@@ -80,7 +81,7 @@ class Client:
                             "id": "multiplayer",
                             "enabled": True,
                             "settings": {
-                                "server": f"{self.address}:7770",
+                                "server": f"{self.address}:{self.game_port}",
                                 "name": self.name,
                                 "verbose_log": self.env.trace,
                                 "revive": self.env.revive,
@@ -102,6 +103,8 @@ class Client:
                 "OPENRAC_IDENTITY_KEY": self.env.key_of(self.index),
             }
         )
+        if self.env.one_address:
+            env["OPENRAC_MP_BOT_UDP_AT_TCP"] = "1"
         env.update(self.env.game_env)
         self.proc = subprocess.Popen(
             [
@@ -171,8 +174,8 @@ class Client:
             [
                 sys.executable,
                 str(HERE / "netimp.py"),
-                "--listen", f"{self.address}:7770",
-                "--server", f"{self.env.server_address}:7770",
+                "--listen", f"{self.address}:{self.game_port}",
+                "--server", f"{self.env.server_address}:{self.env.server_port}",
                 "--seed", str(self.env.seed + self.index),
                 "--stats", str(self.dir / "net.json"),
             ]
@@ -221,7 +224,11 @@ class Env:
         self.server_jar = Path(args.server_jar).resolve()
         self.java = args.java
         self.base = args.base  # runs at once each take an address block of their own
-        self.server_address = f"127.{args.base + 1}.0.2"
+        # Linux answers on all of 127/8, so each proxy has an address of its own at the server's port.
+        # macOS answers on 127.0.0.1 alone: each has a port, and the bot sends its datagrams there.
+        self.one_address = sys.platform == "darwin"
+        self.server_address = "127.0.0.1" if self.one_address else f"127.{args.base + 1}.0.2"
+        self.server_port = 27770 + args.base if self.one_address else 7770
         self.seed = args.seed
         self.trace = args.trace
         self.revive = args.scenario == "revive"
@@ -230,6 +237,12 @@ class Env:
         self.server = None
         self.clients = []
         self.report = {"scenario": args.scenario, "link": args.link, "checks": [], "notes": {}}
+
+    def client_address(self, index):
+        return "127.0.0.1" if self.one_address else f"127.{self.base + 1}.1.{index + 1}"
+
+    def client_port(self, index):
+        return 22000 + 10 * self.base + index if self.one_address else 7770
 
     def game_of(self, index):
         return self.game if index == 0 else self.member_game
@@ -275,7 +288,8 @@ class Env:
         env.update(
             {
                 "HOST": self.server_address,
-                "PORT": "7770",
+                "PORT": str(self.server_port),
+                "HTTP_PORT": str(self.server_port + 1),
                 "DEBUG_LEVEL": "debug",
                 "MAX_CONNECTIONS_PER_ADDRESS": "8",
             }
@@ -290,7 +304,7 @@ class Env:
         limit = time.monotonic() + 15
         while time.monotonic() < limit:
             try:
-                socket.create_connection((self.server_address, 7770), timeout=1).close()
+                socket.create_connection((self.server_address, self.server_port), timeout=1).close()
                 return
             except OSError:
                 time.sleep(0.2)
@@ -350,12 +364,12 @@ def reach_title(c):
 
 
 def party(env, host, members):
-    host.ask(f"connect {host.address} 7770")
+    host.ask(f"connect {host.address} {host.game_port}")
     wait("the host greeted", lambda: host.status()["greeted"], 20)
     host.ask(f"create {env.save}" if env.save else "create")
     code = wait("the party", lambda: host.status()["code"], 15)
     for m in members:
-        m.ask(f"connect {m.address} 7770")
+        m.ask(f"connect {m.address} {m.game_port}")
         wait(f"{m.name} greeted", lambda: m.status()["greeted"], 20)
         m.ask(f"join {code}")
         wait(f"{m.name} in the party", lambda: m.status()["code"] == code, 15)
@@ -476,7 +490,7 @@ def join_game(env, name, link, host, seconds=120, waiting=None):
     if c is None:
         c = env.client(name, link)
         reach_title(c)
-    c.ask(f"connect {c.address} 7770")
+    c.ask(f"connect {c.address} {c.game_port}")
     wait(f"{name} greeted", lambda: c.status()["greeted"], 20)
     code = host.status()["code"]
     c.ask(f"join {code}")
@@ -979,11 +993,11 @@ def scenario_refuse(env, args):
     member = env.client("Member1", args.link_args)
     reach_title(host)
     reach_title(member)
-    host.ask(f"connect {host.address} 7770")
+    host.ask(f"connect {host.address} {host.game_port}")
     wait("the host greeted", lambda: host.status()["greeted"], 20)
     host.ask("create")
     code = wait("the party", lambda: host.status()["code"], 15)
-    member.ask(f"connect {member.address} 7770")
+    member.ask(f"connect {member.address} {member.game_port}")
     wait("the member greeted", lambda: member.status()["greeted"], 20)
     member.ask(f"join {code}")
     wait("the member in the party", lambda: member.status()["code"] == code, 15)
@@ -1025,11 +1039,11 @@ def scenario_kick(env, args):
     member = env.client("Member1", args.link_args)
     reach_title(host)
     reach_title(member)
-    host.ask(f"connect {host.address} 7770")
+    host.ask(f"connect {host.address} {host.game_port}")
     wait("the host greeted", lambda: host.status()["greeted"], 20)
     host.ask("create")
     code = wait("the party", lambda: host.status()["code"], 15)
-    member.ask(f"connect {member.address} 7770")
+    member.ask(f"connect {member.address} {member.game_port}")
     wait("the member greeted", lambda: member.status()["greeted"], 20)
     join_code(member, code)
     wait("the host's verdict", lambda: host.json("mods")["fits"].get("Member1") in (1, 2), 15)
@@ -1062,7 +1076,7 @@ def scenario_kick(env, args):
     # A new name, the same launcher.
     renamed = env.client("Renamed1", args.link_args)
     reach_title(renamed)
-    renamed.ask(f"connect {renamed.address} 7770")
+    renamed.ask(f"connect {renamed.address} {renamed.game_port}")
     wait("the new name greeted", lambda: renamed.status()["greeted"], 20)
     renamed.ask(f"join {code}")
     time.sleep(4)

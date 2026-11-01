@@ -150,7 +150,17 @@ socket_t open_udp(socket_t tcp, std::int32_t port) {
         return kNoSocket;
     }
 
-    if (peer.ss_family == AF_INET6) {
+#ifdef MULTIPLAYER_BOT
+    // The end-to-end tests' proxies on an address they share (macOS): the proxy's own port, not the
+    // server's it passed on.
+    const bool keep_port = std::getenv("OPENRAC_MP_BOT_UDP_AT_TCP") != nullptr;
+#else
+    const bool keep_port = false;
+#endif
+
+    if (keep_port) {
+        // The peer's port stays.
+    } else if (peer.ss_family == AF_INET6) {
         reinterpret_cast<sockaddr_in6*>(&peer)->sin6_port = htons(static_cast<std::uint16_t>(port));
     } else {
         reinterpret_cast<sockaddr_in*>(&peer)->sin_port = htons(static_cast<std::uint16_t>(port));
