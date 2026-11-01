@@ -510,6 +510,27 @@ def start_two(env, args, level_note=True):
     return host, member
 
 
+def scenario_tags(env, args):
+    """The other player's name is drawn over the figure, on the picture, in both games."""
+    host, member = start_two(env, args)
+    for who, game in (("host", host), ("member", member)):
+        seen = {}
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            seen = game.status()
+            if seen.get("tags_on_picture", 0) >= 1:
+                break
+            time.sleep(0.5)
+        env.check(f"the {who} has a tag for the other player", seen.get("tags", 0) == 1, str(seen.get("tags")))
+        env.check(
+            f"the {who}'s tag is on the picture",
+            seen.get("tags_on_picture", 0) == 1
+            and 0 <= seen.get("tag_x", -1) <= 512
+            and 0 <= seen.get("tag_y", -1) <= 448,
+            f"at {seen.get('tag_x')}, {seen.get('tag_y')}",
+        )
+
+
 def scenario_keys(env, args):
     """Report 1, the key map: after a death the same key must name the same moby."""
     host, member = start_two(env, args)
@@ -1028,6 +1049,7 @@ def scenario_cosave(env, args):
 SCENARIOS = {
     "save": scenario_save,
     "smoke": scenario_smoke,
+    "tags": scenario_tags,
     "cosave": scenario_cosave,
     "keys": scenario_keys,
     "bolts": scenario_bolts,

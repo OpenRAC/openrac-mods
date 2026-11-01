@@ -183,7 +183,9 @@ std::string Bot::status() {
       << ",\"udp\":" << parts_.connection.udp() << ",\"rtt\":" << session.rtt_ms()
       << ",\"joining\":" << parts_.coop.joining() << ",\"synced\":" << parts_.world.synced()
       << ",\"shots_sent\":" << parts_.coop.shots_sent() << ",\"shots_fired\":" << parts_.coop.shots_fired()
-      << ",\"shots_late\":" << parts_.coop.shots_late();
+      << ",\"shots_late\":" << parts_.coop.shots_late() << ",\"tags\":" << parts_.coop.tag_stats().tags
+      << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
+      << ",\"tag_y\":" << number(parts_.coop.tag_stats().y);
 
     if (has_hero) {
         o << ",\"hero\":[" << number(hero.position[0]) << "," << number(hero.position[1]) << ","
