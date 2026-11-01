@@ -43,8 +43,9 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
 | Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
 | Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**; **Checking your mods...** until the host answers; **See why you can't join** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready, mods match)**, **(mods differ)** or **(checking mods)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
+| Remove | The host's Cross on a member in the lobby, or on a member's line of the pause menu's Multiplayer page: **Remove from the party** (the code still works, so it may come back) or **Ban from this save**, then back. See [Removing a player](#removing-a-player) |
 | Refused | Shows by itself when your game cannot join the host's, and from the lobby's button: how yours differs, and what to do. See [Mods in a party](#mods-in-a-party) |
-| Party rules | From the lobby and the pause menu: what the party plays by, and what stays your own |
+| Party rules | From the lobby and the pause menu: what the party plays by, and what stays your own. A host with a mod code has **Copy mod code**, a refused player too, and a host whose save has bans **Lift 2 bans** |
 | Pause menu (in a level) | **Options**, then **Multiplayer** (after Video): the party's code (a direct party: where it is), the host's level, each member with the host and you marked and its round trip to the server and whether its game state goes by UDP or TCP (updated every 2 seconds), then **Party rules** and **Leave party**, which asks first (**End the party?** for the host, **Stop hosting?** for a direct host). Out of a party it says **Not in a party**. Leaving goes back to the title's Multiplayer page (below) |
 
 ## Playing together
@@ -200,8 +201,8 @@ A setting of a gameplay mod may say `"multiplayer": "own"`, each player's (Detai
 log), or `"multiplayer": "host"`, which the host's rules bring (the seeds). Neither is compared.
 
 **A player who does not match** can't say Ready, and the host can't Start while that player is in
-the party; the host gets no way around it, the player leaves or fixes it. The page says how, and
-shows by itself the first time:
+the party: the player leaves or fixes it, or the host removes it. The page says how, and shows by
+itself the first time:
 
 ```
 You can't join this game
@@ -224,6 +225,15 @@ The host's lobby has a line for each player who differs: `Bob: Difficulty settin
 `Bob: no Item Randomizer`, `Bob: extra Ammo Max`, `Bob: Difficulty version`, `Bob: a different disc`,
 `Bob: an older Multiplayer`. **Browse games** marks the games that would not fit with **(differs)**:
 the party's listing carries a short digest of its host's build and gameplay mods.
+
+**A player's keys and name are its own.** A `keybind` setting, and a string that defaults to the
+player's name, are never compared, whatever the mod's manifest leaves unsaid. A mod code leaves out
+the same settings, so a code applied always matches what the party checks.
+
+**Data packs.** A pack that changes the game (gameplay data, collision, a map) has to be the same in
+every game, in the same order, as a gameplay mod does: `Your New walls pack differs from the host's`.
+A pack is compared by what it holds, so one pack is the same on either disc. A pack of looks alone
+(textures, models, terrain) is each player's own. A mod code names the packs it cannot fetch.
 
 **The host's rules.** Party rules shows them before Start and in a level, for instance:
 
@@ -250,6 +260,22 @@ until the party goes. With no party they change nothing.
 - **Item Randomizer**: members play the host's seed, so every game has the same placement. An item
   passed on from another player is that item, and marks no place as had. A blank seed on a member is
   never used.
+
+## Removing a player
+
+Only the host removes a player, and there is no vote: at two to four players a vote is noise. The
+one removed goes back to the Multiplayer page, reading `The host removed you from the party`, from
+the lobby or from the middle of a game, and the party plays on. It can come back with the code, but
+Find match does not put it in that party again.
+
+A ban is of the party's co-op save: `Ban from this save` keeps the player out of every game of that
+save, whoever hosts it, since the ban goes beside the save and to the members' copies of it. It
+holds the launcher's key, not a name or an address, so a new name does not get round it. Party rules
+lifts a save's bans. A new game has none. A game started without the launcher has no key and can
+only be removed.
+
+A server from before kicks takes no such request, so the host's game does not send it: the removed
+player's game leaves by itself. Direct connect's host does the same as the server.
 
 ## Two discs in one party
 
@@ -420,13 +446,13 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 26 HELLO | a member | level i8, load u32, sim digest u32 (0 not known) | its game has new mobys of that level (it arrived, or a death made them again): asked each second until SYNCED. A digest other than the host's gets RESET with differs set, not the world |
 | 27 RESET | the host, to all | level i8, differs u8 (absent: 0) | its level was made again: what it spawned is gone everywhere, every member says HELLO. To one member with differs 1: its level does not agree with the host's, and it leaves the party |
 | 28 SYNCED | the host | level i8, load u32 | all of the world came, ahead of this on the stream: DEAD, then a SPAWN for each spawned moby; WORLD follows |
-| 29 MODS | a member; the host to that member | multiplayer's version, OpenRAC's and the disc (strings), count u8, per mod id, name, version (strings), kind u8 (0 gameplay, 1 input, 2 cosmetic, 3 solo), settings u8, per setting key, name, value, shown (strings), kind u8 (0 shared, 1 own, 2 host), default u8, then the world family (string) | a member's game and mods, every 2 seconds until the host's come back (a player's own mods without their settings) |
+| 29 MODS | a member; the host to that member | multiplayer's version, OpenRAC's and the disc (strings), count u8, per mod id, name, version (strings), kind u8 (0 gameplay, 1 input, 2 cosmetic, 3 solo), settings u8, per setting key, name, value, shown (strings), kind u8 (0 shared, 1 own, 2 host), default u8, then the world family (string), the mod code (string), the sender's launcher key (string, "" from the host), count u8, per data pack id, name, version (strings), digest i32 | a member's game and mods, every 2 seconds until the host's come back (a player's own mods without their settings) |
 | 30 FITS | the host, to all | count u8, per member id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string) | what the host found, at each change; one silent for 6 seconds is an older game |
 | 31 RULES | the host, to a member or all | count u8, per mod id (string), length u16 + its bytes, its words (string) | the rules of the host's mods, to a member found matching, on the stream ahead of PLAY, and to all at each change (a Chaos event) |
 | 32 COSAVE | the host, to all | tag u8, total i32, index i32, bytes | a piece of the host's save, for each member's co-op slot (cosave.hpp) |
 | 33 COSAVE_ACK | a member | tag u8, ok u8 | that save is in its slot |
 | 34 SAVE_NOW | a member | | asks the host to save the party |
-| 35 COPARTY | the host, before PLAY | key i32 | the party a slot belongs to |
+| 35 COPARTY | the host, before PLAY, and to all when the bans change | key i32, count u8, each ban (string) | the party a slot belongs to, and who is banned from it |
 | 44 PLACE | the host, to a member who asked | play i32, ticket u16, answer u8 (0 not now, 1 beside here, 2 the host's last safe spot, 3 none), position 3 x f32, yaw f32 | where a member goes: the host's last safe pose. Only the newest asking's ticket counts |
 | 45 PLACE_ASK | a member, twice a second | play i32, ticket u16, last u8 | it is to be put beside the host (a late joiner, or Go to host); `last`: 10 seconds of waiting are up, the last safe spot will do |
 | 46 WAIT_VOTE | a member; the host, to all | play i32, wait u16; from the host then kind u8 (0 none, 1 an arrival, 2 a scene), votes u8, voters u8, passed u8 | a vote to go on without the players waited for; the host's word of the wait, at each change and once a second |
@@ -434,6 +460,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 | 66 BATCH | anyone | length u16 + a message, each | messages of the game for one target in one DATA, read as if each came alone |
+| 67 KICK | the host, to the member removed | reason u8 (0 removed, 1 banned) | why, ahead of the server's KICKED; with a server that takes no KICK, the member leaves by itself |
 
 A member's game is started from the title with the host's save (`play_start`), its own saves left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`),
@@ -515,8 +542,10 @@ that player. Mobys near the members run in the host's game as if near its camera
 - A host's death brings back the enemies its Difficulty copied, as a death does alone: they are made
   again with the level, and the members get them from the host. Only placed mobys stay dead for the
   party.
-- One player who does not match holds the host's Start until that player leaves: there is no kick.
-- A data pack (a map mod or an overrides pack) is not compared.
+- A member's flight to a new planet is its own game's: it leaves with the host, but does not see the
+  host's take-off.
+- A ban holds a launcher's key, which is the player's own word: a player who changes the key by hand
+  gets past it. A game started without the launcher has no key, and can only be removed.
 
 ## Building
 
@@ -570,7 +599,7 @@ chosen from the setting and the launcher's.
 |---|---|
 | `src/multiplayer.cpp` | the mod: its entry, hooks and the glue that ties the session, the connection and the pages together |
 | `src/mod_state.hpp` | the mod's shared state and the functions its files call each other by (mod-internal) |
-| `src/pages_home.cpp`, `pages_browse.cpp`, `pages_saves.cpp`, `pages_lobby.cpp`, `pages_refused.cpp`, `pages_rules.cpp` | the pages in the game's own menus: Home with Code, Direct connect and the pause menu's page; Browse; Saves; Lobby; Refused; Rules |
+| `src/pages_home.cpp`, `pages_browse.cpp`, `pages_saves.cpp`, `pages_lobby.cpp`, `pages_refused.cpp`, `pages_rules.cpp`, `pages_remove.cpp` | the pages in the game's own menus: Home with Code, Direct connect and the pause menu's page; Browse; Saves; Lobby; Refused; Rules |
 | `src/game_adapter.hpp`, `.cpp` | the co-op's Game on the SDK's play and world calls |
 | `src/kinds.hpp` | the wire registry: every DATA kind, who owns it, the ranges reserved for coming features, and the router that sends a received DATA to its owner (`tests/kinds_test.cpp` holds the table to it) |
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, list, join, leave, Ready and Start |

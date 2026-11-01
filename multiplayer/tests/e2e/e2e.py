@@ -110,6 +110,7 @@ class Client:
                 "OPENRAC_HIDDEN": "1",
                 "OPENRAC_MP_BOT": str(self.port),
                 "OPENRAC_PLAYER_NAME": self.name,
+                "OPENRAC_IDENTITY_KEY": self.env.key_of(self.index),
             }
         )
         env.update(self.env.game_env)
@@ -123,6 +124,7 @@ class Client:
                 "--settings", str(self.dir / "settings.ini"),
                 "--window",
             ]
+            + self.env.pack_args(self.index)
             + self.env.game_args,
             cwd=self.dir,
             env=env,
@@ -205,6 +207,7 @@ class Env:
         self.member_difficulty = json.loads(args.member_difficulty) if args.member_difficulty else None
         self.late_difficulty = json.loads(args.late_difficulty) if args.late_difficulty else None
         self.member_mods = (args.member_mods or "").split(",") if args.member_mods else []
+        self.member_packs = args.member_packs
         self.server_jar = Path(args.server_jar).resolve()
         self.java = args.java
         self.base = args.base  # runs at once each take an address block of their own
@@ -225,6 +228,24 @@ class Env:
 
     def levels_of(self, index):
         return self.levels if index == 0 else self.member_levels
+
+    def key_of(self, index):
+        """A launcher's key: the host's, and one for every member, so a member back under a new
+        name (a later client, the kick scenario) is still the one banned."""
+        return f"{min(index, 1) + 1:032x}"
+
+    def pack_args(self, index):
+        """A stacked folder for the members: one pack that changes the game, and nothing in it the
+        game reads, which is all the check needs."""
+        if not self.member_packs or index == 0:
+            return []
+        folder = self.out / "member-packs"
+        folder.mkdir(exist_ok=True)
+        (folder / "stack.json").write_text(json.dumps({
+            "format": 1, "version": None, "files": {}, "notes": [], "skipped": {},
+            "layers": [{"id": "e2e-walls", "name": "Test walls", "gameplay": True, "digest": "ab" * 32}],
+        }))
+        return ["--mods", str(folder)]
 
     def extra_mods(self, index):
         """The gameplay mods client `index` plays with: the host's settings, the first member's own
@@ -808,6 +829,8 @@ def scenario_refuse(env, args):
     mods = wait("the member told", lambda: (lambda m: m if m["heard_host"] else None)(member.json("mods")), 15)
     env.report["notes"]["differences"] = mods["differences"]
     env.check("the member is told how it differs", bool(mods["differences"]), json.dumps(mods["differences"]))
+    if args.member_packs:
+        env.check("the pack is what differs", "Test walls" in " ".join(mods["differences"]), json.dumps(mods["differences"]))
     wait("the host's verdict", lambda: host.json("mods")["fits"].get("Member1") == 2, 15)
     member.ask("ready")
     time.sleep(1)
@@ -821,6 +844,73 @@ def scenario_refuse(env, args):
     print(json.dumps({"refused": refused, "host lobby": lobby, "rules": rules}, indent=1), flush=True)
     env.check("the host's lobby says why", any("Member1:" in line for line in lobby), json.dumps(lobby))
     env.check("every line fits the safe area", max(widths + lobby_widths + rules_widths) <= 460, str(max(widths + lobby_widths + rules_widths)))
+
+
+def join_code(member, code):
+    member.ask(f"join {code}")
+    wait(f"{member.name} in the party", lambda: member.status()["code"] == code, 15)
+
+
+def out_of_party(c):
+    return not c.status()["code"]
+
+
+def scenario_kick(env, args):
+    """A host takes a member out: one that differs from the lobby, which frees Start; one in the
+    game, from the pause page's call; and a ban, which holds under a new name."""
+    host = env.client("Host1", args.link_args)
+    member = env.client("Member1", args.link_args)
+    reach_title(host)
+    reach_title(member)
+    host.ask(f"connect {host.address} 7770")
+    wait("the host greeted", lambda: host.status()["greeted"], 20)
+    host.ask("create")
+    code = wait("the party", lambda: host.status()["code"], 15)
+    member.ask(f"connect {member.address} 7770")
+    wait("the member greeted", lambda: member.status()["greeted"], 20)
+    join_code(member, code)
+    wait("the host's verdict", lambda: host.json("mods")["fits"].get("Member1") in (1, 2), 15)
+    differs = host.json("mods")["fits"].get("Member1") == 2
+    env.report["notes"]["the member differs"] = differs
+    env.check("each game has its key", host.json("mods")["key"] and member.json("mods")["key"])
+    lobby, widths = page_fits(env, host, "lobby", "host")
+    remove, remove_widths = page_fits(env, host, "remove", "host")
+    env.check("every line fits the safe area", max(widths + remove_widths) <= 460, str(max(widths + remove_widths)))
+    env.check("the lobby says how to remove a player", any("remove" in line for line in lobby), json.dumps(lobby))
+    if differs:
+        env.check("a member who differs holds Start", host.ask("start").startswith("error"))
+
+    env.check("the host's kick is taken", host.ask("kick Member1") == "ok")
+    wait("the member out of the party", lambda: out_of_party(member), 15)
+    wait("the host alone", lambda: host.status()["members"] == 1, 15)
+    env.check("the member stays connected", member.status()["greeted"])
+    env.check("it was told", log_lines(member, r"out of the party"))
+
+    # A kick is no ban: the code still works. A ban sends it away, and again when it comes back.
+    join_code(member, code)
+    wait("the host knows its key", lambda: host.json("mods")["fits"].get("Member1") in (1, 2), 15)
+    env.check("the host's ban is taken", host.ask("ban Member1") == "ok")
+    wait("the banned member out", lambda: out_of_party(member), 15)
+    env.check("the save keeps the ban", host.json("mods")["bans"] == 1)
+    member.ask(f"join {code}")
+    time.sleep(4)
+    env.check("a banned member does not stay", out_of_party(member))
+
+    # A new name, the same launcher.
+    renamed = env.client("Renamed1", args.link_args)
+    reach_title(renamed)
+    renamed.ask(f"connect {renamed.address} 7770")
+    wait("the new name greeted", lambda: renamed.status()["greeted"], 20)
+    renamed.ask(f"join {code}")
+    time.sleep(4)
+    env.check("a new name is the same player", out_of_party(renamed))
+
+    # Lifted, it plays.
+    host.ask("unban")
+    env.check("the bans are lifted", host.json("mods")["bans"] == 0)
+    join_code(renamed, code)
+    time.sleep(3)
+    env.check("after the bans went it stays", not out_of_party(renamed))
 
 
 def scenario_midjoin(env, args):
@@ -1186,6 +1276,7 @@ SCENARIOS = {
     "enemies": scenario_enemies,
     "chaos": scenario_chaos,
     "refuse": scenario_refuse,
+    "kick": scenario_kick,
     "midjoin": scenario_midjoin,
     "progress2": scenario_progress2,
 }
@@ -1235,6 +1326,7 @@ def main():
     parser.add_argument("--member-difficulty", help="the first member's, when they are others")
     parser.add_argument("--late-difficulty", help="the later members', when they are others")
     parser.add_argument("--member-mods", help="more mods every member has and the host has not, by id")
+    parser.add_argument("--member-packs", action="store_true", help="every member has a data pack the host has not")
     parser.add_argument("--late-refused", action="store_true", help="midjoin: the late member differs")
     parser.add_argument("--seed-save", help="cosave: a save file put on each card first")
     parser.add_argument("--game-arg", action="append")

@@ -1303,5 +1303,6 @@ void run_cross_tests();
 void run_tags_tests();
 void run_join_tests();
 void run_shared_tests();
+void run_lobby_tests();
 
 }  // namespace mpt
