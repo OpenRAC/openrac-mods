@@ -57,18 +57,24 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 4. In a level each game shows the others' Ratchets where they are, running, jumping and standing
    as they do, about a tenth of a second behind. They walk through you and nothing aims at them.
 5. Only the host flies the ship: when it picks another planet in the ship's planet select, every
-   member's game leaves its level at that moment, from wherever it is (playing, a scene, the pause
-   menu, a vendor), and flies there. Nobody gets control on the new planet, and nothing of the
-   host's world shows there, until everyone has arrived ("Waiting for the other players to arrive"
-   says why; at most 90 seconds for one that never comes). A member's own pick of another planet
+   member is told ("The host is leaving for Pokitaru") and its game leaves its level 2.5 seconds
+   later, from wherever it is (playing, a scene, the pause menu, a vendor), and flies there. Nobody
+   gets control on the new planet, and nothing of the host's world shows there, until everyone has
+   arrived ("Waiting for the other players to arrive" says why; at most 90 seconds for one that
+   never comes). Start in that wait goes on: the host's at once, a member's as a vote, more than
+   half of those waiting needed, the line counting them. A member's own pick of another planet
    lands the ship again where it is ("Only the host flies the ship to another planet"). Someone who
    joins while the game is on gets the host's progress as it is then and goes straight to the
    host's level ("Joining the game"): whatever would play on the way (the game's movies, the ship's
    landing, a story scene of the level's) is passed by itself, no scene of the party's is that
    player's to play, nobody waits for it, and once it stands in the level it has the host's world
-   as it is, broken crates, dead enemies, bolts on the ground and all. Someone who quits to the
-   title finds **Join the game** in the lobby in Ready's place, which asks the host for its game
-   again.
+   as it is, broken crates, dead enemies, bolts on the ground and all. It then stays held, on that
+   line, until the host stands somewhere safe, and is put beside the host, unharmed for 3 seconds;
+   what the party has reached it silently, with no banners. A scene the host plays is waited out,
+   never replayed (Start goes in at once, where the player stands). A host that is not safe for 10
+   seconds gives its last safe spot, and with none in this level the player stays where the ship
+   or the level's start put it. Someone who quits to the title finds **Join the game** in the lobby
+   in Ready's place, which asks the host for its game again.
 
 Each player sees the others' Ratchets holding what they hold: the wrench, the weapon or gadget,
 Clank on the back, with their swings and throws, and the shots of their weapons (shown only: what
@@ -114,6 +120,9 @@ The world is the host's:
   soon as its game is back, so what was broken stays broken for it. A host who dies keeps it too:
   what was dead for the party is deleted again in its game. What the host had spawned (bolts lying
   about, its enemies' spawn) goes for everyone with its respawn.
+- **Go to host**: on the pause menu's Multiplayer page, for any member in the host's level. Your
+  Ratchet is put beside the host, unharmed for 3 seconds, when you close the menu, on the same
+  terms as a late joiner; with no safe spot near the host, where you landed in this level.
 - **Vendors, the ship, people, help desks**: each game's own, for its own player; the level a
   member is in follows the host's, and only the host's ship leaves for another planet.
 - **Menus do not pause** while the party plays: the pause menu and the game's dialogs open over a
@@ -131,9 +140,15 @@ The world is the host's:
 - **Scenes end together**: when the host is out of its scene, a member still in one is skipped
   (one that started the host's scene late only once it had as long as it was late), and nobody
   gets control back until everyone is out (at most 10 seconds for the host; a member waits for
-  the host's scene to end, and for its own copy of it to play). The ship's landing and take-off
+  the host's scene to end, and for its own copy of it to play). Start in that wait goes on without
+  them, as for an arrival: nobody's scene is skipped by it. The ship's landing and take-off
   count, and so do level intros. A skip ends only the scene or movie it was pressed in, never
   the next one.
+
+Starting again. The host back in the title with its party still there has **Start again** in the
+lobby: a new game for everyone, from the save the party was made with, in a co-op slot of its own
+(the last game's stays as it was). A member in a level leaves it for the title and starts the new
+game from there.
 
 Leaving. A player whose party goes while it plays (it chose Leave party, the host ended the party,
 or its connection went) leaves its level at once, from wherever it is (playing, a scene, the pause
@@ -398,6 +413,9 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 33 COSAVE_ACK | a member | tag u8, ok u8 | that save is in its slot |
 | 34 SAVE_NOW | a member | | asks the host to save the party |
 | 35 COPARTY | the host, before PLAY | key i32 | the party a slot belongs to |
+| 44 PLACE | the host, to a member who asked | play i32, ticket u16, answer u8 (0 not now, 1 beside here, 2 the host's last safe spot, 3 none), position 3 x f32, yaw f32 | where a member goes: the host's last safe pose. Only the newest asking's ticket counts |
+| 45 PLACE_ASK | a member, twice a second | play i32, ticket u16, last u8 | it is to be put beside the host (a late joiner, or Go to host); `last`: 10 seconds of waiting are up, the last safe spot will do |
+| 46 WAIT_VOTE | a member; the host, to all | play i32, wait u16; from the host then kind u8 (0 none, 1 an arrival, 2 a scene), votes u8, voters u8, passed u8 | a vote to go on without the players waited for; the host's word of the wait, at each change and once a second |
 | 48 SHOTX | everyone, as state | count u8, then per shot owner i32, level i8, item u8, flags u8, what follows u8, stamp u32 (the low bits of the server's clock), position 3 x f32, and what it has of velocity 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16 | shots a player fired; a member's go to the host, who passes them on. Each is fired when its figure is where the shooter was, hitting nothing in that game, or dropped when 250 ms late. A flag makes it part of a track (a flame, a beam, a Visibomb in flight): START, a MOVE ten times a second, STOP; aux[0] tells the player's tracks apart |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
@@ -436,8 +454,8 @@ that player. Mobys near the members run in the host's game as if near its camera
 - Vendors and the ship are each game's own. A member's flight to the new planet is the game's
   flight between planets, not the host's take-off from the pad (members leave when the host's
   ship does, and usually land first, then wait).
-- A scene a member joins late starts from its beginning (a scene is read from the disc as it
-  plays: it cannot start part way); scripted camera shots that are not scenes (a gold bolt's, a
+- A scene that started before a member came is not shown to it (a scene is read from the disc as
+  it plays: it cannot start part way). Scripted camera shots that are not scenes (a gold bolt's, a
   door's or a lift's camera, the level's camera scripts) play in the game whose moby runs them
   only.
 - A crate a member broke drops its bolts a round trip later (the host's copy breaks when the
@@ -469,14 +487,10 @@ that player. Mobys near the members run in the host's game as if near its camera
 - A shot that would come more than 250 ms late is dropped rather than shown late, so on a bad
   link some are missing. A decoy a member throws draws the enemies through the host's copy; if it
   is destroyed there the member's copy stays until it runs out.
-- A late joiner stands where the ship lands (or where its save's level starts), not beside the
-  host.
 - A name tag is not hidden by a wall: it shows where a player is, through whatever is between. It
   shows in a level only: not under a menu, not in a scene. The font is the port's capitals, and a
   character it lacks is left blank.
 - Particles under the pause menu are drawn but stand still (frozen sparks).
-- A member already in a level when the host starts again keeps its own progress and only follows
-  the level.
 - Everyone needs the same OpenRAC and mod versions (Mods in a party). Discs of one world family play
   together: each player's Ratchet plays by that player's disc, and the enemies, doors and everything
   else the host's game runs by the host's. Tested by unit tests; see Two discs in one party.

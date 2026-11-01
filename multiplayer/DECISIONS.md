@@ -53,13 +53,6 @@ is what a single world would do but pulls everyone back for one player's fall.
 
 Recommendation: **(a)**.
 
-### 10. Where a late joiner lands
-
-A joiner comes in where the level's start or the ship puts it, with the game's own landing passed by
-itself. Choices: (a) keep this, (b) put its Ratchet beside the host once it has the world: nicer, but
-a host on a moving platform or in a vehicle has no good spot beside it, and the SDK has no call for it
-yet.
-
 ### 11. A member's metal detector and class 152
 
 The classes that act on the player standing in them now run in each player's game (`world.hpp`). Two
@@ -113,5 +106,8 @@ is back at the title, because a game left in a level still holds the party's pro
 | Name tags | Over each figure, in a colour per party place, a dot past 40 metres, a mark while lagging, seen through walls, none under a menu or in a scene | 2026-10-31 |
 | The picture under the pause menu | The world goes on in the picture too (`play_live_picture`); particles drawn but not moved | 2026-10-31 |
 | A mod code in the game | Shown on the host's Rules page and a refused player's page, only while the running gameplay mods are the ones it names; a member gets it from the host in MODS, as a code's shape only, and the link is made from that | 2026-10-31 |
+| Where a late joiner lands | Held on the joining line until the host is at a safe point, then put beside the host with 3 seconds of safety; a host not safe for 10 seconds gives its last safe spot, and with none, the ship or the level's start. A scene in progress is waited out, not replayed. **Go to host** on the pause page uses the same terms, for any member. Late joiners take progress silently. Decided by the user | 2026-10-31 |
+| Waits and travel | Start in a wait for others: the host's goes on at once, a member's is a vote, more than half of those waiting. A 2.5 second warning before the host's ship takes a member along. Decided by the user | 2026-10-31 |
+| A host that starts again | A member in a level leaves for the title and starts the new game from there. Decided by the user | 2026-10-31 |
 | Other players' shots | Every weapon's shots are shown, and only shown: damage is the shooter's game's to tell and the host's to apply. A shot is state, not an event: it may be lost, and one more than 250 ms late is dropped. What flies by itself goes through the game's own spawn; the Pyrocitor, the beams, the Visibomb and the drones are drawn apart, because their code belongs to the hero. Decided by the user | 2026-10-31 |
 | A figure's weapon classes (G4) | One weapon class besides the hero's, as the game has: the two decode buffers stay, since the heap has no room for more on every level. The player nearest the hero keeps the buffer, with a margin of 4 units and at least 2 seconds held; the others hold the wrench and their shots still show. Decided by the user | 2026-10-31 |
