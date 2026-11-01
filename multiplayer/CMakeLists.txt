@@ -79,7 +79,7 @@ if(BUILD_TESTING)
   # cell in every build; MULTIPLAYER_HEAVY_SWEEP adds the sweep a change of the sync is judged by.
   option(MULTIPLAYER_HEAVY_SWEEP "Run the many-seed sweep of the sync with the tests" OFF)
   add_executable(multiplayer_sweep_test tests/sim_sweep_test.cpp src/session.cpp src/protocol.cpp
-                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/save_check.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
   target_include_directories(multiplayer_sweep_test PRIVATE src tests "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_sweep_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_sweep COMMAND multiplayer_sweep_test --seeds 2)
