@@ -68,6 +68,15 @@ void Coop::member_back(std::int32_t member) {
     level_ms_ = 0;
 }
 
+void Coop::forget(std::int32_t player) {
+    const auto it = remotes_.find(player);
+
+    if (it != remotes_.end()) {
+        drop_figure(player, it->second, "the old host");
+        remotes_.erase(it);
+    }
+}
+
 void Coop::host_changed() {
     // A PLAY the old host did not finish is the new host's to send.
     if (pending_) {

@@ -84,8 +84,10 @@ if(BUILD_TESTING)
   target_include_directories(multiplayer_sweep_test PRIVATE src tests "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_sweep_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_sweep COMMAND multiplayer_sweep_test --seeds 2)
+  add_test(NAME multiplayer_takeover_sweep COMMAND multiplayer_sweep_test --takeover --seeds 1)
   if(MULTIPLAYER_HEAVY_SWEEP)
     add_test(NAME multiplayer_sweep_heavy COMMAND multiplayer_sweep_test --seeds 60 --base 1000)
+    add_test(NAME multiplayer_takeover_sweep_heavy COMMAND multiplayer_sweep_test --takeover --seeds 30 --base 1000)
   endif()
   # The interpolation buffer over a real network: late, uneven, reordered and lost poses, and the
   # arrivals of a session through the public server, shown as smoothly as they should be.

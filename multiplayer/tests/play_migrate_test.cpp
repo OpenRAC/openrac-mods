@@ -3,7 +3,7 @@
 //
 // Playing together, without the game or a socket: a connection lost and found again, the host's
 // among them (migrate.hpp).
-#include "test_support.hpp"
+#include "takeover_sim.hpp"
 
 namespace mpt {
 namespace {
@@ -525,6 +525,26 @@ void a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on() {
     CHECK(!t.a.coop.hold_input());
 }
 
+void the_host_going_at_any_moment_leaves_one_world() {
+    for (const HostGone how : kHostGoneAll) {
+        for (unsigned seed = 1; seed <= 2; ++seed) {
+            SimLink link;
+            link.loss = 0.05;
+            link.latency = 40.0;
+            link.jitter = 20.0;
+            const TakeoverResult r = run_takeover(link, seed, 2, how);
+
+            if (r.bad()) {
+                std::printf("%s seed %u: hosted %d stuck %d crates %d dead %d place %d saves %d spawned %d held %d\n",
+                            host_gone_name(how), seed, r.hosted, r.stuck, r.wrong_crates, r.wrong_dead, r.wrong_place,
+                            r.torn_saves, r.spawned_apart, r.held_on);
+            }
+
+            CHECK(!r.bad());
+        }
+    }
+}
+
 }  // namespace
 
 void run_migrate_tests() {
@@ -547,6 +567,7 @@ void run_migrate_tests() {
     a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one();
     an_old_host_back_late_comes_in_as_anyone();
     a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on();
+    the_host_going_at_any_moment_leaves_one_world();
 }
 
 }  // namespace mpt

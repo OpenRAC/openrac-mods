@@ -212,6 +212,8 @@ void Migrate::leaving() {
 
 void Migrate::host_changed(std::int32_t host, std::uint64_t now) {
     coop_.between_hosts(false);
+    coop_.forget(old_host_);
+    took_over_ = false;
     host_gone_ms_ = 0;
     new_host_ = host;
     new_host_until_ = now + kNewHostLineMs;
@@ -324,6 +326,7 @@ void Migrate::take(const PartyEvent& event, std::uint64_t now) {
             if (session_.role().from_host(event.id)) {
                 host_gone_ms_ = 0;
                 coop_.hold_for_host(false);
+                world_.rejoined();
             } else if (session_.role().host()) {
                 coop_.member_back(event.id);
                 world_.member_back(event.id);
@@ -428,6 +431,7 @@ void Migrate::tick(std::uint64_t now) {
     }
 
     was_host_ = session_.is_host();
+    old_host_ = session_.host();
 
     // Everyone it asked answered, or it has given them long enough.
     if (gather_ms_ != 0) {

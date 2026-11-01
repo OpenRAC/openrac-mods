@@ -428,7 +428,7 @@ bool Coop::members_in_scene(std::uint64_t now, const GameStatus& status) const {
     return std::any_of(scene_states_.begin(), scene_states_.end(), [&](const auto& entry) {
         const SceneState& s = entry.second;
         return s.sequence == scene_sequence_ && s.state != kSceneOut && now - s.ms < 2 * kLevelMs
-               && in_party(session_, entry.first);
+               && in_party(session_, entry.first) && !session_.away(entry.first);
     });
 }
 

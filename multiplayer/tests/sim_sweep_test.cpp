@@ -10,7 +10,11 @@
 //
 //   multiplayer_sweep_test [--seeds N] [--base B] [--plans all|walk|sparse|fire] [--settle ms]
 //                          [--shard i/n] [--csv]
-#include "test_support.hpp"
+//   multiplayer_sweep_test --takeover [--seeds N] [--base B] [--shard i/n]
+//
+// `--takeover` kills the host instead, at each awkward moment of takeover_sim.hpp, on 2 to 4 players,
+// 0, 5 and 15 % loss and 30 and 250 ms: a line a kind of moment, and one a run that ended wrong.
+#include "takeover_sim.hpp"
 
 #include <chrono>
 #include <cstdlib>
@@ -64,11 +68,58 @@ const char* kind_name(int kind) {
 
 }  // namespace
 
+/* The takeover sweep: the runs that ended wrong. */
+long sweep_takeover(int seeds, unsigned base, int shard, int shards) {
+    long index = 0, bad = 0, runs = 0;
+
+    for (const HostGone how : kHostGoneAll) {
+        long wrong = 0, ran = 0;
+
+        for (int members = 1; members <= 3; ++members) {
+            for (const double loss : {0.0, 5.0, 15.0}) {
+                for (const double latency : {30.0, 250.0}) {
+                    for (int s = 0; s < seeds; ++s) {
+                        if (index++ % shards != shard) {
+                            continue;
+                        }
+
+                        SimLink link;
+                        link.loss = loss / 100.0;
+                        link.latency = latency / 2.0;
+                        link.jitter = latency / 5.0;
+                        link.reorder = 0.02;
+                        link.duplicate = 0.01;
+                        const unsigned seed = base + static_cast<unsigned>(s);
+                        const TakeoverResult r = run_takeover(link, seed, members, how);
+                        ++ran;
+
+                        if (r.bad()) {
+                            ++wrong;
+                            std::printf("%s pl %d loss %.0f ms %.0f seed %u: host %d hosted %d stuck %d crates %d dead %d place %d "
+                                        "saves %d spawned %d held %d\n",
+                                        host_gone_name(how), members + 1, loss, latency, seed, r.host, r.hosted, r.stuck,
+                                        r.wrong_crates, r.wrong_dead, r.wrong_place, r.torn_saves, r.spawned_apart, r.held_on);
+                        }
+                    }
+                }
+            }
+        }
+
+        std::printf("%-7s %5ld runs, %ld wrong\n", host_gone_name(how), ran, wrong);
+        bad += wrong;
+        runs += ran;
+    }
+
+    std::printf("takeover: %ld runs, %ld wrong\n", runs, bad);
+    return bad;
+}
+
 int main(int argc, char** argv) {
     int seeds = 4;
     unsigned base = 1;
     int shard = 0, shards = 1;
     bool csv = false;
+    bool takeover = false;
     std::string plans = "all";
     int settle = 0;
 
@@ -93,7 +144,14 @@ int main(int argc, char** argv) {
             ++i;
         } else if (arg == "--csv") {
             csv = true;
+        } else if (arg == "--takeover") {
+            takeover = true;
         }
+    }
+
+    if (takeover) {
+        const long wrong = sweep_takeover(seeds, base, shard, shards);
+        return wrong != 0 || g_failures != 0 ? 1 : 0;
     }
 
     const auto started = std::chrono::steady_clock::now();

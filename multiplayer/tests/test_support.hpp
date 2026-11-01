@@ -1117,6 +1117,12 @@ struct SimNet {
      * ids `gaps_of` says to watch, while `gaps_on`. */
     std::function<bool(int)> gaps_of;
     bool gaps_on = false;
+    /* The players whose connection is gone: nothing they say goes, nothing reaches them. Whether the
+     * rest of a game ticks as the mod ticks it; who the host last named to follow it (HOST_CHANGED). */
+    std::set<std::int32_t> cut;
+    bool whole = false;
+    std::vector<std::int32_t> named;
+    std::set<std::int32_t> declined;
     std::map<std::pair<std::int32_t, int>, double> heard_at;
     double worst_gap = 0;
 
@@ -1131,7 +1137,8 @@ struct SimNet {
     double delay() { return link.latency + uniform() * link.jitter; }
 
     bool reaches(Player* from, std::int32_t target, Player* to) const {
-        return to != from && (from->id == 1 ? target == 0 || target == to->id : to->id == 1);
+        return to != from && cut.count(from->id) == 0 && cut.count(to->id) == 0
+               && (from->session.is_host() ? target == 0 || target == to->id : to->session.is_host());
     }
 
     void tcp(Player* from, std::int32_t target, const Bytes& bytes) {
@@ -1208,6 +1215,23 @@ struct SimNet {
                     continue;
                 }
 
+                // HOST_CHANGED: the host's list, or a new host saying it cannot.
+                if (body.size() >= 4 && body[0] == static_cast<std::uint8_t>(mp::PacketId::kParty)
+                    && body[1] == static_cast<std::uint8_t>(mp::PartyOp::kHostChanged) && cut.count(p->id) == 0) {
+                    if (body[2] != 0) {
+                        declined.insert(p->id);
+                    } else {
+                        mp::Reader ids(body.data() + 4, body.size() - 4);
+                        named.clear();
+
+                        for (int i = 0; i < body[3]; ++i) {
+                            named.push_back(ids.i32());
+                        }
+                    }
+
+                    continue;
+                }
+
                 const mp::Request q = mp::decode_request(body);
 
                 if (q.kind != mp::Request::Kind::kData) {
@@ -1276,6 +1300,13 @@ struct SimNet {
             if (shared) {
                 p->shared.tick(now);
             }
+
+            if (whole) {
+                p->mods.tick(now);
+                p->cosave.tick(now, p->coop.playing());
+                p->cam.tick(now);
+            }
+
             p->session.flush();
         }
     }

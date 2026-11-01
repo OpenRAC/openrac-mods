@@ -264,7 +264,7 @@ void Coop::tick_arrival(std::uint64_t now, const GameStatus& status) {
             [&](std::int32_t id) {
                 const auto it = remotes_.find(id);
                 Pose p;
-                return !member_of(session_, id)
+                return !member_of(session_, id) || session_.away(id)
                        || (it != remotes_.end() && it->second.poses.newest(p) && p.level == travel_dest_
                            && it->second.poses.silence_ms(static_cast<double>(now)) < 2000.0);
             }

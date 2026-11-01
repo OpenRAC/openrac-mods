@@ -59,7 +59,7 @@
  * going on from the ledger. A ship travel: a new host on its way finishes the trip and the rest follow
  * by LEVEL, its barrier gone; nobody is waited for. A wait or its votes: gone. Joining: a joiner goes
  * on with the new host, its PLAY asked for again if it was cut. A place being asked: goes to the
- * new host. Remotes: stay; an old host's figure stands until its slot is given up.
+ * new host. Remotes: stay, an old host's figure gone with it.
  *
  * Shared, Progress. Whole again from the new host (again()): every game has what it was given, the
  * new host's game is the party's progress from here on. Mission rows: its own.
@@ -208,6 +208,7 @@ private:
     /* Since when the host has been gone (0: it has not); whether this game was the host last tick. */
     std::uint64_t host_gone_ms_ = 0;
     bool was_host_ = false;
+    std::int32_t old_host_ = 0;
     /* The ledger: the newest this game has, whole. */
     Ledger ledger_;
     std::uint64_t ledger_ms_ = 0;

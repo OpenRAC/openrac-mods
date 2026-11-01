@@ -629,6 +629,8 @@ public:
      * joiner does; the host: a member came back; the party waits for its host. */
     void rejoined(std::uint64_t now);
     void member_back(std::int32_t member);
+    /* A player no longer shown: an old host, whose world is gone with it. */
+    void forget(std::int32_t player);
     void hold_for_host(bool on) { host_hold_ = on; }
     /* While on, this game is named the host and is not one yet: it runs nothing of a host's. */
     void between_hosts(bool on) { between_hosts_ = on; }
