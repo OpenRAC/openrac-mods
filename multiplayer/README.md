@@ -419,7 +419,7 @@ cmake --build build && ctest --test-dir build -R multiplayer
 python3 <OpenRAC>/sdk/tools/package_mod.py build/package/multiplayer -o dist
 ```
 
-`tests/play_test.cpp` checks the poses' bytes, the interpolation buffer (a steady stream, repeats
+`tests/play_test.cpp` runs the per-area files (`play_*_test.cpp`, sharing `test_support.hpp`); together they check the poses' bytes, the interpolation buffer (a steady stream, repeats
 and late poses, teleports, a stall then a burst, extrapolation), and the co-op of a host and members
 through a router that does what the server does with DATA and fake games: Start with a save and
 with a new game, the level followed, a late joiner and a member that asks again, figures made in
@@ -434,7 +434,7 @@ placed bolts; and the progress: a member's gold bolt and the host's, gone and co
 with no scene shared or held, an item and a planet reaching every game (once in control), a late
 member given it all.
 
-The last part of `tests/play_test.cpp` plays the party on a seeded network and a model of the
+The last part (`tests/play_sim_test.cpp`) plays the party on a seeded network and a model of the
 server's limits (`SimNet`): every mix of 0, 1, 5 and 15 % loss and 30, 100 and 250 ms, with
 reordering and repeats, with no moby left anywhere else or hidden differently, no crate left
 different and nothing dropped by the server; bursts, UDP blocked; ids through a respawn that moves
