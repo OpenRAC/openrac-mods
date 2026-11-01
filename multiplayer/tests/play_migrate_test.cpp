@@ -20,6 +20,7 @@ struct Trio {
     Trio() {
         for (Player* p : all) {
             gate(*p, sample_list());
+            p->game.card_on = true;
         }
 
         for (Player* p : all) {
@@ -135,6 +136,23 @@ void a_member_comes_back_as_a_late_joiner_does() {
     t.run(t.all, 40);
     CHECK(t.a.world.synced());
     CHECK(!t.a.game.placed.empty());
+}
+
+void what_went_while_a_member_was_away_is_gone_when_it_is_back() {
+    Trio t;
+    t.host.game.level.push_back(moby(60, -1, 700, mp::kMobyUpdates | mp::kMobyCreature, 9.0f));
+    t.run(t.all, 40);
+    CHECK(count_of_class(t.a.game, 700) == 1);
+    const auto rest = t.without(t.a);
+    lose(t.a, rest);
+
+    // The DESPAWN it never heard.
+    t.host.game.die(slot_of_class(t.host.game, 700));
+    t.run(rest, 40);
+    come_back(t.a, rest, t.party());
+    t.run(t.all, 60);
+    CHECK(t.a.world.synced());
+    CHECK(count_of_class(t.a.game, 700) == 0);
 }
 
 void a_slot_refused_or_out_of_time_ends_the_party_here() {
@@ -349,12 +367,21 @@ void the_new_host_carries_the_party_on() {
     lose_host(t, t.a);
     CHECK(t.a.session.is_host() && t.b.session.host() == 2);
 
-    // It runs nothing of a host's until it knows what the party knows.
+    // It runs nothing of a host's until it knows what the party knows: no game goes out.
+    t.a.game.live_save = Bytes(100, 7);
+    const std::uint64_t plays = t.a.session.counts().events_out[mp::kind::kPlay].messages;
     tick(rest, 16);
     CHECK(t.a.coop.between_hosts() && t.a.coop.hold_input());
+    CHECK(t.a.session.counts().events_out[mp::kind::kPlay].messages == plays);
     t.run(rest, 40);
     CHECK(t.a.world.hosting() && !t.a.coop.between_hosts() && !t.a.coop.hold_input());
     CHECK(t.a.world.driven() == 0);
+
+    // (A drive goes with its moby: the one the party killed took its own.)
+    for (const mp::MobyState& m : t.a.game.level) {
+        CHECK((m.flags & mp::kMobyDead) != 0 || t.a.game.drives.count(m.slot) == 0);
+    }
+
     CHECK(t.a.migrate.took_over());
     CHECK(t.a.migrate.banner(t.a.clock) == mp::kYouHostLine);
 
@@ -445,6 +472,8 @@ void what_the_old_host_spawned_goes_on_under_its_id() {
     t.run(t.all, 40);
     CHECK(t.a.world.spawned() == 1 && t.b.world.spawned() == 1);
     t.run(t.all, 40);
+    CHECK(t.a.migrate.ledger().world.spawned.size() == 1);
+    const std::uint16_t net = t.a.migrate.ledger().world.spawned[0].net;
     auto rest = t.without(t.host);
 
     // (The port says what a class is; this game's copy is made as the host's was.)
@@ -456,6 +485,7 @@ void what_the_old_host_spawned_goes_on_under_its_id() {
     CHECK(count_of_class(t.a.game, 700) == 1);
     CHECK(count_of_class(t.b.game, 700) == 1);
     CHECK(t.b.world.spawned() == 1);
+    CHECK(t.a.migrate.ledger().world.spawned.size() == 1 && t.a.migrate.ledger().world.spawned[0].net == net);
 }
 
 void a_grabbed_player_is_let_go_by_a_change_of_host() {
@@ -503,6 +533,8 @@ void a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one() {
     auto rest = t.without(t.host);
     const std::uint8_t tag = 9;
     Bytes piece = mp::Writer().u8(mp::kind::kCoSave).u8(tag).i32(2).i32(0).raw(Bytes(mp::kChunkBytes, 5)).bytes();
+    CHECK(t.b.cosave.on() && t.b.cosave.slot() >= 0);
+    t.b.game.slots[t.b.cosave.slot()] = Bytes(2000, 7);
     const Bytes before = t.b.game.card_read(t.b.cosave.slot());
     t.b.cosave.handle(1, piece);
     lose_host(t, t.a);
@@ -660,6 +692,7 @@ void the_host_going_at_any_moment_leaves_one_world() {
 void run_migrate_tests() {
     a_member_dropped_keeps_its_place_and_goes_nowhere();
     a_member_comes_back_as_a_late_joiner_does();
+    what_went_while_a_member_was_away_is_gone_when_it_is_back();
     a_slot_refused_or_out_of_time_ends_the_party_here();
     a_server_that_keeps_no_slots_ends_the_party_as_ever();
     a_direct_party_waits_only_as_long_as_for_a_host();
