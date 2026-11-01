@@ -270,6 +270,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
+      actions: write
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -307,3 +308,10 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag dist/*
           fi
+      # A release made with this token starts no workflow, so index.yml's release event never comes:
+      # start it from here. A dispatch is an event this token may start a workflow with.
+      - name: Build the index with the new release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run index.yml --ref master
