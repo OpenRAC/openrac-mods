@@ -23,6 +23,7 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `hostdeath` | the host dies: what the party broke stays broken in its game, the member gets the world again, nothing of its old spawned mobys is left |
 | `join` | a party in a level (`--level N`; leave `--skip-movies` out, so the game's movies are there), then a late member: its timeline until it stands in control in the host's level; `--host-scene N`: the host plays scene N as it joins |
 | `soak` | `--members N` standing in the level for `--seconds S`: what the network carried, by kind |
+| `weapons` | each weapon given, drawn and fired by the host, then by a member (`--weapons Devastator,Pyrocitor` for some; `--fire-button` the pad's bit): the other game shows it (its class among the mobys, or its shots fired for what is drawn as particles), and nobody is hurt by the copy |
 | `enemies` | an enemy count off 1 (`--difficulty '{"enemy_count": 2}'`), in level `--level N`: every game lists the host's enemies, none twice, none of a member's own, also after a member's and the host's death |
 | `chaos` | `--difficulty '{"chaos": true, "chaos_events": true, "chaos_minutes": 1}'`, a blank seed: each level's values and the events are the host's, in levels `--level N`, `--level2 N`, for up to `--seconds S` |
 | `refuse` | a member whose settings or mods differ (`--member-difficulty`, `--member-mods`): told why, no Ready, no Start; the pages' lines measured in the game's font |

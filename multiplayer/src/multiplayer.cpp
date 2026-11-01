@@ -253,6 +253,12 @@ void load(openrac::Mod& mod) {
             for (unsigned i = 0; i < 3; ++i) {
                 memory.write<float>(0x0013F4D0u + 4u * i, at[i]);
             }
+        }, [](int item) {
+            // weapon_ammo_counts and hero.pending_item[0] (PAL; the bot is a test's).
+            g->game->give_item(item);
+            openrac::Memory memory = g->mod->memory();
+            memory.write<std::int32_t>(0x0013D530u + 4u * static_cast<unsigned>(item), 40);
+            memory.write<std::int32_t>(0x0013F450u + 0x20B8u, item);
         }, [](const std::string& name) {
             // What a page shows, as a player reads it.
             const openrac::UiContent c = name == "refused" ? refused_content()

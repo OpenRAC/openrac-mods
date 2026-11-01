@@ -152,7 +152,12 @@ void shotx_bytes() {
         CHECK(!mp::decode_shotx(Bytes(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(n)), r));
     }
     CHECK(!mp::decode_shotx(Bytes{mp::kShotKind, 0}, r));
-    CHECK(!mp::decode_shotx(Bytes{mp::kShotXKind, static_cast<std::uint8_t>(mp::kShotXMax + 1)}, r));
+    // More than a SHOTX holds, whole as they may be, is no SHOTX either.
+    Bytes over = mp::encode_shotx(std::vector<mp::ShotEntry>(mp::kShotXMax));
+    const std::size_t each = (over.size() - 2) / mp::kShotXMax;
+    over.insert(over.end(), over.begin() + 2, over.begin() + 2 + static_cast<std::ptrdiff_t>(each));
+    over[1] = static_cast<std::uint8_t>(mp::kShotXMax + 1);
+    CHECK(!mp::decode_shotx(over, r));
 
     // The most a SHOTX holds, each with everything, fits a datagram; more are left for the next.
     std::vector<mp::ShotEntry> many(mp::kShotXMax + 3);

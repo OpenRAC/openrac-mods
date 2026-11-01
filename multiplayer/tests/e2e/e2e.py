@@ -838,6 +838,67 @@ def scenario_soak(env, args):
     compare_poses(env, host, members, "after the soak")
 
 
+# Item, name, the pad's button for it (the first weapon button), ticks held, the class it makes in
+# the other game (None: drawn as particles, seen only as shots fired).
+WEAPONS = [
+    (0x0F, "Blaster", 40, None),
+    (0x0A, "Bomb Glove", 40, 121),
+    (0x0B, "Devastator", 80, 153),
+    (0x17, "R.Y.N.O.", 80, 457),
+    (0x14, "Glove of Doom", 80, 230),
+    (0x11, "Mine Glove", 80, 74),
+    (0x19, "Decoy Glove", 80, 203),
+    (0x10, "Pyrocitor", 90, None),
+    (0x13, "Tesla Claw", 90, None),
+    (0x15, "Morph-O-Ray", 90, None),
+    (0x09, "Suck Cannon", 90, None),
+    (0x0D, "Visibomb Gun", 40, 172),
+    (0x18, "Drone Device", 40, 479),
+]
+
+
+def classes_near(c):
+    return {m[2] for m in json.loads(c.ask("dump"))}
+
+
+def scenario_weapons(env, args):
+    """Each weapon fired by the host, then by the member: the other game shows it, nothing crashes,
+    and no hit comes of the shown copy. `--weapons a,b` runs some."""
+    host, member = start_two(env, args)
+    wanted = None
+    if args.weapons:
+        wanted = {w.strip().lower() for w in args.weapons.split(",")}
+    for item, name, ticks, oclass in WEAPONS:
+        if wanted is not None and name.lower() not in wanted:
+            continue
+        for shooter, watcher, who in ((host, member, "the host"), (member, host, "a member")):
+            shooter.ask(f"equip {item}")
+            time.sleep(1.5)
+            before = watcher.status().get("shots_fired", 0)
+            health = watcher.status().get("health")
+            seen = set()
+            shooter.ask(f"press {args.fire_button} {ticks}")
+            end = time.monotonic() + ticks / 60 + 3.0
+            while time.monotonic() < end:
+                seen |= classes_near(watcher)
+                time.sleep(0.05)
+            fired = watcher.status().get("shots_fired", 0) - before
+            env.check(f"{name} of {who}: shots reached the other game", fired > 0, f"fired {fired}")
+            if oclass is not None:
+                env.check(f"{name} of {who}: class {oclass} shown", oclass in seen, sorted(seen)[:40])
+            env.check(
+                f"{name} of {who}: the shown shots hurt nobody",
+                watcher.status().get("health") == health,
+            )
+            env.report["notes"].setdefault("weapons", {})[f"{name} ({who})"] = {
+                "fired": fired,
+                "late": watcher.status().get("shots_late", 0),
+            }
+    env.report["notes"]["final"] = {c.name: c.status() for c in env.clients}
+    env.report["notes"]["net"] = {c.name: json.loads(c.ask("stats")) for c in env.clients}
+    compare_worlds(env, [host, member], "after the shooting")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "keys": scenario_keys,
@@ -846,6 +907,7 @@ SCENARIOS = {
     "crates": scenario_crates,
     "join": scenario_join,
     "soak": scenario_soak,
+    "weapons": scenario_weapons,
     "enemies": scenario_enemies,
     "chaos": scenario_chaos,
     "refuse": scenario_refuse,
@@ -864,6 +926,8 @@ def link_args(text):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
+    parser.add_argument("--weapons", default="", help="weapons: the ones to fire, by name, commas between")
+    parser.add_argument("--fire-button", default="8000", help="weapons: the pad's bit (hex) that fires")
     parser.add_argument("--link", default="", help="loss=5,latency=50,jitter=10,reorder=2,duplicate=1")
     parser.add_argument("--out", required=True)
     parser.add_argument("--game", required=True)

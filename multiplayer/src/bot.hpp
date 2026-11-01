@@ -19,6 +19,7 @@
  *   dump                every moby of the level (slot, key, class, flags, state, position)
  *   stats               what the network layer counted
  *   teleport X Y Z      the hero there, held a few ticks
+ *   equip ITEM          the item given, with ammunition, and in the hand
  *   press MASK TICKS [LX LY]   buttons (the pad's mask, set bits pressed) and the left stick
  *   hit KEY MASK        a hit from the hero on the placed moby of that key, as the game posts one
  *   bolts               the bolt count
@@ -55,6 +56,8 @@ public:
         PartyMods& mods;
         /* The hero's position written to game memory. */
         std::function<void(const float*)> teleport;
+        /* The item given, with ammunition, and asked for in the hand. */
+        std::function<void(int)> equip;
         /* What a page shows: lobby, refused or rules, line by line. */
         std::function<std::vector<std::string>(const std::string&)> page;
         /* How wide the game's font draws a line. */

@@ -179,7 +179,9 @@ std::string Bot::status() {
       << ",\"driven\":" << parts_.world.driven() << ",\"spawned\":" << parts_.world.spawned()
       << ",\"mobys\":" << parts_.world.mobys() << ",\"bolts\":" << parts_.game.bolts(0)
       << ",\"udp\":" << parts_.connection.udp() << ",\"rtt\":" << session.rtt_ms()
-      << ",\"joining\":" << parts_.coop.joining() << ",\"synced\":" << parts_.world.synced();
+      << ",\"joining\":" << parts_.coop.joining() << ",\"synced\":" << parts_.world.synced()
+      << ",\"shots_sent\":" << parts_.coop.shots_sent() << ",\"shots_fired\":" << parts_.coop.shots_fired()
+      << ",\"shots_late\":" << parts_.coop.shots_late();
 
     if (has_hero) {
         o << ",\"hero\":[" << number(hero.position[0]) << "," << number(hero.position[1]) << ","
@@ -307,6 +309,10 @@ std::string Bot::run(const std::string& line) {
         in >> at_[0] >> at_[1] >> at_[2];
         teleport_ticks_ = kTeleportTicks;
         parts_.teleport(at_);
+    } else if (command == "equip") {
+        int item = 0;
+        in >> item;
+        parts_.equip(item);
     } else if (command == "press") {
         in >> std::hex >> mask_ >> std::dec >> press_ticks_;
         stick_[0] = stick_[1] = 128;

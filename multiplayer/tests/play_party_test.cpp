@@ -579,6 +579,24 @@ void a_shot_says_all_it_has() {
     CHECK(got.aux[0] == 7.0f && got.target_key == 412);
     // None of it travels the reliable way.
     CHECK(member.session.counts().state_out[mp::kShotXKind].messages == 1);
+
+    // A track's MOVEs waiting together: the newest goes, and its end after it.
+    host.game.shots_in.clear();
+    mp::Shot move;
+    move.item = 0x10;
+    move.flags = mp::kShotMove;
+    for (int i = 1; i <= 3; ++i) {
+        move.position[0] = static_cast<float>(i);
+        member.game.shots_out.push_back(move);
+    }
+    move.flags = mp::kShotStop;
+    member.game.shots_out.push_back(move);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(host.game.shots_in.size() == 2);
+    CHECK(host.game.shots_in[0].second.flags == mp::kShotMove && host.game.shots_in[0].second.position[0] == 3.0f);
+    CHECK(host.game.shots_in[1].second.flags == mp::kShotStop);
 }
 
 void a_late_shot_is_dropped() {
