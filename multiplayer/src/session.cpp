@@ -341,9 +341,10 @@ void Session::flush() {
     // The server gave up on this slot by now, whatever became of the connection. An embedded host
     // is the party: with it gone there is nothing to wait for but the host itself.
     if (dropped_ && now - dropped_ms_ >= (direct() ? kHostGraceMs : kResumeMs)) {
+        const bool own_host = direct();
         id_ = 0;
         reset_party();
-        notice_ = kLostSlotNotice;
+        notice_ = own_host ? "" : kLostSlotNotice;
         return;
     }
 

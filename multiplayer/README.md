@@ -42,7 +42,7 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 | Choose a save | **New game**, then your memory card's five saves, each with its planet, gold bolts and time played (an empty slot is dim). The party plays a copy of the one chosen; your own saves are never written by a party. **Continue as host** lists the party saves on this card (below). Create match and Host directly both come here first |
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
 | Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
-| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**; **Checking your mods...** until the host answers; **See why you can't join** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready, mods match)**, **(mods differ)** or **(checking mods)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
+| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**; **Checking your mods...** until the host answers; **See why you can't join** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready, mods match)**, **(mods differ)** or **(checking mods)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, another player takes over once the game is on (the question says so), and before that the party is over for everyone. Leaving a direct party goes back to Home and to the server |
 | Remove | The host's Cross on a member in the lobby, or on a member's line of the pause menu's Multiplayer page: **Remove from the party** (the code still works, so it may come back) or **Ban from this save**, then back. See [Removing a player](#removing-a-player) |
 | Refused | Shows by itself when your game cannot join the host's, and from the lobby's button: how yours differs, and what to do. See [Mods in a party](#mods-in-a-party) |
 | Party rules | From the lobby and the pause menu: what the party plays by, and what stays your own. A host with a mod code has **Copy mod code**, a refused player too, and a host whose save has bans **Lift 2 bans** |
@@ -182,10 +182,26 @@ game from there.
 Leaving. A player whose party goes while it plays (it chose Leave party, the host ended the party,
 or its connection went) leaves its level at once, from wherever it is (playing, a scene, the pause
 menu), for the title, which then opens the Multiplayer page; its footer says why when the player
-did not leave by itself (**The host left: the party is over**, **The host went away**, **The
-server went away**). The host leaving takes everyone there, the host too; a member leaving goes
-there alone, and the party plays on without it. A player already in the title's pages (the lobby)
-goes back to Home.
+did not leave by itself (**The host left: Continue as host from Saves**, **The host left: the party
+is over**, **The host went away**, **The server went away**). A member leaving goes there alone, and
+the party plays on without it. A player already in the title's pages (the lobby) goes back to Home.
+
+Losing the connection (DECISIONS 6). A dropped player keeps its place for 2 minutes, under the same
+id, while the mod reconnects (**Connection lost: getting back in**): its figure stands where it was,
+its enemies turn to someone else, and it holds up no wait. Back in time it comes in as a late joiner:
+the world again, beside the host, what the party got meanwhile without banners.
+
+A host that drops: everyone is told at once (**The host lost its connection: waiting for it (12)**)
+and stands still for 15 seconds. Back in time, it plays on, and every member is given the world
+again. If not, or if the host left on purpose (at once, with no wait), the member with the best
+link who holds the world takes over: **You are the party's host now**, **Kero is the party's host
+now**. What the party did stands, kept by every member; the enemies pick up where they stood, their
+minds fresh, a scene or a ship's flight on the way ends where it is, and the host's rules (Difficulty,
+a seed) stay the party's, whoever hosts. A new host on the other disc changes whose enemies the Rules
+page speaks of. An old host that comes back within its 2 minutes comes in as a member. If nobody can
+take over (before the game starts, or no member holds the world), the party is over, and any member
+can Continue as host from its party save. A direct host is the party: its members keep their places
+if they drop, but with the host gone, it ends.
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
 what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again
@@ -520,6 +536,12 @@ that player. Mobys near the members run in the host's game as if near its camera
 
 ## Known limits
 
+- A new host's enemies start their minds afresh where they stood, and a placed moby only a game that
+  never heard it died still has is dealt with by the ledger; one the ledger has alive and this game
+  lost stays gone. Enemies mid-attack stop, a scene or a flight ends, an unanswered bolt claim or dig
+  is dropped.
+- A place in the party lasts as long as the game does: a game closed and started again joins by the
+  party's code, with its old place taken until the 2 minutes are up.
 - The host's save is where the party starts. Bolts, ammo, health and what a member spends are
   each player's own; the items, gold bolts, planets, gold weapons, skill points and story flags are
   shared (above). A co-op slot the
@@ -664,6 +686,8 @@ chosen from the setting and the launcher's.
 | `src/camscripts.hpp`, `.cpp` | camera scripts shown to the players near: who sees which, and what takes the camera back |
 | `src/trace.hpp`, `.cpp`, `src/world_trace.cpp`, `src/despawn.hpp`, `.cpp` | the verbose log: its lines and their cap; the world's pause, run, vis, drive and census lines; the despawn lines, who removed a moby and why |
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
+| `src/role.hpp` | this game's part in its party: who runs the world, one value a change of host swaps |
+| `src/migrate.hpp`, `.cpp` | a connection lost and found, a dropped host's wait, the ledger, the takeover, and what becomes of every piece of state in it |
 | `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
 | `src/direct.hpp`, `.cpp` | Direct connect's page logic: the address's rows (64-choice rings), held steps, the hosting lines |
 | `src/bot.hpp`, `.cpp` | the end-to-end tests' driver of the real game (only with `-DMULTIPLAYER_BOT=ON`, never in a release) |

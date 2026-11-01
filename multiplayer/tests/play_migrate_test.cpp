@@ -161,6 +161,23 @@ void a_slot_refused_or_out_of_time_ends_the_party_here() {
     CHECK(t.a.session.take_notice() == mp::kLostSlotNotice);
 }
 
+void a_direct_party_waits_only_as_long_as_for_a_host() {
+    Player p{2};
+    mp::Message party = info({{1, "P1"}, {2, "P2"}});
+    party.code = mp::kDirectCode;
+    p.session.handle(party);
+    offer_resume({&p});
+    CHECK(!p.session.can_change_host());
+    p.session.disconnected();
+    CHECK(p.session.in_party() && p.session.dropped());
+    p.clock += mp::kHostGraceMs;
+    p.session.flush();
+
+    // Its own words are the page's: the host went away.
+    CHECK(!p.session.in_party());
+    CHECK(p.session.take_notice().empty());
+}
+
 void a_server_that_keeps_no_slots_ends_the_party_as_ever() {
     Trio t;
     t.a.session.handle([] {
@@ -645,6 +662,7 @@ void run_migrate_tests() {
     a_member_comes_back_as_a_late_joiner_does();
     a_slot_refused_or_out_of_time_ends_the_party_here();
     a_server_that_keeps_no_slots_ends_the_party_as_ever();
+    a_direct_party_waits_only_as_long_as_for_a_host();
     the_party_waits_for_a_host_that_drops();
     what_went_to_a_cut_stream_comes_with_the_world_again();
     a_ledger_reads_back_as_written_and_a_broken_one_is_refused();

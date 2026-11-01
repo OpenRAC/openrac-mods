@@ -10,13 +10,6 @@ puppets, the interpolation) are kept with the project's planning notes, not in t
 
 ## Open
 
-### 6. The host leaving
-
-Today, when the host leaves or drops, the party is over: everyone goes back to the Multiplayer
-page. Choice: keep it (simple, and the session is the host's save anyway), or **host migration**
-(another member takes over, from a full world snapshot). Migration is a large piece of work;
-recommended only after 1 is settled, since it decides whose save the session lives on.
-
 ### 8. Release
 
 The port side is PR #99 into `develop`; the mod is on rac1-mods master. Before merging, once the
@@ -25,6 +18,23 @@ the port, the tests), then tag the SDK interface (1.9) and the mod (multiplayer-
 and pin the new SDK in `sdk.lock` so CI builds the mod.
 
 ## Decided
+
+### 6. The host leaving (decided by the user, 2026-10-31)
+
+In order. **Reconnect**: a dropped player keeps its slot for 2 minutes, with a stable id and a token,
+and comes back by the late-join path. **Host drop**: a pause-and-wait of 15 seconds with a line on
+every screen, not 60. **Takeover**: every member keeps a small reliable party ledger; on takeover the
+successor, chosen by link quality, takes the newest ledger by epoch and generation, reconciles its
+game with it, and the members get the world by the late-join path. A bumped epoch rejects the old
+host's traffic. Continue as host from the co-op slot stays the fallback when nobody can take over.
+
+Settled in the building (2026-10-31):
+- A host that leaves on purpose is followed at once; before the game starts, the party ends as ever.
+- An old host back within its slot comes in as a member through the title: its world is no one's now.
+- A new host goes on by the rules and the mod list the party was checked against, not its own.
+- The ledger never holds a position or an enemy's mind: a new host's enemies start fresh where they
+  stood. A state's fate on takeover is in `src/migrate.hpp`, each and every one.
+- Direct connect keeps slots and has no takeover: its host is the party.
 
 ### Enemies that grab (decided by the user, 2026-10-31)
 
