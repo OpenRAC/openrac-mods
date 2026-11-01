@@ -111,6 +111,27 @@ void animate(const Pose& a, const Pose& b, double s, Pose& out) {
     }
 }
 
+/* A piece off the body has no velocity of its own: past the newest pose it goes on along its last
+ * step, for `ahead` ms of a step `span` ms long, as the body does along its velocity. */
+void carry_loose_on(const Pose& before, double span, double ahead, Pose& out) {
+    if (span <= 0.0) {
+        return;
+    }
+
+    for (std::uint32_t i = 0; i < out.held_count && i < kHeldMax; ++i) {
+        HeldPiece& piece = out.held[i];
+        const HeldPiece* was = same_piece(before, piece);
+
+        if ((piece.flags & kHeldLoose) == 0 || was == nullptr || (was->flags & kHeldLoose) == 0) {
+            continue;
+        }
+
+        for (int c = 0; c < 3; ++c) {
+            piece.position[c] += static_cast<float>((piece.position[c] - was->position[c]) * ahead / span);
+        }
+    }
+}
+
 }  // namespace
 
 Bytes encode_pose(const PoseMessage& m) {
@@ -741,6 +762,11 @@ bool Interpolator::place(double now_ms, Pose& out) {
     if (cursor_ >= newest) {
         out = samples_.back().pose;
         shown_ = jumped_ ? Shown::kJump : Shown::kHeld;
+
+        if (samples_.size() >= 2) {
+            const Sample& last = samples_[samples_.size() - 2];
+            carry_loose_on(last.pose, newest - last.time, std::min(cursor_ - newest, kExtrapolateMs), out);
+        }
 
         if (derive_) {
             std::fill(out.velocity, out.velocity + 3, 0.0f);

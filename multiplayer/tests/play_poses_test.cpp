@@ -390,6 +390,41 @@ void past_the_newest_pose() {
 }
 
 
+// A thrown wrench past the newest pose: on along its last step, as the body along its velocity, and
+// no further than it; a piece on the body stays where its pose has it.
+void a_thrown_wrench_runs_on() {
+    mp::Interpolator in;
+    mp::Pose a = pose_at(0.0f, 0.0f), b = pose_at(0.0f, 0.0f);
+    a.held_count = b.held_count = 2;
+    a.held[0] = piece(0, 0, 8, 0x47, 5);
+    b.held[0] = a.held[0];
+    a.held[0].flags = b.held[0].flags = mp::kHeldLoose;
+    a.held[0].position[0] = 10.0f;
+    b.held[0].position[0] = 11.0f;  // 20 units a second
+    a.held[1] = piece(1, 0, 8, 0x48, 5);
+    b.held[1] = a.held[1];
+    a.held[1].position[0] = b.held[1].position[0] = 0.5f;
+    in.add(a, 1, 0, 0, false);
+    in.add(b, 2, 50, 50, false);
+    mp::Pose p;
+    in.at(150, p);
+    in.at(600, p);  // far past: 150 ms on along it
+    CHECK(std::fabs(p.held[0].position[0] - 14.0f) < 0.01f);
+    CHECK(p.held[1].position[0] == 0.5f);
+    in.at(900, p);
+    CHECK(std::fabs(p.held[0].position[0] - 14.0f) < 0.01f);
+
+    // Just thrown, with no step yet: where its pose has it.
+    mp::Interpolator first;
+    a.held[0].flags = 0;
+    first.add(a, 1, 0, 0, false);
+    first.add(b, 2, 50, 50, false);
+    first.at(150, p);
+    first.at(600, p);
+    CHECK(p.held[0].position[0] == 11.0f);
+}
+
+
 // A sender slowing to a stop, then nothing more (a stall at the stop): held where the last pose
 // is, not carried on past it along the last velocity and pulled back when the next one comes.
 void a_stop_is_not_overshot() {
@@ -678,6 +713,7 @@ void run_poses_tests() {
     repeats_late_poses_and_teleports();
     a_stall_then_a_burst();
     past_the_newest_pose();
+    a_thrown_wrench_runs_on();
     a_stop_is_not_overshot();
     a_count_started_again_and_the_wrap();
     recorded_poses_replay_smoothly();
