@@ -11,6 +11,10 @@ is nearest.
 
 With the mod off, the game is the PlayStation 2 game.
 
+Friends match their mods with a mod code: **Share these mods** on the launcher's Mods page makes
+one, and entering it there shows what would change before anything does (OpenRAC's
+`docs/port/MODS.md`, section 10).
+
 What is still to be decided (saving each player's progress, the game's own saves on members'
 cards, and more), and what already is, is in [DECISIONS.md](DECISIONS.md).
 
