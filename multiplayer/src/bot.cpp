@@ -18,6 +18,8 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <iterator>
 #include <sstream>
 #include <vector>
 
@@ -271,7 +273,17 @@ std::string Bot::run(const std::string& line) {
         in >> host >> port;
         parts_.connection.open(host, port);
     } else if (command == "create") {
-        parts_.coop.choose({}, "New game");
+        // A save's file to start from (a test's), else a new game.
+        std::string path;
+        in >> path;
+        Bytes save;
+
+        if (!path.empty()) {
+            std::ifstream file(path, std::ios::binary);
+            save.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        }
+
+        parts_.coop.choose(save, save.empty() ? "New game" : "A save");
         parts_.session.create(parts_.listed());
     } else if (command == "join") {
         std::string code;

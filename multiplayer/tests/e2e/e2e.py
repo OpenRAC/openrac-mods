@@ -111,9 +111,9 @@ class Client:
         env.update(self.env.game_env)
         self.proc = subprocess.Popen(
             [
-                str(self.env.game),
-                "--data", str(self.env.data),
-                "--levels", str(self.env.levels),
+                str(self.env.game_of(self.index)),
+                "--data", str(self.env.data_of(self.index)),
+                "--levels", str(self.env.levels_of(self.index)),
                 "--plugins", str(plugins / "plugins.json"),
                 "--cards", str(self.dir / "cards"),
                 "--settings", str(self.dir / "settings.ini"),
@@ -190,6 +190,11 @@ class Env:
         self.game = Path(args.game).resolve()
         self.data = Path(args.data).resolve()
         self.levels = Path(args.levels).resolve()
+        # A mixed party: the members on another disc's program, data and levels.
+        self.member_game = Path(args.member_game).resolve() if args.member_game else self.game
+        self.member_data = Path(args.member_data).resolve() if args.member_data else self.data
+        self.member_levels = Path(args.member_levels).resolve() if args.member_levels else self.levels
+        self.save = Path(args.save).resolve() if args.save else None
         self.mod = Path(args.mod).resolve()
         self.mods_dir = Path(args.mods_dir).resolve() if args.mods_dir else None
         self.difficulty = json.loads(args.difficulty) if args.difficulty else None
@@ -207,6 +212,15 @@ class Env:
         self.server = None
         self.clients = []
         self.report = {"scenario": args.scenario, "link": args.link, "checks": [], "notes": {}}
+
+    def game_of(self, index):
+        return self.game if index == 0 else self.member_game
+
+    def data_of(self, index):
+        return self.data if index == 0 else self.member_data
+
+    def levels_of(self, index):
+        return self.levels if index == 0 else self.member_levels
 
     def extra_mods(self, index):
         """The gameplay mods client `index` plays with: the host's settings, the first member's own
@@ -302,7 +316,7 @@ def reach_title(c):
 def party(env, host, members):
     host.ask(f"connect {host.address} 7770")
     wait("the host greeted", lambda: host.status()["greeted"], 20)
-    host.ask("create")
+    host.ask(f"create {env.save}" if env.save else "create")
     code = wait("the party", lambda: host.status()["code"], 15)
     for m in members:
         m.ask(f"connect {m.address} 7770")
@@ -446,6 +460,30 @@ def join_game(env, name, link, host, seconds=120, waiting=None):
         time.sleep(0.25)
     env.report["notes"][f"{name}_timeline"] = phases
     return c, None
+
+
+def scenario_save(env, args):
+    """A save of one disc, the host's, played by the other's: both in control in its level, one
+    world, a host's death and the same again. --save the file, with --member-game on the other disc."""
+    if env.save is None:
+        raise Failed("the scenario needs --save")
+    host = env.client("Host1", args.link_args)
+    member = env.client("Member1", args.link_args)
+    reach_title(host)
+    reach_title(member)
+    party(env, host, [member])
+    env.check("a mixed party is not refused", not member.json("mods").get("differences"))
+    if host.ask("start") != "ok":
+        raise Failed("the host's Start")
+    ok = skip_scenes(env, host, [member], 150)
+    a, b = host.status(), member.status()
+    env.check("both in control in one level", ok and a["level"] == b["level"], json.dumps([a, b]))
+    env.report["notes"]["level"] = a["level"]
+    time.sleep(3)
+    compare_worlds(env, [host, member], "from the save")
+    for c in (host, member):
+        log = (c.dir / "run.log").read_text(errors="replace")
+        env.check(f"{c.name} took the save", "a save was refused" not in log)
 
 
 def scenario_smoke(env, args):
@@ -900,6 +938,7 @@ def scenario_weapons(env, args):
 
 
 SCENARIOS = {
+    "save": scenario_save,
     "smoke": scenario_smoke,
     "keys": scenario_keys,
     "bolts": scenario_bolts,
@@ -933,6 +972,10 @@ def main():
     parser.add_argument("--game", required=True)
     parser.add_argument("--data", required=True)
     parser.add_argument("--levels", required=True)
+    parser.add_argument("--member-game", help="the members' program, for a party of two discs")
+    parser.add_argument("--member-data", help="the members' data folder")
+    parser.add_argument("--member-levels", help="the members' levels")
+    parser.add_argument("--save", help="a save file the host starts from (a new game without)")
     parser.add_argument("--mod", required=True, help="the packaged mod's folder")
     parser.add_argument("--server-jar", required=True)
     parser.add_argument("--java", default="java")

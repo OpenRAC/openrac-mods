@@ -4,6 +4,9 @@ Two or more hidden games with the test bot built in (`src/bot.hpp`), a local ser
 `netimp.py` proxy between each game and the server. No window opens: SDL's offscreen driver with the
 graphics card. Each run ends with a JSON report, `report.json`, in its folder.
 
+A party of two discs: `--member-game`, `--member-data` and `--member-levels` put every member on
+the other disc's program, data and levels; `crossplay.sh` runs every stage of it.
+
 What it needs: a build of the port, the mod built with `-DMULTIPLAYER_BOT=ON` and packaged, a data
 folder (`openrac-extractor IMAGE --game rac1 --proj-path DIR --extract --decompile`), extracted levels
 (`python3 editor/extract.py port IMAGE build/levels`) and the server's jar with a JDK.
@@ -26,6 +29,7 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `weapons` | each weapon given, drawn and fired by the host, then by a member (`--weapons Devastator,Pyrocitor` for some; `--fire-button` the pad's bit): the other game shows it (its class among the mobys, or its shots fired for what is drawn as particles), and nobody is hurt by the copy |
 | `enemies` | an enemy count off 1 (`--difficulty '{"enemy_count": 2}'`), in level `--level N`: every game lists the host's enemies, none twice, none of a member's own, also after a member's and the host's death |
 | `chaos` | `--difficulty '{"chaos": true, "chaos_events": true, "chaos_minutes": 1}'`, a blank seed: each level's values and the events are the host's, in levels `--level N`, `--level2 N`, for up to `--seconds S` |
+| `save` | a host's save (`--save FILE`) started by the party: both in control in its level, with one world |
 | `refuse` | a member whose settings or mods differ (`--member-difficulty`, `--member-mods`): told why, no Ready, no Start; the pages' lines measured in the game's font |
 | `midjoin` | a party under rules in `--level N`, then a late member: under the rules, or with `--late-difficulty ... --late-refused`, no game |
 
