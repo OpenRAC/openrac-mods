@@ -12,6 +12,7 @@ Every scenario ends by comparing the games' worlds and prints one JSON report.
 """
 import argparse
 import json
+import math
 import os
 import re
 import signal
@@ -25,6 +26,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PHASE_FRONT_END, PHASE_LOADING, PHASE_PLAYING, PHASE_SCENE, PHASE_MENU = 1, 2, 3, 4, 5
 IN_LEVEL = (PHASE_PLAYING, PHASE_SCENE, PHASE_MENU)
+# How far from the host a placed hero may stand (coop.hpp, kPlaceNear).
+PLACE_NEAR = 3.0
 MOBY_DRIVEN, MOBY_DEAD, MOBY_HIDDEN = 0x2, 0x10, 0x40
 CRATES = (500, 501, 502, 505, 511)
 BOLTS = (13, 14, 15, 16)
@@ -874,9 +877,69 @@ def scenario_join(env, args):
     env.check("a late member is in control in the host's level", took is not None, f"{took}")
     env.report["notes"]["host_when_joined"] = host.status()
     if took is not None:
+        if args.place:
+            check_beside(env, host, third, "the late member")
         time.sleep(2)
         compare_worlds(env, [host, third], "the late member's world")
     env.report["notes"]["final"] = {c.name: c.status() for c in env.clients}
+
+
+def apart(a, b):
+    return math.dist(a["hero"], b["hero"])
+
+
+def check_beside(env, host, c, who, near=PLACE_NEAR):
+    """`c` stands within reach of the host, on the host's level, and kept standing."""
+    h, s = host.status(), c.status()
+    env.report["notes"][f"{c.name}_beside"] = [h.get("hero"), s.get("hero")]
+    env.check(f"{who} stands beside the host", "hero" in h and "hero" in s and apart(h, s) <= near,
+              json.dumps([h.get("hero"), s.get("hero")]))
+    time.sleep(2)
+    s = c.status()
+    env.check(f"{who} did not fall", "hero" in s and apart(h, s) <= near and s["phase"] == PHASE_PLAYING, json.dumps(s)[:300])
+
+
+def scenario_gohost(env, args):
+    """Go to host: a member far from the host is put beside it; the host refuses to go to itself."""
+    host, member = start_two(env, args)
+    if args.level > 0:
+        fly_to(env, host, [member], args.level)
+    env.check("the host has no host to go to", host.ask("go").startswith("error"))
+    env.report["notes"]["before"] = [host.status().get("hero"), member.status().get("hero")]
+    member.ask("press 0 180 255 128")  # a run away from the host, to be apart
+    time.sleep(3)
+    env.check("Go to host is taken", member.ask("go") == "ok")
+    wait("the member arrives", lambda: not member.status()["going"], 15)
+    check_beside(env, host, member, "the member")
+    compare_worlds(env, [host, member], "after Go to host")
+
+
+def scenario_restart(env, args):
+    """The host leaves for the title and starts again: a member in a level starts the new game."""
+    host, member = start_two(env, args)
+    before = member.status()["loads"]
+    host.ask("title")
+    wait("the host in the title", lambda: host.status()["phase"] == PHASE_FRONT_END, 60)
+    wait("the host can start again", lambda: host.ask("start") == "ok", 30, 1)
+    env.report["notes"]["member_after_start"] = member.status()
+    ok = skip_scenes(env, host, [member], 120)
+    env.check("the party plays the new game", ok, json.dumps([host.status(), member.status()])[:600])
+    env.check("the member loaded it", member.status()["loads"] != before)
+    compare_worlds(env, [host, member], "after starting again")
+
+
+def scenario_shipwarn(env, args):
+    """The ship's warning, then a slow member's wait skipped by the host's Start."""
+    host, member = start_two(env, args)
+    level = args.level2
+    host.ask(f"travel {level}")
+    time.sleep(0.5)
+    s = member.status()
+    env.report["notes"]["warned"] = s
+    env.check("the member is warned first", s["banner"].startswith("The host is leaving") and s["level"] != level, json.dumps(s)[:300])
+    wait("the member leaves", lambda: member.status()["phase"] != PHASE_PLAYING or member.status()["level"] == level, 10)
+    ok = skip_scenes(env, host, [member], 150)
+    env.check("the party is in", ok, json.dumps([host.status(), member.status()])[:600])
 
 
 def scenario_soak(env, args):
@@ -1056,6 +1119,9 @@ SCENARIOS = {
     "hostdeath": scenario_host_death,
     "crates": scenario_crates,
     "join": scenario_join,
+    "gohost": scenario_gohost,
+    "restart": scenario_restart,
+    "shipwarn": scenario_shipwarn,
     "soak": scenario_soak,
     "weapons": scenario_weapons,
     "enemies": scenario_enemies,
@@ -1102,6 +1168,7 @@ def main():
     parser.add_argument("--level", type=int, default=0)
     parser.add_argument("--host-scene", type=int, default=-1, help="a scene the host plays as the member joins")
     parser.add_argument("--join-seconds", type=int, default=120)
+    parser.add_argument("--place", action="store_true", help="join: the late member ends beside the host")
     parser.add_argument("--level2", type=int, default=1, help="chaos: the second level flown to")
     parser.add_argument("--mods-dir", help="a folder of packaged mods, by id, for the options below")
     parser.add_argument("--difficulty", help="the difficulty mod's settings in JSON, every game's")

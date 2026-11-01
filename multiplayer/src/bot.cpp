@@ -182,6 +182,9 @@ std::string Bot::status() {
       << ",\"mobys\":" << parts_.world.mobys() << ",\"bolts\":" << parts_.game.bolts(0)
       << ",\"udp\":" << parts_.connection.udp() << ",\"rtt\":" << session.rtt_ms()
       << ",\"joining\":" << parts_.coop.joining() << ",\"synced\":" << parts_.world.synced()
+      << ",\"going\":" << parts_.coop.going() << ",\"shielded\":" << parts_.coop.shielded()
+      << ",\"wait_kind\":" << static_cast<int>(parts_.coop.wait_kind())
+      << ",\"wait_votes\":" << parts_.coop.wait_votes() << ",\"banner\":\"" << parts_.coop.banner(now_ms()) << "\""
       << ",\"shots_sent\":" << parts_.coop.shots_sent() << ",\"shots_fired\":" << parts_.coop.shots_fired()
       << ",\"shots_late\":" << parts_.coop.shots_late() << ",\"tags\":" << parts_.coop.tag_stats().tags
       << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
@@ -355,6 +358,12 @@ std::string Bot::run(const std::string& line) {
         in >> level;
         parts_.coop.ship_travel(level, parts_.game.status().level);
         parts_.game.travel(level);
+    } else if (command == "go") {
+        // The pause page's Go to host.
+        return parts_.coop.go_to_host(now_ms()) ? "ok" : "error refused";
+    } else if (command == "title") {
+        // The game's Quit Game.
+        return parts_.game.travel(-1) ? "ok" : "error refused";
     } else if (command == "scene") {
         int scene = -1;
         in >> scene;

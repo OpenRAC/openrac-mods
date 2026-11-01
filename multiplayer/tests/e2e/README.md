@@ -25,7 +25,10 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `crates` | crates broken from both sides, a member's death among them (`--deaths`), a late member (`--join`): every game's crates compared, and the mobys' places and hidden flags |
 | `bolts` | bolts of crates broken on each side reach the player who stands there, none left over in either game |
 | `hostdeath` | the host dies: what the party broke stays broken in its game, the member gets the world again, nothing of its old spawned mobys is left |
-| `join` | a party in a level (`--level N`; leave `--skip-movies` out, so the game's movies are there), then a late member: its timeline until it stands in control in the host's level; `--host-scene N`: the host plays scene N as it joins |
+| `join` | a party in a level (`--level N`; leave `--skip-movies` out, so the game's movies are there), then a late member: its timeline until it stands in control in the host's level; `--host-scene N`: the host plays scene N as it joins; `--place`: it ends beside the host, and stays there (`--level 5` for the Rilgar lift: the host on a moby is not steady, so its last safe spot is taken) |
+| `gohost` | a member runs off and takes Go to host: beside the host, and the worlds agree |
+| `restart` | the host goes to the title and starts again: a member in a level starts the new game |
+| `shipwarn` | the host's ship: the member is warned, then pulled along |
 | `tags` | a party of two in a level: each game draws a name tag for the other, on the picture (a figure out of its camera's view for 30 s fails it). How a tag looks takes a screenshot |
 | `soak` | `--members N` standing in the level for `--seconds S`: what the network carried, by kind |
 | `weapons` | each weapon given, drawn and fired by the host, then by a member (`--weapons Devastator,Pyrocitor` for some; `--fire-button` the pad's bit): the other game shows it (its class among the mobys, or its shots fired for what is drawn as particles), and nobody is hurt by the copy |
