@@ -146,6 +146,18 @@ public:
     void quiet_gifts(bool on) override { quiet_ = on; }
     // --- end WP-JOIN ---
 
+    // --- WP-DEATH ---
+    bool can_revive() override;
+
+    void hold_death(bool on) override;
+
+    bool revive() override;
+
+    bool respawn() override;
+
+    bool mission_done(int level, int mission) override;
+    // --- end WP-DEATH ---
+
 private:
     /* This disc's progress places, null for a disc it does not know. */
     const ProgressDisc* progress_disc() const;

@@ -58,17 +58,43 @@ bool World::gate(int slot, int phase) {
         return false;
     }
 
-    // The nearest player to it: the host, or a member in this level.
-    Pose hero;
-    float best = game_.hero(hero) ? distance2(hero.position, it->second.pose.position) : 1e30f;
-    std::int32_t nearest = 0;
     Pose at;
+    const std::int32_t target = pick_target(slot, it->second, at);
+
+    if (target > 0 && game_.stand_in(at.position, coop_.figure_of(target))) {
+        standing_ = target;
+        bolts_before_ = game_.bolts(0);
+    }
+
+    return false;
+}
+
+std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
+    // The nearest player to it who can be fought: the host, or a member in this level.
+    Pose hero;
+    float best = 1e30f;
+    std::int32_t nearest = -1;
+
+    if (game_.hero(hero) && hero.health > 0) {
+        best = distance2(hero.position, moby.pose.position);
+        nearest = 0;
+    }
+
+    const auto known = aims_.find(slot);
+    const std::int32_t current = known != aims_.end() ? known->second.player : -1;
+    float kept = current == 0 && nearest == 0 ? best : -1.0f;
+    Pose kept_at;
 
     for (const auto& [id, member] : members_) {
         Pose p;
 
         if (member.level == level_ && coop_.latest(id, p) && p.health > 0) {
-            const float d2 = distance2(p.position, it->second.pose.position);
+            const float d2 = distance2(p.position, moby.pose.position);
+
+            if (id == current) {
+                kept = d2;
+                kept_at = p;
+            }
 
             if (d2 < best) {
                 best = d2;
@@ -78,12 +104,28 @@ bool World::gate(int slot, int phase) {
         }
     }
 
-    if (nearest != 0 && game_.stand_in(at.position, coop_.figure_of(nearest))) {
-        standing_ = nearest;
-        bolts_before_ = game_.bolts(0);
+    // Something that flies to whoever is nearest has no target to keep.
+    if (nearest < 0 || bolt_class(moby.oclass) || spawned_bolt_class(moby.oclass)) {
+        return nearest;
     }
 
-    return false;
+    Aim& aim = aims_[slot];
+
+    if (aim.player < 0 || moby.state != aim.state) {
+        aim.state = moby.state;
+        aim.state_ms = tick_ms_;
+    }
+
+    // The target it has, unless it has gone or died: an attack goes to its end, and only a player
+    // clearly nearer takes it away (a moby between two players would flip each tick).
+    if (kept >= 0.0f
+        && (tick_ms_ - aim.state_ms < kAttackStickMs || best >= kept * kTargetBand * kTargetBand)) {
+        at = kept_at;
+        return current;
+    }
+
+    aim.player = nearest;
+    return nearest;
 }
 
 bool World::hit(const Hit& h) {
@@ -105,6 +147,11 @@ bool World::hit(const Hit& h) {
             vec(w, h.velocity);
             session_.send_data(id, w.bytes());
             ++counts_.damage;
+
+            if (const auto aim = aims_.find(h.attacker); aim != aims_.end()) {
+                aim->second.state_ms = tick_ms_;
+            }
+
             return true;
         }
 

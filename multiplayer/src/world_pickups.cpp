@@ -254,11 +254,122 @@ void World::tick_flights(std::uint64_t now) {
     }
 }
 
-void World::replay_break(int slot, std::uint64_t now) {
+void World::tick_crates(std::uint64_t now) {
+    (void)now;
+
+    for (const auto& [slot, moby] : mobys_) {
+        if (moby.key < 0 || !crate_class(moby.oclass)) {
+            continue;
+        }
+
+        const auto [was, first] = crate_states_.try_emplace(moby.key, moby.state);
+        const bool broke = !first && moby.state == kCrateWaiting && was->second != kCrateWaiting && was->second != 0;
+        was->second = moby.state;
+
+        if (!broke) {
+            continue;
+        }
+
+        const bool replayed = replays_.count(slot) != 0;
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(WorldKind::kBroke)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        u16(w, static_cast<std::uint16_t>(moby.key));
+
+        // The host's copy broke (its drop goes out as any): the others' break with it. A member's
+        // tells the host, unless it broke because the host said so.
+        if (hosting_ && !coop_.arriving()) {
+            session_.send_data(kBroadcast, w.bytes());
+        } else if (!session_.is_host() && !replayed && coop_.playing() && level_ == coop_.host_level() && synced_) {
+            w.u8(1);
+            session_.send_data(session_.host(), w.bytes());
+            trace_line("msg", "sent BROKE to host key " + std::to_string(moby.key) + " (comes back)");
+        }
+    }
+}
+
+bool World::metal_detect(int key) {
+    const std::uint64_t now = clock_();
+
+    if (hosting_) {
+        return dug_.insert(key).second || game_.moby_slot(key) >= 0;
+    }
+
+    if (!session_.in_party() || session_.is_host() || !coop_.playing() || level_ < 0 || level_ != coop_.host_level()) {
+        return true;
+    }
+
+    if (digs_.count(key) != 0) {
+        return true;
+    }
+
+    const auto asked = dig_asked_.find(key);
+
+    if (asked == dig_asked_.end() || now - asked->second >= kDigAskMs) {
+        dig_asked_[key] = now;
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(WorldKind::kClaim)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        u16(w, static_cast<std::uint16_t>(key));
+        w.u8(1);
+        session_.send_data(session_.host(), w.bytes());
+        trace_line("bolts", "dig asked for key " + std::to_string(key));
+    }
+
+    return false;
+}
+
+void World::claim_dig(std::int32_t member, int level, int key) {
+    if (!hosting_ || level != level_) {
+        return;
+    }
+
+    const int slot = alive_keys_.count(key) != 0 ? game_.moby_slot(key) : -1;
+    const auto id = static_cast<std::uint16_t>(key);
+
+    // Gone here, or dug: the asker's copy goes too.
+    if (slot < 0 || dug_.count(key) != 0) {
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(WorldKind::kKilled)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        u16(w, 1);
+        u16(w, id);
+        session_.send_data(member, w.bytes());
+        trace_line("bolts", "dig refused to " + std::to_string(member) + " key " + std::to_string(key));
+        return;
+    }
+
+    dug_.insert(key);
+    send_taken(id, member);
+    note(slot, "a pile of buried bolts dug there", member);
+    kill(slot, "dig by " + std::to_string(member));
+    trace_line("bolts", "dig granted to " + std::to_string(member) + " key " + std::to_string(key));
+}
+
+void World::tick_digs(std::uint64_t now) {
+    for (auto it = digs_.begin(); it != digs_.end();) {
+        if (now < it->second) {
+            ++it;
+            continue;
+        }
+
+        const int slot = game_.moby_slot(it->first);
+
+        if (slot >= 0 && mobys_.count(slot) != 0) {
+            kill(slot, "a dig the host granted, not dug in time");
+        }
+
+        it = digs_.erase(it);
+    }
+}
+
+void World::replay_break(int slot, std::uint64_t now, bool respawning) {
     const auto it = mobys_.find(slot);
 
-    if (it == mobys_.end() || replays_.count(slot) != 0) {
+    if (it == mobys_.end() || replays_.count(slot) != 0 || it->second.state == kCrateBroken
+        || it->second.state == kCrateWaiting) {
         return;
+    }
+
+    if (respawning) {
+        soft_replays_.insert(slot);
     }
 
     Hit h;

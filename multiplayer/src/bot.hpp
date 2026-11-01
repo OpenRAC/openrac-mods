@@ -31,6 +31,7 @@
  *   fall                the hero out of the level's bounds: the game's own death and respawn
  *   shared TAG          a shared section (shared.hpp's tags): a JSON list of the indices held
  *   give TAG INDEX      one index of that section merged in, as if this game had earned it
+ *   damage MASK AMOUNT  a hit on this game's own hero, as a DAMAGE posts one
  */
 #ifndef MULTIPLAYER_BOT_H
 #define MULTIPLAYER_BOT_H

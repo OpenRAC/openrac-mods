@@ -191,14 +191,14 @@ void ModGame::figure_remove(int id) { mod_.figure_remove(id); }
 
 std::vector<mp::MobyState> ModGame::mobys() {
     std::vector<mp::MobyState> out;
-
-    for (const openrac_moby& m : mod_.moby_list()) {
+    const auto add = [&out](const auto& m, int mission) {
         mp::MobyState s;
         s.slot = m.slot;
         s.key = m.key;
         s.oclass = m.oclass;
         s.flags = m.flags;
         s.state = m.state;
+        s.mission = mission;
         std::copy(m.position, m.position + 3, s.pose.position);
         std::copy(m.rotation, m.rotation + 3, s.pose.rotation);
         s.pose.scale = m.scale;
@@ -208,10 +208,38 @@ std::vector<mp::MobyState> ModGame::mobys() {
         s.pose.anim_time = m.anim_time;
         s.pose.anim_speed = m.anim_speed;
         out.push_back(s);
+    };
+
+    if (mod_.has_moby_list2()) {
+        for (const openrac_moby2& m : mod_.moby_list2()) {
+            add(m, m.mission);
+        }
+    } else {
+        for (const openrac_moby& m : mod_.moby_list()) {
+            add(m, -1);
+        }
     }
 
     return out;
 }
+
+// --- WP-DEATH ---
+bool ModGame::can_revive() { return mod_.has_hero_place(); }
+
+void ModGame::hold_death(bool on) {
+    mod_.hero_revive(nullptr, on ? OPENRAC_REVIVE_HOLD : OPENRAC_REVIVE_LET_GO);
+}
+
+bool ModGame::revive() { return mod_.hero_revive(); }
+
+bool ModGame::respawn() { return mod_.hero_revive(nullptr, OPENRAC_REVIVE_RESPAWN); }
+
+bool ModGame::mission_done(int level, int mission) {
+    std::uint8_t row[OPENRAC_MISSION_STATE_SIZE] = {};
+    return mission >= 0 && mission < OPENRAC_MISSION_STATE_SIZE && mod_.mission_state_read(level, row)
+           && row[mission] == 0xFFu;
+}
+// --- end WP-DEATH ---
 
 int ModGame::moby_slot(int key) { return mod_.moby_slot(key); }
 

@@ -137,6 +137,17 @@ void World::reset() {
     stamps_.clear();
     party_dead_.clear();
     broke_.clear();
+    broke_back_.clear();
+    kept_bolts_.clear();
+    spared_.clear();
+    dug_.clear();
+    downs_.clear();
+    aims_.clear();
+    crate_states_.clear();
+    soft_replays_.clear();
+    restored_.clear();
+    digs_.clear();
+    dig_asked_.clear();
     remade_ = false;
     level_own_.clear();
     synced_ = false;
@@ -169,6 +180,12 @@ std::uint16_t World::id_of(int slot) const {
         }
     }
 
+    for (const auto& [key, at] : restored_) {
+        if (at == slot) {
+            return static_cast<std::uint16_t>(key);
+        }
+    }
+
     return kNoId;
 }
 
@@ -178,7 +195,8 @@ int World::slot_of(std::uint16_t id) const {
     }
 
     if ((id & kSpawnedId) == 0) {
-        return game_.moby_slot(id);
+        const auto restored = restored_.find(id);
+        return restored != restored_.end() ? restored->second : game_.moby_slot(id);
     }
 
     const auto net = static_cast<std::uint16_t>(id & ~kSpawnedId);
@@ -204,15 +222,36 @@ void World::follow_load(const GameStatus& status) {
         const bool again = status.level == level_ && level_ >= 0 && listed_;
         std::set<int> kept;
         std::map<int, std::int32_t> broke;
+        std::set<int> broke_back;
+        std::vector<KeptBolt> bolts;
+        std::set<int> spared;
+        std::set<int> dug;
 
         if (again) {
             kept.swap(party_dead_);
             broke.swap(broke_);
+            broke_back.swap(broke_back_);
+            spared.swap(spared_);
+            dug.swap(dug_);
+
+            for (const auto& [slot, net] : shared_) {
+                const auto moby = mobys_.find(slot);
+                const auto id = static_cast<std::uint16_t>(kSpawnedId | net.id);
+
+                if (hosting_ && moby != mobys_.end() && bolt_class(net.oclass) && claimed_.count(id) == 0
+                    && flights_.count(slot) == 0 && bolts.size() < kKeptBolts) {
+                    bolts.push_back({net.oclass, moby->second.pose});
+                }
+            }
         }
 
         reset();
         party_dead_ = std::move(kept);
         broke_ = std::move(broke);
+        broke_back_ = std::move(broke_back);
+        kept_bolts_ = std::move(bolts);
+        spared_ = std::move(spared);
+        dug_ = std::move(dug);
         remade_ = again;
         loads_ = status.loads;
         level_ = status.level;
@@ -229,6 +268,9 @@ void World::tick(std::uint64_t now) {
 
 void World::tick_world(std::uint64_t now) {
     if (!session_.in_party()) {
+        revive_rule_ = session_.is_host() && revive_rule_;
+        tick_death_hold();
+
         if (level_ != -1 || !driven_.empty() || !members_.empty()) {
             reset();
         }
@@ -236,6 +278,8 @@ void World::tick_world(std::uint64_t now) {
         return;
     }
 
+    tick_ms_ = now;
+    tick_death_hold();
     const GameStatus status = game_.status();
 
     follow_load(status);
@@ -291,6 +335,10 @@ void World::tick_world(std::uint64_t now) {
 
     if (hosting_) {
         party_dead_.insert(dead_keys_.begin(), dead_keys_.end());
+
+        for (const int key : dead_keys_) {
+            spared_.erase(key);
+        }
 
         if (remade_) {
             remade();
@@ -359,6 +407,8 @@ void World::tick_world(std::uint64_t now) {
         }
     }
 
+    tick_crates(now);
+    tick_digs(now);
     tick_flights(now);
 
     // A member's game: an eye on each bolt flying to whoever took it, so it runs (flies) wherever
@@ -375,6 +425,10 @@ void World::tick_world(std::uint64_t now) {
         const auto moby = mobys_.find(it->first);
 
         if (moby == mobys_.end()) {
+            it = replays_.erase(it);
+        } else if (moby->second.state == kCrateWaiting || (now >= it->second && soft_replays_.count(it->first) != 0)) {
+            // One that comes back goes on as its own game has it; a late hit breaks it yet.
+            soft_replays_.erase(it->first);
             it = replays_.erase(it);
         } else if (now >= it->second) {
             note(it->first, "a replayed crate's break timed out", 0);

@@ -28,6 +28,13 @@
       "description": "Your name in multiplayer: 3 to 16 letters, digits or underscores. Defaults to the launcher's Multiplayer name."
     },
     {
+      "key": "revive",
+      "name": "Revive fallen players",
+      "type": "bool",
+      "default": false,
+      "description": "When you host: a player who falls stays down for a while, and another player standing over them brings them back."
+    },
+    {
       "key": "verbose_log",
       "name": "Verbose log",
       "type": "bool",

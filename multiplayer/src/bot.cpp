@@ -447,6 +447,20 @@ std::string Bot::run(const std::string& line) {
         parts_.cosave.choose_slot(slot);
         parts_.coop.choose(save, "A save");
         parts_.session.create(parts_.listed());
+    } else if (command == "damage") {
+        Pose hero;
+
+        if (!parts_.game.hero(hero)) {
+            return "error no hero";
+        }
+
+        // As a DAMAGE from the host: a hit from nothing on this game's own hero.
+        Hit h;
+        in >> std::hex >> h.mask >> std::dec >> h.damage;
+        h.victim = parts_.game.figure_slot(-1);
+        h.attacker = -1;
+        std::copy(hero.position, hero.position + 3, h.position);
+        parts_.game.hit(h);
     } else if (command == "fall") {
         const float out[3] = {1.0f, 1.0f, 100.0f};
         parts_.teleport(out);

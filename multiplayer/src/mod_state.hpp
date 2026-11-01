@@ -121,6 +121,7 @@ struct State {
     bool listed_mods = false;      // the mods listed, once they had all loaded
     bool told_refused = false;     // the page of why this party's game is refused was shown
     bool refused_in_party = false;  // that page shows for a party, not for a solo mod
+    bool revive = false;            // the host's rule (the `revive` setting)
 #ifdef MULTIPLAYER_BOT
     std::unique_ptr<mp::Bot> bot;  // the end-to-end tests' driver (bot.hpp)
 #endif

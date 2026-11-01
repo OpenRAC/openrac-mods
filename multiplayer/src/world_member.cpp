@@ -19,6 +19,28 @@ using namespace wire;
 void World::tick_member(std::uint64_t now, const GameStatus& status) {
     coop_.world_ready(synced_);
 
+    // Left down with no word from the host: the game's own way.
+    Pose hero;
+
+    if (death_held_ && game_.hero(hero) && hero.health <= 0) {
+        dead_ms_ = dead_ms_ != 0 ? dead_ms_ : now;
+
+        if (now - dead_ms_ >= kDownedMs + kDownedGraceMs) {
+            dead_ms_ = 0;
+            game_.respawn();
+        }
+    } else {
+        dead_ms_ = 0;
+    }
+
+    // A full wipe: once back and given the world, beside the host at its checkpoint.
+    if (wipe_until_ != 0 && now >= wipe_until_) {
+        wipe_until_ = 0;
+    } else if (wipe_until_ != 0 && synced_ && game_.hero(hero) && hero.health > 0 && coop_.can_go()) {
+        wipe_until_ = 0;
+        coop_.go_to_host(now);
+    }
+
     // Only in the host's game and level: the world is the host's there.
     if (!coop_.playing() || !in_level(status.phase) || status.level != coop_.host_level()) {
         return;

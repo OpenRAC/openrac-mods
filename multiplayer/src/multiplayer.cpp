@@ -302,6 +302,8 @@ void load(openrac::Mod& mod) {
     // to mp-trace.log in the game's working directory (beside run.log), else to the game's log.
     const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
 
+    g->revive = mod.setting<bool>("revive");
+
     if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
         std::error_code error;
         std::filesystem::path path = std::filesystem::current_path(error) / "mp-trace.log";
@@ -470,6 +472,11 @@ void load(openrac::Mod& mod) {
         }
     });
     // The game asks the world around each moby's update and of each hit it posts.
+    // Two players must not dig one pile: in a member's game a dig waits for the host's word.
+    if (mod.has_metal_detect()) {
+        mod.on_metal_detect([](void*, int, int key) { return g->world->metal_detect(key) ? 1 : 0; });
+    }
+
     mod.on_moby_update(
         [](void*, int slot, int phase) { return g->world->gate(slot, phase) ? 1 : 0; }
     );
@@ -575,6 +582,11 @@ void load(openrac::Mod& mod) {
         }
 
         g->coop->tick(now);
+        // A host's rule: for a member, what its host said.
+        if (g->session->is_host()) {
+            g->world->rule_revive(g->revive);
+        }
+
         g->world->tick(now);
         g->progress->tick(now);
         g->cosave->tick(now, g->coop->playing());

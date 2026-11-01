@@ -47,6 +47,11 @@ openrac::UiContent rules_content() {
         c.items.push_back(openrac::UiItem::text(line));
     }
 
+    // The host's rule for its fallen.
+    if (g->world->revive_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
+        c.items.push_back(openrac::UiItem::text("Stand over a fallen player to revive them"));
+    }
+
     if (!level) {
         c.footer = {g->session->is_host() ? "Everyone plays by your rules" : "Everyone plays by the host's rules", mp::kBackHints};
     }

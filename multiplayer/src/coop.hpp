@@ -311,6 +311,8 @@ struct MobyState {
     int oclass = 0;
     std::uint32_t flags = 0;
     std::uint32_t state = 0;
+    /* The mission it goes with, -1 for none. */
+    int mission = -1;
     Pose pose;
 };
 
@@ -465,6 +467,16 @@ public:
     // --- WP-TETHER ---
     // --- end WP-TETHER ---
     // --- WP-DEATH ---
+    /* Whether this game can keep a dead hero down, and bring him back. */
+    virtual bool can_revive() { return false; }
+    /* While on, a hero who dies on his feet stays down until he is revived or sent back. */
+    virtual void hold_death(bool /*on*/) {}
+    /* A dead hero up again where he lies. */
+    virtual bool revive() { return false; }
+    /* The hero back at his checkpoint now, dead or not (the game's own respawn). */
+    virtual bool respawn() { return false; }
+    /* Whether mission `mission` of `level` is done in this game. */
+    virtual bool mission_done(int /*level*/, int /*mission*/) { return false; }
     // --- end WP-DEATH ---
     // --- WP-LOBBY ---
     // --- end WP-LOBBY ---

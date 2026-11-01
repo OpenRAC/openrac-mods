@@ -75,14 +75,48 @@
  *              level's mobys as made by this load, nothing of the host's world on them yet;
  *   27 RESET   level i8                                           the host: its level was made
  *              again (a death): what it spawned is gone, each member asks for the world again;
- *   28 SYNCED  level i8, load u32 (HELLO's)                       the host to a member: all of
- *              the world came, ahead of this message on the reliable stream.
+ *   28 SYNCED  level i8, load u32 (HELLO's), rules u8 (1: revive)  the host to a member: all of
+ *              the world came, ahead of this message on the reliable stream;
+ *   71 REVIVE  how u8 (0: up where it lies, 1: to its checkpoint)  the host to a player down;
+ *   72 RESTORE level i8, key u16, class i16, position, yaw i16     the host: a placed moby back
+ *              in its level, made here if this game's copy is gone.
+ * RESET's optional byte is 1 for a level that does not agree, 2 for a full wipe. BROKE from the host
+ * tells a member of a respawning crate's break, and from a member has a byte, 1 for such a crate.
+ * CLAIM has a byte too, what: 1 for a pile of buried bolts by key.
  *
  * Levels that agree. WORLD names a placed moby by its record in the level's file, which holds for
  * two games only if their records agree. Two discs of one world family do on all 19 levels today,
  * measured; the sim digest (openrac_api.sim_digest) is what would catch a level that does not, at
  * the moment it would start to go wrong: the member is given no world, and leaves the party with
  * the words a different disc gets.
+ *
+ * Death (DECISIONS 9). A player's death is that player's own: each game's respawn makes its level
+ * again and the world goes on as the party left it (above and below). Three things come with it.
+ * - A placed moby that goes with a mission the host has not done comes back with the host's level:
+ *   the mission starts again, so it would be lost for good if it stayed dead. It leaves party_dead_
+ *   and each member, whose copy is gone, makes one to show it (RESTORE). A local class comes back
+ *   only in the host's game.
+ * - The bolts lying about when the host dies are made again where they lay (they are what the
+ *   party can still see). Enemies it had spawned go with its level; the level's spawners make new.
+ * - A full wipe: the host's level made again with every member dead too, or dead a moment ago. The
+ *   party goes back to the host's last checkpoint: only what the host's reloaded level has dead
+ *   stays dead, every member goes through its own respawn (RESET's wipe) and is then put by the host.
+ * A host rule, off by default (the setting "revive", to members in SYNCED): a player who dies on
+ * his feet stays down for kDownedMs, and a living player standing over him for kReviveMs brings him
+ * back (REVIVE, the host's word). A player left down goes to his checkpoint as always; everyone down
+ * at once is a full wipe.
+ *
+ * Respawning crates. Level 5 (349), 16 (314) and 18 (24 ammo crates) have crates that come back: the
+ * byte at +0xC8 of the crate's pvars. Such a crate is never deleted: after its break it hides (state
+ * kCrateWaiting) until its timer is up and no camera sees it, in each game by itself. So the game
+ * never lists it dead, and no KILLED or BROKE came of it, yet a member's drop is left out. A crate
+ * going to that state is its break: a member says BROKE, the host's copy breaks and drops, and the
+ * host tells the others with BROKE (each game's copy breaks once; coming back stays each game's).
+ *
+ * Buried bolts. The metal detector digs a pile in one tick (Game's metal detect hook). In a member's
+ * game the dig waits for the host (CLAIM, what 1): the first claim of a pile that is still there
+ * gets TAKEN, and only that game digs; every other copy goes (KILLED). The host's own dig needs no
+ * asking, and its pile goes from every game the same way.
  *
  * What a game's own load does. A level is made more often than it is loaded: each death of a hero
  * (the game's own respawn) runs the level's loader again in one frame, every moby back as the
@@ -153,7 +187,9 @@ enum class WorldKind : std::uint8_t {
     kTaken = kind::kTaken,
     kHello = kind::kHello,
     kReset = kind::kReset,
-    kSynced = kind::kSynced
+    kSynced = kind::kSynced,
+    kRevive = kind::kRevive,
+    kRestore = kind::kRestore
 };
 
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
@@ -205,6 +241,27 @@ constexpr std::uint64_t kFlightMs = 2000;
 constexpr std::uint64_t kReplayMs = 3000;
 /* How far a moby may move between two snapshots before its buffer starts again (a respawn). */
 constexpr float kWorldSnap = 12.0f;
+/* An enemy leaves its target only for a player nearer by this much (the distances' ratio), and not
+ * at all this soon after its state changed or it hit that player: an attack runs to its end. */
+constexpr float kTargetBand = 0.8f;
+constexpr std::uint64_t kAttackStickMs = 1000;
+/* The crate update's states: broken, and hidden until it comes back. */
+constexpr std::uint32_t kCrateBroken = 3;
+constexpr std::uint32_t kCrateWaiting = 6;
+/* How many bolts a host's death keeps, and how lately a member must have died for a wipe. */
+constexpr std::size_t kKeptBolts = 64;
+constexpr std::uint64_t kWipeMs = 5000;
+/* A wipe's member is put by the host within this long of its respawn. */
+constexpr std::uint64_t kWipePlaceMs = 15000;
+/* The revive rule: how near a living player stands, for how long, the longest a player stays down,
+ * and how long past that a member waits for the host's word. */
+constexpr float kReviveReach = 2.5f;
+constexpr std::uint64_t kReviveMs = 1500;
+constexpr std::uint64_t kDownedMs = 30000;
+constexpr std::uint64_t kDownedGraceMs = 5000;
+/* A dig in a member's game: how often it asks, how long after the word it may take. */
+constexpr std::uint64_t kDigAskMs = 500;
+constexpr std::uint64_t kDigMs = 2000;
 /* How each class of the level's mobys is shared (WORLD.md's class inventory, from the catalogue):
  *
  * crates (500 bolt, 501 nanotech, 502 metal, 505 oom-oom box, 511 ammo crate): every game runs its
@@ -236,7 +293,17 @@ inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
 }
 
 // --- WP-DEATH: class lists ---
-/* Only WP-DEATH edits this block: crates and pickups the death work changes, in the shapes below. */
+/* Only WP-DEATH edits this block: crates and pickups the death work changes, in the shapes below.
+ * Read from the update on both discs, placed counts measured on both (2026-10-31):
+ *   280 bolt_crank, 615 tresspasser_pad: take the hero, the pad and the camera: each game's own. What
+ *     they open stays the host's, so only the host's turn moves the world.
+ *   1005, 1016 gadget_pickup (trespasser, hydrodisplacer): give the gadget and play a scene: each
+ *     player gets their own, as a story pickup.
+ *   208 swingshot, 454 ryno, 1251 hydrodisplacer: the held item's moby, never placed on either disc
+ *     (spawned, and no creature, so nobody shares them): no entry.
+ *   1451, 1899 giant_clank_pad: boards Giant Clank. Stay the host's: a member's game has no vehicle
+ *     running to board (its update is the host's).
+ * Class 152 (spawned_bolt_class) is neither placed nor spawned by any code on either disc. */
 inline bool death_crate_class(int /*oclass*/) {
     return false;
 }
@@ -245,8 +312,14 @@ inline bool death_pickup_class(int /*oclass*/) {
     return false;
 }
 
-inline bool death_interactable_class(int /*oclass*/) {
-    return false;
+inline bool death_interactable_class(int oclass) {
+    return any_of_class(oclass, {280, 615, 1005, 1016});
+}
+
+/* A pickup whose update adds to the bolts itself (bolt_pickup_update): shared when spawned, and
+ * under a member's stand-in its bolts are that member's (the gate). */
+inline bool spawned_bolt_class(int oclass) {
+    return oclass == 152;
 }
 // --- end WP-DEATH ---
 
@@ -382,6 +455,15 @@ public:
      * member's game in the host's level, a claim to the host instead (false). */
     bool collect(int slot);
 
+    /* The metal detector is about to dig the pile `key`: true lets it. In a member's game in the
+     * host's level, not before the host's word. */
+    bool metal_detect(int key);
+
+    /* The host's revive rule, from its setting; for a member, what the host said. */
+    void rule_revive(bool on) { revive_rule_ = on; }
+
+    bool revive_on() const { return revive_rule_; }
+
     /* The party or the level is gone: nothing is kept. */
     void reset();
 
@@ -460,6 +542,26 @@ private:
         int oclass = 0;
     };
 
+    /* An enemy's target (0 the host, a member's id) and when its state last changed. */
+    struct Aim {
+        std::int32_t player = -1;
+        std::uint32_t state = 0;
+        std::uint64_t state_ms = 0;
+    };
+
+    /* A bolt to make again after the host's death. */
+    struct KeptBolt {
+        int oclass = 0;
+        Pose pose;
+    };
+
+    /* A player down under the revive rule: since when, and for how long stood over. */
+    struct Down {
+        std::uint64_t since = 0;
+        std::uint64_t over = 0;
+        std::uint64_t seen = 0;
+    };
+
     /* New mobys (status.loads, the level): nothing of the last ones stands. */
     void follow_load(const GameStatus& status);
     void tick_host(std::uint64_t now, const GameStatus& status);
@@ -475,8 +577,26 @@ private:
     void send_dead(std::int32_t member, int level);
     /* Host: the whole world to one member that said HELLO (DEAD, SPAWNs, SYNCED). */
     void give_world(std::int32_t id, Member& m);
-    /* Host: its level made again: the party's dead deleted here again, the members told. */
+    /* Host: its level made again: the party's dead deleted here again, the bolts it had made
+     * again, the members told. */
     void remade();
+    /* Host: whether every member is dead too, or was a moment ago. */
+    bool party_wiped() const;
+    /* Host: a moby brought back to its level, to one player or all. */
+    void send_restore(std::int32_t target, int key);
+    /* Who an update runs for: the player `moby` goes for (0 the host), -1 for nobody who can be
+     * fought. */
+    std::int32_t pick_target(int slot, const MobyState& moby, Pose& at);
+    /* A crate that went to kCrateWaiting broke: told on. */
+    void tick_crates(std::uint64_t now);
+    /* The revive rule: the game told, and the host's watch over who is down. */
+    void tick_death_hold();
+    void tick_revive(std::uint64_t now);
+    void lift(std::int32_t player, int how);
+    /* A member's dig: the host's word out of time. */
+    void tick_digs(std::uint64_t now);
+    /* Host: a member's claim of a pile of buried bolts. */
+    void claim_dig(std::int32_t member, int level, int key);
     /* Host: the members' breaks heard since the last listing, done here. */
     void take_broke();
     /* Member: what the host spawned, gone (RESET). */
@@ -496,7 +616,7 @@ private:
     void log_counts(std::uint64_t now);
     /* A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
      * and sound), its drop left out; deleted if it has not broken by the deadline. */
-    void replay_break(int slot, std::uint64_t now);
+    void replay_break(int slot, std::uint64_t now, bool respawning = false);
     void send_spawn(std::int32_t target, int level, std::uint16_t net, const MobyState& moby);
     std::uint16_t id_of(int slot) const;
     int slot_of(std::uint16_t id) const;
@@ -544,8 +664,36 @@ private:
      * level made itself at its load (a crate's own nanotech), not one of the host's to share. */
     std::set<int> party_dead_;
     bool remade_ = false;
-    /* Host: the members' BROKE to act on at the next listing, by key: who said so. */
+    /* Host: the members' BROKE to act on at the next listing, by key: who said so, and those of
+     * crates that come back. */
     std::map<int, std::int32_t> broke_;
+    std::set<int> broke_back_;
+    /* Host: the bolts to make again; the placed mobys a death brought back that members lost; the
+     * piles of buried bolts dug, by key; when each member last died (it outlives a respawn). */
+    std::vector<KeptBolt> kept_bolts_;
+    std::set<int> spared_;
+    std::set<int> dug_;
+    std::map<std::int32_t, std::uint64_t> deaths_;
+    std::map<std::int32_t, Down> downs_;
+    std::uint64_t wipe_ms_ = 0;
+    /* The enemies' targets by slot, this tick's clock. */
+    std::map<int, Aim> aims_;
+    std::uint64_t tick_ms_ = 0;
+    /* The revive rule, and whether the game was told to keep a dead hero down. A member: since when
+     * its hero is dead. */
+    bool revive_rule_ = false;
+    bool death_held_ = false;
+    std::uint64_t dead_ms_ = 0;
+    /* Each crate's last state, by key, and the replays of crates that come back (no deadline
+     * deletes one). */
+    std::map<int, std::uint32_t> crate_states_;
+    std::set<int> soft_replays_;
+    /* Member: the mobys the host brought back, made here, by key; the piles it may dig, until when;
+     * when each was last asked for; until when a wipe's place is to be asked. */
+    std::map<int, int> restored_;
+    std::map<int, std::uint64_t> digs_;
+    std::map<int, std::uint64_t> dig_asked_;
+    std::uint64_t wipe_until_ = 0;
     std::set<int> level_own_;
     /* Member: whether the host gave it the world of this load, and when it last asked. */
     bool synced_ = false;

@@ -57,9 +57,14 @@ void World::give_world(std::int32_t id, Member& m) {
         send_spawn(id, level_, net.id, mobys_[slot]);
     }
 
+    for (const int key : spared_) {
+        send_restore(id, key);
+    }
+
     Writer w;
     w.u8(static_cast<std::uint8_t>(WorldKind::kSynced)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
     w.i32(static_cast<std::int32_t>(m.load));
+    w.u8(revive_rule_ ? 1 : 0);
     session_.send_data(id, w.bytes());
     log("player " + std::to_string(id) + " is given the world of level " + std::to_string(level_) + ": "
         + std::to_string(party_dead_.size()) + " dead, " + std::to_string(shared_.size()) + " spawned");
@@ -75,7 +80,7 @@ void World::take_broke() {
         // A crate breaks here as it broke there; a pickup taken there is gone here.
         if (slot >= 0 && it != mobys_.end() && crate_class(it->second.oclass)) {
             note(slot, "BROKE, a crate broken as there", sender);
-            replay_break(slot, clock_());
+            replay_break(slot, clock_(), broke_back_.count(key) != 0);
         } else if (slot >= 0 && it != mobys_.end() && pickup_class(it->second.oclass)) {
             note(slot, "BROKE, a pickup taken there", sender);
             kill(slot, "BROKE from " + std::to_string(sender));
@@ -83,29 +88,196 @@ void World::take_broke() {
     }
 
     broke_.clear();
+    broke_back_.clear();
+}
+
+bool World::party_wiped() const {
+    const std::uint64_t now = clock_();
+    int others = 0;
+
+    for (const mp::Member& who : session_.members()) {
+        Pose p;
+
+        if (who.id == session_.id() || !coop_.latest(who.id, p) || p.level != level_) {
+            continue;
+        }
+
+        const auto died = deaths_.find(who.id);
+
+        if (p.health > 0 && (died == deaths_.end() || now - died->second > kWipeMs)) {
+            return false;
+        }
+
+        ++others;
+    }
+
+    return others > 0;
+}
+
+void World::send_restore(std::int32_t target, int key) {
+    const auto moby = mobys_.find(alive_keys_.count(key) != 0 ? game_.moby_slot(key) : -1);
+
+    if (moby == mobys_.end()) {
+        return;
+    }
+
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(WorldKind::kRestore)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+    u16(w, static_cast<std::uint16_t>(key));
+    u16(w, static_cast<std::uint16_t>(static_cast<std::int16_t>(moby->second.oclass)));
+    vec(w, moby->second.pose.position);
+    u16(w, static_cast<std::uint16_t>(angle_bits(moby->second.pose.rotation[2])));
+    session_.send_data(target, w.bytes());
+    trace_line("msg", "sent RESTORE to " + std::to_string(target) + " key " + std::to_string(key));
 }
 
 void World::remade() {
     int killed = 0;
+    const bool wipe = party_wiped();
+    std::vector<int> restored;
 
-    // Each game's own interactables follow that game's own story; the rest stay as the party left
-    // them.
-    for (const int key : party_dead_) {
+    // Each game's own interactables follow that game's own story (a dug pile is the party's); a
+    // mission's mobys return with the mission; the rest stay as the party left them. After a full
+    // wipe, what the host's level has made again stands.
+    for (auto it = party_dead_.begin(); it != party_dead_.end();) {
+        const int key = *it;
         const int slot = alive_keys_.count(key) != 0 ? game_.moby_slot(key) : -1;
         const auto moby = mobys_.find(slot);
 
-        if (moby != mobys_.end() && !interactable_class(moby->second.oclass)) {
+        if (moby == mobys_.end()) {
+            ++it;
+        } else if (wipe) {
+            it = party_dead_.erase(it);
+        } else if (interactable_class(moby->second.oclass) && dug_.count(key) == 0) {
+            ++it;
+        } else if (moby->second.mission >= 0 && !game_.mission_done(level_, moby->second.mission)) {
+            trace_line("despawn", moby_name(slot) + " comes back with its mission " + std::to_string(moby->second.mission));
+            it = party_dead_.erase(it);
+
+            if (!local_class(moby->second.oclass)) {
+                spared_.insert(key);
+                restored.push_back(key);
+            }
+        } else {
             note(slot, "dead for the party, made again by the level", 0);
             kill(slot, "dead for the party");
             ++killed;
+            ++it;
         }
     }
 
+    // What the party could still see: the bolts where they lay.
+    for (const KeptBolt& bolt : kept_bolts_) {
+        game_.moby_spawn(bolt.oclass, bolt.pose);
+    }
+
     log("level " + std::to_string(level_) + " made again here: " + std::to_string(killed)
-        + " mobys dead for the party deleted, the members told");
+        + " mobys dead for the party deleted, " + std::to_string(restored.size()) + " back with their mission, "
+        + std::to_string(kept_bolts_.size()) + " bolts kept, the members told" + (wipe ? " (a full wipe)" : ""));
+    kept_bolts_.clear();
+
+    if (wipe) {
+        spared_.clear();
+        dug_.clear();
+    }
+
     Writer w;
     w.u8(static_cast<std::uint8_t>(WorldKind::kReset)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+
+    if (wipe) {
+        w.u8(2);
+    }
+
     session_.send_data(kBroadcast, w.bytes());
+
+    for (const int key : restored) {
+        send_restore(kBroadcast, key);
+    }
+}
+
+void World::tick_death_hold() {
+    const bool want = session_.in_party() && revive_rule_ && session_.members().size() > 1 && game_.can_revive();
+
+    if (want != death_held_) {
+        death_held_ = want;
+        game_.hold_death(want);
+    }
+}
+
+void World::lift(std::int32_t player, int how) {
+    if (player == session_.id()) {
+        how == 0 ? game_.revive() : game_.respawn();
+        return;
+    }
+
+    session_.send_data(player, Writer().u8(static_cast<std::uint8_t>(WorldKind::kRevive)).u8(static_cast<std::uint8_t>(how)).bytes());
+}
+
+void World::tick_revive(std::uint64_t now) {
+    // Who is in this level, and where.
+    std::map<std::int32_t, Pose> players;
+    Pose hero;
+
+    if (game_.hero(hero)) {
+        players[session_.id()] = hero;
+    }
+
+    for (const auto& [id, member] : members_) {
+        Pose p;
+
+        if (member.level == level_ && coop_.latest(id, p)) {
+            players[id] = p;
+        }
+    }
+
+    bool any_up = false;
+
+    for (const auto& [id, p] : players) {
+        any_up = any_up || p.health > 0;
+    }
+
+    for (auto it = downs_.begin(); it != downs_.end();) {
+        const auto p = players.find(it->first);
+        it = p == players.end() || p->second.health > 0 ? downs_.erase(it) : std::next(it);
+    }
+
+    for (const auto& [id, p] : players) {
+        if (p.health > 0) {
+            continue;
+        }
+
+        Down& d = downs_[id];
+        const std::uint64_t step = d.seen != 0 ? now - d.seen : 0;
+        d.since = d.since != 0 ? d.since : now;
+        d.seen = now;
+        bool over = false;
+
+        for (const auto& [other, q] : players) {
+            over = over || (other != id && q.health > 0 && distance2(q.position, p.position) <= kReviveReach * kReviveReach);
+        }
+
+        d.over = over ? d.over + step : 0;
+    }
+
+    // Everyone down: the host's own respawn makes it a full wipe (remade).
+    if (!any_up && !downs_.empty()) {
+        if (wipe_ms_ == 0 || now - wipe_ms_ >= kWipeMs) {
+            wipe_ms_ = now;
+            game_.respawn();
+        }
+
+        return;
+    }
+
+    for (auto it = downs_.begin(); it != downs_.end();) {
+        if (it->second.over >= kReviveMs || now - it->second.since >= kDownedMs) {
+            log("player " + std::to_string(it->first) + (it->second.over >= kReviveMs ? " is revived" : " stayed down too long"));
+            lift(it->first, it->second.over >= kReviveMs ? 0 : 1);
+            it = downs_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 void World::drop_spawned() {
@@ -360,7 +532,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
     for (const auto& [slot, moby] : mobys_) {
         const bool counts = moby.key < 0 && moby.oclass != 0 && (moby.flags & kMobyScene) == 0
                             && ((moby.flags & kMobyCreature) != 0 || bolt_class(moby.oclass)
-                                || loot_class(moby.oclass));
+                                || loot_class(moby.oclass) || spawned_bolt_class(moby.oclass));
 
         if (!counts) {
             continue;
@@ -459,6 +631,10 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
 
         m.level = at.level;
 
+        if (at.health <= 0) {
+            deaths_[who.id] = now;
+        }
+
         if (eyes.size() < 3 * 8) {
             eyes.insert(eyes.end(), at.position, at.position + 3);
             eye_players += " " + std::to_string(who.id) + " at " + xyz(at.position);
@@ -484,6 +660,14 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
             counts_.bolts += m.bolts;
             m.bolts = 0;
         }
+    }
+
+    for (auto it = aims_.begin(); it != aims_.end();) {
+        it = mobys_.count(it->first) == 0 ? aims_.erase(it) : std::next(it);
+    }
+
+    if (death_held_) {
+        tick_revive(now);
     }
 
     // A bolt flying to whoever took it runs wherever the camera is (an eye on it).

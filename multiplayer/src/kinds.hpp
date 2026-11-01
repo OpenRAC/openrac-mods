@@ -14,8 +14,8 @@
  * Reserved ranges (free until their package lands):
  *    36-39 shared progress, 40-43 host migration, 44-47 late join, 48-51 shots,
  *    52-55 camera, 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
- *    64-67); free: 0, 71-127 (and 128-255, which the wire does not use). Late join uses 44 to 46
- *    (47 is free).
+ *    64-67), 71-72 the world's second range; free: 0, 73-127 (and 128-255, which the wire does not
+ *    use). Late join uses 44 to 46 (47 is free).
  *
  * Routing: Router::dispatch looks the owner of the first byte up in the table and calls what that
  * owner registered; a kind nobody registered goes to the fallback (the co-op), as a DATA the
@@ -96,6 +96,8 @@ constexpr std::uint8_t kTaken = 24;
 constexpr std::uint8_t kHello = 26;
 constexpr std::uint8_t kReset = 27;
 constexpr std::uint8_t kSynced = 28;
+constexpr std::uint8_t kRevive = 71;
+constexpr std::uint8_t kRestore = 72;
 // Progress (progress.hpp)
 constexpr std::uint8_t kProgress = 23;
 // Mods (party_mods.hpp)
@@ -155,6 +157,8 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kHello, "HELLO", Owner::kWorld},
     {kind::kReset, "RESET", Owner::kWorld},
     {kind::kSynced, "SYNCED", Owner::kWorld},
+    {kind::kRevive, "REVIVE", Owner::kWorld},
+    {kind::kRestore, "RESTORE", Owner::kWorld},
     {kind::kMods, "MODS", Owner::kMods},
     {kind::kFits, "FITS", Owner::kMods},
     {kind::kRules, "RULES", Owner::kMods},
@@ -182,6 +186,7 @@ inline constexpr KindRange kReservedRanges[] = {
     {56, 59, Owner::kTether},
     {60, 63, Owner::kPartyRules},
     {64, 70, Owner::kLobby},
+    {71, 72, Owner::kWorld},
 };
 
 /* A kind's owner; kCount for a number nobody holds (0 and 71 on). */

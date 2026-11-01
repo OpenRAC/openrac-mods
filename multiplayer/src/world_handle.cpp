@@ -64,6 +64,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
     if (kind == WorldKind::kBroke) {
         const int level = static_cast<std::int8_t>(r.u8());
         const std::uint16_t key = u16(r);
+        const bool back = r.left() > 0 && r.u8() != 0;
         trace_line("msg", "received BROKE from " + std::to_string(sender) + " level " + std::to_string(level) + " key "
                               + std::to_string(key));
 
@@ -71,6 +72,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         // being made again, with no mobys known, and is the only word there will be.
         if (r.ok() && session_.is_host() && level == level_) {
             broke_[key] = sender;
+
+            if (back) {
+                broke_back_.insert(key);
+            }
+        } else if (r.ok() && from_host && level == level_) {
+            // A crate that comes back, broken in the host's game: here too, its drop left out.
+            replay_break(game_.moby_slot(key), clock_(), true);
         }
 
         return;
@@ -80,10 +88,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
     if (kind == WorldKind::kClaim) {
         const int level = static_cast<std::int8_t>(r.u8());
         const std::uint16_t id = u16(r);
+        const bool dig = r.left() > 0 && r.u8() == 1;
         trace_line("msg", "received CLAIM from " + std::to_string(sender) + " level " + std::to_string(level) + " id "
                               + std::to_string(id));
 
-        if (r.ok() && session_.is_host()) {
+        if (r.ok() && session_.is_host() && dig) {
+            claim_dig(sender, level, id);
+        } else if (r.ok() && session_.is_host()) {
             claim(sender, level, id);
         }
 
@@ -242,9 +253,14 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             for (std::uint16_t i = 0; i < count && r.ok(); ++i) {
                 const std::uint16_t key = u16(r);
-                const int slot = level == level_ ? game_.moby_slot(key) : -1;
+                const int slot = level == level_ ? slot_of(key) : -1;
                 trace_line("msg", "received KILLED key " + std::to_string(key) + " slot " + std::to_string(slot));
                 const auto moby = mobys_.find(slot);
+
+                // The pile this game was told to dig goes by its own dig.
+                if (digs_.count(key) != 0) {
+                    continue;
+                }
 
                 // A crate breaks here as it broke there; anything else goes.
                 if (slot >= 0 && moby != mobys_.end() && crate_class(moby->second.oclass)) {
@@ -263,7 +279,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 }
 
                 host_killed_.insert(key);
-
+                restored_.erase(key);
                 poses_.erase(key);
             }
 
@@ -353,6 +369,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             // it flies to whoever took it. One the host's poses still drive shows the host's way.
             int slot = -1;
 
+            // The pile of buried bolts this game asked to dig: its own, for a moment.
+            if (player == session_.id() && dig_asked_.count(id) != 0) {
+                digs_[id] = clock_() + kDigMs;
+                dig_asked_.erase(id);
+                break;
+            }
+
             if ((id & kSpawnedId) != 0) {
                 const auto net = static_cast<std::uint16_t>(id & ~kSpawnedId);
                 const auto it = net_slot_.find(net);
@@ -408,6 +431,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const int level = static_cast<std::int8_t>(r.u8());
             const auto load = static_cast<std::uint32_t>(r.i32());
 
+            const bool rules = r.left() > 0;
+            const std::uint8_t rule_bits = rules ? r.u8() : 0;
+
+            if (r.ok() && rules) {
+                revive_rule_ = (rule_bits & 1) != 0;
+            }
+
             if (r.ok() && level == level_ && load == loads_) {
                 synced_ = true;
                 log("the host's world of level " + std::to_string(level) + " is here");
@@ -417,16 +447,55 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         }
         case WorldKind::kReset: {
             const int level = static_cast<std::int8_t>(r.u8());
-            const bool differs = r.left() > 0 && r.u8() != 0;
+            const std::uint8_t how = r.left() > 0 ? r.u8() : 0;
 
-            if (r.ok() && level == level_ && differs) {
+            if (r.ok() && level == level_ && how == 1) {
                 log("the host's level " + std::to_string(level) + " does not agree with this game's: leaving");
                 level_differs_ = true;
             } else if (r.ok() && level == level_) {
-                log("the host's level was made again: asking for its world");
+                log(how == 2 ? "a full wipe: back to the host's checkpoint" : "the host's level was made again: asking for its world");
                 drop_spawned();
                 synced_ = false;
                 hello_ms_ = 0;
+
+                if (how == 2) {
+                    wipe_until_ = clock_() + kWipePlaceMs;
+                    game_.respawn();
+                }
+            }
+
+            break;
+        }
+        case WorldKind::kRevive: {
+            const std::uint8_t how = r.u8();
+
+            if (r.ok()) {
+                how == 0 ? game_.revive() : game_.respawn();
+            }
+
+            break;
+        }
+        case WorldKind::kRestore: {
+            const int level = static_cast<std::int8_t>(r.u8());
+            const std::uint16_t key = u16(r);
+            const auto oclass = static_cast<std::int16_t>(u16(r));
+            Pose pose;
+            vec(r, pose.position);
+            pose.rotation[2] = static_cast<float>(static_cast<std::int16_t>(u16(r))) / 10000.0f;
+
+            // This game's own copy, if it has one (a respawn of its own brought it), stands.
+            if (!r.ok() || level != level_ || alive_keys_.count(key) != 0 || restored_.count(key) != 0) {
+                return;
+            }
+
+            const int slot = game_.moby_spawn(oclass, pose);
+            trace_line("msg", "received RESTORE key " + std::to_string(key) + " class " + std::to_string(oclass) + " made slot " + std::to_string(slot));
+
+            if (slot >= 0) {
+                restored_[key] = slot;
+                driven_.insert(slot);
+                host_killed_.erase(key);
+                ++counts_.spawns;
             }
 
             break;
