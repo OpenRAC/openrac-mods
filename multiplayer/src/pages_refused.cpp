@@ -23,6 +23,7 @@ openrac::UiContent refused_content() {
 
     if (!code.empty()) {
         c.items.push_back(openrac::UiItem::button(mp::kOpenInLauncher));
+        c.items.push_back(openrac::UiItem::button(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel));
         c.items.push_back(openrac::UiItem::text(mp::kModCodeLabel + code));
         c.items.push_back(openrac::UiItem::text(mp::kModCodeHint));
     }
@@ -51,11 +52,15 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
 
     if (e.is(OPENRAC_UI_SHOW)) {
         g->refused_in_party = in_party;
+        g->code_copied = false;
     }
 
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefusedOpenItem) {
         // The player's own choice, on this page: the launcher then asks to close the game.
         g->mod->open_link(mp::mod_code_link(g->mods->host_list().modcode));
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefusedCopyItem) {
+        g->code_copied = g->mod->clipboard_set(g->mods->host_list().modcode);
+        page.sound(g->code_copied ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
     } else if (chose && in_party) {
         leave_party();
     } else if (chose || e.is(OPENRAC_UI_BACK)) {

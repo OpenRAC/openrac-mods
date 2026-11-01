@@ -143,8 +143,10 @@ void show_pause() {
 
     for (const mp::Member& m : s.members()) {
         const mp::Link link = s.link(m.id);
-        in.members.push_back({m.name, m.id == s.host(), m.id == s.id(), link.ping_ms, link.udp});
+        in.members.push_back({m.name, m.id == s.host(), m.id == s.id(), link.ping_ms, link.udp, m.id});
     }
+
+    in.removes = s.is_host();
 
     openrac::UiContent c;
     c.title = mp::kPartyPageTitle;
@@ -152,6 +154,7 @@ void show_pause() {
     g->pause_rules = -1;
     g->pause_go = -1;
     g->pause_save = -1;
+    g->pause_rows.clear();
 
     // Where the party's saves go, and saving now, with the party's game on.
     if (g->cosave->on() && s.in_party()) {
@@ -179,6 +182,10 @@ void show_pause() {
                 break;
             case mp::PartyLine::Kind::kText:
                 c.items.push_back(openrac::UiItem::text(line.label));
+                break;
+            case mp::PartyLine::Kind::kMember:
+                g->pause_rows.emplace_back(static_cast<int>(c.items.size()), line.member);
+                c.items.push_back(openrac::UiItem::button(line.label + "  " + line.value));
                 break;
         }
     }
@@ -220,6 +227,8 @@ void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_rules && g->pause_rules >= 0) {
         show_rules();
         g->rules.open();
+    } else if (const std::int32_t member = row_member(g->pause_rows, e); member != 0) {
+        open_remove(member);
     } else if (e.is(OPENRAC_UI_ANSWER) && e.tag() == kAskLeave && e.value() == 1 && s.in_party()) {
         g->mod->info("multiplayer: left the party from the pause menu");
         leave_party();

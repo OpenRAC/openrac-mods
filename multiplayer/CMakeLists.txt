@@ -22,12 +22,12 @@ set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/p
                            tests/play_bolts_test.cpp tests/play_scenes_test.cpp tests/play_party_test.cpp
                            tests/play_sim_test.cpp tests/play_save_test.cpp tests/play_cross_test.cpp
                            tests/play_saves_test.cpp tests/play_tags_test.cpp tests/play_join_test.cpp
-                           tests/play_shared_test.cpp)
+                           tests/play_shared_test.cpp tests/play_lobby_test.cpp)
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
                 SOURCES src/multiplayer.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
-                        src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/session.cpp src/connection.cpp src/host.cpp
+                        src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/pages_remove.cpp src/session.cpp src/connection.cpp src/host.cpp
                         src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)

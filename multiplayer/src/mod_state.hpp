@@ -17,6 +17,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "bot.hpp"
@@ -60,8 +61,15 @@ constexpr int kReadyItem = 0;
 constexpr int kLeaveItem = 1;
 constexpr int kRulesItem = 2;
 
-/* The Refused page's button after Leave party, when the host has a mod code. */
+/* The Refused page's buttons after Leave party, when the host has a mod code. */
 constexpr int kRefusedOpenItem = 1;
+constexpr int kRefusedCopyItem = 2;
+
+/* The Rules page's Copy mod code, right after Back; the Remove page's buttons. */
+constexpr int kRulesBackItem = 0;
+constexpr int kRemoveItem = 0;
+constexpr int kBanItem = 1;
+constexpr int kRemoveBackItem = 2;
 constexpr int kJoinItem = static_cast<int>(mp::kCodeLength);
 
 /* The Direct page's buttons; Join by address's rows: four octets, the port by one and by a
@@ -120,7 +128,7 @@ struct State {
     std::ofstream trace_file;   // mp-trace.log, where it goes
     openrac::Mod* mod = nullptr;
     std::uint32_t generation = 0;  // the connection's, as the session last saw it
-    openrac::UiPage home, code_page, direct_page, lobby, browse, saves, refused, rules;
+    openrac::UiPage home, code_page, direct_page, lobby, browse, saves, refused, rules, remove;
     std::uint64_t listed_ms = 0;   // when Browse last asked for the list
     bool home_greeted = false;     // whether Home last saw the server's hello
     std::uint64_t frame_ms = 0;    // when the game last ticked (on_frame)
@@ -128,6 +136,11 @@ struct State {
     SavesFor saves_for = SavesFor::kCreate;
     bool saves_coop = false;       // the Saves page shows the party's own saves
     bool mod_code_long = false;  // the launcher's file matches, and has no short code
+    bool code_copied = false;    // the shown mod code is on the clipboard: its button says so
+    int rules_copy = -1;         // the Rules page's Copy mod code item, -1 with no code
+    int rules_lift = -1;         // the Rules page's Lift bans item, -1 with none to lift
+    std::vector<std::pair<int, std::int32_t>> lobby_rows;  // the Lobby's member rows: item, member
+    std::int32_t remove_member = 0;  // who the Remove page is about
     std::uint64_t mod_code_ms = 0;  // when it was last read
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
     std::string notice;  // the last refusal or news, until the next action
@@ -141,6 +154,7 @@ struct State {
     int pause_rules = -1;        // its Party rules item, -1 out of a party
     int pause_save = -1;         // its Save the party item, -1 out of a party's game
     int pause_go = -1;           // its Go to host item, -1 when there is none
+    std::vector<std::pair<int, std::int32_t>> pause_rows;  // its member rows: item, member
     std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
     std::uint64_t net_ms = 0;    // when the verbose log last gave the network's counts
     std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame
@@ -150,6 +164,19 @@ struct State {
 };
 
 extern std::unique_ptr<State> g;
+
+/* The member whose row was chosen among `rows`, 0 for no such event. */
+inline std::int32_t row_member(const std::vector<std::pair<int, std::int32_t>>& rows, const openrac::UiEvent& e) {
+    if (e.is(OPENRAC_UI_CHOOSE)) {
+        for (const auto& [item, member] : rows) {
+            if (item == e.item()) {
+                return member;
+            }
+        }
+    }
+
+    return 0;
+}
 
 // ---- pages_home.cpp ----
 std::string code_text();
@@ -192,6 +219,14 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e);
 openrac::UiContent rules_content();
 void show_rules();
 void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- pages_remove.cpp ----
+openrac::UiContent remove_content();
+void show_remove();
+void open_remove(std::int32_t member);
+void remove_member(std::int32_t member);
+void remove_banned();
+void on_remove(const openrac::UiPage& page, const openrac::UiEvent& e);
 
 // ---- multiplayer.cpp ----
 void trace_net();

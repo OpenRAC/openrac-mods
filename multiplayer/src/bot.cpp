@@ -218,7 +218,15 @@ std::string Bot::mods() {
         first = false;
     }
 
-    o << "},\"differences\":" << quoted(refusal_lines(m.differences())) << ",\"rules\":" << quoted(rules) << "}";
+    std::vector<std::string> packs;
+
+    for (const PackInfo& p : m.own().packs) {
+        packs.push_back(p.name);
+    }
+
+    o << "},\"differences\":" << quoted(refusal_lines(m.differences())) << ",\"rules\":" << quoted(rules)
+      << ",\"packs\":" << quoted(packs) << ",\"key\":" << !m.own().key.empty()
+      << ",\"bans\":" << parts_.cosave.bans().size() << "}";
     return o.str();
 }
 
@@ -300,6 +308,21 @@ std::string Bot::run(const std::string& line) {
         return parts_.coop.start() ? "ok" : "error it did not start";
     } else if (command == "leave") {
         parts_.session.leave();
+    } else if (command == "kick" || command == "ban") {
+        std::string name;
+        in >> name;
+
+        for (const Member& m : parts_.session.members()) {
+            if (m.name == name) {
+                // A ban takes hold through the mod's frame (the key is what it knows them by).
+                const bool done = command == "ban" ? parts_.cosave.ban(parts_.mods.key(m.id)) : parts_.session.kick(m.id);
+                return done ? "ok" : "error refused";
+            }
+        }
+
+        return "error no such member";
+    } else if (command == "unban") {
+        parts_.cosave.lift_bans();
     } else if (command == "status") {
         return status();
     } else if (command == "dump") {

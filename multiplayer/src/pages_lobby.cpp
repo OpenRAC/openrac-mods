@@ -93,6 +93,8 @@ openrac::UiContent lobby_content() {
         c.items.push_back(openrac::UiItem::text(mp::kCoSavesLine));
     }
 
+    g->lobby_rows.clear();
+
     for (const mp::Member& m : s.members()) {
         const mp::Fit fit = g->mods->fit(m.id);
         mp::LobbyMemberInput line;
@@ -102,7 +104,13 @@ openrac::UiContent lobby_content() {
         line.ready = s.ready(m.id);
         line.differs = m.id == s.id() ? refused() : fit == mp::Fit::kDiffers;
         line.checking = m.id == s.id() ? checking() : fit == mp::Fit::kUnknown;
-        c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line)));
+        // The host's way to anyone who holds the party up.
+        if (s.is_host() && m.id != s.id()) {
+            g->lobby_rows.emplace_back(static_cast<int>(c.items.size()), m.id);
+            c.items.push_back(openrac::UiItem::button(mp::lobby_member_line(line)));
+        } else {
+            c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line)));
+        }
     }
 
     for (const std::string& line : why) {
@@ -121,6 +129,11 @@ openrac::UiContent lobby_content() {
     );
 
     c.footer = {status(), mp::kSelectLeaveHints};
+
+    if (!g->lobby_rows.empty()) {
+        c.footer.insert(c.footer.begin() + 1, mp::kRemoveHint);
+    }
+
     return c;
 }
 
@@ -157,6 +170,8 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRulesItem) {
         show_rules();
         g->rules.open();
+    } else if (const std::int32_t member = row_member(g->lobby_rows, e); member != 0) {
+        open_remove(member);
     } else if ((e.is(OPENRAC_UI_CHOOSE) && e.item() == kLeaveItem) || e.is(OPENRAC_UI_BACK)) {
         const char* question = hosting       ? "Stop hosting? The party ends for everyone."
                                : s.is_host() ? "Leave the party? It ends for everyone."

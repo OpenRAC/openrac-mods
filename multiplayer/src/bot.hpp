@@ -12,6 +12,9 @@
  *   ready               this member's Ready
  *   start               the host's Start
  *   leave               Leave party
+ *   kick NAME           the host takes that member out
+ *   ban NAME            the host bans it from the party's save, which takes it out
+ *   unban               the host lifts the save's bans
  *   status              the game and the party, one JSON object
  *   mods                what the party's mod check knows, one JSON object
  *   page NAME           what a page shows (lobby, refused, rules), a JSON list of its lines

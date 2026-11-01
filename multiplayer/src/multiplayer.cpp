@@ -31,7 +31,10 @@
  *   Lobby   Ready (a member) or Start (the host), Leave, Party rules, and the party's members (each
  *           with whether its mods match); a direct one
  *           says where it is hosted instead of a code. Leave and Triangle ask first, in the
- *           game's prompt box. Leaving a direct party goes back to the server.
+ *           game's prompt box. Leaving a direct party goes back to the server. A host's Cross on a
+ *           member opens Remove;
+ *   Remove  a member taken out of the party, or banned from this save (from the lobby, and from the
+ *           pause menu's Multiplayer page).
  * Cross chooses, Triangle goes back a page (from Home, to the game's menu). The footer says what
  * the connection is doing. The connection (connection.cpp) is opened the first time Home shows and
  * lasts until the game ends, reconnecting when the server goes; the session follows it every tick.
@@ -283,7 +286,7 @@ void load(openrac::Mod& mod) {
     g->session->set_ready_gate([](std::int32_t member) {
         return g->session->is_host() ? g->mods->may_play(member) : g->mods->heard_host() && !refused();
     });
-    g->coop->set_gate([](std::int32_t member) { return g->mods->may_play(member); });
+    g->coop->set_gate([](std::int32_t member) { return g->mods->may_play(member) && !g->session->kicking(member); });
     g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
     g->progress = std::make_unique<mp::Progress>(*g->session, *g->game, *g->coop);
     g->progress->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
@@ -337,6 +340,7 @@ void load(openrac::Mod& mod) {
             // What a page shows, as a player reads it.
             const openrac::UiContent c = name == "refused" ? refused_content()
                                          : name == "rules" ? rules_content()
+                                         : name == "remove" ? remove_content()
                                                            : lobby_content();
             std::vector<std::string> lines = {c.title};
 
@@ -487,6 +491,7 @@ void load(openrac::Mod& mod) {
     g->saves = mod.ui_page(on_saves);
     g->refused = mod.ui_page(on_refused, OPENRAC_UI_OWN_BACK);
     g->rules = mod.ui_page(on_rules, OPENRAC_UI_OWN_BACK);
+    g->remove = mod.ui_page(on_remove, OPENRAC_UI_OWN_BACK);
     g->game->home = &g->home;
     show_home();
     show_code();
@@ -496,6 +501,7 @@ void load(openrac::Mod& mod) {
     show_saves();
     show_refused();
     show_rules();
+    show_remove();
     mod.ui_main_item(OPENRAC_UI_LOAD_GAME, "Multiplayer", g->home);
 
     // In a level, the pause menu's Options page has a Multiplayer item too (interface 1.9).
@@ -533,6 +539,7 @@ void load(openrac::Mod& mod) {
         g->frame_ms = now;
         g->mods->tick(now);
         refresh_mod_code(now);
+        remove_banned();
 
         // A level that does not agree with the host's cannot be shared: out of the party, and why.
         if (g->world->take_level_differs()) {

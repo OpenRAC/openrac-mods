@@ -21,11 +21,22 @@ openrac::UiContent rules_content() {
         level ? mp::kPauseLine : mp::kTitleLine
     );
 
+    g->rules_copy = -1;
+    g->rules_lift = -1;
+
     // The host's mod code, so that friends can get these mods.
     if (g->session->is_host() && !g->mods->own().modcode.empty()) {
+        g->rules_copy = static_cast<int>(c.items.size());
+        c.items.push_back(openrac::UiItem::button(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel));
         c.items.push_back(openrac::UiItem::text(mp::kModCodeLabel + g->mods->own().modcode));
     } else if (g->session->is_host() && g->mod_code_long) {
         c.items.push_back(openrac::UiItem::text(mp::kModCodeInLauncher));
+    }
+
+    // The bans of this save: only the host's to lift.
+    if (g->session->is_host() && !g->cosave->bans().empty()) {
+        g->rules_lift = static_cast<int>(c.items.size());
+        c.items.push_back(openrac::UiItem::button(mp::lift_bans_label(g->cosave->bans().size())));
     }
 
     for (const std::string& line : lines) {
@@ -51,7 +62,16 @@ void show_rules() {
 void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const bool level = mp::in_level(g->game->status().phase);
 
-    if ((e.is(OPENRAC_UI_CHOOSE) && e.item() == 0) || e.is(OPENRAC_UI_BACK)) {
+    if (e.is(OPENRAC_UI_SHOW)) {
+        g->code_copied = false;
+    }
+
+    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_copy) {
+        g->code_copied = g->mod->clipboard_set(g->mods->own().modcode);
+        page.sound(g->code_copied ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_lift) {
+        g->cosave->lift_bans();
+    } else if ((e.is(OPENRAC_UI_CHOOSE) && e.item() == kRulesBackItem) || e.is(OPENRAC_UI_BACK)) {
         if (level) {
             g->pause_page.open();
         } else if (g->session->in_party()) {

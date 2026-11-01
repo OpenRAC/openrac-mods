@@ -129,11 +129,13 @@ struct PartyMemberLine {
     bool you = false;
     std::int32_t ping_ms = -1;
     bool udp = false;
+    std::int32_t id = 0;
 };
 
 /* What the page is made of. */
 struct PartyPageInput {
     bool in_party = false;
+    bool removes = false;                  // the player hosts: a member's line is a button
     bool direct = false;                   // a Direct connect party: no code, `where` instead
     std::string code;                      // the party's code
     std::string where;                     // a direct party's address ("192.168.1.5:7770")
@@ -149,17 +151,21 @@ struct PartyLine {
         kLeave,
         kText,
         kRules,
-        kGoToHost
+        kGoToHost,
+        kMember
     };
     Kind kind = Kind::kInfo;
     std::string label;
     std::string value;
+    std::int32_t member = 0;  // kMember: whose line
 };
 
 constexpr const char* kPartyPageTitle = "Multiplayer";
 constexpr const char* kLeavePartyLabel = "Leave party";
 constexpr const char* kPartyRulesLabel = "Party rules";
 constexpr const char* kGoToHostLabel = "Go to host";
+constexpr const char* kCopyCodeLabel = "Copy mod code";
+constexpr const char* kCopiedLabel = "Copied";
 
 /* A link as the page says it: "38 ms UDP", "... TCP" while the round trip is not known yet. */
 inline std::string link_text(std::int32_t ping_ms, bool udp) {
@@ -192,7 +198,8 @@ inline std::vector<PartyLine> party_lines(const PartyPageInput& in) {
                                  : m.host        ? " (host)"
                                  : m.you         ? " (you)"
                                                  : "";
-        lines.push_back({Kind::kInfo, m.name + mark, link_text(m.ping_ms, m.udp)});
+        const bool others = in.removes && !m.you && !m.host;
+        lines.push_back({others ? Kind::kMember : Kind::kInfo, m.name + mark, link_text(m.ping_ms, m.udp), others ? m.id : 0});
     }
 
     if (in.go_to_host) {
@@ -230,6 +237,19 @@ inline std::string lobby_member_line(const LobbyMemberInput& m) {
 inline std::string lobby_why_line(const std::string& name, const std::string& why) {
     const std::string line = name + ": " + why;
     return line.size() > kWhyLineMax ? line.substr(0, kWhyLineMax - 3) + "..." : line;
+}
+
+/* The words of taking a player out of the party. */
+constexpr const char* kRemoveHint = "Choose a player to remove them";
+constexpr const char* kRemoveLabel = "Remove from the party";
+constexpr const char* kBanLabel = "Ban from this save";
+constexpr const char* kBannedSent = "A banned player was sent away";
+constexpr const char* kRemoveNote = "They can come back with the code";
+constexpr const char* kBanNote = "The ban stays with the party's save";
+
+/* What the host's Party rules page offers for the bans of its save: "Lift 2 bans". */
+inline std::string lift_bans_label(std::size_t count) {
+    return "Lift " + std::to_string(count) + (count == 1 ? " ban" : " bans");
 }
 
 /* What the page of a refused game says to do next. */
