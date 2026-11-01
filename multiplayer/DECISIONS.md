@@ -24,31 +24,33 @@ co-op is confirmed working in play: squash PR #99 into a few meaningful commits 
 the port, the tests), then tag the SDK interface (1.9) and the mod (multiplayer-v0.7.0 or later),
 and pin the new SDK in `sdk.lock` so CI builds the mod.
 
-### 9. What a player's death does to the world
-
-The game's respawn remakes the level in one frame (LoadLevelGameplay): alone, enemies and crates come
-back. In a party the mod keeps what is dead for the party: a member's game gets it from the host, and
-a host's game has it deleted again, so one player's death brings nothing back for the others. Open:
-
-- **The host's spawned mobys** go with its respawn, for everyone (bolts lying about included).
-- **Missions.** A placed moby deleted because a mission moved on stays deleted in a host's game
-  whose checkpoint is before that point. Nothing in testing got stuck on it, but only level 0 and 3
-  were played that way. If one does, `World::remade` is the place to spare that class.
-
-Choices: (a) keep this, (b) a host's death also respawns every member at the same checkpoint, which
-is what a single world would do but pulls everyone back for one player's fall.
-
-Recommendation: **(a)**.
-
-### 11. A member's metal detector and class 152
-
-The classes that act on the player standing in them now run in each player's game (`world.hpp`). Two
-things follow. Buried bolts (605) are found by each player, each getting the bolt from its own game,
-so two players can dig the same one; they could go through the host as a claim. Class 152
-(`bolt_pickup_update`, Batalia) adds to the count directly, with no call the mod sees, and no spawner
-was found: it stays the host's, and a member cannot collect it.
-
 ## Decided
+
+### 9. What a player's death does to the world (decided by the user, 2026-10-31)
+
+Keep (a): a player's death is that player's own, and what is dead for the party stays dead. On top:
+
+- A full wipe (the host's level made again with every member dead, or dead within 5 seconds, or
+  everyone down under the revive rule) reloads the host's last checkpoint: only what its reloaded
+  level has dead stays dead, every member goes through its own respawn and is then put beside the host.
+- Stand-over revive: a host rule, off by default (the `revive` setting, shown on the Rules page). A
+  player who dies on his feet stays down up to 30 seconds; a living player standing within 2.5 units
+  for 1.5 seconds brings him back where he lay, with half his health. Drowning, sinking, falling or
+  dying on a ride goes to the checkpoint as always: nobody could stand over him.
+- A placed moby of a mission the host has not done comes back with the host's level, for everyone (a
+  member, whose copy is gone, is given one made from the host's); a local class comes back in the
+  host's game only.
+- The host's bolts lying about are made again where they lay. The enemies it had spawned go with its
+  level, whose spawners make new ones.
+
+### 11. Buried bolts and class 152 (decided by the user, 2026-10-31)
+
+Buried bolts go through a host claim: a member's dig waits for the host's word, the first to ask of a
+pile still there digs it, and it goes from every other game. Bolts dug in a member's game are that
+member's own. Class 152: no level of either disc places it and no code spawns it (measured
+2026-10-31), so it reaches no player today. The route is there all the same: shared when spawned, and
+what it adds under a member's stand-in is that member's.
+
 
 ### 1. Saving each player's progress (decided by the user, 2026-10-31)
 

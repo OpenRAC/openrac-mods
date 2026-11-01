@@ -130,8 +130,16 @@ The world is the host's:
 - **A death puts nothing back for the party.** The game's own respawn makes the level again in one
   frame: every moby as the level file has it. A member who dies gets the party's world again as
   soon as its game is back, so what was broken stays broken for it. A host who dies keeps it too:
-  what was dead for the party is deleted again in its game. What the host had spawned (bolts lying
-  about, its enemies' spawn) goes for everyone with its respawn.
+  what was dead for the party is deleted again in its game. Bolts lying about are made again where
+  they lay; the enemies the host had spawned go with its respawn. A mission's enemies come back when
+  the host's mission starts again. If everyone dies at once, the party goes back to the host's last
+  checkpoint and you land beside the host.
+- **Revive** (a host's setting, off by default): a fallen player stays down for up to 30 seconds, and
+  standing over them for a moment brings them back.
+- **Enemies** keep their target until another player is clearly nearer, and finish an attack first.
+- **Crates that come back** (Rilgar, Kalebo III, the last level's ammo crates): a break in any game
+  breaks them all and its bolts are shared; each game's copy comes back by itself, out of sight.
+- **Buried bolts**: one pile, one digger. The first to dig gets it, and it goes for everyone else.
 - **Go to host**: on the pause menu's Multiplayer page, for any member in the host's level. Your
   Ratchet is put beside the host, unharmed for 3 seconds, when you close the menu, on the same
   terms as a late joiner; with no safe spot near the host, where you landed in this level.
@@ -448,20 +456,20 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 14 DAMAGE | the host | attacker id u16, mask u32, damage f32, position, velocity | an enemy hit that member |
 | 15 BOLTS | the host | count i32 | bolts that are that member's: a claim granted (the bolt's value), or what flew to its figure in the host's game |
 | 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead for the party in the host's level, for a member that said HELLO |
-| 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup (not a bolt: CLAIM) |
+| 17 BROKE | a member; the host, to all | level i8, key u16; a member's has back u8, 1 for a crate that comes back | it broke a crate or took a pickup (not a bolt: CLAIM); from the host, a crate that comes back broke there |
 | 18 SKIP | the host, to all | origin i32, sequence u16, play i32, what u8 (0 a scene of the game's own, 1 the host's scene, 2 a movie), scene u16 (the host's scene by SCENE's sequence, else 0) | the host's Start pressed in a scene or a movie: each game skips that one only, while it plays (a member's SKIP, from an older mod, the host ignores); a skip of an earlier scene of the host's, of another play, or without these fields (an older mod) skips nothing |
 | 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot as interface 1.9 has it. No longer sent; still read |
 | 20 SCENE | the host, to all | play i32, level i32, scene i32, sequence u16, elapsed i32 (ms) | an in-level scene the host's game plays (the level's number of it; a new sequence each start), when it starts, once a second while it plays and when it ends (scene -1). A member in that level starts the same scene once it has control (the SDK's `play_scene`) |
 | 21 SCENE_STATE | a member to the host | play i32, sequence u16, state u8 (0 still to play, 1 playing, 2 out) | where a member is with the host's scene of that sequence, at each change and once a second; the host waits for those of its newest scene only |
-| 22 CLAIM | a member | level i8, id u16 (a placed bolt's key; 0x8000 \| a net id for one the host dropped) | its Ratchet collected that bolt (its game added nothing): the host's first claim of a bolt still there gets BOLTS and the bolt's end everywhere (DESPAWN or KILLED); any other, nothing |
+| 22 CLAIM | a member | level i8, id u16 (a placed bolt's key; 0x8000 \| a net id for one the host dropped), what u8 (absent: a bolt; 1: a pile of buried bolts by key) | its Ratchet collected that bolt (its game added nothing): the host's first claim of a bolt still there gets BOLTS and the bolt's end everywhere (DESPAWN or KILLED); any other, nothing |
 | 36 SHARED | a member to the host; the host to all | u8 count, then per section u8 tag, u16 length, its bits (tags: 1 gold weapons, 40; 2 skill points, 32; 3 flags, 320: level x 16 + flag; 4 special items, 128; a tag not known is skipped) | as PROGRESS: at each change, every 5 s and at each member that comes. Silent, upward only; a game is not given back what it once had and lost |
 | 37 MISSION | the host, to all or one | level u8, 16 bytes | the row of flags of the host's level, at once at a change; of a level a member arrived in, when it asks |
 | 38 SHARED_ASK | a member to the host | level u8 | it arrived in that level |
 | 23 PROGRESS | a member to the host; the host to all | items u8 count + a byte each, gold bolts u8 count + a byte each (level x 4 + its number), planets u8 count + a byte each (non-zero had) | a member: what its game has, at each change and every 5 s; the host: what the party has (its own game's, given what the members have), likewise and at each member that comes. Each game is given what it lacks; nothing is taken |
 | 25 POSES | the host, to all, as state | count u8, then length u16 + a POSE each | the host's Ratchet and the members' newest, every 50 ms; a game skips its own |
 | 26 HELLO | a member | level i8, load u32, sim digest u32 (0 not known) | its game has new mobys of that level (it arrived, or a death made them again): asked each second until SYNCED. A digest other than the host's gets RESET with differs set, not the world |
-| 27 RESET | the host, to all | level i8, differs u8 (absent: 0) | its level was made again: what it spawned is gone everywhere, every member says HELLO. To one member with differs 1: its level does not agree with the host's, and it leaves the party |
-| 28 SYNCED | the host | level i8, load u32 | all of the world came, ahead of this on the stream: DEAD, then a SPAWN for each spawned moby; WORLD follows |
+| 27 RESET | the host, to all | level i8, how u8 (absent: 0; 1 differs, 2 a full wipe) | its level was made again: what it spawned is gone everywhere, every member says HELLO. To one member with differs 1: its level does not agree with the host's, and it leaves the party |
+| 28 SYNCED | the host | level i8, load u32, rules u8 (1 revive) | all of the world came, ahead of this on the stream: DEAD, then a SPAWN for each spawned moby; WORLD follows |
 | 29 MODS | a member; the host to that member | multiplayer's version, OpenRAC's and the disc (strings), count u8, per mod id, name, version (strings), kind u8 (0 gameplay, 1 input, 2 cosmetic, 3 solo), settings u8, per setting key, name, value, shown (strings), kind u8 (0 shared, 1 own, 2 host), default u8, then the world family (string), the mod code (string), the sender's launcher key (string, "" from the host), count u8, per data pack id, name, version (strings), digest i32 | a member's game and mods, every 2 seconds until the host's come back (a player's own mods without their settings) |
 | 30 FITS | the host, to all | count u8, per member id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string) | what the host found, at each change; one silent for 6 seconds is an older game |
 | 31 RULES | the host, to a member or all | count u8, per mod id (string), length u16 + its bytes, its words (string) | the rules of the host's mods, to a member found matching, on the stream ahead of PLAY, and to all at each change (a Chaos event) |
@@ -477,6 +485,8 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 | 66 BATCH | anyone | length u16 + a message, each | messages of the game for one target in one DATA, read as if each came alone |
 | 67 KICK | the host, to the member removed | reason u8 (0 removed, 1 banned) | why, ahead of the server's KICKED; with a server that takes no KICK, the member leaves by itself |
+| 71 REVIVE | the host, to a player down | how u8 (0 up where it lies, 1 to its checkpoint) | the revive rule's word |
+| 72 RESTORE | the host | level i8, key u16, class i16, position, yaw i16 | a placed moby back in its level; a game whose copy is gone makes one |
 
 A member's game is started from the title with the host's save (`play_start`), its own saves left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`),
