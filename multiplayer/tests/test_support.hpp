@@ -1512,13 +1512,14 @@ inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double
                 }
             }
 
-            // Now and then a crate goes, here or there, unless it has.
+            // Now and then a crate goes, here or there, unless it has. Not on the first tick: a game
+            // has a tick in the level before anyone can break anything in it.
             if (rng() % 40 == 0) {
                 const int key = w.enemies + static_cast<int>(rng() % static_cast<unsigned>(w.crates));
                 Player& who = *all[rng() % all.size()];
                 const int slot = who.game.moby_slot(key);
 
-                if (slot >= 0 && broken.count(key) == 0) {
+                if (t > 0 && slot >= 0 && broken.count(key) == 0) {
                     broken.insert(key);
                     who.game.die(slot);
                 }
