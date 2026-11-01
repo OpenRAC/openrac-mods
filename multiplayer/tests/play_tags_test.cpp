@@ -90,20 +90,129 @@ void a_tag_up_close_says_the_name_in_the_players_colour() {
     CHECK(p.drawn[0].y <= text->y && p.drawn[0].h >= text->h);
 }
 
-void far_away_only_a_dot_is_left() {
+void far_away_there_is_nothing_at_all() {
     FakePainter p;
-    mp::draw_name_tags(p, kCamera, {tag_at(mp::kTagDot + 1)});
-    CHECK(p.text_drawn() == nullptr && p.drawn.size() == 1);
-    CHECK(p.drawn[0].w == mp::kTagDotSize && p.drawn[0].colour == mp::tag_colour(1));
+    const mp::TagStats stats = mp::draw_name_tags(p, kCamera, {tag_at(mp::kTagGone + 1)});
+    CHECK(p.drawn.empty() && stats.on_picture == 1 && stats.drawn == 0);
 
-    // Between the two, the text is at its smallest as the name fades into the dot.
+    // On the way out, the text is at its smallest and half faded, its backing with it.
     FakePainter between;
-    mp::draw_name_tags(between, kCamera, {tag_at((mp::kTagFadeFrom + mp::kTagDot) / 2)});
+    const mp::TagStats mid = mp::draw_name_tags(between, kCamera, {tag_at((mp::kTagFadeFrom + mp::kTagGone) / 2)});
     const Drawn* text = between.text_drawn();
-    CHECK(text != nullptr && text->h == mp::kTagTextFar);
+    CHECK(mid.drawn == 1 && text != nullptr && text->h == mp::kTagTextFar);
     const std::uint32_t alpha = text->colour & 0xFFu;
     CHECK(alpha > 0x70u && alpha < 0x90u);
-    CHECK((between.drawn[0].colour & 0xFFu) > 0x70u && (between.drawn[0].colour & 0xFFu) < 0x90u);
+    CHECK((between.drawn[0].colour & 0xFFu) < (0xA0u + 2) / 2 + 2 && between.drawn.size() == 2);
+}
+
+void the_fade_is_smooth_and_only_goes_down() {
+    std::uint32_t last = 0xFFu;
+
+    for (float d = mp::kTagFadeFrom - 1; d < mp::kTagGone + 1; d += 0.25f) {
+        FakePainter p;
+        mp::draw_name_tags(p, kCamera, {tag_at(d)});
+        const std::uint32_t alpha = p.text_drawn() != nullptr ? p.text_drawn()->colour & 0xFFu : 0u;
+        CHECK(alpha <= last && last - alpha <= 12u);
+        last = alpha;
+    }
+
+    CHECK(last == 0u);
+}
+
+void a_tag_out_of_sight_draws_nothing_and_half_seen_is_faint() {
+    mp::NameTag tag = tag_at(5.0f);
+    tag.sight = 0.0f;
+    FakePainter hidden;
+    const mp::TagStats stats = mp::draw_name_tags(hidden, kCamera, {tag});
+    CHECK(hidden.drawn.empty() && stats.drawn == 0 && stats.on_picture == 1);
+    tag.sight = 0.5f;
+    FakePainter half;
+    CHECK(mp::draw_name_tags(half, kCamera, {tag}).drawn == 1);
+    const std::uint32_t alpha = half.text_drawn()->colour & 0xFFu;
+    CHECK(alpha >= 0x7Fu && alpha <= 0x80u);
+}
+
+void sight_comes_and_goes_smoothly_and_holds_at_a_corner() {
+    mp::TagSight sight;
+    double t = 1000;
+    CHECK(sight.due(t) && sight.strength() == 0.0f);
+    CHECK(sight.advance(t) == 0.0f);
+    sight.asked(true, t);
+    CHECK(!sight.due(t + mp::kTagSightMs - 1) && sight.due(t + mp::kTagSightMs));
+    // In: eased, not at once.
+    const float first = sight.advance(t += 16);
+    CHECK(first > 0.0f && first < 0.2f);
+
+    for (int i = 0; i < 12; ++i) {
+        if (sight.due(t)) {
+            sight.asked(true, t);
+        }
+
+        sight.advance(t += 16);
+    }
+
+    CHECK(sight.strength() == 1.0f);
+    // Blocked for less than the hold: a corner going past changes nothing.
+    sight.asked(true, t);
+    const double clear_at = t;
+
+    while (t < clear_at + mp::kTagHoldMs - 20) {
+        sight.asked(false, t);
+        CHECK(sight.advance(t += 16) == 1.0f);
+    }
+
+    sight.asked(true, t);
+    CHECK(sight.advance(t += 16) == 1.0f);
+    // Blocked for good: past the hold it goes, eased, and stays gone.
+    float last = 1.0f;
+    double blocked_from = t;
+
+    while (t < blocked_from + mp::kTagHoldMs + mp::kTagSightFadeMs + 50) {
+        sight.asked(false, t);
+        const float now = sight.advance(t += 16);
+        CHECK(now <= last && last - now < 0.1f);
+        last = now;
+    }
+
+    CHECK(last == 0.0f);
+}
+
+/* The game's side: the figure seen, then a wall; a low wall leaves its head in view; a game that cannot
+ * say leaves the tag on; a figure beyond any tag costs no line. */
+void a_wall_between_takes_the_tag_away_in_the_game() {
+    Party party;
+    auto run = [&](int ticks) {
+        for (int i = 0; i < ticks; ++i) {
+            tick(party.players(), 16);
+        }
+    };
+    float at = [&] {
+        run(60);
+        return party.a.coop.name_tags().at(0).sight;
+    }();
+    CHECK(at == 1.0f);
+    party.a.game.level_wall = true;
+    run(60);
+    CHECK(party.a.coop.name_tags().at(0).sight == 0.0f);
+    const std::vector<mp::NameTag> tags = party.a.coop.name_tags();
+    // Over a wall as high as the figure's middle, its head shows.
+    party.a.game.wall_top_z = tags.at(0).position[2] + mp::kTagSeeHead - 0.1f;
+    run(60);
+    CHECK(party.a.coop.name_tags().at(0).sight == 1.0f);
+    party.a.game.wall_top_z = 0.0f;
+    run(60);
+    CHECK(party.a.coop.name_tags().at(0).sight == 0.0f);
+    party.a.game.line_known = false;
+    run(60);
+    CHECK(party.a.coop.name_tags().at(0).sight == 1.0f);
+    // Lines are few: at most two a figure each time it is due, whatever the frame rate.
+    party.a.game.lines_asked = 0;
+    run(100);
+    CHECK(party.a.game.lines_asked > 0 && party.a.game.lines_asked <= 2 * 2 * (100 * 16 / 120 + 2));
+    party.a.game.lines_asked = 0;
+    party.a.game.camera_x = 1000.0f;
+    run(100);
+    CHECK(party.a.game.lines_asked == 0);
 }
 
 void the_text_shrinks_with_distance() {
@@ -339,7 +448,11 @@ void the_words_name_no_region() {
 
 void run_tags_tests() {
     a_tag_up_close_says_the_name_in_the_players_colour();
-    far_away_only_a_dot_is_left();
+    the_fade_is_smooth_and_only_goes_down();
+    a_tag_out_of_sight_draws_nothing_and_half_seen_is_faint();
+    sight_comes_and_goes_smoothly_and_holds_at_a_corner();
+    a_wall_between_takes_the_tag_away_in_the_game();
+    far_away_there_is_nothing_at_all();
     the_text_shrinks_with_distance();
     off_the_picture_there_is_no_tag();
     a_tag_stays_on_the_picture();

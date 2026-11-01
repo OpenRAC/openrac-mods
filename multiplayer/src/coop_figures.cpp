@@ -362,6 +362,49 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
 
         ++it;
     }
+
+    update_tag_sight(static_cast<double>(now));
+}
+
+void Coop::update_tag_sight(double now) {
+    float camera[3];
+    const bool have_camera = game_.camera(camera);
+    bool asked = false;
+
+    for (auto& entry : remotes_) {
+        Remote& r = entry.second;
+
+        if (r.figure < 0 || r.hidden) {
+            continue;
+        }
+
+        // One figure's lines a tick. No camera or no answer leaves the tag as a tag without the
+        // check: seen. A figure past where a tag ends costs nothing.
+        const float dx = r.shown_at[0] - camera[0];
+        const float dy = r.shown_at[1] - camera[1];
+        const float dz = r.shown_at[2] - camera[2];
+        const bool in_range = !have_camera || dx * dx + dy * dy + dz * dz < kTagGone * kTagGone;
+
+        if (!asked && in_range && r.sight.due(now)) {
+            asked = true;
+            r.sight.asked(!have_camera || sees_figure(camera, r.shown_at), now);
+        }
+
+        r.sight.advance(now);
+    }
+}
+
+bool Coop::sees_figure(const float* camera, const float* feet) {
+    for (const float above : {kTagSeeHead, kTagSeeMiddle}) {
+        const float point[3] = {feet[0], feet[1], feet[2] + above};
+        bool blocked = false;
+
+        if (!game_.level_line(camera, point, blocked) || !blocked) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 std::vector<NameTag> Coop::name_tags() const {
@@ -378,6 +421,7 @@ std::vector<NameTag> Coop::name_tags() const {
             tag.slot = slot;
             std::copy(std::begin(it->second.shown_at), std::end(it->second.shown_at), std::begin(tag.position));
             tag.late = it->second.late;
+            tag.sight = it->second.sight.strength();
             tags.push_back(std::move(tag));
         }
 

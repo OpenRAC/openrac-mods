@@ -625,6 +625,18 @@ struct FakeGame : mp::Game {
 
     float camera_x = 0.0f;
 
+    // The level between the camera and a point: every line blocked while `level_wall`, and how many asked.
+    bool level_line(const float*, const float* to, bool& blocked) override {
+        ++lines_asked;
+        blocked = level_wall && (wall_top_z <= 0.0f || to[2] < wall_top_z);
+        return line_known;
+    }
+
+    bool level_wall = false;
+    float wall_top_z = 0.0f;  // above this a line goes over the wall (0: no top)
+    bool line_known = true;
+    int lines_asked = 0;
+
     // The run list (the verbose log's): off until a test sets `run_on`; each slot's run, else
     // `run`'s.
     bool moby_run(int slot, mp::MobyRun& out) override {

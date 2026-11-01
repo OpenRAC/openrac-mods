@@ -14,6 +14,7 @@ namespace {
 constexpr float kPictureWidth = 512.0f;
 constexpr float kMargin = 2.0f;   // around the text, and to the picture's edge
 constexpr float kMark = 4.0f;     // the lagging mark's size
+constexpr float kSeen = 0.004f;   // a tag this faint draws nothing
 constexpr std::uint32_t kBack = 0x000000A0u;
 constexpr std::uint32_t kLate = 0xFFB020FFu;
 
@@ -30,6 +31,23 @@ std::uint32_t tag_colour(int slot) {
     constexpr std::uint32_t kColours[] = {0x66CCFFFFu, 0xFFD24DFFu, 0x7CE36BFFu, 0xFF8FB8FFu};
     constexpr int kCount = static_cast<int>(sizeof kColours / sizeof kColours[0]);
     return kColours[((slot % kCount) + kCount) % kCount];
+}
+
+void TagSight::asked(bool clear, double now_ms) {
+    asked_ms_ = now_ms;
+
+    if (clear) {
+        clear_ms_ = now_ms;
+    }
+}
+
+float TagSight::advance(double now_ms) {
+    const double since = advanced_ms_ < 0.0 ? 0.0 : now_ms - advanced_ms_;
+    const double step = std::clamp(since, 0.0, kTagSightFadeMs) / kTagSightFadeMs;
+    const bool seen = now_ms - clear_ms_ < kTagHoldMs;
+    advanced_ms_ = now_ms;
+    strength_ = std::clamp(strength_ + static_cast<float>(seen ? step : -step), 0.0f, 1.0f);
+    return strength_;
 }
 
 TagStats draw_name_tags(TagPainter& painter, const float camera[3], const std::vector<NameTag>& tags) {
@@ -53,17 +71,13 @@ TagStats draw_name_tags(TagPainter& painter, const float camera[3], const std::v
         const float dz = at[2] - camera[2];
         const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
         const std::uint32_t colour = tag_colour(tag.slot);
-        // The name gives way to a dot as it fades, so a player far off is still there.
-        const float name = painter.fade(distance, kTagFadeFrom, kTagDot);
+        const float name = painter.fade(distance, kTagFadeFrom, kTagGone) * tag.sight;
 
-        if (name < 1.0f) {
-            painter.rect(x - kTagDotSize / 2, y - kTagDotSize / 2, kTagDotSize, kTagDotSize, faded(colour, 1.0f - name));
-        }
-
-        if (name <= 0.0f) {
+        if (name <= kSeen) {
             continue;
         }
 
+        ++stats.drawn;
         const float size = kTagTextFar + (kTagTextNear - kTagTextFar) * painter.fade(distance, kTagNear, kTagFadeFrom);
         const float width = painter.text_width(size, tag.name);
         const float mark = tag.late ? kMark + kMargin : 0.0f;

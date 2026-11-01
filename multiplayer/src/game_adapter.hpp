@@ -79,6 +79,7 @@ public:
     bool moby_deletion(int slot, int& by, int& by_class, bool& by_mod) override;
 
     bool camera(float* xyz) override;
+    bool level_line(const float* from, const float* to, bool& blocked) override;
 
     bool moby_run(int slot, mp::MobyRun& out) override;
 

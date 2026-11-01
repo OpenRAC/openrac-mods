@@ -281,6 +281,10 @@ bool ModGame::camera(float* xyz) {
     return true;
 }
 
+bool ModGame::level_line(const float* from, const float* to, bool& blocked) {
+    return mod_.level_line(from, to, blocked);
+}
+
 bool ModGame::moby_run(int slot, mp::MobyRun& out) {
     openrac_moby_run r{};
 

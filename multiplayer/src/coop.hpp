@@ -422,6 +422,9 @@ public:
         return false;
     }
     virtual bool camera(float* /*xyz*/) { return false; }
+    /* Into `blocked`, whether the level stands on the straight line between two points. False when
+     * it cannot be told. */
+    virtual bool level_line(const float* /*from*/, const float* /*to*/, bool& /*blocked*/) { return false; }
     /* How the last tick ran the level's mobys and the moby in `slot` (-1: none) in it. */
     virtual bool moby_run(int /*slot*/, MobyRun& /*out*/) { return false; }
     virtual int moby_spawn(int /*oclass*/, const Pose& /*pose*/) { return -1; }
@@ -552,6 +555,7 @@ struct Remote {
     bool hidden = false;         // its figure hidden for a scene playing in this game
     float shown_at[3] = {0, 0, 0};  // where its figure was last put
     bool late = false;              // its poses or its link lag: its name tag says so
+    TagSight sight;                 // whether the level leaves it in view, for its name tag
     std::uint64_t retry_ms = 0;  // when a figure may be made again
     std::uint64_t traced_ms = 0;  // when the verbose log last said how its poses are shown
     /* Its shots to fire, each when its figure is as far behind as its poses are played. */
@@ -809,6 +813,9 @@ private:
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_pose(std::uint64_t now, const GameStatus& status);
     void show_remotes(std::uint64_t now, const GameStatus& status);
+    /* Whether each figure shown can be seen from the camera (TagSight); a few lines a second. */
+    void update_tag_sight(double now);
+    bool sees_figure(const float* camera, const float* feet);
     void send_shots(const GameStatus& status);
     void on_shot(std::int32_t sender, const Bytes& bytes);
     void on_shotx(std::int32_t sender, const Bytes& bytes);

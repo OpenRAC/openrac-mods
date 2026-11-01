@@ -38,7 +38,7 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `gohost` | a member runs off and takes Go to host: beside the host, and the worlds agree |
 | `restart` | the host goes to the title and starts again: a member in a level starts the new game |
 | `shipwarn` | the host's ship: the member is warned, then pulled along |
-| `tags` | a party of two in a level: each game draws a name tag for the other, on the picture (a figure out of its camera's view for 30 s fails it). How a tag looks takes a screenshot |
+| `tags` | a party of two in a level: each game draws a name tag for the other, on the picture (a figure out of its camera's view for 30 s fails it); it goes with the member behind a wall the host's `line` calls blocked, and 30 metres off in the open, and comes back beside the host (`notes.tags`, with what a line costs). How a tag looks takes a screenshot |
 | `soak` | `--members N` standing in the level for `--seconds S`: what the network carried, by kind |
 | `weapons` | each weapon given, drawn and fired by the host, then by a member (`--weapons Devastator,Pyrocitor` for some; `--fire-button` the pad's bit): the other game shows it (its class among the mobys, or its shots fired for what is drawn as particles), and nobody is hurt by the copy |
 | `enemies` | an enemy count off 1 (`--difficulty '{"enemy_count": 2}'`), in level `--level N`: every game lists the host's enemies, none twice, none of a member's own, also after a member's and the host's death |

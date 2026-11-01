@@ -578,6 +578,61 @@ def scenario_tags(env, args):
             and 0 <= seen.get("tag_y", -1) <= 448,
             f"at {seen.get('tag_x')}, {seen.get('tag_y')}",
         )
+    tags_by_place(env, host, member)
+
+
+def until(test, seconds):
+    limit = time.monotonic() + seconds
+    while time.monotonic() < limit:
+        if test():
+            return True
+        time.sleep(0.25)
+    return False
+
+
+def tags_by_place(env, host, member):
+    """The name goes with distance and behind the level's walls: the member stood at a place the
+    host's game calls blocked, and at one far off in the open. notes.tags says what was found."""
+    x, y, z = host.status()["hero"]
+    drawn = lambda: host.status().get("tags_drawn", -1)
+    notes = env.report["notes"].setdefault("tags", {})
+    env.check("up close, the name is drawn", until(lambda: drawn() == 1, 5), str(drawn()))
+
+    def spot(radius, want_blocked):
+        for a in range(0, 360, 20):
+            px = x + radius * math.cos(math.radians(a))
+            py = y + radius * math.sin(math.radians(a))
+            parts = [host.ask(f"line {px} {py} {z + h}").split() for h in (1.2, 0.6)]
+            blocked = all(p[0] == "blocked" for p in parts)
+            if blocked == want_blocked and all(p[0] in ("blocked", "clear") for p in parts):
+                notes.setdefault("line_us", []).append(max(int(p[1]) for p in parts))
+                return px, py, a
+        return None
+
+    found = None
+    for radius in (8, 10, 12, 14, 16):
+        found = spot(radius, True)
+        if found:
+            notes["blocked_radius"] = radius
+            break
+    env.check("the level has a place behind a wall near the host", found is not None)
+    if found:
+        member.ask(f"teleport {found[0]} {found[1]} {z + 0.5}")
+        time.sleep(2)
+        after = host.ask(f"line {found[0]} {found[1]} {z + 1.2}")
+        notes["behind_wall"] = {"line": after, "status": host.status().get("tags_drawn"), "angle": found[2]}
+        env.check("behind a wall the name is gone", drawn() == 0, str(notes["behind_wall"]))
+    open_spot = None
+    for radius in (30, 32, 35):
+        open_spot = spot(radius, False)
+        if open_spot:
+            break
+    if open_spot:
+        member.ask(f"teleport {open_spot[0]} {open_spot[1]} {z + 0.5}")
+        time.sleep(2)
+        env.check("far off in the open the name is gone", drawn() == 0, str(drawn()))
+    member.ask(f"teleport {x + 2} {y} {z + 0.5}")
+    env.check("back beside the host, the name is back", until(lambda: drawn() == 1, 8), str(drawn()))
 
 
 def scenario_keys(env, args):

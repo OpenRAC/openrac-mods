@@ -11,9 +11,9 @@ is nearest.
 
 With the mod off, the game is the PlayStation 2 game.
 
-Each other player has a name over their figure, in a colour of their own that is the same in every
-game: smaller further away, a dot past 40 metres, with a small amber mark while they lag. Under the
-pause menu the world goes on, in the picture too.
+Each other player nearby and in view has a name over their figure, in a colour of their own that is
+the same in every game: smaller further away, fading out by 25 metres, gone behind a wall, with a
+small amber mark while they lag. Under the pause menu the world goes on, in the picture too.
 
 Friends match their mods with a mod code: **Share these mods** on the launcher's Mods page makes
 one, and entering it there shows what would change before anything does (OpenRAC's
@@ -600,8 +600,11 @@ that player. Mobys near the members run in the host's game as if near its camera
 - A shot that would come more than 250 ms late is dropped rather than shown late, so on a bad
   link some are missing. A decoy a member throws draws the enemies through the host's copy; if it
   is destroyed there the member's copy stays until it runs out.
-- A name tag is not hidden by a wall: it shows where a player is, through whatever is between. It
-  shows in a level only: not under a menu, not in a scene. The font is the port's capitals, and a
+- A name tag shows a player nearby and in plain view: it fades out from 18 metres and is gone at 25,
+  and it goes when the level's walls or ground stand between the camera and the figure's head and
+  middle (the game's collision, asked about 8 times a second a player, held 0.3 s so a corner does
+  not blink it). A door, a crate or any other moby does not hide it, since the line leaves those out.
+  It shows in a level only: not under a menu, not in a scene. The font is the port's capitals, and a
   character it lacks is left blank.
 - Particles under the pause menu are drawn but stand still (frozen sparks).
 - Everyone needs the same OpenRAC and mod versions (Mods in a party). Discs of one world family play

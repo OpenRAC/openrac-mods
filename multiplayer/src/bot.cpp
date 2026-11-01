@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -188,7 +189,7 @@ std::string Bot::status() {
       << ",\"shots_sent\":" << parts_.coop.shots_sent() << ",\"shots_fired\":" << parts_.coop.shots_fired()
       << ",\"shots_late\":" << parts_.coop.shots_late() << ",\"tags\":" << parts_.coop.tag_stats().tags
       << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
-      << ",\"tag_y\":" << number(parts_.coop.tag_stats().y)
+      << ",\"tag_y\":" << number(parts_.coop.tag_stats().y) << ",\"tags_drawn\":" << parts_.coop.tag_stats().drawn
       << ",\"cam_sent\":" << parts_.camscripts.sent() << ",\"cam_shown\":" << parts_.camscripts.shown()
       << ",\"cam_showing\":" << parts_.camscripts.showing() << ",\"dropped\":" << session.dropped()
       << ",\"epoch\":" << session.role().epoch() << ",\"stale\":" << session.stale()
@@ -351,6 +352,16 @@ std::string Bot::run(const std::string& line) {
         }
 
         return out + "]";
+    } else if (command == "line") {
+        float to[3] = {0, 0, 0};
+        float camera[3] = {0, 0, 0};
+        in >> to[0] >> to[1] >> to[2];
+        bool blocked = false;
+        const auto start = std::chrono::steady_clock::now();
+        const bool known = parts_.game.camera(camera) && parts_.game.level_line(camera, to, blocked);
+        const auto took = std::chrono::steady_clock::now() - start;
+        return std::string(!known ? "unknown " : blocked ? "blocked " : "clear ")
+               + std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(took).count());
     } else if (command == "teleport") {
         in >> at_[0] >> at_[1] >> at_[2];
         teleport_ticks_ = kTeleportTicks;
