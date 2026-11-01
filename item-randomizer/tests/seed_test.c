@@ -20,12 +20,45 @@
         }                                                                                          \
     } while (0)
 
+#define PINNED_HASH 0x3B0BB418u
+
 static int same(const rando_settings* a, const rando_settings* b) {
     return a->seed == b->seed && a->pools == b->pools && a->keep_start == b->keep_start
            && a->difficulty == b->difficulty;
 }
 
+/* A party's seed plays on any disc: the host's code gives every member its placement, and what
+ * makes it (this core) knows no disc: the game's addresses are all in discs.h, which it never
+ * includes. The placement of a fixed code is pinned, so a change that made it depend on anything
+ * else shows here. */
+static void a_code_places_the_same_everywhere(void) {
+    rando_settings host = {0};
+    host.seed = 0x12345678u;
+    host.pools = POOL_ALL;
+    char code[RANDO_CODE_SIZE];
+    rando_encode(&host, code);
+    rando_settings a, b;
+    CHECK(rando_decode(code, &a) == 1 && rando_decode(code, &b) == 1);
+    rando_plan* one = calloc(1, sizeof *one);
+    rando_plan* two = calloc(1, sizeof *two);
+    CHECK(one != NULL && two != NULL);
+    CHECK(rando_solve(&a, one) == 0 && rando_solve(&b, two) == 0);
+    static char text_one[1 << 16], text_two[1 << 16];
+    const size_t size = rando_spoiler(one, "1", text_one, sizeof text_one);
+    CHECK(size > 0 && size < sizeof text_one);
+    CHECK(rando_spoiler(two, "1", text_two, sizeof text_two) == size);
+    CHECK(memcmp(text_one, text_two, size) == 0);
+    unsigned hash = 2166136261u;
+    for (size_t i = 0; i < size; ++i) {
+        hash = (hash ^ (unsigned char)text_one[i]) * 16777619u;
+    }
+    CHECK(hash == PINNED_HASH);
+    free(one);
+    free(two);
+}
+
 int main(void) {
+    a_code_places_the_same_everywhere();
     /* Round trips: every pool set, both start choices, each difficulty, seeds across 40 bits. */
     rando_rng r = {1};
     int codes = 0;

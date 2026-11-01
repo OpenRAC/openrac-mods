@@ -298,7 +298,26 @@ void party_rules() {
     CHECK(decode_party_rules(none.data(), static_cast<std::uint32_t>(none.size()), back) && back.event == -1);
 }
 
+// A party's seed plays on any disc: a level's rolls come from the seed and the level alone (rules.h
+// takes no disc, and every address is in discs.h, which this core never includes). Pinned, so a
+// change that made them depend on anything else shows here.
+void a_seed_rolls_the_same_everywhere() {
+    const dm::Values level3 = dm::chaos_roll(0x1234ABCDu, 3);
+    const dm::Values again = dm::chaos_roll(0x1234ABCDu, 3);
+    std::uint64_t hash = 14695981039346656037ull;
+
+    for (int k = 0; k < dm::KNOB_COUNT; ++k) {
+        CHECK(level3[k] == again[k]);
+        const auto thousandths = static_cast<std::int64_t>(std::llround(level3[k] * 1000.0));
+        hash = (hash ^ static_cast<std::uint64_t>(thousandths)) * 1099511628211ull;
+    }
+
+    CHECK(hash == 0xb9618b0f40fab4cbull);
+    CHECK(dm::seed_from_text("1234abcd") == 0x1234ABCDu);
+}
+
 int main() {
+    a_seed_rolls_the_same_everywhere();
     party_rules();
     ranges();
     clamping();
