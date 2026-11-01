@@ -128,6 +128,10 @@ constexpr int k_pool_reserve = 160;
 // leave that many free for them too, so they get none in a pool of a console's size and the rest of
 // a bigger one (OpenRAC's port gives most levels 767).
 constexpr int k_gaspar_sparks = 255;
+// Blarg Station (level 6) spawns this many mobys of its own after the level load, before its
+// landing (measured on PAL: the first free slot goes from 2 to 195 of 255). The copies leave them
+// room too, or the landing has no slot for the ship and Clank.
+constexpr int k_blarg_spawns = 193;
 // Slots the copies may take on a level with free_slots free.
 int clone_budget(int free_slots, int level);
 // Extra slots a copy whose pvars are size bytes needs for them (a spawned moby has 0x80).
