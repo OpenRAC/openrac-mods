@@ -66,6 +66,7 @@ constexpr std::uint8_t kPose = 7;
 constexpr std::uint8_t kWant = 8;
 constexpr std::uint8_t kSkip = 18;
 constexpr std::uint8_t kShot = 19;
+constexpr std::uint8_t kShotX = 48;
 constexpr std::uint8_t kScene = 20;
 constexpr std::uint8_t kSceneState = 21;
 constexpr std::uint8_t kPoses = 25;
@@ -126,6 +127,7 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kBroke, "BROKE", Owner::kWorld},
     {kind::kSkip, "SKIP", Owner::kCoop},
     {kind::kShot, "SHOT", Owner::kCoop},
+    {kind::kShotX, "SHOTX", Owner::kShots},
     {kind::kScene, "SCENE", Owner::kCoop},
     {kind::kSceneState, "SCENE_STATE", Owner::kCoop},
     {kind::kClaim, "CLAIM", Owner::kWorld},

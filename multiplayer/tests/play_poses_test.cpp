@@ -111,6 +111,82 @@ void held_and_shot_bytes() {
 // figure as the body's does: between two poses its key and time run on from the one's to the
 // other's, every frame, not only when a pose comes; a new seq or a blend keeps the nearer pose's;
 // a thrown wrench moves along between its two places.
+// A SHOTX: only what a shot has goes, a whole datagram or none, and a track's MOVE gives way to its
+// next.
+void shotx_bytes() {
+    std::vector<mp::ShotEntry> in(3);
+    in[0].owner = 2;
+    in[0].level = 5;
+    in[0].stamp = 0xF0000001u;
+    in[0].shot.item = 0x0F;
+    in[0].shot.position[1] = 7.25f;
+    in[0].shot.aim[3] = -0.25f;
+    in[0].shot.target_key = 300;
+    in[1].owner = 3;
+    in[1].level = -1;
+    in[1].shot.item = 0x10;
+    in[1].shot.flags = mp::kShotMove;
+    in[1].shot.velocity[0] = 2.0f;
+    in[1].shot.aux[0] = 1.0f;
+    in[2].owner = 4;
+    in[2].level = 0;
+    in[2].shot.item = 0x0B;
+    in[2].shot.flags = mp::kShotStop | mp::kShotBurst;
+    in[2].shot.velocity2[2] = 3.0f;
+    const Bytes b = mp::encode_shotx(in);
+    CHECK(b[0] == mp::kShotXKind && b[1] == 3);
+    // Header 2; each shot 12 and its position 12; 16 of aim and 2 of target; 12 and 16; 12.
+    CHECK(b.size() == 2 + 3 * 24 + 18 + 28 + 12);
+
+    std::vector<mp::ShotEntry> r;
+    CHECK(mp::decode_shotx(b, r) && r.size() == 3);
+    CHECK(r[0].owner == 2 && r[0].level == 5 && r[0].stamp == 0xF0000001u && r[0].shot.item == 0x0F);
+    CHECK(r[0].shot.position[1] == 7.25f && r[0].shot.aim[3] == -0.25f && r[0].shot.target_key == 300);
+    CHECK(r[0].shot.flags == 0);
+    CHECK(r[1].level == -1 && r[1].shot.flags == mp::kShotMove && r[1].shot.velocity[0] == 2.0f);
+    CHECK(r[1].shot.aux[0] == 1.0f && r[1].shot.target_key == -1);
+    CHECK(r[2].shot.flags == (mp::kShotStop | mp::kShotBurst) && r[2].shot.velocity2[2] == 3.0f);
+
+    // Any shorter is no SHOTX.
+    for (std::size_t n = 0; n < b.size(); ++n) {
+        CHECK(!mp::decode_shotx(Bytes(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(n)), r));
+    }
+    CHECK(!mp::decode_shotx(Bytes{mp::kShotKind, 0}, r));
+    CHECK(!mp::decode_shotx(Bytes{mp::kShotXKind, static_cast<std::uint8_t>(mp::kShotXMax + 1)}, r));
+
+    // The most a SHOTX holds, each with everything, fits a datagram; more are left for the next.
+    std::vector<mp::ShotEntry> many(mp::kShotXMax + 3);
+    for (mp::ShotEntry& e : many) {
+        std::fill(e.shot.velocity, e.shot.velocity + 3, 1.0f);
+        std::fill(e.shot.aim, e.shot.aim + 4, 1.0f);
+        std::fill(e.shot.velocity2, e.shot.velocity2 + 3, 1.0f);
+        std::fill(e.shot.aux, e.shot.aux + 4, 1.0f);
+        e.shot.target_key = 1;
+    }
+    const Bytes full = mp::encode_shotx(many);
+    CHECK(full.size() <= 1200 && full[1] == mp::kShotXMax);
+    CHECK(mp::decode_shotx(full, r) && r.size() == mp::kShotXMax);
+
+    // A MOVE is replaced by its track's next, and by nothing else.
+    mp::ShotEntry a, c;
+    a.owner = c.owner = 2;
+    a.shot.flags = c.shot.flags = mp::kShotMove;
+    a.shot.aux[0] = c.shot.aux[0] = 1.0f;
+    CHECK(mp::shot_replaces(c, a));
+    c.shot.aux[0] = 2.0f;
+    CHECK(!mp::shot_replaces(c, a));
+    c.shot.aux[0] = 1.0f;
+    c.owner = 3;
+    CHECK(!mp::shot_replaces(c, a));
+    c.owner = 2;
+    c.shot.flags = mp::kShotStop;
+    CHECK(!mp::shot_replaces(c, a));
+    c.shot.flags = mp::kShotMove;
+    a.shot.flags = mp::kShotStart;
+    CHECK(!mp::shot_replaces(c, a));
+}
+
+
 void held_item_animation_runs_on() {
     // A swing: the wrench (seq 3) a key every 2 ticks (speed 0.5 a key), a pose every 50 ms.
     auto swing = [](int ms) {
@@ -596,6 +672,7 @@ void recorded_poses_replay_smoothly() {
 void run_poses_tests() {
     pose_bytes();
     held_and_shot_bytes();
+    shotx_bytes();
     held_item_animation_runs_on();
     a_steady_stream_plays_smoothly();
     repeats_late_poses_and_teleports();

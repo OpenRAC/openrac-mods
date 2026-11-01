@@ -118,6 +118,7 @@ enum class GameKind : std::uint8_t {
     kWant = kind::kWant,
     kSkip = kind::kSkip,
     kShot = kShotKind,
+    kShotX = kShotXKind,
     kScene = kind::kScene,
     kSceneState = kind::kSceneState,
     kPoses = kind::kPoses
@@ -150,10 +151,15 @@ constexpr std::uint64_t kWantMs = 5000;
 constexpr std::uint64_t kTravelMs = 4000;
 constexpr std::uint64_t kFigureRetryMs = 1000;
 constexpr double kGoneMs = 5000.0;
-/* A shot not fired this long after it was due (its figure not shown) is dropped; the most a remote
- * player's shots wait. */
-constexpr double kShotLateMs = 1000.0;
+/* A shot not fired this long after it was due is dropped: a late flash reads as a bug, a lost one
+ * goes unseen. The most a remote player's shots wait, the longest one waits to be sent, and how often
+ * shots go: the host's state is mostly spent (POSES and WORLD take 50 of the 52 a second), and the
+ * member's is not. */
+constexpr double kShotLateMs = 250.0;
 constexpr std::size_t kShotsWaiting = 32;
+constexpr std::uint64_t kShotHoldMs = 250;
+constexpr std::uint64_t kShotSendHostMs = 100;
+constexpr std::uint64_t kShotSendMemberMs = 50;
 /* How often the server's clock is asked again (TIME): the poses' stamps keep to it over a long
  * session. */
 constexpr std::uint64_t kClockMs = 30000;
@@ -389,6 +395,8 @@ struct Remote {
         double due_ms = 0;
         std::int32_t level = -1;
         Shot shot;
+        /* When it should have been fired: what lateness is counted from. */
+        double shown_ms = 0;
     };
     std::deque<PendingShot> shots;
 };
@@ -464,6 +472,8 @@ public:
     /* The hero's shots sent, and the remote players' shots their figures fired. */
     std::uint64_t shots_sent() const { return shots_sent_; }
     std::uint64_t shots_fired() const { return shots_fired_; }
+    /* The shots dropped as too late to show, for the log and the tests. */
+    std::uint64_t shots_late() const { return shots_late_; }
 
     /* The scene barrier, for the pad: whether this player's control is held (out of a scene while
      * another player is still in one). */
@@ -524,6 +534,10 @@ private:
     void show_remotes(std::uint64_t now, const GameStatus& status);
     void send_shots(const GameStatus& status);
     void on_shot(std::int32_t sender, const Bytes& bytes);
+    void on_shotx(std::int32_t sender, const Bytes& bytes);
+    void take_shot(const ShotEntry& shot);
+    void queue_shot(const ShotEntry& shot);
+    void send_queued_shots(std::uint64_t now);
     void fire_shots(Remote& r, std::uint64_t now, const GameStatus& status);
     void update_barrier(std::uint64_t now, const GameStatus& status);
     void send_level(std::uint64_t now, int level, bool scene);
@@ -709,9 +723,17 @@ private:
     std::uint16_t sequence_ = 0;
     std::uint32_t pose_loads_ = 0;
     bool pose_sent_ = false;
+    /* What goes out in the next SHOTX, when each was queued. */
+    struct QueuedShot {
+        ShotEntry entry;
+        std::uint64_t queued_ms = 0;
+    };
+    std::deque<QueuedShot> shots_out_;
+    std::uint64_t shots_sent_ms_ = 0;
     /* The shots sent and the remote players' shots fired, for the log and the tests. */
     std::uint64_t shots_sent_ = 0;
     std::uint64_t shots_fired_ = 0;
+    std::uint64_t shots_late_ = 0;
     Pose last_pose_;
     /* The level loads the figures were made in. */
     std::uint32_t figure_loads_ = 0;

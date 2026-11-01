@@ -18,6 +18,11 @@
  *   for a loose piece its position 3 x f32 and rotation 3 x f32
  * (13 bytes a piece, 37 a loose one).
  *
+ * A SHOTX (coop.hpp's kinds; state: it may be lost, and comes late only to be dropped): kind u8
+ * (48), count u8, then for each shot owner i32, level i8, item u8, flags u8, what follows u8 (bits:
+ * velocity, aim, velocity2, aux, target), stamp u32, position 3 x f32, and what follows of velocity
+ * 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16.
+ *
  * A SHOT (coop.hpp's kinds; reliable): kind u8 (19), owner i32, level i8, item i16, position
  * 3 x f32, velocity 3 x f32, aim 4 x f32: 48 bytes. The figure fires it as far behind as its poses
  * are played.
@@ -127,12 +132,23 @@ Bytes encode_pose(const PoseMessage& message);
 /* False for bytes that are not a whole POSE. */
 bool decode_pose(const Bytes& bytes, PoseMessage& out);
 
-/* A shot a Ratchet fired (the SDK's openrac_shot), and the SHOT message: whose, in which level. */
+/* A shot a Ratchet fired (the SDK's openrac_shot2), and the SHOT message: whose, in which level.
+ * A weapon that is no single shot is a track: the flags say where in it this one is, aux[0] which
+ * of the player's tracks. */
+constexpr std::uint32_t kShotStart = 0x1;
+constexpr std::uint32_t kShotMove = 0x2;
+constexpr std::uint32_t kShotStop = 0x4;
+constexpr std::uint32_t kShotBurst = 0x8;
+
 struct Shot {
     std::int32_t item = 0;
     float position[3] = {0, 0, 0};
     float velocity[3] = {0, 0, 0};
     float aim[4] = {0, 0, 0, 0};
+    std::uint32_t flags = 0;
+    std::int32_t target_key = -1;
+    float velocity2[3] = {0, 0, 0};
+    float aux[4] = {0, 0, 0, 0};
 };
 
 struct ShotMessage {
@@ -147,6 +163,26 @@ constexpr std::size_t kShotBytes = 48;
 Bytes encode_shot(const ShotMessage& message);
 /* False for bytes that are not a whole SHOT. */
 bool decode_shot(const Bytes& bytes, ShotMessage& out);
+
+/* One shot of a SHOTX: whose, in which level, when (the low 32 bits of the stamp a pose has). */
+struct ShotEntry {
+    std::int32_t owner = 0;
+    std::int32_t level = -1;
+    std::uint32_t stamp = 0;
+    Shot shot;
+};
+
+constexpr std::uint8_t kShotXKind = kind::kShotX;
+/* The most shots a SHOTX holds: well within a datagram, at the most each can be. */
+constexpr std::size_t kShotXMax = 12;
+
+Bytes encode_shotx(const std::vector<ShotEntry>& shots);
+/* False for bytes that are not a whole SHOTX. */
+bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out);
+
+/* Whether a queued shot replaces `older`: the newer MOVE of the same track, so a queue held back
+ * by the rates sends where a track is now, not everywhere it has been. */
+bool shot_replaces(const ShotEntry& newer, const ShotEntry& older);
 
 /* Whether sequence `a` is newer than `b`, 16 bits wrapping (serial arithmetic). */
 bool sequence_newer(std::uint16_t a, std::uint16_t b);

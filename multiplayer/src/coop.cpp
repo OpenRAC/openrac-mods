@@ -180,6 +180,11 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
         return;
     }
 
+    if (kind == GameKind::kShotX) {
+        on_shotx(sender, bytes);
+        return;
+    }
+
     Reader r(bytes.data() + 1, bytes.size() - 1);
     const bool from_host = sender == session_.host() && !session_.is_host();
 

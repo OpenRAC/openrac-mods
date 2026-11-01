@@ -537,11 +537,124 @@ void a_long_pause_keeps_the_figure() {
     CHECK(std::find(host_log.begin(), host_log.end(), "player 2 no longer shown: out of the party")
           != host_log.end());
 }
+// Everything a shot says reaches the figure, stamped as the shooter stamped it; what comes too late
+// is dropped, but a track's end; a held trigger stays within the state's rates.
+void shot_party(Player& host, Player& member) {
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
+    for (int i = 0; i < 40; ++i) {
+        host.game.hero_pose.position[0] = member.game.hero_pose.position[0] = static_cast<float>(i);
+        tick({&host, &member}, 50);
+    }
+}
+
+void a_shot_says_all_it_has() {
+    Player host(1), member(2);
+    shot_party(host, member);
+    CHECK(host.game.figures.size() == 1);
+
+    mp::Shot shot;
+    shot.item = 0x0B;
+    shot.flags = mp::kShotStart;
+    shot.position[2] = 3.0f;
+    shot.velocity[1] = 4.0f;
+    shot.velocity2[0] = 5.0f;
+    shot.aim[3] = 6.0f;
+    shot.aux[0] = 7.0f;
+    shot.target_key = 412;
+    member.game.shots_out.push_back(shot);
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(host.game.shots_in.size() == 1);
+    const mp::Shot& got = host.game.shots_in[0].second;
+    CHECK(got.item == 0x0B && got.flags == mp::kShotStart && got.position[2] == 3.0f);
+    CHECK(got.velocity[1] == 4.0f && got.velocity2[0] == 5.0f && got.aim[3] == 6.0f);
+    CHECK(got.aux[0] == 7.0f && got.target_key == 412);
+    // None of it travels the reliable way.
+    CHECK(member.session.counts().state_out[mp::kShotXKind].messages == 1);
+}
+
+void a_late_shot_is_dropped() {
+    Player host(1), member(2);
+    shot_party(host, member);
+    mp::Message time;
+    time.kind = mp::Message::Kind::kTime;
+    time.client_ms = host.clock;
+    time.server_ms = host.clock;
+    host.session.handle(time);
+    CHECK(host.session.has_clock());
+
+    const auto stamp = static_cast<std::uint32_t>(host.session.server_ms());
+    const auto arrives = [&](std::uint32_t at, std::uint32_t flags) {
+        mp::ShotEntry e;
+        e.owner = 2;
+        e.level = 0;
+        e.stamp = at;
+        e.shot.item = 0x0F;
+        e.shot.flags = flags;
+        host.coop.handle(2, mp::encode_shotx({e}));
+        tick({&host, &member}, 16);
+    };
+
+    // Just stamped: fired.
+    arrives(stamp, 0);
+    for (int i = 0; i < 40 && host.game.shots_in.empty(); ++i) {
+        tick({&host, &member}, 16);
+    }
+    CHECK(host.game.shots_in.size() == 1 && host.coop.shots_late() == 0);
+
+    // Five seconds old: not fired.
+    const std::size_t fired = host.game.shots_in.size();
+    arrives(static_cast<std::uint32_t>(host.session.server_ms()) - 5000u, 0);
+    CHECK(host.game.shots_in.size() == fired && host.coop.shots_late() == 1);
+
+    // The end of a track as old is fired all the same: nothing else would end it soon.
+    arrives(static_cast<std::uint32_t>(host.session.server_ms()) - 5000u, mp::kShotStop);
+    CHECK(host.game.shots_in.size() == fired + 1 && host.coop.shots_late() == 1);
+}
+
+void a_held_trigger_stays_within_the_rates() {
+    Player host(1), member(2);
+    shot_party(host, member);
+    mp::Shot flame;
+    flame.item = 0x10;
+    flame.flags = mp::kShotMove;
+    flame.aux[0] = 0.0f;
+
+    const std::uint64_t host_sent = host.session.counts().state_out[mp::kShotXKind].messages;
+    const std::uint64_t member_sent = member.session.counts().state_out[mp::kShotXKind].messages;
+
+    // Four seconds of both players firing every tick, at 60 a second.
+    for (int i = 0; i < 240; ++i) {
+        host.game.shots_out.push_back(flame);
+        member.game.shots_out.push_back(flame);
+        tick({&host, &member}, 16);
+    }
+
+    // A datagram each 100 ms from the host at most, each 50 ms from a member.
+    const std::uint64_t by_host = host.session.counts().state_out[mp::kShotXKind].messages - host_sent;
+    const std::uint64_t by_member = member.session.counts().state_out[mp::kShotXKind].messages - member_sent;
+    CHECK(by_host > 0 && by_host <= 40);
+    CHECK(by_member > 0 && by_member <= 80);
+    // Nothing queues up behind: each track's MOVE gave way to its next.
+    CHECK(host.session.counts().state_held < 50);
+}
+
 }  // namespace
 
 void run_party_tests() {
     a_long_pause_keeps_the_figure();
     held_items_and_shots_reach_the_figure();
+    a_shot_says_all_it_has();
+    a_late_shot_is_dropped();
+    a_held_trigger_stays_within_the_rates();
     figures_hide_in_a_scene();
     a_ship_travel_takes_the_party_along();
     the_party_arrives_together();

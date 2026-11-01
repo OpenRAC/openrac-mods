@@ -68,8 +68,8 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
    again.
 
 Each player sees the others' Ratchets holding what they hold: the wrench, the weapon or gadget,
-Clank on the back, with their swings and throws, and their Blaster shots and bombs (shown only:
-what they hit is told by the shooter's game).
+Clank on the back, with their swings and throws, and the shots of their weapons (shown only: what
+they hit is told by the shooter's game).
 
 The world is the host's:
 
@@ -302,7 +302,10 @@ the connection, which enough drops close. So nothing leaves the mod the server w
 lost; state goes by its own bucket (52 a second, a burst of 60), and one it refuses is not taken as
 sent. The state itself stays within that: the host's Ratchet and the members' go out together as one
 POSES datagram, 20 a second however many players there are, and each member's WORLD has its share of
-the 30 a second left (15 each for one or two members, 10 each for three). State as DATA, while UDP is
+the 30 a second left (15 each for one or two members, 10 each for three). Shots go as state too, one
+SHOTX of any number of them each 50 ms from a member and each 100 ms from the host, and only while
+someone fires: a held trigger's track is ten shots a second, and a queue held back keeps only each
+track's newest. While the party fires, the host's WORLD gives up the difference. State as DATA, while UDP is
 unconfirmed or blocked, takes only what events leave of the DATA bucket, so a blocked UDP slows the
 world and never closes the connection.
 
@@ -332,7 +335,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 16 DEAD | the host | level i8, records u16, a bit each | the placed mobys dead for the party in the host's level, for a member that said HELLO |
 | 17 BROKE | a member | level i8, key u16 | it broke a crate or took a pickup (not a bolt: CLAIM) |
 | 18 SKIP | the host, to all | origin i32, sequence u16, play i32, what u8 (0 a scene of the game's own, 1 the host's scene, 2 a movie), scene u16 (the host's scene by SCENE's sequence, else 0) | the host's Start pressed in a scene or a movie: each game skips that one only, while it plays (a member's SKIP, from an older mod, the host ignores); a skip of an earlier scene of the host's, of another play, or without these fields (an older mod) skips nothing |
-| 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot a player fired (the Blaster's, a bomb); a member's goes to the host, who passes it on. Its figure fires it as far behind as its poses play, hitting nothing in that game |
+| 19 SHOT | everyone | owner i32, level i8, item i16, position, velocity (3 x f32 each), aim 4 x f32 | a shot as interface 1.9 has it. No longer sent; still read |
 | 20 SCENE | the host, to all | play i32, level i32, scene i32, sequence u16, elapsed i32 (ms) | an in-level scene the host's game plays (the level's number of it; a new sequence each start), when it starts, once a second while it plays and when it ends (scene -1). A member in that level starts the same scene once it has control (the SDK's `play_scene`) |
 | 21 SCENE_STATE | a member to the host | play i32, sequence u16, state u8 (0 still to play, 1 playing, 2 out) | where a member is with the host's scene of that sequence, at each change and once a second; the host waits for those of its newest scene only |
 | 22 CLAIM | a member | level i8, id u16 (a placed bolt's key; 0x8000 \| a net id for one the host dropped) | its Ratchet collected that bolt (its game added nothing): the host's first claim of a bolt still there gets BOLTS and the bolt's end everywhere (DESPAWN or KILLED); any other, nothing |
@@ -344,6 +347,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 29 MODS | a member; the host to that member | multiplayer's version, OpenRAC's and the disc (strings), count u8, per mod id, name, version (strings), kind u8 (0 gameplay, 1 input, 2 cosmetic, 3 solo), settings u8, per setting key, name, value, shown (strings), kind u8 (0 shared, 1 own, 2 host), default u8 | a member's game and mods, every 2 seconds until the host's come back (a player's own mods without their settings) |
 | 30 FITS | the host, to all | count u8, per member id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string) | what the host found, at each change; one silent for 6 seconds is an older game |
 | 31 RULES | the host, to a member or all | count u8, per mod id (string), length u16 + its bytes, its words (string) | the rules of the host's mods, to a member found matching, on the stream ahead of PLAY, and to all at each change (a Chaos event) |
+| 48 SHOTX | everyone, as state | count u8, then per shot owner i32, level i8, item u8, flags u8, what follows u8, stamp u32 (the low bits of the server's clock), position 3 x f32, and what it has of velocity 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16 | shots a player fired; a member's go to the host, who passes them on. Each is fired when its figure is where the shooter was, hitting nothing in that game, or dropped when 250 ms late. A flag makes it part of a track (a flame, a beam, a Visibomb in flight): START, a MOVE ten times a second, STOP; aux[0] tells the player's tracks apart |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 | 66 BATCH | anyone | length u16 + a message, each | messages of the game for one target in one DATA, read as if each came alone |
@@ -391,14 +395,26 @@ that player. Mobys near the members run in the host's game as if near its camera
 - An enemy that keeps a pointer to the hero across ticks, grabs him or rides him may act on the
   host's hero instead of the player it went for; WORLD.md (in the plans) lists the classes tried.
 - A figure holds what its player holds (the wrench, the weapon or gadget, Clank and the packs,
-  the boots), each loaded when this game can have it beside its own hero's (two weapon classes fit
-  at once): while it cannot (two other players with two other weapons, or under a menu), the
-  figure holds the wrench, or nothing when even that cannot be had.
-- Of the shots, the Blaster's and the Bomb Glove's are shown; the other weapons' (the Pyrocitor's
-  flame, the Devastator's missiles, the Visibomb, the gloves of Doom and mines, the Decoy, the
-  Tesla Claw, the R.Y.N.O.) are not yet. A figure's Blaster shot flies on its heading without
-  homing on the shooter's target. A thrown wrench is shown where it is 20 times a second, not
-  smoothed.
+  the boots), each loaded when this game can have it beside its own hero's: one weapon class
+  besides the hero's fits at once, and the game has no memory for more. While it cannot be had
+  (two other players with two other weapons, or under a menu), the player nearest this game's
+  hero keeps it and the other holds the wrench, or nothing when even that cannot be had. Only the
+  weapon in the figure's hand is affected: its shots show all the same.
+- What each weapon shows, and what it leaves out:
+  - The Blaster, Bomb Glove, Devastator, R.Y.N.O., Glove of Doom, Mine Glove and Decoy Glove fire
+    through the game's own code, so they look and sound as they do for the shooter, their
+    effects included. A shot homes on what the shooter aimed at when that is one of the level's
+    placed mobys; on a spawned one it flies on its heading. Gold weapons are as this game's player
+    has them.
+  - The Pyrocitor's flame, the Tesla Claw's and Morph-O-Ray's beams and the Suck Cannon's pull are
+    drawn from the figure's hand as particles: no sound and no light; the flame goes through walls,
+    and the beams are sparks along a line, not the game's arcs.
+  - The Visibomb in flight and the drones are their models where the shooter's are, without their
+    sound.
+  - The Walloper's swing is the figure's hand; the Taunter shows only the figure's hand.
+- A shot that would come more than 250 ms late is dropped rather than shown late, so on a bad
+  link some are missing. A decoy a member throws draws the enemies through the host's copy; if it
+  is destroyed there the member's copy stays until it runs out.
 - A late joiner stands where the ship lands (or where its save's level starts), not beside the
   host.
 - Names are not drawn over the figures (the mod interface has no drawing over the game yet).

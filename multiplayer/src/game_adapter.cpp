@@ -77,6 +77,23 @@ bool ModGame::figure_pose(int id, const mp::Pose& pose) {
 std::vector<mp::Shot> ModGame::hero_shots() {
     std::vector<mp::Shot> out;
 
+    if (mod_.has_shots2()) {
+        for (const openrac_shot2& s : mod_.hero_shots2()) {
+            mp::Shot shot;
+            shot.item = s.item;
+            std::copy(s.position, s.position + 3, shot.position);
+            std::copy(s.velocity, s.velocity + 3, shot.velocity);
+            std::copy(s.aim, s.aim + 4, shot.aim);
+            shot.flags = s.flags;
+            shot.target_key = s.target_key;
+            std::copy(s.velocity2, s.velocity2 + 3, shot.velocity2);
+            std::copy(s.aux, s.aux + 4, shot.aux);
+            out.push_back(shot);
+        }
+
+        return out;
+    }
+
     for (const openrac_shot& s : mod_.hero_shots()) {
         mp::Shot shot;
         shot.item = s.item;
@@ -90,6 +107,20 @@ std::vector<mp::Shot> ModGame::hero_shots() {
 }
 
 bool ModGame::figure_shot(int id, const mp::Shot& shot) {
+    if (mod_.has_shots2()) {
+        openrac_shot2 s{};
+        s.size = sizeof s;
+        s.item = shot.item;
+        std::copy(shot.position, shot.position + 3, s.position);
+        std::copy(shot.velocity, shot.velocity + 3, s.velocity);
+        std::copy(shot.aim, shot.aim + 4, s.aim);
+        s.flags = shot.flags;
+        s.target_key = shot.target_key;
+        std::copy(shot.velocity2, shot.velocity2 + 3, s.velocity2);
+        std::copy(shot.aux, shot.aux + 4, s.aux);
+        return mod_.figure_shot2(id, s);
+    }
+
     openrac_shot s{};
     s.size = sizeof s;
     s.item = shot.item;

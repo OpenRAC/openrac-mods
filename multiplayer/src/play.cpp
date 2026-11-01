@@ -325,6 +325,142 @@ bool decode_shot(const Bytes& bytes, ShotMessage& out) {
     return r.ok();
 }
 
+namespace {
+
+constexpr std::uint8_t kHasVelocity = 0x1;
+constexpr std::uint8_t kHasAim = 0x2;
+constexpr std::uint8_t kHasVelocity2 = 0x4;
+constexpr std::uint8_t kHasAux = 0x8;
+constexpr std::uint8_t kHasTarget = 0x10;
+
+template <std::size_t N>
+bool any_set(const float (&values)[N]) {
+    return std::any_of(values, values + N, [](float f) { return f != 0.0f; });
+}
+
+template <std::size_t N>
+void write_floats(Writer& w, const float (&values)[N]) {
+    for (const float f : values) {
+        w.i32(static_cast<std::int32_t>(float_bits(f)));
+    }
+}
+
+template <std::size_t N>
+void read_floats(Reader& r, float (&values)[N]) {
+    for (float& f : values) {
+        f = bits_float(static_cast<std::uint32_t>(r.i32()));
+    }
+}
+
+}  // namespace
+
+Bytes encode_shotx(const std::vector<ShotEntry>& shots) {
+    Writer w;
+    const std::size_t count = std::min(shots.size(), kShotXMax);
+    w.u8(kShotXKind).u8(static_cast<std::uint8_t>(count));
+
+    for (std::size_t i = 0; i < count; ++i) {
+        const ShotEntry& e = shots[i];
+        const Shot& s = e.shot;
+        const std::uint8_t has =
+            static_cast<std::uint8_t>((any_set(s.velocity) ? kHasVelocity : 0) | (any_set(s.aim) ? kHasAim : 0)
+                                      | (any_set(s.velocity2) ? kHasVelocity2 : 0) | (any_set(s.aux) ? kHasAux : 0)
+                                      | (s.target_key >= 0 ? kHasTarget : 0));
+        w.i32(e.owner)
+            .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(e.level, -1, 127))))
+            .u8(static_cast<std::uint8_t>(std::clamp(s.item, 0, 255)))
+            .u8(static_cast<std::uint8_t>(s.flags))
+            .u8(has)
+            .i32(static_cast<std::int32_t>(e.stamp));
+        write_floats(w, s.position);
+
+        if ((has & kHasVelocity) != 0) {
+            write_floats(w, s.velocity);
+        }
+
+        if ((has & kHasAim) != 0) {
+            write_floats(w, s.aim);
+        }
+
+        if ((has & kHasVelocity2) != 0) {
+            write_floats(w, s.velocity2);
+        }
+
+        if ((has & kHasAux) != 0) {
+            write_floats(w, s.aux);
+        }
+
+        if ((has & kHasTarget) != 0) {
+            const std::int16_t key = clamp16(s.target_key);
+            w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(key) >> 8)).u8(static_cast<std::uint8_t>(key));
+        }
+    }
+
+    return w.bytes();
+}
+
+bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out) {
+    out.clear();
+
+    if (bytes.size() < 2 || bytes[0] != kShotXKind) {
+        return false;
+    }
+
+    Reader r(bytes.data() + 1, bytes.size() - 1);
+    const std::uint8_t count = r.u8();
+
+    if (count > kShotXMax) {
+        return false;
+    }
+
+    for (std::uint8_t i = 0; i < count; ++i) {
+        ShotEntry e;
+        Shot& s = e.shot;
+        e.owner = r.i32();
+        e.level = static_cast<std::int8_t>(r.u8());
+        s.item = r.u8();
+        s.flags = r.u8();
+        const std::uint8_t has = r.u8();
+        e.stamp = static_cast<std::uint32_t>(r.i32());
+        read_floats(r, s.position);
+
+        if ((has & kHasVelocity) != 0) {
+            read_floats(r, s.velocity);
+        }
+
+        if ((has & kHasAim) != 0) {
+            read_floats(r, s.aim);
+        }
+
+        if ((has & kHasVelocity2) != 0) {
+            read_floats(r, s.velocity2);
+        }
+
+        if ((has & kHasAux) != 0) {
+            read_floats(r, s.aux);
+        }
+
+        if ((has & kHasTarget) != 0) {
+            const std::uint8_t high = r.u8();
+            s.target_key = static_cast<std::int16_t>(high << 8 | r.u8());
+        }
+
+        if (!r.ok()) {
+            out.clear();
+            return false;
+        }
+
+        out.push_back(e);
+    }
+
+    return true;
+}
+
+bool shot_replaces(const ShotEntry& newer, const ShotEntry& older) {
+    return newer.owner == older.owner && (newer.shot.flags & kShotMove) != 0 && (older.shot.flags & kShotMove) != 0
+           && newer.shot.aux[0] == older.shot.aux[0];
+}
+
 bool sequence_newer(std::uint16_t a, std::uint16_t b) {
     const auto d = static_cast<std::uint16_t>(a - b);
     return d != 0 && d < 0x8000;
