@@ -46,8 +46,12 @@ void mod_lists_read_back_and_digest() {
     other.mods.erase(other.mods.begin() + 1);
     CHECK(mp::mods_digest(other) != mp::mods_digest(list));
     other = list;
-    other.disc = "ntsc";
+    other.family = "rac1-60-2";
     CHECK(mp::mods_digest(other) != mp::mods_digest(list));
+    // The disc alone is no difference: only the world it belongs to.
+    other = list;
+    other.disc = "ntsc";
+    CHECK(mp::mods_digest(other) == mp::mods_digest(list));
     other = list;
     other.openrac = "0.22.0";
     CHECK(mp::mods_digest(other) != mp::mods_digest(list));
@@ -119,7 +123,7 @@ void differences_say_how() {
 
     // The build; never a region's name.
     mine = host;
-    mine.disc = "ntsc";
+    mine.family = "another";
     mine.openrac = "0.20.0";
     mine.multiplayer = "0.8.0";
     d = mp::compare_mods(mine, host);

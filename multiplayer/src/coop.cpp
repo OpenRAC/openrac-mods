@@ -63,6 +63,13 @@ bool Coop::start() {
         return false;
     }
 
+    // A save nobody could load: said here, before anyone is told of a game.
+    if (!chosen_.empty() && !game_.save_usable(chosen_)) {
+        notice_ = kBadSaveHost;
+        log("refused the chosen save");
+        return false;
+    }
+
     // A game's id: any but 0 (none), new each time.
     play_ = static_cast<std::int32_t>((clock_() * 2654435761u) | 1u);
     const int level = chosen_.empty() ? 0 : -1;
@@ -424,7 +431,13 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
         if (status.phase == kPhaseFrontEnd) {
             pending_ = false;
 
-            if (game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
+            // The host's save is not trusted: one that does not pass is not loaded, and not asked
+            // for again.
+            if (pending_save_ && !game_.save_usable(save_)) {
+                notice_ = kBadSaveMember;
+                log("refused the host's save");
+                applied_ = pending_play_;
+            } else if (game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
                 applied_ = pending_play_;
                 start_ms_ = now;
                 joining_ = pending_joining_;

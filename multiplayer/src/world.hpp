@@ -76,6 +76,12 @@
  *   28 SYNCED  level i8, load u32 (HELLO's)                       the host to a member: all of
  *              the world came, ahead of this message on the reliable stream.
  *
+ * Levels that agree. WORLD names a placed moby by its record in the level's file, which holds for
+ * two games only if their records agree. Two discs of one world family do on all 19 levels today,
+ * measured; the sim digest (openrac_api.sim_digest) is what would catch a level that does not, at
+ * the moment it would start to go wrong: the member is given no world, and leaves the party with
+ * the words a different disc gets.
+ *
  * What a game's own load does. A level is made more often than it is loaded: each death of a hero
  * (the game's own respawn) runs the level's loader again in one frame, every moby back as the
  * level file has it, the spawned ones gone (status.loads changes, level does not). So the world
@@ -332,6 +338,13 @@ public:
 
     /* A member: whether the host gave it the world of the level as it stands. */
     bool synced() const { return synced_; }
+    /* The host's level does not agree with this game's (the sim digests): true once, and this game
+     * cannot share it. */
+    bool take_level_differs() {
+        const bool out = level_differs_;
+        level_differs_ = false;
+        return out;
+    }
 
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
@@ -456,6 +469,7 @@ private:
     std::set<int> level_own_;
     /* Member: whether the host gave it the world of this load, and when it last asked. */
     bool synced_ = false;
+    bool level_differs_ = false;
     std::uint64_t hello_ms_ = 0;
     bool placed_driven_ = false;
     /* Host: the spawned mobys it shares (by slot), the next net id, the members, the stand-in of the

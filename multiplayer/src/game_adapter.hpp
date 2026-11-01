@@ -33,6 +33,8 @@ public:
     mp::GameStatus status() override;
 
     bool start(int level, const mp::Bytes& save) override;
+    bool save_usable(const mp::Bytes& save) override;
+    std::uint32_t sim_digest(int level) override;
 
     bool travel(int level) override;
 

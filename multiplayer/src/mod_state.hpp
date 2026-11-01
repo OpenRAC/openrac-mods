@@ -130,6 +130,7 @@ struct State {
     std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame
     bool leaving = false;        // the player leaves the party (Leave, Stop hosting) this tick
     std::string leave_reason;    // why the party went, for Home when it next shows
+    bool left_differs = false;   // left because the host's level does not agree with this game's
 };
 
 extern std::unique_ptr<State> g;

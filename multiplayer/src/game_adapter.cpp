@@ -5,6 +5,7 @@
  */
 #include "game_adapter.hpp"
 #include "mod_state.hpp"
+#include "save_check.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -33,6 +34,18 @@ mp::GameStatus ModGame::status() {
     const openrac_play_status s = mod_.play_status();
     return {s.phase, s.level, s.loads, mod_.scene_playing()};
 }
+
+bool ModGame::save_usable(const mp::Bytes& save) {
+    const mp::SaveFault fault = mp::check_save(save);
+
+    if (fault != mp::SaveFault::kNone) {
+        mod_.warn(std::string("multiplayer: a save was refused: ") + mp::save_fault_name(fault));
+    }
+
+    return fault == mp::SaveFault::kNone;
+}
+
+std::uint32_t ModGame::sim_digest(int level) { return mod_.sim_digest(level); }
 
 bool ModGame::start(int level, const mp::Bytes& save) {
     return mod_.play_start(level, save) == OPENRAC_HOOK_OK;
@@ -296,6 +309,13 @@ mp::ModList ModGame::mod_list() {
     list.multiplayer = kModVersion;
     list.openrac = std::string(mod_.openrac_version());
     list.disc = std::string(mod_.version());
+    // A port that does not say: the disc itself, so that only the same disc plays together.
+    list.family = mod_.world_family();
+
+    if (list.family.empty()) {
+        list.family = list.disc;
+    }
+
 
     for (const openrac::ModEntry& e : mod_.mods()) {
         if (e.id == "multiplayer") {

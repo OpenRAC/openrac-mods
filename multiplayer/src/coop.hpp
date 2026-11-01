@@ -140,6 +140,10 @@ inline bool older_scene(std::uint16_t a, std::uint16_t b) {
 
 /* The most bytes of a save a CHUNK carries (a TCP frame takes 64 KiB; four make a save). */
 constexpr std::size_t kChunkBytes = 16000;
+/* What a player reads of a save that does not pass (save_check.hpp): the host choosing it, a member
+ * given it. */
+constexpr const char* kBadSaveHost = "That save can't be used: it may be damaged";
+constexpr const char* kBadSaveMember = "You can't join: the host's save can't be used";
 /* The largest save a member takes (Ratchet & Clank's are 59,912 bytes). */
 constexpr std::size_t kMaxSaveBytes = 1u << 17;
 /* How often a pose goes (ms: 20 a second), the host's LEVEL, a member's WANT, a travel tried
@@ -376,6 +380,14 @@ public:
     // --- end WP-DEATH ---
     // --- WP-LOBBY ---
     // --- end WP-LOBBY ---
+    // --- WP-CROSS ---
+    /* Whether a save can be given to the game: it may come from a host on another disc, and a host
+     * is not trusted with what the game would read (save_check.hpp). */
+    virtual bool save_usable(const Bytes& /*save*/) { return true; }
+    /* What must agree for two games to share `level` as loaded (the port's sim digest); 0 when it
+     * is not known. */
+    virtual std::uint32_t sim_digest(int /*level*/) { return 0; }
+    // --- end WP-CROSS ---
     // --- WP-CODES ---
     // --- end WP-CODES ---
     // --- WP-MIGRATE ---

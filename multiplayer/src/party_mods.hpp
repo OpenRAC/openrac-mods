@@ -10,7 +10,8 @@
  * Over DATA, the host's word first:
  *   29 MODS   multiplayer's version, OpenRAC's and the disc (3 strings), count u8, then per mod: id,
  *             name, version (strings), kind u8 (OPENRAC_PARTY_MOD_*), settings u8, per setting: key,
- *             name, value, shown (strings), kind u8 (OPENRAC_PARTY_SETTING_*), default u8
+ *             name, value, shown (strings), kind u8 (OPENRAC_PARTY_SETTING_*), default u8; then the
+ *             world family (string)
  *             a member to the host every kModsMs until the host's comes; the host's to that member;
  *   30 FITS   count u8, then id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string)
  *             the host to everyone, at each change;
@@ -18,6 +19,10 @@
  *             the host to one member it found matching, and to all whenever its mods publish new
  *             rules (a Chaos event). On the reliable stream ahead of PLAY: a member has them before
  *             it loads any level.
+ *
+ * Discs. Two discs of one world family (openrac_api.world_family) play together: the check, the
+ * digest and the build follow the family, and the disc is only said. A level that still does not
+ * agree is found as it loads (World, sim digest).
  *
  * The check. The host compares each member's MODS with its own (compare_mods) and tells everyone
  * (FITS); a member compares for itself too, for the words on its page. The host takes no Ready of a
@@ -65,6 +70,9 @@ constexpr std::uint64_t kModsMs = 2000;
 constexpr std::uint64_t kModsQuietMs = 6000;
 constexpr std::uint64_t kRulesPollMs = 200;
 
+/* What a player reads of a disc that cannot play with the host's. */
+constexpr const char* kDifferentDisc = "You have a different disc from the host";
+
 /* The widest line of a page of the title's menus and of the pause menu's Options pages. */
 constexpr std::size_t kTitleLine = 47;
 constexpr std::size_t kPauseLine = 36;
@@ -93,7 +101,8 @@ struct ModInfo {
 struct ModList {
     std::string multiplayer;
     std::string openrac;
-    std::string disc;
+    std::string disc;    // the player's own: for the logs, and never compared
+    std::string family;  // the world the disc belongs to: what is compared
     std::vector<ModInfo> mods;
 };
 
@@ -107,7 +116,7 @@ std::uint32_t mods_digest(const ModList& list);
 /* One way a player's game differs from the host's. */
 struct Difference {
     enum class Kind {
-        kDisc,         // another disc
+        kDisc,         // another world family (or a level that does not agree): "a different disc"
         kOpenRac,      // another OpenRAC: mine, theirs
         kMultiplayer,  // another Multiplayer: mine, theirs
         kHostOnly,     // the host has `mod`, the player has not

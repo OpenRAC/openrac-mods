@@ -150,7 +150,9 @@ void poll() {
     std::string notice = g->session->take_notice();
 
     if (was_in && !g->session->in_party()) {
-        g->leave_reason = mp::leave_reason(g->leaving, !connected, direct, notice);
+        g->leave_reason = g->left_differs ? mp::kDifferentDisc
+                                          : mp::leave_reason(g->leaving, !connected, direct, notice);
+        g->left_differs = false;
     } else if (g->session->in_party()) {
         g->leave_reason.clear();
     }
@@ -248,10 +250,11 @@ void load(openrac::Mod& mod) {
 #ifdef MULTIPLAYER_BOT
     g->bot = std::make_unique<mp::Bot>(mp::Bot::Parts{
         *g->connection, *g->session, *g->game, *g->coop, *g->world, *g->mods, [](const float* at) {
-            // The hero's motion position (PAL; the bot is a test's).
+            // The hero's motion position (the bot is a test's).
             openrac::Memory memory = g->mod->memory();
+            const openrac::gaddr hero = g->mod->version() == "ntsc" ? 0x0013F3D0u : 0x0013F4D0u;
             for (unsigned i = 0; i < 3; ++i) {
-                memory.write<float>(0x0013F4D0u + 4u * i, at[i]);
+                memory.write<float>(hero + 4u * i, at[i]);
             }
         }, [](int item) {
             // weapon_ammo_counts and hero.pending_item[0] (PAL; the bot is a test's).
@@ -273,13 +276,14 @@ void load(openrac::Mod& mod) {
             lines.insert(lines.end(), c.footer.begin(), c.footer.end());
             return lines;
         }, [](const std::string& text) {
-            // How wide the game's list font draws it (PAL's glyph table; the bot is a test's): the
-            // sum of each character's width, byte 3 of its 4-byte entry, as the port's menu_fit.
+            // How wide the game's list font draws it (each disc's glyph table; the bot is a test's):
+            // the sum of each character's width, byte 3 of its 4-byte entry, as the port's menu_fit.
             const openrac::Memory memory = g->mod->memory();
+            const openrac::gaddr glyphs = g->mod->version() == "ntsc" ? 0x001DF3F0u : 0x001DF770u;
             int width = 0;
 
             for (const char ch : text) {
-                width += memory.read<std::int8_t>(0x001DF770u + 4u * static_cast<std::uint8_t>(ch) + 3u);
+                width += memory.read<std::int8_t>(glyphs + 4u * static_cast<std::uint8_t>(ch) + 3u);
             }
 
             return width;
@@ -436,7 +440,7 @@ void load(openrac::Mod& mod) {
             char digest[16];
             std::snprintf(digest, sizeof digest, "%08x", static_cast<unsigned>(mp::mods_digest(own)));
             g->coop->set_build(
-                std::string(kVersion) + " " + own.openrac + " " + own.disc + " " + digest
+                std::string(kVersion) + " " + own.openrac + " " + own.family + " " + digest
             );
             g->mods->set_own(std::move(own));
         }
@@ -448,6 +452,12 @@ void load(openrac::Mod& mod) {
         const std::uint64_t now = mp::now_ms();
         g->frame_ms = now;
         g->mods->tick(now);
+
+        // A level that does not agree with the host's cannot be shared: out of the party, and why.
+        if (g->world->take_level_differs()) {
+            g->left_differs = true;
+            leave_party();
+        }
 
         if (!g->session->in_party()) {
             g->told_refused = false;

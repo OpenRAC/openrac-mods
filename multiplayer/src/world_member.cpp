@@ -45,6 +45,7 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
         Writer w;
         w.u8(static_cast<std::uint8_t>(WorldKind::kHello)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
         w.i32(static_cast<std::int32_t>(loads_));
+        w.i32(static_cast<std::int32_t>(game_.sim_digest(level_)));
         session_.send_data(session_.host(), w.bytes());
         trace_line("msg", "sent HELLO level " + std::to_string(level_) + " load " + std::to_string(loads_));
     }

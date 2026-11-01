@@ -110,6 +110,17 @@ struct FakeGame : mp::Game {
     };
     std::vector<Delivery> delivered;
 
+    /* A save refused (save_check.hpp); the level's sim digest, per level. */
+    bool saves_usable = true;
+    std::map<int, std::uint32_t> digests;
+
+    bool save_usable(const Bytes&) override { return saves_usable; }
+
+    std::uint32_t sim_digest(int level) override {
+        const auto it = digests.find(level);
+        return it != digests.end() ? it->second : 0;
+    }
+
     std::vector<mp::PartyRules> party_rules() override { return published; }
 
     bool deliver_rules(const std::string& id, const Bytes& data) override {
@@ -530,6 +541,7 @@ inline mp::ModList sample_list() {
     list.multiplayer = "0.9.0";
     list.openrac = "0.21.0";
     list.disc = "pal";
+    list.family = "rac1-60-1";
     list.mods.push_back(difficulty_mod());
     list.mods.push_back({"item-randomizer", "Item Randomizer", "1.1.0", mp::kModGameplay, {}});
     list.mods.push_back({"keyboard-mouse", "Keyboard and Mouse", "1.2.5", mp::kModInput, {{"walk_speed", "Walk speed", "1", "1", 0, true}}});
@@ -1112,5 +1124,7 @@ void run_bolts_tests();
 void run_scenes_tests();
 void run_party_tests();
 void run_sim_tests();
+void run_save_tests();
+void run_cross_tests();
 
 }  // namespace mpt

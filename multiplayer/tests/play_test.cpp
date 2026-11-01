@@ -33,6 +33,8 @@ int main() {
     mpt::run_scenes_tests();
     mpt::run_party_tests();
     mpt::run_sim_tests();
+    mpt::run_save_tests();
+    mpt::run_cross_tests();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

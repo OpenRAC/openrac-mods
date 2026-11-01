@@ -64,10 +64,25 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
     if (kind == WorldKind::kHello) {
         const int level = static_cast<std::int8_t>(r.u8());
         const auto load = static_cast<std::uint32_t>(r.i32());
+        const auto digest = static_cast<std::uint32_t>(r.left() >= 4 ? r.i32() : 0);
         trace_line("msg", "received HELLO from " + std::to_string(sender) + " level " + std::to_string(level) + " load "
                               + std::to_string(load));
 
         if (r.ok() && hosting_ && level == level_) {
+            // A level that does not agree with the member's gets no world: told, and it leaves.
+            const std::uint32_t own = game_.sim_digest(level_);
+
+            if (own != 0 && digest != 0 && own != digest) {
+                log("player " + std::to_string(sender) + "'s level " + std::to_string(level)
+                    + " does not agree with this game's: refused");
+                members_.erase(sender);
+                Writer w;
+                w.u8(static_cast<std::uint8_t>(WorldKind::kReset)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level)));
+                w.u8(1);
+                session_.send_data(sender, w.bytes());
+                return;
+            }
+
             Member& m = members_[sender];
             m.want = true;
             m.load = load;
@@ -361,8 +376,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         }
         case WorldKind::kReset: {
             const int level = static_cast<std::int8_t>(r.u8());
+            const bool differs = r.left() > 0 && r.u8() != 0;
 
-            if (r.ok() && level == level_) {
+            if (r.ok() && level == level_ && differs) {
+                log("the host's level " + std::to_string(level) + " does not agree with this game's: leaving");
+                level_differs_ = true;
+            } else if (r.ok() && level == level_) {
                 log("the host's level was made again: asking for its world");
                 drop_spawned();
                 synced_ = false;

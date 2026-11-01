@@ -80,6 +80,7 @@ Bytes encode_mod_list(const ModList& list) {
         }
     }
 
+    w.str(list.family);
     return w.bytes();
 }
 
@@ -112,6 +113,7 @@ bool decode_mod_list(Reader& r, ModList& out) {
         out.mods.push_back(std::move(m));
     }
 
+    out.family = r.left() > 0 ? r.str() : out.disc;
     return r.ok();
 }
 
@@ -146,7 +148,7 @@ std::uint32_t mods_digest(const ModList& list) {
     std::uint32_t hash = 2166136261u;
     mix(hash, list.multiplayer);
     mix(hash, list.openrac);
-    mix(hash, list.disc);
+    mix(hash, list.family);
 
     for (const std::string& part : parts) {
         mix(hash, part);
@@ -185,9 +187,9 @@ std::vector<Difference> compare_mods(const ModList& own, const ModList& host) {
             out.push_back(std::move(d));
         };
 
-    // The disc first: with another disc nothing else below matters to the player.
-    if (own.disc != host.disc) {
-        add(Kind::kDisc, "", own.disc, host.disc);
+    // The disc first: with a disc of another world nothing else below matters to the player.
+    if (own.family != host.family) {
+        add(Kind::kDisc, "", own.family, host.family);
     }
 
     if (own.openrac != host.openrac) {
@@ -321,7 +323,7 @@ std::vector<std::string> refusal_lines(
     for (const Difference& d : differences) {
         switch (d.kind) {
             case Kind::kDisc:
-                add("You have a different disc from the host");
+                add(kDifferentDisc);
                 break;
             case Kind::kOpenRac:
                 add("OpenRAC: the host has " + d.theirs + ", you have " + d.mine);
@@ -438,6 +440,11 @@ std::vector<std::string> rules_lines(
 
     if (out.empty()) {
         add(wrap_text("No gameplay mods: the game as it is", width));
+    }
+
+    // Two discs of one world: the levels are the same, the enemies play by the host's.
+    if (host.disc != own.disc) {
+        add(wrap_text("Enemies follow the host's game", width));
     }
 
     // What stays the player's: its input and look mods, the settings its gameplay mods call its own.
