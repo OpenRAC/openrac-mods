@@ -149,11 +149,8 @@ again for a few ticks, over the banner the game's own code shows next for the it
 | `Moby_Class22_Update`, `Ship_InitTransition` | `rac1.moby.moby22.update`, `rac1.ship.init_transition` | Orxon starts Clank's part only without the O2 Mask: these two see none until it is done |
 | `Help_Request` | `rac1.help.request` | a tutorial of the item the game thinks it gave is left out when it gave another |
 
-`Help_Request` and `Ship_InitTransition` need an OpenRAC of interface 1.12; an older one still runs
-the mod, as its log says. And once a tick (`on_frame`), any location the game marked had another way
-(a gold bolt picked up; the O2 Mask's second route, which writes the bytes itself) gets its reward
-then, unless it is yours already. A gold bolt's autosave is written in the update that picks it up,
-before that check; so each level's start gives any place had its reward, quietly.
+`Help_Request` and `Ship_InitTransition` need an OpenRAC of interface 1.12; an older one refuses to
+load the mod and says which hook point it lacks.
 
 **The fill.** The rewards that open the way (the gadgets some place needs, and the planets'
 coordinates) are placed first, one by one in a random order: the game is played through as if you

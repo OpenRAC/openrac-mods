@@ -10,7 +10,7 @@
  * rac1.moby.quest_giver.update, rac1.moby.guide.update, rac1.moby.moby90.update,
  * rac1.moby.edwina.update, rac1.moby.moby22.update, rac1.moby.moby914.update), named here by their
  * Moby_<Class>_Update aliases. Help_Request and Ship_InitTransition came with OpenRAC's interface
- * 1.12: an OpenRAC without them still runs the mod, as the load's log says. An SDK header that has
+ * 1.12: an OpenRAC without them refuses the mod's load, as for any hook point. An SDK header that has
  * one wins: each is defined here only when the SDK's did not.
  */
 #ifndef ITEM_RANDOMIZER_HOOKS_H

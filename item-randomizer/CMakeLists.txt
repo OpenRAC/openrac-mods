@@ -38,7 +38,7 @@ if(BUILD_TESTING)
   add_test(NAME item_randomizer_table COMMAND item_randomizer_table_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/discs.tsv)
 
   # Many seeds of every setting, each checked beatable: tests/solver_test.c with a count and a
-  # first seed (tools/sweep.sh runs it across machines).
+  # first seed.
   add_test(NAME item_randomizer_solver_sweep COMMAND item_randomizer_solver_test 5000 1000)
 
   # The library as the port loads it, against a host table and game memory of the test's own.

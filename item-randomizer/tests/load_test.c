@@ -98,6 +98,7 @@ static struct {
 } s_hooks[32];
 
 static int s_hook_count;
+static const char* s_refused_hook; /* the hook point this "OpenRAC" lacks; NULL for none */
 static openrac_frame_fn s_frame;
 
 /* ---- the game's functions, as the test plays them ---- */
@@ -425,6 +426,12 @@ static int host_hook(
     openrac_mod* mod, const char* name, const char* signature, void* replacement, void** original
 ) {
     (void)mod;
+
+    // An older OpenRAC: no such hook point.
+    if (s_refused_hook != NULL && strcmp(name, s_refused_hook) == 0) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
     CHECK(s_hook_count < 32);
     s_hooks[s_hook_count].name = name;
     s_hooks[s_hook_count].signature = signature;
@@ -732,8 +739,8 @@ int main(int argc, char** argv) {
     memset(&info, 0, sizeof info);
     info.size = sizeof info;
     query(&info);
-    /* The interface its manifest names (1.11), whatever the SDK it was built with. */
-    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 11);
+    /* The interface its manifest names (1.12), whatever the SDK it was built with. */
+    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
     CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.0.0") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
@@ -758,6 +765,16 @@ int main(int argc, char** argv) {
     s_failed[0] = 0;
     CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 18 && s_frame != NULL);
     s_hook_count = 0;
+
+    /* An OpenRAC older than a hook point: the load fails and says which. */
+    for (int i = 0; i < 2; ++i) {
+        s_refused_hook = i == 0 ? "Help_Request" : "Ship_InitTransition";
+        CHECK(load(&api, mod) != 0 && strstr(s_failed, s_refused_hook) != NULL);
+        s_refused_hook = NULL;
+        s_failed[0] = 0;
+        s_hook_count = 0;
+    }
+
     D = &k_rando_discs[0];
     api = make_api("rac1", "pal");
     CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 18);

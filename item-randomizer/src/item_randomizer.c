@@ -1295,34 +1295,9 @@ static int install_hooks(void) {
            && HOOK(Moby_Class23_Update, o2_pickup_update, &s_o2_pickup_update)
            && HOOK(Moby_Class22_Update, orxon_start_update, &s_orxon_start_update)
            && HOOK(Ammo_ChooseDrop, choose_drop, &s_choose_drop)
-           && HOOK(Vendor_MenuUpdate, vendor_menu_update, &s_vendor_menu_update);
-}
-
-/* Takes what a port of interface 1.12 has: without them the mod still runs, with a tutorial now and
- * then for what was not given, and with Clank's part of Orxon passed over when the O2 Mask came
- * first. */
-static void install_late_hooks(void) {
-    const int help = s_api->hook(
-        s_mod,
-        OPENRAC_RAC1_HOOK_Help_Request,
-        OPENRAC_RAC1_SIG_Help_Request,
-        (void*)help_request,
-        (void**)&s_help_request
-    );
-    const int ship = s_api->hook(
-        s_mod,
-        OPENRAC_RAC1_HOOK_Ship_InitTransition,
-        OPENRAC_RAC1_SIG_Ship_InitTransition,
-        (void*)ship_transition,
-        (void**)&s_ship_transition
-    );
-
-    // Said once, in the log a report comes with.
-    if (help != OPENRAC_HOOK_OK || ship != OPENRAC_HOOK_OK) {
-        log_line(
-            OPENRAC_LOG_WARN, "this OpenRAC is older than the mod: update it for Orxon's order"
-        );
-    }
+           && HOOK(Vendor_MenuUpdate, vendor_menu_update, &s_vendor_menu_update)
+           && HOOK(Help_Request, help_request, &s_help_request)
+           && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition);
 }
 
 /* Whether the text looks meant as a seed code: twelve letters and digits, hyphens and spaces
@@ -1613,7 +1588,6 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
             return 1;
         }
 
-        install_late_hooks();
         api->on_frame(mod, each_tick, NULL);
     }
 
