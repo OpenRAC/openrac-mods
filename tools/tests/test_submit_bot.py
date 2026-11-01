@@ -112,7 +112,7 @@ class Forms(unittest.TestCase):
             pairs = re.findall(r"^    id: (\S+)\n    attributes:\n      label: (.+)$", text, re.M)
             self.assertEqual({label: fid for fid, label in pairs}, bot.FORMS[form], name)
         ids = re.findall(r"^    id: (\S+)$", (ROOT / ".github/ISSUE_TEMPLATE/submit-mod.yml").read_text(), re.M)
-        self.assertEqual(ids, ["kind", "repo", "mods", "name", "description", "tags", "impact", "bugs", "discord",
+        self.assertEqual(ids, ["kind", "repo", "mods", "name", "description", "tags", "impact", "ai", "bugs", "discord",
                                "docs", "video", "screenshots", "rules"])
         self.assertIn("info@openrac.dev", (ROOT / ".github/ISSUE_TEMPLATE/report-mod.yml").read_text())
 
@@ -126,7 +126,7 @@ class Submit(Base):
         (self.fx.repo / "index" / "ext-hud.json").unlink()
         self.fx.edit("lock-strafe/listing.json", lambda d: d.update(suggests=[]))
         self.fields = {"kind": "Mod", "repo": EXT, "mods": "ext-hud", "description": "A HUD.",
-                       "tags": "ui", "impact": "cosmetic", "video": "https://youtu.be/dQw4w9WgXcQ",
+                       "tags": "ui", "impact": "cosmetic", "ai": "No", "video": "https://youtu.be/dQw4w9WgXcQ",
                        "screenshots": f"![s]({SHOT}) | The HUD", "rules": True}
 
     def test_external_mod(self):
@@ -142,6 +142,17 @@ class Submit(Base):
         self.assertTrue((self.out / "files" / shot["src"]).is_file())
         self.assertEqual(r["branch"], "listing/ext-hud")
         self.assertEqual(r["media"][0]["size"], "640x360")
+
+    def test_mod_must_answer_ai_assistance(self):
+        r = self.check(event({**self.fields, "ai": ""}))
+        self.assertFalse(r["ok"])
+        self.assertIn("AI assistance is answered", self.failed(r))
+
+    def test_ai_answer_is_written_per_mod(self):
+        for answer, value in (("Yes", True), ("No", False)):
+            self.check(event({**self.fields, "ai": answer}))
+            entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
+            self.assertIs(entry["aiAssisted"], value)
 
     def test_unchanged_listing_only_comments(self):
         first = self.check(event(self.fields))
@@ -333,6 +344,15 @@ class OtherForms(Base):
         entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
         self.assertEqual(entry["tags"], ["ui", "tools"])
         self.assertEqual(entry["impact"], ["cosmetic"])  # kept
+
+    def test_update_keeps_ai_answer_when_left_empty(self):
+        self.fx.edit("index/ext-hud.json", lambda d: d.update(aiAssisted=True))
+        self.check(event({"mod": "ext-hud", "tags": "ui"}, form="listing-update"))
+        entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
+        self.assertIs(entry["aiAssisted"], True)
+        self.check(event({"mod": "ext-hud", "ai": "No"}, form="listing-update"))
+        entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
+        self.assertIs(entry["aiAssisted"], False)
 
     def test_update_refused_for_stranger(self):
         r = self.check(event({"mod": "ext-hud", "tags": "ui"}, user="stranger", form="listing-update"))

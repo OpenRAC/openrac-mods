@@ -51,6 +51,14 @@ body:
     attributes:
       label: Impact
       description: "Comma-separated, from: cosmetic, gameplay, speedrun-safe, touches-saves, online."
+  - type: dropdown
+    id: ai
+    attributes:
+      label: AI assistance
+      description: "Did AI tools help make this mod? Shown on its page. Required for a mod, not needed for a modpack."
+      options:
+        - "Yes"
+        - "No"
   - type: input
     id: bugs
     attributes:

@@ -208,9 +208,17 @@ class Builder(unittest.TestCase):
         _, errors, _ = self.fx.build(check=True)
         self.assertTrue(any("named renamed.json" in e for e in errors), errors)
 
+    def test_ai_assisted_is_per_mod_and_absent_until_stated(self):
+        self.fx.edit("button-swap/listing.json", lambda d: d.update(aiAssisted=True))
+        index, errors, _ = self.fx.build()
+        self.assertEqual(errors, [])
+        self.assertIs(mod(index, "button-swap")["aiAssisted"], True)
+        self.assertNotIn("aiAssisted", mod(index, "lock-strafe"))  # same repository, not stated
+
     def test_bad_ids_and_lists_refused(self):
         for change, needle in ((lambda d: d.update(tags=["gameplay", "bogus"]), "tags"),
                                (lambda d: d.update(impact=["safe"]), "impact"),
+                               (lambda d: d.update(aiAssisted="yes"), "aiAssisted"),
                                (lambda d: d.update(links={"web": "https://x"}), "links"),
                                (lambda d: d.update(recommends=["Bad_Id"]), "valid id"),
                                (lambda d: d.update(media={"icon": "../../etc/passwd"}), "inside"),

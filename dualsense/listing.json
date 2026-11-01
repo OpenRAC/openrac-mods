@@ -6,6 +6,7 @@
   "impact": [
     "cosmetic"
   ],
+  "aiAssisted": true,
   "links": {
     "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
   },

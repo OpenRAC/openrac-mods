@@ -7,6 +7,7 @@
   "impact": [
     "speedrun-safe"
   ],
+  "aiAssisted": true,
   "links": {
     "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
   },

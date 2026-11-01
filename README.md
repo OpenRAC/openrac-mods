@@ -143,7 +143,9 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
 
 - **A mod in this repository** is listed by itself from its releases. An
   optional `<folder>/listing.json` adds a short description, tags, impact,
-  links, mods it recommends or suggests, and media (`icon`, `banner`,
+  `aiAssisted` (`true` or `false`: whether AI tools helped make it, stated mod
+  by mod and shown on its page), links, mods it recommends or suggests, and
+  media (`icon`, `banner`,
   `screenshots: [{src, caption}]`, `videos: [{youtube, caption}]`, paths inside
   the folder; videos are YouTube links only).
 - **A mod in your own repository** is a pull request adding
