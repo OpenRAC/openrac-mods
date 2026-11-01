@@ -36,6 +36,8 @@ bool World::gate(int slot, int phase) {
     if (phase != 0) {
         // The bolts a member's stand-in collected are that member's.
         if (standing_ != 0) {
+            after_stand_in(slot, standing_);
+
             const int delta = game_.bolts(0) - bolts_before_;
 
             if (delta > 0) {
@@ -44,6 +46,8 @@ bool World::gate(int slot, int phase) {
             }
 
             standing_ = 0;
+        } else {
+            after_update(slot);
         }
 
         return false;
@@ -61,7 +65,7 @@ bool World::gate(int slot, int phase) {
     Pose at;
     const std::int32_t target = pick_target(slot, it->second, at);
 
-    if (target > 0 && game_.stand_in(at.position, coop_.figure_of(target))) {
+    if (target > 0 && stand_for(it->second, target, at)) {
         standing_ = target;
         bolts_before_ = game_.bolts(0);
     }
@@ -70,12 +74,24 @@ bool World::gate(int slot, int phase) {
 }
 
 std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
-    // The nearest player to it who can be fought: the host, or a member in this level.
+    // A grab holds its victim, however long and however near the others stand.
+    if (const auto held = holds_.find(slot); held != holds_.end()) {
+        if (held->second.player == 0) {
+            return 0;
+        }
+
+        return coop_.latest(held->second.player, at) ? held->second.player : -1;
+    }
+
+    const GrabClass* grab = grab_class(moby.oclass);
+
+    // The nearest player to it who can be fought: the host, or a member in this level. One in another
+    // enemy's grip is no prey for a second.
     Pose hero;
     float best = 1e30f;
     std::int32_t nearest = -1;
 
-    if (game_.hero(hero) && hero.health > 0) {
+    if (game_.hero(hero) && hero.health > 0 && (grab == nullptr || !held_elsewhere(0, slot))) {
         best = distance2(hero.position, moby.pose.position);
         nearest = 0;
     }
@@ -88,7 +104,8 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
     for (const auto& [id, member] : members_) {
         Pose p;
 
-        if (member.level == level_ && coop_.latest(id, p) && p.health > 0) {
+        if (member.level == level_ && coop_.latest(id, p) && p.health > 0
+            && (grab == nullptr || !held_elsewhere(id, slot))) {
             const float d2 = distance2(p.position, moby.pose.position);
 
             if (id == current) {
@@ -117,9 +134,13 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
     }
 
     // The target it has, unless it has gone or died: an attack goes to its end, and only a player
-    // clearly nearer takes it away (a moby between two players would flip each tick).
+    // clearly nearer takes it away (a moby between two players would flip each tick). A lunge at a
+    // grab's victim and a moby that remembers who it fights are not to be turned at all.
+    const bool lunging = grab != nullptr && moby.state >= grab->lunge_first && moby.state <= grab->lunge_last;
+
     if (kept >= 0.0f
-        && (tick_ms_ - aim.state_ms < kAttackStickMs || best >= kept * kTargetBand * kTargetBand)) {
+        && (lunging || keeps_hero_class(moby.oclass) || tick_ms_ - aim.state_ms < kAttackStickMs
+            || best >= kept * kTargetBand * kTargetBand)) {
         at = kept_at;
         return current;
     }

@@ -108,6 +108,7 @@ World::World(Session& session, Game& game, Coop& coop, std::function<std::uint64
 }
 
 void World::reset() {
+    release_holds();
     mobys_.clear();
     alive_keys_.clear();
     dead_keys_.clear();
@@ -143,6 +144,7 @@ void World::reset() {
     dug_.clear();
     downs_.clear();
     aims_.clear();
+    kills_.clear();
     crate_states_.clear();
     soft_replays_.clear();
     restored_.clear();

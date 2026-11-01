@@ -26,6 +26,20 @@ and pin the new SDK in `sdk.lock` so CI builds the mod.
 
 ## Decided
 
+### Enemies that grab (decided by the user, 2026-10-31)
+
+Authority stays on the host. The enemy keeps a target with a band and a stick while attacking; a grab
+is an exclusive lock on its victim plus a host-commanded event with an animation id, and the victim's
+game plays a local grabbed state that the host checks against the player's pose. Every moby update
+that writes the hero was read on both discs: three grab.
+
+- The Rilgar sharkigator (35) has no health and takes whoever is in the water: each game's own, as
+  water that kills.
+- The Umbris sharkigators (1059) and the snagglebeast (1106) can be fought: the host's. The first
+  kills in its leap, the second holds on its rope until it lets go or dies.
+- Nothing that an update does while a member stands in reaches the host's hero. A kill of the hero
+  who stood in goes to that member's game, as a respawn.
+
 ### 9. What a player's death does to the world (decided by the user, 2026-10-31)
 
 Keep (a): a player's death is that player's own, and what is dead for the party stays dead. On top:

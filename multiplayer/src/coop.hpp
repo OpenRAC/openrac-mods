@@ -317,6 +317,22 @@ inline bool in_level(int phase) {
 /* A moby of the level as the world sees it (the SDK's openrac_moby): its slot here, its key (the
  * level's record, the same in every game; -1 for one spawned), class, flags, the game's state
  * byte, and pose. */
+/* A player a moby's update takes the hero for, and what the update did to him (the SDK's
+ * openrac_stand_in). */
+constexpr std::uint32_t kStandInAirborne = 0x1;
+constexpr std::uint32_t kStandInKilled = 0x2;
+/* What a grab does to the hero held (the SDK's OPENRAC_GRAB_*). */
+constexpr std::uint32_t kGrabFatal = 0x1;
+constexpr std::uint32_t kGrabSpin = 0x2;
+
+struct StandIn {
+    float position[3] = {0, 0, 0};
+    float yaw = 0;
+    std::int32_t state = 0;
+    std::int32_t health = 0;
+    std::uint32_t flags = 0;
+};
+
 struct MobyState {
     int slot = -1;
     int key = -1;
@@ -487,6 +503,17 @@ public:
     virtual bool camera_show(const float* /*eye*/, const float* /*rotation*/) { return false; }
     // --- end WP-CAMERA ---
     // --- WP-TETHER ---
+    /* Whether this game can show an update another player's hero and hold its own. */
+    virtual bool can_hold() { return false; }
+    /* stand_in, and the update also sees the player's state, health and flags. */
+    virtual bool stand_in_as(const StandIn& /*as*/, int /*figure*/) { return false; }
+    /* In the gate's call after an update: what it did to the hero who stood in. */
+    virtual bool stand_in_read(StandIn& /*out*/) { return false; }
+    /* This game's hero held by a grab: `animation` (below 0: the hold's own), kGrab* `flags`; on his
+     * way to `position`, and let go. */
+    virtual bool grab(int /*animation*/, std::uint32_t /*flags*/) { return false; }
+    virtual bool hold_at(const float* /*position*/, float /*yaw*/) { return false; }
+    virtual bool let_go() { return false; }
     // --- end WP-TETHER ---
     // --- WP-DEATH ---
     /* Whether this game can keep a dead hero down, and bring him back. */

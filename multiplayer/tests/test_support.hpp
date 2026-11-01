@@ -96,6 +96,14 @@ struct FakeGame : mp::Game {
     Bytes live_save;
     int next_figure = 0;
     std::map<int, mp::Pose> figures;
+    /* A grab: whether the game holds a hero, what the update last saw, what it did. */
+    bool holds_ok = true;
+    bool hero_held = false;
+    mp::StandIn stood_as;
+    mp::StandIn stand_did;
+    float held_at[1] = {0};
+    float held_yaw = 0;
+    int hold_words = 0;
     mp::Pose hero_pose = [] {
         mp::Pose p = pose_at(1.0f);
         p.health = 8;
@@ -437,6 +445,39 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    bool can_hold() override { return holds_ok; }
+
+    bool stand_in_as(const mp::StandIn& as, int figure) override {
+        ++stood;
+        stood_as = as;
+        world_calls.push_back("as " + std::to_string(as.state) + " " + std::to_string(figure));
+        return true;
+    }
+
+    bool stand_in_read(mp::StandIn& out) override {
+        out = stand_did;
+        return true;
+    }
+
+    bool grab(int animation, std::uint32_t flags) override {
+        calls.push_back("grab " + std::to_string(animation) + " " + std::to_string(flags));
+        hero_held = true;
+        return true;
+    }
+
+    bool hold_at(const float* position, float yaw) override {
+        held_at[0] = position[0];
+        held_yaw = yaw;
+        ++hold_words;
+        return true;
+    }
+
+    bool let_go() override {
+        calls.push_back("let go");
+        hero_held = false;
+        return true;
+    }
+
     bool hit(const mp::Hit& h) override {
         hits.push_back(h);
         return true;
@@ -643,6 +684,7 @@ struct Player {
         router.fallback([this](std::int32_t sender, const Bytes& bytes) { coop.handle(sender, bytes); });
         router.route(mp::Owner::kMods, [this](std::int32_t sender, const Bytes& bytes) { mods.handle(sender, bytes); });
         router.route(mp::Owner::kWorld, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
+        router.route(mp::Owner::kTether, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
         router.route(mp::Owner::kProgress, [this](std::int32_t sender, const Bytes& bytes) { progress.handle(sender, bytes); });
         router.route(mp::Owner::kShare, [this](std::int32_t sender, const Bytes& bytes) { shared.handle(sender, bytes); });
         router.route(mp::Owner::kCamera, [this](std::int32_t sender, const Bytes& bytes) { cam.handle(sender, bytes); });
@@ -1493,5 +1535,6 @@ void run_shared_tests();
 void run_lobby_tests();
 void run_death_tests();
 void run_camera_tests();
+void run_hold_tests();
 
 }  // namespace mpt

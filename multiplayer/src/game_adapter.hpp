@@ -87,6 +87,12 @@ public:
     int figure_slot(int id) override;
 
     bool stand_in(const float* position, int figure) override;
+    bool can_hold() override;
+    bool stand_in_as(const mp::StandIn& as, int figure) override;
+    bool stand_in_read(mp::StandIn& out) override;
+    bool grab(int animation, std::uint32_t flags) override;
+    bool hold_at(const float* position, float yaw) override;
+    bool let_go() override;
 
     bool hit(const mp::Hit& h) override;
 

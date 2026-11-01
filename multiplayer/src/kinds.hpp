@@ -111,6 +111,9 @@ constexpr std::uint8_t kRules = 31;
 constexpr std::uint8_t kShared = 36;
 constexpr std::uint8_t kMission = 37;
 constexpr std::uint8_t kSharedAsk = 38;
+// Grabs (world.hpp; read by the World)
+constexpr std::uint8_t kHold = 56;
+constexpr std::uint8_t kRelease = 57;
 }  // namespace kind
 
 /* One kind in use. */
@@ -174,6 +177,8 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kShared, "SHARED", Owner::kShare},
     {kind::kMission, "MISSION", Owner::kShare},
     {kind::kSharedAsk, "SHARED_ASK", Owner::kShare},
+    {kind::kHold, "HOLD", Owner::kTether},
+    {kind::kRelease, "RELEASE", Owner::kTether},
     {kind::kLink, "LINK", Owner::kLobby},
     {kind::kLinks, "LINKS", Owner::kLobby},
     {kind::kBatch, "BATCH", Owner::kLobby},

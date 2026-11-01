@@ -826,6 +826,48 @@ def scenario_dig(env, args):
     env.check("exactly one dug it", sum(1 for v in gained.values() if v > 0) >= 1, json.dumps(gained))
 
 
+# An enemy that grabs, by level: Rilgar's (each game's own), Umbris's (the host's, fatal).
+GRABBERS = {5: 35, 7: 1059}
+
+
+def scenario_grab(env, args):
+    """A member by an enemy that grabs, in `--level 5` or `--level 7` (leave `--level` out for 7): the
+    member dies in its grip and the host's hero, far off, is left alone: not hurt, not carried off,
+    and it stays so after the member is back."""
+    host, member = start_two(env, args)
+    level = args.level if args.level in GRABBERS else 7
+    fly_to(env, host, [member], level)
+    time.sleep(3)
+    placed, _ = host.mobys()
+    sharks = sorted((m for m in placed.values() if m[2] == GRABBERS[level] and live(m)), key=lambda m: m[1])
+    if not sharks:
+        raise Failed("no enemy that grabs there")
+    env.report["notes"]["enemies that grab"] = len(sharks)
+    shark = sharks[0]
+    # The host on solid ground far from it, and the member in its water.
+    far = host.status()
+    go_near(member, shark, 1.0)
+    healths = []
+
+    def caught():
+        h = member.status().get("health", 1)
+        healths.append(h)
+        return h <= 0
+
+    wait("the member died in its grip", caught, 60)
+    before = host.status()
+    env.check("the host was not hurt", before.get("health") == far.get("health"), json.dumps([far.get("health"), before.get("health")]))
+    env.check("the host is in control", before.get("phase") == PHASE_PLAYING and not before.get("hold"), json.dumps(before)[:300])
+    if args.trace and level == 7:
+        env.check("the host told the member", len(log_lines(host, r"hold.*player")) > 0, "")
+        env.check("the member's game held him", member.status().get("health", 1) <= 0, "")
+    wait("the member came back", lambda: member.status().get("health", 0) > 0, 40)
+    time.sleep(5)
+    after = host.status()
+    env.check("the host stays himself after it", after.get("health") == far.get("health") and after.get("loads") == far.get("loads"), json.dumps([far, after])[:400])
+    compare_enemies(env, [host, member], "after a grab")
+
+
 def enemies_of(c):
     """The creatures alive in a game: the placed by key, the spawned as class and place."""
     placed, spawned = c.mobys()
@@ -1484,6 +1526,7 @@ SCENARIOS = {
     "revive": scenario_revive,
     "crateback": scenario_crateback,
     "dig": scenario_dig,
+    "grab": scenario_grab,
     "crates": scenario_crates,
     "join": scenario_join,
     "gohost": scenario_gohost,

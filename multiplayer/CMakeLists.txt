@@ -14,7 +14,7 @@
 set(MULTIPLAYER_COOP_SOURCES src/coop.cpp src/coop_travel.cpp src/coop_figures.cpp src/coop_shots.cpp src/nametags.cpp
                              src/coop_join.cpp src/coop_leave.cpp src/coop_wait.cpp src/cosave.cpp)
 set(MULTIPLAYER_WORLD_SOURCES src/world.cpp src/world_pickups.cpp src/world_host.cpp src/world_member.cpp
-                              src/world_handle.cpp src/world_gate.cpp)
+                              src/world_handle.cpp src/world_gate.cpp src/world_hold.cpp)
 
 # The play test's files: main and one file of tests per area, sharing tests/test_support.hpp.
 set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/play_coop_test.cpp
@@ -23,7 +23,7 @@ set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/p
                            tests/play_sim_test.cpp tests/play_save_test.cpp tests/play_cross_test.cpp
                            tests/play_saves_test.cpp tests/play_tags_test.cpp tests/play_join_test.cpp
                            tests/play_shared_test.cpp tests/play_lobby_test.cpp
-                           tests/play_death_test.cpp tests/play_camera_test.cpp)
+                           tests/play_death_test.cpp tests/play_camera_test.cpp tests/play_hold_test.cpp)
 list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp)
 
 # The mod's library and the manifest it is packaged with.

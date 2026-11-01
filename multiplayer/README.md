@@ -137,6 +137,10 @@ The world is the host's:
 - **Revive** (a host's setting, off by default): a fallen player stays down for up to 30 seconds, and
   standing over them for a moment brings them back.
 - **Enemies** keep their target until another player is clearly nearer, and finish an attack first.
+- **Grabs.** An enemy that grabs stays on its victim until it lets go, however long, and nobody else
+  can grab that player meanwhile. The victim's own game holds the hero, controls gone; the others
+  can hit the enemy. The hold ends with the enemy's death, the player's, or the player leaving, and
+  by itself if the host stops talking. Rilgar's sharkigators are each player's own, like the water.
 - **Crates that come back** (Rilgar, Kalebo III, the last level's ammo crates): a break in any game
   breaks them all and its bolts are shared; each game's copy comes back by itself, out of sight.
 - **Buried bolts**: one pile, one digger. The first to dig gets it, and it goes for everyone else.
@@ -544,8 +548,11 @@ that player. Mobys near the members run in the host's game as if near its camera
 - A landed bolt a member collects leaves its game at once, and its count comes a round trip later
   (BOLTS); one another player took first in the meantime brings nothing. The member's own collect
   sparkle and counter do not show for it.
-- An enemy that keeps a pointer to the hero across ticks, grabs him or rides him may act on the
-  host's hero instead of the player it went for; WORLD.md (in the plans) lists the classes tried.
+- What the host's game runs of an enemy never reaches the host's hero while it goes for a member:
+  a state, a kill, health. Two enemies grab in a way the world has to share: the Umbris
+  sharkigators and the snagglebeast (see **Grabs** above). A moby update that plays a scripted moment on the
+  hero for a member standing near it (a trigger's lock, a camera's hold) does nothing for that
+  member's hero: only a kill reaches him.
 - A figure holds what its player holds (the wrench, the weapon or gadget, Clank and the packs,
   the boots), each loaded when this game can have it beside its own hero's: one weapon class
   besides the hero's fits at once, and the game has no memory for more. While it cannot be had

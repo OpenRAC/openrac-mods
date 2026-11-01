@@ -189,7 +189,9 @@ enum class WorldKind : std::uint8_t {
     kReset = kind::kReset,
     kSynced = kind::kSynced,
     kRevive = kind::kRevive,
-    kRestore = kind::kRestore
+    kRestore = kind::kRestore,
+    kHold = kind::kHold,
+    kRelease = kind::kRelease
 };
 
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
@@ -245,6 +247,18 @@ constexpr float kWorldSnap = 12.0f;
  * at all this soon after its state changed or it hit that player: an attack runs to its end. */
 constexpr float kTargetBand = 0.8f;
 constexpr std::uint64_t kAttackStickMs = 1000;
+/* A grab (world_hold.cpp): how often the host says where the player is held, how long he has to show
+ * he is before the host gives it up, how long a held player goes with no word before his game lets
+ * him go, how long a fatal grab may wait for him to come back, and how soon after a word that a
+ * player died (a kill volume under a stand-in) another may go. */
+constexpr std::uint64_t kHoldSendMs = 66;
+constexpr std::uint64_t kHoldAckMs = 2000;
+constexpr std::uint64_t kHoldLeaseMs = 1500;
+constexpr std::uint64_t kFatalHoldMs = 8000;
+constexpr std::uint64_t kKillAgainMs = 3000;
+/* HOLD's and RELEASE's bytes: kind, holder, flags, animation, place, yaw; kind, holder, place, yaw. */
+constexpr std::size_t kHoldBytes = 21;
+constexpr std::size_t kReleaseBytes = 19;
 /* The crate update's states: broken, and hidden until it comes back. */
 constexpr std::uint32_t kCrateBroken = 3;
 constexpr std::uint32_t kCrateWaiting = 6;
@@ -324,7 +338,15 @@ inline bool spawned_bolt_class(int oclass) {
 // --- end WP-DEATH ---
 
 // --- WP-TETHER: class lists ---
-/* Only WP-TETHER edits this block: classes the tether work adds, in the shapes below. */
+/* Only WP-TETHER edits this block: classes the tether work adds, in the shapes below.
+ * Every moby update that writes the hero, on both discs (2026-10-31; the report of the work lists
+ * each with its evidence). Enemies that grab:
+ *   35 sharkigator (Rilgar): rises under a hero in the water, takes him and Hero_OnKilled. It has no
+ *     health and hits nobody, and only ever looks at the hero of the game it runs in: each game's
+ *     own, as water that kills. Host-driven it would leave a member swimming for ever.
+ *   1059 sharkigator (Umbris): leaps at him, health 0 and state 0x3D, carries him: the fatal grab.
+ *   1106 snagglebeast: state 0x78 and pulls him along its rope in its state 8: the hold.
+ * Those two can be fought, so they stay the host's (grab_class). */
 inline bool tether_crate_class(int /*oclass*/) {
     return false;
 }
@@ -333,8 +355,44 @@ inline bool tether_pickup_class(int /*oclass*/) {
     return false;
 }
 
-inline bool tether_interactable_class(int /*oclass*/) {
-    return false;
+inline bool tether_interactable_class(int oclass) {
+    return oclass == 35;
+}
+
+/* A grab: the class, the states of the moby in which it goes for its target (no other player can
+ * take it away, however long they last), the hero's state it puts its victim in, his animation
+ * (below 0: that state's own) and what it does to him (kGrab*). */
+struct GrabClass {
+    int oclass;
+    std::uint32_t lunge_first;
+    std::uint32_t lunge_last;
+    std::int32_t hero_state;
+    int animation;
+    std::uint32_t flags;
+};
+
+inline const GrabClass* grab_class(int oclass) {
+    static constexpr GrabClass kGrabs[] = {
+        {1059, 4, 5, 0x3D, -1, kGrabFatal},
+        {1106, 8, 8, 0x78, 0xB, kGrabSpin},
+    };
+
+    for (const GrabClass& grab : kGrabs) {
+        if (grab.oclass == oclass) {
+            return &grab;
+        }
+    }
+
+    return nullptr;
+}
+
+/* Enemies that keep the hero's moby in their own memory from one tick to the next (a hit's answer:
+ * horny toad's +0x1C0, sand shark's +0x210, and so on): they act on the one they kept, so the aim
+ * stays with him until he is gone. Read on both discs.
+ *   580 sand_shark, 612 constructorbot, 749 horny_toad, 827 frog, 1199, 1231 psytcopus,
+ *   1440 veldin_robot_enemy, 1906 gadgebot. */
+inline bool keeps_hero_class(int oclass) {
+    return any_of_class(oclass, {580, 612, 749, 827, 1199, 1231, 1440, 1906});
 }
 // --- end WP-TETHER ---
 
@@ -549,6 +607,22 @@ private:
         std::uint64_t state_ms = 0;
     };
 
+    /* A grab: of whom, the moby's id on the wire, how, where he is held, since when; whether his pose
+     * has shown it, and, a fatal one, that he has died; when he was last told. */
+    struct Hold {
+        std::int32_t player = 0;
+        std::uint16_t id = 0;
+        std::int32_t hero_state = 0;
+        int animation = -1;
+        std::uint32_t flags = 0;
+        float position[3] = {0, 0, 0};
+        float yaw = 0;
+        std::uint64_t since = 0;
+        std::uint64_t told = 0;
+        bool shown = false;
+        bool dead = false;
+    };
+
     /* A bolt to make again after the host's death. */
     struct KeptBolt {
         int oclass = 0;
@@ -561,6 +635,21 @@ private:
         std::uint64_t over = 0;
         std::uint64_t seen = 0;
     };
+
+    /* A grab (world_hold.cpp). Host: the moby's stand-in for `target`, and what its update did; the
+     * host's own hero in its grip; whether another moby holds `player`; each hold's end; a hold
+     * ended, and every one. Member: the host's word, and no word for too long. */
+    bool stand_for(const MobyState& moby, std::int32_t target, const Pose& at);
+    void after_stand_in(int slot, std::int32_t player);
+    void after_update(int slot);
+    bool held_elsewhere(std::int32_t player, int slot) const;
+    void tick_holds(std::uint64_t now);
+    void tell_hold(Hold& hold, std::uint64_t now);
+    void release_hold(std::map<int, Hold>::iterator it);
+    void release_holds();
+    void hold_heard(Reader& r);
+    void release_heard(Reader& r);
+    void tick_held(std::uint64_t now);
 
     /* New mobys (status.loads, the level): nothing of the last ones stands. */
     void follow_load(const GameStatus& status);
@@ -678,6 +767,15 @@ private:
     std::uint64_t wipe_ms_ = 0;
     /* The enemies' targets by slot, this tick's clock. */
     std::map<int, Aim> aims_;
+    /* The grabs by the moby's slot, an exclusive lock on the player for as long as they last; what
+     * this tick's stand-in showed; when each member was last told it died. */
+    std::map<int, Hold> holds_;
+    std::int32_t stood_state_ = 0;
+    std::int32_t stood_health_ = 0;
+    std::map<std::int32_t, std::uint64_t> kills_;
+    /* Member: its own hero held, and since when it has heard no word of it. */
+    bool held_ = false;
+    std::uint64_t held_ms_ = 0;
     std::uint64_t tick_ms_ = 0;
     /* The revive rule, and whether the game was told to keep a dead hero down. A member: since when
      * its hero is dead. */
@@ -780,6 +878,7 @@ private:
     /* What it did since the last line in the log (every kWorldLogMs when something happened). */
     struct Counts {
         int snapshots = 0, hits = 0, kills = 0, spawns = 0, despawns = 0, damage = 0, bolts = 0;
+        int holds = 0, releases = 0;
     } counts_;
     std::uint64_t counts_ms_ = 0;
 };

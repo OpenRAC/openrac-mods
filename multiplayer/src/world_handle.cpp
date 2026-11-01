@@ -475,6 +475,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             break;
         }
+        case WorldKind::kHold:
+            hold_heard(r);
+            break;
+        case WorldKind::kRelease:
+            release_heard(r);
+            break;
         case WorldKind::kRestore: {
             const int level = static_cast<std::int8_t>(r.u8());
             const std::uint16_t key = u16(r);

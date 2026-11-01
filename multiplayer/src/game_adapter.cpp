@@ -313,6 +313,41 @@ bool ModGame::stand_in(const float* position, int figure) {
     return mod_.hero_stand_in(position, figure);
 }
 
+bool ModGame::can_hold() { return mod_.has_hero_hold(); }
+
+bool ModGame::stand_in_as(const mp::StandIn& as, int figure) {
+    openrac_stand_in in{};
+    std::copy(as.position, as.position + 3, in.position);
+    in.state = as.state;
+    in.health = as.health;
+    in.flags = as.flags;
+    return mod_.hero_stand_in_as(in, figure);
+}
+
+bool ModGame::stand_in_read(mp::StandIn& out) {
+    openrac_stand_in did{};
+
+    if (!mod_.hero_stand_in_read(did)) {
+        return false;
+    }
+
+    std::copy(did.position, did.position + 3, out.position);
+    out.yaw = did.yaw;
+    out.state = did.state;
+    out.health = did.health;
+    out.flags = did.flags;
+    return true;
+}
+
+bool ModGame::grab(int animation, std::uint32_t flags) { return mod_.hero_grab(animation, flags); }
+
+bool ModGame::hold_at(const float* position, float yaw) {
+    const float at[3] = {position[0], position[1], position[2]};
+    return mod_.hero_hold_at(at, yaw);
+}
+
+bool ModGame::let_go() { return mod_.hero_release(); }
+
 bool ModGame::hit(const mp::Hit& h) {
     openrac_hit out{};
     out.victim = h.victim;

@@ -379,6 +379,7 @@ void load(openrac::Mod& mod) {
     g->router.fallback([](std::int32_t sender, const mp::Bytes& bytes) { g->coop->handle(sender, bytes); });
     g->router.route(mp::Owner::kMods, [](std::int32_t sender, const mp::Bytes& bytes) { g->mods->handle(sender, bytes); });
     g->router.route(mp::Owner::kWorld, [](std::int32_t sender, const mp::Bytes& bytes) { g->world->handle(sender, bytes); });
+    g->router.route(mp::Owner::kTether, [](std::int32_t sender, const mp::Bytes& bytes) { g->world->handle(sender, bytes); });
     g->router.route(mp::Owner::kProgress, [](std::int32_t sender, const mp::Bytes& bytes) { g->progress->handle(sender, bytes); });
     g->router.route(mp::Owner::kSave, [](std::int32_t sender, const mp::Bytes& bytes) { g->cosave->handle(sender, bytes); });
     g->router.route(mp::Owner::kShare, [](std::int32_t sender, const mp::Bytes& bytes) { g->shared->handle(sender, bytes); });

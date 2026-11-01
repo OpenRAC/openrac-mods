@@ -668,6 +668,8 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         }
     }
 
+    tick_holds(now);
+
     for (auto it = aims_.begin(); it != aims_.end();) {
         it = mobys_.count(it->first) == 0 ? aims_.erase(it) : std::next(it);
     }

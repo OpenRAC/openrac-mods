@@ -142,7 +142,8 @@ Bytes encode_pose(const PoseMessage& m) {
         .i64(m.stamp_ms)
         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(p.level, -1, 127))))
         .u8(static_cast<std::uint8_t>((p.flags & kPoseBlending) | (m.teleport ? kWireTeleport : 0)
-                                  | (m.scene ? kWireScene : 0)));
+                                  | (m.scene ? kWireScene : 0)
+                                  | ((p.flags & kPoseAirborne) != 0 ? kWireAirborne : 0)));
 
     for (const float f : p.position) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
@@ -227,7 +228,7 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     Pose& p = out.pose;
     p.level = static_cast<std::int8_t>(r.u8());
     const std::uint8_t flags = r.u8();
-    p.flags = flags & kPoseBlending;
+    p.flags = (flags & kPoseBlending) | ((flags & kWireAirborne) != 0 ? kPoseAirborne : 0);
     out.teleport = (flags & kWireTeleport) != 0;
     out.scene = (flags & kWireScene) != 0;
 

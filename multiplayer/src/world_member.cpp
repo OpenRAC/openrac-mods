@@ -18,6 +18,7 @@ using namespace wire;
 
 void World::tick_member(std::uint64_t now, const GameStatus& status) {
     coop_.world_ready(synced_);
+    tick_held(now);
 
     // Left down with no word from the host: the game's own way.
     Pose hero;
