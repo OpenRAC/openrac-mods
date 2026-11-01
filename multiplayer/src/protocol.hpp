@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+#include "kinds.hpp"
+
 namespace mp {
 
 using Bytes = std::vector<std::uint8_t>;

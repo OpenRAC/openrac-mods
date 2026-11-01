@@ -40,7 +40,7 @@
 
 namespace mp {
 
-constexpr std::uint8_t kProgressKind = 23;
+constexpr std::uint8_t kProgressKind = kind::kProgress;
 /* How often a game reads its progress, and tells it again unchanged. */
 constexpr std::uint64_t kProgressReadMs = 250;
 constexpr std::uint64_t kProgressResendMs = 5000;

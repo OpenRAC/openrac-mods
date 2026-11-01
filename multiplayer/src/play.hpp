@@ -120,7 +120,7 @@ struct PoseMessage {
 };
 
 /* The POSE kind's first byte (coop.hpp's kinds), and its size on the wire. */
-constexpr std::uint8_t kPoseKind = 7;
+constexpr std::uint8_t kPoseKind = kind::kPose;
 constexpr std::size_t kPoseBytes = 65;
 
 Bytes encode_pose(const PoseMessage& message);
@@ -141,7 +141,7 @@ struct ShotMessage {
     Shot shot;
 };
 
-constexpr std::uint8_t kShotKind = 19;
+constexpr std::uint8_t kShotKind = kind::kShot;
 constexpr std::size_t kShotBytes = 48;
 
 Bytes encode_shot(const ShotMessage& message);

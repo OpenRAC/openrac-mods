@@ -12,7 +12,8 @@
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
-                SOURCES src/multiplayer.cpp src/session.cpp src/connection.cpp src/host.cpp
+                SOURCES src/multiplayer.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
+                        src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/session.cpp src/connection.cpp src/host.cpp
                         src/direct.cpp src/protocol.cpp src/coop.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp src/party_mods.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
@@ -66,4 +67,10 @@ if(BUILD_TESTING)
   target_compile_definitions(multiplayer_smooth_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
   set_target_properties(multiplayer_smooth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_smooth COMMAND multiplayer_smooth_test)
+  # The wire registry (src/kinds.hpp): no two kinds share a value, each lies in its owner's range,
+  # and the router sends every kind where the hand-written chain it replaced did.
+  add_executable(multiplayer_kinds_test tests/kinds_test.cpp)
+  target_include_directories(multiplayer_kinds_test PRIVATE src)
+  set_target_properties(multiplayer_kinds_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_kinds COMMAND multiplayer_kinds_test)
 endif()

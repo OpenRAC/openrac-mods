@@ -975,6 +975,7 @@ struct Player {
     mp::World world;
     mp::Progress progress;
     mp::PartyMods mods;
+    mp::Router router;
 
     explicit Player(std::int32_t id_)
         : id(id_),
@@ -983,17 +984,11 @@ struct Player {
           world(session, game, coop, [this] { return clock; }),
           progress(session, game, coop),
           mods(session, game, {}, [this] { return clock; }) {
-        session.on_data([this](std::int32_t sender, const Bytes& bytes) {
-            if (!bytes.empty() && mp::mods_kind(bytes[0])) {
-                mods.handle(sender, bytes);
-            } else if (!bytes.empty() && mp::world_kind(bytes[0])) {
-                world.handle(sender, bytes);
-            } else if (!bytes.empty() && bytes[0] == mp::kProgressKind) {
-                progress.handle(sender, bytes);
-            } else {
-                coop.handle(sender, bytes);
-            }
-        });
+        router.fallback([this](std::int32_t sender, const Bytes& bytes) { coop.handle(sender, bytes); });
+        router.route(mp::Owner::kMods, [this](std::int32_t sender, const Bytes& bytes) { mods.handle(sender, bytes); });
+        router.route(mp::Owner::kWorld, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
+        router.route(mp::Owner::kProgress, [this](std::int32_t sender, const Bytes& bytes) { progress.handle(sender, bytes); });
+        session.on_data([this](std::int32_t sender, const Bytes& bytes) { router.dispatch(sender, bytes); });
         mp::Message hello;
         hello.kind = mp::Message::Kind::kHello;
         hello.id = id;
@@ -4742,7 +4737,7 @@ void a_late_member_gets_the_world_and_waits_for_nobody() {
     CHECK(late.game.moby_slot(3) == -1);   // dead for the party
     CHECK(late.world.spawned() == 1);      // the host's bolt
     CHECK(count_of(late.game, "scene 7") == asked);  // never started the scene it missed
-    CHECK(!mp::world_kind(static_cast<std::uint8_t>(mp::GameKind::kPoses)));
+    CHECK(mp::owner_of(static_cast<std::uint8_t>(mp::GameKind::kPoses)) != mp::Owner::kWorld);
 }
 
 void a_crates_own_loot_is_not_the_hosts() {

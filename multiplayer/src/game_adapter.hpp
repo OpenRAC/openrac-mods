@@ -1,0 +1,130 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026 the OpenRAC contributors
+ *
+ * The multiplayer mod's game, for the co-op (coop.hpp's Game, on interface 1.8's play calls and the
+ * ones after): what each of the co-op's questions asks the SDK. Its definitions are in
+ * game_adapter.cpp.
+ */
+#ifndef MULTIPLAYER_GAME_ADAPTER_H
+#define MULTIPLAYER_GAME_ADAPTER_H
+
+#include <map>
+#include <string>
+#include <vector>
+
+#include "coop.hpp"
+#include "menu.hpp"
+#include "openrac/games/rac1.hpp"
+#include "openrac/mod.hpp"
+#include "party_mods.hpp"
+
+namespace mpmod {
+
+/* Where each disc keeps the progress a party shares (see game_adapter.cpp). */
+struct ProgressDisc;
+
+class ModGame : public mp::Game {
+public:
+    /* The title's Multiplayer page (Home), once made. */
+    openrac::UiPage* home = nullptr;
+
+    explicit ModGame(openrac::Mod& mod) : mod_(mod) {}
+
+    mp::GameStatus status() override;
+
+    bool start(int level, const mp::Bytes& save) override;
+
+    bool travel(int level) override;
+
+    mp::Bytes capture() override;
+
+    bool hero(mp::Pose& out) override;
+
+    int figure_create() override;
+
+    bool figure_pose(int id, const mp::Pose& pose) override;
+
+    std::vector<mp::Shot> hero_shots() override;
+
+    bool figure_shot(int id, const mp::Shot& shot) override;
+
+    void figure_remove(int id) override;
+
+    std::vector<mp::MobyState> mobys() override;
+
+    int moby_slot(int key) override;
+
+    bool moby_drive(int slot, bool on) override;
+
+    bool moby_pose(int slot, const mp::Pose& pose) override;
+
+    bool moby_kill(int slot) override;
+
+    bool moby_hide(int slot, bool hidden) override;
+
+    bool moby_deletion(int slot, int& by, int& by_class, bool& by_mod) override;
+
+    bool camera(float* xyz) override;
+
+    bool moby_run(int slot, mp::MobyRun& out) override;
+
+    int moby_spawn(int oclass, const mp::Pose& pose) override;
+
+    int figure_slot(int id) override;
+
+    bool stand_in(const float* position, int figure) override;
+
+    bool hit(const mp::Hit& h) override;
+
+    void eyes(const std::vector<float>& xyz) override;
+
+    int bolts(int add) override;
+
+    bool progress(mp::ProgressBits& out) override;
+
+    // GiveItem(id, 0): as the game gives it, its banner and ammo, not put in hand.
+    bool give_item(int id) override;
+
+    bool give_gold_bolt(int index) override;
+
+    bool unlock_planet(int planet) override;
+
+    /* The mods of this run but this one, with their settings: once they have all loaded. */
+    mp::ModList mod_list();
+
+    std::vector<mp::PartyRules> party_rules() override;
+
+    bool deliver_rules(const std::string& id, const mp::Bytes& data) override;
+
+    void overlay_pause(bool on) override;
+
+    void skip() override;
+
+    bool play_scene(int scene) override;
+
+    static openrac_moby moby_of(const mp::Pose& p);
+
+    /* The two poses are the same fields: one after its size, the other alone. */
+    static mp::Pose from_sdk(const openrac_pose& p);
+
+    /* The pieces: the same fields, the SDK's in openrac_held. */
+    static void held_from_sdk(const openrac_held& h, mp::Pose& out);
+
+    static openrac_held held_to_sdk(const mp::Pose& p);
+
+    static openrac_pose to_sdk(const mp::Pose& p);
+
+    bool open_home() override;
+
+private:
+    /* This disc's progress places, null for a disc it does not know. */
+    const ProgressDisc* progress_disc() const;
+
+    static void read_bytes(const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n);
+
+    openrac::Mod& mod_;
+    std::map<std::string, int> indices_;};
+
+}  // namespace mpmod
+
+#endif

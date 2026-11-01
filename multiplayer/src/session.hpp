@@ -49,12 +49,12 @@ namespace mp {
 
 /* The DATA kinds of the lobby. */
 enum class LobbyKind : std::uint8_t {
-    kReady = 1,
-    kState = 2,
-    kStart = 3,
-    kLink = 64,
-    kLinks = 65,
-    kBatch = 66
+    kReady = kind::kReady,
+    kState = kind::kState,
+    kStart = kind::kStart,
+    kLink = kind::kLink,
+    kLinks = kind::kLinks,
+    kBatch = kind::kBatch
 };
 
 /* A token bucket, as the server's RateLimit, on a clock of milliseconds. */

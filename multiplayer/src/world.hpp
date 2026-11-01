@@ -115,20 +115,20 @@
 namespace mp {
 
 enum class WorldKind : std::uint8_t {
-    kWorld = 9,
-    kKilled = 10,
-    kSpawn = 11,
-    kDespawn = 12,
-    kHit = 13,
-    kDamage = 14,
-    kBolts = 15,
-    kDead = 16,
-    kBroke = 17,
-    kClaim = 22,
-    kTaken = 24,
-    kHello = 26,
-    kReset = 27,
-    kSynced = 28
+    kWorld = kind::kWorld,
+    kKilled = kind::kKilled,
+    kSpawn = kind::kSpawn,
+    kDespawn = kind::kDespawn,
+    kHit = kind::kHit,
+    kDamage = kind::kDamage,
+    kBolts = kind::kBolts,
+    kDead = kind::kDead,
+    kBroke = kind::kBroke,
+    kClaim = kind::kClaim,
+    kTaken = kind::kTaken,
+    kHello = kind::kHello,
+    kReset = kind::kReset,
+    kSynced = kind::kSynced
 };
 
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */

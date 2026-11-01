@@ -189,11 +189,7 @@ void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) 
 
 /* Whether a DATA's first byte is one of the lobby's kinds. */
 static bool lobby_kind(std::uint8_t kind) {
-    return (kind >= static_cast<std::uint8_t>(LobbyKind::kReady)
-            && kind <= static_cast<std::uint8_t>(LobbyKind::kStart))
-           || kind == static_cast<std::uint8_t>(LobbyKind::kLink)
-           || kind == static_cast<std::uint8_t>(LobbyKind::kLinks)
-           || kind == static_cast<std::uint8_t>(LobbyKind::kBatch);
+    return owner_of(kind) == Owner::kLobby;
 }
 
 bool Session::game_bytes(const Bytes& bytes) const {

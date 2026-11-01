@@ -457,7 +457,11 @@ chosen from the setting and the launcher's.
 
 | File | |
 |---|---|
-| `src/multiplayer.cpp` | the mod: the main-menu item and its pages |
+| `src/multiplayer.cpp` | the mod: its entry, hooks and the glue that ties the session, the connection and the pages together |
+| `src/mod_state.hpp` | the mod's shared state and the functions its files call each other by (mod-internal) |
+| `src/pages_home.cpp`, `pages_browse.cpp`, `pages_saves.cpp`, `pages_lobby.cpp`, `pages_refused.cpp`, `pages_rules.cpp` | the pages in the game's own menus: Home with Code, Direct connect and the pause menu's page; Browse; Saves; Lobby; Refused; Rules |
+| `src/game_adapter.hpp`, `.cpp` | the co-op's Game on the SDK's play and world calls |
+| `src/kinds.hpp` | the wire registry: every DATA kind, who owns it, the ranges reserved for coming features, and the router that sends a received DATA to its owner (`tests/kinds_test.cpp` holds the table to it) |
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, list, join, leave, Ready and Start |
 | `src/coop.hpp`, `.cpp` | playing together: PLAY and its save, LEVEL, WANT, poses sent and figures shown |
 | `src/play.hpp`, `.cpp` | the poses' bytes and the interpolation buffer |

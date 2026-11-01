@@ -45,15 +45,10 @@ namespace mp {
 class Game;
 
 enum class ModsKind : std::uint8_t {
-    kMods = 29,
-    kFits = 30,
-    kRules = 31
+    kMods = kind::kMods,
+    kFits = kind::kFits,
+    kRules = kind::kRules
 };
-
-inline bool mods_kind(std::uint8_t kind) {
-    return kind >= static_cast<std::uint8_t>(ModsKind::kMods)
-           && kind <= static_cast<std::uint8_t>(ModsKind::kRules);
-}
 
 /* What a mod is to a party, and a setting (the SDK's OPENRAC_PARTY_MOD_*, _SETTING_*). */
 constexpr int kModGameplay = 0;
