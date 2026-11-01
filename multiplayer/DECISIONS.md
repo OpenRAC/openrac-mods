@@ -38,6 +38,14 @@ Nothing merges before the user's play test. Then, in this order:
 - **`play_scene_from`** is a kept slot of interface 1.12 that answers "unknown": a scene cannot start
   part way, so a scene in progress is waited out, as decided.
 
+### A slow one in the sweep
+
+One run in 6,480 (2026-11-01: `multiplayer_sweep_test --seeds 1 --base 4000051 --plans fire`, four
+players, 15 % loss each way, 250 ms, firing): 29 mobys stayed more than 0.5 units off on one member
+for 12.5 seconds after the play stopped, against the sweep's 10, and came right all at once. The
+8-second refresh looks to be what mended them, so a word the host took for delivered did not show;
+why is not known. Nothing stays wrong: with `--settle 30000` the run passes.
+
 ## Decided
 
 ### 6. The host leaving (decided by the user, 2026-10-31)

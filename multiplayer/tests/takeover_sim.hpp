@@ -182,7 +182,8 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
                 }
             }
 
-            if (moving && rng() % 60 == 0) {
+            // (Not on the first tick: a game has a tick in the level before anyone can break anything.)
+            if (moving && rng() % 60 == 0 && t > 0) {
                 break_one();
             }
 
