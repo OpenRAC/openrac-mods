@@ -49,7 +49,8 @@ MAINTAIN = {"admin", "maintain"}
 ATTACHMENT = re.compile(r"https://github\.com/user-attachments/assets/[0-9A-Za-z-]+")
 
 # Each form's headings (the templates' labels) to field ids.
-COMMON = {"Short description": "description", "Tags": "tags", "Impact": "impact", "Bug tracker": "bugs",
+COMMON = {"Short description": "description", "Tags": "tags", "Impact": "impact", "AI assistance": "ai",
+          "Bug tracker": "bugs",
           "Discord": "discord", "Docs": "docs", "YouTube video": "video", "Screenshots": "screenshots"}
 FORMS = {
     "mod-submission": {"Kind": "kind", "Repository": "repo", "Mod ids": "mods", "Modpack name": "name",
@@ -92,6 +93,9 @@ def parse_form(body: str, labels: dict[str, str]) -> dict:
 
 def split_list(text: str) -> list[str]:
     return [x.strip() for x in re.split(r"[,\n]", text or "") if x.strip()]
+
+
+AI_ANSWERS = ("Yes", "No")
 
 
 def checked(text: str) -> bool:
@@ -218,6 +222,9 @@ class Bot:
         for key in ("tags", "impact"):
             if form.get(key):
                 listing[key] = [x.lower() for x in split_list(form[key])]
+        # Left empty on an update, the answer already given stays.
+        if form.get("ai") in AI_ANSWERS:
+            listing["aiAssisted"] = form["ai"] == "Yes"
         links = dict(listing.get("links", {}))
         for key in b.LINK_KEYS:
             if form.get(key):
@@ -334,6 +341,8 @@ class Bot:
                   "Tick 'My mod follows the content rules' (see CONTENT.md).")
         if form.get("kind", "Mod").strip() == "Modpack":
             return self.submit_pack(form, user)
+        self.item(form.get("ai") in AI_ANSWERS, "AI assistance is answered",
+                  "Choose Yes or No under AI assistance: did AI tools help make this mod?")
         repo_url = (form.get("repo") or "").strip().removesuffix("/").removesuffix(".git")
         if not self.item(bool(b.REPO_RE.match(repo_url)), "The repository is https://github.com/owner/repo",
                          "Paste the repository's address, such as https://github.com/you/your-mod."):

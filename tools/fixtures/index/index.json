@@ -986,6 +986,7 @@
    "created": "2026-09-15T12:00:00Z",
    "updated": "2026-10-20T12:00:00Z",
    "featured": true,
+   "aiAssisted": true,
    "recommends": [
     "camera-tweaks"
    ],
@@ -1319,6 +1320,7 @@
    "created": "2026-10-28T12:00:00Z",
    "updated": "2026-10-28T12:00:00Z",
    "featured": true,
+   "aiAssisted": false,
    "recommends": [],
    "suggests": [],
    "readme": "# Xbox icons\n\nShows Xbox button icons instead of PlayStation ones.\n\n## Settings\n\nNone yet.\n",

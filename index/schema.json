@@ -115,6 +115,9 @@
         "featured": {
           "type": "boolean"
         },
+        "aiAssisted": {
+          "type": "boolean"
+        },
         "media": {
           "type": "object",
           "additionalProperties": false,
@@ -269,6 +272,9 @@
           }
         },
         "featured": {
+          "type": "boolean"
+        },
+        "aiAssisted": {
           "type": "boolean"
         },
         "media": {

@@ -79,7 +79,7 @@ MAX_CD = 2 * 1024 * 1024
 COOL_DOWN = 24 * 3600  # seconds a new external native version waits
 INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json")
 LISTING_KEYS = {"id", "description", "tags", "impact", "links", "recommends", "suggests", "aliases", "featured",
-                "media"}
+                "media", "aiAssisted"}
 ENTRY_KEYS = LISTING_KEYS | {"repo", "path", "type", "name", "author", "license", "homepage", "games", "readme",
                              "versions"}
 
@@ -364,6 +364,8 @@ def check_listing(d: dict, where: str, extra_keys=frozenset()) -> None:
         raise EntryError(f"{where}: links may be {', '.join(LINK_KEYS)}, each an https URL")
     if not isinstance(d.get("featured", False), bool):
         raise EntryError(f"{where}: featured must be true or false")
+    if not isinstance(d.get("aiAssisted", False), bool):
+        raise EntryError(f"{where}: aiAssisted must be true or false")
     m = d.get("media", {})
     if not isinstance(m, dict) or set(m) - {"icon", "banner", "screenshots", "videos"}:
         raise EntryError(f"{where}: media may have icon, banner, screenshots, videos")
@@ -798,6 +800,8 @@ def mod_record(entry: dict, head: dict, kind: str, versions: list[dict], readme:
         "created": min(v["released"] for v in versions),
         "updated": versions[0]["released"],
         "featured": bool(listing.get("featured", False)),
+        # What the author stated; left out when they have not said, which is not the same as "no".
+        **({"aiAssisted": listing["aiAssisted"]} if "aiAssisted" in listing else {}),
         **({"discussion": entry["discussion"]} if entry.get("discussion") else {}),
         "recommends": list(listing.get("recommends", [])),
         "suggests": list(listing.get("suggests", [])),
@@ -1084,6 +1088,7 @@ def validate_index(ix: dict) -> list[str]:
         need(isinstance(m.get("links"), dict) and not set(m["links"]) - set(LINK_KEYS), f"{w}: links")
         need(isinstance(m.get("downloads"), int) and isinstance(m.get("downloads7d"), int), f"{w}: downloads")
         need(isinstance(m.get("featured"), bool), f"{w}: featured")
+        need(isinstance(m.get("aiAssisted", False), bool), f"{w}: aiAssisted")
         need("discussion" not in m or (isinstance(m["discussion"], int) and m["discussion"] > 0), f"{w}: discussion")
         for k in ("recommends", "suggests"):
             need(isinstance(m.get(k), list) and all(x in ids for x in m[k]), f"{w}: {k} names a mod not here")
