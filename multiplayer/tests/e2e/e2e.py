@@ -1786,7 +1786,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
     parser.add_argument("--weapons", default="", help="weapons: the ones to fire, by name, commas between")
-    parser.add_argument("--fire-button", default="8000", help="weapons: the pad's bit (hex) that fires")
+    parser.add_argument("--fire-button", default="2000", help="weapons: the pad's bit (hex) that fires: Circle")
     parser.add_argument("--link", default="", help="loss=5,latency=50,jitter=10,reorder=2,duplicate=1")
     parser.add_argument("--out", required=True)
     parser.add_argument("--game", required=True)

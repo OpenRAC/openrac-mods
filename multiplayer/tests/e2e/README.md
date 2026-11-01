@@ -55,6 +55,9 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 mod with those settings. The bolts scenario under `--difficulty '{"bolts": 3}'` reports each crate's
 bolts in its notes.
 
+On macOS only 127.0.0.1 answers, so each proxy has a port of its own and a bot build sends its
+datagrams there (`OPENRAC_MP_BOT_UDP_AT_TCP`, which `e2e.py` sets).
+
 `--link` takes `loss` and `reorder` and `duplicate` in %, `latency` and `jitter` in ms, each way
 between a game and the server. `--base N` gives a run its own address block, so runs can go at once.
 `--trace` turns on each game's verbose log. The report's `net` has each proxy's messages and bytes by
