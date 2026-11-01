@@ -119,6 +119,7 @@ struct State {
     std::unique_ptr<mp::CamScripts> camscripts;
     std::unique_ptr<mp::PartyMods> mods;
     std::unique_ptr<mp::CoSave> cosave;
+    std::unique_ptr<mp::Migrate> migrate;
     mp::Router router;             // where a received DATA goes (kinds.hpp)
     bool listed_mods = false;      // the mods listed, once they had all loaded
     bool told_refused = false;     // the page of why this party's game is refused was shown

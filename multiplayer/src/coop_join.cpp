@@ -37,6 +37,37 @@ bool Coop::rejoin() {
     return true;
 }
 
+void Coop::rejoined(std::uint64_t now) {
+    // A PLAY the drop cut in half is asked for whole.
+    if (pending_) {
+        pending_ = false;
+        save_.clear();
+        expected_ = received_ = 0;
+        applied_ = 0;
+    }
+
+    want_ms_ = 0;
+    // The host's next LEVEL says where it is now, whatever it did meanwhile.
+    heard_travel_ = false;
+    leave_dest_ = -1;
+    arriving_ = false;
+    host_scene_ = false;
+    world_ready_ = false;
+
+    // In the game as it left it: the rest is a late join's (the place, the quiet gifts).
+    if (play_ != 0 && applied_ == play_) {
+        placing_ = PlaceFor::kNone;
+        joining_ = true;
+        joining_since_ = now;
+    }
+}
+
+void Coop::member_back(std::int32_t member) {
+    scene_states_.erase(member);
+    // It is told where the party is at once.
+    level_ms_ = 0;
+}
+
 void Coop::send_play(std::int32_t target, const Bytes& save, int level, bool joining) {
     if (announce_) {
         announce_(target);

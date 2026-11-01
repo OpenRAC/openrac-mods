@@ -28,6 +28,61 @@ void World::send_spawn(std::int32_t target, int level, std::uint16_t net, const 
                           + std::to_string(moby.oclass) + " slot " + std::to_string(moby.slot) + " at " + xyz(moby.pose.position));
 }
 
+void World::member_away(std::int32_t member) {
+    // No enemy holds a player who is not there: his game let him go by its lease.
+    for (auto it = holds_.begin(); it != holds_.end();) {
+        it = it->second.player == member ? (release_hold(it), holds_.begin()) : std::next(it);
+    }
+
+    const auto it = members_.find(member);
+
+    if (it != members_.end()) {
+        it->second.synced = false;
+        it->second.want = false;
+    }
+}
+
+void World::member_back(std::int32_t member) {
+    // Nothing it was told stands; what it is owed does.
+    const auto it = members_.find(member);
+
+    if (it != members_.end()) {
+        it->second.synced = false;
+        it->second.want = false;
+        it->second.tracked.clear();
+        it->second.window.clear();
+    }
+}
+
+void World::host_back() {
+    // The reliable stream was cut: what went into it meanwhile never left. Every member asks for
+    // the world again, as after a host's respawn.
+    release_holds();
+
+    for (auto& [id, m] : members_) {
+        m.synced = false;
+        m.want = false;
+    }
+
+    if (level_ >= 0) {
+        Writer w;
+        w.u8(static_cast<std::uint8_t>(WorldKind::kReset)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        session_.send_data(kBroadcast, w.bytes());
+    }
+
+    log("back with the party: the members ask for the world again");
+}
+
+void World::rejoined() {
+    release_holds();
+    drop_spawned();
+    synced_ = false;
+    hello_ms_ = 0;
+    world_heard_ = false;
+    coop_.no_world_ack();
+    log("back with the party: asking for the world again");
+}
+
 void World::send_dead(std::int32_t member, int level) {
     const int records = party_dead_.empty() ? 0 : *party_dead_.rbegin() + 1;
     Writer w;

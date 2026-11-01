@@ -69,7 +69,8 @@ enum class PartyOp : std::uint8_t {
     kEnd = 6,
     kFind = 7,
     kList = 8,
-    /* 9 and 10 are host migration's. */
+    kHostChanged = 9,
+    kResume = 10,
     kKick = 11,
     kKicked = 12
 };
@@ -78,12 +79,20 @@ enum class ErrorReason : std::uint8_t {
     kPartyFull = 1,
     kAlreadyInParty = 2,
     kNotInParty = 3,
-    kNotHost = 4
+    kNotHost = 4,
+    kResumeRefused = 5
 };
 
 /* The UDP offer's feature bits: which requests the server takes. An older server's offer has none,
  * and a request it does not know closes the connection. */
 constexpr std::uint8_t kFeatureKick = 1;
+constexpr std::uint8_t kFeatureResume = 2;
+/* HELLO's bits after the name: what this client does. A server that does not know them stops at the
+ * name, and a client without kClientResumes leaves its party when its connection goes. */
+constexpr std::uint8_t kClientResumes = 1;
+
+/* How long a slot waits for its player: the server's RESUME_SECONDS. */
+constexpr std::uint64_t kResumeMs = 120000;
 
 /* DATA's target for every other member of the party (session ids start at 1). */
 constexpr std::int32_t kBroadcast = 0;
@@ -173,7 +182,7 @@ private:
  * from LIST; FIND joins the oldest party with room or hosts a new one; both are answered with INFO.
  * LIST asks for the parties with room (the asker's own left out), answered with LIST. TIME carries
  * the client's clock in milliseconds. */
-Bytes hello(const std::string& version, const std::string& name);
+Bytes hello(const std::string& version, const std::string& name, std::uint8_t features = kClientResumes);
 Bytes party_create(const std::string& description = "");
 Bytes party_list();
 Bytes party_find();
@@ -181,6 +190,8 @@ Bytes party_join(const std::string& code);
 Bytes party_leave();
 /* KICK: the host has `member` taken out of the party (the member gets KICKED, the others LEFT). */
 Bytes party_kick(std::int32_t member);
+/* RESUME, after HELLO on a new connection: this game's old session back, by its token. */
+Bytes party_resume(const std::string& code, std::int32_t session, std::int64_t token);
 Bytes chat(const std::string& message);
 Bytes data(std::int32_t target, const Bytes& payload);
 Bytes time(std::int64_t client_ms);
@@ -217,6 +228,7 @@ struct Message {
         kPartyEnd,
         kPartyKicked,
         kPartyList,
+        kPartyAway,
         kChat,
         kData,
         kError,
@@ -224,7 +236,7 @@ struct Message {
         kUdp
     };
     Kind kind = Kind::kHello;
-    /* HELLO: the session's id; JOINED and LEFT: the member's; CHAT and DATA: the sender's. */
+    /* HELLO: the session's id; JOINED, LEFT and AWAY: the member's; CHAT and DATA: the sender's. */
     std::int32_t id = 0;
     /* INFO: the party's code, its host's id, its members (the host among them) and its description
      * (empty from a server that sends none). */
@@ -232,6 +244,12 @@ struct Message {
     std::int32_t host = 0;
     std::vector<Member> members;
     std::string description;
+    /* INFO, past the description (a server that sends none: 0 and none): which host of the party
+     * this is, and the members whose connection dropped. */
+    std::int32_t epoch = 0;
+    std::vector<std::int32_t> away;
+    /* AWAY: whether the member came back. */
+    bool back = false;
     /* LIST: the parties. */
     std::vector<Listing> parties;
     /* JOINED: the member's name; CHAT: the message. */
@@ -243,8 +261,10 @@ struct Message {
     std::int64_t server_ms = 0;
     /* ERROR: why the server refused. */
     ErrorReason reason = ErrorReason::kPartyNotFound;
-    /* UDP: the session's token, the server's UDP port and its feature bits (none from an older one). */
+    /* UDP: the session's token, the server's UDP port, its feature bits (none from an older one) and
+     * the token that takes this session back. */
     std::int64_t token = 0;
+    std::int64_t resume_token = 0;
     std::int32_t udp_port = 0;
     std::uint8_t features = 0;
 };
@@ -260,18 +280,26 @@ bool decode_datagram(const std::uint8_t* data, std::size_t size, Message& out);
 /* The server's side, for the embedded host of Direct connect (host.hpp): the frames the server
  * sends, and the client's frames and datagrams as the server reads them. */
 Bytes hello_reply(std::int32_t session);
-Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features = kFeatureKick);
+Bytes udp_offer(
+    std::int64_t token,
+    std::int32_t port,
+    std::uint8_t features = kFeatureKick,
+    std::int64_t resume_token = 0
+);
 Bytes party_info(
     const std::string& code,
     std::int32_t host,
     const std::vector<Member>& members,
-    const std::string& description = ""
+    const std::string& description = "",
+    std::int32_t epoch = 0,
+    const std::vector<std::int32_t>& away = {}
 );
 Bytes party_list_reply(const std::vector<Listing>& parties);
 Bytes party_joined(const Member& member);
 Bytes party_left(std::int32_t member);
 Bytes party_end();
 Bytes party_kicked();
+Bytes party_away(std::int32_t member, bool back);
 Bytes chat_from(std::int32_t sender, const std::string& message);
 Bytes data_from(std::int32_t sender, const Bytes& payload);
 Bytes error_reply(ErrorReason reason);
@@ -290,6 +318,7 @@ struct Request {
         kList,
         kLeave,
         kKick,
+        kResume,
         kChat,
         kData,
         kTime
@@ -299,8 +328,11 @@ struct Request {
      * message. */
     std::string version;
     std::string text;
-    /* DATA: the target and the bytes; KICK: the member, in target. */
+    /* DATA: the target and the bytes; KICK: the member, in target; RESUME: the code in text, the
+     * session in target and the token; HELLO: the client's bits. */
     std::int32_t target = 0;
+    std::int64_t token = 0;
+    std::uint8_t features = 0;
     Bytes bytes;
     /* TIME: the client's clock. */
     std::int64_t client_ms = 0;

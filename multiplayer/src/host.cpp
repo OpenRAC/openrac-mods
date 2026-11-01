@@ -110,6 +110,9 @@ std::string description_text(const std::string& text) {
 
 namespace {
 
+/* How long a new client with a slot waiting is kept out in case its RESUME comes. */
+constexpr std::int64_t kResumeWaitMs = 500;
+
 /* A 64-bit token no one can guess from the outside. */
 std::int64_t new_token() {
     std::random_device random;
@@ -242,6 +245,11 @@ struct Host::Peer {
     sockaddr_storage udp{};
     socklen_t udp_length = 0;
     std::int64_t udp_heard_ns = 0;
+    /* What takes this session back, whether its client comes back at all, and until when it is kept
+     * out of the party in case it is coming back. */
+    std::int64_t resume_token = 0;
+    bool resumes = false;
+    std::int64_t resuming_ns = 0;
 
     Member member() const { return {id, name}; }
 };
@@ -441,6 +449,7 @@ void Host::run() {
         }
 
         const std::int64_t now = steady_ns();
+        tick_slots(now);
 
         // A connection that never says hello would hold a socket for nothing.
         for (auto& p : peers_) {
@@ -512,6 +521,7 @@ void Host::accept_clients() {
         peer->strikes = Bucket(config_.strikes);
         peer->state = Bucket(config_.data);
         peer->token = new_token();
+        peer->resume_token = new_token();
         peers_.push_back(std::move(peer));
     }
 }
@@ -671,6 +681,7 @@ void Host::handle(Peer& peer, const Bytes& body) {
             case Request::Kind::kList:
             case Request::Kind::kLeave:
             case Request::Kind::kKick:
+            case Request::Kind::kResume:
                 within = peer.party.take();
                 break;
             case Request::Kind::kData:
@@ -724,6 +735,9 @@ void Host::handle(Peer& peer, const Bytes& body) {
             break;
         case Request::Kind::kKick:
             kick(peer, q.target);
+            break;
+        case Request::Kind::kResume:
+            resume(peer, q);
             break;
         case Request::Kind::kChat: {
             // Blank or oversized messages only come from a broken client.
@@ -789,12 +803,20 @@ void Host::hello(Peer& peer, const Request& q) {
 
     // A client may add UDP for its state; the local game has no need.
     if (udp_ok_ && !peer.local) {
-        send_to(peer, udp_offer(peer.token, port_));
+        send_to(peer, udp_offer(peer.token, port_, kFeatureKick | kFeatureResume, peer.resume_token));
     }
 
-    // A client is put in the party at once, so its lobby opens with nothing typed.
+    peer.resumes = (q.features & kClientResumes) != 0;
+
+    // A client is put in the party at once, so its lobby opens with nothing typed. With a slot
+    // waiting this may be its player, whose RESUME comes next.
     if (!peer.local) {
-        join(peer);
+        if (peer.resumes && !slots_.empty()) {
+            peer.resuming_ns = steady_ns() + kResumeWaitMs * 1000000;
+        } else {
+            join(peer);
+        }
+
         return;
     }
 
@@ -832,8 +854,8 @@ void Host::join(Peer& peer) {
         return;
     }
 
-    // Each game only links so many players.
-    if (party_.size() >= config_.max_party_size) {
+    // Each game only links so many players, and a slot that waits is taken.
+    if (party_.size() + slots_.size() >= config_.max_party_size) {
         send_to(peer, error_reply(ErrorReason::kPartyFull));
         return;
     }
@@ -847,17 +869,79 @@ void Host::join(Peer& peer) {
 
     party_.push_back(&peer);
     peer.in_party = true;
+    send_to(peer, info());
+}
 
+Bytes Host::info() const {
     std::vector<Member> members;
+    std::vector<std::int32_t> away;
 
     for (const Peer* m : party_) {
         members.push_back(m->member());
     }
 
-    send_to(
-        peer,
-        party_info(kDirectCode, party_.front()->id, members, description_text(config_.description))
-    );
+    for (const Slot& slot : slots_) {
+        members.push_back(slot.member);
+        away.push_back(slot.member.id);
+    }
+
+    return party_info(kDirectCode, party_.front()->id, members, description_text(config_.description), 0, away);
+}
+
+void Host::resume(Peer& peer, const Request& q) {
+    const auto slot = std::find_if(slots_.begin(), slots_.end(), [&](const Slot& s) {
+        return s.member.id == q.target && s.token == q.token;
+    });
+
+    // The party is one, so the code says nothing; the token does.
+    if (peer.in_party || party_.empty() || slot == slots_.end()) {
+        send_to(peer, error_reply(ErrorReason::kResumeRefused));
+        return;
+    }
+
+    peer.id = slot->member.id;
+    peer.name = slot->member.name;
+    peer.resume_token = slot->token;
+    peer.resuming_ns = 0;
+    peer.in_party = true;
+    slots_.erase(slot);
+    party_.push_back(&peer);
+    const Bytes back = party_away(peer.id, true);
+
+    for (Peer* m : std::vector<Peer*>(party_)) {
+        if (m != &peer) {
+            send_to(*m, back);
+        }
+    }
+
+    send_to(peer, hello_reply(peer.id));
+    send_to(peer, udp_offer(peer.token, port_, kFeatureKick | kFeatureResume, peer.resume_token));
+    send_to(peer, info());
+}
+
+void Host::tick_slots(std::int64_t now_ns) {
+    // A slot's time out: it left. The rest of the party has known since it dropped.
+    for (auto it = slots_.begin(); it != slots_.end();) {
+        if (now_ns - it->dropped_ns < static_cast<std::int64_t>(kResumeMs) * 1000000) {
+            ++it;
+            continue;
+        }
+
+        const Bytes left = party_left(it->member.id);
+        it = slots_.erase(it);
+
+        for (Peer* m : std::vector<Peer*>(party_)) {
+            send_to(*m, left);
+        }
+    }
+
+    // One that said no RESUME is a new player after all.
+    for (auto& p : peers_) {
+        if (p->resuming_ns != 0 && now_ns >= p->resuming_ns && !p->dead) {
+            p->resuming_ns = 0;
+            join(*p);
+        }
+    }
 }
 
 void Host::leave(Peer& peer, bool asked) {
@@ -880,7 +964,14 @@ void Host::leave(Peer& peer, bool asked) {
 
     party_.erase(std::remove(party_.begin(), party_.end(), &peer), party_.end());
     peer.in_party = false;
-    const Bytes left = party_left(peer.id);
+    // A dropped connection that can come back keeps its slot; one that said so leaves.
+    const bool held = !asked && peer.resumes;
+
+    if (held) {
+        slots_.push_back({peer.member(), peer.resume_token, steady_ns()});
+    }
+
+    const Bytes left = held ? party_away(peer.id, false) : party_left(peer.id);
 
     for (Peer* m : std::vector<Peer*>(party_)) {
         send_to(*m, left);
@@ -896,6 +987,22 @@ void Host::kick(Peer& peer, std::int32_t member) {
     // Only the host has the say.
     if (party_.empty() || party_.front() != &peer) {
         send_to(peer, error_reply(ErrorReason::kNotHost));
+        return;
+    }
+
+    // A slot that waits goes as well: its player finds it gone.
+    const auto slot = std::find_if(slots_.begin(), slots_.end(), [&](const Slot& s) {
+        return s.member.id == member;
+    });
+
+    if (slot != slots_.end()) {
+        slots_.erase(slot);
+        const Bytes left = party_left(member);
+
+        for (Peer* other : std::vector<Peer*>(party_)) {
+            send_to(*other, left);
+        }
+
         return;
     }
 
@@ -921,6 +1028,7 @@ void Host::kick(Peer& peer, std::int32_t member) {
 void Host::end_party() {
     const std::vector<Peer*> members(party_);
     party_.clear();
+    slots_.clear();
     ended_ = true;
     const Bytes end = party_end();
 

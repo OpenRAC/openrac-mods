@@ -12,7 +12,7 @@
  * `kind::` names, so a number is written once.
  *
  * Reserved ranges (free until their package lands):
- *    36-39 shared progress, 40-43 host migration, 44-47 late join, 48-51 shots,
+ *    36-39 shared progress, 44-47 late join, 48-51 shots,
  *    52-55 camera (54 and 55 free), 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
  *    64-67), 71-72 the world's second range; free: 0, 73-127 (and 128-255, which the wire does not
  *    use). Late join uses 44 to 46 (47 is free).
@@ -77,6 +77,11 @@ constexpr std::uint8_t kCoSave = 32;
 constexpr std::uint8_t kCoSaveAck = 33;
 constexpr std::uint8_t kSaveNow = 34;
 constexpr std::uint8_t kCoParty = 35;
+// A change of host (migrate.hpp)
+constexpr std::uint8_t kSuccessor = 40;
+constexpr std::uint8_t kLedger = 41;
+constexpr std::uint8_t kLedgerAsk = 42;
+constexpr std::uint8_t kEpoch = 43;
 // Late join and waits (coop.hpp)
 constexpr std::uint8_t kPlace = 44;
 constexpr std::uint8_t kPlaceAsk = 45;
@@ -174,6 +179,10 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kCoSaveAck, "COSAVE_ACK", Owner::kSave},
     {kind::kSaveNow, "SAVE_NOW", Owner::kSave},
     {kind::kCoParty, "COPARTY", Owner::kSave},
+    {kind::kSuccessor, "SUCCESSOR", Owner::kMigrate},
+    {kind::kLedger, "LEDGER", Owner::kMigrate},
+    {kind::kLedgerAsk, "LEDGER_ASK", Owner::kMigrate},
+    {kind::kEpoch, "EPOCH", Owner::kMigrate},
     {kind::kShared, "SHARED", Owner::kShare},
     {kind::kMission, "MISSION", Owner::kShare},
     {kind::kSharedAsk, "SHARED_ASK", Owner::kShare},

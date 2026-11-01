@@ -63,15 +63,47 @@ Session::Session(
 }
 
 void Session::connected() {
+    // The new connection may come before anyone saw the old one go.
+    drop();
+
+    if (dropped_) {
+        resume_asked_ = false;
+        transport_.send(hello(version_, name_));
+        return;
+    }
+
     id_ = 0;
     server_kicks_ = false;
+    server_resumes_ = false;
     reset_party();
     transport_.send(hello(version_, name_));
 }
 
 void Session::disconnected() {
-    id_ = 0;
-    reset_party();
+    drop();
+
+    if (!dropped_) {
+        id_ = 0;
+        reset_party();
+    }
+}
+
+void Session::drop() {
+    if (dropped_ || !in_party() || !server_resumes_) {
+        return;
+    }
+
+    dropped_ = true;
+    dropped_ms_ = clock_();
+    resume_asked_ = false;
+    queue_.clear();
+    events_.push_back({PartyEvent::Kind::kDropped, id_});
+}
+
+std::vector<PartyEvent> Session::take_events() {
+    std::vector<PartyEvent> out;
+    out.swap(events_);
+    return out;
 }
 
 void Session::reset_party() {
@@ -81,7 +113,10 @@ void Session::reset_party() {
     description_.clear();
     ready_.clear();
     kicking_.clear();
+    away_.clear();
     links_.clear();
+    dropped_ = false;
+    resume_asked_ = false;
     started_ = false;
     waiting_ = false;
     kick_reason_ = KickReason::kRemoved;
@@ -215,8 +250,9 @@ static bool lobby_kind(std::uint8_t kind) {
 }
 
 bool Session::game_bytes(const Bytes& bytes) const {
-    // Game data goes only inside a party, and never as one of the lobby's kinds.
-    return in_party() && !bytes.empty() && !lobby_kind(bytes[0]);
+    // Game data goes only inside a party, and never as one of the lobby's kinds; a game whose
+    // connection went has nowhere to send it, and is given the world again when it is back.
+    return in_party() && !dropped_ && !bytes.empty() && !lobby_kind(bytes[0]);
 }
 
 void Session::report_link(std::int64_t ping_ms, bool udp) {
@@ -279,6 +315,14 @@ void Session::send_data(std::int32_t target, const Bytes& bytes) {
 
 void Session::flush() {
     const std::uint64_t now = clock_();
+
+    // The server gave up on this slot by now, whatever became of the connection.
+    if (dropped_ && now - dropped_ms_ >= kResumeMs) {
+        id_ = 0;
+        reset_party();
+        notice_ = kLostSlotNotice;
+        return;
+    }
 
     while (!queue_.empty()) {
         if (!data_bucket_.take(now)) {
@@ -362,7 +406,16 @@ void Session::handle(const Message& m) {
     // Each kind of message changes its part of the state.
     switch (m.kind) {
         case Message::Kind::kHello:
-            id_ = m.id;
+            // Greeted on a new connection, this game's slot first; its id is the old one all along.
+            if (dropped_) {
+                if (!resume_asked_) {
+                    resume_asked_ = true;
+                    transport_.send(party_resume(code_, id_, resume_token_));
+                }
+            } else {
+                id_ = m.id;
+            }
+
             clock_samples_ = 0;
             sync_clock();
             break;
@@ -377,19 +430,18 @@ void Session::handle(const Message& m) {
             ++clock_samples_;
             break;
         }
-        case Message::Kind::kPartyInfo: {
-            waiting_ = false;
-            code_ = m.code;
-            role_.set(true, id_, m.host);
-            members_ = m.members;
-            description_ = m.description;
-            // The host first, the rest as the server lists them.
-            std::stable_partition(members_.begin(), members_.end(), [&](const Member& x) {
-                return x.id == role_.host_id();
-            });
-            ready_.clear();
+        case Message::Kind::kPartyInfo:
+            take_info(m);
             break;
-        }
+        case Message::Kind::kPartyAway:
+            if (m.back) {
+                away_.erase(m.id);
+            } else {
+                away_.insert(m.id);
+            }
+
+            events_.push_back({m.back ? PartyEvent::Kind::kBack : PartyEvent::Kind::kAway, m.id});
+            break;
         case Message::Kind::kPartyJoined:
             members_.push_back({m.id, m.text});
 
@@ -426,6 +478,16 @@ void Session::handle(const Message& m) {
         }
         case Message::Kind::kError:
             waiting_ = false;
+
+            // The way back refused: the slot is gone, and with it the party.
+            if (m.reason == ErrorReason::kResumeRefused) {
+                id_ = 0;
+                reset_party();
+                server_resumes_ = false;
+                notice_ = kLostSlotNotice;
+                break;
+            }
+
             notice_ = error_text(m.reason);
             break;
         case Message::Kind::kData:
@@ -437,7 +499,37 @@ void Session::handle(const Message& m) {
         case Message::Kind::kUdp:
             // The connection binds UDP with it; what the server takes is the session's.
             server_kicks_ = (m.features & kFeatureKick) != 0;
+            server_resumes_ = (m.features & kFeatureResume) != 0;
+
+            // The offer of a connection not yet back is a new session's: the old token stands.
+            if (!dropped_) {
+                resume_token_ = m.resume_token;
+            }
+
             break;
+    }
+}
+
+void Session::take_info(const Message& m) {
+    // The answer to RESUME keeps all that the party knew of this player: only the room is new.
+    const bool back = dropped_;
+    waiting_ = false;
+    code_ = m.code;
+    role_.set(true, id_, m.host, static_cast<std::uint16_t>(m.epoch));
+    members_ = m.members;
+    description_ = m.description;
+    away_.clear();
+    away_.insert(m.away.begin(), m.away.end());
+    // The host first, the rest as the server lists them.
+    std::stable_partition(members_.begin(), members_.end(), [&](const Member& x) {
+        return x.id == role_.host_id();
+    });
+
+    if (back) {
+        dropped_ = false;
+        events_.push_back({PartyEvent::Kind::kResumed, id_});
+    } else {
+        ready_.clear();
     }
 }
 
@@ -624,6 +716,8 @@ const char* error_text(ErrorReason reason) {
             return "You are not in a party";
         case ErrorReason::kNotHost:
             return "Only the host can do that";
+        case ErrorReason::kResumeRefused:
+            return kLostSlotNotice;
     }
 
     return "The server refused";

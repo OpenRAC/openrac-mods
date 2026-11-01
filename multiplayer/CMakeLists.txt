@@ -24,13 +24,13 @@ set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/p
                            tests/play_saves_test.cpp tests/play_tags_test.cpp tests/play_join_test.cpp
                            tests/play_shared_test.cpp tests/play_lobby_test.cpp
                            tests/play_death_test.cpp tests/play_camera_test.cpp tests/play_hold_test.cpp)
-list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp)
+list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp tests/play_migrate_test.cpp)
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
                 SOURCES src/multiplayer.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
                         src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/pages_remove.cpp src/session.cpp src/connection.cpp src/host.cpp
-                        src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+                        src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
 # The end-to-end tests' driver (src/bot.hpp, tests/e2e): a development build's, never a release's.
@@ -58,7 +58,7 @@ if(BUILD_TESTING)
   # The protocol's bytes and the session's lobby, against a recorder; then the connection against
   # a server the test makes on the loopback, and Direct connect: a host and clients on the loopback.
   add_executable(multiplayer_test tests/multiplayer_test.cpp src/session.cpp src/connection.cpp src/host.cpp
-                 src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+                 src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_test PRIVATE src "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   target_link_libraries(multiplayer_test PRIVATE Threads::Threads)
@@ -70,7 +70,7 @@ if(BUILD_TESTING)
   # Playing together, without the game: the poses' bytes, the interpolation buffer, and the co-op
   # of a host and members through a router that does what the server does with DATA.
   add_executable(multiplayer_play_test ${MULTIPLAYER_PLAY_TESTS} src/session.cpp src/protocol.cpp
-                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_play_test PRIVATE src "${OPENRAC_MOD_SDK_DIR}/include")
   # Poses recorded from two games (a walk with stops, a stall of the sender's), replayed.
   target_compile_definitions(multiplayer_play_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
@@ -80,7 +80,7 @@ if(BUILD_TESTING)
   # cell in every build; MULTIPLAYER_HEAVY_SWEEP adds the sweep a change of the sync is judged by.
   option(MULTIPLAYER_HEAVY_SWEEP "Run the many-seed sweep of the sync with the tests" OFF)
   add_executable(multiplayer_sweep_test tests/sim_sweep_test.cpp src/session.cpp src/protocol.cpp
-                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_sweep_test PRIVATE src tests "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_sweep_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_sweep COMMAND multiplayer_sweep_test --seeds 2)

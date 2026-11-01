@@ -181,9 +181,14 @@ bool valid_key(const std::string& key) {
     });
 }
 
-Bytes hello(const std::string& version, const std::string& name) {
+Bytes hello(const std::string& version, const std::string& name, std::uint8_t features) {
     return frame(
-        Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).str(version).str(name).bytes()
+        Writer()
+            .u8(static_cast<std::uint8_t>(PacketId::kHello))
+            .str(version)
+            .str(name)
+            .u8(features)
+            .bytes()
     );
 }
 
@@ -205,6 +210,10 @@ Bytes party_join(const std::string& code) {
 
 Bytes party_leave() {
     return frame(party(PartyOp::kLeave).bytes());
+}
+
+Bytes party_resume(const std::string& code, std::int32_t session, std::int64_t token) {
+    return frame(party(PartyOp::kResume).str(code).i32(session).i64(token).bytes());
 }
 
 Bytes party_kick(std::int32_t member) {
@@ -255,7 +264,7 @@ bool decode(const Bytes& body, Message& out) {
             out.kind = Message::Kind::kError;
             const std::uint8_t reason = r.u8();
             out.reason = static_cast<ErrorReason>(reason);
-            return r.ok() && reason <= static_cast<std::uint8_t>(ErrorReason::kNotHost);
+            return r.ok() && reason <= static_cast<std::uint8_t>(ErrorReason::kResumeRefused);
         }
         case PacketId::kTime:
             out.kind = Message::Kind::kTime;
@@ -268,6 +277,7 @@ bool decode(const Bytes& body, Message& out) {
             out.udp_port = r.i32();
             // An older server stops at the port.
             out.features = r.left() > 0 ? r.u8() : 0;
+            out.resume_token = r.left() >= 8 ? r.i64() : 0;
             return r.ok();
         case PacketId::kParty:
             break;
@@ -295,6 +305,16 @@ bool decode(const Bytes& body, Message& out) {
             // The description, from a server that sends one.
             if (r.ok() && r.left() > 0) {
                 out.description = r.str();
+            }
+
+            // Which host this is, and who is away, where either means something.
+            if (r.ok() && r.left() > 0) {
+                out.epoch = r.i32();
+                const std::uint8_t away = r.u8();
+
+                for (std::uint8_t i = 0; i < away && r.ok(); ++i) {
+                    out.away.push_back(r.i32());
+                }
             }
 
             return r.ok();
@@ -330,6 +350,11 @@ bool decode(const Bytes& body, Message& out) {
             return r.ok();
         case PartyOp::kKicked:
             out.kind = Message::Kind::kPartyKicked;
+            return r.ok();
+        case PartyOp::kResume:
+            out.kind = Message::Kind::kPartyAway;
+            out.id = r.i32();
+            out.back = r.u8() != 0;
             return r.ok();
         default:
             // CREATE, JOIN, LEAVE and FIND are the client's, and any other opcode is unknown.
@@ -382,9 +407,15 @@ Bytes hello_reply(std::int32_t session) {
     return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).i32(session).bytes());
 }
 
-Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features) {
+Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features, std::int64_t resume_token) {
     return frame(
-        Writer().u8(static_cast<std::uint8_t>(PacketId::kUdp)).i64(token).i32(port).u8(features).bytes()
+        Writer()
+            .u8(static_cast<std::uint8_t>(PacketId::kUdp))
+            .i64(token)
+            .i32(port)
+            .u8(features)
+            .i64(resume_token)
+            .bytes()
     );
 }
 
@@ -392,7 +423,9 @@ Bytes party_info(
     const std::string& code,
     std::int32_t host,
     const std::vector<Member>& members,
-    const std::string& description
+    const std::string& description,
+    std::int32_t epoch,
+    const std::vector<std::int32_t>& away
 ) {
     Writer w = party(PartyOp::kInfo);
     w.str(code).i32(host).u8(static_cast<std::uint8_t>(members.size()));
@@ -402,7 +435,18 @@ Bytes party_info(
         w.i32(m.id).str(m.name);
     }
 
-    return frame(w.str(description).bytes());
+    w.str(description);
+
+    // Most parties have neither, and older clients stop at the description.
+    if (epoch != 0 || !away.empty()) {
+        w.i32(epoch).u8(static_cast<std::uint8_t>(away.size()));
+
+        for (const std::int32_t id : away) {
+            w.i32(id);
+        }
+    }
+
+    return frame(w.bytes());
 }
 
 Bytes party_list_reply(const std::vector<Listing>& parties) {
@@ -433,6 +477,10 @@ Bytes party_left(std::int32_t member) {
 
 Bytes party_end() {
     return frame(party(PartyOp::kEnd).bytes());
+}
+
+Bytes party_away(std::int32_t member, bool back) {
+    return frame(party(PartyOp::kResume).i32(member).u8(back ? 1 : 0).bytes());
 }
 
 Bytes party_kicked() {
@@ -490,6 +538,7 @@ Request decode_request(const Bytes& body) {
             kind = Request::Kind::kHello;
             out.version = r.str();
             out.text = r.str();
+            out.features = r.left() > 0 ? r.u8() : 0;
             break;
         case static_cast<std::uint8_t>(PacketId::kChat):
             kind = Request::Kind::kChat;
@@ -528,6 +577,12 @@ Request decode_request(const Bytes& body) {
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kLeave):
                     kind = Request::Kind::kLeave;
+                    break;
+                case static_cast<std::uint8_t>(PartyOp::kResume):
+                    kind = Request::Kind::kResume;
+                    out.text = r.str();
+                    out.target = r.i32();
+                    out.token = r.i64();
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kKick):
                     kind = Request::Kind::kKick;

@@ -33,6 +33,11 @@
  * rest waits, late but whole. State is the next update's to replace, so send_state refuses one over
  * its own bucket (and says so: the world keeps it to send again), and the fallback of state over TCP
  * only takes what events leave.
+ *
+ * A dropped connection is no end (migrate.hpp). On a server that takes RESUME the session keeps its
+ * party, its id and its token while the connection comes back, and asks for its slot before anything
+ * else; nothing it sends goes meanwhile. The server's word on anyone's connection, and every change
+ * in who hosts, are events for the party's own code to act on (take_events).
  */
 #ifndef MULTIPLAYER_SESSION_H
 #define MULTIPLAYER_SESSION_H
@@ -67,6 +72,18 @@ enum class LobbyKind : std::uint8_t {
 enum class KickReason : std::uint8_t {
     kRemoved = 0,
     kBanned = 1
+};
+
+/* What happened to the party that the session cannot deal with by itself. */
+struct PartyEvent {
+    enum class Kind {
+        kAway,      // a member's connection dropped, its slot waits
+        kBack,      // it came back
+        kDropped,   // this game's connection went
+        kResumed    // this game has its slot again
+    };
+    Kind kind = Kind::kAway;
+    std::int32_t id = 0;
 };
 
 /* A token bucket, as the server's RateLimit, on a clock of milliseconds. */
@@ -132,6 +149,15 @@ public:
     void disconnected();
     /* One message from the server. */
     void handle(const Message& message);
+
+    /* What happened since the last call, in order. */
+    std::vector<PartyEvent> take_events();
+
+    /* Whether this game lost its connection and waits to have its slot back. */
+    bool dropped() const { return dropped_; }
+
+    /* Whether a member's connection dropped and its slot waits. */
+    bool away(std::int32_t member) const { return away_.count(member) != 0; }
 
     /* The player's actions; each does nothing when it makes no sense now (no hello yet, already in
      * a party, not the host). */
@@ -255,6 +281,10 @@ private:
     void note_in(const Bytes& bytes);
     /* Whether game bytes may go: in a party, and not one of the lobby's kinds. */
     bool game_bytes(const Bytes& bytes) const;
+    /* The connection went: the party waits for it, if the server keeps the slot. */
+    void drop();
+    /* What to do with a word of the server about this session's slot. */
+    void take_info(const Message& message);
 
     Transport& transport_;
     const std::string version_;
@@ -278,10 +308,17 @@ private:
     std::uint32_t lists_ = 0;
     std::set<std::int32_t> ready_;
     std::set<std::int32_t> kicking_;  // the host: asked out, not gone yet
+    std::set<std::int32_t> away_;     // members whose slot waits for them
     std::map<std::int32_t, Link> links_;
     bool started_ = false;
     bool waiting_ = false;
     bool server_kicks_ = false;  // the server said it takes KICK
+    bool server_resumes_ = false;  // the server said it takes RESUME
+    std::int64_t resume_token_ = 0;
+    bool dropped_ = false;       // the connection went, the party stands
+    bool resume_asked_ = false;  // RESUME went on this connection
+    std::uint64_t dropped_ms_ = 0;
+    std::vector<PartyEvent> events_;
     KickReason kick_reason_ = KickReason::kRemoved;
     std::string notice_;
     std::function<void(std::int32_t, const Bytes&)> on_data_;
@@ -322,6 +359,8 @@ std::string choose_name(const std::string& setting, const std::string& launcher)
 /* What a removed player reads. */
 constexpr const char* kKickedNotice = "The host removed you from the party";
 constexpr const char* kBannedNotice = "The host banned you from this save";
+/* What a player reads when its way back is gone, whatever the reason. */
+constexpr const char* kLostSlotNotice = "Your place in the party is gone";
 
 /* The words for a refusal of the server. */
 const char* error_text(ErrorReason reason);

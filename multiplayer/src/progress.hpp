@@ -65,6 +65,9 @@ public:
     /* The party or its game is gone: nothing is kept. */
     void reset();
 
+    /* Someone came back to the party: everything goes across again. */
+    void again() { sent_any_ = false; }
+
     /* What it knows: this game's last reading, the party's (a member: the host's last word). */
     const ProgressBits& here() const { return here_; }
 

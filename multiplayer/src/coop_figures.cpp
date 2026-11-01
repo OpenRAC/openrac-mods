@@ -285,7 +285,8 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
             hidden = "this game is out of a level";
         } else if (!r.poses.at(t, pose)) {
             hidden = "no pose";
-        } else if (r.poses.silence_ms(t) >= kGoneMs) {
+        } else if (r.poses.silence_ms(t) >= kGoneMs && !session_.away(it->first) && !session_.dropped()) {
+            // (A connection that dropped: stood where it was, until the slot is given up.)
             hidden = "silent";
         } else if (pose.level != status.level) {
             hidden = "in another level";
@@ -388,7 +389,9 @@ std::vector<NameTag> Coop::name_tags() const {
 
 bool Coop::latest(std::int32_t player, Pose& out) const {
     const auto it = remotes_.find(player);
-    return it != remotes_.end() && it->second.poses.newest(out);
+
+    // One whose connection dropped stands in no enemy's way, in nobody's count.
+    return it != remotes_.end() && !session_.away(player) && it->second.poses.newest(out);
 }
 
 int Coop::figure_of(std::int32_t player) const {

@@ -19,6 +19,7 @@
 #include "coop.hpp"
 #include "cosave.hpp"
 #include "menu.hpp"
+#include "migrate.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
@@ -665,6 +666,7 @@ struct Player {
     mp::CamScripts cam;
     mp::PartyMods mods;
     mp::CoSave cosave;
+    mp::Migrate migrate;
     mp::Router router;
 
     explicit Player(std::int32_t id_)
@@ -676,7 +678,8 @@ struct Player {
           shared(session, game, coop),
           cam(session, game, coop, [this] { return clock; }),
           mods(session, game, {}, [this] { return clock; }),
-          cosave(session, game, [this] { return clock; }) {
+          cosave(session, game, [this] { return clock; }),
+          migrate(session, coop, world, progress, shared, [this] { return clock; }) {
         coop.set_save_hooks([this](std::int32_t target) { cosave.announce(target); },
                             [this](const Bytes& save) { cosave.starting(save); });
         coop.on_start_again([this] { cosave.start_again(); });
@@ -686,6 +689,7 @@ struct Player {
         router.route(mp::Owner::kWorld, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
         router.route(mp::Owner::kTether, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
         router.route(mp::Owner::kProgress, [this](std::int32_t sender, const Bytes& bytes) { progress.handle(sender, bytes); });
+        router.route(mp::Owner::kMigrate, [this](std::int32_t sender, const Bytes& bytes) { migrate.handle(sender, bytes); });
         router.route(mp::Owner::kShare, [this](std::int32_t sender, const Bytes& bytes) { shared.handle(sender, bytes); });
         router.route(mp::Owner::kCamera, [this](std::int32_t sender, const Bytes& bytes) { cam.handle(sender, bytes); });
         session.on_data([this](std::int32_t sender, const Bytes& bytes) { router.dispatch(sender, bytes); });
@@ -761,6 +765,7 @@ inline void route(std::vector<Player*> players) {
 inline void tick(std::vector<Player*> players, std::uint64_t ms) {
     for (Player* p : players) {
         p->clock += ms;
+        p->migrate.tick(p->clock);
         p->coop.tick(p->clock);
         p->world.tick(p->clock);
         p->progress.tick(p->clock);
@@ -983,6 +988,56 @@ struct Party {
 };
 
 
+// What the server says of connections and slots (its RESUME), as Sessions read it.
+inline mp::Message udp_offer_of(std::int64_t resume_token) {
+    mp::Message m;
+    m.kind = mp::Message::Kind::kUdp;
+    m.features = mp::kFeatureKick | mp::kFeatureResume;
+    m.resume_token = resume_token;
+    return m;
+}
+
+inline void offer_resume(const std::vector<Player*>& players) {
+    for (Player* p : players) {
+        p->session.handle(udp_offer_of(1000 + p->id));
+    }
+}
+
+inline void server_away(const std::vector<Player*>& others, std::int32_t id, bool back = false) {
+    mp::Message m;
+    m.kind = mp::Message::Kind::kPartyAway;
+    m.id = id;
+    m.back = back;
+
+    for (Player* p : others) {
+        p->session.handle(m);
+    }
+}
+
+// The connection of `p` goes: the others are told, and nothing it sent reaches anyone.
+inline void lose(Player& p, const std::vector<Player*>& others) {
+    p.session.disconnected();
+    p.link.frames.clear();
+    server_away(others, p.id);
+}
+
+// Its answer to RESUME on a new connection, the party as `party` says.
+inline void come_back(Player& p, const std::vector<Player*>& others, mp::Message party) {
+    p.session.connected();
+    p.link.frames.clear();
+    mp::Message hello;
+    hello.kind = mp::Message::Kind::kHello;
+    hello.id = 900 + p.id;  // the new connection's session, for a moment
+    p.session.handle(hello);
+    p.link.frames.clear();
+    hello.id = p.id;
+    p.session.handle(hello);
+    p.session.handle(udp_offer_of(1000 + p.id));
+    p.session.handle(party);
+    server_away(others, p.id, true);
+}
+
+
 inline std::size_t count_of(const FakeGame& game, const std::string& call) {
     return static_cast<std::size_t>(std::count(game.calls.begin(), game.calls.end(), call));
 }
@@ -1201,6 +1256,7 @@ struct SimNet {
         flying.swap(later);
 
         for (Player* p : players) {
+            p->migrate.tick(now);
             p->coop.tick(now);
             p->world.tick(now);
             p->progress.tick(now);
@@ -1536,5 +1592,6 @@ void run_lobby_tests();
 void run_death_tests();
 void run_camera_tests();
 void run_hold_tests();
+void run_migrate_tests();
 
 }  // namespace mpt

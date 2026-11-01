@@ -525,6 +525,13 @@ public:
     /* The party or the level is gone: nothing is kept. */
     void reset();
 
+    /* A change in who is connected (migrate.hpp). The host: a member's connection dropped, or it came
+     * back; its own came back. A member: this game has its slot back. */
+    void member_away(std::int32_t member);
+    void member_back(std::int32_t member);
+    void host_back();
+    void rejoined();
+
     /* What it does, for the pages and the tests. */
     bool hosting() const { return hosting_; }
 

@@ -122,6 +122,10 @@ private:
     void join(Peer& peer);
     void leave(Peer& peer, bool asked);
     void kick(Peer& peer, std::int32_t member);
+    void resume(Peer& peer, const Request& request);
+    void tick_slots(std::int64_t now_ns);
+    /* INFO as the party stands, the slots that wait among its members. */
+    Bytes info() const;
     void end_party();
     void forward(Peer& sender, std::int32_t target, const std::function<void(Peer&)>& delivery);
     void deliver_state(std::int32_t sender, Peer& to, const Bytes& bytes);
@@ -147,6 +151,13 @@ private:
     Peer* local_ = nullptr;
     /* The party: the host (the local game once greeted) first, then the members as they joined. */
     std::vector<Peer*> party_;
+    /* A member whose connection dropped: its slot, for it to come back to (migrate.hpp). */
+    struct Slot {
+        Member member;
+        std::int64_t token = 0;
+        std::int64_t dropped_ns = 0;
+    };
+    std::vector<Slot> slots_;
     std::int32_t next_id_ = 1;
     std::int64_t started_ns_ = 0;
 };

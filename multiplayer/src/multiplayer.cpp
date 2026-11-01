@@ -168,8 +168,12 @@ void refresh_mod_code(std::uint64_t now) {
 }
 
 void show_banner(std::uint64_t now) {
-    // The party's own line first: a save's only says it went well.
-    std::string line = g->coop->banner(now);
+    // Who is gone first; then the party's own line: a save's only says it went well.
+    std::string line = g->migrate->banner(now);
+
+    if (line.empty()) {
+        line = g->coop->banner(now);
+    }
 
     if (line.empty()) {
         line = g->cosave->banner(now);
@@ -298,6 +302,8 @@ void load(openrac::Mod& mod) {
     g->shared->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->camscripts = std::make_unique<mp::CamScripts>(*g->session, *g->game, *g->coop);
     g->camscripts->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
+    g->migrate = std::make_unique<mp::Migrate>(*g->session, *g->coop, *g->world, *g->progress, *g->shared);
+    g->migrate->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
@@ -383,6 +389,7 @@ void load(openrac::Mod& mod) {
     g->router.route(mp::Owner::kProgress, [](std::int32_t sender, const mp::Bytes& bytes) { g->progress->handle(sender, bytes); });
     g->router.route(mp::Owner::kSave, [](std::int32_t sender, const mp::Bytes& bytes) { g->cosave->handle(sender, bytes); });
     g->router.route(mp::Owner::kShare, [](std::int32_t sender, const mp::Bytes& bytes) { g->shared->handle(sender, bytes); });
+    g->router.route(mp::Owner::kMigrate, [](std::int32_t sender, const mp::Bytes& bytes) { g->migrate->handle(sender, bytes); });
     g->router.route(mp::Owner::kCamera, [](std::int32_t sender, const mp::Bytes& bytes) { g->camscripts->handle(sender, bytes); });
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) { g->router.dispatch(sender, bytes); });
     // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
@@ -592,6 +599,7 @@ void load(openrac::Mod& mod) {
             );
         }
 
+        g->migrate->tick(now);
         g->coop->tick(now);
         // A host's rule: for a member, what its host said.
         if (g->session->is_host()) {

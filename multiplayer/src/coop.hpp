@@ -625,6 +625,12 @@ public:
     /* The party is gone (left, ended, the connection lost): the figures go, nothing is pending. */
     void reset();
 
+    /* A change in who is connected (migrate.hpp). This game has its slot back: it comes in as a late
+     * joiner does; the host: a member came back; the party waits for its host. */
+    void rejoined(std::uint64_t now);
+    void member_back(std::int32_t member);
+    void hold_for_host(bool on) { host_hold_ = on; }
+
     /* Leaving: whether this game is on its way back to the title after its party went, and whether
      * the title's Multiplayer page is still to open; home_shown() says it did (its page showed). */
     bool to_title() const { return to_title_; }
@@ -686,7 +692,7 @@ public:
 
     /* The scene barrier, for the pad: whether this player's control is held (out of a scene while
      * another player is still in one). */
-    bool hold_input() const { return hold_ || joining_hold_; }
+    bool hold_input() const { return hold_ || joining_hold_ || host_hold_; }
 
     /* This player pressed Start in a scene or a movie (`phase`): the host's skips it for the party;
      * a member's skips nothing (start_blocked) and has the banner say only the host can. */
@@ -1018,6 +1024,8 @@ private:
     bool home_ = false;
     std::uint64_t home_since_ = 0;
     std::uint64_t home_ms_ = 0;
+    /* The party waits for its host (migrate.hpp): nobody moves. */
+    bool host_hold_ = false;
     /* The host: each member's newest pose not passed on yet, and when they last went. */
     std::map<std::int32_t, Bytes> relay_;
     std::uint64_t relay_ms_ = 0;
