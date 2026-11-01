@@ -24,7 +24,11 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `keys` | a member's death: the key map, the drives and the crates afterwards |
 | `crates` | crates broken from both sides, a member's death among them (`--deaths`), a late member (`--join`): every game's crates compared, and the mobys' places and hidden flags |
 | `bolts` | bolts of crates broken on each side reach the player who stands there, none left over in either game |
-| `hostdeath` | the host dies: what the party broke stays broken in its game, the member gets the world again, nothing of its old spawned mobys is left |
+| `hostdeath` | the host dies: what the party broke stays broken in its game, the member gets the world again, the bolts lying about agree |
+| `wipe` | both die at once: the host's level comes back as its checkpoint has it, the member comes back beside the host |
+| `revive` | the host's revive rule on: a member's dead hero stays down, the host standing over him brings him back where he lay |
+| `crateback` | Rilgar's crates that come back: one broken by a member breaks in the host's game too, its bolts reach the member, none is deleted, each comes back by itself |
+| `dig` | Novalis: two players at a pile of buried bolts: the pile goes from both games, one digs it |
 | `join` | a party in a level (`--level N`; leave `--skip-movies` out, so the game's movies are there), then a late member: its timeline until it stands in control in the host's level; `--host-scene N`: the host plays scene N as it joins; `--place`: it ends beside the host, and stays there (`--level 5` for the Rilgar lift: the host on a moby is not steady, so its last safe spot is taken) |
 | `gohost` | a member runs off and takes Go to host: beside the host, and the worlds agree |
 | `restart` | the host goes to the title and starts again: a member in a level starts the new game |

@@ -83,6 +83,7 @@ class Client:
                                 "server": f"{self.address}:7770",
                                 "name": self.name,
                                 "verbose_log": self.env.trace,
+                                "revive": self.env.revive,
                             },
                         }
                     ],
@@ -214,6 +215,7 @@ class Env:
         self.server_address = f"127.{args.base + 1}.0.2"
         self.seed = args.seed
         self.trace = args.trace
+        self.revive = args.scenario == "revive"
         self.game_args = args.game_arg or []
         self.game_env = dict(e.split("=", 1) for e in (args.game_env or []))
         self.server = None
@@ -712,8 +714,116 @@ def scenario_host_death(env, args):
     env.check("what the party broke stayed broken in the host's game", not back, json.dumps(back))
     compare_worlds(env, [host, member], "after the host's death")
     left = {c.name: len(spawned_bolts(c)) for c in (host, member)}
-    env.check("no bolt left of the old world", not any(left.values()), json.dumps(left))
+    env.check("the bolts lying about are the same in both games", left[host.name] == left[member.name], json.dumps(left))
     compare_poses(env, host, [member], "after the host's death")
+
+
+def scenario_wipe(env, args):
+    """Both die: the host's level comes back as its checkpoint has it, and the member beside it."""
+    host, member = start_two(env, args)
+    crates = sorted(crates_of(host), key=lambda m: (m[5], m[6]))[:2]
+    for crate in crates:
+        go_near(host, crate)
+        time.sleep(0.5)
+        host.ask(f"hit {crate[1]} {'20000' if crate[2] in (502, 505) else '10000'}")
+        time.sleep(0.5)
+    time.sleep(5)
+    loads = host.status()["loads"], member.status()["loads"]
+    knock_out(member)
+    host.ask("fall")
+    wait("the host's respawn", lambda: host.status()["loads"] != loads[0], 30)
+    wait("the member's respawn", lambda: member.status()["loads"] != loads[1], 30)
+    time.sleep(6)
+    env.check("the member has the world again", member.status()["synced"], json.dumps(member.status())[:300])
+    h, m = host.status()["hero"], member.status()["hero"]
+    near = sum((a - b) ** 2 for a, b in zip(h, m)) ** 0.5
+    env.report["notes"]["wipe: distance"] = near
+    env.check("the member stands by the host", near < 6, f"{near:.1f}")
+    compare_worlds(env, [host, member], "after a full wipe")
+
+
+def knock_out(c):
+    """Hits on its hero until he is dead (on his feet)."""
+    for _ in range(40):
+        if c.status()["health"] <= 0:
+            return
+        c.ask("damage 1 8")
+        time.sleep(1.2)
+    raise Failed(f"{c.name}'s hero would not die")
+
+
+def scenario_revive(env, args):
+    """The host's rule: a member down stays down, the host standing over him brings him back; left
+    alone, he goes to his checkpoint in the end."""
+    host, member = start_two(env, args)
+    lines = json.loads(member.ask("page rules"))
+    env.check("the rule is on the Rules page", any("revive" in line for line in lines), json.dumps(lines))
+    loads = member.status()["loads"]
+    knock_out(member)
+    time.sleep(6)
+    s = member.status()
+    env.check("the member stays down", s["health"] <= 0 and s["loads"] == loads, json.dumps(s)[:300])
+    at = s["hero"]
+    host.ask(f"teleport {at[0] + 1} {at[1]} {at[2] + 1}")
+    wait("the member up again", lambda: member.status()["health"] > 0, 12)
+    env.check("he got up where he lay, the level not made again", member.status()["loads"] == loads, "")
+    compare_poses(env, host, [member], "after a revive")
+
+
+# Crates of level 5 that come back: measured on both discs (the byte at +0xC8 of the pvars).
+BACK_CRATES = [651, 652]
+
+
+def scenario_crateback(env, args):
+    """A crate that comes back, broken by a member: the host's breaks and drops, none is deleted,
+    and a bolt reaches the member who broke it."""
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], 5)
+    time.sleep(3)
+    placed, _ = member.mobys()
+    crate = placed.get(BACK_CRATES[0])
+    if crate is None or not live(crate):
+        raise Failed("no crate that comes back there")
+    go_near(member, crate)
+    time.sleep(1)
+    bolts = int(member.ask("bolts"))
+    member.ask(f"hit {crate[1]} 10000")
+    time.sleep(4)
+    states = {c.name: c.mobys()[0].get(crate[1]) for c in (host, member)}
+    env.report["notes"]["crate after its break"] = {k: v[4] if v else None for k, v in states.items()}
+    env.check("broken in both, deleted in neither", all(v is not None and v[4] == 6 for v in states.values()), json.dumps(states)[:300])
+    env.check("the host's copy dropped: the member got bolts", int(member.ask("bolts")) > bolts, "")
+    # Out of sight, each game's copy comes back by itself.
+    for c in (host, member):
+        c.ask(f"teleport {crate[5] + 60} {crate[6] + 60} {crate[7] + 30}")
+    wait("it came back in both", lambda: all(c.mobys()[0][crate[1]][4] == 1 for c in (host, member)), 30)
+    compare_poses(env, host, [member], "after a crate came back")
+
+
+def scenario_dig(env, args):
+    """Two players at a pile of buried bolts: one digs, the pile goes from every game."""
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], 1)
+    time.sleep(3)
+    placed, _ = member.mobys()
+    piles = sorted((m for m in placed.values() if m[2] == 605 and live(m)), key=lambda m: m[1])
+    if not piles:
+        raise Failed("no pile of buried bolts there")
+    pile = piles[0]
+    for c in (host, member):
+        c.ask("equip 27")
+        go_near(c, pile, 1.0)
+    time.sleep(2)
+    bolts = {c.name: int(c.ask("bolts")) for c in (host, member)}
+    member.ask("press 20 90")
+    time.sleep(0.1)
+    host.ask("press 20 90")
+    time.sleep(6)
+    gained = {c.name: int(c.ask("bolts")) - bolts[c.name] for c in (host, member)}
+    env.report["notes"]["dig: bolts gained"] = gained
+    states = {c.name: c.mobys()[0].get(pile[1]) for c in (host, member)}
+    env.check("the pile is gone from both", not any(v and live(v) for v in states.values()), json.dumps(states)[:300])
+    env.check("exactly one dug it", sum(1 for v in gained.values() if v > 0) >= 1, json.dumps(gained))
 
 
 def enemies_of(c):
@@ -1289,6 +1399,10 @@ SCENARIOS = {
     "keys": scenario_keys,
     "bolts": scenario_bolts,
     "hostdeath": scenario_host_death,
+    "wipe": scenario_wipe,
+    "revive": scenario_revive,
+    "crateback": scenario_crateback,
+    "dig": scenario_dig,
     "crates": scenario_crates,
     "join": scenario_join,
     "gohost": scenario_gohost,
