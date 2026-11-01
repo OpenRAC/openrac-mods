@@ -569,6 +569,8 @@ public:
      * waits for its save, the level the host plays, the remote players shown now. */
     bool playing() const { return play_ != 0; }
 
+    std::int32_t play() const { return play_; }
+
     bool receiving() const { return pending_ && received_ < expected_; }
 
     int host_level() const { return host_level_; }

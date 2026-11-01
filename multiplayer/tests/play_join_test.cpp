@@ -182,6 +182,22 @@ void a_scene_in_progress_is_waited_out() {
     CHECK(scene_asked() == 0);
 }
 
+// The wait for a safe spot starts when the host's scene is over, not when the joiner came.
+void a_scene_takes_nothing_from_the_wait() {
+    Party p;
+    p.host.game.now = p.member.game.now = {mp::kPhaseScene, 3, 2, 7};
+    p.run(200);
+    p.come();
+    p.in_level();
+    p.run(mp::kPlaceWaitMs + 1000);
+    p.host.game.hero_pose.flags = 0;
+    p.host.game.now = p.member.game.now = {mp::kPhasePlaying, 3, 2};
+    p.run(1000);
+    CHECK(p.late.coop.joining() && p.late.game.placed.empty());
+    p.run(mp::kPlaceWaitMs);
+    CHECK(!p.late.coop.joining());
+}
+
 // The joiner's own Start ends its wait where it stands, the scene still not its to play.
 void start_ends_a_joiners_wait() {
     Party p;
@@ -212,11 +228,14 @@ void a_place_needs_the_hosts_word_for_this_asking() {
         }
         return w.bytes();
     };
-    const Bytes stale = place(1, 0);
-    p.late.coop.handle(1, stale);  // no such game, no such ticket
-    p.late.coop.handle(2, place(p.late.coop.playing() ? 1 : 0, 1));  // a member's
+    const std::int32_t play = p.late.coop.play();
+    p.late.coop.handle(1, place(play + 2, 1));  // another game's
+    p.late.coop.handle(1, place(play, 2));      // another asking's
+    p.late.coop.handle(2, place(play, 1));      // a member's
     p.late.coop.handle(1, Bytes{static_cast<std::uint8_t>(mp::GameKind::kPlace), 1, 2});  // cut short
     CHECK(p.late.game.placed.empty());
+    p.late.coop.handle(1, place(play, 1));
+    CHECK(p.late.game.placed.size() == 1);
     CHECK(mp::owner_of(mp::kind::kPlace) == mp::Owner::kJoin);
     CHECK(mp::owner_of(mp::kind::kPlaceAsk) == mp::Owner::kJoin);
     CHECK(mp::owner_of(mp::kind::kWaitVote) == mp::Owner::kJoin);
@@ -488,6 +507,7 @@ void run_join_tests() {
     a_spot_the_port_cannot_find_leaves_the_joiner_there();
     without_the_port_a_joiner_goes_straight_in();
     a_scene_in_progress_is_waited_out();
+    a_scene_takes_nothing_from_the_wait();
     start_ends_a_joiners_wait();
     a_place_needs_the_hosts_word_for_this_asking();
     a_joiner_takes_no_damage();
