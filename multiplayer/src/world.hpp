@@ -97,10 +97,10 @@
  *
  * WORLD is state and its datagrams are lost, so the host keeps count of what each member has. Each
  * datagram has a sequence of that member's, and each pose the member sends says which of the last
- * 33 it heard (play.hpp). The host keeps what each datagram carried: a moby is due while what it is
- * now differs from what the member is known to have, and a datagram with its newest word still out
- * holds it back until that one is delivered or lost (two newer ones heard and not it, or twice the
- * round trip gone by), when it is due again, at once if it stands. So a change that was delivered
+ * 33 it heard (play.hpp). The host keeps what each datagram carried: a moby is due until the newest
+ * word sent of it is known to have come and still says what it is. A word on its way holds the moby
+ * back until it is delivered or lost (two newer ones heard and not it, or twice the round trip gone
+ * by), when the moby is due again, at once if it stands. So a change that was delivered
  * costs one entry and one that was lost goes again a round trip later, however far off the moby is:
  * nothing repeats blindly and nothing waits for a refresh. What cannot be known (no pose coming
  * back) comes down to a send each time-out. A moby that stands for kWorldKeepMs goes once more,

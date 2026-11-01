@@ -404,13 +404,29 @@ POSES datagram, 20 a second however many players there are, and each member's WO
 the 30 a second left (15 each for one or two members, 10 each for three). Shots go as state too, one
 SHOTX of any number of them each 50 ms from a member and each 100 ms from the host, and only while
 someone fires: a held trigger's track is ten shots a second, and a queue held back keeps only each
-track's newest. While the party fires, the host's WORLD gives up the difference. State as DATA, while UDP is
+track's newest. While the party fires, the host's WORLD takes 22 a second, 7 each for three members. State as DATA, while UDP is
 unconfirmed or blocked, takes only what events leave of the DATA bucket, so a blocked UDP slows the
 world and never closes the connection.
 
-**WORLD and lost datagrams.** Nothing rests on one datagram: a moby that changed stays in the next
-two snapshots however it stands, every moby comes again at least every second near a member and
-every 3 seconds anywhere, and a late datagram changes nothing about a moby a newer one spoke of.
+**WORLD and lost datagrams.** The host keeps count of what each member has. Each WORLD has a
+sequence, and each pose a member sends says which of the last 33 it heard (the host keeps that to
+itself when it passes the pose on). A moby goes while it differs from what that member is known to
+have, a change that was delivered costing one entry; a datagram the member did not hear (two newer
+ones heard, or twice the round trip gone by) puts what it carried back in line, and a moby that
+stands goes at the next snapshot. Nothing repeats blindly and nothing waits for a refresh, though a
+moby that stands goes once more every 8 seconds for whatever the host cannot see, and with no word
+back at all each one goes again each time-out. A late datagram changes nothing about a moby a newer
+one spoke of.
+
+**What goes first.** Each snapshot adds to each moby waiting, per member, its weight for that member,
+and it goes once that reaches 1, the highest first, then starts again. The weight is distance first
+(1 within 30 units, falling with the square of the distance to a floor of about a quarter), more
+for a creature, which can hurt, for what the player faces, for what it hit in the last 2 seconds and
+for a bolt on its way, less for what nothing draws. So a close moby goes each snapshot and a far one 4
+times a second, and with more moving than a datagram holds a far moby waits but never starves: 300
+moving by a member leave one far moby unheard for 4 seconds at the most (the rank this replaced made
+that 9). A moby that hid or showed goes at the next snapshot. WORLD's share falls from 30 to 22
+a second while SHOTX goes, so POSES and shots lose nothing to it.
 
 The lobby and the game are the mod's own, carried in DATA (the server only forwards it; a member's
 DATA reaches the host only, the host's goes to everyone or to one), a kind byte first:
@@ -425,7 +441,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
 | 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
-| 9 WORLD | the host to a member, as state | level i8, stamp i64, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden; 2: loose, a bolt landed in the host's game, which the member's game now runs as its own) | the 46 mobys that member most needs of those that changed or are due again, 10 to 15 times a second (WORLD and lost datagrams, above; a landed bolt once, then once a second) |
+| 9 WORLD | the host to a member, as state | level i8, stamp i64, sequence u16, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden; 2: loose, a bolt landed in the host's game, which the member's game now runs as its own) | the 46 mobys that member most needs of those it does not have yet, 7 to 15 times a second (WORLD and lost datagrams, What goes first, above; a landed bolt until it is heard) |
 | 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
 | 11 SPAWN, 12 DESPAWN | the host, to all | level i8, net u16, class i16, position, yaw; or a list of nets | creatures and bolts the host's game made, and their end |
 | 13 HIT | a member | id u16, mask u32, damage f32, position, velocity | its hit on the host's moby |
@@ -465,8 +481,9 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 A member's game is started from the title with the host's save (`play_start`), its own saves left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`),
 starts in the host's level and has the world from the host once it says it is there (HELLO). Each game shows the others' poses through a buffer per player
-(`src/play.hpp`, after INTERPOLATION.md): played back about 100 ms behind (more with jitter),
-the position along a curve through each pose's velocity, the cursor running up to 15 % fast or slow
+(`src/play.hpp`, after INTERPOLATION.md): played back about 100 ms behind (more with jitter, and
+never less than two of that stream's send intervals, so one lost pose still leaves one to play),
+the position along a curve through each pose's velocity, the cursor running up to 10 % fast or slow
 to keep its delay, 150 ms of extrapolation past the newest pose, and a jump for a teleport (a level
 change, a respawn, a step longer than 8 units). A figure is made when a player is in the same level
 and removed when it leaves the level, dies, goes silent for 5 seconds or leaves the party.
@@ -579,6 +596,16 @@ server's limits (`SimNet`): every mix of 0, 1, 5 and 15 % loss and 30, 100 and 2
 reordering and repeats, with no moby left anywhere else or hidden differently, no crate left
 different and nothing dropped by the server; bursts, UDP blocked; ids through a respawn that moves
 the slots; a host's death; a late member's world and its passing what plays on its way.
+
+One run of each mix proves little: a loss that bites one run in thirty passes it by luck.
+`tests/sim_sweep_test.cpp` (`multiplayer_sweep`) plays those mixes for 2, 3 and 4 players over many
+seeds, with a level where everything moves, one that mostly stands and a party firing, and says when
+the world came right, the longest a moving moby went unheard and what went out by kind. The test
+runs a few seeds a mix; `-DMULTIPLAYER_HEAVY_SWEEP=ON` adds the sweep a change of the sync is judged
+by, or run it by hand (`--seeds`, `--base`, `--shard i/n`, `--csv`). `tests/play_sync_test.cpp` has
+WORLD's delivery, one chosen datagram at a time: a change delivered goes once, a lost one goes again,
+at once or by the time-out; a word from before a load says nothing; what was not taken is not
+said heard; the priority, the shots' share and each stream's margin.
 
 It also checks the mods a party agrees on: a list's bytes and digest, every kind of difference and
 its words, each compared setting refusing and each exempt one not, the lines fitting a page, a
