@@ -11,24 +11,40 @@
  *     purchase, the starting Bomb Glove). The mod gives that location's reward instead and marks
  *     the location had: X's "obtained" byte, which the game's pickups test before they appear and
  *     which the save keeps. A reward that is an item Y is given by GiveItem itself (owned, its
- *     banner, ammo, quick select, equipped), with Y's obtained byte put back as it was, so that it
- *     stays Y's own location's, and the vendor's stock as it was when Y is a vendor slot.
+ *     ammo, quick select), with Y's obtained byte put back as it was, so that it stays Y's own
+ *     location's, the vendor's stock and the banner as they were.
+ *   - What the player sees: a level's text has only that level's items, so GiveItem's banner would
+ *     read "Paradox! This message does not exist" for most rewards, and the game's own banner for
+ *     X follows it. The mod writes the banner's text itself, from the names every level has, once
+ *     the player is in control, and holds it there for a few ticks over the game's. Help_Request:
+ *     the tutorial of X is left out when X was not given.
+ *   - Equipping: a reward goes where it would on its own: never the Hydro-Pack (which takes the
+ *     place of the pack on the hero's back), nothing while Clank plays.
  *   - A vendor purchase: the buy dialog then takes the entry's item as the weapon bought, whose
  *     demo plays as the menu closes and which the hero is handed; the mod makes that the reward
  *     when it is a vendor weapon (else the one bought before), never the slot's weapon.
- *   - Five places test "owned" instead of "obtained" before they give (Helga, Big Al, Bob,
- *     Edwina, the Pilot's Helmet's pickup), and the starting Bomb Glove does too: while their update
- *     runs, the mod shows the game their item's owned byte as the location's had state, and puts
- *     the real one back after. A player who has the Swingshot from elsewhere still meets Helga.
+ *   - Seven places test "owned" instead of "obtained" before they give or go on (Helga and the
+ *     robot Qwark who starts her course, Big Al, Bob, Edwina, the Pilot's Helmet's pickup and the
+ *     O2 Mask's second pickup), and the starting Bomb Glove does too: while their update runs, the
+ *     mod shows the game their item's owned byte as the location's had state, and puts the real one
+ *     back after. A player who has the Swingshot from elsewhere still meets Helga.
  *   - Moby_Infobot_Update and Planet_Unlock: the same for an infobot, whose test is its planet's
  *     flag and whose had state is its trigger slot (set by the game right after it unlocks).
+ *   - Orxon: a landing with the O2 Mask starts Ratchet, and only one without it starts Clank's
+ *     part, which holds two locations. Until that part is done, Ship_InitTransition and class 22's
+ *     update, the two that decide, are shown no O2 Mask.
  *   - GoldBolts_CountCollected: with gold bolts shuffled, the count the pause screen shows and the
  *     gold weapons spend is the gold bolt rewards had, not the gold bolt places visited.
  *   - Vendor_BuildItemList: the vendor's stock as the menu sees it is the slots not yet bought
  *     for sale, a bought slot as its reward's ammo, and the weapons owned as ammo; after a
  *     purchase the cursor stays on the list and the menu shows the entry now under it.
+ *     Ammo_ChooseDrop: the same stock, so that a crate drops ammo for a weapon owned out of its
+ *     level's order. Vendor_MenuUpdate: the line above the picture names what a slot holds.
  *   - Vendor_InitLevelStock: with the starting gear shuffled, the Bomb Glove the game puts in the
  *     stock and as the double tap's weapon is taken out again when the reward was another.
+ *   - Each level's start: every location had holds its reward: a gold bolt's autosave is written
+ *     in the update that picks it up, before the check below can give the reward, so a save can
+ *     hold a place had without what it gave.
  *   - Each tick (on_frame), a location the game marked had another way (a gold bolt picked up, a
  *     route that writes the bytes itself) gets its reward then.
  *
@@ -43,7 +59,8 @@
  *     may hold a gold bolt;
  *   - shuffle_infobots: the planets' coordinates the infobots give join the pool;
  *   - keep_starting_gear: the Bomb Glove stays the start's, as in the game; off shuffles it too;
- *   - spoiler_log: write where everything is, and a way through, to the mod's data folder.
+ *   - spoiler_log: write where everything is, and a way through, to the mod's data folder;
+ *   - vendor_hints: the line above the picture names what a vendor slot holds.
  *
  * Nothing of the mod's goes into a save: what is had is the game's own bytes, and the placement
  * comes from the seed. A save made with the mod belongs to its seed; with the mod off the game is
@@ -52,8 +69,9 @@
  * In a party (multiplayer's README, Mods in a party) the host's seed counts: this game publishes its
  * seed code (it carries the settings), and in a member's game the same mod takes it and plays that
  * placement until the party goes. What a party shares is passed on as it is: while
- * party_replaying() says so, GiveItem gives the item named, with no location had, since the player
- * who found it already got its reward.
+ * party_replaying() says so, GiveItem and UnlockPlanet give what is named, and the location that
+ * holds it is had here too, since the placement is the same and the player who found it has its
+ * reward: nobody pays for it twice.
  */
 
 #include <stddef.h>
@@ -101,8 +119,21 @@
 /* The bytes of an i32 in game memory (the game's int is 32 bits). */
 #define I32_BYTES 4
 
-/* The ticks the gold bolt's banner is shown for (assumed). */
-#define BANNER_TICKS (-1)
+/* How long a reward's banner shows, and for how many ticks it is written again over what the
+ * game's own update does next (an infobot's last state comes up to three ticks after its scene;
+ * assumed). */
+#define NOTICE_TICKS 240
+#define NOTICE_HOLD 6
+/* Rewards waiting for their banner, at most: more than a tick's or a scene's worth (assumed). */
+#define NOTICE_QUEUE 8
+/* The game's marks around a word in a banner: highlighted, and back (gameplay's text). */
+#define TEXT_HIGHLIGHT 0x0C
+#define TEXT_NORMAL 0x08
+/* The banner's text at most: a line of the game's box, for what a name takes (assumed). */
+#define BANNER_TEXT_SIZE 96
+
+/* The line above the picture over the vendor. */
+#define HINT_SIZE 96
 
 /* How many bytes the game is shown otherwise at once, at most (assumed: an infobot's planet flag
  * and the start's Bomb Glove are the deepest nesting). */
@@ -117,17 +148,17 @@
 #define SPOILER_SIZE (64 * 1024)
 
 #define MOD_ID "item-randomizer"
-#define MOD_VERSION "1.1.0"
+#define MOD_VERSION "2.0.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
 /* ---- types ---- */
 
-/* A byte the game is shown as a location's had state (its `shown`), with its real value kept. */
+/* A byte the game is shown otherwise, with its real value kept. */
 typedef struct swap {
     uint8_t* at;  /* the byte in game memory */
     uint8_t real; /* its value while the swap is not showing */
-    int location; /* the location whose had state it shows */
+    int location; /* the location whose had state it shows; -1 for none: it shows 0 */
 } swap;
 
 /* ---- state ---- */
@@ -163,6 +194,17 @@ static int s_swap_count;
 /* A purchase whose list the vendor builds next (build_item_list): the slot's item, -1 for none. */
 static int s_bought = -1;
 
+/* Rewards whose banner is still to show, oldest first, and the one showing: how many ticks it still
+ * goes on being written (NOTICE_HOLD) and its text. */
+static rando_reward s_notices[NOTICE_QUEUE];
+static int s_notice_count;
+static int s_notice_hold;
+static char s_notice_text[BANNER_TEXT_SIZE];
+
+/* Whether the line over the vendor shows, and whether the setting allows it. */
+static int s_hint_showing;
+static int s_vendor_hints;
+
 /* The infobot whose update is running, and the location it is; -1 for none. */
 static int s_infobot = -1;
 
@@ -178,9 +220,17 @@ static openrac_rac1_Moby_Helga_Update s_helga_update;
 static openrac_rac1_Moby_BigAl_Update s_big_al_update;
 static openrac_rac1_Moby_Bob_Update s_bob_update;
 static openrac_rac1_Moby_Edwina_Update s_edwina_update;
+static openrac_rac1_Moby_RobotQwark_Update s_robot_qwark_update;
+static openrac_rac1_Moby_Class23_Update s_o2_pickup_update;
+static openrac_rac1_Moby_Class22_Update s_orxon_start_update;
+static openrac_rac1_Ammo_ChooseDrop s_choose_drop;
+static openrac_rac1_Vendor_MenuUpdate s_vendor_menu_update;
+static openrac_rac1_Help_Request s_help_request;
+static openrac_rac1_Ship_InitTransition s_ship_transition;
 
-/* The game's banner function, null when this disc's build has none by that name. */
-static void (*s_show_banner)(int32_t text, int32_t ticks);
+/* The game's text of a message id (a game address), null when this disc's build has none by that
+ * name. */
+static uint32_t (*s_msg_string)(int32_t id);
 
 /* ---- game memory ---- */
 
@@ -204,6 +254,11 @@ static void put_i32(openrac_gaddr a, int32_t v) {
 /* A level program's global, by level 0's address (the vendor's menu is in each level's). */
 static uint8_t* level_byte_at(uint32_t address) {
     return (uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(0, address));
+}
+
+/* Whether this tick's game has Clank playing, not Ratchet. */
+static int clank_playing(void) {
+    return *byte_at(s_disc->hero_clank) != 0;
 }
 
 /* A 32-bit integer at a host pointer (an entry of the vendor's menu). */
@@ -240,6 +295,16 @@ static uint8_t* planet_flag(int planet) {
     return byte_at(s_disc->planets + (uint32_t)planet);
 }
 
+/* A level's trigger slot. */
+static uint8_t* trigger(int level, int mission) {
+    return byte_at(s_disc->triggers + (uint32_t)mission + (uint32_t)level * (uint32_t)TRIGGER_SLOTS);
+}
+
+/* A gold bolt's byte. */
+static uint8_t* gold_bolt(int level, int slot) {
+    return byte_at(s_disc->gold_bolts + (uint32_t)level * (uint32_t)GOLD_BOLT_SLOTS + (uint32_t)slot);
+}
+
 /* Whether a level of the story is loaded: the levels past it are left as the game has them
  * (RANDO_LAST_LEVEL). */
 static int playing_level(void) {
@@ -262,19 +327,33 @@ static int had(int location) {
         case LOC_START:
             return *obtained(l->key) != 0;
         case LOC_INFOBOT:
-            return *byte_at(
-                       s_disc->triggers + (uint32_t)l->key
-                       + (uint32_t)l->level * (uint32_t)TRIGGER_SLOTS
-                   )
-                   == TRIGGER_DONE;
+            return *trigger(l->level, l->key) == TRIGGER_DONE;
         case LOC_GOLD:
-            return *byte_at(
-                       s_disc->gold_bolts + (uint32_t)l->level * (uint32_t)GOLD_BOLT_SLOTS
-                       + (uint32_t)l->key
-                   )
-                   != 0;
+            return *gold_bolt(l->level, l->key) != 0;
         default:
             return 0;
+    }
+}
+
+/* Marks the location had in the game's own byte, as the game would. */
+static void set_had(int location) {
+    const rando_location* l = &rando_locations[location];
+
+    // Each kind of location keeps its had state in its own game byte.
+    switch (l->kind) {
+        case LOC_GIVE:
+        case LOC_VENDOR:
+        case LOC_START:
+            *obtained(l->key) = 1;
+            break;
+        case LOC_INFOBOT:
+            *trigger(l->level, l->key) = TRIGGER_DONE;
+            break;
+        case LOC_GOLD:
+            *gold_bolt(l->level, l->key) = 1;
+            break;
+        default:
+            break;
     }
 }
 
@@ -333,7 +412,7 @@ static void swap_push(uint8_t* at, int location) {
     w->at = at;
     w->real = *at;
     w->location = location;
-    *at = (uint8_t)had(location);
+    *at = location >= 0 ? (uint8_t)had(location) : 0;
 }
 
 /* Puts the most recent swap's real value back and drops it. */
@@ -355,7 +434,7 @@ static void swaps_resume(void) {
     // Each swap again, in the order pushed: what the game's routine changed is the new real value.
     for (int i = 0; i < s_swap_count; ++i) {
         s_swaps[i].real = *s_swaps[i].at;
-        *s_swaps[i].at = (uint8_t)had(s_swaps[i].location);
+        *s_swaps[i].at = s_swaps[i].location >= 0 ? (uint8_t)had(s_swaps[i].location) : 0;
     }
 }
 
@@ -366,8 +445,104 @@ static void log_line(int level, const char* text) {
     s_api->log(s_mod, level, text);
 }
 
-/* Gives item through the game's GiveItem, as itself: its obtained byte (its own location's) and the
- * vendor's stock left as they were. */
+/* The text of a message of this level's table, in game memory; null without the function. */
+static const char* message(int id) {
+    return s_msg_string != NULL && id != 0 ? (const char*)OPENRAC_G(s_api, s_msg_string(id)) : NULL;
+}
+
+/* Adds a word to the banner's text at `at`, highlighted or plain; the new end. */
+static size_t add_word(char* text, size_t at, const char* word, int highlight) {
+    const size_t room = BANNER_TEXT_SIZE - 1 - at;
+
+    // Marks and the word, all of it or none: the game's box takes a line.
+    if (word != NULL && strlen(word) + 3 <= room) {
+        // The highlight's marks go around the word.
+        if (highlight) {
+            text[at++] = TEXT_HIGHLIGHT;
+        }
+
+        memcpy(text + at, word, strlen(word));
+        at += strlen(word);
+
+        // ...and the mark back.
+        if (highlight) {
+            text[at++] = TEXT_NORMAL;
+        }
+    }
+
+    text[at] = 0;
+    return at;
+}
+
+/* The banner of a reward: its name, in the player's language; "Infobot" and the name for a planet. */
+static void notice_text(rando_reward r, char* text) {
+    size_t at = 0;
+    text[0] = 0;
+
+    // A planet is an infobot's coordinates: the word before the name says so.
+    if (r.kind == REWARD_PLANET) {
+        at = add_word(text, at, message(RANDO_TEXT_INFOBOT), 1);
+        at = add_word(text, at, " ", 0);
+    }
+
+    add_word(text, at, message(rando_reward_text(r)), 1);
+}
+
+/* Puts this notice's text in the game's banner. */
+static void show_notice(void) {
+    memcpy(level_byte_at(s_disc->banner_text), s_notice_text, strlen(s_notice_text) + 1);
+    set32(level_byte_at(s_disc->banner_ticks), NOTICE_TICKS);
+}
+
+/* A reward's banner is due. Oldest are shown first; one past the queue is dropped (the log has it). */
+static void queue_notice(rando_reward r) {
+    // The queue holds what a scene's worth of rewards can be.
+    if (s_notice_count < NOTICE_QUEUE) {
+        s_notices[s_notice_count++] = r;
+    }
+}
+
+/* Each tick: the banner that shows goes on being written over the game's for NOTICE_HOLD ticks; the
+ * next waits for the player to be in control, and for the banner before it to have been read. */
+static void run_notices(void) {
+    // The one showing goes first, so that what the game's update showed this tick is overwritten.
+    if (s_notice_hold > 0) {
+        --s_notice_hold;
+        show_notice();
+        return;
+    }
+
+    openrac_play_status status;
+    memset(&status, 0, sizeof status);
+    status.size = sizeof status;
+
+    // Nothing waits, or a scene, a menu or a load is on: the banner would be lost.
+    if (s_notice_count == 0 || s_api->play_status(&status) != OPENRAC_HOOK_OK
+        || status.phase != OPENRAC_PLAY_PLAYING
+        || get32(level_byte_at(s_disc->banner_ticks)) > NOTICE_TICKS / 2) {
+        return;
+    }
+
+    notice_text(s_notices[0], s_notice_text);
+    memmove(s_notices, s_notices + 1, (size_t)--s_notice_count * sizeof s_notices[0]);
+
+    // No text (a disc's build without the function): the log has said it.
+    if (s_notice_text[0] != 0) {
+        s_notice_hold = NOTICE_HOLD;
+        show_notice();
+    }
+}
+
+/* The equip GiveItem takes for a reward at a place that gives with `equip`: the place's, but while
+ * Clank plays (he holds no item), and never the Hydro-Pack: it sits in the back slot, where the
+ * hero's jumps test for another pack, and comes on by itself in the water, as Edwina's give has it. */
+static int32_t reward_equip(int item, int32_t equip) {
+    return item != ITEM_HYDRO_PACK && !clank_playing() ? equip : 0;
+}
+
+/* Gives item through the game's GiveItem, as itself: its obtained byte (its own location's), the
+ * vendor's stock and the banner left as they were: the banner GiveItem shows is in the text of the
+ * level the item comes from, and "Paradox! This message does not exist" in any other. */
 static void give_as_itself(int item, int32_t equip) {
     const uint8_t before = *obtained(item);
     // GiveItem marks a vendor weapon bought in the stock (or adds it): for a weapon that is a
@@ -375,6 +550,11 @@ static void give_as_itself(int item, int32_t equip) {
     uint8_t* stock = byte_at(s_disc->vendor_stock);
     uint8_t kept[VENDOR_STOCK_SIZE];
     const int slot = vendor_slot(item) >= 0;
+    uint8_t* banner = level_byte_at(s_disc->banner_text);
+    uint8_t* ticks = level_byte_at(s_disc->banner_ticks);
+    char text[BANNER_TEXT_SIZE];
+    const int32_t left = get32(ticks);
+    memcpy(text, banner, sizeof text);
 
     // A vendor slot's weapon: remember the stock to put it back after GiveItem.
     if (slot) {
@@ -388,31 +568,42 @@ static void give_as_itself(int item, int32_t equip) {
         memcpy(stock, kept, sizeof kept);
     }
 
+    memcpy(banner, text, sizeof text);
+    set32(ticks, left);
+
+    // The game sets this for a Drone Device bought, however it is had here.
+    if (item == ITEM_DRONE_DEVICE) {
+        *byte_at(s_disc->drone_flag) = 1;
+    }
+
     *obtained(item) = before;
 }
 
-/* Gives location's reward: an item through the game's GiveItem (keeping that item's obtained
- * byte as it was: it is its own location's), a planet through UnlockPlanet, a gold bolt's banner.
- * mark: an item whose obtained byte is then set (the location's own, when it is GiveItem's), or -1. */
-static void give_reward(int location, int32_t equip, int mark) {
-    const rando_reward r = s_plan.reward[location];
-    swaps_suspend();
-
+/* The player has the reward in his hands now. equip: as GiveItem's. */
+static void put_reward(rando_reward r, int32_t equip) {
     // The reward is an item, a planet or a gold bolt, each given its own way.
     if (r.kind == REWARD_ITEM) {
-        // The reward's own obtained byte belongs to its own location: it stays, unless this
-        // location is that item's own and not an infobot's or gold bolt's.
-        const int own = rando_locations[location].key == r.value
-                        && rando_locations[location].kind < LOC_INFOBOT;
-        give_as_itself(r.value, equip);
-
-        if (own) {
-            *obtained(r.value) = 1;
-        }
+        give_as_itself(r.value, reward_equip(r.value, equip));
     } else if (r.kind == REWARD_PLANET) {
         s_planet_unlock(r.value);
-    } else if (r.kind == REWARD_GOLD_BOLT && s_show_banner != NULL) {
-        s_show_banner(s_disc->gold_bolt_text, BANNER_TICKS);
+    }
+}
+
+/* Gives location's reward, with its banner to come. mark: an item whose obtained byte is then set
+ * (the location's own, when it is GiveItem's), or -1. */
+static void give_reward(int location, int32_t equip, int mark) {
+    const rando_reward r = s_plan.reward[location];
+    char line[160];
+    char what[64];
+    swaps_suspend();
+
+    // The location is its own item's: the byte is its own.
+    if (r.kind == REWARD_ITEM && rando_locations[location].key == r.value
+        && rando_locations[location].kind < LOC_INFOBOT) {
+        put_reward(r, equip);
+        *obtained(r.value) = 1;
+    } else {
+        put_reward(r, equip);
     }
 
     // The location's own item is marked had, which its pickups and NPCs test and the save keeps.
@@ -421,6 +612,41 @@ static void give_reward(int location, int32_t equip, int mark) {
     }
 
     swaps_resume();
+    queue_notice(r);
+    rando_reward_name(r, what, sizeof what);
+    snprintf(line, sizeof line, "%s gave %s", rando_locations[location].name, what);
+    log_line(OPENRAC_LOG_INFO, line);
+}
+
+/* Each level's start: every location had has given its reward. One that has not lost it to a save
+ * made before the reward came (a gold bolt's autosave comes before this game's tick check). No
+ * banner: this is not a find. */
+static void give_lost_rewards(void) {
+    // Every location this seed shuffles that the game has had.
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        // Had, and the player does not hold what it gives.
+        if (s_plan.shuffled[i] && had((int)i) && !held(s_plan.reward[i])) {
+            char line[160];
+            char what[64];
+            put_reward(s_plan.reward[i], 0);
+            rando_reward_name(s_plan.reward[i], what, sizeof what);
+            snprintf(line, sizeof line, "%s had given %s: back", rando_locations[i].name, what);
+            log_line(OPENRAC_LOG_INFO, line);
+        }
+    }
+}
+
+/* What a party passed on came from somewhere: that place of this game is spent. */
+static void spend_location_of(rando_reward r) {
+    // The one shuffled location that holds this reward, when it is still to be had here.
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        // Rewards are unique in a placement: at most one row holds this one.
+        if (s_plan.shuffled[i] && s_plan.reward[i].kind == r.kind
+            && s_plan.reward[i].value == r.value && !had((int)i)) {
+            set_had((int)i);
+            s_seen[i] = 1;
+        }
+    }
 }
 
 /* ---- the hooks ---- */
@@ -450,7 +676,9 @@ static uint8_t* vendor_purchase(int item) {
 static void item_give(int32_t id, int32_t equip) {
     // Another player's item passed on: it, as it is, and no place of this game is had by it.
     if (s_api->api_minor >= 11 && s_api->party_replaying() && id >= 0 && id < RANDO_ITEM_COUNT) {
+        const rando_reward r = {REWARD_ITEM, (uint8_t)id};
         give_as_itself(id, equip);
+        spend_location_of(r);
         return;
     }
 
@@ -483,6 +711,14 @@ static void item_give(int32_t id, int32_t equip) {
 
 /* Hook for UnlockPlanet(planet): the infobot's reward while its update runs, else the game's. */
 static void planet_unlock(int32_t planet) {
+    // Another player's coordinates passed on: they, as they are, and their place is spent here.
+    if (s_api->api_minor >= 11 && s_api->party_replaying()) {
+        const rando_reward r = {REWARD_PLANET, (uint8_t)planet};
+        s_planet_unlock(planet);
+        spend_location_of(r);
+        return;
+    }
+
     // An infobot's update is running and this is its planet: give its location's reward.
     if (s_infobot >= 0 && rando_locations[s_infobot].vanilla.value == planet) {
         const int location = s_infobot;
@@ -549,10 +785,27 @@ static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int ite
     swap_pop();
 }
 
-/* Hooks for the five NPC and pickup updates that test "owned": Pilot's Helmet, Helga, Big Al, Bob
- * and Edwina. */
+/* Hook for the Pilot's Helmet's pickup: it tests "owned", and after it gives it hands the hero the
+ * helmet to wear (g_hero_pending_item_2): with something else given, the head stays as it was. */
 static void helmet_update(openrac_gaddr moby) {
+    uint8_t* pending = byte_at(s_disc->hero_pending);
+    const int32_t before = get32(pending);
     run_shown(s_helmet_update, moby, ITEM_PILOTS_HELMET);
+
+    // The hero was handed what he does not own.
+    if (get32(pending) == ITEM_PILOTS_HELMET && !*owned(ITEM_PILOTS_HELMET)) {
+        set32(pending, before);
+    }
+}
+
+/* Hooks for the other updates that test "owned": Helga, the robot Qwark who starts her course, Big
+ * Al, Bob, Edwina and the O2 Mask's second pickup. */
+static void robot_qwark_update(openrac_gaddr moby) {
+    run_shown(s_robot_qwark_update, moby, ITEM_SWINGSHOT);
+}
+
+static void o2_pickup_update(openrac_gaddr moby) {
+    run_shown(s_o2_pickup_update, moby, ITEM_O2_MASK);
 }
 
 static void helga_update(openrac_gaddr moby) {
@@ -569,6 +822,68 @@ static void bob_update(openrac_gaddr moby) {
 
 static void edwina_update(openrac_gaddr moby) {
     run_shown(s_edwina_update, moby, ITEM_HYDRO_PACK);
+}
+
+/* Whether Orxon's landing should play Clank's part however the O2 Mask stands: it holds two
+ * locations and starts only without the mask, which a seed can give before Orxon. */
+static int orxon_clank_part_due(void) {
+    return *owned(ITEM_O2_MASK) && *trigger(LEVEL_ORXON, ORXON_CLANK_MISSION) != TRIGGER_DONE
+           && current_level() == LEVEL_ORXON;
+}
+
+/* Hook for the ship's landing and take-off: the chunks it loads on Orxon go by the O2 Mask. */
+static void ship_transition(int32_t mode) {
+    const int shown = orxon_clank_part_due();
+
+    // Orxon's chunks for Clank's start.
+    if (shown) {
+        swap_push(owned(ITEM_O2_MASK), -1);
+    }
+
+    s_ship_transition(mode);
+
+    // The real byte back.
+    if (shown) {
+        swap_pop();
+    }
+}
+
+/* Hook for class 22 on Orxon, which starts Clank there when there is no O2 Mask. */
+static void orxon_start_update(openrac_gaddr moby) {
+    const int shown = orxon_clank_part_due();
+
+    // Clank's start.
+    if (shown) {
+        swap_push(owned(ITEM_O2_MASK), -1);
+    }
+
+    s_orxon_start_update(moby);
+
+    // The real byte back.
+    if (shown) {
+        swap_pop();
+    }
+}
+
+/* Hook for Help_Request: a tutorial of the item the game thinks it gave is left out when it gave
+ * another. 1: as queued, so that the game asks no more. */
+static int32_t help_request(int32_t message_id, int32_t slot) {
+    // The messages that teach an item.
+    for (size_t i = 0; i < rando_item_help_count; ++i) {
+        const rando_item_help* h = &rando_item_helps[i];
+
+        // This one's item has a shuffled place whose reward is another.
+        if (h->message == message_id && s_by_item[h->item] >= 0) {
+            const rando_reward r = s_plan.reward[s_by_item[h->item]];
+
+            // Another reward came: nothing to teach.
+            if (r.kind != REWARD_ITEM || r.value != h->item) {
+                return 1;
+            }
+        }
+    }
+
+    return s_help_request(message_id, slot);
 }
 
 /* The level's start: the check each tick takes what is had now as seen (a save loaded, a new
@@ -646,6 +961,7 @@ static void init_level_stock(void) {
         s_init_level_stock();
     }
 
+    give_lost_rewards();
     sync_seen();
 }
 
@@ -746,6 +1062,11 @@ static void vendor_stock_shown(
         }
     }
 
+    // A list with nothing on it has no entry for the cursor: the Bomb Glove's ammo holds its place.
+    if (m == 0) {
+        shown[m++] = (uint8_t)(ITEM_BOMB_GLOVE | STOCK_AMMO);
+    }
+
     memset(shown + m, STOCK_END, (size_t)(VENDOR_STOCK_SIZE - m));
 }
 
@@ -789,6 +1110,50 @@ static void build_item_list(int32_t skip_unflagged) {
     }
 }
 
+/* Hook for Ammo_ChooseDrop: from the stock as the menu sees it, so that a weapon owned out of its
+ * level's order has its ammo drop too. */
+static int32_t choose_drop(openrac_gaddr moby, openrac_gaddr out_item) {
+    uint8_t* stock = byte_at(s_disc->vendor_stock);
+    uint8_t real[VENDOR_STOCK_SIZE], shown[VENDOR_STOCK_SIZE];
+    memcpy(real, stock, sizeof real);
+    vendor_stock_shown(real, shown);
+    memcpy(stock, shown, sizeof shown);
+    const int32_t result = s_choose_drop(moby, out_item);
+    memcpy(stock, real, sizeof real);
+    return result;
+}
+
+/* The location whose slot the menu's cursor is on, while it sells one; -1 for none. */
+static int slot_under_cursor(void) {
+    uint8_t* menu = level_byte_at(s_disc->vendor_menu);
+    const int32_t cursor = get32(menu + VENDOR_CURSOR);
+
+    // The cursor on a real entry, and that entry for sale.
+    if (cursor < 0 || cursor >= VENDOR_MAX_ENTRIES || cursor >= get32(menu + VENDOR_COUNT)) {
+        return -1;
+    }
+
+    const uint8_t* entry = menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE;
+    return get32(entry + VENDOR_ENTRY_AMMO) == 0 ? vendor_slot(get32(entry)) : -1;
+}
+
+/* Hook for the vendor's menu, each tick it is open: the line above the picture names what the slot
+ * under the cursor holds; each_tick takes it away when the menu has gone. */
+static void vendor_menu_update(void) {
+    s_vendor_menu_update();
+    const int location = s_vendor_hints ? slot_under_cursor() : -1;
+
+    // A slot that gives something: say what.
+    if (location >= 0) {
+        char line[HINT_SIZE];
+        char what[64];
+        rando_reward_name(s_plan.reward[location], what, sizeof what);
+        snprintf(line, sizeof line, "Buying this gives: %s", what);
+        s_api->play_notice(s_mod, line);
+        s_hint_showing = 2;
+    }
+}
+
 /* Hook for GoldBolts_CountCollected: with gold bolts shuffled, the count of gold bolt rewards had,
  * at most MAX_GOLD_BOLTS; else the game's own count. */
 static int32_t count_gold_bolts_hook(void) {
@@ -812,6 +1177,11 @@ static int32_t count_gold_bolts_hook(void) {
  * just loaded has its rewards). A place that wrote its own item's bytes gives that item back. */
 static void each_tick(void* user) {
     (void)user;
+
+    // The line over the vendor goes a tick after the menu's hook stopped asking for it.
+    if (s_hint_showing > 0 && --s_hint_showing == 0) {
+        s_api->play_notice(s_mod, NULL);
+    }
 
     // Outside the story's levels the mod leaves the game alone.
     if (!playing_level()) {
@@ -845,6 +1215,8 @@ static void each_tick(void* user) {
 
         s_seen[i] = (uint8_t)now;
     }
+
+    run_notices();
 }
 
 /* ---- loading ---- */
@@ -894,7 +1266,37 @@ static int install_hooks(void) {
            && HOOK(Moby_Helga_Update, helga_update, &s_helga_update)
            && HOOK(Moby_BigAl_Update, big_al_update, &s_big_al_update)
            && HOOK(Moby_Bob_Update, bob_update, &s_bob_update)
-           && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update);
+           && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update)
+           && HOOK(Moby_RobotQwark_Update, robot_qwark_update, &s_robot_qwark_update)
+           && HOOK(Moby_Class23_Update, o2_pickup_update, &s_o2_pickup_update)
+           && HOOK(Moby_Class22_Update, orxon_start_update, &s_orxon_start_update)
+           && HOOK(Ammo_ChooseDrop, choose_drop, &s_choose_drop)
+           && HOOK(Vendor_MenuUpdate, vendor_menu_update, &s_vendor_menu_update);
+}
+
+/* Takes what a port of interface 1.12 has: without them the mod still runs, with a tutorial now and
+ * then for what was not given, and with Clank's part of Orxon passed over when the O2 Mask came
+ * first. */
+static void install_late_hooks(void) {
+    const int help = s_api->hook(
+        s_mod,
+        OPENRAC_RAC1_HOOK_Help_Request,
+        OPENRAC_RAC1_SIG_Help_Request,
+        (void*)help_request,
+        (void**)&s_help_request
+    );
+    const int ship = s_api->hook(
+        s_mod,
+        OPENRAC_RAC1_HOOK_Ship_InitTransition,
+        OPENRAC_RAC1_SIG_Ship_InitTransition,
+        (void*)ship_transition,
+        (void**)&s_ship_transition
+    );
+
+    // Said once, in the log a report comes with.
+    if (help != OPENRAC_HOOK_OK || ship != OPENRAC_HOOK_OK) {
+        log_line(OPENRAC_LOG_WARN, "this OpenRAC is older than the mod: update it for Orxon's order");
+    }
 }
 
 /* Whether the text looks meant as a seed code: twelve letters and digits, hyphens and spaces
@@ -1034,6 +1436,12 @@ static void on_party_rules(void* user, const void* data, uint32_t size) {
         if (s_following) {
             s_following = 0;
             play_settings(&s_own_settings);
+
+            // What is had now is not news for this placement's check each tick.
+            if (s_api->loaded_level() >= 0) {
+                sync_seen();
+            }
+
             log_line(OPENRAC_LOG_INFO, "out of the party: this game's own seed counts again");
         }
 
@@ -1163,7 +1571,8 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     }
 
     index_locations();
-    s_show_banner = (void (*)(int32_t, int32_t))api->function(s_disc->show_banner);
+    s_msg_string = (uint32_t (*)(int32_t))api->function(s_disc->msg_string);
+    s_vendor_hints = api->setting_bool(mod, "vendor_hints");
 
     s_own_settings = s_plan.settings;
     s_following = 0;
@@ -1177,6 +1586,7 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
             return 1;
         }
 
+        install_late_hooks();
         api->on_frame(mod, each_tick, NULL);
     }
 

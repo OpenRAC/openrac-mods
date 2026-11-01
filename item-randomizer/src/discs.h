@@ -3,8 +3,8 @@
  *
  * What the item randomizer uses of the game on each disc it knows: the addresses of the globals
  * it reads and writes (each through relocate_data, which leaves an address outside the level's
- * relocated range as it is), the banner function it calls by its name in that disc's build
- * (openrac_api.function), and the banner's text. PAL's are games/rac1's names; NTSC-U's are the
+ * relocated range as it is), and the functions it calls by their names in that disc's build
+ * (openrac_api.function). PAL's are games/rac1's names; NTSC-U's are the
  * same globals in games/rac1/ntsc (its __asm__ labels) and OpenRAC's
  * port/game/rac1-ntsc/host/rac1_version.h. Each address is the decompilation's global named in its
  * comment (seen in game code); each offset below is a field of the game's own structure, with the
@@ -33,6 +33,12 @@ typedef struct rando_disc {
         vendor_redraw; /* i32: nonzero, the menu shows its item again next frame (D_L00_00161F34) */
     const char* show_banner; /* void (int text, int ticks): a line of text on screen (ShowBanner) */
     int32_t gold_bolt_text;  /* the gold bolt's banner (GoldBoltUpdate's) */
+    const char* msg_string;  /* int (int id): a message's text, in the player's language */
+    uint32_t banner_text;    /* char[]: the banner's text, level 0's address (banner_text_buffer) */
+    uint32_t banner_ticks;   /* i32: how long the banner still shows, level 0's address */
+    uint32_t hero_clank;     /* u8: Clank is the one playing (hero_globals_base + 0x2EC1) */
+    uint32_t hero_pending;   /* i32: the head item the hero is handed next (g_hero_pending_item_2) */
+    uint32_t drone_flag;     /* u8: set when the Drone Device is bought (update_vendor_purchase) */
 } rando_disc;
 
 /* The discs the mod knows, by openrac_api.version; the fields are in the order of the struct. */
@@ -49,7 +55,13 @@ static const rando_disc k_rando_discs[] = {
      0x001CA7C0u,
      0x00161F34u,
      "func_L00_00264DB8",
-     0x53B8},
+     0x53B8,
+     "func_001FE540",
+     0x00179218u,
+     0x0015F720u,
+     0x001414F4u,
+     0x00141510u,
+     0x00141445u},
     {"ntsc",
      0x0013D4C0u,
      0x0013D4E8u,
@@ -62,7 +74,13 @@ static const rando_disc k_rando_discs[] = {
      0x001CA4C0u,
      0x00161E38u,
      "FUN_L00_00263d40",
-     0x53B3},
+     0x53B3,
+     "FUN_001fdd10",
+     0x00179118u,
+     0x0015F640u,
+     0x001413F4u,
+     0x00141410u,
+     0x00141345u},
 };
 
 /* The moby's fields it reads (games/rac1/include/moby.h; the same on both discs). */
@@ -87,6 +105,8 @@ static const rando_disc k_rando_discs[] = {
 #define VENDOR_ENTRY_SIZE 0x14u
 #define VENDOR_MAX_ENTRIES 16
 #define VENDOR_COUNT 0x210u /* i32 */
+/* The Orxon mission the Clank part's infobot marks done (its trigger slot on LEVEL_ORXON). */
+#define ORXON_CLANK_MISSION 2
 
 /* The levels past the game (VendorStockLevelInit gives everything there): left as the game has them. */
 #define RANDO_LAST_LEVEL 0x12

@@ -12,9 +12,14 @@
  * random. The whole result is played through once more from the start, and a fill whose goal
  * cannot be reached (none of the tables' do: the tests try many) is tried again.
  *
- * The difficulties: expert needs only what a place cannot be done without (`hard`); standard
- * also what play there expects (`soft`), and keeps progression out of costly purchases; relaxed
- * has standard's needs, keeps progression out of gold bolts too, and puts each progression
+ * A location is reached when its planet is unlocked, the player holds all it needs (`hard`, and
+ * `soft` but on expert), at least one of its `any`, and its other `planets` are unlocked. A reward
+ * that opens the way is never placed behind itself: every shuffled location can be had by the end
+ * of a placement, or it is refused too.
+ *
+ * The difficulties: expert has `hard` alone and puts progression anywhere that can be reached;
+ * standard also counts `soft` and keeps progression out of costly purchases; relaxed has
+ * standard's needs, keeps progression out of the pricey purchases too, and puts each progression
  * reward early: the earliest, in the game's own route, of three places drawn.
  */
 #include <stdarg.h>
@@ -24,8 +29,6 @@
 #include "rando.h"
 
 /* ---- constants ---- */
-
-#define NOWHERE 0xFFFFu /* an index no location has (unused) */
 
 /* One requirement table per difficulty: DIFFICULTY_RELAXED, _STANDARD and _EXPERT. */
 #define DIFFICULTY_COUNT 3
@@ -109,7 +112,10 @@ static void prepare(void) {
  * the location needs at this difficulty. */
 static int reachable(const sweep* w, int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
-    return (w->planets & (1u << l->level)) != 0 && (s_need[difficulty][i] & ~w->items) == 0;
+
+    // Its planet and any other it takes, what it needs, and one of what it takes one of.
+    return (w->planets & (1u << l->level)) != 0 && (l->planets & ~w->planets) == 0
+           && (s_need[difficulty][i] & ~w->items) == 0 && (l->any == 0 || (l->any & w->items) != 0);
 }
 
 /* Adds a reward to what the player in w holds (a gold bolt adds nothing that opens a way). */
@@ -164,7 +170,7 @@ static size_t goal(void) {
 }
 
 /* Whether a progression reward may go to location i at this difficulty: relaxed keeps them out of
- * gold bolts and costly purchases, standard out of costly purchases. */
+ * costly and pricey purchases, standard out of costly purchases. */
 static int fits(int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
@@ -178,7 +184,7 @@ static int fits(int difficulty, size_t i) {
         return 0;
     }
 
-    return difficulty != DIFFICULTY_RELAXED || l->kind != LOC_GOLD;
+    return difficulty != DIFFICULTY_RELAXED || (l->flags & LOCF_PRICEY) == 0;
 }
 
 /* Shuffles the first n rewards of a in place (Fisher-Yates, one draw per step). */
@@ -306,7 +312,8 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
         plan->attempts = attempt;
 
         // A fill that placed everything is played through once more from the start, to be sure.
-        if (fill(&plan->settings, &rng, plan) == 0 && rando_beatable(plan, 0)) {
+        if (fill(&plan->settings, &rng, plan) == 0 && rando_beatable(plan, 0)
+            && rando_stranded(plan) == 0) {
             return 0;
         }
     }
@@ -367,6 +374,22 @@ int rando_beatable(const rando_plan* plan, int* spheres) {
     return w.had[goal()];
 }
 
+/* How many shuffled locations the playthrough never reaches. */
+int rando_stranded(const rando_plan* plan) {
+    prepare();
+    sweep w;
+    start(&w);
+    play(&w, plan->settings.difficulty, plan->reward);
+    int n = 0;
+
+    // A shuffled location the whole game does not reach holds a reward nobody can have.
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        n += plan->shuffled[i] && !w.had[i];
+    }
+
+    return n;
+}
+
 /* ---- the spoiler log ---- */
 
 /* A bounded text buffer: used counts what was wanted, even past size. */
@@ -395,7 +418,7 @@ static void put(out* o, const char* fmt, ...) {
 }
 
 /* The reward in words, into buf. */
-static void reward_text(rando_reward r, char* buf, size_t n) {
+void rando_reward_name(rando_reward r, char* buf, size_t n) {
     // The reward's kind picks its wording.
     switch (r.kind) {
         case REWARD_ITEM:
@@ -451,7 +474,7 @@ static void put_locations(out* o, const rando_plan* plan) {
         }
 
         char r[64];
-        reward_text(plan->reward[i], r, sizeof r);
+        rando_reward_name(plan->reward[i], r, sizeof r);
         put(o, "  %-52s %s%s\n", l->name, is_progression(plan->reward[i]) ? "* " : "  ", r);
     }
 }
@@ -479,7 +502,7 @@ static void put_playthrough(out* o, const rando_plan* plan, const int* spheres) 
             }
 
             char r[64];
-            reward_text(plan->reward[i], r, sizeof r);
+            rando_reward_name(plan->reward[i], r, sizeof r);
             put(o,
                 "  %-52s %s\n",
                 rando_locations[i].name,
