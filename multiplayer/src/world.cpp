@@ -122,6 +122,7 @@ void World::reset() {
     loose_.clear();
     landed_early_.clear();
     world_heard_ = false;
+    world_loss_ = 0.0;
     coop_.no_world_ack();
     claimed_.clear();
     flights_.clear();

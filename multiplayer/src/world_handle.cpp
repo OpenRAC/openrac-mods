@@ -37,6 +37,8 @@ void World::hear_world(std::uint16_t sequence) {
         const std::uint32_t moved = step >= 32 ? 0 : world_bits_ << step;
         world_bits_ = step > 32 ? 0 : moved | 1u << (step - 1);
         world_newest_ = sequence;
+        const double missed = std::min(step - 1, 4);
+        world_loss_ += 0.05 * (missed / (missed + 1.0) - world_loss_);
     } else if (const int back = static_cast<std::uint16_t>(world_newest_ - sequence); back >= 1 && back <= 32) {
         world_bits_ |= 1u << (back - 1);
     }
@@ -206,7 +208,9 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 }
 
                 // WORLD has no velocities: the buffer makes them (play.hpp).
-                poses_.try_emplace(e.id, true).first->second.add(e.pose, sequence, time, now, false);
+                Interpolator& buffer = poses_.try_emplace(e.id, true).first->second;
+                buffer.set_loss(world_loss_);
+                buffer.add(e.pose, sequence, time, now, false);
                 hidden_[e.id] = e.hidden;
                 host_ms_[e.id] = clock_();
             }

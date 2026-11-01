@@ -31,8 +31,8 @@
  * turns it into its own clock and plays the poses back a delay behind their stamps. The delay is
  * the link's: the time in transit as measured (arrival less stamp, averaged, so the clock
  * estimates' error is in it too), and a margin past it of a send interval and the transit's
- * jitter (at least kMinBufferMs), so the next pose is there before the cursor needs it; up to an
- * interval more while poses are lost. It rises
+ * jitter, never under two send intervals of that stream (and kMinBufferMs), so one pose lost still
+ * leaves a pose to play; up to an interval more while poses are lost. It rises
  * in about half a second when the link gets worse and falls in about four when it calms. Between
  * two poses: the position along a cubic Hermite curve through their velocities (a jump stays an
  * arc), the yaw the short way round, the place in the animation's seq on from the one's to the
@@ -197,9 +197,11 @@ bool sequence_newer(std::uint16_t a, std::uint16_t b);
 
 /* The buffer's constants (INTERPOLATION.md, section 2), in milliseconds and game units. */
 constexpr std::size_t kBufferSamples = 32;
-/* The least margin past the transit, the most, and the most delay in all. */
+/* The least margin past the transit, the most (a moby far from the player comes a few times a
+ * second, so its margin of two intervals is longer), and the most delay in all. */
 constexpr double kMinBufferMs = 100.0;
 constexpr double kMaxBufferMs = 400.0;
+constexpr double kMaxMobyBufferMs = 700.0;
 constexpr double kMaxDelayMs = 1000.0;
 constexpr double kExtrapolateMs = 150.0;
 constexpr double kFadeMs = 50.0;
@@ -208,6 +210,9 @@ constexpr double kSnapDistance = 8.0;
  * drawn or carried on along it (a grounded Ratchet's z velocity is the game's gravity). */
 constexpr double kStillStep = 0.01;
 constexpr double kStallMs = 1000.0;
+/* A gap between two poses still counts as the send interval below this; past it, a pause. */
+constexpr double kPauseGapMs = 200.0;
+constexpr double kMobyPauseGapMs = 600.0;
 constexpr double kRateMin = 0.9;
 constexpr double kRateMax = 1.1;
 /* How fast the delay follows the link, up and down (time constants), ms. */
@@ -231,7 +236,7 @@ class Interpolator {
 public:
     /* `derive`: the poses carry no velocities (WORLD's): made from the neighbours, and nothing
      * is carried on past the newest. */
-    explicit Interpolator(bool derive = false) : derive_(derive) {}
+    explicit Interpolator(bool derive = false) : derive_(derive), interval_(derive ? 100.0 : 50.0) {}
 
     /* A pose sent at `time_ms` (its stamp in this clock) that arrived at `arrival_ms`. One not
      * newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport
@@ -252,8 +257,11 @@ public:
 
     double jitter_ms() const { return jitter_; }
 
-    /* The share of poses that never came (by the sequence's gaps; not for WORLD's). */
+    /* The share of poses that never came (by the sequence's gaps; for WORLD's, whose moby a
+     * datagram may leave out, the stream's as a whole, set from outside). */
     double loss() const { return loss_; }
+
+    void set_loss(double loss) { loss_ = loss; }
 
     double interval_ms() const { return interval_; }
 

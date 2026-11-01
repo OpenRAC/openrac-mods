@@ -605,7 +605,7 @@ void Interpolator::add(
         const double gap = time_ms - samples_.back().time;
         if (gap <= 0.0) {
             time_ms = samples_.back().time + 1.0;
-        } else if (gap < 200.0) {
+        } else if (gap < (derive_ ? kMobyPauseGapMs : kPauseGapMs)) {
             // The send interval, learned from the gaps of a steady stream (not a pause).
             interval_ += 0.1 * (gap - interval_);
         }
@@ -712,11 +712,14 @@ bool Interpolator::at(double now_ms, Pose& out) {
 }
 
 double Interpolator::wanted_ms() const {
-    // Past the transit: the next pose's interval (two without velocities: the one after a pose
-    // makes its velocity) and the jitter, and a frame.
-    // A lost pose leaves a gap of two: from 5 % lost, the margin covers it.
-    const double sends = derive_ ? 2.0 : 1.0 + std::min(1.0, 20.0 * loss_);
-    const double margin = std::clamp(sends * interval_ + 2.5 * jitter_ + 17.0, kMinBufferMs, kMaxBufferMs);
+    // Past the transit: the next pose's interval (one more without velocities: the one after a
+    // pose makes its velocity) and the jitter, and a frame. Whatever the stream's rate (a moby's
+    // goes with its priority, and all of WORLD slows while the party fires), at least two intervals:
+    // a lost pose leaves a gap of two. A figure's third comes by 5 % lost; a moby's, of the three
+    // the longer, by 25 %: at 5 % a third costs 100 ms of delay and shows nothing.
+    const double sends = derive_ ? 2.0 + std::min(1.0, 4.0 * loss_) : 1.0 + std::min(1.0, 20.0 * loss_);
+    const double margin = std::clamp(std::max(sends * interval_ + 2.5 * jitter_ + 17.0, 2.0 * interval_), kMinBufferMs,
+                                     derive_ ? kMaxMobyBufferMs : kMaxBufferMs);
     return std::clamp(transit_ + margin, 0.0, kMaxDelayMs);
 }
 

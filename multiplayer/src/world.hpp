@@ -594,10 +594,12 @@ private:
     std::set<std::uint16_t> loose_;
     /* Member: bolts WORLD says landed ahead of their SPAWN on the stream. */
     std::set<std::uint16_t> landed_early_;
-    /* Member: WORLD's delivery: whether any came, the newest sequence, the 32 before it. */
+    /* Member: WORLD's delivery: whether any came, the newest sequence, the 32 before it, and the
+     * share that never came. */
     bool world_heard_ = false;
     std::uint16_t world_newest_ = 0;
     std::uint32_t world_bits_ = 0;
+    double world_loss_ = 0.0;
     /* Member: whether the host's copy of each is hidden, when the host last sent each, and the
      * newest stamp taken of each (older datagrams leave it alone). */
     std::map<std::uint16_t, bool> hidden_;
