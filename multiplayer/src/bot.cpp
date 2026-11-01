@@ -370,6 +370,37 @@ std::string Bot::run(const std::string& line) {
         return parts_.game.play_scene(scene) ? "ok" : "error refused";
     } else if (command == "bolts") {
         return std::to_string(parts_.game.bolts(0));
+    } else if (command == "shared") {
+        int tag = 0;
+        in >> tag;
+        Bytes bytes;
+
+        if (!parts_.game.shared_read(tag, bytes)) {
+            return "error none";
+        }
+
+        std::string list = "[";
+
+        for (std::size_t i = 0; i < bytes.size(); ++i) {
+            if (bytes[i] != 0) {
+                list += (list.size() > 1 ? "," : "") + std::to_string(i);
+            }
+        }
+
+        return list + "]";
+    } else if (command == "give") {
+        int tag = 0;
+        std::size_t index = 0;
+        in >> tag >> index;
+        Bytes bytes;
+
+        if (!parts_.game.shared_read(tag, bytes) || index >= bytes.size()) {
+            return "error none";
+        }
+
+        std::fill(bytes.begin(), bytes.end(), 0);
+        bytes[index] = 1;
+        return parts_.game.shared_give(tag, bytes) ? "ok" : "error refused";
     } else if (command == "cosave") {
         CoSave& c = parts_.cosave;
         return "{\"on\":" + std::string(c.on() ? "true" : "false") + ",\"slot\":" + std::to_string(c.slot())

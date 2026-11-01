@@ -942,6 +942,65 @@ def scenario_shipwarn(env, args):
     env.check("the party is in", ok, json.dumps([host.status(), member.status()])[:600])
 
 
+def shared_of(c, tag):
+    return set(json.loads(c.ask(f"shared {tag}")))
+
+
+def scenario_progress2(env, args):
+    """The shared progress past the items, in level 3 (Kerwan: Helga's flag 2 and the infobot's flag
+    3 are scene flags, 1 and 5 are not): gold weapons and skill points both ways, the plain flags
+    both ways, a member's scene flag held from the host, the host's held from a member until it
+    leaves the level, and a late member with all of it and no banner."""
+    gold, skills, flags = 1, 2, 3
+    level = args.level or 3
+    plain_a, plain_b, member_scene, host_scene = level * 16 + 1, level * 16 + 5, level * 16 + 2, level * 16 + 3
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], level)
+    time.sleep(args.settle)
+
+    def reaches(c, tag, index, seconds=8):
+        try:
+            wait(f"{index} of section {tag}", lambda: index in shared_of(c, tag), seconds)
+            return True
+        except Failed:
+            return False
+
+    host.ask(f"give {gold} 3")
+    env.check("the host's gold weapon reaches the member", reaches(member, gold, 3))
+    member.ask(f"give {skills} 7")
+    env.check("the member's skill point reaches the host", reaches(host, skills, 7))
+    host.ask(f"give {flags} {plain_a}")
+    started = time.monotonic()
+    env.check("the host's flag reaches the member", reaches(member, flags, plain_a))
+    env.report["notes"]["flag took"] = round(time.monotonic() - started, 2)
+    member.ask(f"give {flags} {plain_b}")
+    env.check("the member's flag reaches the host", reaches(host, flags, plain_b))
+    member.ask(f"give {flags} {member_scene}")
+    host.ask(f"give {flags} {host_scene}")
+    time.sleep(args.settle + 3)
+    env.check("a member's scene flag stays out of the host's game", member_scene not in shared_of(host, flags))
+    env.check("the host's scene flag waits while the member is in the level", host_scene not in shared_of(member, flags))
+    env.check("the party's flags unchanged by a scene or a hold", in_control(member), json.dumps(member.status()))
+
+    fly_to(env, host, [member], args.level2 if args.level2 != level else 4)
+    time.sleep(args.settle)
+    env.check("the host's scene flag came once the member left", host_scene in shared_of(member, flags))
+    env.check("the member's scene flag is still out of the host's game", member_scene not in shared_of(host, flags))
+    equal = shared_of(member, flags) - {member_scene} == shared_of(host, flags)
+    env.check("every other flag the same in both games", equal)
+    env.check("gold weapons the same", shared_of(member, gold) == shared_of(host, gold))
+    env.check("skill points the same", shared_of(member, skills) == shared_of(host, skills))
+
+    third, took = join_game(env, "Late1", args.link_args, host, seconds=args.join_seconds)
+    env.check("the late member stands in the level", took is not None, str(took))
+    time.sleep(args.settle)
+    env.check("it has the host's gold weapons", shared_of(third, gold) == shared_of(host, gold))
+    env.check("it has the host's skill points", shared_of(third, skills) == shared_of(host, skills))
+    env.check("it has the host's flags", shared_of(third, flags) == shared_of(host, flags))
+    env.check("no banner on its way in", not log_lines(third, r"given (?:item|planet) \d+ \(the host's\)"))
+    compare_worlds(env, [host, third], "with the late member")
+
+
 def scenario_soak(env, args):
     """Report 3: the party stands in the level for a while; what the network did is the result."""
     players = [env.client("Host1", args.link_args)] + [
@@ -1128,6 +1187,7 @@ SCENARIOS = {
     "chaos": scenario_chaos,
     "refuse": scenario_refuse,
     "midjoin": scenario_midjoin,
+    "progress2": scenario_progress2,
 }
 
 

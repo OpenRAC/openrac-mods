@@ -40,6 +40,7 @@ scenarios() {  # a prefix, then the host's and the members' arguments
     run "$tag-bolts" --scenario bolts "$@"
     run "$tag-hostdeath" --scenario hostdeath "$@"
     run "$tag-join" --scenario join --level 3 "$@"
+    run "$tag-progress2" --scenario progress2 --level 3 --level2 4 "$@"
     run "$tag-soak" --scenario soak --members 3 --seconds 60 "$@"
     run "$tag-enemies" --scenario enemies --level 3 --difficulty '{"enemy_count": 2}' --mods-dir "$MODS_DIR" "$@"
 }

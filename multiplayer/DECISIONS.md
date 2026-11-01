@@ -10,19 +10,6 @@ puppets, the interpolation) are kept with the project's planning notes, not in t
 
 ## Open
 
-### 5. What progress is shared
-
-Shared today: owned items (weapons and gadgets), gold bolts and unlocked planets, merged across
-the party; bolts are each player's own (the collector gets them). Not shared:
-
-- nanotech and ammo (each player's own, as the game credits whoever picks them up),
-- gold weapons,
-- skill points,
-- per-level story flags (talked to, doors opened, events done).
-
-Open: whether gold weapons, skill points and story flags should be shared, and whether nanotech
-and ammo should stay each player's own (recommended: yes, they are per-hero survival).
-
 ### 6. The host leaving
 
 Today, when the host leaves or drops, the party is over: everyone goes back to the Multiplayer
@@ -81,6 +68,17 @@ filtering is safe. It also turned out a party's game did not save at all unless 
 been through the game's own load or save menus first, because the routine does nothing without
 them: the port now sets what it needs for as long as a party plays. The filter stays until the game
 is back at the title, because a game left in a level still holds the party's progress.
+
+### 5. What progress is shared (2026-10-31, decided by the user)
+
+Shared and credited to the party: items, gold bolts, planets, gold weapons and skill points; the
+story's flags are the host's save's, and the special items they go with. Bolts, ammo and nanotech
+(the upgrades too) stay each player's. Progress only merges upward. Flags a player's own copy of a
+person or pickup sets as its scene ends stay out of a game still to play that scene: a member's
+never reach the host, the host's reach a member when it leaves that level (`src/shared.cpp`,
+`kSceneFlags`, read from the game's code and both discs' levels). A late joiner gets all of it
+silently: no banners, no rewards replayed. The dialogue records (`race_gates`) are not shared: taxis
+write them too, so they do not only go up, and nothing in the story waits on them for a member.
 
 | What | Decision | When |
 |---|---|---|

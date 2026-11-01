@@ -36,6 +36,7 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `chaos` | `--difficulty '{"chaos": true, "chaos_events": true, "chaos_minutes": 1}'`, a blank seed: each level's values and the events are the host's, in levels `--level N`, `--level2 N`, for up to `--seconds S` |
 | `save` | a host's save (`--save FILE`) started by the party: both in control in its level, with one world |
 | `refuse` | a member whose settings or mods differ (`--member-difficulty`, `--member-mods`): told why, no Ready, no Start; the pages' lines measured in the game's font |
+| `progress2` | the shared progress past the items, in `--level N` (0: Kerwan, 3): a gold weapon and a skill point each way, plain flags each way, a member's scene flag held from the host, the host's held from a member until it leaves the level (to `--level2 N`), then a late member with all of it and no banner |
 | `midjoin` | a party under rules in `--level N`, then a late member: under the rules, or with `--late-difficulty ... --late-refused`, no game |
 
 `--mods-dir DIR` is a folder of packaged mods by id; `--difficulty JSON` gives every game the difficulty
