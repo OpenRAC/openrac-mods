@@ -40,10 +40,14 @@ With the mod off, the game is the PlayStation 2 game.
 - The game's own save keeps which locations you have had, and every item is one you keep. So the
   mod keeps no file of its own. At each level start it tells the server every location you have
   had, and each tick it gives you what the server sent and you lack.
+- A save from another seed is caught: when it has checks the server never saw from your slot and
+  lacks some it saw, its checks are not sent, and a line says so. A save from another seed loaded
+  into a room where your slot has no checks yet cannot be told apart.
 - Items arrive only while you are in control in a level, not in a cutscene or a menu.
 - The goal is sent when Drek's ending scene starts on Veldin.
 - The connection runs on a thread of its own and comes back by itself when it drops. `wss://`
-  uses mbedTLS and the system's root certificates.
+  uses mbedTLS and the system's root certificates. The server's messages may come compressed
+  (permessage-deflate, inflated with miniz).
 
 ## Building
 

@@ -49,6 +49,10 @@ void ap_client_check(int64_t location);
 /* The slot's goal reached (Drek beaten): the server is told, now or when next connected. */
 void ap_client_goal(void);
 
+/* The locations the loaded save has had, at a level start: sent, unless the save is another
+ * seed's (it has checks the server never saw from the slot, and lacks some it did). */
+void ap_client_save_loaded(const int64_t* had, size_t n);
+
 /* Every item the server has sent this slot so far, in its order: at most `max` into `out`.
  * Returns how many there are (more than max when out was too small). *generation (when not null)
  * changes whenever the list does, so the caller can tell when it needs to look again. */

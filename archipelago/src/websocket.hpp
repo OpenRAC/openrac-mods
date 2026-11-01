@@ -34,6 +34,32 @@ std::string encode(Opcode op, const std::string& payload, const std::uint8_t mas
 // bad is set for a frame the client cannot take (a length past what it allows).
 bool decode(std::string& buffer, Opcode& op, bool& fin, std::string& payload, bool& bad);
 
+// The same, and whether the frame has RSV1 set: a message's first frame, compressed
+// (permessage-deflate, RFC 7692).
+bool decode(
+    std::string& buffer, Opcode& op, bool& fin, bool& rsv1, std::string& payload, bool& bad
+);
+
+// permessage-deflate's receiving side: each compressed message inflated. The server may keep its
+// window from one message to the next (context takeover), so the window is kept.
+class Inflater {
+public:
+    Inflater();
+    ~Inflater();
+    Inflater(const Inflater&) = delete;
+    Inflater& operator=(const Inflater&) = delete;
+
+    // The window forgotten: a new connection.
+    void reset();
+
+    // One message's payload inflated onto out; false for a broken stream or past max bytes.
+    bool inflate(const std::string& payload, std::string& out, std::size_t max);
+
+private:
+    struct State;
+    State* state_;
+};
+
 // The handshake's request for host:port at path, with the key (base64 of 16 random bytes).
 std::string handshake_request(const std::string& host, int port, const std::string& key);
 
@@ -65,6 +91,9 @@ private:
     Transport transport_;
     std::string buffer_;   // bytes read and not yet a whole frame
     std::string message_;  // the fragments of a message so far
+    bool deflate_ = false;     // permessage-deflate agreed in the handshake
+    bool compressed_ = false;  // the message so far is compressed
+    ws::Inflater inflater_;
     std::uint32_t seed_ = 0x9E3779B9u;
 };
 

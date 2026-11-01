@@ -14,11 +14,11 @@ namespace {
 
 using nlohmann::json;
 
-// The protocol version the client speaks (Archipelago 0.6): the server only checks it is new
+// The protocol version the client speaks (Archipelago 0.6.8): the server only checks it is new
 // enough for the world.
 constexpr int kVersionMajor = 0;
 constexpr int kVersionMinor = 6;
-constexpr int kVersionBuild = 0;
+constexpr int kVersionBuild = 8;
 
 // items_handling: every item, from other worlds, this world's own and the starting inventory.
 constexpr int kItemsHandling = 0b111;
@@ -96,12 +96,64 @@ bool Session::location_item(std::int64_t location, std::int64_t& item, bool& own
 }
 
 void Session::check(std::int64_t location, std::vector<std::string>& out) {
+    // Play on another seed's save is that seed's.
+    if (foreign_) {
+        return;
+    }
+
+    live_.insert(location);
+
     // Known already: sent before (or waiting to be).
     if (!found_.insert(location).second) {
         return;
     }
 
     pending_.insert(location);
+    flush(out);
+}
+
+void Session::save_loaded(const std::vector<std::int64_t>& had, std::vector<std::string>& out) {
+    save_ = std::set<std::int64_t>(had.begin(), had.end());
+    save_waiting_ = true;
+
+    if (connected_) {
+        judge_save(out);
+    }
+}
+
+void Session::judge_save(std::vector<std::string>& out) {
+    save_waiting_ = false;
+    bool extra = false;
+    bool lacking = false;
+
+    // A check of the save's the server never saw, and not made in this play.
+    for (const std::int64_t id : save_) {
+        extra |= checked_.count(id) == 0 && live_.count(id) == 0;
+    }
+
+    // A check the server saw that the save lacks.
+    for (const std::int64_t id : checked_) {
+        lacking |= save_.count(id) == 0;
+    }
+
+    const bool foreign = extra && lacking;
+
+    if (foreign && !foreign_) {
+        add_message("Archipelago: this save is not this seed's: its checks are not sent");
+    }
+
+    foreign_ = foreign;
+
+    if (foreign) {
+        return;
+    }
+
+    for (const std::int64_t id : save_) {
+        if (found_.insert(id).second) {
+            pending_.insert(id);
+        }
+    }
+
     flush(out);
 }
 
@@ -214,6 +266,31 @@ std::string Session::render(const json& data) const {
     return line;
 }
 
+void Session::read_players(const json& p) {
+    const auto players = p.find("players");
+
+    // Each player's name to show.
+    if (players != p.end() && players->is_array()) {
+        for (const json& player : *players) {
+            if (player.is_object() && int_of(player, "team", team_) == team_) {
+                players_[int(int_of(player, "slot", -1))].alias = text_of(player, "alias");
+            }
+        }
+    }
+}
+
+void Session::read_checked(const json& p) {
+    const auto checked = p.find("checked_locations");
+
+    if (checked != p.end() && checked->is_array()) {
+        for (const json& id : *checked) {
+            if (id.is_number_integer()) {
+                checked_.insert(id.get<std::int64_t>());
+            }
+        }
+    }
+}
+
 void Session::on_message(const std::string& text, std::vector<std::string>& out) {
     const json packets = json::parse(text, nullptr, false);
 
@@ -235,15 +312,32 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
     const std::string cmd = text_of(p, "cmd");
 
     if (cmd == "RoomInfo") {
-        // The names of every game in the room, then the slot's connection.
+        // The names of the room's games not known yet (or changed since), then the connection.
         json games = json::array();
         const auto list = p.find("games");
+        const auto sums = p.find("datapackage_checksums");
 
         if (list != p.end() && list->is_array()) {
-            games = *list;
+            for (const json& game : *list) {
+                if (!game.is_string()) {
+                    continue;
+                }
+
+                const std::string name = game.get<std::string>();
+                const auto known = checksums_.find(name);
+                const std::string sum =
+                    sums != p.end() && sums->is_object() ? text_of(*sums, name.c_str()) : "";
+
+                if (known == checksums_.end() || sum.empty() || known->second != sum) {
+                    games.push_back(name);
+                }
+            }
         }
 
-        out.push_back(packet({{"cmd", "GetDataPackage"}, {"games", games}}));
+        if (!games.empty()) {
+            out.push_back(packet({{"cmd", "GetDataPackage"}, {"games", games}}));
+        }
+
         out.push_back(packet(
             {{"cmd", "Connect"},
              {"password", config_.password},
@@ -265,20 +359,12 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
         synced_ = true;
         slot_ = int(int_of(p, "slot", -1));
         team_ = int(int_of(p, "team", 0));
-        // The server sends every item again (ReceivedItems index 0) right after: start the list.
-        items_.clear();
-        ++generation_;
+        // The items stay as they were until the server's ReceivedItems (index 0) right after: in
+        // between, the game side must not think them gone.
         players_.clear();
-        const auto players = p.find("players");
-
-        // Each player's name to show.
-        if (players != p.end() && players->is_array()) {
-            for (const json& player : *players) {
-                if (player.is_object() && int_of(player, "team", team_) == team_) {
-                    players_[int(int_of(player, "slot", -1))].alias = text_of(player, "alias");
-                }
-            }
-        }
+        read_players(p);
+        checked_.clear();
+        read_checked(p);
 
         const auto slots = p.find("slot_info");
 
@@ -313,6 +399,11 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
         }
 
         add_message("Archipelago: connected as " + config_.slot);
+
+        if (save_waiting_) {
+            judge_save(out);
+        }
+
         flush(out);
     } else if (cmd == "ConnectionRefused") {
         refused_ = true;
@@ -357,6 +448,10 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
         }
 
         ++generation_;
+    } else if (cmd == "RoomUpdate") {
+        // A rename, or checks made elsewhere (another client on the slot, !collect).
+        read_players(p);
+        read_checked(p);
     } else if (cmd == "LocationInfo") {
         const auto locations = p.find("locations");
 
@@ -383,6 +478,12 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
             for (const auto& [game, info] : games->items()) {
                 if (!info.is_object()) {
                     continue;
+                }
+
+                const std::string sum = text_of(info, "checksum");
+
+                if (!sum.empty()) {
+                    checksums_[game] = sum;
                 }
 
                 for (const auto& [names, into] :

@@ -114,6 +114,11 @@ public:
         session_.goal(outbox_);
     }
 
+    void save_loaded(const std::int64_t* had, std::size_t n) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        session_.save_loaded(std::vector<std::int64_t>(had, had + n), outbox_);
+    }
+
     std::size_t items(std::int64_t* out, std::size_t max, std::uint32_t* generation) {
         std::lock_guard<std::mutex> lock(mutex_);
         const auto& list = session_.items();
@@ -276,6 +281,12 @@ void ap_client_check(int64_t location) {
 void ap_client_goal(void) {
     if (g_client != nullptr) {
         g_client->goal();
+    }
+}
+
+void ap_client_save_loaded(const int64_t* had, size_t n) {
+    if (g_client != nullptr) {
+        g_client->save_loaded(had, n);
     }
 }
 

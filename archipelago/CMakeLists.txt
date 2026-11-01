@@ -17,7 +17,7 @@ set(randomizer_src ${CMAKE_CURRENT_SOURCE_DIR}/../item-randomizer/src)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # mbedTLS 3.6 (LTS), the release tarball (its generated files included), static and nothing else.
-message(STATUS "archipelago: fetching mbedTLS 3.6.7 and nlohmann/json 3.12.0")
+message(STATUS "archipelago: fetching mbedTLS 3.6.7, nlohmann/json 3.12.0 and miniz 3.0.2")
 set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 set(GEN_FILES OFF CACHE BOOL "" FORCE)
@@ -33,14 +33,26 @@ FetchContent_Declare(nlohmann_json
   URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
   URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
   DOWNLOAD_EXTRACT_TIMESTAMP ON)
-FetchContent_MakeAvailable(mbedtls nlohmann_json)
+# miniz 3.0.2: its raw inflate (tinfl) for permessage-deflate, the server's compressed messages.
+FetchContent_Declare(miniz
+  URL https://github.com/richgel999/miniz/releases/download/3.0.2/miniz-3.0.2.zip
+  URL_HASH SHA256=ada38db0b703a56d3dd6d57bf84a9c5d664921d870d8fea4db153979fb5332c5
+  DOWNLOAD_EXTRACT_TIMESTAMP ON)
+# The release zip has no CMakeLists.txt: made available, it is only unpacked.
+FetchContent_MakeAvailable(mbedtls nlohmann_json miniz)
+add_library(archipelago_miniz STATIC ${miniz_SOURCE_DIR}/miniz.c)
+target_include_directories(archipelago_miniz PUBLIC ${miniz_SOURCE_DIR})
+# Only the inflate is used.
+target_compile_definitions(archipelago_miniz PUBLIC MINIZ_NO_STDIO MINIZ_NO_TIME MINIZ_NO_ARCHIVE_APIS
+  MINIZ_NO_ZLIB_COMPATIBLE_NAMES)
 
 # The client: the protocol, the WebSocket and the transport, as a static library the mod and the
 # tests share.
 add_library(archipelago_client STATIC
   src/ap_client.cpp src/session.cpp src/websocket.cpp src/transport.cpp)
 target_include_directories(archipelago_client PUBLIC src ${randomizer_src})
-target_link_libraries(archipelago_client PUBLIC nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto)
+target_link_libraries(archipelago_client PUBLIC nlohmann_json::nlohmann_json mbedtls mbedx509 mbedcrypto
+  archipelago_miniz)
 set_target_properties(archipelago_client PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 find_package(Threads REQUIRED)
 target_link_libraries(archipelago_client PUBLIC Threads::Threads)

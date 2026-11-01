@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -69,11 +70,11 @@
 #define NOTICE_TICKS 300
 #define NOTICE_SIZE 256
 
-/* The most items the server may send a slot that the game side reads (far more than the game has). */
-#define MAX_RECEIVED 1024
+/* The items the game side reads at once; a longer list is read into a larger buffer. */
+#define RECEIVED_CHUNK 1024
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "1.0.0"
+#define MOD_VERSION "2.0.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -310,17 +311,35 @@ static void give_item(int item) {
 
 /* The server's list read again when it changed: what this slot has been sent. */
 static void read_received(void) {
-    static int64_t ids[MAX_RECEIVED];
+    static int64_t chunk[RECEIVED_CHUNK];
+    static int64_t* ids = chunk;
+    static size_t capacity = RECEIVED_CHUNK;
     uint32_t generation = 0;
-    size_t n = ap_client_items(ids, MAX_RECEIVED, &generation);
+    size_t n = ap_client_items(ids, capacity, &generation);
 
     // Unchanged since the last look.
     if (generation == s_generation) {
         return;
     }
 
+    // More than fits: a buffer for them all (every item counts, however many the server sends).
+    if (n > capacity) {
+        int64_t* larger = (int64_t*)malloc(n * sizeof *larger);
+
+        if (larger != NULL) {
+            if (ids != chunk) {
+                free(ids);
+            }
+
+            ids = larger;
+            capacity = n;
+            n = ap_client_items(ids, capacity, &generation);
+        }
+
+        n = n < capacity ? n : capacity;
+    }
+
     s_generation = generation;
-    n = n < MAX_RECEIVED ? n : MAX_RECEIVED;
     memset(s_received_item, 0, sizeof s_received_item);
     memset(s_received_planet, 0, sizeof s_received_planet);
     s_received_gold = 0;
@@ -486,17 +505,22 @@ static void edwina_update(openrac_gaddr moby) {
     run_shown(s_edwina_update, moby, ITEM_HYDRO_PACK);
 }
 
-/* The level's start: what is had now is seen (a save loaded, a new game), and the server is told
- * every location had (it ignores the ones it knows). */
+/* The level's start: what is had now is seen (a save loaded, a new game), and the client is given
+ * every location had, which it sends unless the save is another seed's. */
 static void sync_seen(void) {
+    static int64_t ids[RANDO_MAX_LOCATIONS];
+    size_t n = 0;
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         const int is = ap_is_location(&rando_locations[i]) && had((int)i);
         s_seen[i] = (uint8_t)is;
 
         if (is) {
-            found((int)i);
+            ids[n++] = ap_location_id(&rando_locations[i]);
         }
     }
+
+    ap_client_save_loaded(ids, n);
 }
 
 /* After the game gave the Bomb Glove at a level start and none was given, undoes what the game

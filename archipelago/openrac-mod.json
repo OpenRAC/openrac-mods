@@ -2,7 +2,7 @@
   "format": 2,
   "id": "archipelago",
   "name": "Archipelago",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "OpenRAC contributors",
   "description": "Plays the game in an Archipelago multiworld (archipelago.gg): the gadgets, weapons, vendor slots, gold bolts and infobots are locations, and what they hold may be another player's item, in another game. What the others find for you comes to you as you play. Beat Drek to finish your part. Needs a room made with the rac1.apworld from this mod's release.",
   "license": "GPL-3.0-or-later",
