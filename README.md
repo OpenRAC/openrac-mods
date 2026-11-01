@@ -164,6 +164,9 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   repository only. Its App id and private key are the repository secrets
   `OPENRAC_BOT_APP_ID` and `OPENRAC_BOT_PRIVATE_KEY`; each job asks it for a
   one-hour token with only the rights that job needs.
+- If publishing fails, the bot opens an `index-broken` issue (and closes it once a
+  publish works again). With the repository secret `DISCORD_WEBHOOK_MAINTAINERS`
+  (a Discord channel webhook), both are also posted there.
 
 Tags and impact come from fixed lists, in [`index/schema.json`](index/schema.json).
 Check before you open the pull request:
