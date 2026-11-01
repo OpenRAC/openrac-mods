@@ -510,6 +510,7 @@ struct Player {
           cosave(session, game, [this] { return clock; }) {
         coop.set_save_hooks([this](std::int32_t target) { cosave.announce(target); },
                             [this](const Bytes& save) { cosave.starting(save); });
+        coop.on_start_again([this] { cosave.start_again(); });
         router.route(mp::Owner::kSave, [this](std::int32_t sender, const Bytes& bytes) { cosave.handle(sender, bytes); });
         router.fallback([this](std::int32_t sender, const Bytes& bytes) { coop.handle(sender, bytes); });
         router.route(mp::Owner::kMods, [this](std::int32_t sender, const Bytes& bytes) { mods.handle(sender, bytes); });

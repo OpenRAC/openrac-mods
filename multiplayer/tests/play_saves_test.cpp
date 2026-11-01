@@ -325,6 +325,33 @@ void the_same_party_comes_back_to_its_slot() {
     CHECK(friend_.game.slots.count(0) == 0);
 }
 
+// Starting again is a game of its own: the last one's slot stays as that game left it, everywhere.
+void starting_again_keeps_the_last_games_slot() {
+    const Bytes chosen = save_of(0x21), saved = save_of(0x41);
+    Saving party(chosen);
+    const std::uint32_t first = party.host.cosave.key();
+    party.host.game.game_saves(saved);
+    tick(party.players(), 16);
+    tick(party.players(), 16);
+    CHECK(party.a.game.slots[0] == saved);
+
+    party.host.game.now = {mp::kPhaseFrontEnd, -1, 3};
+    tick(party.players(), 16);
+    CHECK(party.host.coop.start());
+    tick(party.players(), 16);
+    party.a.game.now = party.b.game.now = {mp::kPhaseFrontEnd, -1, 3};
+    tick(party.players(), 16);
+    tick(party.players(), 16);
+
+    CHECK(party.host.cosave.key() != first);
+
+    for (Player* p : party.players()) {
+        CHECK(p->cosave.on() && p->cosave.slot() == 1 && p->cosave.key() == party.host.cosave.key());
+        CHECK(p->game.slots[0] == saved && p->game.slots[1] == chosen);
+        CHECK(p->game.own_saves.empty());
+    }
+}
+
 void a_member_asks_the_host_to_save() {
     Saving party(save_of(0x21));
     party.host.game.live_save = save_of(0xA1);
@@ -396,6 +423,7 @@ void run_saves_tests() {
     leaving_keeps_the_filter_until_the_title();
     the_host_leaving_saves_for_everyone();
     the_same_party_comes_back_to_its_slot();
+    starting_again_keeps_the_last_games_slot();
     a_member_asks_the_host_to_save();
     a_port_without_the_filter_plays_as_before();
     slots_are_chosen_and_notes_read_back();
