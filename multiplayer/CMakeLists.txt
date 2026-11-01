@@ -23,6 +23,7 @@ set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/p
                            tests/play_sim_test.cpp tests/play_save_test.cpp tests/play_cross_test.cpp
                            tests/play_saves_test.cpp tests/play_tags_test.cpp tests/play_join_test.cpp
                            tests/play_shared_test.cpp tests/play_lobby_test.cpp)
+list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp)
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
@@ -74,11 +75,17 @@ if(BUILD_TESTING)
   target_compile_definitions(multiplayer_play_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
   set_target_properties(multiplayer_play_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_play COMMAND multiplayer_play_test)
-  # The party on a seeded network over many seeds (the head of tests/sim_sweep_test.cpp).
+  # The party on a seeded network over many seeds (the head of tests/sim_sweep_test.cpp): a few a
+  # cell in every build; MULTIPLAYER_HEAVY_SWEEP adds the sweep a change of the sync is judged by.
+  option(MULTIPLAYER_HEAVY_SWEEP "Run the many-seed sweep of the sync with the tests" OFF)
   add_executable(multiplayer_sweep_test tests/sim_sweep_test.cpp src/session.cpp src/protocol.cpp
                  ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/save_check.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
   target_include_directories(multiplayer_sweep_test PRIVATE src tests "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_sweep_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_sweep COMMAND multiplayer_sweep_test --seeds 2)
+  if(MULTIPLAYER_HEAVY_SWEEP)
+    add_test(NAME multiplayer_sweep_heavy COMMAND multiplayer_sweep_test --seeds 60 --base 1000)
+  endif()
   # The interpolation buffer over a real network: late, uneven, reordered and lost poses, and the
   # arrivals of a session through the public server, shown as smoothly as they should be.
   add_executable(multiplayer_smooth_test tests/smooth_test.cpp src/play.cpp src/protocol.cpp)

@@ -34,6 +34,7 @@ int main() {
     mpt::run_party_tests();
     mpt::run_saves_tests();
     mpt::run_sim_tests();
+    mpt::run_sync_tests();
     mpt::run_save_tests();
     mpt::run_cross_tests();
     mpt::run_tags_tests();

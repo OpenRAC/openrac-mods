@@ -5,7 +5,7 @@
 // unevenly, out of order and some not at all, shown 60 times a second as the game does, and how
 // smoothly what is shown moves:
 //   - a figure (its poses carry velocities, 20 a second) and a moby or a bolt of the host's world
-//     (WORLD carries no velocity, 15 a second) at 50 to 250 ms one way, with jitter, reordering and
+//     (WORLD carries no velocity, up to 15 a second) at 50 to 250 ms one way, with jitter, reordering and
 //     loss, and the stamps off the receiver's clock by a constant (the clock estimates' error):
 //     never back, every frame's step close to the run's, hardly ever past the newest pose;
 //   - the arrivals recorded in a session through game.openrac.dev (tests/data/world_internet.csv);

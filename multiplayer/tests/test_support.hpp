@@ -1422,6 +1422,7 @@ void run_scenes_tests();
 void run_party_tests();
 void run_saves_tests();
 void run_sim_tests();
+void run_sync_tests();
 void run_save_tests();
 void run_cross_tests();
 void run_tags_tests();
