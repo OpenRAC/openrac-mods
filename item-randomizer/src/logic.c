@@ -293,8 +293,8 @@ const rando_location rando_locations[] = {
         0,
         HELI | SWING | GRIND
     ),
-    GOLDBOLT("Batalia: gold bolt 1", LEVEL_BATALIA, 0, 25, 0, GRIND),
-    GOLDBOLT("Batalia: gold bolt 2", LEVEL_BATALIA, 1, 25, 0, GRIND),
+    GOLDBOLT("Batalia: gold bolt 1", LEVEL_BATALIA, 0, 25, 0, GRIND | TRESP),
+    GOLDBOLT("Batalia: gold bolt 2", LEVEL_BATALIA, 1, 25, 0, GRIND | TRESP),
 
     // Gaspar: the Pilot's Helmet's pickup (Moby1290Update, class 1290).
     VENDOR("Gaspar: the vendor's Walloper", LEVEL_GASPAR, ITEM_WALLOPER, 26, 0),
@@ -324,7 +324,7 @@ const rando_location rando_locations[] = {
     // (PokitaruGuideUpdate, func_L11_002D2670), the Persuader (not shuffled: logic.c's header).
     VENDOR("Pokitaru: the vendor's Decoy Glove", LEVEL_POKITARU, ITEM_DECOY_GLOVE, 29, 0),
     GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 29, 0, 0, HELI | SWING),
-    GIVE_G("Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 30, 0, 0, HELI | SWING),
+    GIVE_G("Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 30, 0, HELMET, HELI | SWING),
     FIXED("Pokitaru: the Persuader", LEVEL_POKITARU, ITEM(ITEM_PERSUADER), 31, 0, 0, HELI | SWING),
     GOLDBOLT("Pokitaru: gold bolt", LEVEL_POKITARU, 0, 32, 0, 0),
 
@@ -427,7 +427,7 @@ const rando_location rando_locations[] = {
         ITEM_HOLOGUISE,
         46,
         0,
-        GRIND,
+        GRIND | HOVER,
         HELI | SWING | MAGNE
     ),
     GIVE_G(

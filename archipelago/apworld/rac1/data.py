@@ -78,7 +78,7 @@ ITEMS = (
 LOCATIONS = (
     LocationData(
         "Veldin: the starting Bomb Glove",
-        id=0x5244200A,
+        id=0x5246000A,
         kind="start",
         planet="Veldin",
         pool="shuffle_weapons",
@@ -102,7 +102,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Novalis: the vendor's Pyrocitor",
-        id=0x52441110,
+        id=0x52450110,
         kind="vendor",
         planet="Novalis",
         pool="shuffle_vendor",
@@ -138,7 +138,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Novalis: gold bolt 1",
-        id=0x52444100,
+        id=0x52480100,
         kind="gold",
         planet="Novalis",
         pool="shuffle_gold_bolts",
@@ -150,7 +150,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Novalis: gold bolt 2",
-        id=0x52444101,
+        id=0x52480101,
         kind="gold",
         planet="Novalis",
         pool="shuffle_gold_bolts",
@@ -162,7 +162,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Novalis: gold bolt 3",
-        id=0x52444102,
+        id=0x52480102,
         kind="gold",
         planet="Novalis",
         pool="shuffle_gold_bolts",
@@ -210,7 +210,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Aridia: gold bolt 1",
-        id=0x52444200,
+        id=0x52480200,
         kind="gold",
         planet="Aridia",
         pool="shuffle_gold_bolts",
@@ -222,7 +222,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Aridia: gold bolt 2",
-        id=0x52444201,
+        id=0x52480201,
         kind="gold",
         planet="Aridia",
         pool="shuffle_gold_bolts",
@@ -234,7 +234,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Aridia: gold bolt 3",
-        id=0x52444202,
+        id=0x52480202,
         kind="gold",
         planet="Aridia",
         pool="shuffle_gold_bolts",
@@ -246,7 +246,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Aridia: gold bolt 4",
-        id=0x52444203,
+        id=0x52480203,
         kind="gold",
         planet="Aridia",
         pool="shuffle_gold_bolts",
@@ -270,7 +270,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Kerwan: the vendor's Blaster",
-        id=0x5244130F,
+        id=0x5245030F,
         kind="vendor",
         planet="Kerwan",
         pool="shuffle_vendor",
@@ -294,7 +294,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Kerwan: the infobot",
-        id=0x52443303,
+        id=0x52470303,
         kind="infobot",
         planet="Kerwan",
         pool="shuffle_infobots",
@@ -306,7 +306,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Kerwan: gold bolt 1",
-        id=0x52444300,
+        id=0x52480300,
         kind="gold",
         planet="Kerwan",
         pool="shuffle_gold_bolts",
@@ -318,7 +318,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Kerwan: gold bolt 2",
-        id=0x52444301,
+        id=0x52480301,
         kind="gold",
         planet="Kerwan",
         pool="shuffle_gold_bolts",
@@ -330,7 +330,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Kerwan: gold bolt 3",
-        id=0x52444302,
+        id=0x52480302,
         kind="gold",
         planet="Kerwan",
         pool="shuffle_gold_bolts",
@@ -342,7 +342,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Eudora: the vendor's Glove of Doom",
-        id=0x52441414,
+        id=0x52450414,
         kind="vendor",
         planet="Eudora",
         pool="shuffle_vendor",
@@ -378,7 +378,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Eudora: gold bolt",
-        id=0x52444400,
+        id=0x52480400,
         kind="gold",
         planet="Eudora",
         pool="shuffle_gold_bolts",
@@ -390,7 +390,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Blarg: the vendor's Taunter",
-        id=0x5244160E,
+        id=0x5245060E,
         kind="vendor",
         planet="Blarg",
         pool="shuffle_vendor",
@@ -426,7 +426,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Blarg: the infobot",
-        id=0x52443600,
+        id=0x52470600,
         kind="infobot",
         planet="Blarg",
         pool="shuffle_infobots",
@@ -450,7 +450,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Blarg: gold bolt 1",
-        id=0x52444600,
+        id=0x52480600,
         kind="gold",
         planet="Blarg",
         pool="shuffle_gold_bolts",
@@ -462,7 +462,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Blarg: gold bolt 2",
-        id=0x52444601,
+        id=0x52480601,
         kind="gold",
         planet="Blarg",
         pool="shuffle_gold_bolts",
@@ -474,7 +474,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Rilgar: the vendor's Mine Glove",
-        id=0x52441511,
+        id=0x52450511,
         kind="vendor",
         planet="Rilgar",
         pool="shuffle_vendor",
@@ -510,7 +510,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Rilgar: gold bolt 1",
-        id=0x52444500,
+        id=0x52480500,
         kind="gold",
         planet="Rilgar",
         pool="shuffle_gold_bolts",
@@ -522,7 +522,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Rilgar: gold bolt 2",
-        id=0x52444501,
+        id=0x52480501,
         kind="gold",
         planet="Rilgar",
         pool="shuffle_gold_bolts",
@@ -534,7 +534,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Umbris: the infobot",
-        id=0x52443703,
+        id=0x52470703,
         kind="infobot",
         planet="Umbris",
         pool="shuffle_infobots",
@@ -558,7 +558,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Umbris: gold bolt 1",
-        id=0x52444700,
+        id=0x52480700,
         kind="gold",
         planet="Umbris",
         pool="shuffle_gold_bolts",
@@ -570,7 +570,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Umbris: gold bolt 2",
-        id=0x52444701,
+        id=0x52480701,
         kind="gold",
         planet="Umbris",
         pool="shuffle_gold_bolts",
@@ -582,7 +582,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Batalia: the vendor's Devastator",
-        id=0x5244180B,
+        id=0x5245080B,
         kind="vendor",
         planet="Batalia",
         pool="shuffle_vendor",
@@ -630,31 +630,31 @@ LOCATIONS = (
     ),
     LocationData(
         "Batalia: gold bolt 1",
-        id=0x52444800,
+        id=0x52480800,
         kind="gold",
         planet="Batalia",
         pool="shuffle_gold_bolts",
         vanilla="Gold Bolt",
         hard=(),
-        soft=("Heli-Pack", "Swingshot", "Grindboots"),
+        soft=("Heli-Pack", "Swingshot", "Trespasser", "Grindboots"),
         costly=False,
         goal=False,
     ),
     LocationData(
         "Batalia: gold bolt 2",
-        id=0x52444801,
+        id=0x52480801,
         kind="gold",
         planet="Batalia",
         pool="shuffle_gold_bolts",
         vanilla="Gold Bolt",
         hard=(),
-        soft=("Heli-Pack", "Swingshot", "Grindboots"),
+        soft=("Heli-Pack", "Swingshot", "Trespasser", "Grindboots"),
         costly=False,
         goal=False,
     ),
     LocationData(
         "Gaspar: the vendor's Walloper",
-        id=0x52441912,
+        id=0x52450912,
         kind="vendor",
         planet="Gaspar",
         pool="shuffle_vendor",
@@ -678,7 +678,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Gaspar: gold bolt 1",
-        id=0x52444900,
+        id=0x52480900,
         kind="gold",
         planet="Gaspar",
         pool="shuffle_gold_bolts",
@@ -690,7 +690,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Gaspar: gold bolt 2",
-        id=0x52444901,
+        id=0x52480901,
         kind="gold",
         planet="Gaspar",
         pool="shuffle_gold_bolts",
@@ -702,7 +702,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Orxon: the vendor's Visibomb Gun",
-        id=0x52441A0D,
+        id=0x52450A0D,
         kind="vendor",
         planet="Orxon",
         pool="shuffle_vendor",
@@ -714,7 +714,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Orxon: Clank's infobot",
-        id=0x52443A02,
+        id=0x52470A02,
         kind="infobot",
         planet="Orxon",
         pool="shuffle_infobots",
@@ -738,7 +738,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Orxon: Ratchet's infobot",
-        id=0x52443A04,
+        id=0x52470A04,
         kind="infobot",
         planet="Orxon",
         pool="shuffle_infobots",
@@ -750,7 +750,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Orxon: gold bolt 1",
-        id=0x52444A00,
+        id=0x52480A00,
         kind="gold",
         planet="Orxon",
         pool="shuffle_gold_bolts",
@@ -762,7 +762,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Orxon: gold bolt 2",
-        id=0x52444A01,
+        id=0x52480A01,
         kind="gold",
         planet="Orxon",
         pool="shuffle_gold_bolts",
@@ -774,7 +774,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Pokitaru: the vendor's Decoy Glove",
-        id=0x52441B19,
+        id=0x52450B19,
         kind="vendor",
         planet="Pokitaru",
         pool="shuffle_vendor",
@@ -803,7 +803,7 @@ LOCATIONS = (
         planet="Pokitaru",
         pool="shuffle_gadgets",
         vanilla="O2 Mask",
-        hard=(),
+        hard=("Pilot's Helmet",),
         soft=("Heli-Pack", "Swingshot"),
         costly=False,
         goal=False,
@@ -822,7 +822,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Pokitaru: gold bolt",
-        id=0x52444B00,
+        id=0x52480B00,
         kind="gold",
         planet="Pokitaru",
         pool="shuffle_gold_bolts",
@@ -834,7 +834,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Hoven: the vendor's Drone Device",
-        id=0x52441C18,
+        id=0x52450C18,
         kind="vendor",
         planet="Hoven",
         pool="shuffle_vendor",
@@ -870,7 +870,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Hoven: gold bolt 1",
-        id=0x52444C00,
+        id=0x52480C00,
         kind="gold",
         planet="Hoven",
         pool="shuffle_gold_bolts",
@@ -882,7 +882,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Hoven: gold bolt 2",
-        id=0x52444C01,
+        id=0x52480C01,
         kind="gold",
         planet="Hoven",
         pool="shuffle_gold_bolts",
@@ -906,7 +906,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Gemlik: gold bolt",
-        id=0x52444D00,
+        id=0x52480D00,
         kind="gold",
         planet="Gemlik",
         pool="shuffle_gold_bolts",
@@ -918,7 +918,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Oltanis: the vendor's Tesla Claw",
-        id=0x52441E13,
+        id=0x52450E13,
         kind="vendor",
         planet="Oltanis",
         pool="shuffle_vendor",
@@ -966,7 +966,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Oltanis: gold bolt 1",
-        id=0x52444E00,
+        id=0x52480E00,
         kind="gold",
         planet="Oltanis",
         pool="shuffle_gold_bolts",
@@ -978,7 +978,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Oltanis: gold bolt 2",
-        id=0x52444E01,
+        id=0x52480E01,
         kind="gold",
         planet="Oltanis",
         pool="shuffle_gold_bolts",
@@ -990,7 +990,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Oltanis: gold bolt 3",
-        id=0x52444E02,
+        id=0x52480E02,
         kind="gold",
         planet="Oltanis",
         pool="shuffle_gold_bolts",
@@ -1002,7 +1002,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Oltanis: gold bolt 4",
-        id=0x52444E03,
+        id=0x52480E03,
         kind="gold",
         planet="Oltanis",
         pool="shuffle_gold_bolts",
@@ -1050,7 +1050,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Quartu: gold bolt 1",
-        id=0x52444F00,
+        id=0x52480F00,
         kind="gold",
         planet="Quartu",
         pool="shuffle_gold_bolts",
@@ -1062,7 +1062,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Quartu: gold bolt 2",
-        id=0x52444F01,
+        id=0x52480F01,
         kind="gold",
         planet="Quartu",
         pool="shuffle_gold_bolts",
@@ -1079,7 +1079,7 @@ LOCATIONS = (
         planet="Kalebo III",
         pool="shuffle_gadgets",
         vanilla="Hologuise",
-        hard=("Grindboots",),
+        hard=("Grindboots", "Hoverboard"),
         soft=("Heli-Pack", "Swingshot", "Magneboots"),
         costly=False,
         goal=False,
@@ -1098,7 +1098,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Kalebo III: gold bolt 1",
-        id=0x52445000,
+        id=0x52481000,
         kind="gold",
         planet="Kalebo III",
         pool="shuffle_gold_bolts",
@@ -1110,7 +1110,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Kalebo III: gold bolt 2",
-        id=0x52445001,
+        id=0x52481001,
         kind="gold",
         planet="Kalebo III",
         pool="shuffle_gold_bolts",
@@ -1122,7 +1122,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Drek's Fleet: the infobot",
-        id=0x52444103,
+        id=0x52471103,
         kind="infobot",
         planet="Drek's Fleet",
         pool="shuffle_infobots",
@@ -1134,7 +1134,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Drek's Fleet: gold bolt 1",
-        id=0x52445100,
+        id=0x52481100,
         kind="gold",
         planet="Drek's Fleet",
         pool="shuffle_gold_bolts",
@@ -1146,7 +1146,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Drek's Fleet: gold bolt 2",
-        id=0x52445101,
+        id=0x52481101,
         kind="gold",
         planet="Drek's Fleet",
         pool="shuffle_gold_bolts",
@@ -1158,7 +1158,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Veldin (return): gold bolt 1",
-        id=0x52445200,
+        id=0x52481200,
         kind="gold",
         planet="Veldin (return)",
         pool="shuffle_gold_bolts",
@@ -1170,7 +1170,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Veldin (return): gold bolt 2",
-        id=0x52445201,
+        id=0x52481201,
         kind="gold",
         planet="Veldin (return)",
         pool="shuffle_gold_bolts",
@@ -1182,7 +1182,7 @@ LOCATIONS = (
     ),
     LocationData(
         "Veldin (return): gold bolt 3",
-        id=0x52445202,
+        id=0x52481202,
         kind="gold",
         planet="Veldin (return)",
         pool="shuffle_gold_bolts",

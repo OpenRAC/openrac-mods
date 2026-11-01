@@ -2,7 +2,7 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "OpenRAC contributors",
   "description": "Shuffles what the game gives out: the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. The placement follows what each place needs, so every seed can be finished. Share a seed's code and a friend plays the same game. A spoiler log of each seed is written to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",

@@ -57,6 +57,24 @@ class TestPoolsOff(RAC1TestBase):
         self.assertEqual(location.item.name, "Bomb Glove")
 
 
+class TestHardNeeds(RAC1TestBase):
+    # Even expert logic: the O2 Mask's jet fight needs the Pilot's Helmet, the Hologuise's
+    # challenge the Hoverboard.
+    options = {"logic": "expert"}
+
+    def test_resort_owner_needs_pilots_helmet(self) -> None:
+        self.collect_all_but(["Pilot's Helmet"])
+        self.assertFalse(self.can_reach_location("Pokitaru: the resort owner"))
+        self.collect_by_name("Pilot's Helmet")
+        self.assertTrue(self.can_reach_location("Pokitaru: the resort owner"))
+
+    def test_gadgetron_ceo_needs_hoverboard(self) -> None:
+        self.collect_all_but(["Hoverboard"])
+        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+        self.collect_by_name("Hoverboard")
+        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+
+
 class TestRelaxed(RAC1TestBase):
     options = {"logic": "relaxed"}
 
