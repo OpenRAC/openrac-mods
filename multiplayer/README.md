@@ -222,6 +222,31 @@ until the party goes. With no party they change nothing.
   passed on from another player is that item, and marks no place as had. A blank seed on a member is
   never used.
 
+## Two discs in one party
+
+Players on different discs of the same game play together: nothing is said about it, and the party
+behaves as one. The port ticks both discs at 60 Hz, so no time needs converting, and the keys,
+classes, items, scene numbers and saves mean the same on both. What differs follows who runs it:
+
+- Enemies, doors, placed behaviour: the host's game, so the host's disc. Party rules say `Enemies
+  follow the host's game` when the discs differ.
+- Each Ratchet, his gadgets and his collision: that player's own disc.
+- Text, speech and language: each player's own.
+- Progress and the save: the host's. A save crosses as it is; both discs write one layout, and it is
+  checked as untrusted bytes before it loads (`src/save_check.cpp`: size, checksums, every block's
+  id and size, the values the game indexes with). A save that does not pass is refused with `You
+  can't join: the host's save can't be used`, or `That save can't be used: it may be damaged` to the
+  host choosing it.
+
+The check compares the disc's world family (`openrac_api.world_family`), not the disc: `mods_digest`,
+`compare_mods` and PLAY's build all follow it, and a port that says none falls back on the disc. As
+each level loads, HELLO carries the level's sim digest (`openrac_api.sim_digest`), which a member
+and the host must agree on: a number over the level's moby records, leaving out what each game runs
+by itself. On 2026-10-31 all 19 levels agreed on the two discs (OpenRAC's
+`port/tools/versionmap/sim_digest.py`); Hoven's six spawn point records differ in their update
+distance alone, which is left out. A disc that did not agree would leave the party at that level
+with `You have a different disc from the host`.
+
 ## Direct connect
 
 Playing without a server: one player's game hosts, and the others join it by its address. The
@@ -321,7 +346,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 1 READY | a member | flag u8 | ready, or no longer |
 | 2 STATE | the host | count u8, then id i32 + flag u8 each | who is ready |
 | 3 START | the host | | the lobby's Start |
-| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string, joining u8 | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc, the gameplay mods' digest) differs refuses it: "You can't join: your game differs from the host's". `joining`: the game is on and this member comes into it |
+| 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string, joining u8 | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc's world family, the gameplay mods' digest) differs refuses it: "You can't join: your game differs from the host's". `joining`: the game is on and this member comes into it |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
 | 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing |
@@ -341,10 +366,10 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 22 CLAIM | a member | level i8, id u16 (a placed bolt's key; 0x8000 \| a net id for one the host dropped) | its Ratchet collected that bolt (its game added nothing): the host's first claim of a bolt still there gets BOLTS and the bolt's end everywhere (DESPAWN or KILLED); any other, nothing |
 | 23 PROGRESS | a member to the host; the host to all | items u8 count + a byte each, gold bolts u8 count + a byte each (level x 4 + its number), planets u8 count + a byte each (non-zero had) | a member: what its game has, at each change and every 5 s; the host: what the party has (its own game's, given what the members have), likewise and at each member that comes. Each game is given what it lacks; nothing is taken |
 | 25 POSES | the host, to all, as state | count u8, then length u16 + a POSE each | the host's Ratchet and the members' newest, every 50 ms; a game skips its own |
-| 26 HELLO | a member | level i8, load u32 | its game has new mobys of that level (it arrived, or a death made them again): asked each second until SYNCED |
-| 27 RESET | the host, to all | level i8 | its level was made again: what it spawned is gone everywhere, every member says HELLO |
+| 26 HELLO | a member | level i8, load u32, sim digest u32 (0 not known) | its game has new mobys of that level (it arrived, or a death made them again): asked each second until SYNCED. A digest other than the host's gets RESET with differs set, not the world |
+| 27 RESET | the host, to all | level i8, differs u8 (absent: 0) | its level was made again: what it spawned is gone everywhere, every member says HELLO. To one member with differs 1: its level does not agree with the host's, and it leaves the party |
 | 28 SYNCED | the host | level i8, load u32 | all of the world came, ahead of this on the stream: DEAD, then a SPAWN for each spawned moby; WORLD follows |
-| 29 MODS | a member; the host to that member | multiplayer's version, OpenRAC's and the disc (strings), count u8, per mod id, name, version (strings), kind u8 (0 gameplay, 1 input, 2 cosmetic, 3 solo), settings u8, per setting key, name, value, shown (strings), kind u8 (0 shared, 1 own, 2 host), default u8 | a member's game and mods, every 2 seconds until the host's come back (a player's own mods without their settings) |
+| 29 MODS | a member; the host to that member | multiplayer's version, OpenRAC's and the disc (strings), count u8, per mod id, name, version (strings), kind u8 (0 gameplay, 1 input, 2 cosmetic, 3 solo), settings u8, per setting key, name, value, shown (strings), kind u8 (0 shared, 1 own, 2 host), default u8, then the world family (string) | a member's game and mods, every 2 seconds until the host's come back (a player's own mods without their settings) |
 | 30 FITS | the host, to all | count u8, per member id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string) | what the host found, at each change; one silent for 6 seconds is an older game |
 | 31 RULES | the host, to a member or all | count u8, per mod id (string), length u16 + its bytes, its words (string) | the rules of the host's mods, to a member found matching, on the stream ahead of PLAY, and to all at each change (a Chaos event) |
 | 48 SHOTX | everyone, as state | count u8, then per shot owner i32, level i8, item u8, flags u8, what follows u8, stamp u32 (the low bits of the server's clock), position 3 x f32, and what it has of velocity 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16 | shots a player fired; a member's go to the host, who passes them on. Each is fired when its figure is where the shooter was, hitting nothing in that game, or dropped when 250 ms late. A flag makes it part of a track (a flame, a beam, a Visibomb in flight): START, a MOVE ten times a second, STOP; aux[0] tells the player's tracks apart |
@@ -420,7 +445,9 @@ that player. Mobys near the members run in the host's game as if near its camera
 - Names are not drawn over the figures (the mod interface has no drawing over the game yet).
 - A member already in a level when the host starts again keeps its own progress and only follows
   the level.
-- Everyone needs the same disc and the same OpenRAC and mod versions (Mods in a party).
+- Everyone needs the same OpenRAC and mod versions (Mods in a party). Discs of one world family play
+  together: each player's Ratchet plays by that player's disc, and the enemies, doors and everything
+  else the host's game runs by the host's. Tested by unit tests; see Two discs in one party.
 - A host's death brings back the enemies its Difficulty copied, as a death does alone: they are made
   again with the level, and the members get them from the host. Only placed mobys stay dead for the
   party.

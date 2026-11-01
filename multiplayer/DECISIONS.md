@@ -69,14 +69,6 @@ page. Choice: keep it (simple, and the session is the host's save anyway), or **
 (another member takes over, from a full world snapshot). Migration is a large piece of work;
 recommended only after 1 is settled, since it decides whose save the session lives on.
 
-### 7. PAL and NTSC players in one party
-
-The version handshake refuses a different build. Whether PAL and NTSC-U players may play together
-is open: their level data and timings are close, but the world sync's keys and the shared-progress
-addresses have only been checked on PAL (the NTSC addresses for shared progress have not been run
-on that disc). Recommendation: refuse mixed regions until the NTSC side is tested, with a message
-that says why, without naming regions to players (only "a different disc").
-
 ### 8. Release
 
 The port side is PR #99 into `develop`; the mod is on rac1-mods master. Before merging, once the
@@ -133,6 +125,7 @@ was found: it stays the host's, and a member cannot collect it.
 | Friendly fire | Off | 2026-10-27 |
 | Party size | Up to 4 players | 2026-10-27 |
 | Verbose logging | A `verbose_log` setting, off unless turned on | 2026-10-28 |
+| PAL and NTSC players in one party | Allowed: discs of one world family play together, keyed by what they share, and the host's disc rules what the host runs. Anything genuinely different is still refused, as "a different disc". Decided by the user | 2026-10-31 |
 | Gameplay mods that differ from the host's (3) | The join is refused: a gameplay mod's id, version and gameplay settings must match the host's, also an extra one a member has. Input and cosmetic mods don't count, nor settings that are a player's own or the host's to give. Each mod declares this in its `openrac-mod.json`; undeclared counts as gameplay. A `solo` mod (Archipelago) cannot be played in a party. Decided by the user | 2026-10-31 |
 | Host-owned rules (3) | A mod may publish party rules; each member's same mod takes the host's before any level loads. Difficulty's members use the host's seed and values and make no enemy copies or removals of their own; the host decides Chaos events and the party shares them. Decided by the user | 2026-10-31 |
 | Item randomizer seed (4) | Members play the host's seed, so every game has the same placement; an item passed on from another player stays that item. Decided by the user | 2026-10-31 |
