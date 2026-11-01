@@ -12,10 +12,31 @@ puppets, the interpolation) are kept with the project's planning notes, not in t
 
 ### 8. Release
 
-The port side is PR #99 into `develop`; the mod is on rac1-mods master. Before merging, once the
-co-op is confirmed working in play: squash PR #99 into a few meaningful commits (the SDK calls,
-the port, the tests), then tag the SDK interface (1.9) and the mod (multiplayer-v0.7.0 or later),
-and pin the new SDK in `sdk.lock` so CI builds the mod.
+Nothing merges before the user's play test. Then, in this order:
+
+1. Merge OpenRAC PR #160, the rac1 sync, into `develop`.
+2. The OpenRAC branch (`fix/coop-sync` and `round3`, the SDK calls, the port, the launcher) as a PR
+   into `develop`, squashed into a few meaningful commits. `master` only by a release PR: a mod of
+   interface 1.12 loads only on a port of 1.12, so players need that OpenRAC before the mod.
+3. Release SDK 1.12.0 (`sdk/VERSION` says it, the tag is `sdk-v1.12.0`).
+4. Pin it: `sdk.lock` still names 1.11.0, and stays so until that release. Set its version, url and
+   sha256 to 1.12.0's. Until then this repository's CI cannot build (multiplayer's manifest and the
+   top CMakeLists.txt ask for 1.12): build with `-DOPENRAC_SDK=<OpenRAC>/sdk`.
+5. Land `round3` on rac1-mods master and tag `multiplayer-v0.10.0`. Difficulty and Item Randomizer
+   changed in tests only and keep their versions.
+6. Deploy the Server (`r3/migrate`): TCP and UDP 7770, TCP 7771 for mod codes, RESUME, takeover and
+   KICK. Against an older server the mod leaves those out by the features it offers: no kept places
+   and no takeover, a removed player leaves by itself, and no short mod codes.
+
+### Asked for and not built
+
+- **Hold the party**, the host's optional hold of the ship's warning: only the 2.5 seconds are there.
+- **Checks on a member's HIT.** The host takes a HIT for any moby still there, as it did before: no
+  check of the damage or the distance yet. DAMAGE has none either.
+- **Auto-join after a mod code applies**: `openrac://modset/CODE` opens the review in the launcher,
+  and the player then joins by hand. A later step, by the plan.
+- **`play_scene_from`** is a kept slot of interface 1.12 that answers "unknown": a scene cannot start
+  part way, so a scene in progress is waited out, as decided.
 
 ## Decided
 
@@ -118,7 +139,7 @@ write them too, so they do not only go up, and nothing in the story waits on the
 | Ship travel | Only the host flies; everyone follows and waits for all to arrive | 2026-10-28 |
 | Bolts | The host's game owns every dropped and placed bolt; the first to collect one is credited | 2026-10-28 |
 | Start | Only when every member is Ready | 2026-10-28 |
-| Leaving | Whoever leaves goes back to the Multiplayer page; when the host leaves, everyone does | 2026-10-28 |
+| Leaving | Whoever leaves goes back to the Multiplayer page; when the host leaves, the party follows item 6 | 2026-10-28, 2026-10-31 |
 | Friendly fire | Off | 2026-10-27 |
 | Party size | Up to 4 players | 2026-10-27 |
 | Verbose logging | A `verbose_log` setting, off unless turned on | 2026-10-28 |

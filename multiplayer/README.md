@@ -206,7 +206,7 @@ if they drop, but with the host gone, it ends.
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
 what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again
 every few seconds), or **The server went away**, and the server's answers (a code no party has, a
-full party, the host leaving). Only Find match, Create match and Join by code need the server (they
+full party, the host leaving). Only Browse games, Create match and Join by code need the server (they
 are dim until it said hello); **Direct connect**, Host directly and Join by address are always
 selectable. Choosing Direct connect stops the server retries, and the Direct pages never show the
 server's state; leaving a direct party goes back to Home, which tries the server again.
@@ -250,7 +250,7 @@ then restart the game and join again.
 ```
 
 The other lines it may have: `You have a different disc from the host`, `OpenRAC: the host has
-0.21.0, you have 0.20.0`, `Multiplayer: the host has 0.9.0, you have 0.8.0`, and `Archipelago
+0.21.0, you have 0.20.0`, `Multiplayer: the host has 0.10.0, you have 0.9.0`, and `Archipelago
 can't be played in a party`, with `Turn it off in the launcher's Mods tab, then restart the game.`
 Settings count from the game's next start, so changing them needs a restart.
 
@@ -299,7 +299,7 @@ until the party goes. With no party they change nothing.
 Only the host removes a player, and there is no vote: at two to four players a vote is noise. The
 one removed goes back to the Multiplayer page, reading `The host removed you from the party`, from
 the lobby or from the middle of a game, and the party plays on. It can come back with the code, but
-Find match does not put it in that party again.
+the server's own match finding does not put it in that party again.
 
 A ban is of the party's co-op save: `Ban from this save` keeps the player out of every game of that
 save, whoever hosts it, since the ban goes beside the save and to the members' copies of it. It
@@ -352,7 +352,7 @@ Home, **Direct connect**:
   While it cannot reach the host, the footer says so and it keeps trying; Triangle gives up.
 
 The game has no text entry, so the address is stepped in with Left and Right. Leaving a direct
-party (or the host ending it) goes back to Home and to your server, so Find match, Create match and
+party (or the host ending it) goes back to Home and to your server, so Browse games, Create match and
 Join by code work again.
 
 On a LAN this works as it is: give the others the address the lobby shows. Over the internet the
@@ -364,8 +364,8 @@ the party is over for everyone.
 The host's game runs a small copy of the server's party routing (`src/host.cpp`), so it speaks the
 same packets and datagrams, and the lobby and the game data behave the same in both modes. Its
 differences from the server: one party, whose code is `DIRECT` (a lobby shows the host's address
-instead); a client is put in it right after its hello (the party's INFO comes unasked), and Find
-match, Create match or Join by code (any code) put a client back in after it left; the host's own
+instead); a client is put in it right after its hello (the party's INFO comes unasked), and
+Create match or Join by code (any code) put a client back in after it left; the host's own
 game is linked in-process, not by a socket. It keeps the server's limits: frames of 64 KiB, names
 of 1 to 32 characters and chat of 1 to 256, a party of 4, the same rates per connection with
 strikes, hello within 10 seconds, 8 connections an address (and 8 clients at once).
@@ -391,7 +391,7 @@ lists co-op saves on their own, under Saves.
 
 ## How it works
 
-The mod needs OpenRAC's mod interface 1.11: 1.7's pages of the game's own menus put the
+The mod needs OpenRAC's mod interface 1.12: 1.7's pages of the game's own menus put the
 **Multiplayer** item in the main menu under Load Game and let the mod say what its pages list
 (the port draws them with the game's widgets), and 1.8's play calls tell it what the game is doing,
 give it the hero's pose, make the figures that stand for the others (mobys of the hero's class
@@ -409,13 +409,13 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.9.0`) and the player's name, on every connection | the session id |
-| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest), JOIN code (1), LEAVE (2), LIST (8); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description) |
+| 0 HELLO | its version (`rac1-multiplayer/0.10.0`) and the player's name, on every connection | the session id |
+| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest), JOIN code (1), LEAVE (2), LIST (8), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
-| 4 ERROR | | the reason: no such party, full, already in one, not in one |
+| 4 ERROR | | the reason: no such party, full, already in one, not in one, not the host, no place to come back to |
 | 5 TIME | its monotonic clock in ms, once after hello | the echo and the server's clock: the round trip, and the server's clock offset, smoothed (5 % a sample) |
-| 6 UDP | | the session's UDP token and the server's UDP port (an older server sends none) |
+| 6 UDP | | the session's UDP token and the server's UDP port (an older server sends none), then what the server takes: KICK, RESUME and a resume token (an older server says none, and the mod asks for neither) |
 
 **UDP**, for game state only (`Session::send_state`), when the server offers it: the connection
 binds a UDP socket to the server's address and that port, sends `BIND` (session id, token, kind 0)
@@ -610,16 +610,13 @@ that player. Mobys near the members run in the host's game as if near its camera
 - A host's death brings back the enemies its Difficulty copied, as a death does alone: they are made
   again with the level, and the members get them from the host. Only placed mobys stay dead for the
   party.
-- A member's flight to a new planet is its own game's: it leaves with the host, but does not see the
-  host's take-off.
 - A ban holds a launcher's key, which is the player's own word: a player who changes the key by hand
   gets past it. A game started without the launcher has no key, and can only be removed.
 
 ## Building
 
-Built with the repository's other native mods (the top README), with an SDK of interface 1.11 or
-newer: until that SDK is released (`sdk.lock` names it, without a hash yet), build against OpenRAC's
-own `sdk/`:
+Built with the repository's other native mods (the top README), with an SDK of interface 1.12 or
+newer: until that SDK is released (`sdk.lock` still names 1.11.0), build against OpenRAC's own `sdk/`:
 
 ```sh
 cmake -S . -B build -G Ninja -DOPENRAC_SDK=<OpenRAC>/sdk

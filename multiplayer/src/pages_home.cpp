@@ -20,7 +20,7 @@ std::string code_text() {
 
 // ---- The pages, in the game's own menus ----
 
-/* Home: Find match, Create match, Join by code (usable once the server said hello), Direct
+/* Home: Browse games, Create match, Join by code (usable once the server said hello), Direct
  * connect (always: it needs no server), the name. */
 void show_home() {
     const bool usable =
