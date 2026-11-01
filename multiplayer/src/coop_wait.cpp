@@ -38,7 +38,7 @@ void Coop::release_wait(std::uint64_t now, const char* why) {
 }
 
 void Coop::skip_wait(std::uint64_t now) {
-    if (session_.is_host()) {
+    if (session_.role().host()) {
         if (wait_.kind != kWaitNone) {
             release_wait(now, "the host's Start");
         }
@@ -81,7 +81,7 @@ void Coop::send_wait(std::uint64_t now, bool passed) {
 }
 
 void Coop::tick_wait(std::uint64_t now, const GameStatus& status) {
-    if (!session_.is_host() || play_ == 0) {
+    if (!session_.role().host() || play_ == 0) {
         return;
     }
 
@@ -163,7 +163,7 @@ void Coop::on_wait_vote(std::int32_t sender, bool from_host, Reader& r) {
         return;
     }
 
-    if (session_.is_host()) {
+    if (session_.role().host()) {
         // Of the wait on now, once a member.
         if (id == wait_.id && wait_.kind != kWaitNone && member_of(session_, sender)
             && std::find(votes_.begin(), votes_.end(), sender) == votes_.end()) {

@@ -19,7 +19,7 @@ using namespace wire;
 bool World::quiet_drop(int slot) {
     // A member in the host's level: the host's game drops the bolts (its copy of the crate breaks
     // too), so this game's would be the same bolts twice.
-    const bool quiet = session_.in_party() && !session_.is_host() && coop_.playing() && level_ >= 0
+    const bool quiet = session_.in_party() && !session_.role().host() && coop_.playing() && level_ >= 0
                        && level_ == coop_.host_level();
 
     if (quiet) {
@@ -56,7 +56,7 @@ bool World::collect(int slot) {
     // The host: its own Ratchet's, or the member's whose figure stood in for him (the bolt flew to
     // that figure: the nearest player), the bolt gone from every game (DESPAWN or KILLED at the
     // next tick); nobody's claim takes it after this.
-    if (session_.is_host()) {
+    if (session_.role().host()) {
         const std::uint16_t id = hosting_ ? id_of(slot) : kNoId;
 
         if (id != kNoId && standing_ != 0) {
@@ -279,7 +279,7 @@ void World::tick_crates(std::uint64_t now) {
         // tells the host, unless it broke because the host said so.
         if (hosting_ && !coop_.arriving()) {
             session_.send_data(kBroadcast, w.bytes());
-        } else if (!session_.is_host() && !replayed && coop_.playing() && level_ == coop_.host_level() && synced_) {
+        } else if (!session_.role().host() && !replayed && coop_.playing() && level_ == coop_.host_level() && synced_) {
             w.u8(1);
             session_.send_data(session_.host(), w.bytes());
             trace_line("msg", "sent BROKE to host key " + std::to_string(moby.key) + " (comes back)");
@@ -294,7 +294,7 @@ bool World::metal_detect(int key) {
         return dug_.insert(key).second || game_.moby_slot(key) >= 0;
     }
 
-    if (!session_.in_party() || session_.is_host() || !coop_.playing() || level_ < 0 || level_ != coop_.host_level()) {
+    if (!session_.in_party() || session_.role().host() || !coop_.playing() || level_ < 0 || level_ != coop_.host_level()) {
         return true;
     }
 

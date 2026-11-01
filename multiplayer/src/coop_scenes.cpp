@@ -256,7 +256,7 @@ std::uint16_t Coop::shared_here(std::uint64_t now, const GameStatus& status) {
     }
 
     // The host's own: its newest scene, told now if this tick has not yet.
-    if (session_.is_host()) {
+    if (session_.role().host()) {
         if (play_ != 0 && status.scene != scene_) {
             tick_host_scene(now, status);
         }
@@ -290,12 +290,12 @@ void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& /*bytes*/, 
 
     // The origin's own game is skipping already; a member's word reaches the host only.
     if (!r.ok() || origin == session_.id() || play_ == 0
-        || (!from_host && !(session_.is_host() && in_party(session_, sender)))) {
+        || (!from_host && !(session_.role().host() && in_party(session_, sender)))) {
         return;
     }
 
     // Only the host skips: a member's (an older build's, or passed on by an older host) is ignored.
-    if (session_.is_host() || origin != session_.host()) {
+    if (session_.role().host() || origin != session_.host()) {
         log("skip requested by player " + std::to_string(origin)
             + ": only the host skips, ignored");
         return;
@@ -332,7 +332,7 @@ void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& /*bytes*/, 
     if (what == kSkipShared) {
         // The host's scene `scene`: the newest known here (or one to come: its SCENE on its way);
         // an older one's skip is stale.
-        const std::uint16_t newest = session_.is_host() ? scene_sequence_ : host_scene_sequence_;
+        const std::uint16_t newest = session_.role().host() ? scene_sequence_ : host_scene_sequence_;
 
         if (newest != 0 && older_scene(scene, newest)) {
             log(by + " of an earlier scene: ignored");
@@ -368,7 +368,7 @@ void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& /*bytes*/, 
 }
 
 void Coop::send_scene_state(std::uint64_t now) {
-    if (session_.is_host() || play_ == 0 || applied_ != play_ || host_scene_sequence_ == 0) {
+    if (session_.role().host() || play_ == 0 || applied_ != play_ || host_scene_sequence_ == 0) {
         return;
     }
 
@@ -403,7 +403,7 @@ void Coop::on_scene_state(std::int32_t sender, Reader& r) {
     const auto sequence = static_cast<std::uint16_t>(high << 8 | r.u8());
     const std::uint8_t state = r.u8();
 
-    if (!session_.is_host() || !r.ok() || play == 0 || play != play_ || state > kSceneOut
+    if (!session_.role().host() || !r.ok() || play == 0 || play != play_ || state > kSceneOut
         || !in_party(session_, sender)) {
         return;
     }

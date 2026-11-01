@@ -57,7 +57,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
     follow_load(game_.status());
 
     const auto kind = static_cast<WorldKind>(bytes[0]);
-    const bool from_host = sender == session_.host() && !session_.is_host();
+    const bool from_host = session_.role().from_host(sender);
     Reader r(bytes.data() + 1, bytes.size() - 1);
 
     // A member broke a crate: gone here, and so in every game (KILLED at the next tick).
@@ -70,7 +70,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
         // Held for the next listing: the reliable stream's word may come as this game's level is
         // being made again, with no mobys known, and is the only word there will be.
-        if (r.ok() && session_.is_host() && level == level_) {
+        if (r.ok() && session_.role().host() && level == level_) {
             broke_[key] = sender;
 
             if (back) {
@@ -92,9 +92,9 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         trace_line("msg", "received CLAIM from " + std::to_string(sender) + " level " + std::to_string(level) + " id "
                               + std::to_string(id));
 
-        if (r.ok() && session_.is_host() && dig) {
+        if (r.ok() && session_.role().host() && dig) {
             claim_dig(sender, level, id);
-        } else if (r.ok() && session_.is_host()) {
+        } else if (r.ok() && session_.role().host()) {
             claim(sender, level, id);
         }
 

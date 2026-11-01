@@ -21,8 +21,8 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     const bool scene = status.phase == kPhaseScene;
 
     if (scene && !in_scene_) {
-        log(std::string("scene started (") + (session_.is_host() ? "host" : "member")
-            + (host_scene_ && !session_.is_host() ? ", the host's too" : "") + ")");
+        log(std::string("scene started (") + (session_.role().host() ? "host" : "member")
+            + (host_scene_ && !session_.role().host() ? ", the host's too" : "") + ")");
     } else if (!scene && in_scene_) {
         log(skip_asked_ ? "scene ended after the party's skip" : "scene ended");
         skip_asked_ = false;
@@ -31,7 +31,7 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     in_scene_ = scene;
     bool waiting = false;
 
-    if (session_.is_host() && play_ != 0) {
+    if (session_.role().host() && play_ != 0) {
         // The host out of a scene while a member in its level still plays one.
         for (const auto& [id, r] : remotes_) {
             Pose p;
@@ -72,15 +72,15 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     } else {
         if (hold_since_ == 0) {
             hold_since_ = now;
-            log(arrival ? (session_.is_host() ? "waiting for " + std::to_string(waiting_for_.size())
+            log(arrival ? (session_.role().host() ? "waiting for " + std::to_string(waiting_for_.size())
                                                     + " players to arrive in level " + std::to_string(status.level)
                                               : "waiting for the party to arrive in level " + std::to_string(status.level))
-                : session_.is_host() ? "waiting for the members to leave their scene"
+                : session_.role().host() ? "waiting for the members to leave their scene"
                                      : "waiting for the host's scene to end");
         }
 
         // The arrival's own limit is kArriveMs (it ends the wait itself).
-        const std::uint64_t most = arrival ? kArriveMs : session_.is_host() ? kBarrierMs : kHostSceneMs;
+        const std::uint64_t most = arrival ? kArriveMs : session_.role().host() ? kBarrierMs : kHostSceneMs;
         hold_ = now - hold_since_ < most;
     }
 
@@ -169,7 +169,7 @@ bool Coop::ship_travel(int dest, int here) {
         return true;
     }
 
-    if (!session_.is_host()) {
+    if (!session_.role().host()) {
         if (applied_ != play_) {
             return true;
         }
@@ -219,7 +219,7 @@ std::string Coop::banner(std::uint64_t now) const {
         const std::string what = arriving_ ? "Waiting for the other players to arrive"
                                            : "Waiting for the scene to end";
 
-        if (session_.is_host()) {
+        if (session_.role().host()) {
             return what + ": Start goes on";
         }
 

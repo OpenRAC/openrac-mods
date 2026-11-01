@@ -63,13 +63,13 @@ void Coop::about_to_start(const Bytes& save) {
 }
 
 bool Coop::starts_again() const {
-    return session_.is_host() && play_ != 0 && host_played_
+    return session_.role().host() && play_ != 0 && host_played_
            && game_.status().phase == kPhaseFrontEnd;
 }
 
 bool Coop::can_start() const {
     return starts_again()
-           || (session_.is_host() && play_ == 0 && game_.status().phase == kPhaseFrontEnd
+           || (session_.role().host() && play_ == 0 && game_.status().phase == kPhaseFrontEnd
                && session_.all_ready());
 }
 
@@ -130,7 +130,7 @@ bool Coop::start() {
 
 bool Coop::start_blocked(int phase) const {
     return (phase == kPhaseScene || phase == kPhaseLoading) && play_ != 0 && session_.in_party()
-           && !session_.is_host() && !joining_;
+           && !session_.role().host() && !joining_;
 }
 
 void Coop::own_skip(int phase, std::uint64_t now) {
@@ -157,7 +157,7 @@ void Coop::own_skip(int phase, std::uint64_t now) {
     own_skip_ms_ = now;
 
     // Only the host skips: a member's Start is taken out of its pad (start_blocked), and said so.
-    if (!session_.is_host()) {
+    if (!session_.role().host()) {
         skip_refused_until_ = now + kSkipRefusedMs;
         log("skip pressed here: only the host can skip, it plays on");
         return;
@@ -189,7 +189,7 @@ void Coop::own_skip(int phase, std::uint64_t now) {
                             .u8(static_cast<std::uint8_t>(shared >> 8))
                             .u8(static_cast<std::uint8_t>(shared))
                             .bytes();
-    session_.send_data(session_.is_host() ? kBroadcast : session_.host(), bytes);
+    session_.send_data(session_.role().host() ? kBroadcast : session_.host(), bytes);
 }
 
 bool Coop::movie_press(std::uint64_t now) {
@@ -237,7 +237,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
     }
 
     Reader r(bytes.data() + 1, bytes.size() - 1);
-    const bool from_host = sender == session_.host() && !session_.is_host();
+    const bool from_host = session_.role().from_host(sender);
 
     if (kind == GameKind::kPoses) {
         if (from_host) {
@@ -365,7 +365,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const std::int32_t play = r.i32();
 
             // The host answers a member that asks for the game that is on.
-            if (session_.is_host() && r.ok() && play_ != 0 && play == play_
+            if (session_.role().host() && r.ok() && play_ != 0 && play == play_
                 && member_of(session_, sender) && may_play(sender)) {
                 const GameStatus status = game_.status();
                 const Bytes live = in_level(status.phase) ? game_.capture() : Bytes{};
@@ -437,7 +437,7 @@ void Coop::tick(std::uint64_t now) {
 
     to_title_ = home_ = false;
 
-    party_game_ = play_ != 0 && (session_.is_host() || applied_ == play_);
+    party_game_ = play_ != 0 && (session_.role().host() || applied_ == play_);
 
     // The clock asked again now and then, so a long session's stamps do not drift.
     if (clock_ms_ == 0) {
@@ -459,7 +459,7 @@ void Coop::tick(std::uint64_t now) {
             + (arriving_ ? ", arriving" : ""));
     }
 
-    if (session_.is_host()) {
+    if (session_.role().host()) {
         tick_host(now, status);
     } else {
         tick_member(now, status);
@@ -469,7 +469,7 @@ void Coop::tick(std::uint64_t now) {
     send_shots(status);
 
     // The host out of a level has no pose of its own to go with the members': theirs go alone.
-    if (session_.is_host() && !relay_.empty() && now - relay_ms_ >= 2 * kPoseMs) {
+    if (session_.role().host() && !relay_.empty() && now - relay_ms_ >= 2 * kPoseMs) {
         relay_ms_ = now;
 
         if (session_.members().size() > 2) {

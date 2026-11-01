@@ -172,7 +172,7 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
             return driven_.count(slot) != 0 ? "driven" : "local";
         };
         despawn_.host_seen = [this](int slot, const MobyState&) -> std::string {
-            if (hosting_ || session_.is_host()) {
+            if (hosting_ || session_.role().host()) {
                 return "";
             }
 

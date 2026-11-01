@@ -32,7 +32,7 @@ void Coop::send_queued_shots(std::uint64_t now) {
         shots_out_.pop_front();
     }
 
-    const std::uint64_t every = session_.is_host() ? kShotSendHostMs : kShotSendMemberMs;
+    const std::uint64_t every = session_.role().host() ? kShotSendHostMs : kShotSendMemberMs;
 
     if (shots_out_.empty() || now - shots_sent_ms_ < every) {
         return;
@@ -45,7 +45,7 @@ void Coop::send_queued_shots(std::uint64_t now) {
     }
 
     // A state the rates refuse is not sent: these go in the next one, or expire.
-    if (session_.send_state(session_.is_host() ? kBroadcast : session_.host(), encode_shotx(entries))) {
+    if (session_.send_state(session_.role().host() ? kBroadcast : session_.host(), encode_shotx(entries))) {
         shots_out_.erase(shots_out_.begin(), shots_out_.begin() + static_cast<std::ptrdiff_t>(entries.size()));
         shots_sent_ms_ = now;
     }
@@ -84,7 +84,7 @@ void Coop::on_shot(std::int32_t sender, const Bytes& bytes) {
         return;
     }
 
-    if (session_.is_host()) {
+    if (session_.role().host()) {
         // As a pose: a member's own, passed on to everyone.
         if (sender != m.owner) {
             return;
@@ -115,7 +115,7 @@ void Coop::on_shotx(std::int32_t sender, const Bytes& bytes) {
             continue;
         }
 
-        if (session_.is_host()) {
+        if (session_.role().host()) {
             // As a pose: a member's own, passed on to everyone with its own stamp.
             if (sender != e.owner) {
                 continue;

@@ -76,7 +76,7 @@ void Session::disconnected() {
 
 void Session::reset_party() {
     code_.clear();
-    host_ = 0;
+    role_.set(false, id_, 0);
     members_.clear();
     description_.clear();
     ready_.clear();
@@ -176,7 +176,7 @@ void Session::toggle_ready() {
     }
 
     const bool now = !ready(id_);
-    send_lobby(host_, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes());
+    send_lobby(role_.host_id(), Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes());
 
     // Shown at once; the host's STATE confirms it.
     if (now) {
@@ -189,7 +189,7 @@ void Session::toggle_ready() {
 bool Session::all_ready() const {
     // Out of a party nobody is; in one, each member but the host.
     return in_party() && std::all_of(members_.begin(), members_.end(), [&](const Member& m) {
-               return m.id == host_ || (ready(m.id) && (!is_host() || !ready_gate_ || ready_gate_(m.id)));
+               return m.id == role_.host_id() || (ready(m.id) && (!is_host() || !ready_gate_ || ready_gate_(m.id)));
            });
 }
 
@@ -232,7 +232,7 @@ void Session::report_link(std::int64_t ping_ms, bool udp) {
         send_links();
     } else {
         send_lobby(
-            host_,
+            role_.host_id(),
             Writer()
                 .u8(static_cast<std::uint8_t>(LobbyKind::kLink))
                 .i32(own.ping_ms)
@@ -380,12 +380,12 @@ void Session::handle(const Message& m) {
         case Message::Kind::kPartyInfo: {
             waiting_ = false;
             code_ = m.code;
-            host_ = m.host;
+            role_.set(true, id_, m.host);
             members_ = m.members;
             description_ = m.description;
             // The host first, the rest as the server lists them.
             std::stable_partition(members_.begin(), members_.end(), [&](const Member& x) {
-                return x.id == host_;
+                return x.id == role_.host_id();
             });
             ready_.clear();
             break;
@@ -467,7 +467,7 @@ void Session::handle_data(const Message& m) {
         }
 
         send_state();
-    } else if (kind == LobbyKind::kState && m.id == host_) {
+    } else if (kind == LobbyKind::kState && m.id == role_.host_id()) {
         // The host's word on who is ready.
         const std::uint8_t count = r.u8();
         std::set<std::int32_t> ready;
@@ -494,7 +494,7 @@ void Session::handle_data(const Message& m) {
 
             ready_ = std::move(ready);
         }
-    } else if (kind == LobbyKind::kStart && m.id == host_) {
+    } else if (kind == LobbyKind::kStart && m.id == role_.host_id()) {
         // The host started the game.
         started_ = true;
         notice_ = "Game starting";
@@ -508,7 +508,7 @@ void Session::handle_data(const Message& m) {
             links_[m.id] = {ping, udp};
             send_links();
         }
-    } else if (kind == LobbyKind::kLinks && m.id == host_) {
+    } else if (kind == LobbyKind::kLinks && m.id == role_.host_id()) {
         // The host's word on everyone's link; the player's own stays as it reported it.
         const std::uint8_t count = r.u8();
         std::map<std::int32_t, Link> links;
@@ -532,7 +532,7 @@ void Session::handle_data(const Message& m) {
 
             links_ = std::move(links);
         }
-    } else if (kind == LobbyKind::kKick && m.id == host_ && !is_host()) {
+    } else if (kind == LobbyKind::kKick && m.id == role_.host_id() && !is_host()) {
         // The host's word on why; the server's KICKED does the rest, or there is none to.
         const auto reason = r.u8() == static_cast<std::uint8_t>(KickReason::kBanned) ? KickReason::kBanned
                                                                                       : KickReason::kRemoved;

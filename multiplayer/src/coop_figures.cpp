@@ -23,7 +23,7 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
         return;
     }
 
-    if (session_.is_host()) {
+    if (session_.role().host()) {
         // A member speaks for itself only; the host passes it on with the next poses that go.
         if (sender != m.owner) {
             return;
@@ -200,7 +200,7 @@ void Coop::send_pose(std::uint64_t now, const GameStatus& status) {
     pose_sent_ = true;
     last_pose_ = m.pose;
 
-    if (!session_.is_host()) {
+    if (!session_.role().host()) {
         m.world_ack = world_ack_;
         m.world_newest = world_newest_;
         m.world_bits = world_bits_;

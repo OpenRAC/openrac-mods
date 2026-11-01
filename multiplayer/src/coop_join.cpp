@@ -27,7 +27,7 @@ using namespace coop_util;
 using wire::f32;
 
 bool Coop::rejoin() {
-    if (session_.is_host() || play_ == 0 || pending_) {
+    if (session_.role().host() || play_ == 0 || pending_) {
         return false;
     }
 
@@ -171,7 +171,7 @@ bool Coop::shielded() const { return joining_ || clock_() < shield_until_; }
 
 bool Coop::can_go() const {
     const GameStatus status = game_.status();
-    return session_.in_party() && !session_.is_host() && play_ != 0 && applied_ == play_
+    return session_.in_party() && !session_.role().host() && play_ != 0 && applied_ == play_
            && in_level(status.phase) && status.level == host_level_ && !joining_ && !arriving_
            && placing_ == PlaceFor::kNone && game_.can_place();
 }
@@ -366,7 +366,7 @@ void Coop::on_place_ask(std::int32_t sender, Reader& r) {
     const auto ticket = static_cast<std::uint16_t>(high << 8 | r.u8());
     const bool last = r.u8() != 0;
 
-    if (!session_.is_host() || !r.ok() || play == 0 || play != play_ || !member_of(session_, sender)
+    if (!session_.role().host() || !r.ok() || play == 0 || play != play_ || !member_of(session_, sender)
         || !may_play(sender)) {
         return;
     }

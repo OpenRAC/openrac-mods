@@ -48,6 +48,7 @@
 
 #include "connection.hpp"
 #include "protocol.hpp"
+#include "role.hpp"
 
 namespace mp {
 
@@ -205,9 +206,12 @@ public:
 
     const std::string& code() const { return code_; }
 
-    std::int32_t host() const { return host_; }
+    std::int32_t host() const { return role_.host_id(); }
 
-    bool is_host() const { return in_party() && host_ == id_; }
+    /* What this game is in the party (role.hpp). */
+    const Role& role() const { return role_; }
+
+    bool is_host() const { return role_.host(); }
 
     /* Whether the party is an embedded host's (Direct connect), which has no code to show. */
     bool direct() const { return code_ == kDirectCode; }
@@ -267,7 +271,7 @@ private:
     Pacer state_bucket_;
     NetCounts counts_;
     std::string code_;
-    std::int32_t host_ = 0;
+    Role role_;
     std::vector<Member> members_;
     std::string description_;
     std::vector<Listing> parties_;
