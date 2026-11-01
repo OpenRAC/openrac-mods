@@ -2,11 +2,11 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "author": "OpenRAC contributors",
-  "description": "Shuffles what the game gives out: the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. The placement follows what each place needs, so every seed can be finished. Share a seed's code and a friend plays the same game. A spoiler log of each seed is written to the mod's data folder. A save made with a seed belongs to that seed.",
+  "description": "Shuffles what the game gives out: the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. Every seed can be finished: what you need is only ever placed where you can get it without it. Share a seed's code and a friend plays the same game. Each seed writes a spoiler log to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/item-randomizer",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/item-randomizer",
   "api": "1.12",
   "multiplayer": "gameplay",
   "games": { "rac1": ["pal", "ntsc"] },
@@ -21,7 +21,14 @@
     "Moby_Helga_Update",
     "Moby_BigAl_Update",
     "Moby_Bob_Update",
-    "Moby_Edwina_Update"
+    "Moby_Edwina_Update",
+    "Moby_RobotQwark_Update",
+    "Moby_Class23_Update",
+    "Moby_Class22_Update",
+    "Ammo_ChooseDrop",
+    "Vendor_MenuUpdate",
+    "Help_Request",
+    "Ship_InitTransition"
   ],
   "settings": [
     {
@@ -42,13 +49,14 @@
         { "value": "standard", "name": "Standard" },
         { "value": "expert", "name": "Expert" }
       ],
-      "description": "Standard: a gadget is placed only where you can get it without it, counting what each place uses. Relaxed: the same, with the gadgets early in the game and never in a gold bolt or an expensive purchase. Expert: only what a place cannot be done without counts."
+      "description": "Standard: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. Relaxed: what you need also comes early in the game, and never behind a purchase you have to save up for. Expert: what you need may be behind any purchase, even the most expensive, and you get by with any weapon."
     },
     { "key": "shuffle_gadgets", "name": "Shuffle gadgets", "type": "bool", "default": true, "description": "The gadgets NPCs and pickups give: the Swingshot, the Heli-Pack, the Magneboots, ..." },
     { "key": "shuffle_weapons", "name": "Shuffle weapons", "type": "bool", "default": true, "description": "The weapons NPCs and pickups give: the Suck Cannon, the Morph-o-Ray, the R.Y.N.O." },
     { "key": "shuffle_vendor", "name": "Shuffle the vendor", "type": "bool", "default": true, "description": "Each weapon the Gadgetron vendor sells is a slot that gives something else when bought, at the slot's price." },
-    { "key": "shuffle_gold_bolts", "name": "Shuffle gold bolts", "type": "bool", "default": true, "description": "Gold bolts join the pool: a gold bolt's place may hold a gadget, and a gold bolt may be anywhere." },
+    { "key": "shuffle_gold_bolts", "name": "Shuffle gold bolts", "type": "bool", "default": true, "description": "Gold bolts join the pool: a gold bolt may be anywhere, and a gold bolt's place may hold a weapon or a useful extra, never something you need to go on." },
     { "key": "shuffle_infobots", "name": "Shuffle infobots", "type": "bool", "default": true, "description": "The planets' coordinates the infobots give join the pool." },
+    { "key": "vendor_hints", "multiplayer": "own", "name": "Show what the vendor gives", "type": "bool", "default": true, "description": "A line above the picture says what buying a weapon at the vendor gives you. Off: buying is a surprise." },
     { "key": "keep_starting_gear", "name": "Keep the starting gear", "type": "bool", "default": true, "description": "Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too." },
     { "key": "spoiler_log", "multiplayer": "own", "name": "Spoiler log", "type": "bool", "default": true, "description": "Write where everything is, and a way through, to the mod's data folder." }
   ]

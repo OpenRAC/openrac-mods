@@ -31,7 +31,7 @@ section 11):
 ## Installing a mod
 
 **From the launcher**: open **Mods**, choose **Add from a link**, and paste
-`https://github.com/OpenRAC/rac1-mods`. The launcher lists the mods here with
+`https://github.com/OpenRAC/openrac-mods`. The launcher lists the mods here with
 what each is for and whether your game can load it; **Install** downloads a
 native mod built for your computer, or a script mod, from the latest release
 and checks it against the release's `SHA256SUMS`. It is listed for the game, on; choose its settings and
@@ -39,7 +39,7 @@ Play (settings count from the game's next start). The launcher offers updates
 when a newer release comes out, unless you keep the version you have.
 
 **By hand**: download the mod's `.zip` from this repository's
-[Releases](https://github.com/OpenRAC/rac1-mods/releases) (one archive holds
+[Releases](https://github.com/OpenRAC/openrac-mods/releases) (one archive holds
 the mod for Windows, Linux and macOS), then in the launcher's **Mods**, **Add
 a mod**, and choose it.
 
@@ -72,8 +72,8 @@ SHA-256 that [sdk.lock](sdk.lock) pins, which `tools/fetch_sdk.py` downloads
 into `.sdk/`.
 
 ```sh
-git clone https://github.com/OpenRAC/rac1-mods.git
-cd rac1-mods
+git clone https://github.com/OpenRAC/openrac-mods.git
+cd openrac-mods
 python3 tools/fetch_sdk.py                                    # the pinned SDK, checked, into .sdk/
 cmake -S . -B build -G Ninja
 cmake --build build
@@ -133,3 +133,49 @@ The mods here are GPL-3.0-or-later, as OpenRAC's port ([LICENSE](LICENSE)).
 The OpenRAC mod SDK they are built with is MIT, so mods elsewhere may choose
 their own license; `tools/fetch_sdk.py` and `.github/workflows/build.yml` are
 the SDK's files and keep its MIT notice.
+
+## List your mod
+
+Every mod here, and external mods listed in [`index/`](index), make up the
+mod index: `index.json` on this repository's `index` pre-release, which the
+OpenRAC website's mod pages and the launcher read. It is rebuilt every hour
+by [`index.yml`](.github/workflows/index.yml) and signed.
+
+- **A mod in this repository** is listed by itself from its releases. An
+  optional `<folder>/listing.json` adds a short description, tags, impact,
+  `aiAssisted` (`true` or `false`: whether AI tools helped make it, stated mod
+  by mod and shown on its page), links, mods it recommends or suggests, and
+  media (`icon`, `banner`,
+  `screenshots: [{src, caption}]`, `videos: [{youtube, caption}]`, paths inside
+  the folder; videos are YouTube links only).
+- **A mod in your own repository** is a pull request adding
+  `index/<id>.json`: the same fields plus `repo` and `path` (the mod's folder,
+  `""` for the top). Your releases need `<id>-v<version>` (or `v<version>`)
+  tags with the archives and `SHA256SUMS` the SDK's workflow makes; new
+  releases are picked up by themselves.
+
+- **Without git**: the [Submit a mod](https://github.com/OpenRAC/openrac-mods/issues/new?template=submit-mod.yml)
+  issue form (or the wizard at https://openrac.dev/mods/submit). A bot checks
+  it, takes the pictures you drag in, and opens the pull request; *Update a
+  listing* and *Remove my mod* work the same way. You need write access to the
+  mod's repository.
+- A new version of a native mod from another repository reaches players 24 h
+  after its release, once a maintainer has approved it on its review issue
+  (`index/approved.json`).
+- The bot is **openrac-bot**, a GitHub App of the organization, installed on this
+  repository only. Its App id and private key are the repository secrets
+  `OPENRAC_BOT_APP_ID` and `OPENRAC_BOT_PRIVATE_KEY`; each job asks it for a
+  one-hour token with only the rights that job needs.
+- If publishing fails, the bot opens an `index-broken` issue (and closes it once a
+  publish works again). With the repository secret `DISCORD_WEBHOOK_MAINTAINERS`
+  (a Discord channel webhook), both are also posted there.
+
+Tags and impact come from fixed lists, in [`index/schema.json`](index/schema.json).
+Check before you open the pull request:
+
+```sh
+python3 tools/build_index.py --check                     # the whole index
+python3 tools/build_index.py --check-entry index/<id>.json
+```
+
+Every listed mod follows the [content rules](CONTENT.md).

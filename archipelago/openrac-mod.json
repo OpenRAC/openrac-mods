@@ -2,12 +2,12 @@
   "format": 2,
   "id": "archipelago",
   "name": "Archipelago",
-  "version": "1.0.1",
+  "version": "2.2.0",
   "author": "OpenRAC contributors",
   "description": "Plays the game in an Archipelago multiworld (archipelago.gg): the gadgets, weapons, vendor slots, gold bolts and infobots are locations, and what they hold may be another player's item, in another game. What the others find for you comes to you as you play. Beat Drek to finish your part. Needs a room made with the rac1.apworld from this mod's release.",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/OpenRAC/rac1-mods/tree/master/archipelago",
-  "api": "1.9",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/archipelago",
+  "api": "1.12",
   "multiplayer": "solo",
   "games": { "rac1": ["pal", "ntsc"] },
   "hooks": [
@@ -21,7 +21,10 @@
     "Moby_Helga_Update",
     "Moby_BigAl_Update",
     "Moby_Bob_Update",
-    "Moby_Edwina_Update"
+    "Moby_Edwina_Update",
+    "Moby_Class22_Update",
+    "Ship_InitTransition",
+    "Help_Request"
   ],
   "settings": [
     {

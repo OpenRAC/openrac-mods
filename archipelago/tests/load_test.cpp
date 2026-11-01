@@ -104,14 +104,40 @@ void set_level(int level) {
     g_level = level;
 }
 
+// The game's banner: what GiveItem and UnlockPlanet write in another level's text.
+void game_banner() {
+    std::memcpy(at(D->banner_text), "Paradox", 8);
+    const int32_t ticks = 99;
+    std::memcpy(at(D->banner_ticks), &ticks, 4);
+}
+
 void game_give(int32_t id, int32_t) {
     *at(D->owned + id) = 1;
     *at(D->obtained + id) = 1;
     ++g_gives;
+    game_banner();
 }
 
 void game_unlock(int32_t planet) {
     *at(D->planets + planet) = 1;
+    game_banner();
+}
+
+int g_ship_saw = -1;
+int g_class22_saw = -1;
+int g_helps;
+
+void game_ship(int32_t) {
+    g_ship_saw = *at(D->owned + ITEM_O2_MASK);
+}
+
+void game_class22(openrac_gaddr) {
+    g_class22_saw = *at(D->owned + ITEM_O2_MASK);
+}
+
+int32_t game_help(int32_t, int32_t) {
+    ++g_helps;
+    return 0;
 }
 
 void game_void() {}
@@ -139,6 +165,15 @@ void* original_for(const std::string& name) {
     }
     if (name == OPENRAC_RAC1_HOOK_GoldBolts_CountCollected) {
         return (void*)game_count;
+    }
+    if (name == OPENRAC_RAC1_HOOK_Ship_InitTransition) {
+        return (void*)game_ship;
+    }
+    if (name == OPENRAC_RAC1_HOOK_Moby_Class22_Update) {
+        return (void*)game_class22;
+    }
+    if (name == OPENRAC_RAC1_HOOK_Help_Request) {
+        return (void*)game_help;
     }
     return (void*)game_moby;
 }
@@ -443,12 +478,36 @@ int main(int argc, char** argv) {
     *at(D->planets + LEVEL_NOVALIS) = 1;
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 11 && g_frame != nullptr);
+    CHECK(g_hooks == 14 && g_frame != nullptr);
 
     // The server's Heli-Pack is given, its obtained byte left to its own location.
     CHECK(frames_until([] { return g_connected; }));
     CHECK(frames_until([] { return *at(D->owned + ITEM_HELI_PACK) != 0; }));
     CHECK(*at(D->obtained + ITEM_HELI_PACK) == 0);
+
+    // Its banner, in another level's text, is not left on screen.
+    CHECK(g_gives > 0 && std::strcmp(reinterpret_cast<char*>(at(D->banner_text)), "Paradox") != 0);
+
+    // A tutorial whose place is not known yet stays the game's.
+    auto help = (openrac_rac1_Help_Request)replacement(OPENRAC_RAC1_HOOK_Help_Request);
+    CHECK(help(rando_item_helps[0].message, 0) == 0 && g_helps == 1);
+
+    // Orxon: no O2 Mask shown until Clank's part is done; the real byte back; then as it is.
+    auto ship = (openrac_rac1_Ship_InitTransition)replacement(OPENRAC_RAC1_HOOK_Ship_InitTransition);
+    auto class22 =
+        (openrac_rac1_Moby_Class22_Update)replacement(OPENRAC_RAC1_HOOK_Moby_Class22_Update);
+    set_level(LEVEL_ORXON);
+    *at(D->owned + ITEM_O2_MASK) = 1;
+    ship(0);
+    class22(0x00100000u);
+    CHECK(g_ship_saw == 0 && g_class22_saw == 0 && *at(D->owned + ITEM_O2_MASK) == 1);
+    *at(D->triggers + LEVEL_ORXON * 16 + ORXON_CLANK_MISSION) = 0xFF;
+    ship(0);
+    class22(0x00100000u);
+    CHECK(g_ship_saw == 1 && g_class22_saw == 1);
+    *at(D->triggers + LEVEL_ORXON * 16 + ORXON_CLANK_MISSION) = 0;
+    *at(D->owned + ITEM_O2_MASK) = 0;
+    set_level(LEVEL_NOVALIS);
 
     // Helga's Swingshot: nothing given, the location had and sent.
     const int gives = g_gives;

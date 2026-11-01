@@ -22,7 +22,7 @@ Nothing merges before the user's play test. Then, in this order:
 4. Pin it: `sdk.lock` still names 1.11.0, and stays so until that release. Set its version, url and
    sha256 to 1.12.0's. Until then this repository's CI cannot build (multiplayer's manifest and the
    top CMakeLists.txt ask for 1.12): build with `-DOPENRAC_SDK=<OpenRAC>/sdk`.
-5. Land `round3` on rac1-mods master and tag `multiplayer-v0.10.0`. Difficulty and Item Randomizer
+5. Land `round3` on openrac-mods master and tag `multiplayer-v0.10.0`. Difficulty and Item Randomizer
    gained tests and a missing include, nothing a player sees, and keep their versions.
 6. Deploy the Server (`r3/migrate`): TCP and UDP 7770, TCP 7771 for mod codes, RESUME, takeover and
    KICK. Against an older server the mod leaves those out by the features it offers: no kept places

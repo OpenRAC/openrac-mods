@@ -150,11 +150,18 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
         --count[p->reward[i].kind][p->reward[i].value];
         /* Where each difficulty keeps progression out of. */
 
-        if (is_progression(p->reward[i]) && s->difficulty != DIFFICULTY_EXPERT) {
-            CHECK(!(l->flags & LOCF_COSTLY));
-            CHECK(!(s->difficulty == DIFFICULTY_RELAXED && l->kind == LOC_GOLD));
+        if (is_progression(p->reward[i])) {
+            CHECK(l->kind != LOC_GOLD);
+            CHECK(
+                s->difficulty == DIFFICULTY_EXPERT || !(l->flags & LOCF_COSTLY) || !p->shuffled[i]
+            );
+            CHECK(
+                s->difficulty != DIFFICULTY_RELAXED || !(l->flags & LOCF_PRICEY) || !p->shuffled[i]
+            );
         }
     }
+
+    CHECK(rando_stranded(p) == 0);
 
     for (int k = 0; k < 4; ++k) {
         for (int v = 0; v < 64; ++v) {
@@ -177,7 +184,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xfb536185d5244186ull);
+    CHECK(plan_hash(&p) == 0x9f06cdf858c65046ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
@@ -226,7 +233,7 @@ int main(int argc, char** argv) {
     static char text[64 * 1024];
     const size_t need = rando_spoiler(&p, "test", text, sizeof text);
     CHECK(
-        need <= sizeof text && strstr(text, "2ZRJ-6HB7-H6P7") != NULL
+        need <= sizeof text && strstr(text, "4ZRJ-6HB7-H6Q5") != NULL
         && strstr(text, "Beatable.") != NULL
     );
     CHECK(rando_spoiler(&p, "test", text, 16) == need && strlen(text) == 15);

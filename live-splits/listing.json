@@ -1,0 +1,24 @@
+{
+  "description": "Splits a LiveSplit timer at every planet by talking to LiveSplit's own server, so a speedrunner does not have to touch the timer.",
+  "tags": [
+    "speedrun",
+    "tools"
+  ],
+  "impact": [
+    "speedrun-safe"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

@@ -291,7 +291,7 @@ until the party goes. With no party they change nothing.
   enemies. Bolts are the host's too, only its game drops them. The host decides the Chaos events,
   which reach everyone as they start and end.
 - **Item Randomizer**: members play the host's seed, so every game has the same placement. An item
-  passed on from another player is that item, and marks no place as had. A blank seed on a member is
+  passed on from another player is that item, and uses up the place it was found in. A blank seed on a member is
   never used.
 
 ## Removing a player

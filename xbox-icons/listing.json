@@ -1,0 +1,25 @@
+{
+  "description": "The game's PlayStation 2 button icons as an Xbox controller's, in the game's own style: A, B, X, Y, LB, RB, LT and RT.",
+  "tags": [
+    "ui",
+    "cosmetic"
+  ],
+  "impact": [
+    "cosmetic",
+    "speedrun-safe"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -33,6 +34,7 @@
 /* Each level has this many trigger slots, 0xFF once done (D_0014C150; seen in game code). */
 #define TRIGGER_SLOTS 16
 #define TRIGGER_DONE 0xFF
+#define BANNER_TEXT_SIZE 96 /* item_randomizer.c's */
 
 /* Each level has this many gold bolt bytes (D_0014BFC0; seen in game code). */
 #define GOLD_BOLT_SLOTS 4
@@ -65,15 +67,19 @@
 #define DREK_LIST_TICKS 30
 #define MOBY_LIST_MAX 512
 
+/* How long a game from the title waits for its save's slot before it is judged without one (a new
+ * game has none), in ticks of play. */
+#define JUDGE_WAIT_TICKS 120
+
 /* How long a line stays at the top of the screen, in ticks (60 a second). */
 #define NOTICE_TICKS 300
 #define NOTICE_SIZE 256
 
-/* The most items the server may send a slot that the game side reads (far more than the game has). */
-#define MAX_RECEIVED 1024
+/* The items the game side reads at once; a longer list is read into a larger buffer. */
+#define RECEIVED_CHUNK 1024
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "1.0.1"
+#define MOD_VERSION "2.2.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -117,6 +123,13 @@ static uint32_t s_generation = UINT32_MAX;
 /* The line at the top of the screen and the ticks it has left. */
 static int s_notice_ticks;
 
+/* The save's memory card slot (interface 1.11): the game came from the title since the last level
+ * start; its save waits to be judged until its slot is known; the slot known in this game. */
+static int s_from_title = 1;
+static int s_judge_wait;
+static int s_judge_ticks;
+static int s_slot_known = -1;
+
 /* The goal: told once a start; Drek's slot as last seen, the level load it was in. */
 static int s_goal;
 static int s_drek_slot = -1;
@@ -134,6 +147,9 @@ static openrac_rac1_Moby_Helga_Update s_helga_update;
 static openrac_rac1_Moby_BigAl_Update s_big_al_update;
 static openrac_rac1_Moby_Bob_Update s_bob_update;
 static openrac_rac1_Moby_Edwina_Update s_edwina_update;
+static openrac_rac1_Ship_InitTransition s_ship_transition;
+static openrac_rac1_Moby_Class22_Update s_orxon_start_update;
+static openrac_rac1_Help_Request s_help_request;
 
 /* ---- game memory ---- */
 
@@ -215,6 +231,11 @@ static void log_line(int level, const char* text) {
 
 /* Whether the location has been had, by the game's own bytes (rando.h says which for each kind). */
 static int had(int location) {
+    // A byte shown as nothing, not as a location's (Orxon's O2 Mask).
+    if (location < 0) {
+        return 0;
+    }
+
     const rando_location* l = &rando_locations[location];
 
     switch (l->kind) {
@@ -283,6 +304,24 @@ static void swaps_resume(void) {
 
 /* ---- giving what the server sent ---- */
 
+/* The banner as it is, to put back after a routine of the game's that shows one: GiveItem's and
+ * UnlockPlanet's are in the text of the level the reward comes from, and read "Paradox: This message
+ * does not exist" in any other (item_randomizer.c). The server's line says what came. */
+typedef struct kept_banner {
+    char text[BANNER_TEXT_SIZE];
+    int32_t ticks;
+} kept_banner;
+
+static void banner_keep(kept_banner* k) {
+    memcpy(k->text, level_byte_at(s_disc->banner_text), sizeof k->text);
+    k->ticks = get32(level_byte_at(s_disc->banner_ticks));
+}
+
+static void banner_put_back(const kept_banner* k) {
+    memcpy(level_byte_at(s_disc->banner_text), k->text, sizeof k->text);
+    set32(level_byte_at(s_disc->banner_ticks), k->ticks);
+}
+
 /* Gives an item through the game's GiveItem, as the item randomizer gives a reward: the item's
  * obtained byte kept as it was (it is its own location's), and the vendor's stock too when the
  * item is one of its slots (the stock is the slots'). */
@@ -291,6 +330,8 @@ static void give_item(int item) {
     uint8_t kept[VENDOR_STOCK_SIZE];
     const int slot = vendor_slot(item) >= 0;
     const uint8_t before = *obtained(item);
+    kept_banner banner;
+    banner_keep(&banner);
     swaps_suspend();
 
     // A vendor slot's weapon: the stock as it was after GiveItem.
@@ -306,21 +347,40 @@ static void give_item(int item) {
 
     *obtained(item) = before;
     swaps_resume();
+    banner_put_back(&banner);
 }
 
 /* The server's list read again when it changed: what this slot has been sent. */
 static void read_received(void) {
-    static int64_t ids[MAX_RECEIVED];
+    static int64_t chunk[RECEIVED_CHUNK];
+    static int64_t* ids = chunk;
+    static size_t capacity = RECEIVED_CHUNK;
     uint32_t generation = 0;
-    size_t n = ap_client_items(ids, MAX_RECEIVED, &generation);
+    size_t n = ap_client_items(ids, capacity, &generation);
 
     // Unchanged since the last look.
     if (generation == s_generation) {
         return;
     }
 
+    // More than fits: a buffer for them all (every item counts, however many the server sends).
+    if (n > capacity) {
+        int64_t* larger = (int64_t*)malloc(n * sizeof *larger);
+
+        if (larger != NULL) {
+            if (ids != chunk) {
+                free(ids);
+            }
+
+            ids = larger;
+            capacity = n;
+            n = ap_client_items(ids, capacity, &generation);
+        }
+
+        n = n < capacity ? n : capacity;
+    }
+
     s_generation = generation;
-    n = n < MAX_RECEIVED ? n : MAX_RECEIVED;
     memset(s_received_item, 0, sizeof s_received_item);
     memset(s_received_planet, 0, sizeof s_received_planet);
     s_received_gold = 0;
@@ -351,7 +411,10 @@ static void give_received(void) {
     // Each planet sent and not unlocked.
     for (int planet = 0; planet < LEVEL_COUNT; ++planet) {
         if (s_received_planet[planet] && !*planet_flag(planet)) {
+            kept_banner banner;
+            banner_keep(&banner);
             s_planet_unlock(planet);
+            banner_put_back(&banner);
         }
     }
 }
@@ -486,16 +549,150 @@ static void edwina_update(openrac_gaddr moby) {
     run_shown(s_edwina_update, moby, ITEM_HYDRO_PACK);
 }
 
-/* The level's start: what is had now is seen (a save loaded, a new game), and the server is told
- * every location had (it ignores the ones it knows). */
+/* Whether Orxon's landing should play Clank's part however the O2 Mask stands: it holds two
+ * locations and starts only without the mask, which the server can send before Orxon. */
+static int orxon_clank_part_due(void) {
+    const uint8_t state = *byte_at(
+        s_disc->triggers + (uint32_t)ORXON_CLANK_MISSION + (uint32_t)LEVEL_ORXON * (uint32_t)TRIGGER_SLOTS
+    );
+    return *owned(ITEM_O2_MASK) && state != TRIGGER_DONE && current_level() == LEVEL_ORXON;
+}
+
+/* Hook for the ship's landing and take-off: the chunks it loads on Orxon go by the O2 Mask. */
+static void ship_transition(int32_t mode) {
+    const int shown = orxon_clank_part_due();
+
+    // Orxon's chunks for Clank's start.
+    if (shown) {
+        swap_push(owned(ITEM_O2_MASK), -1);
+    }
+
+    s_ship_transition(mode);
+
+    // The real byte back.
+    if (shown) {
+        swap_pop();
+    }
+}
+
+/* Hook for class 22 on Orxon, which starts Clank there when there is no O2 Mask. */
+static void orxon_start_update(openrac_gaddr moby) {
+    const int shown = orxon_clank_part_due();
+
+    // Clank's start.
+    if (shown) {
+        swap_push(owned(ITEM_O2_MASK), -1);
+    }
+
+    s_orxon_start_update(moby);
+
+    // The real byte back.
+    if (shown) {
+        swap_pop();
+    }
+}
+
+/* Hook for Help_Request: a tutorial of the item the game thinks it gave is left out when the place
+ * holds another. Not known yet (no scout back): the game's. 1: as queued, so that it asks no more. */
+static int32_t help_request(int32_t message_id, int32_t slot) {
+    // The messages that teach an item.
+    for (size_t i = 0; i < rando_item_help_count; ++i) {
+        const rando_item_help* h = &rando_item_helps[i];
+
+        // This one's item has a place in the multiworld.
+        if (h->message == message_id && s_by_item[h->item] >= 0) {
+            int64_t item = -1;
+            int own = 0;
+            const int known = ap_client_location_item(
+                ap_location_id(&rando_locations[s_by_item[h->item]]), &item, &own
+            );
+            const rando_reward r = ap_reward_of(item);
+
+            // Another item came, or one for another player: nothing to teach.
+            if (known && (!own || r.kind != REWARD_ITEM || r.value != h->item)) {
+                return 1;
+            }
+        }
+    }
+
+    return s_help_request(message_id, slot);
+}
+
+/* The level's start: what is had now is seen (a save loaded, a new game), and the client is given
+ * every location had, which it sends unless the save is another seed's. */
+/* The port has interface 1.11's save_slot_current. */
+static int has_save_slot(void) {
+    return s_api->api_minor >= 11
+           && s_api->size >= offsetof(openrac_api, save_slot_current) + sizeof(void*)
+           && s_api->save_slot_current != NULL;
+}
+
+/* The memory card slot of the game in progress, -1 for none known (or a port without it). */
+static int save_slot_now(void) {
+    return has_save_slot() ? s_api->save_slot_current() : -1;
+}
+
+/* The locations the game has had, sent to the client with the save's memory card slot. */
+static void send_save(int card_slot) {
+    static int64_t ids[RANDO_MAX_LOCATIONS];
+    size_t n = 0;
+
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (ap_is_location(&rando_locations[i]) && had((int)i)) {
+            ids[n++] = ap_location_id(&rando_locations[i]);
+        }
+    }
+
+    ap_client_save_loaded(ids, n, card_slot);
+}
+
 static void sync_seen(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
-        const int is = ap_is_location(&rando_locations[i]) && had((int)i);
-        s_seen[i] = (uint8_t)is;
+        s_seen[i] = (uint8_t)(ap_is_location(&rando_locations[i]) && had((int)i));
+    }
 
-        if (is) {
-            found((int)i);
+    // From the title (a game loaded or new): its slot comes once the level is up, so the save is
+    // judged then (each_tick); the level start's second look waits with it. Else a travel in the
+    // same game: its slot is the one known.
+    if (s_judge_wait) {
+        return;
+    }
+
+    if (s_from_title && has_save_slot()) {
+        s_judge_wait = 1;
+        s_judge_ticks = 0;
+    } else {
+        send_save(s_slot_known);
+    }
+
+    s_from_title = 0;
+}
+
+/* Each tick: the save's slot. A game from the title is judged once its slot is known (or not
+ * coming: a new game); a slot that changes in play is the game saved there. */
+static void watch_save_slot(int phase) {
+    if (phase == OPENRAC_PLAY_FRONT_END) {
+        s_from_title = 1;
+        s_judge_wait = 0;
+        s_slot_known = -1;
+        return;
+    }
+
+    const int slot = save_slot_now();
+
+    if (s_judge_wait) {
+        if (slot >= 0 || (phase == OPENRAC_PLAY_PLAYING && ++s_judge_ticks > JUDGE_WAIT_TICKS)) {
+            s_judge_wait = 0;
+            s_slot_known = slot;
+            send_save(slot);
         }
+
+        return;
+    }
+
+    if (slot >= 0 && slot != s_slot_known) {
+        s_slot_known = slot;
+        ap_client_save_written(slot);
     }
 }
 
@@ -708,6 +905,7 @@ static void each_tick(void* user) {
     const int phase = play_phase(&loads);
     show_notices();
     read_received();
+    watch_save_slot(phase);
 
     if (!playing_level()) {
         return;
@@ -790,7 +988,10 @@ static int install_hooks(void) {
            && HOOK(Moby_Helga_Update, helga_update, &s_helga_update)
            && HOOK(Moby_BigAl_Update, big_al_update, &s_big_al_update)
            && HOOK(Moby_Bob_Update, bob_update, &s_bob_update)
-           && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update);
+           && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update)
+           && HOOK(Moby_Class22_Update, orxon_start_update, &s_orxon_start_update)
+           && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition)
+           && HOOK(Help_Request, help_request, &s_help_request);
 }
 
 /* Every row that is a location, found by its key. */
@@ -886,6 +1087,10 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         api->setting_string(mod, "slot"),
         api->setting_string(mod, "password"),
         uuid,
+        api->api_minor >= 11 && api->size >= offsetof(openrac_api, data_dir) + sizeof(void*)
+                && api->data_dir != NULL
+            ? api->data_dir(mod)
+            : NULL,
     };
     char line[256];
     snprintf(

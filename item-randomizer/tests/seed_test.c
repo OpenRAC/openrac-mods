@@ -20,7 +20,7 @@
         }                                                                                          \
     } while (0)
 
-#define PINNED_HASH 0x3B0BB418u
+#define PINNED_HASH 0xF60C6921u
 
 static int same(const rando_settings* a, const rando_settings* b) {
     return a->seed == b->seed && a->pools == b->pools && a->keep_start == b->keep_start
@@ -49,9 +49,11 @@ static void a_code_places_the_same_everywhere(void) {
     CHECK(rando_spoiler(two, "1", text_two, sizeof text_two) == size);
     CHECK(memcmp(text_one, text_two, size) == 0);
     unsigned hash = 2166136261u;
+
     for (size_t i = 0; i < size; ++i) {
         hash = (hash ^ (unsigned char)text_one[i]) * 16777619u;
     }
+
     CHECK(hash == PINNED_HASH);
     free(one);
     free(two);
@@ -89,12 +91,12 @@ int main(void) {
     char code[RANDO_CODE_SIZE];
     rando_encode(&fixed, code);
     printf("fixed code %s\n", code);
-    CHECK(strcmp(code, "2ZRJ-6HB7-H6P7") == 0);
+    CHECK(strcmp(code, "4ZRJ-6HB7-H6Q5") == 0);
 
     /* Read loosely: lower case, no hyphens, spaces, O for 0, I and L for 1. */
     rando_settings s;
-    CHECK(rando_decode("2zrj6hb7h6p7", &s) && same(&s, &fixed));
-    CHECK(rando_decode(" 2ZRJ 6HB7 H6P7 ", &s) && same(&s, &fixed));
+    CHECK(rando_decode("4zrj6hb7h6q5", &s) && same(&s, &fixed));
+    CHECK(rando_decode(" 4ZRJ 6HB7 H6Q5 ", &s) && same(&s, &fixed));
     rando_encode(&(rando_settings){0, 0, 0, 0}, code);
     char loose[RANDO_CODE_SIZE];
     memcpy(loose, code, sizeof loose);
@@ -111,9 +113,9 @@ int main(void) {
 
     /* Refused: too short, too long, a letter outside the alphabet, a mistyped character (nearly
      * every one: the checksum is 8 bits). */
-    CHECK(!rando_decode("2ZRJ-6HB7-H6P", &s));
-    CHECK(!rando_decode("2ZRJ-6HB7-H6P7D", &s));
-    CHECK(!rando_decode("2ZRJ-6HB7-H6PU", &s));
+    CHECK(!rando_decode("4ZRJ-6HB7-H6Q", &s));
+    CHECK(!rando_decode("4ZRJ-6HB7-H6Q5D", &s));
+    CHECK(!rando_decode("4ZRJ-6HB7-H6QU", &s));
     CHECK(!rando_decode("", &s));
     int typos = 0, caught = 0;
     static const char alphabet[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -176,7 +178,7 @@ int main(void) {
         rando_parse_seed_setting("  ratchet  ", &t) == 1 && t.seed == rando_seed_of_text("ratchet")
         && t.pools == POOL_GADGETS && t.difficulty == DIFFICULTY_EXPERT
     );
-    CHECK(rando_parse_seed_setting("2zrj-6hb7-h6p7", &t) == 2 && same(&t, &fixed));
+    CHECK(rando_parse_seed_setting("4zrj-6hb7-h6q5", &t) == 2 && same(&t, &fixed));
     t.seed = 77;
     CHECK(
         rando_parse_seed_setting("", &t) == 0 && rando_parse_seed_setting("   ", &t) == 0
