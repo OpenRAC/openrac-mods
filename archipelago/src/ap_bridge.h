@@ -23,6 +23,7 @@ typedef struct ap_config {
     const char* slot;     /* the player's slot name */
     const char* password; /* the room's password, "" for none */
     const char* uuid;     /* this machine's id for the server, made once by the game side */
+    const char* data_dir; /* the mod's own folder, for which room's game each save slot holds; null: none */
 } ap_config;
 
 /* What the client is doing (ap_client_state). */
@@ -49,9 +50,13 @@ void ap_client_check(int64_t location);
 /* The slot's goal reached (Drek beaten): the server is told, now or when next connected. */
 void ap_client_goal(void);
 
-/* The locations the loaded save has had, at a level start: sent, unless the save is another
- * seed's (it has checks the server never saw from the slot, and lacks some it did). */
-void ap_client_save_loaded(const int64_t* had, size_t n);
+/* The locations the loaded save has had, at a level start, and its memory card slot (-1: not
+ * known): sent, unless the save is another seed's (its slot holds another room's game, or, not
+ * known, it has checks the server never saw from the slot and lacks some it did). */
+void ap_client_save_loaded(const int64_t* had, size_t n, int card_slot);
+
+/* The game in progress was just saved into memory card slot `card_slot`: it holds this room's game. */
+void ap_client_save_written(int card_slot);
 
 /* Every item the server has sent this slot so far, in its order: at most `max` into `out`.
  * Returns how many there are (more than max when out was too small). *generation (when not null)

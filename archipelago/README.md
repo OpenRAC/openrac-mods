@@ -40,9 +40,11 @@ With the mod off, the game is the PlayStation 2 game.
 - The game's own save keeps which locations you have had, and every item is one you keep. So the
   mod keeps no file of its own. At each level start it tells the server every location you have
   had, and each tick it gives you what the server sent and you lack.
-- A save from another seed is caught: when it has checks the server never saw from your slot and
-  lacks some it saw, its checks are not sent, and a line says so. A save from another seed loaded
-  into a room where your slot has no checks yet cannot be told apart.
+- A save from another seed is caught, and its checks are not sent (a line says so). The mod keeps
+  which room's game each memory card slot holds, in its own folder (`save-slots.tsv`; needs an
+  OpenRAC with mod interface 1.11). With an older OpenRAC, or a slot it has not seen yet, it
+  guesses from the checks: a save with checks the server never saw from your slot that lacks some
+  it saw.
 - Items arrive only while you are in control in a level, not in a cutscene or a menu.
 - The goal is sent when Drek's ending scene starts on Veldin.
 - The connection runs on a thread of its own and comes back by itself when it drops. `wss://`

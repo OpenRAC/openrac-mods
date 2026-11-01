@@ -66,6 +66,10 @@
 #define DREK_LIST_TICKS 30
 #define MOBY_LIST_MAX 512
 
+/* How long a game from the title waits for its save's slot before it is judged without one (a new
+ * game has none), in ticks of play. */
+#define JUDGE_WAIT_TICKS 120
+
 /* How long a line stays at the top of the screen, in ticks (60 a second). */
 #define NOTICE_TICKS 300
 #define NOTICE_SIZE 256
@@ -74,7 +78,7 @@
 #define RECEIVED_CHUNK 1024
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.0.0"
+#define MOD_VERSION "2.1.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -117,6 +121,13 @@ static uint32_t s_generation = UINT32_MAX;
 
 /* The line at the top of the screen and the ticks it has left. */
 static int s_notice_ticks;
+
+/* The save's memory card slot (interface 1.11): the game came from the title since the last level
+ * start; its save waits to be judged until its slot is known; the slot known in this game. */
+static int s_from_title = 1;
+static int s_judge_wait;
+static int s_judge_ticks;
+static int s_slot_known = -1;
 
 /* The goal: told once a start; Drek's slot as last seen, the level load it was in. */
 static int s_goal;
@@ -507,20 +518,80 @@ static void edwina_update(openrac_gaddr moby) {
 
 /* The level's start: what is had now is seen (a save loaded, a new game), and the client is given
  * every location had, which it sends unless the save is another seed's. */
-static void sync_seen(void) {
+/* The port has interface 1.11's save_slot_current. */
+static int has_save_slot(void) {
+    return s_api->api_minor >= 11
+           && s_api->size >= offsetof(openrac_api, save_slot_current) + sizeof(void*)
+           && s_api->save_slot_current != NULL;
+}
+
+/* The memory card slot of the game in progress, -1 for none known (or a port without it). */
+static int save_slot_now(void) {
+    return has_save_slot() ? s_api->save_slot_current() : -1;
+}
+
+/* The locations the game has had, sent to the client with the save's memory card slot. */
+static void send_save(int card_slot) {
     static int64_t ids[RANDO_MAX_LOCATIONS];
     size_t n = 0;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
-        const int is = ap_is_location(&rando_locations[i]) && had((int)i);
-        s_seen[i] = (uint8_t)is;
-
-        if (is) {
+        if (ap_is_location(&rando_locations[i]) && had((int)i)) {
             ids[n++] = ap_location_id(&rando_locations[i]);
         }
     }
 
-    ap_client_save_loaded(ids, n);
+    ap_client_save_loaded(ids, n, card_slot);
+}
+
+static void sync_seen(void) {
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        s_seen[i] = (uint8_t)(ap_is_location(&rando_locations[i]) && had((int)i));
+    }
+
+    // From the title (a game loaded or new): its slot comes once the level is up, so the save is
+    // judged then (each_tick); the level start's second look waits with it. Else a travel in the
+    // same game: its slot is the one known.
+    if (s_judge_wait) {
+        return;
+    }
+
+    if (s_from_title && has_save_slot()) {
+        s_judge_wait = 1;
+        s_judge_ticks = 0;
+    } else {
+        send_save(s_slot_known);
+    }
+
+    s_from_title = 0;
+}
+
+/* Each tick: the save's slot. A game from the title is judged once its slot is known (or not
+ * coming: a new game); a slot that changes in play is the game saved there. */
+static void watch_save_slot(int phase) {
+    if (phase == OPENRAC_PLAY_FRONT_END) {
+        s_from_title = 1;
+        s_judge_wait = 0;
+        s_slot_known = -1;
+        return;
+    }
+
+    const int slot = save_slot_now();
+
+    if (s_judge_wait) {
+        if (slot >= 0 || (phase == OPENRAC_PLAY_PLAYING && ++s_judge_ticks > JUDGE_WAIT_TICKS)) {
+            s_judge_wait = 0;
+            s_slot_known = slot;
+            send_save(slot);
+        }
+
+        return;
+    }
+
+    if (slot >= 0 && slot != s_slot_known) {
+        s_slot_known = slot;
+        ap_client_save_written(slot);
+    }
 }
 
 /* After the game gave the Bomb Glove at a level start and none was given, undoes what the game
@@ -732,6 +803,7 @@ static void each_tick(void* user) {
     const int phase = play_phase(&loads);
     show_notices();
     read_received();
+    watch_save_slot(phase);
 
     if (!playing_level()) {
         return;
@@ -910,6 +982,10 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         api->setting_string(mod, "slot"),
         api->setting_string(mod, "password"),
         uuid,
+        api->api_minor >= 11 && api->size >= offsetof(openrac_api, data_dir) + sizeof(void*)
+                && api->data_dir != NULL
+            ? api->data_dir(mod)
+            : NULL,
     };
     char line[256];
     snprintf(

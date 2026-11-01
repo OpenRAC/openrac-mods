@@ -7,8 +7,11 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -83,7 +86,9 @@ public:
                c.slot != nullptr ? c.slot : "",
                c.password != nullptr ? c.password : "",
                c.uuid != nullptr ? c.uuid : ""}
-          ) {
+          ),
+          book_path_(c.data_dir != nullptr && *c.data_dir != 0 ? std::string(c.data_dir) + "/save-slots.tsv" : "") {
+        read_book();
         thread_ = std::thread([this] { run(); });
     }
 
@@ -114,9 +119,16 @@ public:
         session_.goal(outbox_);
     }
 
-    void save_loaded(const std::int64_t* had, std::size_t n) {
+    void save_loaded(const std::int64_t* had, std::size_t n, int card_slot) {
         std::lock_guard<std::mutex> lock(mutex_);
-        session_.save_loaded(std::vector<std::int64_t>(had, had + n), outbox_);
+        session_.save_loaded(std::vector<std::int64_t>(had, had + n), card_slot, outbox_);
+        write_book();
+    }
+
+    void save_written(int card_slot) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        session_.save_written(card_slot);
+        write_book();
     }
 
     std::size_t items(std::int64_t* out, std::size_t max, std::uint32_t* generation) {
@@ -233,6 +245,7 @@ private:
             if (got > 0) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 session_.on_message(text, outbox_);
+                write_book();
 
                 if (session_.refused()) {
                     socket_.close();
@@ -240,6 +253,44 @@ private:
                 }
             }
         }
+    }
+
+    // The book of which room's game each memory card slot holds (session.hpp), one line a slot:
+    // "<slot>\t<seed name>\t<slot name>", in the mod's own folder. None without a folder.
+    void read_book() {
+        std::ifstream in(book_path_);
+        std::string line;
+
+        while (!book_path_.empty() && std::getline(in, line)) {
+            std::istringstream fields(line);
+            std::string slot, seed, name;
+
+            if (std::getline(fields, slot, '\t') && std::getline(fields, seed, '\t')
+                && std::getline(fields, name)) {
+                session_.book().slots[std::atoi(slot.c_str())] = {seed, name};
+            }
+        }
+    }
+
+    // Under the lock: the book written again when it changed, through a file put in its place.
+    void write_book() {
+        auto& book = session_.book();
+
+        if (!book.changed || book_path_.empty()) {
+            return;
+        }
+
+        book.changed = false;
+        const std::string temporary = book_path_ + ".new";
+        {
+            std::ofstream out(temporary, std::ios::trunc);
+
+            for (const auto& [slot, room] : book.slots) {
+                out << slot << '\t' << room.first << '\t' << room.second << '\n';
+            }
+        }
+        std::remove(book_path_.c_str());
+        std::rename(temporary.c_str(), book_path_.c_str());
     }
 
     Target target_;
@@ -250,6 +301,7 @@ private:
     std::vector<std::string> outbox_;
     std::string last_error_;
     std::atomic<bool> running_{true};
+    std::string book_path_;
     std::thread thread_;  // last: started once the rest is made
 };
 
@@ -284,9 +336,15 @@ void ap_client_goal(void) {
     }
 }
 
-void ap_client_save_loaded(const int64_t* had, size_t n) {
+void ap_client_save_loaded(const int64_t* had, size_t n, int card_slot) {
     if (g_client != nullptr) {
-        g_client->save_loaded(had, n);
+        g_client->save_loaded(had, n, card_slot);
+    }
+}
+
+void ap_client_save_written(int card_slot) {
+    if (g_client != nullptr) {
+        g_client->save_written(card_slot);
     }
 }
 

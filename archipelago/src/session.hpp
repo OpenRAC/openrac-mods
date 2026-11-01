@@ -49,10 +49,24 @@ public:
     void check(std::int64_t location, std::vector<std::string>& out);
     void goal(std::vector<std::string>& out);
 
-    // The locations the loaded save has had, at a level start. They are sent unless the save is
-    // another seed's: it has checks the server never saw from this slot, and lacks some it saw.
-    // Judged when connected (now, or on the connection).
-    void save_loaded(const std::vector<std::int64_t>& had, std::vector<std::string>& out);
+    // The locations the loaded save has had, at a level start, and its memory card slot (-1: none
+    // known, a new game or a port without it). They are sent unless the save is another seed's:
+    // the book says its slot holds another room's game, or, with no word in the book, it has checks
+    // the server never saw from this slot and lacks some it saw. Judged when connected (now, or on
+    // the connection); a save of this room's is then written in the book.
+    void save_loaded(const std::vector<std::int64_t>& had, int card_slot, std::vector<std::string>& out);
+
+    // The game in progress was just saved into memory card slot `card_slot`: that slot now holds
+    // this room's game (unless the game in progress is another seed's).
+    void save_written(int card_slot);
+
+    // Which room's game each memory card slot holds: the room's seed name and the player's slot
+    // name. The client keeps it in the mod's folder; changed() says it has to be written again.
+    struct Book {
+        std::map<int, std::pair<std::string, std::string>> slots;
+        bool changed = false;
+    };
+    Book& book() { return book_; }
 
     // The last save judged was another seed's: its checks are not sent.
     bool foreign_save() const { return foreign_; }
@@ -88,6 +102,7 @@ private:
     void read_players(const nlohmann::json& packet);
     void read_checked(const nlohmann::json& packet);
     void judge_save(std::vector<std::string>& out);
+    void bind(int card_slot);
     void flush(std::vector<std::string>& out);
     std::string player_name(int slot) const;
     std::string item_name(std::int64_t item, int owner) const;
@@ -113,6 +128,10 @@ private:
     std::set<std::int64_t> save_;     // the last save's locations, to judge
     bool save_waiting_ = false;       // save_ not judged yet
     bool foreign_ = false;
+    int save_slot_ = -1;     // the memory card slot of save_
+    int unbound_ = -1;       // a slot saved into before the room's seed was known
+    std::string seed_name_;  // RoomInfo's seed_name
+    Book book_;
     std::map<std::string, std::string> checksums_;  // each game's data package as loaded
     std::map<int, Player> players_;
     std::map<std::string, std::map<std::int64_t, std::string>> item_names_;      // by game
