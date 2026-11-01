@@ -102,7 +102,8 @@ and nearly every enemy's is (0x1C0 to 0x460 bytes): a copy takes 5 to 10
 slots, so a level of 255 gets about 11 to 17 copies at most (Rilgar's smaller
 amoeboids, about 28) and a level of 767 about 60 to 100, fewer where few of
 its enemies are free of its scripts (Umbris none). **On Gaspar the sparks keep
-another 255**: no copies in a pool of 255, up to 352 in one of 767. The log says what each level got: `level 4: 41 copies of 23
+another 255**: no copies in a pool of 255, up to 352 in one of 767. **Blarg Station
+keeps another 193** for what it spawns before its landing: no copies in its pool of 255. The log says what each level got: `level 4: 41 copies of 23
 enemies (255 free slots, room for 95 beside the 160 kept for the game; 60
 reserved for pvars; 3 without a clear spot)`. With a high enemy count the
 copies are spread: each enemy gets one before any gets a second.
