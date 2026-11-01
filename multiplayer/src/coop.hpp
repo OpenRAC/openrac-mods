@@ -350,6 +350,30 @@ public:
     /* The title's Multiplayer page opened (the mod's Home, from the title's main menu): true when
      * asked. */
     virtual bool open_home() { return false; }
+    /* Each work package adds its virtuals in its own block, and only there (with a default that
+     * does nothing), implemented in the package's own piece of the mod's game adapter. */
+    // --- WP-SAVE ---
+    // --- end WP-SAVE ---
+    // --- WP-SHARE ---
+    // --- end WP-SHARE ---
+    // --- WP-SHOTS ---
+    // --- end WP-SHOTS ---
+    // --- WP-DRAW ---
+    // --- end WP-DRAW ---
+    // --- WP-JOIN ---
+    // --- end WP-JOIN ---
+    // --- WP-CAMERA ---
+    // --- end WP-CAMERA ---
+    // --- WP-TETHER ---
+    // --- end WP-TETHER ---
+    // --- WP-DEATH ---
+    // --- end WP-DEATH ---
+    // --- WP-LOBBY ---
+    // --- end WP-LOBBY ---
+    // --- WP-CODES ---
+    // --- end WP-CODES ---
+    // --- WP-MIGRATE ---
+    // --- end WP-MIGRATE ---
 };
 
 /* A remote player as the co-op keeps it: its poses and its figure. */

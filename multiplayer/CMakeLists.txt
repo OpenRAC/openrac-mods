@@ -10,11 +10,23 @@
 # the members), the shared progress (items, gold bolts, planets), the mods a party agrees on and its verbose log. It needs interface 1.7's pages of the game's own menus, 1.8's play calls and 1.9's
 # world calls, so the top CMakeLists.txt adds this folder only with an SDK of 1.9 or newer.
 
+# The co-op's and the shared world's sources, split by area (coop.hpp, world.hpp); the tests build them too.
+set(MULTIPLAYER_COOP_SOURCES src/coop.cpp src/coop_travel.cpp src/coop_figures.cpp src/coop_shots.cpp
+                             src/coop_join.cpp src/coop_leave.cpp)
+set(MULTIPLAYER_WORLD_SOURCES src/world.cpp src/world_pickups.cpp src/world_host.cpp src/world_member.cpp
+                              src/world_handle.cpp src/world_gate.cpp)
+
+# The play test's files: main and one file of tests per area, sharing tests/test_support.hpp.
+set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/play_coop_test.cpp
+                           tests/play_world_test.cpp tests/play_mods_test.cpp tests/play_pause_test.cpp
+                           tests/play_bolts_test.cpp tests/play_scenes_test.cpp tests/play_party_test.cpp
+                           tests/play_sim_test.cpp)
+
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
                 SOURCES src/multiplayer.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
                         src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/session.cpp src/connection.cpp src/host.cpp
-                        src/direct.cpp src/protocol.cpp src/coop.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp src/party_mods.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+                        src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
 # The end-to-end tests' driver (src/bot.hpp, tests/e2e): a development build's, never a release's.
@@ -42,7 +54,7 @@ if(BUILD_TESTING)
   # The protocol's bytes and the session's lobby, against a recorder; then the connection against
   # a server the test makes on the loopback, and Direct connect: a host and clients on the loopback.
   add_executable(multiplayer_test tests/multiplayer_test.cpp src/session.cpp src/connection.cpp src/host.cpp
-                 src/direct.cpp src/protocol.cpp src/coop.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp src/party_mods.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+                 src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
   target_include_directories(multiplayer_test PRIVATE src)
   set_target_properties(multiplayer_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   target_link_libraries(multiplayer_test PRIVATE Threads::Threads)
@@ -53,8 +65,8 @@ if(BUILD_TESTING)
   add_test(NAME multiplayer COMMAND multiplayer_test)
   # Playing together, without the game: the poses' bytes, the interpolation buffer, and the co-op
   # of a host and members through a router that does what the server does with DATA.
-  add_executable(multiplayer_play_test tests/play_test.cpp src/session.cpp src/protocol.cpp
-                 src/coop.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp src/party_mods.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+  add_executable(multiplayer_play_test ${MULTIPLAYER_PLAY_TESTS} src/session.cpp src/protocol.cpp
+                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
   target_include_directories(multiplayer_play_test PRIVATE src)
   # Poses recorded from two games (a walk with stops, a stall of the sender's), replayed.
   target_compile_definitions(multiplayer_play_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")

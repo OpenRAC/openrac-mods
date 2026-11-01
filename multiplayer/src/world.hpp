@@ -196,8 +196,38 @@ inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
     return false;
 }
 
+// --- WP-DEATH: class lists ---
+/* Only WP-DEATH edits this block: crates and pickups the death work changes, in the shapes below. */
+inline bool death_crate_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool death_pickup_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool death_interactable_class(int /*oclass*/) {
+    return false;
+}
+// --- end WP-DEATH ---
+
+// --- WP-TETHER: class lists ---
+/* Only WP-TETHER edits this block: classes the tether work adds, in the shapes below. */
+inline bool tether_crate_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool tether_pickup_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool tether_interactable_class(int /*oclass*/) {
+    return false;
+}
+// --- end WP-TETHER ---
+
 inline bool crate_class(int oclass) {
-    return any_of_class(oclass, {500, 501, 502, 505, 511});
+    return any_of_class(oclass, {500, 501, 502, 505, 511}) || death_crate_class(oclass) || tether_crate_class(oclass);
 }
 
 inline bool pickup_class(int oclass) {
@@ -205,7 +235,7 @@ inline bool pickup_class(int oclass) {
         oclass,
         {13, 14, 15, 16, 1134, 204, 213, 214, 222, 223, 225, 226, 1006, 1438, 1447, 1449, 224, 228,
          1218, 1220, 806}
-    );
+    ) || death_pickup_class(oclass) || tether_pickup_class(oclass);
 }
 
 /* Pickups an enemy of the host's drops that every game gets its own of (ammo, health). */
@@ -223,7 +253,8 @@ inline bool interactable_class(int oclass) {
                 607,  618,  849,  1289, 1290, 229,  1143, 71,   74,   121,  153,  163,  172,
                 203,  270,  457,  1378, 1039, 22,   605,  613,  610,  679}
            )
-           || (oclass >= 1456 && oclass <= 1465);
+           || (oclass >= 1456 && oclass <= 1465) || death_interactable_class(oclass)
+           || tether_interactable_class(oclass);
 }
 
 /* Every game runs its own copy: crates, pickups, interactables. */
