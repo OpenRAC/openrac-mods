@@ -385,7 +385,8 @@ def skip_scenes(env, host, others, seconds):
     limit = time.monotonic() + seconds
     while time.monotonic() < limit:
         s = host.status()
-        if s["phase"] == PHASE_SCENE or s["phase"] == PHASE_LOADING:
+        # A Start that lands just as the scene ends opens the pause menu: another closes it.
+        if s["phase"] in (PHASE_SCENE, PHASE_LOADING, PHASE_MENU):
             host.ask("press 8 6")
         if all(in_control(c) for c in [host] + others):
             return True
@@ -598,8 +599,8 @@ def tags_by_place(env, host, member):
     notes = env.report["notes"].setdefault("tags", {})
     env.check("up close, the name is drawn", until(lambda: drawn() == 1, 5), str(drawn()))
 
-    def spot(radius, want_blocked):
-        for a in range(0, 360, 20):
+    def spot(radius, want_blocked, angles=range(0, 360, 20)):
+        for a in angles:
             px = x + radius * math.cos(math.radians(a))
             py = y + radius * math.sin(math.radians(a))
             parts = [host.ask(f"line {px} {py} {z + h}").split() for h in (1.2, 0.6)]
@@ -609,19 +610,34 @@ def tags_by_place(env, host, member):
                 return px, py, a
         return None
 
-    found = None
+    def hidden_from_host():
+        """Where the member really ended: a teleport into a wall comes out on one side of it."""
+        fx, fy, fz = member.status()["hero"]
+        return all(host.ask(f"line {fx} {fy} {fz + h}").startswith("blocked") for h in (1.2, 0.6)), (fx, fy, fz)
+
+    tried = 0
+    placed = None
     for radius in (8, 10, 12, 14, 16):
-        found = spot(radius, True)
-        if found:
-            notes["blocked_radius"] = radius
+        for a in range(0, 360, 20):
+            found = spot(radius, True, [a])
+            if not found or tried >= 14:
+                continue
+            tried += 1
+            member.ask(f"teleport {found[0]} {found[1]} {z + 0.5}")
+            time.sleep(1.5)
+            hidden, at = hidden_from_host()
+            if hidden:
+                placed = at
+                break
+        if placed:
             break
-    env.check("the level has a place behind a wall near the host", found is not None)
-    if found:
-        member.ask(f"teleport {found[0]} {found[1]} {z + 0.5}")
-        time.sleep(2)
-        after = host.ask(f"line {found[0]} {found[1]} {z + 1.2}")
-        notes["behind_wall"] = {"line": after, "status": host.status().get("tags_drawn"), "angle": found[2]}
-        env.check("behind a wall the name is gone", drawn() == 0, str(notes["behind_wall"]))
+    notes["behind_wall_tried"] = tried
+    env.check("the member stands where the level hides it from the host", placed is not None, str(tried))
+    if placed:
+        time.sleep(1.0)
+        hidden, at = hidden_from_host()
+        notes["behind_wall"] = {"still": hidden, "at": at, "drawn": host.status().get("tags_drawn")}
+        env.check("behind a wall the name is gone", not hidden or drawn() == 0, str(notes["behind_wall"]))
     open_spot = None
     for radius in (30, 32, 35):
         open_spot = spot(radius, False)
@@ -633,6 +649,23 @@ def tags_by_place(env, host, member):
         env.check("far off in the open the name is gone", drawn() == 0, str(drawn()))
     member.ask(f"teleport {x + 2} {y} {z + 0.5}")
     env.check("back beside the host, the name is back", until(lambda: drawn() == 1, 8), str(drawn()))
+
+
+def scenario_look(env, args):
+    """Something to look at, with --game-env OPENRAC_SHOT=N:shot: the other figure in view with its
+    name, then the host's pause menu over the picture. notes.frames says when."""
+    host, member = start_two(env, args)
+    x, y, z = host.status()["hero"]
+    for dx, dy in ((5, 0), (0, 5), (-5, 0), (0, -5)):
+        member.ask(f"teleport {x + dx} {y + dy} {z + 0.5}")
+        time.sleep(1.5)
+        if host.status().get("tags_drawn") == 1:
+            break
+    env.check("the member's name is drawn", host.status().get("tags_drawn") == 1)
+    time.sleep(6)
+    host.ask("press 8 6")
+    time.sleep(6)
+    env.check("the pause menu is up", host.status()["phase"] == PHASE_MENU, str(host.status()["phase"]))
 
 
 def scenario_keys(env, args):
@@ -1707,6 +1740,7 @@ SCENARIOS = {
     "save": scenario_save,
     "smoke": scenario_smoke,
     "tags": scenario_tags,
+    "look": scenario_look,
     "cosave": scenario_cosave,
     "keys": scenario_keys,
     "bolts": scenario_bolts,
