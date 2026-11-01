@@ -1224,6 +1224,87 @@ def scenario_progress2(env, args):
     compare_worlds(env, [host, third], "with the late member")
 
 
+LIFT_RILGAR = 877
+CAMERA_TRIGGER = 737
+SCRIPT_HOLD = 0x72
+
+
+def lifts_of(c, oclass):
+    placed, _ = c.mobys()
+    return [m for m in placed.values() if m[2] == oclass and live(m)]
+
+
+def camera_counts(c):
+    stats = c.json("stats")
+    return stats["cam_sent"], stats["cam_shown"], stats["cam_showing"]
+
+
+def ride_lift(env, host, lift):
+    """The host onto the lift's button: its script starts with the fade, about half a second on."""
+    sent, _, _ = camera_counts(host)
+    host.ask(f"teleport {lift[5]} {lift[6]} {lift[7] + 1.0}")
+    return wait("the host's game tells of the lift's camera", lambda: camera_counts(host)[0] > sent, 12)
+
+
+def scenario_camera(env, args):
+    """Camera scripts: a lift's shown to a rider and not to one far off, the player's hands taking
+    it back, a member's trigger leaving the host's camera and hero alone."""
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], args.level)
+    lifts = lifts_of(host, LIFT_RILGAR)
+    env.check("the level has a lift of class 877", bool(lifts), f"level {args.level}")
+    if not lifts:
+        return
+    lift = lifts[0]
+    # A rider: touching nothing, it is shown; a stick takes it back at once.
+    member.ask(f"teleport {lift[5] + 1.0} {lift[6]} {lift[7] + 1.0}")
+    time.sleep(args.settle)
+    health = member.status().get("health")
+    shown = camera_counts(member)[1]
+    told = ride_lift(env, host, lift)
+    env.check("the host tells of its lift's camera", told, json.dumps(host.json("stats")))
+    env.check(
+        "a rider is shown it",
+        wait("the rider's camera", lambda: camera_counts(member)[1] > shown, 5),
+        json.dumps(member.json("stats")),
+    )
+    time.sleep(1)
+    env.check("it is still up with nothing pressed", camera_counts(member)[2] != 0, "")
+    member.ask("press 0 10 128 0")
+    env.check(
+        "the stick takes the camera back",
+        wait("the camera back", lambda: camera_counts(member)[2] == 0, 3),
+        json.dumps(log_lines(member, r"camera back with the hero: [a-z ]+")[-3:]),
+    )
+    env.check("the member lost nothing by it", member.status().get("health") == health, f"{member.status()}")
+    # Far off: nothing shown, and the script's end leaves everything as it was.
+    time.sleep(args.settle)
+    member.ask(f"teleport {lift[5] + 90.0} {lift[6]} {lift[7] + 1.0}")
+    time.sleep(args.settle)
+    host.ask(f"teleport {lift[5] + 8.0} {lift[6]} {lift[7] + 1.0}")
+    time.sleep(args.settle)
+    shown = camera_counts(member)[1]
+    ride_lift(env, host, lift)
+    time.sleep(2)
+    env.check("a member far away is not shown it", camera_counts(member)[1] == shown, "")
+
+    # A member's trigger, the host far off: the host keeps its camera and its control.
+    fly_to(env, host, [member], args.level2)
+    triggers = lifts_of(host, CAMERA_TRIGGER)
+    env.check("the level has a camera trigger", bool(triggers), f"level {args.level2}")
+    before = camera_counts(member)[1]
+    fired = False
+    for trigger in triggers:
+        member.ask(f"teleport {trigger[5]} {trigger[6]} {trigger[7] + 1.0}")
+        if wait("a trigger fired by the member", lambda: camera_counts(host)[0] > 0 and log_lines(host, r"a member's, told"), 4):
+            fired = True
+            state = host.status().get("hero_state")
+            env.check("the host's hero is not held for it", state != SCRIPT_HOLD, f"state {state}")
+            break
+    env.report["notes"]["member_trigger"] = {"fired": fired, "shown": camera_counts(member)[1] - before}
+    env.report["notes"]["final"] = {c.name: c.status() for c in env.clients}
+
+
 def scenario_soak(env, args):
     """Report 3: the party stands in the level for a while; what the network did is the result."""
     players = [env.client("Host1", args.link_args)] + [
@@ -1416,6 +1497,7 @@ SCENARIOS = {
     "kick": scenario_kick,
     "midjoin": scenario_midjoin,
     "progress2": scenario_progress2,
+    "camera": scenario_camera,
 }
 
 
