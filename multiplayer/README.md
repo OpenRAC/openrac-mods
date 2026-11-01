@@ -11,6 +11,10 @@ is nearest.
 
 With the mod off, the game is the PlayStation 2 game.
 
+Each other player has a name over their figure, in a colour of their own that is the same in every
+game: smaller further away, a dot past 40 metres, with a small amber mark while they lag. Under the
+pause menu the world goes on, in the picture too.
+
 Friends match their mods with a mod code: **Share these mods** on the launcher's Mods page makes
 one, and entering it there shows what would change before anything does (OpenRAC's
 `docs/port/MODS.md`, section 10).
@@ -436,7 +440,6 @@ that player. Mobys near the members run in the host's game as if near its camera
   plays: it cannot start part way); scripted camera shots that are not scenes (a gold bolt's, a
   door's or a lift's camera, the level's camera scripts) play in the game whose moby runs them
   only.
-- Under the pause menu the world goes on but the picture behind the menu stays as it was.
 - A crate a member broke drops its bolts a round trip later (the host's copy breaks when the
   member's word gets there); one the host's copy has not broken within 3 seconds is deleted
   without a drop.
@@ -468,7 +471,10 @@ that player. Mobys near the members run in the host's game as if near its camera
   is destroyed there the member's copy stays until it runs out.
 - A late joiner stands where the ship lands (or where its save's level starts), not beside the
   host.
-- Names are not drawn over the figures (the mod interface has no drawing over the game yet).
+- A name tag is not hidden by a wall: it shows where a player is, through whatever is between. It
+  shows in a level only: not under a menu, not in a scene. The font is the port's capitals, and a
+  character it lacks is left blank.
+- Particles under the pause menu are drawn but stand still (frozen sparks).
 - A member already in a level when the host starts again keeps its own progress and only follows
   the level.
 - Everyone needs the same OpenRAC and mod versions (Mods in a party). Discs of one world family play

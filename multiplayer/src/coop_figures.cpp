@@ -329,10 +329,36 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
             r.hidden = false;
         }
 
+        std::copy(std::begin(pose.position), std::end(pose.position), std::begin(r.shown_at));
+        r.late = r.poses.silence_ms(t) >= kTagLateMs || session_.link(it->first).ping_ms >= kTagPingMs;
+
         fire_shots(r, now, status);
 
         ++it;
     }
+}
+
+std::vector<NameTag> Coop::name_tags() const {
+    std::vector<NameTag> tags;
+    int slot = 0;
+
+    // The party's order is every game's, so a player has one colour everywhere.
+    for (const Member& m : session_.members()) {
+        const auto it = remotes_.find(m.id);
+
+        if (it != remotes_.end() && it->second.figure >= 0 && !it->second.hidden) {
+            NameTag tag;
+            tag.name = m.name;
+            tag.slot = slot;
+            std::copy(std::begin(it->second.shown_at), std::end(it->second.shown_at), std::begin(tag.position));
+            tag.late = it->second.late;
+            tags.push_back(std::move(tag));
+        }
+
+        ++slot;
+    }
+
+    return tags;
 }
 
 bool Coop::latest(std::int32_t player, Pose& out) const {

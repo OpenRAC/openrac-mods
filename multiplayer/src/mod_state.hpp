@@ -25,6 +25,8 @@
 #include "cosave.hpp"
 #include "direct.hpp"
 #include "menu.hpp"
+#include "modcode.hpp"
+#include "nametags.hpp"
 #include "progress.hpp"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
@@ -56,6 +58,9 @@ constexpr int kDirectItem = 3;
 constexpr int kReadyItem = 0;
 constexpr int kLeaveItem = 1;
 constexpr int kRulesItem = 2;
+
+/* The Refused page's button after Leave party, when the host has a mod code. */
+constexpr int kRefusedOpenItem = 1;
 constexpr int kJoinItem = static_cast<int>(mp::kCodeLength);
 
 /* The Direct page's buttons; Join by address's rows: four octets, the port by one and by a
@@ -120,6 +125,8 @@ struct State {
     bool start_held = false;       // Start as the pad last reported it
     SavesFor saves_for = SavesFor::kCreate;
     bool saves_coop = false;       // the Saves page shows the party's own saves
+    bool mod_code_long = false;  // the launcher's file matches, and has no short code
+    std::uint64_t mod_code_ms = 0;  // when it was last read
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
     std::string notice;  // the last refusal or news, until the next action
     std::string banner;  // the line shown over the game (play_notice)

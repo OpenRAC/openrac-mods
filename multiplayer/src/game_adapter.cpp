@@ -395,7 +395,14 @@ bool ModGame::deliver_rules(const std::string& id, const mp::Bytes& data) {
     return it != indices_.end() && mod_.party_rules_deliver(it->second, data);
 }
 
-void ModGame::overlay_pause(bool on) { mod_.play_overlay_pause(on); }
+void ModGame::overlay_pause(bool on) {
+    mod_.play_overlay_pause(on);
+
+    // The others' world goes on under the menu, in the picture too.
+    if (on) {
+        mod_.play_live_picture(true);
+    }
+}
 
 void ModGame::skip() { mod_.play_skip(); }
 

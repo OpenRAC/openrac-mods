@@ -12,6 +12,8 @@
  * calls of interface 1.8). The mods a party has to agree on are checked as a player joins
  * (party_mods.hpp): one whose differ is told why, and cannot be Ready.
  *
+ * Over the game the other players' names (nametags.hpp), through the port's overlay.
+ *
  * The pages, drawn by the game (its frames, list, font, prompt box and sounds):
  *   Home    Browse games (the parties others host), Create match (a party of the player's own,
  *           from a save), Join by code and Direct connect (the next pages), and the player's name;
@@ -107,6 +109,61 @@ std::string status() {
 
 /* The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
  * a wait for the others. */
+/* The port's overlay, as the name tags draw on it. */
+class OverlayPainter : public mp::TagPainter {
+public:
+    explicit OverlayPainter(const openrac_overlay& overlay) : o_(overlay) {}
+
+    bool project(const float world[3], float& x, float& y) override {
+        return o_.project(o_.context, world, &x, &y) != 0;
+    }
+
+    void rect(float x, float y, float w, float h, std::uint32_t colour) override {
+        o_.rect(o_.context, x, y, w, h, colour);
+    }
+
+    void text(float x, float y, float height, std::uint32_t colour, const std::string& line) override {
+        o_.text(o_.context, x, y, height, colour, line.c_str());
+    }
+
+    float text_width(float height, const std::string& line) override {
+        return o_.text_width(o_.context, height, line.c_str());
+    }
+
+    float fade(float distance, float near_distance, float far_distance) override {
+        return o_.fade(o_.context, distance, near_distance, far_distance);
+    }
+
+private:
+    const openrac_overlay& o_;
+};
+
+void draw_tags(void*, const openrac_overlay* overlay) {
+    float camera[3];
+
+    // An older port's handle has no text_width: no tags, as with no overlay at all.
+    if (g == nullptr || overlay->size < sizeof(openrac_overlay) || !g->game->camera(camera)) {
+        return;
+    }
+
+    OverlayPainter painter(*overlay);
+    g->coop->note_tags(mp::draw_name_tags(painter, camera, g->coop->name_tags()));
+}
+
+/* The host: the launcher's mod code, a few times a minute (a player may share while the game runs). */
+void refresh_mod_code(std::uint64_t now) {
+    constexpr std::uint64_t kEveryMs = 3000;
+
+    if (!g->session->is_host() || (g->mod_code_ms != 0 && now - g->mod_code_ms < kEveryMs)) {
+        return;
+    }
+
+    g->mod_code_ms = now;
+    const mp::ModCode found = mp::read_mod_code(g->mod->plugins_folder(), g->mods->own());
+    g->mod_code_long = found.shared && found.code.empty();
+    g->mods->set_mod_code(found.code);
+}
+
 void show_banner(std::uint64_t now) {
     // The party's own line first: a save's only says it went well.
     std::string line = g->coop->banner(now);
@@ -443,6 +500,11 @@ void load(openrac::Mod& mod) {
         mod.ui_pause_item("Multiplayer", g->pause_page);
     }
 
+    // The names over the others' figures.
+    if (mod.has_overlay()) {
+        mod.on_overlay(draw_tags);
+    }
+
     // The session follows the server every tick, whether a page shows or not, and the co-op the
     // game.
     mod.on_frame([] {
@@ -465,6 +527,7 @@ void load(openrac::Mod& mod) {
         const std::uint64_t now = mp::now_ms();
         g->frame_ms = now;
         g->mods->tick(now);
+        refresh_mod_code(now);
 
         // A level that does not agree with the host's cannot be shared: out of the party, and why.
         if (g->world->take_level_differs()) {

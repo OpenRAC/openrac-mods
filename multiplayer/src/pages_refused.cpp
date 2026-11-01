@@ -18,6 +18,15 @@ openrac::UiContent refused_content() {
     c.title = s.in_party() ? "You can't join this game" : "You can't play in a party";
     c.items.push_back(openrac::UiItem::button(s.in_party() ? mp::kLeavePartyLabel : "Back"));
 
+    // The host's mod code: what gets this game the host's mods.
+    const std::string code = s.in_party() ? g->mods->host_list().modcode : "";
+
+    if (!code.empty()) {
+        c.items.push_back(openrac::UiItem::button(mp::kOpenInLauncher));
+        c.items.push_back(openrac::UiItem::text(mp::kModCodeLabel + code));
+        c.items.push_back(openrac::UiItem::text(mp::kModCodeHint));
+    }
+
     for (const std::string& line : mp::refusal_lines(differences)) {
         if (c.items.size() == OPENRAC_UI_ITEMS_MAX) {
             break;
@@ -44,7 +53,10 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
         g->refused_in_party = in_party;
     }
 
-    if (chose && in_party) {
+    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefusedOpenItem) {
+        // The player's own choice, on this page: the launcher then asks to close the game.
+        g->mod->open_link(mp::mod_code_link(g->mods->host_list().modcode));
+    } else if (chose && in_party) {
         leave_party();
     } else if (chose || e.is(OPENRAC_UI_BACK)) {
         if (in_party) {

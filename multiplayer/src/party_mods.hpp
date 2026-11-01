@@ -11,7 +11,7 @@
  *   29 MODS   multiplayer's version, OpenRAC's and the disc (3 strings), count u8, then per mod: id,
  *             name, version (strings), kind u8 (OPENRAC_PARTY_MOD_*), settings u8, per setting: key,
  *             name, value, shown (strings), kind u8 (OPENRAC_PARTY_SETTING_*), default u8; then the
- *             world family (string)
+ *             world family (string), the mod code (string, "" for none: modcode.hpp)
  *             a member to the host every kModsMs until the host's comes; the host's to that member;
  *   30 FITS   count u8, then id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string)
  *             the host to everyone, at each change;
@@ -104,6 +104,7 @@ struct ModList {
     std::string disc;    // the player's own: for the logs, and never compared
     std::string family;  // the world the disc belongs to: what is compared
     std::vector<ModInfo> mods;
+    std::string modcode; // the mod code of this list, if it has one (modcode.hpp): never compared
 };
 
 Bytes encode_mod_list(const ModList& list);
@@ -193,6 +194,9 @@ public:
     /* This game's list, once every mod has loaded (a mod loaded after this one is not known at
      * this one's load). */
     void set_own(ModList own) { own_ = std::move(own); }
+
+    /* The host: the mod code of this game's mods, "" for none; a party hears when it changes. */
+    void set_mod_code(const std::string& code);
 
     const ModList& own() const { return own_; }
 

@@ -101,6 +101,7 @@
 #include <string>
 #include <vector>
 
+#include "nametags.hpp"
 #include "party_mods.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
@@ -416,6 +417,8 @@ struct Remote {
     bool scene = false;  // its game plays a scene (its last pose said)
     int figure = -1;
     bool hidden = false;         // its figure hidden for a scene playing in this game
+    float shown_at[3] = {0, 0, 0};  // where its figure was last put
+    bool late = false;              // its poses or its link lag: its name tag says so
     std::uint64_t retry_ms = 0;  // when a figure may be made again
     std::uint64_t traced_ms = 0;  // when the verbose log last said how its poses are shown
     /* Its shots to fire, each when its figure is as far behind as its poses are played. */
@@ -502,6 +505,14 @@ public:
     /* A remote player's latest pose (its newest, not the played-back one) and its figure; false
      * for one with none. */
     bool latest(std::int32_t player, Pose& out) const;
+
+    /* The players whose figures are shown here now, for their name tags (nametags.hpp). */
+    std::vector<NameTag> name_tags() const;
+
+    /* What the frame's tags came to, kept for the bot. */
+    void note_tags(const TagStats& stats) { tag_stats_ = stats; }
+
+    const TagStats& tag_stats() const { return tag_stats_; }
 
     int figure_of(std::int32_t player) const;
 
@@ -777,6 +788,7 @@ private:
     Pose last_pose_;
     /* The level loads the figures were made in. */
     std::uint32_t figure_loads_ = 0;
+    TagStats tag_stats_;
     std::map<std::int32_t, Remote> remotes_;
     std::string notice_;
     std::function<void(const std::string&)> log_;

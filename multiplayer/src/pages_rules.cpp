@@ -21,6 +21,13 @@ openrac::UiContent rules_content() {
         level ? mp::kPauseLine : mp::kTitleLine
     );
 
+    // The host's mod code, so that friends can get these mods.
+    if (g->session->is_host() && !g->mods->own().modcode.empty()) {
+        c.items.push_back(openrac::UiItem::text(mp::kModCodeLabel + g->mods->own().modcode));
+    } else if (g->session->is_host() && g->mod_code_long) {
+        c.items.push_back(openrac::UiItem::text(mp::kModCodeInLauncher));
+    }
+
     for (const std::string& line : lines) {
         if (c.items.size() == OPENRAC_UI_ITEMS_MAX) {
             break;

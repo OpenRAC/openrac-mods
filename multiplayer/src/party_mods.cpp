@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "coop.hpp"
+#include "modcode.hpp"
 
 namespace mp {
 namespace {
@@ -80,7 +81,7 @@ Bytes encode_mod_list(const ModList& list) {
         }
     }
 
-    w.str(list.family);
+    w.str(list.family).str(list.modcode);
     return w.bytes();
 }
 
@@ -114,6 +115,13 @@ bool decode_mod_list(Reader& r, ModList& out) {
     }
 
     out.family = r.left() > 0 ? r.str() : out.disc;
+    out.modcode = r.left() > 0 ? r.str() : "";
+
+    // Text of a code's shape or nothing: another game's bytes are not shown as they come.
+    if (!valid_mod_code(out.modcode)) {
+        out.modcode.clear();
+    }
+
     return r.ok();
 }
 
@@ -544,6 +552,18 @@ void PartyMods::clear() {
     differences_.clear();
     heard_host_ = false;
     host_ = ModList{};
+}
+
+void PartyMods::set_mod_code(const std::string& code) {
+    if (code == own_.modcode) {
+        return;
+    }
+
+    own_.modcode = code;
+
+    if (session_.in_party() && session_.is_host()) {
+        send_mods(kBroadcast);
+    }
 }
 
 void PartyMods::send_mods(std::int32_t target) {

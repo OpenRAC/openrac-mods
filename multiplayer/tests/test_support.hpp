@@ -1190,5 +1190,6 @@ void run_saves_tests();
 void run_sim_tests();
 void run_save_tests();
 void run_cross_tests();
+void run_tags_tests();
 
 }  // namespace mpt
