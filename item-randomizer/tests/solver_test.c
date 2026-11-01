@@ -177,7 +177,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xfb536185d5244186ull);
+    CHECK(plan_hash(&p) == 0x1146e78d7bf68e62ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;

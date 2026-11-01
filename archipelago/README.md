@@ -40,10 +40,14 @@ With the mod off, the game is the PlayStation 2 game.
 - The game's own save keeps which locations you have had, and every item is one you keep. So the
   mod keeps no file of its own. At each level start it tells the server every location you have
   had, and each tick it gives you what the server sent and you lack.
+- A save from another seed is caught: when it has checks the server never saw from your slot and
+  lacks some it saw, its checks are not sent, and a line says so. A save from another seed loaded
+  into a room where your slot has no checks yet cannot be told apart.
 - Items arrive only while you are in control in a level, not in a cutscene or a menu.
 - The goal is sent when Drek's ending scene starts on Veldin.
 - The connection runs on a thread of its own and comes back by itself when it drops. `wss://`
-  uses mbedTLS and the system's root certificates.
+  uses mbedTLS and the system's root certificates. The server's messages may come compressed
+  (permessage-deflate, inflated with miniz).
 
 ## Building
 
@@ -54,6 +58,17 @@ cmake -S . -B build -G Ninja && cmake --build build
 ctest --test-dir build -R archipelago
 ```
 
-`build/apworld/rac1.apworld` is the APWorld. Its `table.json` is printed by
-`tools/dump_table.c` at build time. To test it, put it in an Archipelago checkout's `worlds/` and
-run `python -m pytest worlds/rac1`.
+`build/apworld/rac1.apworld` is the APWorld: the `apworld/rac1` folder, zipped.
+
+`apworld/rac1/data.py` holds the locations, items and rules. It is written by `tools/dump_table.c`
+from the item randomizer's table, and committed so the logic can be read. Do not edit it. After a
+change to `item-randomizer/src/logic.c`, write it again; the `archipelago_data` test fails until
+you do:
+
+```
+cmake --build build --target archipelago_data
+```
+
+To test the world in an Archipelago checkout: put `rac1.apworld` in its `worlds/` and run
+`AP_TEST_WORLDS=rac1 python -m pytest test/general` (Archipelago's own checks, on the zip), then
+copy `apworld/rac1` to `worlds/rac1` instead and run `python -m pytest worlds/rac1`.
