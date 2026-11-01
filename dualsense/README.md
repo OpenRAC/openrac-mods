@@ -32,7 +32,7 @@ The mod refuses to load when no DualSense is connected, and says so.
 
    - the archive, `dist/dualsense-1.0.0-linux-x86_64.zip`;
    - the built folder, `build/package/dualsense/`;
-   - or **Add from a link** with `https://github.com/OpenRAC/rac1-mods`, which
+   - or **Add from a link** with `https://github.com/OpenRAC/openrac-mods`, which
      takes the release's archive.
 2. Connect a DualSense (a DualSense Edge works too) **before** the game
    starts. The mod looks for the controller when it loads and refuses without

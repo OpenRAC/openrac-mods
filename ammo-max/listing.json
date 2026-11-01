@@ -1,0 +1,23 @@
+{
+  "description": "At the Gadgetron vendor, buying ammo starts at the most you can buy instead of 1. Down still lowers it.",
+  "tags": [
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

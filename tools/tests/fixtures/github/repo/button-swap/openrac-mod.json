@@ -1,0 +1,21 @@
+{
+ "format": 2,
+ "id": "button-swap",
+ "name": "Button swap",
+ "version": "1.1.0",
+ "author": "OpenRAC contributors",
+ "description": "The button-swap test mod.",
+ "license": "GPL-3.0-or-later",
+ "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/button-swap",
+ "api": "1.1",
+ "games": {
+  "rac1": [
+   "pal",
+   "ntsc"
+  ]
+ },
+ "type": "script",
+ "scripts": [
+  "main.luau"
+ ]
+}

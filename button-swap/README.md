@@ -14,7 +14,7 @@ callback that changes each pad report before the game reads it.
 ## Installing
 
 In the OpenRAC launcher, **Mods**, **Add from a link**, paste
-`https://github.com/OpenRAC/rac1-mods`, and **Install** Button swap (its row
+`https://github.com/OpenRAC/openrac-mods`, and **Install** Button swap (its row
 says *Runs scripts (sandboxed)*). Or add this folder, or its `.zip` from the
 repository's releases, with **Add a mod**. It needs an OpenRAC whose mod
 interface is 1.1 or later (the first with script mods).
@@ -48,4 +48,4 @@ The buttons' bits in the word:
 A swap trades the two buttons' bits in the word and their pressure bytes, so
 the game sees each one held exactly when the other is.
 
-GPL-3.0-or-later, as the rest of rac1-mods.
+GPL-3.0-or-later, as the rest of openrac-mods.

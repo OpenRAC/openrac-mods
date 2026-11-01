@@ -1,0 +1,55 @@
+name: Update a listing
+description: Change the description, tags, links or media of a mod you own. Empty fields stay as they are.
+title: "Update listing: "
+labels: [listing-update]
+body:
+  - type: input
+    id: mod
+    attributes:
+      label: Mod id
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Short description
+      description: At most 300 characters.
+  - type: input
+    id: tags
+    attributes:
+      label: Tags
+      description: "Comma-separated, from: gameplay, controls, cosmetic, qol, speedrun, randomizer, multiplayer, accessibility, camera, audio, ui, tools."
+  - type: input
+    id: impact
+    attributes:
+      label: Impact
+      description: "Comma-separated, from: cosmetic, gameplay, speedrun-safe, touches-saves, online."
+  - type: dropdown
+    id: ai
+    attributes:
+      label: AI assistance
+      description: "Did AI tools help make this mod? Shown on its page. Empty keeps the current answer."
+      options:
+        - "Yes"
+        - "No"
+  - type: input
+    id: bugs
+    attributes:
+      label: Bug tracker
+  - type: input
+    id: discord
+    attributes:
+      label: Discord
+  - type: input
+    id: docs
+    attributes:
+      label: Docs
+  - type: input
+    id: video
+    attributes:
+      label: YouTube video
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: "Replaces all screenshots. One picture per line, caption after ' | '."

@@ -1,6 +1,6 @@
 # OpenRAC mods: build, test and release (the OpenRAC mod SDK's workflow, sdk/template and
 # sdk/template-script). The same file serves a repository of one mod (its openrac-mod.json at the
-# top) and one of several (a folder per mod, as OpenRAC/rac1-mods), native mods, script mods or
+# top) and one of several (a folder per mod, as OpenRAC/openrac-mods), native mods, script mods or
 # both: native mods are built from the top CMakeLists.txt, which makes every one of them; script
 # mods ("type": "script", docs/port/MODS.md section 11) are packaged as they are, with no build.
 #
@@ -172,37 +172,51 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
-  # The Archipelago world: rac1.apworld packed from archipelago/apworld and the table the mod's
-  # tool prints, then its tests run inside a pinned Archipelago.
+  # The Archipelago world: rac1.apworld packed from archipelago/apworld/rac1, then Archipelago's
+  # own checks run on the zip and the world's tests on the folder, inside a pinned Archipelago, on
+  # its oldest and newest Python.
   apworld:
     needs: detect
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
     env:
       ARCHIPELAGO: "0.6.8"
+      SKIP_REQUIREMENTS_UPDATE: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
-      - name: Ninja
-        run: python -m pip install ninja
-      - name: The SDK sdk.lock pins
-        run: echo "SDK=$(python tools/fetch_sdk.py)" >> "$GITHUB_ENV"
+          python-version: ${{ matrix.python }}
       - name: Pack
         run: |
-          cmake -S . -B build -G Ninja -DBUILD_TESTING=OFF
-          cmake --build build --target archipelago_apworld
-          mkdir -p dist && cp build/apworld/rac1.apworld dist/
+          mkdir -p dist
+          python archipelago/tools/pack_apworld.py archipelago/apworld/rac1 dist/rac1.apworld
       - name: Test in Archipelago
         run: |
           git clone --quiet --depth 1 --branch "$ARCHIPELAGO" https://github.com/ArchipelagoMW/Archipelago.git ap
           python -m pip install --quiet -r ap/requirements.txt pytest
-          python -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' dist/rac1.apworld ap/worlds
-          cd ap && python -m pytest worlds/rac1 -q
+          cp dist/rac1.apworld ap/worlds/
+          (cd ap && AP_TEST_WORLDS=rac1 python -m pytest test/general -q)
+          rm ap/worlds/rac1.apworld && cp -r archipelago/apworld/rac1 ap/worlds/rac1
+          (cd ap && python -m pytest worlds/rac1 -q)
+      - name: Generate seeds with random options
+        run: |
+          mkdir -p players out
+          printf '%s\n' 'name: Rac{number}' 'game: Ratchet & Clank' 'Ratchet & Clank:' \
+            '  logic: random' '  shuffle_gadgets: random' '  shuffle_weapons: random' \
+            '  shuffle_vendor: random' '  shuffle_gold_bolts: random' '  shuffle_infobots: random' \
+            '  keep_starting_gear: random' > players/rac.yaml
+          cd ap && for seed in $(seq 1 100); do
+            python Generate.py --player_files_path ../players --outputpath ../out --seed "$seed" --skip_output > /dev/null
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.python == '3.13'
         with:
           name: mods-apworld
           path: dist/rac1.apworld
@@ -256,6 +270,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
+      actions: write
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -293,3 +308,10 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag dist/*
           fi
+      # A release made with this token starts no workflow, so index.yml's release event never comes:
+      # start it from here. A dispatch is an event this token may start a workflow with.
+      - name: Build the index with the new release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run index.yml --ref master

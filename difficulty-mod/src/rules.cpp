@@ -54,6 +54,8 @@ constexpr int kAllowedCells[] = {1, 2, 3, 4, 5, 8};
 constexpr int kSparePvarBytes = 0x80;
 // Gaspar's level number (documented: rules.h: k_gaspar_sparks).
 constexpr int kGasparLevel = 9;
+// Blarg Station's level number (documented: rules.h: k_blarg_spawns).
+constexpr int kBlargLevel = 6;
 
 }  // namespace
 
@@ -474,7 +476,10 @@ Values with_event(const Values& values, int event) {
 }
 
 int clone_budget(int free_slots, int level) {
-    const int b = free_slots - k_pool_reserve - (level == kGasparLevel ? k_gaspar_sparks : 0);
+    const int level_use = level == kGasparLevel  ? k_gaspar_sparks
+                          : level == kBlargLevel ? k_blarg_spawns
+                                                 : 0;
+    const int b = free_slots - k_pool_reserve - level_use;
     return b > 0 ? b : 0;
 }
 

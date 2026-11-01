@@ -6,7 +6,7 @@
   "author": "OpenRAC contributors",
   "description": "Swaps two of the controller's buttons for the game: Cross and Square, Circle and Triangle, or L1 and R1.",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/OpenRAC/rac1-mods",
+  "homepage": "https://github.com/OpenRAC/openrac-mods",
   "type": "script",
   "api": "1.1",
   "multiplayer": "input",

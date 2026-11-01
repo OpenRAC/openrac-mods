@@ -1,7 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # The world's logic: the planets open with their coordinates, Drek needs his gadgets, and a pool
 # turned off keeps its own items.
-from . import RAC1TestBase
+import unittest
+
+from ..data import LOCATIONS, PLANETS
+from ..items import ITEM_TABLE
+from ..locations import LOCATION_NAME_GROUPS
+from ..options import OPTION_PRESETS, RAC1Options
+from ..rules import coordinates
+from .bases import RAC1TestBase
 
 
 class TestDefault(RAC1TestBase):
@@ -49,3 +56,65 @@ class TestPoolsOff(RAC1TestBase):
     def test_vanilla_items_stay(self) -> None:
         location = self.multiworld.get_location("Veldin: the starting Bomb Glove", self.player)
         self.assertEqual(location.item.name, "Bomb Glove")
+
+
+class TestHardNeeds(RAC1TestBase):
+    # Even expert logic: the O2 Mask's jet fight needs the Pilot's Helmet, the Hologuise's
+    # challenge the Hoverboard.
+    options = {"logic": "expert"}
+
+    def test_resort_owner_needs_pilots_helmet(self) -> None:
+        self.collect_all_but(["Pilot's Helmet"])
+        self.assertFalse(self.can_reach_location("Pokitaru: the resort owner"))
+        self.collect_by_name("Pilot's Helmet")
+        self.assertTrue(self.can_reach_location("Pokitaru: the resort owner"))
+
+    def test_gadgetron_ceo_needs_hoverboard(self) -> None:
+        self.collect_all_but(["Hoverboard"])
+        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+        self.collect_by_name("Hoverboard")
+        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+
+
+class TestRelaxed(RAC1TestBase):
+    options = {"logic": "relaxed"}
+
+    def test_no_progression_in_a_purchase_to_save_up_for(self) -> None:
+        swingshot = self.world.create_item("Swingshot")
+        rows = [row for row in LOCATIONS if row.id is not None and row.pricey]
+        self.assertTrue(rows)
+        for row in rows:
+            location = self.multiworld.get_location(row.name, self.player)
+            self.assertFalse(location.item_rule(swingshot), row.name)
+            self.assertTrue(location.item_rule(self.world.create_item("Gold Bolt")), row.name)
+
+
+class TestStandardGoldBoltsOff(RAC1TestBase):
+    # No filler in the pool: the expensive purchases still fill.
+    options = {"shuffle_gold_bolts": False}
+
+
+class TestStartingGearShuffled(RAC1TestBase):
+    options = {"keep_starting_gear": False}
+
+    def test_bomb_glove_in_the_pool(self) -> None:
+        self.assertIn("Bomb Glove", [item.name for item in self.multiworld.itempool])
+
+
+class TestPresets(unittest.TestCase):
+    def test_presets_name_options(self) -> None:
+        for preset, values in OPTION_PRESETS.items():
+            for option in values:
+                self.assertIn(option, RAC1Options.type_hints, preset)
+
+
+class TestData(unittest.TestCase):
+    def test_rules_name_known_items(self) -> None:
+        # Every item a rule asks for is in the pool, so a rule can never be impossible.
+        for row in LOCATIONS:
+            for name in row.hard + row.soft:
+                self.assertIn(name, ITEM_TABLE, row.name)
+
+    def test_every_planet_opens(self) -> None:
+        for planet in PLANETS[1:]:
+            self.assertTrue(coordinates(planet), planet)

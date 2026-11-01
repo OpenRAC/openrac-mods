@@ -3,7 +3,7 @@
 # Archipelago options. A pool turned off keeps its game's own items where they are.
 from dataclasses import dataclass
 
-from Options import Choice, DefaultOnToggle, PerGameCommonOptions
+from Options import Choice, DefaultOnToggle, OptionGroup, PerGameCommonOptions, StartInventoryPool
 
 
 class Logic(Choice):
@@ -59,3 +59,17 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_gold_bolts: ShuffleGoldBolts
     shuffle_infobots: ShuffleInfobots
     keep_starting_gear: KeepStartingGear
+    start_inventory_from_pool: StartInventoryPool
+
+
+OPTION_GROUPS = [
+    OptionGroup(
+        "Pools",
+        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, KeepStartingGear],
+    ),
+]
+
+OPTION_PRESETS = {
+    "Only weapons and gold bolts": {"shuffle_gadgets": False, "shuffle_infobots": False},
+    "Expert": {"logic": "expert"},
+}

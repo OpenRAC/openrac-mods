@@ -1,0 +1,13 @@
+{
+  "ammo-max": 8,
+  "archipelago": 9,
+  "button-swap": 10,
+  "difficulty": 11,
+  "dualsense": 12,
+  "item-randomizer": 13,
+  "keyboard-mouse": 14,
+  "live-splits": 15,
+  "lock-strafe": 16,
+  "multiplayer": 17,
+  "xbox-icons": 18
+}
