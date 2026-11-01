@@ -28,6 +28,10 @@ bool Coop::rejoin() {
 }
 
 void Coop::send_play(std::int32_t target, const Bytes& save, int level, bool joining) {
+    if (announce_) {
+        announce_(target);
+    }
+
     session_.send_data(
         target,
         Writer()

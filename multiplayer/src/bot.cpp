@@ -359,6 +359,29 @@ std::string Bot::run(const std::string& line) {
         return parts_.game.play_scene(scene) ? "ok" : "error refused";
     } else if (command == "bolts") {
         return std::to_string(parts_.game.bolts(0));
+    } else if (command == "cosave") {
+        CoSave& c = parts_.cosave;
+        return "{\"on\":" + std::string(c.on() ? "true" : "false") + ",\"slot\":" + std::to_string(c.slot())
+               + ",\"key\":" + std::to_string(c.key()) + ",\"saves\":" + std::to_string(parts_.game.card_saves())
+               + ",\"acked\":" + std::to_string(c.acked()) + ",\"sent_to\":" + std::to_string(c.sent_to())
+               + "}";
+    } else if (command == "saveparty") {
+        return parts_.cosave.save_party() ? "ok" : "error refused";
+    } else if (command == "gamesave") {
+        return parts_.game_save() ? "ok" : "error refused";
+    } else if (command == "continue") {
+        // Continue as host from the Saves page: co-op slot N, then a party on the server.
+        int slot = -1;
+        in >> slot;
+        const Bytes save = parts_.game.card_read(slot);
+
+        if (save.empty()) {
+            return "error no such save";
+        }
+
+        parts_.cosave.choose_slot(slot);
+        parts_.coop.choose(save, "A save");
+        parts_.session.create(parts_.listed());
     } else if (command == "fall") {
         const float out[3] = {1.0f, 1.0f, 100.0f};
         parts_.teleport(out);

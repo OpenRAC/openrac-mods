@@ -35,6 +35,18 @@ public:
     bool start(int level, const mp::Bytes& save) override;
     bool save_usable(const mp::Bytes& save) override;
     std::uint32_t sim_digest(int level) override;
+    bool has_card_filter() override;
+    bool card_filter(int mode) override;
+    void card_slot(int slot) override;
+    bool card_write(int slot, const mp::Bytes& save) override;
+    mp::Bytes card_read(int slot) override;
+    std::uint32_t card_saves() override;
+    std::string card_note(int slot) override;
+    void card_note_write(int slot, const std::string& text) override;
+    std::int64_t wall_seconds() override;
+#ifdef MULTIPLAYER_BOT
+    bool game_save();
+#endif
 
     bool travel(int level) override;
 

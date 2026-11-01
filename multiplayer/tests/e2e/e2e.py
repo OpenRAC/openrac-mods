@@ -17,6 +17,7 @@ import re
 import signal
 import socket
 import subprocess
+import hashlib
 import sys
 import time
 from pathlib import Path
@@ -495,6 +496,9 @@ def scenario_smoke(env, args):
 def start_two(env, args, level_note=True):
     host = env.client("Host1", args.link_args)
     member = env.client("Member1", args.link_args)
+    if args.scenario == "cosave":
+        seed_save(env, host, args)
+        seed_save(env, member, args)
     reach_title(host)
     reach_title(member)
     party(env, host, [member])
@@ -937,9 +941,94 @@ def scenario_weapons(env, args):
     compare_worlds(env, [host, member], "after the shooting")
 
 
+def card_files(c):
+    """Each file of a game's card and its hash: {"BESCES-50916RATCHET/save0.bin": hash}."""
+    root = c.dir / "cards"
+    return {
+        str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+    }
+
+
+def own_saves(c):
+    """The hashes of the player's own saves: everything on the card outside the party's folder."""
+    return {k: v for k, v in card_files(c).items() if "-coop" not in k.split("/")[0]}
+
+
+def coop_save(c, slot):
+    """The bytes of a co-op slot; None for none."""
+    found = [p for p in (c.dir / "cards").glob(f"*-coop/save{slot}.bin")]
+    return found[0].read_bytes() if found else None
+
+
+def seed_save(env, c, args):
+    """A real save on this client's card, of the disc's own folder, to prove it stays."""
+    if not args.seed_save:
+        return
+    source = Path(args.seed_save)
+    folder = c.dir / "cards" / source.parent.name
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "save0.bin").write_bytes(source.read_bytes())
+
+
+def scenario_cosave(env, args):
+    """A party's saves: the game's own saves and Save the party land in each player's co-op slot,
+    the host's reach every member, each player's own saves stay byte for byte, a member can host
+    from its slot, and after the party the game saves to its own card again."""
+    host, member = start_two(env, args)
+    time.sleep(args.settle)
+    before = {c.name: own_saves(c) for c in (host, member)}
+    env.report["notes"]["own saves"] = {k: len(v) for k, v in before.items()}
+    states = {c.name: c.json("cosave") for c in (host, member)}
+    env.check("everyone plays in a co-op slot", all(s["on"] and s["slot"] >= 0 for s in states.values()), json.dumps(states))
+    env.check("the same party", states[host.name]["key"] == states[member.name]["key"], json.dumps(states))
+    slots = {c.name: states[c.name]["slot"] for c in (host, member)}
+    env.check("a new game's copy is there", all(coop_save(c, slots[c.name]) for c in (host, member)))
+
+    # One of the game's own saves on each side, as a gold bolt's pickup makes one.
+    for c in (member, host):
+        saves = c.json("cosave")["saves"]
+        env.check(f"{c.name}'s game asked to save", c.ask("gamesave") == "ok")
+        env.check(
+            f"{c.name}'s game saved through the filter",
+            wait(f"{c.name}'s save", lambda: c.json("cosave")["saves"] > saves, 20),
+        )
+
+    # The host's last save is the member's too.
+    def same():
+        a, b = coop_save(host, slots[host.name]), coop_save(member, slots[member.name])
+        return a is not None and a == b
+
+    env.check("the host's save reached the member", wait("the same bytes", same, 20))
+    env.check("the member said it has it", wait("the ack", lambda: host.json("cosave")["acked"] == 1, 15))
+    env.report["notes"]["size"] = len(coop_save(host, slots[host.name]))
+    env.check("a save's size", len(coop_save(host, slots[host.name])) == 59912)
+
+    # Save the party, asked by the member.
+    time.sleep(args.settle)
+    env.check("Save the party, from a member", member.ask("saveparty") == "ok")
+    env.check("the host's copy follows", wait("the same bytes", same, 20))
+    for c in (host, member):
+        env.check(f"{c.name}'s own saves are untouched", own_saves(c) == before[c.name])
+
+    # The member leaves: the last save, the filter on until the title, the card its own after.
+    member.ask("leave")
+    wait("the member at the title", lambda: member.status()["phase"] == PHASE_FRONT_END, 60)
+    released = wait("the filter off", lambda: not member.json("cosave")["on"], 20)
+    env.check("the filter goes at the title", released)
+    env.check("its own saves are still untouched", own_saves(member) == before[member.name])
+
+    # It hosts from its slot: the save loads, and the host of before follows it to the same slot.
+    answer = member.ask(f"continue {slots[member.name]}")
+    env.check("Continue as host", answer == "ok", answer)
+    env.report["notes"]["continued"] = member.status()
+
+
 SCENARIOS = {
     "save": scenario_save,
     "smoke": scenario_smoke,
+    "cosave": scenario_cosave,
     "keys": scenario_keys,
     "bolts": scenario_bolts,
     "hostdeath": scenario_host_death,
@@ -998,6 +1087,7 @@ def main():
     parser.add_argument("--late-difficulty", help="the later members', when they are others")
     parser.add_argument("--member-mods", help="more mods every member has and the host has not, by id")
     parser.add_argument("--late-refused", action="store_true", help="midjoin: the late member differs")
+    parser.add_argument("--seed-save", help="cosave: a save file put on each card first")
     parser.add_argument("--game-arg", action="append")
     parser.add_argument("--game-env", action="append")
     args = parser.parse_args()

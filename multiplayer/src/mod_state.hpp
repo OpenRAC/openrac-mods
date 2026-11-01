@@ -22,6 +22,7 @@
 #include "bot.hpp"
 #include "connection.hpp"
 #include "coop.hpp"
+#include "cosave.hpp"
 #include "direct.hpp"
 #include "menu.hpp"
 #include "progress.hpp"
@@ -74,6 +75,8 @@ constexpr std::uint64_t kListMs = 3000;
 /* The Saves page's New game, the card's slots after it; what the save chosen is for. */
 constexpr int kNewGameItem = 0;
 constexpr int kSaveSlots = 5;
+/* After the card's slots, Continue as host: the party's own saves (cosave.hpp). */
+constexpr int kContinueItem = kSaveSlots + 1;
 
 enum class SavesFor {
     kCreate,
@@ -98,6 +101,7 @@ struct State {
     std::unique_ptr<mp::World> world;
     std::unique_ptr<mp::Progress> progress;
     std::unique_ptr<mp::PartyMods> mods;
+    std::unique_ptr<mp::CoSave> cosave;
     mp::Router router;             // where a received DATA goes (kinds.hpp)
     bool listed_mods = false;      // the mods listed, once they had all loaded
     bool told_refused = false;     // the page of why this party's game is refused was shown
@@ -115,6 +119,7 @@ struct State {
     std::uint64_t frame_ms = 0;    // when the game last ticked (on_frame)
     bool start_held = false;       // Start as the pad last reported it
     SavesFor saves_for = SavesFor::kCreate;
+    bool saves_coop = false;       // the Saves page shows the party's own saves
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
     std::string notice;  // the last refusal or news, until the next action
     std::string banner;  // the line shown over the game (play_notice)
@@ -125,6 +130,7 @@ struct State {
     openrac::UiPage pause_page;  // the pause menu's Multiplayer page (Options, in a level)
     int pause_leave = -1;        // its Leave party item, -1 out of a party
     int pause_rules = -1;        // its Party rules item, -1 out of a party
+    int pause_save = -1;         // its Save the party item, -1 out of a party's game
     std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
     std::uint64_t net_ms = 0;    // when the verbose log last gave the network's counts
     std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame

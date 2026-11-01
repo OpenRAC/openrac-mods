@@ -56,6 +56,12 @@ int Coop::figures() const {
     }));
 }
 
+void Coop::about_to_start(const Bytes& save) {
+    if (starting_) {
+        starting_(save);
+    }
+}
+
 bool Coop::start() {
     // The host starts, once, from the title, when every member is ready.
     if (!session_.is_host() || play_ != 0 || game_.status().phase != kPhaseFrontEnd
@@ -87,6 +93,8 @@ bool Coop::start() {
                        + std::to_string(chosen_.size()) + " bytes") + " for the party");
 
     // The host plays it too; a refusal (a save the game will not take) is said.
+    about_to_start(chosen_);
+
     if (!game_.start(level, chosen_)) {
         notice_ = "The game would not start";
         return false;
@@ -431,13 +439,14 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
         if (status.phase == kPhaseFrontEnd) {
             pending_ = false;
 
-            // The host's save is not trusted: one that does not pass is not loaded, and not asked
+            // The host's save is not trusted: one that does not pass is not loaded, kept or asked
             // for again.
             if (pending_save_ && !game_.save_usable(save_)) {
                 notice_ = kBadSaveMember;
                 log("refused the host's save");
                 applied_ = pending_play_;
-            } else if (game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
+            } else if (about_to_start(pending_save_ ? save_ : Bytes{});
+                       game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
                 applied_ = pending_play_;
                 start_ms_ = now;
                 joining_ = pending_joining_;

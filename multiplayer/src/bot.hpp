@@ -39,6 +39,7 @@
 
 #include "connection.hpp"
 #include "coop.hpp"
+#include "cosave.hpp"
 #include "party_mods.hpp"
 #include "session.hpp"
 #include "world.hpp"
@@ -64,6 +65,9 @@ public:
         std::function<int(const std::string&)> width;
         /* The description a party is listed with. */
         std::function<std::string()> listed;
+        /* The party's saves, and one of the game's own saves asked for as a gold bolt asks. */
+        CoSave& cosave;
+        std::function<bool()> game_save;
     };
 
     explicit Bot(Parts parts);

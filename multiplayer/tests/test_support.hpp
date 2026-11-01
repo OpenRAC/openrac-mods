@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "coop.hpp"
+#include "cosave.hpp"
 #include "menu.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
@@ -120,6 +121,62 @@ struct FakeGame : mp::Game {
         const auto it = digests.find(level);
         return it != digests.end() ? it->second : 0;
     }
+
+    /* The card: `card_on` a port with the filter. What the filter holds, the co-op slots and their
+     * notes, and the game's own card, where a save the game makes lands with the filter off: a
+     * test's own_saves is a player's story saves. */
+    bool card_on = false;
+    int filter = mp::kCardPass;
+    int hint = -1;
+    bool write_refused = false;
+    bool pass_refused = false;
+    std::map<int, Bytes> slots;
+    std::map<int, std::string> notes;
+    Bytes own_saves;
+    std::uint32_t saves = 0;
+    std::int64_t wall = 1000;
+
+    /* The game saves, as the port takes it: into the party's slot under the filter, else the card. */
+    void game_saves(const Bytes& bytes) {
+        if (filter == mp::kCardRedirect) {
+            slots[hint] = bytes;
+            ++saves;
+        } else {
+            own_saves = bytes;
+        }
+    }
+
+    bool has_card_filter() override { return card_on; }
+
+    bool card_filter(int mode) override {
+        if (mode == mp::kCardPass && pass_refused) {
+            return false;
+        }
+
+        filter = mode;
+        return true;
+    }
+
+    void card_slot(int slot) override { hint = slot; }
+
+    bool card_write(int slot, const Bytes& save) override {
+        if (write_refused || filter != mp::kCardRedirect) {
+            return false;
+        }
+
+        slots[slot] = save;
+        return true;
+    }
+
+    Bytes card_read(int slot) override { return slots.count(slot) != 0 ? slots[slot] : Bytes{}; }
+
+    std::uint32_t card_saves() override { return saves; }
+
+    std::string card_note(int slot) override { return notes.count(slot) != 0 ? notes[slot] : std::string(); }
+
+    void card_note_write(int slot, const std::string& text) override { notes[slot] = text; }
+
+    std::int64_t wall_seconds() override { return wall; }
 
     std::vector<mp::PartyRules> party_rules() override { return published; }
 
@@ -408,6 +465,7 @@ struct Player {
     mp::World world;
     mp::Progress progress;
     mp::PartyMods mods;
+    mp::CoSave cosave;
     mp::Router router;
 
     explicit Player(std::int32_t id_)
@@ -416,7 +474,11 @@ struct Player {
           coop(session, game, [this] { return clock; }),
           world(session, game, coop, [this] { return clock; }),
           progress(session, game, coop),
-          mods(session, game, {}, [this] { return clock; }) {
+          mods(session, game, {}, [this] { return clock; }),
+          cosave(session, game, [this] { return clock; }) {
+        coop.set_save_hooks([this](std::int32_t target) { cosave.announce(target); },
+                            [this](const Bytes& save) { cosave.starting(save); });
+        router.route(mp::Owner::kSave, [this](std::int32_t sender, const Bytes& bytes) { cosave.handle(sender, bytes); });
         router.fallback([this](std::int32_t sender, const Bytes& bytes) { coop.handle(sender, bytes); });
         router.route(mp::Owner::kMods, [this](std::int32_t sender, const Bytes& bytes) { mods.handle(sender, bytes); });
         router.route(mp::Owner::kWorld, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
@@ -497,6 +559,7 @@ inline void tick(std::vector<Player*> players, std::uint64_t ms) {
         p->coop.tick(p->clock);
         p->world.tick(p->clock);
         p->progress.tick(p->clock);
+        p->cosave.tick(p->clock, p->coop.playing());
         p->session.flush();
     }
     route(players);
@@ -1123,6 +1186,7 @@ void run_pause_tests();
 void run_bolts_tests();
 void run_scenes_tests();
 void run_party_tests();
+void run_saves_tests();
 void run_sim_tests();
 void run_save_tests();
 void run_cross_tests();

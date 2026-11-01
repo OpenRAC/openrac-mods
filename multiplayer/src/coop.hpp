@@ -294,6 +294,10 @@ struct MobyRun {
     float distance = 0;
 };
 
+/* What the game's card writes do (Game::card_filter; the SDK's OPENRAC_CARD_*). */
+constexpr int kCardPass = 0;
+constexpr int kCardRedirect = 2;
+
 /* openrac_moby_run.ran and .menu (OPENRAC_MOBY_RUN_*, OPENRAC_RUN_MENU_*). */
 constexpr int kRunNone = -1;
 constexpr int kRunFar = 0;
@@ -344,6 +348,18 @@ public:
     virtual bool unlock_planet(int /*planet*/) { return false; }
     /* The world kept running under the game's menus (the SDK's play_overlay_pause). */
     virtual void overlay_pause(bool /*on*/) {}
+    /* The port's card filter (cosave.hpp, the SDK's card_filter and its fellows): none in a game
+     * without it. */
+    virtual bool has_card_filter() { return false; }
+    virtual bool card_filter(int /*mode*/) { return false; }
+    virtual void card_slot(int /*slot*/) {}
+    virtual bool card_write(int /*slot*/, const Bytes& /*save*/) { return false; }
+    virtual Bytes card_read(int /*slot*/) { return {}; }
+    virtual std::uint32_t card_saves() { return 0; }
+    virtual std::string card_note(int /*slot*/) { return {}; }
+    virtual void card_note_write(int /*slot*/, const std::string& /*text*/) {}
+    /* The clock on the wall, in seconds since 1970. */
+    virtual std::int64_t wall_seconds() { return 0; }
     /* The scene playing skipped as the game's own skip does (the SDK's play_skip). */
     virtual void skip() {}
     /* The level's scene `scene` started as the game's own trigger starts it, once the player is in
@@ -429,6 +445,14 @@ public:
 
     /* Who may get the host's game (party_mods.hpp: a member whose mods match); none set: anyone. */
     void set_gate(std::function<bool(std::int32_t)> gate) { gate_ = std::move(gate); }
+
+    /* The party's saves (cosave.hpp): told before a PLAY goes to a target, and before a game of the
+     * party's starts here, with the save it starts from. */
+    void set_save_hooks(std::function<void(std::int32_t)> announce,
+                        std::function<void(const Bytes&)> starting) {
+        announce_ = std::move(announce);
+        starting_ = std::move(starting);
+    }
 
     /* The host's choice (Create match's save picker): a new game (no bytes) or a save, and what the
      * lobby and the list say of it. */
@@ -535,6 +559,7 @@ public:
 
 private:
     void send_play(std::int32_t target, const Bytes& save, int level, bool joining);
+    void about_to_start(const Bytes& save);
     void tick_joining(std::uint64_t now, const GameStatus& status);
     void on_pose(std::int32_t sender, const Bytes& bytes);
     void on_poses(std::int32_t sender, Reader& r);
@@ -599,6 +624,9 @@ private:
     /* The host's game (0: none yet): its id, and the members told of it. */
     std::int32_t play_ = 0;
     std::vector<std::int32_t> told_;
+    std::function<void(std::int32_t)> announce_;
+    std::function<void(const Bytes&)> starting_;
+
     /* A member: the host's PLAY waiting to be started (its mode, level and save), and which play
      * the member started last. */
     bool pending_ = false;

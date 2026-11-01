@@ -15,8 +15,7 @@ Friends match their mods with a mod code: **Share these mods** on the launcher's
 one, and entering it there shows what would change before anything does (OpenRAC's
 `docs/port/MODS.md`, section 10).
 
-What is still to be decided (saving each player's progress, the game's own saves on members'
-cards, and more), and what already is, is in [DECISIONS.md](DECISIONS.md).
+What is still to be decided, and what already is, is in [DECISIONS.md](DECISIONS.md).
 
 ## Playing
 
@@ -36,7 +35,7 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 |---|---|
 | Home | **Browse games**: the games others host. **Create match**: a party of your own, from a save (the next page), which Browse games lists and its code invites to. **Join by code**: the next page. The three wait for the server's hello (the cursor moves up to Browse games when it comes). **Direct connect**: the next page, no server needed. Below them, your name |
 | Browse games | **Refresh**, then a row for each game being hosted that has room: its host's name, its save ("Pokitaru, 12 gold bolts", or "New game"), how many are in it (`2/4`), and **(differs)** when your game would not fit it: other gameplay mods, settings or versions; the footer says what that means. Cross on a row joins it, and a game marked (differs) then says how. The list is asked again every 3 seconds while the page shows; with none, a line says so and points at Create match |
-| Choose a save | **New game**, then your memory card's five saves, each with its planet, gold bolts and time played (an empty slot is dim). The one chosen is what the party plays; your card is never written by the party. Create match and Host directly both come here first |
+| Choose a save | **New game**, then your memory card's five saves, each with its planet, gold bolts and time played (an empty slot is dim). The party plays a copy of the one chosen; your own saves are never written by a party. **Continue as host** lists the party saves on this card (below). Create match and Host directly both come here first |
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
 | Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
 | Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**; **Checking your mods...** until the host answers; **See why you can't join** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready, mods match)**, **(mods differ)** or **(checking mods)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, the party is over for everyone. Leaving a direct party goes back to Home and to the server |
@@ -282,6 +281,25 @@ game is linked in-process, not by a socket. It keeps the server's limits: frames
 of 1 to 32 characters and chat of 1 to 256, a party of 4, the same rates per connection with
 strikes, hello within 10 seconds, 8 connections an address (and 8 clients at once).
 
+## Party saves
+
+Everyone in a party, the host too, plays in a co-op slot, a folder of its own beside the game's on
+the memory card: the party's saves never touch a player's own. The party starts from a copy of the
+save chosen, the first moment of a new game for a new one. The lobby says so, the pause menu's
+Multiplayer page shows which slot it is, and **Party saved in Co-op N** shows over the game at each
+save.
+
+| When | What happens |
+|---|---|
+| The game saves (a gold bolt, a story moment, leaving by ship, the pause menu's Save) | it lands in that player's co-op slot. The host's also goes to every member's |
+| **Save the party** (pause menu, Multiplayer) | the host saves now and it reaches everyone; a member's press asks the host |
+| A player leaves, or the party is lost | a last save of what that game holds. Until it is back at the title it keeps saving to the co-op slot |
+| **Continue as host** (Saves page) | any co-op slot starts a new party from it, on the server or directly. The same party comes back to the same slots |
+
+A save is written whole or not at all: a crash or a dropped connection in the middle leaves the last
+one, and the one before stays beside it. A late joiner gets its copy without a word. The launcher
+lists co-op saves on their own, under Saves.
+
 ## How it works
 
 The mod needs OpenRAC's mod interface 1.11: 1.7's pages of the game's own menus put the
@@ -377,7 +395,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 | 66 BATCH | anyone | length u16 + a message, each | messages of the game for one target in one DATA, read as if each came alone |
 
-A member's game is started from the title with the host's save (`play_start`), its own card left
+A member's game is started from the title with the host's save (`play_start`), its own saves left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`),
 starts in the host's level and has the world from the host once it says it is there (HELLO). Each game shows the others' poses through a buffer per player
 (`src/play.hpp`, after INTERPOLATION.md): played back about 100 ms behind (more with jitter),
@@ -398,9 +416,13 @@ that player. Mobys near the members run in the host's game as if near its camera
 ## Known limits
 
 - The host's save is where the party starts. Bolts, ammo, health and what a member spends are
-  each player's own; only the items, gold bolts and planets are shared (above). The game's own saves
-  (a gold bolt's pickup, a story moment) still write that player's card: the party's starting it
-  does not (play_start), its saves later on do.
+  each player's own; only the items, gold bolts and planets are shared (above). A co-op slot the
+  host's last save reached holds the host's bolts, ammo and nanotech, so a member who hosts from it
+  takes those on.
+- Five co-op slots: a sixth party takes the slot saved longest ago (the save before stays beside
+  it, as `.bak`, until that slot saves again).
+- The game's own Save page in a party still lists the player's own slots; whichever is picked, the
+  save goes to the party's slot, and the line over the game says so.
 - Only those three lists are shared: what the game keeps elsewhere (the gold weapons, the skill
   points, a level's own story flags) stays each game's.
 - Vendors and the ship are each game's own. A member's flight to the new planet is the game's

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <ctime>
 
 namespace mpmod {
 
@@ -50,6 +51,42 @@ std::uint32_t ModGame::sim_digest(int level) { return mod_.sim_digest(level); }
 bool ModGame::start(int level, const mp::Bytes& save) {
     return mod_.play_start(level, save) == OPENRAC_HOOK_OK;
 }
+
+bool ModGame::has_card_filter() { return mod_.has_save_filter() && mod_.has_card_notes(); }
+
+bool ModGame::card_filter(int mode) {
+    return mod_.card_filter(mode, mode == mp::kCardRedirect ? mp::kCoFolder : "");
+}
+
+void ModGame::card_slot(int slot) { mod_.card_slot_hint(slot); }
+
+bool ModGame::card_write(int slot, const mp::Bytes& save) { return mod_.coop_save_write(slot, save); }
+
+mp::Bytes ModGame::card_read(int slot) { return mod_.save_read2(mp::kCoFolder, slot); }
+
+std::uint32_t ModGame::card_saves() { return mod_.card_saves(); }
+
+std::string ModGame::card_note(int slot) { return mod_.card_note_read(mp::kCoFolder, slot); }
+
+void ModGame::card_note_write(int slot, const std::string& text) { mod_.card_note_write(slot, text); }
+
+std::int64_t ModGame::wall_seconds() { return static_cast<std::int64_t>(std::time(nullptr)); }
+
+#ifdef MULTIPLAYER_BOT
+bool ModGame::game_save() {
+    // memcard_Save(0, -1), as a gold bolt's pickup calls it.
+    const ProgressDisc* disc = progress_disc();
+    const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_0020BFC8" : "FUN_0020b178";
+    const auto save = name != nullptr ? mod_.function<std::int32_t (*)(std::int32_t, std::int32_t)>(name) : nullptr;
+
+    if (save == nullptr) {
+        return false;
+    }
+
+    save(0, -1);
+    return true;
+}
+#endif
 
 bool ModGame::travel(int level) { return mod_.play_travel(level) == OPENRAC_HOOK_OK; }
 

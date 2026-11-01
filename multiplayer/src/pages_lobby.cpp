@@ -88,6 +88,11 @@ openrac::UiContent lobby_content() {
         c.items.push_back(openrac::UiItem::text("Receiving the host's game..."));
     }
 
+    // Where its saves go: never over a player's own.
+    if (g->game->has_card_filter() && c.items.size() + s.members().size() + why.size() + 1 < OPENRAC_UI_ITEMS_MAX) {
+        c.items.push_back(openrac::UiItem::text(mp::kCoSavesLine));
+    }
+
     for (const mp::Member& m : s.members()) {
         const mp::Fit fit = g->mods->fit(m.id);
         mp::LobbyMemberInput line;

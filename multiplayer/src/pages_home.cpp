@@ -149,6 +149,14 @@ void show_pause() {
     c.title = mp::kPartyPageTitle;
     g->pause_leave = -1;
     g->pause_rules = -1;
+    g->pause_save = -1;
+
+    // Where the party's saves go, and saving now, with the party's game on.
+    if (g->cosave->on() && s.in_party()) {
+        c.items.push_back(openrac::UiItem::text(g->cosave->where()));
+        g->pause_save = static_cast<int>(c.items.size());
+        c.items.push_back(openrac::UiItem::button(mp::kSavePartyLabel));
+    }
 
     for (const mp::PartyLine& line : mp::party_lines(in)) {
         switch (line.kind) {
@@ -177,6 +185,9 @@ void show_pause() {
 void leave_party() {
     g->notice.clear();
     g->leaving = true;
+    // The last save, while the party can still get it.
+    g->cosave->leaving();
+    g->session->flush();
 
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
         g->connection->stop_hosting();
@@ -193,6 +204,8 @@ void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
         const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
         page.confirm(mp::pause_leave_question(hosting, s.is_host()), kAskLeave);
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_save && g->pause_save >= 0) {
+        page.sound(g->cosave->save_party() ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_rules && g->pause_rules >= 0) {
         show_rules();
         g->rules.open();

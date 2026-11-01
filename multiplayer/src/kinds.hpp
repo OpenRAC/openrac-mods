@@ -12,7 +12,7 @@
  * `kind::` names, so a number is written once.
  *
  * Reserved ranges (free until their package lands):
- *    32-35 save, 36-39 shared progress, 40-43 host migration, 44-47 late join, 48-51 shots,
+ *    36-39 shared progress, 40-43 host migration, 44-47 late join, 48-51 shots,
  *    52-55 camera, 56-59 tether, 60-63 and 67-70 lobby (the party's rules and kicks); free:
  *    0, 71-127 (and 128-255, which the wire does not use).
  *
@@ -70,6 +70,11 @@ constexpr std::uint8_t kShotX = 48;
 constexpr std::uint8_t kScene = 20;
 constexpr std::uint8_t kSceneState = 21;
 constexpr std::uint8_t kPoses = 25;
+// The party's saves (cosave.hpp)
+constexpr std::uint8_t kCoSave = 32;
+constexpr std::uint8_t kCoSaveAck = 33;
+constexpr std::uint8_t kSaveNow = 34;
+constexpr std::uint8_t kCoParty = 35;
 // World (world.hpp)
 constexpr std::uint8_t kWorld = 9;
 constexpr std::uint8_t kKilled = 10;
@@ -140,6 +145,10 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kMods, "MODS", Owner::kMods},
     {kind::kFits, "FITS", Owner::kMods},
     {kind::kRules, "RULES", Owner::kMods},
+    {kind::kCoSave, "COSAVE", Owner::kSave},
+    {kind::kCoSaveAck, "COSAVE_ACK", Owner::kSave},
+    {kind::kSaveNow, "SAVE_NOW", Owner::kSave},
+    {kind::kCoParty, "COPARTY", Owner::kSave},
     {kind::kLink, "LINK", Owner::kLobby},
     {kind::kLinks, "LINKS", Owner::kLobby},
     {kind::kBatch, "BATCH", Owner::kLobby},
@@ -148,7 +157,6 @@ inline constexpr KindInfo kKinds[] = {
 /* Kinds 4 to 31 are shared out one by one (the owners interleave there); the rest are ranges.
  * The ranges listed are the reserved ones and the lobby's 64 to 66. */
 inline constexpr KindRange kReservedRanges[] = {
-    {32, 35, Owner::kSave},
     {36, 39, Owner::kShare},
     {40, 43, Owner::kMigrate},
     {44, 47, Owner::kJoin},

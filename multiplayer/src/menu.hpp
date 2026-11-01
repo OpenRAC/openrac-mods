@@ -167,6 +167,9 @@ inline std::string link_text(std::int32_t ping_ms, bool udp) {
 /* The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
  * host's level, a line per member (the host marked, the player's own), then Party rules and Leave
  * party. */
+/* The pause page's item that saves the party (cosave.hpp). */
+constexpr const char* kSavePartyLabel = "Save the party";
+
 inline std::vector<PartyLine> party_lines(const PartyPageInput& in) {
     using Kind = PartyLine::Kind;
 

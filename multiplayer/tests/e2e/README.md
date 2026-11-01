@@ -20,6 +20,7 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 
 | Scenario | What it plays |
 |---|---|
+| `cosave` | the party's saves: the game's own saves and Save the party land in each player's co-op slot, the host's reach the member byte for byte, every file of each player's own card stays the same by hash (`--seed-save FILE` puts a real save there first), the filter goes at the title, a member hosts from its slot |
 | `keys` | a member's death: the key map, the drives and the crates afterwards |
 | `crates` | crates broken from both sides, a member's death among them (`--deaths`), a late member (`--join`): every game's crates compared, and the mobys' places and hidden flags |
 | `bolts` | bolts of crates broken on each side reach the player who stands there, none left over in either game |

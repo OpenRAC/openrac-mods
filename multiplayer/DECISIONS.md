@@ -10,45 +10,6 @@ puppets, the interpolation) are kept with the project's planning notes, not in t
 
 ## Open
 
-### 1. Saving each player's progress
-
-Today the host's save is what the party plays. It is sent to the others at the start, and they
-play it without it being written to their cards. Nothing saves the party's progress for anyone
-but the host, and only when the host's own game saves (see 2).
-
-Choices:
-
-- **(a) Host only.** The host's card holds the session; the others keep nothing. Simplest, and
-  what a dropped-in friend expects.
-- **(b) A co-op copy for everyone.** When the host's game saves, every member gets the same
-  progress written to a separate co-op slot on their own card (never over their own story
-  saves), so they can host the session later, or continue it with the same friends.
-- **(c) Merged into each player's own save.** Members bring their own save; what they collect in
-  the party (items, gold bolts, planets) is added to it. The most "it all counts", but two
-  players' stories can disagree (planets, cutscenes seen), and that needs rules of its own.
-
-Recommendation: **(b)**. It keeps each player's own story saves safe and lets anyone resume the
-session. It needs a chosen slot (or a separate co-op card folder), a "save the party" moment the
-host triggers (the game's own saves, or a Save item on the pause page), and the mod writing the
-host's save to each member when it happens.
-
-### 2. The game's own saves on members' cards
-
-The game saves by itself at some moments (a gold bolt pickup, story points). In a party these
-still write each **member's** card with the party's progress, over whatever save slot the game
-last used, even though the party never meant to.
-
-Choices:
-
-- **(a) Block them on members:** a port hook on the game's save routine (`memcard_Save`) that does
-  nothing in a member's game. Still unknown: whether that routine also keeps checkpoint state, so
-  skipping it may break respawning. That has to be checked in the decomp first.
-- **(b) Redirect them** to the co-op slot of 1(b).
-- **(c) Leave them**, and say so in the README (the current state).
-
-Recommendation: **(b)** if 1(b) is chosen, otherwise **(a)**, once the checkpoint question is
-answered. Until then the README warns that a member's card can be written.
-
 ### 5. What progress is shared
 
 Shared today: owned items (weapons and gadgets), gold bolts and unlocked planets, merged across
@@ -108,6 +69,25 @@ so two players can dig the same one; they could go through the host as a claim. 
 was found: it stays the host's, and a member cannot collect it.
 
 ## Decided
+
+### 1. Saving each player's progress (decided by the user, 2026-10-31)
+
+**A co-op slot for everyone, the host too.** Whatever a party's game saves goes to a slot of its
+own, in a folder beside the game's on each player's card, never over a player's own saves. A
+session starts from a copy of the save chosen. When the host's game saves, every member gets the
+same save in its slot, and anyone can later Continue as host from theirs. A slot is the newest of
+the host's save and that player's game's own: a slot the host's save reached last holds the host's
+bolts, ammo and nanotech, not that player's. Save the party on the pause page saves now.
+
+### 2. The game's own saves (decided by the user, 2026-10-31)
+
+**Redirected**, by a filter on the card's writes where both discs meet (`mc.c`), not by skipping
+`memcard_Save`. Read on both discs: `memcard_Save` holds no respawn state (the clock, the map, the
+level objects' positions, the slot's record and the two parts serialised for the card), so
+filtering is safe. It also turned out a party's game did not save at all unless its player had
+been through the game's own load or save menus first, because the routine does nothing without
+them: the port now sets what it needs for as long as a party plays. The filter stays until the game
+is back at the title, because a game left in a level still holds the party's progress.
 
 | What | Decision | When |
 |---|---|---|

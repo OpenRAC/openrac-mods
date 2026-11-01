@@ -18,7 +18,8 @@
  *   Browse  Refresh, then a row per party with room (its host, its save, how many are in it);
  *           Cross on one joins it; the list is asked again every few seconds;
  *   Saves   New game and the memory card's saves (their planet, gold bolts and time): the one
- *           chosen is what the party plays (Create match, and Host directly);
+ *           chosen is what the party plays (Create match, and Host directly); Continue as host
+ *           shows the party saves of past parties (cosave.hpp) in their place;
  *   Code    a row per character of the code, Left and Right step it through the server's code
  *           alphabet, then Join;
  *   Direct  Host directly and Join by address; Join by address's rows (the address's four octets
@@ -107,7 +108,14 @@ std::string status() {
 /* The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
  * a wait for the others. */
 void show_banner(std::uint64_t now) {
-    if (std::string banner = g->coop->banner(now); banner != g->banner) {
+    // The party's own line first: a save's only says it went well.
+    std::string line = g->coop->banner(now);
+
+    if (line.empty()) {
+        line = g->cosave->banner(now);
+    }
+
+    if (std::string banner = std::move(line); banner != g->banner) {
         g->banner = banner;
         g->mod->play_notice(banner);
     }
@@ -222,6 +230,9 @@ void load(openrac::Mod& mod) {
     g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
     g->progress = std::make_unique<mp::Progress>(*g->session, *g->game, *g->coop);
     g->progress->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
+    g->cosave = std::make_unique<mp::CoSave>(*g->session, *g->game, mp::now_ms);
+    g->coop->set_save_hooks([](std::int32_t target) { g->cosave->announce(target); },
+                            [](const mp::Bytes& save) { g->cosave->starting(save); });
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
@@ -287,7 +298,8 @@ void load(openrac::Mod& mod) {
             }
 
             return width;
-        }, [] { return mp::tagged_description("New game", mp::mods_digest(g->mods->own())); }
+        }, [] { return mp::tagged_description("New game", mp::mods_digest(g->mods->own())); },
+        *g->cosave, [] { return g->game->game_save(); }
     });
 #endif
     g->world->trace(&g->trace);
@@ -298,6 +310,7 @@ void load(openrac::Mod& mod) {
     g->router.route(mp::Owner::kMods, [](std::int32_t sender, const mp::Bytes& bytes) { g->mods->handle(sender, bytes); });
     g->router.route(mp::Owner::kWorld, [](std::int32_t sender, const mp::Bytes& bytes) { g->world->handle(sender, bytes); });
     g->router.route(mp::Owner::kProgress, [](std::int32_t sender, const mp::Bytes& bytes) { g->progress->handle(sender, bytes); });
+    g->router.route(mp::Owner::kSave, [](std::int32_t sender, const mp::Bytes& bytes) { g->cosave->handle(sender, bytes); });
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) { g->router.dispatch(sender, bytes); });
     // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
     // or enemy drops them, and they come here as the host's): the death recorded as the game does it
@@ -489,6 +502,7 @@ void load(openrac::Mod& mod) {
         g->coop->tick(now);
         g->world->tick(now);
         g->progress->tick(now);
+        g->cosave->tick(now, g->coop->playing());
         g->session->flush();
 
         // The network's own account, for reports of a bad link (README, Verbose log).
