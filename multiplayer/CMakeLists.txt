@@ -22,7 +22,8 @@ set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/p
                            tests/play_bolts_test.cpp tests/play_scenes_test.cpp tests/play_party_test.cpp
                            tests/play_sim_test.cpp tests/play_save_test.cpp tests/play_cross_test.cpp
                            tests/play_saves_test.cpp tests/play_tags_test.cpp tests/play_join_test.cpp
-                           tests/play_shared_test.cpp tests/play_lobby_test.cpp)
+                           tests/play_shared_test.cpp tests/play_lobby_test.cpp
+                           tests/play_death_test.cpp)
 list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp)
 
 # The mod's library and the manifest it is packaged with.

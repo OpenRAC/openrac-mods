@@ -136,9 +136,9 @@ void a_host_death_loses_the_party_nothing() {
         tick(all, 50);
     }
 
-    // Dead for the party: deleted again there. What the host spawned is gone from the member too.
+    // Dead for the party: deleted again there. The bolt lying about is made again.
     CHECK(host.game.moby_slot(3) == -1);
-    CHECK(member.world.spawned() == 0);
+    CHECK(member.world.spawned() == 1);
     CHECK(member.world.synced());
 
     // A member's break that reaches the host just as its level is made again is not lost.

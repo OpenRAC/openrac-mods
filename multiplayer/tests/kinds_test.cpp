@@ -72,13 +72,14 @@ void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(60) == Owner::kPartyRules && mp::owner_of(63) == Owner::kPartyRules);
     // The lobby's, all read by the Session and never handed to the game's data.
     CHECK(mp::owner_of(64) == Owner::kLobby && mp::owner_of(67) == Owner::kLobby && mp::owner_of(70) == Owner::kLobby);
-    // Free: 0 and 71 on.
+    CHECK(mp::owner_of(71) == Owner::kWorld && mp::owner_of(72) == Owner::kWorld);
+    // Free: 0 and 73 on.
     CHECK(mp::owner_of(0) == Owner::kCount);
-    CHECK(mp::owner_of(71) == Owner::kCount && mp::owner_of(127) == Owner::kCount);
+    CHECK(mp::owner_of(73) == Owner::kCount && mp::owner_of(127) == Owner::kCount);
 }
 
 /* The chain the registry replaced: the lobby's kinds (session.cpp), then mods 29 to 31, the
- * world's 9 to 17, 22, 24 and 26 to 28, progress 23, and the co-op for the rest. */
+ * world's 9 to 17, 22, 24, 26 to 28, 71 and 72, progress 23, and the co-op for the rest. */
 Owner old_route(std::uint8_t k) {
     if ((k >= 1 && k <= 3) || k == 64 || k == 65 || k == 66) {
         return Owner::kLobby;
@@ -88,7 +89,7 @@ Owner old_route(std::uint8_t k) {
         return Owner::kMods;
     }
 
-    if ((k >= 9 && k <= 17) || k == 22 || k == 24 || (k >= 26 && k <= 28)) {
+    if ((k >= 9 && k <= 17) || k == 22 || k == 24 || (k >= 26 && k <= 28) || k == 71 || k == 72) {
         return Owner::kWorld;
     }
 
