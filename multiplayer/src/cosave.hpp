@@ -14,8 +14,15 @@
  * any other: Continue as host (the Saves page) starts a party from one, whoever made it.
  *
  * A slot has a note beside it: the party it belongs to (a key the host makes when a game starts
- * from anything but a co-op save, which goes on when one does), when it last saved and whose party
- * it was. The same party comes back to the same slot; another takes a free one, then the oldest.
+ * from anything but a co-op save, which goes on when one does), when it last saved, whose party it
+ * was and who is banned from it. The same party comes back to the same slot; another takes a free
+ * one, then the oldest.
+ *
+ * A ban is of a co-op save, against the key of a launcher (the SDK's identity_key, which MODS
+ * carries), so neither a new name nor another address gets round it. It lasts as long as the save:
+ * Continue as host brings it back, and the bans go to the members with COPARTY, so any member's
+ * slot has them when that member hosts it. A key is a text no party can read anything from: a
+ * player's own to give, not a proof of who it is.
  *
  * The filter stays on until the game is back at the title: a party gone leaves the game in a level
  * for a while, with the party's progress in it, and the game's next save would reach the player's
@@ -26,7 +33,8 @@
  *                                                        at most kChunkBytes; `tag` names the save
  *   33 COSAVE_ACK tag u8, ok u8                          member to host: that save is in its slot
  *   34 SAVE_NOW                                          member to host: please save the party
- *   35 COPARTY    key i32                                host to member, before PLAY: whose this is
+ *   35 COPARTY    key i32, count u8, then each ban (string)  host to member, before PLAY: whose
+ *                                                        this is; to all when the bans change
  *
  * The host's save is untrusted here as anywhere: only the host's word counts, the pieces must make
  * a save of a size a game has, and every save written to a slot passes the one check first
@@ -51,6 +59,8 @@ namespace mp {
 /* The card folder and how many slots it has. */
 constexpr const char* kCoFolder = "coop";
 constexpr int kCoSlots = 5;
+/* The most bans a save keeps: a new one past them replaces the oldest. */
+constexpr std::size_t kMaxBans = 32;
 
 /* How long "Party saved" stays, and how soon a player can save the party again. */
 constexpr std::uint64_t kCoSavedMs = 2500;
@@ -64,6 +74,7 @@ struct CoNote {
     std::uint32_t key = 0;
     std::int64_t saved = 0;  // seconds since 1970
     std::string host;
+    std::vector<std::string> bans;  // the keys banned from this save
 };
 
 /* The note's text (lines of name=value, which the launcher reads too) and back; a host's name keeps
@@ -103,6 +114,15 @@ public:
     /* Each tick, `playing` whether the party's game is on. */
     void tick(std::uint64_t now, bool playing);
 
+    /* The bans of the party's save. The host: a key banned, written beside the save at once and
+     * told to the members; lift_bans takes them all away. */
+    bool ban(const std::string& key);
+    void lift_bans();
+    bool banned(const std::string& key) const;
+    const std::vector<std::string>& bans() const { return bans_; }
+    /* The host: the members in the party whose key (`key_of`) is banned; none of its own. */
+    std::vector<Member> banned_members(const std::function<std::string(std::int32_t)>& key_of) const;
+
     /* The Save the party item: the host saves for everyone, a member asks it to. False too soon, or
      * with nothing to save. */
     bool save_party();
@@ -132,6 +152,7 @@ private:
     void write_note();
     void saved(std::uint64_t now);
     void broadcast(const Bytes& save);
+    void bans_changed();
     void take_piece(Reader& r);
     std::string host_name() const;
 
@@ -148,6 +169,7 @@ private:
     std::uint32_t key_ = 0;
     std::uint32_t chosen_key_ = 0;
     std::string host_;
+    std::vector<std::string> bans_;
     std::uint32_t saves_seen_ = 0;
     std::uint64_t saved_until_ = 0;
     std::uint64_t asked_ms_ = 0;

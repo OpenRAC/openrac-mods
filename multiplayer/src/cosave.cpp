@@ -14,8 +14,16 @@ std::string note_text(const CoNote& note) {
     std::string host = note.host;
     host.erase(std::remove_if(host.begin(), host.end(), [](char c) { return c == '\n' || c == '\r'; }),
                host.end());
-    return "format=1\nkey=" + std::to_string(note.key) + "\nsaved=" + std::to_string(note.saved)
-           + "\nhost=" + host + "\n";
+    std::string text = "format=1\nkey=" + std::to_string(note.key) + "\nsaved=" + std::to_string(note.saved)
+                       + "\nhost=" + host + "\n";
+
+    for (const std::string& key : note.bans) {
+        if (valid_key(key)) {
+            text += "ban=" + key + "\n";
+        }
+    }
+
+    return text;
 }
 
 bool parse_note(const std::string& text, CoNote& out) {
@@ -43,6 +51,8 @@ bool parse_note(const std::string& text, CoNote& out) {
                 note.saved = std::stoll(value);
             } else if (name == "host") {
                 note.host = value;
+            } else if (name == "ban" && valid_key(value) && note.bans.size() < kMaxBans) {
+                note.bans.push_back(value);
             }
         } catch (const std::exception&) {
             return false;
@@ -92,12 +102,67 @@ CoSave::CoSave(Session& session, Game& game, std::function<std::uint64_t()> cloc
 void CoSave::choose_new() {
     continuing_ = -1;
     chosen_key_ = 0;
+    bans_.clear();
 }
 
 void CoSave::choose_slot(int slot) {
     continuing_ = slot;
     CoNote note;
     chosen_key_ = parse_note(game_.card_note(slot), note) ? note.key : 0;
+    bans_ = note.bans;
+}
+
+bool CoSave::banned(const std::string& key) const {
+    return !key.empty() && std::find(bans_.begin(), bans_.end(), key) != bans_.end();
+}
+
+std::vector<Member> CoSave::banned_members(const std::function<std::string(std::int32_t)>& key_of) const {
+    std::vector<Member> out;
+
+    if (session_.is_host()) {
+        for (const Member& m : session_.members()) {
+            if (m.id != session_.id() && banned(key_of(m.id))) {
+                out.push_back(m);
+            }
+        }
+    }
+
+    return out;
+}
+
+bool CoSave::ban(const std::string& key) {
+    if (!session_.is_host() || !valid_key(key)) {
+        return false;
+    }
+
+    if (!banned(key)) {
+        if (bans_.size() == kMaxBans) {
+            bans_.erase(bans_.begin());
+        }
+
+        bans_.push_back(key);
+        bans_changed();
+    }
+
+    return true;
+}
+
+void CoSave::lift_bans() {
+    if (session_.is_host() && !bans_.empty()) {
+        bans_.clear();
+        bans_changed();
+    }
+}
+
+void CoSave::bans_changed() {
+    if (on_ && slot_ >= 0) {
+        write_note();
+    }
+
+    // Those in the game have the save: they keep its bans too. The others hear before PLAY.
+    if (session_.in_party() && key_ != 0) {
+        announce(kBroadcast);
+    }
 }
 
 std::string CoSave::host_name() const {
@@ -124,13 +189,14 @@ void CoSave::announce(std::int32_t target) {
     }
 
     ensure_key();
-    session_.send_data(
-        target,
-        Writer()
-            .u8(kind::kCoParty)
-            .i32(static_cast<std::int32_t>(key_))
-            .bytes()
-    );
+    Writer w;
+    w.u8(kind::kCoParty).i32(static_cast<std::int32_t>(key_)).u8(static_cast<std::uint8_t>(bans_.size()));
+
+    for (const std::string& key : bans_) {
+        w.str(key);
+    }
+
+    session_.send_data(target, w.bytes());
 }
 
 void CoSave::engage() {
@@ -172,6 +238,7 @@ void CoSave::write_note() {
     note.key = key_;
     note.saved = game_.wall_seconds();
     note.host = host_;
+    note.bans = bans_;
     game_.card_note_write(slot_, note_text(note));
 }
 
@@ -364,11 +431,30 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
         case kind::kCoParty:
             if (!session_.is_host() && sender == session_.host()) {
                 const std::uint32_t key = static_cast<std::uint32_t>(r.i32());
+                std::vector<std::string> bans;
+                const std::uint8_t count = r.u8();
+
+                for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
+                    std::string ban = r.str();
+
+                    if (valid_key(ban) && bans.size() < kMaxBans) {
+                        bans.push_back(std::move(ban));
+                    }
+                }
 
                 // A new key with a slot taken: the host started again, the slot is the last game's.
                 if (r.ok() && key != 0 && key != key_) {
                     key_ = key;
                     on_ = false;
+                }
+
+                // Of this party's save only: the bans go beside its copy of it.
+                if (r.ok() && key == key_) {
+                    bans_ = std::move(bans);
+
+                    if (on_ && slot_ >= 0) {
+                        write_note();
+                    }
                 }
             }
 
