@@ -49,7 +49,7 @@
  * The host plays what Create match chose: a new game (the first level) or a save of its memory
  * card. A member starts the same from the title (play_start), its own card untouched. Joining a
  * game that is on, a member gets the host's progress as it is now (save_capture), in the host's
- * level. A member whose build differs from the host's (the mod, OpenRAC, the disc, the gameplay mods'
+ * level. A member whose build differs from the host's (the mod, OpenRAC, the world family, the gameplay mods'
  * digest: party_mods.hpp) refuses it, and the host gives no game to one the gate says differs.
  * Scenes and movies end together: only the host skips them. Its Start in a scene or a movie skips
  * it in every game (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed
@@ -422,7 +422,7 @@ public:
      * its time in transit) and twice a second how each figure's poses are shown ("pose" lines). */
     void trace(Trace* trace) { trace_ = trace; }
 
-    /* What every game of a party must have the same of (the mod's version, OpenRAC's, the disc, the
+    /* What every game of a party must have the same of (the mod's version, OpenRAC's, the disc's world family, the
      * gameplay mods' digest): the host sends it with PLAY, and a member with another refuses to
      * start. */
     void set_build(std::string build) { build_ = std::move(build); }
