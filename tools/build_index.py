@@ -93,7 +93,11 @@ class ReleaseError(Exception):
 
 
 class NetError(Exception):
-    """The network failed after the retries."""
+    """The network failed after the retries. status: the HTTP status, when an answer came."""
+
+    def __init__(self, message: str = "", status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 # ------------------------------------------------------------------------------------------------
@@ -245,7 +249,7 @@ class GitHub:
         if r.status == 404:
             return None
         if r.status != 200:
-            raise NetError(f"GitHub API {path}: HTTP {r.status}")
+            raise NetError(f"GitHub API {path}: HTTP {r.status}", status=r.status)
         return r.json()
 
     def releases(self, owner: str, repo: str) -> list:

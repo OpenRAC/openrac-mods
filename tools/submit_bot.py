@@ -151,8 +151,9 @@ class Bot:
             return "admin"
         try:
             d = self.gh.api(f"repos/{owner}/{repo}/collaborators/{user}/permission")
-        except b.NetError:
-            return "none"
+        except b.NetError as e:
+            # 403: GitHub tells only those with push access, which this token lacks on another's repo.
+            return "unknown" if e.status == 403 else "none"
         if not d:
             return "none"
         return d.get("role_name") or d.get("permission") or "none"
@@ -166,6 +167,9 @@ class Bot:
         path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(data, (dict, list)):
             data = (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode()
+        # The same bytes are no change: there would be nothing to commit.
+        if path.is_file() and path.read_bytes() == data:
+            return
         path.write_bytes(data)
         if rel not in self.changed:
             self.changed.append(rel)
@@ -321,12 +325,20 @@ class Bot:
             return {}
         owner, repo = b.owner_repo(repo_url)
         info = self.gh.api(f"repos/{owner}/{repo}")
-        if not self.item(bool(info) and not info.get("private"), "The repository is public",
+        if not self.item(bool(info), "The repository is found",
+                         "Check the address. A private repository looks missing too: make it public."):
+            return {}
+        if not self.item(not info.get("private"), "The repository is public",
                          "Make the repository public: the launcher reads it without an account."):
             return {}
         perm = self.permission(owner, repo, user)
-        self.item(perm in WRITERS, f"You can push to {owner}/{repo}",
-                  "Open this issue from an account with write access to the repository, or ask its owner to.")
+        confirm = ""
+        if perm == "unknown":
+            self.item(True, f"Can't check that you can push to {owner}/{repo}: a maintainer confirms it")
+            confirm = f"Maintainer: confirm that @{user} can speak for {owner}/{repo} before merging."
+        else:
+            self.item(perm in WRITERS, f"You can push to {owner}/{repo}",
+                      "Open this issue from an account with write access to the repository, or ask its owner to.")
         ids = split_list(form.get("mods"))
         if not self.item(bool(ids), "Mod ids are given", "List the ids of the mods to list, comma-separated."):
             return {}
@@ -377,7 +389,7 @@ class Bot:
             else:
                 self.item(bool(listed) or res["index"] is None, f"{mid}: a release with its archives is found",
                           f"Push a tag {mid}-v<version>: the SDK's workflow publishes the archives and SHA256SUMS.")
-        return {"id": first or (ids[0] if ids else ""), "title": f"List {', '.join(ids)}"}
+        return {"id": first or (ids[0] if ids else ""), "title": f"List {', '.join(ids)}", "confirm": confirm}
 
     def submit_pack(self, form: dict, user: str) -> dict:
         mid = slug(form.get("name"))
@@ -520,7 +532,8 @@ def check(event: dict, root: Path, http: b.Http, now: float, out: Path, vips=Non
     result.update({"skip": False, "form": form_name, "id": mid, "ok": bot.ok and bool(bot.changed or bot.deleted),
                    "items": bot.items, "media": bot.media_rows, "title": meta.get("title", mid),
                    "branch": meta.get("branch") or f"listing/{mid}", "changed": bot.changed,
-                   "deleted": bot.deleted})
+                   "deleted": bot.deleted, "confirm": meta.get("confirm", ""),
+                   "unchanged": bot.ok and bool(bot.items) and not bot.changed and not bot.deleted})
     for rel in bot.changed:
         dst = out / "files" / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -542,9 +555,12 @@ def render(result: dict, pr_url: str | None = None, run: str = "") -> str:
     if result.get("error"):
         return (f"{MARKER}\nSomething went wrong on our side (run #{run}). {MAINTAINERS}, please have a look. "
                 "You do not need to do anything.")
-    head = (f"✅ Ready: {pr_url}. A maintainer reviews and merges it; the mod is live within the hour."
-            if result.get("ok") and pr_url else
-            "❌ Not yet. Fix the items marked ❌ and edit this issue: the bot checks it again.")
+    if result.get("unchanged"):
+        head = "✅ Nothing to change: the listing already says this."
+    elif result.get("ok") and pr_url:
+        head = f"✅ Ready: {pr_url}. A maintainer reviews and merges it; the mod is live within the hour."
+    else:
+        head = "❌ Not yet. Fix the items marked ❌ and edit this issue: the bot checks it again."
     lines = [MARKER, f"**{md(result.get('title', ''))}**", "", head, "", "| | Check | How to fix |", "|---|---|---|"]
     for i in result.get("items", []):
         lines.append(f"| {'✅' if i['ok'] else '❌'} | {md(i['text'])} | {md(i['fix'])} |")
@@ -603,6 +619,8 @@ def apply(result: dict, files: Path, repo: Path, run=run_cmd, run_id: str = "") 
         run(git + ["push", "--force", "origin", f"HEAD:refs/heads/{branch}"])
         prs = json.loads(run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "url"]) or "[]")
         body = f"From #{issue}, checked by the listing bot.\n\nCloses #{issue}"
+        if result.get("confirm"):
+            body += f"\n\n{result['confirm']}"
         if prs:
             pr_url = prs[0]["url"]
         else:

@@ -143,6 +143,53 @@ class Submit(Base):
         self.assertEqual(r["branch"], "listing/ext-hud")
         self.assertEqual(r["media"][0]["size"], "640x360")
 
+    def test_unchanged_listing_only_comments(self):
+        first = self.check(event(self.fields))
+        self.assertTrue(first["ok"])
+        # The same form again, on a checkout that has what the first one wrote.
+        r = self.check(event(self.fields))
+        self.assertEqual(self.failed(r), [])
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["unchanged"])
+        self.assertEqual((r["changed"], r["deleted"]), ([], []))
+        run = FakeRun({"issues/5/comments": "[]"})
+        bot.apply(r, self.out / "files", self.fx.repo, run)
+        cmds = [" ".join(a) for a, _ in run.calls]
+        self.assertFalse(any(" commit " in c or "pr create" in c for c in cmds))
+        comment = next(i for a, i in run.calls if a[:3] == ["gh", "issue", "comment"])
+        self.assertIn("Nothing to change", comment)
+        self.assertNotIn("Not yet", comment)
+        self.assertNotIn(bot.MAINTAINERS, comment)
+
+    def test_missing_repository(self):
+        r = self.check(event({**self.fields, "repo": "https://github.com/someone/no-such-repo"}))
+        self.assertFalse(r["ok"])
+        self.assertEqual(self.failed(r), ["The repository is found"])
+        self.assertFalse(any(i["text"] == "The repository is public" for i in r["items"]))
+        self.assertFalse(r["unchanged"])
+
+    def forbid_permission(self):
+        self.fx.routes["https://api.github.com/repos/someone/ext-hud/collaborators/member/permission"] = {
+            "status": 403}
+        (self.fx.dir / "routes.json").write_text(json.dumps(self.fx.routes))
+
+    def test_unreadable_permission_goes_to_a_maintainer(self):
+        self.forbid_permission()
+        r = self.check(event(self.fields, user="member"))
+        self.assertEqual(self.failed(r), [])
+        self.assertTrue(r["ok"])
+        self.assertTrue(any("a maintainer confirms it" in i["text"] for i in r["items"]))
+        run = FakeRun({"pr list": "[]", "pr create": "https://github.com/OpenRAC/openrac-mods/pull/9\n",
+                       "issues/5/comments": "[]"})
+        repo = Path(tempfile.mkdtemp())
+        try:
+            bot.apply(r, self.out / "files", repo, run)
+        finally:
+            shutil.rmtree(repo)
+        create = next(a for a, _ in run.calls if a[:3] == ["gh", "pr", "create"])
+        self.assertIn("Maintainer: confirm that @member can speak for someone/ext-hud before merging.",
+                      create[create.index("--body") + 1])
+
     def test_ownership_refused(self):
         r = self.check(event(self.fields, user="stranger"))
         self.assertFalse(r["ok"])
@@ -259,6 +306,14 @@ class OtherForms(Base):
     def test_update_refused_for_stranger(self):
         r = self.check(event({"mod": "ext-hud", "tags": "ui"}, user="stranger", form="listing-update"))
         self.assertFalse(r["ok"])
+
+    def test_unreadable_permission_is_refused_for_a_removal(self):
+        self.fx.routes["https://api.github.com/repos/someone/ext-hud/collaborators/member/permission"] = {
+            "status": 403}
+        (self.fx.dir / "routes.json").write_text(json.dumps(self.fx.routes))
+        r = self.check(event({"mod": "ext-hud", "reason": "x"}, user="member", form="mod-removal"))
+        self.assertFalse(r["ok"])
+        self.assertFalse(r.get("unchanged"))
 
     def test_remove_blocked_while_others_point_at_it(self):
         r = self.check(event({"mod": "ext-hud"}, form="mod-removal"))
