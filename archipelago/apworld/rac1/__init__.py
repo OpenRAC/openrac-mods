@@ -5,7 +5,7 @@
 # read from table.json, which the mod's build prints (archipelago/tools/dump_table.c) and packs
 # into rac1.apworld: the mod and the world use the same ids. Each planet is a region, opened by its
 # coordinates (an item, from an infobot, or an event, from an NPC the game always has); a location
-# needs the gadgets its row asks for (hard, and soft but in expert logic). The goal is beating Drek.
+# needs what its row asks for (hard and any, and soft but in expert logic). The goal is beating Drek.
 import json
 import pkgutil
 from typing import Any, Mapping
@@ -126,20 +126,20 @@ class RAC1World(World):
         for row in LOCATIONS:
             region = planets[row["level"]]
             location = RAC1Location(self.player, row["name"], row["id"], region)
-            location.access_rule = self.items_rule(self.requirement(row))
+            location.access_rule = self.row_rule(row)
             region.locations.append(location)
 
             # The logic's places for progression: not an expensive purchase (standard, relaxed),
-            # nor a gold bolt (relaxed).
+            # nor one to save up for (relaxed).
             costly = row["costly"] and self.options.logic != LOGIC_EXPERT
-            gold = row["kind"] == "gold" and self.options.logic == LOGIC_RELAXED
-            if costly or gold:
+            pricey = row["pricey"] and self.options.logic == LOGIC_RELAXED
+            if costly or pricey:
                 location.item_rule = lambda item: not item.advancement
 
         for row in EVENTS:
             region = planets[row["level"]]
             location = RAC1Location(self.player, row["name"], None, region)
-            location.access_rule = self.items_rule(self.requirement(row))
+            location.access_rule = self.row_rule(row)
             region.locations.append(location)
             name = VICTORY if row["goal"] else (row["vanilla"] or "") + EVENT_SUFFIX
             location.place_locked_item(self.create_event(name))
@@ -154,6 +154,18 @@ class RAC1World(World):
         player = self.player
         pairs = [(name, name + EVENT_SUFFIX) for name in required]
         return lambda state: all(state.has(a, player) or state.has(b, player) for a, b in pairs)
+
+    def row_rule(self, row: dict):
+        # What the row needs, one of what it takes one of, and the other planets it takes.
+        player = self.player
+        needed = self.items_rule(self.requirement(row))
+        choices = [name for item in row["any"] for name in (item, item + EVENT_SUFFIX)]
+        planets = [self.planet_rule(planet) for planet in row["planets"]]
+        return lambda state: (
+            needed(state)
+            and (not choices or state.has_any(choices, player))
+            and all(rule(state) for rule in planets)
+        )
 
     def create_items(self) -> None:
         # A pool turned off keeps the game's own item in place; the rest go to the multiworld.

@@ -17,7 +17,7 @@ class TestDefault(RAC1TestBase):
         self.sweep()
         self.assertTrue(self.can_reach_region("Eudora"))
 
-    def test_drek_needs_swingshot_and_magneboots(self) -> None:
+    def test_drek_needs_the_magneboots(self) -> None:
         location = "Veldin (return): Drek"
         self.collect_by_name("Veldin (return) Coordinates")
         self.collect_by_name(["Heli-Pack", "Grindboots", "O2 Mask", "Swingshot"])
@@ -32,6 +32,7 @@ class TestExpert(RAC1TestBase):
 
     def test_drek_needs_only_his_hard_items(self) -> None:
         self.collect_by_name(["Veldin (return) Coordinates", "Swingshot", "Magneboots"])
+        self.collect_by_name(["Heli-Pack", "Grindboots", "O2 Mask"])
         self.sweep()
         self.assertTrue(self.can_reach_location("Veldin (return): Drek"))
 

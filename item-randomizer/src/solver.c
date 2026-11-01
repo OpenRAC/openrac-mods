@@ -17,7 +17,7 @@
  * that opens the way is never placed behind itself: every shuffled location can be had by the end
  * of a placement, or it is refused too.
  *
- * The difficulties: expert has `hard` alone and puts progression anywhere that can be reached;
+ * The difficulties: expert has `hard` alone and puts progression in any place but a gold bolt;
  * standard also counts `soft` and keeps progression out of costly purchases; relaxed has
  * standard's needs, keeps progression out of the pricey purchases too, and puts each progression
  * reward early: the earliest, in the game's own route, of three places drawn.
@@ -33,11 +33,15 @@
 /* One requirement table per difficulty: DIFFICULTY_RELAXED, _STANDARD and _EXPERT. */
 #define DIFFICULTY_COUNT 3
 
-/* How many fills are tried before giving up; the tables never need more than a few. */
-#define MAX_ATTEMPTS 500
+/* How many fills are tried before giving up; the tables never need more than a few thousand. */
+#define MAX_ATTEMPTS 20000
 
 /* Relaxed draws this many more places after the first and keeps the earliest of all of them. */
 #define RELAXED_EXTRA_DRAWS 2
+
+/* After this many fills, relaxed stops wanting each reward early: with few places shuffled, the
+ * early ones run out before what must go late has been placed, and the seed needs the room. */
+#define RELAXED_EARLY_ATTEMPTS 64
 
 /* The generator's stream is the code's hash mixed with the seed shifted by this, so that two
  * settings with one seed (or two seeds with one setting) place differently. */
@@ -174,7 +178,12 @@ static size_t goal(void) {
 static int fits(int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
-    // Expert puts progression anywhere.
+    // A gold bolt is a hidden corner: what the way on needs is never in one.
+    if (l->kind == LOC_GOLD) {
+        return 0;
+    }
+
+    // Expert puts progression anywhere else.
     if (difficulty == DIFFICULTY_EXPERT) {
         return 1;
     }
@@ -202,7 +211,7 @@ static void shuffle(rando_rng* r, rando_reward* a, size_t n) {
 
 /* One try at a placement: the assumed fill described at the top. 0 when every reward found a
  * place; -1 when a progression reward had nowhere to go (the caller tries again). */
-static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan) {
+static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int early) {
     rando_reward prog[RANDO_MAX_LOCATIONS], rest[RANDO_MAX_LOCATIONS];
     size_t np = 0, nr = 0;
 
@@ -265,7 +274,7 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan) {
 
         // Relaxed wants each progression reward early: the earliest in the game's route of three
         // places drawn.
-        if (d == DIFFICULTY_RELAXED) {
+        if (d == DIFFICULTY_RELAXED && early) {
             // Draw more places and keep the earliest.
             for (int k = 0; k < RELAXED_EXTRA_DRAWS; ++k) {
                 const size_t other = candidates[rando_below(rng, (uint32_t)nc)];
@@ -312,7 +321,8 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
         plan->attempts = attempt;
 
         // A fill that placed everything is played through once more from the start, to be sure.
-        if (fill(&plan->settings, &rng, plan) == 0 && rando_beatable(plan, 0)
+        if (fill(&plan->settings, &rng, plan, attempt <= RELAXED_EARLY_ATTEMPTS) == 0
+            && rando_beatable(plan, 0)
             && rando_stranded(plan) == 0) {
             return 0;
         }

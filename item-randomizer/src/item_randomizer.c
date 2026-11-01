@@ -624,8 +624,9 @@ static void give_reward(int location, int32_t equip, int mark) {
 static void give_lost_rewards(void) {
     // Every location this seed shuffles that the game has had.
     for (size_t i = 0; i < rando_location_count; ++i) {
-        // Had, and the player does not hold what it gives.
-        if (s_plan.shuffled[i] && had((int)i) && !held(s_plan.reward[i])) {
+        // Had, and the player does not hold what it gives (a gold bolt counts by the place itself).
+        if (s_plan.shuffled[i] && s_plan.reward[i].kind != REWARD_GOLD_BOLT && had((int)i)
+            && !held(s_plan.reward[i])) {
             char line[160];
             char what[64];
             put_reward(s_plan.reward[i], 0);
@@ -1500,6 +1501,8 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_api = api;
     s_mod = mod;
     s_disc = NULL;
+    s_notice_count = 0;
+    s_notice_hold = 0;
 
     // Only Ratchet & Clank.
     if (strcmp(api->game, "rac1") != 0) {

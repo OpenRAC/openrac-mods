@@ -23,7 +23,7 @@ and start a **new game**.
 
 | Setting | Default | |
 |---|---|---|
-| Seed | blank | A **seed code** someone shared (`2ZRJ-6HB7-H6P7`: it carries their settings, so you play their game), or any word (`ratchet`: the same word with the same settings gives the same game). Blank: a random seed, rolled the first time and kept for your next starts; to roll another, type any word, or delete `seed.txt` in the data folder below |
+| Seed | blank | A **seed code** someone shared (`4ZRJ-6HB7-H6Q5`: it carries their settings, so you play their game), or any word (`ratchet`: the same word with the same settings gives the same game). Blank: a random seed, rolled the first time and kept for your next starts; to roll another, type any word, or delete `seed.txt` in the data folder below |
 | Logic | Standard | **Standard**: each gadget is placed where you can reach it with what you have by then, counting what each place uses. **Relaxed**: the same, with the gadgets early in the game, and never in a gold bolt or an expensive purchase. **Expert**: only what a place cannot be done at all without counts (you know the levels) |
 | Shuffle gadgets | on | The Heli-Pack, the Swingshot, the Magneboots, the Grindboots, ... from NPCs and pickups |
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
@@ -33,7 +33,7 @@ and start a **new game**.
 | Keep the starting gear | on | Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too |
 | Spoiler log | on | Writes where everything is, and a way through, to the data folder |
 
-The game's log names the seed's code at each start (`seed 2ZRJ-6HB7-H6P7
+The game's log names the seed's code at each start (`seed 4ZRJ-6HB7-H6Q5
 (new), standard, on the pal disc`): share that code. All the settings but
 the spoiler log are in it.
 

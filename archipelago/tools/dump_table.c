@@ -158,7 +158,19 @@ static void dump(void) {
         put_mask(l->hard);
         printf(", \"soft\": ");
         put_mask(l->soft);
-        putchar('}');
+        printf(", \"any\": ");
+        put_mask(l->any);
+        printf(", \"pricey\": %s, \"planets\": [", (l->flags & LOCF_PRICEY) ? "true" : "false");
+
+        // The other planets it takes, by number, as the APWorld reads them.
+        for (int p = 0, n = 0; p < LEVEL_COUNT; ++p) {
+            // One entry per planet the row asks for.
+            if (l->planets & (1u << p)) {
+                printf("%s%d", n++ ? ", " : "", p);
+            }
+        }
+
+        printf("]}");
     }
 
     printf("\n  ]\n}\n");

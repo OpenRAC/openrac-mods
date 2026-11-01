@@ -30,7 +30,7 @@ party shares its items. With it on, the Multiplayer pages say so: turn it off to
 
 | Option | Default | |
 |---|---|---|
-| `logic` | `standard` | **standard**: a place counts only with the gadgets the game's route has there, and an expensive purchase holds no progression. **relaxed**: the same, and no progression in a gold bolt either. **expert**: only what a place cannot be done without counts |
+| `logic` | `standard` | **standard**: an expensive purchase holds no progression, and a place counts only with the weapons the game suggests there. **relaxed**: the same, and no progression in a purchase you save up for either. **expert**: progression may be in any purchase, and any weapon will do |
 | `shuffle_gadgets`, `shuffle_weapons`, `shuffle_vendor`, `shuffle_gold_bolts`, `shuffle_infobots` | on | Off: that pool keeps the game's own items in place |
 | `keep_starting_gear` | on | Start with the Bomb Glove. Off: the start's Bomb Glove is a location too |
 
