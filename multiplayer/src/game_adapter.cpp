@@ -529,6 +529,20 @@ void ModGame::skip() { mod_.play_skip(); }
 
 bool ModGame::play_scene(int scene) { return mod_.play_scene(scene); }
 
+// --- WP-CAMERA ---
+bool ModGame::camera_view(mp::CameraView& out) {
+    return mod_.camera_script_view(out.eye, out.rotation, out.where, &out.stand_in);
+}
+
+bool ModGame::camera_play(int id) { return mod_.camera_script_play(id); }
+
+bool ModGame::camera_show(const float* eye, const float* rotation) {
+    const float at[3] = {eye[0], eye[1], eye[2]};
+    const float turned[3] = {rotation[0], rotation[1], rotation[2]};
+    return mod_.camera_script_show(at, turned);
+}
+// --- end WP-CAMERA ---
+
 openrac_moby ModGame::moby_of(const mp::Pose& p) {
     openrac_moby out{};
     out.size = sizeof out;

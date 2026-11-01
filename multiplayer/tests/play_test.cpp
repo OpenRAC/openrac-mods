@@ -42,6 +42,7 @@ int main() {
     mpt::run_shared_tests();
     mpt::run_lobby_tests();
     mpt::run_death_tests();
+    mpt::run_camera_tests();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

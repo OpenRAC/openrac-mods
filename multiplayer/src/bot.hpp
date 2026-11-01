@@ -43,6 +43,7 @@
 #include <string>
 #include <vector>
 
+#include "camscripts.hpp"
 #include "connection.hpp"
 #include "coop.hpp"
 #include "cosave.hpp"
@@ -61,6 +62,7 @@ public:
         Coop& coop;
         World& world;
         PartyMods& mods;
+        CamScripts& camscripts;
         /* The hero's position written to game memory. */
         std::function<void(const float*)> teleport;
         /* The item given, with ammunition, and asked for in the hand. */

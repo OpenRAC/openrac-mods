@@ -13,7 +13,7 @@
  *
  * Reserved ranges (free until their package lands):
  *    36-39 shared progress, 40-43 host migration, 44-47 late join, 48-51 shots,
- *    52-55 camera, 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
+ *    52-55 camera (54 and 55 free), 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
  *    64-67), 71-72 the world's second range; free: 0, 73-127 (and 128-255, which the wire does not
  *    use). Late join uses 44 to 46 (47 is free).
  *
@@ -81,6 +81,9 @@ constexpr std::uint8_t kCoParty = 35;
 constexpr std::uint8_t kPlace = 44;
 constexpr std::uint8_t kPlaceAsk = 45;
 constexpr std::uint8_t kWaitVote = 46;
+// Camera scripts (camscripts.hpp)
+constexpr std::uint8_t kCamScript = 52;
+constexpr std::uint8_t kCamState = 53;
 // World (world.hpp)
 constexpr std::uint8_t kWorld = 9;
 constexpr std::uint8_t kKilled = 10;
@@ -154,6 +157,8 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kPlace, "PLACE", Owner::kJoin},
     {kind::kPlaceAsk, "PLACE_ASK", Owner::kJoin},
     {kind::kWaitVote, "WAIT_VOTE", Owner::kJoin},
+    {kind::kCamScript, "CAMSCRIPT", Owner::kCamera},
+    {kind::kCamState, "CAMSTATE", Owner::kCamera},
     {kind::kHello, "HELLO", Owner::kWorld},
     {kind::kReset, "RESET", Owner::kWorld},
     {kind::kSynced, "SYNCED", Owner::kWorld},

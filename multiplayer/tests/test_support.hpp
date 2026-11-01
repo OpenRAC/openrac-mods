@@ -23,6 +23,7 @@
 #include "protocol.hpp"
 #include "session.hpp"
 #include "progress.hpp"
+#include "camscripts.hpp"
 #include "shared.hpp"
 #include "world.hpp"
 
@@ -214,6 +215,36 @@ struct FakeGame : mp::Game {
     void card_note_write(int slot, const std::string& text) override { notes[slot] = text; }
 
     std::int64_t wall_seconds() override { return wall; }
+
+    // A camera script: the one running here, the calls of one shown here, and its last view. A
+    // port's answer: refused (camera_taken: the game keeps the camera).
+    bool script_on = false;
+    mp::CameraView script_view;
+    bool camera_taken = false;
+    std::vector<int> camera_calls;
+    int camera_shows = 0;
+    float shown_eye[3] = {0, 0, 0};
+    float shown_rotation[3] = {0, 0, 0};
+
+    bool camera_view(mp::CameraView& out) override {
+        out = script_view;
+        return script_on;
+    }
+
+    bool camera_play(int id) override {
+        camera_calls.push_back(id);
+        return true;
+    }
+
+    bool camera_show(const float* eye, const float* rotation) override {
+        if (camera_taken) {
+            return false;
+        }
+        ++camera_shows;
+        std::copy_n(eye, 3, shown_eye);
+        std::copy_n(rotation, 3, shown_rotation);
+        return true;
+    }
 
     std::vector<mp::PartyRules> party_rules() override { return published; }
 
@@ -590,6 +621,7 @@ struct Player {
     mp::World world;
     mp::Progress progress;
     mp::Shared shared;
+    mp::CamScripts cam;
     mp::PartyMods mods;
     mp::CoSave cosave;
     mp::Router router;
@@ -601,6 +633,7 @@ struct Player {
           world(session, game, coop, [this] { return clock; }),
           progress(session, game, coop),
           shared(session, game, coop),
+          cam(session, game, coop, [this] { return clock; }),
           mods(session, game, {}, [this] { return clock; }),
           cosave(session, game, [this] { return clock; }) {
         coop.set_save_hooks([this](std::int32_t target) { cosave.announce(target); },
@@ -612,6 +645,7 @@ struct Player {
         router.route(mp::Owner::kWorld, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
         router.route(mp::Owner::kProgress, [this](std::int32_t sender, const Bytes& bytes) { progress.handle(sender, bytes); });
         router.route(mp::Owner::kShare, [this](std::int32_t sender, const Bytes& bytes) { shared.handle(sender, bytes); });
+        router.route(mp::Owner::kCamera, [this](std::int32_t sender, const Bytes& bytes) { cam.handle(sender, bytes); });
         session.on_data([this](std::int32_t sender, const Bytes& bytes) { router.dispatch(sender, bytes); });
         mp::Message hello;
         hello.kind = mp::Message::Kind::kHello;
@@ -690,6 +724,7 @@ inline void tick(std::vector<Player*> players, std::uint64_t ms) {
         p->progress.tick(p->clock);
         p->cosave.tick(p->clock, p->coop.playing());
         p->shared.tick(p->clock);
+        p->cam.tick(p->clock);
         p->session.flush();
     }
     route(players);
@@ -1457,5 +1492,6 @@ void run_join_tests();
 void run_shared_tests();
 void run_lobby_tests();
 void run_death_tests();
+void run_camera_tests();
 
 }  // namespace mpt

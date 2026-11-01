@@ -296,6 +296,8 @@ void load(openrac::Mod& mod) {
     g->coop->on_start_again([] { g->cosave->start_again(); });
     g->shared = std::make_unique<mp::Shared>(*g->session, *g->game, *g->coop);
     g->shared->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
+    g->camscripts = std::make_unique<mp::CamScripts>(*g->session, *g->game, *g->coop);
+    g->camscripts->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
@@ -325,7 +327,7 @@ void load(openrac::Mod& mod) {
 
 #ifdef MULTIPLAYER_BOT
     g->bot = std::make_unique<mp::Bot>(mp::Bot::Parts{
-        *g->connection, *g->session, *g->game, *g->coop, *g->world, *g->mods, [](const float* at) {
+        *g->connection, *g->session, *g->game, *g->coop, *g->world, *g->mods, *g->camscripts, [](const float* at) {
             // The hero's motion position (the bot is a test's).
             openrac::Memory memory = g->mod->memory();
             const openrac::gaddr hero = g->mod->version() == "ntsc" ? 0x0013F3D0u : 0x0013F4D0u;
@@ -372,6 +374,7 @@ void load(openrac::Mod& mod) {
     g->coop->trace(&g->trace);
     g->progress->trace(&g->trace);
     g->shared->trace(&g->trace);
+    g->camscripts->trace(&g->trace);
     // The game's DATA, to the owner of its kind (kinds.hpp); what nobody owns goes to the co-op.
     g->router.fallback([](std::int32_t sender, const mp::Bytes& bytes) { g->coop->handle(sender, bytes); });
     g->router.route(mp::Owner::kMods, [](std::int32_t sender, const mp::Bytes& bytes) { g->mods->handle(sender, bytes); });
@@ -379,6 +382,7 @@ void load(openrac::Mod& mod) {
     g->router.route(mp::Owner::kProgress, [](std::int32_t sender, const mp::Bytes& bytes) { g->progress->handle(sender, bytes); });
     g->router.route(mp::Owner::kSave, [](std::int32_t sender, const mp::Bytes& bytes) { g->cosave->handle(sender, bytes); });
     g->router.route(mp::Owner::kShare, [](std::int32_t sender, const mp::Bytes& bytes) { g->shared->handle(sender, bytes); });
+    g->router.route(mp::Owner::kCamera, [](std::int32_t sender, const mp::Bytes& bytes) { g->camscripts->handle(sender, bytes); });
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) { g->router.dispatch(sender, bytes); });
     // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
     // or enemy drops them, and they come here as the host's): the death recorded as the game does it
@@ -426,6 +430,7 @@ void load(openrac::Mod& mod) {
     // taken out: only the host skips), a party's skip presses Start for a movie playing here, and
     // the scene barrier holds the control (coop.hpp). The report: buttons in
     // bytes 0 and 1 (a bit clear while held; Start 0x08), the sticks, then the pressures.
+    mod.on_camera_script([](void*, int id, int started) { g->camscripts->script(id, started != 0); });
     mod.on_pad([](int port, std::uint8_t* report, int size) {
         if (port != 0 || size < 6) {
             return;
@@ -445,6 +450,11 @@ void load(openrac::Mod& mod) {
 #ifdef MULTIPLAYER_BOT
         g->bot->pad(report, size);
 #endif
+
+        // A camera script shown here gives way to the player's hands (camscripts.hpp).
+        if (mp::pad_active(report, size)) {
+            g->camscripts->input(now);
+        }
 
         // Start pressed in a scene or a movie: the host's skips it for the whole party; a member's
         // does nothing here but say so (a movie has no game ticks: the banner is shown from here).
@@ -591,6 +601,7 @@ void load(openrac::Mod& mod) {
         g->progress->tick(now);
         g->cosave->tick(now, g->coop->playing());
         g->shared->tick(now);
+        g->camscripts->tick(now);
         g->session->flush();
 
         // The network's own account, for reports of a bad link (README, Verbose log).

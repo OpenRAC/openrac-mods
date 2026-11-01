@@ -23,6 +23,7 @@
 #include "bot.hpp"
 #include "connection.hpp"
 #include "coop.hpp"
+#include "camscripts.hpp"
 #include "cosave.hpp"
 #include "direct.hpp"
 #include "menu.hpp"
@@ -115,6 +116,7 @@ struct State {
     std::unique_ptr<mp::World> world;
     std::unique_ptr<mp::Progress> progress;
     std::unique_ptr<mp::Shared> shared;
+    std::unique_ptr<mp::CamScripts> camscripts;
     std::unique_ptr<mp::PartyMods> mods;
     std::unique_ptr<mp::CoSave> cosave;
     mp::Router router;             // where a received DATA goes (kinds.hpp)

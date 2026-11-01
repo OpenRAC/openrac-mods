@@ -297,6 +297,18 @@ constexpr int kPhasePlaying = 3;
 constexpr int kPhaseScene = 4;
 constexpr int kPhaseMenu = 5;
 
+/* The view of a camera script running in this game, its moby's place, and whether it runs for a
+ * player standing in (Game::camera_view). What ends one shown (the SDK's OPENRAC_CAMERA_SCRIPT_*). */
+struct CameraView {
+    float eye[3] = {0, 0, 0};
+    float rotation[3] = {0, 0, 0};
+    float where[3] = {0, 0, 0};
+    bool stand_in = false;
+};
+
+constexpr int kCameraEnd = -1;
+constexpr int kCameraCut = -2;
+
 /* Whether a phase is in a level (playing, a scene, a menu over it). */
 inline bool in_level(int phase) {
     return phase == kPhasePlaying || phase == kPhaseScene || phase == kPhaseMenu;
@@ -467,6 +479,12 @@ public:
     virtual void quiet_gifts(bool /*on*/) {}
     // --- end WP-JOIN ---
     // --- WP-CAMERA ---
+    /* The camera scripts (camscripts.hpp; the SDK's camera_script_*): the view of the one running
+     * here, one of another game's shown here (kCameraEnd, kCameraCut end it), and its view (false
+     * once it is not up). */
+    virtual bool camera_view(CameraView& /*out*/) { return false; }
+    virtual bool camera_play(int /*id*/) { return false; }
+    virtual bool camera_show(const float* /*eye*/, const float* /*rotation*/) { return false; }
     // --- end WP-CAMERA ---
     // --- WP-TETHER ---
     // --- end WP-TETHER ---

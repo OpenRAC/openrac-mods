@@ -121,6 +121,9 @@ public:
     void skip() override;
 
     bool play_scene(int scene) override;
+    bool camera_view(mp::CameraView& out) override;
+    bool camera_play(int id) override;
+    bool camera_show(const float* eye, const float* rotation) override;
 
     static openrac_moby moby_of(const mp::Pose& p);
 

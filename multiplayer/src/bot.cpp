@@ -188,11 +188,13 @@ std::string Bot::status() {
       << ",\"shots_sent\":" << parts_.coop.shots_sent() << ",\"shots_fired\":" << parts_.coop.shots_fired()
       << ",\"shots_late\":" << parts_.coop.shots_late() << ",\"tags\":" << parts_.coop.tag_stats().tags
       << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
-      << ",\"tag_y\":" << number(parts_.coop.tag_stats().y);
+      << ",\"tag_y\":" << number(parts_.coop.tag_stats().y)
+      << ",\"cam_sent\":" << parts_.camscripts.sent() << ",\"cam_shown\":" << parts_.camscripts.shown()
+      << ",\"cam_showing\":" << parts_.camscripts.showing();
 
     if (has_hero) {
         o << ",\"hero\":[" << number(hero.position[0]) << "," << number(hero.position[1]) << ","
-          << number(hero.position[2]) << "],\"health\":" << hero.health;
+          << number(hero.position[2]) << "],\"health\":" << hero.health << ",\"hero_state\":" << hero.state;
     }
 
     o << "}";
