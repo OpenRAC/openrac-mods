@@ -934,6 +934,20 @@ struct SimNet {
     // The shared progress on this link too (off: the seeded runs keep the draws they were tuned on).
     bool shared = false;
     long data_drops = 0, state_drops = 0, kicked = 0, datagrams_lost = 0, state_sent = 0;
+    /* What the host and the members sent, by kind (a message's first byte), and what each sent
+     * up to the server by way of TCP (DATA; a BATCH is one). */
+    struct Traffic {
+        long messages = 0, bytes = 0;
+    };
+    std::map<int, Traffic> host_state, member_state, host_data, member_data;
+    /* The host's state as the play stopped: what is left after it is what settling took. */
+    std::map<int, Traffic> played_state;
+    /* The longest gap, in ms, between two WORLDs reaching a member with a word of one moby, of the
+     * ids `gaps_of` says to watch, while `gaps_on`. */
+    std::function<bool(int)> gaps_of;
+    bool gaps_on = false;
+    std::map<std::pair<std::int32_t, int>, double> heard_at;
+    double worst_gap = 0;
 
     SimNet(std::vector<Player*> who, SimLink l, unsigned seed) : link(l), random(seed), players(std::move(who)) {
         for (Player* p : players) {
@@ -976,6 +990,35 @@ struct SimNet {
         }
     }
 
+    void note_gaps(const Packet& f) {
+        if (!gaps_on || !gaps_of || f.bytes.empty() || f.bytes[0] != static_cast<std::uint8_t>(mp::WorldKind::kWorld)) {
+            return;
+        }
+
+        int level = -1;
+        std::int64_t stamp = 0;
+        std::vector<mp::WorldEntry> entries;
+
+        if (!mp::decode_world(f.bytes, level, stamp, entries)) {
+            return;
+        }
+
+        for (const mp::WorldEntry& e : entries) {
+            if (!gaps_of(e.id)) {
+                continue;
+            }
+
+            const auto seen = heard_at.find({f.to->id, e.id});
+
+            if (seen != heard_at.end()) {
+                worst_gap = std::max(worst_gap, f.at - seen->second);
+                seen->second = f.at;
+            } else {
+                heard_at[{f.to->id, e.id}] = f.at;
+            }
+        }
+    }
+
     void step(std::uint64_t ms) {
         now += ms;
 
@@ -1006,6 +1049,9 @@ struct SimNet {
                     continue;
                 }
 
+                Traffic& t = (p->id == 1 ? host_data : member_data)[q.bytes.empty() ? 0 : q.bytes[0]];
+                ++t.messages;
+                t.bytes += static_cast<long>(q.bytes.size());
                 tcp(p, q.target, q.bytes);
             }
 
@@ -1014,6 +1060,9 @@ struct SimNet {
 
             for (const auto& [target, bytes] : datagrams) {
                 ++state_sent;
+                Traffic& t = (p->id == 1 ? host_state : member_state)[bytes.empty() ? 0 : bytes[0]];
+                ++t.messages;
+                t.bytes += static_cast<long>(bytes.size());
 
                 if (!l.state.take(now)) {
                     ++state_drops;
@@ -1040,6 +1089,7 @@ struct SimNet {
                 m.kind = mp::Message::Kind::kData;
                 m.id = f.from;
                 m.bytes = f.bytes;
+                note_gaps(f);
                 f.to->session.handle(m);
             }
         }
@@ -1067,6 +1117,7 @@ struct SimWorld {
     static constexpr std::uint32_t kRuns = mp::kMobyUpdates | mp::kMobyPlaced;
     int enemies = 0;
     int crates = 0;
+    float spread = 8.0f;
 
     std::vector<mp::MobyState> made(int shift, const std::set<int>& skipped = {}) const {
         std::vector<mp::MobyState> out;
@@ -1079,8 +1130,8 @@ struct SimWorld {
 
             const bool crate = key >= enemies;
             mp::MobyState m = moby(slot++, key, crate ? 500 : 300, kRuns | (crate ? 0 : mp::kMobyCreature), 0.0f);
-            m.pose.position[0] = static_cast<float>(key % 40) * 8.0f;
-            m.pose.position[1] = static_cast<float>(key / 40) * 8.0f;
+            m.pose.position[0] = static_cast<float>(key % 40) * spread;
+            m.pose.position[1] = static_cast<float>(key / 40) * spread;
             out.push_back(m);
         }
 
@@ -1116,10 +1167,13 @@ inline const mp::MobyState* by_key(const FakeGame& game, int key) {
 
 
 /* The game rebuilding its level as a death does: every moby new, the records `skipped` left out (so
- * the slots after them move), the spawned gone, nothing driven; the same level. */
+ * the slots after them move), the spawned gone, nothing driven, the hits posted to the old ones gone
+ * with them (the port writes a hit into its moby: a test's list of them is that, by slot); the same
+ * level. */
 inline void remake(Player& p, const SimWorld& w, const std::set<int>& skipped = {}, int shift = 0) {
     p.game.level = w.made(shift, skipped);
     p.game.drives.clear();
+    p.game.hits.clear();
     ++p.game.now.loads;
 }
 
@@ -1130,14 +1184,69 @@ constexpr int kSimSlots = 1000;
 struct SimResult {
     int wrong_place = 0, wrong_hidden = 0, wrong_crates = 0;
     long bolts_made = 0, bolts_credited = 0;
+    /* From the end of the play: when everything stood as on the host, for good (-1: not by the end
+     * of the settling), and the largest number of mobys wrong on the way. */
+    long settled_ms = -1;
+    int most_wrong = 0;
+    /* The longest a moving moby went unheard by a member while the party played, ms. */
+    double worst_gap_ms = 0;
 };
+
+
+/* What a run plays. The default is the run the sim tests have always had: all 120 enemies walking,
+ * 30 crates, 10 seconds for the link to settle. */
+struct SimPlan {
+    int enemies = 120;
+    int crates = 30;
+    int walk_every = 1;       // every n-th enemy walks: a large share of a level only stands there
+    bool fire = false;        // in the second half of the play the host and a member fire
+    int settle_ms = 10000;
+    float spread = 8.0f;      // between one moby and the next
+};
+
+
+/* How many of the host's mobys differ from each member's, as `r` counts them. */
+inline void compare_sim(const std::vector<Player*>& all, SimResult& r) {
+    r.wrong_place = r.wrong_hidden = r.wrong_crates = 0;
+    const FakeGame& host = all[0]->game;
+
+    for (std::size_t i = 1; i < all.size(); ++i) {
+        std::map<int, const mp::MobyState*> theirs;
+
+        for (const mp::MobyState& c : all[i]->game.level) {
+            if (c.key >= 0) {
+                theirs.emplace(c.key, &c);
+            }
+        }
+
+        for (const mp::MobyState& h : host.level) {
+            if (h.key < 0) {
+                continue;
+            }
+
+            const auto it = theirs.find(h.key);
+            const mp::MobyState* c = it != theirs.end() ? it->second : nullptr;
+            const bool here_dead = (h.flags & mp::kMobyDead) != 0;
+            const bool there_dead = c == nullptr || (c->flags & mp::kMobyDead) != 0;
+
+            if (h.oclass == 500) {
+                r.wrong_crates += here_dead != there_dead ? 1 : 0;
+            } else if (c != nullptr) {
+                const float dy = c->pose.position[1] - h.pose.position[1];
+                r.wrong_place += std::fabs(dy) > 0.5f ? 1 : 0;
+                r.wrong_hidden += ((c->flags ^ h.flags) & mp::kMobyHidden) != 0 ? 1 : 0;
+            }
+        }
+    }
+}
 
 
 /* One run: a party of 1 + `members` plays `seconds`: the host's enemies move and hide, crates go
  * from every side, each break drops a bolt from the host that a member collects, and a member dies
- * half way; then everything stops and the link gets 10 seconds, three rounds of the slowest refresh
- * (kWorldFarMs), to settle. What differs then is a desync no time will mend. */
-inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double seconds, SimNet** out = nullptr) {
+ * half way; then everything stops and the link gets plan.settle_ms to settle. What differs then is a
+ * desync no time will mend. */
+inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double seconds, SimNet** out = nullptr,
+                         const SimPlan& plan = SimPlan{}) {
     static std::vector<std::unique_ptr<Player>> keep;
     keep.clear();
     keep.push_back(std::make_unique<Player>(1));
@@ -1155,7 +1264,8 @@ inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double
     host.coop.choose({}, "New game");
     CHECK(start_ready(host));
     route(all);
-    SimWorld w{120, 30};
+    SimWorld w{plan.enemies, plan.crates, plan.spread};
+    const auto walks = [&](int key) { return key >= 0 && key < w.enemies && key % plan.walk_every == 0; };
 
     for (std::size_t i = 0; i < all.size(); ++i) {
         all[i]->game.now = {mp::kPhasePlaying, 3, 2};
@@ -1167,21 +1277,31 @@ inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double
     static std::unique_ptr<SimNet> net;
     net = std::make_unique<SimNet>(all, link, seed);
     net_kept = net.get();
+    net->gaps_of = walks;
     std::mt19937 rng(seed * 7 + 1);
     SimResult r;
     const auto ticks = static_cast<int>(seconds * 1000.0 / 16.0);
     std::uint16_t next_bolt = 0;
     bool died = false;
     std::set<int> broken;
+    int last_wrong = ticks - 1;
 
-    for (int t = 0; t < ticks + 10000 / 16; ++t) {
+    for (int t = 0; t < ticks + plan.settle_ms / 16; ++t) {
         const bool playing = t < ticks;
+        // Once everyone is under way, up to the stop and not across the member's own death.
+        net->gaps_on = playing && t * 16 >= 2000 && (t < ticks / 2 || t * 16 >= ticks * 8 + 2000);
+
+        if (!net->gaps_on) {
+            net->heard_at.clear();
+        }
 
         // The host's enemies walk; some hide and show.
         if (playing) {
             for (mp::MobyState& m : host.game.level) {
                 if (m.key >= 0 && m.key < w.enemies) {
-                    m.pose.position[1] += 0.05f * (m.key % 2 == 0 ? 1.0f : -1.0f);
+                    if (walks(m.key)) {
+                        m.pose.position[1] += 0.05f * (m.key % 2 == 0 ? 1.0f : -1.0f);
+                    }
 
                     if (rng() % 2000 == 0) {
                         m.flags ^= mp::kMobyHidden;
@@ -1205,6 +1325,16 @@ inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double
             if (!died && t == ticks / 2 && members > 0) {
                 died = true;
                 remake(*all[1], w, {0, 1, 2}, kSimSlots);  // records skipped: slots mean other mobys now
+            }
+
+            // The party fires: a held trigger's ten shots a second, from two players at once.
+            if (plan.fire && t >= ticks / 2 && t % 6 == 0) {
+                for (std::size_t i = 0; i < std::min<std::size_t>(2, all.size()); ++i) {
+                    mp::Shot shot;
+                    shot.item = 2;
+                    shot.position[0] = static_cast<float>(t);
+                    all[i]->game.shots_out.push_back(shot);
+                }
             }
         }
 
@@ -1254,30 +1384,24 @@ inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double
         }
 
         net->step(16);
+
+        if (t + 1 == ticks) {
+            net->played_state = net->host_state;
+        }
+
+        // Settling: when the last moby came right.
+        if (!playing && t % 4 == 0) {
+            compare_sim(all, r);
+            const int wrong = r.wrong_place + r.wrong_hidden + r.wrong_crates;
+            r.most_wrong = std::max(r.most_wrong, wrong);
+            last_wrong = wrong != 0 ? t : last_wrong;
+        }
     }
 
     // What differs now stays.
-    for (std::size_t i = 1; i < all.size(); ++i) {
-        const FakeGame& m = all[i]->game;
-
-        for (const mp::MobyState& h : host.game.level) {
-            if (h.key < 0) {
-                continue;
-            }
-
-            const mp::MobyState* c = by_key(m, h.key);
-            const bool here_dead = (h.flags & mp::kMobyDead) != 0;
-            const bool there_dead = c == nullptr || (c->flags & mp::kMobyDead) != 0;
-
-            if (h.oclass == 500) {
-                r.wrong_crates += here_dead != there_dead ? 1 : 0;
-            } else if (c != nullptr) {
-                const float dy = c->pose.position[1] - h.pose.position[1];
-                r.wrong_place += std::fabs(dy) > 0.5f ? 1 : 0;
-                r.wrong_hidden += ((c->flags ^ h.flags) & mp::kMobyHidden) != 0 ? 1 : 0;
-            }
-        }
-    }
+    compare_sim(all, r);
+    r.settled_ms = r.wrong_place + r.wrong_hidden + r.wrong_crates != 0 ? -1 : (last_wrong + 1 - ticks) * 16L;
+    r.worst_gap_ms = net->worst_gap;
 
     if (out != nullptr) {
         *out = net_kept;
