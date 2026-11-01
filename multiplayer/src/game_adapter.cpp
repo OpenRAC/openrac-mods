@@ -234,10 +234,16 @@ bool ModGame::revive() { return mod_.hero_revive(); }
 
 bool ModGame::respawn() { return mod_.hero_revive(nullptr, OPENRAC_REVIVE_RESPAWN); }
 
-bool ModGame::mission_done(int level, int mission) {
+bool ModGame::mission_row(int level, std::uint8_t* out) {
+    static_assert(mp::kMissions == OPENRAC_MISSION_STATE_SIZE);
     std::uint8_t row[OPENRAC_MISSION_STATE_SIZE] = {};
-    return mission >= 0 && mission < OPENRAC_MISSION_STATE_SIZE && mod_.mission_state_read(level, row)
-           && row[mission] == 0xFFu;
+
+    if (!mod_.mission_state_read(level, row)) {
+        return false;
+    }
+
+    std::copy(row, row + OPENRAC_MISSION_STATE_SIZE, out);
+    return true;
 }
 // --- end WP-DEATH ---
 

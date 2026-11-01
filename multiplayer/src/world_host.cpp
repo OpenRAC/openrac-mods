@@ -135,6 +135,9 @@ void World::remade() {
     int killed = 0;
     const bool wipe = party_wiped();
     std::vector<int> restored;
+    // The row as the save has it. One that cannot be read spares nothing: the party's dead stay.
+    std::uint8_t missions[kMissions] = {};
+    const bool known = game_.mission_row(level_, missions);
 
     // Each game's own interactables follow that game's own story (a dug pile is the party's); a
     // mission's mobys return with the mission; the rest stay as the party left them. After a full
@@ -150,7 +153,8 @@ void World::remade() {
             it = party_dead_.erase(it);
         } else if (interactable_class(moby->second.oclass) && dug_.count(key) == 0) {
             ++it;
-        } else if (moby->second.mission >= 0 && !game_.mission_done(level_, moby->second.mission)) {
+        } else if (known && moby->second.mission >= 0 && moby->second.mission < kMissions
+                   && missions[moby->second.mission] != kMissionDone) {
             trace_line("despawn", moby_name(slot) + " comes back with its mission " + std::to_string(moby->second.mission));
             it = party_dead_.erase(it);
 

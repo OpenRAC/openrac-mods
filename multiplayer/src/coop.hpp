@@ -316,6 +316,10 @@ struct MobyState {
     Pose pose;
 };
 
+/* A level's mission row: its bytes, and a done mission's (0 not done). */
+constexpr int kMissions = 16;
+constexpr std::uint8_t kMissionDone = 0xFF;
+
 /* openrac_moby's flags. */
 constexpr std::uint32_t kMobyUpdates = 0x1;
 constexpr std::uint32_t kMobyDriven = 0x2;
@@ -475,8 +479,9 @@ public:
     virtual bool revive() { return false; }
     /* The hero back at his checkpoint now, dead or not (the game's own respawn). */
     virtual bool respawn() { return false; }
-    /* Whether mission `mission` of `level` is done in this game. */
-    virtual bool mission_done(int /*level*/, int /*mission*/) { return false; }
+    /* The mission row of `level` in this game (kMissions bytes, kMissionDone for done); false when
+     * it cannot be read. */
+    virtual bool mission_row(int /*level*/, std::uint8_t* /*out*/) { return false; }
     // --- end WP-DEATH ---
     // --- WP-LOBBY ---
     // --- end WP-LOBBY ---

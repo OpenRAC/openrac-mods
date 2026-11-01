@@ -155,7 +155,7 @@ public:
 
     bool respawn() override;
 
-    bool mission_done(int level, int mission) override;
+    bool mission_row(int level, std::uint8_t* out) override;
     // --- end WP-DEATH ---
 
 private:

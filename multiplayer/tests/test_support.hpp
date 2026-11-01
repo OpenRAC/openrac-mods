@@ -285,12 +285,13 @@ struct FakeGame : mp::Game {
         return true;
     }
 
-    // What hold_death, revive and respawn were asked, and the missions done in this game.
+    // What hold_death, revive and respawn were asked, and the mission row of this game's level.
     bool revivable = true;
     bool holding = false;
     int revives = 0;
     int respawns = 0;
-    std::set<int> missions_done;
+    std::array<std::uint8_t, mp::kMissions> mission_row_bytes{};
+    bool mission_row_known = true;
 
     bool can_revive() override { return revivable; }
 
@@ -306,7 +307,10 @@ struct FakeGame : mp::Game {
         return true;
     }
 
-    bool mission_done(int /*level*/, int mission) override { return missions_done.count(mission) != 0; }
+    bool mission_row(int /*level*/, std::uint8_t* out) override {
+        std::copy(mission_row_bytes.begin(), mission_row_bytes.end(), out);
+        return mission_row_known;
+    }
 
     // The world: a level's mobys by slot, the drives, kills, spawns, hits, stand-ins and bolts. The
     // hero's moby is slot 99, figure id N is slot 100 + N.

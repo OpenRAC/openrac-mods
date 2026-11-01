@@ -123,10 +123,30 @@ void a_missions_moby_comes_back_with_the_mission() {
     find_key(q.host.game, 1)->mission = 2;
     q.host.game.die(q.host.game.moby_slot(1));
     q.run(10);
-    q.host.game.missions_done.insert(2);
+    q.host.game.mission_row_bytes[2] = mp::kMissionDone;
     remake_with_mission(q.host, q.w, 1, 2);
     q.run(10);
     CHECK(dead(q.host.game, 1) && driven_spawns(q.member.game, 300) == 0);
+
+    // Another mission's byte says nothing of this one: spared.
+    Party r(SimWorld{3, 0});
+    find_key(r.host.game, 1)->mission = 2;
+    r.host.game.die(r.host.game.moby_slot(1));
+    r.run(10);
+    r.host.game.mission_row_bytes[3] = mp::kMissionDone;
+    remake_with_mission(r.host, r.w, 1, 2);
+    r.run(10);
+    CHECK(!dead(r.host.game, 1) && driven_spawns(r.member.game, 300) == 1);
+
+    // A row that cannot be read spares nothing: the party's dead stay.
+    Party s(SimWorld{3, 0});
+    find_key(s.host.game, 1)->mission = 2;
+    s.host.game.die(s.host.game.moby_slot(1));
+    s.run(10);
+    s.host.game.mission_row_known = false;
+    remake_with_mission(s.host, s.w, 1, 2);
+    s.run(10);
+    CHECK(dead(s.host.game, 1) && driven_spawns(s.member.game, 300) == 0);
 }
 
 void a_hosts_death_keeps_the_bolts_lying_about() {
