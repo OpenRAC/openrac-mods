@@ -437,6 +437,10 @@ public:
     // --- WP-SAVE ---
     // --- end WP-SAVE ---
     // --- WP-SHARE ---
+    /* The shared progress past the items (shared.hpp; the SDK's shared_read and shared_give): a
+     * section's bytes (false: none), and bytes merged in, upward only and silently. */
+    virtual bool shared_read(int /*tag*/, Bytes& /*out*/) { return false; }
+    virtual bool shared_give(int /*tag*/, const Bytes& /*data*/) { return false; }
     // --- end WP-SHARE ---
     // --- WP-SHOTS ---
     // --- end WP-SHOTS ---
@@ -451,7 +455,8 @@ public:
     virtual bool place(const float* /*position*/, float /*yaw*/, bool /*beside*/) { return false; }
     /* A level's name as the game shows it; empty when not known. */
     virtual std::string level_name(int /*level*/) { return {}; }
-    /* While on, what the party's progress gives comes without the game's banners. */
+    /* While on, what the party's progress gives (give_item, unlock_planet) comes without the game's
+     * banners, everything else about it as ever. */
     virtual void quiet_gifts(bool /*on*/) {}
     // --- end WP-JOIN ---
     // --- WP-CAMERA ---
@@ -568,6 +573,10 @@ public:
     /* What the pages show: whether the host's game is on (a member: PLAY came), whether a member
      * waits for its save, the level the host plays, the remote players shown now. */
     bool playing() const { return play_ != 0; }
+
+    /* This game is joining, or just joined: what the party's progress gives comes quietly
+     * (Game::quiet_gifts), and need not wait for control. */
+    bool quiet_gifts() const { return quiet_; }
 
     std::int32_t play() const { return play_; }
 

@@ -96,12 +96,18 @@ public:
 
     bool progress(mp::ProgressBits& out) override;
 
-    // GiveItem(id, 0): as the game gives it, its banner and ammo, not put in hand.
+    // GiveItem(id, 0): as the game gives it, its banner and ammo, not put in hand. While quiet_, no
+    // banner, and a planet with no message.
     bool give_item(int id) override;
 
     bool give_gold_bolt(int index) override;
 
     bool unlock_planet(int planet) override;
+
+    // What the game has of a shared section, and bytes merged in (shared.hpp).
+    bool shared_read(int tag, mp::Bytes& out) override;
+
+    bool shared_give(int tag, const mp::Bytes& data) override;
 
     /* The mods of this run but this one, with their settings: once they have all loaded. */
     mp::ModList mod_list();

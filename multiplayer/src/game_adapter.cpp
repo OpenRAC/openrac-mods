@@ -16,7 +16,9 @@ namespace mpmod {
 /* Where each disc keeps the progress a party shares (progress.hpp; rac1-decomp's names, the US
  * addresses from OpenRAC's versionmap): item_available (40 bytes, a byte an item), the gold bolts
  * (gold_bolts_collected, 4 a level), level_available (the planets, 20), and the game's own GiveItem
- * (grant_inventory_item) and UnlockPlanet (unlock_planet). */
+ * (grant_inventory_item) and UnlockPlanet (unlock_planet). For a quiet give: the planets in order
+ * of unlocking (gGalaxyList, a word each) and GiveItem's banner text per item, then per item already
+ * had (item_pickup_banner_ids, 37 + 37 words in level 0's program, -1 for none). */
 struct ProgressDisc {
     const char* version;
     openrac::gaddr items;
@@ -24,12 +26,17 @@ struct ProgressDisc {
     openrac::gaddr planets;
     const char* give_item;
     const char* unlock_planet;
+    openrac::gaddr planet_order;
+    openrac::gaddr item_banners;
 };
 
 constexpr ProgressDisc kProgressDiscs[] = {
-    {"pal", 0x0013D5C8u, 0x0014BFC0u, 0x0013DE48u, "func_L00_002618D8", "func_L00_00261848"},
-    {"ntsc", 0x0013D4C0u, 0x0014BEC0u, 0x0013DD40u, "FUN_L00_00260860", "FUN_L00_002607d0"},
+    {"pal", 0x0013D5C8u, 0x0014BFC0u, 0x0013DE48u, "func_L00_002618D8", "func_L00_00261848", 0x0013D618u, 0x001B06C0u},
+    {"ntsc", 0x0013D4C0u, 0x0014BEC0u, 0x0013DD40u, "FUN_L00_00260860", "FUN_L00_002607d0", 0x0013D510u, 0x001B0340u},
 };
+
+/* GiveItem's table: this many items, then as many again for an item already had. */
+constexpr int kBannerItems = 37;
 
 mp::GameStatus ModGame::status() {
     const openrac_play_status s = mod_.play_status();
@@ -287,6 +294,14 @@ void ModGame::eyes(const std::vector<float>& xyz) { mod_.play_eyes(xyz); }
 
 int ModGame::bolts(int add) { return mod_.bolts(add); }
 
+bool ModGame::shared_read(int tag, mp::Bytes& out) {
+    return mp::in_level(mod_.play_status().phase) && mod_.shared_read(tag, out);
+}
+
+bool ModGame::shared_give(int tag, const mp::Bytes& data) {
+    return mod_.shared_give(tag, data);
+}
+
 bool ModGame::progress(mp::ProgressBits& out) {
     const ProgressDisc* disc = progress_disc();
 
@@ -303,23 +318,37 @@ bool ModGame::progress(mp::ProgressBits& out) {
 
 bool ModGame::give_item(int id) {
     const ProgressDisc* disc = progress_disc();
-
-    // A joiner's: had, no banner (its save has all but what came in the last moments).
-    if (quiet_ && disc != nullptr && id >= 0 && id < static_cast<int>(mp::kProgressItems)) {
-        mod_.memory().write<std::uint8_t>(mod_.relocate(disc->items) + static_cast<openrac::gaddr>(id), 1);
-        return true;
-    }
-
     const auto give = disc != nullptr ? mod_.function<void (*)(std::int32_t, std::int32_t)>(disc->give_item) : nullptr;
 
     if (give == nullptr) {
         return false;
     }
 
+    // A joiner's: GiveItem as ever (its ammo, slot lists and marks), with no banner for this call:
+    // it shows none for a word of -1.
+    const bool quiet = quiet_ && id >= 0 && id < kBannerItems;
+    const openrac::Memory memory = mod_.memory();
+    const openrac::gaddr banners = quiet ? mod_.relocate_level(0, disc->item_banners) : 0;
+    const openrac::gaddr first = banners + static_cast<openrac::gaddr>(id) * 4u;
+    const openrac::gaddr again = banners + static_cast<openrac::gaddr>(id + kBannerItems) * 4u;
+    const std::int32_t first_text = quiet ? memory.read<std::int32_t>(first) : -1;
+    const std::int32_t again_text = quiet ? memory.read<std::int32_t>(again) : -1;
+
+    if (quiet) {
+        memory.write<std::int32_t>(first, -1);
+        memory.write<std::int32_t>(again, -1);
+    }
+
     // Another player's item, as it is: no mod makes it something else here.
     mod_.party_replay(true);
     give(id, 0);
     mod_.party_replay(false);
+
+    if (quiet) {
+        memory.write<std::int32_t>(first, first_text);
+        memory.write<std::int32_t>(again, again_text);
+    }
+
     return true;
 }
 
@@ -337,8 +366,23 @@ bool ModGame::give_gold_bolt(int index) {
 bool ModGame::unlock_planet(int planet) {
     const ProgressDisc* disc = progress_disc();
 
+    // A joiner's: UnlockPlanet less its message, the planet marked and next in the order of unlocking.
     if (quiet_ && disc != nullptr && planet >= 0 && planet < static_cast<int>(mp::kProgressPlanets)) {
-        mod_.memory().write<std::uint8_t>(mod_.relocate(disc->planets) + static_cast<openrac::gaddr>(planet), 1);
+        const openrac::Memory memory = mod_.memory();
+        const openrac::gaddr planets = mod_.relocate(disc->planets);
+        int count = 0;
+
+        for (int i = 0; i < static_cast<int>(mp::kProgressPlanets); ++i) {
+            count += memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(i)) != 0 ? 1 : 0;
+        }
+
+        if (memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(planet)) == 0) {
+            memory.write<std::uint8_t>(planets + static_cast<openrac::gaddr>(planet), 1);
+            memory.write<std::int32_t>(
+                mod_.relocate(disc->planet_order) + static_cast<openrac::gaddr>(count) * 4u, planet
+            );
+        }
+
         return true;
     }
 

@@ -17,6 +17,10 @@
  * menu, scene or load in the way). Nothing is written to any memory card: the progress lives in
  * each game's memory, and a member who joins later gets it with the host's live save.
  *
+ * What the party had when a member arrived is not news: while a late joiner joins and for a while
+ * after (Coop::quiet_gifts: what changed between the save it was given and its arrival) it is given
+ * at once and silently, with no banner, no sound and nothing to wait for.
+ *
  * A gold bolt's pickup scene is the collector's alone: the game plays it in its level's play mode
  * (CameraScript, not a scene of the level's), so the co-op neither shares it (SCENE) nor waits for
  * it; the gold bolt moby is a pickup (world.hpp), gone from every game when taken.

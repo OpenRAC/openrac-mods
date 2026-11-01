@@ -211,8 +211,8 @@ void Progress::tick(std::uint64_t now) {
     }
 
     // A member: what the host's game has that this one lacks, then what this one has to the host.
-    if (heard_ && control) {
-        give(party_, "the host's");
+    if (heard_ && (control || coop_.quiet_gifts())) {
+        give(party_, coop_.quiet_gifts() ? "the host's, quietly" : "the host's");
     }
 
     if (!sent_any_ || here_ != sent_ || now - sent_ms_ >= kProgressResendMs) {

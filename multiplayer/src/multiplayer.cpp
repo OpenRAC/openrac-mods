@@ -291,6 +291,8 @@ void load(openrac::Mod& mod) {
     g->coop->set_save_hooks([](std::int32_t target) { g->cosave->announce(target); },
                             [](const mp::Bytes& save) { g->cosave->starting(save); });
     g->coop->on_start_again([] { g->cosave->start_again(); });
+    g->shared = std::make_unique<mp::Shared>(*g->session, *g->game, *g->coop);
+    g->shared->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
@@ -363,12 +365,14 @@ void load(openrac::Mod& mod) {
     g->world->trace(&g->trace);
     g->coop->trace(&g->trace);
     g->progress->trace(&g->trace);
+    g->shared->trace(&g->trace);
     // The game's DATA, to the owner of its kind (kinds.hpp); what nobody owns goes to the co-op.
     g->router.fallback([](std::int32_t sender, const mp::Bytes& bytes) { g->coop->handle(sender, bytes); });
     g->router.route(mp::Owner::kMods, [](std::int32_t sender, const mp::Bytes& bytes) { g->mods->handle(sender, bytes); });
     g->router.route(mp::Owner::kWorld, [](std::int32_t sender, const mp::Bytes& bytes) { g->world->handle(sender, bytes); });
     g->router.route(mp::Owner::kProgress, [](std::int32_t sender, const mp::Bytes& bytes) { g->progress->handle(sender, bytes); });
     g->router.route(mp::Owner::kSave, [](std::int32_t sender, const mp::Bytes& bytes) { g->cosave->handle(sender, bytes); });
+    g->router.route(mp::Owner::kShare, [](std::int32_t sender, const mp::Bytes& bytes) { g->shared->handle(sender, bytes); });
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) { g->router.dispatch(sender, bytes); });
     // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
     // or enemy drops them, and they come here as the host's): the death recorded as the game does it
@@ -567,6 +571,7 @@ void load(openrac::Mod& mod) {
         g->world->tick(now);
         g->progress->tick(now);
         g->cosave->tick(now, g->coop->playing());
+        g->shared->tick(now);
         g->session->flush();
 
         // The network's own account, for reports of a bad link (README, Verbose log).

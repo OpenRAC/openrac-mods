@@ -38,6 +38,7 @@ int main() {
     mpt::run_cross_tests();
     mpt::run_tags_tests();
     mpt::run_join_tests();
+    mpt::run_shared_tests();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

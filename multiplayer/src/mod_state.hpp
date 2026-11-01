@@ -28,6 +28,7 @@
 #include "modcode.hpp"
 #include "nametags.hpp"
 #include "progress.hpp"
+#include "shared.hpp"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
 #include "party_mods.hpp"
@@ -105,6 +106,7 @@ struct State {
     std::unique_ptr<mp::Coop> coop;
     std::unique_ptr<mp::World> world;
     std::unique_ptr<mp::Progress> progress;
+    std::unique_ptr<mp::Shared> shared;
     std::unique_ptr<mp::PartyMods> mods;
     std::unique_ptr<mp::CoSave> cosave;
     mp::Router router;             // where a received DATA goes (kinds.hpp)

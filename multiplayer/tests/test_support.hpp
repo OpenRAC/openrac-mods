@@ -23,6 +23,7 @@
 #include "protocol.hpp"
 #include "session.hpp"
 #include "progress.hpp"
+#include "shared.hpp"
 #include "world.hpp"
 
 #define CHECK(c)                                                                                   \
@@ -128,6 +129,7 @@ struct FakeGame : mp::Game {
     };
     std::vector<Placed> placed;
     std::vector<bool> quiet;
+    bool gifts_quiet = false;
 
     bool can_place() override { return placeable; }
 
@@ -147,7 +149,10 @@ struct FakeGame : mp::Game {
 
     std::string level_name(int level) override { return "Planet" + std::to_string(level); }
 
-    void quiet_gifts(bool on) override { quiet.push_back(on); }
+    void quiet_gifts(bool on) override {
+        quiet.push_back(on);
+        gifts_quiet = on;
+    }
 
     std::uint32_t sim_digest(int level) override {
         const auto it = digests.find(level);
@@ -398,7 +403,7 @@ struct FakeGame : mp::Game {
 
     bool give_item(int id) override {
         owned.items[static_cast<std::size_t>(id)] = 1;
-        given.push_back("item " + std::to_string(id));
+        (gifts_quiet ? given_quietly : given).push_back("item " + std::to_string(id));
         return true;
     }
 
@@ -410,8 +415,69 @@ struct FakeGame : mp::Game {
 
     bool unlock_planet(int planet) override {
         owned.planets[static_cast<std::size_t>(planet)] = 1;
-        given.push_back("planet " + std::to_string(planet));
+        (gifts_quiet ? given_quietly : given).push_back("planet " + std::to_string(planet));
         return true;
+    }
+
+    // The shared progress past those (shared.hpp): each section's bytes, as the port's are. The
+    // items and planets given without a banner, in order ("item 5", "planet 3").
+    mp::SharedBits sections;
+    std::vector<std::string> given_quietly;
+    bool has_shared = true;
+
+    template <std::size_t N>
+    static Bytes bytes_of(const std::array<std::uint8_t, N>& a) {
+        return Bytes(a.begin(), a.end());
+    }
+
+    bool shared_read(int tag, Bytes& out) override {
+        if (!has_shared || !mp::in_level(now.phase)) {
+            return false;
+        }
+
+        switch (tag) {
+        case mp::kSharedGoldWeapons:
+            out = bytes_of(sections.gold_weapons);
+            return true;
+        case mp::kSharedSkillPoints:
+            out = bytes_of(sections.skills);
+            return true;
+        case mp::kSharedFlags:
+            out = bytes_of(sections.flags);
+            return true;
+        case mp::kSharedSpecials:
+            out = bytes_of(sections.specials);
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    bool shared_give(int tag, const Bytes& data) override {
+        const auto merge = [&](auto& a, std::uint8_t value) {
+            for (std::size_t i = 0; i < a.size() && i < data.size(); ++i) {
+                if (data[i] != 0 && a[i] == 0) {
+                    a[i] = value;
+                }
+            }
+        };
+
+        switch (tag) {
+        case mp::kSharedGoldWeapons:
+            merge(sections.gold_weapons, 1);
+            return true;
+        case mp::kSharedSkillPoints:
+            merge(sections.skills, 1);
+            return true;
+        case mp::kSharedFlags:
+            merge(sections.flags, 0xFF);
+            return true;
+        case mp::kSharedSpecials:
+            merge(sections.specials, 1);
+            return true;
+        default:
+            return false;
+        }
     }
 
     // A moby hidden or shown (its listed flag), the deletions the game made (by slot), the camera.
@@ -496,6 +562,7 @@ struct Player {
     mp::Coop coop;
     mp::World world;
     mp::Progress progress;
+    mp::Shared shared;
     mp::PartyMods mods;
     mp::CoSave cosave;
     mp::Router router;
@@ -506,6 +573,7 @@ struct Player {
           coop(session, game, [this] { return clock; }),
           world(session, game, coop, [this] { return clock; }),
           progress(session, game, coop),
+          shared(session, game, coop),
           mods(session, game, {}, [this] { return clock; }),
           cosave(session, game, [this] { return clock; }) {
         coop.set_save_hooks([this](std::int32_t target) { cosave.announce(target); },
@@ -516,6 +584,7 @@ struct Player {
         router.route(mp::Owner::kMods, [this](std::int32_t sender, const Bytes& bytes) { mods.handle(sender, bytes); });
         router.route(mp::Owner::kWorld, [this](std::int32_t sender, const Bytes& bytes) { world.handle(sender, bytes); });
         router.route(mp::Owner::kProgress, [this](std::int32_t sender, const Bytes& bytes) { progress.handle(sender, bytes); });
+        router.route(mp::Owner::kShare, [this](std::int32_t sender, const Bytes& bytes) { shared.handle(sender, bytes); });
         session.on_data([this](std::int32_t sender, const Bytes& bytes) { router.dispatch(sender, bytes); });
         mp::Message hello;
         hello.kind = mp::Message::Kind::kHello;
@@ -593,6 +662,7 @@ inline void tick(std::vector<Player*> players, std::uint64_t ms) {
         p->world.tick(p->clock);
         p->progress.tick(p->clock);
         p->cosave.tick(p->clock, p->coop.playing());
+        p->shared.tick(p->clock);
         p->session.flush();
     }
     route(players);
@@ -861,6 +931,8 @@ struct SimNet {
     std::vector<Packet> flying;
     std::map<std::int32_t, Limits> limits;
     std::uint64_t now = 1000;
+    // The shared progress on this link too (off: the seeded runs keep the draws they were tuned on).
+    bool shared = false;
     long data_drops = 0, state_drops = 0, kicked = 0, datagrams_lost = 0, state_sent = 0;
 
     SimNet(std::vector<Player*> who, SimLink l, unsigned seed) : link(l), random(seed), players(std::move(who)) {
@@ -978,6 +1050,10 @@ struct SimNet {
             p->coop.tick(now);
             p->world.tick(now);
             p->progress.tick(now);
+
+            if (shared) {
+                p->shared.tick(now);
+            }
             p->session.flush();
         }
     }
@@ -1226,5 +1302,6 @@ void run_save_tests();
 void run_cross_tests();
 void run_tags_tests();
 void run_join_tests();
+void run_shared_tests();
 
 }  // namespace mpt

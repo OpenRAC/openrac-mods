@@ -100,6 +100,10 @@ constexpr std::uint8_t kProgress = 23;
 constexpr std::uint8_t kMods = 29;
 constexpr std::uint8_t kFits = 30;
 constexpr std::uint8_t kRules = 31;
+// Shared progress (shared.hpp)
+constexpr std::uint8_t kShared = 36;
+constexpr std::uint8_t kMission = 37;
+constexpr std::uint8_t kSharedAsk = 38;
 }  // namespace kind
 
 /* One kind in use. */
@@ -156,6 +160,9 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kCoSaveAck, "COSAVE_ACK", Owner::kSave},
     {kind::kSaveNow, "SAVE_NOW", Owner::kSave},
     {kind::kCoParty, "COPARTY", Owner::kSave},
+    {kind::kShared, "SHARED", Owner::kShare},
+    {kind::kMission, "MISSION", Owner::kShare},
+    {kind::kSharedAsk, "SHARED_ASK", Owner::kShare},
     {kind::kLink, "LINK", Owner::kLobby},
     {kind::kLinks, "LINKS", Owner::kLobby},
     {kind::kBatch, "BATCH", Owner::kLobby},
