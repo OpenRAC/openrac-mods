@@ -304,13 +304,28 @@ class Bot:
     def index_check(self, mid: str, where: str) -> dict | None:
         """The whole index checked with the change in place; this entry's problems become items."""
         review: list = []
-        index, errors, warnings = b.build(self.root, self.http, self.now, None, True, log=lambda w: None,
+        logged: list[str] = []
+        index, errors, warnings = b.build(self.root, self.http, self.now, None, True, log=logged.append,
                                           review=review)
         mine = [e for e in errors if (where and where in e) or re.search(rf"\b{re.escape(mid)}\b", e)]
         self.item(not mine, "The index builds with this entry",
                   "; ".join(md(e) for e in mine[:3]) or "")
         held = [r for r in review if r["id"] == mid]
-        return {"index": index, "held": held}
+        skipped = [w.removeprefix(f"{mid}: skipped ") for w in logged if w.startswith(f"{mid}: skipped ")]
+        return {"index": index, "held": held, "skipped": skipped}
+
+    def newest_release_usable(self, owner: str, repo: str, mid: str, skipped: list[str]) -> None:
+        """The build leaves a broken release out and lists an older one: say so, or the author is
+        listed on an old version without knowing."""
+        tags = re.compile(rf"^(?:{re.escape(mid)}-)?v{b.SEMVER}$")
+        newest = next((r["tag_name"] for r in self.gh.releases(owner, repo)
+                       if not r.get("draft") and tags.match(r.get("tag_name", ""))), None)
+        reason = next((s for s in skipped if newest and s.startswith(f"{newest}: ")), None)
+        if reason:
+            # The log line is "<tag>: <error>", and most errors name the tag again.
+            why = reason.removeprefix(f"{newest}: ").removeprefix(f"{newest}: ")
+            self.item(False, f"{mid}: the newest release, {md(newest)}, can be listed",
+                      f"{md(why)}. Fix the release, then edit this issue: the bot checks it again.")
 
     # The forms -----------------------------------------------------------------------------------
 
@@ -381,6 +396,7 @@ class Bot:
                 self.write(f"index/{mid}.json", {"id": mid, "repo": repo_url, "path": path,
                                                  **{k: v for k, v in listing.items() if k != "id"}})
             res = self.index_check(mid, mid)
+            self.newest_release_usable(owner, repo, mid, res["skipped"])
             listed = res["index"] and any(m["id"] == mid for m in res["index"]["mods"])
             if res["held"]:
                 vs = ", ".join(h["version"] for h in res["held"])
