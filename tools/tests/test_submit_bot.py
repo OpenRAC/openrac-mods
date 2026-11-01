@@ -190,6 +190,37 @@ class Submit(Base):
         self.assertIn("Maintainer: confirm that @member can speak for someone/ext-hud before merging.",
                       create[create.index("--body") + 1])
 
+    def add_release(self, tag, version, assets):
+        """A release newer than the fixture's, with its manifest at the tag."""
+        path = self.fx.dir / "api/ext-hud/releases-1.json"
+        releases = json.loads(path.read_text())
+        asset = lambda n: {"name": n, "size": 10, "browser_download_url": f"https://example.test/{tag}/{n}"}
+        path.write_text(json.dumps([{**releases[0], "tag_name": tag, "assets": [asset(n) for n in assets]}, *releases]))
+        manifest = json.loads((self.fx.dir / "raw/ext-hud/v0.2.0/openrac-mod.json").read_text())
+        self.fx.route(f"https://raw.githubusercontent.com/someone/ext-hud/{tag}/openrac-mod.json",
+                      {**manifest, "version": version})
+
+    def test_broken_newest_release_is_named(self):
+        # A valid old release would be listed; the author must hear the newest was left out.
+        self.add_release("v0.3.0", "0.3.0", ["ext-hud-v0.3.0-linux-x86_64.zip"])
+        r = self.check(event(self.fields))
+        self.assertFalse(r["ok"])
+        self.assertEqual(self.failed(r), ["ext-hud: the newest release, v0.3.0, can be listed"])
+        fix = next(i["fix"] for i in r["items"] if not i["ok"])
+        self.assertTrue(fix.startswith("no ext-hud-0.3.0-&lt;platform>.zip archive."), fix)
+
+    def test_broken_older_release_is_fine(self):
+        # The newest is good; an old broken one is left out quietly, as the index does.
+        path = self.fx.dir / "api/ext-hud/releases-1.json"
+        releases = json.loads(path.read_text())
+        path.write_text(json.dumps([*releases, {**releases[0], "tag_name": "v0.1.0", "assets": []}]))
+        manifest = json.loads((self.fx.dir / "raw/ext-hud/v0.2.0/openrac-mod.json").read_text())
+        self.fx.route("https://raw.githubusercontent.com/someone/ext-hud/v0.1.0/openrac-mod.json",
+                      {**manifest, "version": "0.1.0"})
+        r = self.check(event(self.fields))
+        self.assertEqual(self.failed(r), [])
+        self.assertTrue(r["ok"])
+
     def test_ownership_refused(self):
         r = self.check(event(self.fields, user="stranger"))
         self.assertFalse(r["ok"])
