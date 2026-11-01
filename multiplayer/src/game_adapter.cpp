@@ -303,6 +303,13 @@ bool ModGame::progress(mp::ProgressBits& out) {
 
 bool ModGame::give_item(int id) {
     const ProgressDisc* disc = progress_disc();
+
+    // A joiner's: had, no banner (its save has all but what came in the last moments).
+    if (quiet_ && disc != nullptr && id >= 0 && id < static_cast<int>(mp::kProgressItems)) {
+        mod_.memory().write<std::uint8_t>(mod_.relocate(disc->items) + static_cast<openrac::gaddr>(id), 1);
+        return true;
+    }
+
     const auto give = disc != nullptr ? mod_.function<void (*)(std::int32_t, std::int32_t)>(disc->give_item) : nullptr;
 
     if (give == nullptr) {
@@ -329,6 +336,12 @@ bool ModGame::give_gold_bolt(int index) {
 
 bool ModGame::unlock_planet(int planet) {
     const ProgressDisc* disc = progress_disc();
+
+    if (quiet_ && disc != nullptr && planet >= 0 && planet < static_cast<int>(mp::kProgressPlanets)) {
+        mod_.memory().write<std::uint8_t>(mod_.relocate(disc->planets) + static_cast<openrac::gaddr>(planet), 1);
+        return true;
+    }
+
     const auto unlock = disc != nullptr ? mod_.function<void (*)(std::int32_t)>(disc->unlock_planet) : nullptr;
 
     if (unlock == nullptr) {
@@ -340,6 +353,17 @@ bool ModGame::unlock_planet(int planet) {
     mod_.party_replay(false);
     return true;
 }
+
+// --- WP-JOIN ---
+bool ModGame::can_place() { return mod_.has_hero_place(); }
+
+bool ModGame::place(const float* position, float yaw, bool beside) {
+    const float at[3] = {position[0], position[1], position[2]};
+    return mod_.hero_place(at, yaw, OPENRAC_PLACE_INVULNERABLE | (beside ? OPENRAC_PLACE_BESIDE : 0u));
+}
+
+std::string ModGame::level_name(int level) { return mod_.level_name(level); }
+// --- end WP-JOIN ---
 
 mp::ModList ModGame::mod_list() {
     mp::ModList list;

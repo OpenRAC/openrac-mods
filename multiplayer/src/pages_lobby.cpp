@@ -28,7 +28,7 @@ openrac::UiContent lobby_content() {
     // game is on, back in the title, joins it again.
     const bool title = g->game->status().phase == mp::kPhaseFrontEnd;
     const bool rejoin = !s.is_host() && g->coop->playing() && title;
-    const std::string first = s.is_host()           ? "Start"
+    const std::string first = s.is_host()           ? (g->coop->starts_again() ? "Start again" : "Start")
                               : refused()           ? "See why you can't join"
                               : g->mods->host_silent() ? "The host's game is too old"
                               : checking()          ? "Checking your mods..."
@@ -36,7 +36,7 @@ openrac::UiContent lobby_content() {
                               : s.ready(s.id())     ? "Not ready"
                                                     : "Ready";
     // Start waits for every member's Ready: dim until then, and the port refuses it.
-    const bool can = s.is_host()  ? !s.started() && title && s.all_ready()
+    const bool can = s.is_host()  ? g->coop->can_start()
                      : refused()  ? true
                      : checking() ? false
                      : rejoin     ? !g->coop->receiving()

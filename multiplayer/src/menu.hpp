@@ -139,6 +139,7 @@ struct PartyPageInput {
     std::string where;                     // a direct party's address ("192.168.1.5:7770")
     std::string host_level;                // the host's level's name, empty when it is in none
     std::vector<PartyMemberLine> members;  // the host first
+    bool go_to_host = false;               // this player can ask to go to the host
 };
 
 /* A line of the page: a label and its value (a line of information, or the Leave button). */
@@ -147,7 +148,8 @@ struct PartyLine {
         kInfo,
         kLeave,
         kText,
-        kRules
+        kRules,
+        kGoToHost
     };
     Kind kind = Kind::kInfo;
     std::string label;
@@ -157,6 +159,7 @@ struct PartyLine {
 constexpr const char* kPartyPageTitle = "Multiplayer";
 constexpr const char* kLeavePartyLabel = "Leave party";
 constexpr const char* kPartyRulesLabel = "Party rules";
+constexpr const char* kGoToHostLabel = "Go to host";
 
 /* A link as the page says it: "38 ms UDP", "... TCP" while the round trip is not known yet. */
 inline std::string link_text(std::int32_t ping_ms, bool udp) {
@@ -164,12 +167,12 @@ inline std::string link_text(std::int32_t ping_ms, bool udp) {
     return ping + (udp ? " UDP" : " TCP");
 }
 
-/* The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
- * host's level, a line per member (the host marked, the player's own), then Party rules and Leave
- * party. */
 /* The pause page's item that saves the party (cosave.hpp). */
 constexpr const char* kSavePartyLabel = "Save the party";
 
+/* The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
+ * host's level, a line per member (the host marked, the player's own), then Go to host (a member
+ * in the host's level), Party rules and Leave party. */
 inline std::vector<PartyLine> party_lines(const PartyPageInput& in) {
     using Kind = PartyLine::Kind;
 
@@ -190,6 +193,10 @@ inline std::vector<PartyLine> party_lines(const PartyPageInput& in) {
                                  : m.you         ? " (you)"
                                                  : "";
         lines.push_back({Kind::kInfo, m.name + mark, link_text(m.ping_ms, m.udp)});
+    }
+
+    if (in.go_to_host) {
+        lines.push_back({Kind::kGoToHost, kGoToHostLabel, ""});
     }
 
     lines.push_back({Kind::kRules, kPartyRulesLabel, ""});

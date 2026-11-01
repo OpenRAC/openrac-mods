@@ -254,7 +254,10 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
         // Nor while the party arrives somewhere (the figures come once all are in).
         const char* hidden = nullptr;
 
-        if (arriving_) {
+        // (A member warned of the ship's leaving still stands in the level with them.)
+        if (arriving_ && leave_dest_ < 0) {
+            hidden = "the party arrives";
+        } else if (arriving_ && now >= leave_at_) {
             hidden = "the party arrives";
         } else if (!in_level(status.phase)) {
             hidden = "this game is out of a level";

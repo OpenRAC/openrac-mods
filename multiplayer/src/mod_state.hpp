@@ -138,6 +138,7 @@ struct State {
     int pause_leave = -1;        // its Leave party item, -1 out of a party
     int pause_rules = -1;        // its Party rules item, -1 out of a party
     int pause_save = -1;         // its Save the party item, -1 out of a party's game
+    int pause_go = -1;           // its Go to host item, -1 when there is none
     std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
     std::uint64_t net_ms = 0;    // when the verbose log last gave the network's counts
     std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame

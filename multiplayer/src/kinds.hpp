@@ -14,7 +14,7 @@
  * Reserved ranges (free until their package lands):
  *    36-39 shared progress, 40-43 host migration, 44-47 late join, 48-51 shots,
  *    52-55 camera, 56-59 tether, 60-63 and 67-70 lobby (the party's rules and kicks); free:
- *    0, 71-127 (and 128-255, which the wire does not use).
+ *    0, 71-127 (and 128-255, which the wire does not use). Late join uses 44 to 46 (47 is free).
  *
  * Routing: Router::dispatch looks the owner of the first byte up in the table and calls what that
  * owner registered; a kind nobody registered goes to the fallback (the co-op), as a DATA the
@@ -75,6 +75,10 @@ constexpr std::uint8_t kCoSave = 32;
 constexpr std::uint8_t kCoSaveAck = 33;
 constexpr std::uint8_t kSaveNow = 34;
 constexpr std::uint8_t kCoParty = 35;
+// Late join and waits (coop.hpp)
+constexpr std::uint8_t kPlace = 44;
+constexpr std::uint8_t kPlaceAsk = 45;
+constexpr std::uint8_t kWaitVote = 46;
 // World (world.hpp)
 constexpr std::uint8_t kWorld = 9;
 constexpr std::uint8_t kKilled = 10;
@@ -139,6 +143,9 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kProgress, "PROGRESS", Owner::kProgress},
     {kind::kTaken, "TAKEN", Owner::kWorld},
     {kind::kPoses, "POSES", Owner::kCoop},
+    {kind::kPlace, "PLACE", Owner::kJoin},
+    {kind::kPlaceAsk, "PLACE_ASK", Owner::kJoin},
+    {kind::kWaitVote, "WAIT_VOTE", Owner::kJoin},
     {kind::kHello, "HELLO", Owner::kWorld},
     {kind::kReset, "RESET", Owner::kWorld},
     {kind::kSynced, "SYNCED", Owner::kWorld},

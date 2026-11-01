@@ -90,6 +90,10 @@ public:
     /* The host: tells `target` whose game this is, before PLAY reaches it. */
     void announce(std::int32_t target);
 
+    /* The host starts again (coop.hpp): a party of its own, so the last game's slot stays as it is
+     * on every card. The members hear of it by the next announce. */
+    void start_again();
+
     /* A game of the party's is about to start here with `save` (none: a new game). */
     void starting(const Bytes& save);
 

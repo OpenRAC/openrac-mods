@@ -139,6 +139,7 @@ void show_pause() {
     const int level = s.is_host() ? (mp::in_level(status.phase) ? status.level : -1)
                                   : g->coop->host_level();
     in.host_level = level >= 0 ? g->mod->level_name(level) : "";
+    in.go_to_host = g->coop->can_go();
 
     for (const mp::Member& m : s.members()) {
         const mp::Link link = s.link(m.id);
@@ -149,6 +150,7 @@ void show_pause() {
     c.title = mp::kPartyPageTitle;
     g->pause_leave = -1;
     g->pause_rules = -1;
+    g->pause_go = -1;
     g->pause_save = -1;
 
     // Where the party's saves go, and saving now, with the party's game on.
@@ -165,6 +167,10 @@ void show_pause() {
                 break;
             case mp::PartyLine::Kind::kLeave:
                 g->pause_leave = static_cast<int>(c.items.size());
+                c.items.push_back(openrac::UiItem::button(line.label));
+                break;
+            case mp::PartyLine::Kind::kGoToHost:
+                g->pause_go = static_cast<int>(c.items.size());
                 c.items.push_back(openrac::UiItem::button(line.label));
                 break;
             case mp::PartyLine::Kind::kRules:
@@ -206,6 +212,11 @@ void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
         page.confirm(mp::pause_leave_question(hosting, s.is_host()), kAskLeave);
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_save && g->pause_save >= 0) {
         page.sound(g->cosave->save_party() ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_go && g->pause_go >= 0) {
+        // The hero goes when the menu closes; the banner says it will.
+        if (!g->coop->go_to_host(mp::now_ms())) {
+            page.sound(OPENRAC_UI_SOUND_DENIED);
+        }
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_rules && g->pause_rules >= 0) {
         show_rules();
         g->rules.open();

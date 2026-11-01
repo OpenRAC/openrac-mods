@@ -117,6 +117,38 @@ struct FakeGame : mp::Game {
 
     bool save_usable(const Bytes&) override { return saves_usable; }
 
+    /* A port that places the hero (`placeable`): the places asked, and, when `place_works`, the hero
+     * there at once. */
+    bool placeable = false;
+    bool place_works = true;
+    struct Placed {
+        float at[3];
+        float yaw;
+        bool beside;
+    };
+    std::vector<Placed> placed;
+    std::vector<bool> quiet;
+
+    bool can_place() override { return placeable; }
+
+    bool place(const float* position, float yaw, bool beside) override {
+        if (!placeable) {
+            return false;
+        }
+
+        placed.push_back({{position[0], position[1], position[2]}, yaw, beside});
+
+        if (place_works) {
+            std::copy(position, position + 3, hero_pose.position);
+        }
+
+        return true;
+    }
+
+    std::string level_name(int level) override { return "Planet" + std::to_string(level); }
+
+    void quiet_gifts(bool on) override { quiet.push_back(on); }
+
     std::uint32_t sim_digest(int level) override {
         const auto it = digests.find(level);
         return it != digests.end() ? it->second : 0;
@@ -1191,5 +1223,6 @@ void run_sim_tests();
 void run_save_tests();
 void run_cross_tests();
 void run_tags_tests();
+void run_join_tests();
 
 }  // namespace mpt

@@ -216,14 +216,18 @@ void a_ship_travel_takes_the_party_along() {
     tick({&host, &member}, 50);
     CHECK(member.game.calls.empty());
 
-    // The member is in the pause menu when the host's ship leaves for 5: it leaves at once (asked
-    // again a while later if its game has not gone), and the host's flight out pulls nobody back.
+    // The member is in the pause menu when the host's ship leaves for 5: it leaves after the warning
+    // (asked again a while later if its game has not gone), and the host's flight out pulls nobody
+    // back.
     member.game.now.phase = mp::kPhaseMenu;
     CHECK(host.coop.ship_travel(5, 11));
     CHECK(host.coop.arriving() && host.coop.waiting_for() == 1);
     host.game.now.phase = mp::kPhaseScene;
     route({&host, &member});
     tick({&host, &member}, 16);
+    tick({&host, &member}, 16);
+    CHECK(member.game.calls.empty());
+    tick({&host, &member}, mp::kTravelWarnMs);
     CHECK((member.game.calls == std::vector<std::string>{"travel 5"}));
     CHECK(member.coop.arriving() && has(member_log, "leaving level 11 for 5 (phase 5)"));
     tick({&host, &member}, 500);
@@ -269,6 +273,7 @@ void a_ship_travel_takes_the_party_along() {
     CHECK(host.coop.ship_travel(7, 5));
     route({&host, &member});
     tick({&host, &member}, 16);
+    tick({&host, &member}, mp::kTravelWarnMs);
     CHECK(member.game.calls.back() == "travel 7");
     member.game.now = {mp::kPhaseLoading, 7, 4};
     host.game.now = {mp::kPhasePlaying, 7, 4};
@@ -277,7 +282,7 @@ void a_ship_travel_takes_the_party_along() {
     }
     CHECK(host.coop.arriving() && host.coop.hold_input() && host.coop.waiting_for() == 1);
     CHECK(has(host_log, "waiting for 1 players to arrive in level 7"));
-    CHECK(host.coop.banner(host.clock) == "Waiting for the other players to arrive");
+    CHECK(host.coop.banner(host.clock) == "Waiting for the other players to arrive: Start goes on");
     member.game.now = {mp::kPhasePlaying, 7, 5};
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 50);
@@ -323,6 +328,7 @@ void the_party_arrives_together() {
     CHECK(host.coop.ship_travel(5, 11));
     CHECK(host.coop.waiting_for() == 2);
     route({&host, &fast, &slow});
+    tick({&host, &fast, &slow}, mp::kTravelWarnMs);
     tick({&host, &fast, &slow}, 16);
     CHECK(fast.game.calls.back() == "travel 5" && slow.game.calls.back() == "travel 5");
     for (Player* p : {&host, &fast, &slow}) {

@@ -399,7 +399,8 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             vec(r, h.velocity);
             h.victim = game_.figure_slot(-1);
 
-            if (r.ok() && h.victim >= 0) {
+            // A joiner not in yet, or just put beside the host: it comes to no harm.
+            if (r.ok() && h.victim >= 0 && !coop_.shielded()) {
                 game_.hit(h);
                 ++counts_.damage;
             }

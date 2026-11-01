@@ -62,10 +62,21 @@ void Coop::about_to_start(const Bytes& save) {
     }
 }
 
+bool Coop::starts_again() const {
+    return session_.is_host() && play_ != 0 && host_played_
+           && game_.status().phase == kPhaseFrontEnd;
+}
+
+bool Coop::can_start() const {
+    return starts_again()
+           || (session_.is_host() && play_ == 0 && game_.status().phase == kPhaseFrontEnd
+               && session_.all_ready());
+}
+
 bool Coop::start() {
-    // The host starts, once, from the title, when every member is ready.
-    if (!session_.is_host() || play_ != 0 || game_.status().phase != kPhaseFrontEnd
-        || !session_.all_ready()) {
+    // The host starts from the title when every member is ready, or starts again with its party
+    // playing the last game (Starting again, coop.hpp).
+    if (!can_start()) {
         return false;
     }
 
@@ -77,9 +88,21 @@ bool Coop::start() {
     }
 
     // A game's id: any but 0 (none), new each time.
+    const bool again = play_ != 0;
+    clear_game();
+
+    // A new start's saves are not the last one's: they go to a slot of their own.
+    if (again && start_again_) {
+        start_again_();
+    }
+
     play_ = static_cast<std::int32_t>((clock_() * 2654435761u) | 1u);
     const int level = chosen_.empty() ? 0 : -1;
-    session_.start();
+
+    if (!again) {
+        session_.start();
+    }
+
     send_play(kBroadcast, chosen_, level, false);
     told_.clear();
 
@@ -111,6 +134,19 @@ bool Coop::start_blocked(int phase) const {
 }
 
 void Coop::own_skip(int phase, std::uint64_t now) {
+    // A joiner waiting to be placed: in, where it stands.
+    if (placing_ == PlaceFor::kJoin) {
+        log("not waiting any longer: in where this game stands");
+        end_place(now, "start pressed");
+        return;
+    }
+
+    // Held for others: go on, or a vote to (coop_wait.cpp).
+    if (phase == kPhasePlaying && hold_) {
+        skip_wait(now);
+        return;
+    }
+
     // Only a scene or a movie (a load: the title leaving, the flight between planets), in a game
     // of the party's, once in a while.
     if ((phase != kPhaseScene && phase != kPhaseLoading) || play_ == 0 || !session_.in_party()
@@ -229,6 +265,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             // Another build plays another game: refused, and said why (the lobby's page has it
             // in full: party_mods.hpp).
             if (build != build_) {
+                clear_game();
                 notice_ = "You can't join: your game differs from the host's";
                 log("refused the host's game: its build is " + build + ", this one " + build_);
                 play_ = play;
@@ -236,8 +273,14 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                 return;
             }
 
+            // The host started again: nothing of the last game carries over.
+            if (applied_ != 0 && applied_ != play) {
+                clear_game();
+            }
+
             play_ = play;
             pending_ = true;
+            start_copied_ = false;
             pending_play_ = play;
             pending_level_ = level;
             pending_save_ = save;
@@ -300,10 +343,16 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                 if (dest >= 0 && applied_ == play_) {
                     const auto now = clock_();
                     leave_dest_ = travel_dest_ = dest;
+                    leave_at_ = now + kTravelWarnMs;
                     leave_ms_ = 0;
                     arriving_ = true;
+
+                    if (placing_ != PlaceFor::kNone) {
+                        end_place(now, "the host left the level");
+                    }
+
                     depart_ms_ = now;
-                    log("the host's ship leaves for level " + std::to_string(dest) + ": leaving with it");
+                    log("the host's ship leaves for level " + std::to_string(dest) + ": leaving with it soon");
                 }
             }
 
@@ -337,6 +386,15 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             break;
         case GameKind::kSceneState:
             on_scene_state(sender, r);
+            break;
+        case GameKind::kPlace:
+            on_place(from_host, r);
+            break;
+        case GameKind::kPlaceAsk:
+            on_place_ask(sender, r);
+            break;
+        case GameKind::kWaitVote:
+            on_wait_vote(sender, from_host, r);
             break;
         default:
             break;
@@ -433,42 +491,64 @@ void Coop::tick(std::uint64_t now) {
     update_barrier(now, status);
 }
 
+void Coop::start_pending() {
+    // Once for a start, however often the title has it asked again.
+    if (!start_copied_) {
+        start_copied_ = true;
+        about_to_start(pending_save_ ? save_ : Bytes{});
+    }
+}
+
 void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     // The host's game, once its save is all here.
     if (pending_ && (!pending_save_ || received_ >= expected_)) {
         if (status.phase == kPhaseFrontEnd) {
-            pending_ = false;
-
             // The host's save is not trusted: one that does not pass is not loaded, kept or asked
             // for again.
             if (pending_save_ && !game_.save_usable(save_)) {
                 notice_ = kBadSaveMember;
                 log("refused the host's save");
                 applied_ = pending_play_;
-            } else if (about_to_start(pending_save_ ? save_ : Bytes{});
-                       game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
+                pending_ = false;
+                save_.clear();
+            } else if (start_pending(), game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
                 applied_ = pending_play_;
                 start_ms_ = now;
                 joining_ = pending_joining_;
                 joining_since_ = now;
                 log(joining_ ? "joining the host's game" : "started the host's game");
-            } else {
+                pending_ = again_ = false;
+                save_.clear();
+            } else if (!again_ || now - again_since_ >= kHomeMs) {
+                // (On the way back from a level the title may need a moment: asked again.)
                 notice_ = "The host's game would not start here";
+                pending_ = again_ = false;
+                save_.clear();
             }
-
-            save_.clear();
         } else if (in_level(status.phase)) {
-            // Playing already (the host started again): the level follows, the save cannot.
-            pending_ = false;
-            applied_ = pending_play_;
+            if (applied_ == pending_play_) {
+                // This game's own again (asked for twice): the level follows.
+                pending_ = false;
 
-            if (pending_level_ >= 0) {
-                host_level_ = pending_level_;
+                if (pending_level_ >= 0) {
+                    host_level_ = pending_level_;
+                }
+            } else {
+                tick_again(now);
             }
         }
     }
 
     tick_joining(now, status);
+    tick_place(now, status);
+
+    // A joiner's gifts come quietly, and a while after.
+    const bool quiet = joining_ || now < quiet_until_;
+
+    if (quiet != quiet_) {
+        quiet_ = quiet;
+        game_.quiet_gifts(quiet);
+    }
 
     // A scene of this game's that the host is out of (skipped there, or played out): skipped here,
     // through the game's own skip, so the party goes on together.
@@ -499,7 +579,7 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     // The host's ship left: this game leaves too, from wherever it is in its level (playing, a
     // scene, the pause menu, a vendor), asked again until a level load says it went; then the
     // party arrives together (the host says when everyone is in).
-    if (leave_dest_ >= 0) {
+    if (leave_dest_ >= 0 && now >= leave_at_) {
         if ((leave_ms_ != 0 && status.loads != leave_loads_)
             || (in_level(status.phase) && status.level == leave_dest_)) {
             log("left for level " + std::to_string(leave_dest_));
@@ -553,7 +633,14 @@ void Coop::reset() {
 
     remotes_.clear();
     relay_.clear();
-    joining_ = pending_joining_ = world_ready_ = false;
+    if (quiet_) {
+        quiet_ = false;
+        game_.quiet_gifts(false);
+    }
+
+    clear_game();
+    world_ready_ = false;
+    pending_joining_ = false;
     play_ = 0;
     told_.clear();
     pending_ = false;
@@ -583,7 +670,6 @@ void Coop::reset() {
     host_arriving_ = false;
     refused_until_ = 0;
     skip_refused_until_ = 0;
-    reset_scenes();
 }
 
 }  // namespace mp

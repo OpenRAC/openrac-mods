@@ -48,6 +48,13 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
         waiting = host_scene_ || scene_pending_;
     }
 
+    // Let go by the players waiting (coop_wait.cpp), until what they waited for is over.
+    if (!waiting) {
+        barrier_open_ = false;
+    }
+
+    waiting = waiting && !barrier_open_;
+
     // The party on its way to a planet: nobody goes on until everyone is in.
     const bool arrival = arriving_ && play_ != 0 && status.level == travel_dest_;
     waiting = waiting || arrival;
@@ -84,6 +91,8 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
         skip_asked_ = true;
         game_.skip();
     }
+
+    tick_wait(now, status);
 }
 
 void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
@@ -117,6 +126,8 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
     }
 
     tick_arrival(now, status);
+    tick_safe(now, status);
+    host_played_ = host_played_ || in_level(status.phase);
 
     // The level played, at each change and once a second.
     const int level = in_level(status.phase) ? status.level : -1;
@@ -199,12 +210,42 @@ std::string Coop::banner(std::uint64_t now) const {
         return "Only the host can skip";
     }
 
+    if (leave_dest_ >= 0 && now < leave_at_) {
+        const std::string planet = game_.level_name(leave_dest_);
+        return planet.empty() ? "The host is leaving" : "The host is leaving for " + planet;
+    }
+
+    if (hold_ && wait_.kind != kWaitNone) {
+        const std::string what = arriving_ ? "Waiting for the other players to arrive"
+                                           : "Waiting for the scene to end";
+
+        if (session_.is_host()) {
+            return what + ": Start goes on";
+        }
+
+        return what + ": Start to skip (" + std::to_string(wait_.votes) + "/"
+               + std::to_string(wait_.voters) + ")";
+    }
+
     if (arriving_ && hold_) {
         return "Waiting for the other players to arrive";
     }
 
+    if (placing_ == PlaceFor::kJoin) {
+        return host_scene_ ? "Waiting for the host's scene to end: Start goes in now"
+                           : "Joining the game";
+    }
+
+    if (placing_ == PlaceFor::kHost) {
+        return "Going to the host";
+    }
+
     if (joining_) {
         return "Joining the game";
+    }
+
+    if (now < no_spot_until_) {
+        return "No safe spot near the host";
     }
 
     return {};

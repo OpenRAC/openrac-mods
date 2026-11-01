@@ -68,6 +68,7 @@ void Coop::tick_host_scene(std::uint64_t now, const GameStatus& status) {
 
             scene_start_ms_ = now;
             scene_level_ = status.level;
+            barrier_open_ = false;
             log("scene " + std::to_string(scene) + " of level " + std::to_string(status.level)
                 + " started here: the party plays it too");
         }
@@ -112,6 +113,7 @@ void Coop::on_scene(bool from_host, Reader& r) {
         host_scene_end_ms_ = 0;
         scene_first_ask_ms_ = 0;
         scene_done_ = false;
+        barrier_open_ = false;
         log("the host plays scene " + std::to_string(scene) + " of level " + std::to_string(level)
             + (played > 0 ? " (" + std::to_string(played) + " ms in)" : ""));
     }
@@ -223,6 +225,7 @@ void Coop::reset_scenes() {
     state_sent_ = 0xFF;
     state_ms_ = 0;
     scene_states_.clear();
+    released_scene_ = 0;
     skip_scene_ = movie_load_ = 0;
     party_skip_ = 0;
     noted_phase_ = noted_scene_ = -1;

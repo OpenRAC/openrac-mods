@@ -39,6 +39,14 @@
  *            scene: where it is with the host's scene `sequence` (kScenePending to play,
  *            kScenePlaying, kSceneOut played, skipped or given up); the host's barrier waits for
  *            those of its newest scene only (a word of an older one is no word of this one).
+ *  44 PLACE  play i32, ticket u16, answer u8, position 3 x f32, yaw f32
+ *            the host to a member who asked: where to stand (coop_join.cpp, kPlace*);
+ *  45 PLACE_ASK play i32, ticket u16, last u8
+ *            a member to the host, twice a second while it is to be put beside the host; `last`:
+ *            it waited long enough, the host's last safe spot will do;
+ *  46 WAIT_VOTE play i32, wait u16; from the host then kind u8, votes u8, voters u8, passed u8
+ *            a player held by a wait for others (coop_wait.cpp): a member's vote to go on without
+ *            them; the host's word of the wait, at each change and once a second;
  *  25 POSES  count u8, then per pose length u16 + its POSE
  *            the host to everyone, as state, every kPoseMs: its own Ratchet's and the members'
  *            newest, in one datagram (each POSE on its own would be 20 a second a player of the
@@ -73,7 +81,8 @@
  * and the party arrives together: until every member who was in the host's game is in the new
  * level (or kArriveMs went by), nobody has control once out of its landing, no figure is shown and
  * the host's world sends nothing (world.hpp), so nothing of the old level carries over and nothing
- * of the new one moves before all are in.
+ * of the new one moves before all are in. A member is told kTravelWarnMs before it is pulled away:
+ * the banner names the planet, and it leaves when that is up (the host's take-off plays meanwhile).
  * Joining. A member that comes into a game already on has none of the party's scenes to play and
  * nobody to wait for it. Its game loads the host's level from the host's live save, which has
  * everything it must get past on the way: the game's movies, the ship's landing, whatever story
@@ -82,6 +91,21 @@
  * itself (Start for a movie, the game's own skip for a scene), says no scene of the host's is its
  * to play, tells no scene in its poses, and is held by nothing, so no other player waits on it; the
  * "only the host skips" rule is for scenes the party plays together, which this is not.
+ * Then it stays held, the banner saying so, until the host stands somewhere safe (on the level's
+ * ground, not in a scene, not arriving: the pose's kPoseSteady, at most kSafeFreshMs ago), and is
+ * put beside the host for a moment of safety (no DAMAGE, kShieldMs). After kPlaceWaitMs without such
+ * a spot, the host's last safe one; with none in this level load, it stays where the ship or the
+ * level's start put it. A host's scene does not use up that wait: it is waited out and not replayed,
+ * and the joiner's own Start ends the wait where it stands. A port that cannot place the hero:
+ * no wait, as before. Whatever comes to this game while it joins and for kQuietMs after (the
+ * party's progress) comes without its banners (Game::quiet_gifts).
+ * Go to host. A member in the host's level may ask to be put beside the host at any time, by the
+ * same answers, from the pause page; the hero moves once the menu is closed. No spot: the place
+ * this game landed in the level.
+ * Starting again. The host, back in the title with the party still there, may Start again: a new
+ * `play`. A member in a level leaves it for the title and starts the new game from there.
+ * Waits. A player held for others can press Start: the host goes on at once, a member's is a vote
+ * (coop_wait.cpp).
  * Leaving. A player whose party goes while it plays the party's game (it left, the host ended the
  * party, the connection went) leaves its level for the title at once, from wherever it is (playing,
  * a scene, the pause menu: play_travel(-1)), and the title opens the mod's Multiplayer page (Home):
@@ -122,7 +146,10 @@ enum class GameKind : std::uint8_t {
     kShotX = kShotXKind,
     kScene = kind::kScene,
     kSceneState = kind::kSceneState,
-    kPoses = kind::kPoses
+    kPoses = kind::kPoses,
+    kPlace = kind::kPlace,
+    kPlaceAsk = kind::kPlaceAsk,
+    kWaitVote = kind::kWaitVote
 };
 
 /* What a skip was pressed in (SKIP's `what`), and where a member is with the host's scene
@@ -202,6 +229,34 @@ constexpr std::uint64_t kSceneLagMs = 15000;
 /* The longest a member is taken to be joining (a game that never gets the host's world answers to
  * the party's scenes again after this). */
 constexpr std::uint64_t kJoiningMs = 120000;
+
+/* PLACE's answers: not now, stand beside here (where the host stands, or stood a moment ago), its
+ * last safe spot of this level load (asked with `last`), and none at all. */
+constexpr std::uint8_t kPlaceWait = 0;
+constexpr std::uint8_t kPlaceHere = 1;
+constexpr std::uint8_t kPlaceLast = 2;
+constexpr std::uint8_t kPlaceNone = 3;
+/* How often a member asks for its place; how long it waits for the host to be safe, a scene of the
+ * host's not counted, then takes the last safe spot; the most it waits at all; how long a hero
+ * asked to move has to get there once in control; how close counts as there. */
+constexpr std::uint64_t kPlaceAskMs = 500;
+constexpr std::uint64_t kPlaceWaitMs = 10000;
+constexpr std::uint64_t kPlaceMostMs = 150000;
+constexpr std::uint64_t kPlaceMoveMs = 1500;
+constexpr float kPlaceNear = 3.0f;
+/* How old the host's safe spot may be and still count as where it stands now (a hop, a menu). */
+constexpr std::uint64_t kSafeFreshMs = 2000;
+/* How long a placed hero takes no damage from the party's enemies, how long a joiner takes its gifts
+ * quietly after it is in, and how soon Go to host works again. */
+constexpr std::uint64_t kShieldMs = 3000;
+constexpr std::uint64_t kQuietMs = 5000;
+constexpr std::uint64_t kGoAgainMs = 5000;
+/* The warning a member has before the host's ship takes it along. */
+constexpr std::uint64_t kTravelWarnMs = 2500;
+/* What a wait is for (WAIT_VOTE's kind): nothing, the players still arriving, a scene. */
+constexpr std::uint8_t kWaitNone = 0;
+constexpr std::uint8_t kWaitArrival = 1;
+constexpr std::uint8_t kWaitScene = 2;
 
 /* What the game is doing (the SDK's openrac_play_status). */
 struct GameStatus {
@@ -388,6 +443,16 @@ public:
     // --- WP-DRAW ---
     // --- end WP-DRAW ---
     // --- WP-JOIN ---
+    /* Whether this game can put its hero somewhere. */
+    virtual bool can_place() { return false; }
+    /* The hero put beside `position` (a spot around it, starting behind `yaw`, looking at it) or, not
+     * `beside`, at `position`, unharmed for a moment; it happens once the player is in control, and
+     * not at all when the game finds no spot. False when refused. */
+    virtual bool place(const float* /*position*/, float /*yaw*/, bool /*beside*/) { return false; }
+    /* A level's name as the game shows it; empty when not known. */
+    virtual std::string level_name(int /*level*/) { return {}; }
+    /* While on, what the party's progress gives comes without the game's banners. */
+    virtual void quiet_gifts(bool /*on*/) {}
     // --- end WP-JOIN ---
     // --- WP-CAMERA ---
     // --- end WP-CAMERA ---
@@ -457,6 +522,9 @@ public:
         starting_ = std::move(starting);
     }
 
+    /* The host is starting again: told before anyone hears of the new game. */
+    void on_start_again(std::function<void()> again) { start_again_ = std::move(again); }
+
     /* The host's choice (Create match's save picker): a new game (no bytes) or a save, and what the
      * lobby and the list say of it. */
     void choose(Bytes save, std::string description);
@@ -468,6 +536,13 @@ public:
     /* The host's Start: everyone plays the chosen game, the host too. False when it cannot (not
      * the host, already playing, the game not in the title, a member not ready). */
     bool start();
+
+    /* Whether start() would start now: the first time once all are ready; the host back in the
+     * title with the party's game on starts it again whatever the members are doing. */
+    bool can_start() const;
+
+    /* Whether the host is back in the title from a game of this party (Start starts it again). */
+    bool starts_again() const;
 
     /* A member back in the title with the host's game on: asks for it again (WANT), as one that
      * missed it does. False for the host, or with no game on. */
@@ -524,7 +599,7 @@ public:
 
     /* The scene barrier, for the pad: whether this player's control is held (out of a scene while
      * another player is still in one). */
-    bool hold_input() const { return hold_; }
+    bool hold_input() const { return hold_ || joining_hold_; }
 
     /* This player pressed Start in a scene or a movie (`phase`): the host's skips it for the party;
      * a member's skips nothing (start_blocked) and has the banner say only the host can. */
@@ -551,6 +626,20 @@ public:
 
     void world_ready(bool ready) { world_ready_ = ready; }
 
+    /* Whether the party's enemies leave this hero alone now: joining, or just placed. */
+    bool shielded() const;
+
+    /* Go to host: whether a member can ask now, and it asking (false, and why on the banner, when
+     * it cannot). */
+    bool can_go() const;
+    bool go_to_host(std::uint64_t now);
+    bool going() const { return placing_ != PlaceFor::kNone; }
+
+    /* A wait for others, as this player sees it: its kind (kWait*), the votes and who votes. */
+    std::uint8_t wait_kind() const { return wait_.kind; }
+    int wait_votes() const { return wait_.votes; }
+    int wait_voters() const { return wait_.voters; }
+
     /* Whether the party is arriving after a ship travel (the barrier above): the world waits. */
     bool arriving() const { return arriving_; }
 
@@ -571,7 +660,35 @@ public:
 private:
     void send_play(std::int32_t target, const Bytes& save, int level, bool joining);
     void about_to_start(const Bytes& save);
+    /* A member's about_to_start, once for a start. */
+    void start_pending();
     void tick_joining(std::uint64_t now, const GameStatus& status);
+    /* Being put beside the host (coop_join.cpp): a request begun and ended, what the host said, the
+     * member's tick, the host's account of where it is safe and its answer. */
+    enum class PlaceFor : std::uint8_t {
+        kNone,
+        kJoin,
+        kHost
+    };
+    void begin_place(PlaceFor why, std::uint64_t now);
+    void end_place(std::uint64_t now, const std::string& how);
+    void place_at(const float* position, float yaw, bool beside, std::uint64_t now);
+    void no_place(std::uint64_t now);
+    void on_place(bool from_host, Reader& r);
+    void on_place_ask(std::int32_t sender, Reader& r);
+    void tick_place(std::uint64_t now, const GameStatus& status);
+    void tick_safe(std::uint64_t now, const GameStatus& status);
+    /* A new `play` of the host's: what the old one left, on either side (coop_join.cpp). */
+    void clear_game();
+    /* The host's game asked of a member in a level (Starting again). */
+    void tick_again(std::uint64_t now);
+    /* Waits for others (coop_wait.cpp): this player's Start in one, a wait gone by, the host's
+     * count and word, a vote heard. */
+    void skip_wait(std::uint64_t now);
+    void release_wait(std::uint64_t now, const char* why);
+    void tick_wait(std::uint64_t now, const GameStatus& status);
+    void send_wait(std::uint64_t now, bool passed);
+    void on_wait_vote(std::int32_t sender, bool from_host, Reader& r);
     void on_pose(std::int32_t sender, const Bytes& bytes);
     void on_poses(std::int32_t sender, Reader& r);
     /* The host: the poses waiting to go out, with `own` when given, in as few datagrams as fit. */
@@ -637,6 +754,8 @@ private:
     std::vector<std::int32_t> told_;
     std::function<void(std::int32_t)> announce_;
     std::function<void(const Bytes&)> starting_;
+    std::function<void()> start_again_;
+    bool start_copied_ = false;
 
     /* A member: the host's PLAY waiting to be started (its mode, level and save), and which play
      * the member started last. */
@@ -654,6 +773,56 @@ private:
     std::uint64_t joining_since_ = 0;
     bool world_ready_ = false;
     bool joining_press_ = false;
+    bool joining_hold_ = false;
+    /* Being put beside the host: why (kNone: not), this asking's ticket, since when it waits (a
+     * host's scene puts this forward), when it asked last, whether it now asks for the last safe
+     * spot; whether the game was asked to move the hero, when, to where, and whether that was the
+     * landing spot. */
+    PlaceFor placing_ = PlaceFor::kNone;
+    std::uint16_t place_ticket_ = 0;
+    std::uint64_t place_since_ = 0;
+    std::uint64_t place_began_ = 0;
+    std::uint64_t place_ask_ms_ = 0;
+    bool place_last_ = false;
+    bool place_moving_ = false;
+    std::uint64_t place_moved_ms_ = 0;
+    float place_to_[3] = {0, 0, 0};
+    bool place_landing_ = false;
+    /* Until when: no damage, no banners, no Go to host, "no safe spot" on the banner. */
+    std::uint64_t shield_until_ = 0;
+    std::uint64_t quiet_until_ = 0;
+    bool quiet_ = false;
+    std::uint64_t go_again_ms_ = 0;
+    std::uint64_t no_spot_until_ = 0;
+    /* A member: where this level load put the hero. The host: its last safe pose, when, its load. */
+    Pose landing_;
+    bool has_landing_ = false;
+    std::uint32_t landing_loads_ = 0;
+    Pose safe_;
+    std::uint64_t safe_ms_ = 0;
+    std::uint32_t safe_loads_ = 0;
+    /* The host: whether it has been in a level of this game. */
+    bool host_played_ = false;
+    /* Starting again, a member: going to the title for the host's new game, since when, last asked. */
+    bool again_ = false;
+    std::uint64_t again_since_ = 0;
+    std::uint64_t again_ms_ = 0;
+    /* A wait for others. Its id and kind as the host told it (the host's own too), the votes, who
+     * votes; a member's vote given; the host's voters' ids; whether the barrier was let go, until
+     * what it waited for is over, and the host's scene that was; when the host last told it. */
+    struct Wait {
+        std::uint16_t id = 0;
+        std::uint8_t kind = kWaitNone;
+        int votes = 0;
+        int voters = 0;
+    };
+    Wait wait_;
+    std::uint16_t wait_count_ = 0;
+    std::uint16_t voted_ = 0;
+    std::vector<std::int32_t> votes_;
+    bool barrier_open_ = false;
+    std::uint16_t released_scene_ = 0;
+    std::uint64_t wait_sent_ms_ = 0;
     std::int32_t applied_ = 0;
     int host_level_ = -1;
     std::uint64_t want_ms_ = 0;
@@ -694,6 +863,7 @@ private:
     bool heard_travel_ = false;
     std::uint16_t host_travel_ = 0;
     int leave_dest_ = -1;
+    std::uint64_t leave_at_ = 0;
     std::uint64_t leave_ms_ = 0;
     std::uint32_t leave_loads_ = 0;
     bool host_arriving_ = false;

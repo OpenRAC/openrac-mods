@@ -130,6 +130,16 @@ public:
 
     bool open_home() override;
 
+    // --- WP-JOIN ---
+    bool can_place() override;
+
+    bool place(const float* position, float yaw, bool beside) override;
+
+    std::string level_name(int level) override;
+
+    void quiet_gifts(bool on) override { quiet_ = on; }
+    // --- end WP-JOIN ---
+
 private:
     /* This disc's progress places, null for a disc it does not know. */
     const ProgressDisc* progress_disc() const;
@@ -137,7 +147,9 @@ private:
     static void read_bytes(const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n);
 
     openrac::Mod& mod_;
-    std::map<std::string, int> indices_;};
+    std::map<std::string, int> indices_;
+    bool quiet_ = false;  // gifts without the game's banners (WP-JOIN)
+};
 
 }  // namespace mpmod
 

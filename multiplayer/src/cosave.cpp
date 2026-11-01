@@ -184,6 +184,12 @@ bool CoSave::write_copy(const Bytes& save) {
     return true;
 }
 
+void CoSave::start_again() {
+    on_ = false;
+    key_ = chosen_key_ = 0;
+    continuing_ = -1;
+}
+
 void CoSave::starting(const Bytes& save) {
     if (!on_) {
         engage();
@@ -359,8 +365,10 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
             if (!session_.is_host() && sender == session_.host()) {
                 const std::uint32_t key = static_cast<std::uint32_t>(r.i32());
 
-                if (r.ok() && key != 0 && !on_) {
+                // A new key with a slot taken: the host started again, the slot is the last game's.
+                if (r.ok() && key != 0 && key != key_) {
                     key_ = key;
+                    on_ = false;
                 }
             }
 
