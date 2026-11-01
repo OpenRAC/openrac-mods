@@ -114,7 +114,28 @@ write them too, so they do not only go up, and nothing in the story waits on the
 | Where a late joiner lands | Held on the joining line until the host is at a safe point, then put beside the host with 3 seconds of safety; a host not safe for 10 seconds gives its last safe spot, and with none, the ship or the level's start. A scene in progress is waited out, not replayed. **Go to host** on the pause page uses the same terms, for any member. Late joiners take progress silently. Decided by the user | 2026-10-31 |
 | Waits and travel | Start in a wait for others: the host's goes on at once, a member's is a vote, more than half of those waiting. A 2.5 second warning before the host's ship takes a member along. Decided by the user | 2026-10-31 |
 | A host that starts again | A member in a level leaves for the title and starts the new game from there. Decided by the user | 2026-10-31 |
+| Camera shots that are not scenes | Who sees one goes by its kind, below. Only the camera moves, for a player touching nothing and not just hurt, and anything pressed or a hit brings it back at once. A gold bolt's stays the collector's. Sent as views, so nothing depends on a disc's data. Decided by the user | 2026-10-31 |
 | Other players' shots | Every weapon's shots are shown, and only shown: damage is the shooter's game's to tell and the host's to apply. A shot is state, not an event: it may be lost, and one more than 250 ms late is dropped. What flies by itself goes through the game's own spawn; the Pyrocitor, the beams, the Visibomb and the drones are drawn apart, because their code belongs to the hero. Decided by the user | 2026-10-31 |
 | A figure's weapon classes (G4) | One weapon class besides the hero's, as the game has: the two decode buffers stay, since the heap has no room for more on every level. The player nearest the hero keeps the buffer, with a margin of 4 units and at least 2 seconds held; the others hold the wrench and their shots still show. Decided by the user | 2026-10-31 |
 | Keeping the world in step | The host counts what each member has heard of WORLD, by acks on its poses, and sends again what was lost: no blind repeats, and a far moby's lost change comes back in a round trip or two, not at the next refresh. What goes first is a priority per member and moby, by distance and relevance, with a floor so nothing starves. Every stream keeps at least two of its send intervals of margin. Decided by the user | 2026-10-31 |
 | The playback cursor's rate | 10 % fast or slow, measured against 5 and 15 %: 5 takes 2.3 s for what 10 does in 0.9 s, and 15 gains nothing to see and runs an animation faster. Decided by the user | 2026-10-31 |
+
+## Camera scripts, by class (2026-10-31)
+
+The user's rule: a gold bolt's scene stays the collector's, and a camera must never move in a way
+that gets a player killed. The game has no list of scripts: each is a moby calling the game's camera,
+so its class says what it is. Any class not named is the player's own.
+
+| Who sees it | Classes | Why |
+|---|---|---|
+| Those within 60 of its moby | 737 camera triggers; 1028 Blarg's drawbridge; 1083, 1108, 1118 Blarg's shots and red button; 1156, 1157 Pokitaru's controllers; 654 Kalebo's objective; 701 Novalis's falling rock | The level shows something change, for whoever is there, and nothing there is about to attack because of the shot |
+| Those on it (within 4 when it starts) | 877, 21, 244, 1270 lifts | The shot follows the ride. Anyone else would look at a lift they are not on |
+| Its own player | 1134 gold bolt | Settled |
+| Its own player | 440, 1201, 1267 cannons and turrets; 1242, 69, 1379 fighters; 713, 1109, 1448 pods and shuttles | A seat: the view is how its player aims or steers, and it would be useless and blinding to anyone else |
+| Its own player | 280 crank, 1251 hydrodisplacer, 615 and 1005 Trespasser | A machine one player works. The hydrodisplacer's also moves water under others, the worst time to lose sight of it |
+| Its own player | 459 birdbot, 688 bomber jet, 1051 alien queen | They open a fight. A camera pulled away just as an enemy wakes is what the rule forbids |
+| Its own player | 11 and 644 vendors, 1105 Fred | A person's or a shop's business with one player |
+| Its own player | 1422 Drek | It leads straight into a scene, which plays for everyone anyway |
+
+A member's stand-in can set off a script in the host's game. That script is the member's: the
+host's camera and Ratchet stay out of it, and the host is shown it only by the same rules as anyone.

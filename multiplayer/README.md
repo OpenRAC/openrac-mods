@@ -155,6 +155,11 @@ The world is the host's:
 - **Only the host skips**: the host's Start in a scene or a movie skips it in every game. A
   member's Start in a scene or a movie does nothing but show "Only the host can skip" for a few
   seconds; the scene plays on everywhere.
+- **The level's camera shots**: a shot of a door opening or of something happening (a camera shot
+  that is not a scene) is shown to the players within about 60 metres who are touching nothing and
+  have not just been hurt, and a lift's to those on it, whoever set it off. Only the camera moves:
+  nobody is held, and pressing anything or being hit brings the camera back to you at once. A
+  member's shot leaves the host's camera and Ratchet alone.
 - **Scenes hide the others**: while a scene plays in your game, the other players' Ratchets, what
   they hold and their shots are not shown; they are back as soon as the scene is over.
 - **Scenes end together**: when the host is out of its scene, a member still in one is skipped
@@ -481,6 +486,8 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 45 PLACE_ASK | a member, twice a second | play i32, ticket u16, last u8 | it is to be put beside the host (a late joiner, or Go to host); `last`: 10 seconds of waiting are up, the last safe spot will do |
 | 46 WAIT_VOTE | a member; the host, to all | play i32, wait u16; from the host then kind u8 (0 none, 1 an arrival, 2 a scene), votes u8, voters u8, passed u8 | a vote to go on without the players waited for; the host's word of the wait, at each change and once a second |
 | 48 SHOTX | everyone, as state | count u8, then per shot owner i32, level i8, item u8, flags u8, what follows u8, stamp u32 (the low bits of the server's clock), position 3 x f32, and what it has of velocity 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16 | shots a player fired; a member's go to the host, who passes them on. Each is fired when its figure is where the shooter was, hitting nothing in that game, or dropped when 250 ms late. A flag makes it part of a track (a flame, a beam, a Visibomb in flight): START, a MOVE ten times a second, STOP; aux[0] tells the player's tracks apart |
+| 52 CAMSCRIPT | the host, to all | play i32, level i32, sequence u16, id i16 (the class of the moby running it), started u8; started: where the moby is, the first eye, the first rotation (3 x f32 each) | a camera script of the level's that others may be shown, when it starts and ends (`camscripts.hpp`) |
+| 53 CAMSTATE | the host, as state | sequence u16, stamp i64 (the server's clock, ms), eye and rotation (3 x f32 each) | what that script's camera shows, 20 a second, played 100 ms back; an older one is dropped |
 | 64 LINK | a member | ping i32 (ms, -1 not known), udp u8 | its link to the server, every 2 seconds |
 | 65 LINKS | the host, to all | count u8, then id i32 + ping i32 + udp u8 each | every member's link (the host's own among them), for the pause menu's Multiplayer page |
 | 66 BATCH | anyone | length u16 + a message, each | messages of the game for one target in one DATA, read as if each came alone |
@@ -527,9 +534,10 @@ that player. Mobys near the members run in the host's game as if near its camera
   flight between planets, not the host's take-off from the pad (members leave when the host's
   ship does, and usually land first, then wait).
 - A scene that started before a member came is not shown to it (a scene is read from the disc as
-  it plays: it cannot start part way). Scripted camera shots that are not scenes (a gold bolt's, a
-  door's or a lift's camera, the level's camera scripts) play in the game whose moby runs them
-  only.
+  it plays: it cannot start part way).
+- A camera shot that is not a scene plays in full only for those it was shown to from its start: a
+  player who comes near later, or who was busy, plays on and sees none of it. A seat's, a ride's, a
+  machine's and a gold bolt's stay their player's, as do the shots that open a fight.
 - A crate a member broke drops its bolts a round trip later (the host's copy breaks when the
   member's word gets there); one the host's copy has not broken within 3 seconds is deleted
   without a drop.
@@ -646,6 +654,7 @@ chosen from the setting and the launcher's.
 | `src/world.hpp`, `.cpp` | the shared world: snapshots, kills, spawns, hits, damage, bolts, stand-ins |
 | `src/progress.hpp`, `.cpp` | the shared progress: items, gold bolts, planets |
 | `src/shared.hpp`, `.cpp` | the shared progress past those: gold weapons, skill points, the story's flags, special items, and the scene flags kept out |
+| `src/camscripts.hpp`, `.cpp` | camera scripts shown to the players near: who sees which, and what takes the camera back |
 | `src/trace.hpp`, `.cpp`, `src/world_trace.cpp`, `src/despawn.hpp`, `.cpp` | the verbose log: its lines and their cap; the world's pause, run, vis, drive and census lines; the despawn lines, who removed a moby and why |
 | `src/connection.hpp`, `.cpp` | the socket on its thread, reconnecting, UDP; the link to a server, a direct host or the embedded one |
 | `src/host.hpp`, `.cpp` | Direct connect's embedded host: the server's party routing for one party |
