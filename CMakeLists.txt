@@ -31,7 +31,7 @@ if(NOT OpenRACMod_DIR)
   endif()
 endif()
 # The SDK provides openrac_add_mod and the OpenRAC::mod target the tests link against.
-find_package(OpenRACMod 1.11 REQUIRED)
+find_package(OpenRACMod 1.12 REQUIRED)
 
 # CTest gives every mod's tests the BUILD_TESTING switch and the ctest command.
 include(CTest)

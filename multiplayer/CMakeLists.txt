@@ -7,8 +7,7 @@
 # Direct connect's page logic (the address rows), the protocol (the server's frames and
 # datagrams), the co-op (the game started together, the level followed, the figures, the scenes) and the
 # poses (their bytes and the interpolation buffer), the shared world (the host's mobys shown by
-# the members), the shared progress (items, gold bolts, planets), the mods a party agrees on and its verbose log. It needs interface 1.7's pages of the game's own menus, 1.8's play calls and 1.9's
-# world calls, so the top CMakeLists.txt adds this folder only with an SDK of 1.9 or newer.
+# the members), the shared progress (items, gold bolts, planets), the mods a party agrees on and its verbose log. It needs interface 1.12: its manifest's "api" says so, and an SDK older than that cannot build it.
 
 # The co-op's and the shared world's sources, split by area (coop.hpp, world.hpp); the tests build them too.
 set(MULTIPLAYER_COOP_SOURCES src/coop.cpp src/coop_travel.cpp src/coop_figures.cpp src/coop_shots.cpp src/nametags.cpp

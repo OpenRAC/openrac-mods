@@ -44,8 +44,8 @@
 namespace mpmod {
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kModVersion = "0.9.0";
-constexpr const char* kVersion = "rac1-multiplayer/0.9.0";
+constexpr const char* kModVersion = "0.10.0";
+constexpr const char* kVersion = "rac1-multiplayer/0.10.0";
 
 
 /* The question's tag: leaving the party (or hosting it). */
