@@ -449,7 +449,7 @@ static uint8_t* vendor_purchase(int item) {
 /* Hook for GiveItem(id, equip): id's location's reward, and the location had. */
 static void item_give(int32_t id, int32_t equip) {
     // Another player's item passed on: it, as it is, and no place of this game is had by it.
-    if (s_api->api_minor >= 11 && s_api->party_replaying() && id >= 0 && id < RANDO_ITEM_COUNT) {
+    if (s_api->api_minor >= 12 && s_api->party_replaying() && id >= 0 && id < RANDO_ITEM_COUNT) {
         give_as_itself(id, equip);
         return;
     }
@@ -1168,7 +1168,7 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_own_settings = s_plan.settings;
     s_following = 0;
     // A port with party rules may yet bring a host's seed that shuffles something.
-    const int rules = api->api_minor >= 11;
+    const int rules = api->api_minor >= 12;
 
     // With no pool shuffled the mod changes nothing, so it hooks nothing.
     if (s_plan.settings.pools != 0 || rules) {
