@@ -338,8 +338,9 @@ void Session::send_data(std::int32_t target, const Bytes& bytes) {
 void Session::flush() {
     const std::uint64_t now = clock_();
 
-    // The server gave up on this slot by now, whatever became of the connection.
-    if (dropped_ && now - dropped_ms_ >= kResumeMs) {
+    // The server gave up on this slot by now, whatever became of the connection. An embedded host
+    // is the party: with it gone there is nothing to wait for but the host itself.
+    if (dropped_ && now - dropped_ms_ >= (direct() ? kHostGraceMs : kResumeMs)) {
         id_ = 0;
         reset_party();
         notice_ = kLostSlotNotice;
@@ -499,7 +500,7 @@ void Session::handle(const Message& m) {
             break;
         case Message::Kind::kPartyEnd:
             reset_party();
-            notice_ = "The host left: the party is over";
+            notice_ = kHostLeftNotice;
             break;
         case Message::Kind::kPartyKicked: {
             const KickReason reason = kick_reason_;

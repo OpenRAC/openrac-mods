@@ -21,6 +21,10 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | Scenario | What it plays |
 |---|---|
 | `cosave` | the party's saves: the game's own saves and Save the party land in each player's co-op slot, the host's reach the member byte for byte, every file of each player's own card stays the same by hash (`--seed-save FILE` puts a real save there first), the filter goes at the title, a member hosts from its slot |
+| `hostdrop` | three players, the crates broken from both sides; the host's link goes for good (`--link` applies): the members told and held within the server's idle time, a member hosts when the wait is up, nobody held, the crates, enemies and poses of those left the same, and a travel of the new host's followed (`notes` say how long each took). `--member-game` and its fellows make the new host one of another disc |
+| `hostback` | the same; the link comes back within the wait, a crate having gone meanwhile in the host's game: still the host at epoch 0, every member given the world again, the same crates |
+| `hostleave` | the host leaves by choice: a member hosts at once |
+| `rejoin` | a member's link goes for 8 s and comes back: its slot and its id kept, a late joiner's way in, beside the host |
 | `keys` | a member's death: the key map, the drives and the crates afterwards |
 | `crates` | crates broken from both sides, a member's death among them (`--deaths`), a late member (`--join`): every game's crates compared, and the mobys' places and hidden flags |
 | `bolts` | bolts of crates broken on each side reach the player who stands there, none left over in either game |

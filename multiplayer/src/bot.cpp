@@ -190,7 +190,11 @@ std::string Bot::status() {
       << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
       << ",\"tag_y\":" << number(parts_.coop.tag_stats().y)
       << ",\"cam_sent\":" << parts_.camscripts.sent() << ",\"cam_shown\":" << parts_.camscripts.shown()
-      << ",\"cam_showing\":" << parts_.camscripts.showing();
+      << ",\"cam_showing\":" << parts_.camscripts.showing() << ",\"dropped\":" << session.dropped()
+      << ",\"epoch\":" << session.role().epoch() << ",\"stale\":" << session.stale()
+      << ",\"host\":" << session.host() << ",\"host_gone\":" << parts_.migrate.host_gone()
+      << ",\"took_over\":" << parts_.migrate.took_over() << ",\"ledger\":" << parts_.migrate.ledger().generation
+      << ",\"migrate_banner\":\"" << parts_.migrate.banner(now_ms()) << "\"";
 
     if (has_hero) {
         o << ",\"hero\":[" << number(hero.position[0]) << "," << number(hero.position[1]) << ","

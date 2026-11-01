@@ -91,19 +91,7 @@ class Client:
             )
         )
         (self.dir / "settings.ini").write_text("skip_cutscenes = 1\nvsync = off\n")
-        self.proxy = subprocess.Popen(
-            [
-                sys.executable,
-                str(HERE / "netimp.py"),
-                "--listen", f"{self.address}:7770",
-                "--server", f"{self.env.server_address}:7770",
-                "--seed", str(self.env.seed + self.index),
-                "--stats", str(self.dir / "net.json"),
-            ]
-            + self.link,
-            stdout=open(self.dir / "proxy.log", "w"),
-            stderr=subprocess.STDOUT,
-        )
+        self.start_proxy()
         env = dict(os.environ)
         env.update(
             {
@@ -177,6 +165,27 @@ class Client:
             else:
                 spawned.append(m)
         return placed, spawned
+
+    def start_proxy(self):
+        self.proxy = subprocess.Popen(
+            [
+                sys.executable,
+                str(HERE / "netimp.py"),
+                "--listen", f"{self.address}:7770",
+                "--server", f"{self.env.server_address}:7770",
+                "--seed", str(self.env.seed + self.index),
+                "--stats", str(self.dir / "net.json"),
+            ]
+            + self.link,
+            stdout=open(self.dir / "proxy.log", "a"),
+            stderr=subprocess.STDOUT,
+        )
+
+    def cut(self):
+        """This game's link gone at once, as a cable pulled: to the server, a connection closed."""
+        self.proxy.kill()
+        self.proxy.wait(5)
+        self.proxy = None
 
     def stop(self):
         for proc in (self.proc, self.proxy):
@@ -1347,6 +1356,117 @@ def scenario_camera(env, args):
     env.report["notes"]["final"] = {c.name: c.status() for c in env.clients}
 
 
+def start_three(env, args):
+    """A party of a host and two members in control of level 0, the crates broken from both sides."""
+    players = [env.client("Host1", args.link_args), env.client("Member1", args.link_args), env.client("Member2", args.link_args)]
+    for p in players:
+        reach_title(p)
+    host, members = players[0], players[1:]
+    party(env, host, members)
+    if host.ask("start") != "ok":
+        raise Failed("the host's Start")
+    env.check("everyone in control", skip_scenes(env, host, members, 150))
+    crates = sorted(crates_of(host), key=lambda m: (m[5], m[6]))[:4]
+    for i, crate in enumerate(crates):
+        c = players[i % 2]
+        go_near(c, crate)
+        time.sleep(0.5)
+        c.ask(f"hit {crate[1]} {'20000' if crate[2] in (502, 505) else '10000'}")
+        time.sleep(0.5)
+    time.sleep(7)
+    compare_worlds(env, players, "before the host goes")
+    return host, members
+
+
+def after_takeover(env, members, seconds=25):
+    """Who took over; the party's state once it has: one host, one world, nobody held."""
+    wait("a new host", lambda: any(m.status()["took_over"] for m in members), seconds)
+    new = next(m for m in members if m.status()["took_over"])
+    other = [m for m in members if m is not new]
+    env.report["notes"]["new host"] = new.name
+    env.check("the new host hosts", new.status()["is_host"] and new.status()["epoch"] == 1, json.dumps(new.status())[:300])
+    env.check("it runs the level's mobys now", wait("the drives gone", lambda: new.status()["driven"] == 0, 10))
+    for m in other:
+        env.check(f"{m.name} knows who hosts", m.status()["host"] == new.status()["id"])
+        wait(f"{m.name} given the world", lambda: m.status()["synced"], 15)
+    time.sleep(6)
+    for m in members:
+        s = m.status()
+        env.check(f"{m.name} is not held", not s["hold"] and not s["host_gone"], json.dumps(s)[:300])
+    compare_worlds(env, [new] + other, "after the takeover")
+    compare_enemies(env, [new] + other, "after the takeover")
+    compare_poses(env, new, other, "after the takeover")
+    return new, other
+
+
+def scenario_hostdrop(env, args):
+    """The host's link goes for good: the party waits with a line saying so, then a member hosts and
+    the world is the one the party left."""
+    host, members = start_three(env, args)
+    time.sleep(3)
+    env.check("a ledger reached the members", all(m.status()["ledger"] > 0 for m in members))
+    went = time.time()
+    host.cut()
+    wait("the wait for the host", lambda: all(m.status()["host_gone"] for m in members), 10)
+    env.report["notes"]["told after"] = round(time.time() - went, 1)
+    s = members[0].status()
+    env.check("the party holds still, and is told", s["hold"] and "The host lost its connection" in s["migrate_banner"], json.dumps(s)[:300])
+    new, other = after_takeover(env, members)
+    env.report["notes"]["took over after"] = round(time.time() - went, 1)
+    env.check("the takeover took no longer than the wait", time.time() - went < 45)
+    # The new host plays on: a level of its own, the other member along.
+    new.ask("travel 3")
+    if other:
+        env.check("the other member follows the new host", wait("the level", lambda: other[0].status()["level"] == 3, 90))
+
+
+def scenario_hostback(env, args):
+    """The host's link goes and comes back within the wait: still the host, the world whole."""
+    host, members = start_three(env, args)
+    host.cut()
+    wait("the wait for the host", lambda: all(m.status()["host_gone"] for m in members), 10)
+    crate = sorted(crates_of(host), key=lambda m: (m[5], m[6]))[-1]
+    go_near(host, crate)
+    host.ask(f"hit {crate[1]} 10000")
+    time.sleep(2)
+    host.start_proxy()
+    wait("the host back", lambda: not host.status()["dropped"], 12)
+    wait("the wait over", lambda: not any(m.status()["host_gone"] for m in members), 10)
+    for m in members:
+        wait(f"{m.name} given the world", lambda: m.status()["synced"], 15)
+    time.sleep(5)
+    env.check("it hosts as it did", host.status()["is_host"] and host.status()["epoch"] == 0, json.dumps(host.status())[:300])
+    compare_worlds(env, [host] + members, "with the host back")
+
+
+def scenario_hostleave(env, args):
+    """The host leaves by choice: a member hosts at once, with no wait, from the last ledger."""
+    host, members = start_three(env, args)
+    time.sleep(3)
+    went = time.time()
+    host.ask("leave")
+    after_takeover(env, members, 10)
+    env.check("no wait for a host that left", time.time() - went < 25)
+
+
+def scenario_rejoin(env, args):
+    """A member's link goes and comes back: its id, its slot, a late joiner's way in, beside the host."""
+    host, members = start_three(env, args)
+    m = members[0]
+    before = m.status()["id"]
+    m.cut()
+    wait("the member dropped", lambda: m.status()["dropped"], 15)
+    time.sleep(8)
+    env.check("it holds its slot", host.status()["members"] == 3 and m.status()["code"] != "", json.dumps(host.status())[:300])
+    m.start_proxy()
+    wait("it is back", lambda: not m.status()["dropped"], 15)
+    env.check("under its own id", m.status()["id"] == before, json.dumps(m.status())[:300])
+    wait("given the world", lambda: m.status()["synced"] and not m.status()["joining"], 30)
+    time.sleep(4)
+    check_beside(env, host, m, "the member back")
+    compare_worlds(env, [host] + members, "with the member back")
+
+
 def scenario_soak(env, args):
     """Report 3: the party stands in the level for a while; what the network did is the result."""
     players = [env.client("Host1", args.link_args)] + [
@@ -1522,6 +1642,10 @@ SCENARIOS = {
     "keys": scenario_keys,
     "bolts": scenario_bolts,
     "hostdeath": scenario_host_death,
+    "hostdrop": scenario_hostdrop,
+    "hostback": scenario_hostback,
+    "hostleave": scenario_hostleave,
+    "rejoin": scenario_rejoin,
     "wipe": scenario_wipe,
     "revive": scenario_revive,
     "crateback": scenario_crateback,

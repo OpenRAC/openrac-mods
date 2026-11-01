@@ -381,6 +381,9 @@ std::string choose_name(const std::string& setting, const std::string& launcher)
 /* What a removed player reads. */
 constexpr const char* kKickedNotice = "The host removed you from the party";
 constexpr const char* kBannedNotice = "The host banned you from this save";
+/* What a player reads of the host leaving, with no one to follow it; and when it holds a party save. */
+constexpr const char* kHostLeftNotice = "The host left: the party is over";
+constexpr const char* kContinueNotice = "The host left: Continue as host from Saves";
 /* What a player reads when its way back is gone, whatever the reason. */
 constexpr const char* kLostSlotNotice = "Your place in the party is gone";
 

@@ -106,10 +106,8 @@
 
 namespace mp {
 
-/* How long the party waits for a host that dropped: the server's HOST_GRACE_SECONDS. How often the
- * host may say its list and its ledger, how long a new host waits for the others' ledgers, how long
+/* How often the host may say its list and its ledger, how long a new host waits for the others' ledgers, how long
  * a member stands still for a new host's world, and how long the line about it stays. */
-constexpr std::uint64_t kHostGraceMs = 15000;
 constexpr std::uint64_t kSuccessorMs = 3000;
 constexpr std::uint64_t kLedgerMs = 1000;
 constexpr std::uint64_t kGatherMs = 1000;

@@ -218,8 +218,12 @@ void poll() {
     }
 
     // A refusal or news replaces the last; the party gone, why, for Home (none when the player
-    // left it).
+    // left it). With nobody to follow the host, its party save is where the game goes on.
     std::string notice = g->session->take_notice();
+
+    if (notice == mp::kHostLeftNotice && g->cosave->slot() >= 0) {
+        notice = mp::kContinueNotice;
+    }
 
     if (was_in && !g->session->in_party()) {
         g->leave_reason = g->left_differs ? mp::kDifferentDisc
@@ -334,7 +338,7 @@ void load(openrac::Mod& mod) {
 
 #ifdef MULTIPLAYER_BOT
     g->bot = std::make_unique<mp::Bot>(mp::Bot::Parts{
-        *g->connection, *g->session, *g->game, *g->coop, *g->world, *g->mods, *g->camscripts, [](const float* at) {
+        *g->connection, *g->session, *g->game, *g->coop, *g->world, *g->mods, *g->camscripts, *g->migrate, [](const float* at) {
             // The hero's motion position (the bot is a test's).
             openrac::Memory memory = g->mod->memory();
             const openrac::gaddr hero = g->mod->version() == "ntsc" ? 0x0013F3D0u : 0x0013F4D0u;

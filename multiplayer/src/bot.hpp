@@ -47,6 +47,7 @@
 #include "connection.hpp"
 #include "coop.hpp"
 #include "cosave.hpp"
+#include "migrate.hpp"
 #include "party_mods.hpp"
 #include "session.hpp"
 #include "world.hpp"
@@ -63,6 +64,7 @@ public:
         World& world;
         PartyMods& mods;
         CamScripts& camscripts;
+        Migrate& migrate;
         /* The hero's position written to game memory. */
         std::function<void(const float*)> teleport;
         /* The item given, with ammunition, and asked for in the hand. */

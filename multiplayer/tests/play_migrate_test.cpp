@@ -525,6 +525,99 @@ void a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on() {
     CHECK(!t.a.coop.hold_input());
 }
 
+void a_scene_of_the_old_host_is_skipped_for_all() {
+    Trio t;
+    t.run(t.all, 80);
+    auto rest = t.without(t.host);
+
+    for (Player* p : t.all) {
+        p->game.now.phase = mp::kPhaseScene;
+        p->game.now.scene = 1;
+    }
+
+    t.run(t.all, 10);
+    lose_host(t, t.a);
+    t.a.game.calls.clear();
+    t.b.game.calls.clear();
+    t.run(rest, 40);
+    CHECK(count_of(t.a.game, "skip") >= 1);
+
+    // Skipped there, and its LEVEL says so to the rest.
+    t.a.game.now.phase = mp::kPhasePlaying;
+    t.a.game.now.scene = -1;
+    t.run(rest, 60);
+    CHECK(count_of(t.b.game, "skip") >= 1);
+}
+
+void the_new_host_says_where_it_is_and_nobody_leaves_for_it() {
+    Trio t;
+    t.run(t.all, 80);
+    t.host.coop.ship_travel(4, 3);
+    t.run(t.all, 10);
+    CHECK(t.a.coop.arriving());
+    auto rest = t.without(t.host);
+    lose_host(t, t.a);
+    t.run(rest, 100);
+
+    // Nobody waits for the old barrier, and the next travel starts from the count it had.
+    CHECK(!t.a.coop.arriving() && !t.b.coop.arriving());
+    t.b.game.calls.clear();
+    t.a.game.now = {mp::kPhasePlaying, 4, 9};
+    t.a.game.level = t.w.made(0);
+    t.run(rest, 150);
+    CHECK(count_of(t.b.game, "travel 4") >= 1);
+}
+
+void a_new_host_on_the_other_disc_changes_what_the_rules_say() {
+    Trio t;
+    mp::ModList other = sample_list();
+    other.disc = "another";
+    t.a.mods.set_own(other);
+    t.run(t.all, 80);
+    CHECK(t.b.mods.host_list().disc == sample_list().disc);
+    auto rest = t.without(t.host);
+    lose_host(t, t.a);
+    t.run(rest, 60);
+
+    // The member reads the new host's disc, and its line comes of that (party_mods.cpp).
+    CHECK(t.b.mods.heard_host());
+    CHECK(t.b.mods.host_list().disc == "another");
+    CHECK(t.b.mods.differences().empty());
+    CHECK(t.a.mods.host_list().disc == "another");
+    CHECK(t.a.mods.may_play(3));
+    const auto lines = mp::rules_lines(t.b.mods.host_list(), {}, t.b.mods.own(), 80);
+    CHECK(std::any_of(lines.begin(), lines.end(), [](const std::string& l) { return l == "Enemies follow the host's game"; }));
+}
+
+void an_epoch_stamp_goes_on_all_a_new_host_sends() {
+    Trio t;
+    t.run(t.all, 80);
+    auto rest = t.without(t.host);
+    lose_host(t, t.a);
+    t.run(rest, 40);
+    t.a.link.frames.clear();
+    t.a.session.send_data(0, Bytes{mp::kind::kLevel});
+    t.a.session.flush();
+    CHECK(!t.a.link.frames.empty());
+    const mp::Request q = mp::decode_request(Bytes(t.a.link.frames[0].begin() + 4, t.a.link.frames[0].end()));
+    CHECK(q.kind == mp::Request::Kind::kData && q.bytes[0] == mp::kind::kEpoch && q.bytes[1] == 0 && q.bytes[2] == 1);
+    CHECK(q.bytes[3] == mp::kind::kLevel);
+
+    // The first host stamps nothing: a party that never changes hosts pays nothing.
+    Trio plain;
+    plain.host.link.frames.clear();
+    plain.host.session.send_data(0, Bytes{mp::kind::kLevel});
+    plain.host.session.flush();
+    const mp::Request first = mp::decode_request(Bytes(plain.host.link.frames[0].begin() + 4, plain.host.link.frames[0].end()));
+    CHECK(first.bytes.size() == 1 && first.bytes[0] == mp::kind::kLevel);
+}
+
+void the_leave_question_says_what_becomes_of_the_party() {
+    CHECK(std::string(mp::pause_leave_question(false, true, false)) == "End the party?");
+    CHECK(std::string(mp::pause_leave_question(false, true, true)).find("takes over") != std::string::npos);
+    CHECK(std::string(mp::pause_leave_question(false, false, true)) == "Leave the party?");
+}
+
 void the_host_going_at_any_moment_leaves_one_world() {
     for (const HostGone how : kHostGoneAll) {
         for (unsigned seed = 1; seed <= 2; ++seed) {
@@ -567,6 +660,11 @@ void run_migrate_tests() {
     a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one();
     an_old_host_back_late_comes_in_as_anyone();
     a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on();
+    a_scene_of_the_old_host_is_skipped_for_all();
+    the_new_host_says_where_it_is_and_nobody_leaves_for_it();
+    a_new_host_on_the_other_disc_changes_what_the_rules_say();
+    an_epoch_stamp_goes_on_all_a_new_host_sends();
+    the_leave_question_says_what_becomes_of_the_party();
     the_host_going_at_any_moment_leaves_one_world();
 }
 

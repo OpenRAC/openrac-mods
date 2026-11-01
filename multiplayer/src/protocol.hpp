@@ -93,6 +93,8 @@ constexpr std::uint8_t kClientResumes = 1;
 
 /* How long a slot waits for its player: the server's RESUME_SECONDS. */
 constexpr std::uint64_t kResumeMs = 120000;
+/* How long a party waits for a host that dropped: the server's HOST_GRACE_SECONDS. */
+constexpr std::uint64_t kHostGraceMs = 15000;
 
 /* DATA's target for every other member of the party (session ids start at 1). */
 constexpr std::int32_t kBroadcast = 0;
