@@ -249,8 +249,12 @@ jobs:
           app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
           private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
           permission-issues: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Open or update the index-broken issue
         env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_MAINTAINERS }}
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -261,5 +265,38 @@ jobs:
           if [ -n "$n" ]; then
             gh issue comment "$n" --body "$body"
           else
-            gh issue create --title "The mod index build failed" --label index-broken --body "$body"
+            url=$(gh issue create --title "The mod index build failed" --label index-broken --body "$body")
+            # Only the first failure pings Discord; the hourly retries add to the issue instead.
+            python3 tools/alert.py "The mod list could not be published, and the last good one stays live. $url"
+          fi
+
+  # After a good publish: close a still-open index-broken issue and say so where it was announced.
+  recover:
+    needs: publish
+    if: success() && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
+          private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
+          permission-issues: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Close the index-broken issue
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_MAINTAINERS }}
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          n=$(gh issue list --label index-broken --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then
+            gh issue close "$n" --comment "Published again: $RUN_URL"
+            python3 tools/alert.py "The mod list is published again. $RUN_URL"
           fi
