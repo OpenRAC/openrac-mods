@@ -198,6 +198,8 @@ void World::remade() {
 void World::tick_death_hold() {
     const bool want = session_.in_party() && revive_rule_ && session_.members().size() > 1 && game_.can_revive();
 
+    coop_.show_fallen(want);
+
     if (want != death_held_) {
         death_held_ = want;
         game_.hold_death(want);

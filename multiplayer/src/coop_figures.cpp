@@ -271,7 +271,8 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
 
         Pose pose;
         const auto t = static_cast<double>(now);
-        // A player who died is not shown until it stands again (its health back).
+        // A player who died is not shown until it stands again (its health back), unless they lie
+        // there to be revived.
         // Nor while the party arrives somewhere (the figures come once all are in).
         const char* hidden = nullptr;
 
@@ -288,7 +289,7 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
             hidden = "silent";
         } else if (pose.level != status.level) {
             hidden = "in another level";
-        } else if (pose.health <= 0) {
+        } else if (pose.health <= 0 && !show_fallen_) {
             hidden = "dead";
         }
 

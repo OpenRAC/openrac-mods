@@ -188,6 +188,7 @@ void the_revive_rule() {
         off.member.game.hero_pose.health = 0;
         off.run(20);
         CHECK(!off.host.game.holding && !off.member.game.holding && off.member.game.revives == 0);
+        CHECK(off.host.game.figures.empty());
     }
 
     Party p(SimWorld{1, 0});
@@ -201,6 +202,8 @@ void the_revive_rule() {
     p.member.game.hero_pose.health = 0;
     p.run(40);
     CHECK(p.member.game.revives == 0);
+    // Shown to be found: the host still has the member's figure.
+    CHECK(p.host.game.figures.size() == 1);
     p.host.game.hero_pose.position[0] = 13.0f;
     p.run(20);
     CHECK(p.member.game.revives == 0);

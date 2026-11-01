@@ -663,6 +663,9 @@ public:
 
     void world_ready(bool ready) { world_ready_ = ready; }
 
+    /* The revive rule: a player down stays shown, to be found. */
+    void show_fallen(bool on) { show_fallen_ = on; }
+
     /* Whether the party's enemies leave this hero alone now: joining, or just placed. */
     bool shielded() const;
 
@@ -774,6 +777,7 @@ private:
     Session& session_;
     Game& game_;
     std::string build_;
+    bool show_fallen_ = false;
     std::function<bool(std::int32_t)> gate_;
     /* Whether this game plays the party's game (the host's own once started, a member's once it
      * started the host's): it goes back to the title when the party goes. When it last started one
