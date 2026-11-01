@@ -385,9 +385,12 @@ def skip_scenes(env, host, others, seconds):
     limit = time.monotonic() + seconds
     while time.monotonic() < limit:
         s = host.status()
-        # A Start that lands just as the scene ends opens the pause menu: another closes it.
-        if s["phase"] in (PHASE_SCENE, PHASE_LOADING, PHASE_MENU):
+        if s["phase"] in (PHASE_SCENE, PHASE_LOADING):
             host.ask("press 8 6")
+        # A dialog (a new game's first save has one) takes Cross; a Start that landed just as a
+        # scene ended opened the pause menu, and Cross then leaves that for the next round.
+        if s["phase"] == PHASE_MENU:
+            host.ask("press 4000 6" if int(time.monotonic() / 3) % 2 == 0 else "press 8 6")
         if all(in_control(c) for c in [host] + others):
             return True
         time.sleep(0.4)
