@@ -423,6 +423,7 @@ void Migrate::tick(std::uint64_t now) {
     if (!session_.in_party()) {
         clear();
         was_host_ = false;
+        session_.take_events();
         return;
     }
 

@@ -502,6 +502,10 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 33 COSAVE_ACK | a member | tag u8, ok u8 | that save is in its slot |
 | 34 SAVE_NOW | a member | | asks the host to save the party |
 | 35 COPARTY | the host, before PLAY, and to all when the bans change | key i32, count u8, each ban (string) | the party a slot belongs to, and who is banned from it |
+| 40 SUCCESSOR | the host, to all | count u8, ids i32... | who follows it, in order; the same list goes to the server (HOST_CHANGED) |
+| 41 LEDGER | the host, to all, at each change; a member, to a new host that asks | version u8, epoch u16, generation i32, play i32, travel u16, scene u16, level i8, revive u8, next net u16, the dead, dug and spared keys (each count u16 + keys u16), count u16 + each spawned moby (net u16, class i16, position, yaw f32) | what every member keeps of the host's world, whole; only a newer one by epoch and generation stands (`src/migrate.hpp`) |
+| 42 LEDGER_ASK | a new host, to all | | each member's ledger, in case it is newer |
+| 43 EPOCH | a host after the first, all it sends | epoch u16, then the message | anything of an older epoch is refused; the first host stamps nothing |
 | 44 PLACE | the host, to a member who asked | play i32, ticket u16, answer u8 (0 not now, 1 beside here, 2 the host's last safe spot, 3 none), position 3 x f32, yaw f32 | where a member goes: the host's last safe pose. Only the newest asking's ticket counts |
 | 45 PLACE_ASK | a member, twice a second | play i32, ticket u16, last u8 | it is to be put beside the host (a late joiner, or Go to host); `last`: 10 seconds of waiting are up, the last safe spot will do |
 | 46 WAIT_VOTE | a member; the host, to all | play i32, wait u16; from the host then kind u8 (0 none, 1 an arrival, 2 a scene), votes u8, voters u8, passed u8 | a vote to go on without the players waited for; the host's word of the wait, at each change and once a second |
