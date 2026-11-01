@@ -623,7 +623,7 @@ std::string PartyMods::key(std::int32_t member) const {
 }
 
 bool PartyMods::may_play(std::int32_t member) const {
-    return fit(member) == Fit::kMatch;
+    return fit(member) == Fit::kMatch && !session_.kicking(member);
 }
 
 bool PartyMods::host_silent() const {

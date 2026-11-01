@@ -286,7 +286,7 @@ void load(openrac::Mod& mod) {
     g->session->set_ready_gate([](std::int32_t member) {
         return g->session->is_host() ? g->mods->may_play(member) : g->mods->heard_host() && !refused();
     });
-    g->coop->set_gate([](std::int32_t member) { return g->mods->may_play(member) && !g->session->kicking(member); });
+    g->coop->set_gate([](std::int32_t member) { return g->mods->may_play(member); });
     g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
     g->progress = std::make_unique<mp::Progress>(*g->session, *g->game, *g->coop);
     g->progress->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });

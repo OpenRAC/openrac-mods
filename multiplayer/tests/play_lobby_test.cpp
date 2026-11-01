@@ -249,6 +249,46 @@ void a_member_removed_in_the_game_goes_home_alone() {
     CHECK(party.host.coop.playing() && party.b.coop.playing());
 }
 
+// A late member the host asks out before it got the game gets none, though its mods match: the host
+// plays on and its capture would go to someone leaving. The same comer, not asked out, gets it.
+void no_game_for_someone_being_removed() {
+    const auto comes = [](bool removed) {
+        Player host(1), late(2);
+        const std::vector<mp::Member> alone = {{1, "P1"}};
+        const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+        host.game.live_save = Bytes(100, 1);
+        gate(host, sample_list());
+        gate(late, sample_list());
+        host.session.handle(info(alone));
+        offer(host, mp::kFeatureKick);
+        host.coop.choose({}, "New game");
+        CHECK(host.coop.start());
+        host.game.now = {mp::kPhasePlaying, 3, 2};
+        tick_mods({&host}, 16);
+        host.session.handle(info(both));
+        late.session.handle(info(both));
+        offer(late, mp::kFeatureKick);
+        // Its MODS reaches the host, and the host's kick goes in before the co-op's next tick.
+        late.mods.tick(late.clock);
+        route({&host, &late});
+        CHECK(host.mods.fit(2) == mp::Fit::kMatch && host.mods.may_play(2));
+
+        if (removed) {
+            CHECK(host.session.kick(2));
+            CHECK(!host.mods.may_play(2) && host.mods.fit(2) == mp::Fit::kMatch);
+        }
+
+        const std::size_t before = late.game.calls.size();
+        host.coop.tick(host.clock + 16);
+        route({&host, &late});
+        late.coop.tick(late.clock + 16);
+        return late.game.calls.size() != before;
+    };
+
+    CHECK(comes(false));
+    CHECK(!comes(true));
+}
+
 void a_members_key_reaches_the_host_alone() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -429,6 +469,7 @@ void run_lobby_tests() {
     the_lobby_keeps_its_kinds();
     removing_a_differing_member_lets_the_host_start();
     a_member_removed_in_the_game_goes_home_alone();
+    no_game_for_someone_being_removed();
     a_members_key_reaches_the_host_alone();
     a_ban_stays_with_the_save();
     bans_read_back_within_their_limits();

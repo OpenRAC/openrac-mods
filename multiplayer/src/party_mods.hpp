@@ -227,7 +227,7 @@ public:
     /* The host: `member`'s key, as its MODS said; "" for none yet, or a game with none. */
     std::string key(std::int32_t member) const;
 
-    /* The host: whether `member` may be Ready and get the game. */
+    /* The host: whether `member` may be Ready and get the game: not one on its way out. */
     bool may_play(std::int32_t member) const;
 
     /* This player, in a party: how its game differs from the host's (none yet, while the host's

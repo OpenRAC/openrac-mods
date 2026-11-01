@@ -856,8 +856,10 @@ def out_of_party(c):
 
 
 def scenario_kick(env, args):
-    """A host takes a member out: one that differs from the lobby, which frees Start; one in the
-    game, from the pause page's call; and a ban, which holds under a new name."""
+    """A host takes a member out: from the lobby (one that differs: it frees Start), then a ban,
+    which holds under a new name, then one in the middle of a game: it goes back to the title and
+    the host plays on. The kick is the page's own call; pressing the pad through the pause menu is
+    not what this tests."""
     host = env.client("Host1", args.link_args)
     member = env.client("Member1", args.link_args)
     reach_title(host)
@@ -909,8 +911,29 @@ def scenario_kick(env, args):
     host.ask("unban")
     env.check("the bans are lifted", host.json("mods")["bans"] == 0)
     join_code(renamed, code)
+    wait("its mods checked", lambda: host.json("mods")["fits"].get("Renamed1") == 1, 15)
     time.sleep(3)
     env.check("after the bans went it stays", not out_of_party(renamed))
+
+    # In the middle of a game.
+    wait("the member told of the host's mods", lambda: renamed.json("mods")["heard_host"], 15)
+    renamed.ask("ready")
+    wait("all ready", lambda: host.status()["all_ready"], 15)
+    answer = host.ask("start")
+    if answer != "ok":
+        raise Failed("the host's Start: " + answer)
+    env.check("both in control", skip_scenes(env, host, [renamed], 150), json.dumps([host.status(), renamed.status()]))
+    level = host.status()["level"]
+    page_fits(env, host, "remove", "host in a level")
+    env.check("the host's kick in the game is taken", host.ask("kick Renamed1") == "ok")
+    wait("the member out of the game's party", lambda: out_of_party(renamed), 15)
+    wait("the member back at the title", lambda: renamed.status()["phase"] == PHASE_FRONT_END, 60)
+    wait("the host alone in the game", lambda: host.status()["members"] == 1, 15)
+    time.sleep(args.settle)
+    s = host.status()
+    env.check("the host plays on in its level", in_control(host) and s["level"] == level, json.dumps(s))
+    env.check("its game is still the party's", bool(s["code"]))
+    env.check("the member stays connected after it", renamed.status()["greeted"])
 
 
 def scenario_midjoin(env, args):
