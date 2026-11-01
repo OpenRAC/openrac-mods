@@ -92,7 +92,8 @@ Keep (a): a player's death is that player's own, and what is dead for the party 
   dying on a ride goes to the checkpoint as always: nobody could stand over him.
 - A placed moby of a mission the host has not done comes back with the host's level, for everyone (a
   member, whose copy is gone, is given one made from the host's); a local class comes back in the
-  host's game only.
+  host's game only. Not crates: Veldin's are tied to mission 0, and a crate back in the host's game
+  alone is two worlds (seen in the real game, 2026-11-01).
 - The host's bolts lying about are made again where they lay. The enemies it had spawned go with its
   level, whose spawners make new ones.
 

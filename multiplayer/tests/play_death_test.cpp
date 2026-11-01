@@ -138,6 +138,15 @@ void a_missions_moby_comes_back_with_the_mission() {
     r.run(10);
     CHECK(!dead(r.host.game, 1) && driven_spawns(r.member.game, 300) == 1);
 
+    // A crate goes with no mission's return, whatever its level ties it to: broken stays broken.
+    Party c(SimWorld{0, 3});
+    find_key(c.host.game, 1)->mission = 2;
+    c.host.game.die(c.host.game.moby_slot(1));
+    c.run(10);
+    remake_with_mission(c.host, c.w, 1, 2);
+    c.run(10);
+    CHECK(dead(c.host.game, 1) && dead(c.member.game, 1));
+
     // A row that cannot be read spares nothing: the party's dead stay.
     Party s(SimWorld{3, 0});
     find_key(s.host.game, 1)->mission = 2;

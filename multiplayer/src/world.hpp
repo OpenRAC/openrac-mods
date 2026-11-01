@@ -95,7 +95,8 @@
  * - A placed moby that goes with a mission the host has not done comes back with the host's level:
  *   the mission starts again, so it would be lost for good if it stayed dead. It leaves party_dead_
  *   and each member, whose copy is gone, makes one to show it (RESTORE). A local class comes back
- *   only in the host's game.
+ *   only in the host's game. Crates do not: a level ties its crates to a mission too, and one broken
+ *   stays broken for the party.
  * - The bolts lying about when the host dies are made again where they lay (they are what the
  *   party can still see). Enemies it had spawned go with its level; the level's spawners make new.
  * - A full wipe: the host's level made again with every member dead too, or dead a moment ago. The

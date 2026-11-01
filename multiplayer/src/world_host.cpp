@@ -331,8 +331,9 @@ void World::remade() {
     const bool known = game_.mission_row(level_, missions);
 
     // Each game's own interactables follow that game's own story (a dug pile is the party's); a
-    // mission's mobys return with the mission; the rest stay as the party left them. After a full
-    // wipe, what the host's level has made again stands.
+    // mission's mobys return with the mission, but for crates, which a level ties to a mission of
+    // its own and no mission needs back; the rest stay as the party left them. After a full wipe,
+    // what the host's level has made again stands.
     for (auto it = party_dead_.begin(); it != party_dead_.end();) {
         const int key = *it;
         const int slot = alive_keys_.count(key) != 0 ? game_.moby_slot(key) : -1;
@@ -344,8 +345,8 @@ void World::remade() {
             it = party_dead_.erase(it);
         } else if (interactable_class(moby->second.oclass) && dug_.count(key) == 0) {
             ++it;
-        } else if (known && moby->second.mission >= 0 && moby->second.mission < kMissions
-                   && missions[moby->second.mission] != kMissionDone) {
+        } else if (known && !crate_class(moby->second.oclass) && moby->second.mission >= 0
+                   && moby->second.mission < kMissions && missions[moby->second.mission] != kMissionDone) {
             trace_line("despawn", moby_name(slot) + " comes back with its mission " + std::to_string(moby->second.mission));
             it = party_dead_.erase(it);
 
