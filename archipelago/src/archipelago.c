@@ -34,6 +34,7 @@
 /* Each level has this many trigger slots, 0xFF once done (D_0014C150; seen in game code). */
 #define TRIGGER_SLOTS 16
 #define TRIGGER_DONE 0xFF
+#define BANNER_TEXT_SIZE 96 /* item_randomizer.c's */
 
 /* Each level has this many gold bolt bytes (D_0014BFC0; seen in game code). */
 #define GOLD_BOLT_SLOTS 4
@@ -78,7 +79,7 @@
 #define RECEIVED_CHUNK 1024
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.1.0"
+#define MOD_VERSION "2.2.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -146,6 +147,9 @@ static openrac_rac1_Moby_Helga_Update s_helga_update;
 static openrac_rac1_Moby_BigAl_Update s_big_al_update;
 static openrac_rac1_Moby_Bob_Update s_bob_update;
 static openrac_rac1_Moby_Edwina_Update s_edwina_update;
+static openrac_rac1_Ship_InitTransition s_ship_transition;
+static openrac_rac1_Moby_Class22_Update s_orxon_start_update;
+static openrac_rac1_Help_Request s_help_request;
 
 /* ---- game memory ---- */
 
@@ -227,6 +231,11 @@ static void log_line(int level, const char* text) {
 
 /* Whether the location has been had, by the game's own bytes (rando.h says which for each kind). */
 static int had(int location) {
+    // A byte shown as nothing, not as a location's (Orxon's O2 Mask).
+    if (location < 0) {
+        return 0;
+    }
+
     const rando_location* l = &rando_locations[location];
 
     switch (l->kind) {
@@ -295,6 +304,24 @@ static void swaps_resume(void) {
 
 /* ---- giving what the server sent ---- */
 
+/* The banner as it is, to put back after a routine of the game's that shows one: GiveItem's and
+ * UnlockPlanet's are in the text of the level the reward comes from, and read "Paradox: This message
+ * does not exist" in any other (item_randomizer.c). The server's line says what came. */
+typedef struct kept_banner {
+    char text[BANNER_TEXT_SIZE];
+    int32_t ticks;
+} kept_banner;
+
+static void banner_keep(kept_banner* k) {
+    memcpy(k->text, level_byte_at(s_disc->banner_text), sizeof k->text);
+    k->ticks = get32(level_byte_at(s_disc->banner_ticks));
+}
+
+static void banner_put_back(const kept_banner* k) {
+    memcpy(level_byte_at(s_disc->banner_text), k->text, sizeof k->text);
+    set32(level_byte_at(s_disc->banner_ticks), k->ticks);
+}
+
 /* Gives an item through the game's GiveItem, as the item randomizer gives a reward: the item's
  * obtained byte kept as it was (it is its own location's), and the vendor's stock too when the
  * item is one of its slots (the stock is the slots'). */
@@ -303,6 +330,8 @@ static void give_item(int item) {
     uint8_t kept[VENDOR_STOCK_SIZE];
     const int slot = vendor_slot(item) >= 0;
     const uint8_t before = *obtained(item);
+    kept_banner banner;
+    banner_keep(&banner);
     swaps_suspend();
 
     // A vendor slot's weapon: the stock as it was after GiveItem.
@@ -318,6 +347,7 @@ static void give_item(int item) {
 
     *obtained(item) = before;
     swaps_resume();
+    banner_put_back(&banner);
 }
 
 /* The server's list read again when it changed: what this slot has been sent. */
@@ -381,7 +411,10 @@ static void give_received(void) {
     // Each planet sent and not unlocked.
     for (int planet = 0; planet < LEVEL_COUNT; ++planet) {
         if (s_received_planet[planet] && !*planet_flag(planet)) {
+            kept_banner banner;
+            banner_keep(&banner);
             s_planet_unlock(planet);
+            banner_put_back(&banner);
         }
     }
 }
@@ -514,6 +547,75 @@ static void bob_update(openrac_gaddr moby) {
 
 static void edwina_update(openrac_gaddr moby) {
     run_shown(s_edwina_update, moby, ITEM_HYDRO_PACK);
+}
+
+/* Whether Orxon's landing should play Clank's part however the O2 Mask stands: it holds two
+ * locations and starts only without the mask, which the server can send before Orxon. */
+static int orxon_clank_part_due(void) {
+    const uint8_t state = *byte_at(
+        s_disc->triggers + (uint32_t)ORXON_CLANK_MISSION + (uint32_t)LEVEL_ORXON * (uint32_t)TRIGGER_SLOTS
+    );
+    return *owned(ITEM_O2_MASK) && state != TRIGGER_DONE && current_level() == LEVEL_ORXON;
+}
+
+/* Hook for the ship's landing and take-off: the chunks it loads on Orxon go by the O2 Mask. */
+static void ship_transition(int32_t mode) {
+    const int shown = orxon_clank_part_due();
+
+    // Orxon's chunks for Clank's start.
+    if (shown) {
+        swap_push(owned(ITEM_O2_MASK), -1);
+    }
+
+    s_ship_transition(mode);
+
+    // The real byte back.
+    if (shown) {
+        swap_pop();
+    }
+}
+
+/* Hook for class 22 on Orxon, which starts Clank there when there is no O2 Mask. */
+static void orxon_start_update(openrac_gaddr moby) {
+    const int shown = orxon_clank_part_due();
+
+    // Clank's start.
+    if (shown) {
+        swap_push(owned(ITEM_O2_MASK), -1);
+    }
+
+    s_orxon_start_update(moby);
+
+    // The real byte back.
+    if (shown) {
+        swap_pop();
+    }
+}
+
+/* Hook for Help_Request: a tutorial of the item the game thinks it gave is left out when the place
+ * holds another. Not known yet (no scout back): the game's. 1: as queued, so that it asks no more. */
+static int32_t help_request(int32_t message_id, int32_t slot) {
+    // The messages that teach an item.
+    for (size_t i = 0; i < rando_item_help_count; ++i) {
+        const rando_item_help* h = &rando_item_helps[i];
+
+        // This one's item has a place in the multiworld.
+        if (h->message == message_id && s_by_item[h->item] >= 0) {
+            int64_t item = -1;
+            int own = 0;
+            const int known = ap_client_location_item(
+                ap_location_id(&rando_locations[s_by_item[h->item]]), &item, &own
+            );
+            const rando_reward r = ap_reward_of(item);
+
+            // Another item came, or one for another player: nothing to teach.
+            if (known && (!own || r.kind != REWARD_ITEM || r.value != h->item)) {
+                return 1;
+            }
+        }
+    }
+
+    return s_help_request(message_id, slot);
 }
 
 /* The level's start: what is had now is seen (a save loaded, a new game), and the client is given
@@ -886,7 +988,10 @@ static int install_hooks(void) {
            && HOOK(Moby_Helga_Update, helga_update, &s_helga_update)
            && HOOK(Moby_BigAl_Update, big_al_update, &s_big_al_update)
            && HOOK(Moby_Bob_Update, bob_update, &s_bob_update)
-           && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update);
+           && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update)
+           && HOOK(Moby_Class22_Update, orxon_start_update, &s_orxon_start_update)
+           && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition)
+           && HOOK(Help_Request, help_request, &s_help_request);
 }
 
 /* Every row that is a location, found by its key. */

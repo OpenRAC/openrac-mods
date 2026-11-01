@@ -5,7 +5,6 @@ import unittest
 
 from ..data import LOCATIONS, PLANETS
 from ..items import ITEM_TABLE
-from ..locations import LOCATION_NAME_GROUPS
 from ..options import OPTION_PRESETS, RAC1Options
 from ..rules import coordinates
 from .bases import RAC1TestBase
@@ -71,9 +70,20 @@ class TestHardNeeds(RAC1TestBase):
 
     def test_gadgetron_ceo_needs_hoverboard(self) -> None:
         self.collect_all_but(["Hoverboard"])
-        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
         self.collect_by_name("Hoverboard")
-        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
+
+
+class TestOrxon(RAC1TestBase):
+    def test_o2_mask_is_for_ratchets_part_only(self) -> None:
+        # The mod plays Clank's part first, however the mask stands.
+        self.collect_all_but(["O2 Mask"])
+        self.assertTrue(self.can_reach_location("Orxon: Clank finds the Magneboots"))
+        self.assertTrue(self.can_reach_location("Orxon: Clank's infobot"))
+        self.assertFalse(self.can_reach_location("Orxon: Ratchet's infobot"))
+        self.collect_by_name("O2 Mask")
+        self.assertTrue(self.can_reach_location("Orxon: Ratchet's infobot"))
 
 
 class TestRelaxed(RAC1TestBase):
