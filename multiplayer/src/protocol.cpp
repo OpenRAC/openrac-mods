@@ -175,6 +175,12 @@ void FrameReader::reset() {
     broken_ = false;
 }
 
+bool valid_key(const std::string& key) {
+    return !key.empty() && key.size() <= kMaxKeyLength && std::all_of(key.begin(), key.end(), [](char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    });
+}
+
 Bytes hello(const std::string& version, const std::string& name) {
     return frame(
         Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).str(version).str(name).bytes()
@@ -199,6 +205,10 @@ Bytes party_join(const std::string& code) {
 
 Bytes party_leave() {
     return frame(party(PartyOp::kLeave).bytes());
+}
+
+Bytes party_kick(std::int32_t member) {
+    return frame(party(PartyOp::kKick).i32(member).bytes());
 }
 
 Bytes chat(const std::string& message) {
@@ -245,7 +255,7 @@ bool decode(const Bytes& body, Message& out) {
             out.kind = Message::Kind::kError;
             const std::uint8_t reason = r.u8();
             out.reason = static_cast<ErrorReason>(reason);
-            return r.ok() && reason <= static_cast<std::uint8_t>(ErrorReason::kNotInParty);
+            return r.ok() && reason <= static_cast<std::uint8_t>(ErrorReason::kNotHost);
         }
         case PacketId::kTime:
             out.kind = Message::Kind::kTime;
@@ -256,6 +266,8 @@ bool decode(const Bytes& body, Message& out) {
             out.kind = Message::Kind::kUdp;
             out.token = r.i64();
             out.udp_port = r.i32();
+            // An older server stops at the port.
+            out.features = r.left() > 0 ? r.u8() : 0;
             return r.ok();
         case PacketId::kParty:
             break;
@@ -316,6 +328,9 @@ bool decode(const Bytes& body, Message& out) {
         case PartyOp::kEnd:
             out.kind = Message::Kind::kPartyEnd;
             return r.ok();
+        case PartyOp::kKicked:
+            out.kind = Message::Kind::kPartyKicked;
+            return r.ok();
         default:
             // CREATE, JOIN, LEAVE and FIND are the client's, and any other opcode is unknown.
             return false;
@@ -367,9 +382,9 @@ Bytes hello_reply(std::int32_t session) {
     return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).i32(session).bytes());
 }
 
-Bytes udp_offer(std::int64_t token, std::int32_t port) {
+Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features) {
     return frame(
-        Writer().u8(static_cast<std::uint8_t>(PacketId::kUdp)).i64(token).i32(port).bytes()
+        Writer().u8(static_cast<std::uint8_t>(PacketId::kUdp)).i64(token).i32(port).u8(features).bytes()
     );
 }
 
@@ -418,6 +433,10 @@ Bytes party_left(std::int32_t member) {
 
 Bytes party_end() {
     return frame(party(PartyOp::kEnd).bytes());
+}
+
+Bytes party_kicked() {
+    return frame(party(PartyOp::kKicked).bytes());
 }
 
 Bytes chat_from(std::int32_t sender, const std::string& message) {
@@ -509,6 +528,10 @@ Request decode_request(const Bytes& body) {
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kLeave):
                     kind = Request::Kind::kLeave;
+                    break;
+                case static_cast<std::uint8_t>(PartyOp::kKick):
+                    kind = Request::Kind::kKick;
+                    out.target = r.i32();
                     break;
                 default:
                     break;

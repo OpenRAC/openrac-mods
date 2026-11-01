@@ -15,6 +15,8 @@
  *     (after a LEAVE, say); in it already: ALREADY_IN_PARTY; full: PARTY_FULL (the client stays
  *     connected, out of the party, as on the server). A client greeted before the local HELLO
  *     joins once the party exists.
+ *   - KICK from the local game takes a member out as on the server: KICKED to it, LEFT to the others,
+ *     its connection staying; a client's KICK is refused (NOT_HOST).
  *   - The host leaving (LEAVE from the local game) ends the party: END to every member, and ended()
  *     tells the owner to stop() the host. stop() sends END too, flushes, and closes everything.
  *   - The local link has no rate limits, no hello deadline, and its bad frames are dropped rather
@@ -119,6 +121,7 @@ private:
     void hello(Peer& peer, const Request& request);
     void join(Peer& peer);
     void leave(Peer& peer, bool asked);
+    void kick(Peer& peer, std::int32_t member);
     void end_party();
     void forward(Peer& sender, std::int32_t target, const std::function<void(Peer&)>& delivery);
     void deliver_state(std::int32_t sender, Peer& to, const Bytes& bytes);

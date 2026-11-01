@@ -70,7 +70,8 @@ void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(52) == Owner::kCamera && mp::owner_of(55) == Owner::kCamera);
     CHECK(mp::owner_of(56) == Owner::kTether && mp::owner_of(59) == Owner::kTether);
     CHECK(mp::owner_of(60) == Owner::kPartyRules && mp::owner_of(63) == Owner::kPartyRules);
-    CHECK(mp::owner_of(67) == Owner::kPartyRules && mp::owner_of(70) == Owner::kPartyRules);
+    // The lobby's, all read by the Session and never handed to the game's data.
+    CHECK(mp::owner_of(64) == Owner::kLobby && mp::owner_of(67) == Owner::kLobby && mp::owner_of(70) == Owner::kLobby);
     // Free: 0 and 71 on.
     CHECK(mp::owner_of(0) == Owner::kCount);
     CHECK(mp::owner_of(71) == Owner::kCount && mp::owner_of(127) == Owner::kCount);

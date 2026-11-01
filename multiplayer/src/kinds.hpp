@@ -13,8 +13,9 @@
  *
  * Reserved ranges (free until their package lands):
  *    36-39 shared progress, 40-43 host migration, 44-47 late join, 48-51 shots,
- *    52-55 camera, 56-59 tether, 60-63 and 67-70 lobby (the party's rules and kicks); free:
- *    0, 71-127 (and 128-255, which the wire does not use). Late join uses 44 to 46 (47 is free).
+ *    52-55 camera, 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
+ *    64-67); free: 0, 71-127 (and 128-255, which the wire does not use). Late join uses 44 to 46
+ *    (47 is free).
  *
  * Routing: Router::dispatch looks the owner of the first byte up in the table and calls what that
  * owner registered; a kind nobody registered goes to the fallback (the co-op), as a DATA the
@@ -58,6 +59,7 @@ constexpr std::uint8_t kStart = 3;
 constexpr std::uint8_t kLink = 64;
 constexpr std::uint8_t kLinks = 65;
 constexpr std::uint8_t kBatch = 66;
+constexpr std::uint8_t kKick = 67;
 // Co-op (coop.hpp, play.hpp)
 constexpr std::uint8_t kPlay = 4;
 constexpr std::uint8_t kChunk = 5;
@@ -166,10 +168,11 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kLink, "LINK", Owner::kLobby},
     {kind::kLinks, "LINKS", Owner::kLobby},
     {kind::kBatch, "BATCH", Owner::kLobby},
+    {kind::kKick, "KICK", Owner::kLobby},
 };
 
 /* Kinds 4 to 31 are shared out one by one (the owners interleave there); the rest are ranges.
- * The ranges listed are the reserved ones and the lobby's 64 to 66. */
+ * The ranges listed are the reserved ones and the lobby's 64 to 70. */
 inline constexpr KindRange kReservedRanges[] = {
     {36, 39, Owner::kShare},
     {40, 43, Owner::kMigrate},
@@ -178,8 +181,7 @@ inline constexpr KindRange kReservedRanges[] = {
     {52, 55, Owner::kCamera},
     {56, 59, Owner::kTether},
     {60, 63, Owner::kPartyRules},
-    {64, 66, Owner::kLobby},
-    {67, 70, Owner::kPartyRules},
+    {64, 70, Owner::kLobby},
 };
 
 /* A kind's owner; kCount for a number nobody holds (0 and 71 on). */

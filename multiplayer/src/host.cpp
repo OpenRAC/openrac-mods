@@ -670,6 +670,7 @@ void Host::handle(Peer& peer, const Bytes& body) {
             case Request::Kind::kFind:
             case Request::Kind::kList:
             case Request::Kind::kLeave:
+            case Request::Kind::kKick:
                 within = peer.party.take();
                 break;
             case Request::Kind::kData:
@@ -720,6 +721,9 @@ void Host::handle(Peer& peer, const Bytes& body) {
         }
         case Request::Kind::kLeave:
             leave(peer, true);
+            break;
+        case Request::Kind::kKick:
+            kick(peer, q.target);
             break;
         case Request::Kind::kChat: {
             // Blank or oversized messages only come from a broken client.
@@ -880,6 +884,37 @@ void Host::leave(Peer& peer, bool asked) {
 
     for (Peer* m : std::vector<Peer*>(party_)) {
         send_to(*m, left);
+    }
+}
+
+void Host::kick(Peer& peer, std::int32_t member) {
+    if (!peer.in_party) {
+        send_to(peer, error_reply(ErrorReason::kNotInParty));
+        return;
+    }
+
+    // Only the host has the say.
+    if (party_.empty() || party_.front() != &peer) {
+        send_to(peer, error_reply(ErrorReason::kNotHost));
+        return;
+    }
+
+    for (Peer* m : std::vector<Peer*>(party_)) {
+        // A host cannot remove itself: leaving is how a party ends.
+        if (m->id != member || m == &peer) {
+            continue;
+        }
+
+        party_.erase(std::remove(party_.begin(), party_.end(), m), party_.end());
+        m->in_party = false;
+        send_to(*m, party_kicked());
+        const Bytes left = party_left(m->id);
+
+        for (Peer* other : std::vector<Peer*>(party_)) {
+            send_to(*other, left);
+        }
+
+        return;
     }
 }
 

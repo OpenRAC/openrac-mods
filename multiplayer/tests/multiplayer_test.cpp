@@ -591,8 +591,24 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::hello_reply(7) == server(mp::Writer().u8(0).i32(7)));
     CHECK(
         mp::udp_offer(0x0102030405060708LL, 7770)
-        == server(mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770))
+        == server(mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770).u8(mp::kFeatureKick))
     );
+    CHECK(mp::party_kicked() == server(mp::Writer().u8(1).u8(12)));
+    CHECK(mp::party_kick(7) == server(mp::Writer().u8(1).u8(11).i32(7)));
+    {
+        // What the server sends: the feature bits, and none from one that stops at the port.
+        mp::Message m;
+        CHECK(mp::decode(mp::Writer().u8(6).i64(1).i32(7770).u8(1).bytes(), m) && m.features == mp::kFeatureKick);
+        CHECK(mp::decode(mp::Writer().u8(6).i64(1).i32(7770).bytes(), m) && m.features == 0);
+        CHECK(mp::decode(mp::Writer().u8(1).u8(12).bytes(), m) && m.kind == mp::Message::Kind::kPartyKicked);
+        CHECK(mp::decode(mp::Writer().u8(4).u8(4).bytes(), m) && m.reason == mp::ErrorReason::kNotHost);
+        CHECK(!mp::decode(mp::Writer().u8(4).u8(5).bytes(), m));
+        const mp::Request q = mp::decode_request(mp::Writer().u8(1).u8(11).i32(7).bytes());
+        CHECK(q.kind == mp::Request::Kind::kKick && q.target == 7);
+        CHECK(mp::decode_request(mp::Writer().u8(1).u8(11).bytes()).kind == mp::Request::Kind::kInvalid);
+        // A notice of the server's is no request.
+        CHECK(mp::decode_request(mp::Writer().u8(1).u8(12).bytes()).kind == mp::Request::Kind::kInvalid);
+    }
     CHECK(
         mp::party_info("DIRECT", 1, {{1, "A"}, {2, "B"}})
         == server(
@@ -1107,6 +1123,57 @@ void the_host_keeps_the_servers_limits() {
     close_socket(extra);
 }
 
+// The embedded host takes a member out as the server does: KICKED to it, LEFT to the others, its
+// connection staying; only the local game has the say.
+void direct_host_removes_a_member() {
+    mp::HostConfig config;
+    config.port = 0;
+    std::vector<Bytes> local;
+    std::mutex local_mutex;
+    mp::Host host(config);
+    CHECK(host.start([&](const Bytes& f) {
+        const std::lock_guard lock(local_mutex);
+        local.push_back(f);
+    }));
+    host.local_send(mp::hello("v", "Host"));
+    const socket_t first = raw_connect(host.port());
+    raw_send(first, mp::hello("v", "First"));
+    CHECK(raw_read(first, 300).size() == 3);
+    const socket_t second = raw_connect(host.port());
+    raw_send(second, mp::hello("v", "Second"));
+    CHECK(raw_read(second, 300).size() == 3);
+    CHECK(raw_read(first, 100).size() == 1);  // JOINED
+    CHECK(host.members().size() == 3);
+    const std::int32_t a = host.members()[1].id;
+    const std::int32_t b = host.members()[2].id;
+
+    // A member has no say, of another or of the host.
+    raw_send(first, mp::party_kick(b));
+    std::vector<mp::Message> got = raw_read(first, 200);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kError && got[0].reason == mp::ErrorReason::kNotHost);
+    CHECK(host.members().size() == 3);
+
+    // The host itself and a stranger: nothing.
+    host.local_send(mp::party_kick(host.members()[0].id));
+    host.local_send(mp::party_kick(999));
+    CHECK(host.members().size() == 3);
+
+    host.local_send(mp::party_kick(a));
+    got = raw_read(first, 200);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyKicked);
+    got = raw_read(second, 200);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyLeft && got[0].id == a);
+    CHECK(host.members().size() == 2);
+
+    // Still connected, and it can come back: a kick is no ban.
+    raw_send(first, mp::party_join("ANYONE"));
+    got = raw_read(first, 300);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyInfo);
+    close_socket(first);
+    close_socket(second);
+    host.stop();
+}
+
 // Direct connect's page logic (direct.hpp): the ring rows, holding, the address, the lobby's lines.
 void direct_page_logic() {
     // A ring row: 64 choices, the value in the middle, around the ends.
@@ -1308,6 +1375,7 @@ int main() {
     direct_connect_plays_a_party();
     the_host_leaving_ends_hosting();
     the_host_keeps_the_servers_limits();
+    direct_host_removes_a_member();
     direct_page_logic();
     direct_connect_ignores_the_server();
 

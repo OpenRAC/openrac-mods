@@ -38,6 +38,8 @@ constexpr std::size_t kCodeLength = 6;
  * it: printable ASCII, at most this long; and the most parties LIST answers with. */
 constexpr std::size_t kMaxDescriptionLength = 48;
 constexpr std::size_t kMaxListedParties = 32;
+/* The longest launcher key a game takes (the launcher's are 32 hex digits). */
+constexpr std::size_t kMaxKeyLength = 64;
 constexpr const char* kCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /* The server's port when the mod's setting names none, and the embedded host's by default. */
@@ -66,14 +68,22 @@ enum class PartyOp : std::uint8_t {
     kLeft = 5,
     kEnd = 6,
     kFind = 7,
-    kList = 8
+    kList = 8,
+    /* 9 and 10 are host migration's. */
+    kKick = 11,
+    kKicked = 12
 };
 enum class ErrorReason : std::uint8_t {
     kPartyNotFound = 0,
     kPartyFull = 1,
     kAlreadyInParty = 2,
-    kNotInParty = 3
+    kNotInParty = 3,
+    kNotHost = 4
 };
+
+/* The UDP offer's feature bits: which requests the server takes. An older server's offer has none,
+ * and a request it does not know closes the connection. */
+constexpr std::uint8_t kFeatureKick = 1;
 
 /* DATA's target for every other member of the party (session ids start at 1). */
 constexpr std::int32_t kBroadcast = 0;
@@ -134,6 +144,10 @@ private:
     bool ok_ = true;
 };
 
+/* Whether `key` could be a launcher's key (the SDK's identity_key): letters and digits, of a length
+ * that fits a line of a save's note. Empty is none. */
+bool valid_key(const std::string& key);
+
 /* The frame of a body: its length, big-endian, then the body. */
 Bytes frame(const Bytes& body);
 
@@ -165,6 +179,8 @@ Bytes party_list();
 Bytes party_find();
 Bytes party_join(const std::string& code);
 Bytes party_leave();
+/* KICK: the host has `member` taken out of the party (the member gets KICKED, the others LEFT). */
+Bytes party_kick(std::int32_t member);
 Bytes chat(const std::string& message);
 Bytes data(std::int32_t target, const Bytes& payload);
 Bytes time(std::int64_t client_ms);
@@ -199,6 +215,7 @@ struct Message {
         kPartyJoined,
         kPartyLeft,
         kPartyEnd,
+        kPartyKicked,
         kPartyList,
         kChat,
         kData,
@@ -226,9 +243,10 @@ struct Message {
     std::int64_t server_ms = 0;
     /* ERROR: why the server refused. */
     ErrorReason reason = ErrorReason::kPartyNotFound;
-    /* UDP: the session's token and the server's UDP port. */
+    /* UDP: the session's token, the server's UDP port and its feature bits (none from an older one). */
     std::int64_t token = 0;
     std::int32_t udp_port = 0;
+    std::uint8_t features = 0;
 };
 
 /* Reads a frame's body the server sent into `out`; false for one the client does not know (an
@@ -242,7 +260,7 @@ bool decode_datagram(const std::uint8_t* data, std::size_t size, Message& out);
 /* The server's side, for the embedded host of Direct connect (host.hpp): the frames the server
  * sends, and the client's frames and datagrams as the server reads them. */
 Bytes hello_reply(std::int32_t session);
-Bytes udp_offer(std::int64_t token, std::int32_t port);
+Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features = kFeatureKick);
 Bytes party_info(
     const std::string& code,
     std::int32_t host,
@@ -253,6 +271,7 @@ Bytes party_list_reply(const std::vector<Listing>& parties);
 Bytes party_joined(const Member& member);
 Bytes party_left(std::int32_t member);
 Bytes party_end();
+Bytes party_kicked();
 Bytes chat_from(std::int32_t sender, const std::string& message);
 Bytes data_from(std::int32_t sender, const Bytes& payload);
 Bytes error_reply(ErrorReason reason);
@@ -270,6 +289,7 @@ struct Request {
         kFind,
         kList,
         kLeave,
+        kKick,
         kChat,
         kData,
         kTime
@@ -279,7 +299,7 @@ struct Request {
      * message. */
     std::string version;
     std::string text;
-    /* DATA: the target and the bytes. */
+    /* DATA: the target and the bytes; KICK: the member, in target. */
     std::int32_t target = 0;
     Bytes bytes;
     /* TIME: the client's clock. */

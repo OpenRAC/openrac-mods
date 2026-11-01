@@ -64,6 +64,7 @@ Session::Session(
 
 void Session::connected() {
     id_ = 0;
+    server_kicks_ = false;
     reset_party();
     transport_.send(hello(version_, name_));
 }
@@ -79,9 +80,11 @@ void Session::reset_party() {
     members_.clear();
     description_.clear();
     ready_.clear();
+    kicking_.clear();
     links_.clear();
     started_ = false;
     waiting_ = false;
+    kick_reason_ = KickReason::kRemoved;
     queue_.clear();
 }
 
@@ -145,6 +148,25 @@ void Session::leave() {
 
     transport_.send(party_leave());
     reset_party();
+}
+
+bool Session::kick(std::int32_t member, KickReason reason) {
+    const bool found = std::any_of(members_.begin(), members_.end(), [&](const Member& m) {
+        return m.id == member;
+    });
+
+    if (!is_host() || member == id_ || !found || !kicking_.insert(member).second) {
+        return false;
+    }
+
+    send_lobby(member, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kKick)).u8(static_cast<std::uint8_t>(reason)).bytes());
+
+    // An embedded host always takes it; of a server, its offer says.
+    if (server_kicks_ || direct()) {
+        transport_.send(party_kick(member));
+    }
+
+    return true;
 }
 
 void Session::toggle_ready() {
@@ -385,6 +407,7 @@ void Session::handle(const Message& m) {
                 members_.end()
             );
             ready_.erase(m.id);
+            kicking_.erase(m.id);
             links_.erase(m.id);
             break;
         case Message::Kind::kPartyList:
@@ -395,6 +418,12 @@ void Session::handle(const Message& m) {
             reset_party();
             notice_ = "The host left: the party is over";
             break;
+        case Message::Kind::kPartyKicked: {
+            const KickReason reason = kick_reason_;
+            reset_party();
+            notice_ = reason == KickReason::kBanned ? kBannedNotice : kKickedNotice;
+            break;
+        }
         case Message::Kind::kError:
             waiting_ = false;
             notice_ = error_text(m.reason);
@@ -406,7 +435,8 @@ void Session::handle(const Message& m) {
             // No chat on the page yet.
             break;
         case Message::Kind::kUdp:
-            // The connection's own: it binds UDP with it.
+            // The connection binds UDP with it; what the server takes is the session's.
+            server_kicks_ = (m.features & kFeatureKick) != 0;
             break;
     }
 }
@@ -502,6 +532,21 @@ void Session::handle_data(const Message& m) {
 
             links_ = std::move(links);
         }
+    } else if (kind == LobbyKind::kKick && m.id == host_ && !is_host()) {
+        // The host's word on why; the server's KICKED does the rest, or there is none to.
+        const auto reason = r.u8() == static_cast<std::uint8_t>(KickReason::kBanned) ? KickReason::kBanned
+                                                                                      : KickReason::kRemoved;
+
+        if (!r.ok()) {
+            return;
+        }
+
+        kick_reason_ = reason;
+
+        if (!server_kicks_ && !direct()) {
+            leave();
+            notice_ = reason == KickReason::kBanned ? kBannedNotice : kKickedNotice;
+        }
     } else if (kind == LobbyKind::kBatch) {
         // Several of the game's messages in one DATA: each as if it came alone.
         while (r.left() >= 2) {
@@ -577,6 +622,8 @@ const char* error_text(ErrorReason reason) {
             return "You are in a party already";
         case ErrorReason::kNotInParty:
             return "You are not in a party";
+        case ErrorReason::kNotHost:
+            return "Only the host can do that";
     }
 
     return "The server refused";

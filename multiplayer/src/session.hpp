@@ -17,7 +17,11 @@
  *                              member's link (its own among them), each time one comes or the host
  *                              reports its own; for the pause menu's Multiplayer page;
  *  66 BATCH  then per message length u16 + its bytes   several of the game's messages for one
- *                              target in one DATA (below).
+ *                              target in one DATA (below);
+ *  67 KICK   reason u8         the host to the member it removes, ahead of the server's KICK (which
+ *                              says nothing of why): removed, or banned from this save. A server
+ *                              that takes no KICK (UDP's feature bits) has only this word: the
+ *                              member leaves by itself.
  * Any other first byte is the game's own (coop.hpp: the game, the poses): handed as it is to the
  * callback set with on_data, and sent with send_data, with a monotonic clock (now_ms) to stamp it.
  *
@@ -54,7 +58,14 @@ enum class LobbyKind : std::uint8_t {
     kStart = kind::kStart,
     kLink = kind::kLink,
     kLinks = kind::kLinks,
-    kBatch = kind::kBatch
+    kBatch = kind::kBatch,
+    kKick = kind::kKick
+};
+
+/* Why the host removed a member. */
+enum class KickReason : std::uint8_t {
+    kRemoved = 0,
+    kBanned = 1
 };
 
 /* A token bucket, as the server's RateLimit, on a clock of milliseconds. */
@@ -129,6 +140,11 @@ public:
     void list();
     void join(const std::string& code);
     void leave();
+    /* The host takes `member` out of the party. False when it cannot: not the host, or no such
+     * member, or the host itself, or already asked. */
+    bool kick(std::int32_t member, KickReason reason = KickReason::kRemoved);
+    /* Whether the host asked `member` out and it has not gone yet: it gets no game meanwhile. */
+    bool kicking(std::int32_t member) const { return kicking_.count(member) != 0; }
     void toggle_ready();
     /* Who may say Ready (party_mods.hpp: a member whose mods match the host's); none set: anyone. A
      * host takes no Ready of one that may not, and it does not count as ready; a member's own
@@ -257,9 +273,12 @@ private:
     std::vector<Listing> parties_;
     std::uint32_t lists_ = 0;
     std::set<std::int32_t> ready_;
+    std::set<std::int32_t> kicking_;  // the host: asked out, not gone yet
     std::map<std::int32_t, Link> links_;
     bool started_ = false;
     bool waiting_ = false;
+    bool server_kicks_ = false;  // the server said it takes KICK
+    KickReason kick_reason_ = KickReason::kRemoved;
     std::string notice_;
     std::function<void(std::int32_t, const Bytes&)> on_data_;
     std::function<bool(std::int32_t)> ready_gate_;
@@ -295,6 +314,10 @@ bool valid_name(const std::string& name);
 /* The player's name: the mod's `name` setting when it is a valid one, else the launcher's
  * (OPENRAC_PLAYER_NAME) when valid, else empty (the mod then makes one up). */
 std::string choose_name(const std::string& setting, const std::string& launcher);
+
+/* What a removed player reads. */
+constexpr const char* kKickedNotice = "The host removed you from the party";
+constexpr const char* kBannedNotice = "The host banned you from this save";
 
 /* The words for a refusal of the server. */
 const char* error_text(ErrorReason reason);
