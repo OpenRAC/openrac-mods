@@ -540,9 +540,26 @@ static int32_t reward_equip(int item, int32_t equip) {
     return item != ITEM_HYDRO_PACK && !clank_playing() ? equip : 0;
 }
 
+/* The banner as it is, to put back after a routine of the game's that shows one: GiveItem's and
+ * UnlockPlanet's are in the text of the level the reward comes from, and read "Paradox: This message
+ * does not exist" in any other. */
+typedef struct kept_banner {
+    char text[BANNER_TEXT_SIZE];
+    int32_t ticks;
+} kept_banner;
+
+static void banner_keep(kept_banner* k) {
+    memcpy(k->text, level_byte_at(s_disc->banner_text), sizeof k->text);
+    k->ticks = get32(level_byte_at(s_disc->banner_ticks));
+}
+
+static void banner_put_back(const kept_banner* k) {
+    memcpy(level_byte_at(s_disc->banner_text), k->text, sizeof k->text);
+    set32(level_byte_at(s_disc->banner_ticks), k->ticks);
+}
+
 /* Gives item through the game's GiveItem, as itself: its obtained byte (its own location's), the
- * vendor's stock and the banner left as they were: the banner GiveItem shows is in the text of the
- * level the item comes from, and "Paradox! This message does not exist" in any other. */
+ * vendor's stock and the banner left as they were. */
 static void give_as_itself(int item, int32_t equip) {
     const uint8_t before = *obtained(item);
     // GiveItem marks a vendor weapon bought in the stock (or adds it): for a weapon that is a
@@ -550,11 +567,8 @@ static void give_as_itself(int item, int32_t equip) {
     uint8_t* stock = byte_at(s_disc->vendor_stock);
     uint8_t kept[VENDOR_STOCK_SIZE];
     const int slot = vendor_slot(item) >= 0;
-    uint8_t* banner = level_byte_at(s_disc->banner_text);
-    uint8_t* ticks = level_byte_at(s_disc->banner_ticks);
-    char text[BANNER_TEXT_SIZE];
-    const int32_t left = get32(ticks);
-    memcpy(text, banner, sizeof text);
+    kept_banner banner;
+    banner_keep(&banner);
 
     // A vendor slot's weapon: remember the stock to put it back after GiveItem.
     if (slot) {
@@ -568,8 +582,7 @@ static void give_as_itself(int item, int32_t equip) {
         memcpy(stock, kept, sizeof kept);
     }
 
-    memcpy(banner, text, sizeof text);
-    set32(ticks, left);
+    banner_put_back(&banner);
 
     // The game sets this for a Drone Device bought, however it is had here.
     if (item == ITEM_DRONE_DEVICE) {
@@ -585,7 +598,10 @@ static void put_reward(rando_reward r, int32_t equip) {
     if (r.kind == REWARD_ITEM) {
         give_as_itself(r.value, reward_equip(r.value, equip));
     } else if (r.kind == REWARD_PLANET) {
+        kept_banner banner;
+        banner_keep(&banner);
         s_planet_unlock(r.value);
+        banner_put_back(&banner);
     }
 }
 
@@ -715,7 +731,10 @@ static void planet_unlock(int32_t planet) {
     // Another player's coordinates passed on: they, as they are, and their place is spent here.
     if (s_api->api_minor >= 11 && s_api->party_replaying()) {
         const rando_reward r = {REWARD_PLANET, (uint8_t)planet};
+        kept_banner banner;
+        banner_keep(&banner);
         s_planet_unlock(planet);
+        banner_put_back(&banner);
         spend_location_of(r);
         return;
     }
