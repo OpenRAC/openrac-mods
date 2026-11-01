@@ -80,8 +80,10 @@ void World::rejoined() {
     hello_ms_ = 0;
     world_heard_ = false;
     coop_.no_world_ack();
-    // What it told a host that may never have heard is told again.
+    // What it told a host that may never have heard is told again, and what the old host told it
+    // is told on: the old host's word did not reach everyone before it went.
     reported_.clear();
+    host_killed_.clear();
     log("back with the party: asking for the world again");
 }
 
