@@ -627,6 +627,8 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
 }
 
 void Coop::reset() {
+    world_ack_ = false;
+    world_acks_.clear();
     for (auto& entry : remotes_) {
         drop_figure(entry.first, entry.second, "the party's game reset");
     }

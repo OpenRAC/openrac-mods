@@ -16,13 +16,14 @@ namespace mp {
 
 using namespace wire;
 
-Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries) {
+Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries, std::uint16_t sequence) {
     const std::size_t count = std::min(entries.size(), kWorldEntries);
     Writer w;
     w.u8(static_cast<std::uint8_t>(WorldKind::kWorld))
         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level)))
-        .i64(stamp)
-        .u8(static_cast<std::uint8_t>(count));
+        .i64(stamp);
+    u16(w, sequence);
+    w.u8(static_cast<std::uint8_t>(count));
 
     for (std::size_t i = 0; i < count; ++i) {
         const WorldEntry& e = entries[i];
@@ -43,7 +44,7 @@ Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>&
     return w.bytes();
 }
 
-bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out) {
+bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out, std::uint16_t* sequence) {
     if (bytes.empty() || bytes[0] != static_cast<std::uint8_t>(WorldKind::kWorld)) {
         return false;
     }
@@ -51,6 +52,12 @@ bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vect
     Reader r(bytes.data() + 1, bytes.size() - 1);
     level = static_cast<std::int8_t>(r.u8());
     stamp = r.i64();
+    const std::uint16_t heard = u16(r);
+
+    if (sequence != nullptr) {
+        *sequence = heard;
+    }
+
     const std::uint8_t count = r.u8();
     out.clear();
 
@@ -78,6 +85,20 @@ bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vect
     return r.ok();
 }
 
+float world_weight(const WorldSight& s) {
+    // What is near: what it can see there, what can reach the player.
+    const float reach = s.distance > kWorldClose ? kWorldClose / s.distance : 1.0f;
+    float weight = reach * reach;
+    weight *= s.creature ? 1.5f : 1.0f;
+    weight *= s.ahead ? 1.5f : 1.0f;
+    weight *= s.hidden ? 0.5f : 1.0f;
+    weight = std::max(weight, kWorldBaseMs / kWorldFloorMs);
+    // At any distance, what it watches: what it just shot, a bolt it may go for.
+    weight *= s.hit ? 3.0f : 1.0f;
+    weight *= s.flying ? 2.0f : 1.0f;
+    return weight;
+}
+
 World::World(Session& session, Game& game, Coop& coop, std::function<std::uint64_t()> clock)
     : session_(session), game_(game), coop_(coop), clock_(std::move(clock)) {
     // Without a clock of the caller's, the monotonic one.
@@ -99,6 +120,9 @@ void World::reset() {
     posed_at_.clear();
     net_slot_.clear();
     loose_.clear();
+    landed_early_.clear();
+    world_heard_ = false;
+    coop_.no_world_ack();
     claimed_.clear();
     flights_.clear();
     flight_eyes_ = false;

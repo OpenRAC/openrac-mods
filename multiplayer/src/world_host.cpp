@@ -48,7 +48,9 @@ void World::send_dead(std::int32_t member, int level) {
 void World::give_world(std::int32_t id, Member& m) {
     m.want = false;
     m.synced = true;
-    m.sent.clear();
+    // Its mobys are new: nothing it was told stands, and a word on it from before says nothing.
+    m.tracked.clear();
+    m.window.clear();
     send_dead(id, level_);
 
     for (const auto& [slot, net] : shared_) {
@@ -123,15 +125,108 @@ void World::drop_spawned() {
     loot_.clear();
 }
 
+namespace {
+
+// What a member is told of a moby, and whether it differs from what the moby is now.
+void tell(WorldTold& told, const Pose& pose, bool hidden, bool loose) {
+    std::copy(pose.position, pose.position + 3, told.position);
+    std::copy(pose.rotation, pose.rotation + 3, told.rotation);
+    told.seq = pose.seq;
+    told.frame = pose.frame;
+    told.hidden = hidden;
+    told.loose = loose;
+}
+
+bool differs(const WorldTold& told, const Pose& pose, bool hidden, bool loose) {
+    // A bolt landed: the member's copy runs as its own once told, however it spins.
+    if (told.hidden != hidden || told.loose != loose) {
+        return true;
+    }
+
+    Pose was;
+    std::copy(told.position, told.position + 3, was.position);
+    std::copy(told.rotation, told.rotation + 3, was.rotation);
+    was.seq = told.seq;
+    was.frame = told.frame;
+    return !loose && changed(was, pose);
+}
+
+}  // namespace
+
+void World::take_ack(Member& m, std::uint16_t newest, std::uint32_t bits, std::uint64_t now) {
+    for (auto it = m.window.begin(); it != m.window.end();) {
+        const auto behind = static_cast<std::uint16_t>(newest - it->sequence);
+
+        // Newer than this word speaks of.
+        if (behind >= 0x8000) {
+            ++it;
+            continue;
+        }
+
+        const bool heard = behind == 0 || (behind <= 32 && ((bits >> (behind - 1)) & 1) != 0);
+
+        // Not heard, but it may still be on its way behind the newer ones.
+        if (!heard && behind < kWorldLostAfter) {
+            ++it;
+            continue;
+        }
+
+        if (behind == 0) {
+            m.rtt_ms += 0.1 * (static_cast<double>(now - it->ms) - m.rtt_ms);
+        }
+
+        for (const auto& [id, told] : it->told) {
+            const auto t = m.tracked.find(id);
+
+            if (t == m.tracked.end()) {
+                continue;
+            }
+
+            if (heard && (!t->second.delivered || sequence_newer(it->sequence, t->second.known_seq))) {
+                t->second.known = told;
+                t->second.known_seq = it->sequence;
+                t->second.delivered = true;
+            }
+
+            t->second.flying = t->second.flying && t->second.sent_seq != it->sequence;
+        }
+
+        it = m.window.erase(it);
+    }
+}
+
+void World::expire_window(Member& m, std::uint64_t now) {
+    const auto wait = std::clamp(static_cast<std::uint64_t>(2.0 * m.rtt_ms), kWorldMinWaitMs, kWorldMaxWaitMs);
+
+    while (!m.window.empty() && (now - m.window.front().ms >= wait || m.window.size() > kWorldWindow)) {
+        for (const auto& [id, told] : m.window.front().told) {
+            const auto t = m.tracked.find(id);
+
+            if (t != m.tracked.end() && t->second.sent_seq == m.window.front().sequence) {
+                t->second.flying = false;
+            }
+        }
+
+        m.window.pop_front();
+    }
+}
+
 void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at) {
     struct Pick {
-        float rank;
-        int slot;
+        float priority;
         std::uint16_t id;
-        bool moved;
+        int slot;
     };
 
+    const auto since = static_cast<float>(std::min<std::uint64_t>(now - m.world_ms, kWorldMaxWaitMs));
+    expire_window(m, now);
+
+    for (auto it = m.hit_ms.begin(); it != m.hit_ms.end();) {
+        it = now - it->second >= kWorldHitMs ? m.hit_ms.erase(it) : std::next(it);
+    }
+
     std::vector<Pick> picks;
+    std::set<std::uint16_t> here;
 
     for (const auto& [slot, moby] : mobys_) {
         const bool placed_runs = moby.key >= 0 && (moby.flags & kMobyUpdates) != 0 && moby.oclass != 0
@@ -143,27 +238,59 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         }
 
         const std::uint16_t id = id_of(slot);
-        const float d2 = distance2(moby.pose.position, at.position);
-        const auto sent = m.sent.find(id);
+        here.insert(id);
         const bool hidden = (moby.flags & kMobyHidden) != 0;
-        const std::uint64_t age = sent == m.sent.end() ? kWorldFarMs : now - sent->second.ms;
-        // A bolt landed: the member's copy runs as its own once told, so it is told again only now
-        // and then (a lost datagram), however it spins.
         const bool loose = bolt_class(moby.oclass) && moby.state == kBoltHovering;
-        const bool moved = sent == m.sent.end() || sent->second.hidden != hidden || sent->second.loose != loose
-                           || (!loose && changed(sent->second.pose, moby.pose));
-        const bool again = sent != m.sent.end() && sent->second.repeats > 0;
-        const bool stale = age >= (d2 <= kWorldNear * kWorldNear ? kWorldRefreshMs : kWorldFarMs);
+        const auto [track, first] = m.tracked.try_emplace(id);
+        Tracked& t = track->second;
+        // The member has it: the newest word that went came, and it says what the moby is. A word
+        // older than that says nothing of what the member shows once the newest comes, and a word
+        // given up for lost may still come, so even a moby back where it was known to be goes.
+        const bool known = t.delivered && t.known_seq == t.sent_seq && !differs(t.known, moby.pose, hidden, loose);
+        // Or the word that will give it is on its way.
+        const bool waiting = t.flying && !differs(t.sent, moby.pose, hidden, loose);
 
-        if (moved || again || stale) {
-            // The nearest first, and what waited long comes up past them.
-            picks.push_back({std::sqrt(d2) / (1.0f + static_cast<float>(age) / 200.0f), slot, id, moved});
+        if (waiting || (known && now - t.ms < kWorldKeepMs)) {
+            t.priority = 0;
+            continue;
+        }
+
+        const float dx = moby.pose.position[0] - at.position[0];
+        const float dy = moby.pose.position[1] - at.position[1];
+        const float d = std::sqrt(distance2(moby.pose.position, at.position));
+        const float yaw = at.rotation[2];
+        WorldSight sight;
+        sight.distance = d;
+        sight.creature = (moby.flags & kMobyCreature) != 0;
+        sight.ahead = d > 0.0f && (dx * std::cos(yaw) + dy * std::sin(yaw)) / d > 0.5f;
+        sight.hit = m.hit_ms.count(id) != 0;
+        sight.flying = bolt_class(moby.oclass) && !loose;
+        sight.hidden = hidden;
+        const float weight = world_weight(sight);
+        t.priority += weight * since / kWorldBaseMs;
+
+        // New to it: the nearest first. It stands and the last word did not come, or it hid or
+        // showed: a change to see now, not a stream that has its next word coming anyway.
+        const bool flipped = t.ms != 0 && (t.sent.hidden != hidden || t.sent.loose != loose);
+
+        if (first || (!known && !differs(t.sent, moby.pose, hidden, loose)) || flipped) {
+            t.priority = std::max(t.priority, 1.0f + weight);
+        }
+
+        if (t.priority >= 1.0f) {
+            picks.push_back({t.priority, id, slot});
         }
     }
 
-    std::sort(picks.begin(), picks.end(), [](const Pick& a, const Pick& b) { return a.rank < b.rank; });
+    // What left the level left the books.
+    for (auto it = m.tracked.begin(); it != m.tracked.end();) {
+        it = here.count(it->first) == 0 ? m.tracked.erase(it) : std::next(it);
+    }
+
+    std::sort(picks.begin(), picks.end(), [](const Pick& a, const Pick& b) {
+        return a.priority != b.priority ? a.priority > b.priority : a.id < b.id;
+    });
     std::vector<WorldEntry> entries;
-    std::vector<const Pick*> taken;
 
     for (const Pick& p : picks) {
         if (entries.size() >= kWorldEntries) {
@@ -174,7 +301,6 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         const bool hidden = (moby.flags & kMobyHidden) != 0;
         const bool loose = bolt_class(moby.oclass) && moby.state == kBoltHovering;
         entries.push_back({p.id, moby.pose, hidden, loose});
-        taken.push_back(&p);
     }
 
     m.world_ms = now;
@@ -185,17 +311,33 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
 
     const std::int64_t stamp =
         session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(now);
+    const auto sequence = static_cast<std::uint16_t>(m.sequence + 1);
 
-    // Refused by the bucket: nothing is taken as sent.
-    if (!session_.send_state(member, encode_world(level_, stamp, entries))) {
+    // Refused by the bucket: nothing is taken as sent, and the priorities stand.
+    if (!session_.send_state(member, encode_world(level_, stamp, entries, sequence))) {
         return;
     }
 
-    for (std::size_t i = 0; i < entries.size(); ++i) {
-        const auto sent = m.sent.find(entries[i].id);
-        const int repeats = taken[i]->moved ? kWorldRepeats : sent != m.sent.end() ? std::max(sent->second.repeats - 1, 0) : 0;
-        m.sent[entries[i].id] = {entries[i].pose, entries[i].hidden, entries[i].loose, now, repeats};
+    m.sequence = sequence;
+    Datagram datagram;
+    datagram.sequence = sequence;
+    datagram.ms = now;
+    datagram.told.reserve(entries.size());
+
+    for (const WorldEntry& e : entries) {
+        WorldTold told;
+        tell(told, e.pose, e.hidden, e.loose);
+        datagram.told.emplace_back(e.id, told);
+        Tracked& t = m.tracked[e.id];
+        t.sent = told;
+        t.sent_seq = sequence;
+        t.flying = true;
+        t.ms = now;
+        // What is left over counts for the next: a snapshot's steps do not round a period up.
+        t.priority = t.priority < 2.0f ? t.priority - 1.0f : 0.0f;
     }
+
+    m.window.push_back(std::move(datagram));
 
     if (tracing()) {
         std::set<std::uint16_t> ids;
@@ -322,8 +464,16 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
             eye_players += " " + std::to_string(who.id) + " at " + xyz(at.position);
         }
 
-        // Each gets its share of what the state's budget has left for the world.
-        const std::uint64_t share = 1000 * (session_.members().size() - 1) / kWorldBudget;
+        std::uint16_t newest = 0;
+        std::uint32_t bits = 0;
+
+        if (coop_.take_world_ack(who.id, newest, bits)) {
+            take_ack(m, newest, bits, now);
+        }
+
+        // Each gets its share of what the state's budget has left for the world, the shots' first.
+        const std::uint64_t budget = coop_.firing(now) ? kWorldFiringBudget : kWorldBudget;
+        const std::uint64_t share = 1000 * (session_.members().size() - 1) / budget;
 
         if (m.synced && now - m.world_ms >= std::max(kWorldMs, share)) {
             send_world(who.id, m, now, at);

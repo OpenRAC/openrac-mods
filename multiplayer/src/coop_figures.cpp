@@ -29,7 +29,12 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
             return;
         }
 
-        relay_[m.owner] = bytes;
+        // Its word on WORLD is for this game alone.
+        relay_[m.owner] = m.world_ack ? Bytes(bytes.begin(), bytes.end() - kPoseAckBytes) : bytes;
+
+        if (m.world_ack) {
+            world_acks_[m.owner] = {m.world_newest, m.world_bits};
+        }
     } else if (sender != session_.host()) {
         return;
     }
@@ -57,6 +62,19 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
                       m.pose.velocity[1], m.pose.velocity[2], m.pose.state, m.teleport ? " teleport" : "");
         trace_->line("pose", text);
     }
+}
+
+bool Coop::take_world_ack(std::int32_t player, std::uint16_t& newest, std::uint32_t& bits) {
+    const auto it = world_acks_.find(player);
+
+    if (it == world_acks_.end()) {
+        return false;
+    }
+
+    newest = it->second.newest;
+    bits = it->second.bits;
+    world_acks_.erase(it);
+    return true;
 }
 
 void Coop::on_poses(std::int32_t sender, Reader& r) {
@@ -183,6 +201,9 @@ void Coop::send_pose(std::uint64_t now, const GameStatus& status) {
     last_pose_ = m.pose;
 
     if (!session_.is_host()) {
+        m.world_ack = world_ack_;
+        m.world_newest = world_newest_;
+        m.world_bits = world_bits_;
         session_.send_state(session_.host(), encode_pose(m));
         return;
     }

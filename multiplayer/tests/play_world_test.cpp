@@ -17,7 +17,7 @@ void world_bytes() {
     p.anim_speed = 2.0f;
     std::vector<mp::WorldEntry> entries(mp::kWorldEntries + 5, mp::WorldEntry{0x8003, p});
     const Bytes b = mp::encode_world(4, 123456, entries);
-    CHECK(b.size() == 1 + 1 + 8 + 1 + mp::kWorldEntries * mp::kWorldEntryBytes);
+    CHECK(b.size() == 1 + 1 + 8 + 2 + 1 + mp::kWorldEntries * mp::kWorldEntryBytes);
     CHECK(b.size() <= mp::kMaxDatagramBytes - mp::kClientStateHeader);
     int level = 0;
     std::int64_t stamp = 0;

@@ -19,8 +19,9 @@
  * missing from a listing; a tick the game lists nothing (loading) changes nothing.
  *
  * Host. Each moby the level placed is named by its key (its record in the level's file, the same in
- * every game). The host sends each member in its level, as state 15 times a second, the mobys
- * nearest that member that moved or animated (WORLD, at most kWorldEntries a datagram), tells
+ * every game). The host sends each member in its level, as state up to 15 times a second, the mobys
+ * that moved or animated and that member does not have yet, what matters to it first (WORLD, at most
+ * kWorldEntries a datagram), tells
  * everyone of the placed ones that died (KILLED) and of the ones it spawns that count (creatures,
  * bolts: SPAWN and DESPAWN, by a net id of its own), and gives a member that arrives in its level
  * the placed mobys dead there (DEAD) and what it has spawned. Every moby's update runs with
@@ -54,7 +55,8 @@
  * host's level.
  *
  * The world's DATA kinds, after coop.hpp's:
- *    9 WORLD   level i8, stamp i64, count u8, then per moby: id u16 (a key; 0x8000 | a net id for
+ *    9 WORLD   level i8, stamp i64, sequence u16 (this member's, each datagram one more), count u8,
+ *              then per moby: id u16 (a key; 0x8000 | a net id for
  *              one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq u8, frame u8,
  *              anim time u8 (/255), anim speed u8 (/32), flags u8 (1: hidden, drawn by nothing;
  *              2: loose, a bolt landed in the host's game: the member's copy runs as its own)
@@ -93,17 +95,34 @@
  * game: there the mobys it kept are deleted again at once, and the members told (RESET) to drop
  * what its game no longer has. One player's death puts nothing back for the others.
  *
- * WORLD is state and its datagrams are lost, so no moby's place rests on one datagram: a moby that
- * changed goes again in the next kWorldRepeats snapshots however it stands, each moby in the
- * snapshots at least every kWorldRefreshMs (kWorldFarMs far from the member), and a snapshot
- * refused by the session's bucket counts as not sent. Entries older than one already taken are
- * dropped, per moby, so a late datagram brings nothing back.
+ * WORLD is state and its datagrams are lost, so the host keeps count of what each member has. Each
+ * datagram has a sequence of that member's, and each pose the member sends says which of the last
+ * 33 it heard (play.hpp). The host keeps what each datagram carried: a moby is due while what it is
+ * now differs from what the member is known to have, and a datagram with its newest word still out
+ * holds it back until that one is delivered or lost (two newer ones heard and not it, or twice the
+ * round trip gone by), when it is due again, at once if it stands. So a change that was delivered
+ * costs one entry and one that was lost goes again a round trip later, however far off the moby is:
+ * nothing repeats blindly and nothing waits for a refresh. What cannot be known (no pose coming
+ * back) comes down to a send each time-out. A moby that stands for kWorldKeepMs goes once more,
+ * for whatever a member's game did to it that the host cannot see. Only what a member took counts as
+ * heard; a snapshot refused by the session's bucket counts as not sent. Entries older than one
+ * already taken are dropped, per moby, so a late datagram brings nothing back.
+ *
+ * What goes first, when more is due than a datagram holds: a priority accumulator per member and
+ * moby. Each snapshot adds the moby's weight for that member (world_weight: distance
+ * first, then what can hurt the player, what it looks at, what it hit a moment ago, and what flies
+ * at it), a moby goes once its priority reaches 1, the highest first, and goes back to 0 when it does.
+ * The weight's floor is what keeps a far moby from starving: it may wait, but it rises until it is
+ * taken. It also sets how often a moby goes at all: a close one each snapshot, a far one each
+ * kWorldFloorMs, so the far part of a level costs a quarter of what it did. A moby that stands and
+ * was not delivered, or that hid or showed, goes at the next snapshot.
  */
 #ifndef MULTIPLAYER_WORLD_H
 #define MULTIPLAYER_WORLD_H
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <initializer_list>
 #include <map>
@@ -145,18 +164,32 @@ constexpr int kMobyAfter = 1;
 constexpr std::uint16_t kSpawnedId = 0x8000;
 constexpr std::uint16_t kNoId = 0xFFFF;
 /* WORLD's entries a datagram (each 25 bytes), how often it goes to a member (at the least: the
- * host's state budget of kWorldBudget a second is shared by the members), how long an unchanged moby
- * waits before it is sent again near a member and far from one, how near counts, how many
- * snapshots after a change a moby stays in them, and how often a member says HELLO. */
+ * host's state budget of kWorldBudget a second is shared by the members; of the session's 52 a second
+ * POSES take 20, and while the party fires SHOTX takes up to 10, 8 of them from here), how long a
+ * moby that stands and was delivered waits before it goes once more, and how often a member says
+ * HELLO. */
 constexpr std::size_t kWorldEntries = 46;
 constexpr std::size_t kWorldEntryBytes = 25;
 constexpr std::uint64_t kWorldMs = 66;
 constexpr std::uint64_t kWorldBudget = 30;
-constexpr std::uint64_t kWorldRefreshMs = 1000;
-constexpr std::uint64_t kWorldFarMs = 3000;
-constexpr float kWorldNear = 80.0f;
-constexpr int kWorldRepeats = 2;
+constexpr std::uint64_t kWorldFiringBudget = 22;
+constexpr std::uint64_t kWorldKeepMs = 8000;
 constexpr std::uint64_t kHelloMs = 1000;
+/* WORLD's delivery: the datagrams kept per member (what a pose's word can cover), how many newer ones
+ * heard make a datagram lost (at one, each reordered datagram would go twice), and the time-out's
+ * bounds around twice the round trip, first taken to be kWorldStartRttMs. */
+constexpr std::size_t kWorldWindow = 33;
+constexpr int kWorldLostAfter = 2;
+constexpr std::uint64_t kWorldMinWaitMs = 300;
+constexpr std::uint64_t kWorldMaxWaitMs = 2000;
+constexpr double kWorldStartRttMs = 400.0;
+/* WORLD's priority (world_weight): a moby of weight 1 is due each kWorldBaseMs, the least weight
+ * makes that kWorldFloorMs, weight 1 reaches this far from the player and then falls as the square
+ * of the distance, and how long a hit keeps its moby up. */
+constexpr float kWorldBaseMs = 66.0f;
+constexpr float kWorldFloorMs = 250.0f;
+constexpr float kWorldClose = 30.0f;
+constexpr std::uint64_t kWorldHitMs = 2000;
 /* How often a member's verbose log says how the host's mobys are shown. */
 constexpr std::uint64_t kWorldPoseTraceMs = 1000;
 /* The bolt update's state while the bolt hovers where it landed (bolt_update's 3). */
@@ -297,8 +330,33 @@ struct WorldEntry {
     bool loose = false;
 };
 
-Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries);
-bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out);
+Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries, std::uint16_t sequence = 0);
+bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out,
+                  std::uint16_t* sequence = nullptr);
+
+/* What a member was told of a moby: as much of it as tells a change. */
+struct WorldTold {
+    float position[3] = {0, 0, 0};
+    float rotation[3] = {0, 0, 0};
+    std::uint32_t seq = 0;
+    std::uint32_t frame = 0;
+    bool hidden = false;
+    bool loose = false;
+};
+
+/* What a moby is to one member, for WORLD's priority: how far, and the rest of what Reach's relevance
+ * reads that the host knows here. */
+struct WorldSight {
+    float distance = 0;
+    bool creature = false;   // it can hurt the player
+    bool ahead = false;      // the player faces it
+    bool hit = false;        // the player hit it a moment ago
+    bool flying = false;     // a bolt on its way, before it lands
+    bool hidden = false;     // nothing draws it
+};
+
+/* A moby's weight for a member: 1 is due each kWorldBaseMs. */
+float world_weight(const WorldSight& sight);
 
 class World {
 public:
@@ -364,12 +422,23 @@ public:
     const DespawnLog& despawn() const { return despawn_; }
 
 private:
-    struct Sent {
-        Pose pose;
-        bool hidden = false;
-        bool loose = false;
+    /* A moby as one member has it. */
+    struct Tracked {
+        WorldTold sent;           // the newest word that went, in datagram sent_seq
+        std::uint16_t sent_seq = 0;
+        bool flying = false;      // that word's fate is not known yet
+        WorldTold known;          // the newest word known to have come, in datagram known_seq
+        std::uint16_t known_seq = 0;
+        bool delivered = false;   // `known` means something
+        std::uint64_t ms = 0;     // when it last went
+        float priority = 0;       // the accumulator: goes at 1
+    };
+
+    /* A datagram whose fate is not known: its sequence, when it went, what it said. */
+    struct Datagram {
+        std::uint16_t sequence = 0;
         std::uint64_t ms = 0;
-        int repeats = 0;  // snapshots it stays in though unchanged
+        std::vector<std::pair<std::uint16_t, WorldTold>> told;
     };
 
     struct Member {
@@ -378,7 +447,11 @@ private:
         std::uint32_t load = 0;   // that HELLO's load
         bool synced = false;      // given the world: WORLD goes to it
         std::uint64_t world_ms = 0;
-        std::map<std::uint16_t, Sent> sent;
+        std::uint16_t sequence = 0;
+        std::map<std::uint16_t, Tracked> tracked;
+        std::deque<Datagram> window;
+        double rtt_ms = kWorldStartRttMs;
+        std::map<std::uint16_t, std::uint64_t> hit_ms;  // the mobys it hit, and when
         int bolts = 0;
     };
 
@@ -392,6 +465,13 @@ private:
     void tick_host(std::uint64_t now, const GameStatus& status);
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at);
+    /* Host: a member's word on the datagrams it heard, and the ones out too long given up. */
+    void take_ack(Member& m, std::uint16_t newest, std::uint32_t bits, std::uint64_t now);
+    void expire_window(Member& m, std::uint64_t now);
+    /* Member: a WORLD taken: its sequence, for the next pose to say. */
+    void hear_world(std::uint16_t sequence);
+    /* Member: a host's bolt landed: its copy runs here from now on. */
+    void land(std::uint16_t net, int slot);
     void send_dead(std::int32_t member, int level);
     /* Host: the whole world to one member that said HELLO (DEAD, SPAWNs, SYNCED). */
     void give_world(std::int32_t id, Member& m);
@@ -512,7 +592,12 @@ private:
     std::map<std::uint16_t, int> net_slot_;
     /* Member: the host's bolts landed there and so run here, by net id. */
     std::set<std::uint16_t> loose_;
-    std::uint16_t world_sequence_ = 0;
+    /* Member: bolts WORLD says landed ahead of their SPAWN on the stream. */
+    std::set<std::uint16_t> landed_early_;
+    /* Member: WORLD's delivery: whether any came, the newest sequence, the 32 before it. */
+    bool world_heard_ = false;
+    std::uint16_t world_newest_ = 0;
+    std::uint32_t world_bits_ = 0;
     /* Member: whether the host's copy of each is hidden, when the host last sent each, and the
      * newest stamp taken of each (older datagrams leave it alone). */
     std::map<std::uint16_t, bool> hidden_;

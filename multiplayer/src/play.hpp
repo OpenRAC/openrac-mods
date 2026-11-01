@@ -124,11 +124,17 @@ struct PoseMessage {
     /* The sender's game plays a scene (a cutscene, a landing): its player waits on it. */
     bool scene = false;
     Pose pose;
+    /* A member's word on WORLD: the newest sequence heard and, bit n, whether the one n + 1 before
+     * it was. */
+    bool world_ack = false;
+    std::uint16_t world_newest = 0;
+    std::uint32_t world_bits = 0;
 };
 
 /* The POSE kind's first byte (coop.hpp's kinds), and its size on the wire. */
 constexpr std::uint8_t kPoseKind = kind::kPose;
 constexpr std::size_t kPoseBytes = 65;
+constexpr std::size_t kPoseAckBytes = 6;
 
 Bytes encode_pose(const PoseMessage& message);
 /* False for bytes that are not a whole POSE. */

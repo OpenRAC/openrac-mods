@@ -192,6 +192,7 @@ constexpr std::size_t kShotsWaiting = 32;
 constexpr std::uint64_t kShotHoldMs = 250;
 constexpr std::uint64_t kShotSendHostMs = 100;
 constexpr std::uint64_t kShotSendMemberMs = 50;
+constexpr std::uint64_t kShotShareMs = 1000;
 /* How often the server's clock is asked again (TIME): the poses' stamps keep to it over a long
  * session. */
 constexpr std::uint64_t kClockMs = 30000;
@@ -591,6 +592,19 @@ public:
     /* A remote player's latest pose (its newest, not the played-back one) and its figure; false
      * for one with none. */
     bool latest(std::int32_t player, Pose& out) const;
+    /* A member: what it heard of WORLD, for its next pose to say (world.hpp); none after a load.
+     * The host: a member's latest word on it, once (false: nothing new). */
+    void world_ack(std::uint16_t newest, std::uint32_t bits) {
+        world_ack_ = true;
+        world_newest_ = newest;
+        world_bits_ = bits;
+    }
+
+    void no_world_ack() { world_ack_ = false; }
+
+    bool take_world_ack(std::int32_t player, std::uint16_t& newest, std::uint32_t& bits);
+    /* Whether a SHOTX went in the last second: the party fires, and it takes from WORLD's share. */
+    bool firing(std::uint64_t now) const { return shots_sent_ms_ != 0 && now - shots_sent_ms_ < kShotShareMs; }
 
     /* The players whose figures are shown here now, for their name tags (nametags.hpp). */
     std::vector<NameTag> name_tags() const;
@@ -941,6 +955,15 @@ private:
     /* The host: each member's newest pose not passed on yet, and when they last went. */
     std::map<std::int32_t, Bytes> relay_;
     std::uint64_t relay_ms_ = 0;
+    /* WORLD's delivery: a member's own word for its next pose; the host, each member's latest. */
+    bool world_ack_ = false;
+    std::uint16_t world_newest_ = 0;
+    std::uint32_t world_bits_ = 0;
+    struct WorldAck {
+        std::uint16_t newest = 0;
+        std::uint32_t bits = 0;
+    };
+    std::map<std::int32_t, WorldAck> world_acks_;
     /* Poses sent: when, the sequence, the level load of the last. */
     std::uint64_t pose_ms_ = 0;
     /* The verbose log: this game's hero's z each tick, said twice a second (trace_hero). */

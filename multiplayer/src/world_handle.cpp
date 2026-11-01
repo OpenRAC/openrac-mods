@@ -16,6 +16,34 @@ namespace mp {
 
 using namespace wire;
 
+void World::land(std::uint16_t net, int slot) {
+    const auto id = static_cast<std::uint16_t>(kSpawnedId | net);
+    game_.moby_drive(slot, false);
+    driven_.erase(slot);
+    loose_.insert(net);
+    poses_.erase(id);
+    hidden_.erase(id);
+    trace_line("bolts", "host's bolt net " + std::to_string(net) + " landed: runs here, " + moby_name(slot));
+}
+
+void World::hear_world(std::uint16_t sequence) {
+    if (!world_heard_) {
+        world_heard_ = true;
+        world_newest_ = sequence;
+        world_bits_ = 0;
+    } else if (sequence_newer(sequence, world_newest_)) {
+        const int step = static_cast<std::uint16_t>(sequence - world_newest_);
+        // The one that was newest is now bit step - 1, and the older ones move up with it.
+        const std::uint32_t moved = step >= 32 ? 0 : world_bits_ << step;
+        world_bits_ = step > 32 ? 0 : moved | 1u << (step - 1);
+        world_newest_ = sequence;
+    } else if (const int back = static_cast<std::uint16_t>(world_newest_ - sequence); back >= 1 && back <= 32) {
+        world_bits_ |= 1u << (back - 1);
+    }
+
+    coop_.world_ack(world_newest_, world_bits_);
+}
+
 void World::handle(std::int32_t sender, const Bytes& bytes) {
     if (bytes.empty() || !session_.in_party()) {
         return;
@@ -111,6 +139,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         h.attacker = figure >= 0 ? game_.figure_slot(figure) : game_.figure_slot(-1);
         game_.hit(h);
         ++counts_.hits;
+        members_[sender].hit_ms[id] = clock_();
         return;
     }
 
@@ -122,11 +151,16 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         case WorldKind::kWorld: {
             int level = -1;
             std::int64_t stamp = 0;
+            std::uint16_t heard = 0;
             std::vector<WorldEntry> entries;
 
-            if (!decode_world(bytes, level, stamp, entries) || level != level_) {
+            if (!decode_world(bytes, level, stamp, entries, &heard) || level != level_) {
                 return;
             }
+
+            // Said back with the next pose: only what was taken, so a datagram of another level
+            // is one the host will send again.
+            hear_world(heard);
 
             const auto now = static_cast<double>(clock_());
             const double time =
@@ -160,14 +194,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 if (spawned && e.loose) {
                     const auto it = net_slot_.find(net);
 
+                    // Its SPAWN is on the stream, and may still be on its way: this word stays
+                    // heard (and the host knows it was) for when it comes.
                     if (it != net_slot_.end()) {
-                        game_.moby_drive(it->second, false);
-                        driven_.erase(it->second);
-                        loose_.insert(net);
-                        poses_.erase(e.id);
-                        hidden_.erase(e.id);
-                        trace_line("bolts", "host's bolt net " + std::to_string(net) + " landed: runs here, "
-                                                + moby_name(it->second));
+                        land(net, it->second);
+                    } else {
+                        landed_early_.insert(net);
                     }
 
                     continue;
@@ -259,6 +291,10 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 net_slot_[net] = slot;
                 driven_.insert(slot);
                 ++counts_.spawns;
+
+                if (landed_early_.erase(net) != 0) {
+                    land(net, slot);
+                }
             }
 
             break;
@@ -280,6 +316,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 }
 
                 loose_.erase(net);
+                landed_early_.erase(net);
                 ++counts_.despawns;
 
                 if (level == level_ && it != net_slot_.end() && flights_.count(it->second) != 0) {

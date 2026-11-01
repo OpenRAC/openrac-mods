@@ -205,6 +205,11 @@ Bytes encode_pose(const PoseMessage& m) {
         }
     }
 
+    if (m.world_ack) {
+        w.u8(static_cast<std::uint8_t>(m.world_newest >> 8)).u8(static_cast<std::uint8_t>(m.world_newest));
+        w.i32(static_cast<std::int32_t>(m.world_bits));
+    }
+
     return w.bytes();
 }
 
@@ -292,6 +297,14 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
 
     // A tail cut short: the pose stands, wearing nothing.
     p.held_count = r.ok() ? static_cast<std::uint32_t>(count) : 0;
+
+    if (r.ok() && r.left() >= kPoseAckBytes) {
+        const auto newest_high = static_cast<std::uint16_t>(r.u8() << 8);
+        out.world_newest = static_cast<std::uint16_t>(newest_high | r.u8());
+        out.world_bits = static_cast<std::uint32_t>(r.i32());
+        out.world_ack = true;
+    }
+
     return true;
 }
 
