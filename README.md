@@ -156,8 +156,8 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   releases are picked up by themselves.
 
 - **Without git**: the [Submit a mod](https://github.com/OpenRAC/openrac-mods/issues/new?template=submit-mod.yml)
-  issue form (or the wizard at https://openrac.dev/mods/submit). A bot checks
-  it, takes the pictures you drag in, and opens the pull request; *Update a
+  issue form. A bot checks it, takes the pictures you add, and opens the pull
+  request; *Update a
   listing* and *Remove my mod* work the same way. You need write access to the
   mod's repository.
 - A new version of a native mod from another repository reaches players 24 h

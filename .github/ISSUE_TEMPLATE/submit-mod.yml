@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Fill what you can; the bot answers with a checklist, each problem with its fix.
-        Easier: the wizard at https://openrac.dev/mods/submit fills this form for you.
+        A mod needs a public GitHub repository with a release, and you need write access to it.
+        Fill what you can; the bot answers with a checklist, each problem with its fix. Edit this issue to run it again.
   - type: dropdown
     id: kind
     attributes:
@@ -83,8 +83,8 @@ body:
     id: screenshots
     attributes:
       label: Screenshots
-      description: "Drag pictures here (PNG, JPEG, WebP, AVIF or GIF, at most 15 MB each), one per line, with a caption after ' | '. A picture captioned icon or banner becomes the icon or banner."
-      placeholder: "![shot](https://github.com/user-attachments/assets/...) | Strafing in Blarg"
+      description: "Paste or drag in pictures from your computer (PNG, JPEG, WebP, AVIF or GIF, at most 15 MB each), one per line. Leave what GitHub writes as it is. To add a caption, put ' | ' and the caption after it on the same line. A picture captioned icon or banner becomes the icon or banner. Links to pictures hosted elsewhere don't work: upload them here."
+      placeholder: "<img ... src=\"https://github.com/user-attachments/assets/...\" /> | Strafing in Blarg"
   - type: checkboxes
     id: rules
     attributes:

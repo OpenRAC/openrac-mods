@@ -103,6 +103,14 @@ class Forms(unittest.TestCase):
         self.assertEqual(bad, ["line 2"])
         self.assertEqual(bot.pictures("![x](https://evil.example/a.png)")[1], ["line 1"])
 
+    def test_pictures_take_what_github_writes_on_upload(self):
+        tag = '<img width="1920" height="1080" alt="Image" src="https://github.com/user-attachments/assets/abc" />'
+        url = "https://github.com/user-attachments/assets/abc"
+        self.assertEqual(bot.pictures(tag), ([(url, "")], []))
+        self.assertEqual(bot.pictures(f"{tag} | Grinding"), ([(url, "Grinding")], []))
+        # A picture in a repository is not an upload.
+        self.assertEqual(bot.pictures("![](https://github.com/a/b/blob/main/docs/shot.jpg)")[1], ["line 1"])
+
     def test_templates_match_the_bot_and_the_contract(self):
         files = {"mod-submission": "submit-mod.yml", "listing-update": "update-listing.yml",
                  "mod-removal": "remove-mod.yml", "mod-revoke": "revoke.yml"}
