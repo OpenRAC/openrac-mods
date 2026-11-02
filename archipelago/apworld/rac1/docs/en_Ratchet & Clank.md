@@ -8,7 +8,8 @@ configure and export a config file.
 ## What is randomized?
 
 The gadgets and weapons NPCs and pickups give, the Gadgetron vendor's weapons, the gold bolts and
-the planets' coordinates the infobots give. Each may hold an item of any world in the multiworld.
+the planets' coordinates the infobots give, and with the `shuffle_skill_points` option the 30 skill
+points. Each may hold an item of any world in the multiworld.
 
 ## What is the goal?
 

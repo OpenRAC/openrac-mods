@@ -111,6 +111,39 @@ class TestStartingGearShuffled(RAC1TestBase):
         self.assertIn("Bomb Glove", [item.name for item in self.multiworld.itempool])
 
 
+class TestSkillPointsOff(RAC1TestBase):
+    def test_no_skill_points_by_default(self) -> None:
+        names = [location.name for location in self.multiworld.get_locations(self.player)]
+        self.assertFalse([name for name in names if "skill point" in name])
+
+
+class TestSkillPointsOn(RAC1TestBase):
+    options = {"shuffle_skill_points": True}
+
+    def test_thirty_skill_points_and_as_many_items(self) -> None:
+        rows = [row for row in LOCATIONS if row.kind == "skill"]
+        self.assertEqual(len(rows), 30)
+        names = [location.name for location in self.multiworld.get_locations(self.player)]
+        for row in rows:
+            self.assertIn(row.name, names)
+        self.assertEqual(sum(item.name == "Gold Bolt" for item in self.multiworld.itempool), 40 + 30)
+
+    def test_skill_points_hold_no_progression(self) -> None:
+        coordinates_item = self.world.create_item("Veldin (return) Coordinates")
+        for row in LOCATIONS:
+            if row.kind == "skill":
+                location = self.multiworld.get_location(row.name, self.player)
+                self.assertFalse(location.item_rule(coordinates_item), row.name)
+                self.assertTrue(location.item_rule(self.world.create_item("Gold Bolt")), row.name)
+
+    def test_morph_o_ray_needed_only_for_its_skill_point(self) -> None:
+        self.collect_all_but(["Morph-o-Ray"])
+        self.assertFalse(self.can_reach_location("Rilgar: skill point 2"))
+        self.assertTrue(self.can_reach_location("Rilgar: skill point 1"))
+        self.collect_by_name("Morph-o-Ray")
+        self.assertTrue(self.can_reach_location("Rilgar: skill point 2"))
+
+
 class TestPresets(unittest.TestCase):
     def test_presets_name_options(self) -> None:
         for preset, values in OPTION_PRESETS.items():
@@ -122,8 +155,9 @@ class TestData(unittest.TestCase):
     def test_rules_name_known_items(self) -> None:
         # Every item a rule asks for is in the pool, so a rule can never be impossible.
         for row in LOCATIONS:
-            for name in row.hard + row.soft:
+            for name in row.hard + row.soft + row.any:
                 self.assertIn(name, ITEM_TABLE, row.name)
+                self.assertTrue(ITEM_TABLE[name].progression, f"{row.name}: {name}")
 
     def test_every_planet_opens(self) -> None:
         for planet in PLANETS[1:]:

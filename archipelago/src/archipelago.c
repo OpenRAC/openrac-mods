@@ -24,6 +24,7 @@
 
 #include "ap_bridge.h"
 #include "ap_ids.h"
+#include "ap_skills.h"
 #include "discs.h"
 #include "hooks.h"
 #include "openrac/openrac_mod.h"
@@ -104,6 +105,9 @@ static int s_by_infobot[LEVEL_COUNT][TRIGGER_SLOTS];
 
 /* Each location's had state as the last tick saw it. */
 static uint8_t s_seen[RANDO_MAX_LOCATIONS];
+
+/* Each skill point's flag as the last tick saw it. */
+static uint8_t s_skill_seen[AP_SKILL_POINT_COUNT];
 
 static swap s_swaps[MAX_SWAPS];
 static int s_swap_count;
@@ -258,6 +262,12 @@ static int had(int location) {
         default:
             return 0;
     }
+}
+
+/* Whether the game has set a skill point's flag. */
+static int skill_had(int skill) {
+    const uint32_t flags = ap_skill_flags_address(s_disc->version);
+    return flags != 0 && *byte_at(flags + k_ap_skill_points[skill].flag) != 0;
 }
 
 /* The location had: the server is told (now, or when the client is next connected). */
@@ -634,12 +644,19 @@ static int save_slot_now(void) {
 
 /* The locations the game has had, sent to the client with the save's memory card slot. */
 static void send_save(int card_slot) {
-    static int64_t ids[RANDO_MAX_LOCATIONS];
+    static int64_t ids[RANDO_MAX_LOCATIONS + AP_SKILL_POINT_COUNT];
     size_t n = 0;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (ap_is_location(&rando_locations[i]) && had((int)i)) {
             ids[n++] = ap_location_id(&rando_locations[i]);
+        }
+    }
+
+    // The skill points; the client drops them in a room without any.
+    for (int i = 0; i < AP_SKILL_POINT_COUNT; ++i) {
+        if (skill_had(i)) {
+            ids[n++] = ap_skill_id(&k_ap_skill_points[i]);
         }
     }
 
@@ -649,6 +666,10 @@ static void send_save(int card_slot) {
 static void sync_seen(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         s_seen[i] = (uint8_t)(ap_is_location(&rando_locations[i]) && had((int)i));
+    }
+
+    for (int i = 0; i < AP_SKILL_POINT_COUNT; ++i) {
+        s_skill_seen[i] = (uint8_t)skill_had(i);
     }
 
     // From the title (a game loaded or new): its slot comes once the level is up, so the save is
@@ -931,6 +952,17 @@ static void each_tick(void* user) {
         }
 
         s_seen[i] = (uint8_t)now;
+    }
+
+    // A skill point the game just gave: the game keeps its own banner.
+    for (int i = 0; i < AP_SKILL_POINT_COUNT; ++i) {
+        const int now = skill_had(i);
+
+        if (now && !s_skill_seen[i]) {
+            ap_client_check(ap_skill_id(&k_ap_skill_points[i]));
+        }
+
+        s_skill_seen[i] = (uint8_t)now;
     }
 
     // Gifts only with the player in control, not inside a scene or a menu.

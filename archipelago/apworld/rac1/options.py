@@ -3,7 +3,7 @@
 # Archipelago options. A pool turned off keeps its game's own items where they are.
 from dataclasses import dataclass
 
-from Options import Choice, DefaultOnToggle, OptionGroup, PerGameCommonOptions, StartInventoryPool
+from Options import Choice, DefaultOnToggle, OptionGroup, PerGameCommonOptions, StartInventoryPool, Toggle
 
 
 class Logic(Choice):
@@ -44,6 +44,12 @@ class ShuffleInfobots(DefaultOnToggle):
     display_name = "Shuffle infobots"
 
 
+class ShuffleSkillPoints(Toggle):
+    """The 30 skill points are locations too, and as many gold bolts join the items. The game's own
+    challenges, and optional: a skill point never holds progression, of any world."""
+    display_name = "Shuffle skill points"
+
+
 class KeepStartingGear(DefaultOnToggle):
     """Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is
     shuffled too."""
@@ -58,6 +64,7 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_vendor: ShuffleVendor
     shuffle_gold_bolts: ShuffleGoldBolts
     shuffle_infobots: ShuffleInfobots
+    shuffle_skill_points: ShuffleSkillPoints
     keep_starting_gear: KeepStartingGear
     start_inventory_from_pool: StartInventoryPool
 
@@ -65,7 +72,8 @@ class RAC1Options(PerGameCommonOptions):
 OPTION_GROUPS = [
     OptionGroup(
         "Pools",
-        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, KeepStartingGear],
+        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints,
+         KeepStartingGear],
     ),
 ]
 

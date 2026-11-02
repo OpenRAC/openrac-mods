@@ -11,6 +11,7 @@
  *   planet    AP_BASE + 0x100 + the planet           (UnlockPlanet's, the levels 0..18)
  *   gold bolt AP_BASE + 0x200
  *   location  AP_BASE + 0x10000 + kind << 12 | level << 8 | key   (rando.h's LOC_*)
+ *   skill point  the same, with its own kind AP_SKILL_KIND and the game's flag as the key
  */
 #ifndef AP_IDS_H
 #define AP_IDS_H
@@ -31,6 +32,7 @@ extern "C" {
 #define AP_PLANET_OFFSET 0x100
 #define AP_GOLD_BOLT_OFFSET 0x200
 #define AP_LOCATION_OFFSET 0x10000
+#define AP_SKILL_KIND 0x10 /* past rando.h's LOC_*, which may grow */
 
 /* The id of a reward as an item of the multiworld; -1 for none. */
 static inline int64_t ap_item_id(rando_reward r) {
@@ -70,6 +72,17 @@ static inline rando_reward ap_reward_of(int64_t id) {
 static inline int64_t ap_location_id(const rando_location* l) {
     return AP_BASE + AP_LOCATION_OFFSET + ((int64_t)l->kind << 16) + ((int64_t)l->level << 8)
            + l->key;
+}
+
+/* A skill point's id (ap_skills.h). */
+static inline int64_t ap_skill_location_id(int level, int flag) {
+    return AP_BASE + AP_LOCATION_OFFSET + ((int64_t)AP_SKILL_KIND << 16) + ((int64_t)level << 8) + flag;
+}
+
+/* Whether a location id is a skill point's: only a room with the option has them. */
+static inline int ap_id_is_skill(int64_t id) {
+    const int64_t kind = id - AP_BASE - AP_LOCATION_OFFSET;
+    return (kind >> 16) == AP_SKILL_KIND;
 }
 
 /* Whether a row of the table is a location of the multiworld: every row but the fixed ones (an

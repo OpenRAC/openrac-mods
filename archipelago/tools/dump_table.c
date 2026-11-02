@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "ap_ids.h"
+#include "ap_skills.h"
 #include "rando.h"
 
 /* A text as a Python string. */
@@ -109,6 +110,17 @@ static const char* item_group(rando_reward r, uint8_t pool) {
     return pool == POOL_GADGETS ? "Gadgets" : "Weapons";
 }
 
+/* The items some rule asks for: the table's, and what a skill point's code tests. */
+static uint64_t progression_items(void) {
+    uint64_t items = rando_progression_items;
+
+    for (int i = 0; i < AP_SKILL_POINT_COUNT; ++i) {
+        items |= ap_skill_hard(&k_ap_skill_points[i]);
+    }
+
+    return items;
+}
+
 static void dump(void) {
     char name[96];
     printf(
@@ -143,7 +155,7 @@ static void dump(void) {
             }
 
             const int progression = kind == REWARD_PLANET
-                                    || (kind == REWARD_ITEM && (rando_progression_items & BIT(v)));
+                                    || (kind == REWARD_ITEM && (progression_items() & BIT(v)));
             reward_name(r, name, sizeof name);
             printf("    ItemData(0x%llX, ", (unsigned long long)ap_item_id(r));
             put_string(name);
@@ -219,6 +231,21 @@ static void dump(void) {
         );
     }
 
+    // The skill points: locations of a room with the option, their item a filler (no vanilla).
+    for (int i = 0; i < AP_SKILL_POINT_COUNT; ++i) {
+        const ap_skill_point* s = &k_ap_skill_points[i];
+        printf("    LocationData(\n        ");
+        put_string(s->name);
+        printf(",\n        id=0x%llX,\n        kind=\"skill\",\n        planet=", (unsigned long long)ap_skill_id(s));
+        put_string(rando_planet_name(s->level));
+        printf(",\n        pool=\"shuffle_skill_points\",\n        vanilla=None,\n        hard=");
+        put_mask(ap_skill_hard(s));
+        printf(
+            ",\n        soft=(),\n        any=(),\n        planets=(),\n"
+            "        costly=False,\n        pricey=False,\n        goal=False,\n    ),\n"
+        );
+    }
+
     printf(")\n");
 }
 
@@ -254,6 +281,33 @@ static int check(void) {
         if (r.kind != REWARD_NONE && ap_reward_of(ap_item_id(r)).value != r.value) {
             fprintf(stderr, "%s's item id does not read back\n", rando_locations[i].name);
             bad = 1;
+        }
+    }
+
+    // The skill points: each flag once, known on both discs, and no id or name of the table's.
+    for (int i = 0; i < AP_SKILL_POINT_COUNT; ++i) {
+        const ap_skill_point* s = &k_ap_skill_points[i];
+
+        if (s->flag != i || !ap_id_is_skill(ap_skill_id(s))) {
+            fprintf(stderr, "%s's flag or id is wrong\n", s->name);
+            bad = 1;
+        }
+
+        for (int j = i + 1; j < AP_SKILL_POINT_COUNT; ++j) {
+            if (strcmp(s->name, k_ap_skill_points[j].name) == 0
+                || ap_skill_id(s) == ap_skill_id(&k_ap_skill_points[j])) {
+                fprintf(stderr, "%s is not alone\n", s->name);
+                bad = 1;
+            }
+        }
+
+        for (size_t r = 0; r < rando_location_count; ++r) {
+            const rando_location* l = &rando_locations[r];
+
+            if (strcmp(s->name, l->name) == 0 || (ap_is_location(l) && ap_location_id(l) == ap_skill_id(s))) {
+                fprintf(stderr, "%s has a row's name or id\n", s->name);
+                bad = 1;
+            }
         }
     }
 

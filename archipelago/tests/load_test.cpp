@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "ap_ids.h"
+#include "ap_skills.h"
 #include "discs.h"
 #include "hooks.h"
 #include "openrac/openrac_mod.h"
@@ -524,6 +525,13 @@ int main(int argc, char** argv) {
     *at(D->gold_bolts + LEVEL_NOVALIS * 4 + 0) = 1;
     const std::int64_t bolt = location_id(LOC_GOLD, LEVEL_NOVALIS, 0);
     CHECK(bolt >= 0 && frames_until([bolt] { return g_checked.count(bolt) != 0; }));
+
+    // A skill point the game sets, on either kind of disc's address: found by the tick's check.
+    const std::uint32_t skills = ap_skill_flags_address(D->version);
+    CHECK(skills != 0);
+    *at(skills + 0x08) = 1;
+    const std::int64_t skill = ap_skill_location_id(LEVEL_RILGAR, 0x08);
+    CHECK(frames_until([skill] { return g_checked.count(skill) != 0; }));
 
     // Drek's ending scene on Veldin (return): the goal.
     set_level(LEVEL_VELDIN2);

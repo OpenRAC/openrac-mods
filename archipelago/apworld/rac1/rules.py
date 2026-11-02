@@ -11,7 +11,7 @@ from worlds.generic.Rules import add_item_rule
 from .data import PLANETS
 from .defs import LocationData
 from .items import ITEM_TABLE
-from .locations import EVENT_ROWS, LOCATION_ROWS, VICTORY, event_item
+from .locations import EVENT_ROWS, VICTORY, event_item
 from .options import Logic
 from .regions import SHIP
 
@@ -51,12 +51,13 @@ def set_rules(world: "RAC1World") -> None:
         world.create_entrance(ship, region, rule, name=f"Fly to {planet}", force_creation=True)
 
     logic = world.options.logic
-    for row in LOCATION_ROWS + EVENT_ROWS:
+    for row in world.location_rows() + EVENT_ROWS:
         location = world.get_location(row.name)
         world.set_rule(location, row_rule(row))
         costly = row.costly and logic != logic.option_expert
         pricey = row.pricey and logic == logic.option_relaxed
-        if costly or pricey:
+        # A skill point stays optional: no world's way on, nor the goal, waits behind a challenge.
+        if costly or pricey or row.kind == "skill":
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
             add_item_rule(location, lambda item: not item.advancement)

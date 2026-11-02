@@ -53,6 +53,12 @@ class RAC1World(World):
     item_name_groups = ITEM_NAME_GROUPS
     location_name_groups = LOCATION_NAME_GROUPS
 
+    def location_rows(self) -> list[LocationData]:
+        # The rows that are locations in this slot: the skill points only with their option.
+        if self.options.shuffle_skill_points:
+            return LOCATION_ROWS
+        return [row for row in LOCATION_ROWS if row.kind != "skill"]
+
     def shuffled(self, row: LocationData) -> bool:
         # A row of a pool turned off, or the starting Bomb Glove kept, holds its own item.
         if row.kind == "start" and self.options.keep_starting_gear:
@@ -74,8 +80,8 @@ class RAC1World(World):
 
     def create_items(self) -> None:
         # A pool turned off keeps the game's own item in place; the rest go to the multiworld.
-        for row in LOCATION_ROWS:
-            item = self.create_item(row.vanilla)
+        for row in self.location_rows():
+            item = self.create_item(row.vanilla or FILLER)
             if self.shuffled(row):
                 self.multiworld.itempool.append(item)
             else:
@@ -92,5 +98,6 @@ class RAC1World(World):
             "shuffle_vendor",
             "shuffle_gold_bolts",
             "shuffle_infobots",
+            "shuffle_skill_points",
             "keep_starting_gear",
         )
