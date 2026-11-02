@@ -237,16 +237,18 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Kerwan: gold bolt 3", LEVEL_KERWAN, 2, 11),
 
     // Eudora: "You'll need a Gadgetron Trespasser to get past this security door": the game does
-    // not say what lies behind it, so the Suck Cannon asks for it too.
+    // not say what lies behind it, so the Suck Cannon asks for it too. Blarg's coordinates are
+    // behind it: played without one, they cannot be had (issue #25).
     VENDOR("Eudora: the vendor's Glove of Doom", LEVEL_EUDORA, ITEM_GLOVE_OF_DOOM, 12, LOCF_PRICEY),
     GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, WALK | TRESP, 0),
-    FIXED("Eudora: the coordinates of Blarg", LEVEL_EUDORA, PLANET(LEVEL_BLARG), 13, 0, WALK, 0),
+    FIXED("Eudora: the coordinates of Blarg", LEVEL_EUDORA, PLANET(LEVEL_BLARG), 13, 0, WALK | TRESP, 0),
     GOLDBOLT("Eudora: gold bolt", LEVEL_EUDORA, 0, 13),
 
     // Blarg: Clank "explore outside the station" without the O2 Mask, Ratchet with it: both lead
-    // to the Hydrodisplacer's pickup, so it needs neither. "Buy Grindboots" from Fred.
+    // to the Hydrodisplacer's pickup, so it needs neither, but played without the Trespasser it
+    // cannot be had (issue #25); Fred and the infobot can. "Buy Grindboots" from Fred.
     VENDOR("Blarg: the vendor's Taunter", LEVEL_BLARG, ITEM_TAUNTER, 14, 0),
-    GIVE_G("Blarg: the Hydrodisplacer's pickup", LEVEL_BLARG, ITEM_HYDRODISPLACER, 14, 0, WALK, 0),
+    GIVE_G("Blarg: the Hydrodisplacer's pickup", LEVEL_BLARG, ITEM_HYDRODISPLACER, 14, 0, WALK | TRESP, 0),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, WALK, 0),
     INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, WALK, 0),
     FIXED(

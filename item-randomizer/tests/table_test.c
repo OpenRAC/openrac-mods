@@ -100,6 +100,8 @@ static void check_words(void) {
         & (1u << LEVEL_RILGAR)
     );
     NEEDS("Aridia: the Trespasser's pickup", ITEM_SWINGSHOT);
+    NEEDS("Eudora: the coordinates of Blarg", ITEM_TRESPASSER);
+    NEEDS("Blarg: the Hydrodisplacer's pickup", ITEM_TRESPASSER);
     NEEDS("Kerwan: Helga", ITEM_HELI_PACK);
     NEEDS("Kerwan: the infobot", ITEM_SWINGSHOT);
     NEEDS("Rilgar: the bouncer, the coordinates of Umbris", ITEM_HOVERBOARD);

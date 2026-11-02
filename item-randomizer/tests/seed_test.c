@@ -20,7 +20,7 @@
         }                                                                                          \
     } while (0)
 
-#define PINNED_HASH 0xF60C6921u
+#define PINNED_HASH 0xB5F6AF4Bu
 
 static int same(const rando_settings* a, const rando_settings* b) {
     return a->seed == b->seed && a->pools == b->pools && a->keep_start == b->keep_start
