@@ -113,8 +113,7 @@
     "download_count": 10,
     "state": "uploaded",
     "browser_download_url": "https://github.com/OpenRAC/openrac-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0-linux-x86_64.zip",
-    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/300",
-    "digest": "sha256:a40bd48486506ab655063d24a80f2b485ab337eece69b6bb4eac30b9a79c8a24"
+    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/300"
    },
    {
     "name": "lock-strafe-1.2.0-windows-x86_64.zip",
@@ -122,8 +121,7 @@
     "download_count": 11,
     "state": "uploaded",
     "browser_download_url": "https://github.com/OpenRAC/openrac-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0-windows-x86_64.zip",
-    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/301",
-    "digest": "sha256:e7b5f980901b134d39f660440d863558a0c016b7036776aff2fa95ce65bce59f"
+    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/301"
    },
    {
     "name": "lock-strafe-1.2.0-macos-arm64.zip",
@@ -131,8 +129,7 @@
     "download_count": 12,
     "state": "uploaded",
     "browser_download_url": "https://github.com/OpenRAC/openrac-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0-macos-arm64.zip",
-    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/302",
-    "digest": "sha256:51ad48e0f27150825d8875fee8180b59d4de1bf9c23f867f07b1fb4a6d7b4397"
+    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/302"
    },
    {
     "name": "lock-strafe-1.2.0.zip",
@@ -140,8 +137,7 @@
     "download_count": 13,
     "state": "uploaded",
     "browser_download_url": "https://github.com/OpenRAC/openrac-mods/releases/download/lock-strafe-v1.2.0/lock-strafe-1.2.0.zip",
-    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/303",
-    "digest": "sha256:ded43000b9073bf3464c42f1371431ae061360b296ae2feac93276f932912275"
+    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/303"
    },
    {
     "name": "SHA256SUMS",
@@ -149,8 +145,7 @@
     "download_count": 50,
     "state": "uploaded",
     "browser_download_url": "https://github.com/OpenRAC/openrac-mods/releases/download/lock-strafe-v1.2.0/SHA256SUMS",
-    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/304",
-    "digest": "sha256:95e93f1e7687b489b0c4056f5c6507bbaebe75bf713fe8f8e647b127b5f64966"
+    "url": "https://api.github.com/repos/OpenRAC/openrac-mods/releases/assets/304"
    }
   ]
  },

@@ -601,14 +601,17 @@ def build_version(entry: dict, rel: dict, gh: GitHub, by_id_tag: bool) -> tuple[
         a = assets.get(name)
         if a is None:
             continue
-        sha = sums.get(name)
+        # GitHub's hash of the upload; older uploads have none, and need a SHA256SUMS line.
+        digest = (a.get("digest") or "").lower().removeprefix("sha256:")
+        digest = digest if HEX64.match(digest) else None
+        listed = sums.get(name)
+        if digest and listed and digest != listed:
+            raise ReleaseError(f"{tag}: {name}'s SHA256SUMS line differs from the uploaded file")
+        sha = digest or listed
         if sha is None:
             if f["type"] == "native":
-                raise ReleaseError(f"{tag}: {name} has no line in SHA256SUMS")
+                raise ReleaseError(f"{tag}: {name} has no digest and no line in SHA256SUMS")
             continue  # a script mod without hashes is read from the repo at its tag
-        digest = (a.get("digest") or "").lower()
-        if digest.startswith("sha256:") and digest[7:] != sha:
-            raise ReleaseError(f"{tag}: {name}'s SHA256SUMS line differs from the uploaded file")
         platforms[plat] = {"asset": name, "sha256": sha, "size": int(a.get("size", 0))}
     if f["type"] == "native" and not platforms:
         raise ReleaseError(f"{tag}: no {mid}-{ver}-<platform>.zip archive")

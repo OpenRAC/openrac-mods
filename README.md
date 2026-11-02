@@ -34,7 +34,7 @@ section 11):
 `https://github.com/OpenRAC/openrac-mods`. The launcher lists the mods here with
 what each is for and whether your game can load it; **Install** downloads a
 native mod built for your computer, or a script mod, from the latest release
-and checks it against the release's `SHA256SUMS`. It is listed for the game, on; choose its settings and
+and checks its SHA-256 (GitHub's digest, and the release's `SHA256SUMS` if any). It is listed for the game, on; choose its settings and
 Play (settings count from the game's next start). The launcher offers updates
 when a newer release comes out, unless you keep the version you have.
 
@@ -151,7 +151,8 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
 - **A mod in your own repository** is a pull request adding
   `index/<id>.json`: the same fields plus `repo` and `path` (the mod's folder,
   `""` for the top). Your releases need `<id>-v<version>` (or `v<version>`)
-  tags with the archives and `SHA256SUMS` the SDK's workflow makes; new
+  tags with the archives the SDK's workflow makes (`SHA256SUMS` is optional when
+  GitHub gives each archive a digest); new
   releases are picked up by themselves.
 
 - **Without git**: the [Submit a mod](https://github.com/OpenRAC/openrac-mods/issues/new?template=submit-mod.yml)
