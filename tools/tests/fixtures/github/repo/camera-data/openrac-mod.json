@@ -1,0 +1,13 @@
+{
+ "format": 1,
+ "id": "camera-base",
+ "name": "Camera base",
+ "version": "1.0.0",
+ "author": "OpenRAC contributors",
+ "description": "Shared camera data.",
+ "games": {
+  "rac1": [
+   "pal"
+  ]
+ }
+}

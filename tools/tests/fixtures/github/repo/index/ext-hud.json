@@ -1,0 +1,23 @@
+{
+ "id": "ext-hud",
+ "repo": "https://github.com/someone/ext-hud",
+ "path": "",
+ "tags": [
+  "ui"
+ ],
+ "impact": [
+  "cosmetic"
+ ],
+ "media": {
+  "videos": [
+   {
+    "youtube": "https://youtu.be/dQw4w9WgXcQ",
+    "caption": "Trailer"
+   },
+   {
+    "youtube": "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+    "caption": "Gone"
+   }
+  ]
+ }
+}

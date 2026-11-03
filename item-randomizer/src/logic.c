@@ -182,7 +182,9 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Aridia: gold bolt 1", LEVEL_ARIDIA, 0, 7, 0, HOVER),
     GOLDBOLT("Aridia: gold bolt 2", LEVEL_ARIDIA, 1, 7, 0, HOVER),
     GOLDBOLT("Aridia: gold bolt 3", LEVEL_ARIDIA, 2, 7, 0, HOVER),
-    GOLDBOLT("Aridia: gold bolt 4", LEVEL_ARIDIA, 3, 7, 0, HOVER),
+    // Gold bolt 4 sits at the Trespasser pad (class 615) that opens the Trespasser doors (743,
+    // 744): the level's mobys read with OpenRAC's editor/mobys.py. A gate is likely, not proven.
+    GOLDBOLT("Aridia: gold bolt 4", LEVEL_ARIDIA, 3, 7, 0, HOVER | TRESP),
 
     // Kerwan: Big Al (GuideUpdate, func_L03_002DC920), Helga (QuestGiverUpdate,
     // func_L03_002DBC38) and her course, the infobot to Eudora.
@@ -293,8 +295,10 @@ const rando_location rando_locations[] = {
         0,
         HELI | SWING | GRIND
     ),
+    // Gold bolt 2 sits at the Trespasser pad (class 615) its door (467) links to (editor/mobys.py);
+    // gold bolt 1 is far from every pad. A gate is likely, not proven.
     GOLDBOLT("Batalia: gold bolt 1", LEVEL_BATALIA, 0, 25, 0, GRIND),
-    GOLDBOLT("Batalia: gold bolt 2", LEVEL_BATALIA, 1, 25, 0, GRIND),
+    GOLDBOLT("Batalia: gold bolt 2", LEVEL_BATALIA, 1, 25, 0, GRIND | TRESP),
 
     // Gaspar: the Pilot's Helmet's pickup (Moby1290Update, class 1290).
     VENDOR("Gaspar: the vendor's Walloper", LEVEL_GASPAR, ITEM_WALLOPER, 26, 0),
@@ -324,7 +328,7 @@ const rando_location rando_locations[] = {
     // (PokitaruGuideUpdate, func_L11_002D2670), the Persuader (not shuffled: logic.c's header).
     VENDOR("Pokitaru: the vendor's Decoy Glove", LEVEL_POKITARU, ITEM_DECOY_GLOVE, 29, 0),
     GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 29, 0, 0, HELI | SWING),
-    GIVE_G("Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 30, 0, 0, HELI | SWING),
+    GIVE_G("Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 30, 0, HELMET, HELI | SWING),
     FIXED("Pokitaru: the Persuader", LEVEL_POKITARU, ITEM(ITEM_PERSUADER), 31, 0, 0, HELI | SWING),
     GOLDBOLT("Pokitaru: gold bolt", LEVEL_POKITARU, 0, 32, 0, 0),
 
@@ -427,7 +431,7 @@ const rando_location rando_locations[] = {
         ITEM_HOLOGUISE,
         46,
         0,
-        GRIND,
+        GRIND | HOVER,
         HELI | SWING | MAGNE
     ),
     GIVE_G(
@@ -443,8 +447,9 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Drek's Fleet: gold bolt 1", LEVEL_FLEET, 0, 51, MAGNE, O2),
     GOLDBOLT("Drek's Fleet: gold bolt 2", LEVEL_FLEET, 1, 51, MAGNE, O2),
 
-    // Veldin, again: Drek.
-    GOLDBOLT("Veldin (return): gold bolt 1", LEVEL_VELDIN2, 0, 52, 0, MAGNE | GRIND),
+    // Veldin, again: Drek. Gold bolt 1 sits at the Trespasser pad (class 615) a barrier (1392,
+    // trespasser_barrier.c) waits on (editor/mobys.py). A gate is likely, not proven.
+    GOLDBOLT("Veldin (return): gold bolt 1", LEVEL_VELDIN2, 0, 52, 0, MAGNE | GRIND | TRESP),
     GOLDBOLT("Veldin (return): gold bolt 2", LEVEL_VELDIN2, 1, 52, 0, MAGNE | GRIND),
     GOLDBOLT("Veldin (return): gold bolt 3", LEVEL_VELDIN2, 2, 52, 0, MAGNE | GRIND),
     FIXED(

@@ -1,0 +1,57 @@
+# Pull request checks of the mod index: the tools' unit tests, the index checks (offline on the
+# fixtures, then live: a broken entry fails, a broken release only warns), and the workflows linted
+# with actionlint and zizmor. Read-only token, no secrets. Every action is pinned to a commit.
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions: {}
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unit tests
+        run: python3 -m unittest discover -s tools/tests
+      - name: Check the fixture index offline
+        run: python3 tools/build_index.py --check --offline tools/tests/fixtures/github
+      - name: Check the index
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/build_index.py --check
+
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: actionlint
+        run: |
+          tgz="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -sSfL -o "$tgz" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $tgz" | sha256sum -c -
+          tar -xzf "$tgz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color .github/workflows/index.yml .github/workflows/test.yml .github/workflows/submit.yml
+      - name: zizmor
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          echo "zizmor==1.31.1 --hash=sha256:58e878eb2dbd2c6183c105e1ac28c14f7dd1eca44a783f1fe2a69647d012c410" > "$RUNNER_TEMP/req.txt"
+          "$RUNNER_TEMP/venv/bin/pip" install -q --only-binary=:all: --require-hashes -r "$RUNNER_TEMP/req.txt"
+          "$RUNNER_TEMP/venv/bin/zizmor" --offline .github/workflows/index.yml .github/workflows/test.yml .github/workflows/submit.yml

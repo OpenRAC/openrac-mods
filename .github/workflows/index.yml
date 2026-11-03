@@ -1,0 +1,302 @@
+# The mod index: tools/build_index.py builds index.json from this repository's mods and index/,
+# tools/media.py makes the pictures, then it is signed with minisign and published on the `index`
+# pre-release (a pre-release, so the launcher never takes it for a mod release).
+#
+# Jobs: test -> build (read-only token, no secrets) -> media (no secrets, no network while it
+# works) -> publish (environment mod-index: the signing key). A failure leaves the last good
+# index.json live and opens or updates an issue labelled index-broken.
+#
+# Every action is pinned to a commit.
+name: index
+
+on:
+  push:
+    branches: [master]
+  release:
+    types: [published]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: index
+  cancel-in-progress: false
+
+jobs:
+  # A release event runs on its tag; the index is built from master, so hand it over.
+  relay:
+    if: github.event_name == 'release' && github.event.release.tag_name != 'index'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Build the index from master
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run index.yml --ref master
+
+  test:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unit tests
+        run: python3 -m unittest discover -s tools/tests
+
+  build:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the index
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/build_index.py --out out
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: index-raw
+          path: out/
+          retention-days: 3
+
+  media:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: index-raw
+          path: out
+      - name: Install vips
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libvips-tools libheif-plugin-aomenc
+          vips --version
+      - name: Make the pictures, with no network
+        run: |
+          sudo unshare --net -- setpriv --reuid="$(id -u)" --regid="$(id -g)" --clear-groups \
+            env HOME="$HOME" PATH="$PATH" python3 tools/media.py process out
+          cat out/media-report.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: index-final
+          path: out/
+          retention-days: 3
+
+  # New versions of external native mods wait: one review issue each (tools/submit_bot.py review).
+  review:
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # Act as openrac-bot (its name and logo on comments, issues, PRs and commits); its PRs start CI.
+      - id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
+          private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
+          permission-issues: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: index-raw
+          path: out
+      - name: Open or update the review issues
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 tools/submit_bot.py review --file out/review.json
+
+  publish:
+    needs: media
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: mod-index
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: index-final
+          path: out
+      - name: Validate
+        run: |
+          python3 tools/build_index.py --validate out/index.json
+          test -s index/minisign.pub || { echo "::error::index/minisign.pub is missing"; exit 1; }
+      - name: Install minisign
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends minisign
+      - name: Sign
+        env:
+          MINISIGN_KEY: ${{ secrets.MOD_INDEX_MINISIGN_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MOD_INDEX_MINISIGN_PASSWORD }}
+        run: |
+          umask 077
+          key="$RUNNER_TEMP/mod-index.key"
+          printf '%s\n' "$MINISIGN_KEY" > "$key"
+          serial=$(python3 -c 'import json; print(json.load(open("out/index.json"))["serial"])')
+          printf '%s\n' "$MINISIGN_PASSWORD" | \
+            minisign -S -s "$key" -m out/index.json -x out/index.json.minisig -t "OpenRAC mod index, serial $serial"
+          rm -f "$key"
+          minisign -V -p index/minisign.pub -m out/index.json -x out/index.json.minisig
+      - name: Publish on the index pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! gh release view index > /dev/null 2>&1; then
+            gh release create index --prerelease --latest=false --target master --title "Mod index" \
+              --notes "The OpenRAC mod index (index.json, signed), rebuilt every hour. Not a mod release."
+          fi
+          # Pictures are named by their hash: each is uploaded once.
+          have=$(gh release view index --json assets --jq '.assets[].name')
+          for f in out/media/*; do
+            [ -e "$f" ] || continue
+            grep -qxF "$(basename "$f")" <<< "$have" || gh release upload index "$f"
+          done
+          # Under a temporary name first, read back and checked, then swapped in.
+          mkdir -p next back
+          cp out/index.json next/index.next.json
+          cp out/index.json.minisig next/index.next.json.minisig
+          gh release upload index --clobber next/index.next.json next/index.next.json.minisig
+          gh release download index --pattern 'index.next.json*' --dir back --clobber
+          cmp back/index.next.json out/index.json
+          minisign -V -p index/minisign.pub -m back/index.next.json -x back/index.next.json.minisig
+          python3 tools/build_index.py --validate back/index.next.json
+          gh release upload index --clobber out/stats.json out/media-cache.json out/index.json out/index.json.minisig
+          gh release delete-asset index index.next.json --yes
+          gh release delete-asset index index.next.json.minisig --yes
+
+  # One Discussion per listed mod (category "Mods"); numbers kept in index/discussions.json. Skipped,
+  # with a warning, while Discussions are off.
+  discussions:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # Act as openrac-bot (its name and logo on comments, issues, PRs and commits); its PRs start CI.
+      - id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
+          private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-discussions: write
+      - name: Bot identity for commits
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: |
+          id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)
+          echo "BOT_NAME=${SLUG}[bot]" >> "$GITHUB_ENV"
+          echo "BOT_EMAIL=${id}+${SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: index-final
+          path: out
+      - name: Make the missing Discussions
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 tools/submit_bot.py discussions --index out/index.json
+
+  report:
+    needs: [test, build, media, publish, review]
+    if: failure() && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # Act as openrac-bot (its name and logo on comments, issues, PRs and commits); its PRs start CI.
+      - id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
+          private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
+          permission-issues: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Open or update the index-broken issue
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_MAINTAINERS }}
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create index-broken --color B60205 --description "The mod index build failed" 2> /dev/null || true
+          body="The mod index build failed: $RUN_URL. The last good index.json stays live."
+          n=$(gh issue list --label index-broken --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then
+            gh issue comment "$n" --body "$body"
+          else
+            url=$(gh issue create --title "The mod index build failed" --label index-broken --body "$body")
+            # Only the first failure pings Discord; the hourly retries add to the issue instead.
+            python3 tools/alert.py "The mod list could not be published, and the last good one stays live. $url"
+          fi
+
+  # After a good publish: close a still-open index-broken issue and say so where it was announced.
+  recover:
+    needs: publish
+    if: success() && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - id: bot
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.OPENRAC_BOT_APP_ID }}
+          private-key: ${{ secrets.OPENRAC_BOT_PRIVATE_KEY }}
+          permission-issues: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Close the index-broken issue
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_MAINTAINERS }}
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          n=$(gh issue list --label index-broken --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then
+            gh issue close "$n" --comment "Published again: $RUN_URL"
+            python3 tools/alert.py "The mod list is published again. $RUN_URL"
+          fi

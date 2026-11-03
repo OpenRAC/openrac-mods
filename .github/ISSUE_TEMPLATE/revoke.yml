@@ -1,0 +1,25 @@
+name: Revoke versions (maintainers)
+description: Turn versions of a mod off in every launcher. Only maintainers; the bot ignores anyone else.
+title: "Revoke: "
+labels: [mod-revoke]
+body:
+  - type: input
+    id: mod
+    attributes:
+      label: Mod id
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "Comma-separated versions, or * for all."
+    validations:
+      required: true
+  - type: input
+    id: reason
+    attributes:
+      label: Reason
+      description: Shown to players, at most 300 characters.
+    validations:
+      required: true

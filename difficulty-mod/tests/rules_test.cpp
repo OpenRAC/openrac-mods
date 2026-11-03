@@ -254,6 +254,9 @@ static void budget() {
     // OpenRAC's bigger pool: 767 free; on Gaspar the sparks keep a console's 255 besides.
     CHECK(clone_budget(767, 4) == 767 - k_pool_reserve);
     CHECK(clone_budget(767, 9) == 767 - k_pool_reserve - k_gaspar_sparks);
+    // Blarg Station keeps room for its own spawns: no copies in its pool of 255.
+    CHECK(clone_budget(253, 6) == 0);
+    CHECK(clone_budget(1000, 6) == 1000 - k_pool_reserve - k_blarg_spawns);
     CHECK(pvar_slots(0) == 0 && pvar_slots(0x80) == 0);
     CHECK(
         pvar_slots(0x81) == 2 && pvar_slots(0x100) == 2 && pvar_slots(0x101) == 3

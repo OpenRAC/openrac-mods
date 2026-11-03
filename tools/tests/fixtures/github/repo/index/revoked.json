@@ -1,0 +1,9 @@
+[
+ {
+  "id": "lock-strafe",
+  "versions": [
+   "1.0.0"
+  ],
+  "reason": "Broke saves."
+ }
+]

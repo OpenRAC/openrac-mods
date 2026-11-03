@@ -18,7 +18,7 @@ from still holds its own reward. With no party the mod works as below.
 ## Playing
 
 Install it from the launcher's **Mods** tab (**Add from a link**:
-`https://github.com/OpenRAC/rac1-mods`), switch it on, choose its settings
+`https://github.com/OpenRAC/openrac-mods`), switch it on, choose its settings
 and start a **new game**.
 
 | Setting | Default | |

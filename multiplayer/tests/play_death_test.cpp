@@ -196,7 +196,7 @@ void a_full_wipe_goes_back_to_the_hosts_checkpoint() {
     // The member's respawn, then: nothing is deleted again, and it goes to the host.
     p.member.game.hero_pose.health = 8;
     remake(p.member, p.w);
-    p.host.game.hero_pose.flags |= 2u;
+    p.host.game.hero_pose.flags |= mp::kPoseSteady;
     p.run(40);
     CHECK(p.member.world.synced() && !dead(p.member.game, 1));
     CHECK(!p.member.game.placed.empty());

@@ -11,6 +11,8 @@
 #include "session.hpp"
 #include "websocket.hpp"
 
+#include <miniz.h>
+
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -63,6 +65,37 @@ void test_websocket() {
         expect(ap::ws::decode(buffer, op, fin, payload, bad), "a whole frame reads");
         expect(op == ap::ws::kText && fin && payload == text && buffer.empty(), "the frame's text");
     }
+}
+
+// A sender's permessage-deflate: raw deflate, a sync flush, its last four bytes off. One
+// compressor for every message: the window is kept from one to the next (context takeover).
+struct Deflater {
+    tdefl_compressor c;
+    Deflater() { tdefl_init(&c, nullptr, nullptr, TDEFL_DEFAULT_MAX_PROBES); }
+
+    std::string message(const std::string& text) {
+        std::string out(text.size() + 64, '\0');
+        std::size_t in_n = text.size(), out_n = out.size();
+        tdefl_compress(&c, text.data(), &in_n, &out[0], &out_n, TDEFL_SYNC_FLUSH);
+        out.resize(out_n);
+        return out.substr(0, out.size() - 4);
+    }
+};
+
+void test_inflate() {
+    Deflater d;
+    ap::ws::Inflater inflater;
+    const std::string first = R"([{"cmd":"PrintJSON","data":[{"text":"Ratchet found a Swingshot"}]}])";
+    const std::string second = R"([{"cmd":"PrintJSON","data":[{"text":"Ratchet found a Hoverboard"}]}])";
+    std::string out;
+    expect(inflater.inflate(d.message(first), out, 1 << 20) && out == first, "a compressed message");
+    out.clear();
+    // The second refers back into the first's bytes.
+    expect(inflater.inflate(d.message(second), out, 1 << 20) && out == second, "with the window kept");
+    out.clear();
+    expect(!inflater.inflate(d.message(std::string(4096, 'x')), out, 100), "past the most bytes");
+    out.clear();
+    expect(!inflater.inflate("\xff\xff\xff", out, 1 << 20), "a broken stream");
 }
 
 void test_ids() {
@@ -174,12 +207,112 @@ void test_session() {
     expect(s.refused() && s.refusal() == "InvalidSlot", "the refusal");
 }
 
+// A connection with these checked locations, and the server's whole item list.
+void connect(
+    ap::Session& s, const char* checked, std::vector<std::string>& out, const char* seed = "seed-b"
+) {
+    s.on_open();
+    s.on_message(std::string(R"([{"cmd":"RoomInfo","games":[],"seed_name":")") + seed + "\"}]", out);
+    s.on_message(
+        std::string(R"([{"cmd":"Connected","team":0,"slot":1,"players":[],"slot_info":{},"missing_locations":[],)")
+            + R"("checked_locations":)" + checked + "}]",
+        out
+    );
+}
+
+void test_save() {
+    std::vector<std::string> out;
+
+    // The save's checks are the server's and more: play while offline, sent.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        connect(s, "[1,2]", out);
+        out.clear();
+        s.save_loaded({1, 2, 3}, -1, out);
+        expect(!s.foreign_save() && commands(out) == std::vector<std::string>{"LocationChecks"}, "offline play is sent");
+    }
+
+    // Another seed's save: checks the server never saw, and some it saw missing. Not sent, nor
+    // what is played on it.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        s.save_loaded({5, 6}, -1, out);
+        connect(s, "[1,2]", out);
+        out.clear();
+        expect(s.foreign_save(), "another seed's save is seen");
+        s.check(7, out);
+        expect(out.empty(), "nothing of it is sent");
+
+        // A new game: its checks go again.
+        s.save_loaded({}, -1, out);
+        s.check(8, out);
+        expect(!s.foreign_save() && commands(out) == std::vector<std::string>{"LocationChecks"}, "a new game is sent");
+    }
+
+    // A reconnection keeps the items until the server sends them again.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        connect(s, "[]", out);
+        s.on_message(R"([{"cmd":"ReceivedItems","index":0,"items":[{"item":5,"location":1,"player":1,"flags":0}]}])", out);
+        connect(s, "[]", out);
+        expect(s.items().size() == 1, "the items stay across a reconnection");
+    }
+
+    // The book: a slot that holds another room's game is that room's, whatever its checks; one of
+    // this room's is sent, whatever they are; a save written binds its slot.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        s.book().slots[2] = {"seed-a", "Ratchet"};
+        s.book().slots[3] = {"seed-b", "Ratchet"};
+        connect(s, "[]", out);
+        out.clear();
+        s.save_loaded({5, 6}, 2, out);
+        expect(s.foreign_save() && out.empty(), "a slot of another room's");
+        s.save_loaded({1, 2}, 3, out);
+        expect(!s.foreign_save() && commands(out) == std::vector<std::string>{"LocationChecks"}, "a slot of this room's");
+        s.save_written(2);
+        expect(s.book().slots[2].first == "seed-b" && s.book().changed, "a save written binds its slot");
+        s.book().changed = false;
+        out.clear();
+        s.save_loaded({7}, 2, out);
+        expect(!s.foreign_save(), "the slot saved into is this room's now");
+    }
+
+    // A slot not in the book: the checks decide, then the slot is booked for this room.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        connect(s, "[1,2]", out);
+        s.save_loaded({1, 2, 3}, 4, out);
+        expect(s.book().slots.count(4) == 1 && s.book().slots[4].first == "seed-b", "booked after its checks");
+    }
+
+    // A save written before the room is known is booked on the connection.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        s.save_written(1);
+        expect(s.book().slots.empty(), "no room yet");
+        connect(s, "[]", out);
+        expect(s.book().slots.count(1) == 1, "booked on the connection");
+    }
+
+    // A known data package is not asked for again.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        out.clear();
+        s.on_message(R"([{"cmd":"DataPackage","data":{"games":{"G":{"checksum":"abc","item_name_to_id":{},"location_name_to_id":{}}}}}])", out);
+        s.on_message(R"([{"cmd":"RoomInfo","games":["G"],"datapackage_checksums":{"G":"abc"}}])", out);
+        expect(commands(out) == std::vector<std::string>{"Connect"}, "a cached data package");
+    }
+}
+
 }  // namespace
 
 int main() {
     test_websocket();
+    test_inflate();
     test_ids();
     test_session();
+    test_save();
     std::printf(g_failures == 0 ? "unit: ok\n" : "unit: %d failed\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

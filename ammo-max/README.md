@@ -9,7 +9,7 @@ With the mod off, the game is the PlayStation 2 game.
 ## Playing
 
 Install it from the launcher's **Mods** tab (**Add from a link**:
-`https://github.com/OpenRAC/rac1-mods`), switch it on and play. At the vendor, choose a weapon's
+`https://github.com/OpenRAC/openrac-mods`), switch it on and play. At the vendor, choose a weapon's
 ammo as usual: the count already says the most.
 
 | You have | Your bolts pay for | The count starts at |

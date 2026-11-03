@@ -6,8 +6,10 @@
 
 #include <chrono>
 #include <cstring>
+#include <vector>
 
 #include <mbedtls/sha1.h>
+#include <miniz.h>
 
 namespace ap {
 
@@ -24,6 +26,7 @@ constexpr std::size_t kMaxHandshake = 16u * 1024u;
 
 // The frame header's bits.
 constexpr std::uint8_t kFin = 0x80;
+constexpr std::uint8_t kRsv1 = 0x40;
 constexpr std::uint8_t kMask = 0x80;
 constexpr std::uint8_t kOpcodeBits = 0x0F;
 constexpr std::uint8_t kLengthBits = 0x7F;
@@ -110,6 +113,7 @@ std::string handshake_request(const std::string& host, int port, const std::stri
            + key
            + "\r\n"
              "Sec-WebSocket-Version: 13\r\n"
+             "Sec-WebSocket-Extensions: permessage-deflate; client_no_context_takeover\r\n"
              "User-Agent: OpenRAC-Archipelago\r\n\r\n";
 }
 
@@ -145,6 +149,66 @@ std::string encode(Opcode op, const std::string& payload, const std::uint8_t mas
 }
 
 bool decode(std::string& buffer, Opcode& op, bool& fin, std::string& payload, bool& bad) {
+    bool rsv1 = false;
+    return decode(buffer, op, fin, rsv1, payload, bad);
+}
+
+struct Inflater::State {
+    tinfl_decompressor decompressor;
+    std::vector<std::uint8_t> window = std::vector<std::uint8_t>(TINFL_LZ_DICT_SIZE);
+    std::size_t at = 0;  // where the next byte goes in the window
+};
+
+Inflater::Inflater() : state_(new State) {}
+
+Inflater::~Inflater() {
+    delete state_;
+}
+
+void Inflater::reset() {
+    state_->at = 0;
+}
+
+bool Inflater::inflate(const std::string& payload, std::string& out, std::size_t max) {
+    // The sender took off the end of its sync flush: it goes back on (RFC 7692 7.2.2).
+    const std::string in = payload + std::string("\x00\x00\xff\xff", 4);
+    const auto* src = reinterpret_cast<const mz_uint8*>(in.data());
+    std::size_t left = in.size();
+    auto& window = state_->window;
+    // A message starts at a block boundary: the decoder starts again, the window stays.
+    tinfl_init(&state_->decompressor);
+
+    for (;;) {
+        std::size_t in_n = left;
+        std::size_t out_n = window.size() - state_->at;
+        const tinfl_status status = tinfl_decompress(
+            &state_->decompressor,
+            src,
+            &in_n,
+            window.data(),
+            window.data() + state_->at,
+            &out_n,
+            TINFL_FLAG_HAS_MORE_INPUT
+        );
+        src += in_n;
+        left -= in_n;
+        out.append(reinterpret_cast<const char*>(window.data() + state_->at), out_n);
+        state_->at = (state_->at + out_n) & (window.size() - 1);
+
+        if (status < TINFL_STATUS_DONE || out.size() > max) {
+            return false;
+        }
+
+        // All of it read: the flush's end reached (or the sender's last block).
+        if (status == TINFL_STATUS_DONE || (status == TINFL_STATUS_NEEDS_MORE_INPUT && left == 0)) {
+            return true;
+        }
+    }
+}
+
+bool decode(
+    std::string& buffer, Opcode& op, bool& fin, bool& rsv1, std::string& payload, bool& bad
+) {
     bad = false;
 
     // The two bytes every header has.
@@ -154,6 +218,7 @@ bool decode(std::string& buffer, Opcode& op, bool& fin, std::string& payload, bo
 
     const auto* b = reinterpret_cast<const std::uint8_t*>(buffer.data());
     fin = (b[0] & kFin) != 0;
+    rsv1 = (b[0] & kRsv1) != 0;
     op = Opcode(b[0] & kOpcodeBits);
     const bool masked = (b[1] & kMask) != 0;
     std::uint64_t n = b[1] & kLengthBits;
@@ -276,6 +341,7 @@ bool WebSocket::open(const std::string& host, int port, bool tls, std::string& e
 
     const std::string want = ws::accept_for(key);
     bool accepted = false;
+    deflate_ = false;
     std::size_t at = reply.find("\r\n");
 
     // Each header line, for Sec-WebSocket-Accept.
@@ -296,6 +362,10 @@ bool WebSocket::open(const std::string& host, int port, bool tls, std::string& e
             }
 
             accepted = line.substr(v) == want;
+        } else if (colon != std::string::npos
+                   && same_name(line.substr(0, colon), "sec-websocket-extensions")) {
+            // The server took permessage-deflate: its messages may come compressed.
+            deflate_ = line.find("permessage-deflate", colon) != std::string::npos;
         }
     }
 
@@ -307,6 +377,8 @@ bool WebSocket::open(const std::string& host, int port, bool tls, std::string& e
     }
 
     message_.clear();
+    compressed_ = false;
+    inflater_.reset();
     return true;
 }
 
@@ -336,11 +408,11 @@ int WebSocket::receive(std::string& text, int timeout_ms) {
     // Until a whole message, or nothing more in time.
     for (;;) {
         ws::Opcode op;
-        bool fin = false, bad = false;
+        bool fin = false, rsv1 = false, bad = false;
         std::string payload;
 
         // Every whole frame in the buffer, before reading more.
-        while (ws::decode(buffer_, op, fin, payload, bad)) {
+        while (ws::decode(buffer_, op, fin, rsv1, payload, bad)) {
             switch (op) {
                 case ws::kPing:
                     send_frame(ws::kPong, payload);
@@ -352,6 +424,11 @@ int WebSocket::receive(std::string& text, int timeout_ms) {
                 case ws::kText:
                 case ws::kBinary:
                 case ws::kContinuation:
+                    // A message's first frame says whether it is compressed.
+                    if (op != ws::kContinuation) {
+                        compressed_ = rsv1 && deflate_;
+                    }
+
                     message_ += payload;
 
                     // Too big, joined.
@@ -362,8 +439,17 @@ int WebSocket::receive(std::string& text, int timeout_ms) {
 
                     // The last fragment: the message is whole.
                     if (fin) {
-                        text.swap(message_);
+                        text.clear();
+
+                        if (!compressed_) {
+                            text.swap(message_);
+                        } else if (!inflater_.inflate(message_, text, kMaxMessage)) {
+                            close();
+                            return -1;
+                        }
+
                         message_.clear();
+                        compressed_ = false;
                         return 1;
                     }
 

@@ -1,0 +1,32 @@
+{
+ "format": 2,
+ "id": "lock-strafe",
+ "name": "Lock-strafe",
+ "version": "1.1.0",
+ "author": "OpenRAC contributors",
+ "description": "The lock-strafe test mod.",
+ "license": "GPL-3.0-or-later",
+ "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/lock-strafe",
+ "api": "1.0",
+ "games": {
+  "rac1": [
+   "pal",
+   "ntsc"
+  ]
+ },
+ "requires": [
+  {
+   "id": "camera-base",
+   "version": ">=1.0.0"
+  }
+ ],
+ "conflicts": [
+  {
+   "id": "button-swap",
+   "reason": "both take L2 and R2"
+  }
+ ],
+ "hooks": [
+  "rac1.pad.process_report"
+ ]
+}

@@ -65,9 +65,10 @@ static inline rando_reward ap_reward_of(int64_t id) {
     return r;
 }
 
-/* The id of a location of logic.c's table as a location of the multiworld. */
+/* The id of a location of logic.c's table as a location of the multiworld: its kind, level and
+ * key each in their own bits (the levels reach 0x12, past four bits, so the kind is above 16). */
 static inline int64_t ap_location_id(const rando_location* l) {
-    return AP_BASE + AP_LOCATION_OFFSET + ((int64_t)l->kind << 12) + ((int64_t)l->level << 8)
+    return AP_BASE + AP_LOCATION_OFFSET + ((int64_t)l->kind << 16) + ((int64_t)l->level << 8)
            + l->key;
 }
 

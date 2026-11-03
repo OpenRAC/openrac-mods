@@ -1,0 +1,9 @@
+{
+ "format": 1,
+ "days": {
+  "2026-10-24": {
+   "lock-strafe": 100,
+   "button-swap": 10
+  }
+ }
+}

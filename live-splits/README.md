@@ -9,7 +9,7 @@ With the mod off, the game is the PlayStation 2 game.
 ## Playing
 
 1. Install the mod from the launcher's **Mods** tab (**Add from a link**:
-   `https://github.com/OpenRAC/rac1-mods`), switch it on, choose its settings and start the game.
+   `https://github.com/OpenRAC/openrac-mods`), switch it on, choose its settings and start the game.
 2. In LiveSplit: **Settings**, the **LiveSplit Server** group, **Startup Behavior**: **Start TCP
    Server** (or **Start Websocket Server**), and the **Server Port** (27500 by default, which is
    what the mod looks for). The mod connects to it.

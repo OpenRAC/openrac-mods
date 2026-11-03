@@ -1,0 +1,23 @@
+{
+  "description": "Gives a DualSense its own buttons as extra PlayStation 2 buttons, a light bar that shows Ratchet's health, and vibration when Ratchet is hit, hits something or picks something up.",
+  "tags": [
+    "controls"
+  ],
+  "impact": [
+    "cosmetic"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "description": "Play with a keyboard and mouse: WASD, mouse camera, click to fire, right click for the Quick Select, number keys and wheel for weapons. Every action can be rebound; a gamepad keeps working.",
+  "tags": [
+    "controls",
+    "accessibility"
+  ],
+  "impact": [],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

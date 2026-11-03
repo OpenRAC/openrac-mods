@@ -1,0 +1,30 @@
+{
+  "id": "rac-board",
+  "repo": "https://github.com/mateuszklysz/RAC-Board",
+  "path": "",
+  "description": "Ride Jak II's JET-Board as Ratchet. Hop on with D-pad Up, grind any rail or edge, and do spins, flips and grabs for points. The board runs on Jak II's own logic, with Ratchet's animations and sounds.",
+  "tags": [
+    "gameplay",
+    "controls"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/mateuszklysz/RAC-Board/issues",
+    "docs": "https://github.com/mateuszklysz/RAC-Board/blob/main/docs/how-it-works.md"
+  },
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/rac-board/e6b4c7db0fda.png",
+        "caption": "Grinding on the zipline"
+      },
+      {
+        "src": "index/media/rac-board/17e4f0f77c51.png",
+        "caption": "Riding at Kerwan"
+      }
+    ]
+  }
+}

@@ -66,10 +66,10 @@ namespace mp {
 /* openrac_pose.flags: blending into `seq`. And the wire's teleport flag. */
 constexpr std::uint32_t kPoseBlending = 0x1;
 /* openrac_pose.flags too: the hero stands where another can be put beside him. Not on the wire. */
-constexpr std::uint32_t kPoseSteady = 0x2;
+constexpr std::uint32_t kPoseSteady = 0x8;
 /* His feet are off the ground (the SDK's OPENRAC_POSE_AIRBORNE): an enemy that takes him in the air
  * or in the water needs it on the host. */
-constexpr std::uint32_t kPoseAirborne = 0x4;
+constexpr std::uint32_t kPoseAirborne = 0x10;
 constexpr std::uint8_t kWireTeleport = 0x2;
 constexpr std::uint8_t kWireScene = 0x4;
 constexpr std::uint8_t kWireAirborne = 0x8;
