@@ -298,6 +298,25 @@ that player. Mobys near the members run in the host's game as if near its camera
   the level.
 - Everyone needs the same disc and the same OpenRAC and mod versions.
 
+## Languages
+
+The mod's pages, button hints, local save picker, connection status, confirmations and co-op
+notices follow the game's selected language: English, French, German, Spanish or Italian (all
+five PAL languages). Changing the language in Options updates the pages without restarting.
+Unknown language indices use English. The NTSC-U build uses its corresponding language address.
+The translations are original mod text; no text extracted from a game disc is included.
+
+The title and pause menu's entry stays **Multiplayer**: the current SDK only lets a mod register
+these labels during load, before the game initializes its language, and cannot rename them later.
+The page it opens is localized. Launcher setting labels belong to the manifest and remain English.
+Player names, chat and descriptions sent by other hosts are kept as received; this does not
+translate another player's save description. Network messages and diagnostic logs stay unchanged.
+
+`src/words.hpp` contains the five-column UTF-8 catalog. Use only letters supported by the game's
+font and keep each fixed text within `OPENRAC_UI_TEXT_MAX` bytes; dynamic fields are shortened
+without splitting a UTF-8 character. `multiplayer_words` tests the catalog, language mapping,
+connection and party pages, controller glyphs and text limits without a game disc.
+
 ## Building
 
 Built with the repository's other native mods (the top README), with an SDK of interface 1.9 or

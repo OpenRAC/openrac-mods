@@ -89,6 +89,7 @@
 #include "protocol.hpp"
 #include "session.hpp"
 #include "trace.hpp"
+#include "words.hpp"
 
 namespace mp {
 
@@ -655,7 +656,12 @@ private:
 };
 
 /* A save's words for the lists and the lobby: "Pokitaru, 12 gold bolts", or "New game". */
-std::string save_description(const std::string& planet, int gold_bolts, bool new_game);
+std::string save_description(
+    const std::string& planet,
+    int gold_bolts,
+    bool new_game,
+    Language language = Language::kEnglish
+);
 
 }  // namespace mp
 

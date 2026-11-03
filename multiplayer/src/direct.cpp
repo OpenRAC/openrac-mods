@@ -62,7 +62,7 @@ std::string DirectAddress::text() const {
 }
 
 std::vector<std::string> hosting_lines(
-    const std::vector<std::string>& addresses, int port, std::size_t most
+    const std::vector<std::string>& addresses, int port, std::size_t most, Language language
 ) {
     const std::string suffix = ":" + std::to_string(port);
     std::vector<std::string> lines;
@@ -73,12 +73,12 @@ std::vector<std::string> hosting_lines(
             break;
         }
 
-        lines.push_back("Hosting on " + address + suffix);
+        lines.push_back(translated("Hosting on ", language) + address + suffix);
     }
 
     // No address it can tell (or no room): the port alone.
     if (lines.empty()) {
-        lines.push_back("Hosting on port " + std::to_string(port));
+        lines.push_back(translated("Hosting on port ", language) + std::to_string(port));
     }
 
     return lines;
