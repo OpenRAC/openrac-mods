@@ -1,0 +1,19 @@
+{
+  "id": "modern-controls",
+  "repo": "https://github.com/momo1212221/modern-controls",
+  "path": "",
+  "description": "Direct mouse and controller camera controls with adjustable turn and aim speed, separate axis sensitivity, radial deadzone, movement speed, and acceleration/braking.",
+  "tags": [
+    "controls",
+    "camera",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/momo1212221/modern-controls/issues",
+    "docs": "https://github.com/momo1212221/modern-controls#readme"
+  }
+}
