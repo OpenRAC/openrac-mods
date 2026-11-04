@@ -17,7 +17,7 @@ endif()
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
-                SOURCES src/multiplayer.cpp src/session.cpp src/connection.cpp src/host.cpp
+                SOURCES src/multiplayer.cpp src/comfort.cpp src/session.cpp src/connection.cpp src/host.cpp
                         src/direct.cpp src/protocol.cpp src/coop.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
@@ -74,3 +74,13 @@ if(BUILD_TESTING)
   set_target_properties(multiplayer_smooth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_smooth COMMAND multiplayer_smooth_test)
 endif()
+
+if(BUILD_TESTING)
+  add_executable(multiplayer_comfort_test tests/comfort_test.cpp src/comfort.cpp src/protocol.cpp)
+  target_include_directories(multiplayer_comfort_test PRIVATE src)
+  set_target_properties(multiplayer_comfort_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_comfort COMMAND multiplayer_comfort_test)
+endif()
+
+get_target_property(multiplayer_package multiplayer OPENRAC_MOD_PACKAGE_DIR)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" "${multiplayer_package}/LICENSE" COPYONLY)

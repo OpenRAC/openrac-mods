@@ -43,6 +43,7 @@
 #include <string>
 #include <vector>
 
+#include "comfort.hpp"
 #include "connection.hpp"
 #include "coop.hpp"
 #include "direct.hpp"
@@ -71,7 +72,7 @@ mp::Language game_language(const openrac::Mod& mod) {
 }
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kVersion = "rac1-multiplayer/0.7.0";
+constexpr const char* kVersion = "rac1-multiplayer/0.8.0";
 
 /* The question's tag: leaving the party (or hosting it). */
 constexpr std::uint32_t kAskLeave = 1;
@@ -523,6 +524,9 @@ struct State {
     std::unique_ptr<mp::Session> session;
     std::unique_ptr<ModGame> game;
     std::unique_ptr<mp::Coop> coop;
+    std::unique_ptr<mp::Comfort> comfort;
+    openrac::UiPage comfort_page;
+    int pause_tools = -1;
     std::unique_ptr<mp::World> world;
     std::unique_ptr<mp::Progress> progress;
     mp::Trace trace;           // the verbose log (trace.hpp), off unless asked for
@@ -587,8 +591,111 @@ std::string status() {
 
 /* The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
  * a wait for the others. */
+void set_content(const openrac::UiPage& page, openrac::UiContent& content);
+
+std::string comfort_banner(std::uint64_t now) {
+    if (!g->comfort) {
+        return {};
+    }
+    if (g->comfort->down()) {
+        return std::string(text("Awaiting rescue ")) + std::to_string(g->comfort->seconds_left(now))
+               + " s";
+    }
+    if (g->comfort->near_downed()) {
+        return text("Hold L3 + R3 for 3s to rescue");
+    }
+    float distance = g->comfort->rally_distance();
+    if (distance >= 0) {
+        return std::string(text("Rally point: ")) + std::to_string(static_cast<int>(distance))
+               + text(" units");
+    }
+    return {};
+}
+
+void show_comfort() {
+    if (!g->comfort || g->comfort_page.id() < 0) {
+        return;
+    }
+    const auto& o = g->comfort->options();
+    openrac::UiContent c;
+    c.title = text("Team tools");
+    auto choice = [&](const char* label, std::vector<std::string> values, int value) {
+        auto item = openrac::UiItem::choice_of(text(label), std::move(values), value);
+        if (!g->session->is_host()) {
+            item.flags = OPENRAC_UI_DISABLED;
+        }
+        return item;
+    };
+    const bool party = g->session->in_party();
+    c.items = {
+        choice("Co-op rescue", {text("Off"), text("On")}, o.revive),
+        choice("Time to rescue", {"10 s", "20 s", "30 s"}, o.down_seconds / 10 - 1),
+        choice("Host rally point", {text("Off"), text("On")}, o.rally),
+        openrac::UiItem::button(text("Mark host position"), party && o.rally && g->coop->playing()),
+        openrac::UiItem::button(
+            text("Clear rally point"), g->session->is_host() && g->comfort->rally().active
+        ),
+        openrac::UiItem::button(text("Give up"), g->comfort->down())
+    };
+    float distance = g->comfort->rally_distance();
+    c.items.push_back(
+        openrac::UiItem::text(
+            distance >= 0 ? std::string(text("Rally point: "))
+                                + std::to_string(static_cast<int>(distance)) + text(" units")
+                          : text("No rally point")
+        )
+    );
+    for (const auto& member : g->session->members()) {
+        mp::Pose p;
+        bool have =
+            member.id == g->session->id() ? g->game->hero(p) : g->coop->latest(member.id, p);
+        auto peer = g->comfort->peers().find(member.id);
+        bool help = member.id == g->session->id()
+                        ? g->comfort->down()
+                        : peer != g->comfort->peers().end() && peer->second.down;
+        std::string line = member.name + ": "
+                           + (help   ? text("Needs rescue")
+                              : have ? "HP " + std::to_string(std::max(0, p.health))
+                                     : text("Loading"));
+        c.items.push_back(openrac::UiItem::text(mp::fit_ui_text(line, OPENRAC_UI_TEXT_MAX)));
+    }
+    c.footer = {text("Hold L3 + R3 for 3s to rescue")};
+    set_content(g->comfort_page, c);
+}
+
+void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    if (e.is(OPENRAC_UI_CHANGE) && g->session->is_host()) {
+        auto options = g->comfort->options();
+        if (e.item() == 0 && e.value() >= 0 && e.value() < 2) {
+            options.revive = e.value() != 0;
+        } else if (e.item() == 1 && e.value() >= 0 && e.value() < 3) {
+            options.down_seconds = (e.value() + 1) * 10;
+        } else if (e.item() == 2 && e.value() >= 0 && e.value() < 2) {
+            options.rally = e.value() != 0;
+        }
+        g->comfort->configure(options);
+    } else if (e.is(OPENRAC_UI_CHOOSE)) {
+        if (e.item() == 3) {
+            g->comfort->request_rally(mp::now_ms());
+        } else if (e.item() == 4) {
+            g->comfort->clear_rally();
+        } else if (e.item() == 5) {
+            g->comfort->give_up();
+        }
+    }
+    if (!g->session->in_party() && !e.is(OPENRAC_UI_HIDE)) {
+        page.back();
+        return;
+    }
+    show_comfort();
+}
+
 void show_banner(std::uint64_t now) {
-    if (std::string banner = g->coop->banner(now); banner != g->banner) {
+    std::string banner = g->coop->banner(now);
+    if (banner.empty()) {
+        banner = comfort_banner(now);
+    }
+    if (banner != g->banner) {
         g->banner = banner;
         g->mod->play_notice(mp::localized_notice(banner, g_language));
     }
@@ -792,6 +899,7 @@ void show_lobby() {
     c.items = {
         openrac::UiItem::button(first, rejoin ? !g->coop->receiving() : can),
         openrac::UiItem::button(text("Leave")),
+        openrac::UiItem::button(text("Team tools")),
     };
 
     // Where the party is: its code, or for a direct one, where it is hosted.
@@ -896,6 +1004,11 @@ void show_pause() {
         }
     }
 
+    g->pause_tools = -1;
+    if (s.in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
+        g->pause_tools = static_cast<int>(c.items.size());
+        c.items.push_back(openrac::UiItem::button(text("Team tools")));
+    }
     set_content(g->pause_page, c);
 }
 
@@ -917,7 +1030,10 @@ void leave_party() {
 void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const mp::Session& s = *g->session;
 
-    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
+    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_tools && g->pause_tools >= 0) {
+        show_comfort();
+        g->comfort_page.open();
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
         const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
         page.confirm(mp::pause_leave_question(hosting, s.is_host(), g_language), kAskLeave);
     } else if (e.is(OPENRAC_UI_ANSWER) && e.tag() == kAskLeave && e.value() == 1 && s.in_party()) {
@@ -1118,7 +1234,10 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
         s.direct() || hosting || g->connection->mode() == mp::Connection::Mode::kDirect;
 
     // Ready or Start; Leave and Triangle ask before the party is left.
-    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kReadyItem) {
+    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == 2) {
+        show_comfort();
+        g->comfort_page.open();
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kReadyItem) {
         g->notice.clear();
 
         // The host starts the game for everyone; a member says it is ready, or no longer.
@@ -1370,6 +1489,48 @@ void load(openrac::Mod& mod) {
     g->mod = &mod;
     g->game = std::make_unique<ModGame>(mod);
     g->coop = std::make_unique<mp::Coop>(*g->session, *g->game);
+    mp::ComfortHooks comfort;
+    comfort.self = [] {
+        return g->session->id();
+    };
+    comfort.host = [] {
+        return g->session->host();
+    };
+    comfort.room = [] {
+        return g->session->in_party() ? g->session->code() : std::string{};
+    };
+    comfort.members = [] {
+        std::vector<int> ids;
+        for (const auto& m : g->session->members()) {
+            ids.push_back(m.id);
+        }
+        return ids;
+    };
+    comfort.pose = [](int id, mp::Pose& out, bool menus) {
+        if (!g->coop->playing()) {
+            return false;
+        }
+        if (id == g->session->id()) {
+            int phase = g->game->status().phase;
+            if (phase != mp::kPhasePlaying && !(menus && phase == mp::kPhaseMenu)) {
+                return false;
+            }
+            return g->game->hero(out);
+        }
+        auto it = g->coop->remotes().find(id);
+        return it != g->coop->remotes().end() && (menus || !it->second.scene)
+               && g->coop->latest(id, out);
+    };
+    comfort.send = [](int target, const mp::Bytes& bytes) {
+        g->session->send_data(target, bytes);
+    };
+    comfort.expire = [] {
+        if (auto original = g->mod->original<openrac::rac1::Hero_TakeDamage>()) {
+            original(1);
+        }
+    };
+    g->comfort = std::make_unique<mp::Comfort>(std::move(comfort));
+
     g->coop->set_build(
         std::string(kVersion) + " " + std::string(mod.openrac_version()) + " "
         + std::string(mod.version())
@@ -1414,7 +1575,9 @@ void load(openrac::Mod& mod) {
     g->progress->trace(&g->trace);
     // The game's DATA: the world's kinds to the world, the rest to the co-op.
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
-        if (!bytes.empty() && mp::world_kind(bytes[0])) {
+        if (!bytes.empty() && bytes[0] == mp::kComfortKind) {
+            g->comfort->handle(sender, bytes, mp::now_ms());
+        } else if (!bytes.empty() && mp::world_kind(bytes[0])) {
             g->world->handle(sender, bytes);
         } else if (!bytes.empty() && bytes[0] == mp::kProgressKind) {
             g->progress->handle(sender, bytes);
@@ -1458,6 +1621,15 @@ void load(openrac::Mod& mod) {
             original(bolt);
         }
     });
+    // Defer only a normal lethal hit: keep one health while a teammate can rescue.
+    // Falls/crushers set health directly and retain the original checkpoint behavior.
+    mod.hook<openrac::rac1::Hero_TakeDamage>([](auto original, std::int32_t damage) {
+        const auto hero = g->mod->relocate(g->mod->version() == "pal" ? 0x13F450u : 0x13F350u);
+        const bool on_foot = g->mod->memory().read<std::uint8_t>(hero + 0x20A4u) == 0;
+        if (!g->comfort->hit(mp::now_ms(), damage, on_foot)) {
+            original(damage);
+        }
+    });
     // The ship's planet select: the host's travel takes the party along, a member's to another
     // planet lands the ship again where it is (coop.hpp: only the host flies).
     mod.hook<openrac::rac1::Ship_TravelTo>([](auto original, std::int32_t dest) {
@@ -1484,6 +1656,10 @@ void load(openrac::Mod& mod) {
         // does nothing here but say so (a movie has no game ticks: the banner is shown from here).
         const bool start = (report[0] & 0x08) == 0;
         const int phase = g->game->status().phase;
+        const auto& input = g->mod->input().raw();
+        g->comfort->holding(
+            phase == mp::kPhasePlaying && input.focused && !input.overlay && (report[0] & 0x06) == 0
+        );
 
         if (start && !g->start_held) {
             g->coop->own_skip(phase, now);
@@ -1499,6 +1675,11 @@ void load(openrac::Mod& mod) {
         if (g->coop->hold_input()) {
             report[0] = report[1] = 0xFF;
             std::fill(report + 2, report + 6, static_cast<std::uint8_t>(0x80));
+            std::fill(report + 6, report + size, static_cast<std::uint8_t>(0));
+        } else if (g->comfort->down()) {
+            report[0] = static_cast<std::uint8_t>(0xF6u | (report[0] & 0x09u));
+            report[1] = 0xFF;
+            std::fill(report + 2, report + 6, static_cast<std::uint8_t>(128));
             std::fill(report + 6, report + size, static_cast<std::uint8_t>(0));
         } else if (g->coop->movie_press(now)) {
             // The party's skip of the movie playing: Start, for the movie player.
@@ -1525,6 +1706,8 @@ void load(openrac::Mod& mod) {
     g->lobby = mod.ui_page(on_lobby, OPENRAC_UI_OWN_BACK);
     g->browse = mod.ui_page(on_browse);
     g->saves = mod.ui_page(on_saves);
+    g->comfort_page = mod.ui_page(on_comfort);
+    show_comfort();
     g->game->home = &g->home;
     show_home();
     show_code();
@@ -1553,6 +1736,7 @@ void load(openrac::Mod& mod) {
             show_lobby();
             show_browse();
             show_saves();
+            show_comfort();
             if (g->pause_page.id() >= 0) {
                 show_pause();
             }
@@ -1577,6 +1761,7 @@ void load(openrac::Mod& mod) {
         if (g->pause_page.id() >= 0 && now - g->pause_ms >= mp::kLinkMs / 4) {
             g->pause_ms = now;
             show_pause();
+            show_comfort();
         }
 
         if (g->trace.on()) {
@@ -1591,6 +1776,7 @@ void load(openrac::Mod& mod) {
         g->coop->tick(now);
         g->world->tick(now);
         g->progress->tick(now);
+        g->comfort->tick(now);
 
         if (g->trace.on() && g->trace_file.is_open()) {
             g->trace_file.flush();
@@ -1607,7 +1793,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.7.0", load)
+OPENRAC_MOD_CPP("multiplayer", "0.8.0", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

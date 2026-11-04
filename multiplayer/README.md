@@ -1,5 +1,21 @@
 # Multiplayer
 
+## Team comfort extension (0.8.0, experimental)
+
+This extends the existing Multiplayer mod, its shared world, server routing and Direct connect. It adds no separate mod or native Options entry. Create/join a party, then open **Team tools** in the lobby or **Pause → Options → Multiplayer → Team tools**. The page and notices follow the game's five PAL languages.
+
+- **Co-op rescue:** with at least two party members, a normal lethal on-foot hit is deferred at one health. Your movement/attack input is blocked while awaiting help; Start and Select remain available. A living teammate on the same level must stay within six game units and hold **L3 + R3** (both stick clicks) continuously for three seconds. Leaving range, releasing the buttons, a scene/menu, a stale connection or a changed target restarts the hold. The host verifies proximity and grants the rescue. Controls return at the retained one health, with two seconds of protection from normal damage. No health or position memory is rewritten and no downed animation is substituted.
+- **Rescue window:** the host selects 10, 20 or 30 seconds for new rescue situations (20 by default). After the deadline, the game's original damage handler receives the deferred final hit on the next active gameplay tick. **Give up** applies it immediately. Falls, crushers and other instant kills retain the original checkpoint behavior, because they bypass the normal hit hook. Solo play, vehicles, scenes and loading never begin a rescue situation. Disabling rescue or losing the last teammate ends an existing wait with the deferred hit when play resumes.
+- **Host rally point:** **Mark host position** marks the host's current position for the whole group; members can request it too. The host can disable rally requests or clear the marker. Distance is shown in game units, in the notice and team page. A marker lasts 90 seconds and is cleared when the host changes level or leaves active play. It is a gathering marker, not teleportation.
+- **Team overview:** the same page shows each player's health or need for help. Host settings are read-only for guests. The settings apply to the current running mod session and reset to defaults after restarting OpenRAC.
+
+All players need this **0.8.0 build**. Its HELLO/build version is deliberately different from 0.7.x so a party cannot mix clients that lack rescue support. The existing public server only routes the opaque DATA; no server change is required. The base save/progress sharing and normal co-op mode are retained. This version is a local test build, not an upstream release.
+
+The extension uses DATA kind 80, format version 1 and the party code in every message: presence (life sequence, down/holding flags), host snapshot (monotonic serial, settings, marker and member states), host-only revive grant (target and life sequence) and a rally request without coordinates. Only current party members are accepted; only the host may supply settings, markers and grants. Counts, payload sizes, coordinates, enums, trailing bytes and replayed snapshot/life sequences are checked. Rescue requires fresh heartbeats and live same-level poses, and unknown/malformed packets are ignored.
+
+Tests simulate three players and cover rescue in both directions, interrupted holds, range/level/menu restrictions, solo/vehicle exclusions, timeouts, give-up, grace, disconnected players, marker expiry/clearing, host permissions, stale connections and wrong-party/replayed/malformed packets. These tests do not establish real gameplay or collision behavior. A two-machine Mac/Steam Deck playtest is still required before upstream submission.
+
+
 Online multiplayer for Ratchet & Clank on OpenRAC's native port (PAL and NTSC-U discs): a
 **Multiplayer** item in the game's main menu that connects to an OpenRAC server and puts you in a
 party with other players, or, with **Direct connect**, plays without a server: one player's game
