@@ -285,6 +285,9 @@ class Submit(Base):
         self.assertTrue(any("push --force origin HEAD:refs/heads/listing/ext-hud" in c for c in cmds))
         comment = next(i for a, i in run.calls if a[:3] == ["gh", "issue", "comment"])
         self.assertIn("✅ Ready: https://github.com/OpenRAC/openrac-mods/pull/9", comment)
+        # The pull request pings the maintainers: a mention added by editing the comment would not.
+        pr = next(a for a, _ in run.calls if a[:3] == ["gh", "pr", "create"])
+        self.assertIn(bot.MAINTAINERS, pr[pr.index("--body") + 1])
         self.assertIn("| File | In | Out (1600w AVIF) | Saved | Notes |", comment)
         # An edit updates the bot's own comment.
         run2 = FakeRun({"pr list": '[{"url": "https://github.com/OpenRAC/openrac-mods/pull/9"}]',
@@ -446,6 +449,7 @@ class CoolDown(Base):
         create = next((a, i) for a, i in run.calls if a[:3] == ["gh", "issue", "create"])
         self.assertIn("Review ext-hud 0.2.0", create[0])
         self.assertIn(review[0]["platforms"]["linux-x86_64"]["sha256"], create[1])
+        self.assertIn(bot.MAINTAINERS, create[1])
         # An open issue of that title is updated, not doubled.
         run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "OPEN"}])})
         bot.review(review, run)

@@ -644,7 +644,7 @@ def apply(result: dict, files: Path, repo: Path, run=run_cmd, run_id: str = "") 
         run(git + ["commit", "-m", f"feat(index): {result['title']}"[:100]])
         run(git + ["push", "--force", "origin", f"HEAD:refs/heads/{branch}"])
         prs = json.loads(run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "url"]) or "[]")
-        body = f"From #{issue}, checked by the listing bot.\n\nCloses #{issue}"
+        body = f"From #{issue}, checked by the listing bot. {MAINTAINERS}, please review.\n\nCloses #{issue}"
         if result.get("confirm"):
             body += f"\n\n{result['confirm']}"
         if prs:
@@ -695,7 +695,7 @@ def review_body(item: dict) -> str:
             f"- Release: {item['repo']}/releases/tag/{item['tag']} ({item['released']})\n\n"
             f"| Platform | Archive | SHA-256 | Bytes |\n|---|---|---|---|\n{rows}\n\n"
             f"Changelog:\n\n{fence}\n{item.get('changelog', '')}\n{fence}\n\n"
-            "To approve, a maintainer applies the label `approved`. It is published 24 h after its release.\n")
+            f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 24 h after its release.\n")
 
 
 def review(items: list[dict], run=run_cmd) -> int:
