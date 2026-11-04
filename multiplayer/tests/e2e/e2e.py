@@ -310,9 +310,12 @@ class Env:
                 time.sleep(0.2)
         raise Failed("the server did not start")
 
-    def client(self, name, link):
+    def client(self, name, link, join_file=None):
         c = Client(self, len(self.clients), name, link)
         self.clients.append(c)
+        if join_file is not None:
+            (c.dir / "plugins").mkdir(parents=True, exist_ok=True)
+            (c.dir / "plugins" / "modset-join.json").write_text(json.dumps(join_file))
         c.spawn()
         c.attach()
         return c
@@ -1358,6 +1361,47 @@ def scenario_reload(env, args):
     compare_enemies(env, [host, member, third], "with the late member")
 
 
+def scenario_autojoin(env, args):
+    """The launcher's word in modset-join.json: a game started with it joins the party by itself,
+    the word is for that start only, and the party plays. A stale word joins nothing."""
+    host = env.client("Host1", args.link_args)
+    reach_title(host)
+    code = party(env, host, [])
+
+    stale = env.client("Stale1", args.link_args, {"format": 1, "party": code, "written": int(time.time()) - 3600})
+    reach_title(stale)
+    time.sleep(8)
+    env.check("a stale word joins nothing", not stale.status().get("code"), json.dumps(stale.status().get("code")))
+    env.check("a stale word goes", not (stale.dir / "plugins" / "modset-join.json").exists())
+    stale.stop()
+    env.clients.remove(stale)
+
+    member = env.client("Member1", args.link_args, {"format": 1, "party": code, "written": int(time.time())})
+    reach_title(member)
+    wait("the member in the party by itself", lambda: member.status()["code"] == code, 40)
+    env.check("the word went", not (member.dir / "plugins" / "modset-join.json").exists())
+    env.check("the log says why", log_lines(member, r"joined party \w+ as the launcher asked"))
+    wait("the member told of the host's mods", lambda: member.json("mods")["heard_host"], 15)
+    member.ask("ready")
+    wait("all ready", lambda: host.status()["all_ready"], 15)
+    answer = host.ask("start")
+    env.check("the host starts", answer == "ok", answer)
+    env.check("both games in control", skip_scenes(env, host, [member], 150), "")
+
+
+def scenario_autojoinsolo(env, args):
+    """The launcher's word to a game with a solo mod on (`--member-mods archipelago`): no party."""
+    host = env.client("Host1", args.link_args)
+    reach_title(host)
+    code = party(env, host, [])
+    member = env.client("Member1", args.link_args, {"format": 1, "party": code, "written": int(time.time())})
+    reach_title(member)
+    wait("it says why", lambda: log_lines(member, r"can't be played in a party"), 30)
+    time.sleep(5)
+    env.check("it stays out of the party", not member.status().get("code"), json.dumps(member.status().get("code")))
+    env.check("the host has only itself", host.status()["members"] == 1, json.dumps(host.status()["members"]))
+
+
 def scenario_midjoin(env, args):
     """A party playing by rules: a late member with the same mods comes in under them; with other
     settings, it gets no game."""
@@ -1928,6 +1972,8 @@ SCENARIOS = {
     "refuse": scenario_refuse,
     "kick": scenario_kick,
     "midjoin": scenario_midjoin,
+    "autojoin": scenario_autojoin,
+    "autojoinsolo": scenario_autojoinsolo,
     "reload": scenario_reload,
     "progress2": scenario_progress2,
     "camera": scenario_camera,

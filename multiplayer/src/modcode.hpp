@@ -36,6 +36,15 @@ bool modset_matches(const ModSetFile& file, const ModList& own);
 /* A short code as the launcher shows it, K7M2-9QXR: nothing else is shown or linked. */
 bool valid_mod_code(const std::string& code);
 
+/* What a host shares: its mod code, and beside it the party to join once the mods are applied. */
+std::string mod_code_with_party(const std::string& code, const std::string& party);
+
+/* The party the launcher said to join on starting (<folder>/modset-join.json: the player asked, the
+ * mods applied), or "". The file is for one start: it goes, whatever it says. One older than
+ * kJoinRequestSeconds is a game not started then, and says nothing now. */
+constexpr std::int64_t kJoinRequestSeconds = 600;
+std::string take_join_request(const std::string& folder, std::int64_t now_seconds);
+
 /* The link of a valid code, for open_link; "" for anything else. */
 std::string mod_code_link(const std::string& code);
 

@@ -72,7 +72,12 @@ void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e) {
     }
 
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_copy) {
-        g->code_copied = g->mod->clipboard_set(g->mods->own().modcode);
+        // A friend who applies it can join this party from the launcher in one go.
+        const mp::Session& s = *g->session;
+        const bool code_joins = s.in_party() && !s.direct();
+        g->code_copied = g->mod->clipboard_set(
+            mp::mod_code_with_party(g->mods->own().modcode, code_joins ? s.code() : "")
+        );
         page.sound(g->code_copied ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_lift) {
         g->cosave->lift_bans();
