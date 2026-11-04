@@ -1821,6 +1821,38 @@ def classes_near(c):
     return {m[2] for m in json.loads(c.ask("dump"))}
 
 
+def scenario_hits(env, args):
+    """Each weapon of a member's, fired beside the host's enemies: its hits reach the host's, and
+    none of them is refused. `--level N` for the enemies' level, 3 by default."""
+    host, member = start_two(env, args)
+    level = args.level if args.level > 0 else 3
+    fly_to(env, host, [member], level)
+    time.sleep(3)
+    wanted = None
+    if args.weapons:
+        wanted = {w.strip().lower() for w in args.weapons.split(",")}
+    start = host.status().get("hits_taken", 0)
+    for item, name, ticks, oclass in WEAPONS:
+        if wanted is not None and name.lower() not in wanted:
+            continue
+        alive, _ = enemies_of(host)
+        creatures = sorted(alive.values(), key=lambda m: m[1])
+        if not creatures:
+            break
+        target = creatures[len(creatures) // 2]
+        member.ask(f"equip {item}")
+        for gap in (2.0, 5.0):
+            member.ask(f"teleport {target[5] + gap} {target[6]} {target[7] + 1}")
+            time.sleep(1.5)
+            member.ask(f"press {args.fire_button} {ticks}")
+            time.sleep(ticks / 60 + 2.0)
+        env.report["notes"].setdefault("hits", {})[name] = host.status().get("hits_taken", 0)
+    s = host.status()
+    env.check("the member's weapons hit the host's enemies", s.get("hits_taken", 0) > start, json.dumps(s.get("hits_taken")))
+    env.check("no hit was refused", s.get("hits_refused", 1) == 0, json.dumps(s.get("hits_refused")))
+    env.check("no damage was refused", member.status().get("hits_refused", 1) == 0)
+
+
 def scenario_weapons(env, args):
     """Each weapon fired by the host, then by the member: the other game shows it, nothing crashes,
     and no hit comes of the shown copy. `--weapons a,b` runs some."""
@@ -1972,6 +2004,7 @@ SCENARIOS = {
     "shipwarn": scenario_shipwarn,
     "soak": scenario_soak,
     "weapons": scenario_weapons,
+    "hits": scenario_hits,
     "enemies": scenario_enemies,
     "chaos": scenario_chaos,
     "refuse": scenario_refuse,

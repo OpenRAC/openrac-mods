@@ -445,6 +445,71 @@ void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
     CHECK(host.game.mission_row_bytes[8] == 0xFF);
 }
 
+void a_hit_that_makes_no_sense_is_refused() {
+    mp::Hit fine;
+    fine.damage = 3.0f;
+    CHECK(mp::hit_makes_sense(fine));
+    mp::Hit h = fine;
+    h.damage = -1.0f;
+    CHECK(!mp::hit_makes_sense(h));
+    h.damage = mp::kMostHitDamage + 1.0f;
+    CHECK(!mp::hit_makes_sense(h));
+    h.damage = std::numeric_limits<float>::quiet_NaN();
+    CHECK(!mp::hit_makes_sense(h));
+    h = fine;
+    h.position[1] = std::numeric_limits<float>::infinity();
+    CHECK(!mp::hit_makes_sense(h));
+    // A hit's place says nothing of where it was: far off is fine.
+    h = fine;
+    h.position[0] = 340.0f;
+    CHECK(mp::hit_makes_sense(h));
+
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    const mp::MobyState enemy = moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f);
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {enemy};
+    }
+    member.game.hero_pose.position[0] = 12.0f;
+    member.game.hero_pose.level = 0;
+    for (int i = 0; i < 40; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.world.synced());
+    const auto member_hits = [&](float damage) {
+        mp::Hit by;
+        by.victim = member.game.moby_slot(0);
+        by.damage = damage;
+        by.mask = 0x10000;
+        CHECK(member.world.hit(by));
+        route({&host, &member});
+        tick({&host, &member}, 16);
+    };
+    const std::size_t was = host.game.hits.size();
+    member_hits(2.0f);
+    CHECK(host.game.hits.size() == was + 1);
+    CHECK(host.world.hits_refused() == 0);
+    member_hits(mp::kMostHitDamage * 2.0f);
+    CHECK(host.game.hits.size() == was + 1);
+    CHECK(host.world.hits_refused() == 1);
+
+    // From across the level: refused; the same damage nearer was taken.
+    member.game.hero_pose.position[0] = 10.0f + mp::kHitReach + 50.0f;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    member_hits(2.0f);
+    CHECK(host.game.hits.size() == was + 1);
+    CHECK(host.world.hits_refused() == 2);
+}
+
 void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -536,6 +601,7 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
 void run_world_tests() {
     a_member_takes_over_its_own_copy_of_what_the_level_spawned();
     a_placed_moby_hatched_is_shared_as_a_spawned_one();
+    a_hit_that_makes_no_sense_is_refused();
     a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for();
     world_bytes();
     the_world_is_the_hosts();
