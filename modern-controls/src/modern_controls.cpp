@@ -1,0 +1,240 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Camera vector operations and disc offsets shared with the keyboard-mouse mod.
+#include <memory>
+
+#include "controls.hpp"
+#include "discs.h"
+#include "kbm.hpp"
+#include "openrac/games/rac1.hpp"
+#include "openrac/mod.hpp"
+
+namespace {
+using V = kbm::Vec3;
+
+struct State {
+    openrac::Mod* mod;
+    const kbm_disc* disc;
+    bool enabled, mouse_enabled, invert, pal;
+    int mx, my, sx, sy, deadzone, response;
+    bool active = false, held = false, seen = false;
+    uint32_t tick = 0;
+    float yaw = 0, pitch = 0, tilt = 0;
+};
+
+std::unique_ptr<State> g;
+
+bool valid(uint32_t p) {
+    return p >= 0x10000 && p < 0x02000000 - 0x400;
+}
+
+template <class T>
+T read(uint32_t p) {
+    return g->mod->memory().read<T>(p);
+}
+
+template <class T>
+void write(uint32_t p, T v) {
+    g->mod->memory().write<T>(p, v);
+}
+
+bool playing() {
+    const auto& in = g->mod->input().raw();
+    return g->enabled && in.focused && !in.overlay && g->mod->loaded_level() >= 0
+           && g->mod->play_status().phase == OPENRAC_PLAY_PLAYING
+           && read<int32_t>(g->mod->relocate_level(0, g->disc->level_mode)) == 0;
+}
+
+void follow(uint32_t camera) {
+    if (!playing() || !g->active || !valid(camera)) {
+        g->held = false;
+        g->yaw = g->pitch = 0;
+        return;
+    }
+    uint32_t state = read<uint32_t>(camera + KBM_CAMERA_STATE);
+    if (!valid(state)) {
+        return;
+    }
+    float yaw = g->yaw, pitch = g->pitch;
+    g->yaw = g->pitch = 0;  // one application per game input tick
+    if (yaw == 0 && pitch == 0 && !g->held) {
+        return;
+    }
+    const auto locks = read<int32_t>(state + KBM_FOLLOW_LOCKS);
+    const auto block = g->mod->relocate_level(0, g->disc->cameras);
+    if (!valid(block)) {
+        return;
+    }
+    const auto up = kbm::unit_or(read<V>(block + KBM_CAMERAS_UP), kbm::kWorldUp);
+    auto orbit = read<V>(state + KBM_FOLLOW_ORBIT);
+    auto smooth = read<V>(state + KBM_FOLLOW_ORBIT_SMOOTH);
+    auto target = read<V>(state + KBM_FOLLOW_TARGET);
+    auto eye = kbm::minus(read<V>(state + KBM_FOLLOW_EYE), target);
+    if (!(locks & 1) && yaw != 0) {
+        orbit = kbm::rotate(orbit, up, yaw);
+        smooth = kbm::rotate(smooth, up, yaw);
+        eye = kbm::rotate(eye, up, yaw);
+    }
+    if (locks & 2) {
+        g->held = false;
+    } else if (pitch != 0) {
+        if (!g->held) {
+            g->tilt = kbm::elevation(orbit, up);
+        }
+        float now =
+            std::clamp(g->tilt + pitch, -kbm::follow_max_elevation(), kbm::follow_max_elevation());
+        float moved = now - g->tilt;
+        auto tilt = [&](V v) {
+            return kbm::with_elevation(
+                v, up, std::clamp(kbm::elevation(v, up) + moved, -1.5f, 1.5f)
+            );
+        };
+        orbit = tilt(orbit);
+        smooth = tilt(smooth);
+        eye = tilt(eye);
+        g->tilt = now;
+        g->held = true;
+    }
+    write(state + KBM_FOLLOW_ORBIT, orbit);
+    write(state + KBM_FOLLOW_ORBIT_SMOOTH, smooth);
+    write(state + KBM_FOLLOW_EYE, kbm::plus(target, eye));
+    if (g->held) {
+        float w = kbm::follow_target_of(g->tilt);
+        write(state + KBM_FOLLOW_TILT, w);
+        write(state + KBM_FOLLOW_TILT_RATE, 0.f);
+        bool invert = read<int32_t>(g->mod->relocate(g->disc->tilt_invert)) != 0;
+        write(g->mod->relocate(g->disc->pad_sticks) + 4, kbm::follow_stick_for(w, invert));
+    }
+}
+
+void pad(int port, uint8_t* report, int size) {
+    if (port != 0 || !report || size < 6) {
+        return;
+    }
+    g->active = playing();
+    if (g->mouse_enabled) {
+        g->mod->capture_mouse(g->active);
+    }
+    const auto& in = g->mod->input().raw();
+    if (!g->active) {
+        g->held = false;
+        g->yaw = g->pitch = 0;
+        return;
+    }
+    const auto block = g->mod->relocate_level(0, g->disc->cameras);
+    if (!valid(block)) {
+        g->held = false;
+        g->yaw = g->pitch = 0;
+        return;
+    }
+    auto camera = read<uint32_t>(block + KBM_CAMERAS_CURRENT);
+    if (!valid(camera)) {
+        g->held = false;
+        g->yaw = g->pitch = 0;
+        return;
+    }
+    const auto kind = read<int16_t>(camera + KBM_CAMERA_ID);
+    // Keep special cameras, quick-select and vehicles under the game's control.
+    if (kind != 0 && kind != KBM_CAMERA_FIRST_PERSON) {
+        g->held = false;
+        g->yaw = g->pitch = 0;
+        return;
+    }
+    // Triangle opens the weapon ring: preserve the complete report there.
+    if ((report[1] & 0x10) == 0) {
+        g->held = false;
+        g->yaw = g->pitch = 0;
+        return;
+    }
+    const auto axis = modern::stick(report[2], report[3], g->deadzone / 100.f);
+    report[2] = report[3] = 128;  // no additional original stick easing
+    if (g->seen && g->tick == in.tick) {
+        return;
+    }
+    g->seen = true;
+    g->tick = in.tick;
+    float yaw = -modern::rate(axis.x, g->sx);
+    float pitch = modern::rate(axis.y, g->sy);
+    if (g->mouse_enabled && in.captured) {
+        yaw -= modern::mouse(in.mouse_dx, g->mx);
+        pitch += modern::mouse(in.mouse_dy, g->my);
+    }
+    if (g->invert) {
+        pitch = -pitch;
+    }
+    if (kind == KBM_CAMERA_FIRST_PERSON) {
+        g->held = false;
+        auto state = read<uint32_t>(camera + KBM_CAMERA_STATE);
+        if (!valid(state)) {
+            return;
+        }
+        auto look = read<V>(camera);
+        const auto up = kbm::unit_or(read<V>(block + KBM_CAMERAS_UP), kbm::kWorldUp);
+        look = kbm::rotate(look, up, yaw);
+        float old = read<float>(state + KBM_FIRST_PERSON_TILT);
+        if (std::isfinite(old)) {
+            float now =
+                std::clamp(old + pitch, -kbm::kFirstPersonTiltLimit, kbm::kFirstPersonTiltLimit);
+            look = kbm::with_elevation(look, up, kbm::elevation(look, up) - (now - old));
+            write(state + KBM_FIRST_PERSON_TILT, now);
+        }
+        write(camera, look);
+    } else {
+        g->yaw = yaw;
+        g->pitch = pitch;
+    }
+}
+
+void load(openrac::Mod& mod) {
+    if (mod.game() != "rac1" || (mod.version() != "pal" && mod.version() != "ntsc")) {
+        throw openrac::Error("Modern Controls needs RAC1 PAL or NTSC-U");
+    }
+    g = std::make_unique<State>();
+    g->mod = &mod;
+    g->pal = mod.version() == "pal";
+    g->disc = &k_kbm_discs[g->pal ? 0 : 1];
+    g->enabled = mod.setting<bool>("enabled");
+    g->mouse_enabled = mod.setting<bool>("mouse_enabled");
+    g->invert = mod.setting<bool>("invert_y");
+    auto setting = [&](const char* key, int lo, int hi) {
+        return std::clamp(mod.setting<int64_t>(key), int64_t(lo), int64_t(hi));
+    };
+    g->mx = setting("mouse_x", 10, 1000);
+    g->my = setting("mouse_y", 10, 1000);
+    g->sx = setting("stick_x", 30, 720);
+    g->sy = setting("stick_y", 30, 360);
+    g->deadzone = setting("deadzone", 0, 40);
+    g->response = setting("response", 100, 300);
+    if (g->mouse_enabled) {
+        mod.take_input(OPENRAC_INPUT_MOUSE);
+    }
+    mod.on_pad(pad);
+    mod.on_frame([] {
+        bool active = playing();
+        if (g->mouse_enabled) {
+            g->mod->capture_mouse(active);
+        }
+        if (!active) {
+            g->held = false;
+            g->yaw = g->pitch = 0;
+        }
+    });
+    mod.hook<openrac::rac1::FollowCamera_ApplyOverrides>([](auto original, uint32_t camera) {
+        original(camera);
+        follow(camera);
+    });
+    mod.hook<openrac::rac1::Hero_ApproachSpeed>([](auto original, float up, float down) {
+        const float gain = playing() ? g->response / 100.f : 1.f;
+        original(up * gain, down * gain);
+    });
+}
+}  // namespace
+OPENRAC_MOD_CPP("modern-controls", "0.1.0", load)
+
+extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload() {
+    if (g) {
+        if (g->mouse_enabled) {
+            g->mod->capture_mouse(false);
+        }
+        g.reset();
+    }
+}

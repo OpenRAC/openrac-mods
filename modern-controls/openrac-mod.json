@@ -1,0 +1,96 @@
+{
+  "format": 2,
+  "id": "modern-controls",
+  "name": "Modern Controls",
+  "version": "0.1.0",
+  "author": "OpenRAC contributors",
+  "description": "Direct mouse and stick camera with separate axis sensitivity, radial deadzone, and faster movement response without increasing run speed.",
+  "license": "GPL-3.0-or-later",
+  "api": "1.9",
+  "games": {
+    "rac1": [
+      "pal",
+      "ntsc"
+    ]
+  },
+  "settings": [
+    {
+      "key": "enabled",
+      "name": "Modern controls",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "mouse_enabled",
+      "name": "Mouse / gyro / trackpad camera",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "mouse_x",
+      "name": "Mouse horizontal sensitivity (%)",
+      "type": "int",
+      "default": 150,
+      "min": 10,
+      "max": 1000,
+      "step": 10
+    },
+    {
+      "key": "mouse_y",
+      "name": "Mouse vertical sensitivity (%)",
+      "type": "int",
+      "default": 150,
+      "min": 10,
+      "max": 1000,
+      "step": 10
+    },
+    {
+      "key": "stick_x",
+      "name": "Stick horizontal speed (degrees / second)",
+      "type": "int",
+      "default": 240,
+      "min": 30,
+      "max": 720,
+      "step": 10
+    },
+    {
+      "key": "stick_y",
+      "name": "Stick vertical speed (degrees / second)",
+      "type": "int",
+      "default": 150,
+      "min": 30,
+      "max": 360,
+      "step": 10
+    },
+    {
+      "key": "deadzone",
+      "name": "Right stick deadzone (%)",
+      "type": "int",
+      "default": 10,
+      "min": 0,
+      "max": 40,
+      "step": 1
+    },
+    {
+      "key": "invert_y",
+      "name": "Invert vertical look",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "response",
+      "name": "Movement acceleration and braking (%)",
+      "type": "int",
+      "default": 175,
+      "min": 100,
+      "max": 300,
+      "step": 25
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "keyboard-mouse",
+      "reason": "Both mods control the mouse camera."
+    }
+  ]
+}

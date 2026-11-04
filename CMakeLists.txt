@@ -49,6 +49,7 @@ add_subdirectory(xbox-icons)
 # calls: built only with an SDK that has them (until sdk.lock pins 1.9.0, build it with
 # -DOPENRAC_SDK=<OpenRAC>/sdk; an older SDK leaves it out).
 if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.9)
+  add_subdirectory(modern-controls)
   add_subdirectory(multiplayer)
   add_subdirectory(archipelago)
 else()
