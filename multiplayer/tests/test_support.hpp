@@ -284,7 +284,10 @@ struct FakeGame : mp::Game {
         return true;
     }
 
-    Bytes capture() override { return live_save; }
+    Bytes capture() override {
+        captured_row = mission_row_bytes;
+        return live_save;
+    }
 
     bool hero(mp::Pose& out) override {
         out = hero_pose;
@@ -331,6 +334,7 @@ struct FakeGame : mp::Game {
     int revives = 0;
     int respawns = 0;
     std::array<std::uint8_t, mp::kMissions> mission_row_bytes{};
+    std::array<std::uint8_t, mp::kMissions> captured_row{};
     bool mission_row_known = true;
 
     bool can_revive() override { return revivable; }
@@ -350,6 +354,18 @@ struct FakeGame : mp::Game {
     bool mission_row(int /*level*/, std::uint8_t* out) override {
         std::copy(mission_row_bytes.begin(), mission_row_bytes.end(), out);
         return mission_row_known;
+    }
+    bool mission_clear(int /*level*/, const std::uint8_t* flags) override {
+        for (std::size_t i = 0; i < mission_row_bytes.size(); ++i) {
+            mission_row_bytes[i] = flags[i] != 0 ? 0 : mission_row_bytes[i];
+        }
+        return true;
+    }
+    bool mission_set(int /*level*/, const std::uint8_t* flags) override {
+        for (std::size_t i = 0; i < mission_row_bytes.size(); ++i) {
+            mission_row_bytes[i] = flags[i] != 0 ? 0xFF : mission_row_bytes[i];
+        }
+        return true;
     }
 
     // The world: a level's mobys by slot, the drives, kills, spawns, hits, stand-ins and bolts. The

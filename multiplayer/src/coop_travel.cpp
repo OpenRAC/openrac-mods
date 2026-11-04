@@ -116,7 +116,7 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
             continue;
         }
 
-        const Bytes live = game_.capture();
+        const Bytes live = joiner_save_ ? joiner_save_() : game_.capture();
 
         if (!live.empty()) {
             log("player " + std::to_string(m.id) + " joins the game in level " + std::to_string(status.level));

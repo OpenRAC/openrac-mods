@@ -368,7 +368,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             if (session_.role().host() && r.ok() && play_ != 0 && play == play_
                 && member_of(session_, sender) && may_play(sender)) {
                 const GameStatus status = game_.status();
-                const Bytes live = in_level(status.phase) ? game_.capture() : Bytes{};
+                const Bytes live = !in_level(status.phase) ? Bytes{} : joiner_save_ ? joiner_save_() : game_.capture();
 
                 log("player " + std::to_string(sender) + " asked for the game");
 

@@ -302,6 +302,7 @@ void load(openrac::Mod& mod) {
     g->coop->set_save_hooks([](std::int32_t target) { g->cosave->announce(target); },
                             [](const mp::Bytes& save) { g->cosave->starting(save); });
     g->coop->on_start_again([] { g->cosave->start_again(); });
+    g->coop->on_joiner_save([] { return g->world->save_for_a_joiner(); });
     g->shared = std::make_unique<mp::Shared>(*g->session, *g->game, *g->coop);
     g->shared->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->camscripts = std::make_unique<mp::CamScripts>(*g->session, *g->game, *g->coop);

@@ -415,6 +415,36 @@ void the_verbose_log_traces_a_pause() {
 }
 }  // namespace
 
+void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
+    Player host(1);
+    host.session.handle(info({{1, "P1"}}));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host});
+    tick({&host}, 16);
+    const std::uint32_t alive = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+    mp::MobyState there = moby(10, 10, 28, alive, 10.0f);
+    there.mission = 8;
+    // A person's flag stays: a scene it has played would play again.
+    mp::MobyState person = moby(11, 11, 11, alive, 11.0f);
+    person.mission = 3;
+    host.game.now = {mp::kPhasePlaying, 15, 2};
+    host.game.level = {there, person};
+    for (int i = 0; i < 10; ++i) {
+        tick({&host}, 50);
+    }
+    host.game.mission_row_bytes[8] = 0xFF;  // done since the load: its moby is still here
+    host.game.mission_row_bytes[3] = 0xFF;
+    host.game.mission_row_bytes[5] = 0xFF;  // done, no moby here: its load would make none either
+
+    (void)host.world.save_for_a_joiner();
+    CHECK(host.game.captured_row[8] == 0);
+    CHECK(host.game.captured_row[3] == 0xFF);
+    CHECK(host.game.captured_row[5] == 0xFF);
+    // The host's own stands as it was.
+    CHECK(host.game.mission_row_bytes[8] == 0xFF);
+}
+
 void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -506,6 +536,7 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
 void run_world_tests() {
     a_member_takes_over_its_own_copy_of_what_the_level_spawned();
     a_placed_moby_hatched_is_shared_as_a_spawned_one();
+    a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for();
     world_bytes();
     the_world_is_the_hosts();
     the_hosts_hidden_mobys_are_hidden_here();

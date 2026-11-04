@@ -570,6 +570,10 @@ public:
 
     std::size_t driven() const { return driven_.size(); }
 
+    /* The host's progress for a joiner: without the flags of missions done since this game's load
+     * that still have a moby here, whose load would otherwise leave those mobys out. */
+    Bytes save_for_a_joiner();
+
     std::size_t spawned() const { return net_slot_.size(); }
 
     std::size_t mobys() const { return mobys_.size(); }

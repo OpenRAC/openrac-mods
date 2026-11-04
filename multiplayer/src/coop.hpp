@@ -530,6 +530,9 @@ public:
     /* The mission row of `level` in this game (kMissions bytes, kMissionDone for done); false when
      * it cannot be read. */
     virtual bool mission_row(int /*level*/, std::uint8_t* /*out*/) { return false; }
+    /* Clears the flags of `level`'s row that `flags` (kMissions bytes) names, or sets them again. */
+    virtual bool mission_clear(int /*level*/, const std::uint8_t* /*flags*/) { return false; }
+    virtual bool mission_set(int /*level*/, const std::uint8_t* /*flags*/) { return false; }
     // --- end WP-DEATH ---
     // --- WP-LOBBY ---
     // --- end WP-LOBBY ---
@@ -595,6 +598,8 @@ public:
     }
 
     /* The host is starting again: told before anyone hears of the new game. */
+    void on_joiner_save(std::function<Bytes()> fn) { joiner_save_ = std::move(fn); }
+
     void on_start_again(std::function<void()> again) { start_again_ = std::move(again); }
 
     /* The host's choice (Create match's save picker): a new game (no bytes) or a save, and what the
@@ -873,6 +878,8 @@ private:
     std::int32_t play_ = 0;
     std::vector<std::int32_t> told_;
     std::function<void(std::int32_t)> announce_;
+    /* The host's progress as a joiner is to start from; the game's own without one. */
+    std::function<Bytes()> joiner_save_;
     std::function<void(const Bytes&)> starting_;
     std::function<void()> start_again_;
     bool start_copied_ = false;

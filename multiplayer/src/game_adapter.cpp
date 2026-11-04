@@ -247,6 +247,18 @@ bool ModGame::mission_row(int level, std::uint8_t* out) {
 }
 // --- end WP-DEATH ---
 
+bool ModGame::mission_clear(int level, const std::uint8_t* flags) {
+    std::uint8_t row[OPENRAC_MISSION_STATE_SIZE] = {};
+    std::copy(flags, flags + OPENRAC_MISSION_STATE_SIZE, row);
+    return mod_.mission_state_clear(level, row);
+}
+
+bool ModGame::mission_set(int level, const std::uint8_t* flags) {
+    std::uint8_t row[OPENRAC_MISSION_STATE_SIZE] = {};
+    std::copy(flags, flags + OPENRAC_MISSION_STATE_SIZE, row);
+    return mod_.mission_state_write(level, row);
+}
+
 int ModGame::moby_slot(int key) { return mod_.moby_slot(key); }
 
 bool ModGame::moby_drive(int slot, bool on) { return mod_.moby_drive(slot, on); }
