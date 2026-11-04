@@ -351,6 +351,12 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    bool takeoff_works = false;
+    std::vector<int> takeoffs;
+    bool ship_takeoff(int level) override {
+        takeoffs.push_back(level);
+        return takeoff_works;
+    }
     bool mission_row(int /*level*/, std::uint8_t* out) override {
         std::copy(mission_row_bytes.begin(), mission_row_bytes.end(), out);
         return mission_row_known;

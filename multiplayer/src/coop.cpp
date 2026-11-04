@@ -615,15 +615,30 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
             leave_dest_ = -1;
             ship_held_ = false;
         } else if (in_level(status.phase) && status.level != leave_dest_
-                   && (leave_ms_ == 0 || now - leave_ms_ >= kLeaveMs)) {
+                   && (leave_ms_ == 0 || now - leave_ms_ >= (took_off_ ? kTakeoffMs : kLeaveMs))) {
             if (leave_ms_ == 0) {
                 log("leaving level " + std::to_string(status.level) + " for " + std::to_string(leave_dest_)
                     + " (phase " + std::to_string(status.phase) + ")");
             }
 
+            const bool first = leave_ms_ == 0;
             leave_ms_ = now;
             leave_loads_ = status.loads;
-            game_.travel(leave_dest_);
+            took_off_ = false;
+
+            // From its feet, its own ship takes it from the pad, as the host's took the host; from
+            // anything else, or if that has not left in time, the flight between planets.
+            if (first && status.phase == kPhasePlaying) {
+                taking_off_ = true;
+                took_off_ = game_.ship_takeoff(leave_dest_);
+                taking_off_ = false;
+            }
+
+            if (took_off_) {
+                log("taking off from the pad");
+            } else {
+                game_.travel(leave_dest_);
+            }
         }
     }
 

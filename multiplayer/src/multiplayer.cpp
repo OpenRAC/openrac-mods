@@ -448,7 +448,7 @@ void load(openrac::Mod& mod) {
     // planet lands the ship again where it is (coop.hpp: only the host flies).
     mod.hook<openrac::rac1::Ship_TravelTo>([](auto original, std::int32_t dest) {
         const int here = g->game->status().level;
-        original(g->coop->ship_travel(dest, here) ? dest : here);
+        original(g->coop->taking_off() || g->coop->ship_travel(dest, here) ? dest : here);
     });
     // The first pad: the host's Start in a scene or a movie skips it for the party (a member's is
     // taken out: only the host skips), a party's skip presses Start for a movie playing here, and

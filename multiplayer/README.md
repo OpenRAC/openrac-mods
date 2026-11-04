@@ -562,9 +562,9 @@ that player. Mobys near the members run in the host's game as if near its camera
   again, or see a mark the host no longer has. It changes nothing in the story.
 - A gold weapon a case still offers when it arrives can be bought again until the level is next
   loaded (the case reads who owns it only when the level starts).
-- Vendors and the ship are each game's own. A member's flight to the new planet is the game's
-  flight between planets, not the host's take-off from the pad (members leave when the host's
-  ship does, and usually land first, then wait).
+- Vendors and the ship are each game's own. A member on its feet leaves by its own ship's take-off
+  from its own pad, not the host's drawn for it; one in a menu, a scene or at a vendor leaves by the
+  flight between planets. Members usually land first, then wait.
 - A scene that started before a member came is not shown to it (a scene is read from the disc as
   it plays: it cannot start part way).
 - A camera shot that is not a scene plays in full only for those it was shown to from its start: a
