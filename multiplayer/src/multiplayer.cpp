@@ -67,8 +67,9 @@ const char* text(const char* english) {
 
 mp::Language game_language(const openrac::Mod& mod) {
     const auto address = mp::language_address(mod.version());
-    return address == 0 ? mp::Language::kEnglish
-                        : mp::language_from_game(mod.memory().read<std::int32_t>(address));
+    return address == 0
+               ? mp::Language::kEnglish
+               : mp::language_from_game(mod.memory().read<std::int32_t>(mod.relocate(address)));
 }
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
@@ -1518,8 +1519,11 @@ void load(openrac::Mod& mod) {
             return g->game->hero(out);
         }
         auto it = g->coop->remotes().find(id);
-        return it != g->coop->remotes().end() && (menus || !it->second.scene)
-               && g->coop->latest(id, out);
+        if (it == g->coop->remotes().end()
+            || !mp::remote_pose_available(it->second, static_cast<double>(mp::now_ms()), menus)) {
+            return false;
+        }
+        return g->coop->latest(id, out);
     };
     comfort.send = [](int target, const mp::Bytes& bytes) {
         g->session->send_data(target, bytes);

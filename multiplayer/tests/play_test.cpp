@@ -64,6 +64,7 @@ void pose_bytes() {
     m.sequence = 0xABCD;
     m.stamp_ms = 123456789012LL;
     m.teleport = true;
+    m.menu = true;
     m.pose.level = 11;
     m.pose.position[0] = 1.5f;
     m.pose.position[2] = -20.25f;
@@ -83,7 +84,8 @@ void pose_bytes() {
     CHECK(b.size() == mp::kPoseBytes + 1 && b[0] == mp::kPoseKind);
     mp::PoseMessage r;
     CHECK(mp::decode_pose(b, r));
-    CHECK(r.owner == 7 && r.sequence == 0xABCD && r.stamp_ms == 123456789012LL && r.teleport);
+    CHECK(r.owner == 7 && r.sequence == 0xABCD && r.stamp_ms == 123456789012LL && r.teleport
+          && r.menu && !r.scene);
     CHECK(r.pose.level == 11 && r.pose.position[0] == 1.5f && r.pose.position[2] == -20.25f);
     CHECK(r.pose.rotation[2] == 3.0f && r.pose.velocity[1] == 4.0f && r.pose.state == 2);
     CHECK(r.pose.health == 8 && r.pose.item == -1 && r.pose.seq == 41 && r.pose.frame == 7);
@@ -102,6 +104,18 @@ void pose_bytes() {
     CHECK(!mp::sequence_newer(5, 5) && mp::sequence_newer(6, 5));
     // Angles the short way round.
     CHECK(std::fabs(mp::lerp_angle(3.0f, -3.0f, 0.5f) - 3.1416f) < 0.01f);
+
+    mp::Remote remote;
+    remote.poses.add(pose_at(1), 1, 1000, 1000, false);
+    CHECK(mp::remote_pose_available(remote, 1500, false));
+    remote.menu = true;
+    CHECK(!mp::remote_pose_available(remote, 1500, false));
+    CHECK(mp::remote_pose_available(remote, 1500, true));
+    remote.menu = false;
+    remote.scene = true;
+    CHECK(!mp::remote_pose_available(remote, 1500, false));
+    remote.scene = false;
+    CHECK(!mp::remote_pose_available(remote, 2001, false));
 }
 
 mp::HeldPiece piece(int slot, int part, int item, int oclass, int joint) {

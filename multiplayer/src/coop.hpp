@@ -337,6 +337,7 @@ public:
 struct Remote {
     Interpolator poses;
     bool scene = false;  // its game plays a scene (its last pose said)
+    bool menu = false;   // its game is in a pause/menu overlay (its last pose said)
     int figure = -1;
     bool hidden = false;         // its figure hidden for a scene playing in this game
     std::uint64_t retry_ms = 0;  // when a figure may be made again
@@ -349,6 +350,13 @@ struct Remote {
     };
     std::deque<PendingShot> shots;
 };
+
+inline bool remote_pose_available(const Remote& remote, double now_ms, bool include_menu = false) {
+    if (!include_menu && (remote.scene || remote.menu)) {
+        return false;
+    }
+    return remote.poses.silence_ms(now_ms) <= kStallMs;
+}
 
 class Coop {
 public:

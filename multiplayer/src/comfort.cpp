@@ -312,8 +312,11 @@ void Comfort::tick(std::uint64_t now) {
     }
     last_tick_ = now;
     Pose own;
-    bool alive = pose(h_.self(), own, true);
-    if (down_ && (!alive || own.level != down_level_ || own.health > 1)) {
+    // A scene/load can temporarily make the hero pose unavailable. Keep the deferred lethal hit
+    // pending through that gap; clear it only when the game can actually report a changed/dead hero.
+    const bool observed = member(h_.self()) && h_.pose(h_.self(), own, true);
+    const bool alive = observed && finite_pose(own);
+    if (down_ && observed && (own.health <= 0 || own.level != down_level_ || own.health > 1)) {
         down_ = false;
         dirty_ = true;
     }

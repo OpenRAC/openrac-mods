@@ -25,6 +25,7 @@ struct Network {
     std::vector<int> members{1, 2, 3};
     std::map<int, Pose> poses;
     std::map<int, bool> active;
+    std::map<int, bool> available;
     std::map<int, int> expired;
     std::map<int, std::unique_ptr<Comfort>> nodes;
     std::deque<Packet> packets;
@@ -35,6 +36,7 @@ struct Network {
             poses[id].health = 4;
             poses[id].position[0] = float(id);
             active[id] = true;
+            available[id] = true;
         }
         for (int id : members) {
             ComfortHooks h;
@@ -51,7 +53,7 @@ struct Network {
                 return members;
             };
             h.pose = [this](int who, Pose& out, bool menus) {
-                if (!poses.count(who) || (!menus && !active[who])) {
+                if (!available[who] || !poses.count(who) || (!menus && !active[who])) {
                     return false;
                 }
                 out = poses[who];
@@ -190,6 +192,19 @@ int main() {
         n.advance(3500);
         CHECK(n.nodes[2]->down());
         n.poses[2].health = 0;
+        n.step(1);
+        CHECK(!n.nodes[2]->down());
+        CHECK(n.expired[2] == 0);
+    }
+    {
+        Network n;
+        n.down(2);
+        n.available[2] = false;  // shared scene/load: the hero pose disappears temporarily
+        n.advance(2000);
+        CHECK(n.nodes[2]->down());
+        CHECK(n.expired[2] == 0);
+        n.available[2] = true;
+        n.poses[2].health = 0;  // actual death once the hero becomes observable again
         n.step(1);
         CHECK(!n.nodes[2]->down());
         CHECK(n.expired[2] == 0);

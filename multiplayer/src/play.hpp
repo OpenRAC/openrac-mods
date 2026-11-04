@@ -62,6 +62,7 @@ namespace mp {
 constexpr std::uint32_t kPoseBlending = 0x1;
 constexpr std::uint8_t kWireTeleport = 0x2;
 constexpr std::uint8_t kWireScene = 0x4;
+constexpr std::uint8_t kWireMenu = 0x8;
 
 /* A piece a Ratchet wears or holds (the SDK's openrac_held_piece): the game's slot and which of
  * its mobys, the item, the moby's class, the body's joint it follows, kHeld* flags, where a loose
@@ -116,6 +117,8 @@ struct PoseMessage {
     bool teleport = false;
     /* The sender's game plays a scene (a cutscene, a landing): its player waits on it. */
     bool scene = false;
+    /* The sender is in a pause/menu overlay: status may inspect it, rescue may not progress. */
+    bool menu = false;
     Pose pose;
 };
 
