@@ -1125,6 +1125,12 @@ def compare_enemies(env, games, label):
         c.name: {"placed": len(a), "spawned": len(m)} for c, (a, m) in zip(games, lists)
     }
     for c, (alive, made) in zip(games[1:], lists[1:]):
+        # A placed one hatched by the host's game, in a slot it brought back, is a spawned one here.
+        mine, _ = c.mobys()
+        hatched = [m for k, m in host_alive.items() if k in mine and not live(mine[k])]
+        host_alive = {k: m for k, m in host_alive.items() if not (k in mine and not live(mine[k]))}
+        host_made = host_made + hatched
+        env.report["notes"][f"{label}: hatched"] = len(hatched)
         env.check(f"{label}: {c.name} has the host's placed enemies", set(alive) == set(host_alive), f"{len(alive)} of {len(host_alive)}")
         count = lambda ms: sorted(m[2] for m in ms)
         env.check(f"{label}: {c.name} has the host's spawned enemies, none twice", count(made) == count(host_made), f"{len(made)} of {len(host_made)}")

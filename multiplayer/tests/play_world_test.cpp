@@ -415,6 +415,46 @@ void the_verbose_log_traces_a_pause() {
 }
 }  // namespace
 
+void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    const std::uint32_t alive = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+    const mp::MobyState other = moby(0, 0, 300, alive, 90.0f);
+    const auto settle = [&] {
+        for (int i = 0; i < 20; ++i) {
+            tick({&host, &member}, 50);
+        }
+    };
+    // Both games' level deleted it at its start: the hatch's waiting slot, dead in both.
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 9, 2};
+        p->game.level = {other, moby(57, 70, 193, alive | mp::kMobyDead, 10.0f)};
+    }
+    settle();
+    CHECK(member.world.spawned() == 0);
+
+    // The host's egg hatches it, in that slot; the member's game has no egg's update to do so.
+    host.game.level = {other, moby(57, 70, 193, alive, 20.0f)};
+    settle();
+    CHECK(member.world.spawned() == 1);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 1);
+
+    // Killed there: gone here, and hatched again it is a new one.
+    host.game.level = {other, moby(57, 70, 193, alive | mp::kMobyDead, 20.0f)};
+    settle();
+    CHECK(member.world.spawned() == 0);
+    host.game.level = {other, moby(57, 70, 193, alive, 30.0f)};
+    settle();
+    CHECK(member.world.spawned() == 1);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 2);
+}
+
 void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -465,6 +505,7 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
 
 void run_world_tests() {
     a_member_takes_over_its_own_copy_of_what_the_level_spawned();
+    a_placed_moby_hatched_is_shared_as_a_spawned_one();
     world_bytes();
     the_world_is_the_hosts();
     the_hosts_hidden_mobys_are_hidden_here();

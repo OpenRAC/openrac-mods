@@ -833,6 +833,9 @@ private:
     std::map<int, std::uint64_t> dig_asked_;
     std::uint64_t wipe_until_ = 0;
     std::set<int> level_own_;
+    /* The placed mobys seen dead in this load. One alive again was hatched by another's update, in
+     * a slot only the host's game has brought back: shared as what it now is, a spawned one. */
+    std::set<int> once_dead_keys_;
     /* Member: whether the host gave it the world of this load, and when it last asked. */
     bool synced_ = false;
     bool level_differs_ = false;

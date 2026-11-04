@@ -153,6 +153,7 @@ void World::reset() {
     dig_asked_.clear();
     remade_ = false;
     level_own_.clear();
+    once_dead_keys_.clear();
     synced_ = false;
     hello_ms_ = 0;
     placed_driven_ = false;
@@ -168,13 +169,13 @@ void World::reset() {
 std::uint16_t World::id_of(int slot) const {
     const auto m = mobys_.find(slot);
 
-    if (m != mobys_.end() && m->second.key >= 0) {
-        return static_cast<std::uint16_t>(m->second.key);
-    }
-
-    // A spawned one shared by the host, or made here from the host's.
+    // A spawned one shared by the host (a placed one hatched too), or made here from the host's.
     if (const auto s = shared_.find(slot); s != shared_.end()) {
         return static_cast<std::uint16_t>(kSpawnedId | s->second.id);
+    }
+
+    if (m != mobys_.end() && m->second.key >= 0) {
+        return static_cast<std::uint16_t>(m->second.key);
     }
 
     for (const auto& [net, at] : net_slot_) {
@@ -256,6 +257,7 @@ void World::follow_load(const GameStatus& status) {
         spared_ = std::move(spared);
         dug_ = std::move(dug);
         remade_ = again;
+        once_dead_keys_.clear();
         loads_ = status.loads;
         level_ = status.level;
     }
@@ -307,6 +309,7 @@ void World::tick_world(std::uint64_t now) {
 
             if (m.key >= 0 && (m.flags & kMobyDead) != 0) {
                 dead.insert(m.key);
+                once_dead_keys_.insert(m.key);
                 continue;
             }
 

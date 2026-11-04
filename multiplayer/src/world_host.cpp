@@ -728,7 +728,8 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
     std::set<int> seen;
 
     for (const auto& [slot, moby] : mobys_) {
-        const bool counts = moby.key < 0 && moby.oclass != 0 && (moby.flags & kMobyScene) == 0
+        const bool made = moby.key < 0 || once_dead_keys_.count(moby.key) != 0;
+        const bool counts = made && moby.oclass != 0 && (moby.flags & kMobyScene) == 0
                             && ((moby.flags & kMobyCreature) != 0 || bolt_class(moby.oclass)
                                 || loot_class(moby.oclass) || spawned_bolt_class(moby.oclass));
 
