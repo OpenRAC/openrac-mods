@@ -31,7 +31,6 @@ Nothing merges before the user's play test. Then, in this order:
 
 ### Asked for and not built
 
-- **Hold the party**, the host's optional hold of the ship's warning: only the 2.5 seconds are there.
 - **Checks on a member's HIT.** The host takes a HIT for any moby still there, as it did before: no
   check of the damage or the distance yet. DAMAGE has none either.
 - **Auto-join after a mod code applies**: `openrac://modset/CODE` opens the review in the launcher,
