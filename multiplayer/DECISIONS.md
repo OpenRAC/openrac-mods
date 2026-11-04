@@ -24,8 +24,8 @@ Nothing merges before the user's play test. Then, in this order:
    the mod, as mod codes have no feature bit. Against an older server the mod leaves out what the features
    it offers cover: no kept places and no takeover, and a removed player leaves by itself.
 5. Pin it: `sdk.lock` still names 1.11.0, and stays so until that release. Set its version, url and
-   sha256 to 1.12.0's. Until then this repository's CI cannot build (multiplayer's manifest and the
-   top CMakeLists.txt ask for 1.12): build with `-DOPENRAC_SDK=<OpenRAC>/sdk`.
+   sha256 to 1.12.0's. Until then CI builds against OpenRAC's `sdk/` at `sdk.lock`'s `dev_ref`
+   (`tools/dev_sdk.py`): delete `dev_ref` and that file on pinning.
 6. Land `round3` on openrac-mods master, tag `multiplayer-v0.10.0`, and tag each other mod whose version
    changed here.
 
