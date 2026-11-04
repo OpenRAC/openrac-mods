@@ -40,6 +40,11 @@ void Coop::release_wait(std::uint64_t now, const char* why) {
 void Coop::skip_wait(std::uint64_t now) {
     if (session_.role().host()) {
         if (wait_.kind != kWaitNone) {
+            // Whoever the ship still waits for leaves now.
+            if (wait_.kind == kWaitArrival) {
+                ship_went_ = travel_;
+            }
+
             release_wait(now, "the host's Start");
         }
 

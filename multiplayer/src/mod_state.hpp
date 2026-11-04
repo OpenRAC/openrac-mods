@@ -128,6 +128,8 @@ struct State {
     std::string join_party;         // the launcher's word: join this party (modcode.hpp)
     std::uint64_t join_ms = 0;
     bool join_asked = false;
+    bool start_taken = false;       // this press of Start said ready for the host's ship
+    bool hold_party = false;        // the host's rule (the `hold_party` setting)
     bool revive = false;            // the host's rule (the `revive` setting)
 #ifdef MULTIPLAYER_BOT
     std::unique_ptr<mp::Bot> bot;  // the end-to-end tests' driver (bot.hpp)

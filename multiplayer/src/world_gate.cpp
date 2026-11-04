@@ -158,6 +158,24 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
     return nearest;
 }
 
+bool World::member_hit_ok(std::int32_t sender, const Hit& h) const {
+    if (!hit_makes_sense(h)) {
+        return false;
+    }
+
+    // Its word on where it is, when there is one: a hit from another level is late, and its slot
+    // here is another moby; one from across the level is no shot.
+    Pose at;
+    const auto moby = mobys_.find(h.victim);
+
+    if (moby == mobys_.end() || !coop_.latest(sender, at)) {
+        return true;
+    }
+
+    return at.level == level_
+           && distance2(at.position, moby->second.pose.position) <= kHitReach * kHitReach;
+}
+
 bool World::hit(const Hit& h) {
     if (hosting_) {
         // A hit on a member's figure (an enemy that stood the hero in there): that member's.

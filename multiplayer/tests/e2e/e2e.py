@@ -85,6 +85,7 @@ class Client:
                                 "name": self.name,
                                 "verbose_log": self.env.trace,
                                 "revive": self.env.revive,
+                                "hold_party": self.env.hold_party,
                             },
                         }
                     ],
@@ -232,6 +233,7 @@ class Env:
         self.seed = args.seed
         self.trace = args.trace
         self.revive = args.scenario == "revive"
+        self.hold_party = args.scenario == "holdparty"
         self.game_args = args.game_arg or []
         self.game_env = dict(e.split("=", 1) for e in (args.game_env or []))
         self.server = None
@@ -1521,6 +1523,85 @@ def scenario_shipwarn(env, args):
     env.check("the party is in", ok, json.dumps([host.status(), member.status()])[:600])
 
 
+def scenario_holdparty(env, args):
+    """The host's rule: its ship waits for a member, who leaves on its Start; then on the host's
+    Start on the new planet; then, nobody pressing, at the limit."""
+    host, member = start_two(env, args)
+
+    def held(level, label):
+        host.ask(f"travel {level}")
+        time.sleep(6)
+        s = member.status()
+        env.check(f"{label}: the member is still here, past the plain warning", s["level"] != level, json.dumps(s["level"]))
+        env.check(f"{label}: it is told to press Start", "press Start" in s["banner"], s["banner"])
+        return s
+
+    def in_with_it(level, label):
+        wait(f"{label}: the member leaves", lambda: member.status()["level"] == level, 60)
+        # A new game's first save asks in a dialog, of a member on its first planet too: Cross.
+        limit = time.monotonic() + 150
+        ok = False
+        while time.monotonic() < limit and not ok:
+            if member.status()["phase"] == PHASE_MENU:
+                env.report["notes"].setdefault("member's dialogs", []).append(label)
+                member.ask("press 4000 6")
+            ok = skip_scenes(env, host, [member], 3)
+        fields = ("phase", "level", "hold", "arriving", "scene", "banner", "wait_kind", "going")
+        env.check(f"{label}: the party is in", ok, json.dumps([{k: c.status().get(k) for k in fields} for c in (host, member)]))
+
+    held(3, "its Start")
+    member.ask("press 8 6")
+    in_with_it(3, "its Start")
+
+    held(4, "the host's Start")
+    wait("the host in the level", lambda: host.status()["level"] == 4 and host.status()["phase"] in IN_LEVEL, 60)
+    for _ in range(40):
+        if member.status()["level"] == 4:
+            break
+        host.ask("press 8 6")
+        time.sleep(0.5)
+    in_with_it(4, "the host's Start")
+
+    start = time.monotonic()
+    held(5, "the limit")
+    in_with_it(5, "the limit")
+    env.report["notes"]["the limit took"] = round(time.monotonic() - start, 1)
+    env.check("the limit: the member stayed the time", time.monotonic() - start >= 25, "")
+
+
+def scenario_takeoff(env, args):
+    """The host's ship leaves: a member on its feet leaves by its own take-off from its pad, shown
+    as a scene before its level changes, and the party arrives together. Levels from `--weapons`."""
+    host, member = start_two(env, args)
+    levels = [int(n) for n in args.weapons.split(",")] if args.weapons else [3, 4, 5]
+    for level in levels:
+        here = member.status()["level"]
+        before = len(log_lines(member, r"taking off from the pad"))
+        host.ask(f"travel {level}")
+        seen = []
+        limit = time.monotonic() + 90
+        while time.monotonic() < limit:
+            s = member.status()
+            seen.append((s["phase"], s["level"]))
+            if s["level"] == level and s["phase"] in IN_LEVEL:
+                break
+            if member.status()["phase"] == PHASE_MENU:
+                member.ask("press 4000 6")
+            time.sleep(0.1)
+        env.check(f"to {level}: the member got there", seen and seen[-1][1] == level, json.dumps(seen[-3:]))
+        env.check(f"to {level}: by its own take-off", len(log_lines(member, r"taking off from the pad")) > before)
+        scene_here = sum(1 for p, l in seen if p == PHASE_SCENE and l == here)
+        env.report["notes"].setdefault("take-off", {})[level] = {"scene samples": scene_here, "samples": len(seen)}
+        env.check(f"to {level}: a scene played before it left", scene_here > 0, str(scene_here))
+        limit = time.monotonic() + 150
+        ok = False
+        while time.monotonic() < limit and not ok:
+            if member.status()["phase"] == PHASE_MENU:
+                member.ask("press 4000 6")
+            ok = skip_scenes(env, host, [member], 3)
+        env.check(f"to {level}: the party is in", ok, json.dumps([host.status()["phase"], member.status()["phase"]]))
+
+
 def shared_of(c, tag):
     return set(json.loads(c.ask(f"shared {tag}")))
 
@@ -1817,6 +1898,38 @@ def classes_near(c):
     return {m[2] for m in json.loads(c.ask("dump"))}
 
 
+def scenario_hits(env, args):
+    """Each weapon of a member's, fired beside the host's enemies: its hits reach the host's, and
+    none of them is refused. `--level N` for the enemies' level, 3 by default."""
+    host, member = start_two(env, args)
+    level = args.level if args.level > 0 else 3
+    fly_to(env, host, [member], level)
+    time.sleep(3)
+    wanted = None
+    if args.weapons:
+        wanted = {w.strip().lower() for w in args.weapons.split(",")}
+    start = host.status().get("hits_taken", 0)
+    for item, name, ticks, oclass in WEAPONS:
+        if wanted is not None and name.lower() not in wanted:
+            continue
+        alive, _ = enemies_of(host)
+        creatures = sorted(alive.values(), key=lambda m: m[1])
+        if not creatures:
+            break
+        target = creatures[len(creatures) // 2]
+        member.ask(f"equip {item}")
+        for gap in (2.0, 5.0):
+            member.ask(f"teleport {target[5] + gap} {target[6]} {target[7] + 1}")
+            time.sleep(1.5)
+            member.ask(f"press {args.fire_button} {ticks}")
+            time.sleep(ticks / 60 + 2.0)
+        env.report["notes"].setdefault("hits", {})[name] = host.status().get("hits_taken", 0)
+    s = host.status()
+    env.check("the member's weapons hit the host's enemies", s.get("hits_taken", 0) > start, json.dumps(s.get("hits_taken")))
+    env.check("no hit was refused", s.get("hits_refused", 1) == 0, json.dumps(s.get("hits_refused")))
+    env.check("no damage was refused", member.status().get("hits_refused", 1) == 0)
+
+
 def scenario_weapons(env, args):
     """Each weapon fired by the host, then by the member: the other game shows it, nothing crashes,
     and no hit comes of the shown copy. `--weapons a,b` runs some."""
@@ -1954,6 +2067,7 @@ SCENARIOS = {
     "rejoin": scenario_rejoin,
     "wipe": scenario_wipe,
     "revive": scenario_revive,
+    "holdparty": scenario_holdparty,
     "crateback": scenario_crateback,
     "dig": scenario_dig,
     "grab": scenario_grab,
@@ -1965,8 +2079,10 @@ SCENARIOS = {
     "gohost": scenario_gohost,
     "restart": scenario_restart,
     "shipwarn": scenario_shipwarn,
+    "takeoff": scenario_takeoff,
     "soak": scenario_soak,
     "weapons": scenario_weapons,
+    "hits": scenario_hits,
     "enemies": scenario_enemies,
     "chaos": scenario_chaos,
     "refuse": scenario_refuse,
