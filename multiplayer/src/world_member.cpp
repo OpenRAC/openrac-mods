@@ -166,7 +166,8 @@ int World::own_copy_of(int oclass, const float position[3]) const {
     float nearest = kOwnCopyReach * kOwnCopyReach;
 
     for (const auto& [slot, moby] : mobys_) {
-        if (moby.key < 0 && moby.oclass == oclass && driven_.count(slot) == 0) {
+        if (moby.key < 0 && moby.oclass == oclass && driven_.count(slot) == 0
+            && (moby.flags & kMobyDead) == 0) {
             const float d2 = distance2(moby.pose.position, position);
 
             if (d2 < nearest) {

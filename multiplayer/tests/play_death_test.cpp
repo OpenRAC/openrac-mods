@@ -84,6 +84,22 @@ bool dead(FakeGame& game, int key) {
     return m == nullptr || (m->flags & mp::kMobyDead) != 0;
 }
 
+void the_hosts_spawned_mobys_reach_a_member_again_after_its_death() {
+    Party p(SimWorld{3, 0});
+    const mp::MobyState copy = moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f);
+    p.host.game.level.push_back(copy);
+    p.run(10);
+    CHECK(driven_spawns(p.member.game, 872) == 1);
+
+    // Made again by its load in the same place: the member's goes, and the word of the new one
+    // comes in the same breath; it must not take the one just killed for its own copy.
+    remake(p.host, p.w);
+    p.host.game.level.push_back(copy);
+    p.run(20);
+    CHECK(p.member.world.spawned() == 1);
+    CHECK(driven_spawns(p.member.game, 872) == 1);
+}
+
 void a_missions_moby_comes_back_with_the_mission() {
     Party p(SimWorld{3, 0});
     find_key(p.host.game, 1)->mission = 2;
@@ -449,6 +465,7 @@ void class_152_reaches_a_member() {
 
 void run_death_tests() {
     a_missions_moby_comes_back_with_the_mission();
+    the_hosts_spawned_mobys_reach_a_member_again_after_its_death();
     a_hosts_death_keeps_the_bolts_lying_about();
     a_full_wipe_goes_back_to_the_hosts_checkpoint();
     the_revive_rule();
