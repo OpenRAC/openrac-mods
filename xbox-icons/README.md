@@ -41,15 +41,15 @@ The game prints a button as a glyph of its three fonts (bytes 0x10 to 0x19 of a 
 cells of the fonts' row 96, each font an effect texture of 8-bit texels with one palette of 256
 colours for the three. A level keeps its effect bank in game memory, and the game sends the fonts
 to the GS from there every frame. After each game tick the mod finds the fonts through the effect
-texture table (`src/xbox_icons.h`); when their cells and palette are the game's own (a hash, the
-same in every level), it paints them (`src/paint.h`), and the next frame draws the Xbox buttons.
+texture table (`../common/controller-icons/font_bank.h`); when their cells and palette are the game's own (a hash, the
+same in every level), it paints them (`../common/controller-icons/paint.h`), and the next frame draws the Xbox buttons.
 Painted fonts are no longer the game's, so they are painted once a level; fonts the mod does not
 know, or a bank still loading, are left alone. It patches no code and takes no hook point.
 
 Painting starts from the game's own pixels, so the mod carries none of the game's pictures: at
 each texel of the face buttons, the least coloured of the four gives the sphere without its
 symbol; the shoulders are its left half, its middle column and its right half. The letters
-(`src/letters.h`, written by `tools/letters.py`) take palette entries no texel uses any more, the
+(`../common/controller-icons/letters.h`, written by `tools/letters.py`) take palette entries no texel uses any more, the
 symbols' own among them; every entry a texel outside the cells uses stays as it was.
 
 The [tests](tests/) paint fonts made in the test (nothing outside the cells changes, no symbol is

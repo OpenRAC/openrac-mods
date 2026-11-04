@@ -3,7 +3,7 @@
  *
  * Ratchet & Clank: Xbox button icons, a mod of OpenRAC's native port (README.md). The game prints
  * the controller's buttons as glyphs of its three fonts; each tick (on_frame), the mod finds the
- * fonts in game memory (xbox_icons.h) and, when they are the game's own, paints Xbox buttons over
+ * fonts in game memory (font_bank.h) and, when they are the game's own, paints Xbox buttons over
  * the PlayStation 2 ones (paint.h). Painted fonts are no longer the game's, so they are painted once
  * a level, and fonts the mod does not know are left alone.
  */
@@ -12,27 +12,16 @@
 
 #include "openrac/openrac_mod.h"
 
+#include "font_bank.h"
 #include "paint.h"
-#include "xbox_icons.h"
 
 OPENRAC_MOD_DEFINE("xbox-icons", "1.0.0")
 
 static const openrac_api* s_api;
 static openrac_mod* s_mod;
-static const xbox_icons_disc* s_disc;
+static const controller_icons_disc* s_disc;
 static int s_trace;
 static uint32_t s_unknown; /* the last fonts not known, said once */
-
-static uint32_t get_u32(openrac_gaddr a) {
-    uint32_t v;
-    memcpy(&v, s_api->memory + a, 4);
-    return v;
-}
-static uint16_t get_u16(openrac_gaddr a) {
-    uint16_t v;
-    memcpy(&v, s_api->memory + a, 2);
-    return v;
-}
 
 static void say(const char* text) {
     if (s_trace) {
@@ -42,29 +31,14 @@ static void say(const char* text) {
 
 static void tick(void* user) {
     (void)user;
-    const uint32_t bank = get_u32(s_api->relocate_data(s_disc->bank));
-    const openrac_gaddr table = s_api->relocate_data(s_disc->table);
-    if (bank == 0 || bank >= XBOX_ICONS_RAM) {
+    controller_icons_fonts found;
+    if (!controller_icons_find_fonts(s_api->memory, s_api->relocate_data, s_disc, &found)) {
         return;
     }
-    uint8_t* fonts[3];
-    uint32_t palette = 0;
-    for (int f = 0; f < 3; ++f) {
-        const openrac_gaddr record = table + 16u * (uint32_t)(f + 1);
-        const uint32_t texels = bank + get_u16(record + 8u) * 16u;
-        const uint32_t clut = bank + get_u16(record + 0xAu) * 16u;
-        if (texels + XBOX_ICONS_FONT_BYTES > XBOX_ICONS_RAM || clut + 1024u > XBOX_ICONS_RAM ||
-            (f > 0 && clut != palette)) {
-            return;
-        }
-        fonts[f] = s_api->memory + texels;
-        palette = clut;
-    }
-    const uint32_t hash = xbox_icons_hash(fonts, s_api->memory + palette);
-    int known = 0;
-    for (size_t i = 0; i < sizeof k_xbox_icons_game_fonts / sizeof k_xbox_icons_game_fonts[0]; ++i) {
-        known |= hash == k_xbox_icons_game_fonts[i];
-    }
+    uint8_t** fonts = found.fonts;
+    const uint32_t bank = found.bank;
+    const uint32_t hash = controller_icons_hash(fonts, found.palette);
+    const int known = controller_icons_is_game_font(hash);
     if (!known) {
         if (hash != s_unknown) {
             s_unknown = hash;
@@ -75,14 +49,14 @@ static void tick(void* user) {
         }
         return;
     }
-    if (xbox_icons_paint(fonts, s_api->memory + palette) != 0) {
+    if (controller_icons_paint(fonts, found.palette) != 0) {
         if (hash != s_unknown) {
             s_unknown = hash;
             s_api->log(s_mod, OPENRAC_LOG_WARN, "too few free palette entries for the letters");
         }
         return;
     }
-    s_unknown = xbox_icons_hash(fonts, s_api->memory + palette); /* what was painted: no word */
+    s_unknown = controller_icons_hash(fonts, found.palette); /* what was painted: no word */
     char line[64];
     snprintf(line, sizeof line, "painted the fonts at 0x%08x", (unsigned)bank);
     say(line);
@@ -97,9 +71,9 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         api->fail(mod, "xbox-icons is for Ratchet & Clank (rac1)");
         return 1;
     }
-    for (size_t i = 0; i < sizeof k_xbox_icons_discs / sizeof k_xbox_icons_discs[0]; ++i) {
-        if (strcmp(api->version, k_xbox_icons_discs[i].version) == 0) {
-            s_disc = &k_xbox_icons_discs[i];
+    for (size_t i = 0; i < sizeof k_controller_icons_discs / sizeof k_controller_icons_discs[0]; ++i) {
+        if (strcmp(api->version, k_controller_icons_discs[i].version) == 0) {
+            s_disc = &k_controller_icons_discs[i];
         }
     }
     if (s_disc == NULL) {

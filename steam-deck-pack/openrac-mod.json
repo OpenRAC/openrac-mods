@@ -1,0 +1,51 @@
+{
+  "format": 2,
+  "id": "steam-deck-pack",
+  "name": "Steam Deck Pack",
+  "version": "0.3.0",
+  "author": "OpenRAC contributors",
+  "description": "Steam Deck controller pack: built-in white ABXY and L1/L2/R1/R2 prompts, Steam Input gyro/trackpad camera, minimal settings under Pause > Options > Steam Deck, and isolated 16:10 startup profiles.",
+  "license": "GPL-3.0-or-later",
+  "api": "1.9",
+  "games": {
+    "rac1": [
+      "pal",
+      "ntsc"
+    ]
+  },
+  "settings": [
+    {
+      "key": "enabled",
+      "name": "Gyro / trackpad mouse camera",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "sensitivity",
+      "name": "Camera sensitivity (%)",
+      "type": "int",
+      "default": 100,
+      "min": 25,
+      "max": 200,
+      "step": 25
+    },
+    {
+      "key": "invert_y",
+      "name": "Invert mouse Y",
+      "type": "bool",
+      "default": false,
+      "description": "Applied before the game's own controller invert setting."
+    }
+  ],
+  "assets": "extras",
+  "conflicts": [
+    {
+      "id": "xbox-icons",
+      "reason": "Steam Deck Pack already paints the controller button icons."
+    },
+    {
+      "id": "keyboard-mouse",
+      "reason": "Both mods consume the same mouse camera input."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "OpenRAC Steam Deck Pack",
+  "kind": "setup-reference-only",
+  "base": "Gamepad with Mouse Trackpad",
+  "bindings": {
+    "gyro": {"output": "mouse", "enable": "right-stick-touch"},
+    "right-trackpad": {"output": "mouse", "click": "gamepad-a"},
+    "left-trackpad": {"output": "gamepad-dpad"},
+    "left-stick": {"output": "gamepad-left-stick"},
+    "right-stick": {"output": "gamepad-right-stick"},
+    "L4": {"output": "gamepad-a"},
+    "R4": {"output": "gamepad-x"},
+    "L5": {"output": "gamepad-y"},
+    "R5": {"output": "gamepad-right-bumper"}
+  },
+  "note": "This is not a Steam-importable VDF. Apply in Steam's controller editor; no Steam account configuration is modified."
+}

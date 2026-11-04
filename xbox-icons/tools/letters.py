@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 the OpenRAC contributors
 #
-# Writes src/letters.h, the letters the xbox-icons mod paints (README.md): A, X and Y drawn as
+# Writes common/controller-icons/letters.h for both controller icon styles: A, X and Y drawn as
 # strokes 8 times over and averaged down to a 24 x 16 glyph cell, the face button's B and the
 # shoulder letters as pixel art. Each pixel is a coverage, 0 to 4 (".-+*#"). Needs Pillow:
 #
-#   python3 xbox-icons/tools/letters.py > xbox-icons/src/letters.h
+#   python3 xbox-icons/tools/letters.py > common/controller-icons/letters.h
 from PIL import Image, ImageDraw
 
 W, H, SS = 24, 16, 8
@@ -55,6 +55,8 @@ SHOULDER = {
     "L": ["##....", "##....", "##....", "##....", "##....", "##....", "##....", "######", "######"],
     "R": ["#####+", "##..##", "##..##", "#####.", "##.##.", "##..##", "##..##", "##..##", "##..##"],
     "B": ["#####+", "##..##", "##..##", "#####.", "##..##", "##..##", "##..##", "##..##", "#####+"],
+    "1": ["..##..", ".###..", "####..", "..##..", "..##..", "..##..", "..##..", "######", "######"],
+    "2": ["#####+", "....##", "....##", "...##.", "..##..", ".##...", "##....", "######", "######"],
     "T": ["######", "######", "..##..", "..##..", "..##..", "..##..", "..##..", "..##..", "..##.."],
 }
 
@@ -70,16 +72,17 @@ def word(first, second):
 
 GLYPHS = [
     ("a", strokes(a)), ("b", pixels(B, 5, 3)), ("x", strokes(x)), ("y", strokes(y)),
+    ("l1", word("L", "1")), ("l2", word("L", "2")), ("r1", word("R", "1")), ("r2", word("R", "2")),
     ("lb", word("L", "B")), ("lt", word("L", "T")), ("rb", word("R", "B")), ("rt", word("R", "T")),
 ]
 
 print("/* SPDX-License-Identifier: GPL-3.0-or-later")
 print(" * Copyright (c) 2026 the OpenRAC contributors")
 print(" *")
-print(" * Written by tools/letters.py: the letters xbox-icons paints, one 24 x 16 glyph cell each, a")
+print(" * Written by tools/letters.py: the controller letters, one 24 x 16 glyph cell each, a")
 print(" * coverage per pixel (\".-+*#\", 0 to 4). */")
-print("#ifndef XBOX_ICONS_LETTERS_H")
-print("#define XBOX_ICONS_LETTERS_H")
+print("#ifndef CONTROLLER_ICONS_LETTERS_H")
+print("#define CONTROLLER_ICONS_LETTERS_H")
 print()
 for name, rows in GLYPHS:
     print(f"static const char* const k_letter_{name}[16] = {{")
@@ -87,4 +90,4 @@ for name, rows in GLYPHS:
         print(f'    "{r}",')
     print("};")
 print()
-print("#endif /* XBOX_ICONS_LETTERS_H */")
+print("#endif /* CONTROLLER_ICONS_LETTERS_H */")

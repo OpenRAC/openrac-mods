@@ -26,13 +26,16 @@ static uint8_t s_palette[1024];
 static unsigned csm1(unsigned i) {
     return (i & ~0x18u) | ((i & 8u) << 1) | ((i & 0x10u) >> 1);
 }
+
 static void set(unsigned i, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     uint8_t* e = s_palette + csm1(i) * 4u;
     e[0] = r, e[1] = g, e[2] = b, e[3] = a;
 }
+
 static const uint8_t* colour(uint8_t i) {
     return s_palette + csm1(i) * 4u;
 }
+
 static uint8_t* at(int f, unsigned u, unsigned v) {
     return &s_fonts[f][v * 256u + u];
 }
@@ -48,7 +51,10 @@ static void lay(void) {
         set(i, (uint8_t)(i * 6), (uint8_t)(i * 6), (uint8_t)(i * 6), 0x80);
     }
     for (unsigned i = 41; i <= 48; ++i) {
-        set(i, (uint8_t)(30 + (i - 41) * 8), (uint8_t)(30 + (i - 41) * 8), (uint8_t)(30 + (i - 41) * 8),
+        set(i,
+            (uint8_t)(30 + (i - 41) * 8),
+            (uint8_t)(30 + (i - 41) * 8),
+            (uint8_t)(30 + (i - 41) * 8),
             0x80);
     }
     set(50, 100, 104, 230, 0x80); /* Cross: colours none of the letters has */
@@ -69,9 +75,10 @@ static void lay(void) {
                     const int dx = x - 10, dy = y - 8, d2 = dx * dx + dy * dy;
                     uint8_t i = d2 <= 64 ? (uint8_t)(41 + (dy + 8) / 2) : 0;
                     /* Each symbol covers its own texels: a cross, a square, a triangle, a ring. */
-                    const int on = d2 <= 30 && ((c == 0 && (dx == dy || dx == -dy)) ||
-                                                (c == 1 && (dx == 3 || dy == 3)) ||
-                                                (c == 2 && dy == 4) || (c == 3 && d2 >= 20));
+                    const int on =
+                        d2 <= 30
+                        && ((c == 0 && (dx == dy || dx == -dy)) || (c == 1 && (dx == 3 || dy == 3))
+                            || (c == 2 && dy == 4) || (c == 3 && d2 >= 20));
                     if (on) {
                         i = (uint8_t)(50 + c);
                     }
@@ -107,10 +114,11 @@ int main(void) {
     uint8_t palette_before[1024];
     memcpy(before, s_fonts, sizeof before);
     memcpy(palette_before, s_palette, sizeof palette_before);
-    const uint32_t game = xbox_icons_hash(fonts, s_palette);
+    const uint32_t game = controller_icons_hash(fonts, s_palette);
 
-    CHECK(xbox_icons_paint(fonts, s_palette) == 0);
-    CHECK(xbox_icons_hash(fonts, s_palette) != game);
+    CHECK(controller_icons_paint(fonts, s_palette) == 0);
+    CHECK(controller_icons_hash(fonts, s_palette) != game);
+    const uint32_t xbox_hash = controller_icons_hash(fonts, s_palette);
 
     for (int f = 0; f < 3; ++f) {
         /* Outside the cells, every texel as it was, and each entry those texels use. */
@@ -120,7 +128,9 @@ int main(void) {
                     continue;
                 }
                 CHECK(*at(f, u, v) == before[f][v * 256 + u]);
-                CHECK(memcmp(colour(*at(f, u, v)), palette_before + csm1(*at(f, u, v)) * 4, 4) == 0);
+                CHECK(
+                    memcmp(colour(*at(f, u, v)), palette_before + csm1(*at(f, u, v)) * 4, 4) == 0
+                );
             }
         }
         /* No symbol left: no texel of the cells has a symbol's colour, nor the tabs' white (their
@@ -148,6 +158,45 @@ int main(void) {
         CHECK(*at(f, 96 + 12, 96 + 15) == *at(f, 9, 96 + 15));
     }
 
+    /* Steam Deck face buttons are monochrome, and shoulders use numerals, not B/T. */
+    lay();
+    memcpy(before, s_fonts, sizeof before);
+    memcpy(palette_before, s_palette, sizeof palette_before);
+    CHECK(controller_icons_paint_style(fonts, s_palette, CONTROLLER_ICONS_STYLE_STEAM_DECK) == 0);
+    for (int f = 0; f < 3; ++f) {
+        const uint8_t white[3] = {225, 225, 225};
+        for (unsigned cell = 0; cell < 192; cell += 24) {
+            CHECK(counts_colour(f, cell, white) > 15);
+        }
+        for (unsigned v = 96; v < 112; ++v) {
+            for (unsigned u = 0; u < 192; ++u) {
+                const uint8_t* rgb = colour(*at(f, u, v));
+                CHECK(rgb[0] == rgb[1] && rgb[1] == rgb[2]);
+            }
+        }
+        /* The 1 starts with two blank columns; the 2's top stroke starts at its left edge. */
+        CHECK(memcmp(colour(*at(f, 96 + 13, 96 + 3)), white, 3) != 0);
+        CHECK(memcmp(colour(*at(f, 120 + 13, 96 + 3)), white, 3) == 0);
+        CHECK(memcmp(colour(*at(f, 144 + 13, 96 + 3)), white, 3) != 0);
+        CHECK(memcmp(colour(*at(f, 168 + 13, 96 + 3)), white, 3) == 0);
+        for (unsigned v = 0; v < 128; ++v) {
+            for (unsigned u = 0; u < 256; ++u) {
+                if (v >= 96 && v < 112 && u < 192) {
+                    continue;
+                }
+                CHECK(*at(f, u, v) == before[f][v * 256 + u]);
+                CHECK(
+                    memcmp(colour(*at(f, u, v)), palette_before + csm1(*at(f, u, v)) * 4, 4) == 0
+                );
+            }
+        }
+    }
+    lay();
+    CHECK(controller_icons_paint_style(fonts, s_palette, 999) == 0);
+    CHECK(
+        controller_icons_hash(fonts, s_palette) == xbox_hash
+    );  // Unknown layouts keep Xbox compatibility.
+
     /* Too few free entries (each used outside the cells): nothing changes. */
     lay();
     for (unsigned i = 0; i < 256; ++i) {
@@ -155,10 +204,11 @@ int main(void) {
     }
     memcpy(before, s_fonts, sizeof before);
     memcpy(palette_before, s_palette, sizeof palette_before);
-    CHECK(xbox_icons_paint(fonts, s_palette) == 1);
+    CHECK(controller_icons_paint(fonts, s_palette) == 1);
+    CHECK(controller_icons_paint_style(fonts, s_palette, CONTROLLER_ICONS_STYLE_STEAM_DECK) == 1);
     CHECK(memcmp(before, s_fonts, sizeof before) == 0);
     CHECK(memcmp(palette_before, s_palette, sizeof palette_before) == 0);
 
-    printf("xbox_icons_paint_test: ok\n");
+    printf("controller_icons_paint_test: ok\n");
     return 0;
 }

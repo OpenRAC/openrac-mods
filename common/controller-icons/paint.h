@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (c) 2026 the OpenRAC contributors
  *
- * The xbox-icons mod (README.md): Xbox buttons painted over the PlayStation 2 ones of the game's
+ * Xbox and Steam Deck buttons painted over the PlayStation 2 ones of the game's
  * three fonts, from the game's own pixels.
  *
  * A font is an effect texture, 256 x 128 texels of 8 bits, and the three share one palette of 256
@@ -21,22 +21,34 @@
  * as the game's symbols have. The new colours go to palette entries no texel uses any more: of the
  * 256, the game's symbols alone use about a hundred.
  */
-#ifndef XBOX_ICONS_PAINT_H
-#define XBOX_ICONS_PAINT_H
+#ifndef CONTROLLER_ICONS_PAINT_H
+#define CONTROLLER_ICONS_PAINT_H
 
 #include <stdint.h>
 
-#define XBOX_ICONS_WIDTH 256u      /* texels a row of a font */
-#define XBOX_ICONS_HEIGHT 128u
-#define XBOX_ICONS_ROW 96u         /* the pad icons' row of cells */
-#define XBOX_ICONS_CELLS_WIDTH 192u /* the eight cells painted, u 0..191 */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define CONTROLLER_ICONS_WIDTH 256u /* texels a row of a font */
+#define CONTROLLER_ICONS_HEIGHT 128u
+#define CONTROLLER_ICONS_ROW 96u          /* the pad icons' row of cells */
+#define CONTROLLER_ICONS_CELLS_WIDTH 192u /* the eight cells painted, u 0..191 */
 
 /* FNV-1a over the eight cells of each font and the palette: which fonts these are (the game's, or
  * painted). */
-uint32_t xbox_icons_hash(uint8_t* const fonts[3], const uint8_t* palette);
+uint32_t controller_icons_hash(uint8_t* const fonts[3], const uint8_t* palette);
 
 /* Paints the eight cells of each font and the palette entries the letters use. Returns 0, or 1 when
  * too few palette entries are free (nothing is changed then). */
-int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette);
+int controller_icons_paint(uint8_t* const fonts[3], uint8_t* palette);
+#define CONTROLLER_ICONS_STYLE_XBOX 0
+#define CONTROLLER_ICONS_STYLE_STEAM_DECK 1
+/* Steam Deck: white A/B/X/Y, L1/L2/R1/R2. Unknown styles use the existing Xbox design. */
+int controller_icons_paint_style(uint8_t* const fonts[3], uint8_t* palette, int style);
 
-#endif /* XBOX_ICONS_PAINT_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* CONTROLLER_ICONS_PAINT_H */

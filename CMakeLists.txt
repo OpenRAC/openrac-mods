@@ -36,6 +36,9 @@ find_package(OpenRACMod 1.3 REQUIRED)
 # CTest gives every mod's tests the BUILD_TESTING switch and the ctest command.
 include(CTest)
 
+# Controller glyph painting shared by Xbox icons and the Steam Deck Pack.
+add_subdirectory(common/controller-icons)
+
 # One folder per mod; each adds its own library target and tests.
 add_subdirectory(lock-strafe)
 add_subdirectory(item-randomizer)
@@ -53,4 +56,9 @@ if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.9)
   add_subdirectory(archipelago)
 else()
   message(STATUS "multiplayer, archipelago: skipped, they need the mod SDK 1.9 (this one is ${OpenRACMod_VERSION})")
+endif()
+
+# Steam Deck Pack uses persistent per-mod data (interface 1.11).
+if(OpenRACMod_VERSION VERSION_GREATER_EQUAL 1.11)
+  add_subdirectory(steam-deck-pack)
 endif()

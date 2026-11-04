@@ -10,27 +10,48 @@
 
 #include "letters.h"
 
-#define W XBOX_ICONS_WIDTH
-#define ROW XBOX_ICONS_ROW
+#define W CONTROLLER_ICONS_WIDTH
+#define ROW CONTROLLER_ICONS_ROW
 #define CELL_W 24
 #define CELL_H 16
 
 typedef struct letter {
-    unsigned u;                 /* its cell */
-    const char* const* rows;    /* letters.h */
-    int colour;                 /* k_colours */
+    unsigned u;              /* its cell */
+    const char* const* rows; /* letters.h */
+    int colour;              /* k_colours */
 } letter;
 
 /* The letters' colours: the game's own green, blue and red of the Triangle, the Cross and the
  * Circle, a yellow as bright, and the shoulders' white. */
 static const uint8_t k_colours[][3] = {
-    {6, 189, 40}, {122, 125, 246}, {240, 200, 30}, {214, 46, 46}, {225, 225, 225},
+    {6, 189, 40},
+    {122, 125, 246},
+    {240, 200, 30},
+    {214, 46, 46},
+    {225, 225, 225},
 };
 #define COLOURS (sizeof k_colours / sizeof k_colours[0])
 
 static const letter k_letters[] = {
-    {0, k_letter_a, 0},    {24, k_letter_x, 1},   {48, k_letter_y, 2},   {72, k_letter_b, 3},
-    {96, k_letter_lb, 4},  {120, k_letter_lt, 4}, {144, k_letter_rb, 4}, {168, k_letter_rt, 4},
+    {0, k_letter_a, 0},
+    {24, k_letter_x, 1},
+    {48, k_letter_y, 2},
+    {72, k_letter_b, 3},
+    {96, k_letter_lb, 4},
+    {120, k_letter_lt, 4},
+    {144, k_letter_rb, 4},
+    {168, k_letter_rt, 4},
+};
+
+static const letter k_deck_letters[] = {
+    {0, k_letter_a, 4},
+    {24, k_letter_x, 4},
+    {48, k_letter_y, 4},
+    {72, k_letter_b, 4},
+    {96, k_letter_l1, 4},
+    {120, k_letter_l2, 4},
+    {144, k_letter_r1, 4},
+    {168, k_letter_r2, 4},
 };
 
 static const uint8_t k_face_cells[4] = {0, 24, 48, 72};
@@ -42,9 +63,11 @@ static const uint8_t k_ring[4] = {30, 30, 30, 0x80};
 static unsigned csm1(unsigned i) {
     return (i & ~0x18u) | ((i & 8u) << 1) | ((i & 0x10u) >> 1);
 }
+
 static const uint8_t* colour(const uint8_t* palette, uint8_t i) {
     return palette + csm1(i) * 4u;
 }
+
 static int saturation(const uint8_t* palette, uint8_t i) {
     const uint8_t* c = colour(palette, i);
     int hi = c[0], lo = c[0];
@@ -54,22 +77,25 @@ static int saturation(const uint8_t* palette, uint8_t i) {
     }
     return hi - lo;
 }
+
 static int luminance(const uint8_t* palette, uint8_t i) {
     const uint8_t* c = colour(palette, i);
     return (c[0] + c[1] + c[2]) / 3;
 }
+
 static uint8_t* texel(uint8_t* font, unsigned u, unsigned y) {
     return font + (ROW + y) * W + u;
 }
+
 static int in_cells(unsigned u, unsigned v) {
-    return v >= ROW && v < ROW + CELL_H && u < XBOX_ICONS_CELLS_WIDTH;
+    return v >= ROW && v < ROW + CELL_H && u < CONTROLLER_ICONS_CELLS_WIDTH;
 }
 
-uint32_t xbox_icons_hash(uint8_t* const fonts[3], const uint8_t* palette) {
+uint32_t controller_icons_hash(uint8_t* const fonts[3], const uint8_t* palette) {
     uint32_t h = 2166136261u;
     for (int f = 0; f < 3; ++f) {
         for (unsigned y = 0; y < CELL_H; ++y) {
-            for (unsigned u = 0; u < XBOX_ICONS_CELLS_WIDTH; ++u) {
+            for (unsigned u = 0; u < CONTROLLER_ICONS_CELLS_WIDTH; ++u) {
                 h = (h ^ *texel(fonts[f], u, y)) * 16777619u;
             }
         }
@@ -108,8 +134,8 @@ static void sphere_of(uint8_t* font, const uint8_t* palette, uint8_t sphere[CELL
                 for (int xx = 0; xx < CELL_W; ++xx) {
                     const uint8_t i = sphere[yy][xx];
                     const int d = abs(xx - x) + abs(yy - y);
-                    if (saturation(palette, i) <= 20 && colour(palette, i)[3] == 0x80 &&
-                        (d < best_d || (d == best_d && i < fixed[y][x]))) {
+                    if (saturation(palette, i) <= 20 && colour(palette, i)[3] == 0x80
+                        && (d < best_d || (d == best_d && i < fixed[y][x]))) {
                         best_d = d;
                         fixed[y][x] = i;
                     }
@@ -125,19 +151,29 @@ static int coverage(const char* const* rows, int x, int y) {
         return 0;
     }
     switch (rows[y][x]) {
-    case '-': return 1;
-    case '+': return 2;
-    case '*': return 3;
-    case '#': return 4;
-    default: return 0;
+        case '-':
+            return 1;
+        case '+':
+            return 2;
+        case '*':
+            return 3;
+        case '#':
+            return 4;
+        default:
+            return 0;
     }
 }
 
-int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
+int controller_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
+    return controller_icons_paint_style(fonts, palette, CONTROLLER_ICONS_STYLE_XBOX);
+}
+
+int controller_icons_paint_style(uint8_t* const fonts[3], uint8_t* palette, int style) {
+    const letter* letters = style == CONTROLLER_ICONS_STYLE_STEAM_DECK ? k_deck_letters : k_letters;
     /* The palette entries some texel outside the cells uses: they stay as they are. */
     uint8_t used[256] = {0};
     for (int f = 0; f < 3; ++f) {
-        for (unsigned v = 0; v < XBOX_ICONS_HEIGHT; ++v) {
+        for (unsigned v = 0; v < CONTROLLER_ICONS_HEIGHT; ++v) {
             for (unsigned u = 0; u < W; ++u) {
                 if (!in_cells(u, v)) {
                     used[fonts[f][v * W + u]] = 1;
@@ -147,7 +183,7 @@ int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
     }
 
     /* The spheres and the pills, and what they use. */
-    uint8_t cells[3][CELL_H][XBOX_ICONS_CELLS_WIDTH];
+    uint8_t cells[3][CELL_H][CONTROLLER_ICONS_CELLS_WIDTH];
     for (int f = 0; f < 3; ++f) {
         uint8_t sphere[CELL_H][CELL_W];
         sphere_of(fonts[f], palette, sphere);
@@ -159,7 +195,7 @@ int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
                     cells[f][y][k_shoulder_cells[c] + x] = sphere[y][sx];
                 }
             }
-            for (unsigned u = 0; u < XBOX_ICONS_CELLS_WIDTH; ++u) {
+            for (unsigned u = 0; u < CONTROLLER_ICONS_CELLS_WIDTH; ++u) {
                 used[cells[f][y][u]] = 1;
             }
         }
@@ -190,7 +226,7 @@ int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
 
     for (int f = 0; f < 3; ++f) {
         for (size_t l = 0; l < sizeof k_letters / sizeof k_letters[0]; ++l) {
-            const letter* L = &k_letters[l];
+            const letter* L = &letters[l];
             for (int y = 0; y < CELL_H; ++y) {
                 for (int x = 0; x < CELL_W; ++x) {
                     uint8_t* t = &cells[f][y][L->u + x];
@@ -212,7 +248,7 @@ int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
             }
         }
         for (unsigned y = 0; y < CELL_H; ++y) {
-            memcpy(texel(fonts[f], 0, y), cells[f][y], XBOX_ICONS_CELLS_WIDTH);
+            memcpy(texel(fonts[f], 0, y), cells[f][y], CONTROLLER_ICONS_CELLS_WIDTH);
         }
     }
     return 0;

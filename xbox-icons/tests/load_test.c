@@ -15,7 +15,7 @@
 #include "openrac/openrac_mod.h"
 
 #include "paint.h"
-#include "xbox_icons.h"
+#include "font_bank.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -43,7 +43,7 @@ static void* symbol(void* lib, const char* name) {
         }                                                                                          \
     } while (0)
 
-#define MEMORY_SIZE XBOX_ICONS_RAM
+#define MEMORY_SIZE CONTROLLER_ICONS_RAM
 #define BANK 0x01000000u /* where the test puts the effect bank */
 static uint8_t* s_memory;
 static char s_failed[256];
@@ -159,7 +159,7 @@ static void put_u16(openrac_gaddr a, uint16_t v) {
 
 /* The effect table of disc D: the three fonts' records, palette at bank + 0x800, the fonts at
  * + 0xC00, + 0x8C00, + 0x10C00 (as every level of the PAL disc has them). */
-static void lay_table(const xbox_icons_disc* d, uint32_t bank) {
+static void lay_table(const controller_icons_disc* d, uint32_t bank) {
     put_u32(d->bank, bank);
     for (uint32_t f = 0; f < 3; ++f) {
         put_u16(d->table + 16u * (f + 1u) + 8u, (uint16_t)((0xC00u + f * 0x8000u) / 16u));
@@ -169,7 +169,7 @@ static void lay_table(const xbox_icons_disc* d, uint32_t bank) {
 static uint32_t fonts_hash(void) {
     uint8_t* fonts[3] = {s_memory + BANK + 0xC00u, s_memory + BANK + 0x8C00u,
                          s_memory + BANK + 0x10C00u};
-    return xbox_icons_hash(fonts, s_memory + BANK + 0x800u);
+    return controller_icons_hash(fonts, s_memory + BANK + 0x800u);
 }
 
 /* A decompiled level's effect bank, from OPENRAC_RAC1_LEVEL; 0 when there is none. */
@@ -199,8 +199,8 @@ static int read_level(void) {
 }
 
 static void play(const char* version, openrac_mod* mod, openrac_mod_load_fn load) {
-    const xbox_icons_disc* d =
-        strcmp(version, "pal") == 0 ? &k_xbox_icons_discs[0] : &k_xbox_icons_discs[1];
+    const controller_icons_disc* d =
+        strcmp(version, "pal") == 0 ? &k_controller_icons_discs[0] : &k_controller_icons_discs[1];
     memset(s_memory, 0, MEMORY_SIZE);
     openrac_api api = make_api("rac1", version);
     s_failed[0] = 0;
@@ -210,7 +210,7 @@ static void play(const char* version, openrac_mod* mod, openrac_mod_load_fn load
 
     /* No bank yet (a level loading), then one past the console's memory: nothing read. */
     s_tick(s_tick_user);
-    lay_table(d, XBOX_ICONS_RAM - 0x1000u);
+    lay_table(d, CONTROLLER_ICONS_RAM - 0x1000u);
     s_tick(s_tick_user);
 
     /* Fonts that are not the game's (here all zero): left as they are, and said once. */
@@ -225,10 +225,10 @@ static void play(const char* version, openrac_mod* mod, openrac_mod_load_fn load
     if (s_bank != NULL) {
         /* The game's fonts: painted on the first tick, then left as painted. */
         memcpy(s_memory + BANK, s_bank, s_bank_size);
-        CHECK(fonts_hash() == k_xbox_icons_game_fonts[0]);
+        CHECK(fonts_hash() == k_controller_icons_game_fonts[0]);
         s_tick(s_tick_user);
         const uint32_t painted = fonts_hash();
-        CHECK(painted != k_xbox_icons_game_fonts[0]);
+        CHECK(painted != k_controller_icons_game_fonts[0]);
         s_tick(s_tick_user);
         CHECK(fonts_hash() == painted);
         /* The next level loads the game's fonts again: painted again, the same. */

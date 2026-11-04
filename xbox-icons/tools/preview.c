@@ -45,8 +45,8 @@ static unsigned csm1(unsigned i) {
 static void row(FILE* out, uint8_t* const fonts[3], const uint8_t* palette) {
     for (int f = 0; f < 3; ++f) {
         for (unsigned y = 0; y < 16; ++y) {
-            for (unsigned u = 0; u < XBOX_ICONS_CELLS_WIDTH; ++u) {
-                const uint8_t* c = palette + csm1(fonts[f][(XBOX_ICONS_ROW + y) * 256 + u]) * 4;
+            for (unsigned u = 0; u < CONTROLLER_ICONS_CELLS_WIDTH; ++u) {
+                const uint8_t* c = palette + csm1(fonts[f][(CONTROLLER_ICONS_ROW + y) * 256 + u]) * 4;
                 const uint8_t px[4] = {c[0], c[1], c[2], (uint8_t)(c[3] >= 0x80 ? 255 : c[3] * 2)};
                 fwrite(px, 1, 4, out);
             }
@@ -73,13 +73,13 @@ int main(int argc, char** argv) {
     }
     FILE* out = fopen(argv[2], "wb");
     fprintf(out, "P7\nWIDTH 192\nHEIGHT 96\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n");
-    printf("game's  %08x\n", xbox_icons_hash(fonts, palette));
+    printf("game's  %08x\n", controller_icons_hash(fonts, palette));
     row(out, fonts, palette);
-    if (xbox_icons_paint(fonts, (uint8_t*)palette) != 0) {
+    if (controller_icons_paint(fonts, (uint8_t*)palette) != 0) {
         fprintf(stderr, "too few free palette entries\n");
         return 1;
     }
-    printf("painted %08x\n", xbox_icons_hash(fonts, palette));
+    printf("painted %08x\n", controller_icons_hash(fonts, palette));
     row(out, fonts, palette);
     fclose(out);
     return 0;
