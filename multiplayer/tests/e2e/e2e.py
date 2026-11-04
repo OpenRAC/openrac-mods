@@ -406,10 +406,17 @@ def compare_worlds(env, games, label, keys=None):
     ago may have kReplayMs to go in a game out of its reach, so one that differs is looked at again
     after that; what still differs is a desync. Returns the disagreements."""
     wrong = crate_differences(games, keys)
-    if wrong:
+    # A stack's crates go one after another, each with its kReplayMs: one crate still to go, then the
+    # next, is a stack going. The same crate twice is a desync.
+    for _ in range(4):
+        if not wrong:
+            break
         env.report["notes"].setdefault("settling", []).append({label: wrong[:6]})
         time.sleep(4)
+        before = {w[0] for w in wrong}
         wrong = crate_differences(games, keys)
+        if {w[0] for w in wrong} & before:
+            break
     env.check(f"{label}: crates agree in every game", not wrong, json.dumps(wrong[:12]))
     return wrong
 
@@ -1161,7 +1168,7 @@ def scenario_enemies(env, args):
     wait("the member's respawn", lambda: member.status()["loads"] != loads and member.status()["synced"], 40)
     time.sleep(args.settle)
     compare_enemies(env, [host, member], "after the member's death")
-    env.check("the member still made none of its own", not log_lines(member, r"(?:copies of|left out)"))
+    env.check("the member still made none of its own", not log_lines(member, r"level \d+: [^\n]*(?:copies of|left out)"))
     loads = host.status()["loads"]
     host.ask("fall")
     wait("the host's respawn", lambda: host.status()["loads"] != loads and host.status()["phase"] == PHASE_PLAYING, 40)
@@ -1330,6 +1337,27 @@ def scenario_kick(env, args):
     env.check("the member stays connected after it", renamed.status()["greeted"])
 
 
+def scenario_reload(env, args):
+    """A level the host's game loads again with a mission done since its first load, which a load
+    leaves that mission's mobys out for: a member who stayed, and one who comes later, are left with
+    no enemy the host has not, nor it with one they have not."""
+    host, member = start_two(env, args)
+    level = args.level if args.level > 0 else 15
+    fly_to(env, host, [member], level)
+    time.sleep(args.settle)
+    compare_enemies(env, [host, member], "first load")
+    loads = host.status()["loads"]
+    host.ask("fall")
+    wait("the host's respawn", lambda: host.status()["loads"] != loads and host.status()["phase"] == PHASE_PLAYING, 60)
+    time.sleep(6)
+    compare_enemies(env, [host, member], "the host's load again")
+    third, took = join_game(env, "Late1", args.link_args, host, seconds=args.join_seconds)
+    env.check("the late member stands in the level", took is not None, str(took))
+    wait("the late member's world", lambda: third.status()["synced"], 30)
+    time.sleep(args.settle)
+    compare_enemies(env, [host, member, third], "with the late member")
+
+
 def scenario_midjoin(env, args):
     """A party playing by rules: a late member with the same mods comes in under them; with other
     settings, it gets no game."""
@@ -1347,7 +1375,7 @@ def scenario_midjoin(env, args):
     wait("the late member's world", lambda: third.status()["synced"], 30)
     time.sleep(args.settle)
     env.check("it plays by the host's rules", log_lines(third, r"playing by the host's rules"))
-    env.check("it made none of its own", not log_lines(third, r"(?:copies of|left out)"))
+    env.check("it made none of its own", not log_lines(third, r"level \d+: [^\n]*(?:copies of|left out)"))
     compare_enemies(env, [host, member, third], "with the late member")
     compare_worlds(env, [host, third], "with the late member")
 
@@ -1900,6 +1928,7 @@ SCENARIOS = {
     "refuse": scenario_refuse,
     "kick": scenario_kick,
     "midjoin": scenario_midjoin,
+    "reload": scenario_reload,
     "progress2": scenario_progress2,
     "camera": scenario_camera,
 }
