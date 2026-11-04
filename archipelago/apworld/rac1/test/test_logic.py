@@ -99,6 +99,14 @@ class TestRelaxed(RAC1TestBase):
             self.assertTrue(location.item_rule(self.world.create_item("Gold Bolt")), row.name)
 
 
+class TestGoldBolts(RAC1TestBase):
+    def test_gold_bolts_hold_no_progression(self) -> None:
+        key = self.world.create_item("Swingshot")
+        for row in LOCATIONS:
+            if row.kind == "gold":
+                self.assertFalse(self.multiworld.get_location(row.name, self.player).item_rule(key), row.name)
+
+
 class TestStandardGoldBoltsOff(RAC1TestBase):
     # No filler in the pool: the expensive purchases still fill.
     options = {"shuffle_gold_bolts": False}

@@ -2,6 +2,7 @@
 # The logic. A planet opens with its coordinates (the shuffled item, or the NPC's event); a
 # location needs its row's hard items, and in standard and relaxed logic its soft items too.
 # Standard and relaxed keep progression out of an expensive purchase, relaxed out of one to save up for.
+# No logic puts progression on a gold bolt or a skill point.
 from typing import TYPE_CHECKING
 
 from rule_builder.options import OptionFilter
@@ -57,7 +58,8 @@ def set_rules(world: "RAC1World") -> None:
         costly = row.costly and logic != logic.option_expert
         pricey = row.pricey and logic == logic.option_relaxed
         # A skill point stays optional: no world's way on, nor the goal, waits behind a challenge.
-        if costly or pricey or row.kind == "skill":
+        # A gold bolt takes every gadget, so a way on there can leave the fill with no place to go.
+        if costly or pricey or row.kind in ("skill", "gold"):
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
             add_item_rule(location, lambda item: not item.advancement)

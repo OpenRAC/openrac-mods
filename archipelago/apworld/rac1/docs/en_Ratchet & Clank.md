@@ -23,5 +23,5 @@ The place gives nothing, and a line at the top of the screen says what was found
 
 The `logic` option. **Standard**: a place counts only with the gadgets the game's own route has
 there, and an expensive purchase holds no progression. **Relaxed**: the same, and no progression in
-a gold bolt either. **Expert**: only what a place cannot be done without counts. Every location's
-rule is in the world's `data.py`.
+a purchase to save up for. **Expert**: only what a place cannot be done without counts. In every
+logic, a gold bolt holds no progression. Every location's rule is in the world's `data.py`.
