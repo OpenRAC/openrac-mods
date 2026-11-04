@@ -346,11 +346,20 @@ void load(openrac::Mod& mod) {
                 memory.write<float>(hero + 4u * i, at[i]);
             }
         }, [](int item) {
-            // weapon_ammo_counts and hero.pending_item[0] (PAL; the bot is a test's).
+            // weapon_ammo_counts and hero.pending_item[0] (the bot is a test's). The Drone Device
+            // is no held weapon: choosing it asks for the drones (hero +0x1FF5), as the game does.
             g->game->give_item(item);
             openrac::Memory memory = g->mod->memory();
-            memory.write<std::int32_t>(0x0013D530u + 4u * static_cast<unsigned>(item), 40);
-            memory.write<std::int32_t>(0x0013F450u + 0x20B8u, item);
+            const bool ntsc = g->mod->version() == "ntsc";
+            const openrac::gaddr hero = ntsc ? 0x0013F350u : 0x0013F450u;
+            const openrac::gaddr ammo = ntsc ? 0x0013D428u : 0x0013D530u;
+            memory.write<std::int32_t>(ammo + 4u * static_cast<unsigned>(item), 40);
+
+            if (item == 0x18) {
+                memory.write<std::uint8_t>(hero + 0x1FF5u, 1);
+            } else {
+                memory.write<std::int32_t>(hero + 0x20B8u, item);
+            }
         }, [](const std::string& name) {
             // What a page shows, as a player reads it.
             const openrac::UiContent c = name == "refused" ? refused_content()
