@@ -990,6 +990,85 @@ def scenario_grab(env, args):
     compare_enemies(env, [host, member], "after a grab")
 
 
+def scenario_trigger(env, args):
+    """A zone trigger counts every player in it. The host in a shark's zone, a member outside it and
+    nearer the trigger: the shark still takes the host. Then the other way round on level 7's far
+    side: the member alone in a zone, the host outside it."""
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], 7)
+    time.sleep(3)
+    placed, _ = host.mobys()
+    sharks = sorted((m for m in placed.values() if m[2] == 1059 and live(m)), key=lambda m: m[1])
+    triggers = [m for m in placed.values() if m[2] == 258]
+    if not sharks or not triggers:
+        raise Failed("no sharks and triggers there")
+    shark = sharks[0]
+    nearest = min(triggers, key=lambda t: math.dist(t[5:8], shark[5:8]))
+    # The member by the trigger, away from the sharks' water; the host in the water.
+    member.ask(f"teleport {nearest[5]} {nearest[6]} {nearest[7] + 8}")
+    time.sleep(1)
+    env.report["notes"]["member from the trigger"] = round(math.dist(member.status()["hero"], nearest[5:8]), 1)
+    go_near(host, shark, 1.0)
+    env.report["notes"]["host from the trigger"] = round(math.dist(host.status()["hero"], nearest[5:8]), 1)
+
+    def shark_moved():
+        now, _ = host.mobys()
+        at = next((m for m in now.values() if m[1] == shark[1]), None)
+        return at is None or math.dist(at[5:8], shark[5:8]) > 1.0
+
+    wait("the sharks awake, the member nearer their trigger", shark_moved, 15)
+
+    # It takes a player within 1.5 of it, and swims above one standing on the bottom: the host goes
+    # to where it is now, as a player swimming up to it does, the member still nearer the trigger.
+    def taken():
+        if host.status().get("health", 1) <= 0:
+            return True
+        now, _ = host.mobys()
+        at = next((m for m in now.values() if m[1] == shark[1]), None)
+        if at is not None:
+            host.ask(f"teleport {at[5]} {at[6]} {at[7]}")
+        return False
+
+    wait("a shark took the host", taken, 60, 1.0)
+    env.check("the member was left alone", member.status().get("health", 0) > 0)
+
+
+def scenario_menu(env, args):
+    """The pause menu held open in a party, by the host and then by a member, in `--level N`: the
+    world goes on under it and neither game falls over."""
+    host, member = start_two(env, args)
+    if args.level:
+        fly_to(env, host, [member], args.level)
+        time.sleep(3)
+    for who, name in ((host, "the host"), (member, "a member")):
+        def open_it():
+            if who.status().get("phase") == PHASE_MENU:
+                return True
+            who.ask("press 8 6")
+            return False
+
+        wait(f"{name}'s menu open", open_it, 20, 1.0)
+        time.sleep(15)
+        env.check(f"{name}'s menu is still up after 15 s", who.status().get("phase") == PHASE_MENU)
+        who.ask("press 8 6")
+        wait(f"{name}'s menu closed", lambda: who.status().get("phase") != PHASE_MENU, 10)
+        time.sleep(1)
+    compare_enemies(env, [host, member], "after the menus")
+
+
+def scenario_levels(env, args):
+    """Each level with zone triggers but the two `grab` plays: the party arrives, both games in
+    control, and has the same enemies, none twice."""
+    host, member = start_two(env, args)
+    wanted = [int(n) for n in args.weapons.split(",")] if args.weapons else [9, 10, 12, 13, 14, 15, 17]
+    for level in wanted:
+        fly_to(env, host, [member], level)
+        time.sleep(4)
+        placed, _ = host.mobys()
+        env.report["notes"][f"level {level} triggers"] = sum(1 for m in placed.values() if m[2] == 258)
+        compare_enemies(env, [host, member], f"level {level}")
+
+
 def enemies_of(c):
     """The creatures alive in a game: the placed by key, the spawned as class and place."""
     placed, spawned = c.mobys()
@@ -1765,6 +1844,9 @@ SCENARIOS = {
     "crateback": scenario_crateback,
     "dig": scenario_dig,
     "grab": scenario_grab,
+    "trigger": scenario_trigger,
+    "menu": scenario_menu,
+    "levels": scenario_levels,
     "crates": scenario_crates,
     "join": scenario_join,
     "gohost": scenario_gohost,

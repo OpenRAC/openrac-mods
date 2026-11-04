@@ -300,6 +300,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             // What the level's first updates spawn (an extermitank's turret) this game's load made
             // too, before the host drove its maker: that copy is the host's now, not a second one.
             int slot = own_copy_of(oclass, pose.position);
+            spawn_classes_.insert(oclass);
 
             if (slot >= 0) {
                 game_.moby_drive(slot, true);
@@ -449,6 +450,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             if (r.ok() && level == level_ && load == loads_) {
                 synced_ = true;
+                drop_own_copies();
                 log("the host's world of level " + std::to_string(level) + " is here");
             }
 

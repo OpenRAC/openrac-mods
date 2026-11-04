@@ -439,6 +439,28 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
               return m.oclass == 872;
           }) == 1);
     CHECK(member.game.drives.count(700) == 1);
+
+    // Its copy too far from the host's, whose maker moved: the host's is made, its own goes.
+    Player host2(1), member2(2);
+    host2.session.handle(info(both));
+    member2.session.handle(info(both));
+    host2.coop.choose({}, "New game");
+    CHECK(start_ready(host2));
+    route({&host2, &member2});
+    tick({&host2, &member2}, 16);
+    for (Player* p : {&host2, &member2}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f)};
+    }
+    host2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 500.0f));
+    member2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f));
+    for (int i = 0; i < 20; ++i) {
+        tick({&host2, &member2}, 50);
+    }
+    CHECK(std::count(member2.game.world_calls.begin(), member2.game.world_calls.end(), "spawn 872") == 1);
+    CHECK(std::count_if(member2.game.world_calls.begin(), member2.game.world_calls.end(), [](const std::string& c) {
+              return c.rfind("kill 700", 0) == 0;
+          }) == 1);
 }
 
 void run_world_tests() {

@@ -120,6 +120,7 @@ void World::reset() {
     poses_.clear();
     posed_at_.clear();
     net_slot_.clear();
+    spawn_classes_.clear();
     loose_.clear();
     landed_early_.clear();
     world_heard_ = false;

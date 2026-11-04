@@ -878,6 +878,9 @@ private:
     std::map<std::uint16_t, int> net_slot_;
     /* This game's own spawned copy of what the host says it spawned there, -1 for none. */
     int own_copy_of(int oclass, const float position[3]) const;
+    /* With the host's world here: what is left of this game's own copies of what the host spawned. */
+    void drop_own_copies();
+    std::set<int> spawn_classes_;
     /* Member: the host's bolts landed there and so run here, by net id. */
     std::set<std::uint16_t> loose_;
     /* Member: bolts WORLD says landed ahead of their SPAWN on the stream. */

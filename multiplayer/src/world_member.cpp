@@ -146,8 +146,19 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
     }
 }
 
+void World::drop_own_copies() {
+    for (const auto& [slot, moby] : mobys_) {
+        if (moby.key < 0 && spawn_classes_.count(moby.oclass) != 0 && driven_.count(slot) == 0
+            && !local_class(moby.oclass)) {
+            kill(slot, "its own copy of what the host spawned");
+        }
+    }
+
+    spawn_classes_.clear();
+}
+
 int World::own_copy_of(int oclass, const float position[3]) const {
-    if (loot_class(oclass)) {
+    if (local_class(oclass)) {
         return -1;
     }
 
