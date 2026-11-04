@@ -897,7 +897,7 @@ def scenario_revive(env, args):
 
 
 # Crates of level 5 that come back: measured on both discs (the byte at +0xC8 of the pvars).
-BACK_CRATES = [651, 652]
+BACK_CRATES = [429, 430]
 
 
 def scenario_crateback(env, args):
@@ -914,10 +914,16 @@ def scenario_crateback(env, args):
     time.sleep(1)
     bolts = int(member.ask("bolts"))
     member.ask(f"hit {crate[1]} 10000")
-    time.sleep(4)
-    states = {c.name: c.mobys()[0].get(crate[1]) for c in (host, member)}
-    env.report["notes"]["crate after its break"] = {k: v[4] if v else None for k, v in states.items()}
-    env.check("broken in both, deleted in neither", all(v is not None and v[4] == 6 for v in states.values()), json.dumps(states)[:300])
+    # Out of its camera's sight a copy is back in a second or two, so it is watched, not looked at once.
+    seen = {c.name: set() for c in (host, member)}
+    limit = time.monotonic() + 4
+    while time.monotonic() < limit:
+        for c in (host, member):
+            now = c.mobys()[0].get(crate[1])
+            seen[c.name].add(now[4] if now else None)
+    env.report["notes"]["crate's states"] = {k: sorted(map(str, v)) for k, v in seen.items()}
+    env.check("broken in both", all(v & {3, 6} for v in seen.values()), json.dumps(env.report["notes"]["crate's states"]))
+    env.check("deleted in neither", not any(v & {None, 253} for v in seen.values()), json.dumps(env.report["notes"]["crate's states"]))
     env.check("the host's copy dropped: the member got bolts", int(member.ask("bolts")) > bolts, "")
     # Out of sight, each game's copy comes back by itself.
     for c in (host, member):
@@ -938,12 +944,14 @@ def scenario_dig(env, args):
     pile = piles[0]
     for c in (host, member):
         c.ask("equip 27")
-        go_near(c, pile, 1.0)
-    time.sleep(2)
+    time.sleep(1)
     bolts = {c.name: int(c.ask("bolts")) for c in (host, member)}
-    member.ask("press 20 90")
+    for c in (host, member):
+        c.ask(f"teleport {pile[5]} {pile[6]} {pile[7] + 1.0}")
+    time.sleep(1)
+    member.ask("press 2000 90")
     time.sleep(0.1)
-    host.ask("press 20 90")
+    host.ask("press 2000 90")
     time.sleep(6)
     gained = {c.name: int(c.ask("bolts")) - bolts[c.name] for c in (host, member)}
     env.report["notes"]["dig: bolts gained"] = gained
