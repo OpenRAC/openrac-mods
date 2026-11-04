@@ -1,0 +1,20 @@
+{
+  "id": "steam-deck-pack",
+  "repo": "https://github.com/momo1212221/steam-deck-pack",
+  "path": "",
+  "description": "Steam Deck controller pack with built-in white button prompts, Steam Input gyro/trackpad camera controls, in-game settings, and isolated 16:10 startup profiles.",
+  "tags": [
+    "controls",
+    "ui",
+    "qol"
+  ],
+  "impact": [
+    "cosmetic",
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/momo1212221/steam-deck-pack/issues",
+    "docs": "https://github.com/momo1212221/steam-deck-pack#readme"
+  }
+}
