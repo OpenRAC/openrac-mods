@@ -5,6 +5,10 @@
  */
 #include "modcode.hpp"
 
+#include "protocol.hpp"
+
+#include <cstdio>
+
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -311,6 +315,82 @@ bool valid_mod_code(const std::string& code) {
 
 std::string mod_code_link(const std::string& code) {
     return valid_mod_code(code) ? "openrac://modset/" + code : "";
+}
+
+std::string mod_code_with_party(const std::string& code, const std::string& party) {
+    return party.empty() ? code : code + "?party=" + party;
+}
+
+std::string take_join_request(const std::string& folder, std::int64_t now_seconds) {
+    if (folder.empty()) {
+        return "";
+    }
+
+    const std::string path = folder + "/modset-join.json";
+    std::string text(kFileMax + 1, '\0');
+    {
+        std::ifstream file(path, std::ios::binary);
+
+        if (!file) {
+            return "";
+        }
+
+        file.read(&text[0], static_cast<std::streamsize>(text.size()));
+        text.resize(static_cast<std::size_t>(file.gcount()));
+    }
+    std::remove(path.c_str());
+
+    if (text.size() > kFileMax) {
+        return "";
+    }
+
+    Scan s(text);
+    std::string party;
+    double written = -1;
+    bool format = false;
+
+    if (!s.take('{')) {
+        return "";
+    }
+
+    do {
+        std::string key;
+
+        if (!s.string(key) || !s.take(':')) {
+            return "";
+        }
+
+        if (key == "format") {
+            double value = 0;
+
+            if (!s.number(value) || value != 1.0) {
+                return "";
+            }
+
+            format = true;
+        } else if (key == "party") {
+            if (!s.string(party)) {
+                return "";
+            }
+        } else if (key == "written") {
+            if (!s.number(written)) {
+                return "";
+            }
+        } else if (!s.skip()) {
+            return "";
+        }
+    } while (s.take(','));
+
+    const bool letters = party.size() == kCodeLength
+                         && party.find_first_not_of(kCodeAlphabet) == std::string::npos;
+    const double age = static_cast<double>(now_seconds) - written;
+
+    if (!s.take('}') || !s.end() || !format || !letters || written < 0 || age < 0
+        || age > static_cast<double>(kJoinRequestSeconds)) {
+        return "";
+    }
+
+    return party;
 }
 
 ModCode read_mod_code(const std::string& folder, const ModList& own) {

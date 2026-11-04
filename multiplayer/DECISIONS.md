@@ -31,8 +31,6 @@ Nothing merges before the user's play test. Then, in this order:
 
 ### Asked for and not built
 
-- **Auto-join after a mod code applies**: `openrac://modset/CODE` opens the review in the launcher,
-  and the player then joins by hand. A later step, by the plan.
 - **`play_scene_from`** is a kept slot of interface 1.12 that answers "unknown": a scene cannot start
   part way, so a scene in progress is waited out, as decided.
 

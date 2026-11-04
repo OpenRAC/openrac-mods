@@ -46,6 +46,7 @@
  */
 #include "mod_state.hpp"
 
+#include <ctime>
 #include <memory>
 
 namespace mpmod {
@@ -165,6 +166,39 @@ void refresh_mod_code(std::uint64_t now) {
     const mp::ModCode found = mp::read_mod_code(g->mod->plugins_folder(), g->mods->own());
     g->mod_code_long = found.shared && found.code.empty();
     g->mods->set_mod_code(found.code);
+}
+
+constexpr std::uint64_t kAutoJoinMs = 20000;
+
+/* The party the launcher said to join, from the title: linked to the server, then in, then its
+ * lobby. Not in time, Home says so; a mod that plays alone stays out, as by hand. */
+void tick_auto_join(std::uint64_t now) {
+    if (g->join_party.empty() || g->game->status().phase != mp::kPhaseFrontEnd) {
+        return;
+    }
+
+    mp::Session& s = *g->session;
+    const auto give_up = [&](const std::string& why) {
+        g->mod->info("multiplayer: " + why);
+        g->leave_reason = why;
+        g->join_party.clear();
+    };
+
+    if (g->mods->solo()) {
+        give_up("A mod you have on can't be played in a party");
+    } else if (s.in_party()) {
+        g->mod->info("multiplayer: joined party " + g->join_party + " as the launcher asked");
+        g->join_party.clear();
+        g->lobby.open();
+    } else if (g->join_ms == 0) {
+        g->join_ms = now;
+        back_to_server();
+    } else if (now - g->join_ms >= kAutoJoinMs) {
+        give_up("Could not join party " + g->join_party);
+    } else if (!g->join_asked && s.greeted() && !s.waiting()) {
+        g->join_asked = true;
+        s.join(g->join_party);
+    }
 }
 
 void show_banner(std::uint64_t now) {
@@ -317,6 +351,7 @@ void load(openrac::Mod& mod) {
     const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
 
     g->revive = mod.setting<bool>("revive");
+    g->join_party = mp::take_join_request(mod.plugins_folder(), static_cast<std::int64_t>(std::time(nullptr)));
     g->hold_party = mod.setting<bool>("hold_party");
 
     if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
@@ -618,6 +653,7 @@ void load(openrac::Mod& mod) {
             );
         }
 
+        tick_auto_join(now);
         g->migrate->tick(now);
         g->coop->tick(now);
         // A host's rule: for a member, what its host said; one who took over keeps it.

@@ -125,6 +125,9 @@ struct State {
     bool listed_mods = false;      // the mods listed, once they had all loaded
     bool told_refused = false;     // the page of why this party's game is refused was shown
     bool refused_in_party = false;  // that page shows for a party, not for a solo mod
+    std::string join_party;         // the launcher's word: join this party (modcode.hpp)
+    std::uint64_t join_ms = 0;
+    bool join_asked = false;
     bool start_taken = false;       // this press of Start said ready for the host's ship
     bool hold_party = false;        // the host's rule (the `hold_party` setting)
     bool revive = false;            // the host's rule (the `revive` setting)
