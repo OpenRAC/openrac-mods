@@ -156,6 +156,7 @@
 #define MULTIPLAYER_WORLD_H
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -267,6 +268,21 @@ constexpr float kWorldSnap = 12.0f;
  * at all this soon after its state changed or it hit that player: an attack runs to its end. */
 constexpr float kTargetBand = 0.8f;
 constexpr std::uint64_t kAttackStickMs = 1000;
+/* What a HIT or DAMAGE may say. The weapons' and enemies' own are far below (1 to 3 in a play of every
+ * weapon) and a difficulty mod scales them: this is against a message that makes no sense, not a
+ * judge of play. A guided shot flies far, so the reach is most of a level. A hit's position and
+ * velocity say nothing of where it was (hundreds of units off, in every hit seen), so no check
+ * reads them but that they are numbers. */
+constexpr float kMostHitDamage = 10000.0f;
+constexpr float kHitReach = 400.0f;
+
+inline bool hit_makes_sense(const Hit& h) {
+    const auto number = [](const float (&v)[3]) {
+        return std::isfinite(v[0]) && std::isfinite(v[1]) && std::isfinite(v[2]);
+    };
+    return std::isfinite(h.damage) && h.damage >= 0.0f && h.damage <= kMostHitDamage && number(h.position)
+           && number(h.velocity);
+}
 /* A grab (world_hold.cpp): how often the host says where the player is held, how long he has to show
  * he is before the host gives it up, how long a held player goes with no word before his game lets
  * him go, how long a fatal grab may wait for him to come back, and how soon after a word that a
@@ -529,6 +545,11 @@ public:
      * it. And a hit the game posted: true takes it back. */
     bool gate(int slot, int phase);
     bool hit(const Hit& hit);
+    /* Whether a member's HIT is one to take. */
+    bool member_hit_ok(std::int32_t sender, const Hit& h) const;
+    /* The hits taken from members, and the HITs and DAMAGEs refused. */
+    int hits_taken() const { return hits_taken_; }
+    int hits_refused() const { return hits_refused_; }
 
     /* The game records a moby's death (its killed bits, then its bolts dropped): true when its drop
      * is left out (its killed bits kept), as in a member's game in the host's level, whose bolts are
@@ -933,6 +954,9 @@ private:
         int holds = 0, releases = 0;
     } counts_;
     std::uint64_t counts_ms_ = 0;
+    /* For the whole session: counts_ starts again at each line it logs. */
+    int hits_taken_ = 0;
+    int hits_refused_ = 0;
 };
 
 /* How often the world says in the log what it did. */
