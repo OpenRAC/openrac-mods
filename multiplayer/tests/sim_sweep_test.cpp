@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
                         SimNet* net = nullptr;
                         const unsigned seed = base + static_cast<unsigned>(s);
                         const SimResult r = run_sim(link, seed, members, kPlaySeconds, &net, named.plan);
-                        const bool wrong = r.settled_ms < 0 || net->state_drops != 0 || net->data_drops != 0 || net->kicked != 0;
+                        const bool wrong = r.refused != 0 || r.settled_ms < 0 || net->state_drops != 0 || net->data_drops != 0 || net->kicked != 0;
                         ++cell.runs;
                         ++runs;
                         cell.bad += wrong ? 1 : 0;

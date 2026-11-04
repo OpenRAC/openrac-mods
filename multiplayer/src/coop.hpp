@@ -256,6 +256,8 @@ constexpr std::uint64_t kGoAgainMs = 5000;
 constexpr std::uint64_t kTravelWarnMs = 2500;
 /* A member's take-off from its pad: how long it may take to leave before the plain flight does it. */
 constexpr std::uint64_t kTakeoffMs = 15000;
+/* With the host's rule "hold the party": how long a member may stay behind before the ship takes it. */
+constexpr std::uint64_t kShipHoldMs = 30000;
 /* What a wait is for (WAIT_VOTE's kind): nothing, the players still arriving, a scene. */
 constexpr std::uint8_t kWaitNone = 0;
 constexpr std::uint8_t kWaitArrival = 1;
@@ -659,6 +661,11 @@ public:
     void demoted();
     /* The ledger's part: the travels and the scene sequence. */
     std::uint16_t travels() const { return session_.role().host() ? travel_ : host_travel_; }
+    void rule_hold_party(bool on) { hold_rule_ = on; }
+    bool hold_party_on() const { return hold_rule_; }
+    /* A member held for the host's ship: its Start says it is ready, and goes in no menu. */
+    bool ship_held() const { return ship_held_ && leave_dest_ >= 0; }
+    void ship_ready();
     std::uint16_t scenes() const { return session_.role().host() ? scene_sequence_ : host_scene_sequence_; }
 
     /* Leaving: whether this game is on its way back to the title after its party went, and whether
@@ -998,6 +1005,11 @@ private:
     std::uint16_t host_travel_ = 0;
     bool taking_off_ = false;
     bool took_off_ = false;
+    /* The host's rule: members leave with its ship when ready (kShipHoldMs at most). The travel the
+     * host's Start ended that for; a member: whether this departure is held for it. */
+    bool hold_rule_ = false;
+    std::uint16_t ship_went_ = 0;
+    bool ship_held_ = false;
     int leave_dest_ = -1;
     std::uint64_t leave_at_ = 0;
     std::uint64_t leave_ms_ = 0;

@@ -1419,6 +1419,8 @@ inline void remake(Player& p, const SimWorld& w, const std::set<int>& skipped = 
 constexpr int kSimSlots = 1000;
 
 struct SimResult {
+    /* HITs and DAMAGEs refused in every game: all of them the game's own, so none should be. */
+    int refused = 0;
     int wrong_place = 0, wrong_hidden = 0, wrong_crates = 0;
     long bolts_made = 0, bolts_credited = 0;
     /* From the end of the play: when everything stood as on the host, for good (-1: not by the end
@@ -1640,6 +1642,10 @@ inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double
     compare_sim(all, r);
     r.settled_ms = r.wrong_place + r.wrong_hidden + r.wrong_crates != 0 ? -1 : (last_wrong + 1 - ticks) * 16L;
     r.worst_gap_ms = net->worst_gap;
+
+    for (Player* p : all) {
+        r.refused += p->world.hits_refused();
+    }
 
     if (out != nullptr) {
         *out = net_kept;

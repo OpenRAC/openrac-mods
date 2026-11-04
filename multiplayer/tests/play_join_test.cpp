@@ -319,6 +319,49 @@ void go_to_host_falls_back_to_the_landing() {
     CHECK(p.member.coop.banner(p.member.clock) == "No safe spot near the host");
 }
 
+// The host's rule: its ship waits for a member, until its Start, the host's or the limit.
+void the_ship_holds_for_a_member_by_the_hosts_rule() {
+    const auto travelled = [](Party& p) {
+        return std::count(p.member.game.calls.begin(), p.member.game.calls.end(), "travel 5");
+    };
+    {
+        Party p;
+        p.host.coop.rule_hold_party(true);
+        CHECK(p.host.coop.ship_travel(5, 3));
+        p.run(100);
+        CHECK(p.member.coop.ship_held());
+        CHECK(p.member.coop.banner(p.member.clock) == "The host is leaving for Planet5: press Start when you are ready");
+        CHECK(p.member.coop.start_blocked(mp::kPhasePlaying));
+        // Well past the plain warning: still here.
+        p.run(mp::kTravelWarnMs * 3);
+        CHECK(travelled(p) == 0);
+        // Its Start: on its way.
+        p.member.coop.own_skip(mp::kPhasePlaying, p.member.clock);
+        CHECK(!p.member.coop.ship_held());
+        CHECK(!p.member.coop.start_blocked(mp::kPhasePlaying));
+        p.run(100);
+        CHECK(travelled(p) >= 1);
+    }
+    {
+        // Nobody presses: the limit.
+        Party p;
+        p.host.coop.rule_hold_party(true);
+        CHECK(p.host.coop.ship_travel(5, 3));
+        p.run(mp::kShipHoldMs - 1000);
+        CHECK(travelled(p) == 0);
+        p.run(2000);
+        CHECK(travelled(p) >= 1);
+    }
+    {
+        // Rule off: the plain warning.
+        Party p;
+        CHECK(p.host.coop.ship_travel(5, 3));
+        p.run(100);
+        CHECK(!p.member.coop.ship_held());
+        CHECK(!p.member.coop.start_blocked(mp::kPhasePlaying));
+    }
+}
+
 // A member on its feet takes off from its own pad; one that can't, or that did not get away, flies.
 void a_member_takes_off_from_its_own_pad() {
     const auto flights = [](Party& p) {
@@ -557,6 +600,7 @@ void run_join_tests() {
     go_to_host_falls_back_to_the_landing();
     the_ship_warns_before_it_takes_a_member();
     a_member_takes_off_from_its_own_pad();
+    the_ship_holds_for_a_member_by_the_hosts_rule();
     a_wait_can_be_voted_away();
     the_host_goes_on_from_a_scene_wait();
     a_vote_ends_a_members_wait_for_the_hosts_scene();

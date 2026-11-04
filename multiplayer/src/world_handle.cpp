@@ -147,11 +147,18 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             return;
         }
 
+        if (!member_hit_ok(sender, h)) {
+            ++hits_refused_;
+            trace_line("msg", "HIT of " + moby_name(h.victim) + " from " + std::to_string(sender) + " refused");
+            return;
+        }
+
         // From that player's figure, the hero's class (the enemies read the attacker's class).
         const int figure = coop_.figure_of(sender);
         h.attacker = figure >= 0 ? game_.figure_slot(figure) : game_.figure_slot(-1);
         game_.hit(h);
         ++counts_.hits;
+        ++hits_taken_;
         members_[sender].hit_ms[id] = clock_();
         return;
     }
@@ -525,6 +532,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             vec(r, h.position);
             vec(r, h.velocity);
             h.victim = game_.figure_slot(-1);
+
+            if (r.ok() && !hit_makes_sense(h)) {
+                ++hits_refused_;
+                trace_line("msg", "DAMAGE from " + std::to_string(sender) + " refused");
+                break;
+            }
 
             // A joiner not in yet, or just put beside the host: it comes to no harm.
             if (r.ok() && h.victim >= 0 && !coop_.shielded()) {

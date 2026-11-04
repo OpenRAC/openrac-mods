@@ -317,6 +317,7 @@ void load(openrac::Mod& mod) {
     const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
 
     g->revive = mod.setting<bool>("revive");
+    g->hold_party = mod.setting<bool>("hold_party");
 
     if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
         std::error_code error;
@@ -483,6 +484,9 @@ void load(openrac::Mod& mod) {
         // does nothing here but say so (a movie has no game ticks: the banner is shown from here).
         const bool start = (report[0] & 0x08) == 0;
         const int phase = g->game->status().phase;
+        // The press that says a member is ready for the host's ship is that and no more: to its
+        // release, or the rest of it opens the pause menu.
+        g->start_taken = start && (g->start_taken || g->coop->ship_held());
 
         if (start && !g->start_held) {
             g->coop->own_skip(phase, now);
@@ -491,7 +495,7 @@ void load(openrac::Mod& mod) {
 
         g->start_held = start;
 
-        if (start && g->coop->start_blocked(phase)) {
+        if (start && (g->start_taken || g->coop->start_blocked(phase))) {
             report[0] = static_cast<std::uint8_t>(report[0] | 0x08);
         }
 
@@ -619,6 +623,7 @@ void load(openrac::Mod& mod) {
         // A host's rule: for a member, what its host said; one who took over keeps it.
         if (g->session->is_host() && !g->migrate->took_over()) {
             g->world->rule_revive(g->revive);
+            g->coop->rule_hold_party(g->hold_party);
         }
 
         g->world->tick(now);
