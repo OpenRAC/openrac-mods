@@ -990,10 +990,14 @@ def scenario_grab(env, args):
     compare_enemies(env, [host, member], "after a grab")
 
 
+# A zone trigger's state with someone in the zone; the update sets it to 1 with nobody in it.
+TRIGGER_INSIDE = 2
+
+
 def scenario_trigger(env, args):
     """A zone trigger counts every player in it. The host in a shark's zone, a member outside it and
-    nearer the trigger: the shark still takes the host. Then the other way round on level 7's far
-    side: the member alone in a zone, the host outside it."""
+    nearer the trigger: the shark still takes the host. Then the other way round: the member alone
+    in a zone, the host outside it: the zone goes on for him, and off again when he is gone."""
     host, member = start_two(env, args)
     fly_to(env, host, [member], 7)
     time.sleep(3)
@@ -1028,6 +1032,40 @@ def scenario_trigger(env, args):
 
     wait("a shark took the host", taken, 60, 0.25)
     env.check("the member was left alone", member.status().get("health", 0) > 0)
+    wait("the host came back", lambda: host.status().get("health", 0) > 0, 40)
+
+    # The other way round: the member alone in a zone. A zone can be a polygon reaching far from its
+    # trigger, so which one it is shows in what goes on when he arrives, the host staying put.
+    def zones_on():
+        now, _ = host.mobys()
+        return {t[1] for t in now.values() if t[2] == 258 and t[4] == TRIGGER_INSIDE}
+
+    away = host.status()["hero"]
+    member.ask(f"teleport {away[0] + 3} {away[1]} {away[2] + 1}")
+    time.sleep(4)
+    outside = zones_on()
+    before = host.status()
+    jumps = [0.0]
+
+    def member_taken():
+        if member.status().get("health", 1) <= 0:
+            return True
+        if time.monotonic() - jumps[0] > 1.5:
+            jumps[0] = time.monotonic()
+            member.ask(f"teleport {nearest[5]} {nearest[6]} {nearest[7] + 8}")
+        return False
+
+    member_taken()
+    wait("the member alone turned a zone on", lambda: zones_on() - outside, 20)
+    entered = zones_on() - outside
+    env.report["notes"]["zones the member alone turned on"] = sorted(entered)
+    env.check("the host did not move", math.dist(host.status()["hero"], before["hero"]) < 1.0)
+    wait("a shark took the member, alone in the zone", member_taken, 90, 0.25)
+    after = host.status()
+    env.check("the host was left alone", after.get("health") == before.get("health"), json.dumps([before.get("health"), after.get("health")]))
+    env.check("the host is in control", after.get("phase") == PHASE_PLAYING and not after.get("hold"))
+    wait("the member came back", lambda: member.status().get("health", 0) > 0, 40)
+    wait("the zone off with the member gone from it", lambda: not (zones_on() & entered), 20)
 
 
 def scenario_menu(env, args):
