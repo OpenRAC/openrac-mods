@@ -15,7 +15,7 @@ struct State {
     openrac::Mod* mod;
     const kbm_disc* disc;
     bool enabled, mouse_enabled, invert, pal;
-    int mx, my, sx, sy, deadzone, response;
+    int mx, my, sx, sy, deadzone, response, controller_speed, aim_speed, move_speed;
     bool active = false, held = false, seen = false;
     uint32_t tick = 0;
     float yaw = 0, pitch = 0, tilt = 0;
@@ -152,8 +152,9 @@ void pad(int port, uint8_t* report, int size) {
     }
     g->seen = true;
     g->tick = in.tick;
-    float yaw = -modern::rate(axis.x, g->sx);
-    float pitch = modern::rate(axis.y, g->sy);
+    const int aim = kind == KBM_CAMERA_FIRST_PERSON ? g->aim_speed : 100;
+    float yaw = -modern::controller_rate(axis.x, g->sx, g->controller_speed, aim);
+    float pitch = modern::controller_rate(axis.y, g->sy, g->controller_speed, aim);
     if (g->mouse_enabled && in.captured) {
         yaw -= modern::mouse(in.mouse_dx, g->mx);
         pitch += modern::mouse(in.mouse_dy, g->my);
@@ -204,6 +205,9 @@ void load(openrac::Mod& mod) {
     g->sy = setting("stick_y", 30, 360);
     g->deadzone = setting("deadzone", 0, 40);
     g->response = setting("response", 100, 300);
+    g->controller_speed = setting("controller_speed", 25, 300);
+    g->aim_speed = setting("aim_speed", 25, 200);
+    g->move_speed = setting("move_speed", 50, 200);
     if (g->mouse_enabled) {
         mod.take_input(OPENRAC_INPUT_MOUSE);
     }
@@ -223,12 +227,32 @@ void load(openrac::Mod& mod) {
         follow(camera);
     });
     mod.hook<openrac::rac1::Hero_ApproachSpeed>([](auto original, float up, float down) {
-        const float gain = playing() ? g->response / 100.f : 1.f;
-        original(up * gain, down * gain);
+        // Same target-speed hook used by difficulty-mod. Scale only during the call:
+        // never keep a multiplier in the hero's target, so repeated ticks do not compound it.
+        const auto hero = g->mod->relocate(g->disc->hero);
+        if (!playing() || !valid(hero) || read<uint8_t>(hero + KBM_HERO_VEHICLE) != 0) {
+            original(up, down);
+            return;
+        }
+        const float gain = g->response / 100.f;
+        const float speed = g->move_speed / 100.f;
+        const auto address = hero + 0x190u;
+        const float target = read<float>(address);
+        if (g->move_speed == 100 || !std::isfinite(target)) {
+            original(up * gain, down * gain);
+            return;
+        }
+        const float scaled = target * speed;
+        write(address, scaled);
+        original(up * gain * speed, down * gain * speed);
+        // Respect a target explicitly changed by the original or another chained mod.
+        if (read<float>(address) == scaled) {
+            write(address, target);
+        }
     });
 }
 }  // namespace
-OPENRAC_MOD_CPP("modern-controls", "0.1.0", load)
+OPENRAC_MOD_CPP("modern-controls", "0.2.0", load)
 
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload() {
     if (g) {

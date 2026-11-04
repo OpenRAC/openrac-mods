@@ -28,6 +28,9 @@ int main() {
     CHECK(near(modern::mouse(100, 200), modern::mouse(100, 100) * 2));
     CHECK(modern::mouse(NAN, 100) == 0);
     CHECK(near(modern::rate(1, 240) * 60, 240 * .01745329252f));
+    CHECK(near(modern::controller_rate(1, 240, 200), modern::rate(1, 240) * 2));
+    CHECK(near(modern::controller_rate(1, 240, 200, 75), modern::rate(1, 240) * 1.5f));
+    CHECK(near(modern::controller_rate(0, 240, 300, 200), 0));
     auto v = kbm::rotate({1, 0, 0}, {0, 0, 1}, modern::rate(1, 360) * 60);
     CHECK(near(v.x, 1) && near(v.y, 0));
     auto w = kbm::with_elevation({2, 0, 0}, {0, 0, 1}, .5f);

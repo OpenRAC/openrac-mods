@@ -28,4 +28,9 @@ inline float rate(float axis, int degrees) {
     // OpenRAC runs both RAC1 builds at 60 ticks/s (docs/port/speedrun/RULES.md).
     return axis * degrees * .01745329252f / 60.f;
 }
+
+// Only controller axes use these multipliers; mouse counts keep their own sensitivity.
+inline float controller_rate(float axis, int degrees, int speed, int aim = 100) {
+    return rate(axis, degrees) * (speed / 100.f) * (aim / 100.f);
+}
 }  // namespace modern
