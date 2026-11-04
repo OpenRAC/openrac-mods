@@ -35,6 +35,13 @@
       "description": "When you host: a player who falls stays down for a while, and another player standing over them brings them back."
     },
     {
+      "key": "hold_party",
+      "name": "Hold the party",
+      "type": "bool",
+      "default": false,
+      "description": "When you host: your ship waits for the others. Each presses Start when ready, or goes after 30 seconds; your Start on the new planet takes them at once."
+    },
+    {
       "key": "verbose_log",
       "name": "Verbose log",
       "type": "bool",

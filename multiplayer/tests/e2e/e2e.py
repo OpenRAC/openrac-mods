@@ -85,6 +85,7 @@ class Client:
                                 "name": self.name,
                                 "verbose_log": self.env.trace,
                                 "revive": self.env.revive,
+                                "hold_party": self.env.hold_party,
                             },
                         }
                     ],
@@ -232,6 +233,7 @@ class Env:
         self.seed = args.seed
         self.trace = args.trace
         self.revive = args.scenario == "revive"
+        self.hold_party = args.scenario == "holdparty"
         self.game_args = args.game_arg or []
         self.game_env = dict(e.split("=", 1) for e in (args.game_env or []))
         self.server = None
@@ -1477,6 +1479,52 @@ def scenario_shipwarn(env, args):
     env.check("the party is in", ok, json.dumps([host.status(), member.status()])[:600])
 
 
+def scenario_holdparty(env, args):
+    """The host's rule: its ship waits for a member, who leaves on its Start; then on the host's
+    Start on the new planet; then, nobody pressing, at the limit."""
+    host, member = start_two(env, args)
+
+    def held(level, label):
+        host.ask(f"travel {level}")
+        time.sleep(6)
+        s = member.status()
+        env.check(f"{label}: the member is still here, past the plain warning", s["level"] != level, json.dumps(s["level"]))
+        env.check(f"{label}: it is told to press Start", "press Start" in s["banner"], s["banner"])
+        return s
+
+    def in_with_it(level, label):
+        wait(f"{label}: the member leaves", lambda: member.status()["level"] == level, 60)
+        # A new game's first save asks in a dialog, of a member on its first planet too: Cross.
+        limit = time.monotonic() + 150
+        ok = False
+        while time.monotonic() < limit and not ok:
+            if member.status()["phase"] == PHASE_MENU:
+                env.report["notes"].setdefault("member's dialogs", []).append(label)
+                member.ask("press 4000 6")
+            ok = skip_scenes(env, host, [member], 3)
+        fields = ("phase", "level", "hold", "arriving", "scene", "banner", "wait_kind", "going")
+        env.check(f"{label}: the party is in", ok, json.dumps([{k: c.status().get(k) for k in fields} for c in (host, member)]))
+
+    held(3, "its Start")
+    member.ask("press 8 6")
+    in_with_it(3, "its Start")
+
+    held(4, "the host's Start")
+    wait("the host in the level", lambda: host.status()["level"] == 4 and host.status()["phase"] in IN_LEVEL, 60)
+    for _ in range(40):
+        if member.status()["level"] == 4:
+            break
+        host.ask("press 8 6")
+        time.sleep(0.5)
+    in_with_it(4, "the host's Start")
+
+    start = time.monotonic()
+    held(5, "the limit")
+    in_with_it(5, "the limit")
+    env.report["notes"]["the limit took"] = round(time.monotonic() - start, 1)
+    env.check("the limit: the member stayed the time", time.monotonic() - start >= 25, "")
+
+
 def shared_of(c, tag):
     return set(json.loads(c.ask(f"shared {tag}")))
 
@@ -1942,6 +1990,7 @@ SCENARIOS = {
     "rejoin": scenario_rejoin,
     "wipe": scenario_wipe,
     "revive": scenario_revive,
+    "holdparty": scenario_holdparty,
     "crateback": scenario_crateback,
     "dig": scenario_dig,
     "grab": scenario_grab,
