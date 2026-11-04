@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Camera vector operations and disc offsets shared with the keyboard-mouse mod.
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #include "controls.hpp"
 #include "discs.h"
@@ -15,13 +22,153 @@ struct State {
     openrac::Mod* mod;
     const kbm_disc* disc;
     bool enabled, mouse_enabled, invert, pal;
-    int mx, my, sx, sy, deadzone, response, controller_speed, aim_speed, move_speed;
+    int mx, my, sx, sy, deadzone, response, controller_level, aim_speed, move_speed;
     bool active = false, held = false, seen = false;
     uint32_t tick = 0;
     float yaw = 0, pitch = 0, tilt = 0;
+    openrac::UiPage page;
+    std::filesystem::path preferences;
+    bool save_failed = false;
 };
 
 std::unique_ptr<State> g;
+
+// API 1.11 supplies a private writable data directory. On older runtimes use only
+// this mod's library directory, preserving portable installations and avoiding global settings.
+std::filesystem::path preferences_path(openrac::Mod& mod) {
+    const auto directory = mod.data_dir();
+    if (!directory.empty()) {
+        return std::filesystem::path(directory) / "controls.ini";
+    }
+#if defined(_WIN32)
+    HMODULE module = nullptr;
+    wchar_t path[32768];
+    if (GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&g),
+            &module
+        )) {
+        auto size = GetModuleFileNameW(module, path, 32768);
+        if (size > 0 && size < 32768) {
+            return std::filesystem::path(std::wstring(path, size)).parent_path() / "controls.ini";
+        }
+    }
+#else
+    Dl_info info{};
+    if (dladdr(static_cast<const void*>(&g), &info) && info.dli_fname) {
+        return std::filesystem::path(info.dli_fname).parent_path() / "controls.ini";
+    }
+#endif
+    return {};
+}
+
+const char* words(const char* en, const char* fr, const char* de, const char* es, const char* it) {
+    const auto address = g->pal ? 0x15EE88u : 0x15ED88u;
+    switch (g->mod->memory().read<int32_t>(address)) {
+        case 2:
+            return fr;
+        case 3:
+            return de;
+        case 4:
+            return es;
+        case 5:
+            return it;
+        default:
+            return en;
+    }
+}
+
+void show_controls() {
+    const int level = g->controller_level;
+    openrac::UiContent content;
+    content.title = words("Controls", "Commandes", "Steuerung", "Controles", "Comandi");
+    // Three moving choices give 100 exact positions without exceeding the SDK's
+    // 64-choice limit. Keep the selection centered so Left/Right always step by one.
+    content.items =
+        {openrac::UiItem::choice_of(
+             words(
+                 "Camera speed",
+                 "Vitesse caméra",
+                 "Kameratempo",
+                 "Velocidad cámara",
+                 "Velocità camera"
+             ),
+             {modern::bar(level - 1), modern::bar(level), modern::bar(level + 1)},
+             1
+         ),
+         openrac::UiItem::button(
+             words("Reset", "Réinitialiser", "Zurücksetzen", "Restablecer", "Ripristina")
+         )};
+    if (g->save_failed) {
+        content.footer = {words(
+            "Could not save setting",
+            "Enregistrement impossible",
+            "Einstellung nicht gespeichert",
+            "No se pudo guardar",
+            "Impossibile salvare"
+        )};
+    }
+    g->page.set(content);
+}
+
+void save_controls() {
+    g->save_failed = true;
+    if (!g->preferences.empty()) {
+        std::error_code error;
+        std::filesystem::create_directories(g->preferences.parent_path(), error);
+        if (!error) {
+            std::ofstream out(g->preferences);
+            out << "camera_level=" << g->controller_level << '\n';
+            out.flush();
+            g->save_failed = !out;
+        }
+    }
+    if (g->save_failed) {
+        g->mod->warn("camera adjustment could not be saved");
+    }
+}
+
+void add_controls_page(openrac::Mod& mod) {
+    g->preferences = preferences_path(mod);
+    if (!g->preferences.empty()) {
+        std::ifstream in(g->preferences);
+        if (in) {
+            g->controller_level = modern::read_level(in, g->controller_level);
+        }
+    }
+    if (!mod.has_ui() || !mod.has_pause_items()) {
+        return;
+    }
+    g->page = mod.ui_page([](const auto&, const openrac::UiEvent& event) {
+        bool changed = false;
+        if (event.is(OPENRAC_UI_CHANGE) && event.item() == 0 && event.value() >= 0
+            && event.value() <= 2) {
+            int wanted = std::clamp(g->controller_level + event.value() - 1, 1, 100);
+            changed = wanted != g->controller_level;
+            g->controller_level = wanted;
+        } else if (event.is(OPENRAC_UI_CHOOSE) && event.item() == 1) {
+            g->controller_level = 50;
+            changed = true;
+        }
+        if (changed) {
+            save_controls();
+        }
+        if (!event.is(OPENRAC_UI_HIDE)) {
+            show_controls();
+        }
+    });
+    show_controls();
+    try {
+        mod.ui_pause_item("Controls", g->page);
+    } catch (const openrac::Error&) {
+        // The port permits two native Options entries across all mods. Keep controls
+        // working if other mods already occupy them; don't refuse the entire library.
+        mod.warn(
+            "Controls Options entry unavailable: free a pause Options slot; launcher adjustment "
+            "still works"
+        );
+    }
+}
 
 bool valid(uint32_t p) {
     return p >= 0x10000 && p < 0x02000000 - 0x400;
@@ -153,8 +300,12 @@ void pad(int port, uint8_t* report, int size) {
     g->seen = true;
     g->tick = in.tick;
     const int aim = kind == KBM_CAMERA_FIRST_PERSON ? g->aim_speed : 100;
-    float yaw = -modern::controller_rate(axis.x, g->sx, g->controller_speed, aim);
-    float pitch = modern::controller_rate(axis.y, g->sy, g->controller_speed, aim);
+    float yaw = -modern::controller_rate(
+        axis.x, g->sx, modern::controller_percent(g->controller_level), aim
+    );
+    float pitch = modern::controller_rate(
+        axis.y, g->sy, modern::controller_percent(g->controller_level), aim
+    );
     if (g->mouse_enabled && in.captured) {
         yaw -= modern::mouse(in.mouse_dx, g->mx);
         pitch += modern::mouse(in.mouse_dy, g->my);
@@ -205,9 +356,10 @@ void load(openrac::Mod& mod) {
     g->sy = setting("stick_y", 30, 360);
     g->deadzone = setting("deadzone", 0, 40);
     g->response = setting("response", 100, 300);
-    g->controller_speed = setting("controller_speed", 25, 300);
+    g->controller_level = setting("controller_level", 1, 100);
     g->aim_speed = setting("aim_speed", 25, 200);
     g->move_speed = setting("move_speed", 50, 200);
+    add_controls_page(mod);
     if (g->mouse_enabled) {
         mod.take_input(OPENRAC_INPUT_MOUSE);
     }
@@ -252,7 +404,7 @@ void load(openrac::Mod& mod) {
     });
 }
 }  // namespace
-OPENRAC_MOD_CPP("modern-controls", "0.2.0", load)
+OPENRAC_MOD_CPP("modern-controls", "0.3.0", load)
 
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload() {
     if (g) {

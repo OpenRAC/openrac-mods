@@ -5,7 +5,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <unistd.h>
 #include <vector>
 
 #include "openrac/openrac_mod.h"
@@ -29,7 +32,19 @@ float speed_up, speed_down, target_seen;
 uint32_t hero;
 int movement_setting = 100;
 bool replace_target = false;
-std::string failure;
+std::string failure, shown, title;
+openrac_ui_fn ui_callback;
+void* ui_user;
+bool reject_pause = false;
+
+void ui_event(uint32_t kind, int item = -1, int value = 0) {
+    openrac_ui_event event{};
+    event.size = sizeof event;
+    event.kind = kind;
+    event.item = item;
+    event.value = value;
+    ui_callback(ui_user, 0, &event);
+}
 
 template <class T>
 T& at(uint32_t p) {
@@ -66,7 +81,11 @@ int hook(openrac_mod*, const char* id, const char*, void* fn, void** original) {
 
 int main(int argc, char** argv) {
     CHECK(argc == 2);
-    auto lib = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
+    char directory[] = "/tmp/openrac-modern-controls-XXXXXX";
+    CHECK(mkdtemp(directory));
+    auto library = std::filesystem::path(directory) / std::filesystem::path(argv[1]).filename();
+    std::filesystem::copy_file(argv[1], library);
+    auto lib = dlopen(library.c_str(), RTLD_NOW | RTLD_LOCAL);
     CHECK(lib);
     auto load =
         reinterpret_cast<int (*)(const openrac_api*, openrac_mod*)>(dlsym(lib, "openrac_mod_load"));
@@ -109,8 +128,8 @@ int main(int argc, char** argv) {
                 if (!std::strcmp(key, "deadzone")) {
                     return 10;
                 }
-                if (!std::strcmp(key, "controller_speed")) {
-                    return 200;
+                if (!std::strcmp(key, "controller_level")) {
+                    return 75;
                 }
                 if (!std::strcmp(key, "aim_speed")) {
                     return 75;
@@ -153,6 +172,23 @@ int main(int argc, char** argv) {
                 s->phase = phase;
                 s->level = 0;
                 return 0;
+            };
+            api.ui_page = [](openrac_mod*, uint32_t, openrac_ui_fn fn, void* user) {
+                ui_callback = fn;
+                ui_user = user;
+                return 0;
+            };
+            api.ui_set = [](openrac_mod*, int, const openrac_ui_content* c) {
+                CHECK(c->item_count == 2);
+                CHECK(c->items[0].choice_count == 3);
+                CHECK(c->items[0].choice == 1);
+                title = c->title;
+                shown = c->items[0].choices[1];
+                return 0;
+            };
+            api.ui_pause_item = [](openrac_mod*, const char* label, int) {
+                CHECK(std::string(label) == "Controls");
+                return reject_pause ? OPENRAC_HOOK_UNKNOWN : 0;
             };
             CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
             CHECK(failure.empty());
@@ -276,8 +312,50 @@ int main(int argc, char** argv) {
             input.tick++;
             pad(pad_user, 0, report, 6);
             CHECK(at<float>(state + 0x10) < 1.118f && at<float>(state + 0x10) > 1.116f);
+            // Native settings: real 1..100 positions through three moving choices.
+            at<int32_t>(pal ? 0x15EE88 : 0x15ED88) = 3;
+            ui_event(OPENRAC_UI_SHOW);
+            CHECK(title == "Steuerung");
+            CHECK(shown.find("75/100") != std::string::npos);
+            ui_event(OPENRAC_UI_CHANGE, 0, 2);
+            CHECK(shown.find("76/100") != std::string::npos);
+            input.mouse_dy = 0;
+            input.mouse_dx = 0;
+            at<V>(camera) = {1, 0, 0};
+            report[2] = 255;
+            input.tick++;
+            pad(pad_user, 0, report, 6);
+            CHECK(
+                std::abs(at<V>(camera).y - std::sin(-240 * .01745329252f / 60 * 2.04f * .75f))
+                < .0001f
+            );
+            for (int n = 0; n < 110; ++n) {
+                ui_event(OPENRAC_UI_CHANGE, 0, 2);
+            }
+            CHECK(shown.find("100/100") != std::string::npos);
+            for (int n = 0; n < 110; ++n) {
+                ui_event(OPENRAC_UI_CHANGE, 0, 0);
+            }
+            CHECK(shown.find("1/100") != std::string::npos);
+            ui_event(OPENRAC_UI_CHOOSE, 1);
+            CHECK(shown.find("50/100") != std::string::npos);
+            ui_event(OPENRAC_UI_CHANGE, 0, 2);
+            CHECK(shown.find("51/100") != std::string::npos);
             unload();
+            // On interface 1.10 the saved file beside the library survives a reload.
+            CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
+            CHECK(shown.find("51/100") != std::string::npos);
+            unload();
+            reject_pause = true;
+            CHECK(
+                load(&api, reinterpret_cast<openrac_mod*>(1)) == 0
+            );  // full Options slots don't unload the mod
+            unload();
+            reject_pause = false;
+            std::filesystem::remove(std::filesystem::path(directory) / "controls.ini");
             phase = OPENRAC_PLAY_PLAYING;
         }
     }
+    dlclose(lib);
+    std::filesystem::remove_all(directory);
 }
