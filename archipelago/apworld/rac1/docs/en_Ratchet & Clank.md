@@ -25,3 +25,7 @@ The `logic` option. **Standard**: a place counts only with the gadgets the game'
 there, and an expensive purchase holds no progression. **Relaxed**: the same, and no progression in
 a purchase to save up for. **Expert**: only what a place cannot be done without counts. In every
 logic, a gold bolt holds no progression. Every location's rule is in the world's `data.py`.
+
+With few places for progression (vendor slots off, or Relaxed logic), this world keeps its own
+progression among its own locations, so generation can't run out of places. Its other items still
+go to the multiworld.

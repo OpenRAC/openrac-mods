@@ -7,7 +7,8 @@
 # an NPC the game always has). The goal is beating Drek.
 from typing import Any, Mapping
 
-from BaseClasses import ItemClassification, Tutorial
+from BaseClasses import CollectionState, ItemClassification, Tutorial
+from Fill import fill_restrictive
 from worlds.AutoWorld import WebWorld, World
 
 from .data import GAME
@@ -17,6 +18,12 @@ from .locations import EVENT_ROWS, LOCATION_NAME_GROUPS, LOCATION_NAME_TO_ID, LO
 from .options import OPTION_GROUPS, OPTION_PRESETS, RAC1Options
 from .regions import SHIP, create_regions
 from .rules import set_rules
+
+
+# In a multiworld, a world with fewer spare places for its progression than this places it itself.
+# Every option set has at most 7 or at least 10: two players of 7 failed 1 seed in 1000, of 10 none.
+ROOM_FOR_KEYS = 8
+KEY_FILL_ATTEMPTS = 100
 
 
 class RAC1Web(WebWorld):
@@ -89,6 +96,38 @@ class RAC1World(World):
 
     def set_rules(self) -> None:
         set_rules(self)
+
+    def pre_fill(self) -> None:
+        # The main fill never retries, and it can dead-end when the progression has few places to
+        # go. Alone, this world's locations are all it has anyway, so nothing is lost placing it
+        # here, where it can try again; in a multiworld, only a world short of places does this.
+        pool = self.multiworld.itempool
+        keys = [item for item in pool if item.player == self.player and item.advancement]
+        if not keys:
+            return
+        spots = [spot for spot in self.multiworld.get_unfilled_locations(self.player) if spot.item_rule(keys[0])]
+        if self.multiworld.players > 1 and len(spots) - len(keys) >= ROOM_FOR_KEYS:
+            return
+        for _ in range(KEY_FILL_ATTEMPTS):
+            left = self.random.sample(keys, len(keys))
+            fill_restrictive(
+                self.multiworld,
+                CollectionState(self.multiworld),
+                self.random.sample(spots, len(spots)),
+                left,
+                single_player_placement=True,
+                lock=True,
+                allow_partial=True,
+                name=f"{self.game} progression",
+            )
+            if not left:
+                pool[:] = [item for item in pool if item.location is None]
+                return
+            for spot in spots:
+                if spot.item is not None:
+                    spot.item.location = None
+                    spot.item = None
+                    spot.locked = False
 
     def fill_slot_data(self) -> Mapping[str, Any]:
         return self.options.as_dict(

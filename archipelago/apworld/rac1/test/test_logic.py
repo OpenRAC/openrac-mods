@@ -3,6 +3,8 @@
 # turned off keeps its own items.
 import unittest
 
+from BaseClasses import CollectionState
+
 from ..data import LOCATIONS, PLANETS
 from ..items import ITEM_TABLE
 from ..options import OPTION_PRESETS, RAC1Options
@@ -105,6 +107,15 @@ class TestGoldBolts(RAC1TestBase):
         for row in LOCATIONS:
             if row.kind == "gold":
                 self.assertFalse(self.multiworld.get_location(row.name, self.player).item_rule(key), row.name)
+
+
+class TestFewPlacesForProgression(RAC1TestBase):
+    options = {"shuffle_weapons": False, "shuffle_vendor": False, "shuffle_gold_bolts": False}
+    place_progression = True
+
+    def test_pre_fill_places_the_progression_and_the_game_can_be_beaten(self) -> None:
+        self.assertFalse([item for item in self.multiworld.itempool if item.advancement])
+        self.assertTrue(self.multiworld.can_beat_game(CollectionState(self.multiworld)))
 
 
 class TestStandardGoldBoltsOff(RAC1TestBase):
