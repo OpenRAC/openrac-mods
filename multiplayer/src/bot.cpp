@@ -187,6 +187,7 @@ std::string Bot::status() {
       << ",\"wait_kind\":" << static_cast<int>(parts_.coop.wait_kind())
       << ",\"wait_votes\":" << parts_.coop.wait_votes() << ",\"banner\":\"" << parts_.coop.banner(now_ms()) << "\""
       << ",\"shots_sent\":" << parts_.coop.shots_sent() << ",\"shots_fired\":" << parts_.coop.shots_fired()
+      << ",\"hits_taken\":" << parts_.world.hits_taken() << ",\"hits_refused\":" << parts_.world.hits_refused()
       << ",\"shots_late\":" << parts_.coop.shots_late() << ",\"tags\":" << parts_.coop.tag_stats().tags
       << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
       << ",\"tag_y\":" << number(parts_.coop.tag_stats().y) << ",\"tags_drawn\":" << parts_.coop.tag_stats().drawn
