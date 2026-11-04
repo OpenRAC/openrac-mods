@@ -7,7 +7,7 @@
 # an NPC the game always has). The goal is beating Drek.
 from typing import Any, Mapping
 
-from BaseClasses import CollectionState, ItemClassification, Tutorial
+from BaseClasses import CollectionState, Item, ItemClassification, Tutorial
 from Fill import fill_restrictive
 from worlds.AutoWorld import WebWorld, World
 
@@ -17,7 +17,7 @@ from .items import FILLER, ITEM_NAME_GROUPS, ITEM_NAME_TO_ID, ITEM_TABLE, RAC1It
 from .locations import EVENT_ROWS, LOCATION_NAME_GROUPS, LOCATION_NAME_TO_ID, LOCATION_ROWS, event_item
 from .options import OPTION_GROUPS, OPTION_PRESETS, RAC1Options
 from .regions import SHIP, create_regions
-from .rules import set_rules
+from .rules import holds_progression, set_rules
 
 
 # In a multiworld, a world with fewer spare places for its progression than this places it itself.
@@ -87,27 +87,37 @@ class RAC1World(World):
 
     def create_items(self) -> None:
         # A pool turned off keeps the game's own item in place; the rest go to the multiworld.
+        self.own_progression = []
+        own = self.places_own_progression()
         for row in self.location_rows():
             item = self.create_item(row.vanilla or FILLER)
             if self.shuffled(row):
-                self.multiworld.itempool.append(item)
+                (self.own_progression if own and item.advancement else self.multiworld.itempool).append(item)
             else:
                 self.get_location(row.name).place_locked_item(item)
 
     def set_rules(self) -> None:
         set_rules(self)
 
-    def pre_fill(self) -> None:
+    def places_own_progression(self) -> bool:
         # The main fill never retries, and it can dead-end when the progression has few places to
-        # go. Alone, this world's locations are all it has anyway, so nothing is lost placing it
-        # here, where it can try again; in a multiworld, only a world short of places does this.
-        pool = self.multiworld.itempool
-        keys = [item for item in pool if item.player == self.player and item.advancement]
+        # go. Alone, this world's locations are all it has anyway, so nothing is lost placing it in
+        # pre_fill, where it can try again; in a multiworld, only a world short of places does this.
+        if self.multiworld.players == 1:
+            return True
+        rows = [row for row in self.location_rows() if self.shuffled(row)]
+        places = sum(holds_progression(row, self.options.logic) for row in rows)
+        keys = sum(ITEM_TABLE[row.vanilla or FILLER].progression for row in rows)
+        return places - keys < ROOM_FOR_KEYS
+
+    def get_pre_fill_items(self) -> list[Item]:
+        return self.own_progression
+
+    def pre_fill(self) -> None:
+        keys = self.own_progression
         if not keys:
             return
         spots = [spot for spot in self.multiworld.get_unfilled_locations(self.player) if spot.item_rule(keys[0])]
-        if self.multiworld.players > 1 and len(spots) - len(keys) >= ROOM_FOR_KEYS:
-            return
         for _ in range(KEY_FILL_ATTEMPTS):
             left = self.random.sample(keys, len(keys))
             fill_restrictive(
@@ -121,13 +131,16 @@ class RAC1World(World):
                 name=f"{self.game} progression",
             )
             if not left:
-                pool[:] = [item for item in pool if item.location is None]
+                self.own_progression = []
                 return
             for spot in spots:
                 if spot.item is not None:
                     spot.item.location = None
                     spot.item = None
                     spot.locked = False
+        # Something else forbids these places (a plando, say): the main fill takes it from here.
+        self.multiworld.itempool += keys
+        self.own_progression = []
 
     def fill_slot_data(self) -> Mapping[str, Any]:
         return self.options.as_dict(

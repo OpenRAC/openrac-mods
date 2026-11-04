@@ -118,6 +118,20 @@ class TestFewPlacesForProgression(RAC1TestBase):
         self.assertTrue(self.multiworld.can_beat_game(CollectionState(self.multiworld)))
 
 
+class TestMultiworldKeepsProgressionShared(RAC1TestBase):
+    def test_default_options_leave_it_to_the_main_fill(self) -> None:
+        self.multiworld.players = 2
+        self.assertFalse(self.world.places_own_progression())
+
+
+class TestMultiworldShortOfPlaces(RAC1TestBase):
+    options = {"shuffle_vendor": False}
+
+    def test_it_places_its_own(self) -> None:
+        self.multiworld.players = 2
+        self.assertTrue(self.world.places_own_progression())
+
+
 class TestStandardGoldBoltsOff(RAC1TestBase):
     # No filler in the pool: the expensive purchases still fill.
     options = {"shuffle_gold_bolts": False}

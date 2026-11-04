@@ -43,6 +43,14 @@ def row_rule(row: LocationData) -> Rule:
     return rule
 
 
+def holds_progression(row: LocationData, logic: Logic) -> bool:
+    costly = row.costly and logic != logic.option_expert
+    pricey = row.pricey and logic == logic.option_relaxed
+    # A skill point stays optional: no world's way on, nor the goal, waits behind a challenge.
+    # A gold bolt takes every gadget, so a way on there can leave the fill with no place to go.
+    return not (costly or pricey or row.kind in ("skill", "gold"))
+
+
 def set_rules(world: "RAC1World") -> None:
     ship = world.get_region(SHIP)
     for index, planet in enumerate(PLANETS):
@@ -55,11 +63,7 @@ def set_rules(world: "RAC1World") -> None:
     for row in world.location_rows() + EVENT_ROWS:
         location = world.get_location(row.name)
         world.set_rule(location, row_rule(row))
-        costly = row.costly and logic != logic.option_expert
-        pricey = row.pricey and logic == logic.option_relaxed
-        # A skill point stays optional: no world's way on, nor the goal, waits behind a challenge.
-        # A gold bolt takes every gadget, so a way on there can leave the fill with no place to go.
-        if costly or pricey or row.kind in ("skill", "gold"):
+        if not holds_progression(row, logic):
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
             add_item_rule(location, lambda item: not item.advancement)
