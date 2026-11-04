@@ -1,8 +1,7 @@
 {
   "description": "Plays the game in an Archipelago multiworld: gadgets, weapons, vendor slots, gold bolts and infobots are locations that may hold another game's items. Needs the rac1.apworld from the release.",
   "tags": [
-    "randomizer",
-    "multiplayer"
+    "randomizer"
   ],
   "impact": [
     "gameplay",
