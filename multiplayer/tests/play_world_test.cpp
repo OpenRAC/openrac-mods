@@ -415,7 +415,194 @@ void the_verbose_log_traces_a_pause() {
 }
 }  // namespace
 
+void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
+    Player host(1);
+    host.session.handle(info({{1, "P1"}}));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host});
+    tick({&host}, 16);
+    const std::uint32_t alive = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+    mp::MobyState there = moby(10, 10, 28, alive, 10.0f);
+    there.mission = 8;
+    // A person's flag stays: a scene it has played would play again.
+    mp::MobyState person = moby(11, 11, 11, alive, 11.0f);
+    person.mission = 3;
+    host.game.now = {mp::kPhasePlaying, 15, 2};
+    host.game.level = {there, person};
+    for (int i = 0; i < 10; ++i) {
+        tick({&host}, 50);
+    }
+    host.game.mission_row_bytes[8] = 0xFF;  // done since the load: its moby is still here
+    host.game.mission_row_bytes[3] = 0xFF;
+    host.game.mission_row_bytes[5] = 0xFF;  // done, no moby here: its load would make none either
+
+    (void)host.world.save_for_a_joiner();
+    CHECK(host.game.captured_row[8] == 0);
+    CHECK(host.game.captured_row[3] == 0xFF);
+    CHECK(host.game.captured_row[5] == 0xFF);
+    // The host's own stands as it was.
+    CHECK(host.game.mission_row_bytes[8] == 0xFF);
+}
+
+void a_hit_that_makes_no_sense_is_refused() {
+    mp::Hit fine;
+    fine.damage = 3.0f;
+    CHECK(mp::hit_makes_sense(fine));
+    mp::Hit h = fine;
+    h.damage = -1.0f;
+    CHECK(!mp::hit_makes_sense(h));
+    h.damage = mp::kMostHitDamage + 1.0f;
+    CHECK(!mp::hit_makes_sense(h));
+    h.damage = std::numeric_limits<float>::quiet_NaN();
+    CHECK(!mp::hit_makes_sense(h));
+    h = fine;
+    h.position[1] = std::numeric_limits<float>::infinity();
+    CHECK(!mp::hit_makes_sense(h));
+    // A hit's place says nothing of where it was: far off is fine.
+    h = fine;
+    h.position[0] = 340.0f;
+    CHECK(mp::hit_makes_sense(h));
+
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    const mp::MobyState enemy = moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f);
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {enemy};
+    }
+    member.game.hero_pose.position[0] = 12.0f;
+    member.game.hero_pose.level = 0;
+    for (int i = 0; i < 40; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.world.synced());
+    const auto member_hits = [&](float damage) {
+        mp::Hit by;
+        by.victim = member.game.moby_slot(0);
+        by.damage = damage;
+        by.mask = 0x10000;
+        CHECK(member.world.hit(by));
+        route({&host, &member});
+        tick({&host, &member}, 16);
+    };
+    const std::size_t was = host.game.hits.size();
+    member_hits(2.0f);
+    CHECK(host.game.hits.size() == was + 1);
+    CHECK(host.world.hits_refused() == 0);
+    member_hits(mp::kMostHitDamage * 2.0f);
+    CHECK(host.game.hits.size() == was + 1);
+    CHECK(host.world.hits_refused() == 1);
+
+    // From across the level: refused; the same damage nearer was taken.
+    member.game.hero_pose.position[0] = 10.0f + mp::kHitReach + 50.0f;
+    for (int i = 0; i < 10; ++i) {
+        tick({&host, &member}, 50);
+    }
+    member_hits(2.0f);
+    CHECK(host.game.hits.size() == was + 1);
+    CHECK(host.world.hits_refused() == 2);
+}
+
+void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    const std::uint32_t alive = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+    const mp::MobyState other = moby(0, 0, 300, alive, 90.0f);
+    const auto settle = [&] {
+        for (int i = 0; i < 20; ++i) {
+            tick({&host, &member}, 50);
+        }
+    };
+    // Both games' level deleted it at its start: the hatch's waiting slot, dead in both.
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 9, 2};
+        p->game.level = {other, moby(57, 70, 193, alive | mp::kMobyDead, 10.0f)};
+    }
+    settle();
+    CHECK(member.world.spawned() == 0);
+
+    // The host's egg hatches it, in that slot; the member's game has no egg's update to do so.
+    host.game.level = {other, moby(57, 70, 193, alive, 20.0f)};
+    settle();
+    CHECK(member.world.spawned() == 1);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 1);
+
+    // Killed there: gone here, and hatched again it is a new one.
+    host.game.level = {other, moby(57, 70, 193, alive | mp::kMobyDead, 20.0f)};
+    settle();
+    CHECK(member.world.spawned() == 0);
+    host.game.level = {other, moby(57, 70, 193, alive, 30.0f)};
+    settle();
+    CHECK(member.world.spawned() == 1);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 2);
+}
+
+void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    // Both games' maker made its turret at its first update: slot 700 in each, unkeyed.
+    const mp::MobyState turret = moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f);
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f), turret};
+    }
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.world.spawned() == 1);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 872") == 0);
+    CHECK(std::count_if(member.game.level.begin(), member.game.level.end(), [](const mp::MobyState& m) {
+              return m.oclass == 872;
+          }) == 1);
+    CHECK(member.game.drives.count(700) == 1);
+
+    // Its copy too far from the host's, whose maker moved: the host's is made, its own goes.
+    Player host2(1), member2(2);
+    host2.session.handle(info(both));
+    member2.session.handle(info(both));
+    host2.coop.choose({}, "New game");
+    CHECK(start_ready(host2));
+    route({&host2, &member2});
+    tick({&host2, &member2}, 16);
+    for (Player* p : {&host2, &member2}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f)};
+    }
+    host2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 500.0f));
+    member2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f));
+    for (int i = 0; i < 20; ++i) {
+        tick({&host2, &member2}, 50);
+    }
+    CHECK(std::count(member2.game.world_calls.begin(), member2.game.world_calls.end(), "spawn 872") == 1);
+    CHECK(std::count_if(member2.game.world_calls.begin(), member2.game.world_calls.end(), [](const std::string& c) {
+              return c.rfind("kill 700", 0) == 0;
+          }) == 1);
+}
+
 void run_world_tests() {
+    a_member_takes_over_its_own_copy_of_what_the_level_spawned();
+    a_placed_moby_hatched_is_shared_as_a_spawned_one();
+    a_hit_that_makes_no_sense_is_refused();
+    a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for();
     world_bytes();
     the_world_is_the_hosts();
     the_hosts_hidden_mobys_are_hidden_here();

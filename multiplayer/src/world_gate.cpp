@@ -62,6 +62,11 @@ bool World::gate(int slot, int phase) {
         return false;
     }
 
+    // A zone trigger counts every player in it: the port asks that of it (rac1/host/world.c).
+    if (it->second.oclass == kSpatialTriggerClass) {
+        return false;
+    }
+
     Pose at;
     const std::int32_t target = pick_target(slot, it->second, at);
 
@@ -134,12 +139,16 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
     }
 
     // The target it has, unless it has gone or died: an attack goes to its end, and only a player
-    // clearly nearer takes it away (a moby between two players would flip each tick). A lunge at a
-    // grab's victim and a moby that remembers who it fights are not to be turned at all.
-    const bool lunging = grab != nullptr && moby.state >= grab->lunge_first && moby.state <= grab->lunge_last;
+    // clearly nearer takes it away (a moby between two players would flip each tick). A leap at a
+    // grab's victim and a moby that remembers who it fights are not to be turned at all. A grabber
+    // has no stick: its chase of one it can't reach breaks off and starts again, each change of
+    // state restarting a stick, and that would keep it from a player beside it for good.
+    const bool lunging =
+        grab != nullptr && moby.state >= grab->lunge_first && moby.state <= grab->lunge_last;
+    const bool sticking = grab == nullptr && tick_ms_ - aim.state_ms < kAttackStickMs;
 
     if (kept >= 0.0f
-        && (lunging || keeps_hero_class(moby.oclass) || tick_ms_ - aim.state_ms < kAttackStickMs
+        && (lunging || sticking || keeps_hero_class(moby.oclass)
             || best >= kept * kTargetBand * kTargetBand)) {
         at = kept_at;
         return current;
@@ -147,6 +156,24 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
 
     aim.player = nearest;
     return nearest;
+}
+
+bool World::member_hit_ok(std::int32_t sender, const Hit& h) const {
+    if (!hit_makes_sense(h)) {
+        return false;
+    }
+
+    // Its word on where it is, when there is one: a hit from another level is late, and its slot
+    // here is another moby; one from across the level is no shot.
+    Pose at;
+    const auto moby = mobys_.find(h.victim);
+
+    if (moby == mobys_.end() || !coop_.latest(sender, at)) {
+        return true;
+    }
+
+    return at.level == level_
+           && distance2(at.position, moby->second.pose.position) <= kHitReach * kHitReach;
 }
 
 bool World::hit(const Hit& h) {

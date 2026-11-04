@@ -5,7 +5,6 @@
 // victim, the victim's game holding its own hero, every way a grab ends, and what an update does to
 // a player standing in.
 #include "test_support.hpp"
-
 #include "world_util.hpp"
 
 namespace mpt {
@@ -151,14 +150,30 @@ void a_lunge_keeps_its_target() {
     p.host.game.hero_pose.position[0] = 0.5f;
     p.run(60);
     CHECK(p.update());
-    // Out of the lunge, the ordinary rule: the nearer player takes it, once its stick has run out.
+    // Out of the leap, the nearer player takes it.
     for (mp::MobyState& m : p.host.game.level) {
         m.state = 2;
     }
 
     p.run(2);
-    CHECK(p.update());
-    p.run(60);
+    CHECK(!p.update());
+}
+
+void a_chase_gives_way_to_a_player_clearly_nearer() {
+    Party p(kLeap);
+    p.update_does(1);
+    p.host.game.hero_pose.position[0] = 0.5f;
+
+    // Its chase of one on the ground keeps breaking off (states 4 and 2), each within the stick an
+    // ordinary attack has: the host beside it is still its prey.
+    for (const std::uint32_t state : {4u, 2u, 4u}) {
+        for (mp::MobyState& m : p.host.game.level) {
+            m.state = state;
+        }
+
+        p.run(2);
+    }
+
     CHECK(!p.update());
 }
 
@@ -353,6 +368,7 @@ void run_hold_tests() {
     a_grab_is_played_in_the_victims_game();
     a_grab_holds_past_any_stick();
     a_lunge_keeps_its_target();
+    a_chase_gives_way_to_a_player_clearly_nearer();
     a_fatal_grab_ends_with_the_victim_back();
     every_end_of_a_grab_lets_go();
     a_player_in_a_grip_is_no_prey_for_a_second();

@@ -116,7 +116,7 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
             continue;
         }
 
-        const Bytes live = game_.capture();
+        const Bytes live = joiner_save_ ? joiner_save_() : game_.capture();
 
         if (!live.empty()) {
             log("player " + std::to_string(m.id) + " joins the game in level " + std::to_string(status.level));
@@ -159,6 +159,7 @@ void Coop::send_level(std::uint64_t now, int level, bool scene) {
             .u8(static_cast<std::uint8_t>(travel_))
             .i32(travel_dest_)
             .u8(arriving_ ? 1 : 0)
+            .u8(hold_rule_ && arriving_ && ship_went_ != travel_ ? 1 : 0)
             .bytes()
     );
 }
@@ -212,7 +213,8 @@ std::string Coop::banner(std::uint64_t now) const {
 
     if (leave_dest_ >= 0 && now < leave_at_) {
         const std::string planet = game_.level_name(leave_dest_);
-        return planet.empty() ? "The host is leaving" : "The host is leaving for " + planet;
+        const std::string leaving = planet.empty() ? "The host is leaving" : "The host is leaving for " + planet;
+        return ship_held_ ? leaving + ": press Start when you are ready" : leaving;
     }
 
     if (hold_ && wait_.kind != kWaitNone) {

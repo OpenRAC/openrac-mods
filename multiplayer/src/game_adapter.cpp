@@ -97,6 +97,19 @@ bool ModGame::game_save() {
 
 bool ModGame::travel(int level) { return mod_.play_travel(level) == OPENRAC_HOOK_OK; }
 
+bool ModGame::ship_takeoff(int level) {
+    const ProgressDisc* disc = progress_disc();
+    const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_L00_00290030" : "FUN_L00_0028ed58";
+    const auto travel_to = name != nullptr ? mod_.function<void (*)(std::int32_t)>(name) : nullptr;
+
+    if (travel_to == nullptr) {
+        return false;
+    }
+
+    travel_to(level);
+    return true;
+}
+
 mp::Bytes ModGame::capture() { return mod_.save_capture(); }
 
 bool ModGame::hero(mp::Pose& out) {
@@ -246,6 +259,18 @@ bool ModGame::mission_row(int level, std::uint8_t* out) {
     return true;
 }
 // --- end WP-DEATH ---
+
+bool ModGame::mission_clear(int level, const std::uint8_t* flags) {
+    std::uint8_t row[OPENRAC_MISSION_STATE_SIZE] = {};
+    std::copy(flags, flags + OPENRAC_MISSION_STATE_SIZE, row);
+    return mod_.mission_state_clear(level, row);
+}
+
+bool ModGame::mission_set(int level, const std::uint8_t* flags) {
+    std::uint8_t row[OPENRAC_MISSION_STATE_SIZE] = {};
+    std::copy(flags, flags + OPENRAC_MISSION_STATE_SIZE, row);
+    return mod_.mission_state_write(level, row);
+}
 
 int ModGame::moby_slot(int key) { return mod_.moby_slot(key); }
 

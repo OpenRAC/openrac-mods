@@ -191,6 +191,27 @@ void a_change_in_the_hosts_level_goes_out_at_once() {
     CHECK(flag(party.a.game.sections, 4, 5) == 0xFF);
 }
 
+void a_flag_of_the_hosts_level_waits_for_a_member_on_its_way() {
+    Three party(4);
+    party.settle();
+    // The host in level 6 already, its flag set as it got there; the member still to leave level 4.
+    party.host.game.now = {mp::kPhasePlaying, 6, 3};
+    party.settle();
+    CHECK(party.a.coop.host_level() == 6);
+    flag(party.host.game.sections, 6, 8) = 0xFF;
+    party.settle();
+    CHECK(flag(party.a.game.sections, 6, 8) == 0);
+    // Another level's is no danger to its load.
+    flag(party.host.game.sections, 9, 1) = 0xFF;
+    party.settle();
+    CHECK(flag(party.a.game.sections, 9, 1) == 0xFF);
+
+    // It has arrived: now it has it.
+    party.a.game.now = {mp::kPhasePlaying, 6, 3};
+    party.settle();
+    CHECK(flag(party.a.game.sections, 6, 8) == 0xFF);
+}
+
 void a_member_arriving_asks_for_its_levels_row() {
     Three party(4);
     party.settle();
@@ -361,6 +382,7 @@ void run_shared_tests() {
     a_members_scene_flag_never_reaches_the_host();
     the_hosts_scene_flag_waits_for_a_member_to_leave_the_level();
     a_change_in_the_hosts_level_goes_out_at_once();
+    a_flag_of_the_hosts_level_waits_for_a_member_on_its_way();
     a_member_arriving_asks_for_its_levels_row();
     a_scripted_mission_ends_the_same_everywhere();
     the_same_over_a_bad_link();

@@ -124,6 +124,38 @@ class Builder(unittest.TestCase):
         self.assertNotIn("1.2.0", [v["version"] for v in mod(index, "lock-strafe")["versions"]])
         self.assertTrue(any("lock-strafe-v1.2.0" in w and "SHA256SUMS" in w for w in warnings))
 
+    def edit_release(self, tag, change):
+        path = self.fx.dir / "api/openrac-mods/releases-1.json"
+        rels = json.loads(path.read_text())
+        change(next(r for r in rels if r["tag_name"] == tag))
+        path.write_text(json.dumps(rels))
+
+    def test_digest_is_enough_without_sums(self):
+        tag = "lock-strafe-v1.1.0"
+        kept = {}
+
+        def drop_sums(rel):
+            rel["assets"] = [a for a in rel["assets"] if a["name"] != "SHA256SUMS"]
+            kept.update({a["name"]: a["digest"][7:] for a in rel["assets"]})
+
+        self.edit_release(tag, drop_sums)
+        index, errors, _ = self.fx.build()
+        self.assertEqual(errors, [])
+        v = next(v for v in mod(index, "lock-strafe")["versions"] if v["tag"] == tag)
+        self.assertEqual(len(v["platforms"]), 3)
+        for p in v["platforms"].values():
+            self.assertEqual(p["sha256"], kept[p["asset"]])
+
+    def test_digest_and_sums_must_agree(self):
+        def wrong_digest(rel):
+            for a in rel["assets"]:
+                a["digest"] = "sha256:" + "0" * 64
+
+        self.edit_release("lock-strafe-v1.1.0", wrong_digest)
+        index, _, warnings = self.fx.build()
+        self.assertNotIn("1.1.0", [v["version"] for v in mod(index, "lock-strafe")["versions"]])
+        self.assertTrue(any("lock-strafe-v1.1.0" in w and "differs" in w for w in warnings))
+
     def test_broken_release_keeps_last_good(self):
         good, _, _ = self.fx.build()
         prev = json.loads(json.dumps(good))

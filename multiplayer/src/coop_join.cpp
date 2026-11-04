@@ -291,6 +291,7 @@ void Coop::clear_game() {
     travel_dest_ = -1;
     heard_travel_ = false;
     host_travel_ = 0;
+    ship_held_ = false;
     leave_dest_ = -1;
     host_arriving_ = false;
     reset_scenes();

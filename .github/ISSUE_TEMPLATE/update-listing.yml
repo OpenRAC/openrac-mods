@@ -52,4 +52,5 @@ body:
     id: screenshots
     attributes:
       label: Screenshots
-      description: "Replaces all screenshots. One picture per line, caption after ' | '."
+      description: "Replaces all screenshots. Paste or drag in pictures from your computer (PNG, JPEG, WebP, AVIF or GIF, at most 15 MB each), one per line. Leave what GitHub writes as it is. To add a caption, put ' | ' and the caption after it on the same line. A picture captioned icon or banner becomes the icon or banner. Links to pictures hosted elsewhere don't work: upload them here."
+      placeholder: "<img ... src=\"https://github.com/user-attachments/assets/...\" /> | Strafing in Blarg"

@@ -85,6 +85,7 @@ class Client:
                                 "name": self.name,
                                 "verbose_log": self.env.trace,
                                 "revive": self.env.revive,
+                                "hold_party": self.env.hold_party,
                             },
                         }
                     ],
@@ -232,6 +233,7 @@ class Env:
         self.seed = args.seed
         self.trace = args.trace
         self.revive = args.scenario == "revive"
+        self.hold_party = args.scenario == "holdparty"
         self.game_args = args.game_arg or []
         self.game_env = dict(e.split("=", 1) for e in (args.game_env or []))
         self.server = None
@@ -310,9 +312,12 @@ class Env:
                 time.sleep(0.2)
         raise Failed("the server did not start")
 
-    def client(self, name, link):
+    def client(self, name, link, join_file=None):
         c = Client(self, len(self.clients), name, link)
         self.clients.append(c)
+        if join_file is not None:
+            (c.dir / "plugins").mkdir(parents=True, exist_ok=True)
+            (c.dir / "plugins" / "modset-join.json").write_text(json.dumps(join_file))
         c.spawn()
         c.attach()
         return c
@@ -406,10 +411,17 @@ def compare_worlds(env, games, label, keys=None):
     ago may have kReplayMs to go in a game out of its reach, so one that differs is looked at again
     after that; what still differs is a desync. Returns the disagreements."""
     wrong = crate_differences(games, keys)
-    if wrong:
+    # A stack's crates go one after another, each with its kReplayMs: one crate still to go, then the
+    # next, is a stack going. The same crate twice is a desync.
+    for _ in range(4):
+        if not wrong:
+            break
         env.report["notes"].setdefault("settling", []).append({label: wrong[:6]})
         time.sleep(4)
+        before = {w[0] for w in wrong}
         wrong = crate_differences(games, keys)
+        if {w[0] for w in wrong} & before:
+            break
     env.check(f"{label}: crates agree in every game", not wrong, json.dumps(wrong[:12]))
     return wrong
 
@@ -963,23 +975,145 @@ def scenario_grab(env, args):
     go_near(member, shark, 1.0)
     healths = []
 
-    def caught():
-        h = member.status().get("health", 1)
-        healths.append(h)
-        return h <= 0
+    grabbed_at = member.status()["hero"]
 
-    wait("the member died in its grip", caught, 60)
+    def caught():
+        s = member.status()
+        healths.append(s.get("health", 1))
+        # Rilgar's takes him and puts him back on land, his health as it was; Umbris's kills him.
+        if level == 5:
+            return s.get("hero_state") == 114 or math.dist(s["hero"], grabbed_at) > 10
+        return healths[-1] <= 0
+
+    time.sleep(0.5)
+    grabbed_at = member.status()["hero"]
+    wait("the member was taken in its grip", caught, 60)
     before = host.status()
     env.check("the host was not hurt", before.get("health") == far.get("health"), json.dumps([far.get("health"), before.get("health")]))
     env.check("the host is in control", before.get("phase") == PHASE_PLAYING and not before.get("hold"), json.dumps(before)[:300])
     if args.trace and level == 7:
-        env.check("the host told the member", len(log_lines(host, r"hold.*player")) > 0, "")
+        trace = (host.dir / "mp-trace.log").read_text(errors="replace")
+        env.check("the host told the member", re.search(r"hold player", trace) is not None, "")
         env.check("the member's game held him", member.status().get("health", 1) <= 0, "")
     wait("the member came back", lambda: member.status().get("health", 0) > 0, 40)
     time.sleep(5)
     after = host.status()
     env.check("the host stays himself after it", after.get("health") == far.get("health") and after.get("loads") == far.get("loads"), json.dumps([far, after])[:400])
     compare_enemies(env, [host, member], "after a grab")
+
+
+# A zone trigger's state with someone in the zone; the update sets it to 1 with nobody in it.
+TRIGGER_INSIDE = 2
+
+
+def scenario_trigger(env, args):
+    """A zone trigger counts every player in it. The host in a shark's zone, a member outside it and
+    nearer the trigger: the shark still takes the host. Then the other way round: the member alone
+    in a zone, the host outside it: the zone goes on for him, and off again when he is gone."""
+    host, member = start_two(env, args)
+    fly_to(env, host, [member], 7)
+    time.sleep(3)
+    placed, _ = host.mobys()
+    sharks = sorted((m for m in placed.values() if m[2] == 1059 and live(m)), key=lambda m: m[1])
+    triggers = [m for m in placed.values() if m[2] == 258]
+    if not sharks or not triggers:
+        raise Failed("no sharks and triggers there")
+    shark = sharks[0]
+    nearest = min(triggers, key=lambda t: math.dist(t[5:8], shark[5:8]))
+    # The member by the trigger, away from the sharks' water; the host in the water.
+    member.ask(f"teleport {nearest[5]} {nearest[6]} {nearest[7] + 8}")
+    time.sleep(1)
+    env.report["notes"]["member from the trigger"] = round(math.dist(member.status()["hero"], nearest[5:8]), 1)
+    go_near(host, shark, 1.0)
+    env.report["notes"]["host from the trigger"] = round(math.dist(host.status()["hero"], nearest[5:8]), 1)
+
+    # It can take the host at once, and he is back at the start in a few seconds: watch from now.
+    # It only leaps at one off the ground: he drops onto it, again and again, as one jumping would.
+    # A teleport counts as on the ground, so he can't simply be kept on top of it.
+    drops = [0.0]
+
+    def taken():
+        if host.status().get("health", 1) <= 0:
+            return True
+        now, _ = host.mobys()
+        at = next((m for m in now.values() if m[1] == shark[1]), None)
+        if at is not None and time.monotonic() - drops[0] > 1.5:
+            drops[0] = time.monotonic()
+            host.ask(f"teleport {at[5]} {at[6]} {at[7] + 3}")
+        return False
+
+    wait("a shark took the host", taken, 60, 0.25)
+    env.check("the member was left alone", member.status().get("health", 0) > 0)
+    wait("the host came back", lambda: host.status().get("health", 0) > 0, 40)
+
+    # The other way round: the member alone in a zone. A zone can be a polygon reaching far from its
+    # trigger, so which one it is shows in what goes on when he arrives, the host staying put.
+    def zones_on():
+        now, _ = host.mobys()
+        return {t[1] for t in now.values() if t[2] == 258 and t[4] == TRIGGER_INSIDE}
+
+    away = host.status()["hero"]
+    member.ask(f"teleport {away[0] + 3} {away[1]} {away[2] + 1}")
+    time.sleep(4)
+    outside = zones_on()
+    before = host.status()
+    jumps = [0.0]
+
+    def member_taken():
+        if member.status().get("health", 1) <= 0:
+            return True
+        if time.monotonic() - jumps[0] > 1.5:
+            jumps[0] = time.monotonic()
+            member.ask(f"teleport {nearest[5]} {nearest[6]} {nearest[7] + 8}")
+        return False
+
+    member_taken()
+    wait("the member alone turned a zone on", lambda: zones_on() - outside, 20)
+    entered = zones_on() - outside
+    env.report["notes"]["zones the member alone turned on"] = sorted(entered)
+    env.check("the host did not move", math.dist(host.status()["hero"], before["hero"]) < 1.0)
+    wait("a shark took the member, alone in the zone", member_taken, 90, 0.25)
+    after = host.status()
+    env.check("the host was left alone", after.get("health") == before.get("health"), json.dumps([before.get("health"), after.get("health")]))
+    env.check("the host is in control", after.get("phase") == PHASE_PLAYING and not after.get("hold"))
+    wait("the member came back", lambda: member.status().get("health", 0) > 0, 40)
+    wait("the zone off with the member gone from it", lambda: not (zones_on() & entered), 20)
+
+
+def scenario_menu(env, args):
+    """The pause menu held open in a party, by the host and then by a member, in `--level N`: the
+    world goes on under it and neither game falls over."""
+    host, member = start_two(env, args)
+    if args.level:
+        fly_to(env, host, [member], args.level)
+        time.sleep(3)
+    for who, name in ((host, "the host"), (member, "a member")):
+        def open_it():
+            if who.status().get("phase") == PHASE_MENU:
+                return True
+            who.ask("press 8 6")
+            return False
+
+        wait(f"{name}'s menu open", open_it, 20, 1.0)
+        time.sleep(15)
+        env.check(f"{name}'s menu is still up after 15 s", who.status().get("phase") == PHASE_MENU)
+        who.ask("press 8 6")
+        wait(f"{name}'s menu closed", lambda: who.status().get("phase") != PHASE_MENU, 10)
+        time.sleep(1)
+    compare_enemies(env, [host, member], "after the menus")
+
+
+def scenario_levels(env, args):
+    """Each level with zone triggers but the two `grab` plays: the party arrives, both games in
+    control, and has the same enemies, none twice."""
+    host, member = start_two(env, args)
+    wanted = [int(n) for n in args.weapons.split(",")] if args.weapons else [9, 10, 12, 13, 14, 15, 17]
+    for level in wanted:
+        fly_to(env, host, [member], level)
+        time.sleep(4)
+        placed, _ = host.mobys()
+        env.report["notes"][f"level {level} triggers"] = sum(1 for m in placed.values() if m[2] == 258)
+        compare_enemies(env, [host, member], f"level {level}")
 
 
 def enemies_of(c):
@@ -1003,6 +1137,12 @@ def compare_enemies(env, games, label):
         c.name: {"placed": len(a), "spawned": len(m)} for c, (a, m) in zip(games, lists)
     }
     for c, (alive, made) in zip(games[1:], lists[1:]):
+        # A placed one hatched by the host's game, in a slot it brought back, is a spawned one here.
+        mine, _ = c.mobys()
+        hatched = [m for k, m in host_alive.items() if k in mine and not live(mine[k])]
+        host_alive = {k: m for k, m in host_alive.items() if not (k in mine and not live(mine[k]))}
+        host_made = host_made + hatched
+        env.report["notes"][f"{label}: hatched"] = len(hatched)
         env.check(f"{label}: {c.name} has the host's placed enemies", set(alive) == set(host_alive), f"{len(alive)} of {len(host_alive)}")
         count = lambda ms: sorted(m[2] for m in ms)
         env.check(f"{label}: {c.name} has the host's spawned enemies, none twice", count(made) == count(host_made), f"{len(made)} of {len(host_made)}")
@@ -1033,7 +1173,7 @@ def scenario_enemies(env, args):
     wait("the member's respawn", lambda: member.status()["loads"] != loads and member.status()["synced"], 40)
     time.sleep(args.settle)
     compare_enemies(env, [host, member], "after the member's death")
-    env.check("the member still made none of its own", not log_lines(member, r"(?:copies of|left out)"))
+    env.check("the member still made none of its own", not log_lines(member, r"level \d+: [^\n]*(?:copies of|left out)"))
     loads = host.status()["loads"]
     host.ask("fall")
     wait("the host's respawn", lambda: host.status()["loads"] != loads and host.status()["phase"] == PHASE_PLAYING, 40)
@@ -1202,6 +1342,68 @@ def scenario_kick(env, args):
     env.check("the member stays connected after it", renamed.status()["greeted"])
 
 
+def scenario_reload(env, args):
+    """A level the host's game loads again with a mission done since its first load, which a load
+    leaves that mission's mobys out for: a member who stayed, and one who comes later, are left with
+    no enemy the host has not, nor it with one they have not."""
+    host, member = start_two(env, args)
+    level = args.level if args.level > 0 else 15
+    fly_to(env, host, [member], level)
+    time.sleep(args.settle)
+    compare_enemies(env, [host, member], "first load")
+    loads = host.status()["loads"]
+    host.ask("fall")
+    wait("the host's respawn", lambda: host.status()["loads"] != loads and host.status()["phase"] == PHASE_PLAYING, 60)
+    time.sleep(6)
+    compare_enemies(env, [host, member], "the host's load again")
+    third, took = join_game(env, "Late1", args.link_args, host, seconds=args.join_seconds)
+    env.check("the late member stands in the level", took is not None, str(took))
+    wait("the late member's world", lambda: third.status()["synced"], 30)
+    time.sleep(args.settle)
+    compare_enemies(env, [host, member, third], "with the late member")
+
+
+def scenario_autojoin(env, args):
+    """The launcher's word in modset-join.json: a game started with it joins the party by itself,
+    the word is for that start only, and the party plays. A stale word joins nothing."""
+    host = env.client("Host1", args.link_args)
+    reach_title(host)
+    code = party(env, host, [])
+
+    stale = env.client("Stale1", args.link_args, {"format": 1, "party": code, "written": int(time.time()) - 3600})
+    reach_title(stale)
+    time.sleep(8)
+    env.check("a stale word joins nothing", not stale.status().get("code"), json.dumps(stale.status().get("code")))
+    env.check("a stale word goes", not (stale.dir / "plugins" / "modset-join.json").exists())
+    stale.stop()
+    env.clients.remove(stale)
+
+    member = env.client("Member1", args.link_args, {"format": 1, "party": code, "written": int(time.time())})
+    reach_title(member)
+    wait("the member in the party by itself", lambda: member.status()["code"] == code, 40)
+    env.check("the word went", not (member.dir / "plugins" / "modset-join.json").exists())
+    env.check("the log says why", log_lines(member, r"joined party \w+ as the launcher asked"))
+    wait("the member told of the host's mods", lambda: member.json("mods")["heard_host"], 15)
+    member.ask("ready")
+    wait("all ready", lambda: host.status()["all_ready"], 15)
+    answer = host.ask("start")
+    env.check("the host starts", answer == "ok", answer)
+    env.check("both games in control", skip_scenes(env, host, [member], 150), "")
+
+
+def scenario_autojoinsolo(env, args):
+    """The launcher's word to a game with a solo mod on (`--member-mods archipelago`): no party."""
+    host = env.client("Host1", args.link_args)
+    reach_title(host)
+    code = party(env, host, [])
+    member = env.client("Member1", args.link_args, {"format": 1, "party": code, "written": int(time.time())})
+    reach_title(member)
+    wait("it says why", lambda: log_lines(member, r"can't be played in a party"), 30)
+    time.sleep(5)
+    env.check("it stays out of the party", not member.status().get("code"), json.dumps(member.status().get("code")))
+    env.check("the host has only itself", host.status()["members"] == 1, json.dumps(host.status()["members"]))
+
+
 def scenario_midjoin(env, args):
     """A party playing by rules: a late member with the same mods comes in under them; with other
     settings, it gets no game."""
@@ -1219,7 +1421,7 @@ def scenario_midjoin(env, args):
     wait("the late member's world", lambda: third.status()["synced"], 30)
     time.sleep(args.settle)
     env.check("it plays by the host's rules", log_lines(third, r"playing by the host's rules"))
-    env.check("it made none of its own", not log_lines(third, r"(?:copies of|left out)"))
+    env.check("it made none of its own", not log_lines(third, r"level \d+: [^\n]*(?:copies of|left out)"))
     compare_enemies(env, [host, member, third], "with the late member")
     compare_worlds(env, [host, third], "with the late member")
 
@@ -1319,6 +1521,85 @@ def scenario_shipwarn(env, args):
     wait("the member leaves", lambda: member.status()["phase"] != PHASE_PLAYING or member.status()["level"] == level, 10)
     ok = skip_scenes(env, host, [member], 150)
     env.check("the party is in", ok, json.dumps([host.status(), member.status()])[:600])
+
+
+def scenario_holdparty(env, args):
+    """The host's rule: its ship waits for a member, who leaves on its Start; then on the host's
+    Start on the new planet; then, nobody pressing, at the limit."""
+    host, member = start_two(env, args)
+
+    def held(level, label):
+        host.ask(f"travel {level}")
+        time.sleep(6)
+        s = member.status()
+        env.check(f"{label}: the member is still here, past the plain warning", s["level"] != level, json.dumps(s["level"]))
+        env.check(f"{label}: it is told to press Start", "press Start" in s["banner"], s["banner"])
+        return s
+
+    def in_with_it(level, label):
+        wait(f"{label}: the member leaves", lambda: member.status()["level"] == level, 60)
+        # A new game's first save asks in a dialog, of a member on its first planet too: Cross.
+        limit = time.monotonic() + 150
+        ok = False
+        while time.monotonic() < limit and not ok:
+            if member.status()["phase"] == PHASE_MENU:
+                env.report["notes"].setdefault("member's dialogs", []).append(label)
+                member.ask("press 4000 6")
+            ok = skip_scenes(env, host, [member], 3)
+        fields = ("phase", "level", "hold", "arriving", "scene", "banner", "wait_kind", "going")
+        env.check(f"{label}: the party is in", ok, json.dumps([{k: c.status().get(k) for k in fields} for c in (host, member)]))
+
+    held(3, "its Start")
+    member.ask("press 8 6")
+    in_with_it(3, "its Start")
+
+    held(4, "the host's Start")
+    wait("the host in the level", lambda: host.status()["level"] == 4 and host.status()["phase"] in IN_LEVEL, 60)
+    for _ in range(40):
+        if member.status()["level"] == 4:
+            break
+        host.ask("press 8 6")
+        time.sleep(0.5)
+    in_with_it(4, "the host's Start")
+
+    start = time.monotonic()
+    held(5, "the limit")
+    in_with_it(5, "the limit")
+    env.report["notes"]["the limit took"] = round(time.monotonic() - start, 1)
+    env.check("the limit: the member stayed the time", time.monotonic() - start >= 25, "")
+
+
+def scenario_takeoff(env, args):
+    """The host's ship leaves: a member on its feet leaves by its own take-off from its pad, shown
+    as a scene before its level changes, and the party arrives together. Levels from `--weapons`."""
+    host, member = start_two(env, args)
+    levels = [int(n) for n in args.weapons.split(",")] if args.weapons else [3, 4, 5]
+    for level in levels:
+        here = member.status()["level"]
+        before = len(log_lines(member, r"taking off from the pad"))
+        host.ask(f"travel {level}")
+        seen = []
+        limit = time.monotonic() + 90
+        while time.monotonic() < limit:
+            s = member.status()
+            seen.append((s["phase"], s["level"]))
+            if s["level"] == level and s["phase"] in IN_LEVEL:
+                break
+            if member.status()["phase"] == PHASE_MENU:
+                member.ask("press 4000 6")
+            time.sleep(0.1)
+        env.check(f"to {level}: the member got there", seen and seen[-1][1] == level, json.dumps(seen[-3:]))
+        env.check(f"to {level}: by its own take-off", len(log_lines(member, r"taking off from the pad")) > before)
+        scene_here = sum(1 for p, l in seen if p == PHASE_SCENE and l == here)
+        env.report["notes"].setdefault("take-off", {})[level] = {"scene samples": scene_here, "samples": len(seen)}
+        env.check(f"to {level}: a scene played before it left", scene_here > 0, str(scene_here))
+        limit = time.monotonic() + 150
+        ok = False
+        while time.monotonic() < limit and not ok:
+            if member.status()["phase"] == PHASE_MENU:
+                member.ask("press 4000 6")
+            ok = skip_scenes(env, host, [member], 3)
+        env.check(f"to {level}: the party is in", ok, json.dumps([host.status()["phase"], member.status()["phase"]]))
 
 
 def shared_of(c, tag):
@@ -1617,6 +1898,38 @@ def classes_near(c):
     return {m[2] for m in json.loads(c.ask("dump"))}
 
 
+def scenario_hits(env, args):
+    """Each weapon of a member's, fired beside the host's enemies: its hits reach the host's, and
+    none of them is refused. `--level N` for the enemies' level, 3 by default."""
+    host, member = start_two(env, args)
+    level = args.level if args.level > 0 else 3
+    fly_to(env, host, [member], level)
+    time.sleep(3)
+    wanted = None
+    if args.weapons:
+        wanted = {w.strip().lower() for w in args.weapons.split(",")}
+    start = host.status().get("hits_taken", 0)
+    for item, name, ticks, oclass in WEAPONS:
+        if wanted is not None and name.lower() not in wanted:
+            continue
+        alive, _ = enemies_of(host)
+        creatures = sorted(alive.values(), key=lambda m: m[1])
+        if not creatures:
+            break
+        target = creatures[len(creatures) // 2]
+        member.ask(f"equip {item}")
+        for gap in (2.0, 5.0):
+            member.ask(f"teleport {target[5] + gap} {target[6]} {target[7] + 1}")
+            time.sleep(1.5)
+            member.ask(f"press {args.fire_button} {ticks}")
+            time.sleep(ticks / 60 + 2.0)
+        env.report["notes"].setdefault("hits", {})[name] = host.status().get("hits_taken", 0)
+    s = host.status()
+    env.check("the member's weapons hit the host's enemies", s.get("hits_taken", 0) > start, json.dumps(s.get("hits_taken")))
+    env.check("no hit was refused", s.get("hits_refused", 1) == 0, json.dumps(s.get("hits_refused")))
+    env.check("no damage was refused", member.status().get("hits_refused", 1) == 0)
+
+
 def scenario_weapons(env, args):
     """Each weapon fired by the host, then by the member: the other game shows it, nothing crashes,
     and no hit comes of the shown copy. `--weapons a,b` runs some."""
@@ -1754,21 +2067,30 @@ SCENARIOS = {
     "rejoin": scenario_rejoin,
     "wipe": scenario_wipe,
     "revive": scenario_revive,
+    "holdparty": scenario_holdparty,
     "crateback": scenario_crateback,
     "dig": scenario_dig,
     "grab": scenario_grab,
+    "trigger": scenario_trigger,
+    "menu": scenario_menu,
+    "levels": scenario_levels,
     "crates": scenario_crates,
     "join": scenario_join,
     "gohost": scenario_gohost,
     "restart": scenario_restart,
     "shipwarn": scenario_shipwarn,
+    "takeoff": scenario_takeoff,
     "soak": scenario_soak,
     "weapons": scenario_weapons,
+    "hits": scenario_hits,
     "enemies": scenario_enemies,
     "chaos": scenario_chaos,
     "refuse": scenario_refuse,
     "kick": scenario_kick,
     "midjoin": scenario_midjoin,
+    "autojoin": scenario_autojoin,
+    "autojoinsolo": scenario_autojoinsolo,
+    "reload": scenario_reload,
     "progress2": scenario_progress2,
     "camera": scenario_camera,
 }

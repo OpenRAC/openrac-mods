@@ -254,6 +254,10 @@ constexpr std::uint64_t kQuietMs = 5000;
 constexpr std::uint64_t kGoAgainMs = 5000;
 /* The warning a member has before the host's ship takes it along. */
 constexpr std::uint64_t kTravelWarnMs = 2500;
+/* A member's take-off from its pad: how long it may take to leave before the plain flight does it. */
+constexpr std::uint64_t kTakeoffMs = 15000;
+/* With the host's rule "hold the party": how long a member may stay behind before the ship takes it. */
+constexpr std::uint64_t kShipHoldMs = 30000;
 /* What a wait is for (WAIT_VOTE's kind): nothing, the players still arriving, a scene. */
 constexpr std::uint8_t kWaitNone = 0;
 constexpr std::uint8_t kWaitArrival = 1;
@@ -529,7 +533,13 @@ public:
     virtual bool respawn() { return false; }
     /* The mission row of `level` in this game (kMissions bytes, kMissionDone for done); false when
      * it cannot be read. */
+    /* The ship's take-off from the pad for `level`, as the planet select starts it; false for a
+     * game that cannot. */
+    virtual bool ship_takeoff(int /*level*/) { return false; }
     virtual bool mission_row(int /*level*/, std::uint8_t* /*out*/) { return false; }
+    /* Clears the flags of `level`'s row that `flags` (kMissions bytes) names, or sets them again. */
+    virtual bool mission_clear(int /*level*/, const std::uint8_t* /*flags*/) { return false; }
+    virtual bool mission_set(int /*level*/, const std::uint8_t* /*flags*/) { return false; }
     // --- end WP-DEATH ---
     // --- WP-LOBBY ---
     // --- end WP-LOBBY ---
@@ -595,6 +605,8 @@ public:
     }
 
     /* The host is starting again: told before anyone hears of the new game. */
+    void on_joiner_save(std::function<Bytes()> fn) { joiner_save_ = std::move(fn); }
+
     void on_start_again(std::function<void()> again) { start_again_ = std::move(again); }
 
     /* The host's choice (Create match's save picker): a new game (no bytes) or a save, and what the
@@ -649,6 +661,11 @@ public:
     void demoted();
     /* The ledger's part: the travels and the scene sequence. */
     std::uint16_t travels() const { return session_.role().host() ? travel_ : host_travel_; }
+    void rule_hold_party(bool on) { hold_rule_ = on; }
+    bool hold_party_on() const { return hold_rule_; }
+    /* A member held for the host's ship: its Start says it is ready, and goes in no menu. */
+    bool ship_held() const { return ship_held_ && leave_dest_ >= 0; }
+    void ship_ready();
     std::uint16_t scenes() const { return session_.role().host() ? scene_sequence_ : host_scene_sequence_; }
 
     /* Leaving: whether this game is on its way back to the title after its party went, and whether
@@ -732,6 +749,8 @@ public:
      * has it land again where it is (a member's travel to another planet while the party plays:
      * only the host flies). The host's departure: every member leaves with it. */
     bool ship_travel(int dest, int here);
+    /* This game's own take-off, following the host's ship: its travel hook lets it through. */
+    bool taking_off() const { return taking_off_; }
 
     /* A member coming into a game already on (Joining, above), and the world telling it that it
      * has the host's world of the level it stands in. */
@@ -873,6 +892,8 @@ private:
     std::int32_t play_ = 0;
     std::vector<std::int32_t> told_;
     std::function<void(std::int32_t)> announce_;
+    /* The host's progress as a joiner is to start from; the game's own without one. */
+    std::function<Bytes()> joiner_save_;
     std::function<void(const Bytes&)> starting_;
     std::function<void()> start_again_;
     bool start_copied_ = false;
@@ -982,6 +1003,13 @@ private:
     bool sent_arriving_ = false;
     bool heard_travel_ = false;
     std::uint16_t host_travel_ = 0;
+    bool taking_off_ = false;
+    bool took_off_ = false;
+    /* The host's rule: members leave with its ship when ready (kShipHoldMs at most). The travel the
+     * host's Start ended that for; a member: whether this departure is held for it. */
+    bool hold_rule_ = false;
+    std::uint16_t ship_went_ = 0;
+    bool ship_held_ = false;
     int leave_dest_ = -1;
     std::uint64_t leave_at_ = 0;
     std::uint64_t leave_ms_ = 0;

@@ -47,6 +47,11 @@ openrac::UiContent rules_content() {
         c.items.push_back(openrac::UiItem::text(line));
     }
 
+    // The host's rule for its ship.
+    if (g->coop->hold_party_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
+        c.items.push_back(openrac::UiItem::text("The host's ship waits for you: press Start when ready"));
+    }
+
     // The host's rule for its fallen.
     if (g->world->revive_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
         c.items.push_back(openrac::UiItem::text("Stand over a fallen player to revive them"));
@@ -72,7 +77,12 @@ void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e) {
     }
 
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_copy) {
-        g->code_copied = g->mod->clipboard_set(g->mods->own().modcode);
+        // A friend who applies it can join this party from the launcher in one go.
+        const mp::Session& s = *g->session;
+        const bool code_joins = s.in_party() && !s.direct();
+        g->code_copied = g->mod->clipboard_set(
+            mp::mod_code_with_party(g->mods->own().modcode, code_joins ? s.code() : "")
+        );
         page.sound(g->code_copied ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_lift) {
         g->cosave->lift_bans();

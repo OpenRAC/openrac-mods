@@ -128,12 +128,31 @@ bool Coop::start() {
     return true;
 }
 
+void Coop::ship_ready() {
+    ship_held_ = false;
+
+    if (leave_dest_ >= 0) {
+        leave_at_ = std::min(leave_at_, clock_());
+    }
+}
+
 bool Coop::start_blocked(int phase) const {
+    if (phase == kPhasePlaying && ship_held()) {
+        return true;
+    }
+
     return (phase == kPhaseScene || phase == kPhaseLoading) && play_ != 0 && session_.in_party()
            && !session_.role().host() && !joining_;
 }
 
 void Coop::own_skip(int phase, std::uint64_t now) {
+    // Held for the host's ship: ready.
+    if (phase == kPhasePlaying && ship_held()) {
+        log("ready to leave with the host's ship");
+        ship_ready();
+        return;
+    }
+
     // A joiner waiting to be placed: in, where it stands.
     if (placing_ == PlaceFor::kJoin) {
         log("not waiting any longer: in where this game stands");
@@ -318,6 +337,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const auto travel = static_cast<std::uint16_t>(travel_high << 8 | (travels ? r.u8() : 0));
             const std::int32_t dest = travels ? r.i32() : -1;
             const bool arriving = travels && r.u8() != 0;
+            const bool ship_held = r.left() > 0 && r.u8() != 0;
 
             if (!from_host || !r.ok() || play == 0) {
                 break;
@@ -343,7 +363,8 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                 if (dest >= 0 && applied_ == play_) {
                     const auto now = clock_();
                     leave_dest_ = travel_dest_ = dest;
-                    leave_at_ = now + kTravelWarnMs;
+                    leave_at_ = now + (ship_held ? kShipHoldMs : kTravelWarnMs);
+                    ship_held_ = ship_held;
                     leave_ms_ = 0;
                     arriving_ = true;
 
@@ -354,6 +375,12 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                     depart_ms_ = now;
                     log("the host's ship leaves for level " + std::to_string(dest) + ": leaving with it soon");
                 }
+            }
+
+            // The host went on without waiting for it: the ship takes it now.
+            if (ship_held_ && !ship_held) {
+                log("the host's ship waits no longer");
+                ship_ready();
             }
 
             break;
@@ -368,7 +395,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             if (session_.role().host() && r.ok() && play_ != 0 && play == play_
                 && member_of(session_, sender) && may_play(sender)) {
                 const GameStatus status = game_.status();
-                const Bytes live = in_level(status.phase) ? game_.capture() : Bytes{};
+                const Bytes live = !in_level(status.phase) ? Bytes{} : joiner_save_ ? joiner_save_() : game_.capture();
 
                 log("player " + std::to_string(sender) + " asked for the game");
 
@@ -586,16 +613,32 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
             || (in_level(status.phase) && status.level == leave_dest_)) {
             log("left for level " + std::to_string(leave_dest_));
             leave_dest_ = -1;
+            ship_held_ = false;
         } else if (in_level(status.phase) && status.level != leave_dest_
-                   && (leave_ms_ == 0 || now - leave_ms_ >= kLeaveMs)) {
+                   && (leave_ms_ == 0 || now - leave_ms_ >= (took_off_ ? kTakeoffMs : kLeaveMs))) {
             if (leave_ms_ == 0) {
                 log("leaving level " + std::to_string(status.level) + " for " + std::to_string(leave_dest_)
                     + " (phase " + std::to_string(status.phase) + ")");
             }
 
+            const bool first = leave_ms_ == 0;
             leave_ms_ = now;
             leave_loads_ = status.loads;
-            game_.travel(leave_dest_);
+            took_off_ = false;
+
+            // From its feet, its own ship takes it from the pad, as the host's took the host; from
+            // anything else, or if that has not left in time, the flight between planets.
+            if (first && status.phase == kPhasePlaying) {
+                taking_off_ = true;
+                took_off_ = game_.ship_takeoff(leave_dest_);
+                taking_off_ = false;
+            }
+
+            if (took_off_) {
+                log("taking off from the pad");
+            } else {
+                game_.travel(leave_dest_);
+            }
         }
     }
 
@@ -677,6 +720,7 @@ void Coop::reset() {
     waiting_for_.clear();
     heard_travel_ = false;
     host_travel_ = 0;
+    ship_held_ = false;
     leave_dest_ = -1;
     leave_ms_ = 0;
     host_arriving_ = false;

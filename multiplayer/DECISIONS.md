@@ -14,27 +14,23 @@ puppets, the interpolation) are kept with the project's planning notes, not in t
 
 Nothing merges before the user's play test. Then, in this order:
 
-1. Merge OpenRAC PR #160, the rac1 sync, into `develop`.
-2. The OpenRAC branch (`fix/coop-sync` and `round3`, the SDK calls, the port, the launcher) as a PR
-   into `develop`, squashed into a few meaningful commits. `master` only by a release PR: a mod of
-   interface 1.12 loads only on a port of 1.12, so players need that OpenRAC before the mod.
-3. Release SDK 1.12.0 (`sdk/VERSION` says it, the tag is `sdk-v1.12.0`).
-4. Pin it: `sdk.lock` still names 1.11.0, and stays so until that release. Set its version, url and
+1. The OpenRAC branch (the SDK calls, the port, the launcher) as a PR into `develop`, squashed. Interface
+   1.12 is one table with `develop`'s: its calls keep their slots and the party's follow `hero_hurt`, so
+   anything built on an older round 3 calls the wrong slots and must be rebuilt.
+2. Release SDK 1.12.0 from `develop` (`sdk/VERSION` says it, the tag is `sdk-v1.12.0`).
+3. A release PR to OpenRAC `master`, and that port shipped: a mod of interface 1.12 loads only on a port
+   of 1.12, so players need that OpenRAC before the mod.
+4. Deploy the Server (`master`): TCP and UDP 7770, TCP 7771 for mod codes, RESUME, takeover and KICK. Before
+   the mod, as mod codes have no feature bit. Against an older server the mod leaves out what the features
+   it offers cover: no kept places and no takeover, and a removed player leaves by itself.
+5. Pin it: `sdk.lock` still names 1.11.0, and stays so until that release. Set its version, url and
    sha256 to 1.12.0's. Until then this repository's CI cannot build (multiplayer's manifest and the
    top CMakeLists.txt ask for 1.12): build with `-DOPENRAC_SDK=<OpenRAC>/sdk`.
-5. Land `round3` on openrac-mods master and tag `multiplayer-v0.10.0`. Difficulty and Item Randomizer
-   gained tests and a missing include, nothing a player sees, and keep their versions.
-6. Deploy the Server (`r3/migrate`): TCP and UDP 7770, TCP 7771 for mod codes, RESUME, takeover and
-   KICK. Against an older server the mod leaves those out by the features it offers: no kept places
-   and no takeover, a removed player leaves by itself, and no short mod codes.
+6. Land `round3` on openrac-mods master, tag `multiplayer-v0.10.0`, and tag each other mod whose version
+   changed here.
 
 ### Asked for and not built
 
-- **Hold the party**, the host's optional hold of the ship's warning: only the 2.5 seconds are there.
-- **Checks on a member's HIT.** The host takes a HIT for any moby still there, as it did before: no
-  check of the damage or the distance yet. DAMAGE has none either.
-- **Auto-join after a mod code applies**: `openrac://modset/CODE` opens the review in the launcher,
-  and the player then joins by hand. A later step, by the plan.
 - **`play_scene_from`** is a kept slot of interface 1.12 that answers "unknown": a scene cannot start
   part way, so a scene in progress is waited out, as decided.
 

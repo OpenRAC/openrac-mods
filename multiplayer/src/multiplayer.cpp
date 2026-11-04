@@ -46,6 +46,7 @@
  */
 #include "mod_state.hpp"
 
+#include <ctime>
 #include <memory>
 
 namespace mpmod {
@@ -165,6 +166,39 @@ void refresh_mod_code(std::uint64_t now) {
     const mp::ModCode found = mp::read_mod_code(g->mod->plugins_folder(), g->mods->own());
     g->mod_code_long = found.shared && found.code.empty();
     g->mods->set_mod_code(found.code);
+}
+
+constexpr std::uint64_t kAutoJoinMs = 20000;
+
+/* The party the launcher said to join, from the title: linked to the server, then in, then its
+ * lobby. Not in time, Home says so; a mod that plays alone stays out, as by hand. */
+void tick_auto_join(std::uint64_t now) {
+    if (g->join_party.empty() || g->game->status().phase != mp::kPhaseFrontEnd) {
+        return;
+    }
+
+    mp::Session& s = *g->session;
+    const auto give_up = [&](const std::string& why) {
+        g->mod->info("multiplayer: " + why);
+        g->leave_reason = why;
+        g->join_party.clear();
+    };
+
+    if (g->mods->solo()) {
+        give_up("A mod you have on can't be played in a party");
+    } else if (s.in_party()) {
+        g->mod->info("multiplayer: joined party " + g->join_party + " as the launcher asked");
+        g->join_party.clear();
+        g->lobby.open();
+    } else if (g->join_ms == 0) {
+        g->join_ms = now;
+        back_to_server();
+    } else if (now - g->join_ms >= kAutoJoinMs) {
+        give_up("Could not join party " + g->join_party);
+    } else if (!g->join_asked && s.greeted() && !s.waiting()) {
+        g->join_asked = true;
+        s.join(g->join_party);
+    }
 }
 
 void show_banner(std::uint64_t now) {
@@ -302,6 +336,7 @@ void load(openrac::Mod& mod) {
     g->coop->set_save_hooks([](std::int32_t target) { g->cosave->announce(target); },
                             [](const mp::Bytes& save) { g->cosave->starting(save); });
     g->coop->on_start_again([] { g->cosave->start_again(); });
+    g->coop->on_joiner_save([] { return g->world->save_for_a_joiner(); });
     g->shared = std::make_unique<mp::Shared>(*g->session, *g->game, *g->coop);
     g->shared->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->camscripts = std::make_unique<mp::CamScripts>(*g->session, *g->game, *g->coop);
@@ -316,6 +351,8 @@ void load(openrac::Mod& mod) {
     const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
 
     g->revive = mod.setting<bool>("revive");
+    g->join_party = mp::take_join_request(mod.plugins_folder(), static_cast<std::int64_t>(std::time(nullptr)));
+    g->hold_party = mod.setting<bool>("hold_party");
 
     if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
         std::error_code error;
@@ -346,11 +383,20 @@ void load(openrac::Mod& mod) {
                 memory.write<float>(hero + 4u * i, at[i]);
             }
         }, [](int item) {
-            // weapon_ammo_counts and hero.pending_item[0] (PAL; the bot is a test's).
+            // weapon_ammo_counts and hero.pending_item[0] (the bot is a test's). The Drone Device
+            // is no held weapon: choosing it asks for the drones (hero +0x1FF5), as the game does.
             g->game->give_item(item);
             openrac::Memory memory = g->mod->memory();
-            memory.write<std::int32_t>(0x0013D530u + 4u * static_cast<unsigned>(item), 40);
-            memory.write<std::int32_t>(0x0013F450u + 0x20B8u, item);
+            const bool ntsc = g->mod->version() == "ntsc";
+            const openrac::gaddr hero = ntsc ? 0x0013F350u : 0x0013F450u;
+            const openrac::gaddr ammo = ntsc ? 0x0013D428u : 0x0013D530u;
+            memory.write<std::int32_t>(ammo + 4u * static_cast<unsigned>(item), 40);
+
+            if (item == 0x18) {
+                memory.write<std::uint8_t>(hero + 0x1FF5u, 1);
+            } else {
+                memory.write<std::int32_t>(hero + 0x20B8u, item);
+            }
         }, [](const std::string& name) {
             // What a page shows, as a player reads it.
             const openrac::UiContent c = name == "refused" ? refused_content()
@@ -437,7 +483,7 @@ void load(openrac::Mod& mod) {
     // planet lands the ship again where it is (coop.hpp: only the host flies).
     mod.hook<openrac::rac1::Ship_TravelTo>([](auto original, std::int32_t dest) {
         const int here = g->game->status().level;
-        original(g->coop->ship_travel(dest, here) ? dest : here);
+        original(g->coop->taking_off() || g->coop->ship_travel(dest, here) ? dest : here);
     });
     // The first pad: the host's Start in a scene or a movie skips it for the party (a member's is
     // taken out: only the host skips), a party's skip presses Start for a movie playing here, and
@@ -473,6 +519,9 @@ void load(openrac::Mod& mod) {
         // does nothing here but say so (a movie has no game ticks: the banner is shown from here).
         const bool start = (report[0] & 0x08) == 0;
         const int phase = g->game->status().phase;
+        // The press that says a member is ready for the host's ship is that and no more: to its
+        // release, or the rest of it opens the pause menu.
+        g->start_taken = start && (g->start_taken || g->coop->ship_held());
 
         if (start && !g->start_held) {
             g->coop->own_skip(phase, now);
@@ -481,7 +530,7 @@ void load(openrac::Mod& mod) {
 
         g->start_held = start;
 
-        if (start && g->coop->start_blocked(phase)) {
+        if (start && (g->start_taken || g->coop->start_blocked(phase))) {
             report[0] = static_cast<std::uint8_t>(report[0] | 0x08);
         }
 
@@ -604,11 +653,13 @@ void load(openrac::Mod& mod) {
             );
         }
 
+        tick_auto_join(now);
         g->migrate->tick(now);
         g->coop->tick(now);
         // A host's rule: for a member, what its host said; one who took over keeps it.
         if (g->session->is_host() && !g->migrate->took_over()) {
             g->world->rule_revive(g->revive);
+            g->coop->rule_hold_party(g->hold_party);
         }
 
         g->world->tick(now);

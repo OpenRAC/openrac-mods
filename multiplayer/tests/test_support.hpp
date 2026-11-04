@@ -284,7 +284,10 @@ struct FakeGame : mp::Game {
         return true;
     }
 
-    Bytes capture() override { return live_save; }
+    Bytes capture() override {
+        captured_row = mission_row_bytes;
+        return live_save;
+    }
 
     bool hero(mp::Pose& out) override {
         out = hero_pose;
@@ -331,6 +334,7 @@ struct FakeGame : mp::Game {
     int revives = 0;
     int respawns = 0;
     std::array<std::uint8_t, mp::kMissions> mission_row_bytes{};
+    std::array<std::uint8_t, mp::kMissions> captured_row{};
     bool mission_row_known = true;
 
     bool can_revive() override { return revivable; }
@@ -347,9 +351,27 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    bool takeoff_works = false;
+    std::vector<int> takeoffs;
+    bool ship_takeoff(int level) override {
+        takeoffs.push_back(level);
+        return takeoff_works;
+    }
     bool mission_row(int /*level*/, std::uint8_t* out) override {
         std::copy(mission_row_bytes.begin(), mission_row_bytes.end(), out);
         return mission_row_known;
+    }
+    bool mission_clear(int /*level*/, const std::uint8_t* flags) override {
+        for (std::size_t i = 0; i < mission_row_bytes.size(); ++i) {
+            mission_row_bytes[i] = flags[i] != 0 ? 0 : mission_row_bytes[i];
+        }
+        return true;
+    }
+    bool mission_set(int /*level*/, const std::uint8_t* flags) override {
+        for (std::size_t i = 0; i < mission_row_bytes.size(); ++i) {
+            mission_row_bytes[i] = flags[i] != 0 ? 0xFF : mission_row_bytes[i];
+        }
+        return true;
     }
 
     // The world: a level's mobys by slot, the drives, kills, spawns, hits, stand-ins and bolts. The
@@ -1397,6 +1419,8 @@ inline void remake(Player& p, const SimWorld& w, const std::set<int>& skipped = 
 constexpr int kSimSlots = 1000;
 
 struct SimResult {
+    /* HITs and DAMAGEs refused in every game: all of them the game's own, so none should be. */
+    int refused = 0;
     int wrong_place = 0, wrong_hidden = 0, wrong_crates = 0;
     long bolts_made = 0, bolts_credited = 0;
     /* From the end of the play: when everything stood as on the host, for good (-1: not by the end
@@ -1618,6 +1642,10 @@ inline SimResult run_sim(const SimLink& link, unsigned seed, int members, double
     compare_sim(all, r);
     r.settled_ms = r.wrong_place + r.wrong_hidden + r.wrong_crates != 0 ? -1 : (last_wrong + 1 - ticks) * 16L;
     r.worst_gap_ms = net->worst_gap;
+
+    for (Player* p : all) {
+        r.refused += p->world.hits_refused();
+    }
 
     if (out != nullptr) {
         *out = net_kept;

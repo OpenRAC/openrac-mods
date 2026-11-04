@@ -147,11 +147,18 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             return;
         }
 
+        if (!member_hit_ok(sender, h)) {
+            ++hits_refused_;
+            trace_line("msg", "HIT of " + moby_name(h.victim) + " from " + std::to_string(sender) + " refused");
+            return;
+        }
+
         // From that player's figure, the hero's class (the enemies read the attacker's class).
         const int figure = coop_.figure_of(sender);
         h.attacker = figure >= 0 ? game_.figure_slot(figure) : game_.figure_slot(-1);
         game_.hit(h);
         ++counts_.hits;
+        ++hits_taken_;
         members_[sender].hit_ms[id] = clock_();
         return;
     }
@@ -297,7 +304,17 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 return;
             }
 
-            const int slot = game_.moby_spawn(oclass, pose);
+            // What the level's first updates spawn (an extermitank's turret) this game's load made
+            // too, before the host drove its maker: that copy is the host's now, not a second one.
+            int slot = own_copy_of(oclass, pose.position);
+            spawn_classes_.insert(oclass);
+
+            if (slot >= 0) {
+                game_.moby_drive(slot, true);
+            } else {
+                slot = game_.moby_spawn(oclass, pose);
+            }
+
             trace_line("msg", "received SPAWN from " + std::to_string(sender) + " net " + std::to_string(net) + " class "
                                   + std::to_string(oclass) + " at " + xyz(pose.position) + " made slot " + std::to_string(slot)
                                   + (loot_class(oclass) ? " (loot, this game's own)" : ""));
@@ -440,6 +457,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             if (r.ok() && level == level_ && load == loads_) {
                 synced_ = true;
+                drop_own_copies();
                 log("the host's world of level " + std::to_string(level) + " is here");
             }
 
@@ -514,6 +532,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             vec(r, h.position);
             vec(r, h.velocity);
             h.victim = game_.figure_slot(-1);
+
+            if (r.ok() && !hit_makes_sense(h)) {
+                ++hits_refused_;
+                trace_line("msg", "DAMAGE from " + std::to_string(sender) + " refused");
+                break;
+            }
 
             // A joiner not in yet, or just put beside the host: it comes to no harm.
             if (r.ok() && h.victim >= 0 && !coop_.shielded()) {

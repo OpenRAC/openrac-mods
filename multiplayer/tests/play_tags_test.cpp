@@ -358,6 +358,41 @@ void the_code_shows_only_for_the_mods_it_names() {
     CHECK(!mp::modset_matches(file, list_of({{"item-randomizer", "0.3.1"}, {"difficulty-mod", "1.4.0"}, {"x", "1"}})));
 }
 
+void a_join_request_is_for_one_start() {
+    CHECK(mp::mod_code_with_party("K7M2-9QXR", "") == "K7M2-9QXR");
+    CHECK(mp::mod_code_with_party("K7M2-9QXR", "ABC234") == "K7M2-9QXR?party=ABC234");
+    const std::filesystem::path folder =
+        std::filesystem::temp_directory_path() / ("mp_join_" + std::to_string(std::rand()));
+    std::filesystem::create_directories(folder);
+    const auto with = [&](const std::string& text) {
+        std::ofstream(folder / "modset-join.json") << text;
+    };
+    const std::int64_t now = 100000;
+    CHECK(mp::take_join_request(folder.string(), now).empty());  // none there
+    CHECK(mp::take_join_request("", now).empty());
+    with(R"({"format": 1, "party": "ABC234", "written": 99990})");
+    CHECK(mp::take_join_request(folder.string(), now) == "ABC234");
+    // Gone: the next start joins nothing.
+    CHECK(!std::filesystem::exists(folder / "modset-join.json"));
+    CHECK(mp::take_join_request(folder.string(), now).empty());
+    // Stale, from the future, no party code, another format, not JSON: nothing, and gone too.
+    for (const std::string& bad : {
+             std::string(R"({"format": 1, "party": "ABC234", "written": 1})"),
+             std::string(R"({"format": 1, "party": "ABC234", "written": 200000})"),
+             std::string(R"({"format": 1, "party": "ABC", "written": 99990})"),
+             std::string(R"({"format": 1, "party": "ABC0O1", "written": 99990})"),
+             std::string(R"({"format": 1, "party": "../../x", "written": 99990})"),
+             std::string(R"({"format": 2, "party": "ABC234", "written": 99990})"),
+             std::string(R"({"party": "ABC234", "written": 99990})"),
+             std::string("nonsense"),
+         }) {
+        with(bad);
+        CHECK(mp::take_join_request(folder.string(), now).empty());
+        CHECK(!std::filesystem::exists(folder / "modset-join.json"));
+    }
+    std::filesystem::remove_all(folder);
+}
+
 void the_file_is_found_in_the_folder() {
     const std::filesystem::path folder =
         std::filesystem::temp_directory_path() / ("mp_modcode_" + std::to_string(std::rand()));
@@ -462,6 +497,7 @@ void run_tags_tests() {
     the_launchers_file_is_read();
     the_code_shows_only_for_the_mods_it_names();
     the_file_is_found_in_the_folder();
+    a_join_request_is_for_one_start();
     only_a_codes_shape_is_a_code();
     the_hosts_code_reaches_a_refused_member();
     a_code_on_the_wire_is_only_a_code();

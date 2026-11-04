@@ -236,6 +236,31 @@ void World::send_dead(std::int32_t member, int level) {
                           + std::to_string(records) + " dead " + std::to_string(party_dead_.size()));
 }
 
+Bytes World::save_for_a_joiner() {
+    std::uint8_t row[kMissions] = {};
+    std::uint8_t held[kMissions] = {};
+    bool any = false;
+
+    if (game_.mission_row(level_, row)) {
+        for (const auto& [slot, moby] : mobys_) {
+            if (moby.key >= 0 && moby.mission >= 0 && moby.mission < kMissions && row[moby.mission] != 0
+                && !local_class(moby.oclass)) {
+                held[moby.mission] = 1;
+                any = true;
+            }
+        }
+    }
+
+    if (!any || !game_.mission_clear(level_, held)) {
+        return game_.capture();
+    }
+
+    Bytes save = game_.capture();
+    game_.mission_set(level_, held);
+    log("a joiner's save leaves out what this level's load did not see");
+    return save;
+}
+
 void World::give_world(std::int32_t id, Member& m) {
     m.want = false;
     m.synced = true;
@@ -728,7 +753,8 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
     std::set<int> seen;
 
     for (const auto& [slot, moby] : mobys_) {
-        const bool counts = moby.key < 0 && moby.oclass != 0 && (moby.flags & kMobyScene) == 0
+        const bool made = moby.key < 0 || once_dead_keys_.count(moby.key) != 0;
+        const bool counts = made && moby.oclass != 0 && (moby.flags & kMobyScene) == 0
                             && ((moby.flags & kMobyCreature) != 0 || bolt_class(moby.oclass)
                                 || loot_class(moby.oclass) || spawned_bolt_class(moby.oclass));
 

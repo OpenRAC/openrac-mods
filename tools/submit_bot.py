@@ -261,9 +261,10 @@ class Bot:
 
     def take_pictures(self, text: str, mid: str, m: dict) -> None:
         found, bad = pictures(text)
-        self.item(not bad, "Each screenshots line is one picture dragged into the form",
-                  f"Fix {', '.join(bad)}: drag the picture into the field (it becomes a "
-                  "github.com/user-attachments link), then ' | ' and a caption.")
+        self.item(not bad, "Each screenshots line is one picture uploaded into the form",
+                  f"Fix {', '.join(bad)}: a link to a picture elsewhere does not work, so upload the file "
+                  "into the field and leave what GitHub writes as it is. One picture per line; "
+                  "for a caption, add ' | ' and the caption after it.")
         shots, kind_seen = [], set()
         for url, caption in found:
             name = url.rsplit("/", 1)[1][:12]

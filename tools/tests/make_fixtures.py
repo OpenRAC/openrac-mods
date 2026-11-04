@@ -94,7 +94,7 @@ def sums(files: list[tuple[str, bytes]], skip=()) -> bytes:
     return "".join(f"{hashlib.sha256(d).hexdigest()}  {n}\n" for n, d in files if n not in skip).encode()
 
 
-def native_release(mid, ver, published, m, *, rid, skip_sum=(), prerelease=False):
+def native_release(mid, ver, published, m, *, rid, skip_sum=(), prerelease=False, digests=True):
     plats = ["linux-x86_64", "windows-x86_64", "macos-arm64"]
     libs = {"linux-x86_64": "so", "windows-x86_64": "dll", "macos-arm64": "dylib"}
     mj = json.dumps(m).encode()
@@ -107,7 +107,7 @@ def native_release(mid, ver, published, m, *, rid, skip_sum=(), prerelease=False
     s = sums(zips, skip_sum)
     files = [(n, d, 10 + i) for i, (n, d) in enumerate(zips)] + [("SHA256SUMS", s, 50)]
     return release(API, DL, f"{mid}-v{ver}", published, files, body=f"## {ver}\n\n- Changes for {ver}.",
-                   prerelease=prerelease, rid=rid)
+                   prerelease=prerelease, digests=digests, rid=rid)
 
 
 def script_release(mid, ver, published, m, *, rid, prerelease=False):
@@ -123,7 +123,7 @@ def main() -> None:
     repo = OUT / "repo"
     rels = []
 
-    # lock-strafe: native; 1.2.0 is broken (no SHA256SUMS line for one archive); 2.0.0-beta.1 is a
+    # lock-strafe: native; 1.2.0 is broken (no digest, no SHA256SUMS line for one archive); 2.0.0-beta.1 is a
     # pre-release by its suffix only.
     ls = {
         "1.0.0": manifest("lock-strafe", "1.0.0", name="Lock-strafe", api="1.0"),
@@ -137,7 +137,7 @@ def main() -> None:
     rels.append(native_release("lock-strafe", "1.0.0", "2026-09-01T12:00:00Z", ls["1.0.0"], rid=1))
     rels.append(native_release("lock-strafe", "1.1.0", "2026-09-15T12:00:00Z", ls["1.1.0"], rid=2))
     rels.append(native_release("lock-strafe", "1.2.0", "2026-10-01T12:00:00Z", ls["1.2.0"], rid=3,
-                               skip_sum=("lock-strafe-1.2.0-windows-x86_64.zip",)))
+                               skip_sum=("lock-strafe-1.2.0-windows-x86_64.zip",), digests=False))
     rels.append(native_release("lock-strafe", "2.0.0-beta.1", "2026-10-20T12:00:00Z", ls["2.0.0-beta.1"], rid=4))
     head = dict(ls["1.1.0"], version="2.0.0-beta.1",
                 description="Strafe as in the later games. " + "Hold L2 or R2 to lock your facing. " * 12)
@@ -155,7 +155,7 @@ def main() -> None:
     for tag in ("lock-strafe-v1.0.0", "lock-strafe-v1.1.0", "lock-strafe-v2.0.0-beta.1"):
         ver = tag.split("-v", 1)[1]
         route(f"{RAW}/{tag}/lock-strafe/openrac-mod.json", f"raw/{tag}/lock-strafe/openrac-mod.json", ls[ver])
-    # 1.2.0's manifest at the tag is fine; its SHA256SUMS lacks a line.
+    # 1.2.0's manifest at the tag is fine; it has no digests and its SHA256SUMS lacks a line.
     route(f"{RAW}/lock-strafe-v1.2.0/lock-strafe/openrac-mod.json",
           "raw/lock-strafe-v1.2.0/lock-strafe/openrac-mod.json", ls["1.2.0"])
     route(f"{RAW}/lock-strafe-v2.0.0-beta.1/lock-strafe/README.md",

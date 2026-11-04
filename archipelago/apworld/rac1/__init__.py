@@ -39,7 +39,7 @@ class RAC1Web(WebWorld):
             "English",
             "setup_en.md",
             "setup/en",
-            ["OpenRAC contributors"],
+            ["Lynder063"],
         )
     ]
 
