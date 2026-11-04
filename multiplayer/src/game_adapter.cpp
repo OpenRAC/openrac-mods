@@ -97,6 +97,19 @@ bool ModGame::game_save() {
 
 bool ModGame::travel(int level) { return mod_.play_travel(level) == OPENRAC_HOOK_OK; }
 
+bool ModGame::ship_takeoff(int level) {
+    const ProgressDisc* disc = progress_disc();
+    const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_L00_00290030" : "FUN_L00_0028ed58";
+    const auto travel_to = name != nullptr ? mod_.function<void (*)(std::int32_t)>(name) : nullptr;
+
+    if (travel_to == nullptr) {
+        return false;
+    }
+
+    travel_to(level);
+    return true;
+}
+
 mp::Bytes ModGame::capture() { return mod_.save_capture(); }
 
 bool ModGame::hero(mp::Pose& out) {

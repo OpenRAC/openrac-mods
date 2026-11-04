@@ -1477,6 +1477,39 @@ def scenario_shipwarn(env, args):
     env.check("the party is in", ok, json.dumps([host.status(), member.status()])[:600])
 
 
+def scenario_takeoff(env, args):
+    """The host's ship leaves: a member on its feet leaves by its own take-off from its pad, shown
+    as a scene before its level changes, and the party arrives together. Levels from `--weapons`."""
+    host, member = start_two(env, args)
+    levels = [int(n) for n in args.weapons.split(",")] if args.weapons else [3, 4, 5]
+    for level in levels:
+        here = member.status()["level"]
+        before = len(log_lines(member, r"taking off from the pad"))
+        host.ask(f"travel {level}")
+        seen = []
+        limit = time.monotonic() + 90
+        while time.monotonic() < limit:
+            s = member.status()
+            seen.append((s["phase"], s["level"]))
+            if s["level"] == level and s["phase"] in IN_LEVEL:
+                break
+            if member.status()["phase"] == PHASE_MENU:
+                member.ask("press 4000 6")
+            time.sleep(0.1)
+        env.check(f"to {level}: the member got there", seen and seen[-1][1] == level, json.dumps(seen[-3:]))
+        env.check(f"to {level}: by its own take-off", len(log_lines(member, r"taking off from the pad")) > before)
+        scene_here = sum(1 for p, l in seen if p == PHASE_SCENE and l == here)
+        env.report["notes"].setdefault("take-off", {})[level] = {"scene samples": scene_here, "samples": len(seen)}
+        env.check(f"to {level}: a scene played before it left", scene_here > 0, str(scene_here))
+        limit = time.monotonic() + 150
+        ok = False
+        while time.monotonic() < limit and not ok:
+            if member.status()["phase"] == PHASE_MENU:
+                member.ask("press 4000 6")
+            ok = skip_scenes(env, host, [member], 3)
+        env.check(f"to {level}: the party is in", ok, json.dumps([host.status()["phase"], member.status()["phase"]]))
+
+
 def shared_of(c, tag):
     return set(json.loads(c.ask(f"shared {tag}")))
 
@@ -1921,6 +1954,7 @@ SCENARIOS = {
     "gohost": scenario_gohost,
     "restart": scenario_restart,
     "shipwarn": scenario_shipwarn,
+    "takeoff": scenario_takeoff,
     "soak": scenario_soak,
     "weapons": scenario_weapons,
     "enemies": scenario_enemies,

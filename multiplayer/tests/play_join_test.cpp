@@ -319,6 +319,47 @@ void go_to_host_falls_back_to_the_landing() {
     CHECK(p.member.coop.banner(p.member.clock) == "No safe spot near the host");
 }
 
+// A member on its feet takes off from its own pad; one that can't, or that did not get away, flies.
+void a_member_takes_off_from_its_own_pad() {
+    const auto flights = [](Party& p) {
+        return std::count(p.member.game.calls.begin(), p.member.game.calls.end(), "travel 5");
+    };
+    {
+        Party p;
+        p.member.game.takeoff_works = true;
+        CHECK(p.host.coop.ship_travel(5, 3));
+        p.run(mp::kTravelWarnMs + 500);
+        CHECK(p.member.game.takeoffs == std::vector<int>{5});
+        CHECK(flights(p) == 0);
+        // Asked once: a second would start it over.
+        p.run(mp::kTakeoffMs - 2000);
+        CHECK(p.member.game.takeoffs.size() == 1);
+        CHECK(flights(p) == 0);
+        // It did not get away: the flight.
+        p.run(3000);
+        CHECK(p.member.game.takeoffs.size() == 1);
+        CHECK(flights(p) >= 1);
+    }
+    {
+        // A game that can't: the flight, at once.
+        Party p;
+        CHECK(p.host.coop.ship_travel(5, 3));
+        p.run(mp::kTravelWarnMs + 500);
+        CHECK(p.member.game.takeoffs == std::vector<int>{5});
+        CHECK(flights(p) >= 1);
+    }
+    {
+        // Not on its feet (a menu): no take-off.
+        Party p;
+        p.member.game.takeoff_works = true;
+        p.member.game.now.phase = mp::kPhaseMenu;
+        CHECK(p.host.coop.ship_travel(5, 3));
+        p.run(mp::kTravelWarnMs + 500);
+        CHECK(p.member.game.takeoffs.empty());
+        CHECK(flights(p) >= 1);
+    }
+}
+
 // The ship's warning: named on the banner, and the member still here until it is up.
 void the_ship_warns_before_it_takes_a_member() {
     Party p;
@@ -515,6 +556,7 @@ void run_join_tests() {
     go_to_host_from_the_pause_page();
     go_to_host_falls_back_to_the_landing();
     the_ship_warns_before_it_takes_a_member();
+    a_member_takes_off_from_its_own_pad();
     a_wait_can_be_voted_away();
     the_host_goes_on_from_a_scene_wait();
     a_vote_ends_a_members_wait_for_the_hosts_scene();

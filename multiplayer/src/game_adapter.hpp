@@ -165,6 +165,7 @@ public:
 
     bool respawn() override;
 
+    bool ship_takeoff(int level) override;
     bool mission_row(int level, std::uint8_t* out) override;
     bool mission_clear(int level, const std::uint8_t* flags) override;
     bool mission_set(int level, const std::uint8_t* flags) override;

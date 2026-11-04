@@ -254,6 +254,8 @@ constexpr std::uint64_t kQuietMs = 5000;
 constexpr std::uint64_t kGoAgainMs = 5000;
 /* The warning a member has before the host's ship takes it along. */
 constexpr std::uint64_t kTravelWarnMs = 2500;
+/* A member's take-off from its pad: how long it may take to leave before the plain flight does it. */
+constexpr std::uint64_t kTakeoffMs = 15000;
 /* What a wait is for (WAIT_VOTE's kind): nothing, the players still arriving, a scene. */
 constexpr std::uint8_t kWaitNone = 0;
 constexpr std::uint8_t kWaitArrival = 1;
@@ -529,6 +531,9 @@ public:
     virtual bool respawn() { return false; }
     /* The mission row of `level` in this game (kMissions bytes, kMissionDone for done); false when
      * it cannot be read. */
+    /* The ship's take-off from the pad for `level`, as the planet select starts it; false for a
+     * game that cannot. */
+    virtual bool ship_takeoff(int /*level*/) { return false; }
     virtual bool mission_row(int /*level*/, std::uint8_t* /*out*/) { return false; }
     /* Clears the flags of `level`'s row that `flags` (kMissions bytes) names, or sets them again. */
     virtual bool mission_clear(int /*level*/, const std::uint8_t* /*flags*/) { return false; }
@@ -737,6 +742,8 @@ public:
      * has it land again where it is (a member's travel to another planet while the party plays:
      * only the host flies). The host's departure: every member leaves with it. */
     bool ship_travel(int dest, int here);
+    /* This game's own take-off, following the host's ship: its travel hook lets it through. */
+    bool taking_off() const { return taking_off_; }
 
     /* A member coming into a game already on (Joining, above), and the world telling it that it
      * has the host's world of the level it stands in. */
@@ -989,6 +996,8 @@ private:
     bool sent_arriving_ = false;
     bool heard_travel_ = false;
     std::uint16_t host_travel_ = 0;
+    bool taking_off_ = false;
+    bool took_off_ = false;
     int leave_dest_ = -1;
     std::uint64_t leave_at_ = 0;
     std::uint64_t leave_ms_ = 0;
