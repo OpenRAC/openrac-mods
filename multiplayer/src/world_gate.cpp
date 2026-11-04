@@ -62,6 +62,11 @@ bool World::gate(int slot, int phase) {
         return false;
     }
 
+    // A zone trigger counts every player in it: the port asks that of it (rac1/host/world.c).
+    if (it->second.oclass == kSpatialTriggerClass) {
+        return false;
+    }
+
     Pose at;
     const std::int32_t target = pick_target(slot, it->second, at);
 

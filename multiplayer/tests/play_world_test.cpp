@@ -415,7 +415,34 @@ void the_verbose_log_traces_a_pause() {
 }
 }  // namespace
 
+void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
+    Player host(1), member(2);
+    const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
+    host.session.handle(info(both));
+    member.session.handle(info(both));
+    host.coop.choose({}, "New game");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    // Both games' maker made its turret at its first update: slot 700 in each, unkeyed.
+    const mp::MobyState turret = moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f);
+    for (Player* p : {&host, &member}) {
+        p->game.now = {mp::kPhasePlaying, 0, 2};
+        p->game.level = {moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f), turret};
+    }
+    for (int i = 0; i < 20; ++i) {
+        tick({&host, &member}, 50);
+    }
+    CHECK(member.world.spawned() == 1);
+    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 872") == 0);
+    CHECK(std::count_if(member.game.level.begin(), member.game.level.end(), [](const mp::MobyState& m) {
+              return m.oclass == 872;
+          }) == 1);
+    CHECK(member.game.drives.count(700) == 1);
+}
+
 void run_world_tests() {
+    a_member_takes_over_its_own_copy_of_what_the_level_spawned();
     world_bytes();
     the_world_is_the_hosts();
     the_hosts_hidden_mobys_are_hidden_here();

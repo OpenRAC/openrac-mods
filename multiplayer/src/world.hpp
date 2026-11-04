@@ -382,6 +382,12 @@ inline bool tether_interactable_class(int oclass) {
 /* A grab: the class, the states of the moby in which it goes for its target (no other player can
  * take it away, however long they last), the hero's state it puts its victim in, his animation
  * (below 0: that state's own) and what it does to him (kGrab*). */
+/* How far from where the host made it this game's own copy of a spawned moby may stand. */
+inline constexpr float kOwnCopyReach = 30.0f;
+
+/* update_moby_spatial_trigger: wakes groups of mobys by who is in its zone. */
+inline constexpr int kSpatialTriggerClass = 258;
+
 struct GrabClass {
     int oclass;
     std::uint32_t lunge_first;
@@ -870,6 +876,8 @@ private:
     int moved_since_ = 0;
     std::uint64_t poses_traced_ms_ = 0;
     std::map<std::uint16_t, int> net_slot_;
+    /* This game's own spawned copy of what the host says it spawned there, -1 for none. */
+    int own_copy_of(int oclass, const float position[3]) const;
     /* Member: the host's bolts landed there and so run here, by net id. */
     std::set<std::uint16_t> loose_;
     /* Member: bolts WORLD says landed ahead of their SPAWN on the stream. */

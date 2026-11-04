@@ -146,6 +146,28 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
     }
 }
 
+int World::own_copy_of(int oclass, const float position[3]) const {
+    if (loot_class(oclass)) {
+        return -1;
+    }
+
+    int best = -1;
+    float nearest = kOwnCopyReach * kOwnCopyReach;
+
+    for (const auto& [slot, moby] : mobys_) {
+        if (moby.key < 0 && moby.oclass == oclass && driven_.count(slot) == 0) {
+            const float d2 = distance2(moby.pose.position, position);
+
+            if (d2 < nearest) {
+                nearest = d2;
+                best = slot;
+            }
+        }
+    }
+
+    return best;
+}
+
 void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listing) {
     DespawnLog::View view;
     Pose hero;

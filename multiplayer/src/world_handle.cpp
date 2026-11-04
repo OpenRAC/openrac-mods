@@ -297,7 +297,16 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 return;
             }
 
-            const int slot = game_.moby_spawn(oclass, pose);
+            // What the level's first updates spawn (an extermitank's turret) this game's load made
+            // too, before the host drove its maker: that copy is the host's now, not a second one.
+            int slot = own_copy_of(oclass, pose.position);
+
+            if (slot >= 0) {
+                game_.moby_drive(slot, true);
+            } else {
+                slot = game_.moby_spawn(oclass, pose);
+            }
+
             trace_line("msg", "received SPAWN from " + std::to_string(sender) + " net " + std::to_string(net) + " class "
                                   + std::to_string(oclass) + " at " + xyz(pose.position) + " made slot " + std::to_string(slot)
                                   + (loot_class(oclass) ? " (loot, this game's own)" : ""));

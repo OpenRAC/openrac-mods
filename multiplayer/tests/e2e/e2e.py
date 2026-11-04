@@ -963,17 +963,25 @@ def scenario_grab(env, args):
     go_near(member, shark, 1.0)
     healths = []
 
-    def caught():
-        h = member.status().get("health", 1)
-        healths.append(h)
-        return h <= 0
+    grabbed_at = member.status()["hero"]
 
-    wait("the member died in its grip", caught, 60)
+    def caught():
+        s = member.status()
+        healths.append(s.get("health", 1))
+        # Rilgar's takes him and puts him back on land, his health as it was; Umbris's kills him.
+        if level == 5:
+            return s.get("hero_state") == 114 or math.dist(s["hero"], grabbed_at) > 10
+        return healths[-1] <= 0
+
+    time.sleep(0.5)
+    grabbed_at = member.status()["hero"]
+    wait("the member was taken in its grip", caught, 60)
     before = host.status()
     env.check("the host was not hurt", before.get("health") == far.get("health"), json.dumps([far.get("health"), before.get("health")]))
     env.check("the host is in control", before.get("phase") == PHASE_PLAYING and not before.get("hold"), json.dumps(before)[:300])
     if args.trace and level == 7:
-        env.check("the host told the member", len(log_lines(host, r"hold.*player")) > 0, "")
+        trace = (host.dir / "mp-trace.log").read_text(errors="replace")
+        env.check("the host told the member", re.search(r"hold player", trace) is not None, "")
         env.check("the member's game held him", member.status().get("health", 1) <= 0, "")
     wait("the member came back", lambda: member.status().get("health", 0) > 0, 40)
     time.sleep(5)
