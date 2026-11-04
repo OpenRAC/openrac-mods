@@ -28,7 +28,9 @@
  *
  * MISSION carries one level's row, host to members: at once when the row of the host's level
  * changes, and on a member's arrival in a level (SHARED_ASK), so a member's doors and people follow
- * the host's without waiting for the next SHARED. The nanotech upgrades among the special items stay
+ * the host's without waiting for the next SHARED. A member still on its way holds the row of the
+ * host's level until it has arrived: set before its load, a flag would keep that load from making
+ * the mobys the host's load made. The nanotech upgrades among the special items stay
  * each player's own, as all health does.
  *
  * DATA kind 36 SHARED: u8 count, then per section u8 tag, u16 length, its bytes: bits, 1 for had.
@@ -167,6 +169,8 @@ private:
     int row_level_ = -1;
     /* Member: the load it last asked about. */
     bool asked_load_ = false;
+    /* The host's level, once this game has played in it since the host got there. */
+    int arrived_level_ = -1;
     std::uint32_t load_ = 0;
     /* What was last sent, and when. */
     SharedBits sent_;

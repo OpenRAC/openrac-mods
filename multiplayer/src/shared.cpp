@@ -211,6 +211,7 @@ void Shared::reset() {
     row_ = {};
     row_level_ = -1;
     asked_load_ = false;
+    arrived_level_ = -1;
     load_ = 0;
     sent_ = SharedBits{};
     sent_any_ = false;
@@ -333,6 +334,13 @@ bool Shared::merge(const SharedBits& want, int level, bool all_scenes, const std
     fresh(kSharedFlags, want.flags, once_.flags, here_.flags, [&](std::size_t i) {
         const int row = static_cast<int>(i / kFlagsPerLevel);
         const int flag = static_cast<int>(i % kFlagsPerLevel);
+
+        // The level the host is in, this game not there yet: a flag there would keep the load to
+        // come from making what the host's load made. It comes on arrival.
+        if (!all_scenes && row == coop_.host_level() && row != arrived_level_) {
+            return false;
+        }
+
         return !scene_flag(row, flag) || (!all_scenes && row != level);
     });
     fresh(kSharedSpecials, want.specials, once_.specials, here_.specials, [](std::size_t i) {
@@ -422,6 +430,10 @@ void Shared::tick(std::uint64_t now) {
 
     // A member: what the host's has that this one lacks, a scene's flag of this level left for later.
     if (heard_) {
+        if (level >= 0 && level == coop_.host_level()) {
+            arrived_level_ = level;
+        }
+
         merge(party_, level, false, "the host's");
     }
 
