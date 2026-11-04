@@ -1011,25 +1011,22 @@ def scenario_trigger(env, args):
     go_near(host, shark, 1.0)
     env.report["notes"]["host from the trigger"] = round(math.dist(host.status()["hero"], nearest[5:8]), 1)
 
-    def shark_moved():
-        now, _ = host.mobys()
-        at = next((m for m in now.values() if m[1] == shark[1]), None)
-        return at is None or math.dist(at[5:8], shark[5:8]) > 1.0
+    # It can take the host at once, and he is back at the start in a few seconds: watch from now.
+    # It only leaps at one off the ground: he drops onto it, again and again, as one jumping would.
+    # A teleport counts as on the ground, so he can't simply be kept on top of it.
+    drops = [0.0]
 
-    wait("the sharks awake, the member nearer their trigger", shark_moved, 15)
-
-    # It takes a player within 1.5 of it, and swims above one standing on the bottom: the host goes
-    # to where it is now, as a player swimming up to it does, the member still nearer the trigger.
     def taken():
         if host.status().get("health", 1) <= 0:
             return True
         now, _ = host.mobys()
         at = next((m for m in now.values() if m[1] == shark[1]), None)
-        if at is not None:
-            host.ask(f"teleport {at[5]} {at[6]} {at[7]}")
+        if at is not None and time.monotonic() - drops[0] > 1.5:
+            drops[0] = time.monotonic()
+            host.ask(f"teleport {at[5]} {at[6]} {at[7] + 3}")
         return False
 
-    wait("a shark took the host", taken, 60, 1.0)
+    wait("a shark took the host", taken, 60, 0.25)
     env.check("the member was left alone", member.status().get("health", 0) > 0)
 
 

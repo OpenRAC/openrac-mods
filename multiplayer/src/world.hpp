@@ -399,7 +399,7 @@ struct GrabClass {
 
 inline const GrabClass* grab_class(int oclass) {
     static constexpr GrabClass kGrabs[] = {
-        {1059, 4, 5, 0x3D, -1, kGrabFatal},
+        {1059, 5, 5, 0x3D, -1, kGrabFatal},
         {1106, 8, 8, 0x78, 0xB, kGrabSpin},
     };
 

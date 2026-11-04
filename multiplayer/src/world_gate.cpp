@@ -139,12 +139,16 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
     }
 
     // The target it has, unless it has gone or died: an attack goes to its end, and only a player
-    // clearly nearer takes it away (a moby between two players would flip each tick). A lunge at a
-    // grab's victim and a moby that remembers who it fights are not to be turned at all.
-    const bool lunging = grab != nullptr && moby.state >= grab->lunge_first && moby.state <= grab->lunge_last;
+    // clearly nearer takes it away (a moby between two players would flip each tick). A leap at a
+    // grab's victim and a moby that remembers who it fights are not to be turned at all. A grabber
+    // has no stick: its chase of one it can't reach breaks off and starts again, each change of
+    // state restarting a stick, and that would keep it from a player beside it for good.
+    const bool lunging =
+        grab != nullptr && moby.state >= grab->lunge_first && moby.state <= grab->lunge_last;
+    const bool sticking = grab == nullptr && tick_ms_ - aim.state_ms < kAttackStickMs;
 
     if (kept >= 0.0f
-        && (lunging || keeps_hero_class(moby.oclass) || tick_ms_ - aim.state_ms < kAttackStickMs
+        && (lunging || sticking || keeps_hero_class(moby.oclass)
             || best >= kept * kTargetBand * kTargetBand)) {
         at = kept_at;
         return current;
