@@ -1,0 +1,24 @@
+{
+  "id": "debug-menu",
+  "repo": "https://github.com/ParadoxEpoch/rac1-debug-menu",
+  "path": "",
+  "description": "Restores access to the game's original leftover debug menu by reimplementing the R3 trigger used in the prototypes.",
+  "tags": [
+    "tools"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/ParadoxEpoch/rac1-debug-menu/issues",
+    "docs": "https://github.com/ParadoxEpoch/rac1-debug-menu/blob/main/README.md"
+  },
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/debug-menu/a7aa2457df08.png"
+      }
+    ]
+  }
+}
