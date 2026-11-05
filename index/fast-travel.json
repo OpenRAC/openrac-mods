@@ -1,0 +1,18 @@
+{
+  "id": "fast-travel",
+  "repo": "https://github.com/momo1212221/fast-travel",
+  "path": "",
+  "description": "Native RAC1 fast travel from the pause menu to planets the player has already unlocked, without altering progression.",
+  "tags": [
+    "qol",
+    "controls"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/momo1212221/fast-travel/issues",
+    "docs": "https://github.com/momo1212221/fast-travel#readme"
+  }
+}
