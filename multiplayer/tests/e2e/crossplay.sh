@@ -26,7 +26,7 @@ run() {  # name, then e2e.py's arguments; at most $JOBS at once, each with its o
     local name=$1
     shift
     while [ "$(jobs -r | wc -l)" -ge "$JOBS" ]; do wait -n; done
-    timeout 420 python3 "$HERE/e2e.py" --out "$OUT/$name" --base $((base % 8 + 8)) "${common[@]}" "$@" \
+    timeout 420 python3 "$HERE/e2e.py" --out "$OUT/$name" --base "$base" "${common[@]}" "$@" \
         > "$OUT/$name.out" 2>&1 &
     base=$((base + 1))
     sleep 2
