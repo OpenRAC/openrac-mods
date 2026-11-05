@@ -1,0 +1,20 @@
+{
+  "id": "revolverator",
+  "repo": "https://github.com/noire342/openrac-mods",
+  "path": "revolverator",
+  "description": "Restores the cut Revolverator as a separate weapon: catch, spin and throw enemies, with native menus, ammo, saves and a Golden upgrade. Sparks mark the drill contact while holding a target. Assets are prepared automatically from your own disc.",
+  "tags": [
+    "gameplay",
+    "cosmetic",
+    "ui"
+  ],
+  "impact": [
+    "gameplay",
+    "touches-saves"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/noire342/openrac-mods/issues",
+    "docs": "https://github.com/noire342/openrac-mods/tree/main/revolverator"
+  }
+}
