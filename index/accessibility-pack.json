@@ -1,0 +1,19 @@
+{
+  "id": "accessibility-pack",
+  "repo": "https://github.com/momo1212221/accessibility-pack",
+  "path": "",
+  "description": "Controller accessibility helpers with hold-to-mash for Cross, Circle and Square, adjustable repeat interval, and preserved shoulder-button chords.",
+  "tags": [
+    "accessibility",
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/momo1212221/accessibility-pack/issues",
+    "docs": "https://github.com/momo1212221/accessibility-pack#readme"
+  }
+}
