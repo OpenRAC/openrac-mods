@@ -184,6 +184,9 @@ class Client:
             stdout=open(self.dir / "proxy.log", "a"),
             stderr=subprocess.STDOUT,
         )
+        time.sleep(0.5)
+        if self.proxy.poll() is not None:
+            raise Failed(f"{self.name}: the proxy stopped at once, see {self.dir / 'proxy.log'}")
 
     def cut(self):
         """This game's link gone at once, as a cable pulled: to the server, a connection closed."""
@@ -303,13 +306,14 @@ class Env:
             stdout=open(self.out / "server.log", "w"),
             stderr=subprocess.STDOUT,
         )
+        # Its own line, not a connection: another run's server on this address would answer too.
         limit = time.monotonic() + 15
         while time.monotonic() < limit:
-            try:
-                socket.create_connection((self.server_address, self.server_port), timeout=1).close()
+            if self.server.poll() is not None:
+                raise Failed(f"the server stopped at once, see {self.out / 'server.log'}")
+            if "is listening on" in (self.out / "server.log").read_text(errors="replace"):
                 return
-            except OSError:
-                time.sleep(0.2)
+            time.sleep(0.2)
         raise Failed("the server did not start")
 
     def client(self, name, link, join_file=None):
@@ -1848,15 +1852,22 @@ def scenario_rejoin(env, args):
     host, members = start_three(env, args)
     m = members[0]
     before = m.status()["id"]
-    m.cut()
-    wait("the member dropped", lambda: m.status()["dropped"], 15)
-    time.sleep(8)
-    env.check("it holds its slot", host.status()["members"] == 3 and m.status()["code"] != "", json.dumps(host.status())[:300])
-    m.start_proxy()
-    wait("it is back", lambda: not m.status()["dropped"], 15)
-    env.check("under its own id", m.status()["id"] == before, json.dumps(m.status())[:300])
-    wait("given the world", lambda: m.status()["synced"] and not m.status()["joining"], 30)
-    time.sleep(4)
+    # An idle host dies here in time and comes back at the level's start, away from the member just
+    # placed beside it, as is right. So the place counts only if the host stayed alive for it.
+    for _ in range(3):
+        loads = host.status()["loads"]
+        m.cut()
+        wait("the member dropped", lambda: m.status()["dropped"], 15)
+        time.sleep(8)
+        env.check("it holds its slot", host.status()["members"] == 3 and m.status()["code"] != "", json.dumps(host.status())[:300])
+        m.start_proxy()
+        wait("it is back", lambda: not m.status()["dropped"], 15)
+        env.check("under its own id", m.status()["id"] == before, json.dumps(m.status())[:300])
+        wait("given the world", lambda: m.status()["synced"] and not m.status()["joining"], 30)
+        time.sleep(4)
+        if host.status()["loads"] == loads:
+            break
+        env.report["notes"]["host_died_during_rejoin"] = env.report["notes"].get("host_died_during_rejoin", 0) + 1
     check_beside(env, host, m, "the member back")
     compare_worlds(env, [host] + members, "with the member back")
 
