@@ -1,0 +1,18 @@
+{
+  "id": "save-manager",
+  "repo": "https://github.com/momo1212221/save-manager",
+  "path": "",
+  "description": "Native RAC1 save-slot inspection with safe manual saving only to the game's currently active save slot on OpenRAC API 1.11+.",
+  "tags": [
+    "qol",
+    "tools"
+  ],
+  "impact": [
+    "touches-saves"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/momo1212221/save-manager/issues",
+    "docs": "https://github.com/momo1212221/save-manager#readme"
+  }
+}
