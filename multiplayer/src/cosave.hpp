@@ -105,8 +105,10 @@ public:
      * on every card. The members hear of it by the next announce. */
     void start_again();
 
-    /* A game of the party's is about to start here with `save` (none: a new game). */
-    void starting(const Bytes& save);
+    /* A game of the party's is about to start here with `save` (none: a new game). False when the
+     * port has the card filter and will not redirect: the game must not start, or its saves would
+     * go over the player's own. */
+    bool starting(const Bytes& save);
 
     /* A DATA of ours. */
     void handle(std::int32_t sender, const Bytes& bytes);

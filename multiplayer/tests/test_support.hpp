@@ -177,6 +177,7 @@ struct FakeGame : mp::Game {
     int hint = -1;
     bool write_refused = false;
     bool pass_refused = false;
+    bool redirect_refused = false;
     std::map<int, Bytes> slots;
     std::map<int, std::string> notes;
     Bytes own_saves;
@@ -197,6 +198,10 @@ struct FakeGame : mp::Game {
 
     bool card_filter(int mode) override {
         if (mode == mp::kCardPass && pass_refused) {
+            return false;
+        }
+
+        if (mode == mp::kCardRedirect && redirect_refused) {
             return false;
         }
 
@@ -715,7 +720,7 @@ struct Player {
           cosave(session, game, [this] { return clock; }),
           migrate(session, game, coop, world, progress, shared, mods, cosave, cam, [this] { return clock; }) {
         coop.set_save_hooks([this](std::int32_t target) { cosave.announce(target); },
-                            [this](const Bytes& save) { cosave.starting(save); });
+                            [this](const Bytes& save) { return cosave.starting(save); });
         coop.on_start_again([this] { cosave.start_again(); });
         router.route(mp::Owner::kSave, [this](std::int32_t sender, const Bytes& bytes) { cosave.handle(sender, bytes); });
         router.fallback([this](std::int32_t sender, const Bytes& bytes) { coop.handle(sender, bytes); });

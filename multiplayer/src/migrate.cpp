@@ -81,7 +81,12 @@ bool decode_ledger(const Bytes& bytes, Ledger& out) {
     take_keys(r, l.world.spared);
     const std::size_t count = u16(r);
 
-    for (std::size_t i = 0; i < count && r.ok() && i < kMaxSpawned; ++i) {
+    // No more mobys than a ledger is made with: a longer list is no ledger of the party's.
+    if (count > kMaxSpawned) {
+        return false;
+    }
+
+    for (std::size_t i = 0; i < count && r.ok(); ++i) {
         LedgerMoby m;
         m.net = u16(r);
         m.oclass = static_cast<std::int16_t>(u16(r));
@@ -165,11 +170,24 @@ void Migrate::handle(std::int32_t sender, const Bytes& bytes) {
             return;
         }
 
-        // The host's word, or an answer to this game's asking. Only ever a newer one stands, so
-        // nothing of an old host can put the party back.
-        answered_.insert(sender);
+        // The host's word, or an answer to this game's asking from a member it asked, once each.
+        // Only ever a newer one stands, so nothing of an old host can put the party back, and none
+        // more than a few hosts ahead of this one's, so no member can hold the party's epoch past
+        // every later host's.
+        const bool answer = !from_host && gather_ms_ != 0 && asked_.count(sender) != 0
+                            && answered_.count(sender) == 0;
 
-        if ((from_host || gather_ms_ != 0) && ledger_newer(heard, ledger_)) {
+        if (!from_host && !answer) {
+            return;
+        }
+
+        if (answer) {
+            answered_.insert(sender);
+        }
+
+        const auto ahead = static_cast<std::int16_t>(static_cast<std::uint16_t>(heard.epoch - ledger_.epoch));
+
+        if (ahead <= kLedgerEpochReach && ledger_newer(heard, ledger_)) {
             ledger_ = std::move(heard);
         }
     } else if (bytes[0] == kind::kLedgerAsk && from_host) {
@@ -200,6 +218,7 @@ void Migrate::clear() {
     named_.clear();
     next_.clear();
     answered_.clear();
+    asked_.clear();
     took_over_ = false;
     new_host_until_ = 0;
 }
@@ -242,6 +261,14 @@ void Migrate::host_changed(std::int32_t host, std::uint64_t now) {
         coop_.between_hosts(true);
         gather_ms_ = now;
         answered_.clear();
+        asked_.clear();
+
+        for (const Member& m : session_.members()) {
+            if (m.id != session_.id()) {
+                asked_.insert(m.id);
+            }
+        }
+
         session_.send_data(kBroadcast, Bytes{kind::kLedgerAsk});
         return;
     }

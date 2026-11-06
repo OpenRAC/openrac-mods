@@ -523,7 +523,7 @@ void load(openrac::Mod& mod) {
     g->progress->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->cosave = std::make_unique<mp::CoSave>(*g->session, *g->game, mp::now_ms);
     g->coop->set_save_hooks([](std::int32_t target) { g->cosave->announce(target); },
-                            [](const mp::Bytes& save) { g->cosave->starting(save); });
+                            [](const mp::Bytes& save) { return g->cosave->starting(save); });
     g->coop->on_start_again([] { g->cosave->start_again(); });
     g->coop->on_joiner_save([] { return g->world->save_for_a_joiner(); });
     g->shared = std::make_unique<mp::Shared>(*g->session, *g->game, *g->coop);

@@ -173,6 +173,7 @@ constexpr std::size_t kChunkBytes = 16000;
  * given it. */
 constexpr const char* kBadSaveHost = "That save can't be used: it may be damaged";
 constexpr const char* kBadSaveMember = "You can't join: the host's save can't be used";
+constexpr const char* kNoCardFilter = "Not started: your memory card cannot keep the party's saves apart";
 /* The largest save a member takes (Ratchet & Clank's are 59,912 bytes). */
 constexpr std::size_t kMaxSaveBytes = 1u << 17;
 /* How often a pose goes (ms: 20 a second), the host's LEVEL, a member's WANT, a travel tried
@@ -272,6 +273,8 @@ struct GameStatus {
     /* The level's in-game scene playing (its number in the level, the SDK's scene_playing), -1 for
      * none (no scene, or a movie, a slideshow, the ship's landing). */
     int scene = -1;
+    /* How many levels the game has (0 .. levels - 1); 0 when it does not say. */
+    int levels = 0;
 };
 
 /* A game's progress that a party shares (progress.hpp), a byte each, non-zero had: the items owned
@@ -608,7 +611,7 @@ public:
     /* The party's saves (cosave.hpp): told before a PLAY goes to a target, and before a game of the
      * party's starts here, with the save it starts from. */
     void set_save_hooks(std::function<void(std::int32_t)> announce,
-                        std::function<void(const Bytes&)> starting) {
+                        std::function<bool(const Bytes&)> starting) {
         announce_ = std::move(announce);
         starting_ = std::move(starting);
     }
@@ -803,9 +806,10 @@ public:
 
 private:
     void send_play(std::int32_t target, const Bytes& save, int level, bool joining);
-    void about_to_start(const Bytes& save);
-    /* A member's about_to_start, once for a start. */
-    void start_pending();
+    /* False: the party's saves could not be kept apart from the player's, and no game starts. */
+    bool about_to_start(const Bytes& save);
+    /* A member's about_to_start, once for a start (its answer kept for the asks after). */
+    bool start_pending();
     void tick_joining(std::uint64_t now, const GameStatus& status);
     /* Being put beside the host (coop_join.cpp): a request begun and ended, what the host said, the
      * member's tick, the host's account of where it is safe and its answer. */
@@ -903,9 +907,10 @@ private:
     std::function<void(std::int32_t)> announce_;
     /* The host's progress as a joiner is to start from; the game's own without one. */
     std::function<Bytes()> joiner_save_;
-    std::function<void(const Bytes&)> starting_;
+    std::function<bool(const Bytes&)> starting_;
     std::function<void()> start_again_;
     bool start_copied_ = false;
+    bool start_allowed_ = true;
 
     /* A member: the host's PLAY waiting to be started (its mode, level and save), and which play
      * the member started last. */

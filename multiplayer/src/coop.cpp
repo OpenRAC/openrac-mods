@@ -57,10 +57,8 @@ int Coop::figures() const {
     }));
 }
 
-void Coop::about_to_start(const Bytes& save) {
-    if (starting_) {
-        starting_(save);
-    }
+bool Coop::about_to_start(const Bytes& save) {
+    return !starting_ || starting_(save);
 }
 
 bool Coop::starts_again() const {
@@ -117,7 +115,11 @@ bool Coop::start() {
                        + std::to_string(chosen_.size()) + " bytes") + " for the party");
 
     // The host plays it too; a refusal (a save the game will not take) is said.
-    about_to_start(chosen_);
+    if (!about_to_start(chosen_)) {
+        notice_ = kNoCardFilter;
+        log("not started: the party's saves cannot be kept apart from the card's");
+        return false;
+    }
 
     if (!game_.start(level, chosen_)) {
         notice_ = "The game would not start";
@@ -336,13 +338,21 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const bool travels = r.left() >= 7;
             const std::uint8_t travel_high = travels ? r.u8() : 0;
             const auto travel = static_cast<std::uint16_t>(travel_high << 8 | (travels ? r.u8() : 0));
-            const std::int32_t dest = travels ? r.i32() : -1;
+            const std::int32_t heard_dest = travels ? r.i32() : -1;
             const bool arriving = travels && r.u8() != 0;
             const bool ship_held = r.left() > 0 && r.u8() != 0;
 
             if (!from_host || !r.ok() || play == 0) {
                 break;
             }
+
+            // A level or a destination this game does not have is no travel to follow.
+            const int levels = game_.status().levels;
+            const auto in_game = [levels](std::int32_t l) { return l >= 0 && (levels <= 0 || l < levels); };
+            if (level != -1 && !in_game(level)) {
+                break;
+            }
+            const std::int32_t dest = in_game(heard_dest) ? heard_dest : -1;
 
             play_ = play;
             host_level_ = level;
@@ -521,12 +531,14 @@ void Coop::tick(std::uint64_t now) {
     update_barrier(now, status);
 }
 
-void Coop::start_pending() {
+bool Coop::start_pending() {
     // Once for a start, however often the title has it asked again.
     if (!start_copied_) {
         start_copied_ = true;
-        about_to_start(pending_save_ ? save_ : Bytes{});
+        start_allowed_ = about_to_start(pending_save_ ? save_ : Bytes{});
     }
+
+    return start_allowed_;
 }
 
 void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
@@ -541,7 +553,14 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
                 applied_ = pending_play_;
                 pending_ = false;
                 save_.clear();
-            } else if (start_pending(), game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
+            } else if (!start_pending()) {
+                // The card would take the party's saves over the player's own: not joined.
+                notice_ = kNoCardFilter;
+                log("not joined: the party's saves cannot be kept apart from the card's");
+                applied_ = pending_play_;
+                pending_ = false;
+                save_.clear();
+            } else if (game_.start(pending_level_, pending_save_ ? save_ : Bytes{})) {
                 applied_ = pending_play_;
                 start_ms_ = now;
                 joining_ = pending_joining_;

@@ -378,6 +378,41 @@ void a_port_without_the_filter_plays_as_before() {
     CHECK(host.cosave.where().empty());
 }
 
+// A port with the filter that will not redirect: no game of the party's starts, the host's or a
+// member's, so the game's own saves never go over the player's.
+void a_card_that_will_not_redirect_starts_nothing() {
+    Player host{1}, member{2};
+    const std::vector<mp::Member> two = {{1, "P1"}, {2, "P2"}};
+
+    for (Player* p : {&host, &member}) {
+        p->game.card_on = true;
+        p->session.handle(info(two));
+    }
+
+    member.game.redirect_refused = true;
+    host.coop.choose(save_of(0x21), "A save");
+    CHECK(start_ready(host));
+    route({&host, &member});
+    tick({&host, &member}, 16);
+    CHECK(host.cosave.on() && !member.cosave.on());
+    CHECK(member.game.started_save.empty() && member.game.own_saves.empty());
+    CHECK(member.coop.take_notice() == mp::kNoCardFilter);
+
+    // The host's own card refusing: the host's game does not start either.
+    Player alone{3}, other{4};
+    const std::vector<mp::Member> pair = {{3, "P3"}, {4, "P4"}};
+
+    for (Player* p : {&alone, &other}) {
+        p->game.card_on = true;
+        p->session.handle(info(pair));
+    }
+
+    alone.game.redirect_refused = true;
+    alone.coop.choose(save_of(0x22), "A save");
+    CHECK(!start_ready(alone));
+    CHECK(alone.game.started_save.empty());
+}
+
 void slots_are_chosen_and_notes_read_back() {
     mp::CoNote note;
     note.key = 0xDEADBEEF;
@@ -426,6 +461,7 @@ void run_saves_tests() {
     starting_again_keeps_the_last_games_slot();
     a_member_asks_the_host_to_save();
     a_port_without_the_filter_plays_as_before();
+    a_card_that_will_not_redirect_starts_nothing();
     slots_are_chosen_and_notes_read_back();
 }
 

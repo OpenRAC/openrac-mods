@@ -218,7 +218,8 @@ void CoSave::engage() {
     const int slot = session_.is_host() && continuing_ >= 0 ? continuing_ : pick_slot(notes, key_);
 
     if (!game_.card_filter(kCardRedirect)) {
-        // No write of the party's goes anywhere it should not: there is no saving at all.
+        // No write of the party's goes anywhere it should not: no game of the party's starts
+        // (starting answers false); the next start asks again.
         refused_ = true;
         return;
     }
@@ -257,7 +258,9 @@ void CoSave::start_again() {
     continuing_ = -1;
 }
 
-void CoSave::starting(const Bytes& save) {
+bool CoSave::starting(const Bytes& save) {
+    refused_ = false;
+
     if (!on_) {
         engage();
     }
@@ -266,6 +269,8 @@ void CoSave::starting(const Bytes& save) {
         copied_ = false;
         write_copy(save);
     }
+
+    return on_ || !game_.has_card_filter();
 }
 
 void CoSave::broadcast(const Bytes& save) {
@@ -451,10 +456,18 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
                     }
                 }
 
-                // A new key with a slot taken: the host started again, the slot is the last game's.
+                // A new key with a slot taken: the host started again, the slot is the last game's
+                // and stays as that game left it. The filter turns to a slot of the new key's at
+                // once, so no write of this game's lands in the last one's slot meanwhile.
                 if (r.ok() && key != 0 && key != key_) {
+                    const bool was_on = on_;
                     key_ = key;
                     on_ = false;
+                    slot_ = -1;
+
+                    if (was_on) {
+                        engage();
+                    }
                 }
 
                 // Of this party's save only: the bans go beside its copy of it.

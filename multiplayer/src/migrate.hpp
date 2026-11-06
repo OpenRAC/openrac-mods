@@ -134,6 +134,9 @@ bool decode_ledger(const Bytes& bytes, Ledger& out);
 /* Whether `a` is newer than `b`: an epoch, then its generation. */
 bool ledger_newer(const Ledger& a, const Ledger& b);
 
+/* How many hosts ahead of this game's a ledger heard may be: a party changes host one at a time. */
+constexpr std::int16_t kLedgerEpochReach = 4;
+
 /* The members in the order they would follow the host: the link's worth first, then as given. */
 struct Candidate {
     std::int32_t id = 0;
@@ -219,6 +222,8 @@ private:
     /* A new host waiting for the ledgers: since when (0: not), and who answered. */
     std::uint64_t gather_ms_ = 0;
     std::set<std::int32_t> answered_;
+    /* Who the new host asked (the members then): only they answer, once each. */
+    std::set<std::int32_t> asked_;
     bool took_over_ = false;
     /* A member waiting for a new host's world: since when (0: not). The line about the new host: who,
      * until when. */

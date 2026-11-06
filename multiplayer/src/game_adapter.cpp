@@ -40,7 +40,7 @@ constexpr int kBannerItems = 37;
 
 mp::GameStatus ModGame::status() {
     const openrac_play_status s = mod_.play_status();
-    return {s.phase, s.level, s.loads, mod_.scene_playing()};
+    return {s.phase, s.level, s.loads, mod_.scene_playing(), s.levels};
 }
 
 bool ModGame::save_usable(const mp::Bytes& save) {
@@ -98,6 +98,10 @@ bool ModGame::game_save() {
 bool ModGame::travel(int level) { return mod_.play_travel(level) == OPENRAC_HOOK_OK; }
 
 bool ModGame::ship_takeoff(int level) {
+    // The game's travel takes a level of its own only: another number reads past its tables.
+    if (level < 0 || level >= mod_.play_status().levels) {
+        return false;
+    }
     const ProgressDisc* disc = progress_disc();
     const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_L00_00290030" : "FUN_L00_0028ed58";
     const auto travel_to = name != nullptr ? mod_.function<void (*)(std::int32_t)>(name) : nullptr;

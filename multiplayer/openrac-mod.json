@@ -29,6 +29,7 @@
     },
     {
       "key": "revive",
+      "multiplayer": "host",
       "name": "Revive fallen players",
       "type": "bool",
       "default": false,
@@ -36,6 +37,7 @@
     },
     {
       "key": "hold_party",
+      "multiplayer": "host",
       "name": "Hold the party",
       "type": "bool",
       "default": false,

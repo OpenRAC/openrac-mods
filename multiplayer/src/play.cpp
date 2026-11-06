@@ -223,7 +223,10 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     r.u8();
     out = PoseMessage{};
     out.owner = r.i32();
-    out.sequence = static_cast<std::uint16_t>((r.u8() << 8) | r.u8());
+    // Two reads in their order: the operands of one expression are read in either.
+    const std::uint8_t sequence_high = r.u8();
+    const std::uint8_t sequence_low = r.u8();
+    out.sequence = static_cast<std::uint16_t>((sequence_high << 8) | sequence_low);
     out.stamp_ms = r.i64();
     Pose& p = out.pose;
     p.level = static_cast<std::int8_t>(r.u8());

@@ -558,6 +558,12 @@ that player. Mobys near the members run in the host's game as if near its camera
 
 ## Known limits
 
+- A member's messages are checked for their form and their sender, not yet for whether what they
+  say could happen (a pose too far from the last, a hit from across the level): a modified game in
+  a party can still claim more than it did. Plausibility checks are planned.
+- The pages and lines added in this version (Party rules, Go to host, the refused, rules and remove
+  pages, the party's save lines) are in English in every language for now: their translations are
+  still to come.
 - A new host's enemies start their minds afresh where they stood, and a placed moby only a game that
   never heard it died still has is dealt with by the ledger; one the ledger has alive and this game
   lost stays gone. Enemies mid-attack stop, a scene or a flight ends, an unanswered bolt claim or dig
