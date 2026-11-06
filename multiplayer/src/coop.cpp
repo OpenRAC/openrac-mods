@@ -47,16 +47,20 @@ bool member_of(const Session& session, std::int32_t id) {
 
 }  // namespace
 
-std::string save_description(const std::string& planet, int gold_bolts, bool new_game) {
+std::string save_description(
+    const std::string& planet, int gold_bolts, bool new_game, Language language
+) {
     if (new_game) {
-        return "New game";
+        return translated("New game", language);
     }
 
-    std::string text = planet.empty() ? "A save" : planet;
+    std::string text = planet.empty() ? translated("A save", language) : planet;
 
     // The gold bolts say how far a save has come, where the game has no percentage.
     if (gold_bolts > 0) {
-        text += ", " + std::to_string(gold_bolts) + (gold_bolts == 1 ? " gold bolt" : " gold bolts");
+        text += ", " + std::to_string(gold_bolts)
+                + (gold_bolts == 1 ? translated(" gold bolt", language)
+                                   : translated(" gold bolts", language));
     }
 
     return text;
@@ -404,6 +408,7 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
 
     r.poses.add(m.pose, m.sequence, time, now, m.teleport);
     r.scene = m.scene;
+    r.menu = m.menu;
 
     if (trace_ != nullptr && trace_->on()) {
         char text[320];
@@ -873,6 +878,7 @@ void Coop::send_pose(std::uint64_t now, const GameStatus& status) {
                  || step(m.pose, last_pose_) > kSnapDistance;
     m.owner = session_.id();
     m.scene = status.phase == kPhaseScene;
+    m.menu = status.phase == kPhaseMenu;
     m.sequence = ++sequence_;
     m.stamp_ms = session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(now);
     pose_ms_ = now;

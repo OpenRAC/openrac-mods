@@ -10,9 +10,14 @@
 # the members), the shared progress (items, gold bolts, planets) and its verbose log. It needs interface 1.7's pages of the game's own menus, 1.8's play calls and 1.9's
 # world calls, so the top CMakeLists.txt adds this folder only with an SDK of 1.9 or newer.
 
+# The localized text is UTF-8 on every build host, including Windows with a non-UTF-8 locale.
+if(MSVC)
+  add_compile_options(/utf-8)
+endif()
+
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
-                SOURCES src/multiplayer.cpp src/session.cpp src/connection.cpp src/host.cpp
+                SOURCES src/multiplayer.cpp src/comfort.cpp src/session.cpp src/connection.cpp src/host.cpp
                         src/direct.cpp src/protocol.cpp src/coop.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
@@ -44,6 +49,14 @@ if(BUILD_TESTING)
     target_compile_definitions(multiplayer_test PRIVATE NOMINMAX)
   endif()
   add_test(NAME multiplayer COMMAND multiplayer_test)
+  # The five PAL languages, page states, font repertoire and UTF-8-safe UI bounds.
+  add_executable(multiplayer_words_test tests/words_test.cpp src/direct.cpp src/coop.cpp
+                 src/session.cpp src/protocol.cpp src/coop_scenes.cpp src/play.cpp src/world.cpp
+                 src/progress.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp)
+  target_include_directories(multiplayer_words_test PRIVATE src)
+  target_link_libraries(multiplayer_words_test PRIVATE OpenRAC::mod)
+  set_target_properties(multiplayer_words_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_words COMMAND multiplayer_words_test)
   # Playing together, without the game: the poses' bytes, the interpolation buffer, and the co-op
   # of a host and members through a router that does what the server does with DATA.
   add_executable(multiplayer_play_test tests/play_test.cpp src/session.cpp src/protocol.cpp
@@ -61,3 +74,13 @@ if(BUILD_TESTING)
   set_target_properties(multiplayer_smooth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_smooth COMMAND multiplayer_smooth_test)
 endif()
+
+if(BUILD_TESTING)
+  add_executable(multiplayer_comfort_test tests/comfort_test.cpp src/comfort.cpp src/protocol.cpp)
+  target_include_directories(multiplayer_comfort_test PRIVATE src)
+  set_target_properties(multiplayer_comfort_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_comfort COMMAND multiplayer_comfort_test)
+endif()
+
+get_target_property(multiplayer_package multiplayer OPENRAC_MOD_PACKAGE_DIR)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" "${multiplayer_package}/LICENSE" COPYONLY)
