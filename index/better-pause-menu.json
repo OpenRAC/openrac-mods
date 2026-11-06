@@ -1,0 +1,20 @@
+{
+  "id": "better-pause-menu",
+  "repo": "https://github.com/momo1212221/better-pause-menu",
+  "path": "",
+  "description": "Native RAC1 QoL Hub with collectibles, missions, unlocked-planet fast travel, checkpoints, save tools, accessibility status and safe cutscene controls.",
+  "tags": [
+    "ui",
+    "qol",
+    "controls"
+  ],
+  "impact": [
+    "gameplay",
+    "touches-saves"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/momo1212221/better-pause-menu/issues",
+    "docs": "https://github.com/momo1212221/better-pause-menu#readme"
+  }
+}
