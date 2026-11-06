@@ -111,6 +111,27 @@ void animate(const Pose& a, const Pose& b, double s, Pose& out) {
     }
 }
 
+/* A piece off the body has no velocity of its own: past the newest pose it goes on along its last
+ * step, for `ahead` ms of a step `span` ms long, as the body does along its velocity. */
+void carry_loose_on(const Pose& before, double span, double ahead, Pose& out) {
+    if (span <= 0.0) {
+        return;
+    }
+
+    for (std::uint32_t i = 0; i < out.held_count && i < kHeldMax; ++i) {
+        HeldPiece& piece = out.held[i];
+        const HeldPiece* was = same_piece(before, piece);
+
+        if ((piece.flags & kHeldLoose) == 0 || was == nullptr || (was->flags & kHeldLoose) == 0) {
+            continue;
+        }
+
+        for (int c = 0; c < 3; ++c) {
+            piece.position[c] += static_cast<float>((piece.position[c] - was->position[c]) * ahead / span);
+        }
+    }
+}
+
 }  // namespace
 
 Bytes encode_pose(const PoseMessage& m) {
@@ -121,8 +142,8 @@ Bytes encode_pose(const PoseMessage& m) {
         .i64(m.stamp_ms)
         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(p.level, -1, 127))))
         .u8(static_cast<std::uint8_t>((p.flags & kPoseBlending) | (m.teleport ? kWireTeleport : 0)
-                                  | (m.scene ? kWireScene : 0)
-                                  | (m.menu ? kWireMenu : 0)));
+                                  | (m.scene ? kWireScene : 0) | (m.menu ? kWireMenu : 0)
+                                  | ((p.flags & kPoseAirborne) != 0 ? kWireAirborne : 0)));
 
     for (const float f : p.position) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
@@ -185,6 +206,11 @@ Bytes encode_pose(const PoseMessage& m) {
         }
     }
 
+    if (m.world_ack) {
+        w.u8(static_cast<std::uint8_t>(m.world_newest >> 8)).u8(static_cast<std::uint8_t>(m.world_newest));
+        w.i32(static_cast<std::int32_t>(m.world_bits));
+    }
+
     return w.bytes();
 }
 
@@ -197,12 +223,15 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     r.u8();
     out = PoseMessage{};
     out.owner = r.i32();
-    out.sequence = static_cast<std::uint16_t>((r.u8() << 8) | r.u8());
+    // Two reads in their order: the operands of one expression are read in either.
+    const std::uint8_t sequence_high = r.u8();
+    const std::uint8_t sequence_low = r.u8();
+    out.sequence = static_cast<std::uint16_t>((sequence_high << 8) | sequence_low);
     out.stamp_ms = r.i64();
     Pose& p = out.pose;
     p.level = static_cast<std::int8_t>(r.u8());
     const std::uint8_t flags = r.u8();
-    p.flags = flags & kPoseBlending;
+    p.flags = (flags & kPoseBlending) | ((flags & kWireAirborne) != 0 ? kPoseAirborne : 0);
     out.teleport = (flags & kWireTeleport) != 0;
     out.scene = (flags & kWireScene) != 0;
     out.menu = (flags & kWireMenu) != 0;
@@ -273,6 +302,14 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
 
     // A tail cut short: the pose stands, wearing nothing.
     p.held_count = r.ok() ? static_cast<std::uint32_t>(count) : 0;
+
+    if (r.ok() && r.left() >= kPoseAckBytes) {
+        const auto newest_high = static_cast<std::uint16_t>(r.u8() << 8);
+        out.world_newest = static_cast<std::uint16_t>(newest_high | r.u8());
+        out.world_bits = static_cast<std::uint32_t>(r.i32());
+        out.world_ack = true;
+    }
+
     return true;
 }
 
@@ -325,6 +362,142 @@ bool decode_shot(const Bytes& bytes, ShotMessage& out) {
     }
 
     return r.ok();
+}
+
+namespace {
+
+constexpr std::uint8_t kHasVelocity = 0x1;
+constexpr std::uint8_t kHasAim = 0x2;
+constexpr std::uint8_t kHasVelocity2 = 0x4;
+constexpr std::uint8_t kHasAux = 0x8;
+constexpr std::uint8_t kHasTarget = 0x10;
+
+template <std::size_t N>
+bool any_set(const float (&values)[N]) {
+    return std::any_of(values, values + N, [](float f) { return f != 0.0f; });
+}
+
+template <std::size_t N>
+void write_floats(Writer& w, const float (&values)[N]) {
+    for (const float f : values) {
+        w.i32(static_cast<std::int32_t>(float_bits(f)));
+    }
+}
+
+template <std::size_t N>
+void read_floats(Reader& r, float (&values)[N]) {
+    for (float& f : values) {
+        f = bits_float(static_cast<std::uint32_t>(r.i32()));
+    }
+}
+
+}  // namespace
+
+Bytes encode_shotx(const std::vector<ShotEntry>& shots) {
+    Writer w;
+    const std::size_t count = std::min(shots.size(), kShotXMax);
+    w.u8(kShotXKind).u8(static_cast<std::uint8_t>(count));
+
+    for (std::size_t i = 0; i < count; ++i) {
+        const ShotEntry& e = shots[i];
+        const Shot& s = e.shot;
+        const std::uint8_t has =
+            static_cast<std::uint8_t>((any_set(s.velocity) ? kHasVelocity : 0) | (any_set(s.aim) ? kHasAim : 0)
+                                      | (any_set(s.velocity2) ? kHasVelocity2 : 0) | (any_set(s.aux) ? kHasAux : 0)
+                                      | (s.target_key >= 0 ? kHasTarget : 0));
+        w.i32(e.owner)
+            .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(e.level, -1, 127))))
+            .u8(static_cast<std::uint8_t>(std::clamp(s.item, 0, 255)))
+            .u8(static_cast<std::uint8_t>(s.flags))
+            .u8(has)
+            .i32(static_cast<std::int32_t>(e.stamp));
+        write_floats(w, s.position);
+
+        if ((has & kHasVelocity) != 0) {
+            write_floats(w, s.velocity);
+        }
+
+        if ((has & kHasAim) != 0) {
+            write_floats(w, s.aim);
+        }
+
+        if ((has & kHasVelocity2) != 0) {
+            write_floats(w, s.velocity2);
+        }
+
+        if ((has & kHasAux) != 0) {
+            write_floats(w, s.aux);
+        }
+
+        if ((has & kHasTarget) != 0) {
+            const std::int16_t key = clamp16(s.target_key);
+            w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(key) >> 8)).u8(static_cast<std::uint8_t>(key));
+        }
+    }
+
+    return w.bytes();
+}
+
+bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out) {
+    out.clear();
+
+    if (bytes.size() < 2 || bytes[0] != kShotXKind) {
+        return false;
+    }
+
+    Reader r(bytes.data() + 1, bytes.size() - 1);
+    const std::uint8_t count = r.u8();
+
+    if (count > kShotXMax) {
+        return false;
+    }
+
+    for (std::uint8_t i = 0; i < count; ++i) {
+        ShotEntry e;
+        Shot& s = e.shot;
+        e.owner = r.i32();
+        e.level = static_cast<std::int8_t>(r.u8());
+        s.item = r.u8();
+        s.flags = r.u8();
+        const std::uint8_t has = r.u8();
+        e.stamp = static_cast<std::uint32_t>(r.i32());
+        read_floats(r, s.position);
+
+        if ((has & kHasVelocity) != 0) {
+            read_floats(r, s.velocity);
+        }
+
+        if ((has & kHasAim) != 0) {
+            read_floats(r, s.aim);
+        }
+
+        if ((has & kHasVelocity2) != 0) {
+            read_floats(r, s.velocity2);
+        }
+
+        if ((has & kHasAux) != 0) {
+            read_floats(r, s.aux);
+        }
+
+        if ((has & kHasTarget) != 0) {
+            const std::uint8_t high = r.u8();
+            s.target_key = static_cast<std::int16_t>(high << 8 | r.u8());
+        }
+
+        if (!r.ok()) {
+            out.clear();
+            return false;
+        }
+
+        out.push_back(e);
+    }
+
+    return true;
+}
+
+bool shot_replaces(const ShotEntry& newer, const ShotEntry& older) {
+    return newer.owner == older.owner && (newer.shot.flags & kShotMove) != 0 && (older.shot.flags & kShotMove) != 0
+           && newer.shot.aux[0] == older.shot.aux[0];
 }
 
 bool sequence_newer(std::uint16_t a, std::uint16_t b) {
@@ -437,7 +610,7 @@ void Interpolator::add(
         const double gap = time_ms - samples_.back().time;
         if (gap <= 0.0) {
             time_ms = samples_.back().time + 1.0;
-        } else if (gap < 200.0) {
+        } else if (gap < (derive_ ? kMobyPauseGapMs : kPauseGapMs)) {
             // The send interval, learned from the gaps of a steady stream (not a pause).
             interval_ += 0.1 * (gap - interval_);
         }
@@ -544,11 +717,14 @@ bool Interpolator::at(double now_ms, Pose& out) {
 }
 
 double Interpolator::wanted_ms() const {
-    // Past the transit: the next pose's interval (two without velocities: the one after a pose
-    // makes its velocity) and the jitter, and a frame.
-    // A lost pose leaves a gap of two: from 5 % lost, the margin covers it.
-    const double sends = derive_ ? 2.0 : 1.0 + std::min(1.0, 20.0 * loss_);
-    const double margin = std::clamp(sends * interval_ + 2.5 * jitter_ + 17.0, kMinBufferMs, kMaxBufferMs);
+    // Past the transit: the next pose's interval (one more without velocities: the one after a
+    // pose makes its velocity) and the jitter, and a frame. Whatever the stream's rate (a moby's
+    // goes with its priority, and all of WORLD slows while the party fires), at least two intervals:
+    // a lost pose leaves a gap of two. A figure's third comes by 5 % lost; a moby's, of the three
+    // the longer, by 25 %: at 5 % a third costs 100 ms of delay and shows nothing.
+    const double sends = derive_ ? 2.0 + std::min(1.0, 4.0 * loss_) : 1.0 + std::min(1.0, 20.0 * loss_);
+    const double margin = std::clamp(std::max(sends * interval_ + 2.5 * jitter_ + 17.0, 2.0 * interval_), kMinBufferMs,
+                                     derive_ ? kMaxMobyBufferMs : kMaxBufferMs);
     return std::clamp(transit_ + margin, 0.0, kMaxDelayMs);
 }
 
@@ -607,6 +783,11 @@ bool Interpolator::place(double now_ms, Pose& out) {
     if (cursor_ >= newest) {
         out = samples_.back().pose;
         shown_ = jumped_ ? Shown::kJump : Shown::kHeld;
+
+        if (samples_.size() >= 2) {
+            const Sample& last = samples_[samples_.size() - 2];
+            carry_loose_on(last.pose, newest - last.time, std::min(cursor_ - newest, kExtrapolateMs), out);
+        }
 
         if (derive_) {
             std::fill(out.velocity, out.velocity + 3, 0.0f);

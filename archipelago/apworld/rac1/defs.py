@@ -13,11 +13,14 @@ class ItemData(NamedTuple):
 class LocationData(NamedTuple):
     name: str
     id: int | None  # None: an event (an NPC's coordinates, the Persuader, the goal)
-    kind: str  # "give", "vendor", "start", "infobot", "gold" or "fixed"
+    kind: str  # "give", "vendor", "start", "infobot", "gold", "skill" or "fixed"
     planet: str
     pool: str | None  # the option that shuffles it; None for an event
     vanilla: str | None  # the item the game gives here; None for the goal
     hard: tuple[str, ...]  # what the place cannot be done without
     soft: tuple[str, ...]  # what the game's own route has there
+    any: tuple[str, ...]  # one of these is needed, when there are any
+    planets: tuple[str, ...]  # other planets the place takes
     costly: bool  # bought for more bolts than a player has early on
+    pricey: bool  # a purchase to save up for
     goal: bool  # beating Drek

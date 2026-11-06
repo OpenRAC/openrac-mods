@@ -7,7 +7,8 @@
 # an NPC the game always has). The goal is beating Drek.
 from typing import Any, Mapping
 
-from BaseClasses import ItemClassification, Tutorial
+from BaseClasses import CollectionState, Item, ItemClassification, Tutorial
+from Fill import fill_restrictive
 from worlds.AutoWorld import WebWorld, World
 
 from .data import GAME
@@ -16,7 +17,13 @@ from .items import FILLER, ITEM_NAME_GROUPS, ITEM_NAME_TO_ID, ITEM_TABLE, RAC1It
 from .locations import EVENT_ROWS, LOCATION_NAME_GROUPS, LOCATION_NAME_TO_ID, LOCATION_ROWS, event_item
 from .options import OPTION_GROUPS, OPTION_PRESETS, RAC1Options
 from .regions import SHIP, create_regions
-from .rules import set_rules
+from .rules import holds_progression, set_rules
+
+
+# In a multiworld, a world with fewer spare places for its progression than this places it itself.
+# Every option set has at most 7 or at least 10: two players of 7 failed 1 seed in 1000, of 10 none.
+ROOM_FOR_KEYS = 8
+KEY_FILL_ATTEMPTS = 100
 
 
 class RAC1Web(WebWorld):
@@ -53,6 +60,12 @@ class RAC1World(World):
     item_name_groups = ITEM_NAME_GROUPS
     location_name_groups = LOCATION_NAME_GROUPS
 
+    def location_rows(self) -> list[LocationData]:
+        # The rows that are locations in this slot: the skill points only with their option.
+        if self.options.shuffle_skill_points:
+            return LOCATION_ROWS
+        return [row for row in LOCATION_ROWS if row.kind != "skill"]
+
     def shuffled(self, row: LocationData) -> bool:
         # A row of a pool turned off, or the starting Bomb Glove kept, holds its own item.
         if row.kind == "start" and self.options.keep_starting_gear:
@@ -74,15 +87,60 @@ class RAC1World(World):
 
     def create_items(self) -> None:
         # A pool turned off keeps the game's own item in place; the rest go to the multiworld.
-        for row in LOCATION_ROWS:
-            item = self.create_item(row.vanilla)
+        self.own_progression = []
+        own = self.places_own_progression()
+        for row in self.location_rows():
+            item = self.create_item(row.vanilla or FILLER)
             if self.shuffled(row):
-                self.multiworld.itempool.append(item)
+                (self.own_progression if own and item.advancement else self.multiworld.itempool).append(item)
             else:
                 self.get_location(row.name).place_locked_item(item)
 
     def set_rules(self) -> None:
         set_rules(self)
+
+    def places_own_progression(self) -> bool:
+        # The main fill never retries, and it can dead-end when the progression has few places to
+        # go. Alone, this world's locations are all it has anyway, so nothing is lost placing it in
+        # pre_fill, where it can try again; in a multiworld, only a world short of places does this.
+        if self.multiworld.players == 1:
+            return True
+        rows = [row for row in self.location_rows() if self.shuffled(row)]
+        places = sum(holds_progression(row, self.options.logic) for row in rows)
+        keys = sum(ITEM_TABLE[row.vanilla or FILLER].progression for row in rows)
+        return places - keys < ROOM_FOR_KEYS
+
+    def get_pre_fill_items(self) -> list[Item]:
+        return self.own_progression
+
+    def pre_fill(self) -> None:
+        keys = self.own_progression
+        if not keys:
+            return
+        spots = [spot for spot in self.multiworld.get_unfilled_locations(self.player) if spot.item_rule(keys[0])]
+        for _ in range(KEY_FILL_ATTEMPTS):
+            left = self.random.sample(keys, len(keys))
+            fill_restrictive(
+                self.multiworld,
+                CollectionState(self.multiworld),
+                self.random.sample(spots, len(spots)),
+                left,
+                single_player_placement=True,
+                lock=True,
+                allow_partial=True,
+                name=f"{self.game} progression",
+            )
+            if not left:
+                self.own_progression = []
+                return
+            for spot in spots:
+                if spot.item is not None:
+                    spot.item.location = None
+                    spot.item = None
+                    spot.locked = False
+        # Something else forbids these places (a plando, say): the main fill takes it from here.
+        self.multiworld.itempool += keys
+        self.own_progression = []
 
     def fill_slot_data(self) -> Mapping[str, Any]:
         return self.options.as_dict(
@@ -92,5 +150,6 @@ class RAC1World(World):
             "shuffle_vendor",
             "shuffle_gold_bolts",
             "shuffle_infobots",
+            "shuffle_skill_points",
             "keep_starting_gear",
         )

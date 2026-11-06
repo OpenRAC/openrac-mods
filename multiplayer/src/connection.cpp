@@ -29,6 +29,11 @@ namespace {
 constexpr int kConnectMs = 3000;
 constexpr int kRetryMs = 3000;
 constexpr int kSliceMs = 20;
+/* On a server that keeps a dropped player's slot: how often this thread says something whatever the
+ * game is doing (a level loading stops its ticks), so silence means a dead link, and how long nothing
+ * from the server means that on this side. */
+constexpr std::int64_t kAliveMs = 2000;
+constexpr std::int64_t kServerSilentMs = 6000;
 /* How long one select waits in connect_to, so a stop is noticed. */
 constexpr int kWaitSliceMs = 50;
 
@@ -145,7 +150,17 @@ socket_t open_udp(socket_t tcp, std::int32_t port) {
         return kNoSocket;
     }
 
-    if (peer.ss_family == AF_INET6) {
+#ifdef MULTIPLAYER_BOT
+    // The end-to-end tests' proxies on an address they share (macOS): the proxy's own port, not the
+    // server's it passed on.
+    const bool keep_port = std::getenv("OPENRAC_MP_BOT_UDP_AT_TCP") != nullptr;
+#else
+    const bool keep_port = false;
+#endif
+
+    if (keep_port) {
+        // The peer's port stays.
+    } else if (peer.ss_family == AF_INET6) {
         reinterpret_cast<sockaddr_in6*>(&peer)->sin6_port = htons(static_cast<std::uint16_t>(port));
     } else {
         reinterpret_cast<sockaddr_in*>(&peer)->sin_port = htons(static_cast<std::uint16_t>(port));
@@ -336,7 +351,12 @@ void Connection::send(Bytes frame) {
     wake_.notify_all();
 }
 
-void Connection::send_state(std::int32_t target, const Bytes& bytes) {
+bool Connection::state_needs_tcp(std::size_t bytes) const {
+    return mode_ != Mode::kHosting
+           && !(udp() && kClientStateHeader + bytes <= kMaxDatagramBytes);
+}
+
+void Connection::send_state(std::int32_t target, const Bytes& bytes, bool tcp) {
     // Hosting: routed by the host itself.
     if (mode_ == Mode::kHosting) {
         if (embedded_ != nullptr) {
@@ -346,7 +366,7 @@ void Connection::send_state(std::int32_t target, const Bytes& bytes) {
         return;
     }
 
-    // Over UDP when it was offered and the datagram fits; TCP as well until UDP is confirmed.
+    // Over UDP when it was offered and the datagram fits; the session says when TCP goes as well.
     if (state_.load() == State::kConnected && udp_ready_.load()
         && kClientStateHeader + bytes.size() <= kMaxDatagramBytes) {
         {
@@ -356,13 +376,11 @@ void Connection::send_state(std::int32_t target, const Bytes& bytes) {
             );
         }
         wake_.notify_all();
-
-        if (udp()) {
-            return;
-        }
     }
 
-    send(data(target, bytes));
+    if (tcp) {
+        send(data(target, bytes));
+    }
 }
 
 std::vector<Message> Connection::receive() {
@@ -445,6 +463,11 @@ void Connection::serve(std::intptr_t handle) {
     // UDP, once offered: a socket connected to the server's address and its UDP port.
     socket_t udp = kNoSocket;
     std::int64_t next_bind_ms = 0;
+    /* Keeping the link's word (kAliveMs): whether the server wants it, when it last went, when the
+     * server was last heard. */
+    bool keep_alive = false;
+    std::int64_t alive_ms = 0;
+    std::int64_t heard_ms = static_cast<std::int64_t>(now_ms());
     udp_session_ = 0;
     udp_token_ = 0;
     udp_ready_ = false;
@@ -468,6 +491,20 @@ void Connection::serve(std::intptr_t handle) {
         }
 
         bool lost = false;
+
+        if (keep_alive) {
+            const auto now = static_cast<std::int64_t>(now_ms());
+
+            // A link that has gone quiet closes nothing by itself.
+            if (now - heard_ms >= kServerSilentMs) {
+                break;
+            }
+
+            if (now - alive_ms >= kAliveMs) {
+                alive_ms = now;
+                out.push_back(time(now));
+            }
+        }
 
         // Everything queued, in order.
         for (const Bytes& f : out) {
@@ -548,6 +585,7 @@ void Connection::serve(std::intptr_t handle) {
                 break;
             }
 
+            heard_ms = static_cast<std::int64_t>(now_ms());
             frames.feed(chunk, static_cast<std::size_t>(n));
             Bytes body;
 
@@ -563,11 +601,13 @@ void Connection::serve(std::intptr_t handle) {
                 // The session id and the UDP offer are the connection's to keep as well.
                 if (m.kind == Message::Kind::kHello) {
                     udp_session_ = m.id;
-                } else if (m.kind == Message::Kind::kUdp && udp == kNoSocket) {
+                } else if (m.kind == Message::Kind::kUdp) {
+                    // A second offer: this connection took back an old session, bound afresh.
                     udp_token_ = m.token;
-                    udp = open_udp(fd, m.udp_port);
+                    udp = udp == kNoSocket ? open_udp(fd, m.udp_port) : udp;
                     udp_ready_ = udp != kNoSocket && udp_session_.load() != 0;
                     next_bind_ms = 0;
+                    keep_alive = (m.features & kFeatureResume) != 0;
                 }
 
                 got.push_back(std::move(m));

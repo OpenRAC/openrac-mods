@@ -8,7 +8,8 @@ configure and export a config file.
 ## What is randomized?
 
 The gadgets and weapons NPCs and pickups give, the Gadgetron vendor's weapons, the gold bolts and
-the planets' coordinates the infobots give. Each may hold an item of any world in the multiworld.
+the planets' coordinates the infobots give, and with the `shuffle_skill_points` option the 30 skill
+points. Each may hold an item of any world in the multiworld.
 
 ## What is the goal?
 
@@ -22,5 +23,9 @@ The place gives nothing, and a line at the top of the screen says what was found
 
 The `logic` option. **Standard**: a place counts only with the gadgets the game's own route has
 there, and an expensive purchase holds no progression. **Relaxed**: the same, and no progression in
-a gold bolt either. **Expert**: only what a place cannot be done without counts. Every location's
-rule is in the world's `data.py`.
+a purchase to save up for. **Expert**: only what a place cannot be done without counts. In every
+logic, a gold bolt holds no progression. Every location's rule is in the world's `data.py`.
+
+With few places for progression (vendor slots off, or Relaxed logic), this world keeps its own
+progression among its own locations, so generation can't run out of places. Its other items still
+go to the multiworld.

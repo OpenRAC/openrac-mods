@@ -6,12 +6,14 @@
 #include <string>
 #include <vector>
 
+#include "kinds.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
 
 namespace mp {
-// Opaque DATA carried by the existing server and Direct connect; never pose/UDP state.
-constexpr std::uint8_t kComfortKind = 80;
+// Opaque DATA carried by the existing server and Direct connect; never pose/UDP state. Its value is
+// the wire registry's (kinds.hpp: Owner::kComfort, 80 to 83).
+constexpr std::uint8_t kComfortKind = kind::kComfort;
 
 struct ComfortOptions {
     bool revive = true, rally = true;

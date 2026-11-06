@@ -15,6 +15,8 @@
  *     (after a LEAVE, say); in it already: ALREADY_IN_PARTY; full: PARTY_FULL (the client stays
  *     connected, out of the party, as on the server). A client greeted before the local HELLO
  *     joins once the party exists.
+ *   - KICK from the local game takes a member out as on the server: KICKED to it, LEFT to the others,
+ *     its connection staying; a client's KICK is refused (NOT_HOST).
  *   - The host leaving (LEAVE from the local game) ends the party: END to every member, and ended()
  *     tells the owner to stop() the host. stop() sends END too, flushes, and closes everything.
  *   - The local link has no rate limits, no hello deadline, and its bad frames are dropped rather
@@ -119,6 +121,11 @@ private:
     void hello(Peer& peer, const Request& request);
     void join(Peer& peer);
     void leave(Peer& peer, bool asked);
+    void kick(Peer& peer, std::int32_t member);
+    void resume(Peer& peer, const Request& request);
+    void tick_slots(std::int64_t now_ns);
+    /* INFO as the party stands, the slots that wait among its members. */
+    Bytes info() const;
     void end_party();
     void forward(Peer& sender, std::int32_t target, const std::function<void(Peer&)>& delivery);
     void deliver_state(std::int32_t sender, Peer& to, const Bytes& bytes);
@@ -144,6 +151,13 @@ private:
     Peer* local_ = nullptr;
     /* The party: the host (the local game once greeted) first, then the members as they joined. */
     std::vector<Peer*> party_;
+    /* A member whose connection dropped: its slot, for it to come back to (migrate.hpp). */
+    struct Slot {
+        Member member;
+        std::int64_t token = 0;
+        std::int64_t dropped_ns = 0;
+    };
+    std::vector<Slot> slots_;
     std::int32_t next_id_ = 1;
     std::int64_t started_ns_ = 0;
 };

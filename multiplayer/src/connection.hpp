@@ -52,9 +52,17 @@ public:
     /* Queues one whole frame (protocol.hpp's encoders give them). */
     virtual void send(Bytes frame) = 0;
 
-    /* Game state for `target` (session.hpp's send_state): as DATA, unless the transport has
-     * something better (UDP). */
-    virtual void send_state(std::int32_t target, const Bytes& bytes) { send(data(target, bytes)); }
+    /* Whether game state of `bytes` bytes needs the reliable stream as well: not when the transport
+     * has something better that is known to work (UDP datagrams coming back, the embedded host). */
+    virtual bool state_needs_tcp(std::size_t /*bytes*/) const { return true; }
+
+    /* Game state for `target` (session.hpp's send_state): as DATA when `tcp` says, and by whatever
+     * better the transport has (UDP). */
+    virtual void send_state(std::int32_t target, const Bytes& bytes, bool tcp) {
+        if (tcp) {
+            send(data(target, bytes));
+        }
+    }
 };
 
 /* What the embedded host is doing, for the page (Connection::hosting). */
@@ -128,7 +136,8 @@ public:
     void set_host_config(const HostConfig& config) { host_config_ = config; }
 
     void send(Bytes frame) override;
-    void send_state(std::int32_t target, const Bytes& bytes) override;
+    bool state_needs_tcp(std::size_t bytes) const override;
+    void send_state(std::int32_t target, const Bytes& bytes, bool tcp) override;
     /* The messages the server sent since the last call, in order (OPENRAC_MP_LAG: those whose
      * extra delay is over). */
     std::vector<Message> receive();

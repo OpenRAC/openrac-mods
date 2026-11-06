@@ -14,6 +14,16 @@ It needs an OpenRAC built from master on 2026-10-21 or later (the game's
 hook points for damage, hits, ammo, deaths, the level load and Ratchet's
 speed). An older one refuses the mod and names the missing hook point.
 
+## In a multiplayer party
+
+Difficulty is a gameplay mod: every player needs the same version and the same settings as the
+host, or the join is refused and the game says which differ. **Seed** and **Detailed log** are not
+compared: the seed is the host's, and the log is your own. Everyone then plays by the host's rules,
+so a blank seed is the host's for everyone and each level rolls the same Chaos values in every game.
+Only the host's game makes copies of enemies or leaves some out (the others show the host's), enemy
+speed and bolt drops are the host's since its game runs them, and the host's game decides the Chaos
+events, which reach everyone as they start and end. With no party the mod works as below.
+
 ## Playing
 
 Install it from the launcher's **Mods** tab (**Add from a link**:

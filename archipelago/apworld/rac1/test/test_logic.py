@@ -3,9 +3,10 @@
 # turned off keeps its own items.
 import unittest
 
+from BaseClasses import CollectionState
+
 from ..data import LOCATIONS, PLANETS
 from ..items import ITEM_TABLE
-from ..locations import LOCATION_NAME_GROUPS
 from ..options import OPTION_PRESETS, RAC1Options
 from ..rules import coordinates
 from .bases import RAC1TestBase
@@ -24,7 +25,7 @@ class TestDefault(RAC1TestBase):
         self.sweep()
         self.assertTrue(self.can_reach_region("Eudora"))
 
-    def test_drek_needs_swingshot_and_magneboots(self) -> None:
+    def test_drek_needs_the_magneboots(self) -> None:
         location = "Veldin (return): Drek"
         self.collect_by_name("Veldin (return) Coordinates")
         self.collect_by_name(["Heli-Pack", "Grindboots", "O2 Mask", "Swingshot"])
@@ -39,6 +40,7 @@ class TestExpert(RAC1TestBase):
 
     def test_drek_needs_only_his_hard_items(self) -> None:
         self.collect_by_name(["Veldin (return) Coordinates", "Swingshot", "Magneboots"])
+        self.collect_by_name(["Heli-Pack", "Grindboots", "O2 Mask"])
         self.sweep()
         self.assertTrue(self.can_reach_location("Veldin (return): Drek"))
 
@@ -70,20 +72,64 @@ class TestHardNeeds(RAC1TestBase):
 
     def test_gadgetron_ceo_needs_hoverboard(self) -> None:
         self.collect_all_but(["Hoverboard"])
-        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
         self.collect_by_name("Hoverboard")
-        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO"))
+        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
+
+
+class TestOrxon(RAC1TestBase):
+    def test_o2_mask_is_for_ratchets_part_only(self) -> None:
+        # The mod plays Clank's part first, however the mask stands.
+        self.collect_all_but(["O2 Mask"])
+        self.assertTrue(self.can_reach_location("Orxon: Clank finds the Magneboots"))
+        self.assertTrue(self.can_reach_location("Orxon: Clank's infobot"))
+        self.assertFalse(self.can_reach_location("Orxon: Ratchet's infobot"))
+        self.collect_by_name("O2 Mask")
+        self.assertTrue(self.can_reach_location("Orxon: Ratchet's infobot"))
 
 
 class TestRelaxed(RAC1TestBase):
     options = {"logic": "relaxed"}
 
-    def test_no_progression_in_gold_bolts(self) -> None:
+    def test_no_progression_in_a_purchase_to_save_up_for(self) -> None:
         swingshot = self.world.create_item("Swingshot")
-        for name in LOCATION_NAME_GROUPS["Gold Bolts"]:
-            location = self.multiworld.get_location(name, self.player)
-            self.assertFalse(location.item_rule(swingshot), name)
-            self.assertTrue(location.item_rule(self.world.create_item("Gold Bolt")), name)
+        rows = [row for row in LOCATIONS if row.id is not None and row.pricey]
+        self.assertTrue(rows)
+        for row in rows:
+            location = self.multiworld.get_location(row.name, self.player)
+            self.assertFalse(location.item_rule(swingshot), row.name)
+            self.assertTrue(location.item_rule(self.world.create_item("Gold Bolt")), row.name)
+
+
+class TestGoldBolts(RAC1TestBase):
+    def test_gold_bolts_hold_no_progression(self) -> None:
+        key = self.world.create_item("Swingshot")
+        for row in LOCATIONS:
+            if row.kind == "gold":
+                self.assertFalse(self.multiworld.get_location(row.name, self.player).item_rule(key), row.name)
+
+
+class TestFewPlacesForProgression(RAC1TestBase):
+    options = {"shuffle_weapons": False, "shuffle_vendor": False, "shuffle_gold_bolts": False}
+    place_progression = True
+
+    def test_pre_fill_places_the_progression_and_the_game_can_be_beaten(self) -> None:
+        self.assertFalse([item for item in self.multiworld.itempool if item.advancement])
+        self.assertTrue(self.multiworld.can_beat_game(CollectionState(self.multiworld)))
+
+
+class TestMultiworldKeepsProgressionShared(RAC1TestBase):
+    def test_default_options_leave_it_to_the_main_fill(self) -> None:
+        self.multiworld.players = 2
+        self.assertFalse(self.world.places_own_progression())
+
+
+class TestMultiworldShortOfPlaces(RAC1TestBase):
+    options = {"shuffle_vendor": False}
+
+    def test_it_places_its_own(self) -> None:
+        self.multiworld.players = 2
+        self.assertTrue(self.world.places_own_progression())
 
 
 class TestStandardGoldBoltsOff(RAC1TestBase):
@@ -98,6 +144,39 @@ class TestStartingGearShuffled(RAC1TestBase):
         self.assertIn("Bomb Glove", [item.name for item in self.multiworld.itempool])
 
 
+class TestSkillPointsOff(RAC1TestBase):
+    def test_no_skill_points_by_default(self) -> None:
+        names = [location.name for location in self.multiworld.get_locations(self.player)]
+        self.assertFalse([name for name in names if "skill point" in name])
+
+
+class TestSkillPointsOn(RAC1TestBase):
+    options = {"shuffle_skill_points": True}
+
+    def test_thirty_skill_points_and_as_many_items(self) -> None:
+        rows = [row for row in LOCATIONS if row.kind == "skill"]
+        self.assertEqual(len(rows), 30)
+        names = [location.name for location in self.multiworld.get_locations(self.player)]
+        for row in rows:
+            self.assertIn(row.name, names)
+        self.assertEqual(sum(item.name == "Gold Bolt" for item in self.multiworld.itempool), 40 + 30)
+
+    def test_skill_points_hold_no_progression(self) -> None:
+        coordinates_item = self.world.create_item("Veldin (return) Coordinates")
+        for row in LOCATIONS:
+            if row.kind == "skill":
+                location = self.multiworld.get_location(row.name, self.player)
+                self.assertFalse(location.item_rule(coordinates_item), row.name)
+                self.assertTrue(location.item_rule(self.world.create_item("Gold Bolt")), row.name)
+
+    def test_morph_o_ray_needed_only_for_its_skill_point(self) -> None:
+        self.collect_all_but(["Morph-o-Ray"])
+        self.assertFalse(self.can_reach_location("Rilgar: skill point 2"))
+        self.assertTrue(self.can_reach_location("Rilgar: skill point 1"))
+        self.collect_by_name("Morph-o-Ray")
+        self.assertTrue(self.can_reach_location("Rilgar: skill point 2"))
+
+
 class TestPresets(unittest.TestCase):
     def test_presets_name_options(self) -> None:
         for preset, values in OPTION_PRESETS.items():
@@ -109,8 +188,9 @@ class TestData(unittest.TestCase):
     def test_rules_name_known_items(self) -> None:
         # Every item a rule asks for is in the pool, so a rule can never be impossible.
         for row in LOCATIONS:
-            for name in row.hard + row.soft:
+            for name in row.hard + row.soft + row.any:
                 self.assertIn(name, ITEM_TABLE, row.name)
+                self.assertTrue(ITEM_TABLE[name].progression, f"{row.name}: {name}")
 
     def test_every_planet_opens(self) -> None:
         for planet in PLANETS[1:]:

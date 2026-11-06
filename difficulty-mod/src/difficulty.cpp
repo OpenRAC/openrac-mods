@@ -36,6 +36,13 @@
 //   chaos_events        every few minutes of play, a random event for 45 seconds (rules.h: Event)
 //   chaos_minutes       the minutes of play between events
 //   trace               more lines in the log: each level's values, max health changes
+//
+// In a party (multiplayer's README, Mods in a party) the host's rules count: this game publishes
+// what it plays by (rules.h: PartyRules), and the same mod in a member's game takes them
+// (on_party_rules): the sliders, Chaos and the resolved seed, so each level rolls the same, and
+// which event is on, the host deciding the events. A member makes no copies and leaves no enemy out:
+// the host's world brings its copies (SPAWN) and its removals (dead placed mobys). With no party
+// nothing of this runs, and every slider at 1.0 is still the retail game.
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -304,6 +311,10 @@ dm::Values s_active;
 dm::EventClock s_clock;
 dm::Rng s_rng(1);
 
+// The host's rules, while a party's host has given them.
+bool s_follow;
+dm::PartyRules s_rules;
+
 // Per level: the items' table as the level's program has it, read before the first change. Game
 // thread only.
 std::vector<uint8_t> s_items[k_levels];
@@ -435,6 +446,18 @@ std::string describe(const dm::Values& v) {
 // What plays now: the level's values with the event on, if any.
 void set_active() {
     s_active = dm::with_event(s_level, s_clock.current);
+}
+
+// What this game plays by, for a party it hosts.
+void publish_rules(openrac::Mod& mod) {
+    dm::PartyRules r;
+    r.chaos = s_chaos;
+    r.events = s_events_on;
+    r.minutes = static_cast<int>(s_clock.every / kSecondsPerMinute);
+    r.sliders = s_sliders;
+    r.seed = s_seed;
+    r.event = s_clock.current;
+    mod.party_rules_publish(dm::encode_party_rules(r), dm::party_rules_text(r));
 }
 
 // ---- Damage, ammo, bolts, speed, health ----
@@ -1176,19 +1199,28 @@ uint32_t load_gameplay(Original original, int32_t full) {
         return cursor;
     }
 
-    s_level = dm::effective(s_chaos, s_sliders, s_seed, level);
+    // A party's member plays by the host's: the same rolls from the same seed.
+    const bool chaos = s_follow ? s_rules.chaos : s_chaos;
+    const dm::Values& sliders = s_follow ? s_rules.sliders : s_sliders;
+    const uint64_t seed = s_follow ? s_rules.seed : s_seed;
+    s_level = dm::effective(chaos, sliders, seed, level);
     set_active();
     s_anim.clear();
     std::memset(s_hit_owner, 0, sizeof s_hit_owner);
-    s_rng = dm::Rng(dm::mix(s_seed, kLevelRngSalt + static_cast<uint64_t>(level)));
+    s_rng = dm::Rng(dm::mix(seed, kLevelRngSalt + static_cast<uint64_t>(level)));
 
     // Chaos rolls new values each level, and the trace asks for them: say what plays.
-    if (s_chaos || s_trace) {
+    if (chaos || s_trace) {
         s_mod->info("level " + std::to_string(level) + ": " + describe(s_level));
     }
 
     rewrite_items(level);
-    adjust_enemies(level);
+
+    // The host's world brings a member its copies and takes out what it left out.
+    if (!s_follow) {
+        adjust_enemies(level);
+    }
+
     return cursor;
 }
 
@@ -1225,6 +1257,8 @@ void find_disc(openrac::Mod& mod) {
     }
 }
 
+void reset_clock(openrac::Mod& mod);
+
 // Reads the settings: Chaos, the sliders (clamped), the seed (a new one when blank), the trace
 // and the events' clock.
 void read_settings(openrac::Mod& mod) {
@@ -1248,14 +1282,7 @@ void read_settings(openrac::Mod& mod) {
 
     s_trace = mod.setting<bool>("trace");
     s_events_on = mod.setting<bool>("chaos_events");
-    s_clock = dm::EventClock{};
-    s_clock.seed = dm::mix(s_seed, kEventClockSalt);
-    s_clock.every = kSecondsPerMinute * static_cast<double>(mod.setting<int>("chaos_minutes"));
-
-    // Less than a minute (or not a number): the default gap.
-    if (!(s_clock.every >= kSecondsPerMinute)) {
-        s_clock.every = kDefaultEventGap;
-    }
+    reset_clock(mod);
 }
 
 // Puts what the hooks carry between calls back as at a start.
@@ -1321,17 +1348,76 @@ int hook_updates(openrac::Mod& mod, std::string& missing) {
     return timed;
 }
 
-// Each frame: the events' clock (in play, with the events on), then max health.
+// The events' clock as at a start.
+void reset_clock(openrac::Mod& mod) {
+    s_clock = dm::EventClock{};
+    s_clock.seed = dm::mix(s_seed, kEventClockSalt);
+    s_clock.every = kSecondsPerMinute * static_cast<double>(mod.setting<int>("chaos_minutes"));
+
+    // Less than a minute (or not a number): the default gap.
+    if (!(s_clock.every >= kSecondsPerMinute)) {
+        s_clock.every = kDefaultEventGap;
+    }
+}
+
+// The host's rules reached this game, or (none) the party went and its own count again from the
+// next level loaded. An event starting or ending in the host's game comes this way too.
+void on_party_rules(void*, const void* data, uint32_t size) {
+    if (data == nullptr) {
+        // Only a member that took rules has any to leave.
+        if (s_follow) {
+            s_follow = false;
+            reset_clock(*s_mod);
+            set_active();
+            s_mod->info("out of the party: this game's own settings count again");
+        }
+
+        return;
+    }
+
+    dm::PartyRules rules;
+
+    if (!dm::decode_party_rules(data, size, rules)) {
+        s_mod->warn("the host's rules cannot be read here: its Difficulty is another version");
+        return;
+    }
+
+    const bool first = !s_follow;
+    const int event = s_clock.current;
+    s_follow = true;
+    s_rules = rules;
+    s_clock.current = rules.event;
+    set_active();
+
+    if (first) {
+        s_mod->info(
+            "in a party: playing by the host's rules, seed " + dm::seed_code(rules.seed) + ": "
+            + describe(rules.sliders) + (rules.chaos ? ", chaos" : "")
+        );
+    }
+
+    // The host's event, as this game's own would say it.
+    if (rules.event != event) {
+        s_mod->info(
+            rules.event >= 0 ? std::string("chaos: ") + dm::k_events[rules.event].name
+                             : std::string("chaos: back to normal")
+        );
+    }
+}
+
+// Each frame: the events' clock (in play, with the events on), then max health. A party's member
+// has no clock: the host decides the events.
 void on_frame() {
     // Chaos events are on and the game is in play: the clock runs on play time only.
-    if (s_events_on && in_play()) {
+    if (s_events_on && !s_follow && in_play()) {
         const double dt = get<float>(exe(s_disc->tick) + kTickSeconds);
         const int change =
             s_clock.advance(dt > 0.0 && dt < kMaxFrameSeconds ? dt : kFallbackFrameSeconds);
 
-        // An event started or ended.
+        // An event started or ended: a party's members take it from these rules.
         if (change != 0) {
             set_active();
+            publish_rules(*s_mod);
             s_mod->info(
                 change > 0 ? std::string("chaos: ") + dm::k_events[s_clock.current].name
                            : std::string("chaos: back to normal")
@@ -1357,6 +1443,9 @@ void load(openrac::Mod& mod) {
 
     read_settings(mod);
     reset_state();
+    s_follow = false;
+    publish_rules(mod);
+    mod.on_party_rules(on_party_rules);
 
     s_create_moby = mod.required_function<uint32_t (*)(int32_t)>(s_disc->create_moby);
     s_delete_moby = mod.required_function<void (*)(uint32_t)>(s_disc->delete_moby);
@@ -1418,4 +1507,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("difficulty", "1.2.2", load)
+OPENRAC_MOD_CPP("difficulty", "1.3.0", load)

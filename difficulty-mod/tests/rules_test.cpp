@@ -264,7 +264,64 @@ static void budget() {
     );
 }
 
+// The party's rules: their bytes read back as written, broken ones refused, their words.
+void party_rules() {
+    PartyRules r;
+    r.chaos = true;
+    r.events = true;
+    r.minutes = 3;
+    r.sliders = retail();
+    r.sliders[BOLTS] = 2.0;
+    r.sliders[ENEMY_COUNT] = 1.5;
+    r.seed = 0x0A1B2C3Du;
+    r.event = 2;
+    const std::vector<std::uint8_t> bytes = encode_party_rules(r);
+    PartyRules back;
+    CHECK(decode_party_rules(bytes.data(), static_cast<std::uint32_t>(bytes.size()), back));
+    CHECK(back.chaos && back.events && back.minutes == 3 && back.seed == r.seed && back.event == 2);
+    CHECK(back.sliders[BOLTS] == 2.0 && back.sliders[ENEMY_COUNT] == 1.5 && back.sliders[MAX_AMMO] == 1.0);
+    CHECK(!decode_party_rules(bytes.data(), static_cast<std::uint32_t>(bytes.size()) - 1, back));
+    CHECK(!decode_party_rules(nullptr, 0, back));
+    std::vector<std::uint8_t> other = bytes;
+    other[0] = 9;
+    CHECK(!decode_party_rules(other.data(), static_cast<std::uint32_t>(other.size()), back));
+    CHECK(party_rules_text(r) == "Enemy count x1.5\nBolts x2\nChaos on\nChaos events every 3 min");
+    PartyRules plain;
+    plain.sliders = retail();
+    CHECK(party_rules_text(plain) == "As in the game");
+    plain.sliders[ENEMY_SPEED] = 0.75;
+    CHECK(party_rules_text(plain) == "Enemy speed x0.75");
+    // An event this version does not have is none.
+    other = bytes;
+    other[4] = 120;
+    CHECK(decode_party_rules(other.data(), static_cast<std::uint32_t>(other.size()), back) && back.event == -1);
+    // The event gone is -1 again.
+    r.event = -1;
+    const std::vector<std::uint8_t> none = encode_party_rules(r);
+    CHECK(decode_party_rules(none.data(), static_cast<std::uint32_t>(none.size()), back) && back.event == -1);
+}
+
+// A party's seed plays on any disc: a level's rolls come from the seed and the level alone (rules.h
+// takes no disc, and every address is in discs.h, which this core never includes). Pinned, so a
+// change that made them depend on anything else shows here.
+void a_seed_rolls_the_same_everywhere() {
+    const dm::Values level3 = dm::chaos_roll(0x1234ABCDu, 3);
+    const dm::Values again = dm::chaos_roll(0x1234ABCDu, 3);
+    std::uint64_t hash = 14695981039346656037ull;
+
+    for (int k = 0; k < dm::KNOB_COUNT; ++k) {
+        CHECK(level3[k] == again[k]);
+        const auto thousandths = static_cast<std::int64_t>(std::llround(level3[k] * 1000.0));
+        hash = (hash ^ static_cast<std::uint64_t>(thousandths)) * 1099511628211ull;
+    }
+
+    CHECK(hash == 0xb9618b0f40fab4cbull);
+    CHECK(dm::seed_from_text("1234abcd") == 0x1234ABCDu);
+}
+
 int main() {
+    a_seed_rolls_the_same_everywhere();
+    party_rules();
     ranges();
     clamping();
     effective_values();

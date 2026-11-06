@@ -123,7 +123,11 @@ void pages() {
         CHECK(lines[1].value == "Pokitaru");
         CHECK(lines[2].label == std::string("Player_123") + mp::translated(" (host, you)", lang));
         CHECK(lines[2].value == "38 ms UDP");
-        CHECK(lines[3].label == mp::translated("Leave party", lang));
+        // Round 3's Party rules, then Leave party, last.
+        CHECK(lines.size() == 5);
+        CHECK(lines[3].kind == mp::PartyLine::Kind::kRules);
+        CHECK(lines[4].kind == mp::PartyLine::Kind::kLeave);
+        CHECK(lines[4].label == mp::translated("Leave party", lang));
         in.direct = true;
         in.where = "192.168.1.2:7770";
         CHECK(mp::party_lines(in, lang)[0].value == in.where);
@@ -140,6 +144,28 @@ void pages() {
                 mp::pause_leave_question(true, true, lang), mp::translated("Stop hosting?", lang)
             )
             == 0
+        );
+        CHECK(
+            std::strcmp(
+                mp::pause_leave_question(false, true, false, lang),
+                mp::translated("End the party?", lang)
+            )
+            == 0
+        );
+        CHECK(
+            std::strcmp(
+                mp::pause_leave_question(false, false, lang), mp::translated("Leave the party?", lang)
+            )
+            == 0
+        );
+        mp::LobbyMemberInput member;
+        member.name = "Player_123";
+        member.ready = true;
+        member.you = true;
+        CHECK(
+            mp::lobby_member_line(member, lang)
+            == std::string("Player_123") + mp::translated(" (ready)", lang)
+                   + mp::translated(" - you", lang)
         );
         CHECK(mp::save_description("", 0, true, lang) == mp::translated("New game", lang));
         CHECK(

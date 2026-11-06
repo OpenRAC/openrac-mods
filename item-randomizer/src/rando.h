@@ -131,6 +131,7 @@ enum {
 /* A location's flags. */
 #define LOCF_COSTLY 0x01u /* bought for more bolts than a player has early on */
 #define LOCF_GOAL 0x02u   /* beating the game: what every seed must reach */
+#define LOCF_PRICEY 0x04u /* a purchase a player saves up for: out of "relaxed"'s progression */
 
 typedef struct rando_location {
     const char* name;     /* for the spoiler log: "Kerwan: Helga" */
@@ -143,6 +144,8 @@ typedef struct rando_location {
     uint8_t flags;        /* LOCF_* */
     uint64_t hard;        /* items it cannot be had without (every difficulty) */
     uint64_t soft;        /* items the game's route has there and play expects (not "expert") */
+    uint64_t any;         /* at least one of these items, when not 0 (every difficulty) */
+    uint32_t planets;     /* 1 << level of each other planet it takes (every difficulty) */
 } rando_location;
 
 extern const rando_location rando_locations[];
@@ -150,6 +153,22 @@ extern const size_t rando_location_count;
 
 /* The items that open the way somewhere (the solver places them first, where they can be had). */
 extern const uint64_t rando_progression_items;
+
+/* A tutorial message the game asks for right after it gives item. */
+typedef struct rando_item_help {
+    uint8_t item;
+    uint16_t message;
+} rando_item_help;
+
+extern const rando_item_help rando_item_helps[];
+extern const size_t rando_item_help_count;
+
+/* A word every level's text has on both discs: "Infobot", said with a planet's name. */
+#define RANDO_TEXT_INFOBOT 0x4E7C
+#define RANDO_TEXT_GOLD_BOLT 0x4E9F
+
+/* The message id of a reward's name, in every level's text; 0 for none. */
+int rando_reward_text(rando_reward r);
 
 /* Where a location's checked state is kept by the game (the randomizer's memory of what was had,
  * and what it reads back from a save):
@@ -178,7 +197,7 @@ typedef struct rando_settings {
 
 #define RANDO_SEED_BITS 40
 #define RANDO_SEED_MASK ((((uint64_t)1) << RANDO_SEED_BITS) - 1)
-#define RANDO_CODE_FORMAT 1
+#define RANDO_CODE_FORMAT 2
 /* "XXXX-XXXX-XXXX": 12 characters of Crockford's base 32 and two hyphens, and the terminator. */
 #define RANDO_CODE_SIZE 15
 
@@ -223,6 +242,10 @@ int rando_location_shuffled(const rando_settings* s, const rando_location* l);
  * `soft` (relaxed differs in where progression goes: solver.c). */
 uint64_t rando_requirement(int difficulty, size_t location);
 
+/* How many shuffled locations of plan cannot be had even at the end of the game; 0 for a placement
+ * with no reward locked behind itself. */
+int rando_stranded(const rando_plan* plan);
+
 /* Fills plan for its settings. 0 on success; -1 when no placement was found (never, for the
  * tables here: the tests try many seeds of every setting). */
 int rando_solve(const rando_settings* s, rando_plan* plan);
@@ -231,6 +254,9 @@ int rando_solve(const rando_settings* s, rando_plan* plan);
  * goal is reached; spheres[i] is the sphere location i is had in (0 for the start, -1 never),
  * when spheres is not null. */
 int rando_beatable(const rando_plan* plan, int* spheres);
+
+/* The reward in words, for the log and the spoiler: "the coordinates of Rilgar", into buf. */
+void rando_reward_name(rando_reward r, char* buf, size_t n);
 
 /* The spoiler log: settings, code, where everything is (by planet) and a playthrough. Writes at
  * most size bytes with the terminator; returns the length it needed. */

@@ -98,6 +98,12 @@ std::string World::moby_name(int slot) const {
 
 bool World::kill(int slot, const std::string& why) {
     const bool killed = game_.moby_kill(slot);
+
+    // Gone until the next listing says so: nothing is to take it for a moby still there.
+    if (const auto it = mobys_.find(slot); killed && it != mobys_.end()) {
+        it->second.flags |= kMobyDead;
+    }
+
     trace_line(
         "despawn",
         std::string("moby_kill ") + (killed ? "" : "(refused) ") + moby_name(slot) + " by sync ("

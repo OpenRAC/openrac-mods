@@ -8,7 +8,8 @@
  * The wire, the POSE kind of the game's DATA (coop.hpp), sent as state (UDP where offered), each
  * game about 20 a second:
  *   kind u8 (7), owner i32 (whose Ratchet), sequence u16, stamp i64 (the server's clock, ms),
- *   level i8, flags u8 (blending 1, teleport 2, in a scene 4), position 3 x f32, rotation 3 x f32,
+ *   level i8, flags u8 (blending 1, teleport 2, in a scene 4, in a menu 8, airborne 0x10),
+ *   position 3 x f32, rotation 3 x f32,
  *   velocity 3 x f32, state i16, health i16, item i16, seq u8, frame u8, next frame u8,
  *   anim time u8 (0 to 255 for 0 to 1), anim speed i16 (thousandths)
  * 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32. Then what the
@@ -18,6 +19,11 @@
  *   for a loose piece its position 3 x f32 and rotation 3 x f32
  * (13 bytes a piece, 37 a loose one).
  *
+ * A SHOTX (coop.hpp's kinds; state: it may be lost, and comes late only to be dropped): kind u8
+ * (48), count u8, then for each shot owner i32, level i8, item u8, flags u8, what follows u8 (bits:
+ * velocity, aim, velocity2, aux, target), stamp u32, position 3 x f32, and what follows of velocity
+ * 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16.
+ *
  * A SHOT (coop.hpp's kinds; reliable): kind u8 (19), owner i32, level i8, item i16, position
  * 3 x f32, velocity 3 x f32, aim 4 x f32: 48 bytes. The figure fires it as far behind as its poses
  * are played.
@@ -26,8 +32,8 @@
  * turns it into its own clock and plays the poses back a delay behind their stamps. The delay is
  * the link's: the time in transit as measured (arrival less stamp, averaged, so the clock
  * estimates' error is in it too), and a margin past it of a send interval and the transit's
- * jitter (at least kMinBufferMs), so the next pose is there before the cursor needs it; up to an
- * interval more while poses are lost. It rises
+ * jitter, never under two send intervals of that stream (and kMinBufferMs), so one pose lost still
+ * leaves a pose to play; up to an interval more while poses are lost. It rises
  * in about half a second when the link gets worse and falls in about four when it calms. Between
  * two poses: the position along a cubic Hermite curve through their velocities (a jump stays an
  * arc), the yaw the short way round, the place in the animation's seq on from the one's to the
@@ -60,9 +66,16 @@ namespace mp {
 
 /* openrac_pose.flags: blending into `seq`. And the wire's teleport flag. */
 constexpr std::uint32_t kPoseBlending = 0x1;
+/* openrac_pose.flags too: the hero stands where another can be put beside him. Not on the wire. */
+constexpr std::uint32_t kPoseSteady = 0x8;
+/* His feet are off the ground (the SDK's OPENRAC_POSE_AIRBORNE): an enemy that takes him in the air
+ * or in the water needs it on the host. */
+constexpr std::uint32_t kPoseAirborne = 0x10;
 constexpr std::uint8_t kWireTeleport = 0x2;
 constexpr std::uint8_t kWireScene = 0x4;
+/* 0x8 is multiplayer 0.8.0's "in a pause/menu overlay": its peers send it, so it keeps that meaning. */
 constexpr std::uint8_t kWireMenu = 0x8;
+constexpr std::uint8_t kWireAirborne = 0x10;
 
 /* A piece a Ratchet wears or holds (the SDK's openrac_held_piece): the game's slot and which of
  * its mobys, the item, the moby's class, the body's joint it follows, kHeld* flags, where a loose
@@ -120,22 +133,39 @@ struct PoseMessage {
     /* The sender is in a pause/menu overlay: status may inspect it, rescue may not progress. */
     bool menu = false;
     Pose pose;
+    /* A member's word on WORLD: the newest sequence heard and, bit n, whether the one n + 1 before
+     * it was. */
+    bool world_ack = false;
+    std::uint16_t world_newest = 0;
+    std::uint32_t world_bits = 0;
 };
 
 /* The POSE kind's first byte (coop.hpp's kinds), and its size on the wire. */
-constexpr std::uint8_t kPoseKind = 7;
+constexpr std::uint8_t kPoseKind = kind::kPose;
 constexpr std::size_t kPoseBytes = 65;
+constexpr std::size_t kPoseAckBytes = 6;
 
 Bytes encode_pose(const PoseMessage& message);
 /* False for bytes that are not a whole POSE. */
 bool decode_pose(const Bytes& bytes, PoseMessage& out);
 
-/* A shot a Ratchet fired (the SDK's openrac_shot), and the SHOT message: whose, in which level. */
+/* A shot a Ratchet fired (the SDK's openrac_shot2), and the SHOT message: whose, in which level.
+ * A weapon that is no single shot is a track: the flags say where in it this one is, aux[0] which
+ * of the player's tracks. */
+constexpr std::uint32_t kShotStart = 0x1;
+constexpr std::uint32_t kShotMove = 0x2;
+constexpr std::uint32_t kShotStop = 0x4;
+constexpr std::uint32_t kShotBurst = 0x8;
+
 struct Shot {
     std::int32_t item = 0;
     float position[3] = {0, 0, 0};
     float velocity[3] = {0, 0, 0};
     float aim[4] = {0, 0, 0, 0};
+    std::uint32_t flags = 0;
+    std::int32_t target_key = -1;
+    float velocity2[3] = {0, 0, 0};
+    float aux[4] = {0, 0, 0, 0};
 };
 
 struct ShotMessage {
@@ -144,21 +174,43 @@ struct ShotMessage {
     Shot shot;
 };
 
-constexpr std::uint8_t kShotKind = 19;
+constexpr std::uint8_t kShotKind = kind::kShot;
 constexpr std::size_t kShotBytes = 48;
 
 Bytes encode_shot(const ShotMessage& message);
 /* False for bytes that are not a whole SHOT. */
 bool decode_shot(const Bytes& bytes, ShotMessage& out);
 
+/* One shot of a SHOTX: whose, in which level, when (the low 32 bits of the stamp a pose has). */
+struct ShotEntry {
+    std::int32_t owner = 0;
+    std::int32_t level = -1;
+    std::uint32_t stamp = 0;
+    Shot shot;
+};
+
+constexpr std::uint8_t kShotXKind = kind::kShotX;
+/* The most shots a SHOTX holds: well within a datagram, at the most each can be. */
+constexpr std::size_t kShotXMax = 12;
+
+Bytes encode_shotx(const std::vector<ShotEntry>& shots);
+/* False for bytes that are not a whole SHOTX. */
+bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out);
+
+/* Whether a queued shot replaces `older`: the newer MOVE of the same track, so a queue held back
+ * by the rates sends where a track is now, not everywhere it has been. */
+bool shot_replaces(const ShotEntry& newer, const ShotEntry& older);
+
 /* Whether sequence `a` is newer than `b`, 16 bits wrapping (serial arithmetic). */
 bool sequence_newer(std::uint16_t a, std::uint16_t b);
 
 /* The buffer's constants (INTERPOLATION.md, section 2), in milliseconds and game units. */
 constexpr std::size_t kBufferSamples = 32;
-/* The least margin past the transit, the most, and the most delay in all. */
+/* The least margin past the transit, the most (a moby far from the player comes a few times a
+ * second, so its margin of two intervals is longer), and the most delay in all. */
 constexpr double kMinBufferMs = 100.0;
 constexpr double kMaxBufferMs = 400.0;
+constexpr double kMaxMobyBufferMs = 700.0;
 constexpr double kMaxDelayMs = 1000.0;
 constexpr double kExtrapolateMs = 150.0;
 constexpr double kFadeMs = 50.0;
@@ -167,6 +219,9 @@ constexpr double kSnapDistance = 8.0;
  * drawn or carried on along it (a grounded Ratchet's z velocity is the game's gravity). */
 constexpr double kStillStep = 0.01;
 constexpr double kStallMs = 1000.0;
+/* A gap between two poses still counts as the send interval below this; past it, a pause. */
+constexpr double kPauseGapMs = 200.0;
+constexpr double kMobyPauseGapMs = 600.0;
 constexpr double kRateMin = 0.9;
 constexpr double kRateMax = 1.1;
 /* How fast the delay follows the link, up and down (time constants), ms. */
@@ -190,7 +245,7 @@ class Interpolator {
 public:
     /* `derive`: the poses carry no velocities (WORLD's): made from the neighbours, and nothing
      * is carried on past the newest. */
-    explicit Interpolator(bool derive = false) : derive_(derive) {}
+    explicit Interpolator(bool derive = false) : derive_(derive), interval_(derive ? 100.0 : 50.0) {}
 
     /* A pose sent at `time_ms` (its stamp in this clock) that arrived at `arrival_ms`. One not
      * newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport
@@ -211,8 +266,11 @@ public:
 
     double jitter_ms() const { return jitter_; }
 
-    /* The share of poses that never came (by the sequence's gaps; not for WORLD's). */
+    /* The share of poses that never came (by the sequence's gaps; for WORLD's, whose moby a
+     * datagram may leave out, the stream's as a whole, set from outside). */
     double loss() const { return loss_; }
+
+    void set_loss(double loss) { loss_ = loss; }
 
     double interval_ms() const { return interval_; }
 

@@ -7,10 +7,14 @@ find for you comes to you as you play. Beat Drek to finish your part.
 
 With the mod off, the game is the PlayStation 2 game.
 
+Archipelago can't be played in a multiplayer party: its checks and items belong to one slot, and a
+party shares its items. With it on, the Multiplayer pages say so: turn it off to host or join.
+
 ## Playing
 
 1. Whoever makes the room installs `rac1.apworld` from this repository's release (double-click
-   it, or put it in Archipelago's `custom_worlds` folder), and generates with your player YAML
+   it, or put it in Archipelago's `custom_worlds` folder; the Linux AppImage reads
+   `~/.local/share/Archipelago/worlds`), and generates with your player YAML
    (game `Ratchet & Clank`).
 2. Install the mod from the launcher's **Mods** tab (**Add from a link**:
    `https://github.com/OpenRAC/openrac-mods`), switch it on and fill in its settings.
@@ -27,8 +31,9 @@ With the mod off, the game is the PlayStation 2 game.
 
 | Option | Default | |
 |---|---|---|
-| `logic` | `standard` | **standard**: a place counts only with the gadgets the game's route has there, and an expensive purchase holds no progression. **relaxed**: the same, and no progression in a gold bolt either. **expert**: only what a place cannot be done without counts |
+| `logic` | `standard` | **standard**: an expensive purchase holds no progression, and a place counts only with the weapons the game suggests there. **relaxed**: the same, and no progression in a purchase you save up for either. **expert**: progression may be in any purchase, and any weapon will do |
 | `shuffle_gadgets`, `shuffle_weapons`, `shuffle_vendor`, `shuffle_gold_bolts`, `shuffle_infobots` | on | Off: that pool keeps the game's own items in place |
+| `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. They stay optional: they never hold progression, of any world. Named by planet and number, in the game's flag order |
 | `keep_starting_gear` | on | Start with the Bomb Glove. Off: the start's Bomb Glove is a location too |
 
 ## How it works

@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.1), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(strcmp(info.id, "xbox-icons") == 0 && strcmp(info.version, "1.0.0") == 0);
+    CHECK(strcmp(info.id, "xbox-icons") == 0 && strcmp(info.version, "1.0.2") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);

@@ -708,7 +708,7 @@ void load(openrac::Mod& mod) {
 
 }  // namespace dualsense_mod
 
-OPENRAC_MOD_CPP("dualsense", "1.0.0", dualsense_mod::load)
+OPENRAC_MOD_CPP("dualsense", "1.0.3", dualsense_mod::load)
 
 // The mod's unload: the motors and the light bar are switched off and the controller is
 // released, so it does not keep vibrating or glowing after the mod is gone.

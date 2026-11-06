@@ -98,7 +98,7 @@ mp::Message decoded(const Bytes& frame) {
 
 void client_frames_are_the_servers_bytes() {
     // HELLO "v1", "Bob": length 10, id 0, then two strings.
-    CHECK(mp::hello("v1", "Bob") == (Bytes{0, 0, 0, 10, 0, 0, 2, 'v', '1', 0, 3, 'B', 'o', 'b'}));
+    CHECK(mp::hello("v1", "Bob") == (Bytes{0, 0, 0, 11, 0, 0, 2, 'v', '1', 0, 3, 'B', 'o', 'b', 1}));
     // PARTY CREATE: id 1, the opcode and the description (none: -1); LEAVE and LIST the opcode
     // alone.
     CHECK(mp::party_create() == (Bytes{0, 0, 0, 4, 1, 0, 0xFF, 0xFF}));
@@ -265,9 +265,11 @@ void a_party_is_created_joined_and_left() {
     guest.handle(decoded(server(mp::Writer().u8(3).i32(1).u8(16).u8(5))));
     CHECK(got == (Bytes{16, 5}));
     guest.send_data(1, {16, 6});
+    guest.flush();
     CHECK(guest_link.frames.back() == mp::data(1, {16, 6}));
     const std::size_t sent = guest_link.frames.size();
     guest.send_data(1, {3});  // a lobby kind: not sent
+    guest.flush();
     CHECK(guest_link.frames.size() == sent);
     CHECK(mp::now_ms() > 0);
 
@@ -589,8 +591,24 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::hello_reply(7) == server(mp::Writer().u8(0).i32(7)));
     CHECK(
         mp::udp_offer(0x0102030405060708LL, 7770)
-        == server(mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770))
+        == server(mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770).u8(mp::kFeatureKick).i64(0))
     );
+    CHECK(mp::party_kicked() == server(mp::Writer().u8(1).u8(12)));
+    CHECK(mp::party_kick(7) == server(mp::Writer().u8(1).u8(11).i32(7)));
+    {
+        // What the server sends: the feature bits, and none from one that stops at the port.
+        mp::Message m;
+        CHECK(mp::decode(mp::Writer().u8(6).i64(1).i32(7770).u8(1).bytes(), m) && m.features == mp::kFeatureKick);
+        CHECK(mp::decode(mp::Writer().u8(6).i64(1).i32(7770).bytes(), m) && m.features == 0);
+        CHECK(mp::decode(mp::Writer().u8(1).u8(12).bytes(), m) && m.kind == mp::Message::Kind::kPartyKicked);
+        CHECK(mp::decode(mp::Writer().u8(4).u8(4).bytes(), m) && m.reason == mp::ErrorReason::kNotHost);
+        CHECK(!mp::decode(mp::Writer().u8(4).u8(6).bytes(), m));
+        const mp::Request q = mp::decode_request(mp::Writer().u8(1).u8(11).i32(7).bytes());
+        CHECK(q.kind == mp::Request::Kind::kKick && q.target == 7);
+        CHECK(mp::decode_request(mp::Writer().u8(1).u8(11).bytes()).kind == mp::Request::Kind::kInvalid);
+        // A notice of the server's is no request.
+        CHECK(mp::decode_request(mp::Writer().u8(1).u8(12).bytes()).kind == mp::Request::Kind::kInvalid);
+    }
     CHECK(
         mp::party_info("DIRECT", 1, {{1, "A"}, {2, "B"}})
         == server(
@@ -634,6 +652,20 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::party_joined({2, "B"}) == server(mp::Writer().u8(1).u8(4).i32(2).str("B")));
     CHECK(mp::party_left(2) == server(mp::Writer().u8(1).u8(5).i32(2)));
     CHECK(mp::party_end() == server(mp::Writer().u8(1).u8(6)));
+    // RESUME, both ways; INFO's tail where it means something, none where it does not.
+    CHECK(mp::party_resume("ABCDEF", 7, 9) == server(mp::Writer().u8(1).u8(10).str("ABCDEF").i32(7).i64(9)));
+    CHECK(mp::party_away(7, true) == server(mp::Writer().u8(1).u8(10).i32(7).u8(1)));
+    CHECK(mp::decode(body_of(mp::party_away(7, false)), info) && info.kind == mp::Message::Kind::kPartyAway && !info.back);
+    CHECK(mp::decode(body_of(mp::party_info("ABCDEF", 1, {{1, "A"}}, "d", 2, {3})), info) && info.epoch == 2
+          && info.away == std::vector<std::int32_t>{3} && info.description == "d");
+    CHECK(mp::party_successors({4, 5}) == server(mp::Writer().u8(1).u8(9).u8(0).u8(2).i32(4).i32(5)));
+    CHECK(mp::party_decline() == server(mp::Writer().u8(1).u8(9).u8(1).u8(0)));
+    CHECK(mp::decode(body_of(server(mp::Writer().u8(1).u8(9).i32(4).i32(2))), info)
+          && info.kind == mp::Message::Kind::kPartyHostChanged && info.host == 4 && info.epoch == 2);
+    CHECK(mp::decode_request(body_of(mp::party_resume("ABCDEF", 7, 9))).kind == mp::Request::Kind::kResume);
+    CHECK(mp::decode_request(body_of(mp::party_resume("ABCDEF", 7, 9))).token == 9);
+    CHECK((mp::decode_request(body_of(mp::hello("v", "N"))).features & mp::kClientResumes) != 0);
+    CHECK(mp::decode_request(body_of(server(mp::Writer().u8(0).str("v").str("N")))).features == 0);
     CHECK(mp::chat_from(3, "hi") == server(mp::Writer().u8(2).i32(3).str("hi")));
     CHECK(mp::data_from(3, {9, 8}) == server(mp::Writer().u8(3).i32(3).u8(9).u8(8)));
     CHECK(mp::error_reply(mp::ErrorReason::kPartyFull) == server(mp::Writer().u8(4).u8(1)));
@@ -838,6 +870,7 @@ void direct_connect_plays_a_party() {
     // DATA: a member's to the host only, whatever its target.
     const Bytes from_a{0x10, 1};
     a.session->send_data(b.session->id(), from_a);
+    a.session->flush();
     CHECK(pump_until(all, [&] {
         return host.count(mp::Message::Kind::kData, a.session->id(), &from_a) == 1;
     }));
@@ -848,6 +881,7 @@ void direct_connect_plays_a_party() {
     const Bytes to_b{0x10, 3};
     host.session->send_data(mp::kBroadcast, to_all);
     host.session->send_data(b.session->id(), to_b);
+    host.session->flush();
     CHECK(pump_until(all, [&] {
         return a.count(mp::Message::Kind::kData, 0, &to_all) == 1
                && b.count(mp::Message::Kind::kData, 0, &to_all) == 1
@@ -1026,7 +1060,7 @@ void the_host_keeps_the_servers_limits() {
 
     // A full party: the newcomer is greeted and refused, but stays connected.
     const socket_t member = raw_connect(port);
-    raw_send(member, mp::hello("v", "Member"));
+    raw_send(member, mp::hello("v", "Member", 0));
     std::vector<mp::Message> got = raw_read(member, 300);
     CHECK(
         got.size() == 3 && got[0].kind == mp::Message::Kind::kHello
@@ -1034,7 +1068,7 @@ void the_host_keeps_the_servers_limits() {
         && got[2].code == mp::kDirectCode && got[2].members.size() == 2
     );
     const socket_t extra = raw_connect(port);
-    raw_send(extra, mp::hello("v", "Extra"));
+    raw_send(extra, mp::hello("v", "Extra", 0));
     got = raw_read(extra, 300);
     CHECK(
         got.size() == 3 && got[2].kind == mp::Message::Kind::kError
@@ -1101,6 +1135,109 @@ void the_host_keeps_the_servers_limits() {
     got = raw_read(extra, 500);
     CHECK(!got.empty() && got.back().kind == mp::Message::Kind::kPartyEnd);
     close_socket(extra);
+}
+
+// A member's connection dropping keeps its slot on the embedded host as on the server: the others
+// are told, RESUME with its token takes it back under its old id, and a wrong token gets nothing.
+void direct_host_keeps_a_dropped_members_slot() {
+    mp::HostConfig config;
+    config.port = 0;
+    std::vector<Bytes> local;
+    std::mutex local_mutex;
+    mp::Host host(config);
+    CHECK(host.start([&](const Bytes& f) {
+        const std::lock_guard lock(local_mutex);
+        local.push_back(f);
+    }));
+    host.local_send(mp::hello("v", "Host"));
+    const socket_t first = raw_connect(host.port());
+    raw_send(first, mp::hello("v", "First"));
+    std::vector<mp::Message> got = raw_read(first, 300);
+    CHECK(got.size() == 3 && got[1].kind == mp::Message::Kind::kUdp);
+    const std::int32_t id = got[0].id;
+    const std::int64_t token = got[1].resume_token;
+    CHECK(token != 0 && (got[1].features & mp::kFeatureResume) != 0);
+    const socket_t second = raw_connect(host.port());
+    raw_send(second, mp::hello("v", "Second"));
+    CHECK(raw_read(second, 300).size() == 3);
+    CHECK(raw_read(first, 100).size() == 1);  // JOINED
+
+    close_socket(first);
+    got = raw_read(second, 300);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyAway && got[0].id == id && !got[0].back);
+
+    // Someone else has no way in with a guess.
+    const socket_t thief = raw_connect(host.port());
+    raw_send(thief, mp::hello("v", "Thief"));
+    CHECK(raw_read(thief, 200).size() == 2);  // HELLO, UDP: held out for a RESUME
+    raw_send(thief, mp::party_resume("DIRECT", id, token ^ 1));
+    got = raw_read(thief, 200);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kError && got[0].reason == mp::ErrorReason::kResumeRefused);
+    close_socket(thief);
+
+    const socket_t back = raw_connect(host.port());
+    raw_send(back, mp::hello("v", "First"));
+    CHECK(raw_read(back, 200).size() == 2);
+    raw_send(back, mp::party_resume("DIRECT", id, token));
+    got = raw_read(back, 300);
+    CHECK(got.size() == 3 && got[0].kind == mp::Message::Kind::kHello && got[0].id == id);
+    CHECK(got[2].kind == mp::Message::Kind::kPartyInfo && got[2].members.size() == 3);
+    got = raw_read(second, 700);
+    CHECK(!got.empty() && got[0].kind == mp::Message::Kind::kPartyAway && got[0].id == id && got[0].back);
+    close_socket(second);
+    close_socket(back);
+    host.stop();
+}
+
+// The embedded host takes a member out as the server does: KICKED to it, LEFT to the others, its
+// connection staying; only the local game has the say.
+void direct_host_removes_a_member() {
+    mp::HostConfig config;
+    config.port = 0;
+    std::vector<Bytes> local;
+    std::mutex local_mutex;
+    mp::Host host(config);
+    CHECK(host.start([&](const Bytes& f) {
+        const std::lock_guard lock(local_mutex);
+        local.push_back(f);
+    }));
+    host.local_send(mp::hello("v", "Host"));
+    const socket_t first = raw_connect(host.port());
+    raw_send(first, mp::hello("v", "First"));
+    CHECK(raw_read(first, 300).size() == 3);
+    const socket_t second = raw_connect(host.port());
+    raw_send(second, mp::hello("v", "Second"));
+    CHECK(raw_read(second, 300).size() == 3);
+    CHECK(raw_read(first, 100).size() == 1);  // JOINED
+    CHECK(host.members().size() == 3);
+    const std::int32_t a = host.members()[1].id;
+    const std::int32_t b = host.members()[2].id;
+
+    // A member has no say, of another or of the host.
+    raw_send(first, mp::party_kick(b));
+    std::vector<mp::Message> got = raw_read(first, 200);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kError && got[0].reason == mp::ErrorReason::kNotHost);
+    CHECK(host.members().size() == 3);
+
+    // The host itself and a stranger: nothing.
+    host.local_send(mp::party_kick(host.members()[0].id));
+    host.local_send(mp::party_kick(999));
+    CHECK(host.members().size() == 3);
+
+    host.local_send(mp::party_kick(a));
+    got = raw_read(first, 200);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyKicked);
+    got = raw_read(second, 200);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyLeft && got[0].id == a);
+    CHECK(host.members().size() == 2);
+
+    // Still connected, and it can come back: a kick is no ban.
+    raw_send(first, mp::party_join("ANYONE"));
+    got = raw_read(first, 300);
+    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyInfo);
+    close_socket(first);
+    close_socket(second);
+    host.stop();
 }
 
 // Direct connect's page logic (direct.hpp): the ring rows, holding, the address, the lobby's lines.
@@ -1304,6 +1441,8 @@ int main() {
     direct_connect_plays_a_party();
     the_host_leaving_ends_hosting();
     the_host_keeps_the_servers_limits();
+    direct_host_removes_a_member();
+    direct_host_keeps_a_dropped_members_slot();
     direct_page_logic();
     direct_connect_ignores_the_server();
 

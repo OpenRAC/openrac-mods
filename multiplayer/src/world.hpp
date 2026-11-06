@@ -19,8 +19,9 @@
  * missing from a listing; a tick the game lists nothing (loading) changes nothing.
  *
  * Host. Each moby the level placed is named by its key (its record in the level's file, the same in
- * every game). The host sends each member in its level, as state 15 times a second, the mobys
- * nearest that member that moved or animated (WORLD, at most kWorldEntries a datagram), tells
+ * every game). The host sends each member in its level, as state up to 15 times a second, the mobys
+ * that moved or animated and that member does not have yet, what matters to it first (WORLD, at most
+ * kWorldEntries a datagram), tells
  * everyone of the placed ones that died (KILLED) and of the ones it spawns that count (creatures,
  * bolts: SPAWN and DESPAWN, by a net id of its own), and gives a member that arrives in its level
  * the placed mobys dead there (DEAD) and what it has spawned. Every moby's update runs with
@@ -54,7 +55,8 @@
  * host's level.
  *
  * The world's DATA kinds, after coop.hpp's:
- *    9 WORLD   level i8, stamp i64, count u8, then per moby: id u16 (a key; 0x8000 | a net id for
+ *    9 WORLD   level i8, stamp i64, sequence u16 (this member's, each datagram one more), count u8,
+ *              then per moby: id u16 (a key; 0x8000 | a net id for
  *              one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq u8, frame u8,
  *              anim time u8 (/255), anim speed u8 (/32), flags u8 (1: hidden, drawn by nothing;
  *              2: loose, a bolt landed in the host's game: the member's copy runs as its own)
@@ -68,13 +70,95 @@
  *   16 DEAD    level i8, count u16 (records), then a bit a record, 1 dead   the host to a member;
  *   17 BROKE   level i8, key u16                                  a member broke a crate;
  *   22 CLAIM   level i8, id u16 (a key; 0x8000 | a net id)        a member collected a bolt;
- *   24 TAKEN   level i8, id u16 (as CLAIM's), player i32          the host: who took a bolt.
+ *   24 TAKEN   level i8, id u16 (as CLAIM's), player i32          the host: who took a bolt;
+ *   26 HELLO   level i8, load u32                                 a member: its game has this
+ *              level's mobys as made by this load, nothing of the host's world on them yet;
+ *   27 RESET   level i8                                           the host: its level was made
+ *              again (a death): what it spawned is gone, each member asks for the world again;
+ *   28 SYNCED  level i8, load u32 (HELLO's), rules u8 (1: revive)  the host to a member: all of
+ *              the world came, ahead of this message on the reliable stream;
+ *   71 REVIVE  how u8 (0: up where it lies, 1: to its checkpoint)  the host to a player down;
+ *   72 RESTORE level i8, key u16, class i16, position, yaw i16     the host: a placed moby back
+ *              in its level, made here if this game's copy is gone.
+ * RESET's optional byte is 1 for a level that does not agree, 2 for a full wipe. BROKE from the host
+ * tells a member of a respawning crate's break, and from a member has a byte, 1 for such a crate.
+ * CLAIM has a byte too, what: 1 for a pile of buried bolts by key.
+ *
+ * Levels that agree. WORLD names a placed moby by its record in the level's file, which holds for
+ * two games only if their records agree. Two discs of one world family do on all 19 levels today,
+ * measured; the sim digest (openrac_api.sim_digest) is what would catch a level that does not, at
+ * the moment it would start to go wrong: the member is given no world, and leaves the party with
+ * the words a different disc gets.
+ *
+ * Death (DECISIONS 9). A player's death is that player's own: each game's respawn makes its level
+ * again and the world goes on as the party left it (above and below). Three things come with it.
+ * - A placed moby that goes with a mission the host has not done comes back with the host's level:
+ *   the mission starts again, so it would be lost for good if it stayed dead. It leaves party_dead_
+ *   and each member, whose copy is gone, makes one to show it (RESTORE). A local class comes back
+ *   only in the host's game. Crates do not: a level ties its crates to a mission too, and one broken
+ *   stays broken for the party.
+ * - The bolts lying about when the host dies are made again where they lay (they are what the
+ *   party can still see). Enemies it had spawned go with its level; the level's spawners make new.
+ * - A full wipe: the host's level made again with every member dead too, or dead a moment ago. The
+ *   party goes back to the host's last checkpoint: only what the host's reloaded level has dead
+ *   stays dead, every member goes through its own respawn (RESET's wipe) and is then put by the host.
+ * A host rule, off by default (the setting "revive", to members in SYNCED): a player who dies on
+ * his feet stays down for kDownedMs, and a living player standing over him for kReviveMs brings him
+ * back (REVIVE, the host's word). A player left down goes to his checkpoint as always; everyone down
+ * at once is a full wipe.
+ *
+ * Respawning crates. Level 5 (349), 16 (314) and 18 (24 ammo crates) have crates that come back: the
+ * byte at +0xC8 of the crate's pvars. Such a crate is never deleted: after its break it hides (state
+ * kCrateWaiting) until its timer is up and no camera sees it, in each game by itself. So the game
+ * never lists it dead, and no KILLED or BROKE came of it, yet a member's drop is left out. A crate
+ * going to that state is its break: a member says BROKE, the host's copy breaks and drops, and the
+ * host tells the others with BROKE (each game's copy breaks once; coming back stays each game's).
+ *
+ * Buried bolts. The metal detector digs a pile in one tick (Game's metal detect hook). In a member's
+ * game the dig waits for the host (CLAIM, what 1): the first claim of a pile that is still there
+ * gets TAKEN, and only that game digs; every other copy goes (KILLED). The host's own dig needs no
+ * asking, and its pile goes from every game the same way.
+ *
+ * What a game's own load does. A level is made more often than it is loaded: each death of a hero
+ * (the game's own respawn) runs the level's loader again in one frame, every moby back as the
+ * level file has it, the spawned ones gone (status.loads changes, level does not). So the world
+ * is never assumed to last. A member whose mobys were made, for whatever reason, says so (HELLO,
+ * again each kHelloMs until answered) and the host gives it the whole world as it stands, in order
+ * on the reliable stream: every placed moby dead (DEAD), every spawned one (SPAWN), SYNCED; WORLD
+ * goes to it from then on. A joiner's first load is no different, so a late joiner gets the same.
+ * What is dead for the party is the host's party_dead_, which outlives a respawn in the host's own
+ * game: there the mobys it kept are deleted again at once, and the members told (RESET) to drop
+ * what its game no longer has. One player's death puts nothing back for the others.
+ *
+ * WORLD is state and its datagrams are lost, so the host keeps count of what each member has. Each
+ * datagram has a sequence of that member's, and each pose the member sends says which of the last
+ * 33 it heard (play.hpp). The host keeps what each datagram carried: a moby is due until the newest
+ * word sent of it is known to have come and still says what it is. A word on its way holds the moby
+ * back until it is delivered or lost (two newer ones heard and not it, or twice the round trip gone
+ * by), when the moby is due again, at once if it stands. So a change that was delivered
+ * costs one entry and one that was lost goes again a round trip later, however far off the moby is:
+ * nothing repeats blindly and nothing waits for a refresh. What cannot be known (no pose coming
+ * back) comes down to a send each time-out. A moby that stands for kWorldKeepMs goes once more,
+ * for whatever a member's game did to it that the host cannot see. Only what a member took counts as
+ * heard; a snapshot refused by the session's bucket counts as not sent. Entries older than one
+ * already taken are dropped, per moby, so a late datagram brings nothing back.
+ *
+ * What goes first, when more is due than a datagram holds: a priority accumulator per member and
+ * moby. Each snapshot adds the moby's weight for that member (world_weight: distance
+ * first, then what can hurt the player, what it looks at, what it hit a moment ago, and what flies
+ * at it), a moby goes once its priority reaches 1, the highest first, and goes back to 0 when it does.
+ * The weight's floor is what keeps a far moby from starving: it may wait, but it rises until it is
+ * taken. It also sets how often a moby goes at all: a close one each snapshot, a far one each
+ * kWorldFloorMs, so the far part of a level costs a quarter of what it did. A moby that stands and
+ * was not delivered, or that hid or showed, goes at the next snapshot.
  */
 #ifndef MULTIPLAYER_WORLD_H
 #define MULTIPLAYER_WORLD_H
 
 #include <array>
+#include <cmath>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <initializer_list>
 #include <map>
@@ -92,17 +176,43 @@
 namespace mp {
 
 enum class WorldKind : std::uint8_t {
-    kWorld = 9,
-    kKilled = 10,
-    kSpawn = 11,
-    kDespawn = 12,
-    kHit = 13,
-    kDamage = 14,
-    kBolts = 15,
-    kDead = 16,
-    kBroke = 17,
-    kClaim = 22,
-    kTaken = 24
+    kWorld = kind::kWorld,
+    kKilled = kind::kKilled,
+    kSpawn = kind::kSpawn,
+    kDespawn = kind::kDespawn,
+    kHit = kind::kHit,
+    kDamage = kind::kDamage,
+    kBolts = kind::kBolts,
+    kDead = kind::kDead,
+    kBroke = kind::kBroke,
+    kClaim = kind::kClaim,
+    kTaken = kind::kTaken,
+    kHello = kind::kHello,
+    kReset = kind::kReset,
+    kSynced = kind::kSynced,
+    kRevive = kind::kRevive,
+    kRestore = kind::kRestore,
+    kHold = kind::kHold,
+    kRelease = kind::kRelease
+};
+
+/* What every member keeps of the host's world, for one of them to carry on from (migrate.hpp): small
+ * state only, never a moby's place. One spawned moby: its net id, class and where it was made. */
+struct LedgerMoby {
+    std::uint16_t net = 0;
+    int oclass = 0;
+    float position[3] = {0, 0, 0};
+    float yaw = 0;
+};
+
+struct LedgerWorld {
+    int level = -1;
+    bool revive = false;
+    std::uint16_t next_net = 1;
+    std::set<int> dead;
+    std::set<int> dug;
+    std::set<int> spared;
+    std::vector<LedgerMoby> spawned;
 };
 
 /* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
@@ -112,13 +222,33 @@ constexpr int kMobyAfter = 1;
 /* A spawned moby's id on the wire: 0x8000 | its net id. */
 constexpr std::uint16_t kSpawnedId = 0x8000;
 constexpr std::uint16_t kNoId = 0xFFFF;
-/* WORLD's entries a datagram (each 25 bytes), how often it goes to a member, how long an unchanged
- * moby near a member waits before it is sent again, and how near counts. */
+/* WORLD's entries a datagram (each 25 bytes), how often it goes to a member (at the least: the
+ * host's state budget of kWorldBudget a second is shared by the members; of the session's 52 a second
+ * POSES take 20, and while the party fires SHOTX takes up to 10, 8 of them from here), how long a
+ * moby that stands and was delivered waits before it goes once more, and how often a member says
+ * HELLO. */
 constexpr std::size_t kWorldEntries = 46;
 constexpr std::size_t kWorldEntryBytes = 25;
 constexpr std::uint64_t kWorldMs = 66;
-constexpr std::uint64_t kWorldRefreshMs = 1000;
-constexpr float kWorldNear = 80.0f;
+constexpr std::uint64_t kWorldBudget = 30;
+constexpr std::uint64_t kWorldFiringBudget = 22;
+constexpr std::uint64_t kWorldKeepMs = 8000;
+constexpr std::uint64_t kHelloMs = 1000;
+/* WORLD's delivery: the datagrams kept per member (what a pose's word can cover), how many newer ones
+ * heard make a datagram lost (at one, each reordered datagram would go twice), and the time-out's
+ * bounds around twice the round trip, first taken to be kWorldStartRttMs. */
+constexpr std::size_t kWorldWindow = 33;
+constexpr int kWorldLostAfter = 2;
+constexpr std::uint64_t kWorldMinWaitMs = 300;
+constexpr std::uint64_t kWorldMaxWaitMs = 2000;
+constexpr double kWorldStartRttMs = 400.0;
+/* WORLD's priority (world_weight): a moby of weight 1 is due each kWorldBaseMs, the least weight
+ * makes that kWorldFloorMs, weight 1 reaches this far from the player and then falls as the square
+ * of the distance, and how long a hit keeps its moby up. */
+constexpr float kWorldBaseMs = 66.0f;
+constexpr float kWorldFloorMs = 250.0f;
+constexpr float kWorldClose = 30.0f;
+constexpr std::uint64_t kWorldHitMs = 2000;
 /* How often a member's verbose log says how the host's mobys are shown. */
 constexpr std::uint64_t kWorldPoseTraceMs = 1000;
 /* The bolt update's state while the bolt hovers where it landed (bolt_update's 3). */
@@ -134,6 +264,54 @@ constexpr std::uint64_t kFlightMs = 2000;
 constexpr std::uint64_t kReplayMs = 3000;
 /* How far a moby may move between two snapshots before its buffer starts again (a respawn). */
 constexpr float kWorldSnap = 12.0f;
+/* An enemy leaves its target only for a player nearer by this much (the distances' ratio), and not
+ * at all this soon after its state changed or it hit that player: an attack runs to its end. */
+constexpr float kTargetBand = 0.8f;
+constexpr std::uint64_t kAttackStickMs = 1000;
+/* What a HIT or DAMAGE may say. The weapons' and enemies' own are far below (1 to 3 in a play of every
+ * weapon) and a difficulty mod scales them: this is against a message that makes no sense, not a
+ * judge of play. A guided shot flies far, so the reach is most of a level. A hit's position and
+ * velocity say nothing of where it was (hundreds of units off, in every hit seen), so no check
+ * reads them but that they are numbers. */
+constexpr float kMostHitDamage = 10000.0f;
+constexpr float kHitReach = 400.0f;
+
+inline bool hit_makes_sense(const Hit& h) {
+    const auto number = [](const float (&v)[3]) {
+        return std::isfinite(v[0]) && std::isfinite(v[1]) && std::isfinite(v[2]);
+    };
+    return std::isfinite(h.damage) && h.damage >= 0.0f && h.damage <= kMostHitDamage && number(h.position)
+           && number(h.velocity);
+}
+/* A grab (world_hold.cpp): how often the host says where the player is held, how long he has to show
+ * he is before the host gives it up, how long a held player goes with no word before his game lets
+ * him go, how long a fatal grab may wait for him to come back, and how soon after a word that a
+ * player died (a kill volume under a stand-in) another may go. */
+constexpr std::uint64_t kHoldSendMs = 66;
+constexpr std::uint64_t kHoldAckMs = 2000;
+constexpr std::uint64_t kHoldLeaseMs = 1500;
+constexpr std::uint64_t kFatalHoldMs = 8000;
+constexpr std::uint64_t kKillAgainMs = 3000;
+/* HOLD's and RELEASE's bytes: kind, holder, flags, animation, place, yaw; kind, holder, place, yaw. */
+constexpr std::size_t kHoldBytes = 21;
+constexpr std::size_t kReleaseBytes = 19;
+/* The crate update's states: broken, and hidden until it comes back. */
+constexpr std::uint32_t kCrateBroken = 3;
+constexpr std::uint32_t kCrateWaiting = 6;
+/* How many bolts a host's death keeps, and how lately a member must have died for a wipe. */
+constexpr std::size_t kKeptBolts = 64;
+constexpr std::uint64_t kWipeMs = 5000;
+/* A wipe's member is put by the host within this long of its respawn. */
+constexpr std::uint64_t kWipePlaceMs = 15000;
+/* The revive rule: how near a living player stands, for how long, the longest a player stays down,
+ * and how long past that a member waits for the host's word. */
+constexpr float kReviveReach = 2.5f;
+constexpr std::uint64_t kReviveMs = 1500;
+constexpr std::uint64_t kDownedMs = 30000;
+constexpr std::uint64_t kDownedGraceMs = 5000;
+/* A dig in a member's game: how often it asks, how long after the word it may take. */
+constexpr std::uint64_t kDigAskMs = 500;
+constexpr std::uint64_t kDigMs = 2000;
 /* How each class of the level's mobys is shared (WORLD.md's class inventory, from the catalogue):
  *
  * crates (500 bolt, 501 nanotech, 502 metal, 505 oom-oom box, 511 ammo crate): every game runs its
@@ -146,8 +324,12 @@ constexpr float kWorldSnap = 12.0f;
  *   game (removed, without its effect or a gold bolt's scene). A placed bolt is a claim as a
  *   dropped one is (above); the others a member takes are its own and gone from the host's (BROKE).
  * interactables (vendors, the ship and its pads, people, infobots, help desks and triggers, the
- *   respawn point, gold-weapon cases, story pickups, the hero's own equipment): each game's own, for
- *   its own player; nothing is shared.
+ *   respawn point, gold-weapon cases, story pickups, the hero's own equipment), and what works on the
+ *   player standing in it (1378 updraft_vent, 1039 respawn_volume, 22 hero_relocation_trigger, 605
+ *   buried_bolts for the metal detector, 613 water_current, 610 wind_control, 679 grindrail): each
+ *   game's own, for its own player; nothing is shared. Host-driven, those would give a member nothing
+ *   and, with a member standing in for the host's hero, work on the host's hero instead: a member
+ *   in a 1039 kill volume would respawn the host.
  * everything else the level placed with an update of its own: the host's (members drive it).
  */
 inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
@@ -160,8 +342,104 @@ inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
     return false;
 }
 
+// --- WP-DEATH: class lists ---
+/* Only WP-DEATH edits this block: crates and pickups the death work changes, in the shapes below.
+ * Read from the update on both discs, placed counts measured on both (2026-10-31):
+ *   280 bolt_crank, 615 tresspasser_pad: take the hero, the pad and the camera: each game's own. What
+ *     they open stays the host's, so only the host's turn moves the world.
+ *   1005, 1016 gadget_pickup (trespasser, hydrodisplacer): give the gadget and play a scene: each
+ *     player gets their own, as a story pickup.
+ *   208 swingshot, 454 ryno, 1251 hydrodisplacer: the held item's moby, never placed on either disc
+ *     (spawned, and no creature, so nobody shares them): no entry.
+ *   1451, 1899 giant_clank_pad: boards Giant Clank. Stay the host's: a member's game has no vehicle
+ *     running to board (its update is the host's).
+ * Class 152 (spawned_bolt_class) is neither placed nor spawned by any code on either disc. */
+inline bool death_crate_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool death_pickup_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool death_interactable_class(int oclass) {
+    return any_of_class(oclass, {280, 615, 1005, 1016});
+}
+
+/* A pickup whose update adds to the bolts itself (bolt_pickup_update): shared when spawned, and
+ * under a member's stand-in its bolts are that member's (the gate). */
+inline bool spawned_bolt_class(int oclass) {
+    return oclass == 152;
+}
+// --- end WP-DEATH ---
+
+// --- WP-TETHER: class lists ---
+/* Only WP-TETHER edits this block: classes the tether work adds, in the shapes below.
+ * Every moby update that writes the hero, on both discs (2026-10-31; the report of the work lists
+ * each with its evidence). Enemies that grab:
+ *   35 sharkigator (Rilgar): rises under a hero in the water, takes him and Hero_OnKilled. It has no
+ *     health and hits nobody, and only ever looks at the hero of the game it runs in: each game's
+ *     own, as water that kills. Host-driven it would leave a member swimming for ever.
+ *   1059 sharkigator (Umbris): leaps at him, health 0 and state 0x3D, carries him: the fatal grab.
+ *   1106 snagglebeast: state 0x78 and pulls him along its rope in its state 8: the hold.
+ * Those two can be fought, so they stay the host's (grab_class). */
+inline bool tether_crate_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool tether_pickup_class(int /*oclass*/) {
+    return false;
+}
+
+inline bool tether_interactable_class(int oclass) {
+    return oclass == 35;
+}
+
+/* A grab: the class, the states of the moby in which it goes for its target (no other player can
+ * take it away, however long they last), the hero's state it puts its victim in, his animation
+ * (below 0: that state's own) and what it does to him (kGrab*). */
+/* How far from where the host made it this game's own copy of a spawned moby may stand. */
+inline constexpr float kOwnCopyReach = 30.0f;
+
+/* update_moby_spatial_trigger: wakes groups of mobys by who is in its zone. */
+inline constexpr int kSpatialTriggerClass = 258;
+
+struct GrabClass {
+    int oclass;
+    std::uint32_t lunge_first;
+    std::uint32_t lunge_last;
+    std::int32_t hero_state;
+    int animation;
+    std::uint32_t flags;
+};
+
+inline const GrabClass* grab_class(int oclass) {
+    static constexpr GrabClass kGrabs[] = {
+        {1059, 5, 5, 0x3D, -1, kGrabFatal},
+        {1106, 8, 8, 0x78, 0xB, kGrabSpin},
+    };
+
+    for (const GrabClass& grab : kGrabs) {
+        if (grab.oclass == oclass) {
+            return &grab;
+        }
+    }
+
+    return nullptr;
+}
+
+/* Enemies that keep the hero's moby in their own memory from one tick to the next (a hit's answer:
+ * horny toad's +0x1C0, sand shark's +0x210, and so on): they act on the one they kept, so the aim
+ * stays with him until he is gone. Read on both discs.
+ *   580 sand_shark, 612 constructorbot, 749 horny_toad, 827 frog, 1199, 1231 psytcopus,
+ *   1440 veldin_robot_enemy, 1906 gadgebot. */
+inline bool keeps_hero_class(int oclass) {
+    return any_of_class(oclass, {580, 612, 749, 827, 1199, 1231, 1440, 1906});
+}
+// --- end WP-TETHER ---
+
 inline bool crate_class(int oclass) {
-    return any_of_class(oclass, {500, 501, 502, 505, 511});
+    return any_of_class(oclass, {500, 501, 502, 505, 511}) || death_crate_class(oclass) || tether_crate_class(oclass);
 }
 
 inline bool pickup_class(int oclass) {
@@ -169,7 +447,7 @@ inline bool pickup_class(int oclass) {
         oclass,
         {13, 14, 15, 16, 1134, 204, 213, 214, 222, 223, 225, 226, 1006, 1438, 1447, 1449, 224, 228,
          1218, 1220, 806}
-    );
+    ) || death_pickup_class(oclass) || tether_pickup_class(oclass);
 }
 
 /* Pickups an enemy of the host's drops that every game gets its own of (ammo, health). */
@@ -180,14 +458,15 @@ inline bool loot_class(int oclass) {
 inline bool interactable_class(int oclass) {
     return any_of_class(
                oclass,
-               {11,   298,  644,  1432, 1326, 925,  1973, 530,  666,  712,  816,  1012, 38,   1474,
-                998,  424,  557,  1109, 1448, 1766, 484,  1120, 318,  1135, 1190, 750,  774,  1283,
-                890,  909,  1377, 1455, 328,  90,   114,  1105, 805,  1324, 1341, 1342, 1348, 1561,
-                558,  304,  23,   18,   1354, 1038, 1040, 1297, 1100, 1101, 1102, 1531, 1532, 1559,
-                404,  405,  1388, 585,  607,  618,  849,  1289, 1290, 229,  1143, 71,   74,   121,
-                153,  163,  172,  203,  270,  457}
+               {11,   298,  644,  1432, 1326, 925,  530,  666,  712,  816,  1012, 38,   1474,
+                998,  424,  557,  1109, 1448, 1766, 484,  1120, 318,  1135, 1190, 750,  774,
+                1283, 890,  909,  1377, 1455, 328,  90,   114,  1105, 805,  1324, 1341, 1342,
+                1348, 1561, 558,  304,  23,   18,   1354, 1038, 1040, 1297, 1559, 1388, 585,
+                607,  618,  849,  1289, 1290, 229,  1143, 71,   74,   121,  153,  163,  172,
+                203,  270,  457,  1378, 1039, 22,   605,  613,  610,  679}
            )
-           || (oclass >= 1456 && oclass <= 1465);
+           || (oclass >= 1456 && oclass <= 1465) || death_interactable_class(oclass)
+           || tether_interactable_class(oclass);
 }
 
 /* Every game runs its own copy: crates, pickups, interactables. */
@@ -224,8 +503,33 @@ struct WorldEntry {
     bool loose = false;
 };
 
-Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries);
-bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out);
+Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries, std::uint16_t sequence = 0);
+bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out,
+                  std::uint16_t* sequence = nullptr);
+
+/* What a member was told of a moby: as much of it as tells a change. */
+struct WorldTold {
+    float position[3] = {0, 0, 0};
+    float rotation[3] = {0, 0, 0};
+    std::uint32_t seq = 0;
+    std::uint32_t frame = 0;
+    bool hidden = false;
+    bool loose = false;
+};
+
+/* What a moby is to one member, for WORLD's priority: how far, and the rest of what Reach's relevance
+ * reads that the host knows here. */
+struct WorldSight {
+    float distance = 0;
+    bool creature = false;   // it can hurt the player
+    bool ahead = false;      // the player faces it
+    bool hit = false;        // the player hit it a moment ago
+    bool flying = false;     // a bolt on its way, before it lands
+    bool hidden = false;     // nothing draws it
+};
+
+/* A moby's weight for a member: 1 is due each kWorldBaseMs. */
+float world_weight(const WorldSight& sight);
 
 class World {
 public:
@@ -241,6 +545,11 @@ public:
      * it. And a hit the game posted: true takes it back. */
     bool gate(int slot, int phase);
     bool hit(const Hit& hit);
+    /* Whether a member's HIT is one to take. */
+    bool member_hit_ok(std::int32_t sender, const Hit& h) const;
+    /* The hits taken from members, and the HITs and DAMAGEs refused. */
+    int hits_taken() const { return hits_taken_; }
+    int hits_refused() const { return hits_refused_; }
 
     /* The game records a moby's death (its killed bits, then its bolts dropped): true when its drop
      * is left out (its killed bits kept), as in a member's game in the host's level, whose bolts are
@@ -251,17 +560,54 @@ public:
      * member's game in the host's level, a claim to the host instead (false). */
     bool collect(int slot);
 
+    /* The metal detector is about to dig the pile `key`: true lets it. In a member's game in the
+     * host's level, not before the host's word. */
+    bool metal_detect(int key);
+
+    /* The host's revive rule, from its setting; for a member, what the host said. */
+    void rule_revive(bool on) { revive_rule_ = on; }
+
+    bool revive_on() const { return revive_rule_; }
+
     /* The party or the level is gone: nothing is kept. */
     void reset();
+
+    /* A change in who is connected (migrate.hpp). The host: a member's connection dropped, or it came
+     * back; its own came back. A member: this game has its slot back. */
+    void member_away(std::int32_t member);
+    void member_back(std::int32_t member);
+    void host_back();
+    void rejoined();
+
+    /* The host: what the ledger is to say of the world. */
+    LedgerWorld ledger() const;
+    /* This game hosts now: its copy of the world is matched to the ledger, then the game runs it. */
+    void take_over(const LedgerWorld& ledger);
+    /* The host: whether `member` has the world, and so could carry it on. */
+    bool has_world(std::int32_t member) const;
 
     /* What it does, for the pages and the tests. */
     bool hosting() const { return hosting_; }
 
     std::size_t driven() const { return driven_.size(); }
 
+    /* The host's progress for a joiner: without the flags of missions done since this game's load
+     * that still have a moby here, whose load would otherwise leave those mobys out. */
+    Bytes save_for_a_joiner();
+
     std::size_t spawned() const { return net_slot_.size(); }
 
     std::size_t mobys() const { return mobys_.size(); }
+
+    /* A member: whether the host gave it the world of the level as it stands. */
+    bool synced() const { return synced_; }
+    /* The host's level does not agree with this game's (the sim digests): true once, and this game
+     * cannot share it. */
+    bool take_level_differs() {
+        const bool out = level_differs_;
+        level_differs_ = false;
+        return out;
+    }
 
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
@@ -281,18 +627,36 @@ public:
     const DespawnLog& despawn() const { return despawn_; }
 
 private:
-    struct Sent {
-        Pose pose;
-        bool hidden = false;
-        bool loose = false;
+    /* A moby as one member has it. */
+    struct Tracked {
+        WorldTold sent;           // the newest word that went, in datagram sent_seq
+        std::uint16_t sent_seq = 0;
+        bool flying = false;      // that word's fate is not known yet
+        WorldTold known;          // the newest word known to have come, in datagram known_seq
+        std::uint16_t known_seq = 0;
+        bool delivered = false;   // `known` means something
+        std::uint64_t ms = 0;     // when it last went
+        float priority = 0;       // the accumulator: goes at 1
+    };
+
+    /* A datagram whose fate is not known: its sequence, when it went, what it said. */
+    struct Datagram {
+        std::uint16_t sequence = 0;
         std::uint64_t ms = 0;
+        std::vector<std::pair<std::uint16_t, WorldTold>> told;
     };
 
     struct Member {
         int level = -1;
-        std::uint32_t told_load = 0;  // the host's load it was given DEAD and SPAWNs for
+        bool want = false;        // HELLO heard, the world not given yet
+        std::uint32_t load = 0;   // that HELLO's load
+        bool synced = false;      // given the world: WORLD goes to it
         std::uint64_t world_ms = 0;
-        std::map<std::uint16_t, Sent> sent;
+        std::uint16_t sequence = 0;
+        std::map<std::uint16_t, Tracked> tracked;
+        std::deque<Datagram> window;
+        double rtt_ms = kWorldStartRttMs;
+        std::map<std::uint16_t, std::uint64_t> hit_ms;  // the mobys it hit, and when
         int bolts = 0;
     };
 
@@ -301,10 +665,96 @@ private:
         int oclass = 0;
     };
 
+    /* An enemy's target (0 the host, a member's id) and when its state last changed. */
+    struct Aim {
+        std::int32_t player = -1;
+        std::uint32_t state = 0;
+        std::uint64_t state_ms = 0;
+    };
+
+    /* A grab: of whom, the moby's id on the wire, how, where he is held, since when; whether his pose
+     * has shown it, and, a fatal one, that he has died; when he was last told. */
+    struct Hold {
+        std::int32_t player = 0;
+        std::uint16_t id = 0;
+        std::int32_t hero_state = 0;
+        int animation = -1;
+        std::uint32_t flags = 0;
+        float position[3] = {0, 0, 0};
+        float yaw = 0;
+        std::uint64_t since = 0;
+        std::uint64_t told = 0;
+        bool shown = false;
+        bool dead = false;
+    };
+
+    /* A bolt to make again after the host's death. */
+    struct KeptBolt {
+        int oclass = 0;
+        Pose pose;
+    };
+
+    /* A player down under the revive rule: since when, and for how long stood over. */
+    struct Down {
+        std::uint64_t since = 0;
+        std::uint64_t over = 0;
+        std::uint64_t seen = 0;
+    };
+
+    /* A grab (world_hold.cpp). Host: the moby's stand-in for `target`, and what its update did; the
+     * host's own hero in its grip; whether another moby holds `player`; each hold's end; a hold
+     * ended, and every one. Member: the host's word, and no word for too long. */
+    bool stand_for(const MobyState& moby, std::int32_t target, const Pose& at);
+    void after_stand_in(int slot, std::int32_t player);
+    void after_update(int slot);
+    bool held_elsewhere(std::int32_t player, int slot) const;
+    void tick_holds(std::uint64_t now);
+    void tell_hold(Hold& hold, std::uint64_t now);
+    void release_hold(std::map<int, Hold>::iterator it);
+    void release_holds();
+    void hold_heard(Reader& r);
+    void release_heard(Reader& r);
+    void tick_held(std::uint64_t now);
+
+    /* New mobys (status.loads, the level): nothing of the last ones stands. */
+    void follow_load(const GameStatus& status);
     void tick_host(std::uint64_t now, const GameStatus& status);
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at);
+    /* Host: a member's word on the datagrams it heard, and the ones out too long given up. */
+    void take_ack(Member& m, std::uint16_t newest, std::uint32_t bits, std::uint64_t now);
+    void expire_window(Member& m, std::uint64_t now);
+    /* Member: a WORLD taken: its sequence, for the next pose to say. */
+    void hear_world(std::uint16_t sequence);
+    /* Member: a host's bolt landed: its copy runs here from now on. */
+    void land(std::uint16_t net, int slot);
     void send_dead(std::int32_t member, int level);
+    /* Host: the whole world to one member that said HELLO (DEAD, SPAWNs, SYNCED). */
+    void give_world(std::int32_t id, Member& m);
+    /* Host: its level made again: the party's dead deleted here again, the bolts it had made
+     * again, the members told. */
+    void remade();
+    /* Host: whether every member is dead too, or was a moment ago. */
+    bool party_wiped() const;
+    /* Host: a moby brought back to its level, to one player or all. */
+    void send_restore(std::int32_t target, int key);
+    /* Who an update runs for: the player `moby` goes for (0 the host), -1 for nobody who can be
+     * fought. */
+    std::int32_t pick_target(int slot, const MobyState& moby, Pose& at);
+    /* A crate that went to kCrateWaiting broke: told on. */
+    void tick_crates(std::uint64_t now);
+    /* The revive rule: the game told, and the host's watch over who is down. */
+    void tick_death_hold();
+    void tick_revive(std::uint64_t now);
+    void lift(std::int32_t player, int how);
+    /* A member's dig: the host's word out of time. */
+    void tick_digs(std::uint64_t now);
+    /* Host: a member's claim of a pile of buried bolts. */
+    void claim_dig(std::int32_t member, int level, int key);
+    /* Host: the members' breaks heard since the last listing, done here. */
+    void take_broke();
+    /* Member: what the host spawned, gone (RESET). */
+    void drop_spawned();
     /* Host: a member's claim of a bolt, by its id (a key, or kSpawnedId | a net id). */
     void claim(std::int32_t member, int level, std::uint16_t id);
     /* Host: who took a bolt (TAKEN), to every member. */
@@ -320,7 +770,7 @@ private:
     void log_counts(std::uint64_t now);
     /* A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
      * and sound), its drop left out; deleted if it has not broken by the deadline. */
-    void replay_break(int slot, std::uint64_t now);
+    void replay_break(int slot, std::uint64_t now, bool respawning = false);
     void send_spawn(std::int32_t target, int level, std::uint16_t net, const MobyState& moby);
     std::uint16_t id_of(int slot) const;
     int slot_of(std::uint16_t id) const;
@@ -363,6 +813,59 @@ private:
     std::set<int> alive_keys_;
     std::set<int> dead_keys_;
     bool listed_ = false;
+    /* Host: every placed moby dead for the party in this level, whatever became of this game's
+     * mobys since; whether the level was made again and that is still to be dealt with; loot the
+     * level made itself at its load (a crate's own nanotech), not one of the host's to share. */
+    std::set<int> party_dead_;
+    bool remade_ = false;
+    /* Host: the members' BROKE to act on at the next listing, by key: who said so, and those of
+     * crates that come back. */
+    std::map<int, std::int32_t> broke_;
+    std::set<int> broke_back_;
+    /* Host: the bolts to make again; the placed mobys a death brought back that members lost; the
+     * piles of buried bolts dug, by key; when each member last died (it outlives a respawn). */
+    std::vector<KeptBolt> kept_bolts_;
+    std::set<int> spared_;
+    std::set<int> dug_;
+    std::map<std::int32_t, std::uint64_t> deaths_;
+    std::map<std::int32_t, Down> downs_;
+    std::uint64_t wipe_ms_ = 0;
+    /* The enemies' targets by slot, this tick's clock. */
+    std::map<int, Aim> aims_;
+    /* The grabs by the moby's slot, an exclusive lock on the player for as long as they last; what
+     * this tick's stand-in showed; when each member was last told it died. */
+    std::map<int, Hold> holds_;
+    std::int32_t stood_state_ = 0;
+    std::int32_t stood_health_ = 0;
+    std::map<std::int32_t, std::uint64_t> kills_;
+    /* Member: its own hero held, and since when it has heard no word of it. */
+    bool held_ = false;
+    std::uint64_t held_ms_ = 0;
+    std::uint64_t tick_ms_ = 0;
+    /* The revive rule, and whether the game was told to keep a dead hero down. A member: since when
+     * its hero is dead. */
+    bool revive_rule_ = false;
+    bool death_held_ = false;
+    std::uint64_t dead_ms_ = 0;
+    /* Each crate's last state, by key, and the replays of crates that come back (no deadline
+     * deletes one). */
+    std::map<int, std::uint32_t> crate_states_;
+    std::set<int> soft_replays_;
+    /* Member: the mobys the host brought back, made here, by key; the piles it may dig, until when;
+     * when each was last asked for; until when a wipe's place is to be asked. */
+    std::map<int, int> restored_;
+    std::map<int, std::uint64_t> digs_;
+    std::map<int, std::uint64_t> dig_asked_;
+    std::uint64_t wipe_until_ = 0;
+    std::set<int> level_own_;
+    /* The placed mobys seen dead in this load. One alive again was hatched by another's update, in
+     * a slot only the host's game has brought back: shared as what it now is, a spawned one. */
+    std::set<int> once_dead_keys_;
+    /* Member: whether the host gave it the world of this load, and when it last asked. */
+    bool synced_ = false;
+    bool level_differs_ = false;
+    std::uint64_t hello_ms_ = 0;
+    bool placed_driven_ = false;
     /* Host: the spawned mobys it shares (by slot), the next net id, the members, the stand-in of the
      * update running (its player, 0 none) and the bolts before it. */
     std::map<int, Net> shared_;
@@ -390,6 +893,8 @@ private:
     /* Member: the host's loot made here as this game's own, by net id. */
     std::set<std::uint16_t> loot_;
     std::map<int, int> placed_class_;
+    /* Member: the crates and pickups gone here that the host was told of. */
+    std::set<int> reported_;
     /* Member: the mobys it drives, their poses by id, the host's spawned ones by net id. */
     std::set<int> driven_;
     std::map<std::uint16_t, Interpolator> poses_;
@@ -399,12 +904,26 @@ private:
     int moved_since_ = 0;
     std::uint64_t poses_traced_ms_ = 0;
     std::map<std::uint16_t, int> net_slot_;
+    /* This game's own spawned copy of what the host says it spawned there, -1 for none. */
+    int own_copy_of(int oclass, const float position[3]) const;
+    /* With the host's world here: what is left of this game's own copies of what the host spawned. */
+    void drop_own_copies();
+    std::set<int> spawn_classes_;
     /* Member: the host's bolts landed there and so run here, by net id. */
     std::set<std::uint16_t> loose_;
-    std::uint16_t world_sequence_ = 0;
-    /* Member: whether the host's copy of each is hidden, and when the host last sent each. */
+    /* Member: bolts WORLD says landed ahead of their SPAWN on the stream. */
+    std::set<std::uint16_t> landed_early_;
+    /* Member: WORLD's delivery: whether any came, the newest sequence, the 32 before it, and the
+     * share that never came. */
+    bool world_heard_ = false;
+    std::uint16_t world_newest_ = 0;
+    std::uint32_t world_bits_ = 0;
+    double world_loss_ = 0.0;
+    /* Member: whether the host's copy of each is hidden, when the host last sent each, and the
+     * newest stamp taken of each (older datagrams leave it alone). */
     std::map<std::uint16_t, bool> hidden_;
     std::map<std::uint16_t, std::uint64_t> host_ms_;
+    std::map<std::uint16_t, std::int64_t> stamps_;
     bool despawn_on_ = false;
     DespawnLog despawn_;
     Trace* trace_ = nullptr;
@@ -432,8 +951,12 @@ private:
     /* What it did since the last line in the log (every kWorldLogMs when something happened). */
     struct Counts {
         int snapshots = 0, hits = 0, kills = 0, spawns = 0, despawns = 0, damage = 0, bolts = 0;
+        int holds = 0, releases = 0;
     } counts_;
     std::uint64_t counts_ms_ = 0;
+    /* For the whole session: counts_ starts again at each line it logs. */
+    int hits_taken_ = 0;
+    int hits_refused_ = 0;
 };
 
 /* How often the world says in the log what it did. */

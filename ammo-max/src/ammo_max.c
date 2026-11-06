@@ -23,7 +23,7 @@
 
 #include "openrac/openrac_mod.h"
 
-OPENRAC_MOD_DEFINE("ammo-max", "1.0.0")
+OPENRAC_MOD_DEFINE("ammo-max", "1.0.3")
 
 /* ---- Constants ---- */
 

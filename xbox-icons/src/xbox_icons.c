@@ -15,7 +15,7 @@
 #include "paint.h"
 #include "xbox_icons.h"
 
-OPENRAC_MOD_DEFINE("xbox-icons", "1.0.0")
+OPENRAC_MOD_DEFINE("xbox-icons", "1.0.2")
 
 static const openrac_api* s_api;
 static openrac_mod* s_mod;

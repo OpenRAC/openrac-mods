@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace dm {
 
@@ -120,6 +121,24 @@ struct EventClock {
 
 // What plays with the event on, each knob still in a safe range.
 Values with_event(const Values& values, int event);
+
+// A party's rules: all a member needs to play by the host's (the sliders, Chaos, the resolved seed,
+// so each level rolls the same, and the event on). The host's game publishes them, a member's takes
+// them (openrac_api.party_rules_publish, on_party_rules).
+struct PartyRules {
+    bool chaos = false;
+    bool events = false;
+    int minutes = 0;  // the minutes between events
+    Values sliders{};
+    std::uint64_t seed = 0;
+    int event = -1;  // the event on, -1 for none
+};
+
+// Their bytes, as a member's mod of the same version reads them; false for ones it cannot read.
+std::vector<std::uint8_t> encode_party_rules(const PartyRules& rules);
+bool decode_party_rules(const void* data, std::uint32_t size, PartyRules& out);
+// Their words for a player, a rule a line: "Bolts x2\nEnemy count x1.5\nChaos on".
+std::string party_rules_text(const PartyRules& rules);
 
 // The moby pool's guard (README.md, "How many enemies"): the spawned mobys' pool keeps this many
 // free slots for what the game spawns (effects, shots, bolts), whatever the enemy count asks for.

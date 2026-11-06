@@ -1,0 +1,275 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026 the OpenRAC contributors
+ *
+ * The multiplayer mod's shared state and the functions its files call each other by: the
+ * entry and glue (multiplayer.cpp), the pages (pages_*.cpp) and the game adapter
+ * (game_adapter.hpp). All of it is mod-internal: nothing here is the mod's interface.
+ */
+#ifndef MULTIPLAYER_MOD_STATE_H
+#define MULTIPLAYER_MOD_STATE_H
+
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "bot.hpp"
+#include "comfort.hpp"
+#include "connection.hpp"
+#include "coop.hpp"
+#include "camscripts.hpp"
+#include "cosave.hpp"
+#include "direct.hpp"
+#include "menu.hpp"
+#include "migrate.hpp"
+#include "modcode.hpp"
+#include "nametags.hpp"
+#include "progress.hpp"
+#include "shared.hpp"
+#include "openrac/games/rac1.hpp"
+#include "openrac/mod.hpp"
+#include "party_mods.hpp"
+#include "protocol.hpp"
+#include "session.hpp"
+#include "trace.hpp"
+#include "words.hpp"
+#include "world.hpp"
+
+#include "game_adapter.hpp"
+
+namespace mpmod {
+
+/* The version HELLO gives the server: the mod's (at most 32 characters). */
+constexpr const char* kModVersion = "0.10.0";
+constexpr const char* kVersion = "rac1-multiplayer/0.10.0";
+
+
+/* The question's tag: leaving the party (or hosting it). */
+constexpr std::uint32_t kAskLeave = 1;
+
+/* Home's buttons. */
+constexpr int kBrowseItem = 0;
+constexpr int kCreateItem = 1;
+constexpr int kCodeItem = 2;
+constexpr int kDirectItem = 3;
+
+/* The Lobby's buttons, then its lines; the Code page's characters, then Join. */
+constexpr int kReadyItem = 0;
+constexpr int kLeaveItem = 1;
+constexpr int kRulesItem = 2;
+
+/* The Refused page's buttons after Leave party, when the host has a mod code. */
+constexpr int kRefusedOpenItem = 1;
+constexpr int kRefusedCopyItem = 2;
+
+/* The Rules page's Copy mod code, right after Back; the Remove page's buttons. */
+constexpr int kRulesBackItem = 0;
+constexpr int kRemoveItem = 0;
+constexpr int kBanItem = 1;
+constexpr int kRemoveBackItem = 2;
+constexpr int kJoinItem = static_cast<int>(mp::kCodeLength);
+
+/* The Direct page's buttons; Join by address's rows: four octets, the port by one and by a
+ * hundred, then Join. */
+constexpr int kHostItem = 0;
+constexpr int kByAddressItem = 1;
+constexpr int kPortItem = 4;
+constexpr int kPortCoarseItem = 5;
+constexpr int kJoinAddressItem = 6;
+
+/* Browse's Refresh, its party rows after it (as many as fit), and how often the list is asked
+ * again while it shows. */
+constexpr int kRefreshItem = 0;
+constexpr std::size_t kBrowseRows = OPENRAC_UI_ITEMS_MAX - 2;
+constexpr std::uint64_t kListMs = 3000;
+
+/* The Saves page's New game, the card's slots after it; what the save chosen is for. */
+constexpr int kNewGameItem = 0;
+constexpr int kSaveSlots = 5;
+/* After the card's slots, Continue as host: the party's own saves (cosave.hpp). */
+constexpr int kContinueItem = kSaveSlots + 1;
+
+enum class SavesFor {
+    kCreate,
+    kHost
+};
+
+/* What the Direct page shows: its two buttons, or Join by address's rows. */
+enum class DirectView {
+    kMenu,
+    kJoin
+};
+
+// ---- State ----
+
+struct State {
+    std::string host;
+    int port = mp::kDefaultPort;
+    std::unique_ptr<mp::Connection> connection;
+    std::unique_ptr<mp::Session> session;
+    std::unique_ptr<ModGame> game;
+    std::unique_ptr<mp::Coop> coop;
+    std::unique_ptr<mp::World> world;
+    std::unique_ptr<mp::Progress> progress;
+    std::unique_ptr<mp::Shared> shared;
+    std::unique_ptr<mp::CamScripts> camscripts;
+    std::unique_ptr<mp::PartyMods> mods;
+    std::unique_ptr<mp::CoSave> cosave;
+    std::unique_ptr<mp::Migrate> migrate;
+    std::unique_ptr<mp::Comfort> comfort;  // rescue, rally points and Team tools (comfort.hpp)
+    mp::Router router;             // where a received DATA goes (kinds.hpp)
+    bool listed_mods = false;      // the mods listed, once they had all loaded
+    bool told_refused = false;     // the page of why this party's game is refused was shown
+    bool refused_in_party = false;  // that page shows for a party, not for a solo mod
+    std::string join_party;         // the launcher's word: join this party (modcode.hpp)
+    std::uint64_t join_ms = 0;
+    bool join_asked = false;
+    bool start_taken = false;       // this press of Start said ready for the host's ship
+    bool hold_party = false;        // the host's rule (the `hold_party` setting)
+    bool revive = false;            // the host's rule (the `revive` setting)
+#ifdef MULTIPLAYER_BOT
+    std::unique_ptr<mp::Bot> bot;  // the end-to-end tests' driver (bot.hpp)
+#endif
+    mp::Trace trace;            // the verbose log (trace.hpp), off unless asked for
+    std::ofstream trace_file;   // mp-trace.log, where it goes
+    openrac::Mod* mod = nullptr;
+    std::uint32_t generation = 0;  // the connection's, as the session last saw it
+    openrac::UiPage home, code_page, direct_page, lobby, browse, saves, refused, rules, remove;
+    openrac::UiPage comfort_page;  // Team tools, from the lobby and the pause page
+    int lobby_tools = -1;          // the Lobby's Team tools item
+    std::uint64_t listed_ms = 0;   // when Browse last asked for the list
+    bool home_greeted = false;     // whether Home last saw the server's hello
+    std::uint64_t frame_ms = 0;    // when the game last ticked (on_frame)
+    bool start_held = false;       // Start as the pad last reported it
+    SavesFor saves_for = SavesFor::kCreate;
+    bool saves_coop = false;       // the Saves page shows the party's own saves
+    bool mod_code_long = false;  // the launcher's file matches, and has no short code
+    bool code_copied = false;    // the shown mod code is on the clipboard: its button says so
+    int rules_copy = -1;         // the Rules page's Copy mod code item, -1 with no code
+    int rules_lift = -1;         // the Rules page's Lift bans item, -1 with none to lift
+    std::vector<std::pair<int, std::int32_t>> lobby_rows;  // the Lobby's member rows: item, member
+    std::int32_t remove_member = 0;  // who the Remove page is about
+    std::uint64_t mod_code_ms = 0;  // when it was last read
+    std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
+    std::string notice;  // the last refusal or news, until the next action
+    std::string banner;  // the line shown over the game (play_notice)
+    DirectView view = DirectView::kMenu;
+    mp::DirectAddress address;  // Join by address's, the last joined kept for the game
+    mp::Acceleration acceleration;
+    std::string direct_error;  // why Host directly or Join failed, on the Direct page
+    openrac::UiPage pause_page;  // the pause menu's Multiplayer page (Options, in a level)
+    int pause_leave = -1;        // its Leave party item, -1 out of a party
+    int pause_rules = -1;        // its Party rules item, -1 out of a party
+    int pause_save = -1;         // its Save the party item, -1 out of a party's game
+    int pause_go = -1;           // its Go to host item, -1 when there is none
+    int pause_tools = -1;        // its Team tools item, -1 out of a party (or no room)
+    std::vector<std::pair<int, std::int32_t>> pause_rows;  // its member rows: item, member
+    std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
+    std::uint64_t net_ms = 0;    // when the verbose log last gave the network's counts
+    std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame
+    bool leaving = false;        // the player leaves the party (Leave, Stop hosting) this tick
+    std::string leave_reason;    // why the party went, for Home when it next shows
+    bool left_differs = false;   // left because the host's level does not agree with this game's
+};
+
+extern std::unique_ptr<State> g;
+
+/* The game's language (words.hpp), read again each tick; only the UI thread uses it. Protocol and
+ * session messages and the log keep their English. */
+extern mp::Language g_language;
+
+/* A page's words in the game's language; what words.hpp has no row for passes through. */
+inline const char* text(const char* english) {
+    return mp::translated(english, g_language);
+}
+
+/* The language the game is set to (PAL's five; English for any other disc). */
+mp::Language game_language(const openrac::Mod& mod);
+
+/* A page set with its labels fitted to the port's bytes (words.hpp's fit_ui_text), so an accented
+ * name is never cut in half. */
+void set_content(const openrac::UiPage& page, openrac::UiContent& content);
+
+/* The member whose row was chosen among `rows`, 0 for no such event. */
+inline std::int32_t row_member(const std::vector<std::pair<int, std::int32_t>>& rows, const openrac::UiEvent& e) {
+    if (e.is(OPENRAC_UI_CHOOSE)) {
+        for (const auto& [item, member] : rows) {
+            if (item == e.item()) {
+                return member;
+            }
+        }
+    }
+
+    return 0;
+}
+
+// ---- pages_home.cpp ----
+std::string code_text();
+void show_home();
+void show_code();
+openrac::UiItem ring_row(const std::string& label, int value, const mp::Ring& ring);
+void show_direct();
+void show_pause();
+void leave_party();
+void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e);
+void back_to_server();
+void stop_server_loop();
+void on_home(const openrac::UiPage& page, const openrac::UiEvent& e);
+void on_code(const openrac::UiPage& page, const openrac::UiEvent& e);
+void step_address(int item, int choice);
+void switch_view(const openrac::UiPage& page, DirectView view, int item);
+void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- pages_browse.cpp ----
+void show_browse();
+void on_browse(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- pages_saves.cpp ----
+void show_saves();
+void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- pages_lobby.cpp ----
+bool refused();
+bool checking();
+openrac::UiContent lobby_content();
+void show_lobby();
+void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- pages_refused.cpp ----
+openrac::UiContent refused_content();
+void show_refused();
+void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- pages_rules.cpp ----
+openrac::UiContent rules_content();
+void show_rules();
+void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- pages_remove.cpp ----
+openrac::UiContent remove_content();
+void show_remove();
+void open_remove(std::int32_t member);
+void remove_member(std::int32_t member);
+void remove_banned();
+void on_remove(const openrac::UiPage& page, const openrac::UiEvent& e);
+
+// ---- multiplayer.cpp ----
+std::string comfort_banner(std::uint64_t now);
+void show_comfort();
+void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e);
+void trace_net();
+std::string player_name(const std::string& setting);
+std::string status();
+void show_banner(std::uint64_t now);
+void poll();
+
+}  // namespace mpmod
+
+#endif

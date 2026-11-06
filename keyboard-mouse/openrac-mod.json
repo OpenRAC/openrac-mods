@@ -8,6 +8,7 @@
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/keyboard-mouse",
   "api": "1.3",
+  "multiplayer": "input",
   "games": {
     "rac1": [
       "pal",
