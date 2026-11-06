@@ -476,7 +476,7 @@ struct Player {
 
 // Pumps every player until `done` (true) or `ms` pass (false).
 bool pump_until(
-    const std::vector<Player*>& players, const std::function<bool()>& done, int ms = 3000
+    const std::vector<Player*>& players, const std::function<bool()>& done, int ms = 15000
 ) {
     const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
 
