@@ -541,12 +541,14 @@ bool closed_within(socket_t fd, int ms) {
 }
 
 // Reads frames from a raw socket for `ms` and gives what came, decoded.
-std::vector<mp::Message> raw_read(socket_t fd, int ms) {
+// Reads what comes within `ms`; with `want`, stops once that many messages are in (a slow runner
+// may take longer than `ms` to send them, so the wait is then up to ten times as long).
+std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
     mp::FrameReader frames;
     std::vector<mp::Message> out;
-    const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+    const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(want > 0 ? ms * 10 : ms);
 
-    while (std::chrono::steady_clock::now() < until) {
+    while (std::chrono::steady_clock::now() < until && (want == 0 || out.size() < want)) {
 #if defined(_WIN32)
         WSAPOLLFD p{};
         p.fd = fd;
@@ -1067,7 +1069,7 @@ void the_host_keeps_the_servers_limits() {
     // A full party: the newcomer is greeted and refused, but stays connected.
     const socket_t member = raw_connect(port);
     raw_send(member, mp::hello("v", "Member", 0));
-    std::vector<mp::Message> got = raw_read(member, 300);
+    std::vector<mp::Message> got = raw_read(member, 300, 3);
     CHECK(
         got.size() == 3 && got[0].kind == mp::Message::Kind::kHello
         && got[1].kind == mp::Message::Kind::kUdp && got[2].kind == mp::Message::Kind::kPartyInfo
@@ -1075,7 +1077,7 @@ void the_host_keeps_the_servers_limits() {
     );
     const socket_t extra = raw_connect(port);
     raw_send(extra, mp::hello("v", "Extra", 0));
-    got = raw_read(extra, 300);
+    got = raw_read(extra, 300, 3);
     CHECK(
         got.size() == 3 && got[2].kind == mp::Message::Kind::kError
         && got[2].reason == mp::ErrorReason::kPartyFull
@@ -1084,7 +1086,7 @@ void the_host_keeps_the_servers_limits() {
 
     // Chat over its rate is dropped, then a flood is closed.
     raw_send(member, mp::chat("one"));
-    got = raw_read(member, 200);
+    got = raw_read(member, 200, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kChat && got[0].text == "one");
     for (int i = 0; i < 5; ++i) {
         raw_send(member, mp::chat("flood"));
@@ -1095,7 +1097,7 @@ void the_host_keeps_the_servers_limits() {
     // The member closed: it left, and the one waiting can now find its way in.
     CHECK(pump_until({}, [&] { return host.members().size() == 1; }));
     raw_send(extra, mp::party_join("ANYONE"));
-    got = raw_read(extra, 300);
+    got = raw_read(extra, 300, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyInfo);
 
     // A forged datagram (a wrong token) is dropped: no state reaches the host.
@@ -1158,34 +1160,34 @@ void direct_host_keeps_a_dropped_members_slot() {
     host.local_send(mp::hello("v", "Host"));
     const socket_t first = raw_connect(host.port());
     raw_send(first, mp::hello("v", "First"));
-    std::vector<mp::Message> got = raw_read(first, 300);
+    std::vector<mp::Message> got = raw_read(first, 300, 3);
     CHECK(got.size() == 3 && got[1].kind == mp::Message::Kind::kUdp);
     const std::int32_t id = got[0].id;
     const std::int64_t token = got[1].resume_token;
     CHECK(token != 0 && (got[1].features & mp::kFeatureResume) != 0);
     const socket_t second = raw_connect(host.port());
     raw_send(second, mp::hello("v", "Second"));
-    CHECK(raw_read(second, 300).size() == 3);
-    CHECK(raw_read(first, 100).size() == 1);  // JOINED
+    CHECK(raw_read(second, 300, 3).size() == 3);
+    CHECK(raw_read(first, 100, 1).size() == 1);  // JOINED
 
     close_socket(first);
-    got = raw_read(second, 300);
+    got = raw_read(second, 300, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyAway && got[0].id == id && !got[0].back);
 
     // Someone else has no way in with a guess.
     const socket_t thief = raw_connect(host.port());
     raw_send(thief, mp::hello("v", "Thief"));
-    CHECK(raw_read(thief, 200).size() == 2);  // HELLO, UDP: held out for a RESUME
+    CHECK(raw_read(thief, 200, 2).size() == 2);  // HELLO, UDP: held out for a RESUME
     raw_send(thief, mp::party_resume("DIRECT", id, token ^ 1));
-    got = raw_read(thief, 200);
+    got = raw_read(thief, 200, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kError && got[0].reason == mp::ErrorReason::kResumeRefused);
     close_socket(thief);
 
     const socket_t back = raw_connect(host.port());
     raw_send(back, mp::hello("v", "First"));
-    CHECK(raw_read(back, 200).size() == 2);
+    CHECK(raw_read(back, 200, 2).size() == 2);
     raw_send(back, mp::party_resume("DIRECT", id, token));
-    got = raw_read(back, 300);
+    got = raw_read(back, 300, 3);
     CHECK(got.size() == 3 && got[0].kind == mp::Message::Kind::kHello && got[0].id == id);
     CHECK(got[2].kind == mp::Message::Kind::kPartyInfo && got[2].members.size() == 3);
     got = raw_read(second, 700);
@@ -1210,18 +1212,18 @@ void direct_host_removes_a_member() {
     host.local_send(mp::hello("v", "Host"));
     const socket_t first = raw_connect(host.port());
     raw_send(first, mp::hello("v", "First"));
-    CHECK(raw_read(first, 300).size() == 3);
+    CHECK(raw_read(first, 300, 3).size() == 3);
     const socket_t second = raw_connect(host.port());
     raw_send(second, mp::hello("v", "Second"));
-    CHECK(raw_read(second, 300).size() == 3);
-    CHECK(raw_read(first, 100).size() == 1);  // JOINED
+    CHECK(raw_read(second, 300, 3).size() == 3);
+    CHECK(raw_read(first, 100, 1).size() == 1);  // JOINED
     CHECK(host.members().size() == 3);
     const std::int32_t a = host.members()[1].id;
     const std::int32_t b = host.members()[2].id;
 
     // A member has no say, of another or of the host.
     raw_send(first, mp::party_kick(b));
-    std::vector<mp::Message> got = raw_read(first, 200);
+    std::vector<mp::Message> got = raw_read(first, 200, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kError && got[0].reason == mp::ErrorReason::kNotHost);
     CHECK(host.members().size() == 3);
 
@@ -1231,15 +1233,15 @@ void direct_host_removes_a_member() {
     CHECK(host.members().size() == 3);
 
     host.local_send(mp::party_kick(a));
-    got = raw_read(first, 200);
+    got = raw_read(first, 200, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyKicked);
-    got = raw_read(second, 200);
+    got = raw_read(second, 200, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyLeft && got[0].id == a);
     CHECK(host.members().size() == 2);
 
     // Still connected, and it can come back: a kick is no ban.
     raw_send(first, mp::party_join("ANYONE"));
-    got = raw_read(first, 300);
+    got = raw_read(first, 300, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyInfo);
     close_socket(first);
     close_socket(second);
