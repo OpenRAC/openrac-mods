@@ -1,9 +1,14 @@
 {
+  "accessibility-pack": 116,
   "ammo-max": 8,
   "archipelago": 9,
+  "better-pause-menu": 119,
   "button-swap": 10,
+  "cutscene-manager": 120,
+  "debug-menu": 121,
   "difficulty": 11,
   "dualsense": 12,
+  "fast-travel": 122,
   "item-randomizer": 13,
   "keyboard-mouse": 14,
   "live-splits": 15,
@@ -11,6 +16,8 @@
   "modern-controls": 85,
   "multiplayer": 17,
   "rac-board": 42,
+  "save-manager": 123,
   "steam-deck-pack": 86,
+  "weapon-wheel-pause": 124,
   "xbox-icons": 18
 }
