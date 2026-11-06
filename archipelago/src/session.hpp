@@ -125,6 +125,7 @@ private:
     std::set<std::int64_t> found_;    // every check made, sent again on each connection
     std::set<std::int64_t> live_;     // the checks made in play (not read from a save)
     std::set<std::int64_t> checked_;  // the server's checked locations of this slot
+    std::set<std::int64_t> room_;     // every location of this slot in this room
     std::set<std::int64_t> save_;     // the last save's locations, to judge
     bool save_waiting_ = false;       // save_ not judged yet
     bool foreign_ = false;

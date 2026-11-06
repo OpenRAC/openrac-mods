@@ -473,8 +473,9 @@ int WebSocket::receive(std::string& text, int timeout_ms) {
             return got < 0 ? -1 : 0;
         }
 
+        // The same wait again, never 0: to mbedtls 0 is no limit, and after a ping alone nothing
+        // more may come for a long time, with the client's checks waiting behind this read.
         buffer_.append(chunk, std::size_t(got));
-        timeout_ms = 0;  // the rest of a message that started is read without waiting long
     }
 }
 

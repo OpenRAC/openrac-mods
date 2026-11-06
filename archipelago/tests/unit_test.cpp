@@ -2,10 +2,14 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // The client's parts without a network: the WebSocket's frames and handshake key, the ids, and
-// the protocol session fed the server's packets.
+// the protocol session fed the server's packets. The WebSocket's waiting, on the loopback.
+#include <chrono>
 #include <cstdio>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include <mbedtls/net_sockets.h>
 
 #include "ap_ids.h"
 #include "session.hpp"
@@ -65,6 +69,81 @@ void test_websocket() {
         expect(ap::ws::decode(buffer, op, fin, payload, bad), "a whole frame reads");
         expect(op == ap::ws::kText && fin && payload == text && buffer.empty(), "the frame's text");
     }
+}
+
+// A server's ping with nothing after it (Archipelago's pings every 20 seconds): receive must come
+// back in its time, or what waits to be sent waits for the server's next message.
+void test_ping_leaves_receive() {
+    mbedtls_net_context listener, peer;
+    mbedtls_net_init(&listener);
+    mbedtls_net_init(&peer);
+    int port = 38290;
+
+    // A free port on the loopback.
+    while (port < 38390
+           && mbedtls_net_bind(&listener, "127.0.0.1", std::to_string(port).c_str(), MBEDTLS_NET_PROTO_TCP)
+                  != 0) {
+        ++port;
+    }
+
+    expect(port < 38390, "a loopback port to listen on");
+
+    std::thread server([&] {
+        std::string request;
+        unsigned char chunk[2048];
+
+        if (mbedtls_net_accept(&listener, &peer, nullptr, 0, nullptr) != 0) {
+            return;
+        }
+
+        // The request, then the reply with the accept value of its key.
+        while (request.find("\r\n\r\n") == std::string::npos) {
+            const int got = mbedtls_net_recv(&peer, chunk, sizeof chunk);
+
+            if (got <= 0) {
+                return;
+            }
+
+            request.append(reinterpret_cast<char*>(chunk), std::size_t(got));
+        }
+
+        const std::string name = "Sec-WebSocket-Key: ";
+        const std::size_t at = request.find(name) + name.size();
+        const std::string key = request.substr(at, request.find("\r\n", at) - at);
+        const std::string reply =
+            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            "Sec-WebSocket-Accept: "
+            + ap::ws::accept_for(key) + "\r\n\r\n";
+        const unsigned char ping[] = {0x89, 0x00};
+        const unsigned char hi[] = {0x81, 0x02, 'h', 'i'};
+        mbedtls_net_send(&peer, reinterpret_cast<const unsigned char*>(reply.data()), reply.size());
+        mbedtls_net_send(&peer, ping, sizeof ping);
+
+        // Long after the client's wait; a client stuck in its read is only let go by this.
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        mbedtls_net_send(&peer, hi, sizeof hi);
+    });
+
+    ap::WebSocket socket;
+    std::string error, text;
+    expect(socket.open("127.0.0.1", port, false, error), "the loopback's handshake");
+
+    const auto start = std::chrono::steady_clock::now();
+    int got = socket.receive(text, 50);
+    const auto waited = std::chrono::steady_clock::now() - start;
+    expect(got == 0, "a ping alone is no message");
+    expect(waited < std::chrono::seconds(1), "a ping alone does not hold receive past its time");
+
+    // The message still comes.
+    for (int i = 0; i < 100 && got == 0; ++i) {
+        got = socket.receive(text, 50);
+    }
+
+    expect(got == 1 && text == "hi", "the message after the ping");
+    socket.close();
+    server.join();
+    mbedtls_net_free(&peer);
+    mbedtls_net_free(&listener);
 }
 
 // A sender's permessage-deflate: raw deflate, a sync flush, its last four bytes off. One
@@ -223,6 +302,33 @@ void connect(
 void test_save() {
     std::vector<std::string> out;
 
+    // A skill point in a room without them is no check and no sign of another seed; in a room
+    // with them it is sent. (1,2 are the room's; the skill id is either unknown or missing.)
+    {
+        const std::int64_t skill = ap_skill_location_id(1, 0);
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        connect(s, "[1,2]", out);
+        out.clear();
+        s.save_loaded({1, skill}, -1, out);
+        expect(!s.foreign_save(), "a skill point's flag in a room without them: not another seed");
+        for (const std::string& sent : out) {
+            expect(sent.find(std::to_string(skill)) == std::string::npos, "and it is not sent");
+        }
+
+        ap::Session on({AP_GAME, "Ratchet", "", "uuid"});
+        on.on_open();
+        out.clear();
+        on.on_message(R"([{"cmd":"RoomInfo","seed_name":"seed-a"}])", out);
+        on.on_message(
+            "[{\"cmd\":\"Connected\",\"slot\":1,\"team\":0,\"checked_locations\":[1],\"missing_locations\":["
+                + std::to_string(skill) + "]}]",
+            out
+        );
+        out.clear();
+        on.save_loaded({1, skill}, -1, out);
+        expect(commands(out) == std::vector<std::string>{"LocationChecks"}, "a skill point sent");
+    }
+
     // The save's checks are the server's and more: play while offline, sent.
     {
         ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
@@ -309,6 +415,7 @@ void test_save() {
 
 int main() {
     test_websocket();
+    test_ping_leaves_receive();
     test_inflate();
     test_ids();
     test_session();

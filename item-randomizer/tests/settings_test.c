@@ -97,6 +97,7 @@ int main(int argc, char** argv) {
              "\"shuffle_infobots\"",
              "\"keep_starting_gear\"",
              "\"spoiler_log\"",
+             "\"vendor_hints\"",
              "\"Item_Give\"",
              "\"Moby_Edwina_Update\""};
 

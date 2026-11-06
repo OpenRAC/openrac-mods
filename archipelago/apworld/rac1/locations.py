@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# The locations: every gadget, weapon, vendor slot, gold bolt and infobot of the table. The rows
+# The locations: every gadget, weapon, vendor slot, gold bolt, infobot and skill point. The rows
 # without an id (an NPC's coordinates, the Persuader, Drek) are events.
 from BaseClasses import Location
 
@@ -12,7 +12,7 @@ EVENT_ROWS: list[LocationData] = [row for row in LOCATIONS if row.id is None]
 LOCATION_NAME_TO_ID: dict[str, int] = {row.name: row.id for row in LOCATION_ROWS}
 
 # A group per planet, and per kind of place.
-KIND_GROUPS = {"vendor": "Vendor", "infobot": "Infobots", "gold": "Gold Bolts"}
+KIND_GROUPS = {"vendor": "Vendor", "infobot": "Infobots", "gold": "Gold Bolts", "skill": "Skill Points"}
 
 LOCATION_NAME_GROUPS: dict[str, set[str]] = {}
 for _row in LOCATION_ROWS:

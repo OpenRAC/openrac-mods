@@ -4,6 +4,9 @@
 // The protocol for one slot (session.hpp).
 #include "session.hpp"
 
+#include "ap_ids.h"
+
+#include <iterator>
 #include <cstdlib>
 
 #include <nlohmann/json.hpp>
@@ -154,6 +157,12 @@ void Session::bind(int card_slot) {
 
 void Session::judge_save(std::vector<std::string>& out) {
     save_waiting_ = false;
+
+    // A skill point's flag in a room without them is no check, and no sign of another seed.
+    for (auto it = save_.begin(); it != save_.end();) {
+        it = ap_id_is_skill(*it) && room_.count(*it) == 0 ? save_.erase(it) : std::next(it);
+    }
+
     bool extra = false;
     bool lacking = false;
 
@@ -418,6 +427,7 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
 
         // What every location of this slot holds, so the game can show it.
         std::vector<std::int64_t> all;
+        room_.clear();
 
         for (const char* key : {"missing_locations", "checked_locations"}) {
             const auto it = p.find(key);
@@ -426,6 +436,7 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
                 for (const json& id : *it) {
                     if (id.is_number_integer()) {
                         all.push_back(id.get<std::int64_t>());
+                        room_.insert(id.get<std::int64_t>());
                     }
                 }
             }

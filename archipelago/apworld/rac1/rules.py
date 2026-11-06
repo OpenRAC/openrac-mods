@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # The logic. A planet opens with its coordinates (the shuffled item, or the NPC's event); a
 # location needs its row's hard items, and in standard and relaxed logic its soft items too.
-# Standard and relaxed keep progression out of an expensive purchase, relaxed out of gold bolts.
+# Standard and relaxed keep progression out of an expensive purchase, relaxed out of one to save up for.
+# No logic puts progression on a gold bolt or a skill point.
 from typing import TYPE_CHECKING
 
 from rule_builder.options import OptionFilter
@@ -11,7 +12,7 @@ from worlds.generic.Rules import add_item_rule
 from .data import PLANETS
 from .defs import LocationData
 from .items import ITEM_TABLE
-from .locations import EVENT_ROWS, LOCATION_ROWS, VICTORY, event_item
+from .locations import EVENT_ROWS, VICTORY, event_item
 from .options import Logic
 from .regions import SHIP
 
@@ -32,10 +33,22 @@ def coordinates(planet: str) -> list[str]:
 
 def row_rule(row: LocationData) -> Rule:
     rule: Rule = HasAll(*row.hard) if row.hard else True_()
+    if row.any:
+        rule = rule & HasAny(*row.any)
+    for planet in row.planets:
+        rule = rule & HasAny(*coordinates(planet))
     extra = [name for name in row.soft if name not in row.hard]
     if extra:
         rule = rule & (HasAll(*extra) | EXPERT)
     return rule
+
+
+def holds_progression(row: LocationData, logic: Logic) -> bool:
+    costly = row.costly and logic != logic.option_expert
+    pricey = row.pricey and logic == logic.option_relaxed
+    # A skill point stays optional: no world's way on, nor the goal, waits behind a challenge.
+    # A gold bolt takes every gadget, so a way on there can leave the fill with no place to go.
+    return not (costly or pricey or row.kind in ("skill", "gold"))
 
 
 def set_rules(world: "RAC1World") -> None:
@@ -47,12 +60,10 @@ def set_rules(world: "RAC1World") -> None:
         world.create_entrance(ship, region, rule, name=f"Fly to {planet}", force_creation=True)
 
     logic = world.options.logic
-    for row in LOCATION_ROWS + EVENT_ROWS:
+    for row in world.location_rows() + EVENT_ROWS:
         location = world.get_location(row.name)
         world.set_rule(location, row_rule(row))
-        costly = row.costly and logic != logic.option_expert
-        gold = row.kind == "gold" and logic == logic.option_relaxed
-        if costly or gold:
+        if not holds_progression(row, logic):
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
             add_item_rule(location, lambda item: not item.advancement)

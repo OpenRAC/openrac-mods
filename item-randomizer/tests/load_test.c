@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * The item randomizer's library as the port loads it, against a host table and a game memory of
  * the test's own (openrac_mod.h). It reports its id and interface, refuses another game and an
- * unknown disc, takes its eleven hook points with their signatures, writes the remembered seed and
+ * unknown disc, takes its hook points with their signatures, writes the remembered seed and
  * the spoiler log to its data folder; then, with game functions of the test's own that set the
  * game's bytes as the game's do:
  *
@@ -18,7 +18,14 @@
  *   - with the starting gear shuffled, the level start gives the start's reward, and the Bomb
  *     Glove is neither in the stock nor the double tap's weapon unless it was the reward;
  *   - the gold bolt count is the gold bolt rewards had; a gold bolt picked up gives its reward at
- *     the next tick.
+ *     the next tick;
+ *   - a reward's banner is its name, written once the player is in control and held over the
+ *     game's, never GiveItem's; the Hydro-Pack is never equipped, nothing is while Clank plays;
+ *   - a place had whose reward a save lost gives it back at the level's start, without a banner;
+ *   - in a party, what is passed on spends the place that held it, and leaving gives nothing;
+ *   - Orxon shows no O2 Mask until Clank's part is done; the Pilot's Helmet's pickup hands the hero
+ *     no helmet he does not own; a tutorial of what was not given is left out; a crate's drop sees
+ *     the stock as the menu does; the line over the vendor names what the slot holds.
  *
  * Game addresses are the PAL and NTSC-U rows of src/discs.h; the test's game functions copy what
  * the routines named in src/item_randomizer.c's header do to those bytes.
@@ -88,9 +95,10 @@ static struct {
     const char* name;
     const char* signature;
     void* replacement;
-} s_hooks[16];
+} s_hooks[32];
 
 static int s_hook_count;
+static const char* s_refused_hook; /* the hook point this "OpenRAC" lacks; NULL for none */
 static openrac_frame_fn s_frame;
 
 /* ---- the game's functions, as the test plays them ---- */
@@ -98,6 +106,12 @@ static openrac_frame_fn s_frame;
 static int s_gives, s_unlocks, s_banners, s_list_builds, s_counted;
 static uint8_t s_helga_saw = 0xEE;
 static int s_keep_start = 1;
+static int32_t s_last_equip = -1;
+static uint8_t s_ship_saw = 0xEE, s_class22_saw = 0xEE;
+static int s_helps;
+static int s_drop_saw;
+static char s_notice[128];
+static int s_phase = OPENRAC_PLAY_PLAYING;
 
 static int32_t get32(const uint8_t* p) {
     int32_t v;
@@ -130,8 +144,11 @@ static int has_ammo(int item) {
 /* GiveItem as the game's: obtained set; the first time, owned set, and a vendor weapon marked
  * bought in the stock (its byte with 0x40, added when it is not there). */
 static void game_give(int32_t id, int32_t equip) {
-    (void)equip;
+    s_last_equip = equip;
     s_memory[D->obtained + (uint32_t)id] = 1;
+    /* The banner GiveItem shows: in a level without the item's text, the game's "Paradox!". */
+    strcpy((char*)s_memory + D->banner_text, "Paradox");
+    memcpy(s_memory + D->banner_ticks, &(int32_t){300}, 4);
 
     if (s_memory[D->owned + (uint32_t)id] == 0) {
         s_memory[D->owned + (uint32_t)id] = 1;
@@ -274,14 +291,45 @@ static void game_moby(openrac_gaddr moby) {
     (void)moby;
 }
 
-static void game_banner(int32_t text, int32_t ticks) {
-    (void)text, (void)ticks;
-    ++s_banners;
+/* The game's text of a message: "m" and its id, at a place of the test's game memory. */
+static uint32_t game_msg(int32_t id) {
+    const uint32_t at = 0x00190000u;
+    sprintf((char*)s_memory + at, "m%X", (unsigned)id);
+    return at;
+}
+
+static void game_ship(int32_t mode) {
+    (void)mode;
+    s_ship_saw = s_memory[D->owned + ITEM_O2_MASK];
+}
+
+static void game_class22(openrac_gaddr moby) {
+    (void)moby;
+    s_class22_saw = s_memory[D->owned + ITEM_O2_MASK];
+}
+
+static int32_t game_help(int32_t message, int32_t slot) {
+    (void)message, (void)slot;
+    ++s_helps;
+    return 1;
+}
+
+static int32_t game_drop(openrac_gaddr moby, openrac_gaddr out_item) {
+    (void)moby, (void)out_item;
+    s_drop_saw = s_memory[D->vendor_stock];
+    return 1;
+}
+
+static void game_helmet(openrac_gaddr moby) {
+    (void)moby;
+    memcpy(s_memory + D->hero_pending, &(int32_t){ITEM_PILOTS_HELMET}, 4);
 }
 
 /* ---- the host ---- */
 
 static void host_log(openrac_mod* mod, int level, const char* text) {
+    /* A gold bolt given has no byte of its own: the log says it. */
+    s_banners += strstr(text, " gave a gold bolt") != NULL;
     (void)mod;
     printf("[%d] item-randomizer: %s\n", level, text);
 }
@@ -293,6 +341,11 @@ static void host_fail(openrac_mod* mod, const char* reason) {
 
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
+
+    if (strcmp(key, "vendor_hints") == 0) {
+        return 1;
+    }
+
     return (strcmp(key, "keep_starting_gear") == 0 && s_keep_start)
            || strncmp(key, "shuffle_", 8) == 0 || strcmp(key, "spoiler_log") == 0;
 }
@@ -346,6 +399,26 @@ static void* original_for(const char* name) {
         return (void*)game_infobot;
     }
 
+    if (strcmp(name, OPENRAC_RAC1_HOOK_Moby_PilotsHelmet_Update) == 0) {
+        return (void*)game_helmet;
+    }
+
+    if (strcmp(name, OPENRAC_RAC1_HOOK_Moby_Class22_Update) == 0) {
+        return (void*)game_class22;
+    }
+
+    if (strcmp(name, OPENRAC_RAC1_HOOK_Ship_InitTransition) == 0) {
+        return (void*)game_ship;
+    }
+
+    if (strcmp(name, OPENRAC_RAC1_HOOK_Help_Request) == 0) {
+        return (void*)game_help;
+    }
+
+    if (strcmp(name, OPENRAC_RAC1_HOOK_Ammo_ChooseDrop) == 0) {
+        return (void*)game_drop;
+    }
+
     return (void*)game_moby;
 }
 
@@ -353,7 +426,13 @@ static int host_hook(
     openrac_mod* mod, const char* name, const char* signature, void* replacement, void** original
 ) {
     (void)mod;
-    CHECK(s_hook_count < 16);
+
+    // An older OpenRAC: no such hook point.
+    if (s_refused_hook != NULL && strcmp(name, s_refused_hook) == 0) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    CHECK(s_hook_count < 32);
     s_hooks[s_hook_count].name = name;
     s_hooks[s_hook_count].signature = signature;
     s_hooks[s_hook_count].replacement = replacement;
@@ -374,7 +453,7 @@ static int host_on_pad(openrac_mod* mod, openrac_pad_fn fn, void* user) {
 }
 
 static void* host_function(const char* name) {
-    return strcmp(name, D->show_banner) == 0 ? (void*)game_banner : NULL;
+    return strcmp(name, D->msg_string) == 0 ? (void*)game_msg : NULL;
 }
 
 static void* host_function_at(openrac_gaddr a) {
@@ -431,6 +510,17 @@ static int host_replaying(void) {
     return s_replaying;
 }
 
+static int host_play_status(openrac_play_status* out) {
+    out->phase = s_phase;
+    return OPENRAC_HOOK_OK;
+}
+
+static int host_play_notice(openrac_mod* mod, const char* text) {
+    (void)mod;
+    snprintf(s_notice, sizeof s_notice, "%s", text != NULL ? text : "");
+    return OPENRAC_HOOK_OK;
+}
+
 static openrac_api make_api(const char* game, const char* version) {
     openrac_api api;
     memset(&api, 0, sizeof api);
@@ -461,6 +551,8 @@ static openrac_api make_api(const char* game, const char* version) {
     api.party_rules_publish = host_rules_publish;
     api.on_party_rules = host_on_rules;
     api.party_replaying = host_replaying;
+    api.play_status = host_play_status;
+    api.play_notice = host_play_notice;
     return api;
 }
 
@@ -649,7 +741,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.12), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "1.1.0") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.0.0") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -667,15 +759,25 @@ int main(int argc, char** argv) {
     api = make_api("rac1", "jp");
     CHECK(load(&api, mod) != 0 && strstr(s_failed, "jp") != NULL && s_hook_count == 0);
 
-    /* NTSC-U, then PAL: the eleven hook points, with rac1.h's signatures. */
+    /* NTSC-U, then PAL: the hook points, with rac1.h's signatures. */
     D = &k_rando_discs[1];
     api = make_api("rac1", "ntsc");
     s_failed[0] = 0;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 11 && s_frame != NULL);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 18 && s_frame != NULL);
     s_hook_count = 0;
+
+    /* An OpenRAC older than a hook point: the load fails and says which. */
+    for (int i = 0; i < 2; ++i) {
+        s_refused_hook = i == 0 ? "Help_Request" : "Ship_InitTransition";
+        CHECK(load(&api, mod) != 0 && strstr(s_failed, s_refused_hook) != NULL);
+        s_refused_hook = NULL;
+        s_failed[0] = 0;
+        s_hook_count = 0;
+    }
+
     D = &k_rando_discs[0];
     api = make_api("rac1", "pal");
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 11);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 18);
     static const char* const points[][2] = {
         {OPENRAC_RAC1_HOOK_Item_Give, OPENRAC_RAC1_SIG_Item_Give},
         {OPENRAC_RAC1_HOOK_Planet_Unlock, OPENRAC_RAC1_SIG_Planet_Unlock},
@@ -688,9 +790,16 @@ int main(int argc, char** argv) {
         {OPENRAC_RAC1_HOOK_Moby_BigAl_Update, OPENRAC_RAC1_SIG_Moby_BigAl_Update},
         {OPENRAC_RAC1_HOOK_Moby_Bob_Update, OPENRAC_RAC1_SIG_Moby_Bob_Update},
         {OPENRAC_RAC1_HOOK_Moby_Edwina_Update, OPENRAC_RAC1_SIG_Moby_Edwina_Update},
+        {OPENRAC_RAC1_HOOK_Moby_RobotQwark_Update, OPENRAC_RAC1_SIG_Moby_RobotQwark_Update},
+        {OPENRAC_RAC1_HOOK_Moby_Class23_Update, OPENRAC_RAC1_SIG_Moby_Class23_Update},
+        {OPENRAC_RAC1_HOOK_Moby_Class22_Update, OPENRAC_RAC1_SIG_Moby_Class22_Update},
+        {OPENRAC_RAC1_HOOK_Ammo_ChooseDrop, OPENRAC_RAC1_SIG_Ammo_ChooseDrop},
+        {OPENRAC_RAC1_HOOK_Vendor_MenuUpdate, OPENRAC_RAC1_SIG_Vendor_MenuUpdate},
+        {OPENRAC_RAC1_HOOK_Help_Request, OPENRAC_RAC1_SIG_Help_Request},
+        {OPENRAC_RAC1_HOOK_Ship_InitTransition, OPENRAC_RAC1_SIG_Ship_InitTransition},
     };
 
-    for (int i = 0; i < 11; ++i) {
+    for (int i = 0; i < 18; ++i) {
         CHECK(
             strcmp(s_hooks[i].name, points[i][0]) == 0
             && strcmp(s_hooks[i].signature, points[i][1]) == 0
@@ -895,6 +1004,8 @@ int main(int argc, char** argv) {
     memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
     memset(s_memory + D->planets, 0, RANDO_PLANET_COUNT);
     memset(stock, 0xFF, VENDOR_STOCK_SIZE);
+    memset(s_memory + D->gold_bolts, 0, 80);
+    memset(s_memory + D->triggers, 0, 320);
     set32(s_memory + D->last_weapon, 0);
     s_gives = s_unlocks = s_banners = 0;
     init();
@@ -927,7 +1038,10 @@ int main(int argc, char** argv) {
     snprintf(host_code, sizeof host_code, "%s", s_published);
     rando_settings hs;
     CHECK(rando_decode(host_code, &hs));
-    CHECK(strstr(s_published_text, "Logic: standard") != NULL && strstr(s_published_text, "Shuffles gadgets") != NULL);
+    CHECK(
+        strstr(s_published_text, "Logic: standard") != NULL
+        && strstr(s_published_text, "Shuffles gadgets") != NULL
+    );
     static rando_plan host_plan, own_plan;
     CHECK(rando_solve(&hs, &host_plan) == 0);
     snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, host_code);
@@ -948,6 +1062,7 @@ int main(int argc, char** argv) {
     int spot = -1;
 
     /* A place the two plans fill differently, with an item, an item nobody has yet. */
+
     for (size_t i = 0; i < rando_location_count && spot < 0; ++i) {
         const rando_location* l = &rando_locations[i];
 
@@ -974,7 +1089,7 @@ int main(int argc, char** argv) {
     s_replaying = 1;
     give(spot_item, 0);
     s_replaying = 0;
-    CHECK(s_memory[D->owned + spot_item] == 1 && s_memory[D->obtained + spot_item] == 0);
+    CHECK(s_memory[D->owned + spot_item] == 1);
 
     if (host_gives != spot_item) {
         CHECK(s_memory[D->owned + host_gives] == 0);
@@ -988,6 +1103,201 @@ int main(int argc, char** argv) {
     CHECK(s_memory[D->owned + own_gives] == 1 && s_memory[D->owned + host_gives] == 0);
     memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
     memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+
+    /* The rest on this placement: the reconcile, the party, the words on the screen. */
+    s_seed = "second-half";
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    rando_options so = {s_seed, 1, 1, 1, 1, 1, 1, "standard"};
+    rando_settings ss;
+    CHECK(rando_settings_of(&so, NULL, 0, &ss) == SEED_FROM_WORD);
+    static rando_plan sp;
+    CHECK(rando_solve(&ss, &sp) == 0);
+    give = (openrac_rac1_Item_Give)hook_named("Item_Give");
+    init = (openrac_rac1_Vendor_InitLevelStock)hook_named("Vendor_InitLevelStock");
+    s_give_hook = give;
+    s_unlock_hook = (openrac_rac1_Planet_Unlock)hook_named("Planet_Unlock");
+    const int32_t novalis = LEVEL_NOVALIS;
+    memcpy(s_memory + D->level, &novalis, 4);
+    memset(s_memory + D->vendor_stock, 0xFF, 12);
+    init();
+
+    /* The banner: nothing of GiveItem's, the reward's name in the game's highlight, in control. */
+    int item_spot = -1;
+
+    for (size_t i = 0; i < rando_location_count && item_spot < 0; ++i) {
+        if (sp.shuffled[i] && rando_locations[i].kind == LOC_GIVE
+            && sp.reward[i].kind == REWARD_ITEM && sp.reward[i].value != ITEM_HYDRO_PACK) {
+            item_spot = (int)i;
+        }
+    }
+
+    CHECK(item_spot >= 0);
+    s_phase = OPENRAC_PLAY_SCENE;
+    memset(s_memory + D->banner_text, 0, 32);
+    memcpy(s_memory + D->banner_ticks, &(int32_t){0}, 4);
+    give(rando_locations[item_spot].key, 1);
+    CHECK(strcmp((char*)s_memory + D->banner_text, "Paradox") != 0); /* GiveItem's is gone */
+    CHECK(s_last_equip == 1);
+    s_frame(NULL);
+    CHECK(s_memory[D->banner_text] == 0); /* in a scene it waits */
+    s_phase = OPENRAC_PLAY_PLAYING;
+    s_frame(NULL);
+    char shown_name[32];
+    snprintf(
+        shown_name,
+        sizeof shown_name,
+        "\x0cm%X\x08",
+        (unsigned)rando_reward_text(sp.reward[item_spot])
+    );
+    CHECK(strcmp((char*)s_memory + D->banner_text, shown_name) == 0);
+    /* The game's own banner for the place's item, a tick later, is written over. */
+    strcpy((char*)s_memory + D->banner_text, "You've purchased a Swingshot");
+    s_frame(NULL);
+    CHECK(strcmp((char*)s_memory + D->banner_text, shown_name) == 0);
+
+    /* The Hydro-Pack is never put on the hero's back, nothing while Clank plays. Mutation: passing
+     * the place's equip through leaves the pack over the Heli-Pack. */
+
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (sp.shuffled[i] && sp.reward[i].kind == REWARD_ITEM
+            && sp.reward[i].value == ITEM_HYDRO_PACK && rando_locations[i].kind == LOC_GIVE) {
+            give(rando_locations[i].key, 1);
+            CHECK(s_last_equip == 0);
+        }
+    }
+
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (sp.shuffled[i] && sp.reward[i].kind == REWARD_ITEM
+            && sp.reward[i].value != ITEM_HYDRO_PACK && rando_locations[i].kind == LOC_GIVE
+            && (int)i != item_spot) {
+            s_memory[D->hero_clank] = 1;
+            s_memory[D->owned + sp.reward[i].value] = 0;
+            give(rando_locations[i].key, 1);
+            CHECK(s_last_equip == 0);
+            s_memory[D->hero_clank] = 0;
+            break;
+        }
+    }
+
+    /* What is queued shows, one banner at a time. */
+
+    for (int k = 0; k < 200; ++k) {
+        memcpy(s_memory + D->banner_ticks, &(int32_t){0}, 4);
+        s_frame(NULL);
+    }
+
+    /* A save holds a gold bolt's place with no reward: back at the level's start, silently. */
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->gold_bolts, 0, 80);
+    int gold_item = -1;
+
+    for (size_t i = 0; i < rando_location_count && gold_item < 0; ++i) {
+        if (sp.shuffled[i] && rando_locations[i].kind == LOC_GOLD
+            && sp.reward[i].kind == REWARD_ITEM) {
+            gold_item = (int)i;
+        }
+    }
+
+    CHECK(gold_item >= 0);
+    s_memory
+        [D->gold_bolts + (uint32_t)rando_locations[gold_item].level * 4u
+         + rando_locations[gold_item].key] = 1;
+    init();
+    CHECK(s_memory[D->owned + sp.reward[gold_item].value] == 1);
+    memset(s_memory + D->banner_text, 0, 32);
+    s_frame(NULL);
+    CHECK(s_memory[D->banner_text] == 0);
+
+    /* A party's item spends the place that held it here: the same place in every game. */
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->gold_bolts, 0, 80);
+    init();
+    s_replaying = 1;
+    give(sp.reward[item_spot].value, 0);
+    s_replaying = 0;
+    CHECK(s_memory[D->owned + sp.reward[item_spot].value] == 1);
+    CHECK(s_memory[D->obtained + rando_locations[item_spot].key] == 1);
+
+    /* Orxon: no O2 Mask shown until Clank's part is done; the real byte back; then as it is. */
+    const int32_t orxon = LEVEL_ORXON;
+    memcpy(s_memory + D->level, &orxon, 4);
+    s_memory[D->owned + ITEM_O2_MASK] = 1;
+    s_memory[D->triggers + LEVEL_ORXON * 16 + ORXON_CLANK_MISSION] = 0;
+    openrac_rac1_Ship_InitTransition ship =
+        (openrac_rac1_Ship_InitTransition)hook_named("Ship_InitTransition");
+    openrac_rac1_Moby_Class22_Update start22 =
+        (openrac_rac1_Moby_Class22_Update)hook_named("Moby_Class22_Update");
+    CHECK(ship && start22);
+    ship(0);
+    start22(0x00100000u);
+    CHECK(s_ship_saw == 0 && s_class22_saw == 0 && s_memory[D->owned + ITEM_O2_MASK] == 1);
+    s_memory[D->triggers + LEVEL_ORXON * 16 + ORXON_CLANK_MISSION] = 0xFF;
+    ship(0);
+    start22(0x00100000u);
+    CHECK(s_ship_saw == 1 && s_class22_saw == 1);
+    memcpy(s_memory + D->level, &novalis, 4);
+    s_memory[D->owned + ITEM_O2_MASK] = 0;
+
+    /* The helmet's pickup hands the hero no helmet he does not own. */
+    openrac_rac1_Moby_PilotsHelmet_Update helmet =
+        (openrac_rac1_Moby_PilotsHelmet_Update)hook_named("Moby_PilotsHelmet_Update");
+    memcpy(s_memory + D->hero_pending, &(int32_t){0}, 4);
+    s_memory[D->owned + ITEM_PILOTS_HELMET] = 0;
+    helmet(0x00100000u);
+    CHECK(get32(s_memory + D->hero_pending) == 0);
+    s_memory[D->owned + ITEM_PILOTS_HELMET] = 1;
+    helmet(0x00100000u);
+    CHECK(get32(s_memory + D->hero_pending) == ITEM_PILOTS_HELMET);
+    s_memory[D->owned + ITEM_PILOTS_HELMET] = 0;
+
+    /* A tutorial of what was not given stays out; one of what was comes. */
+    openrac_rac1_Help_Request help = (openrac_rac1_Help_Request)hook_named("Help_Request");
+    int other_help = -1;
+
+    for (size_t i = 0; i < rando_item_help_count && other_help < 0; ++i) {
+        const int place = location_of(LOC_GIVE, 0, rando_item_helps[i].item);
+
+        if (place >= 0 && sp.reward[place].value != rando_item_helps[i].item) {
+            other_help = rando_item_helps[i].message;
+        }
+    }
+
+    CHECK(other_help >= 0);
+    s_helps = 0;
+    CHECK(help(other_help, 1) == 1 && s_helps == 0);
+    CHECK(help(0x1234, 1) == 1 && s_helps == 1);
+
+    /* A crate's drop sees the list's stock, the real one back after. */
+    openrac_rac1_Ammo_ChooseDrop drop = (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
+    memset(s_memory + D->vendor_stock, 0xFF, 12);
+    s_memory[D->vendor_stock] = ITEM_PYROCITOR;
+    s_memory[D->owned + ITEM_PYROCITOR] = 1;
+    CHECK(drop(0, 0) == 1);
+    CHECK(s_memory[D->vendor_stock] == ITEM_PYROCITOR && s_drop_saw == ITEM_PYROCITOR);
+
+    /* The line over the vendor: the slot under the cursor, gone when the menu closes. */
+    openrac_rac1_Vendor_MenuUpdate menu_update =
+        (openrac_rac1_Vendor_MenuUpdate)hook_named("Vendor_MenuUpdate");
+    uint8_t* vmenu = s_memory + D->vendor_menu;
+    memset(vmenu, 0, 0x220);
+    set32(vmenu + VENDOR_COUNT, 1);
+    set32(vmenu + VENDOR_ENTRIES, ITEM_PYROCITOR);
+    menu_update();
+    CHECK(strncmp(s_notice, "Buying this gives: ", 19) == 0);
+    s_frame(NULL);
+    s_frame(NULL);
+    CHECK(s_notice[0] == 0);
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->vendor_stock, 0xFF, 12);
+    snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, "");
+    char second[RANDO_CODE_SIZE];
+    rando_encode(&ss, second);
+    snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, second);
+    remove(path);
 
     /* The remembered seed: a blank seed rolls one and keeps it. */
     s_seed = "";
