@@ -411,7 +411,7 @@ class Bot:
             if res["held"]:
                 vs = ", ".join(h["version"] for h in res["held"])
                 self.item(True, f"{mid}: releases found; {vs} wait for a maintainer's review "
-                                "(native mods from other repositories: 24 h and an approval)")
+                                "(native mods from other repositories: 1 h and an approval)")
             else:
                 self.item(bool(listed) or res["index"] is None, f"{mid}: a release with its archives is found",
                           f"Push a tag {mid}-v<version>: the SDK's workflow publishes the archives and SHA256SUMS.")
@@ -695,7 +695,7 @@ def review_body(item: dict) -> str:
             f"- Release: {item['repo']}/releases/tag/{item['tag']} ({item['released']})\n\n"
             f"| Platform | Archive | SHA-256 | Bytes |\n|---|---|---|---|\n{rows}\n\n"
             f"Changelog:\n\n{fence}\n{item.get('changelog', '')}\n{fence}\n\n"
-            f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 24 h after its release.\n")
+            f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 1 h after its release.\n")
 
 
 def review(items: list[dict], run=run_cmd) -> int:
@@ -740,7 +740,7 @@ def approve(event: dict, repo: Path, http: b.Http, run=run_cmd) -> int:
     if where == "master":
         run(["gh", "workflow", "run", "index.yml", "--ref", "master"], check=False)
         run(["gh", "issue", "close", num, "--comment",
-             f"Approved by {sender}: published at the next index build, 24 h after its release at the earliest."])
+             f"Approved by {sender}: published at the next index build, 1 h after its release at the earliest."])
     else:
         run(["gh", "issue", "comment", num, "--body", f"Approved by {sender}; merge {where} to publish it."])
     return 0

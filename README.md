@@ -160,7 +160,7 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   request; *Update a
   listing* and *Remove my mod* work the same way. You need write access to the
   mod's repository.
-- A new version of a native mod from another repository reaches players 24 h
+- A new version of a native mod from another repository reaches players 1 h
   after its release, once a maintainer has approved it on its review issue
   (`index/approved.json`).
 - The bot is **openrac-bot**, a GitHub App of the organization, installed on this

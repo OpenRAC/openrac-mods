@@ -76,7 +76,7 @@ MAX_CAPTION = 200
 MAX_ALIASES = 10
 MAX_SUMS = 256 * 1024
 MAX_CD = 2 * 1024 * 1024
-COOL_DOWN = 24 * 3600  # seconds a new external native version waits
+COOL_DOWN = 3600  # seconds a new external native version waits
 INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json")
 LISTING_KEYS = {"id", "description", "tags", "impact", "links", "recommends", "suggests", "aliases", "featured",
                 "media", "aiAssisted"}
@@ -668,13 +668,13 @@ def held(entry: dict, v: dict, kind: str, hold: dict | None) -> str | None:
         return "waits for a maintainer's review (index/approved.json)"
     released = dt.datetime.fromisoformat(v["released"].replace("Z", "+00:00")).timestamp() if v["released"] else 0
     if hold["now"] - released < COOL_DOWN:
-        return "is less than 24 h old"
+        return "is less than 1 h old"
     return None
 
 
 def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None = None) -> tuple[dict | None, int]:
     """The Mod of one entry (None when it has no usable version yet), and its download total. With
-    `hold`, new versions of external native mods wait for review and 24 h."""
+    `hold`, new versions of external native mods wait for review and 1 h."""
     mid = entry["id"]
     owner, repo = owner_repo(entry["repo"])
     e = entry.get("entry", {})

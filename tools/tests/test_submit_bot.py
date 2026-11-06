@@ -426,9 +426,9 @@ class CoolDown(Base):
 
     def test_approved_but_young_waits(self):
         released = 1791633600  # 2026-10-10T12:00:00Z, ext-hud 0.2.0
-        index, _, review = self.build(now=released + 3600)
+        index, _, review = self.build(now=released + 1800)
         self.assertNotIn("ext-hud", [m["id"] for m in index["mods"]])
-        index, _, _ = self.build(now=released + 25 * 3600)
+        index, _, _ = self.build(now=released + 2 * 3600)
         self.assertIn("ext-hud", [m["id"] for m in index["mods"]])
 
     def test_in_repo_and_script_not_held(self):
