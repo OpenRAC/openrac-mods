@@ -12,17 +12,17 @@ namespace {
 
 /* A save's row: "Save 1: Pokitaru, 3 gold bolts, 2:05", or empty. */
 std::string save_row(int slot, const openrac_save_info& info, bool there) {
-    const std::string name = "Save " + std::to_string(slot + 1) + ": ";
+    const std::string name = std::string(text("Save ")) + std::to_string(slot + 1) + ": ";
 
     if (!there) {
-        return name + "empty";
+        return name + text("empty");
     }
 
     const int minutes = info.seconds / 60;
     const std::string time = std::to_string(minutes / 60) + ":" + (minutes % 60 < 10 ? "0" : "")
                              + std::to_string(minutes % 60);
-    return name + mp::save_description(g->mod->level_name(info.level), info.gold_bolts, false) + ", "
-           + time;
+    return name + mp::save_description(g->mod->level_name(info.level), info.gold_bolts, false, g_language)
+           + ", " + time;
 }
 
 /* The card's saves as the Saves page last read them (when it showed). */
@@ -56,7 +56,7 @@ std::string coop_save_row(int slot) {
     mp::CoNote note;
     mp::parse_note(g->game->card_note(slot), note);
     const std::string save =
-        row.there ? mp::save_description(g->mod->level_name(row.info.level), row.info.gold_bolts, false)
+        row.there ? mp::save_description(g->mod->level_name(row.info.level), row.info.gold_bolts, false, g_language)
                   : std::string();
     return mp::coop_row(slot, save, note, row.there);
 }
@@ -64,8 +64,8 @@ std::string coop_save_row(int slot) {
 /* Continue as host: Back, then the party's own saves. */
 void show_coop_saves() {
     openrac::UiContent c;
-    c.title = "Continue as host";
-    c.items.push_back(openrac::UiItem::button("Back"));
+    c.title = text("Continue as host");
+    c.items.push_back(openrac::UiItem::button(text("Back")));
 
     for (int slot = 0; slot < mp::kCoSlots; ++slot) {
         c.items.push_back(openrac::UiItem::button(
@@ -73,9 +73,11 @@ void show_coop_saves() {
         ));
     }
 
-    c.footer = {"Your saves from past parties", g->direct_error.empty() ? "The others keep their own copy" : g->direct_error,
-                mp::kSelectBackHints};
-    g->saves.set(c);
+    c.footer = {text("Your saves from past parties"),
+                g->direct_error.empty() ? text("The others keep their own copy")
+                                        : mp::localized_notice(g->direct_error, g_language),
+                text(mp::kSelectBackHints)};
+    set_content(g->saves, c);
 }
 
 }  // namespace
@@ -88,20 +90,20 @@ void show_saves() {
     }
 
     openrac::UiContent c;
-    c.title = g->saves_for == SavesFor::kHost ? "Host with which save?" : "Play which save?";
-    c.items.push_back(openrac::UiItem::button("New game"));
+    c.title = g->saves_for == SavesFor::kHost ? text("Host with which save?") : text("Play which save?");
+    c.items.push_back(openrac::UiItem::button(text("New game")));
 
     for (int slot = 0; slot < kSaveSlots; ++slot) {
         const SlotRow& row = g_slots[static_cast<std::size_t>(slot)];
         c.items.push_back(openrac::UiItem::button(save_row(slot, row.info, row.there), row.there));
     }
 
-    c.items.push_back(openrac::UiItem::button("Continue as host", g_any_coop));
-    c.footer = {g->saves_for == SavesFor::kHost ? "No server: port 7770" : status(),
-                g->direct_error.empty() ? "The party plays a copy; your saves are kept"
-                                        : g->direct_error,
-                mp::kSelectBackHints};
-    g->saves.set(c);
+    c.items.push_back(openrac::UiItem::button(text("Continue as host"), g_any_coop));
+    c.footer = {g->saves_for == SavesFor::kHost ? text("No server: port 7770") : status(),
+                g->direct_error.empty() ? text("The party plays a copy; your saves are kept")
+                                        : mp::localized_notice(g->direct_error, g_language),
+                text(mp::kSelectBackHints)};
+    set_content(g->saves, c);
 }
 
 /* A save chosen (or a new game): the co-op keeps it, then the party is made, on the server or by

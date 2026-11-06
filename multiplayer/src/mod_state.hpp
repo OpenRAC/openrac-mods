@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "bot.hpp"
+#include "comfort.hpp"
 #include "connection.hpp"
 #include "coop.hpp"
 #include "camscripts.hpp"
@@ -38,6 +39,7 @@
 #include "protocol.hpp"
 #include "session.hpp"
 #include "trace.hpp"
+#include "words.hpp"
 #include "world.hpp"
 
 #include "game_adapter.hpp"
@@ -121,6 +123,7 @@ struct State {
     std::unique_ptr<mp::PartyMods> mods;
     std::unique_ptr<mp::CoSave> cosave;
     std::unique_ptr<mp::Migrate> migrate;
+    std::unique_ptr<mp::Comfort> comfort;  // rescue, rally points and Team tools (comfort.hpp)
     mp::Router router;             // where a received DATA goes (kinds.hpp)
     bool listed_mods = false;      // the mods listed, once they had all loaded
     bool told_refused = false;     // the page of why this party's game is refused was shown
@@ -139,6 +142,8 @@ struct State {
     openrac::Mod* mod = nullptr;
     std::uint32_t generation = 0;  // the connection's, as the session last saw it
     openrac::UiPage home, code_page, direct_page, lobby, browse, saves, refused, rules, remove;
+    openrac::UiPage comfort_page;  // Team tools, from the lobby and the pause page
+    int lobby_tools = -1;          // the Lobby's Team tools item
     std::uint64_t listed_ms = 0;   // when Browse last asked for the list
     bool home_greeted = false;     // whether Home last saw the server's hello
     std::uint64_t frame_ms = 0;    // when the game last ticked (on_frame)
@@ -164,6 +169,7 @@ struct State {
     int pause_rules = -1;        // its Party rules item, -1 out of a party
     int pause_save = -1;         // its Save the party item, -1 out of a party's game
     int pause_go = -1;           // its Go to host item, -1 when there is none
+    int pause_tools = -1;        // its Team tools item, -1 out of a party (or no room)
     std::vector<std::pair<int, std::int32_t>> pause_rows;  // its member rows: item, member
     std::uint64_t link_ms = 0;   // when the player's link was last reported to the party
     std::uint64_t net_ms = 0;    // when the verbose log last gave the network's counts
@@ -174,6 +180,22 @@ struct State {
 };
 
 extern std::unique_ptr<State> g;
+
+/* The game's language (words.hpp), read again each tick; only the UI thread uses it. Protocol and
+ * session messages and the log keep their English. */
+extern mp::Language g_language;
+
+/* A page's words in the game's language; what words.hpp has no row for passes through. */
+inline const char* text(const char* english) {
+    return mp::translated(english, g_language);
+}
+
+/* The language the game is set to (PAL's five; English for any other disc). */
+mp::Language game_language(const openrac::Mod& mod);
+
+/* A page set with its labels fitted to the port's bytes (words.hpp's fit_ui_text), so an accented
+ * name is never cut in half. */
+void set_content(const openrac::UiPage& page, openrac::UiContent& content);
 
 /* The member whose row was chosen among `rows`, 0 for no such event. */
 inline std::int32_t row_member(const std::vector<std::pair<int, std::int32_t>>& rows, const openrac::UiEvent& e) {
@@ -239,6 +261,9 @@ void remove_banned();
 void on_remove(const openrac::UiPage& page, const openrac::UiEvent& e);
 
 // ---- multiplayer.cpp ----
+std::string comfort_banner(std::uint64_t now);
+void show_comfort();
+void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e);
 void trace_net();
 std::string player_name(const std::string& setting);
 std::string status();

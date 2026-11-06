@@ -7,7 +7,12 @@
 # Direct connect's page logic (the address rows), the protocol (the server's frames and
 # datagrams), the co-op (the game started together, the level followed, the figures, the scenes) and the
 # poses (their bytes and the interpolation buffer), the shared world (the host's mobys shown by
-# the members), the shared progress (items, gold bolts, planets), the mods a party agrees on and its verbose log. It needs interface 1.12: its manifest's "api" says so, and an SDK older than that cannot build it.
+# the members), the shared progress (items, gold bolts, planets), the mods a party agrees on, Team tools (rescue, rally points), the pages' words in the five PAL languages and its verbose log. It needs interface 1.14: its manifest's "api" says so, and an SDK older than that cannot build it.
+
+# The localized text (src/words.hpp) is UTF-8 on every build host, Windows with a non-UTF-8 locale too.
+if(MSVC)
+  add_compile_options(/utf-8)
+endif()
 
 # The co-op's and the shared world's sources, split by area (coop.hpp, world.hpp); the tests build them too.
 set(MULTIPLAYER_COOP_SOURCES src/coop.cpp src/coop_travel.cpp src/coop_figures.cpp src/coop_shots.cpp src/nametags.cpp
@@ -27,7 +32,7 @@ list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp tests/play_migrate_t
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
-                SOURCES src/multiplayer.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
+                SOURCES src/multiplayer.cpp src/comfort.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
                         src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/pages_remove.cpp src/session.cpp src/connection.cpp src/host.cpp
                         src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
 # The sources include each other's headers from src/.
@@ -101,4 +106,19 @@ if(BUILD_TESTING)
   target_include_directories(multiplayer_kinds_test PRIVATE src)
   set_target_properties(multiplayer_kinds_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_kinds COMMAND multiplayer_kinds_test)
+  # The five PAL languages, the pages' words in each, the game font's letters and UTF-8-safe bounds.
+  add_executable(multiplayer_words_test tests/words_test.cpp src/session.cpp src/protocol.cpp src/direct.cpp
+                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
+  target_include_directories(multiplayer_words_test PRIVATE src "${OPENRAC_MOD_SDK_DIR}/include")
+  set_target_properties(multiplayer_words_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_words COMMAND multiplayer_words_test)
+  # Team tools (src/comfort.hpp): rescue, its window and rally points among a party's games.
+  add_executable(multiplayer_comfort_test tests/comfort_test.cpp src/comfort.cpp src/protocol.cpp)
+  target_include_directories(multiplayer_comfort_test PRIVATE src)
+  set_target_properties(multiplayer_comfort_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_comfort COMMAND multiplayer_comfort_test)
 endif()
+
+# The licence goes into the mod's package beside its library.
+get_target_property(multiplayer_package multiplayer OPENRAC_MOD_PACKAGE_DIR)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" "${multiplayer_package}/LICENSE" COPYONLY)

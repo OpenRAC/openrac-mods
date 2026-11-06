@@ -518,6 +518,12 @@ void buttons() {
     CHECK(b(Context::Dialog, {Action::Jump}, 0) == kbm::kCross);
     CHECK(b(Context::Dialog, {Action::MenuBack}, 8) == kbm::kTriangle);
 
+    // The memory card's questions (create save data, format) take Circle for yes: Menu: Circle
+    // presses it in every dialog.
+    for (int kind : {0, 1, 3, 4, 8}) {
+        CHECK(b(Context::Dialog, {Action::MenuCircle}, kind) == kbm::kCircle);
+    }
+
     // Scenes, movies, slideshows: everything that confirms or goes back skips (Start); the ship
     // Start and Cross.
     for (Context c : {Context::Cutscene, Context::Movie, Context::Slideshow}) {

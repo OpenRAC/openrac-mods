@@ -26,16 +26,16 @@ void show_home() {
     const bool usable =
         mp::server_items_enabled(g->connection->mode(), g->session->greeted());
     openrac::UiContent c;
-    c.title = "Multiplayer";
+    c.title = text("Multiplayer");
     c.items = {
-        openrac::UiItem::button("Browse games", usable),
-        openrac::UiItem::button("Create match", usable),
-        openrac::UiItem::button("Join by code", usable),
-        openrac::UiItem::button("Direct connect"),
-        openrac::UiItem::text("Playing as " + g->session->name()),
+        openrac::UiItem::button(text("Browse games"), usable),
+        openrac::UiItem::button(text("Create match"), usable),
+        openrac::UiItem::button(text("Join by code"), usable),
+        openrac::UiItem::button(text("Direct connect")),
+        openrac::UiItem::text(text("Playing as ") + g->session->name()),
     };
-    c.footer = {status(), mp::kSelectBackHints};
-    g->home.set(c);
+    c.footer = {status(), text(mp::kSelectBackHints)};
+    set_content(g->home, c);
 }
 
 /* Code: a choice of the code alphabet per character, then Join. */
@@ -48,21 +48,21 @@ void show_code() {
     }
 
     openrac::UiContent c;
-    c.title = "Party code " + code_text();
+    c.title = text("Party code ") + code_text();
 
     for (std::size_t i = 0; i < mp::kCodeLength; ++i) {
         c.items.push_back(
             openrac::UiItem::choice_of(
-                "Character " + std::to_string(i + 1),
+                text("Character ") + std::to_string(i + 1),
                 letters,
                 static_cast<std::uint32_t>(g->code[i])
             )
         );
     }
 
-    c.items.push_back(openrac::UiItem::button("Join", g->session->greeted()));
-    c.footer = {status(), mp::kCodeHints};
-    g->code_page.set(c);
+    c.items.push_back(openrac::UiItem::button(text("Join"), g->session->greeted()));
+    c.footer = {status(), text(mp::kCodeHints)};
+    set_content(g->code_page, c);
 }
 
 /* A ring row (direct.hpp): its window of values around `value`, the current one in the middle. */
@@ -79,43 +79,43 @@ void show_direct() {
     std::string hints;
 
     if (g->view == DirectView::kMenu) {
-        c.title = "Direct connect";
+        c.title = text("Direct connect");
         c.items = {
-            openrac::UiItem::button("Host directly"),
-            openrac::UiItem::button("Join by address"),
+            openrac::UiItem::button(text("Host directly")),
+            openrac::UiItem::button(text("Join by address")),
             openrac::UiItem::text(
-                "No server: port " + std::to_string(mp::kDefaultPort) + ", TCP and UDP"
+                text("No server: port ") + std::to_string(mp::kDefaultPort) + text(", TCP and UDP")
             ),
         };
-        hints = mp::kSelectBackHints;
+        hints = text(mp::kSelectBackHints);
     } else {
         const mp::DirectAddress& a = g->address;
-        c.title = "Join " + a.text();
+        c.title = text("Join ") + a.text();
 
         for (std::size_t i = 0; i < a.octets.size(); ++i) {
             c.items.push_back(
-                ring_row("Address part " + std::to_string(i + 1), a.octets[i], mp::kOctetRing)
+                ring_row(text("Address part ") + std::to_string(i + 1), a.octets[i], mp::kOctetRing)
             );
         }
 
-        c.items.push_back(ring_row("Port", a.port, mp::kPortRing));
-        c.items.push_back(ring_row("Port, by 100", a.port, mp::kPortCoarseRing));
-        c.items.push_back(openrac::UiItem::button("Join"));
-        hints = mp::kJoinHints;
+        c.items.push_back(ring_row(text("Port"), a.port, mp::kPortRing));
+        c.items.push_back(ring_row(text("Port, by 100"), a.port, mp::kPortCoarseRing));
+        c.items.push_back(openrac::UiItem::button(text("Join")));
+        hints = text(mp::kJoinHints);
     }
 
     // Before a host or a join, the server's status says nothing of Direct connect.
     const mp::Connection::Mode mode = g->connection->mode();
     const bool linked =
         mode == mp::Connection::Mode::kDirect || mode == mp::Connection::Mode::kHosting;
-    c.footer = {linked ? status() : "Plays without the server"};
+    c.footer = {linked ? status() : text("Plays without the server")};
 
     if (!g->direct_error.empty()) {
-        c.footer.push_back(g->direct_error);
+        c.footer.push_back(mp::localized_notice(g->direct_error, g_language));
     }
 
     c.footer.push_back(hints);
-    g->direct_page.set(c);
+    set_content(g->direct_page, c);
 }
 
 /* The pause menu's Multiplayer page (Options, in a level; menu.hpp's party_lines): the party's code
@@ -129,7 +129,7 @@ void show_pause() {
     in.code = s.code();
 
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
-        in.where = "port " + std::to_string(g->connection->hosting().port);
+        in.where = text("port ") + std::to_string(g->connection->hosting().port);
     } else {
         in.where = g->connection->address();
     }
@@ -149,21 +149,22 @@ void show_pause() {
     in.removes = s.is_host();
 
     openrac::UiContent c;
-    c.title = mp::kPartyPageTitle;
+    c.title = text(mp::kPartyPageTitle);
     g->pause_leave = -1;
     g->pause_rules = -1;
     g->pause_go = -1;
     g->pause_save = -1;
+    g->pause_tools = -1;
     g->pause_rows.clear();
 
     // Where the party's saves go, and saving now, with the party's game on.
     if (g->cosave->on() && s.in_party()) {
         c.items.push_back(openrac::UiItem::text(g->cosave->where()));
         g->pause_save = static_cast<int>(c.items.size());
-        c.items.push_back(openrac::UiItem::button(mp::kSavePartyLabel));
+        c.items.push_back(openrac::UiItem::button(text(mp::kSavePartyLabel)));
     }
 
-    for (const mp::PartyLine& line : mp::party_lines(in)) {
+    for (const mp::PartyLine& line : mp::party_lines(in, g_language)) {
         switch (line.kind) {
             case mp::PartyLine::Kind::kInfo:
                 c.items.push_back(openrac::UiItem::choice_of(line.label, {line.value}, 0));
@@ -190,7 +191,13 @@ void show_pause() {
         }
     }
 
-    g->pause_page.set(c);
+    // Team tools (comfort.hpp): rescue, rally points, the party's health, where there is room.
+    if (s.in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
+        g->pause_tools = static_cast<int>(c.items.size());
+        c.items.push_back(openrac::UiItem::button(text("Team tools")));
+    }
+
+    set_content(g->pause_page, c);
 }
 
 /* Leaves the party (Lobby's and the pause page's Leave): a host of a direct party stops hosting
@@ -215,9 +222,14 @@ void leave_party() {
 void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const mp::Session& s = *g->session;
 
-    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
+    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_tools && g->pause_tools >= 0) {
+        show_comfort();
+        g->comfort_page.open();
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
         const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
-        page.confirm(mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed()), kAskLeave);
+        page.confirm(
+            mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed(), g_language), kAskLeave
+        );
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_save && g->pause_save >= 0) {
         page.sound(g->cosave->save_party() ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_go && g->pause_go >= 0) {

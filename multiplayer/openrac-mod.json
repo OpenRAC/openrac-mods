@@ -4,12 +4,12 @@
   "name": "Multiplayer",
   "version": "0.10.0",
   "author": "Flavius",
-  "description": "Online co-op: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) list the games others host, create one from a save or a new game, join one by its code, or play without a server with Direct connect. The host's Start starts the game for everyone: all play in the host's level, see each other's Ratchets, and share its world (its enemies go for the nearest player, a hit on one counts for all, crates and kills are shared, bolts go to whoever collects them).",
+  "description": "Online co-op: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) list the games others host, create one from a save or a new game, join one by its code, or play without a server with Direct connect. The host's Start starts the game for everyone: all play in the host's level, see each other's Ratchets, and share its world (its enemies go for the nearest player, a hit on one counts for all, crates and kills are shared, bolts go to whoever collects them). Includes co-op rescue, host rally points and a team-tools page in the existing Multiplayer menu, whose pages speak the game's five PAL languages.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/multiplayer",
-  "api": "1.12",
+  "api": "1.14",
   "games": { "rac1": ["pal", "ntsc"] },
-  "hooks": ["rac1.moby.record_death", "rac1.ship.travel_to", "rac1.moby.collect_bolt"],
+  "hooks": ["rac1.moby.record_death", "rac1.ship.travel_to", "rac1.moby.collect_bolt", "rac1.player.take_damage"],
   "settings": [
     {
       "key": "server",

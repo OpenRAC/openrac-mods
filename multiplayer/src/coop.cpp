@@ -16,16 +16,17 @@ namespace mp {
 
 using namespace coop_util;
 
-std::string save_description(const std::string& planet, int gold_bolts, bool new_game) {
+std::string save_description(const std::string& planet, int gold_bolts, bool new_game, Language language) {
     if (new_game) {
-        return "New game";
+        return translated("New game", language);
     }
 
-    std::string text = planet.empty() ? "A save" : planet;
+    std::string text = planet.empty() ? translated("A save", language) : planet;
 
     // The gold bolts say how far a save has come, where the game has no percentage.
     if (gold_bolts > 0) {
-        text += ", " + std::to_string(gold_bolts) + (gold_bolts == 1 ? " gold bolt" : " gold bolts");
+        text += ", " + std::to_string(gold_bolts)
+                + (gold_bolts == 1 ? translated(" gold bolt", language) : translated(" gold bolts", language));
     }
 
     return text;

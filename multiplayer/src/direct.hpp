@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "words.hpp"
+
 namespace mp {
 
 /* A ring row's choices, and where the current value sits among them. */
@@ -83,7 +85,10 @@ struct DirectAddress {
 /* The hosting lobby's lines: "Hosting on <address>:<port>" for each of this machine's addresses,
  * at most `most` of them; "Hosting on port <port>" when it knows none. */
 std::vector<std::string> hosting_lines(
-    const std::vector<std::string>& addresses, int port, std::size_t most
+    const std::vector<std::string>& addresses,
+    int port,
+    std::size_t most,
+    Language language = Language::kEnglish
 );
 
 }  // namespace mp

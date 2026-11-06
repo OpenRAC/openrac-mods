@@ -219,6 +219,21 @@ server's state; leaving a direct party goes back to Home, which tries the server
 | Name | `${player_name}` (the launcher's Multiplayer name) | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty, `${player_name}` or not valid: the launcher's Multiplayer name |
 | Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the game's working directory (beside its `run.log`; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `net` (every 5 seconds, what went through the session so far: DATA frames and state sent, what the buckets held back, the most events queued, then per DATA kind `e` events, `s` state and `r` received as `e7=messages/bytes`), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
 
+## Team tools: rescue and rally points
+
+Since 0.8.0 (experimental). Open **Team tools** in the lobby or **Pause → Options → Multiplayer →
+Team tools**. The page and its notices follow the game's language (Languages, below).
+
+- **Co-op rescue:** with at least two party members, a normal lethal on-foot hit is deferred at one health. Your movement/attack input is blocked while awaiting help; Start and Select remain available. A living teammate on the same level must stay within six game units and hold **L3 + R3** (both stick clicks) continuously for three seconds. Leaving range, releasing the buttons, a scene/menu, a stale connection or a changed target restarts the hold. The host verifies proximity and grants the rescue. Controls return at the retained one health, with two seconds of protection from normal damage. No health or position memory is rewritten and no downed animation is substituted.
+- **Rescue window:** the host selects 10, 20 or 30 seconds for new rescue situations (20 by default). After the deadline, the game's original damage handler receives the deferred final hit on the next active gameplay tick. **Give up** applies it immediately. Falls, crushers and other instant kills retain the original checkpoint behavior, because they bypass the normal hit hook. Solo play, vehicles, scenes and loading never begin a rescue situation. Disabling rescue or losing the last teammate ends an existing wait with the deferred hit when play resumes.
+- **With the Revive setting:** when the host plays with **Revive** on (Playing together, above), a fallen player is that rule's: the lethal hit goes to the game as it is, the hero falls and stays down to be stood over. Co-op rescue then catches nothing, so a player is never down twice for one death; Team tools says the revive rule is on. A change of host (a host who goes, another taking over) ends a rescue wait with the hero still at one health.
+- **Host rally point:** **Mark host position** marks the host's current position for the whole group; members can request it too. The host can disable rally requests or clear the marker. Distance is shown in game units, in the notice and team page. A marker lasts 90 seconds and is cleared when the host changes level or leaves active play. It is a gathering marker, not teleportation.
+- **Team overview:** the same page shows each player's health or need for help. Host settings are read-only for guests. The settings apply to the current running mod session and reset to defaults after restarting OpenRAC.
+
+The public server only routes the opaque DATA; no server change is required. The tools use DATA kind 80 (the wire registry keeps 80 to 83 for them), format version 1 and the party code in every message: presence (life sequence, down/holding flags), host snapshot (monotonic serial, settings, marker and member states), host-only revive grant (target and life sequence) and a rally request without coordinates. Only current party members are accepted; only the host may supply settings, markers and grants. Counts, payload sizes, coordinates, enums, trailing bytes and replayed snapshot/life sequences are checked. Rescue requires fresh heartbeats and live same-level poses, and unknown/malformed packets are ignored. A POSE says when its player is in a menu (flag 8, as 0.8.0 sends it), so a rescue does not progress under a pause menu.
+
+`multiplayer_comfort` simulates three players and covers rescue in both directions, interrupted holds, range/level/menu restrictions, solo/vehicle exclusions, timeouts, give-up, grace, disconnected players, marker expiry/clearing, host permissions, stale connections and wrong-party/replayed/malformed packets. These tests do not establish real gameplay or collision behavior.
+
 ## Mods in a party
 
 Every game of a party plays the same game. So a gameplay mod must be the same in every game: its
@@ -393,7 +408,7 @@ lists co-op saves on their own, under Saves.
 
 ## How it works
 
-The mod needs OpenRAC's mod interface 1.12: 1.7's pages of the game's own menus put the
+The mod needs OpenRAC's mod interface 1.14: 1.7's pages of the game's own menus put the
 **Multiplayer** item in the main menu under Load Game and let the mod say what its pages list
 (the port draws them with the game's widgets), and 1.8's play calls tell it what the game is doing,
 give it the hero's pose, make the figures that stand for the others (mobys of the hero's class
@@ -474,7 +489,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string, joining u8 | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc's world family, the gameplay mods' digest) differs refuses it: "You can't join: your game differs from the host's". `joining`: the game is on and this member comes into it |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8, ship held u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
-| 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing |
+| 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene, 8 in a menu, 16 airborne), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
 | 9 WORLD | the host to a member, as state | level i8, stamp i64, sequence u16, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden; 2: loose, a bolt landed in the host's game, which the member's game now runs as its own) | the 46 mobys that member most needs of those it does not have yet, 7 to 15 times a second (WORLD and lost datagrams, What goes first, above; a landed bolt until it is heard) |
 | 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
@@ -520,6 +535,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 67 KICK | the host, to the member removed | reason u8 (0 removed, 1 banned) | why, ahead of the server's KICKED; with a server that takes no KICK, the member leaves by itself |
 | 71 REVIVE | the host, to a player down | how u8 (0 up where it lies, 1 to its checkpoint) | the revive rule's word |
 | 72 RESTORE | the host | level i8, key u16, class i16, position, yaw i16 | a placed moby back in its level; a game whose copy is gone makes one |
+| 80 COMFORT | everyone to the host; the host to all, or to one | version u8 (1), party code (string), op u8 (1 presence, 2 snapshot, 3 revive grant, 4 rally request), then the op's fields (Team tools, above) | Team tools' rescue and rally points (`src/comfort.hpp`); 81 to 83 kept for them |
 
 A member's game is started from the title with the host's save (`play_start`), its own saves left
 alone; one who joins while the game is on gets the host's progress as it is (`save_capture`),
@@ -618,9 +634,28 @@ that player. Mobys near the members run in the host's game as if near its camera
 - A ban holds a launcher's key, which is the player's own word: a player who changes the key by hand
   gets past it. A game started without the launcher has no key, and can only be removed.
 
+## Languages
+
+The mod's pages, button hints, local save picker, connection status, confirmations and co-op
+notices follow the game's selected language: English, French, German, Spanish or Italian (all
+five PAL languages). Changing the language in Options updates the pages without restarting.
+Unknown language indices use English. The NTSC-U build uses its corresponding language address.
+The translations are original mod text; no text extracted from a game disc is included.
+
+The title and pause menu's entry stays **Multiplayer**: the current SDK only lets a mod register
+these labels during load, before the game initializes its language, and cannot rename them later.
+The page it opens is localized. Launcher setting labels belong to the manifest and remain English.
+Player names, chat and descriptions sent by other hosts are kept as received; this does not
+translate another player's save description. Network messages and diagnostic logs stay unchanged.
+
+`src/words.hpp` contains the five-column UTF-8 catalog. Use only letters supported by the game's
+font and keep each fixed text within `OPENRAC_UI_TEXT_MAX` bytes; dynamic fields are shortened
+without splitting a UTF-8 character. `multiplayer_words` tests the catalog, language mapping,
+connection and party pages, controller glyphs and text limits without a game disc.
+
 ## Building
 
-Built with the repository's other native mods (the top README), with an SDK of interface 1.12 or
+Built with the repository's other native mods (the top README), with an SDK of interface 1.14 or
 newer: until that SDK is released (`sdk.lock` still names 1.11.0), build against OpenRAC's own `sdk/`:
 
 ```sh

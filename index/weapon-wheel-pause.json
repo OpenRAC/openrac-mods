@@ -1,0 +1,19 @@
+{
+  "id": "weapon-wheel-pause",
+  "repo": "https://github.com/momo1212221/weapon-wheel-pause",
+  "path": "",
+  "description": "Native RAC1 quality-of-life mod that pauses Ratchet while the in-game weapon wheel is open and pauses world moby updates when the shared OpenRAC update gate is available, while keeping Quick Select responsive.",
+  "tags": [
+    "qol",
+    "controls",
+    "accessibility"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/momo1212221/weapon-wheel-pause/issues",
+    "docs": "https://github.com/momo1212221/weapon-wheel-pause#readme"
+  }
+}

@@ -12,8 +12,8 @@ namespace mpmod {
 openrac::UiContent rules_content() {
     const bool level = mp::in_level(g->game->status().phase);
     openrac::UiContent c;
-    c.title = mp::kPartyRulesLabel;
-    c.items.push_back(openrac::UiItem::button("Back"));
+    c.title = text(mp::kPartyRulesLabel);
+    c.items.push_back(openrac::UiItem::button(text("Back")));
     const std::vector<std::string> lines = mp::rules_lines(
         g->mods->host_list(),
         g->mods->rules(),
@@ -27,10 +27,10 @@ openrac::UiContent rules_content() {
     // The host's mod code, so that friends can get these mods.
     if (g->session->is_host() && !g->mods->own().modcode.empty()) {
         g->rules_copy = static_cast<int>(c.items.size());
-        c.items.push_back(openrac::UiItem::button(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel));
-        c.items.push_back(openrac::UiItem::text(mp::kModCodeLabel + g->mods->own().modcode));
+        c.items.push_back(openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel)));
+        c.items.push_back(openrac::UiItem::text(text(mp::kModCodeLabel) + g->mods->own().modcode));
     } else if (g->session->is_host() && g->mod_code_long) {
-        c.items.push_back(openrac::UiItem::text(mp::kModCodeInLauncher));
+        c.items.push_back(openrac::UiItem::text(text(mp::kModCodeInLauncher)));
     }
 
     // The bans of this save: only the host's to lift.
@@ -49,23 +49,25 @@ openrac::UiContent rules_content() {
 
     // The host's rule for its ship.
     if (g->coop->hold_party_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
-        c.items.push_back(openrac::UiItem::text("The host's ship waits for you: press Start when ready"));
+        c.items.push_back(openrac::UiItem::text(text("The host's ship waits for you: press Start when ready")));
     }
 
     // The host's rule for its fallen.
     if (g->world->revive_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
-        c.items.push_back(openrac::UiItem::text("Stand over a fallen player to revive them"));
+        c.items.push_back(openrac::UiItem::text(text("Stand over a fallen player to revive them")));
     }
 
     if (!level) {
-        c.footer = {g->session->is_host() ? "Everyone plays by your rules" : "Everyone plays by the host's rules", mp::kBackHints};
+        c.footer = {text(g->session->is_host() ? "Everyone plays by your rules" : "Everyone plays by the host's rules"),
+                    text(mp::kBackHints)};
     }
 
     return c;
 }
 
 void show_rules() {
-    g->rules.set(rules_content());
+    openrac::UiContent c = rules_content();
+    set_content(g->rules, c);
 }
 
 /* The party's rules: Back and Triangle go back to the lobby, or the pause menu's Multiplayer page. */

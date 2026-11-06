@@ -64,6 +64,7 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
           permission-issues: write
+          permission-members: read # to mention the maintainers team
       - name: Bot identity for commits
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}

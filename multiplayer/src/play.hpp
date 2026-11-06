@@ -8,7 +8,8 @@
  * The wire, the POSE kind of the game's DATA (coop.hpp), sent as state (UDP where offered), each
  * game about 20 a second:
  *   kind u8 (7), owner i32 (whose Ratchet), sequence u16, stamp i64 (the server's clock, ms),
- *   level i8, flags u8 (blending 1, teleport 2, in a scene 4), position 3 x f32, rotation 3 x f32,
+ *   level i8, flags u8 (blending 1, teleport 2, in a scene 4, in a menu 8, airborne 0x10),
+ *   position 3 x f32, rotation 3 x f32,
  *   velocity 3 x f32, state i16, health i16, item i16, seq u8, frame u8, next frame u8,
  *   anim time u8 (0 to 255 for 0 to 1), anim speed i16 (thousandths)
  * 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32. Then what the
@@ -72,7 +73,9 @@ constexpr std::uint32_t kPoseSteady = 0x8;
 constexpr std::uint32_t kPoseAirborne = 0x10;
 constexpr std::uint8_t kWireTeleport = 0x2;
 constexpr std::uint8_t kWireScene = 0x4;
-constexpr std::uint8_t kWireAirborne = 0x8;
+/* 0x8 is multiplayer 0.8.0's "in a pause/menu overlay": its peers send it, so it keeps that meaning. */
+constexpr std::uint8_t kWireMenu = 0x8;
+constexpr std::uint8_t kWireAirborne = 0x10;
 
 /* A piece a Ratchet wears or holds (the SDK's openrac_held_piece): the game's slot and which of
  * its mobys, the item, the moby's class, the body's joint it follows, kHeld* flags, where a loose
@@ -127,6 +130,8 @@ struct PoseMessage {
     bool teleport = false;
     /* The sender's game plays a scene (a cutscene, a landing): its player waits on it. */
     bool scene = false;
+    /* The sender is in a pause/menu overlay: status may inspect it, rescue may not progress. */
+    bool menu = false;
     Pose pose;
     /* A member's word on WORLD: the newest sequence heard and, bit n, whether the one n + 1 before
      * it was. */

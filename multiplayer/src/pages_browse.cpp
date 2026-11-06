@@ -20,15 +20,15 @@ bool row_differs(const mp::Listing& l) {
 std::string party_row(const mp::Listing& l) {
     const std::string description = mp::plain_description(l.description);
     const std::string count = " " + std::to_string(l.members) + "/" + std::to_string(l.size)
-                              + (row_differs(l) ? " (differs)" : "");
-    std::string text = l.host + (description.empty() ? "" : " - " + description);
+                              + (row_differs(l) ? text(" (differs)") : "");
+    std::string row = l.host + (description.empty() ? "" : " - " + description);
     const std::size_t room = OPENRAC_UI_TEXT_MAX - count.size();
 
-    if (text.size() > room) {
-        text = text.substr(0, room - 3) + "...";
+    if (row.size() > room) {
+        row = mp::fit_ui_text(row, room);
     }
 
-    return text + count;
+    return row + count;
 }
 
 }  // namespace
@@ -37,8 +37,8 @@ std::string party_row(const mp::Listing& l) {
 void show_browse() {
     const mp::Session& s = *g->session;
     openrac::UiContent c;
-    c.title = "Browse games";
-    c.items.push_back(openrac::UiItem::button("Refresh", s.greeted()));
+    c.title = text("Browse games");
+    c.items.push_back(openrac::UiItem::button(text("Refresh"), s.greeted()));
     const std::vector<mp::Listing>& parties = s.parties();
     bool differs = false;
 
@@ -50,7 +50,8 @@ void show_browse() {
     if (parties.empty()) {
         c.items.push_back(
             openrac::UiItem::text(
-                s.lists() == 0 ? "Asking the server..." : "No games are hosted: Create match hosts one"
+                s.lists() == 0 ? text("Asking the server...")
+                               : text("No games are hosted: Create match hosts one")
             )
         );
     }
@@ -58,11 +59,11 @@ void show_browse() {
     c.footer = {status()};
 
     if (differs) {
-        c.footer.push_back("(differs): needs other mods or settings");
+        c.footer.push_back(text("(differs): needs other mods or settings"));
     }
 
-    c.footer.push_back(mp::kSelectBackHints);
-    g->browse.set(c);
+    c.footer.push_back(text(mp::kSelectBackHints));
+    set_content(g->browse, c);
 }
 
 /* Browse's events: the list asked for when it shows and every few seconds; Refresh asks at once;

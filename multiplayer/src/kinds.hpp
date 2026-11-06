@@ -8,14 +8,15 @@
  * (static_asserts below, and tests/kinds_test.cpp over the whole table). A feature that adds a
  * message takes its numbers from its own range only; one that runs out asks the lead to widen the
  * range here. The enums of each file (session.hpp's LobbyKind, coop.hpp's GameKind, world.hpp's
- * WorldKind, party_mods.hpp's ModsKind, progress.hpp's kProgressKind) take their values from the
- * `kind::` names, so a number is written once.
+ * WorldKind, party_mods.hpp's ModsKind, progress.hpp's kProgressKind, comfort.hpp's kComfortKind)
+ * take their values from the `kind::` names, so a number is written once.
  *
  * Reserved ranges (free until their package lands):
  *    36-39 shared progress, 44-47 late join, 48-51 shots,
  *    52-55 camera (54 and 55 free), 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
- *    64-67), 71-72 the world's second range; free: 0, 73-127 (and 128-255, which the wire does not
- *    use). Late join uses 44 to 46 (47 is free).
+ *    64-67), 71-72 the world's second range, 80-83 the team tools (comfort.hpp: rescue, rally
+ *    points; 80 is multiplayer 0.8.0's, 81-83 free); free: 0, 73-79, 84-127 (and 128-255, which
+ *    the wire does not use). Late join uses 44 to 46 (47 is free).
  *
  * Routing: Router::dispatch looks the owner of the first byte up in the table and calls what that
  * owner registered; a kind nobody registered goes to the fallback (the co-op), as a DATA the
@@ -47,6 +48,7 @@ enum class Owner : std::uint8_t {
     kCamera,
     kTether,
     kPartyRules,
+    kComfort,
     kCount
 };
 
@@ -119,6 +121,8 @@ constexpr std::uint8_t kSharedAsk = 38;
 // Grabs (world.hpp; read by the World)
 constexpr std::uint8_t kHold = 56;
 constexpr std::uint8_t kRelease = 57;
+// Team tools: rescue and rally points (comfort.hpp), one kind whose op byte says what it is
+constexpr std::uint8_t kComfort = 80;
 }  // namespace kind
 
 /* One kind in use. */
@@ -192,6 +196,7 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kLinks, "LINKS", Owner::kLobby},
     {kind::kBatch, "BATCH", Owner::kLobby},
     {kind::kKick, "KICK", Owner::kLobby},
+    {kind::kComfort, "COMFORT", Owner::kComfort},
 };
 
 /* Kinds 4 to 31 are shared out one by one (the owners interleave there); the rest are ranges.
@@ -206,9 +211,10 @@ inline constexpr KindRange kReservedRanges[] = {
     {60, 63, Owner::kPartyRules},
     {64, 70, Owner::kLobby},
     {71, 72, Owner::kWorld},
+    {80, 83, Owner::kComfort},
 };
 
-/* A kind's owner; kCount for a number nobody holds (0 and 71 on). */
+/* A kind's owner; kCount for a number nobody holds (0, 73 to 79, and 84 on). */
 constexpr Owner owner_of(std::uint8_t value) {
     for (const KindInfo& k : kKinds) {
         if (k.value == value) {

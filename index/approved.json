@@ -1,5 +1,42 @@
 {
+  "accessibility-pack": [
+    "0.1.0",
+    "0.2.0"
+  ],
+  "better-pause-menu": [
+    "0.1.0",
+    "0.8.7"
+  ],
+  "cutscene-manager": [
+    "0.1.0",
+    "0.2.0"
+  ],
+  "damage-numbers": [
+    "0.7.1"
+  ],
+  "debug-menu": [
+    "1.0.0",
+    "1.0.1"
+  ],
+  "fast-travel": [
+    "0.1.0",
+    "0.3.0"
+  ],
+  "modern-controls": [
+    "0.3.0",
+    "0.3.3"
+  ],
   "rac-board": [
     "0.2.0"
+  ],
+  "save-manager": [
+    "0.1.0",
+    "0.2.0"
+  ],
+  "steam-deck-pack": [
+    "0.3.0"
+  ],
+  "weapon-wheel-pause": [
+    "0.1.0"
   ]
 }

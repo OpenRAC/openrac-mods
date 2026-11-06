@@ -149,7 +149,7 @@ again for a few ticks, over the banner the game's own code shows next for the it
 | `Moby_Class22_Update`, `Ship_InitTransition` | `rac1.moby.moby22.update`, `rac1.ship.init_transition` | Orxon starts Clank's part only without the O2 Mask: these two see none until it is done |
 | `Help_Request` | `rac1.help.request` | a tutorial of the item the game thinks it gave is left out when it gave another |
 
-`Help_Request` and `Ship_InitTransition` need an OpenRAC of interface 1.12; an older one refuses to
+`Help_Request` and `Ship_InitTransition` need an OpenRAC of interface 1.14; an older one refuses to
 load the mod and says which hook point it lacks.
 
 **The fill.** The rewards that open the way (the gadgets some place needs, and the planets'

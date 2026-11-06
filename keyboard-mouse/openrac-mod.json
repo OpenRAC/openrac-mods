@@ -345,7 +345,7 @@
       "type": "keybind",
       "default": "KeyE",
       "group": "menu",
-      "description": "Circle in menus, where a page reads it: the Quit page's quit, a value stepped back. On the map, Enter and a click already travel."
+      "description": "Circle in menus and dialogs, where the game asks for it: yes to creating save data or formatting a memory card, the Quit page's quit, a value stepped back. On the map, Enter and a click already travel."
     }
   ],
   "presets": [

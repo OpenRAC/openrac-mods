@@ -1,0 +1,17 @@
+{
+  "id": "damage-numbers",
+  "repo": "https://github.com/LucienTo/OpenRAC-Damage-Numbers",
+  "path": "",
+  "description": "Damage numbers for Ratchet & Clank. Every hit, from the wrench and weapons, shows how much damage it did: a number pops up where the hit landed, tilts and flies off in its own direction, and fades out. Yellow for a hit, orange when hits add up, red for the one that kills.",
+  "tags": [
+    "ui",
+    "cosmetic"
+  ],
+  "impact": [
+    "cosmetic"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/LucienTo/OpenRAC-Damage-Numbers/issues"
+  }
+}

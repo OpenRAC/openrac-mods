@@ -36,26 +36,29 @@ openrac::UiContent remove_content() {
     const mp::Member* m = member_of(g->remove_member);
     const bool level = mp::in_level(g->game->status().phase);
     openrac::UiContent c;
-    c.title = m != nullptr ? "Remove " + m->name : "Remove a player";
-    c.items.push_back(openrac::UiItem::button(mp::kRemoveLabel, m != nullptr));
-    c.items.push_back(openrac::UiItem::button(mp::kBanLabel, m != nullptr && !g->mods->key(g->remove_member).empty()));
-    c.items.push_back(openrac::UiItem::button("Back"));
+    c.title = m != nullptr ? text("Remove ") + m->name : text("Remove a player");
+    c.items.push_back(openrac::UiItem::button(text(mp::kRemoveLabel), m != nullptr));
+    c.items.push_back(
+        openrac::UiItem::button(text(mp::kBanLabel), m != nullptr && !g->mods->key(g->remove_member).empty())
+    );
+    c.items.push_back(openrac::UiItem::button(text("Back")));
 
     if (!g->session->direct()) {
-        c.items.push_back(openrac::UiItem::text(mp::kRemoveNote));
+        c.items.push_back(openrac::UiItem::text(text(mp::kRemoveNote)));
     }
 
-    c.items.push_back(openrac::UiItem::text(mp::kBanNote));
+    c.items.push_back(openrac::UiItem::text(text(mp::kBanNote)));
 
     if (!level) {
-        c.footer = {status(), mp::kBackHints};
+        c.footer = {status(), text(mp::kBackHints)};
     }
 
     return c;
 }
 
 void show_remove() {
-    g->remove.set(remove_content());
+    openrac::UiContent c = remove_content();
+    set_content(g->remove, c);
 }
 
 void open_remove(std::int32_t member) {

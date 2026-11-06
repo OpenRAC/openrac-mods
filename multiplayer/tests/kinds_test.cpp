@@ -73,16 +73,27 @@ void the_plans_ranges_are_held_by_their_owners() {
     // The lobby's, all read by the Session and never handed to the game's data.
     CHECK(mp::owner_of(64) == Owner::kLobby && mp::owner_of(67) == Owner::kLobby && mp::owner_of(70) == Owner::kLobby);
     CHECK(mp::owner_of(71) == Owner::kWorld && mp::owner_of(72) == Owner::kWorld);
-    // Free: 0 and 73 on.
+    // The team tools' (comfort.hpp): 80 is multiplayer 0.8.0's kind, 81 to 83 kept for them.
+    CHECK(mp::kind::kComfort == 80);
+    CHECK(mp::owner_of(80) == Owner::kComfort && mp::owner_of(83) == Owner::kComfort);
+    // Free: 0, 73 to 79 and 84 on.
     CHECK(mp::owner_of(0) == Owner::kCount);
-    CHECK(mp::owner_of(73) == Owner::kCount && mp::owner_of(127) == Owner::kCount);
+    CHECK(mp::owner_of(73) == Owner::kCount && mp::owner_of(79) == Owner::kCount);
+    CHECK(mp::owner_of(84) == Owner::kCount && mp::owner_of(127) == Owner::kCount);
 }
 
-/* The chain the registry replaced: the lobby's kinds (session.cpp), then mods 29 to 31, the
- * world's 9 to 17, 22, 24, 26 to 28, 71 and 72, progress 23, and the co-op for the rest. */
+/* The chain the registry replaced: the lobby's kinds (session.cpp), then the team tools' 80
+ * (multiplayer 0.8.0's chain tested it first), mods 29 to 31, the world's 9 to 17, 22, 24, 26 to
+ * 28, 71 and 72, progress 23, and the co-op for the rest. */
 Owner old_route(std::uint8_t k) {
     if ((k >= 1 && k <= 3) || k == 64 || k == 65 || k == 66) {
         return Owner::kLobby;
+    }
+
+    // The team tools' range: 81 to 83 reach Comfort::handle too, which drops what it does not
+    // know, as the co-op dropped them before.
+    if (k >= 80 && k <= 83) {
+        return Owner::kComfort;
     }
 
     if (k >= 29 && k <= 31) {
@@ -105,7 +116,7 @@ void the_router_sends_every_kind_where_the_old_chain_did() {
     std::vector<Owner> got;
     Owner reached = Owner::kCount;
 
-    for (const Owner o : {Owner::kMods, Owner::kWorld, Owner::kProgress}) {
+    for (const Owner o : {Owner::kMods, Owner::kWorld, Owner::kProgress, Owner::kComfort}) {
         router.route(o, [&reached, o](std::int32_t, const std::vector<std::uint8_t>&) { reached = o; });
     }
 

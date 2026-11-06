@@ -28,13 +28,13 @@ openrac::UiContent lobby_content() {
     // game is on, back in the title, joins it again.
     const bool title = g->game->status().phase == mp::kPhaseFrontEnd;
     const bool rejoin = !s.is_host() && g->coop->playing() && title;
-    const std::string first = s.is_host()           ? (g->coop->starts_again() ? "Start again" : "Start")
-                              : refused()           ? "See why you can't join"
-                              : g->mods->host_silent() ? "The host's game is too old"
-                              : checking()          ? "Checking your mods..."
-                              : rejoin              ? "Join the game"
-                              : s.ready(s.id())     ? "Not ready"
-                                                    : "Ready";
+    const std::string first = s.is_host()              ? text(g->coop->starts_again() ? "Start again" : "Start")
+                              : refused()              ? text("See why you can't join")
+                              : g->mods->host_silent() ? text("The host's game is too old")
+                              : checking()             ? text("Checking your mods...")
+                              : rejoin                 ? text("Join the game")
+                              : s.ready(s.id())        ? text("Not ready")
+                                                       : text("Ready");
     // Start waits for every member's Ready: dim until then, and the port refuses it.
     const bool can = s.is_host()  ? g->coop->can_start()
                      : refused()  ? true
@@ -43,9 +43,12 @@ openrac::UiContent lobby_content() {
                                   : !s.started();
     c.items = {
         openrac::UiItem::button(first, can),
-        openrac::UiItem::button("Leave"),
-        openrac::UiItem::button(mp::kPartyRulesLabel),
+        openrac::UiItem::button(text("Leave")),
+        openrac::UiItem::button(text(mp::kPartyRulesLabel)),
     };
+    // Team tools (comfort.hpp), after the buttons above: its item is counted, never assumed.
+    g->lobby_tools = static_cast<int>(c.items.size());
+    c.items.push_back(openrac::UiItem::button(text("Team tools")));
     // Why a member cannot play, for the host.
     std::vector<std::string> why;
 
@@ -59,7 +62,7 @@ openrac::UiContent lobby_content() {
 
     // Where the party is: its code, or for a direct one, where it is hosted.
     if (!s.direct()) {
-        c.title = "Party " + s.code();
+        c.title = text("Party ") + s.code();
     } else if (g->connection->mode() == mp::Connection::Mode::kHosting) {
         const mp::HostingStatus h = g->connection->hosting();
         // The room left past the buttons, the lines above, the members and the count line, plus
@@ -67,30 +70,30 @@ openrac::UiContent lobby_content() {
         const std::size_t used = c.items.size() + why.size() + s.members().size() + 2;
         const std::size_t room =
             1 + (OPENRAC_UI_ITEMS_MAX > used ? OPENRAC_UI_ITEMS_MAX - used : 0);
-        const std::vector<std::string> lines = mp::hosting_lines(h.addresses, h.port, room);
+        const std::vector<std::string> lines = mp::hosting_lines(h.addresses, h.port, room, g_language);
         c.title = lines[0];
 
         for (std::size_t i = 1; i < lines.size(); ++i) {
             c.items.push_back(openrac::UiItem::text(lines[i]));
         }
     } else {
-        c.title = "Party at " + g->connection->address();
+        c.title = text("Party at ") + g->connection->address();
     }
 
     // What the party plays: the host's save (or a new game), as its INFO said.
     const std::string playing = s.is_host() ? g->coop->description() : mp::plain_description(s.description());
 
     if (!playing.empty()) {
-        c.items.push_back(openrac::UiItem::text("Playing: " + playing));
+        c.items.push_back(openrac::UiItem::text(text("Playing: ") + playing));
     }
 
     if (g->coop->receiving()) {
-        c.items.push_back(openrac::UiItem::text("Receiving the host's game..."));
+        c.items.push_back(openrac::UiItem::text(text("Receiving the host's game...")));
     }
 
     // Where its saves go: never over a player's own.
     if (g->game->has_card_filter() && c.items.size() + s.members().size() + why.size() + 1 < OPENRAC_UI_ITEMS_MAX) {
-        c.items.push_back(openrac::UiItem::text(mp::kCoSavesLine));
+        c.items.push_back(openrac::UiItem::text(text(mp::kCoSavesLine)));
     }
 
     g->lobby_rows.clear();
@@ -107,9 +110,9 @@ openrac::UiContent lobby_content() {
         // The host's way to anyone who holds the party up.
         if (s.is_host() && m.id != s.id()) {
             g->lobby_rows.emplace_back(static_cast<int>(c.items.size()), m.id);
-            c.items.push_back(openrac::UiItem::button(mp::lobby_member_line(line)));
+            c.items.push_back(openrac::UiItem::button(mp::lobby_member_line(line, g_language)));
         } else {
-            c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line)));
+            c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line, g_language)));
         }
     }
 
@@ -120,25 +123,26 @@ openrac::UiContent lobby_content() {
     const std::string ping = s.has_clock() ? ", ping " + std::to_string(s.rtt_ms()) + " ms" : "";
     // The host is told why Start is dim (on the count line: the list is full with four members).
     const std::string waiting =
-        s.is_host() && !s.started() && title && !s.all_ready() ? ", not all ready" : "";
+        s.is_host() && !s.started() && title && !s.all_ready() ? text(", not all ready") : "";
     c.items.push_back(
         openrac::UiItem::text(
-            std::to_string(s.members().size()) + " of " + std::to_string(mp::kMaxPartySize)
-            + " players" + ping + waiting
+            std::to_string(s.members().size()) + text(" of ") + std::to_string(mp::kMaxPartySize)
+            + text(" players") + ping + waiting
         )
     );
 
-    c.footer = {status(), mp::kSelectLeaveHints};
+    c.footer = {status(), text(mp::kSelectLeaveHints)};
 
     if (!g->lobby_rows.empty()) {
-        c.footer.insert(c.footer.begin() + 1, mp::kRemoveHint);
+        c.footer.insert(c.footer.begin() + 1, text(mp::kRemoveHint));
     }
 
     return c;
 }
 
 void show_lobby() {
-    g->lobby.set(lobby_content());
+    openrac::UiContent c = lobby_content();
+    set_content(g->lobby, c);
 }
 
 /* Lobby's events: Ready or Start, and Leave or Triangle asking first; out of the party, back. A
@@ -150,7 +154,10 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
                               || g->connection->mode() == mp::Connection::Mode::kDirect;
 
     // Ready or Start; Leave and Triangle ask before the party is left.
-    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kReadyItem) {
+    if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->lobby_tools && g->lobby_tools >= 0) {
+        show_comfort();
+        g->comfort_page.open();
+    } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kReadyItem) {
         g->notice.clear();
 
         // The host starts the game for everyone; a member says it is ready, or no longer, and one
@@ -177,7 +184,7 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
                                : !s.is_host() ? "Leave the party?"
                                : g->migrate->followed() ? "Leave the party? Another player takes over."
                                                         : "Leave the party? It ends for everyone.";
-        page.confirm(question, kAskLeave);
+        page.confirm(text(question), kAskLeave);
     } else if (e.is(OPENRAC_UI_ANSWER) && e.tag() == kAskLeave && e.value() == 1) {
         leave_party();
     }

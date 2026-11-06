@@ -14,6 +14,7 @@ void pose_bytes() {
     m.sequence = 0xABCD;
     m.stamp_ms = 123456789012LL;
     m.teleport = true;
+    m.menu = true;
     m.pose.level = 11;
     m.pose.position[0] = 1.5f;
     m.pose.position[2] = -20.25f;
@@ -33,7 +34,8 @@ void pose_bytes() {
     CHECK(b.size() == mp::kPoseBytes + 1 && b[0] == mp::kPoseKind);
     mp::PoseMessage r;
     CHECK(mp::decode_pose(b, r));
-    CHECK(r.owner == 7 && r.sequence == 0xABCD && r.stamp_ms == 123456789012LL && r.teleport);
+    CHECK(r.owner == 7 && r.sequence == 0xABCD && r.stamp_ms == 123456789012LL && r.teleport
+          && r.menu && !r.scene);
     CHECK(r.pose.level == 11 && r.pose.position[0] == 1.5f && r.pose.position[2] == -20.25f);
     CHECK(r.pose.rotation[2] == 3.0f && r.pose.velocity[1] == 4.0f && r.pose.state == 2);
     CHECK(r.pose.health == 8 && r.pose.item == -1 && r.pose.seq == 41 && r.pose.frame == 7);
@@ -52,6 +54,39 @@ void pose_bytes() {
     CHECK(!mp::sequence_newer(5, 5) && mp::sequence_newer(6, 5));
     // Angles the short way round.
     CHECK(std::fabs(mp::lerp_angle(3.0f, -3.0f, 0.5f) - 3.1416f) < 0.01f);
+
+    // A remote's pose is there for Team tools while fresh, and in a menu or a scene only when asked.
+    mp::Remote remote;
+    remote.poses.add(pose_at(1), 1, 1000, 1000, false);
+    CHECK(mp::remote_pose_available(remote, 1500, false));
+    remote.menu = true;
+    CHECK(!mp::remote_pose_available(remote, 1500, false));
+    CHECK(mp::remote_pose_available(remote, 1500, true));
+    remote.menu = false;
+    remote.scene = true;
+    CHECK(!mp::remote_pose_available(remote, 1500, false));
+    remote.scene = false;
+    CHECK(!mp::remote_pose_available(remote, 2001, false));
+}
+
+/* The flags byte (after kind, owner, sequence, stamp and level): 0x8 is multiplayer 0.8.0's "in a
+ * menu", which its peers send; airborne is 0x10. Both read back, each on its own. */
+void pose_flags_keep_0_8_0s_menu_bit() {
+    constexpr std::size_t kFlagsAt = 1 + 4 + 2 + 8 + 1;
+    CHECK(mp::kWireMenu == 0x8 && mp::kWireAirborne == 0x10);
+    mp::PoseMessage m;
+    m.menu = true;
+    m.pose.flags = mp::kPoseAirborne;
+    Bytes b = mp::encode_pose(m);
+    CHECK(b[kFlagsAt] == (mp::kWireMenu | mp::kWireAirborne));
+    mp::PoseMessage r;
+    CHECK(mp::decode_pose(b, r) && r.menu && r.pose.flags == mp::kPoseAirborne);
+    // A 0.8.0 peer in its pause menu: menu, not airborne.
+    b[kFlagsAt] = mp::kWireMenu;
+    CHECK(mp::decode_pose(b, r) && r.menu && r.pose.flags == 0);
+    // Airborne alone is no menu.
+    b[kFlagsAt] = mp::kWireAirborne;
+    CHECK(mp::decode_pose(b, r) && !r.menu && r.pose.flags == mp::kPoseAirborne);
 }
 
 
@@ -711,6 +746,7 @@ void recorded_poses_replay_smoothly() {
 
 void run_poses_tests() {
     pose_bytes();
+    pose_flags_keep_0_8_0s_menu_bit();
     held_and_shot_bytes();
     shotx_bytes();
     held_item_animation_runs_on();

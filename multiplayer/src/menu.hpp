@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "connection.hpp"
+#include "words.hpp"
 
 namespace mp {
 
@@ -59,7 +60,7 @@ inline bool server_loop_wanted(Connection::Mode mode) {
 
 /* The status line: the connection, or the last notice. Short: kFooterMax characters or fewer
  * (an address is at most 21: "255.255.255.255:65535"). */
-inline std::string status_text(const StatusInput& in) {
+inline std::string status_text(const StatusInput& in, Language language = Language::kEnglish) {
     using Mode = Connection::Mode;
     using State = Connection::State;
     const bool direct = in.mode == Mode::kDirect;
@@ -67,56 +68,63 @@ inline std::string status_text(const StatusInput& in) {
     // Hosting is connected from the start; nothing linked is the moment after a failed host.
     if (in.mode == Mode::kHosting) {
         if (!in.notice.empty()) {
-            return in.notice;
+            return localized_notice(in.notice, language);
         }
 
-        return "Hosting on port " + std::to_string(in.hosting_port)
-               + (in.hosting_udp ? "" : ", TCP only");
+        return translated("Hosting on port ", language) + std::to_string(in.hosting_port)
+               + (in.hosting_udp ? "" : translated(", TCP only", language));
     } else if (in.mode == Mode::kNone) {
-        return "Not connected";
+        return translated("Not connected", language);
     }
 
     switch (in.state) {
         case State::kIdle:
         case State::kConnecting:
-            return direct ? "Joining " + in.address : "Connecting...";
+            return direct ? translated("Joining ", language) + in.address
+                          : translated("Connecting...", language);
         case State::kUnreachable:
-            return direct ? "Host unreachable" : "Server unreachable";
+            return direct ? translated("Host unreachable", language)
+                          : translated("Server unreachable", language);
         case State::kLost:
-            return direct ? "The host went away" : "The server went away";
+            return direct ? translated("The host went away", language)
+                          : translated("The server went away", language);
         case State::kConnected:
             break;
     }
 
     // Connected: a notice first, then what is going on.
     if (!in.notice.empty()) {
-        return in.notice;
+        return localized_notice(in.notice, language);
     }
 
     if (!in.greeted) {
-        return "Connected, saying hello...";
+        return translated("Connected, saying hello...", language);
     }
 
     if (in.waiting) {
-        return "Waiting for the server...";
+        return translated("Waiting for the server...", language);
     }
 
-    return direct ? "Joined " + in.address : "Connected to the server";
+    return direct ? translated("Joined ", language) + in.address
+                  : translated("Connected to the server", language);
 }
 
 /* Why the party went, for Home's status line when the player is brought back to it: nothing when
  * the player left it (or stopped hosting), the session's word when it said one (the host ended
  * it), the link that went (`lost`: the direct host's, or the server's), else that it is over. */
-inline std::string leave_reason(bool left, bool lost, bool direct, const std::string& notice) {
+inline std::string leave_reason(
+    bool left, bool lost, bool direct, const std::string& notice, Language language = Language::kEnglish
+) {
     if (left) {
         return "";
     } else if (!notice.empty()) {
-        return notice;
+        return localized_notice(notice, language);
     } else if (lost) {
-        return direct ? "The host went away" : "The server went away";
+        return direct ? translated("The host went away", language)
+                      : translated("The server went away", language);
     }
 
-    return "The party is over";
+    return translated("The party is over", language);
 }
 
 /* ---- The pause menu's Multiplayer page (Options, in a level) ---- */
@@ -179,35 +187,39 @@ constexpr const char* kSavePartyLabel = "Save the party";
 /* The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
  * host's level, a line per member (the host marked, the player's own), then Go to host (a member
  * in the host's level), Party rules and Leave party. */
-inline std::vector<PartyLine> party_lines(const PartyPageInput& in) {
+inline std::vector<PartyLine> party_lines(const PartyPageInput& in, Language language = Language::kEnglish) {
     using Kind = PartyLine::Kind;
 
     if (!in.in_party) {
-        return {{Kind::kText, "Not in a party", ""}};
+        return {{Kind::kText, translated("Not in a party", language), ""}};
     }
 
     std::vector<PartyLine> lines;
     lines.push_back(
-        in.direct ? PartyLine{Kind::kInfo, "Direct", in.where}
-                  : PartyLine{Kind::kInfo, "Party code", in.code}
+        in.direct ? PartyLine{Kind::kInfo, translated("Direct", language), in.where}
+                  : PartyLine{Kind::kInfo, translated("Party code", language), in.code}
     );
-    lines.push_back({Kind::kInfo, "Host's level", in.host_level.empty() ? "None" : in.host_level});
+    lines.push_back(
+        {Kind::kInfo,
+         translated("Host's level", language),
+         in.host_level.empty() ? translated("None", language) : in.host_level}
+    );
 
     for (const PartyMemberLine& m : in.members) {
-        const std::string mark = m.host && m.you ? " (host, you)"
-                                 : m.host        ? " (host)"
-                                 : m.you         ? " (you)"
+        const std::string mark = m.host && m.you ? translated(" (host, you)", language)
+                                 : m.host        ? translated(" (host)", language)
+                                 : m.you         ? translated(" (you)", language)
                                                  : "";
         const bool others = in.removes && !m.you && !m.host;
         lines.push_back({others ? Kind::kMember : Kind::kInfo, m.name + mark, link_text(m.ping_ms, m.udp), others ? m.id : 0});
     }
 
     if (in.go_to_host) {
-        lines.push_back({Kind::kGoToHost, kGoToHostLabel, ""});
+        lines.push_back({Kind::kGoToHost, translated(kGoToHostLabel, language), ""});
     }
 
-    lines.push_back({Kind::kRules, kPartyRulesLabel, ""});
-    lines.push_back({Kind::kLeave, kLeavePartyLabel, ""});
+    lines.push_back({Kind::kRules, translated(kPartyRulesLabel, language), ""});
+    lines.push_back({Kind::kLeave, translated(kLeavePartyLabel, language), ""});
     return lines;
 }
 
@@ -222,13 +234,13 @@ struct LobbyMemberInput {
     bool checking = false;
 };
 
-inline std::string lobby_member_line(const LobbyMemberInput& m) {
-    const char* state = m.host       ? " (host)"
-                        : m.differs  ? " (mods differ)"
-                        : m.checking ? " (checking mods)"
-                        : m.ready    ? " (ready)"
-                                     : " (not ready, mods match)";
-    const std::string end = std::string(state) + (m.you ? " - you" : "");
+inline std::string lobby_member_line(const LobbyMemberInput& m, Language language = Language::kEnglish) {
+    const char* state = m.host       ? translated(" (host)", language)
+                        : m.differs  ? translated(" (mods differ)", language)
+                        : m.checking ? translated(" (checking mods)", language)
+                        : m.ready    ? translated(" (ready)", language)
+                                     : translated(" (not ready, mods match)", language);
+    const std::string end = std::string(state) + (m.you ? translated(" - you", language) : "");
     // A long name gives way: what the line says of the player is what it is for.
     return m.name.substr(0, kWhyLineMax - end.size()) + end;
 }
@@ -261,8 +273,18 @@ constexpr const char* kBackHints = "\x10 Select   \x12 Back";
 
 /* The question Leave party asks, short for the page's title box: the host leaving (or stopping a
  * direct party it hosts) ends the party for everyone. */
-inline const char* pause_leave_question(bool hosting, bool host, bool followed = false) {
-    return hosting ? "Stop hosting?" : !host ? "Leave the party?" : followed ? "Leave the party? Another player takes over." : "End the party?";
+inline const char* pause_leave_question(
+    bool hosting, bool host, bool followed = false, Language language = Language::kEnglish
+) {
+    return hosting     ? translated("Stop hosting?", language)
+           : !host     ? translated("Leave the party?", language)
+           : followed  ? translated("Leave the party? Another player takes over.", language)
+                       : translated("End the party?", language);
+}
+
+/* The same, in `language`, for a host no other player follows. */
+inline const char* pause_leave_question(bool hosting, bool host, Language language) {
+    return pause_leave_question(hosting, host, false, language);
 }
 
 }  // namespace mp

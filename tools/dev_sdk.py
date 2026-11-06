@@ -6,7 +6,7 @@
     python3 tools/dev_sdk.py
 
 Prints the SDK's folder, for -DOPENRAC_SDK. Without a `dev_ref`, runs tools/fetch_sdk.py as usual.
-Delete `dev_ref` when SDK 1.12.0 is tagged and pinned; this file can go with it. Stdlib only.
+Delete `dev_ref` when SDK 1.14.0 is tagged and pinned; this file can go with it. Stdlib only.
 """
 from __future__ import annotations
 

@@ -15,17 +15,17 @@ openrac::UiContent refused_content() {
         s.in_party() ? g->mods->differences() : mp::solo_mods(g->mods->own());
     const bool solo = !mp::solo_mods(g->mods->own()).empty();
     openrac::UiContent c;
-    c.title = s.in_party() ? "You can't join this game" : "You can't play in a party";
-    c.items.push_back(openrac::UiItem::button(s.in_party() ? mp::kLeavePartyLabel : "Back"));
+    c.title = s.in_party() ? text("You can't join this game") : text("You can't play in a party");
+    c.items.push_back(openrac::UiItem::button(s.in_party() ? text(mp::kLeavePartyLabel) : text("Back")));
 
     // The host's mod code: what gets this game the host's mods.
     const std::string code = s.in_party() ? g->mods->host_list().modcode : "";
 
     if (!code.empty()) {
-        c.items.push_back(openrac::UiItem::button(mp::kOpenInLauncher));
-        c.items.push_back(openrac::UiItem::button(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel));
-        c.items.push_back(openrac::UiItem::text(mp::kModCodeLabel + code));
-        c.items.push_back(openrac::UiItem::text(mp::kModCodeHint));
+        c.items.push_back(openrac::UiItem::button(text(mp::kOpenInLauncher)));
+        c.items.push_back(openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel)));
+        c.items.push_back(openrac::UiItem::text(text(mp::kModCodeLabel) + code));
+        c.items.push_back(openrac::UiItem::text(text(mp::kModCodeHint)));
     }
 
     for (const std::string& line : mp::refusal_lines(differences)) {
@@ -36,12 +36,14 @@ openrac::UiContent refused_content() {
         c.items.push_back(openrac::UiItem::text(line));
     }
 
-    c.footer = {solo ? mp::kSoloHint1 : mp::kMatchHint1, solo ? mp::kSoloHint2 : mp::kMatchHint2, mp::kBackHints};
+    c.footer = {text(solo ? mp::kSoloHint1 : mp::kMatchHint1), text(solo ? mp::kSoloHint2 : mp::kMatchHint2),
+                text(mp::kBackHints)};
     return c;
 }
 
 void show_refused() {
-    g->refused.set(refused_content());
+    openrac::UiContent c = refused_content();
+    set_content(g->refused, c);
 }
 
 /* The page of why a game is refused: Leave party (or Back, out of one); Triangle goes back to the
