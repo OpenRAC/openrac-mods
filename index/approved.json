@@ -8,6 +8,9 @@
   "rac-board": [
     "0.2.0"
   ],
+  "save-manager": [
+    "0.1.0"
+  ],
   "steam-deck-pack": [
     "0.3.0"
   ]
