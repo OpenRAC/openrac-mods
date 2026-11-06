@@ -349,6 +349,27 @@ void Host::close_all() {
         }
 
         if (p->fd != kNoSocket) {
+            // A close with the client's frames unread resets the connection (Windows always),
+            // and a reset throws away what the client has not read yet: END among it. So the
+            // sending side is shut first and what still comes in is read away until the client
+            // closes or the flush time is up.
+            shutdown_send(p->fd);
+            char sink[4096];
+
+            while (!p->local && steady_ns() < until) {
+                pollfd_t fd{};
+                fd.fd = p->fd;
+                fd.events = POLLIN;
+
+                if (poll_sockets(&fd, 1, 10) <= 0) {
+                    continue;
+                }
+
+                if (recv(p->fd, sink, static_cast<int>(sizeof sink), 0) <= 0) {
+                    break;
+                }
+            }
+
             close_socket(p->fd);
             p->fd = kNoSocket;
         }

@@ -37,6 +37,11 @@ inline void close_socket(socket_t fd) {
     closesocket(fd);
 }
 
+/* No more to send: the peer reads what was sent, then the end. */
+inline void shutdown_send(socket_t fd) {
+    shutdown(fd, SD_SEND);
+}
+
 inline void set_blocking(socket_t fd, bool blocking) {
     u_long nonblocking = blocking ? 0 : 1;
     ioctlsocket(fd, FIONBIO, &nonblocking);
@@ -77,6 +82,11 @@ constexpr socket_t kNoSocket = -1;
 
 inline void close_socket(socket_t fd) {
     ::close(fd);
+}
+
+/* No more to send: the peer reads what was sent, then the end. */
+inline void shutdown_send(socket_t fd) {
+    ::shutdown(fd, SHUT_WR);
 }
 
 inline void set_blocking(socket_t fd, bool blocking) {
