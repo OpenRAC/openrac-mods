@@ -781,7 +781,8 @@ inline constexpr ActionSet bit(Action a) {
 
 // The freeze dialogs' kinds (the record's +0): 0 "Quit race?" (Cross quits, Circle or Start goes
 // on), 1 and 4 "Quit?" (Triangle quits, Cross goes on); the rest are messages Cross or Triangle
-// closes.
+// closes, and the memory card's questions (kind 3, update_mode_freeze's states 6 and 13: format,
+// create save data), which take Circle for yes and Triangle for no.
 inline constexpr int kDialogQuitRace = 0;  // (seen in game code)
 
 // The pad's buttons the held actions press where the game is. In play, the console's layout; in
@@ -847,6 +848,7 @@ inline std::uint16_t buttons_for(
             break;
         case Context::Dialog:
             set(confirm, kCross);
+            set(on(Action::MenuCircle), kCircle);  // the memory card's yes (create, format)
 
             // The race dialog goes on with Start and quits with Circle; the others go on with Cross.
             if (dialog_kind == kDialogQuitRace) {

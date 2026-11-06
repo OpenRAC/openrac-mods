@@ -60,6 +60,8 @@ In menus, scenes and movies the same keys do what you'd expect there:
 | "Quit?" questions | Enter, Space or left click | Cross (what the game shows as Cross) |
 | | Escape | go on playing |
 | | Backspace or right click | Triangle (what the game shows as Triangle) |
+| Memory card questions (create save data, format) | E | yes (Circle) |
+| | Backspace or right click | no (Triangle) |
 | Cutscenes, movies, the slideshow | Space, Enter, Escape, Backspace or a click | skip (Start) |
 | The ship's landing, take-off and flight | the same | skip (Start and Cross) |
 
