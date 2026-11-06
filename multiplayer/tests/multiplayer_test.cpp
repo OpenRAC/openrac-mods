@@ -916,8 +916,14 @@ void direct_connect_plays_a_party() {
         b.session->send_state(mp::kBroadcast, pose_a);
         return a.connection.udp() && b.connection.udp();
     }));
-    CHECK(host.count(mp::Message::Kind::kData, a.session->id(), &pose_a) >= 1);
-    CHECK(a.count(mp::Message::Kind::kData, host.session->id(), &pose_host) >= 1);
+    // Bound is not yet heard: the datagrams sent meanwhile may still be on their way (a slow
+    // runner's loopback), so the state goes on until each side has one.
+    CHECK(pump_until(all, [&] {
+        host.session->send_state(mp::kBroadcast, pose_host);
+        a.session->send_state(mp::kBroadcast, pose_a);
+        return host.count(mp::Message::Kind::kData, a.session->id(), &pose_a) >= 1
+               && a.count(mp::Message::Kind::kData, host.session->id(), &pose_host) >= 1;
+    }));
     CHECK(b.count(mp::Message::Kind::kData, a.session->id(), &pose_a) == 0);
 
     // State too large for a datagram goes as DATA, and arrives all the same.
