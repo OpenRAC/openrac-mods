@@ -1,0 +1,20 @@
+{
+  "description": "RAC-RS Arsenal Mastery port: weapon XP, V1-V5 levels, level power and enemy rebalance for OpenRAC.",
+  "tags": ["gameplay", "progression", "weapons"],
+  "impact": ["gameplay"],
+  "aiAssisted": true,
+  "links": {
+    "source": "https://github.com/AsobiCodes/rac-rs/tree/main/bundled/mods/arsenal-mastery",
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": ["arsenal mastery"],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}
