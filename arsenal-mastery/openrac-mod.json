@@ -1,0 +1,69 @@
+{
+  "format": 2,
+  "id": "arsenal-mastery",
+  "name": "Arsenal Mastery",
+  "version": "0.1.0",
+  "author": "AsobiCodes",
+  "description": "Initial OpenRAC port of Arsenal Mastery: weapons earn XP from enemy damage, level from V1 to V5, gain level-based power, and can use the original planet-based enemy rebalance. This first native-port milestone deliberately excludes RAC-RS-only HUD, per-save storage, Gold/Mega, perks and Nanotech systems until equivalent OpenRAC APIs are available.",
+  "license": "MIT",
+  "homepage": "https://github.com/AsobiCodes/rac-rs/tree/main/bundled/mods/arsenal-mastery",
+  "api": "1.1",
+  "games": {
+    "rac1": ["pal", "ntsc"]
+  },
+  "hooks": [
+    "rac1.combat.get_hit",
+    "rac1.save.new_game",
+    "rac1.save.new_game_plus"
+  ],
+  "settings": [
+    {
+      "key": "xp_rate",
+      "name": "XP rate",
+      "type": "float",
+      "default": 1.0,
+      "min": 0.25,
+      "max": 4.0,
+      "step": 0.25,
+      "description": "Multiplier for weapon XP earned from enemy damage."
+    },
+    {
+      "key": "level_power",
+      "name": "Level power",
+      "type": "bool",
+      "default": true,
+      "description": "Apply Arsenal Mastery's V1-V5 weapon power multipliers."
+    },
+    {
+      "key": "enemy_rebalance",
+      "name": "Enemy rebalance",
+      "type": "bool",
+      "default": true,
+      "description": "Apply Arsenal Mastery's planet-based enemy durability curve."
+    },
+    {
+      "key": "hard_rebalance",
+      "name": "Hard rebalance",
+      "type": "bool",
+      "default": false,
+      "description": "Multiply the enemy durability curve by the original Hard factor."
+    },
+    {
+      "key": "weapon_damage",
+      "name": "Weapon damage",
+      "type": "float",
+      "default": 1.0,
+      "min": 0.25,
+      "max": 4.0,
+      "step": 0.25,
+      "description": "Additional multiplier applied after weapon level power."
+    },
+    {
+      "key": "trace",
+      "name": "Trace",
+      "type": "bool",
+      "default": false,
+      "description": "Log attributed hits, XP gains, levels and damage scaling for testing."
+    }
+  ]
+}
