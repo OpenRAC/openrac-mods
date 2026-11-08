@@ -85,8 +85,7 @@
     "rac2.moby.record_death",
     "rac2.level.load",
     "rac2.player.approach_speed",
-    "rac2.player.nanotech_steps",
-    "rac2.moby.nanotech_ball.update"
+    "rac2.player.nanotech_steps"
   ],
   "settings": [
     {
@@ -213,7 +212,10 @@
       "min": 0.0,
       "max": 4.0,
       "step": 0.25,
-      "description": "Health each nanotech pickup gives, on average. 0: none."
+      "description": "Health each nanotech pickup gives, on average. 0: none.",
+      "games": [
+        "rac1"
+      ]
     },
     {
       "key": "chaos",

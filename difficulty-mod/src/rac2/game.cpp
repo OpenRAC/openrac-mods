@@ -106,8 +106,9 @@ constexpr int k_levels = 31;
 // The game's state that is play (documented: discs.h: dm2_disc.game_state).
 constexpr int32_t kStatePlay = 0;
 
-// The knobs Going Commando honours: all but the enemy count and the enemy speed.
-constexpr unsigned kKnobs = dm::k_all_knobs & ~(1u << dm::ENEMY_COUNT) & ~(1u << dm::ENEMY_SPEED);
+// The knobs Going Commando honours: all but the enemy count, the enemy speed and the health pickups.
+constexpr unsigned kKnobs = dm::k_all_knobs & ~(1u << dm::ENEMY_COUNT) & ~(1u << dm::ENEMY_SPEED)
+                            & ~(1u << dm::HEALTH_PICKUPS);
 
 // The salt that makes a level's own random stream (the bolts' rounding) apart from the others.
 constexpr uint64_t kLevelRngSalt = 0x3000u;
@@ -165,9 +166,6 @@ struct NanotechSteps {
     using fn = int32_t (*)(uint32_t, uint32_t, uint32_t);
 };
 
-// The nanotech orb's update, taken by id when the port has it (health pickups only).
-constexpr const char* k_nanotech_ball = "rac2.moby.nanotech_ball.update";
-
 // ---- State ----
 
 openrac::Mod* s_mod;
@@ -183,7 +181,6 @@ bool s_rows_read[k_levels];
 // The carried-over fractions of damage taken, health pickups and ammo per shot (one per item).
 // Game thread only.
 dm::Accumulator s_damage;
-dm::Accumulator s_pickups;
 dm::Accumulator s_ammo[k_ammo_slots];
 
 // The hits whose damage was scaled, by the hit's address: the moby it was for and the value
@@ -192,9 +189,6 @@ std::unordered_map<uint32_t, std::pair<uint32_t, float>> s_hits;
 
 // The max health last logged (with the trace), so each change is one line.
 int s_traced_max = -1;
-
-// The nanotech orb's own update.
-void (*s_ball_original)(uint32_t);
 
 // ---- Game memory ----
 
@@ -416,24 +410,6 @@ int32_t nanotech_steps(Original original, uint32_t a0, uint32_t a1, uint32_t cou
     return r;
 }
 
-// The nanotech orb: the health it gives this tick, scaled.
-void ball_update(uint32_t moby) {
-    const double k = s_session.active[dm::HEALTH_PICKUPS];
-    const gaddr hp = hero() + kHeroHealth;
-    const int32_t before = get<int32_t>(hp);
-    s_ball_original(moby);
-    const int32_t gained = get<int32_t>(hp) - before;
-
-    // The slider is at retail, or the orb gave nothing this tick.
-    if (k == 1.0 || gained <= 0) {
-        return;
-    }
-
-    const int32_t max = get<int32_t>(s_disc->max_health);
-    const int32_t now = before + s_pickups.take(k, gained);
-    put<int32_t>(hp, now > max ? max : now);
-}
-
 // ---- A level's load: its values and the weapon table ----
 
 // The weapon table from the level's own values: prices (+0x80), ammo prices (+0x88) and max ammo
@@ -524,7 +500,6 @@ void find_disc(openrac::Mod& mod) {
 // Puts what the hooks carry between calls back as at a start.
 void reset_state() {
     s_damage = {};
-    s_pickups = {};
 
     // Each item's carried-over fraction.
     for (auto& a : s_ammo) {
@@ -579,29 +554,6 @@ void rac2_load(openrac::Mod& mod) {
         return nanotech_steps(original, a0, a1, count);
     });
 
-    // The nanotech orb's update (health pickups): one this OpenRAC lacks leaves the pickups as the
-    // game has them, logged, not refused.
-    void* ball = nullptr;
-    std::string missing;
-
-    // Taken by id, as the update hook points of rac1 are.
-    if (mod.api().hook(
-            mod.handle(), k_nanotech_ball, "void(u32)", reinterpret_cast<void*>(&ball_update), &ball
-        )
-        == OPENRAC_HOOK_OK) {
-        s_ball_original = reinterpret_cast<void (*)(uint32_t)>(ball);
-    } else {
-        s_ball_original = nullptr;
-        missing = k_nanotech_ball;
-        mod.warn(
-            "no hook point on this disc for " + missing
-            + ": health pickups stay as the game has them"
-        );
-    }
-
     mod.on_frame(on_frame);
-    dm::log_start(
-        "enemy count and enemy speed are Ratchet & Clank's only"
-        + std::string(missing.empty() ? "" : "; health pickups as the game has them")
-    );
+    dm::log_start("enemy count, enemy speed and health pickups are Ratchet & Clank's only");
 }

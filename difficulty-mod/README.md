@@ -117,11 +117,11 @@ games, and each game takes the part written for it. What differs:
 | **Ammo per shot** | As in Ratchet & Clank |
 | **Bolt drops** | The bolts a dying enemy or a broken crate drops. The arenas' prizes and the story's rewards are the game's |
 | **Max health** | His max health times the slider, from what the game gives (4, his nanotech levels' steps and the boosts), at least 1: the HUD shows it, the save keeps it, and the game fills his health when it changes, as when he levels up |
-| **Health pickups** | The health each nanotech pickup gives, on average |
+| **Health pickups** | Not there yet: the nanotech orb's update is not a hook point of OpenRAC's on every Going Commando disc |
 
 Chaos rolls every slider for each level as in Ratchet & Clank, and its events
 leave out the three about the enemies' speed (**Slow motion**, **Frenzy** and
-**Double time**). The log names only the sliders Going Commando has.
+**Double time**) and **Nanotech surge**. The log names only the sliders Going Commando has.
 
 | Slider | Where (OpenRAC's rac2 hook points) |
 |---|---|
@@ -132,7 +132,6 @@ leave out the three about the enemies' speed (**Slow motion**, **Frenzy** and
 | Ammo per shot | `rac2.weapon.take_ammo` (Weapon_TakeAmmo) |
 | Bolt drops | `rac2.moby.record_death` (Moby_RecordDeath): the moby's bolts scaled for the call |
 | Max health | `rac2.player.nanotech_steps` (Hero_NanotechSteps): the count the game's max health is made of |
-| Health pickups | `rac2.moby.nanotech_ball.update` (the nanotech orb's update); an OpenRAC without it leaves the pickups as the game has them and says so in the log |
 
 ## How many enemies
 
