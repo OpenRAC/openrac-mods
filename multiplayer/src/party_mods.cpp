@@ -572,8 +572,8 @@ std::string digest_tag(std::uint32_t digest) {
     return tag;
 }
 
-std::string tagged_description(const std::string& description, std::uint32_t digest) {
-    const std::string tag = "|" + digest_tag(digest);
+std::string tagged_description(const std::string& description, std::uint32_t digest, const std::string& game) {
+    const std::string tag = "|" + digest_tag(digest) + (game == kGameRac1 ? std::string() : "/" + game);
     return description.substr(0, kMaxDescriptionLength - tag.size()) + tag;
 }
 
@@ -582,9 +582,40 @@ std::string plain_description(const std::string& description) {
     return bar == std::string::npos ? description : description.substr(0, bar);
 }
 
-std::string description_tag(const std::string& description) {
+namespace {
+
+/* All after the description's last bar: the digest, then the game's id after a slash. */
+std::string whole_tag(const std::string& description) {
     const std::size_t bar = description.rfind('|');
     return bar == std::string::npos ? "" : description.substr(bar + 1);
+}
+
+}  // namespace
+
+std::string description_tag(const std::string& description) {
+    const std::string tag = whole_tag(description);
+    return tag.substr(0, tag.find('/'));
+}
+
+std::string description_game(const std::string& description) {
+    const std::string tag = whole_tag(description);
+    const std::size_t slash = tag.find('/');
+
+    if (tag.empty()) {
+        return "";
+    }
+
+    return slash == std::string::npos ? std::string(kGameRac1) : tag.substr(slash + 1);
+}
+
+bool other_game(const std::string& description, const std::string& game) {
+    const std::string named = description_game(description);
+
+    if (game == kGameRac1) {
+        return !named.empty() && named != kGameRac1;
+    }
+
+    return named != game;
 }
 
 PartyMods::PartyMods(

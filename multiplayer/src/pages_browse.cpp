@@ -12,7 +12,8 @@ namespace {
 /* Whether a party's game would not take this player's: its host's digest is not this game's. */
 bool row_differs(const mp::Listing& l) {
     const std::string tag = mp::description_tag(l.description);
-    return !tag.empty() && tag != mp::digest_tag(mp::mods_digest(g->mods->own()));
+    return mp::other_game(l.description, mp::kGameRac1)
+           || (!tag.empty() && tag != mp::digest_tag(mp::mods_digest(g->mods->own())));
 }
 
 /* A party's row in Browse: "Clank - Pokitaru, 3 gold bolts 2/4", cut to the page's width, marked

@@ -185,13 +185,27 @@ std::vector<std::string> rules_lines(
     const ModList& host, const std::vector<PartyRules>& rules, const ModList& own, std::size_t width
 );
 
+/* The games, as openrac_api.game names them. */
+constexpr const char* kGameRac1 = "rac1";
+constexpr const char* kGameRac2 = "rac2";
+
 /* The description a party is listed with carries the host's digest, for Browse to mark the games a
- * player's mods would not fit: "Pokitaru, 12 gold bolts|3fa9" (kMaxDescriptionLength in all). */
-std::string tagged_description(const std::string& description, std::uint32_t digest);
-/* The description without the digest, and the digest's four hex digits, "" for none. */
+ * player's mods would not fit: "Pokitaru, 12 gold bolts|3fa9" (kMaxDescriptionLength in all). A
+ * game other than Ratchet & Clank adds its id after the digest, "Going Commando|3fa9/rac2", so its
+ * parties and Ratchet & Clank's never mix (an older Ratchet & Clank game reads that tag as another
+ * digest: the party differs). */
+std::string tagged_description(const std::string& description, std::uint32_t digest,
+                               const std::string& game = kGameRac1);
+/* The description without the tag, the digest's four hex digits ("" for none), and the game the tag
+ * names: "" for a description without one, kGameRac1 for a tag with the digest alone. */
 std::string plain_description(const std::string& description);
 std::string description_tag(const std::string& description);
+std::string description_game(const std::string& description);
 std::string digest_tag(std::uint32_t digest);
+/* Whether the party listed with `description` plays another game than `game`. Ratchet & Clank
+ * takes an untagged party for its own (its hosts before the tag); any other game takes only a party
+ * its tag names. */
+bool other_game(const std::string& description, const std::string& game);
 
 enum class Fit : std::uint8_t {
     kUnknown = 0,

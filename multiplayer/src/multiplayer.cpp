@@ -895,7 +895,11 @@ void load(openrac::Mod& mod) {
         remove_banned();
 
         // A level that does not agree with the host's cannot be shared: out of the party, and why.
-        if (g->world->take_level_differs()) {
+        // Nor can a party of another game's (Going Commando's: its description's tag says so).
+        const bool other_game = g->session->in_party() && !g->session->is_host()
+                                && mp::other_game(g->session->description(), mp::kGameRac1);
+
+        if (g->world->take_level_differs() || other_game) {
             g->left_differs = true;
             leave_party();
         }
