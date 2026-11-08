@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The difficulty mod's library as the port loads it, against a host table and game memory made
-// here (openrac_mod.h): it reports its id, refuses another game, an unknown disc and an OpenRAC
-// without its hook points, takes them with their signatures on both discs; with the sliders at
+// The difficulty mod's library as the port loads it in Ratchet & Clank, against a host table and
+// game memory made here (openrac_mod.h): it reports its id, refuses a game it is not for, an
+// unknown disc and an OpenRAC without its hook points, takes them with their signatures on both discs; with the sliders at
 // 1.0 each hook calls the game's function exactly as it was called; with them moved, each scales
 // what it should (hits, damage once a hit, rounds, bolts, speed, prices without compounding); and
 // on a level laid out here, the enemy count copies enemies only within the pool's budget, leaves
 // the scripted ones alone and keeps the slots the game needs free.
 //
-// Run with the library's path: difficulty_load_test <difficulty.dylib|.so|.dll>.
+// Run with the library's path: difficulty_rac1_load_test <difficulty.dylib|.so|.dll>.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -560,10 +560,10 @@ int main(int argc, char** argv) {
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
 
-    // Another game, an unknown disc: refused with a reason, before any hook.
+    // A game it is not for, an unknown disc: refused with a reason, before any hook.
     openrac_api api = make_api("rac2", "ntsc");
     CHECK(
-        g_load(&api, g_handle) != 0 && g_failed.find("rac1") != std::string::npos && g_hooks.empty()
+        g_load(&api, g_handle) != 0 && g_failed.find("rac2") != std::string::npos && g_hooks.empty()
     );
     CHECK(!load_with("jp") && g_failed.find("jp") != std::string::npos && g_hooks.empty());
 

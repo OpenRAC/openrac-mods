@@ -4,7 +4,7 @@
 
     presets_test.py
 
-- the sliders are the knobs of src/rules.cpp, in its order, and with the same ranges;
+- the sliders are the knobs of src/common/rules.cpp, in its order, and with the same ranges;
 - there are Easy, Retail (the id "default": the launcher then adds no Default of its own), Hard,
   Brutal and Chaos, each setting every slider and the Chaos switch, inside the sliders' ranges;
 - Retail is every slider at 1.0, Chaos the same with the switch on;
@@ -20,7 +20,7 @@ HERE = Path(__file__).resolve().parent.parent
 
 def main() -> int:
     m = json.loads((HERE / "openrac-mod.json").read_text())
-    knobs = re.findall(r'\{"([a-z_]+)", "[^"]+", ([0-9.]+), ([0-9.]+),', (HERE / "src" / "rules.cpp").read_text())
+    knobs = re.findall(r'\{"([a-z_]+)", "[^"]+", ([0-9.]+), ([0-9.]+),', (HERE / "src" / "common" / "rules.cpp").read_text())
     sliders = [s for s in m["settings"] if s["type"] == "float"]
     problems = []
     if [s["key"] for s in sliders] != [k for k, _, _ in knobs]:

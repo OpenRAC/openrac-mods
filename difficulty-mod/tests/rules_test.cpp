@@ -145,6 +145,54 @@ static void events() {
         CHECK(a.current == b.current);
     }
 
+    // Every knob honoured (rac1): the picks are the seed's as they always were, the n-th event the
+    // stream's n-th draw over every event.
+    EventClock all;
+    all.seed = 77;
+    all.every = 30.0;
+    int picked = 0;
+
+    for (int tick = 0; tick < 60 * 60 * 10; ++tick) {
+        // An event started: the one the stream picks over all of them.
+        if (all.advance(1.0 / 60.0) > 0) {
+            Rng rng(mix(77, 0x2000u + static_cast<std::uint64_t>(picked)));
+            CHECK(all.current == static_cast<int>(rng.next() % static_cast<std::uint64_t>(k_event_count)));
+            ++picked;
+        }
+    }
+
+    CHECK(picked >= 10);
+    // Without the enemy speed (rac2): Slow motion, Frenzy and Double time never start; the others
+    // do.
+    const unsigned no_enemy_clock = k_all_knobs & ~(1u << ENEMY_SPEED) & ~(1u << ENEMY_COUNT);
+    CHECK(event_allowed(0, no_enemy_clock) && !event_allowed(1, no_enemy_clock));
+    CHECK(!event_allowed(2, no_enemy_clock) && !event_allowed(3, no_enemy_clock));
+    CHECK(event_allowed(4, no_enemy_clock) && !event_allowed(-1, k_all_knobs));
+    CHECK(!event_allowed(k_event_count, k_all_knobs));
+    EventClock some;
+    some.seed = 9;
+    some.every = 30.0;
+    some.knobs = no_enemy_clock;
+    int seen = 0;
+
+    for (int tick = 0; tick < 60 * 60 * 30; ++tick) {
+        // An event started: one the game can play.
+        if (some.advance(1.0 / 60.0) > 0) {
+            CHECK(event_allowed(some.current, no_enemy_clock));
+            ++seen;
+        }
+    }
+
+    CHECK(seen >= 30);
+    // No event a game can play: none ever starts.
+    EventClock none;
+    none.every = 1.0;
+    none.knobs = 0;
+
+    for (int tick = 0; tick < 60 * 60; ++tick) {
+        CHECK(none.advance(1.0 / 60.0) == 0 && none.current == -1);
+    }
+
     // An event changes only its knobs, within the safe ranges; none leaves a knob outside them.
     const Values ones = retail();
 

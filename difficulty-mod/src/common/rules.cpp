@@ -287,6 +287,16 @@ const Event k_events[] = {
 };
 const int k_event_count = static_cast<int>(sizeof k_events / sizeof k_events[0]);
 
+bool event_allowed(int event, unsigned knobs) {
+    // Not one of the table's.
+    if (event < 0 || event >= k_event_count) {
+        return false;
+    }
+
+    const Event& e = k_events[event];
+    return (knobs & 1u << e.knob[0]) != 0 && (knobs & 1u << e.knob[1]) != 0;
+}
+
 int EventClock::advance(double dt) {
     // No time passed (or not a number).
     if (!(dt > 0.0)) {
@@ -306,10 +316,27 @@ int EventClock::advance(double dt) {
         return 0;
     }
 
-    // Time for the next event: one is picked from the seed and how many there have been.
+    // Time for the next event: one is picked from the seed and how many there have been, among
+    // those the game can play (all of them in rac1, so its picks are as they always were).
     if (clock >= every * (count + 1)) {
+        int allowed[sizeof k_events / sizeof k_events[0]];
+        int n = 0;
+
+        // Each event, in the table's order.
+        for (int e = 0; e < k_event_count; ++e) {
+            // One the game can play.
+            if (event_allowed(e, knobs)) {
+                allowed[n++] = e;
+            }
+        }
+
+        // No event this game can play: none ever starts.
+        if (n == 0) {
+            return 0;
+        }
+
         Rng rng(mix(seed, kEventPickSalt + static_cast<std::uint64_t>(count)));
-        current = static_cast<int>(rng.next() % static_cast<std::uint64_t>(k_event_count));
+        current = allowed[rng.next() % static_cast<std::uint64_t>(n)];
         ends = clock + lasts;
         ++count;
         return 1;

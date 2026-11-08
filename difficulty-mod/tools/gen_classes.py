@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Writes src/classes.h, the difficulty mod's table of moby classes, from classes.tsv.
+"""Writes src/rac1/classes.h, the difficulty mod's table of moby classes, from classes.tsv.
 
     python3 tools/gen_classes.py CATALOGUE IDS_LOCK [--check]
 
@@ -9,7 +9,7 @@ function and the hook point it is); IDS_LOCK is OpenRAC's sdk/bindings/rac1.ids.
 each hook point's permanent id for its aliases (the catalogue names the hook points by alias). For
 each class of classes.tsv the header gives its role and the id of its update's hook point; the
 classes the mod times (enemies, roamers, turrets) give the list of update hook points it takes.
---check writes nothing and fails when src/classes.h differs.
+--check writes nothing and fails when src/rac1/classes.h differs.
 """
 import json
 import sys
@@ -92,7 +92,7 @@ def main() -> int:
         print(__doc__, file=sys.stderr)
         return 2
     text = generate(Path(args[0]), Path(args[1]))
-    target = HERE / "src" / "classes.h"
+    target = HERE / "src" / "rac1" / "classes.h"
     if "--check" in sys.argv:
         if not target.is_file() or target.read_text() != text:
             print(f"stale: {target} (python3 tools/gen_classes.py CATALOGUE IDS_LOCK)", file=sys.stderr)

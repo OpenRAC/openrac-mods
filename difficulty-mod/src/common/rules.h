@@ -107,14 +107,22 @@ struct Event {
 extern const Event k_events[];
 extern const int k_event_count;
 
+// A set of knobs, a bit each (1u << knob): the ones a game honours. Every knob is rac1's.
+constexpr unsigned k_all_knobs = (1u << KNOB_COUNT) - 1u;
+
+// Whether every knob an event changes is in `knobs`: an event a game cannot play is never picked
+// there (rac2 has no enemy clock, so no Slow motion, Frenzy or Double time).
+bool event_allowed(int event, unsigned knobs);
+
 struct EventClock {
     std::uint64_t seed = 0;
-    double every = 180.0;  // seconds between events
-    double lasts = 45.0;   // seconds an event lasts
-    double clock = 0.0;    // seconds of play
-    int count = 0;         // events started
-    int current = -1;      // the event on, -1 for none
-    double ends = 0.0;     // when it ends
+    double every = 180.0;          // seconds between events
+    double lasts = 45.0;           // seconds an event lasts
+    double clock = 0.0;            // seconds of play
+    int count = 0;                 // events started
+    int current = -1;              // the event on, -1 for none
+    double ends = 0.0;             // when it ends
+    unsigned knobs = k_all_knobs;  // the knobs the game honours: events of others are not picked
     // Advances by dt seconds of play; returns 1 when an event starts, -1 when one ends, else 0.
     int advance(double dt);
 };
