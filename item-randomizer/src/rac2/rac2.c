@@ -3,8 +3,9 @@
  *
  * Going Commando: the item randomizer in play (README.md, Going Commando). At load it reads the
  * settings, makes the seed's placement (solver2.c) and writes the spoiler log; in play it gives each
- * location's reward in place of the game's. NTSC-U v1.01 only for now: the givers' hook points
- * (rac2.moby.*.update) have C on that disc alone.
+ * location's reward in place of the game's. The three discs (NTSC-U v1.01, PAL, USA v2.00) alike:
+ * the port gives each disc's givers the same hook points, and discs2.h has where each keeps the
+ * globals below.
  *
  * How the game is changed, only where a location is shuffled:
  *
@@ -24,12 +25,13 @@
  *     mod takes it back and gives the reward.
  *   - Each level's start: every location had holds its reward (a save from before a reward, a
  *     death): what is missing is given again. Not in Aranos Prison, whose cell takes the packs away.
- *   - The vendor: with its pool shuffled, the table of the weapons it stocks (0x2403C0) gets the
+ *   - The vendor: with its pool shuffled, the table of the weapons it stocks (0x2403C0 on NTSC-U v1.01) gets the
  *     seed's first level for each, checked against the game's own table first.
  *
  * What the game keeps: which locations are had, in its progress flags (chunk 5 of the save,
- * 0x1395B8), in bytes no code reads (+0xC0..+0xC7: the seed's tag, then a bit per location), so a
- * save carries its own progress and a new game starts with none.
+ * 0x1395B8 on NTSC-U v1.01), in bytes no code of any of the three discs reads (+0xC0..+0xC7: the
+ * seed's tag, then a bit per location), so a save carries its own progress and a new game starts
+ * with none.
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -40,17 +42,20 @@
 #include "openrac/openrac_mod.h"
 #include "paths.h"
 #include "mod.h"
+#include "discs2.h"
 #include "rando2.h"
 
-/* ---- NTSC-U v1.01's places (rac2-decomp; docs/port/RAC2_IDENTIFIED.tsv) ---- */
+/* ---- the game's places (discs2.h; rac2-decomp, docs/port/RAC2_IDENTIFIED.tsv) ---- */
 
-#define OWNED 0x001A7AF8u        /* g_inventoryOwned: a byte per item */
-#define NEW_FLAG 0x001A7B30u     /* g_inventoryNewFlag */
-#define STOCK_TABLE 0x002403C0u  /* D_002403C0: {i32 item, i32 first level} pairs, -2 ends */
+static const r2_disc* s_disc;
+
+#define OWNED (s_disc->owned)             /* g_inventoryOwned: a byte per item */
+#define NEW_FLAG (s_disc->new_flag)       /* g_inventoryNewFlag */
+#define STOCK_TABLE (s_disc->stock_table) /* {i32 item, i32 first level} pairs, -2 ends */
 #define STOCK_END (-2)
-#define PROGRESS 0x001395B8u     /* chunk 5 of the save: the story's bytes */
-#define MARK_TAG (PROGRESS + 0xC0u)  /* the seed's tag, u32 */
-#define MARK_BITS (PROGRESS + 0xC4u) /* a bit per location, u32 */
+#define PROGRESS (s_disc->progress)       /* chunk 5 of the save: the story's bytes */
+#define MARK_TAG (PROGRESS + 0xC0u)       /* the seed's tag, u32 */
+#define MARK_BITS (PROGRESS + 0xC4u)      /* a bit per location, u32 */
 
 #define DIR_SIZE 512
 #define PATH_SIZE 640
@@ -386,9 +391,9 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_loads = 0xFFFFFFFFu;
     s_stock_done = 0;
 
-    // The givers' hook points have C on NTSC-U v1.01 alone.
-    if (strcmp(api->version, "ntsc") != 0) {
-        api->fail(mod, "the item randomizer plays Going Commando's NTSC-U v1.01 disc only for now");
+    s_disc = r2_disc_of(api->version);
+    if (s_disc == NULL) {
+        api->fail(mod, "the item randomizer does not know this Going Commando disc");
         return 1;
     }
 

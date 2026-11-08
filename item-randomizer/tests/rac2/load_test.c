@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "discs2.h"
 #include "openrac/openrac_mod.h"
 #include "rando2.h"
 
@@ -52,11 +53,12 @@ static int s_failures;
         }                                                                                          \
     } while (0)
 
-/* NTSC-U v1.01's places, as rac2.c's header names them. */
-#define OWNED 0x001A7AF8u
-#define NEW_FLAG 0x001A7B30u
-#define STOCK_TABLE 0x002403C0u
-#define MARK_BITS (0x001395B8u + 0xC4u)
+/* The disc under test's places (discs2.h), as rac2.c's header names them. */
+static const r2_disc* s_disc;
+#define OWNED (s_disc->owned)
+#define NEW_FLAG (s_disc->new_flag)
+#define STOCK_TABLE (s_disc->stock_table)
+#define MARK_BITS (s_disc->progress + 0xC4u)
 #define MEMORY_SIZE 0x00300000u
 
 static uint8_t* s_memory;
@@ -227,22 +229,14 @@ static int location_of(int item) {
     return -1;
 }
 
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        fprintf(stderr, "usage: rac2_load_test <library>\n");
-        return 2;
-    }
-    void* lib = open_library(argv[1]);
-    CHECK(lib != NULL);
-    if (lib == NULL) {
-        return 1;
-    }
-    openrac_mod_load_fn load = (openrac_mod_load_fn)symbol(lib, OPENRAC_MOD_LOAD);
-    CHECK(load != NULL);
-
-    s_memory = calloc(1, MEMORY_SIZE);
-    set_env("OPENRAC_MOD_DATA_DIR", "item-randomizer-rac2-load-test-data");
-    openrac_mod* mod = (openrac_mod*)&s_failed; /* the mod's handle: opaque to it */
+/* One disc: the give, the givers, the vendor's table and the level starts, at its addresses. */
+static void play_disc(openrac_mod_load_fn load, openrac_mod* mod, const r2_disc* disc) {
+    s_disc = disc;
+    memset(s_memory, 0, MEMORY_SIZE);
+    s_hook_count = 0;
+    s_frame = NULL;
+    s_failed[0] = 0;
+    s_notice[0] = 0;
 
     // The game's vendor table.
     for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
@@ -251,16 +245,14 @@ int main(int argc, char** argv) {
     }
     set32(STOCK_TABLE + 8u * R2_VENDOR_COUNT, (uint32_t)-2);
 
-    // PAL and v2.00: refused before any hook.
-    openrac_api api = make_api("pal");
-    CHECK(load(&api, mod) != 0 && strstr(s_failed, "NTSC-U") != NULL && s_hook_count == 0);
-
-    // NTSC-U v1.01: the give and the twelve givers, then the tick.
-    api = make_api("ntsc");
-    s_failed[0] = 0;
+    // The give and the twelve givers, then the tick.
+    openrac_api api = make_api(disc->version);
     CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 13 && s_frame != NULL);
     for (int i = 0; i < s_hook_count; ++i) {
         CHECK(strncmp(s_hooks[i].name, "rac2.", 5) == 0);
+    }
+    if (s_frame == NULL || s_hook_count != 13) {
+        return;
     }
 
     // The placement the settings make, as the mod made it.
@@ -334,6 +326,34 @@ int main(int argc, char** argv) {
     CHECK(load(&api, mod) == 0);
     tick(1, 4);
     CHECK(get32(STOCK_TABLE + 4) == 7);
+}
+
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        fprintf(stderr, "usage: rac2_load_test <library>\n");
+        return 2;
+    }
+    void* lib = open_library(argv[1]);
+    CHECK(lib != NULL);
+    if (lib == NULL) {
+        return 1;
+    }
+    openrac_mod_load_fn load = (openrac_mod_load_fn)symbol(lib, OPENRAC_MOD_LOAD);
+    CHECK(load != NULL);
+
+    s_memory = calloc(1, MEMORY_SIZE);
+    set_env("OPENRAC_MOD_DATA_DIR", "item-randomizer-rac2-load-test-data");
+    openrac_mod* mod = (openrac_mod*)&s_failed; /* the mod's handle: opaque to it */
+
+    // A disc the mod does not know: refused before any hook.
+    openrac_api api = make_api("ntsc3");
+    CHECK(load(&api, mod) != 0 && strstr(s_failed, "disc") != NULL && s_hook_count == 0);
+
+    // NTSC-U v1.01, PAL and USA v2.00, each at its own addresses.
+    CHECK(sizeof k_r2_discs / sizeof k_r2_discs[0] == 3);
+    for (size_t d = 0; d < sizeof k_r2_discs / sizeof k_r2_discs[0]; ++d) {
+        play_disc(load, mod, &k_r2_discs[d]);
+    }
 
     if (s_failures == 0) {
         printf("rac2 load: all passed\n");
