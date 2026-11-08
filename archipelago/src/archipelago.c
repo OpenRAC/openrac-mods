@@ -814,6 +814,80 @@ static void vendor_stock_shown(
     memset(shown + m, STOCK_END, (size_t)(VENDOR_STOCK_SIZE - m));
 }
 
+/* Prevent opening a vendor whose Archipelago-filtered stock is empty. */
+static void guard_empty_vendor(void) {
+    if (s_disc == NULL || (strcmp(s_disc->version, "ntsc") != 0
+        && strcmp(s_disc->version, "pal") != 0))
+        return;
+
+    uint8_t real[VENDOR_STOCK_SIZE];
+    uint8_t shown[VENDOR_STOCK_SIZE];
+    memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
+    vendor_stock_shown(real, shown);
+
+    const int empty = shown[0] == STOCK_END;
+
+    const openrac_gaddr base =
+        (openrac_gaddr)get32(level_byte_at(
+            strcmp(s_disc->version, "pal") == 0 ? 0x00160098u : 0x0015FFD8u));
+
+    if (!base)
+        return;
+
+    static openrac_moby mobys[MOBY_LIST_MAX];
+    int n = s_api->moby_list(mobys, MOBY_LIST_MAX);
+    if (n > MOBY_LIST_MAX)
+        n = MOBY_LIST_MAX;
+
+    static uint32_t guarded_loads = UINT32_MAX;
+    static openrac_gaddr guarded_base = 0;
+    static uint8_t saved_flags[MOBY_LIST_MAX];
+    static uint8_t guarded[MOBY_LIST_MAX];
+
+    uint32_t loads = 0;
+    play_phase(&loads);
+
+    if (guarded_loads != loads || guarded_base != base) {
+        memset(guarded, 0, sizeof guarded);
+        guarded_loads = loads;
+        guarded_base = base;
+    }
+
+    for (int i = 0; i < n; ++i) {
+        if (mobys[i].oclass != 0xB ||
+            (mobys[i].flags & OPENRAC_MOBY_DEAD) ||
+            mobys[i].slot < 0 ||
+            mobys[i].slot >= MOBY_LIST_MAX)
+            continue;
+
+        openrac_gaddr address =
+            base + (openrac_gaddr)mobys[i].slot * 0x100u;
+
+        uint8_t* moby = (uint8_t*)OPENRAC_G(s_api, address);
+
+        int16_t oclass;
+        memcpy(&oclass, moby + 0xA6, sizeof oclass);
+
+        if (oclass != 0xB)
+            continue;
+
+        const int slot = mobys[i].slot;
+        if (slot >= MOBY_LIST_MAX)
+            continue;
+
+        if (empty) {
+            if (!guarded[slot]) {
+                saved_flags[slot] = moby[0x52];
+                guarded[slot] = 1;
+            }
+            moby[0x52] = 0;
+        } else if (guarded[slot]) {
+            moby[0x52] = saved_flags[slot];
+            guarded[slot] = 0;
+        }
+    }
+}
+
 /* After a purchase the list may be shorter: the cursor stays on it and the menu redraws. */
 static void settle_menu_after_purchase(void) {
     uint8_t* menu = level_byte_at(s_disc->vendor_menu);
@@ -844,6 +918,31 @@ static void build_item_list(int32_t skip_unflagged) {
     memcpy(stock, real, sizeof real);
 
     if (s_bought >= 0) {
+        uint8_t* menu = level_byte_at(s_disc->vendor_menu);
+
+        /*
+         * The original purchase handler still initializes the selected
+         * item after rebuilding the rows. Keep one valid row until the
+         * vendor's normal closing transition has begun.
+         */
+        if ((strcmp(s_disc->version, "ntsc") == 0
+             || strcmp(s_disc->version, "pal") == 0)
+            && get32(menu + VENDOR_COUNT) == 0) {
+            set32(menu + VENDOR_CURSOR, 0);
+            set32(menu + VENDOR_ENTRIES, s_bought);
+            set32(menu + VENDOR_ENTRIES + VENDOR_ENTRY_AMMO, 0);
+            set32(menu + VENDOR_COUNT, 1);
+
+            /* Version-specific vendor close countdown and request flag. */
+            if (strcmp(s_disc->version, "pal") == 0) {
+                set32(level_byte_at(0x00161F14u), 1);
+                set32(level_byte_at(0x00161F18u), 1);
+            } else {
+                set32(level_byte_at(0x00161E14u), 1);
+                set32(level_byte_at(0x00161E18u), 1);
+            }
+        }
+
         settle_menu_after_purchase();
     }
 }
@@ -969,6 +1068,8 @@ static void each_tick(void* user) {
     if (phase == OPENRAC_PLAY_PLAYING) {
         give_received();
     }
+
+    guard_empty_vendor();
 
     // The goal, once.
     if (!s_goal && current_level() == LEVEL_VELDIN2 && drek_beaten(loads)) {
