@@ -86,8 +86,11 @@ static void game_turn(int32_t mode, float accel, float damping, float limit) {
     ++s_original_calls;
 }
 
+/* Hero_SetPlanarVelocity: the angle it was asked for last. */
+static float s_planar_seen;
+
 static void game_float(float angle) {
-    (void)angle;
+    s_planar_seen = angle;
     ++s_original_calls;
 }
 
@@ -475,6 +478,8 @@ int main(int argc, char** argv) {
     motion();
     CHECK(s_original_calls >= 1 && s_entered == RAC1_STRAFE_STATE_FLIP);
     CHECK(get_f32(d->hero + 0x458u) == (1.0f / 60.0f) * RAC1_STRAFE_FLIP_DRIFT);
+    /* No run speed carried along his facing: the flip goes only along the strafe. */
+    CHECK(get_f32(d->hero + 0x454u) == 0.0f);
     /* Forward is the game's own jump. */
     s_entered = -1;
     s_direction = 2;
@@ -498,9 +503,27 @@ int main(int argc, char** argv) {
     advance();
     CHECK(s_joint_count == 2 && s_joints[0].joint == RAC1_STRAFE_JOINT_PELVIS);
     CHECK(s_joints[1].joint == RAC1_STRAFE_JOINT_SPINE);
-    /* A yaw about z: the pelvis's turn is negative (right), the spine's positive. */
+    /* A yaw about z, sent in the port's sense: to the right the pelvis's z is positive, the
+     * spine's negative. */
     CHECK(s_joints[0].rotation[0] == 0.0f && s_joints[0].rotation[1] == 0.0f);
-    CHECK(s_joints[0].rotation[2] < 0.0f && s_joints[1].rotation[2] > 0.0f);
+    CHECK(s_joints[0].rotation[2] > 0.0f && s_joints[1].rotation[2] < 0.0f);
+
+    /* The slide to a stop: running right, the velocity along the stick's yaw; the stick let go
+     * (the game sets the move yaw to his facing and the target speed to 0), still along it. */
+    openrac_rac1_Hero_SetPlanarVelocity planar =
+        (openrac_rac1_Hero_SetPlanarVelocity)hook_named("Hero_SetPlanarVelocity");
+    CHECK(planar != NULL);
+    put_f32(d->hero + 0x190u, 0.095f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    put_f32(d->hero + 0x190u, 0.0f);
+    put_f32(d->hero + 0x180u, 1.0708f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    /* An angle of the caller's own is kept. */
+    planar(0.25f);
+    CHECK(s_planar_seen == 0.25f);
+    put_f32(d->hero + 0x180u, -0.5f);
     /* Out of play the twist is taken off at the pad's report. */
     s_level = -1;
     pad(d->pad, 0x00100000u, 32);

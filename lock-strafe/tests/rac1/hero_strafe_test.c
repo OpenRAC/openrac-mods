@@ -720,6 +720,21 @@ static void twist(void) {
     CHECK(s.velocity < 0.0f && s.angle < 2.5f);
 }
 
+/* The slide to a stop: the stick's yaw kept while he slows with it let go, forgotten after. */
+static void glide(void) {
+    rac1_strafe_glide g = {0, 0.0f};
+    /* Not strafing: the move yaw, nothing kept. */
+    CHECK(rac1_strafe_glide_yaw(&g, RAC1_STRAFE_NONE, 0.1f, 0.3f) == 0.3f && !g.valid);
+    /* Strafing with the stick pushed: its yaw. */
+    CHECK(rac1_strafe_glide_yaw(&g, RAC1_STRAFE_HELD, 0.1f, -1.5f) == -1.5f && g.valid);
+    /* Let go: the game's move yaw is his facing, the slide stays on the stick's. */
+    CHECK(rac1_strafe_glide_yaw(&g, RAC1_STRAFE_HELD, 0.0f, 0.2f) == -1.5f);
+    CHECK(rac1_strafe_glide_yaw(&g, RAC1_STRAFE_LOCKED, 0.0f, 0.2f) == -1.5f);
+    /* The strafe over: forgotten, so a strafe begun standing has the game's. */
+    CHECK(rac1_strafe_glide_yaw(&g, RAC1_STRAFE_NONE, 0.0f, 0.2f) == 0.2f);
+    CHECK(rac1_strafe_glide_yaw(&g, RAC1_STRAFE_HELD, 0.0f, 0.2f) == 0.2f);
+}
+
 /* The strafe flip: X pressed while strafing on the ground with the stick pushed fully. */
 static void flips(void) {
     const uint32_t x = RAC1_PAD_X;
@@ -746,9 +761,11 @@ int main(void) {
     reversal();
     twist();
     flips();
+    glide();
     puts(
         "hero strafe: weapons, off, hold, lock, the buttons taken, facing, velocity, swing, right "
-        "stick, backpedal, Going Commando's feel, side reversal, hip twist and flips passed"
+        "stick, backpedal, Going Commando's feel, side reversal, hip twist, flips and the slide to "
+        "a stop passed"
     );
     return 0;
 }

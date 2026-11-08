@@ -134,6 +134,10 @@
 #define RAC1_STRAFE_TWIST_PELVIS_ACCEL 0.037f
 #define RAC1_STRAFE_TWIST_SPINE_ACCEL 0.025f
 #define RAC1_STRAFE_TWIST_DAMPING 0.27f
+/* The port turns a joint about its z the other way from the hero's yaw (hero_set_joints), so the
+ * twist's angle is sent negated. Sent as it was, his hips turned away from where he went and he
+ * moonwalked (reported on 1.1.0). */
+#define RAC1_STRAFE_TWIST_SENSE (-1.0f)
 
 /* The strafe flip (func_L00_002C9FC8): the stick past this, the direction it must not be
  * (stick_direction_vs_facing: 0 left, 1 right, 2 forward, 3 back), and the drift it starts with
@@ -329,6 +333,37 @@ static inline float rac1_strafe_turn_target(
  * facing (an angle above pi) is the move yaw instead; an angle of the caller's own is kept. */
 static inline float rac1_strafe_planar_angle(int kind, float requested, float move_yaw) {
     return kind != RAC1_STRAFE_NONE && !(requested <= RAC1_STRAFE_PI) ? move_yaw : requested;
+}
+
+/* The way he slides once the stick is let go. With the stick centred the game's stick handler
+ * (func_L00_00211F80) sets the move yaw to his facing and his target speed (+0x190) to 0, and the
+ * run eases his speed down over a few ticks along that yaw: after a strafe that is forward, a
+ * shuffle ahead as he stops. So the last move yaw the stick gave is kept and used while he slows. */
+typedef struct rac1_strafe_glide {
+    int valid; /* yaw is the stick's, from this strafe */
+    float yaw; /* the last move yaw with the stick pushed */
+} rac1_strafe_glide;
+
+/* The move yaw the velocity is built along while strafing (kind not none): the stick's while it is
+ * pushed (target_speed above 0), the last one it gave while he slows to a stop. Not strafing, it
+ * forgets the yaw and gives the move yaw back. */
+static inline float rac1_strafe_glide_yaw(
+    rac1_strafe_glide* g, int kind, float target_speed, float move_yaw
+) {
+    // Not strafing: nothing to keep.
+    if (kind == RAC1_STRAFE_NONE) {
+        g->valid = 0;
+        return move_yaw;
+    }
+
+    // The stick pushed: its yaw, remembered.
+    if (target_speed > 0.0f) {
+        g->valid = 1;
+        g->yaw = move_yaw;
+        return move_yaw;
+    }
+
+    return g->valid ? g->yaw : move_yaw;
 }
 
 /* Whether lock_strafe.cpp turns him toward the camera itself early in the hero's update: standing, where

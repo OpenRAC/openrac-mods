@@ -100,6 +100,14 @@ constexpr uint32_t k_hero_ground_speed = 0x194u;
 // In the hero: the flip's drift speed along its yaw (seen in game code: high_jump_drift_speed).
 constexpr uint32_t k_hero_flip_drift = 0x458u;
 
+// In the hero: the speed the flip carries along the facing it took off with (seen in game code:
+// air_target_speed, set from his speed when state 0xB is entered).
+constexpr uint32_t k_hero_flip_carry = 0x454u;
+
+// In the hero: the speed the stick asks for, 0 with the stick centred (seen in game code:
+// target_speed).
+constexpr uint32_t k_hero_target_speed = 0x190u;
+
 // In the hero: his position, x and y (assumed).
 constexpr uint32_t k_hero_pos_x = 0x80u;
 constexpr uint32_t k_hero_pos_y = 0x84u;
@@ -228,6 +236,9 @@ unsigned s_reverse_tick;
 
 // The side reversal's timers (strafe.h).
 rac1_strafe_reverse s_reverse;
+
+// The last move yaw the stick gave while strafing, for the slide to a stop (strafe.h).
+rac1_strafe_glide s_glide;
 
 // The hip twist: the pelvis's and the spine's springs, and whether the hero has the twist's joints
 // (sent, and not yet taken off).
@@ -436,8 +447,8 @@ bool send_twist() {
     const auto joint = [](uint32_t index, float angle) {
         openrac_joint_offset j{};
         j.joint = index;
-        j.rotation[2] = std::sin(angle * 0.5f);
-        j.rotation[3] = std::cos(angle * 0.5f);
+        j.rotation[2] = std::sin(RAC1_STRAFE_TWIST_SENSE * angle * 0.5f);
+        j.rotation[3] = std::cos(RAC1_STRAFE_TWIST_SENSE * angle * 0.5f);
         return j;
     };
 
@@ -522,6 +533,10 @@ void try_flip(const rac1_strafe_input& in, int kind) {
     // The game may refuse the state (a lock on his moves): then its own jump goes on.
     if (s_enter_state(RAC1_STRAFE_STATE_FLIP, k_enter_animate) != 0) {
         put_float(hero() + k_hero_flip_drift, frame_time() * RAC1_STRAFE_FLIP_DRIFT);
+        // State 0xB adds his run speed times the sine of the drift's angle from his facing along
+        // that facing: from a crouch it is 0, from a sideways strafe all of it, forward. Going
+        // Commando's flip goes only along the strafe, so none is carried.
+        put_float(hero() + k_hero_flip_carry, 0.0f);
     }
 }
 
@@ -566,6 +581,11 @@ void pad_process_report(Original original, gaddr pad_state, gaddr report, int32_
     // Off foot or out of play the animation hook does not run: the twist goes now.
     if (s_twist_shown && (!in.playing || in.vehicle_mode != 0)) {
         clear_twist();
+    }
+
+    // Not strafing: the slide's yaw is forgotten, so the next strafe starts from its own stick.
+    if (rac1_strafe_kind(s_mode, &in, &s_hold) == RAC1_STRAFE_NONE) {
+        s_glide = rac1_strafe_glide{};
     }
 
     // In play on foot with the setting on, the game must not see L2 and R2.
@@ -707,7 +727,14 @@ void set_planar_velocity(Original original, float angle) {
     // An angle above pi is the game's request for the facing; while strafing it becomes the move yaw.
     if (!(angle <= RAC1_STRAFE_PI)) {
         const int kind = strafe_kind();
-        angle = rac1_strafe_planar_angle(kind, angle, get_float(hero() + k_hero_move_yaw));
+        // The stick's yaw, or while he slows with it let go the last one it gave (strafe.h).
+        const float move_yaw = rac1_strafe_glide_yaw(
+            &s_glide,
+            kind,
+            get_float(hero() + k_hero_target_speed),
+            get_float(hero() + k_hero_move_yaw)
+        );
+        angle = rac1_strafe_planar_angle(kind, angle, move_yaw);
         const int state = ref<int32_t>(hero() + k_hero_state);
 
         // Going Commando's side reversal, once a tick in the run: going from one side to the other
@@ -814,6 +841,7 @@ void load(openrac::Mod& mod) {
     s_tick = 0;
     s_reverse_tick = 0;
     s_reverse = rac1_strafe_reverse{};
+    s_glide = rac1_strafe_glide{};
     s_pelvis = lock_strafe_spring{};
     s_spine = lock_strafe_spring{};
     s_twist_shown = false;
