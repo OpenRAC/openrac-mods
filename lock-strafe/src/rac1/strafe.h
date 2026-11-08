@@ -44,6 +44,14 @@
  * Either is done in the run (states 2 and 0x73) and the jump (7), on level ground; both also turn
  * him standing (state 0) with the camera (Hold once its swing is done). Everything else is the game's own.
  *
+ * Two feels (the setting "feel", DESIGN.md): Going Commando's (the default) has no swing in Hold (he
+ * turns to the camera, the camera stays), turns him at rac2's strafe rates, kills his momentum when
+ * he goes from one side to the other, and backpedals only within 45 degrees of straight back; the
+ * classic one is the mod's 1.0 behaviour. Apart from the feel: the hip twist (his pelvis turned
+ * toward where he goes and his spine back toward the camera, rac2's joints 9 and 10 on rac1's 1 and
+ * 2) and the strafe flips (X with the stick pushed fully sideways or back: rac1's own side and back
+ * flip, state 0xB, entered from the strafe as rac2 does).
+ *
  * This file is plain C with no game memory: each function takes what it reads as a struct and
  * returns the answer, so tests/hero_strafe_test.c can run the decision alone. Its addresses and
  * offsets are the decomp's, cited where they appear (seen in game code), and lock_strafe.cpp holds
@@ -65,6 +73,12 @@
 #define RAC1_PAD_L2 0x1u
 #define RAC1_PAD_R2 0x2u
 #define RAC1_STRAFE_BUTTONS (RAC1_PAD_L2 | RAC1_PAD_R2)
+/* Cross, the jump (try_start_hero_jump's pad_pressed_within(0x40, ...)). */
+#define RAC1_PAD_X 0x40u
+
+/* The feel (the mod's setting "feel"). */
+#define RAC1_STRAFE_FEEL_CLASSIC 0
+#define RAC1_STRAFE_FEEL_COMMANDO 1
 
 /* The hero's states the strafe works in: standing, running, running with +0x20A9 set (the same
  * movement code), jumping. */
@@ -72,6 +86,8 @@
 #define RAC1_STRAFE_STATE_RUN 0x02
 #define RAC1_STRAFE_STATE_RUN_ALT 0x73
 #define RAC1_STRAFE_STATE_JUMP 0x07
+/* The side and back flip (HERO_STATE_HIGH_JUMP; rac2's state 11, the same state). */
+#define RAC1_STRAFE_STATE_FLIP 0x0B
 /* The state with a strafe of its own on L2 and R2: left as the game has it. */
 #define RAC1_STRAFE_STATE_GAME 0x81
 /* The hero's control mode on the hoverboard (hero +0x208C; set by state 0x6B in Rilgar and Kalebo
@@ -92,6 +108,40 @@
 #define RAC1_STRAFE_SWING_STICK 0.3f
 #define RAC1_STRAFE_SWING_TICKS 120
 
+/* Going Commando's strafe turn, a tick at 60 Hz: the accel and damping (scaled by the tick's
+ * g_frame_scale_sq, as rac1 scales its own) and the limit in radians a second (times g_frame_time):
+ * on the ground func_L00_002B35A0's (0.037, 0.25, 0.2036 a frame), in the air the jump group's
+ * (0.015, 0.2, 0.25 a frame). Seen in rac2's code. */
+#define RAC1_STRAFE_TURN_ACCEL 0.037f
+#define RAC1_STRAFE_TURN_DAMPING 0.25f
+#define RAC1_STRAFE_TURN_LIMIT 12.2173061f
+#define RAC1_STRAFE_AIR_ACCEL 0.015f
+#define RAC1_STRAFE_AIR_DAMPING 0.2f
+#define RAC1_STRAFE_AIR_LIMIT 15.0f
+
+/* The side reversal (func_L00_002B35A0's timers +0x146C / +0x146E): ticks a side stays recent. */
+#define RAC1_STRAFE_SIDE_TICKS 5
+#define RAC1_STRAFE_SIDE_NONE 0
+#define RAC1_STRAFE_SIDE_LEFT 1
+#define RAC1_STRAFE_SIDE_RIGHT 2
+
+/* The hip twist (func_L00_002B7B80): the stick past this, the joints (rac1's pelvis and first spine
+ * joint, standing for rac2's 9 and 10), and the springs' accel (pelvis, spine) and damping, a tick
+ * at 60 Hz, scaled as the turn's. Seen in rac2's code; the joints from rac1's skeleton. */
+#define RAC1_STRAFE_TWIST_STICK 0.15f
+#define RAC1_STRAFE_JOINT_PELVIS 1
+#define RAC1_STRAFE_JOINT_SPINE 2
+#define RAC1_STRAFE_TWIST_PELVIS_ACCEL 0.037f
+#define RAC1_STRAFE_TWIST_SPINE_ACCEL 0.025f
+#define RAC1_STRAFE_TWIST_DAMPING 0.27f
+
+/* The strafe flip (func_L00_002C9FC8): the stick past this, the direction it must not be
+ * (stick_direction_vs_facing: 0 left, 1 right, 2 forward, 3 back), and the drift it starts with
+ * (state 0xB's +0x4DC, 0.0833 a frame: 5 units a second). Seen in rac2's code. */
+#define RAC1_STRAFE_FLIP_STICK 0.9f
+#define RAC1_STRAFE_DIRECTION_FORWARD 2
+#define RAC1_STRAFE_FLIP_DRIFT 5.0f
+
 /* Pi and two pi as 32-bit floats, as the game's own angle arithmetic has them (seen in game code). */
 #define RAC1_STRAFE_PI 3.14159274f
 #define RAC1_STRAFE_TWO_PI 6.28318548f
@@ -104,6 +154,9 @@
 #define RAC1_STRAFE_SEQ_RUN 4
 #define RAC1_STRAFE_BACK_ENTER 1.91986218f /* 110 degrees */
 #define RAC1_STRAFE_BACK_LEAVE 1.74532926f /* 100 degrees */
+/* Going Commando's: within 45 degrees of straight back (func_L00_002B39F0), leaving 5 degrees on. */
+#define RAC1_STRAFE_BACK_ENTER_COMMANDO 2.35619449f /* 135 degrees */
+#define RAC1_STRAFE_BACK_LEAVE_COMMANDO 2.26892803f /* 130 degrees */
 /* The highest blend lock_strafe.cpp leaves: the advance takes one from 0.99 up as 1 and steps forward. */
 #define RAC1_STRAFE_BACK_TOP 0.985f
 
@@ -191,7 +244,7 @@ static inline int rac1_strafe_takes_buttons(int mode, const rac1_strafe_input* i
  * facing and starts the swing; the swing ends with the camera behind that facing, the right stick
  * pushed sideways or the ticks run out; letting both go, or the setting off, forgets it all. */
 static inline void rac1_strafe_hold_update(
-    int mode, const rac1_strafe_input* in, rac1_strafe_hold* hold
+    int mode, int feel, const rac1_strafe_input* in, rac1_strafe_hold* hold
 ) {
     // With the setting off or both buttons up there is nothing to remember.
     if (mode == RAC1_STRAFE_OFF || (in->held & RAC1_STRAFE_BUTTONS) == 0) {
@@ -205,7 +258,8 @@ static inline void rac1_strafe_hold_update(
         // Off foot (a vehicle, a scene, the game's own strafe state) the press is not Hold's.
         if (rac1_strafe_on_foot(in)) {
             hold->latched = 1;
-            hold->swinging = 1;
+            /* Going Commando's has no swing: he turns to the camera at once. */
+            hold->swinging = feel == RAC1_STRAFE_FEEL_CLASSIC;
             hold->ticks = 0;
             hold->yaw = in->facing;
         }
@@ -296,7 +350,7 @@ static inline int rac1_strafe_turns_standing(int kind, int state, const rac1_str
 
 /* Whether he backpedals this tick (was: last tick's answer). */
 static inline int rac1_strafe_backpedal(
-    int kind, int state, float facing, float move_yaw, int was
+    int kind, int feel, int state, float facing, float move_yaw, int was
 ) {
     // Only a strafe in the run's states can backpedal.
     if (kind == RAC1_STRAFE_NONE
@@ -311,7 +365,116 @@ static inline int rac1_strafe_backpedal(
         d = -d;
     }
 
+    // Going Commando's edges: within 45 degrees of straight back.
+    if (feel == RAC1_STRAFE_FEEL_COMMANDO) {
+        return d > (was ? RAC1_STRAFE_BACK_LEAVE_COMMANDO : RAC1_STRAFE_BACK_ENTER_COMMANDO);
+    }
+
     return d > (was ? RAC1_STRAFE_BACK_LEAVE : RAC1_STRAFE_BACK_ENTER);
+}
+
+/* ---- Going Commando's feel ---- */
+
+/* The turn's rates while strafing, Going Commando's (DESIGN.md): on the ground, or in the jump.
+ * frame_scale_sq and frame_time are the game's (g_frame_scale_sq, g_frame_time). */
+static inline void rac1_strafe_commando_rates(
+    int state, float frame_scale_sq, float frame_time, float* accel, float* damping, float* limit
+) {
+    // In the jump, the jump group's rates.
+    if (state == RAC1_STRAFE_STATE_JUMP) {
+        *accel = frame_scale_sq * RAC1_STRAFE_AIR_ACCEL;
+        *damping = frame_scale_sq * RAC1_STRAFE_AIR_DAMPING;
+        *limit = frame_time * RAC1_STRAFE_AIR_LIMIT;
+        return;
+    }
+
+    *accel = frame_scale_sq * RAC1_STRAFE_TURN_ACCEL;
+    *damping = frame_scale_sq * RAC1_STRAFE_TURN_DAMPING;
+    *limit = frame_time * RAC1_STRAFE_TURN_LIMIT;
+}
+
+/* Which side the move yaw is on from his facing: left (90 degrees anticlockwise, the game's
+ * stick_direction_vs_facing 0) or right, each within 45 degrees, else neither. */
+static inline int rac1_strafe_side(float facing, float move_yaw) {
+    const float d = rac1_strafe_angle_diff(facing, move_yaw);
+    const float quarter = RAC1_STRAFE_PI * 0.5f;
+    const float eighth = RAC1_STRAFE_PI * 0.25f;
+    float left = d - quarter;
+    float right = d + quarter;
+
+    left = left < 0.0f ? -left : left;
+    right = right < 0.0f ? -right : right;
+
+    // Within 45 degrees of his left.
+    if (left <= eighth) {
+        return RAC1_STRAFE_SIDE_LEFT;
+    }
+
+    return right <= eighth ? RAC1_STRAFE_SIDE_RIGHT : RAC1_STRAFE_SIDE_NONE;
+}
+
+/* The ticks since he last went each way (func_L00_002B35A0's +0x146E and +0x146C). */
+typedef struct rac1_strafe_reverse {
+    int left;
+    int right;
+} rac1_strafe_reverse;
+
+/* One tick of the side reversal: what his speed is multiplied by. Going left soon after going right:
+ * rac2 multiplies by -0.25, which on rac1's speed would be below 0, so 0; going right soon after
+ * left: 0, then 0.25, 0.5 and 0.75 as the left fades; else 1. */
+static inline float rac1_strafe_reverse_step(rac1_strafe_reverse* r, int side) {
+    float f = 1.0f;
+
+    // Both timers count down first, as the game's func_00282978 does.
+    if (r->left > 0) {
+        --r->left;
+    }
+
+    // The right's timer too.
+    if (r->right > 0) {
+        --r->right;
+    }
+
+    // Going left: the right fades away at once.
+    if (side == RAC1_STRAFE_SIDE_LEFT) {
+        r->left = RAC1_STRAFE_SIDE_TICKS;
+
+        // The right still recent: his speed goes.
+        if (r->right != 0) {
+            f = 0.0f;
+        }
+    } else if (side == RAC1_STRAFE_SIDE_RIGHT) {
+        r->right = RAC1_STRAFE_SIDE_TICKS;
+
+        // The left still recent: his speed comes back as it fades.
+        if (r->left != 0) {
+            f = (4.0f - (float)r->left) * 0.25f;
+        }
+    }
+
+    return f < 0.0f ? 0.0f : f;
+}
+
+/* The hip twist's target for the pelvis (the spine's is minus it): the move yaw from his facing
+ * while strafing with the stick pushed, not backpedalling; else 0, where the twist springs back. */
+static inline float rac1_strafe_twist_target(
+    int kind, float stick, int backpedal, float facing, float move_yaw
+) {
+    // Not strafing, the stick near its centre, or going backwards: no twist.
+    if (kind == RAC1_STRAFE_NONE || !(stick > RAC1_STRAFE_TWIST_STICK) || backpedal) {
+        return 0.0f;
+    }
+
+    return rac1_strafe_angle_diff(facing, move_yaw);
+}
+
+/* Whether X this tick starts a strafe flip, the game's direction check apart: strafing, standing
+ * or running, X pressed, the stick pushed fully. */
+static inline int rac1_strafe_flips(int kind, int state, uint32_t pressed, float stick) {
+    return kind != RAC1_STRAFE_NONE
+           && (state == RAC1_STRAFE_STATE_STAND || state == RAC1_STRAFE_STATE_RUN
+               || state == RAC1_STRAFE_STATE_RUN_ALT)
+           && (pressed & RAC1_PAD_X) != 0 && stick > RAC1_STRAFE_FLIP_STICK;
 }
 
 /* Where a looping sequence stands (the hero moby's +0x50, +0x51, +0x54, and hero +0xA94). */

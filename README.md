@@ -16,7 +16,7 @@ section 11):
 
 | Mod | Kind | What it does | Discs |
 |---|---|---|---|
-| [lock-strafe](lock-strafe/README.md) | native | Strafe as in the later games: Up Your Arsenal's lock-strafe with weapons that fire ahead, Going Commando's strafe while L2 or R2 is held | PAL, NTSC-U |
+| [lock-strafe](lock-strafe/README.md) | native | Strafe as in Going Commando: L2 or R2 held (or always, with a weapon that fires ahead, as Up Your Arsenal's lock-strafe), Ratchet facing the camera, his hips turning toward where he goes, and side and back flips on X | PAL, NTSC-U |
 | [button-swap](button-swap/README.md) | script | Swaps two buttons: Cross and Square, Circle and Triangle, or L1 and R1 | PAL, NTSC-U |
 | [keyboard-mouse](keyboard-mouse/README.md) | native | Keyboard and mouse: WASD, mouse camera, click to fire, right click held for the Quick Select, number keys and wheel for weapons; every action rebindable in the launcher, with presets; a gamepad keeps working | PAL, NTSC-U |
 | [item-randomizer](item-randomizer/README.md) | native | Shuffles the gadgets, weapons, vendor stock, gold bolts and infobots, with logic so every seed can be finished; seed codes to share, a spoiler log | PAL, NTSC-U |

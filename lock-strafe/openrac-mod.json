@@ -2,14 +2,19 @@
   "format": 2,
   "id": "lock-strafe",
   "name": "Lock-strafe",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "author": "Flavius",
-  "description": "Strafe as in the later games. Lock with weapons: with a weapon that fires ahead in hand, Ratchet always faces where the camera looks, the right stick turns him and the left stick strafes (Up Your Arsenal's lock-strafe). Hold L2 or R2: the camera swings behind him and he strafes while it is held (Going Commando's). L1 still looks and R1 still crouches.",
+  "description": "Strafe as in Going Commando: hold L2 or R2 (or always, with a weapon that fires ahead) and Ratchet faces where the camera looks while the left stick moves him; his hips turn toward where he goes while his body stays on the camera, and X with the stick pushed sideways or back flips that way. L1 still looks and R1 still crouches.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/lock-strafe",
-  "api": "1.1",
+  "api": "1.12",
   "multiplayer": "input",
-  "games": { "rac1": ["pal", "ntsc"] },
+  "games": {
+    "rac1": [
+      "pal",
+      "ntsc"
+    ]
+  },
   "hooks": [
     "rac1.pad.process_report",
     "rac1.player.update_motion_input",
@@ -25,13 +30,51 @@
       "type": "choice",
       "default": "lock",
       "choices": [
-        { "value": "lock", "name": "Lock with weapons" },
-        { "value": "hold", "name": "Hold L2 or R2" }
+        {
+          "value": "lock",
+          "name": "Lock with weapons"
+        },
+        {
+          "value": "hold",
+          "name": "Hold L2 or R2"
+        }
       ],
       "description": "Lock: always with a weapon that fires ahead, Hold otherwise. Hold: only while L2 or R2 is held."
     },
     {
-      "key": "trace", "multiplayer": "own",
+      "key": "feel",
+      "name": "Feel",
+      "type": "choice",
+      "default": "commando",
+      "choices": [
+        {
+          "value": "commando",
+          "name": "Going Commando"
+        },
+        {
+          "value": "classic",
+          "name": "Classic (1.0)"
+        }
+      ],
+      "description": "Going Commando: Ratchet turns to the camera when L2 or R2 goes down (the camera stays), turns and stops as in Ratchet & Clank 2, and backpedals only near straight back. Classic: the camera swings behind him, the first game's own turn rates."
+    },
+    {
+      "key": "twist",
+      "name": "Hip twist",
+      "type": "bool",
+      "default": true,
+      "description": "Strafing, his hips and legs turn toward where he goes and his body turns back to face ahead, as in Going Commando. Needs an OpenRAC that lets mods turn the hero's joints; without it he strafes without the twist."
+    },
+    {
+      "key": "flips",
+      "name": "Strafe flips",
+      "type": "bool",
+      "default": true,
+      "description": "Strafing, X with the stick pushed all the way left, right or back does a side flip or a back flip that way, as in Going Commando."
+    },
+    {
+      "key": "trace",
+      "multiplayer": "own",
       "name": "Trace",
       "type": "bool",
       "default": false,

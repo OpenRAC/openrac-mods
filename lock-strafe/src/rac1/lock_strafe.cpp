@@ -19,25 +19,39 @@
 // takes the hook points. The decision of when and how he strafes is in strafe.h, away from game
 // memory; the addresses of each disc are in discs.h.
 //
+// Going Commando's strafe (DESIGN.md) is in the same hooks: its turn rates, the side reversal, the
+// hip twist (hero_set_joints, each tick from the animation hook) and the strafe flips (rac1's own
+// state 0xB, entered from the motion input hook on X).
+//
 // Settings (openrac-mod.json):
 //   mode   (choice: lock | hold, default lock)  Lock: he strafes always with a weapon that fires
 //          ahead in hand, and as Hold otherwise. Hold: he strafes only while L2 or R2 is held.
+//   feel   (choice: commando | classic, default commando)  Going Commando's, or the mod's 1.0 one.
+//   twist  (bool, default on)  The hip twist: legs toward where he goes, body toward the camera.
+//   flips  (bool, default on)  X with the stick pushed fully sideways or back flips that way.
 //   trace  (bool, default off)  For bug reports: a line in the game's log for each pad report, with
 //          what the strafe does. The environment variable OPENRAC_STRAFE_TRACE=1 switches it on too.
+#include "lock_strafe.h"
+
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
+#include "../common/spring.h"
 #include "discs.h"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
 #include "strafe.h"
 
+namespace lock_strafe::rac1 {
+
 namespace {
 
 using openrac::gaddr;
-namespace rac1 = openrac::rac1;
+namespace hooks = openrac::rac1;
 
 // ---- Constants ----
 
@@ -76,6 +90,16 @@ constexpr uint32_t k_hero_facing = 0x98u;
 // In the hero: the move yaw, where the stick points on the screen (seen in game code).
 constexpr uint32_t k_hero_move_yaw = 0x180u;
 
+// In the hero: how far the stick is pushed, 0 to 1 (seen in game code: stick_magnitude).
+constexpr uint32_t k_hero_stick = 0x229Cu;
+
+// In the hero: the speed his velocity is built at (seen in game code: ground_speed, read by
+// Hero_SetPlanarVelocity).
+constexpr uint32_t k_hero_ground_speed = 0x194u;
+
+// In the hero: the flip's drift speed along its yaw (seen in game code: high_jump_drift_speed).
+constexpr uint32_t k_hero_flip_drift = 0x458u;
+
 // In the hero: his position, x and y (assumed).
 constexpr uint32_t k_hero_pos_x = 0x80u;
 constexpr uint32_t k_hero_pos_y = 0x84u;
@@ -92,6 +116,7 @@ constexpr uint32_t k_hero_anim_pending = 0xAB8u;
 // In the pad: the held buttons, and the right stick sideways (PadState.analog[0]) (seen in game
 // code).
 constexpr uint32_t k_pad_held = 0x1A0u;
+constexpr uint32_t k_pad_pressed = 0x1A4u;
 constexpr uint32_t k_pad_look_x = 0x100u;
 
 // The PadState words with button bits (pad.h: held, pressed, released, raw_held, raw_pressed,
@@ -154,6 +179,9 @@ constexpr float k_standing_accel = 0.017f;
 constexpr float k_standing_damping = 0.3f;
 constexpr float k_standing_limit = 4.712389f;
 
+// HeroEnterMoveState's second argument: start the state's animation (seen in game code).
+constexpr int32_t k_enter_animate = 1;
+
 // Hero_TurnToHeading's first argument for the turns that follow the move yaw (strafe.h).
 constexpr int32_t k_turn_follows_move_yaw = 0;
 
@@ -168,6 +196,9 @@ constexpr size_t k_trace_line_size = 512;
 openrac::Mod* s_mod;
 const lock_strafe_disc* s_disc;
 int s_mode;    // RAC1_STRAFE_HOLD or RAC1_STRAFE_LOCK
+int s_feel;    // RAC1_STRAFE_FEEL_COMMANDO or RAC1_STRAFE_FEEL_CLASSIC
+bool s_twist;  // the hip twist
+bool s_flips;  // the strafe flips
 bool s_trace;  // a line each pad report
 
 // The game's functions it calls (discs.h). Set in load.
@@ -177,6 +208,8 @@ void (*s_camera_slide)(int32_t);
 void (*s_camera_spring)(float, float);
 void (*s_camera_pan_off)();
 void (*s_camera_look_along)(gaddr, float, float);
+int32_t (*s_enter_state)(int32_t, int32_t);
+int32_t (*s_stick_direction)();
 
 // L2 and R2 as the player holds them, from the last pad report (set by the pad hook, read by the
 // decision's input).
@@ -188,6 +221,19 @@ rac1_strafe_hold s_hold;
 // Whether the walk or the run is played backwards (strafe.h); updated each tick by the animation
 // hook.
 int s_backpedal;
+
+// The pad reports so far (one a tick), and the last one the side reversal stepped at.
+unsigned s_tick;
+unsigned s_reverse_tick;
+
+// The side reversal's timers (strafe.h).
+rac1_strafe_reverse s_reverse;
+
+// The hip twist: the pelvis's and the spine's springs, and whether the hero has the twist's joints
+// (sent, and not yet taken off).
+lock_strafe_spring s_pelvis;
+lock_strafe_spring s_spine;
+bool s_twist_shown;
 
 // ---- Helpers ----
 
@@ -225,6 +271,15 @@ gaddr level0(uint32_t address) {
 // The camera's yaw now.
 float camera_yaw() {
     return get_float(level0(s_disc->camera_yaw));
+}
+
+// The game's g_frame_scale_sq and g_frame_time now (the turns' scales).
+float frame_scale_sq() {
+    return get_float(s_mod->relocate(s_disc->frame_scale));
+}
+
+float frame_time() {
+    return get_float(s_mod->relocate(s_disc->turn_step));
 }
 
 // The hero's moby, 0 when he has none yet.
@@ -288,7 +343,7 @@ void trace() {
         "mode %d kind %d playing %d state %#x vehicle %d item %#x/%d held %#x seen %#x latched "
         "%d/%d/%.3f "
         "look %.2f facing %.3f move %.3f camera %.3f pos %.3f %.3f back %d anim %d/%d %d-%d %.3f "
-        "speed %.3f",
+        "speed %.3f feel %d twist %.3f/%.3f side %d/%d",
         s_mode,
         rac1_strafe_kind(s_mode, &in, &s_hold),
         in.playing,
@@ -313,7 +368,12 @@ void trace() {
         anim_byte(k_moby_key),
         anim_byte(k_moby_next_key),
         d(anim_float(k_moby_fraction)),
-        d(get_float(hero() + k_hero_anim_speed))
+        d(get_float(hero() + k_hero_anim_speed)),
+        s_feel,
+        d(s_pelvis.angle),
+        d(s_spine.angle),
+        s_reverse.left,
+        s_reverse.right
     );
     s_mod->info(line);
 }
@@ -324,7 +384,7 @@ void turn_toward(float yaw, int32_t mode, float accel, float damping, float limi
     const gaddr move_yaw = hero() + k_hero_move_yaw;
     const float stick = get_float(move_yaw);
     put_float(move_yaw, yaw);
-    s_mod->original<rac1::Hero_TurnToHeading>()(mode, accel, damping, limit);
+    s_mod->original<hooks::Hero_TurnToHeading>()(mode, accel, damping, limit);
     put_float(move_yaw, stick);
 }
 
@@ -368,6 +428,103 @@ void step_sequence_back(gaddr moby, gaddr sequence, int count) {
     put_float(moby + k_moby_fraction, a.fraction - get_float(hero() + k_hero_anim_speed) * a.rate);
 }
 
+// Sends the twist's two joints to the hero: the pelvis and the spine turned about their own z (a
+// yaw: his skeleton's joint frames stand as his model's, z up) by their springs' angles. False on a
+// port that does not take a mod's joints (one that takes them only from the hero's update hook's
+// holder): he then runs without the twist.
+bool send_twist() {
+    const auto joint = [](uint32_t index, float angle) {
+        openrac_joint_offset j{};
+        j.joint = index;
+        j.rotation[2] = std::sin(angle * 0.5f);
+        j.rotation[3] = std::cos(angle * 0.5f);
+        return j;
+    };
+
+    // A port without the call at all (its table has no entry): nothing to send to.
+    if (!s_mod->has_api_12() || s_mod->api().hero_set_joints == nullptr) {
+        return false;
+    }
+
+    return s_mod->hero_set_joints(
+        {joint(RAC1_STRAFE_JOINT_PELVIS, s_pelvis.angle),
+         joint(RAC1_STRAFE_JOINT_SPINE, s_spine.angle)}
+    );
+}
+
+// Takes the twist off the hero and puts its springs at rest.
+void clear_twist() {
+    s_pelvis = lock_strafe_spring{};
+    s_spine = lock_strafe_spring{};
+
+    // Only a twist that was sent has anything to take off.
+    if (s_twist_shown) {
+        s_twist_shown = false;
+
+        // A port with the call: an empty list takes the joints off.
+        if (s_mod->has_api_12() && s_mod->api().hero_set_joints != nullptr) {
+            s_mod->hero_set_joints({});
+        }
+    }
+}
+
+// One tick of the hip twist (DESIGN.md): the pelvis eases toward the move yaw from his facing and
+// the spine toward minus it, on Going Commando's springs; at rest at 0, the joints are taken off.
+void update_twist(int kind) {
+    // The setting off: never a twist.
+    if (!s_twist) {
+        return;
+    }
+
+    const float target = rac1_strafe_twist_target(
+        kind,
+        get_float(hero() + k_hero_stick),
+        s_backpedal,
+        get_float(hero() + k_hero_facing),
+        get_float(hero() + k_hero_move_yaw)
+    );
+    const float scale = frame_scale_sq();
+    lock_strafe_spring_step(
+        &s_pelvis, target, scale * RAC1_STRAFE_TWIST_PELVIS_ACCEL, scale * RAC1_STRAFE_TWIST_DAMPING
+    );
+    lock_strafe_spring_step(
+        &s_spine, -target, scale * RAC1_STRAFE_TWIST_SPINE_ACCEL, scale * RAC1_STRAFE_TWIST_DAMPING
+    );
+
+    // Back at rest with nothing to aim at: take the joints off once.
+    if (target == 0.0f && lock_strafe_spring_still(&s_pelvis)
+        && lock_strafe_spring_still(&s_spine)) {
+        clear_twist();
+        return;
+    }
+
+    s_twist_shown = send_twist() || s_twist_shown;
+}
+
+// The strafe flip (DESIGN.md): X pressed this tick while strafing, standing or running, with the
+// stick pushed fully and not forward enters rac1's own side or back flip (state 0xB), which picks
+// its animation from the stick (0x1C left, 0x1D right, 0x1F back) as rac2's does; its drift then
+// starts at Going Commando's 5 units a second along the strafe.
+void try_flip(const rac1_strafe_input& in, int kind) {
+    // The setting off, or not X with the stick pushed fully while strafing on the ground.
+    if (!s_flips
+        || !rac1_strafe_flips(
+            kind, in.state, ref<uint32_t>(pad() + k_pad_pressed), get_float(hero() + k_hero_stick)
+        )) {
+        return;
+    }
+
+    // Forward is the plain jump, the game's.
+    if (s_stick_direction() == RAC1_STRAFE_DIRECTION_FORWARD) {
+        return;
+    }
+
+    // The game may refuse the state (a lock on his moves): then its own jump goes on.
+    if (s_enter_state(RAC1_STRAFE_STATE_FLIP, k_enter_animate) != 0) {
+        put_float(hero() + k_hero_flip_drift, frame_time() * RAC1_STRAFE_FLIP_DRIFT);
+    }
+}
+
 // The game's function `name` on this disc, or a refusal naming it.
 template <class Fn>
 Fn game_function(const char* name) {
@@ -400,10 +557,16 @@ void pad_process_report(Original original, gaddr pad_state, gaddr report, int32_
         return;
     }
 
+    ++s_tick;
     s_buttons = ref<uint32_t>(pad() + k_pad_held) & RAC1_STRAFE_BUTTONS;
     rac1_strafe_input in;
     read_input(&in);
-    rac1_strafe_hold_update(s_mode, &in, &s_hold);
+    rac1_strafe_hold_update(s_mode, s_feel, &in, &s_hold);
+
+    // Off foot or out of play the animation hook does not run: the twist goes now.
+    if (s_twist_shown && (!in.playing || in.vehicle_mode != 0)) {
+        clear_twist();
+    }
 
     // In play on foot with the setting on, the game must not see L2 and R2.
     if (rac1_strafe_takes_buttons(s_mode, &in)) {
@@ -430,20 +593,28 @@ void update_motion_input(Original original) {
     rac1_strafe_input in;
     read_input(&in);
 
-    // Standing in a strafe that turns him: turn him toward the camera before the game's update.
-    if (rac1_strafe_turns_standing(rac1_strafe_kind(s_mode, &in, &s_hold), in.state, &s_hold)) {
-        const float frame = get_float(s_mod->relocate(s_disc->frame_scale));
-        const float step = get_float(s_mod->relocate(s_disc->turn_step));
-        turn_toward(
-            camera_yaw(),
-            k_turn_follows_move_yaw,
-            frame * k_standing_accel,
-            frame * k_standing_damping,
-            step * k_standing_limit
-        );
+    const int kind = rac1_strafe_kind(s_mode, &in, &s_hold);
+
+    // Standing in a strafe that turns him: turn him toward the camera before the game's update, at
+    // Going Commando's rates or the classic ones.
+    if (rac1_strafe_turns_standing(kind, in.state, &s_hold)) {
+        float accel = frame_scale_sq() * k_standing_accel;
+        float damping = frame_scale_sq() * k_standing_damping;
+        float limit = frame_time() * k_standing_limit;
+
+        // Going Commando's feel turns him standing as it does walking.
+        if (s_feel == RAC1_STRAFE_FEEL_COMMANDO) {
+            rac1_strafe_commando_rates(
+                in.state, frame_scale_sq(), frame_time(), &accel, &damping, &limit
+            );
+        }
+
+        turn_toward(camera_yaw(), k_turn_follows_move_yaw, accel, damping, limit);
     }
 
     original();
+    // The stick is read: X may flip him (before his state's code sees it).
+    try_flip(in, kind);
 }
 
 // Hero_TurnToHeading: eases the facing toward the move yaw (+0x180). While strafing, toward the
@@ -456,6 +627,18 @@ void turn_to_heading(Original original, int32_t mode, float accel, float damping
     if (kind == RAC1_STRAFE_NONE) {
         original(mode, accel, damping, limit);
         return;
+    }
+
+    // Going Commando's feel turns him at its own strafe rates.
+    if (s_feel == RAC1_STRAFE_FEEL_COMMANDO) {
+        rac1_strafe_commando_rates(
+            ref<int32_t>(hero() + k_hero_state),
+            frame_scale_sq(),
+            frame_time(),
+            &accel,
+            &damping,
+            &limit
+        );
     }
 
     turn_toward(
@@ -523,7 +706,24 @@ template <class Original>
 void set_planar_velocity(Original original, float angle) {
     // An angle above pi is the game's request for the facing; while strafing it becomes the move yaw.
     if (!(angle <= RAC1_STRAFE_PI)) {
-        angle = rac1_strafe_planar_angle(strafe_kind(), angle, get_float(hero() + k_hero_move_yaw));
+        const int kind = strafe_kind();
+        angle = rac1_strafe_planar_angle(kind, angle, get_float(hero() + k_hero_move_yaw));
+        const int state = ref<int32_t>(hero() + k_hero_state);
+
+        // Going Commando's side reversal, once a tick in the run: going from one side to the other
+        // kills the speed he had (strafe.h).
+        if (kind != RAC1_STRAFE_NONE && s_feel == RAC1_STRAFE_FEEL_COMMANDO
+            && (state == RAC1_STRAFE_STATE_RUN || state == RAC1_STRAFE_STATE_RUN_ALT)
+            && s_reverse_tick != s_tick) {
+            s_reverse_tick = s_tick;
+            const float f = rac1_strafe_reverse_step(
+                &s_reverse,
+                rac1_strafe_side(
+                    get_float(hero() + k_hero_facing), get_float(hero() + k_hero_move_yaw)
+                )
+            );
+            ref<float>(hero() + k_hero_ground_speed) *= f;
+        }
     }
 
     original(angle);
@@ -542,8 +742,9 @@ void advance_animation(Original original) {
     read_input(&in);
     const int kind = rac1_strafe_kind(s_mode, &in, &s_hold);
     s_backpedal = rac1_strafe_backpedal(
-        kind, in.state, in.facing, get_float(hero() + k_hero_move_yaw), s_backpedal
+        kind, s_feel, in.state, in.facing, get_float(hero() + k_hero_move_yaw), s_backpedal
     );
+    update_twist(kind);
     const gaddr moby = hero_moby();
 
     // Not backpedalling, or no moby to step: the game's own advance.
@@ -576,18 +777,15 @@ void advance_animation(Original original) {
     original();
 }
 
+}  // namespace
+
 // ---- Entry point ----
 
-// The port calls this when it loads the library: checks the game and the disc, reads the settings,
-// finds the game's functions and takes the hook points. Throws openrac::Error to refuse to run.
+// Called by the entry point (mod.cpp) for rac1: checks the disc, reads the settings, finds the
+// game's functions and takes the hook points. Throws openrac::Error to refuse to run.
 void load(openrac::Mod& mod) {
     s_mod = &mod;
     s_disc = nullptr;
-
-    // The addresses are those of Ratchet & Clank; another game would be read at the wrong places.
-    if (mod.game() != "rac1") {
-        throw openrac::Error("lock-strafe is for Ratchet & Clank (rac1)");
-    }
 
     // Find the table row for the running disc by its version.
     for (const auto& disc : k_lock_strafe_discs) {
@@ -605,10 +803,20 @@ void load(openrac::Mod& mod) {
     }
 
     s_mode = mod.setting<std::string>("mode") == "hold" ? RAC1_STRAFE_HOLD : RAC1_STRAFE_LOCK;
+    s_feel = mod.setting<std::string>("feel") == "classic" ? RAC1_STRAFE_FEEL_CLASSIC
+                                                           : RAC1_STRAFE_FEEL_COMMANDO;
+    s_twist = mod.setting<bool>("twist");
+    s_flips = mod.setting<bool>("flips");
     s_trace = mod.setting<bool>("trace") || std::getenv("OPENRAC_STRAFE_TRACE") != nullptr;
     s_buttons = 0;
     s_hold = rac1_strafe_hold{};
     s_backpedal = 0;
+    s_tick = 0;
+    s_reverse_tick = 0;
+    s_reverse = rac1_strafe_reverse{};
+    s_pelvis = lock_strafe_spring{};
+    s_spine = lock_strafe_spring{};
+    s_twist_shown = false;
 
     s_fast_cos = game_function<float (*)(float)>(s_disc->fast_cos);
     s_fast_sin = game_function<float (*)(float)>(s_disc->fast_sin);
@@ -616,34 +824,36 @@ void load(openrac::Mod& mod) {
     s_camera_spring = game_function<void (*)(float, float)>(s_disc->camera_spring);
     s_camera_pan_off = game_function<void (*)()>(s_disc->camera_pan_off);
     s_camera_look_along = game_function<void (*)(gaddr, float, float)>(s_disc->camera_look_along);
+    s_enter_state = game_function<int32_t (*)(int32_t, int32_t)>(s_disc->enter_state);
+    s_stick_direction = game_function<int32_t (*)()>(s_disc->stick_direction);
 
     // A hook point this OpenRAC lacks throws: the load is refused with its name, and the port lets
     // go of the hooks already taken.
-    mod.hook<rac1::Pad_ProcessReport>(
+    mod.hook<hooks::Pad_ProcessReport>(
         [](auto original, uint32_t pad_state, uint32_t report, int32_t size) {
             pad_process_report(original, pad_state, report, size);
         }
     );
-    mod.hook<rac1::Hero_UpdateMotionInput>([](auto original) { update_motion_input(original); });
-    mod.hook<rac1::Hero_TurnToHeading>(
+    mod.hook<hooks::Hero_UpdateMotionInput>([](auto original) { update_motion_input(original); });
+    mod.hook<hooks::Hero_TurnToHeading>(
         [](auto original, int32_t m, float accel, float damping, float limit) {
             turn_to_heading(original, m, accel, damping, limit);
         }
     );
-    mod.hook<rac1::Hero_SetPlanarVelocity>([](auto original, float angle) {
+    mod.hook<hooks::Hero_SetPlanarVelocity>([](auto original, float angle) {
         set_planar_velocity(original, angle);
     });
-    mod.hook<rac1::FollowCamera_ApplyOverrides>([](auto original, uint32_t camera) {
+    mod.hook<hooks::FollowCamera_ApplyOverrides>([](auto original, uint32_t camera) {
         camera_overrides(original, camera);
     });
-    mod.hook<rac1::Hero_AdvanceAnimation>([](auto original) { advance_animation(original); });
+    mod.hook<hooks::Hero_AdvanceAnimation>([](auto original) { advance_animation(original); });
 
     mod.info(
-        std::string(s_mode == RAC1_STRAFE_HOLD ? "Hold L2 or R2" : "Lock with weapons") + " on the "
+        std::string(s_mode == RAC1_STRAFE_HOLD ? "Hold L2 or R2" : "Lock with weapons") + ", "
+        + (s_feel == RAC1_STRAFE_FEEL_COMMANDO ? "Going Commando's feel" : "the classic feel")
+        + (s_twist ? ", hip twist" : "") + (s_flips ? ", strafe flips" : "") + " on the "
         + std::string(mod.version()) + " disc" + (s_trace ? ", tracing each pad report" : "")
     );
 }
 
-}  // namespace
-
-OPENRAC_MOD_CPP("lock-strafe", "1.0.4", load)
+}  // namespace lock_strafe::rac1

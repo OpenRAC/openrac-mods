@@ -3,7 +3,9 @@
  * it reports its id and interface, refuses another game and an unknown disc, takes the six hook
  * points with their signatures and finds the game's functions by each disc's names; then, on a
  * game memory made here, its pad hook takes L2 out in play on foot and leaves it out of play, and
- * its turn hook turns toward the camera while locked, calling the original each time.
+ * its turn hook turns toward the camera while locked, calling the original each time; X while
+ * strafing with the stick pushed sideways enters the flip, and the animation hook sends the hip
+ * twist's two joints.
  *
  * Run with the library's path: load_test <lock_strafe.dylib|.so|.dll>.
  *
@@ -14,8 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../src/discs.h"
-#include "../src/strafe.h"
+#include "../../src/rac1/discs.h"
+#include "../../src/rac1/strafe.h"
 #include "openrac/games/rac1.h"
 #include "openrac/openrac_mod.h"
 
@@ -110,6 +112,37 @@ static void game_look(openrac_gaddr d, float a, float b) {
     (void)d, (void)a, (void)b;
 }
 
+/* HeroEnterMoveState: the state asked for (taken), and stick_direction_vs_facing: a direction set
+ * by the test. */
+static int32_t s_entered = -1;
+static int32_t s_direction = 1;
+
+static int32_t game_enter(int32_t state, int32_t animate) {
+    CHECK(animate == 1);
+    s_entered = state;
+    return 1;
+}
+
+static int32_t game_direction(void) {
+    return s_direction;
+}
+
+/* hero_set_joints: what the mod sent last. */
+static openrac_joint_offset s_joints[4];
+static int s_joint_count = -1;
+
+static int host_set_joints(openrac_mod* mod, const openrac_joint_offset* joints, int count) {
+    (void)mod;
+    CHECK(count >= 0 && count <= 4);
+    s_joint_count = count;
+
+    if (count > 0) {
+        memcpy(s_joints, joints, sizeof(openrac_joint_offset) * (size_t)count);
+    }
+
+    return OPENRAC_HOOK_OK;
+}
+
 static void host_log(openrac_mod* mod, int level, const char* text) {
     (void)mod;
     printf("[%d] lock-strafe: %s\n", level, text);
@@ -120,9 +153,14 @@ static void host_fail(openrac_mod* mod, const char* reason) {
     snprintf(s_failed, sizeof s_failed, "%s", reason);
 }
 
+static int s_setting_twist = 1;
+static int s_setting_flips = 1;
+
 static int setting_bool(openrac_mod* mod, const char* key) {
-    (void)mod, (void)key;
-    return 0;
+    (void)mod;
+    return strcmp(key, "twist") == 0   ? s_setting_twist
+           : strcmp(key, "flips") == 0 ? s_setting_flips
+                                       : 0;
 }
 
 static int64_t setting_int(openrac_mod* mod, const char* key) {
@@ -137,7 +175,7 @@ static double setting_float(openrac_mod* mod, const char* key) {
 
 static const char* setting_string(openrac_mod* mod, const char* key) {
     (void)mod;
-    return strcmp(key, "mode") == 0 ? s_setting_mode : "";
+    return strcmp(key, "mode") == 0 ? s_setting_mode : strcmp(key, "feel") == 0 ? "commando" : "";
 }
 
 static void* original_for(const char* name) {
@@ -233,6 +271,14 @@ static void* host_function(const char* name) {
         return (void*)game_look;
     }
 
+    if (strcmp(name, d->enter_state) == 0) {
+        return (void*)game_enter;
+    }
+
+    if (strcmp(name, d->stick_direction) == 0) {
+        return (void*)game_direction;
+    }
+
     return NULL;
 }
 
@@ -293,6 +339,7 @@ static openrac_api make_api(const char* game, const char* version) {
     api.loaded_level = loaded_level;
     api.stack_push = stack_push;
     api.stack_pop = stack_pop;
+    api.hero_set_joints = host_set_joints;
     return api;
 }
 
@@ -337,9 +384,9 @@ int main(int argc, char** argv) {
     memset(&info, 0, sizeof info);
     info.size = sizeof info;
     query(&info);
-    /* The interface its manifest names (1.1), whatever the SDK it was built with. */
-    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.0.4") == 0);
+    /* The interface its manifest names (1.12: the hero's joints), whatever the SDK it was built with. */
+    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
+    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.1.0") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -413,6 +460,52 @@ int main(int argc, char** argv) {
     /* A turn of another kind is the game's, untouched. */
     turn(1, 0.1f, 0.2f, 0.3f);
     CHECK(s_original_calls == 4 && s_move_yaw_seen == -0.5f);
+
+    /* The flip: standing, strafing (the Blaster, Lock), X pressed with the stick pushed fully to
+     * the right enters state 0xB after the game's motion input, and starts the drift at 5 u/s. */
+    put_f32(d->frame_scale, 1.0f);
+    put_f32(d->turn_step, 1.0f / 60.0f);
+    put_u32(d->hero + 0x2084u, RAC1_STRAFE_STATE_STAND);
+    put_f32(d->hero + 0x229Cu, 1.0f);
+    put_u32(d->pad + 0x1A4u, RAC1_PAD_X);
+    openrac_rac1_Hero_UpdateMotionInput motion =
+        (openrac_rac1_Hero_UpdateMotionInput)hook_named("Hero_UpdateMotionInput");
+    CHECK(motion != NULL);
+    s_original_calls = 0;
+    motion();
+    CHECK(s_original_calls >= 1 && s_entered == RAC1_STRAFE_STATE_FLIP);
+    CHECK(get_f32(d->hero + 0x458u) == (1.0f / 60.0f) * RAC1_STRAFE_FLIP_DRIFT);
+    /* Forward is the game's own jump. */
+    s_entered = -1;
+    s_direction = 2;
+    motion();
+    CHECK(s_entered == -1);
+    /* The stick not past 0.9: the game's too. */
+    s_direction = 0;
+    put_f32(d->hero + 0x229Cu, 0.5f);
+    motion();
+    CHECK(s_entered == -1);
+    put_u32(d->pad + 0x1A4u, 0);
+
+    /* The twist: running right with the stick pushed (move yaw -0.5 from facing 1.07 is about -90
+     * degrees), the animation hook sends the pelvis turned toward it and the spine back. */
+    put_u32(d->hero + 0x2084u, RAC1_STRAFE_STATE_RUN);
+    put_f32(d->hero + 0x229Cu, 1.0f);
+    put_f32(d->hero + 0x98u, 1.0708f);
+    openrac_rac1_Hero_AdvanceAnimation advance =
+        (openrac_rac1_Hero_AdvanceAnimation)hook_named("Hero_AdvanceAnimation");
+    CHECK(advance != NULL);
+    advance();
+    CHECK(s_joint_count == 2 && s_joints[0].joint == RAC1_STRAFE_JOINT_PELVIS);
+    CHECK(s_joints[1].joint == RAC1_STRAFE_JOINT_SPINE);
+    /* A yaw about z: the pelvis's turn is negative (right), the spine's positive. */
+    CHECK(s_joints[0].rotation[0] == 0.0f && s_joints[0].rotation[1] == 0.0f);
+    CHECK(s_joints[0].rotation[2] < 0.0f && s_joints[1].rotation[2] > 0.0f);
+    /* Out of play the twist is taken off at the pad's report. */
+    s_level = -1;
+    pad(d->pad, 0x00100000u, 32);
+    CHECK(s_joint_count == 0);
+    s_level = 0;
 
     /* The Hold mode: with nothing latched and the wrench in hand, the game's turn. */
     s_setting_mode = "hold";

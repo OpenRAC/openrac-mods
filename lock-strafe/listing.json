@@ -1,5 +1,5 @@
 {
-  "description": "Strafe as in the later games: Up Your Arsenal's lock-strafe with weapons that fire ahead, and Going Commando's strafe while L2 or R2 is held.",
+  "description": "Strafe as in Going Commando: Ratchet faces the camera while L2 or R2 is held (or always with a weapon that fires ahead), his hips turn toward where he goes, and X with the stick sideways or back flips that way.",
   "tags": [
     "gameplay",
     "controls"

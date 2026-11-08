@@ -1,13 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* The strafe's decision (lock-strafe/src/strafe.h): when the hero strafes and how, which ticks
+/* The strafe's decision (lock-strafe/src/rac1/strafe.h, and the joints' spring in src/common): when the hero strafes and how, which ticks
  * the hero's update does not see L2 and R2, where his facing turns and which way his velocity
  * goes; with the setting off, always the game's own.
  * Expected values are worked out by hand from the description in strafe.h. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "../src/strafe.h"
+#include "../../src/common/spring.h"
+#include "../../src/rac1/strafe.h"
 #define CHECK(c)                                                                                   \
     do {                                                                                           \
         if (!(c)) {                                                                                \
@@ -91,7 +93,7 @@ static void off(void) {
     rac1_strafe_hold hold = {0, 0, 0, 0.0f};
     rac1_strafe_input in = running();
     in.held = RAC1_PAD_R2 | CIRCLE;
-    rac1_strafe_hold_update(RAC1_STRAFE_OFF, &in, &hold);
+    rac1_strafe_hold_update(RAC1_STRAFE_OFF, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched);
     CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_OFF, &in));
     CHECK(rac1_strafe_kind(RAC1_STRAFE_OFF, &in, &hold) == RAC1_STRAFE_NONE);
@@ -112,21 +114,21 @@ static void hold_mode(void) {
     rac1_strafe_hold hold = {0, 0, 0, 0.0f};
     rac1_strafe_input in = running();
     in.slot_item = WRENCH;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched && rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
     CHECK(rac1_strafe_takes_buttons(mode, &in)); /* on foot: L2 and R2 are the strafe's */
     in.held = RAC1_PAD_R2;
     in.camera = -2.0f; /* the camera elsewhere: the swing starts */
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(hold.latched && hold.swinging && hold.yaw == 0.75f);
     CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_HELD);
     /* Held: the facing he turns to later is not latched again. */
     in.facing = -1.0f;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(hold.yaw == 0.75f && hold.swinging);
     /* L2 does it too, and with both the latch stays. */
     in.held = RAC1_PAD_L2 | RAC1_PAD_R2;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(hold.latched && hold.yaw == 0.75f);
     /* The jump, the alternate run and standing strafe too; other states do not. */
     const int strafing_states[] =
@@ -170,33 +172,33 @@ static void hold_mode(void) {
     /* L1, R1 and Circle never strafe and never latch. */
     hold.latched = 0;
     in.held = L1 | R1 | CIRCLE;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched && rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
     /* Let go: forgotten. */
     in.held = RAC1_PAD_L2;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(hold.latched);
     in.held = 0;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched && rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
     /* Pressed in a vehicle (or in the game's own strafe state): latched once he is on foot, with the
      * facing then. */
     in.vehicle_mode = 2;
     in.held = RAC1_PAD_R2;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched);
     in.vehicle_mode = 0;
     in.playing = 0; /* held through a scene: not latched either */
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched);
     in.playing = 1;
     in.state = RAC1_STRAFE_STATE_GAME;
     in.vehicle_mode = 0;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched && !rac1_strafe_takes_buttons(mode, &in));
     in.state = RAC1_STRAFE_STATE_RUN;
     in.facing = 2.0f;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(hold.latched && hold.yaw == 2.0f);
     /* The aimable weapon makes no difference to Hold. */
     in.slot_item = BLASTER;
@@ -225,7 +227,7 @@ static void lock_mode(void) {
     const int mode = RAC1_STRAFE_LOCK;
     rac1_strafe_hold hold = {0, 0, 0, 0.0f};
     rac1_strafe_input in = running();
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_LOCKED);
     CHECK(rac1_strafe_takes_buttons(mode, &in));
     in.state = RAC1_STRAFE_STATE_STAND;
@@ -236,13 +238,13 @@ static void lock_mode(void) {
     in.state = RAC1_STRAFE_STATE_RUN;
     /* L2 held with the weapon: still the camera's. */
     in.held = RAC1_PAD_L2;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_LOCKED);
     /* The weapon not ready (being put away, coming out): Hold's, while L2 is held. */
     in.slot_state = 3;
     CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_HELD);
     in.held = 0;
-    rac1_strafe_hold_update(mode, &in, &hold);
+    rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
     in.slot_state = RAC1_STRAFE_SLOT_READY;
     /* The wrench and the gadgets: Hold. */
@@ -251,10 +253,10 @@ static void lock_mode(void) {
     for (unsigned i = 0; i < 4; ++i) {
         in.slot_item = others[i];
         in.held = 0;
-        rac1_strafe_hold_update(mode, &in, &hold);
+        rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
         CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
         in.held = RAC1_PAD_R2;
-        rac1_strafe_hold_update(mode, &in, &hold);
+        rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
         CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_HELD);
     }
     /* Vehicles, walls, other states: never. */
@@ -343,7 +345,7 @@ typedef struct hold_play {
 static void hold_tick(hold_play* p, uint32_t held, float look_x, float stick) {
     p->in.held = held;
     p->in.look_x = look_x;
-    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, &p->in, &p->hold);
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &p->in, &p->hold);
     p->kind = rac1_strafe_kind(RAC1_STRAFE_HOLD, &p->in, &p->hold);
     p->in.camera = camera_tick(p->in.camera, look_x, p->kind, &p->hold);
     tick(p->kind, p->in.camera, stick, &p->hold, &p->in.facing, p->v);
@@ -434,15 +436,15 @@ static void hold_play_through(void) {
 
     /* A camera that cannot get there (a wall): the swing gives up after its ticks. */
     p.in.held = 0;
-    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, &p.in, &p.hold);
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &p.in, &p.hold);
     p.in.facing = 1.0f;
     p.in.camera = -1.0f;
     p.in.held = RAC1_PAD_R2;
-    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, &p.in, &p.hold);
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &p.in, &p.hold);
     CHECK(p.hold.swinging);
 
     for (int i = 0; i < RAC1_STRAFE_SWING_TICKS; ++i) {
-        rac1_strafe_hold_update(RAC1_STRAFE_HOLD, &p.in, &p.hold);
+        rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &p.in, &p.hold);
     }
 
     CHECK(!p.hold.swinging && p.hold.latched);
@@ -456,7 +458,7 @@ static void lock_play_through(void) {
     float facing = 0.3f, v[2];
 
     for (int i = 0; i < 20; ++i) {
-        rac1_strafe_hold_update(RAC1_STRAFE_LOCK, &in, &hold);
+        rac1_strafe_hold_update(RAC1_STRAFE_LOCK, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
         const int kind = rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold);
         CHECK(kind == RAC1_STRAFE_LOCKED);
         in.camera = camera_tick(in.camera, -1.0f, kind, &hold);
@@ -466,7 +468,7 @@ static void lock_play_through(void) {
     const float turned = in.camera;
 
     for (int i = 0; i < 40; ++i) {
-        rac1_strafe_hold_update(RAC1_STRAFE_LOCK, &in, &hold);
+        rac1_strafe_hold_update(RAC1_STRAFE_LOCK, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
         const int kind = rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold);
         in.camera = camera_tick(in.camera, 0.0f, kind, &hold);
         tick(kind, in.camera, 0.0f, &hold, &facing, v);
@@ -481,28 +483,55 @@ static void backpedal(void) {
     const float deg = 0.017453292f;
     const int run = RAC1_STRAFE_STATE_RUN;
     /* Strafing in the run: straight back and up to 110 degrees off, the edges with their hysteresis. */
-    CHECK(rac1_strafe_backpedal(RAC1_STRAFE_HELD, run, 0.5f, 0.5f + 3.1415927f, 0));
     CHECK(rac1_strafe_backpedal(
-        RAC1_STRAFE_LOCKED, RAC1_STRAFE_STATE_RUN_ALT, 0.5f, 0.5f - 120.0f * deg, 0
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_CLASSIC, run, 0.5f, 0.5f + 3.1415927f, 0
     ));
-    CHECK(
-        !rac1_strafe_backpedal(RAC1_STRAFE_HELD, run, 0.5f, 0.5f + 105.0f * deg, 0)
-    );                                                                                 /* not yet */
-    CHECK(rac1_strafe_backpedal(RAC1_STRAFE_HELD, run, 0.5f, 0.5f + 105.0f * deg, 1)); /* kept */
-    CHECK(!rac1_strafe_backpedal(RAC1_STRAFE_HELD, run, 0.5f, 0.5f + 95.0f * deg, 1)); /* left */
-    CHECK(
-        !rac1_strafe_backpedal(RAC1_STRAFE_HELD, run, 0.5f, 0.5f - 90.0f * deg, 0)
-    );                                                                   /* sideways */
-    CHECK(!rac1_strafe_backpedal(RAC1_STRAFE_HELD, run, 0.5f, 0.5f, 1)); /* forward */
-    /* Across the wrap of the angles: facing 170, moving at -30 (160 off). */
-    CHECK(rac1_strafe_backpedal(RAC1_STRAFE_HELD, run, 170.0f * deg, -30.0f * deg, 0));
-    /* Not strafing, or not in the run (standing, the jump): the game's. */
-    CHECK(!rac1_strafe_backpedal(RAC1_STRAFE_NONE, run, 0.5f, 0.5f + 3.1415927f, 1));
-    CHECK(
-        !rac1_strafe_backpedal(RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_JUMP, 0.5f, 0.5f + 3.1415927f, 0)
-    );
+    CHECK(rac1_strafe_backpedal(
+        RAC1_STRAFE_LOCKED,
+        RAC1_STRAFE_FEEL_CLASSIC,
+        RAC1_STRAFE_STATE_RUN_ALT,
+        0.5f,
+        0.5f - 120.0f * deg,
+        0
+    ));
     CHECK(!rac1_strafe_backpedal(
-        RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_STAND, 0.5f, 0.5f + 3.1415927f, 0
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_CLASSIC, run, 0.5f, 0.5f + 105.0f * deg, 0
+    )); /* not yet */
+    CHECK(rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_CLASSIC, run, 0.5f, 0.5f + 105.0f * deg, 1
+    )); /* kept */
+    CHECK(!rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_CLASSIC, run, 0.5f, 0.5f + 95.0f * deg, 1
+    )); /* left */
+    CHECK(!rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_CLASSIC, run, 0.5f, 0.5f - 90.0f * deg, 0
+    )); /* sideways */
+    CHECK(
+        !rac1_strafe_backpedal(RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_CLASSIC, run, 0.5f, 0.5f, 1)
+    ); /* forward */
+    /* Across the wrap of the angles: facing 170, moving at -30 (160 off). */
+    CHECK(rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_CLASSIC, run, 170.0f * deg, -30.0f * deg, 0
+    ));
+    /* Not strafing, or not in the run (standing, the jump): the game's. */
+    CHECK(!rac1_strafe_backpedal(
+        RAC1_STRAFE_NONE, RAC1_STRAFE_FEEL_CLASSIC, run, 0.5f, 0.5f + 3.1415927f, 1
+    ));
+    CHECK(!rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD,
+        RAC1_STRAFE_FEEL_CLASSIC,
+        RAC1_STRAFE_STATE_JUMP,
+        0.5f,
+        0.5f + 3.1415927f,
+        0
+    ));
+    CHECK(!rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD,
+        RAC1_STRAFE_FEEL_CLASSIC,
+        RAC1_STRAFE_STATE_STAND,
+        0.5f,
+        0.5f + 3.1415927f,
+        0
     ));
 
     /* The step back, a sequence of 4 keys at rates 0.5, 0.25, 0.5, 1. */
@@ -558,6 +587,152 @@ static void backpedal(void) {
     CHECK(a.fraction >= 0.0f && a.fraction <= RAC1_STRAFE_BACK_TOP);
 }
 
+/* Going Commando's feel: Hold with no swing, its turn rates, its backpedal edges. */
+static void commando(void) {
+    const float deg = 0.017453292f;
+    const int run = RAC1_STRAFE_STATE_RUN;
+    rac1_strafe_input in;
+    rac1_strafe_hold hold;
+    memset(&in, 0, sizeof in);
+    memset(&hold, 0, sizeof hold);
+    in.playing = 1;
+    in.state = run;
+    in.facing = 0.3f;
+    in.camera = 1.2f;
+    in.held = RAC1_PAD_L2;
+    /* L2 goes down: latched, no swing, and the turn goes for the camera at once. */
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_COMMANDO, &in, &hold);
+    CHECK(hold.latched && !hold.swinging);
+    const int kind = rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold);
+    CHECK(kind == RAC1_STRAFE_HELD && !rac1_strafe_swings_camera(kind, &hold));
+    CHECK(rac1_strafe_turn_target(kind, 0, -1.0f, in.camera, &hold) == in.camera);
+    /* Standing, he turns to the camera from the first tick. */
+    CHECK(rac1_strafe_turns_standing(kind, RAC1_STRAFE_STATE_STAND, &hold));
+
+    /* The rates: on the ground 0.037 / 0.25 / 12.2 rad/s, in the air 0.015 / 0.2 / 15, scaled. */
+    float accel, damping, limit;
+    rac1_strafe_commando_rates(run, 1.44f, 0.02f, &accel, &damping, &limit);
+    CHECK(fabsf(accel - 1.44f * 0.037f) < 1e-7f && fabsf(damping - 1.44f * 0.25f) < 1e-7f);
+    CHECK(fabsf(limit - 0.02f * 12.2173061f) < 1e-7f);
+    rac1_strafe_commando_rates(
+        RAC1_STRAFE_STATE_JUMP, 1.0f, 1.0f / 60.0f, &accel, &damping, &limit
+    );
+    CHECK(accel == 0.015f && damping == 0.2f && fabsf(limit - 0.25f) < 1e-6f);
+
+    /* The backpedal within 45 degrees of straight back: 140 starts it, 132 keeps it, 128 ends it,
+     * 120 never starts it. */
+    CHECK(rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_COMMANDO, run, 0.5f, 0.5f + 140.0f * deg, 0
+    ));
+    CHECK(!rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_COMMANDO, run, 0.5f, 0.5f + 120.0f * deg, 0
+    ));
+    CHECK(rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_COMMANDO, run, 0.5f, 0.5f - 132.0f * deg, 1
+    ));
+    CHECK(!rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_COMMANDO, run, 0.5f, 0.5f - 128.0f * deg, 1
+    ));
+}
+
+/* The sides and the side reversal: going left after right stops him, going right after left eases
+ * back in over four ticks. */
+static void reversal(void) {
+    const float deg = 0.017453292f;
+    CHECK(rac1_strafe_side(1.0f, 1.0f + 90.0f * deg) == RAC1_STRAFE_SIDE_LEFT);
+    CHECK(rac1_strafe_side(1.0f, 1.0f + 50.0f * deg) == RAC1_STRAFE_SIDE_LEFT);
+    CHECK(rac1_strafe_side(1.0f, 1.0f + 40.0f * deg) == RAC1_STRAFE_SIDE_NONE);
+    CHECK(rac1_strafe_side(1.0f, 1.0f - 90.0f * deg) == RAC1_STRAFE_SIDE_RIGHT);
+    CHECK(rac1_strafe_side(1.0f, 1.0f + 180.0f * deg) == RAC1_STRAFE_SIDE_NONE);
+    /* Across the wrap: facing 170, moving at -100 (90 to his left). */
+    CHECK(rac1_strafe_side(170.0f * deg, -100.0f * deg) == RAC1_STRAFE_SIDE_LEFT);
+
+    rac1_strafe_reverse r = {0, 0};
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_RIGHT) == 1.0f);
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_RIGHT) == 1.0f);
+    /* Left now: the right is recent, his speed goes (rac2's -0.25, never below 0 here). */
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_LEFT) == 0.0f);
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_LEFT) == 0.0f);
+    /* The right fades after five ticks; then left goes on at full speed. */
+
+    for (int i = 0; i < 3; ++i) {
+        rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_LEFT);
+    }
+
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_LEFT) == 1.0f);
+    /* Right after left: 0, 0.25, 0.5, 0.75, then 1 (the left counting down 4, 3, 2, 1, 0). */
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_RIGHT) == 0.0f);
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_RIGHT) == 0.25f);
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_RIGHT) == 0.5f);
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_RIGHT) == 0.75f);
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_RIGHT) == 1.0f);
+    /* Forward or back: no side, nothing changed. */
+    CHECK(rac1_strafe_reverse_step(&r, RAC1_STRAFE_SIDE_NONE) == 1.0f);
+}
+
+/* The hip twist: its target, and the springs that ease the pelvis and the spine to it and back. */
+static void twist(void) {
+    const float deg = 0.017453292f;
+    /* Strafing right with the stick pushed: the pelvis toward the move, -90 degrees. */
+    CHECK(
+        fabsf(
+            rac1_strafe_twist_target(RAC1_STRAFE_HELD, 1.0f, 0, 0.5f, 0.5f - 90.0f * deg)
+            + 90.0f * deg
+        )
+        < 1e-5f
+    );
+    /* Across the wrap, the short way round. */
+    CHECK(
+        fabsf(
+            rac1_strafe_twist_target(RAC1_STRAFE_LOCKED, 1.0f, 0, 170.0f * deg, -100.0f * deg)
+            - 90.0f * deg
+        )
+        < 1e-4f
+    );
+    /* Not strafing, the stick near its centre, or backpedalling: none. */
+    CHECK(rac1_strafe_twist_target(RAC1_STRAFE_NONE, 1.0f, 0, 0.5f, 2.0f) == 0.0f);
+    CHECK(rac1_strafe_twist_target(RAC1_STRAFE_HELD, 0.15f, 0, 0.5f, 2.0f) == 0.0f);
+    CHECK(rac1_strafe_twist_target(RAC1_STRAFE_HELD, 1.0f, 1, 0.5f, 2.0f) == 0.0f);
+
+    /* The spring's first tick from rest: velocity accel x distance, the angle moved by it. */
+    lock_strafe_spring s = {0.0f, 0.0f};
+    lock_strafe_spring_step(&s, 1.0f, 0.037f, 0.27f);
+    CHECK(fabsf(s.velocity - 0.037f) < 1e-7f && fabsf(s.angle - 0.037f) < 1e-7f);
+    /* It gets there without passing it (the velocity held within the distance left), and holds. */
+
+    for (int i = 0; i < 600; ++i) {
+        lock_strafe_spring_step(&s, 1.0f, 0.037f, 0.27f);
+        CHECK(s.angle <= 1.0f + 1e-6f);
+    }
+
+    CHECK(fabsf(s.angle - 1.0f) < 1e-3f);
+    /* Back to 0 through 0's side, never past it, and then at rest. */
+
+    for (int i = 0; i < 600; ++i) {
+        lock_strafe_spring_step(&s, 0.0f, 0.025f, 0.27f);
+        CHECK(s.angle >= -1e-6f);
+    }
+
+    CHECK(lock_strafe_spring_still(&s));
+    /* From one side to the other it goes straight through 0, not round the back. */
+    s = (lock_strafe_spring){2.5f, 0.0f};
+    lock_strafe_spring_step(&s, -2.5f, 0.037f, 0.27f);
+    CHECK(s.velocity < 0.0f && s.angle < 2.5f);
+}
+
+/* The strafe flip: X pressed while strafing on the ground with the stick pushed fully. */
+static void flips(void) {
+    const uint32_t x = RAC1_PAD_X;
+    CHECK(rac1_strafe_flips(RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_STAND, x, 1.0f));
+    CHECK(rac1_strafe_flips(RAC1_STRAFE_LOCKED, RAC1_STRAFE_STATE_RUN, x | RAC1_PAD_L2, 0.95f));
+    CHECK(rac1_strafe_flips(RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_RUN_ALT, x, 0.91f));
+    /* The stick not past 0.9, X not pressed, in the air, or not strafing: the game's jump. */
+    CHECK(!rac1_strafe_flips(RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_RUN, x, 0.9f));
+    CHECK(!rac1_strafe_flips(RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_RUN, 0x80u, 1.0f));
+    CHECK(!rac1_strafe_flips(RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_JUMP, x, 1.0f));
+    CHECK(!rac1_strafe_flips(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, x, 1.0f));
+}
+
 int main(void) {
     items();
     off();
@@ -567,9 +742,13 @@ int main(void) {
     hold_play_through();
     lock_play_through();
     backpedal();
+    commando();
+    reversal();
+    twist();
+    flips();
     puts(
         "hero strafe: weapons, off, hold, lock, the buttons taken, facing, velocity, swing, right "
-        "stick and backpedal passed"
+        "stick, backpedal, Going Commando's feel, side reversal, hip twist and flips passed"
     );
     return 0;
 }

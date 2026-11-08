@@ -17,8 +17,8 @@ typedef struct lock_strafe_disc {
     uint32_t hero; /* the hero (Hero) */
     uint32_t pad;  /* the first pad's state (PadState) */
     /* The executable's, through relocate_data. */
-    uint32_t frame_scale; /* the tick's length, for the standing turn's rates */
-    uint32_t turn_step;   /* the turn's step, for its limit */
+    uint32_t frame_scale; /* g_frame_scale_sq: the turns' accel and damping are scaled by it */
+    uint32_t turn_step;   /* g_frame_time: a second's share in a tick, the turns' limits by it */
     /* Level 0's program's, through relocate_level_data(0, ...). */
     uint32_t level_mode; /* the game mode: 0 in play */
     uint32_t camera_yaw; /* the camera's yaw */
@@ -30,6 +30,8 @@ typedef struct lock_strafe_disc {
     const char* camera_spring;     /* void (float, float): its lateral spring */
     const char* camera_pan_off;    /* void (void): its panning cleared */
     const char* camera_look_along; /* void (u32 direction, float, float): look along a heading */
+    const char* enter_state;       /* int (int state, int animate): HeroEnterMoveState */
+    const char* stick_direction;   /* int (void): stick_direction_vs_facing */
 } lock_strafe_disc;
 
 static const lock_strafe_disc k_lock_strafe_discs[] = {
@@ -48,6 +50,8 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         "func_L00_002E9A40",
         "func_L00_002E9AF8",
         "func_L00_002E9DC8",
+        "func_L00_00222B80",
+        "func_L00_00222580",
     },
     {
         "ntsc",
@@ -64,6 +68,8 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         "FUN_L00_002e8590",
         "FUN_L00_002e8648",
         "FUN_L00_002e8918",
+        "FUN_L00_002223f8",
+        "FUN_L00_00221df8",
     },
 };
 
