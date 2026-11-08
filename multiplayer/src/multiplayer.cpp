@@ -49,6 +49,7 @@
  *           empty or invalid: the launcher's Multiplayer name.
  */
 #include "mod_state.hpp"
+#include "rac2/load.hpp"
 
 #include <ctime>
 #include <memory>
@@ -476,9 +477,16 @@ using namespace mpmod;
  * address, makes the pages and puts Multiplayer in the main menu under Load Game. Throws
  * openrac::Error to refuse to run. */
 void load(openrac::Mod& mod) {
+    // Going Commando has no pages in its title: its party is the settings' (rac2/load.cpp).
+    if (mod.game() == "rac2") {
+        rac2_load(mod);
+        return;
+    }
+
     // The pages are Ratchet & Clank's front end.
     if (mod.game() != "rac1") {
-        throw openrac::Error("this mod is for Ratchet & Clank");
+        throw openrac::Error("this mod is for Ratchet & Clank (rac1) and Going Commando (rac2), not "
+                             + std::string(mod.game()));
     }
 
     // The pages of the game's own menus are interface 1.7's, playing together 1.8's.
@@ -970,10 +978,12 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.10.0", load)
+OPENRAC_MOD_CPP("multiplayer", "0.11.0", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
+    rac2_unload();
+
     // The state exists only if load got as far as making it.
     if (g) {
         g->connection->close();

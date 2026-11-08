@@ -45,6 +45,7 @@ int main() {
     mpt::run_camera_tests();
     mpt::run_hold_tests();
     mpt::run_migrate_tests();
+    mpt::run_rac2_tests();
 
     if (g_failures == 0) {
         std::puts("play: all passed");

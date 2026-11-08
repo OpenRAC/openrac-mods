@@ -1682,5 +1682,6 @@ void run_death_tests();
 void run_camera_tests();
 void run_hold_tests();
 void run_migrate_tests();
+void run_rac2_tests();
 
 }  // namespace mpt
