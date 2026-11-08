@@ -203,3 +203,58 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 
 An OpenRAC with the item hook points above and the behaviour catalogue's. An older one refuses the
 mod with the reason ("this OpenRAC cannot hook Item_Give").
+
+## Going Commando
+
+The same mod plays Ratchet & Clank: Going Commando on the NTSC-U v1.01 disc (`SCUS_972.68`, the
+first release); the PAL and Greatest Hits discs are refused for now, because the givers' hook points
+below have C on v1.01 alone. Its code is in `src/rac2/`; the seed code, the settings and the data
+folder are shared with Ratchet & Clank, and a seed code plays the same placement on every machine.
+
+**What is shuffled.**
+
+- *Shuffle gadgets*: the Dynamo (Oozla), the Tractor Beam (Oozla's Megacorp scientist), the Box
+  Breaker (Oozla's swamp), the Electrolyzer (Maktar's arena), the Swingshot and the Grindboots
+  (Clank's apartment on Endako), Clank's Heli-Pack, Thruster-Pack and Hydro-Pack (Endako), the
+  Thermanator (Barlow's inventor), the Glider (Tabora's mines), the Charge Boots, the Levitator, the
+  Gravity Boots and the Infiltrator (Joba), the Mapper and the Hypnomatic (Damosel).
+- *Shuffle weapons*: the Sheepinator (Todano), shuffled with the gadgets when both are on.
+- *Shuffle the vendor*: each weapon the vendor sells comes on sale from another planet (the game's
+  own planets, swapped among the weapons, so as many come on sale at each; the Lancer and the
+  Gravity Bomb stay the start's).
+- Never shuffled: the planets' coordinates (the story's order holds), the Qwark Statuette and
+  the Armor Magnetizer it is traded for, the starting Lancer and Gravity Bomb, platinum bolts and
+  Nanotech Boosts. The gold bolts', infobots', starting gear's and vendor hints' settings are
+  Ratchet & Clank's.
+
+**Logic.** Each place needs what its planet's way there needs plus its own needs: Going Commando's
+needs follow the Archipelago world for the game (APRac2, MIT: its rules with no glitches in logic),
+the planets come in the story's order, and the game's own tests agree where the code has one
+(Endako's Swingshot area, Barlow's Thermanator area, the Hypnomatic's three parts). Standard and
+expert place the same way; relaxed keeps what you need out of the Hypnomatic maker's purchase.
+The spoiler log is `spoiler-rac2-<code>.txt` in the mod's data folder; a blank seed is remembered in
+`seed-rac2.txt`.
+
+**How the game is changed** (`src/rac2/rac2.c`; the hook points are OpenRAC's `rac2.item.give` and
+`rac2.moby.*.update`):
+
+- GiveInventoryItem: a shuffled place gives its reward once, through the game's own routine (owned,
+  ammo, the vendor's list, quick select). A line over the game names the reward; the game's own
+  words still name the place's usual item.
+- Twelve givers test their own item's owned byte before they give it (they would vanish or stop
+  selling once you have that item from elsewhere). While their update runs they are shown the
+  place's state instead; Endako's and Barlow's level starts, which place Ratchet by the Swingshot and
+  the Thermanator, too.
+- Endako sets the Grindboots and Clank's packs itself: on Endako, such a byte you do not hold is
+  that place had now; it is taken back and the reward given.
+- Each level's start gives back any reward had that is missing (not in Aranos Prison, whose cell
+  takes the packs away on purpose).
+- Which places are had is kept in the save itself, in progress bytes no code reads (chunk 5,
+  `0x1395B8 + 0xC0`..`+0xC7`: the seed's tag and a bit per place), so a new game starts with none and
+  a loaded save carries its own.
+
+**Not yet.** The PAL and v2.00 discs (the givers' level functions have no C of their own there);
+platinum bolts, Nanotech Boosts and the coordinates in the pools; the game's own "you got" words
+for the reward; a party's shared seed (Going Commando's co-op has no party rules yet). Tests:
+`tests/rac2/solver_test.c` (every seed of every setting beatable, the tables) and
+`tests/rac2/load_test.c` (the library against a host and memory of its own).
