@@ -44,6 +44,7 @@ add_subdirectory(keyboard-mouse)
 add_subdirectory(live-splits)
 add_subdirectory(dualsense)
 add_subdirectory(ammo-max)
+add_subdirectory(arsenal-mastery)
 add_subdirectory(xbox-icons)
 # Multiplayer needs interface 1.7's pages of the game's own menus, 1.8's play calls and 1.9's world
 # calls: built only with an SDK that has them (until sdk.lock pins 1.9.0, build it with
