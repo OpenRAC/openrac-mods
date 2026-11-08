@@ -131,6 +131,33 @@ bool Coop::start() {
     return true;
 }
 
+bool Coop::adopt() {
+    const GameStatus status = game_.status();
+
+    if (!session_.in_party() || !session_.role().host() || !in_level(status.phase)) {
+        return false;
+    }
+
+    // Again: nothing of the last game carries over, and its saves are not this one's.
+    const bool again = play_ != 0;
+    clear_game();
+
+    if (again && start_again_) {
+        start_again_();
+    }
+
+    // A new id, and nobody told yet: tick_host gives each member the game as it is now.
+    play_ = static_cast<std::int32_t>((clock_() * 2654435761u) | 1u);
+    told_.clear();
+    adopted_ = true;
+    party_game_ = true;
+    host_played_ = true;
+    start_ms_ = clock_();
+    log(std::string(again ? "playing again" : "playing") + " level " + std::to_string(status.level)
+        + " for the party: the members join it");
+    return true;
+}
+
 void Coop::ship_ready() {
     ship_held_ = false;
 
@@ -456,7 +483,8 @@ void Coop::tick(std::uint64_t now) {
             const int phase = game_.status().phase;
             const bool starting = start_ms_ != 0 && now - start_ms_ < kStartingMs;
 
-            if (party_game_ && phase != kPhaseNone && (phase != kPhaseFrontEnd || starting)) {
+            // (The host's game it played before the party, adopt: it goes on.)
+            if (party_game_ && !adopted_ && phase != kPhaseNone && (phase != kPhaseFrontEnd || starting)) {
                 to_title_ = true;
                 title_since_ = now;
                 left_title_ = phase != kPhaseFrontEnd;
@@ -723,6 +751,7 @@ void Coop::reset() {
     expected_ = received_ = 0;
     applied_ = 0;
     party_game_ = false;
+    adopted_ = false;
     start_ms_ = 0;
     host_scene_ = sent_scene_ = false;
     hold_ = false;

@@ -59,7 +59,7 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     const bool arrival = arriving_ && play_ != 0 && status.level == travel_dest_;
     waiting = waiting || arrival;
 
-    waiting = waiting && status.phase == kPhasePlaying && !joining_;
+    waiting = waiting && status.phase == kPhasePlaying && !joining_ && barrier_;
 
     if (!waiting) {
         // (Into a scene of its own meanwhile: nobody is out yet, the hold just ends.)

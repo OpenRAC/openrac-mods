@@ -633,6 +633,18 @@ public:
      * the host, already playing, the game not in the title, a member not ready). */
     bool start();
 
+    /* A game without the lobby's pages (Going Commando): the host's own game, once it plays a level,
+     * is the party's. No PLAY to everyone and no start here: each member comes into it as one who
+     * joins late does (the host's live save, in the host's level), and the host's game, its own all
+     * along, stays where it is when the party goes. Again from a level after the title: a new game
+     * of the party's, as a start again is. False for a member, out of a party or out of a level. */
+    bool adopt();
+    bool adopted() const { return adopted_; }
+
+    /* Whether the co-op may hold this game's control for the others (the scene and arrival
+     * barrier, its waits): off for a game whose pad the mod does not take (Going Commando). */
+    void barrier(bool on) { barrier_ = on; }
+
     /* Whether start() would start now: the first time once all are ready; the host back in the
      * title with the party's game on starts it again whatever the members are doing. */
     bool can_start() const;
@@ -894,6 +906,9 @@ private:
      * started the host's): it goes back to the title when the party goes. When it last started one
      * (0 none). */
     bool party_game_ = false;
+    /* The host's game was its own before the party's (adopt); whether the barrier holds control. */
+    bool adopted_ = false;
+    bool barrier_ = true;
     std::uint64_t start_ms_ = 0;
     /* Whether the game was asked to keep its world running under its menus. */
     bool overlay_ = false;
