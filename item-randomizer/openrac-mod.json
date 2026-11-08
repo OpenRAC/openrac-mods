@@ -2,9 +2,9 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "author": "Flavius",
-  "description": "Shuffles what the game gives out (Ratchet & Clank, and Going Commando's NTSC-U v1.01 disc): the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. Every seed can be finished: what you need is only ever placed where you can get it without it. Share a seed's code and a friend plays the same game. Each seed writes a spoiler log to the mod's data folder. A save made with a seed belongs to that seed.",
+  "description": "Shuffles what the game gives out (Ratchet & Clank, and Going Commando): the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. Every seed can be finished: what you need is only ever placed where you can get it without it. Share a seed's code and a friend plays the same game. Each seed writes a spoiler log to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/item-randomizer",
   "api": "1.14",
@@ -15,7 +15,9 @@
       "ntsc"
     ],
     "rac2": [
-      "ntsc"
+      "ntsc",
+      "pal",
+      "ntsc2"
     ]
   },
   "hooks": [

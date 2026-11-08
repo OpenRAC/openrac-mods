@@ -203,12 +203,16 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 
 An OpenRAC with the item hook points above and the behaviour catalogue's. An older one refuses the
 mod with the reason ("this OpenRAC cannot hook Item_Give").
+Going Commando's PAL and v2.00 discs need an OpenRAC whose ports have the givers' hook points on
+those discs too (OpenRAC #390); an older one refuses the mod the same way.
 
 ## Going Commando
 
-The same mod plays Ratchet & Clank: Going Commando on the NTSC-U v1.01 disc (`SCUS_972.68`, the
-first release); the PAL and Greatest Hits discs are refused for now, because the givers' hook points
-below have C on v1.01 alone. Its code is in `src/rac2/`; the seed code, the settings and the data
+The same mod plays Ratchet & Clank: Going Commando on its three discs: NTSC-U v1.01 (`SCUS_972.68`,
+the first release), PAL (`SCES_516.07`) and the Greatest Hits USA v2.00. The givers' hook points are
+the same on each (OpenRAC gives each disc's copy of them), and [src/rac2/discs2.h](src/rac2/discs2.h)
+has where each disc keeps the owned bytes, the vendor's table and the progress bytes; the placement
+and a seed code are the same on all three. Its code is in `src/rac2/`; the seed code, the settings and the data
 folder are shared with Ratchet & Clank, and a seed code plays the same placement on every machine.
 
 **What is shuffled.**
@@ -250,11 +254,10 @@ The spoiler log is `spoiler-rac2-<code>.txt` in the mod's data folder; a blank s
 - Each level's start gives back any reward had that is missing (not in Aranos Prison, whose cell
   takes the packs away on purpose).
 - Which places are had is kept in the save itself, in progress bytes no code reads (chunk 5,
-  `0x1395B8 + 0xC0`..`+0xC7`: the seed's tag and a bit per place), so a new game starts with none and
+  `0x1395B8 + 0xC0`..`+0xC7` on NTSC-U, `0x139638 + 0xC0` on PAL: the seed's tag and a bit per place), so a new game starts with none and
   a loaded save carries its own.
 
-**Not yet.** The PAL and v2.00 discs (the givers' level functions have no C of their own there);
-platinum bolts, Nanotech Boosts and the coordinates in the pools; the game's own "you got" words
+**Not yet.** Platinum bolts, Nanotech Boosts and the coordinates in the pools; the game's own "you got" words
 for the reward; a party's shared seed (Going Commando's co-op has no party rules yet). Tests:
 `tests/rac2/solver_test.c` (every seed of every setting beatable, the tables) and
-`tests/rac2/load_test.c` (the library against a host and memory of its own).
+`tests/rac2/load_test.c` (the library against a host and memory of its own, on each disc's addresses).
