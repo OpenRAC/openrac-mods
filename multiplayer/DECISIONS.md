@@ -29,6 +29,34 @@ Nothing merges before the user's play test. Then, in this order:
 6. Land `round3` on openrac-mods master, tag `multiplayer-v0.10.0`, and tag each other mod whose version
    changed here.
 
+### 12. Going Commando (2026-11-08, first pass)
+
+Built: the mod loads in Going Commando (rac2: NTSC-U, PAL, NTSC-U v2.00) on the port's rac2 play calls
+(OpenRAC PR #386), with no hook point and no page. Made in this pass, open to change:
+
+- **No menu, settings instead.** rac2's title has no mod pages, so the rac2-only settings `party`
+  (off, host, join, host_direct, join_direct), `code` and `address` say what to do at the game's start,
+  and the line over the game (`play_notice`) and the log say what happened. Leaving is switching it
+  off and starting again. Once OpenRAC has mod pages for rac2 the Multiplayer pages should take over.
+- **The host's own game is the party's** (`Coop::adopt`): the host plays from its own title, and once
+  in a level each member is brought in as a late joiner of Ratchet & Clank's (the host's live save, its
+  level). The host back in the title then in a level again is a new game of the party's. The host's
+  game is never sent to the title when the party goes; a member's is.
+- **Parties never mix games**: the description's tag names the game (`|3fa9/rac2`); a Going Commando
+  player leaves any party not tagged rac2, a Ratchet & Clank player one tagged with another game. The
+  server is unchanged (it does not know games): a listing carries the tag, so an older Ratchet & Clank
+  game shows such a party as differing, and its build (HELLO `rac2-multiplayer/...`, the world family)
+  refuses its game.
+- **No barrier**: the mod takes no control of rac2's pad, so the scene and arrival waits are off
+  (`Coop::barrier(false)`) rather than shown and not enforced.
+
+Still to do in Going Commando, in a likely order: animated figures (the port's), the menus (the port's
+mod pages for rac2, then this mod's pages), the shared world (World: the host's enemies, crates and
+bolts), shared progress (Progress, Shared), party saves (CoSave), the pad (scenes together, waits,
+Hold the party, a member's ship refused), Team tools and rescue, taking over (Migrate), name tags,
+held pieces and shots, and the discs playing together (one world family). README.md, Going Commando,
+lists them for players.
+
 ### Asked for and not built
 
 - **`play_scene_from`** is a kept slot of interface 1.12 that answers "unknown": a scene cannot start
