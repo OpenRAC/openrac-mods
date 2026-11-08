@@ -1,13 +1,11 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * The xbox-icons library as the port loads it, against a host table made here (openrac_mod.h): it
- * reports its id and interface, refuses another game and an unknown disc, takes no hook point but a
- * tick callback; with no effect bank, a bank out of the console's memory or fonts that are not the
- * game's, it changes nothing. With OPENRAC_RAC1_LEVEL naming a level that openrac-extractor
- * --decompile wrote (decompiler_out/rac1/levels/NN), the game's own fonts are laid at each disc's
- * addresses too: painted on the first tick, and left alone after.
- *
- * Run with the library's path: load_test <xbox_icons.dylib|.so|.dll>.
+/* SPDX-License-Identifier: GPL-3.0-or-later The host table the load tests hand the library
+ * (openrac_mod.h), as the port does: console memory of the test's own, a log that counts its lines,
+ * settings with Trace on, no hook points but the tick callback, which the test keeps and calls;
+ * relocate_data as the executable's own (no level's copy).
  */
+#ifndef XBOX_ICONS_FAKE_API_H
+#define XBOX_ICONS_FAKE_API_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +42,7 @@ static void* symbol(void* lib, const char* name) {
     } while (0)
 
 #define MEMORY_SIZE XBOX_ICONS_RAM
-#define BANK 0x01000000u /* where the test puts the effect bank */
+#define BANK 0x01000000u /* where the tests put the effect bank */
 static uint8_t* s_memory;
 static char s_failed[256];
 static int s_hooks;
@@ -157,8 +155,9 @@ static void put_u16(openrac_gaddr a, uint16_t v) {
     memcpy(s_memory + a, &v, 2);
 }
 
+
 /* The effect table of disc D: the three fonts' records, palette at bank + 0x800, the fonts at
- * + 0xC00, + 0x8C00, + 0x10C00 (as every level of the PAL disc has them). */
+ * + 0xC00, + 0x8C00, + 0x10C00 (as every level of both games has them). */
 static void lay_table(const xbox_icons_disc* d, uint32_t bank) {
     put_u32(d->bank, bank);
     for (uint32_t f = 0; f < 3; ++f) {
@@ -172,13 +171,14 @@ static uint32_t fonts_hash(void) {
     return xbox_icons_hash(fonts, s_memory + BANK + 0x800u);
 }
 
-/* A decompiled level's effect bank, from OPENRAC_RAC1_LEVEL; 0 when there is none. */
-static uint8_t* s_bank;
-static size_t s_bank_size;
-static int read_level(void) {
-    const char* dir = getenv("OPENRAC_RAC1_LEVEL");
+/* A decompiled level's effect bank (core_index.bin and unpacked/core_data.bin, the core header's
+ * effect bank at 0x68: the same in both games), from the environment variable VAR; NULL when there
+ * is none. */
+#define LEVEL_BANK_BYTES 0x18C00u
+static uint8_t* read_level(const char* var) {
+    const char* dir = getenv(var);
     if (dir == NULL || dir[0] == 0) {
-        return 0;
+        return NULL;
     }
     char path[1024];
     uint8_t index[0x70];
@@ -191,87 +191,30 @@ static int read_level(void) {
     snprintf(path, sizeof path, "%s/unpacked/core_data.bin", dir);
     f = fopen(path, "rb");
     CHECK(f != NULL);
-    s_bank_size = 0x18C00u;
-    s_bank = malloc(s_bank_size);
-    CHECK(fseek(f, bank, SEEK_SET) == 0 && fread(s_bank, 1, s_bank_size, f) == s_bank_size);
+    uint8_t* b = malloc(LEVEL_BANK_BYTES);
+    CHECK(b != NULL);
+    CHECK(fseek(f, bank, SEEK_SET) == 0 && fread(b, 1, LEVEL_BANK_BYTES, f) == LEVEL_BANK_BYTES);
     fclose(f);
-    return 1;
+    return b;
 }
 
-static void play(const char* version, openrac_mod* mod, openrac_mod_load_fn load) {
-    const xbox_icons_disc* d =
-        strcmp(version, "pal") == 0 ? &k_xbox_icons_discs[0] : &k_xbox_icons_discs[1];
-    memset(s_memory, 0, MEMORY_SIZE);
-    openrac_api api = make_api("rac1", version);
-    s_failed[0] = 0;
-    s_hooks = 0;
-    s_tick = NULL;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hooks == 0 && s_tick != NULL);
-
-    /* No bank yet (a level loading), then one past the console's memory: nothing read. */
-    s_tick(s_tick_user);
-    lay_table(d, XBOX_ICONS_RAM - 0x1000u);
-    s_tick(s_tick_user);
-
-    /* Fonts that are not the game's (here all zero): left as they are, and said once. */
-    lay_table(d, BANK);
-    memset(s_memory + BANK + 0x800u, 7, 0x400);
-    const uint32_t other = fonts_hash();
-    s_lines = 0;
-    s_tick(s_tick_user);
-    s_tick(s_tick_user);
-    CHECK(fonts_hash() == other && s_lines == 1);
-
-    if (s_bank != NULL) {
-        /* The game's fonts: painted on the first tick, then left as painted. */
-        memcpy(s_memory + BANK, s_bank, s_bank_size);
-        CHECK(fonts_hash() == k_xbox_icons_game_fonts[0]);
-        s_tick(s_tick_user);
-        const uint32_t painted = fonts_hash();
-        CHECK(painted != k_xbox_icons_game_fonts[0]);
-        s_tick(s_tick_user);
-        CHECK(fonts_hash() == painted);
-        /* The next level loads the game's fonts again: painted again, the same. */
-        memcpy(s_memory + BANK, s_bank, s_bank_size);
-        s_tick(s_tick_user);
-        CHECK(fonts_hash() == painted);
-    }
-}
-
-int main(int argc, char** argv) {
-    CHECK(argc == 2);
-    void* lib = open_library(argv[1]);
+/* The library's entry points, and its query checked: its id, its version and the interface its
+ * manifest names (1.1), whatever the SDK it was built with. */
+static openrac_mod_info s_info;
+static openrac_mod_load_fn open_mod(const char* path) {
+    void* lib = open_library(path);
     CHECK(lib != NULL);
     openrac_mod_query_fn query = (openrac_mod_query_fn)symbol(lib, OPENRAC_MOD_QUERY);
     openrac_mod_load_fn load = (openrac_mod_load_fn)symbol(lib, OPENRAC_MOD_LOAD);
     CHECK(query != NULL && load != NULL);
-    openrac_mod_info info;
-    memset(&info, 0, sizeof info);
-    info.size = sizeof info;
-    query(&info);
-    /* The interface its manifest names (1.1), whatever the SDK it was built with. */
-    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(strcmp(info.id, "xbox-icons") == 0 && strcmp(info.version, "1.0.2") == 0);
-
+    memset(&s_info, 0, sizeof s_info);
+    s_info.size = sizeof s_info;
+    query(&s_info);
+    CHECK(s_info.api_major == OPENRAC_MOD_API_MAJOR && s_info.api_minor == 1);
+    CHECK(strcmp(s_info.id, "xbox-icons") == 0 && strcmp(s_info.version, "1.1.0") == 0);
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
-    openrac_mod* mod = (openrac_mod*)&info; /* any handle: the mod only passes it back */
-
-    /* Another game, an unknown disc: refused, with a reason, before any callback. */
-    openrac_api api = make_api("rac2", "ntsc");
-    CHECK(load(&api, mod) != 0 && strstr(s_failed, "rac1") != NULL && s_tick == NULL);
-    api = make_api("rac1", "jp");
-    s_failed[0] = 0;
-    CHECK(load(&api, mod) != 0 && strstr(s_failed, "jp") != NULL && s_tick == NULL);
-
-    if (!read_level()) {
-        printf("xbox_icons_load_test: no OPENRAC_RAC1_LEVEL, the game's own fonts not tried\n");
-    }
-    play("pal", mod, load);
-    play("ntsc", mod, load);
-
-    free(s_bank);
-    free(s_memory);
-    printf("xbox_icons_load_test: ok\n");
-    return 0;
+    return load;
 }
+
+#endif /* XBOX_ICONS_FAKE_API_H */

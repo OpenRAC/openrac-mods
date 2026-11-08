@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
  * Copyright (c) 2026 the OpenRAC contributors
  *
- * Ratchet & Clank: Xbox button icons, a mod of OpenRAC's native port (README.md). The game prints
- * the controller's buttons as glyphs of its three fonts; each tick (on_frame), the mod finds the
- * fonts in game memory (xbox_icons.h) and, when they are the game's own, paints Xbox buttons over
- * the PlayStation 2 ones (paint.h). Painted fonts are no longer the game's, so they are painted once
- * a level, and fonts the mod does not know are left alone.
+ * Xbox button icons, a mod of OpenRAC's native port (README.md), for Ratchet & Clank (rac1) and
+ * Going Commando (rac2). The game prints the controller's buttons as glyphs of its three fonts;
+ * each tick (on_frame), the mod finds the fonts in game memory (xbox_icons.h; where, the game's
+ * folder says: src/rac1/rac1.c, src/rac2/rac2.c) and, when they are the game's own, paints Xbox
+ * buttons over the PlayStation 2 ones (paint.h). Painted fonts are no longer the game's, so they
+ * are painted once a level, and fonts the mod does not know are left alone.
  */
 #include <stdio.h>
 #include <string.h>
@@ -15,10 +16,11 @@
 #include "paint.h"
 #include "xbox_icons.h"
 
-OPENRAC_MOD_DEFINE("xbox-icons", "1.0.2")
+OPENRAC_MOD_DEFINE("xbox-icons", "1.1.0")
 
 static const openrac_api* s_api;
 static openrac_mod* s_mod;
+static const xbox_icons_game* s_game;
 static const xbox_icons_disc* s_disc;
 static int s_trace;
 static uint32_t s_unknown; /* the last fonts not known, said once */
@@ -62,8 +64,8 @@ static void tick(void* user) {
     }
     const uint32_t hash = xbox_icons_hash(fonts, s_api->memory + palette);
     int known = 0;
-    for (size_t i = 0; i < sizeof k_xbox_icons_game_fonts / sizeof k_xbox_icons_game_fonts[0]; ++i) {
-        known |= hash == k_xbox_icons_game_fonts[i];
+    for (size_t i = 0; i < s_game->font_count; ++i) {
+        known |= hash == s_game->fonts[i];
     }
     if (!known) {
         if (hash != s_unknown) {
@@ -89,22 +91,29 @@ static void tick(void* user) {
 }
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
+    static const xbox_icons_game* const games[] = {&xbox_icons_rac1, &xbox_icons_rac2};
     s_api = api;
     s_mod = mod;
+    s_game = NULL;
     s_disc = NULL;
     s_unknown = 0;
-    if (strcmp(api->game, "rac1") != 0) {
-        api->fail(mod, "xbox-icons is for Ratchet & Clank (rac1)");
+    for (size_t i = 0; i < sizeof games / sizeof games[0]; ++i) {
+        if (strcmp(api->game, games[i]->game) == 0) {
+            s_game = games[i];
+        }
+    }
+    if (s_game == NULL) {
+        api->fail(mod, "xbox-icons is for Ratchet & Clank (rac1) and Going Commando (rac2)");
         return 1;
     }
-    for (size_t i = 0; i < sizeof k_xbox_icons_discs / sizeof k_xbox_icons_discs[0]; ++i) {
-        if (strcmp(api->version, k_xbox_icons_discs[i].version) == 0) {
-            s_disc = &k_xbox_icons_discs[i];
+    for (size_t i = 0; i < s_game->disc_count; ++i) {
+        if (strcmp(api->version, s_game->discs[i].version) == 0) {
+            s_disc = &s_game->discs[i];
         }
     }
     if (s_disc == NULL) {
-        char reason[96];
-        snprintf(reason, sizeof reason, "xbox-icons knows the PAL and NTSC-U discs, not %s",
+        char reason[128];
+        snprintf(reason, sizeof reason, "xbox-icons knows %s, not %s", s_game->discs_known,
                  api->version);
         api->fail(mod, reason);
         return 1;

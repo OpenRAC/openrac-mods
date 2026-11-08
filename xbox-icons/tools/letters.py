@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 the OpenRAC contributors
 #
-# Writes src/letters.h, the letters the xbox-icons mod paints (README.md): A, X and Y drawn as
+# Writes src/common/letters.h, the letters the xbox-icons mod paints (README.md): A, X and Y drawn as
 # strokes 8 times over and averaged down to a 24 x 16 glyph cell, the face button's B and the
 # shoulder letters as pixel art. Each pixel is a coverage, 0 to 4 (".-+*#"). Needs Pillow:
 #
-#   python3 xbox-icons/tools/letters.py > xbox-icons/src/letters.h
+#   python3 xbox-icons/tools/letters.py > xbox-icons/src/common/letters.h
 from PIL import Image, ImageDraw
 
 W, H, SS = 24, 16, 8

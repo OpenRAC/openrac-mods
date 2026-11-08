@@ -7,7 +7,7 @@
  * A font is an effect texture, 256 x 128 texels of 8 bits, and the three share one palette of 256
  * colours (32-bit, alpha 0x80 opaque, in the GS's CSM1 order: within each 32 entries the middle two
  * groups of 8 trade places). The pad icons are the cells of row 96, 24 x 16 texels each (the glyph
- * tables, port/assets/world/font.h):
+ * tables: rac1's port/assets/world/font.h; Going Commando's are the same, src/rac2/rac2.c):
  *
  *   u    0     24      48        72      96  120  144  168      208, 232
  *   byte 0x10  0x13    0x12      0x11    0x14 0x16 0x15 0x17     0x18, 0x19
