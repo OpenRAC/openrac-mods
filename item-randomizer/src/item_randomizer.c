@@ -83,6 +83,7 @@
 #include "config.h"
 #include "discs.h"
 #include "hooks.h"
+#include "mod.h"
 #include "openrac/openrac_mod.h"
 #include "paths.h"
 #include "rando.h"
@@ -147,10 +148,8 @@
 #define PATH_SIZE 1200
 #define SPOILER_SIZE (64 * 1024)
 
-#define MOD_ID "item-randomizer"
-#define MOD_VERSION "2.0.0"
-
-OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
+/* The mod's version (mod.h): the spoiler log names it. */
+#define MOD_VERSION ITEM_RANDOMIZER_VERSION
 
 /* ---- types ---- */
 
@@ -1499,7 +1498,7 @@ static void log_start_up(int source) {
 /* The port calls this once when the mod loads, on the game's thread: picks the disc, reads the
  * settings, makes the placement, takes the hook points and writes the files. Returns 0 on
  * success; 1 (after api->fail told the port why) when the mod cannot run. */
-OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
+int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
     s_mod = mod;
     s_disc = NULL;

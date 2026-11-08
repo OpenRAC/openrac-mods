@@ -741,7 +741,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.0.0") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.1.0") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -754,8 +754,8 @@ int main(int argc, char** argv) {
 
     /* Another game, an unknown disc: refused before any hook. */
     D = &k_rando_discs[0];
-    openrac_api api = make_api("rac2", "ntsc");
-    CHECK(load(&api, mod) != 0 && strstr(s_failed, "rac1") != NULL && s_hook_count == 0);
+    openrac_api api = make_api("rac3", "ntsc");
+    CHECK(load(&api, mod) != 0 && strstr(s_failed, "rac3") != NULL && s_hook_count == 0);
     api = make_api("rac1", "jp");
     CHECK(load(&api, mod) != 0 && strstr(s_failed, "jp") != NULL && s_hook_count == 0);
 
