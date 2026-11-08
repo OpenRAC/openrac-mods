@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     if (argc > 1) {
         FILE* f = fopen(argv[1], "rb");
         CHECK(f != NULL);
-        static char text[16384];
+        static char text[32768];
         const size_t n = fread(text, 1, sizeof text - 1, f);
         fclose(f);
         text[n] = 0;
@@ -98,8 +98,10 @@ int main(int argc, char** argv) {
              "\"keep_starting_gear\"",
              "\"spoiler_log\"",
              "\"vendor_hints\"",
-             "\"Item_Give\"",
-             "\"Moby_Edwina_Update\""};
+             "\"rac1.item.give\"",
+             "\"rac2.item.give\"",
+             "\"rac1.moby.edwina.update\"",
+             "\"rac2.moby.tractor_beam_seller.update\""};
 
         for (size_t i = 0; i < sizeof keys / sizeof keys[0]; ++i) {
             if (strstr(text, keys[i]) == NULL) {
