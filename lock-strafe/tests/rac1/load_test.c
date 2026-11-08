@@ -386,7 +386,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.12: the hero's joints), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.1.0") == 0);
+    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.1.1") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -498,9 +498,18 @@ int main(int argc, char** argv) {
     advance();
     CHECK(s_joint_count == 2 && s_joints[0].joint == RAC1_STRAFE_JOINT_PELVIS);
     CHECK(s_joints[1].joint == RAC1_STRAFE_JOINT_SPINE);
-    /* A yaw about z: the pelvis's turn is negative (right), the spine's positive. */
+    /* A yaw about z as the game builds one (the sine negated, strafe.h): the pelvis turned right,
+     * so its z is positive and its front (the rotation's first row, as the game's joint matrices
+     * take it: 2(xy - zw) sideways) to his right; the spine turned back, its z negative. 1.1.0 had
+     * both the other way round, the hips turned away from where he went. */
     CHECK(s_joints[0].rotation[0] == 0.0f && s_joints[0].rotation[1] == 0.0f);
-    CHECK(s_joints[0].rotation[2] < 0.0f && s_joints[1].rotation[2] > 0.0f);
+    CHECK(s_joints[0].rotation[2] > 0.0f && s_joints[1].rotation[2] < 0.0f);
+    CHECK(
+        2.0f
+            * (s_joints[0].rotation[0] * s_joints[0].rotation[1]
+               - s_joints[0].rotation[2] * s_joints[0].rotation[3])
+        < 0.0f
+    );
     /* Out of play the twist is taken off at the pad's report. */
     s_level = -1;
     pad(d->pad, 0x00100000u, 32);

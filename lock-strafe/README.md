@@ -195,3 +195,5 @@ backwards while strafing back). It was written in C on the interface's table at 
 is now the SDK's reference C++ mod (openrac/mod.hpp), with the same behaviour and tests.
 In 1.1.0 it took Going Commando's strafe (DESIGN.md): its feel, the hip twist
 and the strafe flips, laid out for several games (docs/MULTI_GAME.md).
+In 1.1.1 the hip twist turns the right way. 1.1.0 turned his hips away from where he
+went, so strafing sideways his legs walked the other way (the moonwalk; DESIGN.md).

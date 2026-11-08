@@ -60,6 +60,7 @@
 #ifndef OPENRAC_RAC1_STRAFE_H
 #define OPENRAC_RAC1_STRAFE_H
 
+#include <math.h>
 #include <stdint.h>
 
 /* ---- Constants ---- */
@@ -466,6 +467,21 @@ static inline float rac1_strafe_twist_target(
     }
 
     return rac1_strafe_angle_diff(facing, move_yaw);
+}
+
+/* A joint's turn by `angle` about z as the games' joint modifiers take it, the unit quaternion
+ * (x, y, z, w) in q: a positive angle turns the joint the way his facing turns as it grows (from
+ * his front toward his left). The games build it with the sine negated, (0, 0, -sin(a/2),
+ * cos(a/2)): rac1's build_axis_rotation_quaternion (PAL func_L00_001FFED8: FastSin, then neg.s) and
+ * Going Commando's func_00283898, which its twist's records go through (func_002A91F0). Their joint
+ * matrices take the rows of the quaternion's rotation as the joint's axes, the transpose, so the
+ * negated sine is what turns it by +a. 1.1.0 sent +sin and so turned his hips away from where he
+ * went: his legs walked one way while he slid the other (DESIGN.md). Seen in game code. */
+static inline void rac1_strafe_joint_yaw(float angle, float q[4]) {
+    q[0] = 0.0f;
+    q[1] = 0.0f;
+    q[2] = -sinf(angle * 0.5f);
+    q[3] = cosf(angle * 0.5f);
 }
 
 /* Whether X this tick starts a strafe flip, the game's direction check apart: strafing, standing

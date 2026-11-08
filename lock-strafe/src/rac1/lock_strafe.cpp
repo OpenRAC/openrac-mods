@@ -428,16 +428,16 @@ void step_sequence_back(gaddr moby, gaddr sequence, int count) {
     put_float(moby + k_moby_fraction, a.fraction - get_float(hero() + k_hero_anim_speed) * a.rate);
 }
 
-// Sends the twist's two joints to the hero: the pelvis and the spine turned about their own z (a
-// yaw: his skeleton's joint frames stand as his model's, z up) by their springs' angles. False on a
-// port that does not take a mod's joints (one that takes them only from the hero's update hook's
+// Sends the twist's two joints to the hero: the pelvis and the spine turned about z (a yaw: his
+// skeleton's joint frames stand as his model's, z up) by their springs' angles, as the game's own
+// quaternion for that turn (strafe.h, rac1_strafe_joint_yaw: the sine negated). False on a port
+// that does not take a mod's joints (one that takes them only from the hero's update hook's
 // holder): he then runs without the twist.
 bool send_twist() {
     const auto joint = [](uint32_t index, float angle) {
         openrac_joint_offset j{};
         j.joint = index;
-        j.rotation[2] = std::sin(angle * 0.5f);
-        j.rotation[3] = std::cos(angle * 0.5f);
+        rac1_strafe_joint_yaw(angle, j.rotation);
         return j;
     };
 
