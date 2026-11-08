@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# The difficulty mod (README.md): one library (C++, on the SDK's openrac/mod.hpp; docs/MULTI_GAME.md):
-# src/mod.cpp hands the load to src/rac1 by openrac_api.game, over src/common (the rules, Chaos, the party's rules, the moby pool's
+# The difficulty mod (README.md): one library for Ratchet & Clank and Going Commando (C++, on the
+# SDK's openrac/mod.hpp; docs/MULTI_GAME.md): src/mod.cpp hands the load to src/rac1 or src/rac2 by
+# openrac_api.game, both over src/common (the rules, Chaos, the party's rules, the moby pool's
 # guard). Its tests: the rules (ranges, Chaos's rolls and events), the manifest's presets, the moby
 # pool's guard, the classes' table against the SDK's behaviour catalogue, and the library as the
 # port loads it in each game.
@@ -13,7 +14,7 @@ set(difficulty_core src/common/rules.cpp src/common/pool.cpp)
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(difficulty MANIFEST openrac-mod.json
-                SOURCES src/mod.cpp src/common/session.cpp src/rac1/game.cpp
+                SOURCES src/mod.cpp src/common/session.cpp src/rac1/game.cpp src/rac2/game.cpp
                         ${difficulty_core})
 # Each game's sources find their own folder's headers by their place; these give the shared ones.
 target_include_directories(difficulty PRIVATE src src/common)
@@ -51,7 +52,7 @@ if(BUILD_TESTING)
 
   # The library as the port loads it, against a host table and game memory of the test's own: one
   # program for each game, each with its own game's headers.
-  foreach(game rac1)
+  foreach(game rac1 rac2)
     add_executable(difficulty_${game}_load_test tests/${game}/load_test.cpp)
     target_include_directories(difficulty_${game}_load_test PRIVATE src/${game})
     target_link_libraries(difficulty_${game}_load_test PRIVATE OpenRAC::mod difficulty_core ${CMAKE_DL_LIBS})

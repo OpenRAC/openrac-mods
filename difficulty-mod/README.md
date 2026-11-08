@@ -1,18 +1,22 @@
 # Difficulty
 
-A slider for everything that makes Ratchet & Clank hard or easy, for
-OpenRAC's native port (PAL v2.00 and NTSC-U discs): how many enemies there
+A slider for everything that makes Ratchet & Clank and Going Commando hard
+or easy, for OpenRAC's native port (Ratchet & Clank's PAL v2.00 and NTSC-U
+discs; Going Commando's USA v1.01, PAL and USA v2.00 discs): how many enemies there
 are, the damage Ratchet takes and deals, how fast the enemies and Ratchet
 move, what weapons and ammo cost, how much ammo a shot takes and a weapon
 holds, how many bolts drop, Ratchet's health and what health pickups give.
 Presets fill them in: **Easy**, **Retail**, **Hard**, **Brutal** and
 **Chaos**, which rolls new values for every level from a seed. With every
 slider at 1.0 (the Retail preset), or with the mod off, the game is the
-PlayStation 2 game.
+PlayStation 2 game. Going Commando has every slider but the enemy count and
+the enemy speed: see [In Going Commando](#in-going-commando).
 
-It needs an OpenRAC built from master on 2026-10-21 or later (the game's
-hook points for damage, hits, ammo, deaths, the level load and Ratchet's
-speed). An older one refuses the mod and names the missing hook point.
+In Ratchet & Clank it needs an OpenRAC built from master on 2026-10-21 or
+later (the game's hook points for damage, hits, ammo, deaths, the level load
+and Ratchet's speed); in Going Commando, one with Going Commando's hook points
+for the same (OpenRAC's rac2 hook table). An older one refuses the mod and
+names the missing hook point.
 
 ## In a multiplayer party
 
@@ -97,6 +101,39 @@ The full table, slider by slider:
 With Chaos, each level's values come from the seed and the level alone, so
 the same seed is the same game: share the code from the log.
 
+## In Going Commando
+
+The same mod, the same presets and the same Chaos: one library serves both
+games, and each game takes the part written for it. What differs:
+
+| Slider | In Going Commando |
+|---|---|
+| **Enemy count** | Not there (the launcher does not show it): the port has no table of which of a level's enemies its scripts need (the waves, the arenas, the doors that open when all are defeated), so none is copied or left out |
+| **Enemy speed** | Not there: Going Commando's enemies have no clock of their own to run faster or slower (their code steps a 60th of a second in constants of its own) |
+| **Damage to Ratchet** | The points each hit takes, before his armour takes its share: 2 is twice the points, 0.5 half (carried over, so a 1-point hit lands every other time). Falls and instant deaths are the game's |
+| **Damage to enemies** | Every hit on an enemy (a moby of the bestiary's kind): your weapons, the wrench, explosions. Crates and the level's objects are the game's |
+| **Ratchet's speed** | His walking and running speed, as in Ratchet & Clank |
+| **Weapon prices, ammo prices, max ammo** | The weapon table, for every weapon and its upgraded forms: the vendor's price, the ammo's price, the most ammo it holds (and what it comes with) |
+| **Ammo per shot** | As in Ratchet & Clank |
+| **Bolt drops** | The bolts a dying enemy or a broken crate drops. The arenas' prizes and the story's rewards are the game's |
+| **Max health** | His max health times the slider, from what the game gives (4, his nanotech levels' steps and the boosts), at least 1: the HUD shows it, the save keeps it, and the game fills his health when it changes, as when he levels up |
+| **Health pickups** | The health each nanotech pickup gives, on average |
+
+Chaos rolls every slider for each level as in Ratchet & Clank, and its events
+leave out the three about the enemies' speed (**Slow motion**, **Frenzy** and
+**Double time**). The log names only the sliders Going Commando has.
+
+| Slider | Where (OpenRAC's rac2 hook points) |
+|---|---|
+| Damage to Ratchet | `rac2.player.take_damage` (Hero_TakeDamage) |
+| Damage to enemies | `rac2.combat.get_hit` (Moby_GetHitMessage): the hit's damage scaled once |
+| Ratchet's speed | `rac2.player.approach_speed` (Hero_ApproachSpeed) |
+| Prices, max ammo | The weapon table (level 0's at 0x262570 on USA v1.01), rewritten from the level's own values at each level's load (`rac2.level.load`, Level_Load) |
+| Ammo per shot | `rac2.weapon.take_ammo` (Weapon_TakeAmmo) |
+| Bolt drops | `rac2.moby.record_death` (Moby_RecordDeath): the moby's bolts scaled for the call |
+| Max health | `rac2.player.nanotech_steps` (Hero_NanotechSteps): the count the game's max health is made of |
+| Health pickups | `rac2.moby.nanotech_ball.update` (the nanotech orb's update); an OpenRAC without it leaves the pickups as the game has them and says so in the log |
+
 ## How many enemies
 
 The game keeps one pool of 255 slots per level for everything it makes as it
@@ -120,7 +157,7 @@ copies are spread: each enemy gets one before any gets a second.
 
 ## Which mobys count as enemies
 
-The game's objects are classified in [classes.tsv](classes.tsv), 158 of
+In Ratchet & Clank, the game's objects are classified in [classes.tsv](classes.tsv), 158 of
 them: 39 **enemies** (copied, left out, timed, hit harder or softer), 5
 **roamers** (left out, timed, hit; never copied: they fly a path, drop in on
 a cue, or are too big to stand beside the original), 9 **turrets** (timed and
@@ -152,6 +189,7 @@ played, and only those are copied.
 
 ## How it works
 
+This is Ratchet & Clank's; Going Commando's is [above](#in-going-commando).
 Each value is changed where the game takes it, through OpenRAC's hook points
 (stable ids, [hooks](https://github.com/OpenRAC/OpenRAC/blob/master/sdk/docs/hooks.md)),
 or once a level at its source; nothing is patched every frame, and with a
@@ -177,9 +215,16 @@ had stays as it was when you saved.
 
 The [tests](tests/) check the presets (each sets every slider and Chaos, in
 range, Easy easier and Brutal harder than Hard), the sliders' ranges and
-clamping, that Chaos's rolls and events are the same for the same seed, that
-every catalogue class that fights is classified, the pool's guard on a level
-laid out in memory, and the library as the port loads it.
+clamping, that Chaos's rolls and events are the same for the same seed (and
+that a game without the enemy speed never gets its events), that every
+catalogue class that fights is classified, the pool's guard on a level laid
+out in memory, and the library as the port loads it in each game, at each
+disc's addresses ([tests/rac1](tests/rac1), [tests/rac2](tests/rac2)).
+
+The code: [src/mod.cpp](src/mod.cpp) hands the load to the game that loaded
+the mod, [src/rac1](src/rac1) and [src/rac2](src/rac2) hold each game's hook
+points and addresses, and [src/common](src/common) the rules, Chaos and a
+party's rules they share.
 
 ## Building
 

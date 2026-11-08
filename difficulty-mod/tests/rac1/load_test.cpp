@@ -555,15 +555,15 @@ int main(int argc, char** argv) {
     query(&info);
     // The interface its manifest names (1.12), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.3.0") == 0);
+    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.4.0") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
 
     // A game it is not for, an unknown disc: refused with a reason, before any hook.
-    openrac_api api = make_api("rac2", "ntsc");
+    openrac_api api = make_api("rac3", "ntsc");
     CHECK(
-        g_load(&api, g_handle) != 0 && g_failed.find("rac2") != std::string::npos && g_hooks.empty()
+        g_load(&api, g_handle) != 0 && g_failed.find("rac3") != std::string::npos && g_hooks.empty()
     );
     CHECK(!load_with("jp") && g_failed.find("jp") != std::string::npos && g_hooks.empty());
 
