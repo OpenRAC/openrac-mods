@@ -54,6 +54,10 @@ and returns non-zero (with a log line) for a game it was not built for. No
 per-game library, no change to `plugin`. A script mod does the same with
 `openrac.game` in its first script (`if openrac.game == "rac2" then ...`).
 
+A hook point the running port does not have fails the whole mod at load (the
+loader counts `OPENRAC_HOOK_UNKNOWN` as a refusal), so a game's code takes only
+hook points that game's table has on every disc it lists.
+
 Per-game code keeps that game's addresses, struct offsets and hook names in
 its own folder; `common/` never holds an address. Each game's addresses come
 from that game's decompilation and its SDK header, never guessed.
@@ -83,6 +87,11 @@ A rac2 hook point that does the job of a rac1 one takes the same `<area>.<name>`
 code reads alike. Signatures are each game's own. Common callbacks of
 `openrac_api` (`on_tick`, `on_pad`, the HUD, menus, play) are the same calls in
 every game, and answer `OPENRAC_HOOK_UNKNOWN` where a game lacks one.
+
+rac2's table came with SDK 1.14.1 (OpenRAC's `feat/multi-game-mods`). Until an
+SDK is released, `sdk.lock` may carry `"dev_ref": "<an OpenRAC commit>"`:
+`tools/dev_sdk.py` then builds CI against that commit's `sdk/`. Drop it when the
+release is pinned.
 
 **Adding rac2 hook points in parallel**: several branches add rows to the same
 rac2 files. Append rows and table entries at the end of your area, rebase onto
