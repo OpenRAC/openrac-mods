@@ -22,12 +22,30 @@ import json
 import shutil
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+
+
+def fetch(url: str, attempts: int = 6) -> bytes:
+    """GET url, retrying a server error or timeout with backoff: GitHub's release downloads
+    sometimes answer 502/503/504 for a few minutes."""
+    for n in range(attempts):
+        try:
+            return urllib.request.urlopen(url, timeout=60).read()
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or n == attempts - 1:
+                raise
+        except (urllib.error.URLError, TimeoutError):
+            if n == attempts - 1:
+                raise
+        time.sleep(min(60, 5 * 2 ** n))
+    raise AssertionError("unreachable")
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -39,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.source:
             print("fetch_sdk: sdk.lock has no sha256 to check a local archive against", file=sys.stderr)
             return 1
-        listed = urllib.request.urlopen(lock["url"] + ".sha256", timeout=60).read().decode().split()
+        listed = fetch(lock["url"] + ".sha256").decode().split()
         if not listed or len(listed[0]) != 64:
             print(f"fetch_sdk: {lock['url']}.sha256 gives no SHA-256", file=sys.stderr)
             return 1
@@ -53,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     if (dest / top / "cmake").is_dir() and stamp.is_file() and stamp.read_text().strip() == want:
         print(dest / top)
         return 0
-    data = args.source.read_bytes() if args.source else urllib.request.urlopen(lock["url"], timeout=60).read()
+    data = args.source.read_bytes() if args.source else fetch(lock["url"])
     got = hashlib.sha256(data).hexdigest()
     if got != want:
         print(f"fetch_sdk: the SDK's SHA-256 is {got}, sdk.lock pins {want}", file=sys.stderr)
