@@ -192,20 +192,33 @@ Bytes hello(const std::string& version, const std::string& name, std::uint8_t fe
     );
 }
 
-Bytes party_create(const std::string& description) {
-    return frame(party(PartyOp::kCreate).str(description).bytes());
+namespace {
+
+/* A request's family at its end: none is no bytes at all, as from a client before families. */
+Bytes with_family(Writer w, const std::string& family) {
+    if (!family.empty()) {
+        w.str(family);
+    }
+
+    return frame(w.bytes());
 }
 
-Bytes party_list() {
-    return frame(party(PartyOp::kList).bytes());
+}  // namespace
+
+Bytes party_create(const std::string& description, const std::string& family) {
+    return with_family(party(PartyOp::kCreate).str(description), family);
 }
 
-Bytes party_find() {
-    return frame(party(PartyOp::kFind).bytes());
+Bytes party_list(const std::string& family) {
+    return with_family(party(PartyOp::kList), family);
 }
 
-Bytes party_join(const std::string& code) {
-    return frame(party(PartyOp::kJoin).str(code).bytes());
+Bytes party_find(const std::string& family) {
+    return with_family(party(PartyOp::kFind), family);
+}
+
+Bytes party_join(const std::string& code, const std::string& family) {
+    return with_family(party(PartyOp::kJoin).str(code), family);
 }
 
 Bytes party_leave() {
@@ -279,7 +292,13 @@ bool decode(const Bytes& body, Message& out) {
             out.kind = Message::Kind::kError;
             const std::uint8_t reason = r.u8();
             out.reason = static_cast<ErrorReason>(reason);
-            return r.ok() && reason <= static_cast<std::uint8_t>(ErrorReason::kResumeRefused);
+
+            // Another game's party: its family follows.
+            if (out.reason == ErrorReason::kOtherGame && r.left() > 0) {
+                out.text = r.str();
+            }
+
+            return r.ok() && reason <= static_cast<std::uint8_t>(ErrorReason::kOtherGame);
         }
         case PacketId::kTime:
             out.kind = Message::Kind::kTime;
@@ -519,13 +538,15 @@ Bytes data_from(std::int32_t sender, const Bytes& payload) {
     );
 }
 
-Bytes error_reply(ErrorReason reason) {
-    return frame(
-        Writer()
-            .u8(static_cast<std::uint8_t>(PacketId::kError))
-            .u8(static_cast<std::uint8_t>(reason))
-            .bytes()
-    );
+Bytes error_reply(ErrorReason reason, const std::string& family) {
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(PacketId::kError)).u8(static_cast<std::uint8_t>(reason));
+
+    if (reason == ErrorReason::kOtherGame) {
+        w.str(family);
+    }
+
+    return frame(w.bytes());
 }
 
 Bytes time_reply(std::int64_t client_ms, std::int64_t server_ms) {
@@ -579,21 +600,25 @@ Request decode_request(const Bytes& body) {
                 case static_cast<std::uint8_t>(PartyOp::kCreate):
                     kind = Request::Kind::kCreate;
 
-                    // The description, from a client that sends one.
+                    // The description, from a client that sends one, then its family.
                     if (r.left() > 0) {
                         out.text = r.str();
                     }
 
+                    out.family = r.left() > 0 ? r.str() : "";
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kList):
                     kind = Request::Kind::kList;
+                    out.family = r.left() > 0 ? r.str() : "";
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kJoin):
                     kind = Request::Kind::kJoin;
                     out.text = r.str();
+                    out.family = r.left() > 0 ? r.str() : "";
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kFind):
                     kind = Request::Kind::kFind;
+                    out.family = r.left() > 0 ? r.str() : "";
                     break;
                 case static_cast<std::uint8_t>(PartyOp::kLeave):
                     kind = Request::Kind::kLeave;

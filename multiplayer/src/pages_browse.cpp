@@ -32,6 +32,20 @@ std::string party_row(const mp::Listing& l) {
     return row + count;
 }
 
+/* The parties this game could play: an older server lists every game's, so another game's (its
+ * description's tag says so) are left out here too. */
+std::vector<mp::Listing> shown_parties() {
+    std::vector<mp::Listing> out;
+
+    for (const mp::Listing& l : g->session->parties()) {
+        if (!mp::other_game(l.description, game_tag())) {
+            out.push_back(l);
+        }
+    }
+
+    return out;
+}
+
 }  // namespace
 
 /* Browse: Refresh, then the parties with room; none: a line saying so. */
@@ -40,7 +54,7 @@ void show_browse() {
     openrac::UiContent c;
     c.title = text("Browse games");
     c.items.push_back(openrac::UiItem::button(text("Refresh"), s.greeted()));
-    const std::vector<mp::Listing>& parties = s.parties();
+    const std::vector<mp::Listing> parties = shown_parties();
     bool differs = false;
 
     for (std::size_t i = 0; i < parties.size() && i < kBrowseRows; ++i) {
@@ -79,15 +93,20 @@ void on_browse(const openrac::UiPage& page, const openrac::UiEvent& e) {
         s.list();
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() > kRefreshItem) {
         const auto row = static_cast<std::size_t>(e.item() - 1);
+        const std::vector<mp::Listing> parties = shown_parties();
 
-        if (row < s.parties().size()) {
+        if (row < parties.size()) {
             g->notice.clear();
-            s.join(s.parties()[row].code);
+            s.join(parties[row].code);
         }
     }
 
     if (s.in_party() && !e.is(OPENRAC_UI_HIDE)) {
         g->lobby.open();
+    } else if (!g->refusal.empty() && !e.is(OPENRAC_UI_HIDE)) {
+        // Refused for another game's party: why.
+        show_refused();
+        g->refused.open();
     }
 
     show_browse();

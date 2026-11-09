@@ -386,6 +386,11 @@ void tick_auto_join(std::uint64_t now) {
 
     if (g->mods->solo()) {
         give_up("A mod you have on can't be played in a party");
+    } else if (!g->refusal.empty()) {
+        // Another game's party: Home says which game it is for.
+        const std::string why = g->refusal;
+        g->refusal.clear();
+        give_up(why);
     } else if (s.in_party()) {
         g->mod->info("multiplayer: joined party " + g->join_party + " as the launcher asked");
         g->join_party.clear();
@@ -475,6 +480,11 @@ void poll() {
 
     if (!notice.empty()) {
         g->notice = notice;
+    }
+
+    // A join into another game's party: the Refused page says which game it is for.
+    if (std::string refusal = g->session->take_refusal(); !refusal.empty()) {
+        g->refusal = refusal;
     }
 
     if (std::string notice = g->coop->take_notice(); !notice.empty()) {
@@ -914,6 +924,8 @@ void load(openrac::Mod& mod) {
             g->coop->set_build(
                 std::string(session_version()) + " " + own.openrac + " " + own.family + " " + digest
             );
+            // The server keeps parties to one family: this game's, said with each party request.
+            g->session->set_family(own.family);
             g->mods->set_own(std::move(own));
         }
 
@@ -1003,7 +1015,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.12.1", load)
+OPENRAC_MOD_CPP("multiplayer", "0.12.2", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

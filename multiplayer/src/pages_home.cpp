@@ -335,9 +335,12 @@ void on_code(const openrac::UiPage& page, const openrac::UiEvent& e) {
         g->session->join(code_text());
     }
 
-    // Joined: the lobby.
+    // Joined: the lobby. Refused for another game's party: why.
     if (g->session->in_party()) {
         g->lobby.open();
+    } else if (!g->refusal.empty() && !e.is(OPENRAC_UI_HIDE)) {
+        show_refused();
+        g->refused.open();
     }
 
     show_code();

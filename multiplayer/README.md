@@ -440,12 +440,14 @@ as in Ratchet & Clank.
    as the others' poses say, with their names over them. They do not animate yet: the port poses them
    still (the poses carry the animation for when it does).
 
-Only parties of the same game meet. A Going Commando party's description names the game after its
-digest (`Pokitaru, 3 platinum bolts|3fa9/rac2`, below): Browse games shows only those, a Going
-Commando player in another game's party leaves it at once, and a Ratchet & Clank player in a Going
-Commando party leaves it too. Each Going Commando disc is its own world for now (`rac2-ntsc-1`,
-`rac2-pal-1`, `rac2-ntsc2-1`): players on different discs are in one party but the member is
-refused the host's game.
+Only parties of the same game meet. Each party request says the game's world family (`rac1-60-1`
+for both Ratchet & Clank discs; `rac2-ntsc-1`, `rac2-pal-1`, `rac2-ntsc2-1`, since each Going
+Commando disc is its own world for now), and the server lists and finds only parties of that family
+and refuses a join by code into another: the Refused page says "For Ratchet & Clank 2"
+(or "For Ratchet & Clank", or "Different disc"). Against an older server that lists every game, a
+Going Commando party's description names the game after its digest
+(`Pokitaru, 3 platinum bolts|3fa9/rac2`, below), Browse games leaves out other games' parties, and a
+player who still lands in another game's party leaves it at once.
 
 Not in Going Commando yet (each needs the port's rac2 calls or this mod's work):
 
@@ -483,11 +485,11 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.12.1`; `rac2-multiplayer/0.12.1` in Going Commando) and the player's name, on every connection | the session id |
-| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Pokitaru, 3 platinum bolts|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
+| 0 HELLO | its version (`rac1-multiplayer/0.12.2`; `rac2-multiplayer/0.12.2` in Going Commando) and the player's name, on every connection | the session id |
+| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Pokitaru, 3 platinum bolts|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8); CREATE, JOIN, LIST and FIND end with the world family (string), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
-| 4 ERROR | | the reason: no such party, full, already in one, not in one, not the host, no place to come back to |
+| 4 ERROR | | the reason: no such party, full, already in one, not in one, not the host, no place to come back to, another game's party (6, then that party's world family) |
 | 5 TIME | its monotonic clock in ms, once after hello | the echo and the server's clock: the round trip, and the server's clock offset, smoothed (5 % a sample) |
 | 6 UDP | | the session's UDP token and the server's UDP port (an older server sends none), then what the server takes: KICK, RESUME and a resume token (an older server says none, and the mod asks for neither) |
 
@@ -722,6 +724,9 @@ without a game disc. Dynamic fields are shortened without splitting a UTF-8 char
 
 ## History
 
+- 0.12.2: **One game per party**: each party request says the game's world family, so the server
+  lists and finds only your game's parties and refuses a join by code into another's; the Refused
+  page says which game it is for (**For Ratchet & Clank 2**). Browse also leaves other games' out.
 - 0.12.1: **Shorter texts**: every page, status, footer, hint, question and notice is a few words
   (**Connected**, **Hosting**, **Party full**, **Leave party?**), in all five languages, so nothing
   overflows the panels; a test measures them.

@@ -31,6 +31,7 @@
 
 #include "direct.hpp"
 #include "menu.hpp"
+#include "party_mods.hpp"
 
 #if defined(_WIN32)
 #include <winsock2.h>
@@ -604,7 +605,7 @@ void host_frames_are_the_servers_bytes() {
         CHECK(mp::decode(mp::Writer().u8(6).i64(1).i32(7770).bytes(), m) && m.features == 0);
         CHECK(mp::decode(mp::Writer().u8(1).u8(12).bytes(), m) && m.kind == mp::Message::Kind::kPartyKicked);
         CHECK(mp::decode(mp::Writer().u8(4).u8(4).bytes(), m) && m.reason == mp::ErrorReason::kNotHost);
-        CHECK(!mp::decode(mp::Writer().u8(4).u8(6).bytes(), m));
+        CHECK(!mp::decode(mp::Writer().u8(4).u8(7).bytes(), m));
         const mp::Request q = mp::decode_request(mp::Writer().u8(1).u8(11).i32(7).bytes());
         CHECK(q.kind == mp::Request::Kind::kKick && q.target == 7);
         CHECK(mp::decode_request(mp::Writer().u8(1).u8(11).bytes()).kind == mp::Request::Kind::kInvalid);
@@ -1434,8 +1435,76 @@ void direct_connect_ignores_the_server() {
     blackhole.close();
 }
 
+void parties_keep_to_their_family() {
+    // CREATE, LIST, FIND and JOIN end with the family; none is the old bytes exactly.
+    CHECK(mp::party_create("", "") == mp::party_create());
+    CHECK(mp::party_create("New game", "rac2-pal-1")
+          == server(mp::Writer().u8(1).u8(0).str("New game").str("rac2-pal-1")));
+    CHECK(mp::party_create("", "rac1-60-1") == server(mp::Writer().u8(1).u8(0).str("").str("rac1-60-1")));
+    CHECK(mp::party_list("rac1-60-1") == server(mp::Writer().u8(1).u8(8).str("rac1-60-1")));
+    CHECK(mp::party_find("rac2-ntsc-1") == server(mp::Writer().u8(1).u8(7).str("rac2-ntsc-1")));
+    CHECK(mp::party_join("ABCDEF", "rac2-ntsc-1")
+          == server(mp::Writer().u8(1).u8(1).str("ABCDEF").str("rac2-ntsc-1")));
+    CHECK(mp::party_join("ABCDEF", "") == mp::party_join("ABCDEF"));
+
+    // As a server reads them: the family after the other fields, "" from an older client.
+    const mp::Request create = mp::decode_request(body_of(mp::party_create("Oozla", "rac2-pal-1")));
+    CHECK(create.kind == mp::Request::Kind::kCreate && create.text == "Oozla" && create.family == "rac2-pal-1");
+    const mp::Request join = mp::decode_request(body_of(mp::party_join("ABCDEF", "rac1-60-1")));
+    CHECK(join.kind == mp::Request::Kind::kJoin && join.text == "ABCDEF" && join.family == "rac1-60-1");
+    CHECK(mp::decode_request(body_of(mp::party_list("rac1-60-1"))).family == "rac1-60-1");
+    CHECK(mp::decode_request(body_of(mp::party_find("rac1-60-1"))).family == "rac1-60-1");
+    CHECK(mp::decode_request(body_of(mp::party_list())).family.empty());
+    CHECK(mp::decode_request(body_of(mp::party_join("ABCDEF"))).family.empty());
+    CHECK(mp::decode_request(body_of(server(mp::Writer().u8(1).u8(0)))).family.empty());
+
+    // OTHER_GAME (6) carries the party's family; the other reasons nothing.
+    CHECK(mp::error_reply(mp::ErrorReason::kOtherGame, "rac2-ntsc-1")
+          == server(mp::Writer().u8(4).u8(6).str("rac2-ntsc-1")));
+    const mp::Message other = decoded(mp::error_reply(mp::ErrorReason::kOtherGame, "rac2-ntsc-1"));
+    CHECK(other.kind == mp::Message::Kind::kError && other.reason == mp::ErrorReason::kOtherGame
+          && other.text == "rac2-ntsc-1");
+    // An unknown reason is still not read.
+    mp::Message m;
+    CHECK(!mp::decode(body_of(server(mp::Writer().u8(4).u8(7))), m));
+
+    // The words: the game the family is for, else a different disc.
+    CHECK(std::string(mp::other_game_text("rac1-60-1", "rac2-ntsc-1")) == mp::kForRac2Notice);
+    CHECK(std::string(mp::other_game_text("rac2-pal-1", "rac1-60-1")) == mp::kForRac1Notice);
+    CHECK(std::string(mp::other_game_text("rac2-pal-1", "rac2-ntsc-1")) == mp::kDifferentDisc);
+    CHECK(std::string(mp::other_game_text("rac1-60-1", "pal")) == mp::kDifferentDisc);
+
+    // A session says its family with each request, once it knows it.
+    Recorder link;
+    mp::Session s(link, "v", "Bob");
+    s.connected();
+    s.handle(decoded(server(mp::Writer().u8(0).i32(3))));
+    s.list();
+    CHECK(link.frames.back() == mp::party_list());
+    s.set_family("rac2-pal-1");
+    s.list();
+    CHECK(link.frames.back() == mp::party_list("rac2-pal-1"));
+    s.join("ABCDEF");
+    CHECK(link.frames.back() == mp::party_join("ABCDEF", "rac2-pal-1"));
+
+    // Refused for another game: the words once as the refusal, and on the status line.
+    s.handle(decoded(mp::error_reply(mp::ErrorReason::kOtherGame, "rac1-60-1")));
+    CHECK(!s.waiting() && !s.in_party());
+    CHECK(s.take_refusal() == mp::kForRac1Notice && s.take_refusal().empty());
+    CHECK(s.take_notice() == mp::kForRac1Notice);
+    s.find();
+    CHECK(link.frames.back() == mp::party_find("rac2-pal-1"));
+    s.handle(decoded(mp::error_reply(mp::ErrorReason::kPartyFull)));
+    s.create("Oozla");
+    CHECK(link.frames.back() == mp::party_create("Oozla", "rac2-pal-1"));
+    // Any other refusal is no Refused page.
+    s.handle(decoded(mp::error_reply(mp::ErrorReason::kPartyNotFound)));
+    CHECK(s.take_refusal().empty());
+}
+
 int main() {
     client_frames_are_the_servers_bytes();
+    parties_keep_to_their_family();
     server_frames_are_read();
     frames_are_cut_however_they_arrive();
     a_party_is_created_joined_and_left();
