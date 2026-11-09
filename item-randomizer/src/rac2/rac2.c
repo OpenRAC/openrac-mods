@@ -14,6 +14,11 @@
  *     game's own GiveInventoryItem (owned, new, ammo, the vendor's list, the quick select). A
  *     location had already gives nothing again. Its reward is said in a line over the game
  *     (play_notice); the game's own words name X.
+ *   - Item_Equip (EquipItem): most givers put X in the hero's hand (or on him) right after they
+ *     give it. Where the mod gave another item in X's place, X is not the player's: he would hold
+ *     an item he does not own (it is in no list, and leaves his hand for good once put away). The
+ *     mod hands the giver's equip the reward instead, or drops it when the reward is not the
+ *     player's to hold.
  *   - The givers that test X's owned byte before they give it (the Dynamo, the Tractor Beam's,
  *     Thermanator's, Levitator's and Hypnomatic's sellers, the Box Breaker, the Glider, the Charge
  *     Boots' race, the Mapper) and the two level starts that place the hero by it (Endako's
@@ -77,6 +82,7 @@ static int s_location_of[R2_ITEM_COUNT]; /* the shuffled location whose item is 
 static rando_settings s_own_settings;    /* this game's own, for when a party's host's is over */
 static int s_following;                  /* playing a party host's seed */
 static void (*s_give)(int32_t id);        /* the game's GiveInventoryItem (the hook's original) */
+static int32_t (*s_equip)(int32_t id);    /* the game's EquipItem (the hook's original) */
 static int s_giving;                      /* inside the mod's own give */
 static uint32_t s_loads = 0xFFFFFFFFu;    /* the level load the start's check ran for */
 static uint32_t s_stock_loads = 0xFFFFFFFFu; /* the program load the vendor's table was stocked in */
@@ -216,6 +222,35 @@ static void give_hook(int32_t id) {
     if (!had(i)) {
         check(i);
     }
+}
+
+/* The player's own owned byte: under a giver's stand-in, the value put aside. */
+static int real_owned(int item) {
+    for (int k = s_standin_count - 1; k >= 0; --k) {
+        if (s_standins[k].item == item) {
+            return s_standins[k].real;
+        }
+    }
+    return *owned(item);
+}
+
+/* A giver puts its item X in the hero's hand after its give. Where the mod gave the location's
+ * reward in X's place, the reward is what he takes; the game never puts an item not owned in his
+ * hand, so nothing is put there when the reward is not the player's either. */
+static int32_t equip_hook(int32_t id) {
+    const int replaying = s_api->party_replaying != NULL && s_api->party_replaying();
+
+    if (s_giving || replaying || id <= 0 || id >= R2_ITEM_COUNT || s_location_of[id] < 0
+        || real_owned(id)) {
+        return s_equip(id);
+    }
+
+    const int reward = s_plan.reward[s_location_of[id]];
+
+    if (reward > 0 && reward != id && real_owned(reward)) {
+        return s_equip(reward);
+    }
+    return 0;
 }
 
 /* ---- the givers' updates ---- */
@@ -504,6 +539,7 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
     s_mod = mod;
     s_give = NULL;
+    s_equip = NULL;
     s_giving = 0;
     s_standin_count = 0;
     s_loads = 0xFFFFFFFFu;
@@ -553,6 +589,11 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
 
     if (shuffles || rules) {
         if (api->hook(mod, "rac2.item.give", "void(i32)", (void*)give_hook, (void**)&s_give)
+            != OPENRAC_HOOK_OK) {
+            return 1;
+        }
+
+        if (api->hook(mod, "rac2.item.equip", "i32(i32)", (void*)equip_hook, (void**)&s_equip)
             != OPENRAC_HOOK_OK) {
             return 1;
         }

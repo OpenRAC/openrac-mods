@@ -204,7 +204,8 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 An OpenRAC with the item hook points above and the behaviour catalogue's. An older one refuses the
 mod with the reason ("this OpenRAC cannot hook Item_Give").
 Going Commando's PAL and v2.00 discs need an OpenRAC whose ports have the givers' hook points on
-those discs too (OpenRAC #390); an older one refuses the mod the same way.
+those discs too (OpenRAC #390); an older one refuses the mod the same way. Going Commando also needs
+the equip hook point, `rac2.item.equip` (SDK 1.14.3).
 
 ## Going Commando
 
@@ -239,12 +240,17 @@ expert place the same way; relaxed keeps what you need out of the Hypnomatic mak
 The spoiler log is `spoiler-rac2-<code>.txt` in the mod's data folder; a blank seed is remembered in
 `seed-rac2.txt`.
 
-**How the game is changed** (`src/rac2/rac2.c`; the hook points are OpenRAC's `rac2.item.give` and
-`rac2.moby.*.update`):
+**How the game is changed** (`src/rac2/rac2.c`; the hook points are OpenRAC's `rac2.item.give`,
+`rac2.item.equip` and `rac2.moby.*.update`):
 
 - GiveInventoryItem: a shuffled place gives its reward once, through the game's own routine (owned,
   ammo, the vendor's list, quick select). A line over the game names the reward; the game's own
   words still name the place's usual item.
+- EquipItem: most givers put their item in Ratchet's hand (or on him) right after the give: Todano's
+  Sheepinator, the Tractor Beam, the Thermanator, the Swingshot, the Mapper, ... Where a place gave
+  its reward instead, he takes the reward, and nothing when it is not yours to hold. (Up to 2.3.0
+  the Sheepinator pickup put a Sheepinator you did not own in his hand: it was in no list and gone
+  once put away.)
 - Twelve givers test their own item's owned byte before they give it (they would vanish or stop
   selling once you have that item from elsewhere). While their update runs they are shown the
   place's state instead; Endako's and Barlow's level starts, which place Ratchet by the Swingshot and
