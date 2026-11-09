@@ -8,10 +8,14 @@
 #include <string.h>
 
 #include "mod.h"
+#include "paths.h"
 
 OPENRAC_MOD_DEFINE(ITEM_RANDOMIZER_ID, ITEM_RANDOMIZER_VERSION)
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
+    // The port's folder for the mod's files (interface 1.11), where the player can find them.
+    rando_set_port_dir(api->api_minor >= 11 && api->data_dir != NULL ? api->data_dir(mod) : NULL);
+
     if (strcmp(api->game, "rac1") == 0) {
         return rac1_mod_load(api, mod);
     }
