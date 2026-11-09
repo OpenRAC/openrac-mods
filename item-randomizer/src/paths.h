@@ -10,7 +10,7 @@
 
 /* The folder, made when missing: OPENRAC_MOD_DATA_DIR when set, else the folder the port gives
  * the mod (data_dir: mod-data/item-randomizer beside the memory cards; on Android the Files app's
- * OpenRAC > Mods data), else, with a port older than interface 1.11, the launcher's per-user data
+ * OpenRAC > Mod files), else, with a port older than interface 1.11, the launcher's per-user data
  * folder's mods/item-randomizer:
  *   macOS    ~/Library/Application Support/dev.openrac.launcher/mods/item-randomizer
  *   Linux    $XDG_DATA_HOME (or ~/.local/share)/dev.openrac.launcher/mods/item-randomizer

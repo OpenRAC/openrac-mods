@@ -47,7 +47,7 @@ cards, never beside the game:
 
 | System | Folder |
 |---|---|
-| Android | Files app: **OpenRAC > Mods data > item-randomizer** (or Settings > **Open Files**) |
+| Android | Files app: **OpenRAC > Mod files > item-randomizer** (or Settings > **Open Files**) |
 | macOS | `~/Library/Application Support/OpenRAC/mod-data/item-randomizer` |
 | Linux | `~/.local/share/openrac/mod-data/item-randomizer` (or under `$XDG_DATA_HOME`) |
 | Windows | `%LOCALAPPDATA%\openrac\mod-data\item-randomizer` |
@@ -296,7 +296,7 @@ with New games only's new game, tagged save, untagged save and another seed's sa
 ## History
 
 - 2.4.1: the data folder is the one OpenRAC gives the mod, so on Android the spoiler log and the
-  seed are in the Files app (OpenRAC > Mods data); the remembered seed comes along from the old
+  seed are in the Files app (OpenRAC > Mod files); the remembered seed comes along from the old
   folder.
 - 2.4.0: **New games only** (on by default): the mod randomizes only a game started with it (a new
   game, or a save carrying its seed's tag) and leaves any other save as the game has it, so an

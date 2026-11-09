@@ -138,7 +138,7 @@ int rando_data_dir(char* out, size_t size) {
         snprintf(out, size, "%s", own);
     } else if (s_port_dir[0] != 0) {
         // The port's folder for the mod: on Android the only one the player can reach (Files app,
-        // OpenRAC > Mods data). The port made it.
+        // OpenRAC > Mod files). The port made it.
         snprintf(out, size, "%s", s_port_dir);
         carry_seeds(out);
         return 0;
