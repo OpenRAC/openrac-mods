@@ -47,10 +47,10 @@
 namespace mpmod {
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kModVersion = "0.12.2";
-constexpr const char* kVersion = "rac1-multiplayer/0.12.2";
+constexpr const char* kModVersion = "0.12.3";
+constexpr const char* kVersion = "rac1-multiplayer/0.12.3";
 /* Going Commando's: its parties are its own (a party's description names the game). */
-constexpr const char* kVersionRac2 = "rac2-multiplayer/0.12.2";
+constexpr const char* kVersionRac2 = "rac2-multiplayer/0.12.3";
 
 
 /* The question's tag: leaving the party (or hosting it). */

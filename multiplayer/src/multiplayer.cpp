@@ -621,7 +621,8 @@ void load(openrac::Mod& mod) {
     g->comfort = std::make_unique<mp::Comfort>(std::move(comfort));
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
-    // to mp-trace.log in the game's working directory (beside run.log), else to the game's log.
+    // to mp-trace.log in the mod's data folder (on Android the Files app's OpenRAC > Mod files), in
+    // the game's working directory with an OpenRAC older than data_dir, else to the game's log.
     const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
 
     g->revive = mod.setting<bool>("revive");
@@ -630,7 +631,9 @@ void load(openrac::Mod& mod) {
 
     if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
         std::error_code error;
-        std::filesystem::path path = std::filesystem::current_path(error) / "mp-trace.log";
+        const std::string data = mod.data_dir();
+        std::filesystem::path path =
+            (data.empty() ? std::filesystem::current_path(error) : std::filesystem::u8path(data)) / "mp-trace.log";
         path = std::filesystem::absolute(path, error);
         g->trace_file.open(path, std::ios::out | std::ios::app);
 
@@ -1015,7 +1018,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.12.2", load)
+OPENRAC_MOD_CPP("multiplayer", "0.12.3", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
