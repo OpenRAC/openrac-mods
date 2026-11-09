@@ -29,6 +29,12 @@ inline std::uint32_t language_address(std::string_view disc) {
     return disc == "pal" ? 0x0015EE88u : disc == "ntsc" ? 0x0015ED88u : 0;
 }
 
+// Going Commando's: a byte (0x001A7BB4 on USA v1.01, the menus' action type 9 sets it), the same
+// indexes as Ratchet & Clank's (the port's rac2_version.h maps it for PAL and USA v2.00).
+inline std::uint32_t rac2_language_address(std::string_view disc) {
+    return disc == "ntsc" ? 0x001A7BB4u : disc == "pal" ? 0x001A7C3Cu : disc == "ntsc2" ? 0x001A7BBCu : 0;
+}
+
 struct Words {
     const char* text[5];
 };

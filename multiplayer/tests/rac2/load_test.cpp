@@ -2,12 +2,14 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // The multiplayer library as the port loads it in Going Commando, against a host table of the
-// test's own (openrac_mod.h): it loads on rac2 with no hook point taken (neither game's) and no page
-// or menu item made (rac2's title has none), a frame callback given, and its frames run in the title
-// with no party; a port without the play calls is refused, naming them, as is a game it is not for.
+// test's own (openrac_mod.h): it loads on rac2 with no hook point taken (Ratchet & Clank's are its
+// own), its pages made, Multiplayer in the title's main menu under Load Game and in the pause menu,
+// a frame callback given, and its frames run in the title with no party; a port without the play
+// calls is refused, naming them, as is a game it is not for.
 // Slots the table leaves empty are ones the mod must not call here: a call would crash the test.
 //
 // Run with the library's path: multiplayer_rac2_load_test <multiplayer.dylib|.so|.dll>.
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -53,15 +55,15 @@ std::string g_failed;
 std::vector<std::string> g_log;
 std::vector<std::string> g_hooks;
 int g_pages = 0;
+std::vector<std::string> g_main_items, g_pause_items;
+std::vector<std::uint8_t> g_memory(0x2000000, 0);
 bool g_play = true;
 int g_phase = OPENRAC_PLAY_FRONT_END;
 std::vector<std::pair<openrac_frame_fn, void*>> g_frames;
 std::map<std::string, std::string> g_strings =
     {{"server", "127.0.0.1:7770"},
      {"name", "Tester"},
-     {"party", "off"},
-     {"code", ""},
-     {"address", ""}};
+     {"verbose_log", ""}};
 
 void host_log(openrac_mod*, int, const char* text) {
     g_log.emplace_back(text);
@@ -140,9 +142,94 @@ int host_ui_page(openrac_mod*, uint32_t, openrac_ui_fn, void*) {
     return 0;
 }
 
-int host_ui_main_item(openrac_mod*, const char*, const char*, int) {
-    ++g_pages;
+int host_ui_main_item(openrac_mod*, const char* after, const char* label, int) {
+    g_main_items.push_back(std::string(after) + ":" + label);
     return 0;
+}
+
+int host_ui_pause_item(openrac_mod*, const char* label, int) {
+    g_pause_items.emplace_back(label);
+    return 0;
+}
+
+int host_ui_set(openrac_mod*, int, const openrac_ui_content*) {
+    return OPENRAC_HOOK_OK;
+}
+
+int host_ui_unknown(openrac_mod*, int) {
+    return OPENRAC_HOOK_UNKNOWN;
+}
+
+int host_ui_sound(openrac_mod*, int) {
+    return OPENRAC_HOOK_UNKNOWN;
+}
+
+int host_on_pad(openrac_mod*, openrac_pad_fn, void*) {
+    return 0;
+}
+
+int host_on_moby_update(openrac_mod*, openrac_moby_update_fn, void*) {
+    return 0;
+}
+
+int host_on_moby_hit(openrac_mod*, openrac_hit_fn, void*) {
+    return 0;
+}
+
+int host_on_overlay(openrac_mod*, openrac_overlay_fn, void*) {
+    return 0;
+}
+
+int host_on_camera_script(openrac_mod*, openrac_camera_script_fn, void*) {
+    return 0;
+}
+
+int host_on_metal_detect(openrac_mod*, openrac_metal_detect_fn, void*) {
+    return 0;
+}
+
+openrac_gaddr host_relocate(openrac_gaddr address) {
+    return address;
+}
+
+openrac_gaddr host_relocate_level(int, openrac_gaddr address) {
+    return address;
+}
+
+int host_loaded_level() {
+    return -1;
+}
+
+int host_save_slot(int, openrac_save_info*) {
+    return 0;
+}
+
+int host_save_slot2(const char*, int, openrac_save_info*) {
+    return 0;
+}
+
+uint32_t host_card_saves() {
+    return 0;
+}
+
+int host_card_note_read(const char*, int, char*, uint32_t) {
+    return 0;
+}
+
+const char* host_level_name(int) {
+    return "";
+}
+
+int host_sim_digest(int32_t, uint32_t*) {
+    return OPENRAC_HOOK_UNKNOWN;
+}
+
+int host_bolts(int) {
+    return 0;
+}
+
+int host_camera_position(float*) {
+    return OPENRAC_HOOK_UNKNOWN;
 }
 
 int host_notice(openrac_mod*, const char* text) {
@@ -177,6 +264,28 @@ openrac_api make_api(const char* game) {
     api.identity_key = host_unknown_text;
     api.ui_page = host_ui_page;
     api.ui_main_item = host_ui_main_item;
+    api.ui_pause_item = host_ui_pause_item;
+    api.ui_set = host_ui_set;
+    api.ui_open = host_ui_unknown;
+    api.ui_sound = host_ui_sound;
+    api.on_pad = host_on_pad;
+    api.on_moby_update = host_on_moby_update;
+    api.on_moby_hit = host_on_moby_hit;
+    api.on_overlay = host_on_overlay;
+    api.on_camera_script = host_on_camera_script;
+    api.on_metal_detect = host_on_metal_detect;
+    api.memory = g_memory.data();
+    api.relocate_data = host_relocate;
+    api.relocate_level_data = host_relocate_level;
+    api.loaded_level = host_loaded_level;
+    api.save_slot = host_save_slot;
+    api.save_slot2 = host_save_slot2;
+    api.card_saves = host_card_saves;
+    api.card_note_read = host_card_note_read;
+    api.level_name = host_level_name;
+    api.sim_digest = host_sim_digest;
+    api.bolts = host_bolts;
+    api.camera_position = host_camera_position;
     api.play_notice = host_notice;
     return api;
 }
@@ -201,35 +310,34 @@ int main(int argc, char** argv) {
     // A game it is not for: refused, naming it, before anything is taken.
     openrac_api rac3 = make_api("rac3");
     CHECK(load(&rac3, handle) != 0 && g_failed.find("rac3") != std::string::npos);
-    CHECK(g_hooks.empty() && g_frames.empty() && g_pages == 0);
+    CHECK(g_hooks.empty() && g_frames.empty() && g_pages == 0 && g_main_items.empty());
 
     // Going Commando on a port without its play calls: refused, saying so.
     g_failed.clear();
     g_play = false;
     openrac_api old = make_api("rac2");
     CHECK(load(&old, handle) != 0 && g_failed.find("play calls") != std::string::npos);
-    CHECK(g_hooks.empty() && g_frames.empty() && g_pages == 0);
+    CHECK(g_hooks.empty() && g_frames.empty() && g_pages == 0 && g_main_items.empty());
 
-    // Going Commando: loads, takes no hook point and makes no page, gives a frame callback.
+    // Going Commando: loads, takes no hook point, makes its pages, Multiplayer under Load Game and
+    // in the pause menu, and gives a frame callback.
     g_failed.clear();
     g_play = true;
     openrac_api api = make_api("rac2");
     CHECK(load(&api, handle) == 0 && g_failed.empty());
-    CHECK(g_hooks.empty() && g_pages == 0 && g_frames.size() == 1);
+    CHECK(g_hooks.empty() && g_pages >= 10 && g_frames.size() == 1);
+    CHECK(g_main_items.size() == 1 && g_main_items[0] == std::string(OPENRAC_UI_LOAD_GAME) + ":Multiplayer");
+    CHECK(g_pause_items.size() == 1 && g_pause_items[0] == "Multiplayer");
 
     // Its frames in the title with no party: nothing on the banner, nothing asked of the game.
     for (int i = 0; i < 5; ++i) {
         g_frames[0].first(g_frames[0].second);
     }
 
-    bool said_rac2 = false;
-
     for (const std::string& line : g_log) {
-        said_rac2 = said_rac2 || line.find("Going Commando") != std::string::npos;
         CHECK(line.rfind("notice: ", 0) != 0);
     }
 
-    CHECK(said_rac2);
     unload();
     std::puts("multiplayer rac2 load: all passed");
     return 0;

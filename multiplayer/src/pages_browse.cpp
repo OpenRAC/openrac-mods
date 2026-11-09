@@ -12,7 +12,7 @@ namespace {
 /* Whether a party's game would not take this player's: its host's digest is not this game's. */
 bool row_differs(const mp::Listing& l) {
     const std::string tag = mp::description_tag(l.description);
-    return mp::other_game(l.description, mp::kGameRac1)
+    return mp::other_game(l.description, game_tag())
            || (!tag.empty() && tag != mp::digest_tag(mp::mods_digest(g->mods->own())));
 }
 

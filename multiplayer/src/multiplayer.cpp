@@ -49,7 +49,7 @@
  *           empty or invalid: the launcher's Multiplayer name.
  */
 #include "mod_state.hpp"
-#include "rac2/load.hpp"
+#include "rac2/game.hpp"
 
 #include <ctime>
 #include <memory>
@@ -60,9 +60,24 @@ std::unique_ptr<State> g;
 mp::Language g_language = mp::Language::kEnglish;
 
 mp::Language game_language(const openrac::Mod& mod) {
+    // Going Commando's is a byte of the executable's (rac2_language_address).
+    if (mod.game() == "rac2") {
+        const std::uint32_t address = mp::rac2_language_address(mod.version());
+        return address == 0 ? mp::Language::kEnglish
+                            : mp::language_from_game(mod.memory().read<std::uint8_t>(address));
+    }
+
     const std::uint32_t address = mp::language_address(mod.version());
     return address == 0 ? mp::Language::kEnglish
                         : mp::language_from_game(mod.memory().read<std::int32_t>(mod.relocate(address)));
+}
+
+const char* game_tag() {
+    return g != nullptr && g->rac2 ? mp::kGameRac2 : mp::kGameRac1;
+}
+
+const char* session_version() {
+    return g != nullptr && g->rac2 ? kVersionRac2 : kVersion;
 }
 
 // The port accepts at most OPENRAC_UI_TEXT_MAX bytes a field. Fit them here, before the API's byte
@@ -477,14 +492,14 @@ using namespace mpmod;
  * address, makes the pages and puts Multiplayer in the main menu under Load Game. Throws
  * openrac::Error to refuse to run. */
 void load(openrac::Mod& mod) {
-    // Going Commando has no pages in its title: its party is the settings' (rac2/load.cpp).
-    if (mod.game() == "rac2") {
-        rac2_load(mod);
-        return;
+    // The same pages and party in Going Commando, on what OpenRAC answers for it (rac2/game.hpp).
+    const bool rac2 = mod.game() == "rac2";
+
+    if (rac2 && !mod.has_play()) {
+        throw openrac::Error("this OpenRAC has no play calls for Going Commando (a newer OpenRAC has them)");
     }
 
-    // The pages are Ratchet & Clank's front end.
-    if (mod.game() != "rac1") {
+    if (mod.game() != "rac1" && !rac2) {
         throw openrac::Error("this mod is for Ratchet & Clank (rac1) and Going Commando (rac2), not "
                              + std::string(mod.game()));
     }
@@ -502,6 +517,7 @@ void load(openrac::Mod& mod) {
     }
 
     g = std::make_unique<State>();
+    g->rac2 = rac2;
     g_language = game_language(mod);
     const std::string server = mod.setting<std::string>("server");
 
@@ -514,11 +530,16 @@ void load(openrac::Mod& mod) {
 
     g->connection = std::make_unique<mp::Connection>();
     g->session = std::make_unique<mp::Session>(
-        *g->connection, kVersion, player_name(mod.setting<std::string>("name"))
+        *g->connection, session_version(), player_name(mod.setting<std::string>("name"))
     );
     g->mod = &mod;
-    g->game = std::make_unique<ModGame>(mod);
+    g->game = rac2 ? std::make_unique<Rac2Game>(mod) : std::make_unique<ModGame>(mod);
     g->coop = std::make_unique<mp::Coop>(*g->session, *g->game);
+
+    // Going Commando tells no scene to the mods yet: nobody waits for anyone's (Coop::barrier).
+    if (rac2) {
+        g->coop->barrier(false);
+    }
     g->mods = std::make_unique<mp::PartyMods>(*g->session, *g->game, mp::ModList{});
     g->mods->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // No Ready and no game for a member whose mods differ from the host's (party_mods.hpp).
@@ -666,7 +687,7 @@ void load(openrac::Mod& mod) {
             }
 
             return width;
-        }, [] { return mp::tagged_description("New game", mp::mods_digest(g->mods->own())); },
+        }, [] { return mp::tagged_description("New game", mp::mods_digest(g->mods->own()), game_tag()); },
         *g->cosave, [] { return g->game->game_save(); }
     });
 #endif
@@ -689,65 +710,69 @@ void load(openrac::Mod& mod) {
         g->comfort->handle(sender, bytes, mp::now_ms());
     });
     g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) { g->router.dispatch(sender, bytes); });
-    // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
-    // or enemy drops them, and they come here as the host's): the death recorded as the game does it
-    // (its killed bits), its drop left out. SetDeathBits drops about the s16 at +0xB4, or (for a
-    // tallied source, +0xB1 not below 0) at least one of what +0xB6 has left: +0xB4 cleared (as the
-    // game clears it after) and +0xB1 untallied (0xFF; 0xFE, a death not recorded, is left) for
-    // the call, +0xB1 put back.
-    mod.hook<openrac::rac1::Moby_RecordDeath>(
-        [](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t bolts) {
-            const int slot = g->mod->moby_slot_of(moby);
-            g->world->note_death(slot);
+    // Ratchet & Clank's hook points (the manifest's): Going Commando's world, rescue and ship are
+    // not shared yet (rac2/game.hpp).
+    if (!rac2) {
+        // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
+        // or enemy drops them, and they come here as the host's): the death recorded as the game does it
+        // (its killed bits), its drop left out. SetDeathBits drops about the s16 at +0xB4, or (for a
+        // tallied source, +0xB1 not below 0) at least one of what +0xB6 has left: +0xB4 cleared (as the
+        // game clears it after) and +0xB1 untallied (0xFF; 0xFE, a death not recorded, is left) for
+        // the call, +0xB1 put back.
+        mod.hook<openrac::rac1::Moby_RecordDeath>(
+            [](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t bolts) {
+                const int slot = g->mod->moby_slot_of(moby);
+                g->world->note_death(slot);
 
-            if (!g->world->quiet_drop(slot)) {
+                if (!g->world->quiet_drop(slot)) {
+                    original(moby, flags, bolts);
+                    return;
+                }
+
+                openrac::Memory memory = g->mod->memory();
+                const auto source = memory.read<std::uint8_t>(moby + 0xB1u);
+                memory.write<std::int16_t>(moby + 0xB4u, 0);
+
+                if (source != 0xFEu) {
+                    memory.write<std::uint8_t>(moby + 0xB1u, 0xFFu);
+                }
+
                 original(moby, flags, bolts);
+                memory.write<std::uint8_t>(moby + 0xB1u, source);
+            }
+        );
+        // A bolt reaching this game's Ratchet: in a member's game in the host's level, the host's to
+        // give (a claim; BOLTS brings its value), so nothing is added here; the bolt update deletes the
+        // bolt either way.
+        mod.hook<openrac::rac1::Moby_CollectBolt>([](auto original, std::uint32_t bolt) {
+            if (g->world->collect(g->mod->moby_slot_of(bolt))) {
+                original(bolt);
+            }
+        });
+        // A normal lethal hit, deferred while a teammate can rescue (Team tools): the hero keeps one
+        // health. Falls and crushers set health directly and keep the game's own checkpoint. With the
+        // party's revive rule on, the death is that rule's (the game holds the hero down), so the hit
+        // goes on as it is: the two never both catch one death.
+        mod.hook<openrac::rac1::Hero_TakeDamage>([](auto original, std::int32_t damage) {
+            if (revive_rule_held()) {
+                original(damage);
                 return;
             }
 
-            openrac::Memory memory = g->mod->memory();
-            const auto source = memory.read<std::uint8_t>(moby + 0xB1u);
-            memory.write<std::int16_t>(moby + 0xB4u, 0);
+            const openrac::gaddr hero = g->mod->relocate(g->mod->version() == "pal" ? 0x13F450u : 0x13F350u);
+            const bool on_foot = g->mod->memory().read<std::uint8_t>(hero + 0x20A4u) == 0;
 
-            if (source != 0xFEu) {
-                memory.write<std::uint8_t>(moby + 0xB1u, 0xFFu);
+            if (!g->comfort->hit(mp::now_ms(), damage, on_foot)) {
+                original(damage);
             }
-
-            original(moby, flags, bolts);
-            memory.write<std::uint8_t>(moby + 0xB1u, source);
-        }
-    );
-    // A bolt reaching this game's Ratchet: in a member's game in the host's level, the host's to
-    // give (a claim; BOLTS brings its value), so nothing is added here; the bolt update deletes the
-    // bolt either way.
-    mod.hook<openrac::rac1::Moby_CollectBolt>([](auto original, std::uint32_t bolt) {
-        if (g->world->collect(g->mod->moby_slot_of(bolt))) {
-            original(bolt);
-        }
-    });
-    // A normal lethal hit, deferred while a teammate can rescue (Team tools): the hero keeps one
-    // health. Falls and crushers set health directly and keep the game's own checkpoint. With the
-    // party's revive rule on, the death is that rule's (the game holds the hero down), so the hit
-    // goes on as it is: the two never both catch one death.
-    mod.hook<openrac::rac1::Hero_TakeDamage>([](auto original, std::int32_t damage) {
-        if (revive_rule_held()) {
-            original(damage);
-            return;
-        }
-
-        const openrac::gaddr hero = g->mod->relocate(g->mod->version() == "pal" ? 0x13F450u : 0x13F350u);
-        const bool on_foot = g->mod->memory().read<std::uint8_t>(hero + 0x20A4u) == 0;
-
-        if (!g->comfort->hit(mp::now_ms(), damage, on_foot)) {
-            original(damage);
-        }
-    });
-    // The ship's planet select: the host's travel takes the party along, a member's to another
-    // planet lands the ship again where it is (coop.hpp: only the host flies).
-    mod.hook<openrac::rac1::Ship_TravelTo>([](auto original, std::int32_t dest) {
-        const int here = g->game->status().level;
-        original(g->coop->taking_off() || g->coop->ship_travel(dest, here) ? dest : here);
-    });
+        });
+        // The ship's planet select: the host's travel takes the party along, a member's to another
+        // planet lands the ship again where it is (coop.hpp: only the host flies).
+        mod.hook<openrac::rac1::Ship_TravelTo>([](auto original, std::int32_t dest) {
+            const int here = g->game->status().level;
+            original(g->coop->taking_off() || g->coop->ship_travel(dest, here) ? dest : here);
+        });
+    }
     // The first pad: the host's Start in a scene or a movie skips it for the party (a member's is
     // taken out: only the host skips), a party's skip presses Start for a movie playing here, and
     // the scene barrier holds the control (coop.hpp). The report: buttons in
@@ -887,7 +912,7 @@ void load(openrac::Mod& mod) {
             char digest[16];
             std::snprintf(digest, sizeof digest, "%08x", static_cast<unsigned>(mp::mods_digest(own)));
             g->coop->set_build(
-                std::string(kVersion) + " " + own.openrac + " " + own.family + " " + digest
+                std::string(session_version()) + " " + own.openrac + " " + own.family + " " + digest
             );
             g->mods->set_own(std::move(own));
         }
@@ -905,7 +930,7 @@ void load(openrac::Mod& mod) {
         // A level that does not agree with the host's cannot be shared: out of the party, and why.
         // Nor can a party of another game's (Going Commando's: its description's tag says so).
         const bool other_game = g->session->in_party() && !g->session->is_host()
-                                && mp::other_game(g->session->description(), mp::kGameRac1);
+                                && mp::other_game(g->session->description(), game_tag());
 
         if (g->world->take_level_differs() || other_game) {
             g->left_differs = true;
@@ -978,12 +1003,10 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.11.0", load)
+OPENRAC_MOD_CPP("multiplayer", "0.12.0", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
-    rac2_unload();
-
     // The state exists only if load got as far as making it.
     if (g) {
         g->connection->close();

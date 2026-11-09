@@ -19,8 +19,8 @@ Friends match their mods with a mod code: **Share these mods** on the launcher's
 one, and entering it there shows what would change before anything does (OpenRAC's
 `docs/port/MODS.md`, section 10).
 
-Ratchet & Clank 2 (Going Commando) has a first, smaller co-op: no menu yet, the party is chosen in
-the mod's settings, and the players see each other in the host's level. See
+Ratchet & Clank 2 (Going Commando) has the same **Multiplayer** item and pages, and a smaller co-op:
+the players play in the host's level and see each other, but its world is not shared yet. See
 [Going Commando](#going-commando).
 
 What is still to be decided, and what already is, is in [DECISIONS.md](DECISIONS.md).
@@ -413,68 +413,53 @@ lists co-op saves on their own, under Saves.
 ## Going Commando
 
 The same mod plays Ratchet & Clank 2 (Going Commando: the NTSC-U, PAL and NTSC-U v2.00 discs) on an
-OpenRAC whose port has rac2's play calls (OpenRAC PR #386; an older one refuses the mod with `this
-OpenRAC has no play calls for Going Commando`). It is a first pass: the players play together in the
-host's level and see each other, and nothing more yet. Ratchet & Clank's co-op is unchanged.
+OpenRAC whose port has rac2's play calls and shows mods' pages in rac2's menus (an older one refuses
+the mod with `this OpenRAC has no play calls for Going Commando`, or loads it with no Multiplayer
+item). Ratchet & Clank's co-op is unchanged.
 
-Going Commando's title has no Multiplayer menu (OpenRAC has no mod pages for rac2 yet), so the party
-is chosen in the mod's settings on the launcher's Mods page, which only Going Commando shows:
+The title's main menu reads **New Game**, **Load**, **Multiplayer**, **Options**, and the pause
+menu's **Options** list has **Multiplayer** after **Video**: the same pages as Ratchet & Clank's
+(Home, Browse games, Choose a save, Join by code, Direct connect, the lobby, Refused, Party rules,
+Remove, Team tools, and the pause menu's page with **Leave party**), drawn in the panel of one of
+the game's own option pages, in its font, with its sounds: the title, a window of eight rows that
+follows the cursor, then the footer; a question takes the rows' place, Cross for yes and Triangle for
+no. Cross chooses, Left and Right step a choice, Triangle goes back. The pages speak the game's
+language. **Server** and **Name** are Ratchet & Clank's; **Revive fallen players** and **Hold the
+party** are Ratchet & Clank's only. A launcher's word to join a party (a mod code with a party) works
+as in Ratchet & Clank.
 
-| Setting | |
-|---|---|
-| **Party** | `Off` (the default: no connection at all), `Host a party` (on the server), `Join by code`, `Host directly` (no server: this game listens on port 7770, TCP and UDP), or `Join an address` |
-| **Code** | for Join by code: the six letters and digits the host's game shows (any case, spaces ignored) |
-| **Address** | for Join an address: the host's `host:port` (7770 when no port is given) |
-
-**Server** and **Name** are Ratchet & Clank's; **Revive fallen players** and **Hold the party** are
-Ratchet & Clank's only. A launcher's word to join a party (a mod code with a party) works as in
-Ratchet & Clank and takes the place of the settings.
-
-1. The host sets **Party** to `Host a party` and starts the game. Once it has connected, the line
-   over the game says `Multiplayer: party ABCDEF: others join with this code` until someone joins
-   (the code is in the game's log too).
-2. Each friend sets **Party** to `Join by code` and **Code** to that code, and starts the game.
-3. The host plays as usual: a new game or a save, from its own title. Once the host is in a level,
-   that game is the party's: a member in the title starts the host's level from the host's save as it
-   is now (its own memory card untouched), and a member already in a level of its own leaves it for
-   the title first. A member who comes later is brought in the same way.
-4. When the host goes to another planet, each member follows it there (the game's own travel, a few
-   seconds after the host's level changes). The host back in the title then in a level again is a new
-   game of the party's, and the members are brought into it again.
-5. Each player sees the others in the same level as figures that look like Ratchet: placed and turned
-   as the others' poses say. They do not animate yet: the port poses them still (the poses carry the
-   animation for when it does).
-
-The line over the game says what happens: the party's code, who joined or left, `That party plays
-another game: left it`, a code that is not one, a server that made no party (asked three times), a
-member whose mods differ from the host's (`You can't join: your game differs from the host's`), and
-the host leaving (`The host left: the party is over`). Leaving: switch **Party** to `Off` and start the
-game again (there is no in-game Leave yet). A member whose party goes returns to the title; the host's
-game goes on as its own.
+1. The host chooses **Multiplayer**, then **Create match** (or **Direct connect**, **Host
+   directly**) and a save or **New game**; friends choose **Browse games** or **Join by code** (or
+   **Join by address**). The lobby is Ratchet & Clank's: Ready, the host's Start, Leave.
+2. The host's Start starts the game for everyone. A member in the title starts the host's level from
+   the host's save as it is now (its own memory card untouched), and a member already in a level of
+   its own leaves it for the title first. A member who comes later is brought in the same way.
+3. When the host goes to another planet, each member follows it there (the game's own travel, a few
+   seconds after the host's level changes).
+4. Each player sees the others in the same level as figures that look like Ratchet, placed and turned
+   as the others' poses say, with their names over them. They do not animate yet: the port poses them
+   still (the poses carry the animation for when it does).
 
 Only parties of the same game meet. A Going Commando party's description names the game after its
-digest (`Going Commando|3fa9/rac2`, below); a Going Commando player in any other party leaves it at
-once, and a Ratchet & Clank player in a Going Commando party leaves it too (an older Ratchet & Clank
-game shows such a party as `(differs)` and refuses its game, since its build and world family
-differ). Each Going Commando disc is its own world for now (`rac2-ntsc-1`, `rac2-pal-1`,
-`rac2-ntsc2-1`): players on different discs are in one party but the member is refused the host's
-game.
+digest (`Pokitaru, 3 platinum bolts|3fa9/rac2`, below): Browse games shows only those, a Going
+Commando player in another game's party leaves it at once, and a Ratchet & Clank player in a Going
+Commando party leaves it too. Each Going Commando disc is its own world for now (`rac2-ntsc-1`,
+`rac2-pal-1`, `rac2-ntsc2-1`): players on different discs are in one party but the member is
+refused the host's game.
 
 Not in Going Commando yet (each needs the port's rac2 calls or this mod's work):
 
-- **The menus**: the Multiplayer pages (Browse, Create match, Join by code, the lobby, Direct
-  connect, the pause menu's page, Team tools, Party rules, Remove). They need OpenRAC's mod pages for
-  rac2 (`ui_page`, `ui_main_item`, `ui_pause_item`).
 - **Animated figures**: the port places and turns them; the hero's packed frames are not unpacked for
-  a figure yet. Also the pieces the hero wears and holds, his shots, and the names over the figures.
+  a figure yet. Also the pieces the hero wears and holds, and his shots.
 - **The shared world**: enemies, crates, doors and platforms run by the host's game (World), bolts,
   the members' deaths in the host's world, metal detector piles.
 - **Shared progress**: items, platinum bolts, planets (Progress, Shared).
-- **Party saves**: the co-op slots on the memory card, Save the party, Continue as host.
-- **Team tools**: rescue, rally points, Go to host, revive, and placing a joiner beside the host.
+- **Party saves**: the co-op slots on the memory card, Save the party, Continue as host. A party's game
+  saves where the game saves, on the player's own card: play a party on a card (or slot) you can spare.
+- **Team tools**: the page is there, but rescue, revive and placing a joiner beside the host need the
+  hero calls rac2 has not got; rally points work.
 - **Taking over**: the next host carrying the game on when the host's connection goes.
-- **Scenes together** and the waits for others (the barrier, skips, Hold the party): the mod takes no
-  control of Going Commando's pad, so nobody is held or skipped for anyone.
+- **Scenes together** and the waits for others (the barrier, skips, Hold the party).
 - **The ship**: only the host's travels are followed; a member's own travel is not refused.
 - **Two discs together** (`rac2-*` world families shown to share their levels).
 
@@ -498,8 +483,8 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.11.0`; `rac2-multiplayer/0.11.0` in Going Commando) and the player's name, on every connection | the session id |
-| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Going Commando|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
+| 0 HELLO | its version (`rac1-multiplayer/0.12.0`; `rac2-multiplayer/0.12.0` in Going Commando) and the player's name, on every connection | the session id |
+| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Pokitaru, 3 platinum bolts|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
 | 4 ERROR | | the reason: no such party, full, already in one, not in one, not the host, no place to come back to |
@@ -779,18 +764,12 @@ differing member refused its Ready and the game (with the gates off, stopped by 
 a differing late member, the rules reaching a member before any level and again at an event, a
 respawn, the party's end, and an older game on either side.
 
-Going Commando's part (`tests/rac2/play_test.cpp`, in the same program) checks the party without
-pages with the fake games as rac2's play calls answer: the description's game tag and which parties
-each game keeps to, the settings' values, hosting and joining by them (the server opened once, CREATE
-with the rac2 description, the code over the game, JOIN with the code as typed, a refused join asked
-again then given up, a code or an address that is none, direct hosting and joining), the host's game
-adopted once in a level and the member started in it from the host's save, the figures posed from
-each other's place, turn and animation fields, the member following the host's travel and the
-figures gone while the levels differ, the host's new game after the title brought to the member
-again, a Ratchet & Clank party left at once, the host's game kept when it leaves, and a member whose
-game differs not brought in. `tests/rac2/load_test.cpp` (`multiplayer_rac2_load`) loads the library
-as the port does in Going Commando: no hook point and no page taken, frames run in the title, a port
-without the play calls and another game refused.
+`tests/rac2/play_test.cpp` (in `multiplayer_play`) checks that a party's description names its game
+and that each game keeps to its own parties: Ratchet & Clank's untagged and digest-tagged ones are
+its own, Going Commando's only those tagged rac2. `tests/rac2/load_test.cpp`
+(`multiplayer_rac2_load`) loads the library as the port does in Going Commando: no hook point taken
+(Ratchet & Clank's are its own), the pages made, Multiplayer under Load Game and in the pause menu,
+frames run in the title, a port without the play calls and another game refused.
 
 `tests/e2e` does the same with the real game: see its README.
 
@@ -807,9 +786,7 @@ chosen from the setting and the launcher's.
 | `src/mod_state.hpp` | the mod's shared state and the functions its files call each other by (mod-internal) |
 | `src/pages_home.cpp`, `pages_browse.cpp`, `pages_saves.cpp`, `pages_lobby.cpp`, `pages_refused.cpp`, `pages_rules.cpp`, `pages_remove.cpp` | the pages in the game's own menus: Home with Code, Direct connect and the pause menu's page; Browse; Saves; Lobby; Refused; Rules |
 | `src/game_adapter.hpp`, `.cpp` | the co-op's Game on the SDK's play and world calls |
-| `src/rac2/load.cpp`, `.hpp` | Going Commando's load: the session, the co-op and the settings' party on the play calls, no hook point and no page |
-| `src/rac2/party.hpp`, `.cpp` | a party without pages: the `party` setting carried out (host, join, direct), the host's game adopted as the party's, the line over the game |
-| `src/rac2/game.hpp` | Going Commando's Game: only the SDK's play calls rac2 answers |
+| `src/rac2/game.hpp` | Going Commando's Game: Ratchet & Clank's on the SDK, with what OpenRAC does not answer for rac2 yet left "not here" |
 | `src/kinds.hpp` | the wire registry: every DATA kind, who owns it, the ranges reserved for coming features, and the router that sends a received DATA to its owner (`tests/kinds_test.cpp` holds the table to it) |
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, list, join, leave, Ready and Start |
 | `src/coop.hpp`, `.cpp` | playing together: PLAY and its save, LEVEL, WANT, poses sent and figures shown |

@@ -153,7 +153,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
         g->coop->choose(save, description);
         g->notice.clear();
         // The list says what mods the game has, for Browse to mark the ones a player's do not fit.
-        const std::string listed = mp::tagged_description(description, mp::mods_digest(g->mods->own()));
+        const std::string listed = mp::tagged_description(description, mp::mods_digest(g->mods->own()), game_tag());
 
         if (g->saves_for == SavesFor::kCreate) {
             g->session->create(listed);
