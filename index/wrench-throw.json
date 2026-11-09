@@ -1,0 +1,33 @@
+{
+  "id": "wrench-throw",
+  "repo": "https://github.com/chistianh/wrench-throw",
+  "path": "",
+  "description": "Throw the OmniWrench as in A Crack in Time: hold R2 to raise it and press Square to throw it while standing, running or jumping, and keep moving.",
+  "tags": [
+    "gameplay",
+    "controls"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/chistianh/wrench-throw/issues"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "0yEa0jzs4_4",
+        "caption": "Trailer"
+      }
+    ],
+    "screenshots": [
+      {
+        "src": "index/media/wrench-throw/c752f0a36074.png"
+      },
+      {
+        "src": "index/media/wrench-throw/e311be1f2f8c.png"
+      }
+    ]
+  }
+}
