@@ -61,6 +61,74 @@ static void make_dirs(char* path) {
     make_dir(path);
 }
 
+/* The folder the port gave the mod (its data_dir), or empty for none. */
+static char s_port_dir[1024];
+
+void rando_set_port_dir(const char* dir) {
+    snprintf(s_port_dir, sizeof s_port_dir, "%s", dir != NULL ? dir : "");
+}
+
+/* The folder older versions of the mod worked out for themselves into out; 0, or -1 for none. */
+static int legacy_dir(char* out, size_t size) {
+#if defined(_WIN32)
+    const char* base = getenv("LOCALAPPDATA");
+
+    // Without a per-user data folder there is nowhere to put it.
+    if (base == NULL || *base == 0) {
+        return -1;
+    }
+
+    snprintf(out, size, "%s\\dev.openrac.launcher\\mods\\item-randomizer", base);
+#elif defined(__APPLE__)
+    const char* home = getenv("HOME");
+
+    // Without a home folder there is nowhere to put it.
+    if (home == NULL || *home == 0) {
+        return -1;
+    }
+
+    snprintf(
+        out, size, "%s/Library/Application Support/dev.openrac.launcher/mods/item-randomizer", home
+    );
+#else
+    const char* xdg = getenv("XDG_DATA_HOME");
+    const char* home = getenv("HOME");
+
+    // XDG_DATA_HOME when set, else the standard ~/.local/share, else nowhere.
+    if (xdg != NULL && *xdg != 0) {
+        snprintf(out, size, "%s/dev.openrac.launcher/mods/item-randomizer", xdg);
+    } else if (home != NULL && *home != 0) {
+        snprintf(out, size, "%s/.local/share/dev.openrac.launcher/mods/item-randomizer", home);
+    } else {
+        return -1;
+    }
+#endif
+    return 0;
+}
+
+/* The remembered seeds of the old folder copied into dir, where dir has none yet, so a blank seed
+ * setting goes on with the same game after the move. The old folder is left as it is. */
+static void carry_seeds(const char* dir) {
+    static const char* const names[] = {"seed.txt", "seed-rac2.txt"};
+    char old_dir[1024], from[1300], to[1300], text[64];
+
+    // No old folder, nothing to carry.
+    if (legacy_dir(old_dir, sizeof old_dir) != 0) {
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; ++i) {
+        rando_join(from, sizeof from, old_dir, names[i]);
+        rando_join(to, sizeof to, dir, names[i]);
+
+        // Only a seed the new folder lacks; one there already is newer.
+        if (rando_read_file(to, text, sizeof text) != 0
+            && rando_read_file(from, text, sizeof text) == 0) {
+            rando_write_file(to, text, strlen(text));
+        }
+    }
+}
+
 /* The mod's data folder into out, made when missing; 0, or -1 when there is no home for it. */
 int rando_data_dir(char* out, size_t size) {
     const char* own = getenv("OPENRAC_MOD_DATA_DIR");
@@ -68,43 +136,15 @@ int rando_data_dir(char* out, size_t size) {
     // The environment variable names the folder outright (tests and portable installs use it).
     if (own != NULL && *own != 0) {
         snprintf(out, size, "%s", own);
-    } else {
-#if defined(_WIN32)
-        const char* base = getenv("LOCALAPPDATA");
-
-        // Without a per-user data folder there is nowhere to put it.
-        if (base == NULL || *base == 0) {
-            return -1;
-        }
-
-        snprintf(out, size, "%s\\dev.openrac.launcher\\mods\\item-randomizer", base);
-#elif defined(__APPLE__)
-        const char* home = getenv("HOME");
-
-        // Without a home folder there is nowhere to put it.
-        if (home == NULL || *home == 0) {
-            return -1;
-        }
-
-        snprintf(
-            out,
-            size,
-            "%s/Library/Application Support/dev.openrac.launcher/mods/item-randomizer",
-            home
-        );
-#else
-        const char* xdg = getenv("XDG_DATA_HOME");
-        const char* home = getenv("HOME");
-
-        // XDG_DATA_HOME when set, else the standard ~/.local/share, else nowhere.
-        if (xdg != NULL && *xdg != 0) {
-            snprintf(out, size, "%s/dev.openrac.launcher/mods/item-randomizer", xdg);
-        } else if (home != NULL && *home != 0) {
-            snprintf(out, size, "%s/.local/share/dev.openrac.launcher/mods/item-randomizer", home);
-        } else {
-            return -1;
-        }
-#endif
+    } else if (s_port_dir[0] != 0) {
+        // The port's folder for the mod: on Android the only one the player can reach (Files app,
+        // OpenRAC > Mods data). The port made it.
+        snprintf(out, size, "%s", s_port_dir);
+        carry_seeds(out);
+        return 0;
+    } else if (legacy_dir(out, size) != 0) {
+        // An older port without data_dir, and no home folder.
+        return -1;
     }
 
     make_dirs(out);

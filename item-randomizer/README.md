@@ -42,15 +42,20 @@ The game's log names the seed's code at each start (`seed 4ZRJ-6HB7-H6Q5 (new), 
 that code. All the settings but the spoiler log and the vendor's line are in it.
 
 **The data folder** holds `seed.txt` (the seed a blank setting rolled) and `spoiler-<code>.txt`, one
-per seed. It is in the launcher's per-user data folder, never beside the game:
+per seed. It is the folder OpenRAC gives each mod, `mod-data/item-randomizer` beside the memory
+cards, never beside the game:
 
 | System | Folder |
 |---|---|
-| macOS | `~/Library/Application Support/dev.openrac.launcher/mods/item-randomizer` |
-| Linux | `~/.local/share/dev.openrac.launcher/mods/item-randomizer` (or under `$XDG_DATA_HOME`) |
-| Windows | `%LOCALAPPDATA%\dev.openrac.launcher\mods\item-randomizer` |
+| Android | Files app: **OpenRAC > Mods data > item-randomizer** (or Settings > **Open Files**) |
+| macOS | `~/Library/Application Support/OpenRAC/mod-data/item-randomizer` |
+| Linux | `~/.local/share/openrac/mod-data/item-randomizer` (or under `$XDG_DATA_HOME`) |
+| Windows | `%LOCALAPPDATA%\openrac\mod-data\item-randomizer` |
 
-(`OPENRAC_MOD_DATA_DIR` in the environment names another.)
+(`OPENRAC_MOD_DATA_DIR` in the environment names another.) Before 2.4.1 the folder was
+`dev.openrac.launcher/mods/item-randomizer` in the same per-user data folder (on Android hidden in
+the app's storage); a seed remembered there is carried over at the first start, and old spoiler
+logs stay there. With an OpenRAC older than mod interface 1.11 the mod still uses that old folder.
 
 **Saves.** What you have found is the game's own record, and where everything is comes from the
 seed; the one thing of the mod's in a save is its **seed's tag**, set when a new game starts with
@@ -290,6 +295,9 @@ with New games only's new game, tagged save, untagged save and another seed's sa
 
 ## History
 
+- 2.4.1: the data folder is the one OpenRAC gives the mod, so on Android the spoiler log and the
+  seed are in the Files app (OpenRAC > Mods data); the remembered seed comes along from the old
+  folder.
 - 2.4.0: **New games only** (on by default): the mod randomizes only a game started with it (a new
   game, or a save carrying its seed's tag) and leaves any other save as the game has it, so an
   update or a mod switched on can no longer change a playthrough partway. Ratchet & Clank saves

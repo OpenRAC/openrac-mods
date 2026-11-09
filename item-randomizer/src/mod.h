@@ -10,7 +10,7 @@
 #include "openrac/openrac_mod.h"
 
 #define ITEM_RANDOMIZER_ID "item-randomizer"
-#define ITEM_RANDOMIZER_VERSION "2.4.0"
+#define ITEM_RANDOMIZER_VERSION "2.4.1"
 
 int rac1_mod_load(const openrac_api* api, openrac_mod* mod);
 int rac2_mod_load(const openrac_api* api, openrac_mod* mod);
