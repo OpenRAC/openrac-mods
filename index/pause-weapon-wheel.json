@@ -1,0 +1,18 @@
+{
+  "id": "pause-weapon-wheel",
+  "repo": "https://github.com/glawks/Pause-Weapon-Wheel",
+  "path": "",
+  "description": "Pause gameplay while holding Quick Select in Ratchet & Clank 1, freezing Ratchet and enemy updates while keeping the weapon wheel responsive. Preserves water, glass, lava and other scenery, with optional animation freezing and adjustable background shading.",
+  "tags": [
+    "qol",
+    "controls",
+    "accessibility"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/glawks/Pause-Weapon-Wheel/issues/"
+  }
+}
