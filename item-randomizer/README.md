@@ -253,11 +253,17 @@ The spoiler log is `spoiler-rac2-<code>.txt` in the mod's data folder; a blank s
   that place had now; it is taken back and the reward given.
 - Each level's start gives back any reward had that is missing (not in Aranos Prison, whose cell
   takes the packs away on purpose).
+- The vendor's table (the planet each weapon comes on sale from) is level data: each level's program
+  brings the game's own again, so the mod writes the seed's into it at every program load.
+- In a party (the multiplayer mod), the host's seed counts, as in Ratchet & Clank: the host's game
+  publishes its seed's code, and each member's game plays that placement until the party goes, then
+  its own again. These all need an OpenRAC whose Going Commando gives the mods its play calls before
+  they load (OpenRAC #416); an older one runs only the gives and the givers.
 - Which places are had is kept in the save itself, in progress bytes no code reads (chunk 5,
   `0x1395B8 + 0xC0`..`+0xC7` on NTSC-U, `0x139638 + 0xC0` on PAL: the seed's tag and a bit per place), so a new game starts with none and
   a loaded save carries its own.
 
-**Not yet.** Platinum bolts, Nanotech Boosts and the coordinates in the pools; the game's own "you got" words
-for the reward; a party's shared seed (Going Commando's co-op has no party rules yet). Tests:
+**Not yet.** Platinum bolts, Nanotech Boosts and the coordinates in the pools (Ratchet & Clank's gold
+bolts and infobots); the game's own "you got" words for the reward. Tests:
 `tests/rac2/solver_test.c` (every seed of every setting beatable, the tables) and
 `tests/rac2/load_test.c` (the library against a host and memory of its own, on each disc's addresses).

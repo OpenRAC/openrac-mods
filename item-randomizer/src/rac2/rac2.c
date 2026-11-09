@@ -28,6 +28,11 @@
  *   - The vendor: with its pool shuffled, the table of the weapons it stocks (0x2403C0 on NTSC-U v1.01) gets the
  *     seed's first level for each, checked against the game's own table first.
  *
+ * In a party (multiplayer's README, Mods in a party) the host's seed counts, as in Ratchet & Clank:
+ * this game publishes its seed's code (which carries its settings), and a member's game plays the
+ * host's placement until the party goes, then its own again. What a party passes on is given as it
+ * is (party_replaying): the give hook lets it through.
+ *
  * What the game keeps: which locations are had, in its progress flags (chunk 5 of the save,
  * 0x1395B8 on NTSC-U v1.01), in bytes no code of any of the three discs reads (+0xC0..+0xC7: the
  * seed's tag, then a bit per location), so a save carries its own progress and a new game starts
@@ -69,10 +74,13 @@ static openrac_mod* s_mod;
 static r2_plan s_plan;
 static char s_code[RANDO_CODE_SIZE];
 static int s_location_of[R2_ITEM_COUNT]; /* the shuffled location whose item is this, -1 none */
+static rando_settings s_own_settings;    /* this game's own, for when a party's host's is over */
+static int s_following;                  /* playing a party host's seed */
 static void (*s_give)(int32_t id);        /* the game's GiveInventoryItem (the hook's original) */
 static int s_giving;                      /* inside the mod's own give */
 static uint32_t s_loads = 0xFFFFFFFFu;    /* the level load the start's check ran for */
-static int s_stock_done;
+static uint32_t s_stock_loads = 0xFFFFFFFFu; /* the program load the vendor's table was stocked in */
+static int s_stock_written;                  /* the table holds a seed's levels */
 
 /* The owned bytes shown otherwise while a giver's update runs: the player's own value. */
 typedef struct standin {
@@ -273,27 +281,46 @@ static const giver_hook k_givers[] = {
 
 /* ---- each tick ---- */
 
-/* The vendor's table, once its weapons are the game's own (never written over anything else). */
-static void stock_vendor(void) {
-    if (s_stock_done || !(s_plan.settings.pools & POOL_VENDOR)) {
-        return;
-    }
-    s_stock_done = 1;
-
+/* Whether the vendor's table holds the game's own weapons (and its end mark). */
+static int stock_is_games(void) {
     for (int i = 0; i <= R2_VENDOR_COUNT; ++i) {
         const int32_t item = (int32_t)get32(STOCK_TABLE + 8u * (uint32_t)i);
-        const int ok = i == R2_VENDOR_COUNT ? item == STOCK_END : item == r2_vendor_stock[i].item;
 
-        if (!ok) {
-            log_line(OPENRAC_LOG_WARN, "item randomizer: the vendor's table is not the game's: "
-                                       "its stock is left as it is");
-            return;
+        if (i == R2_VENDOR_COUNT ? item != STOCK_END : item != r2_vendor_stock[i].item) {
+            return 0;
         }
     }
 
-    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
-        set32(STOCK_TABLE + 8u * (uint32_t)i + 4u, s_plan.stock[i]);
+    return 1;
+}
+
+/* The vendor's table, once each program load (it is level data: each level's program brings the
+ * game's own again), when its weapons are the game's own (never written over anything else): the
+ * seed's levels, or the game's own back when a placement that shuffled it has gone (a party's). */
+static void stock_vendor(uint32_t loads) {
+    if (s_stock_loads == loads) {
+        return;
     }
+    s_stock_loads = loads;
+    const int shuffled = (s_plan.settings.pools & POOL_VENDOR) != 0;
+
+    if (!shuffled && !s_stock_written) {
+        return;
+    }
+
+    if (!stock_is_games()) {
+        if (shuffled) {
+            log_line(OPENRAC_LOG_WARN, "item randomizer: the vendor's table is not the game's: "
+                                       "its stock is left as it is");
+        }
+        return;
+    }
+
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        set32(STOCK_TABLE + 8u * (uint32_t)i + 4u,
+              (uint32_t)(shuffled ? s_plan.stock[i] : r2_vendor_stock[i].level));
+    }
+    s_stock_written = shuffled;
 }
 
 /* The four Endako sets itself: one the player does not hold is its location had now. */
@@ -327,7 +354,7 @@ static void each_tick(void* user) {
         return;
     }
 
-    stock_vendor();
+    stock_vendor(st.loads);
 
     if (st.phase != OPENRAC_PLAY_PLAYING && st.phase != OPENRAC_PLAY_SCENE) {
         return;
@@ -349,6 +376,97 @@ static void each_tick(void* user) {
             }
         }
     }
+}
+
+/* ---- the placement, and a party's ---- */
+
+/* Plays the placement of `settings` (Going Commando's pools of them, its starting gear kept): the
+ * solver finds one for every setting, the same on every computer. 1 when it did. */
+static int play_settings(const rando_settings* settings) {
+    rando_settings s = *settings;
+    s.pools &= (uint8_t)(POOL_GADGETS | POOL_WEAPONS | POOL_VENDOR);
+    s.keep_start = 1;
+
+    if (r2_solve(&s, &s_plan) != 0) {
+        return 0;
+    }
+
+    rando_encode(&s_plan.settings, s_code);
+
+    for (int id = 0; id < R2_ITEM_COUNT; ++id) {
+        s_location_of[id] = -1;
+    }
+    for (size_t i = 0; i < r2_location_count; ++i) {
+        if (s_plan.shuffled[i]) {
+            s_location_of[r2_locations[i].item] = (int)i;
+        }
+    }
+
+    // The vendor's table again by this placement, at the next tick.
+    s_stock_loads = 0xFFFFFFFFu;
+    return 1;
+}
+
+/* What this game plays by, for a party it hosts: the seed code, which carries the settings, and the
+ * words for a player. */
+static void publish_rules(void) {
+    static const struct {
+        int pool;
+        const char* name;
+    } k_pools[] = {
+        {POOL_GADGETS, "gadgets"},
+        {POOL_WEAPONS, "weapons"},
+        {POOL_VENDOR, "the vendor"},
+    };
+
+    char text[160];
+    int at =
+        snprintf(text, sizeof text, "Logic: %s", rando_difficulty_name(s_plan.settings.difficulty));
+
+    // Only what this seed shuffles.
+    for (size_t i = 0; i < sizeof k_pools / sizeof k_pools[0]; ++i) {
+        if ((s_plan.settings.pools & k_pools[i].pool) != 0) {
+            at += snprintf(text + at, sizeof text - (size_t)at, "\nShuffles %s", k_pools[i].name);
+        }
+    }
+
+    s_api->party_rules_publish(s_mod, s_code, (uint32_t)strlen(s_code), text);
+}
+
+/* The host's rules reached this game: its seed's placement in place of this game's; none, the party
+ * went, and this game's own is back. */
+static void on_party_rules(void* user, const void* data, uint32_t size) {
+    (void)user;
+    char line[96];
+
+    if (data == NULL) {
+        if (s_following) {
+            s_following = 0;
+            play_settings(&s_own_settings);
+            log_line(OPENRAC_LOG_INFO, "out of the party: this game's own seed counts again");
+        }
+        return;
+    }
+
+    char code[RANDO_CODE_SIZE];
+    rando_settings host;
+
+    if (size >= sizeof code
+        || (memcpy(code, data, size), code[size] = 0, !rando_decode(code, &host))) {
+        log_line(OPENRAC_LOG_WARN, "the host's seed cannot be read here");
+        return;
+    }
+
+    if (!play_settings(&host)) {
+        log_line(OPENRAC_LOG_ERROR, "no placement for the host's seed: this game's own counts");
+        s_following = 0;
+        play_settings(&s_own_settings);
+        return;
+    }
+
+    s_following = 1;
+    snprintf(line, sizeof line, "in a party: playing the host's seed %s", s_code);
+    log_line(OPENRAC_LOG_INFO, line);
 }
 
 /* ---- start-up ---- */
@@ -389,7 +507,8 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_giving = 0;
     s_standin_count = 0;
     s_loads = 0xFFFFFFFFu;
-    s_stock_done = 0;
+    s_stock_loads = 0xFFFFFFFFu;
+    s_stock_written = 0;
 
     s_disc = r2_disc_of(api->version);
     if (s_disc == NULL) {
@@ -419,28 +538,20 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
-    settings.pools &= (uint8_t)(POOL_GADGETS | POOL_WEAPONS | POOL_VENDOR);
-    settings.keep_start = 1;
 
-    if (r2_solve(&settings, &s_plan) != 0) {
+    if (!play_settings(&settings)) {
         api->fail(mod, "no placement for these settings (please report them)");
         return 1;
     }
 
-    rando_encode(&s_plan.settings, s_code);
-
-    for (int id = 0; id < R2_ITEM_COUNT; ++id) {
-        s_location_of[id] = -1;
-    }
-    for (size_t i = 0; i < r2_location_count; ++i) {
-        if (s_plan.shuffled[i]) {
-            s_location_of[r2_locations[i].item] = (int)i;
-        }
-    }
-
+    s_own_settings = s_plan.settings;
+    s_following = 0;
+    // A port with party rules may yet bring a host's seed that shuffles something.
+    const int rules = api->api_minor >= 14 && api->party_rules_publish != NULL
+                      && api->on_party_rules != NULL;
     const int shuffles = (s_plan.settings.pools & (POOL_GADGETS | POOL_WEAPONS)) != 0;
 
-    if (shuffles) {
+    if (shuffles || rules) {
         if (api->hook(mod, "rac2.item.give", "void(i32)", (void*)give_hook, (void**)&s_give)
             != OPENRAC_HOOK_OK) {
             return 1;
@@ -455,8 +566,13 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
         }
     }
 
-    if (shuffles || (s_plan.settings.pools & POOL_VENDOR)) {
+    if (shuffles || rules || (s_plan.settings.pools & POOL_VENDOR)) {
         api->on_frame(mod, each_tick, NULL);
+    }
+
+    if (rules) {
+        publish_rules();
+        api->on_party_rules(mod, on_party_rules, NULL);
     }
 
     char line[160];

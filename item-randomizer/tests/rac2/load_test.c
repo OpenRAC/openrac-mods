@@ -185,6 +185,24 @@ static int host_replaying(void) {
     return 0;
 }
 
+/* The port's side of a party's rules: what the mod published and its listener. */
+static char s_published[64];
+static char s_published_text[192];
+static openrac_party_rules_fn s_rules_fn;
+static int host_rules_publish(openrac_mod* mod, const void* data, uint32_t size, const char* text) {
+    (void)mod;
+    CHECK(size < sizeof s_published);
+    memcpy(s_published, data, size);
+    s_published[size] = 0;
+    snprintf(s_published_text, sizeof s_published_text, "%s", text != NULL ? text : "");
+    return OPENRAC_HOOK_OK;
+}
+static int host_on_rules(openrac_mod* mod, openrac_party_rules_fn fn, void* user) {
+    (void)mod, (void)user;
+    s_rules_fn = fn;
+    return OPENRAC_HOOK_OK;
+}
+
 static openrac_api make_api(const char* version) {
     openrac_api api;
     memset(&api, 0, sizeof api);
@@ -270,6 +288,17 @@ static void play_disc(openrac_mod_load_fn load, openrac_mod* mod, const r2_disc*
         CHECK(get32(STOCK_TABLE + 8u * (uint32_t)i) == r2_vendor_stock[i].item);
         CHECK(get32(STOCK_TABLE + 8u * (uint32_t)i + 4u) == plan.stock[i]);
     }
+    // It is level data: the next level's program brings the game's own levels again, and they get
+    // the seed's again; within one load it is written once.
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        set32(STOCK_TABLE + 8u * (uint32_t)i + 4u, r2_vendor_stock[i].level);
+    }
+    tick(1, 1);
+    CHECK(get32(STOCK_TABLE + 4u) == (uint32_t)r2_vendor_stock[0].level);
+    tick(5, 5);
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        CHECK(get32(STOCK_TABLE + 8u * (uint32_t)i + 4u) == plan.stock[i]);
+    }
 
     // The Dynamo's place gives its reward, once.
     const int dynamo = location_of(R2_DYNAMO);
@@ -326,6 +355,56 @@ static void play_disc(openrac_mod_load_fn load, openrac_mod* mod, const r2_disc*
     CHECK(load(&api, mod) == 0);
     tick(1, 4);
     CHECK(get32(STOCK_TABLE + 4) == 7);
+    set32(STOCK_TABLE, r2_vendor_stock[0].item);
+    set32(STOCK_TABLE + 4, r2_vendor_stock[0].level);
+
+    // A party. A port with its rules: the host's game publishes its seed's code and the words.
+    openrac_api party = make_api(disc->version);
+    party.party_rules_publish = host_rules_publish;
+    party.on_party_rules = host_on_rules;
+    s_hook_count = 0;
+    s_rules_fn = NULL;
+    s_published[0] = 0;
+    s_seed = "party-host";
+    CHECK(load(&party, mod) == 0 && s_rules_fn != NULL && s_published[0] != 0);
+    CHECK(strstr(s_published_text, "Logic: standard") != NULL);
+    CHECK(strstr(s_published_text, "Shuffles the vendor") != NULL);
+    char host_code[64];
+    snprintf(host_code, sizeof host_code, "%s", s_published);
+
+    // A member with a seed of its own, and nothing shuffled: it hooks all the same (a host's seed
+    // may shuffle), and plays the host's placement once its rules come.
+    s_hook_count = 0;
+    s_seed = "party-member";
+    s_vendor = 0;
+    CHECK(load(&party, mod) == 0 && s_hook_count == 13 && strcmp(s_published, host_code) != 0);
+    rando_settings host;
+    CHECK(rando_decode(host_code, &host));
+    r2_plan host_plan;
+    CHECK(r2_solve(&host, &host_plan) == 0);
+    s_rules_fn(NULL, host_code, (uint32_t)strlen(host_code));
+    memset(s_memory + OWNED, 0, R2_ITEM_COUNT);
+    set32(MARK_BITS, 0);
+    give(R2_DYNAMO);
+    CHECK(s_memory[OWNED + (uint32_t)host_plan.reward[dynamo]] == 1);
+    // The vendor's table by the host's seed, at the next tick.
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        set32(STOCK_TABLE + 8u * (uint32_t)i + 4u, r2_vendor_stock[i].level);
+    }
+    tick(1, 6);
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        CHECK(get32(STOCK_TABLE + 8u * (uint32_t)i + 4u) == (uint32_t)host_plan.stock[i]);
+    }
+    // The party goes: this game's own again, the vendor's table the game's own back.
+    s_rules_fn(NULL, NULL, 0);
+    tick(1, 7);
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        CHECK(get32(STOCK_TABLE + 8u * (uint32_t)i + 4u) == r2_vendor_stock[i].level);
+    }
+    // A code that is not a seed's: refused, the placement as it was.
+    s_rules_fn(NULL, "not a code", 10);
+    s_vendor = 1;
+    s_seed = "going commando";
 }
 
 int main(int argc, char** argv) {
