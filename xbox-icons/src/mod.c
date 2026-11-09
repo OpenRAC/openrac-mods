@@ -16,7 +16,7 @@
 #include "paint.h"
 #include "xbox_icons.h"
 
-OPENRAC_MOD_DEFINE("xbox-icons", "1.1.0")
+OPENRAC_MOD_DEFINE("xbox-icons", "1.2.0")
 
 static const openrac_api* s_api;
 static openrac_mod* s_mod;
@@ -49,20 +49,27 @@ static void tick(void* user) {
     if (bank == 0 || bank >= XBOX_ICONS_RAM) {
         return;
     }
-    uint8_t* fonts[3];
+    /* Fonts 1 and 2 always; the third where it is loaded (a level has it, the title's menus do not:
+     * its record is zero there). Each with the palette the first has. */
+    uint8_t* fonts[XBOX_ICONS_FONTS];
+    int count = 0;
     uint32_t palette = 0;
-    for (int f = 0; f < 3; ++f) {
+    for (int f = 0; f < XBOX_ICONS_FONTS; ++f) {
         const openrac_gaddr record = table + 16u * (uint32_t)(f + 1);
-        const uint32_t texels = bank + get_u16(record + 8u) * 16u;
-        const uint32_t clut = bank + get_u16(record + 0xAu) * 16u;
+        const uint16_t texel_offset = get_u16(record + 8u), clut_offset = get_u16(record + 0xAu);
+        const uint32_t texels = bank + texel_offset * 16u;
+        const uint32_t clut = bank + clut_offset * 16u;
+        if (texel_offset == 0 && clut_offset == 0 && f >= 2) {
+            break;
+        }
         if (texels + XBOX_ICONS_FONT_BYTES > XBOX_ICONS_RAM || clut + 1024u > XBOX_ICONS_RAM ||
             (f > 0 && clut != palette)) {
             return;
         }
-        fonts[f] = s_api->memory + texels;
+        fonts[count++] = s_api->memory + texels;
         palette = clut;
     }
-    const uint32_t hash = xbox_icons_hash(fonts, s_api->memory + palette);
+    const uint32_t hash = xbox_icons_hash(fonts, count, s_api->memory + palette);
     int known = 0;
     for (size_t i = 0; i < s_game->font_count; ++i) {
         known |= hash == s_game->fonts[i];
@@ -71,22 +78,23 @@ static void tick(void* user) {
         if (hash != s_unknown) {
             s_unknown = hash;
             char line[96];
-            snprintf(line, sizeof line, "fonts %08x at 0x%08x: not the game's, left as they are",
-                     (unsigned)hash, (unsigned)bank);
+            snprintf(line, sizeof line, "%d fonts %08x at 0x%08x: not the game's, left as they are",
+                     count, (unsigned)hash, (unsigned)bank);
             say(line);
         }
         return;
     }
-    if (xbox_icons_paint(fonts, s_api->memory + palette) != 0) {
+    if (xbox_icons_paint(fonts, count, s_api->memory + palette) != 0) {
         if (hash != s_unknown) {
             s_unknown = hash;
             s_api->log(s_mod, OPENRAC_LOG_WARN, "too few free palette entries for the letters");
         }
         return;
     }
-    s_unknown = xbox_icons_hash(fonts, s_api->memory + palette); /* what was painted: no word */
-    char line[64];
-    snprintf(line, sizeof line, "painted the fonts at 0x%08x", (unsigned)bank);
+    s_unknown = xbox_icons_hash(fonts, count, s_api->memory + palette); /* what was painted: no word */
+    char line[80];
+    snprintf(line, sizeof line, "painted the %d fonts %08x at 0x%08x", count, (unsigned)hash,
+             (unsigned)bank);
     say(line);
 }
 

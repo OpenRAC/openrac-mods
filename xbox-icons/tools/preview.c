@@ -73,13 +73,13 @@ int main(int argc, char** argv) {
     }
     FILE* out = fopen(argv[2], "wb");
     fprintf(out, "P7\nWIDTH 192\nHEIGHT 96\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n");
-    printf("game's  %08x\n", xbox_icons_hash(fonts, palette));
+    printf("game's  %08x\n", xbox_icons_hash(fonts, 3, palette));
     row(out, fonts, palette);
-    if (xbox_icons_paint(fonts, (uint8_t*)palette) != 0) {
+    if (xbox_icons_paint(fonts, 3, (uint8_t*)palette) != 0) {
         fprintf(stderr, "too few free palette entries\n");
         return 1;
     }
-    printf("painted %08x\n", xbox_icons_hash(fonts, palette));
+    printf("painted %08x\n", xbox_icons_hash(fonts, 3, palette));
     row(out, fonts, palette);
     fclose(out);
     return 0;
