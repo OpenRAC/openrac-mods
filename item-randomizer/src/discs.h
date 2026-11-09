@@ -25,6 +25,7 @@ typedef struct rando_disc {
     uint32_t triggers;   /* u8[20][16]: the levels' trigger slots, 0xFF done (D_0014C150) */
     uint32_t level;      /* i32: the level loaded (D_0015EE84) */
     uint32_t vendor_stock; /* u8[12]: the vendor's stock, 0xFF-terminated (D_0015EED0) */
+    uint32_t item_price_table; /* VendorItemInfo[37], 0x18-byte entries; h8 at +0x08 indicates ammo support */
     uint32_t
         last_weapon; /* i32: the weapon a double tap with the wrench goes back to (D_00141760) */
     uint32_t
@@ -54,6 +55,7 @@ static const rando_disc k_rando_discs[] = {
      0x0014C150u,
      0x0015EE84u,
      0x0015EED0u,
+      0x001C43B0u,
      0x00141760u,
      0x001CA7C0u,
      0x00161F34u,
@@ -74,6 +76,7 @@ static const rando_disc k_rando_discs[] = {
      0x0014C050u,
      0x0015ED84u,
      0x0015EDD0u,
+      0x001C40B0u,
      0x00141660u,
      0x001CA4C0u,
      0x00161E38u,
