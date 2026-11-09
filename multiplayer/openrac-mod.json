@@ -3,7 +3,7 @@
   "id": "multiplayer",
   "name": "Multiplayer",
   "version": "0.11.0",
-  "author": "Flavius",
+  "author": "Keros",
   "description": "Online co-op: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) list the games others host, create one from a save or a new game, join one by its code, or play without a server with Direct connect. The host's Start starts the game for everyone: all play in the host's level, see each other's Ratchets, and share its world (its enemies go for the nearest player, a hit on one counts for all, crates and kills are shared, bolts go to whoever collects them). Includes co-op rescue, host rally points and a team-tools page in the existing Multiplayer menu, whose pages speak the game's five PAL languages. In Going Commando, a first co-op without the menu: the party is chosen in the settings (host, join by code, or direct), and everyone plays in the host's level and sees each other.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/multiplayer",

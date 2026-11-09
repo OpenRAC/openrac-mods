@@ -3,7 +3,7 @@
   "id": "lock-strafe",
   "name": "Lock-strafe",
   "version": "1.1.1",
-  "author": "Flavius",
+  "author": "Keros",
   "description": "Strafe as in Going Commando: hold L2 or R2 (or always, with a weapon that fires ahead) and Ratchet faces where the camera looks while the left stick moves him; his hips turn toward where he goes while his body stays on the camera, and X with the stick pushed sideways or back flips that way. L1 still looks and R1 still crouches.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/lock-strafe",
