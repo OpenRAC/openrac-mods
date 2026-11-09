@@ -26,4 +26,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("lock-strafe", "1.1.1", load)
+OPENRAC_MOD_CPP("lock-strafe", "1.2.0", load)

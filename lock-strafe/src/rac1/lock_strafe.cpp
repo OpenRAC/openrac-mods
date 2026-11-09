@@ -2,9 +2,9 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Ratchet & Clank: the lock-strafe, a mod of OpenRAC's native port (README.md). Two modes, the
-// setting "mode": Lock with weapons (lock) and Hold L2 or R2 (hold). strafe.h says how the game
-// turns the stick into a heading, what each mode changes and why L2 and R2. The pad's report, the
-// hero's motion input, two of his routines and one of the follow camera's are hook points
+// setting "mode": Lock with weapons (lock) and Hold the strafe button (hold). strafe.h says how the
+// game turns the stick into a heading, what each mode changes and why L2 and R2. The pad's report,
+// the hero's motion input, two of his routines and one of the follow camera's are hook points
 // (openrac/games/rac1.hpp): each replacement calls what it replaced, so whenever the hero is not
 // strafing the game's routines run as they are, but for L2 and R2, which the game does not see
 // while he is on foot. Without the mod the port runs the game's own.
@@ -25,7 +25,9 @@
 //
 // Settings (openrac-mod.json):
 //   mode   (choice: lock | hold, default lock)  Lock: he strafes always with a weapon that fires
-//          ahead in hand, and as Hold otherwise. Hold: he strafes only while L2 or R2 is held.
+//          ahead in hand, and as Hold otherwise. Hold: he strafes only while the button is held.
+//   button (choice: both | l2 | r2, default both)  The buttons that strafe: L2 or R2, or one alone,
+//          the other left to the game and to other mods (one that raises the wrench on R2).
 //   feel   (choice: commando | classic, default commando)  Going Commando's, or the mod's 1.0 one.
 //   twist  (bool, default on)  The hip twist: legs toward where he goes, body toward the camera.
 //   flips  (bool, default on)  X with the stick pushed fully sideways or back flips that way.
@@ -195,11 +197,12 @@ constexpr size_t k_trace_line_size = 512;
 // update; nothing here is touched by another thread.
 openrac::Mod* s_mod;
 const lock_strafe_disc* s_disc;
-int s_mode;    // RAC1_STRAFE_HOLD or RAC1_STRAFE_LOCK
-int s_feel;    // RAC1_STRAFE_FEEL_COMMANDO or RAC1_STRAFE_FEEL_CLASSIC
-bool s_twist;  // the hip twist
-bool s_flips;  // the strafe flips
-bool s_trace;  // a line each pad report
+int s_mode;                 // RAC1_STRAFE_HOLD or RAC1_STRAFE_LOCK
+int s_feel;                 // RAC1_STRAFE_FEEL_COMMANDO or RAC1_STRAFE_FEEL_CLASSIC
+uint32_t s_strafe_buttons;  // the pad bits that strafe (the setting "button")
+bool s_twist;               // the hip twist
+bool s_flips;               // the strafe flips
+bool s_trace;               // a line each pad report
 
 // The game's functions it calls (discs.h). Set in load.
 float (*s_fast_cos)(float);
@@ -211,8 +214,8 @@ void (*s_camera_look_along)(gaddr, float, float);
 int32_t (*s_enter_state)(int32_t, int32_t);
 int32_t (*s_stick_direction)();
 
-// L2 and R2 as the player holds them, from the last pad report (set by the pad hook, read by the
-// decision's input).
+// The strafe's buttons (L2, R2 or both) as the player holds them, from the last pad report (set by
+// the pad hook, read by the decision's input). A button the setting leaves to the game is not here.
 uint32_t s_buttons;
 
 // What Hold remembers from tick to tick (strafe.h); updated once a tick at the pad's report.
@@ -558,7 +561,7 @@ void pad_process_report(Original original, gaddr pad_state, gaddr report, int32_
     }
 
     ++s_tick;
-    s_buttons = ref<uint32_t>(pad() + k_pad_held) & RAC1_STRAFE_BUTTONS;
+    s_buttons = ref<uint32_t>(pad() + k_pad_held) & s_strafe_buttons;
     rac1_strafe_input in;
     read_input(&in);
     rac1_strafe_hold_update(s_mode, s_feel, &in, &s_hold);
@@ -568,18 +571,19 @@ void pad_process_report(Original original, gaddr pad_state, gaddr report, int32_
         clear_twist();
     }
 
-    // In play on foot with the setting on, the game must not see L2 and R2.
+    // In play on foot with the setting on, the game must not see the strafe's buttons; a button the
+    // setting "button" leaves out stays the game's (and other mods').
     if (rac1_strafe_takes_buttons(s_mode, &in)) {
-        // Every button word of the pad has the two bits cleared.
+        // Every button word of the pad has the strafe's bits cleared.
         for (const uint32_t word : k_pad_words) {
-            ref<uint32_t>(pad() + word) &= ~RAC1_STRAFE_BUTTONS;
+            ref<uint32_t>(pad() + word) &= ~s_strafe_buttons;
         }
 
         // hist_btn[hist_idx - 1]: the entry this poll wrote, in a ring of k_pad_history_length.
         const int last = (ref<int16_t>(pad() + k_pad_history_index) + (k_pad_history_length - 1))
                          % k_pad_history_length;
         ref<uint32_t>(pad() + k_pad_history + k_word * static_cast<unsigned>(last)) &=
-            ~RAC1_STRAFE_BUTTONS;
+            ~s_strafe_buttons;
     }
 
     trace();
@@ -805,6 +809,12 @@ void load(openrac::Mod& mod) {
     s_mode = mod.setting<std::string>("mode") == "hold" ? RAC1_STRAFE_HOLD : RAC1_STRAFE_LOCK;
     s_feel = mod.setting<std::string>("feel") == "classic" ? RAC1_STRAFE_FEEL_CLASSIC
                                                            : RAC1_STRAFE_FEEL_COMMANDO;
+    const std::string button = mod.setting<std::string>("button");
+    s_strafe_buttons = rac1_strafe_button_bits(
+        button == "l2"   ? RAC1_STRAFE_BUTTON_L2
+        : button == "r2" ? RAC1_STRAFE_BUTTON_R2
+                         : RAC1_STRAFE_BUTTON_BOTH
+    );
     s_twist = mod.setting<bool>("twist");
     s_flips = mod.setting<bool>("flips");
     s_trace = mod.setting<bool>("trace") || std::getenv("OPENRAC_STRAFE_TRACE") != nullptr;
@@ -849,7 +859,11 @@ void load(openrac::Mod& mod) {
     mod.hook<hooks::Hero_AdvanceAnimation>([](auto original) { advance_animation(original); });
 
     mod.info(
-        std::string(s_mode == RAC1_STRAFE_HOLD ? "Hold L2 or R2" : "Lock with weapons") + ", "
+        std::string(s_mode == RAC1_STRAFE_HOLD ? "Hold " : "Lock with weapons, ")
+        + (s_strafe_buttons == RAC1_PAD_L2   ? "L2"
+           : s_strafe_buttons == RAC1_PAD_R2 ? "R2"
+                                             : "L2 or R2")
+        + ", "
         + (s_feel == RAC1_STRAFE_FEEL_COMMANDO ? "Going Commando's feel" : "the classic feel")
         + (s_twist ? ", hip twist" : "") + (s_flips ? ", strafe flips" : "") + " on the "
         + std::string(mod.version()) + " disc" + (s_trace ? ", tracing each pad report" : "")

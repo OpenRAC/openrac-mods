@@ -88,6 +88,14 @@ static void items(void) {
     }
 }
 
+/* The setting "button": both by default (and for anything unknown), or L2 or R2 alone. */
+static void buttons(void) {
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_BOTH) == (RAC1_PAD_L2 | RAC1_PAD_R2));
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_L2) == RAC1_PAD_L2);
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_R2) == RAC1_PAD_R2);
+    CHECK(rac1_strafe_button_bits(7) == RAC1_STRAFE_BUTTONS);
+}
+
 /* Off: nothing strafes, L2 and R2 reach the game, nothing is latched. */
 static void off(void) {
     rac1_strafe_hold hold = {0, 0, 0, 0.0f};
@@ -883,6 +891,7 @@ static void flips(void) {
 
 int main(void) {
     items();
+    buttons();
     off();
     hold_mode();
     lock_mode();
@@ -897,9 +906,9 @@ int main(void) {
     directions();
     flips();
     puts(
-        "hero strafe: weapons, off, hold, lock, the buttons taken, facing, velocity, swing, right "
-        "stick, backpedal, Going Commando's feel, side reversal, hip twist, its joints' turn, the "
-        "legs for each direction and flips passed"
+        "hero strafe: weapons, buttons, off, hold, lock, the buttons taken, facing, velocity, "
+        "swing, right stick, backpedal, Going Commando's feel, side reversal, hip twist, its "
+        "joints' turn, the legs for each direction and flips passed"
     );
     return 0;
 }
