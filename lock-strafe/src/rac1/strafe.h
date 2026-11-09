@@ -74,6 +74,12 @@
 #define RAC1_PAD_L2 0x1u
 #define RAC1_PAD_R2 0x2u
 #define RAC1_STRAFE_BUTTONS (RAC1_PAD_L2 | RAC1_PAD_R2)
+/* Which of them strafe (the mod's setting "button"): both (the default), or one alone so that the
+ * other stays the game's (R1 or R2 crouches, L1 or L2 looks) and another mod's, such as one that
+ * raises the wrench on R2. */
+#define RAC1_STRAFE_BUTTON_BOTH 0
+#define RAC1_STRAFE_BUTTON_L2 1
+#define RAC1_STRAFE_BUTTON_R2 2
 /* Cross, the jump (try_start_hero_jump's pad_pressed_within(0x40, ...)). */
 #define RAC1_PAD_X 0x40u
 
@@ -227,6 +233,13 @@ static inline int rac1_strafe_aimable(int item) {
         default:
             return 0;
     }
+}
+
+/* The pad bits the setting "button" strafes on: L2, R2 or both. */
+static inline uint32_t rac1_strafe_button_bits(int button) {
+    return button == RAC1_STRAFE_BUTTON_L2   ? RAC1_PAD_L2
+           : button == RAC1_STRAFE_BUTTON_R2 ? RAC1_PAD_R2
+                                             : RAC1_STRAFE_BUTTONS;
 }
 
 /* In play on foot, in a state the setting changes L2 and R2 in. */
