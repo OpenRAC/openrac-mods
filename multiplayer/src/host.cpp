@@ -279,8 +279,8 @@ bool Host::start(Sink sink) {
 
     // Nothing to host on.
     if (listener == kNoSocket) {
-        error_ = error_kind == 1 ? "Port " + std::to_string(config_.port) + " is in use"
-                                 : "Could not listen on port " + std::to_string(config_.port);
+        error_ = error_kind == 1 ? "Port " + std::to_string(config_.port) + " busy"
+                                 : "Port " + std::to_string(config_.port) + " failed";
         return false;
     }
 

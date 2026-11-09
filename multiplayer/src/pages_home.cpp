@@ -84,13 +84,13 @@ void show_direct() {
             openrac::UiItem::button(text("Host directly")),
             openrac::UiItem::button(text("Join by address")),
             openrac::UiItem::text(
-                text("No server: port ") + std::to_string(mp::kDefaultPort) + text(", TCP and UDP")
+                text("No server: port ") + std::to_string(mp::kDefaultPort)
             ),
         };
         hints = text(mp::kSelectBackHints);
     } else {
         const mp::DirectAddress& a = g->address;
-        c.title = text("Join ") + a.text();
+        c.title = text("Join by address");
 
         for (std::size_t i = 0; i < a.octets.size(); ++i) {
             c.items.push_back(
@@ -108,7 +108,7 @@ void show_direct() {
     const mp::Connection::Mode mode = g->connection->mode();
     const bool linked =
         mode == mp::Connection::Mode::kDirect || mode == mp::Connection::Mode::kHosting;
-    c.footer = {linked ? status() : text("Plays without the server")};
+    c.footer = {linked ? status() : text("No server")};
 
     if (!g->direct_error.empty()) {
         c.footer.push_back(mp::localized_notice(g->direct_error, g_language));
@@ -423,7 +423,7 @@ void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
             if (connection.connect_direct(g->address.text())) {
                 poll();
             } else {
-                g->direct_error = "Not an address: " + g->address.text();
+                g->direct_error = "Bad address";
             }
         }
     }

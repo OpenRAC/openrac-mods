@@ -23,7 +23,7 @@ std::string party_row(const mp::Listing& l) {
     const std::string count = " " + std::to_string(l.members) + "/" + std::to_string(l.size)
                               + (row_differs(l) ? text(" (differs)") : "");
     std::string row = l.host + (description.empty() ? "" : " - " + description);
-    const std::size_t room = OPENRAC_UI_TEXT_MAX - count.size();
+    const std::size_t room = mp::kItemMax - count.size();
 
     if (row.size() > room) {
         row = mp::fit_ui_text(row, room);
@@ -51,8 +51,8 @@ void show_browse() {
     if (parties.empty()) {
         c.items.push_back(
             openrac::UiItem::text(
-                s.lists() == 0 ? text("Asking the server...")
-                               : text("No games are hosted: Create match hosts one")
+                s.lists() == 0 ? text("Asking...")
+                               : text("No games")
             )
         );
     }
@@ -60,7 +60,7 @@ void show_browse() {
     c.footer = {status()};
 
     if (differs) {
-        c.footer.push_back(text("(differs): needs other mods or settings"));
+        c.footer.push_back(text("(differs): mods"));
     }
 
     c.footer.push_back(text(mp::kSelectBackHints));

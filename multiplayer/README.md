@@ -45,9 +45,9 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 | Browse games | **Refresh**, then a row for each game being hosted that has room: its host's name, its save ("Pokitaru, 12 gold bolts", or "New game"), how many are in it (`2/4`), and **(differs)** when your game would not fit it: other gameplay mods, settings or versions; the footer says what that means. Cross on a row joins it, and a game marked (differs) then says how. The list is asked again every 3 seconds while the page shows; with none, a line says so and points at Create match |
 | Choose a save | **New game**, then your memory card's five saves, each with its planet, gold bolts and time played (an empty slot is dim). The party plays a copy of the one chosen; your own saves are never written by a party. **Continue as host** lists the party saves on this card (below). Create match and Host directly both come here first |
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
-| Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
-| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**; **Checking your mods...** until the host answers; **See why you can't join** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready, mods match)**, **(mods differ)** or **(checking mods)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, another player takes over once the game is on (the question says so), and before that the party is over for everyone. Leaving a direct party goes back to Home and to the server |
-| Remove | The host's Cross on a member in the lobby, or on a member's line of the pause menu's Multiplayer page: **Remove from the party** (the code still works, so it may come back) or **Ban from this save**, then back. See [Removing a player](#removing-a-player) |
+| Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the last address joined is kept until the game ends. Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
+| Lobby | The party's code in the title (a direct party: **Hosting** with your address and port, every address of yours that fits, or **Direct party** with the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join game**; **Checking mods...** until the host answers; **Why can't I join?** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **waiting**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready)**, **(differs)** or **(checking)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, another player takes over once the game is on (the question says so), and before that the party is over for everyone. Leaving a direct party goes back to Home and to the server |
+| Remove | The host's Cross on a member in the lobby, or on a member's line of the pause menu's Multiplayer page: **Remove** (the code still works, so it may come back) or **Ban from save**, then back. See [Removing a player](#removing-a-player) |
 | Refused | Shows by itself when your game cannot join the host's, and from the lobby's button: how yours differs, and what to do. See [Mods in a party](#mods-in-a-party) |
 | Party rules | From the lobby and the pause menu: what the party plays by, and what stays your own. A host with a mod code has **Copy mod code**, a refused player too, and a host whose save has bans **Lift 2 bans** |
 | Pause menu (in a level) | **Options**, then **Multiplayer** (after Video): the party's code (a direct party: where it is), the host's level, each member with the host and you marked and its round trip to the server and whether its game state goes by UDP or TCP (updated every 2 seconds), then **Party rules** and **Leave party**, which asks first (**End the party?** for the host, **Stop hosting?** for a direct host). Out of a party it says **Not in a party**. Leaving goes back to the title's Multiplayer page (below) |
@@ -188,8 +188,8 @@ game from there.
 Leaving. A player whose party goes while it plays (it chose Leave party, the host ended the party,
 or its connection went) leaves its level at once, from wherever it is (playing, a scene, the pause
 menu), for the title, which then opens the Multiplayer page; its footer says why when the player
-did not leave by itself (**The host left: Continue as host from Saves**, **The host left: the party
-is over**, **The host went away**, **The server went away**). A member leaving goes there alone, and
+did not leave by itself (**Continue in Saves**, **Host left**, **Server
+lost**). A member leaving goes there alone, and
 the party plays on without it. A player already in the title's pages (the lobby) goes back to Home.
 
 Losing the connection (DECISIONS 6). A dropped player keeps its place for 2 minutes, under the same
@@ -210,9 +210,9 @@ can Continue as host from its party save. A direct host is the party: its member
 if they drop, but with the host gone, it ends.
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
-what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again
-every few seconds), or **The server went away**, and the server's answers (a code no party has, a
-full party, the host leaving). Only Browse games, Create match and Join by code need the server (they
+what the connection is doing: connecting, **Connected**, **Server offline** (the mod tries again
+every few seconds), or **Server lost**, and the server's answers (**No such code**,
+**Party full**, **Host left**). Only Browse games, Create match and Join by code need the server (they
 are dim until it said hello); **Direct connect**, Host directly and Join by address are always
 selectable. Choosing Direct connect stops the server retries, and the Direct pages never show the
 server's state; leaving a direct party goes back to Home, which tries the server again.
@@ -259,10 +259,10 @@ the party: the player leaves or fixes it, or the host removes it. The page says 
 itself the first time:
 
 ```
-You can't join this game
+Can't join
   Leave party
-  Difficulty: the host has 1.3.0, you have 1.2.3
-  Your Difficulty settings differ:
+  Difficulty 1.2.3 (host 1.3.0)
+  Difficulty settings differ:
   Enemy count, Damage to Ratchet
   Host has Item Randomizer, you don't
   You have Ammo Max, the host doesn't
@@ -270,14 +270,14 @@ Match the host in the launcher's Mods tab,
 then restart the game and join again.
 ```
 
-The other lines it may have: `You have a different disc from the host`, `OpenRAC: the host has
-0.21.0, you have 0.20.0`, `Multiplayer: the host has 0.10.0, you have 0.9.0`, and `Archipelago
-can't be played in a party`, with `Turn it off in the launcher's Mods tab, then restart the game.`
+The other lines it may have: `Different disc`, `OpenRAC 0.20.0 (host 0.21.0)`, `Multiplayer 0.9.0
+(host 0.10.0)`, `You lack Item Randomizer`, `Extra: Item Randomizer` and `Archipelago is solo
+only`, with `Turn it off, restart the game` in the footer.
 Settings count from the game's next start, so changing them needs a restart.
 
 The host's lobby has a line for each player who differs: `Bob: Difficulty settings, 1 more`,
 `Bob: no Item Randomizer`, `Bob: extra Ammo Max`, `Bob: Difficulty version`, `Bob: a different disc`,
-`Bob: an older Multiplayer`. **Browse games** marks the games that would not fit with **(differs)**:
+`Bob: old Multiplayer`. **Browse games** marks the games that would not fit with **(differs)**:
 the party's listing carries a short digest of its host's build and gameplay mods.
 
 **A player's keys and name are its own.** A `keybind` setting, and a string that defaults to the
@@ -365,9 +365,9 @@ Home, **Direct connect**:
 
 - **Host directly**: your game listens on port **7770** (TCP, and UDP on the same port), and you are
   the host of its one party. The lobby's title shows your address and port to give the others
-  (`Hosting on 192.168.1.20:7770`; more lines when the computer has more than one address). A port
+  (`192.168.1.20:7770`; more lines when the computer has more than one address). A port
   already taken (another host, or a server on the same computer) is refused: the page stays, and
-  its footer says "Port 7770 is in use". **Leave** asks "Stop hosting?" and ends the party.
+  its footer says "Port 7770 busy". **Leave** asks "Stop hosting?" and ends the party.
 - **Join by address**: set the host's address with the rows (four parts and the port), then
   **Join**. You are in the host's party as soon as you are connected: there is no code to type.
   While it cannot reach the host, the footer says so and it keeps trying; Triangle gives up.
@@ -483,7 +483,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.12.0`; `rac2-multiplayer/0.12.0` in Going Commando) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.12.1`; `rac2-multiplayer/0.12.1` in Going Commando) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Pokitaru, 3 platinum bolts|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -712,9 +712,19 @@ Player names, chat and descriptions sent by other hosts are kept as received; th
 translate another player's save description. Network messages and diagnostic logs stay unchanged.
 
 `src/words.hpp` contains the five-column UTF-8 catalog. Use only letters supported by the game's
-font and keep each fixed text within `OPENRAC_UI_TEXT_MAX` bytes; dynamic fields are shortened
-without splitting a UTF-8 character. `multiplayer_words` tests the catalog, language mapping,
-connection and party pages, controller glyphs and text limits without a game disc.
+font and keep every text short: the panels are narrow (a footer line holds about 15 letters, a list
+line about 33, a title about 19), so the pages use status words (**Connected**, **Hosting**,
+**Full**) and one short line where a sentence would do. `multiplayer_words` measures every text of
+the catalog, in all five languages, and the composed status, party and lobby lines against the
+narrowest panel Going Commando draws them in (a per-character width model taken from a capture), and
+fails when one would overflow. It also tests the language mapping, controller glyphs and text limits
+without a game disc. Dynamic fields are shortened without splitting a UTF-8 character.
+
+## History
+
+- 0.12.1: **Shorter texts**: every page, status, footer, hint, question and notice is a few words
+  (**Connected**, **Hosting**, **Party full**, **Leave party?**), in all five languages, so nothing
+  overflows the panels; a test measures them.
 
 ## Building
 

@@ -77,11 +77,11 @@ constexpr std::uint64_t kModsQuietMs = 6000;
 constexpr std::uint64_t kRulesPollMs = 200;
 
 /* What a player reads of a disc that cannot play with the host's. */
-constexpr const char* kDifferentDisc = "You have a different disc from the host";
+constexpr const char* kDifferentDisc = "Different disc";
 
 /* The widest line of a page of the title's menus and of the pause menu's Options pages. */
-constexpr std::size_t kTitleLine = 47;
-constexpr std::size_t kPauseLine = 36;
+constexpr std::size_t kTitleLine = 33;
+constexpr std::size_t kPauseLine = 26;
 
 struct ModSettingInfo {
     std::string key;

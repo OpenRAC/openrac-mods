@@ -49,16 +49,16 @@ openrac::UiContent rules_content() {
 
     // The host's rule for its ship.
     if (g->coop->hold_party_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
-        c.items.push_back(openrac::UiItem::text(text("The host's ship waits for you: press Start when ready")));
+        c.items.push_back(openrac::UiItem::text(text("Press Start when ready")));
     }
 
     // The host's rule for its fallen.
     if (g->world->revive_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
-        c.items.push_back(openrac::UiItem::text(text("Stand over a fallen player to revive them")));
+        c.items.push_back(openrac::UiItem::text(text("Stand by a fallen player")));
     }
 
     if (!level) {
-        c.footer = {text(g->session->is_host() ? "Everyone plays by your rules" : "Everyone plays by the host's rules"),
+        c.footer = {text(g->session->is_host() ? "Your rules" : "Host's rules"),
                     text(mp::kBackHints)};
     }
 

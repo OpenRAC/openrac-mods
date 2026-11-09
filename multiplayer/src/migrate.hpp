@@ -146,8 +146,8 @@ struct Candidate {
 std::vector<std::int32_t> successor_order(std::vector<Candidate> candidates);
 
 /* What the players read. */
-constexpr const char* kDroppedLine = "Connection lost: getting back in";
-constexpr const char* kYouHostLine = "You are the party's host now";
+constexpr const char* kDroppedLine = "Reconnecting";
+constexpr const char* kYouHostLine = "You host now";
 
 class Migrate {
 public:

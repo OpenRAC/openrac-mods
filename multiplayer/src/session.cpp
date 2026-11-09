@@ -258,7 +258,7 @@ bool Session::start() {
 
     started_ = true;
     send_lobby(kBroadcast, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kStart)).bytes());
-    notice_ = "Game starting";
+    notice_ = "Starting";
     return true;
 }
 
@@ -649,7 +649,7 @@ void Session::take_data(const Message& m) {
     } else if (kind == LobbyKind::kStart && m.id == role_.host_id()) {
         // The host started the game.
         started_ = true;
-        notice_ = "Game starting";
+        notice_ = "Starting";
     } else if (kind == LobbyKind::kLink && is_host()) {
         // A member's link, at the host: kept and told to everyone.
         const std::int32_t ping = r.i32();
@@ -767,20 +767,20 @@ const char* error_text(ErrorReason reason) {
     // Each reason its own words.
     switch (reason) {
         case ErrorReason::kPartyNotFound:
-            return "No party has that code";
+            return "No such code";
         case ErrorReason::kPartyFull:
-            return "That party is full";
+            return "Party full";
         case ErrorReason::kAlreadyInParty:
-            return "You are in a party already";
+            return "Already in party";
         case ErrorReason::kNotInParty:
-            return "You are not in a party";
+            return "No party";
         case ErrorReason::kNotHost:
-            return "Only the host can do that";
+            return "Host only";
         case ErrorReason::kResumeRefused:
             return kLostSlotNotice;
     }
 
-    return "The server refused";
+    return "Refused";
 }
 
 }  // namespace mp

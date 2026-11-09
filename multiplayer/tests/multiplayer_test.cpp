@@ -277,13 +277,13 @@ void a_party_is_created_joined_and_left() {
     host.handle(decoded(server(mp::Writer().u8(1).u8(5).i32(2))));
     CHECK(host.members().size() == 1 && !host.ready(2));
     guest.handle(decoded(server(mp::Writer().u8(1).u8(6))));
-    CHECK(!guest.in_party() && guest.take_notice() == "The host left: the party is over");
+    CHECK(!guest.in_party() && guest.take_notice() == "Host left");
 
     // A refusal: a line on the page, nothing pending any more.
     guest.join("ZZZZZZ");
     CHECK(guest.waiting());
     guest.handle(decoded(server(mp::Writer().u8(4).u8(0))));
-    CHECK(!guest.waiting() && guest.take_notice() == "No party has that code");
+    CHECK(!guest.waiting() && guest.take_notice() == "No such code");
 
     // Leaving: the frame, and the party is gone at once.
     host.leave();
@@ -1008,7 +1008,7 @@ void the_host_keeps_the_servers_limits() {
         const int port = first.hosting().port;
         mp::Connection second;
         CHECK(!second.start_hosting(port));
-        CHECK(second.hosting().error == "Port " + std::to_string(port) + " is in use");
+        CHECK(second.hosting().error == "Port " + std::to_string(port) + " busy");
         CHECK(second.mode() == mp::Connection::Mode::kNone);
         first.close();
     }
@@ -1308,18 +1308,18 @@ void direct_page_logic() {
 
     // The hosting lobby's lines: each address with the port, as many as fit; the port alone.
     std::vector<std::string> lines = mp::hosting_lines({"192.168.1.20"}, 7770, 5);
-    CHECK(lines == std::vector<std::string>{"Hosting on 192.168.1.20:7770"});
+    CHECK(lines == std::vector<std::string>{"192.168.1.20:7770"});
     lines = mp::hosting_lines({"192.168.1.20", "10.0.0.5", "172.16.0.2"}, 7770, 2);
     CHECK(
         lines
-        == (std::vector<std::string>{"Hosting on 192.168.1.20:7770", "Hosting on 10.0.0.5:7770"})
+        == (std::vector<std::string>{"192.168.1.20:7770", "10.0.0.5:7770"})
     );
-    CHECK(mp::hosting_lines({}, 7770, 5) == std::vector<std::string>{"Hosting on port 7770"});
+    CHECK(mp::hosting_lines({}, 7770, 5) == std::vector<std::string>{"Port 7770"});
     CHECK(
         mp::hosting_lines({"192.168.1.20"}, 7770, 0)
-        == std::vector<std::string>{"Hosting on port 7770"}
+        == std::vector<std::string>{"Port 7770"}
     );
-    CHECK(mp::hosting_lines({"255.255.255.255"}, 65535, 1)[0].size() <= 47);
+    CHECK(mp::hosting_lines({"255.255.255.255"}, 65535, 1)[0].size() <= mp::kItemMax);
 
     // The player's name: the setting when valid, else the launcher's when valid, else none.
     CHECK(mp::choose_name("Clank_2", "Ratchet") == "Clank_2");
@@ -1357,7 +1357,7 @@ void direct_connect_ignores_the_server() {
     // Every status string fits the footer: none longer than the longest button line.
     mp::StatusInput in;
     in.address = "255.255.255.255:65535";
-    in.hosting_port = 65535;
+    in.hosting_port = 7770;
     const Mode modes[] = {Mode::kNone, Mode::kServer, Mode::kDirect, Mode::kHosting};
     const State states[] = {
         State::kIdle, State::kConnecting, State::kConnected, State::kUnreachable, State::kLost};
@@ -1378,17 +1378,15 @@ void direct_connect_ignores_the_server() {
     }
 
     // The notices the session raises fit too.
-    for (const char* notice : {"Game starting", "The host left: the party is over",
-                               "No party has that code", "That party is full",
-                               "You are in a party already", "You are not in a party",
-                               "The server refused"}) {
+    for (const char* notice : {"Starting", "Host left", "No such code", "Party full", "Already in party", "No party",
+                               "Refused"}) {
         CHECK(std::strlen(notice) <= mp::kFooterMax);
     }
 
     std::printf("status lines: longest %zu, footer limit %zu\n", longest, mp::kFooterMax);
     in.mode = Mode::kServer;
     in.state = State::kUnreachable;
-    CHECK(mp::status_text(in) == "Server unreachable");
+    CHECK(mp::status_text(in) == "Server offline");
 
     // A closed local port as the server: unreachable, yet hosting and joining work at once.
     mp::Connection connection;

@@ -18,7 +18,7 @@ void the_pause_page_shows_the_party_and_leaves() {
     CHECK(lines.size() == 1 && lines[0].kind == mp::PartyLine::Kind::kText
           && lines[0].label == "Not in a party");
     CHECK(mp::link_text(38, true) == "38 ms UDP" && mp::link_text(-1, false) == "... TCP");
-    CHECK(std::string(mp::pause_leave_question(false, false)) == "Leave the party?");
+    CHECK(std::string(mp::pause_leave_question(false, false)) == "Leave party?");
     CHECK(std::string(mp::pause_leave_question(false, true)) == "End the party?");
     CHECK(std::string(mp::pause_leave_question(true, true)) == "Stop hosting?");
 

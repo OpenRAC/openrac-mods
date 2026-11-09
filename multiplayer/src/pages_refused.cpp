@@ -15,7 +15,7 @@ openrac::UiContent refused_content() {
         s.in_party() ? g->mods->differences() : mp::solo_mods(g->mods->own());
     const bool solo = !mp::solo_mods(g->mods->own()).empty();
     openrac::UiContent c;
-    c.title = s.in_party() ? text("You can't join this game") : text("You can't play in a party");
+    c.title = s.in_party() ? text("Can't join") : text("Can't play");
     c.items.push_back(openrac::UiItem::button(s.in_party() ? text(mp::kLeavePartyLabel) : text("Back")));
 
     // The host's mod code: what gets this game the host's mods.

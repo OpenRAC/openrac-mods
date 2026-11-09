@@ -405,7 +405,7 @@ void data_packs_are_compared() {
     own.packs = {pack("a", 1)};
     std::vector<mp::Difference> d = mp::compare_mods(own, host);
     CHECK(d.size() == 1 && d[0].kind == Kind::kHostOnly && d[0].mod == "Pack b");
-    CHECK(mp::refusal_lines(d)[0] == "Host has Pack b, you don't");
+    CHECK(mp::refusal_lines(d)[0] == "You lack Pack b");
 
     own.packs = {pack("a", 1), pack("b", 2), pack("c", 3)};
     d = mp::compare_mods(own, host);
@@ -414,7 +414,7 @@ void data_packs_are_compared() {
     own.packs = {pack("a", 1), pack("b", 9)};
     d = mp::compare_mods(own, host);
     CHECK(d.size() == 1 && d[0].kind == Kind::kPack && mp::refusal_short(d) == "Pack b pack");
-    CHECK(mp::refusal_lines(d)[0] == "Your Pack b pack differs from the host's");
+    CHECK(mp::refusal_lines(d)[0] == "Pack b pack differs");
     CHECK(mp::mods_digest(own) != mp::mods_digest(host));
 
     own.packs = {pack("a", 1, "1.1"), pack("b", 2)};

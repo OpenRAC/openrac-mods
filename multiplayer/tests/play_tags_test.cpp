@@ -476,7 +476,7 @@ void the_words_name_no_region() {
         CHECK(line.size() <= mp::kPauseLine + 10);
     }
 
-    CHECK(std::string(mp::kDifferentDisc).find("a different disc") != std::string::npos);
+    CHECK(std::string(mp::kDifferentDisc).find("ifferent disc") != std::string::npos);
 }
 
 }  // namespace

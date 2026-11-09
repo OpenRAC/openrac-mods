@@ -83,18 +83,18 @@ const char* session_version() {
 // The port accepts at most OPENRAC_UI_TEXT_MAX bytes a field. Fit them here, before the API's byte
 // truncation, so accented player, save and planet names stay valid UTF-8.
 void set_content(const openrac::UiPage& page, openrac::UiContent& content) {
-    content.title = mp::fit_ui_text(content.title, OPENRAC_UI_TEXT_MAX);
+    content.title = mp::fit_ui_text(content.title, mp::kTitleMax);
 
     for (openrac::UiItem& item : content.items) {
-        item.label = mp::fit_ui_text(item.label, OPENRAC_UI_TEXT_MAX);
+        item.label = mp::fit_ui_text(item.label, mp::kItemMax);
 
         for (std::string& choice : item.choices) {
-            choice = mp::fit_ui_text(choice, OPENRAC_UI_TEXT_MAX);
+            choice = mp::fit_ui_text(choice, mp::kItemMax);
         }
     }
 
     for (std::string& line : content.footer) {
-        line = mp::fit_ui_text(line, OPENRAC_UI_TEXT_MAX);
+        line = mp::fit_ui_text(line, mp::kFooterLineMax);
     }
 
     page.set(content);
@@ -169,7 +169,7 @@ std::string comfort_banner(std::uint64_t now) {
     }
 
     if (g->comfort->near_downed()) {
-        return text("Hold L3 + R3 for 3s to rescue");
+        return text("Hold L3 + R3");
     }
 
     const float distance = g->comfort->rally_distance();
@@ -234,7 +234,7 @@ void show_comfort() {
 
     // The party's revive rule takes a fallen hero first (see the take-damage hook).
     if (party && revive_rule_held()) {
-        c.items.push_back(openrac::UiItem::text(text("The party's revive rule is on")));
+        c.items.push_back(openrac::UiItem::text(text("Revive rule: on")));
     }
 
     for (const mp::Member& member : g->session->members()) {
@@ -254,7 +254,7 @@ void show_comfort() {
         c.items.push_back(openrac::UiItem::text(line));
     }
 
-    c.footer = {text("Hold L3 + R3 for 3s to rescue")};
+    c.footer = {text("Hold L3 + R3")};
     set_content(g->comfort_page, c);
 }
 
@@ -1003,7 +1003,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.12.0", load)
+OPENRAC_MOD_CPP("multiplayer", "0.12.1", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

@@ -57,9 +57,9 @@ struct ModCode {
 ModCode read_mod_code(const std::string& folder, const ModList& own);
 
 /* The words of a page. */
-constexpr const char* kModCodeLabel = "Mod code: ";
-constexpr const char* kModCodeHint = "Enter it in the launcher, under Mods";
-constexpr const char* kModCodeInLauncher = "Your mod code is in the launcher";
+constexpr const char* kModCodeLabel = "Code: ";
+constexpr const char* kModCodeHint = "Enter it in launcher: Mods";
+constexpr const char* kModCodeInLauncher = "Your code is in the launcher";
 constexpr const char* kOpenInLauncher = "Open in launcher";
 
 }  // namespace mp
