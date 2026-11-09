@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The difficulty mod's library as the port loads it in Going Commando, against a host table and
 // game memory made here (openrac_mod.h), at each of the three discs' addresses (src/rac2/discs.h):
-// it refuses an unknown disc and an OpenRAC without its rac2 hook points, takes the seven by their
-// rac2 ids and signatures and none of rac1's; with the sliders at 1.0 each hook calls the game's
-// function exactly as it was called; with them moved, each scales what it should (the hit's points,
-// an enemy's damage once a hit, rounds, bolts for the call, speed, the max health's count with the
-// boosts, the weapon table without compounding); the enemy count, enemy speed and health pickups
-// change nothing here; and its party's rules are published as in rac1.
+// it refuses an unknown disc and an OpenRAC without its rac2 hook points (the nanotech orb's
+// among them), takes the eight by their rac2 ids and signatures and none of rac1's; with the sliders at 1.0 each hook calls the game's function exactly
+// as it was called; with them moved, each scales what it should (the hit's points, an enemy's
+// damage once a hit, rounds, bolts for the call, speed, the max health's count with the boosts, the
+// orb's health, the weapon table without compounding); the enemy count and enemy speed change
+// nothing here; and its party's rules are published as in rac1.
 //
 // Run with the library's path: difficulty_rac2_load_test <difficulty.dylib|.so|.dll>.
 #include <cmath>
@@ -134,6 +134,11 @@ int32_t game_nanotech_steps(std::uint32_t, std::uint32_t, std::uint32_t count) {
     return 0;
 }
 
+// The orb gives 2 health a tick.
+void game_ball(std::uint32_t) {
+    put<int32_t>(disc().hero + kHealth, get<int32_t>(disc().hero + kHealth) + 2);
+}
+
 // ---- The host table ----
 
 struct Taken {
@@ -200,6 +205,10 @@ void* original_for(const std::string& name) {
 
     if (name == "rac2.player.nanotech_steps") {
         return (void*)game_nanotech_steps;
+    }
+
+    if (name == "rac2.moby.nanotech_ball.update") {
+        return (void*)game_ball;
     }
 
     return nullptr;
@@ -397,6 +406,7 @@ struct Hooks {
     int32_t (*level_load)(int32_t, int32_t);
     void (*approach)(float, float);
     int32_t (*steps)(std::uint32_t, std::uint32_t, std::uint32_t);
+    void (*ball)(std::uint32_t);
 };
 
 Hooks hooks() {
@@ -411,9 +421,10 @@ Hooks hooks() {
     h.steps = (int32_t (*)(std::uint32_t, std::uint32_t, std::uint32_t))hook(
         "rac2.player.nanotech_steps"
     );
+    h.ball = (void (*)(std::uint32_t))hook("rac2.moby.nanotech_ball.update");
     CHECK(
         h.take_damage && h.get_hit && h.take_ammo && h.record_death && h.level_load && h.approach
-        && h.steps
+        && h.steps && h.ball
     );
     return h;
 }
@@ -464,7 +475,7 @@ int main(int argc, char** argv) {
     info.size = sizeof info;
     query(&info);
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.4.0") == 0);
+    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.5.0") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -476,9 +487,12 @@ int main(int argc, char** argv) {
     // An OpenRAC without the level load's hook point: refused, naming it.
     g_refuse = {"rac2.level.load"};
     CHECK(!load_with("ntsc") && g_failed.find("Level_Load") != std::string::npos);
+    // Without the nanotech orb's: refused too, naming it.
+    g_refuse = {"rac2.moby.nanotech_ball.update"};
+    CHECK(!load_with("pal") && g_failed.find("NanotechBall") != std::string::npos);
     g_refuse.clear();
 
-    // Each disc: the seven hook points with their signatures, none of rac1's.
+    // Each disc: the eight hook points with their signatures, none of rac1's.
     static const char* const k_points[][2] = {
         {"rac2.player.take_damage", "void(i32)"},
         {"rac2.combat.get_hit", "u32(u32,u32,i32)"},
@@ -487,11 +501,12 @@ int main(int argc, char** argv) {
         {"rac2.level.load", "i32(i32,i32)"},
         {"rac2.player.approach_speed", "void(f32,f32)"},
         {"rac2.player.nanotech_steps", "i32(u32,u32,u32)"},
+        {"rac2.moby.nanotech_ball.update", "void(u32)"},
     };
 
     for (const char* version : {"ntsc", "pal", "ntsc2"}) {
         CHECK(load_with(version) && g_failed.empty() && g_warnings.empty());
-        CHECK(g_hooks.size() == 7);
+        CHECK(g_hooks.size() == 8);
 
         for (const auto& p : k_points) {
             bool found = false;
@@ -534,6 +549,8 @@ int main(int argc, char** argv) {
         put<int32_t>(count, 4);
         h.steps(0x00620004u, 0x00620008u, count);
         CHECK(get<int32_t>(count) == 7);
+        h.ball(0x00630000u);
+        CHECK(get<int32_t>(d.hero + kHealth) == 12);
         g_loads = 0;
         CHECK(h.level_load(1, 0) == 0x00123450 && g_loads == 1);
         CHECK(get<int32_t>(row(1) + 0x80u) == 1001 && get<uint16_t>(row(1) + 0x8Eu) == 40);
@@ -554,7 +571,7 @@ int main(int argc, char** argv) {
              {"enemy_speed", 2.0}};
         CHECK(load_with(version) && g_failed.empty());
         // The enemy count and enemy speed are not Going Commando's: nothing more is hooked for them.
-        CHECK(g_hooks.size() == 7);
+        CHECK(g_hooks.size() == 8);
         lay_game();
         h = hooks();
         // Twice the points; a hit that heals or does nothing is the game's.
@@ -626,6 +643,19 @@ int main(int argc, char** argv) {
         CHECK(get<int32_t>(count) == 16);
         // A count the HUD asks for with none given: left alone.
         h.steps(0x00620004u, 0x00620008u, 0);
+        // The orb's 2 health count 3, carried over, never past the max.
+        put<int32_t>(d.hero + kHealth, 10);
+        h.ball(0x00630000u);
+        CHECK(get<int32_t>(d.hero + kHealth) == 13);
+        put<int32_t>(d.hero + kHealth, 19);
+        h.ball(0x00630000u);
+        CHECK(get<int32_t>(d.hero + kHealth) == 20);
+        // In a vehicle the game fills him to 4 at most, and so does the mod.
+        put<uint8_t>(d.hero + 0x22B4u, 1);
+        put<int32_t>(d.hero + kHealth, 3);
+        h.ball(0x00630000u);
+        CHECK(get<int32_t>(d.hero + kHealth) == 4);
+        put<uint8_t>(d.hero + 0x22B4u, 0);
         // The weapon table: from the level's own values at each load, never twice.
         h.level_load(1, 0);
         h.level_load(0, 1);
