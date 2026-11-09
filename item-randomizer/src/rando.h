@@ -206,6 +206,10 @@ void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]);
 /* 1 and *s when text is a code (case, hyphens and spaces do not matter; I and L read as 1, O as
  * 0); 0 when it is not one, or its checksum or format is wrong. */
 int rando_decode(const char* text, rando_settings* s);
+/* The seed tag a game started with the code keeps in its save (each game's own unused bytes:
+ * README.md, New games only): 64-bit FNV-1a of the code's text folded to 32 bits, never 0 (0 is a
+ * save with no tag). */
+uint32_t rando_seed_tag(const char* code);
 /* A word that is not a code: its seed (64-bit FNV-1a of its bytes, folded to 40 bits). */
 uint64_t rando_seed_of_text(const char* text);
 /* What the "seed" setting says: a code (its settings win: *s is the code's, returns 2), a word

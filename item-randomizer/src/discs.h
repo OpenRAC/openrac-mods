@@ -39,6 +39,9 @@ typedef struct rando_disc {
     uint32_t hero_clank;     /* u8: Clank is the one playing (hero_globals_base + 0x2EC1) */
     uint32_t hero_pending; /* i32: the head item the hero is handed next (g_hero_pending_item_2) */
     uint32_t drone_flag;   /* u8: set when the Drone Device is bought (update_vendor_purchase) */
+    uint32_t save_tag;     /* u32: chunk 24 of the save, which no code of the disc reads or writes
+                            * (D_0015EE9C; the save table's entry, scanned in the executable and every
+                            * level program): the seed's tag (README.md, New games only) */
 } rando_disc;
 
 /* The discs the mod knows, by openrac_api.version; the fields are in the order of the struct. */
@@ -61,7 +64,8 @@ static const rando_disc k_rando_discs[] = {
      0x0015F720u,
      0x001414F4u,
      0x00141510u,
-     0x00141445u},
+     0x00141445u,
+     0x0015EE9Cu},
     {"ntsc",
      0x0013D4C0u,
      0x0013D4E8u,
@@ -80,7 +84,8 @@ static const rando_disc k_rando_discs[] = {
      0x0015F640u,
      0x001413F4u,
      0x00141410u,
-     0x00141345u},
+     0x00141345u,
+     0x0015ED9Cu},
 };
 
 /* The moby's fields it reads (games/rac1/include/moby.h; the same on both discs). */

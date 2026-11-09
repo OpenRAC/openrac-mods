@@ -2,8 +2,8 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "2.3.1",
-  "author": "Flavius",
+  "version": "2.4.0",
+  "author": "Keros",
   "description": "Shuffles what the game gives out (Ratchet & Clank, and Going Commando): the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. Every seed can be finished: what you need is only ever placed where you can get it without it. Share a seed's code and a friend plays the same game. Each seed writes a spoiler log to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/item-randomizer",
@@ -39,6 +39,8 @@
     "rac1.vendor.menu_update",
     "rac1.help.request",
     "rac1.ship.init_transition",
+    "rac1.save.new_game",
+    "rac1.save.new_game_plus",
     "rac2.item.give",
     "rac2.item.equip",
     "rac2.moby.dynamo_pickup.update",
@@ -84,6 +86,14 @@
         }
       ],
       "description": "Standard: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. Relaxed: what you need also comes early in the game, and never behind a purchase you have to save up for. Expert: what you need may be behind any purchase, even the most expensive, and you get by with any weapon."
+    },
+    {
+      "key": "new_game_only",
+      "multiplayer": "own",
+      "name": "New games only",
+      "type": "bool",
+      "default": true,
+      "description": "Randomize only a game started with the item randomizer: a new game started from New Game with it on, or a save that game made (its save carries the seed's tag). A save from a game started without it, or with another seed, plays as the game does, so a playthrough is never changed partway. Off: such a save is randomized from where it is."
     },
     {
       "key": "shuffle_gadgets",

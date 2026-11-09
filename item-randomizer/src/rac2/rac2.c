@@ -42,6 +42,15 @@
  * 0x1395B8 on NTSC-U v1.01), in bytes no code of any of the three discs reads (+0xC0..+0xC7: the
  * seed's tag, then a bit per location), so a save carries its own progress and a new game starts
  * with none.
+ *
+ * New games only (the setting new_game_only, on by default): the mod changes a game only when its
+ * progress carries this seed's tag, so a playthrough started without it is never randomized partway.
+ * A new game gets the tag at its first tick in a level: New Game (NewGameInit) unpacks the disc's
+ * own starting save, whose clock (chunk 4, stamped by the game each time it saves) is zero, and no
+ * save on a card has a zero clock. A save loaded brings its own tag (or none) with its chunk 5.
+ * Without the tag (a game started without the mod, or with another seed) every hook hands the
+ * game its own routine and the vendor keeps its table; the log says why, once. With the setting
+ * off a save with no tag is taken over from where it is, as before 2.4.0.
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -87,6 +96,11 @@ static int s_giving;                      /* inside the mod's own give */
 static uint32_t s_loads = 0xFFFFFFFFu;    /* the level load the start's check ran for */
 static uint32_t s_stock_loads = 0xFFFFFFFFu; /* the program load the vendor's table was stocked in */
 static int s_stock_written;                  /* the table holds a seed's levels */
+static int s_stock_on = -1;                  /* whether the last stocking had the vendor shuffled */
+static int s_new_game_only;                  /* the setting: only a game the seed's tag marks */
+static uint32_t s_own_tag;                   /* this game's own seed's tag (a party's host's aside) */
+static uint32_t s_told_tag;                  /* the tag the log last spoke of */
+static int s_told = -1;                      /* what the log last said of it (GATE_*), -1 nothing */
 
 /* The owned bytes shown otherwise while a giver's update runs: the player's own value. */
 typedef struct standin {
@@ -123,16 +137,95 @@ static void log_line(int level, const char* text) {
 
 /* ---- what is had ---- */
 
-/* The seed's tag: the code's 60 bits folded, never 0 (0 is a save that has none yet). */
+/* The seed's tag (rando_seed_tag), never 0 (0 is a save that has none yet). */
 static uint32_t seed_tag(void) {
-    uint64_t h = 1469598103934665603ull;
+    return rando_seed_tag(s_code);
+}
 
-    for (const char* p = s_code; *p != 0; ++p) {
-        h = (h ^ (uint8_t)*p) * 1099511628211ull;
+/* ---- new games only ---- */
+
+/* What the gate found of the game in progress (the log's words, gate_tell). */
+enum { GATE_OURS, GATE_NEW, GATE_UNTAGGED, GATE_OTHER, GATE_TAKEN };
+
+/* Whether tag is this game's: its own seed's, or the seed it plays now (a party's host's). */
+static int tag_ours(uint32_t tag) {
+    return tag != 0 && (tag == s_own_tag || tag == seed_tag());
+}
+
+/* Whether the mod changes the game in progress: its progress has this seed's tag, or the setting
+ * lets it take over any game. */
+static int rando_on(void) {
+    return !s_new_game_only || tag_ours(get32(MARK_TAG));
+}
+
+/* Whether the game's clock is zero: a game never saved, started by New Game from the disc's own
+ * starting save (every save on a card was stamped by the game as it saved). */
+static int never_saved(void) {
+    const uint8_t* c = byte_at(s_disc->clock);
+
+    for (int i = 0; i < 8; ++i) {
+        if (c[i] != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* One line in the log each time the game in progress turns out another (a save loaded, a new
+ * game). */
+static void gate_tell(int what, uint32_t tag) {
+    if (what == s_told && tag == s_told_tag) {
+        return;
+    }
+    s_told = what;
+    s_told_tag = tag;
+
+    char line[256];
+    switch (what) {
+        case GATE_NEW:
+            snprintf(line, sizeof line, "item randomizer: a new game, randomized with seed %s from "
+                     "the start", s_code);
+            break;
+        case GATE_UNTAGGED:
+            snprintf(line, sizeof line, "item randomizer: this game was not started with the item "
+                     "randomizer (its save has no seed tag), so it plays as the game does; start a "
+                     "new game to play seed %s", s_code);
+            break;
+        case GATE_OTHER:
+            snprintf(line, sizeof line, "item randomizer: this game was started with another seed "
+                     "(tag %08X), not %s, so it plays as the game does; put that seed's code in the "
+                     "settings to go on with it", (unsigned)tag, s_code);
+            break;
+        case GATE_TAKEN:
+            snprintf(line, sizeof line, "item randomizer: \"New games only\" is off: this game, "
+                     "started without seed %s, is randomized from here on", s_code);
+            break;
+        default:
+            snprintf(line, sizeof line, "item randomizer: a game of seed %s, randomized", s_code);
+            break;
+    }
+    log_line(what == GATE_UNTAGGED || what == GATE_OTHER ? OPENRAC_LOG_WARN : OPENRAC_LOG_INFO,
+             line);
+}
+
+/* At each tick in a level: a new game gets this seed's tag (so its first save carries it); with
+ * the setting off, so does a game with none. Then the log says what the game in progress is. */
+static void gate_tick(void) {
+    const uint32_t tag = get32(MARK_TAG);
+
+    if (tag == 0 && (never_saved() || !s_new_game_only)) {
+        set32(MARK_TAG, seed_tag());
+        gate_tell(never_saved() ? GATE_NEW : GATE_TAKEN, seed_tag());
+        return;
     }
 
-    const uint32_t tag = (uint32_t)(h ^ (h >> 32));
-    return tag != 0 ? tag : 1u;
+    if (tag_ours(tag)) {
+        if (s_told_tag != tag) {
+            gate_tell(GATE_OURS, tag);
+        }
+    } else if (s_new_game_only) {
+        gate_tell(tag == 0 ? GATE_UNTAGGED : GATE_OTHER, tag);
+    }
 }
 
 static int had(int location) {
@@ -140,8 +233,9 @@ static int had(int location) {
 }
 
 static void mark_had(int location) {
-    // The progress of a save made with another seed (or none) is this seed's from now on.
-    if (get32(MARK_TAG) != seed_tag()) {
+    // The progress of a save made with another seed (or none) is this seed's from now on: only
+    // with "new games only" off, as the hooks act on no other.
+    if (!tag_ours(get32(MARK_TAG))) {
         if (get32(MARK_TAG) != 0) {
             log_line(OPENRAC_LOG_WARN, "item randomizer: this game was played with another seed");
         }
@@ -212,7 +306,8 @@ static void check(int i) {
 static void give_hook(int32_t id) {
     const int replaying = s_api->party_replaying != NULL && s_api->party_replaying();
 
-    if (s_giving || replaying || id <= 0 || id >= R2_ITEM_COUNT || s_location_of[id] < 0) {
+    if (s_giving || replaying || !rando_on() || id <= 0 || id >= R2_ITEM_COUNT
+        || s_location_of[id] < 0) {
         s_give(id);
         return;
     }
@@ -240,8 +335,8 @@ static int real_owned(int item) {
 static int32_t equip_hook(int32_t id) {
     const int replaying = s_api->party_replaying != NULL && s_api->party_replaying();
 
-    if (s_giving || replaying || id <= 0 || id >= R2_ITEM_COUNT || s_location_of[id] < 0
-        || real_owned(id)) {
+    if (s_giving || replaying || !rando_on() || id <= 0 || id >= R2_ITEM_COUNT
+        || s_location_of[id] < 0 || real_owned(id)) {
         return s_equip(id);
     }
 
@@ -256,6 +351,12 @@ static int32_t equip_hook(int32_t id) {
 /* ---- the givers' updates ---- */
 
 static void giver(void (*original)(uint32_t), uint32_t moby, const int* items, int count) {
+    // A game not this seed's: the giver as the game has it.
+    if (!rando_on()) {
+        original(moby);
+        return;
+    }
+
     const int base = s_standin_count;
 
     for (int k = 0; k < count && s_standin_count < MAX_STANDINS; ++k) {
@@ -331,13 +432,17 @@ static int stock_is_games(void) {
 
 /* The vendor's table, once each program load (it is level data: each level's program brings the
  * game's own again), when its weapons are the game's own (never written over anything else): the
- * seed's levels, or the game's own back when a placement that shuffled it has gone (a party's). */
+ * seed's levels, or the game's own back when a placement that shuffled it has gone (a party's) or
+ * the game in progress is not this seed's. Again within a load when that changes (a new game's
+ * tag comes at its first tick in the level). */
 static void stock_vendor(uint32_t loads) {
-    if (s_stock_loads == loads) {
+    const int shuffled = rando_on() && (s_plan.settings.pools & POOL_VENDOR) != 0;
+
+    if (s_stock_loads == loads && s_stock_on == shuffled) {
         return;
     }
     s_stock_loads = loads;
-    const int shuffled = (s_plan.settings.pools & POOL_VENDOR) != 0;
+    s_stock_on = shuffled;
 
     if (!shuffled && !s_stock_written) {
         return;
@@ -389,9 +494,14 @@ static void each_tick(void* user) {
         return;
     }
 
+    // A level's game logic runs: the game in progress is known (a new game or a save's).
+    if (st.phase == OPENRAC_PLAY_PLAYING || st.phase == OPENRAC_PLAY_SCENE) {
+        gate_tick();
+    }
+
     stock_vendor(st.loads);
 
-    if (st.phase != OPENRAC_PLAY_PLAYING && st.phase != OPENRAC_PLAY_SCENE) {
+    if ((st.phase != OPENRAC_PLAY_PLAYING && st.phase != OPENRAC_PLAY_SCENE) || !rando_on()) {
         return;
     }
 
@@ -545,6 +655,9 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_loads = 0xFFFFFFFFu;
     s_stock_loads = 0xFFFFFFFFu;
     s_stock_written = 0;
+    s_stock_on = -1;
+    s_told = -1;
+    s_told_tag = 0;
 
     s_disc = r2_disc_of(api->version);
     if (s_disc == NULL) {
@@ -581,6 +694,8 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     }
 
     s_own_settings = s_plan.settings;
+    s_own_tag = seed_tag();
+    s_new_game_only = api->setting_bool(mod, "new_game_only");
     s_following = 0;
     // A port with party rules may yet bring a host's seed that shuffles something.
     const int rules = api->api_minor >= 14 && api->party_rules_publish != NULL
@@ -617,8 +732,9 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     }
 
     char line[160];
-    snprintf(line, sizeof line, "item randomizer: Going Commando, seed code %s, logic %s", s_code,
-             rando_difficulty_name(s_plan.settings.difficulty));
+    snprintf(line, sizeof line, "item randomizer: Going Commando, seed code %s, logic %s%s", s_code,
+             rando_difficulty_name(s_plan.settings.difficulty),
+             s_new_game_only ? ", new games only" : "");
     log_line(OPENRAC_LOG_INFO, line);
     write_files(source);
     return 0;

@@ -252,6 +252,20 @@ int rando_parse_seed_setting(const char* text, rando_settings* s) {
     return 1;
 }
 
+/* ---- the seed tag ---- */
+
+uint32_t rando_seed_tag(const char* code) {
+    uint64_t h = 1469598103934665603ull;
+
+    // FNV-1a over the code's bytes, as written ("XXXX-XXXX-XXXX").
+    for (const char* p = code != NULL ? code : ""; *p != 0; ++p) {
+        h = (h ^ (uint8_t)*p) * 1099511628211ull;
+    }
+
+    const uint32_t tag = (uint32_t)(h ^ (h >> 32));
+    return tag != 0 ? tag : 1u;
+}
+
 /* ---- the difficulties ---- */
 
 /* The difficulty's name for the log and the spoiler; "standard" for a value out of range. */

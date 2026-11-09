@@ -59,6 +59,7 @@ static const r2_disc* s_disc;
 #define OWNED (s_disc->owned)
 #define NEW_FLAG (s_disc->new_flag)
 #define STOCK_TABLE (s_disc->stock_table)
+#define MARK_TAG (s_disc->progress + 0xC0u)
 #define MARK_BITS (s_disc->progress + 0xC4u)
 #define MEMORY_SIZE 0x00300000u
 
@@ -67,6 +68,7 @@ static char s_failed[256];
 static char s_notice[256];
 static const char* s_seed = "going commando";
 static int s_vendor = 1;
+static int s_new_game_only; /* the "new_game_only" setting the host gives */
 
 typedef struct hooked {
     const char* name;
@@ -147,6 +149,9 @@ static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
     if (strcmp(key, "shuffle_vendor") == 0) {
         return s_vendor;
+    }
+    if (strcmp(key, "new_game_only") == 0) {
+        return s_new_game_only;
     }
     return strcmp(key, "spoiler_log") == 0 || strncmp(key, "shuffle_", 8) == 0
            || strcmp(key, "keep_starting_gear") == 0;
@@ -460,6 +465,146 @@ static void play_disc(openrac_mod_load_fn load, openrac_mod* mod, const r2_disc*
     s_seed = "going commando";
 }
 
+/* The vendor's table as the game has it. */
+static void games_vendor_table(void) {
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        set32(STOCK_TABLE + 8u * (uint32_t)i, r2_vendor_stock[i].item);
+        set32(STOCK_TABLE + 8u * (uint32_t)i + 4u, r2_vendor_stock[i].level);
+    }
+    set32(STOCK_TABLE + 8u * R2_VENDOR_COUNT, (uint32_t)-2);
+}
+
+static int vendor_is_games(void) {
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        if (get32(STOCK_TABLE + 8u * (uint32_t)i + 4u) != (uint32_t)r2_vendor_stock[i].level) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* A game in progress as a save leaves it: its clock (stamped when it saved, zero for a new game
+ * never saved), its tag, nothing owned or had, the vendor's table the game's. */
+static void game_state(int saved, uint32_t tag) {
+    memset(s_memory + s_disc->clock, 0, 8);
+    if (saved) {
+        static const uint8_t k_clock[8] = {0, 0x05, 0x10, 0x23, 0, 0x08, 0x11, 0x26};
+        memcpy(s_memory + s_disc->clock, k_clock, 8);
+    }
+    set32(MARK_TAG, tag);
+    set32(MARK_BITS, 0);
+    memset(s_memory + OWNED, 0, R2_ITEM_COUNT);
+    memset(s_memory + NEW_FLAG, 0, R2_ITEM_COUNT);
+    games_vendor_table();
+}
+
+/* New games only (the setting on): a new game gets this seed's tag and is randomized, a save with
+ * it is, and a save with none (a game started without the mod) or another seed's is the game's own
+ * throughout: the give, the equip, the givers, Endako's sets, the level start and the vendor. */
+static void new_games_only(openrac_mod_load_fn load, openrac_mod* mod, const r2_disc* disc) {
+    s_disc = disc;
+    memset(s_memory, 0, MEMORY_SIZE);
+    s_hook_count = 0;
+    s_frame = NULL;
+    s_failed[0] = 0;
+    s_new_game_only = 1;
+    s_seed = "going commando";
+    openrac_api api = make_api(disc->version);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 14 && s_frame != NULL);
+    if (s_frame == NULL || s_hook_count != 14) {
+        return;
+    }
+
+    const rando_options o = {s_seed, 1, 1, 0, 0, 1, 1, "standard"};
+    rando_settings st;
+    rando_settings_of(&o, NULL, 0, &st);
+    st.pools &= (uint8_t)(POOL_GADGETS | POOL_WEAPONS | POOL_VENDOR);
+    st.keep_start = 1;
+    r2_plan plan;
+    CHECK(r2_solve(&st, &plan) == 0);
+    char code[RANDO_CODE_SIZE];
+    rando_encode(&plan.settings, code);
+    const uint32_t tag = rando_seed_tag(code);
+
+    // A place whose reward is another item: the Sheepinator's (Todano) when it is, else the first.
+    int x = R2_SHEEPINATOR, xi = location_of(R2_SHEEPINATOR);
+    for (size_t i = 0; i < r2_location_count && (xi < 0 || plan.reward[xi] == x); ++i) {
+        if (plan.shuffled[i] && plan.reward[i] != r2_locations[i].item) {
+            x = r2_locations[i].item;
+            xi = (int)i;
+        }
+    }
+    CHECK(xi >= 0 && plan.reward[xi] != x);
+    const int xr = plan.reward[xi];
+    const int tractor = location_of(R2_TRACTOR_BEAM);
+    const uint32_t untagged_cases[2] = {0, rando_seed_tag("0000-0000-0000")};
+
+    for (int c = 0; c < 2; ++c) {
+        // A save of a game started without the mod (no tag), then one of another seed.
+        game_state(1, untagged_cases[c]);
+        tick(1, 10u + (uint32_t)c);
+        CHECK(get32(MARK_TAG) == untagged_cases[c]); /* never tagged */
+        CHECK(vendor_is_games());
+        give(x);
+        CHECK(s_memory[OWNED + (uint32_t)x] == 1 && s_memory[OWNED + (uint32_t)xr] == 0);
+        CHECK(get32(MARK_BITS) == 0);
+        s_equipped = -1;
+        CHECK(equip(x) == 1 && s_equipped == x);
+        // A giver sees the player's own byte.
+        s_memory[OWNED + R2_TRACTOR_BEAM] = 1;
+        s_giver_item = R2_TRACTOR_BEAM;
+        ((void (*)(uint32_t))hook_named("rac2.moby.tractor_beam_seller.update"))(0x1000);
+        CHECK(s_saw == 1 && ((get32(MARK_BITS) >> tractor) & 1u) == 0);
+        // Endako's own sets stay the player's.
+        memset(s_memory + OWNED, 0, R2_ITEM_COUNT);
+        s_memory[OWNED + R2_GRINDBOOTS] = 1;
+        tick(R2_ENDAKO, 20u + (uint32_t)c);
+        CHECK(s_memory[OWNED + R2_GRINDBOOTS] == 1 && get32(MARK_BITS) == 0);
+    }
+
+    // A new game (the disc's starting save: clock and tag zero): the tag at its first tick, the
+    // vendor's table the seed's, and the place gives its reward.
+    game_state(0, 0);
+    tick(0, 30);
+    CHECK(get32(MARK_TAG) == tag);
+    CHECK(get32(STOCK_TABLE + 4u) == (uint32_t)plan.stock[0]);
+    give(x);
+    CHECK(s_memory[OWNED + (uint32_t)xr] == 1 && s_memory[OWNED + (uint32_t)x] == 0);
+    CHECK((get32(MARK_BITS) >> xi) & 1u);
+
+    // A save that game made: randomized, its places had carried.
+    const uint32_t bits = get32(MARK_BITS);
+    game_state(1, tag);
+    set32(MARK_BITS, bits);
+    tick(1, 31);
+    CHECK(get32(STOCK_TABLE + 4u) == (uint32_t)plan.stock[0]);
+    CHECK(s_memory[OWNED + (uint32_t)xr] == 1); /* the level start gives it back */
+    s_memory[OWNED + (uint32_t)xr] = 0;
+    give(x); /* had already: nothing */
+    CHECK(s_memory[OWNED + (uint32_t)x] == 0 && s_memory[OWNED + (uint32_t)xr] == 0);
+
+    // Back to an untagged save within the session: the game's own again, the vendor's table too.
+    game_state(1, 0);
+    for (int i = 0; i < R2_VENDOR_COUNT; ++i) {
+        set32(STOCK_TABLE + 8u * (uint32_t)i + 4u, (uint32_t)plan.stock[i]);
+    }
+    tick(1, 32);
+    CHECK(vendor_is_games());
+    give(x);
+    CHECK(s_memory[OWNED + (uint32_t)x] == 1 && s_memory[OWNED + (uint32_t)xr] == 0);
+
+    // The setting off: a save with no tag is taken over at its first tick, and gets the tag.
+    s_new_game_only = 0;
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    game_state(1, 0);
+    tick(1, 40);
+    CHECK(get32(MARK_TAG) == tag);
+    give(x);
+    CHECK(s_memory[OWNED + (uint32_t)xr] == 1 && s_memory[OWNED + (uint32_t)x] == 0);
+    s_new_game_only = 0;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: rac2_load_test <library>\n");
@@ -485,6 +630,7 @@ int main(int argc, char** argv) {
     CHECK(sizeof k_r2_discs / sizeof k_r2_discs[0] == 3);
     for (size_t d = 0; d < sizeof k_r2_discs / sizeof k_r2_discs[0]; ++d) {
         play_disc(load, mod, &k_r2_discs[d]);
+        new_games_only(load, mod, &k_r2_discs[d]);
     }
 
     if (s_failures == 0) {

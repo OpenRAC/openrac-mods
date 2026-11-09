@@ -27,6 +27,7 @@ and start a **new game**.
 | Setting | Default | |
 |---|---|---|
 | Seed | blank | A **seed code** someone shared (`4ZRJ-6HB7-H6Q5`: it carries their settings, so you play their game), or any word (`ratchet`: the same word with the same settings gives the same game). Blank: a random seed, rolled the first time and kept for your next starts; to roll another, type any word, or delete `seed.txt` in the data folder below. Codes from before version 2 no longer work: their game cannot be made again |
+| New games only | on | The mod changes only a game started with it: a **new game** started with it on, or a save that game made (the save carries the seed's tag). A save from a game started without it, or with another seed, plays as the game does, so a playthrough is never changed partway; the log says why. Off: such a save is randomized from where it is |
 | Logic | Standard | **Standard**: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. **Relaxed**: what you need also comes early in the game, and never behind a purchase you have to save up for. **Expert**: what you need may be behind any purchase, even the most expensive, and you get by with any weapon |
 | Shuffle gadgets | on | The Heli-Pack, the Swingshot, the Magneboots, the Grindboots, ... from NPCs and pickups |
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
@@ -51,12 +52,17 @@ per seed. It is in the launcher's per-user data folder, never beside the game:
 
 (`OPENRAC_MOD_DATA_DIR` in the environment names another.)
 
-**Saves.** The mod writes nothing of its own into a save: what you have found is the game's own
-record, and where everything is comes from the seed. So a save made with the mod **belongs to its
-seed**: load it with the same seed code and settings. Loaded with another seed it still loads, but
-what is left to find follows the other seed. With the mod off, a save made with it loads as a save
-of the game, with the items you had. Saves from before version 2 belong to a seed that can no longer
-be made: start a new game.
+**Saves.** What you have found is the game's own record, and where everything is comes from the
+seed; the one thing of the mod's in a save is its **seed's tag**, set when a new game starts with
+it (Ratchet & Clank: chunk 24 of the save, a word no code of the game reads or writes; Going
+Commando: chunk 5's `+0xC0`). So a save made with the mod **belongs to its seed**: load it with the
+same seed code and settings. With **New games only** on (the default) a save with no tag (a game
+started without the mod) or another seed's tag plays as the game does, and the log says
+`this game was not started with the item randomizer` or `started with another seed`: start a new
+game, or put that seed's code in the settings. With the mod off, a save made with it loads as a
+save of the game, with the items you had. Saves from before version 2 belong to a seed that can no
+longer be made: start a new game. Ratchet & Clank saves from before 2.4.0 have no tag: they play as
+the game does unless New games only is off.
 
 **What stays as the game has it.** The OmniWrench; the Persuader on Pokitaru; the planets'
 coordinates the NPCs give (the mechanic on Novalis, Agnogg's ship, the bouncer, the commando and the
@@ -189,7 +195,9 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 - `load`: the library as the port loads it, against a host of the test's own: its refusals, its hook
   points and their signatures, and each hook against a game memory that behaves as the game's bytes
   do: every vendor slot bought over 13 seeds and every kind of reward, the banner, equipping, a reward
-  lost to a save, a party's item spending its place, Orxon, the helmet, tutorials and drops.
+  lost to a save, a party's item spending its place, Orxon, the helmet, tutorials and drops; and New
+  games only: a new game gets the tag and is randomized, a tagged save is, and a save with no tag or
+  another seed's is the game's own throughout (challenge mode keeps the tag it had).
 
 ## What is not known
 
@@ -268,8 +276,21 @@ The spoiler log is `spoiler-rac2-<code>.txt` in the mod's data folder; a blank s
 - Which places are had is kept in the save itself, in progress bytes no code reads (chunk 5,
   `0x1395B8 + 0xC0`..`+0xC7` on NTSC-U, `0x139638 + 0xC0` on PAL: the seed's tag and a bit per place), so a new game starts with none and
   a loaded save carries its own.
+- New games only: a game is changed only when its progress has this seed's tag. A new game gets it
+  at its first tick in a level: New Game unpacks the disc's own starting save, whose clock (chunk 4,
+  stamped by the game each time it saves) is zero on all three discs, and no save on a card has a
+  zero clock. A save with no tag, or another seed's, is the game's own: every hook hands the game its
+  routine and the vendor keeps its table.
 
 **Not yet.** Platinum bolts, Nanotech Boosts and the coordinates in the pools (Ratchet & Clank's gold
 bolts and infobots); the game's own "you got" words for the reward. Tests:
 `tests/rac2/solver_test.c` (every seed of every setting beatable, the tables) and
-`tests/rac2/load_test.c` (the library against a host and memory of its own, on each disc's addresses).
+`tests/rac2/load_test.c` (the library against a host and memory of its own, on each disc's addresses,
+with New games only's new game, tagged save, untagged save and another seed's save).
+
+## History
+
+- 2.4.0: **New games only** (on by default): the mod randomizes only a game started with it (a new
+  game, or a save carrying its seed's tag) and leaves any other save as the game has it, so an
+  update or a mod switched on can no longer change a playthrough partway. Ratchet & Clank saves
+  now carry the tag too. Built against the mod SDK 1.14.4.
