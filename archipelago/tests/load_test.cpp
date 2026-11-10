@@ -479,7 +479,7 @@ int main(int argc, char** argv) {
     *at(D->planets + LEVEL_NOVALIS) = 1;
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 14 && g_frame != nullptr);
+    CHECK(g_hooks == 15 && g_frame != nullptr);
 
     // The server's Heli-Pack is given, its obtained byte left to its own location.
     CHECK(frames_until([] { return g_connected; }));
