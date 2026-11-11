@@ -1114,6 +1114,12 @@ int main(int argc, char** argv) {
         CHECK(stock[0] == ITEM_BLASTER && stock[1] == 0xFF); /* the level's weapon, first */
         CHECK(get32(s_memory + D->last_weapon) == 0);
         CHECK(sr.kind != REWARD_ITEM || s_memory[D->owned + sr.value] == 1);
+
+        /* A saved/default glove selection must be removed even when the start is already
+         * checked and the game's stock initializer does not add a fresh ammo row. */
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        init();
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_WRENCH);
     }
 
     printf("the start gave %d/%d\n", sr.kind, sr.value);
@@ -1514,6 +1520,49 @@ int main(int argc, char** argv) {
         memset(s_memory + D->item_price_table, 0, 37 * 0x18);
         set32(s_memory + D->item_price_table + ITEM_BOMB_GLOVE * 0x18 + 8, 1);
         s_frame(NULL); /* claim the save for this seed */
+
+        /* Circle and Triangle use remembered selections without checking ownership, even
+         * when stock init did not insert a Bomb Glove ammunition row. */
+        const uint32_t hero = disc == 0 ? 0x13F450 : 0x13F350;
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        set32(s_memory + D->level + 8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x10B8, ITEM_WRENCH);
+        set32(s_memory + hero + 0x20B8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20F0, ITEM_BOMB_GLOVE);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_WRENCH);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_WRENCH);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_WRENCH);
+        CHECK(get32(s_memory + hero + 0x20F0) == ITEM_WRENCH);
+
+        /* A stale equipped/selected glove requests the normal switch, leaving the live
+         * item moby to the game. A valid incoming selection must not be replaced. */
+        set32(s_memory + hero + 0x10B8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20D4, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20B8, 0);
+        s_frame(NULL);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_WRENCH);
+        CHECK(get32(s_memory + hero + 0x10B8) == ITEM_BOMB_GLOVE);
+        s_memory[D->owned + ITEM_TESLA_CLAW] = 1;
+        set32(s_memory + D->last_weapon, ITEM_TESLA_CLAW);
+        set32(s_memory + D->level + 8, ITEM_TESLA_CLAW);
+        set32(s_memory + hero + 0x20B8, ITEM_TESLA_CLAW);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_TESLA_CLAW);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_TESLA_CLAW);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_TESLA_CLAW);
+        s_memory[D->owned + ITEM_TESLA_CLAW] = 0;
+
+        /* Once actually owned (kept starting gear or a reward), the glove stays usable. */
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 1;
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        set32(s_memory + D->level + 8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20B8, ITEM_BOMB_GLOVE);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_BOMB_GLOVE);
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 0;
         s_menu_opens = 0;
         open(0);
         CHECK(s_menu_opens == 0); /* empty PDA */
@@ -1568,6 +1617,15 @@ int main(int argc, char** argv) {
         set_tag_word(0);
         s_hook_count = 0;
         CHECK(load(&api, mod) == 0);
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        set32(s_memory + D->level + 8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20B8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20F0, ITEM_BOMB_GLOVE);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + hero + 0x20F0) == ITEM_BOMB_GLOVE);
         open = (openrac_rac1_Vendor_OpenMenu)hook_named("Vendor_OpenMenu");
         open(0);
         CHECK(s_menu_opens == 4);

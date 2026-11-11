@@ -226,6 +226,10 @@ the normal menu closing transition. The Gadgetron PDA opens only when ammunition
 including ammunition generated for owned weapons. These protections cover NTSC-U and PAL v2.00
 and require an OpenRAC build with `Vendor_OpenMenu` (OpenRAC/OpenRAC#422).
 
+When Bomb Glove is not owned, stale starting equipment and Circle/Triangle shortcuts fall back
+to the wrench. An owned Bomb Glove (kept starting gear or a reward) works normally. This guard
+also respects the save/seed gate.
+
 ## Going Commando
 
 The same mod plays Ratchet & Clank: Going Commando on its three discs: NTSC-U v1.01 (`SCUS_972.68`,
