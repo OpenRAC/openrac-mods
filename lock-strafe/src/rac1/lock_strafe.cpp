@@ -240,7 +240,8 @@ unsigned s_reverse_tick;
 // The side reversal's timers (strafe.h).
 rac1_strafe_reverse s_reverse;
 
-// The last move yaw the stick gave while strafing, for the slide to a stop (strafe.h).
+// Where his speed goes as a strafe ends: the stick's last yaw, and whether he is leaving one
+// (strafe.h).
 rac1_strafe_glide s_glide;
 
 // The hip twist: the pelvis's and the spine's springs, and whether the hero has the twist's joints
@@ -586,8 +587,11 @@ void pad_process_report(Original original, gaddr pad_state, gaddr report, int32_
         clear_twist();
     }
 
-    // Not strafing: the slide's yaw is forgotten, so the next strafe starts from its own stick.
-    if (rac1_strafe_kind(s_mode, &in, &s_hold) == RAC1_STRAFE_NONE) {
+    // Out of the strafe and the run, or out of play on foot: the glide is forgotten, so the next
+    // run is the game's (and a scene or a vehicle never slides along an old stick).
+    if (rac1_strafe_glide_ends(
+            rac1_strafe_kind(s_mode, &in, &s_hold), in.state, in.playing && in.vehicle_mode == 0
+        )) {
         s_glide = rac1_strafe_glide{};
     }
 
@@ -725,26 +729,29 @@ void camera_overrides(Original original, gaddr camera) {
 
 // Hero_SetPlanarVelocity: the velocity at the ground speed along an angle, the facing for one
 // above pi. While strafing, along the move yaw instead: where the stick points, as the game's own
-// run start from a standstill asks for.
+// run start from a standstill asks for; and as a strafe ends, along the stick until he has turned
+// to it or stopped (strafe.h, the glide).
 template <class Original>
 void set_planar_velocity(Original original, float angle) {
     // An angle above pi is the game's request for the facing; while strafing it becomes the move yaw.
     if (!(angle <= RAC1_STRAFE_PI)) {
         const int kind = strafe_kind();
-        // The stick's yaw, or while he slows with it let go the last one it gave (strafe.h).
-        const float move_yaw = rac1_strafe_glide_yaw(
+        const int state = ref<int32_t>(hero() + k_hero_state);
+        const bool running = state == RAC1_STRAFE_STATE_RUN || state == RAC1_STRAFE_STATE_RUN_ALT;
+        // Along the stick while strafing, and as a strafe ends while he turns or slows (strafe.h).
+        angle = rac1_strafe_glide_angle(
             &s_glide,
             kind,
+            running,
             get_float(hero() + k_hero_target_speed),
-            get_float(hero() + k_hero_move_yaw)
+            get_float(hero() + k_hero_facing),
+            get_float(hero() + k_hero_move_yaw),
+            angle
         );
-        angle = rac1_strafe_planar_angle(kind, angle, move_yaw);
-        const int state = ref<int32_t>(hero() + k_hero_state);
 
         // Going Commando's side reversal, once a tick in the run: going from one side to the other
         // kills the speed he had (strafe.h).
-        if (kind != RAC1_STRAFE_NONE && s_feel == RAC1_STRAFE_FEEL_COMMANDO
-            && (state == RAC1_STRAFE_STATE_RUN || state == RAC1_STRAFE_STATE_RUN_ALT)
+        if (kind != RAC1_STRAFE_NONE && s_feel == RAC1_STRAFE_FEEL_COMMANDO && running
             && s_reverse_tick != s_tick) {
             s_reverse_tick = s_tick;
             const float f = rac1_strafe_reverse_step(

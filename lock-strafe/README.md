@@ -211,8 +211,10 @@ In 1.1.1 the hip twist turns the right way. 1.1.0 turned his hips away from wher
 went, so strafing sideways his legs walked the other way (the moonwalk; DESIGN.md).
 In 1.2.0 the setting **Strafe button** lets L2 or R2 alone strafe, leaving the
 other to the game and to mods that use it (a wrench throw raised on R2).
-In 1.2.1 he no longer slides forward as he stops from a strafe (with the stick
-let go the game turns the move yaw back to his facing; the strafe now keeps the
-stick's last one while he slows), and a strafe flip goes straight to the side
-or back (state 0xB carried his run speed along his facing; the strafe flip
-carries none).
+In 1.2.1 he no longer slides forward as a strafe ends. Stopping (the stick let
+go: the game turns the move yaw back to his facing) he slows along the stick's
+last yaw; letting go of L2 or R2 while running on (the game turns him to the
+stick over a few ticks and runs along his facing meanwhile) his speed follows
+the stick until he faces it. A strafe flip goes straight to the side or back
+(state 0xB carried his run speed along his facing; the strafe flip carries
+none).

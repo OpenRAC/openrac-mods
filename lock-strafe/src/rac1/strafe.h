@@ -345,35 +345,85 @@ static inline float rac1_strafe_planar_angle(int kind, float requested, float mo
     return kind != RAC1_STRAFE_NONE && !(requested <= RAC1_STRAFE_PI) ? move_yaw : requested;
 }
 
-/* The way he slides once the stick is let go. With the stick centred the game's stick handler
- * (func_L00_00211F80) sets the move yaw to his facing and his target speed (+0x190) to 0, and the
- * run eases his speed down over a few ticks along that yaw: after a strafe that is forward, a
- * shuffle ahead as he stops. So the last move yaw the stick gave is kept and used while he slows. */
+/* Where his speed goes as a strafe ends. The run builds his velocity along his facing (a request
+ * above pi), and a strafe's speed lies along the stick instead, so two moments would push him
+ * ahead:
+ *
+ * - the stick let go: the game's stick handler (func_L00_00211F80) sets the move yaw to his facing
+ *   and his target speed (+0x190) to 0, and the run eases his speed down along that yaw, a shuffle
+ *   forward as he stops. The last move yaw the stick gave is kept while he slows;
+ * - the strafe let go (L2 or R2 up, or the weapon put away in Lock) while he runs on: the game
+ *   turns him toward the stick over several ticks and runs along his facing meanwhile, so running
+ *   back he went on forward first. The velocity follows the stick until his facing is within 3
+ *   degrees of it, the game's own rule for its run start from a standstill (+0x3B8, which builds
+ *   along the move yaw until the yaw error is under 0.0524), or until he stops or leaves the run.
+ *
+ * Both only redirect his speed: how fast he goes and turns stays the game's. */
+#define RAC1_STRAFE_TURNED 0.0523598790f /* 3 degrees */
+
 typedef struct rac1_strafe_glide {
-    int valid; /* yaw is the stick's, from this strafe */
-    float yaw; /* the last move yaw with the stick pushed */
+    int valid;   /* yaw holds the stick's last move yaw, from this strafe */
+    int leaving; /* a strafe in the run just ended: the velocity follows the stick */
+    float yaw;   /* the last move yaw with the stick pushed */
 } rac1_strafe_glide;
 
-/* The move yaw the velocity is built along while strafing (kind not none): the stick's while it is
- * pushed (target_speed above 0), the last one it gave while he slows to a stop. Not strafing, it
- * forgets the yaw and gives the move yaw back. */
-static inline float rac1_strafe_glide_yaw(
-    rac1_strafe_glide* g, int kind, float target_speed, float move_yaw
+/* The angle Hero_SetPlanarVelocity builds along, once a call, and the glide's memory: kind is the
+ * strafe now, running whether he is in the run's states, target_speed the stick's (0 let go). An
+ * angle of the caller's own (pi or below) is always kept. */
+static inline float rac1_strafe_glide_angle(
+    rac1_strafe_glide* g,
+    int kind,
+    int running,
+    float target_speed,
+    float facing,
+    float move_yaw,
+    float requested
 ) {
-    // Not strafing: nothing to keep.
-    if (kind == RAC1_STRAFE_NONE) {
-        g->valid = 0;
-        return move_yaw;
+    // An angle of the caller's own: the game's.
+    if (requested <= RAC1_STRAFE_PI) {
+        return requested;
     }
 
-    // The stick pushed: its yaw, remembered.
-    if (target_speed > 0.0f) {
+    const int pushed = target_speed > 0.0f;
+
+    // Strafing: along the stick, or its last yaw while he slows with it let go.
+    if (kind != RAC1_STRAFE_NONE) {
+        // The stick pushed: its yaw, remembered.
+        if (pushed) {
+            g->valid = 1;
+            g->yaw = move_yaw;
+        }
+
+        g->leaving = running;
+        return rac1_strafe_planar_angle(kind, requested, pushed || !g->valid ? move_yaw : g->yaw);
+    }
+
+    // The strafe just ended in the run and he has not turned to the stick yet: along the stick.
+    if (g->leaving && running && pushed
+        && fabsf(rac1_strafe_angle_diff(facing, move_yaw)) > RAC1_STRAFE_TURNED) {
         g->valid = 1;
         g->yaw = move_yaw;
         return move_yaw;
     }
 
-    return g->valid ? g->yaw : move_yaw;
+    // It ended with the stick let go: he slows along the stick's last yaw.
+    if (g->leaving && running && !pushed && g->valid) {
+        return g->yaw;
+    }
+
+    // Turned, stopped or out of the run: the game's facing from now on.
+    g->valid = 0;
+    g->leaving = 0;
+    return requested;
+}
+
+/* Whether the glide is forgotten at a pad report: out of play or off foot (a scene, a menu, a
+ * vehicle; playing_on_foot 0), or no strafe and not in the run (standing, jumping, flipping), so
+ * the next run starts as the game's. */
+static inline int rac1_strafe_glide_ends(int kind, int state, int playing_on_foot) {
+    return !playing_on_foot
+           || (kind == RAC1_STRAFE_NONE && state != RAC1_STRAFE_STATE_RUN
+               && state != RAC1_STRAFE_STATE_RUN_ALT);
 }
 
 /* Whether lock_strafe.cpp turns him toward the camera itself early in the hero's update: standing, where

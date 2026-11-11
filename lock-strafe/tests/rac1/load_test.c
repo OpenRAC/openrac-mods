@@ -536,6 +536,38 @@ int main(int argc, char** argv) {
     planar(0.25f);
     CHECK(s_planar_seen == 0.25f);
     put_f32(d->hero + 0x180u, -0.5f);
+
+    /* The strafe ends while he runs on (Lock: the wrench taken in hand), the stick still right:
+     * along the stick until his facing has turned to it, then the game's facing. */
+    put_f32(d->hero + 0x190u, 0.095f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    put_u32(d->hero + 0x1090u + 0x28u, 0x08);
+    put_u32(d->pad + 0x1A0u, 0);
+    pad(d->pad, 0x00100000u, 32);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    put_f32(d->hero + 0x98u, -0.49f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == 99999.0f);
+    /* Standing at a pad report forgets it: running again, the game's from the start. */
+    put_f32(d->hero + 0x98u, 1.0708f);
+    put_u32(d->hero + 0x2084u, RAC1_STRAFE_STATE_STAND);
+    pad(d->pad, 0x00100000u, 32);
+    put_u32(d->hero + 0x2084u, RAC1_STRAFE_STATE_RUN);
+    planar(99999.0f);
+    CHECK(s_planar_seen == 99999.0f);
+    /* A scene starting mid-run, the stick let go: forgotten at the pad's report, not slid along. */
+    put_u32(d->hero + 0x1090u + 0x28u, 0x0F);
+    planar(99999.0f);
+    put_u32(d->hero + 0x1090u + 0x28u, 0x08);
+    s_level = -1;
+    pad(d->pad, 0x00100000u, 32);
+    s_level = 0;
+    put_f32(d->hero + 0x190u, 0.0f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == 99999.0f);
+    put_u32(d->hero + 0x1090u + 0x28u, 0x0F);
     /* Out of play the twist is taken off at the pad's report. */
     s_level = -1;
     pad(d->pad, 0x00100000u, 32);
