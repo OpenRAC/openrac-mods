@@ -1059,6 +1059,34 @@ static void fixed_camera(void) {
     CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_HELD);
 }
 
+/* Reticles: only strafing with a weapon that fires ahead; the nearest two within reach, nearest
+ * first; first person's size, by the camera's distance. */
+static void reticles(void) {
+    rac1_strafe_input in = running();
+    float kept[RAC1_STRAFE_RETICLES] = {0};
+    CHECK(rac1_strafe_shows_reticles(RAC1_STRAFE_LOCKED, &in));
+    CHECK(rac1_strafe_shows_reticles(RAC1_STRAFE_HELD, &in));
+    CHECK(!rac1_strafe_shows_reticles(RAC1_STRAFE_NONE, &in));
+    in.slot_item = WRENCH;
+    CHECK(!rac1_strafe_shows_reticles(RAC1_STRAFE_HELD, &in));
+    in.slot_item = BLASTER;
+    in.slot_state = 0;
+    CHECK(!rac1_strafe_shows_reticles(RAC1_STRAFE_HELD, &in));
+    CHECK(rac1_strafe_reticle_slot(kept, 0, 5.0f) == 0);
+    CHECK(rac1_strafe_reticle_slot(kept, 0, 20.0f) == 0);
+    CHECK(rac1_strafe_reticle_slot(kept, 0, 20.5f) == -1);
+    CHECK(rac1_strafe_reticle_slot(kept, 0, NAN) == -1);
+    kept[0] = 5.0f;
+    CHECK(rac1_strafe_reticle_slot(kept, 1, 3.0f) == 0);
+    CHECK(rac1_strafe_reticle_slot(kept, 1, 7.0f) == 1);
+    kept[1] = 7.0f;
+    CHECK(rac1_strafe_reticle_slot(kept, 2, 6.0f) == 1);
+    CHECK(rac1_strafe_reticle_slot(kept, 2, 7.0f) == -1); /* no nearer than the last: no room */
+    CHECK(rac1_strafe_reticle_slot(kept, 2, 9.0f) == -1);
+    CHECK(rac1_strafe_reticle_size(0.0f) == 0.9f);
+    CHECK(rac1_strafe_reticle_size(50.0f) > 0.249f && rac1_strafe_reticle_size(50.0f) < 0.251f);
+}
+
 int main(void) {
     items();
     buttons();
@@ -1080,11 +1108,12 @@ int main(void) {
     glide_ends();
     glide_play_through();
     fixed_camera();
+    reticles();
     puts(
         "hero strafe: weapons, buttons, off, hold, lock, the buttons taken, facing, velocity, "
         "swing, right stick, backpedal, Going Commando's feel, side reversal, hip twist, its "
-        "joints' turn, the legs for each direction, flips, the glide as a strafe ends and a "
-        "level's own camera passed"
+        "joints' turn, the legs for each direction, flips, the glide as a strafe ends, a "
+        "level's own camera and the reticles passed"
     );
     return 0;
 }
