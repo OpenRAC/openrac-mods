@@ -38,6 +38,11 @@ typedef void (*openrac_rac1_Vendor_InitLevelStock)(void);
 #define OPENRAC_RAC1_SIG_Vendor_BuildItemList "void(i32)"
 typedef void (*openrac_rac1_Vendor_BuildItemList)(int32_t skip_unflagged);
 #endif
+#ifndef OPENRAC_RAC1_HOOK_Vendor_OpenMenu
+#define OPENRAC_RAC1_HOOK_Vendor_OpenMenu "Vendor_OpenMenu"
+#define OPENRAC_RAC1_SIG_Vendor_OpenMenu "void(u32)"
+typedef void (*openrac_rac1_Vendor_OpenMenu)(openrac_gaddr moby);
+#endif
 #ifndef OPENRAC_RAC1_HOOK_GoldBolts_CountCollected
 #define OPENRAC_RAC1_HOOK_GoldBolts_CountCollected "GoldBolts_CountCollected"
 #define OPENRAC_RAC1_SIG_GoldBolts_CountCollected "i32()"
