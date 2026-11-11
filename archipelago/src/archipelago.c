@@ -717,6 +717,40 @@ static void watch_save_slot(int phase) {
     }
 }
 
+/* Ownership does not gate Circle or Triangle: hero_switch_item reads last_weapon_id directly,
+ * and the double-tap path also reads quick_swap_item. initialize_hero defaults a zero last
+ * weapon to Bomb Glove, so use the wrench rather than zero until a real weapon is selected.
+ * The hero's pending/selected/saved slot-0 items are +0x20B8/+0x20D4/+0x20F0 in struct Hero;
+ * its current item is +0x10B8. Queue a normal switch instead of editing a live item's moby. */
+static void guard_unowned_bomb_glove(void) {
+    if (*owned(ITEM_BOMB_GLOVE)) {
+        return;
+    }
+
+    uint8_t* last = byte_at(s_disc->last_weapon);
+    uint8_t* quick_swap = byte_at(s_disc->level + 8u); /* D_0015EE8C / D_0015ED8C */
+    uint8_t* hero = byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013F450u : 0x0013F350u);
+    uint8_t* pending = hero + 0x20B8u;
+    uint8_t* saved = hero + 0x20F0u;
+
+    if (get32(last) == ITEM_BOMB_GLOVE) {
+        set32(last, ITEM_WRENCH);
+    }
+    if (get32(quick_swap) == ITEM_BOMB_GLOVE) {
+        set32(quick_swap, ITEM_WRENCH);
+    }
+    if (get32(saved) == ITEM_BOMB_GLOVE) {
+        set32(saved, ITEM_WRENCH);
+    }
+
+    const int32_t next = get32(pending);
+    if (next == ITEM_BOMB_GLOVE
+        || (next == 0 && (get32(hero + 0x10B8u) == ITEM_BOMB_GLOVE
+                          || get32(hero + 0x20D4u) == ITEM_BOMB_GLOVE))) {
+        set32(pending, ITEM_WRENCH);
+    }
+}
+
 /* After the game gave the Bomb Glove at a level start and none was given, undoes what the game
  * did for the glove (item_randomizer.c's). */
 static void take_back_bomb_glove(
@@ -762,6 +796,7 @@ static void init_level_stock(void) {
         s_init_level_stock();
         swap_pop();
         take_back_bomb_glove(stock, before, last, last_before);
+        guard_unowned_bomb_glove();
     } else {
         s_init_level_stock();
     }
@@ -1069,6 +1104,7 @@ static void each_tick(void* user) {
         give_received();
     }
 
+    guard_unowned_bomb_glove();
     guard_empty_vendor();
 
     // The goal, once.

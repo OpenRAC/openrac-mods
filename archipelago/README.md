@@ -65,6 +65,9 @@ when the seed is generated. Install an APWorld containing this option before gen
   guesses from the checks: a save with checks the server never saw from your slot that lacks some
   it saw.
 - Items arrive only while you are in control in a level, not in a cutscene or a menu.
+- Until Bomb Glove is owned, the game's starting equipment and Circle/Triangle shortcuts cannot
+  bring it out. Stale Bomb Glove selections switch back to the wrench; other weapons and a Bomb
+  Glove awarded by the server keep their normal behavior.
 - The goal is sent when Drek's ending scene starts on Veldin.
 - The connection runs on a thread of its own and comes back by itself when it drops. `wss://`
   uses mbedTLS and the system's root certificates. The server's messages may come compressed

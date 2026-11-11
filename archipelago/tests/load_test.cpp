@@ -280,7 +280,7 @@ openrac_api make_api() {
     api.api_major = OPENRAC_MOD_API_MAJOR;
     api.api_minor = OPENRAC_MOD_API_MINOR;
     api.game = "rac1";
-    api.version = "pal";
+    api.version = D->version;
     api.memory = g_memory.data();
     api.log = host_log;
     api.fail = host_fail;
@@ -446,6 +446,10 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    if (argc > 2 && std::strcmp(argv[2], "ntsc") == 0) {
+        D = &k_rando_discs[1];
+    }
+
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -480,6 +484,59 @@ int main(int argc, char** argv) {
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
     CHECK(g_hooks == 14 && g_frame != nullptr);
+
+    // A new save can remember an unowned Bomb Glove in both equip shortcuts. Stock cleanup
+    // must not be required: this reproduces the start with no newly inserted ammunition row.
+    const std::uint32_t hero = std::strcmp(D->version, "pal") == 0 ? 0x13F450 : 0x13F350;
+    const auto put = [](std::uint32_t address, int value) { std::memcpy(at(address), &value, 4); };
+    const auto get = [](std::uint32_t address) {
+        int value;
+        std::memcpy(&value, at(address), 4);
+        return value;
+    };
+    auto init_stock = (openrac_rac1_Vendor_InitLevelStock)replacement(OPENRAC_RAC1_HOOK_Vendor_InitLevelStock);
+    set_level(LEVEL_VELDIN);
+    put(D->last_weapon, ITEM_BOMB_GLOVE);
+    put(D->level + 8, ITEM_BOMB_GLOVE);
+    put(hero + 0x10B8, ITEM_WRENCH);
+    put(hero + 0x20B8, ITEM_BOMB_GLOVE);
+    put(hero + 0x20F0, ITEM_BOMB_GLOVE);
+    init_stock();
+    CHECK(get(D->last_weapon) == ITEM_WRENCH);
+    CHECK(get(D->level + 8) == ITEM_WRENCH);
+    CHECK(get(hero + 0x20B8) == ITEM_WRENCH);
+    CHECK(get(hero + 0x20F0) == ITEM_WRENCH);
+    CHECK(*at(D->owned + ITEM_BOMB_GLOVE) == 0);
+
+    // A late initialization, death or loaded save can restore those words. The frame guard
+    // queues the normal wrench switch for a live Bomb Glove, without rewriting the live slot.
+    put(D->last_weapon, ITEM_BOMB_GLOVE);
+    put(D->level + 8, ITEM_BOMB_GLOVE);
+    put(hero + 0x10B8, ITEM_BOMB_GLOVE);
+    put(hero + 0x20D4, ITEM_BOMB_GLOVE);
+    put(hero + 0x20B8, 0);
+    g_frame(g_frame_user);
+    CHECK(get(D->last_weapon) == ITEM_WRENCH && get(D->level + 8) == ITEM_WRENCH);
+    CHECK(get(hero + 0x20B8) == ITEM_WRENCH);
+    CHECK(get(hero + 0x10B8) == ITEM_BOMB_GLOVE); // game owns the moby switch
+
+    // A valid weapon selection is preserved, and an owned Bomb Glove remains usable.
+    *at(D->owned + ITEM_TESLA_CLAW) = 1;
+    put(D->last_weapon, ITEM_TESLA_CLAW);
+    put(D->level + 8, ITEM_TESLA_CLAW);
+    put(hero + 0x20B8, ITEM_TESLA_CLAW);
+    g_frame(g_frame_user);
+    CHECK(get(D->last_weapon) == ITEM_TESLA_CLAW && get(D->level + 8) == ITEM_TESLA_CLAW);
+    CHECK(get(hero + 0x20B8) == ITEM_TESLA_CLAW);
+    *at(D->owned + ITEM_BOMB_GLOVE) = 1;
+    put(D->last_weapon, ITEM_BOMB_GLOVE);
+    put(D->level + 8, ITEM_BOMB_GLOVE);
+    put(hero + 0x20B8, ITEM_BOMB_GLOVE);
+    g_frame(g_frame_user);
+    CHECK(get(D->last_weapon) == ITEM_BOMB_GLOVE && get(D->level + 8) == ITEM_BOMB_GLOVE);
+    CHECK(get(hero + 0x20B8) == ITEM_BOMB_GLOVE);
+    *at(D->owned + ITEM_BOMB_GLOVE) = 0;
+    set_level(LEVEL_NOVALIS);
 
     // The server's Heli-Pack is given, its obtained byte left to its own location.
     CHECK(frames_until([] { return g_connected; }));
