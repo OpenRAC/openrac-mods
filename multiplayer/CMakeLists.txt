@@ -106,6 +106,13 @@ if(BUILD_TESTING)
   target_include_directories(multiplayer_kinds_test PRIVATE src)
   set_target_properties(multiplayer_kinds_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_kinds COMMAND multiplayer_kinds_test)
+  # The pages' events as the player meant them (src/pad_intent.hpp): the stick moving the cursor
+  # chooses nothing.
+  add_executable(multiplayer_pad_intent_test tests/pad_intent_test.cpp)
+  target_include_directories(multiplayer_pad_intent_test PRIVATE src)
+  target_link_libraries(multiplayer_pad_intent_test PRIVATE OpenRAC::mod)
+  set_target_properties(multiplayer_pad_intent_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_pad_intent COMMAND multiplayer_pad_intent_test)
   # The five PAL languages, the pages' words in each, the game font's letters and UTF-8-safe bounds.
   add_executable(multiplayer_words_test tests/words_test.cpp src/session.cpp src/protocol.cpp src/direct.cpp
                  ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
