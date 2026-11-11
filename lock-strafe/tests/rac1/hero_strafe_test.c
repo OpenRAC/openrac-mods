@@ -1039,6 +1039,26 @@ static void flips(void) {
     CHECK(!rac1_strafe_flips(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, x, 1.0f));
 }
 
+/* A camera of the level's own (Kalebo III's arena seen from a wall): nothing strafes, L2 and R2
+ * reach the game, a press is not latched; back behind him, Lock and Hold work again. */
+static void fixed_camera(void) {
+    rac1_strafe_hold hold = {0, 0, 0, 0.0f};
+    rac1_strafe_input in = running();
+    in.fixed_camera = 1;
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_LOCK, &in));
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_HOLD, &in));
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_NONE);
+    in.held = RAC1_PAD_L2;
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(!hold.latched);
+    hold.latched = 1; /* a latch from before the camera changed gives nothing */
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_NONE);
+    in.fixed_camera = 0;
+    CHECK(rac1_strafe_takes_buttons(RAC1_STRAFE_LOCK, &in));
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_LOCKED);
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_HELD);
+}
+
 int main(void) {
     items();
     buttons();
@@ -1059,10 +1079,12 @@ int main(void) {
     glide_leaving();
     glide_ends();
     glide_play_through();
+    fixed_camera();
     puts(
         "hero strafe: weapons, buttons, off, hold, lock, the buttons taken, facing, velocity, "
         "swing, right stick, backpedal, Going Commando's feel, side reversal, hip twist, its "
-        "joints' turn, the legs for each direction, flips and the glide as a strafe ends passed"
+        "joints' turn, the legs for each direction, flips, the glide as a strafe ends and a "
+        "level's own camera passed"
     );
     return 0;
 }

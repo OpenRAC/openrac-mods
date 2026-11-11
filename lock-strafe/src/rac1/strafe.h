@@ -25,7 +25,9 @@
  * slide from a run). With the setting on, in play on foot, the game sees L2 and R2 as not held
  * (lock_strafe.cpp takes them out of the pad's state at each report, as the game's own input locks take
  * buttons out), so L1 still looks and R1 still crouches, and L2 and R2 strafe. State 0x81 keeps
- * them: it has its strafe of its own on them. Scenes, menus, vendors, vehicles and the hoverboard keep them too.
+ * them: it has its strafe of its own on them. Scenes, menus, vendors, vehicles and the hoverboard
+ * keep them too, and so does a camera of the level's own (any but the one behind him, id 0): there
+ * the camera's yaw is not where he aims, and L2 looks in first person as the game has it.
  *
  * Two ways to strafe, the later games':
  *
@@ -180,9 +182,10 @@ typedef struct rac1_strafe_input {
     int slot_item;    /* hero +0x1090 + 0x28: slot 0's item */
     uint32_t
         held; /* the pad's buttons as the player holds them (+0x1A0, L2 and R2 from before lock_strafe.cpp takes them) */
-    float facing; /* hero +0x98 */
-    float camera; /* the camera's yaw (D_L00_00166ED8) */
-    float look_x; /* the right stick sideways (PadState.analog[0], +0x100) */
+    float facing;     /* hero +0x98 */
+    float camera;     /* the camera's yaw (D_L00_00166ED8) */
+    float look_x;     /* the right stick sideways (PadState.analog[0], +0x100) */
+    int fixed_camera; /* the camera in use is not the one behind him (Camera +0x86, not 0) */
 } rac1_strafe_input;
 
 /* What Hold remembers from tick to tick. */
@@ -246,7 +249,7 @@ static inline uint32_t rac1_strafe_button_bits(int button) {
 static inline int rac1_strafe_on_foot(const rac1_strafe_input* in) {
     return in->playing && in->vehicle_mode == 0
            && in->control_mode != RAC1_STRAFE_CONTROL_HOVERBOARD
-           && in->state != RAC1_STRAFE_STATE_GAME;
+           && in->state != RAC1_STRAFE_STATE_GAME && !in->fixed_camera;
 }
 
 /* Whether the game sees L2 and R2 as not held this tick: the setting on, in play on foot. */
@@ -299,9 +302,12 @@ static inline void rac1_strafe_hold_update(
 static inline int rac1_strafe_kind(
     int mode, const rac1_strafe_input* in, const rac1_strafe_hold* hold
 ) {
-    // The setting off, no play, a vehicle, the hoverboard, or the hero on a frame of his own: the game's.
+    // The setting off, no play, a vehicle, the hoverboard, the hero on a frame of his own, or a
+    // camera of the level's own (Kalebo III's arena seen from a wall: its yaw is not where he
+    // aims, so facing it turned him toward the wall): the game's.
     if (mode == RAC1_STRAFE_OFF || !in->playing || in->vehicle_mode != 0
-        || in->control_mode == RAC1_STRAFE_CONTROL_HOVERBOARD || in->frame_mode != 0) {
+        || in->control_mode == RAC1_STRAFE_CONTROL_HOVERBOARD || in->frame_mode != 0
+        || in->fixed_camera) {
         return RAC1_STRAFE_NONE;
     }
 

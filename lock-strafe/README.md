@@ -217,4 +217,6 @@ last yaw; letting go of L2 or R2 while running on (the game turns him to the
 stick over a few ticks and runs along his facing meanwhile) his speed follows
 the stick until he faces it. A strafe flip goes straight to the side or back
 (state 0xB carried his run speed along his facing; the strafe flip carries
-none).
+none). Where the level puts its own camera (Kalebo III's robot waves, seen
+from a wall) the strafe stays off and L2 and R2 are the game's: facing that
+camera's yaw had him aim up at the wall.

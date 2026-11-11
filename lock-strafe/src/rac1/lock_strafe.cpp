@@ -176,6 +176,11 @@ constexpr uint32_t k_camera_timer0 = 0x12u;
 constexpr uint32_t k_camera_timer1 = 0x14u;
 constexpr uint32_t k_camera_timer2 = 0x16u;
 
+// In a camera slot: its id; 0 is the camera behind the hero, the follow camera (seen in game code:
+// Camera.id, FindCameraById(0) in CameraResetBehindHero).
+constexpr uint32_t k_camera_id = 0x86u;
+constexpr int16_t k_camera_behind_hero = 0;
+
 // The strafe camera's lateral spring, as the game's strafe state asks for it (seen in game code).
 constexpr float k_camera_spring_a = 0.04f;
 constexpr float k_camera_spring_b = 0.2f;
@@ -297,6 +302,13 @@ float frame_time() {
     return get_float(s_mod->relocate(s_disc->turn_step));
 }
 
+// Whether the camera in use is one of the level's own, not the one behind him (camera id 0,
+// FindCameraById(0): the follow camera). 0 when no camera is set up yet.
+bool fixed_camera() {
+    const gaddr camera = ref<gaddr>(level0(s_disc->camera_now));
+    return camera != 0 && ref<int16_t>(camera + k_camera_id) != k_camera_behind_hero;
+}
+
 // The hero's moby, 0 when he has none yet.
 gaddr hero_moby() {
     return ref<gaddr>(hero() + k_hero_moby);
@@ -316,6 +328,7 @@ void read_input(rac1_strafe_input* in) {
     in->facing = get_float(hero() + k_hero_facing);
     in->camera = camera_yaw();
     in->look_x = get_float(pad() + k_pad_look_x);
+    in->fixed_camera = fixed_camera();
 }
 
 // What the strafe does now (strafe.h).
@@ -358,7 +371,7 @@ void trace() {
         "mode %d kind %d playing %d state %#x vehicle %d item %#x/%d held %#x seen %#x latched "
         "%d/%d/%.3f "
         "look %.2f facing %.3f move %.3f camera %.3f pos %.3f %.3f back %d anim %d/%d %d-%d %.3f "
-        "speed %.3f feel %d twist %.3f/%.3f side %d/%d",
+        "speed %.3f feel %d twist %.3f/%.3f side %d/%d fixed %d",
         s_mode,
         rac1_strafe_kind(s_mode, &in, &s_hold),
         in.playing,
@@ -388,7 +401,8 @@ void trace() {
         d(s_pelvis.angle),
         d(s_spine.angle),
         s_reverse.left,
-        s_reverse.right
+        s_reverse.right,
+        in.fixed_camera
     );
     s_mod->info(line);
 }
