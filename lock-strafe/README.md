@@ -54,10 +54,8 @@ in the environment).
 **Known limitations.** The first game has no backward walk for Ratchet
 (Going Commando added one): going backwards plays his walk or run in reverse.
 Going Commando never does its running jump while strafing; here strafing
-forward and pressing X can still give the first game's running jump (its
-longer leap), which the run's own code picks after every hook point the mod
-has. He strafes through it all the same: he keeps facing ahead and the stick
-steers him.
+forward and pressing X can still give the first game's running jump. He
+still strafes in it: he keeps facing ahead.
 
 **The crosshair.** The first game has no crosshair in the third-person view:
 the Blaster's reticle is drawn only in first person (L1), and the Devastator
@@ -108,8 +106,8 @@ Scenes, menus, vendors, vehicles, state 0x81 and the hoverboard (control mode
 `0x16`, whose tricks are on L2 and R2) keep them.
 
 **The strafe**, in [src/rac1/lock_strafe.cpp](src/rac1/lock_strafe.cpp), in the run
-(states 2 and 0x73), the jumps (7, the running jump 9 and the double jump
-0xE) and standing (0), on level ground:
+(states 2 and 0x73), the jumps (7, 9 and 0xE) and standing (0), on level
+ground:
 `Hero_TurnToHeading` eases the facing toward the camera's yaw, and while
 Hold's swing lasts toward the facing latched when L2 or R2 went down;
 `Hero_SetPlanarVelocity` builds the velocity along the move yaw, as the
@@ -214,15 +212,8 @@ In 1.1.1 the hip twist turns the right way. 1.1.0 turned his hips away from wher
 went, so strafing sideways his legs walked the other way (the moonwalk; DESIGN.md).
 In 1.2.0 the setting **Strafe button** lets L2 or R2 alone strafe, leaving the
 other to the game and to mods that use it (a wrench throw raised on R2).
-In 1.2.1 he no longer slides forward as a strafe ends. Stopping (the stick let
-go: the game turns the move yaw back to his facing) he slows along the stick's
-last yaw; letting go of L2 or R2 while running on (the game turns him to the
-stick over a few ticks and runs along his facing meanwhile) his speed follows
-the stick until he faces it. A strafe flip goes straight to the side or back
-(state 0xB carried his run speed along his facing; the strafe flip carries
-none). Where the level puts its own camera (Kalebo III's robot waves, seen
-from a wall) he does not strafe: facing that camera's yaw had him aim up at
-the wall. L2 and R2 stay the mod's there, so they do nothing (given to the
-game, L2 put him in first person, unable to move). The running jump (X while
-strafing ahead) and the double jump strafe too: steering in the air no longer
-turns him toward the stick.
+In 1.2.1 he no longer moves forward when a strafe ends (stopping, or letting
+go of L2 or R2 while running), and strafe flips go straight to the side. Under
+a level's fixed camera (Kalebo III's robot waves) he does not strafe, and L2
+no longer puts him in first person. He keeps facing ahead in the running jump
+and the double jump.
