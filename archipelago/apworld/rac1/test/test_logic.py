@@ -2,6 +2,10 @@
 # The world's logic: the planets open with their coordinates, Drek needs his gadgets, and a pool
 # turned off keeps its own items.
 import unittest
+from collections import Counter
+from random import Random
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from BaseClasses import CollectionState
 
@@ -10,6 +14,54 @@ from ..items import ITEM_TABLE
 from ..options import OPTION_PRESETS, RAC1Options
 from ..rules import coordinates
 from .bases import RAC1TestBase
+from .. import RAC1World
+from ..items import ITEM_NAME_GROUPS
+from ..options import StartingWeapons
+
+
+class TestStartingWeapons(unittest.TestCase):
+    def test_random_candidates(self) -> None:
+        for mode in ("vanilla", "non_broken", "unrestricted"):
+            world = SimpleNamespace(
+                options=SimpleNamespace(starting_weapons=StartingWeapons.from_any(mode)),
+                random=Mock(wraps=Random(123)),
+            )
+            RAC1World.generate_early(world)
+            if mode == "vanilla":
+                self.assertEqual(world.starting_weapon, "Bomb Glove")
+                world.random.choice.assert_not_called()
+            else:
+                candidates = world.random.choice.call_args.args[0]
+                expected = ITEM_NAME_GROUPS["Weapons"] - ({"R.Y.N.O."} if mode == "non_broken" else set())
+                self.assertEqual(set(candidates), expected)
+
+    def test_every_weapon_swap_preserves_items(self) -> None:
+        rows = [row for row in LOCATIONS if row.id is not None]
+        expected = Counter(row.vanilla or "Gold Bolt" for row in rows)
+        for weapon in ITEM_NAME_GROUPS["Weapons"]:
+            world = SimpleNamespace(starting_weapon=weapon)
+            self.assertEqual(Counter(RAC1World.vanilla_item(world, row) for row in rows), expected)
+
+
+class TestRandomStartingWeapon(RAC1TestBase):
+    options = {"starting_weapons": "non_broken", "keep_starting_gear": False}
+
+    def test_guaranteed_start(self) -> None:
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertTrue(location.locked)
+        self.assertEqual(location.item.name, self.world.starting_weapon)
+        self.assertNotEqual(location.item.name, "R.Y.N.O.")
+        self.assertTrue(location.can_reach(self.multiworld.state))
+
+
+class TestUnrestrictedStartingWeapon(TestRandomStartingWeapon):
+    options = {"starting_weapons": "unrestricted", "shuffle_weapons": False, "shuffle_vendor": False}
+
+    def test_guaranteed_start(self) -> None:
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertTrue(location.locked)
+        self.assertIn(location.item.name, ITEM_NAME_GROUPS["Weapons"])
+        self.assertTrue(location.can_reach(self.multiworld.state))
 
 
 class TestDefault(RAC1TestBase):

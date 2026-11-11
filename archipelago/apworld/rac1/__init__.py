@@ -60,6 +60,21 @@ class RAC1World(World):
     item_name_groups = ITEM_NAME_GROUPS
     location_name_groups = LOCATION_NAME_GROUPS
 
+    def generate_early(self) -> None:
+        self.starting_weapon = "Bomb Glove"
+        if self.options.starting_weapons:
+            weapons = sorted(ITEM_NAME_GROUPS["Weapons"])
+            if self.options.starting_weapons == "non_broken":
+                weapons.remove("R.Y.N.O.")
+            self.starting_weapon = self.random.choice(weapons)
+
+    def vanilla_item(self, row: LocationData) -> str:
+        if row.kind == "start":
+            return self.starting_weapon
+        if row.vanilla == self.starting_weapon:
+            return "Bomb Glove"
+        return row.vanilla or FILLER
+
     def location_rows(self) -> list[LocationData]:
         # The rows that are locations in this slot: the skill points only with their option.
         if self.options.shuffle_skill_points:
@@ -68,7 +83,7 @@ class RAC1World(World):
 
     def shuffled(self, row: LocationData) -> bool:
         # A row of a pool turned off, or the starting Bomb Glove kept, holds its own item.
-        if row.kind == "start" and self.options.keep_starting_gear:
+        if row.kind == "start" and (self.options.keep_starting_gear or self.options.starting_weapons):
             return False
         return bool(getattr(self.options, row.pool).value)
 
@@ -90,7 +105,7 @@ class RAC1World(World):
         self.own_progression = []
         own = self.places_own_progression()
         for row in self.location_rows():
-            item = self.create_item(row.vanilla or FILLER)
+            item = self.create_item(self.vanilla_item(row))
             if self.shuffled(row):
                 (self.own_progression if own and item.advancement else self.multiworld.itempool).append(item)
             else:
@@ -107,7 +122,7 @@ class RAC1World(World):
             return True
         rows = [row for row in self.location_rows() if self.shuffled(row)]
         places = sum(holds_progression(row, self.options.logic) for row in rows)
-        keys = sum(ITEM_TABLE[row.vanilla or FILLER].progression for row in rows)
+        keys = sum(ITEM_TABLE[self.vanilla_item(row)].progression for row in rows)
         return places - keys < ROOM_FOR_KEYS
 
     def get_pre_fill_items(self) -> list[Item]:
@@ -152,4 +167,5 @@ class RAC1World(World):
             "shuffle_infobots",
             "shuffle_skill_points",
             "keep_starting_gear",
+            "starting_weapons",
         )
