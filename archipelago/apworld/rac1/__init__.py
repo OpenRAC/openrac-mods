@@ -167,4 +167,5 @@ class RAC1World(World):
             "shuffle_infobots",
             "shuffle_skill_points",
             "starting_weapons",
+            "start_in_new_game_plus",
         )

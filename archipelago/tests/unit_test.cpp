@@ -210,6 +210,7 @@ void test_session() {
         "RoomInfo asks for the data package and connects"
     );
     const json connect = json::parse(out[1])[0];
+    expect(connect.at("slot_data") == true, "request YAML slot settings");
     expect(
         connect.at("name") == "Ratchet" && connect.at("password") == "pw"
             && connect.at("game") == AP_GAME && connect.at("items_handling") == 7,
@@ -411,6 +412,30 @@ void test_save() {
     }
 }
 
+void test_new_game_plus() {
+    std::vector<std::string> out;
+    for (const json value : {json(true), json(1), json(false), json(0), json("true"), json(2), json(nullptr)}) {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        expect(s.new_game_plus() == -1, "mode unknown before connecting");
+        s.on_open();
+        s.on_message(json::array({{{"cmd", "Connected"}, {"slot_data", {{"start_in_new_game_plus", value}}}}}).dump(), out);
+        expect(s.new_game_plus() == -1, "mode withheld before save judgment");
+        s.save_loaded({}, -1, out);
+        const bool enabled = value == json(true) || value == json(1);
+        expect(s.new_game_plus() == int(enabled), "only true or one enables New Game+");
+        s.on_close();
+        expect(s.new_game_plus() == -1, "no mode applied while disconnected");
+        s.on_open();
+        s.on_message(R"([{"cmd":"Connected"}])", out);
+        expect(s.new_game_plus() == 0, "older seeds default off on reconnect");
+    }
+    ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+    s.book().slots[2] = {"other-seed", "Ratchet"};
+    s.save_loaded({}, 2, out);
+    s.on_message(R"([{"cmd":"RoomInfo","seed_name":"this-seed"},{"cmd":"Connected","slot_data":{"start_in_new_game_plus":1}}])", out);
+    expect(s.foreign_save() && s.new_game_plus() == -1, "foreign saves never receive mode changes");
+}
+
 }  // namespace
 
 int main() {
@@ -420,6 +445,7 @@ int main() {
     test_ids();
     test_session();
     test_save();
+    test_new_game_plus();
     std::printf(g_failures == 0 ? "unit: ok\n" : "unit: %d failed\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

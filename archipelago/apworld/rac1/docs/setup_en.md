@@ -27,6 +27,7 @@
      shuffle_infobots: true
      shuffle_skill_points: false
      starting_weapons: vanilla
+     start_in_new_game_plus: false
    ```
 
 2. In the launcher, set the mod's **Server** (the room's address), **Slot name** and **Password**.

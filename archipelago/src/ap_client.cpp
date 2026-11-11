@@ -148,6 +148,11 @@ public:
         return session_.synced();
     }
 
+    int new_game_plus() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.new_game_plus();
+    }
+
     bool message(std::string& out) {
         std::lock_guard<std::mutex> lock(mutex_);
         return session_.next_message(out);
@@ -362,6 +367,10 @@ size_t ap_client_items(int64_t* out, size_t max, uint32_t* generation) {
 
 int ap_client_synced(void) {
     return g_client != nullptr && g_client->synced();
+}
+
+int ap_client_new_game_plus(void) {
+    return g_client != nullptr ? g_client->new_game_plus() : -1;
 }
 
 int ap_client_message(char* out, size_t size) {

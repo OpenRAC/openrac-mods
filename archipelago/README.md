@@ -34,6 +34,7 @@ party shares its items. With it on, the Multiplayer pages say so: turn it off to
 | `logic` | `standard` | **standard**: an expensive purchase holds no progression, and a place counts only with the weapons the game suggests there. **relaxed**: the same, and no progression in a purchase you save up for either. **expert**: progression may be in any purchase, and any weapon will do |
 | `shuffle_gadgets`, `shuffle_weapons`, `shuffle_vendor`, `shuffle_gold_bolts`, `shuffle_infobots` | on | Off: that pool keeps the game's own items in place |
 | `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. They stay optional: they never hold progression, of any world. Named by planet and number, in the game's flag order |
+| `start_in_new_game_plus` | off | Enable the game's New Game+ (challenge mode) after connecting and validating the save. Uses fresh Archipelago inventory and the selected starting weapon; does not import completed-save items or checks. False leaves an already earned New Game+ save as it is |
 | `starting_weapons` | `vanilla` | **vanilla**: start with Bomb Glove. **shuffled**: shuffle the starting location, with no guaranteed weapon. **non_broken**: start with one random weapon except the R.Y.N.O. **unrestricted**: start with any one weapon. This option controls the starting location independently of `shuffle_weapons`; random starting weapons exchange slots with Bomb Glove before shuffling, including when their pools are off |
 
 For a weighted choice, put this under `Ratchet & Clank:` in your player YAML:
@@ -52,6 +53,17 @@ or `shuffled` for the former off behavior with weapons shuffled.
 These are relative weights: this example always selects vanilla. Set `non_broken: 50` and
 `vanilla: 0` to always start with a random weapon other than the R.Y.N.O. The weapon is chosen
 when the seed is generated. Install an APWorld containing this option before generating.
+
+To start in New Game+ with a random non-R.Y.N.O. weapon:
+
+```yaml
+  start_in_new_game_plus: true
+  starting_weapons: non_broken
+```
+
+This needs both an APWorld and a native mod containing the New Game+ option. Generate a new seed,
+connect to its server, and start a new game. The mod enables challenge mode once the server has
+sent the option and accepted the save; it does not run the completed-save restart or grant its inventory.
 
 ## How it works
 

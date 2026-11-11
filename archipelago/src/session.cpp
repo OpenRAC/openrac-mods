@@ -54,6 +54,8 @@ std::string packet(json p) {
 Session::Session(SessionConfig config) : config_(std::move(config)) {}
 
 void Session::on_open() {
+    save_waiting_ = save_waiting_ || save_judged_;
+    save_judged_ = false;
     connected_ = false;
     synced_ = false;
     goal_sent_ = false;
@@ -121,6 +123,7 @@ void Session::save_loaded(
     save_ = std::set<std::int64_t>(had.begin(), had.end());
     save_slot_ = card_slot;
     save_waiting_ = true;
+    save_judged_ = false;
 
     if (connected_) {
         judge_save(out);
@@ -187,6 +190,7 @@ void Session::judge_save(std::vector<std::string>& out) {
     }
 
     foreign_ = foreign;
+    save_judged_ = true;
 
     if (foreign) {
         return;
@@ -399,9 +403,18 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
                {"class", "Version"}}},
              {"items_handling", kItemsHandling},
              {"tags", json::array()},
-             {"slot_data", false}}
+             {"slot_data", true}}
         ));
     } else if (cmd == "Connected") {
+        new_game_plus_ = false;
+        const auto data = p.find("slot_data");
+        if (data != p.end() && data->is_object()) {
+            const auto option = data->find("start_in_new_game_plus");
+            if (option != data->end()) {
+                new_game_plus_ = (option->is_boolean() && option->get<bool>())
+                                 || (option->is_number_integer() && *option == 1);
+            }
+        }
         connected_ = true;
         refused_ = false;
         synced_ = true;

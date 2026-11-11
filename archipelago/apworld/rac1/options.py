@@ -50,6 +50,12 @@ class ShuffleSkillPoints(Toggle):
     display_name = "Shuffle skill points"
 
 
+class StartInNewGamePlus(Toggle):
+    """Enable the game's New Game+ (challenge mode) after connecting to this slot.
+    Start with a fresh Archipelago inventory; this does not import a completed save."""
+    display_name = "Start in New Game+"
+
+
 class StartingWeapons(Choice):
     """Choose your starting weapon.
     Vanilla: start with Bomb Glove.
@@ -75,14 +81,15 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_infobots: ShuffleInfobots
     shuffle_skill_points: ShuffleSkillPoints
     starting_weapons: StartingWeapons
+    start_in_new_game_plus: StartInNewGamePlus
     start_inventory_from_pool: StartInventoryPool
 
 
 OPTION_GROUPS = [
+    OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus]),
     OptionGroup(
         "Pools",
-        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints,
-         StartingWeapons],
+        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints],
     ),
 ]
 

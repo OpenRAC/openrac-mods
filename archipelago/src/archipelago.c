@@ -1066,6 +1066,19 @@ static void each_tick(void* user) {
         return;
     }
 
+    /* The game's challenge_mode flag (PAL D_0015EFA0, NTSC-U D_0015EEA0).
+     * The server is authoritative; do not touch an unjudged or foreign save. A false/missing
+     * option leaves a normally earned New Game+ save alone rather than downgrading it. */
+    if (!s_from_title && !s_judge_wait && ap_client_new_game_plus() == 1) {
+        uint8_t* challenge_mode = byte_at(s_disc->level + 0x11Cu);
+        if (get32(challenge_mode) == 0) {
+            set32(challenge_mode, 1);
+            log_line(OPENRAC_LOG_INFO, "Archipelago: New Game+ enabled for this slot");
+            s_api->play_notice(s_mod, "Archipelago: New Game+ enabled");
+            s_notice_ticks = NOTICE_TICKS;
+        }
+    }
+
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (!ap_is_location(&rando_locations[i])) {
             continue;

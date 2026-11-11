@@ -69,6 +69,9 @@ class TestUnrestrictedStartingWeapon(TestRandomStartingWeapon):
 
 
 class TestDefault(RAC1TestBase):
+    def test_new_game_plus_default(self) -> None:
+        self.assertEqual(self.world.fill_slot_data()["start_in_new_game_plus"], 0)
+
     def test_vanilla_start(self) -> None:
         location = self.world.get_location("Veldin: the starting Bomb Glove")
         self.assertTrue(location.locked)
@@ -94,6 +97,16 @@ class TestDefault(RAC1TestBase):
         self.assertFalse(self.can_reach_location(location))
         self.collect_by_name("Magneboots")
         self.assertTrue(self.can_reach_location(location))
+
+
+class TestNewGamePlus(RAC1TestBase):
+    options = {"start_in_new_game_plus": True, "starting_weapons": "non_broken"}
+
+    def test_mode_and_starting_weapon(self) -> None:
+        self.assertEqual(self.world.fill_slot_data()["start_in_new_game_plus"], 1)
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertEqual(location.item.name, self.world.starting_weapon)
+        self.assertTrue(location.locked)
 
 
 class TestExpert(RAC1TestBase):

@@ -67,6 +67,10 @@ size_t ap_client_items(int64_t* out, size_t max, uint32_t* generation);
  * list may be short of what the slot really has). */
 int ap_client_synced(void);
 
+/* The slot's New Game+ option: -1 until connected and the save matches, else 0 or 1.
+ * Missing options from older APWorlds default to 0. */
+int ap_client_new_game_plus(void);
+
 /* The next line to show the player (an item sent or received, the connection), oldest first.
  * Returns 1 and the line in out (cut to size), or 0 when there is none. */
 int ap_client_message(char* out, size_t size);

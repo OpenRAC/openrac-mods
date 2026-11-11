@@ -95,6 +95,7 @@ int g_scene = -1;
 int g_gives;
 std::string g_notice;
 std::string g_server;
+bool g_new_game_plus;
 
 std::uint8_t* at(std::uint32_t a) {
     return g_memory.data() + a;
@@ -365,10 +366,12 @@ void serve(socket_t listener) {
 
                 if (cmd == "Connect") {
                     CHECK(p.at("name") == "Ratchet" && p.at("game") == AP_GAME);
+                    CHECK(p.at("slot_data") == true);
                     const json connected = json::array({
                         {{"cmd", "Connected"},
                          {"team", 0},
                          {"slot", 1},
+                         {"slot_data", {{"start_in_new_game_plus", int(g_new_game_plus)}}},
                          {"players", json::array()},
                          {"missing_locations", json::array()},
                          {"checked_locations", json::array()},
@@ -449,6 +452,7 @@ int main(int argc, char** argv) {
     if (argc > 2 && std::strcmp(argv[2], "ntsc") == 0) {
         D = &k_rando_discs[1];
     }
+    g_new_game_plus = argc > 3 && std::strcmp(argv[3], "ngplus") == 0;
 
 #ifdef _WIN32
     WSADATA wsa;
@@ -484,6 +488,8 @@ int main(int argc, char** argv) {
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
     CHECK(g_hooks == 14 && g_frame != nullptr);
+    const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
+    CHECK(*at(challenge) == 0);
 
     // A new save can remember an unowned Bomb Glove in both equip shortcuts. Stock cleanup
     // must not be required: this reproduces the start with no newly inserted ammunition row.
@@ -542,6 +548,22 @@ int main(int argc, char** argv) {
     CHECK(frames_until([] { return g_connected; }));
     CHECK(frames_until([] { return *at(D->owned + ITEM_HELI_PACK) != 0; }));
     CHECK(*at(D->obtained + ITEM_HELI_PACK) == 0);
+    CHECK(frames_until([challenge] { return *at(challenge) == int(g_new_game_plus); }));
+    if (g_new_game_plus) {
+        set_level(-1);
+        *at(challenge) = 0;
+        g_frame(g_frame_user);
+        CHECK(*at(challenge) == 0);
+        set_level(LEVEL_NOVALIS);
+        g_frame(g_frame_user);
+        CHECK(*at(challenge) == 1);
+        CHECK(*at(D->owned + ITEM_RYNO) == 0); // no completed-save inventory imported
+    } else {
+        *at(challenge) = 1;
+        g_frame(g_frame_user);
+        CHECK(*at(challenge) == 1); // false does not downgrade an earned NG+ save
+        *at(challenge) = 0;
+    }
 
     // Its banner, in another level's text, is not left on screen.
     CHECK(g_gives > 0 && std::strcmp(reinterpret_cast<char*>(at(D->banner_text)), "Paradox") != 0);
