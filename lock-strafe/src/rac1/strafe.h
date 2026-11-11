@@ -25,7 +25,10 @@
  * slide from a run). With the setting on, in play on foot, the game sees L2 and R2 as not held
  * (lock_strafe.cpp takes them out of the pad's state at each report, as the game's own input locks take
  * buttons out), so L1 still looks and R1 still crouches, and L2 and R2 strafe. State 0x81 keeps
- * them: it has its strafe of its own on them. Scenes, menus, vendors, vehicles and the hoverboard keep them too.
+ * them: it has its strafe of its own on them. Scenes, menus, vendors, vehicles and the hoverboard
+ * keep them too. A camera of the level's own (any but the one behind him, id 0: Kalebo III's arena
+ * seen from a wall) does not strafe, its yaw not being where he aims, but L2 and R2 stay taken:
+ * given back, L2 put him in first person there, where he could not move.
  *
  * Two ways to strafe, the later games':
  *
@@ -41,7 +44,8 @@
  *   own camera control), and the stick moves him; the camera does not swing to follow where he
  *   goes. With anything else in hand, Hold.
  *
- * Either is done in the run (states 2 and 0x73) and the jump (7), on level ground; both also turn
+ * Either is done in the run (states 2 and 0x73) and the jumps (7, the running jump 9 rac1 takes
+ * for X while running ahead, and the double jump 0xE), on level ground; both also turn
  * him standing (state 0) with the camera (Hold once its swing is done). Everything else is the game's own.
  *
  * Two feels (the setting "feel", DESIGN.md): Going Commando's (the default) has no swing in Hold (he
@@ -88,11 +92,14 @@
 #define RAC1_STRAFE_FEEL_COMMANDO 1
 
 /* The hero's states the strafe works in: standing, running, running with +0x20A9 set (the same
- * movement code), jumping. */
+ * movement code), jumping: the plain jump, the running jump (X running within 60 degrees of his
+ * facing, so strafing ahead) and the double jump, all of the jump group's movement code. */
 #define RAC1_STRAFE_STATE_STAND 0x00
 #define RAC1_STRAFE_STATE_RUN 0x02
 #define RAC1_STRAFE_STATE_RUN_ALT 0x73
 #define RAC1_STRAFE_STATE_JUMP 0x07
+#define RAC1_STRAFE_STATE_RUN_JUMP 0x09
+#define RAC1_STRAFE_STATE_DOUBLE_JUMP 0x0E
 /* The side and back flip (HERO_STATE_HIGH_JUMP; rac2's state 11, the same state). */
 #define RAC1_STRAFE_STATE_FLIP 0x0B
 /* The state with a strafe of its own on L2 and R2: left as the game has it. */
@@ -180,9 +187,10 @@ typedef struct rac1_strafe_input {
     int slot_item;    /* hero +0x1090 + 0x28: slot 0's item */
     uint32_t
         held; /* the pad's buttons as the player holds them (+0x1A0, L2 and R2 from before lock_strafe.cpp takes them) */
-    float facing; /* hero +0x98 */
-    float camera; /* the camera's yaw (D_L00_00166ED8) */
-    float look_x; /* the right stick sideways (PadState.analog[0], +0x100) */
+    float facing;     /* hero +0x98 */
+    float camera;     /* the camera's yaw (D_L00_00166ED8) */
+    float look_x;     /* the right stick sideways (PadState.analog[0], +0x100) */
+    int fixed_camera; /* the camera in use is not the one behind him (Camera +0x86, not 0) */
 } rac1_strafe_input;
 
 /* What Hold remembers from tick to tick. */
@@ -242,6 +250,12 @@ static inline uint32_t rac1_strafe_button_bits(int button) {
                                              : RAC1_STRAFE_BUTTONS;
 }
 
+/* Whether a state is one of the jumps the strafe works in. */
+static inline int rac1_strafe_jumping(int state) {
+    return state == RAC1_STRAFE_STATE_JUMP || state == RAC1_STRAFE_STATE_RUN_JUMP
+           || state == RAC1_STRAFE_STATE_DOUBLE_JUMP;
+}
+
 /* In play on foot, in a state the setting changes L2 and R2 in. */
 static inline int rac1_strafe_on_foot(const rac1_strafe_input* in) {
     return in->playing && in->vehicle_mode == 0
@@ -269,8 +283,9 @@ static inline void rac1_strafe_hold_update(
 
     // The button has only just gone down: latch the facing, if the hero is on foot.
     if (!hold->latched) {
-        // Off foot (a vehicle, a scene, the game's own strafe state) the press is not Hold's.
-        if (rac1_strafe_on_foot(in)) {
+        // Off foot (a vehicle, a scene, the game's own strafe state) or under a camera of the
+        // level's own the press is not Hold's (yet: back behind him, still held, it latches).
+        if (rac1_strafe_on_foot(in) && !in->fixed_camera) {
             hold->latched = 1;
             /* Going Commando's has no swing: he turns to the camera at once. */
             hold->swinging = feel == RAC1_STRAFE_FEEL_CLASSIC;
@@ -299,15 +314,18 @@ static inline void rac1_strafe_hold_update(
 static inline int rac1_strafe_kind(
     int mode, const rac1_strafe_input* in, const rac1_strafe_hold* hold
 ) {
-    // The setting off, no play, a vehicle, the hoverboard, or the hero on a frame of his own: the game's.
+    // The setting off, no play, a vehicle, the hoverboard, the hero on a frame of his own, or a
+    // camera of the level's own (Kalebo III's arena seen from a wall: its yaw is not where he
+    // aims, so facing it turned him toward the wall): the game's.
     if (mode == RAC1_STRAFE_OFF || !in->playing || in->vehicle_mode != 0
-        || in->control_mode == RAC1_STRAFE_CONTROL_HOVERBOARD || in->frame_mode != 0) {
+        || in->control_mode == RAC1_STRAFE_CONTROL_HOVERBOARD || in->frame_mode != 0
+        || in->fixed_camera) {
         return RAC1_STRAFE_NONE;
     }
 
     // A state the strafe does not work in (the game's own strafe state among them).
     if (in->state != RAC1_STRAFE_STATE_STAND && in->state != RAC1_STRAFE_STATE_RUN
-        && in->state != RAC1_STRAFE_STATE_RUN_ALT && in->state != RAC1_STRAFE_STATE_JUMP) {
+        && in->state != RAC1_STRAFE_STATE_RUN_ALT && !rac1_strafe_jumping(in->state)) {
         return RAC1_STRAFE_NONE;
     }
 
@@ -343,6 +361,87 @@ static inline float rac1_strafe_turn_target(
  * facing (an angle above pi) is the move yaw instead; an angle of the caller's own is kept. */
 static inline float rac1_strafe_planar_angle(int kind, float requested, float move_yaw) {
     return kind != RAC1_STRAFE_NONE && !(requested <= RAC1_STRAFE_PI) ? move_yaw : requested;
+}
+
+/* Where his speed goes as a strafe ends. The run builds his velocity along his facing (a request
+ * above pi), and a strafe's speed lies along the stick instead, so two moments would push him
+ * ahead:
+ *
+ * - the stick let go: the game's stick handler (func_L00_00211F80) sets the move yaw to his facing
+ *   and his target speed (+0x190) to 0, and the run eases his speed down along that yaw, a shuffle
+ *   forward as he stops. The last move yaw the stick gave is kept while he slows;
+ * - the strafe let go (L2 or R2 up, or the weapon put away in Lock) while he runs on: the game
+ *   turns him toward the stick over several ticks and runs along his facing meanwhile, so running
+ *   back he went on forward first. The velocity follows the stick until his facing is within 3
+ *   degrees of it, the game's own rule for its run start from a standstill (+0x3B8, which builds
+ *   along the move yaw until the yaw error is under 0.0524), or until he stops or leaves the run.
+ *
+ * Both only redirect his speed: how fast he goes and turns stays the game's. */
+#define RAC1_STRAFE_TURNED 0.0523598790f /* 3 degrees */
+
+typedef struct rac1_strafe_glide {
+    int valid;   /* yaw holds the stick's last move yaw, from this strafe */
+    int leaving; /* a strafe in the run just ended: the velocity follows the stick */
+    float yaw;   /* the last move yaw with the stick pushed */
+} rac1_strafe_glide;
+
+/* The angle Hero_SetPlanarVelocity builds along, once a call, and the glide's memory: kind is the
+ * strafe now, running whether he is in the run's states, target_speed the stick's (0 let go). An
+ * angle of the caller's own (pi or below) is always kept. */
+static inline float rac1_strafe_glide_angle(
+    rac1_strafe_glide* g,
+    int kind,
+    int running,
+    float target_speed,
+    float facing,
+    float move_yaw,
+    float requested
+) {
+    // An angle of the caller's own: the game's.
+    if (requested <= RAC1_STRAFE_PI) {
+        return requested;
+    }
+
+    const int pushed = target_speed > 0.0f;
+
+    // Strafing: along the stick, or its last yaw while he slows with it let go.
+    if (kind != RAC1_STRAFE_NONE) {
+        // The stick pushed: its yaw, remembered.
+        if (pushed) {
+            g->valid = 1;
+            g->yaw = move_yaw;
+        }
+
+        g->leaving = running;
+        return rac1_strafe_planar_angle(kind, requested, pushed || !g->valid ? move_yaw : g->yaw);
+    }
+
+    // The strafe just ended in the run and he has not turned to the stick yet: along the stick.
+    if (g->leaving && running && pushed
+        && fabsf(rac1_strafe_angle_diff(facing, move_yaw)) > RAC1_STRAFE_TURNED) {
+        g->valid = 1;
+        g->yaw = move_yaw;
+        return move_yaw;
+    }
+
+    // It ended with the stick let go: he slows along the stick's last yaw.
+    if (g->leaving && running && !pushed && g->valid) {
+        return g->yaw;
+    }
+
+    // Turned, stopped or out of the run: the game's facing from now on.
+    g->valid = 0;
+    g->leaving = 0;
+    return requested;
+}
+
+/* Whether the glide is forgotten at a pad report: out of play or off foot (a scene, a menu, a
+ * vehicle; playing_on_foot 0), or no strafe and not in the run (standing, jumping, flipping), so
+ * the next run starts as the game's. */
+static inline int rac1_strafe_glide_ends(int kind, int state, int playing_on_foot) {
+    return !playing_on_foot
+           || (kind == RAC1_STRAFE_NONE && state != RAC1_STRAFE_STATE_RUN
+               && state != RAC1_STRAFE_STATE_RUN_ALT);
 }
 
 /* Whether lock_strafe.cpp turns him toward the camera itself early in the hero's update: standing, where
@@ -394,8 +493,8 @@ static inline int rac1_strafe_backpedal(
 static inline void rac1_strafe_commando_rates(
     int state, float frame_scale_sq, float frame_time, float* accel, float* damping, float* limit
 ) {
-    // In the jump, the jump group's rates.
-    if (state == RAC1_STRAFE_STATE_JUMP) {
+    // In a jump, the jump group's rates.
+    if (rac1_strafe_jumping(state)) {
         *accel = frame_scale_sq * RAC1_STRAFE_AIR_ACCEL;
         *damping = frame_scale_sq * RAC1_STRAFE_AIR_DAMPING;
         *limit = frame_time * RAC1_STRAFE_AIR_LIMIT;
