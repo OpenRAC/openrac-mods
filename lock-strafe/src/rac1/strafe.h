@@ -432,44 +432,6 @@ static inline int rac1_strafe_glide_ends(int kind, int state, int playing_on_foo
                && state != RAC1_STRAFE_STATE_RUN_ALT);
 }
 
-/* Reticles: while he strafes with a weapon that fires ahead, the enemies within reach get the
- * green reticle first person puts on the one under its crosshair (the blaster's, sprite 0x26), as
- * Going Commando's strafe marks its targets. Within reach: first person's aim line is 20 units.
- * The game's queue holds 3 a frame, so the nearest 2, leaving one for the weapon's own. */
-#define RAC1_STRAFE_RETICLE_REACH 20.0f
-#define RAC1_STRAFE_RETICLES 2
-
-/* Whether reticles are drawn this tick. */
-static inline int rac1_strafe_shows_reticles(int kind, const rac1_strafe_input* in) {
-    return kind != RAC1_STRAFE_NONE && in->slot_state == RAC1_STRAFE_SLOT_READY
-           && rac1_strafe_aimable(in->slot_item);
-}
-
-/* Where an enemy `reach` units from him goes among the `count` kept (`kept`: their reaches,
- * nearest first): its index, the caller moving the farther ones down one and dropping the last
- * past RAC1_STRAFE_RETICLES; -1 when it is out of reach or farther than all of a full list. */
-static inline int rac1_strafe_reticle_slot(const float* kept, int count, float reach) {
-    int at = count;
-
-    // Out of reach (or no number): no reticle.
-    if (!(reach <= RAC1_STRAFE_RETICLE_REACH)) {
-        return -1;
-    }
-
-    // After the ones no farther, before the ones farther.
-    while (at > 0 && kept[at - 1] > reach) {
-        --at;
-    }
-
-    return at < RAC1_STRAFE_RETICLES ? at : -1;
-}
-
-/* A reticle's size by its distance from the camera, as first person sizes it. */
-static inline float rac1_strafe_reticle_size(float camera_distance) {
-    const float size = 0.9f - camera_distance / 50.0f * 0.65f;
-    return size < 0.0f ? -size : size;
-}
-
 /* Whether lock_strafe.cpp turns him toward the camera itself early in the hero's update: standing, where
  * the game's standing state does not turn him, in Lock and in Hold once its swing is done. */
 static inline int rac1_strafe_turns_standing(int kind, int state, const rac1_strafe_hold* hold) {

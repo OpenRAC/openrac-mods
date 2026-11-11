@@ -12,7 +12,6 @@
  * Expected values are worked out by hand from strafe.h, on a memory laid out at the discs'
  * addresses in discs.h.
  */
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -117,51 +116,6 @@ static void game_look(openrac_gaddr d, float a, float b) {
     (void)d, (void)a, (void)b;
 }
 
-/* EffectQueue_Add, each disc's order: the reticles queued (as the game does, the count at +0xC0
- * goes up by one; the test keeps it below 3). */
-static struct {
-    int32_t owner, colour, sprite, mode;
-    float size, angle, rate, point[4];
-} s_reticles[8];
-
-static int s_reticle_count;
-
-static void put_u32(openrac_gaddr a, uint32_t v);
-static uint32_t get_u32(openrac_gaddr a);
-
-static void reticle_seen(
-    int32_t owner, int32_t colour, float size, float angle, openrac_gaddr point, int32_t sprite,
-    int32_t mode, float rate
-) {
-    const lock_strafe_disc* d =
-        strcmp(s_disc, "pal") == 0 ? &k_lock_strafe_discs[0] : &k_lock_strafe_discs[1];
-    CHECK(s_reticle_count < 8);
-    s_reticles[s_reticle_count].owner = owner;
-    s_reticles[s_reticle_count].colour = colour;
-    s_reticles[s_reticle_count].size = size;
-    s_reticles[s_reticle_count].angle = angle;
-    memcpy(s_reticles[s_reticle_count].point, s_memory + point, 16);
-    s_reticles[s_reticle_count].sprite = sprite;
-    s_reticles[s_reticle_count].mode = mode;
-    s_reticles[s_reticle_count].rate = rate;
-    ++s_reticle_count;
-    put_u32(d->reticles + 0xC0u, get_u32(d->reticles + 0xC0u) + 1u);
-}
-
-static void game_reticle_pal(
-    int32_t owner, int32_t colour, float size, float angle, openrac_gaddr point, int32_t sprite,
-    int32_t mode, float rate
-) {
-    reticle_seen(owner, colour, size, angle, point, sprite, mode, rate);
-}
-
-static void game_reticle_ntsc(
-    int32_t owner, int32_t colour, openrac_gaddr point, int32_t sprite, int32_t mode, float size,
-    float angle, float rate
-) {
-    reticle_seen(owner, colour, size, angle, point, sprite, mode, rate);
-}
-
 /* HeroEnterMoveState: the state asked for (taken), and stick_direction_vs_facing: a direction set
  * by the test. */
 static int32_t s_entered = -1;
@@ -204,14 +158,12 @@ static void host_fail(openrac_mod* mod, const char* reason) {
 }
 
 static int s_setting_twist = 1;
-static int s_setting_reticles = 1;
 static int s_setting_flips = 1;
 
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
     return strcmp(key, "twist") == 0   ? s_setting_twist
            : strcmp(key, "flips") == 0 ? s_setting_flips
-           : strcmp(key, "reticles") == 0 ? s_setting_reticles
                                        : 0;
 }
 
@@ -334,11 +286,6 @@ static void* host_function(const char* name) {
         return (void*)game_direction;
     }
 
-    if (strcmp(name, d->reticle) == 0) {
-        return d->reticle_args == LOCK_STRAFE_RETICLE_ARGS_PAL ? (void*)game_reticle_pal
-                                                               : (void*)game_reticle_ntsc;
-    }
-
     return NULL;
 }
 
@@ -433,69 +380,6 @@ static float get_f32(openrac_gaddr a) {
     return v;
 }
 
-/* A moby in the list for the reticles' test: at x on the ground, its class and flags. */
-static void put_moby(
-    openrac_gaddr m, openrac_gaddr next, float x, openrac_gaddr cls, uint32_t flags, uint8_t state,
-    uint8_t drawn
-) {
-    memset(s_memory + m, 0, 0x100);
-    put_f32(m + 0x10u, x);
-    s_memory[m + 0x20u] = state;
-    put_u32(m + 0x24u, cls);
-    put_u32(m + 0x28u, next);
-    s_memory[m + 0x31u] = drawn;
-    put_u32(m + 0x34u, flags);
-    put_u32(m + 0x78u, 0x001E9000u); /* its target info, read only with flag 0x20 */
-}
-
-static void reticles(const lock_strafe_disc* d, openrac_rac1_Hero_AdvanceAnimation advance) {
-    const openrac_gaddr creature = 0x001E8000u, other = 0x001E8100u, moby = 0x001E0000u;
-    put_u32(creature + 0x44u, 0x00050000u); /* class type 5, the s16 at +0x46 */
-    put_u32(other + 0x44u, 0x00030000u);
-    put_f32(0x001E9000u + 0x10u, 1.0f); /* the aim height */
-    put_moby(moby + 0x000u, moby + 0x100u, 3.0f, creature, 0x1020u, 0, 1);   /* 2nd, height 1 */
-    put_moby(moby + 0x100u, moby + 0x200u, 1.0f, creature, 0x1000u, 0, 1);   /* 1st */
-    put_moby(moby + 0x200u, moby + 0x300u, 2.0f, creature, 0x1000u, 0, 0);   /* not drawn */
-    put_moby(moby + 0x300u, moby + 0x400u, 2.5f, other, 0x1000u, 0, 1);      /* no creature */
-    put_moby(moby + 0x400u, moby + 0x500u, 25.0f, creature, 0x1000u, 0, 1);  /* out of reach */
-    put_moby(moby + 0x500u, moby + 0x600u, 5.0f, creature, 0x1000u, 0, 1);   /* 3rd: no room */
-    put_moby(moby + 0x600u, moby + 0x700u, 1.5f, creature, 0x1000u, 0xFF, 1); /* dead */
-    put_moby(moby + 0x700u, 0, 1.2f, creature, 0x0000u, 0, 1);              /* no target */
-    put_u32(d->mobys, moby);
-    put_u32(d->hero + 0x2080u, 0x001EF000u); /* his moby, the reticles' owner */
-    put_f32(d->hero + 0x80u, 0.0f);
-    put_f32(d->hero + 0x84u, 0.0f);
-    put_f32(d->hero + 0x88u, 0.0f);
-    put_f32(d->camera_pos + 8u, 10.0f);
-    put_u32(d->reticles + 0xC0u, 0);
-    s_reticle_count = 0;
-    advance();
-    CHECK(s_reticle_count == 2);
-    CHECK(s_reticles[0].point[0] == 1.0f && s_reticles[0].point[2] == 0.5f);
-    CHECK(s_reticles[1].point[0] == 3.0f && s_reticles[1].point[2] == 1.0f);
-    CHECK(s_reticles[0].owner == 0x001EF000 && s_reticles[0].colour == (int32_t)0xFF0FFF0Fu);
-    CHECK(s_reticles[0].sprite == 0x26 && s_reticles[0].mode == -1 && s_reticles[0].angle == 0.0f);
-    CHECK(s_reticles[0].rate == 90.0f);
-    CHECK(fabsf(s_reticles[0].size - rac1_strafe_reticle_size(sqrtf(1.0f + 9.5f * 9.5f))) < 1e-5f);
-    CHECK(fabsf(s_reticles[1].size - rac1_strafe_reticle_size(sqrtf(9.0f + 9.0f * 9.0f))) < 1e-5f);
-
-    /* The queue with one slot left (the game's own reticles in it): only the nearest. */
-    put_u32(d->reticles + 0xC0u, 2);
-    s_reticle_count = 0;
-    advance();
-    CHECK(s_reticle_count == 1 && s_reticles[0].point[0] == 1.0f);
-
-    /* The wrench in hand: none. */
-    put_u32(d->reticles + 0xC0u, 0);
-    put_u32(d->hero + 0x1090u + 0x28u, 0x08);
-    s_reticle_count = 0;
-    advance();
-    CHECK(s_reticle_count == 0);
-    put_u32(d->hero + 0x1090u + 0x28u, 0x0F);
-    put_u32(d->hero + 0x2080u, 0);
-    put_u32(d->mobys, 0);
-}
-
 int main(int argc, char** argv) {
     CHECK(argc == 2);
     void* lib = open_library(argv[1]);
@@ -509,7 +393,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.12: the hero's joints), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.3.0") == 0);
+    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.2.1") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -635,11 +519,6 @@ int main(int argc, char** argv) {
                - s_joints[0].rotation[2] * s_joints[0].rotation[3])
         < 0.0f
     );
-
-    /* Reticles: Locked with the Blaster, on the two nearest drawn, live, targetable creatures
-     * within 20 units of him, nearest first, at their aim height, sized by the camera's distance
-     * as first person sizes them; not on one dead, not drawn, not a creature or out of reach. */
-    reticles(d, advance);
 
     /* The slide to a stop: running right, the velocity along the stick's yaw; the stick let go
      * (the game sets the move yaw to his facing and the target speed to 0), still along it. */

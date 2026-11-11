@@ -181,35 +181,6 @@ constexpr uint32_t k_camera_timer2 = 0x16u;
 constexpr uint32_t k_camera_id = 0x86u;
 constexpr int16_t k_camera_behind_hero = 0;
 
-// In a moby (include/structs/moby.h) and its class, what the reticles read: as the game's aim
-// (select_auto_aim_target_moby) picks its targets, a live (state below 0x80), targetable (flag
-// 0x1000) creature (class type 5), aimed at its target info's height (+0x10, the first pvars word
-// with flag 0x20), else half a unit above its feet. Drawn last frame: the byte at +0x31.
-constexpr uint32_t k_moby_pos = 0x10u;
-constexpr uint32_t k_moby_state = 0x20u;
-constexpr uint32_t k_moby_class = 0x24u;
-constexpr uint32_t k_moby_next = 0x28u;
-constexpr uint32_t k_moby_drawn = 0x31u;
-constexpr uint32_t k_moby_flags = 0x34u;
-constexpr uint32_t k_moby_pvars = 0x78u;
-constexpr uint32_t k_class_type = 0x46u;
-constexpr int16_t k_class_creature = 5;
-constexpr uint8_t k_moby_dead = 0x80u;
-constexpr uint16_t k_moby_targetable = 0x1000u;
-constexpr uint16_t k_moby_target_info = 0x20u;
-constexpr uint32_t k_target_height = 0x10u;
-constexpr float k_target_height_default = 0.5f;
-
-// The reticle as first person queues it (the blaster's): green, sprite 0x26, not turned; the
-// queue's count at +0xC0, 3 entries. A walk of the moby list stops after this many (a broken list).
-constexpr uint32_t k_reticle_colour = 0xFF0FFF0Fu;
-constexpr int32_t k_reticle_sprite = 0x26;
-constexpr int32_t k_reticle_mode = -1;
-constexpr float k_reticle_turn_rate = 90.0f;
-constexpr uint32_t k_reticle_count = 0xC0u;
-constexpr int32_t k_reticle_slots = 3;
-constexpr int k_moby_walk_limit = 4096;
-
 // The strafe camera's lateral spring, as the game's strafe state asks for it (seen in game code).
 constexpr float k_camera_spring_a = 0.04f;
 constexpr float k_camera_spring_b = 0.2f;
@@ -244,7 +215,6 @@ int s_feel;                 // RAC1_STRAFE_FEEL_COMMANDO or RAC1_STRAFE_FEEL_CLA
 uint32_t s_strafe_buttons;  // the pad bits that strafe (the setting "button")
 bool s_twist;               // the hip twist
 bool s_flips;               // the strafe flips
-bool s_reticles;            // reticles on the enemies within reach
 bool s_trace;               // a line each pad report
 
 // The game's functions it calls (discs.h). Set in load.
@@ -256,7 +226,6 @@ void (*s_camera_pan_off)();
 void (*s_camera_look_along)(gaddr, float, float);
 int32_t (*s_enter_state)(int32_t, int32_t);
 int32_t (*s_stick_direction)();
-void (*s_reticle)();  // EffectQueue_Add, called as discs.h's reticle_args says; null: no reticles
 
 // The strafe's buttons (L2, R2 or both) as the player holds them, from the last pad report (set by
 // the pad hook, read by the decision's input). A button the setting leaves to the game is not here.
@@ -812,108 +781,6 @@ void set_planar_velocity(Original original, float angle) {
     original(angle);
 }
 
-// The distance from a point in game memory (x, y, z) to `b`.
-float distance(gaddr a, const float b[3]) {
-    const float x = get_float(a) - b[0];
-    const float y = get_float(a + 4u) - b[1];
-    const float z = get_float(a + 8u) - b[2];
-    return std::sqrt(x * x + y * y + z * z);
-}
-
-// One reticle on the game's queue at `point` (16 bytes in game memory).
-void queue_reticle(gaddr point, float size) {
-    const auto owner = static_cast<int32_t>(hero_moby());
-    const auto colour = static_cast<int32_t>(k_reticle_colour);
-
-    // Each disc's build declares the parameters in its own order (discs.h).
-    if (s_disc->reticle_args == LOCK_STRAFE_RETICLE_ARGS_PAL) {
-        using Fn = void (*)(int32_t, int32_t, float, float, gaddr, int32_t, int32_t, float);
-        reinterpret_cast<Fn>(s_reticle)(
-            owner, colour, size, 0.0f, point, k_reticle_sprite, k_reticle_mode, k_reticle_turn_rate
-        );
-    } else {
-        using Fn = void (*)(int32_t, int32_t, gaddr, int32_t, int32_t, float, float, float);
-        reinterpret_cast<Fn>(s_reticle)(
-            owner, colour, point, k_reticle_sprite, k_reticle_mode, size, 0.0f, k_reticle_turn_rate
-        );
-    }
-}
-
-// Where a moby is aimed at (its target point, as the game's aim takes it), or false when it is no
-// target: dead, not targetable, not a creature or not drawn last frame.
-bool target_point(gaddr moby, float point[3]) {
-    const gaddr cls = ref<gaddr>(moby + k_moby_class);
-    const uint16_t flags = ref<uint16_t>(moby + k_moby_flags);
-
-    // Not one the game's aim takes, or off the screen: no reticle.
-    if (ref<uint8_t>(moby + k_moby_state) >= k_moby_dead || (flags & k_moby_targetable) == 0
-        || cls == 0 || ref<int16_t>(cls + k_class_type) != k_class_creature
-        || ref<uint8_t>(moby + k_moby_drawn) == 0) {
-        return false;
-    }
-
-    const gaddr info = (flags & k_moby_target_info) != 0 ? ref<gaddr>(moby + k_moby_pvars) : 0;
-    point[0] = get_float(moby + k_moby_pos);
-    point[1] = get_float(moby + k_moby_pos + 4u);
-    point[2] = get_float(moby + k_moby_pos + 8u)
-               + (info != 0 ? get_float(info + k_target_height) : k_target_height_default);
-    return true;
-}
-
-// The reticles (strafe.h): on the nearest enemies within reach, while he strafes with a weapon
-// that fires ahead, as many as the game's queue has room for.
-void draw_reticles(int kind, const rac1_strafe_input& in) {
-    // The setting off, not strafing with a gun, or no queue on this OpenRAC: none.
-    if (!s_reticles || s_reticle == nullptr || !rac1_strafe_shows_reticles(kind, &in)) {
-        return;
-    }
-
-    float reach[RAC1_STRAFE_RETICLES] = {};
-    float points[RAC1_STRAFE_RETICLES][3] = {};
-    int count = 0;
-    gaddr moby = ref<gaddr>(level0(s_disc->mobys));
-
-    // Keep the nearest, nearest first.
-    for (int walked = 0; moby != 0 && walked < k_moby_walk_limit; ++walked) {
-        float point[3];
-
-        // A target: where it goes among the kept ones, if anywhere.
-        if (target_point(moby, point)) {
-            const float r = distance(hero() + k_hero_pos_x, point);
-            const int at = rac1_strafe_reticle_slot(reach, count, r);
-
-            // Nearer than one kept, or room left: in, the farther ones down one.
-            if (at >= 0) {
-                count = count < RAC1_STRAFE_RETICLES ? count + 1 : count;
-
-                for (int i = count - 1; i > at; --i) {
-                    reach[i] = reach[i - 1];
-                    std::memcpy(points[i], points[i - 1], sizeof point);
-                }
-
-                reach[at] = r;
-                std::memcpy(points[at], point, sizeof point);
-            }
-        }
-
-        moby = ref<gaddr>(moby + k_moby_next);
-    }
-
-    const gaddr queued = level0(s_disc->reticles) + k_reticle_count;
-    const gaddr camera = level0(s_disc->camera_pos);
-    openrac::StackFrame frame(*s_mod, 16);
-    const gaddr at = frame.address();
-
-    // Queue them while the game's queue has room.
-    for (int i = 0; i < count && ref<int32_t>(queued) < k_reticle_slots; ++i) {
-        put_float(at, points[i][0]);
-        put_float(at + 4u, points[i][1]);
-        put_float(at + 8u, points[i][2]);
-        put_float(at + 12u, 1.0f);
-        queue_reticle(at, rac1_strafe_reticle_size(distance(camera, points[i])));
-    }
-}
-
 // Ratchet's animation advance (once a tick after his state's update): the key and blend of his
 // moby moved on by his animation speed (+0xA90) times the key's rate (+0xA94). While he strafes away
 // from his facing in the walk or the run (strafe.h, the backpedal), the sequence is stepped back
@@ -930,7 +797,6 @@ void advance_animation(Original original) {
         kind, s_feel, in.state, in.facing, get_float(hero() + k_hero_move_yaw), s_backpedal
     );
     update_twist(kind);
-    draw_reticles(kind, in);
     const gaddr moby = hero_moby();
 
     // Not backpedalling, or no moby to step: the game's own advance.
@@ -999,7 +865,6 @@ void load(openrac::Mod& mod) {
     );
     s_twist = mod.setting<bool>("twist");
     s_flips = mod.setting<bool>("flips");
-    s_reticles = mod.setting<bool>("reticles");
     s_trace = mod.setting<bool>("trace") || std::getenv("OPENRAC_STRAFE_TRACE") != nullptr;
     s_buttons = 0;
     s_hold = rac1_strafe_hold{};
@@ -1020,7 +885,6 @@ void load(openrac::Mod& mod) {
     s_camera_look_along = game_function<void (*)(gaddr, float, float)>(s_disc->camera_look_along);
     s_enter_state = game_function<int32_t (*)(int32_t, int32_t)>(s_disc->enter_state);
     s_stick_direction = game_function<int32_t (*)()>(s_disc->stick_direction);
-    s_reticle = mod.function<void (*)()>(s_disc->reticle);  // none: he strafes without reticles
 
     // A hook point this OpenRAC lacks throws: the load is refused with its name, and the port lets
     // go of the hooks already taken.

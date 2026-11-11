@@ -44,9 +44,6 @@ Apart from the feel:
   pushed all the way left, right or back does the first game's side flip or
   back flip that way (its own animations), as Going Commando's strafe does.
   Forward, or with the stick not all the way, X jumps as usual.
-- **Reticles** (on): strafing with a weapon that fires ahead, the two nearest
-  enemies within 20 units that are on screen get the green reticle first
-  person puts on its target, as Going Commando's strafe marks them.
 
 In both, **L1** still looks in first person and **R1** still crouches (and
 crouch-jumps); L2 and R2 strafe (or the one **Strafe button** picks, the other
@@ -183,23 +180,8 @@ its own animation from the stick (0x1C left, 0x1D right, 0x1F back) and
 flies as the game has it; the mod starts its drift at Going Commando's 5
 units a second. If the game refuses the state, its own jump goes on.
 
-**The reticles**: from the animation hook, while he strafes with a weapon
-that fires ahead, the mod walks the game's list of live mobys (PAL
-`D_L00_001600A4`) and keeps the ones its aim would take
-(`select_auto_aim_target_moby`: alive, flag 0x1000, a creature, class type 5)
-that were drawn last frame and stand within 20 units of him (first person's
-aim line is 20 units long). The nearest two go on the game's reticle queue
-(`EffectQueue_Add`, PAL `func_L00_001EE2E0`) as the blaster queues its own in
-first person: green, sprite 0x26, at the target's aim height, sized by the
-camera's distance. The queue holds three a frame; the third is left to the
-weapon. There is no line of sight test: one behind a wall that is still drawn
-gets one.
-
-**A level's own camera.** Where the level switches from the camera behind him
-to one of its own (any camera whose id is not 0: Kalebo III's robot waves are
-seen from a wall) the strafe is off and L2 and R2 are the game's. A camera
-volume that only turns the follow camera can still turn it while L2 or R2 is
-held, and he turns with it.
+**Not done.** A level's camera (a wall, a camera volume) can still turn the
+camera while L2 or R2 is held, and he turns with it.
 
 ## Settings
 
@@ -210,7 +192,6 @@ held, and he turns with it.
 | `feel` | choice: `commando`, `classic` | `commando` | Going Commando's turn, stop and backpedal, no swing; or the mod's 1.0 behaviour |
 | `twist` | bool | true | the hip twist |
 | `flips` | bool | true | X with the stick pushed sideways or back flips that way |
-| `reticles` | bool | true | strafing with a gun, reticles on the two nearest enemies within reach |
 | `trace` | bool | false | a line in the log each pad report: the mode, what the strafe does, the hero's state, item, buttons, whether Hold is latched and still swinging, the latched yaw, the right stick sideways, his facing, move yaw, the camera's yaw, his position, whether he backpedals, and his animation (sequences A/B, keys A-B, blend, speed), the feel, the twist's two angles and the side timers |
 
 ## History
@@ -230,7 +211,7 @@ In 1.1.1 the hip twist turns the right way. 1.1.0 turned his hips away from wher
 went, so strafing sideways his legs walked the other way (the moonwalk; DESIGN.md).
 In 1.2.0 the setting **Strafe button** lets L2 or R2 alone strafe, leaving the
 other to the game and to mods that use it (a wrench throw raised on R2).
-In 1.3.0 he no longer slides forward as a strafe ends. Stopping (the stick let
+In 1.2.1 he no longer slides forward as a strafe ends. Stopping (the stick let
 go: the game turns the move yaw back to his facing) he slows along the stick's
 last yaw; letting go of L2 or R2 while running on (the game turns him to the
 stick over a few ticks and runs along his facing meanwhile) his speed follows
@@ -238,5 +219,4 @@ the stick until he faces it. A strafe flip goes straight to the side or back
 (state 0xB carried his run speed along his facing; the strafe flip carries
 none). Where the level puts its own camera (Kalebo III's robot waves, seen
 from a wall) the strafe stays off and L2 and R2 are the game's: facing that
-camera's yaw had him aim up at the wall. Strafing with a gun, the nearest
-enemies within reach get first person's reticle.
+camera's yaw had him aim up at the wall.

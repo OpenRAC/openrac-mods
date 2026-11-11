@@ -24,9 +24,6 @@ typedef struct lock_strafe_disc {
     uint32_t camera_yaw; /* the camera's yaw */
     uint32_t camera_pan; /* the follow camera's pan weight */
     uint32_t camera_now; /* gCamera.current: the camera slot in use (its id at +0x86) */
-    uint32_t camera_pos; /* the camera's position (gCamera +0x140) */
-    uint32_t mobys;      /* the list of live mobys the aim walks (suck_moby_list) */
-    uint32_t reticles;   /* the reticle queue (3 entries of 0x30 bytes, the count at +0xC0) */
     /* The game's functions it calls. */
     const char* fast_cos;          /* float (float) */
     const char* fast_sin;          /* float (float) */
@@ -36,18 +33,7 @@ typedef struct lock_strafe_disc {
     const char* camera_look_along; /* void (u32 direction, float, float): look along a heading */
     const char* enter_state;       /* int (int state, int animate): HeroEnterMoveState */
     const char* stick_direction;   /* int (void): stick_direction_vs_facing */
-    const char* reticle;           /* EffectQueue_Add: a reticle queued for this frame */
-    int reticle_args;              /* its prototype's order (LOCK_STRAFE_RETICLE_ARGS_*) */
 } lock_strafe_disc;
-
-/* EffectQueue_Add's parameters as each disc's build declares them (a call through the pointer
- * must match it: Windows passes by position). The same registers either way. */
-enum {
-    /* (owner, colour, size, angle, u32 point, sprite, mode, float) */
-    LOCK_STRAFE_RETICLE_ARGS_PAL = 0,
-    /* (owner, colour, u32 point, sprite, mode, size, angle, float) */
-    LOCK_STRAFE_RETICLE_ARGS_NTSC = 1
-};
 
 static const lock_strafe_disc k_lock_strafe_discs[] = {
     {
@@ -60,9 +46,6 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         0x00166ED8u,
         0x0015F040u,
         0x00166F00u,
-        0x00166EC0u,
-        0x001600A4u,
-        0x00169140u,
         "func_001F9F90",
         "func_001F9FA8",
         "func_L00_002E9A18",
@@ -71,8 +54,6 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         "func_L00_002E9DC8",
         "func_L00_00222B80",
         "func_L00_00222580",
-        "func_L00_001EE2E0",
-        LOCK_STRAFE_RETICLE_ARGS_PAL,
     },
     {
         "ntsc",
@@ -84,9 +65,6 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         0x00166DD8u,
         0x0015EF40u,
         0x00166E00u,
-        0x00166DC0u,
-        0x0015FFE4u,
-        0x00169040u,
         "FUN_001f9dc8",
         "FUN_001f9de0",
         "FUN_L00_002e8568",
@@ -95,8 +73,6 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         "FUN_L00_002e8918",
         "FUN_L00_002223f8",
         "FUN_L00_00221df8",
-        "FUN_L00_001edf60",
-        LOCK_STRAFE_RETICLE_ARGS_NTSC,
     },
 };
 

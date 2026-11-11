@@ -2,7 +2,7 @@
   "format": 2,
   "id": "lock-strafe",
   "name": "Lock-strafe",
-  "version": "1.3.0",
+  "version": "1.2.1",
   "author": "Keros",
   "description": "Strafe as in Going Commando: hold L2 or R2 (or only one of them, so the other stays free for other mods; or always, with a weapon that fires ahead) and Ratchet faces where the camera looks while the left stick moves him; his hips turn toward where he goes while his body stays on the camera, and X with the stick pushed sideways or back flips that way. L1 still looks and R1 still crouches.",
   "license": "GPL-3.0-or-later",
@@ -92,13 +92,6 @@
       "type": "bool",
       "default": true,
       "description": "Strafing, X with the stick pushed all the way left, right or back does a side flip or a back flip that way, as in Going Commando."
-    },
-    {
-      "key": "reticles",
-      "name": "Reticles",
-      "type": "bool",
-      "default": true,
-      "description": "Strafing with a weapon that fires ahead, the two nearest enemies within reach get the green reticle first person puts on its target, as Going Commando marks them."
     },
     {
       "key": "trace",
