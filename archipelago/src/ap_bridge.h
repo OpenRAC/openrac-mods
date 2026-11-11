@@ -70,6 +70,9 @@ int ap_client_synced(void);
 /* The slot's New Game+ option: -1 until connected and the save matches, else 0 or 1.
  * Missing options from older APWorlds default to 0. */
 int ap_client_new_game_plus(void);
+int ap_client_shuffle_gold_weapons(void);
+/* Scouted purchase reward and recipient, for the gold-case preview. */
+int ap_client_location_hint(int64_t location, char* out, size_t size);
 
 /* The next line to show the player (an item sent or received, the connection), oldest first.
  * Returns 1 and the line in out (cut to size), or 0 when there is none. */

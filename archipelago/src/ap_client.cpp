@@ -153,9 +153,19 @@ public:
         return session_.new_game_plus();
     }
 
+    int shuffle_gold_weapons() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.shuffle_gold_weapons();
+    }
+
     bool message(std::string& out) {
         std::lock_guard<std::mutex> lock(mutex_);
         return session_.next_message(out);
+    }
+
+    bool location_hint(std::int64_t location, std::string& out) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.location_hint(location, out);
     }
 
     bool location_item(std::int64_t location, std::int64_t& item, bool& own) {
@@ -373,6 +383,10 @@ int ap_client_new_game_plus(void) {
     return g_client != nullptr ? g_client->new_game_plus() : -1;
 }
 
+int ap_client_shuffle_gold_weapons(void) {
+    return g_client != nullptr ? g_client->shuffle_gold_weapons() : -1;
+}
+
 int ap_client_message(char* out, size_t size) {
     std::string line;
 
@@ -382,6 +396,15 @@ int ap_client_message(char* out, size_t size) {
 
     const std::size_t n = std::min(line.size(), size - 1);
     std::memcpy(out, line.data(), n);
+    out[n] = 0;
+    return 1;
+}
+
+int ap_client_location_hint(int64_t location, char* out, size_t size) {
+    std::string text;
+    if (!g_client || !size || !g_client->location_hint(location, text)) return 0;
+    const size_t n = std::min(text.size(), size - 1);
+    std::memcpy(out, text.data(), n);
     out[n] = 0;
     return 1;
 }

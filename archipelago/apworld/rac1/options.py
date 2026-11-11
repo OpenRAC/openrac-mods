@@ -46,8 +46,15 @@ class ShuffleInfobots(DefaultOnToggle):
 
 class ShuffleSkillPoints(Toggle):
     """The 30 skill points are locations too, and as many gold bolts join the items. The game's own
-    challenges, and optional: a skill point never holds progression, of any world."""
+    challenges. With gold-weapon cases shuffled, their gold bolts can finance those purchases;
+    otherwise skill points never hold progression."""
     display_name = "Shuffle skill points"
+
+
+class ShuffleGoldWeapons(Toggle):
+    """Shuffle the ten gold-weapon case purchases into the multiworld. Each case still costs
+    its retail bolts and four gold bolts. Gold weapons grant their base weapon and upgrade."""
+    display_name = "Shuffle gold weapons"
 
 
 class StartInNewGamePlus(Toggle):
@@ -60,9 +67,9 @@ class StartingWeapons(Choice):
     """Choose your starting weapon.
     Vanilla: start with Bomb Glove.
     Shuffled: shuffle the starting location, with no guaranteed weapon.
-    Non-Broken: one random weapon besides the R.Y.N.O.
-    Unrestricted: any one weapon.
-    Non-Broken and Unrestricted swap the chosen weapon with Bomb Glove before shuffling."""
+    Non-Broken: one random normal or gold weapon besides the R.Y.N.O.
+    Unrestricted: any one normal or gold weapon.
+    Non-Broken and Unrestricted include gold weapons even when gold cases are not shuffled."""
     display_name = "Starting weapons"
     option_vanilla = 0
     option_shuffled = 3
@@ -80,6 +87,7 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_gold_bolts: ShuffleGoldBolts
     shuffle_infobots: ShuffleInfobots
     shuffle_skill_points: ShuffleSkillPoints
+    shuffle_gold_weapons: ShuffleGoldWeapons
     starting_weapons: StartingWeapons
     start_in_new_game_plus: StartInNewGamePlus
     start_inventory_from_pool: StartInventoryPool
@@ -89,7 +97,7 @@ OPTION_GROUPS = [
     OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus]),
     OptionGroup(
         "Pools",
-        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints],
+        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],
     ),
 ]
 

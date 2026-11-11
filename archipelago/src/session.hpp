@@ -82,6 +82,10 @@ public:
         return connected_ && save_judged_ && !foreign_ ? int(new_game_plus_) : -1;
     }
 
+    int shuffle_gold_weapons() const {
+        return connected_ && save_judged_ && !foreign_ ? int(shuffle_gold_weapons_) : -1;
+    }
+
     const std::string& refusal() const { return refusal_; }
 
     const std::vector<std::int64_t>& items() const { return items_; }
@@ -94,6 +98,8 @@ public:
 
     // What a location of this slot holds: true, its item and whether it is this slot's.
     bool location_item(std::int64_t location, std::int64_t& item, bool& own) const;
+
+    bool location_hint(std::int64_t location, std::string& out) const;
 
     int slot() const { return slot_; }
 
@@ -136,6 +142,7 @@ private:
     bool foreign_ = false;
     bool save_judged_ = false;
     bool new_game_plus_ = false;
+    bool shuffle_gold_weapons_ = false;
     int save_slot_ = -1;     // the memory card slot of save_
     int unbound_ = -1;       // a slot saved into before the room's seed was known
     std::string seed_name_;  // RoomInfo's seed_name
@@ -144,7 +151,7 @@ private:
     std::map<int, Player> players_;
     std::map<std::string, std::map<std::int64_t, std::string>> item_names_;      // by game
     std::map<std::string, std::map<std::int64_t, std::string>> location_names_;  // by game
-    std::map<std::int64_t, std::pair<std::int64_t, bool>> scouted_;
+    std::map<std::int64_t, std::pair<std::int64_t, int>> scouted_;
     std::deque<std::string> messages_;
 };
 

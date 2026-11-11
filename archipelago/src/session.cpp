@@ -96,7 +96,14 @@ bool Session::location_item(std::int64_t location, std::int64_t& item, bool& own
     }
 
     item = it->second.first;
-    own = it->second.second;
+    own = it->second.second == slot_;
+    return true;
+}
+
+bool Session::location_hint(std::int64_t location, std::string& out) const {
+    const auto it = scouted_.find(location);
+    if (it == scouted_.end()) return false;
+    out = item_name(it->second.first, it->second.second) + " for " + player_name(it->second.second);
     return true;
 }
 
@@ -407,8 +414,14 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
         ));
     } else if (cmd == "Connected") {
         new_game_plus_ = false;
+        shuffle_gold_weapons_ = false;
         const auto data = p.find("slot_data");
         if (data != p.end() && data->is_object()) {
+            const auto gold_option = data->find("shuffle_gold_weapons");
+            if (gold_option != data->end()) {
+                shuffle_gold_weapons_ = (gold_option->is_boolean() && gold_option->get<bool>())
+                                       || (gold_option->is_number_integer() && *gold_option == 1);
+            }
             const auto option = data->find("start_in_new_game_plus");
             if (option != data->end()) {
                 new_game_plus_ = (option->is_boolean() && option->get<bool>())
@@ -530,7 +543,7 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
             for (const json& item : *locations) {
                 if (item.is_object()) {
                     scouted_[int_of(item, "location", -1)] =
-                        {int_of(item, "item", -1), int_of(item, "player", -1) == slot_};
+                        {int_of(item, "item", -1), int(int_of(item, "player", -1))};
                 }
             }
         }

@@ -17,9 +17,25 @@ from .bases import RAC1TestBase
 from .. import RAC1World
 from ..items import ITEM_NAME_GROUPS
 from ..options import StartingWeapons
+from ..gold_weapons import GOLD_WEAPONS, GOLD_ITEMS
 
 
 class TestStartingWeapons(unittest.TestCase):
+    def test_gold_starts_with_and_without_case_shuffle(self) -> None:
+        from ..gold_weapons import GOLD_LOCATION_ROWS
+        base_rows = [row for row in LOCATIONS if row.id is not None]
+        for enabled in (False, True):
+            rows = base_rows + (GOLD_LOCATION_ROWS if enabled else [])
+            expected = Counter(row.vanilla or "Gold Bolt" for row in rows)
+            for gold, base in GOLD_WEAPONS.items():
+                world = SimpleNamespace(starting_weapon=gold,
+                                        options=SimpleNamespace(shuffle_gold_weapons=enabled))
+                want = expected.copy()
+                if not enabled:
+                    want[base] -= 1
+                    want[gold] += 1
+                self.assertEqual(Counter(RAC1World.vanilla_item(world, row) for row in rows), +want)
+
     def test_single_starting_option(self) -> None:
         self.assertIn("starting_weapons", RAC1Options.type_hints)
         self.assertNotIn("keep_starting_gear", RAC1Options.type_hints)
@@ -42,7 +58,7 @@ class TestStartingWeapons(unittest.TestCase):
     def test_every_weapon_swap_preserves_items(self) -> None:
         rows = [row for row in LOCATIONS if row.id is not None]
         expected = Counter(row.vanilla or "Gold Bolt" for row in rows)
-        for weapon in ITEM_NAME_GROUPS["Weapons"]:
+        for weapon in ITEM_NAME_GROUPS["Weapons"] - set(GOLD_WEAPONS):
             world = SimpleNamespace(starting_weapon=weapon)
             self.assertEqual(Counter(RAC1World.vanilla_item(world, row) for row in rows), expected)
 
@@ -107,6 +123,57 @@ class TestNewGamePlus(RAC1TestBase):
         location = self.world.get_location("Veldin: the starting Bomb Glove")
         self.assertEqual(location.item.name, self.world.starting_weapon)
         self.assertTrue(location.locked)
+
+
+class TestGoldWeapons(RAC1TestBase):
+    options = {"shuffle_gold_weapons": True, "start_in_new_game_plus": True}
+
+    def test_ten_cases_and_weapons(self) -> None:
+        cases = [row for row in self.world.location_rows() if row.kind == "gold_vendor"]
+        self.assertEqual(len(cases), 10)
+        self.assertEqual({row.vanilla for row in cases}, set(GOLD_WEAPONS))
+        self.assertEqual(sum(item.name in GOLD_WEAPONS for item in self.multiworld.itempool), 10)
+        self.assertEqual(self.world.fill_slot_data()["shuffle_gold_weapons"], 1)
+
+    def test_currency_and_optional_case_rules(self) -> None:
+        case = next(row for row in self.world.location_rows() if row.kind == "gold_vendor")
+        spot = self.world.get_location(case.name)
+        self.assertTrue(self.world.create_item("Gold Bolt").advancement)
+        self.assertFalse(spot.item_rule(self.world.create_item("Gold Bolt")))
+        self.assertFalse(spot.item_rule(self.world.create_item("Gold Devastator")))
+        state = CollectionState(self.multiworld)
+        state.add_item("Novalis Coordinates (NPC)", self.player)
+        self.assertFalse(spot.can_reach(state))
+        state.add_item("Gold Bolt", self.player, 39)
+        self.assertFalse(spot.can_reach(state))
+        state.add_item("Gold Bolt", self.player)
+        self.assertTrue(spot.can_reach(state))
+
+    def test_gold_weapons_satisfy_base_requirements(self) -> None:
+        state = CollectionState(self.multiworld)
+        item = self.world.create_item("Gold Devastator")
+        state.collect(item, True)
+        self.assertTrue(state.has("Devastator", self.player))
+        state.remove(item)
+        self.assertFalse(state.has("Devastator", self.player))
+
+
+class TestGoldWeaponsCanBeFilled(TestGoldWeapons):
+    place_progression = True
+
+    def test_ten_cases_and_weapons(self) -> None:
+        self.assertEqual(sum(row.kind == "gold_vendor" for row in self.world.location_rows()), 10)
+        self.assertTrue(self.multiworld.can_beat_game(CollectionState(self.multiworld)))
+
+
+class TestGoldWeaponsWithOtherPoolsOff(RAC1TestBase):
+    place_progression = True
+    options = {"shuffle_gold_weapons": True, "shuffle_gadgets": False, "shuffle_weapons": False,
+               "shuffle_vendor": False, "shuffle_infobots": False, "shuffle_gold_bolts": False}
+
+    def test_optional_case_fill(self) -> None:
+        self.assertTrue(self.multiworld.can_beat_game(CollectionState(self.multiworld)))
+        self.assertFalse(self.world.create_item("Gold Devastator").advancement)
 
 
 class TestExpert(RAC1TestBase):

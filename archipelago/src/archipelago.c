@@ -24,6 +24,7 @@
 
 #include "ap_bridge.h"
 #include "ap_ids.h"
+#include "ap_gold_weapons.h"
 #include "ap_skills.h"
 #include "discs.h"
 #include "hooks.h"
@@ -120,6 +121,16 @@ static int s_infobot = -1;
 
 /* What the server has sent this slot: each item and planet, and the gold bolts. */
 static uint8_t s_received_item[RANDO_ITEM_COUNT];
+static uint8_t s_received_gold_weapon[RANDO_ITEM_COUNT];
+static int s_gold_case = -1;
+static openrac_rac1_GoldBolts_CountUnspent s_count_unspent;
+static openrac_rac1_Moby_GoldWeaponCase_Update s_gold_case_update;
+static item_randomizer_Save_NewGamePlus s_new_game_plus;
+static int s_has_gold_currency_hook;
+static int s_gold_hook_warned;
+static int64_t s_gold_hint_location = -1;
+static float s_gold_hint_distance = 9.0f;
+static unsigned s_gold_hint_price;
 static uint8_t s_received_planet[LEVEL_COUNT];
 static int s_received_gold;
 static uint32_t s_generation = UINT32_MAX;
@@ -229,6 +240,17 @@ static int play_phase(uint32_t* loads) {
 
 static void log_line(int level, const char* text) {
     s_api->log(s_mod, level, text);
+}
+
+/* Chunk 24 is unused by retail (discs.h save_tag). Keep purchase checks separate from the
+ * gold-upgrade ownership bytes: a received upgrade never spends currency or buys its case. */
+#define GOLD_CHECK_MAGIC 0xA7500000u
+static uint32_t gold_case_checks(void) {
+    const uint32_t word = (uint32_t)get32(byte_at(s_disc->save_tag));
+    return (word & ~0x3FFu) == GOLD_CHECK_MAGIC ? word & 0x3FFu : 0;
+}
+static uint8_t* gold_owned(int base) {
+    return byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013E620u + base : 0x0013E520u + base);
 }
 
 /* ---- locations ---- */
@@ -392,11 +414,18 @@ static void read_received(void) {
 
     s_generation = generation;
     memset(s_received_item, 0, sizeof s_received_item);
+    memset(s_received_gold_weapon, 0, sizeof s_received_gold_weapon);
     memset(s_received_planet, 0, sizeof s_received_planet);
     s_received_gold = 0;
 
     // Each item by its kind.
     for (size_t i = 0; i < n; ++i) {
+        const int gold_base = ap_gold_weapon_base(ids[i]);
+        if (gold_base >= 0) {
+            s_received_gold_weapon[gold_base] = 1;
+            s_received_item[gold_base] = 1;
+            continue;
+        }
         const rando_reward r = ap_reward_of(ids[i]);
 
         if (r.kind == REWARD_ITEM) {
@@ -411,6 +440,12 @@ static void read_received(void) {
 
 /* Gives what the server sent that the hero lacks: in a level, with the player in control. */
 static void give_received(void) {
+    /* Set the variant before GiveItem so initial ammo/model setup sees the gold weapon. */
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
+        const int base = k_ap_gold_bases[i];
+        if (s_received_gold_weapon[base]) *gold_owned(base) = 1;
+    }
+
     // Each item sent and not owned.
     for (int item = 0; item < RANDO_ITEM_COUNT; ++item) {
         if (s_received_item[item] && !*owned(item)) {
@@ -644,7 +679,7 @@ static int save_slot_now(void) {
 
 /* The locations the game has had, sent to the client with the save's memory card slot. */
 static void send_save(int card_slot) {
-    static int64_t ids[RANDO_MAX_LOCATIONS + AP_SKILL_POINT_COUNT];
+    static int64_t ids[RANDO_MAX_LOCATIONS + AP_SKILL_POINT_COUNT + AP_GOLD_WEAPON_COUNT];
     size_t n = 0;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -660,6 +695,9 @@ static void send_save(int card_slot) {
         }
     }
 
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
+        if (gold_case_checks() & (1u << i)) ids[n++] = ap_gold_case_id(k_ap_gold_bases[i]);
+    }
     ap_client_save_loaded(ids, n, card_slot);
 }
 
@@ -988,6 +1026,81 @@ static int32_t count_gold_bolts_hook(void) {
     return s_received_gold < MAX_GOLD_BOLTS ? s_received_gold : MAX_GOLD_BOLTS;
 }
 
+/* Retail still performs affordability checks and charges bolts. Only its bought/owned flag
+ * is swapped while the case runs, because the random reward belongs to the AP server. */
+static void gold_case_update(openrac_gaddr moby) {
+    const int mode = ap_client_shuffle_gold_weapons();
+    if (mode < 0) return; /* no purchases before the room settings/save are known */
+    if (!mode) { s_gold_case_update(moby); return; }
+    if (!s_has_gold_currency_hook) return;
+    uint8_t* m = (uint8_t*)OPENRAC_G(s_api, moby);
+    int16_t oclass;
+    memcpy(&oclass, m + 0xA6, sizeof oclass);
+    const uint32_t pvars = (uint32_t)get32(m + MOBY_PVARS);
+    if (oclass != 304 || !pvars) { s_gold_case_update(moby); return; }
+    const int slot = i32_at(pvars + 0x40u);
+    if (slot < 0 || slot >= 20) { s_gold_case_update(moby); return; }
+    const uint32_t table = strcmp(s_disc->version, "pal") == 0 ? 0x001DEDE0u : 0x001DEB10u;
+    uint8_t* entries = (uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, table));
+    const int base = get32(entries + slot * 4);
+    const int index = ap_gold_weapon_index(base);
+    if (index < 0) { s_gold_case_update(moby); return; }
+    const uint32_t bit = 1u << index;
+    const int had_case = (gold_case_checks() & bit) != 0;
+    if (!had_case && s_api->hero_pose) {
+        openrac_pose pose = {0};
+        pose.size = sizeof pose;
+        if (s_api->hero_pose(&pose) == OPENRAC_HOOK_OK) {
+            float position[3];
+            memcpy(position, m + 0x10, sizeof position);
+            float distance = 0;
+            for (int axis = 0; axis < 3; ++axis) {
+                const float d = pose.position[axis] - position[axis];
+                distance += d * d;
+            }
+            if (distance < s_gold_hint_distance) {
+                const uint32_t prices = strcmp(s_disc->version, "pal") == 0 ? 0x001C47B0u : 0x001C4530u;
+                uint8_t* price_table = (uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, prices));
+                uint16_t price;
+                memcpy(&price, price_table + base * 0x18 + 0x14, sizeof price);
+                s_gold_hint_location = ap_gold_case_id(base);
+                s_gold_hint_distance = distance;
+                s_gold_hint_price = price;
+            }
+        }
+    }
+    const uint8_t upgrade = *gold_owned(base);
+    const int previous = s_gold_case;
+    s_gold_case = index;
+    *gold_owned(base) = (uint8_t)had_case;
+    s_gold_case_update(moby);
+    const int bought = *gold_owned(base) != 0 && !had_case;
+    *gold_owned(base) = upgrade;
+    s_gold_case = previous;
+    if (bought) {
+        set32(byte_at(s_disc->save_tag), (int32_t)(GOLD_CHECK_MAGIC | gold_case_checks() | bit));
+        ap_client_check(ap_gold_case_id(base));
+    }
+}
+
+static int32_t count_unspent_hook(void) {
+    if (ap_client_shuffle_gold_weapons() != 1) return s_count_unspent();
+    read_received();
+    uint32_t checks = gold_case_checks();
+    if (s_gold_case >= 0 && *gold_owned(k_ap_gold_bases[s_gold_case])) checks |= 1u << s_gold_case;
+    int bought = 0;
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) bought += (checks >> i) & 1u;
+    const int total = s_received_gold < MAX_GOLD_BOLTS ? s_received_gold : MAX_GOLD_BOLTS;
+    const int remaining = total - 4 * bought;
+    return remaining < 0 ? 0 : remaining > MAX_GOLD_BOLTS ? MAX_GOLD_BOLTS : remaining;
+}
+
+static void new_game_plus(int32_t slot) {
+    const uint32_t checks = gold_case_checks();
+    s_new_game_plus(slot);
+    if (checks) set32(byte_at(s_disc->save_tag), (int32_t)(GOLD_CHECK_MAGIC | checks));
+}
+
 /* ---- the goal ---- */
 
 /* Whether Drek is beaten: on Veldin (return), the scenes his update starts when he is; or, should
@@ -1066,6 +1179,7 @@ static void each_tick(void* user) {
         return;
     }
 
+
     /* The game's challenge_mode flag (PAL D_0015EFA0, NTSC-U D_0015EEA0).
      * The server is authoritative; do not touch an unjudged or foreign save. A false/missing
      * option leaves a normally earned New Game+ save alone rather than downgrading it. */
@@ -1077,7 +1191,28 @@ static void each_tick(void* user) {
             s_api->play_notice(s_mod, "Archipelago: New Game+ enabled");
             s_notice_ticks = NOTICE_TICKS;
         }
+        /* Full Novalis gold-case stock also reads the retail postgame-access flag. Only
+         * enable that access when gold cases are shuffled; no upgrades or checks are granted. */
+        if (ap_client_shuffle_gold_weapons() == 1) set32(byte_at(s_disc->level + 0x9Cu), 1);
     }
+
+    if (ap_client_shuffle_gold_weapons() == 1 && !s_has_gold_currency_hook && !s_gold_hook_warned) {
+        s_api->play_notice(s_mod, "Gold weapon shuffle needs an updated OpenRAC (gold-bolt spending hook)");
+        s_notice_ticks = NOTICE_TICKS;
+        s_gold_hook_warned = 1;
+        log_line(OPENRAC_LOG_WARN, "Gold weapon case purchases disabled: this OpenRAC lacks GoldBolts_CountUnspent");
+    }
+
+    if (phase == OPENRAC_PLAY_PLAYING && s_notice_ticks == 0 && s_gold_hint_location >= 0) {
+        char reward[160], line[NOTICE_SIZE];
+        if (ap_client_location_hint(s_gold_hint_location, reward, sizeof reward)) {
+            snprintf(line, sizeof line, "%s - %u bolts + 4 gold bolts", reward, s_gold_hint_price);
+            s_api->play_notice(s_mod, line);
+            s_notice_ticks = 120;
+        }
+    }
+    s_gold_hint_location = -1;
+    s_gold_hint_distance = 9.0f;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (!ap_is_location(&rando_locations[i])) {
@@ -1160,7 +1295,17 @@ static int take(int result, const char* point) {
     )
 
 static int install_hooks(void) {
-    return HOOK(Item_Give, item_give, &s_item_give)
+    /* Older ports still support every other option. Never permit randomized purchases
+     * without independent currency accounting; the player gets a clear update notice. */
+    s_has_gold_currency_hook = s_api->hook(
+        s_mod, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent, OPENRAC_RAC1_SIG_GoldBolts_CountUnspent,
+        (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
+    s_gold_hook_warned = 0;
+    return take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGamePlus,
+                            ITEM_RANDOMIZER_SIG_Save_NewGamePlus, (void*)new_game_plus,
+                            (void**)&s_new_game_plus), ITEM_RANDOMIZER_HOOK_Save_NewGamePlus)
+           && HOOK(Moby_GoldWeaponCase_Update, gold_case_update, &s_gold_case_update)
+           && HOOK(Item_Give, item_give, &s_item_give)
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
            && HOOK(Vendor_InitLevelStock, init_level_stock, &s_init_level_stock)
            && HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)

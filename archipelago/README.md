@@ -33,9 +33,10 @@ party shares its items. With it on, the Multiplayer pages say so: turn it off to
 |---|---|---|
 | `logic` | `standard` | **standard**: an expensive purchase holds no progression, and a place counts only with the weapons the game suggests there. **relaxed**: the same, and no progression in a purchase you save up for either. **expert**: progression may be in any purchase, and any weapon will do |
 | `shuffle_gadgets`, `shuffle_weapons`, `shuffle_vendor`, `shuffle_gold_bolts`, `shuffle_infobots` | on | Off: that pool keeps the game's own items in place |
-| `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. They stay optional: they never hold progression, of any world. Named by planet and number, in the game's flag order |
+| `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. With gold cases shuffled, their gold bolts can finance purchases; otherwise they never hold progression. Named by planet and number, in the game's flag order |
+| `shuffle_gold_weapons` | off | Add the ten gold-weapon case purchases as locations, with the ten gold weapons among the items. Cases keep their retail bolt prices and cost four gold bolts each. Receiving a gold weapon gives its base weapon and gold upgrade; it never spends currency or buys the original case |
 | `start_in_new_game_plus` | off | Enable the game's New Game+ (challenge mode) after connecting and validating the save. Uses fresh Archipelago inventory and the selected starting weapon; does not import completed-save items or checks. False leaves an already earned New Game+ save as it is |
-| `starting_weapons` | `vanilla` | **vanilla**: start with Bomb Glove. **shuffled**: shuffle the starting location, with no guaranteed weapon. **non_broken**: start with one random weapon except the R.Y.N.O. **unrestricted**: start with any one weapon. This option controls the starting location independently of `shuffle_weapons`; random starting weapons exchange slots with Bomb Glove before shuffling, including when their pools are off |
+| `starting_weapons` | `vanilla` | **vanilla**: start with Bomb Glove. **shuffled**: shuffle the starting location, with no guaranteed weapon. **non_broken**: start with one random normal or gold weapon except the R.Y.N.O. **unrestricted**: start with any one normal or gold weapon. This option controls the starting location independently of `shuffle_weapons`; random starting weapons exchange slots with Bomb Glove before shuffling, including when their pools are off |
 
 For a weighted choice, put this under `Ratchet & Clank:` in your player YAML:
 
@@ -64,6 +65,35 @@ To start in New Game+ with a random non-R.Y.N.O. weapon:
 This needs both an APWorld and a native mod containing the New Game+ option. Generate a new seed,
 connect to its server, and start a new game. The mod enables challenge mode once the server has
 sent the option and accepted the save; it does not run the completed-save restart or grant its inventory.
+
+To shuffle the gold-weapon cases and allow a random normal or gold starting weapon:
+
+```yaml
+  shuffle_gold_weapons: true
+  start_in_new_game_plus: true
+  starting_weapons: non_broken
+```
+
+Each gold weapon is one location shared across its appearances in both shops. Purchase checks
+are saved separately from owned upgrades, including across a completed-save New Game+ restart.
+Gold bolts become progression currency for this option; the game still spends only four per
+purchase, and the balance is capped at the retail total of 40. The logic conservatively expects
+all 40 before relying on these purchases so their order cannot exhaust currency. The player's
+own gold-bolt currency is never placed in these cases. Other rewards follow the normal
+expensive-purchase progression restrictions. Without a New Game+ start, the logic treats the
+full case selection as postgame; with it, full Novalis shop access is enabled without granting
+any upgrades or marking any cases bought. Cases retain their retail models and dialogue; a nearby-case preview names the actual scouted
+reward, recipient, bolt price and four-gold-bolt cost before purchase. Archipelago delivers the
+shuffled reward when the purchase is checked.
+
+Random starting-weapon modes include all ten gold variants even with gold-case shuffle off.
+With gold cases off, a gold starter replaces its base weapon's item and moves Bomb Glove to that
+base weapon's original slot. With gold cases on, it exchanges rewards with its own case.
+
+Randomized gold-case purchases need an OpenRAC build containing
+[OpenRAC/OpenRAC#444](https://github.com/OpenRAC/OpenRAC/pull/444), which adds the independent
+unspent-gold-bolt hook. Other mod options still load on older builds; gold-case purchases are
+blocked with an update notice rather than charging the wrong currency.
 
 ## How it works
 

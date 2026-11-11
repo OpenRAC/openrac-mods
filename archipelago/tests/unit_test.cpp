@@ -12,6 +12,7 @@
 #include <mbedtls/net_sockets.h>
 
 #include "ap_ids.h"
+#include "ap_gold_weapons.h"
 #include "session.hpp"
 #include "websocket.hpp"
 
@@ -190,6 +191,12 @@ void test_ids() {
             && ap_reward_of(ap_item_id(kerwan)).value == LEVEL_KERWAN,
         "a planet's id reads back"
     );
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
+        int base = k_ap_gold_bases[i];
+        expect(ap_gold_weapon_base(AP_BASE + AP_GOLD_WEAPON_OFFSET + base) == base, "gold item id maps to its base weapon");
+        expect(ap_gold_case_id(base) == INT64_C(0x52550000) + base, "gold case ids match the APWorld");
+    }
+    expect(ap_gold_weapon_base(AP_BASE + AP_GOLD_WEAPON_OFFSET + ITEM_RYNO) == -1, "no fabricated Gold RYNO");
     expect(ap_reward_of(12345).kind == REWARD_NONE, "another game's id is none");
 }
 
@@ -260,6 +267,8 @@ void test_session() {
         R"([{"cmd":"LocationInfo","locations":[{"item":7,"location":1380122625,"player":2,"flags":1}]}])",
         out
     );
+    std::string preview;
+    expect(s.location_hint(1380122625, preview) && preview == "Sword for Link", "purchase preview names the scouted reward and recipient");
     std::int64_t item = 0;
     bool own = true;
     expect(s.location_item(1380122625, item, own) && item == 7 && !own, "the scouted location");
