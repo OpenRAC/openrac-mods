@@ -62,7 +62,7 @@ class RAC1World(World):
 
     def generate_early(self) -> None:
         self.starting_weapon = "Bomb Glove"
-        if self.options.starting_weapons:
+        if self.options.starting_weapons in ("non_broken", "unrestricted"):
             weapons = sorted(ITEM_NAME_GROUPS["Weapons"])
             if self.options.starting_weapons == "non_broken":
                 weapons.remove("R.Y.N.O.")
@@ -82,9 +82,9 @@ class RAC1World(World):
         return [row for row in LOCATION_ROWS if row.kind != "skill"]
 
     def shuffled(self, row: LocationData) -> bool:
-        # A row of a pool turned off, or the starting Bomb Glove kept, holds its own item.
-        if row.kind == "start" and (self.options.keep_starting_gear or self.options.starting_weapons):
-            return False
+        # The starting location has its own mode, independent of the weapon pool.
+        if row.kind == "start":
+            return self.options.starting_weapons == "shuffled"
         return bool(getattr(self.options, row.pool).value)
 
     def create_item(self, name: str) -> RAC1Item:
@@ -166,6 +166,5 @@ class RAC1World(World):
             "shuffle_gold_bolts",
             "shuffle_infobots",
             "shuffle_skill_points",
-            "keep_starting_gear",
             "starting_weapons",
         )

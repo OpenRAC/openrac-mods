@@ -52,21 +52,17 @@ class ShuffleSkillPoints(Toggle):
 
 class StartingWeapons(Choice):
     """Choose your starting weapon.
-    Vanilla: Bomb Glove (unless keep_starting_gear is off).
+    Vanilla: start with Bomb Glove.
+    Shuffled: shuffle the starting location, with no guaranteed weapon.
     Non-Broken: one random weapon besides the R.Y.N.O.
     Unrestricted: any one weapon.
-    Random modes override keep_starting_gear and swap the chosen weapon with the Bomb Glove."""
+    Non-Broken and Unrestricted swap the chosen weapon with Bomb Glove before shuffling."""
     display_name = "Starting weapons"
     option_vanilla = 0
+    option_shuffled = 3
     option_non_broken = 1
     option_unrestricted = 2
     default = 0
-
-
-class KeepStartingGear(DefaultOnToggle):
-    """Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is
-    shuffled too."""
-    display_name = "Keep the starting gear"
 
 
 @dataclass
@@ -78,7 +74,6 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_gold_bolts: ShuffleGoldBolts
     shuffle_infobots: ShuffleInfobots
     shuffle_skill_points: ShuffleSkillPoints
-    keep_starting_gear: KeepStartingGear
     starting_weapons: StartingWeapons
     start_inventory_from_pool: StartInventoryPool
 
@@ -87,7 +82,7 @@ OPTION_GROUPS = [
     OptionGroup(
         "Pools",
         [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints,
-         KeepStartingGear, StartingWeapons],
+         StartingWeapons],
     ),
 ]
 

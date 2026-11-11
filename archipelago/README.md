@@ -34,17 +34,20 @@ party shares its items. With it on, the Multiplayer pages say so: turn it off to
 | `logic` | `standard` | **standard**: an expensive purchase holds no progression, and a place counts only with the weapons the game suggests there. **relaxed**: the same, and no progression in a purchase you save up for either. **expert**: progression may be in any purchase, and any weapon will do |
 | `shuffle_gadgets`, `shuffle_weapons`, `shuffle_vendor`, `shuffle_gold_bolts`, `shuffle_infobots` | on | Off: that pool keeps the game's own items in place |
 | `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. They stay optional: they never hold progression, of any world. Named by planet and number, in the game's flag order |
-| `keep_starting_gear` | on | Start with the Bomb Glove. Off: the start's Bomb Glove is a location too |
-| `starting_weapons` | `vanilla` | **vanilla**: use `keep_starting_gear` as above. **non_broken**: start with one random weapon except the R.Y.N.O. **unrestricted**: start with any one weapon. Random modes override `keep_starting_gear`; the chosen weapon and Bomb Glove exchange slots before shuffling, including when their pools are off |
+| `starting_weapons` | `vanilla` | **vanilla**: start with Bomb Glove. **shuffled**: shuffle the starting location, with no guaranteed weapon. **non_broken**: start with one random weapon except the R.Y.N.O. **unrestricted**: start with any one weapon. This option controls the starting location independently of `shuffle_weapons`; random starting weapons exchange slots with Bomb Glove before shuffling, including when their pools are off |
 
 For a weighted choice, put this under `Ratchet & Clank:` in your player YAML:
 
 ```yaml
   starting_weapons:
     vanilla: 50
+    shuffled: 0
     non_broken: 0
     unrestricted: 0
 ```
+
+`starting_weapons` replaces `keep_starting_gear`: use `vanilla` for the former on behavior,
+or `shuffled` for the former off behavior with weapons shuffled.
 
 These are relative weights: this example always selects vanilla. Set `non_broken: 50` and
 `vanilla: 0` to always start with a random weapon other than the R.Y.N.O. The weapon is chosen

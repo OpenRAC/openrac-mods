@@ -20,14 +20,18 @@ from ..options import StartingWeapons
 
 
 class TestStartingWeapons(unittest.TestCase):
+    def test_single_starting_option(self) -> None:
+        self.assertIn("starting_weapons", RAC1Options.type_hints)
+        self.assertNotIn("keep_starting_gear", RAC1Options.type_hints)
+
     def test_random_candidates(self) -> None:
-        for mode in ("vanilla", "non_broken", "unrestricted"):
+        for mode in ("vanilla", "shuffled", "non_broken", "unrestricted"):
             world = SimpleNamespace(
                 options=SimpleNamespace(starting_weapons=StartingWeapons.from_any(mode)),
                 random=Mock(wraps=Random(123)),
             )
             RAC1World.generate_early(world)
-            if mode == "vanilla":
+            if mode in ("vanilla", "shuffled"):
                 self.assertEqual(world.starting_weapon, "Bomb Glove")
                 world.random.choice.assert_not_called()
             else:
@@ -44,7 +48,7 @@ class TestStartingWeapons(unittest.TestCase):
 
 
 class TestRandomStartingWeapon(RAC1TestBase):
-    options = {"starting_weapons": "non_broken", "keep_starting_gear": False}
+    options = {"starting_weapons": "non_broken"}
 
     def test_guaranteed_start(self) -> None:
         location = self.world.get_location("Veldin: the starting Bomb Glove")
@@ -65,6 +69,11 @@ class TestUnrestrictedStartingWeapon(TestRandomStartingWeapon):
 
 
 class TestDefault(RAC1TestBase):
+    def test_vanilla_start(self) -> None:
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertTrue(location.locked)
+        self.assertEqual(location.item.name, "Bomb Glove")
+
     def test_story_planets_from_the_start(self) -> None:
         # Veldin opens Novalis, whose NPCs open Aridia and Kerwan.
         self.sweep()
@@ -190,10 +199,17 @@ class TestStandardGoldBoltsOff(RAC1TestBase):
 
 
 class TestStartingGearShuffled(RAC1TestBase):
-    options = {"keep_starting_gear": False}
+    options = {"starting_weapons": "shuffled"}
 
     def test_bomb_glove_in_the_pool(self) -> None:
         self.assertIn("Bomb Glove", [item.name for item in self.multiworld.itempool])
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertFalse(location.locked)
+        self.assertIsNone(location.item)
+
+
+class TestShuffledStartWithWeaponPoolOff(TestStartingGearShuffled):
+    options = {"starting_weapons": "shuffled", "shuffle_weapons": False}
 
 
 class TestSkillPointsOff(RAC1TestBase):
