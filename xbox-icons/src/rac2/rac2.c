@@ -46,8 +46,17 @@ static const xbox_icons_disc k_discs[] = {
  *   0xE49DBF6B  NTSC-U v1.01 level 4 (Barlow: 72 palette entries a shade apart)
  *   0x5BB96C3F  PAL and v2.00 level 4
  *
- * The four paint alike. A font the mod does not know is left as it is. */
-static const uint32_t k_fonts[] = {0xA38230EAu, 0xE85191A2u, 0xE49DBF6Bu, 0x5BB96C3Fu};
+ * The title's menus (the main menu, Options, the memory card's questions) load only the first two
+ * fonts, with a palette of their own: their record of the third is zero. Their pair, read from the
+ * game's memory at the title of each disc (the trace's "2 fonts" line, OpenRAC's port on box2):
+ *
+ *   0x22A9A365  NTSC-U v1.01, PAL and v2.00 alike (the bank at 0x754880, PAL's at 0x758880)
+ *
+ * They all paint alike. A font the mod does not know is left as it is. */
+static const uint32_t k_fonts[] = {
+    0xA38230EAu, 0xE85191A2u, 0xE49DBF6Bu, 0x5BB96C3Fu, /* a level's three */
+    0x22A9A365u,                                        /* the title's two */
+};
 
 const xbox_icons_game xbox_icons_rac2 = {
     "rac2", k_discs, sizeof k_discs / sizeof k_discs[0],

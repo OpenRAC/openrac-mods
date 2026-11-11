@@ -65,9 +65,9 @@ static int in_cells(unsigned u, unsigned v) {
     return v >= ROW && v < ROW + CELL_H && u < XBOX_ICONS_CELLS_WIDTH;
 }
 
-uint32_t xbox_icons_hash(uint8_t* const fonts[3], const uint8_t* palette) {
+uint32_t xbox_icons_hash(uint8_t* const fonts[], int count, const uint8_t* palette) {
     uint32_t h = 2166136261u;
-    for (int f = 0; f < 3; ++f) {
+    for (int f = 0; f < count; ++f) {
         for (unsigned y = 0; y < CELL_H; ++y) {
             for (unsigned u = 0; u < XBOX_ICONS_CELLS_WIDTH; ++u) {
                 h = (h ^ *texel(fonts[f], u, y)) * 16777619u;
@@ -133,10 +133,13 @@ static int coverage(const char* const* rows, int x, int y) {
     }
 }
 
-int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
+int xbox_icons_paint(uint8_t* const fonts[], int count, uint8_t* palette) {
     /* The palette entries some texel outside the cells uses: they stay as they are. */
     uint8_t used[256] = {0};
-    for (int f = 0; f < 3; ++f) {
+    if (count < 1 || count > XBOX_ICONS_FONTS) {
+        return 1;
+    }
+    for (int f = 0; f < count; ++f) {
         for (unsigned v = 0; v < XBOX_ICONS_HEIGHT; ++v) {
             for (unsigned u = 0; u < W; ++u) {
                 if (!in_cells(u, v)) {
@@ -147,8 +150,8 @@ int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
     }
 
     /* The spheres and the pills, and what they use. */
-    uint8_t cells[3][CELL_H][XBOX_ICONS_CELLS_WIDTH];
-    for (int f = 0; f < 3; ++f) {
+    uint8_t cells[XBOX_ICONS_FONTS][CELL_H][XBOX_ICONS_CELLS_WIDTH];
+    for (int f = 0; f < count; ++f) {
         uint8_t sphere[CELL_H][CELL_W];
         sphere_of(fonts[f], palette, sphere);
         for (unsigned y = 0; y < CELL_H; ++y) {
@@ -188,7 +191,7 @@ int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette) {
         }
     }
 
-    for (int f = 0; f < 3; ++f) {
+    for (int f = 0; f < count; ++f) {
         for (size_t l = 0; l < sizeof k_letters / sizeof k_letters[0]; ++l) {
             const letter* L = &k_letters[l];
             for (int y = 0; y < CELL_H; ++y) {

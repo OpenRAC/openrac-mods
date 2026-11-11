@@ -67,7 +67,7 @@ constexpr std::uint64_t kCoSavedMs = 2500;
 constexpr std::uint64_t kCoSaveEveryMs = 3000;
 
 /* What Saves and the lobby say of where the party's saves go. */
-constexpr const char* kCoSavesLine = "The party saves in a slot of its own";
+constexpr const char* kCoSavesLine = "Party saves in its own slot";
 
 /* What a slot's note says. A key of 0 is a slot no party has. */
 struct CoNote {

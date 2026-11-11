@@ -107,10 +107,10 @@ int main(void) {
     uint8_t palette_before[1024];
     memcpy(before, s_fonts, sizeof before);
     memcpy(palette_before, s_palette, sizeof palette_before);
-    const uint32_t game = xbox_icons_hash(fonts, s_palette);
+    const uint32_t game = xbox_icons_hash(fonts, 3, s_palette);
 
-    CHECK(xbox_icons_paint(fonts, s_palette) == 0);
-    CHECK(xbox_icons_hash(fonts, s_palette) != game);
+    CHECK(xbox_icons_paint(fonts, 3, s_palette) == 0);
+    CHECK(xbox_icons_hash(fonts, 3, s_palette) != game);
 
     for (int f = 0; f < 3; ++f) {
         /* Outside the cells, every texel as it was, and each entry those texels use. */
@@ -148,6 +148,18 @@ int main(void) {
         CHECK(*at(f, 96 + 12, 96 + 15) == *at(f, 9, 96 + 15));
     }
 
+    /* The title's two fonts (Going Commando's menus load no third): those two painted, the third
+     * left as it was, and the pair's hash is not the three's. */
+    lay();
+    memcpy(before, s_fonts, sizeof before);
+    CHECK(xbox_icons_hash(fonts, 2, s_palette) != xbox_icons_hash(fonts, 3, s_palette));
+    CHECK(xbox_icons_paint(fonts, 2, s_palette) == 0);
+    CHECK(memcmp(before[0], s_fonts[0], FONT) != 0 && memcmp(before[1], s_fonts[1], FONT) != 0);
+    CHECK(memcmp(before[2], s_fonts[2], FONT) == 0);
+    CHECK(counts_colour(1, 0, (const uint8_t[3]){6, 189, 40}) > 15);
+    /* No font, or more than a set has: refused, nothing changed. */
+    CHECK(xbox_icons_paint(fonts, 0, s_palette) == 1 && xbox_icons_paint(fonts, 4, s_palette) == 1);
+
     /* Too few free entries (each used outside the cells): nothing changes. */
     lay();
     for (unsigned i = 0; i < 256; ++i) {
@@ -155,7 +167,7 @@ int main(void) {
     }
     memcpy(before, s_fonts, sizeof before);
     memcpy(palette_before, s_palette, sizeof palette_before);
-    CHECK(xbox_icons_paint(fonts, s_palette) == 1);
+    CHECK(xbox_icons_paint(fonts, 3, s_palette) == 1);
     CHECK(memcmp(before, s_fonts, sizeof before) == 0);
     CHECK(memcmp(palette_before, s_palette, sizeof palette_before) == 0);
 

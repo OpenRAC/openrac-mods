@@ -88,6 +88,14 @@ static void items(void) {
     }
 }
 
+/* The setting "button": both by default (and for anything unknown), or L2 or R2 alone. */
+static void buttons(void) {
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_BOTH) == (RAC1_PAD_L2 | RAC1_PAD_R2));
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_L2) == RAC1_PAD_L2);
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_R2) == RAC1_PAD_R2);
+    CHECK(rac1_strafe_button_bits(7) == RAC1_STRAFE_BUTTONS);
+}
+
 /* Off: nothing strafes, L2 and R2 reach the game, nothing is latched. */
 static void off(void) {
     rac1_strafe_hold hold = {0, 0, 0, 0.0f};
@@ -720,6 +728,154 @@ static void twist(void) {
     CHECK(s.velocity < 0.0f && s.angle < 2.5f);
 }
 
+/* Going Commando's quaternion for a turn about one axis (func_00283898, axis 2): a = -FastSin,
+ * b = FastCos, root = sqrt(|2b| + 2), (a / root, root / 2) in the x and w slots (swapped when 2b is
+ * below 0), the x slot's value then moved to z. */
+static void rac2_axis_quaternion(float angle, float q[4]) {
+    const float a = -sinf(angle);
+    const float b = cosf(angle);
+    const float twob = b + b;
+    const float root = sqrtf(fabsf(twob) + 2.0f);
+    const float half = 0.5f * root;
+    const float ratio = a / root;
+    q[0] = 0.0f;
+    q[1] = 0.0f;
+    q[2] = twob < 0.0f ? half : ratio;
+    q[3] = twob < 0.0f ? ratio : half;
+}
+
+/* The joint's x axis (where a forward-walking leg points) in its parent's frame, x and y: the first
+ * row of the quaternion's rotation, which the game's joint matrices take as the joint's first axis
+ * (OpenRAC's moby evaluator, quat_rows: 1 - 2(y^2 + z^2), 2(xy - zw)). */
+static void joint_forward(const float q[4], float out[2]) {
+    out[0] = 1.0f - 2.0f * (q[1] * q[1] + q[2] * q[2]);
+    out[1] = 2.0f * (q[0] * q[1] - q[2] * q[3]);
+}
+
+/* The modifier composed with what is already there, as the evaluator's mode 0: q times r. */
+static void quaternion_multiply(const float q[4], const float r[4], float out[4]) {
+    out[0] = q[3] * r[0] + r[3] * q[0] + (q[1] * r[2] - q[2] * r[1]);
+    out[1] = q[3] * r[1] + r[3] * q[1] + (q[2] * r[0] - q[0] * r[2]);
+    out[2] = q[3] * r[2] + r[3] * q[2] + (q[0] * r[1] - q[1] * r[0]);
+    out[3] = q[3] * r[3] - (q[0] * r[0] + q[1] * r[1] + q[2] * r[2]);
+}
+
+/* The twist's quaternion turns the joint the game's way: the same turn as Going Commando builds for
+ * the same angle (up to the sign of the whole quaternion), and a positive angle points the joint's
+ * front toward his left. 1.1.0 sent the sine the other way round: his hips turned away from where
+ * he went, the moonwalk. */
+static void joint_yaw(void) {
+    const float deg = 0.017453292f;
+
+    for (int d = -135; d <= 135; d += 5) {
+        const float a = (float)d * deg;
+        float q[4];
+        float g[4];
+        float f[2];
+        rac1_strafe_joint_yaw(a, q);
+        rac2_axis_quaternion(a, g);
+        const float dot = q[0] * g[0] + q[1] * g[1] + q[2] * g[2] + q[3] * g[3];
+        CHECK(fabsf(fabsf(dot) - 1.0f) < 1e-5f);
+        joint_forward(q, f);
+        CHECK(fabsf(f[0] - cosf(a)) < 1e-5f && fabsf(f[1] - sinf(a)) < 1e-5f);
+    }
+
+    /* A quarter turn left: z = -sin(45 degrees), his front to his left (0, 1). */
+    float q[4];
+    float f[2];
+    rac1_strafe_joint_yaw(90.0f * deg, q);
+    CHECK(q[0] == 0.0f && q[1] == 0.0f && q[2] < -0.7f && q[3] > 0.7f);
+    joint_forward(q, f);
+    CHECK(fabsf(f[0]) < 1e-5f && fabsf(f[1] - 1.0f) < 1e-5f);
+}
+
+/* Where his legs walk for each way the stick points, facing ahead (the camera's yaw): the pelvis
+ * toward where he goes and the spine back, so his legs walk forward along his velocity and his
+ * body faces ahead; within 45 degrees of straight back, no twist and the walk or run played
+ * backwards (rac1 has no backpedal animation of its own). Never forward-walking legs pointing
+ * away from where he moves: the moonwalk. */
+static void directions(void) {
+    const float deg = 0.017453292f;
+    const float facing = 0.4f;
+    int was = 0;
+
+    for (int d = -180; d < 180; d += 5) {
+        /* The edge itself (135 degrees) is either, by a float's last bit. */
+        if (abs(d) == 135) {
+            continue;
+        }
+
+        const float stick = (float)d * deg;
+        const float move_yaw = rac1_strafe_angle_diff(0.0f, facing + stick);
+        const float v[2] = {cosf(move_yaw), sinf(move_yaw)};
+        const int back = rac1_strafe_backpedal(
+            RAC1_STRAFE_LOCKED, RAC1_STRAFE_FEEL_COMMANDO, RAC1_STRAFE_STATE_RUN, facing, move_yaw, 0
+        );
+        const float twist =
+            rac1_strafe_twist_target(RAC1_STRAFE_LOCKED, 1.0f, back, facing, move_yaw);
+        float pelvis[4];
+        float spine[4];
+        float upper[4];
+        float legs[2];
+        float body[2];
+        rac1_strafe_joint_yaw(twist, pelvis);
+        rac1_strafe_joint_yaw(-twist, spine);
+        quaternion_multiply(pelvis, spine, upper);
+        joint_forward(pelvis, legs);
+        joint_forward(upper, body);
+        /* Into the world, by his facing. */
+        const float lw[2] = {
+            cosf(facing) * legs[0] - sinf(facing) * legs[1],
+            sinf(facing) * legs[0] + cosf(facing) * legs[1]
+        };
+        const float bw[2] = {
+            cosf(facing) * body[0] - sinf(facing) * body[1],
+            sinf(facing) * body[0] + cosf(facing) * body[1]
+        };
+        /* The body above the spine always faces ahead. */
+        CHECK(fabsf(bw[0] - cosf(facing)) < 1e-4f && fabsf(bw[1] - sinf(facing)) < 1e-4f);
+
+        if (abs(d) > 135) {
+            /* Back: the walk played backwards, legs ahead, so they step back along his velocity. */
+            CHECK(back && twist == 0.0f);
+            CHECK(lw[0] * v[0] + lw[1] * v[1] < -0.7f);
+        } else {
+            /* Else forward, the legs along his velocity. */
+            CHECK(!back);
+            CHECK(lw[0] * v[0] + lw[1] * v[1] > 0.9999f);
+        }
+    }
+
+    /* The four ways by name. Left (+90 degrees from his facing): the left side, legs to his left. */
+    float q[4];
+    float f[2];
+    const float left = rac1_strafe_twist_target(RAC1_STRAFE_HELD, 1.0f, 0, 0.0f, 90.0f * deg);
+    CHECK(rac1_strafe_side(0.0f, 90.0f * deg) == RAC1_STRAFE_SIDE_LEFT);
+    rac1_strafe_joint_yaw(left, q);
+    joint_forward(q, f);
+    CHECK(f[1] > 0.9999f);
+    /* Right: the right side, legs to his right. */
+    const float right = rac1_strafe_twist_target(RAC1_STRAFE_HELD, 1.0f, 0, 0.0f, -90.0f * deg);
+    CHECK(rac1_strafe_side(0.0f, -90.0f * deg) == RAC1_STRAFE_SIDE_RIGHT);
+    rac1_strafe_joint_yaw(right, q);
+    joint_forward(q, f);
+    CHECK(f[1] < -0.9999f);
+    /* Forward: no side, no twist, no backpedal. */
+    CHECK(rac1_strafe_side(0.0f, 0.0f) == RAC1_STRAFE_SIDE_NONE);
+    CHECK(rac1_strafe_twist_target(RAC1_STRAFE_HELD, 1.0f, 0, 0.0f, 0.0f) == 0.0f);
+    was = rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_COMMANDO, RAC1_STRAFE_STATE_RUN, 0.0f, 0.0f, 0
+    );
+    CHECK(!was);
+    /* Back: the backpedal (the walk or run played backwards), never forward legs. */
+    was = rac1_strafe_backpedal(
+        RAC1_STRAFE_HELD, RAC1_STRAFE_FEEL_COMMANDO, RAC1_STRAFE_STATE_RUN, 0.0f, RAC1_STRAFE_PI, 0
+    );
+    CHECK(was);
+    CHECK(rac1_strafe_twist_target(RAC1_STRAFE_HELD, 1.0f, was, 0.0f, RAC1_STRAFE_PI) == 0.0f);
+    CHECK(rac1_strafe_side(0.0f, RAC1_STRAFE_PI) == RAC1_STRAFE_SIDE_NONE);
+}
+
 /* The slide to a stop: the stick's yaw kept while he slows with it let go, forgotten after. */
 static void glide(void) {
     rac1_strafe_glide g = {0, 0.0f};
@@ -750,6 +906,7 @@ static void flips(void) {
 
 int main(void) {
     items();
+    buttons();
     off();
     hold_mode();
     lock_mode();
@@ -760,12 +917,14 @@ int main(void) {
     commando();
     reversal();
     twist();
+    joint_yaw();
+    directions();
     flips();
     glide();
     puts(
-        "hero strafe: weapons, off, hold, lock, the buttons taken, facing, velocity, swing, right "
-        "stick, backpedal, Going Commando's feel, side reversal, hip twist, flips and the slide to "
-        "a stop passed"
+        "hero strafe: weapons, buttons, off, hold, lock, the buttons taken, facing, velocity, "
+        "swing, right stick, backpedal, Going Commando's feel, side reversal, hip twist, its "
+        "joints' turn, the legs for each direction, flips and the slide to a stop passed"
     );
     return 0;
 }

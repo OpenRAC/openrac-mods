@@ -23,8 +23,9 @@
 //                       made of (4, the nanotech levels' steps, then the boosts) scaled, so the
 //                       game's own recount gives the scaled max health (and fills his health when
 //                       it changes)
-//   health pickups      the nanotech orb's update (func_003136D0): the health it gives, with an
-//                       accumulator
+//   health pickups      the nanotech orb's update (func_003136D0, rac2.moby.nanotech_ball.update):
+//                       the health its pieces gave this tick, scaled with an accumulator, at most
+//                       the most the game allows him (his max health, 4 in a vehicle)
 //
 // Going Commando has no clock its enemies run on (their code steps a 60th of a second in
 // constants of its own), and no table that tells the level's free enemies from those its scripts
@@ -59,6 +60,10 @@ constexpr uint32_t kHeroTargetSpeed = 0x1B0u;
 constexpr uint32_t kHeroItemInHand = 0x1248u;
 constexpr uint32_t kHeroMoby = 0x2290u;
 constexpr uint32_t kHeroHealth = 0x24CCu;
+// His vehicle mode, a byte: 1 in a vehicle, where the orbs fill his health to 4 at most
+// (documented: rac2-decomp src/game/0030F7B0-ball-sw-g8.c, the Hero's vehicle_mode and `lim`).
+constexpr uint32_t kHeroVehicleMode = 0x22B4u;
+constexpr int32_t kVehicleHealth = 4;
 
 // A moby: its class's header, a pointer (documented: rac2-decomp src/game/002A0430.c, RewardMoby's
 // mclass); the bolts it drops, s16 (the same struct's bolts).
@@ -106,9 +111,8 @@ constexpr int k_levels = 31;
 // The game's state that is play (documented: discs.h: dm2_disc.game_state).
 constexpr int32_t kStatePlay = 0;
 
-// The knobs Going Commando honours: all but the enemy count, the enemy speed and the health pickups.
-constexpr unsigned kKnobs = dm::k_all_knobs & ~(1u << dm::ENEMY_COUNT) & ~(1u << dm::ENEMY_SPEED)
-                            & ~(1u << dm::HEALTH_PICKUPS);
+// The knobs Going Commando honours: all but the enemy count and the enemy speed.
+constexpr unsigned kKnobs = dm::k_all_knobs & ~(1u << dm::ENEMY_COUNT) & ~(1u << dm::ENEMY_SPEED);
 
 // The salt that makes a level's own random stream (the bolts' rounding) apart from the others.
 constexpr uint64_t kLevelRngSalt = 0x3000u;
@@ -166,6 +170,13 @@ struct NanotechSteps {
     using fn = int32_t (*)(uint32_t, uint32_t, uint32_t);
 };
 
+struct NanotechBall {
+    static constexpr const char* id = "rac2.moby.nanotech_ball.update";
+    static constexpr const char* name = "Moby_NanotechBall_Update";
+    static constexpr const char* signature = "void(u32)";
+    using fn = void (*)(uint32_t);
+};
+
 // ---- State ----
 
 openrac::Mod* s_mod;
@@ -181,6 +192,7 @@ bool s_rows_read[k_levels];
 // The carried-over fractions of damage taken, health pickups and ammo per shot (one per item).
 // Game thread only.
 dm::Accumulator s_damage;
+dm::Accumulator s_pickups;
 dm::Accumulator s_ammo[k_ammo_slots];
 
 // The hits whose damage was scaled, by the hit's address: the moby it was for and the value
@@ -410,6 +422,28 @@ int32_t nanotech_steps(Original original, uint32_t a0, uint32_t a1, uint32_t cou
     return r;
 }
 
+// The nanotech orb: the health its pieces gave him this tick, scaled (carried over, so 1.5 is one
+// and then two), at most the most the game fills him to.
+template <class Original>
+void ball_update(Original original, uint32_t moby) {
+    const double k = s_session.active[dm::HEALTH_PICKUPS];
+    const gaddr hp = hero() + kHeroHealth;
+    const int32_t before = get<int32_t>(hp);
+    original(moby);
+    const int32_t gained = get<int32_t>(hp) - before;
+
+    // The slider is at retail, or the orb gave nothing this tick.
+    if (k == 1.0 || gained <= 0) {
+        return;
+    }
+
+    const int32_t most = get<uint8_t>(hero() + kHeroVehicleMode) == 1
+                             ? kVehicleHealth
+                             : get<int32_t>(s_disc->max_health);
+    const int32_t now = before + s_pickups.take(k, gained);
+    put<int32_t>(hp, now > most ? (most > before ? most : before) : now);
+}
+
 // ---- A level's load: its values and the weapon table ----
 
 // The weapon table from the level's own values: prices (+0x80), ammo prices (+0x88) and max ammo
@@ -500,6 +534,7 @@ void find_disc(openrac::Mod& mod) {
 // Puts what the hooks carry between calls back as at a start.
 void reset_state() {
     s_damage = {};
+    s_pickups = {};
 
     // Each item's carried-over fraction.
     for (auto& a : s_ammo) {
@@ -553,7 +588,8 @@ void rac2_load(openrac::Mod& mod) {
     take<NanotechSteps>(mod, [](auto original, uint32_t a0, uint32_t a1, uint32_t count) {
         return nanotech_steps(original, a0, a1, count);
     });
+    take<NanotechBall>(mod, [](auto original, uint32_t moby) { ball_update(original, moby); });
 
     mod.on_frame(on_frame);
-    dm::log_start("enemy count, enemy speed and health pickups are Ratchet & Clank's only");
+    dm::log_start("enemy count and enemy speed are Ratchet & Clank's only");
 }

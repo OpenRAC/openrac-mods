@@ -62,9 +62,17 @@
  *   - spoiler_log: write where everything is, and a way through, to the mod's data folder;
  *   - vendor_hints: the line above the picture names what a vendor slot holds.
  *
- * Nothing of the mod's goes into a save: what is had is the game's own bytes, and the placement
- * comes from the seed. A save made with the mod belongs to its seed; with the mod off the game is
- * the console's.
+ * Nothing of the mod's goes into a save but its seed's tag: what is had is the game's own bytes,
+ * and the placement comes from the seed. A save made with the mod belongs to its seed; with the
+ * mod off the game is the console's.
+ *
+ * New games only (the setting new_game_only, on by default): the mod changes a game only when it
+ * carries this seed's tag, in chunk 24 of the save (a word the save table lists and no code of the
+ * disc reads or writes: discs.h), so a playthrough started without it is never randomized partway.
+ * New Game (Save_NewGame, rac1.save.new_game) restores the disc's starting save and then gets the
+ * tag; challenge mode's start, which runs New Game inside it, keeps the tag the game had (or none).
+ * A save loaded brings its own. Without the tag every hook hands the game its own routine; the log
+ * says why, once. With the setting off a game with no tag is taken over from where it is.
  *
  * In a party (multiplayer's README, Mods in a party) the host's seed counts: this game publishes its
  * seed code (it carries the settings), and in a member's game the same mod takes it and plays that
@@ -226,6 +234,16 @@ static openrac_rac1_Ammo_ChooseDrop s_choose_drop;
 static openrac_rac1_Vendor_MenuUpdate s_vendor_menu_update;
 static openrac_rac1_Help_Request s_help_request;
 static openrac_rac1_Ship_InitTransition s_ship_transition;
+static item_randomizer_Save_NewGame s_new_game;
+static item_randomizer_Save_NewGamePlus s_new_game_plus;
+
+/* New games only: the setting, this game's own seed's tag (a party's host's aside), whether
+ * challenge mode's start is running, and what the log last said of which tag (GATE_*, -1 none). */
+static int s_new_game_only;
+static uint32_t s_own_tag;
+static int s_in_new_game_plus;
+static int s_told = -1;
+static uint32_t s_told_tag;
 
 /* The game's text of a message id (a game address), null when this disc's build has none by that
  * name. */
@@ -446,6 +464,109 @@ static void swaps_resume(void) {
 /* Writes a line to the port's log for this mod. */
 static void log_line(int level, const char* text) {
     s_api->log(s_mod, level, text);
+}
+
+/* ---- new games only ---- */
+
+/* What the gate found of the game in progress (the log's words, gate_tell). */
+enum { GATE_OURS, GATE_NEW, GATE_UNTAGGED, GATE_OTHER, GATE_TAKEN };
+
+/* The game's seed tag word (chunk 24 of the save). */
+static uint32_t save_tag(void) {
+    uint32_t v;
+    memcpy(&v, byte_at(s_disc->save_tag), I32_BYTES);
+    return v;
+}
+
+static void set_save_tag(uint32_t v) {
+    memcpy(byte_at(s_disc->save_tag), &v, I32_BYTES);
+}
+
+/* Whether tag is this game's: its own seed's, or the seed it plays now (a party's host's). */
+static int tag_ours(uint32_t tag) {
+    return tag != 0 && (tag == s_own_tag || tag == rando_seed_tag(s_code));
+}
+
+/* Whether the mod changes the game in progress: it has this seed's tag, or the setting lets it
+ * take over any game. */
+static int rando_on(void) {
+    return !s_new_game_only || tag_ours(save_tag());
+}
+
+/* One line in the log each time the game in progress turns out another. */
+static void gate_tell(int what, uint32_t tag) {
+    if (what == s_told && tag == s_told_tag) {
+        return;
+    }
+    s_told = what;
+    s_told_tag = tag;
+
+    char line[256];
+    switch (what) {
+        case GATE_NEW:
+            snprintf(line, sizeof line, "a new game, randomized with seed %s from the start", s_code);
+            break;
+        case GATE_UNTAGGED:
+            snprintf(line, sizeof line, "this game was not started with the item randomizer (its "
+                     "save has no seed tag), so it plays as the game does; start a new game to play "
+                     "seed %s", s_code);
+            break;
+        case GATE_OTHER:
+            snprintf(line, sizeof line, "this game was started with another seed (tag %08X), not "
+                     "%s, so it plays as the game does; put that seed's code in the settings to go "
+                     "on with it", (unsigned)tag, s_code);
+            break;
+        case GATE_TAKEN:
+            snprintf(line, sizeof line, "\"New games only\" is off: this game, started without "
+                     "seed %s, is randomized from here on", s_code);
+            break;
+        default:
+            snprintf(line, sizeof line, "a game of seed %s, randomized", s_code);
+            break;
+    }
+    log_line(what == GATE_UNTAGGED || what == GATE_OTHER ? OPENRAC_LOG_WARN : OPENRAC_LOG_INFO,
+             line);
+}
+
+/* At each tick in a level: with the setting off a game with no tag gets this seed's; then the log
+ * says what the game in progress is. */
+static void gate_tick(void) {
+    const uint32_t tag = save_tag();
+
+    if (tag_ours(tag)) {
+        if (s_told_tag != tag) {
+            gate_tell(GATE_OURS, tag);
+        }
+    } else if (!s_new_game_only) {
+        // Taken over: a game with no tag gets this seed's (another seed's is left as it is).
+        if (tag == 0) {
+            set_save_tag(rando_seed_tag(s_code));
+            gate_tell(GATE_TAKEN, rando_seed_tag(s_code));
+        }
+    } else {
+        gate_tell(tag == 0 ? GATE_UNTAGGED : GATE_OTHER, tag);
+    }
+}
+
+/* Hook for New Game: the disc's starting save, then this seed's tag, so the game's first save
+ * carries it. Not inside challenge mode's start, which keeps the tag the game had. */
+static void new_game(void) {
+    s_new_game();
+
+    if (!s_in_new_game_plus) {
+        set_save_tag(rando_seed_tag(s_code));
+        gate_tell(GATE_NEW, rando_seed_tag(s_code));
+    }
+}
+
+/* Hook for challenge mode's start: the game reset to level 0 with its progress, its tag (or none)
+ * among it. */
+static void new_game_plus(int32_t slot) {
+    const uint32_t tag = save_tag();
+    s_in_new_game_plus = 1;
+    s_new_game_plus(slot);
+    s_in_new_game_plus = 0;
+    set_save_tag(tag);
 }
 
 /* The text of a message of this level's table, in game memory; null without the function. */
@@ -694,6 +815,12 @@ static uint8_t* vendor_purchase(int item) {
 
 /* Hook for GiveItem(id, equip): id's location's reward, and the location had. */
 static void item_give(int32_t id, int32_t equip) {
+    // A game not this seed's: the game's own.
+    if (!rando_on()) {
+        s_item_give(id, equip);
+        return;
+    }
+
     // Another player's item passed on: it, as it is, and no place of this game is had by it.
     if (s_api->api_minor >= 14 && s_api->party_replaying() && id >= 0 && id < RANDO_ITEM_COUNT) {
         const rando_reward r = {REWARD_ITEM, (uint8_t)id};
@@ -731,6 +858,12 @@ static void item_give(int32_t id, int32_t equip) {
 
 /* Hook for UnlockPlanet(planet): the infobot's reward while its update runs, else the game's. */
 static void planet_unlock(int32_t planet) {
+    // A game not this seed's: the game's own.
+    if (!rando_on()) {
+        s_planet_unlock(planet);
+        return;
+    }
+
     // Another player's coordinates passed on: they, as they are, and their place is spent here.
     if (s_api->api_minor >= 14 && s_api->party_replaying()) {
         const rando_reward r = {REWARD_PLANET, (uint8_t)planet};
@@ -756,6 +889,12 @@ static void planet_unlock(int32_t planet) {
 /* Hook for an infobot's update: runs it with its planet's flag showing its location's had state,
  * and its banner showing the planet it now gives. */
 static void infobot_update(openrac_gaddr moby) {
+    // A game not this seed's: the game's own.
+    if (!rando_on()) {
+        s_infobot_update(moby);
+        return;
+    }
+
     const int level = current_level();
     const int mission = OPENRAC_GREF(s_api, uint8_t, moby + MOBY_MISSION);
     const int location = level >= 0 && level < LEVEL_COUNT && mission < TRIGGER_SLOTS
@@ -797,8 +936,8 @@ static void infobot_update(openrac_gaddr moby) {
 static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int item) {
     const int location = s_by_item[item];
 
-    // The item's place is not shuffled: the game's own update.
-    if (location < 0) {
+    // The item's place is not shuffled, or the game is not this seed's: the game's own update.
+    if (location < 0 || !rando_on()) {
         update(moby);
         return;
     }
@@ -811,6 +950,12 @@ static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int ite
 /* Hook for the Pilot's Helmet's pickup: it tests "owned", and after it gives it hands the hero the
  * helmet to wear (g_hero_pending_item_2): with something else given, the head stays as it was. */
 static void helmet_update(openrac_gaddr moby) {
+    // A game not this seed's: the game's own.
+    if (!rando_on()) {
+        s_helmet_update(moby);
+        return;
+    }
+
     uint8_t* pending = byte_at(s_disc->hero_pending);
     const int32_t before = get32(pending);
     run_shown(s_helmet_update, moby, ITEM_PILOTS_HELMET);
@@ -850,7 +995,7 @@ static void edwina_update(openrac_gaddr moby) {
 /* Whether Orxon's landing should play Clank's part however the O2 Mask stands: it holds two
  * locations and starts only without the mask, which a seed can give before Orxon. */
 static int orxon_clank_part_due(void) {
-    return *owned(ITEM_O2_MASK) && *trigger(LEVEL_ORXON, ORXON_CLANK_MISSION) != TRIGGER_DONE
+    return rando_on() && *owned(ITEM_O2_MASK) && *trigger(LEVEL_ORXON, ORXON_CLANK_MISSION) != TRIGGER_DONE
            && current_level() == LEVEL_ORXON;
 }
 
@@ -891,8 +1036,8 @@ static void orxon_start_update(openrac_gaddr moby) {
 /* Hook for Help_Request: a tutorial of the item the game thinks it gave is left out when it gave
  * another. 1: as queued, so that the game asks no more. */
 static int32_t help_request(int32_t message_id, int32_t slot) {
-    // The messages that teach an item.
-    for (size_t i = 0; i < rando_item_help_count; ++i) {
+    // The messages that teach an item (none left out in a game not this seed's).
+    for (size_t i = 0; rando_on() && i < rando_item_help_count; ++i) {
         const rando_item_help* h = &rando_item_helps[i];
 
         // This one's item has a shuffled place whose reward is another.
@@ -975,6 +1120,14 @@ static void init_stock_for_start(int start) {
  * reward when that is shuffled. */
 static void init_level_stock(void) {
     sync_seen();
+
+    // A game not this seed's: the game's own stock.
+    if (!rando_on()) {
+        s_init_level_stock();
+        sync_seen();
+        return;
+    }
+
     const int start = s_by_item[ITEM_BOMB_GLOVE];
 
     // The starting Bomb Glove is a shuffled location, inside a level: give its reward.
@@ -1119,6 +1272,12 @@ static void settle_menu_after_purchase(void) {
 /* Hook for VendorBuildItemList(skip_unflagged): the game's, built from the stock as the menu
  * should see it (vendor_stock_shown), the real stock put back after. */
 static void build_item_list(int32_t skip_unflagged) {
+    // A game not this seed's: the game's own list.
+    if (!rando_on()) {
+        s_build_item_list(skip_unflagged);
+        return;
+    }
+
     uint8_t* stock = byte_at(s_disc->vendor_stock);
     uint8_t real[VENDOR_STOCK_SIZE], shown[VENDOR_STOCK_SIZE];
     memcpy(real, stock, sizeof real);
@@ -1136,6 +1295,11 @@ static void build_item_list(int32_t skip_unflagged) {
 /* Hook for Ammo_ChooseDrop: from the stock as the menu sees it, so that a weapon owned out of its
  * level's order has its ammo drop too. */
 static int32_t choose_drop(openrac_gaddr moby, openrac_gaddr out_item) {
+    // A game not this seed's: the game's own drop.
+    if (!rando_on()) {
+        return s_choose_drop(moby, out_item);
+    }
+
     uint8_t* stock = byte_at(s_disc->vendor_stock);
     uint8_t real[VENDOR_STOCK_SIZE], shown[VENDOR_STOCK_SIZE];
     memcpy(real, stock, sizeof real);
@@ -1164,7 +1328,7 @@ static int slot_under_cursor(void) {
  * under the cursor holds; each_tick takes it away when the menu has gone. */
 static void vendor_menu_update(void) {
     s_vendor_menu_update();
-    const int location = s_vendor_hints ? slot_under_cursor() : -1;
+    const int location = s_vendor_hints && rando_on() ? slot_under_cursor() : -1;
 
     // A slot that gives something: say what.
     if (location >= 0) {
@@ -1180,8 +1344,8 @@ static void vendor_menu_update(void) {
 /* Hook for GoldBolts_CountCollected: with gold bolts shuffled, the count of gold bolt rewards had,
  * at most MAX_GOLD_BOLTS; else the game's own count. */
 static int32_t count_gold_bolts_hook(void) {
-    // Gold bolts are not shuffled: the game's count is right.
-    if (!(s_plan.settings.pools & POOL_GOLD)) {
+    // Gold bolts are not shuffled, or the game is not this seed's: the game's count is right.
+    if (!(s_plan.settings.pools & POOL_GOLD) || !rando_on()) {
         return s_count_gold_bolts();
     }
 
@@ -1208,6 +1372,14 @@ static void each_tick(void* user) {
 
     // Outside the story's levels the mod leaves the game alone.
     if (!playing_level()) {
+        return;
+    }
+
+    gate_tick();
+
+    // A game not this seed's: nothing is the mod's; what it has is not news when one becomes so.
+    if (!rando_on()) {
+        sync_seen();
         return;
     }
 
@@ -1296,7 +1468,15 @@ static int install_hooks(void) {
            && HOOK(Ammo_ChooseDrop, choose_drop, &s_choose_drop)
            && HOOK(Vendor_MenuUpdate, vendor_menu_update, &s_vendor_menu_update)
            && HOOK(Help_Request, help_request, &s_help_request)
-           && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition);
+           && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGame,
+                               ITEM_RANDOMIZER_SIG_Save_NewGame, (void*)new_game,
+                               (void**)&s_new_game),
+                   ITEM_RANDOMIZER_HOOK_Save_NewGame)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGamePlus,
+                               ITEM_RANDOMIZER_SIG_Save_NewGamePlus, (void*)new_game_plus,
+                               (void**)&s_new_game_plus),
+                   ITEM_RANDOMIZER_HOOK_Save_NewGamePlus);
 }
 
 /* Whether the text looks meant as a seed code: twelve letters and digits, hyphens and spaces
@@ -1483,12 +1663,13 @@ static void log_start_up(int source) {
     snprintf(
         line,
         sizeof line,
-        "seed %s (%s), %s: %d placement%s tried",
+        "seed %s (%s), %s: %d placement%s tried%s",
         s_code,
         k_sources[source],
         rando_difficulty_name(s_plan.settings.difficulty),
         s_plan.attempts,
-        s_plan.attempts == 1 ? "" : "s"
+        s_plan.attempts == 1 ? "" : "s",
+        s_new_game_only ? ", new games only" : ""
     );
     log_line(OPENRAC_LOG_INFO, line);
 }
@@ -1576,6 +1757,11 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_vendor_hints = api->setting_bool(mod, "vendor_hints");
 
     s_own_settings = s_plan.settings;
+    s_own_tag = rando_seed_tag(s_code);
+    s_new_game_only = api->setting_bool(mod, "new_game_only");
+    s_in_new_game_plus = 0;
+    s_told = -1;
+    s_told_tag = 0;
     s_following = 0;
     // A port with party rules may yet bring a host's seed that shuffles something.
     const int rules = api->api_minor >= 14;

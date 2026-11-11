@@ -47,6 +47,8 @@ own (a hash, one per set of fonts the game has), it paints them (`src/common/pai
 frame draws the Xbox buttons.
 Painted fonts are no longer the game's, so they are painted once a level; fonts the mod does not
 know, or a bank still loading, are left alone. It patches no code and takes no hook point.
+Going Commando's title (its main menu, Options and the memory card's questions) loads only the
+first two fonts, with a palette of its own: those two are painted the same way.
 
 Painting starts from the game's own pixels, so the mod carries none of the game's pictures: at
 each texel of the face buttons, the least coloured of the four gives the sphere without its
@@ -66,8 +68,10 @@ Going Commando keeps Ratchet & Clank's fonts as they were: the same three effect
 128, one palette), the same glyph bytes in the same cells of row 96, so the mod paints them the
 same way. In five of the NTSC-U levels and in every level of the other two discs, the fonts are touched up
 (some letters, a few texels of the buttons), and Barlow's palette is a shade apart; the mod knows
-all four sets (`src/rac2/rac2.c` says where they were read). Only where the effect bank and its table
-are differs by disc:
+all four sets (`src/rac2/rac2.c` says where they were read). The title's menus (the main menu, its
+Options and the memory card's questions, Yes and No among them) load only the large and the small
+font, with a palette of their own, and the mod knows that pair on each disc too. Only where the
+effect bank and its table are differs by disc:
 
 | Disc | Effect bank (word) | Effect texture table |
 |---|---|---|

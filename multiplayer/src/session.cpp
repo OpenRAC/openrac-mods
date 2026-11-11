@@ -7,6 +7,8 @@
  */
 #include "session.hpp"
 
+#include "party_mods.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -152,7 +154,7 @@ void Session::create(const std::string& description) {
     }
 
     waiting_ = true;
-    transport_.send(party_create(description));
+    transport_.send(party_create(description, family_));
 }
 
 void Session::list() {
@@ -161,7 +163,7 @@ void Session::list() {
         return;
     }
 
-    transport_.send(party_list());
+    transport_.send(party_list(family_));
 }
 
 void Session::find() {
@@ -171,7 +173,7 @@ void Session::find() {
     }
 
     waiting_ = true;
-    transport_.send(party_find());
+    transport_.send(party_find(family_));
 }
 
 void Session::sync_clock() {
@@ -194,7 +196,7 @@ void Session::join(const std::string& code) {
     }
 
     waiting_ = true;
-    transport_.send(party_join(code));
+    transport_.send(party_join(code, family_));
 }
 
 void Session::leave() {
@@ -258,7 +260,7 @@ bool Session::start() {
 
     started_ = true;
     send_lobby(kBroadcast, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kStart)).bytes());
-    notice_ = "Game starting";
+    notice_ = "Starting";
     return true;
 }
 
@@ -521,6 +523,13 @@ void Session::handle(const Message& m) {
                 break;
             }
 
+            // Another game's party: which game it is for, for the Refused page too.
+            if (m.reason == ErrorReason::kOtherGame) {
+                notice_ = other_game_text(family_, m.text);
+                refusal_ = notice_;
+                break;
+            }
+
             notice_ = error_text(m.reason);
             break;
         case Message::Kind::kData:
@@ -649,7 +658,7 @@ void Session::take_data(const Message& m) {
     } else if (kind == LobbyKind::kStart && m.id == role_.host_id()) {
         // The host started the game.
         started_ = true;
-        notice_ = "Game starting";
+        notice_ = "Starting";
     } else if (kind == LobbyKind::kLink && is_host()) {
         // A member's link, at the host: kept and told to everyone.
         const std::int32_t ping = r.i32();
@@ -746,6 +755,12 @@ std::string Session::take_notice() {
     return out;
 }
 
+std::string Session::take_refusal() {
+    std::string out;
+    out.swap(refusal_);
+    return out;
+}
+
 bool valid_name(const std::string& name) {
     return name.size() >= kMinName && name.size() <= kMaxName
            && std::all_of(name.begin(), name.end(), [](char c) {
@@ -767,20 +782,38 @@ const char* error_text(ErrorReason reason) {
     // Each reason its own words.
     switch (reason) {
         case ErrorReason::kPartyNotFound:
-            return "No party has that code";
+            return "No such code";
         case ErrorReason::kPartyFull:
-            return "That party is full";
+            return "Party full";
         case ErrorReason::kAlreadyInParty:
-            return "You are in a party already";
+            return "Already in party";
         case ErrorReason::kNotInParty:
-            return "You are not in a party";
+            return "No party";
         case ErrorReason::kNotHost:
-            return "Only the host can do that";
+            return "Host only";
         case ErrorReason::kResumeRefused:
             return kLostSlotNotice;
+        case ErrorReason::kOtherGame:
+            return kDifferentDisc;
     }
 
-    return "The server refused";
+    return "Refused";
+}
+
+const char* other_game_text(const std::string& own, const std::string& theirs) {
+    // A family's game is its first word: "rac1-60-1", "rac2-pal-1".
+    const auto game = [](const std::string& family) { return family.substr(0, family.find('-')); };
+    const std::string host = game(theirs);
+
+    if (host != game(own) && host == kGameRac1) {
+        return kForRac1Notice;
+    }
+
+    if (host != game(own) && host == kGameRac2) {
+        return kForRac2Notice;
+    }
+
+    return kDifferentDisc;
 }
 
 }  // namespace mp

@@ -2,9 +2,9 @@
   "format": 2,
   "id": "lock-strafe",
   "name": "Lock-strafe",
-  "version": "1.1.1",
-  "author": "Flavius",
-  "description": "Strafe as in Going Commando: hold L2 or R2 (or always, with a weapon that fires ahead) and Ratchet faces where the camera looks while the left stick moves him; his hips turn toward where he goes while his body stays on the camera, and X with the stick pushed sideways or back flips that way. L1 still looks and R1 still crouches.",
+  "version": "1.2.1",
+  "author": "Keros",
+  "description": "Strafe as in Going Commando: hold L2 or R2 (or only one of them, so the other stays free for other mods; or always, with a weapon that fires ahead) and Ratchet faces where the camera looks while the left stick moves him; his hips turn toward where he goes while his body stays on the camera, and X with the stick pushed sideways or back flips that way. L1 still looks and R1 still crouches.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/lock-strafe",
   "api": "1.12",
@@ -36,10 +36,31 @@
         },
         {
           "value": "hold",
-          "name": "Hold L2 or R2"
+          "name": "Hold the strafe button"
         }
       ],
-      "description": "Lock: always with a weapon that fires ahead, Hold otherwise. Hold: only while L2 or R2 is held."
+      "description": "Lock: always with a weapon that fires ahead, Hold otherwise. Hold: only while the strafe button (L2 or R2, see Strafe button) is held."
+    },
+    {
+      "key": "button",
+      "name": "Strafe button",
+      "type": "choice",
+      "default": "both",
+      "choices": [
+        {
+          "value": "both",
+          "name": "L2 or R2"
+        },
+        {
+          "value": "l2",
+          "name": "L2 only"
+        },
+        {
+          "value": "r2",
+          "name": "R2 only"
+        }
+      ],
+      "description": "The button held to strafe. L2 or R2: either one, and the game gets neither on foot. L2 only or R2 only: the other stays the game's (R2 crouches, L2 looks) and free for other mods, such as one that raises the wrench on R2."
     },
     {
       "key": "feel",

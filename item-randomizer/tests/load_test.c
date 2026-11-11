@@ -112,6 +112,7 @@ static int s_helps;
 static int s_drop_saw;
 static char s_notice[128];
 static int s_phase = OPENRAC_PLAY_PLAYING;
+static int s_new_game_only; /* the "new_game_only" setting the host gives */
 
 static int32_t get32(const uint8_t* p) {
     int32_t v;
@@ -346,6 +347,10 @@ static int setting_bool(openrac_mod* mod, const char* key) {
         return 1;
     }
 
+    if (strcmp(key, "new_game_only") == 0) {
+        return s_new_game_only;
+    }
+
     return (strcmp(key, "keep_starting_gear") == 0 && s_keep_start)
            || strncmp(key, "shuffle_", 8) == 0 || strcmp(key, "spoiler_log") == 0;
 }
@@ -370,7 +375,44 @@ static const char* setting_string(openrac_mod* mod, const char* key) {
     return strcmp(key, "difficulty") == 0 ? "standard" : "";
 }
 
+/* The game's seed tag word (chunk 24 of the save). */
+static uint32_t tag_word(void) {
+    uint32_t v;
+    memcpy(&v, s_memory + D->save_tag, 4);
+    return v;
+}
+static void set_tag_word(uint32_t v) {
+    memcpy(s_memory + D->save_tag, &v, 4);
+}
+
+/* NewGameInit as the game's: the disc's starting save, whose tag word is 0, nothing owned. */
+static int s_new_games;
+static void game_new_game(void) {
+    ++s_new_games;
+    set_tag_word(0);
+    memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+    memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+}
+
+/* Challenge mode's start as the game's: NewGameInit (through its hook), the progress kept. */
+static void* hook_named(const char* name);
+static void game_new_game_plus(int32_t slot) {
+    (void)slot;
+    uint8_t owned[RANDO_ITEM_COUNT];
+    memcpy(owned, s_memory + D->owned, sizeof owned);
+    ((void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame))();
+    memcpy(s_memory + D->owned, owned, sizeof owned);
+}
+
 static void* original_for(const char* name) {
+    if (strcmp(name, ITEM_RANDOMIZER_HOOK_Save_NewGame) == 0) {
+        return (void*)game_new_game;
+    }
+
+    if (strcmp(name, ITEM_RANDOMIZER_HOOK_Save_NewGamePlus) == 0) {
+        return (void*)game_new_game_plus;
+    }
+
     if (strcmp(name, OPENRAC_RAC1_HOOK_Item_Give) == 0) {
         return (void*)game_give;
     }
@@ -741,7 +783,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.2.0") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.4.1") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -763,7 +805,7 @@ int main(int argc, char** argv) {
     D = &k_rando_discs[1];
     api = make_api("rac1", "ntsc");
     s_failed[0] = 0;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 18 && s_frame != NULL);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 20 && s_frame != NULL);
     s_hook_count = 0;
 
     /* An OpenRAC older than a hook point: the load fails and says which. */
@@ -777,7 +819,7 @@ int main(int argc, char** argv) {
 
     D = &k_rando_discs[0];
     api = make_api("rac1", "pal");
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 18);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 20);
     static const char* const points[][2] = {
         {OPENRAC_RAC1_HOOK_Item_Give, OPENRAC_RAC1_SIG_Item_Give},
         {OPENRAC_RAC1_HOOK_Planet_Unlock, OPENRAC_RAC1_SIG_Planet_Unlock},
@@ -797,9 +839,11 @@ int main(int argc, char** argv) {
         {OPENRAC_RAC1_HOOK_Vendor_MenuUpdate, OPENRAC_RAC1_SIG_Vendor_MenuUpdate},
         {OPENRAC_RAC1_HOOK_Help_Request, OPENRAC_RAC1_SIG_Help_Request},
         {OPENRAC_RAC1_HOOK_Ship_InitTransition, OPENRAC_RAC1_SIG_Ship_InitTransition},
+        {ITEM_RANDOMIZER_HOOK_Save_NewGame, ITEM_RANDOMIZER_SIG_Save_NewGame},
+        {ITEM_RANDOMIZER_HOOK_Save_NewGamePlus, ITEM_RANDOMIZER_SIG_Save_NewGamePlus},
     };
 
-    for (int i = 0; i < 18; ++i) {
+    for (int i = 0; i < 20; ++i) {
         CHECK(
             strcmp(s_hooks[i].name, points[i][0]) == 0
             && strcmp(s_hooks[i].signature, points[i][1]) == 0
@@ -1298,6 +1342,114 @@ int main(int argc, char** argv) {
     rando_encode(&ss, second);
     snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, second);
     remove(path);
+
+    /* New games only (the setting on): only a game with this seed's tag is randomized. */
+    {
+        s_new_game_only = 1;
+        s_keep_start = 1;
+        s_seed = "new games only";
+        s_hook_count = 0;
+        CHECK(load(&api, mod) == 0 && s_hook_count == 20);
+        openrac_rac1_Item_Give g = (openrac_rac1_Item_Give)hook_named("Item_Give");
+        void (*new_game)(void) = (void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame);
+        void (*new_game_plus)(int32_t) =
+            (void (*)(int32_t))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGamePlus);
+        CHECK(g != NULL && new_game != NULL && new_game_plus != NULL);
+        rando_options no = {s_seed, 1, 1, 1, 1, 1, 1, "standard"};
+        rando_settings ns;
+        rando_settings_of(&no, NULL, 0, &ns);
+        static rando_plan np;
+        CHECK(rando_solve(&ns, &np) == 0);
+        char ncode[RANDO_CODE_SIZE];
+        rando_encode(&ns, ncode);
+        const uint32_t tag = rando_seed_tag(ncode);
+        CHECK(tag != 0 && tag != rando_seed_tag(code));
+
+        /* A place whose reward is another item: Helga's Swingshot, or the first such. */
+        int x = -1, xr = -1;
+        for (size_t i = 0; i < rando_location_count && x < 0; ++i) {
+            if (np.shuffled[i] && rando_locations[i].kind == LOC_GIVE
+                && np.reward[i].kind == REWARD_ITEM && np.reward[i].value != rando_locations[i].key) {
+                x = rando_locations[i].key;
+                xr = np.reward[i].value;
+            }
+        }
+        CHECK(x >= 0);
+        memcpy(s_memory + D->level, &kerwan, 4);
+
+        /* A save of a game started without the mod (no tag): the game's own give, and the tick
+         * gives nothing. */
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        set_tag_word(0);
+        s_frame(NULL);
+        g(x, 0);
+        s_frame(NULL);
+        CHECK(s_memory[D->owned + x] == 1 && s_memory[D->owned + xr] == 0);
+        CHECK(tag_word() == 0);
+        /* Its vendor list is the game's own. */
+        build(0);
+
+        /* Another seed's save: the game's own as well. */
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        set_tag_word(rando_seed_tag(code));
+        g(x, 0);
+        s_frame(NULL);
+        CHECK(s_memory[D->owned + x] == 1 && s_memory[D->owned + xr] == 0);
+        CHECK(tag_word() == rando_seed_tag(code));
+
+        /* Challenge mode of an untagged game stays the game's own. */
+        set_tag_word(0);
+        s_new_games = 0;
+        new_game_plus(0);
+        CHECK(s_new_games == 1 && tag_word() == 0);
+
+        /* New Game: the tag, and the place gives its reward. */
+        memset(s_memory + D->owned, 0xAA, RANDO_ITEM_COUNT);
+        new_game();
+        CHECK(tag_word() == tag);
+        CHECK(s_memory[D->owned + x] == 0);
+        s_frame(NULL);
+        g(x, 0);
+        s_frame(NULL);
+        CHECK(s_memory[D->owned + xr] == 1 && s_memory[D->owned + x] == 0);
+
+        /* Challenge mode keeps the tag. */
+        new_game_plus(0);
+        CHECK(tag_word() == tag);
+
+        /* A save made by that game (the tag loaded with it): randomized. */
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        set_tag_word(0);
+        g(x, 0);
+        CHECK(s_memory[D->owned + x] == 1); /* untagged again first: the game's */
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        set_tag_word(tag);
+        s_frame(NULL);
+        g(x, 0);
+        CHECK(s_memory[D->owned + xr] == 1 && s_memory[D->owned + x] == 0);
+
+        /* The setting off: an untagged save is taken over at its first tick, and gets the tag. */
+        s_new_game_only = 0;
+        s_hook_count = 0;
+        CHECK(load(&api, mod) == 0);
+        g = (openrac_rac1_Item_Give)hook_named("Item_Give");
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        set_tag_word(0);
+        s_frame(NULL);
+        CHECK(tag_word() == tag);
+        g(x, 0);
+        CHECK(s_memory[D->owned + xr] == 1 && s_memory[D->owned + x] == 0);
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        set_tag_word(0);
+        snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, ncode);
+        remove(path);
+    }
 
     /* The remembered seed: a blank seed rolls one and keeps it. */
     s_seed = "";

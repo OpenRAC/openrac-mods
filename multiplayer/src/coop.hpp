@@ -171,9 +171,9 @@ inline bool older_scene(std::uint16_t a, std::uint16_t b) {
 constexpr std::size_t kChunkBytes = 16000;
 /* What a player reads of a save that does not pass (save_check.hpp): the host choosing it, a member
  * given it. */
-constexpr const char* kBadSaveHost = "That save can't be used: it may be damaged";
-constexpr const char* kBadSaveMember = "You can't join: the host's save can't be used";
-constexpr const char* kNoCardFilter = "Not started: your memory card cannot keep the party's saves apart";
+constexpr const char* kBadSaveHost = "Bad save";
+constexpr const char* kBadSaveMember = "Bad host save";
+constexpr const char* kNoCardFilter = "No card support";
 /* The largest save a member takes (Ratchet & Clank's are 59,912 bytes). */
 constexpr std::size_t kMaxSaveBytes = 1u << 17;
 /* How often a pose goes (ms: 20 a second), the host's LEVEL, a member's WANT, a travel tried

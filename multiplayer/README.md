@@ -19,8 +19,8 @@ Friends match their mods with a mod code: **Share these mods** on the launcher's
 one, and entering it there shows what would change before anything does (OpenRAC's
 `docs/port/MODS.md`, section 10).
 
-Ratchet & Clank 2 (Going Commando) has a first, smaller co-op: no menu yet, the party is chosen in
-the mod's settings, and the players see each other in the host's level. See
+Ratchet & Clank 2 (Going Commando) has the same **Multiplayer** item and pages, and a smaller co-op:
+the players play in the host's level and see each other, but its world is not shared yet. See
 [Going Commando](#going-commando).
 
 What is still to be decided, and what already is, is in [DECISIONS.md](DECISIONS.md).
@@ -45,9 +45,9 @@ Its pages are the game's own menus: its frames, its list and font, its prompt bo
 | Browse games | **Refresh**, then a row for each game being hosted that has room: its host's name, its save ("Pokitaru, 12 gold bolts", or "New game"), how many are in it (`2/4`), and **(differs)** when your game would not fit it: other gameplay mods, settings or versions; the footer says what that means. Cross on a row joins it, and a game marked (differs) then says how. The list is asked again every 3 seconds while the page shows; with none, a line says so and points at Create match |
 | Choose a save | **New game**, then your memory card's five saves, each with its planet, gold bolts and time played (an empty slot is dim). The party plays a copy of the one chosen; your own saves are never written by a party. **Continue as host** lists the party saves on this card (below). Create match and Host directly both come here first |
 | Join by code | A row per character of the party's code: Left and Right (or Cross) step it, Up and Down move between them; **Join** joins. Codes use the letters and digits that do not read alike (no 0, O, 1 or I). Once in the party, the lobby takes this page's place |
-| Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the title shows the address as it stands (`Join 192.168.1.1:7770` at first; the last one joined is kept until the game ends). Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
-| Lobby | The party's code in the title (a direct party: **Hosting on** your address and port, every address of yours that fits, or **Party at** the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join the game**; **Checking your mods...** until the host answers; **See why you can't join** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **not all ready**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready, mods match)**, **(mods differ)** or **(checking mods)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, another player takes over once the game is on (the question says so), and before that the party is over for everyone. Leaving a direct party goes back to Home and to the server |
-| Remove | The host's Cross on a member in the lobby, or on a member's line of the pause menu's Multiplayer page: **Remove from the party** (the code still works, so it may come back) or **Ban from this save**, then back. See [Removing a player](#removing-a-player) |
+| Direct connect | **Host directly**: your game hosts (below); the lobby opens. **Join by address**: the address's rows take this page's place: **Address part 1** to **4** (each 0 to 255), **Port** (by 1) and **Port, by 100**, all stepped with Left and Right (held, they repeat, and after a moment step ten at a time), then **Join**; the last address joined is kept until the game ends. Triangle goes back from the rows to the two buttons (giving up a join still connecting), then to Home |
+| Lobby | The party's code in the title (a direct party: **Hosting** with your address and port, every address of yours that fits, or **Direct party** with the host's address), **Ready** (a member: it is ready; chosen again, **Not ready**; once the game is on, **Join game**; **Checking mods...** until the host answers; **Why can't I join?** when your mods differ) or **Start** (the host: the game starts for everyone; dim, and refused with the game's refusal sound, until every member is ready, and the count line says **waiting**), **Leave**, **Party rules**, what the party plays (**Playing:** the save), then the members (up to 4), the host marked and each other one **(ready)**, **(not ready)**, **(differs)** or **(checking)**, for the host a line saying why for each one that differs, and the round trip to the server. **Leave** and Triangle ask first (**Stop hosting?** for a direct host); when the host leaves, another player takes over once the game is on (the question says so), and before that the party is over for everyone. Leaving a direct party goes back to Home and to the server |
+| Remove | The host's Cross on a member in the lobby, or on a member's line of the pause menu's Multiplayer page: **Remove** (the code still works, so it may come back) or **Ban from save**, then back. See [Removing a player](#removing-a-player) |
 | Refused | Shows by itself when your game cannot join the host's, and from the lobby's button: how yours differs, and what to do. See [Mods in a party](#mods-in-a-party) |
 | Party rules | From the lobby and the pause menu: what the party plays by, and what stays your own. A host with a mod code has **Copy mod code**, a refused player too, and a host whose save has bans **Lift 2 bans** |
 | Pause menu (in a level) | **Options**, then **Multiplayer** (after Video): the party's code (a direct party: where it is), the host's level, each member with the host and you marked and its round trip to the server and whether its game state goes by UDP or TCP (updated every 2 seconds), then **Party rules** and **Leave party**, which asks first (**End the party?** for the host, **Stop hosting?** for a direct host). Out of a party it says **Not in a party**. Leaving goes back to the title's Multiplayer page (below) |
@@ -188,8 +188,8 @@ game from there.
 Leaving. A player whose party goes while it plays (it chose Leave party, the host ended the party,
 or its connection went) leaves its level at once, from wherever it is (playing, a scene, the pause
 menu), for the title, which then opens the Multiplayer page; its footer says why when the player
-did not leave by itself (**The host left: Continue as host from Saves**, **The host left: the party
-is over**, **The host went away**, **The server went away**). A member leaving goes there alone, and
+did not leave by itself (**Continue in Saves**, **Host left**, **Server
+lost**). A member leaving goes there alone, and
 the party plays on without it. A player already in the title's pages (the lobby) goes back to Home.
 
 Losing the connection (DECISIONS 6). A dropped player keeps its place for 2 minutes, under the same
@@ -210,9 +210,9 @@ can Continue as host from its party save. A direct host is the party: its member
 if they drop, but with the host gone, it ends.
 
 Cross chooses, Triangle goes back a page (from Home, to the main menu). The footer's first line says
-what the connection is doing: connecting, connected, **Server unreachable** (the mod tries again
-every few seconds), or **The server went away**, and the server's answers (a code no party has, a
-full party, the host leaving). Only Browse games, Create match and Join by code need the server (they
+what the connection is doing: connecting, **Connected**, **Server offline** (the mod tries again
+every few seconds), or **Server lost**, and the server's answers (**No such code**,
+**Party full**, **Host left**). Only Browse games, Create match and Join by code need the server (they
 are dim until it said hello); **Direct connect**, Host directly and Join by address are always
 selectable. Choosing Direct connect stops the server retries, and the Direct pages never show the
 server's state; leaving a direct party goes back to Home, which tries the server again.
@@ -221,7 +221,7 @@ server's state; leaving a direct party goes back to Home, which tries the server
 |---|---|---|
 | Server | `game.openrac.dev:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
 | Name | `${player_name}` (the launcher's Multiplayer name) | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty, `${player_name}` or not valid: the launcher's Multiplayer name |
-| Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the game's working directory (beside its `run.log`; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `net` (every 5 seconds, what went through the session so far: DATA frames and state sent, what the buckets held back, the most events queued, then per DATA kind `e` events, `s` state and `r` received as `e7=messages/bytes`), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
+| Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the mod's data folder (`mod-data/multiplayer` beside the memory cards; on Android the Files app's **OpenRAC > Mod files > multiplayer**; with an OpenRAC older than 1.11 the game's working directory; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `net` (every 5 seconds, what went through the session so far: DATA frames and state sent, what the buckets held back, the most events queued, then per DATA kind `e` events, `s` state and `r` received as `e7=messages/bytes`), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
 
 ## Team tools: rescue and rally points
 
@@ -259,10 +259,10 @@ the party: the player leaves or fixes it, or the host removes it. The page says 
 itself the first time:
 
 ```
-You can't join this game
+Can't join
   Leave party
-  Difficulty: the host has 1.3.0, you have 1.2.3
-  Your Difficulty settings differ:
+  Difficulty 1.2.3 (host 1.3.0)
+  Difficulty settings differ:
   Enemy count, Damage to Ratchet
   Host has Item Randomizer, you don't
   You have Ammo Max, the host doesn't
@@ -270,14 +270,14 @@ Match the host in the launcher's Mods tab,
 then restart the game and join again.
 ```
 
-The other lines it may have: `You have a different disc from the host`, `OpenRAC: the host has
-0.21.0, you have 0.20.0`, `Multiplayer: the host has 0.10.0, you have 0.9.0`, and `Archipelago
-can't be played in a party`, with `Turn it off in the launcher's Mods tab, then restart the game.`
+The other lines it may have: `Different disc`, `OpenRAC 0.20.0 (host 0.21.0)`, `Multiplayer 0.9.0
+(host 0.10.0)`, `You lack Item Randomizer`, `Extra: Item Randomizer` and `Archipelago is solo
+only`, with `Turn it off, restart the game` in the footer.
 Settings count from the game's next start, so changing them needs a restart.
 
 The host's lobby has a line for each player who differs: `Bob: Difficulty settings, 1 more`,
 `Bob: no Item Randomizer`, `Bob: extra Ammo Max`, `Bob: Difficulty version`, `Bob: a different disc`,
-`Bob: an older Multiplayer`. **Browse games** marks the games that would not fit with **(differs)**:
+`Bob: old Multiplayer`. **Browse games** marks the games that would not fit with **(differs)**:
 the party's listing carries a short digest of its host's build and gameplay mods.
 
 **A player's keys and name are its own.** A `keybind` setting, and a string that defaults to the
@@ -365,9 +365,9 @@ Home, **Direct connect**:
 
 - **Host directly**: your game listens on port **7770** (TCP, and UDP on the same port), and you are
   the host of its one party. The lobby's title shows your address and port to give the others
-  (`Hosting on 192.168.1.20:7770`; more lines when the computer has more than one address). A port
+  (`192.168.1.20:7770`; more lines when the computer has more than one address). A port
   already taken (another host, or a server on the same computer) is refused: the page stays, and
-  its footer says "Port 7770 is in use". **Leave** asks "Stop hosting?" and ends the party.
+  its footer says "Port 7770 busy". **Leave** asks "Stop hosting?" and ends the party.
 - **Join by address**: set the host's address with the rows (four parts and the port), then
   **Join**. You are in the host's party as soon as you are connected: there is no code to type.
   While it cannot reach the host, the footer says so and it keeps trying; Triangle gives up.
@@ -413,68 +413,55 @@ lists co-op saves on their own, under Saves.
 ## Going Commando
 
 The same mod plays Ratchet & Clank 2 (Going Commando: the NTSC-U, PAL and NTSC-U v2.00 discs) on an
-OpenRAC whose port has rac2's play calls (OpenRAC PR #386; an older one refuses the mod with `this
-OpenRAC has no play calls for Going Commando`). It is a first pass: the players play together in the
-host's level and see each other, and nothing more yet. Ratchet & Clank's co-op is unchanged.
+OpenRAC whose port has rac2's play calls and shows mods' pages in rac2's menus (an older one refuses
+the mod with `this OpenRAC has no play calls for Going Commando`, or loads it with no Multiplayer
+item). Ratchet & Clank's co-op is unchanged.
 
-Going Commando's title has no Multiplayer menu (OpenRAC has no mod pages for rac2 yet), so the party
-is chosen in the mod's settings on the launcher's Mods page, which only Going Commando shows:
+The title's main menu reads **New Game**, **Load**, **Multiplayer**, **Options**, and the pause
+menu's **Options** list has **Multiplayer** after **Video**: the same pages as Ratchet & Clank's
+(Home, Browse games, Choose a save, Join by code, Direct connect, the lobby, Refused, Party rules,
+Remove, Team tools, and the pause menu's page with **Leave party**), drawn in the panel of one of
+the game's own option pages, in its font, with its sounds: the title, a window of eight rows that
+follows the cursor, then the footer; a question takes the rows' place, Cross for yes and Triangle for
+no. Cross chooses, Left and Right step a choice, Triangle goes back. The pages speak the game's
+language. **Server** and **Name** are Ratchet & Clank's; **Revive fallen players** and **Hold the
+party** are Ratchet & Clank's only. A launcher's word to join a party (a mod code with a party) works
+as in Ratchet & Clank.
 
-| Setting | |
-|---|---|
-| **Party** | `Off` (the default: no connection at all), `Host a party` (on the server), `Join by code`, `Host directly` (no server: this game listens on port 7770, TCP and UDP), or `Join an address` |
-| **Code** | for Join by code: the six letters and digits the host's game shows (any case, spaces ignored) |
-| **Address** | for Join an address: the host's `host:port` (7770 when no port is given) |
+1. The host chooses **Multiplayer**, then **Create match** (or **Direct connect**, **Host
+   directly**) and a save or **New game**; friends choose **Browse games** or **Join by code** (or
+   **Join by address**). The lobby is Ratchet & Clank's: Ready, the host's Start, Leave.
+2. The host's Start starts the game for everyone. A member in the title starts the host's level from
+   the host's save as it is now (its own memory card untouched), and a member already in a level of
+   its own leaves it for the title first. A member who comes later is brought in the same way.
+3. When the host goes to another planet, each member follows it there (the game's own travel, a few
+   seconds after the host's level changes).
+4. Each player sees the others in the same level as figures that look like Ratchet, placed and turned
+   as the others' poses say, with their names over them. They do not animate yet: the port poses them
+   still (the poses carry the animation for when it does).
 
-**Server** and **Name** are Ratchet & Clank's; **Revive fallen players** and **Hold the party** are
-Ratchet & Clank's only. A launcher's word to join a party (a mod code with a party) works as in
-Ratchet & Clank and takes the place of the settings.
-
-1. The host sets **Party** to `Host a party` and starts the game. Once it has connected, the line
-   over the game says `Multiplayer: party ABCDEF: others join with this code` until someone joins
-   (the code is in the game's log too).
-2. Each friend sets **Party** to `Join by code` and **Code** to that code, and starts the game.
-3. The host plays as usual: a new game or a save, from its own title. Once the host is in a level,
-   that game is the party's: a member in the title starts the host's level from the host's save as it
-   is now (its own memory card untouched), and a member already in a level of its own leaves it for
-   the title first. A member who comes later is brought in the same way.
-4. When the host goes to another planet, each member follows it there (the game's own travel, a few
-   seconds after the host's level changes). The host back in the title then in a level again is a new
-   game of the party's, and the members are brought into it again.
-5. Each player sees the others in the same level as figures that look like Ratchet: placed and turned
-   as the others' poses say. They do not animate yet: the port poses them still (the poses carry the
-   animation for when it does).
-
-The line over the game says what happens: the party's code, who joined or left, `That party plays
-another game: left it`, a code that is not one, a server that made no party (asked three times), a
-member whose mods differ from the host's (`You can't join: your game differs from the host's`), and
-the host leaving (`The host left: the party is over`). Leaving: switch **Party** to `Off` and start the
-game again (there is no in-game Leave yet). A member whose party goes returns to the title; the host's
-game goes on as its own.
-
-Only parties of the same game meet. A Going Commando party's description names the game after its
-digest (`Going Commando|3fa9/rac2`, below); a Going Commando player in any other party leaves it at
-once, and a Ratchet & Clank player in a Going Commando party leaves it too (an older Ratchet & Clank
-game shows such a party as `(differs)` and refuses its game, since its build and world family
-differ). Each Going Commando disc is its own world for now (`rac2-ntsc-1`, `rac2-pal-1`,
-`rac2-ntsc2-1`): players on different discs are in one party but the member is refused the host's
-game.
+Only parties of the same game meet. Each party request says the game's world family (`rac1-60-1`
+for both Ratchet & Clank discs; `rac2-ntsc-1`, `rac2-pal-1`, `rac2-ntsc2-1`, since each Going
+Commando disc is its own world for now), and the server lists and finds only parties of that family
+and refuses a join by code into another: the Refused page says "For Ratchet & Clank 2"
+(or "For Ratchet & Clank", or "Different disc"). Against an older server that lists every game, a
+Going Commando party's description names the game after its digest
+(`Pokitaru, 3 platinum bolts|3fa9/rac2`, below), Browse games leaves out other games' parties, and a
+player who still lands in another game's party leaves it at once.
 
 Not in Going Commando yet (each needs the port's rac2 calls or this mod's work):
 
-- **The menus**: the Multiplayer pages (Browse, Create match, Join by code, the lobby, Direct
-  connect, the pause menu's page, Team tools, Party rules, Remove). They need OpenRAC's mod pages for
-  rac2 (`ui_page`, `ui_main_item`, `ui_pause_item`).
 - **Animated figures**: the port places and turns them; the hero's packed frames are not unpacked for
-  a figure yet. Also the pieces the hero wears and holds, his shots, and the names over the figures.
+  a figure yet. Also the pieces the hero wears and holds, and his shots.
 - **The shared world**: enemies, crates, doors and platforms run by the host's game (World), bolts,
   the members' deaths in the host's world, metal detector piles.
 - **Shared progress**: items, platinum bolts, planets (Progress, Shared).
-- **Party saves**: the co-op slots on the memory card, Save the party, Continue as host.
-- **Team tools**: rescue, rally points, Go to host, revive, and placing a joiner beside the host.
+- **Party saves**: the co-op slots on the memory card, Save the party, Continue as host. A party's game
+  saves where the game saves, on the player's own card: play a party on a card (or slot) you can spare.
+- **Team tools**: the page is there, but rescue, revive and placing a joiner beside the host need the
+  hero calls rac2 has not got; rally points work.
 - **Taking over**: the next host carrying the game on when the host's connection goes.
-- **Scenes together** and the waits for others (the barrier, skips, Hold the party): the mod takes no
-  control of Going Commando's pad, so nobody is held or skipped for anyone.
+- **Scenes together** and the waits for others (the barrier, skips, Hold the party).
 - **The ship**: only the host's travels are followed; a member's own travel is not refused.
 - **Two discs together** (`rac2-*` world families shown to share their levels).
 
@@ -498,11 +485,11 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.11.0`; `rac2-multiplayer/0.11.0` in Going Commando) and the player's name, on every connection | the session id |
-| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Going Commando|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
+| 0 HELLO | its version (`rac1-multiplayer/0.12.3`; `rac2-multiplayer/0.12.3` in Going Commando) and the player's name, on every connection | the session id |
+| 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Pokitaru, 3 platinum bolts|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8); CREATE, JOIN, LIST and FIND end with the world family (string), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
-| 4 ERROR | | the reason: no such party, full, already in one, not in one, not the host, no place to come back to |
+| 4 ERROR | | the reason: no such party, full, already in one, not in one, not the host, no place to come back to, another game's party (6, then that party's world family) |
 | 5 TIME | its monotonic clock in ms, once after hello | the echo and the server's clock: the round trip, and the server's clock offset, smoothed (5 % a sample) |
 | 6 UDP | | the session's UDP token and the server's UDP port (an older server sends none), then what the server takes: KICK, RESUME and a resume token (an older server says none, and the mod asks for neither) |
 
@@ -727,9 +714,24 @@ Player names, chat and descriptions sent by other hosts are kept as received; th
 translate another player's save description. Network messages and diagnostic logs stay unchanged.
 
 `src/words.hpp` contains the five-column UTF-8 catalog. Use only letters supported by the game's
-font and keep each fixed text within `OPENRAC_UI_TEXT_MAX` bytes; dynamic fields are shortened
-without splitting a UTF-8 character. `multiplayer_words` tests the catalog, language mapping,
-connection and party pages, controller glyphs and text limits without a game disc.
+font and keep every text short: the panels are narrow (a footer line holds about 15 letters, a list
+line about 33, a title about 19), so the pages use status words (**Connected**, **Hosting**,
+**Full**) and one short line where a sentence would do. `multiplayer_words` measures every text of
+the catalog, in all five languages, and the composed status, party and lobby lines against the
+narrowest panel Going Commando draws them in (a per-character width model taken from a capture), and
+fails when one would overflow. It also tests the language mapping, controller glyphs and text limits
+without a game disc. Dynamic fields are shortened without splitting a UTF-8 character.
+
+## History
+
+- 0.12.3: the verbose log's `mp-trace.log` is in the mod's data folder, so on Android it can be
+  opened from the Files app (OpenRAC > Mod files).
+- 0.12.2: **One game per party**: each party request says the game's world family, so the server
+  lists and finds only your game's parties and refuses a join by code into another's; the Refused
+  page says which game it is for (**For Ratchet & Clank 2**). Browse also leaves other games' out.
+- 0.12.1: **Shorter texts**: every page, status, footer, hint, question and notice is a few words
+  (**Connected**, **Hosting**, **Party full**, **Leave party?**), in all five languages, so nothing
+  overflows the panels; a test measures them.
 
 ## Building
 
@@ -779,18 +781,12 @@ differing member refused its Ready and the game (with the gates off, stopped by 
 a differing late member, the rules reaching a member before any level and again at an event, a
 respawn, the party's end, and an older game on either side.
 
-Going Commando's part (`tests/rac2/play_test.cpp`, in the same program) checks the party without
-pages with the fake games as rac2's play calls answer: the description's game tag and which parties
-each game keeps to, the settings' values, hosting and joining by them (the server opened once, CREATE
-with the rac2 description, the code over the game, JOIN with the code as typed, a refused join asked
-again then given up, a code or an address that is none, direct hosting and joining), the host's game
-adopted once in a level and the member started in it from the host's save, the figures posed from
-each other's place, turn and animation fields, the member following the host's travel and the
-figures gone while the levels differ, the host's new game after the title brought to the member
-again, a Ratchet & Clank party left at once, the host's game kept when it leaves, and a member whose
-game differs not brought in. `tests/rac2/load_test.cpp` (`multiplayer_rac2_load`) loads the library
-as the port does in Going Commando: no hook point and no page taken, frames run in the title, a port
-without the play calls and another game refused.
+`tests/rac2/play_test.cpp` (in `multiplayer_play`) checks that a party's description names its game
+and that each game keeps to its own parties: Ratchet & Clank's untagged and digest-tagged ones are
+its own, Going Commando's only those tagged rac2. `tests/rac2/load_test.cpp`
+(`multiplayer_rac2_load`) loads the library as the port does in Going Commando: no hook point taken
+(Ratchet & Clank's are its own), the pages made, Multiplayer under Load Game and in the pause menu,
+frames run in the title, a port without the play calls and another game refused.
 
 `tests/e2e` does the same with the real game: see its README.
 
@@ -807,9 +803,7 @@ chosen from the setting and the launcher's.
 | `src/mod_state.hpp` | the mod's shared state and the functions its files call each other by (mod-internal) |
 | `src/pages_home.cpp`, `pages_browse.cpp`, `pages_saves.cpp`, `pages_lobby.cpp`, `pages_refused.cpp`, `pages_rules.cpp`, `pages_remove.cpp` | the pages in the game's own menus: Home with Code, Direct connect and the pause menu's page; Browse; Saves; Lobby; Refused; Rules |
 | `src/game_adapter.hpp`, `.cpp` | the co-op's Game on the SDK's play and world calls |
-| `src/rac2/load.cpp`, `.hpp` | Going Commando's load: the session, the co-op and the settings' party on the play calls, no hook point and no page |
-| `src/rac2/party.hpp`, `.cpp` | a party without pages: the `party` setting carried out (host, join, direct), the host's game adopted as the party's, the line over the game |
-| `src/rac2/game.hpp` | Going Commando's Game: only the SDK's play calls rac2 answers |
+| `src/rac2/game.hpp` | Going Commando's Game: Ratchet & Clank's on the SDK, with what OpenRAC does not answer for rac2 yet left "not here" |
 | `src/kinds.hpp` | the wire registry: every DATA kind, who owns it, the ranges reserved for coming features, and the router that sends a received DATA to its owner (`tests/kinds_test.cpp` holds the table to it) |
 | `src/session.hpp`, `.cpp` | the session and the party: hello, the clock, create, list, join, leave, Ready and Start |
 | `src/coop.hpp`, `.cpp` | playing together: PLAY and its save, LEVEL, WANT, poses sent and figures shown |

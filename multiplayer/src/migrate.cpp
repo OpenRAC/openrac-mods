@@ -494,7 +494,7 @@ std::string Migrate::banner(std::uint64_t now) const {
     }
 
     if (now < new_host_until_) {
-        return new_host_ == session_.id() ? std::string(kYouHostLine) : name_of(new_host_) + " is the party's host now";
+        return new_host_ == session_.id() ? std::string(kYouHostLine) : name_of(new_host_) + " hosts now";
     }
 
     return {};

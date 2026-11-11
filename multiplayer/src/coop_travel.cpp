@@ -175,7 +175,7 @@ bool Coop::ship_travel(int dest, int here) {
             return true;
         }
 
-        notice_ = "Only the host flies the ship to another planet";
+        notice_ = "Only the host can fly";
         refused_until_ = clock_() + kRefusedMs;
         log("the ship's travel to level " + std::to_string(dest) + " refused: only the host flies it");
         return false;
@@ -204,7 +204,7 @@ bool Coop::ship_travel(int dest, int here) {
 
 std::string Coop::banner(std::uint64_t now) const {
     if (now < refused_until_) {
-        return "Only the host flies the ship to another planet";
+        return "Only the host can fly";
     }
 
     if (now < skip_refused_until_) {
@@ -218,7 +218,7 @@ std::string Coop::banner(std::uint64_t now) const {
     }
 
     if (hold_ && wait_.kind != kWaitNone) {
-        const std::string what = arriving_ ? "Waiting for the other players to arrive"
+        const std::string what = arriving_ ? "Waiting for players"
                                            : "Waiting for the scene to end";
 
         if (session_.role().host()) {
@@ -230,12 +230,12 @@ std::string Coop::banner(std::uint64_t now) const {
     }
 
     if (arriving_ && hold_) {
-        return "Waiting for the other players to arrive";
+        return "Waiting for players";
     }
 
     if (placing_ == PlaceFor::kJoin) {
         return host_scene_ ? "Waiting for the host's scene to end: Start goes in now"
-                           : "Joining the game";
+                           : "Joining...";
     }
 
     if (placing_ == PlaceFor::kHost) {
@@ -243,7 +243,7 @@ std::string Coop::banner(std::uint64_t now) const {
     }
 
     if (joining_) {
-        return "Joining the game";
+        return "Joining...";
     }
 
     if (now < no_spot_until_) {

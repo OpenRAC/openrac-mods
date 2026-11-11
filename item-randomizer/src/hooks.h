@@ -109,4 +109,14 @@ typedef void (*openrac_rac1_Moby_Class23_Update)(openrac_gaddr moby);
 typedef void (*openrac_rac1_Moby_RobotQwark_Update)(openrac_gaddr moby);
 #endif
 
+/* New Game (NewGameInit, rac1.save.new_game): the disc's starting save restored, and level 0.
+ * Challenge mode's start (rac1.save.new_game_plus) runs it too, keeping the progress it carries.
+ * The SDK's header names neither, so the mod asks for them by their ids. */
+#define ITEM_RANDOMIZER_HOOK_Save_NewGame "rac1.save.new_game"
+#define ITEM_RANDOMIZER_SIG_Save_NewGame "void()"
+typedef void (*item_randomizer_Save_NewGame)(void);
+#define ITEM_RANDOMIZER_HOOK_Save_NewGamePlus "rac1.save.new_game_plus"
+#define ITEM_RANDOMIZER_SIG_Save_NewGamePlus "void(i32)"
+typedef void (*item_randomizer_Save_NewGamePlus)(int32_t slot);
+
 #endif /* ITEM_RANDOMIZER_HOOKS_H */

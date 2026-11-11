@@ -57,6 +57,7 @@ static char s_failed[256];
 static int s_level = -1;
 static const char* s_disc = "pal";
 static const char* s_setting_mode = "lock";
+static const char* s_setting_button = "both";
 
 /* The hooks the mod took. */
 static struct {
@@ -178,7 +179,10 @@ static double setting_float(openrac_mod* mod, const char* key) {
 
 static const char* setting_string(openrac_mod* mod, const char* key) {
     (void)mod;
-    return strcmp(key, "mode") == 0 ? s_setting_mode : strcmp(key, "feel") == 0 ? "commando" : "";
+    return strcmp(key, "mode") == 0     ? s_setting_mode
+           : strcmp(key, "button") == 0 ? s_setting_button
+           : strcmp(key, "feel") == 0   ? "commando"
+                                        : "";
 }
 
 static void* original_for(const char* name) {
@@ -389,7 +393,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.12: the hero's joints), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.1.0") == 0);
+    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.2.1") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -503,10 +507,18 @@ int main(int argc, char** argv) {
     advance();
     CHECK(s_joint_count == 2 && s_joints[0].joint == RAC1_STRAFE_JOINT_PELVIS);
     CHECK(s_joints[1].joint == RAC1_STRAFE_JOINT_SPINE);
-    /* A yaw about z, sent in the port's sense: to the right the pelvis's z is positive, the
-     * spine's negative. */
+    /* A yaw about z as the game builds one (the sine negated, strafe.h): the pelvis turned right,
+     * so its z is positive and its front (the rotation's first row, as the game's joint matrices
+     * take it: 2(xy - zw) sideways) to his right; the spine turned back, its z negative. 1.1.0 had
+     * both the other way round, the hips turned away from where he went. */
     CHECK(s_joints[0].rotation[0] == 0.0f && s_joints[0].rotation[1] == 0.0f);
     CHECK(s_joints[0].rotation[2] > 0.0f && s_joints[1].rotation[2] < 0.0f);
+    CHECK(
+        2.0f
+            * (s_joints[0].rotation[0] * s_joints[0].rotation[1]
+               - s_joints[0].rotation[2] * s_joints[0].rotation[3])
+        < 0.0f
+    );
 
     /* The slide to a stop: running right, the velocity along the stick's yaw; the stick let go
      * (the game sets the move yaw to his facing and the target speed to 0), still along it. */
@@ -541,6 +553,37 @@ int main(int argc, char** argv) {
     pad(d->pad, 0x00100000u, 32);
     turn(0, 0.1f, 0.2f, 0.3f);
     CHECK(s_move_yaw_seen == -0.5f);
+
+    /* Strafe button R2 only: in play on foot R2 is taken out, L2 (and L1) reach the game, for
+     * the game's look and for other mods. */
+    s_setting_button = "r2";
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    pad = (openrac_rac1_Pad_ProcessReport)hook_named("Pad_ProcessReport");
+    turn = (openrac_rac1_Hero_TurnToHeading)hook_named("Hero_TurnToHeading");
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_L2 | RAC1_PAD_R2 | 0x4u);
+    pad(d->pad, 0x00100000u, 32);
+    CHECK(get_u32(d->pad + 0x1A0u) == (RAC1_PAD_L2 | 0x4u));
+    /* L2 alone does not latch Hold: the game's turn. */
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_L2);
+    pad(d->pad, 0x00100000u, 32);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(s_move_yaw_seen == -0.5f);
+    /* R2 latches it: the turn eases toward the camera's yaw. */
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
+    CHECK(get_u32(d->pad + 0x1A0u) == 0);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(s_move_yaw_seen == 1.25f);
+
+    /* L2 only: R2 reaches the game. */
+    s_setting_button = "l2";
+    s_hook_count = 0;
+    CHECK(load(&api, mod) == 0);
+    pad = (openrac_rac1_Pad_ProcessReport)hook_named("Pad_ProcessReport");
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_L2 | RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
+    CHECK(get_u32(d->pad + 0x1A0u) == RAC1_PAD_R2);
 
     free(s_memory);
     printf("load_test: ok\n");

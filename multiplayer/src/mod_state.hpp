@@ -47,10 +47,10 @@
 namespace mpmod {
 
 /* The version HELLO gives the server: the mod's (at most 32 characters). */
-constexpr const char* kModVersion = "0.11.0";
-constexpr const char* kVersion = "rac1-multiplayer/0.11.0";
-/* Going Commando's (rac2/load.cpp). */
-constexpr const char* kVersionRac2 = "rac2-multiplayer/0.11.0";
+constexpr const char* kModVersion = "0.12.3";
+constexpr const char* kVersion = "rac1-multiplayer/0.12.3";
+/* Going Commando's: its parties are its own (a party's description names the game). */
+constexpr const char* kVersionRac2 = "rac2-multiplayer/0.12.3";
 
 
 /* The question's tag: leaving the party (or hosting it). */
@@ -142,6 +142,7 @@ struct State {
     mp::Trace trace;            // the verbose log (trace.hpp), off unless asked for
     std::ofstream trace_file;   // mp-trace.log, where it goes
     openrac::Mod* mod = nullptr;
+    bool rac2 = false;  // Going Commando (rac2/game.hpp): its parties, its version
     std::uint32_t generation = 0;  // the connection's, as the session last saw it
     openrac::UiPage home, code_page, direct_page, lobby, browse, saves, refused, rules, remove;
     openrac::UiPage comfort_page;  // Team tools, from the lobby and the pause page
@@ -161,6 +162,7 @@ struct State {
     std::uint64_t mod_code_ms = 0;  // when it was last read
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
     std::string notice;  // the last refusal or news, until the next action
+    std::string refusal; // the server's refusal of a join into another game's party, for Refused
     std::string banner;  // the line shown over the game (play_notice)
     DirectView view = DirectView::kMenu;
     mp::DirectAddress address;  // Join by address's, the last joined kept for the game
@@ -198,6 +200,11 @@ mp::Language game_language(const openrac::Mod& mod);
 /* A page set with its labels fitted to the port's bytes (words.hpp's fit_ui_text), so an accented
  * name is never cut in half. */
 void set_content(const openrac::UiPage& page, openrac::UiContent& content);
+
+/* The game this run plays, as a party's description names it (party_mods.hpp), and the session's
+ * version (each game's parties are its own). */
+const char* game_tag();
+const char* session_version();
 
 /* The member whose row was chosen among `rows`, 0 for no such event. */
 inline std::int32_t row_member(const std::vector<std::pair<int, std::int32_t>>& rows, const openrac::UiEvent& e) {

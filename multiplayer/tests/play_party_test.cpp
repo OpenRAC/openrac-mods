@@ -208,8 +208,8 @@ void a_ship_travel_takes_the_party_along() {
 
     // A member's planet select: only the host flies; the same planet (a landing again) is the game's.
     CHECK(!member.coop.ship_travel(5, 11));
-    CHECK(member.coop.take_notice() == "Only the host flies the ship to another planet");
-    CHECK(member.coop.banner(member.clock) == "Only the host flies the ship to another planet");
+    CHECK(member.coop.take_notice() == "Only the host can fly");
+    CHECK(member.coop.banner(member.clock) == "Only the host can fly");
     CHECK(member.coop.banner(member.clock + mp::kRefusedMs).empty());
     CHECK(member.coop.ship_travel(11, 11) && host.coop.ship_travel(11, 11));
     CHECK(!host.coop.arriving());
@@ -282,7 +282,7 @@ void a_ship_travel_takes_the_party_along() {
     }
     CHECK(host.coop.arriving() && host.coop.hold_input() && host.coop.waiting_for() == 1);
     CHECK(has(host_log, "waiting for 1 players to arrive in level 7"));
-    CHECK(host.coop.banner(host.clock) == "Waiting for the other players to arrive: Start goes on");
+    CHECK(host.coop.banner(host.clock) == "Waiting for players: Start goes on");
     member.game.now = {mp::kPhasePlaying, 7, 5};
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 50);
@@ -489,12 +489,11 @@ void leaving_from_the_title() {
     CHECK(mp::leave_reason(true, true, false, "").empty());
     CHECK(mp::leave_reason(false, false, false, "The host left: the party is over")
           == "The host left: the party is over");
-    CHECK(mp::leave_reason(false, true, true, "") == "The host went away");
-    CHECK(mp::leave_reason(false, true, false, "") == "The server went away");
-    CHECK(mp::leave_reason(false, false, false, "") == "The party is over");
+    CHECK(mp::leave_reason(false, true, true, "") == "Host left");
+    CHECK(mp::leave_reason(false, true, false, "") == "Server lost");
+    CHECK(mp::leave_reason(false, false, false, "") == "Party over");
 
-    for (const char* reason : {"The host left: the party is over", "The host went away",
-                               "The server went away"}) {
+    for (const char* reason : {mp::kHostLeftNotice, "Host left", "Server lost"}) {
         CHECK(std::string(reason).size() <= mp::kFooterMax);
     }
 }

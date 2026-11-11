@@ -30,13 +30,15 @@
 #define XBOX_ICONS_HEIGHT 128u
 #define XBOX_ICONS_ROW 96u         /* the pad icons' row of cells */
 #define XBOX_ICONS_CELLS_WIDTH 192u /* the eight cells painted, u 0..191 */
+#define XBOX_ICONS_FONTS 3          /* the most fonts a set has: a level's three */
 
-/* FNV-1a over the eight cells of each font and the palette: which fonts these are (the game's, or
- * painted). */
-uint32_t xbox_icons_hash(uint8_t* const fonts[3], const uint8_t* palette);
+/* FNV-1a over the eight cells of each of the `count` fonts and the palette: which fonts these are
+ * (the game's, or painted). A level has three fonts; the title's menus load only the first two. */
+uint32_t xbox_icons_hash(uint8_t* const fonts[], int count, const uint8_t* palette);
 
-/* Paints the eight cells of each font and the palette entries the letters use. Returns 0, or 1 when
- * too few palette entries are free (nothing is changed then). */
-int xbox_icons_paint(uint8_t* const fonts[3], uint8_t* palette);
+/* Paints the eight cells of each of the `count` fonts (1 to XBOX_ICONS_FONTS) and the palette
+ * entries the letters use. Returns 0, or 1 when too few palette entries are free (nothing is
+ * changed then). */
+int xbox_icons_paint(uint8_t* const fonts[], int count, uint8_t* palette);
 
 #endif /* XBOX_ICONS_PAINT_H */

@@ -50,8 +50,15 @@ Built: the mod loads in Going Commando (rac2: NTSC-U, PAL, NTSC-U v2.00) on the 
 - **No barrier**: the mod takes no control of rac2's pad, so the scene and arrival waits are off
   (`Coop::barrier(false)`) rather than shown and not enforced.
 
-Still to do in Going Commando, in a likely order: animated figures (the port's), the menus (the port's
-mod pages for rac2, then this mod's pages), the shared world (World: the host's enemies, crates and
+**Second pass (2026-11-09): the pages.** OpenRAC shows mods' pages in rac2's menus now (the main
+menu's item, the pause menu's Options row, the page drawn in one of the game's option panels), so
+Going Commando runs Ratchet & Clank's load: the same pages, lobby, Start and pause page, on a Game
+that leaves what rac2 does not answer yet "not here" (rac2/game.hpp). The settings `party`, `code`
+and `address` are gone, and with them the party without pages (rac2/party.cpp) and the host's own
+game adopted as the party's: the host's Start starts the game, as in Ratchet & Clank. The barrier
+stays off (rac2 tells the mods no scene yet).
+
+Still to do in Going Commando, in a likely order: animated figures (the port's), the shared world (World: the host's enemies, crates and
 bolts), shared progress (Progress, Shared), party saves (CoSave), the pad (scenes together, waits,
 Hold the party, a member's ship refused), Team tools and rescue, taking over (Migrate), name tags,
 held pieces and shots, and the discs playing together (one world family). README.md, Going Commando,

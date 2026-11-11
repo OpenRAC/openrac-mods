@@ -27,6 +27,7 @@ and start a **new game**.
 | Setting | Default | |
 |---|---|---|
 | Seed | blank | A **seed code** someone shared (`4ZRJ-6HB7-H6Q5`: it carries their settings, so you play their game), or any word (`ratchet`: the same word with the same settings gives the same game). Blank: a random seed, rolled the first time and kept for your next starts; to roll another, type any word, or delete `seed.txt` in the data folder below. Codes from before version 2 no longer work: their game cannot be made again |
+| New games only | on | The mod changes only a game started with it: a **new game** started with it on, or a save that game made (the save carries the seed's tag). A save from a game started without it, or with another seed, plays as the game does, so a playthrough is never changed partway; the log says why. Off: such a save is randomized from where it is |
 | Logic | Standard | **Standard**: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. **Relaxed**: what you need also comes early in the game, and never behind a purchase you have to save up for. **Expert**: what you need may be behind any purchase, even the most expensive, and you get by with any weapon |
 | Shuffle gadgets | on | The Heli-Pack, the Swingshot, the Magneboots, the Grindboots, ... from NPCs and pickups |
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
@@ -41,22 +42,32 @@ The game's log names the seed's code at each start (`seed 4ZRJ-6HB7-H6Q5 (new), 
 that code. All the settings but the spoiler log and the vendor's line are in it.
 
 **The data folder** holds `seed.txt` (the seed a blank setting rolled) and `spoiler-<code>.txt`, one
-per seed. It is in the launcher's per-user data folder, never beside the game:
+per seed. It is the folder OpenRAC gives each mod, `mod-data/item-randomizer` beside the memory
+cards, never beside the game:
 
 | System | Folder |
 |---|---|
-| macOS | `~/Library/Application Support/dev.openrac.launcher/mods/item-randomizer` |
-| Linux | `~/.local/share/dev.openrac.launcher/mods/item-randomizer` (or under `$XDG_DATA_HOME`) |
-| Windows | `%LOCALAPPDATA%\dev.openrac.launcher\mods\item-randomizer` |
+| Android | Files app: **OpenRAC > Mod files > item-randomizer** (or Settings > **Open Files**) |
+| macOS | `~/Library/Application Support/OpenRAC/mod-data/item-randomizer` |
+| Linux | `~/.local/share/openrac/mod-data/item-randomizer` (or under `$XDG_DATA_HOME`) |
+| Windows | `%LOCALAPPDATA%\openrac\mod-data\item-randomizer` |
 
-(`OPENRAC_MOD_DATA_DIR` in the environment names another.)
+(`OPENRAC_MOD_DATA_DIR` in the environment names another.) Before 2.4.1 the folder was
+`dev.openrac.launcher/mods/item-randomizer` in the same per-user data folder (on Android hidden in
+the app's storage); a seed remembered there is carried over at the first start, and old spoiler
+logs stay there. With an OpenRAC older than mod interface 1.11 the mod still uses that old folder.
 
-**Saves.** The mod writes nothing of its own into a save: what you have found is the game's own
-record, and where everything is comes from the seed. So a save made with the mod **belongs to its
-seed**: load it with the same seed code and settings. Loaded with another seed it still loads, but
-what is left to find follows the other seed. With the mod off, a save made with it loads as a save
-of the game, with the items you had. Saves from before version 2 belong to a seed that can no longer
-be made: start a new game.
+**Saves.** What you have found is the game's own record, and where everything is comes from the
+seed; the one thing of the mod's in a save is its **seed's tag**, set when a new game starts with
+it (Ratchet & Clank: chunk 24 of the save, a word no code of the game reads or writes; Going
+Commando: chunk 5's `+0xC0`). So a save made with the mod **belongs to its seed**: load it with the
+same seed code and settings. With **New games only** on (the default) a save with no tag (a game
+started without the mod) or another seed's tag plays as the game does, and the log says
+`this game was not started with the item randomizer` or `started with another seed`: start a new
+game, or put that seed's code in the settings. With the mod off, a save made with it loads as a
+save of the game, with the items you had. Saves from before version 2 belong to a seed that can no
+longer be made: start a new game. Ratchet & Clank saves from before 2.4.0 have no tag: they play as
+the game does unless New games only is off.
 
 **What stays as the game has it.** The OmniWrench; the Persuader on Pokitaru; the planets'
 coordinates the NPCs give (the mechanic on Novalis, Agnogg's ship, the bouncer, the commando and the
@@ -189,7 +200,9 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 - `load`: the library as the port loads it, against a host of the test's own: its refusals, its hook
   points and their signatures, and each hook against a game memory that behaves as the game's bytes
   do: every vendor slot bought over 13 seeds and every kind of reward, the banner, equipping, a reward
-  lost to a save, a party's item spending its place, Orxon, the helmet, tutorials and drops.
+  lost to a save, a party's item spending its place, Orxon, the helmet, tutorials and drops; and New
+  games only: a new game gets the tag and is randomized, a tagged save is, and a save with no tag or
+  another seed's is the game's own throughout (challenge mode keeps the tag it had).
 
 ## What is not known
 
@@ -204,7 +217,8 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 An OpenRAC with the item hook points above and the behaviour catalogue's. An older one refuses the
 mod with the reason ("this OpenRAC cannot hook Item_Give").
 Going Commando's PAL and v2.00 discs need an OpenRAC whose ports have the givers' hook points on
-those discs too (OpenRAC #390); an older one refuses the mod the same way.
+those discs too (OpenRAC #390); an older one refuses the mod the same way. Going Commando also needs
+the equip hook point, `rac2.item.equip` (SDK 1.14.3).
 
 ## Going Commando
 
@@ -239,12 +253,17 @@ expert place the same way; relaxed keeps what you need out of the Hypnomatic mak
 The spoiler log is `spoiler-rac2-<code>.txt` in the mod's data folder; a blank seed is remembered in
 `seed-rac2.txt`.
 
-**How the game is changed** (`src/rac2/rac2.c`; the hook points are OpenRAC's `rac2.item.give` and
-`rac2.moby.*.update`):
+**How the game is changed** (`src/rac2/rac2.c`; the hook points are OpenRAC's `rac2.item.give`,
+`rac2.item.equip` and `rac2.moby.*.update`):
 
 - GiveInventoryItem: a shuffled place gives its reward once, through the game's own routine (owned,
   ammo, the vendor's list, quick select). A line over the game names the reward; the game's own
   words still name the place's usual item.
+- EquipItem: most givers put their item in Ratchet's hand (or on him) right after the give: Todano's
+  Sheepinator, the Tractor Beam, the Thermanator, the Swingshot, the Mapper, ... Where a place gave
+  its reward instead, he takes the reward, and nothing when it is not yours to hold. (Up to 2.3.0
+  the Sheepinator pickup put a Sheepinator you did not own in his hand: it was in no list and gone
+  once put away.)
 - Twelve givers test their own item's owned byte before they give it (they would vanish or stop
   selling once you have that item from elsewhere). While their update runs they are shown the
   place's state instead; Endako's and Barlow's level starts, which place Ratchet by the Swingshot and
@@ -253,11 +272,33 @@ The spoiler log is `spoiler-rac2-<code>.txt` in the mod's data folder; a blank s
   that place had now; it is taken back and the reward given.
 - Each level's start gives back any reward had that is missing (not in Aranos Prison, whose cell
   takes the packs away on purpose).
+- The vendor's table (the planet each weapon comes on sale from) is level data: each level's program
+  brings the game's own again, so the mod writes the seed's into it at every program load.
+- In a party (the multiplayer mod), the host's seed counts, as in Ratchet & Clank: the host's game
+  publishes its seed's code, and each member's game plays that placement until the party goes, then
+  its own again. These all need an OpenRAC whose Going Commando gives the mods its play calls before
+  they load (OpenRAC #416); an older one runs only the gives and the givers.
 - Which places are had is kept in the save itself, in progress bytes no code reads (chunk 5,
   `0x1395B8 + 0xC0`..`+0xC7` on NTSC-U, `0x139638 + 0xC0` on PAL: the seed's tag and a bit per place), so a new game starts with none and
   a loaded save carries its own.
+- New games only: a game is changed only when its progress has this seed's tag. A new game gets it
+  at its first tick in a level: New Game unpacks the disc's own starting save, whose clock (chunk 4,
+  stamped by the game each time it saves) is zero on all three discs, and no save on a card has a
+  zero clock. A save with no tag, or another seed's, is the game's own: every hook hands the game its
+  routine and the vendor keeps its table.
 
-**Not yet.** Platinum bolts, Nanotech Boosts and the coordinates in the pools; the game's own "you got" words
-for the reward; a party's shared seed (Going Commando's co-op has no party rules yet). Tests:
+**Not yet.** Platinum bolts, Nanotech Boosts and the coordinates in the pools (Ratchet & Clank's gold
+bolts and infobots); the game's own "you got" words for the reward. Tests:
 `tests/rac2/solver_test.c` (every seed of every setting beatable, the tables) and
-`tests/rac2/load_test.c` (the library against a host and memory of its own, on each disc's addresses).
+`tests/rac2/load_test.c` (the library against a host and memory of its own, on each disc's addresses,
+with New games only's new game, tagged save, untagged save and another seed's save).
+
+## History
+
+- 2.4.1: the data folder is the one OpenRAC gives the mod, so on Android the spoiler log and the
+  seed are in the Files app (OpenRAC > Mod files); the remembered seed comes along from the old
+  folder.
+- 2.4.0: **New games only** (on by default): the mod randomizes only a game started with it (a new
+  game, or a save carrying its seed's tag) and leaves any other save as the game has it, so an
+  update or a mod switched on can no longer change a playthrough partway. Ratchet & Clank saves
+  now carry the tag too. Built against the mod SDK 1.14.4.

@@ -168,7 +168,7 @@ static void lay_table(const xbox_icons_disc* d, uint32_t bank) {
 static uint32_t fonts_hash(void) {
     uint8_t* fonts[3] = {s_memory + BANK + 0xC00u, s_memory + BANK + 0x8C00u,
                          s_memory + BANK + 0x10C00u};
-    return xbox_icons_hash(fonts, s_memory + BANK + 0x800u);
+    return xbox_icons_hash(fonts, 3, s_memory + BANK + 0x800u);
 }
 
 /* A decompiled level's effect bank (core_index.bin and unpacked/core_data.bin, the core header's
@@ -211,7 +211,7 @@ static openrac_mod_load_fn open_mod(const char* path) {
     s_info.size = sizeof s_info;
     query(&s_info);
     CHECK(s_info.api_major == OPENRAC_MOD_API_MAJOR && s_info.api_minor == 1);
-    CHECK(strcmp(s_info.id, "xbox-icons") == 0 && strcmp(s_info.version, "1.1.0") == 0);
+    CHECK(strcmp(s_info.id, "xbox-icons") == 0 && strcmp(s_info.version, "1.2.0") == 0);
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
     return load;

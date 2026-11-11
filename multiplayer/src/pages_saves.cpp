@@ -73,8 +73,8 @@ void show_coop_saves() {
         ));
     }
 
-    c.footer = {text("Your saves from past parties"),
-                g->direct_error.empty() ? text("The others keep their own copy")
+    c.footer = {text("Past parties"),
+                g->direct_error.empty() ? text("Own copies")
                                         : mp::localized_notice(g->direct_error, g_language),
                 text(mp::kSelectBackHints)};
     set_content(g->saves, c);
@@ -90,7 +90,7 @@ void show_saves() {
     }
 
     openrac::UiContent c;
-    c.title = g->saves_for == SavesFor::kHost ? text("Host with which save?") : text("Play which save?");
+    c.title = g->saves_for == SavesFor::kHost ? text("Host which save?") : text("Play which save?");
     c.items.push_back(openrac::UiItem::button(text("New game")));
 
     for (int slot = 0; slot < kSaveSlots; ++slot) {
@@ -99,8 +99,8 @@ void show_saves() {
     }
 
     c.items.push_back(openrac::UiItem::button(text("Continue as host"), g_any_coop));
-    c.footer = {g->saves_for == SavesFor::kHost ? text("No server: port 7770") : status(),
-                g->direct_error.empty() ? text("The party plays a copy; your saves are kept")
+    c.footer = {g->saves_for == SavesFor::kHost ? text("Port 7770") : status(),
+                g->direct_error.empty() ? text("Plays a copy")
                                         : mp::localized_notice(g->direct_error, g_language),
                 text(mp::kSelectBackHints)};
     set_content(g->saves, c);
@@ -153,7 +153,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
         g->coop->choose(save, description);
         g->notice.clear();
         // The list says what mods the game has, for Browse to mark the ones a player's do not fit.
-        const std::string listed = mp::tagged_description(description, mp::mods_digest(g->mods->own()));
+        const std::string listed = mp::tagged_description(description, mp::mods_digest(g->mods->own()), game_tag());
 
         if (g->saves_for == SavesFor::kCreate) {
             g->session->create(listed);
@@ -167,7 +167,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
                 poll();
             } else {
                 const std::string error = g->connection->hosting().error;
-                g->direct_error = error.empty() ? "Cannot host here" : error;
+                g->direct_error = error.empty() ? "Can't host" : error;
                 page.sound(OPENRAC_UI_SOUND_DENIED);
             }
         }

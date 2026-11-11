@@ -97,6 +97,7 @@ int main(int argc, char** argv) {
              "\"shuffle_infobots\"",
              "\"keep_starting_gear\"",
              "\"spoiler_log\"",
+             "\"new_game_only\"",
              "\"vendor_hints\"",
              "\"rac1.item.give\"",
              "\"rac2.item.give\"",

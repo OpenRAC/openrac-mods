@@ -29,16 +29,12 @@ set(MULTIPLAYER_PLAY_TESTS tests/play_test.cpp tests/play_poses_test.cpp tests/p
                            tests/play_shared_test.cpp tests/play_lobby_test.cpp
                            tests/play_death_test.cpp tests/play_camera_test.cpp tests/play_hold_test.cpp)
 list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp tests/play_migrate_test.cpp tests/rac2/play_test.cpp)
-# Going Commando's own (src/rac2): its party without pages, shared by the library and the play test;
-# its load and its game adapter are the library's alone.
-set(MULTIPLAYER_RAC2_SOURCES src/rac2/party.cpp)
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
                 SOURCES src/multiplayer.cpp src/comfort.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
                         src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/pages_remove.cpp src/session.cpp src/connection.cpp src/host.cpp
-                        src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp
-                        ${MULTIPLAYER_RAC2_SOURCES} src/rac2/load.cpp)
+                        src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
 # The end-to-end tests' driver (src/bot.hpp, tests/e2e): a development build's, never a release's.
@@ -78,7 +74,7 @@ if(BUILD_TESTING)
   # Playing together, without the game: the poses' bytes, the interpolation buffer, and the co-op
   # of a host and members through a router that does what the server does with DATA.
   add_executable(multiplayer_play_test ${MULTIPLAYER_PLAY_TESTS} src/session.cpp src/protocol.cpp
-                 ${MULTIPLAYER_RAC2_SOURCES} ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
+                 ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_play_test PRIVATE src "${OPENRAC_MOD_SDK_DIR}/include")
   # Poses recorded from two games (a walk with stops, a stall of the sender's), replayed.
   target_compile_definitions(multiplayer_play_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")

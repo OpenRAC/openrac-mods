@@ -286,6 +286,16 @@ public:
      * none; take_notice() gives it once. */
     std::string take_notice();
 
+    /* This game's family (openrac_api.world_family), said with CREATE, LIST, FIND and JOIN: the
+     * server lists and finds only parties of it, and refuses a join into another. Empty: none said,
+     * which the server takes for Ratchet & Clank's. */
+    void set_family(std::string family) { family_ = std::move(family); }
+    const std::string& family() const { return family_; }
+
+    /* The server's refusal of a join into another game's party (kOtherGame), in the words of
+     * other_game_text: the Refused page's line. Empty for none; take_refusal() gives it once. */
+    std::string take_refusal();
+
 private:
     void reset_party();
     /* A message for the wire as a lobby's would go (spends from the bucket, never waits). */
@@ -343,6 +353,8 @@ private:
     std::uint64_t stale_ = 0;
     KickReason kick_reason_ = KickReason::kRemoved;
     std::string notice_;
+    std::string family_;
+    std::string refusal_;
     std::function<void(std::int32_t, const Bytes&)> on_data_;
     std::function<bool(std::int32_t)> ready_gate_;
     std::function<std::uint64_t()> clock_;
@@ -379,16 +391,23 @@ bool valid_name(const std::string& name);
 std::string choose_name(const std::string& setting, const std::string& launcher);
 
 /* What a removed player reads. */
-constexpr const char* kKickedNotice = "The host removed you from the party";
-constexpr const char* kBannedNotice = "The host banned you from this save";
+constexpr const char* kKickedNotice = "Removed";
+constexpr const char* kBannedNotice = "Banned";
 /* What a player reads of the host leaving, with no one to follow it; and when it holds a party save. */
-constexpr const char* kHostLeftNotice = "The host left: the party is over";
-constexpr const char* kContinueNotice = "The host left: Continue as host from Saves";
+constexpr const char* kHostLeftNotice = "Host left";
+constexpr const char* kContinueNotice = "Continue in Saves";
 /* What a player reads when its way back is gone, whatever the reason. */
-constexpr const char* kLostSlotNotice = "Your place in the party is gone";
+constexpr const char* kLostSlotNotice = "Spot lost";
+
+/* What a player reads when the server refuses a join into another game's party. */
+constexpr const char* kForRac1Notice = "For Ratchet & Clank";
+constexpr const char* kForRac2Notice = "For Ratchet & Clank 2";
 
 /* The words for a refusal of the server. */
 const char* error_text(ErrorReason reason);
+/* The words for a join refused into a party of family `theirs` from one of `own`: the game it is
+ * for, by the family's game ("rac2-pal-1": rac2), or, for the same game, a different disc. */
+const char* other_game_text(const std::string& own, const std::string& theirs);
 
 }  // namespace mp
 

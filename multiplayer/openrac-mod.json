@@ -2,9 +2,9 @@
   "format": 2,
   "id": "multiplayer",
   "name": "Multiplayer",
-  "version": "0.11.0",
-  "author": "Flavius",
-  "description": "Online co-op: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) list the games others host, create one from a save or a new game, join one by its code, or play without a server with Direct connect. The host's Start starts the game for everyone: all play in the host's level, see each other's Ratchets, and share its world (its enemies go for the nearest player, a hit on one counts for all, crates and kills are shared, bolts go to whoever collects them). Includes co-op rescue, host rally points and a team-tools page in the existing Multiplayer menu, whose pages speak the game's five PAL languages. In Going Commando, a first co-op without the menu: the party is chosen in the settings (host, join by code, or direct), and everyone plays in the host's level and sees each other.",
+  "version": "0.12.3",
+  "author": "Keros",
+  "description": "Online co-op: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) list the games others host, create one from a save or a new game, join one by its code, or play without a server with Direct connect. The host's Start starts the game for everyone: all play in the host's level, see each other's Ratchets, and share its world (its enemies go for the nearest player, a hit on one counts for all, crates and kills are shared, bolts go to whoever collects them). Includes co-op rescue, host rally points and a team-tools page in the existing Multiplayer menu, whose pages speak the game's five PAL languages. In Going Commando, the same Multiplayer item and pages: everyone plays in the host's level and sees each other.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/multiplayer",
   "api": "1.14",
@@ -26,39 +26,6 @@
       "default": "${player_name}",
       "max_length": 16,
       "description": "Your name in multiplayer: 3 to 16 letters, digits or underscores. Defaults to the launcher's Multiplayer name."
-    },
-    {
-      "key": "party",
-      "games": ["rac2"],
-      "name": "Party",
-      "type": "choice",
-      "default": "off",
-      "choices": [
-        { "value": "off", "name": "Off" },
-        { "value": "host", "name": "Host a party" },
-        { "value": "join", "name": "Join by code" },
-        { "value": "host_direct", "name": "Host directly" },
-        { "value": "join_direct", "name": "Join an address" }
-      ],
-      "description": "Going Commando has no Multiplayer menu yet: what to do when the game starts. Host a party on the server (its code shows over the game), join one by its Code, host directly without a server (port 7770 open), or join a direct host's Address. Once in a level, the host's game is the party's."
-    },
-    {
-      "key": "code",
-      "games": ["rac2"],
-      "name": "Code",
-      "type": "string",
-      "default": "",
-      "max_length": 6,
-      "description": "The code of the party to join (Join by code): the six letters and digits the host's game shows."
-    },
-    {
-      "key": "address",
-      "games": ["rac2"],
-      "name": "Address",
-      "type": "string",
-      "default": "",
-      "max_length": 255,
-      "description": "The direct host to join (Join an address), as host:port (7770 when no port is given)."
     },
     {
       "key": "revive",

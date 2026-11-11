@@ -55,6 +55,15 @@ static void play(const xbox_icons_disc* d, openrac_mod* mod, openrac_mod_load_fn
     s_tick(s_tick_user);
     s_tick(s_tick_user);
     CHECK(fonts_hash() == other && s_lines == 1);
+    /* The title's layout: no third font (its record zero). The two are seen (said once), not
+     * passed over as a bank still loading. */
+    put_u16(d->table + 16u * 3u + 8u, 0);
+    put_u16(d->table + 16u * 3u + 0xAu, 0);
+    s_lines = 0;
+    s_tick(s_tick_user);
+    s_tick(s_tick_user);
+    CHECK(fonts_hash() == other && s_lines == 1);
+    lay_table(d, BANK);
 
     if (s_bank != NULL) {
         /* The game's fonts: painted on the first tick, then left as painted. */
