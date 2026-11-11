@@ -42,7 +42,11 @@ The pause menu's Options page has room for two items from all mods together (the
 [multiplayer](../multiplayer/README.md) mod takes one). When two other mods have taken them, the
 game's log says so, and the cheats stay as the settings say.
 
-Cheats cannot be played in a multiplayer party (`"multiplayer": "solo"`).
+Cheats cannot be played in a multiplayer party (`"multiplayer": "solo"`): with it on, the
+[multiplayer](../multiplayer/README.md) mod can neither host nor join; turn it off and start the
+game again to play together. In a party the host's game owns the world's bolts (a member's pickup
+is a claim the host pays), so a multiplier would not apply to a member's bolts the way it does
+alone.
 
 ## How it works
 

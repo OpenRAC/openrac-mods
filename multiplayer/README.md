@@ -249,7 +249,7 @@ joining a game that is on. Mods declare what they are in their `openrac-mod.json
 | `gameplay` (also a mod that says nothing) | Difficulty, Item Randomizer, Ammo Max | Must match the host's. A player with one the host lacks differs too |
 | `input` | Keyboard and Mouse, DualSense, Lock-strafe, Button Swap | Each player's own |
 | `cosmetic` | Xbox Icons, Live Splits | Each player's own |
-| `solo` | Archipelago | Cannot be played in a party: its checks and items belong to one Archipelago slot, and a party shares its items. It can neither host nor join: turn it off to play |
+| `solo` | Archipelago, Cheats | Cannot be played in a party: Archipelago's checks and items belong to one Archipelago slot, and a party shares its items; Cheats' bolts, health and ammo would differ from the host's world. It can neither host nor join: turn it off to play |
 
 A setting of a gameplay mod may say `"multiplayer": "own"`, each player's (Detailed log, Spoiler
 log), or `"multiplayer": "host"`, which the host's rules bring (the seeds). Neither is compared.
