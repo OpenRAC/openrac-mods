@@ -26,8 +26,9 @@
  * (lock_strafe.cpp takes them out of the pad's state at each report, as the game's own input locks take
  * buttons out), so L1 still looks and R1 still crouches, and L2 and R2 strafe. State 0x81 keeps
  * them: it has its strafe of its own on them. Scenes, menus, vendors, vehicles and the hoverboard
- * keep them too, and so does a camera of the level's own (any but the one behind him, id 0): there
- * the camera's yaw is not where he aims, and L2 looks in first person as the game has it.
+ * keep them too. A camera of the level's own (any but the one behind him, id 0: Kalebo III's arena
+ * seen from a wall) does not strafe, its yaw not being where he aims, but L2 and R2 stay taken:
+ * given back, L2 put him in first person there, where he could not move.
  *
  * Two ways to strafe, the later games':
  *
@@ -249,7 +250,7 @@ static inline uint32_t rac1_strafe_button_bits(int button) {
 static inline int rac1_strafe_on_foot(const rac1_strafe_input* in) {
     return in->playing && in->vehicle_mode == 0
            && in->control_mode != RAC1_STRAFE_CONTROL_HOVERBOARD
-           && in->state != RAC1_STRAFE_STATE_GAME && !in->fixed_camera;
+           && in->state != RAC1_STRAFE_STATE_GAME;
 }
 
 /* Whether the game sees L2 and R2 as not held this tick: the setting on, in play on foot. */
@@ -272,8 +273,9 @@ static inline void rac1_strafe_hold_update(
 
     // The button has only just gone down: latch the facing, if the hero is on foot.
     if (!hold->latched) {
-        // Off foot (a vehicle, a scene, the game's own strafe state) the press is not Hold's.
-        if (rac1_strafe_on_foot(in)) {
+        // Off foot (a vehicle, a scene, the game's own strafe state) or under a camera of the
+        // level's own the press is not Hold's (yet: back behind him, still held, it latches).
+        if (rac1_strafe_on_foot(in) && !in->fixed_camera) {
             hold->latched = 1;
             /* Going Commando's has no swing: he turns to the camera at once. */
             hold->swinging = feel == RAC1_STRAFE_FEEL_CLASSIC;

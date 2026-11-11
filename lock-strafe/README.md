@@ -218,5 +218,6 @@ stick over a few ticks and runs along his facing meanwhile) his speed follows
 the stick until he faces it. A strafe flip goes straight to the side or back
 (state 0xB carried his run speed along his facing; the strafe flip carries
 none). Where the level puts its own camera (Kalebo III's robot waves, seen
-from a wall) the strafe stays off and L2 and R2 are the game's: facing that
-camera's yaw had him aim up at the wall.
+from a wall) he does not strafe: facing that camera's yaw had him aim up at
+the wall. L2 and R2 stay the mod's there, so they do nothing (given to the
+game, L2 put him in first person, unable to move).

@@ -1039,24 +1039,91 @@ static void flips(void) {
     CHECK(!rac1_strafe_flips(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, x, 1.0f));
 }
 
-/* A camera of the level's own (Kalebo III's arena seen from a wall): nothing strafes, L2 and R2
- * reach the game, a press is not latched; back behind him, Lock and Hold work again. */
+/* A camera of the level's own (Kalebo III's arena seen from a wall): nothing strafes in either
+ * mode, standing, running or in the air, but L2 and R2 stay taken (given back, L2 put him in first
+ * person, stuck); a press is not latched. Edge cases: the camera changing while L2 is held, while
+ * latched and mid-swing, while running with the glide on, and scenes or vehicles under it. */
 static void fixed_camera(void) {
+    static const int k_states[] = {
+        RAC1_STRAFE_STATE_STAND, RAC1_STRAFE_STATE_RUN, RAC1_STRAFE_STATE_RUN_ALT,
+        RAC1_STRAFE_STATE_JUMP
+    };
     rac1_strafe_hold hold = {0, 0, 0, 0.0f};
     rac1_strafe_input in = running();
     in.fixed_camera = 1;
+
+    /* Each mode and state on foot: buttons taken, no strafe, no turn, no swing, no camera. */
+    for (unsigned i = 0; i < sizeof k_states / sizeof k_states[0]; ++i) {
+        in.state = k_states[i];
+        CHECK(rac1_strafe_takes_buttons(RAC1_STRAFE_LOCK, &in));
+        CHECK(rac1_strafe_takes_buttons(RAC1_STRAFE_HOLD, &in));
+        CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_NONE);
+        CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_NONE);
+        CHECK(rac1_strafe_turn_target(RAC1_STRAFE_NONE, 0, 1.25f, -2.0f, &hold) == 1.25f);
+        CHECK(rac1_strafe_planar_angle(RAC1_STRAFE_NONE, 99999.0f, 1.25f) == 99999.0f);
+        CHECK(!rac1_strafe_turns_standing(RAC1_STRAFE_NONE, in.state, &hold));
+        CHECK(!rac1_strafe_swings_camera(RAC1_STRAFE_NONE, &hold));
+    }
+
+    /* Off foot under it: the game's, as anywhere (a scene, a vehicle, the game's own strafe). */
+    in.state = RAC1_STRAFE_STATE_GAME;
     CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_LOCK, &in));
+    in.state = RAC1_STRAFE_STATE_RUN;
+    in.vehicle_mode = 1;
     CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_HOLD, &in));
-    CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_NONE);
+    in.vehicle_mode = 0;
+    in.playing = 0;
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_HOLD, &in));
+    in.playing = 1;
+    /* The setting off: the game's buttons. */
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_OFF, &in));
+
+    /* L2 pressed under it: not latched, held on, still not; the camera back behind him, still
+     * held: latched then, at his facing, and Hold strafes. */
     in.held = RAC1_PAD_L2;
+    in.facing = 0.3f;
     rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(!hold.latched);
-    hold.latched = 1; /* a latch from before the camera changed gives nothing */
-    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_NONE);
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(!hold.latched);
     in.fixed_camera = 0;
-    CHECK(rac1_strafe_takes_buttons(RAC1_STRAFE_LOCK, &in));
-    CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_LOCKED);
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(hold.latched && hold.yaw == 0.3f && hold.swinging);
     CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_HELD);
+
+    /* Latched and mid-swing, the camera turns into the level's: no strafe and no swing asked at
+     * once; the latch stays while held, so back behind him he strafes on at the same yaw. */
+    in.fixed_camera = 1;
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_NONE);
+    CHECK(!rac1_strafe_swings_camera(RAC1_STRAFE_NONE, &hold));
+    in.fixed_camera = 0;
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_HELD);
+    CHECK(hold.yaw == 0.3f);
+
+    /* Let go under it: forgotten. */
+    in.fixed_camera = 1;
+    in.held = 0;
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(!hold.latched && !hold.swinging);
+
+    /* Lock with the blaster, the camera back behind him: locked again. */
+    in.fixed_camera = 0;
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_LOCKED);
+
+    /* Running in a strafe when the camera turns into the level's: the strafe ends as letting go
+     * of L2 does (the glide follows the stick until he faces it), not a jump to the camera. */
+    {
+        rac1_strafe_glide g = {0, 0, 0.0f};
+        const float facing = 0.0f, stick = 1.5707964f;
+        CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_LOCKED, 1, 0.1f, facing, stick, 99999.0f)
+              == stick);
+        CHECK(g.leaving);
+        CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, 1, 0.1f, facing, stick, 99999.0f)
+              == stick);
+        CHECK(!rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, 1));
+        CHECK(rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_STAND, 1));
+    }
 }
 
 int main(void) {

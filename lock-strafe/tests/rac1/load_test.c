@@ -608,8 +608,9 @@ int main(int argc, char** argv) {
     turn(0, 0.1f, 0.2f, 0.3f);
     CHECK(s_move_yaw_seen == 1.25f);
 
-    /* A camera of the level's own (id not 0, Kalebo III's wall camera): R2 reaches the game and
-     * the turn is the game's; the camera behind him (id 0) gives it back to the strafe. */
+    /* A camera of the level's own (id not 0, Kalebo III's wall camera): R2 stays taken (given
+     * back it put him in first person) but the turn is the game's; the camera behind him (id 0)
+     * gives the strafe back, R2 still held. A slot pointer of 0 (no camera yet) is behind him. */
     const openrac_gaddr slot = 0x001F0000u;
     put_u32(d->camera_now, slot);
     put_u32(slot + 0x84u, 0x00070000u); /* the id, the s16 at +0x86 */
@@ -617,13 +618,25 @@ int main(int argc, char** argv) {
     pad(d->pad, 0x00100000u, 32);
     put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
     pad(d->pad, 0x00100000u, 32);
-    CHECK(get_u32(d->pad + 0x1A0u) == RAC1_PAD_R2);
+    CHECK(get_u32(d->pad + 0x1A0u) == 0);
     turn(0, 0.1f, 0.2f, 0.3f);
     CHECK(s_move_yaw_seen == -0.5f);
+    put_u32(slot + 0x84u, 0xFFFF0000u); /* id -1: not behind him either */
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(get_u32(d->pad + 0x1A0u) == 0 && s_move_yaw_seen == -0.5f);
     put_u32(slot + 0x84u, 0);
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
     pad(d->pad, 0x00100000u, 32);
     CHECK(get_u32(d->pad + 0x1A0u) == 0);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(s_move_yaw_seen == 1.25f);
     put_u32(d->camera_now, 0);
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(s_move_yaw_seen == 1.25f);
 
     /* L2 only: R2 reaches the game. */
     s_setting_button = "l2";
