@@ -138,21 +138,25 @@ static void hold_mode(void) {
     in.held = RAC1_PAD_L2 | RAC1_PAD_R2;
     rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(hold.latched && hold.yaw == 0.75f);
-    /* The jump, the alternate run and standing strafe too; other states do not. */
+    /* The jumps (the plain one, the running jump X gives strafing ahead, the double jump), the
+     * alternate run and standing strafe too; other states do not (the flip 0xB is the mod's own,
+     * 0x0A and 0x10 the pack's jumps, 0x06 the fall). */
     const int strafing_states[] =
         {RAC1_STRAFE_STATE_RUN,
          RAC1_STRAFE_STATE_RUN_ALT,
          RAC1_STRAFE_STATE_JUMP,
+         RAC1_STRAFE_STATE_RUN_JUMP,
+         RAC1_STRAFE_STATE_DOUBLE_JUMP,
          RAC1_STRAFE_STATE_STAND};
 
-    for (unsigned i = 0; i < 4; ++i) {
+    for (unsigned i = 0; i < 6; ++i) {
         in.state = strafing_states[i];
         CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_HELD);
     }
 
-    const int other_states[] = {0x01, 0x35, 0x0B, 0x81, 0x13, 0x77};
+    const int other_states[] = {0x01, 0x35, 0x0B, 0x81, 0x13, 0x77, 0x06, 0x0A, 0x10};
 
-    for (unsigned i = 0; i < 6; ++i) {
+    for (unsigned i = 0; i < 9; ++i) {
         in.state = other_states[i];
         CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
     }
@@ -626,6 +630,15 @@ static void commando(void) {
         RAC1_STRAFE_STATE_JUMP, 1.0f, 1.0f / 60.0f, &accel, &damping, &limit
     );
     CHECK(accel == 0.015f && damping == 0.2f && fabsf(limit - 0.25f) < 1e-6f);
+    /* The running and double jumps: the jump group's rates too. */
+    rac1_strafe_commando_rates(
+        RAC1_STRAFE_STATE_RUN_JUMP, 1.0f, 1.0f / 60.0f, &accel, &damping, &limit
+    );
+    CHECK(accel == 0.015f && damping == 0.2f);
+    rac1_strafe_commando_rates(
+        RAC1_STRAFE_STATE_DOUBLE_JUMP, 1.0f, 1.0f / 60.0f, &accel, &damping, &limit
+    );
+    CHECK(accel == 0.015f && damping == 0.2f);
 
     /* The backpedal within 45 degrees of straight back: 140 starts it, 132 keeps it, 128 ends it,
      * 120 never starts it. */
@@ -1126,6 +1139,36 @@ static void fixed_camera(void) {
     }
 }
 
+/* The report: L2 held, X while running ahead (rac1's running jump, state 9), then the stick
+ * pushed left in the air. He keeps facing ahead (the latched yaw), and the double jump after it
+ * too; he goes left along the stick. 1.2.1 left state 9 to the game, which turned him left. */
+static void running_jump(void) {
+    const int jumps[] = {RAC1_STRAFE_STATE_RUN_JUMP, RAC1_STRAFE_STATE_DOUBLE_JUMP};
+
+    for (unsigned j = 0; j < 2; ++j) {
+        rac1_strafe_hold hold = {0, 0, 0, 0.0f};
+        rac1_strafe_input in = running();
+        float facing = 0.0f, v[2];
+        in.slot_item = WRENCH; /* Hold, not Lock */
+        in.facing = facing;
+        in.camera = facing;
+        in.held = RAC1_PAD_L2;
+        rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_COMMANDO, &in, &hold);
+        CHECK(hold.latched);
+        in.state = jumps[j];
+
+        /* A second in the air with the stick left. */
+        for (int t = 0; t < 60; ++t) {
+            const int kind = rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold);
+            CHECK(kind == RAC1_STRAFE_HELD);
+            tick(kind, in.camera, 1.5707964f, &hold, &facing, v);
+        }
+
+        CHECK(fabsf(facing) < 1e-4f);
+        CHECK(v[1] > 0.99f); /* along the stick: left */
+    }
+}
+
 int main(void) {
     items();
     buttons();
@@ -1147,11 +1190,12 @@ int main(void) {
     glide_ends();
     glide_play_through();
     fixed_camera();
+    running_jump();
     puts(
         "hero strafe: weapons, buttons, off, hold, lock, the buttons taken, facing, velocity, "
         "swing, right stick, backpedal, Going Commando's feel, side reversal, hip twist, its "
         "joints' turn, the legs for each direction, flips, the glide as a strafe ends and a "
-        "level's own camera passed"
+        "level's own camera and the running jump passed"
     );
     return 0;
 }

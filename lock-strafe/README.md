@@ -54,8 +54,10 @@ in the environment).
 **Known limitations.** The first game has no backward walk for Ratchet
 (Going Commando added one): going backwards plays his walk or run in reverse.
 Going Commando never does its running jump while strafing; here strafing
-forward and pressing X can still give the first game's running jump, which
-the run's own code picks after every hook point the mod has.
+forward and pressing X can still give the first game's running jump (its
+longer leap), which the run's own code picks after every hook point the mod
+has. He strafes through it all the same: he keeps facing ahead and the stick
+steers him.
 
 **The crosshair.** The first game has no crosshair in the third-person view:
 the Blaster's reticle is drawn only in first person (L1), and the Devastator
@@ -106,7 +108,8 @@ Scenes, menus, vendors, vehicles, state 0x81 and the hoverboard (control mode
 `0x16`, whose tricks are on L2 and R2) keep them.
 
 **The strafe**, in [src/rac1/lock_strafe.cpp](src/rac1/lock_strafe.cpp), in the run
-(states 2 and 0x73), the jump (7) and standing (0), on level ground:
+(states 2 and 0x73), the jumps (7, the running jump 9 and the double jump
+0xE) and standing (0), on level ground:
 `Hero_TurnToHeading` eases the facing toward the camera's yaw, and while
 Hold's swing lasts toward the facing latched when L2 or R2 went down;
 `Hero_SetPlanarVelocity` builds the velocity along the move yaw, as the
@@ -220,4 +223,6 @@ the stick until he faces it. A strafe flip goes straight to the side or back
 none). Where the level puts its own camera (Kalebo III's robot waves, seen
 from a wall) he does not strafe: facing that camera's yaw had him aim up at
 the wall. L2 and R2 stay the mod's there, so they do nothing (given to the
-game, L2 put him in first person, unable to move).
+game, L2 put him in first person, unable to move). The running jump (X while
+strafing ahead) and the double jump strafe too: steering in the air no longer
+turns him toward the stick.

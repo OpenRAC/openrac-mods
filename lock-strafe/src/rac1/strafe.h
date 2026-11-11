@@ -44,7 +44,8 @@
  *   own camera control), and the stick moves him; the camera does not swing to follow where he
  *   goes. With anything else in hand, Hold.
  *
- * Either is done in the run (states 2 and 0x73) and the jump (7), on level ground; both also turn
+ * Either is done in the run (states 2 and 0x73) and the jumps (7, the running jump 9 rac1 takes
+ * for X while running ahead, and the double jump 0xE), on level ground; both also turn
  * him standing (state 0) with the camera (Hold once its swing is done). Everything else is the game's own.
  *
  * Two feels (the setting "feel", DESIGN.md): Going Commando's (the default) has no swing in Hold (he
@@ -91,11 +92,14 @@
 #define RAC1_STRAFE_FEEL_COMMANDO 1
 
 /* The hero's states the strafe works in: standing, running, running with +0x20A9 set (the same
- * movement code), jumping. */
+ * movement code), jumping: the plain jump, the running jump (X running within 60 degrees of his
+ * facing, so strafing ahead) and the double jump, all of the jump group's movement code. */
 #define RAC1_STRAFE_STATE_STAND 0x00
 #define RAC1_STRAFE_STATE_RUN 0x02
 #define RAC1_STRAFE_STATE_RUN_ALT 0x73
 #define RAC1_STRAFE_STATE_JUMP 0x07
+#define RAC1_STRAFE_STATE_RUN_JUMP 0x09
+#define RAC1_STRAFE_STATE_DOUBLE_JUMP 0x0E
 /* The side and back flip (HERO_STATE_HIGH_JUMP; rac2's state 11, the same state). */
 #define RAC1_STRAFE_STATE_FLIP 0x0B
 /* The state with a strafe of its own on L2 and R2: left as the game has it. */
@@ -246,6 +250,12 @@ static inline uint32_t rac1_strafe_button_bits(int button) {
                                              : RAC1_STRAFE_BUTTONS;
 }
 
+/* Whether a state is one of the jumps the strafe works in. */
+static inline int rac1_strafe_jumping(int state) {
+    return state == RAC1_STRAFE_STATE_JUMP || state == RAC1_STRAFE_STATE_RUN_JUMP
+           || state == RAC1_STRAFE_STATE_DOUBLE_JUMP;
+}
+
 /* In play on foot, in a state the setting changes L2 and R2 in. */
 static inline int rac1_strafe_on_foot(const rac1_strafe_input* in) {
     return in->playing && in->vehicle_mode == 0
@@ -315,7 +325,7 @@ static inline int rac1_strafe_kind(
 
     // A state the strafe does not work in (the game's own strafe state among them).
     if (in->state != RAC1_STRAFE_STATE_STAND && in->state != RAC1_STRAFE_STATE_RUN
-        && in->state != RAC1_STRAFE_STATE_RUN_ALT && in->state != RAC1_STRAFE_STATE_JUMP) {
+        && in->state != RAC1_STRAFE_STATE_RUN_ALT && !rac1_strafe_jumping(in->state)) {
         return RAC1_STRAFE_NONE;
     }
 
@@ -483,8 +493,8 @@ static inline int rac1_strafe_backpedal(
 static inline void rac1_strafe_commando_rates(
     int state, float frame_scale_sq, float frame_time, float* accel, float* damping, float* limit
 ) {
-    // In the jump, the jump group's rates.
-    if (state == RAC1_STRAFE_STATE_JUMP) {
+    // In a jump, the jump group's rates.
+    if (rac1_strafe_jumping(state)) {
         *accel = frame_scale_sq * RAC1_STRAFE_AIR_ACCEL;
         *damping = frame_scale_sq * RAC1_STRAFE_AIR_DAMPING;
         *limit = frame_time * RAC1_STRAFE_AIR_LIMIT;
