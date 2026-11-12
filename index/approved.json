@@ -34,6 +34,16 @@
         "macos-x86_64": "88b4fbc6403cebedccab9ffd8488db82c6b8406a564f94412c901ee0add2f367",
         "windows-x86_64": "b20226754d681c7917a2ebc31461c269c6fd6a7b4bc9c6c365e2184f65923e78"
       }
+    },
+    {
+      "version": "1.0.1",
+      "sha256": {
+        "linux-aarch64": "7d1e225800b00e1802768829e03098581522dd955682fd5dcc9a30505dc6e003",
+        "linux-x86_64": "65a23863ea1b13691363e968d66ae69fe1cdb9c6f265ce08818535c277af2fb9",
+        "macos-arm64": "07f89a70f0f070bbac33585e0b7fc5bdce26e8328f0d9a73f7696e30b18342ad",
+        "macos-x86_64": "fd9133b5e58aca5c13ba568d2de6ad4a5e8ced07c5991efc1678c59cf36029f4",
+        "windows-x86_64": "773574de517de6d4d4cd3a6ea86f0df6115b51aa6f80a164a385a7b9bbc1bf84"
+      }
     }
   ],
   "fast-travel": [
