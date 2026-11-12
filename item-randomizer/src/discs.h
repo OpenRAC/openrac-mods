@@ -43,6 +43,11 @@ typedef struct rando_disc {
     uint32_t save_tag;     /* u32: chunk 24 of the save, which no code of the disc reads or writes
                             * (D_0015EE9C; the save table's entry, scanned in the executable and every
                             * level program): the seed's tag (README.md, New games only) */
+    uint32_t hero;                   /* Hero structure base */
+    uint32_t quick_swap;             /* i32: Triangle's previous weapon */
+    uint32_t moby_base;              /* u32: level's moby array pointer */
+    uint32_t vendor_close_countdown; /* i32: vendor menu close timer */
+    uint32_t vendor_close_request;   /* i32: vendor menu close flag */
 } rando_disc;
 
 /* The discs the mod knows, by openrac_api.version; the fields are in the order of the struct. */
@@ -67,7 +72,12 @@ static const rando_disc k_rando_discs[] = {
      0x001414F4u,
      0x00141510u,
      0x00141445u,
-     0x0015EE9Cu},
+     0x0015EE9Cu,
+     0x0013F450u,
+     0x0015EE8Cu,
+     0x00160098u,
+     0x00161F14u,
+     0x00161F18u},
     {"ntsc",
      0x0013D4C0u,
      0x0013D4E8u,
@@ -88,7 +98,12 @@ static const rando_disc k_rando_discs[] = {
      0x001413F4u,
      0x00141410u,
      0x00141345u,
-     0x0015ED9Cu},
+     0x0015ED9Cu,
+     0x0013F350u,
+     0x0015ED8Cu,
+     0x0015FFD8u,
+     0x00161E14u,
+     0x00161E18u},
 };
 
 /* The moby's fields it reads (games/rac1/include/moby.h; the same on both discs). */

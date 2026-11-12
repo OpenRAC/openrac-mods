@@ -1075,8 +1075,8 @@ static void guard_unowned_bomb_glove(void) {
     }
 
     uint8_t* last = byte_at(s_disc->last_weapon);
-    uint8_t* quick_swap = byte_at(s_disc->level + 8u); /* D_0015EE8C / D_0015ED8C */
-    uint8_t* hero = byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013F450u : 0x0013F350u);
+    uint8_t* quick_swap = byte_at(s_disc->quick_swap);
+    uint8_t* hero = byte_at(s_disc->hero);
     uint8_t* pending = hero + 0x20B8u;
     uint8_t* saved = hero + 0x20F0u;
 
@@ -1294,7 +1294,7 @@ static void guard_empty_vendor(void) {
     const int empty = shown[0] == STOCK_END;
 
     const openrac_gaddr base = (openrac_gaddr)get32(
-        level_byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x00160098u : 0x0015FFD8u)
+        level_byte_at(s_disc->moby_base)
     );
 
     if (!base) {
@@ -1372,7 +1372,10 @@ static void open_vendor_menu_hook(uint32_t moby) {
         uint8_t* item_info = level_byte_at(s_disc->item_price_table);
 
         for (int i = 0; i < VENDOR_STOCK_SIZE && shown[i] != STOCK_END; ++i) {
-            int item = shown[i] & 0x3F;
+            const int item = shown[i] & 0x3F;
+            if (item >= VENDOR_ITEM_COUNT) {
+                continue;
+            }
             uint16_t ammo_supported;
             memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
 
@@ -1382,7 +1385,7 @@ static void open_vendor_menu_hook(uint32_t moby) {
             }
         }
 
-        for (int item = 0; item < 37 && !has_pda_stock; ++item) {
+        for (int item = 0; item < VENDOR_ITEM_COUNT && !has_pda_stock; ++item) {
             uint16_t ammo_supported;
             memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
 
@@ -1455,14 +1458,8 @@ static void build_item_list(int32_t skip_unflagged) {
             set32(menu + VENDOR_ENTRIES + VENDOR_ENTRY_AMMO, 0);
             set32(menu + VENDOR_COUNT, 1);
 
-            /* Version-specific vendor close countdown and request flag. */
-            if (strcmp(s_disc->version, "pal") == 0) {
-                set32(level_byte_at(0x00161F14u), 1);
-                set32(level_byte_at(0x00161F18u), 1);
-            } else {
-                set32(level_byte_at(0x00161E14u), 1);
-                set32(level_byte_at(0x00161E18u), 1);
-            }
+            set32(level_byte_at(s_disc->vendor_close_countdown), 1);
+            set32(level_byte_at(s_disc->vendor_close_request), 1);
         }
 
         settle_menu_after_purchase();

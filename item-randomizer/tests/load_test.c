@@ -1566,6 +1566,12 @@ int main(int argc, char** argv) {
         s_menu_opens = 0;
         open(0);
         CHECK(s_menu_opens == 0); /* empty PDA */
+        /* Malformed stock IDs must never index beyond the 37-entry price table. */
+        for (int item = VENDOR_ITEM_COUNT; item <= 0x3F; ++item) {
+            s_memory[D->vendor_stock] = (uint8_t)item;
+            open(0);
+            CHECK(s_menu_opens == 0);
+        }
         s_memory[D->vendor_stock] = ITEM_BLASTER;
         open(0);
         CHECK(s_menu_opens == 0); /* an unflagged weapon is not a PDA row */
