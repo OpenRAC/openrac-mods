@@ -16,6 +16,13 @@
  *                  a weapon with tiers, has its damage scaled for the call
  *   most ammo      the row of the weapon's last version (+0x8E), rewritten each tick from what the
  *                  game (or another mod) has there
+ *   experience bar the row of the weapon's last version (+0x6C, the experience to the next version,
+ *                  which the game leaves at 0 there: a full bar) set each tick to the next step's
+ *                  goal, so the weapons screen and the quick select fill toward it. The game's own
+ *                  level check (func_L00_002D5EB8) never reads it at a last version (it skips a V4
+ *                  row, a two-version weapon's second and a one-version weapon), and Weapon_LevelUp
+ *                  (func_00287EB0) stops at a row with no next; the row is the game's static table,
+ *                  never saved, and gets back what was there when no step is left
  *   tint           Item_Colors (func_00336F20): the quick select's and the weapons screen's
  *   name           a line at the top of the picture when a step is taken or a tiered weapon taken
  *                  in hand: "<the game's name of its last version> <tier>"
@@ -69,6 +76,10 @@ static int s_clock_seen;
 /* The most ammo of each last version as found, and as the mod wrote it (0: not written). */
 static int32_t s_ammo_base[WT_ITEMS];
 static int32_t s_ammo_written[WT_ITEMS];
+/* The same for the experience to the next version (+0x6C of the last version's row). */
+static int32_t s_goal_base[WT_ITEMS];
+static int32_t s_goal_written[WT_ITEMS];
+static int s_goal_seen[WT_ITEMS];
 
 /* The entries the mod added to the vendor's list: their place and item. */
 static int s_entry_count;
@@ -94,7 +105,8 @@ static wt_Item_VersionColor s_version_color;
 static wt_Moby_PostHit s_post_hit;
 static int32_t (*s_text)(int32_t id);
 static wt_Text_ById s_text_by_id;
-static int s_in_text; /* in a text lookup of the mod's own: the game's texts as they are */
+static int s_in_text;     /* in a text lookup of the mod's own: the game's texts as they are */
+static int s_text_logged; /* the first vendor text the mod gave, logged */
 static wt_Hero_TakeDamage s_take_damage;
 static int s_enemies;          /* the "enemy_scaling" setting */
 static float s_enemy_strength; /* the "enemy_strength" setting */
@@ -140,6 +152,12 @@ static openrac_gaddr at(uint32_t address) {
     return s_api->relocate_data(address);
 }
 
+/* Whether `a` holds `size` bytes of game memory: main RAM, or the port's own region (0xE0000000,
+ * 16 MB), where the port keeps the slots (its statics: negative as an i32). */
+static int in_memory(uint32_t a, uint32_t size) {
+    return (a != 0 && a <= 0x02000000u - size) || (a >= 0xE0000000u && a <= 0xE1000000u - size);
+}
+
 /* Item `item`'s row now. */
 static openrac_gaddr row_of(int item) {
     const uint8_t r = get_u8(at(s_disc->slot) + (uint32_t)item);
@@ -173,7 +191,7 @@ static void name_at(int item, int level, char* out, int size) {
     if (s_text != NULL) {
         ++s_in_text;
         const int32_t text = s_text((int16_t)get_u16(row_of(item) + WT_ROW_NAME));
-        if (text > 0 && (uint32_t)text < 0x02000000u - sizeof base) {
+        if (in_memory((uint32_t)text, sizeof base)) {
             for (size_t i = 0; i + 1 < sizeof base; ++i) {
                 const char c = (char)get_u8((openrac_gaddr)text + (uint32_t)i);
                 base[i] = c;
@@ -360,13 +378,19 @@ static int entry_item_at(int row) {
 
 /* `text` into the port's slot `slot`: its game address, 0 when there is none. */
 static uint32_t slot_text(int slot, const char* text) {
-    const int32_t a = s_text != NULL ? s_text(WT_TEXT_SLOT + slot) : 0;
-    if (a <= 0 || (uint32_t)a >= 0x02000000u - WT_TEXT_SLOT_BYTES) {
+    const uint32_t a = s_text != NULL ? (uint32_t)s_text(WT_TEXT_SLOT + slot) : 0;
+    if (!in_memory(a, WT_TEXT_SLOT_BYTES)) {
         return 0;
     }
     char* out = (char*)s_api->memory + a;
     snprintf(out, WT_TEXT_SLOT_BYTES, "%s", text);
-    return (uint32_t)a;
+    if (!s_text_logged) {
+        char line[160];
+        snprintf(line, sizeof line, "vendor text: \"%s\" in slot %d (0x%08X)", text, slot, a);
+        s_api->log(s_mod, OPENRAC_LOG_INFO, line);
+        s_text_logged = 1;
+    }
+    return a;
 }
 
 /* The vendor's texts for the mod's entries: the tier under the icon instead of "Mega", and the
@@ -612,6 +636,31 @@ static void write_ammo(void) {
     }
 }
 
+/* The experience bar of each weapon at its last version: toward its next step's goal, or the
+ * game's own (a full bar) when it has none. */
+static void write_goal(void) {
+    for (int item = 0; item < WT_ITEMS; ++item) {
+        const wt_kind kind = wt_kind_of(item);
+        if (kind == WT_KIND_NONE || !at_last(item)) {
+            continue;
+        }
+        const openrac_gaddr a = row_of(item) + WT_ROW_EXP;
+        const int32_t now = get_s32(a);
+
+        // Not what the mod wrote: the game's (or a newly loaded level's copy's) own.
+        if (!s_goal_seen[item] || now != s_goal_written[item]) {
+            s_goal_base[item] = now;
+            s_goal_seen[item] = 1;
+        }
+        const int32_t goal = wt_exp_goal(kind, levels()[item]);
+        const int32_t want = goal > 0 ? goal : s_goal_base[item];
+        if (want != now) {
+            put_s32(a, want);
+        }
+        s_goal_written[item] = want;
+    }
+}
+
 static void publish(void) {
     if (s_party_on || s_published) {
         return;
@@ -673,6 +722,7 @@ static void tick(void* user) {
         }
     }
     write_ammo();
+    write_goal();
     publish();
 
     // A tiered weapon taken in hand: its name.
@@ -719,7 +769,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.3")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.4")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
@@ -727,9 +777,13 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     memset(s_level, 0, sizeof s_level);
     memset(s_started, 0, sizeof s_started);
     s_in_text = 0;
+    s_text_logged = 0;
     s_drawn_row = -1;
     memset(s_ammo_written, 0, sizeof s_ammo_written);
     memset(s_ammo_base, 0, sizeof s_ammo_base);
+    memset(s_goal_base, 0, sizeof s_goal_base);
+    memset(s_goal_written, 0, sizeof s_goal_written);
+    memset(s_goal_seen, 0, sizeof s_goal_seen);
     s_party_on = 0;
     s_clock_seen = 0;
     s_entry_count = 0;

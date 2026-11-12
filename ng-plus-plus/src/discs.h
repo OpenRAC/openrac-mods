@@ -82,6 +82,7 @@ static inline const wt_disc* wt_disc_of(const char* version) {
 #define WT_ROW_NAME 0x48u    /* s16: its name's text id */
 #define WT_ROW_NEXT 0x4Au    /* s16: the next version's row, 0 at the last */
 #define WT_ROW_PARENT 0x4Cu  /* s16: the version before's row, 0 at the first */
+#define WT_ROW_EXP 0x6Cu     /* s32: the experience (>> 5) to the next version; <= 0: a full bar */
 #define WT_ROW_PRICE 0x80u   /* s32: its price (the Mega's: what the vendor's upgrade costs) */
 #define WT_ROW_AMMO 0x8Eu    /* u16: the most ammo */
 

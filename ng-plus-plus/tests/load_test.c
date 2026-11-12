@@ -54,6 +54,8 @@ static int s_failures;
 #define TEXT_AT 0x00300000u /* the test's string of the Lancer's name */
 #define TINT_AT 0x00300100u
 #define REQUEST_AT 0x00300200u
+#define SLOTS_AT 0x00301000u /* the port's text slots */
+#define MEGA_AT 0x00302000u  /* the game's "Mega" */
 #define LANCER 30
 #define LANCER_V4 80
 #define RYNO 44
@@ -153,7 +155,53 @@ static void game_take_damage(int32_t amount) {
 }
 
 static int32_t game_text(int32_t id) {
+    if (id == WT_TEXT_UPGRADE) {
+        return (int32_t)MEGA_AT;
+    }
     return id == 0x1234 ? (int32_t)TEXT_AT : 0;
+}
+
+static void* hooked_fn(const char* name);
+static int32_t port_text(int32_t id);
+static uint32_t s_drawing_ui;
+static char s_drawn_label[96];
+static uint32_t s_drawn_tint;
+
+static void game_draw_list(void) {
+    const int cursor = get32(s_drawing_ui + WT_VENDOR_CURSOR);
+    const int count = get32(s_drawing_ui + WT_VENDOR_COUNT);
+    wt_Item_VersionColor color = (wt_Item_VersionColor)hooked_fn(WT_HOOK_Item_VersionColor);
+    for (int i = -5; i < 7; ++i) {
+        const int idx = cursor + i;
+        if (idx < 0 || idx >= count) {
+            continue;
+        }
+        const uint32_t e = s_drawing_ui + WT_VENDOR_ENTRIES + (uint32_t)idx * WT_VENDOR_ENTRY_SIZE;
+        const int upgrade = get32(e + WT_ENTRY_UPGRADE);
+        const uint32_t rgb = color(upgrade ? 2 : 1);
+        if (upgrade) {
+            s_drawn_tint = rgb;
+            snprintf(
+                s_drawn_label,
+                sizeof s_drawn_label,
+                "%s",
+                (char*)s_memory + port_text(WT_TEXT_UPGRADE)
+            );
+        }
+    }
+}
+
+static uint32_t game_version_color(int32_t kind) {
+    return kind == 2 ? 0x8000C0FFu : 0x80808080u;
+}
+
+/* The port's lookup: its slots, else the hook point (the mod's replacement, else the game's). */
+static int32_t port_text(int32_t id) {
+    if (id >= WT_TEXT_SLOT && id < WT_TEXT_SLOT + 8) {
+        return (int32_t)(SLOTS_AT + (uint32_t)(id - WT_TEXT_SLOT) * WT_TEXT_SLOT_BYTES);
+    }
+    wt_Text_ById hook = (wt_Text_ById)hooked_fn(WT_HOOK_Text_ById);
+    return hook != NULL ? hook(id) : game_text(id);
 }
 
 /* ---- the host ---- */
@@ -194,6 +242,12 @@ static int host_hook(
         game = (void*)game_post_hit;
     } else if (strcmp(name, WT_HOOK_Hero_TakeDamage) == 0) {
         game = (void*)game_take_damage;
+    } else if (strcmp(name, WT_HOOK_Vendor_DrawList) == 0) {
+        game = (void*)game_draw_list;
+    } else if (strcmp(name, WT_HOOK_Item_VersionColor) == 0) {
+        game = (void*)game_version_color;
+    } else if (strcmp(name, WT_HOOK_Text_ById) == 0) {
+        game = (void*)game_text;
     } else {
         return OPENRAC_HOOK_UNKNOWN;
     }
@@ -221,7 +275,7 @@ static int host_on_frame(openrac_mod* mod, openrac_frame_fn fn, void* user) {
 }
 
 static void* host_function(const char* name) {
-    return strcmp(name, s_disc->text) == 0 ? (void*)game_text : NULL;
+    return strcmp(name, s_disc->text) == 0 ? (void*)port_text : NULL;
 }
 
 static openrac_gaddr identity(openrac_gaddr a) {
@@ -311,7 +365,7 @@ static void run(const char* path, const wt_disc* disc) {
 
     CHECK(load != NULL && load(&api, (openrac_mod*)&api) == 0);
     CHECK(s_failed[0] == 0);
-    CHECK(s_hook_count == 6);
+    CHECK(s_hook_count == 9);
 
     /* A Lancer at V4 (its own row 30 linked on to row 80, the last), the RYNO II at its one row. */
     s_memory[s_disc->owned + LANCER] = 1;
@@ -323,6 +377,9 @@ static void run(const char* path, const wt_disc* disc) {
     s_memory[s_disc->owned + RYNO] = 1;
     s_memory[s_disc->slot + RYNO] = RYNO;
     set16(row(RYNO) + WT_ROW_AMMO, 100);
+    /* The game's full bars at the last versions: no experience to a next one. */
+    set32(row(LANCER_V4) + WT_ROW_EXP, 0);
+    set32(row(RYNO) + WT_ROW_EXP, 0);
     set32(s_disc->hero + WT_HERO_MOBY, (int32_t)MOBY_HERO);
     set32(s_disc->hero + WT_HERO_HELD, -1);
     /* A save's RYNO II with all the experience it ever had: not Heavy at once, counted from 0. */
@@ -333,6 +390,9 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(get32(s_disc->exp + 4u * RYNO) == 0);
     CHECK(strstr(s_notice, "Heavy") == NULL);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 500);
+    /* The RYNO II's bar fills toward Heavy; the Lancer's Alpha is bought, so its bar stays full. */
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 6000);
+    CHECK(get32(row(LANCER_V4) + WT_ROW_EXP) == 0);
 
     /* The vendor: the game's two entries, then Alpha for the Lancer. */
     ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
@@ -347,6 +407,18 @@ static void run(const char* path, const wt_disc* disc) {
     set32(ui + WT_VENDOR_CURSOR, 2);
     CHECK(((wt_Vendor_Price)hooked_fn(WT_HOOK_Vendor_Price))() == 2250000); /* no Mega row here */
 
+    /* The list drawn as func_002F9C80 does: each row's icon colour, then an upgrade's label. The
+     * cursor on the game's first entry: rows 0, 1 and the mod's 2 drawn. */
+    set32(ui + WT_VENDOR_CURSOR, 0);
+    s_drawn_label[0] = 0;
+    s_drawing_ui = ui;
+    ((wt_Vendor_DrawList)hooked_fn(WT_HOOK_Vendor_DrawList))();
+    CHECK(strcmp(s_drawn_label, "Alpha") == 0);
+    CHECK(s_drawn_tint == 0x8020FFB0u); /* Alpha's lime */
+    /* Outside the draw the game's own. */
+    CHECK(port_text(WT_TEXT_UPGRADE) == (int32_t)MEGA_AT);
+    set32(ui + WT_VENDOR_CURSOR, 2);
+
     /* Bought: Alpha. */
     CHECK(((wt_Item_Upgrade)hooked_fn(WT_HOOK_Item_Upgrade))(LANCER) == 1);
     CHECK(s_upgraded == -1);
@@ -354,6 +426,7 @@ static void run(const char* path, const wt_disc* disc) {
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 550);
     CHECK(get32(s_disc->ammo + 4u * LANCER) == 550);
+    CHECK(get32(row(LANCER_V4) + WT_ROW_EXP) == 8000); /* toward Beta */
     /* Not the mod's entry: the game's. */
     set32(ui + WT_VENDOR_CURSOR, 0);
     CHECK(((wt_Item_Upgrade)hooked_fn(WT_HOOK_Item_Upgrade))(22) == 0);
@@ -368,6 +441,7 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(strcmp(s_notice, "Heavy Lancer Beta") == 0);
     CHECK(get32(s_disc->exp + 4u * LANCER) == 0);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
+    CHECK(get32(row(LANCER_V4) + WT_ROW_EXP) == 0); /* Gamma is for sale at once */
     ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
     CHECK(get32(ui + WT_VENDOR_COUNT) == 3);
     set32(ui + WT_VENDOR_CURSOR, 2);
@@ -408,6 +482,7 @@ static void run(const char* path, const wt_disc* disc) {
     tick(1);
     CHECK(strcmp(s_notice, "RYNO II Heavy") == 0);
     CHECK(get16(row(RYNO) + WT_ROW_AMMO) == 150);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 0); /* Ultima is for sale at once */
 
     /* Saved (a new clock): kept. A new game (zeros) has none; the save loaded again has them. */
     set_clock(0x20);
@@ -415,9 +490,11 @@ static void run(const char* path, const wt_disc* disc) {
     set_clock(0);
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 500);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 6000); /* toward Heavy again */
     set_clock(0x20);
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 0);
 }
 
 int main(int argc, char** argv) {

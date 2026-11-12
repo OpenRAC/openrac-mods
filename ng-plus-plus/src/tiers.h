@@ -107,6 +107,11 @@ int wt_can_buy(wt_kind kind, int level, int at_last, int32_t exp);
 /* Whether the step at `level` is reached by `exp` now (the weapon at its last real version). */
 int wt_exp_reached(wt_kind kind, int level, int at_last, int32_t exp);
 
+/* The experience (>> 5) the weapon's bar fills toward at `level` (its last real version): the step's
+ * own for one by experience, WT_MASTERY_EXP for a bought one after a bought one, 0 for none (the
+ * next is for sale at once, or no step is left: the game's full bar). */
+int32_t wt_exp_goal(wt_kind kind, int level);
+
 /* The damage and the most ammo at `level` (0: the game's own, 1.0). */
 float wt_damage(wt_kind kind, int level);
 float wt_ammo(wt_kind kind, int level);

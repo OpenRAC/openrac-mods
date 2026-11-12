@@ -30,7 +30,10 @@ the vendor sells the next.
 The damage and the most ammo are times the weapon's last real version's. The experience is the
 game's own weapon experience (what the quick select's bar counts), from the last tier on; the first
 time the mod sees a weapon at its last version it sets that count back to 0, so what a save had
-with it before (from before the mod, or past games) never takes a tier at once.
+with it before (from before the mod, or past games) never takes a tier at once. The weapon's
+experience bar (the weapons screen and the quick select) fills toward the next tier's experience,
+or toward the 6,000 a bought version needs before the next purchase; it shows full only when the
+next tier is for sale already or none is left.
 
 The prices follow each weapon's own Mega price (its Mega row's, 150,000 to 1,500,000; at least
 150,000, so the Bomb Glove's 1,000 Mega counts as 150,000), times 1.5, 2.5, 4 and 6, rounded to two
@@ -107,6 +110,7 @@ Through OpenRAC's rac2 hook points of SDK 1.14.6 (the addresses are NTSC-U v1.01
 |---|---|
 | For sale | `rac2.vendor.build_list` (`func_002F6608`): an upgrade entry for each weapon whose next tier is for sale, right after that weapon's own entry and built as the game builds its Mega entry; `rac2.vendor.price` (`func_002F6510`) prices it; `rac2.item.upgrade` (`func_002887B0`), which the vendor's purchase calls once it is paid, takes the tier instead of the game's Mega step |
 | Experience | each tick, a weapon at its last version whose experience (which the game keeps adding up there) reaches the tier's takes it; its experience starts again from 0, as the game's own Mega purchase does |
+| Experience bar | the last version's row (+0x6C, the experience to the next version, which the game leaves at 0 there: a full bar) set each tick to the next tier's goal, and back to the game's when none is left; the game's own level check skips every last version, so it never acts on it |
 | Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet while he holds a tiered weapon has its damage scaled for that call |
 | Most ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |

@@ -176,6 +176,18 @@ int wt_exp_reached(wt_kind kind, int level, int at_last, int32_t exp) {
     return at_last && s != NULL && s->how == WT_EXP && exp >= s->exp;
 }
 
+int32_t wt_exp_goal(wt_kind kind, int level) {
+    const wt_step* s = wt_step_at(kind, level);
+
+    if (s == NULL) {
+        return 0;
+    }
+    if (s->how == WT_EXP) {
+        return s->exp;
+    }
+    return previous_bought(kind, level) ? WT_MASTERY_EXP : 0;
+}
+
 /* The RYNO II's tiers add their gain to Ultima's: Alpha is Ultima and a quarter more. */
 static float ryno_on_ultima(float ultima, float tier) {
     return ultima + (tier - 1.0f);
