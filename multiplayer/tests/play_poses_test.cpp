@@ -4,6 +4,8 @@
 // Playing together, without the game or a socket: a pose's bytes, the pieces held and the interpolation buffer.
 #include "test_support.hpp"
 
+#include <limits>
+
 namespace mpt {
 namespace {
 
@@ -89,6 +91,30 @@ void pose_flags_keep_0_8_0s_menu_bit() {
     CHECK(mp::decode_pose(b, r) && !r.menu && r.pose.flags == mp::kPoseAirborne);
 }
 
+
+// The scale goes after the ack: a figure keeps a peer's scale, and a peer from before reads the ack.
+void pose_scale_after_the_ack() {
+    mp::PoseMessage m;
+    m.pose.scale = 1.25f;
+    m.world_ack = true;
+    m.world_newest = 0x1234;
+    m.world_bits = 0x5u;
+    const Bytes b = mp::encode_pose(m);
+    mp::PoseMessage r;
+    CHECK(mp::decode_pose(b, r) && r.pose.scale == 1.25f);
+    CHECK(r.world_ack && r.world_newest == 0x1234);
+    // Without the ack: the scale alone is no ack.
+    m.world_ack = false;
+    CHECK(mp::decode_pose(mp::encode_pose(m), r) && r.pose.scale == 1.25f && !r.world_ack);
+    // An older peer's pose (no scale flag, no scale): 0, the figure keeps its own.
+    m.pose.scale = 0.0f;
+    const Bytes old = mp::encode_pose(m);
+    CHECK(old.size() == b.size() - mp::kPoseScaleBytes - mp::kPoseAckBytes);
+    CHECK(mp::decode_pose(old, r) && r.pose.scale == 0.0f);
+    // No Ratchet's scale is sent.
+    m.pose.scale = std::numeric_limits<float>::infinity();
+    CHECK(mp::decode_pose(mp::encode_pose(m), r) && r.pose.scale == 0.0f);
+}
 
 void held_and_shot_bytes() {
     mp::PoseMessage m;
@@ -747,6 +773,7 @@ void recorded_poses_replay_smoothly() {
 void run_poses_tests() {
     pose_bytes();
     pose_flags_keep_0_8_0s_menu_bit();
+    pose_scale_after_the_ack();
     held_and_shot_bytes();
     shotx_bytes();
     held_item_animation_runs_on();
