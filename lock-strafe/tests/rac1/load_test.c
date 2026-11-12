@@ -87,8 +87,11 @@ static void game_turn(int32_t mode, float accel, float damping, float limit) {
     ++s_original_calls;
 }
 
+/* Hero_SetPlanarVelocity: the angle it was asked for last. */
+static float s_planar_seen;
+
 static void game_float(float angle) {
-    (void)angle;
+    s_planar_seen = angle;
     ++s_original_calls;
 }
 
@@ -390,7 +393,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.12: the hero's joints), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.2.0") == 0);
+    CHECK(strcmp(info.id, "lock-strafe") == 0 && strcmp(info.version, "1.2.1") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -479,6 +482,8 @@ int main(int argc, char** argv) {
     motion();
     CHECK(s_original_calls >= 1 && s_entered == RAC1_STRAFE_STATE_FLIP);
     CHECK(get_f32(d->hero + 0x458u) == (1.0f / 60.0f) * RAC1_STRAFE_FLIP_DRIFT);
+    /* No run speed carried along his facing: the flip goes only along the strafe. */
+    CHECK(get_f32(d->hero + 0x454u) == 0.0f);
     /* Forward is the game's own jump. */
     s_entered = -1;
     s_direction = 2;
@@ -514,6 +519,55 @@ int main(int argc, char** argv) {
                - s_joints[0].rotation[2] * s_joints[0].rotation[3])
         < 0.0f
     );
+
+    /* The slide to a stop: running right, the velocity along the stick's yaw; the stick let go
+     * (the game sets the move yaw to his facing and the target speed to 0), still along it. */
+    openrac_rac1_Hero_SetPlanarVelocity planar =
+        (openrac_rac1_Hero_SetPlanarVelocity)hook_named("Hero_SetPlanarVelocity");
+    CHECK(planar != NULL);
+    put_f32(d->hero + 0x190u, 0.095f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    put_f32(d->hero + 0x190u, 0.0f);
+    put_f32(d->hero + 0x180u, 1.0708f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    /* An angle of the caller's own is kept. */
+    planar(0.25f);
+    CHECK(s_planar_seen == 0.25f);
+    put_f32(d->hero + 0x180u, -0.5f);
+
+    /* The strafe ends while he runs on (Lock: the wrench taken in hand), the stick still right:
+     * along the stick until his facing has turned to it, then the game's facing. */
+    put_f32(d->hero + 0x190u, 0.095f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    put_u32(d->hero + 0x1090u + 0x28u, 0x08);
+    put_u32(d->pad + 0x1A0u, 0);
+    pad(d->pad, 0x00100000u, 32);
+    planar(99999.0f);
+    CHECK(s_planar_seen == -0.5f);
+    put_f32(d->hero + 0x98u, -0.49f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == 99999.0f);
+    /* Standing at a pad report forgets it: running again, the game's from the start. */
+    put_f32(d->hero + 0x98u, 1.0708f);
+    put_u32(d->hero + 0x2084u, RAC1_STRAFE_STATE_STAND);
+    pad(d->pad, 0x00100000u, 32);
+    put_u32(d->hero + 0x2084u, RAC1_STRAFE_STATE_RUN);
+    planar(99999.0f);
+    CHECK(s_planar_seen == 99999.0f);
+    /* A scene starting mid-run, the stick let go: forgotten at the pad's report, not slid along. */
+    put_u32(d->hero + 0x1090u + 0x28u, 0x0F);
+    planar(99999.0f);
+    put_u32(d->hero + 0x1090u + 0x28u, 0x08);
+    s_level = -1;
+    pad(d->pad, 0x00100000u, 32);
+    s_level = 0;
+    put_f32(d->hero + 0x190u, 0.0f);
+    planar(99999.0f);
+    CHECK(s_planar_seen == 99999.0f);
+    put_u32(d->hero + 0x1090u + 0x28u, 0x0F);
     /* Out of play the twist is taken off at the pad's report. */
     s_level = -1;
     pad(d->pad, 0x00100000u, 32);
@@ -551,6 +605,36 @@ int main(int argc, char** argv) {
     put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
     pad(d->pad, 0x00100000u, 32);
     CHECK(get_u32(d->pad + 0x1A0u) == 0);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(s_move_yaw_seen == 1.25f);
+
+    /* A camera of the level's own (id not 0, Kalebo III's wall camera): R2 stays taken (given
+     * back it put him in first person) but the turn is the game's; the camera behind him (id 0)
+     * gives the strafe back, R2 still held. A slot pointer of 0 (no camera yet) is behind him. */
+    const openrac_gaddr slot = 0x001F0000u;
+    put_u32(d->camera_now, slot);
+    put_u32(slot + 0x84u, 0x00070000u); /* the id, the s16 at +0x86 */
+    put_u32(d->pad + 0x1A0u, 0);
+    pad(d->pad, 0x00100000u, 32);
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
+    CHECK(get_u32(d->pad + 0x1A0u) == 0);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(s_move_yaw_seen == -0.5f);
+    put_u32(slot + 0x84u, 0xFFFF0000u); /* id -1: not behind him either */
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(get_u32(d->pad + 0x1A0u) == 0 && s_move_yaw_seen == -0.5f);
+    put_u32(slot + 0x84u, 0);
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
+    CHECK(get_u32(d->pad + 0x1A0u) == 0);
+    turn(0, 0.1f, 0.2f, 0.3f);
+    CHECK(s_move_yaw_seen == 1.25f);
+    put_u32(d->camera_now, 0);
+    put_u32(d->pad + 0x1A0u, RAC1_PAD_R2);
+    pad(d->pad, 0x00100000u, 32);
     turn(0, 0.1f, 0.2f, 0.3f);
     CHECK(s_move_yaw_seen == 1.25f);
 

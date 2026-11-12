@@ -23,6 +23,7 @@ typedef struct lock_strafe_disc {
     uint32_t level_mode; /* the game mode: 0 in play */
     uint32_t camera_yaw; /* the camera's yaw */
     uint32_t camera_pan; /* the follow camera's pan weight */
+    uint32_t camera_now; /* gCamera.current: the camera slot in use (its id at +0x86) */
     /* The game's functions it calls. */
     const char* fast_cos;          /* float (float) */
     const char* fast_sin;          /* float (float) */
@@ -44,6 +45,7 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         0x0015F6A8u,
         0x00166ED8u,
         0x0015F040u,
+        0x00166F00u,
         "func_001F9F90",
         "func_001F9FA8",
         "func_L00_002E9A18",
@@ -62,6 +64,7 @@ static const lock_strafe_disc k_lock_strafe_discs[] = {
         0x0015F5C4u,
         0x00166DD8u,
         0x0015EF40u,
+        0x00166E00u,
         "FUN_001f9dc8",
         "FUN_001f9de0",
         "FUN_L00_002e8568",
