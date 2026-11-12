@@ -396,9 +396,48 @@ void test_save() {
     {
         ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
         s.save_written(1);
+        s.save_loaded({}, -1, out);
         expect(s.book().slots.empty(), "no room yet");
         connect(s, "[]", out);
         expect(s.book().slots.count(1) == 1, "booked on the connection");
+    }
+
+    // Reusing slot 5 is trusted only after NewGameInit, and committed only on success.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        s.book().slots[4] = {"old-seed", "Ratchet"};
+        connect(s, "[1,2]", out);
+        out.clear();
+        s.save_loaded({9}, 4, out);
+        s.save_written(4);
+        expect(s.foreign_save() && s.book().slots[4].first == "old-seed", "saving a foreign loaded game cannot rebind it");
+        s.start_game(true, out);
+        s.save_loaded({}, 4, out);
+        expect(!s.foreign_save(), "a real new game may reuse an occupied slot");
+        expect(s.book().slots[4].first == "old-seed" && !s.book().changed, "cancelled overwrite retains the old association");
+        s.start_game(false, out);
+        s.save_loaded({}, 4, out);
+        expect(s.foreign_save(), "loading after a cancelled new game restores seed protection");
+        s.start_game(true, out);
+        s.save_loaded({}, 4, out);
+        s.check(3, out);
+        s.goal(out);
+        s.save_written(4);
+        expect(s.book().slots[4].first == "seed-b" && s.book().changed, "successful overwrite replaces the slot association");
+        s.start_game(false, out);
+        expect(out.empty(), "starting another game drops unsent checks and goal");
+        s.save_loaded({3}, 4, out);
+        expect(!s.foreign_save(), "overwritten slot reloads under its new seed");
+    }
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        s.book().slots[4] = {"old-seed", "Ratchet"};
+        s.start_game(true, out);
+        s.save_loaded({}, 4, out);
+        s.save_written(4);
+        expect(s.book().slots[4].first == "old-seed", "offline overwrite waits for the room identity");
+        connect(s, "[]", out);
+        expect(!s.foreign_save() && s.book().slots[4].first == "seed-b", "offline new game binds after connecting");
     }
 
     // A known data package is not asked for again.

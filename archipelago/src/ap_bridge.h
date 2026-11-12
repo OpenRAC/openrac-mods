@@ -57,6 +57,7 @@ void ap_client_save_loaded(const int64_t* had, size_t n, int card_slot);
 
 /* The game in progress was just saved into memory card slot `card_slot`: it holds this room's game. */
 void ap_client_save_written(int card_slot);
+void ap_client_start_game(int fresh);
 
 /* Every item the server has sent this slot so far, in its order: at most `max` into `out`.
  * Returns how many there are (more than max when out was too small). *generation (when not null)
