@@ -69,14 +69,16 @@ NETWORK_LIBRARIES = {"ws2_32.dll", "wsock32.dll", "wininet.dll", "winhttp.dll", 
 
 # Strings worth a reviewer's look wherever they are.
 TELLING = re.compile(
-    rb"(cmd\.exe|powershell|/bin/sh|/bin/bash|\\\\AppData\\\\|Login Data|Local State|"
+    rb"(cmd\.exe|powershell|/bin/sh|/bin/bash|\\AppData\\|Login Data|Local State|"
     rb"discord(?:app)?\.com/api|api\.telegram\.org|pastebin\.com|\.onion\b|wallet\.dat|"
     rb"\.ssh/|id_rsa|keychain|stratum\+tcp)",
     re.IGNORECASE,
 )
 URL = re.compile(rb"\b(?:https?|ftp|wss?)://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{3,200}")
-IPV4 = re.compile(rb"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
+IPV4 = re.compile(rb"(?<![\d.vV])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
 MOST = 40  # of each list shown
+TITLE = "### What the libraries can do"
+READ_LIMIT = 1024 * 1024 * 1024  # the most an archive's files may unpack to, all together
 
 
 class Unreadable(Exception):
@@ -116,6 +118,9 @@ def elf_imports(data: bytes) -> tuple[list[str], list[str]]:
                     needed.append(_cstr(data, strtab + val))
                 if tag == 0:
                     break
+    if not any(sh[1] == 11 for sh in sections):
+        # Without section headers (stripped by sstrip and the like) the imports cannot be read here.
+        raise Unreadable("an ELF without a .dynsym section")
     return needed, sorted(symbols)
 
 
@@ -173,10 +178,12 @@ def pe_imports(data: bytes) -> tuple[list[str], list[str]]:
     return dlls, sorted(funcs)
 
 
-def macho_imports(data: bytes) -> tuple[list[str], list[str]]:
+def macho_imports(data: bytes, slice_of_fat: bool = False) -> tuple[list[str], list[str]]:
     """(linked dylibs, undefined symbols) of a 64-bit Mach-O, or of each slice of a universal one."""
     magic, = struct.unpack_from(">I", data, 0)
     if magic in (0xCAFEBABE, 0xCAFEBABF):
+        if slice_of_fat:
+            raise Unreadable("a universal Mach-O inside another")
         count, = struct.unpack_from(">I", data, 4)
         libs, syms = [], set()
         for i in range(count):
@@ -184,7 +191,7 @@ def macho_imports(data: bytes) -> tuple[list[str], list[str]]:
                 _cpu, _sub, off, size, _align = struct.unpack_from(">IIIII", data, 8 + i * 20)
             else:
                 _cpu, _sub, off, size, _align, _r = struct.unpack_from(">IIQQII", data, 8 + i * 32)
-            l, s = macho_imports(data[off:off + size])
+            l, s = macho_imports(data[off:off + size], True)
             libs += [x for x in l if x not in libs]
             syms |= set(s)
         return libs, sorted(syms)
@@ -194,6 +201,8 @@ def macho_imports(data: bytes) -> tuple[list[str], list[str]]:
     p, libs, syms = 32, [], set()
     for _ in range(ncmds):
         cmd, size = struct.unpack_from("<II", data, p)
+        if size < 8:
+            raise Unreadable("a load command of no size")
         if cmd in (0xC, 0x80000018, 0x18, 0x8000001F):  # LC_LOAD_DYLIB, _WEAK_, _LAZY_, _REEXPORT_
             off, = struct.unpack_from("<I", data, p + 8)
             libs.append(_cstr(data, p + off))
@@ -255,8 +264,9 @@ def _strings(data: bytes) -> tuple[set[str], set[str], set[str]]:
                 ip = ipaddress.ip_address(m.decode())
             except ValueError:
                 continue
-            if not (ip.is_unspecified or ip.is_loopback or str(ip).startswith(("0.", "255."))) and \
-                    not re.fullmatch(r"\d\.\d+\.\d+\.\d+", str(ip)):  # version numbers (1.2.3.4) left out
+            # Version numbers (v1.2.3.4, 1.0.0.0) left out; a host's address does not end in .0.
+            if not (ip.is_unspecified or ip.is_loopback or ip.is_multicast or str(ip).startswith(("0.", "255."))
+                    or str(ip).endswith((".0", ".255"))):
                 ips.add(str(ip))
         telling |= {m.decode("ascii", "replace").lower() for m in TELLING.findall(t)}
     return urls, ips, telling
@@ -271,16 +281,26 @@ def scan_archive(blob: bytes) -> dict:
     except zipfile.BadZipFile:
         out["problems"].append("the archive is not a zip")
         return out
+    budget = READ_LIMIT
     for info in z.infolist():
-        if info.is_dir() or info.file_size > 256 * 1024 * 1024:
+        if info.is_dir():
             continue
-        data = z.read(info)
-        kind = library_kind(data)
-        if kind is None:
+        try:
+            with z.open(info) as f:
+                kind = library_kind(f.read(4))
+            if kind is None:
+                continue
+            if info.file_size > min(256 * 1024 * 1024, budget):
+                out["problems"].append(f"{info.filename}: too large to read")
+                continue
+            budget -= info.file_size
+            data = z.read(info)
+        except (zipfile.BadZipFile, NotImplementedError, RuntimeError, OSError, EOFError, ValueError) as err:
+            out["problems"].append(f"{info.filename}: cannot be unpacked ({err.__class__.__name__})")
             continue
         try:
             libs, syms = {"elf": elf_imports, "pe": pe_imports, "macho": macho_imports}[kind](data)
-        except (Unreadable, struct.error, IndexError) as err:
+        except (Unreadable, struct.error, IndexError, ValueError, KeyError, RecursionError) as err:
             out["problems"].append(f"{info.filename}: cannot be read ({err or 'a broken header'})")
             libs, syms = [], []
         urls, ips, telling = _strings(data)
@@ -299,15 +319,22 @@ def capabilities(scan: dict) -> dict[str, set[str]]:
     return caps
 
 
+def _code(text: str) -> str:
+    """The author's text (a symbol's or a file's name, a string) as inline code that cannot end
+    early, split a table's cell or run long."""
+    text = "".join(c if c.isprintable() else "?" for c in text).replace("`", "'").replace("|", "\\|")
+    return f"`{text[:100] + '...' if len(text) > 100 else text}`"
+
+
 def _list(items, most: int = MOST) -> str:
     items = sorted(items)
-    shown = ", ".join(f"`{i}`" for i in items[:most])
+    shown = ", ".join(_code(i) for i in items[:most])
     return shown + (f" and {len(items) - most} more" if len(items) > most else "")
 
 
 def report(new: dict, old: dict | None) -> str:
     """The review issue's section: what the libraries can do, marked new against `old`."""
-    lines = ["### What the libraries can do", "",
+    lines = [TITLE, "",
              "Read from the files' import tables and strings (nothing was run). A mod may still do "
              "more through what it loads at run time."]
     caps = capabilities(new)
@@ -338,7 +365,7 @@ def report(new: dict, old: dict | None) -> str:
             lines += ["", f"No longer: {', '.join(sorted(gone))}."]
     for p in new["problems"][:MOST]:
         # A file's name is the author's text: shown as code, never as Markdown.
-        lines += ["", f"Not read: `{p.replace('`', chr(39))[:300]}`."]
+        lines += ["", f"Not read: {_code(p)}."]
     return "\n".join(lines) + "\n"
 
 

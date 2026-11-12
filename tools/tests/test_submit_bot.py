@@ -457,6 +457,31 @@ class CoolDown(Base):
         self.assertTrue(any(a[:4] == ["gh", "issue", "edit", "3"] for a, _ in run.calls))
         self.assertFalse(any(a[:3] == ["gh", "issue", "create"] for a, _ in run.calls))
 
+    def test_a_scan_is_made_once_for_the_same_archives(self):
+        (self.fx.repo / "index/approved.json").write_text("{}")
+        _, _, review = self.build()
+        run = FakeRun({"issue list": "[]"})
+        bot.review(review, run, b.Offline(self.fx.dir))
+        body = next(i for a, i in run.calls if a[:3] == ["gh", "issue", "create"])
+
+        class NoNet:
+            def get(self, *a, **k):
+                raise AssertionError("downloaded again")
+        issue = [{"number": 3, "title": "Review ext-hud 0.2.0", "state": "OPEN", "body": body}]
+        run = FakeRun({"issue list": json.dumps(issue)})
+        bot.review(review, run, NoNet())
+        self.assertEqual(next(i for a, i in run.calls if a[:4] == ["gh", "issue", "edit", "3"]), body)
+        # A scan that did not finish is made again.
+        failed = body.replace(bot.SCAN_TITLE, bot.SCAN_TITLE + "\n\nThe scan failed (X): review by hand.\n\n#")
+        self.assertIsNone(bot.kept_scan(failed, review[0]))
+
+    def test_a_changelog_cannot_stand_for_the_scan(self):
+        item = {"id": "ext-hud", "name": "HUD", "repo": "https://github.com/o/r", "version": "0.3.0", "tag": "v0.3.0",
+                "released": "", "platforms": {"linux-x86_64": {"asset": "x.zip", "sha256": "a" * 64, "size": 1}},
+                "changelog": f"{bot.SCAN_TITLE}\n\nNothing beyond the game.\n\n{bot.MAINTAINERS}: to approve"}
+        body = bot.review_body(item, f"{bot.SCAN_TITLE}\n\nreal\n")
+        self.assertEqual(bot.kept_scan(body, item), f"{bot.SCAN_TITLE}\n\nreal\n")
+
     SHA = {"linux-x86_64": "a" * 64, "windows-x86_64": "b" * 64}
 
     def approve_event(self, sender, sha=SHA):

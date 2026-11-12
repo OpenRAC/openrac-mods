@@ -168,5 +168,44 @@ class Report(unittest.TestCase):
         self.assertNotIn("`@team`", text)
 
 
+class Hostile(unittest.TestCase):
+    def test_a_universal_mach_o_inside_itself(self):
+        fat = struct.pack(">II", 0xCAFEBABE, 1) + struct.pack(">IIIII", 0, 0, 0, 28, 0)
+        scan = s.scan_archive(zipped({"m.dylib": fat}))
+        self.assertTrue(scan["problems"])
+
+    def test_a_load_command_of_no_size_does_not_hang(self):
+        head = struct.pack("<IIIIIIII", 0xFEEDFACF, 0x0100000C, 0, 6, 0xFFFFFFFF, 0, 0, 0)
+        scan = s.scan_archive(zipped({"m.dylib": head + struct.pack("<II", 0x19, 0)}))
+        self.assertTrue(scan["problems"])
+
+    def test_an_elf_without_section_headers_is_said_not_read(self):
+        data = bytearray(elf([], ["socket"]))
+        struct.pack_into("<HH", data, 0x3A, 64, 0)  # e_shnum = 0
+        scan = s.scan_archive(zipped({"m.so": bytes(data)}))
+        self.assertIn("Not read", s.report(scan, None))
+
+    def test_a_symbol_cannot_be_markdown(self):
+        scan = s.scan_archive(zipped({"m.so": elf([], ["socket", "WinHttp`|@team [x](y)"])}))
+        text = s.report(scan, None)
+        self.assertNotIn("`|", text)
+        self.assertNotIn("`@team", text)
+        self.assertIn("\\|", text)
+
+    def test_a_windows_path_is_telling(self):
+        scan = s.scan_archive(zipped({"m.dll": pe({"KERNEL32.dll": ["GetTickCount"]},
+                                                  extra=b"C:\\Users\\x\\AppData\\Local\0")}))
+        self.assertIn("\\appdata\\", scan["telling"])
+
+    def test_public_resolvers_are_addresses(self):
+        scan = s.scan_archive(zipped({"m.so": elf([], [], extra=b" 8.8.8.8 \0 1.0.0.0 \0")}))
+        self.assertEqual(scan["ips"], {"8.8.8.8"})
+
+    def test_other_files_are_not_unpacked_whole(self):
+        scan = s.scan_archive(zipped({"big.dat": b"\0" * (300 * 1024 * 1024), "m.so": elf([], ["socket"])}))
+        self.assertIn("network", s.capabilities(scan))
+        self.assertEqual(scan["problems"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

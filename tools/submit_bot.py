@@ -707,6 +707,8 @@ def review_title(item: dict) -> str:
 
 
 SCAN_LIMIT = 256 * 1024 * 1024  # the largest archive downloaded for the scan
+SCAN_TITLE = binary_scan.TITLE
+REVIEW_BY_HAND = "review by hand"
 
 
 def scan_release(repo: str, tag: str, platforms: dict, http) -> dict | None:
@@ -732,13 +734,26 @@ def scan_section(item: dict, http) -> str:
         prev = item.get("previous")
         old = scan_release(item["repo"], prev["tag"], prev["platforms"], http) if prev else None
     except Exception as err:  # noqa: BLE001 - a scan that fails must not stop the review issue
-        return f"### What the libraries can do\n\nThe scan failed ({err.__class__.__name__}): review by hand.\n"
+        return f"{SCAN_TITLE}\n\nThe scan failed ({err.__class__.__name__}): {REVIEW_BY_HAND}.\n"
     if new is None:
-        return "### What the libraries can do\n\nThe archives could not be downloaded for the scan: review by hand.\n"
+        return f"{SCAN_TITLE}\n\nThe archives could not be downloaded for the scan: {REVIEW_BY_HAND}.\n"
     text = binary_scan.report(new, old)
     if prev:
-        text += f"\nCompared with {prev['version']}" + ("." if old else ", whose archives could not be read.") + "\n"
+        text += f"\nCompared with {prev['version']}" + ("." if old else f", whose archives could not be downloaded: {REVIEW_BY_HAND}.") + "\n"
     return text
+
+
+def kept_scan(body: str | None, item: dict) -> str | None:
+    """The scan an issue already shows, when it was made from these very archives and finished."""
+    if not body or reviewed_hashes(body) != b.archive_hashes(item):
+        return None
+    # From the end: the changelog above it is the author's text and may hold the same words.
+    end = body.rfind(f"{MAINTAINERS}: to approve")
+    start = body.rfind(SCAN_TITLE, 0, max(end, 0))
+    if start < 0 or end < 0:
+        return None
+    scan = body[start:end].rstrip("\n") + "\n"
+    return None if REVIEW_BY_HAND in scan else scan
 
 
 def review_body(item: dict, scan: str = "") -> str:
@@ -785,7 +800,9 @@ def review(items: list[dict], run=run_cmd, http=None) -> int:
         found = json.loads(run(["gh", "issue", "list", "--label", "mod-review", "--state", "all", "--search",
                                 f"\"{title}\" in:title", "--json", "number,title,state,body"]) or "[]")
         same = [i for i in found if i["title"] == title]
-        body = review_body(item, scan_section(item, http))
+        # The archives are downloaded for the scan once: while they stay the same, the issue keeps it.
+        scan = kept_scan(same[0].get("body"), item) if same else None
+        body = review_body(item, scan if scan is not None else scan_section(item, http))
         if not same:
             run(["gh", "issue", "create", "--title", title, "--label", "mod-review", "--body-file", "-"], input=body)
             continue
