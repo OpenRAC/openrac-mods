@@ -152,6 +152,7 @@ again for a few ticks, over the banner the game's own code shows next for the it
 | `Planet_Unlock` | `rac1.planet.unlock` | inside an infobot's update: the infobot's reward instead of its planet. Elsewhere (NPCs, the planet arrived at) the game's |
 | `Vendor_InitLevelStock` | `rac1.vendor.init_level_stock` | a level's start: gives back a reward a save lost, and takes the had states as they are; with the starting gear shuffled, the Bomb Glove is taken back out of the stock and the double-tap weapon when it was not the reward |
 | `Vendor_BuildItemList` | `rac1.vendor.build_item_list` | the stock as the menu sees it: slots not bought for sale, bought ones as their reward's ammo; the cursor stays on the list and the item is drawn again |
+| `Vendor_OpenMenu` | `rac1.vendor.open_menu` | refuses the Gadgetron PDA when no ammunition rows are available |
 | `Vendor_MenuUpdate` | `rac1.vendor.menu_update` | the line above the picture over a slot |
 | `Ammo_ChooseDrop` | `rac1.ammo.choose_drop` | a crate's drop chooses from the same stock as the menu |
 | `GoldBolts_CountCollected` | `rac1.gold_bolt.count_collected` | with gold bolts shuffled: the gold bolt rewards had |
@@ -219,6 +220,15 @@ mod with the reason ("this OpenRAC cannot hook Item_Give").
 Going Commando's PAL and v2.00 discs need an OpenRAC whose ports have the givers' hook points on
 those discs too (OpenRAC #390); an older one refuses the mod the same way. Going Commando also needs
 the equip hook point, `rac2.item.equip` (SDK 1.14.3).
+
+RAC1 vendor safety: empty filtered vendors cannot be opened, and buying the last row starts
+the normal menu closing transition. The Gadgetron PDA opens only when ammunition is available,
+including ammunition generated for owned weapons. These protections cover NTSC-U and PAL v2.00
+and require an OpenRAC build with `Vendor_OpenMenu` (OpenRAC/OpenRAC#422).
+
+When Bomb Glove is not owned, stale starting equipment and Circle/Triangle shortcuts fall back
+to the wrench. An owned Bomb Glove (kept starting gear or a reward) works normally. This guard
+also respects the save/seed gate.
 
 ## Going Commando
 
