@@ -1,0 +1,24 @@
+{
+  "id": "bolt-grabber-v2",
+  "repo": "https://github.com/ParadoxEpoch/rac1-bolt-grabber-v2",
+  "path": "",
+  "description": "The Bolt Grabber also smashes nearby crates and breakable props on a hyper-strike, as the Bolt Grabber V2 does in Up Your Arsenal.",
+  "tags": [
+    "gameplay"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/ParadoxEpoch/rac1-bolt-grabber-v2/issues",
+    "docs": "https://github.com/ParadoxEpoch/rac1-bolt-grabber-v2/blob/main/README.md"
+  },
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/bolt-grabber-v2/03c88b5391ed.png"
+      }
+    ]
+  }
+}
