@@ -193,6 +193,23 @@ static void book(void) {
     CHECK(wt_book_read(&b, "nonsense\n0102\n") == 0);
 }
 
+/* Zeros never over a record with levels; the latest is the last written with any level. */
+static void book_keeps(void) {
+    static wt_book a;
+    uint8_t one[8] = {0, 1, 2, 3, 0, 12, 11, 0x26};
+    uint8_t two[8] = {0, 9, 2, 3, 0, 12, 11, 0x26};
+    uint8_t levels[WT_ITEMS] = {0};
+    uint8_t none[WT_ITEMS] = {0};
+
+    CHECK(wt_book_latest(&a) == NULL);
+    levels[28] = 0x81;
+    wt_book_put(&a, one, levels);
+    wt_book_put(&a, one, none);
+    CHECK(wt_book_find(&a, one)->level[28] == 0x81);
+    wt_book_put(&a, two, none); /* a new clock with nothing */
+    CHECK(wt_book_latest(&a) == wt_book_find(&a, one));
+}
+
 int main(void) {
     kinds();
     buy_then_level();
@@ -203,6 +220,7 @@ int main(void) {
     scaling();
     enemies();
     book();
+    book_keeps();
     if (s_failures == 0) {
         printf("ng_plus_plus_rules: ok\n");
     }

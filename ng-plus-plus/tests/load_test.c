@@ -618,6 +618,26 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(strcmp(title(0x5555), "Alpha RYNO II") == 0);
     tick(1);
     CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000); /* toward Beta, five times the others' */
+
+    /* The game restarted (a new version of the mod): the steps bought since the last save were kept
+     * at once, so the save loaded has them. */
+    for (int restart = 0; restart < 2; ++restart) {
+        s_hook_count = 0;
+        CHECK(load(&api, (openrac_mod*)&api) == 0);
+        set32(row(RYNO) + WT_ROW_EXP, 0);
+        set_clock(0);
+        tick(1);
+        CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000); /* nothing yet: toward Heavy */
+        // The save's own clock; then one the game stamped again as the save's level started, which
+        // the book has not: the record kept last.
+        set_clock(restart == 0 ? 0x20 : 0x50);
+        tick(1);
+        CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000);
+    }
+    /* A new game after it: nothing. */
+    set_clock(0);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000);
 }
 
 int main(int argc, char** argv) {

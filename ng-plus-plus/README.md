@@ -62,8 +62,7 @@ pickup's message, the weapons menu, the quick select and the vendor. A name text
 left as the game has it.
 
 In the vendor's list, the next tier's entry carries that tier's tint, and the weapon's own entry
-carries the tint of the tier it has. For 30 seconds after a tier is bought, the mod logs the
-vendor's cursor and preview state each time they change (`vendor: cursor ...`).
+carries the tint of the tier it has.
 
 ### Tougher enemies each new game
 
@@ -101,7 +100,11 @@ x0.5 x 1.5 / 1.5. Switch **Tougher enemies each new game** off to leave the enem
 difficulty mod alone.
 
 The tiers are kept with each save: the mod's data folder has a `tiers.txt` with the tiers at each
-save the game made (by the save's own clock). Nothing is written to the memory card or its folder.
+save the game made (by the save's own clock), and each new tier is written there at once, so a
+restart or a new version of the mod loses nothing. The game stamps its clock again as a loaded
+save's level starts, sometimes before the mod has seen the save's own; a clock the book does not
+have, right after the title screen, takes the record written last. A record with tiers is never
+written over with none. Nothing is written to the memory card or its folder.
 The launcher's save editor shows each weapon's tier for the save opened while the mod is on (the
 manifest's `save_data`), and saves a change into that file; close the game first.
 

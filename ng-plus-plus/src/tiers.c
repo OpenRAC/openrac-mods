@@ -323,6 +323,24 @@ const wt_record* wt_book_find(const wt_book* book, const uint8_t clock[8]) {
     return NULL;
 }
 
+static int all_zero(const uint8_t levels[WT_ITEMS]) {
+    for (int i = 0; i < WT_ITEMS; ++i) {
+        if (levels[i] != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+const wt_record* wt_book_latest(const wt_book* book) {
+    for (int i = book->count - 1; i >= 0; --i) {
+        if (!all_zero(book->records[i].level)) {
+            return &book->records[i];
+        }
+    }
+    return NULL;
+}
+
 void wt_book_put(wt_book* book, const uint8_t clock[8], const uint8_t levels[WT_ITEMS]) {
     int at = -1;
 
@@ -330,6 +348,10 @@ void wt_book_put(wt_book* book, const uint8_t clock[8], const uint8_t levels[WT_
         if (memcmp(book->records[i].clock, clock, 8) == 0) {
             at = i;
         }
+    }
+    // Never zeros over a record with levels.
+    if (at >= 0 && all_zero(levels) && !all_zero(book->records[at].level)) {
+        return;
     }
     // A record of that clock already: drop it, the new one goes last.
     if (at >= 0) {

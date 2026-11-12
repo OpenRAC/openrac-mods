@@ -160,7 +160,11 @@ typedef struct wt_book {
 /* The record with `clock`, or null. */
 const wt_record* wt_book_find(const wt_book* book, const uint8_t clock[8]);
 
-/* Keeps `levels` under `clock`, replacing its record or dropping the oldest when full. */
+/* The newest record with any level (the one written last), or null. */
+const wt_record* wt_book_latest(const wt_book* book);
+
+/* Keeps `levels` under `clock`, replacing its record (never one with levels by all zeros) or dropping
+ * the oldest when full. */
 void wt_book_put(wt_book* book, const uint8_t clock[8], const uint8_t levels[WT_ITEMS]);
 
 /* The book as text (a line a record: 16 hex digits of clock, a space, 112 of levels), and back.
