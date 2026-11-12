@@ -158,9 +158,10 @@ copies are spread: each enemy gets one before any gets a second.
 ## Which mobys count as enemies
 
 In Ratchet & Clank, the game's objects are classified in [classes.tsv](classes.tsv), 158 of
-them: 39 **enemies** (copied, left out, timed, hit harder or softer), 5
+them: 37 **enemies** (copied, left out, timed, hit harder or softer), 7
 **roamers** (left out, timed, hit; never copied: they fly a path, drop in on
-a cue, or are too big to stand beside the original), 7 **turrets** (timed and
+a cue, start at their path's first point, or are too big to stand beside the
+original), 7 **turrets** (timed and
 hit; fixed to the level, so never copied or left out), 5 **bosses** (only
 the damage to enemies applies to them) and 102 left as the game has them.
 Everything not in the table is left as it is.

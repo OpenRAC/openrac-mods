@@ -30,12 +30,12 @@
 427	enemy	blarg_trooper	-
 333	enemy	blarg_bombthrower	-
 340	enemy	circular_saw_enemy	-
-459	enemy	birdbot	-
+459	roamer	birdbot	its update puts it at its path's start: a copy sat inside the original and blocked its shots
 563	enemy	woodcut_bot	-
 573	enemy	robot_dog	-
 1382	enemy	robot_dog	-
 577	enemy	peckbot	-
-578	enemy	mine_layer	-
+578	roamer	mine_layer	its update puts it at its path's start: a copy would sit inside the original
 580	enemy	sand_shark	-
 623	enemy	extermibot	-
 625	enemy	extermitank	-
