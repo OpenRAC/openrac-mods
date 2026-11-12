@@ -144,6 +144,7 @@ static openrac_rac1_Item_Give s_item_give;
 static openrac_rac1_Planet_Unlock s_planet_unlock;
 static openrac_rac1_Vendor_InitLevelStock s_init_level_stock;
 static openrac_rac1_Vendor_BuildItemList s_build_item_list;
+static openrac_rac1_Vendor_OpenMenu s_open_vendor_menu;
 static openrac_rac1_GoldBolts_CountCollected s_count_gold_bolts;
 static openrac_rac1_Moby_Infobot_Update s_infobot_update;
 static openrac_rac1_Moby_PilotsHelmet_Update s_helmet_update;
@@ -814,6 +815,20 @@ static void vendor_stock_shown(
     memset(shown + m, STOCK_END, (size_t)(VENDOR_STOCK_SIZE - m));
 }
 
+/* The retail menu also adds ammo for owned weapons outside the planet's stock.
+ * Use the same price-table test as the PDA guard, including starting weapons. */
+static int has_vendor_ammunition(void) {
+    const uint8_t* prices = level_byte_at(s_disc->item_price_table);
+    for (int item = 0; item < VENDOR_ITEM_COUNT; ++item) {
+        uint16_t ammo_price;
+        memcpy(&ammo_price, prices + item * 0x18 + 0x08, sizeof ammo_price);
+        if (*owned(item) && ammo_price != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* Prevent opening a vendor whose Archipelago-filtered stock is empty. */
 static void guard_empty_vendor(void) {
     if (s_disc == NULL || (strcmp(s_disc->version, "ntsc") != 0
@@ -825,7 +840,7 @@ static void guard_empty_vendor(void) {
     memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
     vendor_stock_shown(real, shown);
 
-    const int empty = shown[0] == STOCK_END;
+    const int empty = shown[0] == STOCK_END && !has_vendor_ammunition();
 
     const openrac_gaddr base =
         (openrac_gaddr)get32(level_byte_at(
@@ -888,6 +903,46 @@ static void guard_empty_vendor(void) {
     }
 }
 
+/* Block an empty Gadgetron PDA vendor before the game builds its menu. */
+static void open_vendor_menu_hook(uint32_t moby) {
+    if (moby == 0 && s_disc != NULL) {
+        uint8_t real[VENDOR_STOCK_SIZE];
+        uint8_t shown[VENDOR_STOCK_SIZE];
+
+        memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
+        vendor_stock_shown(real, shown);
+
+        int has_pda_stock = 0;
+        uint8_t* item_info = level_byte_at(s_disc->item_price_table);
+
+        for (int i = 0; i < VENDOR_STOCK_SIZE && shown[i] != STOCK_END; ++i) {
+            const int item = shown[i] & 0x3F;
+            if (item >= VENDOR_ITEM_COUNT) {
+                continue;
+            }
+            uint16_t ammo_supported;
+            memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
+
+            if ((shown[i] & STOCK_AMMO) && ammo_supported != 0) {
+                has_pda_stock = 1;
+                break;
+            }
+        }
+
+        for (int item = 0; item < VENDOR_ITEM_COUNT && !has_pda_stock; ++item) {
+            uint16_t ammo_supported;
+            memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
+
+            if (*owned(item) != 0 && ammo_supported != 0)
+                has_pda_stock = 1;
+        }
+
+        if (!has_pda_stock)
+            return;
+    }
+
+    s_open_vendor_menu(moby);
+}
 /* After a purchase the list may be shorter: the cursor stays on it and the menu redraws. */
 static void settle_menu_after_purchase(void) {
     uint8_t* menu = level_byte_at(s_disc->vendor_menu);
@@ -1111,7 +1166,8 @@ static int take(int result, const char* point) {
     )
 
 static int install_hooks(void) {
-    return HOOK(Item_Give, item_give, &s_item_give)
+    return HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
+           && HOOK(Item_Give, item_give, &s_item_give)
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
            && HOOK(Vendor_InitLevelStock, init_level_stock, &s_init_level_stock)
            && HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)
