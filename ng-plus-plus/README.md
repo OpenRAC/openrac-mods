@@ -49,13 +49,17 @@ and 9,000,000. Lancer and Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900
 - **Clank Zapper**: Alpha is for sale once it is V2.
 - **Sheepinator**: as the four-version weapons: Alpha is for sale once it is V4 (it has no Mega, so
   its prices start from 1,500,000).
-- **RYNO II**: first **RYNO II Heavy** by 30,000 experience (x1.4 damage, x1.5 ammo, orange), then
-  **RYNO II Ultima** at the vendor for 1,500,000 (its price 1,000,000 times 1.5; then Alpha
+- **RYNO II**: first **Heavy RYNO II** by 30,000 experience (x1.4 damage, x1.5 ammo, orange), then
+  **Ultima RYNO II** at the vendor for 1,500,000 (its price 1,000,000 times 1.5; then Alpha
   2,500,000, Gamma 4,000,000, Epsilon 6,000,000, Eta 9,000,000) (x2.2 damage, x2 ammo, a black and red tint), then
   Alpha (after 30,000 more experience) to Omega, each adding its gain to Ultima's. The RYNO II levels five times slower than the other weapons: its Beta, Delta, Zeta and Omega need 40,000, 60,000, 80,000 and 120,000 (WT_RYNO_EXP_SCALE in src/tiers.c).
 
-The tier's name ("Heavy Lancer Alpha": the game's name of the last version and the tier) shows at the
-top of the screen when a weapon reaches a tier and when you take a tiered weapon in hand.
+The tier takes the place of the version in the weapon's name: "Alpha Lancer", "Beta Lancer", ...
+("Heavy RYNO II", "Ultima RYNO II", "Alpha RYNO II" for the RYNO II), with the game's name of the
+weapon's first version. That name shows at the top of the screen when a weapon reaches a tier and
+when you take a tiered weapon in hand, and everywhere the game prints the weapon's name: the ammo
+pickup's message, the weapons menu, the quick select and the vendor. A name text two items share is
+left as the game has it.
 
 ### Tougher enemies each new game
 

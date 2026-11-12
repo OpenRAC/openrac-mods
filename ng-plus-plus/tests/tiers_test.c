@@ -118,11 +118,11 @@ static void ryno(void) {
     CHECK(wt_damage(WT_KIND_RYNO, 2) > wt_damage(WT_KIND_RYNO, 1));
     CHECK(wt_damage(WT_KIND_RYNO, 3) > wt_damage(WT_KIND_RYNO, 2));
     wt_display_name(name, sizeof name, "RYNO II", WT_KIND_RYNO, 1);
-    CHECK(strcmp(name, "RYNO II Heavy") == 0);
+    CHECK(strcmp(name, "Heavy RYNO II") == 0);
     wt_display_name(name, sizeof name, "RYNO II", WT_KIND_RYNO, 2);
-    CHECK(strcmp(name, "RYNO II Ultima") == 0);
+    CHECK(strcmp(name, "Ultima RYNO II") == 0);
     wt_display_name(name, sizeof name, "RYNO II", WT_KIND_RYNO, 10);
-    CHECK(strcmp(name, "RYNO II Omega") == 0);
+    CHECK(strcmp(name, "Omega RYNO II") == 0);
 }
 
 static void scaling(void) {
@@ -144,10 +144,10 @@ static void scaling(void) {
     CHECK(wt_tint_rgb(WT_KIND_FOUR, 8, 0) != wt_tint_rgb(WT_KIND_FOUR, 8, 100));
     CHECK(wt_tint_rgb(WT_KIND_FOUR, 1, 0) == wt_tint_rgb(WT_KIND_FOUR, 1, 100));
     CHECK(wt_tint_rgb(WT_KIND_RYNO, 2, 0) != wt_tint_rgb(WT_KIND_RYNO, 2, 30));
-    wt_display_name(name, sizeof name, "Heavy Lancer", WT_KIND_FOUR, 1);
-    CHECK(strcmp(name, "Heavy Lancer Alpha") == 0);
-    wt_display_name(name, sizeof name, "Heavy Lancer", WT_KIND_FOUR, 0);
-    CHECK(strcmp(name, "Heavy Lancer") == 0);
+    wt_display_name(name, sizeof name, "Lancer", WT_KIND_FOUR, 1);
+    CHECK(strcmp(name, "Alpha Lancer") == 0);
+    wt_display_name(name, sizeof name, "Lancer", WT_KIND_FOUR, 0);
+    CHECK(strcmp(name, "Lancer") == 0);
 }
 
 static void enemies(void) {

@@ -158,6 +158,12 @@ static int32_t game_text(int32_t id) {
     if (id == WT_TEXT_UPGRADE) {
         return (int32_t)MEGA_AT;
     }
+    if (id == 0x1235) {
+        return (int32_t)(TEXT_AT + 0x40); /* the Lancer's first version */
+    }
+    if (id == 0x1236) {
+        return (int32_t)(TEXT_AT + 0x80); /* the RYNO II */
+    }
     return id == 0x1234 ? (int32_t)TEXT_AT : 0;
 }
 
@@ -401,6 +407,12 @@ static void run(const char* path, const wt_disc* disc) {
     set16(row(LANCER_V4) + WT_ROW_AMMO, 500);
     set32(row(LANCER_V4) + WT_ROW_CLASS, 999);
     strcpy((char*)s_memory + TEXT_AT, "Heavy Lancer");
+    set16(row(LANCER) + WT_ROW_NAME, 0x1235);
+    set16(row(LANCER) + WT_ROW_NEXT, LANCER_V4);
+    set16(row(LANCER_V4) + WT_ROW_PARENT, LANCER);
+    strcpy((char*)s_memory + TEXT_AT + 0x40, "Lancer");
+    set16(row(RYNO) + WT_ROW_NAME, 0x1236);
+    strcpy((char*)s_memory + TEXT_AT + 0x80, "RYNO II");
     s_memory[s_disc->owned + RYNO] = 1;
     s_memory[s_disc->slot + RYNO] = RYNO;
     set16(row(RYNO) + WT_ROW_AMMO, 100);
@@ -449,7 +461,7 @@ static void run(const char* path, const wt_disc* disc) {
     /* Bought at the vendor: Alpha. The preview names it, then the list built again after it has no
      * entry for the Lancer (Beta is by experience) and the cursor stays in the list. */
     set32(row(LANCER_V4) + WT_ROW_TEXT, 0x4321);
-    CHECK(strcmp(title(0x4321), "Heavy Lancer Alpha") == 0);
+    CHECK(strcmp(title(0x4321), "Alpha Lancer") == 0);
     {
         int32_t money = 3000000;
         CHECK(purchase(&money) == 2250000);
@@ -465,9 +477,9 @@ static void run(const char* path, const wt_disc* disc) {
         );
     }
     CHECK(
-        port_text(0x4321) == 0
-    ); /* the game's own again: no entry of the mod's under the cursor */
-    CHECK(strcmp(s_notice, "Heavy Lancer Alpha") == 0);
+        strcmp(title(0x4321), "Alpha Lancer") == 0
+    ); /* no entry of the mod's: its own name, at its tier */
+    CHECK(strcmp(s_notice, "Alpha Lancer") == 0);
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 550);
     CHECK(get32(s_disc->ammo + 4u * LANCER) == 550);
@@ -480,10 +492,14 @@ static void run(const char* path, const wt_disc* disc) {
     /* Beta by experience; then Gamma for sale. */
     set32(s_disc->exp + 4u * LANCER, 7999 << 5);
     tick(1);
-    CHECK(strcmp(s_notice, "Heavy Lancer Alpha") == 0);
+    CHECK(strcmp(s_notice, "Alpha Lancer") == 0);
     set32(s_disc->exp + 4u * LANCER, 8000 << 5);
     tick(1);
-    CHECK(strcmp(s_notice, "Heavy Lancer Beta") == 0);
+    CHECK(strcmp(s_notice, "Beta Lancer") == 0);
+    /* Its name everywhere the game prints it (the ammo pickup, the menus): the tier's. */
+    CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Lancer") == 0);
+    CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Lancer") == 0);
+    CHECK(port_text(0x1236) == (int32_t)(TEXT_AT + 0x80)); /* the RYNO II has no tier yet */
     CHECK(get32(s_disc->exp + 4u * LANCER) == 0);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
     CHECK(get32(row(LANCER_V4) + WT_ROW_EXP) == 0); /* Gamma is for sale at once */
@@ -528,7 +544,7 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(strstr(s_notice, "RYNO") == NULL);
     set32(s_disc->exp + 4u * RYNO, 30000 << 5);
     tick(1);
-    CHECK(strcmp(s_notice, "RYNO II Heavy") == 0);
+    CHECK(strcmp(s_notice, "Heavy RYNO II") == 0);
     CHECK(get16(row(RYNO) + WT_ROW_AMMO) == 150);
     CHECK(get32(row(RYNO) + WT_ROW_EXP) == 0); /* Ultima is for sale at once */
 
@@ -558,12 +574,12 @@ static void run(const char* path, const wt_disc* disc) {
         CHECK(ryno_at == 3);
         set32(ui + WT_VENDOR_CURSOR, ryno_at);
     }
-    CHECK(strcmp(title(0x5555), "RYNO II Ultima") == 0);
+    CHECK(strcmp(title(0x5555), "Ultima RYNO II") == 0);
     {
         int32_t money = 10000000;
         CHECK(purchase(&money) > 0);
     }
-    CHECK(strcmp(s_notice, "RYNO II Ultima") == 0);
+    CHECK(strcmp(s_notice, "Ultima RYNO II") == 0);
     /* Bought: no entry left until Ultima is mastered (five times the others' experience). */
     CHECK(get32(ui + WT_VENDOR_COUNT) == 3);
     CHECK(get32(ui + WT_VENDOR_CURSOR) == 2); /* kept in the list */
@@ -576,14 +592,14 @@ static void run(const char* path, const wt_disc* disc) {
     ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
     CHECK(get32(ui + WT_VENDOR_COUNT) == 4);
     set32(ui + WT_VENDOR_CURSOR, 3);
-    CHECK(strcmp(title(0x5555), "RYNO II Alpha") == 0);
+    CHECK(strcmp(title(0x5555), "Alpha RYNO II") == 0);
     {
         int32_t money = 10000000;
         CHECK(purchase(&money) > 0);
     }
-    CHECK(strcmp(s_notice, "RYNO II Alpha") == 0);
+    CHECK(strcmp(s_notice, "Alpha RYNO II") == 0);
     CHECK(get32(ui + WT_VENDOR_COUNT) == 3); /* Beta is by experience: no entry */
-    CHECK(port_text(0x5555) == 0);
+    CHECK(strcmp(title(0x5555), "Alpha RYNO II") == 0);
     tick(1);
     CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000); /* toward Beta, five times the others' */
 }

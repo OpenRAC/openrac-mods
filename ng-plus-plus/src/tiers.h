@@ -127,7 +127,8 @@ int32_t wt_ammo_max(wt_kind kind, int level, int32_t base);
  * none (level 0). */
 int32_t wt_tint_rgb(wt_kind kind, int level, uint32_t tick);
 
-/* "<base> <step>" into `out` ("Heavy Lancer Alpha"), or `base` at level 0. */
+/* "<step> <base>" into `out` ("Alpha Lancer", `base` the first version's name), or `base` at
+ * level 0. */
 void wt_display_name(char* out, int size, const char* base, wt_kind kind, int level);
 
 /* ---- Enemies across new games ---- */

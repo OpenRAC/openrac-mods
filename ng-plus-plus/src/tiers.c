@@ -271,16 +271,12 @@ void wt_display_name(char* out, int size, const char* base, wt_kind kind, int le
     if (size <= 0) {
         return;
     }
-    // The RYNO II's own versions take the name the design gives them; its tiers follow Ultima.
-    if (kind == WT_KIND_RYNO && level >= 1) {
-        snprintf(out, (size_t)size, "RYNO II %s", s->name);
-        return;
-    }
+    // The tier in place of the game's version: "Alpha Lancer", "Heavy RYNO II", "Ultima RYNO II".
     if (s == NULL) {
         snprintf(out, (size_t)size, "%s", base);
         return;
     }
-    snprintf(out, (size_t)size, "%s %s", base, s->name);
+    snprintf(out, (size_t)size, "%s %s", s->name, base);
 }
 
 /* ---- Enemies ---- */

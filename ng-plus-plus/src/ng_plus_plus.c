@@ -184,13 +184,19 @@ static const uint8_t* levels(void) {
 
 /* ---- Names and notices ---- */
 
-/* "<the game's name of its last version> <tier>" for item `item` at `level`, into `out`. */
+static int version_row(int item, int version);
+
+/* "<tier> <the game's name of its first version>" for item `item` at `level`, into `out`: the tier
+ * takes the place of the version ("Alpha Lancer", not "Heavy Lancer Alpha"). */
 static void name_at(int item, int level, char* out, int size) {
     char base[48] = "";
 
     if (s_text != NULL) {
+        const int first = version_row(item, 0);
+        const openrac_gaddr named =
+            first >= 0 ? at(s_disc->weapon_table) + (uint32_t)first * WT_ROW_SIZE : row_of(item);
         ++s_in_text;
-        const int32_t text = s_text((int16_t)get_u16(row_of(item) + WT_ROW_NAME));
+        const int32_t text = s_text((int16_t)get_u16(named + WT_ROW_NAME));
         if (in_memory((uint32_t)text, sizeof base)) {
             for (size_t i = 0; i + 1 < sizeof base; ++i) {
                 const char c = (char)get_u8((openrac_gaddr)text + (uint32_t)i);
@@ -421,10 +427,45 @@ static uint32_t tier_text(int32_t id) {
     return slot_text(1, name);
 }
 
+/* The tiered name of the weapon whose last version's name is text `id` (the ammo pickup's message,
+ * the weapons menu, the quick select, ...), or 0: only a weapon with a tier, and only when no other
+ * item's row now names itself by `id`. The game prints a name at once (its text drawn or copied when
+ * looked up), so the slots 2..7 are taken in turn: six names in a row before one is written over. */
+static uint32_t weapon_name(int32_t id) {
+    int found = -1;
+    int found_row = -1;
+    for (int item = 0; item < WT_ITEMS; ++item) {
+        const int r = get_u8(at(s_disc->slot) + (uint32_t)item);
+        const openrac_gaddr row = row_of(item);
+        if (r == found_row
+            || ((int16_t)get_u16(row + WT_ROW_NAME) != id && get_s32(row + WT_ROW_TEXT) != id)) {
+            continue;
+        }
+        if (found >= 0) {
+            return 0; /* shared by two rows: left as it is */
+        }
+        found = item;
+        found_row = r;
+    }
+    if (found < 0 || wt_kind_of(found) == WT_KIND_NONE || levels()[found] == 0 || !owned(found)
+        || !at_last(found)) {
+        return 0;
+    }
+    static int next;
+    char name[WT_TEXT_SLOT_BYTES];
+    name_of(found, name, sizeof name);
+    const uint32_t a = slot_text(2 + next, name);
+    next = (next + 1) % 6;
+    return a;
+}
+
 static int32_t text_by_id(int32_t id) {
     if (s_in_text == 0) {
         ++s_in_text;
-        const uint32_t text = tier_text(id);
+        uint32_t text = tier_text(id);
+        if (text == 0) {
+            text = weapon_name(id);
+        }
         --s_in_text;
         if (text != 0) {
             return (int32_t)text;
@@ -789,7 +830,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.5")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.6")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
