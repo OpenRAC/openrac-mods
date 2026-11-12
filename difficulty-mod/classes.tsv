@@ -61,8 +61,6 @@
 36	turret	blarg_gunner	a gun emplacement (its update is the gem lock turret's)
 344	turret	blarg_gun	fixed to the level
 347	turret	dreks_fleet_turret	fixed to the ship
-1201	turret	turret	fixed to the level
-1267	turret	hoven_turret	fixed to the level
 1346	turret	gun	fixed to the level
 1051	boss	alien_queen	a boss
 1106	boss	snagglebeast	a boss
@@ -71,6 +69,8 @@
 1454	boss	rocket_tank	a boss's vehicle on Veldin
 491	excluded	ultramech_unlimited	the Ultramech fight's scripted boss on Quartu: its timing is the fight's
 419	excluded	giant_clank	the player's own giant Clank
+1201	excluded	turret	Gaspar's turret the player rides: sped up, it fired no shots
+1267	excluded	hoven_turret	Hoven's turret the player rides
 1440	excluded	veldin_robot_enemy	its update is shared with the vendor's
 8	excluded	blarg_heavy_interceptor	space combat: the ship levels are left as they are
 1417	excluded	blarg_heavy_interceptor	space combat
