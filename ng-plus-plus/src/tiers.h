@@ -75,6 +75,10 @@ typedef struct wt_step {
  * the RYNO II Ultima, and each bought tier). */
 #define WT_MASTERY_EXP 6000
 
+/* The RYNO II's experience goals (its steps by experience and its mastery) are this many times the
+ * others': it levels slower. */
+#define WT_RYNO_EXP_SCALE 5
+
 /* The kind of item `item`, WT_KIND_NONE for one the mod leaves alone. */
 wt_kind wt_kind_of(int item);
 

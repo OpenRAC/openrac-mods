@@ -406,10 +406,14 @@ static uint32_t tier_text(int32_t id) {
         return 0;
     }
     // What the vendor names an upgrade entry by: its version 2's row (1 for the two-version weapons).
+    // The RYNO II and the Zodiac have no such row: the preview's lookup (func_00288870) fails there
+    // and the game names it by its text left from before, so the item's own row's text is taken
+    // too (what the game names it by when the lookup is given a fallback).
     const wt_kind kind = wt_kind_of(item);
     const int r = version_row(item, kind == WT_KIND_TWO ? 1 : 2);
-    if (r < 0
-        || id != get_s32(at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE + WT_ROW_TEXT)) {
+    const int32_t named =
+        r >= 0 ? get_s32(at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE + WT_ROW_TEXT) : -1;
+    if (id != named && (r >= 0 || id != get_s32(row_of(item) + WT_ROW_TEXT))) {
         return 0;
     }
     char name[WT_TEXT_SLOT_BYTES];
@@ -474,9 +478,25 @@ static int32_t price(void) {
 
 static int32_t upgrade(int32_t id) {
     // The vendor's purchase of the mod's entry, paid: the step.
-    if (id >= 0 && id < WT_ITEMS && entry_under_cursor() == id && for_sale(id)) {
+    const int under = entry_under_cursor();
+    char line[128];
+    if (id >= 0 && id < WT_ITEMS && under == id && for_sale(id)) {
+        const int old = s_level[id];
         step(id);
+        snprintf(line, sizeof line, "purchase: item %d, tier %d -> %d", id, old, s_level[id]);
+        s_api->log(s_mod, OPENRAC_LOG_INFO, line);
         return 1;
+    }
+    if (under >= 0 || (id >= 0 && id < WT_ITEMS && wt_kind_of(id) != WT_KIND_NONE)) {
+        snprintf(
+            line,
+            sizeof line,
+            "purchase: item %d left to the game (entry under the cursor %d, for sale %d)",
+            id,
+            under,
+            id >= 0 && id < WT_ITEMS ? for_sale(id) : 0
+        );
+        s_api->log(s_mod, OPENRAC_LOG_INFO, line);
     }
     return s_upgrade(id);
 }
@@ -769,7 +789,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.4")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.5")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;

@@ -307,6 +307,33 @@ static int host_on_rules(openrac_mod* mod, openrac_party_rules_fn fn, void* user
     return 0;
 }
 
+/* The vendor's purchase of the entry under the cursor, in the game's order (func_002F8918): the
+ * price, Item_Give (a no-op for an owned weapon), the upgrade for an upgrade entry, the money, the
+ * list built again, the cursor kept in it, then the preview's title (the game asks for the text of
+ * the item's version 2 row, else its own row's when that lookup has none). Returns the price. */
+static int32_t purchase(int32_t* money) {
+    const uint32_t ui = s_disc->vendor;
+    const int cursor = get32(ui + WT_VENDOR_CURSOR);
+    const uint32_t e = ui + WT_VENDOR_ENTRIES + (uint32_t)cursor * WT_VENDOR_ENTRY_SIZE;
+    const int item = get32(e + WT_ENTRY_ITEM);
+    const int32_t price = ((wt_Vendor_Price)hooked_fn(WT_HOOK_Vendor_Price))();
+    if (get32(e + WT_ENTRY_UPGRADE)) {
+        ((wt_Item_Upgrade)hooked_fn(WT_HOOK_Item_Upgrade))(item);
+    }
+    *money -= price;
+    ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
+    const int count = get32(ui + WT_VENDOR_COUNT);
+    if (cursor > count - 1) {
+        set32(ui + WT_VENDOR_CURSOR, count - 1);
+    }
+    return price;
+}
+
+/* The vendor's title of the entry under the cursor, as its preview names it. */
+static const char* title(uint16_t text_id) {
+    return (const char*)s_memory + port_text(text_id);
+}
+
 static void tick(int n) {
     for (int i = 0; i < n; ++i) {
         s_frame(s_frame_user);
@@ -391,7 +418,7 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(strstr(s_notice, "Heavy") == NULL);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 500);
     /* The RYNO II's bar fills toward Heavy; the Lancer's Alpha is bought, so its bar stays full. */
-    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 6000);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000); /* five times the others' */
     CHECK(get32(row(LANCER_V4) + WT_ROW_EXP) == 0);
 
     /* The vendor: the game's two entries, then Alpha for the Lancer. */
@@ -419,9 +446,27 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(port_text(WT_TEXT_UPGRADE) == (int32_t)MEGA_AT);
     set32(ui + WT_VENDOR_CURSOR, 2);
 
-    /* Bought: Alpha. */
-    CHECK(((wt_Item_Upgrade)hooked_fn(WT_HOOK_Item_Upgrade))(LANCER) == 1);
+    /* Bought at the vendor: Alpha. The preview names it, then the list built again after it has no
+     * entry for the Lancer (Beta is by experience) and the cursor stays in the list. */
+    set32(row(LANCER_V4) + WT_ROW_TEXT, 0x4321);
+    CHECK(strcmp(title(0x4321), "Heavy Lancer Alpha") == 0);
+    {
+        int32_t money = 3000000;
+        CHECK(purchase(&money) == 2250000);
+        CHECK(money == 750000);
+    }
     CHECK(s_upgraded == -1);
+    CHECK(get32(ui + WT_VENDOR_COUNT) == 2);
+    CHECK(get32(ui + WT_VENDOR_CURSOR) == 1);
+    for (int i = 0; i < 2; ++i) {
+        CHECK(
+            get32(ui + WT_VENDOR_ENTRIES + (uint32_t)i * WT_VENDOR_ENTRY_SIZE + WT_ENTRY_UPGRADE)
+            == 0
+        );
+    }
+    CHECK(
+        port_text(0x4321) == 0
+    ); /* the game's own again: no entry of the mod's under the cursor */
     CHECK(strcmp(s_notice, "Heavy Lancer Alpha") == 0);
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 550);
@@ -478,7 +523,10 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(s_taken == 3);
 
     /* The RYNO II: Heavy by experience. */
-    set32(s_disc->exp + 4u * RYNO, 6000 << 5);
+    set32(s_disc->exp + 4u * RYNO, 29999 << 5);
+    tick(1);
+    CHECK(strstr(s_notice, "RYNO") == NULL);
+    set32(s_disc->exp + 4u * RYNO, 30000 << 5);
     tick(1);
     CHECK(strcmp(s_notice, "RYNO II Heavy") == 0);
     CHECK(get16(row(RYNO) + WT_ROW_AMMO) == 150);
@@ -490,11 +538,54 @@ static void run(const char* path, const wt_disc* disc) {
     set_clock(0);
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 500);
-    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 6000); /* toward Heavy again */
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000); /* toward Heavy again */
     set_clock(0x20);
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
     CHECK(get32(row(RYNO) + WT_ROW_EXP) == 0);
+
+    /* The RYNO II at the vendor, after the Lancer's Gamma: Ultima (it has no version 2 row: named by its own row's text). */
+    set32(row(RYNO) + WT_ROW_TEXT, 0x5555);
+    ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
+    CHECK(get32(ui + WT_VENDOR_COUNT) == 4);
+    {
+        int ryno_at = -1;
+        for (int i = 0; i < 4; ++i) {
+            if (get32(ui + WT_VENDOR_ENTRIES + (uint32_t)i * WT_VENDOR_ENTRY_SIZE) == RYNO) {
+                ryno_at = i;
+            }
+        }
+        CHECK(ryno_at == 3);
+        set32(ui + WT_VENDOR_CURSOR, ryno_at);
+    }
+    CHECK(strcmp(title(0x5555), "RYNO II Ultima") == 0);
+    {
+        int32_t money = 10000000;
+        CHECK(purchase(&money) > 0);
+    }
+    CHECK(strcmp(s_notice, "RYNO II Ultima") == 0);
+    /* Bought: no entry left until Ultima is mastered (five times the others' experience). */
+    CHECK(get32(ui + WT_VENDOR_COUNT) == 3);
+    CHECK(get32(ui + WT_VENDOR_CURSOR) == 2); /* kept in the list */
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000);
+    set32(s_disc->exp + 4u * RYNO, 29999 << 5);
+    ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
+    CHECK(get32(ui + WT_VENDOR_COUNT) == 3);
+    set32(s_disc->exp + 4u * RYNO, 30000 << 5);
+    ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
+    CHECK(get32(ui + WT_VENDOR_COUNT) == 4);
+    set32(ui + WT_VENDOR_CURSOR, 3);
+    CHECK(strcmp(title(0x5555), "RYNO II Alpha") == 0);
+    {
+        int32_t money = 10000000;
+        CHECK(purchase(&money) > 0);
+    }
+    CHECK(strcmp(s_notice, "RYNO II Alpha") == 0);
+    CHECK(get32(ui + WT_VENDOR_COUNT) == 3); /* Beta is by experience: no entry */
+    CHECK(port_text(0x5555) == 0);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000); /* toward Beta, five times the others' */
 }
 
 int main(int argc, char** argv) {

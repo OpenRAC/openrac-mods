@@ -90,16 +90,25 @@ static void prices(void) {
 static void ryno(void) {
     char name[64];
     CHECK(strcmp(wt_step_at(WT_KIND_RYNO, 0)->name, "Heavy") == 0);
-    CHECK(wt_exp_reached(WT_KIND_RYNO, 0, 1, 6000));
+    CHECK(!wt_exp_reached(WT_KIND_RYNO, 0, 1, 29999));
+    CHECK(wt_exp_reached(WT_KIND_RYNO, 0, 1, 30000));
     CHECK(!wt_can_buy(WT_KIND_RYNO, 0, 1, 1000000));
     CHECK(wt_can_buy(WT_KIND_RYNO, 1, 1, 0));  /* Ultima: Heavy reached */
     CHECK(!wt_can_buy(WT_KIND_RYNO, 2, 1, 0)); /* Alpha: Ultima must be mastered */
-    CHECK(wt_can_buy(WT_KIND_RYNO, 2, 1, WT_MASTERY_EXP));
+    CHECK(!wt_can_buy(WT_KIND_RYNO, 2, 1, WT_MASTERY_EXP));
+    CHECK(wt_can_buy(WT_KIND_RYNO, 2, 1, 30000));
     /* The bar's goal: Heavy's experience, none for Ultima (for sale at once), Ultima's mastery for
      * Alpha, a step's own by experience, none past the last. */
-    CHECK(wt_exp_goal(WT_KIND_RYNO, 0) == 6000);
+    CHECK(wt_exp_goal(WT_KIND_RYNO, 0) == 30000);
     CHECK(wt_exp_goal(WT_KIND_RYNO, 1) == 0);
-    CHECK(wt_exp_goal(WT_KIND_RYNO, 2) == WT_MASTERY_EXP);
+    CHECK(wt_exp_goal(WT_KIND_RYNO, 2) == 30000);
+    /* Beta, Delta, Zeta and Omega: five times the others'. */
+    CHECK(wt_exp_goal(WT_KIND_RYNO, 3) == 40000);
+    CHECK(wt_exp_goal(WT_KIND_RYNO, 5) == 60000);
+    CHECK(wt_exp_goal(WT_KIND_RYNO, 7) == 80000);
+    CHECK(wt_exp_goal(WT_KIND_RYNO, 9) == 120000);
+    CHECK(!wt_exp_reached(WT_KIND_RYNO, 3, 1, 39999));
+    CHECK(wt_exp_reached(WT_KIND_RYNO, 3, 1, 40000));
     CHECK(wt_exp_goal(WT_KIND_FOUR, 0) == 0);
     CHECK(wt_exp_goal(WT_KIND_FOUR, 1) == wt_step_at(WT_KIND_FOUR, 1)->exp);
     CHECK(wt_exp_goal(WT_KIND_FOUR, 2) == 0);

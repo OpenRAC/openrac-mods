@@ -154,6 +154,11 @@ int32_t wt_price(wt_kind kind, int level, int32_t mega) {
 }
 
 /* Whether the version before the step at `level` was bought (so needs mastering). */
+/* The experience goals' multiplier of kind `kind`: WT_RYNO_EXP_SCALE for the RYNO II, else 1. */
+static int32_t exp_scale(wt_kind kind) {
+    return kind == WT_KIND_RYNO ? WT_RYNO_EXP_SCALE : 1;
+}
+
 static int previous_bought(wt_kind kind, int level) {
     if (level > 0) {
         return table_step(kind, level - 1)->how == WT_BUY;
@@ -168,12 +173,12 @@ int wt_can_buy(wt_kind kind, int level, int at_last, int32_t exp) {
     if (!at_last || s == NULL || s->how != WT_BUY) {
         return 0;
     }
-    return !previous_bought(kind, level) || exp >= WT_MASTERY_EXP;
+    return !previous_bought(kind, level) || exp >= WT_MASTERY_EXP * exp_scale(kind);
 }
 
 int wt_exp_reached(wt_kind kind, int level, int at_last, int32_t exp) {
     const wt_step* s = wt_step_at(kind, level);
-    return at_last && s != NULL && s->how == WT_EXP && exp >= s->exp;
+    return at_last && s != NULL && s->how == WT_EXP && exp >= s->exp * exp_scale(kind);
 }
 
 int32_t wt_exp_goal(wt_kind kind, int level) {
@@ -183,9 +188,9 @@ int32_t wt_exp_goal(wt_kind kind, int level) {
         return 0;
     }
     if (s->how == WT_EXP) {
-        return s->exp;
+        return s->exp * exp_scale(kind);
     }
-    return previous_bought(kind, level) ? WT_MASTERY_EXP : 0;
+    return previous_bought(kind, level) ? WT_MASTERY_EXP * exp_scale(kind) : 0;
 }
 
 /* The RYNO II's tiers add their gain to Ultima's: Alpha is Ultima and a quarter more. */
