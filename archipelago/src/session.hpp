@@ -60,6 +60,9 @@ public:
     // this room's game (unless the game in progress is another seed's).
     void save_written(int card_slot);
 
+    // Only a real NewGameInit may replace another seed after a successful overwrite.
+    void start_game(bool fresh, std::vector<std::string>& out);
+
     // Which room's game each memory card slot holds: the room's seed name and the player's slot
     // name. The client keeps it in the mod's folder; changed() says it has to be written again.
     struct Book {
@@ -129,6 +132,8 @@ private:
     std::set<std::int64_t> save_;     // the last save's locations, to judge
     bool save_waiting_ = false;       // save_ not judged yet
     bool foreign_ = false;
+    bool fresh_game_ = false;
+    bool save_judged_ = false;
     int save_slot_ = -1;     // the memory card slot of save_
     int unbound_ = -1;       // a slot saved into before the room's seed was known
     std::string seed_name_;  // RoomInfo's seed_name

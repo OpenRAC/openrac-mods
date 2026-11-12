@@ -120,6 +120,11 @@ static int s_infobot = -1;
 
 /* What the server has sent this slot: each item and planet, and the gold bolts. */
 static uint8_t s_received_item[RANDO_ITEM_COUNT];
+static item_randomizer_Save_NewGame s_new_game;
+static void (*s_save_update)(void);
+static int32_t (*s_restore_data)(uint32_t, int32_t, uint32_t);
+static int s_in_game_reset;
+static int s_restoring_save;
 static uint8_t s_received_planet[LEVEL_COUNT];
 static int s_received_gold;
 static uint32_t s_generation = UINT32_MAX;
@@ -665,6 +670,7 @@ static void send_save(int card_slot) {
 }
 
 static void sync_seen(void) {
+    s_restoring_save = 0;
     for (size_t i = 0; i < rando_location_count; ++i) {
         s_seen[i] = (uint8_t)(ap_is_location(&rando_locations[i]) && had((int)i));
     }
@@ -714,7 +720,7 @@ static void watch_save_slot(int phase) {
 
     if (slot >= 0 && slot != s_slot_known) {
         s_slot_known = slot;
-        ap_client_save_written(slot);
+        /* A changed slot alone does not prove a successful overwrite. */
     }
 }
 
@@ -1043,6 +1049,44 @@ static int32_t count_gold_bolts_hook(void) {
     return s_received_gold < MAX_GOLD_BOLTS ? s_received_gold : MAX_GOLD_BOLTS;
 }
 
+static void begin_game(int fresh) {
+    ap_client_start_game(fresh);
+    s_slot_known = -1;
+    s_from_title = 1;
+    s_judge_wait = 0;
+    s_generation = UINT32_MAX;
+    s_goal = 0;
+}
+
+static void new_game(void) {
+    ++s_in_game_reset;
+    s_new_game();
+    --s_in_game_reset;
+    if (!s_in_game_reset) { s_restoring_save = 0; begin_game(1); }
+}
+
+static int32_t restore_data(uint32_t data, int32_t index, uint32_t table) {
+    if (!s_in_game_reset && !s_restoring_save) {
+        s_restoring_save = 1;
+        begin_game(0);
+    }
+    return s_restore_data(data, index, table);
+}
+
+static void save_update(void) {
+    /* memcard_update_state: state 20/substate 3 consumes the completed close.
+     * A busy tick only polls I/O. A failed write/close never reaches this success. */
+    uint8_t* mc = byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013D390u : 0x0013D290u);
+    const int done = get32(mc + 0xDC) == 20 && get32(mc + 0xE0) == 3
+        && get32(mc + 0xD4) == 0 && get32(mc + 0xC4) == 0 && get32(mc + 0xCC) == 0;
+    const int slot = get32(mc + 0x14);
+    s_save_update();
+    if (done && slot >= 0 && slot < 5 && get32(mc + 0xDC) == 0) {
+        s_slot_known = slot;
+        ap_client_save_written(slot);
+    }
+}
+
 /* ---- the goal ---- */
 
 /* Whether Drek is beaten: on Veldin (return), the scenes his update starts when he is; or, should
@@ -1202,6 +1246,12 @@ static int take(int result, const char* point) {
     )
 
 static int install_hooks(void) {
+    if (!take(s_api->hook(s_mod, "rac1.save.update_state", "void()", (void*)save_update,
+        (void**)&s_save_update), "rac1.save.update_state")
+        || !take(s_api->hook(s_mod, "rac1.save.restore_data", "i32(u32,i32,u32)", (void*)restore_data,
+        (void**)&s_restore_data), "rac1.save.restore_data")
+        || !take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGame, ITEM_RANDOMIZER_SIG_Save_NewGame,
+        (void*)new_game, (void**)&s_new_game), ITEM_RANDOMIZER_HOOK_Save_NewGame)) return 0;
     return HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
            && HOOK(Item_Give, item_give, &s_item_give)
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
