@@ -911,6 +911,18 @@ int main(int argc, char** argv) {
     }
     CHECK(bolts_now() == 30);
     g_rules_fn(nullptr, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
+    // The host left and this game took over (0 bytes, not null): it publishes the party's rules as
+    // its own and makes the copies from the next level on.
+    const int publishes = g_publishes;
+    static const std::uint8_t kTakeOver = 0;
+    g_rules_fn(nullptr, &kTakeOver, 0);
+    CHECK(g_publishes == publishes + 1);
+    dm::PartyRules taken;
+    CHECK(dm::decode_party_rules(g_published.data(), static_cast<std::uint32_t>(g_published.size()), taken));
+    CHECK(taken.seed == host.seed && taken.sliders[dm::ENEMY_COUNT] == 2.0 && taken.sliders[dm::BOLTS] == 3.0);
+    lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created > 0);
     // The party gone: this game's own settings again, here retail.
     g_rules_fn(nullptr, nullptr, 0);
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);

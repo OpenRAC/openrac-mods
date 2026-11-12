@@ -26,9 +26,11 @@ compared: the seed is the host's, and the log is your own. Everyone then plays b
 so a blank seed is the host's for everyone and each level rolls the same Chaos values in every game.
 Only the host's game makes copies of enemies or leaves some out (the others show the host's), enemy
 speed and bolt drops are the host's since its game runs them, and the host's game decides the Chaos
-events, which reach everyone as they start and end (an event whose end never comes, as when another
-player takes over as host during it, ends in each game after 90 seconds of play). With no party the
-mod works as below.
+events, which reach everyone as they start and end. When the host leaves and another player takes
+over, that player's game plays on by the same rules and does what the host did: the events, and the
+copies from the next level on. An event whose end never comes (a host on an older Multiplayer that
+does not hand the rules over) ends in each game after 90 seconds of play. With no party the mod
+works as below.
 
 ## Playing
 

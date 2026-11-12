@@ -24,6 +24,7 @@ struct Session {
     bool chaos = false;
     Values sliders = retail();
     std::uint64_t seed = 0;
+    std::uint64_t own_seed = 0;  // this game's own, kept while it plays by a party's
     bool trace = false;
     bool events_on = false;
 
@@ -38,6 +39,8 @@ struct Session {
     // The seconds of play the host's event has been on here: one far past an event's length is
     // ended here (a host that took over passes on the rules as they were, the event never ending).
     double event_held = 0.0;
+    // It took over as the party's host (the old host left), playing on by the party's rules.
+    bool took_over = false;
 
     // The knobs this game honours (rules.h: a bit each): the log names only these, and the events
     // of others are never picked.

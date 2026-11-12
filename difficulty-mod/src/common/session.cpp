@@ -25,6 +25,20 @@ constexpr double kDefaultEventGap = 180.0;
 // A host's event on for this many times an event's length (in this game's play) is taken as over.
 constexpr double kEventHeldLimit = 2.0;
 
+// This game's own settings: Chaos, the sliders, the seed (as resolved at the start) and the
+// events.
+void read_own(Session& s) {
+    s.chaos = s.mod->setting<bool>("chaos");
+
+    // Each slider's setting.
+    for (int k = 0; k < KNOB_COUNT; ++k) {
+        s.sliders[k] = clamp_knob(k, s.mod->setting<double>(k_knobs[k].key));
+    }
+
+    s.seed = s.own_seed;
+    s.events_on = s.mod->setting<bool>("chaos_events");
+}
+
 // The events' clock as at a start.
 void reset_clock(Session& s) {
     s.clock = EventClock{};
@@ -50,18 +64,73 @@ void publish_rules(Session& s) {
     s.mod->party_rules_publish(encode_party_rules(r), party_rules_text(r));
 }
 
+// This game hosts the party now (the old host left): the party's rules become its own, the event
+// on goes on for a whole event's length from here, and the next starts a gap after it.
+void take_over(Session& s) {
+    s.follow = false;
+    s.took_over = true;
+    s.chaos = s.rules.chaos;
+    s.sliders = s.rules.sliders;
+    s.seed = s.rules.seed;
+    s.events_on = s.rules.events;
+    const int event = s.clock.current;
+    s.clock = EventClock{};
+    s.clock.seed = mix(s.seed, kEventClockSalt);
+    s.clock.knobs = s.knobs;
+    s.clock.every = kSecondsPerMinute * static_cast<double>(s.rules.minutes);
+
+    // Not a gap the settings allow: the default.
+    if (!(s.clock.every >= kSecondsPerMinute)) {
+        s.clock.every = kDefaultEventGap;
+    }
+
+    // An event on: it ends an event's length from now.
+    if (event >= 0 && s.events_on) {
+        s.clock.current = event;
+        s.clock.ends = s.clock.lasts;
+    }
+
+    set_active();
+    publish_rules(s);
+    s.mod->info(
+        "this game hosts the party now: it plays on by the party's rules, seed " + seed_code(s.seed)
+    );
+}
+
 // The host's rules reached this game, or (none) the party went and its own count again from the
-// next level loaded. An event starting or ending in the host's game comes this way too.
+// next level loaded. An event starting or ending in the host's game comes this way too, and (0
+// bytes) word that this game took over as host.
 void on_party_rules(void*, const void* data, std::uint32_t size) {
     Session& s = session();
 
     if (data == nullptr) {
+        // It had taken over as host: its own settings again, from the next level loaded.
+        if (s.took_over) {
+            s.took_over = false;
+            read_own(s);
+            reset_clock(s);
+            set_active();
+            publish_rules(s);
+            s.mod->info("out of the party: this game's own settings count again");
+        }
+
         // Only a member that took rules has any to leave.
         if (s.follow) {
             s.follow = false;
             reset_clock(s);
             set_active();
             s.mod->info("out of the party: this game's own settings count again");
+        }
+
+        return;
+    }
+
+    // 0 bytes, not null: this game took over as the party's host. It keeps the party's rules as
+    // its own, runs the events (and, in a level loaded from now on, the copies) a host runs, and
+    // publishes them for the members.
+    if (size == 0) {
+        if (s.follow) {
+            take_over(s);
         }
 
         return;
@@ -140,13 +209,6 @@ void start(openrac::Mod& mod, unsigned knobs) {
     Session& s = session();
     s.mod = &mod;
     s.knobs = knobs;
-    s.chaos = mod.setting<bool>("chaos");
-
-    // Each slider's setting.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
-        s.sliders[k] = clamp_knob(k, mod.setting<double>(k_knobs[k].key));
-    }
-
     const std::string seed_text = mod.setting<std::string>("seed");
 
     // Blank: a new seed from the machine and the time, shown in the log to play it again.
@@ -158,8 +220,9 @@ void start(openrac::Mod& mod, unsigned knobs) {
         s.seed = seed_from_text(seed_text);
     }
 
+    s.own_seed = s.seed;
+    read_own(s);
     s.trace = mod.setting<bool>("trace");
-    s.events_on = mod.setting<bool>("chaos_events");
     reset_clock(s);
     s.level = effective(s.chaos, s.sliders, s.seed, -1);
     set_active();
