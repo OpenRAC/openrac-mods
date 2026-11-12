@@ -21,10 +21,8 @@ menu, then **Options**, then **Cheats**:
 | Refill ammo | Fills every weapon you own to its most |
 | Give 10000 bolts | Adds 10,000 bolts |
 
-The page and the launcher's settings stay in step (below, "In step with the launcher"): what you
-switch on the page is saved as the mod's settings, so the launcher shows it and the next start
-begins with it, and a cheat changed in the launcher while the game runs is taken within a second.
-The settings:
+The launcher's settings say what is on at the start. A cheat switched on the page lasts until the
+game closes; it is not written back to the launcher. The settings:
 
 | Setting | Default | |
 |---|---|---|
@@ -87,27 +85,6 @@ player does (`src/common/pad_intent.cpp`):
   forward;
 - a button is chosen by Cross only, or by a press the pad does not show (a mouse click, a touch).
 
-### In step with the launcher
-
-The launcher keeps each mod's settings in the game's list of mods,
-`<data>/plugins/plugins.json`, which the port reads when the game starts. OpenRAC's interface has
-no call yet for a mod to change its own settings (docs/port/MODS.md, section 12, "settings in the
-game"), so the mod edits that file itself, the way the launcher does
-(`src/common/settings_file.cpp`):
-
-- it finds the list in the folder the port names (`plugins_folder`, interface 1.14), else beside
-  its own folder: the library is `<plugins>/cheats/lib/<platform>/...`, and the list is used only
-  when that folder holds the mod's manifest and the list is there. A library loaded from
-  elsewhere (a build folder) keeps its cheats for the run, and the log says so;
-- a cheat switched on the page writes the four cheats' settings (`invincible`, `infinite_ammo`,
-  `infinite_air`, `bolt_multiplier`) into the mod's entry, every other mod and setting kept, as a
-  whole file written beside the list and renamed over it;
-- about twice a second it looks at the list's time; when it changed and holds other cheats (the
-  launcher's Mods tab), it takes them, the page and the HUD's line following.
-
-The launcher reads the list again when its Mods tab is opened: a cheat switched in the game shows
-there from then on.
-
 The addresses (`src/rac1/discs.h`) are the ones the difficulty, ammo-max and item randomizer mods
 already use, from the decompilation.
 
@@ -116,8 +93,6 @@ already use, from the decompilation.
 As every native mod here (the repository's [README](../README.md#building)). The tests:
 
 - `cheats_cheats`: the shared part alone (the multiplier's steps, the bolts added, the HUD's line);
-- `cheats_settings_file`: the launcher's list read and written (every other mod and setting kept),
-  followed on disk, and found beside the mod's folder;
 - `cheats_rac1_load`: the library as the port loads it, against a host table and game memory of
   the test's own, on both discs (the hooks, the page's rows and buttons, the air, the HUD's line).
 

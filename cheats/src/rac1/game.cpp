@@ -15,13 +15,9 @@
 // The pause menu's Options page has a Cheats item (interface 1.9) whose page switches them, and
 // two buttons: a refill of every owned weapon's ammo to its max, and a gift of bolts. The settings
 // say what is on at the start. A line in the HUD (interface 1.12) names what is on.
-//
-// The cheats stay in step with the launcher's list of mods (settings_file.h): one switched on the
-// page is written there, and one changed in the launcher while the game runs is taken.
 #include "game.h"
 
 #include <cstdint>
-#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
@@ -30,7 +26,6 @@
 #include "discs.h"
 #include "openrac/games/rac1.hpp"
 #include "pad_intent.h"
-#include "settings_file.h"
 
 namespace {
 
@@ -73,16 +68,6 @@ bool s_has_page;
 std::string s_shown;
 uint32_t s_shown_loads;
 bool s_shown_once;
-
-// The mod's id, as its manifest and the launcher's list name it.
-constexpr const char* kModId = "cheats";
-
-// The launcher's list of mods, followed; the ticks until it is looked at again (about twice a
-// second), and whether a write it refused was logged already.
-constexpr int kSyncTicks = 30;
-cheats::SettingsFile s_sync;
-int s_sync_wait;
-bool s_sync_warned;
 
 // What the first pad's last report says the player does (pad_intent.h).
 cheats::Intent s_intent = cheats::Intent::Unknown;
@@ -213,89 +198,6 @@ void show_status() {
 
 void show_page();
 
-// Writes the cheats on now into the launcher's list, so it shows them and the next start has them.
-void save_settings() {
-    std::string error;
-
-    // Written, or no list followed.
-    if (!s_sync.ready() || s_sync.save(s_state, error)) {
-        s_sync_warned = false;
-        return;
-    }
-
-    // Said once until a write works again.
-    if (!s_sync_warned) {
-        s_mod->warn("the cheats are not written to the launcher's list: " + error);
-        s_sync_warned = true;
-    }
-}
-
-// Finds the launcher's list of mods: the folder the port says (interface 1.14), else the one the
-// mod's own library is in.
-void open_settings(openrac::Mod& mod) {
-    s_sync = {};
-    s_sync_wait = kSyncTicks;
-    s_sync_warned = false;
-    std::optional<std::filesystem::path> list;
-    const std::string folder = mod.plugins_folder();
-
-    // The port says where the mods are.
-    if (!folder.empty()) {
-        const std::filesystem::path path = std::filesystem::path(folder) / "plugins.json";
-        std::error_code e;
-
-        // The list is there.
-        if (std::filesystem::is_regular_file(path, e)) {
-            list = path;
-        }
-    }
-
-    // Else beside the mod's own folder, as the launcher installs it.
-    if (!list) {
-        const std::optional<std::filesystem::path> library = cheats::own_library();
-
-        // The system says where the library is.
-        if (library) {
-            list = cheats::list_beside(*library, kModId);
-        }
-    }
-
-    // No list: the cheats stay this run's (a library loaded from elsewhere).
-    if (!list) {
-        mod.info("no launcher list of mods found: the cheats switched here stay for this run");
-        return;
-    }
-
-    s_sync.open(*list, kModId);
-    trace("the cheats are kept in step with " + list->string());
-}
-
-// Takes cheats the launcher changed while the game runs, about twice a second.
-void follow_settings() {
-    // Not yet time to look.
-    if (--s_sync_wait > 0) {
-        return;
-    }
-
-    s_sync_wait = kSyncTicks;
-    const bool had_ammo = s_state.infinite_ammo;
-
-    // The launcher's list holds other cheats now.
-    if (!s_sync.poll(s_state)) {
-        return;
-    }
-
-    const std::string now = cheats::status_line(s_state);
-    trace("cheats from the launcher: " + (now.empty() ? std::string("none") : now));
-
-    // Switched on: every weapon starts full, as from the page.
-    if (s_state.infinite_ammo && !had_ammo) {
-        refill_ammo();
-    }
-
-    show_page();
-}
-
 // Puts the cheats on now on the pause page.
 void show_page() {
     // No page: nothing to show.
@@ -400,7 +302,6 @@ void on_page(const openrac::UiPage&, const openrac::UiEvent& event) {
 
         // The page shows the cheats (the port may have shown another step).
         show_page();
-        save_settings();
         return;
     }
 
@@ -526,8 +427,6 @@ void rac1_load(openrac::Mod& mod) {
 
     add_page(mod);
 
-    open_settings(mod);
-
     // Each report of the first pad, the one the menus read: what the player does on the page. The
     // report itself is left as it is.
     s_intent = cheats::Intent::Unknown;
@@ -538,10 +437,9 @@ void rac1_load(openrac::Mod& mod) {
         }
     });
 
-    // After each tick: the launcher's changes taken, the hero's air kept full, and the HUD's line
-    // following the cheats and the level loads.
+    // After each tick: the hero's air kept full, and the HUD's line following the cheats and the
+    // level loads.
     mod.on_frame([] {
-        follow_settings();
         keep_air();
         show_status();
     });

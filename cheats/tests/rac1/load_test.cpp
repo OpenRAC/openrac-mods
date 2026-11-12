@@ -641,53 +641,10 @@ int main(int argc, char** argv) {
     damage(1);
     CHECK(g_damage_calls.empty());
 
-    // In step with the launcher's list, in the folder the port says the mods are in.
     g_refuse_pause = false;
     g_bools.clear();
     g_strings.clear();
     g_bools["show_status"] = 1;
-    std::random_device random;
-    const fs::path dir = fs::temp_directory_path() / ("cheats-load-" + std::to_string(random()));
-    fs::create_directories(dir);
-    const fs::path list = dir / "plugins.json";
-    write_text(
-        list,
-        R"({"format": 1, "mods": [{"id": "other", "enabled": true, "settings": {"x": 1}},)"
-        R"( {"id": "cheats", "enabled": true, "settings": {"trace": true}}]})"
-    );
-    g_plugins_dir = dir.string();
-    CHECK(load_with("rac1", "pal") && g_failed.empty());
-    lay_weapons();
-    damage = reinterpret_cast<DamageFn>(hook("rac1.player.take_damage"));
-
-    // A cheat switched on the page is written into the list, the other mod's entry kept.
-    page_event(OPENRAC_UI_CHANGE, 0, 1);
-    std::string text = read_text(list);
-    CHECK(text.find("\"invincible\": true") != std::string::npos);
-    CHECK(
-        text.find("\"other\"") != std::string::npos && text.find("\"x\": 1") != std::string::npos
-    );
-    CHECK(text.find("\"trace\": true") != std::string::npos);
-
-    // The launcher changes them while the game runs: taken within a second of ticks, the page
-    // showing them, invincibility off and infinite ammo filling the weapons.
-    text.replace(text.find("\"invincible\": true"), 18, "\"invincible\": false");
-    text.replace(text.find("\"infinite_ammo\": false"), 22, "\"infinite_ammo\": true");
-    text.replace(text.find("\"bolt_multiplier\": \"1\""), 22, "\"bolt_multiplier\": \"5\"");
-    write_text(list, text);
-    fs::last_write_time(list, fs::last_write_time(list) + std::chrono::seconds(5));
-
-    // About a second of ticks.
-    for (int i = 0; i < 60; ++i) {
-        g_frame(g_frame_user);
-    }
-
-    CHECK(g_shown.choices[0] == 0 && g_shown.choices[1] == 1 && g_shown.choices[3] == 3);
-    CHECK(ammo(2) == 40);
-    g_damage_calls.clear();
-    damage(1);
-    CHECK(g_damage_calls.size() == 1);
-    CHECK(g_hud_text == "Cheats: infinite ammo, bolts x5");
 
     // The page and the stick: the port steps the row the cursor arrives at when the stick pushed
     // down leans a little sideways (the game makes it Right too). Pushed more down than sideways,
@@ -736,12 +693,8 @@ int main(int argc, char** argv) {
     page_event(OPENRAC_UI_CHOOSE, 5, 0);
     CHECK(g_bolts == 10000);
 
-    // Without a list (no folder said, and the library not in a mod's folder): it loads, the cheats
-    // this run's.
-    g_plugins_dir.clear();
+    // The other disc loads too.
     CHECK(load_with("rac1", "ntsc") && g_failed.empty());
-    page_event(OPENRAC_UI_CHANGE, 0, 1);
-    fs::remove_all(dir);
 
     std::puts("cheats rac1 load: ok");
     return 0;

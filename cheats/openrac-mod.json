@@ -4,7 +4,7 @@
   "name": "Cheats",
   "version": "0.3.1",
   "author": "farfeduc",
-  "description": "Cheats you switch on and off while you play, from Cheats in the pause menu's Options: invincibility, infinite ammo, infinite oxygen under water, a bolt multiplier (x2 to x100), and buttons that refill every weapon's ammo and give 10,000 bolts. The settings here and the pause menu stay in step: a cheat switched in the game is saved here for the next start, and one changed here while the game runs is taken at once. A line in the HUD says which cheats are on.",
+  "description": "Cheats you switch on and off while you play, from Cheats in the pause menu's Options: invincibility, infinite ammo, infinite oxygen under water, a bolt multiplier (x2 to x100), and buttons that refill every weapon's ammo and give 10,000 bolts. The settings here say what is on at the start. A line in the HUD says which cheats are on.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/cheats",
   "api": "1.12",
