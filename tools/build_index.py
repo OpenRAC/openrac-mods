@@ -660,12 +660,26 @@ def short_description(text: str) -> str:
     return cut[:cut.rfind(" ")].rstrip(",;:") + "…"
 
 
+def archive_hashes(v: dict) -> dict:
+    """{platform: sha256} of a version's archives: what a review approves."""
+    return {p: a["sha256"] for p, a in v["platforms"].items()}
+
+
+def approval(approved: list, version: str) -> str | dict | None:
+    """The approved.json item of `version`: a dict with the reviewed hashes, or (older approvals)
+    the bare version string."""
+    return next((a for a in approved if (a["version"] if isinstance(a, dict) else a) == version), None)
+
+
 def held(entry: dict, v: dict, kind: str, hold: dict | None) -> str | None:
     """Why a new version waits (cool-down for external native mods), or None to publish it."""
     if hold is None or entry["local"] is not None or kind != "native":
         return None
-    if v["version"] not in hold["approved"].get(entry["id"], []):
+    ok = approval(hold["approved"].get(entry["id"], []), v["version"])
+    if ok is None:
         return "waits for a maintainer's review (index/approved.json)"
+    if isinstance(ok, dict) and ok["sha256"] != archive_hashes(v):
+        return "has archives that differ from the reviewed ones (index/approved.json)"
     released = dt.datetime.fromisoformat(v["released"].replace("Z", "+00:00")).timestamp() if v["released"] else 0
     if hold["now"] - released < COOL_DOWN:
         return "is less than 1 h old"
@@ -730,7 +744,8 @@ def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None
             log(f"{mid}: {v['version']} not published yet: it {why}")
             hold["review"].append({"id": mid, "name": head.get("name", mid), "repo": entry["repo"],
                                    "version": v["version"], "tag": tag, "released": v["released"],
-                                   "changelog": v["changelog"], "platforms": v["platforms"]})
+                                   "changelog": v["changelog"], "platforms": v["platforms"],
+                                   "changed": approval(hold["approved"].get(mid, []), v["version"]) is not None})
             continue
         versions.append(v)
     if not versions and head_f["type"] == "script":
@@ -939,18 +954,29 @@ def update_stats(stats: dict | None, totals: dict[str, int], now: dt.datetime) -
 
 
 def load_map(path: Path, kind) -> dict:
-    """index/approved.json ({id: [versions]}) or index/discussions.json ({id: number})."""
+    """index/approved.json ({id: [{version, sha256: {platform: hash}} or an older bare version]})
+    or index/discussions.json ({id: number})."""
     if not path.is_file():
         return {}
     data = read_json(path)
     ok = isinstance(data, dict) and all(isinstance(k, str) and ID_RE.match(k) for k in data)
     if kind is list:
-        ok = ok and all(isinstance(v, list) and all(SEMVER_RE.match(str(x)) for x in v) for v in data.values())
+        ok = ok and all(isinstance(v, list) and all(approval_ok(x) for x in v) for v in data.values())
     else:
         ok = ok and all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in data.values())
     if not ok:
-        raise EntryError(f"index/{path.name}: must be " + ('{"<id>": ["1.2.0"]}' if kind is list else '{"<id>": 12}'))
+        raise EntryError(f"index/{path.name}: must be " + (
+            '{"<id>": [{"version": "1.2.0", "sha256": {"<platform>": "<hash>"}}]}' if kind is list else '{"<id>": 12}'))
     return data
+
+
+def approval_ok(x) -> bool:
+    """One approved.json item: a version with its reviewed archive hashes, or a bare version."""
+    if isinstance(x, str):
+        return bool(SEMVER_RE.match(x))
+    return (isinstance(x, dict) and set(x) == {"version", "sha256"} and isinstance(x["version"], str)
+            and bool(SEMVER_RE.match(x["version"])) and isinstance(x["sha256"], dict) and bool(x["sha256"])
+            and all(p in PLATFORMS and isinstance(h, str) and HEX64.match(h) for p, h in x["sha256"].items()))
 
 
 def load_revoked(root: Path) -> list[dict]:

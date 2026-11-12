@@ -714,7 +714,29 @@ def review_body(item: dict) -> str:
             f"- Release: {item['repo']}/releases/tag/{item['tag']} ({item['released']})\n\n"
             f"| Platform | Archive | SHA-256 | Bytes |\n|---|---|---|---|\n{rows}\n\n"
             f"Changelog:\n\n{fence}\n{item.get('changelog', '')}\n{fence}\n\n"
-            f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 1 h after its release.\n")
+            f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 1 h after its release, "
+            f"and only with these exact archives.\n\n"
+            f"{REVIEW_MARK}{json.dumps({'sha256': b.archive_hashes(item)}, sort_keys=True)} -->\n")
+
+
+REVIEW_MARK = "<!-- openrac-review "
+
+
+def reviewed_hashes(body: str | None) -> dict | None:
+    """The archive hashes a review issue shows, from its last line (the bot writes it; the changelog
+    above it is the author's text, so only the last line counts)."""
+    lines = (body or "").strip().splitlines()
+    last = lines[-1] if lines else ""
+    if not (last.startswith(REVIEW_MARK) and last.endswith(" -->")):
+        return None
+    try:
+        data = json.loads(last[len(REVIEW_MARK):-4])
+    except ValueError:
+        return None
+    sha = data.get("sha256") if isinstance(data, dict) else None
+    ok = isinstance(sha, dict) and sha and all(p in b.PLATFORMS and isinstance(h, str) and b.HEX64.match(h)
+                                              for p, h in sha.items())
+    return sha if ok else None
 
 
 def review(items: list[dict], run=run_cmd) -> int:
@@ -723,13 +745,28 @@ def review(items: list[dict], run=run_cmd) -> int:
     for item in items:
         title = review_title(item)
         found = json.loads(run(["gh", "issue", "list", "--label", "mod-review", "--state", "all", "--search",
-                                f"\"{title}\" in:title", "--json", "number,title,state"]) or "[]")
+                                f"\"{title}\" in:title", "--json", "number,title,state,body"]) or "[]")
         same = [i for i in found if i["title"] == title]
         body = review_body(item)
         if not same:
             run(["gh", "issue", "create", "--title", title, "--label", "mod-review", "--body-file", "-"], input=body)
-        elif same[0]["state"] == "OPEN":
-            run(["gh", "issue", "edit", str(same[0]["number"]), "--body-file", "-"], input=body)
+            continue
+        num, was = str(same[0]["number"]), reviewed_hashes(same[0].get("body"))
+        changed = was is not None and was != b.archive_hashes(item)
+        if same[0]["state"] == "OPEN":
+            run(["gh", "issue", "edit", num, "--body-file", "-"], input=body)
+            if changed:
+                run(["gh", "issue", "edit", num, "--remove-label", "approved"], check=False)
+                run(["gh", "issue", "comment", num, "--body",
+                     "The release's archives changed while this issue was open. Review them again."])
+        elif item.get("changed") and changed:
+            # Approved, then the author replaced an archive: it is not published until reviewed again.
+            # Only once per change: a maintainer who closes it again (rejected) is not asked every hour.
+            run(["gh", "issue", "reopen", num])
+            run(["gh", "issue", "edit", num, "--remove-label", "approved", "--body-file", "-"], input=body)
+            run(["gh", "issue", "comment", num, "--body",
+                 f"{MAINTAINERS}: the release's archives changed after they were approved. "
+                 "Players keep the last published version until this one is reviewed again."])
     return 0
 
 
@@ -749,13 +786,22 @@ def approve(event: dict, repo: Path, http: b.Http, run=run_cmd) -> int:
         run(["gh", "issue", "edit", num, "--remove-label", "approved"], check=False)
         return 0
     mid, version = m.group(1), m.group(2)
+    sha = reviewed_hashes(issue.get("body"))
+    if sha is None:
+        run(["gh", "issue", "comment", num, "--body",
+             "This issue shows no archive hashes yet. Apply the label again after the next index build."])
+        run(["gh", "issue", "edit", num, "--remove-label", "approved"], check=False)
+        return 0
     path = repo / "index" / "approved.json"
+    item = {"version": version, "sha256": sha}
 
     def write() -> bool:
         data = json.loads(path.read_text()) if path.is_file() else {}
-        if version in data.get(mid, []):
+        have = data.get(mid, [])
+        if item in have:
             return False
-        data[mid] = sorted(set(data.get(mid, [])) | {version}, key=b.semver_key)
+        rest = [a for a in have if (a["version"] if isinstance(a, dict) else a) != version]
+        data[mid] = sorted(rest + [item], key=lambda a: b.semver_key(a["version"] if isinstance(a, dict) else a))
         path.write_text(json.dumps(dict(sorted(data.items())), indent=2) + "\n")
         return True
 
