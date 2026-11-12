@@ -293,6 +293,10 @@ constexpr uint32_t kVecSize = 16u;
 // a tick, if no wall is in the way. Stacked, they hid each other and caught each other's shots.
 constexpr float kApartGap = 2.0f;
 constexpr float kApartStep = 0.1f;
+// Nearer than this is on top of each other; the ground at the new place may differ by this much.
+constexpr float kApartSame = 1e-3f;
+constexpr float kApartFloorTolerance = 0.5f;
+constexpr float kRadiansPerDegree = 0.017453292f;
 
 // ---- State ----
 
@@ -332,9 +336,10 @@ std::unordered_map<uint32_t, std::pair<float, float>> s_anim;
 // How deep an enemy's update called from another's is, so that the time is scaled only once.
 int s_timed_depth;
 
-// This level's copies: each copy's original, and each original's copies. Game thread only.
-std::unordered_map<uint32_t, uint32_t> s_original_of;
-std::unordered_map<uint32_t, std::vector<uint32_t>> s_copies_of;
+// This level's copies (each copy's class), and every enemy of a copied class (the level's own and
+// the copies), which a copy keeps apart from. Game thread only.
+std::unordered_map<uint32_t, int16_t> s_copy_class;
+std::unordered_map<int16_t, std::vector<uint32_t>> s_class_members;
 
 // The classes by id (classes.h).
 std::unordered_map<int, const dm_class*> s_classes;
@@ -572,49 +577,65 @@ bool alive_as(uint32_t moby, int16_t cls) {
            && get<int16_t>(moby + kMobyClass) == cls;
 }
 
-// After a copy's update: moved a little away from its original and the other copies of it that
-// stand within kApartGap of it. Originals are never moved, so the game's own enemies stay 1:1.
+// A copy the mod made, still in its slot: alive, of its class, with the copy's empty save id (a
+// moby the game puts in a freed slot gets its own).
+bool still_copy(uint32_t moby, int16_t cls) {
+    return alive_as(moby, cls) && get<uint8_t>(moby + kMobySaveByte) == kNoSaveByte
+           && get<uint16_t>(moby + kMobySaveWord) == kNoSaveWord;
+}
+
+// The ground under (x, y) from half a unit over z, read with the frame's vector at `at`.
+float ground_at(gaddr at, float x, float y, float z) {
+    put<float>(at, x);
+    put<float>(at + kVecY, y);
+    put<float>(at + kVecZ, z + kSpotProbeHeight);
+    put<float>(at + kVecW, 0.0f);
+    return s_ground(at, 0, 1.0f);
+}
+
+// After a copy's update: moved a little away from the enemies of its class (originals and copies)
+// that stand within kApartGap of it, when no wall is in the way and the ground there is the
+// ground it stands over. Originals are never moved, so the game's own enemies stay as they were.
 void keep_apart(uint32_t moby) {
-    const auto of = s_original_of.find(moby);
+    const auto of = s_copy_class.find(moby);
 
     // Not a copy.
-    if (of == s_original_of.end()) {
+    if (of == s_copy_class.end()) {
         return;
     }
 
-    const int16_t cls = get<int16_t>(of->second + kMobyClass);
+    const int16_t cls = of->second;
 
-    // Its slot was freed or reused: no longer a copy.
-    if (!alive_as(moby, cls)) {
-        s_original_of.erase(of);
+    // Its slot was freed or given to another moby: no longer a copy.
+    if (!still_copy(moby, cls)) {
+        s_copy_class.erase(of);
         return;
     }
 
     const float x = get<float>(moby + kMobyX), y = get<float>(moby + kMobyY),
                 z = get<float>(moby + kMobyZ);
     float push_x = 0.0f, push_y = 0.0f;
-    std::vector<uint32_t> family{of->second};
-    const auto& copies = s_copies_of[of->second];
-    family.insert(family.end(), copies.begin(), copies.end());
 
-    // Each other moby of the family within the gap: away from it, more the nearer.
-    for (const uint32_t other : family) {
+    // Each other enemy of the class within the gap: away from it, more the nearer.
+    for (const uint32_t other : s_class_members[cls]) {
         // Itself, or one that is gone.
         if (other == moby || !alive_as(other, cls)) {
             continue;
         }
 
         const float dx = x - get<float>(other + kMobyX), dy = y - get<float>(other + kMobyY);
-        const float d = std::sqrt(dx * dx + dy * dy);
+        const float d2 = dx * dx + dy * dy;
 
         // Far enough apart, or on another floor.
-        if (d >= kApartGap || std::fabs(z - get<float>(other + kMobyZ)) >= kApartGap) {
+        if (d2 >= kApartGap * kApartGap || std::fabs(z - get<float>(other + kMobyZ)) >= kApartGap) {
             continue;
         }
 
-        // Exactly on top: away along a direction of its own.
-        if (d < 1e-3f) {
-            const float angle = static_cast<float>(moby % 360u) * 0.017453292f;
+        const float d = std::sqrt(d2);
+
+        // Exactly on top: away along a direction of its own (its slot's, so it holds every tick).
+        if (d < kApartSame) {
+            const float angle = static_cast<float>((moby >> 8) % 360u) * kRadiansPerDegree;
             push_x += std::cos(angle) * kApartGap;
             push_y += std::sin(angle) * kApartGap;
         } else {
@@ -626,7 +647,7 @@ void keep_apart(uint32_t moby) {
     const float length = std::sqrt(push_x * push_x + push_y * push_y);
 
     // Nothing near.
-    if (length < 1e-4f) {
+    if (!(length > kApartSame)) {
         return;
     }
 
@@ -634,14 +655,19 @@ void keep_apart(uint32_t moby) {
     const float nx = x + push_x * step, ny = y + push_y * step;
     openrac::StackFrame frame(*s_mod, kSpotFrameBytes);
     const gaddr a = frame.address(), b = a + kVecSize;
+    const float here = ground_at(a, x, y, z), there = ground_at(b, nx, ny, z);
+
+    // No ground under the new place, or ground of another height (a ledge, a step): it stays.
+    if (!(there > 0.0f) || !(here > 0.0f) || std::fabs(there - here) > kApartFloorTolerance) {
+        return;
+    }
+
     put<float>(a, x);
     put<float>(a + kVecY, y);
     put<float>(a + kVecZ, z + kSpotLineHeight);
-    put<float>(a + kVecW, 0.0f);
     put<float>(b, nx);
     put<float>(b + kVecY, ny);
     put<float>(b + kVecZ, z + kSpotLineHeight);
-    put<float>(b + kVecW, 0.0f);
 
     // A wall on the way: it stays.
     if (s_line(a, b, 0, moby, 0) != 0) {
@@ -897,12 +923,15 @@ bool find_spot(gaddr orig, int copy, float out[3]) {
             continue;
         }
 
-        // Too near a copy of it already made: the next angle.
+        // Too near an enemy of its class (one of the level's, or a copy already made): the next
+        // angle.
         bool crowded = false;
 
-        for (const uint32_t made : s_copies_of[orig]) {
+        for (const uint32_t made : s_class_members[get<int16_t>(orig + kMobyClass)]) {
             const float dx = cx - get<float>(made + kMobyX), dy = cy - get<float>(made + kMobyY);
-            crowded = crowded || dx * dx + dy * dy < kApartGap * kApartGap;
+            crowded = crowded
+                      || (dx * dx + dy * dy < kApartGap * kApartGap
+                          && std::fabs(floor + over - get<float>(made + kMobyZ)) < kApartGap);
         }
 
         if (crowded) {
@@ -1091,8 +1120,8 @@ Fixups read_fixups(gaddr hdr, gaddr table, const dm::Pool& pool) {
 // budget. Leaves the level as it is when the pool or the file is not as expected.
 void adjust_enemies(int level) {
     const double k = s_level[dm::ENEMY_COUNT];
-    s_original_of.clear();
-    s_copies_of.clear();
+    s_copy_class.clear();
+    s_class_members.clear();
 
     // The slider is at retail.
     if (k == 1.0) {
@@ -1203,6 +1232,22 @@ void adjust_enemies(int level) {
         room_left = 0;
     }
 
+    // Every enemy of a class to be copied, wherever it stands and whether or not it is copied: the
+    // copies keep apart from all of them.
+    for (const Wanted& w : wanted) {
+        s_class_members.try_emplace(w.cls);
+    }
+
+    for (gaddr m = pool.base; m < pool.spare; m += dm::k_moby_size) {
+        const auto members = s_class_members.find(get<int16_t>(m + kMobyClass));
+
+        // A live moby of a class that is copied.
+        if (members != s_class_members.end()
+            && static_cast<int8_t>(get<uint8_t>(m + kMobyState)) >= 0) {
+            members->second.push_back(m);
+        }
+    }
+
     int made = 0, no_spot = 0;
 
     // Each enemy that is to be copied.
@@ -1235,8 +1280,8 @@ void adjust_enemies(int level) {
                 break;
             }
 
-            s_original_of[copy] = wanted[i].moby;
-            s_copies_of[wanted[i].moby].push_back(copy);
+            s_copy_class[copy] = wanted[i].cls;
+            s_class_members[wanted[i].cls].push_back(copy);
             ++made;
         }
     }
