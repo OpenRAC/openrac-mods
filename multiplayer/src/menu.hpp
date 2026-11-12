@@ -23,16 +23,16 @@
 namespace mp {
 
 /* The footer's button lines (the game's glyphs: \x10 Cross, \x12 Triangle). */
-constexpr const char* kSelectBackHints = "\x10 Select   \x12 Back";
-constexpr const char* kSelectLeaveHints = "\x10 Select   \x12 Leave";
-constexpr const char* kCodeHints = "Left, Right change   \x10 Join";
-constexpr const char* kJoinHints = "Left, Right change   \x10 Join   \x12 Back";
+constexpr const char* kSelectBackHints = "\x10 Select  \x12 Back";
+constexpr const char* kSelectLeaveHints = "\x10 Select  \x12 Leave";
+constexpr const char* kCodeHints = kSelectBackHints;
+constexpr const char* kJoinHints = kSelectBackHints;
 
 /* The longest line of the lobby's list. */
-constexpr std::size_t kWhyLineMax = 47;
+constexpr std::size_t kWhyLineMax = 33;
 
 /* The longest footer line a page has; a status line may not be longer. */
-constexpr std::size_t kFooterMax = std::char_traits<char>::length(kJoinHints);
+constexpr std::size_t kFooterMax = kFooterLineMax;
 
 /* What the status line is made of. */
 struct StatusInput {
@@ -71,8 +71,8 @@ inline std::string status_text(const StatusInput& in, Language language = Langua
             return localized_notice(in.notice, language);
         }
 
-        return translated("Hosting on port ", language) + std::to_string(in.hosting_port)
-               + (in.hosting_udp ? "" : translated(", TCP only", language));
+        return std::string(translated("Hosting", language))
+               + (in.hosting_udp ? "" : translated(" (TCP)", language));
     } else if (in.mode == Mode::kNone) {
         return translated("Not connected", language);
     }
@@ -80,14 +80,11 @@ inline std::string status_text(const StatusInput& in, Language language = Langua
     switch (in.state) {
         case State::kIdle:
         case State::kConnecting:
-            return direct ? translated("Joining ", language) + in.address
-                          : translated("Connecting...", language);
+            return direct ? translated("Joining...", language) : translated("Connecting...", language);
         case State::kUnreachable:
-            return direct ? translated("Host unreachable", language)
-                          : translated("Server unreachable", language);
+            return direct ? translated("Host offline", language) : translated("Server offline", language);
         case State::kLost:
-            return direct ? translated("The host went away", language)
-                          : translated("The server went away", language);
+            return direct ? translated("Host left", language) : translated("Server lost", language);
         case State::kConnected:
             break;
     }
@@ -98,15 +95,14 @@ inline std::string status_text(const StatusInput& in, Language language = Langua
     }
 
     if (!in.greeted) {
-        return translated("Connected, saying hello...", language);
+        return translated("Connecting...", language);
     }
 
     if (in.waiting) {
-        return translated("Waiting for the server...", language);
+        return translated("Waiting...", language);
     }
 
-    return direct ? translated("Joined ", language) + in.address
-                  : translated("Connected to the server", language);
+    return direct ? translated("Joined", language) : translated("Connected", language);
 }
 
 /* Why the party went, for Home's status line when the player is brought back to it: nothing when
@@ -120,11 +116,10 @@ inline std::string leave_reason(
     } else if (!notice.empty()) {
         return localized_notice(notice, language);
     } else if (lost) {
-        return direct ? translated("The host went away", language)
-                      : translated("The server went away", language);
+        return direct ? translated("Host left", language) : translated("Server lost", language);
     }
 
-    return translated("The party is over", language);
+    return translated("Party over", language);
 }
 
 /* ---- The pause menu's Multiplayer page (Options, in a level) ---- */
@@ -236,10 +231,10 @@ struct LobbyMemberInput {
 
 inline std::string lobby_member_line(const LobbyMemberInput& m, Language language = Language::kEnglish) {
     const char* state = m.host       ? translated(" (host)", language)
-                        : m.differs  ? translated(" (mods differ)", language)
-                        : m.checking ? translated(" (checking mods)", language)
+                        : m.differs  ? translated(" (differs)", language)
+                        : m.checking ? translated(" (checking)", language)
                         : m.ready    ? translated(" (ready)", language)
-                                     : translated(" (not ready, mods match)", language);
+                                     : translated(" (not ready)", language);
     const std::string end = std::string(state) + (m.you ? translated(" - you", language) : "");
     // A long name gives way: what the line says of the player is what it is for.
     return m.name.substr(0, kWhyLineMax - end.size()) + end;
@@ -252,12 +247,12 @@ inline std::string lobby_why_line(const std::string& name, const std::string& wh
 }
 
 /* The words of taking a player out of the party. */
-constexpr const char* kRemoveHint = "Choose a player to remove them";
-constexpr const char* kRemoveLabel = "Remove from the party";
-constexpr const char* kBanLabel = "Ban from this save";
-constexpr const char* kBannedSent = "A banned player was sent away";
-constexpr const char* kRemoveNote = "They can come back with the code";
-constexpr const char* kBanNote = "The ban stays with the party's save";
+constexpr const char* kRemoveHint = "Pick to remove";
+constexpr const char* kRemoveLabel = "Remove";
+constexpr const char* kBanLabel = "Ban from save";
+constexpr const char* kBannedSent = "Ban applied";
+constexpr const char* kRemoveNote = "They can rejoin by code";
+constexpr const char* kBanNote = "The ban stays in the save";
 
 /* What the host's Party rules page offers for the bans of its save: "Lift 2 bans". */
 inline std::string lift_bans_label(std::size_t count) {
@@ -265,11 +260,11 @@ inline std::string lift_bans_label(std::size_t count) {
 }
 
 /* What the page of a refused game says to do next. */
-constexpr const char* kMatchHint1 = "Match the host in the launcher's Mods tab,";
-constexpr const char* kMatchHint2 = "then restart the game and join again.";
-constexpr const char* kSoloHint1 = "Turn it off in the launcher's Mods tab,";
-constexpr const char* kSoloHint2 = "then restart the game.";
-constexpr const char* kBackHints = "\x10 Select   \x12 Back";
+constexpr const char* kMatchHint1 = "Match host mods,";
+constexpr const char* kMatchHint2 = "restart, rejoin";
+constexpr const char* kSoloHint1 = "Turn it off,";
+constexpr const char* kSoloHint2 = "restart the game";
+constexpr const char* kBackHints = "\x10 Select  \x12 Back";
 
 /* The question Leave party asks, short for the page's title box: the host leaving (or stopping a
  * direct party it hosts) ends the party for everyone. */
@@ -277,8 +272,8 @@ inline const char* pause_leave_question(
     bool hosting, bool host, bool followed = false, Language language = Language::kEnglish
 ) {
     return hosting     ? translated("Stop hosting?", language)
-           : !host     ? translated("Leave the party?", language)
-           : followed  ? translated("Leave the party? Another player takes over.", language)
+           : !host     ? translated("Leave party?", language)
+           : followed  ? translated("Leave party?", language)
                        : translated("End the party?", language);
 }
 

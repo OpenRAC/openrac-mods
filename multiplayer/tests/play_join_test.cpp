@@ -86,7 +86,7 @@ void a_joiner_is_put_beside_the_host() {
     p.run(3000);
     CHECK(p.late.world.synced());
     CHECK(p.late.coop.joining() && p.late.coop.hold_input());
-    CHECK(p.late.coop.banner(p.late.clock) == "Joining the game");
+    CHECK(p.late.coop.banner(p.late.clock) == "Joining...");
     CHECK(p.late.game.placed.empty());
 
     // The host lands.

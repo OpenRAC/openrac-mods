@@ -14,8 +14,16 @@ The setting **Mode** chooses one of two:
 
 | Mode | Value | Controls on foot |
 |---|---|---|
-| Lock with weapons (the default) | `lock` | With a forward-firing weapon ready in hand (the Suck Cannon, the Bomb Glove, the Devastator, the Blaster, the Pyrocitor, the Tesla Claw, the Morph-o-Ray, the R.Y.N.O.), Ratchet always faces the camera's way: the **right stick** turns the camera and him with it, standing or running, and the left stick strafes. The camera does not swing round to follow where he goes. With anything else in hand (the wrench, the Swingshot, the gadgets, and the weapons that do not fire ahead: the Visibomb, the Taunter, the Mine Glove, the Walloper, the Glove of Doom, the Drone Device, the Decoy Glove), Hold L2 or R2 |
-| Hold L2 or R2 | `hold` | Hold **L2 or R2**: Ratchet turns to face the camera's way (with the Classic feel, the camera swings round once behind him instead). From then on he faces the camera's way: the **right stick** turns the camera and him with it, and the left stick moves him sideways, back and forward without turning him toward it (jumps too); going back, the walk or the run plays backwards. Let go: the game's turning again, the camera left where it is |
+| Lock with weapons (the default) | `lock` | With a forward-firing weapon ready in hand (the Suck Cannon, the Bomb Glove, the Devastator, the Blaster, the Pyrocitor, the Tesla Claw, the Morph-o-Ray, the R.Y.N.O.), Ratchet always faces the camera's way: the **right stick** turns the camera and him with it, standing or running, and the left stick strafes. The camera does not swing round to follow where he goes. With anything else in hand (the wrench, the Swingshot, the gadgets, and the weapons that do not fire ahead: the Visibomb, the Taunter, the Mine Glove, the Walloper, the Glove of Doom, the Drone Device, the Decoy Glove), Hold |
+| Hold the strafe button | `hold` | Hold **L2 or R2** (or the one **Strafe button** picks): Ratchet turns to face the camera's way (with the Classic feel, the camera swings round once behind him instead). From then on he faces the camera's way: the **right stick** turns the camera and him with it, and the left stick moves him sideways, back and forward without turning him toward it (jumps too); going back, the walk or the run plays backwards. Let go: the game's turning again, the camera left where it is |
+
+**Strafe button** chooses the button held to strafe:
+
+| Strafe button | Value | |
+|---|---|---|
+| L2 or R2 (the default) | `both` | Either strafes; on foot the game gets neither, as before 1.2.0 |
+| L2 only | `l2` | L2 strafes; R2 stays the game's (R1 or R2 crouches) and free for other mods, such as one that raises the wrench on R2 |
+| R2 only | `r2` | R2 strafes; L2 stays the game's (L1 or L2 looks in first person) and free for other mods |
 
 **Feel** chooses how it plays:
 
@@ -38,15 +46,16 @@ Apart from the feel:
   Forward, or with the stick not all the way, X jumps as usual.
 
 In both, **L1** still looks in first person and **R1** still crouches (and
-crouch-jumps); L2 and R2 strafe. **Trace** (off) writes a line in the game's
+crouch-jumps); L2 and R2 strafe (or the one **Strafe button** picks, the other
+left to the game). **Trace** (off) writes a line in the game's
 log for each pad report, for bug reports (as does `OPENRAC_STRAFE_TRACE=1`
 in the environment).
 
 **Known limitations.** The first game has no backward walk for Ratchet
 (Going Commando added one): going backwards plays his walk or run in reverse.
 Going Commando never does its running jump while strafing; here strafing
-forward and pressing X can still give the first game's running jump, which
-the run's own code picks after every hook point the mod has.
+forward and pressing X can still give the first game's running jump. He
+still strafes in it: he keeps facing ahead.
 
 **The crosshair.** The first game has no crosshair in the third-person view:
 the Blaster's reticle is drawn only in first person (L1), and the Devastator
@@ -90,12 +99,15 @@ tests L2 or R2 alone but state 0x81. With the mod on, in play (game mode 0)
 on foot (`vehicle_mode` 0) and outside state 0x81, it takes L2 and R2 out of
 the pad's state at each report (`Pad_ProcessReport`), as the game's own input
 locks (`PadState.mode`) take buttons out for a poll, and keeps them for the
-strafe. So L1 still looks and R1 still crouches, and L2 and R2 strafe.
+strafe. So L1 still looks and R1 still crouches, and L2 and R2 strafe. With **Strafe
+button** on L2 only or R2 only, only that bit is taken and kept; the other
+reaches the game, and the mods hooked after this one, untouched.
 Scenes, menus, vendors, vehicles, state 0x81 and the hoverboard (control mode
 `0x16`, whose tricks are on L2 and R2) keep them.
 
 **The strafe**, in [src/rac1/lock_strafe.cpp](src/rac1/lock_strafe.cpp), in the run
-(states 2 and 0x73), the jump (7) and standing (0), on level ground:
+(states 2 and 0x73), the jumps (7, 9 and 0xE) and standing (0), on level
+ground:
 `Hero_TurnToHeading` eases the facing toward the camera's yaw, and while
 Hold's swing lasts toward the facing latched when L2 or R2 went down;
 `Hero_SetPlanarVelocity` builds the velocity along the move yaw, as the
@@ -176,7 +188,8 @@ camera while L2 or R2 is held, and he turns with it.
 
 | Key | Type | Default | |
 |---|---|---|---|
-| `mode` | choice: `lock`, `hold` | `lock` | Lock with weapons, or Hold L2 or R2 |
+| `mode` | choice: `lock`, `hold` | `lock` | Lock with weapons, or Hold the strafe button |
+| `button` | choice: `both`, `l2`, `r2` | `both` | the button held to strafe: L2 or R2, L2 only or R2 only (the other left to the game and other mods) |
 | `feel` | choice: `commando`, `classic` | `commando` | Going Commando's turn, stop and backpedal, no swing; or the mod's 1.0 behaviour |
 | `twist` | bool | true | the hip twist |
 | `flips` | bool | true | X with the stick pushed sideways or back flips that way |
@@ -197,3 +210,10 @@ In 1.1.0 it took Going Commando's strafe (DESIGN.md): its feel, the hip twist
 and the strafe flips, laid out for several games (docs/MULTI_GAME.md).
 In 1.1.1 the hip twist turns the right way. 1.1.0 turned his hips away from where he
 went, so strafing sideways his legs walked the other way (the moonwalk; DESIGN.md).
+In 1.2.0 the setting **Strafe button** lets L2 or R2 alone strafe, leaving the
+other to the game and to mods that use it (a wrench throw raised on R2).
+In 1.2.1 he no longer moves forward when a strafe ends (stopping, or letting
+go of L2 or R2 while running), and strafe flips go straight to the side. Under
+a level's fixed camera (Kalebo III's robot waves) he does not strafe, and L2
+no longer puts him in first person. He keeps facing ahead in the running jump
+and the double jump.

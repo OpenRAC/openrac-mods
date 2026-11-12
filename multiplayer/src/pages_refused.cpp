@@ -11,11 +11,22 @@ namespace mpmod {
  * party, and what to do. */
 openrac::UiContent refused_content() {
     const mp::Session& s = *g->session;
+
+    // The server refused a join into another game's party: which game it is for.
+    if (!s.in_party() && !g->refusal.empty()) {
+        openrac::UiContent c;
+        c.title = text("Can't join");
+        c.items.push_back(openrac::UiItem::button(text("Back")));
+        c.items.push_back(openrac::UiItem::text(mp::localized_notice(g->refusal, g_language)));
+        c.footer = {text(mp::kBackHints)};
+        return c;
+    }
+
     const std::vector<mp::Difference> differences =
         s.in_party() ? g->mods->differences() : mp::solo_mods(g->mods->own());
     const bool solo = !mp::solo_mods(g->mods->own()).empty();
     openrac::UiContent c;
-    c.title = s.in_party() ? text("You can't join this game") : text("You can't play in a party");
+    c.title = s.in_party() ? text("Can't join") : text("Can't play");
     c.items.push_back(openrac::UiItem::button(s.in_party() ? text(mp::kLeavePartyLabel) : text("Back")));
 
     // The host's mod code: what gets this game the host's mods.
@@ -55,6 +66,11 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
     if (e.is(OPENRAC_UI_SHOW)) {
         g->refused_in_party = in_party;
         g->code_copied = false;
+    }
+
+    // The server's refusal is said once: gone with the page.
+    if (e.is(OPENRAC_UI_HIDE)) {
+        g->refusal.clear();
     }
 
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefusedOpenItem) {

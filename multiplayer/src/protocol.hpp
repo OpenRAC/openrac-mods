@@ -38,6 +38,9 @@ constexpr std::size_t kCodeLength = 6;
  * it: printable ASCII, at most this long; and the most parties LIST answers with. */
 constexpr std::size_t kMaxDescriptionLength = 48;
 constexpr std::size_t kMaxListedParties = 32;
+/* A game family (openrac_api.world_family: "rac1-60-1", "rac2-pal-1") as the server takes it: printable
+ * ASCII without spaces, at most this long. */
+constexpr std::size_t kMaxFamilyLength = 32;
 /* The longest launcher key a game takes (the launcher's are 32 hex digits). */
 constexpr std::size_t kMaxKeyLength = 64;
 constexpr const char* kCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -80,7 +83,8 @@ enum class ErrorReason : std::uint8_t {
     kAlreadyInParty = 2,
     kNotInParty = 3,
     kNotHost = 4,
-    kResumeRefused = 5
+    kResumeRefused = 5,
+    kOtherGame = 6
 };
 
 /* The UDP offer's feature bits: which requests the server takes. An older server's offer has none,
@@ -183,12 +187,17 @@ private:
  * party with a description (its host's save; LIST shows it, INFO carries it), joined by its code or
  * from LIST; FIND joins the oldest party with room or hosts a new one; both are answered with INFO.
  * LIST asks for the parties with room (the asker's own left out), answered with LIST. TIME carries
- * the client's clock in milliseconds. */
+ * the client's clock in milliseconds.
+ *
+ * CREATE, LIST, FIND and JOIN end with the game's family (openrac_api.world_family), "" for none:
+ * the server keeps each party to its host's family, lists and finds only the asker's, and refuses a
+ * join into another's with kOtherGame. A server from before families stops reading before it, and
+ * takes a request without one for Ratchet & Clank's. */
 Bytes hello(const std::string& version, const std::string& name, std::uint8_t features = kClientResumes);
-Bytes party_create(const std::string& description = "");
-Bytes party_list();
-Bytes party_find();
-Bytes party_join(const std::string& code);
+Bytes party_create(const std::string& description = "", const std::string& family = "");
+Bytes party_list(const std::string& family = "");
+Bytes party_find(const std::string& family = "");
+Bytes party_join(const std::string& code, const std::string& family = "");
 Bytes party_leave();
 /* KICK: the host has `member` taken out of the party (the member gets KICKED, the others LEFT). */
 Bytes party_kick(std::int32_t member);
@@ -258,7 +267,7 @@ struct Message {
     bool back = false;
     /* LIST: the parties. */
     std::vector<Listing> parties;
-    /* JOINED: the member's name; CHAT: the message. */
+    /* JOINED: the member's name; CHAT: the message; ERROR kOtherGame: the party's family. */
     std::string text;
     /* DATA: the bytes the sender gave. */
     Bytes bytes;
@@ -308,7 +317,7 @@ Bytes party_kicked();
 Bytes party_away(std::int32_t member, bool back);
 Bytes chat_from(std::int32_t sender, const std::string& message);
 Bytes data_from(std::int32_t sender, const Bytes& payload);
-Bytes error_reply(ErrorReason reason);
+Bytes error_reply(ErrorReason reason, const std::string& family = "");
 Bytes time_reply(std::int64_t client_ms, std::int64_t server_ms);
 Bytes datagram_state_from(std::int32_t sender, const Bytes& payload);
 
@@ -331,9 +340,10 @@ struct Request {
     };
     Kind kind = Kind::kInvalid;
     /* HELLO: the version and the name; JOIN: the code; CREATE: the description; CHAT: the
-     * message. */
+     * message. CREATE, LIST, FIND and JOIN: the asker's family ("" for none). */
     std::string version;
     std::string text;
+    std::string family;
     /* DATA: the target and the bytes; KICK: the member, in target; RESUME: the code in text, the
      * session in target and the token; HELLO: the client's bits. */
     std::int32_t target = 0;

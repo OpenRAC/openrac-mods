@@ -44,7 +44,7 @@ void two_discs_of_a_world_fit() {
     other.openrac = "0.20.0";
     std::vector<mp::Difference> d = mp::compare_mods(other, pal);
     CHECK(d.size() == 1 && d[0].kind == mp::Difference::Kind::kOpenRac);
-    CHECK(mp::refusal_lines(d)[0] == "OpenRAC: the host has 0.21.0, you have 0.20.0");
+    CHECK(mp::refusal_lines(d)[0] == "OpenRAC 0.20.0 (host 0.21.0)");
     other = ntsc;
     other.multiplayer = "0.8.0";
     d = mp::compare_mods(other, pal);
@@ -62,7 +62,7 @@ void a_truly_different_disc_is_refused() {
     const mp::ModList other = list_of("jp", "rac1-50-1");
     const std::vector<mp::Difference> d = mp::compare_mods(other, host);
     CHECK(d.size() == 1 && d[0].kind == mp::Difference::Kind::kDisc);
-    CHECK(mp::refusal_lines(d)[0] == "You have a different disc from the host");
+    CHECK(mp::refusal_lines(d)[0] == "Different disc");
     CHECK(mp::refusal_short(d) == "a different disc");
     CHECK(mp::mods_digest(other) != mp::mods_digest(host));
     says_no_region(mp::refusal_lines(d));
@@ -83,7 +83,7 @@ void the_rules_say_whose_enemies() {
     const mp::ModList pal = list_of("pal", "rac1-60-1");
     const mp::ModList ntsc = list_of("ntsc", "rac1-60-1");
     const auto says = [](const std::vector<std::string>& lines) {
-        return std::find(lines.begin(), lines.end(), "Enemies follow the host's game") != lines.end();
+        return std::find(lines.begin(), lines.end(), "Enemies: the host's game") != lines.end();
     };
     CHECK(says(mp::rules_lines(pal, {}, ntsc, mp::kTitleLine)));
     CHECK(says(mp::rules_lines(ntsc, {}, pal, mp::kPauseLine)));

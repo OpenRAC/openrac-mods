@@ -73,12 +73,12 @@ std::vector<std::string> hosting_lines(
             break;
         }
 
-        lines.push_back(translated("Hosting on ", language) + address + suffix);
+        lines.push_back(address + suffix);
     }
 
     // No address it can tell (or no room): the port alone.
     if (lines.empty()) {
-        lines.push_back(translated("Hosting on port ", language) + std::to_string(port));
+        lines.push_back(std::string(translated("Port", language)) + " " + std::to_string(port));
     }
 
     return lines;

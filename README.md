@@ -16,7 +16,7 @@ section 11):
 
 | Mod | Kind | What it does | Discs |
 |---|---|---|---|
-| [lock-strafe](lock-strafe/README.md) | native | Strafe as in Going Commando: L2 or R2 held (or always, with a weapon that fires ahead, as Up Your Arsenal's lock-strafe), Ratchet facing the camera, his hips turning toward where he goes, and side and back flips on X | PAL, NTSC-U |
+| [lock-strafe](lock-strafe/README.md) | native | Strafe as in Going Commando: L2 or R2 held, or one of them alone (or always, with a weapon that fires ahead, as Up Your Arsenal's lock-strafe), Ratchet facing the camera, his hips turning toward where he goes, and side and back flips on X | PAL, NTSC-U |
 | [button-swap](button-swap/README.md) | script | Swaps two buttons: Cross and Square, Circle and Triangle, or L1 and R1 | PAL, NTSC-U |
 | [keyboard-mouse](keyboard-mouse/README.md) | native | Keyboard and mouse: WASD, mouse camera, click to fire, right click held for the Quick Select, number keys and wheel for weapons; every action rebindable in the launcher, with presets; a gamepad keeps working | PAL, NTSC-U |
 | [item-randomizer](item-randomizer/README.md) | native | Shuffles the gadgets, weapons, vendor stock, gold bolts and infobots, with logic so every seed can be finished; seed codes to share, a spoiler log | PAL, NTSC-U |
@@ -26,7 +26,9 @@ section 11):
 | [ammo-max](ammo-max/README.md) | native | At the vendor, buying ammo starts at the most you can buy (the rounds the weapon has room for, or as many as your bolts pay for) instead of 1; Down still lowers it | PAL, NTSC-U |
 | [xbox-icons](xbox-icons/README.md) | native | The game's PlayStation 2 button icons as an Xbox controller's, in the game's own style: A, B, X, Y on its dark buttons, LB, RB, LT, RT; in Ratchet & Clank and Going Commando | PAL, NTSC-U; Going Commando: NTSC-U, PAL, NTSC-U v2.00 |
 | [multiplayer](multiplayer/README.md) | native | Online co-op for up to 4 players, through an OpenRAC server or Direct connect: a Multiplayer item in the main menu, whose pages are the game's own menus. Everyone plays in the host's level and shares its world, progress and co-op saves; a dropped player keeps its place, and another player takes over from a host that goes. Players on different discs of the game play together. Team tools add co-op rescue and host rally points, and the pages speak the game's five PAL languages. Needs OpenRAC's mod interface 1.14 | PAL, NTSC-U; Going Commando: NTSC-U, PAL, NTSC-U v2.00 (a first co-op chosen in the settings: the host's level, the others seen) |
+| [cheats](cheats/README.md) | native | Invincibility, infinite ammo, infinite oxygen under water and a bolt multiplier (x2 to x100), switched from Cheats in the pause menu's Options, with buttons that refill every weapon's ammo and give 10,000 bolts; a HUD line says what is on | PAL, NTSC-U |
 | [archipelago](archipelago/README.md) | native | Plays in an [Archipelago](https://archipelago.gg/) multiworld: the gadgets, weapons, vendor slots, gold bolts and infobots are locations, what they hold may be another game's item, and what others find for you comes to you; beat Drek to finish. With `rac1.apworld` from the release. Needs OpenRAC's mod interface 1.9 | PAL, NTSC-U |
+| [NG++](ng-plus-plus/README.md) | native | New Game++: Alpha to Omega: eight more tiers for every Going Commando weapon past its last version, bought then levelled with experience, each hitting harder, holding more ammo and with its own tint; an upgrade path for the RYNO II; enemies tougher with each challenge mode | Going Commando: NTSC-U, PAL, NTSC-U v2.00 |
 
 ## Installing a mod
 

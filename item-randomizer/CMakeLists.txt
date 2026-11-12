@@ -27,7 +27,7 @@ if(BUILD_TESTING)
   set_target_properties(item_randomizer_core PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 
   # One test program each for the seed code, the solver and the settings, over the core.
-  foreach(test seed solver settings table)
+  foreach(test seed solver settings table paths)
     add_executable(item_randomizer_${test}_test tests/${test}_test.c)
     set_target_properties(item_randomizer_${test}_test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
     target_link_libraries(item_randomizer_${test}_test PRIVATE item_randomizer_core)
@@ -35,6 +35,7 @@ if(BUILD_TESTING)
   # Register them: the settings test also reads the manifest to check its keys and defaults, the
   # table test both discs' facts.
   add_test(NAME item_randomizer_seed COMMAND item_randomizer_seed_test)
+  add_test(NAME item_randomizer_paths COMMAND item_randomizer_paths_test WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   add_test(NAME item_randomizer_solver COMMAND item_randomizer_solver_test)
   add_test(NAME item_randomizer_settings COMMAND item_randomizer_settings_test ${CMAKE_CURRENT_SOURCE_DIR}/openrac-mod.json)
   add_test(NAME item_randomizer_table COMMAND item_randomizer_table_test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/discs.tsv)

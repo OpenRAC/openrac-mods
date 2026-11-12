@@ -122,7 +122,7 @@ bool Coop::start() {
     }
 
     if (!game_.start(level, chosen_)) {
-        notice_ = "The game would not start";
+        notice_ = "Can't start";
         return false;
     }
 
@@ -315,7 +315,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             // in full: party_mods.hpp).
             if (build != build_) {
                 clear_game();
-                notice_ = "You can't join: your game differs from the host's";
+                notice_ = "Games differ";
                 log("refused the host's game: its build is " + build + ", this one " + build_);
                 play_ = play;
                 applied_ = play;  // not asked for again
@@ -337,7 +337,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             expected_ = save ? static_cast<std::size_t>(size) : 0;
             received_ = 0;
             save_.assign(expected_, 0);
-            notice_ = "Game starting";
+            notice_ = "Starting";
             log("the host's game: " + (save ? std::to_string(size) + " bytes of save" : std::string("a new game"))
                 + ", level " + std::to_string(level));
             break;
@@ -598,7 +598,7 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
                 save_.clear();
             } else if (!again_ || now - again_since_ >= kHomeMs) {
                 // (On the way back from a level the title may need a moment: asked again.)
-                notice_ = "The host's game would not start here";
+                notice_ = "Can't start here";
                 pending_ = again_ = false;
                 save_.clear();
             }

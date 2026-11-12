@@ -263,7 +263,7 @@ void Coop::tick_again(std::uint64_t now) {
         again_ = true;
         again_since_ = now;
         again_ms_ = 0;
-        notice_ = "The host started again";
+        notice_ = "Host restarted";
         log("the host started again: leaving for the title");
     }
 

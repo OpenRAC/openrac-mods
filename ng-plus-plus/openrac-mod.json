@@ -1,0 +1,498 @@
+{
+  "format": 2,
+  "id": "ng-plus-plus",
+  "name": "NG++",
+  "version": "0.1.8",
+  "author": "Keros",
+  "description": "New Game++ for Going Commando: eight more tiers for every Going Commando weapon, past its last version: Alpha to Omega (V5 to V12). As with the game's own Mega and V4, you buy one at the vendor, then level the next with experience: Alpha bought, Beta by experience, Gamma bought, and so on up to Omega. Each tier hits harder, holds more ammo and has its own tint, Omega a shifting rainbow. The RYNO II gets an upgrade path first: RYNO II Heavy by experience, then RYNO II Ultima at the vendor. Each tier's price follows the weapon's own Mega price. The tiers are kept with each save, in the mod's own data folder. From the second challenge mode on, the enemies get more health and hit harder with each new game, in step with the tiers.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ng-plus-plus",
+  "api": "1.14",
+  "multiplayer": "gameplay",
+  "games": {
+    "rac2": [
+      "ntsc",
+      "pal",
+      "ntsc2"
+    ]
+  },
+  "hooks": [
+    "rac2.vendor.build_list",
+    "rac2.vendor.price",
+    "rac2.item.upgrade",
+    "rac2.item.colors",
+    "rac2.combat.post_hit",
+    "rac2.player.take_damage"
+  ],
+  "settings": [
+    {
+      "key": "notices",
+      "multiplayer": "own",
+      "name": "Tier names on screen",
+      "type": "bool",
+      "default": true,
+      "description": "A line at the top of the screen with the weapon's full name (\"Heavy Lancer Alpha\") when it reaches a tier and when you take a tiered weapon in hand."
+    },
+    {
+      "key": "enemy_scaling",
+      "multiplayer": "host",
+      "name": "Tougher enemies each new game",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode on, the enemies have more health and hit harder with each new game, in step with the tiers you can have by then (the curve is in the README). The game's first challenge mode is as the game has it."
+    },
+    {
+      "key": "enemy_strength",
+      "multiplayer": "host",
+      "name": "How much tougher",
+      "type": "float",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 3.0,
+      "step": 0.25,
+      "description": "Times what the curve adds: 1 the curve as it is, 0.5 half of it, 2 twice it."
+    }
+  ],
+  "save_data": {
+    "file": "tiers.txt",
+    "records": "clock-hex",
+    "size": 56,
+    "title": "Weapon tiers",
+    "fields": [
+      {
+        "key": "item_26",
+        "name": "Blitz Gun",
+        "offset": 26,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_12",
+        "name": "Bomb Glove",
+        "offset": 12,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_37",
+        "name": "Bouncer",
+        "offset": 37,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_22",
+        "name": "Chopper",
+        "offset": 22,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_9",
+        "name": "Clank Zapper",
+        "offset": 9,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_17",
+        "name": "Decoy Glove",
+        "offset": 17,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_42",
+        "name": "Gravity Bomb",
+        "offset": 42,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_25",
+        "name": "Hoverbomb Gun",
+        "offset": 25,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_30",
+        "name": "Lancer",
+        "offset": 30,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_29",
+        "name": "Lava Gun",
+        "offset": 29,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_27",
+        "name": "Minirocket Tube",
+        "offset": 27,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_41",
+        "name": "Miniturret Glove",
+        "offset": 41,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_28",
+        "name": "Plasma Coil",
+        "offset": 28,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_23",
+        "name": "Pulse Rifle",
+        "offset": 23,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_44",
+        "name": "RYNO II",
+        "offset": 44,
+        "mask": 127,
+        "max": 10,
+        "choices": [
+          "None",
+          "Heavy",
+          "Ultima",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_24",
+        "name": "Seeker Gun",
+        "offset": 24,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_16",
+        "name": "Sheepinator",
+        "offset": 16,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_45",
+        "name": "Shield Charger",
+        "offset": 45,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_32",
+        "name": "Spiderbot Glove",
+        "offset": 32,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_31",
+        "name": "Synthenoid",
+        "offset": 31,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_18",
+        "name": "Tesla Claw",
+        "offset": 18,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_14",
+        "name": "Visibomb Gun",
+        "offset": 14,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_53",
+        "name": "Walloper",
+        "offset": 53,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_43",
+        "name": "Zodiac",
+        "offset": 43,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      }
+    ]
+  }
+}

@@ -404,34 +404,34 @@ std::vector<std::string> refusal_lines(
                 add(kDifferentDisc);
                 break;
             case Kind::kOpenRac:
-                add("OpenRAC: the host has " + d.theirs + ", you have " + d.mine);
+                add("OpenRAC " + d.mine + " (host " + d.theirs + ")");
                 break;
             case Kind::kMultiplayer:
-                add("Multiplayer: the host has " + d.theirs + ", you have " + d.mine);
+                add("Multiplayer " + d.mine + " (host " + d.theirs + ")");
                 break;
             case Kind::kHostOnly:
-                add("Host has " + d.mod + ", you don't");
+                add("You lack " + d.mod);
                 break;
             case Kind::kYouOnly:
-                add("You have " + d.mod + ", the host doesn't");
+                add("Extra: " + d.mod);
                 break;
             case Kind::kVersion:
-                add(d.mod + ": the host has " + d.theirs + ", you have " + d.mine);
+                add(d.mod + " " + d.mine + " (host " + d.theirs + ")");
                 break;
             case Kind::kSettings: {
-                add("Your " + d.mod + " settings differ:");
+                add(d.mod + " settings differ:");
                 const std::vector<std::string> names = wrap_list(d.settings, width);
                 out.insert(out.end(), names.begin(), names.end());
                 break;
             }
             case Kind::kSolo:
-                add(d.mod + " can't be played in a party");
+                add(d.mod + " is solo only");
                 break;
             case Kind::kPack:
-                add("Your " + d.mod + " pack differs from the host's");
+                add(d.mod + " pack differs");
                 break;
             case Kind::kPackOrder:
-                add("Your data packs are in another order than the host's");
+                add("Pack order differs");
                 break;
         }
     }
@@ -533,12 +533,12 @@ std::vector<std::string> rules_lines(
     }
 
     if (out.empty()) {
-        add(wrap_text("No gameplay mods: the game as it is", width));
+        add(wrap_text("No gameplay mods", width));
     }
 
     // Two discs of one world: the levels are the same, the enemies play by the host's.
     if (host.disc != own.disc) {
-        add(wrap_text("Enemies follow the host's game", width));
+        add(wrap_text("Enemies: the host's game", width));
     }
 
     // What stays the player's: its input and look mods, the settings its gameplay mods call its own.
@@ -557,7 +557,7 @@ std::vector<std::string> rules_lines(
         }
     }
 
-    add(wrap_text("Stays yours: your controls and looks", width));
+    add(wrap_text("Yours: controls and looks", width));
 
     if (!mine.empty()) {
         add(wrap_list(mine, width));
@@ -948,7 +948,7 @@ void PartyMods::tick_host(std::uint64_t now) {
     for (auto& [id, peer] : peers_) {
         if (!peer.answered && peer.fit == Fit::kUnknown && now - peer.since >= kModsQuietMs) {
             peer.fit = Fit::kDiffers;
-            peer.why = "an older Multiplayer";
+            peer.why = "old Multiplayer";
             gone = true;
         }
     }

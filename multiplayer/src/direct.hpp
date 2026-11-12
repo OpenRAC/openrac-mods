@@ -82,8 +82,8 @@ struct DirectAddress {
     std::string text() const;
 };
 
-/* The hosting lobby's lines: "Hosting on <address>:<port>" for each of this machine's addresses,
- * at most `most` of them; "Hosting on port <port>" when it knows none. */
+/* The hosting lobby's lines: "<address>:<port>" for each of this machine's addresses,
+ * at most `most` of them; "Port <port>" when it knows none. */
 std::vector<std::string> hosting_lines(
     const std::vector<std::string>& addresses,
     int port,

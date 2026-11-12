@@ -98,7 +98,7 @@ void differences_say_how() {
     mine.mods[0].version = "1.2.2";
     std::vector<mp::Difference> d = mp::compare_mods(mine, host);
     CHECK(d.size() == 1 && d[0].kind == Kind::kVersion);
-    CHECK(mp::refusal_lines(d)[0] == "Difficulty: the host has 1.2.3, you have 1.2.2");
+    CHECK(mp::refusal_lines(d)[0] == "Difficulty 1.2.2 (host 1.2.3)");
     CHECK(mp::refusal_short(d) == "Difficulty version");
 
     // Settings, by their names, wrapped.
@@ -106,7 +106,7 @@ void differences_say_how() {
     setting_of(mine, "enemy_count").value = "2";
     setting_of(mine, "damage_taken").value = "2";
     d = mp::compare_mods(mine, host);
-    CHECK(mp::refusal_lines(d) == (std::vector<std::string>{"Your Difficulty settings differ:", "Enemy count, Damage taken"}));
+    CHECK(mp::refusal_lines(d) == (std::vector<std::string>{"Difficulty settings differ:", "Enemy count, Damage taken"}));
     CHECK(mp::refusal_short(d) == "Difficulty settings");
 
     // One the host has and this game has not, one the other way round.
@@ -114,11 +114,11 @@ void differences_say_how() {
     mine.mods.erase(mine.mods.begin() + 1);
     d = mp::compare_mods(mine, host);
     CHECK(d.size() == 1 && d[0].kind == Kind::kHostOnly);
-    CHECK(mp::refusal_lines(d)[0] == "Host has Item Randomizer, you don't");
+    CHECK(mp::refusal_lines(d)[0] == "You lack Item Randomizer");
     CHECK(mp::refusal_short(d) == "no Item Randomizer");
     d = mp::compare_mods(host, mine);
     CHECK(d.size() == 1 && d[0].kind == Kind::kYouOnly);
-    CHECK(mp::refusal_lines(d)[0] == "You have Item Randomizer, the host doesn't");
+    CHECK(mp::refusal_lines(d)[0] == "Extra: Item Randomizer");
     CHECK(mp::refusal_short(d) == "extra Item Randomizer");
 
     // The build; never a region's name.
@@ -128,9 +128,9 @@ void differences_say_how() {
     mine.multiplayer = "0.8.0";
     d = mp::compare_mods(mine, host);
     const std::vector<std::string> lines = mp::refusal_lines(d);
-    CHECK(lines[0] == "You have a different disc from the host");
-    CHECK(lines[1] == "OpenRAC: the host has 0.21.0, you have 0.20.0");
-    CHECK(lines[2] == "Multiplayer: the host has 0.9.0, you have 0.8.0");
+    CHECK(lines[0] == "Different disc");
+    CHECK(lines[1] == "OpenRAC 0.20.0 (host 0.21.0)");
+    CHECK(lines[2] == "Multiplayer 0.8.0 (host 0.9.0)");
     CHECK(mp::refusal_short(d) == "a different disc, 2 more");
 
     for (const std::string& line : lines) {
@@ -142,7 +142,7 @@ void differences_say_how() {
     mine.mods.push_back({"archipelago", "Archipelago", "1.0.1", mp::kModSolo, {}});
     d = mp::compare_mods(mine, mine);
     CHECK(d.size() == 1 && d[0].kind == Kind::kSolo);
-    CHECK(mp::refusal_lines(d)[0] == "Archipelago can't be played in a party");
+    CHECK(mp::refusal_lines(d)[0] == "Archipelago is solo only");
 
     // The longest words still fit a page's lines, and nothing is lost.
     mp::ModList long_names = host;
@@ -178,16 +178,18 @@ void the_rules_are_said_in_words() {
     const std::vector<std::string> lines = mp::rules_lines(host, rules, sample_list(), mp::kTitleLine);
     const std::vector<std::string> want = {
         "Difficulty 1.2.3",
-        "Bolts x2, Enemy count x1.5, Chaos on",
+        "Bolts x2, Enemy count x1.5,",
+        "Chaos on",
         "Item Randomizer 1.1.0",
         "Logic: Expert",
-        "Stays yours: your controls and looks",
-        "Detailed log, Keyboard and Mouse, Xbox Icons",
+        "Yours: controls and looks",
+        "Detailed log, Keyboard and Mouse,",
+        "Xbox Icons",
     };
     CHECK(lines == want);
     mp::ModList none;
     CHECK(mp::rules_lines(none, {}, none, mp::kPauseLine)
-          == (std::vector<std::string>{"No gameplay mods: the game as it is", "Stays yours: your controls and looks"}));
+          == (std::vector<std::string>{"No gameplay mods", "Yours: controls and looks"}));
 
     for (const std::string& line : mp::rules_lines(host, rules, sample_list(), mp::kPauseLine)) {
         CHECK(line.size() <= mp::kPauseLine);
@@ -235,7 +237,7 @@ void a_differing_member_is_refused() {
     CHECK(start_ready(host2));
     route({&host2, &member2});
     tick({&host2, &member2}, 16);
-    CHECK(member2.game.calls.empty() && member2.coop.take_notice().find("You can't join") == 0);
+    CHECK(member2.game.calls.empty() && member2.coop.take_notice().find("Games differ") == 0);
 }
 
 
@@ -403,10 +405,10 @@ void long_names_keep_what_the_line_says() {
     m.name = std::string(32, 'x');
     m.you = true;
     const std::string line = mp::lobby_member_line(m);
-    CHECK(line.size() <= mp::kWhyLineMax && line.find("(not ready, mods match) - you") != std::string::npos);
+    CHECK(line.size() <= mp::kWhyLineMax && line.find("(not ready) - you") != std::string::npos);
     m.name = "Clank";
     m.differs = true;
-    CHECK(mp::lobby_member_line(m) == "Clank (mods differ) - you");
+    CHECK(mp::lobby_member_line(m) == "Clank (differs) - you");
 }
 
 
@@ -421,7 +423,7 @@ void an_older_game_is_not_taken() {
     CHECK(host.mods.fit(2) == mp::Fit::kUnknown && !host.session.all_ready());
     tick_mods({&host}, mp::kModsQuietMs + 16);
     tick_mods({&host}, 16);
-    CHECK(host.mods.fit(2) == mp::Fit::kDiffers && host.mods.why(2) == "an older Multiplayer");
+    CHECK(host.mods.fit(2) == mp::Fit::kDiffers && host.mods.why(2) == "old Multiplayer");
     // A host that never answers: the member's lobby says so, after a while.
     gate(member, sample_list());
     member.session.handle(info(both));
@@ -448,7 +450,7 @@ void builds_and_the_end() {
     CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
-    CHECK(member.game.calls.empty() && member.coop.take_notice().find("You can't join") == 0);
+    CHECK(member.game.calls.empty() && member.coop.take_notice().find("Games differ") == 0);
     // Not asked for again.
     tick({&host, &member}, mp::kWantMs + 16);
     CHECK(member.game.calls.empty());

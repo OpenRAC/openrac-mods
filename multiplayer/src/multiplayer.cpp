@@ -48,11 +48,12 @@
  *   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
  *           empty or invalid: the launcher's Multiplayer name.
  */
-#include "mod_state.hpp"
-#include "rac2/game.hpp"
-
 #include <ctime>
 #include <memory>
+
+#include "mod_state.hpp"
+#include "pad_intent.hpp"
+#include "rac2/game.hpp"
 
 namespace mpmod {
 
@@ -83,18 +84,18 @@ const char* session_version() {
 // The port accepts at most OPENRAC_UI_TEXT_MAX bytes a field. Fit them here, before the API's byte
 // truncation, so accented player, save and planet names stay valid UTF-8.
 void set_content(const openrac::UiPage& page, openrac::UiContent& content) {
-    content.title = mp::fit_ui_text(content.title, OPENRAC_UI_TEXT_MAX);
+    content.title = mp::fit_ui_text(content.title, mp::kTitleMax);
 
     for (openrac::UiItem& item : content.items) {
-        item.label = mp::fit_ui_text(item.label, OPENRAC_UI_TEXT_MAX);
+        item.label = mp::fit_ui_text(item.label, mp::kItemMax);
 
         for (std::string& choice : item.choices) {
-            choice = mp::fit_ui_text(choice, OPENRAC_UI_TEXT_MAX);
+            choice = mp::fit_ui_text(choice, mp::kItemMax);
         }
     }
 
     for (std::string& line : content.footer) {
-        line = mp::fit_ui_text(line, OPENRAC_UI_TEXT_MAX);
+        line = mp::fit_ui_text(line, mp::kFooterLineMax);
     }
 
     page.set(content);
@@ -169,7 +170,7 @@ std::string comfort_banner(std::uint64_t now) {
     }
 
     if (g->comfort->near_downed()) {
-        return text("Hold L3 + R3 for 3s to rescue");
+        return text("Hold L3 + R3");
     }
 
     const float distance = g->comfort->rally_distance();
@@ -234,7 +235,7 @@ void show_comfort() {
 
     // The party's revive rule takes a fallen hero first (see the take-damage hook).
     if (party && revive_rule_held()) {
-        c.items.push_back(openrac::UiItem::text(text("The party's revive rule is on")));
+        c.items.push_back(openrac::UiItem::text(text("Revive rule: on")));
     }
 
     for (const mp::Member& member : g->session->members()) {
@@ -254,7 +255,7 @@ void show_comfort() {
         c.items.push_back(openrac::UiItem::text(line));
     }
 
-    c.footer = {text("Hold L3 + R3 for 3s to rescue")};
+    c.footer = {text("Hold L3 + R3")};
     set_content(g->comfort_page, c);
 }
 
@@ -386,6 +387,11 @@ void tick_auto_join(std::uint64_t now) {
 
     if (g->mods->solo()) {
         give_up("A mod you have on can't be played in a party");
+    } else if (!g->refusal.empty()) {
+        // Another game's party: Home says which game it is for.
+        const std::string why = g->refusal;
+        g->refusal.clear();
+        give_up(why);
     } else if (s.in_party()) {
         g->mod->info("multiplayer: joined party " + g->join_party + " as the launcher asked");
         g->join_party.clear();
@@ -477,6 +483,11 @@ void poll() {
         g->notice = notice;
     }
 
+    // A join into another game's party: the Refused page says which game it is for.
+    if (std::string refusal = g->session->take_refusal(); !refusal.empty()) {
+        g->refusal = refusal;
+    }
+
     if (std::string notice = g->coop->take_notice(); !notice.empty()) {
         g->notice = notice;
     }
@@ -487,6 +498,17 @@ void poll() {
 namespace {
 
 using namespace mpmod;
+
+// What the first pad's last report says the player does (pad_intent.hpp).
+mp::Intent g_intent = mp::Intent::Unknown;
+
+// A page's handler, given each event as the player meant it (pad_intent.hpp): the stick moving the
+// cursor changes and chooses nothing, and only Cross chooses a button or answers a question Yes.
+template <void (*Handler)(const openrac::UiPage&, const openrac::UiEvent&)>
+void guarded(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    const openrac_ui_event meant = mp::as_meant(g_intent, e.raw());
+    Handler(page, openrac::UiEvent(meant));
+}
 
 /* The port calls this when it loads the library: checks the game and the port, reads the server
  * address, makes the pages and puts Multiplayer in the main menu under Load Game. Throws
@@ -611,7 +633,8 @@ void load(openrac::Mod& mod) {
     g->comfort = std::make_unique<mp::Comfort>(std::move(comfort));
     g->world->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // The verbose log (trace.hpp): the `verbose_log` setting, or OPENRAC_MP_TRACE=1. Its lines go
-    // to mp-trace.log in the game's working directory (beside run.log), else to the game's log.
+    // to mp-trace.log in the mod's data folder (on Android the Files app's OpenRAC > Mod files), in
+    // the game's working directory with an OpenRAC older than data_dir, else to the game's log.
     const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
 
     g->revive = mod.setting<bool>("revive");
@@ -620,7 +643,9 @@ void load(openrac::Mod& mod) {
 
     if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
         std::error_code error;
-        std::filesystem::path path = std::filesystem::current_path(error) / "mp-trace.log";
+        const std::string data = mod.data_dir();
+        std::filesystem::path path =
+            (data.empty() ? std::filesystem::current_path(error) : std::filesystem::u8path(data)) / "mp-trace.log";
         path = std::filesystem::absolute(path, error);
         g->trace_file.open(path, std::ios::out | std::ios::app);
 
@@ -783,6 +808,10 @@ void load(openrac::Mod& mod) {
             return;
         }
 
+        // What the player does, for the pages' events of this tick (pad_intent.hpp), before
+        // anything below changes the report.
+        g_intent = mp::read_intent(report, size);
+
         const std::uint64_t now = mp::now_ms();
 
         // A movie plays outside the game's ticks (no on_frame): the party's messages are read here.
@@ -861,16 +890,16 @@ void load(openrac::Mod& mod) {
         std::copy(hit->velocity, hit->velocity + 3, h.velocity);
         return g->world->hit(h) ? 1 : 0;
     });
-    g->home = mod.ui_page(on_home);
-    g->code_page = mod.ui_page(on_code);
-    g->direct_page = mod.ui_page(on_direct, OPENRAC_UI_OWN_BACK);
-    g->lobby = mod.ui_page(on_lobby, OPENRAC_UI_OWN_BACK);
-    g->browse = mod.ui_page(on_browse);
-    g->saves = mod.ui_page(on_saves);
-    g->refused = mod.ui_page(on_refused, OPENRAC_UI_OWN_BACK);
-    g->rules = mod.ui_page(on_rules, OPENRAC_UI_OWN_BACK);
-    g->remove = mod.ui_page(on_remove, OPENRAC_UI_OWN_BACK);
-    g->comfort_page = mod.ui_page(on_comfort);
+    g->home = mod.ui_page(guarded<on_home>);
+    g->code_page = mod.ui_page(guarded<on_code>);
+    g->direct_page = mod.ui_page(guarded<on_direct>, OPENRAC_UI_OWN_BACK);
+    g->lobby = mod.ui_page(guarded<on_lobby>, OPENRAC_UI_OWN_BACK);
+    g->browse = mod.ui_page(guarded<on_browse>);
+    g->saves = mod.ui_page(guarded<on_saves>);
+    g->refused = mod.ui_page(guarded<on_refused>, OPENRAC_UI_OWN_BACK);
+    g->rules = mod.ui_page(guarded<on_rules>, OPENRAC_UI_OWN_BACK);
+    g->remove = mod.ui_page(guarded<on_remove>, OPENRAC_UI_OWN_BACK);
+    g->comfort_page = mod.ui_page(guarded<on_comfort>);
     g->game->home = &g->home;
     show_home();
     show_code();
@@ -886,7 +915,7 @@ void load(openrac::Mod& mod) {
 
     // In a level, the pause menu's Options page has a Multiplayer item too (interface 1.9).
     if (mod.has_pause_items()) {
-        g->pause_page = mod.ui_page(on_pause);
+        g->pause_page = mod.ui_page(guarded<on_pause>);
         show_pause();
         mod.ui_pause_item("Multiplayer", g->pause_page);
     }
@@ -914,6 +943,8 @@ void load(openrac::Mod& mod) {
             g->coop->set_build(
                 std::string(session_version()) + " " + own.openrac + " " + own.family + " " + digest
             );
+            // The server keeps parties to one family: this game's, said with each party request.
+            g->session->set_family(own.family);
             g->mods->set_own(std::move(own));
         }
 
@@ -1003,7 +1034,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.12.0", load)
+OPENRAC_MOD_CPP("multiplayer", "0.12.4", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

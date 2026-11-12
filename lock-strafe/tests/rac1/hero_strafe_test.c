@@ -88,6 +88,14 @@ static void items(void) {
     }
 }
 
+/* The setting "button": both by default (and for anything unknown), or L2 or R2 alone. */
+static void buttons(void) {
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_BOTH) == (RAC1_PAD_L2 | RAC1_PAD_R2));
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_L2) == RAC1_PAD_L2);
+    CHECK(rac1_strafe_button_bits(RAC1_STRAFE_BUTTON_R2) == RAC1_PAD_R2);
+    CHECK(rac1_strafe_button_bits(7) == RAC1_STRAFE_BUTTONS);
+}
+
 /* Off: nothing strafes, L2 and R2 reach the game, nothing is latched. */
 static void off(void) {
     rac1_strafe_hold hold = {0, 0, 0, 0.0f};
@@ -130,21 +138,25 @@ static void hold_mode(void) {
     in.held = RAC1_PAD_L2 | RAC1_PAD_R2;
     rac1_strafe_hold_update(mode, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
     CHECK(hold.latched && hold.yaw == 0.75f);
-    /* The jump, the alternate run and standing strafe too; other states do not. */
+    /* The jumps (the plain one, the running jump X gives strafing ahead, the double jump), the
+     * alternate run and standing strafe too; other states do not (the flip 0xB is the mod's own,
+     * 0x0A and 0x10 the pack's jumps, 0x06 the fall). */
     const int strafing_states[] =
         {RAC1_STRAFE_STATE_RUN,
          RAC1_STRAFE_STATE_RUN_ALT,
          RAC1_STRAFE_STATE_JUMP,
+         RAC1_STRAFE_STATE_RUN_JUMP,
+         RAC1_STRAFE_STATE_DOUBLE_JUMP,
          RAC1_STRAFE_STATE_STAND};
 
-    for (unsigned i = 0; i < 4; ++i) {
+    for (unsigned i = 0; i < 6; ++i) {
         in.state = strafing_states[i];
         CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_HELD);
     }
 
-    const int other_states[] = {0x01, 0x35, 0x0B, 0x81, 0x13, 0x77};
+    const int other_states[] = {0x01, 0x35, 0x0B, 0x81, 0x13, 0x77, 0x06, 0x0A, 0x10};
 
-    for (unsigned i = 0; i < 6; ++i) {
+    for (unsigned i = 0; i < 9; ++i) {
         in.state = other_states[i];
         CHECK(rac1_strafe_kind(mode, &in, &hold) == RAC1_STRAFE_NONE);
     }
@@ -618,6 +630,15 @@ static void commando(void) {
         RAC1_STRAFE_STATE_JUMP, 1.0f, 1.0f / 60.0f, &accel, &damping, &limit
     );
     CHECK(accel == 0.015f && damping == 0.2f && fabsf(limit - 0.25f) < 1e-6f);
+    /* The running and double jumps: the jump group's rates too. */
+    rac1_strafe_commando_rates(
+        RAC1_STRAFE_STATE_RUN_JUMP, 1.0f, 1.0f / 60.0f, &accel, &damping, &limit
+    );
+    CHECK(accel == 0.015f && damping == 0.2f);
+    rac1_strafe_commando_rates(
+        RAC1_STRAFE_STATE_DOUBLE_JUMP, 1.0f, 1.0f / 60.0f, &accel, &damping, &limit
+    );
+    CHECK(accel == 0.015f && damping == 0.2f);
 
     /* The backpedal within 45 degrees of straight back: 140 starts it, 132 keeps it, 128 ends it,
      * 120 never starts it. */
@@ -868,6 +889,156 @@ static void directions(void) {
     CHECK(rac1_strafe_side(0.0f, RAC1_STRAFE_PI) == RAC1_STRAFE_SIDE_NONE);
 }
 
+/* The glide (strafe.h): where his speed goes as a strafe ends. F is a request for the facing. */
+#define F 99999.0f
+#define RUN 1
+#define NOT_RUN 0
+#define PUSHED 0.095f
+#define LET_GO 0.0f
+
+/* Strafing: along the stick; the stick let go, along its last yaw; an angle of the caller's own
+ * kept; a strafe begun with the stick centred has the game's move yaw. */
+static void glide_strafing(void) {
+    rac1_strafe_glide g = {0, 0, 0.0f};
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, LET_GO, 0.0f, 0.2f, F) == 0.2f);
+    CHECK(!g.valid);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, PUSHED, 0.0f, -1.5f, F) == -1.5f);
+    CHECK(g.valid && g.leaving);
+    /* Let go: the game's move yaw is his facing (0), the slide stays on the stick's. */
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, LET_GO, 0.0f, 0.0f, F) == -1.5f);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_LOCKED, NOT_RUN, LET_GO, 0.0f, 0.0f, F) == -1.5f);
+    /* The caller's own angle, strafing or not. */
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, PUSHED, 0.0f, -1.5f, 0.25f) == 0.25f);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, -1.5f, -3.0f) == -3.0f);
+    CHECK(
+        rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, -1.5f, RAC1_STRAFE_PI)
+        == RAC1_STRAFE_PI
+    );
+}
+
+/* The strafe let go while he runs on: along the stick until he has turned to it, then the game's;
+ * with the stick let go at the same time, along its last yaw while he slows. */
+static void glide_leaving(void) {
+    rac1_strafe_glide g = {0, 0, 0.0f};
+    /* Running straight back, facing 0. */
+    rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, PUSHED, 0.0f, RAC1_STRAFE_PI, F);
+    CHECK(g.leaving);
+    /* L2 up: still along the stick while his facing is off it. */
+    CHECK(
+        rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, RAC1_STRAFE_PI, F)
+        == RAC1_STRAFE_PI
+    );
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 2.0f, 3.0f, F) == 3.0f);
+    /* Within 3 degrees: the game's facing, and the glide over. */
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 2.99f, 3.0f, F) == F);
+    CHECK(!g.leaving && !g.valid);
+    /* Over: a later turn of the game's own is the game's. */
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, 3.0f, F) == F);
+
+    /* Across the wrap: facing just under pi, the stick just over minus pi, 2 degrees apart. */
+    g = (rac1_strafe_glide){0, 0, 0.0f};
+    rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, PUSHED, 0.0f, -3.12f, F);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 3.14f, -3.12f, F) == F);
+
+    /* L2 and the stick let go together: he slows along the stick's last yaw, not forward. */
+    g = (rac1_strafe_glide){0, 0, 0.0f};
+    rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, PUSHED, 0.0f, -1.5f, F);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, LET_GO, 0.0f, 0.0f, F) == -1.5f);
+    /* Pushed again before he turned: along the new stick. */
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, 1.0f, F) == 1.0f);
+    CHECK(g.yaw == 1.0f);
+
+    /* Out of the run (a jump, a stop) ends it: the game's, and not again on landing. */
+    g = (rac1_strafe_glide){0, 0, 0.0f};
+    rac1_strafe_glide_angle(&g, RAC1_STRAFE_HELD, RUN, PUSHED, 0.0f, RAC1_STRAFE_PI, F);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, NOT_RUN, PUSHED, 0.0f, 3.0f, F) == F);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, 3.0f, F) == F);
+
+    /* A strafe standing (not in the run) leaves nothing behind when it ends. */
+    g = (rac1_strafe_glide){0, 0, 0.0f};
+    rac1_strafe_glide_angle(&g, RAC1_STRAFE_LOCKED, NOT_RUN, PUSHED, 0.0f, 2.0f, F);
+    CHECK(!g.leaving);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, 2.0f, F) == F);
+
+    /* Never strafed: the game's, always. */
+    g = (rac1_strafe_glide){0, 0, 0.0f};
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, PUSHED, 0.0f, 2.0f, F) == F);
+    CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, RUN, LET_GO, 0.0f, 0.0f, F) == F);
+}
+
+/* When the pad report forgets the glide: no strafe and out of the run, or out of play on foot
+ * (a scene starting mid-run keeps his state but must not slide him along an old stick). */
+static void glide_ends(void) {
+    CHECK(rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_STAND, 1));
+    CHECK(rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_JUMP, 1));
+    CHECK(rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_FLIP, 1));
+    CHECK(!rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, 1));
+    CHECK(!rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN_ALT, 1));
+    CHECK(!rac1_strafe_glide_ends(RAC1_STRAFE_HELD, RAC1_STRAFE_STATE_STAND, 1));
+    CHECK(!rac1_strafe_glide_ends(RAC1_STRAFE_LOCKED, RAC1_STRAFE_STATE_JUMP, 1));
+    CHECK(rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, 0));
+    CHECK(rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN_ALT, 0));
+}
+
+/* The reported case, tick by tick: running straight back with L2 held, then L2 let go with the
+ * stick still back. The game turns his facing toward the stick a step a tick (here 0.2 rad, its
+ * run turn's order) and builds the velocity along the angle it is given. Before the fix the first
+ * ticks after L2 went forward, along his facing; now no tick moves him forward of where he faced,
+ * and once turned the game's facing takes over. Also with L2 let go and the stick let go together:
+ * he only ever slows backwards. */
+static void glide_play_through(void) {
+    const float back = RAC1_STRAFE_PI;
+    rac1_strafe_glide g = {0, 0, 0.0f};
+    float facing = 0.0f;
+    int handed_back = 0;
+
+    for (int tick = 0; tick < 60; ++tick) {
+        const int kind = tick < 10 ? RAC1_STRAFE_HELD : RAC1_STRAFE_NONE;
+
+        /* Strafing he faces the camera (0); after L2 the game turns him toward the stick. */
+        if (kind == RAC1_STRAFE_NONE) {
+            const float d = rac1_strafe_angle_diff(facing, back);
+            facing += d > 0.2f ? 0.2f : (d < -0.2f ? -0.2f : d);
+        }
+
+        float angle = rac1_strafe_glide_angle(&g, kind, RUN, PUSHED, facing, back, F);
+
+        if (!(angle <= RAC1_STRAFE_PI)) {
+            angle = facing;
+            handed_back = 1;
+        }
+
+        /* Never forward along where he faced while strafing. */
+        CHECK(cosf(angle) < -0.99f);
+    }
+
+    CHECK(handed_back);
+
+    /* L2 and the stick let go together after a backward strafe: every tick slows him backwards. */
+    g = (rac1_strafe_glide){0, 0, 0.0f};
+    facing = 0.0f;
+
+    for (int tick = 0; tick < 30; ++tick) {
+        const int kind = tick < 10 ? RAC1_STRAFE_HELD : RAC1_STRAFE_NONE;
+        const float target = tick < 10 ? PUSHED : LET_GO;
+        /* The stick handler puts his facing in the move yaw when the stick is centred. */
+        const float move_yaw = tick < 10 ? back : facing;
+        float angle = rac1_strafe_glide_angle(&g, kind, RUN, target, facing, move_yaw, F);
+
+        if (!(angle <= RAC1_STRAFE_PI)) {
+            angle = facing;
+        }
+
+        CHECK(cosf(angle) < -0.99f);
+    }
+}
+
+#undef F
+#undef RUN
+#undef NOT_RUN
+#undef PUSHED
+#undef LET_GO
+
 /* The strafe flip: X pressed while strafing on the ground with the stick pushed fully. */
 static void flips(void) {
     const uint32_t x = RAC1_PAD_X;
@@ -881,8 +1052,126 @@ static void flips(void) {
     CHECK(!rac1_strafe_flips(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, x, 1.0f));
 }
 
+/* A camera of the level's own (Kalebo III's arena seen from a wall): nothing strafes in either
+ * mode, standing, running or in the air, but L2 and R2 stay taken (given back, L2 put him in first
+ * person, stuck); a press is not latched. Edge cases: the camera changing while L2 is held, while
+ * latched and mid-swing, while running with the glide on, and scenes or vehicles under it. */
+static void fixed_camera(void) {
+    static const int k_states[] = {
+        RAC1_STRAFE_STATE_STAND, RAC1_STRAFE_STATE_RUN, RAC1_STRAFE_STATE_RUN_ALT,
+        RAC1_STRAFE_STATE_JUMP
+    };
+    rac1_strafe_hold hold = {0, 0, 0, 0.0f};
+    rac1_strafe_input in = running();
+    in.fixed_camera = 1;
+
+    /* Each mode and state on foot: buttons taken, no strafe, no turn, no swing, no camera. */
+    for (unsigned i = 0; i < sizeof k_states / sizeof k_states[0]; ++i) {
+        in.state = k_states[i];
+        CHECK(rac1_strafe_takes_buttons(RAC1_STRAFE_LOCK, &in));
+        CHECK(rac1_strafe_takes_buttons(RAC1_STRAFE_HOLD, &in));
+        CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_NONE);
+        CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_NONE);
+        CHECK(rac1_strafe_turn_target(RAC1_STRAFE_NONE, 0, 1.25f, -2.0f, &hold) == 1.25f);
+        CHECK(rac1_strafe_planar_angle(RAC1_STRAFE_NONE, 99999.0f, 1.25f) == 99999.0f);
+        CHECK(!rac1_strafe_turns_standing(RAC1_STRAFE_NONE, in.state, &hold));
+        CHECK(!rac1_strafe_swings_camera(RAC1_STRAFE_NONE, &hold));
+    }
+
+    /* Off foot under it: the game's, as anywhere (a scene, a vehicle, the game's own strafe). */
+    in.state = RAC1_STRAFE_STATE_GAME;
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_LOCK, &in));
+    in.state = RAC1_STRAFE_STATE_RUN;
+    in.vehicle_mode = 1;
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_HOLD, &in));
+    in.vehicle_mode = 0;
+    in.playing = 0;
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_HOLD, &in));
+    in.playing = 1;
+    /* The setting off: the game's buttons. */
+    CHECK(!rac1_strafe_takes_buttons(RAC1_STRAFE_OFF, &in));
+
+    /* L2 pressed under it: not latched, held on, still not; the camera back behind him, still
+     * held: latched then, at his facing, and Hold strafes. */
+    in.held = RAC1_PAD_L2;
+    in.facing = 0.3f;
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(!hold.latched);
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(!hold.latched);
+    in.fixed_camera = 0;
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(hold.latched && hold.yaw == 0.3f && hold.swinging);
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_HELD);
+
+    /* Latched and mid-swing, the camera turns into the level's: no strafe and no swing asked at
+     * once; the latch stays while held, so back behind him he strafes on at the same yaw. */
+    in.fixed_camera = 1;
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_NONE);
+    CHECK(!rac1_strafe_swings_camera(RAC1_STRAFE_NONE, &hold));
+    in.fixed_camera = 0;
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold) == RAC1_STRAFE_HELD);
+    CHECK(hold.yaw == 0.3f);
+
+    /* Let go under it: forgotten. */
+    in.fixed_camera = 1;
+    in.held = 0;
+    rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_CLASSIC, &in, &hold);
+    CHECK(!hold.latched && !hold.swinging);
+
+    /* Lock with the blaster, the camera back behind him: locked again. */
+    in.fixed_camera = 0;
+    CHECK(rac1_strafe_kind(RAC1_STRAFE_LOCK, &in, &hold) == RAC1_STRAFE_LOCKED);
+
+    /* Running in a strafe when the camera turns into the level's: the strafe ends as letting go
+     * of L2 does (the glide follows the stick until he faces it), not a jump to the camera. */
+    {
+        rac1_strafe_glide g = {0, 0, 0.0f};
+        const float facing = 0.0f, stick = 1.5707964f;
+        CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_LOCKED, 1, 0.1f, facing, stick, 99999.0f)
+              == stick);
+        CHECK(g.leaving);
+        CHECK(rac1_strafe_glide_angle(&g, RAC1_STRAFE_NONE, 1, 0.1f, facing, stick, 99999.0f)
+              == stick);
+        CHECK(!rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_RUN, 1));
+        CHECK(rac1_strafe_glide_ends(RAC1_STRAFE_NONE, RAC1_STRAFE_STATE_STAND, 1));
+    }
+}
+
+/* The report: L2 held, X while running ahead (rac1's running jump, state 9), then the stick
+ * pushed left in the air. He keeps facing ahead (the latched yaw), and the double jump after it
+ * too; he goes left along the stick. 1.2.1 left state 9 to the game, which turned him left. */
+static void running_jump(void) {
+    const int jumps[] = {RAC1_STRAFE_STATE_RUN_JUMP, RAC1_STRAFE_STATE_DOUBLE_JUMP};
+
+    for (unsigned j = 0; j < 2; ++j) {
+        rac1_strafe_hold hold = {0, 0, 0, 0.0f};
+        rac1_strafe_input in = running();
+        float facing = 0.0f, v[2];
+        in.slot_item = WRENCH; /* Hold, not Lock */
+        in.facing = facing;
+        in.camera = facing;
+        in.held = RAC1_PAD_L2;
+        rac1_strafe_hold_update(RAC1_STRAFE_HOLD, RAC1_STRAFE_FEEL_COMMANDO, &in, &hold);
+        CHECK(hold.latched);
+        in.state = jumps[j];
+
+        /* A second in the air with the stick left. */
+        for (int t = 0; t < 60; ++t) {
+            const int kind = rac1_strafe_kind(RAC1_STRAFE_HOLD, &in, &hold);
+            CHECK(kind == RAC1_STRAFE_HELD);
+            tick(kind, in.camera, 1.5707964f, &hold, &facing, v);
+        }
+
+        CHECK(fabsf(facing) < 1e-4f);
+        CHECK(v[1] > 0.99f); /* along the stick: left */
+    }
+}
+
 int main(void) {
     items();
+    buttons();
     off();
     hold_mode();
     lock_mode();
@@ -896,10 +1185,17 @@ int main(void) {
     joint_yaw();
     directions();
     flips();
+    glide_strafing();
+    glide_leaving();
+    glide_ends();
+    glide_play_through();
+    fixed_camera();
+    running_jump();
     puts(
-        "hero strafe: weapons, off, hold, lock, the buttons taken, facing, velocity, swing, right "
-        "stick, backpedal, Going Commando's feel, side reversal, hip twist, its joints' turn, the "
-        "legs for each direction and flips passed"
+        "hero strafe: weapons, buttons, off, hold, lock, the buttons taken, facing, velocity, "
+        "swing, right stick, backpedal, Going Commando's feel, side reversal, hip twist, its "
+        "joints' turn, the legs for each direction, flips, the glide as a strafe ends and a "
+        "level's own camera and the running jump passed"
     );
     return 0;
 }

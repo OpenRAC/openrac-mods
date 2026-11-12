@@ -569,7 +569,7 @@ void a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on() {
     end.kind = mp::Message::Kind::kPartyEnd;
     t.a.session.handle(end);
     CHECK(!t.a.session.in_party());
-    CHECK(t.a.session.take_notice().find("over") != std::string::npos);
+    CHECK(t.a.session.take_notice().find("left") != std::string::npos);
     tick({&t.a}, 16);
     CHECK(!t.a.coop.hold_input());
 }
@@ -635,7 +635,7 @@ void a_new_host_on_the_other_disc_changes_what_the_rules_say() {
     CHECK(t.a.mods.host_list().disc == "another");
     CHECK(t.a.mods.may_play(3));
     const auto lines = mp::rules_lines(t.b.mods.host_list(), {}, t.b.mods.own(), 80);
-    CHECK(std::any_of(lines.begin(), lines.end(), [](const std::string& l) { return l == "Enemies follow the host's game"; }));
+    CHECK(std::any_of(lines.begin(), lines.end(), [](const std::string& l) { return l == "Enemies: the host's game"; }));
 }
 
 void an_epoch_stamp_goes_on_all_a_new_host_sends() {
@@ -663,8 +663,8 @@ void an_epoch_stamp_goes_on_all_a_new_host_sends() {
 
 void the_leave_question_says_what_becomes_of_the_party() {
     CHECK(std::string(mp::pause_leave_question(false, true, false)) == "End the party?");
-    CHECK(std::string(mp::pause_leave_question(false, true, true)).find("takes over") != std::string::npos);
-    CHECK(std::string(mp::pause_leave_question(false, false, true)) == "Leave the party?");
+    CHECK(std::string(mp::pause_leave_question(false, true, true)) == "Leave party?");
+    CHECK(std::string(mp::pause_leave_question(false, false, true)) == "Leave party?");
 }
 
 void the_host_going_at_any_moment_leaves_one_world() {
