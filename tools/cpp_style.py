@@ -39,6 +39,7 @@ STYLE = ROOT / ".clang-format"
 # The folders (relative to the repository root) whose C and C++ this tool covers: one per mod.
 TREES = (
     "ammo-max",
+    "cheats",
     "difficulty-mod",
     "dualsense",
     "item-randomizer",
