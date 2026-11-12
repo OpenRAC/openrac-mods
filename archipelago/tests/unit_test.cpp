@@ -12,6 +12,7 @@
 #include <mbedtls/net_sockets.h>
 
 #include "ap_ids.h"
+#include "ap_npc_infobots.h"
 #include "ap_gold_weapons.h"
 #include "session.hpp"
 #include "websocket.hpp"
@@ -314,8 +315,7 @@ void test_save() {
 
     // A skill point in a room without them is no check and no sign of another seed; in a room
     // with them it is sent. (1,2 are the room's; the skill id is either unknown or missing.)
-    {
-        const std::int64_t skill = ap_skill_location_id(1, 0);
+    for (const std::int64_t skill : {ap_skill_location_id(1, 0), ap_npc_id(0)}) {
         ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
         connect(s, "[1,2]", out);
         out.clear();
@@ -484,6 +484,30 @@ void test_new_game_plus() {
     expect(s.foreign_save() && s.new_game_plus() == -1, "foreign saves never receive mode changes");
 }
 
+void test_npc_infobots() {
+    std::vector<std::string> out;
+    for (const json value : {json(true), json(1), json(false), json(0), json("true"), json(2), json(nullptr)}) {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        expect(s.npc_infobots() == -1, "mode unknown before connecting");
+        s.on_open();
+        s.on_message(json::array({{{"cmd", "Connected"}, {"slot_data", {{"npc_infobot_checks", value}}}}}).dump(), out);
+        expect(s.npc_infobots() == -1, "mode withheld before save judgment");
+        s.save_loaded({}, -1, out);
+        const bool enabled = value == json(true) || value == json(1);
+        expect(s.npc_infobots() == int(enabled), "only true or one enables NPC Infobots");
+        s.on_close();
+        expect(s.npc_infobots() == -1, "no mode applied while disconnected");
+        s.on_open();
+        s.on_message(R"([{"cmd":"Connected"}])", out);
+        expect(s.npc_infobots() == 0, "older seeds default off on reconnect");
+    }
+    ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+    s.book().slots[2] = {"other-seed", "Ratchet"};
+    s.save_loaded({}, 2, out);
+    s.on_message(R"([{"cmd":"RoomInfo","seed_name":"this-seed"},{"cmd":"Connected","slot_data":{"npc_infobot_checks":1}}])", out);
+    expect(s.foreign_save() && s.npc_infobots() == -1, "foreign saves never receive mode changes");
+}
+
 }  // namespace
 
 int main() {
@@ -494,6 +518,7 @@ int main() {
     test_session();
     test_save();
     test_new_game_plus();
+    test_npc_infobots();
     std::printf(g_failures == 0 ? "unit: ok\n" : "unit: %d failed\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

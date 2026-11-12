@@ -158,6 +158,11 @@ public:
         return session_.new_game_plus();
     }
 
+    int npc_infobots() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.npc_infobots();
+    }
+
     int shuffle_gold_weapons() {
         std::lock_guard<std::mutex> lock(mutex_);
         return session_.shuffle_gold_weapons();
@@ -391,6 +396,8 @@ int ap_client_synced(void) {
 int ap_client_new_game_plus(void) {
     return g_client != nullptr ? g_client->new_game_plus() : -1;
 }
+
+int ap_client_npc_infobots(void) { return g_client ? g_client->npc_infobots() : -1; }
 
 int ap_client_shuffle_gold_weapons(void) {
     return g_client != nullptr ? g_client->shuffle_gold_weapons() : -1;

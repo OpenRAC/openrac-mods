@@ -23,6 +23,7 @@
 
 #include "ap_ids.h"
 #include "ap_gold_weapons.h"
+#include "ap_npc_infobots.h"
 #include "ap_skills.h"
 #include "discs.h"
 #include "hooks.h"
@@ -101,6 +102,10 @@ std::string g_notice;
 std::string g_server;
 bool g_new_game_plus;
 bool g_gold_mode;
+bool g_npc_mode;
+int g_npc_purchases;
+uint8_t g_serialized_planets[LEVEL_COUNT];
+uint32_t g_serialized_checks;
 bool g_missing_gold_hook;
 std::string g_data_dir;
 int g_save_updates;
@@ -201,7 +206,26 @@ std::string saved_book() {
     return std::string(std::istreambuf_iterator<char>(in), {});
 }
 
+void* replacement(const char* name);
+void game_serialize(uint32_t) {
+    std::memcpy(g_serialized_planets,at(D->planets),LEVEL_COUNT);
+    std::memcpy(&g_serialized_checks,at(D->save_tag),4);
+}
+void game_npc(uint32_t moby) {
+    int16_t cls; std::memcpy(&cls,at(moby+0xA6),2);
+    for (const auto& npc : k_ap_npcs) {
+        if (npc.oclass==cls && npc.level==g_level && !*at(D->planets+npc.planet)) {
+            ++g_npc_purchases;
+            ((void(*)(int))replacement(OPENRAC_RAC1_HOOK_Planet_Unlock))(npc.planet);
+            ((void(*)(uint32_t))replacement("rac1.save.serialize"))(0);
+            break;
+        }
+    }
+}
+
 void* original_for(const std::string& name) {
+    if (name == "rac1.save.serialize") return (void*)game_serialize;
+    for (const auto& npc : k_ap_npcs) if (name == npc.hook) return (void*)game_npc;
     if (name == ITEM_RANDOMIZER_HOOK_Save_NewGame) return (void*)game_void;
     if (name == "rac1.save.update_state") return (void*)game_save_update;
     if (name == "rac1.save.restore_data") return (void*)game_restore_data;
@@ -429,7 +453,7 @@ void serve(socket_t listener) {
                         {{"cmd", "Connected"},
                          {"team", 0},
                          {"slot", 1},
-                         {"slot_data", {{"start_in_new_game_plus", int(g_new_game_plus)}, {"shuffle_gold_weapons", int(g_gold_mode)}}},
+                         {"slot_data", {{"start_in_new_game_plus", int(g_new_game_plus)}, {"shuffle_gold_weapons", int(g_gold_mode)}, {"npc_infobot_checks", int(g_npc_mode)}}},
                          {"players", json::array()},
                          {"missing_locations", json::array()},
                          {"checked_locations", json::array()},
@@ -448,6 +472,8 @@ void serve(socket_t listener) {
                                                      {"location", 2}, {"player", 2}, {"flags", 1}});
                     for (int i = 0; i < (g_gold_mode ? 48 : 8); ++i) connected[1]["items"].push_back(
                         {{"item", AP_BASE + AP_GOLD_BOLT_OFFSET}, {"location", 3 + i}, {"player", 2}, {"flags", 0}});
+                    if (g_npc_mode) for (int i = 0; i < AP_NPC_COUNT; ++i)
+                        connected[0]["missing_locations"].push_back(ap_npc_id(i));
                     send_all(c, server_frame(connected.dump()));
                     g_connected = true;
                 } else if (cmd == "LocationChecks") {
@@ -515,6 +541,7 @@ int main(int argc, char** argv) {
         D = &k_rando_discs[1];
     }
     g_new_game_plus = argc > 3 && std::strcmp(argv[3], "ngplus") == 0;
+    for (int i = 2; i < argc; ++i) if (std::strcmp(argv[i], "npc") == 0) g_npc_mode = true;
     g_gold_mode = argc > 4 && std::strcmp(argv[4], "gold") == 0;
     g_missing_gold_hook = argc > 5;
 
@@ -556,7 +583,7 @@ int main(int argc, char** argv) {
     { std::ofstream book(dir / "save-slots.tsv"); book << "4\told-seed\tRatchet\n"; }
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 21 && g_frame != nullptr);
+    CHECK(g_hooks == 35 && g_frame != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 
@@ -721,6 +748,41 @@ int main(int argc, char** argv) {
     set_level(LEVEL_VELDIN2);
     g_scene = 4;
     CHECK(frames_until([] { return g_goal; }));
+
+    if (g_npc_mode) {
+        const uint32_t old_gold_checks = get(D->save_tag) & 0x3FFu;
+        put(D->save_tag, 0xA7500000u | old_gold_checks); // legacy gold-case save format
+        const uint32_t npc_moby=0x1800000;
+        int16_t cls=1144; std::memcpy(at(npc_moby+0xA6),&cls,2);
+        set_level(LEVEL_BATALIA);
+        *at(D->planets+LEVEL_GASPAR)=1; // acquired from elsewhere: NPC must still be purchasable
+        auto deserter=(void(*)(uint32_t))replacement("Moby_BataliaDeserter_Update");
+        const int purchases=g_npc_purchases;
+        deserter(npc_moby);
+        CHECK(g_npc_purchases==purchases+1 && *at(D->planets+LEVEL_GASPAR)==1);
+        CHECK(g_serialized_planets[LEVEL_GASPAR]==1);
+        CHECK((g_serialized_checks & (1u << (10+7))) != 0);
+        CHECK((g_serialized_checks & 0x3FFu) == old_gold_checks);
+        CHECK((g_serialized_checks & 0xFF000000u) == 0xA8000000u);
+        CHECK(frames_until([] { return g_checked.count(ap_npc_id(7)) != 0; }));
+        deserter(npc_moby);
+        CHECK(g_npc_purchases==purchases+1); // receiving its coordinates never buys it twice
+        cls=774; std::memcpy(at(npc_moby+0xA6),&cls,2);
+        set_level(LEVEL_NOVALIS); *at(D->planets+LEVEL_ARIDIA)=0;
+        ((void(*)(uint32_t))replacement("Moby_ThePlumber_Update"))(npc_moby);
+        CHECK(*at(D->planets+LEVEL_ARIDIA)==0 && g_serialized_planets[LEVEL_ARIDIA]==0);
+        CHECK(frames_until([] { return g_checked.count(ap_npc_id(0)) != 0; }));
+        const int checks=get(D->save_tag);
+        ((void(*)(int))replacement(ITEM_RANDOMIZER_HOOK_Save_NewGamePlus))(0);
+        CHECK(get(D->save_tag)==checks); // challenge restart preserves NPC and gold-case checks
+    } else {
+        // Older APWorlds still give the direct NPC coordinates normally.
+        const uint32_t npc_moby=0x1800000;
+        const int16_t cls=774; std::memcpy(at(npc_moby+0xA6),&cls,2);
+        set_level(LEVEL_NOVALIS); *at(D->planets+LEVEL_ARIDIA)=0;
+        ((void(*)(uint32_t))replacement("Moby_ThePlumber_Update"))(npc_moby);
+        CHECK(*at(D->planets+LEVEL_ARIDIA)==1);
+    }
 
     // Same-slot overwrite: a new game may replace an old seed only after a successful close.
     auto new_game = (void(*)())replacement(ITEM_RANDOMIZER_HOOK_Save_NewGame);

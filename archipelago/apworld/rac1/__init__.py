@@ -121,6 +121,13 @@ class RAC1World(World):
         # A pool turned off keeps the game's own item in place; the rest go to the multiworld.
         self.own_progression = []
         own = self.places_own_progression()
+        if self.options.shuffle_infobots and not own:
+            # NPC coordinates no longer open both first planets for free. Keep one initial
+            # flight in the first reachable sphere, also when another world shares our pool.
+            exit_item = self.random.choice(("Aridia Coordinates", "Kerwan Coordinates"))
+            early = self.multiworld.local_early_items[self.player]
+            early[exit_item] = max(early.get(exit_item, 0), 1)
+
         for row in self.location_rows():
             item = self.create_item(self.vanilla_item(row))
             if self.shuffled(row):
@@ -177,7 +184,7 @@ class RAC1World(World):
         self.own_progression = []
 
     def fill_slot_data(self) -> Mapping[str, Any]:
-        return self.options.as_dict(
+        return {"npc_infobot_checks": 1, **self.options.as_dict(
             "logic",
             "shuffle_gadgets",
             "shuffle_weapons",
@@ -188,4 +195,4 @@ class RAC1World(World):
             "starting_weapons",
             "shuffle_gold_weapons",
             "start_in_new_game_plus",
-        )
+        )}

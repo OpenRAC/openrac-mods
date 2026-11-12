@@ -25,6 +25,7 @@
 #include "ap_bridge.h"
 #include "ap_ids.h"
 #include "ap_gold_weapons.h"
+#include "ap_npc_infobots.h"
 #include "ap_skills.h"
 #include "discs.h"
 #include "hooks.h"
@@ -123,6 +124,8 @@ static int s_infobot = -1;
 static uint8_t s_received_item[RANDO_ITEM_COUNT];
 static uint8_t s_received_gold_weapon[RANDO_ITEM_COUNT];
 static int s_gold_case = -1;
+static int s_npc_running = -1;
+static uint8_t s_gold_real_upgrade;
 static openrac_rac1_GoldBolts_CountUnspent s_count_unspent;
 static openrac_rac1_Moby_GoldWeaponCase_Update s_gold_case_update;
 static item_randomizer_Save_NewGamePlus s_new_game_plus;
@@ -250,11 +253,16 @@ static void log_line(int level, const char* text) {
 
 /* Chunk 24 is unused by retail (discs.h save_tag). Keep purchase checks separate from the
  * gold-upgrade ownership bytes: a received upgrade never spends currency or buys its case. */
-#define GOLD_CHECK_MAGIC 0xA7500000u
-static uint32_t gold_case_checks(void) {
+#define GOLD_CHECK_MAGIC 0xA7500000u /* legacy: ten case bits */
+#define AP_CHECK_MAGIC 0xA8000000u
+static uint32_t saved_checks(void) {
     const uint32_t word = (uint32_t)get32(byte_at(s_disc->save_tag));
-    return (word & ~0x3FFu) == GOLD_CHECK_MAGIC ? word & 0x3FFu : 0;
+    if ((word & ~0x3FFu) == GOLD_CHECK_MAGIC) return word & 0x3FFu;
+    return (word & 0xFF000000u) == AP_CHECK_MAGIC ? word & 0x7FFFFFu : 0;
 }
+static void save_checks(uint32_t bits) { set32(byte_at(s_disc->save_tag), (int32_t)(AP_CHECK_MAGIC | bits)); }
+static uint32_t gold_case_checks(void) { return saved_checks() & 0x3FFu; }
+static int npc_had(int index) { return (saved_checks() >> (10 + index)) & 1u; }
 static uint8_t* gold_owned(int base) {
     return byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013E620u + base : 0x0013E520u + base);
 }
@@ -287,6 +295,10 @@ static int had(int location) {
                        + (uint32_t)l->key
                    )
                    != 0;
+        case LOC_FIXED: {
+            const int npc = l->vanilla.kind == REWARD_PLANET ? ap_npc_index(l->level,l->vanilla.value) : -1;
+            return npc >= 0 && npc_had(npc);
+        }
         default:
             return 0;
     }
@@ -521,6 +533,13 @@ static void planet_unlock(int32_t planet) {
         return;
     }
 
+    if (s_npc_running >= 0 && ap_client_npc_infobots() == 1
+        && planet == k_ap_npcs[s_npc_running].planet) {
+        save_checks(saved_checks() | (1u << (10 + s_npc_running)));
+        *planet_flag(planet) = 1; /* only the NPC sees this; saves serialize real ownership */
+        ap_client_check(ap_npc_id(s_npc_running));
+        return;
+    }
     s_planet_unlock(planet);
 }
 
@@ -685,7 +704,7 @@ static int save_slot_now(void) {
 
 /* The locations the game has had, sent to the client with the save's memory card slot. */
 static void send_save(int card_slot) {
-    static int64_t ids[RANDO_MAX_LOCATIONS + AP_SKILL_POINT_COUNT + AP_GOLD_WEAPON_COUNT];
+    static int64_t ids[RANDO_MAX_LOCATIONS + AP_SKILL_POINT_COUNT + AP_GOLD_WEAPON_COUNT + AP_NPC_COUNT];
     size_t n = 0;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -704,6 +723,7 @@ static void send_save(int card_slot) {
     for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
         if (gold_case_checks() & (1u << i)) ids[n++] = ap_gold_case_id(k_ap_gold_bases[i]);
     }
+    for (int i = 0; i < AP_NPC_COUNT; ++i) if (npc_had(i)) ids[n++] = ap_npc_id(i);
     ap_client_save_loaded(ids, n, card_slot);
 }
 
@@ -1118,14 +1138,17 @@ static void gold_case_update(openrac_gaddr moby) {
     }
     const uint8_t upgrade = *gold_owned(base);
     const int previous = s_gold_case;
+    const uint8_t previous_upgrade = s_gold_real_upgrade;
+    s_gold_real_upgrade = upgrade;
     s_gold_case = index;
     *gold_owned(base) = (uint8_t)had_case;
     s_gold_case_update(moby);
     const int bought = *gold_owned(base) != 0 && !had_case;
     *gold_owned(base) = upgrade;
     s_gold_case = previous;
+    s_gold_real_upgrade = previous_upgrade;
     if (bought) {
-        set32(byte_at(s_disc->save_tag), (int32_t)(GOLD_CHECK_MAGIC | gold_case_checks() | bit));
+        save_checks(saved_checks() | bit);
         ap_client_check(ap_gold_case_id(base));
     }
 }
@@ -1181,11 +1204,11 @@ static void save_update(void) {
 }
 
 static void new_game_plus(int32_t slot) {
-    const uint32_t checks = gold_case_checks();
+    const uint32_t checks = saved_checks();
     ++s_in_game_reset;
     s_new_game_plus(slot);
     --s_in_game_reset;
-    if (checks) set32(byte_at(s_disc->save_tag), (int32_t)(GOLD_CHECK_MAGIC | checks));
+    if (checks) save_checks(checks);
 }
 
 /* ---- the goal ---- */
@@ -1254,6 +1277,8 @@ static void show_notices(void) {
 /* Each tick: a location had without passing through a hook (a gold bolt, a route that writes the
  * bytes itself) is told to the server, and the place's own item, when it wrote it as owned and the
  * server has not sent it, is taken back; then what the server sent is given; then the goal. */
+#include "ap_npc_infobots.inc"
+
 static void each_tick(void* user) {
     (void)user;
     uint32_t loads = 0;
@@ -1382,6 +1407,7 @@ static int take(int result, const char* point) {
     )
 
 static int install_hooks(void) {
+    if (!npc_infobot_hooks()) return 0;
     /* Older ports still support every other option. Never permit randomized purchases
      * without independent currency accounting; the player gets a clear update notice. */
     s_has_gold_currency_hook = s_api->hook(

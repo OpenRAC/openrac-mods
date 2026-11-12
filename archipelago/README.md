@@ -99,6 +99,12 @@ a host built from that release cannot enable randomized gold-case purchases. Oth
 still load; gold-case purchases are blocked with an update notice rather than charging the
 wrong currency. Update the OpenRAC host to a build containing #444 to use gold-case shuffle.
 
+`shuffle_infobots` includes the 13 NPC coordinate rewards, such as the Novalis
+Plumber and Batalia deserter and commando, in the item pool. Turn it off to keep
+those rewards vanilla. The first Veldin-to-Novalis flight stays fixed. Generate a
+new seed with the updated APWorld to use these checks; older seeds retain their
+original NPC rewards. NPC purchase prompts retain the game's original text.
+
 ## How it works
 
 - The locations are the [item randomizer](../item-randomizer/README.md)'s table, and so are the

@@ -40,7 +40,8 @@ class ShuffleGoldBolts(DefaultOnToggle):
 
 
 class ShuffleInfobots(DefaultOnToggle):
-    """The planets' coordinates the infobots give are items."""
+    """Shuffle Infobots and NPC coordinate rewards, including the Plumber and Batalia purchases.
+    The first flight from Veldin to Novalis remains fixed."""
     display_name = "Shuffle infobots"
 
 

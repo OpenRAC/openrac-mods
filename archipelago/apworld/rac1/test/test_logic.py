@@ -94,11 +94,14 @@ class TestDefault(RAC1TestBase):
         self.assertEqual(location.item.name, "Bomb Glove")
 
     def test_story_planets_from_the_start(self) -> None:
-        # Veldin opens Novalis, whose NPCs open Aridia and Kerwan.
+        # Only the first flight is fixed; the two Novalis NPC rewards are now checks.
         self.sweep()
-        for planet in ("Novalis", "Aridia", "Kerwan"):
-            self.assertTrue(self.can_reach_region(planet), planet)
-        self.assertFalse(self.can_reach_region("Eudora"))
+        self.assertTrue(self.can_reach_region("Novalis"))
+        for planet in ("Aridia", "Kerwan", "Eudora"):
+            self.assertFalse(self.can_reach_region(planet), planet)
+        self.collect_by_name(["Aridia Coordinates", "Kerwan Coordinates"])
+        self.assertTrue(self.can_reach_region("Aridia"))
+        self.assertTrue(self.can_reach_region("Kerwan"))
 
     def test_planet_needs_its_coordinates(self) -> None:
         self.collect_by_name("Eudora Coordinates")
@@ -343,3 +346,35 @@ class TestData(unittest.TestCase):
     def test_every_planet_opens(self) -> None:
         for planet in PLANETS[1:]:
             self.assertTrue(coordinates(planet), planet)
+
+
+class TestNPCInfobots(RAC1TestBase):
+    def test_npc_checks_and_coordinate_items(self) -> None:
+        from ..npc_infobots import NPC_LOCATION_ROWS
+        self.assertEqual(len(NPC_LOCATION_ROWS), 13)
+        self.assertEqual(len({row.id for row in NPC_LOCATION_ROWS}), 13)
+        self.assertEqual(self.world.fill_slot_data()["npc_infobot_checks"], 1)
+        for name in ("Novalis: the coordinates of Aridia",
+                     "Batalia: the deserter, the coordinates of Gaspar",
+                     "Batalia: the commando, the coordinates of Orxon"):
+            location = self.world.get_location(name)
+            self.assertIsNotNone(location.address)
+            self.assertFalse(location.locked)
+        self.sweep()
+        self.assertFalse(self.can_reach_region("Gaspar"))
+        self.collect_by_name("Gaspar Coordinates")
+        self.assertTrue(self.can_reach_region("Gaspar"))
+
+
+class TestNPCInfobotsOff(RAC1TestBase):
+    options = {"shuffle_infobots": False}
+
+    def test_off_keeps_npc_rewards_vanilla(self) -> None:
+        from ..npc_infobots import NPC_LOCATION_ROWS
+        for row in NPC_LOCATION_ROWS:
+            spot = self.world.get_location(row.name)
+            self.assertTrue(spot.locked)
+            self.assertEqual(spot.item.name, row.vanilla)
+        self.sweep()
+        self.assertTrue(self.can_reach_region("Aridia"))
+        self.assertTrue(self.can_reach_region("Kerwan"))

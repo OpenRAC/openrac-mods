@@ -5,6 +5,7 @@
 #include "session.hpp"
 
 #include "ap_ids.h"
+#include "ap_npc_infobots.h"
 
 #include <iterator>
 #include <cstdlib>
@@ -190,7 +191,7 @@ void Session::judge_save(std::vector<std::string>& out) {
 
     // A skill point's flag in a room without them is no check, and no sign of another seed.
     for (auto it = save_.begin(); it != save_.end();) {
-        it = ap_id_is_skill(*it) && room_.count(*it) == 0 ? save_.erase(it) : std::next(it);
+        it = (ap_id_is_skill(*it) || ap_id_is_npc(*it)) && room_.count(*it) == 0 ? save_.erase(it) : std::next(it);
     }
 
     bool extra = false;
@@ -441,8 +442,12 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
     } else if (cmd == "Connected") {
         new_game_plus_ = false;
         shuffle_gold_weapons_ = false;
+        npc_infobots_ = false;
         const auto data = p.find("slot_data");
         if (data != p.end() && data->is_object()) {
+            const auto npc_option = data->find("npc_infobot_checks");
+            if (npc_option != data->end()) npc_infobots_ = (npc_option->is_boolean() && npc_option->get<bool>())
+                || (npc_option->is_number_integer() && *npc_option == 1);
             const auto gold_option = data->find("shuffle_gold_weapons");
             if (gold_option != data->end()) {
                 shuffle_gold_weapons_ = (gold_option->is_boolean() && gold_option->get<bool>())

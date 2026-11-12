@@ -89,6 +89,8 @@ public:
         return connected_ && save_judged_ && !foreign_ ? int(shuffle_gold_weapons_) : -1;
     }
 
+    int npc_infobots() const { return connected_ && save_judged_ && !foreign_ ? int(npc_infobots_) : -1; }
+
     const std::string& refusal() const { return refusal_; }
 
     const std::vector<std::int64_t>& items() const { return items_; }
@@ -147,6 +149,7 @@ private:
     bool save_judged_ = false;
     bool new_game_plus_ = false;
     bool shuffle_gold_weapons_ = false;
+    bool npc_infobots_ = false;
     int save_slot_ = -1;     // the memory card slot of save_
     int unbound_ = -1;       // a slot saved into before the room's seed was known
     std::string seed_name_;  // RoomInfo's seed_name

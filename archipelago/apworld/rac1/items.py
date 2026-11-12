@@ -5,8 +5,9 @@ from BaseClasses import Item, ItemClassification
 from .data import GAME, ITEMS
 from .defs import ItemData
 from .gold_weapons import GOLD_ITEMS, GOLD_WEAPONS
+from .npc_infobots import NPC_ITEMS
 
-ALL_ITEMS = ITEMS + GOLD_ITEMS
+ALL_ITEMS = ITEMS + GOLD_ITEMS + NPC_ITEMS
 
 ITEM_TABLE: dict[str, ItemData] = {item.name: item for item in ALL_ITEMS}
 
