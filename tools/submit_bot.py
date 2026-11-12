@@ -759,8 +759,9 @@ def review(items: list[dict], run=run_cmd) -> int:
                 run(["gh", "issue", "edit", num, "--remove-label", "approved"], check=False)
                 run(["gh", "issue", "comment", num, "--body",
                      "The release's archives changed while this issue was open. Review them again."])
-        elif item.get("changed"):
+        elif item.get("changed") and changed:
             # Approved, then the author replaced an archive: it is not published until reviewed again.
+            # Only once per change: a maintainer who closes it again (rejected) is not asked every hour.
             run(["gh", "issue", "reopen", num])
             run(["gh", "issue", "edit", num, "--remove-label", "approved", "--body-file", "-"], input=body)
             run(["gh", "issue", "comment", num, "--body",

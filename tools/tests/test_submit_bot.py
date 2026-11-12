@@ -549,6 +549,37 @@ class CoolDown(Base):
         self.assertIn("gh issue reopen 3", cmds)
         self.assertTrue(any(c.startswith("gh issue edit 3 --remove-label approved") for c in cmds))
 
+    def test_closed_again_is_not_reopened_every_hour(self):
+        self.approve_built({"linux-x86_64": "0" * 64})
+        _, _, review = self.build()
+        run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "CLOSED",
+                                                  "body": bot.review_body(review[0])}])})
+        bot.review(review, run)
+        self.assertFalse(any(a[:3] == ["gh", "issue", "reopen"] for a, _ in run.calls))
+
+    def test_platform_set_differs_after_approval_waits(self):
+        # Approved for other archives than the release has now (one added, one taken away): not the same.
+        item = self.approve_built()
+        sha = {**b.archive_hashes(item), "windows-x86_64": "1" * 64}
+        approved = {"ext-hud": [{"version": "0.2.0", "sha256": sha}]}
+        (self.fx.repo / "index/approved.json").write_text(json.dumps(approved))
+        index, _, review = self.build()
+        self.assertNotIn("ext-hud", [m["id"] for m in index["mods"]])
+        self.assertTrue(review[0]["changed"])
+
+    def test_approve_reads_a_body_with_crlf(self):
+        ev = self.approve_event("boss")
+        ev["issue"]["body"] = ev["issue"]["body"].replace("\n", "\r\n") + "\r\n"
+        bot.approve(ev, self.fx.repo, b.Offline(self.fx.dir), FakeRun())
+        self.assertEqual(json.loads((self.fx.repo / "index/approved.json").read_text())["ext-hud"][-1],
+                         {"version": "0.3.0", "sha256": self.SHA})
+
+    def test_bad_hash_in_approved_file_fails(self):
+        (self.fx.repo / "index/approved.json").write_text(
+            json.dumps({"ext-hud": [{"version": "0.2.0", "sha256": {"linux-x86_64": "XYZ"}}]}))
+        _, errors, _ = self.build()
+        self.assertTrue(any("approved.json" in e for e in errors))
+
     def test_archive_changed_while_issue_open(self):
         (self.fx.repo / "index/approved.json").write_text("{}")
         _, _, review = self.build()
