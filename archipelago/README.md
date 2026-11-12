@@ -49,7 +49,9 @@ For a weighted choice, put this under `Ratchet & Clank:` in your player YAML:
 ```
 
 `starting_weapons` replaces `keep_starting_gear`: use `vanilla` for the former on behavior,
-or `shuffled` for the former off behavior with weapons shuffled.
+or `shuffled` for the former off behavior with weapons shuffled. Old YAML files must be
+updated: `keep_starting_gear` is no longer recognized. Replace `keep_starting_gear: true` with
+`starting_weapons: vanilla`, or `keep_starting_gear: false` with `starting_weapons: shuffled`.
 
 These are relative weights: this example always selects vanilla. Set `non_broken: 50` and
 `vanilla: 0` to always start with a random weapon other than the R.Y.N.O. The weapon is chosen
@@ -92,8 +94,10 @@ base weapon's original slot. With gold cases on, it exchanges rewards with its o
 
 Randomized gold-case purchases need an OpenRAC build containing
 [OpenRAC/OpenRAC#444](https://github.com/OpenRAC/OpenRAC/pull/444), which adds the independent
-unspent-gold-bolt hook. Other mod options still load on older builds; gold-case purchases are
-blocked with an update notice rather than charging the wrong currency.
+unspent-gold-bolt hook, `GoldBolts_CountUnspent`. SDK 1.14.6 does not provide this hook;
+a host built from that release cannot enable randomized gold-case purchases. Other mod options
+still load; gold-case purchases are blocked with an update notice rather than charging the
+wrong currency. Update the OpenRAC host to a build containing #444 to use gold-case shuffle.
 
 ## How it works
 
