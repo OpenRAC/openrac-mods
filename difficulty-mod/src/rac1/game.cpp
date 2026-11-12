@@ -46,6 +46,7 @@
 // nothing of this runs, and every slider at 1.0 is still the retail game.
 #include "game.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -287,6 +288,11 @@ constexpr uint32_t kVecY = 4u;
 constexpr uint32_t kVecZ = 8u;
 constexpr uint32_t kVecW = 12u;
 constexpr uint32_t kVecSize = 16u;
+// Copies of one enemy that come within kApartGap units of each other or of their original (their
+// AI takes them to the same points: a path's, a cover's) are moved apart by up to kApartStep units
+// a tick, if no wall is in the way. Stacked, they hid each other and caught each other's shots.
+constexpr float kApartGap = 2.0f;
+constexpr float kApartStep = 0.1f;
 
 // ---- State ----
 
@@ -325,6 +331,10 @@ std::unordered_map<uint32_t, std::pair<float, float>> s_anim;
 
 // How deep an enemy's update called from another's is, so that the time is scaled only once.
 int s_timed_depth;
+
+// This level's copies: each copy's original, and each original's copies. Game thread only.
+std::unordered_map<uint32_t, uint32_t> s_original_of;
+std::unordered_map<uint32_t, std::vector<uint32_t>> s_copies_of;
 
 // The classes by id (classes.h).
 std::unordered_map<int, const dm_class*> s_classes;
@@ -556,6 +566,92 @@ void approach_speed(Original original, float up, float down) {
     }
 }
 
+// A moby that is alive and of class `cls`.
+bool alive_as(uint32_t moby, int16_t cls) {
+    return static_cast<int8_t>(get<uint8_t>(moby + kMobyState)) >= 0
+           && get<int16_t>(moby + kMobyClass) == cls;
+}
+
+// After a copy's update: moved a little away from its original and the other copies of it that
+// stand within kApartGap of it. Originals are never moved, so the game's own enemies stay 1:1.
+void keep_apart(uint32_t moby) {
+    const auto of = s_original_of.find(moby);
+
+    // Not a copy.
+    if (of == s_original_of.end()) {
+        return;
+    }
+
+    const int16_t cls = get<int16_t>(of->second + kMobyClass);
+
+    // Its slot was freed or reused: no longer a copy.
+    if (!alive_as(moby, cls)) {
+        s_original_of.erase(of);
+        return;
+    }
+
+    const float x = get<float>(moby + kMobyX), y = get<float>(moby + kMobyY),
+                z = get<float>(moby + kMobyZ);
+    float push_x = 0.0f, push_y = 0.0f;
+    std::vector<uint32_t> family{of->second};
+    const auto& copies = s_copies_of[of->second];
+    family.insert(family.end(), copies.begin(), copies.end());
+
+    // Each other moby of the family within the gap: away from it, more the nearer.
+    for (const uint32_t other : family) {
+        // Itself, or one that is gone.
+        if (other == moby || !alive_as(other, cls)) {
+            continue;
+        }
+
+        const float dx = x - get<float>(other + kMobyX), dy = y - get<float>(other + kMobyY);
+        const float d = std::sqrt(dx * dx + dy * dy);
+
+        // Far enough apart, or on another floor.
+        if (d >= kApartGap || std::fabs(z - get<float>(other + kMobyZ)) >= kApartGap) {
+            continue;
+        }
+
+        // Exactly on top: away along a direction of its own.
+        if (d < 1e-3f) {
+            const float angle = static_cast<float>(moby % 360u) * 0.017453292f;
+            push_x += std::cos(angle) * kApartGap;
+            push_y += std::sin(angle) * kApartGap;
+        } else {
+            push_x += dx / d * (kApartGap - d);
+            push_y += dy / d * (kApartGap - d);
+        }
+    }
+
+    const float length = std::sqrt(push_x * push_x + push_y * push_y);
+
+    // Nothing near.
+    if (length < 1e-4f) {
+        return;
+    }
+
+    const float step = std::min(length, kApartStep) / length;
+    const float nx = x + push_x * step, ny = y + push_y * step;
+    openrac::StackFrame frame(*s_mod, kSpotFrameBytes);
+    const gaddr a = frame.address(), b = a + kVecSize;
+    put<float>(a, x);
+    put<float>(a + kVecY, y);
+    put<float>(a + kVecZ, z + kSpotLineHeight);
+    put<float>(a + kVecW, 0.0f);
+    put<float>(b, nx);
+    put<float>(b + kVecY, ny);
+    put<float>(b + kVecZ, z + kSpotLineHeight);
+    put<float>(b + kVecW, 0.0f);
+
+    // A wall on the way: it stays.
+    if (s_line(a, b, 0, moby, 0) != 0) {
+        return;
+    }
+
+    put<float>(moby + kMobyX, nx);
+    put<float>(moby + kMobyY, ny);
+}
+
 // An enemy's update with its time scaled: the tick's constants (seconds, and the ratio to NTSC's
 // tick, with their squares and cubes as the game keeps them) for the call, and its animation speed
 // after it, which the next tick's animation advance reads.
@@ -630,6 +726,7 @@ void timed_update(void (*original)(uint32_t), uint32_t moby) {
 template <int I>
 void update_thunk(uint32_t moby) {
     timed_update(s_update_original[I], moby);
+    keep_apart(moby);
 }
 
 // The thunks for indices 0 to N-1, as an array.
@@ -797,6 +894,18 @@ bool find_spot(gaddr orig, int copy, float out[3]) {
         // No ground there, ground of another height, or too near the death plane.
         if (!(floor > 0.0f) || std::fabs(floor - floor0) > kSpotFloorTolerance
             || (death != 0.0f && floor < death + kSpotAboveDeath)) {
+            continue;
+        }
+
+        // Too near a copy of it already made: the next angle.
+        bool crowded = false;
+
+        for (const uint32_t made : s_copies_of[orig]) {
+            const float dx = cx - get<float>(made + kMobyX), dy = cy - get<float>(made + kMobyY);
+            crowded = crowded || dx * dx + dy * dy < kApartGap * kApartGap;
+        }
+
+        if (crowded) {
             continue;
         }
 
@@ -982,6 +1091,8 @@ Fixups read_fixups(gaddr hdr, gaddr table, const dm::Pool& pool) {
 // budget. Leaves the level as it is when the pool or the file is not as expected.
 void adjust_enemies(int level) {
     const double k = s_level[dm::ENEMY_COUNT];
+    s_original_of.clear();
+    s_copies_of.clear();
 
     // The slider is at retail.
     if (k == 1.0) {
@@ -1109,20 +1220,23 @@ void adjust_enemies(int level) {
             const auto in = fix.inner.find(wanted[i].block);
             static const std::vector<uint32_t> none;
 
+            const gaddr copy = copy_moby(
+                wanted[i].moby,
+                wanted[i].cls,
+                spot,
+                wanted[i].size,
+                in == fix.inner.end() ? none : in->second,
+                &room,
+                &room_left
+            );
+
             // The game or the pvar room is out of space: no more copies of this enemy.
-            if (copy_moby(
-                    wanted[i].moby,
-                    wanted[i].cls,
-                    spot,
-                    wanted[i].size,
-                    in == fix.inner.end() ? none : in->second,
-                    &room,
-                    &room_left
-                )
-                == 0) {
+            if (copy == 0) {
                 break;
             }
 
+            s_original_of[copy] = wanted[i].moby;
+            s_copies_of[wanted[i].moby].push_back(copy);
             ++made;
         }
     }

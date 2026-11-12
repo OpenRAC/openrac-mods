@@ -20,7 +20,7 @@ static const dm_class k_dm_classes[] = {
     {28, DM_ENEMY, "plasmabot", "rac1.moby.plasmabot.update", 0},
     {29, DM_TURRET, "blarg_turret", "rac1.moby.blarg_turret.update", "fixed to the level: a copy would hang in the air beside it"},
     {30, DM_TURRET, "machinegun_turret", "rac1.moby.machinegun_turret_30.update", "fixed to the level"},
-    {31, DM_ENEMY, "minibomber", "rac1.moby.minibomber.update", 0},
+    {31, DM_ROAMER, "minibomber", "rac1.moby.minibomber.update", "its update puts it at its path's start: a copy would sit inside the original"},
     {35, DM_ENEMY, "sharkigator", "rac1.moby.sharkigator_35.update", 0},
     {36, DM_TURRET, "blarg_gunner", "rac1.moby.gem_lock_turret.update", "a gun emplacement (its update is the gem lock turret's)"},
     {44, DM_ENEMY, "sentrybot", "rac1.moby.sentrybot.update", 0},

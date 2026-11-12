@@ -75,7 +75,7 @@ The full table, slider by slider:
 
 | Slider | What it changes |
 |---|---|
-| **Enemy count** | Above 1: copies of the level's enemies beside them when the level loads (3 means about two copies of each). Below 1: that share of the free-roaming enemies left out (0.5: about half). Only enemies free of the level's scripts are copied or left out: never bosses, turrets, mines, spawners, the enemies of a wave or of a "defeat them all" door, nor any the story or another object needs (see [which mobys count as enemies](#which-mobys-count-as-enemies)). A copy stands on the same floor, in the open, 2.5 to 4 units from its original; where there is no such spot, it is not made. Copies drop no bolts and are not remembered as killed. How many copies a level gets is limited by room: see [how many enemies](#how-many-enemies) |
+| **Enemy count** | Above 1: copies of the level's enemies beside them when the level loads (3 means about two copies of each). Below 1: that share of the free-roaming enemies left out (0.5: about half). Only enemies free of the level's scripts are copied or left out: never bosses, turrets, mines, spawners, the enemies of a wave or of a "defeat them all" door, nor any the story or another object needs (see [which mobys count as enemies](#which-mobys-count-as-enemies)). A copy stands on the same floor, in the open, 2.5 to 4 units from its original and 2 from its other copies; where there is no such spot, it is not made. When its AI takes it within 2 units of its original or another copy (the same path or cover point), it is moved apart a little each tick, never through a wall; the original is never moved. Copies drop no bolts and are not remembered as killed. How many copies a level gets is limited by room: see [how many enemies](#how-many-enemies) |
 | **Damage to Ratchet** | How many cells of health a hit takes, on average: 2 is two cells a hit, 0.5 a cell every other hit, 1.5 one then two. Falls, crushers and other instant deaths are the game's |
 | **Damage to enemies** | The damage of every hit on an enemy, a turret or a boss: your weapons, the wrench, explosions |
 | **Enemy speed** | How fast enemies and turrets move, turn, animate, aim and fire: the clock their own code runs on. Bosses keep their own pace |
@@ -158,7 +158,7 @@ copies are spread: each enemy gets one before any gets a second.
 ## Which mobys count as enemies
 
 In Ratchet & Clank, the game's objects are classified in [classes.tsv](classes.tsv), 158 of
-them: 37 **enemies** (copied, left out, timed, hit harder or softer), 7
+them: 36 **enemies** (copied, left out, timed, hit harder or softer), 8
 **roamers** (left out, timed, hit; never copied: they fly a path, drop in on
 a cue, start at their path's first point, or are too big to stand beside the
 original), 7 **turrets** (timed and

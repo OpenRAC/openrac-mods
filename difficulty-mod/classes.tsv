@@ -13,7 +13,7 @@
 # id	role	name	reason
 28	enemy	plasmabot	-
 211	enemy	plasmabot	-
-31	enemy	minibomber	-
+31	roamer	minibomber	its update puts it at its path's start: a copy would sit inside the original
 35	enemy	sharkigator	-
 1059	enemy	sharkigator	-
 44	enemy	sentrybot	-
