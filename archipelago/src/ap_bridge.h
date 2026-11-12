@@ -57,6 +57,7 @@ void ap_client_save_loaded(const int64_t* had, size_t n, int card_slot);
 
 /* The game in progress was just saved into memory card slot `card_slot`: it holds this room's game. */
 void ap_client_save_written(int card_slot);
+void ap_client_start_game(int fresh);
 
 /* Every item the server has sent this slot so far, in its order: at most `max` into `out`.
  * Returns how many there are (more than max when out was too small). *generation (when not null)
@@ -66,6 +67,14 @@ size_t ap_client_items(int64_t* out, size_t max, uint32_t* generation);
 /* Whether the server's list of items has been had since the client connected (until then the
  * list may be short of what the slot really has). */
 int ap_client_synced(void);
+
+/* The slot's New Game+ option: -1 until connected and the save matches, else 0 or 1.
+ * Missing options from older APWorlds default to 0. */
+int ap_client_new_game_plus(void);
+int ap_client_shuffle_gold_weapons(void);
+int ap_client_npc_infobots(void);
+/* Scouted purchase reward and recipient, for the gold-case preview. */
+int ap_client_location_hint(int64_t location, char* out, size_t size);
 
 /* The next line to show the player (an item sent or received, the connection), oldest first.
  * Returns 1 and the line in out (cut to size), or 0 when there is none. */

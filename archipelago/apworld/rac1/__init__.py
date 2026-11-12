@@ -13,6 +13,7 @@ from worlds.AutoWorld import WebWorld, World
 
 from .data import GAME
 from .defs import LocationData
+from .gold_weapons import GOLD_WEAPONS
 from .items import FILLER, ITEM_NAME_GROUPS, ITEM_NAME_TO_ID, ITEM_TABLE, RAC1Item, classification
 from .locations import EVENT_ROWS, LOCATION_NAME_GROUPS, LOCATION_NAME_TO_ID, LOCATION_ROWS, event_item
 from .options import OPTION_GROUPS, OPTION_PRESETS, RAC1Options
@@ -60,21 +61,52 @@ class RAC1World(World):
     item_name_groups = ITEM_NAME_GROUPS
     location_name_groups = LOCATION_NAME_GROUPS
 
+    def generate_early(self) -> None:
+        self.starting_weapon = "Bomb Glove"
+        if self.options.starting_weapons in ("non_broken", "unrestricted"):
+            weapons = sorted(ITEM_NAME_GROUPS["Weapons"])
+            if self.options.starting_weapons == "non_broken":
+                weapons.remove("R.Y.N.O.")
+            self.starting_weapon = self.random.choice(weapons)
+
+    def vanilla_item(self, row: LocationData) -> str:
+        if row.kind == "start":
+            return self.starting_weapon
+        swapped = self.starting_weapon
+        if swapped in GOLD_WEAPONS and not self.options.shuffle_gold_weapons:
+            swapped = GOLD_WEAPONS[swapped]
+        if row.vanilla == swapped:
+            return "Bomb Glove"
+        return row.vanilla or FILLER
+
     def location_rows(self) -> list[LocationData]:
         # The rows that are locations in this slot: the skill points only with their option.
-        if self.options.shuffle_skill_points:
-            return LOCATION_ROWS
-        return [row for row in LOCATION_ROWS if row.kind != "skill"]
+        return [row for row in LOCATION_ROWS
+                if (row.kind != "skill" or self.options.shuffle_skill_points)
+                and (row.kind != "gold_vendor" or self.options.shuffle_gold_weapons)]
 
     def shuffled(self, row: LocationData) -> bool:
-        # A row of a pool turned off, or the starting Bomb Glove kept, holds its own item.
-        if row.kind == "start" and self.options.keep_starting_gear:
-            return False
+        # The starting location has its own mode, independent of the weapon pool.
+        if row.kind == "start":
+            return self.options.starting_weapons == "shuffled"
         return bool(getattr(self.options, row.pool).value)
 
     def create_item(self, name: str) -> RAC1Item:
         item = ITEM_TABLE[name]
-        return RAC1Item(name, classification(item), item.id, self.player)
+        kind = (ItemClassification.progression_skip_balancing
+                if name == FILLER and self.options.shuffle_gold_weapons else classification(item))
+        if name in GOLD_WEAPONS:
+            base = GOLD_WEAPONS[name]
+            source = next(row for row in LOCATION_ROWS if row.vanilla == base)
+            if not self.shuffled(source) and self.vanilla_item(source) == base:
+                # Its fixed base weapon already supplies every logic requirement.
+                kind = ItemClassification.useful
+        return RAC1Item(name, kind, item.id, self.player)
+
+    def collect_item(self, state: CollectionState, item: Item, remove: bool = False) -> str | None:
+        if item.advancement and item.name in GOLD_WEAPONS:
+            return GOLD_WEAPONS[item.name]
+        return super().collect_item(state, item, remove)
 
     def get_filler_item_name(self) -> str:
         return FILLER
@@ -89,8 +121,15 @@ class RAC1World(World):
         # A pool turned off keeps the game's own item in place; the rest go to the multiworld.
         self.own_progression = []
         own = self.places_own_progression()
+        if self.options.shuffle_infobots and not own:
+            # NPC coordinates no longer open both first planets for free. Keep one initial
+            # flight in the first reachable sphere, also when another world shares our pool.
+            exit_item = self.random.choice(("Aridia Coordinates", "Kerwan Coordinates"))
+            early = self.multiworld.local_early_items[self.player]
+            early[exit_item] = max(early.get(exit_item, 0), 1)
+
         for row in self.location_rows():
-            item = self.create_item(row.vanilla or FILLER)
+            item = self.create_item(self.vanilla_item(row))
             if self.shuffled(row):
                 (self.own_progression if own and item.advancement else self.multiworld.itempool).append(item)
             else:
@@ -106,8 +145,10 @@ class RAC1World(World):
         if self.multiworld.players == 1:
             return True
         rows = [row for row in self.location_rows() if self.shuffled(row)]
-        places = sum(holds_progression(row, self.options.logic) for row in rows)
-        keys = sum(ITEM_TABLE[row.vanilla or FILLER].progression for row in rows)
+        places = sum(holds_progression(row, self.options.logic)
+                     or (self.options.shuffle_gold_weapons and row.kind in ("gold", "skill"))
+                     for row in rows)
+        keys = sum(self.create_item(self.vanilla_item(row)).advancement for row in rows)
         return places - keys < ROOM_FOR_KEYS
 
     def get_pre_fill_items(self) -> list[Item]:
@@ -117,7 +158,7 @@ class RAC1World(World):
         keys = self.own_progression
         if not keys:
             return
-        spots = [spot for spot in self.multiworld.get_unfilled_locations(self.player) if spot.item_rule(keys[0])]
+        spots = list(self.multiworld.get_unfilled_locations(self.player))
         for _ in range(KEY_FILL_ATTEMPTS):
             left = self.random.sample(keys, len(keys))
             fill_restrictive(
@@ -143,7 +184,7 @@ class RAC1World(World):
         self.own_progression = []
 
     def fill_slot_data(self) -> Mapping[str, Any]:
-        return self.options.as_dict(
+        return {"npc_infobot_checks": 1, **self.options.as_dict(
             "logic",
             "shuffle_gadgets",
             "shuffle_weapons",
@@ -151,5 +192,7 @@ class RAC1World(World):
             "shuffle_gold_bolts",
             "shuffle_infobots",
             "shuffle_skill_points",
-            "keep_starting_gear",
-        )
+            "starting_weapons",
+            "shuffle_gold_weapons",
+            "start_in_new_game_plus",
+        )}

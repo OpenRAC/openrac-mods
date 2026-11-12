@@ -12,6 +12,8 @@
 #include <mbedtls/net_sockets.h>
 
 #include "ap_ids.h"
+#include "ap_npc_infobots.h"
+#include "ap_gold_weapons.h"
 #include "session.hpp"
 #include "websocket.hpp"
 
@@ -190,6 +192,12 @@ void test_ids() {
             && ap_reward_of(ap_item_id(kerwan)).value == LEVEL_KERWAN,
         "a planet's id reads back"
     );
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
+        int base = k_ap_gold_bases[i];
+        expect(ap_gold_weapon_base(AP_BASE + AP_GOLD_WEAPON_OFFSET + base) == base, "gold item id maps to its base weapon");
+        expect(ap_gold_case_id(base) == INT64_C(0x52550000) + base, "gold case ids match the APWorld");
+    }
+    expect(ap_gold_weapon_base(AP_BASE + AP_GOLD_WEAPON_OFFSET + ITEM_RYNO) == -1, "no fabricated Gold RYNO");
     expect(ap_reward_of(12345).kind == REWARD_NONE, "another game's id is none");
 }
 
@@ -210,6 +218,7 @@ void test_session() {
         "RoomInfo asks for the data package and connects"
     );
     const json connect = json::parse(out[1])[0];
+    expect(connect.at("slot_data") == true, "request YAML slot settings");
     expect(
         connect.at("name") == "Ratchet" && connect.at("password") == "pw"
             && connect.at("game") == AP_GAME && connect.at("items_handling") == 7,
@@ -259,6 +268,8 @@ void test_session() {
         R"([{"cmd":"LocationInfo","locations":[{"item":7,"location":1380122625,"player":2,"flags":1}]}])",
         out
     );
+    std::string preview;
+    expect(s.location_hint(1380122625, preview) && preview == "Sword for Link", "purchase preview names the scouted reward and recipient");
     std::int64_t item = 0;
     bool own = true;
     expect(s.location_item(1380122625, item, own) && item == 7 && !own, "the scouted location");
@@ -304,8 +315,7 @@ void test_save() {
 
     // A skill point in a room without them is no check and no sign of another seed; in a room
     // with them it is sent. (1,2 are the room's; the skill id is either unknown or missing.)
-    {
-        const std::int64_t skill = ap_skill_location_id(1, 0);
+    for (const std::int64_t skill : {ap_skill_location_id(1, 0), ap_npc_id(0)}) {
         ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
         connect(s, "[1,2]", out);
         out.clear();
@@ -396,9 +406,48 @@ void test_save() {
     {
         ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
         s.save_written(1);
+        s.save_loaded({}, -1, out);
         expect(s.book().slots.empty(), "no room yet");
         connect(s, "[]", out);
         expect(s.book().slots.count(1) == 1, "booked on the connection");
+    }
+
+    // Reusing slot 5 is trusted only after NewGameInit, and committed only on success.
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        s.book().slots[4] = {"old-seed", "Ratchet"};
+        connect(s, "[1,2]", out);
+        out.clear();
+        s.save_loaded({9}, 4, out);
+        s.save_written(4);
+        expect(s.foreign_save() && s.book().slots[4].first == "old-seed", "saving a foreign loaded game cannot rebind it");
+        s.start_game(true, out);
+        s.save_loaded({}, 4, out);
+        expect(!s.foreign_save(), "a real new game may reuse an occupied slot");
+        expect(s.book().slots[4].first == "old-seed" && !s.book().changed, "cancelled overwrite retains the old association");
+        s.start_game(false, out);
+        s.save_loaded({}, 4, out);
+        expect(s.foreign_save(), "loading after a cancelled new game restores seed protection");
+        s.start_game(true, out);
+        s.save_loaded({}, 4, out);
+        s.check(3, out);
+        s.goal(out);
+        s.save_written(4);
+        expect(s.book().slots[4].first == "seed-b" && s.book().changed, "successful overwrite replaces the slot association");
+        s.start_game(false, out);
+        expect(out.empty(), "starting another game drops unsent checks and goal");
+        s.save_loaded({3}, 4, out);
+        expect(!s.foreign_save(), "overwritten slot reloads under its new seed");
+    }
+    {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        s.book().slots[4] = {"old-seed", "Ratchet"};
+        s.start_game(true, out);
+        s.save_loaded({}, 4, out);
+        s.save_written(4);
+        expect(s.book().slots[4].first == "old-seed", "offline overwrite waits for the room identity");
+        connect(s, "[]", out);
+        expect(!s.foreign_save() && s.book().slots[4].first == "seed-b", "offline new game binds after connecting");
     }
 
     // A known data package is not asked for again.
@@ -411,6 +460,54 @@ void test_save() {
     }
 }
 
+void test_new_game_plus() {
+    std::vector<std::string> out;
+    for (const json value : {json(true), json(1), json(false), json(0), json("true"), json(2), json(nullptr)}) {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        expect(s.new_game_plus() == -1, "mode unknown before connecting");
+        s.on_open();
+        s.on_message(json::array({{{"cmd", "Connected"}, {"slot_data", {{"start_in_new_game_plus", value}}}}}).dump(), out);
+        expect(s.new_game_plus() == -1, "mode withheld before save judgment");
+        s.save_loaded({}, -1, out);
+        const bool enabled = value == json(true) || value == json(1);
+        expect(s.new_game_plus() == int(enabled), "only true or one enables New Game+");
+        s.on_close();
+        expect(s.new_game_plus() == -1, "no mode applied while disconnected");
+        s.on_open();
+        s.on_message(R"([{"cmd":"Connected"}])", out);
+        expect(s.new_game_plus() == 0, "older seeds default off on reconnect");
+    }
+    ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+    s.book().slots[2] = {"other-seed", "Ratchet"};
+    s.save_loaded({}, 2, out);
+    s.on_message(R"([{"cmd":"RoomInfo","seed_name":"this-seed"},{"cmd":"Connected","slot_data":{"start_in_new_game_plus":1}}])", out);
+    expect(s.foreign_save() && s.new_game_plus() == -1, "foreign saves never receive mode changes");
+}
+
+void test_npc_infobots() {
+    std::vector<std::string> out;
+    for (const json value : {json(true), json(1), json(false), json(0), json("true"), json(2), json(nullptr)}) {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        expect(s.npc_infobots() == -1, "mode unknown before connecting");
+        s.on_open();
+        s.on_message(json::array({{{"cmd", "Connected"}, {"slot_data", {{"npc_infobot_checks", value}}}}}).dump(), out);
+        expect(s.npc_infobots() == -1, "mode withheld before save judgment");
+        s.save_loaded({}, -1, out);
+        const bool enabled = value == json(true) || value == json(1);
+        expect(s.npc_infobots() == int(enabled), "only true or one enables NPC Infobots");
+        s.on_close();
+        expect(s.npc_infobots() == -1, "no mode applied while disconnected");
+        s.on_open();
+        s.on_message(R"([{"cmd":"Connected"}])", out);
+        expect(s.npc_infobots() == 0, "older seeds default off on reconnect");
+    }
+    ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+    s.book().slots[2] = {"other-seed", "Ratchet"};
+    s.save_loaded({}, 2, out);
+    s.on_message(R"([{"cmd":"RoomInfo","seed_name":"this-seed"},{"cmd":"Connected","slot_data":{"npc_infobot_checks":1}}])", out);
+    expect(s.foreign_save() && s.npc_infobots() == -1, "foreign saves never receive mode changes");
+}
+
 }  // namespace
 
 int main() {
@@ -420,6 +517,8 @@ int main() {
     test_ids();
     test_session();
     test_save();
+    test_new_game_plus();
+    test_npc_infobots();
     std::printf(g_failures == 0 ? "unit: ok\n" : "unit: %d failed\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

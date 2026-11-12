@@ -60,6 +60,9 @@ public:
     // this room's game (unless the game in progress is another seed's).
     void save_written(int card_slot);
 
+    // Only a real NewGameInit may replace another seed after a successful overwrite.
+    void start_game(bool fresh, std::vector<std::string>& out);
+
     // Which room's game each memory card slot holds: the room's seed name and the player's slot
     // name. The client keeps it in the mod's folder; changed() says it has to be written again.
     struct Book {
@@ -77,6 +80,17 @@ public:
 
     bool synced() const { return synced_; }
 
+    // Unknown until connected and the save is judged; never apply room settings to a foreign save.
+    int new_game_plus() const {
+        return connected_ && save_judged_ && !foreign_ ? int(new_game_plus_) : -1;
+    }
+
+    int shuffle_gold_weapons() const {
+        return connected_ && save_judged_ && !foreign_ ? int(shuffle_gold_weapons_) : -1;
+    }
+
+    int npc_infobots() const { return connected_ && save_judged_ && !foreign_ ? int(npc_infobots_) : -1; }
+
     const std::string& refusal() const { return refusal_; }
 
     const std::vector<std::int64_t>& items() const { return items_; }
@@ -89,6 +103,8 @@ public:
 
     // What a location of this slot holds: true, its item and whether it is this slot's.
     bool location_item(std::int64_t location, std::int64_t& item, bool& own) const;
+
+    bool location_hint(std::int64_t location, std::string& out) const;
 
     int slot() const { return slot_; }
 
@@ -129,6 +145,11 @@ private:
     std::set<std::int64_t> save_;     // the last save's locations, to judge
     bool save_waiting_ = false;       // save_ not judged yet
     bool foreign_ = false;
+    bool fresh_game_ = false;
+    bool save_judged_ = false;
+    bool new_game_plus_ = false;
+    bool shuffle_gold_weapons_ = false;
+    bool npc_infobots_ = false;
     int save_slot_ = -1;     // the memory card slot of save_
     int unbound_ = -1;       // a slot saved into before the room's seed was known
     std::string seed_name_;  // RoomInfo's seed_name
@@ -137,7 +158,7 @@ private:
     std::map<int, Player> players_;
     std::map<std::string, std::map<std::int64_t, std::string>> item_names_;      // by game
     std::map<std::string, std::map<std::int64_t, std::string>> location_names_;  // by game
-    std::map<std::int64_t, std::pair<std::int64_t, bool>> scouted_;
+    std::map<std::int64_t, std::pair<std::int64_t, int>> scouted_;
     std::deque<std::string> messages_;
 };
 

@@ -62,10 +62,19 @@ def set_rules(world: "RAC1World") -> None:
     logic = world.options.logic
     for row in world.location_rows() + EVENT_ROWS:
         location = world.get_location(row.name)
-        world.set_rule(location, row_rule(row))
+        rule = row_rule(row)
+        if row.kind == "gold_vendor":
+            rule = rule & Has("Gold Bolt", 40)
+            if not world.options.start_in_new_game_plus:
+                rule = rule & Has(VICTORY)
+        world.set_rule(location, rule)
+        if row.kind == "gold_vendor":
+            add_item_rule(location, lambda item: not (item.player == world.player and item.name == "Gold Bolt"))
         if not holds_progression(row, logic):
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
-            add_item_rule(location, lambda item: not item.advancement)
+            add_item_rule(location, lambda item, row=row: not item.advancement
+                          or (world.options.shuffle_gold_weapons and row.kind in ("gold", "skill")
+                              and item.player == world.player and item.name == "Gold Bolt"))
 
     world.set_completion_rule(Has(VICTORY))

@@ -5,6 +5,7 @@
 #include "session.hpp"
 
 #include "ap_ids.h"
+#include "ap_npc_infobots.h"
 
 #include <iterator>
 #include <cstdlib>
@@ -54,6 +55,8 @@ std::string packet(json p) {
 Session::Session(SessionConfig config) : config_(std::move(config)) {}
 
 void Session::on_open() {
+    save_waiting_ = save_waiting_ || save_judged_;
+    save_judged_ = false;
     connected_ = false;
     synced_ = false;
     goal_sent_ = false;
@@ -94,7 +97,14 @@ bool Session::location_item(std::int64_t location, std::int64_t& item, bool& own
     }
 
     item = it->second.first;
-    own = it->second.second;
+    own = it->second.second == slot_;
+    return true;
+}
+
+bool Session::location_hint(std::int64_t location, std::string& out) const {
+    const auto it = scouted_.find(location);
+    if (it == scouted_.end()) return false;
+    out = item_name(it->second.first, it->second.second) + " for " + player_name(it->second.second);
     return true;
 }
 
@@ -115,12 +125,32 @@ void Session::check(std::int64_t location, std::vector<std::string>& out) {
     flush(out);
 }
 
+void Session::start_game(bool fresh, std::vector<std::string>& out) {
+    fresh_game_ = fresh;
+    foreign_ = false;
+    save_judged_ = save_waiting_ = false;
+    save_slot_ = unbound_ = -1;
+    save_.clear(); live_.clear(); found_.clear(); pending_.clear();
+    goal_ = goal_sent_ = false;
+    // Discard unsent progress from the previous game, retaining connection packets.
+    for (auto it = out.begin(); it != out.end();) {
+        auto packets = json::parse(*it);
+        for (auto p = packets.begin(); p != packets.end();) {
+            const auto cmd = text_of(*p, "cmd");
+            p = cmd == "LocationChecks" || cmd == "StatusUpdate" ? packets.erase(p) : std::next(p);
+        }
+        if (packets.empty()) it = out.erase(it);
+        else { *it = packets.dump(); ++it; }
+    }
+}
+
 void Session::save_loaded(
     const std::vector<std::int64_t>& had, int card_slot, std::vector<std::string>& out
 ) {
     save_ = std::set<std::int64_t>(had.begin(), had.end());
     save_slot_ = card_slot;
     save_waiting_ = true;
+    save_judged_ = false;
 
     if (connected_) {
         judge_save(out);
@@ -133,10 +163,11 @@ void Session::save_written(int card_slot) {
         return;
     }
 
-    if (seed_name_.empty()) {
+    if (!connected_ || seed_name_.empty() || (!fresh_game_ && !save_judged_)) {
         unbound_ = card_slot;
     } else {
         bind(card_slot);
+        fresh_game_ = false;
     }
 }
 
@@ -160,7 +191,7 @@ void Session::judge_save(std::vector<std::string>& out) {
 
     // A skill point's flag in a room without them is no check, and no sign of another seed.
     for (auto it = save_.begin(); it != save_.end();) {
-        it = ap_id_is_skill(*it) && room_.count(*it) == 0 ? save_.erase(it) : std::next(it);
+        it = (ap_id_is_skill(*it) || ap_id_is_npc(*it)) && room_.count(*it) == 0 ? save_.erase(it) : std::next(it);
     }
 
     bool extra = false;
@@ -180,19 +211,26 @@ void Session::judge_save(std::vector<std::string>& out) {
     const auto known = book_.slots.find(save_slot_);
     const bool booked = save_slot_ >= 0 && known != book_.slots.end() && !seed_name_.empty();
     const bool foreign =
-        booked ? known->second != std::make_pair(seed_name_, config_.slot) : extra && lacking;
+        !fresh_game_ && (booked ? known->second != std::make_pair(seed_name_, config_.slot) : extra && lacking);
 
     if (foreign && !foreign_) {
         add_message("Archipelago: this save is not this seed's: its checks are not sent");
     }
 
     foreign_ = foreign;
+    save_judged_ = true;
 
     if (foreign) {
+        unbound_ = -1;
         return;
     }
 
-    bind(save_slot_);
+    if (!fresh_game_) bind(save_slot_);
+    if (unbound_ >= 0) {
+        const int slot = unbound_;
+        unbound_ = -1;
+        save_written(slot);
+    }
 
     for (const std::int64_t id : save_) {
         if (found_.insert(id).second) {
@@ -399,9 +437,28 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
                {"class", "Version"}}},
              {"items_handling", kItemsHandling},
              {"tags", json::array()},
-             {"slot_data", false}}
+             {"slot_data", true}}
         ));
     } else if (cmd == "Connected") {
+        new_game_plus_ = false;
+        shuffle_gold_weapons_ = false;
+        npc_infobots_ = false;
+        const auto data = p.find("slot_data");
+        if (data != p.end() && data->is_object()) {
+            const auto npc_option = data->find("npc_infobot_checks");
+            if (npc_option != data->end()) npc_infobots_ = (npc_option->is_boolean() && npc_option->get<bool>())
+                || (npc_option->is_number_integer() && *npc_option == 1);
+            const auto gold_option = data->find("shuffle_gold_weapons");
+            if (gold_option != data->end()) {
+                shuffle_gold_weapons_ = (gold_option->is_boolean() && gold_option->get<bool>())
+                                       || (gold_option->is_number_integer() && *gold_option == 1);
+            }
+            const auto option = data->find("start_in_new_game_plus");
+            if (option != data->end()) {
+                new_game_plus_ = (option->is_boolean() && option->get<bool>())
+                                 || (option->is_number_integer() && *option == 1);
+            }
+        }
         connected_ = true;
         refused_ = false;
         synced_ = true;
@@ -455,11 +512,11 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
         }
 
         // A save made before the room was known is this room's.
-        if (unbound_ >= 0 && !foreign_) {
-            bind(unbound_);
+        if (unbound_ >= 0 && !foreign_ && (fresh_game_ || save_judged_)) {
+            const int slot = unbound_;
+            unbound_ = -1;
+            save_written(slot);
         }
-
-        unbound_ = -1;
 
         flush(out);
     } else if (cmd == "ConnectionRefused") {
@@ -517,7 +574,7 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
             for (const json& item : *locations) {
                 if (item.is_object()) {
                     scouted_[int_of(item, "location", -1)] =
-                        {int_of(item, "item", -1), int_of(item, "player", -1) == slot_};
+                        {int_of(item, "item", -1), int(int_of(item, "player", -1))};
                 }
             }
         }

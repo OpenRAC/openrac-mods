@@ -125,6 +125,11 @@ public:
         write_book();
     }
 
+    void start_game(bool fresh) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        session_.start_game(fresh, outbox_);
+    }
+
     void save_written(int card_slot) {
         std::lock_guard<std::mutex> lock(mutex_);
         session_.save_written(card_slot);
@@ -148,9 +153,29 @@ public:
         return session_.synced();
     }
 
+    int new_game_plus() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.new_game_plus();
+    }
+
+    int npc_infobots() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.npc_infobots();
+    }
+
+    int shuffle_gold_weapons() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.shuffle_gold_weapons();
+    }
+
     bool message(std::string& out) {
         std::lock_guard<std::mutex> lock(mutex_);
         return session_.next_message(out);
+    }
+
+    bool location_hint(std::int64_t location, std::string& out) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.location_hint(location, out);
     }
 
     bool location_item(std::int64_t location, std::int64_t& item, bool& own) {
@@ -342,6 +367,10 @@ void ap_client_save_loaded(const int64_t* had, size_t n, int card_slot) {
     }
 }
 
+void ap_client_start_game(int fresh) {
+    if (g_client != nullptr) g_client->start_game(fresh != 0);
+}
+
 void ap_client_save_written(int card_slot) {
     if (g_client != nullptr) {
         g_client->save_written(card_slot);
@@ -364,6 +393,16 @@ int ap_client_synced(void) {
     return g_client != nullptr && g_client->synced();
 }
 
+int ap_client_new_game_plus(void) {
+    return g_client != nullptr ? g_client->new_game_plus() : -1;
+}
+
+int ap_client_npc_infobots(void) { return g_client ? g_client->npc_infobots() : -1; }
+
+int ap_client_shuffle_gold_weapons(void) {
+    return g_client != nullptr ? g_client->shuffle_gold_weapons() : -1;
+}
+
 int ap_client_message(char* out, size_t size) {
     std::string line;
 
@@ -373,6 +412,15 @@ int ap_client_message(char* out, size_t size) {
 
     const std::size_t n = std::min(line.size(), size - 1);
     std::memcpy(out, line.data(), n);
+    out[n] = 0;
+    return 1;
+}
+
+int ap_client_location_hint(int64_t location, char* out, size_t size) {
+    std::string text;
+    if (!g_client || !size || !g_client->location_hint(location, text)) return 0;
+    const size_t n = std::min(text.size(), size - 1);
+    std::memcpy(out, text.data(), n);
     out[n] = 0;
     return 1;
 }

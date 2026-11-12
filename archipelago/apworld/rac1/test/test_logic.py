@@ -2,6 +2,10 @@
 # The world's logic: the planets open with their coordinates, Drek needs his gadgets, and a pool
 # turned off keeps its own items.
 import unittest
+from collections import Counter
+from random import Random
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from BaseClasses import CollectionState
 
@@ -10,15 +14,94 @@ from ..items import ITEM_TABLE
 from ..options import OPTION_PRESETS, RAC1Options
 from ..rules import coordinates
 from .bases import RAC1TestBase
+from .. import RAC1World
+from ..items import ITEM_NAME_GROUPS
+from ..options import StartingWeapons
+from ..gold_weapons import GOLD_WEAPONS, GOLD_ITEMS
+
+
+class TestStartingWeapons(unittest.TestCase):
+    def test_gold_starts_with_and_without_case_shuffle(self) -> None:
+        from ..gold_weapons import GOLD_LOCATION_ROWS
+        base_rows = [row for row in LOCATIONS if row.id is not None]
+        for enabled in (False, True):
+            rows = base_rows + (GOLD_LOCATION_ROWS if enabled else [])
+            expected = Counter(row.vanilla or "Gold Bolt" for row in rows)
+            for gold, base in GOLD_WEAPONS.items():
+                world = SimpleNamespace(starting_weapon=gold,
+                                        options=SimpleNamespace(shuffle_gold_weapons=enabled))
+                want = expected.copy()
+                if not enabled:
+                    want[base] -= 1
+                    want[gold] += 1
+                self.assertEqual(Counter(RAC1World.vanilla_item(world, row) for row in rows), +want)
+
+    def test_single_starting_option(self) -> None:
+        self.assertIn("starting_weapons", RAC1Options.type_hints)
+        self.assertNotIn("keep_starting_gear", RAC1Options.type_hints)
+
+    def test_random_candidates(self) -> None:
+        for mode in ("vanilla", "shuffled", "non_broken", "unrestricted"):
+            world = SimpleNamespace(
+                options=SimpleNamespace(starting_weapons=StartingWeapons.from_any(mode)),
+                random=Mock(wraps=Random(123)),
+            )
+            RAC1World.generate_early(world)
+            if mode in ("vanilla", "shuffled"):
+                self.assertEqual(world.starting_weapon, "Bomb Glove")
+                world.random.choice.assert_not_called()
+            else:
+                candidates = world.random.choice.call_args.args[0]
+                expected = ITEM_NAME_GROUPS["Weapons"] - ({"R.Y.N.O."} if mode == "non_broken" else set())
+                self.assertEqual(set(candidates), expected)
+
+    def test_every_weapon_swap_preserves_items(self) -> None:
+        rows = [row for row in LOCATIONS if row.id is not None]
+        expected = Counter(row.vanilla or "Gold Bolt" for row in rows)
+        for weapon in ITEM_NAME_GROUPS["Weapons"] - set(GOLD_WEAPONS):
+            world = SimpleNamespace(starting_weapon=weapon)
+            self.assertEqual(Counter(RAC1World.vanilla_item(world, row) for row in rows), expected)
+
+
+class TestRandomStartingWeapon(RAC1TestBase):
+    options = {"starting_weapons": "non_broken"}
+
+    def test_guaranteed_start(self) -> None:
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertTrue(location.locked)
+        self.assertEqual(location.item.name, self.world.starting_weapon)
+        self.assertNotEqual(location.item.name, "R.Y.N.O.")
+        self.assertTrue(location.can_reach(self.multiworld.state))
+
+
+class TestUnrestrictedStartingWeapon(TestRandomStartingWeapon):
+    options = {"starting_weapons": "unrestricted", "shuffle_weapons": False, "shuffle_vendor": False}
+
+    def test_guaranteed_start(self) -> None:
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertTrue(location.locked)
+        self.assertIn(location.item.name, ITEM_NAME_GROUPS["Weapons"])
+        self.assertTrue(location.can_reach(self.multiworld.state))
 
 
 class TestDefault(RAC1TestBase):
+    def test_new_game_plus_default(self) -> None:
+        self.assertEqual(self.world.fill_slot_data()["start_in_new_game_plus"], 0)
+
+    def test_vanilla_start(self) -> None:
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertTrue(location.locked)
+        self.assertEqual(location.item.name, "Bomb Glove")
+
     def test_story_planets_from_the_start(self) -> None:
-        # Veldin opens Novalis, whose NPCs open Aridia and Kerwan.
+        # Only the first flight is fixed; the two Novalis NPC rewards are now checks.
         self.sweep()
-        for planet in ("Novalis", "Aridia", "Kerwan"):
-            self.assertTrue(self.can_reach_region(planet), planet)
-        self.assertFalse(self.can_reach_region("Eudora"))
+        self.assertTrue(self.can_reach_region("Novalis"))
+        for planet in ("Aridia", "Kerwan", "Eudora"):
+            self.assertFalse(self.can_reach_region(planet), planet)
+        self.collect_by_name(["Aridia Coordinates", "Kerwan Coordinates"])
+        self.assertTrue(self.can_reach_region("Aridia"))
+        self.assertTrue(self.can_reach_region("Kerwan"))
 
     def test_planet_needs_its_coordinates(self) -> None:
         self.collect_by_name("Eudora Coordinates")
@@ -33,6 +116,67 @@ class TestDefault(RAC1TestBase):
         self.assertFalse(self.can_reach_location(location))
         self.collect_by_name("Magneboots")
         self.assertTrue(self.can_reach_location(location))
+
+
+class TestNewGamePlus(RAC1TestBase):
+    options = {"start_in_new_game_plus": True, "starting_weapons": "non_broken"}
+
+    def test_mode_and_starting_weapon(self) -> None:
+        self.assertEqual(self.world.fill_slot_data()["start_in_new_game_plus"], 1)
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertEqual(location.item.name, self.world.starting_weapon)
+        self.assertTrue(location.locked)
+
+
+class TestGoldWeapons(RAC1TestBase):
+    options = {"shuffle_gold_weapons": True, "start_in_new_game_plus": True}
+
+    def test_ten_cases_and_weapons(self) -> None:
+        cases = [row for row in self.world.location_rows() if row.kind == "gold_vendor"]
+        self.assertEqual(len(cases), 10)
+        self.assertEqual({row.vanilla for row in cases}, set(GOLD_WEAPONS))
+        self.assertEqual(sum(item.name in GOLD_WEAPONS for item in self.multiworld.itempool), 10)
+        self.assertEqual(self.world.fill_slot_data()["shuffle_gold_weapons"], 1)
+
+    def test_currency_and_optional_case_rules(self) -> None:
+        case = next(row for row in self.world.location_rows() if row.kind == "gold_vendor")
+        spot = self.world.get_location(case.name)
+        self.assertTrue(self.world.create_item("Gold Bolt").advancement)
+        self.assertFalse(spot.item_rule(self.world.create_item("Gold Bolt")))
+        self.assertFalse(spot.item_rule(self.world.create_item("Gold Devastator")))
+        state = CollectionState(self.multiworld)
+        state.add_item("Novalis Coordinates (NPC)", self.player)
+        self.assertFalse(spot.can_reach(state))
+        state.add_item("Gold Bolt", self.player, 39)
+        self.assertFalse(spot.can_reach(state))
+        state.add_item("Gold Bolt", self.player)
+        self.assertTrue(spot.can_reach(state))
+
+    def test_gold_weapons_satisfy_base_requirements(self) -> None:
+        state = CollectionState(self.multiworld)
+        item = self.world.create_item("Gold Devastator")
+        state.collect(item, True)
+        self.assertTrue(state.has("Devastator", self.player))
+        state.remove(item)
+        self.assertFalse(state.has("Devastator", self.player))
+
+
+class TestGoldWeaponsCanBeFilled(TestGoldWeapons):
+    place_progression = True
+
+    def test_ten_cases_and_weapons(self) -> None:
+        self.assertEqual(sum(row.kind == "gold_vendor" for row in self.world.location_rows()), 10)
+        self.assertTrue(self.multiworld.can_beat_game(CollectionState(self.multiworld)))
+
+
+class TestGoldWeaponsWithOtherPoolsOff(RAC1TestBase):
+    place_progression = True
+    options = {"shuffle_gold_weapons": True, "shuffle_gadgets": False, "shuffle_weapons": False,
+               "shuffle_vendor": False, "shuffle_infobots": False, "shuffle_gold_bolts": False}
+
+    def test_optional_case_fill(self) -> None:
+        self.assertTrue(self.multiworld.can_beat_game(CollectionState(self.multiworld)))
+        self.assertFalse(self.world.create_item("Gold Devastator").advancement)
 
 
 class TestExpert(RAC1TestBase):
@@ -138,10 +282,17 @@ class TestStandardGoldBoltsOff(RAC1TestBase):
 
 
 class TestStartingGearShuffled(RAC1TestBase):
-    options = {"keep_starting_gear": False}
+    options = {"starting_weapons": "shuffled"}
 
     def test_bomb_glove_in_the_pool(self) -> None:
         self.assertIn("Bomb Glove", [item.name for item in self.multiworld.itempool])
+        location = self.world.get_location("Veldin: the starting Bomb Glove")
+        self.assertFalse(location.locked)
+        self.assertIsNone(location.item)
+
+
+class TestShuffledStartWithWeaponPoolOff(TestStartingGearShuffled):
+    options = {"starting_weapons": "shuffled", "shuffle_weapons": False}
 
 
 class TestSkillPointsOff(RAC1TestBase):
@@ -195,3 +346,35 @@ class TestData(unittest.TestCase):
     def test_every_planet_opens(self) -> None:
         for planet in PLANETS[1:]:
             self.assertTrue(coordinates(planet), planet)
+
+
+class TestNPCInfobots(RAC1TestBase):
+    def test_npc_checks_and_coordinate_items(self) -> None:
+        from ..npc_infobots import NPC_LOCATION_ROWS
+        self.assertEqual(len(NPC_LOCATION_ROWS), 13)
+        self.assertEqual(len({row.id for row in NPC_LOCATION_ROWS}), 13)
+        self.assertEqual(self.world.fill_slot_data()["npc_infobot_checks"], 1)
+        for name in ("Novalis: the coordinates of Aridia",
+                     "Batalia: the deserter, the coordinates of Gaspar",
+                     "Batalia: the commando, the coordinates of Orxon"):
+            location = self.world.get_location(name)
+            self.assertIsNotNone(location.address)
+            self.assertFalse(location.locked)
+        self.sweep()
+        self.assertFalse(self.can_reach_region("Gaspar"))
+        self.collect_by_name("Gaspar Coordinates")
+        self.assertTrue(self.can_reach_region("Gaspar"))
+
+
+class TestNPCInfobotsOff(RAC1TestBase):
+    options = {"shuffle_infobots": False}
+
+    def test_off_keeps_npc_rewards_vanilla(self) -> None:
+        from ..npc_infobots import NPC_LOCATION_ROWS
+        for row in NPC_LOCATION_ROWS:
+            spot = self.world.get_location(row.name)
+            self.assertTrue(spot.locked)
+            self.assertEqual(spot.item.name, row.vanilla)
+        self.sweep()
+        self.assertTrue(self.can_reach_region("Aridia"))
+        self.assertTrue(self.can_reach_region("Kerwan"))
