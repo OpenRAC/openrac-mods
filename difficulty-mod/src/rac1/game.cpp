@@ -288,14 +288,22 @@ constexpr uint32_t kVecY = 4u;
 constexpr uint32_t kVecZ = 8u;
 constexpr uint32_t kVecW = 12u;
 constexpr uint32_t kVecSize = 16u;
-// Copies of one enemy that come within kApartGap units of each other or of their original (their
-// AI takes them to the same points: a path's, a cover's) are moved apart by up to kApartStep units
-// a tick, if no wall is in the way. Stacked, they hid each other and caught each other's shots.
+// Copies of one enemy that come within kApartGap units (or a big one's radius: apart_gap) of each
+// other or of their original (their AI takes them to the same points: a path's, a cover's) are
+// moved apart by up to kApartStep units a tick, if no wall is in the way. Stacked, they hid each
+// other and caught each other's shots.
 constexpr float kApartGap = 2.0f;
+// A big enemy keeps further: its bounding sphere's radius (+0xC, in 1024ths of a unit), to at most
+// kApartGapMost units.
+constexpr uint32_t kMobyRadius = 0x0Cu;
+constexpr float kRadiusUnit = 1.0f / 1024.0f;
+constexpr float kApartGapMost = 4.0f;
 constexpr float kApartStep = 0.1f;
 // Nearer than this is on top of each other; the ground at the new place may differ by this much.
 constexpr float kApartSame = 1e-3f;
 constexpr float kApartFloorTolerance = 0.5f;
+// Over its ground by more than this, an enemy flies (a leap is lower).
+constexpr float kApartFlyHeight = 3.0f;
 constexpr float kRadiansPerDegree = 0.017453292f;
 
 // ---- State ----
@@ -340,6 +348,8 @@ int s_timed_depth;
 // the copies), which a copy keeps apart from. Game thread only.
 std::unordered_map<uint32_t, int16_t> s_copy_class;
 std::unordered_map<int16_t, std::vector<uint32_t>> s_class_members;
+// Every moby in s_class_members, so that one the game spawns later (a spawner's) is added once.
+std::unordered_set<uint32_t> s_member_set;
 
 // The classes by id (classes.h).
 std::unordered_map<int, const dm_class*> s_classes;
@@ -529,22 +539,37 @@ int32_t take_ammo(Original original, int32_t item, int32_t amount) {
     return original(item, want);
 }
 
-// The bolts a dying enemy or a broken crate drops: its two bolt counts scaled before the game
-// reads them.
+// The bolts a dying enemy or a broken crate drops: its two bolt counts scaled for the call, and
+// the game's own counts back after it, so a moby recorded twice is not scaled twice.
 template <class Original>
 void record_death(Original original, uint32_t moby, int32_t flags, int32_t index) {
     const double k = s_active[dm::BOLTS];
 
-    // The slider is off retail: scale each count, to at most what an s16 holds.
-    if (k != 1.0) {
-        // The two bolt counts of the moby.
-        for (const uint32_t at : {kMobyBoltsA, kMobyBoltsB}) {
-            const int n = dm::scale_count(get<int16_t>(moby + at), k, s_rng);
-            put<int16_t>(moby + at, static_cast<int16_t>(n > kMaxS16 ? kMaxS16 : n));
-        }
+    // The slider is at retail: the game's own call.
+    if (k == 1.0) {
+        original(moby, flags, index);
+        return;
+    }
+
+    const uint32_t fields[2] = {kMobyBoltsA, kMobyBoltsB};
+    int16_t own[2], scaled[2];
+
+    // Each count scaled, to at most what an s16 holds.
+    for (int i = 0; i < 2; ++i) {
+        own[i] = get<int16_t>(moby + fields[i]);
+        const int n = dm::scale_count(own[i], k, s_rng);
+        scaled[i] = static_cast<int16_t>(n > kMaxS16 ? kMaxS16 : n);
+        put<int16_t>(moby + fields[i], scaled[i]);
     }
 
     original(moby, flags, index);
+
+    // Each count the game left as the mod wrote it: its own back.
+    for (int i = 0; i < 2; ++i) {
+        if (get<int16_t>(moby + fields[i]) == scaled[i]) {
+            put<int16_t>(moby + fields[i], own[i]);
+        }
+    }
 }
 
 // Ratchet's ground speed eases toward his target speed: toward the target scaled, as fast.
@@ -593,14 +618,23 @@ float ground_at(gaddr at, float x, float y, float z) {
     return s_ground(at, 0, 1.0f);
 }
 
+// How far apart two enemies of a class keep: kApartGap, or the larger one's radius, to at most
+// kApartGapMost.
+float apart_gap(uint32_t a, uint32_t b) {
+    const float r =
+        std::max(get<float>(a + kMobyRadius), get<float>(b + kMobyRadius)) * kRadiusUnit;
+    // A radius that is not one (not a number, not positive): the plain gap.
+    return r > kApartGap ? std::min(r, kApartGapMost) : kApartGap;
+}
+
 // After a copy's update: moved a little away from the enemies of its class (originals and copies)
 // that stand within kApartGap of it, when no wall is in the way and the ground there is the
 // ground it stands over. Originals are never moved, so the game's own enemies stay as they were.
 void keep_apart(uint32_t moby) {
     const auto of = s_copy_class.find(moby);
 
-    // Not a copy.
-    if (of == s_copy_class.end()) {
+    // Not a copy, or a party member's game, where the host's world places the enemies.
+    if (of == s_copy_class.end() || s_follow) {
         return;
     }
 
@@ -625,9 +659,10 @@ void keep_apart(uint32_t moby) {
 
         const float dx = x - get<float>(other + kMobyX), dy = y - get<float>(other + kMobyY);
         const float d2 = dx * dx + dy * dy;
+        const float gap = apart_gap(moby, other);
 
         // Far enough apart, or on another floor.
-        if (d2 >= kApartGap * kApartGap || std::fabs(z - get<float>(other + kMobyZ)) >= kApartGap) {
+        if (d2 >= gap * gap || std::fabs(z - get<float>(other + kMobyZ)) >= gap) {
             continue;
         }
 
@@ -636,11 +671,11 @@ void keep_apart(uint32_t moby) {
         // Exactly on top: away along a direction of its own (its slot's, so it holds every tick).
         if (d < kApartSame) {
             const float angle = static_cast<float>((moby >> 8) % 360u) * kRadiansPerDegree;
-            push_x += std::cos(angle) * kApartGap;
-            push_y += std::sin(angle) * kApartGap;
+            push_x += std::cos(angle) * gap;
+            push_y += std::sin(angle) * gap;
         } else {
-            push_x += dx / d * (kApartGap - d);
-            push_y += dy / d * (kApartGap - d);
+            push_x += dx / d * (gap - d);
+            push_y += dy / d * (gap - d);
         }
     }
 
@@ -657,8 +692,13 @@ void keep_apart(uint32_t moby) {
     const gaddr a = frame.address(), b = a + kVecSize;
     const float here = ground_at(a, x, y, z), there = ground_at(b, nx, ny, z);
 
-    // No ground under the new place, or ground of another height (a ledge, a step): it stays.
-    if (!(there > 0.0f) || !(here > 0.0f) || std::fabs(there - here) > kApartFloorTolerance) {
+    // One that flies (well over its ground) may cross a ledge: only ground under it is needed.
+    const bool flies = here > 0.0f && z - here > kApartFlyHeight;
+
+    // No ground under the new place, or a walker's ground of another height (a ledge, a step): it
+    // stays.
+    if (!(there > 0.0f) || !(here > 0.0f)
+        || (!flies && std::fabs(there - here) > kApartFloorTolerance)) {
         return;
     }
 
@@ -749,9 +789,27 @@ void timed_update(void (*original)(uint32_t), uint32_t moby) {
 
 // One update hook point's replacement: the originals are kept by index in s_update_original, and
 // the hook gets a plain function for each index.
+// An enemy of a copied class that the game spawned after the load (a spawner's, a wave's) is one
+// the copies keep apart from too, from its first update on.
+void note_member(uint32_t moby) {
+    // Nothing is copied on this level, or it is known already.
+    if (s_class_members.empty() || s_member_set.count(moby) != 0) {
+        return;
+    }
+
+    const auto members = s_class_members.find(get<int16_t>(moby + kMobyClass));
+
+    // A class with copies: one more of it.
+    if (members != s_class_members.end()) {
+        members->second.push_back(moby);
+        s_member_set.insert(moby);
+    }
+}
+
 template <int I>
 void update_thunk(uint32_t moby) {
     timed_update(s_update_original[I], moby);
+    note_member(moby);
     keep_apart(moby);
 }
 
@@ -781,8 +839,9 @@ void ball_update(uint32_t moby) {
     }
 
     const int32_t max = get<int32_t>(exe(s_disc->max_health));
-    int32_t now = before + s_pickups.take(k, gained);
-    put<int32_t>(hp, now > max ? max : now);
+    const int32_t now = before + s_pickups.take(k, gained);
+    // Never above max health, and never below what he had before the orb.
+    put<int32_t>(hp, now > max ? (max > before ? max : before) : now);
 }
 
 // Max health: the cells the upgrades bought give (4, Premium 5, Ultra 8), scaled to a count the
@@ -929,9 +988,10 @@ bool find_spot(gaddr orig, int copy, float out[3]) {
 
         for (const uint32_t made : s_class_members[get<int16_t>(orig + kMobyClass)]) {
             const float dx = cx - get<float>(made + kMobyX), dy = cy - get<float>(made + kMobyY);
+            const float gap = apart_gap(orig, made);
             crowded = crowded
-                      || (dx * dx + dy * dy < kApartGap * kApartGap
-                          && std::fabs(floor + over - get<float>(made + kMobyZ)) < kApartGap);
+                      || (dx * dx + dy * dy < gap * gap
+                          && std::fabs(floor + over - get<float>(made + kMobyZ)) < gap);
         }
 
         if (crowded) {
@@ -1120,8 +1180,6 @@ Fixups read_fixups(gaddr hdr, gaddr table, const dm::Pool& pool) {
 // budget. Leaves the level as it is when the pool or the file is not as expected.
 void adjust_enemies(int level) {
     const double k = s_level[dm::ENEMY_COUNT];
-    s_copy_class.clear();
-    s_class_members.clear();
 
     // The slider is at retail.
     if (k == 1.0) {
@@ -1245,6 +1303,7 @@ void adjust_enemies(int level) {
         if (members != s_class_members.end()
             && static_cast<int8_t>(get<uint8_t>(m + kMobyState)) >= 0) {
             members->second.push_back(m);
+            s_member_set.insert(m);
         }
     }
 
@@ -1282,6 +1341,7 @@ void adjust_enemies(int level) {
 
             s_copy_class[copy] = wanted[i].cls;
             s_class_members[wanted[i].cls].push_back(copy);
+            s_member_set.insert(copy);
             ++made;
         }
     }
@@ -1316,6 +1376,10 @@ uint32_t load_gameplay(Original original, int32_t full) {
     s_rng = dm::Rng(dm::mix(seed, kLevelRngSalt + static_cast<uint64_t>(level)));
 
     rewrite_items(level);
+    // Last level's copies are gone with it; only the host's game makes this level's.
+    s_copy_class.clear();
+    s_class_members.clear();
+    s_member_set.clear();
 
     // The host's world brings a member its copies and takes out what it left out.
     if (!s_follow) {
@@ -1415,10 +1479,11 @@ int hook_updates(openrac::Mod& mod, std::string& missing) {
 }
 
 // Each frame: the events' clock (in play, with the events on), then max health. A party's member
-// has no clock: the host decides the events.
+// has no clock of its own: the host decides the events (session.cpp: advance_events).
 void on_frame() {
-    // Chaos events are on and the game is in play: the clock runs on play time only.
-    if (s_session.events_on && !s_follow && in_play()) {
+    // Chaos events are on (or a party's host's event may be on) and the game is in play: the clock
+    // runs on play time only.
+    if ((s_session.events_on || s_follow) && in_play()) {
         const double dt = get<float>(exe(s_disc->tick) + kTickSeconds);
         dm::advance_events(dt > 0.0 && dt < kMaxFrameSeconds ? dt : kFallbackFrameSeconds);
     }

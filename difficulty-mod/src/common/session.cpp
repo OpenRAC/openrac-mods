@@ -22,6 +22,8 @@ constexpr std::uint64_t kSeedMask = 0xFFFFFFFFu;
 // The seconds in a minute, and the gap between events when the setting is below one.
 constexpr double kSecondsPerMinute = 60.0;
 constexpr double kDefaultEventGap = 180.0;
+// A host's event on for this many times an event's length (in this game's play) is taken as over.
+constexpr double kEventHeldLimit = 2.0;
 
 // The events' clock as at a start.
 void reset_clock(Session& s) {
@@ -74,6 +76,12 @@ void on_party_rules(void*, const void* data, std::uint32_t size) {
 
     const bool first = !s.follow;
     const int event = s.clock.current;
+
+    // A new event, or the first rules: its time starts now.
+    if (first || rules.event != event) {
+        s.event_held = 0.0;
+    }
+
     s.follow = true;
     s.rules = rules;
     s.clock.current = rules.event;
@@ -180,8 +188,28 @@ std::uint64_t level_values(int level) {
 void advance_events(double dt) {
     Session& s = session();
 
-    // The events are off, or a party's host decides them.
-    if (!s.events_on || s.follow) {
+    // A party's member: the host decides the events. One on far longer than an event lasts is
+    // ended here (a host that took over passes on the rules as they were, the event never ending).
+    if (s.follow) {
+        // No event on, or no time passed.
+        if (s.clock.current < 0 || !(dt > 0.0)) {
+            return;
+        }
+
+        s.event_held += dt;
+
+        // On too long: back to normal here.
+        if (s.event_held >= s.clock.lasts * kEventHeldLimit) {
+            s.clock.current = -1;
+            set_active();
+            s.mod->info("chaos: back to normal (the host's event never ended)");
+        }
+
+        return;
+    }
+
+    // The events are off.
+    if (!s.events_on) {
         return;
     }
 

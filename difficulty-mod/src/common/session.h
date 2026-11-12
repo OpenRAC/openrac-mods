@@ -35,6 +35,9 @@ struct Session {
     // The host's rules, while a party's host has given them.
     bool follow = false;
     PartyRules rules;
+    // The seconds of play the host's event has been on here: one far past an event's length is
+    // ended here (a host that took over passes on the rules as they were, the event never ending).
+    double event_held = 0.0;
 
     // The knobs this game honours (rules.h: a bit each): the log names only these, and the events
     // of others are never picked.
@@ -58,8 +61,8 @@ void set_active();
 std::uint64_t level_values(int level);
 
 // Advances the events' clock by `dt` seconds of play: an event starting or ending changes what
-// plays, is published to a party's members, and logged. Does nothing with the events off or in a
-// party's member (the host decides them).
+// plays, is published to a party's members, and logged. Does nothing with the events off. In a
+// party's member the host decides the events: only one on far longer than an event lasts is ended.
 void advance_events(double dt);
 
 // The values as one log line: each honoured slider's name and value, two decimals each.
