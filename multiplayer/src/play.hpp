@@ -76,6 +76,9 @@ constexpr std::uint8_t kWireScene = 0x4;
 /* 0x8 is multiplayer 0.8.0's "in a pause/menu overlay": its peers send it, so it keeps that meaning. */
 constexpr std::uint8_t kWireMenu = 0x8;
 constexpr std::uint8_t kWireAirborne = 0x10;
+/* The pose ends with its scale (4 bytes, after the world's ack): without it a peer's figure kept
+ * the scale the hero had when it was made, a wide Ratchet after Go to host. */
+constexpr std::uint8_t kWireScale = 0x20;
 
 /* A piece a Ratchet wears or holds (the SDK's openrac_held_piece): the game's slot and which of
  * its mobys, the item, the moby's class, the body's joint it follows, kHeld* flags, where a loose
@@ -144,6 +147,7 @@ struct PoseMessage {
 constexpr std::uint8_t kPoseKind = kind::kPose;
 constexpr std::size_t kPoseBytes = 65;
 constexpr std::size_t kPoseAckBytes = 6;
+constexpr std::size_t kPoseScaleBytes = 4;
 
 Bytes encode_pose(const PoseMessage& message);
 /* False for bytes that are not a whole POSE. */

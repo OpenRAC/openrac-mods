@@ -32,6 +32,11 @@ float finite(float f) {
     return std::isfinite(f) ? f : 0.0f;
 }
 
+/* A figure's scale, 0 (keep the one it has) for one no Ratchet has. */
+float sane_scale(float f) {
+    return std::isfinite(f) && f > 0.01f && f < 100.0f ? f : 0.0f;
+}
+
 std::int16_t clamp16(double v) {
     return static_cast<std::int16_t>(std::clamp(v, -32768.0, 32767.0));
 }
@@ -136,6 +141,7 @@ void carry_loose_on(const Pose& before, double span, double ahead, Pose& out) {
 
 Bytes encode_pose(const PoseMessage& m) {
     const Pose& p = m.pose;
+    const bool scaled = sane_scale(p.scale) > 0.0f;
     Writer w;
     w.u8(kPoseKind).i32(m.owner).u8(static_cast<std::uint8_t>(m.sequence >> 8))
         .u8(static_cast<std::uint8_t>(m.sequence))
@@ -143,7 +149,8 @@ Bytes encode_pose(const PoseMessage& m) {
         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(p.level, -1, 127))))
         .u8(static_cast<std::uint8_t>((p.flags & kPoseBlending) | (m.teleport ? kWireTeleport : 0)
                                   | (m.scene ? kWireScene : 0) | (m.menu ? kWireMenu : 0)
-                                  | ((p.flags & kPoseAirborne) != 0 ? kWireAirborne : 0)));
+                                  | ((p.flags & kPoseAirborne) != 0 ? kWireAirborne : 0)
+                                  | (scaled ? kWireScale : 0)));
 
     for (const float f : p.position) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
@@ -209,6 +216,11 @@ Bytes encode_pose(const PoseMessage& m) {
     if (m.world_ack) {
         w.u8(static_cast<std::uint8_t>(m.world_newest >> 8)).u8(static_cast<std::uint8_t>(m.world_newest));
         w.i32(static_cast<std::int32_t>(m.world_bits));
+    }
+
+    // Last, so a peer from before it reads the rest as it did.
+    if (scaled) {
+        w.i32(static_cast<std::int32_t>(float_bits(p.scale)));
     }
 
     return w.bytes();
@@ -303,11 +315,18 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     // A tail cut short: the pose stands, wearing nothing.
     p.held_count = r.ok() ? static_cast<std::uint32_t>(count) : 0;
 
-    if (r.ok() && r.left() >= kPoseAckBytes) {
+    const bool scaled = (flags & kWireScale) != 0;
+    const std::size_t scale_bytes = scaled ? kPoseScaleBytes : 0;
+
+    if (r.ok() && r.left() >= kPoseAckBytes + scale_bytes) {
         const auto newest_high = static_cast<std::uint16_t>(r.u8() << 8);
         out.world_newest = static_cast<std::uint16_t>(newest_high | r.u8());
         out.world_bits = static_cast<std::uint32_t>(r.i32());
         out.world_ack = true;
+    }
+
+    if (scaled && r.ok() && r.left() >= kPoseScaleBytes) {
+        p.scale = sane_scale(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
 
     return true;
