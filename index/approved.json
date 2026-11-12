@@ -28,6 +28,19 @@
     "0.1.0",
     "0.3.0"
   ],
+  "gadget-quick-use": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "e4e8f3e73ae5774a3c282a85a12e642d4513fc58575183d4451358f795ce0852",
+        "linux-aarch64": "fbeb82e3227c4ae852a060b817a40d0468ef86bf72bf22c0d3ecb4edc44fd505",
+        "linux-x86_64": "d14382d0fdcbd75af232c2410262aa8f318815992d8f4542f87e8ac87b626b8c",
+        "macos-arm64": "f355124b27b08d1bc1776033d8ea9f349427954e2657fc355c946dbf529577a7",
+        "macos-x86_64": "c7b555db8ae40bbbfe4cfc0de16b4f69181cb53bda443ce5a0c4d117a9fd3a10",
+        "windows-x86_64": "3df61b7efdabe89209132f4aa58c7624c27571b2e5fbff5da2be295de93b4468"
+      }
+    }
+  ],
   "modern-controls": [
     "0.3.0",
     "0.3.3"
