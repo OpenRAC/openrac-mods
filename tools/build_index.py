@@ -671,6 +671,17 @@ def approval(approved: list, version: str) -> str | dict | None:
     return next((a for a in approved if (a["version"] if isinstance(a, dict) else a) == version), None)
 
 
+def published_before(prev: dict | None, version: str) -> dict | None:
+    """The newest version players have now, older than `version`, with native archives: its tag and
+    archives, which the review issue's scan compares against (tools/binary_scan.py)."""
+    older = [v for v in (prev or {}).get("versions", [])
+             if v.get("platforms") and v.get("tag") and semver_key(v["version"]) < semver_key(version)]
+    if not older:
+        return None
+    v = max(older, key=lambda v: semver_key(v["version"]))
+    return {"version": v["version"], "tag": v["tag"], "platforms": v["platforms"]}
+
+
 def held(entry: dict, v: dict, kind: str, hold: dict | None) -> str | None:
     """Why a new version waits (cool-down for external native mods), or None to publish it."""
     if hold is None or entry["local"] is not None or kind != "native":
@@ -745,7 +756,8 @@ def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None
             hold["review"].append({"id": mid, "name": head.get("name", mid), "repo": entry["repo"],
                                    "version": v["version"], "tag": tag, "released": v["released"],
                                    "changelog": v["changelog"], "platforms": v["platforms"],
-                                   "changed": approval(hold["approved"].get(mid, []), v["version"]) is not None})
+                                   "changed": approval(hold["approved"].get(mid, []), v["version"]) is not None,
+                                   "previous": published_before(prev, v["version"])})
             continue
         versions.append(v)
     if not versions and head_f["type"] == "script":

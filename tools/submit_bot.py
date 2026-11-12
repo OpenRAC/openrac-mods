@@ -30,6 +30,7 @@ import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import binary_scan  # noqa: E402
 import build_index as b  # noqa: E402
 import media  # noqa: E402
 
@@ -705,7 +706,42 @@ def review_title(item: dict) -> str:
     return f"Review {item['id']} {item['version']}"
 
 
-def review_body(item: dict) -> str:
+SCAN_LIMIT = 256 * 1024 * 1024  # the largest archive downloaded for the scan
+
+
+def scan_release(repo: str, tag: str, platforms: dict, http) -> dict | None:
+    """binary_scan's view of a release's archives (all platforms together), each checked against
+    its SHA-256 first; None when one cannot be downloaded."""
+    merged = {"libraries": {}, "urls": set(), "ips": set(), "telling": set(), "problems": []}
+    for plat, a in sorted(platforms.items()):
+        r = http.get(f"{repo}/releases/download/{tag}/{a['asset']}", limit=SCAN_LIMIT)
+        if r.status != 200 or hashlib.sha256(r.body).hexdigest() != a["sha256"]:
+            return None
+        one = binary_scan.scan_archive(r.body)
+        merged["libraries"].update({f"{plat}: {k}": v for k, v in one["libraries"].items()})
+        for key in ("urls", "ips", "telling"):
+            merged[key] |= one[key]
+        merged["problems"] += [f"{plat}: {p}" for p in one["problems"]]
+    return merged
+
+
+def scan_section(item: dict, http) -> str:
+    """The review issue's account of what the new libraries can do, and what is new in them."""
+    try:
+        new = scan_release(item["repo"], item["tag"], item["platforms"], http)
+        prev = item.get("previous")
+        old = scan_release(item["repo"], prev["tag"], prev["platforms"], http) if prev else None
+    except Exception as err:  # noqa: BLE001 - a scan that fails must not stop the review issue
+        return f"### What the libraries can do\n\nThe scan failed ({err.__class__.__name__}): review by hand.\n"
+    if new is None:
+        return "### What the libraries can do\n\nThe archives could not be downloaded for the scan: review by hand.\n"
+    text = binary_scan.report(new, old)
+    if prev:
+        text += f"\nCompared with {prev['version']}" + ("." if old else ", whose archives could not be read.") + "\n"
+    return text
+
+
+def review_body(item: dict, scan: str = "") -> str:
     fence = "~" * max(4, max((len(x) for x in re.findall(r"~+", item.get("changelog", ""))), default=0) + 1)
     rows = "\n".join(f"| {p} | `{v['asset']}` | `{v['sha256']}` | {v['size']} |"
                      for p, v in item["platforms"].items())
@@ -714,6 +750,7 @@ def review_body(item: dict) -> str:
             f"- Release: {item['repo']}/releases/tag/{item['tag']} ({item['released']})\n\n"
             f"| Platform | Archive | SHA-256 | Bytes |\n|---|---|---|---|\n{rows}\n\n"
             f"Changelog:\n\n{fence}\n{item.get('changelog', '')}\n{fence}\n\n"
+            f"{scan}{chr(10) if scan else ''}"
             f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 1 h after its release, "
             f"and only with these exact archives.\n\n"
             f"{REVIEW_MARK}{json.dumps({'sha256': b.archive_hashes(item)}, sort_keys=True)} -->\n")
@@ -739,7 +776,8 @@ def reviewed_hashes(body: str | None) -> dict | None:
     return sha if ok else None
 
 
-def review(items: list[dict], run=run_cmd) -> int:
+def review(items: list[dict], run=run_cmd, http=None) -> int:
+    http = http or b.Http()
     run(["gh", "label", "create", "mod-review", "--color", "FBCA04", "--description",
          "A mod version waits for review", "--force"], check=False)
     for item in items:
@@ -747,7 +785,7 @@ def review(items: list[dict], run=run_cmd) -> int:
         found = json.loads(run(["gh", "issue", "list", "--label", "mod-review", "--state", "all", "--search",
                                 f"\"{title}\" in:title", "--json", "number,title,state,body"]) or "[]")
         same = [i for i in found if i["title"] == title]
-        body = review_body(item)
+        body = review_body(item, scan_section(item, http))
         if not same:
             run(["gh", "issue", "create", "--title", title, "--label", "mod-review", "--body-file", "-"], input=body)
             continue

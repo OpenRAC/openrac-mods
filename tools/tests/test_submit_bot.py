@@ -445,14 +445,15 @@ class CoolDown(Base):
         (self.fx.repo / "index/approved.json").write_text("{}")
         _, _, review = self.build()
         run = FakeRun({"issue list": "[]"})
-        bot.review(review, run)
+        bot.review(review, run, b.Offline(self.fx.dir))
         create = next((a, i) for a, i in run.calls if a[:3] == ["gh", "issue", "create"])
+        self.assertIn("### What the libraries can do", create[1])
         self.assertIn("Review ext-hud 0.2.0", create[0])
         self.assertIn(review[0]["platforms"]["linux-x86_64"]["sha256"], create[1])
         self.assertIn(bot.MAINTAINERS, create[1])
         # An open issue of that title is updated, not doubled.
         run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "OPEN"}])})
-        bot.review(review, run)
+        bot.review(review, run, b.Offline(self.fx.dir))
         self.assertTrue(any(a[:4] == ["gh", "issue", "edit", "3"] for a, _ in run.calls))
         self.assertFalse(any(a[:3] == ["gh", "issue", "create"] for a, _ in run.calls))
 
@@ -544,7 +545,7 @@ class CoolDown(Base):
         old = {**item, "platforms": {"linux-x86_64": {"asset": "x.zip", "sha256": "0" * 64, "size": 1}}}
         run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "CLOSED",
                                                   "body": bot.review_body(old)}])})
-        bot.review(review, run)
+        bot.review(review, run, b.Offline(self.fx.dir))
         cmds = [" ".join(a) for a, _ in run.calls]
         self.assertIn("gh issue reopen 3", cmds)
         self.assertTrue(any(c.startswith("gh issue edit 3 --remove-label approved") for c in cmds))
@@ -554,7 +555,7 @@ class CoolDown(Base):
         _, _, review = self.build()
         run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "CLOSED",
                                                   "body": bot.review_body(review[0])}])})
-        bot.review(review, run)
+        bot.review(review, run, b.Offline(self.fx.dir))
         self.assertFalse(any(a[:3] == ["gh", "issue", "reopen"] for a, _ in run.calls))
 
     def test_platform_set_differs_after_approval_waits(self):
@@ -586,7 +587,7 @@ class CoolDown(Base):
         old = {**review[0], "platforms": {"linux-x86_64": {"asset": "x.zip", "sha256": "0" * 64, "size": 1}}}
         run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "OPEN",
                                                   "body": bot.review_body(old)}])})
-        bot.review(review, run)
+        bot.review(review, run, b.Offline(self.fx.dir))
         cmds = [" ".join(a) for a, _ in run.calls]
         self.assertIn("gh issue edit 3 --remove-label approved", cmds)
         self.assertTrue(any(c.startswith("gh issue comment 3") for c in cmds))
