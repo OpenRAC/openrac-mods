@@ -24,6 +24,18 @@
     "1.0.1",
     "1.1.1"
   ],
+  "expanded-quick-select": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "linux-aarch64": "75a054653fd43a9e104c3088e82ce661ade13abe35eb5be6c8d1469e55da3de7",
+        "linux-x86_64": "1c1db708d4604c128a5c46a403cbe601e1e2389b2af9f5e3b20b794359674c44",
+        "macos-arm64": "88aefa12be33c9fe43e67a91fe9a66d6aa1b87fdd8b5f33cce1e51f42715c365",
+        "macos-x86_64": "88b4fbc6403cebedccab9ffd8488db82c6b8406a564f94412c901ee0add2f367",
+        "windows-x86_64": "b20226754d681c7917a2ebc31461c269c6fd6a7b4bc9c6c365e2184f65923e78"
+      }
+    }
+  ],
   "fast-travel": [
     "0.1.0",
     "0.3.0"
