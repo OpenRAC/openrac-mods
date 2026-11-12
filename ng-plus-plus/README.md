@@ -61,6 +61,10 @@ when you take a tiered weapon in hand, and everywhere the game prints the weapon
 pickup's message, the weapons menu, the quick select and the vendor. A name text two items share is
 left as the game has it.
 
+In the vendor's list, the next tier's entry carries that tier's tint, and the weapon's own entry
+carries the tint of the tier it has. For 30 seconds after a tier is bought, the mod logs the
+vendor's cursor and preview state each time they change (`vendor: cursor ...`).
+
 ### Tougher enemies each new game
 
 The tiers make weapons far stronger, so the enemies keep up across challenge mode's new games.

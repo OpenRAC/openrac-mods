@@ -172,6 +172,7 @@ static int32_t port_text(int32_t id);
 static uint32_t s_drawing_ui;
 static char s_drawn_label[96];
 static uint32_t s_drawn_tint;
+static uint32_t s_row_tint[16]; /* each drawn row's icon colour, by its place in the list */
 
 static void game_draw_list(void) {
     const int cursor = get32(s_drawing_ui + WT_VENDOR_CURSOR);
@@ -185,6 +186,9 @@ static void game_draw_list(void) {
         const uint32_t e = s_drawing_ui + WT_VENDOR_ENTRIES + (uint32_t)idx * WT_VENDOR_ENTRY_SIZE;
         const int upgrade = get32(e + WT_ENTRY_UPGRADE);
         const uint32_t rgb = color(upgrade ? 2 : 1);
+        if (idx < 16) {
+            s_row_tint[idx] = rgb;
+        }
         if (upgrade) {
             s_drawn_tint = rgb;
             snprintf(
@@ -480,6 +484,18 @@ static void run(const char* path, const wt_disc* disc) {
         strcmp(title(0x4321), "Alpha Lancer") == 0
     ); /* no entry of the mod's: its own name, at its tier */
     CHECK(strcmp(s_notice, "Alpha Lancer") == 0);
+    /* The Lancer's own entry (its ammo) in the list: Alpha's lime now; another weapon's as the game
+     * has it. */
+    {
+        const uint32_t own = ui + WT_VENDOR_ENTRIES;
+        set32(own + WT_ENTRY_ITEM, LANCER);
+        set32(ui + WT_VENDOR_CURSOR, 0);
+        ((wt_Vendor_DrawList)hooked_fn(WT_HOOK_Vendor_DrawList))();
+        CHECK(s_row_tint[0] == 0x8020FFB0u);
+        CHECK(s_row_tint[1] == 0x80808080u);
+        ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
+        set32(ui + WT_VENDOR_CURSOR, 1);
+    }
     tick(1);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 550);
     CHECK(get32(s_disc->ammo + 4u * LANCER) == 550);

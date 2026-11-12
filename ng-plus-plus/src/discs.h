@@ -91,8 +91,11 @@ static inline const wt_disc* wt_disc_of(const char* version) {
 #define WT_HERO_MOBY 0x2290u /* u32: his moby */
 
 /* The vendor's state (func_002F6608, func_002F6510, func_002F8918). */
-#define WT_VENDOR_CURSOR 0x80u   /* s32: the entry under the cursor */
-#define WT_VENDOR_ENTRIES 0x140u /* the list */
+#define WT_VENDOR_CURSOR 0x80u    /* s32: the entry under the cursor */
+#define WT_VENDOR_PREVIEWED 0x70u /* s32: the row the preview last loaded */
+#define WT_VENDOR_MODEL 0x88u     /* s32: the preview's model drawn */
+#define WT_VENDOR_RESOURCE 0x8Cu  /* s32: the preview's resource loading */
+#define WT_VENDOR_ENTRIES 0x140u  /* the list */
 #define WT_VENDOR_ENTRY_SIZE 0x18u
 #define WT_VENDOR_MAX_ENTRIES 64
 #define WT_VENDOR_COUNT 0x740u /* s32 */

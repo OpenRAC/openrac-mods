@@ -94,6 +94,9 @@ static int s_drawn_row = -1;
 static uint32_t s_tick;
 static int s_notice_left;
 static int s_held = -1;
+#define WT_TRACE_TICKS 1800 /* 30 s at 60 ticks a second */
+static int s_trace;         /* ticks left of the vendor's state logged after a purchase */
+static int32_t s_traced[5]; /* the vendor's state last logged */
 static int s_published;
 
 static wt_Vendor_BuildList s_build_list;
@@ -505,6 +508,17 @@ static uint32_t version_color(int32_t kind) {
             }
         }
     }
+    // The weapon's own entry (its ammo): the tier it has now.
+    if (row >= 0 && entry_item_at(row) < 0) {
+        const int item = get_s32(entry(row) + WT_ENTRY_ITEM);
+        if (item >= 0 && item < WT_ITEMS && wt_kind_of(item) != WT_KIND_NONE && levels()[item] != 0
+            && owned(item) && at_last(item)) {
+            const int32_t rgb = wt_tint_rgb(wt_kind_of(item), levels()[item], s_tick);
+            if (rgb >= 0) {
+                return (color & 0xFF000000u) | (uint32_t)rgb;
+            }
+        }
+    }
     return color;
 }
 
@@ -526,6 +540,8 @@ static int32_t upgrade(int32_t id) {
         step(id);
         snprintf(line, sizeof line, "purchase: item %d, tier %d -> %d", id, old, s_level[id]);
         s_api->log(s_mod, OPENRAC_LOG_INFO, line);
+        s_trace = WT_TRACE_TICKS;
+        s_traced[0] = -2;
         return 1;
     }
     if (under >= 0 || (id >= 0 && id < WT_ITEMS && wt_kind_of(id) != WT_KIND_NONE)) {
@@ -736,6 +752,54 @@ static void publish(void) {
     s_published = 1;
 }
 
+/* For a while after a purchase, the vendor's list and preview state each time they change, into the
+ * log: the cursor, the preview's row (+0x70), its model and resource flags (+0x88, +0x8C), and the
+ * entry under the cursor. */
+static void trace_vendor(void) {
+    if (s_trace <= 0) {
+        return;
+    }
+    --s_trace;
+    const openrac_gaddr ui = at(s_disc->vendor);
+    const int cursor = get_s32(ui + WT_VENDOR_CURSOR);
+    const int count = get_s32(ui + WT_VENDOR_COUNT);
+    const int32_t now[5] = {
+        cursor,
+        get_s32(ui + WT_VENDOR_PREVIEWED),
+        get_s32(ui + WT_VENDOR_MODEL),
+        get_s32(ui + WT_VENDOR_RESOURCE),
+        count,
+    };
+    if (memcmp(now, s_traced, sizeof now) == 0) {
+        return;
+    }
+    memcpy(s_traced, now, sizeof now);
+    char line[200];
+    int item = -1, kind = -1, cls = -1, up = -1;
+    if (cursor >= 0 && cursor < count && count <= WT_VENDOR_MAX_ENTRIES) {
+        item = get_s32(entry(cursor) + WT_ENTRY_ITEM);
+        kind = get_s32(entry(cursor) + WT_ENTRY_KIND);
+        cls = get_s32(entry(cursor) + WT_ENTRY_CLASS);
+        up = get_s32(entry(cursor) + WT_ENTRY_UPGRADE);
+    }
+    snprintf(
+        line,
+        sizeof line,
+        "vendor: cursor %d of %d, previewed %d, model %d, resource %d; entry item %d kind %d "
+        "class %d upgrade %d",
+        cursor,
+        count,
+        now[1],
+        now[2],
+        now[3],
+        item,
+        kind,
+        cls,
+        up
+    );
+    s_api->log(s_mod, OPENRAC_LOG_INFO, line);
+}
+
 static void tick(void* user) {
     (void)user;
     ++s_tick;
@@ -785,6 +849,7 @@ static void tick(void* user) {
     write_ammo();
     write_goal();
     publish();
+    trace_vendor();
 
     // A tiered weapon taken in hand: its name.
     {
@@ -830,7 +895,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.6")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.7")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
