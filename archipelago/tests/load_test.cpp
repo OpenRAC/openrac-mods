@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "ap_ids.h"
+#include "ap_gold_weapons.h"
+#include "ap_npc_infobots.h"
 #include "ap_skills.h"
 #include "discs.h"
 #include "hooks.h"
@@ -100,8 +102,17 @@ bool g_vendor_present;
 int g_gives;
 std::string g_notice;
 std::string g_server;
+bool g_new_game_plus;
+bool g_gold_mode;
+bool g_npc_mode;
+int g_npc_purchases;
+uint8_t g_serialized_planets[LEVEL_COUNT];
+uint32_t g_serialized_checks;
+bool g_missing_gold_hook;
 std::string g_data_dir;
 int g_save_updates;
+int g_bolts = 2000;
+int32_t (*g_unspent)();
 
 std::uint8_t* at(std::uint32_t a) {
     return g_memory.data() + a;
@@ -120,6 +131,10 @@ void game_banner() {
 }
 
 void game_give(int32_t id, int32_t) {
+    if (id == ITEM_DEVASTATOR) {
+        const std::uint32_t gold = std::strcmp(D->version, "pal") == 0 ? 0x13E620 : 0x13E520;
+        CHECK(*at(gold + id) == 1); // variant is set before initial ammo/model setup
+    }
     *at(D->owned + id) = 1;
     *at(D->obtained + id) = 1;
     ++g_gives;
@@ -151,12 +166,28 @@ int32_t game_help(int32_t, int32_t) {
 void game_void() {}
 
 void game_i32(int32_t) {}
+void game_new_game_plus(int32_t) {
+    const int zero = 0;
+    std::memcpy(at(D->save_tag), &zero, 4);
+}
 
 int32_t game_count() {
     return 0;
 }
 
 void game_moby(openrac_gaddr) {}
+
+void game_gold_case(openrac_gaddr moby) {
+    std::uint32_t pvars;
+    std::memcpy(&pvars, at(moby + MOBY_PVARS), 4);
+    const int base = ITEM_BOMB_GLOVE;
+    const std::uint32_t gold = std::strcmp(D->version, "pal") == 0 ? 0x13E620 : 0x13E520;
+    if (*at(pvars + 4) == 2 && !*at(gold + base) && g_unspent() >= 4 && g_bolts >= 1000) {
+        g_bolts -= 1000;
+        *at(gold + base) = 1;
+        CHECK(g_unspent() == 36); // a purchase in flight spends currency immediately
+    }
+}
 
 void game_save_update() {
     ++g_save_updates;
@@ -177,10 +208,33 @@ std::string saved_book() {
     return std::string(std::istreambuf_iterator<char>(in), {});
 }
 
+void* replacement(const char* name);
+void game_serialize(uint32_t) {
+    std::memcpy(g_serialized_planets,at(D->planets),LEVEL_COUNT);
+    std::memcpy(&g_serialized_checks,at(D->save_tag),4);
+}
+void game_npc(uint32_t moby) {
+    int16_t cls; std::memcpy(&cls,at(moby+0xA6),2);
+    for (const auto& npc : k_ap_npcs) {
+        if (npc.oclass==cls && npc.level==g_level && !*at(D->planets+npc.planet)) {
+            ++g_npc_purchases;
+            ((void(*)(int))replacement(OPENRAC_RAC1_HOOK_Planet_Unlock))(npc.planet);
+            ((void(*)(uint32_t))replacement("rac1.save.serialize"))(0);
+            break;
+        }
+    }
+}
+
 void* original_for(const std::string& name) {
+    if (name == "rac1.save.serialize") return (void*)game_serialize;
+    for (const auto& npc : k_ap_npcs) if (name == npc.hook) return (void*)game_npc;
     if (name == ITEM_RANDOMIZER_HOOK_Save_NewGame) return (void*)game_void;
     if (name == "rac1.save.update_state") return (void*)game_save_update;
     if (name == "rac1.save.restore_data") return (void*)game_restore_data;
+    if (name == ITEM_RANDOMIZER_HOOK_Save_NewGamePlus) return (void*)game_new_game_plus;
+    if (name == OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent) return (void*)game_count;
+    if (name == OPENRAC_RAC1_HOOK_Moby_GoldWeaponCase_Update) return (void*)game_gold_case;
+
     if (name == OPENRAC_RAC1_HOOK_Item_Give) {
         return (void*)game_give;
     }
@@ -251,6 +305,7 @@ const char* setting_string(openrac_mod*, const char* key) {
 
 int host_hook(openrac_mod*, const char* name, const char*, void* fn, void** original) {
     ++g_hooks;
+    if (g_missing_gold_hook && std::strcmp(name, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent) == 0) return OPENRAC_HOOK_UNKNOWN;
     g_replacements.emplace_back(name, fn);
     *original = original_for(name);
     return OPENRAC_HOOK_OK;
@@ -401,10 +456,12 @@ void serve(socket_t listener) {
 
                 if (cmd == "Connect") {
                     CHECK(p.at("name") == "Ratchet" && p.at("game") == AP_GAME);
-                    const json connected = json::array({
+                    CHECK(p.at("slot_data") == true);
+                    json connected = json::array({
                         {{"cmd", "Connected"},
                          {"team", 0},
                          {"slot", 1},
+                         {"slot_data", {{"start_in_new_game_plus", int(g_new_game_plus)}, {"shuffle_gold_weapons", int(g_gold_mode)}, {"npc_infobot_checks", int(g_npc_mode)}}},
                          {"players", json::array()},
                          {"missing_locations", json::array()},
                          {"checked_locations", json::array()},
@@ -419,6 +476,12 @@ void serve(socket_t listener) {
                                 {"flags", 1}}}
                           )}},
                     });
+                    connected[1]["items"].push_back({{"item", AP_BASE + AP_GOLD_WEAPON_OFFSET + ITEM_DEVASTATOR},
+                                                     {"location", 2}, {"player", 2}, {"flags", 1}});
+                    for (int i = 0; i < (g_gold_mode ? 48 : 8); ++i) connected[1]["items"].push_back(
+                        {{"item", AP_BASE + AP_GOLD_BOLT_OFFSET}, {"location", 3 + i}, {"player", 2}, {"flags", 0}});
+                    if (g_npc_mode) for (int i = 0; i < AP_NPC_COUNT; ++i)
+                        connected[0]["missing_locations"].push_back(ap_npc_id(i));
                     send_all(c, server_frame(connected.dump()));
                     g_connected = true;
                 } else if (cmd == "LocationChecks") {
@@ -485,6 +548,10 @@ int main(int argc, char** argv) {
     if (argc > 2 && std::strcmp(argv[2], "ntsc") == 0) {
         D = &k_rando_discs[1];
     }
+    g_new_game_plus = argc > 3 && std::strcmp(argv[3], "ngplus") == 0;
+    for (int i = 2; i < argc; ++i) if (std::strcmp(argv[i], "npc") == 0) g_npc_mode = true;
+    g_gold_mode = argc > 4 && std::strcmp(argv[4], "gold") == 0;
+    g_missing_gold_hook = argc > 5;
 
 #ifdef _WIN32
     WSADATA wsa;
@@ -527,7 +594,9 @@ int main(int argc, char** argv) {
     { std::ofstream book(dir / "save-slots.tsv"); book << "4\told-seed\tRatchet\n"; }
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 18 && g_frame != nullptr);
+    CHECK(g_hooks == 35 && g_frame != nullptr);
+    const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
+    CHECK(*at(challenge) == 0);
 
     // A new save can remember an unowned Bomb Glove in both equip shortcuts. Stock cleanup
     // must not be required: this reproduces the start with no newly inserted ammunition row.
@@ -586,6 +655,58 @@ int main(int argc, char** argv) {
     CHECK(frames_until([] { return g_connected; }));
     CHECK(frames_until([] { return *at(D->owned + ITEM_HELI_PACK) != 0; }));
     CHECK(*at(D->obtained + ITEM_HELI_PACK) == 0);
+    CHECK(frames_until([challenge] { return *at(challenge) == int(g_new_game_plus); }));
+    if (g_new_game_plus) {
+        set_level(-1);
+        *at(challenge) = 0;
+        g_frame(g_frame_user);
+        CHECK(*at(challenge) == 0);
+        set_level(LEVEL_NOVALIS);
+        g_frame(g_frame_user);
+        CHECK(*at(challenge) == 1);
+        CHECK(*at(D->owned + ITEM_RYNO) == 0); // no completed-save inventory imported
+    } else {
+        *at(challenge) = 1;
+        g_frame(g_frame_user);
+        CHECK(*at(challenge) == 1); // false does not downgrade an earned NG+ save
+        *at(challenge) = 0;
+    }
+
+    // Gold items grant their base weapon and the real retail upgrade without buying a case.
+    const std::uint32_t gold = std::strcmp(D->version, "pal") == 0 ? 0x13E620 : 0x13E520;
+    CHECK(frames_until([gold] { return *at(gold + ITEM_DEVASTATOR) != 0; }));
+    CHECK(*at(D->owned + ITEM_DEVASTATOR) == 1);
+    CHECK(*at(D->obtained + ITEM_DEVASTATOR) == 0);
+    if (g_gold_mode && !g_missing_gold_hook) {
+        g_unspent = (int32_t (*)())replacement(OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent);
+        CHECK(g_unspent() == 40); // gold drops cap at 40; the received upgrade spends nothing
+        auto update_case = (openrac_rac1_Moby_GoldWeaponCase_Update)replacement(OPENRAC_RAC1_HOOK_Moby_GoldWeaponCase_Update);
+        const std::uint32_t moby = 0x100000, vars = 0x110000;
+        put(moby + MOBY_PVARS, vars);
+        const int16_t cls = 304;
+        std::memcpy(at(moby + 0xA6), &cls, 2);
+        put(vars + 0x40, 0);
+        put(std::strcmp(D->version, "pal") == 0 ? 0x1DEDE0 : 0x1DEB10, ITEM_BOMB_GLOVE);
+        *at(vars + 4) = 2;
+        const int before = g_bolts;
+        g_bolts = 999;
+        update_case(moby);
+        CHECK(g_bolts == 999 && g_unspent() == 40); // unaffordable cases do not check or charge
+        g_bolts = before;
+        update_case(moby);
+        CHECK(g_bolts == before - 1000 && g_unspent() == 36);
+        CHECK(*at(gold + ITEM_BOMB_GLOVE) == 0); // the original case did not grant its gold weapon
+        const std::int64_t check = ap_gold_case_id(ITEM_BOMB_GLOVE);
+        CHECK(frames_until([check] { return g_checked.count(check) != 0; }));
+        const int after = g_bolts;
+        update_case(moby);
+        CHECK(g_bolts == after && g_unspent() == 36); // duplicate case, across either shop, costs nothing
+        auto restart = (item_randomizer_Save_NewGamePlus)replacement(ITEM_RANDOMIZER_HOOK_Save_NewGamePlus);
+        restart(0);
+        CHECK(g_unspent() == 36); // completed-save restart keeps purchased checks/currency
+        update_case(moby);
+        CHECK(g_bolts == after);
+    }
 
     // The physical vendor must include automatically generated ammo when its
     // last shuffled reward is gone, and recover if previously guarded empty.
@@ -675,6 +796,41 @@ int main(int argc, char** argv) {
     set_level(LEVEL_VELDIN2);
     g_scene = 4;
     CHECK(frames_until([] { return g_goal; }));
+
+    if (g_npc_mode) {
+        const uint32_t old_gold_checks = get(D->save_tag) & 0x3FFu;
+        put(D->save_tag, 0xA7500000u | old_gold_checks); // legacy gold-case save format
+        const uint32_t npc_moby=0x1800000;
+        int16_t cls=1144; std::memcpy(at(npc_moby+0xA6),&cls,2);
+        set_level(LEVEL_BATALIA);
+        *at(D->planets+LEVEL_GASPAR)=1; // acquired from elsewhere: NPC must still be purchasable
+        auto deserter=(void(*)(uint32_t))replacement("Moby_BataliaDeserter_Update");
+        const int purchases=g_npc_purchases;
+        deserter(npc_moby);
+        CHECK(g_npc_purchases==purchases+1 && *at(D->planets+LEVEL_GASPAR)==1);
+        CHECK(g_serialized_planets[LEVEL_GASPAR]==1);
+        CHECK((g_serialized_checks & (1u << (10+7))) != 0);
+        CHECK((g_serialized_checks & 0x3FFu) == old_gold_checks);
+        CHECK((g_serialized_checks & 0xFF000000u) == 0xA8000000u);
+        CHECK(frames_until([] { return g_checked.count(ap_npc_id(7)) != 0; }));
+        deserter(npc_moby);
+        CHECK(g_npc_purchases==purchases+1); // receiving its coordinates never buys it twice
+        cls=774; std::memcpy(at(npc_moby+0xA6),&cls,2);
+        set_level(LEVEL_NOVALIS); *at(D->planets+LEVEL_ARIDIA)=0;
+        ((void(*)(uint32_t))replacement("Moby_ThePlumber_Update"))(npc_moby);
+        CHECK(*at(D->planets+LEVEL_ARIDIA)==0 && g_serialized_planets[LEVEL_ARIDIA]==0);
+        CHECK(frames_until([] { return g_checked.count(ap_npc_id(0)) != 0; }));
+        const int checks=get(D->save_tag);
+        ((void(*)(int))replacement(ITEM_RANDOMIZER_HOOK_Save_NewGamePlus))(0);
+        CHECK(get(D->save_tag)==checks); // challenge restart preserves NPC and gold-case checks
+    } else {
+        // Older APWorlds still give the direct NPC coordinates normally.
+        const uint32_t npc_moby=0x1800000;
+        const int16_t cls=774; std::memcpy(at(npc_moby+0xA6),&cls,2);
+        set_level(LEVEL_NOVALIS); *at(D->planets+LEVEL_ARIDIA)=0;
+        ((void(*)(uint32_t))replacement("Moby_ThePlumber_Update"))(npc_moby);
+        CHECK(*at(D->planets+LEVEL_ARIDIA)==1);
+    }
 
     // Same-slot overwrite: a new game may replace an old seed only after a successful close.
     auto new_game = (void(*)())replacement(ITEM_RANDOMIZER_HOOK_Save_NewGame);

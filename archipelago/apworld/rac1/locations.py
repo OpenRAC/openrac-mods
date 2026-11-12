@@ -5,14 +5,16 @@ from BaseClasses import Location
 
 from .data import GAME, LOCATIONS
 from .defs import LocationData
+from .gold_weapons import GOLD_LOCATION_ROWS
+from .npc_infobots import NPC_LOCATION_ROWS, NPC_SOURCE_ROWS
 
-LOCATION_ROWS: list[LocationData] = [row for row in LOCATIONS if row.id is not None]
-EVENT_ROWS: list[LocationData] = [row for row in LOCATIONS if row.id is None]
+LOCATION_ROWS: list[LocationData] = [row for row in LOCATIONS if row.id is not None] + GOLD_LOCATION_ROWS + NPC_LOCATION_ROWS
+EVENT_ROWS: list[LocationData] = [row for row in LOCATIONS if row.id is None and row not in NPC_SOURCE_ROWS]
 
 LOCATION_NAME_TO_ID: dict[str, int] = {row.name: row.id for row in LOCATION_ROWS}
 
 # A group per planet, and per kind of place.
-KIND_GROUPS = {"vendor": "Vendor", "infobot": "Infobots", "gold": "Gold Bolts", "skill": "Skill Points"}
+KIND_GROUPS = {"vendor": "Vendor", "infobot": "Infobots", "npc_infobot": "Infobots", "gold": "Gold Bolts", "skill": "Skill Points", "gold_vendor": "Gold Weapon Cases"}
 
 LOCATION_NAME_GROUPS: dict[str, set[str]] = {}
 for _row in LOCATION_ROWS:

@@ -40,20 +40,43 @@ class ShuffleGoldBolts(DefaultOnToggle):
 
 
 class ShuffleInfobots(DefaultOnToggle):
-    """The planets' coordinates the infobots give are items."""
+    """Shuffle Infobots and NPC coordinate rewards, including the Plumber and Batalia purchases.
+    The first flight from Veldin to Novalis remains fixed."""
     display_name = "Shuffle infobots"
 
 
 class ShuffleSkillPoints(Toggle):
     """The 30 skill points are locations too, and as many gold bolts join the items. The game's own
-    challenges, and optional: a skill point never holds progression, of any world."""
+    challenges. With gold-weapon cases shuffled, their gold bolts can finance those purchases;
+    otherwise skill points never hold progression."""
     display_name = "Shuffle skill points"
 
 
-class KeepStartingGear(DefaultOnToggle):
-    """Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is
-    shuffled too."""
-    display_name = "Keep the starting gear"
+class ShuffleGoldWeapons(Toggle):
+    """Shuffle the ten gold-weapon case purchases into the multiworld. Each case still costs
+    its retail bolts and four gold bolts. Gold weapons grant their base weapon and upgrade."""
+    display_name = "Shuffle gold weapons"
+
+
+class StartInNewGamePlus(Toggle):
+    """Enable the game's New Game+ (challenge mode) after connecting to this slot.
+    Start with a fresh Archipelago inventory; this does not import a completed save."""
+    display_name = "Start in New Game+"
+
+
+class StartingWeapons(Choice):
+    """Choose your starting weapon.
+    Vanilla: start with Bomb Glove.
+    Shuffled: shuffle the starting location, with no guaranteed weapon.
+    Non-Broken: one random normal or gold weapon besides the R.Y.N.O.
+    Unrestricted: any one normal or gold weapon.
+    Non-Broken and Unrestricted include gold weapons even when gold cases are not shuffled."""
+    display_name = "Starting weapons"
+    option_vanilla = 0
+    option_shuffled = 3
+    option_non_broken = 1
+    option_unrestricted = 2
+    default = 0
 
 
 @dataclass
@@ -65,15 +88,17 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_gold_bolts: ShuffleGoldBolts
     shuffle_infobots: ShuffleInfobots
     shuffle_skill_points: ShuffleSkillPoints
-    keep_starting_gear: KeepStartingGear
+    shuffle_gold_weapons: ShuffleGoldWeapons
+    starting_weapons: StartingWeapons
+    start_in_new_game_plus: StartInNewGamePlus
     start_inventory_from_pool: StartInventoryPool
 
 
 OPTION_GROUPS = [
+    OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus]),
     OptionGroup(
         "Pools",
-        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints,
-         KeepStartingGear],
+        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],
     ),
 ]
 
