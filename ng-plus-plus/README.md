@@ -91,6 +91,8 @@ difficulty mod alone.
 
 The tiers are kept with each save: the mod's data folder has a `tiers.txt` with the tiers at each
 save the game made (by the save's own clock). Nothing is written to the memory card or its folder.
+The launcher's save editor shows each weapon's tier for the save opened while the mod is on (the
+manifest's `save_data`), and saves a change into that file; close the game first.
 
 It works with the [item randomizer](../item-randomizer/README.md) (they take none of the same hook
 points) and with the [difficulty](../difficulty-mod/README.md) mod (its prices and max ammo are the

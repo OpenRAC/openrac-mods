@@ -52,5 +52,447 @@
       "step": 0.25,
       "description": "Times what the curve adds: 1 the curve as it is, 0.5 half of it, 2 twice it."
     }
-  ]
+  ],
+  "save_data": {
+    "file": "tiers.txt",
+    "records": "clock-hex",
+    "size": 56,
+    "title": "Weapon tiers",
+    "fields": [
+      {
+        "key": "item_26",
+        "name": "Blitz Gun",
+        "offset": 26,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_12",
+        "name": "Bomb Glove",
+        "offset": 12,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_37",
+        "name": "Bouncer",
+        "offset": 37,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_22",
+        "name": "Chopper",
+        "offset": 22,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_9",
+        "name": "Clank Zapper",
+        "offset": 9,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_17",
+        "name": "Decoy Glove",
+        "offset": 17,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_42",
+        "name": "Gravity Bomb",
+        "offset": 42,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_25",
+        "name": "Hoverbomb Gun",
+        "offset": 25,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_30",
+        "name": "Lancer",
+        "offset": 30,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_29",
+        "name": "Lava Gun",
+        "offset": 29,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_27",
+        "name": "Minirocket Tube",
+        "offset": 27,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_41",
+        "name": "Miniturret Glove",
+        "offset": 41,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_28",
+        "name": "Plasma Coil",
+        "offset": 28,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_23",
+        "name": "Pulse Rifle",
+        "offset": 23,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_44",
+        "name": "RYNO II",
+        "offset": 44,
+        "mask": 127,
+        "max": 10,
+        "choices": [
+          "None",
+          "Heavy",
+          "Ultima",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_24",
+        "name": "Seeker Gun",
+        "offset": 24,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_16",
+        "name": "Sheepinator",
+        "offset": 16,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_45",
+        "name": "Shield Charger",
+        "offset": 45,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_32",
+        "name": "Spiderbot Glove",
+        "offset": 32,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_31",
+        "name": "Synthenoid",
+        "offset": 31,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_18",
+        "name": "Tesla Claw",
+        "offset": 18,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_14",
+        "name": "Visibomb Gun",
+        "offset": 14,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_53",
+        "name": "Walloper",
+        "offset": 53,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "item_43",
+        "name": "Zodiac",
+        "offset": 43,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      }
+    ]
+  }
 }
