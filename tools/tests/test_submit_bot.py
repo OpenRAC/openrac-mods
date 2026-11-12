@@ -471,9 +471,24 @@ class CoolDown(Base):
         self.assertTrue(any(c.startswith("gh issue close 3") for c in cmds))
 
     def test_approve_falls_back_to_pr(self):
-        run = FakeRun({"pr create": "https://github.com/OpenRAC/openrac-mods/pull/4"}, fail=("HEAD:refs/heads/master",))
+        path = self.fx.repo / "index/approved.json"
+        before = path.read_text()
+        run = FakeRun({"pr create": "https://github.com/OpenRAC/openrac-mods/pull/4", "pr list": "[]",
+                       "reset --hard": lambda a: path.write_text(before) and ""},
+                      fail=("HEAD:refs/heads/master",))
         bot.approve(self.approve_event("boss"), self.fx.repo, b.Offline(self.fx.dir), run)
         self.assertTrue(any("approve/ext-hud-0.3.0" in " ".join(a) for a, _ in run.calls))
+        cmds = [" ".join(a) for a, _ in run.calls]
+        self.assertEqual(sum("push origin HEAD:refs/heads/master" in c for c in cmds), 4)  # retried on new master
+        self.assertTrue(any("pr create" in c and "Closes #3" in c for c in cmds))
+
+    def test_approve_twice_closes_without_a_commit(self):
+        (self.fx.repo / "index/approved.json").write_text('{"ext-hud": ["0.2.0", "0.3.0"]}')
+        run = FakeRun()
+        bot.approve(self.approve_event("boss"), self.fx.repo, b.Offline(self.fx.dir), run)
+        cmds = [" ".join(a) for a, _ in run.calls]
+        self.assertFalse(any(" commit " in c for c in cmds))
+        self.assertTrue(any(c.startswith("gh issue close 3") for c in cmds))
 
     def test_approve_refused_for_others(self):
         run = FakeRun()
