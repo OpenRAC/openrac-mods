@@ -122,6 +122,7 @@ public:
     std::vector<mp::PartyRules> party_rules() override;
 
     bool deliver_rules(const std::string& id, const mp::Bytes& data) override;
+    bool hand_over_rules(const std::string& id) override;
 
     void overlay_pause(bool on) override;
 

@@ -552,8 +552,9 @@ void reset_state() {
 
 // Each frame: the events' clock, in play.
 void on_frame() {
-    // Chaos events are on and the game is in play: the clock runs on play time only.
-    if (s_session.events_on && !s_session.follow && in_play()) {
+    // Chaos events are on (or a party's host's event may be on) and the game is in play: the clock
+    // runs on play time only.
+    if ((s_session.events_on || s_session.follow) && in_play()) {
         dm::advance_events(s_disc->tick_seconds);
     }
 }

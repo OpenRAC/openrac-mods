@@ -1630,6 +1630,11 @@ static void on_party_rules(void* user, const void* data, uint32_t size) {
         return;
     }
 
+    /* 0 bytes: this game took over as the party's host. It keeps playing the party's seed. */
+    if (size == 0) {
+        return;
+    }
+
     char code[RANDO_CODE_SIZE];
     rando_settings host;
 

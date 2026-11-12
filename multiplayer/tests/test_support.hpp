@@ -121,6 +121,8 @@ struct FakeGame : mp::Game {
         std::size_t calls;
     };
     std::vector<Delivery> delivered;
+    /* The mods told that this game hosts the party now (hand_over_rules). */
+    std::vector<std::string> handed_over;
 
     /* A save refused (save_check.hpp); the level's sim digest, per level. */
     bool saves_usable = true;
@@ -268,6 +270,15 @@ struct FakeGame : mp::Game {
         }
 
         delivered.push_back({id, data, calls.size()});
+        return true;
+    }
+
+    bool hand_over_rules(const std::string& id) override {
+        if (takes.count(id) == 0) {
+            return false;
+        }
+
+        handed_over.push_back(id);
         return true;
     }
 

@@ -714,6 +714,10 @@ int main(int argc, char** argv) {
     put<int16_t>(crate + 0xB6u, 7);
     record_death(crate, 0x100, 0);
     CHECK(g_bolts_seen[0] == 24 && g_bolts_seen[1] == 14);
+    // The game's own counts back after the call: a second death of it is scaled from them again.
+    CHECK(get<int16_t>(crate + 0xB4u) == 12 && get<int16_t>(crate + 0xB6u) == 7);
+    record_death(crate, 0x100, 0);
+    CHECK(g_bolts_seen[0] == 24 && g_bolts_seen[1] == 14);
     // Ratchet toward one and a half times his target, as fast; the target put back.
     approach(0.25f, 0.5f);
     CHECK(std::fabs(g_approach_seen[2] - 0.15f) < 1e-6f && g_approach_seen[0] == 0.375f);
@@ -883,6 +887,42 @@ int main(int argc, char** argv) {
     lay_level(std::vector<Placed>(200, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
+    // The host's event (Bolt rain: x3, to at most x8) holds here until the host ends it; one that
+    // never ends (a host that took over passes the rules on as they were) is ended after twice an
+    // event's length.
+    dm::PartyRules raining = host;
+    raining.event = 6;
+    const std::vector<std::uint8_t> rain = dm::encode_party_rules(raining);
+    g_rules_fn(nullptr, rain.data(), static_cast<std::uint32_t>(rain.size()));
+    put<float>(disc().tick + 12u, 0.05f);
+    const auto bolts_now = [&] {
+        put<int16_t>(kBase + 0xB4u, 10);
+        put<int16_t>(kBase + 0xB6u, 0);
+        record_death(kBase, 0, 0);
+        return g_bolts_seen[0];
+    };
+    CHECK(bolts_now() == 80);
+    for (int i = 0; i < 1700; ++i) {
+        g_frame(g_frame_user);
+    }
+    CHECK(bolts_now() == 80);
+    for (int i = 0; i < 200; ++i) {
+        g_frame(g_frame_user);
+    }
+    CHECK(bolts_now() == 30);
+    g_rules_fn(nullptr, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
+    // The host left and this game took over (0 bytes, not null): it publishes the party's rules as
+    // its own and makes the copies from the next level on.
+    const int publishes = g_publishes;
+    static const std::uint8_t kTakeOver = 0;
+    g_rules_fn(nullptr, &kTakeOver, 0);
+    CHECK(g_publishes == publishes + 1);
+    dm::PartyRules taken;
+    CHECK(dm::decode_party_rules(g_published.data(), static_cast<std::uint32_t>(g_published.size()), taken));
+    CHECK(taken.seed == host.seed && taken.sliders[dm::ENEMY_COUNT] == 2.0 && taken.sliders[dm::BOLTS] == 3.0);
+    lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
+    load_gameplay(1);
+    CHECK(g_created > 0);
     // The party gone: this game's own settings again, here retail.
     g_rules_fn(nullptr, nullptr, 0);
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);

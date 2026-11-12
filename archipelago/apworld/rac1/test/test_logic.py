@@ -126,6 +126,9 @@ class TestMultiworldKeepsProgressionShared(RAC1TestBase):
 
 class TestMultiworldShortOfPlaces(RAC1TestBase):
     options = {"shuffle_vendor": False}
+    # Short of places, the main fill can dead-end (seed 49127562165134269560): the base tests run
+    # the world as it plays, placing its own progression.
+    place_progression = True
 
     def test_it_places_its_own(self) -> None:
         self.multiworld.players = 2

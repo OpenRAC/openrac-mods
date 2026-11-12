@@ -527,6 +527,43 @@ void the_rules_outlive_their_host() {
     CHECK(t.a.mods.may_play(3));
 }
 
+// A member that takes over tells the mods that took the host's rules that it hosts now; one that
+// publishes again then has its new rules passed on, the others keep the old host's.
+void a_new_host_hands_the_rules_over() {
+    Trio t;
+    mp::PartyRules difficulty{"difficulty-mod", {1, 2, 3}, "Hard", 1};
+    mp::PartyRules seed{"item-randomizer", {7}, "Seed 7", 1};
+    t.host.game.published = {difficulty, seed};
+    t.a.game.takes = {"difficulty-mod", "item-randomizer"};
+    t.b.game.takes = {"difficulty-mod", "item-randomizer"};
+    // Its own, published at its load: never the party's.
+    t.a.game.published = {{"difficulty-mod", {4}, "Own", 1}, {"item-randomizer", {8}, "Seed 8", 1}};
+    t.b.game.published.clear();
+    tick_mods(t.all, 2000);
+    tick_mods(t.all, 2000);
+    CHECK(t.a.mods.rules().size() == 2 && t.a.game.handed_over.empty());
+    t.run(t.all, 80);
+    auto rest = t.without(t.host);
+    lose_host(t, t.a);
+    t.run(rest, 40);
+    tick_mods(rest, 2000);
+    tick_mods(rest, 2000);
+
+    // Told, both; nothing published since: the old host's rules stand.
+    CHECK(t.a.game.handed_over == (std::vector<std::string>{"difficulty-mod", "item-randomizer"}));
+    CHECK(t.a.mods.rules().size() == 2 && t.a.mods.rules()[0].data == difficulty.data);
+    CHECK(t.a.mods.rules()[1].data == seed.data);
+
+    // Difficulty publishes the party's rules with an event it now runs: passed on, to the members
+    // too; the item randomizer's own seed is not.
+    t.a.game.published[0] = {"difficulty-mod", {1, 2, 3, 6}, "Hard, Bolt rain", 2};
+    tick_mods(rest, 2000);
+    tick_mods(rest, 2000);
+    CHECK(t.a.mods.rules()[0].data == (Bytes{1, 2, 3, 6}) && t.a.mods.rules()[1].data == seed.data);
+    CHECK(t.b.mods.rules().size() == 2 && t.b.mods.rules()[0].data == (Bytes{1, 2, 3, 6}));
+    CHECK(t.b.mods.rules()[1].data == seed.data);
+}
+
 void a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one() {
     Trio t;
     t.run(t.all, 80);
@@ -708,6 +745,7 @@ void run_migrate_tests() {
     what_the_old_host_spawned_goes_on_under_its_id();
     a_grabbed_player_is_let_go_by_a_change_of_host();
     the_rules_outlive_their_host();
+    a_new_host_hands_the_rules_over();
     a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one();
     an_old_host_back_late_comes_in_as_anyone();
     a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on();

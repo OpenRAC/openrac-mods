@@ -472,6 +472,9 @@ public:
      * such mod, or it takes none (party_mods.hpp). */
     virtual std::vector<PartyRules> party_rules() { return {}; }
     virtual bool deliver_rules(const std::string& /*id*/, const Bytes& /*data*/) { return false; }
+    /* This game took over as the party's host: the mod `id`, which took the old host's rules,
+     * keeps them and may publish them as its own (an empty delivery: 0 bytes, not null). */
+    virtual bool hand_over_rules(const std::string& /*id*/) { return false; }
     /* The shots the hero fired since the last call; a figure firing one (hitting nothing here). */
     virtual std::vector<Shot> hero_shots() { return {}; }
     virtual bool figure_shot(int /*id*/, const Shot& /*shot*/) { return false; }
