@@ -54,6 +54,8 @@ std::string packet(json p) {
 Session::Session(SessionConfig config) : config_(std::move(config)) {}
 
 void Session::on_open() {
+    save_waiting_ = save_waiting_ || save_judged_;
+    save_judged_ = false;
     connected_ = false;
     synced_ = false;
     goal_sent_ = false;
@@ -140,6 +142,7 @@ void Session::save_loaded(
     save_ = std::set<std::int64_t>(had.begin(), had.end());
     save_slot_ = card_slot;
     save_waiting_ = true;
+    save_judged_ = false;
 
     if (connected_) {
         judge_save(out);
@@ -207,6 +210,7 @@ void Session::judge_save(std::vector<std::string>& out) {
     }
 
     foreign_ = foreign;
+    save_judged_ = true;
 
     if (foreign) {
         unbound_ = -1;
