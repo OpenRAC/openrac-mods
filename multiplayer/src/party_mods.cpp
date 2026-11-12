@@ -703,6 +703,17 @@ void PartyMods::host_moved(std::uint64_t now) {
             basis_.disc = own_.disc;
             basis_.family = own_.family;
             inherited_ = true;
+            versions_at_takeover_.clear();
+
+            // Each mod's publish count now: one that publishes after is passed on.
+            for (const PartyRules& r : game_.party_rules()) {
+                versions_at_takeover_[r.id] = r.version;
+            }
+
+            // Each mod that took the old host's rules: it hosts now, by the same rules.
+            for (const std::string& id : delivered_) {
+                game_.hand_over_rules(id);
+            }
         }
 
         peers_.erase(session_.id());
@@ -893,13 +904,35 @@ void PartyMods::handle(std::int32_t sender, const Bytes& bytes) {
 }
 
 bool PartyMods::refresh_rules() {
-    // A host that took over keeps the party's rules: this game's mods play by them, and publish
-    // their own settings all the same.
+    std::vector<PartyRules> rules = game_.party_rules();
+
+    // A host that took over keeps the party's rules: this game's mods play by them. Only a mod that
+    // published since the takeover (told it hosts now) has its new rules passed on.
     if (inherited_) {
-        return false;
+        std::vector<PartyRules> kept = rules_;
+
+        for (PartyRules& now : rules) {
+            const auto at = versions_at_takeover_.find(now.id);
+
+            // Published nothing since: the old host's stand.
+            if (at != versions_at_takeover_.end() && now.version <= at->second) {
+                continue;
+            }
+
+            const auto old = std::find_if(kept.begin(), kept.end(), [&now](const PartyRules& x) {
+                return x.id == now.id;
+            });
+
+            if (old != kept.end()) {
+                *old = std::move(now);
+            } else {
+                kept.push_back(std::move(now));
+            }
+        }
+
+        rules = std::move(kept);
     }
 
-    std::vector<PartyRules> rules = game_.party_rules();
     const bool changed = rules.size() != rules_.size()
                          || !std::equal(
                              rules.begin(),
