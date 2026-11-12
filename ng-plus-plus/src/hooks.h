@@ -41,4 +41,15 @@ typedef void (*wt_Moby_PostHit)(uint32_t victim, uint32_t request);
 #define WT_SIG_Hero_TakeDamage "void(i32)"
 typedef void (*wt_Hero_TakeDamage)(int32_t amount);
 
+/* The vendor's list drawn (func_002F9C80): each row -5 to +6 around the cursor in the list, in
+ * order, asks Item_VersionColor for its icon's colour (an upgrade entry: kind 2, the Mega gold).
+ * OpenRAC after SDK 1.14.6; optional (no tint in the vendor without them). */
+#define WT_HOOK_Vendor_DrawList "rac2.vendor.draw_list"
+#define WT_SIG_Vendor_DrawList "void()"
+typedef void (*wt_Vendor_DrawList)(void);
+
+#define WT_HOOK_Item_VersionColor "rac2.item.version_color"
+#define WT_SIG_Item_VersionColor "u32(i32)"
+typedef uint32_t (*wt_Item_VersionColor)(int32_t kind);
+
 #endif /* WEAPON_TIERS_HOOKS_H */

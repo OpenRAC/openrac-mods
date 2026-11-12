@@ -94,9 +94,9 @@ static inline const wt_disc* wt_disc_of(const char* version) {
 /* An entry's fields. */
 #define WT_ENTRY_ITEM 0x00u
 #define WT_ENTRY_KIND 0x04u    /* 1: the item's ammo */
-#define WT_ENTRY_MARKED 0x08u
+#define WT_ENTRY_CLASS 0x08u   /* the preview model's class (func_L00_0037A2E8 loads it) */
 #define WT_ENTRY_PRICE 0x0Cu   /* the price's text id, 0xCDB */
-#define WT_ENTRY_CLASS 0x10u
+#define WT_ENTRY_MARKED 0x10u
 #define WT_ENTRY_UPGRADE 0x14u /* 1: an upgrade */
 #define WT_PRICE_TEXT 0xCDB
 

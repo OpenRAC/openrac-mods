@@ -92,17 +92,16 @@ Through OpenRAC's rac2 hook points of SDK 1.14.6 (the addresses are NTSC-U v1.01
 
 | | Where |
 |---|---|
-| For sale | `rac2.vendor.build_list` (`func_002F6608`): an upgrade entry for each weapon whose next tier is for sale, after the game's; `rac2.vendor.price` (`func_002F6510`) prices it; `rac2.item.upgrade` (`func_002887B0`), which the vendor's purchase calls once it is paid, takes the tier instead of the game's Mega step |
+| For sale | `rac2.vendor.build_list` (`func_002F6608`): an upgrade entry for each weapon whose next tier is for sale, right after that weapon's own entry and built as the game builds its Mega entry; `rac2.vendor.price` (`func_002F6510`) prices it; `rac2.item.upgrade` (`func_002887B0`), which the vendor's purchase calls once it is paid, takes the tier instead of the game's Mega step |
 | Experience | each tick, a weapon at its last version whose experience (which the game keeps adding up there) reaches the tier's takes it; its experience starts again from 0, as the game's own Mega purchase does |
 | Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet while he holds a tiered weapon has its damage scaled for that call |
 | Most ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
-| Tint | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names |
+| Tint | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
 
 Not yet:
 
-- The tint shows in the quick select and on the weapons screen; the vendor's list and the HUD's
-  weapon icon draw their own colours and keep the game's.
+- The HUD's weapon icon draws its own colour and keeps the game's.
 - The vendor's upgrade entry is the game's own kind of entry: its icon and wording are the game's.
 - The weapon's name in the game's own menus is the game's; the tier's name is the line at the top.
 - Damage scales by the weapon in Ratchet's hand: a Synthenoid's or a turret's shots scale by the

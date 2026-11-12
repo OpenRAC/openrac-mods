@@ -2,7 +2,7 @@
   "format": 2,
   "id": "ng-plus-plus",
   "name": "NG++",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Keros",
   "description": "New Game++ for Going Commando: eight more tiers for every Going Commando weapon, past its last version: Alpha to Omega (V5 to V12). As with the game's own Mega and V4, you buy one at the vendor, then level the next with experience: Alpha bought, Beta by experience, Gamma bought, and so on up to Omega. Each tier hits harder, holds more ammo and has its own tint, Omega a shifting rainbow. The RYNO II gets an upgrade path first: RYNO II Heavy by experience, then RYNO II Ultima at the vendor. The Sheepinator levels by experience only. The tiers are kept with each save, in the mod's own data folder. From the second challenge mode on, the enemies get more health and hit harder with each new game, in step with the tiers.",
   "license": "GPL-3.0-or-later",

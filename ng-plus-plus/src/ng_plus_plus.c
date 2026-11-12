@@ -66,9 +66,12 @@ static int32_t s_ammo_base[WT_ITEMS];
 static int32_t s_ammo_written[WT_ITEMS];
 
 /* The entries the mod added to the vendor's list: their place and item. */
-static int s_entry_first;
 static int s_entry_count;
+static int s_entry_at[WT_ITEMS];
 static int s_entry_item[WT_ITEMS];
+
+/* The vendor's list being drawn: the icons asked for so far (-1: not drawing). */
+static int s_drawn = -1;
 
 static uint32_t s_tick;
 static int s_notice_left;
@@ -79,6 +82,8 @@ static wt_Vendor_BuildList s_build_list;
 static wt_Vendor_Price s_price;
 static wt_Item_Upgrade s_upgrade;
 static wt_Item_Colors s_colors;
+static wt_Vendor_DrawList s_draw_list;
+static wt_Item_VersionColor s_version_color;
 static wt_Moby_PostHit s_post_hit;
 static int32_t (*s_text)(int32_t id);
 static wt_Hero_TakeDamage s_take_damage;
@@ -211,27 +216,33 @@ static int for_sale(int item) {
 static int entry_under_cursor(void) {
     const openrac_gaddr ui = at(s_disc->vendor);
     const int cursor = get_s32(ui + WT_VENDOR_CURSOR);
-    const int k = cursor - s_entry_first;
 
-    if (k < 0 || k >= s_entry_count) {
-        return -1;
+    for (int k = 0; k < s_entry_count; ++k) {
+        if (s_entry_at[k] != cursor) {
+            continue;
+        }
+        const openrac_gaddr e = ui + WT_VENDOR_ENTRIES + (uint32_t)cursor * WT_VENDOR_ENTRY_SIZE;
+        const int item = get_s32(e + WT_ENTRY_ITEM);
+        if (item != s_entry_item[k] || get_s32(e + WT_ENTRY_UPGRADE) != 1) {
+            return -1;
+        }
+        return item;
     }
-    const openrac_gaddr e = ui + WT_VENDOR_ENTRIES + (uint32_t)cursor * WT_VENDOR_ENTRY_SIZE;
-    const int item = get_s32(e + WT_ENTRY_ITEM);
-    if (item != s_entry_item[k] || get_s32(e + WT_ENTRY_UPGRADE) != 1) {
-        return -1;
-    }
-    return item;
+    return -1;
 }
 
 /* ---- Hooks ---- */
+
+/* Entry `i` of the vendor's list. */
+static openrac_gaddr entry(int i) {
+    return at(s_disc->vendor) + WT_VENDOR_ENTRIES + (uint32_t)i * WT_VENDOR_ENTRY_SIZE;
+}
 
 static void build_list(int32_t hide_unowned) {
     s_build_list(hide_unowned);
 
     const openrac_gaddr ui = at(s_disc->vendor);
     int count = get_s32(ui + WT_VENDOR_COUNT);
-    s_entry_first = count;
     s_entry_count = 0;
     if (count < 0 || count > WT_VENDOR_MAX_ENTRIES) {
         return;
@@ -240,17 +251,74 @@ static void build_list(int32_t hide_unowned) {
         if (!for_sale(item)) {
             continue;
         }
-        const openrac_gaddr e = ui + WT_VENDOR_ENTRIES + (uint32_t)count * WT_VENDOR_ENTRY_SIZE;
+        // Right after the weapon's own entry (the last of its item), else at the end.
+        int place = count;
+        for (int i = 0; i < count; ++i) {
+            if (get_s32(entry(i) + WT_ENTRY_ITEM) == item) {
+                place = i + 1;
+            }
+        }
+        memmove(s_api->memory + entry(place + 1), s_api->memory + entry(place),
+                (size_t)(count - place) * WT_VENDOR_ENTRY_SIZE);
+        for (int k = 0; k < s_entry_count; ++k) {
+            if (s_entry_at[k] >= place) {
+                ++s_entry_at[k];
+            }
+        }
+        // As the game makes its own Mega entry (func_002F6608).
+        const openrac_gaddr e = entry(place);
         put_s32(e + WT_ENTRY_ITEM, item);
         put_s32(e + WT_ENTRY_KIND, 0);
-        put_s32(e + WT_ENTRY_MARKED, 0);
-        put_s32(e + WT_ENTRY_PRICE, WT_PRICE_TEXT);
         put_s32(e + WT_ENTRY_CLASS, get_s32(row_of(item) + WT_ROW_CLASS));
+        put_s32(e + WT_ENTRY_PRICE, WT_PRICE_TEXT);
+        put_s32(e + WT_ENTRY_MARKED, 0);
         put_s32(e + WT_ENTRY_UPGRADE, 1);
-        s_entry_item[s_entry_count++] = item;
+        s_entry_at[s_entry_count] = place;
+        s_entry_item[s_entry_count] = item;
+        ++s_entry_count;
         ++count;
     }
     put_s32(ui + WT_VENDOR_COUNT, count);
+}
+
+/* The vendor's list drawn: each icon's colour asked in the order of the rows drawn. */
+static void draw_list(void) {
+    s_drawn = 0;
+    s_draw_list();
+    s_drawn = -1;
+}
+
+static uint32_t version_color(int32_t kind) {
+    const uint32_t color = s_version_color(kind);
+
+    if (s_drawn < 0) {
+        return color;
+    }
+    // The row this call is for: the s_drawn-th of -5..+6 around the cursor in the list.
+    const openrac_gaddr ui = at(s_disc->vendor);
+    const int cursor = get_s32(ui + WT_VENDOR_CURSOR);
+    const int count = get_s32(ui + WT_VENDOR_COUNT);
+    int row = -1;
+    for (int i = -5, n = 0; i < 7; ++i) {
+        const int idx = cursor + i;
+        if (idx >= 0 && idx < count && n++ == s_drawn) {
+            row = idx;
+            break;
+        }
+    }
+    ++s_drawn;
+    for (int k = 0; row >= 0 && k < s_entry_count; ++k) {
+        if (s_entry_at[k] == row && get_s32(entry(row) + WT_ENTRY_ITEM) == s_entry_item[k]
+            && get_s32(entry(row) + WT_ENTRY_UPGRADE) == 1) {
+            const int item = s_entry_item[k];
+            // The tier for sale: the one after the weapon's level now.
+            const int32_t rgb = wt_tint_rgb(wt_kind_of(item), levels()[item] + 1, s_tick);
+            if (rgb >= 0) {
+                return (color & 0xFF000000u) | (uint32_t)rgb;
+            }
+        }
+    }
+    return color;
 }
 
 static int32_t price(void) {
@@ -509,7 +577,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.1")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.2")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
@@ -520,6 +588,7 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_party_on = 0;
     s_clock_seen = 0;
     s_entry_count = 0;
+    s_drawn = -1;
     s_tick = 0;
     s_notice_left = 0;
     s_held = -1;
@@ -549,6 +618,13 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         || take(WT_HOOK_Moby_PostHit, WT_SIG_Moby_PostHit, (void*)post_hit, (void**)&s_post_hit)
         || take(WT_HOOK_Hero_TakeDamage, WT_SIG_Hero_TakeDamage, (void*)take_damage, (void**)&s_take_damage)) {
         return 1;
+    }
+    // The tier's tint in the vendor's list: optional (an OpenRAC without these keeps the gold).
+    if (api->hook(mod, WT_HOOK_Vendor_DrawList, WT_SIG_Vendor_DrawList, (void*)draw_list,
+                  (void**)&s_draw_list) == OPENRAC_HOOK_OK
+        && api->hook(mod, WT_HOOK_Item_VersionColor, WT_SIG_Item_VersionColor, (void*)version_color,
+                     (void**)&s_version_color) != OPENRAC_HOOK_OK) {
+        s_version_color = NULL;
     }
     if (api->on_frame(mod, tick, NULL) != 0) {
         api->fail(mod, "no tick callback in this OpenRAC");
