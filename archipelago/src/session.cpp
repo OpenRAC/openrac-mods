@@ -124,6 +124,25 @@ void Session::check(std::int64_t location, std::vector<std::string>& out) {
     flush(out);
 }
 
+void Session::start_game(bool fresh, std::vector<std::string>& out) {
+    fresh_game_ = fresh;
+    foreign_ = false;
+    save_judged_ = save_waiting_ = false;
+    save_slot_ = unbound_ = -1;
+    save_.clear(); live_.clear(); found_.clear(); pending_.clear();
+    goal_ = goal_sent_ = false;
+    // Discard unsent progress from the previous game, retaining connection packets.
+    for (auto it = out.begin(); it != out.end();) {
+        auto packets = json::parse(*it);
+        for (auto p = packets.begin(); p != packets.end();) {
+            const auto cmd = text_of(*p, "cmd");
+            p = cmd == "LocationChecks" || cmd == "StatusUpdate" ? packets.erase(p) : std::next(p);
+        }
+        if (packets.empty()) it = out.erase(it);
+        else { *it = packets.dump(); ++it; }
+    }
+}
+
 void Session::save_loaded(
     const std::vector<std::int64_t>& had, int card_slot, std::vector<std::string>& out
 ) {
@@ -143,10 +162,11 @@ void Session::save_written(int card_slot) {
         return;
     }
 
-    if (seed_name_.empty()) {
+    if (!connected_ || seed_name_.empty() || (!fresh_game_ && !save_judged_)) {
         unbound_ = card_slot;
     } else {
         bind(card_slot);
+        fresh_game_ = false;
     }
 }
 
@@ -190,7 +210,7 @@ void Session::judge_save(std::vector<std::string>& out) {
     const auto known = book_.slots.find(save_slot_);
     const bool booked = save_slot_ >= 0 && known != book_.slots.end() && !seed_name_.empty();
     const bool foreign =
-        booked ? known->second != std::make_pair(seed_name_, config_.slot) : extra && lacking;
+        !fresh_game_ && (booked ? known->second != std::make_pair(seed_name_, config_.slot) : extra && lacking);
 
     if (foreign && !foreign_) {
         add_message("Archipelago: this save is not this seed's: its checks are not sent");
@@ -200,10 +220,16 @@ void Session::judge_save(std::vector<std::string>& out) {
     save_judged_ = true;
 
     if (foreign) {
+        unbound_ = -1;
         return;
     }
 
-    bind(save_slot_);
+    if (!fresh_game_) bind(save_slot_);
+    if (unbound_ >= 0) {
+        const int slot = unbound_;
+        unbound_ = -1;
+        save_written(slot);
+    }
 
     for (const std::int64_t id : save_) {
         if (found_.insert(id).second) {
@@ -481,11 +507,11 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
         }
 
         // A save made before the room was known is this room's.
-        if (unbound_ >= 0 && !foreign_) {
-            bind(unbound_);
+        if (unbound_ >= 0 && !foreign_ && (fresh_game_ || save_judged_)) {
+            const int slot = unbound_;
+            unbound_ = -1;
+            save_written(slot);
         }
-
-        unbound_ = -1;
 
         flush(out);
     } else if (cmd == "ConnectionRefused") {

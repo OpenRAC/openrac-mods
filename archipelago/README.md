@@ -141,3 +141,5 @@ cmake --build build --target archipelago_data
 To test the world in an Archipelago checkout: put `rac1.apworld` in its `worlds/` and run
 `AP_TEST_WORLDS=rac1 python -m pytest test/general` (Archipelago's own checks, on the zip), then
 copy `apworld/rac1` to `worlds/rac1` instead and run `python -m pytest worlds/rac1`.
+
+Starting a new game over an occupied save slot replaces that slot's seed association only after the save succeeds. Cancelling or failing the overwrite keeps the old association. Loading a save from another seed still blocks its checks; saving that loaded game does not change its seed association.

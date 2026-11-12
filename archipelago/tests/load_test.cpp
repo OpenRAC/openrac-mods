@@ -13,6 +13,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <set>
 #include <string>
 #include <thread>
@@ -99,6 +102,8 @@ std::string g_server;
 bool g_new_game_plus;
 bool g_gold_mode;
 bool g_missing_gold_hook;
+std::string g_data_dir;
+int g_save_updates;
 int g_bolts = 2000;
 int32_t (*g_unspent)();
 
@@ -177,7 +182,29 @@ void game_gold_case(openrac_gaddr moby) {
     }
 }
 
+void game_save_update() {
+    ++g_save_updates;
+    const auto mc = std::strcmp(D->version, "pal") == 0 ? 0x13D390u : 0x13D290u;
+    int state, sub, busy;
+    std::memcpy(&state, at(mc + 0xDC), 4);
+    std::memcpy(&sub, at(mc + 0xE0), 4);
+    std::memcpy(&busy, at(mc + 0xD4), 4);
+    if (state == 20 && sub == 3 && !busy) {
+        state = 0;
+        std::memcpy(at(mc + 0xDC), &state, 4);
+    }
+}
+int32_t game_restore_data(uint32_t, int32_t, uint32_t) { return 1; }
+const char* data_dir(openrac_mod*) { return g_data_dir.c_str(); }
+std::string saved_book() {
+    std::ifstream in(std::filesystem::path(g_data_dir) / "save-slots.tsv");
+    return std::string(std::istreambuf_iterator<char>(in), {});
+}
+
 void* original_for(const std::string& name) {
+    if (name == ITEM_RANDOMIZER_HOOK_Save_NewGame) return (void*)game_void;
+    if (name == "rac1.save.update_state") return (void*)game_save_update;
+    if (name == "rac1.save.restore_data") return (void*)game_restore_data;
     if (name == ITEM_RANDOMIZER_HOOK_Save_NewGamePlus) return (void*)game_new_game_plus;
     if (name == OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent) return (void*)game_count;
     if (name == OPENRAC_RAC1_HOOK_Moby_GoldWeaponCase_Update) return (void*)game_gold_case;
@@ -320,6 +347,7 @@ openrac_api make_api() {
     api.setting_float = setting_float;
     api.setting_string = setting_string;
     api.hook = host_hook;
+    api.data_dir = data_dir;
     api.on_frame = host_on_frame;
     api.function = host_function;
     api.relocate_data = identity;
@@ -382,7 +410,7 @@ void serve(socket_t listener) {
         "Sec-WebSocket-Accept: "
             + ap::ws::accept_for(key) + "\r\n\r\n"
     );
-    send_all(c, server_frame(R"([{"cmd":"RoomInfo","games":["Ratchet & Clank"]}])"));
+    send_all(c, server_frame(R"([{"cmd":"RoomInfo","seed_name":"test-seed","games":["Ratchet & Clank"]}])"));
 
     while (!g_stop) {
         ap::ws::Opcode op;
@@ -521,9 +549,14 @@ int main(int argc, char** argv) {
 
     set_level(LEVEL_NOVALIS);
     *at(D->planets + LEVEL_NOVALIS) = 1;
+    const auto dir = std::filesystem::current_path() / ("ap-save-test-" + std::to_string(
+        std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directory(dir);
+    g_data_dir = dir.string();
+    { std::ofstream book(dir / "save-slots.tsv"); book << "4\told-seed\tRatchet\n"; }
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 17 && g_frame != nullptr);
+    CHECK(g_hooks == 20 && g_frame != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 
@@ -689,7 +722,26 @@ int main(int argc, char** argv) {
     g_scene = 4;
     CHECK(frames_until([] { return g_goal; }));
 
+    // Same-slot overwrite: a new game may replace an old seed only after a successful close.
+    auto new_game = (void(*)())replacement(ITEM_RANDOMIZER_HOOK_Save_NewGame);
+    auto update = (void(*)())replacement("rac1.save.update_state");
+    new_game();
+    const std::uint32_t mc = std::strcmp(D->version, "pal") == 0 ? 0x13D390u : 0x13D290u;
+    const auto prepare_close = [&](int busy, int result) {
+        put(mc + 0x14, 4); put(mc + 0xDC, 20); put(mc + 0xE0, 3);
+        put(mc + 0xD4, busy); put(mc + 0xC4, result); put(mc + 0xCC, 0);
+    };
+    prepare_close(1, 0); update();
+    CHECK(saved_book().find("old-seed") != std::string::npos); // polling is not success
+    prepare_close(0, -1); update();
+    CHECK(saved_book().find("old-seed") != std::string::npos); // failed close
+    prepare_close(0, 0); update();
+    CHECK(saved_book().find("4\ttest-seed\tRatchet") != std::string::npos);
+    CHECK(g_save_updates == 3); // all paths still call the original
+
     unload();
+    std::filesystem::remove(dir / "save-slots.tsv");
+    std::filesystem::remove(dir);
     g_stop = true;
     server.join();
     close_socket(listener);

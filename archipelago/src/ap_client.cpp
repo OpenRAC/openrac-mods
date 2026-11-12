@@ -125,6 +125,11 @@ public:
         write_book();
     }
 
+    void start_game(bool fresh) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        session_.start_game(fresh, outbox_);
+    }
+
     void save_written(int card_slot) {
         std::lock_guard<std::mutex> lock(mutex_);
         session_.save_written(card_slot);
@@ -355,6 +360,10 @@ void ap_client_save_loaded(const int64_t* had, size_t n, int card_slot) {
     if (g_client != nullptr) {
         g_client->save_loaded(had, n, card_slot);
     }
+}
+
+void ap_client_start_game(int fresh) {
+    if (g_client != nullptr) g_client->start_game(fresh != 0);
 }
 
 void ap_client_save_written(int card_slot) {
