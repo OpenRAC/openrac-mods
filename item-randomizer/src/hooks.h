@@ -38,6 +38,8 @@ typedef void (*openrac_rac1_Vendor_InitLevelStock)(void);
 #define OPENRAC_RAC1_SIG_Vendor_BuildItemList "void(i32)"
 typedef void (*openrac_rac1_Vendor_BuildItemList)(int32_t skip_unflagged);
 #endif
+/* SDK 1.14.6 exposes this hook in rac1.hpp, but omits it from rac1.h.
+ * Keep the C declaration until the generated C header also provides it. */
 #ifndef OPENRAC_RAC1_HOOK_Vendor_OpenMenu
 #define OPENRAC_RAC1_HOOK_Vendor_OpenMenu "Vendor_OpenMenu"
 #define OPENRAC_RAC1_SIG_Vendor_OpenMenu "void(u32)"

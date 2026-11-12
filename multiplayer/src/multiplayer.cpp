@@ -48,11 +48,12 @@
  *   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
  *           empty or invalid: the launcher's Multiplayer name.
  */
-#include "mod_state.hpp"
-#include "rac2/game.hpp"
-
 #include <ctime>
 #include <memory>
+
+#include "mod_state.hpp"
+#include "pad_intent.hpp"
+#include "rac2/game.hpp"
 
 namespace mpmod {
 
@@ -498,6 +499,17 @@ namespace {
 
 using namespace mpmod;
 
+// What the first pad's last report says the player does (pad_intent.hpp).
+mp::Intent g_intent = mp::Intent::Unknown;
+
+// A page's handler, given each event as the player meant it (pad_intent.hpp): the stick moving the
+// cursor changes and chooses nothing, and only Cross chooses a button or answers a question Yes.
+template <void (*Handler)(const openrac::UiPage&, const openrac::UiEvent&)>
+void guarded(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    const openrac_ui_event meant = mp::as_meant(g_intent, e.raw());
+    Handler(page, openrac::UiEvent(meant));
+}
+
 /* The port calls this when it loads the library: checks the game and the port, reads the server
  * address, makes the pages and puts Multiplayer in the main menu under Load Game. Throws
  * openrac::Error to refuse to run. */
@@ -796,6 +808,10 @@ void load(openrac::Mod& mod) {
             return;
         }
 
+        // What the player does, for the pages' events of this tick (pad_intent.hpp), before
+        // anything below changes the report.
+        g_intent = mp::read_intent(report, size);
+
         const std::uint64_t now = mp::now_ms();
 
         // A movie plays outside the game's ticks (no on_frame): the party's messages are read here.
@@ -874,16 +890,16 @@ void load(openrac::Mod& mod) {
         std::copy(hit->velocity, hit->velocity + 3, h.velocity);
         return g->world->hit(h) ? 1 : 0;
     });
-    g->home = mod.ui_page(on_home);
-    g->code_page = mod.ui_page(on_code);
-    g->direct_page = mod.ui_page(on_direct, OPENRAC_UI_OWN_BACK);
-    g->lobby = mod.ui_page(on_lobby, OPENRAC_UI_OWN_BACK);
-    g->browse = mod.ui_page(on_browse);
-    g->saves = mod.ui_page(on_saves);
-    g->refused = mod.ui_page(on_refused, OPENRAC_UI_OWN_BACK);
-    g->rules = mod.ui_page(on_rules, OPENRAC_UI_OWN_BACK);
-    g->remove = mod.ui_page(on_remove, OPENRAC_UI_OWN_BACK);
-    g->comfort_page = mod.ui_page(on_comfort);
+    g->home = mod.ui_page(guarded<on_home>);
+    g->code_page = mod.ui_page(guarded<on_code>);
+    g->direct_page = mod.ui_page(guarded<on_direct>, OPENRAC_UI_OWN_BACK);
+    g->lobby = mod.ui_page(guarded<on_lobby>, OPENRAC_UI_OWN_BACK);
+    g->browse = mod.ui_page(guarded<on_browse>);
+    g->saves = mod.ui_page(guarded<on_saves>);
+    g->refused = mod.ui_page(guarded<on_refused>, OPENRAC_UI_OWN_BACK);
+    g->rules = mod.ui_page(guarded<on_rules>, OPENRAC_UI_OWN_BACK);
+    g->remove = mod.ui_page(guarded<on_remove>, OPENRAC_UI_OWN_BACK);
+    g->comfort_page = mod.ui_page(guarded<on_comfort>);
     g->game->home = &g->home;
     show_home();
     show_code();
@@ -899,7 +915,7 @@ void load(openrac::Mod& mod) {
 
     // In a level, the pause menu's Options page has a Multiplayer item too (interface 1.9).
     if (mod.has_pause_items()) {
-        g->pause_page = mod.ui_page(on_pause);
+        g->pause_page = mod.ui_page(guarded<on_pause>);
         show_pause();
         mod.ui_pause_item("Multiplayer", g->pause_page);
     }
@@ -1018,7 +1034,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 /* The id and version are the manifest's: the port checks they agree. */
-OPENRAC_MOD_CPP("multiplayer", "0.12.3", load)
+OPENRAC_MOD_CPP("multiplayer", "0.12.4", load)
 
 /* The port calls this at its exit: the connection's thread goes with it. */
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

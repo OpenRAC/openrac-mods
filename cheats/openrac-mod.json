@@ -1,0 +1,75 @@
+{
+  "format": 2,
+  "id": "cheats",
+  "name": "Cheats",
+  "version": "0.3.1",
+  "author": "farfeduc",
+  "description": "Cheats you switch on and off while you play, from Cheats in the pause menu's Options: invincibility, infinite ammo, infinite oxygen under water, a bolt multiplier (x2 to x100), and buttons that refill every weapon's ammo and give 10,000 bolts. The settings here say what is on at the start. A line in the HUD says which cheats are on.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/cheats",
+  "api": "1.12",
+  "multiplayer": "solo",
+  "games": {
+    "rac1": [
+      "pal",
+      "ntsc"
+    ]
+  },
+  "hooks": [
+    "rac1.player.take_damage",
+    "rac1.weapon.take_ammo",
+    "rac1.moby.collect_bolt"
+  ],
+  "settings": [
+    {
+      "key": "invincible",
+      "name": "Invincibility",
+      "type": "bool",
+      "default": false,
+      "description": "Hits take no health. Falls out of the level and crushers still kill, as they do not hit Ratchet but end him at once."
+    },
+    {
+      "key": "infinite_ammo",
+      "name": "Infinite ammo",
+      "type": "bool",
+      "default": false,
+      "description": "Shots use no ammo. Switched on in the pause menu, it also fills every weapon you own."
+    },
+    {
+      "key": "infinite_air",
+      "name": "Infinite oxygen",
+      "type": "bool",
+      "default": false,
+      "description": "Ratchet never runs out of air under water, as with the O2 Mask."
+    },
+    {
+      "key": "bolt_multiplier",
+      "name": "Bolt multiplier",
+      "type": "choice",
+      "default": "1",
+      "choices": [
+        { "value": "1", "name": "x1 (as the game)" },
+        { "value": "2", "name": "x2" },
+        { "value": "3", "name": "x3" },
+        { "value": "5", "name": "x5" },
+        { "value": "10", "name": "x10" },
+        { "value": "100", "name": "x100" }
+      ],
+      "description": "Each bolt you pick up counts this many times."
+    },
+    {
+      "key": "show_status",
+      "name": "Show the cheats in the HUD",
+      "type": "bool",
+      "default": true,
+      "description": "A small line at the bottom of the screen names the cheats that are on."
+    },
+    {
+      "key": "trace",
+      "name": "Detailed log",
+      "type": "bool",
+      "default": false,
+      "description": "For bug reports: a line in the game's log for each cheat switched and each refill."
+    }
+  ]
+}

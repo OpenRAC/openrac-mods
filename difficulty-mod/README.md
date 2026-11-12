@@ -160,14 +160,15 @@ copies are spread: each enemy gets one before any gets a second.
 In Ratchet & Clank, the game's objects are classified in [classes.tsv](classes.tsv), 158 of
 them: 39 **enemies** (copied, left out, timed, hit harder or softer), 5
 **roamers** (left out, timed, hit; never copied: they fly a path, drop in on
-a cue, or are too big to stand beside the original), 9 **turrets** (timed and
+a cue, or are too big to stand beside the original), 7 **turrets** (timed and
 hit; fixed to the level, so never copied or left out), 5 **bosses** (only
-the damage to enemies applies to them) and 100 left as the game has them.
+the damage to enemies applies to them) and 102 left as the game has them.
 Everything not in the table is left as it is.
 
 | Left as the game has it | Why |
 |---|---|
 | Ultramech (Quartu), giant Clank | The Ultramech fight's boss is scripted; giant Clank is you |
+| The turrets you ride on Gaspar and Hoven | Yours: sped up, Gaspar's fired no shots |
 | Space fighters, interceptors, Blarg ships, Qwark's starfighter | The ship levels and the scenes' ships are left as they are |
 | Bolt thieves | A scripted chase: the bolts are the level's |
 | Mines, homing mines | Hazards laid out by the level, in patterns |
