@@ -52,4 +52,13 @@ typedef void (*wt_Vendor_DrawList)(void);
 #define WT_SIG_Item_VersionColor "u32(i32)"
 typedef uint32_t (*wt_Item_VersionColor)(int32_t kind);
 
+/* The game's text of an id (func_00288FB8): its string's game address. OpenRAC after SDK 1.14.6;
+ * optional (the vendor reads "Mega" without it). The port gives eight slots of its own for a mod's
+ * texts, 96 bytes each, at the addresses the lookup returns for ids WT_TEXT_SLOT to + 7. */
+#define WT_HOOK_Text_ById "rac2.text.by_id"
+#define WT_SIG_Text_ById "i32(i32)"
+typedef int32_t (*wt_Text_ById)(int32_t id);
+#define WT_TEXT_SLOT 0x7F10
+#define WT_TEXT_SLOT_BYTES 96
+
 #endif /* WEAPON_TIERS_HOOKS_H */

@@ -292,8 +292,13 @@ static void run(const char* path, const wt_disc* disc) {
     set16(row(RYNO) + WT_ROW_AMMO, 100);
     set32(s_disc->hero + WT_HERO_MOBY, (int32_t)MOBY_HERO);
     set32(s_disc->hero + WT_HERO_HELD, -1);
+    /* A save's RYNO II with all the experience it ever had: not Heavy at once, counted from 0. */
+    set32(s_disc->exp + 4u * RYNO, 50000 << 5);
     set_clock(0x10); /* a save loaded the book does not have: kept as it is (no levels) */
     tick(1);
+    tick(1);
+    CHECK(get32(s_disc->exp + 4u * RYNO) == 0);
+    CHECK(strstr(s_notice, "Heavy") == NULL);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 500);
 
     /* The vendor: the game's two entries, then Alpha for the Lancer. */
@@ -307,7 +312,7 @@ static void run(const char* path, const wt_disc* disc) {
     set32(ui + WT_VENDOR_CURSOR, 0);
     CHECK(((wt_Vendor_Price)hooked_fn(WT_HOOK_Vendor_Price))() == 77);
     set32(ui + WT_VENDOR_CURSOR, 2);
-    CHECK(((wt_Vendor_Price)hooked_fn(WT_HOOK_Vendor_Price))() == 100000);
+    CHECK(((wt_Vendor_Price)hooked_fn(WT_HOOK_Vendor_Price))() == 2250000); /* no Mega row here */
 
     /* Bought: Alpha. */
     CHECK(((wt_Item_Upgrade)hooked_fn(WT_HOOK_Item_Upgrade))(LANCER) == 1);
@@ -333,7 +338,7 @@ static void run(const char* path, const wt_disc* disc) {
     ((wt_Vendor_BuildList)hooked_fn(WT_HOOK_Vendor_BuildList))(0);
     CHECK(get32(ui + WT_VENDOR_COUNT) == 3);
     set32(ui + WT_VENDOR_CURSOR, 2);
-    CHECK(((wt_Vendor_Price)hooked_fn(WT_HOOK_Vendor_Price))() == 250000);
+    CHECK(((wt_Vendor_Price)hooked_fn(WT_HOOK_Vendor_Price))() == 3750000);
 
     /* Beta's tint, cyan, in the game's alpha. */
     ((wt_Item_Colors)hooked_fn(WT_HOOK_Item_Colors))(LANCER, TINT_AT + 8, TINT_AT + 4, TINT_AT);

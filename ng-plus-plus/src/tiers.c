@@ -8,22 +8,22 @@
 #include <stdio.h>
 #include <string.h>
 
-/* The eight tiers: buy, then level. */
+/* The eight tiers: buy, then level. A bought tier's price is wt_price's, from the weapon's Mega. */
 static const wt_step k_tiers[WT_TIERS] = {
-    {"Alpha", WT_BUY, 100000, 0, 1.25f, 1.10f, WT_TINT_LIME},
+    {"Alpha", WT_BUY, 0, 0, 1.25f, 1.10f, WT_TINT_LIME},
     {"Beta", WT_EXP, 0, 8000, 1.50f, 1.20f, WT_TINT_CYAN},
-    {"Gamma", WT_BUY, 250000, 0, 1.75f, 1.30f, WT_TINT_EMERALD},
+    {"Gamma", WT_BUY, 0, 0, 1.75f, 1.30f, WT_TINT_EMERALD},
     {"Delta", WT_EXP, 0, 12000, 2.00f, 1.40f, WT_TINT_TEAL},
-    {"Epsilon", WT_BUY, 500000, 0, 2.40f, 1.50f, WT_TINT_VIOLET},
+    {"Epsilon", WT_BUY, 0, 0, 2.40f, 1.50f, WT_TINT_VIOLET},
     {"Zeta", WT_EXP, 0, 16000, 2.80f, 1.60f, WT_TINT_MAGENTA},
-    {"Eta", WT_BUY, 1000000, 0, 3.30f, 1.80f, WT_TINT_CRIMSON},
+    {"Eta", WT_BUY, 0, 0, 3.30f, 1.80f, WT_TINT_CRIMSON},
     {"Omega", WT_EXP, 0, 24000, 4.00f, 2.00f, WT_TINT_PRISMATIC},
 };
 
 /* The RYNO II's two versions of its own, before the tiers. */
 static const wt_step k_ryno[2] = {
     {"Heavy", WT_EXP, 0, 6000, 1.40f, 1.50f, WT_TINT_ORANGE},
-    {"Ultima", WT_BUY, 400000, 0, 2.20f, 2.00f, WT_TINT_ULTIMA},
+    {"Ultima", WT_BUY, 0, 0, 2.20f, 2.00f, WT_TINT_ULTIMA},
 };
 
 /* The tints, 0x00BBGGRR as the game's own (D_001ADAF8). */
@@ -99,19 +99,58 @@ static const wt_step* table_step(wt_kind kind, int level) {
 }
 
 const wt_step* wt_step_at(wt_kind kind, int level) {
-    static wt_step sheep;
-    const wt_step* s = table_step(kind, level);
+    return table_step(kind, level);
+}
 
-    // The vendor never sells the Sheepinator: each of its purchases is a step by experience,
-    // needing what a mastered purchase would.
-    if (s != NULL && kind == WT_KIND_SHEEP && s->how == WT_BUY) {
-        sheep = *s;
-        sheep.how = WT_EXP;
-        sheep.price = 0;
-        sheep.exp = WT_MASTERY_EXP;
-        return &sheep;
+int wt_mega_version(wt_kind kind) {
+    switch (kind) {
+        case WT_KIND_FOUR:
+            return 2;
+        case WT_KIND_TWO:
+            return 1;
+        case WT_KIND_SINGLE:
+        case WT_KIND_RYNO:
+            return 0; /* its one version, bought */
+        default:
+            return -1; /* none: the Zapper's and the Sheepinator's versions are never sold */
     }
-    return s;
+}
+
+/* Times the base, for the first bought step, the second, ... (the RYNO II has five: Ultima first). */
+static const float k_price_times[] = {1.5f, 2.5f, 4.0f, 6.0f, 9.0f};
+
+/* `x` rounded to its two leading digits and a half: 562,500 is 565,000. */
+static int32_t nice(double x) {
+    double unit = 5.0;
+    while (x >= unit * 200.0) {
+        unit *= 10.0;
+    }
+    return (int32_t)((long long)(x / unit + 0.5) * (long long)unit);
+}
+
+int32_t wt_price(wt_kind kind, int level, int32_t mega) {
+    const wt_step* s = table_step(kind, level);
+    if (s == NULL || s->how != WT_BUY) {
+        return 0;
+    }
+    const int32_t base = mega <= 0               ? WT_PRICE_LADDER
+                         : mega < WT_PRICE_FLOOR ? WT_PRICE_FLOOR
+                                                 : mega;
+    int32_t last = mega > 0 ? mega : base;
+    int bought = 0;
+    for (int i = 0; i <= level; ++i) {
+        const wt_step* t = table_step(kind, i);
+        if (t->how != WT_BUY) {
+            continue;
+        }
+        int32_t p = nice((double)base * k_price_times[bought++]);
+        // Each above the one before and above the Mega.
+        if (p <= last) {
+            p = nice((double)last * 1.1) > last ? nice((double)last * 1.1) : last + 5000;
+        }
+        last = p;
+    }
+    return last;
 }
 
 /* Whether the version before the step at `level` was bought (so needs mastering). */

@@ -56,12 +56,35 @@ static void mastery(void) {
 }
 
 static void sheepinator(void) {
-    for (int level = 0; level < 8; ++level) {
-        CHECK(!wt_can_buy(WT_KIND_SHEEP, level, 1, 1000000));
-        CHECK(wt_step_at(WT_KIND_SHEEP, level)->how == WT_EXP);
+    /* No Mega, never sold by the game: bought and levelled as the others, from V4 on. */
+    CHECK(wt_can_buy(WT_KIND_SHEEP, 0, 1, 0));
+    CHECK(wt_step_at(WT_KIND_SHEEP, 1)->how == WT_EXP);
+    CHECK(wt_mega_version(WT_KIND_SHEEP) < 0);
+    CHECK(wt_price(WT_KIND_SHEEP, 0, 0) == 2250000);
+    CHECK(wt_price(WT_KIND_SHEEP, 6, 0) == 9000000);
+}
+
+/* Prices: from the Mega, rising, each above the one before and the Mega. */
+static void prices(void) {
+    CHECK(wt_price(WT_KIND_FOUR, 0, 150000) == 225000);
+    CHECK(wt_price(WT_KIND_FOUR, 1, 150000) == 0); /* Beta is by experience */
+    CHECK(wt_price(WT_KIND_FOUR, 2, 150000) == 375000);
+    CHECK(wt_price(WT_KIND_FOUR, 4, 150000) == 600000);
+    CHECK(wt_price(WT_KIND_FOUR, 6, 150000) == 900000);
+    CHECK(wt_price(WT_KIND_FOUR, 0, 375000) == 565000);
+    CHECK(wt_price(WT_KIND_TWO, 0, 1000) == 225000); /* the floor */
+    for (int mega = 1000; mega <= 2000000; mega += 7919) {
+        int32_t last = mega;
+        for (int level = 0; level < 8; ++level) {
+            const int32_t p = wt_price(WT_KIND_FOUR, level, mega);
+            if (p != 0) {
+                CHECK(p > last);
+                last = p;
+            }
+        }
     }
-    CHECK(wt_exp_reached(WT_KIND_SHEEP, 0, 1, WT_MASTERY_EXP));
-    CHECK(!wt_exp_reached(WT_KIND_SHEEP, 0, 1, WT_MASTERY_EXP - 1));
+    CHECK(wt_price(WT_KIND_RYNO, 1, 1000000) == 1500000); /* Ultima */
+    CHECK(wt_price(WT_KIND_RYNO, 8, 1000000) == 9000000); /* Eta */
 }
 
 static void ryno(void) {
@@ -69,8 +92,7 @@ static void ryno(void) {
     CHECK(strcmp(wt_step_at(WT_KIND_RYNO, 0)->name, "Heavy") == 0);
     CHECK(wt_exp_reached(WT_KIND_RYNO, 0, 1, 6000));
     CHECK(!wt_can_buy(WT_KIND_RYNO, 0, 1, 1000000));
-    CHECK(wt_can_buy(WT_KIND_RYNO, 1, 1, 0)); /* Ultima: Heavy reached */
-    CHECK(wt_step_at(WT_KIND_RYNO, 1)->price == 400000);
+    CHECK(wt_can_buy(WT_KIND_RYNO, 1, 1, 0));  /* Ultima: Heavy reached */
     CHECK(!wt_can_buy(WT_KIND_RYNO, 2, 1, 0)); /* Alpha: Ultima must be mastered */
     CHECK(wt_can_buy(WT_KIND_RYNO, 2, 1, WT_MASTERY_EXP));
     CHECK(wt_damage(WT_KIND_RYNO, 2) > wt_damage(WT_KIND_RYNO, 1));
@@ -156,6 +178,7 @@ int main(void) {
     buy_then_level();
     mastery();
     sheepinator();
+    prices();
     ryno();
     scaling();
     enemies();

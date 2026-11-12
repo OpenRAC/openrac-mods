@@ -33,7 +33,7 @@ typedef enum wt_kind {
     WT_KIND_FOUR,       /* four versions, V4 by experience: Alpha is for sale at V4 */
     WT_KIND_TWO,        /* two versions, the second bought in challenge mode (Bomb Glove, ...) */
     WT_KIND_ZAPPER,     /* the Clank Zapper: V2 by experience */
-    WT_KIND_SHEEP,      /* the Sheepinator: every step by experience, none for sale */
+    WT_KIND_SHEEP,      /* the Sheepinator: V4 by experience, no Mega: Alpha is for sale at V4 */
     WT_KIND_SINGLE,     /* one version, bought (the Zodiac) */
     WT_KIND_RYNO,       /* the RYNO II: Heavy by experience and Ultima bought first */
 } wt_kind;
@@ -63,7 +63,7 @@ typedef enum wt_tint {
 typedef struct wt_step {
     const char* name;
     wt_how how;
-    int32_t price; /* bolts, for a step bought */
+    int32_t price; /* unused: a bought step's price is wt_price's */
     int32_t exp;   /* experience (>> 5) since the last step, for a step by experience */
     float damage;  /* times the last real version's */
     float ammo;    /* times the last real version's most ammo */
@@ -81,9 +81,23 @@ wt_kind wt_kind_of(int item);
 /* How many steps a weapon of `kind` has (0 for none). */
 int wt_step_count(wt_kind kind);
 
-/* The step at `level` (0 the first) for a weapon of `kind`, or null past its last. A Sheepinator's
- * steps are all by experience. */
+/* The step at `level` (0 the first) for a weapon of `kind`, or null past its last. */
 const wt_step* wt_step_at(wt_kind kind, int level);
+
+/* The version whose row has the weapon's Mega price (+0x80 of its row; the vendor's own Mega
+ * upgrade), counted from its first: 2 for the four-version weapons, 1 for the two-version ones, 0
+ * for the Zodiac and the RYNO II (their one version); -1 for none (the Zapper, the Sheepinator). */
+int wt_mega_version(wt_kind kind);
+
+/* With no Mega price, the bought steps go from this; a Mega below the floor counts as the floor. */
+#define WT_PRICE_LADDER 1500000
+#define WT_PRICE_FLOOR 150000
+
+/* The price of the step at `level` when it is bought (0 for one by experience), from the weapon's
+ * Mega price `mega` (0 for none): the base (`mega`, at least WT_PRICE_FLOOR; WT_PRICE_LADDER with
+ * none) times 1.5, 2.5, 4, 6 (and 9, the RYNO II's fifth), rounded, each strictly above the one
+ * before and above `mega`. */
+int32_t wt_price(wt_kind kind, int level, int32_t mega);
 
 /* Whether the step at `level` is for sale now: the weapon at its last real version (`at_last`), the
  * step bought, and the version before it mastered (reached by experience, or `exp` at least

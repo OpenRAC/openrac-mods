@@ -54,6 +54,11 @@ static int s_notices;
 /* The levels of this game, and the host's when a party gave them. */
 static uint8_t s_level[WT_ITEMS];
 static uint8_t s_party[WT_ITEMS];
+/* Whether the mod counts each weapon's experience yet: from the first tick it is seen at its last
+ * version, when the game's own count (all it ever had with it) is set back to 0. Kept in the book
+ * as the level's top bit (WT_STARTED). */
+static uint8_t s_started[WT_ITEMS];
+#define WT_STARTED 0x80u
 static int s_party_on;
 
 /* The book of saves, and the clock seen last (s_clock_seen 0: none yet). */
@@ -70,8 +75,10 @@ static int s_entry_count;
 static int s_entry_at[WT_ITEMS];
 static int s_entry_item[WT_ITEMS];
 
-/* The vendor's list being drawn: the icons asked for so far (-1: not drawing). */
+/* The vendor's list being drawn: the icons asked for so far (-1: not drawing), and the entry the
+ * last one was for (-1: none), whose label the game asks next. */
 static int s_drawn = -1;
+static int s_drawn_row = -1;
 
 static uint32_t s_tick;
 static int s_notice_left;
@@ -86,6 +93,8 @@ static wt_Vendor_DrawList s_draw_list;
 static wt_Item_VersionColor s_version_color;
 static wt_Moby_PostHit s_post_hit;
 static int32_t (*s_text)(int32_t id);
+static wt_Text_ById s_text_by_id;
+static int s_in_text; /* in a text lookup of the mod's own: the game's texts as they are */
 static wt_Hero_TakeDamage s_take_damage;
 static int s_enemies;           /* the "enemy_scaling" setting */
 static float s_enemy_strength;  /* the "enemy_strength" setting */
@@ -148,11 +157,12 @@ static const uint8_t* levels(void) {
 
 /* ---- Names and notices ---- */
 
-/* "<the game's name of its last version> <tier>" for item `item`, into `out`. */
-static void name_of(int item, char* out, int size) {
+/* "<the game's name of its last version> <tier>" for item `item` at `level`, into `out`. */
+static void name_at(int item, int level, char* out, int size) {
     char base[48] = "";
 
     if (s_text != NULL) {
+        ++s_in_text;
         const int32_t text = s_text((int16_t)get_u16(row_of(item) + WT_ROW_NAME));
         if (text > 0 && (uint32_t)text < 0x02000000u - sizeof base) {
             for (size_t i = 0; i + 1 < sizeof base; ++i) {
@@ -164,8 +174,13 @@ static void name_of(int item, char* out, int size) {
                 }
             }
         }
+        --s_in_text;
     }
-    wt_display_name(out, size, base[0] != 0 ? base : "Weapon", wt_kind_of(item), levels()[item]);
+    wt_display_name(out, size, base[0] != 0 ? base : "Weapon", wt_kind_of(item), level);
+}
+
+static void name_of(int item, char* out, int size) {
+    name_at(item, levels()[item], out, size);
 }
 
 static void notice(int item, const char* prefix) {
@@ -203,6 +218,36 @@ static void step(int item) {
         snprintf(line, sizeof line, "item %d: level %d", item, s_level[item]);
         s_api->log(s_mod, OPENRAC_LOG_INFO, line);
     }
+}
+
+/* Row `r`'s s16 at `field` (the links between an item's versions). */
+static int link_of(int r, uint32_t field) {
+    return (int16_t)get_u16(at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE + field);
+}
+
+/* The row of item `item`'s version `version`, as the game finds it (func_00288870: from the item's
+ * first row down its links), or -1 for none. */
+static int version_row(int item, int version) {
+    int r = item;
+    for (int n = 0; n < 16 && link_of(r, WT_ROW_PARENT) > 0; ++n) {
+        r = link_of(r, WT_ROW_PARENT);
+    }
+    for (int n = 0; n < version && link_of(r, WT_ROW_NEXT) > 0; ++n) {
+        r = link_of(r, WT_ROW_NEXT);
+    }
+    const openrac_gaddr row = at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE;
+    return get_u8(row + WT_ROW_VERSION) == version ? r : -1;
+}
+
+/* Item `item`'s Mega price, 0 for none. */
+static int32_t mega_price(int item) {
+    const int version = wt_mega_version(wt_kind_of(item));
+    const int r = version < 0 ? -1 : version_row(item, version);
+    if (r < 0) {
+        return 0;
+    }
+    const int32_t p = get_s32(at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE + WT_ROW_PRICE);
+    return p > 0 ? p : 0;
 }
 
 /* Whether item `item`'s next step is for sale now. */
@@ -284,8 +329,68 @@ static void build_list(int32_t hide_unowned) {
 /* The vendor's list drawn: each icon's colour asked in the order of the rows drawn. */
 static void draw_list(void) {
     s_drawn = 0;
+    s_drawn_row = -1;
     s_draw_list();
     s_drawn = -1;
+    s_drawn_row = -1;
+}
+
+/* The mod's entry at row `row` of the vendor's list: its item, or -1. */
+static int entry_item_at(int row) {
+    for (int k = 0; row >= 0 && k < s_entry_count; ++k) {
+        if (s_entry_at[k] == row && get_s32(entry(row) + WT_ENTRY_ITEM) == s_entry_item[k]
+            && get_s32(entry(row) + WT_ENTRY_UPGRADE) == 1) {
+            return s_entry_item[k];
+        }
+    }
+    return -1;
+}
+
+/* `text` into the port's slot `slot`: its game address, 0 when there is none. */
+static uint32_t slot_text(int slot, const char* text) {
+    const int32_t a = s_text != NULL ? s_text(WT_TEXT_SLOT + slot) : 0;
+    if (a <= 0 || (uint32_t)a >= 0x02000000u - WT_TEXT_SLOT_BYTES) {
+        return 0;
+    }
+    char* out = (char*)s_api->memory + a;
+    snprintf(out, WT_TEXT_SLOT_BYTES, "%s", text);
+    return (uint32_t)a;
+}
+
+/* The vendor's texts for the mod's entries: the tier under the icon instead of "Mega", and the
+ * weapon's name at that tier ("Lancer Alpha") instead of its Mega's in the dialog and preview. */
+static uint32_t tier_text(int32_t id) {
+    if (id == WT_TEXT_UPGRADE && s_drawn > 0) {
+        const int item = entry_item_at(s_drawn_row);
+        const wt_step* step = item >= 0 ? wt_step_at(wt_kind_of(item), levels()[item]) : NULL;
+        return step != NULL ? slot_text(0, step->name) : 0;
+    }
+    const int item = entry_under_cursor();
+    if (item < 0 || !for_sale(item)) {
+        return 0;
+    }
+    // What the vendor names an upgrade entry by: its version 2's row (1 for the two-version weapons).
+    const wt_kind kind = wt_kind_of(item);
+    const int r = version_row(item, kind == WT_KIND_TWO ? 1 : 2);
+    if (r < 0
+        || id != get_s32(at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE + WT_ROW_TEXT)) {
+        return 0;
+    }
+    char name[WT_TEXT_SLOT_BYTES];
+    name_at(item, s_level[item] + 1, name, sizeof name);
+    return slot_text(1, name);
+}
+
+static int32_t text_by_id(int32_t id) {
+    if (s_in_text == 0) {
+        ++s_in_text;
+        const uint32_t text = tier_text(id);
+        --s_in_text;
+        if (text != 0) {
+            return (int32_t)text;
+        }
+    }
+    return s_text_by_id(id);
 }
 
 static uint32_t version_color(int32_t kind) {
@@ -307,6 +412,7 @@ static uint32_t version_color(int32_t kind) {
         }
     }
     ++s_drawn;
+    s_drawn_row = row;
     for (int k = 0; row >= 0 && k < s_entry_count; ++k) {
         if (s_entry_at[k] == row && get_s32(entry(row) + WT_ENTRY_ITEM) == s_entry_item[k]
             && get_s32(entry(row) + WT_ENTRY_UPGRADE) == 1) {
@@ -325,7 +431,7 @@ static int32_t price(void) {
     const int item = entry_under_cursor();
 
     if (item >= 0 && for_sale(item)) {
-        return wt_step_at(wt_kind_of(item), s_level[item])->price;
+        return wt_price(wt_kind_of(item), s_level[item], mega_price(item));
     }
     return s_price();
 }
@@ -452,10 +558,20 @@ static void clock_moved(const uint8_t clock[8]) {
 
     if (memcmp(clock, zero, 8) == 0) {
         memset(s_level, 0, sizeof s_level);
+        memset(s_started, 0, sizeof s_started);
     } else if (r != NULL) {
-        memcpy(s_level, r->level, WT_ITEMS);
+        for (int i = 0; i < WT_ITEMS; ++i) {
+            const int most = wt_step_count(wt_kind_of(i));
+            const int level = r->level[i] & ~WT_STARTED;
+            s_level[i] = (uint8_t)(level > most ? most : level);
+            s_started[i] = (r->level[i] & WT_STARTED) != 0 || level != 0;
+        }
     } else {
-        wt_book_put(&s_book, clock, s_level);
+        uint8_t kept[WT_ITEMS];
+        for (int i = 0; i < WT_ITEMS; ++i) {
+            kept[i] = (uint8_t)(s_level[i] | (s_started[i] ? WT_STARTED : 0));
+        }
+        wt_book_put(&s_book, clock, kept);
         book_save();
     }
 }
@@ -521,12 +637,24 @@ static void tick(void* user) {
         }
     }
 
-    // Steps by experience (not for a guest: the host's levels come with its rules).
+    // Steps by experience (not for a guest: the host's levels come with its rules). The game's count
+    // at a weapon's last version is everything it ever had with the weapon (from before the mod, and
+    // from past games in challenge mode), so the mod's starts at 0 the first time it sees the weapon
+    // there: a step by experience is earned from then on, never at once from a save's old count.
     if (!s_party_on) {
         for (int item = 0; item < WT_ITEMS; ++item) {
             const wt_kind kind = wt_kind_of(item);
-            if (kind != WT_KIND_NONE && owned(item) && at_last(item)
-                && wt_exp_reached(kind, s_level[item], 1, exp_of(item))) {
+            if (kind == WT_KIND_NONE || !owned(item) || !at_last(item)) {
+                continue;
+            }
+            if (!s_started[item]) {
+                s_started[item] = 1;
+                if (s_level[item] == 0) {
+                    put_s32(at(s_disc->exp) + 4u * (uint32_t)item, 0);
+                }
+                continue;
+            }
+            if (wt_exp_reached(kind, s_level[item], 1, exp_of(item))) {
                 step(item);
                 s_published = 0;
             }
@@ -577,12 +705,15 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.2")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.3")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
     s_mod = mod;
     memset(s_level, 0, sizeof s_level);
+    memset(s_started, 0, sizeof s_started);
+    s_in_text = 0;
+    s_drawn_row = -1;
     memset(s_ammo_written, 0, sizeof s_ammo_written);
     memset(s_ammo_base, 0, sizeof s_ammo_base);
     s_party_on = 0;
@@ -625,6 +756,13 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         && api->hook(mod, WT_HOOK_Item_VersionColor, WT_SIG_Item_VersionColor, (void*)version_color,
                      (void**)&s_version_color) != OPENRAC_HOOK_OK) {
         s_version_color = NULL;
+    }
+    // The tier's name in the vendor: optional (an OpenRAC without it shows the game's "Mega").
+    if (api->hook(
+            mod, WT_HOOK_Text_ById, WT_SIG_Text_ById, (void*)text_by_id, (void**)&s_text_by_id
+        )
+        != OPENRAC_HOOK_OK) {
+        s_text_by_id = NULL;
     }
     if (api->on_frame(mod, tick, NULL) != 0) {
         api->fail(mod, "no tick callback in this OpenRAC");

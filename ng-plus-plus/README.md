@@ -15,29 +15,40 @@ Install it from the launcher's **Mods** tab (**Add from a link**:
 is at its last version, the vendor sells its next tier; once that tier is levelled with experience,
 the vendor sells the next.
 
-| Level | Name | How | Price | Experience | Damage | Most ammo | Tint |
+| Level | Name | How | Price | Experience | Damage | Most ammo | Vendor's text | `rac2.text.by_id` (`func_00288FB8`): "Mega" under the tier's icon (text 0x325F, while `rac2.vendor.draw_list` draws its row) and the Mega's name in the dialog and preview become the tier's, written into the port's text slots; optional |
+| Tint |
 |---|---|---|---|---|---|---|---|
-| V5 | Alpha | bought | 100,000 | | x1.25 | x1.10 | lime |
+| V5 | Alpha | bought | Mega x1.5 | | x1.25 | x1.10 | lime |
 | V6 | Beta | experience | | 8,000 | x1.50 | x1.20 | cyan |
-| V7 | Gamma | bought | 250,000 | | x1.75 | x1.30 | emerald |
+| V7 | Gamma | bought | Mega x2.5 | | x1.75 | x1.30 | emerald |
 | V8 | Delta | experience | | 12,000 | x2.00 | x1.40 | teal |
-| V9 | Epsilon | bought | 500,000 | | x2.40 | x1.50 | violet |
+| V9 | Epsilon | bought | Mega x4 | | x2.40 | x1.50 | violet |
 | V10 | Zeta | experience | | 16,000 | x2.80 | x1.60 | magenta |
-| V11 | Eta | bought | 1,000,000 | | x3.30 | x1.80 | crimson |
+| V11 | Eta | bought | Mega x6 | | x3.30 | x1.80 | crimson |
 | V12 | Omega | experience | | 24,000 | x4.00 | x2.00 | prismatic (cycles through all the tints) |
 
 The damage and the most ammo are times the weapon's last real version's. The experience is the
-game's own weapon experience (what the quick select's bar counts), from the last tier on.
+game's own weapon experience (what the quick select's bar counts), from the last tier on; the first
+time the mod sees a weapon at its last version it sets that count back to 0, so what a save had
+with it before (from before the mod, or past games) never takes a tier at once.
+
+The prices follow each weapon's own Mega price (its Mega row's, 150,000 to 1,500,000; at least
+150,000, so the Bomb Glove's 1,000 Mega counts as 150,000), times 1.5, 2.5, 4 and 6, rounded to two
+and a half digits (562,500 is 565,000), each above the one before and above the Mega. A weapon with
+no Mega (the Clank Zapper, the Sheepinator) starts from 1,500,000: 2,250,000, 3,750,000, 6,000,000
+and 9,000,000. Lancer and Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000; Gravity Bomb
+(1,500,000): 2,250,000, 3,750,000, 6,000,000, 9,000,000.
 
 - **Four-version weapons** (Lancer, Chopper, ...): Alpha is for sale as soon as the weapon is V4.
 - **Two-version weapons** (Bomb Glove, Visibomb Gun, Decoy Glove, Tesla Claw, Walloper), and the
   **Zodiac**: their last version is bought, and the game has no experience step after it, so Alpha
   goes on sale after 6,000 more experience with it.
 - **Clank Zapper**: Alpha is for sale once it is V2.
-- **Sheepinator**: the vendor never sells it, so every tier comes by experience (6,000 for each tier
-  that would be bought).
+- **Sheepinator**: as the four-version weapons: Alpha is for sale once it is V4 (it has no Mega, so
+  its prices start from 1,500,000).
 - **RYNO II**: first **RYNO II Heavy** by 6,000 experience (x1.4 damage, x1.5 ammo, orange), then
-  **RYNO II Ultima** at the vendor for 400,000 (x2.2 damage, x2 ammo, a black and red tint), then
+  **RYNO II Ultima** at the vendor for 1,500,000 (its price 1,000,000 times 1.5; then Alpha
+  2,500,000, Gamma 4,000,000, Epsilon 6,000,000, Eta 9,000,000) (x2.2 damage, x2 ammo, a black and red tint), then
   Alpha (after 6,000 more experience) to Omega, each adding its gain to Ultima's.
 
 The tier's name ("Heavy Lancer Alpha": the game's name of the last version and the tier) shows at the
@@ -102,7 +113,11 @@ Through OpenRAC's rac2 hook points of SDK 1.14.6 (the addresses are NTSC-U v1.01
 Not yet:
 
 - The HUD's weapon icon draws its own colour and keeps the game's.
-- The vendor's upgrade entry is the game's own kind of entry: its icon and wording are the game's.
+- The vendor's upgrade entry is the game's own kind of entry: its icon is the game's. Its label and
+  name are the tier's ("Alpha" under the icon, "Lancer V4 Alpha" as the title) with an OpenRAC that
+  has `rac2.text.by_id`; the label under the icon only on NTSC-U v1.01 (the one disc with
+  `rac2.vendor.draw_list`), and the RYNO II's and the Zodiac's titles stay the game's (the game has
+  no Mega row to name them by).
 - The weapon's name in the game's own menus is the game's; the tier's name is the line at the top.
 - Damage scales by the weapon in Ratchet's hand: a Synthenoid's or a turret's shots scale by the
   weapon held when they hit.
