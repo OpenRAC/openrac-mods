@@ -902,7 +902,10 @@ static void open_vendor_menu_hook(uint32_t moby) {
         uint8_t* item_info = level_byte_at(s_disc->item_price_table);
 
         for (int i = 0; i < VENDOR_STOCK_SIZE && shown[i] != STOCK_END; ++i) {
-            int item = shown[i] & 0x3F;
+            const int item = shown[i] & 0x3F;
+            if (item >= VENDOR_ITEM_COUNT) {
+                continue;
+            }
             uint16_t ammo_supported;
             memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
 
@@ -912,7 +915,7 @@ static void open_vendor_menu_hook(uint32_t moby) {
             }
         }
 
-        for (int item = 0; item < 37 && !has_pda_stock; ++item) {
+        for (int item = 0; item < VENDOR_ITEM_COUNT && !has_pda_stock; ++item) {
             uint16_t ammo_supported;
             memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
 

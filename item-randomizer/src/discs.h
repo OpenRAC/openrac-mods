@@ -55,7 +55,7 @@ static const rando_disc k_rando_discs[] = {
      0x0014C150u,
      0x0015EE84u,
      0x0015EED0u,
-      0x001C43B0u,
+     0x001C43B0u,
      0x00141760u,
      0x001CA7C0u,
      0x00161F34u,
@@ -76,7 +76,7 @@ static const rando_disc k_rando_discs[] = {
      0x0014C050u,
      0x0015ED84u,
      0x0015EDD0u,
-      0x001C40B0u,
+     0x001C40B0u,
      0x00141660u,
      0x001CA4C0u,
      0x00161E38u,
@@ -104,6 +104,7 @@ static const rando_disc k_rando_discs[] = {
  * item bought last, whose demo plays as the menu closes; the entry under the cursor; the buy
  * dialog's state (4: the purchase); the list's entries, each its item and whether it sells the
  * item's ammo (1) or the item (0); how many there are. */
+#define VENDOR_ITEM_COUNT 37 /* entries in item_price_table */
 #define VENDOR_STOCK_SIZE 12     /* the stock's bytes */
 #define VENDOR_LAST_BOUGHT 0x48u /* i32 */
 #define VENDOR_CURSOR 0x58u      /* i32 */

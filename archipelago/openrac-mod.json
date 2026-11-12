@@ -15,6 +15,7 @@
     "Planet_Unlock",
     "Vendor_InitLevelStock",
     "Vendor_BuildItemList",
+    "Vendor_OpenMenu",
     "GoldBolts_CountCollected",
     "Moby_Infobot_Update",
     "Moby_PilotsHelmet_Update",
