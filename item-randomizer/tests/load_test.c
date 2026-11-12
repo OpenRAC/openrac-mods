@@ -1597,6 +1597,18 @@ int main(int argc, char** argv) {
         s_frame(NULL);
         CHECK(s_memory[moby + 0x52] == 0);
         s_frame(NULL); /* repeated empty frames retain the original flags */
+        /* A starting Glove of Doom has ammo even though this planet never stocked it. */
+        set32(s_memory + D->item_price_table + ITEM_GLOVE_OF_DOOM * 0x18 + 8, 1);
+        s_memory[D->owned + ITEM_GLOVE_OF_DOOM] = 1;
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 7);
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 7); /* stays available after the last reward */
+        s_memory[D->owned + ITEM_GLOVE_OF_DOOM] = 0;
+        s_memory[D->owned + ITEM_WALLOPER] = 1; /* no purchasable ammunition */
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 0);
+        s_memory[D->owned + ITEM_WALLOPER] = 0;
         s_memory[D->vendor_stock] = ITEM_BLASTER;
         s_frame(NULL);
         CHECK(s_memory[moby + 0x52] == 7);

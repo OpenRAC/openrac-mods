@@ -1279,6 +1279,20 @@ static void vendor_stock_shown(
 
 #define MOBY_LIST_MAX 1024
 
+/* The retail menu also adds ammo for owned weapons outside the planet's stock.
+ * Use the same price-table test as the PDA guard, including starting weapons. */
+static int has_vendor_ammunition(void) {
+    const uint8_t* prices = level_byte_at(s_disc->item_price_table);
+    for (int item = 0; item < VENDOR_ITEM_COUNT; ++item) {
+        uint16_t ammo_price;
+        memcpy(&ammo_price, prices + item * 0x18 + 0x08, sizeof ammo_price);
+        if (*owned(item) && ammo_price != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* Prevent opening a vendor whose randomizer-filtered stock is empty. */
 static void guard_empty_vendor(void) {
     if (!rando_on() || s_disc == NULL
@@ -1291,7 +1305,7 @@ static void guard_empty_vendor(void) {
     memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
     vendor_stock_shown(real, shown);
 
-    const int empty = shown[0] == STOCK_END;
+    const int empty = shown[0] == STOCK_END && !has_vendor_ammunition();
 
     const openrac_gaddr base = (openrac_gaddr)get32(
         level_byte_at(s_disc->moby_base)
