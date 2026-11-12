@@ -105,6 +105,8 @@ static wt_Vendor_DrawList s_draw_list;
 static wt_Item_VersionColor s_version_color;
 static wt_Moby_PostHit s_post_hit;
 static int32_t (*s_text)(int32_t id);
+static int32_t (*s_banner)(int32_t key, int32_t selection);
+static void (*s_message)(int32_t text, int32_t second);
 static wt_Text_ById s_text_by_id;
 static int s_in_text;     /* in a text lookup of the mod's own: the game's texts as they are */
 static int s_text_logged; /* the first vendor text the mod gave, logged */
@@ -231,12 +233,14 @@ static void notice(int item, const char* prefix) {
 }
 
 static void book_keep(const uint8_t clock[8]);
+static uint32_t slot_text(int slot, const char* text);
+#define WT_LEVEL_UP_SLOT 7 /* the level-up's line; 2..6 the weapons' names in turn */
 
 /* ---- Steps ---- */
 
 /* Item `item` takes its next step: its experience starts again and its ammo is filled to the new
  * most. */
-static void step(int item) {
+static void step(int item, int by_experience) {
     ++s_level[item];
     put_s32(at(s_disc->exp) + 4u * (uint32_t)item, 0);
     {
@@ -248,7 +252,20 @@ static void step(int item) {
             put_s32(at(s_disc->ammo) + 4u * (uint32_t)item, most);
         }
     }
-    notice(item, "");
+    if (by_experience && s_banner != NULL && s_message != NULL) {
+        // As the game's own level-up of a weapon (func_00288508): its popup and sound, and the line
+        // naming the weapon, here at its tier.
+        char name[WT_TEXT_SLOT_BYTES];
+        name_of(item, name, sizeof name);
+        if (slot_text(WT_LEVEL_UP_SLOT, name) != 0) {
+            s_banner(WT_LEVEL_UP_KEY, WT_LEVEL_UP_SELECTION);
+            s_message(WT_TEXT_SLOT + WT_LEVEL_UP_SLOT, -1);
+        } else {
+            notice(item, "");
+        }
+    } else {
+        notice(item, "");
+    }
     // Kept at once, not only at the next save: a restart (a new version of the mod) loses nothing.
     if (s_clock_seen && !s_party_on) {
         static const uint8_t zero[8];
@@ -440,7 +457,7 @@ static uint32_t tier_text(int32_t id) {
 /* The tiered name of the weapon whose last version's name is text `id` (the ammo pickup's message,
  * the weapons menu, the quick select, ...), or 0: only a weapon with a tier, and only when no other
  * item's row now names itself by `id`. The game prints a name at once (its text drawn or copied when
- * looked up), so the slots 2..7 are taken in turn: six names in a row before one is written over. */
+ * looked up), so the slots 2..6 are taken in turn: five names in a row before one is written over. */
 static uint32_t weapon_name(int32_t id) {
     int found = -1;
     int found_row = -1;
@@ -465,7 +482,7 @@ static uint32_t weapon_name(int32_t id) {
     char name[WT_TEXT_SLOT_BYTES];
     name_of(found, name, sizeof name);
     const uint32_t a = slot_text(2 + next, name);
-    next = (next + 1) % 6;
+    next = (next + 1) % 5;
     return a;
 }
 
@@ -544,7 +561,7 @@ static int32_t upgrade(int32_t id) {
     char line[128];
     if (id >= 0 && id < WT_ITEMS && under == id && for_sale(id)) {
         const int old = s_level[id];
-        step(id);
+        step(id, 0);
         snprintf(line, sizeof line, "purchase: item %d, tier %d -> %d", id, old, s_level[id]);
         s_api->log(s_mod, OPENRAC_LOG_INFO, line);
         return 1;
@@ -825,7 +842,7 @@ static void tick(void* user) {
                 continue;
             }
             if (wt_exp_reached(kind, s_level[item], 1, exp_of(item))) {
-                step(item);
+                step(item, 1);
                 s_published = 0;
             }
         }
@@ -878,7 +895,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.9")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.10")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
@@ -921,6 +938,15 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_enemy_strength = (float)api->setting_float(mod, "enemy_strength");
     s_damage_carry = 0.0f;
     s_text = (int32_t (*)(int32_t))api->function(s_disc->text);
+    s_banner = (int32_t (*)(int32_t, int32_t))api->function(s_disc->banner);
+    s_message = (void (*)(int32_t, int32_t))api->function(s_disc->message);
+    if (s_banner == NULL || s_message == NULL) {
+        api->log(
+            mod,
+            OPENRAC_LOG_INFO,
+            "no level-up popup in this build: a step by experience shows the mod's notice"
+        );
+    }
 
     if (take(
             WT_HOOK_Vendor_BuildList,

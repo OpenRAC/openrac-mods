@@ -56,8 +56,10 @@ and 9,000,000. Lancer and Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900
 
 The tier takes the place of the version in the weapon's name: "Alpha Lancer", "Beta Lancer", ...
 ("Heavy RYNO II", "Ultima RYNO II", "Alpha RYNO II" for the RYNO II), with the game's name of the
-weapon's first version. That name shows at the top of the screen when a weapon reaches a tier and
-when you take a tiered weapon in hand, and everywhere the game prints the weapon's name: the ammo
+weapon's first version. A tier reached by experience comes with the game's own level-up popup and line (as for a weapon
+levelled out of hand: func_00288508), naming the weapon at its new tier; a bought one with the
+vendor's own purchase feedback. The name shows at the top of the screen when you take a tiered
+weapon in hand, and everywhere the game prints the weapon's name: the ammo
 pickup's message, the weapons menu, the quick select and the vendor. A name text two items share is
 left as the game has it.
 

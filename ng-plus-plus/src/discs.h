@@ -26,7 +26,13 @@ typedef struct wt_disc {
     uint32_t clock;        /* u8[8]: the save's chunk 4, stamped when the game saves (D_001A7360) */
     const char* text;      /* the game's text by id (func_00288FB8): its string's address */
     uint32_t progress;     /* the save block (g_boltCount): +0x12 the challenge mode counter */
+    const char* banner;    /* a HUD help popup by key (func_00288E18): the level-up's, 0x9AA, 1 */
+    const char* message;   /* a message by text id (func_002B0A18): the level-up's weapon line */
 } wt_disc;
+
+/* What the game's level-up of a weapon not in hand shows (func_00288508): the popup and the line. */
+#define WT_LEVEL_UP_KEY 0x9AA
+#define WT_LEVEL_UP_SELECTION 1
 
 static const wt_disc k_wt_discs[] = {
     {"ntsc",
@@ -39,7 +45,9 @@ static const wt_disc k_wt_discs[] = {
      0x0021F240u,
      0x001A7360u,
      "func_00288FB8",
-     0x001A79F8u},
+     0x001A79F8u,
+     "func_00288E18",
+     "func_002B0A18"},
     {"pal",
      0x00239BA0u,
      0x001395E8u,
@@ -50,7 +58,9 @@ static const wt_disc k_wt_discs[] = {
      0x0021F1C0u,
      0x001A73E0u,
      "func_002898E8",
-     0x001A7A80u},
+     0x001A7A80u,
+     "FUN_00289730",
+     "FUN_002B1588"},
     {"ntsc2",
      0x00239B20u,
      0x00139568u,
@@ -61,7 +71,9 @@ static const wt_disc k_wt_discs[] = {
      0x0021F1C0u,
      0x001A7360u,
      "func_002899F8",
-     0x001A7A00u},
+     0x001A7A00u,
+     "FUN_00289840",
+     "FUN_002B1880"},
 };
 
 /* The disc of openrac_api.version, or null. */

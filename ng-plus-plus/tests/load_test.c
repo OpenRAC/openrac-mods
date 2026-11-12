@@ -284,7 +284,28 @@ static int host_on_frame(openrac_mod* mod, openrac_frame_fn fn, void* user) {
     return 0;
 }
 
+/* The game's level-up popup and line (func_00288E18, func_002B0A18): what they were given. */
+static int s_banners;
+static int32_t s_banner_key;
+
+static int32_t game_banner(int32_t key, int32_t selection) {
+    ++s_banners;
+    s_banner_key = selection == 1 ? key : -1;
+    return 1;
+}
+
+static void game_message(int32_t text, int32_t second) {
+    (void)second;
+    snprintf(s_notice, sizeof s_notice, "%s", (char*)s_memory + port_text(text));
+}
+
 static void* host_function(const char* name) {
+    if (strcmp(name, s_disc->banner) == 0) {
+        return (void*)game_banner;
+    }
+    if (strcmp(name, s_disc->message) == 0) {
+        return (void*)game_message;
+    }
     return strcmp(name, s_disc->text) == 0 ? (void*)port_text : NULL;
 }
 
@@ -468,7 +489,9 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(strcmp(title(0x4321), "Alpha Lancer") == 0);
     {
         int32_t money = 3000000;
+        const int before = s_banners;
         CHECK(purchase(&money) == 2250000);
+        CHECK(s_banners == before); /* bought: the vendor's own feedback, no level-up */
         CHECK(money == 750000);
     }
     CHECK(s_upgraded == -1);
@@ -509,9 +532,13 @@ static void run(const char* path, const wt_disc* disc) {
     set32(s_disc->exp + 4u * LANCER, 7999 << 5);
     tick(1);
     CHECK(strcmp(s_notice, "Alpha Lancer") == 0);
+    const int banners_before = s_banners;
     set32(s_disc->exp + 4u * LANCER, 8000 << 5);
     tick(1);
     CHECK(strcmp(s_notice, "Beta Lancer") == 0);
+    /* A step by experience as the game's own level-up: its popup, then the line. */
+    CHECK(s_banners == banners_before + 1);
+    CHECK(s_banner_key == 0x9AA);
     /* Its name everywhere the game prints it (the ammo pickup, the menus): the tier's. */
     CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Lancer") == 0);
     CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Lancer") == 0);
