@@ -456,16 +456,21 @@ class CoolDown(Base):
         self.assertTrue(any(a[:4] == ["gh", "issue", "edit", "3"] for a, _ in run.calls))
         self.assertFalse(any(a[:3] == ["gh", "issue", "create"] for a, _ in run.calls))
 
-    def approve_event(self, sender):
+    SHA = {"linux-x86_64": "a" * 64, "windows-x86_64": "b" * 64}
+
+    def approve_event(self, sender, sha=SHA):
+        body = bot.review_body({"id": "ext-hud", "name": "HUD", "repo": "https://github.com/o/r", "version": "0.3.0",
+                                "tag": "v0.3.0", "released": "", "changelog": "Fixes",
+                                "platforms": {p: {"asset": "x.zip", "sha256": h, "size": 1} for p, h in sha.items()}})
         return {"action": "labeled", "label": {"name": "approved"}, "sender": {"login": sender},
-                "issue": {"number": 3, "title": "Review ext-hud 0.3.0",
+                "issue": {"number": 3, "title": "Review ext-hud 0.3.0", "body": body,
                           "labels": [{"name": "mod-review"}, {"name": "approved"}]}}
 
     def test_approve_by_maintainer(self):
         run = FakeRun()
         bot.approve(self.approve_event("boss"), self.fx.repo, b.Offline(self.fx.dir), run)
         self.assertEqual(json.loads((self.fx.repo / "index/approved.json").read_text()),
-                         {"ext-hud": ["0.2.0", "0.3.0"]})
+                         {"ext-hud": ["0.2.0", {"version": "0.3.0", "sha256": self.SHA}]})
         cmds = [" ".join(a) for a, _ in run.calls]
         self.assertIn("push origin HEAD:refs/heads/master", " / ".join(cmds))
         self.assertTrue(any(c.startswith("gh issue close 3") for c in cmds))
@@ -483,12 +488,77 @@ class CoolDown(Base):
         self.assertTrue(any("pr create" in c and "Closes #3" in c for c in cmds))
 
     def test_approve_twice_closes_without_a_commit(self):
-        (self.fx.repo / "index/approved.json").write_text('{"ext-hud": ["0.2.0", "0.3.0"]}')
+        (self.fx.repo / "index/approved.json").write_text(
+            json.dumps({"ext-hud": ["0.2.0", {"version": "0.3.0", "sha256": self.SHA}]}))
         run = FakeRun()
         bot.approve(self.approve_event("boss"), self.fx.repo, b.Offline(self.fx.dir), run)
         cmds = [" ".join(a) for a, _ in run.calls]
         self.assertFalse(any(" commit " in c for c in cmds))
         self.assertTrue(any(c.startswith("gh issue close 3") for c in cmds))
+
+    def test_approve_again_replaces_the_hashes(self):
+        (self.fx.repo / "index/approved.json").write_text(
+            json.dumps({"ext-hud": ["0.2.0", {"version": "0.3.0", "sha256": {"linux-x86_64": "c" * 64}}]}))
+        bot.approve(self.approve_event("boss"), self.fx.repo, b.Offline(self.fx.dir), FakeRun())
+        self.assertEqual(json.loads((self.fx.repo / "index/approved.json").read_text()),
+                         {"ext-hud": ["0.2.0", {"version": "0.3.0", "sha256": self.SHA}]})
+
+    def test_approve_without_hashes_is_refused(self):
+        ev = self.approve_event("boss")
+        ev["issue"]["body"] = "An old issue with no hashes."
+        run = FakeRun()
+        bot.approve(ev, self.fx.repo, b.Offline(self.fx.dir), run)
+        self.assertEqual(json.loads((self.fx.repo / "index/approved.json").read_text()), {"ext-hud": ["0.2.0"]})
+        self.assertFalse(any(a[0] == "git" for a, _ in run.calls))
+        self.assertTrue(any(a[:5] == ["gh", "issue", "edit", "3", "--remove-label"] for a, _ in run.calls))
+
+    def test_hashes_in_the_changelog_do_not_count(self):
+        fake = bot.REVIEW_MARK + json.dumps({"sha256": {"linux-x86_64": "f" * 64}}) + " -->"
+        body = self.approve_event("boss")["issue"]["body"]
+        self.assertEqual(bot.reviewed_hashes(body), self.SHA)
+        self.assertIsNone(bot.reviewed_hashes(body.replace(bot.REVIEW_MARK, "x") + "\n~~~~\n" + fake + "\n~~~~"))
+
+    def approve_built(self, sha=None):
+        """approved.json holding ext-hud 0.2.0 with the hashes of its archives (or `sha`)."""
+        path = self.fx.repo / "index/approved.json"
+        path.write_text("{}")
+        _, _, review = self.build()
+        sha = sha or b.archive_hashes(review[0])
+        path.write_text(json.dumps({"ext-hud": [{"version": "0.2.0", "sha256": sha}]}))
+        return review[0]
+
+    def test_approved_hashes_publish(self):
+        self.approve_built()
+        index, errors, review = self.build()
+        self.assertEqual(errors, [])
+        self.assertIn("ext-hud", [m["id"] for m in index["mods"]])
+        self.assertEqual(review, [])
+
+    def test_changed_archive_waits_for_review_again(self):
+        item = self.approve_built({"linux-x86_64": "0" * 64})
+        index, errors, review = self.build()
+        self.assertEqual(errors, [])
+        self.assertNotIn("ext-hud", [m["id"] for m in index["mods"]])
+        self.assertEqual([(r["id"], r["version"], r["changed"]) for r in review], [("ext-hud", "0.2.0", True)])
+        # The closed review issue is opened again, without its label.
+        old = {**item, "platforms": {"linux-x86_64": {"asset": "x.zip", "sha256": "0" * 64, "size": 1}}}
+        run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "CLOSED",
+                                                  "body": bot.review_body(old)}])})
+        bot.review(review, run)
+        cmds = [" ".join(a) for a, _ in run.calls]
+        self.assertIn("gh issue reopen 3", cmds)
+        self.assertTrue(any(c.startswith("gh issue edit 3 --remove-label approved") for c in cmds))
+
+    def test_archive_changed_while_issue_open(self):
+        (self.fx.repo / "index/approved.json").write_text("{}")
+        _, _, review = self.build()
+        old = {**review[0], "platforms": {"linux-x86_64": {"asset": "x.zip", "sha256": "0" * 64, "size": 1}}}
+        run = FakeRun({"issue list": json.dumps([{"number": 3, "title": "Review ext-hud 0.2.0", "state": "OPEN",
+                                                  "body": bot.review_body(old)}])})
+        bot.review(review, run)
+        cmds = [" ".join(a) for a, _ in run.calls]
+        self.assertIn("gh issue edit 3 --remove-label approved", cmds)
+        self.assertTrue(any(c.startswith("gh issue comment 3") for c in cmds))
 
     def test_approve_refused_for_others(self):
         run = FakeRun()

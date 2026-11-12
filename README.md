@@ -164,7 +164,8 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   mod's repository.
 - A new version of a native mod from another repository reaches players 24 h
   after its release, once a maintainer has approved it on its review issue
-  (`index/approved.json`).
+  (`index/approved.json`). The approval holds the archives' SHA-256: if an
+  archive changes later, that version goes back to review.
 - The bot is **openrac-bot**, a GitHub App of the organization, installed on this
   repository only. Its App id and private key are the repository secrets
   `OPENRAC_BOT_APP_ID` and `OPENRAC_BOT_PRIVATE_KEY`; each job asks it for a
