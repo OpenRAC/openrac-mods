@@ -556,7 +556,7 @@ int main(int argc, char** argv) {
     { std::ofstream book(dir / "save-slots.tsv"); book << "4\told-seed\tRatchet\n"; }
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 20 && g_frame != nullptr);
+    CHECK(g_hooks == 21 && g_frame != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 

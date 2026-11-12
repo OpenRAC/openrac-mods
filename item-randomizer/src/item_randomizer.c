@@ -232,6 +232,7 @@ static openrac_rac1_Moby_Class23_Update s_o2_pickup_update;
 static openrac_rac1_Moby_Class22_Update s_orxon_start_update;
 static openrac_rac1_Ammo_ChooseDrop s_choose_drop;
 static openrac_rac1_Vendor_MenuUpdate s_vendor_menu_update;
+static openrac_rac1_Vendor_OpenMenu s_open_vendor_menu;
 static openrac_rac1_Help_Request s_help_request;
 static openrac_rac1_Ship_InitTransition s_ship_transition;
 static item_randomizer_Save_NewGame s_new_game;
@@ -1063,6 +1064,40 @@ static void sync_seen(void) {
     }
 }
 
+/* Ownership does not gate Circle or Triangle: hero_switch_item reads last_weapon_id directly,
+ * and the double-tap path also reads quick_swap_item. initialize_hero defaults a zero last
+ * weapon to Bomb Glove, so use the wrench rather than zero until a real weapon is selected.
+ * The hero's pending/selected/saved slot-0 items are +0x20B8/+0x20D4/+0x20F0 in struct Hero;
+ * its current item is +0x10B8. Queue a normal switch instead of editing a live item's moby. */
+static void guard_unowned_bomb_glove(void) {
+    if (!rando_on() || !playing_level() || *owned(ITEM_BOMB_GLOVE)) {
+        return;
+    }
+
+    uint8_t* last = byte_at(s_disc->last_weapon);
+    uint8_t* quick_swap = byte_at(s_disc->quick_swap);
+    uint8_t* hero = byte_at(s_disc->hero);
+    uint8_t* pending = hero + 0x20B8u;
+    uint8_t* saved = hero + 0x20F0u;
+
+    if (get32(last) == ITEM_BOMB_GLOVE) {
+        set32(last, ITEM_WRENCH);
+    }
+    if (get32(quick_swap) == ITEM_BOMB_GLOVE) {
+        set32(quick_swap, ITEM_WRENCH);
+    }
+    if (get32(saved) == ITEM_BOMB_GLOVE) {
+        set32(saved, ITEM_WRENCH);
+    }
+
+    const int32_t next = get32(pending);
+    if (next == ITEM_BOMB_GLOVE
+        || (next == 0 && (get32(hero + 0x10B8u) == ITEM_BOMB_GLOVE
+                          || get32(hero + 0x20D4u) == ITEM_BOMB_GLOVE))) {
+        set32(pending, ITEM_WRENCH);
+    }
+}
+
 /* After the game gave the Bomb Glove at a level start and the reward was another, undoes what
  * the game did for the glove: its place first in the stock, and as the weapon a double tap goes
  * back to. before: the stock as it was; last_before: that weapon as it was. */
@@ -1138,6 +1173,7 @@ static void init_level_stock(void) {
     }
 
     give_lost_rewards();
+    guard_unowned_bomb_glove();
     sync_seen();
 }
 
@@ -1238,12 +1274,132 @@ static void vendor_stock_shown(
         }
     }
 
-    // A list with nothing on it has no entry for the cursor: the Bomb Glove's ammo holds its place.
-    if (m == 0) {
-        shown[m++] = (uint8_t)(ITEM_BOMB_GLOVE | STOCK_AMMO);
+    memset(shown + m, STOCK_END, (size_t)(VENDOR_STOCK_SIZE - m));
+}
+
+#define MOBY_LIST_MAX 1024
+
+/* Prevent opening a vendor whose randomizer-filtered stock is empty. */
+static void guard_empty_vendor(void) {
+    if (!rando_on() || s_disc == NULL
+        || (strcmp(s_disc->version, "ntsc") != 0 && strcmp(s_disc->version, "pal") != 0)) {
+        return;
     }
 
-    memset(shown + m, STOCK_END, (size_t)(VENDOR_STOCK_SIZE - m));
+    uint8_t real[VENDOR_STOCK_SIZE];
+    uint8_t shown[VENDOR_STOCK_SIZE];
+    memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
+    vendor_stock_shown(real, shown);
+
+    const int empty = shown[0] == STOCK_END;
+
+    const openrac_gaddr base = (openrac_gaddr)get32(
+        level_byte_at(s_disc->moby_base)
+    );
+
+    if (!base) {
+        return;
+    }
+
+    static openrac_moby mobys[MOBY_LIST_MAX];
+    int n = s_api->moby_list(mobys, MOBY_LIST_MAX);
+    if (n > MOBY_LIST_MAX) {
+        n = MOBY_LIST_MAX;
+    }
+
+    static uint32_t guarded_loads = UINT32_MAX;
+    static openrac_gaddr guarded_base = 0;
+    static uint8_t saved_flags[MOBY_LIST_MAX];
+    static uint8_t guarded[MOBY_LIST_MAX];
+
+    uint32_t loads = 0;
+    openrac_play_status status = {0};
+    if (s_api->play_status(&status) == OPENRAC_HOOK_OK) {
+        loads = status.loads;
+    }
+
+    if (guarded_loads != loads || guarded_base != base) {
+        memset(guarded, 0, sizeof guarded);
+        guarded_loads = loads;
+        guarded_base = base;
+    }
+
+    for (int i = 0; i < n; ++i) {
+        if (mobys[i].oclass != 0xB || (mobys[i].flags & OPENRAC_MOBY_DEAD) || mobys[i].slot < 0
+            || mobys[i].slot >= MOBY_LIST_MAX) {
+            continue;
+        }
+
+        openrac_gaddr address = base + (openrac_gaddr)mobys[i].slot * 0x100u;
+
+        uint8_t* moby = (uint8_t*)OPENRAC_G(s_api, address);
+
+        int16_t oclass;
+        memcpy(&oclass, moby + 0xA6, sizeof oclass);
+
+        if (oclass != 0xB) {
+            continue;
+        }
+
+        const int slot = mobys[i].slot;
+        if (slot >= MOBY_LIST_MAX) {
+            continue;
+        }
+
+        if (empty) {
+            if (!guarded[slot]) {
+                saved_flags[slot] = moby[0x52];
+                guarded[slot] = 1;
+            }
+            moby[0x52] = 0;
+        } else if (guarded[slot]) {
+            moby[0x52] = saved_flags[slot];
+            guarded[slot] = 0;
+        }
+    }
+}
+
+/* Block an empty Gadgetron PDA vendor before the game builds its menu. */
+static void open_vendor_menu_hook(uint32_t moby) {
+    if (moby == 0 && rando_on() && s_disc != NULL) {
+        uint8_t real[VENDOR_STOCK_SIZE];
+        uint8_t shown[VENDOR_STOCK_SIZE];
+
+        memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
+        vendor_stock_shown(real, shown);
+
+        int has_pda_stock = 0;
+        uint8_t* item_info = level_byte_at(s_disc->item_price_table);
+
+        for (int i = 0; i < VENDOR_STOCK_SIZE && shown[i] != STOCK_END; ++i) {
+            const int item = shown[i] & 0x3F;
+            if (item >= VENDOR_ITEM_COUNT) {
+                continue;
+            }
+            uint16_t ammo_supported;
+            memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
+
+            if ((shown[i] & STOCK_AMMO) && ammo_supported != 0) {
+                has_pda_stock = 1;
+                break;
+            }
+        }
+
+        for (int item = 0; item < VENDOR_ITEM_COUNT && !has_pda_stock; ++item) {
+            uint16_t ammo_supported;
+            memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
+
+            if (*owned(item) != 0 && ammo_supported != 0) {
+                has_pda_stock = 1;
+            }
+        }
+
+        if (!has_pda_stock) {
+            return;
+        }
+    }
+
+    s_open_vendor_menu(moby);
 }
 
 /* After a purchase: the list may hold another entry where the slot was (its reward's ammo), or
@@ -1288,6 +1444,24 @@ static void build_item_list(int32_t skip_unflagged) {
 
     // Right after a purchase: the menu is settled for the list that changed under it.
     if (s_bought >= 0) {
+        uint8_t* menu = level_byte_at(s_disc->vendor_menu);
+
+        /*
+         * The original purchase handler still initializes the selected
+         * item after rebuilding the rows. Keep one valid row until the
+         * vendor's normal closing transition has begun.
+         */
+        if ((strcmp(s_disc->version, "ntsc") == 0 || strcmp(s_disc->version, "pal") == 0)
+            && get32(menu + VENDOR_COUNT) == 0) {
+            set32(menu + VENDOR_CURSOR, 0);
+            set32(menu + VENDOR_ENTRIES, s_bought);
+            set32(menu + VENDOR_ENTRIES + VENDOR_ENTRY_AMMO, 0);
+            set32(menu + VENDOR_COUNT, 1);
+
+            set32(level_byte_at(s_disc->vendor_close_countdown), 1);
+            set32(level_byte_at(s_disc->vendor_close_request), 1);
+        }
+
         settle_menu_after_purchase();
     }
 }
@@ -1411,6 +1585,8 @@ static void each_tick(void* user) {
         s_seen[i] = (uint8_t)now;
     }
 
+    guard_unowned_bomb_glove();
+    guard_empty_vendor();
     run_notices();
 }
 
@@ -1451,7 +1627,8 @@ static int take(int result, const char* point) {
 
 /* Takes every hook point the mod needs; 1 when all are in place, 0 (the port told) when not. */
 static int install_hooks(void) {
-    return HOOK(Item_Give, item_give, &s_item_give)
+    return HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
+           && HOOK(Item_Give, item_give, &s_item_give)
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
            && HOOK(Vendor_InitLevelStock, init_level_stock, &s_init_level_stock)
            && HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)
@@ -1469,14 +1646,26 @@ static int install_hooks(void) {
            && HOOK(Vendor_MenuUpdate, vendor_menu_update, &s_vendor_menu_update)
            && HOOK(Help_Request, help_request, &s_help_request)
            && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition)
-           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGame,
-                               ITEM_RANDOMIZER_SIG_Save_NewGame, (void*)new_game,
-                               (void**)&s_new_game),
-                   ITEM_RANDOMIZER_HOOK_Save_NewGame)
-           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGamePlus,
-                               ITEM_RANDOMIZER_SIG_Save_NewGamePlus, (void*)new_game_plus,
-                               (void**)&s_new_game_plus),
-                   ITEM_RANDOMIZER_HOOK_Save_NewGamePlus);
+           && take(
+               s_api->hook(
+                   s_mod,
+                   ITEM_RANDOMIZER_HOOK_Save_NewGame,
+                   ITEM_RANDOMIZER_SIG_Save_NewGame,
+                   (void*)new_game,
+                   (void**)&s_new_game
+               ),
+               ITEM_RANDOMIZER_HOOK_Save_NewGame
+           )
+           && take(
+               s_api->hook(
+                   s_mod,
+                   ITEM_RANDOMIZER_HOOK_Save_NewGamePlus,
+                   ITEM_RANDOMIZER_SIG_Save_NewGamePlus,
+                   (void*)new_game_plus,
+                   (void**)&s_new_game_plus
+               ),
+               ITEM_RANDOMIZER_HOOK_Save_NewGamePlus
+           );
 }
 
 /* Whether the text looks meant as a seed code: twelve letters and digits, hyphens and spaces
