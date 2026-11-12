@@ -29,13 +29,13 @@ extern "C" {
 
 /* How a weapon reached its last real version, which decides how its first step is unlocked. */
 typedef enum wt_kind {
-    WT_KIND_NONE = 0,   /* not a weapon the mod knows (gadgets, the wrench) */
-    WT_KIND_FOUR,       /* four versions, V4 by experience: Alpha is for sale at V4 */
-    WT_KIND_TWO,        /* two versions, the second bought in challenge mode (Bomb Glove, ...) */
-    WT_KIND_ZAPPER,     /* the Clank Zapper: V2 by experience */
-    WT_KIND_SHEEP,      /* the Sheepinator: V4 by experience, no Mega: Alpha is for sale at V4 */
-    WT_KIND_SINGLE,     /* one version, bought (the Zodiac) */
-    WT_KIND_RYNO,       /* the RYNO II: Heavy by experience and Ultima bought first */
+    WT_KIND_NONE = 0, /* not a weapon the mod knows (gadgets, the wrench) */
+    WT_KIND_FOUR,     /* four versions, V4 by experience: Alpha is for sale at V4 */
+    WT_KIND_TWO,      /* two versions, the second bought in challenge mode (Bomb Glove, ...) */
+    WT_KIND_ZAPPER,   /* the Clank Zapper: V2 by experience */
+    WT_KIND_SHEEP,    /* the Sheepinator: V4 by experience, no Mega: Alpha is for sale at V4 */
+    WT_KIND_SINGLE,   /* one version, bought (the Zodiac) */
+    WT_KIND_RYNO,     /* the RYNO II: Heavy by experience and Ultima bought first */
 } wt_kind;
 
 /* How a step is reached. */

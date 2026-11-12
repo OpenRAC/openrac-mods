@@ -45,38 +45,38 @@ static const int32_t k_rgb[] = {
 
 wt_kind wt_kind_of(int item) {
     switch (item) {
-    case 22: /* Chopper */
-    case 23: /* Pulse Rifle */
-    case 24: /* Seeker Gun */
-    case 25: /* Hoverbomb Gun */
-    case 26: /* Blitz Gun */
-    case 27: /* Minirocket Tube */
-    case 28: /* Plasma Coil */
-    case 29: /* Lava Gun */
-    case 30: /* Lancer */
-    case 31: /* Synthenoid */
-    case 32: /* Spiderbot Glove */
-    case 37: /* Bouncer */
-    case 41: /* Miniturret Glove */
-    case 42: /* Gravity Bomb */
-    case 45: /* Shield Charger */
-        return WT_KIND_FOUR;
-    case 12: /* Bomb Glove */
-    case 14: /* Visibomb Gun */
-    case 17: /* Decoy Glove */
-    case 18: /* Tesla Claw */
-    case 53: /* Walloper */
-        return WT_KIND_TWO;
-    case 9:
-        return WT_KIND_ZAPPER;
-    case 16:
-        return WT_KIND_SHEEP;
-    case 43:
-        return WT_KIND_SINGLE;
-    case 44:
-        return WT_KIND_RYNO;
-    default:
-        return WT_KIND_NONE;
+        case 22: /* Chopper */
+        case 23: /* Pulse Rifle */
+        case 24: /* Seeker Gun */
+        case 25: /* Hoverbomb Gun */
+        case 26: /* Blitz Gun */
+        case 27: /* Minirocket Tube */
+        case 28: /* Plasma Coil */
+        case 29: /* Lava Gun */
+        case 30: /* Lancer */
+        case 31: /* Synthenoid */
+        case 32: /* Spiderbot Glove */
+        case 37: /* Bouncer */
+        case 41: /* Miniturret Glove */
+        case 42: /* Gravity Bomb */
+        case 45: /* Shield Charger */
+            return WT_KIND_FOUR;
+        case 12: /* Bomb Glove */
+        case 14: /* Visibomb Gun */
+        case 17: /* Decoy Glove */
+        case 18: /* Tesla Claw */
+        case 53: /* Walloper */
+            return WT_KIND_TWO;
+        case 9:
+            return WT_KIND_ZAPPER;
+        case 16:
+            return WT_KIND_SHEEP;
+        case 43:
+            return WT_KIND_SINGLE;
+        case 44:
+            return WT_KIND_RYNO;
+        default:
+            return WT_KIND_NONE;
     }
 }
 
@@ -229,22 +229,22 @@ int32_t wt_tint_rgb(wt_kind kind, int level, uint32_t tick) {
         return -1;
     }
     switch (s->tint) {
-    case WT_TINT_PRISMATIC: {
-        const uint32_t i = (tick / WT_PRISM_TICKS) % (uint32_t)WT_RGB_COUNT;
-        const uint32_t t = (tick % WT_PRISM_TICKS) * 256u / WT_PRISM_TICKS;
-        return mix(k_rgb[i], k_rgb[(i + 1u) % (uint32_t)WT_RGB_COUNT], t);
-    }
-    case WT_TINT_ORANGE:
-        return 0x0080FF;
-    case WT_TINT_ULTIMA: {
-        // Red that sinks to near black and back.
-        const uint32_t phase = tick % WT_ULTIMA_TICKS;
-        const uint32_t half = WT_ULTIMA_TICKS / 2u;
-        const uint32_t t = (phase < half ? phase : WT_ULTIMA_TICKS - phase) * 256u / half;
-        return mix(0x0000E0, 0x080808, t);
-    }
-    default:
-        return k_rgb[s->tint];
+        case WT_TINT_PRISMATIC: {
+            const uint32_t i = (tick / WT_PRISM_TICKS) % (uint32_t)WT_RGB_COUNT;
+            const uint32_t t = (tick % WT_PRISM_TICKS) * 256u / WT_PRISM_TICKS;
+            return mix(k_rgb[i], k_rgb[(i + 1u) % (uint32_t)WT_RGB_COUNT], t);
+        }
+        case WT_TINT_ORANGE:
+            return 0x0080FF;
+        case WT_TINT_ULTIMA: {
+            // Red that sinks to near black and back.
+            const uint32_t phase = tick % WT_ULTIMA_TICKS;
+            const uint32_t half = WT_ULTIMA_TICKS / 2u;
+            const uint32_t t = (phase < half ? phase : WT_ULTIMA_TICKS - phase) * 256u / half;
+            return mix(0x0000E0, 0x080808, t);
+        }
+        default:
+            return k_rgb[s->tint];
     }
 }
 

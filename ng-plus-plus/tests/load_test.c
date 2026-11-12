@@ -21,17 +21,21 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+
 static void* open_library(const char* path) {
     return (void*)LoadLibraryA(path);
 }
+
 static void* symbol(void* lib, const char* name) {
     return (void*)GetProcAddress((HMODULE)lib, name);
 }
 #else
 #include <dlfcn.h>
+
 static void* open_library(const char* path) {
     return dlopen(path, RTLD_NOW | RTLD_LOCAL);
 }
+
 static void* symbol(void* lib, const char* name) {
     return dlsym(lib, name);
 }
@@ -66,6 +70,7 @@ typedef struct hooked {
     const char* name;
     void* replacement;
 } hooked;
+
 static hooked s_hooks[16];
 static int s_hook_count;
 static openrac_frame_fn s_frame;
@@ -76,25 +81,31 @@ static int32_t get32(uint32_t a) {
     memcpy(&v, s_memory + a, 4);
     return v;
 }
+
 static void set32(uint32_t a, int32_t v) {
     memcpy(s_memory + a, &v, 4);
 }
+
 static uint16_t get16(uint32_t a) {
     uint16_t v;
     memcpy(&v, s_memory + a, 2);
     return v;
 }
+
 static void set16(uint32_t a, uint16_t v) {
     memcpy(s_memory + a, &v, 2);
 }
+
 static float getf(uint32_t a) {
     float v;
     memcpy(&v, s_memory + a, 4);
     return v;
 }
+
 static void setf(uint32_t a, float v) {
     memcpy(s_memory + a, &v, 4);
 }
+
 static uint32_t row(int r) {
     return s_disc->weapon_table + (uint32_t)r * WT_ROW_SIZE;
 }
@@ -115,25 +126,32 @@ static void game_build_list(int32_t hide) {
     }
     set32(ui + WT_VENDOR_COUNT, 2);
 }
+
 static int32_t game_price(void) {
     return 77;
 }
+
 static int32_t game_upgrade(int32_t id) {
     s_upgraded = id;
     return 0;
 }
+
 static void game_colors(int32_t id, uint32_t first, uint32_t second, uint32_t tint) {
     (void)id, (void)first, (void)second;
     set32(tint, (int32_t)0x60F08040u);
 }
+
 static void game_post_hit(uint32_t victim, uint32_t request) {
     (void)victim;
     s_damage_seen = getf(request + WT_HIT_DAMAGE);
 }
+
 static int32_t s_taken;
+
 static void game_take_damage(int32_t amount) {
     s_taken += amount;
 }
+
 static int32_t game_text(int32_t id) {
     return id == 0x1234 ? (int32_t)TEXT_AT : 0;
 }
@@ -143,19 +161,25 @@ static int32_t game_text(int32_t id) {
 static void host_log(openrac_mod* mod, int level, const char* text) {
     (void)mod, (void)level, (void)text;
 }
+
 static void host_fail(openrac_mod* mod, const char* reason) {
     (void)mod;
     snprintf(s_failed, sizeof s_failed, "%s", reason);
 }
+
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
     return strcmp(key, "notices") == 0 || strcmp(key, "enemy_scaling") == 0;
 }
+
 static double setting_float(openrac_mod* mod, const char* key) {
     (void)mod;
     return strcmp(key, "enemy_strength") == 0 ? 1.0 : 0.0;
 }
-static int host_hook(openrac_mod* mod, const char* name, const char* sig, void* replacement, void** original) {
+
+static int host_hook(
+    openrac_mod* mod, const char* name, const char* sig, void* replacement, void** original
+) {
     (void)mod, (void)sig;
     void* game = NULL;
     if (strcmp(name, WT_HOOK_Vendor_BuildList) == 0) {
@@ -179,6 +203,7 @@ static int host_hook(openrac_mod* mod, const char* name, const char* sig, void* 
     ++s_hook_count;
     return OPENRAC_HOOK_OK;
 }
+
 static void* hooked_fn(const char* name) {
     for (int i = 0; i < s_hook_count; ++i) {
         if (strcmp(s_hooks[i].name, name) == 0) {
@@ -187,34 +212,42 @@ static void* hooked_fn(const char* name) {
     }
     return NULL;
 }
+
 static int host_on_frame(openrac_mod* mod, openrac_frame_fn fn, void* user) {
     (void)mod;
     s_frame = fn;
     s_frame_user = user;
     return 0;
 }
+
 static void* host_function(const char* name) {
     return strcmp(name, s_disc->text) == 0 ? (void*)game_text : NULL;
 }
+
 static openrac_gaddr identity(openrac_gaddr a) {
     return a;
 }
+
 static int host_level(void) {
     return 1;
 }
+
 static int host_notice(openrac_mod* mod, const char* text) {
     (void)mod;
     snprintf(s_notice, sizeof s_notice, "%s", text);
     return OPENRAC_HOOK_OK;
 }
+
 static const char* host_data_dir(openrac_mod* mod) {
     (void)mod;
     return s_dir;
 }
+
 static int host_publish(openrac_mod* mod, const void* data, uint32_t size, const char* text) {
     (void)mod, (void)data, (void)size, (void)text;
     return OPENRAC_HOOK_OK;
 }
+
 static int host_on_rules(openrac_mod* mod, openrac_party_rules_fn fn, void* user) {
     (void)mod, (void)fn, (void)user;
     return 0;

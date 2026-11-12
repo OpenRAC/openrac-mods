@@ -78,12 +78,12 @@ static inline const wt_disc* wt_disc_of(const char* version) {
 #define WT_ROW_SIZE 0xE0u
 #define WT_ROW_VERSION 0x04u /* u8: its version, from 0 (func_00288870) */
 #define WT_ROW_TEXT 0x08u    /* s32: the name's text id the vendor's dialog prints */
-#define WT_ROW_CLASS 0x14u /* s32: the class the vendor shows */
-#define WT_ROW_NAME 0x48u  /* s16: its name's text id */
-#define WT_ROW_NEXT 0x4Au  /* s16: the next version's row, 0 at the last */
-#define WT_ROW_PARENT 0x4Cu /* s16: the version before's row, 0 at the first */
-#define WT_ROW_PRICE 0x80u  /* s32: its price (the Mega's: what the vendor's upgrade costs) */
-#define WT_ROW_AMMO 0x8Eu  /* u16: the most ammo */
+#define WT_ROW_CLASS 0x14u   /* s32: the class the vendor shows */
+#define WT_ROW_NAME 0x48u    /* s16: its name's text id */
+#define WT_ROW_NEXT 0x4Au    /* s16: the next version's row, 0 at the last */
+#define WT_ROW_PARENT 0x4Cu  /* s16: the version before's row, 0 at the first */
+#define WT_ROW_PRICE 0x80u   /* s32: its price (the Mega's: what the vendor's upgrade costs) */
+#define WT_ROW_AMMO 0x8Eu    /* u16: the most ammo */
 
 /* The hero's fields. */
 #define WT_HERO_HELD 0x1248u /* s32: the item in hand */
@@ -97,9 +97,9 @@ static inline const wt_disc* wt_disc_of(const char* version) {
 #define WT_VENDOR_COUNT 0x740u /* s32 */
 /* An entry's fields. */
 #define WT_ENTRY_ITEM 0x00u
-#define WT_ENTRY_KIND 0x04u    /* 1: the item's ammo */
-#define WT_ENTRY_CLASS 0x08u   /* the preview model's class (func_L00_0037A2E8 loads it) */
-#define WT_ENTRY_PRICE 0x0Cu   /* the price's text id, 0xCDB */
+#define WT_ENTRY_KIND 0x04u  /* 1: the item's ammo */
+#define WT_ENTRY_CLASS 0x08u /* the preview model's class (func_L00_0037A2E8 loads it) */
+#define WT_ENTRY_PRICE 0x0Cu /* the price's text id, 0xCDB */
 #define WT_ENTRY_MARKED 0x10u
 #define WT_ENTRY_UPGRADE 0x14u /* 1: an upgrade */
 #define WT_PRICE_TEXT 0xCDB

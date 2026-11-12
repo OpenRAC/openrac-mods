@@ -96,39 +96,46 @@ static int32_t (*s_text)(int32_t id);
 static wt_Text_ById s_text_by_id;
 static int s_in_text; /* in a text lookup of the mod's own: the game's texts as they are */
 static wt_Hero_TakeDamage s_take_damage;
-static int s_enemies;           /* the "enemy_scaling" setting */
-static float s_enemy_strength;  /* the "enemy_strength" setting */
-static float s_damage_carry;    /* the fraction of a point carried to the next hit */
+static int s_enemies;          /* the "enemy_scaling" setting */
+static float s_enemy_strength; /* the "enemy_strength" setting */
+static float s_damage_carry;   /* the fraction of a point carried to the next hit */
 
 /* ---- Game memory ---- */
 
 static uint8_t get_u8(openrac_gaddr a) {
     return s_api->memory[a];
 }
+
 static uint16_t get_u16(openrac_gaddr a) {
     uint16_t v;
     memcpy(&v, s_api->memory + a, 2);
     return v;
 }
+
 static void put_u16(openrac_gaddr a, uint16_t v) {
     memcpy(s_api->memory + a, &v, 2);
 }
+
 static int32_t get_s32(openrac_gaddr a) {
     int32_t v;
     memcpy(&v, s_api->memory + a, 4);
     return v;
 }
+
 static void put_s32(openrac_gaddr a, int32_t v) {
     memcpy(s_api->memory + a, &v, 4);
 }
+
 static float get_f32(openrac_gaddr a) {
     float v;
     memcpy(&v, s_api->memory + a, 4);
     return v;
 }
+
 static void put_f32(openrac_gaddr a, float v) {
     memcpy(s_api->memory + a, &v, 4);
 }
+
 static openrac_gaddr at(uint32_t address) {
     return s_api->relocate_data(address);
 }
@@ -143,9 +150,11 @@ static openrac_gaddr row_of(int item) {
 static int owned(int item) {
     return get_u8(at(s_disc->owned) + (uint32_t)item) != 0;
 }
+
 static int at_last(int item) {
     return get_u16(row_of(item) + WT_ROW_NEXT) == 0;
 }
+
 static int32_t exp_of(int item) {
     return get_s32(at(s_disc->exp) + 4u * (uint32_t)item) >> 5;
 }
@@ -205,8 +214,8 @@ static void step(int item) {
     put_s32(at(s_disc->exp) + 4u * (uint32_t)item, 0);
     {
         const openrac_gaddr row = row_of(item);
-        const int32_t base = s_ammo_base[item] > 0 ? s_ammo_base[item]
-                                                   : (int32_t)get_u16(row + WT_ROW_AMMO);
+        const int32_t base =
+            s_ammo_base[item] > 0 ? s_ammo_base[item] : (int32_t)get_u16(row + WT_ROW_AMMO);
         const int32_t most = wt_ammo_max(wt_kind_of(item), s_level[item], base);
         if (most > 0) {
             put_s32(at(s_disc->ammo) + 4u * (uint32_t)item, most);
@@ -303,8 +312,11 @@ static void build_list(int32_t hide_unowned) {
                 place = i + 1;
             }
         }
-        memmove(s_api->memory + entry(place + 1), s_api->memory + entry(place),
-                (size_t)(count - place) * WT_VENDOR_ENTRY_SIZE);
+        memmove(
+            s_api->memory + entry(place + 1),
+            s_api->memory + entry(place),
+            (size_t)(count - place) * WT_VENDOR_ENTRY_SIZE
+        );
         for (int k = 0; k < s_entry_count; ++k) {
             if (s_entry_at[k] >= place) {
                 ++s_entry_at[k];
@@ -698,7 +710,9 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     const int r = s_api->hook(s_mod, id, sig, replacement, original);
     if (r != OPENRAC_HOOK_OK) {
         char reason[160];
-        snprintf(reason, sizeof reason, "NG++ needs the hook point %s (OpenRAC with SDK 1.14.6)", id);
+        snprintf(
+            reason, sizeof reason, "NG++ needs the hook point %s (OpenRAC with SDK 1.14.6)", id
+        );
         s_api->fail(s_mod, reason);
         return 1;
     }
@@ -732,7 +746,9 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_disc = wt_disc_of(api->version);
     if (s_disc == NULL) {
         char reason[128];
-        snprintf(reason, sizeof reason, "NG++ knows NTSC-U, PAL and NTSC-U v2.00, not %s", api->version);
+        snprintf(
+            reason, sizeof reason, "NG++ knows NTSC-U, PAL and NTSC-U v2.00, not %s", api->version
+        );
         api->fail(mod, reason);
         return 1;
     }
@@ -740,21 +756,41 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_enemies = api->setting_bool(mod, "enemy_scaling");
     s_enemy_strength = (float)api->setting_float(mod, "enemy_strength");
     s_damage_carry = 0.0f;
-    s_text = (int32_t(*)(int32_t))api->function(s_disc->text);
+    s_text = (int32_t (*)(int32_t))api->function(s_disc->text);
 
-    if (take(WT_HOOK_Vendor_BuildList, WT_SIG_Vendor_BuildList, (void*)build_list, (void**)&s_build_list)
+    if (take(
+            WT_HOOK_Vendor_BuildList,
+            WT_SIG_Vendor_BuildList,
+            (void*)build_list,
+            (void**)&s_build_list
+        )
         || take(WT_HOOK_Vendor_Price, WT_SIG_Vendor_Price, (void*)price, (void**)&s_price)
         || take(WT_HOOK_Item_Upgrade, WT_SIG_Item_Upgrade, (void*)upgrade, (void**)&s_upgrade)
         || take(WT_HOOK_Item_Colors, WT_SIG_Item_Colors, (void*)colors, (void**)&s_colors)
         || take(WT_HOOK_Moby_PostHit, WT_SIG_Moby_PostHit, (void*)post_hit, (void**)&s_post_hit)
-        || take(WT_HOOK_Hero_TakeDamage, WT_SIG_Hero_TakeDamage, (void*)take_damage, (void**)&s_take_damage)) {
+        || take(
+            WT_HOOK_Hero_TakeDamage,
+            WT_SIG_Hero_TakeDamage,
+            (void*)take_damage,
+            (void**)&s_take_damage
+        )) {
         return 1;
     }
     // The tier's tint in the vendor's list: optional (an OpenRAC without these keeps the gold).
-    if (api->hook(mod, WT_HOOK_Vendor_DrawList, WT_SIG_Vendor_DrawList, (void*)draw_list,
-                  (void**)&s_draw_list) == OPENRAC_HOOK_OK
-        && api->hook(mod, WT_HOOK_Item_VersionColor, WT_SIG_Item_VersionColor, (void*)version_color,
-                     (void**)&s_version_color) != OPENRAC_HOOK_OK) {
+    if (api->hook(
+            mod,
+            WT_HOOK_Vendor_DrawList,
+            WT_SIG_Vendor_DrawList,
+            (void*)draw_list,
+            (void**)&s_draw_list
+        ) == OPENRAC_HOOK_OK
+        && api->hook(
+               mod,
+               WT_HOOK_Item_VersionColor,
+               WT_SIG_Item_VersionColor,
+               (void*)version_color,
+               (void**)&s_version_color
+           ) != OPENRAC_HOOK_OK) {
         s_version_color = NULL;
     }
     // The tier's name in the vendor: optional (an OpenRAC without it shows the game's "Mega").
