@@ -287,6 +287,11 @@ constexpr uint32_t kVecY = 4u;
 constexpr uint32_t kVecZ = 8u;
 constexpr uint32_t kVecW = 12u;
 constexpr uint32_t kVecSize = 16u;
+// A copy whose own start puts it within this of its original (a class that begins at its path's
+// first point, the birdbot's state 0) stands on it: it is taken out. A copy this far from its spot
+// moves on its own and is no longer watched.
+constexpr float kStackedDistance = 0.25f;
+constexpr float kAwakeDistance = 1.0f;
 
 // ---- State ----
 
@@ -322,6 +327,16 @@ uint32_t s_hit_owner[k_hits];
 // The animation speed each timed moby had from the game, and what the mod wrote over it. Game
 // thread only.
 std::unordered_map<uint32_t, std::pair<float, float>> s_anim;
+
+// The copies made at this level's load, watched until their first moves: the copy, its original,
+// its class and the spot it was put at. Game thread only.
+struct Watched {
+    gaddr copy;
+    gaddr orig;
+    int16_t cls;
+    float spot[3];
+};
+std::vector<Watched> s_watch;
 
 // How deep an enemy's update called from another's is, so that the time is scaled only once.
 int s_timed_depth;
@@ -1109,20 +1124,22 @@ void adjust_enemies(int level) {
             const auto in = fix.inner.find(wanted[i].block);
             static const std::vector<uint32_t> none;
 
+            const gaddr m = copy_moby(
+                wanted[i].moby,
+                wanted[i].cls,
+                spot,
+                wanted[i].size,
+                in == fix.inner.end() ? none : in->second,
+                &room,
+                &room_left
+            );
+
             // The game or the pvar room is out of space: no more copies of this enemy.
-            if (copy_moby(
-                    wanted[i].moby,
-                    wanted[i].cls,
-                    spot,
-                    wanted[i].size,
-                    in == fix.inner.end() ? none : in->second,
-                    &room,
-                    &room_left
-                )
-                == 0) {
+            if (m == 0) {
                 break;
             }
 
+            s_watch.push_back({m, wanted[i].moby, wanted[i].cls, {spot[0], spot[1], spot[2]}});
             ++made;
         }
     }
@@ -1153,6 +1170,7 @@ uint32_t load_gameplay(Original original, int32_t full) {
     // asks.
     const uint64_t seed = dm::level_values(level);
     s_anim.clear();
+    s_watch.clear();
     std::memset(s_hit_owner, 0, sizeof s_hit_owner);
     s_rng = dm::Rng(dm::mix(seed, kLevelRngSalt + static_cast<uint64_t>(level)));
 
@@ -1210,6 +1228,7 @@ void reset_state() {
     }
 
     s_timed_depth = 0;
+    s_watch.clear();
 }
 
 // Hooks the enemies' updates (their speed) and the nanotech orb's (health pickups). One a disc
@@ -1255,9 +1274,69 @@ int hook_updates(openrac::Mod& mod, std::string& missing) {
     return timed;
 }
 
+// The distance between two positions (or a moby's and a spot).
+float distance(gaddr a, const float b[3]) {
+    const float dx = get<float>(a + kMobyX) - b[0], dy = get<float>(a + kMobyY) - b[1],
+                dz = get<float>(a + kMobyZ) - b[2];
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+// After a tick: a watched copy that its class's own start put on its original (a path follower
+// begins at the path's first point, wherever it was placed) is taken out, before a frame draws the
+// two as one that splits apart when hit. A copy that moved away on its own is no longer watched.
+void check_copies() {
+    int removed = 0;
+
+    // Each watched copy, kept only while it has not moved on its own.
+    for (std::size_t i = 0; i < s_watch.size();) {
+        const Watched& w = s_watch[i];
+        const bool copy_alive = static_cast<int8_t>(get<uint8_t>(w.copy + kMobyState)) >= 0
+                                && get<int16_t>(w.copy + kMobyClass) == w.cls;
+        const bool orig_alive = static_cast<int8_t>(get<uint8_t>(w.orig + kMobyState)) >= 0
+                                && get<int16_t>(w.orig + kMobyClass) == w.cls;
+        bool done = !copy_alive || !orig_alive;
+
+        // Both are there: on the original's spot, or moved away from its own.
+        if (!done) {
+            const float at[3] = {get<float>(w.orig + kMobyX), get<float>(w.orig + kMobyY),
+                                 get<float>(w.orig + kMobyZ)};
+
+            // Its start put it on the original: take it out.
+            if (distance(w.copy, at) < kStackedDistance) {
+                s_delete_moby(w.copy);
+                ++removed;
+                done = true;
+            } else {
+                done = distance(w.copy, w.spot) > kAwakeDistance;
+            }
+        }
+
+        // Watched no more: the last one takes its place.
+        if (done) {
+            s_watch[i] = s_watch.back();
+            s_watch.pop_back();
+        } else {
+            ++i;
+        }
+    }
+
+    // Some were taken out: say how many.
+    if (removed > 0) {
+        s_mod->info(
+            std::to_string(removed)
+            + " copies taken out: their class started them on their original (a path's start)"
+        );
+    }
+}
+
 // Each frame: the events' clock (in play, with the events on), then max health. A party's member
 // has no clock: the host decides the events.
 void on_frame() {
+    // Copies made at this level's load and not yet moved on their own.
+    if (!s_watch.empty()) {
+        check_copies();
+    }
+
     // Chaos events are on and the game is in play: the clock runs on play time only.
     if (s_session.events_on && !s_follow && in_play()) {
         const double dt = get<float>(exe(s_disc->tick) + kTickSeconds);
