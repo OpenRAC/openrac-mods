@@ -661,21 +661,40 @@ def safe_rel(rel: str) -> bool:
     return bool(rel) and not rel.startswith("/") and ".." not in parts and not rel.startswith(".git")
 
 
-def push_master(repo: Path, paths: list[str], message: str, branch: str, run=run_cmd) -> str:
-    """Commits to master; if master refuses the push (protected), opens a pull request instead."""
+def push_master(repo: Path, paths: list[str], message: str, branch: str, run=run_cmd, write=None,
+                closes: str = "") -> str:
+    """Commits to master. Master moves often, so a refused push is retried on the new master, where
+    `write()` makes the change again (False: it is already there). Last resort: a pull request."""
     git = ["git", "-C", str(repo)]
     run(["gh", "auth", "setup-git"])
     run(git + ["config", "user.name", BOT_NAME])
     run(git + ["config", "user.email", BOT_EMAIL])
-    run(git + ["add", "--", *paths])
-    run(git + ["commit", "-m", message])
-    try:
-        run(git + ["push", "origin", "HEAD:refs/heads/master"])
-        return "master"
-    except subprocess.CalledProcessError:
-        run(git + ["push", "--force", "origin", f"HEAD:refs/heads/{branch}"])
-        return run(["gh", "pr", "create", "--base", "master", "--head", branch, "--title", message,
-                    "--body", "Opened by the index bot: master did not take a direct push."]).strip()
+    for attempt in range(4):
+        if attempt:
+            try:
+                run(git + ["fetch", "origin", "master"])
+                run(git + ["reset", "--hard", "FETCH_HEAD"])
+            except subprocess.CalledProcessError:
+                break
+        if write is not None and not write():
+            return "master"
+        run(git + ["add", "--", *paths])
+        run(git + ["commit", "-m", message])
+        try:
+            run(git + ["push", "origin", "HEAD:refs/heads/master"])
+            return "master"
+        except subprocess.CalledProcessError:
+            if write is None:
+                break
+    run(git + ["push", "--force", "origin", f"HEAD:refs/heads/{branch}"])
+    prs = json.loads(run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "url"]) or "[]")
+    if prs:
+        return prs[0]["url"]
+    body = "Opened by the index bot: master did not take a direct push."
+    if closes:
+        body += f"\n\nCloses #{closes}"
+    return run(["gh", "pr", "create", "--base", "master", "--head", branch, "--title", message,
+                "--body", body]).strip()
 
 
 # ------------------------------------------------------------------------------------------------
@@ -731,12 +750,17 @@ def approve(event: dict, repo: Path, http: b.Http, run=run_cmd) -> int:
         return 0
     mid, version = m.group(1), m.group(2)
     path = repo / "index" / "approved.json"
-    data = json.loads(path.read_text()) if path.is_file() else {}
-    vs = sorted(set(data.get(mid, [])) | {version}, key=b.semver_key)
-    data[mid] = vs
-    path.write_text(json.dumps(dict(sorted(data.items())), indent=2) + "\n")
+
+    def write() -> bool:
+        data = json.loads(path.read_text()) if path.is_file() else {}
+        if version in data.get(mid, []):
+            return False
+        data[mid] = sorted(set(data.get(mid, [])) | {version}, key=b.semver_key)
+        path.write_text(json.dumps(dict(sorted(data.items())), indent=2) + "\n")
+        return True
+
     where = push_master(repo, ["index/approved.json"], f"chore(index): approve {mid} {version}",
-                        f"approve/{mid}-{version}", run)
+                        f"approve/{mid}-{version}", run, write, num)
     if where == "master":
         run(["gh", "workflow", "run", "index.yml", "--ref", "master"], check=False)
         run(["gh", "issue", "close", num, "--comment",
@@ -805,8 +829,13 @@ def discussions(index: dict, repo: Path, run=run_cmd, category: str = "Mods") ->
         numbers[mod["id"]] = number
         changed = True
     if changed:
-        path.write_text(json.dumps(dict(sorted(numbers.items())), indent=2) + "\n")
-        push_master(repo, ["index/discussions.json"], "chore(index): discussion numbers", "index/discussions", run)
+        def write() -> bool:
+            now = json.loads(path.read_text()) if path.is_file() else {}
+            path.write_text(json.dumps(dict(sorted({**now, **numbers}.items())), indent=2) + "\n")
+            return True
+
+        push_master(repo, ["index/discussions.json"], "chore(index): discussion numbers", "index/discussions",
+                    run, write)
     return 0
 
 
