@@ -75,7 +75,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 26,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_12",
@@ -93,7 +101,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 12,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_37",
@@ -111,7 +127,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 37,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_22",
@@ -129,7 +153,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 22,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_9",
@@ -147,7 +179,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 9,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_17",
@@ -165,7 +205,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 17,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_42",
@@ -183,7 +231,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 42,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_25",
@@ -201,7 +257,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 25,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_30",
@@ -219,7 +283,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 30,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_29",
@@ -237,7 +309,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 29,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_27",
@@ -255,7 +335,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 27,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_41",
@@ -273,7 +361,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 41,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_28",
@@ -291,7 +387,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 28,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_23",
@@ -309,7 +413,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 23,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_44",
@@ -329,7 +441,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 44,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_24",
@@ -347,7 +467,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 24,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_16",
@@ -365,7 +493,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 16,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_45",
@@ -383,7 +519,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 45,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_32",
@@ -401,7 +545,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 32,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_31",
@@ -419,7 +571,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 31,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_18",
@@ -437,7 +597,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 18,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_14",
@@ -455,7 +623,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 14,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_53",
@@ -473,7 +649,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 53,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_43",
@@ -491,7 +675,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 43,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       }
     ]
   }
