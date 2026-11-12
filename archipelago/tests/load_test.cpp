@@ -92,6 +92,8 @@ int g_hooks;
 std::vector<std::pair<std::string, void*>> g_replacements;
 int g_level = LEVEL_NOVALIS;
 int g_scene = -1;
+int g_phase = OPENRAC_PLAY_PLAYING;
+bool g_vendor_present;
 int g_gives;
 std::string g_notice;
 std::string g_server;
@@ -250,7 +252,7 @@ int loaded_level() {
 }
 
 int play_status(openrac_play_status* s) {
-    s->phase = OPENRAC_PLAY_PLAYING;
+    s->phase = g_phase;
     s->level = g_level;
     s->loads = 1;
     return OPENRAC_HOOK_OK;
@@ -260,7 +262,13 @@ int scene_playing(int*) {
     return g_scene;
 }
 
-int moby_list(openrac_moby*, int) {
+int moby_list(openrac_moby* out, int max) {
+    if (g_vendor_present && max > 0) {
+        std::memset(out, 0, sizeof *out);
+        out->oclass = 0xB;
+        out->slot = 0;
+        return 1;
+    }
     return 0;
 }
 
@@ -280,7 +288,7 @@ openrac_api make_api() {
     api.api_major = OPENRAC_MOD_API_MAJOR;
     api.api_minor = OPENRAC_MOD_API_MINOR;
     api.game = "rac1";
-    api.version = "pal";
+    api.version = D->version;
     api.memory = g_memory.data();
     api.log = host_log;
     api.fail = host_fail;
@@ -475,6 +483,9 @@ int main(int argc, char** argv) {
     query(&info);
     CHECK(std::strcmp(info.id, "archipelago") == 0);
 
+    if (argc > 2 && std::strcmp(argv[2], "ntsc") == 0) {
+        D = &k_rando_discs[1];
+    }
     set_level(LEVEL_NOVALIS);
     *at(D->planets + LEVEL_NOVALIS) = 1;
     const openrac_api api = make_api();
@@ -485,6 +496,43 @@ int main(int argc, char** argv) {
     CHECK(frames_until([] { return g_connected; }));
     CHECK(frames_until([] { return *at(D->owned + ITEM_HELI_PACK) != 0; }));
     CHECK(*at(D->obtained + ITEM_HELI_PACK) == 0);
+
+    // The physical vendor must include automatically generated ammo when its
+    // last shuffled reward is gone, and recover if previously guarded empty.
+    {
+        uint8_t saved_owned[RANDO_ITEM_COUNT], saved_stock[VENDOR_STOCK_SIZE];
+        std::memcpy(saved_owned, at(D->owned), sizeof saved_owned);
+        std::memcpy(saved_stock, at(D->vendor_stock), sizeof saved_stock);
+        std::memset(at(D->owned), 0, sizeof saved_owned);
+        std::memset(at(D->vendor_stock), 0xFF, sizeof saved_stock);
+        const uint32_t pool = std::strcmp(D->version, "pal") == 0 ? 0x160098 : 0x15FFD8;
+        const uint32_t moby = 0x1800000;
+        std::memcpy(at(pool), &moby, sizeof moby);
+        const int16_t cls = 0xB;
+        std::memcpy(at(moby + 0xA6), &cls, sizeof cls);
+        *at(moby + 0x52) = 7;
+        const uint16_t price = 1;
+        std::memcpy(at(D->item_price_table + ITEM_GLOVE_OF_DOOM * 0x18 + 8), &price, 2);
+        g_phase = OPENRAC_PLAY_MENU; // leave fixture inventory unchanged by gifts
+        g_vendor_present = true;
+        *at(D->owned + ITEM_GLOVE_OF_DOOM) = 1;
+        g_frame(g_frame_user);
+        CHECK(*at(moby + 0x52) == 7);
+        *at(D->owned + ITEM_GLOVE_OF_DOOM) = 0;
+        *at(D->owned + ITEM_WALLOPER) = 1; // owns a weapon, but no ammo to sell
+        g_frame(g_frame_user);
+        CHECK(*at(moby + 0x52) == 0);
+        *at(D->owned + ITEM_GLOVE_OF_DOOM) = 1;
+        g_frame(g_frame_user);
+        CHECK(*at(moby + 0x52) == 7);
+        g_frame(g_frame_user);
+        CHECK(*at(moby + 0x52) == 7);
+        g_vendor_present = false;
+        std::memset(at(pool), 0, 4);
+        std::memcpy(at(D->owned), saved_owned, sizeof saved_owned);
+        std::memcpy(at(D->vendor_stock), saved_stock, sizeof saved_stock);
+        g_phase = OPENRAC_PLAY_PLAYING;
+    }
 
     // Its banner, in another level's text, is not left on screen.
     CHECK(g_gives > 0 && std::strcmp(reinterpret_cast<char*>(at(D->banner_text)), "Paradox") != 0);
