@@ -61,6 +61,17 @@
         "macos-x86_64": "c7b555db8ae40bbbfe4cfc0de16b4f69181cb53bda443ce5a0c4d117a9fd3a10",
         "windows-x86_64": "3df61b7efdabe89209132f4aa58c7624c27571b2e5fbff5da2be295de93b4468"
       }
+    },
+    {
+      "version": "1.0.1",
+      "sha256": {
+        "android-arm64": "a3ec5b5625c7b1632d64604bae3268140f92f634627566a020d3e077595896a9",
+        "linux-aarch64": "6763920c00feaf1d155a6fa14e4b2f06d20516f4c5b90c13c14084172c037fea",
+        "linux-x86_64": "ad9f49897deafff6fb2d17a39e03ed0675870d6d494d162ce7d68fccca6a4faf",
+        "macos-arm64": "154c7a9e19c3ce71dbdbb21f1d2a533e12c023c09221ba509405276d810769fe",
+        "macos-x86_64": "08d0f4630221affd62cc623f7beafee8bd7bd4b23ee6dd54d17ea6f07adf6525",
+        "windows-x86_64": "0f06ec45ba3312cbfa4508d804eb7ca381ede7a0b36a9305595df216899cd933"
+      }
     }
   ],
   "modern-controls": [
