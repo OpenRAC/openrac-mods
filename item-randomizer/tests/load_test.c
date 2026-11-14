@@ -112,7 +112,8 @@ static int s_keep_start = 1;
 static int32_t s_last_equip = -1;
 static uint8_t s_ship_saw = 0xEE, s_class22_saw = 0xEE;
 static int s_helps;
-static int s_drop_saw;
+static uint8_t s_drop_stock[VENDOR_STOCK_SIZE];
+static openrac_gaddr s_drop_moby;
 static char s_notice[128];
 static int s_phase = OPENRAC_PLAY_PLAYING;
 static int s_new_game_only; /* the "new_game_only" setting the host gives */
@@ -324,9 +325,13 @@ static int32_t game_help(int32_t message, int32_t slot) {
 }
 
 static int32_t game_drop(openrac_gaddr moby, openrac_gaddr out_item) {
-    (void)moby, (void)out_item;
-    s_drop_saw = s_memory[D->vendor_stock];
-    return 1;
+    s_drop_moby = moby;
+    memcpy(s_drop_stock, s_memory + D->vendor_stock, sizeof s_drop_stock);
+    if (out_item && get32(s_memory + out_item) <= 0) {
+        set32(s_memory + out_item, s_drop_stock[0] == 0xFF
+            ? ITEM_BOMB_GLOVE : s_drop_stock[0] & 0x3F);
+    }
+    return 2;
 }
 
 static void game_helmet(openrac_gaddr moby) {
@@ -813,6 +818,43 @@ static int check_vendor(
     memset(stock, 0xFF, VENDOR_STOCK_SIZE);
     s_frame(NULL);
     return vendor_slots;
+}
+
+/* Selector spy assertions: test the wrapper, not a duplicate of retail selection. */
+static void check_ammo_drop(void) {
+    openrac_rac1_Ammo_ChooseDrop drop =
+        (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
+    uint8_t saved_owned[RANDO_ITEM_COUNT], saved_prices[VENDOR_ITEM_COUNT * 0x18];
+    uint8_t saved_stock[VENDOR_STOCK_SIZE], real[VENDOR_STOCK_SIZE];
+    const openrac_gaddr output = 0x120000, moby = 0x121000;
+    memcpy(saved_owned, s_memory + D->owned, sizeof saved_owned);
+    memcpy(saved_prices, s_memory + D->item_price_table, sizeof saved_prices);
+    memcpy(saved_stock, s_memory + D->vendor_stock, sizeof saved_stock);
+    memset(s_memory + D->owned, 0, sizeof saved_owned);
+    memset(s_memory + D->item_price_table, 0, sizeof saved_prices);
+    memset(real, 0xFF, sizeof real);
+    real[0] = ITEM_BOMB_GLOVE | 0x40;
+    memcpy(s_memory + D->vendor_stock, real, sizeof real);
+    s_memory[D->owned + ITEM_DEVASTATOR] = 1;
+    s_memory[D->owned + ITEM_HELI_PACK] = 1;
+    set32(s_memory + D->item_price_table + ITEM_DEVASTATOR * 0x18 + 8, 1);
+    set32(s_memory + D->item_price_table + ITEM_BOMB_GLOVE * 0x18 + 8, 1);
+    set32(s_memory + output, -1);
+    CHECK(drop(moby, output) == 2 && s_drop_moby == moby);
+    CHECK(get32(s_memory + output) == ITEM_DEVASTATOR);
+    CHECK(s_drop_stock[0] == (ITEM_DEVASTATOR | 0x40));
+    for (int i = 1; i < VENDOR_STOCK_SIZE; ++i) CHECK(s_drop_stock[i] == 0xFF);
+    CHECK(memcmp(s_memory + D->vendor_stock, real, sizeof real) == 0);
+    set32(s_memory + output, ITEM_BOMB_GLOVE);
+    CHECK(drop(moby, output) == 2 && get32(s_memory + output) == ITEM_BOMB_GLOVE);
+    s_memory[D->owned + ITEM_DEVASTATOR] = 0;
+    set32(s_memory + output, -1);
+    CHECK(drop(0, output) == 2 && get32(s_memory + output) == ITEM_BOMB_GLOVE);
+    CHECK(s_drop_stock[0] == 0xFF && s_drop_moby == 0);
+    CHECK(memcmp(s_memory + D->vendor_stock, real, sizeof real) == 0);
+    memcpy(s_memory + D->owned, saved_owned, sizeof saved_owned);
+    memcpy(s_memory + D->item_price_table, saved_prices, sizeof saved_prices);
+    memcpy(s_memory + D->vendor_stock, saved_stock, sizeof saved_stock);
 }
 
 int main(int argc, char** argv) {
@@ -1368,14 +1410,6 @@ int main(int argc, char** argv) {
     CHECK(help(other_help, 1) == 1 && s_helps == 0);
     CHECK(help(0x1234, 1) == 1 && s_helps == 1);
 
-    /* A crate's drop sees the list's stock, the real one back after. */
-    openrac_rac1_Ammo_ChooseDrop drop = (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
-    memset(s_memory + D->vendor_stock, 0xFF, 12);
-    s_memory[D->vendor_stock] = ITEM_PYROCITOR;
-    s_memory[D->owned + ITEM_PYROCITOR] = 1;
-    CHECK(drop(0, 0) == 1);
-    CHECK(s_memory[D->vendor_stock] == ITEM_PYROCITOR && s_drop_saw == ITEM_PYROCITOR);
-
     /* The line over the vendor: the slot under the cursor, gone when the menu closes. */
     openrac_rac1_Vendor_MenuUpdate menu_update =
         (openrac_rac1_Vendor_MenuUpdate)hook_named("Vendor_MenuUpdate");
@@ -1441,8 +1475,14 @@ int main(int argc, char** argv) {
         s_frame(NULL);
         CHECK(s_memory[D->owned + x] == 1 && s_memory[D->owned + xr] == 0);
         CHECK(tag_word() == 0);
-        /* Its vendor list is the game's own. */
+        /* Its vendor list and ammo selection are the game's own. */
         build(0);
+        openrac_rac1_Ammo_ChooseDrop unchanged_drop =
+            (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
+        uint8_t unchanged_stock[VENDOR_STOCK_SIZE];
+        memcpy(unchanged_stock, s_memory + D->vendor_stock, sizeof unchanged_stock);
+        CHECK(unchanged_drop(0, 0) == 2);
+        CHECK(memcmp(s_drop_stock, unchanged_stock, sizeof unchanged_stock) == 0);
 
         /* Another seed's save: the game's own as well. */
         memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
@@ -1520,6 +1560,7 @@ int main(int argc, char** argv) {
         memset(s_memory + D->item_price_table, 0, 37 * 0x18);
         set32(s_memory + D->item_price_table + ITEM_BOMB_GLOVE * 0x18 + 8, 1);
         s_frame(NULL); /* claim the save for this seed */
+        check_ammo_drop();
 
         /* Circle and Triangle use remembered selections without checking ownership, even
          * when stock init did not insert a Bomb Glove ammunition row. */

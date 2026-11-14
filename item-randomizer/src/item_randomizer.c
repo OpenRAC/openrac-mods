@@ -38,7 +38,7 @@
  *   - Vendor_BuildItemList: the vendor's stock as the menu sees it is the slots not yet bought
  *     for sale, a bought slot as its reward's ammo, and the weapons owned as ammo; after a
  *     purchase the cursor stays on the list and the menu shows the entry now under it.
- *     Ammo_ChooseDrop: the same stock, so that a crate drops ammo for a weapon owned out of its
+ *     Ammo_ChooseDrop: all owned ammo weapons, so that a crate drops ammo for a weapon owned out of its
  *     level's order. Vendor_MenuUpdate: the line above the picture names what a slot holds.
  *   - Vendor_InitLevelStock: with the starting gear shuffled, the Bomb Glove the game puts in the
  *     stock and as the double tap's weapon is taken out again when the reward was another.
@@ -1480,19 +1480,28 @@ static void build_item_list(int32_t skip_unflagged) {
     }
 }
 
-/* Hook for Ammo_ChooseDrop: from the stock as the menu sees it, so that a weapon owned out of its
- * level's order has its ammo drop too. */
+/* Keep the retail selector's assigned first drops, low-ammo priority and Bomb Glove
+ * fallback. Only its candidate stock changes: The randomizer can grant a weapon before the
+ * planet that normally puts it in the vendor stock. Never change the saved stock. */
 static int32_t choose_drop(openrac_gaddr moby, openrac_gaddr out_item) {
-    // A game not this seed's: the game's own drop.
+    // Saves outside this seed retain the game's unmodified selection.
     if (!rando_on()) {
         return s_choose_drop(moby, out_item);
     }
 
     uint8_t* stock = byte_at(s_disc->vendor_stock);
-    uint8_t real[VENDOR_STOCK_SIZE], shown[VENDOR_STOCK_SIZE];
+    uint8_t real[VENDOR_STOCK_SIZE];
+    const uint8_t* prices = level_byte_at(s_disc->item_price_table);
+    int count = 0;
     memcpy(real, stock, sizeof real);
-    vendor_stock_shown(real, shown);
-    memcpy(stock, shown, sizeof shown);
+    memset(stock, STOCK_END, VENDOR_STOCK_SIZE);
+    for (int item = 0; item < VENDOR_ITEM_COUNT && count < VENDOR_STOCK_SIZE - 1; ++item) {
+        uint16_t ammo_supported;
+        memcpy(&ammo_supported, prices + item * 0x18 + 0x08, sizeof ammo_supported);
+        if (*owned(item) && ammo_supported != 0) {
+            stock[count++] = (uint8_t)(item | STOCK_AMMO);
+        }
+    }
     const int32_t result = s_choose_drop(moby, out_item);
     memcpy(stock, real, sizeof real);
     return result;

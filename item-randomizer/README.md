@@ -312,3 +312,11 @@ with New games only's new game, tagged save, untagged save and another seed's sa
   game, or a save carrying its seed's tag) and leaves any other save as the game has it, so an
   update or a mod switched on can no longer change a playthrough partway. Ratchet & Clank saves
   now carry the tag too. Built against the mod SDK 1.14.4.
+
+### Ratchet & Clank ammo drops
+
+Crates retain the game's assigned first-break ammo. When the game rolls a new
+ammo type, candidates include all owned weapons that support ammunition, even
+when absent from the planet's vendor stock. The original selector retains its
+low-ammo priority and Bomb Glove fallback. The real vendor stock is restored
+after the call. Saves outside this seed retain the game's original behavior.
