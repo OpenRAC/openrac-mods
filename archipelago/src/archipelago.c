@@ -163,6 +163,7 @@ static openrac_rac1_Item_Give s_item_give;
 static openrac_rac1_Planet_Unlock s_planet_unlock;
 static openrac_rac1_Vendor_InitLevelStock s_init_level_stock;
 static openrac_rac1_Vendor_BuildItemList s_build_item_list;
+static openrac_rac1_Ammo_ChooseDrop s_choose_drop;
 static openrac_rac1_Vendor_OpenMenu s_open_vendor_menu;
 static openrac_rac1_GoldBolts_CountCollected s_count_gold_bolts;
 static openrac_rac1_Moby_Infobot_Update s_infobot_update;
@@ -1061,6 +1062,28 @@ static void settle_menu_after_purchase(void) {
     s_bought = -1;
 }
 
+/* Keep the retail selector's assigned first drops, low-ammo priority and Bomb Glove
+ * fallback. Only its candidate stock changes: AP can grant a weapon before the
+ * planet that normally puts it in the vendor stock. Never change the saved stock. */
+static int32_t choose_drop(openrac_gaddr moby, openrac_gaddr out_item) {
+    uint8_t* stock = byte_at(s_disc->vendor_stock);
+    uint8_t real[VENDOR_STOCK_SIZE];
+    const uint8_t* prices = level_byte_at(s_disc->item_price_table);
+    int count = 0;
+    memcpy(real, stock, sizeof real);
+    memset(stock, STOCK_END, VENDOR_STOCK_SIZE);
+    for (int item = 0; item < VENDOR_ITEM_COUNT && count < VENDOR_STOCK_SIZE - 1; ++item) {
+        uint16_t ammo_supported;
+        memcpy(&ammo_supported, prices + item * 0x18 + 0x08, sizeof ammo_supported);
+        if (*owned(item) && ammo_supported != 0) {
+            stock[count++] = (uint8_t)(item | STOCK_AMMO);
+        }
+    }
+    const int32_t result = s_choose_drop(moby, out_item);
+    memcpy(stock, real, sizeof real);
+    return result;
+}
+
 /* Hook for VendorBuildItemList: built from the stock as the menu should see it. */
 static void build_item_list(int32_t skip_unflagged) {
     uint8_t* stock = byte_at(s_disc->vendor_stock);
@@ -1443,6 +1466,7 @@ static int install_hooks(void) {
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
            && HOOK(Vendor_InitLevelStock, init_level_stock, &s_init_level_stock)
            && HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)
+           && HOOK(Ammo_ChooseDrop, choose_drop, &s_choose_drop)
            && HOOK(GoldBolts_CountCollected, count_gold_bolts_hook, &s_count_gold_bolts)
            && HOOK(Moby_Infobot_Update, infobot_update, &s_infobot_update)
            && HOOK(Moby_PilotsHelmet_Update, helmet_update, &s_helmet_update)

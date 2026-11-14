@@ -163,6 +163,22 @@ int32_t game_help(int32_t, int32_t) {
     return 0;
 }
 
+// A selector spy: the hook must preserve arguments, output and pickup count while
+// presenting only owned ammo weapons, including those absent from vendor stock.
+std::vector<uint8_t> g_drop_stock;
+openrac_gaddr g_drop_moby;
+int32_t game_drop(openrac_gaddr moby, openrac_gaddr out_item) {
+    g_drop_moby = moby;
+    g_drop_stock.assign(at(D->vendor_stock), at(D->vendor_stock) + VENDOR_STOCK_SIZE);
+    int32_t item;
+    std::memcpy(&item, at(out_item), 4);
+    if (item <= 0) {
+        item = g_drop_stock[0] == 0xff ? ITEM_BOMB_GLOVE : g_drop_stock[0] & 0x3f;
+        std::memcpy(at(out_item), &item, 4);
+    }
+    return 2;
+}
+
 void game_void() {}
 
 void game_i32(int32_t) {}
@@ -244,6 +260,7 @@ void* original_for(const std::string& name) {
     if (name == OPENRAC_RAC1_HOOK_Vendor_InitLevelStock) {
         return (void*)game_void;
     }
+    if (name == OPENRAC_RAC1_HOOK_Ammo_ChooseDrop) return (void*)game_drop;
     if (name == OPENRAC_RAC1_HOOK_Vendor_BuildItemList) {
         return (void*)game_i32;
     }
@@ -594,7 +611,7 @@ int main(int argc, char** argv) {
     { std::ofstream book(dir / "save-slots.tsv"); book << "4\told-seed\tRatchet\n"; }
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 35 && g_frame != nullptr);
+    CHECK(g_hooks == 36 && g_frame != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 
@@ -607,6 +624,40 @@ int main(int argc, char** argv) {
         std::memcpy(&value, at(address), 4);
         return value;
     };
+    // Run on both discs: an out-of-order starting weapon must reach the selector.
+    auto drop = (openrac_rac1_Ammo_ChooseDrop)replacement(OPENRAC_RAC1_HOOK_Ammo_ChooseDrop);
+    constexpr uint32_t output = 0x120000, dropper = 0x121000;
+    std::vector<uint8_t> saved_owned(at(D->owned), at(D->owned) + RANDO_ITEM_COUNT);
+    std::vector<uint8_t> saved_prices(at(D->item_price_table), at(D->item_price_table) + VENDOR_ITEM_COUNT * 0x18);
+    std::vector<uint8_t> saved_stock(at(D->vendor_stock), at(D->vendor_stock) + VENDOR_STOCK_SIZE);
+    std::memset(at(D->owned), 0, RANDO_ITEM_COUNT);
+    std::memset(at(D->item_price_table), 0, VENDOR_ITEM_COUNT * 0x18);
+    std::memset(at(D->vendor_stock), 0xff, VENDOR_STOCK_SIZE);
+    *at(D->vendor_stock) = ITEM_BOMB_GLOVE | 0x40;
+    std::vector<uint8_t> real_stock(at(D->vendor_stock), at(D->vendor_stock) + VENDOR_STOCK_SIZE);
+    *at(D->owned + ITEM_DEVASTATOR) = 1;
+    *at(D->owned + ITEM_HELI_PACK) = 1; // owned non-ammo gadget must be excluded
+    *at(D->item_price_table + ITEM_DEVASTATOR * 0x18 + 8) = 1;
+    *at(D->item_price_table + ITEM_BOMB_GLOVE * 0x18 + 8) = 1; // unowned must be excluded
+    put(output, -1);
+    CHECK(drop(dropper, output) == 2);
+    CHECK(g_drop_moby == dropper && get(output) == ITEM_DEVASTATOR);
+    CHECK(g_drop_stock[0] == (ITEM_DEVASTATOR | 0x40));
+    for (int i = 1; i < VENDOR_STOCK_SIZE; ++i) CHECK(g_drop_stock[i] == 0xff);
+    CHECK(std::memcmp(at(D->vendor_stock), real_stock.data(), VENDOR_STOCK_SIZE) == 0);
+    // Assigned first-break ammo must pass through, even if that weapon is unowned.
+    put(output, ITEM_BOMB_GLOVE);
+    CHECK(drop(dropper, output) == 2 && get(output) == ITEM_BOMB_GLOVE);
+    // No candidates: delegate the retail fallback with an empty, terminated list.
+    *at(D->owned + ITEM_DEVASTATOR) = 0;
+    put(output, -1);
+    CHECK(drop(0, output) == 2 && get(output) == ITEM_BOMB_GLOVE);
+    CHECK(g_drop_stock[0] == 0xff && g_drop_moby == 0);
+    CHECK(std::memcmp(at(D->vendor_stock), real_stock.data(), VENDOR_STOCK_SIZE) == 0);
+    std::memcpy(at(D->owned), saved_owned.data(), saved_owned.size());
+    std::memcpy(at(D->item_price_table), saved_prices.data(), saved_prices.size());
+    std::memcpy(at(D->vendor_stock), saved_stock.data(), saved_stock.size());
+
     auto init_stock = (openrac_rac1_Vendor_InitLevelStock)replacement(OPENRAC_RAC1_HOOK_Vendor_InitLevelStock);
     set_level(LEVEL_VELDIN);
     put(D->last_weapon, ITEM_BOMB_GLOVE);
