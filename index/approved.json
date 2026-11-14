@@ -3,6 +3,19 @@
     "0.1.0",
     "0.2.0"
   ],
+  "auto-swingshot": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "3d8e7e2d458a4da9f4829a0976b2a03b0f03d1daa6cfde296f0366db1435c54f",
+        "linux-aarch64": "215f64acc96c23525d5d883838aa451e2d5c72a626997383d070afa8565de756",
+        "linux-x86_64": "dd0bd939dd81d11d25397bf45dcbd0179aa263a1f9f383f7c8ccfddd4489635a",
+        "macos-arm64": "a59a8c9b98979a6e3573afabd3141743eb1f60e96adf2722eecb457f69dac179",
+        "macos-x86_64": "dd37cf52c2f900636943a36984d187e098f3da3f64a9a153c055a8d01f5daae2",
+        "windows-x86_64": "02c84b03fe3c3697b05d6a4531840e592407a0f604b4027ba8ae949abec8ef58"
+      }
+    }
+  ],
   "better-pause-menu": [
     "0.1.0",
     "0.8.7"
