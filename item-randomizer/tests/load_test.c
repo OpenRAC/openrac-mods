@@ -272,10 +272,45 @@ static int32_t game_count(void) {
     return 123;
 }
 
+/* Save inside an NPC update, while its ownership test is substituted. The save
+ * entry points can call each other; every snapshot must see the true inventory. */
+static void* hook_named(const char* name);
+static int s_save_probe, s_save_snapshots;
+static uint8_t s_saved_inventory[RANDO_ITEM_COUNT];
+static void snapshot_inventory(void) {
+    memcpy(s_saved_inventory, s_memory + D->owned, sizeof s_saved_inventory);
+    ++s_save_snapshots;
+}
+static void game_save_serialize(openrac_gaddr out) {
+    CHECK(out == 0x1234u);
+    snapshot_inventory();
+}
+static void game_save_prepare(int32_t buffer, int32_t slot) {
+    CHECK(buffer == 0x1234 && slot == 7);
+    snapshot_inventory();
+    void (*serialize)(openrac_gaddr) = (void (*)(openrac_gaddr))hook_named("rac1.save.serialize");
+    if (serialize) serialize(0x1234u); else game_save_serialize(0x1234u);
+    CHECK(memcmp(s_saved_inventory, s_memory + D->owned, sizeof s_saved_inventory) == 0);
+}
+static int32_t game_request_autosave(int32_t slot, int32_t flags) {
+    CHECK(slot == 7 && flags == -1);
+    snapshot_inventory();
+    void (*prepare)(int32_t, int32_t) = (void (*)(int32_t, int32_t))hook_named("rac1.save.prepare");
+    if (prepare) prepare(0x1234, 7); else game_save_prepare(0x1234, 7);
+    CHECK(memcmp(s_saved_inventory, s_memory + D->owned, sizeof s_saved_inventory) == 0);
+    return 99;
+}
+
 /* Helga: what she sees of the Swingshot; then she gives it when she is not done. */
 static void game_helga(openrac_gaddr moby) {
     (void)moby;
     s_helga_saw = s_memory[D->owned + ITEM_SWINGSHOT];
+    if (s_save_probe) {
+        int32_t (*save)(int32_t, int32_t) = (int32_t (*)(int32_t, int32_t))hook_named("rac1.save.request_autosave");
+        CHECK((save ? save(7, -1) : game_request_autosave(7, -1)) == 99);
+        /* Saving must not change what the remainder of the NPC's update sees. */
+        CHECK(s_memory[D->owned + ITEM_SWINGSHOT] == s_helga_saw);
+    }
 }
 
 /* An infobot: unlocks its planet when its planet's flag is clear, and marks its trigger slot. */
@@ -418,6 +453,9 @@ static void game_new_game_plus(int32_t slot) {
 }
 
 static void* original_for(const char* name) {
+    if (strcmp(name, "rac1.save.prepare") == 0) return (void*)game_save_prepare;
+    if (strcmp(name, "rac1.save.request_autosave") == 0) return (void*)game_request_autosave;
+    if (strcmp(name, "rac1.save.serialize") == 0) return (void*)game_save_serialize;
     if (strcmp(name, ITEM_RANDOMIZER_HOOK_Save_NewGame) == 0) {
         return (void*)game_new_game;
     }
@@ -858,7 +896,7 @@ static void check_ammo_drop(void) {
 }
 
 int main(int argc, char** argv) {
-    CHECK(argc == 2);
+    CHECK(argc == 2 || (argc == 3 && strcmp(argv[2], "ntsc") == 0));
     void* lib = open_library(argv[1]);
     CHECK(lib != NULL);
     openrac_mod_query_fn query = (openrac_mod_query_fn)symbol(lib, OPENRAC_MOD_QUERY);
@@ -892,7 +930,7 @@ int main(int argc, char** argv) {
     D = &k_rando_discs[1];
     api = make_api("rac1", "ntsc");
     s_failed[0] = 0;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 21 && s_frame != NULL);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 24 && s_frame != NULL);
     s_hook_count = 0;
 
     /* An OpenRAC older than a hook point: the load fails and says which. */
@@ -906,9 +944,9 @@ int main(int argc, char** argv) {
         s_hook_count = 0;
     }
 
-    D = &k_rando_discs[0];
-    api = make_api("rac1", "pal");
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 21);
+    D = &k_rando_discs[argc > 2 && strcmp(argv[2], "ntsc") == 0 ? 1 : 0];
+    api = make_api("rac1", D->version);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 24);
     static const char* const points[][2] = {
         {OPENRAC_RAC1_HOOK_Vendor_OpenMenu, OPENRAC_RAC1_SIG_Vendor_OpenMenu},
         {OPENRAC_RAC1_HOOK_Item_Give, OPENRAC_RAC1_SIG_Item_Give},
@@ -931,9 +969,12 @@ int main(int argc, char** argv) {
         {OPENRAC_RAC1_HOOK_Ship_InitTransition, OPENRAC_RAC1_SIG_Ship_InitTransition},
         {ITEM_RANDOMIZER_HOOK_Save_NewGame, ITEM_RANDOMIZER_SIG_Save_NewGame},
         {ITEM_RANDOMIZER_HOOK_Save_NewGamePlus, ITEM_RANDOMIZER_SIG_Save_NewGamePlus},
+        {ITEM_RANDOMIZER_HOOK_Save_Prepare, ITEM_RANDOMIZER_SIG_Save_Prepare},
+        {ITEM_RANDOMIZER_HOOK_Save_RequestAutosave, ITEM_RANDOMIZER_SIG_Save_RequestAutosave},
+        {ITEM_RANDOMIZER_HOOK_Save_Serialize, ITEM_RANDOMIZER_SIG_Save_Serialize},
     };
 
-    for (int i = 0; i < 20; ++i) {
+    for (size_t i = 0; i < sizeof points / sizeof points[0]; ++i) {
         CHECK(
             strcmp(s_hooks[i].name, points[i][0]) == 0
             && strcmp(s_hooks[i].signature, points[i][1]) == 0
@@ -1003,6 +1044,27 @@ int main(int argc, char** argv) {
     }
 
     printf("Helga gave %d/%d\n", r.kind, r.value);
+    /* A save made by the NPC must not persist the displayed owned byte. */
+    if (r.kind != REWARD_ITEM || r.value != ITEM_SWINGSHOT) {
+        uint8_t real_inventory[RANDO_ITEM_COUNT];
+        memcpy(real_inventory, s_memory + D->owned, sizeof real_inventory);
+        s_save_probe = 1;
+        s_save_snapshots = 0;
+        helga(0x00100000u);
+        CHECK(s_save_snapshots == 3);
+        CHECK(s_saved_inventory[ITEM_SWINGSHOT] == 0);
+        CHECK(memcmp(real_inventory, s_saved_inventory, sizeof real_inventory) == 0);
+        CHECK(memcmp(real_inventory, s_memory + D->owned, sizeof real_inventory) == 0);
+        /* Simulate the inventory packet's reload: reward kept, no original gadget. */
+        memcpy(s_memory + D->owned, s_saved_inventory, sizeof s_saved_inventory);
+        CHECK(s_memory[D->owned + ITEM_SWINGSHOT] == 0);
+        s_memory[D->owned + ITEM_SWINGSHOT] = 1;
+        helga(0x00100000u);
+        CHECK(s_saved_inventory[ITEM_SWINGSHOT] == 1); /* legitimately owned */
+        s_save_probe = 0;
+        s_memory[D->owned + ITEM_SWINGSHOT] = 0;
+    }
+
     /* Now had: she sees it so. */
     helga(0x00100000u);
     CHECK(s_helga_saw == 1);
@@ -1437,7 +1499,7 @@ int main(int argc, char** argv) {
         s_keep_start = 1;
         s_seed = "new games only";
         s_hook_count = 0;
-        CHECK(load(&api, mod) == 0 && s_hook_count == 21);
+        CHECK(load(&api, mod) == 0 && s_hook_count == 24);
         openrac_rac1_Item_Give g = (openrac_rac1_Item_Give)hook_named("Item_Give");
         void (*new_game)(void) = (void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame);
         void (*new_game_plus)(int32_t) =

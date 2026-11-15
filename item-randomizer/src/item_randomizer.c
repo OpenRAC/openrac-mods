@@ -460,6 +460,37 @@ static void swaps_resume(void) {
     }
 }
 
+/* An NPC may save before its update returns. Never serialize the ownership
+ * bytes shown only to its collection test. Nested save calls must not resume
+ * the substitutions until the outermost save has finished. */
+static unsigned s_save_depth;
+static void (*s_save_prepare)(int32_t, int32_t);
+static int32_t (*s_request_autosave)(int32_t, int32_t);
+static void save_scope_enter(void) {
+    if (s_save_depth++ == 0) swaps_suspend();
+}
+static void save_scope_leave(void) {
+    if (--s_save_depth == 0) swaps_resume();
+}
+static void save_prepare(int32_t buffer, int32_t slot) {
+    save_scope_enter();
+    s_save_prepare(buffer, slot);
+    save_scope_leave();
+}
+static int32_t request_autosave(int32_t slot, int32_t flags) {
+    save_scope_enter();
+    const int32_t result = s_request_autosave(slot, flags);
+    save_scope_leave();
+    return result;
+}
+
+static void (*s_inventory_serialize)(openrac_gaddr);
+static void serialize_real_inventory(openrac_gaddr buffer) {
+    save_scope_enter();
+    s_inventory_serialize(buffer);
+    save_scope_leave();
+}
+
 /* ---- giving rewards ---- */
 
 /* Writes a line to the port's log for this mod. */
@@ -1688,7 +1719,16 @@ static int install_hooks(void) {
                    (void**)&s_new_game_plus
                ),
                ITEM_RANDOMIZER_HOOK_Save_NewGamePlus
-           );
+           )
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_Prepare,
+                              ITEM_RANDOMIZER_SIG_Save_Prepare, (void*)save_prepare,
+                              (void**)&s_save_prepare), ITEM_RANDOMIZER_HOOK_Save_Prepare)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_RequestAutosave,
+                              ITEM_RANDOMIZER_SIG_Save_RequestAutosave, (void*)request_autosave,
+                              (void**)&s_request_autosave), ITEM_RANDOMIZER_HOOK_Save_RequestAutosave)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_Serialize,
+                              ITEM_RANDOMIZER_SIG_Save_Serialize, (void*)serialize_real_inventory,
+                              (void**)&s_inventory_serialize), ITEM_RANDOMIZER_HOOK_Save_Serialize);
 }
 
 /* Whether the text looks meant as a seed code: twelve letters and digits, hyphens and spaces
