@@ -21,6 +21,9 @@
     ]
   },
   "hooks": [
+    "rac1.save.prepare",
+    "rac1.save.request_autosave",
+    "rac1.save.serialize",
     "rac1.item.give",
     "rac1.planet.unlock",
     "rac1.vendor.init_level_stock",
