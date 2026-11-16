@@ -241,6 +241,7 @@ static item_randomizer_Save_NewGamePlus s_new_game_plus;
 /* New games only: the setting, this game's own seed's tag (a party's host's aside), whether
  * challenge mode's start is running, and what the log last said of which tag (GATE_*, -1 none). */
 static int s_new_game_only;
+static int s_start_in_new_game_plus;
 static uint32_t s_own_tag;
 static int s_in_new_game_plus;
 static int s_told = -1;
@@ -470,7 +471,13 @@ static void log_line(int level, const char* text) {
 /* ---- new games only ---- */
 
 /* What the gate found of the game in progress (the log's words, gate_tell). */
-enum { GATE_OURS, GATE_NEW, GATE_UNTAGGED, GATE_OTHER, GATE_TAKEN };
+enum {
+    GATE_OURS,
+    GATE_NEW,
+    GATE_UNTAGGED,
+    GATE_OTHER,
+    GATE_TAKEN
+};
 
 /* The game's seed tag word (chunk 24 of the save). */
 static uint32_t save_tag(void) {
@@ -505,28 +512,47 @@ static void gate_tell(int what, uint32_t tag) {
     char line[256];
     switch (what) {
         case GATE_NEW:
-            snprintf(line, sizeof line, "a new game, randomized with seed %s from the start", s_code);
+            snprintf(
+                line, sizeof line, "a new game, randomized with seed %s from the start", s_code
+            );
             break;
         case GATE_UNTAGGED:
-            snprintf(line, sizeof line, "this game was not started with the item randomizer (its "
-                     "save has no seed tag), so it plays as the game does; start a new game to play "
-                     "seed %s", s_code);
+            snprintf(
+                line,
+                sizeof line,
+                "this game was not started with the item randomizer (its "
+                "save has no seed tag), so it plays as the game does; start a new game to play "
+                "seed %s",
+                s_code
+            );
             break;
         case GATE_OTHER:
-            snprintf(line, sizeof line, "this game was started with another seed (tag %08X), not "
-                     "%s, so it plays as the game does; put that seed's code in the settings to go "
-                     "on with it", (unsigned)tag, s_code);
+            snprintf(
+                line,
+                sizeof line,
+                "this game was started with another seed (tag %08X), not "
+                "%s, so it plays as the game does; put that seed's code in the settings to go "
+                "on with it",
+                (unsigned)tag,
+                s_code
+            );
             break;
         case GATE_TAKEN:
-            snprintf(line, sizeof line, "\"New games only\" is off: this game, started without "
-                     "seed %s, is randomized from here on", s_code);
+            snprintf(
+                line,
+                sizeof line,
+                "\"New games only\" is off: this game, started without "
+                "seed %s, is randomized from here on",
+                s_code
+            );
             break;
         default:
             snprintf(line, sizeof line, "a game of seed %s, randomized", s_code);
             break;
     }
-    log_line(what == GATE_UNTAGGED || what == GATE_OTHER ? OPENRAC_LOG_WARN : OPENRAC_LOG_INFO,
-             line);
+    log_line(
+        what == GATE_UNTAGGED || what == GATE_OTHER ? OPENRAC_LOG_WARN : OPENRAC_LOG_INFO, line
+    );
 }
 
 /* At each tick in a level: with the setting off a game with no tag gets this seed's; then the log
@@ -996,7 +1022,8 @@ static void edwina_update(openrac_gaddr moby) {
 /* Whether Orxon's landing should play Clank's part however the O2 Mask stands: it holds two
  * locations and starts only without the mask, which a seed can give before Orxon. */
 static int orxon_clank_part_due(void) {
-    return rando_on() && *owned(ITEM_O2_MASK) && *trigger(LEVEL_ORXON, ORXON_CLANK_MISSION) != TRIGGER_DONE
+    return rando_on() && *owned(ITEM_O2_MASK)
+           && *trigger(LEVEL_ORXON, ORXON_CLANK_MISSION) != TRIGGER_DONE
            && current_level() == LEVEL_ORXON;
 }
 
@@ -1092,8 +1119,9 @@ static void guard_unowned_bomb_glove(void) {
 
     const int32_t next = get32(pending);
     if (next == ITEM_BOMB_GLOVE
-        || (next == 0 && (get32(hero + 0x10B8u) == ITEM_BOMB_GLOVE
-                          || get32(hero + 0x20D4u) == ITEM_BOMB_GLOVE))) {
+        || (next == 0
+            && (get32(hero + 0x10B8u) == ITEM_BOMB_GLOVE
+                || get32(hero + 0x20D4u) == ITEM_BOMB_GLOVE))) {
         set32(pending, ITEM_WRENCH);
     }
 }
@@ -1307,9 +1335,7 @@ static void guard_empty_vendor(void) {
 
     const int empty = shown[0] == STOCK_END && !has_vendor_ammunition();
 
-    const openrac_gaddr base = (openrac_gaddr)get32(
-        level_byte_at(s_disc->moby_base)
-    );
+    const openrac_gaddr base = (openrac_gaddr)get32(level_byte_at(s_disc->moby_base));
 
     if (!base) {
         return;
@@ -1578,6 +1604,17 @@ static void each_tick(void* user) {
     if (!rando_on()) {
         sync_seen();
         return;
+    }
+
+    /* Use the retail mode flag without importing completed-save inventory or gold upgrades.
+     * A disabled option preserves an earned NG+ save. Foreign saves returned above. */
+    if (s_start_in_new_game_plus) {
+        uint8_t* challenge = byte_at(s_disc->level + 0x11Cu);
+        if (get32(challenge) == 0) {
+            set32(challenge, 1);
+            log_line(OPENRAC_LOG_INFO, "Item randomizer: New Game+ enabled for this slot");
+            s_api->play_notice(s_mod, "Item randomizer: New Game+ enabled");
+        }
     }
 
     // Every location, for one this tick has newly had.
@@ -1971,6 +2008,7 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_own_settings = s_plan.settings;
     s_own_tag = rando_seed_tag(s_code);
     s_new_game_only = api->setting_bool(mod, "new_game_only");
+    s_start_in_new_game_plus = api->setting_bool(mod, "start_in_new_game_plus");
     s_in_new_game_plus = 0;
     s_told = -1;
     s_told_tag = 0;
