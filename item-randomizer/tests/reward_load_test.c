@@ -486,6 +486,8 @@ int main(int argc, char** argv) {
         CHECK(case_purchases == i + 1);
     }
     CHECK((data_words[2] & 0x3FFu) == 0x3FFu && serialized >= 23);
+    CHECK(s_memory[D->level + 0x9Cu] == 1);
+    CHECK(s_memory[D->level + 0x11Cu] == 0); /* shop access does not enable NG+ */
     uint32_t checks = data_words[2];
     data_changed(NULL);
     CHECK(data_words[2] == checks);

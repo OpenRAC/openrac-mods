@@ -1690,6 +1690,12 @@ static void each_tick(void* user) {
         return;
     }
 
+    // The Novalis shop teleporter and full case stock use this retail access flag,
+    // independently of challenge_mode. Shuffled cases are available in a normal game.
+    if (reward_gold_mode()) {
+        set32(byte_at(s_disc->level + 0x9Cu), 1);
+    }
+
     // Every location, for one this tick has newly had.
     for (size_t i = 0; i < rando_location_count; ++i) {
         // Only locations this seed shuffles.

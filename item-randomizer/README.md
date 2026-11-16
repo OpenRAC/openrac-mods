@@ -85,7 +85,8 @@ NPCs keep their original scenes. Leaving a vendor plays only the last purchased 
 Gold-case animations move Ratchet to the room center and return him to his purchase position.
 
 **Gold-weapon cases.** The launcher switch is independent of **Shuffle weapons** and **Shuffle the
-vendor**. Cases keep their normal access requirements and bolt prices, plus four Gold Bolts per
+vendor**. Enabling it opens the Novalis shop teleporter without requiring New Game+. Cases keep their
+normal bolt prices, plus four Gold Bolts per
 purchase. The original base weapon is no longer required. A received gold weapon grants its base
 weapon and gold upgrade. Gold Bolt currency and required progression items are kept outside the
 cases. Receiving an upgrade elsewhere does not spend Gold Bolts or consume its original case.
