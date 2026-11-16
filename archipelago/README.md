@@ -161,3 +161,11 @@ type, its candidate stock contains every owned weapon that supports ammunition,
 including weapons received before their normal planet. The original selector
 still prioritizes weapons below maximum ammo and falls back to the Bomb Glove
 when there are no owned candidates. The real vendor stock is restored afterward.
+
+### Saves during NPC rewards
+
+An NPC may autosave while the mod shows it a location's collection state instead of the
+item's ownership. Save preparation, autosaves and serialization use the real inventory;
+nested save calls keep that inventory until the outer save returns. The NPC then sees
+its collection state again. This prevents an original gadget being saved alongside a
+randomized reward; it does not repair a save already carrying that gadget.

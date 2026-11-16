@@ -1,7 +1,6 @@
 /* Direct coordinate rewards retain their story flags but give the seed reward. */
 static int take(int result, const char* point);
 static void (*s_npc_update[RANDO_NPC_COUNT])(uint32_t);
-static void (*s_save_serialize)(uint32_t);
 
 static void run_npc_infobot(int index, uint32_t moby) {
     const int mode = reward_npc_mode();
@@ -92,12 +91,6 @@ static void npc_update_12(uint32_t moby) {
     run_npc_infobot(12, moby);
 }
 
-static void serialize_real_ownership(uint32_t buffer) {
-    swaps_suspend();
-    s_save_serialize(buffer);
-    swaps_resume();
-}
-
 static int npc_extra_hooks(void) {
     static void (*const wrappers[RANDO_NPC_COUNT])(uint32_t) =
         {npc_update_0,
@@ -127,16 +120,7 @@ static int npc_extra_hooks(void) {
             return 0;
         }
     }
-    return take(
-        s_api->hook(
-            s_mod,
-            "rac1.save.serialize",
-            "void(u32)",
-            (void*)serialize_real_ownership,
-            (void**)&s_save_serialize
-        ),
-        "rac1.save.serialize"
-    );
+    return 1;
 }
 
 static int reward_extra_hooks(void) {
