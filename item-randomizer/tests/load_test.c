@@ -95,7 +95,7 @@ static struct {
     const char* name;
     const char* signature;
     void* replacement;
-} s_hooks[32];
+} s_hooks[128];
 
 static int s_hook_count;
 static int s_menu_opens;
@@ -356,6 +356,7 @@ static void host_fail(openrac_mod* mod, const char* reason) {
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
 
+    if(strcmp(key,"shuffle_gold_weapons")==0)return 0;
     if (strcmp(key, "vendor_hints") == 0) {
         return 1;
     }
@@ -490,7 +491,7 @@ static int host_hook(
         return OPENRAC_HOOK_UNKNOWN;
     }
 
-    CHECK(s_hook_count < 32);
+    CHECK(s_hook_count < (int)(sizeof s_hooks/sizeof s_hooks[0]));
     s_hooks[s_hook_count].name = name;
     s_hooks[s_hook_count].signature = signature;
     s_hooks[s_hook_count].replacement = replacement;
@@ -870,7 +871,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.4.1") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.4.5") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);

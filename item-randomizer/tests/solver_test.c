@@ -35,6 +35,7 @@ static uint64_t plan_hash(const rando_plan* p) {
     uint64_t h = 0xCBF29CE484222325ull;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
+        if(rando_locations[i].kind==LOC_GOLD_CASE && !p->shuffled[i])continue;
         h = (h ^ (uint64_t)(p->reward[i].kind * 256u + p->reward[i].value)) * 0x100000001B3ull;
     }
 
@@ -133,7 +134,7 @@ static void check_tables(void) {
 static void check_plan(const rando_settings* s, const rando_plan* p) {
     CHECK(rando_beatable(p, NULL));
     /* The shuffled locations' rewards are their vanilla rewards, moved; the rest are as the game has them. */
-    int count[4][64];
+    int count[5][64];
     memset(count, 0, sizeof count);
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -141,7 +142,8 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
         CHECK(p->shuffled[i] == rando_location_shuffled(s, l));
 
         if (!p->shuffled[i]) {
-            CHECK(p->reward[i].kind == l->vanilla.kind && p->reward[i].value == l->vanilla.value);
+            CHECK((l->kind==LOC_GOLD_CASE && p->reward[i].kind==REWARD_NONE)
+                || (p->reward[i].kind == l->vanilla.kind && p->reward[i].value == l->vanilla.value));
             continue;
         }
 
