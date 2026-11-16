@@ -161,3 +161,31 @@ type, its candidate stock contains every owned weapon that supports ammunition,
 including weapons received before their normal planet. The original selector
 still prioritizes weapons below maximum ammo and falls back to the Bomb Glove
 when there are no owned candidates. The real vendor stock is restored afterward.
+
+## Randomized reward presentation
+
+With OpenRAC's reward-presentation API (interface **1.18**, companion engine PR), scouted
+rewards replace the models shown by Gadgetron vendors, world Gold Bolts, equipment pickups,
+Infobot pickups and shuffled gold-weapon cases. Vendor names and icons match the reward;
+items from another game use a Gold Bolt with the item and recipient names. Ammunition retains
+its original weapon name, icon and price. NPC purchase prompts name the randomized reward,
+while NPC handoff models, inventory models and original NPC scenes remain unchanged.
+
+Approved model placement, orientation, size and spin settings are built in separately for
+vendor displays, equipment/Gold Bolt pickups, Infobot pickups and gold cases. Original vendor
+weapons retain their native presentation. Original Gold Bolts retain their native pickup
+appearance; Gold Bolts replacing equipment use native Gold Bolt scale and motion.
+
+Collection presents the actual reward: Gold Bolt pickup, a weapon's Gadgetron acquisition
+demo, or portable Infobot opening, its coordinates video and closing without flying away.
+Unsupported items collect immediately. The portable Infobot sequence is used for pickups
+and purchases, not NPC handoffs. Leaving a vendor plays only the last purchased reward's
+sequence. Shuffled gold cases require their original bolt and Gold Bolt costs but no original
+base weapon. Case reward sequences run at the room center and then restore the purchase
+position and facing. None of these presentations grant an extra item.
+
+Older hosts keep the existing randomizer behavior without the optional presentation API.
+A build against the pinned released SDK remains supported by the extension layout in
+`src/ap_visual_api.h`. To build against the companion engine checkout instead, pass
+`-DOPENRAC_SDK=<engine checkout>/sdk`. No model editor, adjustment files, preview catalogs,
+teleport tools or screenshot tooling are included.

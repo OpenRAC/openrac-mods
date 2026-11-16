@@ -12,8 +12,9 @@
 #include <mbedtls/net_sockets.h>
 
 #include "ap_ids.h"
-#include "ap_npc_infobots.h"
 #include "ap_gold_weapons.h"
+#include "ap_acquisition_rules.h"
+#include "ap_npc_infobots.h"
 #include "session.hpp"
 #include "websocket.hpp"
 
@@ -270,6 +271,15 @@ void test_session() {
     );
     std::string preview;
     expect(s.location_hint(1380122625, preview) && preview == "Sword for Link", "purchase preview names the scouted reward and recipient");
+    std::int64_t visual_item = -1;
+    bool same_game = true;
+    expect(s.location_presentation(1380122625, visual_item, same_game, preview)
+        && !same_game && visual_item == 7 && preview == "Sword for Link",
+        "foreign-game rewards retain their names and request the fallback model");
+    s.on_message(R"([{"cmd":"LocationInfo","locations":[{"item":1380123136,"location":8,"player":1,"flags":0}]}])", out);
+    expect(s.location_presentation(8, visual_item, same_game, preview) && same_game,
+        "our rewards use Ratchet models even before the player data arrives");
+
     std::int64_t item = 0;
     bool own = true;
     expect(s.location_item(1380122625, item, own) && item == 7 && !own, "the scouted location");
@@ -511,6 +521,16 @@ void test_npc_infobots() {
 }  // namespace
 
 int main() {
+    int animation_item=-1;
+    expect(ap_acquisition_kind(AP_BASE+AP_GOLD_BOLT_OFFSET,1,&animation_item)==AP_ACQUIRE_GOLD,
+        "Gold Bolt rewards choose the Gold Bolt sequence");
+    expect(ap_acquisition_kind(AP_BASE+ITEM_DEVASTATOR,1,&animation_item)==AP_ACQUIRE_WEAPON
+        && animation_item==ITEM_DEVASTATOR,"weapon rewards choose their own purchase demo");
+    expect(ap_acquisition_kind(AP_BASE+AP_PLANET_OFFSET+LEVEL_EUDORA,1,&animation_item)==AP_ACQUIRE_INFOBOT
+        && animation_item==LEVEL_EUDORA,"coordinate rewards choose the destination's Infobot video");
+    expect(ap_acquisition_kind(AP_BASE+ITEM_HELI_PACK,1,&animation_item)==AP_ACQUIRE_NONE
+        && ap_acquisition_kind(AP_BASE+ITEM_DEVASTATOR,0,&animation_item)==AP_ACQUIRE_NONE,
+        "gadgets without a demo and foreign-game rewards collect without a sequence");
     test_websocket();
     test_ping_leaves_receive();
     test_inflate();

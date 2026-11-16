@@ -173,6 +173,11 @@ public:
         return session_.next_message(out);
     }
 
+    bool location_presentation(std::int64_t location, std::int64_t& item, bool& same_game, std::string& out) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return session_.location_presentation(location, item, same_game, out);
+    }
+
     bool location_hint(std::int64_t location, std::string& out) {
         std::lock_guard<std::mutex> lock(mutex_);
         return session_.location_hint(location, out);
@@ -413,6 +418,16 @@ int ap_client_message(char* out, size_t size) {
     const std::size_t n = std::min(line.size(), size - 1);
     std::memcpy(out, line.data(), n);
     out[n] = 0;
+    return 1;
+}
+
+int ap_client_location_presentation(int64_t location, int64_t* item, int* same_game, char* out, size_t size) {
+    if (!g_client || !item || !same_game || !out || !size) return 0;
+    bool same = false;
+    std::string label;
+    if (!g_client->location_presentation(location, *item, same, label)) return 0;
+    *same_game = same;
+    std::snprintf(out, size, "%s", label.c_str());
     return 1;
 }
 
