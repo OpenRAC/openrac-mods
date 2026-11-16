@@ -14,7 +14,7 @@ EVENT_ROWS: list[LocationData] = [row for row in LOCATIONS if row.id is None and
 LOCATION_NAME_TO_ID: dict[str, int] = {row.name: row.id for row in LOCATION_ROWS}
 
 # A group per planet, and per kind of place.
-KIND_GROUPS = {"vendor": "Vendor", "infobot": "Infobots", "npc_infobot": "Infobots", "gold": "Gold Bolts", "skill": "Skill Points", "gold_vendor": "Gold Weapon Cases"}
+KIND_GROUPS = {"special": "Items", "vendor": "Vendor", "infobot": "Infobots", "npc_infobot": "Infobots", "gold": "Gold Bolts", "skill": "Skill Points", "gold_vendor": "Gold Weapon Cases"}
 
 LOCATION_NAME_GROUPS: dict[str, set[str]] = {}
 for _row in LOCATION_ROWS:

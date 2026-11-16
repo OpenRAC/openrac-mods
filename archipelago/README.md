@@ -32,6 +32,7 @@ party shares its items. With it on, the Multiplayer pages say so: turn it off to
 | Option | Default | |
 |---|---|---|
 | `logic` | `standard` | **standard**: an expensive purchase holds no progression, and a place counts only with the weapons the game suggests there. **relaxed**: the same, and no progression in a purchase you save up for either. **expert**: progression may be in any purchase, and any weapon will do |
+| `shuffle_items` | off | All nine entries in the Items category; off keeps them vanilla, independently of gadgets. Requires OpenRAC interface 1.16+ |
 | `shuffle_gadgets`, `shuffle_weapons`, `shuffle_vendor`, `shuffle_gold_bolts`, `shuffle_infobots` | on | Off: that pool keeps the game's own items in place |
 | `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. With gold cases shuffled, their gold bolts can finance purchases; otherwise they never hold progression. Named by planet and number, in the game's flag order |
 | `shuffle_gold_weapons` | off | Add the ten gold-weapon case purchases as locations, with the ten gold weapons among the items. Cases keep their retail bolt prices and cost four gold bolts each. Receiving a gold weapon gives its base weapon and gold upgrade; it never spends currency or buys the original case |
@@ -169,3 +170,21 @@ item's ownership. Save preparation, autosaves and serialization use the real inv
 nested save calls keep that inventory until the outer save returns. The NPC then sees
 its collection state again. This prevents an original gadget being saved alongside a
 randomized reward; it does not repair a save already carrying that gadget.
+
+### Items-menu rewards
+
+The APWorld's `shuffle_items` option includes Hoverboard, Persuader, Bolt Grabber,
+Map-o-Matic, Platinum Zoomerator, Raritanium, CodeBot, Premium Nanotech and Ultra
+Nanotech. The first, third and fourth are now controlled by this option instead
+of Shuffle gadgets. With the option disabled all nine stay vanilla.
+
+The five special flags have stable item IDs in `AP_BASE + 0x400`; the six newly
+shuffleable checks use `LOC_SPECIAL` locations. Real ownership and source collection
+are separate, including autosaves nested inside NPC updates. ReceivedItems replay
+preserves spent Raritanium; Ultra before Premium stays at eight maximum health.
+The two Nanotech checks retain their original prices and purchase order.
+
+Use a newly generated room and the matching APWorld. The new option requires an
+OpenRAC host with interface 1.16 save data; keep each save's `.moddata` sidecar.
+Older rooms without the option default off. This PR does not require the optional
+reward-model presentation engine changes.

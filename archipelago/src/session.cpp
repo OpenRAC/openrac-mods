@@ -443,11 +443,15 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
         new_game_plus_ = false;
         shuffle_gold_weapons_ = false;
         npc_infobots_ = false;
+        shuffle_items_ = false;
         const auto data = p.find("slot_data");
         if (data != p.end() && data->is_object()) {
             const auto npc_option = data->find("npc_infobot_checks");
             if (npc_option != data->end()) npc_infobots_ = (npc_option->is_boolean() && npc_option->get<bool>())
                 || (npc_option->is_number_integer() && *npc_option == 1);
+            const auto items_option=data->find("shuffle_items");
+            if (items_option!=data->end()) shuffle_items_=(items_option->is_boolean() && items_option->get<bool>())
+                || (items_option->is_number_integer() && items_option->get<int>()==1);
             const auto gold_option = data->find("shuffle_gold_weapons");
             if (gold_option != data->end()) {
                 shuffle_gold_weapons_ = (gold_option->is_boolean() && gold_option->get<bool>())

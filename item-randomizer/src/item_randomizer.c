@@ -334,6 +334,8 @@ static int playing_level(void) {
     return level >= 0 && level <= RANDO_LAST_LEVEL;
 }
 
+#include "menu_items_runtime.inc"
+
 /* ---- locations ---- */
 
 static int had(int location);
@@ -344,6 +346,9 @@ static int had(int location) {
 
     // Each kind of location keeps its had state in its own game byte.
     switch (l->kind) {
+        case LOC_SPECIAL:
+            return menu_mode()==1 ? menu_had(l->key)
+                : (l->key==5 ? *owned(ITEM_PERSUADER)!=0 : *menu_owned(l->key)!=0);
         case LOC_GIVE:
         case LOC_VENDOR:
         case LOC_START:
@@ -363,6 +368,9 @@ static void set_had(int location) {
 
     // Each kind of location keeps its had state in its own game byte.
     switch (l->kind) {
+        case LOC_SPECIAL:
+            s_menu_checks |= 1u << l->key; menu_store();
+            break;
         case LOC_GIVE:
         case LOC_VENDOR:
         case LOC_START:
@@ -383,6 +391,8 @@ static void set_had(int location) {
 static int held(rando_reward r) {
     // A held item is owned, a held planet is unlocked.
     switch (r.kind) {
+        case REWARD_SPECIAL:
+            return menu_special_held(r.value);
         case REWARD_ITEM:
             return *owned(r.value) != 0;
         case REWARD_PLANET:
@@ -467,10 +477,10 @@ static unsigned s_save_depth;
 static void (*s_save_prepare)(int32_t, int32_t);
 static int32_t (*s_request_autosave)(int32_t, int32_t);
 static void save_scope_enter(void) {
-    if (s_save_depth++ == 0) swaps_suspend();
+    if (s_save_depth++ == 0) { menu_suspend(); swaps_suspend(); }
 }
 static void save_scope_leave(void) {
-    if (--s_save_depth == 0) swaps_resume();
+    if (--s_save_depth == 0) { swaps_resume(); menu_resume(); }
 }
 static void save_prepare(int32_t buffer, int32_t slot) {
     save_scope_enter();
@@ -635,6 +645,10 @@ static void notice_text(rando_reward r, char* text) {
     size_t at = 0;
     text[0] = 0;
 
+    if (r.kind == REWARD_SPECIAL) {
+        add_word(text,at,rando_special_name(r.value),1);
+        return;
+    }
     // A planet is an infobot's coordinates: the word before the name says so.
     if (r.kind == REWARD_PLANET) {
         at = add_word(text, at, message(RANDO_TEXT_INFOBOT), 1);
@@ -751,7 +765,9 @@ static void give_as_itself(int item, int32_t equip) {
 /* The player has the reward in his hands now. equip: as GiveItem's. */
 static void put_reward(rando_reward r, int32_t equip) {
     // The reward is an item, a planet or a gold bolt, each given its own way.
-    if (r.kind == REWARD_ITEM) {
+    if (r.kind == REWARD_SPECIAL) {
+        menu_give_special(r.value);
+    } else if (r.kind == REWARD_ITEM) {
         give_as_itself(r.value, reward_equip(r.value, equip));
     } else if (r.kind == REWARD_PLANET) {
         kept_banner banner;
@@ -788,6 +804,17 @@ static void give_reward(int location, int32_t equip, int mark) {
     rando_reward_name(r, what, sizeof what);
     snprintf(line, sizeof line, "%s gave %s", rando_locations[location].name, what);
     log_line(OPENRAC_LOG_INFO, line);
+}
+
+static int menu_mode(void) {
+    return rando_on() && !s_plan.settings.legacy_items && (s_plan.settings.pools & POOL_ITEMS) ? 1 : 0;
+}
+static void menu_collected(int index) {
+    const int row=menu_location_row(index);
+    if (row>=0) {
+        give_reward(row,0,-1);
+        s_seen[row]=1;
+    }
 }
 
 /* Each level's start: every location had has given its reward. One that has not lost it to a save
@@ -1592,6 +1619,7 @@ static int32_t count_gold_bolts_hook(void) {
  * just loaded has its rewards). A place that wrote its own item's bytes gives that item back. */
 static void each_tick(void* user) {
     (void)user;
+    menu_refresh();
 
     // The line over the vendor goes a tick after the menu's hook stopped asking for it.
     if (s_hint_showing > 0 && --s_hint_showing == 0) {
@@ -1851,6 +1879,7 @@ static void publish_rules(void) {
 /* Plays the placement of `settings`: the solver finds one for every setting, the same on every
  * computer. 1 when it did. */
 static int play_settings(const rando_settings* settings) {
+    if ((settings->pools & POOL_ITEMS) && !menu_save_host(s_api)) return 0;
     if (rando_solve(settings, &s_plan) != 0) {
         return 0;
     }
@@ -1981,10 +2010,16 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_vendor"),
         api->setting_bool(mod, "keep_starting_gear"),
         api->setting_string(mod, "difficulty"),
+        api->setting_bool(mod, "shuffle_items"),
     };
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
+
+    if ((settings.pools & POOL_ITEMS) && !menu_save_host(api)) {
+        api->fail(mod,"Shuffle items requires OpenRAC interface 1.16 save data or newer");
+        return 1;
+    }
 
     // The solver finds a placement for every setting; this is a bug if it ever happens.
     if (rando_solve(&settings, &s_plan) != 0) {
@@ -2021,7 +2056,7 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
     // With no pool shuffled the mod changes nothing, so it hooks nothing.
     if (s_plan.settings.pools != 0 || rules) {
         // The port refused a hook point; it has been told why, so the mod does not run.
-        if (!install_hooks()) {
+        if (!menu_init() || !install_hooks() || (s_menu_save && !menu_hooks())) {
             return 1;
         }
 

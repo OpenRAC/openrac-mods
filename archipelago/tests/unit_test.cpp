@@ -508,9 +508,41 @@ void test_npc_infobots() {
     expect(s.foreign_save() && s.npc_infobots() == -1, "foreign saves never receive mode changes");
 }
 
+void test_items_menu() {
+    std::vector<std::string> out;
+    for (const json value : {json(true), json(1), json(false), json(0), json("true"), json(2), json(nullptr)}) {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        expect(s.shuffle_items() == -1, "mode unknown before connecting");
+        s.on_open();
+        s.on_message(json::array({{{"cmd", "Connected"}, {"slot_data", {{"shuffle_items", value}}}}}).dump(), out);
+        expect(s.shuffle_items() == -1, "mode withheld before save judgment");
+        s.save_loaded({}, -1, out);
+        const bool enabled = value == json(true) || value == json(1);
+        expect(s.shuffle_items() == int(enabled), "only true or one enables Items menu");
+        s.on_close();
+        expect(s.shuffle_items() == -1, "no mode applied while disconnected");
+        s.on_open();
+        s.on_message(R"([{"cmd":"Connected"}])", out);
+        expect(s.shuffle_items() == 0, "older seeds default off on reconnect");
+    }
+    ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+    s.book().slots[2] = {"other-seed", "Ratchet"};
+    s.save_loaded({}, 2, out);
+    s.on_message(R"([{"cmd":"RoomInfo","seed_name":"this-seed"},{"cmd":"Connected","slot_data":{"shuffle_items":1}}])", out);
+    expect(s.foreign_save() && s.shuffle_items() == -1, "foreign saves never receive mode changes");
+}
+
 }  // namespace
 
 int main() {
+    for (int i=0;i<SPECIAL_COUNT;++i) {
+        const rando_reward special={REWARD_SPECIAL,(uint8_t)i};
+        const auto id=ap_item_id(special);
+        const auto round=ap_reward_of(id);
+        expect(round.kind==REWARD_SPECIAL && round.value==i,"special item IDs round trip");
+        expect(id>=AP_BASE+AP_SPECIAL_OFFSET && id<AP_BASE+AP_SPECIAL_OFFSET+SPECIAL_COUNT,"special IDs use their own range");
+    }
+
     test_websocket();
     test_ping_leaves_receive();
     test_inflate();
@@ -519,6 +551,7 @@ int main() {
     test_save();
     test_new_game_plus();
     test_npc_infobots();
+    test_items_menu();
     std::printf(g_failures == 0 ? "unit: ok\n" : "unit: %d failed\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

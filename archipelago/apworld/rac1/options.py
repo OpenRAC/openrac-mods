@@ -24,6 +24,13 @@ class ShuffleGadgets(DefaultOnToggle):
     display_name = "Shuffle gadgets"
 
 
+class ShuffleItems(Toggle):
+    """Shuffle every entry in the game's Items menu: Hoverboard, Persuader, Bolt Grabber,
+    Map-o-Matic, Platinum Zoomerator, Raritanium, CodeBot, Premium Nanotech and Ultra Nanotech.
+    When off, all nine stay at their original locations. Requires OpenRAC interface 1.16+."""
+    display_name = "Shuffle items"
+
+
 class ShuffleWeapons(DefaultOnToggle):
     """The weapons NPCs and pickups give: the Suck Cannon, the Morph-o-Ray, the R.Y.N.O."""
     display_name = "Shuffle weapons"
@@ -83,6 +90,7 @@ class StartingWeapons(Choice):
 class RAC1Options(PerGameCommonOptions):
     logic: Logic
     shuffle_gadgets: ShuffleGadgets
+    shuffle_items: ShuffleItems
     shuffle_weapons: ShuffleWeapons
     shuffle_vendor: ShuffleVendor
     shuffle_gold_bolts: ShuffleGoldBolts
@@ -98,7 +106,7 @@ OPTION_GROUPS = [
     OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus]),
     OptionGroup(
         "Pools",
-        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],
+        [ShuffleGadgets, ShuffleItems, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],
     ),
 ]
 

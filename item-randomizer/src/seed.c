@@ -9,7 +9,7 @@
  * A code is 60 bits written as 12 characters of Crockford's base 32 (0-9 and the letters but
  * I, L, O and U), in three groups: "7KQ2-9XMB-4TRA". From the top bit down:
  *
- *   4 bits  the format (RANDO_CODE_FORMAT): a later mod refuses a code it does not know
+ *   4 bits  format: legacy 2; RAC1 Items-menu semantics 6 (off) or 7 (on)
  *   2 bits  the difficulty
  *   1 bit   keep the starting gear
  *   5 bits  the pools
@@ -98,7 +98,7 @@ static uint8_t checksum(uint64_t payload) {
 
 /* The 52 bits above the checksum: format, difficulty, starting gear, pools and seed. */
 static uint64_t payload_of(const rando_settings* s) {
-    return ((uint64_t)RANDO_CODE_FORMAT << CODE_FORMAT_SHIFT)
+    return ((uint64_t)(s->legacy_items ? RANDO_CODE_FORMAT : (6 + !!(s->pools & POOL_ITEMS))) << CODE_FORMAT_SHIFT)
            | ((uint64_t)(s->difficulty & CODE_DIFFICULTY_MASK) << CODE_DIFFICULTY_SHIFT)
            | ((uint64_t)(s->keep_start & CODE_KEEP_MASK) << CODE_KEEP_SHIFT)
            | ((uint64_t)(s->pools & POOL_ALL) << CODE_POOLS_SHIFT) | (s->seed & RANDO_SEED_MASK);
@@ -178,7 +178,8 @@ int rando_decode(const char* text, rando_settings* s) {
 
     // A wrong checksum is a mistyped character; a wrong format is a code of a later mod.
     if ((uint8_t)(bits & CODE_CHECKSUM_MASK) != checksum(payload)
-        || (payload >> CODE_FORMAT_SHIFT) != RANDO_CODE_FORMAT) {
+        || ((payload >> CODE_FORMAT_SHIFT) != RANDO_CODE_FORMAT
+            && (payload >> CODE_FORMAT_SHIFT) != 6 && (payload >> CODE_FORMAT_SHIFT) != 7)) {
         return 0;
     }
 
@@ -192,6 +193,8 @@ int rando_decode(const char* text, rando_settings* s) {
     s->difficulty = (uint8_t)difficulty;
     s->keep_start = (uint8_t)((payload >> CODE_KEEP_SHIFT) & CODE_KEEP_MASK);
     s->pools = (uint8_t)((payload >> CODE_POOLS_SHIFT) & POOL_ALL);
+    s->legacy_items = (payload >> CODE_FORMAT_SHIFT) == RANDO_CODE_FORMAT;
+    if ((payload >> CODE_FORMAT_SHIFT) == 7) s->pools |= POOL_ITEMS;
     s->seed = payload & RANDO_SEED_MASK;
     return 1;
 }

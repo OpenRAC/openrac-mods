@@ -30,9 +30,10 @@
  * one takes, and they are its hidden corners; so a gold bolt never holds what the way on needs.
  * This costs a seed nothing but a place: its reward is still had, late or early.
  *
+ * Special Items-menu rewards write their flags directly. menu_items_runtime.inc intercepts
+ * those updates and keeps source collection separate from real ownership.
+ *
  * Not shuffled, and why:
- *   - the Persuader (Pokitaru): its NPC writes the owned and obtained bytes itself, without
- *     GiveItem (PokitaruVendorUpdate, func_L11_002F21B0), so there is nothing to give in its place;
  *   - the NPCs' planet coordinates (LOC_FIXED rows): they test their own story state, not one the
  *     randomizer can keep apart from the planet's flag; the infobots are the planets' pool;
  *   - the OmniWrench: it is in the game's new-game state, not given by any code;
@@ -91,6 +92,12 @@ static const char* const k_planets[LEVEL_COUNT] = {
 };
 
 /* The item's name, or "an unknown item" for an id outside the table or without a name. */
+const char* rando_special_name(int item) {
+    static const char* names[SPECIAL_COUNT] = {"Platinum Zoomerator", "Raritanium", "CodeBot",
+        "Premium Nanotech", "Ultra Nanotech"};
+    return item >= 0 && item < SPECIAL_COUNT ? names[item] : "Unknown item";
+}
+
 const char* rando_item_name(int item) {
     return item >= 0 && item < RANDO_ITEM_COUNT && k_items[item] != 0 ? k_items[item]
                                                                       : "an unknown item";
@@ -155,7 +162,7 @@ const uint64_t rando_progression_items = HELI | THRUST | HYDROPACK | SONIC | O2 
 #define INFOBOT(name, level, mission, planet, step, hard, soft)                                    \
     {name, LOC_INFOBOT, level, mission, POOL_PLANETS, PLANET(planet), step, 0, hard, soft, 0, 0}
 #define GOLDBOLT(name, level, slot, step)                                                          \
-    {name, LOC_GOLD, level, slot, POOL_GOLD, GOLD, step, 0, GOLD_NEED, 0, 0, 0}
+    {name, LOC_GOLD, level, slot, POOL_GOLD, GOLD, step, 0, (GOLD_NEED | (level == LEVEL_QUARTU ? SPECIAL_BIT(SPECIAL_CODEBOT) : 0)), 0, 0, 0}
 #define FIXED_X(name, level, reward, step, flags, hard, soft, any, planets)                        \
     {name, LOC_FIXED, level, 0, 0, reward, step, flags, hard, soft, any, planets}
 #define FIXED(name, level, reward, step, flags, hard, soft)                                        \
@@ -204,7 +211,7 @@ const rando_location rando_locations[] = {
     // Swingshot to traverse this area" on the way to the Trespasser's pickup; "If you want to
     // impress this Agent, you'll have to win a Hoverboard race ... in Blackwater City on Planet
     // Rilgar", "Talk to agent after winning race" (the Sonic Summoner).
-    GIVE_G("Aridia: Skid McMarx", LEVEL_ARIDIA, ITEM_HOVERBOARD, 5, 0, 0, 0),
+    GIVE_X("Aridia: Skid McMarx", LEVEL_ARIDIA, ITEM_HOVERBOARD, POOL_ITEMS, 5, 0, 0, 0, 0, 0),
     GIVE_G("Aridia: the Trespasser's pickup", LEVEL_ARIDIA, ITEM_TRESPASSER, 6, 0, SWING, 0),
     GIVE_X(
         "Aridia: Skid's agent, after the race",
@@ -213,7 +220,7 @@ const rando_location rando_locations[] = {
         POOL_GADGETS,
         21,
         0,
-        HOVER,
+        SPECIAL_BIT(SPECIAL_ZOOMERATOR),
         0,
         0,
         ON(LEVEL_RILGAR)
@@ -340,23 +347,14 @@ const rando_location rando_locations[] = {
     // Pokitaru: "Buy Thrusterpack from Bob", "If you're going to open the jet fighter garage, you
     // should stop by Bob's Roboshack" (the Power Slam switch), "You need the Pilot's Helmet to fly
     // this plane", "Destroy Blarg ships for O2 Mask": the mask takes all of them. The Persuader
-    // ("Trade Raritanium for Persuader") stays with its NPC.
+    // trade consumes the player's real Raritanium even when its reward is shuffled.
     VENDOR("Pokitaru: the vendor's Decoy Glove", LEVEL_POKITARU, ITEM_DECOY_GLOVE, 30, LOCF_PRICEY),
     GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 30, 0, WALK, 0),
     GIVE_G(
         "Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 31, 0, THRUST | HELMET | WALK, 0
     ),
-    FIXED_X(
-        "Pokitaru: the Persuader",
-        LEVEL_POKITARU,
-        ITEM(ITEM_PERSUADER),
-        38,
-        0,
-        WALK,
-        0,
-        0,
-        ON(LEVEL_HOVEN)
-    ),
+    {"Pokitaru: the Persuader", LOC_SPECIAL, LEVEL_POKITARU, 5, POOL_ITEMS,
+     ITEM(ITEM_PERSUADER), 36, 0, SPECIAL_BIT(SPECIAL_RARITANIUM) | WALK, 0, 0, 0},
     GOLDBOLT("Pokitaru: gold bolt", LEVEL_POKITARU, 0, 33),
 
     // Hoven: "With this Hydro-Pack, Ratchet can travel more quickly underwater. Get it, you'll need
@@ -416,8 +414,8 @@ const rando_location rando_locations[] = {
     // Quartu: "Find out more about the Ultra-Mech" (the scientist). "You'll need the Gadgetron
     // Hologuise to explore the factory" and "You will need a Hydro-Pack upgrade to swim through
     // those Tri-Rings and open the door", on the way to the secure area and Drek's Fleet.
-    GIVE_G(
-        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, 45, 0, MAGNE | WALK, 0
+    GIVE_X(
+        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, POOL_ITEMS, 45, 0, MAGNE | WALK, 0, 0, 0
     ),
     FIXED(
         "Quartu: the scientist, the coordinates of Kalebo III",
@@ -451,7 +449,7 @@ const rando_location rando_locations[] = {
         HOVER | GRIND | MAGNE | WALK,
         0
     ),
-    GIVE_G("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, 48, 0, GRIND | WALK, 0),
+    GIVE_X("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, POOL_ITEMS, 48, 0, GRIND | WALK, 0, 0, 0),
     GOLDBOLT("Kalebo III: gold bolt 1", LEVEL_KALEBO, 0, 49),
     GOLDBOLT("Kalebo III: gold bolt 2", LEVEL_KALEBO, 1, 49),
 
@@ -476,6 +474,17 @@ const rando_location rando_locations[] = {
     FIXED(
         "Veldin (return): Drek", LEVEL_VELDIN2, NONE, 54, LOCF_GOAL, MAGNE | GRIND | O2 | WALK, 0
     ),
+    {"Rilgar: the Hoverboard race", LOC_SPECIAL, LEVEL_RILGAR, 0, POOL_ITEMS,
+     {REWARD_SPECIAL, SPECIAL_ZOOMERATOR}, 16, 0, HOVER | WALK, 0, 0, 0},
+    {"Hoven: the Foreman's Raritanium", LOC_SPECIAL, LEVEL_HOVEN, 1, POOL_ITEMS,
+     {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, HYDROPACK | WALK, 0, 0, 0},
+    {"Drek's Fleet: the CodeBot", LOC_SPECIAL, LEVEL_FLEET, 2, POOL_ITEMS,
+     {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, MAGNE | HYDROPACK | O2 | WALK, 0, 0, 0},
+    {"Orxon: Premium Nanotech", LOC_SPECIAL, LEVEL_ORXON, 3, POOL_ITEMS,
+     {REWARD_SPECIAL, SPECIAL_PREMIUM_NANOTECH}, 35, LOCF_PRICEY, O2 | WALK, 0, 0, 0},
+    {"Orxon: Ultra Nanotech", LOC_SPECIAL, LEVEL_ORXON, 4, POOL_ITEMS,
+     {REWARD_SPECIAL, SPECIAL_ULTRA_NANOTECH}, 36, LOCF_COSTLY, O2 | WALK, 0, 0, 0},
+
 };
 
 /* How many rows the table has. */

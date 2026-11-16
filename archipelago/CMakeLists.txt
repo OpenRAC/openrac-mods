@@ -141,3 +141,10 @@ if(BUILD_TESTING)
   add_test(NAME archipelago_load_npc_ntsc COMMAND archipelago_load_test $<TARGET_FILE:archipelago> ntsc ngplus gold npc)
   add_test(NAME archipelago_load_ngplus_ntsc COMMAND archipelago_load_test $<TARGET_FILE:archipelago> ntsc ngplus)
 endif()
+
+if(BUILD_TESTING)
+  foreach(disc pal ntsc)
+    add_test(NAME archipelago_menu_items_${disc}
+      COMMAND archipelago_load_test $<TARGET_FILE:archipelago> ${disc} items)
+  endforeach()
+endif()

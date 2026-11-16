@@ -60,17 +60,23 @@ typedef struct sweep {
  * runs while the mod loads (and in the tests), one caller at a time, so these need no locking. */
 static uint64_t s_need[DIFFICULTY_COUNT][RANDO_MAX_LOCATIONS];
 static int s_need_ready;
+static int s_legacy_items;
 
 /* ---- the rules ---- */
 
 /* Whether the reward opens the way somewhere: a planet, or one of the progression items. */
 static int is_progression(rando_reward r) {
-    return r.kind == REWARD_PLANET
+    return (r.kind == REWARD_SPECIAL && (r.value == SPECIAL_RARITANIUM
+                || r.value == SPECIAL_CODEBOT || r.value == SPECIAL_ZOOMERATOR))
+           || r.kind == REWARD_PLANET
            || (r.kind == REWARD_ITEM && (rando_progression_items & BIT(r.value)) != 0);
 }
 
 /* Whether the settings shuffle the location. */
 int rando_location_shuffled(const rando_settings* s, const rando_location* l) {
+    if (l->pool == POOL_ITEMS && s->legacy_items)
+        return l->kind == LOC_GIVE && (s->pools & POOL_GADGETS) != 0;
+
     // Some places are never shuffled (an NPC's coordinates, the goal).
     if (l->kind == LOC_FIXED) {
         return 0;
@@ -117,9 +123,19 @@ static void prepare(void) {
 static int reachable(const sweep* w, int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
+    uint64_t need=s_need[difficulty][i];
+    uint32_t planets=l->planets;
+    if (s_legacy_items) {
+        if (l->kind==LOC_SPECIAL && l->key!=5) return 0;
+        if (l->kind==LOC_SPECIAL && l->key==5) {
+            need=BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT); planets=1u<<LEVEL_HOVEN;
+        }
+        if (l->kind==LOC_GIVE && l->key==ITEM_SONIC_SUMMONER) need=BIT(ITEM_HOVERBOARD);
+        need &= ~(SPECIAL_BIT(SPECIAL_ZOOMERATOR) | SPECIAL_BIT(SPECIAL_CODEBOT));
+    }
     // Its planet and any other it takes, what it needs, and one of what it takes one of.
-    return (w->planets & (1u << l->level)) != 0 && (l->planets & ~w->planets) == 0
-           && (s_need[difficulty][i] & ~w->items) == 0 && (l->any == 0 || (l->any & w->items) != 0);
+    return (w->planets & (1u << l->level)) != 0 && (planets & ~w->planets) == 0
+           && (need & ~w->items) == 0 && (l->any == 0 || (l->any & w->items) != 0);
 }
 
 /* Adds a reward to what the player in w holds (a gold bolt adds nothing that opens a way). */
@@ -127,6 +143,8 @@ static void take(sweep* w, rando_reward r) {
     // An item goes into the item set, a planet into the planet set.
     if (r.kind == REWARD_ITEM) {
         w->items |= BIT(r.value);
+    } else if (r.kind == REWARD_SPECIAL) {
+        w->items |= SPECIAL_BIT(r.value);
     } else if (r.kind == REWARD_PLANET) {
         w->planets |= 1u << r.value;
     }
@@ -300,11 +318,12 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
 
 /* Fills plan for the settings, trying again until a fill holds; 0, or -1 when none did. */
 int rando_solve(const rando_settings* s, rando_plan* plan) {
+    s_legacy_items=s->legacy_items;
     prepare();
     memset(plan, 0, sizeof *plan);
     plan->settings = *s;
     plan->settings.seed &= RANDO_SEED_MASK;
-    plan->settings.pools &= POOL_ALL;
+    plan->settings.pools &= POOL_CURRENT_ALL;
 
     // A difficulty out of range is read as standard.
     if (plan->settings.difficulty > DIFFICULTY_EXPERT) {
@@ -335,6 +354,7 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
 /* Plays plan through from the start, sphere by sphere; 1 when the goal is reached. spheres, when
  * not null, gets each location's sphere (0 for the start, -1 for never). */
 int rando_beatable(const rando_plan* plan, int* spheres) {
+    s_legacy_items=plan->settings.legacy_items;
     prepare();
     const int d = plan->settings.difficulty;
     sweep w;
@@ -385,6 +405,7 @@ int rando_beatable(const rando_plan* plan, int* spheres) {
 
 /* How many shuffled locations the playthrough never reaches. */
 int rando_stranded(const rando_plan* plan) {
+    s_legacy_items=plan->settings.legacy_items;
     prepare();
     sweep w;
     start(&w);
@@ -430,6 +451,9 @@ static void put(out* o, const char* fmt, ...) {
 void rando_reward_name(rando_reward r, char* buf, size_t n) {
     // The reward's kind picks its wording.
     switch (r.kind) {
+        case REWARD_SPECIAL:
+            snprintf(buf, n, "%s", rando_special_name(r.value));
+            break;
         case REWARD_ITEM:
             snprintf(buf, n, "%s", rando_item_name(r.value));
             break;
@@ -453,12 +477,13 @@ static void put_header(out* o, const rando_plan* plan, const char* mod_version) 
     put(o, "Seed code   %s\n", code);
     put(o, "Difficulty  %s\n", rando_difficulty_name(s->difficulty));
     put(o,
-        "Shuffled    %s%s%s%s%s\n",
+        "Shuffled    %s%s%s%s%s%s\n",
         (s->pools & POOL_WEAPONS) ? "weapons " : "",
         (s->pools & POOL_GADGETS) ? "gadgets " : "",
         (s->pools & POOL_GOLD) ? "gold-bolts " : "",
         (s->pools & POOL_PLANETS) ? "infobots " : "",
-        (s->pools & POOL_VENDOR) ? "vendor " : "");
+        (s->pools & POOL_VENDOR) ? "vendor " : "",
+        (s->pools & POOL_ITEMS) ? "items " : "");
     put(o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
 }
 

@@ -78,6 +78,12 @@ int main(int argc, char** argv) {
     o.seed = NULL;
     CHECK(rando_settings_of(&o, NULL, 7, &s) == SEED_FROM_NEW && s.seed == 7);
 
+    o.seed="menu-items"; o.items=1;
+    CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_WORD && (s.pools & POOL_ITEMS));
+    char items_code[RANDO_CODE_SIZE]; rando_encode(&s,items_code);
+    o.seed=items_code; o.items=0;
+    CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_CODE && (s.pools & POOL_ITEMS));
+
     /* The manifest declares what the mod reads. */
 
     if (argc > 1) {
@@ -91,6 +97,7 @@ int main(int argc, char** argv) {
             {"\"seed\"",
              "\"difficulty\"",
              "\"shuffle_gadgets\"",
+             "\"shuffle_items\"",
              "\"shuffle_weapons\"",
              "\"shuffle_vendor\"",
              "\"shuffle_gold_bolts\"",

@@ -32,6 +32,7 @@ and start a **new game**.
 | Shuffle gadgets | on | The Heli-Pack, the Swingshot, the Magneboots, the Grindboots, ... from NPCs and pickups |
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
 | Shuffle the vendor | on | Each weapon the vendor sells is a slot: buying it, at its price, gives what the seed put there |
+| Shuffle items | off | RAC1: shuffle every entry in the Items menu (listed below), independently of gadgets. Requires OpenRAC interface 1.16 or newer. |
 | Shuffle gold bolts | on | A gold bolt may be anywhere, and a gold bolt's place may hold a weapon or a useful extra, never something you need to go on. The pause screen counts the gold bolts you have found, wherever they were |
 | Shuffle infobots | on | The planets' coordinates the infobots give join the pool |
 | Show what the vendor gives | on | A line above the picture says what buying a weapon at the vendor gives you. Off: buying is a surprise |
@@ -69,7 +70,7 @@ save of the game, with the items you had. Saves from before version 2 belong to 
 longer be made: start a new game. Ratchet & Clank saves from before 2.4.0 have no tag: they play as
 the game does unless New games only is off.
 
-**What stays as the game has it.** The OmniWrench; the Persuader on Pokitaru; the planets'
+**What stays as the game has it.** The OmniWrench; the planets'
 coordinates the NPCs give (the mechanic on Novalis, Agnogg's ship, the bouncer, the commando and the
 deserter, Sam, the scientist, ...): only the infobots' are shuffled. Gold weapons, ammo and bolts are
 the game's.
@@ -328,3 +329,25 @@ item's ownership. Save preparation, autosaves and serialization use the real inv
 nested save calls keep that inventory until the outer save returns. The NPC then sees
 its collection state again. This prevents an original gadget being saved alongside a
 randomized reward; it does not repair a save already carrying that gadget.
+
+### RAC1 Items menu pool
+
+`shuffle_items` (Shuffle items, off by default) controls all nine entries in the
+Items category: Hoverboard, Persuader, Bolt Grabber, Map-o-Matic, Platinum Zoomerator,
+Raritanium, CodeBot, Premium Nanotech and Ultra Nanotech. When off, all nine remain
+at their vanilla locations, even with Shuffle gadgets enabled. Weapons, gadgets,
+Gold Bolts and coordinate rewards keep their own options.
+
+The Rilgar race, Hoven Foreman, Drek's Fleet CodeBot, both Orxon Nanotech purchases
+and Pokitaru Persuader trade can now give any shuffled reward. Retail costs and
+Raritanium consumption remain in place. Ultra Nanotech grants eight maximum health;
+receiving Premium afterward never lowers it. The solver requires the actual
+Zoomerator for Skid's agent, Raritanium for the trade and CodeBot for Quartu vault access
+(conservatively required for both Quartu Gold Bolts).
+
+Collection checks are stored through OpenRAC interface 1.16's save-scoped mod data,
+separately from inventory. Keep the `.moddata` sidecar with the game save. New RAC1
+seed codes encode the Items switch and its separate category using formats 6/7;
+legacy format-2 codes retain their previous pools and placement. RAC2 keeps its
+existing format and has no Items option. This feature is independent of reward-model
+presentation PRs.

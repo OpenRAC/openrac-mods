@@ -94,7 +94,7 @@ static void check_disc(const char* path, const char* want) {
 /* The game's words, row by row. */
 static void check_words(void) {
 #define NEEDS(name, item) CHECK(rando_locations[named(name)].hard& BIT(item))
-    NEEDS("Aridia: Skid's agent, after the race", ITEM_HOVERBOARD);
+    CHECK(rando_locations[named("Aridia: Skid's agent, after the race")].hard & SPECIAL_BIT(SPECIAL_ZOOMERATOR));
     CHECK(
         rando_locations[named("Aridia: Skid's agent, after the race")].planets
         & (1u << LEVEL_RILGAR)
@@ -185,7 +185,7 @@ static long mutate(const rando_plan* solved) {
  * O2 Mask's place behind the Thruster-Pack it takes, Skid's agent holding what the race takes... */
 static void check_old_softlocks(void) {
     static rando_plan p;
-    const rando_settings s = {12345, POOL_ALL, 1, DIFFICULTY_EXPERT};
+    const rando_settings s = {12345, POOL_ALL, 1, DIFFICULTY_EXPERT, 1};
     CHECK(rando_solve(&s, &p) == 0);
 
     /* The Thruster-Pack behind Orxon's Ratchet side, with the O2 Mask at the resort owner. */

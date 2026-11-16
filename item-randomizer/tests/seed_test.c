@@ -35,6 +35,7 @@ static void a_code_places_the_same_everywhere(void) {
     rando_settings host = {0};
     host.seed = 0x12345678u;
     host.pools = POOL_ALL;
+    host.legacy_items = 1;
     char code[RANDO_CODE_SIZE];
     rando_encode(&host, code);
     rando_settings a, b;
@@ -65,7 +66,7 @@ int main(void) {
     rando_rng r = {1};
     int codes = 0;
 
-    for (int pools = 0; pools <= (int)POOL_ALL; ++pools) {
+    for (int pools = 0; pools <= (int)POOL_CURRENT_ALL; ++pools) {
         for (int keep = 0; keep <= 1; ++keep) {
             for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) {
                 for (int k = 0; k < 40; ++k) {
@@ -84,10 +85,10 @@ int main(void) {
         }
     }
 
-    CHECK(codes == 32 * 2 * 3 * 40);
+    CHECK(codes == 64 * 2 * 3 * 40);
 
     /* The format is fixed: this code is these settings on every system and in every later 1.x. */
-    const rando_settings fixed = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD};
+    const rando_settings fixed = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD, 1};
     char code[RANDO_CODE_SIZE];
     rando_encode(&fixed, code);
     printf("fixed code %s\n", code);

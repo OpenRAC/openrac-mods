@@ -206,7 +206,7 @@ class TestPoolsOff(RAC1TestBase):
 class TestHardNeeds(RAC1TestBase):
     # Even expert logic: the O2 Mask's jet fight needs the Pilot's Helmet, the Hologuise's
     # challenge the Hoverboard.
-    options = {"logic": "expert"}
+    options = {"logic": "expert", "shuffle_items": True}
 
     def test_resort_owner_needs_pilots_helmet(self) -> None:
         self.collect_all_but(["Pilot's Helmet"])

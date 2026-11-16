@@ -23,6 +23,7 @@ typedef struct rando_options {
     int vendor;             /* "shuffle_vendor" */
     int keep_start;         /* "keep_starting_gear" */
     const char* difficulty; /* "difficulty": relaxed, standard, expert */
+    int items;              /* "shuffle_items": every Items-menu entry */
 } rando_options;
 
 /* Where the seed came from. */
