@@ -180,8 +180,7 @@ Collection presents the actual reward: Gold Bolt pickup, a weapon's Gadgetron ac
 demo, or portable Infobot opening, its coordinates video and closing without flying away.
 Unsupported items collect immediately. The portable Infobot sequence is used for pickups
 and purchases, not NPC handoffs. Leaving a vendor plays only the last purchased reward's
-sequence. Shuffled gold cases require their original bolt and Gold Bolt costs but no original
-base weapon. Case reward sequences run at the room center and then restore the purchase
+sequence. Shuffled gold-case purchasing and shop-access changes are proposed separately. Case reward sequences run at the room center and then restore the purchase
 position and facing. None of these presentations grant an extra item.
 
 Older hosts keep the existing randomizer behavior without the optional presentation API.
@@ -189,7 +188,3 @@ A build against the pinned released SDK remains supported by the extension layou
 `src/ap_visual_api.h`. To build against the companion engine checkout instead, pass
 `-DOPENRAC_SDK=<engine checkout>/sdk`. No model editor, adjustment files, preview catalogs,
 teleport tools or screenshot tooling are included.
-
-With `shuffle_gold_weapons` enabled, the Novalis gold-weapon shop teleporter opens in a normal
-game too. This does not require `start_in_new_game_plus` or grant gold upgrades. Purchases still
-require their normal bolts and four Gold Bolts.

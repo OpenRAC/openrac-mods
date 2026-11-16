@@ -1055,7 +1055,6 @@ int main(int argc, char** argv) {
         g_play_phase = OPENRAC_PLAY_PLAYING;
     }
     CHECK(frames_until([challenge] { return *at(challenge) == int(g_new_game_plus); }));
-    CHECK(*at(D->level + 0x9Cu) == int(g_gold_mode));
     if (g_new_game_plus) {
         set_level(-1);
         *at(challenge) = 0;
@@ -1095,6 +1094,7 @@ int main(int argc, char** argv) {
         update_case(moby);
         CHECK(g_bolts == 999 && g_unspent() == 40);  // unaffordable cases do not check or charge
         g_bolts = before;
+        *at(D->owned + ITEM_BOMB_GLOVE) = 1; /* retail prerequisite; removed by separate gold-case PR */
         update_case(moby);
         CHECK(g_bolts == before - 1000 && g_unspent() == 36);
         CHECK(*at(gold + ITEM_BOMB_GLOVE) == 0);  // the original case did not grant its gold weapon
@@ -1490,7 +1490,7 @@ int main(int argc, char** argv) {
               std::make_pair(int(ITEM_BLASTER), 3),
               std::make_pair(int(ITEM_DEVASTATOR), 2)}) {
             put(case_entries, expected.first);
-            *at(D->owned + expected.first) = 0;  // base weapon is deliberately absent
+            *at(D->owned + expected.first) = 1;  // retail prerequisite in the presentation-only PR
             const auto count = g_acquisitions.size();
             const int bolts = g_bolts, unspent = g_unspent();
             acquisition_position[0] = 9;
@@ -1502,7 +1502,7 @@ int main(int argc, char** argv) {
             const uint32_t case_context =
                 std::strcmp(D->version, "pal") == 0 ? 0x179200u : 0x179100u;
             CHECK(get(case_context + 8) == 0 && get(case_context + 12) == 0);
-            CHECK(*at(D->owned + expected.first) == 0 && g_serialized_owned[expected.first] == 0);
+            CHECK(*at(D->owned + expected.first) == 1 && g_serialized_owned[expected.first] == 1);
             if (expected.second == 2) {
                 *at(D->owned + ITEM_BLASTER) = 1;  // actual reward delivery
             }
