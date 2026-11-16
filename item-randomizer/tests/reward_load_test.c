@@ -7,7 +7,7 @@
 
 static uint32_t data_words[3], data_size;
 static openrac_frame_fn data_changed;
-static int modern_gold = 1, animation_kind = -1, animation_item, animation_calls, animation_busy;
+static int modern_gold = 0, animation_kind = -1, animation_item, animation_calls, animation_busy;
 static int npc_purchases, case_purchases, source_demos, serialized, case_base = -1;
 static uint8_t real_owned, real_gold;
 static float hero_position[3] = {240, 130, 54.46f}, place_target[3], hero_yaw = 1.25f, place_yaw;
@@ -352,7 +352,7 @@ int main(int argc, char** argv) {
     memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
     CHECK(load(api, (openrac_mod*)1) == 0);
     CHECK(s_failed[0] == 0 && data_changed);
-    rando_options options = {s_seed, 1, 1, 1, 1, 1, 1, "standard", 1, 1};
+    rando_options options = {s_seed, 1, 1, 1, 1, 1, 1, "standard", 1};
     rando_settings settings;
     rando_plan plan;
     rando_settings_of(&options, NULL, 1, &settings);
@@ -423,71 +423,7 @@ int main(int argc, char** argv) {
         }
     }
     CHECK(vendor_count == 11);
-    /* Grant all earned Gold Bolt locations; none can be trapped inside a case. */
-    for (size_t row = 0; row < rando_location_count; ++row) {
-        if (plan.reward[row].kind == REWARD_GOLD_BOLT) {
-            const rando_location* l = &rando_locations[row];
-            if (l->kind == LOC_GOLD) {
-                s_memory[D->gold_bolts + l->level * 4 + l->key] = 1;
-            } else if (l->kind == LOC_INFOBOT) {
-                s_memory[D->triggers + l->level * 16 + l->key] = 0xFF;
-            } else if (l->kind == LOC_FIXED) {
-                int i = rando_npc_index(l->level, l->vanilla.value);
-                CHECK(i >= 0);
-                data_words[2] |= 1u << (10 + i);
-            } else {
-                s_memory[D->obtained + l->key] = 1;
-            }
-        }
-    }
-    CHECK(((int (*)(void))hook_named("rac1.gold_bolt.count_unspent"))() == 40);
-    /* Gold upgrades already owned do not buy or charge the corresponding cases. */
-    for (int i = 0; i < 10; ++i) {
-        *gold_flag(k_rando_gold_bases[i]) = 1;
-    }
-    CHECK(((int (*)(void))hook_named("rac1.gold_bolt.count_unspent"))() == 40);
-    set32(s_memory + pool_word(), 0x180000);
-    set32(s_memory + pool_word() + 8, 0x180A00);
-    for (int i = 0; i < 10; ++i) {
-        uint32_t moby = 0x180000 + i * 0x100, vars = 0x190000 + i * 0x80;
-        int16_t cls = 304;
-        memcpy(s_memory + moby + 0xA6, &cls, 2);
-        float p[3] = {250 + (float)i, 140, 54.46f};
-        memcpy(s_memory + moby + 0x10, p, 12);
-        set32(s_memory + moby + 0x78, vars);
-        set32(s_memory + vars + 0x40, i);
-        set32(
-            s_memory + (strcmp(D->version, "pal") == 0 ? 0x1DEDE0 : 0x1DEB10) + i * 4,
-            k_rando_gold_bases[i]
-        );
-    }
-    for (int i = 0; i < 10; ++i) {
-        uint32_t moby = 0x180000 + i * 0x100;
-        case_base = k_rando_gold_bases[i];
-        s_memory[D->owned + case_base] = 0;
-        real_owned = 0;
-        real_gold = *gold_flag(case_base);
-        int row = rando_case_row(case_base), item = 0, kind = reward_kind(plan.reward[row], &item),
-            before = animation_calls, old_places = places;
-        float origin[3];
-        memcpy(origin, hero_position, 12);
-        ((void (*)(uint32_t))hook_named("Moby_GoldWeaponCase_Update"))(moby);
-        CHECK(case_purchases == i + 1 && source_demos == 0);
-        CHECK(((int (*)(void))hook_named("rac1.gold_bolt.count_unspent"))() == 40 - 4 * (i + 1));
-        case_base = -1;
-        finish_sequence(kind, item, before, kind != 0);
-        if (kind) {
-            CHECK(
-                places >= old_places + 2 && memcmp(origin, hero_position, 12) == 0
-                && hero_yaw == 1.25f
-            );
-        }
-        ((void (*)(uint32_t))hook_named("Moby_GoldWeaponCase_Update"))(moby);
-        CHECK(case_purchases == i + 1);
-    }
-    CHECK((data_words[2] & 0x3FFu) == 0x3FFu && serialized >= 23);
-    CHECK(s_memory[D->level + 0x9Cu] == 1);
-    CHECK(s_memory[D->level + 0x11Cu] == 0); /* shop access does not enable NG+ */
+    CHECK((data_words[2] >> 10) == 0x1FFFu && serialized >= 13);
     uint32_t checks = data_words[2];
     data_changed(NULL);
     CHECK(data_words[2] == checks);

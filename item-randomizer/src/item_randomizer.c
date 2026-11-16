@@ -181,8 +181,9 @@ static const openrac_api* s_api;
 static openrac_mod* s_mod;
 static const rando_disc* s_disc;
 static rando_plan s_plan;
-static int s_npc_running = -1, s_gold_case = -1;
-static uint8_t s_gold_real_upgrade;
+static int s_npc_running = -1;
+static int s_gold_case = -1;
+static int (*s_gold_case_present)(int, uint32_t);
 static int acquisition_infobot(uint32_t moby, int row);
 static void acquisition_run(uint32_t moby, void (*original)(uint32_t));
 static void acquisition_item(int row);
@@ -415,9 +416,6 @@ static void set_had(int location) {
 /* Whether the reward is the player's already (a gold bolt is counted, never held). */
 static int held(rando_reward r) {
     // A held item is owned, a held planet is unlocked.
-    if (r.kind == REWARD_GOLD_WEAPON) {
-        return *owned(r.value) && *gold_owned(r.value);
-    }
     switch (r.kind) {
         case REWARD_ITEM:
             return *owned(r.value) != 0;
@@ -453,7 +451,7 @@ static int received(int item) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         // A shuffled location that gives this item and has been had.
         if (s_plan.shuffled[i]
-            && (s_plan.reward[i].kind == REWARD_ITEM || s_plan.reward[i].kind == REWARD_GOLD_WEAPON)
+            && s_plan.reward[i].kind == REWARD_ITEM
             && s_plan.reward[i].value == item && had((int)i)) {
             return 1;
         }
@@ -471,7 +469,7 @@ static void swap_push(uint8_t* at, int location) {
     w->at = at;
     w->real = *at;
     w->location = location;
-    *at = location == -2 ? 1 : location >= 0 ? (uint8_t)had(location) : 0;
+    *at = location >= 0 ? (uint8_t)had(location) : 0;
 }
 
 /* Puts the most recent swap's real value back and drops it. */
@@ -493,9 +491,7 @@ static void swaps_resume(void) {
     // Each swap again, in the order pushed: what the game's routine changed is the new real value.
     for (int i = 0; i < s_swap_count; ++i) {
         s_swaps[i].real = *s_swaps[i].at;
-        *s_swaps[i].at = s_swaps[i].location == -2  ? 1
-                         : s_swaps[i].location >= 0 ? (uint8_t)had(s_swaps[i].location)
-                                                    : 0;
+        *s_swaps[i].at = s_swaps[i].location >= 0 ? (uint8_t)had(s_swaps[i].location) : 0;
     }
 }
 
@@ -789,10 +785,7 @@ static void give_as_itself(int item, int32_t equip) {
 /* The player has the reward in his hands now. equip: as GiveItem's. */
 static void put_reward(rando_reward r, int32_t equip) {
     // The reward is an item, a planet or a gold bolt, each given its own way.
-    if (r.kind == REWARD_GOLD_WEAPON) {
-        give_as_itself(r.value, reward_equip(r.value, equip));
-        *gold_owned(r.value) = 1;
-    } else if (r.kind == REWARD_ITEM) {
+    if (r.kind == REWARD_ITEM) {
         give_as_itself(r.value, reward_equip(r.value, equip));
     } else if (r.kind == REWARD_PLANET) {
         kept_banner banner;
@@ -1642,7 +1635,7 @@ static void vendor_menu_update(void) {
  * at most MAX_GOLD_BOLTS; else the game's own count. */
 static int32_t count_gold_bolts_hook(void) {
     // Gold bolts are not shuffled, or the game is not this seed's: the game's count is right.
-    if (!(s_plan.settings.pools & (POOL_GOLD | POOL_GOLD_WEAPONS)) || !rando_on()) {
+    if (!(s_plan.settings.pools & POOL_GOLD) || !rando_on()) {
         return s_count_gold_bolts();
     }
 
@@ -1690,12 +1683,6 @@ static void each_tick(void* user) {
         return;
     }
 
-    // The Novalis shop teleporter and full case stock use this retail access flag,
-    // independently of challenge_mode. Shuffled cases are available in a normal game.
-    if (reward_gold_mode()) {
-        set32(byte_at(s_disc->level + 0x9Cu), 1);
-    }
-
     // Every location, for one this tick has newly had.
     for (size_t i = 0; i < rando_location_count; ++i) {
         // Only locations this seed shuffles.
@@ -1727,7 +1714,6 @@ static void each_tick(void* user) {
     guard_unowned_bomb_glove();
     guard_empty_vendor();
     run_notices();
-    reward_case_hint_tick();
 }
 
 /* ---- loading ---- */
@@ -1767,6 +1753,7 @@ static int take(int result, const char* point) {
 
 /* Takes every hook point the mod needs; 1 when all are in place, 0 (the port told) when not. */
 static int install_hooks(void) {
+    s_gold_case_present = acquisition_case;
     if (!presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
         return 0;
     }
@@ -1913,7 +1900,6 @@ static void publish_rules(void) {
         {POOL_GOLD, "gold bolts"},
         {POOL_PLANETS, "infobots"},
         {POOL_NPC_INFOBOTS, "NPC coordinates"},
-        {POOL_GOLD_WEAPONS, "gold-weapon cases"},
     };
 
     char text[160];
@@ -2064,13 +2050,12 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "keep_starting_gear"),
         api->setting_string(mod, "difficulty"),
         reward_save_host(api) != NULL,
-        api->setting_bool(mod, "shuffle_gold_weapons"),
     };
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
 
-    if ((settings.pools & (POOL_NPC_INFOBOTS | POOL_GOLD_WEAPONS)) && !reward_save_host(api)) {
+    if ((settings.pools & POOL_NPC_INFOBOTS) && !reward_save_host(api)) {
         api->fail(
             mod, "This seed needs OpenRAC 1.16 save-data support (1.18 for reward presentations)."
         );

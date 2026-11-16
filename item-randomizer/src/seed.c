@@ -179,7 +179,7 @@ int rando_decode(const char* text, rando_settings* s) {
     // A wrong checksum is a mistyped character; a wrong format is a code of a later mod.
     if ((uint8_t)(bits & CODE_CHECKSUM_MASK) != checksum(payload)
         || (payload >> CODE_FORMAT_SHIFT) < RANDO_CODE_FORMAT
-        || (payload >> CODE_FORMAT_SHIFT) > RANDO_CODE_FORMAT + 3) {
+        || (payload >> CODE_FORMAT_SHIFT) > RANDO_CODE_FORMAT + 1) {
         return 0;
     }
 

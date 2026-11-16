@@ -41,7 +41,6 @@
  *     tick (item_randomizer.c) treats either as the location it stands for.
  */
 #include "rando.h"
-#include "reward_pools.h"
 
 /* ---- names ---- */
 
@@ -242,30 +241,14 @@ const rando_location rando_locations[] = {
     // behind it: played without one, they cannot be had (issue #25).
     VENDOR("Eudora: the vendor's Glove of Doom", LEVEL_EUDORA, ITEM_GLOVE_OF_DOOM, 12, LOCF_PRICEY),
     GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, WALK | TRESP, 0),
-    FIXED(
-        "Eudora: the coordinates of Blarg",
-        LEVEL_EUDORA,
-        PLANET(LEVEL_BLARG),
-        13,
-        0,
-        WALK | TRESP,
-        0
-    ),
+    FIXED("Eudora: the coordinates of Blarg", LEVEL_EUDORA, PLANET(LEVEL_BLARG), 13, 0, WALK | TRESP, 0),
     GOLDBOLT("Eudora: gold bolt", LEVEL_EUDORA, 0, 13),
 
     // Blarg: Clank "explore outside the station" without the O2 Mask, Ratchet with it: both lead
     // to the Hydrodisplacer's pickup, so it needs neither, but played without the Trespasser it
     // cannot be had (issue #25); Fred and the infobot can. "Buy Grindboots" from Fred.
     VENDOR("Blarg: the vendor's Taunter", LEVEL_BLARG, ITEM_TAUNTER, 14, 0),
-    GIVE_G(
-        "Blarg: the Hydrodisplacer's pickup",
-        LEVEL_BLARG,
-        ITEM_HYDRODISPLACER,
-        14,
-        0,
-        WALK | TRESP,
-        0
-    ),
+    GIVE_G("Blarg: the Hydrodisplacer's pickup", LEVEL_BLARG, ITEM_HYDRODISPLACER, 14, 0, WALK | TRESP, 0),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, WALK, 0),
     INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, WALK, 0),
     FIXED(
@@ -493,128 +476,6 @@ const rando_location rando_locations[] = {
     FIXED(
         "Veldin (return): Drek", LEVEL_VELDIN2, NONE, 54, LOCF_GOAL, MAGNE | GRIND | O2 | WALK, 0
     ),
-#ifdef ITEM_RANDOMIZER_EXTENDED_POOLS
-    {"Gold weapon case: Bomb Glove",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     10,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 10},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Pyrocitor",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     16,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 16},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Blaster",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     15,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 15},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Glove of Doom",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     20,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 20},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Mine Glove",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     17,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 17},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Devastator",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     11,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 11},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Decoy Glove",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     21,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 21},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Tesla Claw",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     25,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 25},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Suck Cannon",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     9,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 9},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-    {"Gold weapon case: Morph-o-Ray",
-     LOC_GOLD_CASE,
-     LEVEL_NOVALIS,
-     12,
-     POOL_GOLD_WEAPONS,
-     {REWARD_GOLD_WEAPON, 12},
-     55,
-     LOCF_COSTLY,
-     0,
-     0,
-     0,
-     0},
-#endif
 };
 
 /* How many rows the table has. */
@@ -683,9 +544,6 @@ static const uint16_t k_planet_names[LEVEL_COUNT] = {
 /* The message id of a reward's name; 0 for none. */
 int rando_reward_text(rando_reward r) {
     // An item, a planet or a gold bolt each has its own table of names.
-    if (r.kind == REWARD_GOLD_WEAPON) {
-        return r.value < RANDO_ITEM_COUNT ? k_item_names[r.value] : 0;
-    }
     switch (r.kind) {
         case REWARD_ITEM:
             return r.value < RANDO_ITEM_COUNT ? k_item_names[r.value] : 0;

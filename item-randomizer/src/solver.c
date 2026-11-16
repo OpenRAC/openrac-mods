@@ -52,8 +52,7 @@
 
 /* A playthrough's state: what the player holds and which locations it has had. */
 typedef struct sweep {
-    uint64_t items; /* BIT(item) of every item held */
-    int gold;
+    uint64_t items;                   /* BIT(item) of every item held */
     uint32_t planets;                 /* 1 << level of every planet unlocked */
     uint8_t had[RANDO_MAX_LOCATIONS]; /* 1 for each location reached */
 } sweep;
@@ -121,20 +120,17 @@ static int reachable(const sweep* w, int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
     // Its planet and any other it takes, what it needs, and one of what it takes one of.
-    return (l->kind != LOC_GOLD_CASE || w->gold >= 40) && (w->planets & (1u << l->level)) != 0
-           && (l->planets & ~w->planets) == 0 && (s_need[difficulty][i] & ~w->items) == 0
-           && (l->any == 0 || (l->any & w->items) != 0);
+    return (w->planets & (1u << l->level)) != 0 && (l->planets & ~w->planets) == 0
+           && (s_need[difficulty][i] & ~w->items) == 0 && (l->any == 0 || (l->any & w->items) != 0);
 }
 
 /* Adds a reward to what the player in w holds (a gold bolt adds nothing that opens a way). */
 static void take(sweep* w, rando_reward r) {
     // An item goes into the item set, a planet into the planet set.
-    if (r.kind == REWARD_ITEM || r.kind == REWARD_GOLD_WEAPON) {
+    if (r.kind == REWARD_ITEM) {
         w->items |= BIT(r.value);
     } else if (r.kind == REWARD_PLANET) {
         w->planets |= 1u << r.value;
-    } else if (r.kind == REWARD_GOLD_BOLT) {
-        ++w->gold;
     }
 }
 
@@ -185,7 +181,7 @@ static int fits(int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
     // A gold bolt is a hidden corner: what the way on needs is never in one.
-    if (l->kind == LOC_GOLD || l->kind == LOC_GOLD_CASE) {
+    if (l->kind == LOC_GOLD) {
         return 0;
     }
 
@@ -226,9 +222,6 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
         const rando_location* l = &rando_locations[i];
         plan->shuffled[i] = (uint8_t)rando_location_shuffled(s, l);
         plan->reward[i] = l->vanilla;
-        if (l->kind == LOC_GOLD_CASE && !plan->shuffled[i]) {
-            plan->reward[i].kind = REWARD_NONE;
-        }
 
         // A shuffled location starts empty, and its vanilla reward joins the pool to hand out.
         if (plan->shuffled[i]) {
@@ -294,28 +287,6 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
         plan->reward[at] = r;
     }
 
-    // Cases cannot contain their own Gold Bolt currency. Fill them first from
-    // non-currency filler; progression is already outside the postgame shop.
-    if (s->pools & POOL_GOLD_WEAPONS) {
-        for (size_t i = 0; i < rando_location_count; ++i) {
-            if (rando_locations[i].kind != LOC_GOLD_CASE || !plan->shuffled[i]) {
-                continue;
-            }
-            size_t choices[RANDO_MAX_LOCATIONS], count = 0;
-            for (size_t j = 0; j < nr; ++j) {
-                if (rest[j].kind != REWARD_GOLD_BOLT) {
-                    choices[count++] = j;
-                }
-            }
-            if (!count) {
-                return -1;
-            }
-            size_t pick = choices[rando_below(rng, (uint32_t)count)];
-            plan->reward[i] = rest[pick];
-            memmove(rest + pick, rest + pick + 1, (nr - pick - 1) * sizeof rest[0]);
-            --nr;
-        }
-    }
     size_t k = 0;
 
     // The other rewards go to the places still empty, in the order they were shuffled.
@@ -335,7 +306,7 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
     memset(plan, 0, sizeof *plan);
     plan->settings = *s;
     plan->settings.seed &= RANDO_SEED_MASK;
-    plan->settings.pools &= POOL_EXTENDED_ALL;
+    plan->settings.pools &= POOL_ALL | POOL_NPC_INFOBOTS;
 
     // A difficulty out of range is read as standard.
     if (plan->settings.difficulty > DIFFICULTY_EXPERT) {
@@ -459,10 +430,6 @@ static void put(out* o, const char* fmt, ...) {
 
 /* The reward in words, into buf. */
 void rando_reward_name(rando_reward r, char* buf, size_t n) {
-    if (r.kind == REWARD_GOLD_WEAPON) {
-        snprintf(buf, n, "Gold %s", rando_item_name(r.value));
-        return;
-    }
     // The reward's kind picks its wording.
     switch (r.kind) {
         case REWARD_ITEM:
@@ -488,14 +455,13 @@ static void put_header(out* o, const rando_plan* plan, const char* mod_version) 
     put(o, "Seed code   %s\n", code);
     put(o, "Difficulty  %s\n", rando_difficulty_name(s->difficulty));
     put(o,
-        "Shuffled    %s%s%s%s%s%s%s\n",
+        "Shuffled    %s%s%s%s%s%s\n",
         (s->pools & POOL_WEAPONS) ? "weapons " : "",
         (s->pools & POOL_GADGETS) ? "gadgets " : "",
         (s->pools & POOL_GOLD) ? "gold-bolts " : "",
         (s->pools & POOL_PLANETS) ? "infobots " : "",
         (s->pools & POOL_VENDOR) ? "vendor " : "",
-        (s->pools & POOL_NPC_INFOBOTS) ? "NPC-infobots " : "",
-        (s->pools & POOL_GOLD_WEAPONS) ? "gold-cases " : "");
+        (s->pools & POOL_NPC_INFOBOTS) ? "NPC-infobots " : "");
     put(o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
 }
 

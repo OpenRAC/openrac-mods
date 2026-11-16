@@ -14,26 +14,16 @@
     } while (0)
 
 int main(void) {
-    rando_options o = {"pool-test", 1, 1, 1, 1, 1, 1, "standard", 1, 0};
+    rando_options o = {"pool-test", 1, 1, 1, 1, 1, 1, "standard", 1};
     rando_settings s, copy;
     CHECK(rando_settings_of(&o, NULL, 1, &s) == SEED_FROM_WORD);
     CHECK((s.pools & POOL_NPC_INFOBOTS) && !(s.pools & POOL_GOLD_WEAPONS));
-    o.gold_weapons = 1;
-    rando_settings_of(&o, NULL, 1, &s);
-    CHECK(s.pools & POOL_GOLD_WEAPONS);
     char code[RANDO_CODE_SIZE];
     rando_encode(&s, code);
     CHECK(rando_decode(code, &copy));
     CHECK(copy.pools == s.pools && copy.seed == s.seed);
-    o.planets = 0;
-    rando_settings_of(&o, NULL, 1, &s);
-    CHECK(!(s.pools & POOL_NPC_INFOBOTS));
-    o.seed = code;
-    o.gold_weapons = 0;
-    rando_settings_of(&o, NULL, 1, &s);
-    CHECK(s.pools == copy.pools);
     int solved = 0;
-    for (int extra = 0; extra < 4; ++extra) {
+    for (int extra = 0; extra < 2; ++extra) {
         for (int pools = 0; pools <= POOL_ALL; ++pools) {
             for (int d = 0; d < 3; ++d) {
                 rando_settings settings =

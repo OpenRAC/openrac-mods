@@ -40,10 +40,6 @@ static int extra_row(int row) {
         return -1;
     }
     const rando_location* l = &rando_locations[row];
-    if (l->kind == LOC_GOLD_CASE) {
-        int i = rando_gold_index(l->key);
-        return i >= 0 ? i : -1;
-    }
     if (l->kind == LOC_FIXED && l->vanilla.kind == REWARD_PLANET) {
         int i = rando_npc_index(l->level, l->vanilla.value);
         return i >= 0 ? 10 + i : -1;

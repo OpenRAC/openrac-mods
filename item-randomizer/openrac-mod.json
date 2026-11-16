@@ -63,7 +63,6 @@
     "Moby_Bob_Update",
     "Moby_Edwina_Update",
     "Moby_Class22_Update",
-    "Moby_GoldWeaponCase_Update",
     "rac1.save.update_state",
     "rac1.save.restore_data",
     "rac1.vendor.initialize_selected",
@@ -172,16 +171,6 @@
       "type": "bool",
       "default": true,
       "description": "Ratchet & Clank: coordinates from pickups and NPCs join the pool. Existing seed codes keep their original settings.",
-      "games": [
-        "rac1"
-      ]
-    },
-    {
-      "key": "shuffle_gold_weapons",
-      "name": "Shuffle gold-weapon cases",
-      "type": "bool",
-      "default": false,
-      "description": "Ratchet & Clank: shuffle the ten gold-weapon case rewards into the item pool. Cases keep their normal bolt and Gold Bolt prices, but do not require the original base weapon. Requires OpenRAC reward/save-data support.",
       "games": [
         "rac1"
       ]
