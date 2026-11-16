@@ -1376,6 +1376,32 @@ int main(int argc, char** argv) {
             == 0
         );
         set_level(LEVEL_NOVALIS);
+        if (g_gold_mode) {
+            const uint32_t moby = 0x1800000, request = 0x1801000, entries = 0x1802000;
+            const int16_t cls = 304, msg = 257, index = 0, cost_kind = 6;
+            std::memcpy(at(moby + 0xA6), &cls, 2);
+            put(moby + MOBY_PVARS, request);
+            put(request + 0x3C, entries);
+            std::memcpy(at(request + 0x36), &index, 2);
+            put(request + 0x40, 0);
+            const uint32_t table = std::strcmp(D->version, "pal") == 0 ? 0x1DEDE0u : 0x1DEB10u;
+            put(table, ITEM_PYROCITOR); // scouted Gold Bolt
+            std::memcpy(at(entries), &msg, 2);
+            std::memcpy(at(entries + 8), &cost_kind, 2);
+            g_dialog_starts = false;
+            CHECK(dialog(moby, request) == 0);
+            CHECK(g_rendered_prompt == "Buy Gold Bolt for %d bolts + 4 Gold Bolts");
+            g_dialog_starts = true;
+            CHECK(dialog(moby, request) == 1);
+            CHECK(g_rendered_prompt == "Buy Gold Bolt for %d bolts + 4 Gold Bolts");
+            const int16_t plain_kind = 0;
+            std::memcpy(at(entries + 8), &plain_kind, 2);
+            const uint32_t prices = std::strcmp(D->version, "pal") == 0 ? 0x1C47B0u : 0x1C4530u;
+            const uint16_t price = 2500;
+            std::memcpy(at(prices + ITEM_PYROCITOR * 0x18 + 0x14), &price, 2);
+            dialog(moby, request);
+            CHECK(g_rendered_prompt == "Buy Gold Bolt for 2,500 bolts + 4 Gold Bolts");
+        }
     }
 
     if (g_acquisition_mode) {

@@ -188,3 +188,6 @@ A build against the pinned released SDK remains supported by the extension layou
 `src/ap_visual_api.h`. To build against the companion engine checkout instead, pass
 `-DOPENRAC_SDK=<engine checkout>/sdk`. No model editor, adjustment files, preview catalogs,
 teleport tools or screenshot tooling are included.
+
+Gold-case purchase prompts name the randomized reward and retain its bolt price plus
+four Gold Bolts, including the retail formatted-price dialogue path.
