@@ -1055,6 +1055,7 @@ int main(int argc, char** argv) {
         g_play_phase = OPENRAC_PLAY_PLAYING;
     }
     CHECK(frames_until([challenge] { return *at(challenge) == int(g_new_game_plus); }));
+    CHECK(*at(D->level + 0x9Cu) == int(g_gold_mode));
     if (g_new_game_plus) {
         set_level(-1);
         *at(challenge) = 0;

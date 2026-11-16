@@ -189,3 +189,7 @@ A build against the pinned released SDK remains supported by the extension layou
 `src/ap_visual_api.h`. To build against the companion engine checkout instead, pass
 `-DOPENRAC_SDK=<engine checkout>/sdk`. No model editor, adjustment files, preview catalogs,
 teleport tools or screenshot tooling are included.
+
+With `shuffle_gold_weapons` enabled, the Novalis gold-weapon shop teleporter opens in a normal
+game too. This does not require `start_in_new_game_plus` or grant gold upgrades. Purchases still
+require their normal bolts and four Gold Bolts.

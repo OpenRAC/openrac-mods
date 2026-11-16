@@ -1386,9 +1386,12 @@ static void each_tick(void* user) {
             s_api->play_notice(s_mod, "Archipelago: New Game+ enabled");
             s_notice_ticks = NOTICE_TICKS;
         }
-        /* Full Novalis gold-case stock also reads the retail postgame-access flag. Only
-         * enable that access when gold cases are shuffled; no upgrades or checks are granted. */
-        if (ap_client_shuffle_gold_weapons() == 1) set32(byte_at(s_disc->level + 0x9Cu), 1);
+    }
+
+    /* The Novalis shop teleporter and full case stock use a separate retail access flag.
+     * Shuffled cases must be reachable in a normal game; do not enable challenge_mode. */
+    if (!s_from_title && !s_judge_wait && ap_client_shuffle_gold_weapons() == 1) {
+        set32(byte_at(s_disc->level + 0x9Cu), 1);
     }
 
     if (ap_client_shuffle_gold_weapons() == 1 && !s_has_gold_currency_hook && !s_gold_hook_warned) {
