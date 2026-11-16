@@ -21,6 +21,9 @@
     ]
   },
   "hooks": [
+    "rac1.save.prepare",
+    "rac1.save.request_autosave",
+    "rac1.save.serialize",
     "rac1.item.give",
     "rac1.planet.unlock",
     "rac1.vendor.init_level_stock",
@@ -56,9 +59,7 @@
     "rac2.moby.race_controller.update",
     "rac2.moby.mapper_return.update",
     "rac2.moby.hypnomatic_maker.update",
-    "rac1.gold_bolt.count_unspent",
-    "Moby_GoldWeaponCase_Update",
-    "rac1.save.serialize"
+    "rac1.moby.item_offer.update"
   ],
   "settings": [
     {

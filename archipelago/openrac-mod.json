@@ -11,6 +11,8 @@
   "multiplayer": "solo",
   "games": { "rac1": ["pal", "ntsc"] },
   "hooks": [
+    "rac1.save.prepare",
+    "rac1.save.request_autosave",
     "Item_Give",
     "Planet_Unlock",
     "Vendor_InitLevelStock",

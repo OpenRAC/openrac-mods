@@ -328,3 +328,14 @@ Gold Bolt currency and progression stay outside cases. Case checks are saved sep
 upgrade ownership through OpenRAC interface 1.16. Older seed codes retain their exact placement;
 new codes record this option. RAC2 and NPC coordinates are unchanged.
 This gameplay change does not replace reward models, icons or animations.
+
+### Saves during NPC rewards
+
+An NPC may autosave while the mod shows it a location's collection state instead of the
+item's ownership. Save preparation, autosaves and serialization use the real inventory;
+nested save calls keep that inventory until the outer save returns. The NPC then sees
+its collection state again. This prevents an original gadget being saved alongside a
+randomized reward; it does not repair a save already carrying that gadget.
+
+The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
+are probed at runtime: `rac1.gold_bolt.count_unspent`.

@@ -1,6 +1,5 @@
 static int32_t (*s_count_unspent)(void);
 static void (*s_gold_case_update)(uint32_t);
-static void (*s_save_serialize)(uint32_t);
 static int s_has_gold_currency_hook;
 static int64_t s_gold_hint_location = -1;
 static float s_gold_hint_distance = 9;
@@ -9,25 +8,6 @@ static int take(int result, const char* point);
 
 static int reward_gold_mode(void) {
     return rando_on() && (s_plan.settings.pools & POOL_GOLD_WEAPONS);
-}
-
-static void serialize_real_ownership(uint32_t buffer) {
-    if (s_gold_case >= 0 && *gold_owned(k_rando_gold_bases[s_gold_case])) {
-        save_checks(saved_checks() | (1u << s_gold_case));
-    }
-    /* Retail may save inside an NPC update while its planet flag shows collection state. */
-    swaps_suspend();
-    uint8_t shown = 0;
-    uint8_t* upgrade = s_gold_case >= 0 ? gold_owned(k_rando_gold_bases[s_gold_case]) : NULL;
-    if (upgrade) {
-        shown = *upgrade;
-        *upgrade = s_gold_real_upgrade;
-    }
-    s_save_serialize(buffer);
-    if (upgrade) {
-        *upgrade = shown;
-    }
-    swaps_resume();
 }
 
 static void gold_case_update(openrac_gaddr moby) {
@@ -170,16 +150,6 @@ static int reward_extra_hooks(void) {
         return 0;
     }
     return take(
-               s_api->hook(
-                   s_mod,
-                   "rac1.save.serialize",
-                   "void(u32)",
-                   (void*)serialize_real_ownership,
-                   (void**)&s_save_serialize
-               ),
-               "rac1.save.serialize"
-           )
-           && take(
                s_api->hook(
                    s_mod,
                    "Moby_GoldWeaponCase_Update",
