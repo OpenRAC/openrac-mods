@@ -25,4 +25,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("cheats", "0.3.1", load)
+OPENRAC_MOD_CPP("cheats", "0.4.0", load)
