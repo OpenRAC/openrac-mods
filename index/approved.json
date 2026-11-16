@@ -23,6 +23,28 @@
   "bolt-grabber-v2": [
     "1.0.0"
   ],
+  "bolt-multiplier": [
+    {
+      "version": "0.2.4",
+      "sha256": {
+        "linux-aarch64": "946320698a7478a440a1cdce1bebad4d1f756761c7f2e361b2e5b5ad0258053c",
+        "linux-x86_64": "f54ed843a6906769fbb7b5993bd885efb3fd464a85ca779266a340ad2a2f7fca",
+        "macos-arm64": "17afcfb9ad802b838bd2e8631f21f13718dc59f5b58c04eedb7116a6be0d9d0a",
+        "macos-x86_64": "09dd06bdb2ec7f278740312aff6eaefa1e62fec204644f9fc64298ce3e32743d",
+        "windows-x86_64": "0af18d6eb9b1cb98e49a81711f7bdc60b297a920ffcafb5f47e60f7608d346a0"
+      }
+    },
+    {
+      "version": "0.3.0",
+      "sha256": {
+        "linux-aarch64": "a5d1da46ec4e1d7fe93ed299dfababe5ad85e5f3648f41b9c36e3c9b7e5381a7",
+        "linux-x86_64": "6665f1fba0cea90ccaee2c93127125181f4bb7dd13e5f3252ca1e5c956c0b4ae",
+        "macos-arm64": "dc5e08576dd3e134aba9910710659e4524af42ed2516c13c695a206cc20e9031",
+        "macos-x86_64": "91e80b54a11e06599ba27cda283aa2581d15399873b3f04bd19fb003944cac10",
+        "windows-x86_64": "15360fe40f1de52300a25f75751e11e88997e530c59e6b02e5369638981b8ddc"
+      }
+    }
+  ],
   "cutscene-manager": [
     "0.1.0",
     "0.2.0"

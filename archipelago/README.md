@@ -191,3 +191,14 @@ teleport tools or screenshot tooling are included.
 
 Gold-case purchase prompts name the randomized reward and retain its bolt price plus
 four Gold Bolts, including the retail formatted-price dialogue path.
+
+### Saves during NPC rewards
+
+An NPC may autosave while the mod shows it a location's collection state instead of the
+item's ownership. Save preparation, autosaves and serialization use the real inventory;
+nested save calls keep that inventory until the outer save returns. The NPC then sees
+its collection state again. This prevents an original gadget being saved alongside a
+randomized reward; it does not repair a save already carrying that gadget.
+
+The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
+are probed at runtime: `rac1.vendor.draw_icons`, `rac1.vendor.draw_details`, `rac1.ui.icon_frame`, `rac1.ui.sprite.draw`, `rac1.npc.try_dialog`, `rac1.pickup.start_scene`, `rac1.gold_case.start_demo`.

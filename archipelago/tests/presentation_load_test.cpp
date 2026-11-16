@@ -912,7 +912,7 @@ int main(int argc, char** argv) {
         api.pickup_animation = acquisition_request;
     }
     CHECK(load(ap_visual_base(&api), reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_acquisition_mode ? 51 : g_visual_mode ? 43 : 36) && g_frame != nullptr);
+    CHECK(g_hooks == (g_acquisition_mode ? 53 : g_visual_mode ? 45 : 38) && g_frame != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 

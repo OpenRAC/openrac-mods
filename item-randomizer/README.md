@@ -320,3 +320,11 @@ ammo type, candidates include all owned weapons that support ammunition, even
 when absent from the planet's vendor stock. The original selector retains its
 low-ammo priority and Bomb Glove fallback. The real vendor stock is restored
 after the call. Saves outside this seed retain the game's original behavior.
+
+### Saves during NPC rewards
+
+An NPC may autosave while the mod shows it a location's collection state instead of the
+item's ownership. Save preparation, autosaves and serialization use the real inventory;
+nested save calls keep that inventory until the outer save returns. The NPC then sees
+its collection state again. This prevents an original gadget being saved alongside a
+randomized reward; it does not repair a save already carrying that gadget.
