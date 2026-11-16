@@ -330,3 +330,6 @@ low-ammo priority and Bomb Glove fallback. The real vendor stock is restored
 after the call. Saves outside this seed retain the game's original behavior.
 
 Gold-case shuffle gameplay, purchasing changes and shop access are proposed separately.
+
+Gold-case purchase prompts name the randomized reward and retain its bolt price plus
+four Gold Bolts, including the retail formatted-price dialogue path.

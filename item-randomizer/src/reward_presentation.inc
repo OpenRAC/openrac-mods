@@ -1,3 +1,5 @@
+#include "gold_case_prompt.h"
+
 /* Render-only seeded item-randomizer reward displays. Included after the location/game helpers. */
 static int take(int result, const char* point);
 
@@ -55,6 +57,7 @@ static uint32_t s_vendor_preview[3];
 static uint32_t s_vendor_preview_load;
 static uint32_t s_dialog_load;
 static int64_t s_dialog_location = -1;
+static uint32_t s_case_dialog_request;
 static int s_draw_vendor_icons;
 static int s_draw_vendor_details;
 static int s_in_dialog_try;
@@ -370,6 +373,7 @@ static void presentation_tick(int phase) {
     play_phase(&loads);
     if (s_dialog_load != loads) {
         s_dialog_location = -1;
+        s_case_dialog_request = 0;
     }
     s_visual_count = 0;
     if (phase != OPENRAC_PLAY_FRONT_END && (reward_ready() >= 0)) {
@@ -604,6 +608,8 @@ static void draw_sprite_presentation(
 static int32_t try_dialog_presentation(uint32_t moby, uint32_t request) {
     const int64_t location = npc_location(moby);
     const int64_t previous = s_dialog_location;
+    const uint32_t previous_case = s_case_dialog_request;
+    s_case_dialog_request = moby && OPENRAC_GREF(s_api, int16_t, moby + 0xA6) == 304 ? request : 0;
     s_dialog_location = location;
     play_phase(&s_dialog_load);
     ++s_in_dialog_try;
@@ -611,6 +617,7 @@ static int32_t try_dialog_presentation(uint32_t moby, uint32_t request) {
     --s_in_dialog_try;
     if (!result) {
         s_dialog_location = previous;
+        s_case_dialog_request = previous_case;
     }
     return result;
 }
@@ -626,6 +633,51 @@ static uint32_t message_presentation(int32_t id) {
     int icon, frame;
     if (location < 0 || reward_class(location, label, sizeof label, &icon, &frame) < 0) {
         return original;
+    }
+    /* Cases use menu kind 6, with a single retail price placeholder. Their
+     * localized text need not contain the vendor/NPC "Buy ... for ..." pattern. */
+    if (!s_draw_vendor_details && s_case_dialog_request) {
+        const uint32_t entries = OPENRAC_GREF(s_api, uint32_t, s_case_dialog_request + 0x3C);
+        const int index = OPENRAC_GREF(s_api, int16_t, s_case_dialog_request + 0x36);
+        if (entries && index >= 0 && index < 64) {
+            const uint32_t entry = entries + (uint32_t)index * 0x1C;
+            const int kind = OPENRAC_GREF(s_api, int16_t, entry + 8);
+            if (id == OPENRAC_GREF(s_api, uint16_t, entry) && (kind == 6 || strstr(text, "Buy "))) {
+                char prompt[120], body[110], price[24] = "%d";
+                if (kind != 6) {
+                    const int slot = i32_at(s_case_dialog_request + 0x40);
+                    if (slot < 0 || slot >= 20) {
+                        return original;
+                    }
+                    const uint32_t table =
+                        strcmp(s_disc->version, "pal") == 0 ? 0x1DEDE0u : 0x1DEB10u;
+                    const int base = get32(
+                        (uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, table)) + slot * 4
+                    );
+                    if (base < 0 || base >= RANDO_ITEM_COUNT) {
+                        return original;
+                    }
+                    const uint32_t prices =
+                        strcmp(s_disc->version, "pal") == 0 ? 0x1C47B0u : 0x1C4530u;
+                    const unsigned bolts = OPENRAC_GREF(
+                        s_api,
+                        uint16_t,
+                        s_api->relocate_level_data(1, prices) + (uint32_t)base * 0x18 + 0x14
+                    );
+                    if (bolts >= 1000) {
+                        snprintf(price, sizeof price, "%u,%03u", bolts / 1000, bolts % 1000);
+                    } else {
+                        snprintf(price, sizeof price, "%u", bolts);
+                    }
+                }
+                gold_case_prompt(body, sizeof body, label, price);
+                const char* buy = strstr(text, "Buy ");
+                const size_t prefix = buy && buy - text < 16 ? (size_t)(buy - text) : 0;
+                snprintf(prompt, sizeof prompt, "%.*s%s", (int)prefix, text, body);
+                const uint32_t address = s_visual_api->guest_text(s_mod, prompt);
+                return address ? address : original;
+            }
+        }
     }
     if (s_draw_vendor_details) {
         uint8_t* menu = level_byte_at(s_disc->vendor_menu);
