@@ -33,7 +33,8 @@ and start a **new game**.
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
 | Shuffle the vendor | on | Each weapon the vendor sells is a slot: buying it, at its price, gives what the seed put there |
 | Shuffle gold bolts | on | A gold bolt may be anywhere, and a gold bolt's place may hold a weapon or a useful extra, never something you need to go on. The pause screen counts the gold bolts you have found, wherever they were |
-| Shuffle infobots | on | The planets' coordinates the infobots give join the pool |
+| Shuffle infobots | on | Pickup Infobots and NPC coordinate rewards join the pool in new RAC1 seeds |
+| Shuffle gold-weapon cases | off | RAC1 only: adds the ten gold upgrades and their purchase locations to the pool |
 | Show what the vendor gives | on | A line above the picture says what buying a weapon at the vendor gives you. Off: buying is a surprise |
 | Keep the starting gear | on | Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too |
 | Spoiler log | on | Writes where everything is, and a way through, to the data folder |
@@ -58,7 +59,7 @@ the app's storage); a seed remembered there is carried over at the first start, 
 logs stay there. With an OpenRAC older than mod interface 1.11 the mod still uses that old folder.
 
 **Saves.** What you have found is the game's own record, and where everything is comes from the
-seed; the one thing of the mod's in a save is its **seed's tag**, set when a new game starts with
+seed. The mod also saves NPC-coordinate and gold-case checks through OpenRAC's mod save data. Its **seed's tag** is set when a new game starts with
 it (Ratchet & Clank: chunk 24 of the save, a word no code of the game reads or writes; Going
 Commando: chunk 5's `+0xC0`). So a save made with the mod **belongs to its seed**: load it with the
 same seed code and settings. With **New games only** on (the default) a save with no tag (a game
@@ -69,21 +70,35 @@ save of the game, with the items you had. Saves from before version 2 belong to 
 longer be made: start a new game. Ratchet & Clank saves from before 2.4.0 have no tag: they play as
 the game does unless New games only is off.
 
-**What stays as the game has it.** The OmniWrench; the Persuader on Pokitaru; the planets'
-coordinates the NPCs give (the mechanic on Novalis, Agnogg's ship, the bouncer, the commando and the
-deserter, Sam, the scientist, ...): only the infobots' are shuffled. Gold weapons, ammo and bolts are
-the game's.
+**What stays as the game has it.** The OmniWrench, the Persuader, ammo and ordinary bolts.
+Gold weapons and their cases stay unchanged unless **Shuffle gold-weapon cases** is enabled.
+
+**RAC1 reward presentation.** With the companion [OpenRAC changes](https://github.com/OpenRAC/OpenRAC/pull/540),
+vendors, gold-weapon cases and world pickups show their actual reward's model, name and icon.
+The approved item profiles set each model's position, scale, rotation and spin center. Native
+vendor weapons retain their original presentation. Long vendor names fit the left display.
+NPC handoff models and story scenes remain the game's; purchase prompts name the reward.
+
+World pickups play the reward's Gold Bolt, weapon purchase demo, or Infobot animation where
+available. Infobots show the received coordinates' video and close before gameplay resumes.
+NPCs keep their original scenes. Leaving a vendor plays only the last purchased reward's animation.
+Gold-case animations move Ratchet to the room center and return him to his purchase position.
+
+**Gold-weapon cases.** The launcher switch is independent of **Shuffle weapons** and **Shuffle the
+vendor**. Cases keep their normal access requirements and bolt prices, plus four Gold Bolts per
+purchase. The original base weapon is no longer required. A received gold weapon grants its base
+weapon and gold upgrade. Gold Bolt currency and required progression items are kept outside the
+cases. Receiving an upgrade elsewhere does not spend Gold Bolts or consume its original case.
+
+**Compatibility.** Existing version-2 seed codes retain their placement and fixed NPC coordinates.
+New codes also record whether NPC coordinates and gold cases are shuffled. Seed codes override
+launcher pool switches. These extra pools require OpenRAC mod-save support (interface 1.16);
+presentation requires interface 1.18 from the companion changes. Older hosts continue to support
+legacy seeds and give an update message when a code needs the extra pools. RAC2 is unchanged.
+Live adjustment editors, catalogs, teleport helpers and screenshot tools are not included.
 
 **What you will notice.**
 
-- An NPC or pickup plays its own scene and then gives the seed's reward; a line of text names it,
-  once you are back in control. Its speech still talks of what it would have given.
-- A vendor slot shows the weapon it stands for, at that weapon's price, and a line above the picture
-  says what it gives. It goes into your inventory and quick select as if the game had sold it. Once
-  bought, the slot becomes ammo for the reward, if the reward takes ammo. Ammo for a weapon you own
-  whose slot is still for sale is sold too.
-- An infobot shows its own planet's video, and gives what the seed put there.
-- A gold bolt's place shows the gold bolt's scene, then the reward.
 - Orxon starts with Clank until his part is done, even if you already have the O2 Mask: two things
   are found there.
 - The Hydro-Pack does not go on your back when you get it: it comes on by itself in the water.

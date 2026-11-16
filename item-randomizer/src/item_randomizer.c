@@ -85,6 +85,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -95,6 +96,8 @@
 #include "openrac/openrac_mod.h"
 #include "paths.h"
 #include "rando.h"
+#include "reward_api.h"
+#include "reward_pools.h"
 
 /* ---- constants ---- */
 
@@ -178,6 +181,13 @@ static const openrac_api* s_api;
 static openrac_mod* s_mod;
 static const rando_disc* s_disc;
 static rando_plan s_plan;
+static int s_npc_running = -1, s_gold_case = -1;
+static uint8_t s_gold_real_upgrade;
+static int acquisition_infobot(uint32_t moby, int row);
+static void acquisition_run(uint32_t moby, void (*original)(uint32_t));
+static void acquisition_item(int row);
+static int acquisition_vendor(int row);
+static int acquisition_case(int base, uint32_t moby);
 
 /* The seed's code ("XXXX-XXXX-XXXX"), for the log and the spoiler's file name. */
 static char s_code[RANDO_CODE_SIZE];
@@ -334,12 +344,30 @@ static int playing_level(void) {
     return level >= 0 && level <= RANDO_LAST_LEVEL;
 }
 
+static int play_phase(uint32_t* load) {
+    openrac_play_status st = {0};
+    st.size = sizeof st;
+    if (s_api->play_status(&st) != OPENRAC_HOOK_OK) {
+        return OPENRAC_PLAY_FRONT_END;
+    }
+    if (load) {
+        *load = st.loads;
+    }
+    return st.phase;
+}
+
 /* ---- locations ---- */
 
 static int had(int location);
 
+#include "reward_state.inc"
+
 /* Whether the location has been had, by the game's own bytes (rando.h says which for each kind). */
 static int had(int location) {
+    const int extra = extra_row(location);
+    if (extra >= 0) {
+        return (saved_checks() >> extra) & 1u;
+    }
     const rando_location* l = &rando_locations[location];
 
     // Each kind of location keeps its had state in its own game byte.
@@ -359,6 +387,11 @@ static int had(int location) {
 
 /* Marks the location had in the game's own byte, as the game would. */
 static void set_had(int location) {
+    const int extra = extra_row(location);
+    if (extra >= 0) {
+        save_checks(saved_checks() | (1u << extra));
+        return;
+    }
     const rando_location* l = &rando_locations[location];
 
     // Each kind of location keeps its had state in its own game byte.
@@ -382,6 +415,9 @@ static void set_had(int location) {
 /* Whether the reward is the player's already (a gold bolt is counted, never held). */
 static int held(rando_reward r) {
     // A held item is owned, a held planet is unlocked.
+    if (r.kind == REWARD_GOLD_WEAPON) {
+        return *owned(r.value) && *gold_owned(r.value);
+    }
     switch (r.kind) {
         case REWARD_ITEM:
             return *owned(r.value) != 0;
@@ -416,7 +452,8 @@ static int received(int item) {
     // Look through the placement for a had location that gave this item.
     for (size_t i = 0; i < rando_location_count; ++i) {
         // A shuffled location that gives this item and has been had.
-        if (s_plan.shuffled[i] && s_plan.reward[i].kind == REWARD_ITEM
+        if (s_plan.shuffled[i]
+            && (s_plan.reward[i].kind == REWARD_ITEM || s_plan.reward[i].kind == REWARD_GOLD_WEAPON)
             && s_plan.reward[i].value == item && had((int)i)) {
             return 1;
         }
@@ -434,7 +471,7 @@ static void swap_push(uint8_t* at, int location) {
     w->at = at;
     w->real = *at;
     w->location = location;
-    *at = location >= 0 ? (uint8_t)had(location) : 0;
+    *at = location == -2 ? 1 : location >= 0 ? (uint8_t)had(location) : 0;
 }
 
 /* Puts the most recent swap's real value back and drops it. */
@@ -456,7 +493,9 @@ static void swaps_resume(void) {
     // Each swap again, in the order pushed: what the game's routine changed is the new real value.
     for (int i = 0; i < s_swap_count; ++i) {
         s_swaps[i].real = *s_swaps[i].at;
-        *s_swaps[i].at = s_swaps[i].location >= 0 ? (uint8_t)had(s_swaps[i].location) : 0;
+        *s_swaps[i].at = s_swaps[i].location == -2  ? 1
+                         : s_swaps[i].location >= 0 ? (uint8_t)had(s_swaps[i].location)
+                                                    : 0;
     }
 }
 
@@ -470,7 +509,13 @@ static void log_line(int level, const char* text) {
 /* ---- new games only ---- */
 
 /* What the gate found of the game in progress (the log's words, gate_tell). */
-enum { GATE_OURS, GATE_NEW, GATE_UNTAGGED, GATE_OTHER, GATE_TAKEN };
+enum {
+    GATE_OURS,
+    GATE_NEW,
+    GATE_UNTAGGED,
+    GATE_OTHER,
+    GATE_TAKEN
+};
 
 /* The game's seed tag word (chunk 24 of the save). */
 static uint32_t save_tag(void) {
@@ -505,28 +550,47 @@ static void gate_tell(int what, uint32_t tag) {
     char line[256];
     switch (what) {
         case GATE_NEW:
-            snprintf(line, sizeof line, "a new game, randomized with seed %s from the start", s_code);
+            snprintf(
+                line, sizeof line, "a new game, randomized with seed %s from the start", s_code
+            );
             break;
         case GATE_UNTAGGED:
-            snprintf(line, sizeof line, "this game was not started with the item randomizer (its "
-                     "save has no seed tag), so it plays as the game does; start a new game to play "
-                     "seed %s", s_code);
+            snprintf(
+                line,
+                sizeof line,
+                "this game was not started with the item randomizer (its "
+                "save has no seed tag), so it plays as the game does; start a new game to play "
+                "seed %s",
+                s_code
+            );
             break;
         case GATE_OTHER:
-            snprintf(line, sizeof line, "this game was started with another seed (tag %08X), not "
-                     "%s, so it plays as the game does; put that seed's code in the settings to go "
-                     "on with it", (unsigned)tag, s_code);
+            snprintf(
+                line,
+                sizeof line,
+                "this game was started with another seed (tag %08X), not "
+                "%s, so it plays as the game does; put that seed's code in the settings to go "
+                "on with it",
+                (unsigned)tag,
+                s_code
+            );
             break;
         case GATE_TAKEN:
-            snprintf(line, sizeof line, "\"New games only\" is off: this game, started without "
-                     "seed %s, is randomized from here on", s_code);
+            snprintf(
+                line,
+                sizeof line,
+                "\"New games only\" is off: this game, started without "
+                "seed %s, is randomized from here on",
+                s_code
+            );
             break;
         default:
             snprintf(line, sizeof line, "a game of seed %s, randomized", s_code);
             break;
     }
-    log_line(what == GATE_UNTAGGED || what == GATE_OTHER ? OPENRAC_LOG_WARN : OPENRAC_LOG_INFO,
-             line);
+    log_line(
+        what == GATE_UNTAGGED || what == GATE_OTHER ? OPENRAC_LOG_WARN : OPENRAC_LOG_INFO, line
+    );
 }
 
 /* At each tick in a level: with the setting off a game with no tag gets this seed's; then the log
@@ -541,6 +605,7 @@ static void gate_tick(void) {
     } else if (!s_new_game_only) {
         // Taken over: a game with no tag gets this seed's (another seed's is left as it is).
         if (tag == 0) {
+            save_checks(0);
             set_save_tag(rando_seed_tag(s_code));
             gate_tell(GATE_TAKEN, rando_seed_tag(s_code));
         }
@@ -555,6 +620,7 @@ static void new_game(void) {
     s_new_game();
 
     if (!s_in_new_game_plus) {
+        save_checks(0);
         set_save_tag(rando_seed_tag(s_code));
         gate_tell(GATE_NEW, rando_seed_tag(s_code));
     }
@@ -563,11 +629,14 @@ static void new_game(void) {
 /* Hook for challenge mode's start: the game reset to level 0 with its progress, its tag (or none)
  * among it. */
 static void new_game_plus(int32_t slot) {
-    const uint32_t tag = save_tag();
+    const uint32_t tag = save_tag(), checks = saved_checks();
     s_in_new_game_plus = 1;
     s_new_game_plus(slot);
     s_in_new_game_plus = 0;
     set_save_tag(tag);
+    if (tag_ours(tag)) {
+        save_checks(checks);
+    }
 }
 
 /* The text of a message of this level's table, in game memory; null without the function. */
@@ -720,7 +789,10 @@ static void give_as_itself(int item, int32_t equip) {
 /* The player has the reward in his hands now. equip: as GiveItem's. */
 static void put_reward(rando_reward r, int32_t equip) {
     // The reward is an item, a planet or a gold bolt, each given its own way.
-    if (r.kind == REWARD_ITEM) {
+    if (r.kind == REWARD_GOLD_WEAPON) {
+        give_as_itself(r.value, reward_equip(r.value, equip));
+        *gold_owned(r.value) = 1;
+    } else if (r.kind == REWARD_ITEM) {
         give_as_itself(r.value, reward_equip(r.value, equip));
     } else if (r.kind == REWARD_PLANET) {
         kept_banner banner;
@@ -839,6 +911,9 @@ static void item_give(int32_t id, int32_t equip) {
     }
 
     uint8_t* entry = vendor_purchase(id);
+    if (!entry) {
+        acquisition_item(location);
+    }
     give_reward(location, equip, id);
     s_seen[location] = 1;
 
@@ -850,9 +925,15 @@ static void item_give(int32_t id, int32_t equip) {
         // was (GiveItem has equipped the reward already).
         const rando_reward r = s_plan.reward[location];
         const int demo = r.kind == REWARD_ITEM && sold_by_vendor(r.value);
-        set32(
-            entry, demo ? r.value : get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT)
-        );
+        if (acquisition_vendor(location)) {
+            set32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT, -1);
+            set32(entry, -1);
+        } else {
+            set32(
+                entry,
+                demo ? r.value : get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT)
+            );
+        }
         s_bought = id;
     }
 }
@@ -863,6 +944,18 @@ static void planet_unlock(int32_t planet) {
     if (!rando_on()) {
         s_planet_unlock(planet);
         return;
+    }
+
+    if (s_npc_running >= 0 && k_rando_npcs[s_npc_running].planet == planet) {
+        int row = rando_npc_row(s_npc_running);
+        if (row >= 0 && s_plan.shuffled[row]) {
+            if (!had(row)) {
+                set_had(row);
+                give_reward(row, 0, -1);
+                s_seen[row] = 1;
+            }
+            return;
+        }
     }
 
     // Another player's coordinates passed on: they, as they are, and their place is spent here.
@@ -910,6 +1003,9 @@ static void infobot_update(openrac_gaddr moby) {
         return;
     }
 
+    if (acquisition_infobot(moby, location)) {
+        return;
+    }
     swap_push(planet_flag(planet), location);
     s_infobot = location;
     // Its last state shows its planet's banner: the planet it gave, when it gave one.
@@ -950,6 +1046,10 @@ static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int ite
 
 /* Hook for the Pilot's Helmet's pickup: it tests "owned", and after it gives it hands the hero the
  * helmet to wear (g_hero_pending_item_2): with something else given, the head stays as it was. */
+static void helmet_shown(uint32_t moby) {
+    run_shown(s_helmet_update, moby, ITEM_PILOTS_HELMET);
+}
+
 static void helmet_update(openrac_gaddr moby) {
     // A game not this seed's: the game's own.
     if (!rando_on()) {
@@ -959,7 +1059,7 @@ static void helmet_update(openrac_gaddr moby) {
 
     uint8_t* pending = byte_at(s_disc->hero_pending);
     const int32_t before = get32(pending);
-    run_shown(s_helmet_update, moby, ITEM_PILOTS_HELMET);
+    acquisition_run(moby, helmet_shown);
 
     // The hero was handed what he does not own.
     if (get32(pending) == ITEM_PILOTS_HELMET && !*owned(ITEM_PILOTS_HELMET)) {
@@ -996,7 +1096,8 @@ static void edwina_update(openrac_gaddr moby) {
 /* Whether Orxon's landing should play Clank's part however the O2 Mask stands: it holds two
  * locations and starts only without the mask, which a seed can give before Orxon. */
 static int orxon_clank_part_due(void) {
-    return rando_on() && *owned(ITEM_O2_MASK) && *trigger(LEVEL_ORXON, ORXON_CLANK_MISSION) != TRIGGER_DONE
+    return rando_on() && *owned(ITEM_O2_MASK)
+           && *trigger(LEVEL_ORXON, ORXON_CLANK_MISSION) != TRIGGER_DONE
            && current_level() == LEVEL_ORXON;
 }
 
@@ -1092,8 +1193,9 @@ static void guard_unowned_bomb_glove(void) {
 
     const int32_t next = get32(pending);
     if (next == ITEM_BOMB_GLOVE
-        || (next == 0 && (get32(hero + 0x10B8u) == ITEM_BOMB_GLOVE
-                          || get32(hero + 0x20D4u) == ITEM_BOMB_GLOVE))) {
+        || (next == 0
+            && (get32(hero + 0x10B8u) == ITEM_BOMB_GLOVE
+                || get32(hero + 0x20D4u) == ITEM_BOMB_GLOVE))) {
         set32(pending, ITEM_WRENCH);
     }
 }
@@ -1307,9 +1409,7 @@ static void guard_empty_vendor(void) {
 
     const int empty = shown[0] == STOCK_END && !has_vendor_ammunition();
 
-    const openrac_gaddr base = (openrac_gaddr)get32(
-        level_byte_at(s_disc->moby_base)
-    );
+    const openrac_gaddr base = (openrac_gaddr)get32(level_byte_at(s_disc->moby_base));
 
     if (!base) {
         return;
@@ -1542,7 +1642,7 @@ static void vendor_menu_update(void) {
  * at most MAX_GOLD_BOLTS; else the game's own count. */
 static int32_t count_gold_bolts_hook(void) {
     // Gold bolts are not shuffled, or the game is not this seed's: the game's count is right.
-    if (!(s_plan.settings.pools & POOL_GOLD) || !rando_on()) {
+    if (!(s_plan.settings.pools & (POOL_GOLD | POOL_GOLD_WEAPONS)) || !rando_on()) {
         return s_count_gold_bolts();
     }
 
@@ -1550,17 +1650,27 @@ static int32_t count_gold_bolts_hook(void) {
 
     // Count the gold bolt rewards that have been had.
     for (size_t i = 0; i < rando_location_count; ++i) {
-        n += s_plan.shuffled[i] && s_plan.reward[i].kind == REWARD_GOLD_BOLT && had((int)i);
+        n += s_plan.reward[i].kind == REWARD_GOLD_BOLT && had((int)i);
     }
 
     return n < MAX_GOLD_BOLTS ? n : MAX_GOLD_BOLTS;
 }
+
+#include "reward_presentation.inc"
+
+#include "reward_acquisition.inc"
+
+#include "reward_extra_hooks.inc"
 
 /* Each tick: a location had since the last tick without passing through a hook (a gold bolt, a
  * route that writes the bytes itself) gets its reward, unless it is the player's already (a save
  * just loaded has its rewards). A place that wrote its own item's bytes gives that item back. */
 static void each_tick(void* user) {
     (void)user;
+    uint32_t reward_load = 0;
+    int reward_phase = play_phase(&reward_load);
+    acquisition_tick(reward_phase, reward_load);
+    presentation_tick(reward_phase);
 
     // The line over the vendor goes a tick after the menu's hook stopped asking for it.
     if (s_hint_showing > 0 && --s_hint_showing == 0) {
@@ -1611,6 +1721,7 @@ static void each_tick(void* user) {
     guard_unowned_bomb_glove();
     guard_empty_vendor();
     run_notices();
+    reward_case_hint_tick();
 }
 
 /* ---- loading ---- */
@@ -1650,6 +1761,9 @@ static int take(int result, const char* point) {
 
 /* Takes every hook point the mod needs; 1 when all are in place, 0 (the port told) when not. */
 static int install_hooks(void) {
+    if (!presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
+        return 0;
+    }
     return HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
            && HOOK(Item_Give, item_give, &s_item_give)
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
@@ -1774,7 +1888,7 @@ static void index_locations(void) {
         // tick, so they have no entry.
         if (l->kind == LOC_INFOBOT) {
             s_by_infobot[l->level][l->key] = (int)i;
-        } else if (l->kind != LOC_GOLD) {
+        } else if (l->kind == LOC_GIVE || l->kind == LOC_VENDOR || l->kind == LOC_START) {
             s_by_item[l->key] = (int)i;
         }
     }
@@ -1792,6 +1906,8 @@ static void publish_rules(void) {
         {POOL_VENDOR, "the vendor"},
         {POOL_GOLD, "gold bolts"},
         {POOL_PLANETS, "infobots"},
+        {POOL_NPC_INFOBOTS, "NPC coordinates"},
+        {POOL_GOLD_WEAPONS, "gold-weapon cases"},
     };
 
     char text[160];
@@ -1941,10 +2057,22 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_vendor"),
         api->setting_bool(mod, "keep_starting_gear"),
         api->setting_string(mod, "difficulty"),
+        reward_save_host(api) != NULL,
+        api->setting_bool(mod, "shuffle_gold_weapons"),
     };
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
+
+    if ((settings.pools & (POOL_NPC_INFOBOTS | POOL_GOLD_WEAPONS)) && !reward_save_host(api)) {
+        api->fail(
+            mod, "This seed needs OpenRAC 1.16 save-data support (1.18 for reward presentations)."
+        );
+        return 1;
+    }
+    if (reward_save_host(api)) {
+        reward_save_host(api)->on_save_data(mod, reward_save_changed, NULL);
+    }
 
     // The solver finds a placement for every setting; this is a bug if it ever happens.
     if (rando_solve(&settings, &s_plan) != 0) {

@@ -98,7 +98,7 @@ static uint8_t checksum(uint64_t payload) {
 
 /* The 52 bits above the checksum: format, difficulty, starting gear, pools and seed. */
 static uint64_t payload_of(const rando_settings* s) {
-    return ((uint64_t)RANDO_CODE_FORMAT << CODE_FORMAT_SHIFT)
+    return ((uint64_t)(RANDO_CODE_FORMAT + ((s->pools >> 5) & 3u)) << CODE_FORMAT_SHIFT)
            | ((uint64_t)(s->difficulty & CODE_DIFFICULTY_MASK) << CODE_DIFFICULTY_SHIFT)
            | ((uint64_t)(s->keep_start & CODE_KEEP_MASK) << CODE_KEEP_SHIFT)
            | ((uint64_t)(s->pools & POOL_ALL) << CODE_POOLS_SHIFT) | (s->seed & RANDO_SEED_MASK);
@@ -178,7 +178,8 @@ int rando_decode(const char* text, rando_settings* s) {
 
     // A wrong checksum is a mistyped character; a wrong format is a code of a later mod.
     if ((uint8_t)(bits & CODE_CHECKSUM_MASK) != checksum(payload)
-        || (payload >> CODE_FORMAT_SHIFT) != RANDO_CODE_FORMAT) {
+        || (payload >> CODE_FORMAT_SHIFT) < RANDO_CODE_FORMAT
+        || (payload >> CODE_FORMAT_SHIFT) > RANDO_CODE_FORMAT + 3) {
         return 0;
     }
 
@@ -191,7 +192,8 @@ int rando_decode(const char* text, rando_settings* s) {
 
     s->difficulty = (uint8_t)difficulty;
     s->keep_start = (uint8_t)((payload >> CODE_KEEP_SHIFT) & CODE_KEEP_MASK);
-    s->pools = (uint8_t)((payload >> CODE_POOLS_SHIFT) & POOL_ALL);
+    s->pools = (uint8_t)(((payload >> CODE_POOLS_SHIFT) & POOL_ALL)
+                         | (((payload >> CODE_FORMAT_SHIFT) - RANDO_CODE_FORMAT) << 5));
     s->seed = payload & RANDO_SEED_MASK;
     return 1;
 }

@@ -12,6 +12,7 @@ set(item_randomizer_core src/logic.c src/seed.c src/solver.c src/config.c src/pa
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(item_randomizer MANIFEST openrac-mod.json SOURCES src/mod.c src/item_randomizer.c src/rac2/rac2.c
                 ${item_randomizer_core})
+target_compile_definitions(item_randomizer PRIVATE ITEM_RANDOMIZER_EXTENDED_POOLS=1)
 target_include_directories(item_randomizer PRIVATE src src/rac2)
 set_target_properties(item_randomizer PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 # Warnings on, for compilers that take these flags.
@@ -23,6 +24,7 @@ endif()
 if(BUILD_TESTING)
   # The core as a library of its own for the tests that need no host.
   add_library(item_randomizer_core STATIC ${item_randomizer_core})
+  target_compile_definitions(item_randomizer_core PRIVATE ITEM_RANDOMIZER_EXTENDED_POOLS=1)
   target_include_directories(item_randomizer_core PUBLIC src src/rac2)
   set_target_properties(item_randomizer_core PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 
@@ -64,4 +66,20 @@ if(BUILD_TESTING)
   target_link_libraries(item_randomizer_rac2_load_test PRIVATE OpenRAC::mod item_randomizer_core ${CMAKE_DL_LIBS})
   add_dependencies(item_randomizer_rac2_load_test item_randomizer)
   add_test(NAME item_randomizer_rac2_load COMMAND item_randomizer_rac2_load_test $<TARGET_FILE:item_randomizer>)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(item_randomizer_reward_pools_test tests/reward_pools_test.c)
+  target_link_libraries(item_randomizer_reward_pools_test PRIVATE item_randomizer_core)
+  set_target_properties(item_randomizer_reward_pools_test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+  add_test(NAME item_randomizer_reward_pools COMMAND item_randomizer_reward_pools_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(item_randomizer_reward_load_test tests/reward_load_test.c)
+  target_link_libraries(item_randomizer_reward_load_test PRIVATE OpenRAC::mod item_randomizer_core ${CMAKE_DL_LIBS})
+  set_target_properties(item_randomizer_reward_load_test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+  add_dependencies(item_randomizer_reward_load_test item_randomizer)
+  add_test(NAME item_randomizer_rewards_pal COMMAND item_randomizer_reward_load_test $<TARGET_FILE:item_randomizer> pal)
+  add_test(NAME item_randomizer_rewards_ntsc COMMAND item_randomizer_reward_load_test $<TARGET_FILE:item_randomizer> ntsc)
 endif()
