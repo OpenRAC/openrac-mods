@@ -40,13 +40,13 @@ static void npc_update_11(uint32_t moby) { run_npc_infobot(11,moby); }
 static void npc_update_12(uint32_t moby) { run_npc_infobot(12,moby); }
 static void serialize_real_ownership(uint32_t buffer) {
     /* Retail may save inside an NPC update while its planet flag shows collection state. */
-    swaps_suspend();
+    save_scope_enter();
     uint8_t shown=0;
     uint8_t* upgrade = s_gold_case >= 0 ? gold_owned(k_ap_gold_bases[s_gold_case]) : NULL;
     if (upgrade) { shown=*upgrade; *upgrade=s_gold_real_upgrade; }
     s_save_serialize(buffer);
     if (upgrade) *upgrade=shown;
-    swaps_resume();
+    save_scope_leave();
 }
 static int npc_infobot_hooks(void) {
     static void (*const wrappers[AP_NPC_COUNT])(uint32_t) = {

@@ -126,4 +126,12 @@ typedef void (*item_randomizer_Save_NewGame)(void);
 #define ITEM_RANDOMIZER_SIG_Save_NewGamePlus "void(i32)"
 typedef void (*item_randomizer_Save_NewGamePlus)(int32_t slot);
 
+/* Save entry points serialize immediately, even when called inside a moby update. */
+#define ITEM_RANDOMIZER_HOOK_Save_Prepare "rac1.save.prepare"
+#define ITEM_RANDOMIZER_SIG_Save_Prepare "void(i32,i32)"
+#define ITEM_RANDOMIZER_HOOK_Save_RequestAutosave "rac1.save.request_autosave"
+#define ITEM_RANDOMIZER_SIG_Save_RequestAutosave "i32(i32,i32)"
+#define ITEM_RANDOMIZER_HOOK_Save_Serialize "rac1.save.serialize"
+#define ITEM_RANDOMIZER_SIG_Save_Serialize "void(u32)"
+
 #endif /* ITEM_RANDOMIZER_HOOKS_H */

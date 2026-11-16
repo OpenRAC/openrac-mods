@@ -225,9 +225,35 @@ std::string saved_book() {
 }
 
 void* replacement(const char* name);
+std::uint8_t g_saved_owned[RANDO_ITEM_COUNT];
+int g_save_snapshots;
 void game_serialize(uint32_t) {
+    std::memcpy(g_saved_owned, at(D->owned), sizeof g_saved_owned);
+    ++g_save_snapshots;
     std::memcpy(g_serialized_planets,at(D->planets),LEVEL_COUNT);
     std::memcpy(&g_serialized_checks,at(D->save_tag),4);
+}
+void game_save_prepare(int32_t buffer, int32_t slot) {
+    CHECK(buffer == 0x1234 && slot == 7);
+    std::memcpy(g_saved_owned, at(D->owned), sizeof g_saved_owned);
+    ++g_save_snapshots;
+    ((void(*)(uint32_t))replacement("rac1.save.serialize"))(0);
+    CHECK(std::memcmp(g_saved_owned, at(D->owned), sizeof g_saved_owned) == 0);
+}
+int32_t game_request_autosave(int32_t slot, int32_t flags) {
+    CHECK(slot == 7 && flags == -1);
+    std::memcpy(g_saved_owned, at(D->owned), sizeof g_saved_owned);
+    ++g_save_snapshots;
+    auto prepare = (void(*)(int32_t,int32_t))replacement("rac1.save.prepare");
+    if (prepare) prepare(0x1234,7); else game_save_prepare(0x1234,7);
+    CHECK(std::memcmp(g_saved_owned, at(D->owned), sizeof g_saved_owned) == 0);
+    return 99;
+}
+void game_helga(uint32_t) {
+    CHECK(*at(D->owned + ITEM_SWINGSHOT) == 1); // location checked, not item owned
+    auto save = (int32_t(*)(int32_t,int32_t))replacement("rac1.save.request_autosave");
+    CHECK((save ? save(7,-1) : game_request_autosave(7,-1)) == 99);
+    CHECK(*at(D->owned + ITEM_SWINGSHOT) == 1); // NPC's view resumes afterward
 }
 void game_npc(uint32_t moby) {
     int16_t cls; std::memcpy(&cls,at(moby+0xA6),2);
@@ -242,6 +268,9 @@ void game_npc(uint32_t moby) {
 }
 
 void* original_for(const std::string& name) {
+    if (name == "rac1.save.prepare") return (void*)game_save_prepare;
+    if (name == "rac1.save.request_autosave") return (void*)game_request_autosave;
+    if (name == OPENRAC_RAC1_HOOK_Moby_Helga_Update) return (void*)game_helga;
     if (name == "rac1.save.serialize") return (void*)game_serialize;
     for (const auto& npc : k_ap_npcs) if (name == npc.hook) return (void*)game_npc;
     if (name == ITEM_RANDOMIZER_HOOK_Save_NewGame) return (void*)game_void;
@@ -611,7 +640,7 @@ int main(int argc, char** argv) {
     { std::ofstream book(dir / "save-slots.tsv"); book << "4\told-seed\tRatchet\n"; }
     const openrac_api api = make_api();
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 36 && g_frame != nullptr);
+    CHECK(g_hooks == 38 && g_frame != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 
@@ -831,6 +860,15 @@ int main(int argc, char** argv) {
         g_gives == gives && *at(D->owned + ITEM_SWINGSHOT) == 0
         && *at(D->obtained + ITEM_SWINGSHOT) == 1
     );
+    // The checked location must not turn into an owned Swingshot in an NPC autosave.
+    g_save_snapshots = 0;
+    ((void(*)(uint32_t))replacement(OPENRAC_RAC1_HOOK_Moby_Helga_Update))(0);
+    CHECK(g_save_snapshots == 3 && g_saved_owned[ITEM_SWINGSHOT] == 0);
+    CHECK(*at(D->owned + ITEM_SWINGSHOT) == 0);
+    *at(D->owned + ITEM_SWINGSHOT) = 1;
+    ((void(*)(uint32_t))replacement(OPENRAC_RAC1_HOOK_Moby_Helga_Update))(0);
+    CHECK(g_saved_owned[ITEM_SWINGSHOT] == 1); // real ownership survives
+    *at(D->owned + ITEM_SWINGSHOT) = 0;
     const std::int64_t helga = location_id(LOC_GIVE, LEVEL_KERWAN, ITEM_SWINGSHOT);
     CHECK(frames_until([helga] { return g_checked.count(helga) != 0; }));
 

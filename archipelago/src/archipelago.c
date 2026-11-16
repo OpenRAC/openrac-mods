@@ -83,7 +83,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.3.0"
+#define MOD_VERSION "2.3.2"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -352,6 +352,30 @@ static void swaps_resume(void) {
         s_swaps[i].real = *s_swaps[i].at;
         *s_swaps[i].at = (uint8_t)(s_swaps[i].location == SWAP_FORCE_OWNED || had(s_swaps[i].location));
     }
+}
+
+/* An NPC may save before its update returns. Never serialize the ownership
+ * bytes shown only to its collection test. Nested save calls must not resume
+ * the substitutions until the outermost save has finished. */
+static unsigned s_save_depth;
+static void (*s_save_prepare)(int32_t, int32_t);
+static int32_t (*s_request_autosave)(int32_t, int32_t);
+static void save_scope_enter(void) {
+    if (s_save_depth++ == 0) swaps_suspend();
+}
+static void save_scope_leave(void) {
+    if (--s_save_depth == 0) swaps_resume();
+}
+static void save_prepare(int32_t buffer, int32_t slot) {
+    save_scope_enter();
+    s_save_prepare(buffer, slot);
+    save_scope_leave();
+}
+static int32_t request_autosave(int32_t slot, int32_t flags) {
+    save_scope_enter();
+    const int32_t result = s_request_autosave(slot, flags);
+    save_scope_leave();
+    return result;
 }
 
 /* ---- giving what the server sent ---- */
@@ -1480,7 +1504,13 @@ static int install_hooks(void) {
            && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update)
            && HOOK(Moby_Class22_Update, orxon_start_update, &s_orxon_start_update)
            && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition)
-           && HOOK(Help_Request, help_request, &s_help_request);
+           && HOOK(Help_Request, help_request, &s_help_request)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_Prepare,
+                              ITEM_RANDOMIZER_SIG_Save_Prepare, (void*)save_prepare,
+                              (void**)&s_save_prepare), ITEM_RANDOMIZER_HOOK_Save_Prepare)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_RequestAutosave,
+                              ITEM_RANDOMIZER_SIG_Save_RequestAutosave, (void*)request_autosave,
+                              (void**)&s_request_autosave), ITEM_RANDOMIZER_HOOK_Save_RequestAutosave);
 }
 
 /* Every row that is a location, found by its key. */
