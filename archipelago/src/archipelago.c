@@ -80,9 +80,10 @@
 
 /* The items the game side reads at once; a longer list is read into a larger buffer. */
 #define RECEIVED_CHUNK 1024
+#define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.2.0"
+#define MOD_VERSION "2.3.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -330,7 +331,7 @@ static void swap_push(uint8_t* at, int location) {
     w->at = at;
     w->real = *at;
     w->location = location;
-    *at = (uint8_t)had(location);
+    *at = (uint8_t)(location == SWAP_FORCE_OWNED || had(location));
 }
 
 static void swap_pop(void) {
@@ -349,7 +350,7 @@ static void swaps_resume(void) {
     // In the order pushed: what the game's routine changed is the new real value.
     for (int i = 0; i < s_swap_count; ++i) {
         s_swaps[i].real = *s_swaps[i].at;
-        *s_swaps[i].at = (uint8_t)had(s_swaps[i].location);
+        *s_swaps[i].at = (uint8_t)(s_swaps[i].location == SWAP_FORCE_OWNED || had(s_swaps[i].location));
     }
 }
 
@@ -1179,7 +1180,9 @@ static void gold_case_update(openrac_gaddr moby) {
     s_gold_real_upgrade = upgrade;
     s_gold_case = index;
     *gold_owned(base) = (uint8_t)had_case;
+    swap_push(owned(base), SWAP_FORCE_OWNED);
     s_gold_case_update(moby);
+    swap_pop();
     const int bought = *gold_owned(base) != 0 && !had_case;
     *gold_owned(base) = upgrade;
     s_gold_case = previous;
@@ -1340,9 +1343,10 @@ static void each_tick(void* user) {
             s_api->play_notice(s_mod, "Archipelago: New Game+ enabled");
             s_notice_ticks = NOTICE_TICKS;
         }
-        /* Full Novalis gold-case stock also reads the retail postgame-access flag. Only
-         * enable that access when gold cases are shuffled; no upgrades or checks are granted. */
-        if (ap_client_shuffle_gold_weapons() == 1) set32(byte_at(s_disc->level + 0x9Cu), 1);
+    }
+    /* Shop access is independent of challenge mode and grants no inventory. */
+    if (!s_from_title && !s_judge_wait && ap_client_shuffle_gold_weapons() == 1) {
+        set32(byte_at(s_disc->level + 0x9Cu), 1);
     }
 
     if (ap_client_shuffle_gold_weapons() == 1 && !s_has_gold_currency_hook && !s_gold_hook_warned) {

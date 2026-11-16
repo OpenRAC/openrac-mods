@@ -198,7 +198,7 @@ void game_gold_case(openrac_gaddr moby) {
     std::memcpy(&pvars, at(moby + MOBY_PVARS), 4);
     const int base = ITEM_BOMB_GLOVE;
     const std::uint32_t gold = std::strcmp(D->version, "pal") == 0 ? 0x13E620 : 0x13E520;
-    if (*at(pvars + 4) == 2 && !*at(gold + base) && g_unspent() >= 4 && g_bolts >= 1000) {
+    if (*at(pvars + 4) == 2 && *at(D->owned + base) && !*at(gold + base) && g_unspent() >= 4 && g_bolts >= 1000) {
         g_bolts -= 1000;
         *at(gold + base) = 1;
         CHECK(g_unspent() == 36); // a purchase in flight spends currency immediately
@@ -707,6 +707,7 @@ int main(int argc, char** argv) {
     CHECK(frames_until([] { return *at(D->owned + ITEM_HELI_PACK) != 0; }));
     CHECK(*at(D->obtained + ITEM_HELI_PACK) == 0);
     CHECK(frames_until([challenge] { return *at(challenge) == int(g_new_game_plus); }));
+    CHECK(*at(D->level + 0x9Cu) == int(g_gold_mode));
     if (g_new_game_plus) {
         set_level(-1);
         *at(challenge) = 0;
@@ -744,7 +745,9 @@ int main(int argc, char** argv) {
         update_case(moby);
         CHECK(g_bolts == 999 && g_unspent() == 40); // unaffordable cases do not check or charge
         g_bolts = before;
+        *at(D->owned + ITEM_BOMB_GLOVE) = 0;
         update_case(moby);
+        CHECK(*at(D->owned + ITEM_BOMB_GLOVE) == 0);
         CHECK(g_bolts == before - 1000 && g_unspent() == 36);
         CHECK(*at(gold + ITEM_BOMB_GLOVE) == 0); // the original case did not grant its gold weapon
         const std::int64_t check = ap_gold_case_id(ITEM_BOMB_GLOVE);
