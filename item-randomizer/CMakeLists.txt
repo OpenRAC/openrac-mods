@@ -57,6 +57,7 @@ if(BUILD_TESTING)
   target_link_libraries(item_randomizer_load_test PRIVATE OpenRAC::mod item_randomizer_core ${CMAKE_DL_LIBS})
   add_dependencies(item_randomizer_load_test item_randomizer)
   add_test(NAME item_randomizer_load COMMAND item_randomizer_load_test $<TARGET_FILE:item_randomizer>)
+  add_test(NAME item_randomizer_load_ntsc COMMAND item_randomizer_load_test $<TARGET_FILE:item_randomizer> ntsc)
 
   # Going Commando's part of the library as the port loads it, against its own host and memory.
   add_executable(item_randomizer_rac2_load_test tests/rac2/load_test.c)
