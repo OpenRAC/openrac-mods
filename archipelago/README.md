@@ -196,3 +196,10 @@ This optional text feature needs OpenRAC interface **1.19** and its
 [OpenRAC/OpenRAC#540](https://github.com/OpenRAC/OpenRAC/pull/540)). On older
 hosts the mod retains native prompts. This feature does not change item pools,
 rewards, prices, models or acquisition animations. In-game verification is pending.
+
+Before the first Rilgar race win, the race starter's prompt is
+`Triangle: Enter race to win <reward>`. It returns to the native `Triangle: Enter race`
+after that race's saved check is collected, including after saving/reloading.
+Owning the reward from another source does not consume the race check. Randomized
+race rewards use the optional Items pool from [#202](https://github.com/OpenRAC/openrac-mods/pull/202);
+without that pool the prompt names the vanilla Platinum Zoomerator.

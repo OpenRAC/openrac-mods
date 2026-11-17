@@ -122,12 +122,28 @@ int main(void) {
     memcpy(memory + 0x31A6, &helga, 2); /* nested host below uses another class */
     nested = 1;
     npc_reward_try(0x3000, 0x2000);
+    level = LEVEL_RILGAR;
+    const uint16_t race_starter = 918;
+    memcpy(memory + 0x30A6, &race_starter, 2);
+    strcpy((char*)memory + 0x100, "\x12 Enter race");
+    assert(npc_reward_try(0x3000, 0x2000) == 7);
+    snprintf(formatted, sizeof formatted, (char*)memory + 0x1000);
+    assert(strcmp(formatted, "\x12 Enter race to win Swingshot 100% for Player %s") == 0);
+    enabled = 0;
+    npc_reward_try(0x3000, 0x2000);
+    enabled = 1;
+    level = 3;
     char prompt[120], huge[1000];
     memset(huge, 'a', sizeof huge);
     huge[999] = 0;
     assert(npc_reward_prompt(prompt, "# Talk", huge));
     assert(strlen(prompt) < 120);
     assert(!npc_reward_prompt(prompt, huge, "Gold Bolt"));
+    assert(npc_race_prompt(prompt, "\x12 Enter race", "Gold Bolt"));
+    assert(strcmp(prompt, "\x12 Enter race to win Gold Bolt") == 0);
+    assert(!npc_race_prompt(prompt, "You need a Hoverboard to race", "Gold Bolt"));
+    assert(npc_race_native_flag("pal") == 0x13D490u);
+    assert(npc_race_native_flag("ntsc") == 0x13D388u);
     assert(!npc_reward_source_for(3, 925)); /* class alone is not a location */
     for (size_t i = 0; i < sizeof npc_reward_sources / sizeof *npc_reward_sources; ++i) {
         const npc_reward_source* source = &npc_reward_sources[i];

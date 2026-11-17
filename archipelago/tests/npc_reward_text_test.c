@@ -7,6 +7,22 @@ static int s_from_title, s_judge_wait, active = 0, mode = 1, scouted = 1, checke
 static uint8_t inventory[37], planets[20];
 static int64_t last_location;
 
+static struct {
+    const char* version;
+} test_disc = {"pal"}, *s_disc = &test_disc;
+
+static uint8_t race_won;
+static int items_mode;
+
+static int ap_client_shuffle_items(void) {
+    return items_mode;
+}
+
+static uint8_t* byte_at(uint32_t address) {
+    assert(address == npc_race_native_flag(s_disc->version));
+    return &race_won;
+}
+
 static int ap_client_new_game_plus(void) {
     return active;
 }
@@ -81,6 +97,30 @@ int main(void) {
     s_judge_wait = 1;
     assert(!npc_reward_label(al, text, sizeof text));
     s_judge_wait = 0;
+    const npc_reward_source* starter = npc_reward_source_for(LEVEL_RILGAR, 918);
+    assert(starter && !npc_reward_source_for(LEVEL_RILGAR, 717));
+    assert(npc_reward_label(starter, text, sizeof text));
+    assert(strcmp(text, "Platinum Zoomerator") == 0);
+    race_won = 1;
+    assert(!npc_reward_label(starter, text, sizeof text));
+    s_disc->version = "ntsc";
+    assert(!npc_reward_label(starter, text, sizeof text));
+    race_won = 0;
+    assert(npc_reward_label(starter, text, sizeof text));
+    const int race_row = npc_reward_row(starter);
+    if (race_row >= 0) {
+        items_mode = 1;
+        race_won = 1;
+        checked = 0;
+        assert(npc_reward_label(starter, text, sizeof text)); /* remote ownership is not a win */
+        assert(strcmp(text, "Other Game Item for Player %s") == 0);
+        assert(last_location == ap_location_id(&rando_locations[race_row]));
+        checked = 1;
+        race_won = 0;
+        assert(!npc_reward_label(starter, text, sizeof text)); /* persisted source check */
+        checked = 0;
+        assert(npc_reward_label(starter, text, sizeof text));
+    }
     puts("AP NPC scout, recipient, collection and vanilla-coordinate cases passed");
     return 0;
 }

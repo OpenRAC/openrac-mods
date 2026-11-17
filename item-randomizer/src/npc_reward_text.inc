@@ -24,8 +24,14 @@ static uint32_t npc_reward_message(int32_t id) {
         return original;
     }
     char reward[192], prompt[120];
-    if (!npc_reward_label(s_npc_text_source, reward, sizeof reward)
-        || !npc_reward_prompt(prompt, (const char*)OPENRAC_G(s_api, original), reward)) {
+    if (!npc_reward_label(s_npc_text_source, reward, sizeof reward)) {
+        return original;
+    }
+    const char* text = (const char*)OPENRAC_G(s_api, original);
+    const int changed = s_npc_text_source->level == LEVEL_RILGAR && s_npc_text_source->cls == 918
+                            ? npc_race_prompt(prompt, text, reward)
+                            : npc_reward_prompt(prompt, text, reward);
+    if (!changed) {
         return original;
     }
     const uint32_t replacement = s_npc_text_copy(s_mod, prompt);

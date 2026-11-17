@@ -20,11 +20,26 @@ static int npc_reward_label(const npc_reward_source* source, char* out, size_t s
             return 1;
         }
     }
+#ifdef POOL_ITEMS
+    if (source->level == LEVEL_RILGAR && source->cls == 918 && ap_client_shuffle_items() == 0) {
+        if (*byte_at(npc_race_native_flag(s_disc->version))) {
+            return 0;
+        }
+        snprintf(out, size, "Platinum Zoomerator");
+        return 1;
+    }
+#endif
     if (row >= 0 && ap_is_location(&rando_locations[row])) {
         if (!ap_client_location_hint(ap_location_id(&rando_locations[row]), out, size)) {
             snprintf(out, size, "Unscouted reward");
         }
         return 1;
+    }
+    /* Without the optional race pool, the retail first-win ownership flag is
+     * authoritative. With that pool, had(row) above reads its separate save check. */
+    if (source->level == LEVEL_RILGAR && source->cls == 918 && row < 0
+        && *byte_at(npc_race_native_flag(s_disc->version))) {
+        return 0;
     }
     if (source->fixed) {
         snprintf(out, size, "%s", source->fixed);

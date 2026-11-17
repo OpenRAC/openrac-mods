@@ -27,7 +27,7 @@ static const npc_reward_source npc_reward_sources[] =
      {6, 1105, REWARD_ITEM, ITEM_GRINDBOOTS, 0},
      {5, 919, REWARD_PLANET, 7, 0},
      {5, 925, REWARD_ITEM, ITEM_RYNO, 0},
-     {5, 717, REWARD_NONE, 0, "Platinum Zoomerator"},
+     {5, 918, REWARD_NONE, 0, "Platinum Zoomerator"},
      {7, 436, REWARD_PLANET, 8, 0},
      {8, 1130, REWARD_PLANET, 10, 0},
      {8, 1144, REWARD_PLANET, 9, 0},
@@ -55,7 +55,25 @@ static const npc_reward_source* npc_reward_source_for(int level, int cls) {
     return NULL;
 }
 
+/* The Items pool (PR #202) supplies this row when integrated. Matching its
+ * location identity avoids confusing the starter with Skid or inventory ownership. */
+static int npc_race_row(void) {
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (rando_locations[i].level == LEVEL_RILGAR
+            && strcmp(rando_locations[i].name, "Rilgar: the Hoverboard race") == 0) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static uint32_t npc_race_native_flag(const char* version) {
+    return strcmp(version, "pal") == 0 ? 0x13D490u : 0x13D388u;
+}
 static int npc_reward_row(const npc_reward_source* source) {
+    if (source->level == LEVEL_RILGAR && source->cls == 918) {
+        return npc_race_row();
+    }
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* row = &rando_locations[i];
         if (row->level == source->level && row->vanilla.kind == source->kind
@@ -94,5 +112,31 @@ static int npc_reward_prompt(char out[120], const char* original, const char* re
     }
     out[at] = 0;
     return at > n + 11;
+}
+
+/* Her native race entry, not the missing-Hoverboard or other dialogue message. */
+static int npc_race_prompt(char out[120], const char* original, const char* reward) {
+    if ((unsigned char)original[0] != 0x12 || strcmp(original + 1, " Enter race") != 0) {
+        return 0;
+    }
+    const char prefix[] = "\x12 Enter race to win ";
+    size_t at = sizeof prefix - 1;
+    memcpy(out, prefix, at);
+    for (size_t i = 0; reward[i]; ++i) {
+        const unsigned char ch = (unsigned char)reward[i];
+        if (ch < 32 || ch > 126) {
+            continue;
+        }
+        const size_t bytes = ch == '%' ? 2 : 1;
+        if (at + bytes >= 120) {
+            break;
+        }
+        if (ch == '%') {
+            out[at++] = '%';
+        }
+        out[at++] = (char)ch;
+    }
+    out[at] = 0;
+    return at > sizeof prefix - 1;
 }
 #endif
