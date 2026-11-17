@@ -348,3 +348,18 @@ Owning the Heli-Pack does not collect Al's randomized reward. Helga's return tax
 remains available after buying her reward while the player lacks the Swingshot;
 receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
 and real item ownership remain separate.
+
+### NPC reward interaction text
+
+NPC interaction prompts show `Reward: <item>` before the purchase or handoff.
+The native prompt, button and price are retained; long reward names are shortened
+to fit the game's panel. This covers gadget sellers, quest/race reward NPCs and
+NPC coordinates. Fixed rewards retain their vanilla names; collected randomized locations
+stop advertising a reward. Archipelago shows the scouted item and its recipient,
+or `Unscouted reward` until the room provides the scout.
+
+This optional text feature needs OpenRAC interface **1.19** and its
+`rac1.npc.try_dialog` / `rac1.text.msg_string` hooks (engine PR
+[OpenRAC/OpenRAC#540](https://github.com/OpenRAC/OpenRAC/pull/540)). On older
+hosts the mod retains native prompts. This feature does not change item pools,
+rewards, prices, models or acquisition animations. In-game verification is pending.
