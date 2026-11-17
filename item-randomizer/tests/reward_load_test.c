@@ -30,6 +30,9 @@ static uint32_t pool_word(void) {
 }
 
 static int modern_setting(openrac_mod* mod, const char* key) {
+    if (strcmp(key, "reward_models") == 0 || strcmp(key, "reward_text") == 0) {
+        return 1;
+    }
     if (strcmp(key, "shuffle_gold_weapons") == 0) {
         return modern_gold;
     }

@@ -363,7 +363,7 @@ static void acquisition_update4(uint32_t m) {
 }
 
 static int acquisition_hooks(void) {
-    s_acquisition_api = reward_pickup_host(s_api);
+    s_acquisition_api = s_reward_models ? reward_pickup_host(s_api) : NULL;
     s_acquisition_count = 0;
     s_acquisition_source = 0;
     s_acquisition_vendor_row = -1;
