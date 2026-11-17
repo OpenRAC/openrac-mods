@@ -29,7 +29,8 @@ static uint32_t npc_reward_message(int32_t id) {
     }
     const char* text = (const char*)OPENRAC_G(s_api, original);
     int changed;
-    if (s_npc_text_source->level == LEVEL_RILGAR && s_npc_text_source->cls == 918) {
+    if ((s_npc_text_source->level == LEVEL_RILGAR && s_npc_text_source->cls == 918)
+        || (s_npc_text_source->level == LEVEL_KALEBO && s_npc_text_source->cls == 1455)) {
         changed = npc_race_prompt(prompt, text, reward);
     } else if (s_npc_text_source->level == LEVEL_RILGAR && s_npc_text_source->cls == 919) {
         changed = npc_bouncer_prompt(prompt, text, reward);
@@ -39,6 +40,7 @@ static uint32_t npc_reward_message(int32_t id) {
     if (!changed) {
         return original;
     }
+    npc_reward_wrap(prompt);
     const uint32_t replacement = s_npc_text_copy(s_mod, prompt);
     return replacement ? replacement : original;
 }

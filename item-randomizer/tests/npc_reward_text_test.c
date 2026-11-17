@@ -77,6 +77,13 @@ static int32_t native_try(uint32_t moby, uint32_t request) {
     return 7;
 }
 
+static void flatten(char* text) {
+    for (; *text; ++text) {
+        if (*text == 1) {
+            *text = ' ';
+        }
+    }
+}
 int main(void) {
     npc_text_api host = {0};
 #if OPENRAC_MOD_API_MINOR < 19
@@ -109,7 +116,8 @@ int main(void) {
     assert(npc_reward_try(0x3000, 0x2000) == 7);
     char formatted[256];
     snprintf(formatted, sizeof formatted, (char*)memory + 0x1000, 1000);
-    assert(strstr(formatted, "1000 bolts - Reward: Swingshot 100% for Player %s"));
+    flatten(formatted);
+    assert(strstr(formatted, "Buy Swingshot 100% for Player %s for 1000 bolts"));
     assert(!s_npc_text_request && !s_npc_text_source);
     assert(npc_reward_message(42) == 0x100); /* outside interaction scope */
     enabled = 0;
@@ -128,6 +136,7 @@ int main(void) {
     strcpy((char*)memory + 0x100, "\x12 Enter race");
     assert(npc_reward_try(0x3000, 0x2000) == 7);
     snprintf(formatted, sizeof formatted, (char*)memory + 0x1000);
+    flatten(formatted);
     assert(strcmp(formatted, "\x12 Enter race - Reward: Swingshot 100% for Player %s") == 0);
     enabled = 0;
     npc_reward_try(0x3000, 0x2000);
@@ -137,6 +146,7 @@ int main(void) {
     strcpy((char*)memory + 0x100, "\x12 Bribe Bouncer with 4,000 bolts");
     assert(npc_reward_try(0x3000, 0x2000) == 7);
     snprintf(formatted, sizeof formatted, (char*)memory + 0x1000);
+    flatten(formatted);
     assert(
         strcmp(formatted, "\x12 Bribe Bouncer with 4,000 bolts to get Swingshot 100% for Player %s")
         == 0
@@ -154,6 +164,17 @@ int main(void) {
     assert(npc_bouncer_prompt(prompt, "\x12 Bribe Bouncer with 4,000 bolts", "Devastator"));
     assert(strcmp(prompt, "\x12 Bribe Bouncer with 4,000 bolts to get Devastator") == 0);
     assert(!npc_bouncer_prompt(prompt, "You need 4,000 bolts to see Captain Qwark", "Devastator"));
+    assert(npc_reward_prompt(prompt, "\x12 Buy \fHeli-Pack\x08 for 1,000 bolts", "Devastator"));
+    assert(strcmp(prompt, "\x12 Buy \fDevastator\x08 for 1,000 bolts") == 0);
+    assert(!strstr(prompt, "Heli-Pack") && !strstr(prompt, "Reward:"));
+    assert(
+        npc_reward_prompt(prompt, "\x12 Pay 2,000 Bolts for \fThruster-Pack\x08", "Bolt Grabber")
+    );
+    assert(strcmp(prompt, "\x12 Pay 2,000 Bolts for \fBolt Grabber\x08") == 0);
+    assert(npc_reward_prompt(prompt, "\x12 Trade Raritanium for Persuader", "Devastator"));
+    assert(strcmp(prompt, "\x12 Trade Raritanium for Devastator") == 0);
+    assert(npc_reward_prompt(prompt, "You need 1,000 bolts for the Heli-Pack", "Devastator"));
+    assert(strcmp(prompt, "You need 1,000 bolts for Devastator") == 0);
     assert(npc_race_native_flag("pal") == 0x13D490u);
     assert(npc_race_native_flag("ntsc") == 0x13D388u);
     assert(!npc_reward_source_for(3, 925)); /* class alone is not a location */

@@ -32,7 +32,7 @@ static const npc_reward_source npc_reward_sources[] =
      {8, 1130, REWARD_PLANET, 10, 0},
      {8, 1144, REWARD_PLANET, 9, 0},
      {8, 1283, REWARD_ITEM, ITEM_METAL_DETECTOR, 0},
-     {10, 282, REWARD_NONE, 0, "Raritanium"},
+     {12, 282, REWARD_NONE, 0, "Raritanium"},
      {11, 90, REWARD_ITEM, ITEM_THRUSTER_PACK, 0},
      {11, 114, REWARD_ITEM, ITEM_O2_MASK, 0},
      {11, 298, REWARD_ITEM, ITEM_PERSUADER, 0},
@@ -85,11 +85,45 @@ static int npc_reward_row(const npc_reward_source* source) {
     return -1;
 }
 
+/* RAC1's HUD newline is byte 1. Wrap at word boundaries without splitting a
+ * format conversion or changing prices/buttons; colour controls take no width. */
+static void npc_reward_wrap(char* text) {
+    size_t start = 0, last_space = (size_t)-1;
+    unsigned columns = 0;
+    for (size_t i = 0; text[i]; ++i) {
+        const unsigned char ch = (unsigned char)text[i];
+        if (ch == 1) {
+            start = i + 1;
+            columns = 0;
+            last_space = (size_t)-1;
+            continue;
+        }
+        if (ch == ' ') {
+            last_space = i;
+        }
+        if (ch >= 32 || ch == 0x12) {
+            ++columns;
+        }
+        if (columns > 38 && last_space != (size_t)-1 && last_space >= start) {
+            text[last_space] = 1;
+            start = last_space + 1;
+            columns = 0;
+            for (size_t j = start; j <= i; ++j) {
+                if ((unsigned char)text[j] >= 32) {
+                    ++columns;
+                }
+            }
+            last_space = (size_t)-1;
+        }
+    }
+}
 /* Retail formats the prompt into its small panel. Escape external item/player
  * names without changing the native button, price or format arguments. */
-static int npc_named_prompt(char out[120], const char* prefix, const char* reward) {
-    const size_t n = strlen(prefix);
-    if (!n || n + 1 >= 120 || !reward[0]) {
+static int npc_label_between(
+    char out[120], const char* prefix, const char* reward, const char* suffix
+) {
+    const size_t n = strlen(prefix), tail = strlen(suffix);
+    if (!n || n + tail + 1 >= 120 || !reward[0]) {
         return 0;
     }
     memcpy(out, prefix, n);
@@ -100,7 +134,7 @@ static int npc_named_prompt(char out[120], const char* prefix, const char* rewar
             continue;
         }
         const size_t bytes = ch == '%' ? 2 : 1;
-        if (at + bytes >= 120) {
+        if (at + bytes + tail >= 120) {
             break;
         }
         if (ch == '%') {
@@ -108,20 +142,78 @@ static int npc_named_prompt(char out[120], const char* prefix, const char* rewar
         }
         out[at++] = (char)ch;
     }
-    out[at] = 0;
-    return at > n;
+    if (at == n) {
+        return 0;
+    }
+    memcpy(out + at, suffix, tail + 1);
+    return 1;
 }
 
+static int npc_named_prompt(char out[120], const char* prefix, const char* reward) {
+    return npc_label_between(out, prefix, reward, "");
+}
+
+/* Replace only the purchased reward. Native price/trade costs, button glyphs,
+ * colour codes and format arguments remain the game's own. */
 static int npc_reward_prompt(char out[120], const char* original, const char* reward) {
+    const char* buy = strstr(original, "Buy ");
+    const char* cost = buy ? strstr(buy + 4, " for ") : NULL;
+    const char* name = NULL;
+    char prefix[120], suffix[120];
+    if (cost) {
+        name = buy + 4;
+        size_t n = (size_t)(name - original);
+        if ((unsigned char)*name == 0x0C) {
+            ++n;
+        }
+        if (n >= sizeof prefix || strlen(cost) + 2 >= sizeof suffix) {
+            return 0;
+        }
+        memcpy(prefix, original, n);
+        prefix[n] = 0;
+        snprintf(
+            suffix,
+            sizeof suffix,
+            "%s%s",
+            cost > name && (unsigned char)cost[-1] == 8 ? "\x08" : "",
+            cost
+        );
+        return npc_label_between(out, prefix, reward, suffix);
+    }
+    /* Pay <price> for <reward>, Trade <cost> for <reward>, and the matching
+     * affordability text all put the reward last. Never replace the trade cost. */
+    if (strstr(original, "Pay ") || strstr(original, "Trade ") || strstr(original, "You need ")) {
+        const char* sep = strstr(original, " for ");
+        if (!sep) {
+            sep = strstr(original, " to buy ");
+        }
+        if (sep) {
+            name = sep + (strncmp(sep, " for ", 5) == 0 ? 5 : 8);
+            size_t n = (size_t)(name - original);
+            if ((unsigned char)*name == 0x0C) {
+                ++n;
+            }
+            if (n >= sizeof prefix) {
+                return 0;
+            }
+            memcpy(prefix, original, n);
+            prefix[n] = 0;
+            const size_t length = strlen(original);
+            return npc_label_between(
+                out,
+                prefix,
+                reward,
+                length && (unsigned char)original[length - 1] == 8 ? "\x08" : ""
+            );
+        }
+    }
     const size_t n = strlen(original);
     if (!n || n + 12 >= 120) {
         return 0;
     }
-    char prefix[120];
     snprintf(prefix, sizeof prefix, "%s - Reward: ", original);
     return npc_named_prompt(out, prefix, reward);
 }
-
 /* Only the native race entry, not the missing-Hoverboard message. */
 static int npc_race_prompt(char out[120], const char* original, const char* reward) {
     if ((unsigned char)original[0] != 0x12 || strcmp(original + 1, " Enter race") != 0) {

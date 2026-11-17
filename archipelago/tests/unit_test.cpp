@@ -270,6 +270,14 @@ void test_session() {
     );
     std::string preview;
     expect(s.location_hint(1380122625, preview) && preview == "Sword for Link", "purchase preview names the scouted reward and recipient");
+    s.on_message(
+        R"([{"cmd":"LocationInfo","locations":[{"item":1380122636,"location":1380122626,"player":1,"flags":1}]}])",
+        out
+    );
+    expect(
+        s.location_hint(1380122626, preview) && preview == "Swingshot",
+        "local purchase reward omits the local player name"
+    );
     std::int64_t item = 0;
     bool own = true;
     expect(s.location_item(1380122625, item, own) && item == 7 && !own, "the scouted location");

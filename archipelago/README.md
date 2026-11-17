@@ -184,7 +184,9 @@ and real item ownership remain separate.
 
 ### NPC reward interaction text
 
-NPC interaction prompts show `Reward: <item>` before the purchase or handoff.
+Purchase prompts replace the vanilla reward name with the assigned item, e.g.
+`Buy Devastator for 1,000 bolts` instead of `Buy Heli-Pack for 1,000 bolts`.
+Other handoff prompts show `Reward: <item>`.
 The native prompt, button and price are retained; long reward names are shortened
 to fit the game's panel. This covers gadget sellers, quest/race reward NPCs and
 NPC coordinates. Fixed rewards retain their vanilla names; collected randomized locations
