@@ -80,15 +80,16 @@ jobs:
             os: ubuntu-22.04
           - name: linux-aarch64
             os: ubuntu-24.04-arm
-          # Apple silicon, and Intel cross-built on the same runner (one architecture per build).
+          # Use the Intel pool while hosted Apple silicon runners have capacity constraints.
+          # Both architectures still build and package; execute tests on the native Intel build.
           - name: macos-arm64
-            os: macos-15
+            os: macos-15-intel
             configure: -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-          - name: macos-x86_64
-            os: macos-15
-            configure: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-            # An Intel build's tests cannot run on an Apple silicon runner without Rosetta.
+            # Apple silicon test executables cannot run on an Intel runner.
             skip_tests: true
+          - name: macos-x86_64
+            os: macos-15-intel
+            configure: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
           # Android (OpenRAC's app, arm64): the runner's NDK, cross-built, no test run here.
           - name: android-arm64
             os: ubuntu-24.04

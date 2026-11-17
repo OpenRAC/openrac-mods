@@ -34,6 +34,7 @@ and start a **new game**.
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
 | Shuffle the vendor | on | Each weapon the vendor sells is a slot: buying it, at its price, gives what the seed put there |
 | Shuffle gold bolts | on | A gold bolt may be anywhere, and a gold bolt's place may hold a weapon or a useful extra, never something you need to go on. The pause screen counts the gold bolts you have found, wherever they were |
+| Shuffle gold-weapon cases | off | RAC1 only: shuffle ten gold upgrades and their cases; open the Novalis shop without New Game+ |
 | Shuffle infobots | on | The planets' coordinates the infobots give join the pool |
 | Show what the vendor gives | on | A line above the picture says what buying a weapon at the vendor gives you. Off: buying is a surprise |
 | Keep the starting gear | on | Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too |
@@ -322,6 +323,13 @@ when absent from the planet's vendor stock. The original selector retains its
 low-ammo priority and Bomb Glove fallback. The real vendor stock is restored
 after the call. Saves outside this seed retain the game's original behavior.
 
+Gold-case shuffling retains the normal bolt price and four-Gold-Bolt cost, without requiring
+ownership of the original base weapon. Received gold weapons grant the base weapon and upgrade.
+Gold Bolt currency and progression stay outside cases. Case checks are saved separately from
+upgrade ownership through OpenRAC interface 1.16. Older seed codes retain their exact placement;
+new codes record this option. RAC2 and NPC coordinates are unchanged.
+This gameplay change does not replace reward models, icons or animations.
+
 ### Saves during NPC rewards
 
 An NPC may autosave while the mod shows it a location's collection state instead of the
@@ -329,6 +337,9 @@ item's ownership. Save preparation, autosaves and serialization use the real inv
 nested save calls keep that inventory until the outer save returns. The NPC then sees
 its collection state again. This prevents an original gadget being saved alongside a
 randomized reward; it does not repair a save already carrying that gadget.
+
+The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
+are probed at runtime: `rac1.gold_bolt.count_unspent`.
 
 ### Kerwan door and return taxi
 

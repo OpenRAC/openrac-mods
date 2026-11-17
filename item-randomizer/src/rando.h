@@ -101,7 +101,8 @@ enum {
     REWARD_NONE = 0,
     REWARD_ITEM,
     REWARD_PLANET,
-    REWARD_GOLD_BOLT
+    REWARD_GOLD_BOLT,
+    REWARD_GOLD_WEAPON
 };
 
 typedef struct rando_reward {
@@ -112,12 +113,13 @@ typedef struct rando_reward {
 /* ---- locations (logic.c) ---- */
 
 enum {
-    LOC_GIVE,    /* an NPC or a pickup: the game calls GiveItem(key), key its own item */
-    LOC_VENDOR,  /* the vendor's slot for item key, in the stock from level `level` on */
-    LOC_START,   /* the Bomb Glove the game gives at the first level start (key 0x0A) */
-    LOC_INFOBOT, /* an infobot: key its moby's mission slot on `level` */
-    LOC_GOLD,    /* a gold bolt: key its slot (0..3) on `level` */
-    LOC_FIXED,   /* never shuffled: an NPC's planet coordinates, the Persuader, the goal */
+    LOC_GIVE,      /* an NPC or a pickup: the game calls GiveItem(key), key its own item */
+    LOC_VENDOR,    /* the vendor's slot for item key, in the stock from level `level` on */
+    LOC_START,     /* the Bomb Glove the game gives at the first level start (key 0x0A) */
+    LOC_INFOBOT,   /* an infobot: key its moby's mission slot on `level` */
+    LOC_GOLD,      /* a gold bolt: key its slot (0..3) on `level` */
+    LOC_FIXED,     /* never shuffled: an NPC's planet coordinates, the Persuader, the goal */
+    LOC_GOLD_CASE, /* RAC1 only, enabled separately from ordinary vendor slots */
 };
 
 /* The pools (the settings), each a set of locations whose rewards are shuffled together. */
@@ -126,7 +128,9 @@ enum {
 #define POOL_GOLD 0x04u    /* the gold bolts */
 #define POOL_PLANETS 0x08u /* the infobots */
 #define POOL_VENDOR 0x10u  /* the vendor's weapons */
-#define POOL_ALL 0x1Fu
+#define POOL_ALL 0x1Fu     /* legacy pool mask: keep seed format 2 unchanged */
+#define POOL_GOLD_WEAPONS 0x40u
+#define POOL_EXTENDED_ALL 0x5Fu
 
 /* A location's flags. */
 #define LOCF_COSTLY 0x01u /* bought for more bolts than a player has early on */
