@@ -574,7 +574,7 @@ ap_visual_api make_api() {
     auto& api = *ap_visual_base(&result);
     api.size = g_visual_mode ? sizeof result : sizeof api;
     api.api_major = OPENRAC_MOD_API_MAJOR;
-    api.api_minor = g_visual_mode ? 18 : 14;
+    api.api_minor = g_visual_mode ? 19 : 14;
     api.game = "rac1";
     api.version = D->version;
     api.memory = g_memory.data();
@@ -1094,7 +1094,8 @@ int main(int argc, char** argv) {
         update_case(moby);
         CHECK(g_bolts == 999 && g_unspent() == 40);  // unaffordable cases do not check or charge
         g_bolts = before;
-        *at(D->owned + ITEM_BOMB_GLOVE) = 1; /* retail prerequisite; removed by separate gold-case PR */
+        *at(D->owned + ITEM_BOMB_GLOVE) =
+            1; /* retail prerequisite; removed by separate gold-case PR */
         update_case(moby);
         CHECK(g_bolts == before - 1000 && g_unspent() == 36);
         CHECK(*at(gold + ITEM_BOMB_GLOVE) == 0);  // the original case did not grant its gold weapon
@@ -1385,7 +1386,7 @@ int main(int argc, char** argv) {
             std::memcpy(at(request + 0x36), &index, 2);
             put(request + 0x40, 0);
             const uint32_t table = std::strcmp(D->version, "pal") == 0 ? 0x1DEDE0u : 0x1DEB10u;
-            put(table, ITEM_PYROCITOR); // scouted Gold Bolt
+            put(table, ITEM_PYROCITOR);  // scouted Gold Bolt
             std::memcpy(at(entries), &msg, 2);
             std::memcpy(at(entries + 8), &cost_kind, 2);
             g_dialog_starts = false;

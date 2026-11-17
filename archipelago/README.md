@@ -202,3 +202,5 @@ randomized reward; it does not repair a save already carrying that gadget.
 
 The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
 are probed at runtime: `rac1.vendor.draw_icons`, `rac1.vendor.draw_details`, `rac1.ui.icon_frame`, `rac1.ui.sprite.draw`, `rac1.npc.try_dialog`, `rac1.pickup.start_scene`, `rac1.gold_case.start_demo`.
+
+The companion reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools.
