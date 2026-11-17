@@ -628,13 +628,8 @@ static void helmet_update(openrac_gaddr moby) {
     run_shown(s_helmet_update, moby, ITEM_PILOTS_HELMET);
 }
 
-static void helga_update(openrac_gaddr moby) {
-    run_shown(s_helga_update, moby, ITEM_SWINGSHOT);
-}
-
-static void big_al_update(openrac_gaddr moby) {
-    run_shown(s_big_al_update, moby, ITEM_HELI_PACK);
-}
+static int kerwan_randomizer_active(void) { return !s_from_title && !s_judge_wait && ap_client_new_game_plus() >= 0; }
+#include "kerwan_access.inc"
 
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
@@ -1434,6 +1429,7 @@ static void each_tick(void* user) {
         ap_client_goal();
         log_line(OPENRAC_LOG_INFO, "Drek is beaten: the goal is sent");
     }
+    kerwan_access_tick();
 }
 
 /* ---- loading ---- */

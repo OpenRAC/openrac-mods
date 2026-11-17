@@ -328,3 +328,11 @@ item's ownership. Save preparation, autosaves and serialization use the real inv
 nested save calls keep that inventory until the outer save returns. The NPC then sees
 its collection state again. This prevents an original gadget being saved alongside a
 randomized reward; it does not repair a save already carrying that gadget.
+
+### Kerwan door and return taxi
+
+Big Al's door opens when his location is purchased or the player owns the Heli-Pack.
+Owning the Heli-Pack does not collect Al's randomized reward. Helga's return taxi
+remains available after buying her reward while the player lacks the Swingshot;
+receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
+and real item ownership remain separate.
