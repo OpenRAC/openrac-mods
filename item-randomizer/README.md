@@ -355,3 +355,12 @@ pickup/vendor models, inventory icons and receiving animations. Text controls
 randomized NPC prompts and vendor item names. Turning either off restores its
 original game presentation. Reload the mod after changing these local display
 preferences; they do not change the seed, item pool, prices or rewards.
+
+### Release publishing
+
+This PR prepares **2.5.0**. Once merged into `master`, a successful build
+automatically publishes `item-randomizer-v2.5.0` with the mod archives and
+checksums. The launcher index is then refreshed.
+PR builds do not publish releases. The request in `.github/mod-releases/`
+remains pending until a successful master build publishes its version tag.
+Later builds skip that tag; a newer version needs a new release request.
