@@ -132,6 +132,15 @@ int main(void) {
     enabled = 0;
     npc_reward_try(0x3000, 0x2000);
     enabled = 1;
+    const uint16_t bouncer = 919;
+    memcpy(memory + 0x30A6, &bouncer, 2);
+    strcpy((char*)memory + 0x100, "\x12 Bribe Bouncer with 4,000 bolts");
+    assert(npc_reward_try(0x3000, 0x2000) == 7);
+    snprintf(formatted, sizeof formatted, (char*)memory + 0x1000);
+    assert(
+        strcmp(formatted, "\x12 Bribe Bouncer with 4,000 bolts to get Swingshot 100% for Player %s")
+        == 0
+    );
     level = 3;
     char prompt[120], huge[1000];
     memset(huge, 'a', sizeof huge);
@@ -142,6 +151,9 @@ int main(void) {
     assert(npc_race_prompt(prompt, "\x12 Enter race", "Gold Bolt"));
     assert(strcmp(prompt, "\x12 Enter race to win Gold Bolt") == 0);
     assert(!npc_race_prompt(prompt, "You need a Hoverboard to race", "Gold Bolt"));
+    assert(npc_bouncer_prompt(prompt, "\x12 Bribe Bouncer with 4,000 bolts", "Devastator"));
+    assert(strcmp(prompt, "\x12 Bribe Bouncer with 4,000 bolts to get Devastator") == 0);
+    assert(!npc_bouncer_prompt(prompt, "You need 4,000 bolts to see Captain Qwark", "Devastator"));
     assert(npc_race_native_flag("pal") == 0x13D490u);
     assert(npc_race_native_flag("ntsc") == 0x13D388u);
     assert(!npc_reward_source_for(3, 925)); /* class alone is not a location */

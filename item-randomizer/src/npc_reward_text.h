@@ -85,17 +85,15 @@ static int npc_reward_row(const npc_reward_source* source) {
     return -1;
 }
 
-/* Keep the native buttons, price and format arguments verbatim. Retail formats
- * this string into its small HUD panel; never let an AP name introduce a format. */
-static int npc_reward_prompt(char out[120], const char* original, const char* reward) {
-    const size_t n = strlen(original);
-    if (!n || n + 12 >= 120 || !reward[0]) {
+/* Retail formats the prompt into its small panel. Escape external item/player
+ * names without changing the native button, price or format arguments. */
+static int npc_named_prompt(char out[120], const char* prefix, const char* reward) {
+    const size_t n = strlen(prefix);
+    if (!n || n + 1 >= 120 || !reward[0]) {
         return 0;
     }
-    memcpy(out, original, n);
+    memcpy(out, prefix, n);
     size_t at = n;
-    memcpy(out + at, " - Reward: ", 11);
-    at += 11;
     for (size_t i = 0; reward[i]; ++i) {
         const unsigned char ch = (unsigned char)reward[i];
         if (ch < 32 || ch > 126) {
@@ -111,32 +109,33 @@ static int npc_reward_prompt(char out[120], const char* original, const char* re
         out[at++] = (char)ch;
     }
     out[at] = 0;
-    return at > n + 11;
+    return at > n;
 }
 
-/* Her native race entry, not the missing-Hoverboard or other dialogue message. */
+static int npc_reward_prompt(char out[120], const char* original, const char* reward) {
+    const size_t n = strlen(original);
+    if (!n || n + 12 >= 120) {
+        return 0;
+    }
+    char prefix[120];
+    snprintf(prefix, sizeof prefix, "%s - Reward: ", original);
+    return npc_named_prompt(out, prefix, reward);
+}
+
+/* Only the native race entry, not the missing-Hoverboard message. */
 static int npc_race_prompt(char out[120], const char* original, const char* reward) {
     if ((unsigned char)original[0] != 0x12 || strcmp(original + 1, " Enter race") != 0) {
         return 0;
     }
-    const char prefix[] = "\x12 Enter race to win ";
-    size_t at = sizeof prefix - 1;
-    memcpy(out, prefix, at);
-    for (size_t i = 0; reward[i]; ++i) {
-        const unsigned char ch = (unsigned char)reward[i];
-        if (ch < 32 || ch > 126) {
-            continue;
-        }
-        const size_t bytes = ch == '%' ? 2 : 1;
-        if (at + bytes >= 120) {
-            break;
-        }
-        if (ch == '%') {
-            out[at++] = '%';
-        }
-        out[at++] = (char)ch;
+    return npc_named_prompt(out, "\x12 Enter race to win ", reward);
+}
+
+/* Only the bribe action; the affordability warning keeps its native text. */
+static int npc_bouncer_prompt(char out[120], const char* original, const char* reward) {
+    if ((unsigned char)original[0] != 0x12
+        || strcmp(original + 1, " Bribe Bouncer with 4,000 bolts") != 0) {
+        return 0;
     }
-    out[at] = 0;
-    return at > sizeof prefix - 1;
+    return npc_named_prompt(out, "\x12 Bribe Bouncer with 4,000 bolts to get ", reward);
 }
 #endif

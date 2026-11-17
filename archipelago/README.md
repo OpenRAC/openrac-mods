@@ -203,3 +203,7 @@ after that race's saved check is collected, including after saving/reloading.
 Owning the reward from another source does not consume the race check. Randomized
 race rewards use the optional Items pool from [#202](https://github.com/OpenRAC/openrac-mods/pull/202);
 without that pool the prompt names the vanilla Platinum Zoomerator.
+
+The Rilgar bouncer uses `Triangle: Bribe Bouncer with 4,000 bolts to get <reward>`.
+The cost and insufficient-bolts message stay native; the name comes from his
+coordinate-reward location (or its vanilla reward when not shuffled).
