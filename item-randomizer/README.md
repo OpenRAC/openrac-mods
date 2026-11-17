@@ -351,6 +351,10 @@ and real item ownership remain separate.
 
 ### NPC reward interaction text
 
+The **Reward text** option (`reward_text`) defaults to on. Turn it off to keep
+the original NPC prompts. Reload the mod after changing this option. This is a
+local display preference and does not change the seed or rewards.
+
 Purchase prompts replace the vanilla reward name with the assigned item, e.g.
 `Buy Devastator for 1,000 bolts` instead of `Buy Heli-Pack for 1,000 bolts`.
 Other handoff prompts show `Reward: <item>`.

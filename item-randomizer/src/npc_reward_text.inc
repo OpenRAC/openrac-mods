@@ -59,6 +59,9 @@ static int32_t npc_reward_try(uint32_t moby, uint32_t request) {
 }
 
 static void npc_reward_text_hooks(void) {
+    if (s_api->setting_bool && !s_api->setting_bool(s_mod, "reward_text")) {
+        return;
+    }
     s_npc_text_source = NULL;
     s_npc_text_request = 0;
     s_npc_text_copy = npc_text_allocator(s_api);

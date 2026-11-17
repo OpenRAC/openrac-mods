@@ -189,6 +189,17 @@
       "type": "bool",
       "default": true,
       "description": "Write where everything is, and a way through, to the mod's data folder."
+    },
+    {
+      "key": "reward_text",
+      "name": "Reward text",
+      "type": "bool",
+      "default": true,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Show randomized item names in NPC interaction prompts and supported vendor text. Off: use the original game text. Reload the mod after changing this option."
     }
   ]
 }

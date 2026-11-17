@@ -78,6 +78,17 @@
       "default": "",
       "max_length": 64,
       "description": "The room's password, blank for none."
+    },
+    {
+      "key": "reward_text",
+      "name": "Reward text",
+      "type": "bool",
+      "default": true,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Show randomized item names in NPC interaction prompts and supported vendor text. Off: use the original game text. Reload the mod after changing this option."
     }
   ]
 }

@@ -84,6 +84,15 @@ static void flatten(char* text) {
         }
     }
 }
+
+static int show_reward_text = 1;
+
+static int reward_text_setting(openrac_mod* mod, const char* key) {
+    (void)mod;
+    assert(strcmp(key, "reward_text") == 0);
+    return show_reward_text;
+}
+
 int main(void) {
     npc_text_api host = {0};
 #if OPENRAC_MOD_API_MINOR < 19
@@ -95,6 +104,7 @@ int main(void) {
     base->api_minor = 19;
     base->memory = memory;
     base->hook = hook;
+    base->setting_bool = reward_text_setting;
     host.guest_text = copy_text;
     s_api = base;
     /* No read beyond an older host, including a claimed version with a short table. */
@@ -105,6 +115,10 @@ int main(void) {
     assert(!npc_text_allocator(base));
     base->size = sizeof host;
     assert(npc_text_allocator(base) == copy_text);
+    show_reward_text = 0;
+    npc_reward_text_hooks();
+    assert(hook_count == 0);
+    show_reward_text = 1;
     npc_reward_text_hooks();
     assert(hook_count == 2);
     const int32_t entries = 0x4000;
