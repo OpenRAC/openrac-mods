@@ -27,6 +27,12 @@ static int acquisition_reward_location(int64_t location, int* kind, int* item) {
     if (location < 0 || !presentation_reward(location, &id, &same, name, sizeof name)) {
         return 0;
     }
+    const int special = same ? special_item_acquisition(name) : -1;
+    if (special >= 0) {
+        *kind = 4;
+        *item = special;
+        return 1;
+    }
     *kind = ap_acquisition_kind(id, same, item);
     return 1;
 }

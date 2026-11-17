@@ -13,7 +13,8 @@ static int special_item_visual(const char* name, int* icon, int* frame) {
          {"Raritanium", 37, 0xEAC8, 1},
          {"Codebot", 1428, 0xEAC8, 2},
          {"Premium Nanotech", 645, 0xEAC9, 3},
-         {"Ultra Nanotech", 1433, 0xEAC9, 4}};
+         {"Ultra Nanotech", 1433, 0xEAC9, 4},
+         {"Persuader", 407, 0xEAC9, 0}};
 
     if (!name) {
         return -1;
@@ -27,5 +28,11 @@ static int special_item_visual(const char* name, int* icon, int* frame) {
         return entries[i].model;
     }
     return -1;
+}
+
+/* Use the same native identity for displays and receiving motions. */
+static int special_item_acquisition(const char* name) {
+    int icon, frame;
+    return special_item_visual(name, &icon, &frame);
 }
 #endif
