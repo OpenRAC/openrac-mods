@@ -459,8 +459,8 @@ void host_fail(openrac_mod*, const char* reason) {
     std::printf("  mod failed: %s\n", reason);
 }
 
-int setting_bool(openrac_mod*, const char*) {
-    return 0;
+int setting_bool(openrac_mod*, const char* key) {
+    return std::strcmp(key, "reward_models") == 0 || std::strcmp(key, "reward_text") == 0;
 }
 
 int64_t setting_int(openrac_mod*, const char* key) {

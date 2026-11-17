@@ -86,6 +86,28 @@
       "default": "",
       "max_length": 64,
       "description": "The room's password, blank for none."
+    },
+    {
+      "key": "reward_models",
+      "name": "Reward models",
+      "type": "bool",
+      "default": true,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Show randomized reward models, inventory icons and receiving animations at pickups and vendors. Off: use the original game presentation. Reload the mod after changing this option."
+    },
+    {
+      "key": "reward_text",
+      "name": "Reward text",
+      "type": "bool",
+      "default": true,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Show randomized item names in NPC interaction prompts and supported vendor text. Off: use the original game text. Reload the mod after changing this option."
     }
   ]
 }

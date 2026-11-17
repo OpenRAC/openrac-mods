@@ -8,6 +8,8 @@ static int presentation_reward(int64_t location, int64_t* id, int* same, char* l
     return ap_client_location_presentation(location, id, same, label, size);
 }
 
+static int s_reward_models;
+static int s_reward_text;
 static const ap_visual_api* s_visual_api;
 static openrac_moby_visual s_visuals[OPENRAC_MOBY_VISUALS_MAX];
 static int s_visual_count;
@@ -339,6 +341,9 @@ static void presentation_tick(int phase) {
     if (s_dialog_load != loads) {
         s_dialog_location = -1;
         s_case_dialog_request = 0;
+    }
+    if (!s_reward_models) {
+        return;
     }
     s_visual_count = 0;
     if (phase != OPENRAC_PLAY_FRONT_END && (ap_client_new_game_plus() >= 0)) {
@@ -689,6 +694,8 @@ static uint32_t message_presentation(int32_t id) {
 }
 
 static int presentation_hooks(void) {
+    s_reward_models = s_api->setting_bool(s_mod, "reward_models");
+    s_reward_text = s_api->setting_bool(s_mod, "reward_text");
     s_visual_api = ap_visual_host(s_api);
     if (!s_visual_api || !s_visual_api->moby_visuals || !s_visual_api->guest_text
         || !s_visual_api->sprite_tint) {
@@ -697,23 +704,29 @@ static int presentation_hooks(void) {
 #define PRESENT_HOOK(id, sig, fn, next)                                                            \
     if (!take(s_api->hook(s_mod, id, sig, (void*)fn, (void**)&next), id))                          \
     return 0
-    PRESENT_HOOK(
-        "rac1.vendor.initialize_selected",
-        "void()",
-        vendor_initialize_presentation,
-        s_vendor_initialize
-    );
-    PRESENT_HOOK("rac1.vendor.draw_icons", "void()", draw_icons_presentation, s_draw_icons);
-    PRESENT_HOOK("rac1.vendor.draw_details", "void()", draw_details_presentation, s_draw_details);
-    PRESENT_HOOK(
-        "rac1.ui.sprite.draw",
-        "void(i32,i32,i32,i32,i32,i32)",
-        draw_sprite_presentation,
-        s_draw_sprite
-    );
-    PRESENT_HOOK("rac1.ui.icon_frame", "i32(i32,i32)", icon_frame_presentation, s_icon_frame);
-    PRESENT_HOOK("rac1.npc.try_dialog", "i32(u32,u32)", try_dialog_presentation, s_try_dialog);
-    PRESENT_HOOK("rac1.text.msg_string", "i32(i32)", message_presentation, s_message_string);
+    if (s_reward_models) {
+        PRESENT_HOOK(
+            "rac1.vendor.initialize_selected",
+            "void()",
+            vendor_initialize_presentation,
+            s_vendor_initialize
+        );
+        PRESENT_HOOK("rac1.vendor.draw_icons", "void()", draw_icons_presentation, s_draw_icons);
+        PRESENT_HOOK(
+            "rac1.ui.sprite.draw",
+            "void(i32,i32,i32,i32,i32,i32)",
+            draw_sprite_presentation,
+            s_draw_sprite
+        );
+        PRESENT_HOOK("rac1.ui.icon_frame", "i32(i32,i32)", icon_frame_presentation, s_icon_frame);
+    }
+    if (s_reward_text) {
+        PRESENT_HOOK(
+            "rac1.vendor.draw_details", "void()", draw_details_presentation, s_draw_details
+        );
+        PRESENT_HOOK("rac1.npc.try_dialog", "i32(u32,u32)", try_dialog_presentation, s_try_dialog);
+        PRESENT_HOOK("rac1.text.msg_string", "i32(i32)", message_presentation, s_message_string);
+    }
 #undef PRESENT_HOOK
     return 1;
 }
