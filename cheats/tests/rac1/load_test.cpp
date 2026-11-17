@@ -8,6 +8,7 @@
 // line follows the cheats and the level loads; and with no room in the pause menu it still loads.
 //
 // Run with the library's path: cheats_rac1_load_test <cheats.dylib|.so|.dll>.
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -320,10 +321,15 @@ struct Menu {
     std::string title;
     std::vector<std::uint32_t> actions;
     std::map<std::uint32_t, std::string> labels;
+    // Since 1.19: the switches' and choices' states, and the choices' values.
+    std::map<std::uint32_t, int> values;
+    std::map<std::uint32_t, std::vector<std::string>> choices;
 };
 
 Menu g_menu;
 bool g_refuse_menu;
+// The interface the fake port has: 18 for one whose menu has no switches.
+std::uint32_t g_port_minor = OPENRAC_MOD_API_MINOR;
 std::vector<std::uint32_t> g_presses;
 openrac_tick_boundary_fn g_boundary;
 void* g_boundary_user;
@@ -364,6 +370,39 @@ int host_developer_menu_set_label(openrac_mod*, uint32_t action, const char* lab
     return OPENRAC_HOOK_OK;
 }
 
+// Whether the mod made the item.
+bool menu_has(std::uint32_t action) {
+    return std::find(g_menu.actions.begin(), g_menu.actions.end(), action) != g_menu.actions.end();
+}
+
+int host_developer_menu_switch(openrac_mod*, uint32_t action, int on) {
+    // Not an item of the mod's.
+    if (!menu_has(action)) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    g_menu.values[action] = on != 0 ? 1 : 0;
+    return OPENRAC_HOOK_OK;
+}
+
+int host_developer_menu_choice(
+    openrac_mod*, uint32_t action, const char* const* values, uint32_t count, uint32_t index
+) {
+    // Not an item of the mod's, or not a value of its.
+    if (!menu_has(action) || values == nullptr || index >= count) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    g_menu.choices[action].assign(values, values + count);
+    g_menu.values[action] = static_cast<int>(index);
+    return OPENRAC_HOOK_OK;
+}
+
+int host_developer_menu_value(openrac_mod*, uint32_t action) {
+    const auto value = g_menu.values.find(action);
+    return value != g_menu.values.end() ? value->second : -1;
+}
+
 int host_on_tick_boundary(openrac_mod*, openrac_tick_boundary_fn fn, void* user) {
     g_boundary = fn;
     g_boundary_user = user;
@@ -377,12 +416,18 @@ void press(std::uint32_t action) {
     g_boundary(g_boundary_user, 0);
 }
 
+// Turns a switch over or moves a choice as the port's menu does at once (1.19), queuing its action.
+void flip(std::uint32_t action, int value) {
+    g_menu.values[action] = value;
+    g_presses.push_back(action);
+}
+
 openrac_api make_api(const char* game, const char* version) {
     openrac_api api;
     std::memset(&api, 0, sizeof api);
     api.size = sizeof api;
     api.api_major = OPENRAC_MOD_API_MAJOR;
-    api.api_minor = OPENRAC_MOD_API_MINOR;
+    api.api_minor = g_port_minor;
     api.game = game;
     api.version = version;
     api.openrac_version = "test";
@@ -415,6 +460,9 @@ openrac_api make_api(const char* game, const char* version) {
     api.take_developer_menu_action = host_take_developer_menu_action;
     api.developer_menu_set_label = host_developer_menu_set_label;
     api.on_tick_boundary = host_on_tick_boundary;
+    api.developer_menu_switch = host_developer_menu_switch;
+    api.developer_menu_choice = host_developer_menu_choice;
+    api.developer_menu_value = host_developer_menu_value;
     return api;
 }
 
@@ -513,7 +561,7 @@ int main(int argc, char** argv) {
     query(&info);
     // The interface its manifest names (1.12), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(std::strcmp(info.id, "cheats") == 0 && std::strcmp(info.version, "0.4.0") == 0);
+    CHECK(std::strcmp(info.id, "cheats") == 0 && std::strcmp(info.version, "0.4.1") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -766,11 +814,12 @@ int main(int argc, char** argv) {
     // The other disc loads too.
     CHECK(load_with("rac1", "ntsc") && g_failed.empty());
 
-    // OpenRAC's overlay: a Cheats menu with the page's switches and buttons, each switch's label
-    // saying whether it is on.
+    // OpenRAC's overlay on a port before 1.19: a Cheats menu with the page's switches and
+    // buttons, each switch's label saying whether it is on.
     g_bools.clear();
     g_strings.clear();
     g_bools["show_status"] = 1;
+    g_port_minor = 18;
 
     // Each disc, switched from the overlay.
     for (const char* version : {"pal", "ntsc"}) {
@@ -847,6 +896,55 @@ int main(int argc, char** argv) {
     CHECK(g_bolts == 0);
     g_play.level = 3;
     g_play.phase = OPENRAC_PLAY_PLAYING;
+
+    // Interface 1.19: the cheats are the menu's own switches, the multiplier its choice, which
+    // the menu turns over at once; the mod takes the state it was left in.
+    g_port_minor = OPENRAC_MOD_API_MINOR;
+    CHECK(load_with("rac1", "ntsc") && g_failed.empty());
+    lay_weapons();
+    CHECK(g_menu.labels[1] == "Invincibility" && g_menu.labels[4] == "Bolt multiplier");
+    CHECK(g_menu.values[1] == 0 && g_menu.values[2] == 0 && g_menu.values[3] == 0);
+    CHECK(
+        g_menu.values[4] == 0
+        && g_menu.choices[4] == std::vector<std::string>({"x1", "x2", "x3", "x5", "x10", "x100"})
+    );
+    CHECK(g_menu.values.count(5) == 0 && g_menu.labels[5] == "Refill ammo");
+    damage = reinterpret_cast<DamageFn>(hook("rac1.player.take_damage"));
+    bolt = reinterpret_cast<BoltFn>(hook("rac1.moby.collect_bolt"));
+
+    // Invincibility switched on in the menu: on at the boundary, the page following.
+    flip(1, 1);
+    g_boundary(g_boundary_user, 0);
+    g_damage_calls.clear();
+    damage(1);
+    CHECK(g_damage_calls.empty() && g_shown.choices[0] == 1 && g_menu.values[1] == 1);
+
+    // Off and on again before the boundary: left on.
+    flip(1, 0);
+    flip(1, 1);
+    g_boundary(g_boundary_user, 0);
+    CHECK(g_shown.choices[0] == 1 && g_menu.values[1] == 1);
+
+    // The multiplier chosen: x3 (index 2) at once, not one step on.
+    flip(4, 2);
+    g_boundary(g_boundary_user, 0);
+    CHECK(g_shown.choices[3] == 2 && g_menu.labels[4] == "Bolt multiplier");
+    g_bolts = 0;
+    bolt(0x1000u);
+    CHECK(g_bolts == 15);
+
+    // Infinite ammo switched on fills every weapon, as from the page.
+    put<int32_t>(disc().ammo + 8u, 1);
+    flip(2, 1);
+    g_boundary(g_boundary_user, 0);
+    CHECK(ammo(2) == 40 && g_shown.choices[1] == 1);
+
+    // Switched off from the page: the menu's switch follows at the next boundary.
+    pad_report(kCross);
+    page_event(OPENRAC_UI_CHANGE, 0, 0);
+    g_boundary(g_boundary_user, 0);
+    CHECK(g_menu.values[1] == 0 && g_menu.labels[1] == "Invincibility");
+    pad_report(0);
 
     // Another mod's menu took the title: it loads all the same, with a warning, the page there.
     g_refuse_menu = true;

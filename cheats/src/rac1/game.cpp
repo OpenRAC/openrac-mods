@@ -372,7 +372,9 @@ void add_page(openrac::Mod& mod) {
 
 // The overlay's Cheats menu (interface 1.10, developer_menu): the same cheats as the pause page,
 // in OpenRAC's own menu (the window's menu bar, and the drawer on a touch screen), at any time in
-// the game. Each switch's label says whether it is on; the multiplier's steps on at each press.
+// the game. On a port of 1.19 the cheats are the menu's own switches and the multiplier its
+// choice, which it turns over at once though it pauses the game; before, each label says whether
+// it is on and the multiplier steps on at each press, both shown once the menu closes.
 enum Action : uint32_t {
     ACTION_INVINCIBLE = 1,
     ACTION_AMMO = 2,
@@ -384,13 +386,19 @@ enum Action : uint32_t {
 
 bool s_has_menu;
 
+// The menu has switches and choices (interface 1.19).
+bool s_has_switches;
+
 // The switches' labels as the overlay shows them now.
 std::array<std::string, ACTION_BOLTS> s_labels;
 
-// The labels as the cheats on now say them.
+// The switches' and the choice's states as the overlay shows them now (1.19).
+std::array<int, ACTION_BOLTS> s_values;
+
+// The labels as the cheats on now say them: with switches, the switch says whether it is on.
 std::string action_label(uint32_t action) {
     const auto on_off = [](const char* name, bool on) {
-        return std::string(name) + (on ? ": On" : ": Off");
+        return s_has_switches ? std::string(name) : std::string(name) + (on ? ": On" : ": Off");
     };
 
     // Which item.
@@ -402,7 +410,8 @@ std::string action_label(uint32_t action) {
         case ACTION_AIR:
             return on_off("Infinite oxygen", s_state.infinite_air);
         case ACTION_BOLTS:
-            return "Bolt multiplier: x" + std::to_string(s_state.multiplier);
+            return s_has_switches ? std::string("Bolt multiplier")
+                                  : "Bolt multiplier: x" + std::to_string(s_state.multiplier);
         case ACTION_REFILL:
             return "Refill ammo";
         case ACTION_GIFT:
@@ -412,10 +421,70 @@ std::string action_label(uint32_t action) {
     }
 }
 
-// The overlay's labels as the cheats on now: only from the tick-boundary callback.
+// A switch's or the choice's state as the cheats on now (1.19).
+int action_value(uint32_t action) {
+    // Which item.
+    switch (action) {
+        case ACTION_INVINCIBLE:
+            return s_state.invincible ? 1 : 0;
+        case ACTION_AMMO:
+            return s_state.infinite_ammo ? 1 : 0;
+        case ACTION_AIR:
+            return s_state.infinite_air ? 1 : 0;
+        case ACTION_BOLTS:
+            return cheats::multiplier_index(s_state.multiplier);
+        default:
+            return -1;
+    }
+}
+
+// Sets the overlay's switch or choice to the cheat's state, the multiplier's names its values.
+bool set_switch(uint32_t action, int value) {
+    // The multiplier.
+    if (action == ACTION_BOLTS) {
+        const std::vector<std::string> names = cheats::multiplier_names();
+        std::vector<const char*> values;
+
+        // Each name, kept alive while the port copies it.
+        for (const std::string& name : names) {
+            values.push_back(name.c_str());
+        }
+
+        return s_mod->menu_choice(
+            action,
+            values.data(),
+            static_cast<uint32_t>(values.size()),
+            static_cast<uint32_t>(value)
+        );
+    }
+
+    return s_mod->menu_switch(action, value != 0);
+}
+
+// The overlay's labels, or its switches, as the cheats on now: only from the tick-boundary
+// callback.
 void show_menu() {
     // No menu.
     if (!s_has_menu) {
+        return;
+    }
+
+    // Switches: each one a cheat changed elsewhere (the pause page) follows.
+    if (s_has_switches) {
+        // Each switch, and the choice.
+        for (uint32_t action = ACTION_INVINCIBLE; action <= ACTION_BOLTS; ++action) {
+            const int value = action_value(action);
+            int& shown = s_values[action - 1];
+
+            // The same state is up.
+            if (value == shown) {
+                continue;
+            }
+
+            set_switch(action, value);
+            shown = value;
+        }
+
         return;
     }
 
@@ -444,6 +513,17 @@ void take_menu() {
 
     // Each press since the last boundary.
     while (const uint32_t action = api.take_developer_menu_action(s_mod->handle())) {
+        // A switch or the choice: the state the menu left it in, which it shows already.
+        if (s_has_switches && action <= ACTION_BOLTS) {
+            const int value = s_mod->menu_value(action);
+            s_values[action - 1] = value;
+
+            // Left as it was (pressed twice).
+            if (value == action_value(action)) {
+                continue;
+            }
+        }
+
         // Which item.
         switch (action) {
             case ACTION_INVINCIBLE:
@@ -469,8 +549,10 @@ void take_menu() {
                 );
                 break;
             case ACTION_BOLTS: {
-                const int next = (cheats::multiplier_index(s_state.multiplier) + 1)
-                                 % static_cast<int>(cheats::k_multipliers.size());
+                const int next = s_has_switches
+                                     ? s_values[ACTION_BOLTS - 1]
+                                     : (cheats::multiplier_index(s_state.multiplier) + 1)
+                                           % static_cast<int>(cheats::k_multipliers.size());
                 s_state.multiplier = cheats::multiplier_at(next);
                 trace("overlay: bolt multiplier x" + std::to_string(s_state.multiplier));
                 break;
@@ -502,6 +584,7 @@ void take_menu() {
 // menu of that title) the pause page and the settings still switch them.
 void add_menu(openrac::Mod& mod) {
     s_has_menu = false;
+    s_has_switches = mod.has_menu_switches();
     const openrac_api& api = mod.api();
 
     // A port without mods' menus.
@@ -533,9 +616,15 @@ void add_menu(openrac::Mod& mod) {
 
     s_has_menu = true;
 
-    // The labels the menu was made with.
+    // The labels the menu was made with, and the switches and the choice as the settings say.
     for (uint32_t action = ACTION_INVINCIBLE; action <= ACTION_BOLTS; ++action) {
         s_labels[action - 1] = labels[action - 1];
+        s_values[action - 1] = -1;
+
+        // Kept as labels when refused.
+        if (s_has_switches && set_switch(action, action_value(action))) {
+            s_values[action - 1] = action_value(action);
+        }
     }
 
     // At each tick's boundary: the presses taken, and the labels following every switch (the
