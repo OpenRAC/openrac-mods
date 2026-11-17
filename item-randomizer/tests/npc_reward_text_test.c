@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <assert.h>
+#include <stdarg.h>
 
 #include "npc_reward_text.h"
 #include "npc_text_api.h"
@@ -8,6 +9,14 @@ static uint8_t memory[0x10000];
 static const openrac_api* s_api;
 static openrac_mod* s_mod;
 static int level = 3, enabled = 1, fail_copy, nested, hook_count;
+
+/* Retail formats runtime prompt strings, including escaped item/player names. */
+static void format_prompt(char* out, size_t size, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vsnprintf(out, size, format, args);
+    va_end(args);
+}
 
 static int current_level(void) {
     return level;
@@ -129,7 +138,7 @@ int main(void) {
     strcpy((char*)memory + 0x100, "# Buy Heli-Pack for %d bolts");
     assert(npc_reward_try(0x3000, 0x2000) == 7);
     char formatted[256];
-    snprintf(formatted, sizeof formatted, (char*)memory + 0x1000, 1000);
+    format_prompt(formatted, sizeof formatted, (char*)memory + 0x1000, 1000);
     flatten(formatted);
     assert(strstr(formatted, "Buy Swingshot 100% for Player %s for 1000 bolts"));
     assert(!s_npc_text_request && !s_npc_text_source);
@@ -149,7 +158,7 @@ int main(void) {
     memcpy(memory + 0x30A6, &race_starter, 2);
     strcpy((char*)memory + 0x100, "\x12 Enter race");
     assert(npc_reward_try(0x3000, 0x2000) == 7);
-    snprintf(formatted, sizeof formatted, (char*)memory + 0x1000);
+    format_prompt(formatted, sizeof formatted, (char*)memory + 0x1000);
     flatten(formatted);
     assert(strcmp(formatted, "\x12 Enter race - Reward: Swingshot 100% for Player %s") == 0);
     enabled = 0;
@@ -159,7 +168,7 @@ int main(void) {
     memcpy(memory + 0x30A6, &bouncer, 2);
     strcpy((char*)memory + 0x100, "\x12 Bribe Bouncer with 4,000 bolts");
     assert(npc_reward_try(0x3000, 0x2000) == 7);
-    snprintf(formatted, sizeof formatted, (char*)memory + 0x1000);
+    format_prompt(formatted, sizeof formatted, (char*)memory + 0x1000);
     flatten(formatted);
     assert(
         strcmp(formatted, "\x12 Bribe Bouncer with 4,000 bolts to get Swingshot 100% for Player %s")
