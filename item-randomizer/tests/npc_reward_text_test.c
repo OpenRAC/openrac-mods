@@ -128,7 +128,7 @@ int main(void) {
     strcpy((char*)memory + 0x100, "\x12 Enter race");
     assert(npc_reward_try(0x3000, 0x2000) == 7);
     snprintf(formatted, sizeof formatted, (char*)memory + 0x1000);
-    assert(strcmp(formatted, "\x12 Enter race to win Swingshot 100% for Player %s") == 0);
+    assert(strcmp(formatted, "\x12 Enter race - Reward: Swingshot 100% for Player %s") == 0);
     enabled = 0;
     npc_reward_try(0x3000, 0x2000);
     enabled = 1;
@@ -149,7 +149,7 @@ int main(void) {
     assert(strlen(prompt) < 120);
     assert(!npc_reward_prompt(prompt, huge, "Gold Bolt"));
     assert(npc_race_prompt(prompt, "\x12 Enter race", "Gold Bolt"));
-    assert(strcmp(prompt, "\x12 Enter race to win Gold Bolt") == 0);
+    assert(strcmp(prompt, "\x12 Enter race - Reward: Gold Bolt") == 0);
     assert(!npc_race_prompt(prompt, "You need a Hoverboard to race", "Gold Bolt"));
     assert(npc_bouncer_prompt(prompt, "\x12 Bribe Bouncer with 4,000 bolts", "Devastator"));
     assert(strcmp(prompt, "\x12 Bribe Bouncer with 4,000 bolts to get Devastator") == 0);

@@ -127,7 +127,7 @@ static int npc_race_prompt(char out[120], const char* original, const char* rewa
     if ((unsigned char)original[0] != 0x12 || strcmp(original + 1, " Enter race") != 0) {
         return 0;
     }
-    return npc_named_prompt(out, "\x12 Enter race to win ", reward);
+    return npc_named_prompt(out, "\x12 Enter race - Reward: ", reward);
 }
 
 /* Only the bribe action; the affordability warning keeps its native text. */
