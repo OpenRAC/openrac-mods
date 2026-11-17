@@ -98,6 +98,7 @@ int main(int argc, char** argv) {
              "\"keep_starting_gear\"",
              "\"spoiler_log\"",
              "\"new_game_only\"",
+             "\"start_in_new_game_plus\"",
              "\"vendor_hints\"",
              "\"rac1.item.give\"",
              "\"rac2.item.give\"",
