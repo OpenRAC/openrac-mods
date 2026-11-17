@@ -86,7 +86,7 @@ Gold-case presentation adapters retain the approved room-center and return behav
 **Compatibility.** Existing version-2 seed codes retain their placement and fixed NPC coordinates.
 New codes also record whether NPC coordinates are shuffled. Seed codes override
 launcher pool switches. The NPC pool requires OpenRAC mod-save support (interface 1.16);
-presentation requires interface 1.18 from the companion changes. Older hosts continue to support
+presentation requires interface 1.19 from the companion changes. Older hosts continue to support
 legacy seeds and give an update message when a code needs the extra pools. RAC2 is unchanged.
 Live adjustment editors, catalogs, teleport helpers and screenshot tools are not included.
 
@@ -344,3 +344,5 @@ randomized reward; it does not repair a save already carrying that gadget.
 
 The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
 are probed at runtime: `rac1.vendor.draw_icons`, `rac1.vendor.draw_details`, `rac1.ui.icon_frame`, `rac1.ui.sprite.draw`, `rac1.npc.try_dialog`, `rac1.pickup.start_scene`, `rac1.gold_case.start_demo`.
+
+The companion reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools.

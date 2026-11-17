@@ -1,4 +1,5 @@
 #include "gold_case_prompt.h"
+#include "special_item_visual.h"
 
 /* Render-only seeded item-randomizer reward displays. Included after the location/game helpers. */
 static int take(int result, const char* point);
@@ -102,6 +103,12 @@ static int reward_class(int64_t location, char* label, size_t size, int* icon, i
     int same = 0;
     if (!presentation_reward(location, &id, &same, label, size)) {
         return -1;
+    }
+    if (same) {
+        const int special = special_item_visual(label, icon, frame);
+        if (special >= 0) {
+            return special;
+        }
     }
     const rando_reward reward = display_reward_of(id);
     const int gold = display_gold_base(id);
