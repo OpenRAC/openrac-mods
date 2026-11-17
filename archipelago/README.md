@@ -162,6 +162,10 @@ including weapons received before their normal planet. The original selector
 still prioritizes weapons below maximum ammo and falls back to the Bomb Glove
 when there are no owned candidates. The real vendor stock is restored afterward.
 
+Shuffled gold cases can be purchased without the original base weapon. Enabling
+`shuffle_gold_weapons` opens the Novalis shop teleporter without requiring New Game+.
+Both currency costs still apply; no upgrades or completed-save inventory are granted.
+
 ### Saves during NPC rewards
 
 An NPC may autosave while the mod shows it a location's collection state instead of the
@@ -169,3 +173,11 @@ item's ownership. Save preparation, autosaves and serialization use the real inv
 nested save calls keep that inventory until the outer save returns. The NPC then sees
 its collection state again. This prevents an original gadget being saved alongside a
 randomized reward; it does not repair a save already carrying that gadget.
+
+### Kerwan door and return taxi
+
+Big Al's door opens when his location is purchased or the player owns the Heli-Pack.
+Owning the Heli-Pack does not collect Al's randomized reward. Helga's return taxi
+remains available after buying her reward while the player lacks the Swingshot;
+receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
+and real item ownership remain separate.

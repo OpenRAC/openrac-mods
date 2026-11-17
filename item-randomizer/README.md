@@ -28,6 +28,7 @@ and start a **new game**.
 |---|---|---|
 | Seed | blank | A **seed code** someone shared (`4ZRJ-6HB7-H6Q5`: it carries their settings, so you play their game), or any word (`ratchet`: the same word with the same settings gives the same game). Blank: a random seed, rolled the first time and kept for your next starts; to roll another, type any word, or delete `seed.txt` in the data folder below. Codes from before version 2 no longer work: their game cannot be made again |
 | New games only | on | The mod changes only a game started with it: a **new game** started with it on, or a save that game made (the save carries the seed's tag). A save from a game started without it, or with another seed, plays as the game does, so a playthrough is never changed partway; the log says why. Off: such a save is randomized from where it is |
+| Start in New Game+ | off | RAC1 only: enables New Game+ and the Goodies menu for this randomized save, without granting gold weapons or completed-save inventory. Selected separately from the seed code |
 | Logic | Standard | **Standard**: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. **Relaxed**: what you need also comes early in the game, and never behind a purchase you have to save up for. **Expert**: what you need may be behind any purchase, even the most expensive, and you get by with any weapon |
 | Shuffle gadgets | on | The Heli-Pack, the Swingshot, the Magneboots, the Grindboots, ... from NPCs and pickups |
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
@@ -40,7 +41,7 @@ and start a **new game**.
 | Spoiler log | on | Writes where everything is, and a way through, to the data folder |
 
 The game's log names the seed's code at each start (`seed 4ZRJ-6HB7-H6Q5 (new), standard`): share
-that code. All the settings but the spoiler log and the vendor's line are in it.
+that code. All placement settings are in it. New Game+ mode, the spoiler log and the vendor's line are selected separately.
 
 **The data folder** holds `seed.txt` (the seed a blank setting rolled) and `spoiler-<code>.txt`, one
 per seed. It is the folder OpenRAC gives each mod, `mod-data/item-randomizer` beside the memory
@@ -339,3 +340,11 @@ randomized reward; it does not repair a save already carrying that gadget.
 
 The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
 are probed at runtime: `rac1.gold_bolt.count_unspent`.
+
+### Kerwan door and return taxi
+
+Big Al's door opens when his location is purchased or the player owns the Heli-Pack.
+Owning the Heli-Pack does not collect Al's randomized reward. Helga's return taxi
+remains available after buying her reward while the player lacks the Swingshot;
+receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
+and real item ownership remain separate.

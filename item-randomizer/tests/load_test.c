@@ -363,8 +363,9 @@ static int32_t game_drop(openrac_gaddr moby, openrac_gaddr out_item) {
     s_drop_moby = moby;
     memcpy(s_drop_stock, s_memory + D->vendor_stock, sizeof s_drop_stock);
     if (out_item && get32(s_memory + out_item) <= 0) {
-        set32(s_memory + out_item, s_drop_stock[0] == 0xFF
-            ? ITEM_BOMB_GLOVE : s_drop_stock[0] & 0x3F);
+        set32(
+            s_memory + out_item, s_drop_stock[0] == 0xFF ? ITEM_BOMB_GLOVE : s_drop_stock[0] & 0x3F
+        );
     }
     return 2;
 }
@@ -388,10 +389,16 @@ static void host_fail(openrac_mod* mod, const char* reason) {
     snprintf(s_failed, sizeof s_failed, "%s", reason);
 }
 
+static int s_start_in_new_game_plus;
+
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
 
     if(strcmp(key,"shuffle_gold_weapons")==0)return 0;
+    if (strcmp(key, "start_in_new_game_plus") == 0) {
+        return s_start_in_new_game_plus;
+    }
+
     if (strcmp(key, "vendor_hints") == 0) {
         return 1;
     }
@@ -430,12 +437,14 @@ static uint32_t tag_word(void) {
     memcpy(&v, s_memory + D->save_tag, 4);
     return v;
 }
+
 static void set_tag_word(uint32_t v) {
     memcpy(s_memory + D->save_tag, &v, 4);
 }
 
 /* NewGameInit as the game's: the disc's starting save, whose tag word is 0, nothing owned. */
 static int s_new_games;
+
 static void game_new_game(void) {
     ++s_new_games;
     set_tag_word(0);
@@ -445,6 +454,7 @@ static void game_new_game(void) {
 
 /* Challenge mode's start as the game's: NewGameInit (through its hook), the progress kept. */
 static void* hook_named(const char* name);
+
 static void game_new_game_plus(int32_t slot) {
     (void)slot;
     uint8_t owned[RANDO_ITEM_COUNT];
@@ -861,8 +871,7 @@ static int check_vendor(
 
 /* Selector spy assertions: test the wrapper, not a duplicate of retail selection. */
 static void check_ammo_drop(void) {
-    openrac_rac1_Ammo_ChooseDrop drop =
-        (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
+    openrac_rac1_Ammo_ChooseDrop drop = (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
     uint8_t saved_owned[RANDO_ITEM_COUNT], saved_prices[VENDOR_ITEM_COUNT * 0x18];
     uint8_t saved_stock[VENDOR_STOCK_SIZE], real[VENDOR_STOCK_SIZE];
     const openrac_gaddr output = 0x120000, moby = 0x121000;
@@ -882,7 +891,9 @@ static void check_ammo_drop(void) {
     CHECK(drop(moby, output) == 2 && s_drop_moby == moby);
     CHECK(get32(s_memory + output) == ITEM_DEVASTATOR);
     CHECK(s_drop_stock[0] == (ITEM_DEVASTATOR | 0x40));
-    for (int i = 1; i < VENDOR_STOCK_SIZE; ++i) CHECK(s_drop_stock[i] == 0xFF);
+    for (int i = 1; i < VENDOR_STOCK_SIZE; ++i) {
+        CHECK(s_drop_stock[i] == 0xFF);
+    }
     CHECK(memcmp(s_memory + D->vendor_stock, real, sizeof real) == 0);
     set32(s_memory + output, ITEM_BOMB_GLOVE);
     CHECK(drop(moby, output) == 2 && get32(s_memory + output) == ITEM_BOMB_GLOVE);
@@ -1520,7 +1531,8 @@ int main(int argc, char** argv) {
         int x = -1, xr = -1;
         for (size_t i = 0; i < rando_location_count && x < 0; ++i) {
             if (np.shuffled[i] && rando_locations[i].kind == LOC_GIVE
-                && np.reward[i].kind == REWARD_ITEM && np.reward[i].value != rando_locations[i].key) {
+                && np.reward[i].kind == REWARD_ITEM
+                && np.reward[i].value != rando_locations[i].key) {
                 x = rando_locations[i].key;
                 xr = np.reward[i].value;
             }
@@ -1753,6 +1765,42 @@ int main(int argc, char** argv) {
         CHECK(s_menu_opens == 4);
         s_new_game_only = 0;
     }
+
+    /* NG+ is independently selected, PAL/NTSC, and respects the save gate. */
+    for (int disc = 0; disc < 2; ++disc) {
+        D = &k_rando_discs[disc];
+        api = make_api("rac1", D->version);
+        const uint32_t challenge = D->level + 0x11Cu;
+        for (int enabled = 0; enabled <= 1; ++enabled) {
+            s_start_in_new_game_plus = enabled;
+            s_new_game_only = 1;
+            s_hook_count = 0;
+            CHECK(load(&api, mod) == 0);
+            set32(s_memory + D->level, LEVEL_NOVALIS);
+            set32(s_memory + challenge, 0);
+            set_tag_word(0);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 0); /* untagged save */
+            set_tag_word(0x12345678u);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 0); /* foreign seed */
+            ((void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame))();
+            set32(s_memory + D->level, -1);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 0); /* front end */
+            set32(s_memory + D->level, LEVEL_NOVALIS);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == enabled);
+            CHECK(s_memory[D->owned + ITEM_RYNO] == 0);
+            CHECK(get32(s_memory + D->level + 0x9Cu) == 0); /* no postgame shop flag */
+            set32(s_memory + challenge, 1);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 1); /* never downgrade */
+            set32(s_memory + challenge, 0);
+        }
+    }
+    s_start_in_new_game_plus = 0;
+    s_new_game_only = 0;
 
     /* The remembered seed: a blank seed rolls one and keeps it. */
     s_seed = "";

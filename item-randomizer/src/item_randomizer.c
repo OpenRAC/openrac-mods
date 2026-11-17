@@ -248,6 +248,7 @@ static item_randomizer_Save_NewGamePlus s_new_game_plus;
 /* New games only: the setting, this game's own seed's tag (a party's host's aside), whether
  * challenge mode's start is running, and what the log last said of which tag (GATE_*, -1 none). */
 static int s_new_game_only;
+static int s_start_in_new_game_plus;
 static uint32_t s_own_tag;
 static int s_in_new_game_plus;
 static int s_told = -1;
@@ -339,18 +340,6 @@ static uint8_t* gold_bolt(int level, int slot) {
 static int playing_level(void) {
     const int level = s_api->loaded_level() >= 0 ? current_level() : -1;
     return level >= 0 && level <= RANDO_LAST_LEVEL;
-}
-
-static int play_phase(uint32_t* load) {
-    openrac_play_status st = {0};
-    st.size = sizeof st;
-    if (s_api->play_status(&st) != OPENRAC_HOOK_OK) {
-        return OPENRAC_PLAY_FRONT_END;
-    }
-    if (load) {
-        *load = st.loads;
-    }
-    return st.phase;
 }
 
 /* ---- locations ---- */
@@ -1086,13 +1075,17 @@ static void o2_pickup_update(openrac_gaddr moby) {
     run_shown(s_o2_pickup_update, moby, ITEM_O2_MASK);
 }
 
-static void helga_update(openrac_gaddr moby) {
-    run_shown(s_helga_update, moby, ITEM_SWINGSHOT);
+/* Kerwan links are valid only for the game load that supplied them. */
+static int play_phase(uint32_t* loads) {
+    openrac_play_status status = {0};
+    status.size = sizeof status;
+    if (s_api->play_status(&status) != OPENRAC_HOOK_OK) return OPENRAC_PLAY_NONE;
+    if (loads) *loads = status.loads;
+    return status.phase;
 }
 
-static void big_al_update(openrac_gaddr moby) {
-    run_shown(s_big_al_update, moby, ITEM_HELI_PACK);
-}
+static int kerwan_randomizer_active(void) { return rando_on(); }
+#include "kerwan_access.inc"
 
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
@@ -1697,6 +1690,17 @@ static void each_tick(void* user) {
         set32(byte_at(s_disc->level + 0x9Cu), 1);
     }
 
+    /* Use the retail mode flag without importing completed-save inventory or gold upgrades.
+     * A disabled option preserves an earned NG+ save. Foreign saves returned above. */
+    if (s_start_in_new_game_plus) {
+        uint8_t* challenge = byte_at(s_disc->level + 0x11Cu);
+        if (get32(challenge) == 0) {
+            set32(challenge, 1);
+            log_line(OPENRAC_LOG_INFO, "Item randomizer: New Game+ enabled for this slot");
+            s_api->play_notice(s_mod, "Item randomizer: New Game+ enabled");
+        }
+    }
+
     // Every location, for one this tick has newly had.
     for (size_t i = 0; i < rando_location_count; ++i) {
         // Only locations this seed shuffles.
@@ -1729,6 +1733,7 @@ static void each_tick(void* user) {
     guard_empty_vendor();
     run_notices();
     reward_case_hint_tick();
+    kerwan_access_tick();
 }
 
 /* ---- loading ---- */
@@ -2113,6 +2118,7 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_own_settings = s_plan.settings;
     s_own_tag = rando_seed_tag(s_code);
     s_new_game_only = api->setting_bool(mod, "new_game_only");
+    s_start_in_new_game_plus = api->setting_bool(mod, "start_in_new_game_plus");
     s_in_new_game_plus = 0;
     s_told = -1;
     s_told_tag = 0;

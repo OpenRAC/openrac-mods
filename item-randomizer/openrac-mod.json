@@ -93,6 +93,16 @@
       "description": "Standard: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. Relaxed: what you need also comes early in the game, and never behind a purchase you have to save up for. Expert: what you need may be behind any purchase, even the most expensive, and you get by with any weapon."
     },
     {
+      "key": "start_in_new_game_plus",
+      "name": "Start in New Game+",
+      "type": "bool",
+      "default": false,
+      "description": "Ratchet & Clank: enable New Game+ and the Goodies menu for this randomized save. Does not grant gold weapons or completed-save inventory. Existing seed codes keep their item placement; this mode is selected separately.",
+      "games": [
+        "rac1"
+      ]
+    },
+    {
       "key": "new_game_only",
       "multiplayer": "own",
       "name": "New games only",
