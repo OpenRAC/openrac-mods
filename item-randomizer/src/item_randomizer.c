@@ -1034,13 +1034,17 @@ static void o2_pickup_update(openrac_gaddr moby) {
     run_shown(s_o2_pickup_update, moby, ITEM_O2_MASK);
 }
 
-static void helga_update(openrac_gaddr moby) {
-    run_shown(s_helga_update, moby, ITEM_SWINGSHOT);
+/* Kerwan links are valid only for the game load that supplied them. */
+static int play_phase(uint32_t* loads) {
+    openrac_play_status status = {0};
+    status.size = sizeof status;
+    if (s_api->play_status(&status) != OPENRAC_HOOK_OK) return OPENRAC_PLAY_NONE;
+    if (loads) *loads = status.loads;
+    return status.phase;
 }
 
-static void big_al_update(openrac_gaddr moby) {
-    run_shown(s_big_al_update, moby, ITEM_HELI_PACK);
-}
+static int kerwan_randomizer_active(void) { return rando_on(); }
+#include "kerwan_access.inc"
 
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
@@ -1679,6 +1683,7 @@ static void each_tick(void* user) {
     guard_unowned_bomb_glove();
     guard_empty_vendor();
     run_notices();
+    kerwan_access_tick();
 }
 
 /* ---- loading ---- */
