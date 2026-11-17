@@ -314,6 +314,69 @@ int host_hud_text_set(openrac_mod*, const openrac_hud_text* lines, int count) {
     return OPENRAC_HOOK_OK;
 }
 
+// OpenRAC's overlay menu (interface 1.10): the menu the mod made, its labels as set since, the
+// presses queued for it, and the tick-boundary callback that takes them.
+struct Menu {
+    std::string title;
+    std::vector<std::uint32_t> actions;
+    std::map<std::uint32_t, std::string> labels;
+};
+
+Menu g_menu;
+bool g_refuse_menu;
+std::vector<std::uint32_t> g_presses;
+openrac_tick_boundary_fn g_boundary;
+void* g_boundary_user;
+
+int host_developer_menu(
+    openrac_mod*, const char* title, const openrac_developer_menu_item* items, uint32_t count
+) {
+    // Another mod's menu has the title.
+    if (g_refuse_menu) {
+        return OPENRAC_HOOK_TAKEN;
+    }
+
+    g_menu = {};
+    g_menu.title = title;
+
+    // Each item: its action and label.
+    for (uint32_t i = 0; i < count; ++i) {
+        g_menu.actions.push_back(items[i].action);
+        g_menu.labels[items[i].action] = items[i].label;
+    }
+
+    return OPENRAC_HOOK_OK;
+}
+
+uint32_t host_take_developer_menu_action(openrac_mod*) {
+    // Nothing pressed.
+    if (g_presses.empty()) {
+        return 0;
+    }
+
+    const uint32_t action = g_presses.front();
+    g_presses.erase(g_presses.begin());
+    return action;
+}
+
+int host_developer_menu_set_label(openrac_mod*, uint32_t action, const char* label) {
+    g_menu.labels[action] = label;
+    return OPENRAC_HOOK_OK;
+}
+
+int host_on_tick_boundary(openrac_mod*, openrac_tick_boundary_fn fn, void* user) {
+    g_boundary = fn;
+    g_boundary_user = user;
+    return OPENRAC_HOOK_OK;
+}
+
+// Presses an item of the overlay's menu, then runs a tick's boundary, as the port does.
+void press(std::uint32_t action) {
+    CHECK(g_boundary != nullptr);
+    g_presses.push_back(action);
+    g_boundary(g_boundary_user, 0);
+}
+
 openrac_api make_api(const char* game, const char* version) {
     openrac_api api;
     std::memset(&api, 0, sizeof api);
@@ -348,6 +411,10 @@ openrac_api make_api(const char* game, const char* version) {
     api.hud_text_set = host_hud_text_set;
     api.on_pad = host_on_pad;
     api.plugins_folder = host_plugins_folder;
+    api.developer_menu = host_developer_menu;
+    api.take_developer_menu_action = host_take_developer_menu_action;
+    api.developer_menu_set_label = host_developer_menu_set_label;
+    api.on_tick_boundary = host_on_tick_boundary;
     return api;
 }
 
@@ -375,6 +442,9 @@ bool load_with(const char* game, const char* version) {
     g_failed.clear();
     g_frame = nullptr;
     g_shown = {};
+    g_menu = {};
+    g_presses.clear();
+    g_boundary = nullptr;
     g_disc = version;
     static openrac_api kept;
     kept = make_api(game, version);
@@ -443,7 +513,7 @@ int main(int argc, char** argv) {
     query(&info);
     // The interface its manifest names (1.12), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(std::strcmp(info.id, "cheats") == 0 && std::strcmp(info.version, "0.3.1") == 0);
+    CHECK(std::strcmp(info.id, "cheats") == 0 && std::strcmp(info.version, "0.4.0") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -695,6 +765,94 @@ int main(int argc, char** argv) {
 
     // The other disc loads too.
     CHECK(load_with("rac1", "ntsc") && g_failed.empty());
+
+    // OpenRAC's overlay: a Cheats menu with the page's switches and buttons, each switch's label
+    // saying whether it is on.
+    g_bools.clear();
+    g_strings.clear();
+    g_bools["show_status"] = 1;
+
+    // Each disc, switched from the overlay.
+    for (const char* version : {"pal", "ntsc"}) {
+        CHECK(load_with("rac1", version) && g_failed.empty());
+        lay_weapons();
+        CHECK(g_menu.title == "Cheats" && g_menu.actions.size() == 6);
+        CHECK(g_menu.labels[1] == "Invincibility: Off" && g_menu.labels[2] == "Infinite ammo: Off");
+        CHECK(
+            g_menu.labels[3] == "Infinite oxygen: Off" && g_menu.labels[4] == "Bolt multiplier: x1"
+        );
+        CHECK(g_menu.labels[5] == "Refill ammo" && g_menu.labels[6] == "Give 10000 bolts");
+        damage = reinterpret_cast<DamageFn>(hook("rac1.player.take_damage"));
+        take = reinterpret_cast<AmmoFn>(hook("rac1.weapon.take_ammo"));
+        bolt = reinterpret_cast<BoltFn>(hook("rac1.moby.collect_bolt"));
+
+        // Invincibility on: hits take nothing, the label and the pause page say so.
+        press(1);
+        g_damage_calls.clear();
+        damage(1);
+        CHECK(g_damage_calls.empty());
+        CHECK(g_menu.labels[1] == "Invincibility: On" && g_shown.choices[0] == 1);
+
+        // Infinite ammo on: every owned weapon filled first, then shots take nothing.
+        press(2);
+        CHECK(ammo(2) == 40 && g_menu.labels[2] == "Infinite ammo: On" && g_shown.choices[1] == 1);
+        g_ammo_calls.clear();
+        CHECK(take(-1, 1) == 1 && g_ammo_calls.empty());
+
+        // Infinite oxygen on: the air is full again after the tick.
+        press(3);
+        put<int32_t>(disc().hero + CHEATS_HERO_AIR, 300);
+        g_frame(g_frame_user);
+        CHECK(air() == CHEATS_FULL_AIR && g_menu.labels[3] == "Infinite oxygen: On");
+
+        // The multiplier steps on at each press, back to x1 after x100.
+        press(4);
+        CHECK(g_menu.labels[4] == "Bolt multiplier: x2" && g_shown.choices[3] == 1);
+        g_bolts = 0;
+        bolt(0x1000u);
+        CHECK(g_bolts == 10);
+
+        // Several presses in one tick are all taken.
+        g_presses = {4, 4, 4, 4};
+        g_boundary(g_boundary_user, 0);
+        CHECK(g_menu.labels[4] == "Bolt multiplier: x100" && g_presses.empty());
+        press(4);
+        CHECK(g_menu.labels[4] == "Bolt multiplier: x1");
+
+        // The buttons: the refill and the gift.
+        put<int32_t>(disc().ammo + 8u, 1);
+        press(5);
+        CHECK(ammo(2) == 40);
+        g_bolts = 7;
+        press(6);
+        CHECK(g_bolts == 10007);
+
+        // Switched off from the page: the overlay's label follows at the next boundary.
+        pad_report(kCross);
+        page_event(OPENRAC_UI_CHANGE, 0, 0);
+        g_boundary(g_boundary_user, 0);
+        CHECK(g_menu.labels[1] == "Invincibility: Off");
+
+        // And back on from the overlay: the page follows at once.
+        press(1);
+        CHECK(g_shown.choices[0] == 1);
+        pad_report(0);
+    }
+
+    // Outside a level the gift gives nothing, as the page's button cannot be pressed there.
+    g_play.level = -1;
+    g_play.phase = OPENRAC_PLAY_FRONT_END;
+    g_bolts = 0;
+    press(6);
+    CHECK(g_bolts == 0);
+    g_play.level = 3;
+    g_play.phase = OPENRAC_PLAY_PLAYING;
+
+    // Another mod's menu took the title: it loads all the same, with a warning, the page there.
+    g_refuse_menu = true;
+    CHECK(load_with("rac1", "ntsc") && g_failed.empty());
+    CHECK(g_menu.title.empty() && !g_warnings.empty() && g_pause_items.size() == 1);
+    g_refuse_menu = false;
 
     std::puts("cheats rac1 load: ok");
     return 0;

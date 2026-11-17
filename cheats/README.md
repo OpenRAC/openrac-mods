@@ -21,6 +21,12 @@ menu, then **Options**, then **Cheats**:
 | Refill ammo | Fills every weapon you own to its most |
 | Give 10000 bolts | Adds 10,000 bolts |
 
+The same switches and buttons are in OpenRAC's own menu, at any time in the game: open it
+(Alt, or Start+Select on a pad, or the drawer on a touch screen) and its **Cheats** menu has
+*Invincibility: On/Off*, *Infinite ammo*, *Infinite oxygen*, *Bolt multiplier* (each press steps
+it on, x100 back to x1), *Refill ammo* and *Give 10000 bolts*. What is switched there shows on the
+pause page and the other way round. The gift of bolts needs a level.
+
 The launcher's settings say what is on at the start. A cheat switched on the page lasts until the
 game closes; it is not written back to the launcher. The settings:
 
@@ -68,7 +74,10 @@ The refill writes each owned weapon's ammo (`weapon_ammo_counts`) to the max of 
 (the one the game's ammo pickups and vendor read), so it follows the
 [difficulty](../difficulty-mod/README.md) mod's max ammo. The page is a page of the game's own
 menus (`ui_page`, `ui_pause_item`, interface 1.9), and the HUD's line is `hud_text_set`
-(interface 1.12), shown again after each level load.
+(interface 1.12), shown again after each level load. The overlay's menu is `developer_menu`
+(interface 1.10): its presses are taken at a tick's boundary (`take_developer_menu_action`), where
+each switch's label is set again when it changed (`developer_menu_set_label`). A port without it,
+or another mod's menu titled Cheats, leaves the pause page alone, with a warning in the log.
 
 ### The page and the stick
 
@@ -94,7 +103,8 @@ As every native mod here (the repository's [README](../README.md#building)). The
 
 - `cheats_cheats`: the shared part alone (the multiplier's steps, the bolts added, the HUD's line);
 - `cheats_rac1_load`: the library as the port loads it, against a host table and game memory of
-  the test's own, on both discs (the hooks, the page's rows and buttons, the air, the HUD's line).
+  the test's own, on both discs (the hooks, the page's rows and buttons, the overlay's menu and its labels, the air, the HUD's
+  line).
 
 ## Layout
 
