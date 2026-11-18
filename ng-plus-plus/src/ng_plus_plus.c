@@ -107,6 +107,9 @@ static wt_Moby_PostHit s_post_hit;
 static int32_t (*s_text)(int32_t id);
 static int32_t (*s_banner)(int32_t key, int32_t selection);
 static void (*s_message)(int32_t text, int32_t second);
+static void (*s_upgrade_fx)(int32_t item, int32_t row); /* the level-up of the weapon in hand */
+static int s_bought = -1;   /* the item just stepped by a purchase, named at its tier in the vendor */
+static int s_bought_left;   /* ticks the vendor's purchase feedback keeps naming it */
 static wt_Text_ById s_text_by_id;
 static int s_in_text;     /* in a text lookup of the mod's own: the game's texts as they are */
 static int s_text_logged; /* the first vendor text the mod gave, logged */
@@ -252,7 +255,14 @@ static void step(int item, int by_experience) {
             put_s32(at(s_disc->ammo) + 4u * (uint32_t)item, most);
         }
     }
-    if (by_experience && s_banner != NULL && s_message != NULL) {
+    const int held = get_s32(at(s_disc->hero) + WT_HERO_HELD);
+    if (by_experience && item == held && s_upgrade_fx != NULL) {
+        // As the game's own level-up of the weapon in hand (hero_update_collection_progress): the
+        // hero's upgrade animation, morphing into the row the weapon has. At its end the game
+        // advances the version (nothing at a last one) and shows its popup and line, which name the
+        // weapon at its tier through text_by_id.
+        s_upgrade_fx(item, (int32_t)get_u8(at(s_disc->slot) + (uint32_t)item));
+    } else if (by_experience && s_banner != NULL && s_message != NULL) {
         // As the game's own level-up of a weapon (func_00288508): its popup and sound, and the line
         // naming the weapon, here at its tier.
         char name[WT_TEXT_SLOT_BYTES];
@@ -434,9 +444,16 @@ static uint32_t tier_text(int32_t id) {
         const wt_step* step = item >= 0 ? wt_step_at(wt_kind_of(item), levels()[item]) : NULL;
         return step != NULL ? slot_text(0, step->name) : 0;
     }
-    const int item = entry_under_cursor();
+    int item = entry_under_cursor();
+    int level = item >= 0 ? s_level[item] + 1 : 0;
     if (item < 0 || !for_sale(item)) {
-        return 0;
+        // Just bought: the vendor's purchase feedback names the entry it sold, now at the tier the
+        // weapon has (not the game's name for that row).
+        if (s_bought < 0 || s_bought_left <= 0) {
+            return 0;
+        }
+        item = s_bought;
+        level = s_level[item];
     }
     // What the vendor names an upgrade entry by: its version 2's row (1 for the two-version weapons).
     // The RYNO II and the Zodiac have no such row: the preview's lookup (func_00288870) fails there
@@ -450,7 +467,7 @@ static uint32_t tier_text(int32_t id) {
         return 0;
     }
     char name[WT_TEXT_SLOT_BYTES];
-    name_at(item, s_level[item] + 1, name, sizeof name);
+    name_at(item, level, name, sizeof name);
     return slot_text(1, name);
 }
 
@@ -562,6 +579,8 @@ static int32_t upgrade(int32_t id) {
     if (id >= 0 && id < WT_ITEMS && under == id && for_sale(id)) {
         const int old = s_level[id];
         step(id, 0);
+        s_bought = id;
+        s_bought_left = 600;
         snprintf(line, sizeof line, "purchase: item %d, tier %d -> %d", id, old, s_level[id]);
         s_api->log(s_mod, OPENRAC_LOG_INFO, line);
         return 1;
@@ -808,6 +827,9 @@ static void tick(void* user) {
     if (s_notice_left > 0 && --s_notice_left == 0) {
         s_api->play_notice(s_mod, "");
     }
+    if (s_bought_left > 0) {
+        --s_bought_left;
+    }
     if (s_api->loaded_level() < 0) {
         return;
     }
@@ -828,7 +850,13 @@ static void tick(void* user) {
     // at a weapon's last version is everything it ever had with the weapon (from before the mod, and
     // from past games in challenge mode), so the mod's starts at 0 the first time it sees the weapon
     // there: a step by experience is earned from then on, never at once from a save's old count.
-    if (!s_party_on) {
+    // Not while the clock is all zeros (the title screen, a new game or a new challenge mode before
+    // the game stamps it): the save's levels and its "started" marks come back with the clock, and
+    // zeroing the experience then would take what the weapons earned in the games before.
+    static const uint8_t no_clock[8];
+    const int clock_known = memcmp(s_clock, no_clock, 8) != 0;
+    const int held = get_s32(at(s_disc->hero) + WT_HERO_HELD);
+    if (!s_party_on && clock_known) {
         for (int item = 0; item < WT_ITEMS; ++item) {
             const wt_kind kind = wt_kind_of(item);
             if (kind == WT_KIND_NONE || !owned(item) || !at_last(item)) {
@@ -842,6 +870,11 @@ static void tick(void* user) {
                 continue;
             }
             if (wt_exp_reached(kind, s_level[item], 1, exp_of(item))) {
+                // The weapon in hand levels when the hero can play its animation, as the game's.
+                if (item == held && s_upgrade_fx != NULL
+                    && get_s32(at(s_disc->hero) + WT_HERO_READY) == 0) {
+                    continue;
+                }
                 step(item, 1);
                 s_published = 0;
             }
@@ -895,7 +928,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.10")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.11")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
@@ -940,6 +973,16 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_text = (int32_t (*)(int32_t))api->function(s_disc->text);
     s_banner = (int32_t (*)(int32_t, int32_t))api->function(s_disc->banner);
     s_message = (void (*)(int32_t, int32_t))api->function(s_disc->message);
+    s_upgrade_fx = (void (*)(int32_t, int32_t))api->function(s_disc->upgrade_fx);
+    s_bought = -1;
+    s_bought_left = 0;
+    if (s_upgrade_fx == NULL) {
+        api->log(
+            mod,
+            OPENRAC_LOG_INFO,
+            "no in-hand level-up in this build: a step of the weapon in hand shows the popup only"
+        );
+    }
     if (s_banner == NULL || s_message == NULL) {
         api->log(
             mod,
