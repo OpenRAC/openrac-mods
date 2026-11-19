@@ -381,6 +381,12 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_aridia_gold_bolt_3_requires_magneboots(self) -> None:
+        self.collect_all_but(["Magneboots"])
+        self.assertFalse(self.can_reach_location("Aridia: gold bolt 3"))
+        self.collect_by_name("Magneboots")
+        self.assertTrue(self.can_reach_location("Aridia: gold bolt 3"))
+
     def test_novalis_gold_bolt_2_requires_hydro_pack(self) -> None:
         self.collect_all_but(["Hydro-Pack"])
         self.assertFalse(self.can_reach_location("Novalis: gold bolt 2"))
