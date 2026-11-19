@@ -50,6 +50,21 @@ static void check_tables(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* a = &rando_locations[i];
         CHECK(a->name != NULL && a->level < LEVEL_COUNT);
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            if (!strcmp(a->name, "Hoven: the coordinates of Gemlik")) {
+                const uint64_t expected = BIT(ITEM_HELI_PACK)
+                    | (d == DIFFICULTY_EXPERT ? 0 : BIT(ITEM_DEVASTATOR));
+                CHECK(rando_requirement(d, i) == expected);
+            }
+            if (!strcmp(a->name, "Hoven: the Foreman's Raritanium")) {
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT)));
+            }
+            if (!strcmp(a->name, "Gemlik: the coordinates of Oltanis")) {
+                CHECK(((rando_requirement(d, i) & BIT(ITEM_TRESPASSER)) != 0)
+                    == (d != DIFFICULTY_EXPERT));
+            }
+        }
+
         if (!strcmp(a->name, "Aridia: gold bolt 3")) {
             for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
                 CHECK(rando_requirement(d, i) & BIT(ITEM_MAGNEBOOTS));
@@ -462,7 +477,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0x93abd6e9bbb21f5eull);
+    CHECK(plan_hash(&p) == 0x759519c44e7ea422ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
