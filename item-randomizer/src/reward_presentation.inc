@@ -145,6 +145,19 @@ static int find_presentation_location(int kind, int level, int key) {
     return -1;
 }
 
+/* The case and its display share a retail slot. The display class identifies
+ * a mesh, not the case's item: resolve both through the same slot table. */
+static int gold_case_base(uint32_t moby) {
+    const uint32_t vars = OPENRAC_GREF(s_api, uint32_t, moby + MOBY_PVARS);
+    const int slot = vars ? i32_at(vars + 0x40u) : -1;
+    if (slot < 0 || slot >= 20) {
+        return -1;
+    }
+    const uint32_t table = strcmp(s_disc->version, "pal") == 0 ? 0x001DEDE0u : 0x001DEB10u;
+    const int base = get32((uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, table)) + slot * 4);
+    return rando_gold_index(base) >= 0 ? base : -1;
+}
+
 static int64_t npc_location(uint32_t moby) {
     const int level = current_level();
     const int cls = OPENRAC_GREF(s_api, int16_t, moby + 0xA6);
@@ -229,7 +242,8 @@ static int64_t moby_location(uint32_t moby) {
                    : -1;
     }
     if (cls >= 0x5B0 && cls < 0x5B0 + RANDO_GOLD_WEAPON_COUNT && reward_gold_mode() == 1) {
-        return rando_case_row(k_rando_gold_bases[cls - 0x5B0]);
+        const int base = gold_case_base(moby);
+        return base >= 0 ? rando_case_row(base) : -1;
     }
     if (cls <= 0 || cls >= 0x800) {
         return -1;

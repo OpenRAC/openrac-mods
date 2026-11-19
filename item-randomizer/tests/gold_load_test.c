@@ -56,6 +56,12 @@ static void original_case(uint32_t moby) {
     uint32_t v = get32(s_memory + moby + 0x78);
     int slot = get32(s_memory + v + 0x40);
     int base = k_rando_gold_bases[slot];
+    int16_t cls;
+    memcpy(&cls, s_memory + moby + 0xA6, sizeof cls);
+    if (cls >= 0x5B0 && cls < 0x5BA) {
+        CHECK(*upgrade(base) == 1); /* checked slot, regardless of display mesh */
+        return;
+    }
     CHECK(s_memory[D->owned + base] == 1);
     if (*upgrade(base)) {
         return;
@@ -163,6 +169,15 @@ int main(int argc, char** argv) {
         CHECK(purchases == i + 1);
     }
     CHECK((words[2] & 0x3FF) == 0x3FF);
+    {
+        const uint32_t moby = 0x180000, vars = 0x190000;
+        const int16_t cls = 0x5B7;
+        memcpy(s_memory + moby + 0xA6, &cls, sizeof cls);
+        set32(s_memory + vars + 0x40, 0);
+        *upgrade(ITEM_BOMB_GLOVE) = 0;
+        ((void (*)(uint32_t))hook_named("Moby_GoldWeaponCase_Update"))(moby);
+        CHECK(*upgrade(ITEM_BOMB_GLOVE) == 0); /* real upgrade restored */
+    }
     s_frame(NULL);
     CHECK(get32(s_memory + D->level + 0x9C) == 1 && get32(s_memory + D->level + 0x11C) == 0);
     uint32_t checks = words[2];
