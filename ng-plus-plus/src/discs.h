@@ -95,6 +95,8 @@ static inline const wt_disc* wt_disc_of(const char* version) {
 #define WT_ROW_SIZE 0xE0u
 #define WT_ROW_VERSION 0x04u /* u8: its version, from 0 (func_00288870) */
 #define WT_ROW_TEXT 0x08u    /* s32: the name's text id the vendor's dialog prints */
+#define WT_ROW_AMMO_MANY 0x38u /* s16: the ammo pickup's message for several rounds (its count) */
+#define WT_ROW_AMMO_ONE 0x3Au  /* s16: the ammo pickup's message for one round */
 #define WT_ROW_CLASS 0x14u   /* s32: the class the vendor shows */
 #define WT_ROW_NAME 0x48u    /* s16: its name's text id */
 #define WT_ROW_NEXT 0x4Au    /* s16: the next version's row, 0 at the last */

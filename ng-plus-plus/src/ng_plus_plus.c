@@ -490,6 +490,15 @@ static uint32_t tier_text(int32_t id) {
     return slot_text(1, name);
 }
 
+/* `text` into the next of the slots 2..6, taken in turn: the game prints a text at once (drawn or
+ * copied when looked up), so five texts in a row can be up before one is written over. */
+static uint32_t slot_text_next(const char* text) {
+    static int next;
+    const uint32_t a = slot_text(2 + next, text);
+    next = (next + 1) % 5;
+    return a;
+}
+
 /* The tiered name of the weapon whose last version's name is text `id` (the ammo pickup's message,
  * the weapons menu, the quick select, ...), or 0: only a weapon with a tier, and only when no other
  * item's row now names itself by `id`. The game prints a name at once (its text drawn or copied when
@@ -514,12 +523,58 @@ static uint32_t weapon_name(int32_t id) {
         || !at_last(found)) {
         return 0;
     }
-    static int next;
     char name[WT_TEXT_SLOT_BYTES];
     name_of(found, name, sizeof name);
-    const uint32_t a = slot_text(2 + next, name);
-    next = (next + 1) % 5;
-    return a;
+    return slot_text_next(name);
+}
+
+/* The game's string at text address `a` into `out` ("" when there is none). */
+static void read_text(uint32_t a, char* out, size_t size) {
+    out[0] = 0;
+    if (!in_memory(a, 1)) {
+        return;
+    }
+    for (size_t i = 0; i + 1 < size; ++i) {
+        const char c = (char)get_u8((openrac_gaddr)a + (uint32_t)i);
+        out[i] = c;
+        out[i + 1] = 0;
+        if (c == 0) {
+            break;
+        }
+    }
+}
+
+/* The ammo pickup's message (the row's text for one round or for several, which the game fills in
+ * with the count) of a weapon with a tier, with the game's name of its version in it replaced by the
+ * tier's ("Ultra Meteor Gun" becomes "Beta Meteor Gun"), or 0. The count's placeholder is kept. */
+static uint32_t ammo_message(int32_t id) {
+    for (int item = 0; item < WT_ITEMS; ++item) {
+        if (wt_kind_of(item) == WT_KIND_NONE || levels()[item] == 0 || !owned(item)
+            || !at_last(item)) {
+            continue;
+        }
+        const openrac_gaddr row = row_of(item);
+        if ((int16_t)get_u16(row + WT_ROW_AMMO_MANY) != id
+            && (int16_t)get_u16(row + WT_ROW_AMMO_ONE) != id) {
+            continue;
+        }
+        char message[WT_TEXT_SLOT_BYTES];
+        char game_name[WT_TEXT_SLOT_BYTES];
+        char tier_name[WT_TEXT_SLOT_BYTES];
+        read_text((uint32_t)s_text_by_id(id), message, sizeof message);
+        read_text((uint32_t)s_text_by_id((int16_t)get_u16(row + WT_ROW_NAME)), game_name,
+                  sizeof game_name);
+        const char* at_name = game_name[0] != 0 ? strstr(message, game_name) : NULL;
+        if (at_name == NULL) {
+            return 0; /* the message does not name the weapon as its row does: left as it is */
+        }
+        name_of(item, tier_name, sizeof tier_name);
+        char out[WT_TEXT_SLOT_BYTES];
+        snprintf(out, sizeof out, "%.*s%s%s", (int)(at_name - message), message, tier_name,
+                 at_name + strlen(game_name));
+        return slot_text_next(out);
+    }
+    return 0;
 }
 
 static int32_t text_by_id(int32_t id) {
@@ -528,6 +583,9 @@ static int32_t text_by_id(int32_t id) {
         uint32_t text = tier_text(id);
         if (text == 0) {
             text = weapon_name(id);
+        }
+        if (text == 0) {
+            text = ammo_message(id);
         }
         --s_in_text;
         if (text != 0) {
@@ -993,7 +1051,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.12")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.13")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
