@@ -22,6 +22,12 @@ constexpr float kRunScale[] = {1.5f, 2.5f, 4.0f, 6.0f};
 constexpr float kShareLeast[] = {0.10f, 0.15f, 0.20f, 0.25f};
 constexpr float kShareMost[] = {0.50f, 0.65f, 0.80f, 0.90f};
 
+// The first challenge mode's (cycle 1) taste of platinum, at x1 and at x20: a little, with no
+// bigger drops, so the platinum bolts show up before the run scale starts.
+constexpr int kTasteCycle = 1;
+constexpr float kTasteLeast = 0.05f;
+constexpr float kTasteMost = 0.25f;
+
 // How many cycles the tables have.
 constexpr int kRunCycles = static_cast<int>(sizeof kRunScale / sizeof kRunScale[0]);
 
@@ -91,15 +97,16 @@ float toughness(std::int32_t base) {
 }
 
 float platinum_share(int cycle, int streak) {
-    // No platinum before challenge mode's second run.
-    if (cycle < kFirstCycle) {
+    // No platinum in the first game.
+    if (cycle < kTasteCycle) {
         return 0.0f;
     }
 
     // No streak yet counts as x1, past the top as the top.
     const int at = streak < 1 ? 1 : (streak > kTopStreak ? kTopStreak : streak);
-    const float least = by_run(kShareLeast, cycle);
-    const float most = by_run(kShareMost, cycle);
+    const bool taste = cycle < kFirstCycle;
+    const float least = taste ? kTasteLeast : by_run(kShareLeast, cycle);
+    const float most = taste ? kTasteMost : by_run(kShareMost, cycle);
     const float t = static_cast<float>(at - 1) / static_cast<float>(kTopStreak - 1);
 
     return least + (most - least) * t;

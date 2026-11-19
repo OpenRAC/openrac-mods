@@ -1253,15 +1253,25 @@ void test_level_left() {
     g_materials.clear();
 }
 
-// Checks the drops the mod leaves to the game: before cycle 2, and (from cycle 2) a crate's, which
-// is scaled by the run only, at the least platinum share.
+// Checks the drops before cycle 2: the first game's the game's own, the first challenge mode's
+// unscaled with a taste of platinum; and (from cycle 2) a crate's, which is scaled by the run only,
+// at the least platinum share.
 void test_drops_before_and_crates() {
+    set_run(0, 20);
+    g_coins.clear();
+    port_spawn_pickups(kMobyEnemy, 100, 9);
+    CHECK(g_burst_high == 100);
+    CHECK(g_coins.size() == 1);  // 100 (no doubling in the first game)
+    CHECK(g_materials.empty());
+
+    // The first challenge mode at x20: the game's 200 (doubled), unscaled, 25% of it platinum.
     set_run(1, 20);
     g_coins.clear();
     port_spawn_pickups(kMobyEnemy, 100, 9);
     CHECK(g_burst_high == 100);
-    CHECK(g_coins.size() == 2);  // 200 (doubled) as two 100s
-    CHECK(g_materials.empty());
+    CHECK(coins_worth() == 200);
+    CHECK(g_materials.size() == 2);  // 50 as two platinum 25s, 150 in gold
+    g_materials.clear();
 
     // A crate in challenge mode's third run (cycle 2), no streak: x1.5 the run, 10% platinum.
     set_run(2, 1);

@@ -154,7 +154,8 @@ kills in every new game:
 
 | New game | Challenge mode | Bolts (normal) | Bolts (generous) | Platinum at x1 streak | Platinum at x20 streak |
 |---|---|---|---|---|---|
-| 1, 2 | -, 1st | x1 | x1 | none | none |
+| 1 | - | x1 | x1 | none | none |
+| 2 | 1st | x1 | x1 | 5% | 25% |
 | 3 | 2nd | x1.5 | x2.25 | 10% | 50% |
 | 4 | 3rd | x2.5 | x3.75 | 15% | 65% |
 | 5 | 4th | x4 | x6 | 20% | 80% |
@@ -170,7 +171,7 @@ how the bolts come, not how many: a drop of 15,000 at 65% is a platinum 5,000, a
 four platinum 500s and a platinum 250 (9,750), and 5,250 in gold. Fewer, bigger pickups.
 
 The total is always the game's own after its roll, so its kill streak, doubling and its own pacing
-still count. Before the second challenge mode nothing changes. **Bolt scaling** off leaves every
+still count. The first game is left alone; the first challenge mode gets a few platinum bolts, a taste of them, with drops the same size. **Bolt scaling** off leaves every
 drop to the game; generous pays half as much again as normal (the table's generous column), with
 the same platinum share.
 

@@ -16,7 +16,9 @@ namespace {
 // A burst's flag: at most `maximum` coins, the rest to the game's word (moby_spawn_bolt_pickups).
 constexpr std::int32_t kFlagLimit = 8;
 
-// The first cycle the drops change (bolt_rules.cpp's tables start there).
+// The first cycle with platinum bolts (the first challenge mode, a few), and the first whose drops
+// pay more (bolt_rules.cpp's tables start there).
+constexpr int kPlatinumCycle = 1;
 constexpr int kFirstCycle = 2;
 
 // A coin's start and speed, four floats each, on the game's stack for the coin maker.
@@ -105,16 +107,16 @@ void PlatinumBolts::spawn_pickups(
 ) {
     const int cycle = m_view.cycle();
 
-    // Off, an older port, a run before challenge mode's second, or a burst inside one: the game's.
-    if (!m_enabled || cycle < kFirstCycle || m_recording) {
+    // Off, an older port, the first game, or a burst inside one: the game's.
+    if (!m_enabled || cycle < kPlatinumCycle || m_recording) {
         original(moby, low, high, flags, surface, maximum, height);
         return;
     }
 
     // The run's scale, and an enemy's toughness from its own bolts (a crate or a scripted burst:
-    // none).
-    const float scale =
-        run_scale(cycle, m_scaling) * toughness(m_view.enemy_bolts(moby).value_or(0));
+    // none); the first challenge mode only some platinum, its drops the game's.
+    const float tough = toughness(m_view.enemy_bolts(moby).value_or(0));
+    const float scale = cycle < kFirstCycle ? 1.0f : run_scale(cycle, m_scaling) * tough;
 
     // The game's burst with the scaled amount: its roll, doubling, pacing and coin limit decide the
     // total; its coins are written down (spawn_pickup), not made.
