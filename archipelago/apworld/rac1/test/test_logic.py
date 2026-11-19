@@ -381,6 +381,12 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_gaspar_helmet_requires_heli_pack_without_swingshot(self) -> None:
+        self.collect_by_name("Gaspar Coordinates")
+        self.assertFalse(self.can_reach_location("Gaspar: the Pilot's Helmet's pickup"))
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Gaspar: the Pilot's Helmet's pickup"))
+
     def test_batalia_turret_requires_only_magneboots(self) -> None:
         self.collect_by_name("Batalia Coordinates")
         self.assertFalse(self.can_reach_location("Batalia: the turret's commando"))
