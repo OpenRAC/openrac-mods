@@ -20,6 +20,19 @@ static const wt_step k_tiers[WT_TIERS] = {
     {"Omega", WT_EXP, 0, 24000, 4.00f, 2.00f, WT_TINT_PRISMATIC},
 };
 
+/* The eight tiers of a weapon that never earns experience (WT_KIND_NO_EXP): all bought, the rest
+ * as k_tiers. */
+static const wt_step k_tiers_bought[WT_TIERS] = {
+    {"Alpha", WT_BUY, 0, 0, 1.25f, 1.10f, WT_TINT_LIME},
+    {"Beta", WT_BUY, 0, 0, 1.50f, 1.20f, WT_TINT_CYAN},
+    {"Gamma", WT_BUY, 0, 0, 1.75f, 1.30f, WT_TINT_EMERALD},
+    {"Delta", WT_BUY, 0, 0, 2.00f, 1.40f, WT_TINT_TEAL},
+    {"Epsilon", WT_BUY, 0, 0, 2.40f, 1.50f, WT_TINT_VIOLET},
+    {"Zeta", WT_BUY, 0, 0, 2.80f, 1.60f, WT_TINT_MAGENTA},
+    {"Eta", WT_BUY, 0, 0, 3.30f, 1.80f, WT_TINT_CRIMSON},
+    {"Omega", WT_BUY, 0, 0, 4.00f, 2.00f, WT_TINT_PRISMATIC},
+};
+
 /* The RYNO II's two versions of its own, before the tiers. */
 static const wt_step k_ryno[2] = {
     {"Heavy", WT_EXP, 0, 6000, 1.40f, 1.50f, WT_TINT_ORANGE},
@@ -63,10 +76,13 @@ wt_kind wt_kind_of(int item) {
             return WT_KIND_FOUR;
         case 12: /* Bomb Glove */
         case 14: /* Visibomb Gun */
-        case 17: /* Decoy Glove */
         case 18: /* Tesla Claw */
         case 53: /* Walloper */
             return WT_KIND_TWO;
+        case 17: /* Decoy Glove: the game credits a kill's experience to the weapon whose hit killed
+                    (SetDeathBits, func_002A0430), and the decoy deals none (decoy_update,
+                    func_L00_00398150: it only takes hits) */
+            return WT_KIND_NO_EXP;
         case 9:
             return WT_KIND_ZAPPER;
         case 16:
@@ -95,7 +111,7 @@ static const wt_step* table_step(wt_kind kind, int level) {
     if (kind == WT_KIND_RYNO) {
         return level < 2 ? &k_ryno[level] : &k_tiers[level - 2];
     }
-    return &k_tiers[level];
+    return kind == WT_KIND_NO_EXP ? &k_tiers_bought[level] : &k_tiers[level];
 }
 
 const wt_step* wt_step_at(wt_kind kind, int level) {
@@ -107,6 +123,7 @@ int wt_mega_version(wt_kind kind) {
         case WT_KIND_FOUR:
             return 2;
         case WT_KIND_TWO:
+        case WT_KIND_NO_EXP:
             return 1;
         case WT_KIND_SINGLE:
         case WT_KIND_RYNO:
@@ -116,8 +133,23 @@ int wt_mega_version(wt_kind kind) {
     }
 }
 
+int wt_name_version(wt_kind kind) {
+    const int mega = wt_mega_version(kind);
+
+    if (kind == WT_KIND_NONE) {
+        return -1;
+    }
+    // The version before the game's bought one; with none bought (the Zapper, the Sheepinator), the
+    // second: the Zapper's last, the Sheepinator's last by experience (challenge mode gives the
+    // rest).
+    return mega > 0 ? mega - 1 : mega == 0 ? 0 : 1;
+}
+
 /* Times the base, for the first bought step, the second, ... (the RYNO II has five: Ultima first). */
 static const float k_price_times[] = {1.5f, 2.5f, 4.0f, 6.0f, 9.0f};
+/* For a weapon that buys every tier (WT_KIND_NO_EXP): the ladder above at Alpha, Gamma, Epsilon and
+ * Eta, the tiers between in between, Omega at the RYNO II's top. */
+static const float k_price_every[WT_TIERS] = {1.5f, 2.0f, 2.5f, 3.25f, 4.0f, 5.0f, 6.0f, 9.0f};
 
 /* `x` rounded to its two leading digits and a half: 562,500 is 565,000. */
 static int32_t nice(double x) {
@@ -143,7 +175,9 @@ int32_t wt_price(wt_kind kind, int level, int32_t mega) {
         if (t->how != WT_BUY) {
             continue;
         }
-        int32_t p = nice((double)base * k_price_times[bought++]);
+        const float times = kind == WT_KIND_NO_EXP ? k_price_every[i] : k_price_times[bought];
+        ++bought;
+        int32_t p = nice((double)base * times);
         // Each above the one before and above the Mega.
         if (p <= last) {
             p = nice((double)last * 1.1) > last ? nice((double)last * 1.1) : last + 5000;
@@ -153,13 +187,17 @@ int32_t wt_price(wt_kind kind, int level, int32_t mega) {
     return last;
 }
 
-/* Whether the version before the step at `level` was bought (so needs mastering). */
 /* The experience goals' multiplier of kind `kind`: WT_RYNO_EXP_SCALE for the RYNO II, else 1. */
 static int32_t exp_scale(wt_kind kind) {
     return kind == WT_KIND_RYNO ? WT_RYNO_EXP_SCALE : 1;
 }
 
+/* Whether the version before the step at `level` was bought (so needs mastering). Never for a
+ * weapon that earns no experience: it could never master one. */
 static int previous_bought(wt_kind kind, int level) {
+    if (kind == WT_KIND_NO_EXP) {
+        return 0;
+    }
     if (level > 0) {
         return table_step(kind, level - 1)->how == WT_BUY;
     }
@@ -281,11 +319,14 @@ void wt_display_name(char* out, int size, const char* base, wt_kind kind, int le
 
 /* ---- Enemies ---- */
 
-/* By cycle from 2 on: the health matches the damage of the tier expected by then (cycle 2 Beta,
- * 3 Delta, 4 Zeta, 5 Omega), so a weapon at that tier kills in about the time V4 did at cycle 1;
- * past the table each cycle adds the last step again. The damage they deal rises more gently. */
-static const float k_enemy_health[] = {1.0f, 1.0f, 1.5f, 2.0f, 2.8f, 4.0f};
+/* By cycle from 2 on: the health runs ahead of the damage of the tier a player can have by then
+ * (cycle 2 Delta's x2, 3 Zeta's x2.8, 4 and on Omega's x4), so even a weapon at that tier takes a
+ * quarter to twice as long as V4 did at cycle 1; past the table each cycle adds x2 more. The damage
+ * they deal rises more gently: a fight lasting longer already costs more health. */
+static const float k_enemy_health[] = {1.0f, 1.0f, 2.5f, 4.0f, 6.0f, 8.0f};
 static const float k_enemy_damage[] = {1.0f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
+#define WT_HEALTH_STEP 2.0f
+#define WT_DAMAGE_STEP 0.25f
 #define WT_CURVE ((int)(sizeof k_enemy_health / sizeof k_enemy_health[0]))
 
 static float curve(const float* table, float step, int cycle, float strength) {
@@ -305,11 +346,11 @@ static float curve(const float* table, float step, int cycle, float strength) {
 }
 
 float wt_enemy_health(int cycle, float strength) {
-    return curve(k_enemy_health, 1.0f, cycle, strength);
+    return curve(k_enemy_health, WT_HEALTH_STEP, cycle, strength);
 }
 
 float wt_enemy_damage(int cycle, float strength) {
-    return curve(k_enemy_damage, 0.25f, cycle, strength);
+    return curve(k_enemy_damage, WT_DAMAGE_STEP, cycle, strength);
 }
 
 /* ---- The book ---- */
@@ -370,6 +411,50 @@ void wt_book_put(wt_book* book, const uint8_t clock[8], const uint8_t levels[WT_
     memcpy(book->records[book->count].clock, clock, 8);
     memcpy(book->records[book->count].level, levels, WT_ITEMS);
     ++book->count;
+}
+
+int wt_print_changes(const wt_print* a, const wt_print* b) {
+    int n = a->bolts != b->bolts;
+    for (int i = 0; i < WT_ITEMS; ++i) {
+        n += a->exp[i] != b->exp[i] || a->row[i] != b->row[i];
+    }
+    return n;
+}
+
+static int clock_zero(const uint8_t clock[8]) {
+    static const uint8_t zero[8];
+    return memcmp(clock, zero, 8) == 0;
+}
+
+wt_clock_case wt_clock_case_of(
+    const wt_book* book,
+    const uint8_t clock[8],
+    int in_play,
+    int changes,
+    int carried,
+    int carry_changes,
+    int cycle,
+    const wt_record** record
+) {
+    *record = NULL;
+    if (clock_zero(clock)) {
+        return WT_CLOCK_ZERO;
+    }
+    *record = wt_book_find(book, clock);
+    if (*record != NULL) {
+        return WT_CLOCK_RECORD;
+    }
+    // A clock the book has not: the save in play stamped again, if its data is as it was.
+    if (in_play) {
+        return changes < WT_LOAD_CHANGES ? WT_CLOCK_SAME : WT_CLOCK_NEW;
+    }
+    // After zeros: challenge mode's next game keeps the weapons (level_restart_keep_progress,
+    // func_002DE990: their rows and experience, the counter +1); a new game or another save does
+    // not.
+    if (carried && cycle > 0 && carry_changes < WT_LOAD_CHANGES) {
+        return WT_CLOCK_CARRY;
+    }
+    return WT_CLOCK_NEW;
 }
 
 int wt_book_write(const wt_book* book, char* out, int size) {

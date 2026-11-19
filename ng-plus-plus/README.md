@@ -43,9 +43,17 @@ and 9,000,000. Lancer and Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900
 (1,500,000): 2,250,000, 3,750,000, 6,000,000, 9,000,000.
 
 - **Four-version weapons** (Lancer, Chopper, ...): Alpha is for sale as soon as the weapon is V4.
-- **Two-version weapons** (Bomb Glove, Visibomb Gun, Decoy Glove, Tesla Claw, Walloper), and the
-  **Zodiac**: their last version is bought, and the game has no experience step after it, so Alpha
-  goes on sale after 6,000 more experience with it.
+- **Two-version weapons** (Bomb Glove, Visibomb Gun, Tesla Claw, Walloper), and the **Zodiac**:
+  their last version is bought, and the game has no experience step after it, so Alpha goes on sale
+  after 6,000 more experience with it.
+- **Decoy Glove**: the game gives a kill's experience to the weapon whose hit killed, and the decoy
+  deals no damage (it only draws fire), so it can never earn any. Every one of its tiers is bought
+  instead, each for sale as soon as the one before is bought, with no experience wait: Alpha,
+  Gamma, Epsilon and Eta at the others' prices, Beta, Delta and Zeta between them (its Mega times 2,
+  3.25 and 5) and Omega at 9 times. At the 150,000 floor: 225,000, 300,000, 375,000, 490,000,
+  600,000, 750,000, 900,000 and 1,350,000. Every other weapon earns its own experience: its shots,
+  beam, blast, sheep, Synthenoids, Spiderbot or turrets kill (the four-version weapons, the Clank
+  Zapper and the Sheepinator level by those kills in the game itself).
 - **Clank Zapper**: Alpha is for sale once it is V2.
 - **Sheepinator**: as the four-version weapons: Alpha is for sale once it is V4 (it has no Mega, so
   its prices start from 1,500,000).
@@ -54,9 +62,14 @@ and 9,000,000. Lancer and Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900
   2,500,000, Gamma 4,000,000, Epsilon 6,000,000, Eta 9,000,000) (x2.2 damage, x2 ammo, a black and red tint), then
   Alpha (after 30,000 more experience) to Omega, each adding its gain to Ultima's. The RYNO II levels five times slower than the other weapons: its Beta, Delta, Zeta and Omega need 40,000, 60,000, 80,000 and 120,000 (WT_RYNO_EXP_SCALE in src/tiers.c).
 
-The tier takes the place of the version in the weapon's name: "Alpha Lancer", "Beta Lancer", ...
-("Heavy RYNO II", "Ultima RYNO II", "Alpha RYNO II" for the RYNO II), with the game's name of the
-weapon's first version. A tier reached by experience comes with the game's own level-up popup and line (as for a weapon
+The tier takes the place of the game's top version in the weapon's name: it goes in front of the
+game's name of the version the weapon reaches before that bought top. A four-version weapon is
+named after its second version, the one before the Mega: "Beta Meteor Gun", "Alpha Heavy Lancer"
+(not "Beta Lava Gun", nor the Mega's own name). A two-version weapon after its first: "Alpha Bomb
+Glove". The Clank Zapper after its last, "Alpha Clank Shocker"; the Sheepinator after its last by
+experience, "Alpha Black Sheepinator"; the Zodiac and the RYNO II after their one version ("Heavy
+RYNO II", "Ultima RYNO II", "Alpha RYNO II"). The names are the game's own texts, looked up from
+the item table's rows (`wt_name_version` in src/tiers.c), so each disc's language is kept. A tier reached by experience comes with the game's own level-up popup and line (as for a weapon
 levelled out of hand: func_00288508), naming the weapon at its new tier; a bought one with the
 vendor's own purchase feedback. The name shows at the top of the screen when you take a tiered
 weapon in hand, and everywhere the game prints the weapon's name: the ammo
@@ -78,15 +91,17 @@ From the second challenge mode on, the mod does:
 |---|---|---|---|---|
 | 1 | - | x1 | x1 | V1 to V3 |
 | 2 | 1st | x1 | x1 | V4 (the game's own balance) |
-| 3 | 2nd | x1.5 | x1.25 | Beta (x1.5) |
-| 4 | 3rd | x2 | x1.5 | Delta (x2) |
-| 5 | 4th | x2.8 | x1.75 | Zeta (x2.8) |
-| 6 | 5th | x4 | x2 | Omega (x4) |
-| 7 on | 6th on | +1 each | +0.25 each | |
+| 3 | 2nd | x2.5 | x1.25 | Delta (x2) |
+| 4 | 3rd | x4 | x1.5 | Zeta (x2.8) |
+| 5 | 4th | x6 | x1.75 | Omega (x4) |
+| 6 | 5th | x8 | x2 | Omega (x4) |
+| 7 on | 6th on | +2 each | +0.25 each | |
 
-The health follows the expected tier's damage, so a weapon at that tier takes about as long to kill
-an enemy as V4 did in the first challenge mode. **How much tougher** scales what the curve adds
-(0.5: x1.25 health at the second challenge mode instead of x1.5).
+The health runs ahead of the damage of the tier a player can have by then, so even a weapon at that
+tier takes longer to kill an enemy than V4 did in the first challenge mode: a quarter longer in the
+third new game, half again in the fifth, twice as long in the sixth, and more each game after. The
+damage they deal rises more gently, since longer fights already cost more health. **How much
+tougher** scales what the curve adds (0.5: x1.75 health in the third new game instead of x2.5).
 
 | Setting | Default | |
 |---|---|---|
@@ -103,10 +118,20 @@ difficulty mod alone.
 
 The tiers are kept with each save: the mod's data folder has a `tiers.txt` with the tiers at each
 save the game made (by the save's own clock), and each new tier is written there at once, so a
-restart or a new version of the mod loses nothing. The game stamps its clock again as a loaded
-save's level starts, sometimes before the mod has seen the save's own; a clock the book does not
-have, right after the title screen, takes the record written last. A record with tiers is never
-written over with none. Nothing is written to the memory card or its folder.
+restart or a new version of the mod loses nothing. Each save gets only its own tiers:
+
+- The mod watches the save's clock at the title screen too, where a loaded save shows its own clock
+  before its level starts and the game stamps a new one; that new clock carries the save's tiers on.
+- A clock the file does not have is the save in play stamped again (at a save, an autosave, a level
+  start) only when the save's data stayed as it was; when the data changed with it (the bolts, the
+  weapons' experience or versions), another save was loaded, one the mod has never seen, and it
+  starts with no tiers, its weapons' experience counted from 0 as for any save new to the mod.
+- After a new game's zero clock, the tiers go on only into challenge mode's next game, which keeps
+  the weapons (the game's challenge mode counter up, the weapons as they were); a plain new game
+  starts with none.
+
+A record with tiers is never written over with none. Nothing is written to the memory card or its
+folder.
 The launcher's save editor shows each weapon's tier for the save opened while the mod is on (the
 manifest's `save_data`), and saves a change into that file; close the game first.
 
@@ -133,7 +158,7 @@ Not yet:
 
 - The HUD's weapon icon draws its own colour and keeps the game's.
 - The vendor's upgrade entry is the game's own kind of entry: its icon is the game's. Its label and
-  name are the tier's ("Alpha" under the icon, "Lancer V4 Alpha" as the title) with an OpenRAC that
+  name are the tier's ("Alpha" under the icon, "Alpha Heavy Lancer" as the title) with an OpenRAC that
   has `rac2.text.by_id`; the label under the icon only on NTSC-U v1.01 (the one disc with
   `rac2.vendor.draw_list`), and the RYNO II's and the Zodiac's titles stay the game's (the game has
   no Mega row to name them by).

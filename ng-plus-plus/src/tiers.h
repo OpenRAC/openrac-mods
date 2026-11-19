@@ -32,6 +32,8 @@ typedef enum wt_kind {
     WT_KIND_NONE = 0, /* not a weapon the mod knows (gadgets, the wrench) */
     WT_KIND_FOUR,     /* four versions, V4 by experience: Alpha is for sale at V4 */
     WT_KIND_TWO,      /* two versions, the second bought in challenge mode (Bomb Glove, ...) */
+    WT_KIND_NO_EXP,   /* as WT_KIND_TWO, but it never earns experience: it deals no damage (the
+                         Decoy Glove), so every tier is bought and none waits on experience */
     WT_KIND_ZAPPER,   /* the Clank Zapper: V2 by experience */
     WT_KIND_SHEEP,    /* the Sheepinator: V4 by experience, no Mega: Alpha is for sale at V4 */
     WT_KIND_SINGLE,   /* one version, bought (the Zodiac) */
@@ -93,6 +95,14 @@ const wt_step* wt_step_at(wt_kind kind, int level);
  * for the Zodiac and the RYNO II (their one version); -1 for none (the Zapper, the Sheepinator). */
 int wt_mega_version(wt_kind kind);
 
+/* The version whose name the tiers take ("Beta Meteor Gun"): the last one the weapon reaches before
+ * the game's own bought top version, counted from its first. 1 for the four-version weapons (their
+ * second, the experience version before the Mega: Heavy Lancer, Meteor Gun), 0 for the two-version
+ * ones (their first; the second is the Mega), the Zodiac and the RYNO II; 1 for the Clank Zapper
+ * (its last, Clank Shocker) and the Sheepinator (Black Sheepinator, before the versions challenge
+ * mode gives it); -1 for none. */
+int wt_name_version(wt_kind kind);
+
 /* With no Mega price, the bought steps go from this; a Mega below the floor counts as the floor. */
 #define WT_PRICE_LADDER 1500000
 #define WT_PRICE_FLOOR 150000
@@ -100,7 +110,8 @@ int wt_mega_version(wt_kind kind);
 /* The price of the step at `level` when it is bought (0 for one by experience), from the weapon's
  * Mega price `mega` (0 for none): the base (`mega`, at least WT_PRICE_FLOOR; WT_PRICE_LADDER with
  * none) times 1.5, 2.5, 4, 6 (and 9, the RYNO II's fifth), rounded, each strictly above the one
- * before and above `mega`. */
+ * before and above `mega`. A WT_KIND_NO_EXP weapon buys all eight: the same ladder at Alpha, Gamma,
+ * Epsilon and Eta, with Beta, Delta and Zeta between (2, 3.25, 5) and Omega at 9. */
 int32_t wt_price(wt_kind kind, int level, int32_t mega);
 
 /* Whether the step at `level` is for sale now: the weapon at its last real version (`at_last`), the
@@ -127,8 +138,8 @@ int32_t wt_ammo_max(wt_kind kind, int level, int32_t base);
  * none (level 0). */
 int32_t wt_tint_rgb(wt_kind kind, int level, uint32_t tick);
 
-/* "<step> <base>" into `out` ("Alpha Lancer", `base` the first version's name), or `base` at
- * level 0. */
+/* "<step> <base>" into `out` ("Beta Meteor Gun", `base` the name of the version wt_name_version
+ * gives), or `base` at level 0. */
 void wt_display_name(char* out, int size, const char* base, wt_kind kind, int level);
 
 /* ---- Enemies across new games ---- */
@@ -160,12 +171,57 @@ typedef struct wt_book {
 /* The record with `clock`, or null. */
 const wt_record* wt_book_find(const wt_book* book, const uint8_t clock[8]);
 
-/* The newest record with any level (the one written last), or null. */
+/* The newest record with any level (the one written last), or null. Not a way to tell which save
+ * is loaded: a save the book has not seen has no levels (wt_clock_case_of). */
 const wt_record* wt_book_latest(const wt_book* book);
 
 /* Keeps `levels` under `clock`, replacing its record (never one with levels by all zeros) or dropping
  * the oldest when full. */
 void wt_book_put(wt_book* book, const uint8_t clock[8], const uint8_t levels[WT_ITEMS]);
+
+/* What the save's clock moving to a new value means, the save in play changing or not. The clock
+ * alone cannot tell a save made (the game stamps it again: at a save, an autosave, as a loaded
+ * save's level starts) from another save loaded whose clock the book has not, so the save's data
+ * tells: a save made leaves it as it was, a save loaded replaces it. */
+typedef enum wt_clock_case {
+    WT_CLOCK_ZERO = 0, /* all zeros: the title or a new game; no levels until a clock */
+    WT_CLOCK_RECORD,   /* a clock the book has: that save's levels */
+    WT_CLOCK_SAME,     /* the save in play stamped again: its levels go on under the new clock */
+    WT_CLOCK_CARRY,    /* a new game of challenge mode (the weapons kept): the levels before the
+                          zeros go on */
+    WT_CLOCK_NEW,      /* a save the book has never seen: no levels, nothing started */
+} wt_clock_case;
+
+/* What the save's data the mod compares is: the bolts, and each item's experience and row. */
+typedef struct wt_print {
+    int32_t bolts;
+    int32_t exp[WT_ITEMS];
+    uint8_t row[WT_ITEMS];
+} wt_print;
+
+/* How many of the bolts and the items (experience or row) differ between `a` and `b`. */
+int wt_print_changes(const wt_print* a, const wt_print* b);
+
+/* From this many changes in the tick the clock moved, the save's data was replaced: another save
+ * was loaded. A save made changes nothing (the game is paused or between levels), or at most one
+ * thing in the same tick. */
+#define WT_LOAD_CHANGES 2
+
+/* What the clock moving to `clock` means. `in_play`: a save's levels are in play (since a clock was
+ * identified, not since zeros); `changes`: wt_print_changes of the save's data in the tick before
+ * and now. `carried`: a save's levels were in play when the clock went to zeros; `carry_changes`:
+ * the changes since then. `cycle`: the challenge mode counter now. For WT_CLOCK_RECORD, `*record`
+ * is the book's record (else null). */
+wt_clock_case wt_clock_case_of(
+    const wt_book* book,
+    const uint8_t clock[8],
+    int in_play,
+    int changes,
+    int carried,
+    int carry_changes,
+    int cycle,
+    const wt_record** record
+);
 
 /* The book as text (a line a record: 16 hex digits of clock, a space, 112 of levels), and back.
  * wt_book_write returns the bytes written (out may be null to ask); wt_book_read the records read

@@ -25,11 +25,14 @@
  *                  never saved, and gets back what was there when no step is left
  *   tint           Item_Colors (func_00336F20): the quick select's and the weapons screen's
  *   name           a line at the top of the picture when a step is taken or a tiered weapon taken
- *                  in hand: "<the game's name of its last version> <tier>"
+ *                  in hand, and the game's own texts of the weapon's name: "<tier> <the game's
+ *                  name of the version before its bought top>" ("Beta Meteor Gun")
  *   kept           a file in the mod's data folder (never the memory card's): the levels at each
- *                  save, by the save's clock (chunk 4, stamped when the game saves). A clock seen
- *                  that the file has is a save loaded; one it has not is a save just made; all
- *                  zeros is a new game
+ *                  save, by the save's clock (chunk 4, stamped when the game saves), watched at the
+ *                  title too. A clock the file has is that save; one it has not is the save in play
+ *                  stamped again when the save's data stayed as it was, else a save never seen (no
+ *                  levels); all zeros is a new game, whose first clock carries the levels on only
+ *                  in challenge mode (wt_clock_case_of)
  *   enemies        past challenge mode's first cycle (the save's counter, +0x12 of its block), the
  *                  enemies' health (as the damage they take, in Moby_PostHit, divided) and the
  *                  damage they deal (Hero_TakeDamage, func_L00_002A4EF8) times a curve in step
@@ -73,6 +76,16 @@ static wt_book s_book;
 static uint8_t s_clock[8];
 static int s_clock_seen;
 static int s_from_nothing = 1; /* no save's levels since the mod started or a zero clock */
+/* The save's data at the last tick (s_print_seen 0: none yet): a save made leaves it, one loaded
+ * replaces it. */
+static wt_print s_print;
+static int s_print_seen;
+/* The levels in play when the clock went to zeros, and the save's data then: challenge mode's next
+ * game carries them on (s_carried 0: none). */
+static int s_carried;
+static uint8_t s_carry_level[WT_ITEMS];
+static uint8_t s_carry_started[WT_ITEMS];
+static wt_print s_carry_print;
 
 /* The most ammo of each last version as found, and as the mod wrote it (0: not written). */
 static int32_t s_ammo_base[WT_ITEMS];
@@ -192,15 +205,21 @@ static const uint8_t* levels(void) {
 
 static int version_row(int item, int version);
 
-/* "<tier> <the game's name of its first version>" for item `item` at `level`, into `out`: the tier
- * takes the place of the version ("Alpha Lancer", not "Heavy Lancer Alpha"). */
+/* "<tier> <the game's name of the version before its bought top>" for item `item` at `level`, into
+ * `out`: the tier takes the place of the game's top version ("Beta Meteor Gun", not "Beta Lava
+ * Gun" nor "Beta Ultra Meteor Gun"; wt_name_version). */
 static void name_at(int item, int level, char* out, int size) {
     char base[48] = "";
 
     if (s_text != NULL) {
-        const int first = version_row(item, 0);
+        const wt_kind kind = wt_kind_of(item);
+        const int version = wt_name_version(kind);
+        int r = version >= 0 ? version_row(item, version) : -1;
+        if (r < 0) {
+            r = version_row(item, 0);
+        }
         const openrac_gaddr named =
-            first >= 0 ? at(s_disc->weapon_table) + (uint32_t)first * WT_ROW_SIZE : row_of(item);
+            r >= 0 ? at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE : row_of(item);
         ++s_in_text;
         const int32_t text = s_text((int16_t)get_u16(named + WT_ROW_NAME));
         if (in_memory((uint32_t)text, sizeof base)) {
@@ -460,7 +479,7 @@ static uint32_t tier_text(int32_t id) {
     // and the game names it by its text left from before, so the item's own row's text is taken
     // too (what the game names it by when the lookup is given a fallback).
     const wt_kind kind = wt_kind_of(item);
-    const int r = version_row(item, kind == WT_KIND_TWO ? 1 : 2);
+    const int r = version_row(item, wt_mega_version(kind) == 1 ? 1 : 2);
     const int32_t named =
         r >= 0 ? get_s32(at(s_disc->weapon_table) + (uint32_t)r * WT_ROW_SIZE + WT_ROW_TEXT) : -1;
     if (id != named && (r >= 0 || id != get_s32(row_of(item) + WT_ROW_TEXT))) {
@@ -707,54 +726,110 @@ static void book_save(void) {
 /* The levels now kept under `clock` in the book, and the book written. */
 static void book_keep(const uint8_t clock[8]) {
     uint8_t kept[WT_ITEMS];
+    int any = 0;
     for (int i = 0; i < WT_ITEMS; ++i) {
         kept[i] = (uint8_t)(s_level[i] | (s_started[i] ? WT_STARTED : 0));
+        any |= kept[i];
     }
     const wt_record* r = wt_book_find(&s_book, clock);
-    if (r != NULL && memcmp(r->level, kept, WT_ITEMS) == 0) {
+    // Nothing yet for a clock the book has not: no record (a save never seen has none either).
+    if (r == NULL ? !any : memcmp(r->level, kept, WT_ITEMS) == 0) {
         return;
     }
     wt_book_put(&s_book, clock, kept);
     book_save();
 }
 
-/* The save's clock moved: a save loaded (the book has it), a save made (it has not), or a new game
- * (zeros). */
-static void clock_moved(const uint8_t clock[8]) {
-    static const uint8_t zero[8];
-    const wt_record* r = wt_book_find(&s_book, clock);
+/* The save's data now: the bolts, and each item's experience and row (all below the programs: the
+ * same words at the title and in every level). */
+static void read_print(wt_print* p) {
+    p->bolts = get_s32(at(s_disc->progress));
+    for (int i = 0; i < WT_ITEMS; ++i) {
+        p->exp[i] = get_s32(at(s_disc->exp) + 4u * (uint32_t)i);
+        p->row[i] = get_u8(at(s_disc->slot) + (uint32_t)i);
+    }
+}
+
+/* The save's clock moved: the levels of the save it names (wt_clock_case_of). `now` is the save's
+ * data now. */
+static void clock_moved(const uint8_t clock[8], const wt_print* now) {
+    static const char* const k_case[] = {
+        "zeros", "the book's", "the save in play's", "carried on", "none: a save never seen"
+    };
+    const wt_record* r = NULL;
+    const int changes = s_print_seen ? wt_print_changes(&s_print, now) : WT_ITEMS + 1;
+    const int carry_changes = s_carried ? wt_print_changes(&s_carry_print, now) : WT_ITEMS + 1;
+    const wt_clock_case what = wt_clock_case_of(
+        &s_book, clock, !s_from_nothing, changes, s_carried, carry_changes, cycle(), &r
+    );
     char line[160];
 
-    if (memcmp(clock, zero, 8) == 0) {
-        // The title screen or a new game: nothing yet. The levels come back with the save loaded.
-        memset(s_level, 0, sizeof s_level);
-        memset(s_started, 0, sizeof s_started);
-        s_from_nothing = 1;
-        return;
-    }
-    if (r == NULL && s_from_nothing) {
-        // A save loaded whose clock the book has not: the game stamps the clock again as it starts
-        // the save's level (func_002DE858), often before the mod sees the save's own, so the record
-        // the mod kept last (the save just played) is the one, not zeros.
-        r = wt_book_latest(&s_book);
-        snprintf(
-            line,
-            sizeof line,
-            "save loaded, its clock not in the book: the last record %s",
-            r != NULL ? "taken" : "none either"
-        );
-        s_api->log(s_mod, OPENRAC_LOG_INFO, line);
+    snprintf(
+        line,
+        sizeof line,
+        "save's clock moved: levels %s (%d changes, %d since zeros, title %d)",
+        k_case[what],
+        changes,
+        carry_changes,
+        s_api->loaded_level() < 0
+    );
+    s_api->log(s_mod, OPENRAC_LOG_INFO, line);
+    switch (what) {
+        case WT_CLOCK_ZERO:
+            // The title or a new game: nothing yet. The levels in play are kept aside for challenge
+            // mode's next game, which keeps the weapons.
+            if (!s_from_nothing) {
+                s_carried = 1;
+                memcpy(s_carry_level, s_level, sizeof s_level);
+                memcpy(s_carry_started, s_started, sizeof s_started);
+                s_carry_print = *now;
+            }
+            memset(s_level, 0, sizeof s_level);
+            memset(s_started, 0, sizeof s_started);
+            s_from_nothing = 1;
+            return;
+        case WT_CLOCK_RECORD:
+            for (int i = 0; i < WT_ITEMS; ++i) {
+                const int most = wt_step_count(wt_kind_of(i));
+                const int level = r->level[i] & ~WT_STARTED;
+                s_level[i] = (uint8_t)(level > most ? most : level);
+                s_started[i] = (r->level[i] & WT_STARTED) != 0 || level != 0;
+            }
+            break;
+        case WT_CLOCK_SAME:
+            break;
+        case WT_CLOCK_CARRY:
+            memcpy(s_level, s_carry_level, sizeof s_level);
+            memcpy(s_started, s_carry_started, sizeof s_started);
+            break;
+        case WT_CLOCK_NEW:
+            // Its own levels only: none, and its weapons' experience counted from the first tick
+            // the mod sees them at their last version.
+            memset(s_level, 0, sizeof s_level);
+            memset(s_started, 0, sizeof s_started);
+            break;
     }
     s_from_nothing = 0;
-    if (r != NULL) {
-        for (int i = 0; i < WT_ITEMS; ++i) {
-            const int most = wt_step_count(wt_kind_of(i));
-            const int level = r->level[i] & ~WT_STARTED;
-            s_level[i] = (uint8_t)(level > most ? most : level);
-            s_started[i] = (r->level[i] & WT_STARTED) != 0 || level != 0;
-        }
-    }
+    s_carried = 0;
     book_keep(clock);
+}
+
+/* The save's clock, each tick, at the title too: a save loaded there shows its own clock for the
+ * frames before its level starts, where the game stamps a new one. */
+static void watch_clock(void) {
+    uint8_t clock[8];
+    wt_print now;
+
+    read_print(&now);
+    memcpy(clock, s_api->memory + at(s_disc->clock), 8);
+    if (!s_clock_seen || memcmp(clock, s_clock, 8) != 0) {
+        memcpy(s_clock, clock, 8);
+        s_clock_seen = 1;
+        clock_moved(clock, &now);
+        s_published = 0;
+    }
+    s_print = now;
+    s_print_seen = 1;
 }
 
 /* ---- The tick ---- */
@@ -830,20 +905,10 @@ static void tick(void* user) {
     if (s_bought_left > 0) {
         --s_bought_left;
     }
+    // The save's clock: a load, a save or a new game.
+    watch_clock();
     if (s_api->loaded_level() < 0) {
         return;
-    }
-
-    // The save's clock: a load, a save or a new game.
-    {
-        uint8_t clock[8];
-        memcpy(clock, s_api->memory + at(s_disc->clock), 8);
-        if (!s_clock_seen || memcmp(clock, s_clock, 8) != 0) {
-            memcpy(s_clock, clock, 8);
-            s_clock_seen = 1;
-            clock_moved(clock);
-            s_published = 0;
-        }
     }
 
     // Steps by experience (not for a guest: the host's levels come with its rules). The game's count
@@ -928,7 +993,7 @@ static int take(const char* id, const char* sig, void* replacement, void** origi
     return 0;
 }
 
-OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.11")
+OPENRAC_MOD_DEFINE("ng-plus-plus", "0.1.12")
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
@@ -946,6 +1011,8 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
     s_party_on = 0;
     s_clock_seen = 0;
     s_from_nothing = 1;
+    s_print_seen = 0;
+    s_carried = 0;
     s_entry_count = 0;
     s_drawn = -1;
     s_tick = 0;

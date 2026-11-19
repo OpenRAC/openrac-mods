@@ -21,6 +21,11 @@ static void kinds(void) {
     CHECK(wt_kind_of(30) == WT_KIND_FOUR);  /* Lancer */
     CHECK(wt_kind_of(12) == WT_KIND_TWO);   /* Bomb Glove */
     CHECK(wt_kind_of(53) == WT_KIND_TWO);   /* Walloper */
+    CHECK(wt_kind_of(18) == WT_KIND_TWO);   /* Tesla Claw: its beam hits */
+    CHECK(wt_kind_of(17) == WT_KIND_NO_EXP); /* Decoy Glove: deals no damage */
+    CHECK(wt_kind_of(31) == WT_KIND_FOUR);  /* Synthenoid: its kills count, as the game's V2 step */
+    CHECK(wt_kind_of(32) == WT_KIND_FOUR);  /* Spiderbot Glove */
+    CHECK(wt_step_count(WT_KIND_NO_EXP) == 8);
     CHECK(wt_kind_of(9) == WT_KIND_ZAPPER); /* Clank Zapper */
     CHECK(wt_kind_of(16) == WT_KIND_SHEEP);
     CHECK(wt_kind_of(43) == WT_KIND_SINGLE); /* Zodiac */
@@ -53,6 +58,52 @@ static void mastery(void) {
     CHECK(wt_can_buy(WT_KIND_TWO, 0, 1, WT_MASTERY_EXP));
     CHECK(!wt_can_buy(WT_KIND_SINGLE, 0, 1, 0));
     CHECK(wt_can_buy(WT_KIND_ZAPPER, 0, 1, 0)); /* V2 came by experience */
+}
+
+/* The Decoy Glove never earns experience: every tier bought, none waiting on experience, the bar
+ * full; the prices on the others' ladder with the tiers between in between. */
+static void no_experience(void) {
+    int32_t last = 150000;
+    for (int level = 0; level < 8; ++level) {
+        const wt_step* s = wt_step_at(WT_KIND_NO_EXP, level);
+        CHECK(s != NULL && s->how == WT_BUY);
+        CHECK(strcmp(s->name, wt_step_at(WT_KIND_FOUR, level)->name) == 0);
+        CHECK(wt_damage(WT_KIND_NO_EXP, level + 1) == wt_damage(WT_KIND_FOUR, level + 1));
+        CHECK(wt_can_buy(WT_KIND_NO_EXP, level, 1, 0)); /* at once, no experience */
+        CHECK(!wt_can_buy(WT_KIND_NO_EXP, level, 0, 0));
+        CHECK(!wt_exp_reached(WT_KIND_NO_EXP, level, 1, 1000000));
+        CHECK(wt_exp_goal(WT_KIND_NO_EXP, level) == 0);
+        const int32_t p = wt_price(WT_KIND_NO_EXP, level, 150000);
+        CHECK(p > last);
+        last = p;
+    }
+    CHECK(wt_step_at(WT_KIND_NO_EXP, 8) == NULL);
+    CHECK(wt_mega_version(WT_KIND_NO_EXP) == 1);
+    /* Alpha, Gamma, Epsilon and Eta as the others'; Omega at 9 times. */
+    for (int level = 0; level < 8; level += 2) {
+        CHECK(wt_price(WT_KIND_NO_EXP, level, 150000) == wt_price(WT_KIND_FOUR, level, 150000));
+    }
+    CHECK(wt_price(WT_KIND_NO_EXP, 1, 150000) == 300000);
+    CHECK(wt_price(WT_KIND_NO_EXP, 3, 150000) == 490000);
+    CHECK(wt_price(WT_KIND_NO_EXP, 5, 150000) == 750000);
+    CHECK(wt_price(WT_KIND_NO_EXP, 7, 150000) == 1350000);
+    CHECK(wt_price(WT_KIND_NO_EXP, 0, 1000) == 225000); /* the floor */
+}
+
+/* The tiers take the name of the version before the game's bought top. */
+static void naming(void) {
+    CHECK(wt_name_version(WT_KIND_FOUR) == 1);   /* Meteor Gun, not Lava Gun nor its Mega */
+    CHECK(wt_name_version(WT_KIND_TWO) == 0);    /* Bomb Glove, not its Mega */
+    CHECK(wt_name_version(WT_KIND_NO_EXP) == 0); /* Decoy Glove */
+    CHECK(wt_name_version(WT_KIND_ZAPPER) == 1); /* Clank Shocker */
+    CHECK(wt_name_version(WT_KIND_SHEEP) == 1);  /* Black Sheepinator */
+    CHECK(wt_name_version(WT_KIND_SINGLE) == 0);
+    CHECK(wt_name_version(WT_KIND_RYNO) == 0);
+    CHECK(wt_name_version(WT_KIND_NONE) == -1);
+    for (int kind = WT_KIND_FOUR; kind <= WT_KIND_RYNO; ++kind) {
+        const int mega = wt_mega_version((wt_kind)kind);
+        CHECK(mega < 0 || wt_name_version((wt_kind)kind) <= mega);
+    }
 }
 
 static void sheepinator(void) {
@@ -153,16 +204,25 @@ static void scaling(void) {
 static void enemies(void) {
     CHECK(wt_enemy_health(0, 1.0f) == 1.0f);
     CHECK(wt_enemy_health(1, 1.0f) == 1.0f);
-    CHECK(wt_enemy_health(2, 1.0f) == 1.5f);
-    CHECK(wt_enemy_health(5, 1.0f) == 4.0f);
-    CHECK(wt_enemy_health(7, 1.0f) == 6.0f);
+    CHECK(wt_enemy_health(2, 1.0f) == 2.5f);
+    CHECK(wt_enemy_health(3, 1.0f) == 4.0f);
+    CHECK(wt_enemy_health(4, 1.0f) == 6.0f);
+    CHECK(wt_enemy_health(5, 1.0f) == 8.0f);
+    CHECK(wt_enemy_health(7, 1.0f) == 12.0f);
+    CHECK(wt_enemy_damage(1, 1.0f) == 1.0f);
     CHECK(wt_enemy_damage(2, 1.0f) == 1.25f);
     CHECK(wt_enemy_damage(7, 1.0f) == 2.5f);
-    CHECK(wt_enemy_health(3, 0.5f) == 1.5f);
+    CHECK(wt_enemy_health(2, 0.5f) == 1.75f);
     CHECK(wt_enemy_health(9, 0.0f) == 1.0f);
-    /* In step: at the expected tier, the time to kill is cycle 1's. */
-    CHECK(wt_damage(WT_KIND_FOUR, 2) == wt_enemy_health(2, 1.0f));
-    CHECK(wt_damage(WT_KIND_FOUR, 8) == wt_enemy_health(5, 1.0f));
+    /* Ahead of the tiers: from cycle 2, even a weapon at the tier a player can have by then
+     * (cycle 2 Delta, 3 Zeta, 4 Omega) takes longer than V4 at cycle 1, and more so each cycle. */
+    CHECK(wt_enemy_health(2, 1.0f) > wt_damage(WT_KIND_FOUR, 4));
+    CHECK(wt_enemy_health(3, 1.0f) > wt_damage(WT_KIND_FOUR, 6));
+    CHECK(wt_enemy_health(4, 1.0f) > wt_damage(WT_KIND_FOUR, 8));
+    for (int cycle = 2; cycle < 12; ++cycle) {
+        CHECK(wt_enemy_health(cycle + 1, 1.0f) > wt_enemy_health(cycle, 1.0f));
+        CHECK(wt_enemy_health(cycle, 1.0f) > wt_enemy_damage(cycle, 1.0f));
+    }
 }
 
 static void book(void) {
@@ -210,10 +270,61 @@ static void book_keeps(void) {
     CHECK(wt_book_latest(&a) == wt_book_find(&a, one));
 }
 
+/* Which levels a save gets when its clock moves: only its own. */
+static void saves(void) {
+    static wt_book book;
+    const wt_record* r;
+    uint8_t a[8] = {0, 1, 2, 3, 0, 12, 11, 0x26}; /* save A, tiered */
+    uint8_t a2[8] = {0, 5, 2, 3, 0, 12, 11, 0x26}; /* A stamped again */
+    uint8_t b[8] = {0, 7, 9, 3, 0, 12, 11, 0x26}; /* save B, never tiered */
+    uint8_t zero[8] = {0};
+    uint8_t levels[WT_ITEMS] = {0};
+    wt_print one, two;
+
+    memset(&one, 0, sizeof one);
+    one.bolts = 1000;
+    one.exp[29] = 100 << 5;
+    one.row[29] = 96;
+    two = one;
+    CHECK(wt_print_changes(&one, &two) == 0);
+    two.exp[29] += 32; /* a kill in the tick */
+    CHECK(wt_print_changes(&one, &two) == 1);
+    two.bolts = 5;
+    two.row[30] = 80;
+    CHECK(wt_print_changes(&one, &two) == 3);
+
+    levels[29] = 2 | 0x80;
+    wt_book_put(&book, a, levels);
+    /* A loaded (the title shows its clock): its record, from nothing or from another save. */
+    CHECK(wt_clock_case_of(&book, a, 0, 99, 0, 99, 0, &r) == WT_CLOCK_RECORD);
+    CHECK(r != NULL && r->level[29] == 0x82);
+    CHECK(wt_clock_case_of(&book, a, 1, 99, 0, 99, 0, &r) == WT_CLOCK_RECORD);
+    /* A stamped again as its level starts (or at a save): nothing else changed, its levels go
+     * on. */
+    CHECK(wt_clock_case_of(&book, a2, 1, 0, 0, 99, 0, &r) == WT_CLOCK_SAME && r == NULL);
+    CHECK(wt_clock_case_of(&book, a2, 1, 1, 0, 99, 0, &r) == WT_CLOCK_SAME);
+    /* B loaded while A was in play (the save's data replaced): none of A's, nothing started. */
+    CHECK(wt_clock_case_of(&book, b, 1, WT_LOAD_CHANGES, 0, 99, 3, &r) == WT_CLOCK_NEW);
+    /* B loaded from nothing (the title after zeros), even in challenge mode: none. */
+    CHECK(wt_clock_case_of(&book, b, 0, 99, 1, 40, 3, &r) == WT_CLOCK_NEW);
+    CHECK(wt_clock_case_of(&book, b, 0, 99, 0, 99, 3, &r) == WT_CLOCK_NEW);
+    /* Challenge mode's next game: zeros, then a new clock with the weapons as they were. */
+    CHECK(wt_clock_case_of(&book, zero, 1, 0, 0, 99, 1, &r) == WT_CLOCK_ZERO);
+    CHECK(wt_clock_case_of(&book, b, 0, 99, 1, 0, 2, &r) == WT_CLOCK_CARRY);
+    /* A new game (counter 0, weapons gone): none. */
+    CHECK(wt_clock_case_of(&book, b, 0, 99, 1, 0, 0, &r) == WT_CLOCK_NEW);
+    /* A, then B (never tiered: no record kept), then A again: A's. */
+    CHECK(wt_book_find(&book, b) == NULL);
+    CHECK(wt_clock_case_of(&book, a, 1, 50, 0, 99, 0, &r) == WT_CLOCK_RECORD);
+    CHECK(r != NULL && r->level[29] == 0x82);
+}
+
 int main(void) {
     kinds();
     buy_then_level();
     mastery();
+    no_experience();
+    naming();
     sheepinator();
     prices();
     ryno();
@@ -221,6 +332,7 @@ int main(void) {
     enemies();
     book();
     book_keeps();
+    saves();
     if (s_failures == 0) {
         printf("ng_plus_plus_rules: ok\n");
     }

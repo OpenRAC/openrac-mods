@@ -4,13 +4,15 @@
  * NG++: the library as the port loads it (src/ng_plus_plus.c), against a host table and
  * game memory of the test's own, on each of the three discs: a Lancer at V4 offered Alpha at the
  * vendor and bought, levelled to Beta by experience, its tint, damage and most ammo; the RYNO II
- * reaching Heavy; the levels kept by the save's clock in the mod's data folder.
+ * reaching Heavy; the levels kept by the save's clock in the mod's data folder, each save with its
+ * own (a save loaded at the title or in a level, stamped again, challenge mode's next game).
  *
  * Run with the library's path: ng_plus_plus_load_test <ng_plus_plus.dylib|.so|.dll>.
  */
 #if !defined(_WIN32)
 #define _POSIX_C_SOURCE 200809L
 #endif
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,6 +59,8 @@ static int s_failures;
 #define SLOTS_AT 0x00301000u /* the port's text slots */
 #define MEGA_AT 0x00302000u  /* the game's "Mega" */
 #define LANCER 30
+#define LANCER_V2 60 /* Heavy Lancer, by experience */
+#define LANCER_V3 79 /* the Mega, bought */
 #define LANCER_V4 80
 #define RYNO 44
 #define MOBY_HERO 0x00310000u
@@ -163,6 +167,9 @@ static int32_t game_text(int32_t id) {
     }
     if (id == 0x1236) {
         return (int32_t)(TEXT_AT + 0x80); /* the RYNO II */
+    }
+    if (id == 0x1237) {
+        return (int32_t)(TEXT_AT + 0xC0); /* the Lancer's second version */
     }
     return id == 0x1234 ? (int32_t)TEXT_AT : 0;
 }
@@ -313,8 +320,10 @@ static openrac_gaddr identity(openrac_gaddr a) {
     return a;
 }
 
+static int s_level_now = 1; /* the level loaded, -1 at the title */
+
 static int host_level(void) {
-    return 1;
+    return s_level_now;
 }
 
 static int host_notice(openrac_mod* mod, const char* text) {
@@ -377,8 +386,11 @@ static void set_clock(uint8_t first) {
     }
 }
 
+static void saves(openrac_api* api);
+
 static void run(const char* path, const wt_disc* disc) {
     s_disc = disc;
+    s_level_now = 1;
     memset(s_memory, 0, MEMORY_SIZE);
     s_hook_count = 0;
     s_upgraded = -1;
@@ -425,17 +437,25 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(s_failed[0] == 0);
     CHECK(s_hook_count == 9);
 
-    /* A Lancer at V4 (its own row 30 linked on to row 80, the last), the RYNO II at its one row. */
+    /* A Lancer at V4 (rows 30, 60, 79 and 80 linked, its Mega and V4 named as the Mega), the RYNO
+     * II at its one row. */
     s_memory[s_disc->owned + LANCER] = 1;
     s_memory[s_disc->slot + LANCER] = LANCER_V4;
-    set16(row(LANCER_V4) + WT_ROW_NAME, 0x1234);
+    {
+        const int chain[4] = {LANCER, LANCER_V2, LANCER_V3, LANCER_V4};
+        const uint16_t names[4] = {0x1235, 0x1237, 0x1234, 0x1234};
+        for (int v = 0; v < 4; ++v) {
+            s_memory[row(chain[v]) + WT_ROW_VERSION] = (uint8_t)v;
+            set16(row(chain[v]) + WT_ROW_NAME, names[v]);
+            set16(row(chain[v]) + WT_ROW_NEXT, v < 3 ? (uint16_t)chain[v + 1] : 0);
+            set16(row(chain[v]) + WT_ROW_PARENT, v > 0 ? (uint16_t)chain[v - 1] : 0);
+        }
+    }
     set16(row(LANCER_V4) + WT_ROW_AMMO, 500);
     set32(row(LANCER_V4) + WT_ROW_CLASS, 999);
-    strcpy((char*)s_memory + TEXT_AT, "Heavy Lancer");
-    set16(row(LANCER) + WT_ROW_NAME, 0x1235);
-    set16(row(LANCER) + WT_ROW_NEXT, LANCER_V4);
-    set16(row(LANCER_V4) + WT_ROW_PARENT, LANCER);
+    strcpy((char*)s_memory + TEXT_AT, "Mega Lancer");
     strcpy((char*)s_memory + TEXT_AT + 0x40, "Lancer");
+    strcpy((char*)s_memory + TEXT_AT + 0xC0, "Heavy Lancer");
     set16(row(RYNO) + WT_ROW_NAME, 0x1236);
     strcpy((char*)s_memory + TEXT_AT + 0x80, "RYNO II");
     s_memory[s_disc->owned + RYNO] = 1;
@@ -483,10 +503,12 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(port_text(WT_TEXT_UPGRADE) == (int32_t)MEGA_AT);
     set32(ui + WT_VENDOR_CURSOR, 2);
 
-    /* Bought at the vendor: Alpha. The preview names it, then the list built again after it has no
-     * entry for the Lancer (Beta is by experience) and the cursor stays in the list. */
-    set32(row(LANCER_V4) + WT_ROW_TEXT, 0x4321);
-    CHECK(strcmp(title(0x4321), "Alpha Lancer") == 0);
+    /* Bought at the vendor: Alpha. The preview names it (the game names an upgrade entry by its
+     * Mega row's text), then the list built again after it has no entry for the Lancer (Beta is by
+     * experience) and the cursor stays in the list. The tier takes the name of the version before
+     * the Mega: "Alpha Heavy Lancer", not "Alpha Lancer" nor "Alpha Mega Lancer". */
+    set32(row(LANCER_V3) + WT_ROW_TEXT, 0x4321);
+    CHECK(strcmp(title(0x4321), "Alpha Heavy Lancer") == 0);
     {
         int32_t money = 3000000;
         const int before = s_banners;
@@ -504,9 +526,9 @@ static void run(const char* path, const wt_disc* disc) {
         );
     }
     CHECK(
-        strcmp(title(0x4321), "Alpha Lancer") == 0
+        strcmp(title(0x4321), "Alpha Heavy Lancer") == 0
     ); /* no entry of the mod's: its own name, at its tier */
-    CHECK(strcmp(s_notice, "Alpha Lancer") == 0);
+    CHECK(strcmp(s_notice, "Alpha Heavy Lancer") == 0);
     /* The Lancer's own entry (its ammo) in the list: Alpha's lime now; another weapon's as the game
      * has it. */
     {
@@ -531,17 +553,17 @@ static void run(const char* path, const wt_disc* disc) {
     /* Beta by experience; then Gamma for sale. */
     set32(s_disc->exp + 4u * LANCER, 7999 << 5);
     tick(1);
-    CHECK(strcmp(s_notice, "Alpha Lancer") == 0);
+    CHECK(strcmp(s_notice, "Alpha Heavy Lancer") == 0);
     const int banners_before = s_banners;
     set32(s_disc->exp + 4u * LANCER, 8000 << 5);
     tick(1);
-    CHECK(strcmp(s_notice, "Beta Lancer") == 0);
+    CHECK(strcmp(s_notice, "Beta Heavy Lancer") == 0);
     /* A step by experience as the game's own level-up: its popup, then the line. */
     CHECK(s_banners == banners_before + 1);
     CHECK(s_banner_key == 0x9AA);
     /* Its name everywhere the game prints it (the ammo pickup, the menus): the tier's. */
-    CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Lancer") == 0);
-    CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Lancer") == 0);
+    CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Heavy Lancer") == 0);
+    CHECK(strcmp((char*)s_memory + port_text(0x1234), "Beta Heavy Lancer") == 0);
     CHECK(port_text(0x1236) == (int32_t)(TEXT_AT + 0x80)); /* the RYNO II has no tier yet */
     CHECK(get32(s_disc->exp + 4u * LANCER) == 0);
     CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
@@ -566,11 +588,11 @@ static void run(const char* path, const wt_disc* disc) {
     ((wt_Moby_PostHit)hooked_fn(WT_HOOK_Moby_PostHit))(MOBY_HERO, REQUEST_AT);
     CHECK(s_damage_seen == 10.0f);
 
-    /* Challenge mode's third game (cycle 2): enemies have 1.5 times the health, deal 1.25 times. */
+    /* Challenge mode's third game (cycle 2): enemies have 2.5 times the health, deal 1.25 times. */
     set16(s_disc->progress + WT_PROGRESS_CYCLE, 2);
     setf(REQUEST_AT + WT_HIT_DAMAGE, 10.0f);
     ((wt_Moby_PostHit)hooked_fn(WT_HOOK_Moby_PostHit))(MOBY_ENEMY, REQUEST_AT);
-    CHECK(s_damage_seen == 10.0f); /* Beta's 1.5 over the health's 1.5 */
+    CHECK(fabsf(s_damage_seen - 6.0f) < 0.001f); /* Beta's 1.5 over the health's 2.5 */
     s_taken = 0;
     for (int i = 0; i < 4; ++i) {
         ((wt_Hero_TakeDamage)hooked_fn(WT_HOOK_Hero_TakeDamage))(1);
@@ -647,24 +669,121 @@ static void run(const char* path, const wt_disc* disc) {
     CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000); /* toward Beta, five times the others' */
 
     /* The game restarted (a new version of the mod): the steps bought since the last save were kept
-     * at once, so the save loaded has them. */
+     * at once, so the save loaded has them. Loaded at the title, where its own clock shows before
+     * its level starts; then the game stamps a new one as the level starts. */
     for (int restart = 0; restart < 2; ++restart) {
         s_hook_count = 0;
         CHECK(load(&api, (openrac_mod*)&api) == 0);
+        /* A restarted game has the table as the disc has it. */
         set32(row(RYNO) + WT_ROW_EXP, 0);
+        set16(row(LANCER_V4) + WT_ROW_AMMO, 500);
+        set16(row(RYNO) + WT_ROW_AMMO, 100);
         set_clock(0);
         tick(1);
         CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000); /* nothing yet: toward Heavy */
-        // The save's own clock; then one the game stamped again as the save's level started, which
-        // the book has not: the record kept last.
+        s_level_now = -1;
+        tick(1);
         set_clock(restart == 0 ? 0x20 : 0x50);
+        tick(2);
+        s_level_now = 1;
+        set_clock(0x50 + (uint8_t)restart);
         tick(1);
         CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000);
     }
-    /* A new game after it: nothing. */
+    /* A new game after it: nothing; its first clock (the counter 0, the weapons gone) nothing
+     * either. */
     set_clock(0);
     tick(1);
     CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000);
+    set16(s_disc->progress + WT_PROGRESS_CYCLE, 0);
+    set32(s_disc->exp + 4u * LANCER, 0);
+    set32(s_disc->exp + 4u * RYNO, 0);
+    s_memory[s_disc->slot + LANCER] = LANCER;
+    tick(1);
+    set_clock(0x58);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000);
+    s_memory[s_disc->slot + LANCER] = LANCER_V4;
+    saves(&api);
+}
+
+/* Save A (the one played above, its last clock 0x51), save B (never tiered) and A again, at the
+ * title and from inside a level; challenge mode's next game. */
+static void saves(openrac_api* api) {
+    (void)api;
+    /* A at the title: its tiers. */
+    s_level_now = -1;
+    set_clock(0);
+    tick(1);
+    set32(s_disc->exp + 4u * RYNO, 1234 << 5);
+    set32(s_disc->exp + 4u * LANCER, 77 << 5);
+    set32(s_disc->progress, 5000);
+    set_clock(0x51);
+    tick(2);
+    s_level_now = 1;
+    set_clock(0x52); /* stamped again as its level starts */
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000);
+    CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
+    CHECK(get32(s_disc->exp + 4u * RYNO) == 1234 << 5); /* started: kept */
+
+    /* B at the title (back there, the clock left as it was): its own data and clock, which the
+     * book has never seen. No tiers, and its weapons' experience counted from 0 as for any save
+     * new to the mod. */
+    s_level_now = -1;
+    tick(1);
+    set32(s_disc->exp + 4u * RYNO, 50000 << 5);
+    set32(s_disc->exp + 4u * LANCER, 9000 << 5);
+    set32(s_disc->progress, 123);
+    set_clock(0x60);
+    tick(2);
+    s_level_now = 1;
+    set_clock(0x61);
+    tick(2);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000); /* toward Heavy: no tier */
+    CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 500);
+    CHECK(get32(s_disc->exp + 4u * RYNO) == 0);
+    CHECK(get32(s_disc->exp + 4u * LANCER) == 0);
+    CHECK(strcmp((char*)s_memory + port_text(0x1234), "Mega Lancer") == 0); /* the game's name */
+
+    /* A again, loaded from inside B's level (its data with its clock): its tiers back. */
+    set32(s_disc->exp + 4u * RYNO, 1234 << 5);
+    set32(s_disc->exp + 4u * LANCER, 77 << 5);
+    set32(s_disc->progress, 5000);
+    set_clock(0x52);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000);
+    CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
+    CHECK(get32(s_disc->exp + 4u * RYNO) == 1234 << 5);
+
+    /* B again, from inside A's level: none. */
+    set32(s_disc->exp + 4u * RYNO, 0);
+    set32(s_disc->exp + 4u * LANCER, 0);
+    set32(s_disc->progress, 123);
+    set_clock(0x61);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000);
+    CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 500);
+
+    /* A once more, then challenge mode's next game: the clock to zeros with the weapons kept and
+     * the counter up, then a new clock: A's tiers go on, its experience too. */
+    set32(s_disc->exp + 4u * RYNO, 1234 << 5);
+    set32(s_disc->exp + 4u * LANCER, 77 << 5);
+    set32(s_disc->progress, 5000);
+    set_clock(0x52);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000);
+    set16(s_disc->progress + WT_PROGRESS_CYCLE, 2);
+    set_clock(0);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 30000); /* nothing while zeros */
+    CHECK(get32(s_disc->exp + 4u * RYNO) == 1234 << 5); /* not zeroed while zeros */
+    set_clock(0x70);
+    tick(1);
+    CHECK(get32(row(RYNO) + WT_ROW_EXP) == 40000);
+    CHECK(get16(row(LANCER_V4) + WT_ROW_AMMO) == 600);
+    CHECK(get32(s_disc->exp + 4u * RYNO) == 1234 << 5);
+    set16(s_disc->progress + WT_PROGRESS_CYCLE, 1);
 }
 
 int main(int argc, char** argv) {
