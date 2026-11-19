@@ -1,0 +1,18 @@
+{
+  "id": "rac1-travel-anywhere",
+  "repo": "https://github.com/kmomoney/rac1-travel-anywhere",
+  "path": "",
+  "description": "Open the ship's planet select from anywhere: hold L1 + R1 and press Select. Pick a planet to fly there as usual, back out to carry on right where you were, or pick the planet you're on to restart its level.",
+  "tags": [
+    "qol",
+    "controls"
+  ],
+  "impact": [
+    "gameplay",
+    "touches-saves"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/kmomoney/rac1-travel-anywhere/issues"
+  }
+}
