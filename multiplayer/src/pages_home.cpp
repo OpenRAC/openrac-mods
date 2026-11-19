@@ -108,7 +108,7 @@ void show_direct() {
     c.footer = {linked ? status() : text("No server")};
 
     if (!g->direct_error.empty()) {
-        c.footer.push_back(mp::localized_notice(g->direct_error, g_language));
+        c.footer.push_back(mp::localized_notice(g->direct_error, language()));
     }
 
     c.footer.push_back(hints);
@@ -163,7 +163,7 @@ void show_pause() {
         c.items.push_back(openrac::UiItem::button(text(mp::kSavePartyLabel)));
     }
 
-    for (const mp::PartyLine& line : mp::party_lines(in, g_language)) {
+    for (const mp::PartyLine& line : mp::party_lines(in, language())) {
         switch (line.kind) {
             case mp::PartyLine::Kind::kInfo:
                 c.items.push_back(openrac::UiItem::choice_of(line.label, {line.value}, 0));
@@ -227,7 +227,7 @@ void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
         const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
         page.confirm(
-            mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed(), g_language),
+            mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed(), language()),
             kAskLeave
         );
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_save && g->pause_save >= 0) {

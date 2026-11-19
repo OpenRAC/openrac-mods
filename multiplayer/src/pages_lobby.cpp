@@ -70,7 +70,7 @@ openrac::UiContent lobby_content() {
         const std::size_t used = c.items.size() + why.size() + s.members().size() + 2;
         const std::size_t room = OPENRAC_UI_ITEMS_MAX > used ? OPENRAC_UI_ITEMS_MAX - used : 0;
         const std::vector<std::string> lines =
-            mp::hosting_lines(h.addresses, h.port, room, g_language);
+            mp::hosting_lines(h.addresses, h.port, room, language());
         c.title = text("Hosting");
 
         for (std::size_t i = 0; i < lines.size(); ++i) {
@@ -114,9 +114,9 @@ openrac::UiContent lobby_content() {
         // The host's way to anyone who holds the party up.
         if (s.is_host() && m.id != s.id()) {
             g->lobby_rows.emplace_back(static_cast<int>(c.items.size()), m.id);
-            c.items.push_back(openrac::UiItem::button(mp::lobby_member_line(line, g_language)));
+            c.items.push_back(openrac::UiItem::button(mp::lobby_member_line(line, language())));
         } else {
-            c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line, g_language)));
+            c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line, language())));
         }
     }
 

@@ -23,45 +23,34 @@ std::string save_row(int slot, const openrac_save_info& info, bool there) {
                              + std::to_string(minutes % 60);
     return name
            + mp::save_description(
-               g->mod->level_name(info.level), info.gold_bolts, false, g_language
+               g->mod->level_name(info.level), info.gold_bolts, false, language()
            )
            + ", " + time;
 }
 
-// The card's saves as the Saves page last read them (when it showed).
-struct SlotRow {
-    openrac_save_info info{};
-    bool there = false;
-};
-
-std::vector<SlotRow> g_slots(kSaveSlots);
-
-std::vector<SlotRow> g_coop_slots(mp::kCoSlots);
-bool g_any_coop = false;
-
 void read_slots() {
-    g_any_coop = false;
+    g->any_coop = false;
 
     for (int slot = 0; slot < kSaveSlots; ++slot) {
-        SlotRow& row = g_slots[static_cast<std::size_t>(slot)];
+        SlotRow& row = g->slots[static_cast<std::size_t>(slot)];
         row.there = g->mod->save_slot(slot, row.info) == 1;
     }
 
     for (int slot = 0; slot < mp::kCoSlots; ++slot) {
-        SlotRow& row = g_coop_slots[static_cast<std::size_t>(slot)];
+        SlotRow& row = g->coop_slots[static_cast<std::size_t>(slot)];
         row.there = g->mod->save_slot2(mp::kCoFolder, slot, row.info) == 1;
-        g_any_coop = g_any_coop || row.there;
+        g->any_coop = g->any_coop || row.there;
     }
 }
 
 // A co-op save's row: where it stands and whose party it was.
 std::string coop_save_row(int slot) {
-    const SlotRow& row = g_coop_slots[static_cast<std::size_t>(slot)];
+    const SlotRow& row = g->coop_slots[static_cast<std::size_t>(slot)];
     mp::CoNote note;
     mp::parse_note(g->game->card_note(slot), note);
     const std::string save =
         row.there ? mp::save_description(
-                        g->mod->level_name(row.info.level), row.info.gold_bolts, false, g_language
+                        g->mod->level_name(row.info.level), row.info.gold_bolts, false, language()
                     )
                   : std::string();
     return mp::coop_row(slot, save, note, row.there);
@@ -76,7 +65,7 @@ void show_coop_saves() {
     for (int slot = 0; slot < mp::kCoSlots; ++slot) {
         c.items.push_back(
             openrac::UiItem::button(
-                coop_save_row(slot), g_coop_slots[static_cast<std::size_t>(slot)].there
+                coop_save_row(slot), g->coop_slots[static_cast<std::size_t>(slot)].there
             )
         );
     }
@@ -84,7 +73,7 @@ void show_coop_saves() {
     c.footer =
         {text("Past parties"),
          g->direct_error.empty() ? text("Own copies")
-                                 : mp::localized_notice(g->direct_error, g_language),
+                                 : mp::localized_notice(g->direct_error, language()),
          text(mp::kSelectBackHints)};
     set_content(g->saves, c);
 }
@@ -103,15 +92,15 @@ void show_saves() {
     c.items.push_back(openrac::UiItem::button(text("New game")));
 
     for (int slot = 0; slot < kSaveSlots; ++slot) {
-        const SlotRow& row = g_slots[static_cast<std::size_t>(slot)];
+        const SlotRow& row = g->slots[static_cast<std::size_t>(slot)];
         c.items.push_back(openrac::UiItem::button(save_row(slot, row.info, row.there), row.there));
     }
 
-    c.items.push_back(openrac::UiItem::button(text("Continue as host"), g_any_coop));
+    c.items.push_back(openrac::UiItem::button(text("Continue as host"), g->any_coop));
     c.footer =
         {g->saves_for == SavesFor::kHost ? text("Port 7770") : status(),
          g->direct_error.empty() ? text("Plays a copy")
-                                 : mp::localized_notice(g->direct_error, g_language),
+                                 : mp::localized_notice(g->direct_error, language()),
          text(mp::kSelectBackHints)};
     set_content(g->saves, c);
 }

@@ -58,7 +58,6 @@
 namespace mpmod {
 
 std::unique_ptr<State> g;
-mp::Language g_language = mp::Language::kEnglish;
 
 mp::Language game_language(const openrac::Mod& mod) {
     // Going Commando's is a byte of the executable's (rac2_language_address).
@@ -160,7 +159,7 @@ std::string status() {
         in.hosting_udp = h.udp;
     }
 
-    return mp::status_text(in, g_language);
+    return mp::status_text(in, language());
 }
 
 // Team tools' line over the game: down and waiting, a teammate down nearby, the rally point.
@@ -322,7 +321,7 @@ void repaint_pages() {
     }
 
     // An unchanged line over the game, in the new language too.
-    g->mod->play_notice(mp::localized_notice(g->banner, g_language));
+    g->mod->play_notice(mp::localized_notice(g->banner, language()));
 }
 
 // The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
@@ -440,7 +439,7 @@ void show_banner(std::uint64_t now) {
 
     if (std::string banner = std::move(line); banner != g->banner) {
         g->banner = banner;
-        g->mod->play_notice(mp::localized_notice(banner, g_language));
+        g->mod->play_notice(mp::localized_notice(banner, language()));
     }
 }
 
@@ -515,14 +514,11 @@ namespace {
 
 using namespace mpmod;
 
-// What the first pad's last report says the player does (pad_intent.hpp).
-mp::Intent g_intent = mp::Intent::Unknown;
-
 // A page's handler, given each event as the player meant it (pad_intent.hpp): the stick moving the
 // cursor changes and chooses nothing, and only Cross chooses a button or answers a question Yes.
 template <void (*Handler)(const openrac::UiPage&, const openrac::UiEvent&)>
 void guarded(const openrac::UiPage& page, const openrac::UiEvent& e) {
-    const openrac_ui_event meant = mp::as_meant(g_intent, e.raw());
+    const openrac_ui_event meant = mp::as_meant(g ? g->intent : mp::Intent::Unknown, e.raw());
     Handler(page, openrac::UiEvent(meant));
 }
 
@@ -561,7 +557,7 @@ void load(openrac::Mod& mod) {
 
     g = std::make_unique<State>();
     g->rac2 = rac2;
-    g_language = game_language(mod);
+    g->language = game_language(mod);
     const std::string server = mod.setting<std::string>("server");
 
     // An address that does not read is the default's.
@@ -902,7 +898,7 @@ void load(openrac::Mod& mod) {
 
         // What the player does, for the pages' events of this tick (pad_intent.hpp), before
         // anything below changes the report.
-        g_intent = mp::read_intent(report, size);
+        g->intent = mp::read_intent(report, size);
 
         const std::uint64_t now = mp::now_ms();
 
@@ -1026,8 +1022,8 @@ void load(openrac::Mod& mod) {
     // game.
     mod.on_frame([] {
         // The game's language may change in its options: every page again in the new one.
-        if (const mp::Language language = game_language(*g->mod); language != g_language) {
-            g_language = language;
+        if (const mp::Language current = game_language(*g->mod); current != g->language) {
+            g->language = current;
             repaint_pages();
         }
 

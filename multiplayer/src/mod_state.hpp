@@ -34,6 +34,7 @@
 #include "nametags.hpp"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
+#include "pad_intent.hpp"
 #include "party_mods.hpp"
 #include "progress.hpp"
 #include "protocol.hpp"
@@ -109,6 +110,12 @@ enum class DirectView {
 
 // ---- State ----
 
+// A save slot as the Saves page last read it from the card.
+struct SlotRow {
+    openrac_save_info info{};  // What the card says about the slot.
+    bool there = false;        // Whether the slot holds a save.
+};
+
 struct State {
     std::string host;
     int port = mp::kDefaultPort;
@@ -178,18 +185,25 @@ struct State {
     std::uint64_t pause_ms = 0;  // when the pause page was last set from the frame
     bool leaving = false;        // the player leaves the party (Leave, Stop hosting) this tick
     std::string leave_reason;    // why the party went, for Home when it next shows
-    bool left_differs = false;   // left because the host's level does not agree with this game's
+    mp::Language language = mp::Language::kEnglish;  // The game's language, read again each tick.
+    mp::Intent intent = mp::Intent::Unknown;         // What the first pad's last report says.
+    std::vector<SlotRow> slots = std::vector<SlotRow>(kSaveSlots);         // The card's saves.
+    std::vector<SlotRow> coop_slots = std::vector<SlotRow>(mp::kCoSlots);  // The party's saves.
+    bool any_coop = false;      // Whether any of the party's own saves exists.
+    bool left_differs = false;  // left because the host's level does not agree with this game's
 };
 
 extern std::unique_ptr<State> g;
 
 // The game's language (words.hpp), read again each tick; only the UI thread uses it. Protocol and
-// session messages and the log keep their English.
-extern mp::Language g_language;
+// session messages and the log keep their English. English before the mod has loaded.
+inline mp::Language language() {
+    return g ? g->language : mp::Language::kEnglish;
+}
 
 // A page's words in the game's language; what words.hpp has no row for passes through.
 inline const char* text(const char* english) {
-    return mp::translated(english, g_language);
+    return mp::translated(english, language());
 }
 
 // The language the game is set to (PAL's five; English for any other disc).

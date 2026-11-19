@@ -17,7 +17,7 @@ openrac::UiContent refused_content() {
         openrac::UiContent c;
         c.title = text("Can't join");
         c.items.push_back(openrac::UiItem::button(text("Back")));
-        c.items.push_back(openrac::UiItem::text(mp::localized_notice(g->refusal, g_language)));
+        c.items.push_back(openrac::UiItem::text(mp::localized_notice(g->refusal, language())));
         c.footer = {text(mp::kBackHints)};
         return c;
     }
