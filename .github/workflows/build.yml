@@ -67,7 +67,8 @@ jobs:
     if: needs.detect.outputs.native == 'true'
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # Intel macOS needs time for the full native solver and integration suite.
+    timeout-minutes: ${{ matrix.name == 'macos-x86_64' && 30 || 20 }}
     strategy:
       fail-fast: false
       matrix:
