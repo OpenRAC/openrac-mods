@@ -40,6 +40,10 @@ constexpr std::uint64_t kFnvPrime = 0x100000001B3ull;
 constexpr std::uint64_t kSeedMask = 0xFFFFFFFFull;
 constexpr std::size_t kSeedCodeDigits = 8;
 
+// The bits one hex digit holds, and the bits of a seed (the hash is folded to them).
+constexpr int kHexDigitBits = 4;
+constexpr int kSeedBits = 32;
+
 // The salts that keep Chaos's rolls and the events' picks on streams of their own.
 constexpr std::uint64_t kChaosRollSalt = 0x1000u;
 constexpr std::uint64_t kEventPickSalt = 0x2000u;
@@ -167,10 +171,10 @@ Values effective(bool chaos, const Values& sliders, std::uint64_t seed, int leve
     return out;
 }
 
-std::uint64_t mix(std::uint64_t a, std::uint64_t b) {
-    Rng r(a ^ (b * kSplitIncrement));
-    r.next();
-    return r.next();
+std::uint64_t mix(std::uint64_t seed, std::uint64_t salt) {
+    Rng stream(seed ^ (salt * kSplitIncrement));
+    stream.next();
+    return stream.next();
 }
 
 std::uint64_t Rng::next() {
@@ -215,7 +219,7 @@ std::uint64_t seed_from_text(const std::string& text) {
                 break;
             }
 
-            v = v << 4 | static_cast<std::uint64_t>(d);
+            v = v << kHexDigitBits | static_cast<std::uint64_t>(d);
         }
 
         // All eight were digits: the code is the seed.
@@ -231,7 +235,7 @@ std::uint64_t seed_from_text(const std::string& text) {
         h = (h ^ c) * kFnvPrime;
     }
 
-    return (h ^ (h >> 32)) & kSeedMask;
+    return (h ^ (h >> kSeedBits)) & kSeedMask;
 }
 
 std::string seed_code(std::uint64_t seed) {
@@ -424,9 +428,12 @@ constexpr int kMaxEventMinutes = 255;
 // The bits in a byte, to step through a big-endian number.
 constexpr int kByteBits = 8;
 
+// The room a formatted multiplier needs, with its sign, digits and end mark.
+constexpr std::size_t kTextBytes = 32;
+
 // A multiplier as a player reads it: at most two decimals, no trailing zeros: x2, x1.5, x0.25.
 std::string times(double value) {
-    char text[32];
+    char text[kTextBytes];
     std::snprintf(text, sizeof text, "x%.2f", value);
     std::string out = text;
 

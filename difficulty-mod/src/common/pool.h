@@ -23,19 +23,34 @@
 
 namespace difficulty {
 
+// The bytes of a moby's record, and of each spawned moby's pvars (documented: the header above).
 constexpr std::uint32_t kMobySize = 0x100;
 constexpr std::uint32_t kSparePvars = 0x80;
 
 // The four globals' addresses.
 struct PoolGlobals {
-    std::uint32_t base, spare, end, pvars;
+    std::uint32_t base;   // The address of the base global.
+    std::uint32_t spare;  // The address of the spare global.
+    std::uint32_t end;    // The address of the end global.
+    std::uint32_t pvars;  // The address of the pvars global.
 };
 
+// The pool's four values, as read from game memory.
 struct Pool {
-    std::uint32_t base = 0, spare = 0, end = 0, pvars = 0;
+    std::uint32_t base = 0;   // The placed mobys' first slot.
+    std::uint32_t spare = 0;  // The first spawned moby's slot, the end of the placed ones.
+    std::uint32_t end = 0;    // The pool's end, the last slot, which is not handed out.
+    std::uint32_t pvars = 0;  // The spawned mobys' pvars.
+
+    // Reads the four values from `mem`, where the game address a is mem + a, at the addresses of
+    // `at`.
     static Pool read(const std::uint8_t* mem, const PoolGlobals& at);
-    // The slots CreateMoby may hand out, spare to end.
+
+    // Returns the slots CreateMoby may hand out, spare to end.
     int usable() const;
+
+    // Returns whether the four values are laid out as a level's pool is: in order, in whole
+    // slots, and not absurdly many.
     bool sane() const;
 };
 
@@ -58,16 +73,18 @@ bool reserve_tail(
 // How many copies each enemy gets within a budget of slots: round by round, a copy for each
 // enemy that wants another, while its cost (one slot, and pvar_slots for pvars over 0x80) fits.
 struct CloneAsk {
-    int want;     // copies asked for
-    int pvslots;  // extra slots each copy's pvars take
+    int want;     // Copies asked for.
+    int pvslots;  // Extra slots each copy's pvars take.
 };
 
+// What plan_clones decided.
 struct ClonePlan {
-    std::vector<int> copies;  // copies given, per ask
-    int slots = 0;            // slots taken by the copies themselves
-    int pvar_slots = 0;       // slots reserved for their pvars
+    std::vector<int> copies;  // Copies given, per ask.
+    int slots = 0;            // Slots taken by the copies themselves.
+    int pvar_slots = 0;       // Slots reserved for their pvars.
 };
 
+// Shares `budget` slots among `asks`, round by round: see CloneAsk.
 ClonePlan plan_clones(const std::vector<CloneAsk>& asks, int budget);
 
 }  // namespace difficulty

@@ -123,6 +123,7 @@ constexpr std::uint32_t kMobyZ = 0x18u;
 constexpr std::uint32_t kMobyState = 0x20u;
 // Its group byte: 0xFF for none (assumed).
 constexpr std::uint32_t kMobyGroup = 0x21u;
+constexpr std::uint8_t kNoGroup = 0xFF;
 // Its animation speed, f32 (documented: this file's header).
 constexpr std::uint32_t kMobyAnimSpeed = 0x58u;
 // Its pvars' address, u32 (assumed).
@@ -271,6 +272,8 @@ constexpr double kFallbackFrameSeconds = 1.0 / 60.0;
 // Where a copy of an enemy is tried: this many spots around it, at angles an eighth of a circle
 // apart (and a little random), at 2.5 to 4 units; the line to a spot is tested a unit up.
 constexpr int kSpotAttempts = 8;
+// Each further copy starts this many attempts round the circle, so copies do not share a spot.
+constexpr int kSpotCopyStride = 3;
 constexpr double kSpotAngleStep = 0.7853981633974483;
 constexpr double kSpotAngleJitter = 0.4;
 constexpr double kSpotRadiusMin = 2.5;
@@ -775,7 +778,7 @@ void rewrite_items(int level) {
         // The two weapon prices.
         for (const std::uint32_t f : {kItemPriceA, kItemPriceB}) {
             std::int32_t v;
-            std::memcpy(&v, own + r + f, 4);
+            std::memcpy(&v, own + r + f, sizeof v);
             v = difficulty::scale_amount(
                 v, state().session.level[difficulty::kWeaponCost], kMaxPrice
             );
@@ -785,7 +788,7 @@ void rewrite_items(int level) {
         // The two ammo prices.
         for (const std::uint32_t f : {kItemAmmoPriceA, kItemAmmoPriceB}) {
             std::uint16_t v;
-            std::memcpy(&v, own + r + f, 2);
+            std::memcpy(&v, own + r + f, sizeof v);
             put<std::uint16_t>(
                 table + r + f,
                 static_cast<std::uint16_t>(difficulty::scale_amount(
@@ -795,7 +798,7 @@ void rewrite_items(int level) {
         }
 
         std::uint16_t v;
-        std::memcpy(&v, own + r + kItemMaxAmmo, 2);
+        std::memcpy(&v, own + r + kItemMaxAmmo, sizeof v);
         put<std::uint16_t>(
             table + r + kItemMaxAmmo,
             static_cast<std::uint16_t>(
@@ -830,8 +833,8 @@ bool find_spot(gaddr orig, int copy, float out[3]) {
 
     // Spots around the original in turn, until one is clear.
     for (int attempt = 0; attempt < kSpotAttempts; ++attempt) {
-        const double angle =
-            (copy * 3 + attempt) * kSpotAngleStep + state().rng.unit() * kSpotAngleJitter;
+        const double angle = (copy * kSpotCopyStride + attempt) * kSpotAngleStep
+                             + state().rng.unit() * kSpotAngleJitter;
         const double r = kSpotRadiusMin + state().rng.unit() * kSpotRadiusRange;
         const float cx = static_cast<float>(x + r * std::cos(angle));
         const float cy = static_cast<float>(y + r * std::sin(angle));
@@ -1091,7 +1094,7 @@ Candidates pick_candidates(
         // doors), no other moby naming it, and found in the file. Its record's flags 1 and 2 (in
         // play before its mission is done, after it, or both) do not count: nearly every enemy has
         // them, and the load has already left out those of the other part of the story.
-        if (pl == by_pvars.end() || get<std::uint8_t>(m + kMobyGroup) != 0xFF
+        if (pl == by_pvars.end() || get<std::uint8_t>(m + kMobyGroup) != kNoGroup
             || fix.named.count(m)) {
             continue;
         }
@@ -1188,6 +1191,34 @@ Placed place_copies(
     return placed;
 }
 
+// Plans the copies within `budget` slots. Pvars larger than a slot's take room from the pool's
+// tail (`room`, `room_left`); when it cannot give it, only the copies whose pvars fit their own
+// slot are planned, and `asks` is changed to say so.
+difficulty::ClonePlan plan_with_room(
+    std::vector<difficulty::CloneAsk>& asks,
+    int budget,
+    const difficulty::PoolGlobals& at,
+    gaddr* room,
+    std::uint32_t* room_left
+) {
+    difficulty::ClonePlan plan = difficulty::plan_clones(asks, budget);
+
+    // Pvars larger than a slot's are asked for, and the pool's tail cannot give the room.
+    if (plan.pvar_slots > 0
+        && !difficulty::reserve_tail(mem(), at, plan.pvar_slots, room, room_left)) {
+        // No room for large pvars: only the copies whose pvars fit their own slot.
+        for (std::size_t i = 0; i < asks.size(); ++i) {
+            asks[i].want = asks[i].pvslots > 0 ? 0 : asks[i].want;
+        }
+
+        plan = difficulty::plan_clones(asks, budget);
+        *room = 0;
+        *room_left = 0;
+    }
+
+    return plan;
+}
+
 // The enemy count slider, at a level's load: with k below 1 some enemies are deleted, with k above
 // 1 copies are made beside the enemies that are free of the level's scripts, within the pool's
 // budget. Leaves the level as it is when the pool or the file is not as expected.
@@ -1222,49 +1253,34 @@ void adjust_enemies(int level) {
     const Fixups fix = read_fixups(hdr, table, pool);
 
     Candidates found = pick_candidates(k, pool, by_pvars, fix, table);
-    std::vector<Wanted>& wanted = found.wanted;
     std::vector<difficulty::CloneAsk>& asks = found.asks;
-    const int dropped = found.dropped;
-    const int eligible = found.eligible;
 
     // Fewer enemies is done: nothing is copied.
     if (k < 1.0) {
         state().mod->info(
-            "level " + std::to_string(level) + ": " + std::to_string(dropped) + " of "
-            + std::to_string(eligible) + " enemies left out"
+            "level " + std::to_string(level) + ": " + std::to_string(found.dropped) + " of "
+            + std::to_string(found.eligible) + " enemies left out"
         );
         return;
     }
 
     const int free = difficulty::count_free(mem(), pool);
     const int budget = difficulty::clone_budget(free, level);
-    difficulty::ClonePlan plan = difficulty::plan_clones(asks, budget);
     gaddr room = 0;
     std::uint32_t room_left = 0;
+    const difficulty::ClonePlan plan = plan_with_room(asks, budget, at, &room, &room_left);
 
-    // Pvars larger than a slot's are asked for, and the pool's tail cannot give the room.
-    if (plan.pvar_slots > 0
-        && !difficulty::reserve_tail(mem(), at, plan.pvar_slots, &room, &room_left)) {
-        // No room for large pvars: only the copies whose pvars fit their own slot.
-        for (std::size_t i = 0; i < asks.size(); ++i) {
-            asks[i].want = asks[i].pvslots > 0 ? 0 : asks[i].want;
-        }
-
-        plan = difficulty::plan_clones(asks, budget);
-        room = 0;
-        room_left = 0;
-    }
-
-    const Placed placed = place_copies(wanted, plan, fix, &room, &room_left);
+    const Placed placed = place_copies(found.wanted, plan, fix, &room, &room_left);
     const int made = placed.made;
     const int no_spot = placed.no_spot;
 
     state().mod->info(
         "level " + std::to_string(level) + ": " + std::to_string(made) + " copies of "
-        + std::to_string(eligible) + " enemies (" + std::to_string(free) + " free slots, room for "
-        + std::to_string(budget) + " beside the " + std::to_string(difficulty::kPoolReserve)
-        + " kept for the game; " + std::to_string(plan.pvar_slots) + " reserved for pvars; "
-        + std::to_string(no_spot) + " without a clear spot)"
+        + std::to_string(found.eligible) + " enemies (" + std::to_string(free)
+        + " free slots, room for " + std::to_string(budget) + " beside the "
+        + std::to_string(difficulty::kPoolReserve) + " kept for the game; "
+        + std::to_string(plan.pvar_slots) + " reserved for pvars; " + std::to_string(no_spot)
+        + " without a clear spot)"
     );
 }
 

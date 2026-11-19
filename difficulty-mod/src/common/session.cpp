@@ -25,6 +25,9 @@ constexpr std::uint64_t kSeedMask = 0xFFFFFFFFu;
 constexpr double kSecondsPerMinute = 60.0;
 constexpr double kDefaultEventGap = 180.0;
 
+// The room a value formatted with two decimals needs.
+constexpr std::size_t kTextBytes = 32;
+
 // The events' clock as at a start.
 void reset_clock(Session& session) {
     session.clock = EventClock{};
@@ -129,7 +132,7 @@ void on_party_rules(void* user, const void* data, std::uint32_t size) {
 }  // namespace
 
 std::string fmt(double value) {
-    char text[32];
+    char text[kTextBytes];
     std::snprintf(text, sizeof text, "%.2f", value);
     return text;
 }

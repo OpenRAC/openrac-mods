@@ -513,13 +513,13 @@ void rewrite_rows(int level) {
     for (int i = 0; i < kRows; ++i) {
         const std::uint32_t r = static_cast<std::uint32_t>(i) * kRowSize;
         std::int32_t price;
-        std::memcpy(&price, own + r + kRowPrice, 4);
+        std::memcpy(&price, own + r + kRowPrice, sizeof price);
         put<std::int32_t>(
             table + r + kRowPrice,
             difficulty::scale_amount(price, v[difficulty::kWeaponCost], kMaxPrice)
         );
         std::uint16_t ammo_price;
-        std::memcpy(&ammo_price, own + r + kRowAmmoPrice, 2);
+        std::memcpy(&ammo_price, own + r + kRowAmmoPrice, sizeof ammo_price);
         put<std::uint16_t>(
             table + r + kRowAmmoPrice,
             static_cast<std::uint16_t>(
@@ -527,7 +527,7 @@ void rewrite_rows(int level) {
             )
         );
         std::uint16_t most;
-        std::memcpy(&most, own + r + kRowMaxAmmo, 2);
+        std::memcpy(&most, own + r + kRowMaxAmmo, sizeof most);
         put<std::uint16_t>(
             table + r + kRowMaxAmmo,
             static_cast<std::uint16_t>(
