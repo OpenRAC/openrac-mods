@@ -378,3 +378,12 @@ class TestNPCInfobotsOff(RAC1TestBase):
         self.sweep()
         self.assertTrue(self.can_reach_region("Aridia"))
         self.assertTrue(self.can_reach_region("Kerwan"))
+
+
+class TestUniqueRewards(unittest.TestCase):
+    def test_one_source_per_coordinate(self) -> None:
+        from ..locations import LOCATION_ROWS, EVENT_ROWS
+        counts = Counter(row.vanilla for row in [*LOCATION_ROWS, *EVENT_ROWS]
+                         if row.vanilla and row.vanilla.endswith(" Coordinates"))
+        self.assertTrue(counts)
+        self.assertEqual({name: count for name, count in counts.items() if count != 1}, {})

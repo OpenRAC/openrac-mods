@@ -326,6 +326,11 @@ static int skill_had(int skill) {
 
 /* The location had: the server is told (now, or when the client is next connected). */
 static void found(int location) {
+    const rando_location* l = &rando_locations[location];
+    if (l->kind == LOC_FIXED && l->vanilla.kind == REWARD_PLANET) {
+        const int npc = ap_npc_index(l->level, l->vanilla.value);
+        if (npc >= 0) save_checks(saved_checks() | (1u << (10 + npc)));
+    }
     s_seen[location] = 1;
     ap_client_check(ap_location_id(&rando_locations[location]));
 }
@@ -612,6 +617,11 @@ static void infobot_update(openrac_gaddr moby) {
     if (location < 0 || planet != rando_locations[location].vanilla.value) {
         s_infobot_update(moby);
         return;
+    }
+    if (rando_locations[location].kind == LOC_FIXED) {
+        const int mode = ap_client_npc_infobots();
+        if (mode < 0) return; /* wait for the same save/room check as the NPC path */
+        if (!mode) { s_infobot_update(moby); return; }
     }
     if (acquisition_infobot(moby,location)) return;
 
@@ -1584,14 +1594,10 @@ static void index_locations(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
 
-        if (!ap_is_location(l)) {
-            continue;
-        }
-
-        // Infobots by level and mission; items by id; gold bolts by the check each tick.
-        if (l->kind == LOC_INFOBOT) {
-            s_by_infobot[l->level][l->key] = (int)i;
-        } else if (l->kind != LOC_GOLD) {
+        const int mission = rando_infobot_mission(l);
+        if (mission >= 0) {
+            s_by_infobot[l->level][mission] = (int)i;
+        } else if (ap_is_location(l) && l->kind != LOC_GOLD) {
             s_by_item[l->key] = (int)i;
         }
     }

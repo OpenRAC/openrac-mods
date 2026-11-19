@@ -71,6 +71,10 @@ static void check_tables(void) {
 
         for (size_t j = i + 1; j < rando_location_count; ++j) {
             const rando_location* b = &rando_locations[j];
+            /* Currency repeats; every distinct inventory/coordinate reward appears once. */
+            if (a->vanilla.kind != REWARD_NONE && a->vanilla.kind != REWARD_GOLD_BOLT) {
+                CHECK(a->vanilla.kind != b->vanilla.kind || a->vanilla.value != b->vanilla.value);
+            }
 
             if (a->kind == LOC_FIXED || b->kind == LOC_FIXED) {
                 continue;
@@ -187,7 +191,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xe3bc7e659568b47eull);
+    CHECK(plan_hash(&p) == 0x1f8b31ec963ee3b5ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;

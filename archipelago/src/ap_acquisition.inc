@@ -244,6 +244,10 @@ static void acquisition_collect(int row, uint32_t moby) {
 }
 
 static int acquisition_infobot(uint32_t moby, int row) {
+    if (had(row)) {
+        acquisition_remove(moby);
+        return 1;
+    }
     int kind, item;
     if (!s_acquisition_api || OPENRAC_GREF(s_api, uint8_t, moby + 0x20) != 8
         || !acquisition_reward(row, &kind, &item)) {
