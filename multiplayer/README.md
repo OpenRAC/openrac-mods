@@ -485,7 +485,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.12.5`; `rac2-multiplayer/0.12.5` in Going Commando) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.12.6`; `rac2-multiplayer/0.12.6` in Going Commando) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Pokitaru, 3 platinum bolts|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8); CREATE, JOIN, LIST and FIND end with the world family (string), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -724,6 +724,8 @@ without a game disc. Dynamic fields are shortened without splitting a UTF-8 char
 
 ## History
 
+- 0.12.6: no change in what the mod does: the source follows OpenRAC's C++ coding conventions
+  (layout, `//` comments with doc comments, anonymous namespaces, the mod's state in one object).
 - 0.12.5: **A Ratchet at his own size**: a pose now carries the hero's scale. A player's figure
   kept the scale the hero had when it was made, so after Go to host the other player could look wide.
 - 0.12.4: **The stick on the pause menu's pages**: moving the cursor with the left stick no longer
