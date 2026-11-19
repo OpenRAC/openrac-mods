@@ -108,7 +108,8 @@ int main(int argc, char** argv) {
     set32(s_memory + D->level, LEVEL_NOVALIS);
     memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
     CHECK(load(api, (openrac_mod*)1) == 0 && changed);
-    rando_options options = {s_seed, 1, 1, 1, 1, 1, 1, "standard", 1};
+    /* With save data, Shuffle infobots also shuffles the NPC coordinates. */
+    rando_options options = {s_seed, 1, 1, 1, 1, 1, 1, "standard", 1, 1};
     rando_settings settings_;
     rando_plan plan;
     rando_settings_of(&options, NULL, 1, &settings_);
@@ -116,10 +117,15 @@ int main(int argc, char** argv) {
     char code[RANDO_CODE_SIZE];
     rando_encode(&settings_, code);
     set_tag_word(rando_seed_tag(code));
+    uint32_t npc_checks = 0;
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (plan.reward[i].kind == REWARD_GOLD_BOLT) {
             const rando_location* l = &rando_locations[i];
-            if (l->kind == LOC_GOLD) {
+            if (l->kind == LOC_FIXED) {
+                const int npc = rando_npc_index(l->level, l->vanilla.value);
+                CHECK(npc >= 0);
+                npc_checks |= 1u << (10 + npc); /* the NPC's check, in the mod's save data */
+            } else if (l->kind == LOC_GOLD) {
                 s_memory[D->gold_bolts + l->level * 4 + l->key] = 1;
             } else if (l->kind == LOC_INFOBOT) {
                 s_memory[D->triggers + l->level * 16 + l->key] = 0xFF;
@@ -127,6 +133,12 @@ int main(int argc, char** argv) {
                 s_memory[D->obtained + l->key] = 1;
             }
         }
+    }
+    if (npc_checks) {
+        words[0] = 0x52465231u;
+        words[1] = rando_seed_tag(code);
+        words[2] = npc_checks;
+        bytes = sizeof words;
     }
     for (int i = 0; i < 10; ++i) {
         *upgrade(k_rando_gold_bases[i]) = 1;

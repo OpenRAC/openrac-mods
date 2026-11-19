@@ -75,7 +75,8 @@ static int is_progression(rando_reward r) {
 int rando_location_shuffled(const rando_settings* s, const rando_location* l) {
     // Some places are never shuffled (an NPC's coordinates, the goal).
     if (l->kind == LOC_FIXED) {
-        return 0;
+        return (s->pools & POOL_NPC_INFOBOTS) && l->vanilla.kind == REWARD_PLANET
+               && rando_npc_index(l->level, l->vanilla.value) >= 0;
     }
 
     // The starting Bomb Glove is the player's own when the starting gear is kept.
@@ -487,12 +488,13 @@ static void put_header(out* o, const rando_plan* plan, const char* mod_version) 
     put(o, "Seed code   %s\n", code);
     put(o, "Difficulty  %s\n", rando_difficulty_name(s->difficulty));
     put(o,
-        "Shuffled    %s%s%s%s%s%s\n",
+        "Shuffled    %s%s%s%s%s%s%s\n",
         (s->pools & POOL_WEAPONS) ? "weapons " : "",
         (s->pools & POOL_GADGETS) ? "gadgets " : "",
         (s->pools & POOL_GOLD) ? "gold-bolts " : "",
         (s->pools & POOL_PLANETS) ? "infobots " : "",
         (s->pools & POOL_VENDOR) ? "vendor " : "",
+        (s->pools & POOL_NPC_INFOBOTS) ? "NPC-infobots " : "",
         (s->pools & POOL_GOLD_WEAPONS) ? "gold-cases " : "");
     put(o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
 }

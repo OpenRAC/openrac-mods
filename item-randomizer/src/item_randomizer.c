@@ -97,6 +97,7 @@
 #include "paths.h"
 #include "rando.h"
 #include "gold_save_api.h"
+#include "reward_api.h"
 #include "reward_pools.h"
 
 /* ---- constants ---- */
@@ -181,10 +182,16 @@ static const openrac_api* s_api;
 static openrac_mod* s_mod;
 static const rando_disc* s_disc;
 static rando_plan s_plan;
+static int s_npc_running = -1;
 static int s_gold_case = -1;
 /* Optional presentation callback; gameplay does not depend on renderer support. */
 static int (*s_gold_case_present)(int, uint32_t);
 static uint8_t s_gold_real_upgrade;
+static int acquisition_infobot(uint32_t moby, int row);
+static void acquisition_run(uint32_t moby, void (*original)(uint32_t));
+static void acquisition_item(int row);
+static int acquisition_vendor(int row);
+static int acquisition_case(int base, uint32_t moby);
 
 /* The seed's code ("XXXX-XXXX-XXXX"), for the log and the spoiler's file name. */
 static char s_code[RANDO_CODE_SIZE];
@@ -340,6 +347,14 @@ static uint8_t* gold_bolt(int level, int slot) {
 static int playing_level(void) {
     const int level = s_api->loaded_level() >= 0 ? current_level() : -1;
     return level >= 0 && level <= RANDO_LAST_LEVEL;
+}
+
+static int play_phase(uint32_t* loads) {
+    openrac_play_status status = {0};
+    status.size = sizeof status;
+    if (s_api->play_status(&status) != OPENRAC_HOOK_OK) return OPENRAC_PLAY_NONE;
+    if (loads) *loads = status.loads;
+    return status.phase;
 }
 
 /* ---- locations ---- */
@@ -935,6 +950,9 @@ static void item_give(int32_t id, int32_t equip) {
     }
 
     uint8_t* entry = vendor_purchase(id);
+    if (!entry) {
+        acquisition_item(location);
+    }
     give_reward(location, equip, id);
     s_seen[location] = 1;
 
@@ -946,7 +964,15 @@ static void item_give(int32_t id, int32_t equip) {
         // was (GiveItem has equipped the reward already).
         const rando_reward r = s_plan.reward[location];
         const int demo = r.kind == REWARD_ITEM && sold_by_vendor(r.value);
-        set32(entry, demo ? r.value : get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT));
+        if (acquisition_vendor(location)) {
+            set32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT, -1);
+            set32(entry, -1);
+        } else {
+            set32(
+                entry,
+                demo ? r.value : get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT)
+            );
+        }
         s_bought = id;
     }
 }
@@ -957,6 +983,18 @@ static void planet_unlock(int32_t planet) {
     if (!rando_on()) {
         s_planet_unlock(planet);
         return;
+    }
+
+    if (s_npc_running >= 0 && k_rando_npcs[s_npc_running].planet == planet) {
+        int row = rando_npc_row(s_npc_running);
+        if (row >= 0 && s_plan.shuffled[row]) {
+            if (!had(row)) {
+                set_had(row);
+                give_reward(row, 0, -1);
+                s_seen[row] = 1;
+            }
+            return;
+        }
     }
 
     // Another player's coordinates passed on: they, as they are, and their place is spent here.
@@ -1004,6 +1042,9 @@ static void infobot_update(openrac_gaddr moby) {
         return;
     }
 
+    if (acquisition_infobot(moby, location)) {
+        return;
+    }
     swap_push(planet_flag(planet), location);
     s_infobot = location;
     // Its last state shows its planet's banner: the planet it gave, when it gave one.
@@ -1057,7 +1098,7 @@ static void helmet_update(openrac_gaddr moby) {
 
     uint8_t* pending = byte_at(s_disc->hero_pending);
     const int32_t before = get32(pending);
-    helmet_shown(moby);
+    acquisition_run(moby, helmet_shown);
 
     // The hero was handed what he does not own.
     if (get32(pending) == ITEM_PILOTS_HELMET && !*owned(ITEM_PILOTS_HELMET)) {
@@ -1076,14 +1117,6 @@ static void o2_pickup_update(openrac_gaddr moby) {
 }
 
 /* Kerwan links are valid only for the game load that supplied them. */
-static int play_phase(uint32_t* loads) {
-    openrac_play_status status = {0};
-    status.size = sizeof status;
-    if (s_api->play_status(&status) != OPENRAC_HOOK_OK) return OPENRAC_PLAY_NONE;
-    if (loads) *loads = status.loads;
-    return status.phase;
-}
-
 static int kerwan_randomizer_active(void) { return rando_on(); }
 #include "kerwan_access.inc"
 
@@ -1658,6 +1691,12 @@ static int32_t count_gold_bolts_hook(void) {
     return n < MAX_GOLD_BOLTS ? n : MAX_GOLD_BOLTS;
 }
 
+#include "reward_presentation.inc"
+
+#include "reward_acquisition.inc"
+
+#include "reward_extra_hooks.inc"
+
 #include "gold_cases.inc"
 
 /* Each tick: a location had since the last tick without passing through a hook (a gold bolt, a
@@ -1665,6 +1704,10 @@ static int32_t count_gold_bolts_hook(void) {
  * just loaded has its rewards). A place that wrote its own item's bytes gives that item back. */
 static void each_tick(void* user) {
     (void)user;
+    uint32_t reward_load = 0;
+    int reward_phase = play_phase(&reward_load);
+    acquisition_tick(reward_phase, reward_load);
+    presentation_tick(reward_phase);
 
     // The line over the vendor goes a tick after the menu's hook stopped asking for it.
     if (s_hint_showing > 0 && --s_hint_showing == 0) {
@@ -1777,7 +1820,8 @@ static int take(int result, const char* point) {
 
 static int install_hooks(void) {
     npc_reward_text_hooks();
-    if (!reward_extra_hooks()) {
+    s_gold_case_present = acquisition_case;
+    if (!presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
         return 0;
     }
     return HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
@@ -1932,6 +1976,7 @@ static void publish_rules(void) {
         {POOL_GOLD, "gold bolts"},
         {POOL_PLANETS, "infobots"},
         {POOL_GOLD_WEAPONS, "gold-weapon cases"},
+        {POOL_NPC_INFOBOTS, "NPC coordinates"},
     };
 
     char text[160];
@@ -2082,12 +2127,13 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "keep_starting_gear"),
         api->setting_string(mod, "difficulty"),
         api->setting_bool(mod, "shuffle_gold_weapons"),
+        reward_save_host(api) != NULL,
     };
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
 
-    if ((settings.pools & (POOL_GOLD_WEAPONS)) && !reward_save_host(api)) {
+    if ((settings.pools & (POOL_GOLD_WEAPONS | POOL_NPC_INFOBOTS)) && !reward_save_host(api)) {
         api->fail(
             mod, "This seed needs OpenRAC 1.16 save-data support."
         );

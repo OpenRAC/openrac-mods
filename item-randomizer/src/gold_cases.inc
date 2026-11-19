@@ -6,9 +6,7 @@ static float s_gold_hint_distance = 9;
 static unsigned s_gold_hint_price;
 static int take(int result, const char* point);
 
-static int reward_gold_mode(void) {
-    return rando_on() && (s_plan.settings.pools & POOL_GOLD_WEAPONS);
-}
+/* reward_gold_mode: reward_presentation.inc, included first. */
 
 static void gold_case_update(openrac_gaddr moby) {
     const int mode = reward_gold_mode();
@@ -158,5 +156,6 @@ static int reward_extra_hooks(void) {
                    (void**)&s_gold_case_update
                ),
                "Gold weapon cases"
-           );
+           )
+           && npc_extra_hooks();
 }

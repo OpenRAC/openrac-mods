@@ -40,5 +40,9 @@ static int extra_row(int row) {
         int i = rando_gold_index(l->key);
         return i >= 0 ? i : -1;
     }
+    if (l->kind == LOC_FIXED && l->vanilla.kind == REWARD_PLANET) {
+        int i = rando_npc_index(l->level, l->vanilla.value);
+        return i >= 0 ? 10 + i : -1;
+    }
     return -1;
 }

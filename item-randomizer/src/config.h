@@ -24,6 +24,7 @@ typedef struct rando_options {
     int keep_start;         /* "keep_starting_gear" */
     const char* difficulty; /* "difficulty": relaxed, standard, expert */
     int gold_weapons;       /* RAC1 launcher switch: shuffled gold cases and upgrades */
+    int npc_infobots;       /* RAC1 new seeds: NPC coordinates follow Shuffle Infobots */
 } rando_options;
 
 /* Where the seed came from. */

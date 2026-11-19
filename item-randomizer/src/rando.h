@@ -129,8 +129,9 @@ enum {
 #define POOL_PLANETS 0x08u /* the infobots */
 #define POOL_VENDOR 0x10u  /* the vendor's weapons */
 #define POOL_ALL 0x1Fu     /* legacy pool mask: keep seed format 2 unchanged */
+#define POOL_NPC_INFOBOTS 0x20u
 #define POOL_GOLD_WEAPONS 0x40u
-#define POOL_EXTENDED_ALL 0x5Fu
+#define POOL_EXTENDED_ALL 0x7Fu
 
 /* A location's flags. */
 #define LOCF_COSTLY 0x01u /* bought for more bolts than a player has early on */
