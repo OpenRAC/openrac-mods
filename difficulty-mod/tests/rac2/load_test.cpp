@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
 // The difficulty mod's library as the port loads it in Going Commando, against a host table and
 // game memory made here (openrac_mod.h), at each of the three discs' addresses (src/rac2/discs.h):
 // it refuses an unknown disc and an OpenRAC without its rac2 hook points (the nanotech orb's

@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
 // The moby pool's guard (src/pool.h): on a pool laid out here as LoadLevelGameplay lays one out,
 // the free slots are counted as CreateMoby would find them, the tail is reserved only while it was
 // never used and gives the room it says, and the copies' plan never takes more than its budget,

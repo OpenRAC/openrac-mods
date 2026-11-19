@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
 // The difficulty mod's rules (src/rules.h): the sliders' ranges and clamping, what plays with
 // the sliders and with Chaos, Chaos's rolls (the same seed and level always give the same values,
 // each in its range) and its timed events, the accumulators that make whole hits and rounds of a

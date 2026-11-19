@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
 // The difficulty mod's library as the port loads it in Ratchet & Clank, against a host table and
 // game memory made here (openrac_mod.h): it reports its id, refuses a game it is not for, an
 // unknown disc and an OpenRAC without its hook points, takes them with their signatures on both discs; with the sliders at
