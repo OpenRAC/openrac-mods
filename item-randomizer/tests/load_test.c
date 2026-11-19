@@ -943,7 +943,9 @@ int main(int argc, char** argv) {
     D = &k_rando_discs[1];
     api = make_api("rac1", "ntsc");
     s_failed[0] = 0;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 24 && s_frame != NULL);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 26 && s_frame != NULL);
+    CHECK(hook_named("rac1.moby.moby743.update") != NULL);
+    CHECK(hook_named("rac1.moby.moby744.update") != NULL);
     s_hook_count = 0;
 
     /* An OpenRAC older than a hook point: the load fails and says which. */
@@ -959,8 +961,10 @@ int main(int argc, char** argv) {
 
     D = &k_rando_discs[argc > 2 && strcmp(argv[2], "ntsc") == 0 ? 1 : 0];
     api = make_api("rac1", D->version);
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 24);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 26);
     static const char* const points[][2] = {
+        {"rac1.moby.moby743.update", "void(u32)"},
+        {"rac1.moby.moby744.update", "void(u32)"},
         {OPENRAC_RAC1_HOOK_Vendor_OpenMenu, OPENRAC_RAC1_SIG_Vendor_OpenMenu},
         {OPENRAC_RAC1_HOOK_Item_Give, OPENRAC_RAC1_SIG_Item_Give},
         {OPENRAC_RAC1_HOOK_Planet_Unlock, OPENRAC_RAC1_SIG_Planet_Unlock},
@@ -1512,7 +1516,7 @@ int main(int argc, char** argv) {
         s_keep_start = 1;
         s_seed = "new games only";
         s_hook_count = 0;
-        CHECK(load(&api, mod) == 0 && s_hook_count == 24);
+        CHECK(load(&api, mod) == 0 && s_hook_count == 26);
         openrac_rac1_Item_Give g = (openrac_rac1_Item_Give)hook_named("Item_Give");
         void (*new_game)(void) = (void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame);
         void (*new_game_plus)(int32_t) =
