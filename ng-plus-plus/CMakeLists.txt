@@ -5,7 +5,7 @@
 # they test: the rules and the book alone, the text resolver's substitution, and the built library
 # loaded the way the port loads it, against a game of the test's own.
 
-# The parts: rules, book, game view, weapons, text, vendor, experience, fights.
+# The parts: rules, book, game view, weapons, text, vendor, experience, fights, bolt rules.
 add_library(ng_plus_plus_core STATIC
   src/tiers.cpp
   src/save_book.cpp
@@ -15,7 +15,8 @@ add_library(ng_plus_plus_core STATIC
   src/experience.cpp
   src/vendor.cpp
   src/combat.cpp
-  src/text.cpp)
+  src/text.cpp
+  src/bolt_rules.cpp)
 target_include_directories(ng_plus_plus_core PUBLIC src)
 target_link_libraries(ng_plus_plus_core PUBLIC OpenRAC::mod)
 # Linked into the mod's shared library, so built for one, with its symbols as hidden as the mod's.
@@ -45,6 +46,12 @@ if(BUILD_TESTING)
   target_link_libraries(ng_plus_plus_rules_test PRIVATE ng_plus_plus_core)
   set_target_properties(ng_plus_plus_rules_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_rules COMMAND ng_plus_plus_rules_test)
+
+  # The bolt rules alone: the scales, the platinum share and the split.
+  add_executable(ng_plus_plus_bolt_rules_test tests/bolt_rules_test.cpp)
+  target_link_libraries(ng_plus_plus_bolt_rules_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_bolt_rules_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_bolt_rules COMMAND ng_plus_plus_bolt_rules_test)
 
   # The text resolver's substitution alone.
   add_executable(ng_plus_plus_text_test tests/text_test.cpp)
