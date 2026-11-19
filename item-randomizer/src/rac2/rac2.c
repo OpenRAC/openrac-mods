@@ -683,6 +683,8 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_vendor"),
         1,
         api->setting_string(mod, "difficulty"),
+        0,
+        0,
     };
     rando_settings settings;
     const int source =
