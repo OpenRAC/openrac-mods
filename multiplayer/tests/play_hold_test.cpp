@@ -140,6 +140,7 @@ void a_lunge_keeps_its_target() {
     Party p(kLeap);
     p.update_does(1);
     p.run(30);
+
     // The moby in its lunge, long past the stick: the host comes close, and the leap stays on.
     for (mp::MobyState& m : p.host.game.level) {
         m.state = 5;
@@ -150,6 +151,7 @@ void a_lunge_keeps_its_target() {
     p.host.game.hero_pose.position[0] = 0.5f;
     p.run(60);
     CHECK(p.update());
+
     // Out of the leap, the nearer player takes it.
     for (mp::MobyState& m : p.host.game.level) {
         m.state = 2;
@@ -271,8 +273,10 @@ void a_player_in_a_grip_is_no_prey_for_a_second() {
     Party p(kRope, 2);
     const int second = p.host.game.moby_slot(1);
     p.rope_taken();
-    CHECK(!p.update(second) || p.host.game.world_calls.back().rfind("as", 0) != 0
-          || p.host.game.stood_as.state != 0x78);
+    CHECK(
+        !p.update(second) || p.host.game.world_calls.back().rfind("as", 0) != 0
+        || p.host.game.stood_as.state != 0x78
+    );
     // The second has nobody else near: the far host, on no stand-in, rather than the held one.
     const int before = p.host.game.stood;
     p.host.game.stand_did = mp::StandIn{};
@@ -327,7 +331,10 @@ void what_an_update_ends_is_the_players() {
 void the_lists_of_the_hero_writers() {
     // Rilgar's: each game's own, so a member's water kills him.
     CHECK(mp::local_class(35) && !mp::local_class(1059) && !mp::local_class(1106));
-    CHECK(mp::grab_class(1059) != nullptr && mp::grab_class(1106) != nullptr && mp::grab_class(35) == nullptr);
+    CHECK(
+        mp::grab_class(1059) != nullptr && mp::grab_class(1106) != nullptr
+        && mp::grab_class(35) == nullptr
+    );
     CHECK(mp::grab_class(300) == nullptr);
 
     // A moby that keeps the hero in memory keeps its aim past the stick, unlike another.

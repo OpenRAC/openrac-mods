@@ -76,7 +76,9 @@ struct Trio {
 };
 
 bool was_called(const FakeGame& game, const std::string& start) {
-    return std::any_of(game.calls.begin(), game.calls.end(), [&](const std::string& c) { return c.rfind(start, 0) == 0; });
+    return std::any_of(game.calls.begin(), game.calls.end(), [&](const std::string& c) {
+        return c.rfind(start, 0) == 0;
+    });
 }
 
 void a_member_dropped_keeps_its_place_and_goes_nowhere() {
@@ -217,7 +219,9 @@ void the_party_waits_for_a_host_that_drops() {
     for (Player* p : rest) {
         CHECK(p->coop.hold_input());
         CHECK(p->migrate.host_gone());
-        CHECK(p->migrate.banner(p->clock).find("The host lost its connection") != std::string::npos);
+        CHECK(
+            p->migrate.banner(p->clock).find("The host lost its connection") != std::string::npos
+        );
     }
 
     // Its enemies stand in the members' games; the figure stands too.
@@ -273,14 +277,25 @@ void a_ledger_reads_back_as_written_and_a_broken_one_is_refused() {
     const Bytes bytes = mp::encode_ledger(l);
     mp::Ledger back;
     CHECK(mp::decode_ledger(bytes, back));
-    CHECK(back.epoch == 3 && back.generation == 70000 && back.play == -5 && back.travel == 9 && back.scene == 4);
+    CHECK(
+        back.epoch == 3 && back.generation == 70000 && back.play == -5 && back.travel == 9
+        && back.scene == 4
+    );
     CHECK(back.world.level == 7 && back.world.revive && back.world.next_net == 300);
-    CHECK(back.world.dead == l.world.dead && back.world.dug == l.world.dug && back.world.spared == l.world.spared);
-    CHECK(back.world.spawned.size() == 1 && back.world.spawned[0].oclass == 1234 && back.world.spawned[0].position[1] == 2.5f);
+    CHECK(
+        back.world.dead == l.world.dead && back.world.dug == l.world.dug
+        && back.world.spared == l.world.spared
+    );
+    CHECK(
+        back.world.spawned.size() == 1 && back.world.spawned[0].oclass == 1234
+        && back.world.spawned[0].position[1] == 2.5f
+    );
 
     // Cut anywhere, it is none; of another version, it is none.
     for (std::size_t n = 0; n < bytes.size(); ++n) {
-        CHECK(!mp::decode_ledger(Bytes(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(n)), back));
+        CHECK(!mp::decode_ledger(
+            Bytes(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(n)), back
+        ));
     }
 
     Bytes other = bytes;
@@ -301,7 +316,10 @@ void a_ledger_reads_back_as_written_and_a_broken_one_is_refused() {
 
 void a_successor_is_chosen_by_its_link() {
     mp::Link near{20, true}, far{200, true}, tcp{50, false}, unknown{};
-    CHECK((mp::successor_order({{2, far}, {3, near}, {4, tcp}, {5, unknown}}) == std::vector<std::int32_t>{3, 4, 2, 5}));
+    CHECK(
+        (mp::successor_order({{2, far}, {3, near}, {4, tcp}, {5, unknown}})
+         == std::vector<std::int32_t>{3, 4, 2, 5})
+    );
     // The same link: who came first.
     CHECK((mp::successor_order({{7, near}, {6, near}}) == std::vector<std::int32_t>{7, 6}));
 }
@@ -485,7 +503,10 @@ void what_the_old_host_spawned_goes_on_under_its_id() {
     CHECK(count_of_class(t.a.game, 700) == 1);
     CHECK(count_of_class(t.b.game, 700) == 1);
     CHECK(t.b.world.spawned() == 1);
-    CHECK(t.a.migrate.ledger().world.spawned.size() == 1 && t.a.migrate.ledger().world.spawned[0].net == net);
+    CHECK(
+        t.a.migrate.ledger().world.spawned.size() == 1
+        && t.a.migrate.ledger().world.spawned[0].net == net
+    );
 }
 
 void a_grabbed_player_is_let_go_by_a_change_of_host() {
@@ -493,7 +514,9 @@ void a_grabbed_player_is_let_go_by_a_change_of_host() {
     t.run(t.all, 80);
     auto rest = t.without(t.host);
     t.a.game.holds_ok = true;
-    t.a.world.handle(1, Bytes{mp::kind::kHold, 0, 0, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+    t.a.world.handle(
+        1, Bytes{mp::kind::kHold, 0, 0, 0, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+    );
     CHECK(was_called(t.a.game, "grab"));
     t.a.game.calls.clear();
     lose_host(t, t.a);
@@ -532,7 +555,13 @@ void a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one() {
     t.run(t.all, 80);
     auto rest = t.without(t.host);
     const std::uint8_t tag = 9;
-    Bytes piece = mp::Writer().u8(mp::kind::kCoSave).u8(tag).i32(2).i32(0).raw(Bytes(mp::kChunkBytes, 5)).bytes();
+    Bytes piece = mp::Writer()
+                      .u8(mp::kind::kCoSave)
+                      .u8(tag)
+                      .i32(2)
+                      .i32(0)
+                      .raw(Bytes(mp::kChunkBytes, 5))
+                      .bytes();
     CHECK(t.b.cosave.on() && t.b.cosave.slot() >= 0);
     t.b.game.slots[t.b.cosave.slot()] = Bytes(2000, 7);
     const Bytes before = t.b.game.card_read(t.b.cosave.slot());
@@ -541,7 +570,9 @@ void a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one() {
     t.run(rest, 40);
 
     // The rest of that save, had it come, would make nothing whole.
-    t.b.cosave.handle(2, mp::Writer().u8(mp::kind::kCoSave).u8(tag).i32(2).i32(1).raw(Bytes(10, 5)).bytes());
+    t.b.cosave.handle(
+        2, mp::Writer().u8(mp::kind::kCoSave).u8(tag).i32(2).i32(1).raw(Bytes(10, 5)).bytes()
+    );
     CHECK(t.b.game.card_read(t.b.cosave.slot()) == before);
 }
 
@@ -635,7 +666,9 @@ void a_new_host_on_the_other_disc_changes_what_the_rules_say() {
     CHECK(t.a.mods.host_list().disc == "another");
     CHECK(t.a.mods.may_play(3));
     const auto lines = mp::rules_lines(t.b.mods.host_list(), {}, t.b.mods.own(), 80);
-    CHECK(std::any_of(lines.begin(), lines.end(), [](const std::string& l) { return l == "Enemies: the host's game"; }));
+    CHECK(std::any_of(lines.begin(), lines.end(), [](const std::string& l) {
+        return l == "Enemies: the host's game";
+    }));
 }
 
 void an_epoch_stamp_goes_on_all_a_new_host_sends() {
@@ -648,8 +681,12 @@ void an_epoch_stamp_goes_on_all_a_new_host_sends() {
     t.a.session.send_data(0, Bytes{mp::kind::kLevel});
     t.a.session.flush();
     CHECK(!t.a.link.frames.empty());
-    const mp::Request q = mp::decode_request(Bytes(t.a.link.frames[0].begin() + 4, t.a.link.frames[0].end()));
-    CHECK(q.kind == mp::Request::Kind::kData && q.bytes[0] == mp::kind::kEpoch && q.bytes[1] == 0 && q.bytes[2] == 1);
+    const mp::Request q =
+        mp::decode_request(Bytes(t.a.link.frames[0].begin() + 4, t.a.link.frames[0].end()));
+    CHECK(
+        q.kind == mp::Request::Kind::kData && q.bytes[0] == mp::kind::kEpoch && q.bytes[1] == 0
+        && q.bytes[2] == 1
+    );
     CHECK(q.bytes[3] == mp::kind::kLevel);
 
     // The first host stamps nothing: a party that never changes hosts pays nothing.
@@ -657,7 +694,9 @@ void an_epoch_stamp_goes_on_all_a_new_host_sends() {
     plain.host.link.frames.clear();
     plain.host.session.send_data(0, Bytes{mp::kind::kLevel});
     plain.host.session.flush();
-    const mp::Request first = mp::decode_request(Bytes(plain.host.link.frames[0].begin() + 4, plain.host.link.frames[0].end()));
+    const mp::Request first = mp::decode_request(
+        Bytes(plain.host.link.frames[0].begin() + 4, plain.host.link.frames[0].end())
+    );
     CHECK(first.bytes.size() == 1 && first.bytes[0] == mp::kind::kLevel);
 }
 
@@ -677,9 +716,20 @@ void the_host_going_at_any_moment_leaves_one_world() {
             const TakeoverResult r = run_takeover(link, seed, 2, how);
 
             if (r.bad()) {
-                std::printf("%s seed %u: hosted %d stuck %d crates %d dead %d place %d saves %d spawned %d held %d\n",
-                            host_gone_name(how), seed, r.hosted, r.stuck, r.wrong_crates, r.wrong_dead, r.wrong_place,
-                            r.torn_saves, r.spawned_apart, r.held_on);
+                std::printf(
+                    "%s seed %u: hosted %d stuck %d crates %d dead %d place %d saves %d spawned %d "
+                    "held %d\n",
+                    host_gone_name(how),
+                    seed,
+                    r.hosted,
+                    r.stuck,
+                    r.wrong_crates,
+                    r.wrong_dead,
+                    r.wrong_place,
+                    r.torn_saves,
+                    r.spawned_apart,
+                    r.held_on
+                );
             }
 
             CHECK(!r.bad());

@@ -181,7 +181,10 @@ void a_hosts_death_keeps_the_bolts_lying_about() {
     p.run(10);
     CHECK(p.member.world.spawned() == 2);
     // One of them taken: it is not made again.
-    CHECK(p.member.world.collect(p.member.world.spawned() != 0 ? p.member.game.level.back().slot : -1) == false);
+    CHECK(
+        p.member.world.collect(p.member.world.spawned() != 0 ? p.member.game.level.back().slot : -1)
+        == false
+    );
     p.run(4);
     p.host.game.die(301);
     remake(p.host, p.w);

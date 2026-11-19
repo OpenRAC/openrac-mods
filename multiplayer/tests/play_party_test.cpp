@@ -7,7 +7,6 @@
 namespace mpt {
 namespace {
 
-
 // What a player holds reaches its figure with its pose; its shots are fired by its figure, a delay
 // behind, in its level only.
 void held_items_and_shots_reach_the_figure() {
@@ -26,6 +25,7 @@ void held_items_and_shots_reach_the_figure() {
     host.game.hero_pose.held[1] = piece(3, 1, 2, 0x3D9, 2);
     member.game.hero_pose.held_count = 1;
     member.game.hero_pose.held[0] = piece(0, 0, 0x0F, 0xA8, 5);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -41,9 +41,11 @@ void held_items_and_shots_reach_the_figure() {
     // The host takes out the Blaster: the member's figure of it holds it after its delay.
     host.game.hero_pose.held_count = 1;
     host.game.hero_pose.held[0] = piece(0, 0, 0x0F, 0xA8, 5);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     const mp::Pose& now_on_member = member.game.figures.begin()->second;
     CHECK(now_on_member.held_count == 1 && now_on_member.held[0].oclass == 0xA8);
 
@@ -52,15 +54,18 @@ void held_items_and_shots_reach_the_figure() {
     std::uint32_t seen_keys = 0;
     double last_place = -1.0;
     bool forward = true;
+
     for (int i = 0; i < 40; ++i) {
         const double place = i * 16.0 * 60.0 / 1000.0 * 0.25;
         host.game.hero_pose.held[0].seq = 2;
         host.game.hero_pose.held[0].frame = static_cast<std::uint32_t>(place);
         host.game.hero_pose.held[0].next_frame = host.game.hero_pose.held[0].frame + 1;
-        host.game.hero_pose.held[0].anim_time = static_cast<float>(place - host.game.hero_pose.held[0].frame);
+        host.game.hero_pose.held[0].anim_time =
+            static_cast<float>(place - host.game.hero_pose.held[0].frame);
         host.game.hero_pose.held[0].anim_speed = 1.0f;
         tick({&host, &member}, 16);
         const mp::HeldPiece& shown = member.game.figures.begin()->second.held[0];
+
         if (shown.seq == 2) {
             const double at = shown.frame + static_cast<double>(shown.anim_time);
             forward = forward && at >= last_place - 0.02;
@@ -68,6 +73,7 @@ void held_items_and_shots_reach_the_figure() {
             last_place = at;
         }
     }
+
     CHECK(forward && last_place > 1.0 && (seen_keys & 0x3u) == 0x3u);
 
     // The member fires: the host's figure of it fires the same shot, not at once (its poses'
@@ -79,29 +85,38 @@ void held_items_and_shots_reach_the_figure() {
     member.game.shots_out.push_back(shot);
     tick({&host, &member}, 16);
     CHECK(member.coop.shots_sent() == 1 && host.game.shots_in.empty());
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(host.game.shots_in.size() == 1 && host.coop.shots_fired() == 1);
     CHECK(host.game.shots_in[0].first == host.game.figures.begin()->first);
-    CHECK(host.game.shots_in[0].second.position[0] == 12.0f && host.game.shots_in[0].second.aim[0] == 0.5f);
+    CHECK(
+        host.game.shots_in[0].second.position[0] == 12.0f
+        && host.game.shots_in[0].second.aim[0] == 0.5f
+    );
     // The member's own game never fires its own shot again.
     CHECK(member.game.shots_in.empty());
 
     // The host's shot reaches the member the same way.
     host.game.shots_out.push_back(shot);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.game.shots_in.size() == 1);
 
     // A shot fired in another level than this game's is dropped; and the figure goes with a
     // level change, the pieces with it.
     host.game.now = {mp::kPhasePlaying, 1, 3};
     host.game.shots_out.push_back(shot);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.game.shots_in.size() == 1 && member.game.figures.empty());
 
     // Shots outside a level are taken and never sent.
@@ -111,7 +126,6 @@ void held_items_and_shots_reach_the_figure() {
     tick({&host, &member}, 50);
     CHECK(member.game.shots_out.empty() && member.coop.shots_sent() == sent);
 }
-
 
 // While a scene plays in this game the other players' figures are hidden, not removed, their
 // pieces hidden with them, and their shots dropped; once it is over they are shown again.
@@ -131,9 +145,11 @@ void figures_hide_in_a_scene() {
     host.game.hero_pose.held_count = 2;
     host.game.hero_pose.held[0] = piece(0, 0, 8, 0x47, 5);
     host.game.hero_pose.held[1] = piece(3, 1, 2, 0x3D9, 2);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.game.figures.size() == 1);
     const int figure = member.game.figures.begin()->first;
     CHECK(member.game.hidden_figures.empty());
@@ -145,27 +161,36 @@ void figures_hide_in_a_scene() {
     CHECK(member.game.hidden_figures.count(figure) == 1 && member.game.figures.count(figure) == 1);
     CHECK(SceneParty::logged(member_log, "player 1 hidden for the scene"));
     CHECK(!SceneParty::logged(member_log, "player 1 no longer shown"));
+
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
+
     const mp::Pose& hidden = member.game.figures[figure];
     CHECK(hidden.held_count == 2);
-    CHECK((hidden.held[0].flags & mp::kHeldHidden) != 0 && (hidden.held[1].flags & mp::kHeldHidden) != 0);
+    CHECK(
+        (hidden.held[0].flags & mp::kHeldHidden) != 0
+        && (hidden.held[1].flags & mp::kHeldHidden) != 0
+    );
 
     // The host fires meanwhile: dropped here, then and later.
     mp::Shot shot;
     shot.item = 0x0F;
     host.game.shots_out.push_back(shot);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.game.shots_in.empty());
 
     // The scene over: the same figure shown again, its pieces with it; no shot fired late.
     member.game.now = {mp::kPhasePlaying, 0, 2};
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.game.hidden_figures.empty() && member.game.figures.count(figure) == 1);
     CHECK(member.game.figures.size() == 1);
     CHECK(SceneParty::logged(member_log, "player 1 shown again"));
@@ -173,12 +198,13 @@ void figures_hide_in_a_scene() {
     CHECK(member.game.shots_in.empty());
     // A shot now reaches the figure again.
     host.game.shots_out.push_back(shot);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.game.shots_in.size() == 1);
 }
-
 
 // The host's ship travel: a member's own is refused; the host's takes every member along at once,
 // from a menu too, and the party arrives together: nobody goes on, no figure is shown and none of
@@ -190,7 +216,9 @@ void a_ship_travel_takes_the_party_along() {
     host.coop.on_log([&](const std::string& l) { host_log.push_back(l); });
     member.coop.on_log([&](const std::string& l) { member_log.push_back(l); });
     const auto has = [](const std::vector<std::string>& log, const std::string& start) {
-        return std::any_of(log.begin(), log.end(), [&](const std::string& l) { return l.rfind(start, 0) == 0; });
+        return std::any_of(log.begin(), log.end(), [&](const std::string& l) {
+            return l.rfind(start, 0) == 0;
+        });
     };
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
     host.session.handle(info(both));
@@ -200,9 +228,11 @@ void a_ship_travel_takes_the_party_along() {
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 11, 2};
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.coop.figures() == 1 && host.coop.figures() == 1);
     member.game.calls.clear();
 
@@ -235,18 +265,22 @@ void a_ship_travel_takes_the_party_along() {
     tick({&host, &member}, mp::kLeaveMs);
     CHECK(member.game.calls.size() == 2 && member.game.calls.back() == "travel 5");
     member.game.now = {mp::kPhaseLoading, 5, 3};
+
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(has(member_log, "left for level 5"));
 
     // The member lands first, and is out of its landing while the host still flies out: it waits,
     // with no figure and no travel back to the host's old level.
     member.game.now = {mp::kPhasePlaying, 5, 3};
     member.game.calls.clear();
+
     for (int i = 0; i < 100; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.game.calls.empty() && member.coop.hold_input() && member.coop.figures() == 0);
     CHECK(member.game.figures.empty());
 
@@ -256,9 +290,11 @@ void a_ship_travel_takes_the_party_along() {
     tick({&host, &member}, 50);
     host.game.level = {moby(300, -1, 13, mp::kMobyUpdates, 11.0f)};
     host.game.now = {mp::kPhasePlaying, 5, 3};
+
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(!host.coop.arriving() && !member.coop.arriving());
     CHECK(!host.coop.hold_input() && !member.coop.hold_input());
     CHECK(has(host_log, "everyone is in level 5: going on"));
@@ -277,16 +313,20 @@ void a_ship_travel_takes_the_party_along() {
     CHECK(member.game.calls.back() == "travel 7");
     member.game.now = {mp::kPhaseLoading, 7, 4};
     host.game.now = {mp::kPhasePlaying, 7, 4};
+
     for (int i = 0; i < 200; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(host.coop.arriving() && host.coop.hold_input() && host.coop.waiting_for() == 1);
     CHECK(has(host_log, "waiting for 1 players to arrive in level 7"));
     CHECK(host.coop.banner(host.clock) == "Waiting for players: Start goes on");
     member.game.now = {mp::kPhasePlaying, 7, 5};
+
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(!host.coop.hold_input() && !member.coop.hold_input() && host.coop.figures() == 1);
     CHECK(host.coop.banner(host.clock).empty());
 
@@ -298,31 +338,37 @@ void a_ship_travel_takes_the_party_along() {
     host.game.now = {mp::kPhasePlaying, 9, 5};
     tick({&host, &member}, 1000);
     CHECK(host.coop.hold_input());
+
     for (std::uint64_t t = 0; t <= mp::kArriveMs; t += 1000) {
         tick({&host, &member}, 1000);
     }
+
     CHECK(!host.coop.arriving() && !host.coop.hold_input());
 }
-
 
 // Three players: one member in the new level waits, given nothing of the host's world and shown
 // nobody, until the slower one is in too.
 void the_party_arrives_together() {
     Player host(1), fast(2), slow(3);
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+
     for (Player* p : {&host, &fast, &slow}) {
         p->session.handle(info(all));
     }
+
     host.coop.choose({}, "New game");
     CHECK(start_ready(host));
     route({&host, &fast, &slow});
     tick({&host, &fast, &slow}, 16);
+
     for (Player* p : {&host, &fast, &slow}) {
         p->game.now = {mp::kPhasePlaying, 11, 2};
     }
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &fast, &slow}, 50);
     }
+
     CHECK(fast.coop.figures() == 2);
 
     CHECK(host.coop.ship_travel(5, 11));
@@ -331,32 +377,37 @@ void the_party_arrives_together() {
     tick({&host, &fast, &slow}, mp::kTravelWarnMs);
     tick({&host, &fast, &slow}, 16);
     CHECK(fast.game.calls.back() == "travel 5" && slow.game.calls.back() == "travel 5");
+
     for (Player* p : {&host, &fast, &slow}) {
         p->game.now = {mp::kPhaseLoading, 5, 3};
     }
+
     tick({&host, &fast, &slow}, 50);
 
     // The host and the fast member in 5 (the host's bolt there), the slow one still loading.
     host.game.level = {moby(300, -1, 13, mp::kMobyUpdates, 11.0f)};
     host.game.now = fast.game.now = {mp::kPhasePlaying, 5, 4};
+
     for (int i = 0; i < 100; ++i) {
         tick({&host, &fast, &slow}, 50);
     }
+
     CHECK(host.coop.arriving() && host.coop.waiting_for() == 1);
     CHECK(host.coop.hold_input() && fast.coop.hold_input());
     CHECK(fast.world.spawned() == 0 && fast.coop.figures() == 0 && host.coop.figures() == 0);
 
     // The slow one in: everyone goes on, the world and the figures come.
     slow.game.now = {mp::kPhasePlaying, 5, 4};
+
     for (int i = 0; i < 40; ++i) {
         tick({&host, &fast, &slow}, 50);
     }
+
     CHECK(!host.coop.arriving() && !fast.coop.arriving() && !slow.coop.arriving());
     CHECK(!host.coop.hold_input() && !fast.coop.hold_input() && !slow.coop.hold_input());
     CHECK(fast.world.spawned() == 1 && slow.world.spawned() == 1);
     CHECK(fast.coop.figures() == 2 && host.coop.figures() == 2);
 }
-
 
 // The host leaves (from its pause menu): the party ends, and the host and every member go back
 // to the title and its Multiplayer page; nobody stays in a level alone.
@@ -380,6 +431,7 @@ void the_host_leaving_takes_everyone_home() {
 
     // Not asked again while the travel is under way; the page asked for once the title is up.
     tick(party.players(), mp::kLeaveMs);
+
     for (Player* p : party.players()) {
         CHECK(count_of(p->game, "travel -1") == 1 && count_of(p->game, "home") == 0);
         reach_title(*p);
@@ -405,7 +457,6 @@ void the_host_leaving_takes_everyone_home() {
     tick({&party.b}, mp::kHomeRetryMs);
     CHECK(!party.b.coop.wants_home());
 }
-
 
 // A member leaves (from a scene): only it goes back to the title and its Multiplayer page; the
 // host and the other member play on, together.
@@ -435,7 +486,6 @@ void a_member_leaving_goes_home_alone() {
     }
 }
 
-
 // The connection lost under a member (the host gone, or the server): it goes home as one that
 // left; the server tells the others it left, and they play on.
 void a_member_disconnected_goes_home_alone() {
@@ -458,7 +508,6 @@ void a_member_disconnected_goes_home_alone() {
     tick({&party.host}, 16);
     CHECK(party.host.game.calls.back() == "travel -1");
 }
-
 
 // A player in the title's pages (the lobby: it never played, or left the host's game) when the
 // party ends stays there: no travel, and the lobby itself goes back to Home. One whose start was
@@ -487,8 +536,10 @@ void leaving_from_the_title() {
 
     // Why the party went, for Home: nothing when the player left it.
     CHECK(mp::leave_reason(true, true, false, "").empty());
-    CHECK(mp::leave_reason(false, false, false, "The host left: the party is over")
-          == "The host left: the party is over");
+    CHECK(
+        mp::leave_reason(false, false, false, "The host left: the party is over")
+        == "The host left: the party is over"
+    );
     CHECK(mp::leave_reason(false, true, true, "") == "Host left");
     CHECK(mp::leave_reason(false, true, false, "") == "Server lost");
     CHECK(mp::leave_reason(false, false, false, "") == "Party over");
@@ -497,7 +548,6 @@ void leaving_from_the_title() {
         CHECK(std::string(reason).size() <= mp::kFooterMax);
     }
 }
-
 
 // The host's pause menu up for 4.4 s (the logged report: phase 3 -> 5, the member playing on):
 // the member's figure stays, the same one; it goes when the member leaves the party, and says so.
@@ -513,17 +563,21 @@ void a_long_pause_keeps_the_figure() {
     tick({&host, &member}, 16);
     host.game.now = {mp::kPhasePlaying, 0, 2};
     member.game.now = {mp::kPhasePlaying, 0, 2};
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(host.game.figures.size() == 1 && host.coop.figures() == 1);
     const int figure = host.game.figures.begin()->first;
 
     host.game.now.phase = mp::kPhaseMenu;
+
     for (int i = 0; i < 264; ++i) {
         tick({&host, &member}, 17);
         CHECK(host.game.figures.size() == 1 && host.game.figures.begin()->first == figure);
     }
+
     const auto dropped = [&] {
         return std::count_if(host_log.begin(), host_log.end(), [](const std::string& l) {
             return l.find("no longer shown") != std::string::npos;
@@ -539,9 +593,12 @@ void a_long_pause_keeps_the_figure() {
     tick({&host}, 17);
     CHECK(host.game.figures.empty() && host.coop.figures() == 0);
     CHECK(dropped() == 1);
-    CHECK(std::find(host_log.begin(), host_log.end(), "player 2 no longer shown: out of the party")
-          != host_log.end());
+    CHECK(
+        std::find(host_log.begin(), host_log.end(), "player 2 no longer shown: out of the party")
+        != host_log.end()
+    );
 }
+
 // Everything a shot says reaches the figure, stamped as the shooter stamped it; what comes too late
 // is dropped, but a track's end; a held trigger stays within the state's rates.
 void shot_party(Player& host, Player& member) {
@@ -553,6 +610,7 @@ void shot_party(Player& host, Player& member) {
     route({&host, &member});
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
+
     for (int i = 0; i < 40; ++i) {
         host.game.hero_pose.position[0] = member.game.hero_pose.position[0] = static_cast<float>(i);
         tick({&host, &member}, 50);
@@ -574,9 +632,11 @@ void a_shot_says_all_it_has() {
     shot.aux[0] = 7.0f;
     shot.target_key = 412;
     member.game.shots_out.push_back(shot);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(host.game.shots_in.size() == 1);
     const mp::Shot& got = host.game.shots_in[0].second;
     CHECK(got.item == 0x0B && got.flags == mp::kShotStart && got.position[2] == 3.0f);
@@ -590,17 +650,24 @@ void a_shot_says_all_it_has() {
     mp::Shot move;
     move.item = 0x10;
     move.flags = mp::kShotMove;
+
     for (int i = 1; i <= 3; ++i) {
         move.position[0] = static_cast<float>(i);
         member.game.shots_out.push_back(move);
     }
+
     move.flags = mp::kShotStop;
     member.game.shots_out.push_back(move);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(host.game.shots_in.size() == 2);
-    CHECK(host.game.shots_in[0].second.flags == mp::kShotMove && host.game.shots_in[0].second.position[0] == 3.0f);
+    CHECK(
+        host.game.shots_in[0].second.flags == mp::kShotMove
+        && host.game.shots_in[0].second.position[0] == 3.0f
+    );
     CHECK(host.game.shots_in[1].second.flags == mp::kShotStop);
 }
 
@@ -628,9 +695,11 @@ void a_late_shot_is_dropped() {
 
     // Just stamped: fired.
     arrives(stamp, 0);
+
     for (int i = 0; i < 40 && host.game.shots_in.empty(); ++i) {
         tick({&host, &member}, 16);
     }
+
     CHECK(host.game.shots_in.size() == 1 && host.coop.shots_late() == 0);
 
     // Five seconds old: not fired.
@@ -662,8 +731,10 @@ void a_held_trigger_stays_within_the_rates() {
     }
 
     // A datagram each 100 ms from the host at most, each 50 ms from a member.
-    const std::uint64_t by_host = host.session.counts().state_out[mp::kShotXKind].messages - host_sent;
-    const std::uint64_t by_member = member.session.counts().state_out[mp::kShotXKind].messages - member_sent;
+    const std::uint64_t by_host =
+        host.session.counts().state_out[mp::kShotXKind].messages - host_sent;
+    const std::uint64_t by_member =
+        member.session.counts().state_out[mp::kShotXKind].messages - member_sent;
     CHECK(by_host > 0 && by_host <= 40);
     CHECK(by_member > 0 && by_member <= 80);
     // Nothing queues up behind: each track's MOVE gave way to its next.

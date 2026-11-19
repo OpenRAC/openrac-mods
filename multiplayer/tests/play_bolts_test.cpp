@@ -7,16 +7,17 @@
 namespace mpt {
 namespace {
 
-
 // Bolts are the host's, once in the world: its crates' and enemies' drops (also of a crate a
 // member broke) come to every member from it, a member's game drops none, and a bolt is the first
 // claimant's, gone from every game, its value given by the host only.
 void bolts_are_the_hosts() {
     Player host(1), a(2), b(3);
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+
     for (Player* p : {&host, &a, &b}) {
         p->session.handle(info(all));
     }
+
     host.coop.choose({}, "New game");
     CHECK(start_ready(host));
     route({&host, &a, &b});
@@ -25,11 +26,16 @@ void bolts_are_the_hosts() {
     // A bolt crate (key 1), a placed hexnut (key 2, 5 bolts), another bolt crate (key 3), a placed
     // bolt (key 4) in every game.
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+
     for (Player* p : {&host, &a, &b}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
-        p->game.level = {moby(1, 1, 500, runs, 20.0f), moby(2, 2, 14, runs, 30.0f), moby(3, 3, 500, runs, 40.0f),
-                         moby(4, 4, 13, runs, 50.0f)};
+        p->game.level =
+            {moby(1, 1, 500, runs, 20.0f),
+             moby(2, 2, 14, runs, 30.0f),
+             moby(3, 3, 500, runs, 40.0f),
+             moby(4, 4, 13, runs, 50.0f)};
     }
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
@@ -49,7 +55,9 @@ void bolts_are_the_hosts() {
 
     // Every member has them once, from the host, flying out as the host's do (driven).
     for (Player* p : {&a, &b}) {
-        CHECK(count_of_class(p->game, 13) == 2 && count_of_class(p->game, 15) == 1);  // placed 4 + the host's
+        CHECK(
+            count_of_class(p->game, 13) == 2 && count_of_class(p->game, 15) == 1
+        );                                                         // placed 4 + the host's
         CHECK(p->world.spawned() == 2 && p->world.driven() == 2);  // made driven (moby_spawn's)
     }
 
@@ -60,8 +68,10 @@ void bolts_are_the_hosts() {
             m.pose.position[2] += 0.5f;
         }
     }
+
     tick({&host, &a, &b}, 100);
     tick({&host, &a, &b}, 100);
+
     for (Player* p : {&a, &b}) {
         CHECK(p->world.driven() == 0 && p->world.spawned() == 2);
     }
@@ -90,18 +100,23 @@ void bolts_are_the_hosts() {
     tick({&host, &a, &b}, 50);
     tick({&host, &a, &b}, 50);
     CHECK(a.game.bolt_count == 20 && b.game.bolt_count == 0 && host.game.bolt_count == 0);
-    CHECK(count_of_class(host.game, 15) == 0 && count_of_class(a.game, 15) == 0 && count_of_class(b.game, 15) == 0);
+    CHECK(
+        count_of_class(host.game, 15) == 0 && count_of_class(a.game, 15) == 0
+        && count_of_class(b.game, 15) == 0
+    );
 
     // The host's Ratchet takes the bolt: its own credit (its game adds it), gone from the members';
     // B's claim of it, late, is refused.
     CHECK(host.world.collect(300));
     host.game.bolt_count += 1;
     int b_spawned = -1;
+
     for (const mp::MobyState& m : b.game.level) {
         if (m.oclass == 13 && m.key < 0) {
             b_spawned = m.slot;
         }
     }
+
     CHECK(b_spawned >= 0 && !b.world.collect(b_spawned));
     b.game.die(b_spawned);
     host.game.die(300);
@@ -110,22 +125,27 @@ void bolts_are_the_hosts() {
     CHECK(host.game.bolt_count == 1 && b.game.bolt_count == 0 && a.game.bolt_count == 20);
     // In A's game, where it hovered by itself, it flies to the host's figure and goes there.
     int a_spawned = -1;
+
     for (const mp::MobyState& m : a.game.level) {
         if (m.oclass == 13 && m.key < 0) {
             a_spawned = m.slot;
         }
     }
+
     CHECK(a_spawned >= 0 && !a.world.gate(a_spawned, mp::kMobyBefore));
-    CHECK(a.game.world_calls.back().rfind("stand ", 0) == 0
-          && a.game.world_calls.back().substr(a.game.world_calls.back().rfind(' ') + 1)
-                 == std::to_string(a.coop.figure_of(1)));
+    CHECK(
+        a.game.world_calls.back().rfind("stand ", 0) == 0
+        && a.game.world_calls.back().substr(a.game.world_calls.back().rfind(' ') + 1)
+               == std::to_string(a.coop.figure_of(1))
+    );
     CHECK(!a.world.collect(a_spawned));
     a.game.die(a_spawned);
     tick({&host, &a, &b}, 50);
     CHECK(host.game.bolt_count == 1 && b.game.bolt_count == 0 && a.game.bolt_count == 20);
     CHECK(a.world.spawned() == 0 && b.world.spawned() == 0);
-    CHECK(std::none_of(a.game.level.begin(), a.game.level.end(),
-                       [](const mp::MobyState& m) { return m.key < 0 && mp::bolt_class(m.oclass); }));
+    CHECK(std::none_of(a.game.level.begin(), a.game.level.end(), [](const mp::MobyState& m) {
+        return m.key < 0 && mp::bolt_class(m.oclass);
+    }));
 
     // B breaks crate 3: its game drops nothing of its own, the host's copy breaks (a wrench's hit)
     // and drops a hexnut, which every member gets once, from the host.
@@ -140,6 +160,7 @@ void bolts_are_the_hosts() {
     host.game.level.push_back(moby(302, -1, 14, mp::kMobyUpdates, 41.0f));
     tick({&host, &a, &b}, 50);
     tick({&host, &a, &b}, 50);
+
     for (Player* p : {&a, &b}) {
         CHECK(std::count(p->game.world_calls.begin(), p->game.world_calls.end(), "spawn 14") == 1);
         CHECK(count_of_class(p->game, 14) == 2);  // the placed hexnut (key 2) and the host's
@@ -172,6 +193,7 @@ void bolts_are_the_hosts() {
     host.game.die(4);
     tick({&host, &a, &b}, 50);
     tick({&host, &a, &b}, 50);
+
     // In each member's game it flies to the host's figure, the host's KILLED left to that flight,
     // and goes on arrival, nothing added.
     for (Player* p : {&a, &b}) {
@@ -179,6 +201,7 @@ void bolts_are_the_hosts() {
         CHECK(!p->world.collect(4));
         p->game.die(4);
     }
+
     tick({&host, &a, &b}, 50);
     CHECK(a.game.moby_slot(4) == -1 && b.game.moby_slot(4) == -1);
     CHECK(b.game.bolt_count == 5 && a.game.bolt_count == 20);
@@ -187,9 +210,7 @@ void bolts_are_the_hosts() {
     host.world.handle(3, late.bytes());
     route({&host, &a, &b});
     CHECK(b.game.bolt_count == 5 && host.game.bolt_count == 2);
-
 }
-
 
 // A bolt in the host's game flies to the player nearest it: a member nearer stands in for the
 // hero during its update, and what that figure collects is the member's (BOLTS), nothing added in
@@ -207,13 +228,16 @@ void bolts_go_to_the_nearest() {
     host.world.on_log([&](const std::string& line) { host_log.push_back(line); });
 
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {moby(1, 1, 500, runs, 20.0f), moby(2, 2, 77, mp::kMobyPlaced, 90.0f)};
     }
+
     // The member stands by the crate (x 20), the host far off (x 100).
     host.game.hero_pose.position[0] = 100.0f;
     member.game.hero_pose.position[0] = 21.0f;
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -244,9 +268,11 @@ void bolts_go_to_the_nearest() {
     host.game.hero_pose.position[0] = 30.0f;
     member.game.hero_pose.position[0] = 60.0f;
     host.game.level.push_back(moby(301, -1, 13, mp::kMobyUpdates, 31.0f));
+
     for (int i = 0; i < 5; ++i) {
         tick({&host, &member}, 50);
     }
+
     const int stood_again = host.game.stood;
     CHECK(!host.world.gate(301, mp::kMobyBefore));
     CHECK(host.game.stood == stood_again);
@@ -264,7 +290,6 @@ void bolts_go_to_the_nearest() {
         return l.find(" 2 spawns, 2 despawns") != std::string::npos;
     }));
 }
-
 
 // A bolt that landed and hovers runs by itself in each game. Taken in one, it flies in the others
 // to whoever took it, as the game's own pickup flies (the taker's figure standing in for its
@@ -285,8 +310,10 @@ void taken_bolts_fly_to_the_taker() {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {moby(1, 1, 77, mp::kMobyPlaced, 90.0f)};
     }
+
     host.game.hero_pose.position[0] = 10.0f;
     member.game.hero_pose.position[0] = 40.0f;
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -297,22 +324,27 @@ void taken_bolts_fly_to_the_taker() {
         b.state = 1;
         host.game.level.push_back(b);
     }
+
     tick({&host, &member}, 50);
     tick({&host, &member}, 50);
+
     for (mp::MobyState& m : host.game.level) {
         if (m.key < 0) {
             m.state = mp::kBoltHovering;
         }
     }
+
     tick({&host, &member}, 100);
     tick({&host, &member}, 100);
     CHECK(member.world.spawned() == 3 && member.world.driven() == 0);
     std::vector<int> copies;
+
     for (const mp::MobyState& m : member.game.level) {
         if (m.key < 0 && m.oclass == 13) {
             copies.push_back(m.slot);
         }
     }
+
     CHECK(copies.size() == 3);
     const int member_figure = host.coop.figure_of(2);
     const int host_figure = member.coop.figure_of(1);
@@ -329,12 +361,14 @@ void taken_bolts_fly_to_the_taker() {
     CHECK(!host.world.gate(300, mp::kMobyBefore));
     CHECK(host.game.world_calls.back() == "stand 25 " + std::to_string(member_figure));
     host.world.gate(300, mp::kMobyAfter);
+
     for (mp::MobyState& m : host.game.level) {
         if (m.slot == 300) {
             m.state = mp::kBoltFlying;
             m.pose.position[0] = 30.0f;
         }
     }
+
     tick({&host, &member}, 16);
     CHECK(!host.world.gate(300, mp::kMobyBefore));
     CHECK(host.game.world_calls.back() == "stand 40 " + std::to_string(member_figure));
@@ -352,17 +386,24 @@ void taken_bolts_fly_to_the_taker() {
     host.game.die(301);
     tick({&host, &member}, 16);
     tick({&host, &member}, 16);
-    CHECK(std::any_of(member.game.level.begin(), member.game.level.end(),
-                      [&](const mp::MobyState& m) { return m.slot == copies[1]; }));
+    CHECK(
+        std::any_of(
+            member.game.level.begin(), member.game.level.end(), [&](const mp::MobyState& m) {
+                return m.slot == copies[1];
+            }
+        )
+    );
     // An eye on it, so it runs (flies) wherever the member's camera is.
     CHECK(member.game.eyes_at.size() == 3 && member.game.eyes_at[0] == 26.0f);
     CHECK(!member.world.gate(copies[1], mp::kMobyBefore));
     CHECK(member.game.world_calls.back() == "stand 25 " + std::to_string(host_figure));
+
     for (mp::MobyState& m : member.game.level) {
         if (m.slot == copies[1]) {
             m.state = mp::kBoltFlying;
         }
     }
+
     tick({&host, &member}, 16);
     CHECK(!member.world.gate(copies[1], mp::kMobyBefore));
     CHECK(member.game.world_calls.back() == "stand 10 " + std::to_string(host_figure));
@@ -381,14 +422,23 @@ void taken_bolts_fly_to_the_taker() {
     host.game.die(302);
     tick({&host, &member}, 16);
     tick({&host, &member}, 16);
-    CHECK(std::any_of(member.game.level.begin(), member.game.level.end(),
-                      [&](const mp::MobyState& m) { return m.slot == copies[2]; }));
+    CHECK(
+        std::any_of(
+            member.game.level.begin(), member.game.level.end(), [&](const mp::MobyState& m) {
+                return m.slot == copies[2];
+            }
+        )
+    );
     tick({&host, &member}, mp::kFlightMs);
-    CHECK(std::none_of(member.game.level.begin(), member.game.level.end(),
-                       [&](const mp::MobyState& m) { return m.slot == copies[2]; }));
+    CHECK(
+        std::none_of(
+            member.game.level.begin(), member.game.level.end(), [&](const mp::MobyState& m) {
+                return m.slot == copies[2];
+            }
+        )
+    );
     CHECK(member.game.bolt_count == 1 && host.game.bolt_count == 2 && member.world.spawned() == 0);
 }
-
 
 // The party's progress: a gold bolt one player collects counts for everyone (its flag set in every
 // game) and is gone from every game; its pickup scene is the collector's alone (its game stays in
@@ -397,9 +447,11 @@ void taken_bolts_fly_to_the_taker() {
 void progress_is_the_partys() {
     Player host(1), a(2), b(3);
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
+
     for (Player* p : {&host, &a, &b}) {
         p->session.handle(info(all));
     }
+
     host.coop.choose({}, "New game");
     CHECK(start_ready(host));
     route({&host, &a, &b});
@@ -407,15 +459,20 @@ void progress_is_the_partys() {
 
     // Level 1's two gold bolts (keys 1 and 2: gold bolt flags 4 and 5) in every game.
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+
     for (Player* p : {&host, &a, &b}) {
         p->game.now = {mp::kPhasePlaying, 1, 2};
-        p->game.level = {moby(1, 1, 1134, runs, 20.0f), moby(2, 2, 1134, runs, 30.0f),
-                         moby(3, 3, 77, mp::kMobyPlaced, 40.0f)};  // and a rock (a listing never empty)
+        p->game.level =
+            {moby(1, 1, 1134, runs, 20.0f),
+             moby(2, 2, 1134, runs, 30.0f),
+             moby(3, 3, 77, mp::kMobyPlaced, 40.0f)};  // and a rock (a listing never empty)
         p->game.calls.clear();
     }
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
+
     CHECK(host.game.given.empty() && a.game.given.empty() && b.game.given.empty());
 
     // A collects the first: its scene plays in its game alone (its game in play, no scene of the
@@ -423,14 +480,21 @@ void progress_is_the_partys() {
     for (int i = 0; i < 10; ++i) {
         tick({&host, &a, &b}, 50);
     }
+
     a.game.owned.gold[4] = 1;
     a.game.die(1);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
-    CHECK(was_given(host.game, "gold 4") && was_given(b.game, "gold 4") && !was_given(a.game, "gold 4"));
+
+    CHECK(
+        was_given(host.game, "gold 4") && was_given(b.game, "gold 4")
+        && !was_given(a.game, "gold 4")
+    );
     CHECK(host.game.owned.gold[4] == 1 && b.game.owned.gold[4] == 1);
     CHECK(host.game.moby_slot(1) == -1 && b.game.moby_slot(1) == -1);
+
     for (Player* p : {&host, &a, &b}) {
         CHECK(!asked_scene(p->game) && !p->coop.hold_input() && p->game.hidden_figures.empty());
     }
@@ -438,11 +502,17 @@ void progress_is_the_partys() {
     // The host collects the second: the same, from the host.
     host.game.owned.gold[5] = 1;
     host.game.die(2);
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
-    CHECK(was_given(a.game, "gold 5") && was_given(b.game, "gold 5") && !was_given(host.game, "gold 5"));
+
+    CHECK(
+        was_given(a.game, "gold 5") && was_given(b.game, "gold 5")
+        && !was_given(host.game, "gold 5")
+    );
     CHECK(a.game.moby_slot(2) == -1 && b.game.moby_slot(2) == -1);
+
     for (Player* p : {&host, &a, &b}) {
         CHECK(!asked_scene(p->game) && !p->coop.hold_input());
     }
@@ -452,15 +522,22 @@ void progress_is_the_partys() {
     a.game.now.phase = mp::kPhaseMenu;
     b.game.owned.items[10] = 1;
     host.game.owned.planets[3] = 1;
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
-    CHECK(was_given(host.game, "item 10") && was_given(b.game, "planet 3") && !was_given(b.game, "item 10"));
+
+    CHECK(
+        was_given(host.game, "item 10") && was_given(b.game, "planet 3")
+        && !was_given(b.game, "item 10")
+    );
     CHECK(a.game.owned.items[10] == 0 && a.game.owned.planets[3] == 0);
     a.game.now.phase = mp::kPhasePlaying;
+
     for (int i = 0; i < 10; ++i) {
         tick({&host, &a, &b}, 50);
     }
+
     CHECK(a.game.owned.items[10] == 1 && a.game.owned.planets[3] == 1);
     CHECK(host.progress.here() == a.progress.here() && a.progress.here() == b.progress.here());
 
@@ -473,24 +550,27 @@ void progress_is_the_partys() {
     joined.kind = mp::Message::Kind::kPartyJoined;
     joined.id = 4;
     joined.text = "P4";
+
     for (Player* p : {&host, &a, &b}) {
         p->session.handle(joined);
     }
+
     host.game.live_save = Bytes(300, 7);
     tick({&host, &a, &b, &late}, 16);
     tick({&host, &a, &b, &late}, 16);
     CHECK(late.game.started_save == host.game.live_save);
     late.game.now = {mp::kPhasePlaying, 1, 2};
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b, &late}, 50);
     }
+
     CHECK(late.game.owned.gold[4] == 1 && late.game.owned.gold[5] == 1);
     CHECK(late.game.owned.items[10] == 1 && late.game.owned.planets[3] == 1);
     // Nothing given twice, and nothing taken.
     CHECK(std::count(host.game.given.begin(), host.game.given.end(), "item 10") == 1);
     CHECK(b.game.owned.items[10] == 1 && host.game.owned.gold[5] == 1);
 }
-
 
 // A long session: the server's clock is asked again every kClockMs (TIME frames), the buffers stay
 // bounded however long poses come.
@@ -505,17 +585,23 @@ void a_long_session() {
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
     int times = 0;
+
     for (int i = 0; i < 2000; ++i) {  // 100 seconds
         host.game.hero_pose.position[0] = static_cast<float>(i) * 0.05f;
+
         for (Player* p : {&host, &member}) {
             p->clock += 50;
             p->coop.tick(p->clock);
+
             for (const Bytes& f : p->link.frames) {
-                times += f.size() > 4 && f[4] == static_cast<std::uint8_t>(mp::PacketId::kTime) ? 1 : 0;
+                times +=
+                    f.size() > 4 && f[4] == static_cast<std::uint8_t>(mp::PacketId::kTime) ? 1 : 0;
             }
         }
+
         route({&host, &member});
     }
+
     CHECK(times >= 6);  // each game about 3 times in 100 s
     CHECK(member.coop.remotes().at(1).poses.size() <= mp::kBufferSamples);
     CHECK(member.coop.figures() == 1);

@@ -7,7 +7,6 @@
 namespace mpt {
 namespace {
 
-
 void the_host_starts_a_save_and_the_member_follows() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -18,13 +17,18 @@ void the_host_starts_a_save_and_the_member_follows() {
     joined.id = 2;
     joined.text = "P2";
     host.session.handle(joined);
-    CHECK(host.session.is_host() && member.session.in_party() && member.session.description() == "Kerwan");
+    CHECK(
+        host.session.is_host() && member.session.in_party()
+        && member.session.description() == "Kerwan"
+    );
 
     // A save of 40,000 bytes: three pieces.
     Bytes save(40000);
+
     for (std::size_t i = 0; i < save.size(); ++i) {
         save[i] = static_cast<std::uint8_t>(i * 7);
     }
+
     host.coop.choose(save, "Kerwan");
     CHECK(!member.coop.start());  // only the host starts
     // Not before the member is ready: the host's Start is refused and nothing is sent.
@@ -55,18 +59,22 @@ void the_host_starts_a_save_and_the_member_follows() {
 
     // The member arrives in 5: the host's figure in its level, and the member's in the host's.
     member.game.now = {mp::kPhasePlaying, 5, 3};
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.coop.figures() == 1 && host.coop.figures() == 1);
     CHECK(member.game.figures.size() == 1 && member.game.figures.begin()->second.level == 5);
     CHECK(std::fabs(member.game.figures.begin()->second.position[0] - 1.0f) < 1e-4f);
 
     // The host goes to the title: the member's figure goes, and it travels nowhere.
     host.game.now = {mp::kPhaseFrontEnd, -1, 2};
+
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.coop.host_level() == -1);
     tick({&host, &member}, mp::kGoneMs + 100);
     CHECK(member.coop.figures() == 0 && member.game.figures.empty());
@@ -80,7 +88,6 @@ void the_host_starts_a_save_and_the_member_follows() {
     tick({&host, &member}, mp::kWantMs);
     CHECK(member.game.calls.empty());
 }
-
 
 void a_new_game_and_a_late_member() {
     Player host(1), member(2), late(3);
@@ -120,18 +127,22 @@ void a_new_game_and_a_late_member() {
 
     // The late one's poses reach the member through the host, as figures in level 0.
     member.game.now = {mp::kPhasePlaying, 0, 4};
+
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member, &late}, 50);
     }
+
     CHECK(member.coop.figures() == 2 && member.game.figures.size() == 2);
     CHECK(late.coop.figures() == 2 && host.coop.figures() == 2);
 
     // A new level load takes the figures; they are made again.
     member.game.now.loads = 5;
     member.game.figures.clear();
+
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member, &late}, 50);
     }
+
     CHECK(member.game.figures.size() == 2);
 
     // The late one leaves: its figure goes.
@@ -150,7 +161,6 @@ void a_new_game_and_a_late_member() {
     tick({&member}, 50);
     CHECK(member.game.figures.empty() && !member.coop.playing());
 }
-
 
 void a_member_out_of_the_game_asks_for_it() {
     Player host(1), member(2);

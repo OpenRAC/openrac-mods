@@ -61,9 +61,7 @@ bool g_play = true;
 int g_phase = OPENRAC_PLAY_FRONT_END;
 std::vector<std::pair<openrac_frame_fn, void*>> g_frames;
 std::map<std::string, std::string> g_strings =
-    {{"server", "127.0.0.1:7770"},
-     {"name", "Tester"},
-     {"verbose_log", ""}};
+    {{"server", "127.0.0.1:7770"}, {"name", "Tester"}, {"verbose_log", ""}};
 
 void host_log(openrac_mod*, int, const char* text) {
     g_log.emplace_back(text);
@@ -326,7 +324,10 @@ int main(int argc, char** argv) {
     openrac_api api = make_api("rac2");
     CHECK(load(&api, handle) == 0 && g_failed.empty());
     CHECK(g_hooks.empty() && g_pages >= 10 && g_frames.size() == 1);
-    CHECK(g_main_items.size() == 1 && g_main_items[0] == std::string(OPENRAC_UI_LOAD_GAME) + ":Multiplayer");
+    CHECK(
+        g_main_items.size() == 1
+        && g_main_items[0] == std::string(OPENRAC_UI_LOAD_GAME) + ":Multiplayer"
+    );
     CHECK(g_pause_items.size() == 1 && g_pause_items[0] == "Multiplayer");
 
     // Its frames in the title with no party: nothing on the banner, nothing asked of the game.

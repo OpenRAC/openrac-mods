@@ -2,13 +2,12 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: a pose's bytes, the pieces held and the interpolation buffer.
-#include "test_support.hpp"
-
 #include <limits>
+
+#include "test_support.hpp"
 
 namespace mpt {
 namespace {
-
 
 void pose_bytes() {
     mp::PoseMessage m;
@@ -36,8 +35,10 @@ void pose_bytes() {
     CHECK(b.size() == mp::kPoseBytes + 1 && b[0] == mp::kPoseKind);
     mp::PoseMessage r;
     CHECK(mp::decode_pose(b, r));
-    CHECK(r.owner == 7 && r.sequence == 0xABCD && r.stamp_ms == 123456789012LL && r.teleport
-          && r.menu && !r.scene);
+    CHECK(
+        r.owner == 7 && r.sequence == 0xABCD && r.stamp_ms == 123456789012LL && r.teleport && r.menu
+        && !r.scene
+    );
     CHECK(r.pose.level == 11 && r.pose.position[0] == 1.5f && r.pose.position[2] == -20.25f);
     CHECK(r.pose.rotation[2] == 3.0f && r.pose.velocity[1] == 4.0f && r.pose.state == 2);
     CHECK(r.pose.health == 8 && r.pose.item == -1 && r.pose.seq == 41 && r.pose.frame == 7);
@@ -91,7 +92,6 @@ void pose_flags_keep_0_8_0s_menu_bit() {
     CHECK(mp::decode_pose(b, r) && !r.menu && r.pose.flags == mp::kPoseAirborne);
 }
 
-
 // The scale goes after the ack: a figure keeps a peer's scale, and a peer from before reads the ack.
 void pose_scale_after_the_ack() {
     mp::PoseMessage m;
@@ -121,7 +121,7 @@ void held_and_shot_bytes() {
     m.owner = 2;
     m.pose.level = 0;
     m.pose.held_count = 3;
-    m.pose.held[0] = piece(0, 0, 8, 0x47, 5);  // the wrench in the hand
+    m.pose.held[0] = piece(0, 0, 8, 0x47, 5);   // the wrench in the hand
     m.pose.held[1] = piece(3, 1, 2, 0x3D9, 2);  // on the back
     m.pose.held[1].flags = mp::kHeldHidden | mp::kHeldBlending;
     m.pose.held[2] = piece(0, 0, 8, 0x47, 5);  // a thrown wrench, loose
@@ -141,7 +141,9 @@ void held_and_shot_bytes() {
     CHECK(r.pose.held[2].flags == mp::kHeldLoose && r.pose.held[2].position[0] == 101.5f);
     CHECK(r.pose.held[2].rotation[2] == -1.5f);
     // An older sender's pose (no count): the same pose, wearing nothing.
-    CHECK(mp::decode_pose(Bytes(b.begin(), b.begin() + mp::kPoseBytes), r) && r.pose.held_count == 0);
+    CHECK(
+        mp::decode_pose(Bytes(b.begin(), b.begin() + mp::kPoseBytes), r) && r.pose.held_count == 0
+    );
     // Its pieces cut short: the pose stands, wearing nothing.
     CHECK(mp::decode_pose(Bytes(b.begin(), b.end() - 3), r) && r.pose.held_count == 0);
     CHECK(r.pose.level == 0 && r.owner == 2);
@@ -166,7 +168,6 @@ void held_and_shot_bytes() {
     CHECK(!mp::decode_shot(Bytes(sb.begin(), sb.end() - 1), sr));
     CHECK(!mp::decode_shot(b, sr));
 }
-
 
 // A held item's animation (the wrench's swing, the Blaster's recoil, a glove's throw) plays on the
 // figure as the body's does: between two poses its key and time run on from the one's to the
@@ -201,8 +202,12 @@ void shotx_bytes() {
 
     std::vector<mp::ShotEntry> r;
     CHECK(mp::decode_shotx(b, r) && r.size() == 3);
-    CHECK(r[0].owner == 2 && r[0].level == 5 && r[0].stamp == 0xF0000001u && r[0].shot.item == 0x0F);
-    CHECK(r[0].shot.position[1] == 7.25f && r[0].shot.aim[3] == -0.25f && r[0].shot.target_key == 300);
+    CHECK(
+        r[0].owner == 2 && r[0].level == 5 && r[0].stamp == 0xF0000001u && r[0].shot.item == 0x0F
+    );
+    CHECK(
+        r[0].shot.position[1] == 7.25f && r[0].shot.aim[3] == -0.25f && r[0].shot.target_key == 300
+    );
     CHECK(r[0].shot.flags == 0);
     CHECK(r[1].level == -1 && r[1].shot.flags == mp::kShotMove && r[1].shot.velocity[0] == 2.0f);
     CHECK(r[1].shot.aux[0] == 1.0f && r[1].shot.target_key == -1);
@@ -212,6 +217,7 @@ void shotx_bytes() {
     for (std::size_t n = 0; n < b.size(); ++n) {
         CHECK(!mp::decode_shotx(Bytes(b.begin(), b.begin() + static_cast<std::ptrdiff_t>(n)), r));
     }
+
     CHECK(!mp::decode_shotx(Bytes{mp::kShotKind, 0}, r));
     // More than a SHOTX holds, whole as they may be, is no SHOTX either.
     Bytes over = mp::encode_shotx(std::vector<mp::ShotEntry>(mp::kShotXMax));
@@ -222,6 +228,7 @@ void shotx_bytes() {
 
     // The most a SHOTX holds, each with everything, fits a datagram; more are left for the next.
     std::vector<mp::ShotEntry> many(mp::kShotXMax + 3);
+
     for (mp::ShotEntry& e : many) {
         std::fill(e.shot.velocity, e.shot.velocity + 3, 1.0f);
         std::fill(e.shot.aim, e.shot.aim + 4, 1.0f);
@@ -229,6 +236,7 @@ void shotx_bytes() {
         std::fill(e.shot.aux, e.shot.aux + 4, 1.0f);
         e.shot.target_key = 1;
     }
+
     const Bytes full = mp::encode_shotx(many);
     CHECK(full.size() <= 1200 && full[1] == mp::kShotXMax);
     CHECK(mp::decode_shotx(full, r) && r.size() == mp::kShotXMax);
@@ -251,7 +259,6 @@ void shotx_bytes() {
     a.shot.flags = mp::kShotStart;
     CHECK(!mp::shot_replaces(c, a));
 }
-
 
 void held_item_animation_runs_on() {
     // A swing: the wrench (seq 3) a key every 2 ticks (speed 0.5 a key), a pose every 50 ms.
@@ -326,8 +333,10 @@ void held_item_animation_runs_on() {
     b.held[0].anim_time = 0.0f;
     other.add(a, 1, 0, 0, false);
     other.add(b, 2, 100, 100, false);
-    CHECK(other.at(30.0 + other.delay_ms(), mid) && mid.held[0].seq == 3 && mid.held[0].frame == 2
-          && mid.held[0].anim_time == 0.0f);
+    CHECK(
+        other.at(30.0 + other.delay_ms(), mid) && mid.held[0].seq == 3 && mid.held[0].frame == 2
+        && mid.held[0].anim_time == 0.0f
+    );
     CHECK(other.at(70.0 + other.delay_ms(), mid) && mid.held[0].seq == 1 && mid.held[0].frame == 0);
 
     // A thrown wrench (loose in both): along from one place to the other.
@@ -339,9 +348,11 @@ void held_item_animation_runs_on() {
     b.held[0].position[0] = 20.0f;
     thrown.add(a, 1, 0, 0, false);
     thrown.add(b, 2, 100, 100, false);
-    CHECK(thrown.at(50.0 + thrown.delay_ms(), mid) && std::fabs(mid.held[0].position[0] - 15.0f) < 0.5f);
+    CHECK(
+        thrown.at(50.0 + thrown.delay_ms(), mid)
+        && std::fabs(mid.held[0].position[0] - 15.0f) < 0.5f
+    );
 }
-
 
 // A pose every 50 ms moving at 10 units a second, sampled every 16 ms.
 void a_steady_stream_plays_smoothly() {
@@ -360,9 +371,11 @@ void a_steady_stream_plays_smoothly() {
             mp::Pose p;
             CHECK(in.at(t + 30, p));
             ordered = ordered && p.position[0] >= last_x - 1e-4;
+
             if (last_x > -1e8) {
                 worst_step = std::max(worst_step, std::fabs(p.position[0] - last_x));
             }
+
             last_x = p.position[0];
         }
     }
@@ -378,13 +391,12 @@ void a_steady_stream_plays_smoothly() {
     CHECK(p.position[0] > 30.0 - 1.6 && p.position[0] < 30.0 - 0.6);
 }
 
-
 void repeats_late_poses_and_teleports() {
     mp::Interpolator in;
     in.add(pose_at(0), 10, 0, 0, false);
     in.add(pose_at(0.5f), 11, 50, 50, false);
-    in.add(pose_at(9.0f), 11, 60, 60, false);   // the same sequence again: dropped
-    in.add(pose_at(9.0f), 9, 70, 70, false);    // older: dropped
+    in.add(pose_at(9.0f), 11, 60, 60, false);  // the same sequence again: dropped
+    in.add(pose_at(9.0f), 9, 70, 70, false);   // older: dropped
     CHECK(in.size() == 2);
     // A step longer than a run makes: put there at once.
     in.add(pose_at(100.0f), 12, 100, 100, false);
@@ -396,7 +408,6 @@ void repeats_late_poses_and_teleports() {
     in.add(pose_at(101.5f, 0, 4), 14, 200, 200, false);
     CHECK(in.size() == 1 && in.at(200, p) && p.level == 4);
 }
-
 
 // 20 a second, then 300 ms of nothing (TCP held back), then the held poses at once.
 void a_stall_then_a_burst() {
@@ -415,6 +426,7 @@ void a_stall_then_a_burst() {
                 for (int h : held) {
                     in.add(pose_at(static_cast<float>(h) / 100.0f, 10.0f), ++seq, h, t, false);
                 }
+
                 held.clear();
                 in.add(pose_at(static_cast<float>(t) / 100.0f, 10.0f), ++seq, t, t, false);
             }
@@ -423,10 +435,12 @@ void a_stall_then_a_burst() {
         if (t % 16 == 0 && t > 200) {
             mp::Pose p;
             in.at(t, p);
+
             // From the second frame shown (the first is where it starts).
             if (t > 216) {
                 worst_jump = std::max(worst_jump, std::fabs(p.position[0] - last_x));
             }
+
             last_x = p.position[0];
             // Never past the newest pose's place by more than 150 ms of its run (1.5 units).
             CHECK(p.position[0] <= static_cast<float>(t) / 100.0f + 1.5f + 1e-3f);
@@ -439,7 +453,6 @@ void a_stall_then_a_burst() {
     in.at(4000, p);
     CHECK(std::fabs((40.0 - p.position[0]) - in.delay_ms() / 100.0) < 0.3);
 }
-
 
 void past_the_newest_pose() {
     mp::Interpolator in;
@@ -454,7 +467,6 @@ void past_the_newest_pose() {
     CHECK(p.position[0] == held);
     CHECK(in.stalled(2000) && !in.stalled(500));
 }
-
 
 // A thrown wrench past the newest pose: on along its last step, as the body along its velocity, and
 // no further than it; a piece on the body stays where its pose has it.
@@ -490,7 +502,6 @@ void a_thrown_wrench_runs_on() {
     CHECK(p.held[0].position[0] == 11.0f);
 }
 
-
 // A sender slowing to a stop, then nothing more (a stall at the stop): held where the last pose
 // is, not carried on past it along the last velocity and pulled back when the next one comes.
 void a_stop_is_not_overshot() {
@@ -516,7 +527,6 @@ void a_stop_is_not_overshot() {
     CHECK(worst <= stop + 1e-3f);
 }
 
-
 // A sender gone quiet for longer than a stall and back with its count started again (a new
 // connection): taken, not dropped as older until the count comes round. And across the wrap.
 void a_count_started_again_and_the_wrap() {
@@ -541,7 +551,6 @@ void a_count_started_again_and_the_wrap() {
     CHECK(w.size() == 4 && w.newest(p) && std::fabs(p.position[0] - 0.3f) < 1e-6f);
 }
 
-
 // A recorded pose: when it came, and what came.
 struct Recorded {
     double arrival = 0;
@@ -550,7 +559,6 @@ struct Recorded {
     bool teleport = false;
     mp::Pose pose;
 };
-
 
 std::vector<Recorded> recorded(const char* name) {
     std::vector<Recorded> out;
@@ -574,10 +582,27 @@ std::vector<Recorded> recorded(const char* name) {
         unsigned sequence = 0, teleport = 0, flags = 0, seq = 0, frame = 0, next = 0;
         int level = 0, state = 0;
         const int n = std::sscanf(
-            line, "%lf,%lf,%u,%u,%d,%u,%f,%f,%f,%f,%f,%f,%f,%d,%u,%u,%u,%f,%f", &r.arrival, &r.stamp,
-            &sequence, &teleport, &level, &flags, &p.position[0], &p.position[1], &p.position[2],
-            &p.rotation[2], &p.velocity[0], &p.velocity[1], &p.velocity[2], &state, &seq, &frame,
-            &next, &p.anim_time, &p.anim_speed
+            line,
+            "%lf,%lf,%u,%u,%d,%u,%f,%f,%f,%f,%f,%f,%f,%d,%u,%u,%u,%f,%f",
+            &r.arrival,
+            &r.stamp,
+            &sequence,
+            &teleport,
+            &level,
+            &flags,
+            &p.position[0],
+            &p.position[1],
+            &p.position[2],
+            &p.rotation[2],
+            &p.velocity[0],
+            &p.velocity[1],
+            &p.velocity[2],
+            &state,
+            &seq,
+            &frame,
+            &next,
+            &p.anim_time,
+            &p.anim_speed
         );
 
         if (n != 19) {
@@ -600,7 +625,6 @@ std::vector<Recorded> recorded(const char* name) {
     std::fclose(f);
     return out;
 }
-
 
 // The poses shown 60 times a second while `poses` arrive; with `copies`, each pose arrives again
 // later (a repeat) and an older one with it (reordered), as UDP and the TCP fallback may give them.
@@ -648,7 +672,6 @@ std::vector<mp::Pose> replay(const std::vector<Recorded>& poses, bool copies) {
     return shown;
 }
 
-
 // The seqs one after another (each change once).
 std::vector<std::uint32_t> seq_changes(const std::vector<mp::Pose>& poses) {
     std::vector<std::uint32_t> out;
@@ -661,7 +684,6 @@ std::vector<std::uint32_t> seq_changes(const std::vector<mp::Pose>& poses) {
 
     return out;
 }
-
 
 void replays(const char* name) {
     const std::vector<Recorded> poses = recorded(name);
@@ -709,8 +731,16 @@ void replays(const char* name) {
         CHECK(round || (step >= -1e-4 && step <= 2.0));
 
         if (!(round || (step >= -1e-4 && step <= 2.0))) {
-            std::fprintf(stderr, "%s: seq %u from %u+%.3f to %u+%.3f\n", name, a.seq, a.frame,
-                         a.anim_time, b.frame, b.anim_time);
+            std::fprintf(
+                stderr,
+                "%s: seq %u from %u+%.3f to %u+%.3f\n",
+                name,
+                a.seq,
+                a.frame,
+                a.anim_time,
+                b.frame,
+                b.anim_time
+            );
         }
     }
 
@@ -741,7 +771,8 @@ void replays(const char* name) {
             const float n = std::sqrt(dx * dx + dy * dy);
 
             for (const mp::Pose& p : shown) {
-                if (n > 1e-3f && p.state >= static_cast<int>(from) && p.state <= static_cast<int>(end)) {
+                if (n > 1e-3f && p.state >= static_cast<int>(from)
+                    && p.state <= static_cast<int>(end)) {
                     const float past = ((p.position[0] - sent[i].position[0]) * dx
                                         + (p.position[1] - sent[i].position[1]) * dy)
                                        / n;
@@ -758,11 +789,12 @@ void replays(const char* name) {
     CHECK(again.size() == shown.size());
 
     for (std::size_t i = 0; i < std::min(again.size(), shown.size()); ++i) {
-        CHECK(again[i].seq == shown[i].seq && again[i].frame == shown[i].frame
-              && again[i].position[0] == shown[i].position[0]);
+        CHECK(
+            again[i].seq == shown[i].seq && again[i].frame == shown[i].frame
+            && again[i].position[0] == shown[i].position[0]
+        );
     }
 }
-
 
 void recorded_poses_replay_smoothly() {
     replays("pose_stop.csv");

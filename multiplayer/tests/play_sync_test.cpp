@@ -32,7 +32,10 @@ struct Pair {
         return out;
     }
 
-    explicit Pair(std::vector<mp::MobyState> level, int members = 1) : keep(make(members)), host(*keep[0]), member(*keep[1]) {
+    explicit Pair(std::vector<mp::MobyState> level, int members = 1)
+        : keep(make(members)),
+          host(*keep[0]),
+          member(*keep[1]) {
         std::vector<mp::Member> list;
 
         for (auto& p : keep) {
@@ -78,7 +81,9 @@ struct Pair {
                 }
 
                 for (Player* to : all) {
-                    const bool reaches = to != from && (from == &host ? target == 0 || target == to->id : to == &host);
+                    const bool reaches =
+                        to != from
+                        && (from == &host ? target == 0 || target == to->id : to == &host);
 
                     if (reaches) {
                         mp::Message m;
@@ -123,7 +128,6 @@ struct Pair {
     }
 };
 
-
 bool names(const Bytes& bytes, std::uint16_t id) {
     if (bytes[0] != kWorldByte) {
         return false;
@@ -133,26 +137,26 @@ bool names(const Bytes& bytes, std::uint16_t id) {
     std::int64_t stamp = 0;
     std::vector<mp::WorldEntry> entries;
     return mp::decode_world(bytes, level, stamp, entries)
-           && std::any_of(entries.begin(), entries.end(), [id](const mp::WorldEntry& e) { return e.id == id; });
+           && std::any_of(entries.begin(), entries.end(), [id](const mp::WorldEntry& e) {
+                  return e.id == id;
+              });
 }
-
 
 bool pose_from_member(const Player& from, const Bytes& bytes) {
     return from.id != 1 && bytes[0] == mp::kPoseKind;
 }
 
-
 std::vector<mp::MobyState> enemies(int count, float spread = 2.0f) {
     std::vector<mp::MobyState> out;
 
     for (int i = 0; i < count; ++i) {
-        mp::MobyState m = moby(i, i, 300, SimWorld::kRuns | mp::kMobyCreature, static_cast<float>(i) * spread);
+        mp::MobyState m =
+            moby(i, i, 300, SimWorld::kRuns | mp::kMobyCreature, static_cast<float>(i) * spread);
         out.push_back(m);
     }
 
     return out;
 }
-
 
 void the_bytes_say_the_sequence_and_the_ack() {
     mp::WorldEntry e;
@@ -167,7 +171,10 @@ void the_bytes_say_the_sequence_and_the_ack() {
     CHECK(mp::decode_world(b, level, stamp, out, &sequence));
     CHECK(sequence == 65000 && out.size() == 1 && out[0].id == 7);
     // Within a datagram at its fullest, so it never falls back on the stream.
-    CHECK(1 + 1 + 8 + 2 + 1 + mp::kWorldEntries * mp::kWorldEntryBytes + mp::kClientStateHeader <= mp::kMaxDatagramBytes);
+    CHECK(
+        1 + 1 + 8 + 2 + 1 + mp::kWorldEntries * mp::kWorldEntryBytes + mp::kClientStateHeader
+        <= mp::kMaxDatagramBytes
+    );
 
     mp::PoseMessage m;
     m.owner = 2;
@@ -185,7 +192,6 @@ void the_bytes_say_the_sequence_and_the_ack() {
     CHECK(heard.pose.held_count == 1 && heard.pose.held[0].oclass == 5);
     CHECK(mp::decode_pose(plain, heard) && !heard.world_ack);
 }
-
 
 void the_ack_stays_between_the_member_and_the_host() {
     // A third player hears the member's pose by way of the host, without its word on WORLD.
@@ -221,7 +227,6 @@ void the_ack_stays_between_the_member_and_the_host() {
     CHECK(third.coop.latest(2, seen));
 }
 
-
 void a_delivered_change_goes_once() {
     Pair p(enemies(2));
     p.settle();
@@ -232,7 +237,6 @@ void a_delivered_change_goes_once() {
     CHECK(p.told(0) == 1);
     CHECK(p.told(1) == 0);
 }
-
 
 void a_change_undone_on_the_way_goes_too() {
     // It hides and the word goes; before that word is known to have come it shows again, as the
@@ -255,7 +259,6 @@ void a_change_undone_on_the_way_goes_too() {
     p.run(40);
     CHECK((by_key(p.member.game, 0)->flags & mp::kMobyHidden) == 0);
 }
-
 
 void a_word_given_up_for_lost_can_still_come() {
     // The word is late, not lost: given up, the moby changed back, and then the word comes.
@@ -286,7 +289,6 @@ void a_word_given_up_for_lost_can_still_come() {
     CHECK((by_key(p.member.game, 0)->flags & mp::kMobyHidden) == 0);
 }
 
-
 void a_lost_change_goes_again_at_once() {
     // Far away, where the old world came back to it every 3 seconds: a moby 300 units off.
     std::vector<mp::MobyState> level = enemies(2);
@@ -314,7 +316,6 @@ void a_lost_change_goes_again_at_once() {
     CHECK(std::fabs(by_key(p.member.game, 1)->pose.position[1] - 5.0f) < 0.01f);
 }
 
-
 void a_lost_change_with_nothing_after_it_goes_again_in_time() {
     std::vector<mp::MobyState> level = enemies(1);
     level[0].pose.position[0] = 300.0f;
@@ -334,7 +335,6 @@ void a_lost_change_with_nothing_after_it_goes_again_in_time() {
     CHECK(std::fabs(by_key(p.member.game, 0)->pose.position[1] - 5.0f) < 0.01f);
 }
 
-
 void acks_that_never_come_slow_nothing_down() {
     // No word back at all: each moby goes again each time-out, and no faster.
     Pair p(enemies(1));
@@ -348,7 +348,6 @@ void acks_that_never_come_slow_nothing_down() {
     CHECK(std::fabs(by_key(p.member.game, 0)->pose.position[1] - 5.0f) < 0.01f);
 }
 
-
 void a_moby_that_stands_goes_now_and_then() {
     // For whatever the host cannot see: one more word each kWorldKeepMs, no more.
     Pair p(enemies(1));
@@ -356,7 +355,6 @@ void a_moby_that_stands_goes_now_and_then() {
     p.run(static_cast<int>(2 * mp::kWorldKeepMs / 16) + 10);
     CHECK(p.told(0) == 2);
 }
-
 
 void a_word_from_before_a_hello_says_nothing() {
     // The moby is told where it stands, and that datagram's fate is still open when the member's
@@ -404,7 +402,6 @@ void a_word_from_before_a_hello_says_nothing() {
     CHECK(std::fabs(by_key(p.member.game, 0)->pose.position[1] - 7.0f) < 0.01f);
 }
 
-
 void only_what_was_taken_is_said_heard() {
     // A WORLD of another level changes nothing here, and the host must not take it as heard.
     Pair p(enemies(1));
@@ -438,7 +435,6 @@ void only_what_was_taken_is_said_heard() {
     CHECK(said.world_ack && said.world_newest == next);
 }
 
-
 void a_late_datagram_still_counts_as_heard() {
     // Sequences 2 and 3 first, then 1: all three said heard, and the bit field right.
     Pair p(enemies(1));
@@ -456,7 +452,8 @@ void a_late_datagram_still_counts_as_heard() {
     e.id = 0;
     e.pose.level = 3;
 
-    for (const std::uint16_t sequence : {std::uint16_t{5002}, std::uint16_t{5003}, std::uint16_t{5001}}) {
+    for (const std::uint16_t sequence :
+         {std::uint16_t{5002}, std::uint16_t{5003}, std::uint16_t{5001}}) {
         m.bytes = mp::encode_world(3, 100 + sequence, {e}, sequence);
         p.member.session.handle(m);
     }
@@ -466,7 +463,6 @@ void a_late_datagram_still_counts_as_heard() {
     CHECK(mp::decode_pose(pose, said));
     CHECK(said.world_ack && said.world_newest == 5003 && (said.world_bits & 3u) == 3u);
 }
-
 
 void a_bolt_that_lands_ahead_of_its_spawn_still_lands() {
     // UDP's WORLD overtakes TCP's SPAWN: the one word that it landed must not go for nothing,
@@ -499,7 +495,6 @@ void a_bolt_that_lands_ahead_of_its_spawn_still_lands() {
     CHECK(p.member.world.driven() == driven);
 }
 
-
 void the_weight_reads_distance_and_what_matters() {
     mp::WorldSight near;
     near.distance = 5.0f;
@@ -528,7 +523,11 @@ void the_weight_reads_distance_and_what_matters() {
     CHECK(mp::world_weight(mid) < 1.0f && mp::world_weight(midfar) < mp::world_weight(mid));
 
     // What can hurt, what it faces, what it hit, what flies: each up. Unseen: down.
-    for (const auto term : {&mp::WorldSight::creature, &mp::WorldSight::ahead, &mp::WorldSight::hit, &mp::WorldSight::flying}) {
+    for (const auto term :
+         {&mp::WorldSight::creature,
+          &mp::WorldSight::ahead,
+          &mp::WorldSight::hit,
+          &mp::WorldSight::flying}) {
         mp::WorldSight up = mid;
         up.*term = true;
         CHECK(mp::world_weight(up) > mp::world_weight(mid));
@@ -538,7 +537,6 @@ void the_weight_reads_distance_and_what_matters() {
     unseen.hidden = true;
     CHECK(mp::world_weight(unseen) < mp::world_weight(mid));
 }
-
 
 void a_far_moby_cannot_starve() {
     // Far more moving by the member than WORLD can hold, and one moby far away: it gets its share.
@@ -566,18 +564,20 @@ void a_far_moby_cannot_starve() {
 
     // Everything moves: 575 entries a second for 301 mobys, the close ones each worth 8 of the far
     // one (the old rank made that 9 seconds).
-    std::printf("the far moby among 300 moving: unheard for %llu ms at the most\n", static_cast<unsigned long long>(worst));
+    std::printf(
+        "the far moby among 300 moving: unheard for %llu ms at the most\n",
+        static_cast<unsigned long long>(worst)
+    );
     CHECK(worst > 0 && worst < 5000);
     CHECK(p.host.clock - last < 5000);
 }
-
 
 void a_moby_it_just_hit_comes_first() {
     // More to send than a datagram holds: the moby this member hit goes ahead of its neighbours.
     std::vector<mp::MobyState> level = enemies(100, 0.5f);
 
     for (mp::MobyState& m : level) {
-        m.pose.position[0] += 300.0f;   // all far off, at the floor
+        m.pose.position[0] += 300.0f;  // all far off, at the floor
     }
 
     Pair p(level);
@@ -606,7 +606,6 @@ void a_moby_it_just_hit_comes_first() {
     CHECK(p.told(50) > p.told(51) + 1);
 }
 
-
 void the_near_goes_each_snapshot_and_the_far_less_often() {
     std::vector<mp::MobyState> level = enemies(2, 1.0f);
     level[1].pose.position[0] = 400.0f;
@@ -624,7 +623,6 @@ void the_near_goes_each_snapshot_and_the_far_less_often() {
     CHECK(p.told(0) >= 20);
     CHECK(p.told(1) >= 7 && p.told(1) <= 9);
 }
-
 
 void firing_takes_its_share_of_world() {
     // Three members and everything moving: WORLD at its 30 a second until the party fires.
@@ -665,7 +663,6 @@ void firing_takes_its_share_of_world() {
     CHECK(shots >= 10 * 8);
 }
 
-
 // A stream every `interval` ms, each lost by `lost`, a constant link; how far the delay stands past
 // the transit, and the frames shown past the newest pose.
 struct Margin {
@@ -690,7 +687,13 @@ Margin margin_of(bool derive, double interval, int lost_each = 0, double loss = 
             }
 
             in.set_loss(derive ? loss : in.loss());
-            in.add(pose_at(static_cast<float>(next) / 100.0f, derive ? 0.0f : 10.0f), ++sequence, next, t, false);
+            in.add(
+                pose_at(static_cast<float>(next) / 100.0f, derive ? 0.0f : 10.0f),
+                ++sequence,
+                next,
+                t,
+                false
+            );
         }
 
         mp::Pose p;
@@ -704,7 +707,6 @@ Margin margin_of(bool derive, double interval, int lost_each = 0, double loss = 
     out.behind = in.delay_ms() - in.transit_ms();
     return out;
 }
-
 
 void every_stream_keeps_two_intervals() {
     // WORLD's snapshots at each rate it can come to: 15 a second, its 10, the 7 of a firing party,

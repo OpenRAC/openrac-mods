@@ -38,6 +38,7 @@ struct Network {
             active[id] = true;
             available[id] = true;
         }
+
         for (int id : members) {
             ComfortHooks h;
             h.self = [id] {
@@ -56,6 +57,7 @@ struct Network {
                 if (!available[who] || !poses.count(who) || (!menus && !active[who])) {
                     return false;
                 }
+
                 out = poses[who];
                 return true;
             };
@@ -68,15 +70,18 @@ struct Network {
             };
             nodes[id] = std::make_unique<Comfort>(std::move(h));
         }
+
         step(0);
     }
 
     void deliver() {
         int guard = 0;
+
         while (!packets.empty()) {
             CHECK(++guard < 1000);
             auto p = packets.front();
             packets.pop_front();
+
             if (p.to == kBroadcast) {
                 for (auto& [id, node] : nodes) {
                     if (id != p.from) {
@@ -91,9 +96,11 @@ struct Network {
 
     void step(int ms) {
         now += ms;
+
         for (auto& [id, node] : nodes) {
             node->tick(now);
         }
+
         deliver();
     }
 
@@ -277,10 +284,12 @@ int main() {
         Bytes malformed = {kComfortKind, 1, 2};
         n.nodes[2]->handle(1, malformed, n.now);
         CHECK(n.nodes[2]->options().revive);
+
         for (int size = 0; size < 20; ++size) {
             auto packet = Bytes(size, 255);
             n.nodes[2]->handle(1, packet, n.now);
         }
+
         CHECK(!n.nodes[2]->rally().active);
     }
     {

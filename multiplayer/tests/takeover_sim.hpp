@@ -23,8 +23,14 @@ enum class HostGone {
     kBack
 };
 
-inline constexpr HostGone kHostGoneAll[] = {HostGone::kPlain, HostGone::kScene, HostGone::kTravel, HostGone::kSave,
-                                            HostGone::kGrab,  HostGone::kLeaves, HostGone::kBack};
+inline constexpr HostGone kHostGoneAll[] =
+    {HostGone::kPlain,
+     HostGone::kScene,
+     HostGone::kTravel,
+     HostGone::kSave,
+     HostGone::kGrab,
+     HostGone::kLeaves,
+     HostGone::kBack};
 
 inline const char* host_gone_name(HostGone how) {
     switch (how) {
@@ -59,8 +65,8 @@ struct TakeoverResult {
     std::int32_t host = 0;
 
     bool bad() const {
-        return !hosted || stuck || wrong_crates != 0 || wrong_dead != 0 || wrong_place != 0 || torn_saves != 0
-               || spawned_apart != 0 || held_on != 0;
+        return !hosted || stuck || wrong_crates != 0 || wrong_dead != 0 || wrong_place != 0
+               || torn_saves != 0 || spawned_apart != 0 || held_on != 0;
     }
 };
 
@@ -120,7 +126,9 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
     net->whole = true;
     std::mt19937 rng(seed * 11 + 3);
     const auto play_ticks = static_cast<int>(3500 / 16 + rng() % (3000 / 16));
-    const int cut_ticks = how == HostGone::kBack ? 5000 / 16 : how == HostGone::kLeaves ? 0 : 15500 / 16;
+    const int cut_ticks = how == HostGone::kBack     ? 5000 / 16
+                          : how == HostGone::kLeaves ? 0
+                                                     : 15500 / 16;
     const int after_ticks = 12000 / 16;
     std::vector<Player*> left(all.begin() + 1, all.end());
     Player* leader = &first;
@@ -134,7 +142,8 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
         std::vector<Player*> alive;
 
         for (Player* p : all) {
-            if (net->cut.count(p->id) == 0 && mp::in_level(p->game.now.phase) && p->game.now.level == level_of_party) {
+            if (net->cut.count(p->id) == 0 && mp::in_level(p->game.now.phase)
+                && p->game.now.level == level_of_party) {
                 alive.push_back(p);
             }
         }
@@ -155,7 +164,8 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
     // A ship leaving: each game asked to travel loads, and lands in the next planet's level.
     const auto follow_travel = [&](int t) {
         for (Player* p : all) {
-            const bool asked = std::find(p->game.calls.begin(), p->game.calls.end(), "travel 4") != p->game.calls.end();
+            const bool asked = std::find(p->game.calls.begin(), p->game.calls.end(), "travel 4")
+                               != p->game.calls.end();
 
             if (asked && landing.count(p->id) == 0 && p->game.now.level == 3) {
                 landing[p->id] = t + 60;
@@ -190,9 +200,11 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
             // A replayed break: the crate's own update takes the hit.
             for (Player* p : all) {
                 for (const mp::Hit& h : p->game.hits) {
-                    const auto it = std::find_if(p->game.level.begin(), p->game.level.end(), [&](const mp::MobyState& m) {
-                        return m.slot == h.victim;
-                    });
+                    const auto it = std::find_if(
+                        p->game.level.begin(), p->game.level.end(), [&](const mp::MobyState& m) {
+                            return m.slot == h.victim;
+                        }
+                    );
 
                     if (it != p->game.level.end() && it->oclass == 500 && it->key >= 0) {
                         p->game.die(it->slot);
@@ -212,7 +224,9 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
 
     run(120);
     first.game.die(first.game.moby_slot(kKilled));
-    first.game.level.push_back(moby(kSimSlots + 200, -1, kSpawnClass, mp::kMobyUpdates | mp::kMobyCreature, 3.0f));
+    first.game.level.push_back(
+        moby(kSimSlots + 200, -1, kSpawnClass, mp::kMobyUpdates | mp::kMobyCreature, 3.0f)
+    );
     run(play_ticks);
 
     // The awkward moment, set up a little ahead of the drop.
@@ -261,10 +275,14 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
 
         // Of what was still on its way, half makes it.
         if (how == HostGone::kSave) {
-            net->flying.erase(std::remove_if(net->flying.begin(), net->flying.end(), [&](const SimNet::Packet& f) {
-                                  return f.from == 1 && rng() % 2 == 0;
-                              }),
-                              net->flying.end());
+            net->flying.erase(
+                std::remove_if(
+                    net->flying.begin(),
+                    net->flying.end(),
+                    [&](const SimNet::Packet& f) { return f.from == 1 && rng() % 2 == 0; }
+                ),
+                net->flying.end()
+            );
         }
 
         server_away(left, 1);
@@ -333,7 +351,10 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
 
         if (level_of_party == 3) {
             r.wrong_dead += p->game.moby_slot(kKilled) >= 0 ? 1 : 0;
-            r.spawned_apart += count_of_class(p->game, kSpawnClass) != count_of_class(leader->game, kSpawnClass) ? 1 : 0;
+            r.spawned_apart +=
+                count_of_class(p->game, kSpawnClass) != count_of_class(leader->game, kSpawnClass)
+                    ? 1
+                    : 0;
         }
 
         if (saved && p != &first && p->cosave.slot() >= 0) {
@@ -341,10 +362,11 @@ inline TakeoverResult run_takeover(const SimLink& link, unsigned seed, int membe
             r.torn_saves += kept != old_save && kept != Bytes(40000, 2) ? 1 : 0;
         }
 
-        r.held_on += how == HostGone::kGrab && p == all[1]
-                             && std::count(p->game.calls.begin(), p->game.calls.end(), "let go") == 0
-                         ? 1
-                         : 0;
+        r.held_on +=
+            how == HostGone::kGrab && p == all[1]
+                    && std::count(p->game.calls.begin(), p->game.calls.end(), "let go") == 0
+                ? 1
+                : 0;
     }
 
     return r;

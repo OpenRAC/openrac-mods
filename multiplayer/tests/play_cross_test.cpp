@@ -4,9 +4,9 @@
  * Two discs in one party: the check goes by the world the disc belongs to, a player never reads of a
  * disc that plays, and a level that does not agree is caught as it loads.
  */
-#include "test_support.hpp"
-
 #include <algorithm>
+
+#include "test_support.hpp"
 
 namespace mpt {
 

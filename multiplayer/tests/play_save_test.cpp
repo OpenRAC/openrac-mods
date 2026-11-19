@@ -5,19 +5,21 @@
  * does with one that does not. MP_REAL_SAVES=<folder> also runs every save<n>.bin under it that is
  * a played slot (an empty slot's level is -1).
  */
-#include "save_check.hpp"
-#include "test_support.hpp"
-
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 
+#include "save_check.hpp"
+#include "test_support.hpp"
+
 namespace mpt {
 
 namespace {
 
-void put(Bytes& out, std::size_t at, std::int32_t value) { std::memcpy(out.data() + at, &value, 4); }
+void put(Bytes& out, std::size_t at, std::int32_t value) {
+    std::memcpy(out.data() + at, &value, 4);
+}
 
 std::int32_t got(const Bytes& out, std::size_t at) {
     std::int32_t v = 0;
@@ -26,7 +28,9 @@ std::int32_t got(const Bytes& out, std::size_t at) {
 }
 
 /* A part's blocks written as the game does (memcard_PrepData), zeros in each. */
-void write_part(Bytes& out, std::size_t at, std::size_t size, const mp::SaveBlock* blocks, std::size_t count) {
+void write_part(
+    Bytes& out, std::size_t at, std::size_t size, const mp::SaveBlock* blocks, std::size_t count
+) {
     std::size_t p = at + 8;
 
     for (std::size_t i = 0; i < count; ++i) {
@@ -46,7 +50,9 @@ void seal(Bytes& out, std::size_t at, std::size_t size) {
 
 constexpr std::size_t kGamePart = 8;
 
-std::size_t level_part(std::size_t i) { return 8 + mp::kSaveGameBytes + i * mp::kSaveLevelBytes; }
+std::size_t level_part(std::size_t i) {
+    return 8 + mp::kSaveGameBytes + i * mp::kSaveLevelBytes;
+}
 
 Bytes good_save() {
     Bytes out(mp::kSaveBytes, 0);

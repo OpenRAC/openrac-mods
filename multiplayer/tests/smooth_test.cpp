@@ -84,15 +84,21 @@ struct Path {
 };
 
 struct Link {
-    double one_way = 100.0;  // ms
-    double jitter = 10.0;    // ms, the scale of the extra delay
-    double loss = 0.0;       // 0 to 1
+    double one_way = 100.0;    // ms
+    double jitter = 10.0;      // ms, the scale of the extra delay
+    double loss = 0.0;         // 0 to 1
     double clock_error = 0.0;  // the stamps' error in the receiver's clock, ms
 };
 
 // Poses sent every `interval` ms for `length` ms over `link`, in the order they arrive.
-std::vector<Packet> stream(const Path& path, const Link& link, double interval, double length,
-                           bool with_velocity, std::uint64_t seed) {
+std::vector<Packet> stream(
+    const Path& path,
+    const Link& link,
+    double interval,
+    double length,
+    bool with_velocity,
+    std::uint64_t seed
+) {
     Random r(seed);
     std::vector<Packet> out;
     std::uint16_t sequence = 0;
@@ -132,15 +138,27 @@ struct Smooth {
 };
 
 void print(const char* name, const Smooth& s) {
-    std::printf("%-34s frames %5d back %3d (worst %.3f)  step %.2f..%.2f of the run's, rough %.3f, "
-                "kink %.2f, past %d, delay %.0f ms (most %.0f)\n",
-                name, s.frames, s.backs, s.worst_back, s.low, s.high, s.rough, s.kink, s.past, s.delay,
-                s.worst_delay);
+    std::printf(
+        "%-34s frames %5d back %3d (worst %.3f)  step %.2f..%.2f of the run's, rough %.3f, "
+        "kink %.2f, past %d, delay %.0f ms (most %.0f)\n",
+        name,
+        s.frames,
+        s.backs,
+        s.worst_back,
+        s.low,
+        s.high,
+        s.rough,
+        s.kink,
+        s.past,
+        s.delay,
+        s.worst_delay
+    );
 }
 
 // The packets played into a buffer and shown every 1/60 s from `from` ms of the stream.
-Smooth show(const Path& path, const std::vector<Packet>& packets, double from, double until,
-           bool derive) {
+Smooth show(
+    const Path& path, const std::vector<Packet>& packets, double from, double until, bool derive
+) {
     mp::Interpolator in(derive);
     Smooth out;
     std::size_t next = 0;
@@ -188,8 +206,15 @@ Smooth show(const Path& path, const std::vector<Packet>& packets, double from, d
             }
 
             if (std::getenv("SMOOTH_DEBUG") != nullptr && (step / run < 0.5 || step / run > 1.6)) {
-                std::printf("  t %.0f step %.2f shown %s ahead %.1f delay %.0f size %zu\n", t, step / run,
-                            mp::shown_name(in.shown()), in.ahead_ms(), in.delay_ms(), in.size());
+                std::printf(
+                    "  t %.0f step %.2f shown %s ahead %.1f delay %.0f size %zu\n",
+                    t,
+                    step / run,
+                    mp::shown_name(in.shown()),
+                    in.ahead_ms(),
+                    in.delay_ms(),
+                    in.size()
+                );
             }
 
             out.low = std::min(out.low, step / run);
@@ -220,7 +245,8 @@ void figures_over_the_internet() {
         link.jitter = 8.0 + one_way * 0.08;
         link.loss = 0.02;
         link.clock_error = 23.0;
-        const Smooth s = show(path, stream(path, link, 50.0, 20000.0, true, 1), 3000.0, 20000.0, false);
+        const Smooth s =
+            show(path, stream(path, link, 50.0, 20000.0, true, 1), 3000.0, 20000.0, false);
         char name[64];
         std::snprintf(name, sizeof name, "figure, %3.0f ms one way", one_way);
         print(name, s);
@@ -242,8 +268,8 @@ void world_mobys_over_the_internet() {
         link.jitter = 8.0 + one_way * 0.08;
         link.loss = 0.02;
         link.clock_error = -17.0;
-        const Smooth s = show(path, stream(path, link, 1000.0 / 15.0, 20000.0, false, 2), 3000.0, 20000.0,
-                               true);
+        const Smooth s =
+            show(path, stream(path, link, 1000.0 / 15.0, 20000.0, false, 2), 3000.0, 20000.0, true);
         char name[64];
         std::snprintf(name, sizeof name, "moby, %3.0f ms one way", one_way);
         print(name, s);
@@ -301,7 +327,6 @@ void the_recorded_session() {
         CHECK(s.delay > 200.0 && s.delay < 400.0);
     }
 }
-
 
 // Every tenth pose overtaken by the next one (UDP), and each pose twice (the copy 40 ms later):
 // the late ones dropped, what is shown as smooth as without.
@@ -387,8 +412,13 @@ void the_delay_follows_the_link() {
         }
     }
 
-    std::printf("delay: calm %.0f ms, jittery %.0f, a second after %.0f, ten after %.0f\n", calm, rough,
-                after, later);
+    std::printf(
+        "delay: calm %.0f ms, jittery %.0f, a second after %.0f, ten after %.0f\n",
+        calm,
+        rough,
+        after,
+        later
+    );
     // Calm: past the 80 ms in transit by two sends and a little.
     CHECK(calm > 80.0 + 2 * 66.0 && calm < 80.0 + 2 * 66.0 + 60.0);
     // Jittery: well up; then down, slowly (not at once), back near the calm one.
@@ -449,8 +479,12 @@ void a_moby_stops_and_goes_on() {
         last = p.position[0];
     }
 
-    std::printf("a moby stops and goes on: past the stop by %.3f, worst step %.3f (a frame's run %.3f)\n",
-                worst_past, worst_step, speed * frame / 1000.0);
+    std::printf(
+        "a moby stops and goes on: past the stop by %.3f, worst step %.3f (a frame's run %.3f)\n",
+        worst_past,
+        worst_step,
+        speed * frame / 1000.0
+    );
     CHECK(worst_past < 0.01);
     CHECK(worst_step < 2.0 * speed * frame / 1000.0);
 }
@@ -463,7 +497,8 @@ void standing_still_and_a_jump() {
     const double air = 2.0 * up / gravity * 1000.0;
     const auto z_at = [&](double t) {
         const double tau = (t - start) / 1000.0;
-        return t < start || t > start + air ? ground : ground + up * tau - gravity * tau * tau / 2.0;
+        return t < start || t > start + air ? ground
+                                            : ground + up * tau - gravity * tau * tau / 2.0;
     };
     const auto vz_at = [&](double t) {
         return t < start || t > start + air ? -0.749 : up - gravity * (t - start) / 1000.0;
@@ -517,8 +552,12 @@ void standing_still_and_a_jump() {
         }
     }
 
-    std::printf("standing: bob %.4f units over %d frames past the newest; the jump off its arc by %.4f\n",
-                bob, past, arc);
+    std::printf(
+        "standing: bob %.4f units over %d frames past the newest; the jump off its arc by %.4f\n",
+        bob,
+        past,
+        arc
+    );
     CHECK(past > 5);
     CHECK(bob < 0.002);
     CHECK(arc < 0.05);

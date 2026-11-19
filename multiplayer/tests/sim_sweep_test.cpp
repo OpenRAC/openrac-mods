@@ -14,12 +14,12 @@
 //
 // `--takeover` kills the host instead, at each awkward moment of takeover_sim.hpp, on 2 to 4 players,
 // 0, 5 and 15 % loss and 30 and 250 ms: a line a kind of moment, and one a run that ended wrong.
-#include "takeover_sim.hpp"
-
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+
+#include "takeover_sim.hpp"
 
 int g_failures = 0;
 
@@ -36,9 +36,18 @@ struct Named {
 };
 
 const Named kPlans[] = {
-    {"walk", SimPlan{}},                                       // every enemy walks: the most WORLD can have to say
-    {"sparse", [] { SimPlan p; p.walk_every = 12; return p; }()},  // a level as it stands most of the time
-    {"fire", [] { SimPlan p; p.fire = true; return p; }()},   // and the shots take their share
+    {"walk", SimPlan{}},  // every enemy walks: the most WORLD can have to say
+    {"sparse",
+     [] {
+         SimPlan p;
+         p.walk_every = 12;
+         return p;
+     }()},  // a level as it stands most of the time
+    {"fire", [] {
+         SimPlan p;
+         p.fire = true;
+         return p;
+     }()},  // and the shots take their share
 };
 
 struct Cell {
@@ -62,8 +71,11 @@ long percentile(std::vector<long> v, double at) {
 }
 
 const char* kind_name(int kind) {
-    return kind == mp::kind::kWorld ? "WORLD" : kind == mp::kind::kPoses ? "POSES" : kind == mp::kind::kPose ? "POSE"
-           : kind == mp::kind::kShotX ? "SHOTX" : "other";
+    return kind == mp::kind::kWorld   ? "WORLD"
+           : kind == mp::kind::kPoses ? "POSES"
+           : kind == mp::kind::kPose  ? "POSE"
+           : kind == mp::kind::kShotX ? "SHOTX"
+                                      : "other";
 }
 
 }  // namespace
@@ -95,10 +107,25 @@ long sweep_takeover(int seeds, unsigned base, int shard, int shards) {
 
                         if (r.bad()) {
                             ++wrong;
-                            std::printf("%s pl %d loss %.0f ms %.0f seed %u: host %d hosted %d stuck %d crates %d dead %d place %d "
-                                        "saves %d spawned %d held %d\n",
-                                        host_gone_name(how), members + 1, loss, latency, seed, r.host, r.hosted, r.stuck,
-                                        r.wrong_crates, r.wrong_dead, r.wrong_place, r.torn_saves, r.spawned_apart, r.held_on);
+                            std::printf(
+                                "%s pl %d loss %.0f ms %.0f seed %u: host %d hosted %d stuck %d "
+                                "crates %d dead %d place %d "
+                                "saves %d spawned %d held %d\n",
+                                host_gone_name(how),
+                                members + 1,
+                                loss,
+                                latency,
+                                seed,
+                                r.host,
+                                r.hosted,
+                                r.stuck,
+                                r.wrong_crates,
+                                r.wrong_dead,
+                                r.wrong_place,
+                                r.torn_saves,
+                                r.spawned_apart,
+                                r.held_on
+                            );
                         }
                     }
                 }
@@ -158,8 +185,23 @@ int main(int argc, char** argv) {
     long runs = 0, index = 0, bad = 0;
 
     if (!csv) {
-        std::printf("%-7s %3s %5s %4s %5s %4s %7s %7s %7s %6s %7s %7s %7s %7s\n", "plan", "pl", "loss", "ms", "runs", "bad", "settle50",
-                    "99", "max", "gapmax", "WORLD/s", "dgram/s", "kB/s", "total");
+        std::printf(
+            "%-7s %3s %5s %4s %5s %4s %7s %7s %7s %6s %7s %7s %7s %7s\n",
+            "plan",
+            "pl",
+            "loss",
+            "ms",
+            "runs",
+            "bad",
+            "settle50",
+            "99",
+            "max",
+            "gapmax",
+            "WORLD/s",
+            "dgram/s",
+            "kB/s",
+            "total"
+        );
     }
 
     for (Named named : kPlans) {
@@ -187,8 +229,11 @@ int main(int argc, char** argv) {
                         link.duplicate = 0.01;
                         SimNet* net = nullptr;
                         const unsigned seed = base + static_cast<unsigned>(s);
-                        const SimResult r = run_sim(link, seed, members, kPlaySeconds, &net, named.plan);
-                        const bool wrong = r.refused != 0 || r.settled_ms < 0 || net->state_drops != 0 || net->data_drops != 0 || net->kicked != 0;
+                        const SimResult r =
+                            run_sim(link, seed, members, kPlaySeconds, &net, named.plan);
+                        const bool wrong = r.refused != 0 || r.settled_ms < 0
+                                           || net->state_drops != 0 || net->data_drops != 0
+                                           || net->kicked != 0;
                         ++cell.runs;
                         ++runs;
                         cell.bad += wrong ? 1 : 0;
@@ -211,16 +256,38 @@ int main(int argc, char** argv) {
                         }
 
                         if (csv) {
-                            std::printf("%s,%d,%.0f,%.0f,%u,%d,%ld,%d,%d,%d,%d,%.0f,%ld,%ld,%ld", named.name, members + 1, loss, latency, seed,
-                                        wrong ? 1 : 0, r.settled_ms, r.most_wrong, r.wrong_place, r.wrong_hidden, r.wrong_crates,
-                                        r.worst_gap_ms, net->state_drops, net->data_drops, net->kicked);
+                            std::printf(
+                                "%s,%d,%.0f,%.0f,%u,%d,%ld,%d,%d,%d,%d,%.0f,%ld,%ld,%ld",
+                                named.name,
+                                members + 1,
+                                loss,
+                                latency,
+                                seed,
+                                wrong ? 1 : 0,
+                                r.settled_ms,
+                                r.most_wrong,
+                                r.wrong_place,
+                                r.wrong_hidden,
+                                r.wrong_crates,
+                                r.worst_gap_ms,
+                                net->state_drops,
+                                net->data_drops,
+                                net->kicked
+                            );
 
                             // In the play, then all of the run.
                             for (const auto* traffic : {&net->played_state, &net->host_state}) {
-                                for (const int kind : {mp::kind::kWorld, mp::kind::kPoses, mp::kind::kPose, mp::kind::kShotX}) {
+                                for (const int kind :
+                                     {mp::kind::kWorld,
+                                      mp::kind::kPoses,
+                                      mp::kind::kPose,
+                                      mp::kind::kShotX}) {
                                     const auto it = traffic->find(kind);
-                                    std::printf(",%ld,%ld", it != traffic->end() ? it->second.messages : 0,
-                                                it != traffic->end() ? it->second.bytes : 0);
+                                    std::printf(
+                                        ",%ld,%ld",
+                                        it != traffic->end() ? it->second.messages : 0,
+                                        it != traffic->end() ? it->second.bytes : 0
+                                    );
                                 }
                             }
 
@@ -243,19 +310,32 @@ int main(int argc, char** argv) {
                         }
 
                         const SimNet::Traffic world = cell.host_state[mp::kind::kWorld];
-                        std::printf("%-7s %3d %5.0f %4.0f %5ld %4ld %7ld %7ld %7ld %6.0f %7.1f %7.1f %7.1f %7.1f\n", named.name, members + 1, loss,
-                                    latency, cell.runs, cell.bad, percentile(cell.settled, 0.5), percentile(cell.settled, 0.99),
-                                    percentile(cell.settled, 1.0), *std::max_element(cell.gaps.begin(), cell.gaps.end()),
-                                    static_cast<double>(world.messages) / cell.seconds, static_cast<double>(messages) / cell.seconds,
-                                    static_cast<double>(world.bytes) / cell.seconds / 1000.0,
-                                    static_cast<double>(bytes) / cell.seconds / 1000.0);
+                        std::printf(
+                            "%-7s %3d %5.0f %4.0f %5ld %4ld %7ld %7ld %7ld %6.0f %7.1f %7.1f %7.1f "
+                            "%7.1f\n",
+                            named.name,
+                            members + 1,
+                            loss,
+                            latency,
+                            cell.runs,
+                            cell.bad,
+                            percentile(cell.settled, 0.5),
+                            percentile(cell.settled, 0.99),
+                            percentile(cell.settled, 1.0),
+                            *std::max_element(cell.gaps.begin(), cell.gaps.end()),
+                            static_cast<double>(world.messages) / cell.seconds,
+                            static_cast<double>(messages) / cell.seconds,
+                            static_cast<double>(world.bytes) / cell.seconds / 1000.0,
+                            static_cast<double>(bytes) / cell.seconds / 1000.0
+                        );
                     }
                 }
             }
         }
     }
 
-    const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    const double took =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 
     if (!csv) {
         std::printf("%ld runs, %ld wrong, %.1f s\n", runs, bad, took);

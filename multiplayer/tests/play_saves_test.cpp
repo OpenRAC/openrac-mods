@@ -346,7 +346,9 @@ void starting_again_keeps_the_last_games_slot() {
     CHECK(party.host.cosave.key() != first);
 
     for (Player* p : party.players()) {
-        CHECK(p->cosave.on() && p->cosave.slot() == 1 && p->cosave.key() == party.host.cosave.key());
+        CHECK(
+            p->cosave.on() && p->cosave.slot() == 1 && p->cosave.key() == party.host.cosave.key()
+        );
         CHECK(p->game.slots[0] == saved && p->game.slots[1] == chosen);
         CHECK(p->game.own_saves.empty());
     }
@@ -439,8 +441,10 @@ void slots_are_chosen_and_notes_read_back() {
 
     // Full: the one saved longest ago.
     CHECK(mp::pick_slot(notes, 99) == 4);
-    CHECK(mp::coop_row(1, "Pokitaru, 3 gold bolts", {1, 2, "Kero"}, true)
-          == "Co-op 2: Pokitaru, 3 gold bolts, Kero's party");
+    CHECK(
+        mp::coop_row(1, "Pokitaru, 3 gold bolts", {1, 2, "Kero"}, true)
+        == "Co-op 2: Pokitaru, 3 gold bolts, Kero's party"
+    );
     CHECK(mp::coop_row(0, "", {}, false) == "Co-op 1: empty");
 }
 

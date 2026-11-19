@@ -65,7 +65,9 @@ void wire_round_trip() {
     Bytes wire = mp::encode_camscript(script);
     CHECK(wire.size() == 1 + 4 + 4 + 2 + 2 + 1 + 36);
     CHECK(mp::decode_camscript(wire, out));
-    CHECK(out.play == 7 && out.level == 18 && out.sequence == 0xBEEF && out.id == 1270 && out.started);
+    CHECK(
+        out.play == 7 && out.level == 18 && out.sequence == 0xBEEF && out.id == 1270 && out.started
+    );
     CHECK(out.where[1] == 2.0f && out.eye[2] == 3.0f && out.rotation[0] == -1.5f);
 
     script.id = -1;
@@ -84,11 +86,16 @@ void wire_round_trip() {
     wire = mp::encode_camstate(state);
     CHECK(wire.size() == 35);
     CHECK(mp::decode_camstate(wire, back));
-    CHECK(back.sequence == 9 && back.stamp == state.stamp && back.eye[0] == 1.0f && back.rotation[2] == 0.5f);
+    CHECK(
+        back.sequence == 9 && back.stamp == state.stamp && back.eye[0] == 1.0f
+        && back.rotation[2] == 0.5f
+    );
 
     // Cut short anywhere: nothing taken.
     for (std::size_t n = 0; n < wire.size(); ++n) {
-        CHECK(!mp::decode_camstate(Bytes(wire.begin(), wire.begin() + static_cast<std::ptrdiff_t>(n)), back));
+        CHECK(!mp::decode_camstate(
+            Bytes(wire.begin(), wire.begin() + static_cast<std::ptrdiff_t>(n)), back
+        ));
     }
 }
 
@@ -97,10 +104,11 @@ void who_sees_what_goes_by_class() {
     CHECK(mp::camera_share(1028) == mp::CamShare::kCamNear);
     CHECK(mp::camera_share(kLift) == mp::CamShare::kCamRiders);
     CHECK(mp::camera_share(1270) == mp::CamShare::kCamRiders);
+
     // The gold bolt's stays the collector's; seats, rides, machines and what opens a fight, and any
     // class not named, are nobody else's.
-    for (const int own : {kGoldBolt, kCannon, 1201, 1267, 1242, 69, 1379, 713, 1109, 1448, 280, 1251, 615, 1005,
-                          459, 688, 1051, 1422, 11, 0, -1}) {
+    for (const int own : {kGoldBolt, kCannon, 1201, 1267, 1242, 69,   1379, 713, 1109, 1448, 280,
+                          1251,      615,     1005, 459,  688,  1051, 1422, 11,  0,    -1}) {
         CHECK(mp::camera_share(own) == mp::CamShare::kCamOwn);
     }
 }

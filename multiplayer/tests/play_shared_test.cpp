@@ -29,7 +29,8 @@ struct Three : Party {
 };
 
 std::uint8_t& flag(mp::SharedBits& bits, int level, int index) {
-    return bits.flags[static_cast<std::size_t>(level) * mp::kFlagsPerLevel + static_cast<std::size_t>(index)];
+    return bits.flags
+        [static_cast<std::size_t>(level) * mp::kFlagsPerLevel + static_cast<std::size_t>(index)];
 }
 
 void wire_round_trip() {
@@ -48,7 +49,9 @@ void wire_round_trip() {
     // Cut short anywhere: nothing taken.
     for (std::size_t n = 0; n < wire.size(); ++n) {
         mp::SharedBits kept;
-        CHECK(!mp::decode_shared(Bytes(wire.begin(), wire.begin() + static_cast<std::ptrdiff_t>(n)), kept));
+        CHECK(!mp::decode_shared(
+            Bytes(wire.begin(), wire.begin() + static_cast<std::ptrdiff_t>(n)), kept
+        ));
     }
 
     // A section of the wrong length: refused. A tag unknown here: passed over.
@@ -64,7 +67,10 @@ void wire_round_trip() {
     row[3] = 0xFF;
     int level = -1;
     std::array<std::uint8_t, mp::kFlagsPerLevel> back{};
-    CHECK(mp::decode_mission(mp::encode_mission(7, row.data()), level, back) && level == 7 && back == row);
+    CHECK(
+        mp::decode_mission(mp::encode_mission(7, row.data()), level, back) && level == 7
+        && back == row
+    );
     Bytes off_the_end = mp::encode_mission(7, row.data());
     off_the_end[1] = 20;
     CHECK(!mp::decode_mission(off_the_end, level, back));
@@ -83,7 +89,9 @@ void a_gold_weapon_and_a_skill_point_reach_everyone() {
     }
 
     // Silent: nothing was given as the game gives things.
-    CHECK(party.a.game.given.empty() && party.host.game.given.empty() && party.b.game.given.empty());
+    CHECK(
+        party.a.game.given.empty() && party.host.game.given.empty() && party.b.game.given.empty()
+    );
 }
 
 void nothing_is_taken_and_a_spent_item_stays_spent() {
@@ -140,10 +148,12 @@ void a_members_scene_flag_never_reaches_the_host() {
     party.settle();
     CHECK(flag(party.host.game.sections, 3, 2) == 0);
     CHECK(flag(party.b.game.sections, 3, 2) == 0);
+
     // Not from another level either: the host is still to play it there.
     for (Player* p : party.players()) {
         p->game.now = {mp::kPhasePlaying, 4, 3};
     }
+
     party.settle();
     CHECK(flag(party.host.game.sections, 3, 2) == 0);
     // Its own game keeps it.

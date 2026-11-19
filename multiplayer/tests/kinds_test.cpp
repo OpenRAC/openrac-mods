@@ -31,8 +31,13 @@ void no_two_kinds_share_a_value() {
     for (std::size_t i = 0; i < kCount; ++i) {
         for (std::size_t j = i + 1; j < kCount; ++j) {
             if (mp::kKinds[i].value == mp::kKinds[j].value) {
-                std::fprintf(stderr, "kinds %s and %s share %d\n", mp::kKinds[i].name, mp::kKinds[j].name,
-                             mp::kKinds[i].value);
+                std::fprintf(
+                    stderr,
+                    "kinds %s and %s share %d\n",
+                    mp::kKinds[i].name,
+                    mp::kKinds[j].name,
+                    mp::kKinds[i].value
+                );
             }
 
             CHECK(mp::kKinds[i].value != mp::kKinds[j].value);
@@ -71,7 +76,10 @@ void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(56) == Owner::kTether && mp::owner_of(59) == Owner::kTether);
     CHECK(mp::owner_of(60) == Owner::kPartyRules && mp::owner_of(63) == Owner::kPartyRules);
     // The lobby's, all read by the Session and never handed to the game's data.
-    CHECK(mp::owner_of(64) == Owner::kLobby && mp::owner_of(67) == Owner::kLobby && mp::owner_of(70) == Owner::kLobby);
+    CHECK(
+        mp::owner_of(64) == Owner::kLobby && mp::owner_of(67) == Owner::kLobby
+        && mp::owner_of(70) == Owner::kLobby
+    );
     CHECK(mp::owner_of(71) == Owner::kWorld && mp::owner_of(72) == Owner::kWorld);
     // The team tools' (comfort.hpp): 80 is multiplayer 0.8.0's kind, 81 to 83 kept for them.
     CHECK(mp::kind::kComfort == 80);
@@ -117,10 +125,14 @@ void the_router_sends_every_kind_where_the_old_chain_did() {
     Owner reached = Owner::kCount;
 
     for (const Owner o : {Owner::kMods, Owner::kWorld, Owner::kProgress, Owner::kComfort}) {
-        router.route(o, [&reached, o](std::int32_t, const std::vector<std::uint8_t>&) { reached = o; });
+        router.route(o, [&reached, o](std::int32_t, const std::vector<std::uint8_t>&) {
+            reached = o;
+        });
     }
 
-    router.fallback([&reached](std::int32_t, const std::vector<std::uint8_t>&) { reached = Owner::kCoop; });
+    router.fallback([&reached](std::int32_t, const std::vector<std::uint8_t>&) {
+        reached = Owner::kCoop;
+    });
 
     for (unsigned k = 0; k < 256; ++k) {
         reached = Owner::kCount;

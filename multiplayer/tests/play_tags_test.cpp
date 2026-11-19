@@ -39,7 +39,9 @@ public:
         drawn.push_back({x, y, w, h, colour, ""});
     }
 
-    void text(float x, float y, float height, std::uint32_t colour, const std::string& line) override {
+    void text(
+        float x, float y, float height, std::uint32_t colour, const std::string& line
+    ) override {
         drawn.push_back({x, y, 0, height, colour, line});
     }
 
@@ -48,9 +50,10 @@ public:
     }
 
     float fade(float distance, float near_distance, float far_distance) override {
-        return distance >= far_distance  ? 0.0f
-               : distance <= near_distance ? 1.0f
-                                           : (far_distance - distance) / (far_distance - near_distance);
+        return distance >= far_distance ? 0.0f
+               : distance <= near_distance
+                   ? 1.0f
+                   : (far_distance - distance) / (far_distance - near_distance);
     }
 
     const Drawn* text_drawn() const {
@@ -97,7 +100,8 @@ void far_away_there_is_nothing_at_all() {
 
     // On the way out, the text is at its smallest and half faded, its backing with it.
     FakePainter between;
-    const mp::TagStats mid = mp::draw_name_tags(between, kCamera, {tag_at((mp::kTagFadeFrom + mp::kTagGone) / 2)});
+    const mp::TagStats mid =
+        mp::draw_name_tags(between, kCamera, {tag_at((mp::kTagFadeFrom + mp::kTagGone) / 2)});
     const Drawn* text = between.text_drawn();
     CHECK(mid.drawn == 1 && text != nullptr && text->h == mp::kTagTextFar);
     const std::uint32_t alpha = text->colour & 0xFFu;
@@ -266,6 +270,7 @@ void each_slot_has_its_colour() {
  * game; none for one hidden by a scene or gone. */
 void the_shown_figures_have_their_names() {
     Party party;
+
     for (int i = 0; i < 30; ++i) {
         tick(party.players(), 16);
     }
@@ -322,18 +327,38 @@ void the_launchers_file_is_read() {
     mp::ModSetFile file;
     CHECK(mp::parse_modset(kFile, file));
     CHECK(file.code == "K7M2-9QXR" && file.link == "openrac://modset/K7M2-9QXR");
-    CHECK(file.mods.size() == 2 && file.mods[1].first == "item-randomizer" && file.mods[1].second == "0.3.1");
+    CHECK(
+        file.mods.size() == 2 && file.mods[1].first == "item-randomizer"
+        && file.mods[1].second == "0.3.1"
+    );
     // The server could not be reached: no short code, the long link.
-    CHECK(mp::parse_modset(R"({"format":1,"code":null,"link":"openrac://modset/ORMS1.abc","mods":[]})", file));
+    CHECK(
+        mp::parse_modset(
+            R"({"format":1,"code":null,"link":"openrac://modset/ORMS1.abc","mods":[]})", file
+        )
+    );
     CHECK(file.code.empty() && file.link == "openrac://modset/ORMS1.abc" && file.mods.empty());
     // Keys of a later file are passed over.
-    CHECK(mp::parse_modset(R"({"format":1,"future":{"a":[1,"}",null]},"mods":[{"id":"a","version":"1","x":2}]})", file));
+    CHECK(
+        mp::parse_modset(
+            R"({"format":1,"future":{"a":[1,"}",null]},"mods":[{"id":"a","version":"1","x":2}]})",
+            file
+        )
+    );
     CHECK(file.mods.size() == 1);
 
-    for (const char* bad : {"", "[]", "{", "{}", R"({"format":2,"mods":[]})", R"({"format":1})",
-                            R"({"mods":[]})", R"({"format":1,"mods":[{"id":"a"}]})",
-                            R"({"format":1,"mods":[]} x)", R"({"format":1,"mods":[}")",
-                            R"({"format":1,"code":7,"mods":[]})"}) {
+    for (const char* bad :
+         {"",
+          "[]",
+          "{",
+          "{}",
+          R"({"format":2,"mods":[]})",
+          R"({"format":1})",
+          R"({"mods":[]})",
+          R"({"format":1,"mods":[{"id":"a"}]})",
+          R"({"format":1,"mods":[]} x)",
+          R"({"format":1,"mods":[}")",
+          R"({"format":1,"code":7,"mods":[]})"}) {
         CHECK(!mp::parse_modset(bad, file));
     }
 
@@ -353,9 +378,13 @@ void the_code_shows_only_for_the_mods_it_names() {
     same.mods.push_back(input);
     CHECK(mp::modset_matches(file, same));
     // Another version, a mod more, a mod less: not this code.
-    CHECK(!mp::modset_matches(file, list_of({{"item-randomizer", "0.3.2"}, {"difficulty-mod", "1.4.0"}})));
+    CHECK(!mp::modset_matches(
+        file, list_of({{"item-randomizer", "0.3.2"}, {"difficulty-mod", "1.4.0"}})
+    ));
     CHECK(!mp::modset_matches(file, list_of({{"difficulty-mod", "1.4.0"}})));
-    CHECK(!mp::modset_matches(file, list_of({{"item-randomizer", "0.3.1"}, {"difficulty-mod", "1.4.0"}, {"x", "1"}})));
+    CHECK(!mp::modset_matches(
+        file, list_of({{"item-randomizer", "0.3.1"}, {"difficulty-mod", "1.4.0"}, {"x", "1"}})
+    ));
 }
 
 void a_join_request_is_for_one_start() {
@@ -375,6 +404,7 @@ void a_join_request_is_for_one_start() {
     // Gone: the next start joins nothing.
     CHECK(!std::filesystem::exists(folder / "modset-join.json"));
     CHECK(mp::take_join_request(folder.string(), now).empty());
+
     // Stale, from the future, no party code, another format, not JSON: nothing, and gone too.
     for (const std::string& bad : {
              std::string(R"({"format": 1, "party": "ABC234", "written": 1})"),
@@ -390,6 +420,7 @@ void a_join_request_is_for_one_start() {
         CHECK(mp::take_join_request(folder.string(), now).empty());
         CHECK(!std::filesystem::exists(folder / "modset-join.json"));
     }
+
     std::filesystem::remove_all(folder);
 }
 
@@ -424,8 +455,17 @@ void only_a_codes_shape_is_a_code() {
     CHECK(mp::valid_mod_code("K7M2-9QXR"));
     CHECK(mp::mod_code_link("K7M2-9QXR") == "openrac://modset/K7M2-9QXR");
 
-    for (const char* bad : {"", "K7M29QXR", "K7M2-9QX", "K7M2-9QXRR", "K0M2-9QXR", "k7m2-9qxr", "K7M2_9QXR",
-                            "K7M2/9QXR", "../../x.", "https://x"}) {
+    for (const char* bad :
+         {"",
+          "K7M29QXR",
+          "K7M2-9QX",
+          "K7M2-9QXRR",
+          "K0M2-9QXR",
+          "k7m2-9qxr",
+          "K7M2_9QXR",
+          "K7M2/9QXR",
+          "../../x.",
+          "https://x"}) {
         CHECK(!mp::valid_mod_code(bad) && mp::mod_code_link(bad).empty());
     }
 }
@@ -469,9 +509,12 @@ void a_code_on_the_wire_is_only_a_code() {
 }
 
 void the_words_name_no_region() {
-    for (const std::string& line : {std::string(mp::kModCodeLabel), std::string(mp::kModCodeHint),
-                                    std::string(mp::kModCodeInLauncher), std::string(mp::kOpenInLauncher),
-                                    std::string(mp::kDifferentDisc)}) {
+    for (const std::string& line :
+         {std::string(mp::kModCodeLabel),
+          std::string(mp::kModCodeHint),
+          std::string(mp::kModCodeInLauncher),
+          std::string(mp::kOpenInLauncher),
+          std::string(mp::kDifferentDisc)}) {
         CHECK(line.find("PAL") == std::string::npos && line.find("NTSC") == std::string::npos);
         CHECK(line.size() <= mp::kPauseLine + 10);
     }

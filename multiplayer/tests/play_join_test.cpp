@@ -3,9 +3,9 @@
 //
 // Playing together, without the game or a socket: a late member put beside the host, Go to host,
 // the warning before the ship, votes on waits, and a host that starts again.
-#include "test_support.hpp"
-
 #include <cmath>
+
+#include "test_support.hpp"
 
 namespace mpt {
 namespace {
@@ -37,7 +37,8 @@ struct Party {
         tick({&host, &member}, 16);
         host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
         // The world's answer waits for a listing with something in it.
-        host.game.level = member.game.level = late.game.level = {moby(5, 5, 13, mp::kMobyUpdates, 3.0f)};
+        host.game.level = member.game.level =
+            late.game.level = {moby(5, 5, 13, mp::kMobyUpdates, 3.0f)};
         host.game.hero_pose.flags = mp::kPoseSteady;
         host.game.hero_pose.position[0] = 10.0f;
         host.game.hero_pose.position[1] = 20.0f;
@@ -73,7 +74,6 @@ struct Party {
         CHECK(late.world.synced());
     }
 };
-
 
 // The ordinary case: held on the joining line until the host's word, then beside it, and safe.
 void a_joiner_is_put_beside_the_host() {
@@ -132,7 +132,9 @@ void a_host_never_safe_gives_its_last_spot_or_none() {
         p.run(mp::kPlaceWaitMs + 1000);
         CHECK(p.late.game.placed.empty());
         CHECK(!p.late.coop.joining() && !p.late.coop.hold_input());
-        CHECK(logged(p.late_log, "place: no spot beside the host: staying where the level put this game"));
+        CHECK(logged(
+            p.late_log, "place: no spot beside the host: staying where the level put this game"
+        ));
     }
 }
 
@@ -165,9 +167,11 @@ void a_scene_in_progress_is_waited_out() {
     p.come();
     p.in_level();
     const auto scene_asked = [&] {
-        return std::count_if(p.late.game.calls.begin(), p.late.game.calls.end(), [](const std::string& c) {
-            return c.rfind("scene", 0) == 0;
-        });
+        return std::count_if(
+            p.late.game.calls.begin(), p.late.game.calls.end(), [](const std::string& c) {
+                return c.rfind("scene", 0) == 0;
+            }
+        );
     };
     p.run(mp::kPlaceWaitMs + 2000);
     CHECK(p.late.coop.joining() && p.late.coop.hold_input() && p.late.game.placed.empty());
@@ -222,17 +226,22 @@ void a_place_needs_the_hosts_word_for_this_asking() {
     const auto place = [](std::int32_t play, std::uint16_t ticket) {
         mp::Writer w;
         w.u8(static_cast<std::uint8_t>(mp::GameKind::kPlace)).i32(play);
-        w.u8(static_cast<std::uint8_t>(ticket >> 8)).u8(static_cast<std::uint8_t>(ticket)).u8(mp::kPlaceHere);
+        w.u8(static_cast<std::uint8_t>(ticket >> 8))
+            .u8(static_cast<std::uint8_t>(ticket))
+            .u8(mp::kPlaceHere);
+
         for (int i = 0; i < 4; ++i) {
             w.i32(0);
         }
+
         return w.bytes();
     };
     const std::int32_t play = p.late.coop.play();
     p.late.coop.handle(1, place(play + 2, 1));  // another game's
     p.late.coop.handle(1, place(play, 2));      // another asking's
     p.late.coop.handle(2, place(play, 1));      // a member's
-    p.late.coop.handle(1, Bytes{static_cast<std::uint8_t>(mp::GameKind::kPlace), 1, 2});  // cut short
+    p.late.coop
+        .handle(1, Bytes{static_cast<std::uint8_t>(mp::GameKind::kPlace), 1, 2});  // cut short
     CHECK(p.late.game.placed.empty());
     p.late.coop.handle(1, place(play, 1));
     CHECK(p.late.game.placed.size() == 1);
@@ -249,9 +258,11 @@ void a_joiner_takes_no_damage() {
     const auto damage = [&] {
         mp::Writer w;
         w.u8(static_cast<std::uint8_t>(mp::WorldKind::kDamage)).u8(0xFF).u8(0xFF).i32(1);
+
         for (int i = 0; i < 7; ++i) {
             w.i32(0);
         }
+
         return w.bytes();
     };
     // Just placed.
@@ -288,8 +299,11 @@ void go_to_host_from_the_pause_page() {
     CHECK(p.member.game.placed.size() == 1 && p.member.coop.going());
     // Shut: there.
     p.member.game.now.phase = mp::kPhasePlaying;
-    std::copy(p.host.game.hero_pose.position, p.host.game.hero_pose.position + 3,
-              p.member.game.hero_pose.position);
+    std::copy(
+        p.host.game.hero_pose.position,
+        p.host.game.hero_pose.position + 3,
+        p.member.game.hero_pose.position
+    );
     p.run(200);
     CHECK(!p.member.coop.going() && p.member.coop.shielded());
 
@@ -330,7 +344,10 @@ void the_ship_holds_for_a_member_by_the_hosts_rule() {
         CHECK(p.host.coop.ship_travel(5, 3));
         p.run(100);
         CHECK(p.member.coop.ship_held());
-        CHECK(p.member.coop.banner(p.member.clock) == "The host is leaving for Planet5: press Start when you are ready");
+        CHECK(
+            p.member.coop.banner(p.member.clock)
+            == "The host is leaving for Planet5: press Start when you are ready"
+        );
         CHECK(p.member.coop.start_blocked(mp::kPhasePlaying));
         // Well past the plain warning: still here.
         p.run(mp::kTravelWarnMs * 3);
@@ -422,30 +439,39 @@ void a_wait_can_be_voted_away() {
         Player host(1), a(2), b(4), slow(3);
         const std::vector<mp::Member> everyone = {{1, "P1"}, {2, "P2"}, {3, "P3"}, {4, "P4"}};
         std::vector<Player*> all = {&host, &a, &b, &slow};
+
         for (Player* p : all) {
             p->session.handle(info(everyone));
         }
+
         host.coop.choose({}, "New game");
         CHECK(start_ready(host));
         route(all);
         tick(all, 16);
+
         for (Player* p : all) {
             p->game.now = {mp::kPhasePlaying, 3, 2};
         }
+
         for (int i = 0; i < 20; ++i) {
             tick(all, 50);
         }
+
         CHECK(host.coop.ship_travel(5, 3));
         CHECK(host.coop.waiting_for() == 3);
         route(all);
+
         for (int i = 0; i < 70; ++i) {
             tick(all, 50);
         }
+
         host.game.now = a.game.now = b.game.now = {mp::kPhasePlaying, 5, 4};
         slow.game.now = {mp::kPhaseLoading, 5, 3};
+
         for (int i = 0; i < 40; ++i) {
             tick(all, 50);
         }
+
         CHECK(host.coop.waiting_for() == 1);
         CHECK(a.coop.hold_input() && b.coop.hold_input() && host.coop.hold_input());
         CHECK(a.coop.wait_kind() == mp::kWaitArrival && a.coop.wait_voters() == 3);
@@ -458,9 +484,11 @@ void a_wait_can_be_voted_away() {
             // One of three is no majority, however often it presses.
             a.coop.own_skip(mp::kPhasePlaying, a.clock);
             a.coop.own_skip(mp::kPhasePlaying, a.clock);
+
             for (int i = 0; i < 4; ++i) {
                 tick(all, 50);
             }
+
             CHECK(host.coop.arriving() && a.coop.wait_votes() == 1);
             CHECK(a.coop.banner(a.clock).find("(1/3)") != std::string::npos);
             b.coop.own_skip(mp::kPhasePlaying, b.clock);
@@ -470,6 +498,7 @@ void a_wait_can_be_voted_away() {
         for (int i = 0; i < 10; ++i) {
             tick(all, 50);
         }
+
         CHECK(!host.coop.arriving() && !host.coop.hold_input());
         CHECK(!a.coop.hold_input() && !b.coop.hold_input());
         CHECK(a.coop.wait_kind() == mp::kWaitNone);
@@ -537,19 +566,28 @@ void a_host_starts_again() {
             CHECK(p.member.coop.take_notice() == mp::kBadSaveMember);
             p.member.game.now = {mp::kPhaseFrontEnd, -1, 3};
             p.run(200);
-            CHECK(std::count_if(p.member.game.calls.begin(), p.member.game.calls.end(), [](const std::string& c) {
-                      return c.rfind("start", 0) == 0;
-                  }) == 0);
+            CHECK(
+                std::count_if(
+                    p.member.game.calls.begin(),
+                    p.member.game.calls.end(),
+                    [](const std::string& c) { return c.rfind("start", 0) == 0; }
+                )
+                == 0
+            );
             continue;
         }
 
         // Its way out, then the title, then the host's new game, from its save.
         p.member.game.now = {mp::kPhaseLoading, 3, 3};
         p.run(100);
-        CHECK(std::count(p.member.game.calls.begin(), p.member.game.calls.end(), "start -1 3000") == 0);
+        CHECK(
+            std::count(p.member.game.calls.begin(), p.member.game.calls.end(), "start -1 3000") == 0
+        );
         p.member.game.now = {mp::kPhaseFrontEnd, -1, 3};
         p.run(100);
-        CHECK(std::count(p.member.game.calls.begin(), p.member.game.calls.end(), "start -1 3000") == 1);
+        CHECK(
+            std::count(p.member.game.calls.begin(), p.member.game.calls.end(), "start -1 3000") == 1
+        );
         CHECK(p.member.game.started_save == Bytes(3000, 1));
         CHECK(!p.member.coop.joining());
     }

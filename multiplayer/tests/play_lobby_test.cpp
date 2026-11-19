@@ -3,11 +3,10 @@
 //
 // Tests of the party's management: a host taking a member out, a ban of a co-op save against a
 // launcher's key, and the data packs a party compares.
-#include "test_support.hpp"
-
 #include <cstring>
 
 #include "menu.hpp"
+#include "test_support.hpp"
 
 namespace mpt {
 namespace {
@@ -151,11 +150,13 @@ void a_server_without_kick_gets_no_request() {
 }
 
 void the_words_fit_their_lines() {
-    for (const char* line : {mp::kRemoveLabel, mp::kBanLabel, mp::kRemoveNote, mp::kBanNote, mp::kCopyCodeLabel}) {
+    for (const char* line :
+         {mp::kRemoveLabel, mp::kBanLabel, mp::kRemoveNote, mp::kBanNote, mp::kCopyCodeLabel}) {
         CHECK(std::strlen(line) <= mp::kPauseLine);
     }
 
-    for (const char* line : {mp::kKickedNotice, mp::kBannedNotice, mp::kBannedSent, mp::kRemoveHint}) {
+    for (const char* line :
+         {mp::kKickedNotice, mp::kBannedNotice, mp::kBannedSent, mp::kRemoveHint}) {
         CHECK(std::strlen(line) <= mp::kFooterMax);
     }
 }
@@ -318,7 +319,9 @@ void a_members_key_reaches_the_host_alone() {
 void a_ban_stays_with_the_save() {
     Saving party;
     Player& host = party.host;
-    const auto key_of = [](std::int32_t id) { return id == 2 ? kKeyA : id == 3 ? kKeyB : std::string(); };
+    const auto key_of = [](std::int32_t id) {
+        return id == 2 ? kKeyA : id == 3 ? kKeyB : std::string();
+    };
     CHECK(host.cosave.banned_members(key_of).empty());
     CHECK(!host.cosave.ban("not a key"));
     CHECK(!party.a.cosave.ban(kKeyB));  // only the host's
@@ -393,7 +396,10 @@ void data_packs_are_compared() {
     mp::ModList host = sample_list(), own = sample_list();
     host.packs = own.packs = {pack("a", 1), pack("b", 2)};
     CHECK(mp::compare_mods(own, host).empty());
-    CHECK(mp::mods_digest(own) == mp::mods_digest(host) && mp::mods_digest(host) != mp::mods_digest(none));
+    CHECK(
+        mp::mods_digest(own) == mp::mods_digest(host)
+        && mp::mods_digest(host) != mp::mods_digest(none)
+    );
 
     // The same packs on either disc: the world's family is what counts, and the digests agree.
     mp::ModList other = host;
