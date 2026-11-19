@@ -23,9 +23,11 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
     // Left down with no word from the host: the game's own way.
     Pose hero;
 
+    // With the rule on, a dead hero stays down for the host's word instead of respawning at once.
     if (death_held_ && game_.hero(hero) && hero.health <= 0) {
         dead_ms_ = dead_ms_ != 0 ? dead_ms_ : now;
 
+        // No word came within the longest time down plus the grace, so the game's own respawn runs.
         if (now - dead_ms_ >= kDownedMs + kDownedGraceMs) {
             dead_ms_ = 0;
             game_.respawn();
@@ -52,7 +54,10 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
     if (!placed_driven_) {
         placed_driven_ = true;
 
+        // Every placed moby that runs an update of its own is a candidate.
         for (const auto& [slot, moby] : mobys_) {
+            // Crates, pickups and interactables stay with each game's own update; everything else
+            // is the host's.
             if (moby.key >= 0 && (moby.flags & kMobyUpdates) != 0 && moby.oclass != 0
                 && !local_class(moby.oclass) && game_.moby_drive(slot, true)) {
                 driven_.insert(slot);
@@ -81,16 +86,20 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
     const auto t = static_cast<double>(now);
     const bool trace_poses = tracing();
 
+    // Each moby the host has sent is posed from its buffer, a delay behind.
     for (auto& [id, poses] : poses_) {
         const int slot = slot_of(id);
         Pose pose;
 
+        // A moby this game has not made, or a buffer with no pose yet, is left alone.
         if (slot >= 0 && poses.at(t, pose)) {
             // Moved by something else since it was put there (its own update or the game's)?
             if (trace_poses) {
                 const auto was = posed_at_.find(slot);
                 const auto moby = mobys_.find(slot);
 
+                // Something else moved it when it is not where this game last put it (the distance
+                // is squared, 0.01).
                 if (was != posed_at_.end() && moby != mobys_.end()
                     && distance2(was->second.data(), moby->second.pose.position) > 1e-4f) {
                     ++moved_since_;
@@ -111,10 +120,12 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
         std::string some;
         int described = 0;
 
+        // Each buffer reports how its frames were shown since the last line.
         for (auto& [id, poses] : poses_) {
             const Interpolator::Counts counts = poses.take_counts();
             int moving = 0;
 
+            // One count for each way a pose can be shown (Shown).
             for (int i = 0; i < 6; ++i) {
                 by[i] += counts.by[i];
                 moving +=
@@ -145,11 +156,13 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
         const int slot = slot_of(id);
         const auto moby = mobys_.find(slot);
 
+        // A moby this game does not drive, or one already as the host has it, needs no change.
         if (moby == mobys_.end() || driven_.count(slot) == 0
             || ((moby->second.flags & kMobyHidden) != 0) == hidden) {
             continue;
         }
 
+        // The game says whether it changed the moby; only a change is logged.
         if (game_.moby_hide(slot, hidden)) {
             trace_line(
                 "vis",
@@ -164,7 +177,9 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
 }
 
 void World::drop_own_copies() {
+    // Once the host's world is here, this game's own copies of what the host spawned are deleted.
     for (const auto& [slot, moby] : mobys_) {
+        // A copy is an unplaced, undriven moby of a class the host spawned.
         if (moby.key < 0 && spawn_classes_.count(moby.oclass) != 0 && driven_.count(slot) == 0
             && !local_class(moby.oclass)) {
             kill(slot, "its own copy of what the host spawned");
@@ -175,6 +190,7 @@ void World::drop_own_copies() {
 }
 
 int World::own_copy_of(int oclass, const float position[3]) const {
+    // Crates, pickups and interactables are never the host's.
     if (local_class(oclass)) {
         return -1;
     }
@@ -182,11 +198,14 @@ int World::own_copy_of(int oclass, const float position[3]) const {
     int best = -1;
     float nearest = kOwnCopyReach * kOwnCopyReach;
 
+    // The nearest of this game's own mobys of that class is the copy.
     for (const auto& [slot, moby] : mobys_) {
+        // Placed mobys are the level's and driven ones the host's, so neither is a copy.
         if (moby.key < 0 && moby.oclass == oclass && driven_.count(slot) == 0
             && (moby.flags & kMobyDead) == 0) {
             const float d2 = distance2(moby.pose.position, position);
 
+            // The nearest candidate within kOwnCopyReach is the copy.
             if (d2 < nearest) {
                 nearest = d2;
                 best = slot;
@@ -201,6 +220,7 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
     DespawnLog::View view;
     Pose hero;
 
+    // Without a hero (a menu or a loading screen) the log has nothing to measure from.
     if (game_.hero(hero)) {
         view.hero = true;
         std::copy(hero.position, hero.position + 3, view.hero_at);
@@ -208,6 +228,7 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
 
     view.camera = game_.camera(view.camera_at);
 
+    // The hooks are set once, on the first tick.
     if (!despawn_.out) {
         despawn_.out = [this](const std::string& line) {
             trace_line("despawn", line);
@@ -216,6 +237,8 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
             return game_.moby_deletion(slot, d.by, d.by_class, d.by_mod);
         };
         despawn_.role = [this](int slot, const MobyState& m) -> std::string {
+            // The host shares placed mobys that run an update and the spawned ones it registered;
+            // the rest are its own.
             if (hosting_) {
                 const bool placed_runs = m.key >= 0 && (m.flags & kMobyUpdates) != 0
                                          && m.oclass != 0 && !local_class(m.oclass);
@@ -225,6 +248,7 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
             return driven_.count(slot) != 0 ? "driven" : "local";
         };
         despawn_.host_seen = [this](int slot, const MobyState&) -> std::string {
+            // The host's own snapshots are not tracked, so it has nothing to say.
             if (hosting_ || session_.role().host()) {
                 return "";
             }
@@ -232,6 +256,7 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
             const std::uint16_t id = id_of(slot);
             const auto seen = id != kNoId ? host_ms_.find(id) : host_ms_.end();
 
+            // A moby the host never sent has no record of it.
             if (seen == host_ms_.end()) {
                 return "host never sent it";
             }

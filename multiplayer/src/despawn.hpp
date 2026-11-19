@@ -35,28 +35,34 @@ namespace mp {
 
 // How the game deleted a moby (the SDK's openrac_moby_deletion).
 struct MobyDeletion {
-    int by = -1;
-    int by_class = -1;
-    bool by_mod = false;
-    int oclass = 0;
+    int by = -1;          // Slot of the moby whose update deleted it; -1 for none.
+    int by_class = -1;    // Class of that moby; -1 for none.
+    bool by_mod = false;  // True when a mod's moby_kill did it.
+    int oclass = 0;       // Class of the deleted moby; the world's hook leaves it 0.
 };
 
+// The despawn lines of the verbose log. It compares each tick's listing with the last one's and
+// writes a line for each moby that is gone, hidden or shown.
+//
+// The World owns it, sets the four hooks below and calls it on the game's thread.
 class DespawnLog {
 public:
-    // Where this tick's viewers are, and how the moby stands in the world's sharing.
+    // Where this tick's viewers are: the local hero and the camera, when known.
     struct View {
-        bool hero = false;
-        float hero_at[3] = {0, 0, 0};
-        bool camera = false;
-        float camera_at[3] = {0, 0, 0};
+        bool hero = false;               // True when `hero_at` is known.
+        float hero_at[3] = {0, 0, 0};    // The local hero's place.
+        bool camera = false;             // True when `camera_at` is known.
+        float camera_at[3] = {0, 0, 0};  // The camera's place.
     };
 
     // The World's answers about a slot: driven, shared or local; when the host last sent it (a
     // line's last part, empty for none).
     std::function<std::string(int slot, const MobyState& moby)> role;
+    // Returns when the host last sent the moby, as the last part of a line; empty for none.
     std::function<std::string(int slot, const MobyState& moby)> host_seen;
     // The game's deletion of a slot (false: none seen).
     std::function<bool(int slot, MobyDeletion& out)> deletion;
+    // Where each line goes; with none, a line is dropped.
     std::function<void(const std::string&)> out;
 
     // The sync removed (or hid, or showed) the moby in `slot`: `why` (KILLED, DESPAWN...), from
@@ -75,11 +81,14 @@ public:
     int written() const { return written_; }
 
 private:
+    // A sync's reason for removing a moby, and who sent the message.
     struct Note {
-        std::string why;
-        std::int32_t sender = 0;
+        std::string why;          // The message that caused it (KILLED, DESPAWN, ...).
+        std::int32_t sender = 0;  // The sender's id; 0 for none.
     };
 
+    // Writes one line for `what` (gone, hidden or shown) of the moby in `slot`. `was` is the moby
+    // as last listed, `who_why` the cause and `view` where the hero and the camera are.
     void event(
         std::uint64_t now,
         const std::string& what,
@@ -89,11 +98,11 @@ private:
         const View& view
     );
 
-    std::map<int, MobyState> last_;
-    std::map<int, std::string> roles_;
-    std::map<int, Note> sync_;
-    std::map<int, bool> deaths_;
-    int written_ = 0;
+    std::map<int, MobyState> last_;     // The last tick's listing, by slot.
+    std::map<int, std::string> roles_;  // How each slot stood last tick (driven, shared or local).
+    std::map<int, Note> sync_;          // The sync's removals since the last tick, by slot.
+    std::map<int, bool> deaths_;        // Slots whose death the game recorded since the last tick.
+    int written_ = 0;                   // Lines written so far.
 };
 
 // The who/why of a moby gone (despawn.cpp; for the tests too): the sync's note, else the game's

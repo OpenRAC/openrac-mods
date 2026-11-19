@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// The shared world (world.hpp): the host's side: the world sent to the members, spawns, deaths and the tick.
+// The shared world (world.hpp): the host's side: the world sent to the members, spawns, deaths and
+// the tick.
 
 #include <algorithm>
 #include <cmath>
@@ -41,6 +42,7 @@ void World::member_away(std::int32_t member) {
 
     const auto it = members_.find(member);
 
+    // Only a member the world knows has state to clear.
     if (it != members_.end()) {
         it->second.synced = false;
         it->second.want = false;
@@ -51,6 +53,7 @@ void World::member_back(std::int32_t member) {
     // Nothing it was told stands; what it is owed does.
     const auto it = members_.find(member);
 
+    // Only a member the world knows has state to forget.
     if (it != members_.end()) {
         it->second.synced = false;
         it->second.want = false;
@@ -64,11 +67,13 @@ void World::host_back() {
     // the world again, as after a host's respawn.
     release_holds();
 
+    // Every member asks for the world again, so none counts as synced.
     for (auto& [id, m] : members_) {
         m.synced = false;
         m.want = false;
     }
 
+    // With no level known there is nothing for the members to ask for.
     if (level_ >= 0) {
         Writer w;
         w.u8(static_cast<std::uint8_t>(WorldKind::kReset))
@@ -102,9 +107,11 @@ LedgerWorld World::ledger() const {
     l.dug = dug_;
     l.spared = spared_;
 
+    // Each spawned moby the host shares goes into the ledger.
     for (const auto& [slot, net] : shared_) {
         const auto moby = mobys_.find(slot);
 
+        // A shared slot that is not listed this tick is left out.
         if (moby != mobys_.end()) {
             LedgerMoby m;
             m.net = net.id;
@@ -167,9 +174,11 @@ void World::take_over(const LedgerWorld& l) {
     shared_.clear();
     std::set<std::uint16_t> nets;
 
+    // The mobys this game made from the old host's SPAWNs carry on under the same net ids.
     for (const auto& [net, slot] : net_slot_) {
         const auto moby = mobys_.find(slot);
 
+        // A copy whose moby is gone here is dropped; the ledger may make it again below.
         if (moby != mobys_.end()) {
             shared_[slot] = {net, moby->second.oclass};
             nets.insert(net);
@@ -178,18 +187,22 @@ void World::take_over(const LedgerWorld& l) {
 
     net_slot_.clear();
 
+    // The ledger counts only when it is of the level this game is in.
     if (here) {
         party_dead_ = l.dead;
         dug_ = l.dug;
         spared_ = l.spared;
 
+        // Each spawned moby of the ledger that this game lacks is made where it was made.
         for (const LedgerMoby& m : l.spawned) {
+            // A net id this game already has keeps its moby.
             if (nets.count(m.net) == 0) {
                 Pose pose;
                 std::copy(m.position, m.position + 3, pose.position);
                 pose.rotation[2] = m.yaw;
                 const int slot = game_.moby_spawn(m.oclass, pose);
 
+                // A spawn that failed is not recorded.
                 if (slot >= 0) {
                     shared_[slot] = {m.net, m.oclass};
                     ++made;
@@ -198,9 +211,11 @@ void World::take_over(const LedgerWorld& l) {
         }
 
         // Dead for the party and not here: the ledger's word over this game's copy.
+        // Each moby dead for the party is deleted here if this game still has a copy.
         for (const int key : party_dead_) {
             const int slot = game_.moby_slot(key);
 
+            // Only a copy this game still lists is deleted.
             if (slot >= 0 && mobys_.count(slot) != 0) {
                 note(slot, "dead for the party, by the ledger", 0);
                 kill(slot, "dead for the party (the ledger)");
@@ -212,7 +227,9 @@ void World::take_over(const LedgerWorld& l) {
     // Loot made here is this game's own: it is nobody's to share.
     level_own_.clear();
 
+    // Each loot moby made here and not shared is this game's own.
     for (const auto& [slot, moby] : mobys_) {
+        // Only unplaced loot that is not in the shared table counts.
         if (moby.key < 0 && loot_class(moby.oclass) && shared_.count(slot) == 0) {
             level_own_.insert(slot);
         }
@@ -233,6 +250,7 @@ void World::send_dead(std::int32_t member, int level) {
     u16(w, static_cast<std::uint16_t>(records));
     std::vector<std::uint8_t> bits(static_cast<std::size_t>((records + 7) / 8), 0);
 
+    // Each key of the party's dead is one bit of the message.
     for (const int key : party_dead_) {
         bits[static_cast<std::size_t>(key / 8)] |= static_cast<std::uint8_t>(1u << (key % 8));
     }
@@ -251,7 +269,10 @@ Bytes World::save_for_a_joiner() {
     std::uint8_t held[kMissions] = {};
     bool any = false;
 
+    // The missions' row is read only if the game has one for this level.
     if (game_.mission_row(level_, row)) {
+        // A mission whose flag is set, and that a placed moby here still belongs to, is left out of
+        // the joiner's save.
         for (const auto& [slot, moby] : mobys_) {
             if (moby.key >= 0 && moby.mission >= 0 && moby.mission < kMissions
                 && row[moby.mission] != 0 && !local_class(moby.oclass)) {
@@ -261,6 +282,8 @@ Bytes World::save_for_a_joiner() {
         }
     }
 
+    // With nothing to hold back, or if the game cannot clear it, the save is the game's as it
+    // stands.
     if (!any || !game_.mission_clear(level_, held)) {
         return game_.capture();
     }
@@ -279,10 +302,12 @@ void World::give_world(std::int32_t id, Member& m) {
     m.window.clear();
     send_dead(id, level_);
 
+    // Every spawned moby is told to the member.
     for (const auto& [slot, net] : shared_) {
         send_spawn(id, level_, net.id, mobys_[slot]);
     }
 
+    // Every placed moby a death brought back is restored in the member's game.
     for (const int key : spared_) {
         send_restore(id, key);
     }
@@ -299,6 +324,7 @@ void World::give_world(std::int32_t id, Member& m) {
 }
 
 void World::take_broke() {
+    // Each crate or pickup a member broke is dealt with at this listing.
     for (const auto& [key, sender] : broke_) {
         const int slot = game_.moby_slot(key);
         const auto it = mobys_.find(slot);
@@ -326,15 +352,18 @@ bool World::party_wiped() const {
     const std::uint64_t now = clock_();
     int others = 0;
 
+    // Every other player in this level is checked.
     for (const mp::Member& who : session_.members()) {
         Pose p;
 
+        // Players in another level, or with no word yet, do not count.
         if (who.id == session_.id() || !coop_.latest(who.id, p) || p.level != level_) {
             continue;
         }
 
         const auto died = deaths_.find(who.id);
 
+        // A player who is alive, or died longer ago than kWipeMs, means the party is not wiped.
         if (p.health > 0 && (died == deaths_.end() || now - died->second > kWipeMs)) {
             return false;
         }
@@ -348,6 +377,7 @@ bool World::party_wiped() const {
 void World::send_restore(std::int32_t target, int key) {
     const auto moby = mobys_.find(alive_keys_.count(key) != 0 ? game_.moby_slot(key) : -1);
 
+    // A moby that is gone here has nothing to restore.
     if (moby == mobys_.end()) {
         return;
     }
@@ -380,6 +410,7 @@ void World::remade() {
         const int slot = alive_keys_.count(key) != 0 ? game_.moby_slot(key) : -1;
         const auto moby = mobys_.find(slot);
 
+        // A moby that is not here this tick has nothing to decide.
         if (moby == mobys_.end()) {
             ++it;
         } else if (wipe) {
@@ -396,6 +427,8 @@ void World::remade() {
             );
             it = party_dead_.erase(it);
 
+            // Local classes come back in each game by themselves; the others are restored to the
+            // members.
             if (!local_class(moby->second.oclass)) {
                 spared_.insert(key);
                 restored.push_back(key);
@@ -419,6 +452,7 @@ void World::remade() {
         + " bolts kept, the members told" + (wipe ? " (a full wipe)" : ""));
     kept_bolts_.clear();
 
+    // After a full wipe nothing is spared and no pile counts as dug.
     if (wipe) {
         spared_.clear();
         dug_.clear();
@@ -428,12 +462,14 @@ void World::remade() {
     w.u8(static_cast<std::uint8_t>(WorldKind::kReset))
         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
 
+    // A full wipe adds a byte to RESET, 2.
     if (wipe) {
         w.u8(2);
     }
 
     session_.send_data(kBroadcast, w.bytes());
 
+    // Each moby a death brought back is made again in the members' games.
     for (const int key : restored) {
         send_restore(kBroadcast, key);
     }
@@ -445,6 +481,7 @@ void World::tick_death_hold() {
 
     coop_.show_fallen(want);
 
+    // The game is told only when the wish changes.
     if (want != death_held_) {
         death_held_ = want;
         game_.hold_death(want);
@@ -452,6 +489,7 @@ void World::tick_death_hold() {
 }
 
 void World::lift(std::int32_t player, int how) {
+    // The host's own player is lifted by the game; any other by a REVIVE message.
     if (player == session_.id()) {
         how == 0 ? game_.revive() : game_.respawn();
         return;
@@ -471,13 +509,16 @@ void World::tick_revive(std::uint64_t now) {
     std::map<std::int32_t, Pose> players;
     Pose hero;
 
+    // The host's own hero is one of the players.
     if (game_.hero(hero)) {
         players[session_.id()] = hero;
     }
 
+    // Each member in this level is a player.
     for (const auto& [id, member] : members_) {
         Pose p;
 
+        // A member in another level stands near nobody here.
         if (member.level == level_ && coop_.latest(id, p)) {
             players[id] = p;
         }
@@ -485,16 +526,20 @@ void World::tick_revive(std::uint64_t now) {
 
     bool any_up = false;
 
+    // The party has someone up if any player has health left.
     for (const auto& [id, p] : players) {
         any_up = any_up || p.health > 0;
     }
 
+    // A player who is up again, or gone, leaves the downs.
     for (auto it = downs_.begin(); it != downs_.end();) {
         const auto p = players.find(it->first);
         it = p == players.end() || p->second.health > 0 ? downs_.erase(it) : std::next(it);
     }
 
+    // Each player down is timed: since when, and for how long stood over.
     for (const auto& [id, p] : players) {
+        // A living player has nothing to track.
         if (p.health > 0) {
             continue;
         }
@@ -505,6 +550,7 @@ void World::tick_revive(std::uint64_t now) {
         d.seen = now;
         bool over = false;
 
+        // A living player within kReviveReach is standing over him.
         for (const auto& [other, q] : players) {
             over = over
                    || (other != id && q.health > 0
@@ -516,6 +562,7 @@ void World::tick_revive(std::uint64_t now) {
 
     // Everyone down: the host's own respawn makes it a full wipe (remade).
     if (!any_up && !downs_.empty()) {
+        // The respawn goes out at most once each kWipeMs.
         if (wipe_ms_ == 0 || now - wipe_ms_ >= kWipeMs) {
             wipe_ms_ = now;
             game_.respawn();
@@ -524,7 +571,9 @@ void World::tick_revive(std::uint64_t now) {
         return;
     }
 
+    // A player stood over for kReviveMs is revived; one down for kDownedMs goes to his checkpoint.
     for (auto it = downs_.begin(); it != downs_.end();) {
+        // Either condition ends his time down.
         if (it->second.over >= kReviveMs || now - it->second.since >= kDownedMs) {
             log("player " + std::to_string(it->first)
                 + (it->second.over >= kReviveMs ? " is revived" : " stayed down too long"));
@@ -537,7 +586,9 @@ void World::tick_revive(std::uint64_t now) {
 }
 
 void World::drop_spawned() {
+    // Each spawned moby the host made is deleted here.
     for (const auto& [net, slot] : net_slot_) {
+        // A bolt flying to whoever took it is left to its flight.
         if (flights_.count(slot) == 0) {
             note(slot, "RESET, the host's level made again", session_.host());
             kill(slot, "RESET from the host");
@@ -555,7 +606,7 @@ void World::drop_spawned() {
 
 namespace {
 
-// What a member is told of a moby, and whether it differs from what the moby is now.
+// Records in `told` what a member is told of a moby.
 void tell(WorldTold& told, const Pose& pose, bool hidden, bool loose) {
     std::copy(pose.position, pose.position + 3, told.position);
     std::copy(pose.rotation, pose.rotation + 3, told.rotation);
@@ -565,6 +616,8 @@ void tell(WorldTold& told, const Pose& pose, bool hidden, bool loose) {
     told.loose = loose;
 }
 
+// Returns whether a moby's pose, or its hidden or loose state, differs from what the member was
+// told.
 bool differs(const WorldTold& told, const Pose& pose, bool hidden, bool loose) {
     // A bolt landed: the member's copy runs as its own once told, however it spins.
     if (told.hidden != hidden || told.loose != loose) {
@@ -582,6 +635,7 @@ bool differs(const WorldTold& told, const Pose& pose, bool hidden, bool loose) {
 }  // namespace
 
 void World::take_ack(Member& m, std::uint16_t newest, std::uint32_t bits, std::uint64_t now) {
+    // Each datagram sent is settled by this word.
     for (auto it = m.window.begin(); it != m.window.end();) {
         const auto behind = static_cast<std::uint16_t>(newest - it->sequence);
 
@@ -599,17 +653,23 @@ void World::take_ack(Member& m, std::uint16_t newest, std::uint32_t bits, std::u
             continue;
         }
 
+        // Only the newest datagram gives a round-trip sample; each sample moves the estimate by a
+        // tenth.
         if (behind == 0) {
             m.rtt_ms += 0.1 * (static_cast<double>(now - it->ms) - m.rtt_ms);
         }
 
+        // Each moby told in the datagram is settled.
         for (const auto& [id, told] : it->told) {
             const auto t = m.tracked.find(id);
 
+            // A moby no longer tracked has nothing to settle.
             if (t == m.tracked.end()) {
                 continue;
             }
 
+            // A heard word that is newer than the one known becomes what the member is known to
+            // have.
             if (heard
                 && (!t->second.delivered || sequence_newer(it->sequence, t->second.known_seq))) {
                 t->second.known = told;
@@ -625,14 +685,18 @@ void World::take_ack(Member& m, std::uint16_t newest, std::uint32_t bits, std::u
 }
 
 void World::expire_window(Member& m, std::uint64_t now) {
+    // A datagram waits twice the round trip, within the bounds, before it counts as lost.
     const auto wait =
         std::clamp(static_cast<std::uint64_t>(2.0 * m.rtt_ms), kWorldMinWaitMs, kWorldMaxWaitMs);
 
+    // A datagram older than the wait, or beyond the window, counts as lost.
     while (!m.window.empty()
            && (now - m.window.front().ms >= wait || m.window.size() > kWorldWindow)) {
+        // The mobys told in a lost datagram are no longer in flight.
         for (const auto& [id, told] : m.window.front().told) {
             const auto t = m.tracked.find(id);
 
+            // Only if that datagram holds the newest word sent of the moby.
             if (t != m.tracked.end() && t->second.sent_seq == m.window.front().sequence) {
                 t->second.flying = false;
             }
@@ -653,6 +717,7 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         static_cast<float>(std::min<std::uint64_t>(now - m.world_ms, kWorldMaxWaitMs));
     expire_window(m, now);
 
+    // A hit stops raising the weight after kWorldHitMs.
     for (auto it = m.hit_ms.begin(); it != m.hit_ms.end();) {
         it = now - it->second >= kWorldHitMs ? m.hit_ms.erase(it) : std::next(it);
     }
@@ -660,6 +725,7 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
     std::vector<Pick> picks;
     std::set<std::uint16_t> here;
 
+    // Each moby the member may need is considered.
     for (const auto& [slot, moby] : mobys_) {
         const bool placed_runs = moby.key >= 0 && (moby.flags & kMobyUpdates) != 0
                                  && moby.oclass != 0 && !local_class(moby.oclass);
@@ -683,6 +749,7 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         // Or the word that will give it is on its way.
         const bool waiting = t.flying && !differs(t.sent, moby.pose, hidden, loose);
 
+        // A moby the member has, or has a word on its way for, waits.
         if (waiting || (known && now - t.ms < kWorldKeepMs)) {
             t.priority = 0;
             continue;
@@ -695,6 +762,7 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         WorldSight sight;
         sight.distance = d;
         sight.creature = (moby.flags & kMobyCreature) != 0;
+        // Ahead is within 60 degrees of where the player faces (a cosine above 0.5).
         sight.ahead = d > 0.0f && (dx * std::cos(yaw) + dy * std::sin(yaw)) / d > 0.5f;
         sight.hit = m.hit_ms.count(id) != 0;
         sight.flying = bolt_class(moby.oclass) && !loose;
@@ -706,10 +774,12 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
         // showed: a change to see now, not a stream that has its next word coming anyway.
         const bool flipped = t.ms != 0 && (t.sent.hidden != hidden || t.sent.loose != loose);
 
+        // Due at once, ahead of anything a weight alone brings.
         if (first || (!known && !differs(t.sent, moby.pose, hidden, loose)) || flipped) {
             t.priority = std::max(t.priority, 1.0f + weight);
         }
 
+        // A moby goes once its priority reaches 1.
         if (t.priority >= 1.0f) {
             picks.push_back({t.priority, id, slot});
         }
@@ -725,7 +795,9 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
     });
     std::vector<WorldEntry> entries;
 
+    // The highest priority goes first, up to what a datagram holds.
     for (const Pick& p : picks) {
+        // A full datagram is sent as it is; the rest wait for the next.
         if (entries.size() >= kWorldEntries) {
             break;
         }
@@ -738,6 +810,7 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
 
     m.world_ms = now;
 
+    // A tick with nothing due sends no datagram.
     if (entries.empty()) {
         return;
     }
@@ -757,6 +830,7 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
     datagram.ms = now;
     datagram.told.reserve(entries.size());
 
+    // Each entry sent is remembered per moby, for the member's word to settle.
     for (const WorldEntry& e : entries) {
         WorldTold told;
         tell(told, e.pose, e.hidden, e.loose);
@@ -772,6 +846,7 @@ void World::send_world(std::int32_t member, Member& m, std::uint64_t now, const 
 
     m.window.push_back(std::move(datagram));
 
+    // The ids sent are listed in the verbose log.
     if (tracing()) {
         std::set<std::uint16_t> ids;
 
@@ -790,12 +865,14 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
     // actor (each game playing the scene makes its own: coop_scenes.cpp).
     std::set<int> seen;
 
+    // Each moby of this tick is a candidate to share as a spawned one.
     for (const auto& [slot, moby] : mobys_) {
         const bool made = moby.key < 0 || once_dead_keys_.count(moby.key) != 0;
         const bool counts = made && moby.oclass != 0 && (moby.flags & kMobyScene) == 0
                             && ((moby.flags & kMobyCreature) != 0 || bolt_class(moby.oclass)
                                 || loot_class(moby.oclass) || spawned_bolt_class(moby.oclass));
 
+        // Only creatures, bolts and loot that the game made count.
         if (!counts) {
             continue;
         }
@@ -806,6 +883,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
             level_own_.insert(slot);
         }
 
+        // The level's own loot is not shared.
         if (level_own_.count(slot) != 0) {
             continue;
         }
@@ -819,6 +897,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         }
 
         const std::uint16_t net = next_net_;
+        // Net ids run from 1 to 0x7FFF and wrap, so the top bit of an id on the wire stays free.
         next_net_ = static_cast<std::uint16_t>(next_net_ % 0x7FFE + 1);
         shared_[slot] = {net, moby.oclass};
 
@@ -826,13 +905,16 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         ++counts_.spawns;
     }
 
+    // A slot of the level's own loot that is gone is forgotten.
     for (auto it = level_own_.begin(); it != level_own_.end();) {
         it = mobys_.count(*it) == 0 ? level_own_.erase(it) : std::next(it);
     }
 
     std::vector<std::uint16_t> gone;
 
+    // Each shared moby not seen this tick is gone.
     for (auto it = shared_.begin(); it != shared_.end();) {
+        // A shared slot that was not seen again is dropped and its net id is told in DESPAWN.
         if (seen.count(it->first) == 0) {
             // Its net id may come again (they wrap): a new bolt's then, not taken.
             gone.push_back(it->second.id);
@@ -843,6 +925,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         }
     }
 
+    // A DESPAWN goes out for the mobys that are gone.
     if (!gone.empty()) {
         Writer w;
         w.u8(static_cast<std::uint8_t>(WorldKind::kDespawn))
@@ -851,6 +934,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
 
         std::string nets;
 
+        // Each net id goes into the message and the trace line.
         for (const std::uint16_t net : gone) {
             u16(w, net);
             nets += (nets.empty() ? "" : " ") + std::to_string(net);
@@ -867,6 +951,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
     std::vector<float> eyes;
     std::string eye_players;
 
+    // A member that left the session is dropped from the world.
     for (auto it = members_.begin(); it != members_.end();) {
         it = std::any_of(
                  session_.members().begin(),
@@ -877,7 +962,9 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
                  : members_.erase(it);
     }
 
+    // Each member but the host gets its snapshots.
     for (const mp::Member& who : session_.members()) {
+        // The host's own game needs no snapshot of itself.
         if (who.id == session_.id()) {
             continue;
         }
@@ -891,7 +978,7 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         }
 
         // Elsewhere, or nothing heard yet: no snapshots to place. Its world stands: a game that
-        // really left says HELLO when it is back, and its HELLO may well beat its first pose here.
+        // left says HELLO when it is back, and its HELLO may arrive before its first pose here.
         if (!coop_.latest(who.id, at) || at.level != status.level) {
             m.level = at.level;
             continue;
@@ -899,10 +986,12 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
 
         m.level = at.level;
 
+        // A member at 0 health is noted for the wipe check.
         if (at.health <= 0) {
             deaths_[who.id] = now;
         }
 
+        // At most 8 eyes, three floats each, go to the game.
         if (eyes.size() < 3 * 8) {
             eyes.insert(eyes.end(), at.position, at.position + 3);
             eye_players += " " + std::to_string(who.id) + " at " + xyz(at.position);
@@ -911,18 +1000,23 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
         std::uint16_t newest = 0;
         std::uint32_t bits = 0;
 
+        // The member's word on the datagrams it heard settles them.
         if (coop_.take_world_ack(who.id, newest, bits)) {
             take_ack(m, newest, bits, now);
         }
 
         // Each gets its share of what the state's budget has left for the world, the shots' first.
         const std::uint64_t budget = coop_.firing(now) ? kWorldFiringBudget : kWorldBudget;
+        // A share is the milliseconds between datagrams: 1000 over the budget, split among the
+        // members.
         const std::uint64_t share = 1000 * (session_.members().size() - 1) / budget;
 
+        // A member that has the world and has waited its share gets a snapshot.
         if (m.synced && now - m.world_ms >= std::max(kWorldMs, share)) {
             send_world(who.id, m, now, at);
         }
 
+        // Bolts a member's stand-in collected are credited to it.
         if (m.bolts > 0) {
             session_.send_data(
                 who.id,
@@ -935,10 +1029,12 @@ void World::tick_host(std::uint64_t now, const GameStatus& status) {
 
     tick_holds(now);
 
+    // An aim whose moby is gone is dropped.
     for (auto it = aims_.begin(); it != aims_.end();) {
         it = mobys_.count(it->first) == 0 ? aims_.erase(it) : std::next(it);
     }
 
+    // The revive rule only runs while dead heroes are held down.
     if (death_held_) {
         tick_revive(now);
     }

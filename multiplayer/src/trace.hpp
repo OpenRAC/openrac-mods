@@ -43,41 +43,53 @@
 
 namespace mp {
 
+// The most lines the log writes in a second; the rest are counted and said when the second ends.
 constexpr int kTraceLinesPerSecond = 2000;
 
+// The verbose log's writer: it counts the game's ticks, caps the lines of each second and hands
+// each line to a sink.
+//
+// The other parts hold a pointer to it and use it on the game's thread.
 class Trace {
 public:
+    // Receives each finished line.
     using Sink = std::function<void(const std::string&)>;
 
     // On, its lines to `sink`; an empty one turns it off.
     void open(Sink sink) { sink_ = std::move(sink); }
 
+    // Returns whether a sink is set, so the log is on.
     bool on() const { return static_cast<bool>(sink_); }
 
     // A new game tick at `now_ms`, this game's side of the party (host, member, solo).
     void tick(std::uint64_t now_ms, const std::string& side);
 
+    // Returns how many ticks the log has seen.
     std::uint64_t frame() const { return frame_; }
 
     // One event: `what` (pause, run, ...) and the rest of its line.
     void line(const std::string& what, const std::string& text);
 
+    // Returns how many lines went to the sink in all.
     int written() const { return written_; }
 
+    // Returns how many lines the cap dropped in all.
     int dropped() const { return dropped_total_; }
 
 private:
+    // Says how many lines the last second dropped, once a new second has begun.
     void flush();
 
+    // Where the lines go; empty while the log is off.
     Sink sink_;
-    std::string side_ = "solo";
-    std::uint64_t frame_ = 0;
-    std::uint64_t now_ = 0;
-    std::uint64_t second_ms_ = 0;
-    int lines_ = 0;
-    int dropped_ = 0;
-    int written_ = 0;
-    int dropped_total_ = 0;
+    std::string side_ = "solo";    // This game's side of the party, as the last tick named it.
+    std::uint64_t frame_ = 0;      // Ticks seen so far.
+    std::uint64_t now_ = 0;        // The last tick's time in milliseconds.
+    std::uint64_t second_ms_ = 0;  // When the current second of the cap began.
+    int lines_ = 0;                // Lines written in the current second.
+    int dropped_ = 0;              // Lines dropped in the current second.
+    int written_ = 0;              // Lines written in all.
+    int dropped_total_ = 0;        // Lines dropped in all.
 };
 
 // "x y z" to a tenth.

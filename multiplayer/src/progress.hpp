@@ -44,16 +44,26 @@
 
 namespace mp {
 
+// The DATA kind of a PROGRESS message.
 constexpr std::uint8_t kProgressKind = kind::kProgress;
 // How often a game reads its progress, and tells it again unchanged.
 constexpr std::uint64_t kProgressReadMs = 250;
 constexpr std::uint64_t kProgressResendMs = 5000;
 
+// Returns the PROGRESS message that says `bits`.
 Bytes encode_progress(const ProgressBits& bits);
+// Reads a PROGRESS message into `out`; false, with `out` unchanged, when it is not one or is cut
+// short.
 bool decode_progress(const Bytes& bytes, ProgressBits& out);
 
+// One game's share of the party's progress: reads its own, merges what the others have and sends it
+// on. The host and a member do different halves (see above).
+//
+// Holds references to the session, the game and the coop, which must outlive it. Used on the game's
+// thread only.
 class Progress {
 public:
+    // Makes the progress of one game; the three references are kept, not owned.
     Progress(Session& session, Game& game, Coop& coop);
 
     // A PROGRESS from `sender`.
@@ -71,37 +81,43 @@ public:
     // What it knows: this game's last reading, the party's (a member: the host's last word).
     const ProgressBits& here() const { return here_; }
 
+    // Returns the party's progress (a member: the host's last word).
     const ProgressBits& party() const { return party_; }
 
+    // Sets where the progress's log lines go.
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
+    // Sets the verbose log to write to; null for none.
     void trace(Trace* trace) { trace_ = trace; }
 
 private:
     // Gives this game what `want` has and it lacks (a line each); true when it gave something.
     bool give(const ProgressBits& want, const std::string& from);
+    // Sends `bits` to `target` as a PROGRESS; `to` names the receiver in the log.
     void send(std::int32_t target, const ProgressBits& bits, const std::string& to);
 
+    // Writes a line to the verbose log when it is on.
     void trace_line(const std::string& text) {
         if (trace_ != nullptr && trace_->on()) {
             trace_->line("progress", text);
         }
     }
 
+    // Writes a line to the log set by on_log, if there is one.
     void log(const std::string& line) const {
         if (log_) {
             log_(line);
         }
     }
 
-    Session& session_;
-    Game& game_;
-    Coop& coop_;
-    std::function<void(const std::string&)> log_;
-    Trace* trace_ = nullptr;
-    bool read_ = false;
-    std::uint64_t read_ms_ = 0;
-    ProgressBits here_;
+    Session& session_;                             // The session of this game; not owned.
+    Game& game_;                                   // The game's calls; not owned.
+    Coop& coop_;                                   // The co-op state; not owned.
+    std::function<void(const std::string&)> log_;  // Where on_log lines go.
+    Trace* trace_ = nullptr;                       // The verbose log; null for none, not owned.
+    bool read_ = false;                            // True once a reading has been taken.
+    std::uint64_t read_ms_ = 0;                    // When the last reading was taken.
+    ProgressBits here_;                            // This game's last reading.
     // Member: the host's last PROGRESS (and whether one came). Host: unused.
     ProgressBits party_;
     bool heard_ = false;
@@ -111,6 +127,7 @@ private:
     ProgressBits sent_;
     bool sent_any_ = false;
     std::uint64_t sent_ms_ = 0;
+    // The number of members when the host last sent.
     std::size_t members_ = 0;
 };
 

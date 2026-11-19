@@ -11,12 +11,14 @@
 namespace mp {
 namespace {
 
+// Returns `v` in hex with a `0x` prefix and at least two digits.
 std::string hex(std::uint32_t v) {
     char b[16];
     std::snprintf(b, sizeof b, "0x%02x", v);
     return b;
 }
 
+// Returns the distance between two points with one decimal.
 std::string metres(const float* a, const float* b) {
     float sum = 0;
 
@@ -29,10 +31,12 @@ std::string metres(const float* a, const float* b) {
     return s;
 }
 
+// Returns whether the game lists the moby as dead.
 bool dead(const MobyState& m) {
     return (m.flags & kMobyDead) != 0;
 }
 
+// Returns whether nothing draws the moby.
 bool hidden(const MobyState& m) {
     return (m.flags & kMobyHidden) != 0;
 }
@@ -47,6 +51,7 @@ std::string despawn_cause(
     bool death,
     bool listed_dead
 ) {
+    // The sync's own note wins: it knows the message that removed the moby.
     if (sync_why != nullptr) {
         return "by sync (" + *sync_why + (sender != 0 ? " from " + std::to_string(sender) : "")
                + ")";
@@ -54,19 +59,23 @@ std::string despawn_cause(
 
     const std::string recorded = death ? ", its death recorded" : "";
 
+    // A mod's moby_kill that was not the sync's is named as the mod's.
     if (deleted != nullptr && deleted->by_mod) {
         return "by mod (moby_kill, not the sync's" + recorded + ")";
     }
 
+    // The moby's own update deleted it.
     if (deleted != nullptr && deleted->by == slot) {
         return "by game (its own update" + recorded + ")";
     }
 
+    // Another moby's update deleted it, named by slot and class.
     if (deleted != nullptr && deleted->by >= 0) {
         return "by game (the update of slot " + std::to_string(deleted->by) + " class "
                + std::to_string(deleted->by_class) + recorded + ")";
     }
 
+    // A deletion with no moby's update behind it came from the game's other code.
     if (deleted != nullptr) {
         return "by game (outside any moby's update" + recorded + ")";
     }
@@ -76,12 +85,14 @@ std::string despawn_cause(
 }
 
 void DespawnLog::note_sync(int slot, const std::string& why, std::int32_t sender) {
+    // A negative slot is no moby.
     if (slot >= 0) {
         sync_[slot] = {why, sender};
     }
 }
 
 void DespawnLog::note_death(int slot) {
+    // A negative slot is no moby.
     if (slot >= 0) {
         deaths_[slot] = true;
     }
@@ -122,14 +133,17 @@ void DespawnLog::event(
         ", camera " + (view.camera ? metres(view.camera_at, was.pose.position) : std::string("?"));
     line += ", state " + hex(was.state) + " flags " + hex(was.flags);
 
+    // Only a member has a word of when the host last sent the moby.
     if (host_seen) {
         const std::string seen = host_seen(slot, was);
 
+        // An empty answer has nothing to add.
         if (!seen.empty()) {
             line += ", " + seen;
         }
     }
 
+    // Without a sink the line is dropped.
     if (out) {
         out(line);
     }
@@ -147,7 +161,9 @@ void DespawnLog::tick(std::uint64_t now, const std::vector<MobyState>& listing, 
         next[m.slot] = m;
     }
 
+    // Each moby of the last tick is compared with this tick's.
     for (const auto& [slot, was] : last_) {
+        // A moby already dead was reported when it died.
         if (dead(was)) {
             continue;
         }
@@ -157,6 +173,7 @@ void DespawnLog::tick(std::uint64_t now, const std::vector<MobyState>& listing, 
                           && now_at->second.key == was.key;
         const auto note = sync_.find(slot);
 
+        // The same class and key in the same slot, and not dead, is the same moby still there.
         if (same && !dead(now_at->second)) {
             // Alive still: hidden, or shown again.
             if (hidden(was) != hidden(now_at->second)) {
@@ -200,6 +217,7 @@ void DespawnLog::tick(std::uint64_t now, const std::vector<MobyState>& listing, 
 
     // How each one stands now (the World forgets a driven one as it kills it).
     for (const auto& [slot, m] : next) {
+        // A dead moby keeps no role.
         if (!dead(m)) {
             roles_[slot] = role ? role(slot, m) : "local";
         }

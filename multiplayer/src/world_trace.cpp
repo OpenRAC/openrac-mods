@@ -12,7 +12,10 @@
 namespace mp {
 namespace {
 
+// Returns the name the log uses for the run list's menu mode (OPENRAC_RUN_MENU_*), "none" for an
+// unknown one.
 const char* menu_name(int menu) {
+    // The run list's menu mode is a small number; each known value has a name.
     switch (menu) {
         case 1:
             return "held";
@@ -29,7 +32,10 @@ const char* menu_name(int menu) {
     }
 }
 
+// Returns the name the log uses for how the run list treated a moby (OPENRAC_MOBY_RUN_*), "none"
+// for an unknown one.
 const char* ran_name(int ran) {
+    // The run list's result is a small number; each known value has a name.
     switch (ran) {
         case 0:
             return "far";
@@ -48,6 +54,8 @@ const char* ran_name(int ran) {
     }
 }
 
+// Returns a moby's id as the log writes it: the key as a number, or a spawned one as `n` and its
+// net id.
 std::string id_name(std::uint16_t id) {
     return (id & kSpawnedId) != 0 ? "n" + std::to_string(id & ~kSpawnedId) : std::to_string(id);
 }
@@ -56,10 +64,12 @@ std::string id_name(std::uint16_t id) {
 std::string names_of(const std::vector<std::string>& names) {
     std::string out;
 
+    // Past 200 names the line would be too long, so the rest are only counted.
     for (std::size_t i = 0; i < names.size() && i < 200; ++i) {
         out += (i != 0 ? " " : "") + names[i];
     }
 
+    // The rest are counted, not named.
     if (names.size() > 200) {
         out += " +" + std::to_string(names.size() - 200) + " more";
     }
@@ -67,6 +77,7 @@ std::string names_of(const std::vector<std::string>& names) {
     return "[" + out + "]";
 }
 
+// Returns `d` with one decimal, as the log writes a distance.
 std::string metres(float d) {
     char b[24];
     std::snprintf(b, sizeof b, "%.1f", d);
@@ -88,6 +99,7 @@ std::string World::moby_name(int slot) const {
                          : it != traced_.listed.end() ? &it->second
                                                       : nullptr;
 
+    // A moby neither listed now nor before is named by its slot only.
     if (m == nullptr) {
         return "slot " + std::to_string(slot);
     }
@@ -118,12 +130,14 @@ void World::trace_snapshot(
     std::vector<std::string> added;
     std::vector<std::string> missing;
 
+    // What this snapshot has that the last one had not.
     for (const std::uint16_t id : ids) {
         if (last.count(id) == 0) {
             added.push_back(id_name(id));
         }
     }
 
+    // What the last snapshot had that this one lacks.
     for (const std::uint16_t id : last) {
         if (ids.count(id) == 0) {
             missing.push_back(id_name(id));
@@ -167,6 +181,7 @@ void World::trace_tick(std::uint64_t now) {
                         + std::to_string(status.scene);
     std::string cameras = " camera_position " + (has_camera ? xyz(camera) : std::string("?"));
 
+    // The run list gives the cameras and the menu mode; without one only the game's own are known.
     if (has_run) {
         cameras += " run_camera " + xyz(run.camera) + " level_camera " + xyz(run.level_camera)
                    + " menu " + menu_name(run.menu) + " menu_ticks "
@@ -174,6 +189,7 @@ void World::trace_tick(std::uint64_t now) {
                    + " runs " + std::to_string(run.runs);
     }
 
+    // A change of phase is logged with the full state.
     if (status.phase != traced_.phase) {
         trace_line(
             "pause",
@@ -182,6 +198,7 @@ void World::trace_tick(std::uint64_t now) {
         );
     }
 
+    // A change of the level's mode is logged with the full state.
     if (has_run && run.level_mode != traced_.level_mode) {
         trace_line(
             "pause",
@@ -191,6 +208,7 @@ void World::trace_tick(std::uint64_t now) {
         traced_.level_mode = run.level_mode;
     }
 
+    // Entering or leaving the pause menu is a line of its own, and each frame of it is logged.
     if (menu != traced_.menu) {
         trace_line("pause", std::string(menu ? "enter " : "exit ") + state + cameras);
         traced_.menu_listed = false;
@@ -206,10 +224,12 @@ void World::trace_tick(std::uint64_t now) {
     int far = 0;
     int ran = 0;
 
+    // The listing is indexed by slot, so each moby can be compared with the last tick's.
     for (const MobyState& m : listing) {
         listed[m.slot] = m;
     }
 
+    // Each moby is compared with what the last tick saw in its slot.
     for (const auto& [slot, m] : listed) {
         const bool dead = (m.flags & kMobyDead) != 0;
         const auto was = traced_.listed.find(slot);
@@ -223,6 +243,7 @@ void World::trace_tick(std::uint64_t now) {
         if (same) {
             const std::uint32_t changed = was->second.flags ^ m.flags;
 
+            // A change of the hidden flag is a hide or a show.
             if ((changed & kMobyHidden) != 0) {
                 trace_line(
                     "vis",
@@ -231,10 +252,12 @@ void World::trace_tick(std::uint64_t now) {
                 );
             }
 
+            // Only a death is logged, not a moby coming back.
             if ((changed & kMobyDead) != 0 && dead) {
                 trace_line("vis", "dead " + name + " state " + std::to_string(m.state));
             }
 
+            // Drawing matters only while a menu is open, when the game draws a subset.
             if ((changed & kMobyDrawn) != 0 && menu) {
                 trace_line(
                     "vis", std::string((m.flags & kMobyDrawn) != 0 ? "drawn " : "undrawn ") + name
@@ -242,6 +265,7 @@ void World::trace_tick(std::uint64_t now) {
             }
         }
 
+        // A dead moby, or no run list, has no run to report.
         if (dead || !has_run) {
             continue;
         }
@@ -249,6 +273,7 @@ void World::trace_tick(std::uint64_t now) {
         // The run list: left out by distance or run, and the change between the two.
         MobyRun r;
 
+        // A moby the run list does not know has nothing to say.
         if (!game_.moby_run(slot, r) || r.ran == kRunNone) {
             continue;
         }
@@ -263,6 +288,7 @@ void World::trace_tick(std::uint64_t now) {
                                    + menu_name(r.menu);
         const auto before = traced_.in_range.find(slot);
 
+        // A change of in or out of range is logged; so is each far moby once, when a menu opens.
         if (before != traced_.in_range.end() && before->second != in_range) {
             trace_line("run", std::string(in_range ? "in " : "out ") + detail);
         } else if (menu && !traced_.menu_listed && !in_range) {
@@ -272,6 +298,7 @@ void World::trace_tick(std::uint64_t now) {
         traced_.in_range[slot] = in_range;
     }
 
+    // The far mobys of a menu are listed once for each time it opens.
     if (menu && has_run) {
         traced_.menu_listed = true;
     }
@@ -290,6 +317,8 @@ void World::trace_tick(std::uint64_t now) {
     for (const auto& [slot, m] : traced_.listed) {
         const auto now_at = listed.find(slot);
 
+        // A moby that is gone, or whose slot another moby now has, is logged; a dead one was logged
+        // as dead.
         if ((m.flags & kMobyDead) == 0
             && (now_at == listed.end() || now_at->second.oclass != m.oclass
                 || now_at->second.key != m.key)) {
@@ -310,11 +339,13 @@ void World::trace_tick(std::uint64_t now) {
 
     // Driven from the host's, or let go.
     for (const int slot : driven_) {
+        // A moby newly driven.
         if (traced_.driven.count(slot) == 0) {
             trace_line("drive", "on " + moby_name(slot));
         }
     }
 
+    // A moby no longer driven.
     for (const int slot : traced_.driven) {
         if (driven_.count(slot) == 0) {
             trace_line("drive", "off " + moby_name(slot));
@@ -332,6 +363,7 @@ void World::trace_tick(std::uint64_t now) {
     std::map<int, int> classes;
     std::set<std::string> ids;
 
+    // The dead are left out of the census.
     for (const auto& [slot, m] : traced_.listed) {
         if ((m.flags & kMobyDead) == 0) {
             ++classes[m.oclass];
@@ -341,6 +373,7 @@ void World::trace_tick(std::uint64_t now) {
 
     std::string by_class;
 
+    // The classes and their counts make one line.
     for (const auto& [oclass, n] : classes) {
         by_class += " " + std::to_string(oclass) + ":" + std::to_string(n);
     }
@@ -348,12 +381,14 @@ void World::trace_tick(std::uint64_t now) {
     std::vector<std::string> came;
     std::vector<std::string> went;
 
+    // An id the last census lacked has come.
     for (const std::string& id : ids) {
         if (traced_.census.count(id) == 0) {
             came.push_back(id);
         }
     }
 
+    // An id the last census had and this one lacks has gone.
     for (const std::string& id : traced_.census) {
         if (ids.count(id) == 0) {
             went.push_back(id);
