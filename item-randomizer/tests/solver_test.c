@@ -50,6 +50,11 @@ static void check_tables(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* a = &rando_locations[i];
         CHECK(a->name != NULL && a->level < LEVEL_COUNT);
+        if (!strcmp(a->name, "Hoven: gold bolt 2")) {
+            for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+                CHECK(rando_requirement(d, i) & BIT(ITEM_HYDRODISPLACER));
+            }
+        }
         goals += (a->flags & LOCF_GOAL) != 0;
         CHECK((a->kind == LOC_FIXED) == (a->pool == 0));
 
@@ -173,10 +178,38 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
     }
 }
 
+/* Hoven is already unlocked: the water obstacle still blocks Edwina.
+ * Giving the Hydrodisplacer from an independent location must then open her check. */
+static void check_edwina_water_route(void) {
+    rando_plan p = {0};
+    int edwina = -1, start = -1, provider = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        p.reward[i] = rando_locations[i].vanilla;
+        if (!strcmp(rando_locations[i].name, "Hoven: Edwina")) edwina = (int)i;
+        if (rando_locations[i].kind == LOC_START) start = (int)i;
+        if (!strcmp(rando_locations[i].name, "Novalis: the vendor's Pyrocitor")) provider = (int)i;
+        if (p.reward[i].kind == REWARD_ITEM && (p.reward[i].value == ITEM_HYDRODISPLACER || p.reward[i].value == ITEM_SWINGSHOT))
+            p.reward[i] = (rando_reward){REWARD_NONE, 0};
+    }
+    CHECK(edwina >= 0 && start >= 0 && provider >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_HOVEN};
+    for (int difficulty = DIFFICULTY_RELAXED; difficulty <= DIFFICULTY_EXPERT; ++difficulty) {
+        p.settings.difficulty = (uint8_t)difficulty;
+        p.reward[provider] = (rando_reward){REWARD_NONE, 0};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[edwina] == -1);
+        p.reward[provider] = (rando_reward){REWARD_ITEM, ITEM_HYDRODISPLACER};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[edwina] >= 0);
+    }
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
     check_tables();
+    check_edwina_water_route();
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
@@ -187,7 +220,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xe3bc7e659568b47eull);
+    CHECK(plan_hash(&p) == 0xc560e2bd20835200ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
