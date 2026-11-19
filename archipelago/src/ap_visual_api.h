@@ -1,10 +1,11 @@
-/* Optional reward presentation API. The released 1.14 SDK still builds the core mod.
- * The extension follows the official 1.15 settings, 1.16 save-data and 1.17 collision
- * and 1.18 prop attachment slots; never interpret the earlier experimental 1.15/1.16 layout as this ABI. */
+/* Optional reward presentation API (interface 1.22: moby_visuals, guest_text, sprite_tint,
+ * pickup_animation). An older SDK still builds the core mod: the extension follows the official
+ * 1.15 settings, 1.16 save-data, 1.17 collision, 1.18 prop attachment, 1.19 developer menu and
+ * 1.21 hook_entry slots; never interpret the earlier experimental 1.15/1.16 layout as this ABI. */
 #ifndef AP_VISUAL_API_H
 #define AP_VISUAL_API_H
 #include "openrac/openrac_mod.h"
-#if OPENRAC_MOD_API_MINOR < 19
+#if OPENRAC_MOD_API_MINOR < 22
 typedef struct openrac_moby_visual {
     openrac_gaddr moby;
     int32_t oclass;
@@ -27,6 +28,12 @@ typedef struct ap_visual_api {
 #if OPENRAC_MOD_API_MINOR < 18
     void (*prop_slots[2])(void); /* released 1.18 prop attachment API */
 #endif
+#if OPENRAC_MOD_API_MINOR < 19
+    void (*menu_slots[3])(void); /* released 1.19 developer menu switches and choices */
+#endif
+#if OPENRAC_MOD_API_MINOR < 21
+    void (*hook_entry_slot)(void); /* released 1.21 hook_entry */
+#endif
     int (*moby_visuals)(openrac_mod*, const openrac_moby_visual*, int);
     openrac_gaddr (*guest_text)(openrac_mod*, const char*);
     uint32_t (*sprite_tint)(openrac_mod*, uint32_t);
@@ -46,7 +53,7 @@ static inline openrac_api* ap_visual_base(ap_visual_api* api) {
 typedef ap_visual_api ap_pickup_api;
 
 static inline const ap_visual_api* ap_visual_host(const openrac_api* api) {
-    if (api->api_minor < 19 || api->size < sizeof(ap_visual_api)) {
+    if (api->api_minor < 22 || api->size < sizeof(ap_visual_api)) {
         return NULL;
     }
     const ap_visual_api* result = (const ap_visual_api*)api;

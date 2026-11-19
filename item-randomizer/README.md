@@ -364,7 +364,7 @@ NPC coordinates. Fixed rewards retain their vanilla names; collected randomized 
 stop advertising a reward. Archipelago shows the scouted item and its recipient,
 or `Unscouted reward` until the room provides the scout.
 
-This optional text feature needs OpenRAC interface **1.19** and its
+This optional text feature needs OpenRAC interface **1.22** and its
 `rac1.npc.try_dialog` / `rac1.text.msg_string` hooks (engine PR
 [OpenRAC/OpenRAC#540](https://github.com/OpenRAC/OpenRAC/pull/540)). On older
 hosts the mod retains native prompts. This feature does not change item pools,

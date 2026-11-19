@@ -68,7 +68,7 @@ static void npc_reward_text_hooks(void) {
     if (!s_npc_text_copy) {
         log_line(
             OPENRAC_LOG_INFO,
-            "NPC reward text needs OpenRAC interface 1.19 and its dialog/text hooks; native "
+            "NPC reward text needs OpenRAC interface 1.22 and its dialog/text hooks; native "
             "prompts retained"
         );
         return;

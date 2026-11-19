@@ -574,7 +574,7 @@ ap_visual_api make_api() {
     auto& api = *ap_visual_base(&result);
     api.size = g_visual_mode ? sizeof result : sizeof api;
     api.api_major = OPENRAC_MOD_API_MAJOR;
-    api.api_minor = g_visual_mode ? 19 : 14;
+    api.api_minor = g_visual_mode ? 22 : 14;
     api.game = "rac1";
     api.version = D->version;
     api.memory = g_memory.data();

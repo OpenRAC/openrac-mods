@@ -104,22 +104,22 @@ static int reward_text_setting(openrac_mod* mod, const char* key) {
 
 int main(void) {
     npc_text_api host = {0};
-#if OPENRAC_MOD_API_MINOR < 19
+#if OPENRAC_MOD_API_MINOR < 22
     openrac_api* base = &host.base;
 #else
     openrac_api* base = &host;
 #endif
     base->size = sizeof host;
-    base->api_minor = 19;
+    base->api_minor = 22;
     base->memory = memory;
     base->hook = hook;
     base->setting_bool = reward_text_setting;
     host.guest_text = copy_text;
     s_api = base;
     /* No read beyond an older host, including a claimed version with a short table. */
-    base->api_minor = 18;
+    base->api_minor = 21;
     assert(!npc_text_allocator(base));
-    base->api_minor = 19;
+    base->api_minor = 22;
     base->size = offsetof(npc_text_api, guest_text) - 1;
     assert(!npc_text_allocator(base));
     base->size = sizeof host;
