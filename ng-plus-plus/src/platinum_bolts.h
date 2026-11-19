@@ -121,6 +121,7 @@ private:
     MobyMaterialFn m_material = nullptr;  // The port's moby_material (null before 1.23).
     bool m_enabled = false;               // The hook points are taken.
     bool m_recording = false;             // Inside a burst of the mod's.
+    int m_drops_logged = 0;               // Drops written to the log this session (the first few).
     std::vector<Recorded> m_burst;        // The coins the game's burst made.
     int m_level = -1;                     // The level the platinum coins are in.
     bool m_mark_logged = false;           // A coin that could not be drawn was logged.

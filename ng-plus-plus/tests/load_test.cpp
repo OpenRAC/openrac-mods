@@ -1264,13 +1264,13 @@ void test_drops_before_and_crates() {
     CHECK(g_coins.size() == 1);  // 100 (no doubling in the first game)
     CHECK(g_materials.empty());
 
-    // The first challenge mode at x20: the game's 200 (doubled), unscaled, 25% of it platinum.
+    // The first challenge mode at x20: the game's 200 (doubled), unscaled, 40% of it platinum.
     set_run(1, 20);
     g_coins.clear();
     port_spawn_pickups(kMobyEnemy, 100, 9);
     CHECK(g_burst_high == 100);
     CHECK(coins_worth() == 200);
-    CHECK(g_materials.size() == 2);  // 50 as two platinum 25s, 150 in gold
+    CHECK(g_materials.size() == 4);  // 80 as three platinum 25s and a platinum 5, 120 in gold
     g_materials.clear();
 
     // A crate in challenge mode's third run (cycle 2), no streak: x1.5 the run, 10% platinum.

@@ -66,8 +66,8 @@ void test_toughness() {
 // Checks the platinum share: none before cycle 2, from the run's least at x1 to its most at x20.
 void test_share() {
     CHECK(platinum_share(0, 20) == 0.0f);
-    CHECK(near(platinum_share(1, 1), 0.05f));   // the first challenge mode: a taste
-    CHECK(near(platinum_share(1, 20), 0.25f));
+    CHECK(near(platinum_share(1, 1), 0.20f));   // the first challenge mode: a taste
+    CHECK(near(platinum_share(1, 20), 0.40f));
     CHECK(near(platinum_share(2, 1), 0.10f));
     CHECK(near(platinum_share(2, 20), 0.50f));
     CHECK(near(platinum_share(3, 20), 0.65f));

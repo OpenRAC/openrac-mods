@@ -21,6 +21,9 @@ constexpr std::int32_t kFlagLimit = 8;
 constexpr int kPlatinumCycle = 1;
 constexpr int kFirstCycle = 2;
 
+// How many drops a session writes to the log.
+constexpr int kDropsLogged = 5;
+
 // A coin's start and speed, four floats each, on the game's stack for the coin maker.
 constexpr std::uint32_t kVectorBytes = 16u;
 
@@ -142,7 +145,25 @@ void PlatinumBolts::spawn_pickups(
     // The game's coin limit, when the burst has one.
     const int limit = (flags & kFlagLimit) != 0 ? maximum : -1;
 
-    pay(split(total, platinum_share(cycle, m_view.streak()), limit));
+    const float share = platinum_share(cycle, m_view.streak());
+    const CoinPlan plan = split(total, share, limit);
+
+    // The first few drops of a session in the log, to show what the drops pay.
+    if (m_drops_logged < kDropsLogged) {
+        ++m_drops_logged;
+        int platinum = 0;
+        for (const int count : plan.platinum) {
+            platinum += count;
+        }
+        m_mod.info(
+            "drop of " + std::to_string(total) + " bolts (challenge mode " + std::to_string(cycle)
+            + ", x" + std::to_string(m_view.streak()) + " streak, scale "
+            + std::to_string(scale).substr(0, 4) + "): " + std::to_string(platinum)
+            + " platinum coins of " + std::to_string(plan.coins())
+        );
+    }
+
+    pay(plan);
 }
 
 std::uint32_t PlatinumBolts::spawn_pickup(

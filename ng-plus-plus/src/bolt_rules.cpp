@@ -22,11 +22,12 @@ constexpr float kRunScale[] = {1.5f, 2.5f, 4.0f, 6.0f};
 constexpr float kShareLeast[] = {0.10f, 0.15f, 0.20f, 0.25f};
 constexpr float kShareMost[] = {0.50f, 0.65f, 0.80f, 0.90f};
 
-// The first challenge mode's (cycle 1) taste of platinum, at x1 and at x20: a little, with no
-// bigger drops, so the platinum bolts show up before the run scale starts.
+// The first challenge mode's (cycle 1) taste of platinum, at x1 and at x20, with no bigger drops,
+// so the platinum bolts show up before the run scale starts. Platinum comes in steps of 5 bolts:
+// at 20% a drop of 25 bolts already shows one.
 constexpr int kTasteCycle = 1;
-constexpr float kTasteLeast = 0.05f;
-constexpr float kTasteMost = 0.25f;
+constexpr float kTasteLeast = 0.20f;
+constexpr float kTasteMost = 0.40f;
 
 // How many cycles the tables have.
 constexpr int kRunCycles = static_cast<int>(sizeof kRunScale / sizeof kRunScale[0]);

@@ -155,7 +155,7 @@ kills in every new game:
 | New game | Challenge mode | Bolts (normal) | Bolts (generous) | Platinum at x1 streak | Platinum at x20 streak |
 |---|---|---|---|---|---|
 | 1 | - | x1 | x1 | none | none |
-| 2 | 1st | x1 | x1 | 5% | 25% |
+| 2 | 1st | x1 | x1 | 20% | 40% |
 | 3 | 2nd | x1.5 | x2.25 | 10% | 50% |
 | 4 | 3rd | x2.5 | x3.75 | 15% | 65% |
 | 5 | 4th | x4 | x6 | 20% | 80% |
