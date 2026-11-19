@@ -23,9 +23,14 @@ menu, then **Options**, then **Cheats**:
 
 The same switches and buttons are in OpenRAC's own menu, at any time in the game: open it
 (Alt, or Start+Select on a pad, or the drawer on a touch screen) and its **Cheats** menu has
-*Invincibility: On/Off*, *Infinite ammo*, *Infinite oxygen*, *Bolt multiplier* (each press steps
-it on, x100 back to x1), *Refill ammo* and *Give 10000 bolts*. What is switched there shows on the
-pause page and the other way round. The gift of bolts needs a level.
+switches for *Invincibility*, *Infinite ammo* and *Infinite oxygen*, a choice for the *Bolt
+multiplier* between two arrows, and the *Refill ammo* and *Give 10000 bolts* buttons. What is
+switched there shows on the pause page and the other way round. The gift of bolts needs a level.
+
+OpenRAC's menu pauses the game while it is open, so what you switch there, or press, takes effect
+once you close it. Before OpenRAC's mod interface 1.19 the menu has no switches: each row's label
+says *On* or *Off* and changes only once the menu is closed and opened again, and each press on
+*Bolt multiplier* steps it on (x100 back to x1).
 
 The launcher's settings say what is on at the start. A cheat switched on the page lasts until the
 game closes; it is not written back to the launcher. The settings:
@@ -75,9 +80,12 @@ The refill writes each owned weapon's ammo (`weapon_ammo_counts`) to the max of 
 [difficulty](../difficulty-mod/README.md) mod's max ammo. The page is a page of the game's own
 menus (`ui_page`, `ui_pause_item`, interface 1.9), and the HUD's line is `hud_text_set`
 (interface 1.12), shown again after each level load. The overlay's menu is `developer_menu`
-(interface 1.10): its presses are taken at a tick's boundary (`take_developer_menu_action`), where
-each switch's label is set again when it changed (`developer_menu_set_label`). A port without it,
-or another mod's menu titled Cheats, leaves the pause page alone, with a warning in the log.
+(interface 1.10): its presses are taken at a tick's boundary (`take_developer_menu_action`). From
+interface 1.19 its rows are the menu's own switches and choice (`menu_switch`, `menu_choice`),
+which the menu turns over at once; the mod reads the state each was left in (`menu_value`) and sets
+them again when the page changed a cheat. Before 1.19, each switch's label is set again when it
+changed (`developer_menu_set_label`). A port without the menu, or another mod's menu titled Cheats,
+leaves the pause page alone, with a warning in the log.
 
 ### The page and the stick
 
@@ -103,7 +111,7 @@ As every native mod here (the repository's [README](../README.md#building)). The
 
 - `cheats_cheats`: the shared part alone (the multiplier's steps, the bolts added, the HUD's line);
 - `cheats_rac1_load`: the library as the port loads it, against a host table and game memory of
-  the test's own, on both discs (the hooks, the page's rows and buttons, the overlay's menu and its labels, the air, the HUD's
+  the test's own, on both discs (the hooks, the page's rows and buttons, the overlay's menu with its labels before 1.19 and its switches from 1.19, the air, the HUD's
   line).
 
 ## Layout
