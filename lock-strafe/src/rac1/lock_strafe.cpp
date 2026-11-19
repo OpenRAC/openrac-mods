@@ -301,8 +301,8 @@ Settings read_settings(const openrac::Mod& mod) {
 // The strafe: the mod's state, and the code that reads the hero, the pad and the camera out of
 // game memory around the decision of strafe.hpp. The hook replacements are its public functions.
 //
-// One object lives from load on (g_strafe). The hooks all run on the game's thread, the one that
-// runs the hero's update; nothing here is touched by another thread.
+// One object lives from load on, owned by the hooks' callables (load). The hooks all run on the
+// game's thread, the one that runs the hero's update; nothing here is touched by another thread.
 class Strafe {
 public:
     // Makes the strafe for `mod` on `disc`, with the settings and game functions it found.
@@ -506,11 +506,6 @@ private:
     // Whether the hero has the twist's joints (sent, and not yet taken off).
     bool m_twist_shown = false;
 };
-
-// The one strafe, made by load. The hook replacements are lambdas that carry no state, so they
-// reach it through this pointer; load sets it before it takes the first hook, and only the game's
-// thread uses it after that.
-std::unique_ptr<Strafe> g_strafe;
 
 float Strafe::get_float(gaddr at) const {
     return m_mod.memory().read<float>(at);
@@ -1031,31 +1026,34 @@ void load(openrac::Mod& mod) {
 
     const Settings settings = read_settings(mod);
 
-    g_strafe = std::make_unique<Strafe>(mod, *disc, settings, find_functions(mod, *disc));
+    // The six hooks own the strafe between them: the SDK keeps their callables for the life of the
+    // library and never destroys them at exit, since the port may call a hook while the program
+    // ends, and drops them (and with them the strafe) when the library loads again.
+    const auto strafe = std::make_shared<Strafe>(mod, *disc, settings, find_functions(mod, *disc));
 
     // A hook point this OpenRAC lacks throws: the load is refused with its name, and the port lets
     // go of the hooks already taken.
     mod.hook<hooks::Pad_ProcessReport>(
-        [](auto original, std::uint32_t pad_state, std::uint32_t report, std::int32_t size) {
-            g_strafe->pad_process_report(original, pad_state, report, size);
+        [strafe](auto original, std::uint32_t pad_state, std::uint32_t report, std::int32_t size) {
+            strafe->pad_process_report(original, pad_state, report, size);
         }
     );
-    mod.hook<hooks::Hero_UpdateMotionInput>([](auto original) {
-        g_strafe->update_motion_input(original);
+    mod.hook<hooks::Hero_UpdateMotionInput>([strafe](auto original) {
+        strafe->update_motion_input(original);
     });
     mod.hook<hooks::Hero_TurnToHeading>(
-        [](auto original, std::int32_t m, float accel, float damping, float limit) {
-            g_strafe->turn_to_heading(original, m, accel, damping, limit);
+        [strafe](auto original, std::int32_t m, float accel, float damping, float limit) {
+            strafe->turn_to_heading(original, m, accel, damping, limit);
         }
     );
-    mod.hook<hooks::Hero_SetPlanarVelocity>([](auto original, float angle) {
-        g_strafe->set_planar_velocity(original, angle);
+    mod.hook<hooks::Hero_SetPlanarVelocity>([strafe](auto original, float angle) {
+        strafe->set_planar_velocity(original, angle);
     });
-    mod.hook<hooks::FollowCamera_ApplyOverrides>([](auto original, std::uint32_t camera) {
-        g_strafe->camera_overrides(original, camera);
+    mod.hook<hooks::FollowCamera_ApplyOverrides>([strafe](auto original, std::uint32_t camera) {
+        strafe->camera_overrides(original, camera);
     });
-    mod.hook<hooks::Hero_AdvanceAnimation>([](auto original) {
-        g_strafe->advance_animation(original);
+    mod.hook<hooks::Hero_AdvanceAnimation>([strafe](auto original) {
+        strafe->advance_animation(original);
     });
 
     mod.info(
