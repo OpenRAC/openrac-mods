@@ -1691,6 +1691,8 @@ static int32_t count_gold_bolts_hook(void) {
     return n < MAX_GOLD_BOLTS ? n : MAX_GOLD_BOLTS;
 }
 
+#include "npc_reward_label.inc"
+#include "npc_reward_text.inc"
 #include "reward_presentation.inc"
 
 #include "reward_acquisition.inc"
@@ -1815,14 +1817,15 @@ static int take(int result, const char* point) {
     )
 
 /* Takes every hook point the mod needs; 1 when all are in place, 0 (the port told) when not. */
-#include "npc_reward_label.inc"
-#include "npc_reward_text.inc"
-
 static int install_hooks(void) {
-    npc_reward_text_hooks();
     s_gold_case_present = acquisition_case;
     if (!presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
         return 0;
+    }
+    /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
+     * the NPC reward text itself; otherwise that text takes them on its own. */
+    if (!s_presentation_text) {
+        npc_reward_text_hooks();
     }
     return HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
            && HOOK(Item_Give, item_give, &s_item_give)

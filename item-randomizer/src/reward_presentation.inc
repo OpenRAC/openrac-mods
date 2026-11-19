@@ -64,6 +64,7 @@ static uint32_t s_case_dialog_request;
 static int s_draw_vendor_icons;
 static int s_draw_vendor_details;
 static int s_in_dialog_try;
+static int s_presentation_text; /* this file owns rac1.npc.try_dialog and rac1.text.msg_string */
 static void (*s_draw_icons)(void);
 static void (*s_draw_details)(void);
 static void (*s_vendor_initialize)(void);
@@ -625,7 +626,8 @@ static int32_t try_dialog_presentation(uint32_t moby, uint32_t request) {
     s_dialog_location = location;
     play_phase(&s_dialog_load);
     ++s_in_dialog_try;
-    const int result = s_try_dialog(moby, request);
+    /* Through the NPC reward text, which marks the interactions whose prompts it owns. */
+    const int result = npc_reward_try(moby, request);
     --s_in_dialog_try;
     if (!result) {
         s_dialog_location = previous;
@@ -635,6 +637,12 @@ static int32_t try_dialog_presentation(uint32_t moby, uint32_t request) {
 }
 
 static uint32_t message_presentation(int32_t id) {
+    /* One owner per prompt: an NPC interaction the NPC reward text knows is named there (its
+     * collected rules), never rewritten again here. Gold cases, the vendor's details and an NPC
+     * dialog already open stay this file's. */
+    if (!s_draw_vendor_details && s_in_dialog_try && npc_reward_text_owns()) {
+        return npc_reward_message(id);
+    }
     const uint32_t original = s_message_string(id);
     if (!original || !s_visual_api || (reward_ready() < 0)) {
         return original;
@@ -736,6 +744,7 @@ static uint32_t message_presentation(int32_t id) {
 }
 
 static int presentation_hooks(void) {
+    s_presentation_text = 0;
     s_reward_models = s_api->setting_bool(s_mod, "reward_models");
     s_reward_text = s_api->setting_bool(s_mod, "reward_text");
     s_visual_api = reward_visual_host(s_api);
@@ -768,6 +777,8 @@ static int presentation_hooks(void) {
         );
         PRESENT_HOOK("rac1.npc.try_dialog", "i32(u32,u32)", try_dialog_presentation, s_try_dialog);
         PRESENT_HOOK("rac1.text.msg_string", "i32(i32)", message_presentation, s_message_string);
+        npc_reward_text_attach(s_try_dialog, s_message_string);
+        s_presentation_text = 1;
     }
 #undef PRESENT_HOOK
     return 1;

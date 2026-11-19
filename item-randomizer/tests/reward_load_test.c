@@ -372,6 +372,22 @@ int main(int argc, char** argv) {
         set32(s_memory + D->level, k_rando_npcs[i].level);
         ((int (*)(uint32_t, uint32_t))hook_named("rac1.npc.try_dialog"))(moby, 0);
         CHECK(strstr(prompt, "Buy ") && strstr(prompt, " for 500 bolts"));
+        if (i == 0) {
+            /* With a dialog request the NPC reward text owns the prompt: it names the selected
+             * entry once, and the reward presentation leaves every other text alone. */
+            const uint32_t request = 0x1F6000, entries = 0x1F6800;
+            const int16_t index = 0;
+            uint16_t entry = 999;
+            set32(s_memory + request + 0x3C, entries);
+            memcpy(s_memory + request + 0x36, &index, 2);
+            memcpy(s_memory + entries, &entry, 2);
+            ((int (*)(uint32_t, uint32_t))hook_named("rac1.npc.try_dialog"))(moby, request);
+            CHECK(strstr(prompt, " for 500 bolts") && strcmp(prompt, "Buy Infobot for 500 bolts"));
+            entry = 998;
+            memcpy(s_memory + entries, &entry, 2);
+            ((int (*)(uint32_t, uint32_t))hook_named("rac1.npc.try_dialog"))(moby, request);
+            CHECK(strcmp(prompt, "Buy Infobot for 500 bolts") == 0);
+        }
         int before = npc_purchases;
         ((void (*)(uint32_t))hook_named(k_rando_npcs[i].hook))(moby);
         CHECK(npc_purchases == before + 1 && (data_words[2] & (1u << (10 + i))));
