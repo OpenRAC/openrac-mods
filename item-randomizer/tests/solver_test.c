@@ -51,6 +51,15 @@ static void check_tables(void) {
         const rando_location* a = &rando_locations[i];
         CHECK(a->name != NULL && a->level < LEVEL_COUNT);
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS)));
+            if (!strcmp(a->name, "Oltanis: the Morph-o-Ray's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
+            if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
+            if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK)));
+            if (!strcmp(a->name, "Quartu: the scientist, the coordinates of Kalebo III")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
+            if (!strcmp(a->name, "Quartu: in disguise, the coordinates of Drek's Fleet")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HOLOGUISE) | BIT(ITEM_THRUSTER_PACK) | BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT)));
+        }
+
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
             if (!strcmp(a->name, "Hoven: the coordinates of Gemlik")) {
                 const uint64_t expected = BIT(ITEM_HELI_PACK)
                     | (d == DIFFICULTY_EXPERT ? 0 : BIT(ITEM_DEVASTATOR));
@@ -477,7 +486,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0x759519c44e7ea422ull);
+    CHECK(plan_hash(&p) == 0x7a939a8872a71872ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
