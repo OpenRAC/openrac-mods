@@ -4,6 +4,7 @@
 #undef main
 #include "reward_api.h"
 #include "reward_pools.h"
+#include "special_item_visual.h"
 
 static uint32_t data_words[3], data_size;
 static openrac_frame_fn data_changed;
@@ -22,7 +23,7 @@ static uint8_t* gold_flag(int base) {
 }
 
 static uint32_t global_mode(void) {
-    return strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u;
+    return strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;
 }
 
 static uint32_t pool_word(void) {
@@ -419,7 +420,30 @@ int main(int argc, char** argv) {
             ((void (*)(void))hook_named("rac1.vendor.initialize_selected"))();
             CHECK(get32(menu + VENDOR_ENTRIES) == source);
             s_frame(NULL);
-            CHECK(visual_count >= 2);
+            /* A native preview already using the reward mesh needs no override.
+             * Check the effective geometry, not the number of submissions. */
+            const rando_reward reward = plan.reward[row];
+            int expected = 0x46E;
+            if (reward.kind == REWARD_ITEM) {
+                expected = reward.value == ITEM_HELI_PACK ? 607 : 0x500 + reward.value;
+            } else if (reward.kind == REWARD_GOLD_WEAPON) {
+                expected = 0x5B0 + rando_gold_index(reward.value);
+            } else if (reward.kind == REWARD_PLANET) {
+                expected = 0x2EE;
+            } else if (reward.kind == REWARD_SPECIAL) {
+                int icon, frame;
+                expected = special_item_visual(rando_special_name(reward.value), &icon, &frame);
+            }
+            for (int panel = 1; panel <= 3; panel += 2) {
+                const uint32_t address = 0x1A0000 + panel * 0x100;
+                int16_t native;
+                memcpy(&native, s_memory + address + 0xA6, sizeof native);
+                int effective = native;
+                for (int v = 0; v < visual_count; ++v) {
+                    if (visual_rows[v].moby == address) effective = visual_rows[v].oclass;
+                }
+                CHECK(effective == expected);
+            }
             ((void (*)(void))hook_named("rac1.vendor.draw_details"))();
             CHECK(strcmp(detail_name, "Buy Infobot for 500 bolts") != 0);
             game_buy(

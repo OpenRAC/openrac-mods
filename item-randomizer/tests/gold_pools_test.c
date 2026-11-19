@@ -14,6 +14,16 @@
     } while (0)
 
 int main(void) {
+    /* Retail item IDs, independent of the case table under test. No gold gadget exists. */
+    static const int expected[] = {10, 16, 15, 20, 17, 11, 25, 19, 9, 21};
+    for (int i = 0; i < 10; ++i) {
+        CHECK(k_rando_gold_bases[i] == expected[i]);
+        const int row = rando_case_row(expected[i]);
+        CHECK(row >= 0);
+        CHECK(rando_locations[row].vanilla.kind == REWARD_GOLD_WEAPON);
+        CHECK(rando_locations[row].vanilla.value == expected[i]);
+    }
+    CHECK(rando_gold_index(ITEM_SWINGSHOT) == -1);
     rando_options o = {"pool-test", 1, 1, 1, 1, 1, 1, "standard", 1};
     rando_settings s, copy;
     CHECK(rando_settings_of(&o, NULL, 1, &s) == SEED_FROM_WORD);
