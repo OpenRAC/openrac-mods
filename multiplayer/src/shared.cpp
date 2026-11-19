@@ -35,7 +35,20 @@ struct SceneFlag {
 };
 
 constexpr SceneFlag kSceneFlags[] = {
-    {1, 2}, {3, 0}, {3, 2}, {3, 3}, {4, 1}, {6, 0}, {7, 3}, {8, 4}, {10, 2}, {10, 4}, {11, 3}, {14, 2}, {16, 3}, {17, 3},
+    {1, 2},
+    {3, 0},
+    {3, 2},
+    {3, 3},
+    {4, 1},
+    {6, 0},
+    {7, 3},
+    {8, 4},
+    {10, 2},
+    {10, 4},
+    {11, 3},
+    {14, 2},
+    {16, 3},
+    {17, 3},
 };
 
 /* The nanotech upgrades (gSpecialItems 4 and 5: hero_max_health follows them). */
@@ -87,12 +100,15 @@ bool read_section(Game& game, int tag, std::array<std::uint8_t, N>& out) {
 
 template <std::size_t N>
 std::size_t count_of(const std::array<std::uint8_t, N>& bytes) {
-    return static_cast<std::size_t>(std::count_if(bytes.begin(), bytes.end(), [](std::uint8_t b) { return b != 0; }));
+    return static_cast<std::size_t>(std::count_if(bytes.begin(), bytes.end(), [](std::uint8_t b) {
+        return b != 0;
+    }));
 }
 
 std::string count_text(const SharedBits& bits) {
-    return std::to_string(count_of(bits.gold_weapons)) + " gold weapons, " + std::to_string(count_of(bits.skills))
-           + " skill points, " + std::to_string(count_of(bits.flags)) + " flags, "
+    return std::to_string(count_of(bits.gold_weapons)) + " gold weapons, "
+           + std::to_string(count_of(bits.skills)) + " skill points, "
+           + std::to_string(count_of(bits.flags)) + " flags, "
            + std::to_string(count_of(bits.specials)) + " special items";
 }
 
@@ -105,7 +121,8 @@ bool scene_flag(int level, int flag) {
 }
 
 bool own_special(int item) {
-    return std::find(std::begin(kOwnSpecials), std::end(kOwnSpecials), item) != std::end(kOwnSpecials);
+    return std::find(std::begin(kOwnSpecials), std::end(kOwnSpecials), item)
+           != std::end(kOwnSpecials);
 }
 
 Bytes encode_shared(const SharedBits& bits) {
@@ -197,7 +214,10 @@ bool decode_shared_ask(const Bytes& bytes, int& level) {
     return true;
 }
 
-Shared::Shared(Session& session, Game& game, Coop& coop) : session_(session), game_(game), coop_(coop) {}
+Shared::Shared(Session& session, Game& game, Coop& coop)
+    : session_(session),
+      game_(game),
+      coop_(coop) {}
 
 void Shared::reset() {
     read_ = false;
@@ -251,7 +271,8 @@ void Shared::handle(std::int32_t sender, const Bytes& bytes) {
             trace_line("received MISSION of level " + std::to_string(level));
 
             for (std::size_t i = 0; i < kFlagsPerLevel; ++i) {
-                std::uint8_t& flag = party_.flags[static_cast<std::size_t>(level) * kFlagsPerLevel + i];
+                std::uint8_t& flag =
+                    party_.flags[static_cast<std::size_t>(level) * kFlagsPerLevel + i];
                 flag = static_cast<std::uint8_t>(flag | (row[i] != 0 ? 1 : 0));
             }
 
@@ -304,30 +325,37 @@ bool Shared::merge(const SharedBits& want, int level, bool all_scenes, const std
     bool took = false;
 
     // Only what this game has never had; what is held back stays in `want` for a later reading.
-    const auto fresh = [&](int tag, const auto& asked, const auto& never, auto& have, auto&& allowed) {
-        Bytes bytes(asked.size(), 0);
-        std::size_t count = 0;
+    const auto fresh =
+        [&](int tag, const auto& asked, const auto& never, auto& have, auto&& allowed) {
+            Bytes bytes(asked.size(), 0);
+            std::size_t count = 0;
 
-        for (std::size_t i = 0; i < asked.size(); ++i) {
-            if (asked[i] != 0 && never[i] == 0 && allowed(i)) {
-                bytes[i] = 1;
-                ++count;
+            for (std::size_t i = 0; i < asked.size(); ++i) {
+                if (asked[i] != 0 && never[i] == 0 && allowed(i)) {
+                    bytes[i] = 1;
+                    ++count;
+                }
             }
-        }
 
-        if (count == 0 || !game_.shared_give(tag, bytes)) {
-            return;
-        }
+            if (count == 0 || !game_.shared_give(tag, bytes)) {
+                return;
+            }
 
-        for (std::size_t i = 0; i < asked.size(); ++i) {
-            have[i] = static_cast<std::uint8_t>(have[i] | bytes[i]);
-        }
+            for (std::size_t i = 0; i < asked.size(); ++i) {
+                have[i] = static_cast<std::uint8_t>(have[i] | bytes[i]);
+            }
 
-        took = true;
-        log("shared progress: section " + std::to_string(tag) + ", " + std::to_string(count) + " new (" + from + ")");
-        trace_line("merged section " + std::to_string(tag) + ", " + std::to_string(count) + " new (" + from + ")");
+            took = true;
+            log("shared progress: section " + std::to_string(tag) + ", " + std::to_string(count)
+                + " new (" + from + ")");
+            trace_line(
+                "merged section " + std::to_string(tag) + ", " + std::to_string(count) + " new ("
+                + from + ")"
+            );
+        };
+    const auto any = [](std::size_t) {
+        return true;
     };
-    const auto any = [](std::size_t) { return true; };
 
     fresh(kSharedGoldWeapons, want.gold_weapons, once_.gold_weapons, here_.gold_weapons, any);
     fresh(kSharedSkillPoints, want.skills, once_.skills, here_.skills, any);
@@ -389,7 +417,8 @@ void Shared::tick(std::uint64_t now) {
         reports_.clear();
         const std::size_t members = session_.members().size();
 
-        if (!sent_any_ || here_ != sent_ || members != members_ || now - sent_ms_ >= kProgressResendMs) {
+        if (!sent_any_ || here_ != sent_ || members != members_
+            || now - sent_ms_ >= kProgressResendMs) {
             members_ = members;
             sent_ms_ = now;
             send(kBroadcast, "all");
@@ -421,7 +450,10 @@ void Shared::tick(std::uint64_t now) {
             }
 
             session_.send_data(ask.first, encode_mission(ask.second, row.data()));
-            trace_line("sent MISSION of level " + std::to_string(ask.second) + " to " + std::to_string(ask.first));
+            trace_line(
+                "sent MISSION of level " + std::to_string(ask.second) + " to "
+                + std::to_string(ask.first)
+            );
         }
 
         asked_.clear();

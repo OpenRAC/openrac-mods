@@ -168,10 +168,10 @@
 
 #include "coop.hpp"
 #include "despawn.hpp"
-#include "trace.hpp"
 #include "play.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
+#include "trace.hpp"
 
 namespace mp {
 
@@ -280,9 +280,10 @@ inline bool hit_makes_sense(const Hit& h) {
     const auto number = [](const float (&v)[3]) {
         return std::isfinite(v[0]) && std::isfinite(v[1]) && std::isfinite(v[2]);
     };
-    return std::isfinite(h.damage) && h.damage >= 0.0f && h.damage <= kMostHitDamage && number(h.position)
-           && number(h.velocity);
+    return std::isfinite(h.damage) && h.damage >= 0.0f && h.damage <= kMostHitDamage
+           && number(h.position) && number(h.velocity);
 }
+
 /* A grab (world_hold.cpp): how often the host says where the player is held, how long he has to show
  * he is before the host gives it up, how long a held player goes with no word before his game lets
  * him go, how long a fatal grab may wait for him to come back, and how soon after a word that a
@@ -312,6 +313,7 @@ constexpr std::uint64_t kDownedGraceMs = 5000;
 /* A dig in a member's game: how often it asks, how long after the word it may take. */
 constexpr std::uint64_t kDigAskMs = 500;
 constexpr std::uint64_t kDigMs = 2000;
+
 /* How each class of the level's mobys is shared (WORLD.md's class inventory, from the catalogue):
  *
  * crates (500 bolt, 501 nanotech, 502 metal, 505 oom-oom box, 511 ammo crate): every game runs its
@@ -371,6 +373,7 @@ inline bool death_interactable_class(int oclass) {
 inline bool spawned_bolt_class(int oclass) {
     return oclass == 152;
 }
+
 // --- end WP-DEATH ---
 
 // --- WP-TETHER: class lists ---
@@ -436,18 +439,18 @@ inline const GrabClass* grab_class(int oclass) {
 inline bool keeps_hero_class(int oclass) {
     return any_of_class(oclass, {580, 612, 749, 827, 1199, 1231, 1440, 1906});
 }
+
 // --- end WP-TETHER ---
 
 inline bool crate_class(int oclass) {
-    return any_of_class(oclass, {500, 501, 502, 505, 511}) || death_crate_class(oclass) || tether_crate_class(oclass);
+    return any_of_class(oclass, {500, 501, 502, 505, 511}) || death_crate_class(oclass)
+           || tether_crate_class(oclass);
 }
 
 inline bool pickup_class(int oclass) {
-    return any_of_class(
-        oclass,
-        {13, 14, 15, 16, 1134, 204, 213, 214, 222, 223, 225, 226, 1006, 1438, 1447, 1449, 224, 228,
-         1218, 1220, 806}
-    ) || death_pickup_class(oclass) || tether_pickup_class(oclass);
+    return any_of_class(oclass, {13,  14,   15,   16,   1134, 204, 213, 214,  222,  223, 225,
+                                 226, 1006, 1438, 1447, 1449, 224, 228, 1218, 1220, 806})
+           || death_pickup_class(oclass) || tether_pickup_class(oclass);
 }
 
 /* Pickups an enemy of the host's drops that every game gets its own of (ammo, health). */
@@ -456,15 +459,13 @@ inline bool loot_class(int oclass) {
 }
 
 inline bool interactable_class(int oclass) {
-    return any_of_class(
-               oclass,
-               {11,   298,  644,  1432, 1326, 925,  530,  666,  712,  816,  1012, 38,   1474,
-                998,  424,  557,  1109, 1448, 1766, 484,  1120, 318,  1135, 1190, 750,  774,
-                1283, 890,  909,  1377, 1455, 328,  90,   114,  1105, 805,  1324, 1341, 1342,
-                1348, 1561, 558,  304,  23,   18,   1354, 1038, 1040, 1297, 1559, 1388, 585,
-                607,  618,  849,  1289, 1290, 229,  1143, 71,   74,   121,  153,  163,  172,
-                203,  270,  457,  1378, 1039, 22,   605,  613,  610,  679}
-           )
+    return any_of_class(oclass, {11,   298,  644,  1432, 1326, 925,  530,  666,  712,  816,  1012,
+                                 38,   1474, 998,  424,  557,  1109, 1448, 1766, 484,  1120, 318,
+                                 1135, 1190, 750,  774,  1283, 890,  909,  1377, 1455, 328,  90,
+                                 114,  1105, 805,  1324, 1341, 1342, 1348, 1561, 558,  304,  23,
+                                 18,   1354, 1038, 1040, 1297, 1559, 1388, 585,  607,  618,  849,
+                                 1289, 1290, 229,  1143, 71,   74,   121,  153,  163,  172,  203,
+                                 270,  457,  1378, 1039, 22,   605,  613,  610,  679})
            || (oclass >= 1456 && oclass <= 1465) || death_interactable_class(oclass)
            || tether_interactable_class(oclass);
 }
@@ -503,9 +504,19 @@ struct WorldEntry {
     bool loose = false;
 };
 
-Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries, std::uint16_t sequence = 0);
-bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out,
-                  std::uint16_t* sequence = nullptr);
+Bytes encode_world(
+    int level,
+    std::int64_t stamp,
+    const std::vector<WorldEntry>& entries,
+    std::uint16_t sequence = 0
+);
+bool decode_world(
+    const Bytes& bytes,
+    int& level,
+    std::int64_t& stamp,
+    std::vector<WorldEntry>& out,
+    std::uint16_t* sequence = nullptr
+);
 
 /* What a member was told of a moby: as much of it as tells a change. */
 struct WorldTold {
@@ -521,11 +532,11 @@ struct WorldTold {
  * reads that the host knows here. */
 struct WorldSight {
     float distance = 0;
-    bool creature = false;   // it can hurt the player
-    bool ahead = false;      // the player faces it
-    bool hit = false;        // the player hit it a moment ago
-    bool flying = false;     // a bolt on its way, before it lands
-    bool hidden = false;     // nothing draws it
+    bool creature = false;  // it can hurt the player
+    bool ahead = false;     // the player faces it
+    bool hit = false;       // the player hit it a moment ago
+    bool flying = false;    // a bolt on its way, before it lands
+    bool hidden = false;    // nothing draws it
 };
 
 /* A moby's weight for a member: 1 is due each kWorldBaseMs. */
@@ -547,8 +558,10 @@ public:
     bool hit(const Hit& hit);
     /* Whether a member's HIT is one to take. */
     bool member_hit_ok(std::int32_t sender, const Hit& h) const;
+
     /* The hits taken from members, and the HITs and DAMAGEs refused. */
     int hits_taken() const { return hits_taken_; }
+
     int hits_refused() const { return hits_refused_; }
 
     /* The game records a moby's death (its killed bits, then its bolts dropped): true when its drop
@@ -601,6 +614,7 @@ public:
 
     /* A member: whether the host gave it the world of the level as it stands. */
     bool synced() const { return synced_; }
+
     /* The host's level does not agree with this game's (the sim digests): true once, and this game
      * cannot share it. */
     bool take_level_differs() {
@@ -629,14 +643,14 @@ public:
 private:
     /* A moby as one member has it. */
     struct Tracked {
-        WorldTold sent;           // the newest word that went, in datagram sent_seq
+        WorldTold sent;  // the newest word that went, in datagram sent_seq
         std::uint16_t sent_seq = 0;
-        bool flying = false;      // that word's fate is not known yet
-        WorldTold known;          // the newest word known to have come, in datagram known_seq
+        bool flying = false;  // that word's fate is not known yet
+        WorldTold known;      // the newest word known to have come, in datagram known_seq
         std::uint16_t known_seq = 0;
-        bool delivered = false;   // `known` means something
-        std::uint64_t ms = 0;     // when it last went
-        float priority = 0;       // the accumulator: goes at 1
+        bool delivered = false;  // `known` means something
+        std::uint64_t ms = 0;    // when it last went
+        float priority = 0;      // the accumulator: goes at 1
     };
 
     /* A datagram whose fate is not known: its sequence, when it went, what it said. */
@@ -648,9 +662,9 @@ private:
 
     struct Member {
         int level = -1;
-        bool want = false;        // HELLO heard, the world not given yet
-        std::uint32_t load = 0;   // that HELLO's load
-        bool synced = false;      // given the world: WORLD goes to it
+        bool want = false;       // HELLO heard, the world not given yet
+        std::uint32_t load = 0;  // that HELLO's load
+        bool synced = false;     // given the world: WORLD goes to it
         std::uint64_t world_ms = 0;
         std::uint16_t sequence = 0;
         std::map<std::uint16_t, Tracked> tracked;
@@ -776,23 +790,31 @@ private:
     int slot_of(std::uint16_t id) const;
     void tick_world(std::uint64_t now);
     void tick_despawn(std::uint64_t now, const std::vector<MobyState>& listing);
+
     /* The verbose log (world_trace.cpp): each tick's pause, run, vis, drive and census lines; a
      * line of `what`; a WORLD's ids against the last one's; a moby deleted by the sync. */
     bool tracing() const { return trace_ != nullptr && trace_->on(); }
+
     void trace_tick(std::uint64_t now);
+
     void trace_line(const std::string& what, const std::string& text) {
         if (tracing()) {
             trace_->line(what, text);
         }
     }
-    void trace_snapshot(const std::string& how, std::set<std::uint16_t>& last, const std::set<std::uint16_t>& ids);
+
+    void trace_snapshot(
+        const std::string& how, std::set<std::uint16_t>& last, const std::set<std::uint16_t>& ids
+    );
     bool kill(int slot, const std::string& why);
     std::string moby_name(int slot) const;
+
     void note(int slot, const std::string& why, std::int32_t sender) {
         if (despawn_on_) {
             despawn_.note_sync(slot, why, sender);
         }
     }
+
     void log(const std::string& line) const {
         if (log_) {
             log_(line);
@@ -875,6 +897,7 @@ private:
     int bolts_before_ = 0;
     /* Host: the bolts taken (granted to a member, or collected here), by id. */
     std::set<std::uint16_t> claimed_;
+
     /* The bolts flying to the player who took them (fly), by slot: who, that player's figure here
      * (-1: this game's Ratchet), its id, until when. */
     struct Flight {
@@ -883,6 +906,7 @@ private:
         std::uint16_t id = 0;
         std::uint64_t until = 0;
     };
+
     std::map<int, Flight> flights_;
     /* Member: whether its eyes are on flying bolts (to be cleared once none fly). */
     bool flight_eyes_ = false;
@@ -927,6 +951,7 @@ private:
     bool despawn_on_ = false;
     DespawnLog despawn_;
     Trace* trace_ = nullptr;
+
     /* What the verbose log last saw: the phase, the level's mode, whether a menu was open and its
      * far mobys listed, the menu updates; each slot's run (in range or not) and flags; the driven;
      * the census's ids; the eyes; the snapshots' ids, sent by member and received. */
@@ -948,11 +973,13 @@ private:
         std::map<std::int32_t, std::set<std::uint16_t>> sent;
         std::set<std::uint16_t> received;
     } traced_;
+
     /* What it did since the last line in the log (every kWorldLogMs when something happened). */
     struct Counts {
         int snapshots = 0, hits = 0, kills = 0, spawns = 0, despawns = 0, damage = 0, bolts = 0;
         int holds = 0, releases = 0;
     } counts_;
+
     std::uint64_t counts_ms_ = 0;
     /* For the whole session: counts_ starts again at each line it logs. */
     int hits_taken_ = 0;

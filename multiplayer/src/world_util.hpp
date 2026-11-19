@@ -5,13 +5,13 @@
  */
 #pragma once
 
-#include "protocol.hpp"
-#include "world.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+
+#include "protocol.hpp"
+#include "world.hpp"
 
 namespace mp {
 namespace wire {
@@ -56,9 +56,11 @@ inline std::int16_t angle_bits(float radians) {
 
 inline float distance2(const float* a, const float* b) {
     float sum = 0;
+
     for (int i = 0; i < 3; ++i) {
         sum += (a[i] - b[i]) * (a[i] - b[i]);
     }
+
     return sum;
 }
 
@@ -66,9 +68,9 @@ inline bool changed(const Pose& a, const Pose& b) {
     return distance2(a.position, b.position) > 0.0004f
            || std::fabs(a.rotation[2] - b.rotation[2]) > 0.01f
            || std::fabs(a.rotation[0] - b.rotation[0]) > 0.01f
-           || std::fabs(a.rotation[1] - b.rotation[1]) > 0.01f || a.seq != b.seq || a.frame != b.frame;
+           || std::fabs(a.rotation[1] - b.rotation[1]) > 0.01f || a.seq != b.seq
+           || a.frame != b.frame;
 }
-
 
 }  // namespace wire
 }  // namespace mp

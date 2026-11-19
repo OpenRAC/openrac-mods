@@ -3,14 +3,14 @@
  *
  * The shared world (world.hpp): pickups taken, claimed and flown to their player; crates broken again.
  */
-#include "world.hpp"
-#include "world_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <utility>
+
+#include "world.hpp"
+#include "world_util.hpp"
 
 namespace mp {
 
@@ -19,11 +19,13 @@ using namespace wire;
 bool World::quiet_drop(int slot) {
     // A member in the host's level: the host's game drops the bolts (its copy of the crate breaks
     // too), so this game's would be the same bolts twice.
-    const bool quiet = session_.in_party() && !session_.role().host() && coop_.playing() && level_ >= 0
-                       && level_ == coop_.host_level();
+    const bool quiet = session_.in_party() && !session_.role().host() && coop_.playing()
+                       && level_ >= 0 && level_ == coop_.host_level();
 
     if (quiet) {
-        trace_line("bolts", "suppressed local drop of " + moby_name(slot) + " (the host's game drops it)");
+        trace_line(
+            "bolts", "suppressed local drop of " + moby_name(slot) + " (the host's game drops it)"
+        );
     }
 
     return quiet;
@@ -36,9 +38,12 @@ bool World::collect(int slot) {
     // A bolt another player took, arrived at that player (or at this game's Ratchet, for one taken
     // for him there): given already, nothing added and nothing claimed; the bolt update deletes it.
     if (const auto f = flights_.find(slot); f != flights_.end()) {
-        trace_line("bolts", moby_name(slot) + " id " + std::to_string(f->second.id) + " reaches player "
-                                + std::to_string(f->second.player) + (f->second.figure >= 0 ? "'s figure" : " here")
-                                + " (taken there: nothing added here)");
+        trace_line(
+            "bolts",
+            moby_name(slot) + " id " + std::to_string(f->second.id) + " reaches player "
+                + std::to_string(f->second.player) + (f->second.figure >= 0 ? "'s figure" : " here")
+                + " (taken there: nothing added here)"
+        );
         flights_.erase(f);
 
         for (auto it = net_slot_.begin(); it != net_slot_.end(); ++it) {
@@ -63,17 +68,23 @@ bool World::collect(int slot) {
             claimed_.insert(id);
             send_taken(id, standing_);
             members_[standing_].bolts += bolt_value(oclass);
-            trace_line("bolts", "player " + std::to_string(standing_) + "'s figure collects " + moby_name(slot) + " id "
-                                    + std::to_string(id) + " +" + std::to_string(bolt_value(oclass))
-                                    + " (theirs: BOLTS; nothing added here)");
+            trace_line(
+                "bolts",
+                "player " + std::to_string(standing_) + "'s figure collects " + moby_name(slot)
+                    + " id " + std::to_string(id) + " +" + std::to_string(bolt_value(oclass))
+                    + " (theirs: BOLTS; nothing added here)"
+            );
             return false;
         }
 
         if (id != kNoId) {
             claimed_.insert(id);
             send_taken(id, session_.id());
-            trace_line("bolts", "host collects " + moby_name(slot) + " id " + std::to_string(id) + " +"
-                                    + std::to_string(bolt_value(oclass)) + " (its own credit)");
+            trace_line(
+                "bolts",
+                "host collects " + moby_name(slot) + " id " + std::to_string(id) + " +"
+                    + std::to_string(bolt_value(oclass)) + " (its own credit)"
+            );
         }
 
         return true;
@@ -109,11 +120,15 @@ bool World::collect(int slot) {
     }
 
     Writer w;
-    w.u8(static_cast<std::uint8_t>(WorldKind::kClaim)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+    w.u8(static_cast<std::uint8_t>(WorldKind::kClaim))
+        .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
     u16(w, id);
     session_.send_data(session_.host(), w.bytes());
-    trace_line("bolts", "claim sent for " + moby_name(slot) + " id " + std::to_string(id)
-                            + ": suppressed local add of " + std::to_string(bolt_value(oclass)));
+    trace_line(
+        "bolts",
+        "claim sent for " + moby_name(slot) + " id " + std::to_string(id)
+            + ": suppressed local add of " + std::to_string(bolt_value(oclass))
+    );
     return false;
 }
 
@@ -131,8 +146,12 @@ void World::claim(std::int32_t member, int level, std::uint16_t id) {
 
     // The first claim of a bolt still here, that nobody took: the claimant's, gone from every game.
     if (slot < 0 || value <= 0 || claimed_.count(id) != 0) {
-        trace_line("bolts", "claim refused from " + std::to_string(member) + " id " + std::to_string(id) + " level "
-                                + std::to_string(level) + (claimed_.count(id) != 0 ? " (already taken)" : " (not here)"));
+        trace_line(
+            "bolts",
+            "claim refused from " + std::to_string(member) + " id " + std::to_string(id) + " level "
+                + std::to_string(level)
+                + (claimed_.count(id) != 0 ? " (already taken)" : " (not here)")
+        );
         return;
     }
 
@@ -146,19 +165,27 @@ void World::claim(std::int32_t member, int level, std::uint16_t id) {
         kill(slot, "CLAIM from " + std::to_string(member));
     }
 
-    session_.send_data(member, Writer().u8(static_cast<std::uint8_t>(WorldKind::kBolts)).i32(value).bytes());
+    session_.send_data(
+        member, Writer().u8(static_cast<std::uint8_t>(WorldKind::kBolts)).i32(value).bytes()
+    );
     counts_.bolts += value;
-    trace_line("bolts", "claim granted to " + std::to_string(member) + " id " + std::to_string(id) + " "
-                            + moby_name(slot) + ": sent BOLTS +" + std::to_string(value));
+    trace_line(
+        "bolts",
+        "claim granted to " + std::to_string(member) + " id " + std::to_string(id) + " "
+            + moby_name(slot) + ": sent BOLTS +" + std::to_string(value)
+    );
 }
 
 void World::send_taken(std::uint16_t id, std::int32_t player) {
     Writer w;
-    w.u8(static_cast<std::uint8_t>(WorldKind::kTaken)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+    w.u8(static_cast<std::uint8_t>(WorldKind::kTaken))
+        .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
     u16(w, id);
     w.i32(player);
     session_.send_data(kBroadcast, w.bytes());
-    trace_line("msg", "sent TAKEN to all id " + std::to_string(id) + " by " + std::to_string(player));
+    trace_line(
+        "msg", "sent TAKEN to all id " + std::to_string(id) + " by " + std::to_string(player)
+    );
 }
 
 bool World::fly(int slot, std::uint16_t id, std::int32_t player, std::uint64_t now) {
@@ -176,8 +203,11 @@ bool World::fly(int slot, std::uint16_t id, std::int32_t player, std::uint64_t n
     }
 
     flights_[slot] = {player, figure, id, now + kFlightMs};
-    trace_line("bolts", moby_name(slot) + " id " + std::to_string(id) + " flies to player " + std::to_string(player)
-                            + (here ? " (this game's Ratchet)" : "'s figure"));
+    trace_line(
+        "bolts",
+        moby_name(slot) + " id " + std::to_string(id) + " flies to player " + std::to_string(player)
+            + (here ? " (this game's Ratchet)" : "'s figure")
+    );
     return true;
 }
 
@@ -263,7 +293,8 @@ void World::tick_crates(std::uint64_t now) {
         }
 
         const auto [was, first] = crate_states_.try_emplace(moby.key, moby.state);
-        const bool broke = !first && moby.state == kCrateWaiting && was->second != kCrateWaiting && was->second != 0;
+        const bool broke = !first && moby.state == kCrateWaiting && was->second != kCrateWaiting
+                           && was->second != 0;
         was->second = moby.state;
 
         if (!broke) {
@@ -272,17 +303,21 @@ void World::tick_crates(std::uint64_t now) {
 
         const bool replayed = replays_.count(slot) != 0;
         Writer w;
-        w.u8(static_cast<std::uint8_t>(WorldKind::kBroke)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        w.u8(static_cast<std::uint8_t>(WorldKind::kBroke))
+            .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
         u16(w, static_cast<std::uint16_t>(moby.key));
 
         // The host's copy broke (its drop goes out as any): the others' break with it. A member's
         // tells the host, unless it broke because the host said so.
         if (hosting_ && !coop_.arriving()) {
             session_.send_data(kBroadcast, w.bytes());
-        } else if (!session_.role().host() && !replayed && coop_.playing() && level_ == coop_.host_level() && synced_) {
+        } else if (!session_.role().host() && !replayed && coop_.playing()
+                   && level_ == coop_.host_level() && synced_) {
             w.u8(1);
             session_.send_data(session_.host(), w.bytes());
-            trace_line("msg", "sent BROKE to host key " + std::to_string(moby.key) + " (comes back)");
+            trace_line(
+                "msg", "sent BROKE to host key " + std::to_string(moby.key) + " (comes back)"
+            );
         }
     }
 }
@@ -294,7 +329,8 @@ bool World::metal_detect(int key) {
         return dug_.insert(key).second || game_.moby_slot(key) >= 0;
     }
 
-    if (!session_.in_party() || session_.role().host() || !coop_.playing() || level_ < 0 || level_ != coop_.host_level()) {
+    if (!session_.in_party() || session_.role().host() || !coop_.playing() || level_ < 0
+        || level_ != coop_.host_level()) {
         return true;
     }
 
@@ -307,7 +343,8 @@ bool World::metal_detect(int key) {
     if (asked == dig_asked_.end() || now - asked->second >= kDigAskMs) {
         dig_asked_[key] = now;
         Writer w;
-        w.u8(static_cast<std::uint8_t>(WorldKind::kClaim)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        w.u8(static_cast<std::uint8_t>(WorldKind::kClaim))
+            .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
         u16(w, static_cast<std::uint16_t>(key));
         w.u8(1);
         session_.send_data(session_.host(), w.bytes());
@@ -328,11 +365,14 @@ void World::claim_dig(std::int32_t member, int level, int key) {
     // Gone here, or dug: the asker's copy goes too.
     if (slot < 0 || dug_.count(key) != 0) {
         Writer w;
-        w.u8(static_cast<std::uint8_t>(WorldKind::kKilled)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        w.u8(static_cast<std::uint8_t>(WorldKind::kKilled))
+            .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
         u16(w, 1);
         u16(w, id);
         session_.send_data(member, w.bytes());
-        trace_line("bolts", "dig refused to " + std::to_string(member) + " key " + std::to_string(key));
+        trace_line(
+            "bolts", "dig refused to " + std::to_string(member) + " key " + std::to_string(key)
+        );
         return;
     }
 

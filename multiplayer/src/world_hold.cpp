@@ -23,13 +23,13 @@
  * The host's own hero in a grab has no message to go by: the game does it all. The lock is all the
  * host needs, read from his pose after the update.
  */
-#include "world.hpp"
-#include "world_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <string>
+
+#include "world.hpp"
+#include "world_util.hpp"
 
 namespace mp {
 
@@ -91,7 +91,11 @@ void World::after_stand_in(int slot, std::int32_t player) {
         hold.hero_state = grab->hero_state;
         hold.animation = grab->animation;
         hold.flags = grab->flags;
-        std::copy_n((grab->flags & kGrabFatal) != 0 ? it->second.pose.position : did.position, 3, hold.position);
+        std::copy_n(
+            (grab->flags & kGrabFatal) != 0 ? it->second.pose.position : did.position,
+            3,
+            hold.position
+        );
         hold.yaw = did.yaw;
         hold.since = tick_ms_;
         Hold& held_now = holds_[slot] = hold;
@@ -106,7 +110,9 @@ void World::after_stand_in(int slot, std::int32_t player) {
 
     if (ended && (last == kills_.end() || tick_ms_ - last->second >= kKillAgainMs)) {
         kills_[player] = tick_ms_;
-        session_.send_data(player, Writer().u8(static_cast<std::uint8_t>(WorldKind::kRevive)).u8(1).bytes());
+        session_.send_data(
+            player, Writer().u8(static_cast<std::uint8_t>(WorldKind::kRevive)).u8(1).bytes()
+        );
     }
 }
 
@@ -161,7 +167,9 @@ void World::tell_hold(Hold& hold, std::uint64_t now) {
     if (hold.told == 0) {
         session_.send_data(hold.player, w.bytes());
         ++counts_.holds;
-        trace_line("hold", "player " + std::to_string(hold.player) + " moby " + std::to_string(hold.id));
+        trace_line(
+            "hold", "player " + std::to_string(hold.player) + " moby " + std::to_string(hold.id)
+        );
     } else {
         session_.send_state(hold.player, w.bytes());
     }
@@ -217,7 +225,8 @@ void World::tick_holds(std::uint64_t now) {
 
         const auto member = members_.find(hold.player);
         Pose p;
-        const bool here = member != members_.end() && member->second.level == level_ && coop_.latest(hold.player, p);
+        const bool here = member != members_.end() && member->second.level == level_
+                          && coop_.latest(hold.player, p);
         const bool fatal = (hold.flags & kGrabFatal) != 0;
 
         if (here && p.state == hold.hero_state) {
@@ -228,9 +237,11 @@ void World::tick_holds(std::uint64_t now) {
             hold.dead = true;
         }
 
-        const bool over = !here || (fatal ? (hold.dead && p.health > 0) || now - hold.since >= kFatalHoldMs
-                                          : p.health <= 0 || (hold.shown && p.state != hold.hero_state)
-                                                || (!hold.shown && now - hold.since >= kHoldAckMs));
+        const bool over =
+            !here
+            || (fatal ? (hold.dead && p.health > 0) || now - hold.since >= kFatalHoldMs
+                      : p.health <= 0 || (hold.shown && p.state != hold.hero_state)
+                            || (!hold.shown && now - hold.since >= kHoldAckMs));
 
         if (over) {
             release_hold(it);

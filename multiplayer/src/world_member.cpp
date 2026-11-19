@@ -3,14 +3,14 @@
  *
  * The shared world (world.hpp): the member's side: the driven mobys and the despawn.
  */
-#include "world.hpp"
-#include "world_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <utility>
+
+#include "world.hpp"
+#include "world_util.hpp"
 
 namespace mp {
 
@@ -37,7 +37,8 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
     // A full wipe: once back and given the world, beside the host at its checkpoint.
     if (wipe_until_ != 0 && now >= wipe_until_) {
         wipe_until_ = 0;
-    } else if (wipe_until_ != 0 && synced_ && game_.hero(hero) && hero.health > 0 && coop_.can_go()) {
+    } else if (wipe_until_ != 0 && synced_ && game_.hero(hero) && hero.health > 0
+               && coop_.can_go()) {
         wipe_until_ = 0;
         coop_.go_to_host(now);
     }
@@ -58,19 +59,22 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
             }
         }
 
-        log("driving " + std::to_string(driven_.size()) + " mobys of level " + std::to_string(level_)
-            + " from the host");
+        log("driving " + std::to_string(driven_.size()) + " mobys of level "
+            + std::to_string(level_) + " from the host");
     }
 
     // These mobys have nothing of the host's world on them until it answers.
     if (!synced_ && (hello_ms_ == 0 || now - hello_ms_ >= kHelloMs)) {
         hello_ms_ = now;
         Writer w;
-        w.u8(static_cast<std::uint8_t>(WorldKind::kHello)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
+        w.u8(static_cast<std::uint8_t>(WorldKind::kHello))
+            .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
         w.i32(static_cast<std::int32_t>(loads_));
         w.i32(static_cast<std::int32_t>(game_.sim_digest(level_)));
         session_.send_data(session_.host(), w.bytes());
-        trace_line("msg", "sent HELLO level " + std::to_string(level_) + " load " + std::to_string(loads_));
+        trace_line(
+            "msg", "sent HELLO level " + std::to_string(level_) + " load " + std::to_string(loads_)
+        );
     }
 
     // Each driven moby where the host's snapshots put it, a delay behind.
@@ -113,18 +117,25 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
 
             for (int i = 0; i < 6; ++i) {
                 by[i] += counts.by[i];
-                moving += i == static_cast<int>(Shown::kBetween) || i == static_cast<int>(Shown::kAhead) ? counts.by[i] : 0;
+                moving +=
+                    i == static_cast<int>(Shown::kBetween) || i == static_cast<int>(Shown::kAhead)
+                        ? counts.by[i]
+                        : 0;
             }
 
             // A few that moved: their buffers.
             if (moving > 0 && described < 3) {
                 ++described;
-                some += " | id " + std::to_string(id) + " " + shown_name(poses.shown()) + " " + poses.describe();
+                some += " | id " + std::to_string(id) + " " + shown_name(poses.shown()) + " "
+                        + poses.describe();
             }
         }
 
-        trace_line("pose", "mobys " + std::to_string(poses_.size()) + " frames " + counts_text(by) + " moved by the game "
-                               + std::to_string(moved_since_) + some);
+        trace_line(
+            "pose",
+            "mobys " + std::to_string(poses_.size()) + " frames " + counts_text(by)
+                + " moved by the game " + std::to_string(moved_since_) + some
+        );
         moved_since_ = 0;
     }
 
@@ -140,8 +151,14 @@ void World::tick_member(std::uint64_t now, const GameStatus& status) {
         }
 
         if (game_.moby_hide(slot, hidden)) {
-            trace_line("vis", std::string(hidden ? "hide" : "show") + " by sync (the host's is) " + moby_name(slot));
-            note(slot, hidden ? "hidden as the host's is" : "shown as the host's is", session_.host());
+            trace_line(
+                "vis",
+                std::string(hidden ? "hide" : "show") + " by sync (the host's is) "
+                    + moby_name(slot)
+            );
+            note(
+                slot, hidden ? "hidden as the host's is" : "shown as the host's is", session_.host()
+            );
         }
     }
 }
@@ -192,14 +209,16 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
     view.camera = game_.camera(view.camera_at);
 
     if (!despawn_.out) {
-        despawn_.out = [this](const std::string& line) { trace_line("despawn", line); };
+        despawn_.out = [this](const std::string& line) {
+            trace_line("despawn", line);
+        };
         despawn_.deletion = [this](int slot, MobyDeletion& d) {
             return game_.moby_deletion(slot, d.by, d.by_class, d.by_mod);
         };
         despawn_.role = [this](int slot, const MobyState& m) -> std::string {
             if (hosting_) {
-                const bool placed_runs = m.key >= 0 && (m.flags & kMobyUpdates) != 0 && m.oclass != 0
-                                         && !local_class(m.oclass);
+                const bool placed_runs = m.key >= 0 && (m.flags & kMobyUpdates) != 0
+                                         && m.oclass != 0 && !local_class(m.oclass);
                 return placed_runs || shared_.count(slot) != 0 ? "shared" : "local";
             }
 
@@ -218,8 +237,9 @@ void World::tick_despawn(std::uint64_t now, const std::vector<MobyState>& listin
             }
 
             const std::uint64_t ago = clock_() - seen->second;
-            return "host sent it " + std::to_string(ago / 1000) + "." + std::to_string(ago % 1000 / 100)
-                   + " s ago" + (hidden_.count(id) != 0 && hidden_.at(id) ? " hidden" : "");
+            return "host sent it " + std::to_string(ago / 1000) + "."
+                   + std::to_string(ago % 1000 / 100) + " s ago"
+                   + (hidden_.count(id) != 0 && hidden_.at(id) ? " hidden" : "");
         };
     }
 

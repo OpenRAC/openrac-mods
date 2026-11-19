@@ -90,7 +90,10 @@ bool decode_progress(const Bytes& bytes, ProgressBits& out) {
     return true;
 }
 
-Progress::Progress(Session& session, Game& game, Coop& coop) : session_(session), game_(game), coop_(coop) {}
+Progress::Progress(Session& session, Game& game, Coop& coop)
+    : session_(session),
+      game_(game),
+      coop_(coop) {}
 
 void Progress::reset() {
     read_ = false;
@@ -114,7 +117,9 @@ void Progress::handle(std::int32_t sender, const Bytes& bytes) {
 
     // The host keeps a member's word until its game can take it; a member takes the host's only.
     if (session_.is_host() && sender != session_.id()) {
-        trace_line("received PROGRESS from " + std::to_string(sender) + ":" + what_more(bits, here_));
+        trace_line(
+            "received PROGRESS from " + std::to_string(sender) + ":" + what_more(bits, here_)
+        );
         reports_[sender] = bits;
     } else if (!session_.is_host() && sender == session_.host()) {
         trace_line("received PROGRESS from the host:" + what_more(bits, here_));
@@ -139,13 +144,15 @@ bool Progress::give(const ProgressBits& want, const std::string& from) {
         if (want.gold[i] != 0 && here_.gold[i] == 0 && game_.give_gold_bolt(static_cast<int>(i))) {
             here_.gold[i] = 1;
             gave = true;
-            log("given gold bolt " + std::to_string(i % 4) + " of level " + std::to_string(i / 4) + " (" + from + ")");
+            log("given gold bolt " + std::to_string(i % 4) + " of level " + std::to_string(i / 4)
+                + " (" + from + ")");
             trace_line("given gold bolt " + std::to_string(i) + " (" + from + ")");
         }
     }
 
     for (std::size_t i = 0; i < kProgressPlanets; ++i) {
-        if (want.planets[i] != 0 && here_.planets[i] == 0 && game_.unlock_planet(static_cast<int>(i))) {
+        if (want.planets[i] != 0 && here_.planets[i] == 0
+            && game_.unlock_planet(static_cast<int>(i))) {
             here_.planets[i] = 1;
             gave = true;
             log("given planet " + std::to_string(i) + " (" + from + ")");
@@ -157,7 +164,9 @@ bool Progress::give(const ProgressBits& want, const std::string& from) {
 }
 
 void Progress::send(std::int32_t target, const ProgressBits& bits, const std::string& to) {
-    trace_line("sent PROGRESS to " + to + ":" + what_more(bits, sent_any_ ? sent_ : ProgressBits{}));
+    trace_line(
+        "sent PROGRESS to " + to + ":" + what_more(bits, sent_any_ ? sent_ : ProgressBits{})
+    );
     session_.send_data(target, encode_progress(bits));
     sent_ = bits;
     sent_any_ = true;
@@ -201,7 +210,8 @@ void Progress::tick(std::uint64_t now) {
         // and now and then.
         const std::size_t members = session_.members().size();
 
-        if (!sent_any_ || here_ != sent_ || members != members_ || now - sent_ms_ >= kProgressResendMs) {
+        if (!sent_any_ || here_ != sent_ || members != members_
+            || now - sent_ms_ >= kProgressResendMs) {
             members_ = members;
             sent_ms_ = now;
             send(kBroadcast, here_, "all");

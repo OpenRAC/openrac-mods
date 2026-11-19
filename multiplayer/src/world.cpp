@@ -4,7 +4,6 @@
  * The shared world (world.hpp): the host's snapshots, the ids of the mobys and the tick.
  */
 #include "world.hpp"
-#include "world_util.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -12,11 +11,15 @@
 #include <cstring>
 #include <utility>
 
+#include "world_util.hpp"
+
 namespace mp {
 
 using namespace wire;
 
-Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>& entries, std::uint16_t sequence) {
+Bytes encode_world(
+    int level, std::int64_t stamp, const std::vector<WorldEntry>& entries, std::uint16_t sequence
+) {
     const std::size_t count = std::min(entries.size(), kWorldEntries);
     Writer w;
     w.u8(static_cast<std::uint8_t>(WorldKind::kWorld))
@@ -36,15 +39,25 @@ Bytes encode_world(int level, std::int64_t stamp, const std::vector<WorldEntry>&
 
         w.u8(static_cast<std::uint8_t>(std::min<std::uint32_t>(e.pose.seq, 255)))
             .u8(static_cast<std::uint8_t>(std::min<std::uint32_t>(e.pose.frame, 255)))
-            .u8(static_cast<std::uint8_t>(std::clamp(std::lround(e.pose.anim_time * 255.0f), 0L, 255L)))
-            .u8(static_cast<std::uint8_t>(std::clamp(std::lround(e.pose.anim_speed * 32.0f), 0L, 255L)))
+            .u8(static_cast<std::uint8_t>(
+                std::clamp(std::lround(e.pose.anim_time * 255.0f), 0L, 255L)
+            ))
+            .u8(static_cast<std::uint8_t>(
+                std::clamp(std::lround(e.pose.anim_speed * 32.0f), 0L, 255L)
+            ))
             .u8(static_cast<std::uint8_t>((e.hidden ? 1 : 0) | (e.loose ? 2 : 0)));
     }
 
     return w.bytes();
 }
 
-bool decode_world(const Bytes& bytes, int& level, std::int64_t& stamp, std::vector<WorldEntry>& out, std::uint16_t* sequence) {
+bool decode_world(
+    const Bytes& bytes,
+    int& level,
+    std::int64_t& stamp,
+    std::vector<WorldEntry>& out,
+    std::uint16_t* sequence
+) {
     if (bytes.empty() || bytes[0] != static_cast<std::uint8_t>(WorldKind::kWorld)) {
         return false;
     }
@@ -100,7 +113,10 @@ float world_weight(const WorldSight& s) {
 }
 
 World::World(Session& session, Game& game, Coop& coop, std::function<std::uint64_t()> clock)
-    : session_(session), game_(game), coop_(coop), clock_(std::move(clock)) {
+    : session_(session),
+      game_(game),
+      coop_(coop),
+      clock_(std::move(clock)) {
     // Without a clock of the caller's, the monotonic one.
     if (!clock_) {
         clock_ = now_ms;
@@ -242,8 +258,9 @@ void World::follow_load(const GameStatus& status) {
                 const auto moby = mobys_.find(slot);
                 const auto id = static_cast<std::uint16_t>(kSpawnedId | net.id);
 
-                if (hosting_ && moby != mobys_.end() && bolt_class(net.oclass) && claimed_.count(id) == 0
-                    && flights_.count(slot) == 0 && bolts.size() < kKeptBolts) {
+                if (hosting_ && moby != mobys_.end() && bolt_class(net.oclass)
+                    && claimed_.count(id) == 0 && flights_.count(slot) == 0
+                    && bolts.size() < kKeptBolts) {
                     bolts.push_back({net.oclass, moby->second.pose});
                 }
             }
@@ -288,7 +305,8 @@ void World::tick_world(std::uint64_t now) {
     const GameStatus status = game_.status();
 
     follow_load(status);
-    hosting_ = session_.role().host() && !coop_.between_hosts() && coop_.playing() && in_level(status.phase);
+    hosting_ = session_.role().host() && !coop_.between_hosts() && coop_.playing()
+               && in_level(status.phase);
 
     // This tick's mobys. A tick the game lists none of (a level loading, a menu that has its own)
     // changes nothing: what is known holds, and nothing is ever taken for dead by its absence.
@@ -379,7 +397,11 @@ void World::tick_world(std::uint64_t now) {
             }
 
             session_.send_data(kBroadcast, w.bytes());
-            trace_line("msg", "sent KILLED to all level " + std::to_string(level_) + " n=" + std::to_string(n) + " keys [" + keys + "]");
+            trace_line(
+                "msg",
+                "sent KILLED to all level " + std::to_string(level_) + " n=" + std::to_string(n)
+                    + " keys [" + keys + "]"
+            );
             counts_.kills += static_cast<int>(n);
         }
     } else if (!session_.role().host() && !coop_.between_hosts()) {
@@ -392,15 +414,20 @@ void World::tick_world(std::uint64_t now) {
             for (const int key : dead_keys_) {
                 const auto cls = placed_class_.find(key);
 
-                if (host_killed_.count(key) == 0 && reported_.count(key) == 0 && cls != placed_class_.end()
-                    && !bolt_class(cls->second) && (crate_class(cls->second) || pickup_class(cls->second))) {
+                if (host_killed_.count(key) == 0 && reported_.count(key) == 0
+                    && cls != placed_class_.end() && !bolt_class(cls->second)
+                    && (crate_class(cls->second) || pickup_class(cls->second))) {
                     reported_.insert(key);
                     Writer w;
                     w.u8(static_cast<std::uint8_t>(WorldKind::kBroke))
                         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level_)));
                     u16(w, static_cast<std::uint16_t>(key));
                     session_.send_data(session_.host(), w.bytes());
-                    trace_line("msg", "sent BROKE to host key " + std::to_string(key) + " class " + std::to_string(cls->second));
+                    trace_line(
+                        "msg",
+                        "sent BROKE to host key " + std::to_string(key) + " class "
+                            + std::to_string(cls->second)
+                    );
                     ++counts_.kills;
                 }
             }
@@ -432,7 +459,8 @@ void World::tick_world(std::uint64_t now) {
 
         if (moby == mobys_.end()) {
             it = replays_.erase(it);
-        } else if (moby->second.state == kCrateWaiting || (now >= it->second && soft_replays_.count(it->first) != 0)) {
+        } else if (moby->second.state == kCrateWaiting
+                   || (now >= it->second && soft_replays_.count(it->first) != 0)) {
             // One that comes back goes on as its own game has it; a late hit breaks it yet.
             soft_replays_.erase(it->first);
             it = replays_.erase(it);
@@ -454,13 +482,17 @@ void World::log_counts(std::uint64_t now) {
     // A line in the log now and then of what went on.
     if (now - counts_ms_ >= kWorldLogMs) {
         const Counts& c = counts_;
-        if (!mobys_.empty() || c.snapshots + c.hits + c.kills + c.spawns + c.despawns + c.damage + c.bolts > 0) {
-            log("world: " + std::to_string(mobys_.size()) + " mobys (" + std::to_string(driven_.size())
-                + " driven), " + std::to_string(c.snapshots) + " snapshots, " + std::to_string(c.hits)
-                + " hits, " + std::to_string(c.kills) + " kills, " + std::to_string(c.spawns)
-                + " spawns, " + std::to_string(c.despawns) + " despawns, " + std::to_string(c.damage) + " damage, " + std::to_string(c.bolts)
+
+        if (!mobys_.empty()
+            || c.snapshots + c.hits + c.kills + c.spawns + c.despawns + c.damage + c.bolts > 0) {
+            log("world: " + std::to_string(mobys_.size()) + " mobys ("
+                + std::to_string(driven_.size()) + " driven), " + std::to_string(c.snapshots)
+                + " snapshots, " + std::to_string(c.hits) + " hits, " + std::to_string(c.kills)
+                + " kills, " + std::to_string(c.spawns) + " spawns, " + std::to_string(c.despawns)
+                + " despawns, " + std::to_string(c.damage) + " damage, " + std::to_string(c.bolts)
                 + " bolts");
         }
+
         counts_ = Counts{};
         counts_ms_ = now;
     }

@@ -137,11 +137,13 @@ private:
      * every level's. */
     bool merge(const SharedBits& want, int level, bool all_scenes, const std::string& from);
     void send(std::int32_t target, const std::string& to);
+
     void trace_line(const std::string& text) {
         if (trace_ != nullptr && trace_->on()) {
             trace_->line("shared", text);
         }
     }
+
     void log(const std::string& line) const {
         if (log_) {
             log_(line);

@@ -3,14 +3,14 @@
  *
  * The shared world (world.hpp): the gate of a moby's own game logic and the hits.
  */
-#include "world.hpp"
-#include "world_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <utility>
+
+#include "world.hpp"
+#include "world_util.hpp"
 
 namespace mp {
 

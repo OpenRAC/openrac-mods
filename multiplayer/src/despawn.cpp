@@ -19,9 +19,11 @@ std::string hex(std::uint32_t v) {
 
 std::string metres(const float* a, const float* b) {
     float sum = 0;
+
     for (int i = 0; i < 3; ++i) {
         sum += (a[i] - b[i]) * (a[i] - b[i]);
     }
+
     char s[24];
     std::snprintf(s, sizeof s, "%.1f", std::sqrt(sum));
     return s;

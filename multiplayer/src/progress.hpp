@@ -81,11 +81,13 @@ private:
     /* Gives this game what `want` has and it lacks (a line each); true when it gave something. */
     bool give(const ProgressBits& want, const std::string& from);
     void send(std::int32_t target, const ProgressBits& bits, const std::string& to);
+
     void trace_line(const std::string& text) {
         if (trace_ != nullptr && trace_->on()) {
             trace_->line("progress", text);
         }
     }
+
     void log(const std::string& line) const {
         if (log_) {
             log_(line);
