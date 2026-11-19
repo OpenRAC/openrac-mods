@@ -317,11 +317,11 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Umbris: gold bolt 1", LEVEL_UMBRIS, 0, 23),
     GOLDBOLT("Umbris: gold bolt 2", LEVEL_UMBRIS, 1, 23),
 
-    // Batalia: "There is nothing you can do here without a pair of Grindboots". The commando at the
-    // turret gives the Metal Detector and Orxon, the deserter sells Gaspar.
+    // Batalia: the turret reward needs Magneboots; the Orxon coordinate reward
+    // needs no gadget, while the route to the deserter needs Grindboots.
     VENDOR("Batalia: the vendor's Devastator", LEVEL_BATALIA, ITEM_DEVASTATOR, 24, LOCF_COSTLY),
     GIVE_G(
-        "Batalia: the turret's commando", LEVEL_BATALIA, ITEM_METAL_DETECTOR, 24, 0, GRIND | WALK, 0
+        "Batalia: the turret's commando", LEVEL_BATALIA, ITEM_METAL_DETECTOR, 24, 0, MAGNE, 0
     ),
     FIXED(
         "Batalia: the commando, the coordinates of Orxon",
@@ -329,7 +329,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_ORXON),
         25,
         0,
-        GRIND | WALK,
+        0,
         0
     ),
     FIXED(
@@ -338,7 +338,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_GASPAR),
         25,
         0,
-        GRIND | WALK,
+        GRIND,
         0
     ),
     GOLDBOLT("Batalia: gold bolt 1", LEVEL_BATALIA, 0, 26),

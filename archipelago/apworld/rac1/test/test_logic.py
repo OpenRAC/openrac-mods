@@ -381,6 +381,22 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_batalia_turret_requires_only_magneboots(self) -> None:
+        self.collect_by_name("Batalia Coordinates")
+        self.assertFalse(self.can_reach_location("Batalia: the turret's commando"))
+        self.collect_by_name("Magneboots")
+        self.assertTrue(self.can_reach_location("Batalia: the turret's commando"))
+
+    def test_batalia_orxon_coordinates_need_no_gadgets(self) -> None:
+        self.collect_by_name("Batalia Coordinates")
+        self.assertTrue(self.can_reach_location("Batalia: the commando, the coordinates of Orxon"))
+
+    def test_batalia_deserter_requires_only_grindboots(self) -> None:
+        self.collect_by_name("Batalia Coordinates")
+        self.assertFalse(self.can_reach_location("Batalia: the deserter, the coordinates of Gaspar"))
+        self.collect_by_name("Grindboots")
+        self.assertTrue(self.can_reach_location("Batalia: the deserter, the coordinates of Gaspar"))
+
     def test_blarg_infobot_and_shuttle_need_no_movement_gadgets(self) -> None:
         self.collect_by_name("Blarg Coordinates")
         self.assertTrue(self.can_reach_location("Blarg: the infobot"))
