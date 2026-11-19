@@ -397,6 +397,48 @@ static void check_gaspar_helmet_route(void) {
     }
 }
 
+/* Pokitaru routes omit Swingshot in both modern and legacy generation. */
+static void check_pokitaru_routes(void) {
+    const char* names[] = {"Pokitaru: Bob", "Pokitaru: the resort owner", "Pokitaru: the Persuader"};
+    for (int legacy = 0; legacy <= 1; ++legacy) {
+        for (int route = 0; route < 3; ++route) {
+            rando_plan p = {0};
+            int target = -1, start = -1, heli = -1, vendor = -1, bob = -1;
+            int spheres[RANDO_MAX_LOCATIONS];
+            for (size_t i = 0; i < rando_location_count; ++i) {
+                const rando_location* l = &rando_locations[i];
+                if (!strcmp(l->name, names[route])) target = (int)i;
+                if (l->kind == LOC_START) start = (int)i;
+                if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+                    && l->vanilla.value == LEVEL_NOVALIS) heli = (int)i;
+                if (l->kind == LOC_VENDOR && l->key == ITEM_DECOY_GLOVE) vendor = (int)i;
+                if (!strcmp(l->name, "Pokitaru: Bob")) bob = (int)i;
+            }
+            CHECK(target >= 0 && start >= 0 && heli >= 0 && vendor >= 0 && bob >= 0);
+            p.settings.legacy_items = (uint8_t)legacy;
+            p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_POKITARU};
+            p.reward[heli] = (rando_reward){REWARD_ITEM, ITEM_HELI_PACK};
+            if (route == 1) {
+                p.reward[vendor] = (rando_reward){REWARD_ITEM, ITEM_THRUSTER_PACK};
+            } else if (route == 2) {
+                p.reward[bob] = legacy ? (rando_reward){REWARD_PLANET, LEVEL_HOVEN}
+                    : (rando_reward){REWARD_SPECIAL, SPECIAL_RARITANIUM};
+            }
+            for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+                p.settings.difficulty = (uint8_t)d;
+                if (route == 1) p.reward[bob] = (rando_reward){REWARD_NONE, 0};
+                if (route == 2) p.reward[vendor] = (rando_reward){REWARD_NONE, 0};
+                rando_beatable(&p, spheres);
+                CHECK((spheres[target] >= 0) == (route == 0));
+                if (route == 1) p.reward[bob] = (rando_reward){REWARD_ITEM, ITEM_PILOTS_HELMET};
+                if (route == 2) p.reward[vendor] = (rando_reward){REWARD_ITEM, ITEM_TRESPASSER};
+                rando_beatable(&p, spheres);
+                CHECK(spheres[target] >= 0);
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
@@ -409,6 +451,7 @@ int main(int argc, char** argv) {
     check_blarg_infobot_routes();
     check_batalia_routes();
     check_gaspar_helmet_route();
+    check_pokitaru_routes();
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
@@ -419,7 +462,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0x0d655df121678306ull);
+    CHECK(plan_hash(&p) == 0x93abd6e9bbb21f5eull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
