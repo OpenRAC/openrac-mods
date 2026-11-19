@@ -1181,6 +1181,9 @@ static int32_t count_gold_bolts_hook(void) {
 
 /* Retail still performs affordability checks and charges bolts. Only its bought/owned flag
  * is swapped while the case runs, because the random reward belongs to the AP server. */
+/* Defined in ap_presentation.inc, included after the acquisition helpers. */
+static int gold_case_base(uint32_t moby);
+
 static void gold_case_update(openrac_gaddr moby) {
     const int mode = ap_client_shuffle_gold_weapons();
     if (mode < 0) return; /* no purchases before the room settings/save are known */
