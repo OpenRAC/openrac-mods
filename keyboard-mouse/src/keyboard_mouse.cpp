@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -136,8 +137,8 @@ bool plausible(gaddr address) {
 // The keyboard and mouse as the game sees them: the state of the keys, the mouse, the menus' queue
 // of presses and the camera's swing, and the code that reads and writes the game around it.
 //
-// One object lives from load on (g_keyboard). The pad callback and the follow camera's hook point
-// both run on the game's thread, in the order of a tick; nothing here is touched by another
+// One object lives from load on, owned by the pad callback and the hook point's callable (load).
+// Both run on the game's thread, in the order of a tick; nothing here is touched by another
 // thread.
 class Keyboard {
 public:
@@ -1333,11 +1334,6 @@ Keyboard::Keyboard(openrac::Mod& mod, const kbm::Disc& disc) : m_mod(&mod), m_di
     m_map_screen = reinterpret_cast<void*>(mod.function<void (*)()>(m_disc->map_screen));
 }
 
-// The one keyboard and mouse, made by load. The pad callback and the follow camera's hook point
-// reach it through this pointer, because the hook point's replacement carries no state; load sets
-// it before it takes either, and only the game's thread uses it after that.
-std::unique_ptr<Keyboard> g_keyboard;
-
 // Returns the table row for the disc `mod` runs on, or null when the mod has none.
 const kbm::Disc* find_disc(const openrac::Mod& mod) {
     // The first row whose version names the running disc holds its addresses.
@@ -1372,14 +1368,17 @@ void load(openrac::Mod& mod) {
         throw openrac::Error("no addresses for the " + std::string(mod.version()) + " disc");
     }
 
-    g_keyboard = std::make_unique<Keyboard>(mod, *disc);
+    // The pad callback and the hook point own the keyboard and mouse between them: the SDK keeps
+    // their callables for the life of the library and never destroys them at exit, since the port
+    // may call a hook while the program ends, and drops them when the library loads again.
+    const auto keyboard = std::make_shared<Keyboard>(mod, *disc);
 
     mod.take_input(OPENRAC_INPUT_KEYBOARD | OPENRAC_INPUT_MOUSE);
-    mod.on_pad([](int port, std::uint8_t* report, int size) {
-        g_keyboard->on_pad(port, report, size);
+    mod.on_pad([keyboard](int port, std::uint8_t* report, int size) {
+        keyboard->on_pad(port, report, size);
     });
-    mod.hook<rac1::FollowCamera_ApplyOverrides>([](auto original, std::uint32_t camera) {
-        g_keyboard->camera_overrides(original, camera);
+    mod.hook<rac1::FollowCamera_ApplyOverrides>([keyboard](auto original, std::uint32_t camera) {
+        keyboard->camera_overrides(original, camera);
     });
     mod.info("keyboard and mouse on the " + std::string(mod.version()) + " disc");
 }
