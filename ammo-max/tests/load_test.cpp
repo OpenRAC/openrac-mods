@@ -452,7 +452,7 @@ int main(int argc, char** argv) {
 
     // The interface its manifest names (1.1), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(std::strcmp(info.id, "ammo-max") == 0 && std::strcmp(info.version, "1.0.3") == 0);
+    CHECK(std::strcmp(info.id, "ammo-max") == 0 && std::strcmp(info.version, "1.0.4") == 0);
 
     // Any handle will do: the mod only passes it back.
     auto* mod = reinterpret_cast<openrac_mod*>(&info);

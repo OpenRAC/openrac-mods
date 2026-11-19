@@ -261,4 +261,4 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 // The id and version are the manifest's: the port checks they agree.
-OPENRAC_MOD_CPP("ammo-max", "1.0.3", load)
+OPENRAC_MOD_CPP("ammo-max", "1.0.4", load)
