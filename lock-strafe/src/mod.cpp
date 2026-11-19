@@ -31,4 +31,4 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 // The id and version are the manifest's: the port checks they agree.
-OPENRAC_MOD_CPP("lock-strafe", "1.2.1", load)
+OPENRAC_MOD_CPP("lock-strafe", "1.2.2", load)

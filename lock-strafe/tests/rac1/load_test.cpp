@@ -890,7 +890,7 @@ int main(int argc, char** argv) {
     // The interface its manifest names (1.12: the hero's joints), whatever the SDK it was built
     // with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(std::strcmp(info.id, "lock-strafe") == 0 && std::strcmp(info.version, "1.2.1") == 0);
+    CHECK(std::strcmp(info.id, "lock-strafe") == 0 && std::strcmp(info.version, "1.2.2") == 0);
 
     // Any handle will do: the mod only passes it back.
     session.mod = reinterpret_cast<openrac_mod*>(&info);
