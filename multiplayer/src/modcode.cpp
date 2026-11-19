@@ -5,12 +5,9 @@
  */
 #include "modcode.hpp"
 
-#include "protocol.hpp"
-
-#include <cstdio>
-
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -302,8 +299,9 @@ bool valid_mod_code(const std::string& code) {
     }
 
     for (std::size_t i = 0; i < kLength; ++i) {
-        const bool fits = i == kDash ? code[i] == '-'
-                                     : code[i] != '\0' && std::strchr(kCodeAlphabet, code[i]) != nullptr;
+        const bool fits = i == kDash
+                              ? code[i] == '-'
+                              : code[i] != '\0' && std::strchr(kCodeAlphabet, code[i]) != nullptr;
 
         if (!fits) {
             return false;
@@ -381,8 +379,8 @@ std::string take_join_request(const std::string& folder, std::int64_t now_second
         }
     } while (s.take(','));
 
-    const bool letters = party.size() == kCodeLength
-                         && party.find_first_not_of(kCodeAlphabet) == std::string::npos;
+    const bool letters =
+        party.size() == kCodeLength && party.find_first_not_of(kCodeAlphabet) == std::string::npos;
     const double age = static_cast<double>(now_seconds) - written;
 
     if (!s.take('}') || !s.end() || !format || !letters || written < 0 || age < 0

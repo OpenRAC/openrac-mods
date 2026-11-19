@@ -572,8 +572,11 @@ std::string digest_tag(std::uint32_t digest) {
     return tag;
 }
 
-std::string tagged_description(const std::string& description, std::uint32_t digest, const std::string& game) {
-    const std::string tag = "|" + digest_tag(digest) + (game == kGameRac1 ? std::string() : "/" + game);
+std::string tagged_description(
+    const std::string& description, std::uint32_t digest, const std::string& game
+) {
+    const std::string tag =
+        "|" + digest_tag(digest) + (game == kGameRac1 ? std::string() : "/" + game);
     return description.substr(0, kMaxDescriptionLength - tag.size()) + tag;
 }
 

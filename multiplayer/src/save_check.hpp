@@ -25,7 +25,8 @@ constexpr std::size_t kSaveBytes = OPENRAC_RAC1_SAVE_BYTES;
 
 enum class SaveFault : std::uint8_t {
     kNone = OPENRAC_RAC1_SAVE_OK,
-    kSize = OPENRAC_RAC1_SAVE_SIZE,          // not a save's size, or the sizes at its front are not the game's
+    kSize =
+        OPENRAC_RAC1_SAVE_SIZE,  // not a save's size, or the sizes at its front are not the game's
     kChecksum = OPENRAC_RAC1_SAVE_CHECKSUM,  // a part's checksum is wrong
     kBlocks = OPENRAC_RAC1_SAVE_BLOCKS,      // a part's blocks are not the game's, in its order
     kRange = OPENRAC_RAC1_SAVE_RANGE         // a value the game indexes with is out of its range

@@ -8,21 +8,21 @@
 
 #include "bot.hpp"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <fcntl.h>
 #include <fstream>
 #include <iterator>
 #include <sstream>
+#include <unistd.h>
 #include <vector>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -143,7 +143,9 @@ void Bot::poll() {
         std::size_t sent = 0;
 
         while (sent < answer.size()) {
-            const auto wrote = send(static_cast<int>(client_), answer.data() + sent, answer.size() - sent, MSG_NOSIGNAL);
+            const auto wrote = send(
+                static_cast<int>(client_), answer.data() + sent, answer.size() - sent, MSG_NOSIGNAL
+            );
 
             if (wrote > 0) {
                 sent += static_cast<std::size_t>(wrote);
@@ -173,11 +175,12 @@ std::string Bot::status() {
     const bool has_hero = in_level(s.phase) && parts_.game.hero(hero);
     std::ostringstream o;
     o << "{\"phase\":" << s.phase << ",\"level\":" << s.level << ",\"loads\":" << s.loads
-      << ",\"scene\":" << s.scene << ",\"id\":" << session.id() << ",\"greeted\":" << session.greeted()
-      << ",\"code\":\"" << session.code() << "\",\"is_host\":" << session.is_host()
-      << ",\"members\":" << session.members().size() << ",\"all_ready\":" << session.all_ready()
-      << ",\"playing\":" << parts_.coop.playing() << ",\"host_level\":" << parts_.coop.host_level()
-      << ",\"hold\":" << parts_.coop.hold_input() << ",\"arriving\":" << parts_.coop.arriving()
+      << ",\"scene\":" << s.scene << ",\"id\":" << session.id()
+      << ",\"greeted\":" << session.greeted() << ",\"code\":\"" << session.code()
+      << "\",\"is_host\":" << session.is_host() << ",\"members\":" << session.members().size()
+      << ",\"all_ready\":" << session.all_ready() << ",\"playing\":" << parts_.coop.playing()
+      << ",\"host_level\":" << parts_.coop.host_level() << ",\"hold\":" << parts_.coop.hold_input()
+      << ",\"arriving\":" << parts_.coop.arriving()
       << ",\"host_scene\":" << parts_.coop.host_scene() << ",\"figures\":" << parts_.coop.figures()
       << ",\"driven\":" << parts_.world.driven() << ",\"spawned\":" << parts_.world.spawned()
       << ",\"mobys\":" << parts_.world.mobys() << ",\"bolts\":" << parts_.game.bolts(0)
@@ -185,22 +188,31 @@ std::string Bot::status() {
       << ",\"joining\":" << parts_.coop.joining() << ",\"synced\":" << parts_.world.synced()
       << ",\"going\":" << parts_.coop.going() << ",\"shielded\":" << parts_.coop.shielded()
       << ",\"wait_kind\":" << static_cast<int>(parts_.coop.wait_kind())
-      << ",\"wait_votes\":" << parts_.coop.wait_votes() << ",\"banner\":\"" << parts_.coop.banner(now_ms()) << "\""
-      << ",\"shots_sent\":" << parts_.coop.shots_sent() << ",\"shots_fired\":" << parts_.coop.shots_fired()
-      << ",\"hits_taken\":" << parts_.world.hits_taken() << ",\"hits_refused\":" << parts_.world.hits_refused()
-      << ",\"shots_late\":" << parts_.coop.shots_late() << ",\"tags\":" << parts_.coop.tag_stats().tags
-      << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
-      << ",\"tag_y\":" << number(parts_.coop.tag_stats().y) << ",\"tags_drawn\":" << parts_.coop.tag_stats().drawn
-      << ",\"cam_sent\":" << parts_.camscripts.sent() << ",\"cam_shown\":" << parts_.camscripts.shown()
+      << ",\"wait_votes\":" << parts_.coop.wait_votes() << ",\"banner\":\""
+      << parts_.coop.banner(now_ms()) << "\""
+      << ",\"shots_sent\":" << parts_.coop.shots_sent()
+      << ",\"shots_fired\":" << parts_.coop.shots_fired()
+      << ",\"hits_taken\":" << parts_.world.hits_taken()
+      << ",\"hits_refused\":" << parts_.world.hits_refused()
+      << ",\"shots_late\":" << parts_.coop.shots_late()
+      << ",\"tags\":" << parts_.coop.tag_stats().tags
+      << ",\"tags_on_picture\":" << parts_.coop.tag_stats().on_picture
+      << ",\"tag_x\":" << number(parts_.coop.tag_stats().x)
+      << ",\"tag_y\":" << number(parts_.coop.tag_stats().y)
+      << ",\"tags_drawn\":" << parts_.coop.tag_stats().drawn
+      << ",\"cam_sent\":" << parts_.camscripts.sent()
+      << ",\"cam_shown\":" << parts_.camscripts.shown()
       << ",\"cam_showing\":" << parts_.camscripts.showing() << ",\"dropped\":" << session.dropped()
       << ",\"epoch\":" << session.role().epoch() << ",\"stale\":" << session.stale()
       << ",\"host\":" << session.host() << ",\"host_gone\":" << parts_.migrate.host_gone()
-      << ",\"took_over\":" << parts_.migrate.took_over() << ",\"ledger\":" << parts_.migrate.ledger().generation
-      << ",\"migrate_banner\":\"" << parts_.migrate.banner(now_ms()) << "\"";
+      << ",\"took_over\":" << parts_.migrate.took_over()
+      << ",\"ledger\":" << parts_.migrate.ledger().generation << ",\"migrate_banner\":\""
+      << parts_.migrate.banner(now_ms()) << "\"";
 
     if (has_hero) {
         o << ",\"hero\":[" << number(hero.position[0]) << "," << number(hero.position[1]) << ","
-          << number(hero.position[2]) << "],\"health\":" << hero.health << ",\"hero_state\":" << hero.state;
+          << number(hero.position[2]) << "],\"health\":" << hero.health
+          << ",\"hero_state\":" << hero.state;
     }
 
     o << "}";
@@ -217,12 +229,14 @@ std::string Bot::mods() {
         rules.push_back(r.id + ": " + r.text);
     }
 
-    o << "{\"digest\":\"" << digest_tag(mods_digest(m.own())) << "\",\"heard_host\":" << m.heard_host()
-      << ",\"host_silent\":" << m.host_silent() << ",\"solo\":" << m.solo() << ",\"fits\":{";
+    o << "{\"digest\":\"" << digest_tag(mods_digest(m.own()))
+      << "\",\"heard_host\":" << m.heard_host() << ",\"host_silent\":" << m.host_silent()
+      << ",\"solo\":" << m.solo() << ",\"fits\":{";
     bool first = true;
 
     for (const Member& member : session.members()) {
-        o << (first ? "" : ",") << "\"" << member.name << "\":" << static_cast<int>(m.fit(member.id));
+        o << (first ? "" : ",") << "\"" << member.name
+          << "\":" << static_cast<int>(m.fit(member.id));
         first = false;
     }
 
@@ -232,9 +246,9 @@ std::string Bot::mods() {
         packs.push_back(p.name);
     }
 
-    o << "},\"differences\":" << quoted(refusal_lines(m.differences())) << ",\"rules\":" << quoted(rules)
-      << ",\"packs\":" << quoted(packs) << ",\"key\":" << !m.own().key.empty()
-      << ",\"bans\":" << parts_.cosave.bans().size() << "}";
+    o << "},\"differences\":" << quoted(refusal_lines(m.differences()))
+      << ",\"rules\":" << quoted(rules) << ",\"packs\":" << quoted(packs)
+      << ",\"key\":" << !m.own().key.empty() << ",\"bans\":" << parts_.cosave.bans().size() << "}";
     return o.str();
 }
 
@@ -244,9 +258,9 @@ std::string Bot::dump() {
     bool first = true;
 
     for (const MobyState& m : parts_.game.mobys()) {
-        o << (first ? "" : ",") << "[" << m.slot << "," << m.key << "," << m.oclass << "," << m.flags
-          << "," << m.state << "," << number(m.pose.position[0]) << "," << number(m.pose.position[1])
-          << "," << number(m.pose.position[2]) << "]";
+        o << (first ? "" : ",") << "[" << m.slot << "," << m.key << "," << m.oclass << ","
+          << m.flags << "," << m.state << "," << number(m.pose.position[0]) << ","
+          << number(m.pose.position[1]) << "," << number(m.pose.position[2]) << "]";
         first = false;
     }
 
@@ -263,7 +277,8 @@ std::string Bot::stats() {
 
         for (std::size_t i = 0; i < all.size(); ++i) {
             if (all[i].messages != 0) {
-                o << (first ? "" : ",") << "\"" << i << "\":[" << all[i].messages << "," << all[i].bytes << "]";
+                o << (first ? "" : ",") << "\"" << i << "\":[" << all[i].messages << ","
+                  << all[i].bytes << "]";
                 first = false;
             }
         }
@@ -323,7 +338,8 @@ std::string Bot::run(const std::string& line) {
         for (const Member& m : parts_.session.members()) {
             if (m.name == name) {
                 // A ban takes hold through the mod's frame (the key is what it knows them by).
-                const bool done = command == "ban" ? parts_.cosave.ban(parts_.mods.key(m.id)) : parts_.session.kick(m.id);
+                const bool done = command == "ban" ? parts_.cosave.ban(parts_.mods.key(m.id))
+                                                   : parts_.session.kick(m.id);
                 return done ? "ok" : "error refused";
             }
         }
@@ -359,10 +375,17 @@ std::string Bot::run(const std::string& line) {
         in >> to[0] >> to[1] >> to[2];
         bool blocked = false;
         const auto start = std::chrono::steady_clock::now();
-        const bool known = parts_.game.camera(camera) && parts_.game.level_line(camera, to, blocked);
+        const bool known =
+            parts_.game.camera(camera) && parts_.game.level_line(camera, to, blocked);
         const auto took = std::chrono::steady_clock::now() - start;
-        return std::string(!known ? "unknown " : blocked ? "blocked " : "clear ")
-               + std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(took).count());
+        return std::string(
+                   !known    ? "unknown "
+                   : blocked ? "blocked "
+                             : "clear "
+               )
+               + std::to_string(
+                   std::chrono::duration_cast<std::chrono::microseconds>(took).count()
+               );
     } else if (command == "teleport") {
         in >> at_[0] >> at_[1] >> at_[2];
         teleport_ticks_ = kTeleportTicks;
@@ -444,10 +467,10 @@ std::string Bot::run(const std::string& line) {
         return parts_.game.shared_give(tag, bytes) ? "ok" : "error refused";
     } else if (command == "cosave") {
         CoSave& c = parts_.cosave;
-        return "{\"on\":" + std::string(c.on() ? "true" : "false") + ",\"slot\":" + std::to_string(c.slot())
-               + ",\"key\":" + std::to_string(c.key()) + ",\"saves\":" + std::to_string(parts_.game.card_saves())
-               + ",\"acked\":" + std::to_string(c.acked()) + ",\"sent_to\":" + std::to_string(c.sent_to())
-               + "}";
+        return "{\"on\":" + std::string(c.on() ? "true" : "false")
+               + ",\"slot\":" + std::to_string(c.slot()) + ",\"key\":" + std::to_string(c.key())
+               + ",\"saves\":" + std::to_string(parts_.game.card_saves()) + ",\"acked\":"
+               + std::to_string(c.acked()) + ",\"sent_to\":" + std::to_string(c.sent_to()) + "}";
     } else if (command == "saveparty") {
         return parts_.cosave.save_party() ? "ok" : "error refused";
     } else if (command == "gamesave") {

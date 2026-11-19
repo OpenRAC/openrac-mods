@@ -50,8 +50,8 @@ std::string mod_code_link(const std::string& code);
 
 /* What `folder`'s file (the SDK's plugins_folder) says for this game, from `own`. */
 struct ModCode {
-    std::string code;    // a valid short code, or empty
-    bool shared = false; // the file is there and matches, short code or not
+    std::string code;     // a valid short code, or empty
+    bool shared = false;  // the file is there and matches, short code or not
 };
 
 ModCode read_mod_code(const std::string& folder, const ModList& own);

@@ -4,10 +4,11 @@
  * Losing a connection, coming back, and the party going on without its host (migrate.hpp).
  */
 #include "migrate.hpp"
-#include "world_util.hpp"
 
 #include <algorithm>
 #include <utility>
+
+#include "world_util.hpp"
 
 namespace mp {
 
@@ -44,7 +45,8 @@ Bytes encode_ledger(const Ledger& l) {
     w.i32(static_cast<std::int32_t>(l.generation)).i32(l.play);
     u16(w, l.travel);
     u16(w, l.scene);
-    w.u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(l.world.level))).u8(l.world.revive ? 1 : 0);
+    w.u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(l.world.level)))
+        .u8(l.world.revive ? 1 : 0);
     u16(w, l.world.next_net);
     put_keys(w, l.world.dead);
     put_keys(w, l.world.dug);
@@ -104,8 +106,9 @@ bool decode_ledger(const Bytes& bytes, Ledger& out) {
 }
 
 bool ledger_newer(const Ledger& a, const Ledger& b) {
-    return a.epoch != b.epoch ? static_cast<std::int16_t>(static_cast<std::uint16_t>(a.epoch - b.epoch)) > 0
-                              : a.generation > b.generation;
+    return a.epoch != b.epoch
+               ? static_cast<std::int16_t>(static_cast<std::uint16_t>(a.epoch - b.epoch)) > 0
+               : a.generation > b.generation;
 }
 
 std::vector<std::int32_t> successor_order(std::vector<Candidate> candidates) {
@@ -114,9 +117,11 @@ std::vector<std::int32_t> successor_order(std::vector<Candidate> candidates) {
         return (c.link.ping_ms >= 0 ? c.link.ping_ms : 5000) + (c.link.udp ? 0 : 100);
     };
 
-    std::stable_sort(candidates.begin(), candidates.end(), [&](const Candidate& a, const Candidate& b) {
-        return cost(a) < cost(b);
-    });
+    std::stable_sort(
+        candidates.begin(), candidates.end(), [&](const Candidate& a, const Candidate& b) {
+            return cost(a) < cost(b);
+        }
+    );
 
     std::vector<std::int32_t> out;
 
@@ -127,8 +132,18 @@ std::vector<std::int32_t> successor_order(std::vector<Candidate> candidates) {
     return out;
 }
 
-Migrate::Migrate(Session& session, Game& game, Coop& coop, World& world, Progress& progress, Shared& shared,
-                 PartyMods& mods, CoSave& cosave, CamScripts& cam, std::function<std::uint64_t()> clock)
+Migrate::Migrate(
+    Session& session,
+    Game& game,
+    Coop& coop,
+    World& world,
+    Progress& progress,
+    Shared& shared,
+    PartyMods& mods,
+    CoSave& cosave,
+    CamScripts& cam,
+    std::function<std::uint64_t()> clock
+)
     : session_(session),
       game_(game),
       coop_(coop),
@@ -185,7 +200,8 @@ void Migrate::handle(std::int32_t sender, const Bytes& bytes) {
             answered_.insert(sender);
         }
 
-        const auto ahead = static_cast<std::int16_t>(static_cast<std::uint16_t>(heard.epoch - ledger_.epoch));
+        const auto ahead =
+            static_cast<std::int16_t>(static_cast<std::uint16_t>(heard.epoch - ledger_.epoch));
 
         if (ahead <= kLedgerEpochReach && ledger_newer(heard, ledger_)) {
             ledger_ = std::move(heard);
@@ -410,8 +426,8 @@ void Migrate::tick_host(std::uint64_t now) {
     std::vector<Candidate> candidates;
 
     for (const Member& m : session_.members()) {
-        if (m.id != session_.id() && !session_.away(m.id) && !session_.kicking(m.id) && mods_.may_play(m.id)
-            && world_.has_world(m.id)) {
+        if (m.id != session_.id() && !session_.away(m.id) && !session_.kicking(m.id)
+            && mods_.may_play(m.id) && world_.has_world(m.id)) {
             candidates.push_back({m.id, session_.link(m.id)});
         }
     }
@@ -494,7 +510,8 @@ std::string Migrate::banner(std::uint64_t now) const {
     }
 
     if (now < new_host_until_) {
-        return new_host_ == session_.id() ? std::string(kYouHostLine) : name_of(new_host_) + " hosts now";
+        return new_host_ == session_.id() ? std::string(kYouHostLine)
+                                          : name_of(new_host_) + " hosts now";
     }
 
     return {};

@@ -151,8 +151,18 @@ constexpr const char* kYouHostLine = "You host now";
 
 class Migrate {
 public:
-    Migrate(Session& session, Game& game, Coop& coop, World& world, Progress& progress, Shared& shared,
-            PartyMods& mods, CoSave& cosave, CamScripts& cam, std::function<std::uint64_t()> clock = {});
+    Migrate(
+        Session& session,
+        Game& game,
+        Coop& coop,
+        World& world,
+        Progress& progress,
+        Shared& shared,
+        PartyMods& mods,
+        CoSave& cosave,
+        CamScripts& cam,
+        std::function<std::uint64_t()> clock = {}
+    );
 
     /* One of the DATA messages of the change of host. */
     void handle(std::int32_t sender, const Bytes& bytes);

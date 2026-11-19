@@ -55,7 +55,11 @@ namespace mp {
 constexpr std::uint8_t kCamScriptKind = kind::kCamScript;
 constexpr std::uint8_t kCamStateKind = kind::kCamState;
 
-enum class CamShare : std::uint8_t { kCamOwn, kCamRiders, kCamNear };
+enum class CamShare : std::uint8_t {
+    kCamOwn,
+    kCamRiders,
+    kCamNear
+};
 
 /* Who sees a script of class `oclass` beside its player (above). */
 CamShare camera_share(int oclass);
@@ -144,6 +148,7 @@ private:
     void take_back(bool cut, const std::string& why);
     /* The view at `when`, from what is kept. */
     View view_at(std::int64_t when) const;
+
     void log(const std::string& line) const {
         if (log_) {
             log_(line);

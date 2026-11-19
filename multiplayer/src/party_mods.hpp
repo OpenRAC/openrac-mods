@@ -118,8 +118,8 @@ struct ModList {
     std::string disc;    // the player's own: for the logs, and never compared
     std::string family;  // the world the disc belongs to: what is compared
     std::vector<ModInfo> mods;
-    std::string modcode; // the mod code of this list, if it has one (modcode.hpp): never compared
-    std::string key;     // this installation's (the SDK's identity_key), for a ban: never compared
+    std::string modcode;  // the mod code of this list, if it has one (modcode.hpp): never compared
+    std::string key;      // this installation's (the SDK's identity_key), for a ban: never compared
     std::vector<PackInfo> packs;  // in the order they apply
 };
 
@@ -194,8 +194,9 @@ constexpr const char* kGameRac2 = "rac2";
  * game other than Ratchet & Clank adds its id after the digest, "Going Commando|3fa9/rac2", so its
  * parties and Ratchet & Clank's never mix (an older Ratchet & Clank game reads that tag as another
  * digest: the party differs). */
-std::string tagged_description(const std::string& description, std::uint32_t digest,
-                               const std::string& game = kGameRac1);
+std::string tagged_description(
+    const std::string& description, std::uint32_t digest, const std::string& game = kGameRac1
+);
 /* The description without the tag, the digest's four hex digits ("" for none), and the game the tag
  * names: "" for a description without one, kGameRac1 for a tag with the digest alone. */
 std::string plain_description(const std::string& description);
@@ -312,7 +313,9 @@ private:
     /* The party's host changed (migrate.hpp), so its epoch: the rules stand, and the new host goes on
      * by the list everyone was checked against, not its own. */
     void host_moved(std::uint64_t now);
+
     const ModList& party_list() const { return inherited_ ? basis_ : own_; }
+
     std::uint16_t party_epoch_ = 0;
     bool inherited_ = false;
     ModList basis_;

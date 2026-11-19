@@ -49,8 +49,10 @@ double distance(const Pose& a, const Pose& b) {
 }
 
 double speed(const Pose& p) {
-    return std::sqrt(p.velocity[0] * p.velocity[0] + p.velocity[1] * p.velocity[1]
-                     + p.velocity[2] * p.velocity[2]);
+    return std::sqrt(
+        p.velocity[0] * p.velocity[0] + p.velocity[1] * p.velocity[1]
+        + p.velocity[2] * p.velocity[2]
+    );
 }
 
 /* The animation `s` of the way from `a` to `b`, in `out` (a pose's, or a piece's: the same fields).
@@ -73,7 +75,9 @@ void run_on(const T& a, const T& b, bool blending, double s, T& out) {
     const double place = from + (to - from) * s;
     out.frame = static_cast<std::uint32_t>(place);
     out.anim_time = static_cast<float>(place - out.frame);
-    out.next_frame = out.frame == b.frame ? b.next_frame : out.frame == a.frame ? a.next_frame : out.frame + 1;
+    out.next_frame = out.frame == b.frame   ? b.next_frame
+                     : out.frame == a.frame ? a.next_frame
+                                            : out.frame + 1;
     out.anim_speed = static_cast<float>(a.anim_speed + (b.anim_speed - a.anim_speed) * s);
 }
 
@@ -109,8 +113,10 @@ void animate(const Pose& a, const Pose& b, double s, Pose& out) {
 
         if ((pa->flags & pb->flags & kHeldLoose) != 0) {
             for (int c = 0; c < 3; ++c) {
-                piece.position[c] = static_cast<float>(pa->position[c] + (pb->position[c] - pa->position[c]) * s);
-                piece.rotation[c] = lerp_angle(pa->rotation[c], pb->rotation[c], static_cast<float>(s));
+                piece.position[c] =
+                    static_cast<float>(pa->position[c] + (pb->position[c] - pa->position[c]) * s);
+                piece.rotation[c] =
+                    lerp_angle(pa->rotation[c], pb->rotation[c], static_cast<float>(s));
             }
         }
     }
@@ -132,7 +138,8 @@ void carry_loose_on(const Pose& before, double span, double ahead, Pose& out) {
         }
 
         for (int c = 0; c < 3; ++c) {
-            piece.position[c] += static_cast<float>((piece.position[c] - was->position[c]) * ahead / span);
+            piece.position[c] +=
+                static_cast<float>((piece.position[c] - was->position[c]) * ahead / span);
         }
     }
 }
@@ -143,14 +150,17 @@ Bytes encode_pose(const PoseMessage& m) {
     const Pose& p = m.pose;
     const bool scaled = sane_scale(p.scale) > 0.0f;
     Writer w;
-    w.u8(kPoseKind).i32(m.owner).u8(static_cast<std::uint8_t>(m.sequence >> 8))
+    w.u8(kPoseKind)
+        .i32(m.owner)
+        .u8(static_cast<std::uint8_t>(m.sequence >> 8))
         .u8(static_cast<std::uint8_t>(m.sequence))
         .i64(m.stamp_ms)
         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(p.level, -1, 127))))
-        .u8(static_cast<std::uint8_t>((p.flags & kPoseBlending) | (m.teleport ? kWireTeleport : 0)
-                                  | (m.scene ? kWireScene : 0) | (m.menu ? kWireMenu : 0)
-                                  | ((p.flags & kPoseAirborne) != 0 ? kWireAirborne : 0)
-                                  | (scaled ? kWireScale : 0)));
+        .u8(static_cast<std::uint8_t>(
+            (p.flags & kPoseBlending) | (m.teleport ? kWireTeleport : 0)
+            | (m.scene ? kWireScene : 0) | (m.menu ? kWireMenu : 0)
+            | ((p.flags & kPoseAirborne) != 0 ? kWireAirborne : 0) | (scaled ? kWireScale : 0)
+        ));
 
     for (const float f : p.position) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
@@ -214,7 +224,8 @@ Bytes encode_pose(const PoseMessage& m) {
     }
 
     if (m.world_ack) {
-        w.u8(static_cast<std::uint8_t>(m.world_newest >> 8)).u8(static_cast<std::uint8_t>(m.world_newest));
+        w.u8(static_cast<std::uint8_t>(m.world_newest >> 8))
+            .u8(static_cast<std::uint8_t>(m.world_newest));
         w.i32(static_cast<std::int32_t>(m.world_bits));
     }
 
@@ -334,8 +345,9 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
 
 Bytes encode_shot(const ShotMessage& m) {
     Writer w;
-    w.u8(kShotKind).i32(m.owner)
-        .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(m.level, -1, 127))));
+    w.u8(kShotKind).i32(m.owner).u8(
+        static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(m.level, -1, 127)))
+    );
     const std::int16_t item = clamp16(m.shot.item);
     w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(item) >> 8))
         .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(item)));
@@ -420,10 +432,11 @@ Bytes encode_shotx(const std::vector<ShotEntry>& shots) {
     for (std::size_t i = 0; i < count; ++i) {
         const ShotEntry& e = shots[i];
         const Shot& s = e.shot;
-        const std::uint8_t has =
-            static_cast<std::uint8_t>((any_set(s.velocity) ? kHasVelocity : 0) | (any_set(s.aim) ? kHasAim : 0)
-                                      | (any_set(s.velocity2) ? kHasVelocity2 : 0) | (any_set(s.aux) ? kHasAux : 0)
-                                      | (s.target_key >= 0 ? kHasTarget : 0));
+        const std::uint8_t has = static_cast<std::uint8_t>(
+            (any_set(s.velocity) ? kHasVelocity : 0) | (any_set(s.aim) ? kHasAim : 0)
+            | (any_set(s.velocity2) ? kHasVelocity2 : 0) | (any_set(s.aux) ? kHasAux : 0)
+            | (s.target_key >= 0 ? kHasTarget : 0)
+        );
         w.i32(e.owner)
             .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(e.level, -1, 127))))
             .u8(static_cast<std::uint8_t>(std::clamp(s.item, 0, 255)))
@@ -450,7 +463,8 @@ Bytes encode_shotx(const std::vector<ShotEntry>& shots) {
 
         if ((has & kHasTarget) != 0) {
             const std::int16_t key = clamp16(s.target_key);
-            w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(key) >> 8)).u8(static_cast<std::uint8_t>(key));
+            w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(key) >> 8))
+                .u8(static_cast<std::uint8_t>(key));
         }
     }
 
@@ -515,8 +529,8 @@ bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out) {
 }
 
 bool shot_replaces(const ShotEntry& newer, const ShotEntry& older) {
-    return newer.owner == older.owner && (newer.shot.flags & kShotMove) != 0 && (older.shot.flags & kShotMove) != 0
-           && newer.shot.aux[0] == older.shot.aux[0];
+    return newer.owner == older.owner && (newer.shot.flags & kShotMove) != 0
+           && (older.shot.flags & kShotMove) != 0 && newer.shot.aux[0] == older.shot.aux[0];
 }
 
 bool sequence_newer(std::uint16_t a, std::uint16_t b) {
@@ -558,17 +572,33 @@ const char* shown_name(Shown s) {
 
 std::string counts_text(const int by[6]) {
     char text[128];
-    std::snprintf(text, sizeof text, "between %d ahead %d held %d jump %d before %d",
-                  by[static_cast<int>(Shown::kBetween)], by[static_cast<int>(Shown::kAhead)],
-                  by[static_cast<int>(Shown::kHeld)], by[static_cast<int>(Shown::kJump)],
-                  by[static_cast<int>(Shown::kBefore)]);
+    std::snprintf(
+        text,
+        sizeof text,
+        "between %d ahead %d held %d jump %d before %d",
+        by[static_cast<int>(Shown::kBetween)],
+        by[static_cast<int>(Shown::kAhead)],
+        by[static_cast<int>(Shown::kHeld)],
+        by[static_cast<int>(Shown::kJump)],
+        by[static_cast<int>(Shown::kBefore)]
+    );
     return text;
 }
 
 std::string Interpolator::describe() const {
     char text[192];
-    std::snprintf(text, sizeof text, "delay %.0f transit %.0f jitter %.1f interval %.0f loss %.3f ahead %.0f depth %zu",
-                  delay_ms(), transit_, jitter_, interval_, loss_, ahead_ms(), samples_.size());
+    std::snprintf(
+        text,
+        sizeof text,
+        "delay %.0f transit %.0f jitter %.1f interval %.0f loss %.3f ahead %.0f depth %zu",
+        delay_ms(),
+        transit_,
+        jitter_,
+        interval_,
+        loss_,
+        ahead_ms(),
+        samples_.size()
+    );
     return text;
 }
 
@@ -627,6 +657,7 @@ void Interpolator::add(
     } else {
         // A stamp not after the newest (a sender's clock step) is moved just past it.
         const double gap = time_ms - samples_.back().time;
+
         if (gap <= 0.0) {
             time_ms = samples_.back().time + 1.0;
         } else if (gap < (derive_ ? kMobyPauseGapMs : kPauseGapMs)) {
@@ -662,6 +693,7 @@ void Interpolator::derive_velocities() {
         if (n == 1) {
             std::fill(samples_[0].pose.velocity, samples_[0].pose.velocity + 3, 0.0f);
         }
+
         return;
     }
 
@@ -706,7 +738,8 @@ bool Interpolator::at(double now_ms, Pose& out) {
     // Past the newest pose (on along a velocity, or held), then back between two: on from where
     // it was shown by the step it was taking, eased onto the curve, not put there at once. A jump
     // or a new start is put there.
-    const bool back = (before == Shown::kAhead || before == Shown::kHeld) && shown_ == Shown::kBetween;
+    const bool back =
+        (before == Shown::kAhead || before == Shown::kHeld) && shown_ == Shown::kBetween;
     const float ease = static_cast<float>(std::exp(-dt / kCatchUpMs));
 
     if (!shown_set_ || shown_ == Shown::kJump || !cursor_set_) {
@@ -717,7 +750,8 @@ bool Interpolator::at(double now_ms, Pose& out) {
         }
     }
 
-    if (std::sqrt(offset_[0] * offset_[0] + offset_[1] * offset_[1] + offset_[2] * offset_[2]) > kSnapDistance) {
+    if (std::sqrt(offset_[0] * offset_[0] + offset_[1] * offset_[1] + offset_[2] * offset_[2])
+        > kSnapDistance) {
         std::fill(offset_, offset_ + 3, 0.0f);
     }
 
@@ -725,6 +759,7 @@ bool Interpolator::at(double now_ms, Pose& out) {
         if (!back) {
             offset_[i] *= ease;
         }
+
         out.position[i] += offset_[i];
         shown_step_[i] = shown_set_ ? out.position[i] - shown_at_[i] : 0.0f;
         shown_at_[i] = out.position[i];
@@ -741,9 +776,13 @@ double Interpolator::wanted_ms() const {
     // goes with its priority, and all of WORLD slows while the party fires), at least two intervals:
     // a lost pose leaves a gap of two. A figure's third comes by 5 % lost; a moby's, of the three
     // the longer, by 25 %: at 5 % a third costs 100 ms of delay and shows nothing.
-    const double sends = derive_ ? 2.0 + std::min(1.0, 4.0 * loss_) : 1.0 + std::min(1.0, 20.0 * loss_);
-    const double margin = std::clamp(std::max(sends * interval_ + 2.5 * jitter_ + 17.0, 2.0 * interval_), kMinBufferMs,
-                                     derive_ ? kMaxMobyBufferMs : kMaxBufferMs);
+    const double sends =
+        derive_ ? 2.0 + std::min(1.0, 4.0 * loss_) : 1.0 + std::min(1.0, 20.0 * loss_);
+    const double margin = std::clamp(
+        std::max(sends * interval_ + 2.5 * jitter_ + 17.0, 2.0 * interval_),
+        kMinBufferMs,
+        derive_ ? kMaxMobyBufferMs : kMaxBufferMs
+    );
     return std::clamp(transit_ + margin, 0.0, kMaxDelayMs);
 }
 
@@ -805,7 +844,9 @@ bool Interpolator::place(double now_ms, Pose& out) {
 
         if (samples_.size() >= 2) {
             const Sample& last = samples_[samples_.size() - 2];
-            carry_loose_on(last.pose, newest - last.time, std::min(cursor_ - newest, kExtrapolateMs), out);
+            carry_loose_on(
+                last.pose, newest - last.time, std::min(cursor_ - newest, kExtrapolateMs), out
+            );
         }
 
         if (derive_) {
@@ -821,6 +862,7 @@ bool Interpolator::place(double now_ms, Pose& out) {
         const double fade = kExtrapolateMs - kFadeMs;
         // The time moved: all of it until the fade, then less and less.
         double moved = ahead;
+
         if (ahead > fade) {
             const double f = ahead - fade;
             moved = fade + f - f * f / (2.0 * kFadeMs);
@@ -831,7 +873,8 @@ bool Interpolator::place(double now_ms, Pose& out) {
         const Pose* before = samples_.size() >= 2 ? &samples_[samples_.size() - 2].pose : nullptr;
 
         for (int i = 0; i < 3; ++i) {
-            if (before == nullptr || std::fabs(out.position[i] - before->position[i]) >= kStillStep) {
+            if (before == nullptr
+                || std::fabs(out.position[i] - before->position[i]) >= kStillStep) {
                 out.position[i] += static_cast<float>(out.velocity[i] * moved / 1000.0);
             }
         }
@@ -842,6 +885,7 @@ bool Interpolator::place(double now_ms, Pose& out) {
 
     // Between two: a, the last at or before the cursor, and b after it.
     std::size_t b = 1;
+
     while (b < samples_.size() && samples_[b].time <= cursor_) {
         ++b;
     }
@@ -870,8 +914,9 @@ bool Interpolator::place(double now_ms, Pose& out) {
         out.position[i] = static_cast<float>(
             h00 * sa.pose.position[i] + h10 * h * va + h01 * sb.pose.position[i] + h11 * h * vb
         );
-        out.velocity[i] =
-            static_cast<float>(sa.pose.velocity[i] + (sb.pose.velocity[i] - sa.pose.velocity[i]) * s);
+        out.velocity[i] = static_cast<float>(
+            sa.pose.velocity[i] + (sb.pose.velocity[i] - sa.pose.velocity[i]) * s
+        );
     }
 
     out.rotation[0] = lerp_angle(sa.pose.rotation[0], sb.pose.rotation[0], static_cast<float>(s));

@@ -54,9 +54,9 @@
 #ifndef MULTIPLAYER_PLAY_H
 #define MULTIPLAYER_PLAY_H
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <algorithm>
 #include <deque>
 #include <string>
 
@@ -236,7 +236,14 @@ constexpr double kCatchUpMs = 120.0;
 
 /* What the last Interpolator::at showed: before the first pose, between two, on past the newest
  * along its velocity, held at the newest, or put somewhere at once (a jump of the cursor). */
-enum class Shown : std::uint8_t { kNone, kBefore, kBetween, kAhead, kHeld, kJump };
+enum class Shown : std::uint8_t {
+    kNone,
+    kBefore,
+    kBetween,
+    kAhead,
+    kHeld,
+    kJump
+};
 
 const char* shown_name(Shown s);
 
@@ -249,12 +256,16 @@ class Interpolator {
 public:
     /* `derive`: the poses carry no velocities (WORLD's): made from the neighbours, and nothing
      * is carried on past the newest. */
-    explicit Interpolator(bool derive = false) : derive_(derive), interval_(derive ? 100.0 : 50.0) {}
+    explicit Interpolator(bool derive = false)
+        : derive_(derive),
+          interval_(derive ? 100.0 : 50.0) {}
 
     /* A pose sent at `time_ms` (its stamp in this clock) that arrived at `arrival_ms`. One not
      * newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport
      * starts the buffer again, and so does one after that silence but where it stood. */
-    void add(const Pose& pose, std::uint16_t sequence, double time_ms, double arrival_ms, bool teleport);
+    void add(
+        const Pose& pose, std::uint16_t sequence, double time_ms, double arrival_ms, bool teleport
+    );
 
     /* The pose to show at `now_ms`; false while there is none. */
     bool at(double now_ms, Pose& out);
@@ -314,6 +325,7 @@ public:
         if (samples_.empty()) {
             return false;
         }
+
         out = samples_.back().pose;
         return true;
     }

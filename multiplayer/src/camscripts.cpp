@@ -152,8 +152,13 @@ bool decode_camstate(const Bytes& bytes, CamState& out) {
     return r.ok() && r.left() == 0;
 }
 
-CamScripts::CamScripts(Session& session, Game& game, Coop& coop, std::function<std::uint64_t()> clock)
-    : session_(session), game_(game), coop_(coop), clock_(clock ? std::move(clock) : now_ms) {}
+CamScripts::CamScripts(
+    Session& session, Game& game, Coop& coop, std::function<std::uint64_t()> clock
+)
+    : session_(session),
+      game_(game),
+      coop_(coop),
+      clock_(clock ? std::move(clock) : now_ms) {}
 
 void CamScripts::reset() {
     if (showing_) {
@@ -303,8 +308,8 @@ bool CamScripts::may_start(const CamScript& script, std::uint64_t now) {
     const CamShare share = camera_share(script.id);
 
     if (share == CamShare::kCamOwn || status.phase != kPhasePlaying || status.scene >= 0
-        || status.level != script.level || coop_.joining() || coop_.hold_input() || !game_.hero(hero)
-        || hero.health <= 0) {
+        || status.level != script.level || coop_.joining() || coop_.hold_input()
+        || !game_.hero(hero) || hero.health <= 0) {
         return false;
     }
 
