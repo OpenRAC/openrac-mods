@@ -135,7 +135,7 @@ static void check_tables(void) {
 static void check_plan(const rando_settings* s, const rando_plan* p) {
     CHECK(rando_beatable(p, NULL));
     /* The shuffled locations' rewards are their vanilla rewards, moved; the rest are as the game has them. */
-    int count[5][64];
+    int count[REWARD_SPECIAL + 1][64];
     memset(count, 0, sizeof count);
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -166,7 +166,7 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
 
     CHECK(rando_stranded(p) == 0);
 
-    for (int k = 0; k < 5; ++k) {
+    for (int k = 0; k <= REWARD_SPECIAL; ++k) {
         for (int v = 0; v < 64; ++v) {
             CHECK(count[k][v] == 0);
         }
@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xdf1126b085d2d4e4ull);
+    CHECK(plan_hash(&p) == 0xcf044a2320f1889cull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
