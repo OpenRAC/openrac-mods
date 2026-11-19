@@ -16,7 +16,7 @@ using namespace wire;
 
 namespace {
 
-/* The most keys a set of them holds on the wire: a level has fewer records than this. */
+// The most keys a set of them holds on the wire: a level has fewer records than this.
 constexpr std::size_t kMaxKeys = 0x8000;
 constexpr std::size_t kMaxSpawned = 0x1000;
 

@@ -18,7 +18,7 @@ using namespace wire;
 
 namespace {
 
-/* The sticks' dead zone, as the game reads them (camera_latch.c in the port), about the middle. */
+// The sticks' dead zone, as the game reads them (camera_latch.c in the port), about the middle.
 constexpr int kStickMiddle = 0x7F;
 constexpr int kStickDead = 0x30;
 
@@ -31,7 +31,7 @@ float distance(const float* a, const float* b) {
     return std::sqrt(x * x + y * y + z * z);
 }
 
-/* An angle on the way from `a` to `b`, the short way round. */
+// An angle on the way from `a` to `b`, the short way round.
 float angle_between(float a, float b, float t) {
     float step = std::fmod(b - a, 2.0f * kPi);
 

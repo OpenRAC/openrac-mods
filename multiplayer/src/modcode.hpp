@@ -19,36 +19,36 @@
 
 namespace mp {
 
-/* The launcher's file, format 1. `code` is empty when the server could not be reached: the set has
- * only its long code then, which is the launcher's to show. */
+// The launcher's file, format 1. `code` is empty when the server could not be reached: the set has
+// only its long code then, which is the launcher's to show.
 struct ModSetFile {
     std::string code;
     std::string link;
     std::vector<std::pair<std::string, std::string>> mods;  // id, version
 };
 
-/* False for anything but a whole file of format 1. */
+// False for anything but a whole file of format 1.
 bool parse_modset(const std::string& text, ModSetFile& out);
 
-/* Whether `own`'s mods a party compares are the file's, at those versions, in any order. */
+// Whether `own`'s mods a party compares are the file's, at those versions, in any order.
 bool modset_matches(const ModSetFile& file, const ModList& own);
 
-/* A short code as the launcher shows it, K7M2-9QXR: nothing else is shown or linked. */
+// A short code as the launcher shows it, K7M2-9QXR: nothing else is shown or linked.
 bool valid_mod_code(const std::string& code);
 
-/* What a host shares: its mod code, and beside it the party to join once the mods are applied. */
+// What a host shares: its mod code, and beside it the party to join once the mods are applied.
 std::string mod_code_with_party(const std::string& code, const std::string& party);
 
-/* The party the launcher said to join on starting (<folder>/modset-join.json: the player asked, the
- * mods applied), or "". The file is for one start: it goes, whatever it says. One older than
- * kJoinRequestSeconds is a game not started then, and says nothing now. */
+// The party the launcher said to join on starting (<folder>/modset-join.json: the player asked, the
+// mods applied), or "". The file is for one start: it goes, whatever it says. One older than
+// kJoinRequestSeconds is a game not started then, and says nothing now.
 constexpr std::int64_t kJoinRequestSeconds = 600;
 std::string take_join_request(const std::string& folder, std::int64_t now_seconds);
 
-/* The link of a valid code, for open_link; "" for anything else. */
+// The link of a valid code, for open_link; "" for anything else.
 std::string mod_code_link(const std::string& code);
 
-/* What `folder`'s file (the SDK's plugins_folder) says for this game, from `own`. */
+// What `folder`'s file (the SDK's plugins_folder) says for this game, from `own`.
 struct ModCode {
     std::string code;     // a valid short code, or empty
     bool shared = false;  // the file is there and matches, short code or not
@@ -56,7 +56,7 @@ struct ModCode {
 
 ModCode read_mod_code(const std::string& folder, const ModList& own);
 
-/* The words of a page. */
+// The words of a page.
 constexpr const char* kModCodeLabel = "Code: ";
 constexpr const char* kModCodeHint = "Enter it in launcher: Mods";
 constexpr const char* kModCodeInLauncher = "Your code is in the launcher";

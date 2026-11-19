@@ -13,13 +13,13 @@
 namespace mp {
 namespace {
 
-/* The 16-bit length an empty string is written with (OutputBuffer.writeString). */
+// The 16-bit length an empty string is written with (OutputBuffer.writeString).
 constexpr std::uint16_t kEmptyString = 0xFFFFu;
 
-/* The longest string a 16-bit signed length holds. */
+// The longest string a 16-bit signed length holds.
 constexpr std::size_t kMaxStringBytes = 0x7FFF;
 
-/* A PARTY body's start: the id and the opcode. */
+// A PARTY body's start: the id and the opcode.
 Writer party(PartyOp op) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(PacketId::kParty)).u8(static_cast<std::uint8_t>(op));
@@ -195,7 +195,7 @@ Bytes hello(const std::string& version, const std::string& name, std::uint8_t fe
 
 namespace {
 
-/* A request's family at its end: none is no bytes at all, as from a client before families. */
+// A request's family at its end: none is no bytes at all, as from a client before families.
 Bytes with_family(Writer w, const std::string& family) {
     if (!family.empty()) {
         w.str(family);

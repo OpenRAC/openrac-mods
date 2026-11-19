@@ -61,7 +61,7 @@ enum class CamShare : std::uint8_t {
     kCamNear
 };
 
-/* Who sees a script of class `oclass` beside its player (above). */
+// Who sees a script of class `oclass` beside its player (above).
 CamShare camera_share(int oclass);
 
 constexpr float kCamNear = 60.0f;
@@ -71,11 +71,11 @@ constexpr std::uint64_t kCamDelayMs = 2 * kCamStateMs;
 constexpr std::uint64_t kCamStaleMs = 1000;
 constexpr std::uint64_t kCamQuietMs = 500;
 constexpr std::uint64_t kCamHurtMs = 3000;
-/* A step of the eye past this between two views is a cut in the script, not a move. */
+// A step of the eye past this between two views is a cut in the script, not a move.
 constexpr float kCamCut = 15.0f;
 
-/* Whether a pad report (the first pad's, multiplayer.cpp) has anything pressed or a stick out of
- * the game's dead zone. */
+// Whether a pad report (the first pad's, multiplayer.cpp) has anything pressed or a stick out of
+// the game's dead zone.
 bool pad_active(const std::uint8_t* report, int size);
 
 struct CamScript {
@@ -103,25 +103,25 @@ bool decode_camstate(const Bytes& bytes, CamState& out);
 
 class CamScripts {
 public:
-    /* `clock` gives the monotonic milliseconds of `tick` and `input` (now_ms when none is given). */
+    // `clock` gives the monotonic milliseconds of `tick` and `input` (now_ms when none is given).
     CamScripts(Session& session, Game& game, Coop& coop, std::function<std::uint64_t()> clock = {});
 
-    /* A CAMSCRIPT or CAMSTATE from `sender`. */
+    // A CAMSCRIPT or CAMSTATE from `sender`.
     void handle(std::int32_t sender, const Bytes& bytes);
 
-    /* The game's word of a script of its own starting or ending (the SDK's on_camera_script). */
+    // The game's word of a script of its own starting or ending (the SDK's on_camera_script).
     void script(int id, bool started);
 
-    /* The first pad's report had something pressed, at `now`. */
+    // The first pad's report had something pressed, at `now`.
     void input(std::uint64_t now);
 
-    /* Once a game tick. */
+    // Once a game tick.
     void tick(std::uint64_t now);
 
-    /* The party or its game is gone: nothing is kept, and the camera is the hero's. */
+    // The party or its game is gone: nothing is kept, and the camera is the hero's.
     void reset();
 
-    /* What it does, for the tests and the bot. */
+    // What it does, for the tests and the bot.
     bool showing() const { return showing_; }
 
     std::uint64_t shown() const { return shown_; }
@@ -146,7 +146,7 @@ private:
     bool may_start(const CamScript& script, std::uint64_t now);
     void show(std::uint64_t now);
     void take_back(bool cut, const std::string& why);
-    /* The view at `when`, from what is kept. */
+    // The view at `when`, from what is kept.
     View view_at(std::int64_t when) const;
 
     void log(const std::string& line) const {

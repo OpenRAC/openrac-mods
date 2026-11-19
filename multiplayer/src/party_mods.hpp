@@ -61,7 +61,7 @@ enum class ModsKind : std::uint8_t {
     kRules = kind::kRules
 };
 
-/* What a mod is to a party, and a setting (the SDK's OPENRAC_PARTY_MOD_*, _SETTING_*). */
+// What a mod is to a party, and a setting (the SDK's OPENRAC_PARTY_MOD_*, _SETTING_*).
 constexpr int kModGameplay = 0;
 constexpr int kModInput = 1;
 constexpr int kModCosmetic = 2;
@@ -70,16 +70,16 @@ constexpr int kSettingShared = 0;
 constexpr int kSettingOwn = 1;
 constexpr int kSettingHost = 2;
 
-/* How often a member says MODS until the host's comes, how long a member that says nothing is
- * only being checked, and how often the host looks at its mods' rules. */
+// How often a member says MODS until the host's comes, how long a member that says nothing is
+// only being checked, and how often the host looks at its mods' rules.
 constexpr std::uint64_t kModsMs = 2000;
 constexpr std::uint64_t kModsQuietMs = 6000;
 constexpr std::uint64_t kRulesPollMs = 200;
 
-/* What a player reads of a disc that cannot play with the host's. */
+// What a player reads of a disc that cannot play with the host's.
 constexpr const char* kDifferentDisc = "Different disc";
 
-/* The widest line of a page of the title's menus and of the pause menu's Options pages. */
+// The widest line of a page of the title's menus and of the pause menu's Options pages.
 constexpr std::size_t kTitleLine = 33;
 constexpr std::size_t kPauseLine = 26;
 
@@ -99,11 +99,11 @@ struct ModInfo {
     int party = kModGameplay;
     std::vector<ModSettingInfo> settings;
 
-    /* Whether a party has to agree on it. */
+    // Whether a party has to agree on it.
     bool counts() const { return party == kModGameplay || party == kModSolo; }
 };
 
-/* A data pack that changes the game. */
+// A data pack that changes the game.
 struct PackInfo {
     std::string id;
     std::string name;
@@ -111,7 +111,7 @@ struct PackInfo {
     std::uint32_t digest = 0;
 };
 
-/* A game's build and its mods, Multiplayer's own left out. */
+// A game's build and its mods, Multiplayer's own left out.
 struct ModList {
     std::string multiplayer;
     std::string openrac;
@@ -126,11 +126,11 @@ struct ModList {
 Bytes encode_mod_list(const ModList& list);
 bool decode_mod_list(Reader& r, ModList& out);
 
-/* A number that is the same for two lists that fit each other (the build, the gameplay mods, their
- * versions and compared settings, in any order) and, but for chance, differs for two that do not. */
+// A number that is the same for two lists that fit each other (the build, the gameplay mods, their
+// versions and compared settings, in any order) and, but for chance, differs for two that do not.
 std::uint32_t mods_digest(const ModList& list);
 
-/* One way a player's game differs from the host's. */
+// One way a player's game differs from the host's.
 struct Difference {
     enum class Kind {
         kDisc,         // another world family (or a level that does not agree): "a different disc"
@@ -151,61 +151,61 @@ struct Difference {
     std::vector<std::string> settings;
 };
 
-/* How `own` differs from the `host`'s: nothing when they fit. */
+// How `own` differs from the `host`'s: nothing when they fit.
 std::vector<Difference> compare_mods(const ModList& own, const ModList& host);
 
-/* The solo mods of a list (each player is told, and can neither host nor join). */
+// The solo mods of a list (each player is told, and can neither host nor join).
 std::vector<Difference> solo_mods(const ModList& own);
 
-/* Words for a player. refusal_lines: a line or more a difference, each at most `width` bytes, for
- * the page that says why a game is refused. refusal_short: a few words for the lobby's line about
- * that player, the first difference and how many more. */
+// Words for a player. refusal_lines: a line or more a difference, each at most `width` bytes, for
+// the page that says why a game is refused. refusal_short: a few words for the lobby's line about
+// that player, the first difference and how many more.
 std::vector<std::string> refusal_lines(
     const std::vector<Difference>& differences, std::size_t width = kTitleLine
 );
 std::string refusal_short(const std::vector<Difference>& differences);
 
-/* `text` broken at spaces into lines of at most `width` bytes. */
+// `text` broken at spaces into lines of at most `width` bytes.
 std::vector<std::string> wrap_text(const std::string& text, std::size_t width);
-/* A list's items side by side, ", " between them, in lines of at most `width` bytes. */
+// A list's items side by side, ", " between them, in lines of at most `width` bytes.
 std::vector<std::string> wrap_list(const std::vector<std::string>& items, std::size_t width);
 
-/* A mod's rules as a party carries them. */
+// A mod's rules as a party carries them.
 struct PartyRules {
     std::string id;
     Bytes data;
     std::string text;
 };
 
-/* The party's rules for a player, each line at most `width` bytes: per gameplay mod of the `host`'s
- * its name and version, then what `rules` say of it (its words, else the compared settings that are
- * not the default); then what stays `own`'s own (the player's input and cosmetic mods, and the
- * settings marked own). */
+// The party's rules for a player, each line at most `width` bytes: per gameplay mod of the `host`'s
+// its name and version, then what `rules` say of it (its words, else the compared settings that are
+// not the default); then what stays `own`'s own (the player's input and cosmetic mods, and the
+// settings marked own).
 std::vector<std::string> rules_lines(
     const ModList& host, const std::vector<PartyRules>& rules, const ModList& own, std::size_t width
 );
 
-/* The games, as openrac_api.game names them. */
+// The games, as openrac_api.game names them.
 constexpr const char* kGameRac1 = "rac1";
 constexpr const char* kGameRac2 = "rac2";
 
-/* The description a party is listed with carries the host's digest, for Browse to mark the games a
- * player's mods would not fit: "Pokitaru, 12 gold bolts|3fa9" (kMaxDescriptionLength in all). A
- * game other than Ratchet & Clank adds its id after the digest, "Going Commando|3fa9/rac2", so its
- * parties and Ratchet & Clank's never mix (an older Ratchet & Clank game reads that tag as another
- * digest: the party differs). */
+// The description a party is listed with carries the host's digest, for Browse to mark the games a
+// player's mods would not fit: "Pokitaru, 12 gold bolts|3fa9" (kMaxDescriptionLength in all). A
+// game other than Ratchet & Clank adds its id after the digest, "Going Commando|3fa9/rac2", so its
+// parties and Ratchet & Clank's never mix (an older Ratchet & Clank game reads that tag as another
+// digest: the party differs).
 std::string tagged_description(
     const std::string& description, std::uint32_t digest, const std::string& game = kGameRac1
 );
-/* The description without the tag, the digest's four hex digits ("" for none), and the game the tag
- * names: "" for a description without one, kGameRac1 for a tag with the digest alone. */
+// The description without the tag, the digest's four hex digits ("" for none), and the game the tag
+// names: "" for a description without one, kGameRac1 for a tag with the digest alone.
 std::string plain_description(const std::string& description);
 std::string description_tag(const std::string& description);
 std::string description_game(const std::string& description);
 std::string digest_tag(std::uint32_t digest);
-/* Whether the party listed with `description` plays another game than `game`. Ratchet & Clank
- * takes an untagged party for its own (its hosts before the tag); any other game takes only a party
- * its tag names. */
+// Whether the party listed with `description` plays another game than `game`. Ratchet & Clank
+// takes an untagged party for its own (its hosts before the tag); any other game takes only a party
+// its tag names.
 bool other_game(const std::string& description, const std::string& game);
 
 enum class Fit : std::uint8_t {
@@ -218,49 +218,49 @@ class PartyMods {
 public:
     PartyMods(Session& session, Game& game, ModList own, std::function<std::uint64_t()> clock = {});
 
-    /* A DATA message of the kinds above, from `sender`. */
+    // A DATA message of the kinds above, from `sender`.
     void handle(std::int32_t sender, const Bytes& bytes);
 
-    /* Once a game tick. */
+    // Once a game tick.
     void tick(std::uint64_t now);
 
-    /* This game's list, once every mod has loaded (a mod loaded after this one is not known at
-     * this one's load). */
+    // This game's list, once every mod has loaded (a mod loaded after this one is not known at
+    // this one's load).
     void set_own(ModList own) { own_ = std::move(own); }
 
-    /* The host: the mod code of this game's mods, "" for none; a party hears when it changes. */
+    // The host: the mod code of this game's mods, "" for none; a party hears when it changes.
     void set_mod_code(const std::string& code);
 
     const ModList& own() const { return own_; }
 
-    /* Whether `member` of the party is known to match the host. */
+    // Whether `member` of the party is known to match the host.
     Fit fit(std::int32_t member) const;
 
-    /* What the host said of `member`'s mods, for its line ("Difficulty settings"). */
+    // What the host said of `member`'s mods, for its line ("Difficulty settings").
     std::string why(std::int32_t member) const;
 
-    /* The host: `member`'s key, as its MODS said; "" for none yet, or a game with none. */
+    // The host: `member`'s key, as its MODS said; "" for none yet, or a game with none.
     std::string key(std::int32_t member) const;
 
-    /* The host: whether `member` may be Ready and get the game: not one on its way out. */
+    // The host: whether `member` may be Ready and get the game: not one on its way out.
     bool may_play(std::int32_t member) const;
 
-    /* This player, in a party: how its game differs from the host's (none yet, while the host's
-     * list has not come); whether the host's list came; whether the host has been silent too long
-     * (an older game, which answers nothing). */
+    // This player, in a party: how its game differs from the host's (none yet, while the host's
+    // list has not come); whether the host's list came; whether the host has been silent too long
+    // (an older game, which answers nothing).
     const std::vector<Difference>& differences() const { return differences_; }
 
     bool heard_host() const { return heard_host_; }
 
     bool host_silent() const;
 
-    /* The host's list (this game's own, for a host), and the rules in force: the host's, for a
-     * member, this game's own for a host. */
+    // The host's list (this game's own, for a host), and the rules in force: the host's, for a
+    // member, this game's own for a host.
     const ModList& host_list() const;
 
     const std::vector<PartyRules>& rules() const { return rules_; }
 
-    /* Whether any of the list's mods cannot be played in a party. */
+    // Whether any of the list's mods cannot be played in a party.
     bool solo() const { return !solo_mods(own_).empty(); }
 
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
@@ -281,8 +281,8 @@ private:
     void on_fits(Reader& r);
     void on_rules(Reader& r);
     void tick_host(std::uint64_t now);
-    /* The host: this game's rules read again and, when new, sent to every matching member. True
-     * when they were new. */
+    // The host: this game's rules read again and, when new, sent to every matching member. True
+    // when they were new.
     bool refresh_rules();
     void clear();
 
@@ -306,12 +306,12 @@ private:
     bool heard_host_ = false;
     ModList host_;
     std::vector<Difference> differences_;
-    /* The host: what it knows of each member; a member: what the host said of each. */
+    // The host: what it knows of each member; a member: what the host said of each.
     std::map<std::int32_t, Peer> peers_;
-    /* The rules in force, and the mods of this game that took the host's. */
+    // The rules in force, and the mods of this game that took the host's.
     std::vector<PartyRules> rules_;
-    /* The party's host changed (migrate.hpp), so its epoch: the rules stand, and the new host goes on
-     * by the list everyone was checked against, not its own. */
+    // The party's host changed (migrate.hpp), so its epoch: the rules stand, and the new host goes on
+    // by the list everyone was checked against, not its own.
     void host_moved(std::uint64_t now);
 
     const ModList& party_list() const { return inherited_ ? basis_ : own_; }
@@ -324,4 +324,4 @@ private:
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_PARTY_MODS_H */
+#endif  // MULTIPLAYER_PARTY_MODS_H

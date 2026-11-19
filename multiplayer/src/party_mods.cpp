@@ -25,7 +25,7 @@ std::size_t u16(Reader& r) {
     return high | r.u8();
 }
 
-/* FNV-1a, 32 bits. */
+// FNV-1a, 32 bits.
 void mix(std::uint32_t& hash, const std::string& text) {
     for (const char c : text) {
         hash = (hash ^ static_cast<std::uint8_t>(c)) * 16777619u;
@@ -587,7 +587,7 @@ std::string plain_description(const std::string& description) {
 
 namespace {
 
-/* All after the description's last bar: the digest, then the game's id after a slash. */
+// All after the description's last bar: the digest, then the game's id after a slash.
 std::string whole_tag(const std::string& description) {
     const std::size_t bar = description.rfind('|');
     return bar == std::string::npos ? "" : description.substr(bar + 1);

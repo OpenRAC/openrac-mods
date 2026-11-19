@@ -33,7 +33,7 @@
 
 namespace mp {
 
-/* Who a kind belongs to. */
+// Who a kind belongs to.
 enum class Owner : std::uint8_t {
     kLobby,
     kCoop,
@@ -52,7 +52,7 @@ enum class Owner : std::uint8_t {
     kCount
 };
 
-/* The kinds written once; the enums of the files that own them use these. */
+// The kinds written once; the enums of the files that own them use these.
 namespace kind {
 // Lobby (session.hpp)
 constexpr std::uint8_t kReady = 1;
@@ -125,14 +125,14 @@ constexpr std::uint8_t kRelease = 57;
 constexpr std::uint8_t kComfort = 80;
 }  // namespace kind
 
-/* One kind in use. */
+// One kind in use.
 struct KindInfo {
     std::uint8_t value;
     const char* name;
     Owner owner;
 };
 
-/* One range an owner holds (inclusive); the kinds in use lie inside their owner's. */
+// One range an owner holds (inclusive); the kinds in use lie inside their owner's.
 struct KindRange {
     std::uint8_t first;
     std::uint8_t last;
@@ -199,8 +199,8 @@ inline constexpr KindInfo kKinds[] = {
     {kind::kComfort, "COMFORT", Owner::kComfort},
 };
 
-/* Kinds 4 to 31 are shared out one by one (the owners interleave there); the rest are ranges.
- * The ranges listed are the reserved ones and the lobby's 64 to 70. */
+// Kinds 4 to 31 are shared out one by one (the owners interleave there); the rest are ranges.
+// The ranges listed are the reserved ones and the lobby's 64 to 70.
 inline constexpr KindRange kReservedRanges[] = {
     {36, 39, Owner::kShare},
     {40, 43, Owner::kMigrate},
@@ -214,7 +214,7 @@ inline constexpr KindRange kReservedRanges[] = {
     {80, 83, Owner::kComfort},
 };
 
-/* A kind's owner; kCount for a number nobody holds (0, 73 to 79, and 84 on). */
+// A kind's owner; kCount for a number nobody holds (0, 73 to 79, and 84 on).
 constexpr Owner owner_of(std::uint8_t value) {
     for (const KindInfo& k : kKinds) {
         if (k.value == value) {
@@ -231,7 +231,7 @@ constexpr Owner owner_of(std::uint8_t value) {
     return Owner::kCount;
 }
 
-/* The kinds in use, one owner each: a duplicate would make owner_of ambiguous. */
+// The kinds in use, one owner each: a duplicate would make owner_of ambiguous.
 constexpr bool kinds_unique() {
     constexpr std::size_t n = sizeof(kKinds) / sizeof(kKinds[0]);
 
@@ -248,7 +248,7 @@ constexpr bool kinds_unique() {
 
 static_assert(kinds_unique(), "two wire kinds share a value (kinds.hpp)");
 
-/* Where a received DATA goes: the handler each owner registered, else the fallback. */
+// Where a received DATA goes: the handler each owner registered, else the fallback.
 class Router {
 public:
     using Handler =
@@ -256,15 +256,15 @@ public:
 
     Router() : handlers_(static_cast<std::size_t>(Owner::kCount)) {}
 
-    /* What a kind nobody registered goes to. */
+    // What a kind nobody registered goes to.
     void fallback(Handler handler) { fallback_ = std::move(handler); }
 
-    /* The owner's handler; it gets every kind the table gives the owner. */
+    // The owner's handler; it gets every kind the table gives the owner.
     void route(Owner owner, Handler handler) {
         handlers_[static_cast<std::size_t>(owner)] = std::move(handler);
     }
 
-    /* Which owner a DATA goes to, or kCount for the fallback. */
+    // Which owner a DATA goes to, or kCount for the fallback.
     Owner target(const std::vector<std::uint8_t>& bytes) const {
         if (bytes.empty()) {
             return Owner::kCount;

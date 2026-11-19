@@ -49,17 +49,17 @@ class Trace {
 public:
     using Sink = std::function<void(const std::string&)>;
 
-    /* On, its lines to `sink`; an empty one turns it off. */
+    // On, its lines to `sink`; an empty one turns it off.
     void open(Sink sink) { sink_ = std::move(sink); }
 
     bool on() const { return static_cast<bool>(sink_); }
 
-    /* A new game tick at `now_ms`, this game's side of the party (host, member, solo). */
+    // A new game tick at `now_ms`, this game's side of the party (host, member, solo).
     void tick(std::uint64_t now_ms, const std::string& side);
 
     std::uint64_t frame() const { return frame_; }
 
-    /* One event: `what` (pause, run, ...) and the rest of its line. */
+    // One event: `what` (pause, run, ...) and the rest of its line.
     void line(const std::string& what, const std::string& text);
 
     int written() const { return written_; }
@@ -80,9 +80,9 @@ private:
     int dropped_total_ = 0;
 };
 
-/* "x y z" to a tenth. */
+// "x y z" to a tenth.
 std::string xyz(const float* v);
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_TRACE_H */
+#endif  // MULTIPLAYER_TRACE_H

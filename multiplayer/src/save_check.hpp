@@ -32,17 +32,17 @@ enum class SaveFault : std::uint8_t {
     kRange = OPENRAC_RAC1_SAVE_RANGE         // a value the game indexes with is out of its range
 };
 
-/* What is wrong with `save`, for the log: never shown to a player. */
+// What is wrong with `save`, for the log: never shown to a player.
 SaveFault check_save(const Bytes& save);
 const char* save_fault_name(SaveFault fault);
 
-/* The game's checksum of a part (memcard_Checksum). */
+// The game's checksum of a part (memcard_Checksum).
 std::uint32_t save_checksum(const std::uint8_t* data, std::size_t size);
 
-/* One block of a save: tests build saves from these. */
+// One block of a save: tests build saves from these.
 using SaveBlock = openrac_rac1_save_block;
 
-/* The blocks of the game part and of a level part, in the game's order. */
+// The blocks of the game part and of a level part, in the game's order.
 const SaveBlock* save_game_blocks(std::size_t& count);
 const SaveBlock* save_level_blocks(std::size_t& count);
 

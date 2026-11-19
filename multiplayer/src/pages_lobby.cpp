@@ -7,7 +7,7 @@
 
 namespace mpmod {
 
-/* Whether this player, a member, is refused the host's game, or still waits to hear. */
+// Whether this player, a member, is refused the host's game, or still waits to hear.
 bool refused() {
     return !g->session->is_host() && !g->mods->differences().empty();
 }
@@ -16,11 +16,11 @@ bool checking() {
     return !g->session->is_host() && !g->mods->heard_host();
 }
 
-/* Lobby: Ready or Start, Leave, Party rules, then the members (the host marked, each ready or not,
- * whether its mods match, the player). Start is dim until every member is ready; a member whose
- * mods differ cannot be, its button says why instead, and the host has a line saying why. A direct
- * party's title says where it is: the host's own addresses (all that fit, the first in the title),
- * or the address joined. */
+// Lobby: Ready or Start, Leave, Party rules, then the members (the host marked, each ready or not,
+// whether its mods match, the player). Start is dim until every member is ready; a member whose
+// mods differ cannot be, its button says why instead, and the host has a line saying why. A direct
+// party's title says where it is: the host's own addresses (all that fit, the first in the title),
+// or the address joined.
 openrac::UiContent lobby_content() {
     const mp::Session& s = *g->session;
     openrac::UiContent c;
@@ -149,8 +149,8 @@ void show_lobby() {
     set_content(g->lobby, c);
 }
 
-/* Lobby's events: Ready or Start, and Leave or Triangle asking first; out of the party, back. A
- * host's Leave stops hosting. */
+// Lobby's events: Ready or Start, and Leave or Triangle asking first; out of the party, back. A
+// host's Leave stops hosting.
 void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Session& s = *g->session;
     const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;

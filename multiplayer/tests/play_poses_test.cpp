@@ -73,8 +73,8 @@ void pose_bytes() {
     CHECK(!mp::remote_pose_available(remote, 2001, false));
 }
 
-/* The flags byte (after kind, owner, sequence, stamp and level): 0x8 is multiplayer 0.8.0's "in a
- * menu", which its peers send; airborne is 0x10. Both read back, each on its own. */
+// The flags byte (after kind, owner, sequence, stamp and level): 0x8 is multiplayer 0.8.0's "in a
+// menu", which its peers send; airborne is 0x10. Both read back, each on its own.
 void pose_flags_keep_0_8_0s_menu_bit() {
     constexpr std::size_t kFlagsAt = 1 + 4 + 2 + 8 + 1;
     CHECK(mp::kWireMenu == 0x8 && mp::kWireAirborne == 0x10);

@@ -60,7 +60,7 @@ constexpr std::uint8_t kSharedKind = kind::kShared;
 constexpr std::uint8_t kMissionKind = kind::kMission;
 constexpr std::uint8_t kSharedAskKind = kind::kSharedAsk;
 
-/* The tags of a section, on the wire and in the SDK's shared_read (OPENRAC_SHARED_*). */
+// The tags of a section, on the wire and in the SDK's shared_read (OPENRAC_SHARED_*).
 constexpr int kSharedGoldWeapons = 1;
 constexpr int kSharedSkillPoints = 2;
 constexpr int kSharedFlags = 3;
@@ -73,7 +73,7 @@ constexpr std::size_t kFlagsPerLevel = 16;
 constexpr std::size_t kFlags = kFlagLevels * kFlagsPerLevel;
 constexpr std::size_t kSpecials = 128;
 
-/* A game's shared progress: a byte each, non-zero had. */
+// A game's shared progress: a byte each, non-zero had.
 struct SharedBits {
     std::array<std::uint8_t, kGoldWeapons> gold_weapons{};
     std::array<std::uint8_t, kSkillPoints> skills{};
@@ -88,10 +88,10 @@ struct SharedBits {
     bool operator!=(const SharedBits& o) const { return !(*this == o); }
 };
 
-/* Whether flag `flag` of level `level` is one a player's own scene sets (above). */
+// Whether flag `flag` of level `level` is one a player's own scene sets (above).
 bool scene_flag(int level, int flag);
 
-/* Whether a special item stays each player's own (the nanotech upgrades). */
+// Whether a special item stays each player's own (the nanotech upgrades).
 bool own_special(int item);
 
 Bytes encode_shared(const SharedBits& bits);
@@ -105,22 +105,22 @@ class Shared {
 public:
     Shared(Session& session, Game& game, Coop& coop);
 
-    /* A SHARED, MISSION or SHARED_ASK from `sender`. */
+    // A SHARED, MISSION or SHARED_ASK from `sender`.
     void handle(std::int32_t sender, const Bytes& bytes);
 
-    /* Once a game tick. */
+    // Once a game tick.
     void tick(std::uint64_t now_ms);
 
-    /* The party or its game is gone: nothing is kept. */
+    // The party or its game is gone: nothing is kept.
     void reset();
 
-    /* Someone came back to the party: everything goes across again, this level's row with it. */
+    // Someone came back to the party: everything goes across again, this level's row with it.
     void again() {
         sent_any_ = false;
         asked_load_ = false;
     }
 
-    /* What it knows: this game's last reading, the party's (a member: the host's last word). */
+    // What it knows: this game's last reading, the party's (a member: the host's last word).
     const SharedBits& here() const { return here_; }
 
     const SharedBits& party() const { return party_; }
@@ -130,11 +130,11 @@ public:
     void trace(Trace* trace) { trace_ = trace; }
 
 private:
-    /* Reads this game's sections into here_; false when it has none to read. */
+    // Reads this game's sections into here_; false when it has none to read.
     bool read();
-    /* Merges into this game what `want` has that it lacks and may have; true when it took some.
-     * `level` is the level whose scene flags are left out, -1 for none; `all_scenes` leaves out
-     * every level's. */
+    // Merges into this game what `want` has that it lacks and may have; true when it took some.
+    // `level` is the level whose scene flags are left out, -1 for none; `all_scenes` leaves out
+    // every level's.
     bool merge(const SharedBits& want, int level, bool all_scenes, const std::string& from);
     void send(std::int32_t target, const std::string& to);
 
@@ -158,23 +158,23 @@ private:
     bool read_ = false;
     std::uint64_t read_ms_ = 0;
     SharedBits here_;
-    /* All this game has held, so that what it lost by itself is not put back. */
+    // All this game has held, so that what it lost by itself is not put back.
     SharedBits once_;
-    /* Member: the host's word (and whether one came). Host: unused. */
+    // Member: the host's word (and whether one came). Host: unused.
     SharedBits party_;
     bool heard_ = false;
-    /* Host: each member's last SHARED, not yet merged here, and who asked for which level. */
+    // Host: each member's last SHARED, not yet merged here, and who asked for which level.
     std::map<std::int32_t, SharedBits> reports_;
     std::set<std::pair<std::int32_t, int>> asked_;
-    /* Host: the row of its level as last told, which level that is. */
+    // Host: the row of its level as last told, which level that is.
     std::array<std::uint8_t, kFlagsPerLevel> row_{};
     int row_level_ = -1;
-    /* Member: the load it last asked about. */
+    // Member: the load it last asked about.
     bool asked_load_ = false;
-    /* The host's level, once this game has played in it since the host got there. */
+    // The host's level, once this game has played in it since the host got there.
     int arrived_level_ = -1;
     std::uint32_t load_ = 0;
-    /* What was last sent, and when. */
+    // What was last sent, and when.
     SharedBits sent_;
     bool sent_any_ = false;
     std::uint64_t sent_ms_ = 0;
@@ -183,4 +183,4 @@ private:
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_SHARED_H */
+#endif  // MULTIPLAYER_SHARED_H

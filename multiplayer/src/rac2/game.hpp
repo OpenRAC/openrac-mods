@@ -25,8 +25,8 @@ class Rac2Game : public ModGame {
 public:
     explicit Rac2Game(openrac::Mod& mod) : ModGame(mod) {}
 
-    /* The port checks the save it starts (play.c's save_check): a save that is not one is refused
-     * there, and play_start says so. */
+    // The port checks the save it starts (play.c's save_check): a save that is not one is refused
+    // there, and play_start says so.
     bool save_usable(const mp::Bytes& save) override { return !save.empty(); }
 
     // Not answered for Going Commando yet: Game's "not here". The card's party folder (the save

@@ -33,7 +33,7 @@
 
 namespace mp {
 
-/* How the game deleted a moby (the SDK's openrac_moby_deletion). */
+// How the game deleted a moby (the SDK's openrac_moby_deletion).
 struct MobyDeletion {
     int by = -1;
     int by_class = -1;
@@ -43,7 +43,7 @@ struct MobyDeletion {
 
 class DespawnLog {
 public:
-    /* Where this tick's viewers are, and how the moby stands in the world's sharing. */
+    // Where this tick's viewers are, and how the moby stands in the world's sharing.
     struct View {
         bool hero = false;
         float hero_at[3] = {0, 0, 0};
@@ -51,27 +51,27 @@ public:
         float camera_at[3] = {0, 0, 0};
     };
 
-    /* The World's answers about a slot: driven, shared or local; when the host last sent it (a
-     * line's last part, empty for none). */
+    // The World's answers about a slot: driven, shared or local; when the host last sent it (a
+    // line's last part, empty for none).
     std::function<std::string(int slot, const MobyState& moby)> role;
     std::function<std::string(int slot, const MobyState& moby)> host_seen;
-    /* The game's deletion of a slot (false: none seen). */
+    // The game's deletion of a slot (false: none seen).
     std::function<bool(int slot, MobyDeletion& out)> deletion;
     std::function<void(const std::string&)> out;
 
-    /* The sync removed (or hid, or showed) the moby in `slot`: `why` (KILLED, DESPAWN...), from
-     * `sender` (0: none). Said on the line when the moby goes. */
+    // The sync removed (or hid, or showed) the moby in `slot`: `why` (KILLED, DESPAWN...), from
+    // `sender` (0: none). Said on the line when the moby goes.
     void note_sync(int slot, const std::string& why, std::int32_t sender);
-    /* The game recorded the death of the moby in `slot` (killed in play). */
+    // The game recorded the death of the moby in `slot` (killed in play).
     void note_death(int slot);
 
-    /* This tick's whole listing (the dead placed ones too); an empty one changes nothing. */
+    // This tick's whole listing (the dead placed ones too); an empty one changes nothing.
     void tick(std::uint64_t now_ms, const std::vector<MobyState>& listing, const View& view);
 
-    /* A level load: nothing of the last is compared. */
+    // A level load: nothing of the last is compared.
     void reset();
 
-    /* For the tests: lines written so far. */
+    // For the tests: lines written so far.
     int written() const { return written_; }
 
 private:
@@ -96,8 +96,8 @@ private:
     int written_ = 0;
 };
 
-/* The who/why of a moby gone (despawn.cpp; for the tests too): the sync's note, else the game's
- * deletion (`deleted`), a death recorded, and how it left (listed dead or not listed). */
+// The who/why of a moby gone (despawn.cpp; for the tests too): the sync's note, else the game's
+// deletion (`deleted`), a death recorded, and how it left (listed dead or not listed).
 std::string despawn_cause(
     int slot,
     const std::string* sync_why,
@@ -109,4 +109,4 @@ std::string despawn_cause(
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_DESPAWN_H */
+#endif  // MULTIPLAYER_DESPAWN_H

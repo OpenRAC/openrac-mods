@@ -9,15 +9,15 @@ namespace mpmod {
 
 namespace {
 
-/* Whether a party's game would not take this player's: its host's digest is not this game's. */
+// Whether a party's game would not take this player's: its host's digest is not this game's.
 bool row_differs(const mp::Listing& l) {
     const std::string tag = mp::description_tag(l.description);
     return mp::other_game(l.description, game_tag())
            || (!tag.empty() && tag != mp::digest_tag(mp::mods_digest(g->mods->own())));
 }
 
-/* A party's row in Browse: "Clank - Pokitaru, 3 gold bolts 2/4", cut to the page's width, marked
- * (differs) when this player's mods do not fit it. */
+// A party's row in Browse: "Clank - Pokitaru, 3 gold bolts 2/4", cut to the page's width, marked
+// (differs) when this player's mods do not fit it.
 std::string party_row(const mp::Listing& l) {
     const std::string description = mp::plain_description(l.description);
     const std::string count = " " + std::to_string(l.members) + "/" + std::to_string(l.size)
@@ -32,8 +32,8 @@ std::string party_row(const mp::Listing& l) {
     return row + count;
 }
 
-/* The parties this game could play: an older server lists every game's, so another game's (its
- * description's tag says so) are left out here too. */
+// The parties this game could play: an older server lists every game's, so another game's (its
+// description's tag says so) are left out here too.
 std::vector<mp::Listing> shown_parties() {
     std::vector<mp::Listing> out;
 
@@ -48,7 +48,7 @@ std::vector<mp::Listing> shown_parties() {
 
 }  // namespace
 
-/* Browse: Refresh, then the parties with room; none: a line saying so. */
+// Browse: Refresh, then the parties with room; none: a line saying so.
 void show_browse() {
     const mp::Session& s = *g->session;
     openrac::UiContent c;
@@ -78,8 +78,8 @@ void show_browse() {
     set_content(g->browse, c);
 }
 
-/* Browse's events: the list asked for when it shows and every few seconds; Refresh asks at once;
- * a row joins its party (by its code); in the party, the lobby. */
+// Browse's events: the list asked for when it shows and every few seconds; Refresh asks at once;
+// a row joins its party (by its code); in the party, the lobby.
 void on_browse(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Session& s = *g->session;
     const std::uint64_t now = mp::now_ms();

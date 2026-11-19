@@ -71,7 +71,7 @@ inline mp::HeldPiece piece(int slot, int part, int item, int oclass, int joint) 
 
 struct Recorder : mp::Transport {
     std::vector<Bytes> frames;
-    /* With `udp` on, state stays out of the frames: the datagrams, for SimNet, and their targets. */
+    // With `udp` on, state stays out of the frames: the datagrams, for SimNet, and their targets.
     bool udp = false;
     std::vector<std::pair<std::int32_t, Bytes>> datagrams;
 
@@ -95,7 +95,7 @@ struct FakeGame : mp::Game {
     Bytes live_save;
     int next_figure = 0;
     std::map<int, mp::Pose> figures;
-    /* A grab: whether the game holds a hero, what the update last saw, what it did. */
+    // A grab: whether the game holds a hero, what the update last saw, what it did.
     bool holds_ok = true;
     bool hero_held = false;
     mp::StandIn stood_as;
@@ -109,8 +109,8 @@ struct FakeGame : mp::Game {
         return p;
     }();
 
-    /* The mods' rules (party_mods.hpp): what this game's publish, which mods take the host's, and
-     * what reached them, in order, with what the game had been asked to do by then. */
+    // The mods' rules (party_mods.hpp): what this game's publish, which mods take the host's, and
+    // what reached them, in order, with what the game had been asked to do by then.
     std::vector<mp::PartyRules> published;
     std::set<std::string> takes;
 
@@ -122,14 +122,14 @@ struct FakeGame : mp::Game {
 
     std::vector<Delivery> delivered;
 
-    /* A save refused (save_check.hpp); the level's sim digest, per level. */
+    // A save refused (save_check.hpp); the level's sim digest, per level.
     bool saves_usable = true;
     std::map<int, std::uint32_t> digests;
 
     bool save_usable(const Bytes&) override { return saves_usable; }
 
-    /* A port that places the hero (`placeable`): the places asked, and, when `place_works`, the hero
-     * there at once. */
+    // A port that places the hero (`placeable`): the places asked, and, when `place_works`, the hero
+    // there at once.
     bool placeable = false;
     bool place_works = true;
 
@@ -171,9 +171,9 @@ struct FakeGame : mp::Game {
         return it != digests.end() ? it->second : 0;
     }
 
-    /* The card: `card_on` a port with the filter. What the filter holds, the co-op slots and their
-     * notes, and the game's own card, where a save the game makes lands with the filter off: a
-     * test's own_saves is a player's story saves. */
+    // The card: `card_on` a port with the filter. What the filter holds, the co-op slots and their
+    // notes, and the game's own card, where a save the game makes lands with the filter off: a
+    // test's own_saves is a player's story saves.
     bool card_on = false;
     int filter = mp::kCardPass;
     int hint = -1;
@@ -186,7 +186,7 @@ struct FakeGame : mp::Game {
     std::uint32_t saves = 0;
     std::int64_t wall = 1000;
 
-    /* The game saves, as the port takes it: into the party's slot under the filter, else the card. */
+    // The game saves, as the port takes it: into the party's slot under the filter, else the card.
     void game_saves(const Bytes& bytes) {
         if (filter == mp::kCardRedirect) {
             slots[hint] = bytes;
@@ -932,7 +932,7 @@ inline void tick_mods(std::vector<Player*> players, std::uint64_t ms) {
     tick(players, ms);
 }
 
-/* A player with its list, gated as the mod gates it. */
+// A player with its list, gated as the mod gates it.
 inline void gate(Player& p, mp::ModList list) {
     p.coop.set_build("mp " + std::to_string(mp::mods_digest(list)));
     p.mods.set_own(std::move(list));
@@ -1192,21 +1192,21 @@ struct SimNet {
     bool shared = false;
     long data_drops = 0, state_drops = 0, kicked = 0, datagrams_lost = 0, state_sent = 0;
 
-    /* What the host and the members sent, by kind (a message's first byte), and what each sent
-     * up to the server by way of TCP (DATA; a BATCH is one). */
+    // What the host and the members sent, by kind (a message's first byte), and what each sent
+    // up to the server by way of TCP (DATA; a BATCH is one).
     struct Traffic {
         long messages = 0, bytes = 0;
     };
 
     std::map<int, Traffic> host_state, member_state, host_data, member_data;
-    /* The host's state as the play stopped: what is left after it is what settling took. */
+    // The host's state as the play stopped: what is left after it is what settling took.
     std::map<int, Traffic> played_state;
-    /* The longest gap, in ms, between two WORLDs reaching a member with a word of one moby, of the
-     * ids `gaps_of` says to watch, while `gaps_on`. */
+    // The longest gap, in ms, between two WORLDs reaching a member with a word of one moby, of the
+    // ids `gaps_of` says to watch, while `gaps_on`.
     std::function<bool(int)> gaps_of;
     bool gaps_on = false;
-    /* The players whose connection is gone: nothing they say goes, nothing reaches them. Whether the
-     * rest of a game ticks as the mod ticks it; who the host last named to follow it (HOST_CHANGED). */
+    // The players whose connection is gone: nothing they say goes, nothing reaches them. Whether the
+    // rest of a game ticks as the mod ticks it; who the host last named to follow it (HOST_CHANGED).
     std::set<std::int32_t> cut;
     bool whole = false;
     std::vector<std::int32_t> named;
@@ -1409,9 +1409,9 @@ struct SimNet {
     }
 };
 
-/* The games of a party in level 3, its mobys placed alike in each (each game's slots its own: one
- * spot on per player, so a key is the only name they share): `enemies` driven ones spread over the
- * level, `crates` crates among them. */
+// The games of a party in level 3, its mobys placed alike in each (each game's slots its own: one
+// spot on per player, so a key is the only name they share): `enemies` driven ones spread over the
+// level, `crates` crates among them.
 struct SimWorld {
     static constexpr std::uint32_t kRuns = mp::kMobyUpdates | mp::kMobyPlaced;
     int enemies = 0;
@@ -1463,10 +1463,10 @@ inline const mp::MobyState* by_key(const FakeGame& game, int key) {
     return nullptr;
 }
 
-/* The game rebuilding its level as a death does: every moby new, the records `skipped` left out (so
- * the slots after them move), the spawned gone, nothing driven, the hits posted to the old ones gone
- * with them (the port writes a hit into its moby: a test's list of them is that, by slot); the same
- * level. */
+// The game rebuilding its level as a death does: every moby new, the records `skipped` left out (so
+// the slots after them move), the spawned gone, nothing driven, the hits posted to the old ones gone
+// with them (the port writes a hit into its moby: a test's list of them is that, by slot); the same
+// level.
 inline void remake(Player& p, const SimWorld& w, const std::set<int>& skipped = {}, int shift = 0) {
     p.game.level = w.made(shift, skipped);
     p.game.drives.clear();
@@ -1474,24 +1474,24 @@ inline void remake(Player& p, const SimWorld& w, const std::set<int>& skipped = 
     ++p.game.now.loads;
 }
 
-/* The placed mobys' slots in a run, clear of the fake's figures and spawns. */
+// The placed mobys' slots in a run, clear of the fake's figures and spawns.
 constexpr int kSimSlots = 1000;
 
 struct SimResult {
-    /* HITs and DAMAGEs refused in every game: all of them the game's own, so none should be. */
+    // HITs and DAMAGEs refused in every game: all of them the game's own, so none should be.
     int refused = 0;
     int wrong_place = 0, wrong_hidden = 0, wrong_crates = 0;
     long bolts_made = 0, bolts_credited = 0;
-    /* From the end of the play: when everything stood as on the host, for good (-1: not by the end
-     * of the settling), and the largest number of mobys wrong on the way. */
+    // From the end of the play: when everything stood as on the host, for good (-1: not by the end
+    // of the settling), and the largest number of mobys wrong on the way.
     long settled_ms = -1;
     int most_wrong = 0;
-    /* The longest a moving moby went unheard by a member while the party played, ms. */
+    // The longest a moving moby went unheard by a member while the party played, ms.
     double worst_gap_ms = 0;
 };
 
-/* What a run plays. The default is the run the sim tests have always had: all 120 enemies walking,
- * 30 crates, 10 seconds for the link to settle. */
+// What a run plays. The default is the run the sim tests have always had: all 120 enemies walking,
+// 30 crates, 10 seconds for the link to settle.
 struct SimPlan {
     int enemies = 120;
     int crates = 30;
@@ -1501,7 +1501,7 @@ struct SimPlan {
     float spread = 8.0f;  // between one moby and the next
 };
 
-/* How many of the host's mobys differ from each member's, as `r` counts them. */
+// How many of the host's mobys differ from each member's, as `r` counts them.
 inline void compare_sim(const std::vector<Player*>& all, SimResult& r) {
     r.wrong_place = r.wrong_hidden = r.wrong_crates = 0;
     const FakeGame& host = all[0]->game;
@@ -1536,10 +1536,10 @@ inline void compare_sim(const std::vector<Player*>& all, SimResult& r) {
     }
 }
 
-/* One run: a party of 1 + `members` plays `seconds`: the host's enemies move and hide, crates go
- * from every side, each break drops a bolt from the host that a member collects, and a member dies
- * half way; then everything stops and the link gets plan.settle_ms to settle. What differs then is a
- * desync no time will mend. */
+// One run: a party of 1 + `members` plays `seconds`: the host's enemies move and hide, crates go
+// from every side, each break drops a bolt from the host that a member collects, and a member dies
+// half way; then everything stops and the link gets plan.settle_ms to settle. What differs then is a
+// desync no time will mend.
 inline SimResult run_sim(
     const SimLink& link,
     unsigned seed,

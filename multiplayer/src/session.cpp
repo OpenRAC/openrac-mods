@@ -17,7 +17,7 @@
 namespace mp {
 namespace {
 
-/* The launcher's name limits (launcher/core/src/multiplayer.rs). */
+// The launcher's name limits (launcher/core/src/multiplayer.rs).
 constexpr std::size_t kMinName = 3;
 constexpr std::size_t kMaxName = 16;
 
@@ -281,7 +281,7 @@ void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) 
     on_data_ = std::move(callback);
 }
 
-/* Whether a DATA's first byte is one of the lobby's kinds. */
+// Whether a DATA's first byte is one of the lobby's kinds.
 static bool lobby_kind(std::uint8_t kind) {
     return owner_of(kind) == Owner::kLobby;
 }

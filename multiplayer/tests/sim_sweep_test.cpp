@@ -28,7 +28,7 @@ namespace {
 
 using namespace mpt;
 
-/* Seconds played a run. */
+// Seconds played a run.
 constexpr double kPlaySeconds = 14.0;
 
 struct Named {
@@ -81,7 +81,7 @@ const char* kind_name(int kind) {
 
 }  // namespace
 
-/* The takeover sweep: the runs that ended wrong. */
+// The takeover sweep: the runs that ended wrong.
 long sweep_takeover(int seeds, unsigned base, int shard, int shards) {
     long index = 0, bad = 0, runs = 0;
 

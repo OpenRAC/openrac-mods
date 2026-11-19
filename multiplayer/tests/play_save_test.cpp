@@ -27,7 +27,7 @@ std::int32_t got(const Bytes& out, std::size_t at) {
     return v;
 }
 
-/* A part's blocks written as the game does (memcard_PrepData), zeros in each. */
+// A part's blocks written as the game does (memcard_PrepData), zeros in each.
 void write_part(
     Bytes& out, std::size_t at, std::size_t size, const mp::SaveBlock* blocks, std::size_t count
 ) {
@@ -72,7 +72,7 @@ Bytes good_save() {
     return out;
 }
 
-/* Where a game block's value is in the file. */
+// Where a game block's value is in the file.
 std::size_t game_value(std::int32_t id) {
     std::size_t count = 0;
     const mp::SaveBlock* blocks = mp::save_game_blocks(count);
@@ -90,8 +90,8 @@ std::size_t game_value(std::int32_t id) {
     return 0;
 }
 
-/* The good save with a game block's first word set, the checksum made right again: what a host
- * that means harm sends. */
+// The good save with a game block's first word set, the checksum made right again: what a host
+// that means harm sends.
 mp::SaveFault with_value(std::int32_t id, std::int32_t value) {
     Bytes save = good_save();
     put(save, game_value(id), value);
@@ -213,8 +213,8 @@ void real_saves() {
     std::printf("real saves: %d played slots pass\n", played);
 }
 
-/* A member given a save that does not pass does not load it, is told, and does not ask again; the
- * host's own that does not pass tells nobody of a game. */
+// A member given a save that does not pass does not load it, is told, and does not ask again; the
+// host's own that does not pass tells nobody of a game.
 void a_refused_save() {
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
     {

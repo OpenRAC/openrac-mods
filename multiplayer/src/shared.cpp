@@ -15,20 +15,20 @@ namespace {
 
 constexpr std::uint8_t kDone = 0xFF;
 
-/* The flags a player's own copy of a person or pickup sets as its scene ends (local_class in
- * world.hpp; the mission byte of the placed moby, in the record's second word or, for two, its
- * pvars; the same on both discs).
- *   level 1 flag 2: the plumber (774)
- *   level 3 flag 0: Al (909); 2: Helga (890); 3: the infobot (750)
- *   level 4 flag 1: the lieutenant (1190)
- *   level 6 flag 0: the infobots (750) and the shuttle's first ride (1109)
- *   level 7 flag 3: the infobot (750)
- *   level 8 flag 4: the plumber (1283)
- *   level 10 flags 2, 4: the infobots (750)
- *   level 11 flag 3: the resort owner (114)
- *   level 14 flag 2: the morph-o-ray (1354)
- *   level 16 flag 3: the help desk (1377)
- *   level 17 flag 3: the infobot (750) */
+// The flags a player's own copy of a person or pickup sets as its scene ends (local_class in
+// world.hpp; the mission byte of the placed moby, in the record's second word or, for two, its
+// pvars; the same on both discs).
+//   level 1 flag 2: the plumber (774)
+//   level 3 flag 0: Al (909); 2: Helga (890); 3: the infobot (750)
+//   level 4 flag 1: the lieutenant (1190)
+//   level 6 flag 0: the infobots (750) and the shuttle's first ride (1109)
+//   level 7 flag 3: the infobot (750)
+//   level 8 flag 4: the plumber (1283)
+//   level 10 flags 2, 4: the infobots (750)
+//   level 11 flag 3: the resort owner (114)
+//   level 14 flag 2: the morph-o-ray (1354)
+//   level 16 flag 3: the help desk (1377)
+//   level 17 flag 3: the infobot (750)
 struct SceneFlag {
     int level;
     int flag;
@@ -51,7 +51,7 @@ constexpr SceneFlag kSceneFlags[] = {
     {17, 3},
 };
 
-/* The nanotech upgrades (gSpecialItems 4 and 5: hero_max_health follows them). */
+// The nanotech upgrades (gSpecialItems 4 and 5: hero_max_health follows them).
 constexpr int kOwnSpecials[] = {4, 5};
 
 template <std::size_t N>
@@ -71,7 +71,7 @@ void put_section(Writer& w, int tag, const std::array<std::uint8_t, N>& bytes) {
     }
 }
 
-/* A section's bytes into `out`; false for a length that is not the section's. */
+// A section's bytes into `out`; false for a length that is not the section's.
 template <std::size_t N>
 bool take_section(const Bytes& section, std::array<std::uint8_t, N>& out) {
     if (section.size() != (N + 7) / 8) {
@@ -85,7 +85,7 @@ bool take_section(const Bytes& section, std::array<std::uint8_t, N>& out) {
     return true;
 }
 
-/* In `out`, what `bytes` has now, read through the game's call; false for none. */
+// In `out`, what `bytes` has now, read through the game's call; false for none.
 template <std::size_t N>
 bool read_section(Game& game, int tag, std::array<std::uint8_t, N>& out) {
     Bytes bytes;

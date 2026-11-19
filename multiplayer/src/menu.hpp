@@ -22,19 +22,19 @@
 
 namespace mp {
 
-/* The footer's button lines (the game's glyphs: \x10 Cross, \x12 Triangle). */
+// The footer's button lines (the game's glyphs: \x10 Cross, \x12 Triangle).
 constexpr const char* kSelectBackHints = "\x10 Select  \x12 Back";
 constexpr const char* kSelectLeaveHints = "\x10 Select  \x12 Leave";
 constexpr const char* kCodeHints = kSelectBackHints;
 constexpr const char* kJoinHints = kSelectBackHints;
 
-/* The longest line of the lobby's list. */
+// The longest line of the lobby's list.
 constexpr std::size_t kWhyLineMax = 33;
 
-/* The longest footer line a page has; a status line may not be longer. */
+// The longest footer line a page has; a status line may not be longer.
 constexpr std::size_t kFooterMax = kFooterLineMax;
 
-/* What the status line is made of. */
+// What the status line is made of.
 struct StatusInput {
     Connection::Mode mode = Connection::Mode::kNone;
     Connection::State state = Connection::State::kIdle;
@@ -46,20 +46,20 @@ struct StatusInput {
     bool hosting_udp = false;
 };
 
-/* Whether Find match, Create match and Join by code can be chosen: linked to the server, which
- * said hello. Direct connect is not asked: it is always enabled. */
+// Whether Find match, Create match and Join by code can be chosen: linked to the server, which
+// said hello. Direct connect is not asked: it is always enabled.
 inline bool server_items_enabled(Connection::Mode mode, bool greeted) {
     return mode == Connection::Mode::kServer && greeted;
 }
 
-/* Whether the server reconnect loop may run: only linked to the server (not hosting, not joined
- * directly, and not between the two). */
+// Whether the server reconnect loop may run: only linked to the server (not hosting, not joined
+// directly, and not between the two).
 inline bool server_loop_wanted(Connection::Mode mode) {
     return mode == Connection::Mode::kServer;
 }
 
-/* The status line: the connection, or the last notice. Short: kFooterMax characters or fewer
- * (an address is at most 21: "255.255.255.255:65535"). */
+// The status line: the connection, or the last notice. Short: kFooterMax characters or fewer
+// (an address is at most 21: "255.255.255.255:65535").
 inline std::string status_text(const StatusInput& in, Language language = Language::kEnglish) {
     using Mode = Connection::Mode;
     using State = Connection::State;
@@ -107,9 +107,9 @@ inline std::string status_text(const StatusInput& in, Language language = Langua
     return direct ? translated("Joined", language) : translated("Connected", language);
 }
 
-/* Why the party went, for Home's status line when the player is brought back to it: nothing when
- * the player left it (or stopped hosting), the session's word when it said one (the host ended
- * it), the link that went (`lost`: the direct host's, or the server's), else that it is over. */
+// Why the party went, for Home's status line when the player is brought back to it: nothing when
+// the player left it (or stopped hosting), the session's word when it said one (the host ended
+// it), the link that went (`lost`: the direct host's, or the server's), else that it is over.
 inline std::string leave_reason(
     bool left,
     bool lost,
@@ -128,10 +128,10 @@ inline std::string leave_reason(
     return translated("Party over", language);
 }
 
-/* ---- The pause menu's Multiplayer page (Options, in a level) ---- */
+// ---- The pause menu's Multiplayer page (Options, in a level) ----
 
-/* A member as the page shows it: its name, whether it hosts, whether it is the player, its link
- * (session.hpp's Link: the round trip, -1 not known, and UDP or TCP). */
+// A member as the page shows it: its name, whether it hosts, whether it is the player, its link
+// (session.hpp's Link: the round trip, -1 not known, and UDP or TCP).
 struct PartyMemberLine {
     std::string name;
     bool host = false;
@@ -141,7 +141,7 @@ struct PartyMemberLine {
     std::int32_t id = 0;
 };
 
-/* What the page is made of. */
+// What the page is made of.
 struct PartyPageInput {
     bool in_party = false;
     bool removes = false;                  // the player hosts: a member's line is a button
@@ -153,7 +153,7 @@ struct PartyPageInput {
     bool go_to_host = false;               // this player can ask to go to the host
 };
 
-/* A line of the page: a label and its value (a line of information, or the Leave button). */
+// A line of the page: a label and its value (a line of information, or the Leave button).
 struct PartyLine {
     enum class Kind {
         kInfo,
@@ -176,18 +176,18 @@ constexpr const char* kGoToHostLabel = "Go to host";
 constexpr const char* kCopyCodeLabel = "Copy mod code";
 constexpr const char* kCopiedLabel = "Copied";
 
-/* A link as the page says it: "38 ms UDP", "... TCP" while the round trip is not known yet. */
+// A link as the page says it: "38 ms UDP", "... TCP" while the round trip is not known yet.
 inline std::string link_text(std::int32_t ping_ms, bool udp) {
     const std::string ping = ping_ms < 0 ? "..." : std::to_string(ping_ms) + " ms";
     return ping + (udp ? " UDP" : " TCP");
 }
 
-/* The pause page's item that saves the party (cosave.hpp). */
+// The pause page's item that saves the party (cosave.hpp).
 constexpr const char* kSavePartyLabel = "Save the party";
 
-/* The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
- * host's level, a line per member (the host marked, the player's own), then Go to host (a member
- * in the host's level), Party rules and Leave party. */
+// The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
+// host's level, a line per member (the host marked, the player's own), then Go to host (a member
+// in the host's level), Party rules and Leave party.
 inline std::vector<PartyLine> party_lines(
     const PartyPageInput& in, Language language = Language::kEnglish
 ) {
@@ -231,8 +231,8 @@ inline std::vector<PartyLine> party_lines(
     return lines;
 }
 
-/* A member's line in the lobby: its name, the host marked, one whose mods differ or are still being
- * checked, ready or not, and the player's own. */
+// A member's line in the lobby: its name, the host marked, one whose mods differ or are still being
+// checked, ready or not, and the player's own.
 struct LobbyMemberInput {
     std::string name;
     bool host = false;
@@ -255,13 +255,13 @@ inline std::string lobby_member_line(
     return m.name.substr(0, kWhyLineMax - end.size()) + end;
 }
 
-/* The host's line saying why a member cannot play: "Bob: Difficulty settings, 1 more". */
+// The host's line saying why a member cannot play: "Bob: Difficulty settings, 1 more".
 inline std::string lobby_why_line(const std::string& name, const std::string& why) {
     const std::string line = name + ": " + why;
     return line.size() > kWhyLineMax ? line.substr(0, kWhyLineMax - 3) + "..." : line;
 }
 
-/* The words of taking a player out of the party. */
+// The words of taking a player out of the party.
 constexpr const char* kRemoveHint = "Pick to remove";
 constexpr const char* kRemoveLabel = "Remove";
 constexpr const char* kBanLabel = "Ban from save";
@@ -269,20 +269,20 @@ constexpr const char* kBannedSent = "Ban applied";
 constexpr const char* kRemoveNote = "They can rejoin by code";
 constexpr const char* kBanNote = "The ban stays in the save";
 
-/* What the host's Party rules page offers for the bans of its save: "Lift 2 bans". */
+// What the host's Party rules page offers for the bans of its save: "Lift 2 bans".
 inline std::string lift_bans_label(std::size_t count) {
     return "Lift " + std::to_string(count) + (count == 1 ? " ban" : " bans");
 }
 
-/* What the page of a refused game says to do next. */
+// What the page of a refused game says to do next.
 constexpr const char* kMatchHint1 = "Match host mods,";
 constexpr const char* kMatchHint2 = "restart, rejoin";
 constexpr const char* kSoloHint1 = "Turn it off,";
 constexpr const char* kSoloHint2 = "restart the game";
 constexpr const char* kBackHints = "\x10 Select  \x12 Back";
 
-/* The question Leave party asks, short for the page's title box: the host leaving (or stopping a
- * direct party it hosts) ends the party for everyone. */
+// The question Leave party asks, short for the page's title box: the host leaving (or stopping a
+// direct party it hosts) ends the party for everyone.
 inline const char* pause_leave_question(
     bool hosting, bool host, bool followed = false, Language language = Language::kEnglish
 ) {
@@ -292,11 +292,11 @@ inline const char* pause_leave_question(
                       : translated("End the party?", language);
 }
 
-/* The same, in `language`, for a host no other player follows. */
+// The same, in `language`, for a host no other player follows.
 inline const char* pause_leave_question(bool hosting, bool host, Language language) {
     return pause_leave_question(hosting, host, false, language);
 }
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_MENU_H */
+#endif  // MULTIPLAYER_MENU_H

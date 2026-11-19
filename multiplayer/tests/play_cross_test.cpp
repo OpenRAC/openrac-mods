@@ -21,7 +21,7 @@ mp::ModList list_of(const std::string& disc, const std::string& family) {
     return list;
 }
 
-/* Text a player could read, with nothing of a region or of a disc that plays. */
+// Text a player could read, with nothing of a region or of a disc that plays.
 void says_no_region(const std::vector<std::string>& lines) {
     for (const std::string& line : lines) {
         CHECK(line.find("PAL") == std::string::npos && line.find("NTSC") == std::string::npos);
@@ -91,7 +91,7 @@ void the_rules_say_whose_enemies() {
     says_no_region(mp::rules_lines(pal, {}, ntsc, mp::kTitleLine));
 }
 
-/* The party in a level, each game with its digest of it. */
+// The party in a level, each game with its digest of it.
 struct InLevel {
     Player host{1}, member{2};
 

@@ -45,55 +45,55 @@
 
 namespace mpmod {
 
-/* The version HELLO gives the server: the mod's (at most 32 characters). */
+// The version HELLO gives the server: the mod's (at most 32 characters).
 constexpr const char* kModVersion = "0.12.5";
 constexpr const char* kVersion = "rac1-multiplayer/0.12.5";
-/* Going Commando's: its parties are its own (a party's description names the game). */
+// Going Commando's: its parties are its own (a party's description names the game).
 constexpr const char* kVersionRac2 = "rac2-multiplayer/0.12.5";
 
-/* The question's tag: leaving the party (or hosting it). */
+// The question's tag: leaving the party (or hosting it).
 constexpr std::uint32_t kAskLeave = 1;
 
-/* Home's buttons. */
+// Home's buttons.
 constexpr int kBrowseItem = 0;
 constexpr int kCreateItem = 1;
 constexpr int kCodeItem = 2;
 constexpr int kDirectItem = 3;
 
-/* The Lobby's buttons, then its lines; the Code page's characters, then Join. */
+// The Lobby's buttons, then its lines; the Code page's characters, then Join.
 constexpr int kReadyItem = 0;
 constexpr int kLeaveItem = 1;
 constexpr int kRulesItem = 2;
 
-/* The Refused page's buttons after Leave party, when the host has a mod code. */
+// The Refused page's buttons after Leave party, when the host has a mod code.
 constexpr int kRefusedOpenItem = 1;
 constexpr int kRefusedCopyItem = 2;
 
-/* The Rules page's Copy mod code, right after Back; the Remove page's buttons. */
+// The Rules page's Copy mod code, right after Back; the Remove page's buttons.
 constexpr int kRulesBackItem = 0;
 constexpr int kRemoveItem = 0;
 constexpr int kBanItem = 1;
 constexpr int kRemoveBackItem = 2;
 constexpr int kJoinItem = static_cast<int>(mp::kCodeLength);
 
-/* The Direct page's buttons; Join by address's rows: four octets, the port by one and by a
- * hundred, then Join. */
+// The Direct page's buttons; Join by address's rows: four octets, the port by one and by a
+// hundred, then Join.
 constexpr int kHostItem = 0;
 constexpr int kByAddressItem = 1;
 constexpr int kPortItem = 4;
 constexpr int kPortCoarseItem = 5;
 constexpr int kJoinAddressItem = 6;
 
-/* Browse's Refresh, its party rows after it (as many as fit), and how often the list is asked
- * again while it shows. */
+// Browse's Refresh, its party rows after it (as many as fit), and how often the list is asked
+// again while it shows.
 constexpr int kRefreshItem = 0;
 constexpr std::size_t kBrowseRows = OPENRAC_UI_ITEMS_MAX - 2;
 constexpr std::uint64_t kListMs = 3000;
 
-/* The Saves page's New game, the card's slots after it; what the save chosen is for. */
+// The Saves page's New game, the card's slots after it; what the save chosen is for.
 constexpr int kNewGameItem = 0;
 constexpr int kSaveSlots = 5;
-/* After the card's slots, Continue as host: the party's own saves (cosave.hpp). */
+// After the card's slots, Continue as host: the party's own saves (cosave.hpp).
 constexpr int kContinueItem = kSaveSlots + 1;
 
 enum class SavesFor {
@@ -101,7 +101,7 @@ enum class SavesFor {
     kHost
 };
 
-/* What the Direct page shows: its two buttons, or Join by address's rows. */
+// What the Direct page shows: its two buttons, or Join by address's rows.
 enum class DirectView {
     kMenu,
     kJoin
@@ -183,28 +183,28 @@ struct State {
 
 extern std::unique_ptr<State> g;
 
-/* The game's language (words.hpp), read again each tick; only the UI thread uses it. Protocol and
- * session messages and the log keep their English. */
+// The game's language (words.hpp), read again each tick; only the UI thread uses it. Protocol and
+// session messages and the log keep their English.
 extern mp::Language g_language;
 
-/* A page's words in the game's language; what words.hpp has no row for passes through. */
+// A page's words in the game's language; what words.hpp has no row for passes through.
 inline const char* text(const char* english) {
     return mp::translated(english, g_language);
 }
 
-/* The language the game is set to (PAL's five; English for any other disc). */
+// The language the game is set to (PAL's five; English for any other disc).
 mp::Language game_language(const openrac::Mod& mod);
 
-/* A page set with its labels fitted to the port's bytes (words.hpp's fit_ui_text), so an accented
- * name is never cut in half. */
+// A page set with its labels fitted to the port's bytes (words.hpp's fit_ui_text), so an accented
+// name is never cut in half.
 void set_content(const openrac::UiPage& page, openrac::UiContent& content);
 
-/* The game this run plays, as a party's description names it (party_mods.hpp), and the session's
- * version (each game's parties are its own). */
+// The game this run plays, as a party's description names it (party_mods.hpp), and the session's
+// version (each game's parties are its own).
 const char* game_tag();
 const char* session_version();
 
-/* The member whose row was chosen among `rows`, 0 for no such event. */
+// The member whose row was chosen among `rows`, 0 for no such event.
 inline std::int32_t row_member(
     const std::vector<std::pair<int, std::int32_t>>& rows, const openrac::UiEvent& e
 ) {

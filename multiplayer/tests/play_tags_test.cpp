@@ -21,8 +21,8 @@ struct Drawn {
     std::string text;
 };
 
-/* The middle of the picture for every point, unless told otherwise; the port's fade; a character
- * 6 wide at height 8. */
+// The middle of the picture for every point, unless told otherwise; the port's fade; a character
+// 6 wide at height 8.
 class FakePainter : public mp::TagPainter {
 public:
     bool on_picture = true;
@@ -68,7 +68,7 @@ public:
     }
 };
 
-/* A tag `distance` from a camera at the origin. */
+// A tag `distance` from a camera at the origin.
 mp::NameTag tag_at(float distance, int slot = 1) {
     mp::NameTag tag;
     tag.name = "RATCHET";
@@ -182,8 +182,8 @@ void sight_comes_and_goes_smoothly_and_holds_at_a_corner() {
     CHECK(last == 0.0f);
 }
 
-/* The game's side: the figure seen, then a wall; a low wall leaves its head in view; a game that cannot
- * say leaves the tag on; a figure beyond any tag costs no line. */
+// The game's side: the figure seen, then a wall; a low wall leaves its head in view; a game that cannot
+// say leaves the tag on; a figure beyond any tag costs no line.
 void a_wall_between_takes_the_tag_away_in_the_game() {
     Party party;
     auto run = [&](int ticks) {
@@ -267,8 +267,8 @@ void each_slot_has_its_colour() {
     CHECK(mp::tag_colour(5) == mp::tag_colour(1) && mp::tag_colour(-1) == mp::tag_colour(3));
 }
 
-/* The figures shown are the tags: each player's name at its figure, in the party's order, in every
- * game; none for one hidden by a scene or gone. */
+// The figures shown are the tags: each player's name at its figure, in the party's order, in every
+// game; none for one hidden by a scene or gone.
 void the_shown_figures_have_their_names() {
     Party party;
 
@@ -298,7 +298,7 @@ void the_shown_figures_have_their_names() {
     CHECK(party.a.coop.name_tags().empty());
 }
 
-/* What the launcher writes (modset.rs, write_game_file). */
+// What the launcher writes (modset.rs, write_game_file).
 const char* const kFile = R"({
   "code": "K7M2-9QXR",
   "created": "2026-10-31T12:00:00Z",

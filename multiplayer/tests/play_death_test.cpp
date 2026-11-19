@@ -11,7 +11,7 @@ namespace {
 
 constexpr std::uint32_t kRuns = mp::kMobyUpdates | mp::kMobyPlaced;
 
-/* A party in level 3, its games' mobys `w`'s; the host far from the member. */
+// A party in level 3, its games' mobys `w`'s; the host far from the member.
 struct Party {
     Player host{1}, member{2}, third{3};
     std::vector<Player*> all;
@@ -64,7 +64,7 @@ mp::MobyState* find_key(FakeGame& game, int key) {
     return nullptr;
 }
 
-/* The fake's made() again, with `mission` on `key`. */
+// The fake's made() again, with `mission` on `key`.
 void remake_with_mission(Player& p, const SimWorld& w, int key, int mission) {
     remake(p, w);
     find_key(p.game, key)->mission = mission;

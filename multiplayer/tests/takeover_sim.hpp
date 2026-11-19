@@ -11,9 +11,9 @@
 
 namespace mpt {
 
-/* The moment the host goes: nothing special; in a scene, its members with it; with the party flying
- * to another planet; with a save half way across; with a member in an enemy's grip; or it leaves by
- * choice; or it comes back within the wait. */
+// The moment the host goes: nothing special; in a scene, its members with it; with the party flying
+// to another planet; with a save half way across; with a member in an enemy's grip; or it leaves by
+// choice; or it comes back within the wait.
 enum class HostGone {
     kPlain,
     kScene,

@@ -10,7 +10,7 @@ namespace mpmod {
 
 namespace {
 
-/* A save's row: "Save 1: Pokitaru, 3 gold bolts, 2:05", or empty. */
+// A save's row: "Save 1: Pokitaru, 3 gold bolts, 2:05", or empty.
 std::string save_row(int slot, const openrac_save_info& info, bool there) {
     const std::string name = std::string(text("Save ")) + std::to_string(slot + 1) + ": ";
 
@@ -28,7 +28,7 @@ std::string save_row(int slot, const openrac_save_info& info, bool there) {
            + ", " + time;
 }
 
-/* The card's saves as the Saves page last read them (when it showed). */
+// The card's saves as the Saves page last read them (when it showed).
 struct SlotRow {
     openrac_save_info info{};
     bool there = false;
@@ -54,7 +54,7 @@ void read_slots() {
     }
 }
 
-/* A co-op save's row: where it stands and whose party it was. */
+// A co-op save's row: where it stands and whose party it was.
 std::string coop_save_row(int slot) {
     const SlotRow& row = g_coop_slots[static_cast<std::size_t>(slot)];
     mp::CoNote note;
@@ -67,7 +67,7 @@ std::string coop_save_row(int slot) {
     return mp::coop_row(slot, save, note, row.there);
 }
 
-/* Continue as host: Back, then the party's own saves. */
+// Continue as host: Back, then the party's own saves.
 void show_coop_saves() {
     openrac::UiContent c;
     c.title = text("Continue as host");
@@ -91,7 +91,7 @@ void show_coop_saves() {
 
 }  // namespace
 
-/* Saves: New game, then the card's saves (an empty slot dim). */
+// Saves: New game, then the card's saves (an empty slot dim).
 void show_saves() {
     if (g->saves_coop) {
         show_coop_saves();
@@ -116,8 +116,8 @@ void show_saves() {
     set_content(g->saves, c);
 }
 
-/* A save chosen (or a new game): the co-op keeps it, then the party is made, on the server or by
- * this game hosting. */
+// A save chosen (or a new game): the co-op keeps it, then the party is made, on the server or by
+// this game hosting.
 void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
     if (e.is(OPENRAC_UI_SHOW)) {
         g->direct_error.clear();

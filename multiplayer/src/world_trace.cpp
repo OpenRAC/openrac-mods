@@ -52,7 +52,7 @@ std::string id_name(std::uint16_t id) {
     return (id & kSpawnedId) != 0 ? "n" + std::to_string(id & ~kSpawnedId) : std::to_string(id);
 }
 
-/* At most 200 of `names`, then how many more. */
+// At most 200 of `names`, then how many more.
 std::string names_of(const std::vector<std::string>& names) {
     std::string out;
 
@@ -73,7 +73,7 @@ std::string metres(float d) {
     return b;
 }
 
-/* A moby's census id: its key, or its slot and class for a spawned one. */
+// A moby's census id: its key, or its slot and class for a spawned one.
 std::string census_id(const MobyState& m) {
     return m.key >= 0 ? "k" + std::to_string(m.key)
                       : "s" + std::to_string(m.slot) + "c" + std::to_string(m.oclass);

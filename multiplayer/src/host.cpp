@@ -23,8 +23,8 @@ using namespace net;
 
 namespace {
 
-/* How long one poll waits, how much one read takes, the most bytes a slow client may have waiting
- * before it is closed, and how long stop() keeps trying to hand the last frames over. */
+// How long one poll waits, how much one read takes, the most bytes a slow client may have waiting
+// before it is closed, and how long stop() keeps trying to hand the last frames over.
 constexpr int kPollMs = 10;
 constexpr std::size_t kReadChunkBytes = 16384;
 constexpr std::size_t kMaxPendingBytes = 1u << 20;
@@ -35,7 +35,7 @@ std::int64_t steady_ns() {
     return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
-/* A token bucket (the server's RateLimit): a burst, then a steady rate. */
+// A token bucket (the server's RateLimit): a burst, then a steady rate.
 class Bucket {
 public:
     Bucket() = default;
@@ -67,7 +67,7 @@ private:
     std::int64_t last_ = 0;
 };
 
-/* Java's String.strip, for the whitespace a name may carry. */
+// Java's String.strip, for the whitespace a name may carry.
 std::string strip(const std::string& text) {
     const char* space = " \t\n\v\f\r\x1c\x1d\x1e\x1f";
     const auto begin = text.find_first_not_of(space);
@@ -80,7 +80,7 @@ std::string strip(const std::string& text) {
     return text.substr(begin, text.find_last_not_of(space) - begin + 1);
 }
 
-/* ServerPacketHandler.isValid: neither blank nor longer than `max` characters. */
+// ServerPacketHandler.isValid: neither blank nor longer than `max` characters.
 bool valid(const std::string& text, std::size_t max) {
     return !strip(text).empty() && utf16_length(text) <= max;
 }
@@ -110,10 +110,10 @@ std::string description_text(const std::string& text) {
 
 namespace {
 
-/* How long a new client with a slot waiting is kept out in case its RESUME comes. */
+// How long a new client with a slot waiting is kept out in case its RESUME comes.
 constexpr std::int64_t kResumeWaitMs = 500;
 
-/* A 64-bit token no one can guess from the outside. */
+// A 64-bit token no one can guess from the outside.
 std::int64_t new_token() {
     std::random_device random;
     const std::uint64_t high = random();
@@ -121,7 +121,7 @@ std::int64_t new_token() {
     return static_cast<std::int64_t>((high << 32) ^ low);
 }
 
-/* The numeric address of a socket address, without its port. */
+// The numeric address of a socket address, without its port.
 std::string address_text(const sockaddr* address, socklen_t length) {
     char host[NI_MAXHOST] = {};
 
@@ -140,7 +140,7 @@ std::string address_text(const sockaddr* address, socklen_t length) {
     return text;
 }
 
-/* Opens a socket of `type` on `port`, IPv6 and IPv4 at once where the system allows, else IPv4. */
+// Opens a socket of `type` on `port`, IPv6 and IPv4 at once where the system allows, else IPv4.
 socket_t listen_on(int type, int port, int& error_kind) {
     error_kind = 0;
 
@@ -211,7 +211,7 @@ socket_t listen_on(int type, int port, int& error_kind) {
     return kNoSocket;
 }
 
-/* The port a socket is bound to. */
+// The port a socket is bound to.
 int bound_port(socket_t fd) {
     sockaddr_storage address{};
     socklen_t length = sizeof address;
@@ -223,11 +223,11 @@ int bound_port(socket_t fd) {
 
 }  // namespace
 
-/* One connection: a client's socket, or the local game (no socket). */
+// One connection: a client's socket, or the local game (no socket).
 struct Host::Peer {
     socket_t fd = kNoSocket;
     bool local = false;
-    /* The session id (0 until HELLO) and the name. */
+    // The session id (0 until HELLO) and the name.
     std::int32_t id = 0;
     std::string name;
     std::string address;
@@ -236,17 +236,17 @@ struct Host::Peer {
     Bytes out;
     Bucket chat, party, data, time, strikes, state;
     bool in_party = false;
-    /* Greeted before the party existed: joins when it does. */
+    // Greeted before the party existed: joins when it does.
     bool waiting = false;
-    /* Closed: no more frames; its socket is closed and it is forgotten on the thread's next pass. */
+    // Closed: no more frames; its socket is closed and it is forgotten on the thread's next pass.
     bool dead = false;
-    /* UDP: the token, and where its last valid datagram came from and when. */
+    // UDP: the token, and where its last valid datagram came from and when.
     std::int64_t token = 0;
     sockaddr_storage udp{};
     socklen_t udp_length = 0;
     std::int64_t udp_heard_ns = 0;
-    /* What takes this session back, whether its client comes back at all, and until when it is kept
-     * out of the party in case it is coming back. */
+    // What takes this session back, whether its client comes back at all, and until when it is kept
+    // out of the party in case it is coming back.
     std::int64_t resume_token = 0;
     bool resumes = false;
     std::int64_t resuming_ns = 0;

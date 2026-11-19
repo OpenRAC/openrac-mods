@@ -15,7 +15,7 @@ namespace {
 const std::string kKeyA = "0123456789abcdef0123456789abcdef";
 const std::string kKeyB = "fedcba9876543210fedcba9876543210";
 
-/* The server's offer, as the connection hands it on: `features` what it takes. */
+// The server's offer, as the connection hands it on: `features` what it takes.
 void offer(Player& p, std::uint8_t features) {
     mp::Message m;
     m.kind = mp::Message::Kind::kUdp;
@@ -29,7 +29,7 @@ void kicked(Player& p) {
     p.session.handle(m);
 }
 
-/* What `from` sent since the last look, as requests. */
+// What `from` sent since the last look, as requests.
 std::vector<mp::Request> sent(Player& from) {
     from.session.flush();
     std::vector<mp::Request> out;
@@ -56,7 +56,7 @@ void deliver(const mp::Request& q, std::int32_t from, Player& to) {
     to.session.handle(m);
 }
 
-/* A party of three playing a save, each in its co-op slot. */
+// A party of three playing a save, each in its co-op slot.
 struct Saving {
     Player host{1}, a{2}, b{3};
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};

@@ -90,9 +90,9 @@ void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(84) == Owner::kCount && mp::owner_of(127) == Owner::kCount);
 }
 
-/* The chain the registry replaced: the lobby's kinds (session.cpp), then the team tools' 80
- * (multiplayer 0.8.0's chain tested it first), mods 29 to 31, the world's 9 to 17, 22, 24, 26 to
- * 28, 71 and 72, progress 23, and the co-op for the rest. */
+// The chain the registry replaced: the lobby's kinds (session.cpp), then the team tools' 80
+// (multiplayer 0.8.0's chain tested it first), mods 29 to 31, the world's 9 to 17, 22, 24, 26 to
+// 28, 71 and 72, progress 23, and the co-op for the rest.
 Owner old_route(std::uint8_t k) {
     if ((k >= 1 && k <= 3) || k == 64 || k == 65 || k == 66) {
         return Owner::kLobby;

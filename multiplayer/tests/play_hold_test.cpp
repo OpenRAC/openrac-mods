@@ -14,8 +14,8 @@ namespace {
 constexpr int kRope = 1106;
 constexpr int kLeap = 1059;
 
-/* A party in level 3 with one enemy of class `oclass` at the origin, the member near it, the host
- * far off. */
+// A party in level 3 with one enemy of class `oclass` at the origin, the member near it, the host
+// far off.
 struct Party {
     Player host{1}, member{2};
     std::vector<Player*> all;
@@ -53,7 +53,7 @@ struct Party {
         }
     }
 
-    /* One update of the enemy; true when a stand-in went on for it. */
+    // One update of the enemy; true when a stand-in went on for it.
     bool update(int which = -1) {
         const int s = which < 0 ? slot : which;
         const int before = host.game.stood;
@@ -63,7 +63,7 @@ struct Party {
         return stood;
     }
 
-    /* The update puts the hero in `state`. */
+    // The update puts the hero in `state`.
     void update_does(std::int32_t state, std::int32_t health = 8, float x = 3.0f) {
         host.game.stand_did = mp::StandIn{};
         host.game.stand_did.position[0] = x;
@@ -76,7 +76,7 @@ struct Party {
         return std::find(p.game.calls.begin(), p.game.calls.end(), call) != p.game.calls.end();
     }
 
-    /* The rope's hold, on, played and shown. */
+    // The rope's hold, on, played and shown.
     void rope_taken() {
         update_does(0x78);
         run(2);

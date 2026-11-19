@@ -24,23 +24,23 @@ using namespace net;
 
 namespace {
 
-/* How long a connect may take, how long the thread waits before it tries again, and how long it
- * waits for the server or a queued frame before it looks again, in milliseconds (assumed). */
+// How long a connect may take, how long the thread waits before it tries again, and how long it
+// waits for the server or a queued frame before it looks again, in milliseconds (assumed).
 constexpr int kConnectMs = 3000;
 constexpr int kRetryMs = 3000;
 constexpr int kSliceMs = 20;
-/* On a server that keeps a dropped player's slot: how often this thread says something whatever the
- * game is doing (a level loading stops its ticks), so silence means a dead link, and how long nothing
- * from the server means that on this side. */
+// On a server that keeps a dropped player's slot: how often this thread says something whatever the
+// game is doing (a level loading stops its ticks), so silence means a dead link, and how long nothing
+// from the server means that on this side.
 constexpr std::int64_t kAliveMs = 2000;
 constexpr std::int64_t kServerSilentMs = 6000;
-/* How long one select waits in connect_to, so a stop is noticed. */
+// How long one select waits in connect_to, so a stop is noticed.
 constexpr int kWaitSliceMs = 50;
 
-/* The bytes one read takes at most. */
+// The bytes one read takes at most.
 constexpr std::size_t kReadChunkBytes = 4096;
 
-/* Waits at most `ms` for the socket to be readable (or writable); true when it is. */
+// Waits at most `ms` for the socket to be readable (or writable); true when it is.
 bool wait(socket_t fd, bool for_write, int ms, const std::atomic<bool>& stop) {
     // In short slices, so a stop (the game switching to Direct connect) is not kept waiting for
     // an unreachable server's whole connect time.
@@ -67,8 +67,8 @@ bool wait(socket_t fd, bool for_write, int ms, const std::atomic<bool>& stop) {
     return false;
 }
 
-/* Connects to host:port, each address the name gives in turn, within kConnectMs each. The socket,
- * blocking again and with TCP_NODELAY, or kNoSocket. */
+// Connects to host:port, each address the name gives in turn, within kConnectMs each. The socket,
+// blocking again and with TCP_NODELAY, or kNoSocket.
 socket_t connect_to(const std::string& host, int port, const std::atomic<bool>& stop) {
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
@@ -114,7 +114,7 @@ socket_t connect_to(const std::string& host, int port, const std::atomic<bool>& 
     return fd;
 }
 
-/* Writes all of `bytes`; false when the socket failed. */
+// Writes all of `bytes`; false when the socket failed.
 bool write_all(socket_t fd, const Bytes& bytes) {
     std::size_t sent = 0;
 
@@ -138,8 +138,8 @@ bool write_all(socket_t fd, const Bytes& bytes) {
     return true;
 }
 
-/* A UDP socket connected to the TCP peer's address at `port`, non-blocking; kNoSocket when there
- * is none to be had (then state stays on TCP). */
+// A UDP socket connected to the TCP peer's address at `port`, non-blocking; kNoSocket when there
+// is none to be had (then state stays on TCP).
 socket_t open_udp(socket_t tcp, std::int32_t port) {
     sockaddr_storage peer{};
     socklen_t length = sizeof peer;
@@ -467,8 +467,8 @@ void Connection::serve(std::intptr_t handle) {
     // UDP, once offered: a socket connected to the server's address and its UDP port.
     socket_t udp = kNoSocket;
     std::int64_t next_bind_ms = 0;
-    /* Keeping the link's word (kAliveMs): whether the server wants it, when it last went, when the
-     * server was last heard. */
+    // Keeping the link's word (kAliveMs): whether the server wants it, when it last went, when the
+    // server was last heard.
     bool keep_alive = false;
     std::int64_t alive_ms = 0;
     std::int64_t heard_ms = static_cast<std::int64_t>(now_ms());

@@ -65,17 +65,17 @@ public:
         PartyMods& mods;
         CamScripts& camscripts;
         Migrate& migrate;
-        /* The hero's position written to game memory. */
+        // The hero's position written to game memory.
         std::function<void(const float*)> teleport;
-        /* The item given, with ammunition, and asked for in the hand. */
+        // The item given, with ammunition, and asked for in the hand.
         std::function<void(int)> equip;
-        /* What a page shows: lobby, refused or rules, line by line. */
+        // What a page shows: lobby, refused or rules, line by line.
         std::function<std::vector<std::string>(const std::string&)> page;
-        /* How wide the game's font draws a line. */
+        // How wide the game's font draws a line.
         std::function<int(const std::string&)> width;
-        /* The description a party is listed with. */
+        // The description a party is listed with.
         std::function<std::string()> listed;
-        /* The party's saves, and one of the game's own saves asked for as a gold bolt asks. */
+        // The party's saves, and one of the game's own saves asked for as a gold bolt asks.
         CoSave& cosave;
         std::function<bool()> game_save;
     };
@@ -83,13 +83,13 @@ public:
     explicit Bot(Parts parts);
     ~Bot();
 
-    /* Whether OPENRAC_MP_BOT asked for it. */
+    // Whether OPENRAC_MP_BOT asked for it.
     bool on() const { return listen_ >= 0; }
 
-    /* Commands read and answered; a tick's held teleport put back. Each frame, and from the pad
-     * while a movie runs without frames. */
+    // Commands read and answered; a tick's held teleport put back. Each frame, and from the pad
+    // while a movie runs without frames.
     void poll();
-    /* The buttons and stick pressed now, into the pad's report. */
+    // The buttons and stick pressed now, into the pad's report.
     void pad(std::uint8_t* report, int size);
 
 private:
@@ -112,5 +112,5 @@ private:
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_BOT */
-#endif /* MULTIPLAYER_BOT_H */
+#endif  // MULTIPLAYER_BOT
+#endif  // MULTIPLAYER_BOT_H

@@ -19,7 +19,7 @@ const mp::Member* member_of(std::int32_t id) {
     return nullptr;
 }
 
-/* Back where the page was opened from: the pause menu in a level, else the lobby. */
+// Back where the page was opened from: the pause menu in a level, else the lobby.
 void go_back() {
     if (mp::in_level(g->game->status().phase)) {
         g->pause_page.open();
@@ -30,8 +30,8 @@ void go_back() {
 
 }  // namespace
 
-/* What the host can do about a member: remove it, which a code undoes, or ban it from this save.
- * A game that gave no key cannot be banned, only removed. */
+// What the host can do about a member: remove it, which a code undoes, or ban it from this save.
+// A game that gave no key cannot be banned, only removed.
 openrac::UiContent remove_content() {
     const mp::Member* m = member_of(g->remove_member);
     const bool level = mp::in_level(g->game->status().phase);
@@ -77,8 +77,8 @@ void remove_member(std::int32_t member) {
     }
 }
 
-/* The host: anyone in the party under a key banned from this save goes (a ban's whole effect:
- * whoever it was comes back by another name or address, and its MODS says who it is). */
+// The host: anyone in the party under a key banned from this save goes (a ban's whole effect:
+// whoever it was comes back by another name or address, and its MODS says who it is).
 void remove_banned() {
     const auto key_of = [](std::int32_t member) {
         return g->mods->key(member);
@@ -93,8 +93,8 @@ void remove_banned() {
     }
 }
 
-/* The Remove page's events: either button does it and goes back; so do Back and Triangle, and a
- * member gone meanwhile leaves nothing to do here. */
+// The Remove page's events: either button does it and goes back; so do Back and Triangle, and a
+// member gone meanwhile leaves nothing to do here.
 void on_remove(const openrac::UiPage&, const openrac::UiEvent& e) {
     const std::int32_t member = g->remove_member;
     const bool here = member_of(member) != nullptr;

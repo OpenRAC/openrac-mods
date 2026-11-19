@@ -20,12 +20,12 @@
 
 namespace mpmod {
 
-/* Where each disc keeps the progress a party shares (see game_adapter.cpp). */
+// Where each disc keeps the progress a party shares (see game_adapter.cpp).
 struct ProgressDisc;
 
 class ModGame : public mp::Game {
 public:
-    /* The title's Multiplayer page (Home), once made. */
+    // The title's Multiplayer page (Home), once made.
     openrac::UiPage* home = nullptr;
 
     explicit ModGame(openrac::Mod& mod) : mod_(mod) {}
@@ -116,7 +116,7 @@ public:
 
     bool shared_give(int tag, const mp::Bytes& data) override;
 
-    /* The mods of this run but this one, with their settings: once they have all loaded. */
+    // The mods of this run but this one, with their settings: once they have all loaded.
     mp::ModList mod_list();
 
     std::vector<mp::PartyRules> party_rules() override;
@@ -134,10 +134,10 @@ public:
 
     static openrac_moby moby_of(const mp::Pose& p);
 
-    /* The two poses are the same fields: one after its size, the other alone. */
+    // The two poses are the same fields: one after its size, the other alone.
     static mp::Pose from_sdk(const openrac_pose& p);
 
-    /* The pieces: the same fields, the SDK's in openrac_held. */
+    // The pieces: the same fields, the SDK's in openrac_held.
     static void held_from_sdk(const openrac_held& h, mp::Pose& out);
 
     static openrac_held held_to_sdk(const mp::Pose& p);
@@ -173,7 +173,7 @@ public:
     // --- end WP-DEATH ---
 
 private:
-    /* This disc's progress places, null for a disc it does not know. */
+    // This disc's progress places, null for a disc it does not know.
     const ProgressDisc* progress_disc() const;
 
     static void read_bytes(

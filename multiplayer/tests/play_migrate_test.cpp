@@ -11,7 +11,7 @@ namespace {
 
 constexpr std::uint32_t kRuns = mp::kMobyUpdates | mp::kMobyPlaced;
 
-/* A party of three in level 3, all given the world; offers RESUME as a server that keeps slots. */
+// A party of three in level 3, all given the world; offers RESUME as a server that keeps slots.
 struct Trio {
     Player host{1}, a{2}, b{3};
     std::vector<Player*> all{&host, &a, &b};
@@ -363,7 +363,7 @@ void the_host_names_its_followers_and_the_host_alone_is_heard() {
     CHECK(first_party_frame(t.host) == mp::party_successors({2}));
 }
 
-/* A party whose host dropped for good, and the one taking over told. */
+// A party whose host dropped for good, and the one taking over told.
 void lose_host(Trio& t, Player& next) {
     auto rest = t.without(t.host);
     lose(t.host, rest);

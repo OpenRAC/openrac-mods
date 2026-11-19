@@ -17,12 +17,12 @@
 namespace mp {
 namespace {
 
-/* More than the launcher's largest set and its long link. */
+// More than the launcher's largest set and its long link.
 constexpr std::size_t kFileMax = 64 * 1024;
 constexpr std::size_t kModsMax = 64;
 constexpr int kDepthMax = 8;
 
-/* Just enough of JSON for this file: strings, and any other value passed over. */
+// Just enough of JSON for this file: strings, and any other value passed over.
 class Scan {
 public:
     explicit Scan(const std::string& text) : text_(text) {}
@@ -117,7 +117,7 @@ public:
         return true;
     }
 
-    /* Any value, passed over. */
+    // Any value, passed over.
     bool skip(int depth = 0) {
         std::string ignored;
         double value = 0;

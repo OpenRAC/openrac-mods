@@ -45,26 +45,26 @@
 
 namespace mp {
 
-/* A token bucket's size: a burst, then the steady rate per second. */
+// A token bucket's size: a burst, then the steady rate per second.
 struct Rate {
     int burst = 0;
     double per_second = 0.0;
 };
 
-/* The host's settings; the defaults are the server's (.env.defaults). */
+// The host's settings; the defaults are the server's (.env.defaults).
 struct HostConfig {
-    /* The TCP and UDP port; 0 picks a free one (port() says which). */
+    // The TCP and UDP port; 0 picks a free one (port() says which).
     int port = kDefaultPort;
     std::size_t max_party_size = kMaxPartySize;
-    /* Client connections at once, in the party or not. */
+    // Client connections at once, in the party or not.
     std::size_t max_connections = 8;
     std::size_t max_connections_per_address = 8;
     int hello_timeout_ms = 10000;
     int udp_timeout_ms = kUdpTimeoutMs;
-    /* Whether to offer UDP at all. */
+    // Whether to offer UDP at all.
     bool udp = true;
-    /* The party's description (the host's save), as CREATE gives the server one; kept as the server
-     * keeps it (description_text). */
+    // The party's description (the host's save), as CREATE gives the server one; kept as the server
+    // keeps it (description_text).
     std::string description;
     Rate chat{5, 1.0};
     Rate party{5, 1.0};
@@ -75,7 +75,7 @@ struct HostConfig {
 
 class Host {
 public:
-    /* Takes one whole frame for the local game (decode it as the server's). */
+    // Takes one whole frame for the local game (decode it as the server's).
     using Sink = std::function<void(const Bytes& frame)>;
 
     explicit Host(HostConfig config = {});
@@ -83,30 +83,30 @@ public:
     Host(const Host&) = delete;
     Host& operator=(const Host&) = delete;
 
-    /* Listens (TCP, and UDP on the same port when it can) and starts the thread. False, with
-     * error() saying why ("Port 7770 is in use"), when it cannot listen. */
+    // Listens (TCP, and UDP on the same port when it can) and starts the thread. False, with
+    // error() saying why ("Port 7770 is in use"), when it cannot listen.
     bool start(Sink sink);
-    /* Ends the party (END to the clients), flushes, closes every socket and stops the thread. */
+    // Ends the party (END to the clients), flushes, closes every socket and stops the thread.
     void stop();
 
-    /* A frame from the local game, as it would write it to the server (protocol.hpp's encoders). */
+    // A frame from the local game, as it would write it to the server (protocol.hpp's encoders).
     void local_send(const Bytes& frame);
-    /* Game state from the local game, routed as a STATE datagram would be. */
+    // Game state from the local game, routed as a STATE datagram would be.
     void local_state(std::int32_t target, const Bytes& bytes);
 
     bool running() const { return running_.load(); }
 
-    /* Whether the local game left, so the party is over: stop() the host. */
+    // Whether the local game left, so the party is over: stop() the host.
     bool ended() const { return ended_.load(); }
 
-    /* The port listened on, whether UDP is offered, and why start() failed. */
+    // The port listened on, whether UDP is offered, and why start() failed.
     int port() const { return port_; }
 
     bool udp() const { return udp_ok_; }
 
     const std::string& error() const { return error_; }
 
-    /* The party's members, the host first; empty before the local HELLO. */
+    // The party's members, the host first; empty before the local HELLO.
     std::vector<Member> members() const;
 
 private:
@@ -124,7 +124,7 @@ private:
     void kick(Peer& peer, std::int32_t member);
     void resume(Peer& peer, const Request& request);
     void tick_slots(std::int64_t now_ns);
-    /* INFO as the party stands, the slots that wait among its members. */
+    // INFO as the party stands, the slots that wait among its members.
     Bytes info() const;
     void end_party();
     void forward(Peer& sender, std::int32_t target, const std::function<void(Peer&)>& delivery);
@@ -145,14 +145,14 @@ private:
     std::atomic<bool> running_{false};
     std::atomic<bool> ended_{false};
     std::thread thread_;
-    /* Guards everything below, and the peers' state. */
+    // Guards everything below, and the peers' state.
     mutable std::mutex mutex_;
     std::vector<std::unique_ptr<Peer>> peers_;
     Peer* local_ = nullptr;
-    /* The party: the host (the local game once greeted) first, then the members as they joined. */
+    // The party: the host (the local game once greeted) first, then the members as they joined.
     std::vector<Peer*> party_;
 
-    /* A member whose connection dropped: its slot, for it to come back to (migrate.hpp). */
+    // A member whose connection dropped: its slot, for it to come back to (migrate.hpp).
     struct Slot {
         Member member;
         std::int64_t token = 0;
@@ -164,14 +164,14 @@ private:
     std::int64_t started_ns_ = 0;
 };
 
-/* ServerPacketHandler.sanitizeDescription: printable ASCII only, trimmed, at most
- * kMaxDescriptionLength characters. */
+// ServerPacketHandler.sanitizeDescription: printable ASCII only, trimmed, at most
+// kMaxDescriptionLength characters.
 std::string description_text(const std::string& text);
 
-/* This machine's addresses others may reach it on (IPv4, the loopback left out), for the page to
- * show beside the port. Empty when it cannot tell. */
+// This machine's addresses others may reach it on (IPv4, the loopback left out), for the page to
+// show beside the port. Empty when it cannot tell.
 std::vector<std::string> local_addresses();
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_HOST_H */
+#endif  // MULTIPLAYER_HOST_H

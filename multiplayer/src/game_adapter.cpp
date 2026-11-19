@@ -14,12 +14,12 @@
 
 namespace mpmod {
 
-/* Where each disc keeps the progress a party shares (progress.hpp; rac1-decomp's names, the US
- * addresses from OpenRAC's versionmap): item_available (40 bytes, a byte an item), the gold bolts
- * (gold_bolts_collected, 4 a level), level_available (the planets, 20), and the game's own GiveItem
- * (grant_inventory_item) and UnlockPlanet (unlock_planet). For a quiet give: the planets in order
- * of unlocking (gGalaxyList, a word each) and GiveItem's banner text per item, then per item already
- * had (item_pickup_banner_ids, 37 + 37 words in level 0's program, -1 for none). */
+// Where each disc keeps the progress a party shares (progress.hpp; rac1-decomp's names, the US
+// addresses from OpenRAC's versionmap): item_available (40 bytes, a byte an item), the gold bolts
+// (gold_bolts_collected, 4 a level), level_available (the planets, 20), and the game's own GiveItem
+// (grant_inventory_item) and UnlockPlanet (unlock_planet). For a quiet give: the planets in order
+// of unlocking (gGalaxyList, a word each) and GiveItem's banner text per item, then per item already
+// had (item_pickup_banner_ids, 37 + 37 words in level 0's program, -1 for none).
 struct ProgressDisc {
     const char* version;
     openrac::gaddr items;
@@ -50,7 +50,7 @@ constexpr ProgressDisc kProgressDiscs[] = {
      0x001B0340u},
 };
 
-/* GiveItem's table: this many items, then as many again for an item already had. */
+// GiveItem's table: this many items, then as many again for an item already had.
 constexpr int kBannerItems = 37;
 
 mp::GameStatus ModGame::status() {

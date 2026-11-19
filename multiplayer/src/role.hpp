@@ -14,18 +14,18 @@ namespace mp {
 
 class Role {
 public:
-    /* Out of a party it is neither. */
+    // Out of a party it is neither.
     bool host() const { return party_ && host_ == self_; }
 
     bool member() const { return party_ && host_ != self_; }
 
-    /* Whether a message from `sender` is the host's word to this game. */
+    // Whether a message from `sender` is the host's word to this game.
     bool from_host(std::int32_t sender) const { return member() && sender == host_; }
 
-    /* The party's host and this game's id. */
+    // The party's host and this game's id.
     std::int32_t host_id() const { return host_; }
 
-    /* Which host of the party this is: 0 the first, one more at each change. */
+    // Which host of the party this is: 0 the first, one more at each change.
     std::uint16_t epoch() const { return epoch_; }
 
     void set(bool party, std::int32_t self, std::int32_t host, std::uint16_t epoch = 0) {
@@ -44,4 +44,4 @@ private:
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_ROLE_H */
+#endif  // MULTIPLAYER_ROLE_H

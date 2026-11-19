@@ -7,8 +7,8 @@
 
 namespace mpmod {
 
-/* The party's rules: what the host's gameplay mods play by, and what stays the player's own; on the
- * pause menu's narrower pages too. */
+// The party's rules: what the host's gameplay mods play by, and what stays the player's own; on the
+// pause menu's narrower pages too.
 openrac::UiContent rules_content() {
     const bool level = mp::in_level(g->game->status().phase);
     openrac::UiContent c;
@@ -73,7 +73,7 @@ void show_rules() {
     set_content(g->rules, c);
 }
 
-/* The party's rules: Back and Triangle go back to the lobby, or the pause menu's Multiplayer page. */
+// The party's rules: Back and Triangle go back to the lobby, or the pause menu's Multiplayer page.
 void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const bool level = mp::in_level(g->game->status().phase);
 

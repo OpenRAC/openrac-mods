@@ -27,12 +27,12 @@ float bits_float(std::uint32_t u) {
     return f;
 }
 
-/* A float read back: a non-finite one (from a broken sender) as 0. */
+// A float read back: a non-finite one (from a broken sender) as 0.
 float finite(float f) {
     return std::isfinite(f) ? f : 0.0f;
 }
 
-/* A figure's scale, 0 (keep the one it has) for one no Ratchet has. */
+// A figure's scale, 0 (keep the one it has) for one no Ratchet has.
 float sane_scale(float f) {
     return std::isfinite(f) && f > 0.01f && f < 100.0f ? f : 0.0f;
 }
@@ -55,10 +55,10 @@ double speed(const Pose& p) {
     );
 }
 
-/* The animation `s` of the way from `a` to `b`, in `out` (a pose's, or a piece's: the same fields).
- * Within one seq, neither blending, the place in it (key and time to the next key) runs on from
- * a's to b's; otherwise (a new seq, a blend, a seq that came round to its start, whose keys are not
- * known here) out keeps the nearer one's. */
+// The animation `s` of the way from `a` to `b`, in `out` (a pose's, or a piece's: the same fields).
+// Within one seq, neither blending, the place in it (key and time to the next key) runs on from
+// a's to b's; otherwise (a new seq, a blend, a seq that came round to its start, whose keys are not
+// known here) out keeps the nearer one's.
 template <typename T>
 void run_on(const T& a, const T& b, bool blending, double s, T& out) {
     if (a.seq != b.seq || blending) {
@@ -81,7 +81,7 @@ void run_on(const T& a, const T& b, bool blending, double s, T& out) {
     out.anim_speed = static_cast<float>(a.anim_speed + (b.anim_speed - a.anim_speed) * s);
 }
 
-/* The piece of `p` that is `piece` (the same slot, part and class), or none. */
+// The piece of `p` that is `piece` (the same slot, part and class), or none.
 const HeldPiece* same_piece(const Pose& p, const HeldPiece& piece) {
     for (std::uint32_t i = 0; i < p.held_count && i < kHeldMax; ++i) {
         const HeldPiece& h = p.held[i];
@@ -94,9 +94,9 @@ const HeldPiece* same_piece(const Pose& p, const HeldPiece& piece) {
     return nullptr;
 }
 
-/* The body's animation, and each piece's that both poses have (a swing, a shot, the glove's
- * throw): the way from a to b, as the body's; a piece off the body (a thrown wrench) moves along it
- * too. */
+// The body's animation, and each piece's that both poses have (a swing, a shot, the glove's
+// throw): the way from a to b, as the body's; a piece off the body (a thrown wrench) moves along it
+// too.
 void animate(const Pose& a, const Pose& b, double s, Pose& out) {
     run_on(a, b, ((a.flags | b.flags) & kPoseBlending) != 0, s, out);
 
@@ -122,8 +122,8 @@ void animate(const Pose& a, const Pose& b, double s, Pose& out) {
     }
 }
 
-/* A piece off the body has no velocity of its own: past the newest pose it goes on along its last
- * step, for `ahead` ms of a step `span` ms long, as the body does along its velocity. */
+// A piece off the body has no velocity of its own: past the newest pose it goes on along its last
+// step, for `ahead` ms of a step `span` ms long, as the body does along its velocity.
 void carry_loose_on(const Pose& before, double span, double ahead, Pose& out) {
     if (span <= 0.0) {
         return;

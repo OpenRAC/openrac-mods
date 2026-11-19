@@ -18,7 +18,7 @@ constexpr float kSeen = 0.004f;  // a tag this faint draws nothing
 constexpr std::uint32_t kBack = 0x000000A0u;
 constexpr std::uint32_t kLate = 0xFFB020FFu;
 
-/* A colour with its alpha scaled by `a` (0 to 1). */
+// A colour with its alpha scaled by `a` (0 to 1).
 std::uint32_t faded(std::uint32_t colour, float a) {
     const float alpha = static_cast<float>(colour & 0xFFu) * std::clamp(a, 0.0f, 1.0f);
     return (colour & 0xFFFFFF00u) | static_cast<std::uint32_t>(alpha);

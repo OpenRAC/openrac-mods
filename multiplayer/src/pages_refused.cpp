@@ -7,8 +7,8 @@
 
 namespace mpmod {
 
-/* Why this game is refused: what differs from the host's, or the mod that cannot be played in a
- * party, and what to do. */
+// Why this game is refused: what differs from the host's, or the mod that cannot be played in a
+// party, and what to do.
 openrac::UiContent refused_content() {
     const mp::Session& s = *g->session;
 
@@ -63,8 +63,8 @@ void show_refused() {
     set_content(g->refused, c);
 }
 
-/* The page of why a game is refused: Leave party (or Back, out of one); Triangle goes back to the
- * lobby, or Home. */
+// The page of why a game is refused: Leave party (or Back, out of one); Triangle goes back to the
+// lobby, or Home.
 void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const bool in_party = g->session->in_party();
     const bool chose = e.is(OPENRAC_UI_CHOOSE) && e.item() == 0;

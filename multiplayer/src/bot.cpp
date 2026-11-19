@@ -514,4 +514,4 @@ std::string Bot::run(const std::string& line) {
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_BOT */
+#endif  // MULTIPLAYER_BOT

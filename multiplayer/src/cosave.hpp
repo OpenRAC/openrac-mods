@@ -56,20 +56,20 @@
 
 namespace mp {
 
-/* The card folder and how many slots it has. */
+// The card folder and how many slots it has.
 constexpr const char* kCoFolder = "coop";
 constexpr int kCoSlots = 5;
-/* The most bans a save keeps: a new one past them replaces the oldest. */
+// The most bans a save keeps: a new one past them replaces the oldest.
 constexpr std::size_t kMaxBans = 32;
 
-/* How long "Party saved" stays, and how soon a player can save the party again. */
+// How long "Party saved" stays, and how soon a player can save the party again.
 constexpr std::uint64_t kCoSavedMs = 2500;
 constexpr std::uint64_t kCoSaveEveryMs = 3000;
 
-/* What Saves and the lobby say of where the party's saves go. */
+// What Saves and the lobby say of where the party's saves go.
 constexpr const char* kCoSavesLine = "Party saves in its own slot";
 
-/* What a slot's note says. A key of 0 is a slot no party has. */
+// What a slot's note says. A key of 0 is a slot no party has.
 struct CoNote {
     std::uint32_t key = 0;
     std::int64_t saved = 0;  // seconds since 1970
@@ -77,83 +77,83 @@ struct CoNote {
     std::vector<std::string> bans;  // the keys banned from this save
 };
 
-/* The note's text (lines of name=value, which the launcher reads too) and back; a host's name keeps
- * to its line. False for a text that is no note. */
+// The note's text (lines of name=value, which the launcher reads too) and back; a host's name keeps
+// to its line. False for a text that is no note.
 std::string note_text(const CoNote& note);
 bool parse_note(const std::string& text, CoNote& out);
 
-/* The slot of the party `key` among the notes of the kCoSlots slots: its own, else a free one,
- * else the one saved longest ago. */
+// The slot of the party `key` among the notes of the kCoSlots slots: its own, else a free one,
+// else the one saved longest ago.
 int pick_slot(const std::vector<CoNote>& notes, std::uint32_t key);
 
-/* A slot's row: "Co-op 2: Pokitaru, 3 gold bolts, Kero's party", or empty ("Co-op 2: empty"). */
+// A slot's row: "Co-op 2: Pokitaru, 3 gold bolts, Kero's party", or empty ("Co-op 2: empty").
 std::string coop_row(int slot, const std::string& save, const CoNote& note, bool there);
 
 class CoSave {
 public:
     CoSave(Session& session, Game& game, std::function<std::uint64_t()> clock);
 
-    /* What the host chose to play: anything but a co-op save is a party of its own; `slot`, a
-     * co-op save, goes on as that party. */
+    // What the host chose to play: anything but a co-op save is a party of its own; `slot`, a
+    // co-op save, goes on as that party.
     void choose_new();
     void choose_slot(int slot);
 
-    /* The host: tells `target` whose game this is, before PLAY reaches it. */
+    // The host: tells `target` whose game this is, before PLAY reaches it.
     void announce(std::int32_t target);
 
-    /* The host starts again (coop.hpp): a party of its own, so the last game's slot stays as it is
-     * on every card. The members hear of it by the next announce. */
+    // The host starts again (coop.hpp): a party of its own, so the last game's slot stays as it is
+    // on every card. The members hear of it by the next announce.
     void start_again();
 
-    /* A game of the party's is about to start here with `save` (none: a new game). False when the
-     * port has the card filter and will not redirect: the game must not start, or its saves would
-     * go over the player's own. */
+    // A game of the party's is about to start here with `save` (none: a new game). False when the
+    // port has the card filter and will not redirect: the game must not start, or its saves would
+    // go over the player's own.
     bool starting(const Bytes& save);
 
-    /* A DATA of ours. */
+    // A DATA of ours.
     void handle(std::int32_t sender, const Bytes& bytes);
 
-    /* Each tick, `playing` whether the party's game is on. */
+    // Each tick, `playing` whether the party's game is on.
     void tick(std::uint64_t now, bool playing);
 
-    /* The bans of the party's save. The host: a key banned, written beside the save at once and
-     * told to the members; lift_bans takes them all away. */
+    // The bans of the party's save. The host: a key banned, written beside the save at once and
+    // told to the members; lift_bans takes them all away.
     bool ban(const std::string& key);
     void lift_bans();
     bool banned(const std::string& key) const;
 
     const std::vector<std::string>& bans() const { return bans_; }
 
-    /* The host: the members in the party whose key (`key_of`) is banned; none of its own. */
+    // The host: the members in the party whose key (`key_of`) is banned; none of its own.
     std::vector<Member> banned_members(
         const std::function<std::string(std::int32_t)>& key_of
     ) const;
 
-    /* The Save the party item: the host saves for everyone, a member asks it to. False too soon, or
-     * with nothing to save. */
+    // The Save the party item: the host saves for everyone, a member asks it to. False too soon, or
+    // with nothing to save.
     bool save_party();
 
-    /* The player is leaving (Leave party, Stop hosting): the last save, to the party too. */
+    // The player is leaving (Leave party, Stop hosting): the last save, to the party too.
     void leaving();
 
-    /* Someone else hosts: a save on its way never comes whole, and is left out. The slot keeps its
-     * last whole one. */
+    // Someone else hosts: a save on its way never comes whole, and is left out. The slot keeps its
+    // last whole one.
     void host_changed();
 
-    /* Whether the game's saves are the party's now, and in which slot (-1: none). */
+    // Whether the game's saves are the party's now, and in which slot (-1: none).
     bool on() const { return on_; }
 
     int slot() const { return slot_; }
 
     std::uint32_t key() const { return key_; }
 
-    /* What the pause page says of where saves go; empty out of a game of the party's. */
+    // What the pause page says of where saves go; empty out of a game of the party's.
     std::string where() const;
 
-    /* The line over the game; empty for none. */
+    // The line over the game; empty for none.
     std::string banner(std::uint64_t now) const;
 
-    /* The host: how many members have its last save, of how many it went to. */
+    // The host: how many members have its last save, of how many it went to.
     std::size_t acked() const { return acked_.size(); }
 
     std::size_t sent_to() const { return sent_to_; }

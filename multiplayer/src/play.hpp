@@ -64,25 +64,25 @@
 
 namespace mp {
 
-/* openrac_pose.flags: blending into `seq`. And the wire's teleport flag. */
+// openrac_pose.flags: blending into `seq`. And the wire's teleport flag.
 constexpr std::uint32_t kPoseBlending = 0x1;
-/* openrac_pose.flags too: the hero stands where another can be put beside him. Not on the wire. */
+// openrac_pose.flags too: the hero stands where another can be put beside him. Not on the wire.
 constexpr std::uint32_t kPoseSteady = 0x8;
-/* His feet are off the ground (the SDK's OPENRAC_POSE_AIRBORNE): an enemy that takes him in the air
- * or in the water needs it on the host. */
+// His feet are off the ground (the SDK's OPENRAC_POSE_AIRBORNE): an enemy that takes him in the air
+// or in the water needs it on the host.
 constexpr std::uint32_t kPoseAirborne = 0x10;
 constexpr std::uint8_t kWireTeleport = 0x2;
 constexpr std::uint8_t kWireScene = 0x4;
-/* 0x8 is multiplayer 0.8.0's "in a pause/menu overlay": its peers send it, so it keeps that meaning. */
+// 0x8 is multiplayer 0.8.0's "in a pause/menu overlay": its peers send it, so it keeps that meaning.
 constexpr std::uint8_t kWireMenu = 0x8;
 constexpr std::uint8_t kWireAirborne = 0x10;
-/* The pose ends with its scale (4 bytes, after the world's ack): without it a peer's figure kept
- * the scale the hero had when it was made, a wide Ratchet after Go to host. */
+// The pose ends with its scale (4 bytes, after the world's ack): without it a peer's figure kept
+// the scale the hero had when it was made, a wide Ratchet after Go to host.
 constexpr std::uint8_t kWireScale = 0x20;
 
-/* A piece a Ratchet wears or holds (the SDK's openrac_held_piece): the game's slot and which of
- * its mobys, the item, the moby's class, the body's joint it follows, kHeld* flags, where a loose
- * one is, and its own animation. */
+// A piece a Ratchet wears or holds (the SDK's openrac_held_piece): the game's slot and which of
+// its mobys, the item, the moby's class, the body's joint it follows, kHeld* flags, where a loose
+// one is, and its own animation.
 constexpr std::uint32_t kHeldHidden = 0x1;
 constexpr std::uint32_t kHeldBlending = 0x2;
 constexpr std::uint32_t kHeldLoose = 0x4;
@@ -104,8 +104,8 @@ struct HeldPiece {
     float anim_speed = 0;
 };
 
-/* A pose of a Ratchet (the SDK's openrac_pose after its size; the game's units), and what it wears
- * and holds (the SDK's openrac_held: `held_count` of `held`). */
+// A pose of a Ratchet (the SDK's openrac_pose after its size; the game's units), and what it wears
+// and holds (the SDK's openrac_held: `held_count` of `held`).
 struct Pose {
     std::int32_t level = -1;
     float position[3] = {0, 0, 0};
@@ -125,37 +125,37 @@ struct Pose {
     HeldPiece held[kHeldMax];
 };
 
-/* A POSE message: whose, its sequence and stamp, the teleport flag, the pose. */
+// A POSE message: whose, its sequence and stamp, the teleport flag, the pose.
 struct PoseMessage {
     std::int32_t owner = 0;
     std::uint16_t sequence = 0;
     std::int64_t stamp_ms = 0;
     bool teleport = false;
-    /* The sender's game plays a scene (a cutscene, a landing): its player waits on it. */
+    // The sender's game plays a scene (a cutscene, a landing): its player waits on it.
     bool scene = false;
-    /* The sender is in a pause/menu overlay: status may inspect it, rescue may not progress. */
+    // The sender is in a pause/menu overlay: status may inspect it, rescue may not progress.
     bool menu = false;
     Pose pose;
-    /* A member's word on WORLD: the newest sequence heard and, bit n, whether the one n + 1 before
-     * it was. */
+    // A member's word on WORLD: the newest sequence heard and, bit n, whether the one n + 1 before
+    // it was.
     bool world_ack = false;
     std::uint16_t world_newest = 0;
     std::uint32_t world_bits = 0;
 };
 
-/* The POSE kind's first byte (coop.hpp's kinds), and its size on the wire. */
+// The POSE kind's first byte (coop.hpp's kinds), and its size on the wire.
 constexpr std::uint8_t kPoseKind = kind::kPose;
 constexpr std::size_t kPoseBytes = 65;
 constexpr std::size_t kPoseAckBytes = 6;
 constexpr std::size_t kPoseScaleBytes = 4;
 
 Bytes encode_pose(const PoseMessage& message);
-/* False for bytes that are not a whole POSE. */
+// False for bytes that are not a whole POSE.
 bool decode_pose(const Bytes& bytes, PoseMessage& out);
 
-/* A shot a Ratchet fired (the SDK's openrac_shot2), and the SHOT message: whose, in which level.
- * A weapon that is no single shot is a track: the flags say where in it this one is, aux[0] which
- * of the player's tracks. */
+// A shot a Ratchet fired (the SDK's openrac_shot2), and the SHOT message: whose, in which level.
+// A weapon that is no single shot is a track: the flags say where in it this one is, aux[0] which
+// of the player's tracks.
 constexpr std::uint32_t kShotStart = 0x1;
 constexpr std::uint32_t kShotMove = 0x2;
 constexpr std::uint32_t kShotStop = 0x4;
@@ -182,10 +182,10 @@ constexpr std::uint8_t kShotKind = kind::kShot;
 constexpr std::size_t kShotBytes = 48;
 
 Bytes encode_shot(const ShotMessage& message);
-/* False for bytes that are not a whole SHOT. */
+// False for bytes that are not a whole SHOT.
 bool decode_shot(const Bytes& bytes, ShotMessage& out);
 
-/* One shot of a SHOTX: whose, in which level, when (the low 32 bits of the stamp a pose has). */
+// One shot of a SHOTX: whose, in which level, when (the low 32 bits of the stamp a pose has).
 struct ShotEntry {
     std::int32_t owner = 0;
     std::int32_t level = -1;
@@ -194,24 +194,24 @@ struct ShotEntry {
 };
 
 constexpr std::uint8_t kShotXKind = kind::kShotX;
-/* The most shots a SHOTX holds: well within a datagram, at the most each can be. */
+// The most shots a SHOTX holds: well within a datagram, at the most each can be.
 constexpr std::size_t kShotXMax = 12;
 
 Bytes encode_shotx(const std::vector<ShotEntry>& shots);
-/* False for bytes that are not a whole SHOTX. */
+// False for bytes that are not a whole SHOTX.
 bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out);
 
-/* Whether a queued shot replaces `older`: the newer MOVE of the same track, so a queue held back
- * by the rates sends where a track is now, not everywhere it has been. */
+// Whether a queued shot replaces `older`: the newer MOVE of the same track, so a queue held back
+// by the rates sends where a track is now, not everywhere it has been.
 bool shot_replaces(const ShotEntry& newer, const ShotEntry& older);
 
-/* Whether sequence `a` is newer than `b`, 16 bits wrapping (serial arithmetic). */
+// Whether sequence `a` is newer than `b`, 16 bits wrapping (serial arithmetic).
 bool sequence_newer(std::uint16_t a, std::uint16_t b);
 
-/* The buffer's constants (INTERPOLATION.md, section 2), in milliseconds and game units. */
+// The buffer's constants (INTERPOLATION.md, section 2), in milliseconds and game units.
 constexpr std::size_t kBufferSamples = 32;
-/* The least margin past the transit, the most (a moby far from the player comes a few times a
- * second, so its margin of two intervals is longer), and the most delay in all. */
+// The least margin past the transit, the most (a moby far from the player comes a few times a
+// second, so its margin of two intervals is longer), and the most delay in all.
 constexpr double kMinBufferMs = 100.0;
 constexpr double kMaxBufferMs = 400.0;
 constexpr double kMaxMobyBufferMs = 700.0;
@@ -219,23 +219,23 @@ constexpr double kMaxDelayMs = 1000.0;
 constexpr double kExtrapolateMs = 150.0;
 constexpr double kFadeMs = 50.0;
 constexpr double kSnapDistance = 8.0;
-/* A step between two poses along an axis below this is standing still on it: no velocity is
- * drawn or carried on along it (a grounded Ratchet's z velocity is the game's gravity). */
+// A step between two poses along an axis below this is standing still on it: no velocity is
+// drawn or carried on along it (a grounded Ratchet's z velocity is the game's gravity).
 constexpr double kStillStep = 0.01;
 constexpr double kStallMs = 1000.0;
-/* A gap between two poses still counts as the send interval below this; past it, a pause. */
+// A gap between two poses still counts as the send interval below this; past it, a pause.
 constexpr double kPauseGapMs = 200.0;
 constexpr double kMobyPauseGapMs = 600.0;
 constexpr double kRateMin = 0.9;
 constexpr double kRateMax = 1.1;
-/* How fast the delay follows the link, up and down (time constants), ms. */
+// How fast the delay follows the link, up and down (time constants), ms.
 constexpr double kDelayRiseMs = 500.0;
 constexpr double kDelayFallMs = 4000.0;
-/* Back from past the newest pose onto the curve: the difference eased out in about this, ms. */
+// Back from past the newest pose onto the curve: the difference eased out in about this, ms.
 constexpr double kCatchUpMs = 120.0;
 
-/* What the last Interpolator::at showed: before the first pose, between two, on past the newest
- * along its velocity, held at the newest, or put somewhere at once (a jump of the cursor). */
+// What the last Interpolator::at showed: before the first pose, between two, on past the newest
+// along its velocity, held at the newest, or put somewhere at once (a jump of the cursor).
 enum class Shown : std::uint8_t {
     kNone,
     kBefore,
@@ -247,58 +247,58 @@ enum class Shown : std::uint8_t {
 
 const char* shown_name(Shown s);
 
-/* Counts as "between B ahead A held H jump J before F" for the verbose log. */
+// Counts as "between B ahead A held H jump J before F" for the verbose log.
 std::string counts_text(const int by[6]);
 
-/* One remote player's poses, or one moby's, played back a delay behind. Times are this game's
- * clock, ms. */
+// One remote player's poses, or one moby's, played back a delay behind. Times are this game's
+// clock, ms.
 class Interpolator {
 public:
-    /* `derive`: the poses carry no velocities (WORLD's): made from the neighbours, and nothing
-     * is carried on past the newest. */
+    // `derive`: the poses carry no velocities (WORLD's): made from the neighbours, and nothing
+    // is carried on past the newest.
     explicit Interpolator(bool derive = false)
         : derive_(derive),
           interval_(derive ? 100.0 : 50.0) {}
 
-    /* A pose sent at `time_ms` (its stamp in this clock) that arrived at `arrival_ms`. One not
-     * newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport
-     * starts the buffer again, and so does one after that silence but where it stood. */
+    // A pose sent at `time_ms` (its stamp in this clock) that arrived at `arrival_ms`. One not
+    // newer than the newest (by sequence) is dropped, but after kStallMs of silence; a teleport
+    // starts the buffer again, and so does one after that silence but where it stood.
     void add(
         const Pose& pose, std::uint16_t sequence, double time_ms, double arrival_ms, bool teleport
     );
 
-    /* The pose to show at `now_ms`; false while there is none. */
+    // The pose to show at `now_ms`; false while there is none.
     bool at(double now_ms, Pose& out);
 
-    /* The delay played behind the stamps now, and the part of it past the transit (how long after
-     * a message arrives what it says is shown). */
+    // The delay played behind the stamps now, and the part of it past the transit (how long after
+    // a message arrives what it says is shown).
     double delay_ms() const;
 
     double behind_ms() const { return std::max(0.0, delay_ms() - transit_); }
 
-    /* What the link looks like: the time in transit, its jitter, the send interval. */
+    // What the link looks like: the time in transit, its jitter, the send interval.
     double transit_ms() const { return transit_; }
 
     double jitter_ms() const { return jitter_; }
 
-    /* The share of poses that never came (by the sequence's gaps; for WORLD's, whose moby a
-     * datagram may leave out, the stream's as a whole, set from outside). */
+    // The share of poses that never came (by the sequence's gaps; for WORLD's, whose moby a
+    // datagram may leave out, the stream's as a whole, set from outside).
     double loss() const { return loss_; }
 
     void set_loss(double loss) { loss_ = loss; }
 
     double interval_ms() const { return interval_; }
 
-    /* The cursor (in the stamps' time), how far ahead of it the newest pose is (negative: past
-     * it), and what the last at() showed. */
+    // The cursor (in the stamps' time), how far ahead of it the newest pose is (negative: past
+    // it), and what the last at() showed.
     double cursor_ms() const { return cursor_; }
 
     double ahead_ms() const { return samples_.empty() ? 0.0 : samples_.back().time - cursor_; }
 
     Shown shown() const { return shown_; }
 
-    /* How many at()s showed each kind (Shown's order) since the last take_counts(), which zeroes
-     * them. */
+    // How many at()s showed each kind (Shown's order) since the last take_counts(), which zeroes
+    // them.
     struct Counts {
         int by[6] = {0, 0, 0, 0, 0, 0};
     };
@@ -309,18 +309,18 @@ public:
         return out;
     }
 
-    /* The buffer for the verbose log: "delay D transit T jitter J interval I loss L ahead A depth
-     * N" (ms; depth the poses kept). */
+    // The buffer for the verbose log: "delay D transit T jitter J interval I loss L ahead A depth
+    // N" (ms; depth the poses kept).
     std::string describe() const;
 
-    /* Whether nothing came for kStallMs (the figure holds), and how long since anything came. */
+    // Whether nothing came for kStallMs (the figure holds), and how long since anything came.
     bool stalled(double now_ms) const { return empty() || now_ms - last_arrival_ > kStallMs; }
 
     double silence_ms(double now_ms) const { return empty() ? 1e9 : now_ms - last_arrival_; }
 
     bool empty() const { return samples_.empty(); }
 
-    /* The newest pose that came; false while none. */
+    // The newest pose that came; false while none.
     bool newest(Pose& out) const {
         if (samples_.empty()) {
             return false;
@@ -332,7 +332,7 @@ public:
 
     std::size_t size() const { return samples_.size(); }
 
-    /* Whether the last at() jumped (a teleport or the cursor far behind). */
+    // Whether the last at() jumped (a teleport or the cursor far behind).
     bool jumped() const { return jumped_; }
 
     void reset();
@@ -343,13 +343,13 @@ private:
         Pose pose;
     };
 
-    /* at() before the way back to the curve. */
+    // at() before the way back to the curve.
     bool place(double now_ms, Pose& out);
 
-    /* The delay the link asks for now (the delay eases to it). */
+    // The delay the link asks for now (the delay eases to it).
     double wanted_ms() const;
 
-    /* Velocities for the newest pose and the one before it, from their neighbours (derive_). */
+    // Velocities for the newest pose and the one before it, from their neighbours (derive_).
     void derive_velocities();
 
     bool derive_ = false;
@@ -368,8 +368,8 @@ private:
     double last_now_ = 0.0;
     bool jumped_ = false;
     Shown shown_ = Shown::kNone;
-    /* What was shown last, and the step that took it there; the way back to the curve after a
-     * stretch past the newest pose (eased out over kCatchUpMs). */
+    // What was shown last, and the step that took it there; the way back to the curve after a
+    // stretch past the newest pose (eased out over kCatchUpMs).
     Counts counts_;
     bool shown_set_ = false;
     float shown_at_[3] = {0, 0, 0};
@@ -377,9 +377,9 @@ private:
     float offset_[3] = {0, 0, 0};
 };
 
-/* The yaw from `a` to `b` by `s` (0 to 1), the short way round. */
+// The yaw from `a` to `b` by `s` (0 to 1), the short way round.
 float lerp_angle(float a, float b, float s);
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_PLAY_H */
+#endif  // MULTIPLAYER_PLAY_H

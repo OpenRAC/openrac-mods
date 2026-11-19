@@ -37,7 +37,7 @@ inline void close_socket(socket_t fd) {
     closesocket(fd);
 }
 
-/* No more to send: the peer reads what was sent, then the end. */
+// No more to send: the peer reads what was sent, then the end.
 inline void shutdown_send(socket_t fd) {
     shutdown(fd, SD_SEND);
 }
@@ -47,13 +47,13 @@ inline void set_blocking(socket_t fd, bool blocking) {
     ioctlsocket(fd, FIONBIO, &nonblocking);
 }
 
-/* Whether the last call failed only because it would have blocked. */
+// Whether the last call failed only because it would have blocked.
 inline bool would_block() {
     const int e = WSAGetLastError();
     return e == WSAEWOULDBLOCK || e == WSAEINPROGRESS;
 }
 
-/* A port another socket holds (exclusively, as the host binds it, Windows may say "access"). */
+// A port another socket holds (exclusively, as the host binds it, Windows may say "access").
 inline bool address_in_use() {
     const int e = WSAGetLastError();
     return e == WSAEADDRINUSE || e == WSAEACCES;
@@ -63,7 +63,7 @@ inline int poll_sockets(pollfd_t* fds, std::size_t count, int ms) {
     return WSAPoll(fds, static_cast<ULONG>(count), ms);
 }
 
-/* Winsock is started for each user (a thread, the host) and stopped after; it counts. */
+// Winsock is started for each user (a thread, the host) and stopped after; it counts.
 struct Sockets {
     Sockets() {
         WSADATA data;
@@ -84,7 +84,7 @@ inline void close_socket(socket_t fd) {
     ::close(fd);
 }
 
-/* No more to send: the peer reads what was sent, then the end. */
+// No more to send: the peer reads what was sent, then the end.
 inline void shutdown_send(socket_t fd) {
     ::shutdown(fd, SHUT_WR);
 }
@@ -106,18 +106,18 @@ inline int poll_sockets(pollfd_t* fds, std::size_t count, int ms) {
     return ::poll(fds, static_cast<nfds_t>(count), ms);
 }
 
-/* Nothing to start off Windows. */
+// Nothing to start off Windows.
 struct Sockets {};
 #endif
 
-/* send's flags: no SIGPIPE where the platform has the flag (macOS sets SO_NOSIGPIPE instead). */
+// send's flags: no SIGPIPE where the platform has the flag (macOS sets SO_NOSIGPIPE instead).
 #if defined(MSG_NOSIGNAL)
 constexpr int kSendFlags = MSG_NOSIGNAL;
 #else
 constexpr int kSendFlags = 0;
 #endif
 
-/* No SIGPIPE from a socket whose peer went, where only a socket option can say so. */
+// No SIGPIPE from a socket whose peer went, where only a socket option can say so.
 inline void no_sigpipe([[maybe_unused]] socket_t fd) {
 #if defined(SO_NOSIGPIPE)
     int on = 1;
@@ -132,4 +132,4 @@ inline void set_nodelay(socket_t fd) {
 
 }  // namespace mp::net
 
-#endif /* MULTIPLAYER_SOCKETS_H */
+#endif  // MULTIPLAYER_SOCKETS_H

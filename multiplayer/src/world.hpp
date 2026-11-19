@@ -196,8 +196,8 @@ enum class WorldKind : std::uint8_t {
     kRelease = kind::kRelease
 };
 
-/* What every member keeps of the host's world, for one of them to carry on from (migrate.hpp): small
- * state only, never a moby's place. One spawned moby: its net id, class and where it was made. */
+// What every member keeps of the host's world, for one of them to carry on from (migrate.hpp): small
+// state only, never a moby's place. One spawned moby: its net id, class and where it was made.
 struct LedgerMoby {
     std::uint16_t net = 0;
     int oclass = 0;
@@ -215,18 +215,18 @@ struct LedgerWorld {
     std::vector<LedgerMoby> spawned;
 };
 
-/* The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER). */
+// The gate's moments (the SDK's OPENRAC_MOBY_BEFORE and _AFTER).
 constexpr int kMobyBefore = 0;
 constexpr int kMobyAfter = 1;
 
-/* A spawned moby's id on the wire: 0x8000 | its net id. */
+// A spawned moby's id on the wire: 0x8000 | its net id.
 constexpr std::uint16_t kSpawnedId = 0x8000;
 constexpr std::uint16_t kNoId = 0xFFFF;
-/* WORLD's entries a datagram (each 25 bytes), how often it goes to a member (at the least: the
- * host's state budget of kWorldBudget a second is shared by the members; of the session's 52 a second
- * POSES take 20, and while the party fires SHOTX takes up to 10, 8 of them from here), how long a
- * moby that stands and was delivered waits before it goes once more, and how often a member says
- * HELLO. */
+// WORLD's entries a datagram (each 25 bytes), how often it goes to a member (at the least: the
+// host's state budget of kWorldBudget a second is shared by the members; of the session's 52 a second
+// POSES take 20, and while the party fires SHOTX takes up to 10, 8 of them from here), how long a
+// moby that stands and was delivered waits before it goes once more, and how often a member says
+// HELLO.
 constexpr std::size_t kWorldEntries = 46;
 constexpr std::size_t kWorldEntryBytes = 25;
 constexpr std::uint64_t kWorldMs = 66;
@@ -234,45 +234,45 @@ constexpr std::uint64_t kWorldBudget = 30;
 constexpr std::uint64_t kWorldFiringBudget = 22;
 constexpr std::uint64_t kWorldKeepMs = 8000;
 constexpr std::uint64_t kHelloMs = 1000;
-/* WORLD's delivery: the datagrams kept per member (what a pose's word can cover), how many newer ones
- * heard make a datagram lost (at one, each reordered datagram would go twice), and the time-out's
- * bounds around twice the round trip, first taken to be kWorldStartRttMs. */
+// WORLD's delivery: the datagrams kept per member (what a pose's word can cover), how many newer ones
+// heard make a datagram lost (at one, each reordered datagram would go twice), and the time-out's
+// bounds around twice the round trip, first taken to be kWorldStartRttMs.
 constexpr std::size_t kWorldWindow = 33;
 constexpr int kWorldLostAfter = 2;
 constexpr std::uint64_t kWorldMinWaitMs = 300;
 constexpr std::uint64_t kWorldMaxWaitMs = 2000;
 constexpr double kWorldStartRttMs = 400.0;
-/* WORLD's priority (world_weight): a moby of weight 1 is due each kWorldBaseMs, the least weight
- * makes that kWorldFloorMs, weight 1 reaches this far from the player and then falls as the square
- * of the distance, and how long a hit keeps its moby up. */
+// WORLD's priority (world_weight): a moby of weight 1 is due each kWorldBaseMs, the least weight
+// makes that kWorldFloorMs, weight 1 reaches this far from the player and then falls as the square
+// of the distance, and how long a hit keeps its moby up.
 constexpr float kWorldBaseMs = 66.0f;
 constexpr float kWorldFloorMs = 250.0f;
 constexpr float kWorldClose = 30.0f;
 constexpr std::uint64_t kWorldHitMs = 2000;
-/* How often a member's verbose log says how the host's mobys are shown. */
+// How often a member's verbose log says how the host's mobys are shown.
 constexpr std::uint64_t kWorldPoseTraceMs = 1000;
-/* The bolt update's state while the bolt hovers where it landed (bolt_update's 3). */
+// The bolt update's state while the bolt hovers where it landed (bolt_update's 3).
 constexpr std::uint32_t kBoltHovering = 3;
-/* Its state while it flies to the Ratchet who takes it (bolt_update's 4), and how near that
- * Ratchet stands in for its update while it has not set off (well within the hero's reach, which
- * bolt_update's hover checks). How long a bolt taken by another player may fly before it is
- * deleted. */
+// Its state while it flies to the Ratchet who takes it (bolt_update's 4), and how near that
+// Ratchet stands in for its update while it has not set off (well within the hero's reach, which
+// bolt_update's hover checks). How long a bolt taken by another player may fly before it is
+// deleted.
 constexpr std::uint32_t kBoltFlying = 4;
 constexpr float kBoltReach = 0.5f;
 constexpr std::uint64_t kFlightMs = 2000;
-/* How long a crate replaying another game's break may take to break before it is deleted. */
+// How long a crate replaying another game's break may take to break before it is deleted.
 constexpr std::uint64_t kReplayMs = 3000;
-/* How far a moby may move between two snapshots before its buffer starts again (a respawn). */
+// How far a moby may move between two snapshots before its buffer starts again (a respawn).
 constexpr float kWorldSnap = 12.0f;
-/* An enemy leaves its target only for a player nearer by this much (the distances' ratio), and not
- * at all this soon after its state changed or it hit that player: an attack runs to its end. */
+// An enemy leaves its target only for a player nearer by this much (the distances' ratio), and not
+// at all this soon after its state changed or it hit that player: an attack runs to its end.
 constexpr float kTargetBand = 0.8f;
 constexpr std::uint64_t kAttackStickMs = 1000;
-/* What a HIT or DAMAGE may say. The weapons' and enemies' own are far below (1 to 3 in a play of every
- * weapon) and a difficulty mod scales them: this is against a message that makes no sense, not a
- * judge of play. A guided shot flies far, so the reach is most of a level. A hit's position and
- * velocity say nothing of where it was (hundreds of units off, in every hit seen), so no check
- * reads them but that they are numbers. */
+// What a HIT or DAMAGE may say. The weapons' and enemies' own are far below (1 to 3 in a play of every
+// weapon) and a difficulty mod scales them: this is against a message that makes no sense, not a
+// judge of play. A guided shot flies far, so the reach is most of a level. A hit's position and
+// velocity say nothing of where it was (hundreds of units off, in every hit seen), so no check
+// reads them but that they are numbers.
 constexpr float kMostHitDamage = 10000.0f;
 constexpr float kHitReach = 400.0f;
 
@@ -284,56 +284,55 @@ inline bool hit_makes_sense(const Hit& h) {
            && number(h.position) && number(h.velocity);
 }
 
-/* A grab (world_hold.cpp): how often the host says where the player is held, how long he has to show
- * he is before the host gives it up, how long a held player goes with no word before his game lets
- * him go, how long a fatal grab may wait for him to come back, and how soon after a word that a
- * player died (a kill volume under a stand-in) another may go. */
+// A grab (world_hold.cpp): how often the host says where the player is held, how long he has to show
+// he is before the host gives it up, how long a held player goes with no word before his game lets
+// him go, how long a fatal grab may wait for him to come back, and how soon after a word that a
+// player died (a kill volume under a stand-in) another may go.
 constexpr std::uint64_t kHoldSendMs = 66;
 constexpr std::uint64_t kHoldAckMs = 2000;
 constexpr std::uint64_t kHoldLeaseMs = 1500;
 constexpr std::uint64_t kFatalHoldMs = 8000;
 constexpr std::uint64_t kKillAgainMs = 3000;
-/* HOLD's and RELEASE's bytes: kind, holder, flags, animation, place, yaw; kind, holder, place, yaw. */
+// HOLD's and RELEASE's bytes: kind, holder, flags, animation, place, yaw; kind, holder, place, yaw.
 constexpr std::size_t kHoldBytes = 21;
 constexpr std::size_t kReleaseBytes = 19;
-/* The crate update's states: broken, and hidden until it comes back. */
+// The crate update's states: broken, and hidden until it comes back.
 constexpr std::uint32_t kCrateBroken = 3;
 constexpr std::uint32_t kCrateWaiting = 6;
-/* How many bolts a host's death keeps, and how lately a member must have died for a wipe. */
+// How many bolts a host's death keeps, and how lately a member must have died for a wipe.
 constexpr std::size_t kKeptBolts = 64;
 constexpr std::uint64_t kWipeMs = 5000;
-/* A wipe's member is put by the host within this long of its respawn. */
+// A wipe's member is put by the host within this long of its respawn.
 constexpr std::uint64_t kWipePlaceMs = 15000;
-/* The revive rule: how near a living player stands, for how long, the longest a player stays down,
- * and how long past that a member waits for the host's word. */
+// The revive rule: how near a living player stands, for how long, the longest a player stays down,
+// and how long past that a member waits for the host's word.
 constexpr float kReviveReach = 2.5f;
 constexpr std::uint64_t kReviveMs = 1500;
 constexpr std::uint64_t kDownedMs = 30000;
 constexpr std::uint64_t kDownedGraceMs = 5000;
-/* A dig in a member's game: how often it asks, how long after the word it may take. */
+// A dig in a member's game: how often it asks, how long after the word it may take.
 constexpr std::uint64_t kDigAskMs = 500;
 constexpr std::uint64_t kDigMs = 2000;
 
-/* How each class of the level's mobys is shared (WORLD.md's class inventory, from the catalogue):
- *
- * crates (500 bolt, 501 nanotech, 502 metal, 505 oom-oom box, 511 ammo crate): every game runs its
- *   own (one breaks under its game's own hero), and a crate broken in one game breaks in all (BROKE
- *   to the host, KILLED from it): the others post it a wrench's hit, so it breaks there with its
- *   debris and sound. Its drop is the host's game's only (a member's is left out), its bolts
- *   shared as the host's enemies' are (above).
- * pickups (placed bolts, gold bolts, ammo, ammo and health crates of the ship levels, nanotech):
- *   every game runs its own, so every player can collect one; the first collected is gone in every
- *   game (removed, without its effect or a gold bolt's scene). A placed bolt is a claim as a
- *   dropped one is (above); the others a member takes are its own and gone from the host's (BROKE).
- * interactables (vendors, the ship and its pads, people, infobots, help desks and triggers, the
- *   respawn point, gold-weapon cases, story pickups, the hero's own equipment), and what works on the
- *   player standing in it (1378 updraft_vent, 1039 respawn_volume, 22 hero_relocation_trigger, 605
- *   buried_bolts for the metal detector, 613 water_current, 610 wind_control, 679 grindrail): each
- *   game's own, for its own player; nothing is shared. Host-driven, those would give a member nothing
- *   and, with a member standing in for the host's hero, work on the host's hero instead: a member
- *   in a 1039 kill volume would respawn the host.
- * everything else the level placed with an update of its own: the host's (members drive it).
- */
+// How each class of the level's mobys is shared (WORLD.md's class inventory, from the catalogue):
+//
+// crates (500 bolt, 501 nanotech, 502 metal, 505 oom-oom box, 511 ammo crate): every game runs its
+//   own (one breaks under its game's own hero), and a crate broken in one game breaks in all (BROKE
+//   to the host, KILLED from it): the others post it a wrench's hit, so it breaks there with its
+//   debris and sound. Its drop is the host's game's only (a member's is left out), its bolts
+//   shared as the host's enemies' are (above).
+// pickups (placed bolts, gold bolts, ammo, ammo and health crates of the ship levels, nanotech):
+//   every game runs its own, so every player can collect one; the first collected is gone in every
+//   game (removed, without its effect or a gold bolt's scene). A placed bolt is a claim as a
+//   dropped one is (above); the others a member takes are its own and gone from the host's (BROKE).
+// interactables (vendors, the ship and its pads, people, infobots, help desks and triggers, the
+//   respawn point, gold-weapon cases, story pickups, the hero's own equipment), and what works on the
+//   player standing in it (1378 updraft_vent, 1039 respawn_volume, 22 hero_relocation_trigger, 605
+//   buried_bolts for the metal detector, 613 water_current, 610 wind_control, 679 grindrail): each
+//   game's own, for its own player; nothing is shared. Host-driven, those would give a member nothing
+//   and, with a member standing in for the host's hero, work on the host's hero instead: a member
+//   in a 1039 kill volume would respawn the host.
+// everything else the level placed with an update of its own: the host's (members drive it).
 inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
     for (const int c : classes) {
         if (c == oclass) {
@@ -345,17 +344,17 @@ inline bool any_of_class(int oclass, std::initializer_list<int> classes) {
 }
 
 // --- WP-DEATH: class lists ---
-/* Only WP-DEATH edits this block: crates and pickups the death work changes, in the shapes below.
- * Read from the update on both discs, placed counts measured on both (2026-10-31):
- *   280 bolt_crank, 615 tresspasser_pad: take the hero, the pad and the camera: each game's own. What
- *     they open stays the host's, so only the host's turn moves the world.
- *   1005, 1016 gadget_pickup (trespasser, hydrodisplacer): give the gadget and play a scene: each
- *     player gets their own, as a story pickup.
- *   208 swingshot, 454 ryno, 1251 hydrodisplacer: the held item's moby, never placed on either disc
- *     (spawned, and no creature, so nobody shares them): no entry.
- *   1451, 1899 giant_clank_pad: boards Giant Clank. Stay the host's: a member's game has no vehicle
- *     running to board (its update is the host's).
- * Class 152 (spawned_bolt_class) is neither placed nor spawned by any code on either disc. */
+// Only WP-DEATH edits this block: crates and pickups the death work changes, in the shapes below.
+// Read from the update on both discs, placed counts measured on both (2026-10-31):
+//   280 bolt_crank, 615 tresspasser_pad: take the hero, the pad and the camera: each game's own. What
+//     they open stays the host's, so only the host's turn moves the world.
+//   1005, 1016 gadget_pickup (trespasser, hydrodisplacer): give the gadget and play a scene: each
+//     player gets their own, as a story pickup.
+//   208 swingshot, 454 ryno, 1251 hydrodisplacer: the held item's moby, never placed on either disc
+//     (spawned, and no creature, so nobody shares them): no entry.
+//   1451, 1899 giant_clank_pad: boards Giant Clank. Stay the host's: a member's game has no vehicle
+//     running to board (its update is the host's).
+// Class 152 (spawned_bolt_class) is neither placed nor spawned by any code on either disc.
 inline bool death_crate_class(int /*oclass*/) {
     return false;
 }
@@ -368,8 +367,8 @@ inline bool death_interactable_class(int oclass) {
     return any_of_class(oclass, {280, 615, 1005, 1016});
 }
 
-/* A pickup whose update adds to the bolts itself (bolt_pickup_update): shared when spawned, and
- * under a member's stand-in its bolts are that member's (the gate). */
+// A pickup whose update adds to the bolts itself (bolt_pickup_update): shared when spawned, and
+// under a member's stand-in its bolts are that member's (the gate).
 inline bool spawned_bolt_class(int oclass) {
     return oclass == 152;
 }
@@ -377,15 +376,15 @@ inline bool spawned_bolt_class(int oclass) {
 // --- end WP-DEATH ---
 
 // --- WP-TETHER: class lists ---
-/* Only WP-TETHER edits this block: classes the tether work adds, in the shapes below.
- * Every moby update that writes the hero, on both discs (2026-10-31; the report of the work lists
- * each with its evidence). Enemies that grab:
- *   35 sharkigator (Rilgar): rises under a hero in the water, takes him and Hero_OnKilled. It has no
- *     health and hits nobody, and only ever looks at the hero of the game it runs in: each game's
- *     own, as water that kills. Host-driven it would leave a member swimming for ever.
- *   1059 sharkigator (Umbris): leaps at him, health 0 and state 0x3D, carries him: the fatal grab.
- *   1106 snagglebeast: state 0x78 and pulls him along its rope in its state 8: the hold.
- * Those two can be fought, so they stay the host's (grab_class). */
+// Only WP-TETHER edits this block: classes the tether work adds, in the shapes below.
+// Every moby update that writes the hero, on both discs (2026-10-31; the report of the work lists
+// each with its evidence). Enemies that grab:
+//   35 sharkigator (Rilgar): rises under a hero in the water, takes him and Hero_OnKilled. It has no
+//     health and hits nobody, and only ever looks at the hero of the game it runs in: each game's
+//     own, as water that kills. Host-driven it would leave a member swimming for ever.
+//   1059 sharkigator (Umbris): leaps at him, health 0 and state 0x3D, carries him: the fatal grab.
+//   1106 snagglebeast: state 0x78 and pulls him along its rope in its state 8: the hold.
+// Those two can be fought, so they stay the host's (grab_class).
 inline bool tether_crate_class(int /*oclass*/) {
     return false;
 }
@@ -398,13 +397,13 @@ inline bool tether_interactable_class(int oclass) {
     return oclass == 35;
 }
 
-/* A grab: the class, the states of the moby in which it goes for its target (no other player can
- * take it away, however long they last), the hero's state it puts its victim in, his animation
- * (below 0: that state's own) and what it does to him (kGrab*). */
-/* How far from where the host made it this game's own copy of a spawned moby may stand. */
+// A grab: the class, the states of the moby in which it goes for its target (no other player can
+// take it away, however long they last), the hero's state it puts its victim in, his animation
+// (below 0: that state's own) and what it does to him (kGrab*).
+// How far from where the host made it this game's own copy of a spawned moby may stand.
 inline constexpr float kOwnCopyReach = 30.0f;
 
-/* update_moby_spatial_trigger: wakes groups of mobys by who is in its zone. */
+// update_moby_spatial_trigger: wakes groups of mobys by who is in its zone.
 inline constexpr int kSpatialTriggerClass = 258;
 
 struct GrabClass {
@@ -431,11 +430,11 @@ inline const GrabClass* grab_class(int oclass) {
     return nullptr;
 }
 
-/* Enemies that keep the hero's moby in their own memory from one tick to the next (a hit's answer:
- * horny toad's +0x1C0, sand shark's +0x210, and so on): they act on the one they kept, so the aim
- * stays with him until he is gone. Read on both discs.
- *   580 sand_shark, 612 constructorbot, 749 horny_toad, 827 frog, 1199, 1231 psytcopus,
- *   1440 veldin_robot_enemy, 1906 gadgebot. */
+// Enemies that keep the hero's moby in their own memory from one tick to the next (a hit's answer:
+// horny toad's +0x1C0, sand shark's +0x210, and so on): they act on the one they kept, so the aim
+// stays with him until he is gone. Read on both discs.
+//   580 sand_shark, 612 constructorbot, 749 horny_toad, 827 frog, 1199, 1231 psytcopus,
+//   1440 veldin_robot_enemy, 1906 gadgebot.
 inline bool keeps_hero_class(int oclass) {
     return any_of_class(oclass, {580, 612, 749, 827, 1199, 1231, 1440, 1906});
 }
@@ -453,7 +452,7 @@ inline bool pickup_class(int oclass) {
            || death_pickup_class(oclass) || tether_pickup_class(oclass);
 }
 
-/* Pickups an enemy of the host's drops that every game gets its own of (ammo, health). */
+// Pickups an enemy of the host's drops that every game gets its own of (ammo, health).
 inline bool loot_class(int oclass) {
     return pickup_class(oclass) && oclass > 16 && oclass != 1134;
 }
@@ -470,17 +469,17 @@ inline bool interactable_class(int oclass) {
            || tether_interactable_class(oclass);
 }
 
-/* Every game runs its own copy: crates, pickups, interactables. */
+// Every game runs its own copy: crates, pickups, interactables.
 inline bool local_class(int oclass) {
     return crate_class(oclass) || pickup_class(oclass) || interactable_class(oclass);
 }
 
-/* The bolt classes (bolts, hexnut, starnut, circlenut), spawned and shared. */
+// The bolt classes (bolts, hexnut, starnut, circlenut), spawned and shared.
 inline bool bolt_class(int oclass) {
     return oclass >= 13 && oclass <= 16;
 }
 
-/* What a bolt of the class is worth (collect_bolt's: 1, 5, 20, 50), 0 for another class. */
+// What a bolt of the class is worth (collect_bolt's: 1, 5, 20, 50), 0 for another class.
 inline int bolt_value(int oclass) {
     switch (oclass) {
         case 13:
@@ -496,7 +495,7 @@ inline int bolt_value(int oclass) {
     }
 }
 
-/* One moby in WORLD. */
+// One moby in WORLD.
 struct WorldEntry {
     std::uint16_t id = 0;
     Pose pose;
@@ -518,7 +517,7 @@ bool decode_world(
     std::uint16_t* sequence = nullptr
 );
 
-/* What a member was told of a moby: as much of it as tells a change. */
+// What a member was told of a moby: as much of it as tells a change.
 struct WorldTold {
     float position[3] = {0, 0, 0};
     float rotation[3] = {0, 0, 0};
@@ -528,8 +527,8 @@ struct WorldTold {
     bool loose = false;
 };
 
-/* What a moby is to one member, for WORLD's priority: how far, and the rest of what Reach's relevance
- * reads that the host knows here. */
+// What a moby is to one member, for WORLD's priority: how far, and the rest of what Reach's relevance
+// reads that the host knows here.
 struct WorldSight {
     float distance = 0;
     bool creature = false;  // it can hurt the player
@@ -539,84 +538,84 @@ struct WorldSight {
     bool hidden = false;    // nothing draws it
 };
 
-/* A moby's weight for a member: 1 is due each kWorldBaseMs. */
+// A moby's weight for a member: 1 is due each kWorldBaseMs.
 float world_weight(const WorldSight& sight);
 
 class World {
 public:
     World(Session& session, Game& game, Coop& coop, std::function<std::uint64_t()> clock = {});
 
-    /* One of the world's DATA messages (WorldKind first), from `sender`. */
+    // One of the world's DATA messages (WorldKind first), from `sender`.
     void handle(std::int32_t sender, const Bytes& bytes);
 
-    /* Once a game tick, after the Coop's. */
+    // Once a game tick, after the Coop's.
     void tick(std::uint64_t now_ms);
 
-    /* The game's gate around a moby's update (the SDK's openrac_moby_update_fn): true before skips
-     * it. And a hit the game posted: true takes it back. */
+    // The game's gate around a moby's update (the SDK's openrac_moby_update_fn): true before skips
+    // it. And a hit the game posted: true takes it back.
     bool gate(int slot, int phase);
     bool hit(const Hit& hit);
-    /* Whether a member's HIT is one to take. */
+    // Whether a member's HIT is one to take.
     bool member_hit_ok(std::int32_t sender, const Hit& h) const;
 
-    /* The hits taken from members, and the HITs and DAMAGEs refused. */
+    // The hits taken from members, and the HITs and DAMAGEs refused.
     int hits_taken() const { return hits_taken_; }
 
     int hits_refused() const { return hits_refused_; }
 
-    /* The game records a moby's death (its killed bits, then its bolts dropped): true when its drop
-     * is left out (its killed bits kept), as in a member's game in the host's level, whose bolts are
-     * all the host's game's. */
+    // The game records a moby's death (its killed bits, then its bolts dropped): true when its drop
+    // is left out (its killed bits kept), as in a member's game in the host's level, whose bolts are
+    // all the host's game's.
     bool quiet_drop(int slot);
 
-    /* The game collects a bolt (collect_bolt): true when its value is this game's to add. In a
-     * member's game in the host's level, a claim to the host instead (false). */
+    // The game collects a bolt (collect_bolt): true when its value is this game's to add. In a
+    // member's game in the host's level, a claim to the host instead (false).
     bool collect(int slot);
 
-    /* The metal detector is about to dig the pile `key`: true lets it. In a member's game in the
-     * host's level, not before the host's word. */
+    // The metal detector is about to dig the pile `key`: true lets it. In a member's game in the
+    // host's level, not before the host's word.
     bool metal_detect(int key);
 
-    /* The host's revive rule, from its setting; for a member, what the host said. */
+    // The host's revive rule, from its setting; for a member, what the host said.
     void rule_revive(bool on) { revive_rule_ = on; }
 
     bool revive_on() const { return revive_rule_; }
 
-    /* The party or the level is gone: nothing is kept. */
+    // The party or the level is gone: nothing is kept.
     void reset();
 
-    /* A change in who is connected (migrate.hpp). The host: a member's connection dropped, or it came
-     * back; its own came back. A member: this game has its slot back. */
+    // A change in who is connected (migrate.hpp). The host: a member's connection dropped, or it came
+    // back; its own came back. A member: this game has its slot back.
     void member_away(std::int32_t member);
     void member_back(std::int32_t member);
     void host_back();
     void rejoined();
 
-    /* The host: what the ledger is to say of the world. */
+    // The host: what the ledger is to say of the world.
     LedgerWorld ledger() const;
-    /* This game hosts now: its copy of the world is matched to the ledger, then the game runs it. */
+    // This game hosts now: its copy of the world is matched to the ledger, then the game runs it.
     void take_over(const LedgerWorld& ledger);
-    /* The host: whether `member` has the world, and so could carry it on. */
+    // The host: whether `member` has the world, and so could carry it on.
     bool has_world(std::int32_t member) const;
 
-    /* What it does, for the pages and the tests. */
+    // What it does, for the pages and the tests.
     bool hosting() const { return hosting_; }
 
     std::size_t driven() const { return driven_.size(); }
 
-    /* The host's progress for a joiner: without the flags of missions done since this game's load
-     * that still have a moby here, whose load would otherwise leave those mobys out. */
+    // The host's progress for a joiner: without the flags of missions done since this game's load
+    // that still have a moby here, whose load would otherwise leave those mobys out.
     Bytes save_for_a_joiner();
 
     std::size_t spawned() const { return net_slot_.size(); }
 
     std::size_t mobys() const { return mobys_.size(); }
 
-    /* A member: whether the host gave it the world of the level as it stands. */
+    // A member: whether the host gave it the world of the level as it stands.
     bool synced() const { return synced_; }
 
-    /* The host's level does not agree with this game's (the sim digests): true once, and this game
-     * cannot share it. */
+    // The host's level does not agree with this game's (the sim digests): true once, and this game
+    // cannot share it.
     bool take_level_differs() {
         const bool out = level_differs_;
         level_differs_ = false;
@@ -625,8 +624,8 @@ public:
 
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
-    /* The verbose log (trace.hpp; null or off: none), its despawn lines with it; the game recorded
-     * a moby's death. */
+    // The verbose log (trace.hpp; null or off: none), its despawn lines with it; the game recorded
+    // a moby's death.
     void trace(Trace* trace) {
         trace_ = trace;
         despawn_on_ = tracing();
@@ -641,7 +640,7 @@ public:
     const DespawnLog& despawn() const { return despawn_; }
 
 private:
-    /* A moby as one member has it. */
+    // A moby as one member has it.
     struct Tracked {
         WorldTold sent;  // the newest word that went, in datagram sent_seq
         std::uint16_t sent_seq = 0;
@@ -653,7 +652,7 @@ private:
         float priority = 0;      // the accumulator: goes at 1
     };
 
-    /* A datagram whose fate is not known: its sequence, when it went, what it said. */
+    // A datagram whose fate is not known: its sequence, when it went, what it said.
     struct Datagram {
         std::uint16_t sequence = 0;
         std::uint64_t ms = 0;
@@ -679,15 +678,15 @@ private:
         int oclass = 0;
     };
 
-    /* An enemy's target (0 the host, a member's id) and when its state last changed. */
+    // An enemy's target (0 the host, a member's id) and when its state last changed.
     struct Aim {
         std::int32_t player = -1;
         std::uint32_t state = 0;
         std::uint64_t state_ms = 0;
     };
 
-    /* A grab: of whom, the moby's id on the wire, how, where he is held, since when; whether his pose
-     * has shown it, and, a fatal one, that he has died; when he was last told. */
+    // A grab: of whom, the moby's id on the wire, how, where he is held, since when; whether his pose
+    // has shown it, and, a fatal one, that he has died; when he was last told.
     struct Hold {
         std::int32_t player = 0;
         std::uint16_t id = 0;
@@ -702,22 +701,22 @@ private:
         bool dead = false;
     };
 
-    /* A bolt to make again after the host's death. */
+    // A bolt to make again after the host's death.
     struct KeptBolt {
         int oclass = 0;
         Pose pose;
     };
 
-    /* A player down under the revive rule: since when, and for how long stood over. */
+    // A player down under the revive rule: since when, and for how long stood over.
     struct Down {
         std::uint64_t since = 0;
         std::uint64_t over = 0;
         std::uint64_t seen = 0;
     };
 
-    /* A grab (world_hold.cpp). Host: the moby's stand-in for `target`, and what its update did; the
-     * host's own hero in its grip; whether another moby holds `player`; each hold's end; a hold
-     * ended, and every one. Member: the host's word, and no word for too long. */
+    // A grab (world_hold.cpp). Host: the moby's stand-in for `target`, and what its update did; the
+    // host's own hero in its grip; whether another moby holds `player`; each hold's end; a hold
+    // ended, and every one. Member: the host's word, and no word for too long.
     bool stand_for(const MobyState& moby, std::int32_t target, const Pose& at);
     void after_stand_in(int slot, std::int32_t player);
     void after_update(int slot);
@@ -730,60 +729,60 @@ private:
     void release_heard(Reader& r);
     void tick_held(std::uint64_t now);
 
-    /* New mobys (status.loads, the level): nothing of the last ones stands. */
+    // New mobys (status.loads, the level): nothing of the last ones stands.
     void follow_load(const GameStatus& status);
     void tick_host(std::uint64_t now, const GameStatus& status);
     void tick_member(std::uint64_t now, const GameStatus& status);
     void send_world(std::int32_t member, Member& m, std::uint64_t now, const Pose& at);
-    /* Host: a member's word on the datagrams it heard, and the ones out too long given up. */
+    // Host: a member's word on the datagrams it heard, and the ones out too long given up.
     void take_ack(Member& m, std::uint16_t newest, std::uint32_t bits, std::uint64_t now);
     void expire_window(Member& m, std::uint64_t now);
-    /* Member: a WORLD taken: its sequence, for the next pose to say. */
+    // Member: a WORLD taken: its sequence, for the next pose to say.
     void hear_world(std::uint16_t sequence);
-    /* Member: a host's bolt landed: its copy runs here from now on. */
+    // Member: a host's bolt landed: its copy runs here from now on.
     void land(std::uint16_t net, int slot);
     void send_dead(std::int32_t member, int level);
-    /* Host: the whole world to one member that said HELLO (DEAD, SPAWNs, SYNCED). */
+    // Host: the whole world to one member that said HELLO (DEAD, SPAWNs, SYNCED).
     void give_world(std::int32_t id, Member& m);
-    /* Host: its level made again: the party's dead deleted here again, the bolts it had made
-     * again, the members told. */
+    // Host: its level made again: the party's dead deleted here again, the bolts it had made
+    // again, the members told.
     void remade();
-    /* Host: whether every member is dead too, or was a moment ago. */
+    // Host: whether every member is dead too, or was a moment ago.
     bool party_wiped() const;
-    /* Host: a moby brought back to its level, to one player or all. */
+    // Host: a moby brought back to its level, to one player or all.
     void send_restore(std::int32_t target, int key);
-    /* Who an update runs for: the player `moby` goes for (0 the host), -1 for nobody who can be
-     * fought. */
+    // Who an update runs for: the player `moby` goes for (0 the host), -1 for nobody who can be
+    // fought.
     std::int32_t pick_target(int slot, const MobyState& moby, Pose& at);
-    /* A crate that went to kCrateWaiting broke: told on. */
+    // A crate that went to kCrateWaiting broke: told on.
     void tick_crates(std::uint64_t now);
-    /* The revive rule: the game told, and the host's watch over who is down. */
+    // The revive rule: the game told, and the host's watch over who is down.
     void tick_death_hold();
     void tick_revive(std::uint64_t now);
     void lift(std::int32_t player, int how);
-    /* A member's dig: the host's word out of time. */
+    // A member's dig: the host's word out of time.
     void tick_digs(std::uint64_t now);
-    /* Host: a member's claim of a pile of buried bolts. */
+    // Host: a member's claim of a pile of buried bolts.
     void claim_dig(std::int32_t member, int level, int key);
-    /* Host: the members' breaks heard since the last listing, done here. */
+    // Host: the members' breaks heard since the last listing, done here.
     void take_broke();
-    /* Member: what the host spawned, gone (RESET). */
+    // Member: what the host spawned, gone (RESET).
     void drop_spawned();
-    /* Host: a member's claim of a bolt, by its id (a key, or kSpawnedId | a net id). */
+    // Host: a member's claim of a bolt, by its id (a key, or kSpawnedId | a net id).
     void claim(std::int32_t member, int level, std::uint16_t id);
-    /* Host: who took a bolt (TAKEN), to every member. */
+    // Host: who took a bolt (TAKEN), to every member.
     void send_taken(std::uint16_t id, std::int32_t player);
-    /* A bolt taken by `player` flies to that player here before it goes (the host's copy of one a
-     * member claimed, or a member's copy that runs by itself); false when it cannot (no figure). */
+    // A bolt taken by `player` flies to that player here before it goes (the host's copy of one a
+    // member claimed, or a member's copy that runs by itself); false when it cannot (no figure).
     bool fly(int slot, std::uint16_t id, std::int32_t player, std::uint64_t now);
-    /* A flight's stand-in before its bolt's update; the flights done or out of time. */
+    // A flight's stand-in before its bolt's update; the flights done or out of time.
     void stand_flight(int slot);
     void tick_flights(std::uint64_t now);
-    /* An eye (Game::eyes) on each bolt flying, so it runs wherever the camera is. */
+    // An eye (Game::eyes) on each bolt flying, so it runs wherever the camera is.
     void add_flight_eyes(std::vector<float>& eyes) const;
     void log_counts(std::uint64_t now);
-    /* A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
-     * and sound), its drop left out; deleted if it has not broken by the deadline. */
+    // A crate broken in another game broken here too (a wrench's hit posted to it: its own debris
+    // and sound), its drop left out; deleted if it has not broken by the deadline.
     void replay_break(int slot, std::uint64_t now, bool respawning = false);
     void send_spawn(std::int32_t target, int level, std::uint16_t net, const MobyState& moby);
     std::uint16_t id_of(int slot) const;
@@ -791,8 +790,8 @@ private:
     void tick_world(std::uint64_t now);
     void tick_despawn(std::uint64_t now, const std::vector<MobyState>& listing);
 
-    /* The verbose log (world_trace.cpp): each tick's pause, run, vis, drive and census lines; a
-     * line of `what`; a WORLD's ids against the last one's; a moby deleted by the sync. */
+    // The verbose log (world_trace.cpp): each tick's pause, run, vis, drive and census lines; a
+    // line of `what`; a WORLD's ids against the last one's; a moby deleted by the sync.
     bool tracing() const { return trace_ != nullptr && trace_->on(); }
 
     void trace_tick(std::uint64_t now);
@@ -827,79 +826,79 @@ private:
     std::function<std::uint64_t()> clock_;
     std::function<void(const std::string&)> log_;
     bool hosting_ = false;
-    /* The level load the state below is of (this game's), and its level. */
+    // The level load the state below is of (this game's), and its level.
     std::uint32_t loads_ = 0;
     int level_ = -1;
-    /* This tick's mobys by slot, and the placed ones' keys alive. */
+    // This tick's mobys by slot, and the placed ones' keys alive.
     std::map<int, MobyState> mobys_;
     std::set<int> alive_keys_;
     std::set<int> dead_keys_;
     bool listed_ = false;
-    /* Host: every placed moby dead for the party in this level, whatever became of this game's
-     * mobys since; whether the level was made again and that is still to be dealt with; loot the
-     * level made itself at its load (a crate's own nanotech), not one of the host's to share. */
+    // Host: every placed moby dead for the party in this level, whatever became of this game's
+    // mobys since; whether the level was made again and that is still to be dealt with; loot the
+    // level made itself at its load (a crate's own nanotech), not one of the host's to share.
     std::set<int> party_dead_;
     bool remade_ = false;
-    /* Host: the members' BROKE to act on at the next listing, by key: who said so, and those of
-     * crates that come back. */
+    // Host: the members' BROKE to act on at the next listing, by key: who said so, and those of
+    // crates that come back.
     std::map<int, std::int32_t> broke_;
     std::set<int> broke_back_;
-    /* Host: the bolts to make again; the placed mobys a death brought back that members lost; the
-     * piles of buried bolts dug, by key; when each member last died (it outlives a respawn). */
+    // Host: the bolts to make again; the placed mobys a death brought back that members lost; the
+    // piles of buried bolts dug, by key; when each member last died (it outlives a respawn).
     std::vector<KeptBolt> kept_bolts_;
     std::set<int> spared_;
     std::set<int> dug_;
     std::map<std::int32_t, std::uint64_t> deaths_;
     std::map<std::int32_t, Down> downs_;
     std::uint64_t wipe_ms_ = 0;
-    /* The enemies' targets by slot, this tick's clock. */
+    // The enemies' targets by slot, this tick's clock.
     std::map<int, Aim> aims_;
-    /* The grabs by the moby's slot, an exclusive lock on the player for as long as they last; what
-     * this tick's stand-in showed; when each member was last told it died. */
+    // The grabs by the moby's slot, an exclusive lock on the player for as long as they last; what
+    // this tick's stand-in showed; when each member was last told it died.
     std::map<int, Hold> holds_;
     std::int32_t stood_state_ = 0;
     std::int32_t stood_health_ = 0;
     std::map<std::int32_t, std::uint64_t> kills_;
-    /* Member: its own hero held, and since when it has heard no word of it. */
+    // Member: its own hero held, and since when it has heard no word of it.
     bool held_ = false;
     std::uint64_t held_ms_ = 0;
     std::uint64_t tick_ms_ = 0;
-    /* The revive rule, and whether the game was told to keep a dead hero down. A member: since when
-     * its hero is dead. */
+    // The revive rule, and whether the game was told to keep a dead hero down. A member: since when
+    // its hero is dead.
     bool revive_rule_ = false;
     bool death_held_ = false;
     std::uint64_t dead_ms_ = 0;
-    /* Each crate's last state, by key, and the replays of crates that come back (no deadline
-     * deletes one). */
+    // Each crate's last state, by key, and the replays of crates that come back (no deadline
+    // deletes one).
     std::map<int, std::uint32_t> crate_states_;
     std::set<int> soft_replays_;
-    /* Member: the mobys the host brought back, made here, by key; the piles it may dig, until when;
-     * when each was last asked for; until when a wipe's place is to be asked. */
+    // Member: the mobys the host brought back, made here, by key; the piles it may dig, until when;
+    // when each was last asked for; until when a wipe's place is to be asked.
     std::map<int, int> restored_;
     std::map<int, std::uint64_t> digs_;
     std::map<int, std::uint64_t> dig_asked_;
     std::uint64_t wipe_until_ = 0;
     std::set<int> level_own_;
-    /* The placed mobys seen dead in this load. One alive again was hatched by another's update, in
-     * a slot only the host's game has brought back: shared as what it now is, a spawned one. */
+    // The placed mobys seen dead in this load. One alive again was hatched by another's update, in
+    // a slot only the host's game has brought back: shared as what it now is, a spawned one.
     std::set<int> once_dead_keys_;
-    /* Member: whether the host gave it the world of this load, and when it last asked. */
+    // Member: whether the host gave it the world of this load, and when it last asked.
     bool synced_ = false;
     bool level_differs_ = false;
     std::uint64_t hello_ms_ = 0;
     bool placed_driven_ = false;
-    /* Host: the spawned mobys it shares (by slot), the next net id, the members, the stand-in of the
-     * update running (its player, 0 none) and the bolts before it. */
+    // Host: the spawned mobys it shares (by slot), the next net id, the members, the stand-in of the
+    // update running (its player, 0 none) and the bolts before it.
     std::map<int, Net> shared_;
     std::uint16_t next_net_ = 1;
     std::map<std::int32_t, Member> members_;
     std::int32_t standing_ = 0;
     int bolts_before_ = 0;
-    /* Host: the bolts taken (granted to a member, or collected here), by id. */
+    // Host: the bolts taken (granted to a member, or collected here), by id.
     std::set<std::uint16_t> claimed_;
 
-    /* The bolts flying to the player who took them (fly), by slot: who, that player's figure here
-     * (-1: this game's Ratchet), its id, until when. */
+    // The bolts flying to the player who took them (fly), by slot: who, that player's figure here
+    // (-1: this game's Ratchet), its id, until when.
     struct Flight {
         std::int32_t player = 0;
         int figure = -1;
@@ -908,43 +907,43 @@ private:
     };
 
     std::map<int, Flight> flights_;
-    /* Member: whether its eyes are on flying bolts (to be cleared once none fly). */
+    // Member: whether its eyes are on flying bolts (to be cleared once none fly).
     bool flight_eyes_ = false;
-    /* Member: the crates the host killed (not to be told back), last tick's placed mobys' classes. */
+    // Member: the crates the host killed (not to be told back), last tick's placed mobys' classes.
     std::set<int> host_killed_;
-    /* Crates breaking here for another game's break: their slots, until when they may take. */
+    // Crates breaking here for another game's break: their slots, until when they may take.
     std::map<int, std::uint64_t> replays_;
-    /* Member: the host's loot made here as this game's own, by net id. */
+    // Member: the host's loot made here as this game's own, by net id.
     std::set<std::uint16_t> loot_;
     std::map<int, int> placed_class_;
-    /* Member: the crates and pickups gone here that the host was told of. */
+    // Member: the crates and pickups gone here that the host was told of.
     std::set<int> reported_;
-    /* Member: the mobys it drives, their poses by id, the host's spawned ones by net id. */
+    // Member: the mobys it drives, their poses by id, the host's spawned ones by net id.
     std::set<int> driven_;
     std::map<std::uint16_t, Interpolator> poses_;
-    /* Member, for the verbose log: where each driven moby was put last tick (to see whether
-     * anything else moved it since), how many were, and when the log last said how they are shown. */
+    // Member, for the verbose log: where each driven moby was put last tick (to see whether
+    // anything else moved it since), how many were, and when the log last said how they are shown.
     std::map<int, std::array<float, 3>> posed_at_;
     int moved_since_ = 0;
     std::uint64_t poses_traced_ms_ = 0;
     std::map<std::uint16_t, int> net_slot_;
-    /* This game's own spawned copy of what the host says it spawned there, -1 for none. */
+    // This game's own spawned copy of what the host says it spawned there, -1 for none.
     int own_copy_of(int oclass, const float position[3]) const;
-    /* With the host's world here: what is left of this game's own copies of what the host spawned. */
+    // With the host's world here: what is left of this game's own copies of what the host spawned.
     void drop_own_copies();
     std::set<int> spawn_classes_;
-    /* Member: the host's bolts landed there and so run here, by net id. */
+    // Member: the host's bolts landed there and so run here, by net id.
     std::set<std::uint16_t> loose_;
-    /* Member: bolts WORLD says landed ahead of their SPAWN on the stream. */
+    // Member: bolts WORLD says landed ahead of their SPAWN on the stream.
     std::set<std::uint16_t> landed_early_;
-    /* Member: WORLD's delivery: whether any came, the newest sequence, the 32 before it, and the
-     * share that never came. */
+    // Member: WORLD's delivery: whether any came, the newest sequence, the 32 before it, and the
+    // share that never came.
     bool world_heard_ = false;
     std::uint16_t world_newest_ = 0;
     std::uint32_t world_bits_ = 0;
     double world_loss_ = 0.0;
-    /* Member: whether the host's copy of each is hidden, when the host last sent each, and the
-     * newest stamp taken of each (older datagrams leave it alone). */
+    // Member: whether the host's copy of each is hidden, when the host last sent each, and the
+    // newest stamp taken of each (older datagrams leave it alone).
     std::map<std::uint16_t, bool> hidden_;
     std::map<std::uint16_t, std::uint64_t> host_ms_;
     std::map<std::uint16_t, std::int64_t> stamps_;
@@ -952,9 +951,9 @@ private:
     DespawnLog despawn_;
     Trace* trace_ = nullptr;
 
-    /* What the verbose log last saw: the phase, the level's mode, whether a menu was open and its
-     * far mobys listed, the menu updates; each slot's run (in range or not) and flags; the driven;
-     * the census's ids; the eyes; the snapshots' ids, sent by member and received. */
+    // What the verbose log last saw: the phase, the level's mode, whether a menu was open and its
+    // far mobys listed, the menu updates; each slot's run (in range or not) and flags; the driven;
+    // the census's ids; the eyes; the snapshots' ids, sent by member and received.
     struct Traced {
         int phase = -1;
         std::uint32_t loads = 0xFFFFFFFFu;
@@ -974,21 +973,21 @@ private:
         std::set<std::uint16_t> received;
     } traced_;
 
-    /* What it did since the last line in the log (every kWorldLogMs when something happened). */
+    // What it did since the last line in the log (every kWorldLogMs when something happened).
     struct Counts {
         int snapshots = 0, hits = 0, kills = 0, spawns = 0, despawns = 0, damage = 0, bolts = 0;
         int holds = 0, releases = 0;
     } counts_;
 
     std::uint64_t counts_ms_ = 0;
-    /* For the whole session: counts_ starts again at each line it logs. */
+    // For the whole session: counts_ starts again at each line it logs.
     int hits_taken_ = 0;
     int hits_refused_ = 0;
 };
 
-/* How often the world says in the log what it did. */
+// How often the world says in the log what it did.
 constexpr std::uint64_t kWorldLogMs = 5000;
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_WORLD_H */
+#endif  // MULTIPLAYER_WORLD_H

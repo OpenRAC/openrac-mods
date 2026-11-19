@@ -106,18 +106,18 @@
 
 namespace mp {
 
-/* How often the host may say its list and its ledger, how long a new host waits for the others' ledgers, how long
- * a member stands still for a new host's world, and how long the line about it stays. */
+// How often the host may say its list and its ledger, how long a new host waits for the others' ledgers, how long
+// a member stands still for a new host's world, and how long the line about it stays.
 constexpr std::uint64_t kSuccessorMs = 3000;
 constexpr std::uint64_t kLedgerMs = 1000;
 constexpr std::uint64_t kGatherMs = 1000;
 constexpr std::uint64_t kNewHostMs = 6000;
 constexpr std::uint64_t kNewHostLineMs = 5000;
 
-/* A ledger's format, the first byte on the wire. */
+// A ledger's format, the first byte on the wire.
 constexpr std::uint8_t kLedgerVersion = 1;
 
-/* The whole of what every member keeps. */
+// The whole of what every member keeps.
 struct Ledger {
     std::uint16_t epoch = 0;
     std::uint32_t generation = 0;
@@ -127,17 +127,17 @@ struct Ledger {
     LedgerWorld world;
 };
 
-/* A ledger's bytes (the kind first) and back; false for one cut short, or of another version. */
+// A ledger's bytes (the kind first) and back; false for one cut short, or of another version.
 Bytes encode_ledger(const Ledger& ledger);
 bool decode_ledger(const Bytes& bytes, Ledger& out);
 
-/* Whether `a` is newer than `b`: an epoch, then its generation. */
+// Whether `a` is newer than `b`: an epoch, then its generation.
 bool ledger_newer(const Ledger& a, const Ledger& b);
 
-/* How many hosts ahead of this game's a ledger heard may be: a party changes host one at a time. */
+// How many hosts ahead of this game's a ledger heard may be: a party changes host one at a time.
 constexpr std::int16_t kLedgerEpochReach = 4;
 
-/* The members in the order they would follow the host: the link's worth first, then as given. */
+// The members in the order they would follow the host: the link's worth first, then as given.
 struct Candidate {
     std::int32_t id = 0;
     Link link;
@@ -145,7 +145,7 @@ struct Candidate {
 
 std::vector<std::int32_t> successor_order(std::vector<Candidate> candidates);
 
-/* What the players read. */
+// What the players read.
 constexpr const char* kDroppedLine = "Reconnecting";
 constexpr const char* kYouHostLine = "You host now";
 
@@ -164,25 +164,25 @@ public:
         std::function<std::uint64_t()> clock = {}
     );
 
-    /* One of the DATA messages of the change of host. */
+    // One of the DATA messages of the change of host.
     void handle(std::int32_t sender, const Bytes& bytes);
 
-    /* Once a tick, ahead of the Coop's. */
+    // Once a tick, ahead of the Coop's.
     void tick(std::uint64_t now);
 
-    /* The line over the game, empty for none. */
+    // The line over the game, empty for none.
     std::string banner(std::uint64_t now) const;
 
-    /* Whether the party is waiting for its host. */
+    // Whether the party is waiting for its host.
     bool host_gone() const { return host_gone_ms_ != 0; }
 
-    /* The host is leaving on purpose: the last of the ledger, while it can still go. */
+    // The host is leaving on purpose: the last of the ledger, while it can still go.
     void leaving();
 
-    /* Whether someone would follow this host (the Leave question says so). */
+    // Whether someone would follow this host (the Leave question says so).
     bool followed() const { return !named_.empty(); }
 
-    /* Whether this game took the party over: the host's rules are the party's, not its settings. */
+    // Whether this game took the party over: the host's rules are the party's, not its settings.
     bool took_over() const { return took_over_; }
 
     const Ledger& ledger() const { return ledger_; }
@@ -216,27 +216,27 @@ private:
     CamScripts& cam_;
     std::function<std::uint64_t()> clock_;
     std::function<void(const std::string&)> log_;
-    /* Since when the host has been gone (0: it has not); whether this game was the host last tick. */
+    // Since when the host has been gone (0: it has not); whether this game was the host last tick.
     std::uint64_t host_gone_ms_ = 0;
     bool was_host_ = false;
     std::int32_t old_host_ = 0;
-    /* The ledger: the newest this game has, whole. */
+    // The ledger: the newest this game has, whole.
     Ledger ledger_;
     std::uint64_t ledger_ms_ = 0;
     Bytes ledger_said_;
     std::size_t ledger_members_ = 0;
-    /* The host: who it named last, when; a member: who is next. */
+    // The host: who it named last, when; a member: who is next.
     std::vector<std::int32_t> named_;
     std::uint64_t named_ms_ = 0;
     std::vector<std::int32_t> next_;
-    /* A new host waiting for the ledgers: since when (0: not), and who answered. */
+    // A new host waiting for the ledgers: since when (0: not), and who answered.
     std::uint64_t gather_ms_ = 0;
     std::set<std::int32_t> answered_;
-    /* Who the new host asked (the members then): only they answer, once each. */
+    // Who the new host asked (the members then): only they answer, once each.
     std::set<std::int32_t> asked_;
     bool took_over_ = false;
-    /* A member waiting for a new host's world: since when (0: not). The line about the new host: who,
-     * until when. */
+    // A member waiting for a new host's world: since when (0: not). The line about the new host: who,
+    // until when.
     std::uint64_t stand_ms_ = 0;
     std::int32_t new_host_ = 0;
     std::uint64_t new_host_until_ = 0;
@@ -244,4 +244,4 @@ private:
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_MIGRATE_H */
+#endif  // MULTIPLAYER_MIGRATE_H

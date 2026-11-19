@@ -24,46 +24,46 @@
 
 namespace mp {
 
-/* A ring row's choices, and where the current value sits among them. */
+// A ring row's choices, and where the current value sits among them.
 constexpr int kRingWindow = 64;
 constexpr int kRingCentre = 32;
 
-/* The values a ring row steps through: lo to hi, `step` a choice. */
+// The values a ring row steps through: lo to hi, `step` a choice.
 struct Ring {
     int lo;
     int hi;
     int step;
 };
 
-/* An address's octet; the port by one; the port by a hundred (the coarse row). */
+// An address's octet; the port by one; the port by a hundred (the coarse row).
 constexpr Ring kOctetRing{0, 255, 1};
 constexpr Ring kPortRing{1, 65535, 1};
 constexpr Ring kPortCoarseRing{1, 65535, 100};
 
-/* `value` brought into the ring (lo to hi), around its ends. */
+// `value` brought into the ring (lo to hi), around its ends.
 int ring_wrap(long long value, const Ring& ring);
 
-/* The row's kRingWindow choices: the values `step` apart around `value`, which is at
- * kRingCentre. */
+// The row's kRingWindow choices: the values `step` apart around `value`, which is at
+// kRingCentre.
 std::vector<std::string> ring_choices(int value, const Ring& ring);
 
-/* The value after the row's choice changed to `choice` (an index into ring_choices(value)), the
- * step taken `times` times over (Acceleration's). */
+// The value after the row's choice changed to `choice` (an index into ring_choices(value)), the
+// step taken `times` times over (Acceleration's).
 int ring_step(int value, int choice, const Ring& ring, int times = 1);
 
-/* How many steps a change takes: one, and ten once a direction has been held a while (the port
- * repeats a held step every few ticks: kHeldRepeats repeats on one row, each within kHeldGapMs of
- * the last). */
+// How many steps a change takes: one, and ten once a direction has been held a while (the port
+// repeats a held step every few ticks: kHeldRepeats repeats on one row, each within kHeldGapMs of
+// the last).
 class Acceleration {
 public:
     static constexpr int kHeldRepeats = 8;
     static constexpr std::uint64_t kHeldGapMs = 200;
     static constexpr int kFast = 10;
 
-    /* A change of row `item` at `now_ms`: the steps it takes. */
+    // A change of row `item` at `now_ms`: the steps it takes.
     int times(int item, std::uint64_t now_ms);
 
-    /* Forgets the hold (the page changed). */
+    // Forgets the hold (the page changed).
     void reset() { run_ = 0, item_ = -1; }
 
 private:
@@ -72,18 +72,18 @@ private:
     std::uint64_t last_ms_ = 0;
 };
 
-/* The address Join by address connects to: four octets and the port. It starts at a common LAN
- * address with the default port, and keeps the last one joined for the rest of the game. */
+// The address Join by address connects to: four octets and the port. It starts at a common LAN
+// address with the default port, and keeps the last one joined for the rest of the game.
 struct DirectAddress {
     std::array<int, 4> octets{192, 168, 1, 1};
     int port = 7770;
 
-    /* "a.b.c.d:port", as connect_direct takes it. */
+    // "a.b.c.d:port", as connect_direct takes it.
     std::string text() const;
 };
 
-/* The hosting lobby's lines: "<address>:<port>" for each of this machine's addresses,
- * at most `most` of them; "Port <port>" when it knows none. */
+// The hosting lobby's lines: "<address>:<port>" for each of this machine's addresses,
+// at most `most` of them; "Port <port>" when it knows none.
 std::vector<std::string> hosting_lines(
     const std::vector<std::string>& addresses,
     int port,
@@ -93,4 +93,4 @@ std::vector<std::string> hosting_lines(
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_DIRECT_H */
+#endif  // MULTIPLAYER_DIRECT_H

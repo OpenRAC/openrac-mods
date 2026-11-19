@@ -45,7 +45,7 @@
 namespace mp {
 
 constexpr std::uint8_t kProgressKind = kind::kProgress;
-/* How often a game reads its progress, and tells it again unchanged. */
+// How often a game reads its progress, and tells it again unchanged.
 constexpr std::uint64_t kProgressReadMs = 250;
 constexpr std::uint64_t kProgressResendMs = 5000;
 
@@ -56,19 +56,19 @@ class Progress {
 public:
     Progress(Session& session, Game& game, Coop& coop);
 
-    /* A PROGRESS from `sender`. */
+    // A PROGRESS from `sender`.
     void handle(std::int32_t sender, const Bytes& bytes);
 
-    /* Once a game tick. */
+    // Once a game tick.
     void tick(std::uint64_t now_ms);
 
-    /* The party or its game is gone: nothing is kept. */
+    // The party or its game is gone: nothing is kept.
     void reset();
 
-    /* Someone came back to the party: everything goes across again. */
+    // Someone came back to the party: everything goes across again.
     void again() { sent_any_ = false; }
 
-    /* What it knows: this game's last reading, the party's (a member: the host's last word). */
+    // What it knows: this game's last reading, the party's (a member: the host's last word).
     const ProgressBits& here() const { return here_; }
 
     const ProgressBits& party() const { return party_; }
@@ -78,7 +78,7 @@ public:
     void trace(Trace* trace) { trace_ = trace; }
 
 private:
-    /* Gives this game what `want` has and it lacks (a line each); true when it gave something. */
+    // Gives this game what `want` has and it lacks (a line each); true when it gave something.
     bool give(const ProgressBits& want, const std::string& from);
     void send(std::int32_t target, const ProgressBits& bits, const std::string& to);
 
@@ -102,12 +102,12 @@ private:
     bool read_ = false;
     std::uint64_t read_ms_ = 0;
     ProgressBits here_;
-    /* Member: the host's last PROGRESS (and whether one came). Host: unused. */
+    // Member: the host's last PROGRESS (and whether one came). Host: unused.
     ProgressBits party_;
     bool heard_ = false;
-    /* Host: each member's last PROGRESS, not yet given here. */
+    // Host: each member's last PROGRESS, not yet given here.
     std::map<std::int32_t, ProgressBits> reports_;
-    /* What was last sent (a member's to the host, the host's to all), and when. */
+    // What was last sent (a member's to the host, the host's to all), and when.
     ProgressBits sent_;
     bool sent_any_ = false;
     std::uint64_t sent_ms_ = 0;
@@ -116,4 +116,4 @@ private:
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_PROGRESS_H */
+#endif  // MULTIPLAYER_PROGRESS_H

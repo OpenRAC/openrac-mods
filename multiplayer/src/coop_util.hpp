@@ -27,7 +27,7 @@ inline double step(const Pose& a, const Pose& b) {
     return std::sqrt(sum);
 }
 
-/* OPENRAC_ANIM_TRACE set: the poses sent, received and shown, a line each on stderr (ATRACE). */
+// OPENRAC_ANIM_TRACE set: the poses sent, received and shown, a line each on stderr (ATRACE).
 inline bool tracing() {
     static const bool on = std::getenv("OPENRAC_ANIM_TRACE") != nullptr;
     return on;

@@ -20,8 +20,8 @@ void put_bytes(Writer& w, const std::array<std::uint8_t, N>& bytes) {
     }
 }
 
-/* A count and its bytes into `out`: those past what `out` holds left out, those it holds beyond
- * the count left as they are (an older or newer mod's lists). */
+// A count and its bytes into `out`: those past what `out` holds left out, those it holds beyond
+// the count left as they are (an older or newer mod's lists).
 template <std::size_t N>
 void take_bytes(Reader& r, std::array<std::uint8_t, N>& out) {
     const std::uint8_t count = r.u8();
@@ -35,7 +35,7 @@ void take_bytes(Reader& r, std::array<std::uint8_t, N>& out) {
     }
 }
 
-/* The ids `a` has and `b` has not, as text ("3 7 12"; "" for none). */
+// The ids `a` has and `b` has not, as text ("3 7 12"; "" for none).
 template <std::size_t N>
 std::string more(const std::array<std::uint8_t, N>& a, const std::array<std::uint8_t, N>& b) {
     std::string text;

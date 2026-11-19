@@ -45,19 +45,19 @@
 
 namespace mp {
 
-/* Where frames go: the connection, or a test's recorder (session.hpp). */
+// Where frames go: the connection, or a test's recorder (session.hpp).
 class Transport {
 public:
     virtual ~Transport() = default;
-    /* Queues one whole frame (protocol.hpp's encoders give them). */
+    // Queues one whole frame (protocol.hpp's encoders give them).
     virtual void send(Bytes frame) = 0;
 
-    /* Whether game state of `bytes` bytes needs the reliable stream as well: not when the transport
-     * has something better that is known to work (UDP datagrams coming back, the embedded host). */
+    // Whether game state of `bytes` bytes needs the reliable stream as well: not when the transport
+    // has something better that is known to work (UDP datagrams coming back, the embedded host).
     virtual bool state_needs_tcp(std::size_t /*bytes*/) const { return true; }
 
-    /* Game state for `target` (session.hpp's send_state): as DATA when `tcp` says, and by whatever
-     * better the transport has (UDP). */
+    // Game state for `target` (session.hpp's send_state): as DATA when `tcp` says, and by whatever
+    // better the transport has (UDP).
     virtual void send_state(std::int32_t target, const Bytes& bytes, bool tcp) {
         if (tcp) {
             send(data(target, bytes));
@@ -65,22 +65,22 @@ public:
     }
 };
 
-/* What the embedded host is doing, for the page (Connection::hosting). */
+// What the embedded host is doing, for the page (Connection::hosting).
 struct HostingStatus {
-    /* Listening, on which port, and whether UDP is offered too. */
+    // Listening, on which port, and whether UDP is offered too.
     bool listening = false;
     int port = 0;
     bool udp = false;
-    /* This machine's addresses to give the others (with the port), and the party's members. */
+    // This machine's addresses to give the others (with the port), and the party's members.
     std::vector<std::string> addresses;
     std::vector<Member> members;
-    /* Why the last start_hosting failed ("Port 7770 is in use"), else empty. */
+    // Why the last start_hosting failed ("Port 7770 is in use"), else empty.
     std::string error;
 };
 
 class Connection : public Transport {
 public:
-    /* What the connection is doing, for the page's status line. */
+    // What the connection is doing, for the page's status line.
     enum class State {
         kIdle,
         kConnecting,
@@ -89,7 +89,7 @@ public:
         kLost
     };
 
-    /* How the session is linked. */
+    // How the session is linked.
     enum class Mode {
         kNone,
         kServer,
@@ -102,21 +102,21 @@ public:
     Connection(const Connection&) = delete;
     Connection& operator=(const Connection&) = delete;
 
-    /* Starts the thread for the server at host:port; it connects when it can. Nothing when the
-     * connection is linked already, any way (so the page may call it each time it opens). */
+    // Starts the thread for the server at host:port; it connects when it can. Nothing when the
+    // connection is linked already, any way (so the page may call it each time it opens).
     void open(const std::string& host, int port);
-    /* Stops whatever runs: the thread and its socket, or the embedded host (END to its clients). */
+    // Stops whatever runs: the thread and its socket, or the embedded host (END to its clients).
     void close();
 
-    /* Direct connect, for the page. Each closes whatever ran before.
-     * connect_server: back to an OpenRAC server (the default mode), as open does.
-     * connect_direct: to a player hosting at "host:port" (port 7770 when none); false, and nothing
-     *   changed, for an address with no host.
-     * start_hosting: this game hosts on `port` (TCP and UDP) and is connected to itself at once;
-     *   false when it cannot listen, with hosting().error saying why. The others join it with
-     *   connect_direct; the session gets the party's INFO (code kDirectCode) after its hello.
-     * stop_hosting: ends the party (the clients get END) and stops listening. The host's LEAVE
-     *   (session.leave()) does the same. */
+    // Direct connect, for the page. Each closes whatever ran before.
+    // connect_server: back to an OpenRAC server (the default mode), as open does.
+    // connect_direct: to a player hosting at "host:port" (port 7770 when none); false, and nothing
+    //   changed, for an address with no host.
+    // start_hosting: this game hosts on `port` (TCP and UDP) and is connected to itself at once;
+    //   false when it cannot listen, with hosting().error saying why. The others join it with
+    //   connect_direct; the session gets the party's INFO (code kDirectCode) after its hello.
+    // stop_hosting: ends the party (the clients get END) and stops listening. The host's LEAVE
+    //   (session.leave()) does the same.
     void connect_server(const std::string& host, int port);
     bool connect_direct(const std::string& address);
     bool start_hosting(int port = kDefaultPort);
@@ -124,34 +124,34 @@ public:
 
     Mode mode() const { return mode_; }
 
-    /* The address linked to: the server's or the direct host's, "host:port"; empty when hosting. */
+    // The address linked to: the server's or the direct host's, "host:port"; empty when hosting.
     const std::string& address() const { return address_; }
 
     HostingStatus hosting() const;
 
-    /* Whether game state travels over UDP now: datagrams came back lately. */
+    // Whether game state travels over UDP now: datagrams came back lately.
     bool udp() const;
 
-    /* The embedded host's settings (tests shrink its limits); used by the next start_hosting. */
+    // The embedded host's settings (tests shrink its limits); used by the next start_hosting.
     void set_host_config(const HostConfig& config) { host_config_ = config; }
 
     void send(Bytes frame) override;
     bool state_needs_tcp(std::size_t bytes) const override;
     void send_state(std::int32_t target, const Bytes& bytes, bool tcp) override;
-    /* The messages the server sent since the last call, in order (OPENRAC_MP_LAG: those whose
-     * extra delay is over). */
+    // The messages the server sent since the last call, in order (OPENRAC_MP_LAG: those whose
+    // extra delay is over).
     std::vector<Message> receive();
 
     State state() const { return state_.load(); }
 
-    /* Counts the connections made: a new value, a new session on the server. */
+    // Counts the connections made: a new value, a new session on the server.
     std::uint32_t generation() const { return generation_.load(); }
 
 private:
     void run();
-    /* One connection's life: writes and reads until it goes or the thread stops. */
+    // One connection's life: writes and reads until it goes or the thread stops.
     void serve(std::intptr_t fd);
-    /* Starts the thread for host:port in `mode`. */
+    // Starts the thread for host:port in `mode`.
     void start_thread(const std::string& host, int port, Mode mode);
 
     std::string host_name_;
@@ -160,18 +160,18 @@ private:
     std::atomic<State> state_{State::kIdle};
     std::atomic<std::uint32_t> generation_{0};
     std::thread thread_;
-    /* Guards outbox_ and inbox_, which both threads touch. */
+    // Guards outbox_ and inbox_, which both threads touch.
     std::mutex mutex_;
     std::condition_variable wake_;
     std::deque<Bytes> outbox_;
     std::vector<Message> inbox_;
-    /* Datagrams waiting for the thread's UDP socket (under mutex_). */
+    // Datagrams waiting for the thread's UDP socket (under mutex_).
     std::deque<Bytes> udp_outbox_;
 
-    /* Set on the game's thread only. */
+    // Set on the game's thread only.
     Mode mode_ = Mode::kNone;
-    /* OPENRAC_MP_LAG: the extra delay and its jitter (ms; read once), the messages held and when
-     * each is handed on (steady ms), the last one's, and the jitter's random state. */
+    // OPENRAC_MP_LAG: the extra delay and its jitter (ms; read once), the messages held and when
+    // each is handed on (steady ms), the last one's, and the jitter's random state.
     int lag_read_ = 0;
     double lag_ms_ = 0;
     double lag_jitter_ms_ = 0;
@@ -184,21 +184,21 @@ private:
     std::string host_error_;
     std::vector<std::string> host_addresses_;
 
-    /* UDP, as the thread learns it: the session id and token (UDP is usable once both are known
-     * and the socket is up), and when the last datagram came (now_ms; 0: none yet). */
+    // UDP, as the thread learns it: the session id and token (UDP is usable once both are known
+    // and the socket is up), and when the last datagram came (now_ms; 0: none yet).
     std::atomic<std::int32_t> udp_session_{0};
     std::atomic<std::int64_t> udp_token_{0};
     std::atomic<bool> udp_ready_{false};
     std::atomic<std::uint64_t> udp_heard_ms_{0};
 };
 
-/* How often a client sends BIND to keep its NAT mapping open (the server expects 2 to 5 s). */
+// How often a client sends BIND to keep its NAT mapping open (the server expects 2 to 5 s).
 constexpr int kBindMs = 3000;
 
-/* Splits "host:port" (or "[v6]:port", or a bare host) into its parts; a missing or bad port is
- * kDefaultPort. False for an empty host. */
+// Splits "host:port" (or "[v6]:port", or a bare host) into its parts; a missing or bad port is
+// kDefaultPort. False for an empty host.
 bool parse_address(const std::string& text, std::string& host, int& port);
 
 }  // namespace mp
 
-#endif /* MULTIPLAYER_CONNECTION_H */
+#endif  // MULTIPLAYER_CONNECTION_H

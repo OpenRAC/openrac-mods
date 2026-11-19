@@ -102,11 +102,11 @@ void set_content(const openrac::UiPage& page, openrac::UiContent& content) {
     page.set(content);
 }
 
-/* How often the verbose log gives the network's counts. */
+// How often the verbose log gives the network's counts.
 constexpr std::uint64_t kNetTraceMs = 5000;
 
-/* One line of what went through the session so far: per DATA kind the messages and bytes as
- * events, as state and received, and what the buckets held back. */
+// One line of what went through the session so far: per DATA kind the messages and bytes as
+// events, as state and received, and what the buckets held back.
 void trace_net() {
     const mp::NetCounts& c = g->session->counts();
     std::string line = "frames " + std::to_string(c.data_frames) + " state "
@@ -130,8 +130,8 @@ void trace_net() {
     g->trace.line("net", line);
 }
 
-/* The player's name: the mod's `name` setting, else the launcher's (OPENRAC_PLAYER_NAME), else
- * one of the mod's own (neither valid, or started without the launcher). */
+// The player's name: the mod's `name` setting, else the launcher's (OPENRAC_PLAYER_NAME), else
+// one of the mod's own (neither valid, or started without the launcher).
 std::string player_name(const std::string& setting) {
     const char* launcher = std::getenv("OPENRAC_PLAYER_NAME");
     const std::string name = mp::choose_name(setting, launcher != nullptr ? launcher : "");
@@ -144,7 +144,7 @@ std::string player_name(const std::string& setting) {
     return "Player" + std::to_string(mp::now_ms() % 1000);
 }
 
-/* The status line: the connection, or the last notice (menu.hpp). */
+// The status line: the connection, or the last notice (menu.hpp).
 std::string status() {
     mp::StatusInput in;
     in.mode = g->connection->mode();
@@ -163,7 +163,7 @@ std::string status() {
     return mp::status_text(in, g_language);
 }
 
-/* Team tools' line over the game: down and waiting, a teammate down nearby, the rally point. */
+// Team tools' line over the game: down and waiting, a teammate down nearby, the rally point.
 std::string comfort_banner(std::uint64_t now) {
     if (!g->comfort) {
         return {};
@@ -188,7 +188,7 @@ std::string comfort_banner(std::uint64_t now) {
     return {};
 }
 
-/* Team tools' items, in this order (on_comfort reads them by it). */
+// Team tools' items, in this order (on_comfort reads them by it).
 enum ComfortItem {
     kComfortRevive,
     kComfortSeconds,
@@ -198,14 +198,14 @@ enum ComfortItem {
     kComfortGiveUp
 };
 
-/* Whether the party's own revive rule (world.hpp: a fallen hero held down) is what catches a death
- * here: then a lethal hit goes to it, and Team tools' rescue stands aside. */
+// Whether the party's own revive rule (world.hpp: a fallen hero held down) is what catches a death
+// here: then a lethal hit goes to it, and Team tools' rescue stands aside.
 bool revive_rule_held() {
     return g->world->revive_on() && g->game->can_revive();
 }
 
-/* Team tools: the host's rescue and rally settings (dim for a member), Mark host position, Clear
- * rally point, Give up, the rally point's distance, then each member's health or need of rescue. */
+// Team tools: the host's rescue and rally settings (dim for a member), Mark host position, Clear
+// rally point, Give up, the rally point's distance, then each member's health or need of rescue.
 void show_comfort() {
     if (!g->comfort || g->comfort_page.id() < 0) {
         return;
@@ -272,7 +272,7 @@ void show_comfort() {
     set_content(g->comfort_page, c);
 }
 
-/* Team tools' events: the host's settings, the rally point, giving up; out of a party, back. */
+// Team tools' events: the host's settings, the rally point, giving up; out of a party, back.
 void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e) {
     if (e.is(OPENRAC_UI_CHANGE) && g->session->is_host()) {
         mp::ComfortOptions options = g->comfort->options();
@@ -304,7 +304,7 @@ void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e) {
     show_comfort();
 }
 
-/* Every page again, in the language the game is set to now. */
+// Every page again, in the language the game is set to now.
 void repaint_pages() {
     show_home();
     show_code();
@@ -325,9 +325,9 @@ void repaint_pages() {
     g->mod->play_notice(mp::localized_notice(g->banner, g_language));
 }
 
-/* The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
- * a wait for the others. */
-/* The port's overlay, as the name tags draw on it. */
+// The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
+// a wait for the others.
+// The port's overlay, as the name tags draw on it.
 class OverlayPainter : public mp::TagPainter {
 public:
     explicit OverlayPainter(const openrac_overlay& overlay) : o_(overlay) {}
@@ -370,7 +370,7 @@ void draw_tags(void*, const openrac_overlay* overlay) {
     g->coop->note_tags(mp::draw_name_tags(painter, camera, g->coop->name_tags()));
 }
 
-/* The host: the launcher's mod code, a few times a minute (a player may share while the game runs). */
+// The host: the launcher's mod code, a few times a minute (a player may share while the game runs).
 void refresh_mod_code(std::uint64_t now) {
     constexpr std::uint64_t kEveryMs = 3000;
 
@@ -386,8 +386,8 @@ void refresh_mod_code(std::uint64_t now) {
 
 constexpr std::uint64_t kAutoJoinMs = 20000;
 
-/* The party the launcher said to join, from the title: linked to the server, then in, then its
- * lobby. Not in time, Home says so; a mod that plays alone stays out, as by hand. */
+// The party the launcher said to join, from the title: linked to the server, then in, then its
+// lobby. Not in time, Home says so; a mod that plays alone stays out, as by hand.
 void tick_auto_join(std::uint64_t now) {
     if (g->join_party.empty() || g->game->status().phase != mp::kPhaseFrontEnd) {
         return;
@@ -444,8 +444,8 @@ void show_banner(std::uint64_t now) {
     }
 }
 
-/* Brings the session up to date with the connection: hello on a new connection, the server's
- * messages, the last notice. Once a game tick. */
+// Brings the session up to date with the connection: hello on a new connection, the server's
+// messages, the last notice. Once a game tick.
 void poll() {
     const std::uint32_t generation = g->connection->generation();
     const bool connected = g->connection->state() == mp::Connection::State::kConnected;
@@ -526,9 +526,9 @@ void guarded(const openrac::UiPage& page, const openrac::UiEvent& e) {
     Handler(page, openrac::UiEvent(meant));
 }
 
-/* The port calls this when it loads the library: checks the game and the port, reads the server
- * address, makes the pages and puts Multiplayer in the main menu under Load Game. Throws
- * openrac::Error to refuse to run. */
+// The port calls this when it loads the library: checks the game and the port, reads the server
+// address, makes the pages and puts Multiplayer in the main menu under Load Game. Throws
+// openrac::Error to refuse to run.
 void load(openrac::Mod& mod) {
     // The same pages and party in Going Commando, on what OpenRAC answers for it (rac2/game.hpp).
     const bool rac2 = mod.game() == "rac2";
@@ -1135,10 +1135,10 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-/* The id and version are the manifest's: the port checks they agree. */
+// The id and version are the manifest's: the port checks they agree.
 OPENRAC_MOD_CPP("multiplayer", "0.12.5", load)
 
-/* The port calls this at its exit: the connection's thread goes with it. */
+// The port calls this at its exit: the connection's thread goes with it.
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
     // The state exists only if load got as far as making it.
     if (g) {
