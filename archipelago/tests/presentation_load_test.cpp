@@ -1152,7 +1152,10 @@ int main(int argc, char** argv) {
         put(D->vendor_menu + VENDOR_ENTRIES, ITEM_PYROCITOR);
         put(D->vendor_menu + VENDOR_ENTRIES + 4, 0);
         put(D->vendor_menu + 0x20, 0x1A00000);
-        const uint32_t game_mode = std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u;
+        // Verified NTSC level mode: D_L00_0015F5C4. The nearby 15F5A8 word
+        // stays zero, reproducing the real vendor that exposed the bad address.
+        if (std::strcmp(D->version, "ntsc") == 0) put(0x15F5A8u, 0);
+        const uint32_t game_mode = std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;
         put(game_mode, 5);
         g_play_phase = OPENRAC_PLAY_MENU;
         auto initialize = (void (*)())replacement("rac1.vendor.initialize_selected");
@@ -1385,12 +1388,12 @@ int main(int argc, char** argv) {
         const int16_t helga_class = 0x37A;
         std::memcpy(at(0x1800000 + 0xA6), &helga_class, 2);
         set_level(LEVEL_KERWAN);
-        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u, 2);
-        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u, 0);
+        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u, 2);
+        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u, 0);
         g_dialog_starts = false;
         CHECK(dialog(0x1800000, 0) == 0 && g_rendered_prompt == "Buy Gold Bolt for 500 bolts");
         g_dialog_starts = true;
-        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u, 2);
+        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u, 2);
         CHECK(dialog(0x1800000, 0) == 1);
         CHECK(
             std::strcmp(reinterpret_cast<char*>(at(message(257))), "Buy Gold Bolt for 500 bolts")
