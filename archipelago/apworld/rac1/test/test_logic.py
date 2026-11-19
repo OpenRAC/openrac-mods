@@ -381,6 +381,12 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_eudora_warp_pad_requires_only_heli_pack(self) -> None:
+        self.collect_by_name("Eudora Coordinates")
+        self.assertFalse(self.can_reach_location("Eudora: the warp pad"))
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Eudora: the warp pad"))
+
     def test_helga_does_not_require_heli_pack(self) -> None:
         self.collect_by_name("Kerwan Coordinates")
         self.assertTrue(self.can_reach_location("Kerwan: Helga"))

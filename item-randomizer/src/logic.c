@@ -245,11 +245,10 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Kerwan: gold bolt 2", LEVEL_KERWAN, 1, 11),
     GOLDBOLT("Kerwan: gold bolt 3", LEVEL_KERWAN, 2, 11),
 
-    // Eudora: "You'll need a Gadgetron Trespasser to get past this security door": the game does
-    // not say what lies behind it, so the Suck Cannon asks for it too. Blarg's coordinates are
-    // behind it: played without one, they cannot be had (issue #25).
+    // Eudora's Suck Cannon/warp-pad route requires only the Heli-Pack.
+    // The security door requiring the Trespasser gates the separate Blarg coordinates route.
     VENDOR("Eudora: the vendor's Glove of Doom", LEVEL_EUDORA, ITEM_GLOVE_OF_DOOM, 12, LOCF_PRICEY),
-    GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, WALK | TRESP, 0),
+    GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, HELI, 0),
     FIXED(
         "Eudora: the coordinates of Blarg",
         LEVEL_EUDORA,
