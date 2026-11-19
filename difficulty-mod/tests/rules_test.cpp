@@ -3,6 +3,7 @@
 // the sliders and with Chaos, Chaos's rolls (the same seed and level always give the same values,
 // each in its range) and its timed events, the accumulators that make whole hits and rounds of a
 // multiplier, prices and max health, and the pool's budget.
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>

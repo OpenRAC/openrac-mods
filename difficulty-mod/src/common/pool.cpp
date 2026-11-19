@@ -5,6 +5,7 @@
 // would find them, taking the tail's slots out of its reach for the copies' large pvars, and
 // planning how many copies each enemy gets within the slots there are. It touches game memory only
 // through the `mem` pointer it is given, so the tests lay a pool out in an array.
+
 #include "pool.h"
 
 #include <cstddef>

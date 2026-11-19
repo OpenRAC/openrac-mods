@@ -8,6 +8,7 @@
 // the scripted ones alone and keeps the slots the game needs free.
 //
 // Run with the library's path: difficulty_rac1_load_test <difficulty.dylib|.so|.dll>.
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>

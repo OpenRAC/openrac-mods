@@ -6,8 +6,10 @@
 // the seed's code, the accumulators and roundings that turn a multiplier into whole hits, bolts,
 // prices and cells, and the moby pool's budget. Every random value comes from a seed, so the same
 // seed and level always give the same values.
+
 #include "rules.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -57,6 +59,26 @@ constexpr int kGasparLevel = 9;
 // Blarg Station's level number (documented: rules.h: kBlargSpawns).
 constexpr int kBlargLevel = 6;
 
+// A hex digit's value, or -1 for any other character.
+int hex_digit_value(char c) {
+    // The decimal digits are 0 to 9.
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+
+    // The capital letters A to F are 10 to 15.
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+
+    // The small letters a to f are 10 to 15 too.
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+
+    return -1;
+}
+
 }  // namespace
 
 // The sliders: the setting's key, what the log calls it, its range and Chaos's range (the
@@ -103,7 +125,18 @@ double clamp_knob(int knob, double value) {
     }
 
     const KnobInfo& k = kKnobs[knob];
-    return value < k.min ? k.min : value > k.max ? k.max : value;
+
+    // Below the slider's range: its lowest value.
+    if (value < k.min) {
+        return k.min;
+    }
+
+    // Above the slider's range: its highest value.
+    if (value > k.max) {
+        return k.max;
+    }
+
+    return value;
 }
 
 bool sliders_moved(const Values& sliders) {
@@ -174,10 +207,7 @@ std::uint64_t seed_from_text(const std::string& text) {
 
         // Each character, as a hex digit.
         for (const char c : text) {
-            const int d = c >= '0' && c <= '9'   ? c - '0'
-                          : c >= 'A' && c <= 'F' ? c - 'A' + 10
-                          : c >= 'a' && c <= 'f' ? c - 'a' + 10
-                                                 : -1;
+            const int d = hex_digit_value(c);
 
             // Not a hex digit: this is a word, not a code.
             if (d < 0) {
@@ -248,7 +278,18 @@ int scale_amount(int value, double m, int limit) {
     }
 
     const double x = std::round(value * m);
-    return x < 1.0 ? 1 : x > limit ? limit : static_cast<int>(x);
+
+    // A price or an ammo field that rounds to nothing stays at least 1: 0 is the game's "none".
+    if (x < 1.0) {
+        return 1;
+    }
+
+    // The field cannot hold more than its limit.
+    if (x > limit) {
+        return limit;
+    }
+
+    return static_cast<int>(x);
 }
 
 int max_health(int retail_cells, double m) {
@@ -363,10 +404,25 @@ constexpr const char* kRuleNames[kKnobCount] = {
     "Health pickups",
 };
 
-// The bytes' format, and how many there are: format, chaos, events, minutes (u8 each), event (i8),
-// seed (u32), then the sliders (f64 bits each), big-endian.
+// The bytes' format: format, chaos, events, minutes (u8 each), event (i8), seed (u32), then the
+// sliders (f64 bits each), big-endian.
 constexpr std::uint8_t kRulesFormat = 1;
-constexpr std::size_t kRulesBytes = 5 + 4 + 8 * kKnobCount;
+
+// The bytes before the seed: the format, chaos, events, minutes and event.
+constexpr std::size_t kRulesHeaderBytes = 5;
+
+// The seed's bytes (a seed is 32 bits), and each slider's (an f64's bits).
+constexpr int kSeedBytes = 4;
+constexpr int kSliderBytes = 8;
+
+// How many bytes the rules take in all.
+constexpr std::size_t kRulesBytes = kRulesHeaderBytes + kSeedBytes + kSliderBytes * kKnobCount;
+
+// The most minutes between events the bytes can say (a u8).
+constexpr int kMaxEventMinutes = 255;
+
+// The bits in a byte, to step through a big-endian number.
+constexpr int kByteBits = 8;
 
 // A multiplier as a player reads it: at most two decimals, no trailing zeros: x2, x1.5, x0.25.
 std::string times(double value) {
@@ -374,10 +430,12 @@ std::string times(double value) {
     std::snprintf(text, sizeof text, "x%.2f", value);
     std::string out = text;
 
+    // Trailing zeros are noise: x2.50 reads x2.5.
     while (out.back() == '0') {
         out.pop_back();
     }
 
+    // A whole number has no point left: x2.00 reads x2.
     if (out.back() == '.') {
         out.pop_back();
     }
@@ -393,24 +451,21 @@ std::vector<std::uint8_t> encode_party_rules(const PartyRules& rules) {
     out.push_back(kRulesFormat);
     out.push_back(rules.chaos ? 1 : 0);
     out.push_back(rules.events ? 1 : 0);
-    out.push_back(
-        static_cast<std::uint8_t>(
-            rules.minutes < 0     ? 0
-            : rules.minutes > 255 ? 255
-                                  : rules.minutes
-        )
-    );
+    out.push_back(static_cast<std::uint8_t>(std::clamp(rules.minutes, 0, kMaxEventMinutes)));
     out.push_back(static_cast<std::uint8_t>(static_cast<std::int8_t>(rules.event)));
 
-    for (int shift = 24; shift >= 0; shift -= 8) {
+    // The seed, most significant byte first.
+    for (int shift = (kSeedBytes - 1) * kByteBits; shift >= 0; shift -= kByteBits) {
         out.push_back(static_cast<std::uint8_t>(rules.seed >> shift));
     }
 
-    for (int k = 0; k < kKnobCount; ++k) {
+    // Each slider's double, as its bits, most significant byte first.
+    for (int knob = 0; knob < kKnobCount; ++knob) {
         std::uint64_t bits = 0;
-        std::memcpy(&bits, &rules.sliders.v[k], sizeof bits);
+        std::memcpy(&bits, &rules.sliders.v[knob], sizeof bits);
 
-        for (int shift = 56; shift >= 0; shift -= 8) {
+        // One byte of the bits at a time.
+        for (int shift = (kSliderBytes - 1) * kByteBits; shift >= 0; shift -= kByteBits) {
             out.push_back(static_cast<std::uint8_t>(bits >> shift));
         }
     }
@@ -419,37 +474,45 @@ std::vector<std::uint8_t> encode_party_rules(const PartyRules& rules) {
 }
 
 bool decode_party_rules(const void* data, std::uint32_t size, PartyRules& out) {
-    const auto* b = static_cast<const std::uint8_t*>(data);
+    const auto* bytes = static_cast<const std::uint8_t*>(data);
 
     // Another format is another version's: the versions match in a party, so never read.
-    if (b == nullptr || size != kRulesBytes || b[0] != kRulesFormat) {
+    if (bytes == nullptr || size != kRulesBytes || bytes[0] != kRulesFormat) {
         return false;
     }
 
-    PartyRules r;
-    r.chaos = b[1] != 0;
-    r.events = b[2] != 0;
-    r.minutes = b[3];
-    r.event = static_cast<std::int8_t>(b[4]);
-    r.event = r.event < 0 || r.event >= kEventCount ? -1 : r.event;
-    std::size_t at = 5;
+    PartyRules rules;
+    rules.chaos = bytes[1] != 0;
+    rules.events = bytes[2] != 0;
+    rules.minutes = bytes[3];
+    rules.event = static_cast<std::int8_t>(bytes[4]);
 
-    for (int i = 0; i < 4; ++i) {
-        r.seed = r.seed << 8 | b[at++];
+    // An event index this version does not have means no event.
+    if (rules.event < 0 || rules.event >= kEventCount) {
+        rules.event = -1;
     }
 
-    for (int k = 0; k < kKnobCount; ++k) {
+    std::size_t at = kRulesHeaderBytes;
+
+    // The seed, most significant byte first.
+    for (int n = 0; n < kSeedBytes; ++n) {
+        rules.seed = rules.seed << kByteBits | bytes[at++];
+    }
+
+    // Each slider's bits, most significant byte first, clamped to the slider's range.
+    for (int knob = 0; knob < kKnobCount; ++knob) {
         std::uint64_t bits = 0;
 
-        for (int i = 0; i < 8; ++i) {
-            bits = bits << 8 | b[at++];
+        // One byte of the bits at a time.
+        for (int n = 0; n < kSliderBytes; ++n) {
+            bits = bits << kByteBits | bytes[at++];
         }
 
-        std::memcpy(&r.sliders.v[k], &bits, sizeof bits);
-        r.sliders.v[k] = clamp_knob(k, r.sliders.v[k]);
+        std::memcpy(&rules.sliders.v[knob], &bits, sizeof bits);
+        rules.sliders.v[knob] = clamp_knob(knob, rules.sliders.v[knob]);
     }
 
-    out = r;
+    out = rules;
     return true;
 }
 
@@ -459,16 +522,20 @@ std::string party_rules_text(const PartyRules& rules) {
         out += (out.empty() ? "" : "\n") + line;
     };
 
-    for (int k = 0; k < kKnobCount; ++k) {
-        if (rules.sliders[k] != 1.0) {
-            add(std::string(kRuleNames[k]) + " " + times(rules.sliders[k]));
+    // A line for each slider off 1.0.
+    for (int knob = 0; knob < kKnobCount; ++knob) {
+        // A slider at 1.0 is the game's own, so it is not worth a line.
+        if (rules.sliders[knob] != 1.0) {
+            add(std::string(kRuleNames[knob]) + " " + times(rules.sliders[knob]));
         }
     }
 
+    // Chaos rolls the sliders left at 1.0.
     if (rules.chaos) {
         add("Chaos on");
     }
 
+    // The events' clock is on.
     if (rules.events) {
         add("Chaos events every " + std::to_string(rules.minutes) + " min");
     }
@@ -495,7 +562,7 @@ Values with_event(const Values& values, int event) {
 
         const int k = e.knob[i];
         double x = out[k] * e.factor[i];
-        x = x < kEventMin[k] ? kEventMin[k] : x > kEventMax[k] ? kEventMax[k] : x;
+        x = std::min(std::max(x, kEventMin[k]), kEventMax[k]);
         out[k] = x;
     }
 
@@ -503,9 +570,18 @@ Values with_event(const Values& values, int event) {
 }
 
 int clone_budget(int free_slots, int level) {
-    const int level_use = level == kGasparLevel  ? kGasparSparks
-                          : level == kBlargLevel ? kBlargSpawns
-                                                 : 0;
+    int level_use = 0;
+
+    // Gaspar's lava sparks nearly fill a console's pool.
+    if (level == kGasparLevel) {
+        level_use = kGasparSparks;
+    }
+
+    // Blarg Station spawns mobys of its own after the load.
+    if (level == kBlargLevel) {
+        level_use = kBlargSpawns;
+    }
+
     const int b = free_slots - kPoolReserve - level_use;
     return b > 0 ? b : 0;
 }

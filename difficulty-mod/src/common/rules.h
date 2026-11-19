@@ -2,8 +2,9 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // The difficulty mod's rules, apart from the game: the sliders and their ranges, what plays with
-// them and Chaos, Chaos's roll for each level and its timed events, and the arithmetic that turns a multiplier into whole hits, bolts, prices and cells. No
-// game memory here: tests/rules_test.cpp checks it all.
+// them and Chaos, Chaos's roll for each level and its timed events, and the arithmetic that turns
+// a multiplier into whole hits, bolts, prices and cells. No game memory here: tests/rules_test.cpp
+// checks it all.
 
 #pragma once
 

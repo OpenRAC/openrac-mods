@@ -9,6 +9,7 @@
 // nothing here; and its party's rules are published as in rac1.
 //
 // Run with the library's path: difficulty_rac2_load_test <difficulty.dylib|.so|.dll>.
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>

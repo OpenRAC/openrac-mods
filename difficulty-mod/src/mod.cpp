@@ -5,6 +5,7 @@
 // Going Commando. openrac_api.game says which game loaded it, and that game's part takes over:
 // src/rac1 and src/rac2, each with its own hook points and addresses, over the rules, Chaos and the
 // party's rules every game shares (src/common).
+
 #include "openrac/mod.hpp"
 
 #include <string>

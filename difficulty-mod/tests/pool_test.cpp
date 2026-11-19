@@ -3,6 +3,7 @@
 // the free slots are counted as CreateMoby would find them, the tail is reserved only while it was
 // never used and gives the room it says, and the copies' plan never takes more than its budget,
 // so the slots kept for the game (rules.h: kPoolReserve) stay free.
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>

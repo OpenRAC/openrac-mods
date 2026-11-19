@@ -31,8 +31,10 @@
 // constants of its own), and no table that tells the level's free enemies from those its scripts
 // need: the enemy count and the enemy speed are rac1's only (the manifest's "games"), and Chaos's
 // events that are only about the enemies' speed are never picked here.
+
 #include "game.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -438,9 +440,18 @@ std::int32_t nanotech_steps(
     const int b = boosts();
     const int retail = get<std::int32_t>(count) + b;
     const double want = std::round(retail * k);
-    const int target = want < 1.0             ? 1
-                       : want > kMaxHealthCap ? kMaxHealthCap
-                                              : static_cast<int>(want);
+    int target = 0;
+
+    // At least one cell.
+    if (want < 1.0) {
+        target = 1;
+    } else if (want > kMaxHealthCap) {
+        // The most the game's field can hold.
+        target = kMaxHealthCap;
+    } else {
+        target = static_cast<int>(want);
+    }
+
     put<std::int32_t>(count, target - b);
 
     // With the trace on, one line for each change.
@@ -471,7 +482,14 @@ void ball_update(Original original, std::uint32_t moby) {
                                   ? kVehicleHealth
                                   : get<std::int32_t>(state().disc->max_health);
     const std::int32_t now = before + state().pickups.take(k, gained);
-    put<std::int32_t>(hp, now > most ? (most > before ? most : before) : now);
+    std::int32_t filled = now;
+
+    // The pieces would fill him past the most: stop at the most, or where he was if that is more.
+    if (now > most) {
+        filled = std::max(most, before);
+    }
+
+    put<std::int32_t>(hp, filled);
 }
 
 // ---- A level's load: its values and the weapon table ----

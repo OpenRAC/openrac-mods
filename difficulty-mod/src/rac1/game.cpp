@@ -41,9 +41,10 @@
 // In a party (multiplayer's README, Mods in a party) the host's rules count: this game publishes
 // what it plays by (rules.h: PartyRules), and the same mod in a member's game takes them
 // (on_party_rules): the sliders, Chaos and the resolved seed, so each level rolls the same, and
-// which event is on, the host deciding the events. A member makes no copies and leaves no enemy out:
-// the host's world brings its copies (SPAWN) and its removals (dead placed mobys). With no party
-// nothing of this runs, and every slider at 1.0 is still the retail game.
+// which event is on, the host deciding the events. A member makes no copies and leaves no enemy
+// out: the host's world brings its copies (SPAWN) and its removals (dead placed mobys). With no
+// party nothing of this runs, and every slider at 1.0 is still the retail game.
+
 #include "game.h"
 
 #include <array>
@@ -588,31 +589,9 @@ void approach_speed(Original original, float up, float down) {
     }
 }
 
-// An enemy's update with its time scaled: the tick's constants (seconds, and the ratio to NTSC's
-// tick, with their squares and cubes as the game keeps them) for the call, and its animation speed
-// after it, which the next tick's animation advance reads.
-void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
-    const double k = state().session.active[difficulty::kEnemySpeed];
-    const ClassInfo* c = class_of(moby);
-
-    // The slider is at retail, this is an update inside another's (the time is scaled already), or
-    // the moby is not an enemy, a roamer or a turret: the game's own call.
-    if (k == 1.0 || state().timed_depth > 0 || c == nullptr
-        || (c->role != ClassRole::Enemy && c->role != ClassRole::Roamer
-            && c->role != ClassRole::Turret)) {
-        original(moby);
-        return;
-    }
-
-    const gaddr anim = moby + kMobyAnimSpeed;
-    auto it = state().anim.find(moby);
-
-    // Its animation speed is what the mod wrote last tick: give back the game's own, which the
-    // update may read or advance from.
-    if (it != state().anim.end() && get<float>(anim) == it->second.second) {
-        put<float>(anim, it->second.first);
-    }
-
+// Runs the game's `original(moby)` with the tick's time constants scaled by `k`, each by its own
+// power of it, then puts the game's own constants back for everything else that runs this tick.
+void run_with_scaled_tick(void (*original)(std::uint32_t), std::uint32_t moby, double k) {
     const gaddr tick = exe(state().disc->tick);
     float saved[kTickConstants];
 
@@ -645,6 +624,34 @@ void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
             put<float>(tick + kWord * static_cast<std::uint32_t>(i), saved[i]);
         }
     }
+}
+
+// An enemy's update with its time scaled: the tick's constants (seconds, and the ratio to NTSC's
+// tick, with their squares and cubes as the game keeps them) for the call, and its animation speed
+// after it, which the next tick's animation advance reads.
+void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
+    const double k = state().session.active[difficulty::kEnemySpeed];
+    const ClassInfo* c = class_of(moby);
+
+    // The slider is at retail, this is an update inside another's (the time is scaled already), or
+    // the moby is not an enemy, a roamer or a turret: the game's own call.
+    if (k == 1.0 || state().timed_depth > 0 || c == nullptr
+        || (c->role != ClassRole::Enemy && c->role != ClassRole::Roamer
+            && c->role != ClassRole::Turret)) {
+        original(moby);
+        return;
+    }
+
+    const gaddr anim = moby + kMobyAnimSpeed;
+    auto it = state().anim.find(moby);
+
+    // Its animation speed is what the mod wrote last tick: give back the game's own, which the
+    // update may read or advance from.
+    if (it != state().anim.end() && get<float>(anim) == it->second.second) {
+        put<float>(anim, it->second.first);
+    }
+
+    run_with_scaled_tick(original, moby, k);
 
     // The moby is still alive and still the same class (its update may have freed or reused the
     // slot): scale its animation speed, and remember what it was.
@@ -659,8 +666,8 @@ void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
     }
 }
 
-// One update hook point's replacement: the originals are kept by index in state().update_original, and
-// the hook gets a plain function for each index.
+// One update hook point's replacement: the originals are kept by index in
+// state().update_original, and the hook gets a plain function for each index.
 template <int I>
 void update_thunk(std::uint32_t moby) {
     timed_update(state().update_original[I], moby);
@@ -707,9 +714,18 @@ void keep_max_health() {
     }
 
     const gaddr upgrades = exe(state().disc->upgrades);
-    const int retail = get<std::uint8_t>(upgrades + kUpgradeUltra)     ? kCellsUltra
-                       : get<std::uint8_t>(upgrades + kUpgradePremium) ? kCellsPremium
-                                                                       : kCellsBase;
+    int retail = kCellsBase;
+
+    // Premium Nanotech is bought.
+    if (get<std::uint8_t>(upgrades + kUpgradePremium) != 0) {
+        retail = kCellsPremium;
+    }
+
+    // Ultra Nanotech is bought: it is the better of the two.
+    if (get<std::uint8_t>(upgrades + kUpgradeUltra) != 0) {
+        retail = kCellsUltra;
+    }
+
     const int target =
         difficulty::max_health(retail, state().session.active[difficulty::kMaxHealth]);
     const gaddr max = exe(state().disc->max_health);
@@ -1028,42 +1044,32 @@ Fixups read_fixups(gaddr hdr, gaddr table, const difficulty::Pool& pool) {
     return out;
 }
 
-// The enemy count slider, at a level's load: with k below 1 some enemies are deleted, with k above
-// 1 copies are made beside the enemies that are free of the level's scripts, within the pool's
-// budget. Leaves the level as it is when the pool or the file is not as expected.
-void adjust_enemies(int level) {
-    const double k = state().session.level[difficulty::kEnemyCount];
-
-    // The slider is at retail.
-    if (k == 1.0) {
-        return;
-    }
-
-    const difficulty::PoolGlobals at =
-        {level0(state().disc->pool),
-         level0(state().disc->pool + kPoolSpare),
-         level0(state().disc->pool + kPoolEnd),
-         level0(state().disc->pool + kPoolPvars)};
-    const difficulty::Pool pool = difficulty::Pool::read(mem(), at);
-    const gaddr hdr = get<std::uint32_t>(level0(state().disc->load_state) + kLoadStateHeader);
-
-    // The pool or the gameplay file is not as laid out: a wrong guess here would corrupt the level.
-    if (!pool.sane() || hdr == 0) {
-        state().mod->warn("enemy count: the level's moby pool is not as expected; left as it is");
-        return;
-    }
-
-    // The gameplay file, still in memory: each placement's flags and pvar block, the pvar table
-    // (+0x54: each block's address and size) and its two fix-up lists.
-    const gaddr section = hdr + get<std::uint32_t>(hdr + kFilePlacements);
-    const gaddr table = hdr + get<std::uint32_t>(hdr + kFilePvarTable);
-    const std::unordered_map<std::uint32_t, Placement> by_pvars =
-        read_placements(hdr, section, table);
-    const Fixups fix = read_fixups(hdr, table, pool);
-
+// What the enemy count slider found among the level's placed mobys: the enemies to copy and what
+// each asks for, and how many were left out and how many were free of the level's scripts.
+struct Candidates {
+    // The enemies to copy, with the copies each asks for in `asks` (the same order).
     std::vector<Wanted> wanted;
     std::vector<difficulty::CloneAsk> asks;
-    int dropped = 0, eligible = 0;
+    // Enemies deleted (the slider is below 1) and enemies free of the level's scripts.
+    int dropped = 0;
+    int eligible = 0;
+};
+
+// Goes through the placed mobys of `pool` once: with `k` below 1 each eligible enemy is left out by
+// chance, with `k` above 1 the eligible enemies are listed with the copies they ask for. `table` is
+// the gameplay file's pvar table.
+Candidates pick_candidates(
+    double k,
+    const difficulty::Pool& pool,
+    const std::unordered_map<std::uint32_t, Placement>& by_pvars,
+    const Fixups& fix,
+    gaddr table
+) {
+    Candidates found;
+    std::vector<Wanted>& wanted = found.wanted;
+    std::vector<difficulty::CloneAsk>& asks = found.asks;
+    int& dropped = found.dropped;
+    int& eligible = found.eligible;
 
     // Each placed moby of the pool, up to the first spawned one.
     for (gaddr m = pool.base; m < pool.spare; m += difficulty::kMobySize) {
@@ -1120,6 +1126,107 @@ void adjust_enemies(int level) {
         );
     }
 
+    return found;
+}
+
+// How many copies were made and how many had no clear spot.
+struct Placed {
+    int made = 0;
+    int no_spot = 0;
+};
+
+// Makes the copies `plan` gives each enemy of `wanted`, each at a clear spot beside it, and
+// watches them (state().watch). `room` and `room_left` are the pvar room from reserve_tail.
+Placed place_copies(
+    const std::vector<Wanted>& wanted,
+    const difficulty::ClonePlan& plan,
+    const Fixups& fix,
+    gaddr* room,
+    std::uint32_t* room_left
+) {
+    Placed placed;
+    int& made = placed.made;
+    int& no_spot = placed.no_spot;
+
+    // Each enemy that is to be copied.
+    for (std::size_t i = 0; i < wanted.size(); ++i) {
+        // Each copy the plan gives it.
+        for (int c = 0; c < plan.copies[i]; ++c) {
+            float spot[3];
+
+            // No clear spot beside it for this copy: the next one.
+            if (!find_spot(wanted[i].moby, c, spot)) {
+                ++no_spot;
+                continue;
+            }
+
+            const auto in = fix.inner.find(wanted[i].block);
+            static const std::vector<std::uint32_t> none;
+
+            const gaddr m = copy_moby(
+                wanted[i].moby,
+                wanted[i].cls,
+                spot,
+                wanted[i].size,
+                in == fix.inner.end() ? none : in->second,
+                room,
+                room_left
+            );
+
+            // The game or the pvar room is out of space: no more copies of this enemy.
+            if (m == 0) {
+                break;
+            }
+
+            state().watch.push_back(
+                {m, wanted[i].moby, wanted[i].cls, {spot[0], spot[1], spot[2]}}
+            );
+            ++made;
+        }
+    }
+
+    return placed;
+}
+
+// The enemy count slider, at a level's load: with k below 1 some enemies are deleted, with k above
+// 1 copies are made beside the enemies that are free of the level's scripts, within the pool's
+// budget. Leaves the level as it is when the pool or the file is not as expected.
+void adjust_enemies(int level) {
+    const double k = state().session.level[difficulty::kEnemyCount];
+
+    // The slider is at retail.
+    if (k == 1.0) {
+        return;
+    }
+
+    const difficulty::PoolGlobals at =
+        {level0(state().disc->pool),
+         level0(state().disc->pool + kPoolSpare),
+         level0(state().disc->pool + kPoolEnd),
+         level0(state().disc->pool + kPoolPvars)};
+    const difficulty::Pool pool = difficulty::Pool::read(mem(), at);
+    const gaddr hdr = get<std::uint32_t>(level0(state().disc->load_state) + kLoadStateHeader);
+
+    // The pool or the gameplay file is not as laid out: a wrong guess here would corrupt the level.
+    if (!pool.sane() || hdr == 0) {
+        state().mod->warn("enemy count: the level's moby pool is not as expected; left as it is");
+        return;
+    }
+
+    // The gameplay file, still in memory: each placement's flags and pvar block, the pvar table
+    // (+0x54: each block's address and size) and its two fix-up lists.
+    const gaddr section = hdr + get<std::uint32_t>(hdr + kFilePlacements);
+    const gaddr table = hdr + get<std::uint32_t>(hdr + kFilePvarTable);
+    const std::unordered_map<std::uint32_t, Placement> by_pvars =
+        read_placements(hdr, section, table);
+    const Fixups fix = read_fixups(hdr, table, pool);
+
+    Candidates found = pick_candidates(k, pool, by_pvars, fix, table);
+    std::vector<Wanted>& wanted = found.wanted;
+    std::vector<difficulty::CloneAsk>& asks = found.asks;
+    const int dropped = found.dropped;
+    const int eligible = found.eligible;
+
     // Fewer enemies is done: nothing is copied.
     if (k < 1.0) {
         state().mod->info(
@@ -1148,44 +1255,9 @@ void adjust_enemies(int level) {
         room_left = 0;
     }
 
-    int made = 0, no_spot = 0;
-
-    // Each enemy that is to be copied.
-    for (std::size_t i = 0; i < wanted.size(); ++i) {
-        // Each copy the plan gives it.
-        for (int c = 0; c < plan.copies[i]; ++c) {
-            float spot[3];
-
-            // No clear spot beside it for this copy: the next one.
-            if (!find_spot(wanted[i].moby, c, spot)) {
-                ++no_spot;
-                continue;
-            }
-
-            const auto in = fix.inner.find(wanted[i].block);
-            static const std::vector<std::uint32_t> none;
-
-            const gaddr m = copy_moby(
-                wanted[i].moby,
-                wanted[i].cls,
-                spot,
-                wanted[i].size,
-                in == fix.inner.end() ? none : in->second,
-                &room,
-                &room_left
-            );
-
-            // The game or the pvar room is out of space: no more copies of this enemy.
-            if (m == 0) {
-                break;
-            }
-
-            state().watch.push_back(
-                {m, wanted[i].moby, wanted[i].cls, {spot[0], spot[1], spot[2]}}
-            );
-            ++made;
-        }
-    }
+    const Placed placed = place_copies(wanted, plan, fix, &room, &room_left);
+    const int made = placed.made;
+    const int no_spot = placed.no_spot;
 
     state().mod->info(
         "level " + std::to_string(level) + ": " + std::to_string(made) + " copies of "
@@ -1377,6 +1449,30 @@ void on_frame() {
     keep_max_health();
 }
 
+// Takes the hook points every slider needs: one this OpenRAC lacks refuses the mod, naming it.
+void take_hooks(openrac::Mod& mod) {
+    take<TakeDamage>(mod, [](auto original, std::int32_t amount) {
+        take_damage(original, amount);
+    });
+    take<GetHit>(mod, [](auto original, std::uint32_t m, std::int32_t mask, std::int32_t keep) {
+        return get_hit(original, m, mask, keep);
+    });
+    take<TakeAmmo>(mod, [](auto original, std::int32_t item, std::int32_t amount) {
+        return take_ammo(original, item, amount);
+    });
+    take<RecordDeath>(
+        mod, [](auto original, std::uint32_t m, std::int32_t flags, std::int32_t index) {
+            record_death(original, m, flags, index);
+        }
+    );
+    take<LoadGameplay>(mod, [](auto original, std::int32_t full) {
+        return load_gameplay(original, full);
+    });
+    take<ApproachSpeed>(mod, [](auto original, float up, float down) {
+        approach_speed(original, up, down);
+    });
+}
+
 }  // namespace
 
 // The rac1 part's entry (game.h): checks the disc, reads the settings, takes the functions and the
@@ -1408,27 +1504,7 @@ void load(openrac::Mod& mod) {
         state().disc->line
     );
 
-    // The hook points every slider needs: one this OpenRAC lacks refuses the mod, naming it.
-    take<TakeDamage>(mod, [](auto original, std::int32_t amount) {
-        take_damage(original, amount);
-    });
-    take<GetHit>(mod, [](auto original, std::uint32_t m, std::int32_t mask, std::int32_t keep) {
-        return get_hit(original, m, mask, keep);
-    });
-    take<TakeAmmo>(mod, [](auto original, std::int32_t item, std::int32_t amount) {
-        return take_ammo(original, item, amount);
-    });
-    take<RecordDeath>(
-        mod, [](auto original, std::uint32_t m, std::int32_t flags, std::int32_t index) {
-            record_death(original, m, flags, index);
-        }
-    );
-    take<LoadGameplay>(mod, [](auto original, std::int32_t full) {
-        return load_gameplay(original, full);
-    });
-    take<ApproachSpeed>(mod, [](auto original, float up, float down) {
-        approach_speed(original, up, down);
-    });
+    take_hooks(mod);
 
     // The catalogue's updates: the enemies' (their speed) and the nanotech orb's (health pickups).
     // One a disc lacks only leaves that class at its own speed: logged, not refused.
