@@ -131,7 +131,7 @@ static int reachable(const sweep* w, int difficulty, size_t i) {
     if (s_legacy_items) {
         if (l->kind==LOC_SPECIAL && l->key!=5) return 0;
         if (l->kind==LOC_SPECIAL && l->key==5) {
-            need=BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT); planets=1u<<LEVEL_HOVEN;
+            need=BIT(ITEM_HELI_PACK) | BIT(ITEM_TRESPASSER); planets=1u<<LEVEL_HOVEN;
         }
         if (l->kind==LOC_GIVE && l->key==ITEM_SONIC_SUMMONER) need=BIT(ITEM_HOVERBOARD);
         need &= ~(SPECIAL_BIT(SPECIAL_ZOOMERATOR) | SPECIAL_BIT(SPECIAL_CODEBOT));

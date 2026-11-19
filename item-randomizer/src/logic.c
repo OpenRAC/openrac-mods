@@ -238,17 +238,18 @@ const rando_location rando_locations[] = {
     // of them (hero_high_jump_input, update_hero_idle_and_item_input), so only that opens the gap.
     GIVE_G("Kerwan: Big Al", LEVEL_KERWAN, ITEM_HELI_PACK, 8, 0, 0, 0),
     VENDOR("Kerwan: the vendor's Blaster", LEVEL_KERWAN, ITEM_BLASTER, 8, 0),
-    GIVE_G("Kerwan: Helga", LEVEL_KERWAN, ITEM_SWINGSHOT, 9, 0, HELI, 0),
+    // Helga: the fitness course is play-tested without the Heli-Pack, despite the hint above.
+    GIVE_G("Kerwan: Helga", LEVEL_KERWAN, ITEM_SWINGSHOT, 9, 0, 0, 0),
     INFOBOT("Kerwan: the infobot", LEVEL_KERWAN, 3, LEVEL_EUDORA, 10, WALK, 0),
     GOLDBOLT("Kerwan: gold bolt 1", LEVEL_KERWAN, 0, 11),
     GOLDBOLT("Kerwan: gold bolt 2", LEVEL_KERWAN, 1, 11),
     GOLDBOLT("Kerwan: gold bolt 3", LEVEL_KERWAN, 2, 11),
 
-    // Eudora: "You'll need a Gadgetron Trespasser to get past this security door": the game does
-    // not say what lies behind it, so the Suck Cannon asks for it too. Blarg's coordinates are
-    // behind it: played without one, they cannot be had (issue #25).
+    // Eudora: "You'll need a Gadgetron Trespasser to get past this security door". Play-tested:
+    // the warp pad needs only the Heli-Pack (hard); the door's Trespasser stays soft. Blarg's
+    // coordinates are behind the door (issue #25).
     VENDOR("Eudora: the vendor's Glove of Doom", LEVEL_EUDORA, ITEM_GLOVE_OF_DOOM, 12, LOCF_PRICEY),
-    GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, WALK | TRESP, 0),
+    GIVE_W("Eudora: the warp pad", LEVEL_EUDORA, ITEM_SUCK_CANNON, 12, 0, HELI, TRESP),
     FIXED(
         "Eudora: the coordinates of Blarg",
         LEVEL_EUDORA,
@@ -270,18 +271,18 @@ const rando_location rando_locations[] = {
         ITEM_HYDRODISPLACER,
         14,
         0,
-        WALK | TRESP,
+        TRESP,
         0
     ),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, WALK, 0),
-    INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, WALK, 0),
+    INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, 0, 0),
     FIXED(
         "Blarg: the shuttle, the coordinates of Rilgar",
         LEVEL_BLARG,
         PLANET(LEVEL_RILGAR),
         16,
         0,
-        WALK,
+        0,
         0
     ),
     GOLDBOLT("Blarg: gold bolt 1", LEVEL_BLARG, 0, 17),
@@ -290,14 +291,14 @@ const rando_location rando_locations[] = {
     // Rilgar: "You need a Hoverboard to race", "Bribe Bouncer with 4,000 bolts"; "Purchase the
     // R.Y.N.O." for 150,000 bolts.
     VENDOR("Rilgar: the vendor's Mine Glove", LEVEL_RILGAR, ITEM_MINE_GLOVE, 18, LOCF_PRICEY),
-    GIVE_W("Rilgar: the shady salesman", LEVEL_RILGAR, ITEM_RYNO, 18, LOCF_COSTLY, WALK, 0),
+    GIVE_W("Rilgar: the shady salesman", LEVEL_RILGAR, ITEM_RYNO, 18, LOCF_COSTLY, HELI, 0),
     FIXED(
         "Rilgar: the bouncer, the coordinates of Umbris",
         LEVEL_RILGAR,
         PLANET(LEVEL_UMBRIS),
         19,
         0,
-        HOVER | WALK,
+        WALK,
         0
     ),
     GOLDBOLT("Rilgar: gold bolt 1", LEVEL_RILGAR, 0, 20),
@@ -317,11 +318,11 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Umbris: gold bolt 1", LEVEL_UMBRIS, 0, 23),
     GOLDBOLT("Umbris: gold bolt 2", LEVEL_UMBRIS, 1, 23),
 
-    // Batalia: "There is nothing you can do here without a pair of Grindboots". The commando at the
-    // turret gives the Metal Detector and Orxon, the deserter sells Gaspar.
+    // Batalia: "There is nothing you can do here without a pair of Grindboots". Play-tested: the
+    // turret needs Magneboots, Orxon nothing, the deserter Grindboots (hard); the hint stays soft.
     VENDOR("Batalia: the vendor's Devastator", LEVEL_BATALIA, ITEM_DEVASTATOR, 24, LOCF_COSTLY),
     GIVE_G(
-        "Batalia: the turret's commando", LEVEL_BATALIA, ITEM_METAL_DETECTOR, 24, 0, GRIND | WALK, 0
+        "Batalia: the turret's commando", LEVEL_BATALIA, ITEM_METAL_DETECTOR, 24, 0, MAGNE, GRIND
     ),
     FIXED(
         "Batalia: the commando, the coordinates of Orxon",
@@ -329,8 +330,8 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_ORXON),
         25,
         0,
-        GRIND | WALK,
-        0
+        0,
+        GRIND
     ),
     FIXED(
         "Batalia: the deserter, the coordinates of Gaspar",
@@ -338,7 +339,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_GASPAR),
         25,
         0,
-        GRIND | WALK,
+        GRIND,
         0
     ),
     GOLDBOLT("Batalia: gold bolt 1", LEVEL_BATALIA, 0, 26),
@@ -346,7 +347,7 @@ const rando_location rando_locations[] = {
 
     // Gaspar: "Find the Pilot's Helmet".
     VENDOR("Gaspar: the vendor's Walloper", LEVEL_GASPAR, ITEM_WALLOPER, 27, LOCF_PRICEY),
-    GIVE_G("Gaspar: the Pilot's Helmet's pickup", LEVEL_GASPAR, ITEM_PILOTS_HELMET, 27, 0, WALK, 0),
+    GIVE_G("Gaspar: the Pilot's Helmet's pickup", LEVEL_GASPAR, ITEM_PILOTS_HELMET, 27, 0, HELI, 0),
     GOLDBOLT("Gaspar: gold bolt 1", LEVEL_GASPAR, 0, 28),
     GOLDBOLT("Gaspar: gold bolt 2", LEVEL_GASPAR, 1, 28),
 
@@ -366,27 +367,28 @@ const rando_location rando_locations[] = {
     // this plane", "Destroy Blarg ships for O2 Mask": the mask takes all of them. The Persuader
     // trade consumes the player's real Raritanium even when its reward is shuffled.
     VENDOR("Pokitaru: the vendor's Decoy Glove", LEVEL_POKITARU, ITEM_DECOY_GLOVE, 30, LOCF_PRICEY),
-    GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 30, 0, WALK, 0),
+    GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 30, 0, HELI, 0),
     GIVE_G(
-        "Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 31, 0, THRUST | HELMET | WALK, 0
+        "Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 31, 0, THRUST | HELMET | HELI, 0
     ),
     {"Pokitaru: the Persuader", LOC_SPECIAL, LEVEL_POKITARU, 5, POOL_ITEMS,
-     ITEM(ITEM_PERSUADER), 36, 0, SPECIAL_BIT(SPECIAL_RARITANIUM) | WALK, 0, 0, 0},
+     ITEM(ITEM_PERSUADER), 36, 0, SPECIAL_BIT(SPECIAL_RARITANIUM) | HELI | TRESP, 0, 0, 0},
     GOLDBOLT("Pokitaru: gold bolt", LEVEL_POKITARU, 0, 33),
 
     // Hoven: "With this Hydro-Pack, Ratchet can travel more quickly underwater. Get it, you'll need
     // it." "You need a Devastator to take out that helicopter!" (play expects it; the game's hint,
     // not a wall).
     VENDOR("Hoven: the vendor's Drone Device", LEVEL_HOVEN, ITEM_DRONE_DEVICE, 37, LOCF_PRICEY),
-    GIVE_G("Hoven: Edwina", LEVEL_HOVEN, ITEM_HYDRO_PACK, 37, 0, WALK, 0),
+    // The flooded route to Edwina requires the Hydrodisplacer at every difficulty.
+    GIVE_G("Hoven: Edwina", LEVEL_HOVEN, ITEM_HYDRO_PACK, 37, 0, HYDRO | HELI, 0),
     FIXED(
         "Hoven: the coordinates of Gemlik",
         LEVEL_HOVEN,
         PLANET(LEVEL_GEMLIK),
         38,
         0,
-        GRIND | HYDROPACK | WALK,
-        DEVAST
+        HELI,
+        DEVAST | HYDROPACK
     ),
     GOLDBOLT("Hoven: gold bolt 1", LEVEL_HOVEN, 0, 39),
     GOLDBOLT("Hoven: gold bolt 2", LEVEL_HOVEN, 1, 39),
@@ -401,7 +403,7 @@ const rando_location rando_locations[] = {
         40,
         0,
         MAGNE | HELMET | WALK,
-        0,
+        TRESP,
         DEVAST | VISI,
         0
     ),
@@ -410,9 +412,9 @@ const rando_location rando_locations[] = {
     // Oltanis: "Purchase Gadgetron PDA from 'Steve'", the Morph-o-Ray's pickup, "Buy Infobot from
     // scrap merchant" (Sam).
     VENDOR("Oltanis: the vendor's Tesla Claw", LEVEL_OLTANIS, ITEM_TESLA_CLAW, 41, LOCF_COSTLY),
-    GIVE_G("Oltanis: the PDA's seller", LEVEL_OLTANIS, ITEM_PDA, 41, 0, WALK, 0),
+    GIVE_G("Oltanis: the PDA's seller", LEVEL_OLTANIS, ITEM_PDA, 41, 0, MAGNE, 0),
     GIVE_W(
-        "Oltanis: the Morph-o-Ray's pickup", LEVEL_OLTANIS, ITEM_MORPH_O_RAY, 42, 0, MAGNE | WALK, 0
+        "Oltanis: the Morph-o-Ray's pickup", LEVEL_OLTANIS, ITEM_MORPH_O_RAY, 42, 0, SWING, 0
     ),
     FIXED(
         "Oltanis: Sam, the coordinates of Quartu",
@@ -420,7 +422,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_QUARTU),
         43,
         0,
-        MAGNE | WALK,
+        GRIND | SWING,
         0
     ),
     GOLDBOLT("Oltanis: gold bolt 1", LEVEL_OLTANIS, 0, 44),
@@ -428,11 +430,10 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Oltanis: gold bolt 3", LEVEL_OLTANIS, 2, 44),
     GOLDBOLT("Oltanis: gold bolt 4", LEVEL_OLTANIS, 3, 44),
 
-    // Quartu: "Find out more about the Ultra-Mech" (the scientist). "You'll need the Gadgetron
-    // Hologuise to explore the factory" and "You will need a Hydro-Pack upgrade to swim through
-    // those Tri-Rings and open the door", on the way to the secure area and Drek's Fleet.
+    // Quartu: the swimming route to the Bolt Grabber needs Hydro-Pack; the
+    // scientist needs Swingshot. The disguise route needs Hologuise and Thruster-Pack.
     GIVE_X(
-        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, POOL_ITEMS, 45, 0, MAGNE | WALK, 0, 0, 0
+        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, POOL_ITEMS, 45, 0, HYDROPACK | O2, 0, 0, 0
     ),
     FIXED(
         "Quartu: the scientist, the coordinates of Kalebo III",
@@ -440,7 +441,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_KALEBO),
         46,
         0,
-        MAGNE | WALK,
+        SWING,
         0
     ),
     FIXED(
@@ -449,8 +450,8 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_FLEET),
         50,
         0,
-        HOLO | HYDROPACK | MAGNE | WALK,
-        0
+        HOLO | THRUST | WALK,
+        HYDROPACK
     ),
     GOLDBOLT("Quartu: gold bolt 1", LEVEL_QUARTU, 0, 49),
     GOLDBOLT("Quartu: gold bolt 2", LEVEL_QUARTU, 1, 49),
@@ -463,23 +464,23 @@ const rando_location rando_locations[] = {
         ITEM_HOLOGUISE,
         47,
         0,
-        HOVER | GRIND | MAGNE | WALK,
+        HOVER | GRIND | WALK,
         0
     ),
-    GIVE_X("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, POOL_ITEMS, 48, 0, GRIND | WALK, 0, 0, 0),
+    GIVE_X("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, POOL_ITEMS, 48, 0, GRIND | SWING, 0, 0, 0),
     GOLDBOLT("Kalebo III: gold bolt 1", LEVEL_KALEBO, 0, 49),
     GOLDBOLT("Kalebo III: gold bolt 2", LEVEL_KALEBO, 1, 49),
 
-    // Drek's Fleet: "This huge tanker ... you'll need to use your Hydro-Pack to get through
-    // something this big", "Swim through the water tanker" (the O2 Mask breathes underwater).
+    // Drek's Fleet: the CodeBot's water route needs Hydro-Pack and O2 Mask.
+    // The infobot route has no Hydro-Pack gate; Heli-Pack is expected outside Expert.
     INFOBOT(
         "Drek's Fleet: the infobot",
         LEVEL_FLEET,
         3,
         LEVEL_VELDIN2,
         51,
-        MAGNE | HYDROPACK | O2 | WALK,
-        0
+        MAGNE | O2 | SWING,
+        HELI | HYDROPACK
     ),
     GOLDBOLT("Drek's Fleet: gold bolt 1", LEVEL_FLEET, 0, 52),
     GOLDBOLT("Drek's Fleet: gold bolt 2", LEVEL_FLEET, 1, 52),
@@ -489,7 +490,7 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Veldin (return): gold bolt 2", LEVEL_VELDIN2, 1, 53),
     GOLDBOLT("Veldin (return): gold bolt 3", LEVEL_VELDIN2, 2, 53),
     FIXED(
-        "Veldin (return): Drek", LEVEL_VELDIN2, NONE, 54, LOCF_GOAL, MAGNE | GRIND | O2 | WALK, 0
+        "Veldin (return): Drek", LEVEL_VELDIN2, NONE, 54, LOCF_GOAL, MAGNE | TRESP | HYDRO | THRUST | WALK, O2
     ),
 #ifdef ITEM_RANDOMIZER_EXTENDED_POOLS
     {"Gold weapon case: Bomb Glove",
@@ -614,11 +615,11 @@ const rando_location rando_locations[] = {
      0},
 #endif
     {"Rilgar: the Hoverboard race", LOC_SPECIAL, LEVEL_RILGAR, 0, POOL_ITEMS,
-     {REWARD_SPECIAL, SPECIAL_ZOOMERATOR}, 16, 0, HOVER | WALK, 0, 0, 0},
+     {REWARD_SPECIAL, SPECIAL_ZOOMERATOR}, 16, 0, HOVER | HELI, 0, 0, 0},
     {"Hoven: the Foreman's Raritanium", LOC_SPECIAL, LEVEL_HOVEN, 1, POOL_ITEMS,
-     {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, HYDROPACK | WALK, 0, 0, 0},
+     {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, WALK, HYDROPACK, 0, 0},
     {"Drek's Fleet: the CodeBot", LOC_SPECIAL, LEVEL_FLEET, 2, POOL_ITEMS,
-     {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, MAGNE | HYDROPACK | O2 | WALK, 0, 0, 0},
+     {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, HYDROPACK | O2, 0, 0, 0},
     {"Orxon: Premium Nanotech", LOC_SPECIAL, LEVEL_ORXON, 3, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_PREMIUM_NANOTECH}, 35, LOCF_PRICEY, O2 | WALK, 0, 0, 0},
     {"Orxon: Ultra Nanotech", LOC_SPECIAL, LEVEL_ORXON, 4, POOL_ITEMS,

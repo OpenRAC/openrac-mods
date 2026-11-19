@@ -31,6 +31,9 @@ static int is_progression(rando_reward r) {
            || (r.kind == REWARD_ITEM && (rando_progression_items & BIT(r.value)) != 0);
 }
 
+/* Items the game's hints ask for: required except on expert (logic.c's soft). */
+static uint64_t soft(int d, uint64_t items) { return d == DIFFICULTY_EXPERT ? 0 : items; }
+
 static uint64_t plan_hash(const rando_plan* p) {
     uint64_t h = 0xCBF29CE484222325ull;
 
@@ -50,6 +53,64 @@ static void check_tables(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* a = &rando_locations[i];
         CHECK(a->name != NULL && a->level < LEVEL_COUNT);
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            const uint64_t heli = BIT(ITEM_HELI_PACK), swing = BIT(ITEM_SWINGSHOT);
+            if (!strcmp(a->name, "Kalebo III: the Gadgetron CEO's race"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HOVERBOARD) | BIT(ITEM_GRINDBOOTS) | heli | swing));
+            if (!strcmp(a->name, "Kalebo III: the help desk"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | swing));
+            if (!strcmp(a->name, "Drek's Fleet: the infobot"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing
+                    | soft(d, heli | BIT(ITEM_HYDRO_PACK))));
+            if (!strcmp(a->name, "Drek's Fleet: the CodeBot")
+                || !strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
+            if (!strcmp(a->name, "Veldin (return): Drek"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_TRESPASSER)
+                    | BIT(ITEM_HYDRODISPLACER) | BIT(ITEM_THRUSTER_PACK) | heli | swing
+                    | (d == DIFFICULTY_EXPERT ? 0 : BIT(ITEM_O2_MASK))));
+        }
+
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS)));
+            if (!strcmp(a->name, "Oltanis: the Morph-o-Ray's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
+            if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
+            if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
+            if (!strcmp(a->name, "Quartu: the scientist, the coordinates of Kalebo III")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
+            if (!strcmp(a->name, "Quartu: in disguise, the coordinates of Drek's Fleet")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HOLOGUISE) | BIT(ITEM_THRUSTER_PACK) | BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT) | soft(d, BIT(ITEM_HYDRO_PACK))));
+        }
+
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            if (!strcmp(a->name, "Hoven: the coordinates of Gemlik")) {
+                const uint64_t expected = BIT(ITEM_HELI_PACK)
+                    | soft(d, BIT(ITEM_DEVASTATOR) | BIT(ITEM_HYDRO_PACK));
+                CHECK(rando_requirement(d, i) == expected);
+            }
+            if (!strcmp(a->name, "Hoven: the Foreman's Raritanium")) {
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT)
+                    | soft(d, BIT(ITEM_HYDRO_PACK))));
+            }
+            if (!strcmp(a->name, "Gemlik: the coordinates of Oltanis")) {
+                CHECK(((rando_requirement(d, i) & BIT(ITEM_TRESPASSER)) != 0)
+                    == (d != DIFFICULTY_EXPERT));
+            }
+        }
+
+        if (!strcmp(a->name, "Aridia: gold bolt 3")) {
+            for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+                CHECK(rando_requirement(d, i) & BIT(ITEM_MAGNEBOOTS));
+            }
+        }
+        if (!strcmp(a->name, "Novalis: gold bolt 2")) {
+            for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+                CHECK(rando_requirement(d, i) & BIT(ITEM_HYDRO_PACK));
+            }
+        }
+        if (!strcmp(a->name, "Hoven: gold bolt 2")) {
+            for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+                CHECK(rando_requirement(d, i) & BIT(ITEM_HYDRODISPLACER));
+            }
+        }
         goals += (a->flags & LOCF_GOAL) != 0;
         CHECK((a->kind == LOC_FIXED) == (a->pool == 0));
 
@@ -135,7 +196,7 @@ static void check_tables(void) {
 static void check_plan(const rando_settings* s, const rando_plan* p) {
     CHECK(rando_beatable(p, NULL));
     /* The shuffled locations' rewards are their vanilla rewards, moved; the rest are as the game has them. */
-    int count[5][64];
+    int count[REWARD_SPECIAL + 1][64];
     memset(count, 0, sizeof count);
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -166,9 +227,261 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
 
     CHECK(rando_stranded(p) == 0);
 
-    for (int k = 0; k < 5; ++k) {
+    for (int k = 0; k <= REWARD_SPECIAL; ++k) {
         for (int v = 0; v < 64; ++v) {
             CHECK(count[k][v] == 0);
+        }
+    }
+}
+
+/* Hoven is already unlocked: the water obstacle still blocks Edwina.
+ * Giving the Hydrodisplacer from an independent location must then open her check. */
+static void check_edwina_water_route(void) {
+    rando_plan p = {0};
+    int edwina = -1, start = -1, provider = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        p.reward[i] = rando_locations[i].vanilla;
+        if (!strcmp(rando_locations[i].name, "Hoven: Edwina")) edwina = (int)i;
+        if (rando_locations[i].kind == LOC_START) start = (int)i;
+        if (!strcmp(rando_locations[i].name, "Novalis: the vendor's Pyrocitor")) provider = (int)i;
+        if (p.reward[i].kind == REWARD_ITEM && (p.reward[i].value == ITEM_HYDRODISPLACER || p.reward[i].value == ITEM_SWINGSHOT))
+            p.reward[i] = (rando_reward){REWARD_NONE, 0};
+    }
+    CHECK(edwina >= 0 && start >= 0 && provider >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_HOVEN};
+    for (int difficulty = DIFFICULTY_RELAXED; difficulty <= DIFFICULTY_EXPERT; ++difficulty) {
+        p.settings.difficulty = (uint8_t)difficulty;
+        p.reward[provider] = (rando_reward){REWARD_NONE, 0};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[edwina] == -1);
+        p.reward[provider] = (rando_reward){REWARD_ITEM, ITEM_HYDRODISPLACER};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[edwina] >= 0);
+    }
+}
+
+/* Unlocking Kerwan alone is sufficient to reach Helga. No Heli-Pack reward
+ * exists anywhere in this plan, so inventory elsewhere cannot mask the rule. */
+static void check_helga_without_heli_pack(void) {
+    rando_plan p = {0};
+    int helga = -1, start = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (!strcmp(rando_locations[i].name, "Kerwan: Helga")) helga = (int)i;
+        if (rando_locations[i].kind == LOC_START) start = (int)i;
+    }
+    CHECK(helga >= 0 && start >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_KERWAN};
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        rando_beatable(&p, spheres);
+        CHECK(spheres[helga] >= 0);
+    }
+}
+
+/* On expert, Eudora's warp-pad pickup requires Heli-Pack alone: no Swingshot or
+ * Trespasser exists in this isolated playthrough (the others add the hinted Trespasser). */
+static void check_eudora_warp_pad(void) {
+    rando_plan p = {0};
+    int pickup = -1, start = -1, provider = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (!strcmp(l->name, "Eudora: the warp pad")) pickup = (int)i;
+        if (l->kind == LOC_START) start = (int)i;
+        if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+            && l->vanilla.value == LEVEL_NOVALIS) provider = (int)i;
+    }
+    CHECK(pickup >= 0 && start >= 0 && provider >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_EUDORA};
+    for (int d = DIFFICULTY_EXPERT; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        p.reward[provider] = (rando_reward){REWARD_NONE, 0};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[pickup] == -1);
+        p.reward[provider] = (rando_reward){REWARD_ITEM, ITEM_HELI_PACK};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[pickup] >= 0);
+    }
+}
+
+/* Isolate the three Rilgar routes, supplying only each route's required
+ * inventory. Omitted gadgets have no reward anywhere in these plans. */
+static void check_rilgar_routes(void) {
+    const char* names[] = {"Rilgar: the shady salesman",
+        "Rilgar: the bouncer, the coordinates of Umbris", "Rilgar: the Hoverboard race"};
+    const int extra[] = {0, ITEM_SWINGSHOT, ITEM_HOVERBOARD};
+    for (int route = 0; route < 3; ++route) {
+        rando_plan p = {0};
+        int target = -1, start = -1, heli = -1, supplier = -1;
+        int spheres[RANDO_MAX_LOCATIONS];
+        for (size_t i = 0; i < rando_location_count; ++i) {
+            const rando_location* l = &rando_locations[i];
+            if (!strcmp(l->name, names[route])) target = (int)i;
+            if (l->kind == LOC_START) start = (int)i;
+            if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+                && l->vanilla.value == LEVEL_NOVALIS) heli = (int)i;
+            if (l->kind == LOC_VENDOR && l->key == ITEM_MINE_GLOVE) supplier = (int)i;
+        }
+        CHECK(target >= 0 && start >= 0 && heli >= 0 && supplier >= 0);
+        p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_RILGAR};
+        if (extra[route]) p.reward[supplier] = (rando_reward){REWARD_ITEM, (uint8_t)extra[route]};
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            p.settings.difficulty = (uint8_t)d;
+            p.reward[heli] = (rando_reward){REWARD_NONE, 0};
+            rando_beatable(&p, spheres);
+            CHECK(spheres[target] == -1);
+            p.reward[heli] = (rando_reward){REWARD_ITEM, ITEM_HELI_PACK};
+            rando_beatable(&p, spheres);
+            CHECK(spheres[target] >= 0);
+        }
+    }
+}
+
+/* The Blarg Hydrodisplacer pickup needs Trespasser alone. */
+static void check_blarg_hydrodisplacer_pickup(void) {
+    rando_plan p = {0};
+    int target = -1, start = -1, provider = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (!strcmp(l->name, "Blarg: the Hydrodisplacer's pickup")) target = (int)i;
+        if (l->kind == LOC_START) start = (int)i;
+        if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+            && l->vanilla.value == LEVEL_NOVALIS) provider = (int)i;
+    }
+    CHECK(target >= 0 && start >= 0 && provider >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_BLARG};
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        p.reward[provider] = (rando_reward){REWARD_NONE, 0};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[target] == -1);
+        p.reward[provider] = (rando_reward){REWARD_ITEM, ITEM_TRESPASSER};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[target] >= 0);
+    }
+}
+
+/* Both Blarg coordinate records are reachable with planet access alone.
+ * No item rewards exist in this plan, including Heli-Pack and Swingshot. */
+static void check_blarg_infobot_routes(void) {
+    rando_plan p = {0};
+    int start = -1, infobot = -1, shuttle = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (l->kind == LOC_START) start = (int)i;
+        if (!strcmp(l->name, "Blarg: the infobot")) infobot = (int)i;
+        if (!strcmp(l->name, "Blarg: the shuttle, the coordinates of Rilgar")) shuttle = (int)i;
+    }
+    CHECK(start >= 0 && infobot >= 0 && shuttle >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_BLARG};
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        rando_beatable(&p, spheres);
+        CHECK(spheres[infobot] >= 0 && spheres[shuttle] >= 0);
+    }
+}
+
+/* On expert, isolated Batalia routes have only their one required gadget, or none
+ * (the others add the hinted Grindboots). */
+static void check_batalia_routes(void) {
+    const char* names[] = {"Batalia: the turret's commando",
+        "Batalia: the commando, the coordinates of Orxon",
+        "Batalia: the deserter, the coordinates of Gaspar"};
+    const int required[] = {ITEM_MAGNEBOOTS, 0, ITEM_GRINDBOOTS};
+    for (int route = 0; route < 3; ++route) {
+        rando_plan p = {0};
+        int target = -1, start = -1, provider = -1;
+        int spheres[RANDO_MAX_LOCATIONS];
+        for (size_t i = 0; i < rando_location_count; ++i) {
+            const rando_location* l = &rando_locations[i];
+            if (!strcmp(l->name, names[route])) target = (int)i;
+            if (l->kind == LOC_START) start = (int)i;
+            if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+                && l->vanilla.value == LEVEL_NOVALIS) provider = (int)i;
+        }
+        CHECK(target >= 0 && start >= 0 && provider >= 0);
+        p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_BATALIA};
+        for (int d = DIFFICULTY_EXPERT; d <= DIFFICULTY_EXPERT; ++d) {
+            p.settings.difficulty = (uint8_t)d;
+            p.reward[provider] = (rando_reward){REWARD_NONE, 0};
+            rando_beatable(&p, spheres);
+            CHECK((spheres[target] >= 0) == (required[route] == 0));
+            if (required[route]) {
+                p.reward[provider] = (rando_reward){REWARD_ITEM, (uint8_t)required[route]};
+                rando_beatable(&p, spheres);
+                CHECK(spheres[target] >= 0);
+            }
+        }
+    }
+}
+
+/* Gaspar's helmet route needs Heli-Pack but no Swingshot. */
+static void check_gaspar_helmet_route(void) {
+    rando_plan p = {0};
+    int target = -1, start = -1, provider = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (!strcmp(l->name, "Gaspar: the Pilot's Helmet's pickup")) target = (int)i;
+        if (l->kind == LOC_START) start = (int)i;
+        if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+            && l->vanilla.value == LEVEL_NOVALIS) provider = (int)i;
+    }
+    CHECK(target >= 0 && start >= 0 && provider >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_GASPAR};
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        p.reward[provider] = (rando_reward){REWARD_NONE, 0};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[target] == -1);
+        p.reward[provider] = (rando_reward){REWARD_ITEM, ITEM_HELI_PACK};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[target] >= 0);
+    }
+}
+
+/* Pokitaru routes omit Swingshot in both modern and legacy generation. */
+static void check_pokitaru_routes(void) {
+    const char* names[] = {"Pokitaru: Bob", "Pokitaru: the resort owner", "Pokitaru: the Persuader"};
+    for (int legacy = 0; legacy <= 1; ++legacy) {
+        for (int route = 0; route < 3; ++route) {
+            rando_plan p = {0};
+            int target = -1, start = -1, heli = -1, vendor = -1, bob = -1;
+            int spheres[RANDO_MAX_LOCATIONS];
+            for (size_t i = 0; i < rando_location_count; ++i) {
+                const rando_location* l = &rando_locations[i];
+                if (!strcmp(l->name, names[route])) target = (int)i;
+                if (l->kind == LOC_START) start = (int)i;
+                if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+                    && l->vanilla.value == LEVEL_NOVALIS) heli = (int)i;
+                if (l->kind == LOC_VENDOR && l->key == ITEM_DECOY_GLOVE) vendor = (int)i;
+                if (!strcmp(l->name, "Pokitaru: Bob")) bob = (int)i;
+            }
+            CHECK(target >= 0 && start >= 0 && heli >= 0 && vendor >= 0 && bob >= 0);
+            p.settings.legacy_items = (uint8_t)legacy;
+            p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_POKITARU};
+            p.reward[heli] = (rando_reward){REWARD_ITEM, ITEM_HELI_PACK};
+            if (route == 1) {
+                p.reward[vendor] = (rando_reward){REWARD_ITEM, ITEM_THRUSTER_PACK};
+            } else if (route == 2) {
+                p.reward[bob] = legacy ? (rando_reward){REWARD_PLANET, LEVEL_HOVEN}
+                    : (rando_reward){REWARD_SPECIAL, SPECIAL_RARITANIUM};
+            }
+            for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+                p.settings.difficulty = (uint8_t)d;
+                if (route == 1) p.reward[bob] = (rando_reward){REWARD_NONE, 0};
+                if (route == 2) p.reward[vendor] = (rando_reward){REWARD_NONE, 0};
+                rando_beatable(&p, spheres);
+                CHECK((spheres[target] >= 0) == (route == 0));
+                if (route == 1) p.reward[bob] = (rando_reward){REWARD_ITEM, ITEM_PILOTS_HELMET};
+                if (route == 2) p.reward[vendor] = (rando_reward){REWARD_ITEM, ITEM_TRESPASSER};
+                rando_beatable(&p, spheres);
+                CHECK(spheres[target] >= 0);
+            }
         }
     }
 }
@@ -177,6 +490,15 @@ int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
     check_tables();
+    check_edwina_water_route();
+    check_helga_without_heli_pack();
+    check_eudora_warp_pad();
+    check_rilgar_routes();
+    check_blarg_hydrodisplacer_pickup();
+    check_blarg_infobot_routes();
+    check_batalia_routes();
+    check_gaspar_helmet_route();
+    check_pokitaru_routes();
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
@@ -187,7 +509,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xe3bc7e659568b47eull);
+    CHECK(plan_hash(&p) == 0xcf044a2320f1889cull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
