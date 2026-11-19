@@ -381,6 +381,11 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_blarg_infobot_and_shuttle_need_no_movement_gadgets(self) -> None:
+        self.collect_by_name("Blarg Coordinates")
+        self.assertTrue(self.can_reach_location("Blarg: the infobot"))
+        self.assertTrue(self.can_reach_location("Blarg: the shuttle, the coordinates of Rilgar"))
+
     def test_blarg_hydrodisplacer_requires_only_trespasser(self) -> None:
         self.collect_by_name("Blarg Coordinates")
         self.assertFalse(self.can_reach_location("Blarg: the Hydrodisplacer's pickup"))

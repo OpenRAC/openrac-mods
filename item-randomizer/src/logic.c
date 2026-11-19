@@ -274,14 +274,14 @@ const rando_location rando_locations[] = {
         0
     ),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, WALK, 0),
-    INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, WALK, 0),
+    INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, 0, 0),
     FIXED(
         "Blarg: the shuttle, the coordinates of Rilgar",
         LEVEL_BLARG,
         PLANET(LEVEL_RILGAR),
         16,
         0,
-        WALK,
+        0,
         0
     ),
     GOLDBOLT("Blarg: gold bolt 1", LEVEL_BLARG, 0, 17),
