@@ -273,6 +273,7 @@ static uint32_t saved_checks(void) {
 static void save_checks(uint32_t bits) { set32(byte_at(s_disc->save_tag), (int32_t)(AP_CHECK_MAGIC | bits)); }
 static uint32_t gold_case_checks(void) { return saved_checks() & 0x3FFu; }
 static int npc_had(int index) { return (saved_checks() >> (10 + index)) & 1u; }
+static void npc_set_had(int index) { save_checks(saved_checks() | (1u << (10 + index))); }
 static uint8_t* gold_owned(int base) {
     return byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013E620u + base : 0x0013E520u + base);
 }
@@ -330,7 +331,7 @@ static void found(int location) {
     const rando_location* l = &rando_locations[location];
     if (l->kind == LOC_FIXED && l->vanilla.kind == REWARD_PLANET) {
         const int npc = ap_npc_index(l->level, l->vanilla.value);
-        if (npc >= 0) save_checks(saved_checks() | (1u << (10 + npc)));
+        if (npc >= 0) npc_set_had(npc);
     }
     s_seen[location] = 1;
     ap_client_check(ap_location_id(&rando_locations[location]));
@@ -595,7 +596,7 @@ static void planet_unlock(int32_t planet) {
 
     if (s_npc_running >= 0 && ap_client_npc_infobots() == 1
         && planet == k_ap_npcs[s_npc_running].planet) {
-        save_checks(saved_checks() | (1u << (10 + s_npc_running)));
+        npc_set_had(s_npc_running);
         *planet_flag(planet) = 1; /* only the NPC sees this; saves serialize real ownership */
         ap_client_check(ap_npc_id(s_npc_running));
         return;
