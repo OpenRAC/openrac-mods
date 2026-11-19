@@ -22,7 +22,13 @@
     "rac2.item.upgrade",
     "rac2.item.colors",
     "rac2.combat.post_hit",
-    "rac2.player.take_damage"
+    "rac2.player.take_damage",
+    "rac2.bolt.spawn_pickups",
+    "rac2.bolt.spawn_pickup",
+    "rac2.bolt.collect",
+    "rac2.item.version_color",
+    "rac2.text.by_id",
+    "rac2.vendor.draw_list"
   ],
   "settings": [
     {
