@@ -34,6 +34,7 @@ openrac::UiContent refused_content() {
     // The host's mod code: what gets this game the host's mods.
     const std::string code = s.in_party() ? g->mods->host_list().modcode : "";
 
+    // A host with a mod code gives this player buttons to open it in the launcher or copy it.
     if (!code.empty()) {
         c.items.push_back(openrac::UiItem::button(text(mp::kOpenInLauncher)));
         c.items.push_back(
@@ -43,7 +44,9 @@ openrac::UiContent refused_content() {
         c.items.push_back(openrac::UiItem::text(text(mp::kModCodeHint)));
     }
 
+    // The lines of what differs, as many as the page has room for.
     for (const std::string& line : mp::refusal_lines(differences)) {
+        // The page holds a fixed number of items; the rest are not shown.
         if (c.items.size() == OPENRAC_UI_ITEMS_MAX) {
             break;
         }
@@ -69,6 +72,7 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const bool in_party = g->session->in_party();
     const bool chose = e.is(OPENRAC_UI_CHOOSE) && e.item() == 0;
 
+    // Showing: note whether the page was opened in a party, and start with the code not copied.
     if (e.is(OPENRAC_UI_SHOW)) {
         g->refused_in_party = in_party;
         g->code_copied = false;
@@ -79,6 +83,7 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
         g->refusal.clear();
     }
 
+    // Open in launcher and Copy act on the host's mod code; item 0 is Leave party or Back.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefusedOpenItem) {
         // The player's own choice, on this page: the launcher then asks to close the game.
         g->mod->open_link(mp::mod_code_link(g->mods->host_list().modcode));
@@ -88,6 +93,7 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (chose && in_party) {
         leave_party();
     } else if (chose || e.is(OPENRAC_UI_BACK)) {
+        // Back from a party's refusal returns to the lobby; with no party, to the page before.
         if (in_party) {
             g->lobby.open();
         } else {

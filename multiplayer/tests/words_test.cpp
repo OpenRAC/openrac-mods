@@ -32,25 +32,30 @@ namespace {
 bool game_letters(std::string_view text) {
     const std::u32string accented = U"áàâäéèêëíìîïóòôöúùûüÁÀÂÄÉÈÊËÍÌÎÏÓÒÔÖÚÙÛÜÑñÇçß¡¿";
 
+    // Every character must be ASCII, a button glyph or one of the accented letters.
     for (std::size_t i = 0; i < text.size();) {
         const auto c = static_cast<unsigned char>(text[i++]);
 
+        // ASCII text and the two controller glyphs pass at once.
         if ((c >= 0x20 && c < 0x7F) || c == 0x10 || c == 0x12) {
             continue;
         }
 
+        // Anything else must be a two-byte UTF-8 sequence.
         if ((c & 0xE0) != 0xC0 || i == text.size()) {
             return false;
         }
 
         const auto next = static_cast<unsigned char>(text[i++]);
 
+        // The second byte of a sequence must be a continuation byte.
         if ((next & 0xC0) != 0x80) {
             return false;
         }
 
         const char32_t letter = ((c & 0x1F) << 6) | (next & 0x3F);
 
+        // A two-byte letter must be in the game's accented repertoire.
         if (accented.find(letter) == std::u32string::npos) {
             return false;
         }
@@ -59,9 +64,12 @@ bool game_letters(std::string_view text) {
     return true;
 }
 
+// Checks that every catalogue row has a distinct English text and a usable text in each language,
+// and that the lookups give the documented answers.
 void catalog() {
     std::set<std::string> english;
 
+    // A row holds one text in each of the five languages, English first.
     for (const mp::Words& row : mp::kWords) {
         CHECK(english.insert(row.text[0]).second);
 
@@ -80,6 +88,7 @@ void catalog() {
     CHECK(mp::translated(unknown, mp::Language::kGerman) == unknown);
     CHECK(std::strcmp(mp::translated("Join", static_cast<mp::Language>(99)), "Join") == 0);
 
+    // An index the port does not map to a language falls back to English.
     for (int index : {-1, 0, 1, 6, 99}) {
         CHECK(mp::language_from_game(index) == mp::Language::kEnglish);
     }
@@ -93,13 +102,17 @@ void catalog() {
     CHECK(mp::language_address("unknown") == 0);
 }
 
+// Checks that the status, hint, party, hosting, question, lobby and notice lines fit the byte limit
+// and the game's letters in every language.
 void pages() {
     using Mode = mp::Connection::Mode;
     using State = mp::Connection::State;
 
+    // Every page is checked in each of the five languages.
     for (unsigned i = 0; i < 5; ++i) {
         const auto lang = static_cast<mp::Language>(i);
 
+        // The status line is built for every combination of mode, state and flags.
         for (auto mode : {Mode::kNone, Mode::kServer, Mode::kDirect, Mode::kHosting}) {
             for (auto state :
                  {State::kIdle,
@@ -124,6 +137,7 @@ void pages() {
             }
         }
 
+        // A hint line holds the select glyph, and the back glyph only where the key names it.
         for (const char* key :
              {mp::kSelectBackHints, mp::kSelectLeaveHints, mp::kCodeHints, mp::kJoinHints}) {
             const std::string line = mp::translated(key, lang);
@@ -219,16 +233,19 @@ void pages() {
 // Commando and rounded up about 10%. A modelled line is within about 8% of the measured one.
 // Going Commando's panels are fixed (port/game/rac2/host/mod_pages.c), and the narrowest a game
 // uses: the title's box holds about 215 units in the large font (x1.13), the list's panel 380, and
-// the hint box under it, which holds the status and the footer's lines, 160 (165 modelled). Ratchet & Clank's
-// pages stretch to fit their texts (mod_ui.cpp's menu_fit), so these hold for both.
+// the hint box under it, which holds the status and the footer's lines, 160 (165 modelled).
+// Ratchet & Clank's pages stretch to fit their texts (mod_ui.cpp's menu_fit), so these hold for
+// both.
 constexpr double kTitleUnits = 215.0;
 constexpr double kListUnits = 380.0;
 constexpr double kFooterUnits = 165.0;
 constexpr double kLargeFont = 1.13;
 
+// Returns the modelled width of a text in screen units, kept a little above what was measured.
 double units(std::string_view text) {
     double total = 0;
 
+    // Each UTF-8 character is counted once, at the width of its class.
     for (const char ch : text) {
         const auto c = static_cast<unsigned char>(ch);
 
@@ -236,6 +253,7 @@ double units(std::string_view text) {
             continue;  // a UTF-8 continuation: the letter was counted
         }
 
+        // Characters fall into classes of width: narrow, medium, wide and the button glyphs.
         if (c == ' ') {
             total += 6;
         } else if (std::strchr("ijl'.,:;!|", ch) != nullptr) {
@@ -264,15 +282,21 @@ double units(std::string_view text) {
     return total;
 }
 
+// The number of lines that overflowed their box.
 int g_overflows = 0;
+// The overflows already reported, by place and text.
 std::set<std::string> g_reported;
 
+// Reports an overflow, once per place and text, when a line at a font scale is wider than its
+// budget.
 void fits(const char* where, std::string_view text, double budget, double font = 1.0) {
     const double width = units(text) * font;
 
+    // Only a line wider than its box is reported.
     if (width > budget) {
         const std::string key = std::string(where) + std::string(text);
 
+        // A text already reported at this place is not reported again.
         if (!g_reported.insert(key).second) {
             return;
         }
@@ -290,18 +314,22 @@ void fits(const char* where, std::string_view text, double budget, double font =
     }
 }
 
+// Checks a line against the title box, which uses the large font.
 void title(const char* where, std::string_view text) {
     fits(where, text, kTitleUnits, kLargeFont);
 }
 
+// Checks a line against the list's panel.
 void item(const char* where, std::string_view text) {
     fits(where, text, kListUnits);
 }
 
+// Checks a line against the hint box under the list.
 void footer(const char* where, std::string_view text) {
     fits(where, text, kFooterUnits);
 }
 
+// Checks that no line any page can show is wider than the box it is drawn in, in every language.
 void panels() {
     // The model against what was measured on screen (it may only be above it).
     CHECK(units("The party saves in a slot of its own") >= 301);
@@ -356,6 +384,7 @@ void panels() {
         "Host has ",
     };
 
+    // Every row is checked against the box it is drawn in.
     for (const mp::Words& row : mp::kWords) {
         const bool is_title = titles.count(row.text[0]) != 0;
         const bool is_footer = footers.count(row.text[0]) != 0;
@@ -364,10 +393,12 @@ void panels() {
             const std::string what = std::string(row.text[0]) + " [" + std::to_string(i) + "]";
             std::string line = row.text[i];
 
+            // A row with a {0} placeholder is measured with a port number filled in.
             if (line.find("{0}") != std::string::npos) {
                 line.replace(line.find("{0}"), 3, "7770");
             }
 
+            // A row is measured against the box where it is drawn, which the sets above name.
             if (is_title) {
                 title(what.c_str(), line);
             } else if (is_footer) {
@@ -386,6 +417,7 @@ void panels() {
     using Mode = mp::Connection::Mode;
     using State = mp::Connection::State;
 
+    // The composed lines are checked in each language.
     for (unsigned i = 0; i < 5; ++i) {
         const auto lang = static_cast<mp::Language>(i);
 
@@ -468,9 +500,11 @@ void panels() {
             {{"Kerosene_Ratchet", true, false, 120, true, 1},
              {"Kerosene_Ratchet", false, true, -1, false, 2}};
 
+        // Every label and value of the pause page must fit the list.
         for (const mp::PartyLine& line : mp::party_lines(in, lang)) {
             item("pause label", line.label);
 
+            // A line with no value has nothing more to measure.
             if (!line.value.empty()) {
                 item("pause value", line.value);
             }
@@ -484,6 +518,7 @@ void panels() {
 
         // The question's boxes.
         for (const bool hosting : {false, true}) {
+            // The question is drawn in the title box for each pair of hosting and host.
             for (const bool host : {false, true}) {
                 title(
                     "question",
@@ -549,6 +584,7 @@ void panels() {
     d.mine = "0.11.0";
     d.settings = {"Difficulty", "Ammo Max", "Bolt Multiplier"};
 
+    // Each kind of difference gives its own refusal text.
     for (const mp::Difference::Kind kind :
          {mp::Difference::Kind::kDisc,
           mp::Difference::Kind::kOpenRac,
@@ -562,6 +598,7 @@ void panels() {
           mp::Difference::Kind::kPackOrder}) {
         d.kind = kind;
 
+        // The title page and the pause menu wrap the same text at different widths.
         for (const std::string& line : mp::refusal_lines({d}, mp::kTitleLine)) {
             item("refusal line", line);
         }
@@ -574,6 +611,7 @@ void panels() {
     CHECK(g_overflows == 0);
 }
 
+// Checks that fit_ui_text cuts at the byte limit without splitting a UTF-8 character.
 void clipping() {
     CHECK(mp::fit_ui_text("été", 47) == "été");
     // The cutoff falls inside é: never hand an incomplete UTF-8 character to the port.

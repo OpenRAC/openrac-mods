@@ -8,6 +8,7 @@
 namespace mpt {
 namespace {
 
+// Checks that a WORLD datagram encodes, decodes and is cut to the entries a datagram holds.
 void world_bytes() {
     mp::Pose p = pose_at(12.5f);
     p.rotation[2] = -1.5f;
@@ -49,6 +50,7 @@ void the_world_is_the_hosts() {
     // update); the host also has a bolt it spawned (slot 300, class 13).
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
 
+    // Both games load the same level.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level =
@@ -61,6 +63,7 @@ void the_world_is_the_hosts() {
     host.game.hero_pose.position[0] = 100.0f;
     member.game.hero_pose.position[0] = 12.0f;
 
+    // A second lets the world sync and the enemy be driven.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -77,6 +80,7 @@ void the_world_is_the_hosts() {
     host.game.level[0].pose.position[0] = 15.0f;
     host.game.level[0].pose.seq = 4;
 
+    // A second lets the host's enemy move and the member follow.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -170,6 +174,7 @@ void the_hosts_hidden_mobys_are_hidden_here() {
     // Two enemies: key 0 near the member, key 1 far from it and still (sent once, then held).
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
 
+    // Both games hold two enemies, one near the member and one far from it.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {moby(0, 0, 300, runs, 10.0f), moby(1, 1, 301, runs, 900.0f)};
@@ -178,6 +183,7 @@ void the_hosts_hidden_mobys_are_hidden_here() {
     member.game.hero_pose.position[0] = 12.0f;
     host.game.level[0].flags |= mp::kMobyHidden;
 
+    // A second with the host's enemy hidden.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -189,6 +195,7 @@ void the_hosts_hidden_mobys_are_hidden_here() {
     // It appears in the host's game: shown in the member's.
     host.game.level[0].flags &= ~mp::kMobyHidden;
 
+    // A second after the host's enemy appears.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -205,6 +212,7 @@ void the_hosts_hidden_mobys_are_hidden_here() {
     host.game.listing_blank = true;
     const std::size_t calls = member.game.world_calls.size();
 
+    // A long time passes with no snapshot from the host.
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 100);
     }
@@ -245,6 +253,7 @@ void the_despawn_log_says_who_and_why() {
     const std::uint32_t placed = mp::kMobyPlaced | mp::kMobyUpdates;
     std::vector<mp::MobyState> level;
 
+    // Eight mobys: six placed by the level, with keys, and two spawned, without.
     for (int slot = 0; slot < 8; ++slot) {
         level.push_back(moby(
             slot, slot < 6 ? slot : -1, 300 + slot, slot < 6 ? placed : mp::kMobyUpdates, 20.0f
@@ -316,6 +325,7 @@ void the_despawn_log_says_who_and_why() {
     trace.open([&](const std::string& l) { traced.push_back(l); });
     trace.tick(5000, "host");
 
+    // More lines than the limit are sent within one second, to see the limit hold.
     for (int i = 0; i < mp::kTraceLinesPerSecond + 10; ++i) {
         trace.line("run", "far");
     }
@@ -350,6 +360,7 @@ void the_world_logs_its_despawns() {
     member.world.trace(&trace);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
 
+    // Both games hold the same two mobys in level 0.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         // (and a rock: a level always lists some moby alive)
@@ -359,12 +370,14 @@ void the_world_logs_its_despawns() {
     host.game.hero_pose.position[0] = 100.0f;
     member.game.hero_pose.position[0] = 12.0f;
 
+    // A second lets the world sync and the enemy be driven.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
 
     host.game.die(0);
 
+    // A few ticks let the member see the host kill the enemy.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
@@ -380,6 +393,7 @@ void the_world_logs_its_despawns() {
 // The verbose log: none of its lines while off; on, a pause with a moby going out of range, a
 // snapshot with a moby missing, a moby driven, KILLED, and a census's comings and goings.
 void the_verbose_log_traces_a_pause() {
+    // The log is tried once with the verbose log off and once with it on.
     for (const bool on : {false, true}) {
         Player host(1), member(2);
         const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -392,6 +406,7 @@ void the_verbose_log_traces_a_pause() {
         std::vector<std::string> host_lines, member_lines;
         mp::Trace host_trace, member_trace;
 
+        // With the log on, each side's trace goes into its own list of lines.
         if (on) {
             host_trace.open([&](const std::string& l) { host_lines.push_back(l); });
             member_trace.open([&](const std::string& l) { member_lines.push_back(l); });
@@ -402,6 +417,7 @@ void the_verbose_log_traces_a_pause() {
         host.world.trace(&host_trace);
         member.world.trace(&member_trace);
         const auto step = [&](int n) {
+            // Each step advances both clocks and both traces by 50 ms.
             for (int i = 0; i < n; ++i) {
                 host.clock += 50;
                 member.clock += 50;
@@ -418,6 +434,7 @@ void the_verbose_log_traces_a_pause() {
         };
         const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
 
+        // Both games hold the same mobys in level 0.
         for (Player* p : {&host, &member}) {
             p->game.now = {mp::kPhasePlaying, 0, 2};
             p->game.level =
@@ -470,6 +487,7 @@ void the_verbose_log_traces_a_pause() {
             });
         };
 
+        // With the log off nothing is traced, so there is nothing more to check.
         if (!on) {
             CHECK(!any_trace(host_lines) && !any_trace(member_lines));
             continue;
@@ -500,6 +518,7 @@ void the_verbose_log_traces_a_pause() {
 }
 }  // namespace
 
+// Checks that a joiner's save keeps a mission's done flag only where its level load makes a moby.
 void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
     Player host(1);
     host.session.handle(info({{1, "P1"}}));
@@ -516,6 +535,7 @@ void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
     host.game.now = {mp::kPhasePlaying, 15, 2};
     host.game.level = {there, person};
 
+    // Ten ticks let the host's world list the level's mobys.
     for (int i = 0; i < 10; ++i) {
         tick({&host}, 50);
     }
@@ -532,6 +552,7 @@ void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
     CHECK(host.game.mission_row_bytes[8] == 0xFF);
 }
 
+// Checks that a hit with a bad damage, or from too far away, is refused.
 void a_hit_that_makes_no_sense_is_refused() {
     mp::Hit fine;
     fine.damage = 3.0f;
@@ -562,6 +583,7 @@ void a_hit_that_makes_no_sense_is_refused() {
     const mp::MobyState enemy =
         moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f);
 
+    // Both games hold the same enemy.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {enemy};
@@ -570,6 +592,7 @@ void a_hit_that_makes_no_sense_is_refused() {
     member.game.hero_pose.position[0] = 12.0f;
     member.game.hero_pose.level = 0;
 
+    // Two seconds let the world sync.
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 50);
     }
@@ -595,6 +618,7 @@ void a_hit_that_makes_no_sense_is_refused() {
     // From across the level: refused; the same damage nearer was taken.
     member.game.hero_pose.position[0] = 10.0f + mp::kHitReach + 50.0f;
 
+    // Half a second lets the host take or refuse the member's hit.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -604,6 +628,7 @@ void a_hit_that_makes_no_sense_is_refused() {
     CHECK(host.world.hits_refused() == 2);
 }
 
+// Checks that a moby the host hatches from a placed egg is shared as one the host spawned.
 void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -616,6 +641,7 @@ void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     const std::uint32_t alive = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
     const mp::MobyState other = moby(0, 0, 300, alive, 90.0f);
     const auto settle = [&] {
+        // A second lets changes travel to the other game.
         for (int i = 0; i < 20; ++i) {
             tick({&host, &member}, 50);
         }
@@ -650,6 +676,7 @@ void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     );
 }
 
+// Checks that a member adopts its own copy of a moby the level made rather than a second one.
 void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -662,6 +689,7 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     // Both games' maker made its turret at its first update: slot 700 in each, unkeyed.
     const mp::MobyState turret = moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f);
 
+    // Both games hold the same enemy and turret.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {
@@ -669,6 +697,7 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
         };
     }
 
+    // A second lets the world sync and the turrets be matched up.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -696,6 +725,7 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     route({&host2, &member2});
     tick({&host2, &member2}, 16);
 
+    // Both games hold the same enemy.
     for (Player* p : {&host2, &member2}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {
@@ -706,6 +736,7 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     host2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 500.0f));
     member2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f));
 
+    // A second lets the world sync.
     for (int i = 0; i < 20; ++i) {
         tick({&host2, &member2}, 50);
     }

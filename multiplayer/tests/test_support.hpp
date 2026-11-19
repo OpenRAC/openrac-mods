@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// The play tests' shared support (play_test.cpp, play_*_test.cpp): CHECK, the recorders, the fake games
-// and the players that talk through a router, and the simulated links.
+// The play tests' shared support (play_test.cpp, play_*_test.cpp): CHECK, the recorders, the fake
+// games and the players that talk through a router, and the simulated links.
 
 #pragma once
 
@@ -44,6 +44,7 @@ namespace mpt {
 
 using mp::Bytes;
 
+// Returns a pose in `level` at x with x velocity `vx` and everything else zero.
 inline mp::Pose pose_at(float x, float vx = 0.0f, int level = 3) {
     mp::Pose p;
     p.level = level;
@@ -52,6 +53,7 @@ inline mp::Pose pose_at(float x, float vx = 0.0f, int level = 3) {
     return p;
 }
 
+// Returns a held piece with the given slot, part, item, class and joint and fixed animation values.
 inline mp::HeldPiece piece(int slot, int part, int item, int oclass, int joint) {
     mp::HeldPiece h;
     h.slot = slot;
@@ -69,17 +71,22 @@ inline mp::HeldPiece piece(int slot, int part, int item, int oclass, int joint) 
 
 // ---- The co-op, a host and a member ----
 
+// A transport that records the frames and datagrams a session sends, in place of a socket.
 struct Recorder : mp::Transport {
     std::vector<Bytes> frames;
     // With `udp` on, state stays out of the frames: the datagrams, for SimNet, and their targets.
     bool udp = false;
     std::vector<std::pair<std::int32_t, Bytes>> datagrams;
 
+    // Records a frame sent over TCP.
     void send(Bytes frame) override { frames.push_back(std::move(frame)); }
 
+    // Returns true while datagrams are off, so state travels in TCP frames.
     bool state_needs_tcp(std::size_t /*bytes*/) const override { return !udp; }
 
+    // Records a state datagram when `udp` is on, else sends it as a DATA frame if `tcp` is set.
     void send_state(std::int32_t target, const Bytes& bytes, bool tcp) override {
+        // With UDP on, state leaves as a datagram, as it does over the real link.
         if (udp) {
             datagrams.emplace_back(target, bytes);
         } else if (tcp) {
@@ -88,6 +95,7 @@ struct Recorder : mp::Transport {
     }
 };
 
+// A game that records what the mod asks of it and answers from fields a test sets.
 struct FakeGame : mp::Game {
     mp::GameStatus now{mp::kPhaseFrontEnd, -1, 1};
     std::vector<std::string> calls;
@@ -114,6 +122,8 @@ struct FakeGame : mp::Game {
     std::vector<mp::PartyRules> published;
     std::set<std::string> takes;
 
+    // One delivery of a mod's rules: the mod id, the bytes and how many game calls had been made by
+    // then.
     struct Delivery {
         std::string id;
         Bytes data;
@@ -126,13 +136,15 @@ struct FakeGame : mp::Game {
     bool saves_usable = true;
     std::map<int, std::uint32_t> digests;
 
+    // Returns `saves_usable` whatever the save holds.
     bool save_usable(const Bytes&) override { return saves_usable; }
 
-    // A port that places the hero (`placeable`): the places asked, and, when `place_works`, the hero
-    // there at once.
+    // A port that places the hero (`placeable`): the places asked, and, when `place_works`, the
+    // hero there at once.
     bool placeable = false;
     bool place_works = true;
 
+    // One request to place the hero: the spot, the yaw and whether to stand beside it.
     struct Placed {
         float at[3];
         float yaw;
@@ -143,15 +155,20 @@ struct FakeGame : mp::Game {
     std::vector<bool> quiet;
     bool gifts_quiet = false;
 
+    // Returns whether this game can place the hero.
     bool can_place() override { return placeable; }
 
+    // Records a placement and, when `place_works`, moves the hero there; returns false if placing
+    // is off.
     bool place(const float* position, float yaw, bool beside) override {
+        // A port that cannot place the hero refuses the request.
         if (!placeable) {
             return false;
         }
 
         placed.push_back({{position[0], position[1], position[2]}, yaw, beside});
 
+        // A port whose placing fails still sees the request but leaves the hero where it was.
         if (place_works) {
             std::copy(position, position + 3, hero_pose.position);
         }
@@ -159,13 +176,16 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Returns a name made from the level number.
     std::string level_name(int level) override { return "Planet" + std::to_string(level); }
 
+    // Records whether gifts are given without a banner.
     void quiet_gifts(bool on) override {
         quiet.push_back(on);
         gifts_quiet = on;
     }
 
+    // Returns the digest set for the level, or 0 when none is set.
     std::uint32_t sim_digest(int level) override {
         const auto it = digests.find(level);
         return it != digests.end() ? it->second : 0;
@@ -196,13 +216,17 @@ struct FakeGame : mp::Game {
         }
     }
 
+    // Returns whether this game has a card filter.
     bool has_card_filter() override { return card_on; }
 
+    // Sets the filter mode, unless the test made the port refuse that mode.
     bool card_filter(int mode) override {
+        // A refused mode leaves the filter as it was.
         if (mode == mp::kCardPass && pass_refused) {
             return false;
         }
 
+        // The redirect mode can be refused on its own.
         if (mode == mp::kCardRedirect && redirect_refused) {
             return false;
         }
@@ -211,9 +235,12 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Records the slot a save made now belongs to.
     void card_slot(int slot) override { hint = slot; }
 
+    // Stores a save in a slot, only while the filter redirects and writes are not refused.
     bool card_write(int slot, const Bytes& save) override {
+        // A save outside the redirect filter would land on the game's own card, not in a slot.
         if (write_refused || filter != mp::kCardRedirect) {
             return false;
         }
@@ -222,16 +249,21 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Returns the slot's save, or nothing for an empty slot.
     Bytes card_read(int slot) override { return slots.count(slot) != 0 ? slots[slot] : Bytes{}; }
 
+    // Returns how many saves the game has made into the party's slot.
     std::uint32_t card_saves() override { return saves; }
 
+    // Returns the slot's note, or an empty string.
     std::string card_note(int slot) override {
         return notes.count(slot) != 0 ? notes[slot] : std::string();
     }
 
+    // Stores a slot's note.
     void card_note_write(int slot, const std::string& text) override { notes[slot] = text; }
 
+    // Returns the wall clock a test set, in seconds.
     std::int64_t wall_seconds() override { return wall; }
 
     // A camera script: the one running here, the calls of one shown here, and its last view. A
@@ -244,17 +276,21 @@ struct FakeGame : mp::Game {
     float shown_eye[3] = {0, 0, 0};
     float shown_rotation[3] = {0, 0, 0};
 
+    // Copies the running script's view out and returns whether a script is running.
     bool camera_view(mp::CameraView& out) override {
         out = script_view;
         return script_on;
     }
 
+    // Records the script id asked for.
     bool camera_play(int id) override {
         camera_calls.push_back(id);
         return true;
     }
 
+    // Takes the camera view and counts it, unless the game keeps the camera.
     bool camera_show(const float* eye, const float* rotation) override {
+        // A game that keeps the camera refuses the mod's view.
         if (camera_taken) {
             return false;
         }
@@ -265,9 +301,12 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Returns the rules this game publishes.
     std::vector<mp::PartyRules> party_rules() override { return published; }
 
+    // Records the rules for a mod in `takes` and refuses any other mod.
     bool deliver_rules(const std::string& id, const Bytes& data) override {
+        // A mod the game does not take gets no rules.
         if (takes.count(id) == 0) {
             return false;
         }
@@ -276,41 +315,50 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Returns the status a test set.
     mp::GameStatus status() override { return now; }
 
+    // Records a start request and keeps the save it was given.
     bool start(int level, const Bytes& save) override {
         calls.push_back("start " + std::to_string(level) + " " + std::to_string(save.size()));
         started_save = save;
         return true;
     }
 
+    // Records a travel request.
     bool travel(int level) override {
         calls.push_back("travel " + std::to_string(level));
         return true;
     }
 
+    // Records a request to open home.
     bool open_home() override {
         calls.push_back("home");
         return true;
     }
 
+    // Returns the live save and copies the mission row as it stands at capture.
     Bytes capture() override {
         captured_row = mission_row_bytes;
         return live_save;
     }
 
+    // Copies out the hero's pose and returns true only while a level is playing.
     bool hero(mp::Pose& out) override {
         out = hero_pose;
         out.level = now.level;
         return mp::in_level(now.phase);
     }
 
+    // Adds a figure and returns its id.
     int figure_create() override {
         figures[next_figure] = mp::Pose{};
         return next_figure++;
     }
 
+    // Stores a pose for a known figure and returns false for an unknown id.
     bool figure_pose(int id, const mp::Pose& pose) override {
+        // Only a figure that exists takes a pose.
         if (figures.count(id) == 0) {
             return false;
         }
@@ -319,19 +367,23 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Removes a figure.
     void figure_remove(int id) override { figures.erase(id); }
 
     // The hero's shots to give, and the figures' shots fired (figure id, shot).
     std::vector<mp::Shot> shots_out;
     std::vector<std::pair<int, mp::Shot>> shots_in;
 
+    // Returns the shots a test queued and clears the queue.
     std::vector<mp::Shot> hero_shots() override {
         std::vector<mp::Shot> out;
         out.swap(shots_out);
         return out;
     }
 
+    // Records a shot fired by a known figure and returns false for an unknown id.
     bool figure_shot(int id, const mp::Shot& shot) override {
+        // Only a figure that exists can fire.
         if (figures.count(id) == 0) {
             return false;
         }
@@ -349,15 +401,19 @@ struct FakeGame : mp::Game {
     std::array<std::uint8_t, mp::kMissions> captured_row{};
     bool mission_row_known = true;
 
+    // Returns whether the hero can be revived.
     bool can_revive() override { return revivable; }
 
+    // Records whether death is held.
     void hold_death(bool on) override { holding = on; }
 
+    // Counts a revive request.
     bool revive() override {
         ++revives;
         return true;
     }
 
+    // Counts a respawn request.
     bool respawn() override {
         ++respawns;
         return true;
@@ -366,17 +422,21 @@ struct FakeGame : mp::Game {
     bool takeoff_works = false;
     std::vector<int> takeoffs;
 
+    // Records the level asked for and returns `takeoff_works`.
     bool ship_takeoff(int level) override {
         takeoffs.push_back(level);
         return takeoff_works;
     }
 
+    // Copies the mission row out and returns whether the row is known.
     bool mission_row(int /*level*/, std::uint8_t* out) override {
         std::copy(mission_row_bytes.begin(), mission_row_bytes.end(), out);
         return mission_row_known;
     }
 
+    // Zeroes each mission byte the flags name.
     bool mission_clear(int /*level*/, const std::uint8_t* flags) override {
+        // Only the bytes the flags name change.
         for (std::size_t i = 0; i < mission_row_bytes.size(); ++i) {
             mission_row_bytes[i] = flags[i] != 0 ? 0 : mission_row_bytes[i];
         }
@@ -384,7 +444,9 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Sets each mission byte the flags name to 0xFF.
     bool mission_set(int /*level*/, const std::uint8_t* flags) override {
+        // Only the bytes the flags name change.
         for (std::size_t i = 0; i < mission_row_bytes.size(); ++i) {
             mission_row_bytes[i] = flags[i] != 0 ? 0xFF : mission_row_bytes[i];
         }
@@ -401,11 +463,14 @@ struct FakeGame : mp::Game {
     int stood = 0;
     int bolt_count = 0;
 
+    // Returns the level's mobys, or none while `listing_blank`.
     std::vector<mp::MobyState> mobys() override {
         return listing_blank ? std::vector<mp::MobyState>{} : level;
     }
 
+    // Returns the slot of the live moby with a key, or -1.
     int moby_slot(int key) override {
+        // A killed placed moby stays listed, dead, so dead ones are passed over.
         for (const mp::MobyState& m : level) {
             if (m.key == key && (m.flags & mp::kMobyDead) == 0) {
                 return m.slot;
@@ -415,7 +480,9 @@ struct FakeGame : mp::Game {
         return -1;
     }
 
+    // Adds a slot to the driven set or removes it.
     bool moby_drive(int slot, bool on) override {
+        // A slot is either taken over by the mod (driven) or left to the game.
         if (on) {
             drives.insert(slot);
         } else {
@@ -425,6 +492,7 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Sets the pose of the moby in a slot and returns false when none is there.
     bool moby_pose(int slot, const mp::Pose& pose) override {
         for (mp::MobyState& m : level) {
             if (m.slot == slot) {
@@ -442,12 +510,16 @@ struct FakeGame : mp::Game {
         return die(slot);
     }
 
+    // Kills the live moby in a slot as the port does: a placed one stays listed as dead, a spawned
+    // one goes.
     bool die(int slot) {
         for (auto it = level.begin(); it != level.end(); ++it) {
+            // A slot that is absent or already dead cannot be killed again.
             if (it->slot != slot || (it->flags & mp::kMobyDead) != 0) {
                 continue;
             }
 
+            // A placed moby has a key of 0 or more; a spawned one has none.
             if (it->key >= 0) {
                 it->flags |= mp::kMobyDead;
             } else {
@@ -464,16 +536,20 @@ struct FakeGame : mp::Game {
     bool listing_blank = false;
     bool overlay = false;
 
+    // Records whether the overlay pauses the game.
     void overlay_pause(bool on) override { overlay = on; }
 
+    // Records a skip request.
     void skip() override { calls.push_back("skip"); }
 
     // A scene asked for (the test plays it by setting `now`), and -1 a request dropped.
+    // Records a scene request and returns whether a level is playing.
     bool play_scene(int scene) override {
         calls.push_back("scene " + std::to_string(scene));
         return mp::in_level(now.phase);
     }
 
+    // Adds a moby of a class and returns its slot, from 500 up.
     int moby_spawn(int oclass, const mp::Pose& pose) override {
         mp::MobyState m;
         m.slot = 500 + static_cast<int>(level.size());
@@ -484,8 +560,10 @@ struct FakeGame : mp::Game {
         return m.slot;
     }
 
+    // Returns the slot of a figure: 99 for the hero (a negative id), else 100 plus the id.
     int figure_slot(int id) override { return id < 0 ? 99 : 100 + id; }
 
+    // Records a stand-in at a position for a figure.
     bool stand_in(const float* position, int figure) override {
         ++stood;
         world_calls.push_back(
@@ -494,8 +572,10 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Returns whether the game can hold a hero.
     bool can_hold() override { return holds_ok; }
 
+    // Records the stand-in the mod asked for and keeps it as `stood_as`.
     bool stand_in_as(const mp::StandIn& as, int figure) override {
         ++stood;
         stood_as = as;
@@ -503,17 +583,20 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Copies out the stand-in the game last did.
     bool stand_in_read(mp::StandIn& out) override {
         out = stand_did;
         return true;
     }
 
+    // Records a grab with its animation and flags, and holds the hero.
     bool grab(int animation, std::uint32_t flags) override {
         calls.push_back("grab " + std::to_string(animation) + " " + std::to_string(flags));
         hero_held = true;
         return true;
     }
 
+    // Records a hold at a position and yaw.
     bool hold_at(const float* position, float yaw) override {
         held_at[0] = position[0];
         held_yaw = yaw;
@@ -521,22 +604,26 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Records a let-go and releases the hero.
     bool let_go() override {
         calls.push_back("let go");
         hero_held = false;
         return true;
     }
 
+    // Records a hit posted to the game.
     bool hit(const mp::Hit& h) override {
         hits.push_back(h);
         return true;
     }
 
+    // Adds to the bolt count and returns the total.
     int bolts(int add) override { return bolt_count += add; }
 
     // The eyes last set (x, y, z each).
     std::vector<float> eyes_at;
 
+    // Keeps the eye positions last set.
     void eyes(const std::vector<float>& xyz) override { eyes_at = xyz; }
 
     // The shared progress: what this game has (read in a level only), and what was given to it,
@@ -544,23 +631,27 @@ struct FakeGame : mp::Game {
     mp::ProgressBits owned;
     std::vector<std::string> given;
 
+    // Copies the owned progress out and returns true only while a level is playing.
     bool progress(mp::ProgressBits& out) override {
         out = owned;
         return mp::in_level(now.phase);
     }
 
+    // Marks an item owned and records the gift, in the quiet list when gifts are quiet.
     bool give_item(int id) override {
         owned.items[static_cast<std::size_t>(id)] = 1;
         (gifts_quiet ? given_quietly : given).push_back("item " + std::to_string(id));
         return true;
     }
 
+    // Marks a gold bolt owned and records the gift.
     bool give_gold_bolt(int index) override {
         owned.gold[static_cast<std::size_t>(index)] = 1;
         given.push_back("gold " + std::to_string(index));
         return true;
     }
 
+    // Marks a planet unlocked and records the gift, in the quiet list when gifts are quiet.
     bool unlock_planet(int planet) override {
         owned.planets[static_cast<std::size_t>(planet)] = 1;
         (gifts_quiet ? given_quietly : given).push_back("planet " + std::to_string(planet));
@@ -573,16 +664,21 @@ struct FakeGame : mp::Game {
     std::vector<std::string> given_quietly;
     bool has_shared = true;
 
+    // Returns an array's bytes as a vector.
     template <std::size_t N>
     static Bytes bytes_of(const std::array<std::uint8_t, N>& a) {
         return Bytes(a.begin(), a.end());
     }
 
+    // Copies a section's bytes out; fails outside a level, without shared progress or for an
+    // unknown tag.
     bool shared_read(int tag, Bytes& out) override {
+        // The port reads these sections only in a level, and only when it has them.
         if (!has_shared || !mp::in_level(now.phase)) {
             return false;
         }
 
+        // Each tag names one shared section.
         switch (tag) {
             case mp::kSharedGoldWeapons:
                 out = bytes_of(sections.gold_weapons);
@@ -601,15 +697,20 @@ struct FakeGame : mp::Game {
         }
     }
 
+    // Merges a section into the game's and returns false for an unknown tag. Each byte that is set
+    // and not yet owned becomes `value`.
     bool shared_give(int tag, const Bytes& data) override {
         const auto merge = [&](auto& a, std::uint8_t value) {
+            // Merging stops at the shorter of the two arrays.
             for (std::size_t i = 0; i < a.size() && i < data.size(); ++i) {
+                // A byte the game already has keeps its value.
                 if (data[i] != 0 && a[i] == 0) {
                     a[i] = value;
                 }
             }
         };
 
+        // Each tag names one shared section, and `value` is what a new byte becomes there.
         switch (tag) {
             case mp::kSharedGoldWeapons:
                 merge(sections.gold_weapons, 1);
@@ -632,7 +733,10 @@ struct FakeGame : mp::Game {
     // A figure's (slot 100 + id) hidden, by id.
     std::set<int> hidden_figures;
 
+    // Hides or shows a figure (slot 100 and up) or a listed moby; returns false for an unknown
+    // slot.
     bool moby_hide(int slot, bool hidden) override {
+        // Slots from 100 are figures, whose hidden state is kept by figure id.
         if (slot >= 100 && figures.count(slot - 100) != 0) {
             if (hidden) {
                 hidden_figures.insert(slot - 100);
@@ -644,6 +748,7 @@ struct FakeGame : mp::Game {
             return true;
         }
 
+        // Any other slot is a listed moby, hidden by its flag.
         for (mp::MobyState& m : level) {
             if (m.slot == slot) {
                 m.flags = hidden ? m.flags | mp::kMobyHidden : m.flags & ~mp::kMobyHidden;
@@ -657,9 +762,11 @@ struct FakeGame : mp::Game {
 
     std::map<int, mp::MobyDeletion> deletions;
 
+    // Copies out who deleted the moby in a slot, when the game recorded it.
     bool moby_deletion(int slot, int& by, int& by_class, bool& by_mod) override {
         const auto it = deletions.find(slot);
 
+        // The game recorded no deletion for this slot.
         if (it == deletions.end()) {
             return false;
         }
@@ -670,6 +777,7 @@ struct FakeGame : mp::Game {
         return true;
     }
 
+    // Returns the camera x a test set, with y and z zero.
     bool camera(float* xyz) override {
         xyz[0] = camera_x;
         xyz[1] = xyz[2] = 0.0f;
@@ -678,7 +786,8 @@ struct FakeGame : mp::Game {
 
     float camera_x = 0.0f;
 
-    // The level between the camera and a point: every line blocked while `level_wall`, and how many asked.
+    // The level between the camera and a point: every line blocked while `level_wall`, and how
+    // many were asked.
     bool level_line(const float*, const float* to, bool& blocked) override {
         ++lines_asked;
         blocked = level_wall && (wall_top_z <= 0.0f || to[2] < wall_top_z);
@@ -693,6 +802,7 @@ struct FakeGame : mp::Game {
     // The run list (the verbose log's): off until a test sets `run_on`; each slot's run, else
     // `run`'s.
     bool moby_run(int slot, mp::MobyRun& out) override {
+        // The list is off until a test turns it on.
         if (!run_on) {
             return false;
         }
@@ -707,6 +817,7 @@ struct FakeGame : mp::Game {
     std::map<int, mp::MobyRun> slot_runs;
 };
 
+// Returns a moby with a slot, key, class and flags, placed at x on the x axis.
 inline mp::MobyState moby(int slot, int key, int oclass, std::uint32_t flags, float x) {
     mp::MobyState m;
     m.slot = slot;
@@ -717,6 +828,7 @@ inline mp::MobyState moby(int slot, int key, int oclass, std::uint32_t flags, fl
     return m;
 }
 
+// One player: a session, a fake game and every part of the mod wired to them as the mod wires them.
 struct Player {
     std::int32_t id;
     Recorder link;
@@ -733,6 +845,7 @@ struct Player {
     mp::Migrate migrate;
     mp::Router router;
 
+    // Builds the player, routes each message owner to its part, and says hello as the server would.
     explicit Player(std::int32_t id_)
         : id(id_),
           session(link, "test/1", "P" + std::to_string(id_), [this] { return clock; }),
@@ -789,6 +902,7 @@ struct Player {
     }
 };
 
+// Returns the server's party info for `members`, hosted by player 1.
 inline mp::Message info(const std::vector<mp::Member>& members) {
     mp::Message m;
     m.kind = mp::Message::Kind::kPartyInfo;
@@ -804,9 +918,11 @@ inline mp::Message info(const std::vector<mp::Member>& members) {
 inline void route(std::vector<Player*> players) {
     bool moved = true;
 
+    // A delivery can make a player send more, so routing goes on until nothing moves.
     while (moved) {
         moved = false;
 
+        // Each player's queued frames are what the server receives from it.
         for (Player* from : players) {
             from->session.flush();
             std::vector<Bytes> frames;
@@ -817,6 +933,7 @@ inline void route(std::vector<Player*> players) {
                 r.feed(frame.data(), frame.size());
                 Bytes body;
 
+                // A frame that is not whole is dropped.
                 if (!r.next(body)) {
                     continue;
                 }
@@ -833,6 +950,7 @@ inline void route(std::vector<Player*> players) {
                                          && (host_sends ? q.target == 0 || q.target == to->id
                                                         : to->session.is_host());
 
+                    // Only a player in the party receives data.
                     if (reaches && to->session.in_party()) {
                         mp::Message m;
                         m.kind = mp::Message::Kind::kData;
@@ -847,7 +965,9 @@ inline void route(std::vector<Player*> players) {
     }
 }
 
+// Advances each player's clock and parts by `ms` and routes what they sent.
 inline void tick(std::vector<Player*> players, std::uint64_t ms) {
+    // Each player's parts run on that player's own clock.
     for (Player* p : players) {
         p->clock += ms;
         p->migrate.tick(p->clock);
@@ -865,6 +985,7 @@ inline void tick(std::vector<Player*> players, std::uint64_t ms) {
 
 // The host's Start, once every member has said Ready (as each member's READY reaching it would).
 inline bool start_ready(Player& host) {
+    // Every other member must have said Ready before the host can start.
     for (const mp::Member& m : host.session.members()) {
         if (m.id != host.session.id() && !host.session.ready(m.id)) {
             mp::Message ready;
@@ -880,11 +1001,13 @@ inline bool start_ready(Player& host) {
 
 // ---- The mods a party agrees on (party_mods.hpp) ----
 
+// Returns a gameplay mod with shared, host-only and own settings.
 inline mp::ModInfo difficulty_mod() {
     mp::ModInfo m{"difficulty", "Difficulty", "1.2.3", mp::kModGameplay, {}};
     const char* const keys[][2] =
         {{"enemy_count", "Enemy count"}, {"damage_taken", "Damage taken"}, {"bolts", "Bolt drops"}};
 
+    // These three settings differ only in key and label.
     for (const auto& k : keys) {
         m.settings.push_back({k[0], k[1], "1", "1", mp::kSettingShared, true});
     }
@@ -895,6 +1018,7 @@ inline mp::ModInfo difficulty_mod() {
     return m;
 }
 
+// Returns a list of four mods as a player might have installed them.
 inline mp::ModList sample_list() {
     mp::ModList list;
     list.multiplayer = "0.9.0";
@@ -914,7 +1038,9 @@ inline mp::ModList sample_list() {
     return list;
 }
 
+// Returns the setting with a key in the first mod, or its first setting when none matches.
 inline mp::ModSettingInfo& setting_of(mp::ModList& list, const std::string& key) {
+    // Settings are searched by key; an unknown key falls back to the first setting.
     for (mp::ModSettingInfo& s : list.mods[0].settings) {
         if (s.key == key) {
             return s;
@@ -924,7 +1050,9 @@ inline mp::ModSettingInfo& setting_of(mp::ModList& list, const std::string& key)
     return list.mods[0].settings[0];
 }
 
+// Ticks every player's mods at the time the next step reaches, then the party by `ms`.
 inline void tick_mods(std::vector<Player*> players, std::uint64_t ms) {
+    // Each player's mod list ticks at the time the next step reaches.
     for (Player* p : players) {
         p->mods.tick(p->clock + ms);
     }
@@ -943,6 +1071,7 @@ inline void gate(Player& p, mp::ModList list) {
     p.coop.set_gate([&p](std::int32_t id) { return p.mods.may_play(id); });
 }
 
+// Returns the READY message a member sends.
 inline mp::Message ready_of(std::int32_t id) {
     mp::Message m;
     m.kind = mp::Message::Kind::kData;
@@ -952,7 +1081,9 @@ inline mp::Message ready_of(std::int32_t id) {
 }
 
 // The slot in a game of the first live moby of a class (-1 none), and how many of it there are.
+// Returns the slot of the first live moby of a class in a game, or -1.
 inline int slot_of_class(const FakeGame& game, int oclass) {
+    // Dead mobys stay listed, so only a live one counts.
     for (const mp::MobyState& m : game.level) {
         if (m.oclass == oclass && (m.flags & mp::kMobyDead) == 0) {
             return m.slot;
@@ -962,6 +1093,7 @@ inline int slot_of_class(const FakeGame& game, int oclass) {
     return -1;
 }
 
+// Returns how many live mobys of a class a game has.
 inline int count_of_class(const FakeGame& game, int oclass) {
     return static_cast<int>(
         std::count_if(game.level.begin(), game.level.end(), [&](const mp::MobyState& m) {
@@ -986,6 +1118,7 @@ struct SceneParty {
     Player host{1}, member{2};
     std::vector<std::string> host_log, member_log;
 
+    // Joins a host and a member, starts a new game, puts both in level 0 and clears their calls.
     SceneParty() {
         host.coop.on_log([this](const std::string& l) { host_log.push_back(l); });
         member.coop.on_log([this](const std::string& l) { member_log.push_back(l); });
@@ -1002,16 +1135,20 @@ struct SceneParty {
         member.game.calls.clear();
     }
 
+    // Ticks both players for `ms` in 50 ms steps.
     void run(std::uint64_t ms) {
+        // Steps of 50 ms let timers and messages interleave as they do in play.
         for (std::uint64_t t = 0; t < ms; t += 50) {
             tick({&host, &member}, 50);
         }
     }
 
+    // Returns how many times a game was asked for a call.
     static long count(const FakeGame& g, const std::string& call) {
         return static_cast<long>(std::count(g.calls.begin(), g.calls.end(), call));
     }
 
+    // Returns whether a log has a line starting with `start`, from index `from` on.
     static bool logged(
         const std::vector<std::string>& log, const std::string& start, std::size_t from = 0
     ) {
@@ -1023,6 +1160,7 @@ struct SceneParty {
     }
 };
 
+// Returns the bytes of a skip message from `origin` for a play, a kind and a scene.
 inline mp::Bytes skip_bytes(
     std::int32_t origin, std::int32_t play, std::uint8_t what, std::uint16_t scene
 ) {
@@ -1043,6 +1181,7 @@ struct Party {
     Player host{1}, a{2}, b{3};
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
 
+    // Joins three players, starts a new game and puts them in level 4.
     Party() {
         host.session.handle(info(all));
         a.session.handle(info(all));
@@ -1052,6 +1191,7 @@ struct Party {
         route(players());
         tick(players(), 16);
 
+        // Every player starts in the host's level 4.
         for (Player* p : players()) {
             p->game.now = {mp::kPhasePlaying, 4, 2};
             p->game.calls.clear();
@@ -1060,6 +1200,7 @@ struct Party {
         tick(players(), 16);
     }
 
+    // Returns the three players.
     std::vector<Player*> players() { return {&host, &a, &b}; }
 
     // The server's word that `id` left, to everyone still in the party.
@@ -1069,6 +1210,7 @@ struct Party {
         m.id = id;
 
         for (Player* p : players()) {
+            // The leaver hears nothing about its own leaving.
             if (p->id != id && p->session.in_party()) {
                 p->session.handle(m);
             }
@@ -1085,18 +1227,22 @@ inline mp::Message udp_offer_of(std::int64_t resume_token) {
     return m;
 }
 
+// Gives every player the server's resume offer.
 inline void offer_resume(const std::vector<Player*>& players) {
+    // Each player gets its own resume token.
     for (Player* p : players) {
         p->session.handle(udp_offer_of(1000 + p->id));
     }
 }
 
+// Sends every player in `others` the server's word that `id` is away, or back when `back` is set.
 inline void server_away(const std::vector<Player*>& others, std::int32_t id, bool back = false) {
     mp::Message m;
     m.kind = mp::Message::Kind::kPartyAway;
     m.id = id;
     m.back = back;
 
+    // Every other player hears from the server that `id` is away.
     for (Player* p : others) {
         p->session.handle(m);
     }
@@ -1118,6 +1264,7 @@ inline void server_host(
     m.host = host;
     m.epoch = epoch;
 
+    // Every player hears the host change at once.
     for (Player* p : players) {
         p->session.handle(m);
     }
@@ -1139,6 +1286,7 @@ inline void come_back(Player& p, const std::vector<Player*>& others, mp::Message
     server_away(others, p.id, true);
 }
 
+// Returns how many times a game was asked for a call.
 inline std::size_t count_of(const FakeGame& game, const std::string& call) {
     return static_cast<std::size_t>(std::count(game.calls.begin(), game.calls.end(), call));
 }
@@ -1155,9 +1303,9 @@ inline void reach_title(Player& p) {
 
 // What the server does with a player's packets (Server's README, Limits and UDP): DATA and state
 // each 60 a second over a burst of 120, state over it dropped without a word, DATA over it dropped
-// and a strike, 20 strikes (forgiven 1 a second) closing the connection; a member's traffic reaching
-// the host only. The link on either side of it loses, delays, reorders and repeats datagrams, and
-// delays TCP in order. All of it from one seed, on one clock.
+// and a strike, 20 strikes (forgiven 1 a second) closing the connection; a member's traffic
+// reaching the host only. The link on either side of it loses, delays, reorders and repeats
+// datagrams, and delays TCP in order. All of it from one seed, on one clock.
 struct SimLink {
     double loss = 0;       // of each datagram, each way
     double latency = 0;    // ms, each way
@@ -1167,7 +1315,10 @@ struct SimLink {
     bool udp = true;       // false: UDP is blocked, state goes by TCP
 };
 
+// The server and the network between players: it takes what players send, applies the server's
+// limits and the link's faults, and delivers it later.
 struct SimNet {
+    // A message in flight: when it arrives, to whom, from whom, and its bytes.
     struct Packet {
         double at = 0;
         Player* to = nullptr;
@@ -1175,6 +1326,7 @@ struct SimNet {
         Bytes bytes;
     };
 
+    // A player's rate limits at the server, and when its last TCP message arrives.
     struct Limits {
         mp::Pacer data{120, 60};
         mp::Pacer state{120, 60};
@@ -1188,12 +1340,14 @@ struct SimNet {
     std::vector<Packet> flying;
     std::map<std::int32_t, Limits> limits;
     std::uint64_t now = 1000;
-    // The shared progress on this link too (off: the seeded runs keep the draws they were tuned on).
+    // The shared progress on this link too (off: the seeded runs keep the draws they were tuned
+    // on).
     bool shared = false;
     long data_drops = 0, state_drops = 0, kicked = 0, datagrams_lost = 0, state_sent = 0;
 
     // What the host and the members sent, by kind (a message's first byte), and what each sent
     // up to the server by way of TCP (DATA; a BATCH is one).
+    // A count of messages and bytes.
     struct Traffic {
         long messages = 0, bytes = 0;
     };
@@ -1205,8 +1359,9 @@ struct SimNet {
     // ids `gaps_of` says to watch, while `gaps_on`.
     std::function<bool(int)> gaps_of;
     bool gaps_on = false;
-    // The players whose connection is gone: nothing they say goes, nothing reaches them. Whether the
-    // rest of a game ticks as the mod ticks it; who the host last named to follow it (HOST_CHANGED).
+    // The players whose connection is gone: nothing they say goes, nothing reaches them. Whether
+    // the rest of a game ticks as the mod ticks it; who the host last named to follow it
+    // (HOST_CHANGED).
     std::set<std::int32_t> cut;
     bool whole = false;
     std::vector<std::int32_t> named;
@@ -1214,26 +1369,35 @@ struct SimNet {
     std::map<std::pair<std::int32_t, int>, double> heard_at;
     double worst_gap = 0;
 
+    // Starts a net over `who` with a link and a seed and sets each player's transport to match the
+    // link's UDP.
     SimNet(std::vector<Player*> who, SimLink l, unsigned seed)
         : link(l),
           random(seed),
           players(std::move(who)) {
+        // Each player's transport follows the link, so state goes by datagram or by TCP.
         for (Player* p : players) {
             p->link.udp = link.udp;
         }
     }
 
+    // Returns a random number from 0 up to 1 from the seed.
     double uniform() { return std::uniform_real_distribution<double>(0.0, 1.0)(random); }
 
+    // Returns the delay of one leg in ms: the latency plus up to the jitter.
     double delay() { return link.latency + uniform() * link.jitter; }
 
+    // Returns whether a message gets to `to`. Neither side may be cut; a host's goes to everyone or
+    // the target, a member's to the host.
     bool reaches(Player* from, std::int32_t target, Player* to) const {
         return to != from && cut.count(from->id) == 0 && cut.count(to->id) == 0
                && (from->session.is_host() ? target == 0 || target == to->id
                                            : to->session.is_host());
     }
 
+    // Queues a TCP message to every player it reaches, in order after the last one.
     void tcp(Player* from, std::int32_t target, const Bytes& bytes) {
+        // Every player the message reaches gets its own copy.
         for (Player* to : players) {
             if (reaches(from, target, to)) {
                 Limits& l = limits[to->id];
@@ -1243,7 +1407,9 @@ struct SimNet {
         }
     }
 
+    // Queues a datagram to one player, unless the link loses it; it may arrive late or twice.
     void one_datagram(Player* from, Player* to, const Bytes& bytes) {
+        // A datagram crosses two legs, to the server and on to the player, and either can lose it.
         for (int leg = 0; leg < 2; ++leg) {
             if (uniform() < link.loss) {
                 ++datagrams_lost;
@@ -1255,12 +1421,15 @@ struct SimNet {
         at += uniform() < link.reorder ? 60.0 + 3 * link.jitter : 0.0;
         flying.push_back({at, to, from->id, bytes});
 
+        // A duplicate arrives a little after the original.
         if (uniform() < link.duplicate) {
             flying.push_back({at + 5.0, to, from->id, bytes});
         }
     }
 
+    // Records, for a delivered WORLD message, the longest gap between words of a watched moby.
     void note_gaps(const Packet& f) {
+        // Only WORLD messages of a watched play are measured.
         if (!gaps_on || !gaps_of || f.bytes.empty()
             || f.bytes[0] != static_cast<std::uint8_t>(mp::WorldKind::kWorld)) {
             return;
@@ -1270,17 +1439,20 @@ struct SimNet {
         std::int64_t stamp = 0;
         std::vector<mp::WorldEntry> entries;
 
+        // A message that does not decode is left unmeasured.
         if (!mp::decode_world(f.bytes, level, stamp, entries)) {
             return;
         }
 
         for (const mp::WorldEntry& e : entries) {
+            // Only the mobys the test watches count.
             if (!gaps_of(e.id)) {
                 continue;
             }
 
             const auto seen = heard_at.find({f.to->id, e.id});
 
+            // The gap is the time since the last WORLD that named this moby for this player.
             if (seen != heard_at.end()) {
                 worst_gap = std::max(worst_gap, f.at - seen->second);
                 seen->second = f.at;
@@ -1290,9 +1462,12 @@ struct SimNet {
         }
     }
 
+    // Advances the net by `ms`. Takes what players sent through the server's limits, delivers what
+    // is due, then ticks every player.
     void step(std::uint64_t ms) {
         now += ms;
 
+        // Each player's outgoing traffic passes the server's limits before it is delivered.
         for (Player* p : players) {
             p->clock = now;
             Limits& l = limits[p->id];
@@ -1304,6 +1479,7 @@ struct SimNet {
                 r.feed(frame.data(), frame.size());
                 Bytes body;
 
+                // A frame that is not whole is dropped.
                 if (!r.next(body)) {
                     continue;
                 }
@@ -1312,12 +1488,14 @@ struct SimNet {
                 if (body.size() >= 4 && body[0] == static_cast<std::uint8_t>(mp::PacketId::kParty)
                     && body[1] == static_cast<std::uint8_t>(mp::PartyOp::kHostChanged)
                     && cut.count(p->id) == 0) {
+                    // A non-zero byte means the new host says it cannot host.
                     if (body[2] != 0) {
                         declined.insert(p->id);
                     } else {
                         mp::Reader ids(body.data() + 4, body.size() - 4);
                         named.clear();
 
+                        // The ids follow a count: the players the host named to follow it.
                         for (int i = 0; i < body[3]; ++i) {
                             named.push_back(ids.i32());
                         }
@@ -1328,10 +1506,12 @@ struct SimNet {
 
                 const mp::Request q = mp::decode_request(body);
 
+                // Only DATA is routed here.
                 if (q.kind != mp::Request::Kind::kData) {
                     continue;
                 }
 
+                // Over the DATA rate the server drops the message and counts a strike.
                 if (!l.data.take(now)) {
                     ++data_drops;
                     kicked += l.strikes.take(now) ? 0 : 1;
@@ -1348,17 +1528,20 @@ struct SimNet {
             std::vector<std::pair<std::int32_t, Bytes>> datagrams;
             datagrams.swap(p->link.datagrams);
 
+            // State datagrams are counted in the traffic whether or not the server then drops them.
             for (const auto& [target, bytes] : datagrams) {
                 ++state_sent;
                 Traffic& t = (p->id == 1 ? host_state : member_state)[bytes.empty() ? 0 : bytes[0]];
                 ++t.messages;
                 t.bytes += static_cast<long>(bytes.size());
 
+                // Over the state rate the server drops the datagram without a word.
                 if (!l.state.take(now)) {
                     ++state_drops;
                     continue;
                 }
 
+                // A datagram goes through the link once for each player it reaches.
                 for (Player* to : players) {
                     if (reaches(p, target, to)) {
                         one_datagram(p, to, bytes);
@@ -1373,6 +1556,7 @@ struct SimNet {
             return a.at < b.at;
         });
 
+        // Packets that are due are delivered and the rest stay in flight.
         for (Packet& f : flying) {
             if (f.at > static_cast<double>(now)) {
                 later.push_back(std::move(f));
@@ -1388,16 +1572,19 @@ struct SimNet {
 
         flying.swap(later);
 
+        // Every player's parts tick after the deliveries.
         for (Player* p : players) {
             p->migrate.tick(now);
             p->coop.tick(now);
             p->world.tick(now);
             p->progress.tick(now);
 
+            // Shared progress runs only for tests that turn it on.
             if (shared) {
                 p->shared.tick(now);
             }
 
+            // The rest of the game's parts run only for tests that need the whole mod.
             if (whole) {
                 p->mods.tick(now);
                 p->cosave.tick(now, p->coop.playing());
@@ -1418,11 +1605,13 @@ struct SimWorld {
     int crates = 0;
     float spread = 8.0f;
 
+    // Returns the world's mobys with slots counted from `shift`, leaving out the keys in `skipped`.
     std::vector<mp::MobyState> made(int shift, const std::set<int>& skipped = {}) const {
         std::vector<mp::MobyState> out;
         int slot = shift;
 
         for (int key = 0; key < enemies + crates; ++key) {
+            // A skipped key stands for a record the game left out.
             if (skipped.count(key) != 0) {
                 continue;
             }
@@ -1439,11 +1628,13 @@ struct SimWorld {
     }
 };
 
+// Gives every player the party info and readies the members, then routes.
 inline void join_party(std::vector<Player*> all, const std::vector<mp::Member>& members) {
     for (Player* p : all) {
         p->session.handle(info(members));
     }
 
+    // Members ready themselves; the host does not.
     for (Player* p : all) {
         if (p->id != 1) {
             p->session.toggle_ready();
@@ -1464,9 +1655,9 @@ inline const mp::MobyState* by_key(const FakeGame& game, int key) {
 }
 
 // The game rebuilding its level as a death does: every moby new, the records `skipped` left out (so
-// the slots after them move), the spawned gone, nothing driven, the hits posted to the old ones gone
-// with them (the port writes a hit into its moby: a test's list of them is that, by slot); the same
-// level.
+// the slots after them move), the spawned gone, nothing driven, the hits posted to the old ones
+// gone with them (the port writes a hit into its moby: a test's list of them is that, by slot); the
+// same level.
 inline void remake(Player& p, const SimWorld& w, const std::set<int>& skipped = {}, int shift = 0) {
     p.game.level = w.made(shift, skipped);
     p.game.drives.clear();
@@ -1506,16 +1697,19 @@ inline void compare_sim(const std::vector<Player*>& all, SimResult& r) {
     r.wrong_place = r.wrong_hidden = r.wrong_crates = 0;
     const FakeGame& host = all[0]->game;
 
+    // Each member's game is compared with the host's.
     for (std::size_t i = 1; i < all.size(); ++i) {
         std::map<int, const mp::MobyState*> theirs;
 
         for (const mp::MobyState& c : all[i]->game.level) {
+            // Spawned mobys have no key, so only placed ones match across games.
             if (c.key >= 0) {
                 theirs.emplace(c.key, &c);
             }
         }
 
         for (const mp::MobyState& h : host.level) {
+            // Only placed mobys can be matched across games.
             if (h.key < 0) {
                 continue;
             }
@@ -1525,6 +1719,8 @@ inline void compare_sim(const std::vector<Player*>& all, SimResult& r) {
             const bool here_dead = (h.flags & mp::kMobyDead) != 0;
             const bool there_dead = c == nullptr || (c->flags & mp::kMobyDead) != 0;
 
+            // Class 500 is the crate: it is wrong when only one side broke it; other mobys are
+            // compared by place and hidden flag.
             if (h.oclass == 500) {
                 r.wrong_crates += here_dead != there_dead ? 1 : 0;
             } else if (c != nullptr) {
@@ -1538,8 +1734,8 @@ inline void compare_sim(const std::vector<Player*>& all, SimResult& r) {
 
 // One run: a party of 1 + `members` plays `seconds`: the host's enemies move and hide, crates go
 // from every side, each break drops a bolt from the host that a member collects, and a member dies
-// half way; then everything stops and the link gets plan.settle_ms to settle. What differs then is a
-// desync no time will mend.
+// half way; then everything stops and the link gets plan.settle_ms to settle. What differs then is
+// a desync no time will mend.
 inline SimResult run_sim(
     const SimLink& link,
     unsigned seed,
@@ -1554,6 +1750,7 @@ inline SimResult run_sim(
     std::vector<Player*> all = {keep[0].get()};
     std::vector<mp::Member> list = {{1, "P1"}};
 
+    // Each extra member joins as player 2 and up.
     for (int i = 0; i < members; ++i) {
         keep.push_back(std::make_unique<Player>(2 + i));
         all.push_back(keep.back().get());
@@ -1570,6 +1767,7 @@ inline SimResult run_sim(
         return key >= 0 && key < w.enemies && key % plan.walk_every == 0;
     };
 
+    // Every game starts in level 3 with its mobys placed alike and the heroes spread along x.
     for (std::size_t i = 0; i < all.size(); ++i) {
         all[i]->game.now = {mp::kPhasePlaying, 3, 2};
         all[i]->game.level = w.made(kSimSlots + static_cast<int>(i) * 3);
@@ -1589,11 +1787,13 @@ inline SimResult run_sim(
     std::set<int> broken;
     int last_wrong = ticks - 1;
 
+    // Each step is 16 ms: the play first, then the time for the link to settle.
     for (int t = 0; t < ticks + plan.settle_ms / 16; ++t) {
         const bool playing = t < ticks;
         // Once everyone is under way, up to the stop and not across the member's own death.
         net->gaps_on = playing && t * 16 >= 2000 && (t < ticks / 2 || t * 16 >= ticks * 8 + 2000);
 
+        // Outside the measured window the gaps heard so far are forgotten.
         if (!net->gaps_on) {
             net->heard_at.clear();
         }
@@ -1601,19 +1801,21 @@ inline SimResult run_sim(
         // The host's enemies walk; some hide and show.
         if (playing) {
             for (mp::MobyState& m : host.game.level) {
+                // Only the host's enemies move; crates and spawned mobys stay put.
                 if (m.key >= 0 && m.key < w.enemies) {
                     if (walks(m.key)) {
                         m.pose.position[1] += 0.05f * (m.key % 2 == 0 ? 1.0f : -1.0f);
                     }
 
+                    // Now and then an enemy hides or shows again.
                     if (rng() % 2000 == 0) {
                         m.flags ^= mp::kMobyHidden;
                     }
                 }
             }
 
-            // Now and then a crate goes, here or there, unless it has. Not on the first tick: a game
-            // has a tick in the level before anyone can break anything in it.
+            // Now and then a crate goes, here or there, unless it has. Not on the first tick: a
+            // game has a tick in the level before anyone can break anything in it.
             if (rng() % 40 == 0) {
                 const int key =
                     w.enemies + static_cast<int>(rng() % static_cast<unsigned>(w.crates));
@@ -1679,13 +1881,17 @@ inline SimResult run_sim(
             std::vector<int> mine;
 
             for (const mp::MobyState& b : m.game.level) {
+                // Only bolts the member's game spawned itself count, not the ones driven from the
+                // host's copy.
                 if (b.key < 0 && mp::bolt_class(b.oclass) && m.game.drives.count(b.slot) == 0
                     && b.slot >= 500) {
                     mine.push_back(b.slot);
                 }
             }
 
+            // Each of the member's own bolts is collected once.
             for (const int slot : mine) {
+                // Credit counts only bolts the world layer accepts as the member's own.
                 if (m.world.mobys() != 0 && m.world.collect(slot)) {
                     ++r.bolts_credited;  // its own: never one of the host's
                 }
@@ -1696,6 +1902,7 @@ inline SimResult run_sim(
 
         net->step(16);
 
+        // The host's state traffic is kept as it stood when the play stopped.
         if (t + 1 == ticks) {
             net->played_state = net->host_state;
         }
@@ -1715,10 +1922,12 @@ inline SimResult run_sim(
         r.wrong_place + r.wrong_hidden + r.wrong_crates != 0 ? -1 : (last_wrong + 1 - ticks) * 16L;
     r.worst_gap_ms = net->worst_gap;
 
+    // Refused hits add up over all players.
     for (Player* p : all) {
         r.refused += p->world.hits_refused();
     }
 
+    // The net is handed back only to a caller that asks for it.
     if (out != nullptr) {
         *out = net_kept;
     }

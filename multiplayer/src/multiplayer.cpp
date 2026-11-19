@@ -86,14 +86,17 @@ const char* session_version() {
 void set_content(const openrac::UiPage& page, openrac::UiContent& content) {
     content.title = mp::fit_ui_text(content.title, mp::kTitleMax);
 
+    // Labels and the values of choice rows each have the port's byte limit.
     for (openrac::UiItem& item : content.items) {
         item.label = mp::fit_ui_text(item.label, mp::kItemMax);
 
+        // A choice row's values are cut at the same limit.
         for (std::string& choice : item.choices) {
             choice = mp::fit_ui_text(choice, mp::kItemMax);
         }
     }
 
+    // Each footer line has a limit of its own.
     for (std::string& line : content.footer) {
         line = mp::fit_ui_text(line, mp::kFooterLineMax);
     }
@@ -115,7 +118,9 @@ void trace_net() {
                        + std::to_string(c.state_tcp_held) + " flushes that waited "
                        + std::to_string(c.waited) + " most queued " + std::to_string(c.queue_most);
     const auto kinds = [&line](const char* what, const std::array<mp::NetCounts::Kind, 256>& all) {
+        // Every DATA kind, a byte's worth, is looked at.
         for (std::size_t kind = 0; kind < all.size(); ++kind) {
+            // Only a kind that had traffic gets an entry in the line.
             if (all[kind].messages != 0) {
                 line += std::string(" ") + what + std::to_string(kind) + "="
                         + std::to_string(all[kind].messages) + "/"
@@ -140,7 +145,7 @@ std::string player_name(const std::string& setting) {
         return name;
     }
 
-    return "Player" + std::to_string(mp::now_ms() % 1000);
+    return "Player" + std::to_string(mp::now_ms() % 1000);  // Last three digits of the clock
 }
 
 // The status line: the connection, or the last notice (menu.hpp).
@@ -153,6 +158,7 @@ std::string status() {
     in.notice = g->notice;
     in.address = g->connection->address();
 
+    // A hosting game also says its port and whether its UDP is up.
     if (in.mode == mp::Connection::Mode::kHosting) {
         const mp::HostingStatus h = g->connection->hosting();
         in.hosting_port = h.port;
@@ -164,21 +170,25 @@ std::string status() {
 
 // Team tools' line over the game: down and waiting, a teammate down nearby, the rally point.
 std::string comfort_banner(std::uint64_t now) {
+    // The tool is made in load; without it there is nothing to say.
     if (!g->comfort) {
         return {};
     }
 
+    // A wait for rescue comes first: the player cannot act meanwhile.
     if (g->comfort->down()) {
         return std::string(text("Awaiting rescue ")) + std::to_string(g->comfort->seconds_left(now))
                + " s";
     }
 
+    // A downed teammate within reach: tell the player how to rescue.
     if (g->comfort->near_downed()) {
         return text("Hold L3 + R3");
     }
 
     const float distance = g->comfort->rally_distance();
 
+    // A rally point the host marked, with its distance.
     if (distance >= 0) {
         return std::string(text("Rally point: ")) + std::to_string(static_cast<int>(distance))
                + text(" units");
@@ -206,6 +216,7 @@ bool revive_rule_held() {
 // Team tools: the host's rescue and rally settings (dim for a member), Mark host position, Clear
 // rally point, Give up, the rally point's distance, then each member's health or need of rescue.
 void show_comfort() {
+    // Before the page and the tool exist there is nothing to draw.
     if (!g->comfort || g->comfort_page.id() < 0) {
         return;
     }
@@ -219,6 +230,7 @@ void show_comfort() {
             text(label), std::move(values), static_cast<std::uint32_t>(value)
         );
 
+        // A member sees the host's settings but cannot change them.
         if (!host) {
             item.flags = OPENRAC_UI_DISABLED;
         }
@@ -226,6 +238,7 @@ void show_comfort() {
         return item;
     };
     const bool party = g->session->in_party();
+    // The window's choice index is its seconds over ten, less one: 10, 20 and 30 s.
     c.items = {
         choice("Co-op rescue", {text("Off"), text("On")}, o.revive ? 1 : 0),
         choice("Time to rescue", {"10 s", "20 s", "30 s"}, o.down_seconds / 10 - 1),
@@ -248,7 +261,9 @@ void show_comfort() {
         c.items.push_back(openrac::UiItem::text(text("Revive rule: on")));
     }
 
+    // One line per member, as far as the page has room.
     for (const mp::Member& member : g->session->members()) {
+        // The page holds a fixed number of items.
         if (c.items.size() >= OPENRAC_UI_ITEMS_MAX) {
             break;
         }
@@ -273,9 +288,12 @@ void show_comfort() {
 
 // Team tools' events: the host's settings, the rally point, giving up; out of a party, back.
 void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    // Only the host's change of a setting counts; a member's rows are dim.
     if (e.is(OPENRAC_UI_CHANGE) && g->session->is_host()) {
         mp::ComfortOptions options = g->comfort->options();
 
+        // Each setting is a choice row; a value out of range is ignored, and the window's index
+        // maps back to 10, 20 or 30 seconds.
         if (e.item() == kComfortRevive && e.value() >= 0 && e.value() < 2) {
             options.revive = e.value() != 0;
         } else if (e.item() == kComfortSeconds && e.value() >= 0 && e.value() < 3) {
@@ -286,6 +304,7 @@ void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e) {
 
         g->comfort->configure(options);
     } else if (e.is(OPENRAC_UI_CHOOSE)) {
+        // The buttons: mark the host's position, clear the marker, give up a rescue wait.
         if (e.item() == kComfortMark) {
             g->comfort->request_rally(mp::now_ms());
         } else if (e.item() == kComfortClear) {
@@ -295,6 +314,7 @@ void on_comfort(const openrac::UiPage& page, const openrac::UiEvent& e) {
         }
     }
 
+    // Out of a party this page has nothing to show: back, unless the page is being hidden.
     if (!g->session->in_party() && !e.is(OPENRAC_UI_HIDE)) {
         page.back();
         return;
@@ -316,6 +336,7 @@ void repaint_pages() {
     show_remove();
     show_comfort();
 
+    // The pause page exists only where the port has pause items.
     if (g->pause_page.id() >= 0) {
         show_pause();
     }
@@ -324,11 +345,11 @@ void repaint_pages() {
     g->mod->play_notice(mp::localized_notice(g->banner, language()));
 }
 
-// The party's line over the game (play_notice), when it changed: a refused ship travel or skip,
-// a wait for the others.
-// The port's overlay, as the name tags draw on it.
+// The port's overlay, as the name tags draw on it: a TagPainter over the overlay's calls, made for
+// one overlay call and used only inside it.
 class OverlayPainter : public mp::TagPainter {
 public:
+    // Wraps `overlay`, which the port keeps alive for the call that made this painter.
     explicit OverlayPainter(const openrac_overlay& overlay) : o_(overlay) {}
 
     bool project(const float world[3], float& x, float& y) override {
@@ -354,9 +375,11 @@ public:
     }
 
 private:
+    // The port's overlay calls; the port owns them.
     const openrac_overlay& o_;
 };
 
+// Draws the other players' name tags; the port calls it each frame with its overlay.
 void draw_tags(void*, const openrac_overlay* overlay) {
     float camera[3];
 
@@ -369,10 +392,11 @@ void draw_tags(void*, const openrac_overlay* overlay) {
     g->coop->note_tags(mp::draw_name_tags(painter, camera, g->coop->name_tags()));
 }
 
-// The host: the launcher's mod code, a few times a minute (a player may share while the game runs).
+// The host: the launcher's mod code, every few seconds (a player may share while the game runs).
 void refresh_mod_code(std::uint64_t now) {
     constexpr std::uint64_t kEveryMs = 3000;
 
+    // Only the host has a mod code to share, and it is read again only every few seconds.
     if (!g->session->is_host() || (g->mod_code_ms != 0 && now - g->mod_code_ms < kEveryMs)) {
         return;
     }
@@ -383,11 +407,14 @@ void refresh_mod_code(std::uint64_t now) {
     g->mods->set_mod_code(found.code);
 }
 
+// How long the launcher's join request may take before Home says it could not join, in
+// milliseconds.
 constexpr std::uint64_t kAutoJoinMs = 20000;
 
 // The party the launcher said to join, from the title: linked to the server, then in, then its
 // lobby. Not in time, Home says so; a mod that plays alone stays out, as by hand.
 void tick_auto_join(std::uint64_t now) {
+    // Only a pending request counts, and only at the title, where the pages are.
     if (g->join_party.empty() || g->game->status().phase != mp::kPhaseFrontEnd) {
         return;
     }
@@ -399,6 +426,8 @@ void tick_auto_join(std::uint64_t now) {
         g->join_party.clear();
     };
 
+    // In order: a mod that cannot be played in a party, another game's party, the party joined,
+    // then the steps toward joining.
     if (g->mods->solo()) {
         give_up("A mod you have on can't be played in a party");
     } else if (!g->refusal.empty()) {
@@ -407,36 +436,46 @@ void tick_auto_join(std::uint64_t now) {
         g->refusal.clear();
         give_up(why);
     } else if (s.in_party()) {
+        // Joined: say so in the log and show the lobby.
         g->mod->info("multiplayer: joined party " + g->join_party + " as the launcher asked");
         g->join_party.clear();
         g->lobby.open();
     } else if (g->join_ms == 0) {
+        // The first pass: note the time and link to the server.
         g->join_ms = now;
         back_to_server();
     } else if (now - g->join_ms >= kAutoJoinMs) {
+        // Not in a party in time: give up and say so.
         give_up("Could not join party " + g->join_party);
     } else if (!g->join_asked && s.greeted() && !s.waiting()) {
+        // Linked and greeted, and not busy: ask to join, once.
         g->join_asked = true;
         s.join(g->join_party);
     }
 }
 
+// Sets the party's line over the game (play_notice) when it changed: a refused ship travel or skip,
+// a wait for the others.
 void show_banner(std::uint64_t now) {
     // Who is gone first; then the party's own line: a save's only says it went well.
     std::string line = g->migrate->banner(now);
 
+    // No migration line: the co-op's own comes next.
     if (line.empty()) {
         line = g->coop->banner(now);
     }
 
+    // Nothing there: the party saves' line comes next.
     if (line.empty()) {
         line = g->cosave->banner(now);
     }
 
+    // Nothing there: Team tools' line is the last to try.
     if (line.empty()) {
         line = comfort_banner(now);
     }
 
+    // Only a changed line goes to the port, so the notice does not restart every tick.
     if (std::string banner = std::move(line); banner != g->banner) {
         g->banner = banner;
         g->mod->play_notice(mp::localized_notice(banner, language()));
@@ -461,6 +500,7 @@ void poll() {
         g->session->disconnected();
     }
 
+    // Every message that arrived since the last tick goes to the session.
     for (const mp::Message& m : g->connection->receive()) {
         g->session->handle(m);
     }
@@ -479,21 +519,25 @@ void poll() {
     // left it). With nobody to follow the host, its party save is where the game goes on.
     std::string notice = g->session->take_notice();
 
+    // The host left and a party save exists: the game can go on from it.
     if (notice == mp::kHostLeftNotice && g->cosave->slot() >= 0) {
         notice = mp::kContinueNotice;
     }
 
+    // The party has ended: keep why, for Home.
     if (was_in && !g->session->in_party()) {
         g->leave_reason = g->left_differs
                               ? mp::kDifferentDisc
                               : mp::leave_reason(g->leaving, !connected, direct, notice);
         g->left_differs = false;
     } else if (g->session->in_party()) {
+        // In a party the old reason no longer applies.
         g->leave_reason.clear();
     }
 
     g->leaving = false;
 
+    // A new notice replaces the last one.
     if (!notice.empty()) {
         g->notice = notice;
     }
@@ -503,6 +547,7 @@ void poll() {
         g->refusal = refusal;
     }
 
+    // The co-op's news replaces the notice too.
     if (std::string notice = g->coop->take_notice(); !notice.empty()) {
         g->notice = notice;
     }
@@ -529,12 +574,14 @@ void load(openrac::Mod& mod) {
     // The same pages and party in Going Commando, on what OpenRAC answers for it (rac2/game.hpp).
     const bool rac2 = mod.game() == "rac2";
 
+    // Going Commando's party needs the play calls, which an older OpenRAC lacks.
     if (rac2 && !mod.has_play()) {
         throw openrac::Error(
             "this OpenRAC has no play calls for Going Commando (a newer OpenRAC has them)"
         );
     }
 
+    // Any other game is not one this mod plays.
     if (mod.game() != "rac1" && !rac2) {
         throw openrac::Error(
             "this mod is for Ratchet & Clank (rac1) and Going Commando (rac2), not "
@@ -629,6 +676,7 @@ void load(openrac::Mod& mod) {
     comfort.members = [] {
         std::vector<int> ids;
 
+        // The hook gives member ids only.
         for (const mp::Member& m : g->session->members()) {
             ids.push_back(static_cast<int>(m.id));
         }
@@ -636,13 +684,16 @@ void load(openrac::Mod& mod) {
         return ids;
     };
     comfort.pose = [](int id, mp::Pose& out, bool menus) {
+        // No pose is known until the game is played.
         if (!g->coop->playing()) {
             return false;
         }
 
+        // This player's own pose comes from the game, the others' from what the co-op got.
         if (id == g->session->id()) {
             const int phase = g->game->status().phase;
 
+            // Only a level counts, or the pause menu when the caller allows menus.
             if (phase != mp::kPhasePlaying && !(menus && phase == mp::kPhaseMenu)) {
                 return false;
             }
@@ -652,6 +703,7 @@ void load(openrac::Mod& mod) {
 
         const auto it = g->coop->remotes().find(id);
 
+        // A remote with no fresh pose, or in a menu where menus are not allowed, has none.
         if (it == g->coop->remotes().end()
             || !mp::remote_pose_available(it->second, static_cast<double>(mp::now_ms()), menus)) {
             return false;
@@ -664,6 +716,7 @@ void load(openrac::Mod& mod) {
     };
     // The deferred lethal hit, given to the game's own damage at last (no health or place written).
     comfort.expire = [] {
+        // Without the original function there is no damage to give.
         if (auto original = g->mod->original<openrac::rac1::Hero_TakeDamage>()) {
             original(1);
         }
@@ -680,6 +733,7 @@ void load(openrac::Mod& mod) {
         mp::take_join_request(mod.plugins_folder(), static_cast<std::int64_t>(std::time(nullptr)));
     g->hold_party = mod.setting<bool>("hold_party");
 
+    // The verbose log is off unless the setting or the environment asks for it.
     if (mod.setting<bool>("verbose_log")
         || (trace_env != nullptr && std::string(trace_env) == "1")) {
         std::error_code error;
@@ -690,6 +744,7 @@ void load(openrac::Mod& mod) {
         path = std::filesystem::absolute(path, error);
         g->trace_file.open(path, std::ios::out | std::ios::app);
 
+        // A file that opens gets the lines; if not, they go to the game's log.
         if (g->trace_file) {
             g->trace.open([](const std::string& line) { g->trace_file << line << '\n'; });
             mod.info("multiplayer: verbose log on, its [mp-trace] lines in " + path.string());
@@ -701,6 +756,7 @@ void load(openrac::Mod& mod) {
             );
         }
 
+        // Run lines and run cameras need an OpenRAC with moby_run; say so when it is older.
         if (!mod.has_moby_run()) {
             mod.warn(
                 "multiplayer: this OpenRAC has no moby_run: the verbose log has no run lines or "
@@ -722,8 +778,10 @@ void load(openrac::Mod& mod) {
         [](const float* at) {
             // The hero's motion position (the bot is a test's).
             openrac::Memory memory = g->mod->memory();
+            // The hero record's position: NTSC's address, then PAL's (assumed).
             const openrac::gaddr hero = g->mod->version() == "ntsc" ? 0x0013F3D0u : 0x0013F4D0u;
 
+            // The three floats of the position, four bytes each.
             for (unsigned i = 0; i < 3; ++i) {
                 memory.write<float>(hero + 4u * i, at[i]);
             }
@@ -734,10 +792,13 @@ void load(openrac::Mod& mod) {
             g->game->give_item(item);
             openrac::Memory memory = g->mod->memory();
             const bool ntsc = g->mod->version() == "ntsc";
+            // The hero record and the weapon ammo table: NTSC's addresses, then PAL's (assumed).
             const openrac::gaddr hero = ntsc ? 0x0013F350u : 0x0013F450u;
             const openrac::gaddr ammo = ntsc ? 0x0013D428u : 0x0013D530u;
+            // The weapon chosen is given 40 rounds.
             memory.write<std::int32_t>(ammo + 4u * static_cast<unsigned>(item), 40);
 
+            // The Drone Device asks for the drones instead of being held (see above).
             if (item == 0x18) {
                 memory.write<std::uint8_t>(hero + 0x1FF5u, 1);
             } else {
@@ -752,6 +813,7 @@ void load(openrac::Mod& mod) {
                                                             : lobby_content();
             std::vector<std::string> lines = {c.title};
 
+            // Each item's label is a line of the page.
             for (const openrac::UiItem& item : c.items) {
                 lines.push_back(item.label);
             }
@@ -760,12 +822,15 @@ void load(openrac::Mod& mod) {
             return lines;
         },
         [](const std::string& text) {
-            // How wide the game's list font draws it (each disc's glyph table; the bot is a test's):
-            // the sum of each character's width, byte 3 of its 4-byte entry, as the port's menu_fit.
+            // How wide the game's list font draws it (each disc's glyph table; the bot is a
+            // test's): the sum of each character's width, byte 3 of its 4-byte entry, as the port's
+            // menu_fit.
             const openrac::Memory memory = g->mod->memory();
+            // The glyph table: NTSC's address, then PAL's (assumed).
             const openrac::gaddr glyphs = g->mod->version() == "ntsc" ? 0x001DF3F0u : 0x001DF770u;
             int width = 0;
 
+            // Each character adds its width from the table.
             for (const char ch : text) {
                 width += memory.read<std::int8_t>(glyphs + 4u * static_cast<std::uint8_t>(ch) + 3u);
             }
@@ -822,17 +887,18 @@ void load(openrac::Mod& mod) {
     // Ratchet & Clank's hook points (the manifest's): Going Commando's world, rescue and ship are
     // not shared yet (rac2/game.hpp).
     if (!rac2) {
-        // A member's game in the host's level drops no bolts of its own (the host's copy of the crate
-        // or enemy drops them, and they come here as the host's): the death recorded as the game does it
-        // (its killed bits), its drop left out. SetDeathBits drops about the s16 at +0xB4, or (for a
-        // tallied source, +0xB1 not below 0) at least one of what +0xB6 has left: +0xB4 cleared (as the
-        // game clears it after) and +0xB1 untallied (0xFF; 0xFE, a death not recorded, is left) for
-        // the call, +0xB1 put back.
+        // A member's game in the host's level drops no bolts of its own (the host's copy of the
+        // crate or enemy drops them, and they come here as the host's): the death recorded as the
+        // game does it (its killed bits), its drop left out. SetDeathBits drops about the s16 at
+        // +0xB4, or (for a tallied source, +0xB1 not below 0) at least one of what +0xB6 has left:
+        // +0xB4 cleared (as the game clears it after) and +0xB1 untallied (0xFF; 0xFE, a death not
+        // recorded, is left) for the call, +0xB1 put back.
         mod.hook<openrac::rac1::Moby_RecordDeath>(
             [](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t bolts) {
                 const int slot = g->mod->moby_slot_of(moby);
                 g->world->note_death(slot);
 
+                // Everywhere but a member's game in the host's level, the death is the game's own.
                 if (!g->world->quiet_drop(slot)) {
                     original(moby, flags, bolts);
                     return;
@@ -842,6 +908,7 @@ void load(openrac::Mod& mod) {
                 const auto source = memory.read<std::uint8_t>(moby + 0xB1u);
                 memory.write<std::int16_t>(moby + 0xB4u, 0);
 
+                // A source of 0xFE, a death not recorded, is left as it is.
                 if (source != 0xFEu) {
                     memory.write<std::uint8_t>(moby + 0xB1u, 0xFFu);
                 }
@@ -850,28 +917,33 @@ void load(openrac::Mod& mod) {
                 memory.write<std::uint8_t>(moby + 0xB1u, source);
             }
         );
-        // A bolt reaching this game's Ratchet: in a member's game in the host's level, the host's to
-        // give (a claim; BOLTS brings its value), so nothing is added here; the bolt update deletes the
-        // bolt either way.
+        // A bolt reaching this game's Ratchet: in a member's game in the host's level, the host's
+        // to give (a claim; BOLTS brings its value), so nothing is added here; the bolt update
+        // deletes the bolt either way.
         mod.hook<openrac::rac1::Moby_CollectBolt>([](auto original, std::uint32_t bolt) {
+            // Only a bolt this game may take goes to the game's own collection.
             if (g->world->collect(g->mod->moby_slot_of(bolt))) {
                 original(bolt);
             }
         });
-        // A normal lethal hit, deferred while a teammate can rescue (Team tools): the hero keeps one
-        // health. Falls and crushers set health directly and keep the game's own checkpoint. With the
-        // party's revive rule on, the death is that rule's (the game holds the hero down), so the hit
-        // goes on as it is: the two never both catch one death.
+        // A normal lethal hit, deferred while a teammate can rescue (Team tools): the hero keeps
+        // one health. Falls and crushers set health directly and keep the game's own checkpoint.
+        // With the party's revive rule on, the death is that rule's (the game holds the hero down),
+        // so the hit goes on as it is: the two never both catch one death.
         mod.hook<openrac::rac1::Hero_TakeDamage>([](auto original, std::int32_t damage) {
+            // The revive rule has this death: pass the hit on as it is.
             if (revive_rule_held()) {
                 original(damage);
                 return;
             }
 
+            // The hero record, PAL's address then NTSC's; its byte at +0x20A4 is 0 on foot
+            // (assumed).
             const openrac::gaddr hero =
                 g->mod->relocate(g->mod->version() == "pal" ? 0x13F450u : 0x13F350u);
             const bool on_foot = g->mod->memory().read<std::uint8_t>(hero + 0x20A4u) == 0;
 
+            // A hit Team tools does not hold goes to the game as usual.
             if (!g->comfort->hit(mp::now_ms(), damage, on_foot)) {
                 original(damage);
             }
@@ -892,6 +964,7 @@ void load(openrac::Mod& mod) {
         g->camscripts->script(id, started != 0);
     });
     mod.on_pad([](int port, std::uint8_t* report, int size) {
+        // Only the first pad is read, and only a report that holds the buttons and sticks.
         if (port != 0 || size < 6) {
             return;
         }
@@ -903,6 +976,7 @@ void load(openrac::Mod& mod) {
         const std::uint64_t now = mp::now_ms();
 
         // A movie plays outside the game's ticks (no on_frame): the party's messages are read here.
+        // No game tick for over 100 ms means a movie plays.
         if (now - g->frame_ms > 100) {
             poll();
             g->session->flush();
@@ -924,8 +998,8 @@ void load(openrac::Mod& mod) {
         // does nothing here but say so (a movie has no game ticks: the banner is shown from here).
         const bool start = (report[0] & 0x08) == 0;
         const int phase = g->game->status().phase;
-        // L3 and R3 held together (bits 0x02 and 0x04 of byte 0 clear), in a level, the window ours:
-        // a rescue (Team tools).
+        // L3 and R3 held together (bits 0x02 and 0x04 of byte 0 clear), in a level, the window
+        // ours: a rescue (Team tools).
         const openrac_input& input = g->mod->input().raw();
         g->comfort->holding(
             phase == mp::kPhasePlaying && input.focused && !input.overlay && (report[0] & 0x06) == 0
@@ -934,6 +1008,7 @@ void load(openrac::Mod& mod) {
         // release, or the rest of it opens the pause menu.
         g->start_taken = start && (g->start_taken || g->coop->ship_held());
 
+        // A new press of Start counts as a skip, not a held one.
         if (start && !g->start_held) {
             g->coop->own_skip(phase, now);
             show_banner(now);
@@ -941,10 +1016,14 @@ void load(openrac::Mod& mod) {
 
         g->start_held = start;
 
+        // A Start the ship took, or the co-op blocks, is hidden from the game.
         if (start && (g->start_taken || g->coop->start_blocked(phase))) {
             report[0] = static_cast<std::uint8_t>(report[0] | 0x08);
         }
 
+        // The report the game sees: neutral while the co-op holds the control; neutral but for
+        // Select and Start (0x09 of byte 0) while waiting for rescue; Start pressed for a movie's
+        // skip. Sticks rest at 0x80 and the pressures at 0 (documented: pad_intent.hpp).
         if (g->coop->hold_input()) {
             report[0] = report[1] = 0xFF;
             std::fill(report + 2, report + 6, static_cast<std::uint8_t>(0x80));
@@ -1058,11 +1137,13 @@ void load(openrac::Mod& mod) {
         const bool other_game = g->session->in_party() && !g->session->is_host()
                                 && mp::other_game(g->session->description(), game_tag());
 
+        // Either way the player leaves the party, and Home says why.
         if (g->world->take_level_differs() || other_game) {
             g->left_differs = true;
             leave_party();
         }
 
+        // Out of a party the refused page may be told again the next time.
         if (!g->session->in_party()) {
             g->told_refused = false;
         }
@@ -1084,6 +1165,7 @@ void load(openrac::Mod& mod) {
             show_comfort();
         }
 
+        // The verbose log's tick line says what part this game plays in the party.
         if (g->trace.on()) {
             g->trace.tick(
                 now,
@@ -1117,6 +1199,7 @@ void load(openrac::Mod& mod) {
             trace_net();
         }
 
+        // The file is flushed every tick, so a report has the latest lines.
         if (g->trace.on() && g->trace_file.is_open()) {
             g->trace_file.flush();
         }

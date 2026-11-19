@@ -15,6 +15,7 @@ void bolts_are_the_hosts() {
     Player host(1), a(2), b(3);
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
 
+    // Every player hears the party of three.
     for (Player* p : {&host, &a, &b}) {
         p->session.handle(info(all));
     }
@@ -28,6 +29,7 @@ void bolts_are_the_hosts() {
     // bolt (key 4) in every game.
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
 
+    // Every game holds the same placed mobys in level 0.
     for (Player* p : {&host, &a, &b}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level =
@@ -37,6 +39,7 @@ void bolts_are_the_hosts() {
              moby(4, 4, 13, runs, 50.0f)};
     }
 
+    // A second lets the world sync.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
@@ -73,6 +76,7 @@ void bolts_are_the_hosts() {
     tick({&host, &a, &b}, 100);
     tick({&host, &a, &b}, 100);
 
+    // Neither member drives a bolt; both hold the host's two as spawned ones.
     for (Player* p : {&a, &b}) {
         CHECK(p->world.driven() == 0 && p->world.spawned() == 2);
     }
@@ -112,6 +116,7 @@ void bolts_are_the_hosts() {
     host.game.bolt_count += 1;
     int b_spawned = -1;
 
+    // The member's copy of the host's bolt has no key, so it is found by its class.
     for (const mp::MobyState& m : b.game.level) {
         if (m.oclass == 13 && m.key < 0) {
             b_spawned = m.slot;
@@ -127,6 +132,7 @@ void bolts_are_the_hosts() {
     // In A's game, where it hovered by itself, it flies to the host's figure and goes there.
     int a_spawned = -1;
 
+    // The member's copy of the host's bolt has no key, so it is found by its class.
     for (const mp::MobyState& m : a.game.level) {
         if (m.oclass == 13 && m.key < 0) {
             a_spawned = m.slot;
@@ -162,6 +168,7 @@ void bolts_are_the_hosts() {
     tick({&host, &a, &b}, 50);
     tick({&host, &a, &b}, 50);
 
+    // Each member made the host's hexnut once, and also holds the placed one.
     for (Player* p : {&a, &b}) {
         CHECK(std::count(p->game.world_calls.begin(), p->game.world_calls.end(), "spawn 14") == 1);
         CHECK(count_of_class(p->game, 14) == 2);  // the placed hexnut (key 2) and the host's
@@ -230,6 +237,7 @@ void bolts_go_to_the_nearest() {
 
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
 
+    // Both games hold an enemy and a crate placed by the level.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {moby(1, 1, 500, runs, 20.0f), moby(2, 2, 77, mp::kMobyPlaced, 90.0f)};
@@ -239,6 +247,7 @@ void bolts_go_to_the_nearest() {
     host.game.hero_pose.position[0] = 100.0f;
     member.game.hero_pose.position[0] = 21.0f;
 
+    // A second lets the world sync.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -307,6 +316,7 @@ void taken_bolts_fly_to_the_taker() {
     route({&host, &member});
     tick({&host, &member}, 16);
 
+    // Both games hold a placed crate.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {moby(1, 1, 77, mp::kMobyPlaced, 90.0f)};
@@ -315,6 +325,7 @@ void taken_bolts_fly_to_the_taker() {
     host.game.hero_pose.position[0] = 10.0f;
     member.game.hero_pose.position[0] = 40.0f;
 
+    // A second lets the world sync.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -329,6 +340,7 @@ void taken_bolts_fly_to_the_taker() {
     tick({&host, &member}, 50);
     tick({&host, &member}, 50);
 
+    // The host's dropped bolts all land and hover.
     for (mp::MobyState& m : host.game.level) {
         if (m.key < 0) {
             m.state = mp::kBoltHovering;
@@ -340,6 +352,7 @@ void taken_bolts_fly_to_the_taker() {
     CHECK(member.world.spawned() == 3 && member.world.driven() == 0);
     std::vector<int> copies;
 
+    // The member's copies of those bolts are the class 13 mobys with no key.
     for (const mp::MobyState& m : member.game.level) {
         if (m.key < 0 && m.oclass == 13) {
             copies.push_back(m.slot);
@@ -363,6 +376,7 @@ void taken_bolts_fly_to_the_taker() {
     CHECK(host.game.world_calls.back() == "stand 25 " + std::to_string(member_figure));
     host.world.gate(300, mp::kMobyAfter);
 
+    // The host's bolt 300 starts to fly.
     for (mp::MobyState& m : host.game.level) {
         if (m.slot == 300) {
             m.state = mp::kBoltFlying;
@@ -399,6 +413,7 @@ void taken_bolts_fly_to_the_taker() {
     CHECK(!member.world.gate(copies[1], mp::kMobyBefore));
     CHECK(member.game.world_calls.back() == "stand 25 " + std::to_string(host_figure));
 
+    // The member's second copy starts to fly.
     for (mp::MobyState& m : member.game.level) {
         if (m.slot == copies[1]) {
             m.state = mp::kBoltFlying;
@@ -449,6 +464,7 @@ void progress_is_the_partys() {
     Player host(1), a(2), b(3);
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
 
+    // Every player hears the party of three.
     for (Player* p : {&host, &a, &b}) {
         p->session.handle(info(all));
     }
@@ -461,6 +477,7 @@ void progress_is_the_partys() {
     // Level 1's two gold bolts (keys 1 and 2: gold bolt flags 4 and 5) in every game.
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
 
+    // Every game holds the same gold bolts (class 1134) and other mobys in level 1.
     for (Player* p : {&host, &a, &b}) {
         p->game.now = {mp::kPhasePlaying, 1, 2};
         p->game.level =
@@ -470,6 +487,7 @@ void progress_is_the_partys() {
         p->game.calls.clear();
     }
 
+    // A second lets the world sync.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
@@ -485,6 +503,7 @@ void progress_is_the_partys() {
     a.game.owned.gold[4] = 1;
     a.game.die(1);
 
+    // A second lets the first gold bolt's collection reach every game.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
@@ -496,6 +515,7 @@ void progress_is_the_partys() {
     CHECK(host.game.owned.gold[4] == 1 && b.game.owned.gold[4] == 1);
     CHECK(host.game.moby_slot(1) == -1 && b.game.moby_slot(1) == -1);
 
+    // No scene is asked for and nobody is held.
     for (Player* p : {&host, &a, &b}) {
         CHECK(!asked_scene(p->game) && !p->coop.hold_input() && p->game.hidden_figures.empty());
     }
@@ -504,6 +524,7 @@ void progress_is_the_partys() {
     host.game.owned.gold[5] = 1;
     host.game.die(2);
 
+    // A second lets the host's collection reach every game.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
@@ -514,6 +535,7 @@ void progress_is_the_partys() {
     );
     CHECK(a.game.moby_slot(2) == -1 && b.game.moby_slot(2) == -1);
 
+    // No scene is asked for and nobody is held.
     for (Player* p : {&host, &a, &b}) {
         CHECK(!asked_scene(p->game) && !p->coop.hold_input());
     }
@@ -524,6 +546,7 @@ void progress_is_the_partys() {
     b.game.owned.items[10] = 1;
     host.game.owned.planets[3] = 1;
 
+    // A second lets the weapon and the planet reach every game, the one with a menu up included.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b}, 50);
     }
@@ -535,6 +558,7 @@ void progress_is_the_partys() {
     CHECK(a.game.owned.items[10] == 0 && a.game.owned.planets[3] == 0);
     a.game.now.phase = mp::kPhasePlaying;
 
+    // Ten ticks after A's menu closes, the gifts are given to it.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &a, &b}, 50);
     }
@@ -552,6 +576,7 @@ void progress_is_the_partys() {
     joined.id = 4;
     joined.text = "P4";
 
+    // The three players hear the fourth join.
     for (Player* p : {&host, &a, &b}) {
         p->session.handle(joined);
     }
@@ -562,6 +587,7 @@ void progress_is_the_partys() {
     CHECK(late.game.started_save == host.game.live_save);
     late.game.now = {mp::kPhasePlaying, 1, 2};
 
+    // A second lets the late player be given the host's gold bolts.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &a, &b, &late}, 50);
     }
@@ -587,6 +613,7 @@ void a_long_session() {
     host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
     int times = 0;
 
+    // Count the time packets each side sends over 100 seconds while the host moves.
     for (int i = 0; i < 2000; ++i) {  // 100 seconds
         host.game.hero_pose.position[0] = static_cast<float>(i) * 0.05f;
 
@@ -594,6 +621,7 @@ void a_long_session() {
             p->clock += 50;
             p->coop.tick(p->clock);
 
+            // A time packet is recognised by its packet id at byte 4 of the frame.
             for (const Bytes& f : p->link.frames) {
                 times +=
                     f.size() > 4 && f[4] == static_cast<std::uint8_t>(mp::PacketId::kTime) ? 1 : 0;

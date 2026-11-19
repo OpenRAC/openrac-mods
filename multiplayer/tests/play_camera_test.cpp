@@ -10,6 +10,8 @@ namespace mpt {
 
 namespace {
 
+// Moby classes the tests use: a door (shown to those near), a lift (shown to its riders), the
+// gold bolt and a cannon seat (never shown to anyone else).
 constexpr int kDoor = 737;
 constexpr int kLift = 877;
 constexpr int kGoldBolt = 1134;
@@ -17,9 +19,12 @@ constexpr int kCannon = 440;
 
 // A host and a member in a level, the member beside the host, a hero's health on each.
 struct Pair : Party {
+    // The member, another name for the party's second player.
     Player& member = a;
 
+    // Puts both players in level 4, loaded, at full health, and runs one tick.
     Pair() {
+        // Both games start in the same level at the same health, so only the script differs.
         for (Player* p : players()) {
             p->game.now = {mp::kPhasePlaying, 4, 2};
             p->game.hero_pose.health = 8;
@@ -30,6 +35,7 @@ struct Pair : Party {
 
     // Time without anyone touching a pad.
     void quiet() {
+        // Long enough that earlier input or a hurt no longer keeps the member's camera.
         for (int i = 0; i < 40; ++i) {
             tick(players(), 16);
         }
@@ -45,6 +51,7 @@ struct Pair : Party {
         tick(players(), 16);
     }
 
+    // Ends the script of moby `id` in `p`'s game.
     void end(Player& p, int id) {
         p.game.script_on = false;
         p.cam.script(id, false);
@@ -52,6 +59,7 @@ struct Pair : Party {
     }
 };
 
+// Checks that a camera script survives encoding and decoding with every field intact.
 void wire_round_trip() {
     mp::CamScript script;
     script.play = 7;
@@ -100,6 +108,7 @@ void wire_round_trip() {
     }
 }
 
+// Checks that the share rule gives each moby class the audience it is meant for.
 void who_sees_what_goes_by_class() {
     CHECK(mp::camera_share(kDoor) == mp::CamShare::kCamNear);
     CHECK(mp::camera_share(1028) == mp::CamShare::kCamNear);
@@ -114,6 +123,7 @@ void who_sees_what_goes_by_class() {
     }
 }
 
+// Checks that a pad stick or button counts as input only past the dead zone.
 void the_pad_counts_past_the_dead_zone() {
     std::uint8_t pad[6] = {0xFF, 0xFF, 0x7F, 0x7F, 0x7F, 0x7F};
     CHECK(!mp::pad_active(pad, 6));
@@ -130,6 +140,7 @@ void the_pad_counts_past_the_dead_zone() {
     CHECK(!mp::pad_active(pad, 5));
 }
 
+// Checks that a door's camera script plays for a near member and is handed back with an ease.
 void a_door_is_shown_to_a_member_near_and_handed_back_eased() {
     Pair party;
     party.quiet();
@@ -139,6 +150,8 @@ void a_door_is_shown_to_a_member_near_and_handed_back_eased() {
     // The host's own runs in its game; nothing of it is asked there.
     CHECK(party.host.game.camera_calls.empty());
 
+    // The host's script view moves each tick and the member's shown view follows it, a margin
+    // behind.
     for (int i = 0; i < 20; ++i) {
         party.host.game.script_view.eye[0] = static_cast<float>(i);
         tick(party.players(), 16);
@@ -155,10 +168,12 @@ void a_door_is_shown_to_a_member_near_and_handed_back_eased() {
     CHECK(party.member.game.camera_calls.back() == mp::kCameraEnd);
 }
 
+// Checks that the gold bolt's and a seat's scripts are never sent to anyone.
 void a_gold_bolt_or_a_seat_goes_nowhere() {
     Pair party;
     party.quiet();
 
+    // Neither the gold bolt's script nor a seat's is ever sent, so the count of sends stays put.
     for (const int id : {kGoldBolt, kCannon}) {
         const auto sent = party.host.cam.sent();
         party.start(party.host, id);
@@ -170,6 +185,7 @@ void a_gold_bolt_or_a_seat_goes_nowhere() {
     CHECK(party.member.game.camera_calls.empty());
 }
 
+// Checks that a member too far from a door, or beside a lift, keeps its own camera.
 void far_away_or_off_the_lift_keeps_the_players_camera() {
     Pair party;
     party.quiet();
@@ -189,6 +205,7 @@ void far_away_or_off_the_lift_keeps_the_players_camera() {
     CHECK(party.member.game.camera_calls.size() == asked);
 }
 
+// Checks that a member using the pad, hurt, dead, or in a scene or menu keeps its camera.
 void a_player_in_the_middle_of_something_keeps_the_camera() {
     Pair party;
     party.quiet();
@@ -223,6 +240,7 @@ void a_player_in_the_middle_of_something_keeps_the_camera() {
     CHECK(party.member.game.camera_calls.empty());
 }
 
+// Checks that a press or a hit during a shown script returns the camera to the player at once.
 void anything_pressed_or_a_hit_takes_the_camera_back_at_once() {
     Pair party;
     party.quiet();
@@ -250,6 +268,7 @@ void anything_pressed_or_a_hit_takes_the_camera_back_at_once() {
     CHECK(party.member.game.camera_calls.back() == mp::kCameraCut);
 }
 
+// Checks that a menu or a scene starting on the member ends a shown script.
 void a_scene_or_a_menu_takes_the_camera_back() {
     Pair party;
     party.quiet();
@@ -269,6 +288,7 @@ void a_scene_or_a_menu_takes_the_camera_back() {
     CHECK(!party.member.cam.showing());
 }
 
+// Checks that when the game takes the camera itself, the shown script ends with no cut call.
 void the_game_taking_the_camera_ends_it_without_a_call() {
     Pair party;
     party.quiet();
@@ -280,6 +300,7 @@ void the_game_taking_the_camera_ends_it_without_a_call() {
     CHECK(party.member.game.camera_calls == std::vector<int>{kDoor});
 }
 
+// Checks that a shown script ends once the host's views stop arriving.
 void silence_from_the_host_gives_the_camera_back() {
     Pair party;
     party.quiet();
@@ -297,6 +318,7 @@ void silence_from_the_host_gives_the_camera_back() {
     CHECK(party.member.game.camera_calls.back() == mp::kCameraCut);
 }
 
+// Checks that a player who hears only the views of a script that began earlier shows nothing.
 void a_script_under_way_is_not_joined() {
     Pair party;
     party.quiet();
@@ -315,10 +337,12 @@ void a_script_under_way_is_not_joined() {
     CHECK(late.member.game.camera_shows == 0);
 }
 
+// Checks that a player still joining the game shows no camera script.
 void a_joining_player_plays_nothing() {
     Player host{1}, member{2}, late{3};
     std::vector<Player*> all = {&host, &member, &late};
     const auto run = [&](std::uint64_t ms) {
+        // Advance every game's clock in steps, as play does, so messages arrive in order.
         for (std::uint64_t t = 0; t < ms; t += 50) {
             tick(all, 50);
         }
@@ -354,6 +378,7 @@ void a_joining_player_plays_nothing() {
     CHECK(late.game.camera_calls.empty());
 }
 
+// Checks that a script a member set off is shown to the host as well as to the other members.
 void a_members_script_is_the_hosts_to_watch_too() {
     Pair party;
     party.quiet();
@@ -363,6 +388,7 @@ void a_members_script_is_the_hosts_to_watch_too() {
     CHECK(party.member.game.camera_calls == std::vector<int>{kDoor});
     CHECK(party.host.cam.showing() && party.member.cam.showing());
 
+    // Let the script run so both the host and the member show its camera.
     for (int i = 0; i < 20; ++i) {
         tick(party.players(), 16);
     }
@@ -382,6 +408,7 @@ void a_members_script_is_the_hosts_to_watch_too() {
     CHECK(party.member.game.camera_calls.back() == mp::kCameraEnd);
 }
 
+// Checks that a member's script is not shown to a host who is using the pad.
 void a_members_script_leaves_a_busy_host_alone() {
     Pair party;
     party.quiet();
@@ -391,12 +418,14 @@ void a_members_script_leaves_a_busy_host_alone() {
     CHECK(party.member.cam.showing());
 }
 
+// Checks that a jump of the script's eye is shown as a cut, not an eased sweep.
 void a_cut_in_the_script_is_not_a_sweep() {
     Pair party;
     party.quiet();
     party.start(party.host, kDoor);
     bool between = false;
 
+    // The eye jumps half way through, and the shown view must never land between the two places.
     for (int i = 0; i < 40; ++i) {
         party.host.game.script_view.eye[0] = i < 20 ? 0.0f : 500.0f;
         tick(party.players(), 16);
@@ -408,6 +437,7 @@ void a_cut_in_the_script_is_not_a_sweep() {
     CHECK(party.member.game.shown_eye[0] == 500.0f);
 }
 
+// Checks that the shown rotation turns the short way across the half turn.
 void an_angle_goes_the_short_way_round() {
     // Across the half turn, either way.
     for (const float from : {3.1f, -3.1f}) {
@@ -417,6 +447,8 @@ void an_angle_goes_the_short_way_round() {
         party.start(party.host, kDoor);
         bool the_long_way = false;
 
+        // The angle flips across the half turn midway, and the shown angle must never pass through
+        // zero.
         for (int i = 0; i < 40; ++i) {
             party.host.game.script_view.rotation[2] = i < 20 ? from : -from;
             tick(party.players(), 16);
@@ -428,6 +460,7 @@ void an_angle_goes_the_short_way_round() {
     }
 }
 
+// Checks that lost views leave the shown camera moving and the end still arrives.
 void a_lost_view_goes_on_from_the_ones_that_came() {
     Pair party;
     party.quiet();
@@ -438,6 +471,7 @@ void a_lost_view_goes_on_from_the_ones_that_came() {
         party.host.game.script_view.eye[0] = static_cast<float>(i) * 0.2f;
         const bool lost = i % 3 != 0;
 
+        // On two ticks of three the host's view is lost, as over a bad link.
         if (lost) {
             party.host.game.script_on = false;
         }
@@ -452,6 +486,7 @@ void a_lost_view_goes_on_from_the_ones_that_came() {
     CHECK(!party.member.cam.showing());
 }
 
+// Checks that a script word from another play, or from a member, shows nothing.
 void another_play_is_ignored() {
     Pair party;
     party.quiet();
@@ -469,6 +504,7 @@ void another_play_is_ignored() {
     CHECK(party.member.game.camera_calls.empty());
 }
 
+// Checks that resetting after the party ends cuts the shown script.
 void a_party_gone_gives_the_camera_back() {
     Pair party;
     party.quiet();

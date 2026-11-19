@@ -8,6 +8,7 @@
 namespace mpt {
 namespace {
 
+// Checks that the host starts its save and the member follows it into levels and to the title.
 void the_host_starts_a_save_and_the_member_follows() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -26,6 +27,7 @@ void the_host_starts_a_save_and_the_member_follows() {
     // A save of 40,000 bytes: three pieces.
     Bytes save(40000);
 
+    // Fill the save with a pattern, so a wrongly assembled copy would differ from it.
     for (std::size_t i = 0; i < save.size(); ++i) {
         save[i] = static_cast<std::uint8_t>(i * 7);
     }
@@ -61,6 +63,7 @@ void the_host_starts_a_save_and_the_member_follows() {
     // The member arrives in 5: the host's figure in its level, and the member's in the host's.
     member.game.now = {mp::kPhasePlaying, 5, 3};
 
+    // A second of poses is enough for the figures to appear in both games.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -72,6 +75,7 @@ void the_host_starts_a_save_and_the_member_follows() {
     // The host goes to the title: the member's figure goes, and it travels nowhere.
     host.game.now = {mp::kPhaseFrontEnd, -1, 2};
 
+    // Give the host's title state time to reach the member.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
@@ -90,6 +94,7 @@ void the_host_starts_a_save_and_the_member_follows() {
     CHECK(member.game.calls.empty());
 }
 
+// Checks that a new game and its progress reach a late member, whose figures come and go.
 void a_new_game_and_a_late_member() {
     Player host(1), member(2), late(3);
     host.session.handle(info({{1, "P1"}, {2, "P2"}}));
@@ -129,6 +134,7 @@ void a_new_game_and_a_late_member() {
     // The late one's poses reach the member through the host, as figures in level 0.
     member.game.now = {mp::kPhasePlaying, 0, 4};
 
+    // A second of poses reaches the member through the host, so both late figures appear.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member, &late}, 50);
     }
@@ -140,6 +146,7 @@ void a_new_game_and_a_late_member() {
     member.game.now.loads = 5;
     member.game.figures.clear();
 
+    // A few ticks let the member notice the load and make the figures again.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member, &late}, 50);
     }
@@ -163,6 +170,7 @@ void a_new_game_and_a_late_member() {
     CHECK(member.game.figures.empty() && !member.coop.playing());
 }
 
+// Checks that a member in the title while the host is playing asks for the host's game.
 void a_member_out_of_the_game_asks_for_it() {
     Player host(1), member(2);
     host.session.handle(info({{1, "P1"}, {2, "P2"}}));

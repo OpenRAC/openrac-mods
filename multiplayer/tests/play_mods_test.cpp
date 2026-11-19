@@ -8,6 +8,7 @@
 namespace mpt {
 namespace {
 
+// Checks that a mod list decodes as encoded, a cut one is refused and the digest follows the rules.
 void mod_lists_read_back_and_digest() {
     const mp::ModList list = sample_list();
     Bytes bytes = mp::encode_mod_list(list);
@@ -74,6 +75,7 @@ void mod_lists_read_back_and_digest() {
     CHECK(mp::tagged_description(std::string(60, 'x'), 7).size() <= mp::kMaxDescriptionLength);
 }
 
+// Checks that comparing two mod lists reports each kind of difference and how to say it.
 void differences_say_how() {
     using Kind = mp::Difference::Kind;
     const mp::ModList host = sample_list();
@@ -86,6 +88,7 @@ void differences_say_how() {
         setting_of(mine, s.key).value = "changed";
         const std::vector<mp::Difference> d = mp::compare_mods(mine, host);
 
+        // A shared setting is a difference when it changes; any other setting is exempt.
         if (s.party == mp::kSettingShared) {
             CHECK(
                 d.size() == 1 && d[0].kind == Kind::kSettings
@@ -146,6 +149,7 @@ void differences_say_how() {
     CHECK(lines[2] == "Multiplayer 0.8.0 (host 0.9.0)");
     CHECK(mp::refusal_short(d) == "a different disc, 2 more");
 
+    // No line a player reads names a disc.
     for (const std::string& line : lines) {
         CHECK(line.find("pal") == std::string::npos && line.find("ntsc") == std::string::npos);
     }
@@ -163,6 +167,7 @@ void differences_say_how() {
     long_names.mods[0].version = "10.20.30";
     d = mp::compare_mods(host, long_names);
 
+    // Even long names and versions fit the title's line.
     for (const std::string& line : mp::refusal_lines(d)) {
         CHECK(line.size() <= mp::kTitleLine);
     }
@@ -170,9 +175,11 @@ void differences_say_how() {
     CHECK(mp::wrap_text(std::string(100, 'x'), 47).size() == 3);
     const std::vector<std::string> names(30, "Damage to enemies");
 
+    // Both the title's and the pause menu's line widths are tried.
     for (const std::size_t width : {mp::kTitleLine, mp::kPauseLine}) {
         std::size_t items = 0;
 
+        // Each wrapped line fits its width and no item is lost.
         for (const std::string& line : mp::wrap_list(names, width)) {
             CHECK(line.size() <= width);
             items += static_cast<std::size_t>(std::count(line.begin(), line.end(), ',')) + 1;
@@ -182,6 +189,7 @@ void differences_say_how() {
     }
 }
 
+// Checks that the host's mods, settings and published rules are written as lines the player reads.
 void the_rules_are_said_in_words() {
     mp::ModList host = sample_list();
     const std::vector<mp::PartyRules> rules = {
@@ -210,11 +218,13 @@ void the_rules_are_said_in_words() {
         == (std::vector<std::string>{"No gameplay mods", "Yours: controls and looks"})
     );
 
+    // Each rules line fits the pause menu's line.
     for (const std::string& line : mp::rules_lines(host, rules, sample_list(), mp::kPauseLine)) {
         CHECK(line.size() <= mp::kPauseLine);
     }
 }
 
+// Checks that a member whose mods differ from the host's is refused and cannot ready up.
 void a_differing_member_is_refused() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -258,6 +268,7 @@ void a_differing_member_is_refused() {
     CHECK(member2.game.calls.empty() && member2.coop.take_notice().find("Games differ") == 0);
 }
 
+// Checks that a player who joins mid-game is checked against the host's mods as well.
 void a_mid_game_joiner_is_checked_too() {
     Player host(1), member(2), late(3);
     const std::vector<mp::Member> two = {{1, "P1"}, {2, "P2"}};
@@ -313,6 +324,7 @@ void a_mid_game_joiner_is_checked_too() {
     CHECK(good.game.delivered[0].calls == 0);
 }
 
+// Checks that the host's published rules reach the members' mods that take them.
 void the_hosts_rules_reach_the_members() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -413,6 +425,7 @@ void another_party_starts_clean() {
     CHECK(!member.mods.heard_host());
 }
 
+// Checks that a long name is cut so the lobby line still shows the member's status.
 void long_names_keep_what_the_line_says() {
     mp::LobbyMemberInput m;
     m.name = std::string(32, 'x');
@@ -424,6 +437,7 @@ void long_names_keep_what_the_line_says() {
     CHECK(mp::lobby_member_line(m) == "Clank (differs) - you");
 }
 
+// Checks that a member that never sends its mods is never ready, and a silent host is shown.
 void an_older_game_is_not_taken() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};

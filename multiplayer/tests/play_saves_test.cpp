@@ -11,15 +11,21 @@ namespace mpt {
 namespace {
 
 // A save: bytes a test tells apart.
+// Returns a save-sized block of `size` bytes, all `value`, to tell one save from another.
 Bytes save_of(std::uint8_t value, std::size_t size = 59912) {
     return Bytes(size, value);
 }
 
+// A party of three on a save, with the card filter on, each player in its co-op slot.
+//
+// The host chooses `chosen` (or a new game), and everyone enters level 4 when `enter` is set.
 struct Saving {
     Player host{1}, a{2}, b{3};
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
 
+    // Starts the party; the host chooses `chosen`, and everyone enters level 4 when `enter` is set.
     explicit Saving(const Bytes& chosen = {}, bool enter = true) {
+        // Every player has a memory card and hears the member list.
         for (Player* p : players()) {
             p->game.card_on = true;
             p->session.handle(info(all));
@@ -30,12 +36,15 @@ struct Saving {
         route(players());
         tick(players(), 16);
 
+        // A test may stop before the level, to look at the state without it.
         if (enter) {
             in_level();
         }
     }
 
+    // Puts every player in level 4, each holding a live save of its own.
     void in_level() {
+        // Each live save differs by the player's id, so the copies can be told apart.
         for (Player* p : players()) {
             p->game.now = {mp::kPhasePlaying, 4, 2};
             p->game.live_save = save_of(static_cast<std::uint8_t>(0x10 + p->id));
@@ -44,13 +53,16 @@ struct Saving {
         tick(players(), 16);
     }
 
+    // Returns the three players.
     std::vector<Player*> players() { return {&host, &a, &b}; }
 };
 
+// Checks that every player plays a copy of the host's save in a co-op slot of its own.
 void everyone_plays_a_copy_in_a_slot_of_its_own() {
     const Bytes chosen = save_of(0x21);
     Saving party(chosen);
 
+    // Every player must have the card filter on, slot 0 and the host's chosen copy.
     for (Player* p : party.players()) {
         CHECK(p->cosave.on() && p->game.filter == mp::kCardRedirect);
         CHECK(p->cosave.slot() == 0 && p->game.hint == 0);
@@ -64,11 +76,14 @@ void everyone_plays_a_copy_in_a_slot_of_its_own() {
     CHECK(party.host.game.calls.front().rfind("start", 0) == 0);
 }
 
+// Checks that no way the game saves reaches a player's own saves; the party's slot gets them.
 void a_players_own_saves_are_never_written() {
     Saving party(save_of(0x21));
 
     // Every way the game saves, on every player, the host too.
     for (int i = 0; i < 5; ++i) {
+        // Five saves with different contents on each player, so any leak to its own saves would
+        // show.
         for (Player* p : party.players()) {
             p->game.game_saves(save_of(static_cast<std::uint8_t>(0x30 + i)));
         }
@@ -76,12 +91,14 @@ void a_players_own_saves_are_never_written() {
         tick(party.players(), 16);
     }
 
+    // No player's own saves were written, and every slot holds a save.
     for (Player* p : party.players()) {
         CHECK(p->game.own_saves.empty());
         CHECK(!p->game.slots[0].empty());
     }
 }
 
+// Checks that when the host's game saves, every member's slot gets that save, once and in words.
 void the_hosts_save_reaches_every_slot() {
     Saving party(save_of(0x21));
     const Bytes saved = save_of(0x41);
@@ -106,26 +123,31 @@ void the_hosts_save_reaches_every_slot() {
     CHECK(party.a.game.slots[0] == save_of(0x43));
 }
 
+// Checks that a new game's slot copy is written once the first level is entered.
 void a_new_game_gets_its_copy_in_the_first_level() {
     Saving party({}, false);
 
+    // Before the level starts the filter is on but no slot copy has been written.
     for (Player* p : party.players()) {
         CHECK(p->cosave.on() && p->game.slots.empty());
     }
 
     party.in_level();
 
+    // On entering the level each slot gets the player's live save.
     for (Player* p : party.players()) {
         CHECK(p->game.slots[0] == p->game.live_save);
     }
 }
 
+// Checks that a late joiner gets the host's progress in a slot with no banner.
 void a_late_joiner_gets_it_silently() {
     Saving party(save_of(0x21));
     Player late{4};
     late.game.card_on = true;
     const std::vector<mp::Member> four = {{1, "P1"}, {2, "P2"}, {3, "P3"}, {4, "P4"}};
 
+    // Every player, the late one too, hears the party of four.
     for (Player* p : {&party.host, &party.a, &party.b, &late}) {
         p->session.handle(info(four));
     }
@@ -146,6 +168,7 @@ Bytes piece(std::uint8_t tag, int total, int index, const Bytes& bytes) {
     return mp::Writer().u8(mp::kind::kCoSave).u8(tag).i32(total).i32(index).raw(bytes).bytes();
 }
 
+// Checks that a save whose pieces do not all arrive leaves the slot as it was.
 void a_save_cut_short_changes_nothing() {
     Saving party(save_of(0x21));
 
@@ -170,6 +193,7 @@ void a_save_cut_short_changes_nothing() {
     CHECK(party.a.game.slots[0] == save_of(0x62));
 }
 
+// Checks that pieces from a member or badly formed are ignored and a refused write is reported.
 void only_the_host_is_heard_and_only_a_save() {
     Saving party(save_of(0x21));
     const Bytes whole(mp::kChunkBytes, 0x71);
@@ -194,6 +218,7 @@ void only_the_host_is_heard_and_only_a_save() {
     CHECK(party.host.cosave.acked() == 1);
 }
 
+// Checks that a save that fails the save check is kept from a slot, as from the game.
 void every_save_for_a_slot_passes_the_check() {
     // A host's save that does not pass is kept from a slot as from the game, the member told why.
     {
@@ -241,6 +266,7 @@ void every_save_for_a_slot_passes_the_check() {
     }
 }
 
+// Checks that a player who leaves keeps the card filter on until it is back at the title.
 void leaving_keeps_the_filter_until_the_title() {
     Saving party(save_of(0x21));
     Player& a = party.a;
@@ -276,6 +302,7 @@ void leaving_keeps_the_filter_until_the_title() {
     CHECK(a.game.own_saves == save_of(0x83));
 }
 
+// Checks that a host that leaves sends its live save to every slot first.
 void the_host_leaving_saves_for_everyone() {
     Saving party(save_of(0x21));
     party.host.game.live_save = save_of(0x91);
@@ -285,6 +312,7 @@ void the_host_leaving_saves_for_everyone() {
     CHECK(party.host.game.slots[0] == save_of(0x91));
 }
 
+// Checks that the same party, hosted by another member later, finds its slots again.
 void the_same_party_comes_back_to_its_slot() {
     std::uint32_t key = 0;
     std::map<int, Bytes> a_slots;
@@ -346,6 +374,7 @@ void starting_again_keeps_the_last_games_slot() {
 
     CHECK(party.host.cosave.key() != first);
 
+    // Every player is on the new slot with the new key, and the last game's slot stays.
     for (Player* p : party.players()) {
         CHECK(
             p->cosave.on() && p->cosave.slot() == 1 && p->cosave.key() == party.host.cosave.key()
@@ -355,6 +384,7 @@ void starting_again_keeps_the_last_games_slot() {
     }
 }
 
+// Checks that a member's request to save puts the host's save in every slot, once.
 void a_member_asks_the_host_to_save() {
     Saving party(save_of(0x21));
     party.host.game.live_save = save_of(0xA1);
@@ -368,6 +398,7 @@ void a_member_asks_the_host_to_save() {
     CHECK(party.host.game.own_saves.empty());
 }
 
+// Checks that a port with no card filter plays the host's save as it did before slots existed.
 void a_port_without_the_filter_plays_as_before() {
     Player host{1}, member{2};
     const std::vector<mp::Member> two = {{1, "P1"}, {2, "P2"}};
@@ -387,6 +418,7 @@ void a_card_that_will_not_redirect_starts_nothing() {
     Player host{1}, member{2};
     const std::vector<mp::Member> two = {{1, "P1"}, {2, "P2"}};
 
+    // Both players have a memory card and hear the party of two.
     for (Player* p : {&host, &member}) {
         p->game.card_on = true;
         p->session.handle(info(two));
@@ -405,6 +437,7 @@ void a_card_that_will_not_redirect_starts_nothing() {
     Player alone{3}, other{4};
     const std::vector<mp::Member> pair = {{3, "P3"}, {4, "P4"}};
 
+    // Both players have a memory card and hear the party of two.
     for (Player* p : {&alone, &other}) {
         p->game.card_on = true;
         p->session.handle(info(pair));
@@ -416,6 +449,7 @@ void a_card_that_will_not_redirect_starts_nothing() {
     CHECK(alone.game.started_save.empty());
 }
 
+// Checks that a slot is chosen by its note, notes read back, and the slot rows are worded.
 void slots_are_chosen_and_notes_read_back() {
     mp::CoNote note;
     note.key = 0xDEADBEEF;
@@ -435,6 +469,7 @@ void slots_are_chosen_and_notes_read_back() {
     notes[2].saved = 10;
     CHECK(mp::pick_slot(notes, 5) == 2 && mp::pick_slot(notes, 6) == 1);
 
+    // Each slot gets a note, the later slots saved earlier, so a full card has one oldest.
     for (std::size_t i = 0; i < notes.size(); ++i) {
         notes[i].key = static_cast<std::uint32_t>(i + 1);
         notes[i].saved = 100 - static_cast<std::int64_t>(i);

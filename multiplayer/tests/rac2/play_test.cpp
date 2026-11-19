@@ -11,6 +11,7 @@
 namespace mpt {
 namespace {
 
+// Checks that a party's description names its game, so each game keeps to its own parties.
 void test_tags() {
     const std::string rac2 = mp::tagged_description("Going Commando", 0x12343FA9u, mp::kGameRac2);
     const std::string rac1 = mp::tagged_description("Pokitaru, 12 gold bolts", 0x12343FA9u);

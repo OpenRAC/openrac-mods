@@ -7,7 +7,8 @@
 //     big-endian integers, strings behind a 16-bit length, -1 for an empty one), and the frame
 //     reader cutting frames however the bytes arrive;
 //   - the session's lobby against a recorder: hello, a party created and joined, members coming
-//     and going, Ready and Start in DATA, refusals, the host leaving, the game's own DATA passed on;
+//     and going, Ready and Start in DATA, refusals, the host leaving, the game's own DATA passed
+//     on;
 //     Ready toggling, and Start refused until every member is ready (a newcomer is not);
 //   - the connection against a server made here on the loopback: TCP, hello sent, the answer read;
 //   - Direct connect: the embedded host (host.hpp) in-process with two clients on the loopback:
@@ -69,6 +70,7 @@ using mp::Bytes;
 struct Recorder : mp::Transport {
     std::vector<Bytes> frames;
 
+    // Records a frame the session sends.
     void send(Bytes frame) override { frames.push_back(std::move(frame)); }
 };
 
@@ -92,12 +94,14 @@ Bytes body_of(const Bytes& frame) {
     return body;
 }
 
+// Returns the message a frame decodes to, failing the test when it does not decode.
 mp::Message decoded(const Bytes& frame) {
     mp::Message m;
     CHECK(mp::decode(body_of(frame), m));
     return m;
 }
 
+// Checks that the client's frames are the bytes the server's Java side reads.
 void client_frames_are_the_servers_bytes() {
     // HELLO "v1", "Bob": length 10, id 0, then two strings.
     CHECK(
@@ -124,6 +128,8 @@ void client_frames_are_the_servers_bytes() {
     CHECK(mp::time(0x0102030405060708) == (Bytes{0, 0, 0, 9, 5, 1, 2, 3, 4, 5, 6, 7, 8}));
 }
 
+// Checks that the server's frames decode into the messages they stand for, and that malformed ones
+// are refused.
 void server_frames_are_read() {
     mp::Message m = decoded(server(mp::Writer().u8(0).i32(7)));
     CHECK(m.kind == mp::Message::Kind::kHello && m.id == 7);
@@ -156,7 +162,8 @@ void server_frames_are_read() {
     m = decoded(server(mp::Writer().u8(2).i32(3).str("")));
     CHECK(m.kind == mp::Message::Kind::kChat && m.text.empty());
 
-    // Unknown ids, opcodes the client sends itself, unknown reasons and cut-short bodies are refused.
+    // Unknown ids, opcodes the client sends itself, unknown reasons and cut-short bodies are
+    // refused.
     mp::Message x;
     CHECK(!mp::decode(Bytes{9}, x));
     CHECK(!mp::decode(Bytes{1, 0}, x));
@@ -166,6 +173,8 @@ void server_frames_are_read() {
     CHECK(!mp::decode(Bytes{1, 3, 0, 6, 'A'}, x));
 }
 
+// Checks that the frame reader returns a frame only once it is whole, whatever the size of the
+// pieces, and breaks on a length past the largest frame.
 void frames_are_cut_however_they_arrive() {
     const Bytes a = mp::frame({1, 2, 3});
     const Bytes b = mp::frame({4});
@@ -178,6 +187,7 @@ void frames_are_cut_however_they_arrive() {
     for (std::size_t i = 0; i < both.size(); ++i) {
         r.feed(&both[i], 1);
 
+        // Until the first frame's last byte is in, no frame is whole.
         if (i + 1 < a.size()) {
             CHECK(!r.next(body));
         }
@@ -193,6 +203,8 @@ void frames_are_cut_however_they_arrive() {
     CHECK(!r.next(body) && r.broken());
 }
 
+// Checks the session's lobby, from creating and joining a party to Start and leaving, as the
+// server's frames drive it.
 void a_party_is_created_joined_and_left() {
     Recorder host_link;
     mp::Session host(host_link, "v", "Hosty");
@@ -328,6 +340,8 @@ void match_finding_and_the_clock() {
     CHECK(s.in_party() && !s.is_host() && s.host() == 9);
 }
 
+// Checks that names are accepted and refused as the server does and that addresses parse with the
+// default port.
 void names_and_addresses() {
     CHECK(mp::valid_name("Brave_Lombax42") && mp::valid_name("abc"));
     CHECK(
@@ -346,6 +360,7 @@ void names_and_addresses() {
     CHECK(!mp::parse_address("", host, port) && !mp::parse_address(":7770", host, port));
 }
 
+// A socket handle and the call that closes one, for the platform.
 #if defined(_WIN32)
 using socket_t = SOCKET;
 
@@ -384,6 +399,7 @@ void the_connection_talks_tcp() {
         heard.resize(expected.size());
         std::size_t got = 0;
 
+        // The HELLO may arrive in pieces, so the server reads until all of it is in.
         while (got < heard.size()) {
             const auto n = recv(
                 client,
@@ -392,6 +408,7 @@ void the_connection_talks_tcp() {
                 0
             );
 
+            // A closed or failed read ends the wait.
             if (n <= 0) {
                 break;
             }
@@ -413,6 +430,7 @@ void the_connection_talks_tcp() {
 
     // As the page does each frame: hello on a new connection, then the messages.
     while (!session.greeted() && std::chrono::steady_clock::now() < until) {
+        // Hello goes out once per new connection.
         if (connection.state() == mp::Connection::State::kConnected
             && connection.generation() != generation) {
             generation = connection.generation();
@@ -442,10 +460,12 @@ struct Player {
     std::uint32_t generation = 0;
     std::vector<mp::Message> log;
 
+    // Starts a session on the player's connection.
     explicit Player(const std::string& name) {
         session = std::make_unique<mp::Session>(connection, "rac1-multiplayer/test", name);
     }
 
+    // Reads what arrived, sends hello on a new link, and tells the session when the link is lost.
     void pump() {
         const bool connected = connection.state() == mp::Connection::State::kConnected;
 
@@ -468,6 +488,7 @@ struct Player {
         int n = 0;
 
         for (const mp::Message& m : log) {
+            // A message counts when its kind, sender and bytes match what was asked for.
             if (m.kind == kind && (id == 0 || m.id == id)
                 && (bytes == nullptr || m.bytes == *bytes)) {
                 ++n;
@@ -510,6 +531,7 @@ socket_t raw_connect(int port) {
     return fd;
 }
 
+// Sends bytes on a raw socket.
 void raw_send(socket_t fd, const Bytes& bytes) {
     send(fd, reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()), 0);
 }
@@ -531,10 +553,13 @@ bool closed_within(socket_t fd, int ms) {
         const int ready = poll(&p, 1, 20);
 #endif
 
+        // Whatever the host sends is read and dropped; a read that fails means the host closed the
+        // socket.
         if (ready > 0) {
             char buffer[4096];
             const auto n = recv(fd, buffer, static_cast<int>(sizeof buffer), 0);
 
+            // A read of 0 or less means the host closed the socket.
             if (n <= 0) {
                 return true;
             }
@@ -566,6 +591,7 @@ std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
         const int ready = poll(&p, 1, 20);
 #endif
 
+        // With nothing to read yet, polling goes on until the time is up.
         if (ready <= 0) {
             continue;
         }
@@ -574,6 +600,7 @@ std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
         const auto n =
             recv(fd, reinterpret_cast<char*>(buffer), static_cast<int>(sizeof buffer), 0);
 
+        // The host closed the socket, so nothing more will come.
         if (n <= 0) {
             break;
         }
@@ -581,9 +608,11 @@ std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
         frames.feed(buffer, static_cast<std::size_t>(n));
         Bytes body;
 
+        // One read may hold several frames.
         while (frames.next(body)) {
             mp::Message m;
 
+            // Frames that do not decode are left out.
             if (mp::decode(body, m)) {
                 out.push_back(m);
             }
@@ -1135,6 +1164,7 @@ void the_host_keeps_the_servers_limits() {
     got = raw_read(member, 200, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kChat && got[0].text == "one");
 
+    // A burst over the chat rate earns strikes, and enough strikes close the connection.
     for (int i = 0; i < 5; ++i) {
         raw_send(member, mp::chat("flood"));
     }
@@ -1178,6 +1208,7 @@ void the_host_keeps_the_servers_limits() {
     // Connections from one address past the limit are closed at once.
     std::vector<socket_t> many;
 
+    // Six connections from one address reach the limit of six.
     for (int i = 0; i < 6; ++i) {
         many.push_back(raw_connect(port));
     }
@@ -1347,6 +1378,7 @@ void direct_page_logic() {
     CHECK(a.times(0, t) == 1);
     int fast_at = 0;
 
+    // Single steps come first; ten at a time starts after the port has repeated a while.
     for (int i = 1; i <= 12; ++i) {
         t += 67;
 
@@ -1423,6 +1455,7 @@ void direct_connect_ignores_the_server() {
         {State::kIdle, State::kConnecting, State::kConnected, State::kUnreachable, State::kLost};
     std::size_t longest = 0;
 
+    // Every mode, state and flag combination is a possible status line.
     for (const Mode mode : modes) {
         for (const State state : states) {
             for (int bits = 0; bits < 4; ++bits) {
@@ -1460,6 +1493,7 @@ void direct_connect_ignores_the_server() {
     CHECK(connection.mode() == Mode::kServer);
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
 
+    // The connect to a closed port fails quickly, so the state is awaited rather than assumed.
     while (connection.state() != State::kUnreachable && std::chrono::steady_clock::now() < until) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -1501,6 +1535,8 @@ void direct_connect_ignores_the_server() {
     blackhole.close();
 }
 
+// Checks that the family travels with each request and that a refusal for another game reads as its
+// own page.
 void parties_keep_to_their_family() {
     // CREATE, LIST, FIND and JOIN end with the family; none is the old bytes exactly.
     CHECK(mp::party_create("", "") == mp::party_create());

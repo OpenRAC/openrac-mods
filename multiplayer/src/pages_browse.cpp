@@ -25,6 +25,7 @@ std::string party_row(const mp::Listing& l) {
     std::string row = l.host + (description.empty() ? "" : " - " + description);
     const std::size_t room = mp::kItemMax - count.size();
 
+    // A long row is cut so the count stays readable.
     if (row.size() > room) {
         row = mp::fit_ui_text(row, room);
     }
@@ -37,7 +38,9 @@ std::string party_row(const mp::Listing& l) {
 std::vector<mp::Listing> shown_parties() {
     std::vector<mp::Listing> out;
 
+    // An older server lists every game's parties, so the list is filtered here.
     for (const mp::Listing& l : g->session->parties()) {
+        // Another game's party cannot be joined from here.
         if (!mp::other_game(l.description, game_tag())) {
             out.push_back(l);
         }
@@ -57,11 +60,13 @@ void show_browse() {
     const std::vector<mp::Listing> parties = shown_parties();
     bool differs = false;
 
+    // One button per party that fits on the page; the rest are not shown.
     for (std::size_t i = 0; i < parties.size() && i < kBrowseRows; ++i) {
         c.items.push_back(openrac::UiItem::button(party_row(parties[i])));
         differs = differs || row_differs(parties[i]);
     }
 
+    // With nothing listed, a line says whether the server was asked yet.
     if (parties.empty()) {
         c.items.push_back(
             openrac::UiItem::text(s.lists() == 0 ? text("Asking...") : text("No games"))
@@ -70,6 +75,7 @@ void show_browse() {
 
     c.footer = {status()};
 
+    // A row marked (differs) is explained once, in the footer.
     if (differs) {
         c.footer.push_back(text("(differs): mods"));
     }
@@ -84,20 +90,24 @@ void on_browse(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Session& s = *g->session;
     const std::uint64_t now = mp::now_ms();
 
+    // The list is asked for when the page shows, every few seconds while it is up, and by Refresh.
     if (e.is(OPENRAC_UI_SHOW) || (e.is(OPENRAC_UI_FRAME) && now - g->listed_ms >= kListMs)
         || (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefreshItem)) {
         g->listed_ms = now;
         s.list();
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() > kRefreshItem) {
+        // Row 0 is Refresh, so a party's row is the item less one.
         const auto row = static_cast<std::size_t>(e.item() - 1);
         const std::vector<mp::Listing> parties = shown_parties();
 
+        // A row past the list (a party gone since) joins nothing.
         if (row < parties.size()) {
             g->notice.clear();
             s.join(parties[row].code);
         }
     }
 
+    // Once in the party the lobby takes this page's place, but not while the page hides.
     if (s.in_party() && !e.is(OPENRAC_UI_HIDE)) {
         g->lobby.open();
     } else if (!g->refusal.empty() && !e.is(OPENRAC_UI_HIDE)) {

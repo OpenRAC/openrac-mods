@@ -9,7 +9,10 @@ namespace mpmod {
 
 namespace {
 
+// Returns the member with id `id`, or null when it is not in the party (it may have left since the
+// page was opened).
 const mp::Member* member_of(std::int32_t id) {
+    // The page names a member by id, and that member may have gone.
     for (const mp::Member& m : g->session->members()) {
         if (m.id == id) {
             return &m;
@@ -21,6 +24,7 @@ const mp::Member* member_of(std::int32_t id) {
 
 // Back where the page was opened from: the pause menu in a level, else the lobby.
 void go_back() {
+    // In a level the page was opened from the pause menu; at the title, from the lobby.
     if (mp::in_level(g->game->status().phase)) {
         g->pause_page.open();
     } else {
@@ -45,12 +49,14 @@ openrac::UiContent remove_content() {
     );
     c.items.push_back(openrac::UiItem::button(text("Back")));
 
+    // A direct party has no code to rejoin by, so the note is left out.
     if (!g->session->direct()) {
         c.items.push_back(openrac::UiItem::text(text(mp::kRemoveNote)));
     }
 
     c.items.push_back(openrac::UiItem::text(text(mp::kBanNote)));
 
+    // Only the title's pages have a footer, as with Rules.
     if (!level) {
         c.footer = {status(), text(mp::kBackHints)};
     }
@@ -72,6 +78,7 @@ void open_remove(std::int32_t member) {
 void remove_member(std::int32_t member) {
     const mp::Member* m = member_of(member);
 
+    // Only a member still there, and one the host may kick, is logged as removed.
     if (m != nullptr && g->session->kick(member)) {
         g->mod->info("multiplayer: " + m->name + " removed from the party");
     }
@@ -84,6 +91,7 @@ void remove_banned() {
         return g->mods->key(member);
     };
 
+    // Everyone under a banned key is kicked.
     for (const mp::Member& m : g->cosave->banned_members(key_of)) {
         // Each is told once: a kick already asked for is no news.
         if (g->session->kick(m.id, mp::KickReason::kBanned)) {
@@ -99,6 +107,7 @@ void on_remove(const openrac::UiPage&, const openrac::UiEvent& e) {
     const std::int32_t member = g->remove_member;
     const bool here = member_of(member) != nullptr;
 
+    // Remove and Ban act only while the member is still in the party.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRemoveItem && here) {
         remove_member(member);
         go_back();

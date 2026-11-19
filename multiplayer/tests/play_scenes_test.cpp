@@ -24,6 +24,7 @@ void scenes_end_together() {
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 3, 2};
 
+    // A second lets the world sync before the scene.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -33,6 +34,7 @@ void scenes_end_together() {
     // Both in the level's scene (a landing): the member's Start is held back, nobody is held.
     host.game.now.phase = member.game.now.phase = mp::kPhaseScene;
 
+    // A few ticks let the host's scene reach the member.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
@@ -45,12 +47,14 @@ void scenes_end_together() {
     // out), and the host waits for it.
     host.game.now.phase = mp::kPhasePlaying;
 
+    // The host's scene is over, and the member is not told to skip at once.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
 
     CHECK(member.game.calls.empty());  // not at once
 
+    // Time passes and the member's view of the host's scene clears.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -60,6 +64,7 @@ void scenes_end_together() {
     CHECK(host.coop.hold_input());
     member.game.now.phase = mp::kPhasePlaying;
 
+    // A few ticks after both leave their scenes, nobody is held.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
@@ -83,6 +88,7 @@ void scenes_end_together() {
     // The host in a scene the member is out of: the member waits (its control held).
     host.game.now.phase = mp::kPhaseScene;
 
+    // The host's scene holds the member's input, not its own.
     for (int i = 0; i < 3; ++i) {
         tick({&host, &member}, 50);
     }
@@ -90,6 +96,7 @@ void scenes_end_together() {
     CHECK(member.coop.hold_input() && !host.coop.hold_input());
     host.game.now.phase = mp::kPhasePlaying;
 
+    // The host is out of its scene, so the member is released.
     for (int i = 0; i < 3; ++i) {
         tick({&host, &member}, 50);
     }
@@ -99,12 +106,14 @@ void scenes_end_together() {
     // A member that never leaves its scene does not hold the host for ever.
     member.game.now.phase = mp::kPhaseScene;
 
+    // The member's scene holds the host's input.
     for (int i = 0; i < 3; ++i) {
         tick({&host, &member}, 50);
     }
 
     CHECK(host.coop.hold_input());
 
+    // The barrier ends after `kBarrierMs` and releases the host.
     for (std::uint64_t t = 0; t <= mp::kBarrierMs; t += 50) {
         tick({&host, &member}, 50);
     }
@@ -139,6 +148,7 @@ void the_hosts_scenes_play_everywhere() {
     tick({&host, &member}, 16);
     host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
 
+    // A second lets the world sync before the scene.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -153,6 +163,7 @@ void the_hosts_scenes_play_everywhere() {
     );
     member.game.now.phase = mp::kPhaseMenu;
 
+    // Two seconds let the host see the scene start and tell the party.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -174,6 +185,7 @@ void the_hosts_scenes_play_everywhere() {
     CHECK(has(member_log, "starting the host's scene 3 here"));
     CHECK(member.coop.hold_input());
 
+    // The member asks again every `kSceneAskMs`, so two asks are counted.
     for (std::uint64_t t = 0; t < mp::kSceneAskMs; t += 50) {
         tick({&host, &member}, 50);
     }
@@ -186,6 +198,7 @@ void the_hosts_scenes_play_everywhere() {
         moby(311, -1, 1250, mp::kMobyUpdates | mp::kMobyCreature | mp::kMobyScene, 5.0f)
     );
 
+    // A second lets the member start the host's scene.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -199,6 +212,7 @@ void the_hosts_scenes_play_everywhere() {
     host.game.now = {mp::kPhasePlaying, 0, 2};
     host.game.level.pop_back();
 
+    // Over 2.5 s the member never skips the host's scene.
     for (int i = 0; i < 50; ++i) {  // 2.5 s
         tick({&host, &member}, 50);
     }
@@ -210,6 +224,7 @@ void the_hosts_scenes_play_everywhere() {
     member.game.now = {mp::kPhasePlaying, 0, 2};
     member.game.level.pop_back();
 
+    // A few ticks after the moby is gone from the member's level, nobody is held.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
@@ -224,6 +239,7 @@ void the_hosts_scenes_play_everywhere() {
     // asked a while (a member late plays it all the same), then the request is dropped.
     host.game.now = {mp::kPhaseScene, 0, 2, 5};
 
+    // A few ticks: the member asks once for the scene the host plays.
     for (int i = 0; i < 6; ++i) {
         tick({&host, &member}, 50);
     }
@@ -231,6 +247,7 @@ void the_hosts_scenes_play_everywhere() {
     CHECK(asked("scene 5") == 1);
     host.game.now = {mp::kPhasePlaying, 0, 2};
 
+    // The host is out of the scene, and nobody asks for scene -1 yet.
     for (int i = 0; i < 6; ++i) {
         tick({&host, &member}, 50);
     }
@@ -238,6 +255,7 @@ void the_hosts_scenes_play_everywhere() {
     CHECK(asked("scene -1") == 0);
     CHECK(member.coop.hold_input() && host.coop.hold_input());
 
+    // Still held, the member asks again after `kSceneAskMs`.
     for (std::uint64_t t = 0; t < mp::kSceneAskMs; t += 50) {
         tick({&host, &member}, 50);
     }
@@ -252,6 +270,7 @@ void the_hosts_scenes_play_everywhere() {
     member.game.calls.clear();
     host.game.now = {mp::kPhaseScene, 0, 2, 3};
 
+    // The member asks once for the host's scene 3.
     for (int i = 0; i < 6; ++i) {
         tick({&host, &member}, 50);
     }
@@ -261,6 +280,7 @@ void the_hosts_scenes_play_everywhere() {
     tick({&host, &member}, 50);
     member.game.now = host.game.now = {mp::kPhasePlaying, 0, 2};
 
+    // A few ticks with both playing.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
@@ -269,6 +289,7 @@ void the_hosts_scenes_play_everywhere() {
     member.game.now = {mp::kPhasePlaying, 4, 3};
     host.game.now = {mp::kPhaseScene, 0, 2, 7};
 
+    // Ten ticks in scene 7 bring no ask for it.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -279,6 +300,7 @@ void the_hosts_scenes_play_everywhere() {
     member.game.now = {mp::kPhasePlaying, 0, 2};
     host.game.now = {mp::kPhasePlaying, 0, 2};
 
+    // Thirty ticks of play before the next scene.
     for (int i = 0; i < 30; ++i) {
         tick({&host, &member}, 50);
     }
@@ -310,6 +332,7 @@ void only_the_host_skips() {
     };
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
 
+    // Every player hears the party of three.
     for (Player* p : {&host, &a, &b}) {
         p->session.handle(info(all));
     }
@@ -319,6 +342,7 @@ void only_the_host_skips() {
     route({&host, &a, &b});
     tick({&host, &a, &b}, 16);
 
+    // All three are in a scene, with earlier calls cleared.
     for (Player* p : {&host, &a, &b}) {
         p->game.now = {mp::kPhaseScene, 0, 2};
         p->game.calls.clear();
@@ -339,6 +363,7 @@ void only_the_host_skips() {
     CHECK(a.coop.banner(a.clock) == "Only the host can skip");
     CHECK(has(a_log, "skip pressed here: only the host can skip"));
 
+    // Ten ticks pass and nobody skips, as only the host can.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &a, &b}, 16);
     }
@@ -377,6 +402,7 @@ void only_the_host_skips() {
     route({&host, &a, &b});
     int presses = 0, releases = 0;
 
+    // Six presses within a second: every other one goes through.
     for (int i = 0; i < 6; ++i) {
         (a.coop.movie_press(a.clock + 1100) ? presses : releases) += 1;
     }
@@ -501,12 +527,14 @@ void the_hosts_skip_of_the_next_scene_skips_it() {
     Player& host = p.host;
     Player& member = p.member;
 
+    // The host and the member go through scene 3, then scene 4.
     for (int scene : {3, 4}) {
         host.game.now = {mp::kPhaseScene, 0, 2, scene};
         p.run(100);
         member.game.now = {mp::kPhaseScene, 0, 2, scene};
         p.run(500);
 
+        // After scene 3 both return to play before scene 4.
         if (scene == 3) {
             host.game.now = member.game.now = {mp::kPhasePlaying, 0, 2};
             p.run(100);
@@ -586,6 +614,7 @@ void a_stale_skip_or_out_is_ignored() {
         host.session.flush();
         mp::Bytes sent;
 
+        // The last frame the host sent is the one to read.
         for (const Bytes& f : host.link.frames) {
             sent = f;
         }

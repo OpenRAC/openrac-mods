@@ -11,17 +11,20 @@
 namespace mpt {
 namespace {
 
+// The moby classes the tests use: a rope-grabbing enemy and an enemy whose lunge holds its target.
 constexpr int kRope = 1106;
 constexpr int kLeap = 1059;
 
 // A party in level 3 with one enemy of class `oclass` at the origin, the member near it, the host
 // far off.
 struct Party {
+    // The two players, the list of both, the simulated world and the first enemy's slot.
     Player host{1}, member{2};
     std::vector<Player*> all;
     SimWorld w;
     int slot = 0;
 
+    // Starts a party of host and member in level 3 with `enemies` mobys of class `oclass`.
     explicit Party(int oclass, int enemies = 1) : w(SimWorld{enemies, 0}) {
         all = {&host, &member};
         join_party(all, {{1, "P1"}, {2, "P2"}});
@@ -30,10 +33,12 @@ struct Party {
         route(all);
         tick(all, 16);
 
+        // Every game gets the simulated world's level, in level 3.
         for (Player* p : all) {
             p->game.now = {mp::kPhasePlaying, 3, 2};
             p->game.level = w.made(0);
 
+            // Every enemy is made the class under test.
             for (mp::MobyState& m : p->game.level) {
                 m.oclass = oclass;
                 m.state = 1;
@@ -47,7 +52,9 @@ struct Party {
         slot = host.game.moby_slot(0);
     }
 
+    // Runs `ticks` ticks of `ms` for both players.
     void run(int ticks, int ms = 50) {
+        // Each tick advances every player's clock and runs its co-op layer.
         for (int i = 0; i < ticks; ++i) {
             tick(all, ms);
         }
@@ -72,6 +79,7 @@ struct Party {
         CHECK(update());
     }
 
+    // Returns whether `p`'s game was asked to make `call`.
     bool has(const Player& p, const std::string& call) const {
         return std::find(p.game.calls.begin(), p.game.calls.end(), call) != p.game.calls.end();
     }
@@ -86,6 +94,7 @@ struct Party {
     }
 };
 
+// Checks that a grab holds the victim in his own game and the host's hero stays as it is.
 void a_grab_is_played_in_the_victims_game() {
     Party p(kRope);
     // Before it, the update sees the player's own state.
@@ -120,6 +129,7 @@ void a_grab_is_played_in_the_victims_game() {
     CHECK(!p.update());
 }
 
+// Checks that an enemy keeps its grabbed victim however much nearer another player comes.
 void a_grab_holds_past_any_stick() {
     Party p(kRope);
     p.rope_taken();
@@ -127,6 +137,7 @@ void a_grab_holds_past_any_stick() {
     p.host.game.hero_pose.position[0] = 0.5f;
     p.member.game.hero_pose.position[0] = 40.0f;
 
+    // The enemy chooses again and again, and must keep its grabbed victim each time.
     for (int i = 0; i < 20; ++i) {
         p.run(10);
         p.host.game.stand_did.state = 0x78;
@@ -137,6 +148,7 @@ void a_grab_holds_past_any_stick() {
     CHECK(p.member.game.hero_held);
 }
 
+// Checks that an enemy in its lunge keeps its target until the leap ends.
 void a_lunge_keeps_its_target() {
     Party p(kLeap);
     p.update_does(1);
@@ -162,6 +174,7 @@ void a_lunge_keeps_its_target() {
     CHECK(!p.update());
 }
 
+// Checks that a chase moves to a player who is clearly nearer, not to one a little nearer.
 void a_chase_gives_way_to_a_player_clearly_nearer() {
     Party p(kLeap);
     p.update_does(1);
@@ -170,6 +183,7 @@ void a_chase_gives_way_to_a_player_clearly_nearer() {
     // Its chase of one on the ground keeps breaking off (states 4 and 2), each within the stick an
     // ordinary attack has: the host beside it is still its prey.
     for (const std::uint32_t state : {4u, 2u, 4u}) {
+        // Every enemy is put in the state this step of the chase is in.
         for (mp::MobyState& m : p.host.game.level) {
             m.state = state;
         }
@@ -180,6 +194,7 @@ void a_chase_gives_way_to_a_player_clearly_nearer() {
     CHECK(!p.update());
 }
 
+// Checks that a grab that kills its victim ends with the victim back at his checkpoint.
 void a_fatal_grab_ends_with_the_victim_back() {
     Party p(kLeap);
     p.update_does(0x3D, 0);
@@ -205,6 +220,7 @@ void a_fatal_grab_ends_with_the_victim_back() {
     CHECK(p.host.game.stood_as.state == 0x3D);
 }
 
+// Checks that each way a grab can end releases the victim.
 void every_end_of_a_grab_lets_go() {
     // The moby deleted.
     {
@@ -262,6 +278,7 @@ void every_end_of_a_grab_lets_go() {
         p.rope_taken();
         std::vector<Player*> alone = {&p.member};
 
+        // Only the member runs, with no word from the host, until the hold's lease ends.
         for (std::uint64_t ms = 0; ms < mp::kHoldLeaseMs + 200; ms += 50) {
             tick(alone, 50);
         }
@@ -270,6 +287,7 @@ void every_end_of_a_grab_lets_go() {
     }
 }
 
+// Checks that a held player is not chosen as the target of a second enemy.
 void a_player_in_a_grip_is_no_prey_for_a_second() {
     Party p(kRope, 2);
     const int second = p.host.game.moby_slot(1);
@@ -286,6 +304,7 @@ void a_player_in_a_grip_is_no_prey_for_a_second() {
     CHECK(p.member.game.hero_held);
 }
 
+// Checks that an enemy locks on the host's own hero as it does on a member's stand-in.
 void the_hosts_own_hero_locks_too() {
     Party p(kRope);
     p.host.game.hero_pose.position[0] = 1.0f;
@@ -306,6 +325,7 @@ void the_hosts_own_hero_locks_too() {
     CHECK(p.update());
 }
 
+// Checks that what a kill volume or a health write does to a stand-in applies to the member.
 void what_an_update_ends_is_the_players() {
     // A kill volume under a stand-in: the member goes to his checkpoint, the host stays.
     Party p(300);
@@ -329,6 +349,7 @@ void what_an_update_ends_is_the_players() {
     CHECK(p.member.game.respawns == 2);
 }
 
+// Checks the class lists that say which mobys write the hero and which keep their aim.
 void the_lists_of_the_hero_writers() {
     // Rilgar's: each game's own, so a member's water kills him.
     CHECK(mp::local_class(35) && !mp::local_class(1059) && !mp::local_class(1106));
@@ -349,6 +370,7 @@ void the_lists_of_the_hero_writers() {
     }
 }
 
+// Checks that the pose's feet flags survive the wire and the hold kinds belong to the tether.
 void the_wire_keeps_the_feet() {
     mp::PoseMessage m;
     m.pose.flags = mp::kPoseAirborne | mp::kPoseBlending;
@@ -361,6 +383,7 @@ void the_wire_keeps_the_feet() {
     CHECK(mp::owner_of(mp::kind::kRelease) == mp::Owner::kTether);
 }
 
+// Checks that when the game cannot hold its hero, the enemy's update is left as it was.
 void a_game_that_cannot_hold_stays_as_it_was() {
     Party p(kRope);
     p.host.game.holds_ok = false;

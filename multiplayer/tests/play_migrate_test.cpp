@@ -9,21 +9,26 @@
 namespace mpt {
 namespace {
 
+// The flags of a moby that runs its update and was placed by the level.
 constexpr std::uint32_t kRuns = mp::kMobyUpdates | mp::kMobyPlaced;
 
 // A party of three in level 3, all given the world; offers RESUME as a server that keeps slots.
 struct Trio {
+    // The three players, the list of them, the party's member list and the simulated world.
     Player host{1}, a{2}, b{3};
     std::vector<Player*> all{&host, &a, &b};
     const std::vector<mp::Member> list = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
     SimWorld w{4, 4, 2.0f};
 
+    // Starts the party: everyone joined, ready, in level 3 and synced with the host's world.
     Trio() {
+        // Every player gets the same mod list and a memory card.
         for (Player* p : all) {
             gate(*p, sample_list());
             p->game.card_on = true;
         }
 
+        // Everyone hears the same member list from the server.
         for (Player* p : all) {
             p->session.handle(info(list));
         }
@@ -39,6 +44,7 @@ struct Trio {
         route(all);
         tick(all, 16);
 
+        // Each player is in level 3 with the world's mobys, standing apart on steady ground.
         for (Player* p : all) {
             p->game.now = {mp::kPhasePlaying, 3, 2};
             p->game.level = w.made(0);
@@ -50,12 +56,15 @@ struct Trio {
         CHECK(a.world.synced() && b.world.synced());
     }
 
+    // Runs `ticks` ticks of `ms` for `who`, mods included.
     void run(const std::vector<Player*>& who, int ticks, int ms = 50) {
+        // Each tick advances every player's clock and runs its co-op layer and mods.
         for (int i = 0; i < ticks; ++i) {
             tick_mods(who, ms);
         }
     }
 
+    // Returns every player except `gone`.
     std::vector<Player*> without(const Player& gone) {
         std::vector<Player*> out;
 
@@ -68,6 +77,7 @@ struct Trio {
         return out;
     }
 
+    // Returns the server's party message naming `host_id` as host in epoch `epoch`.
     mp::Message party(std::int32_t host_id = 1, std::int32_t epoch = 0) {
         mp::Message m = info(list);
         m.host = host_id;
@@ -76,12 +86,14 @@ struct Trio {
     }
 };
 
+// Returns whether `game` was asked for a call beginning with `start`.
 bool was_called(const FakeGame& game, const std::string& start) {
     return std::any_of(game.calls.begin(), game.calls.end(), [&](const std::string& c) {
         return c.rfind(start, 0) == 0;
     });
 }
 
+// Checks that a dropped member keeps its place in the party and nothing it sends goes out.
 void a_member_dropped_keeps_its_place_and_goes_nowhere() {
     Trio t;
     const auto rest = t.without(t.a);
@@ -104,6 +116,7 @@ void a_member_dropped_keeps_its_place_and_goes_nowhere() {
     CHECK(t.host.session.members().size() == 3);
 }
 
+// Checks that a member who comes back resumes its slot and gets the world as a late joiner does.
 void a_member_comes_back_as_a_late_joiner_does() {
     Trio t;
     const auto rest = t.without(t.a);
@@ -141,6 +154,7 @@ void a_member_comes_back_as_a_late_joiner_does() {
     CHECK(!t.a.game.placed.empty());
 }
 
+// Checks that what changed while a member was away is told to it again when it is back.
 void what_went_while_a_member_was_away_is_gone_when_it_is_back() {
     Trio t;
     t.host.game.level.push_back(moby(60, -1, 700, mp::kMobyUpdates | mp::kMobyCreature, 9.0f));
@@ -158,6 +172,7 @@ void what_went_while_a_member_was_away_is_gone_when_it_is_back() {
     CHECK(count_of_class(t.a.game, 700) == 0);
 }
 
+// Checks that a refused or expired slot takes the member out of the party with a notice.
 void a_slot_refused_or_out_of_time_ends_the_party_here() {
     {
         Trio t;
@@ -182,6 +197,7 @@ void a_slot_refused_or_out_of_time_ends_the_party_here() {
     CHECK(t.a.session.take_notice() == mp::kLostSlotNotice);
 }
 
+// Checks that a direct party, with no server to keep a slot, waits only the host's grace time.
 void a_direct_party_waits_only_as_long_as_for_a_host() {
     Player p{2};
     mp::Message party = info({{1, "P1"}, {2, "P2"}});
@@ -199,6 +215,7 @@ void a_direct_party_waits_only_as_long_as_for_a_host() {
     CHECK(p.session.take_notice().empty());
 }
 
+// Checks that a member who drops from a server that keeps no slots leaves the party at once.
 void a_server_that_keeps_no_slots_ends_the_party_as_ever() {
     Trio t;
     t.a.session.handle([] {
@@ -211,12 +228,14 @@ void a_server_that_keeps_no_slots_ends_the_party_as_ever() {
     CHECK(!t.a.session.in_party() && !t.a.session.dropped());
 }
 
+// Checks that members hold their input while the host is gone and carry on if it returns.
 void the_party_waits_for_a_host_that_drops() {
     Trio t;
     const auto rest = t.without(t.host);
     lose(t.host, rest);
     tick(rest, 16);
 
+    // Each member holds its input and shows the banner while the host is gone.
     for (Player* p : rest) {
         CHECK(p->coop.hold_input());
         CHECK(p->migrate.host_gone());
@@ -241,6 +260,7 @@ void the_party_waits_for_a_host_that_drops() {
     CHECK(t.a.world.driven() > 0);
 }
 
+// Checks that a change the host made while cut off from the members reaches them with the world.
 void what_went_to_a_cut_stream_comes_with_the_world_again() {
     Trio t;
     const auto rest = t.without(t.host);
@@ -256,6 +276,7 @@ void what_went_to_a_cut_stream_comes_with_the_world_again() {
     CHECK(t.a.game.moby_slot(1) < 0);
 }
 
+// Checks that a ledger decodes as encoded and a cut or foreign one is refused.
 void a_ledger_reads_back_as_written_and_a_broken_one_is_refused() {
     mp::Ledger l;
     l.epoch = 3;
@@ -315,6 +336,7 @@ void a_ledger_reads_back_as_written_and_a_broken_one_is_refused() {
     CHECK(!mp::ledger_newer(a, a));
 }
 
+// Checks that successors are ordered by their link, and equal links by who came first.
 void a_successor_is_chosen_by_its_link() {
     mp::Link near{20, true}, far{200, true}, tcp{50, false}, unknown{};
     CHECK(
@@ -325,6 +347,7 @@ void a_successor_is_chosen_by_its_link() {
     CHECK((mp::successor_order({{7, near}, {6, near}}) == std::vector<std::int32_t>{7, 6}));
 }
 
+// Returns the first host-changed frame `p` sent to the server, or no bytes when it sent none.
 Bytes first_party_frame(Player& p) {
     p.session.flush();
 
@@ -338,6 +361,7 @@ Bytes first_party_frame(Player& p) {
     return {};
 }
 
+// Checks that the host names the members in line to follow it, in link order.
 void the_host_names_its_followers_and_the_host_alone_is_heard() {
     Trio t;
     t.a.session.report_link(200, true);
@@ -371,6 +395,7 @@ void lose_host(Trio& t, Player& next) {
     server_host(rest, next.id, 1);
 }
 
+// Checks that the successor takes over the party and carries on from the ledger's world.
 void the_new_host_carries_the_party_on() {
     Trio t;
     t.run(t.all, 80);  // a ledger, and the list
@@ -412,6 +437,7 @@ void the_new_host_carries_the_party_on() {
     CHECK(t.b.session.stale() == 0);
 }
 
+// Checks that traffic from a host of an old epoch is refused.
 void an_old_hosts_traffic_is_refused() {
     Trio t;
     t.run(t.all, 80);
@@ -448,6 +474,7 @@ void an_old_hosts_traffic_is_refused() {
     CHECK(t.b.migrate.ledger().generation == kept);
 }
 
+// Checks that a successor with no world declines and the next in line takes over.
 void a_successor_that_cannot_declines_and_the_next_one_goes_on() {
     Trio t;
     t.run(t.all, 80);
@@ -466,6 +493,7 @@ void a_successor_that_cannot_declines_and_the_next_one_goes_on() {
     CHECK(t.b.migrate.took_over() && t.b.world.hosting());
 }
 
+// Checks that a successor ends with the newer ledger another member holds.
 void a_newer_ledger_held_by_another_member_is_taken() {
     Trio t;
     t.run(t.all, 80);
@@ -485,6 +513,7 @@ void a_newer_ledger_held_by_another_member_is_taken() {
     CHECK(t.b.game.moby_slot(2) < 0);
 }
 
+// Checks that mobys the old host spawned continue under their ids after the change of host.
 void what_the_old_host_spawned_goes_on_under_its_id() {
     Trio t;
     t.host.game.level.push_back(moby(60, -1, 700, mp::kMobyUpdates | mp::kMobyCreature, 9.0f));
@@ -510,6 +539,7 @@ void what_the_old_host_spawned_goes_on_under_its_id() {
     );
 }
 
+// Checks that a player held by an enemy is let go once when the host changes.
 void a_grabbed_player_is_let_go_by_a_change_of_host() {
     Trio t;
     t.run(t.all, 80);
@@ -525,6 +555,7 @@ void a_grabbed_player_is_let_go_by_a_change_of_host() {
     CHECK(count_of(t.a.game, "let go") == 1);
 }
 
+// Checks that the party's rules stay in force after the host that gave them leaves.
 void the_rules_outlive_their_host() {
     Trio t;
     mp::PartyRules rule;
@@ -551,6 +582,7 @@ void the_rules_outlive_their_host() {
     CHECK(t.a.mods.may_play(3));
 }
 
+// Checks that a save cut off by a host change is dropped and the slot keeps its last whole save.
 void a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one() {
     Trio t;
     t.run(t.all, 80);
@@ -577,6 +609,7 @@ void a_save_on_its_way_is_dropped_and_the_slot_keeps_its_last_whole_one() {
     CHECK(t.b.game.card_read(t.b.cosave.slot()) == before);
 }
 
+// Checks that an old host that returns late joins as an ordinary member.
 void an_old_host_back_late_comes_in_as_anyone() {
     Trio t;
     t.run(t.all, 80);
@@ -594,6 +627,7 @@ void an_old_host_back_late_comes_in_as_anyone() {
     CHECK(was_called(t.host.game, "start"));
 }
 
+// Checks that a host that left naming no successor ends the party, and its slot lives on.
 void a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on() {
     Trio t;
     t.run(t.all, 80);
@@ -606,11 +640,13 @@ void a_host_that_named_nobody_ends_the_party_and_the_slot_goes_on() {
     CHECK(!t.a.coop.hold_input());
 }
 
+// Checks that a scene the old host was in is skipped for every player after the change.
 void a_scene_of_the_old_host_is_skipped_for_all() {
     Trio t;
     t.run(t.all, 80);
     auto rest = t.without(t.host);
 
+    // Every player is in a scene when the host goes.
     for (Player* p : t.all) {
         p->game.now.phase = mp::kPhaseScene;
         p->game.now.scene = 1;
@@ -630,6 +666,7 @@ void a_scene_of_the_old_host_is_skipped_for_all() {
     CHECK(count_of(t.b.game, "skip") >= 1);
 }
 
+// Checks that the new host announces its level and nobody travels because of the change.
 void the_new_host_says_where_it_is_and_nobody_leaves_for_it() {
     Trio t;
     t.run(t.all, 80);
@@ -649,6 +686,7 @@ void the_new_host_says_where_it_is_and_nobody_leaves_for_it() {
     CHECK(count_of(t.b.game, "travel 4") >= 1);
 }
 
+// Checks that a new host with the other disc changes the rules' lines the members read.
 void a_new_host_on_the_other_disc_changes_what_the_rules_say() {
     Trio t;
     mp::ModList other = sample_list();
@@ -672,6 +710,7 @@ void a_new_host_on_the_other_disc_changes_what_the_rules_say() {
     }));
 }
 
+// Checks that everything a new host sends carries the new epoch, and a first host stamps nothing.
 void an_epoch_stamp_goes_on_all_a_new_host_sends() {
     Trio t;
     t.run(t.all, 80);
@@ -701,14 +740,18 @@ void an_epoch_stamp_goes_on_all_a_new_host_sends() {
     CHECK(first.bytes.size() == 1 && first.bytes[0] == mp::kind::kLevel);
 }
 
+// Checks that the pause menu's leave question says whether the party ends or the player leaves.
 void the_leave_question_says_what_becomes_of_the_party() {
     CHECK(std::string(mp::pause_leave_question(false, true, false)) == "End the party?");
     CHECK(std::string(mp::pause_leave_question(false, true, true)) == "Leave party?");
     CHECK(std::string(mp::pause_leave_question(false, false, true)) == "Leave party?");
 }
 
+// Checks that however and whenever the host goes, the members end with one agreed world.
 void the_host_going_at_any_moment_leaves_one_world() {
+    // Every way the host can go is tried.
     for (const HostGone how : kHostGoneAll) {
+        // Two seeds give two different patterns of loss and reordering.
         for (unsigned seed = 1; seed <= 2; ++seed) {
             SimLink link;
             link.loss = 0.05;
@@ -716,6 +759,7 @@ void the_host_going_at_any_moment_leaves_one_world() {
             link.jitter = 20.0;
             const TakeoverResult r = run_takeover(link, seed, 2, how);
 
+            // A failed run prints what went wrong, so the log shows which case failed.
             if (r.bad()) {
                 std::printf(
                     "%s seed %u: hosted %d stuck %d crates %d dead %d place %d saves %d spawned %d "

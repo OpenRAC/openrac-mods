@@ -14,10 +14,13 @@ namespace {
 std::string save_row(int slot, const openrac_save_info& info, bool there) {
     const std::string name = std::string(text("Save ")) + std::to_string(slot + 1) + ": ";
 
+    // An empty slot has no save to describe.
     if (!there) {
         return name + text("empty");
     }
 
+    // Play time arrives in seconds; the row shows hours and minutes, the minutes padded to two
+    // digits.
     const int minutes = info.seconds / 60;
     const std::string time = std::to_string(minutes / 60) + ":" + (minutes % 60 < 10 ? "0" : "")
                              + std::to_string(minutes % 60);
@@ -28,14 +31,18 @@ std::string save_row(int slot, const openrac_save_info& info, bool there) {
            + ", " + time;
 }
 
+// Reads the card's save slots and the party's own save slots into State, and notes whether any
+// party save exists.
 void read_slots() {
     g->any_coop = false;
 
+    // Each of the card's save slots: whether it holds a save, and what it says.
     for (int slot = 0; slot < kSaveSlots; ++slot) {
         SlotRow& row = g->slots[static_cast<std::size_t>(slot)];
         row.there = g->mod->save_slot(slot, row.info) == 1;
     }
 
+    // The party's own saves are in a folder of their own (cosave.hpp), with their own slots.
     for (int slot = 0; slot < mp::kCoSlots; ++slot) {
         SlotRow& row = g->coop_slots[static_cast<std::size_t>(slot)];
         row.there = g->mod->save_slot2(mp::kCoFolder, slot, row.info) == 1;
@@ -62,6 +69,7 @@ void show_coop_saves() {
     c.title = text("Continue as host");
     c.items.push_back(openrac::UiItem::button(text("Back")));
 
+    // One row per party save; an empty one is dim.
     for (int slot = 0; slot < mp::kCoSlots; ++slot) {
         c.items.push_back(
             openrac::UiItem::button(
@@ -82,6 +90,7 @@ void show_coop_saves() {
 
 // Saves: New game, then the card's saves (an empty slot dim).
 void show_saves() {
+    // Continue as host swaps this page's content for the party's own saves.
     if (g->saves_coop) {
         show_coop_saves();
         return;
@@ -91,6 +100,7 @@ void show_saves() {
     c.title = g->saves_for == SavesFor::kHost ? text("Host which save?") : text("Play which save?");
     c.items.push_back(openrac::UiItem::button(text("New game")));
 
+    // One row per card slot; an empty one is dim.
     for (int slot = 0; slot < kSaveSlots; ++slot) {
         const SlotRow& row = g->slots[static_cast<std::size_t>(slot)];
         c.items.push_back(openrac::UiItem::button(save_row(slot, row.info, row.there), row.there));
@@ -108,6 +118,7 @@ void show_saves() {
 // A save chosen (or a new game): the co-op keeps it, then the party is made, on the server or by
 // this game hosting.
 void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
+    // Showing: read the card again, so a save made since is listed.
     if (e.is(OPENRAC_UI_SHOW)) {
         g->direct_error.clear();
         g->saves_coop = false;
@@ -126,6 +137,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
         mp::Bytes save;
         std::string description = mp::save_description("", 0, true);
 
+        // A save is chosen: read it, and check that its slot still holds one.
         if (e.item() > kNewGameItem) {
             const int slot = e.item() - 1;
             openrac_save_info info{};
@@ -134,6 +146,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
             const int there = g->saves_coop ? g->mod->save_slot2(mp::kCoFolder, slot, info)
                                             : g->mod->save_slot(slot, info);
 
+            // A slot that no longer reads as a save (the card changed under the page) is refused.
             if (save.empty() || there != 1) {
                 page.sound(OPENRAC_UI_SOUND_DENIED);
                 show_saves();
@@ -144,6 +157,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
                 mp::save_description(g->mod->level_name(info.level), info.gold_bolts, false);
         }
 
+        // A party save goes on as that party; a card save or a new game starts a party of its own.
         if (g->saves_coop) {
             g->cosave->choose_slot(e.item() - 1);
         } else {
@@ -156,6 +170,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
         const std::string listed =
             mp::tagged_description(description, mp::mods_digest(g->mods->own()), game_tag());
 
+        // Create asks the server for a party; Host directly makes this game the host.
         if (g->saves_for == SavesFor::kCreate) {
             g->session->create(listed);
         } else {
@@ -164,6 +179,7 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
             config.description = listed;
             g->connection->set_host_config(config);
 
+            // A port already in use leaves the player here, with the reason.
             if (g->connection->start_hosting(mp::kDefaultPort)) {
                 poll();
             } else {

@@ -41,7 +41,9 @@ openrac::UiContent rules_content() {
         c.items.push_back(openrac::UiItem::button(mp::lift_bans_label(g->cosave->bans().size())));
     }
 
+    // The rule lines, as many as the page has room for.
     for (const std::string& line : lines) {
+        // The page holds a fixed number of items; the rest are not shown.
         if (c.items.size() == OPENRAC_UI_ITEMS_MAX) {
             break;
         }
@@ -60,6 +62,7 @@ openrac::UiContent rules_content() {
         c.items.push_back(openrac::UiItem::text(text("Stand by a fallen player")));
     }
 
+    // The pause menu's pages have no footer; the title's say whose rules these are.
     if (!level) {
         c.footer =
             {text(g->session->is_host() ? "Your rules" : "Host's rules"), text(mp::kBackHints)};
@@ -77,10 +80,12 @@ void show_rules() {
 void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const bool level = mp::in_level(g->game->status().phase);
 
+    // Showing: the code starts as not copied.
     if (e.is(OPENRAC_UI_SHOW)) {
         g->code_copied = false;
     }
 
+    // Copy mod code, Lift bans and Back are told apart by the item numbers rules_content noted.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_copy) {
         // A friend who applies it can join this party from the launcher in one go.
         const mp::Session& s = *g->session;
@@ -92,6 +97,8 @@ void on_rules(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->rules_lift) {
         g->cosave->lift_bans();
     } else if ((e.is(OPENRAC_UI_CHOOSE) && e.item() == kRulesBackItem) || e.is(OPENRAC_UI_BACK)) {
+        // Back goes to where the page was opened from: the pause menu, the lobby, or the page
+        // before.
         if (level) {
             g->pause_page.open();
         } else if (g->session->in_party()) {

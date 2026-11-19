@@ -27,9 +27,11 @@ using mp::Owner;
 
 constexpr std::size_t kCount = sizeof(mp::kKinds) / sizeof(mp::kKinds[0]);
 
+// Checks that no two kinds in the registry share a value.
 void no_two_kinds_share_a_value() {
     for (std::size_t i = 0; i < kCount; ++i) {
         for (std::size_t j = i + 1; j < kCount; ++j) {
+            // The clashing kinds are named first, since CHECK prints only its expression.
             if (mp::kKinds[i].value == mp::kKinds[j].value) {
                 std::fprintf(
                     stderr,
@@ -45,6 +47,7 @@ void no_two_kinds_share_a_value() {
     }
 }
 
+// Checks that the reserved ranges are ordered, do not overlap and hold only their owner's kinds.
 void reserved_ranges_are_well_formed_and_apart() {
     constexpr std::size_t n = sizeof(mp::kReservedRanges) / sizeof(mp::kReservedRanges[0]);
 
@@ -66,6 +69,7 @@ void reserved_ranges_are_well_formed_and_apart() {
     }
 }
 
+// Checks that the planned ranges belong to their owners and that the free values belong to none.
 void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(32) == Owner::kSave && mp::owner_of(35) == Owner::kSave);
     CHECK(mp::owner_of(36) == Owner::kShare && mp::owner_of(39) == Owner::kShare);
@@ -119,11 +123,13 @@ Owner old_route(std::uint8_t k) {
     return Owner::kCoop;
 }
 
+// Checks that the router sends every possible first byte where the old chain of tests sent it.
 void the_router_sends_every_kind_where_the_old_chain_did() {
     mp::Router router;
     std::vector<Owner> got;
     Owner reached = Owner::kCount;
 
+    // The four owners with a handler each record that they were reached.
     for (const Owner o : {Owner::kMods, Owner::kWorld, Owner::kProgress, Owner::kComfort}) {
         router.route(o, [&reached, o](std::int32_t, const std::vector<std::uint8_t>&) {
             reached = o;
@@ -134,6 +140,7 @@ void the_router_sends_every_kind_where_the_old_chain_did() {
         reached = Owner::kCoop;
     });
 
+    // Every possible first byte goes through the router.
     for (unsigned k = 0; k < 256; ++k) {
         reached = Owner::kCount;
         router.dispatch(1, {static_cast<std::uint8_t>(k), 0});
@@ -163,6 +170,7 @@ int main() {
     the_plans_ranges_are_held_by_their_owners();
     the_router_sends_every_kind_where_the_old_chain_did();
 
+    // The failures are reported once, at the end.
     if (failures != 0) {
         std::fprintf(stderr, "%d checks failed\n", failures);
         return 1;

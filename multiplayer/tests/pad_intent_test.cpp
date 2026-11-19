@@ -38,6 +38,7 @@ mp::Intent intent(unsigned held, int x, int y, int size = 18) {
     return mp::read_intent(r.data(), size);
 }
 
+// Returns an event of a kind with an item and a value.
 openrac_ui_event event(std::uint32_t kind, int item, int value) {
     openrac_ui_event e{};
     e.size = sizeof e;
@@ -47,6 +48,8 @@ openrac_ui_event event(std::uint32_t kind, int item, int value) {
     return e;
 }
 
+// Checks that the pad's report is read as the intent the player meant: buttons first, then the
+// stick.
 void the_report() {
     using mp::Intent;
     // Cross first, whatever the stick; the d-pad.
@@ -66,6 +69,8 @@ void the_report() {
     CHECK(mp::read_intent(nullptr, 18) == Intent::Unknown);
 }
 
+// Checks that an event is kept, changed or turned into a tick according to the intent that came
+// with it.
 void the_events() {
     using mp::Intent;
     // A choice stepped by the cursor moving: a tick instead. By Left, Right or Cross: as it is.
@@ -106,6 +111,7 @@ int main() {
     the_report();
     the_events();
 
+    // A pass is announced; a failure has already printed its own line.
     if (failures == 0) {
         std::puts("pad intent: ok");
     }

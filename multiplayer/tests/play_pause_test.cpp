@@ -53,6 +53,7 @@ void the_pause_page_shows_the_party_and_leaves() {
     in.code = member.session.code();
     in.host_level = "Novalis";
 
+    // Every party member becomes a row of the pause page, with its role, ping and link.
     for (const mp::Member& m : member.session.members()) {
         const mp::Link l = member.session.link(m.id);
         in.members.push_back(
@@ -108,6 +109,7 @@ void a_menu_kills_nothing() {
     CHECK(host.game.overlay && member.game.overlay);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
 
+    // Both games hold the same mobys in level 0.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level =
@@ -118,6 +120,7 @@ void a_menu_kills_nothing() {
 
     member.game.hero_pose.position[0] = 12.0f;
 
+    // A second lets the world sync before anyone pauses.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -129,6 +132,7 @@ void a_menu_kills_nothing() {
     host.game.now.phase = mp::kPhaseMenu;
     host.game.listing_blank = true;
 
+    // A second with the host's listing blank, as while it is paused: nothing may count as killed.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -138,6 +142,7 @@ void a_menu_kills_nothing() {
     member.game.now.phase = mp::kPhaseMenu;
     member.game.listing_blank = true;
 
+    // A second with the member's listing blank.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -145,6 +150,7 @@ void a_menu_kills_nothing() {
     member.game.now.phase = mp::kPhasePlaying;
     member.game.listing_blank = false;
 
+    // A second after the member's listing is back.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -159,6 +165,7 @@ void a_menu_kills_nothing() {
         )
     );
 
+    // No moby changed slot in either game.
     for (Player* p : {&host, &member}) {
         CHECK(p->game.moby_slot(0) == 0 && p->game.moby_slot(1) == 1 && p->game.moby_slot(2) == 2);
     }
@@ -189,6 +196,7 @@ void a_pause_keeps_the_world_whole() {
     tick({&host, &member}, 16);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
 
+    // Both games hold the same mobys in level 0.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level =
@@ -201,6 +209,7 @@ void a_pause_keeps_the_world_whole() {
     host.game.level.push_back(moby(300, -1, 301, mp::kMobyUpdates | mp::kMobyCreature, 12.0f));
     member.game.hero_pose.position[0] = 12.0f;
 
+    // The host's enemy moves each tick, so the world keeps changing.
     for (int i = 0; i < 10; ++i) {
         host.game.level[0].pose.position[1] = static_cast<float>(i);
         tick({&host, &member}, 50);
@@ -217,6 +226,7 @@ void a_pause_keeps_the_world_whole() {
     // The host pauses: its world runs on, listed as before; its enemy stands still a second.
     host.game.now.phase = mp::kPhaseMenu;
 
+    // While the host's menu is up, the member's list of mobys must not change.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
         CHECK(listed(member) == member_mobys);
@@ -228,12 +238,14 @@ void a_pause_keeps_the_world_whole() {
     member.game.now.phase = mp::kPhaseMenu;
     host.game.level.push_back(moby(301, -1, 302, mp::kMobyUpdates | mp::kMobyCreature, 14.0f));
 
+    // A second with a new enemy spawned while the member is in its menu.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
 
     member.game.now.phase = mp::kPhasePlaying;
 
+    // A second after the member is back in play.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
@@ -253,6 +265,7 @@ void a_pause_keeps_the_world_whole() {
         std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 302") == 1
     );
 
+    // No moby changed slot in either game.
     for (Player* p : {&host, &member}) {
         CHECK(p->game.moby_slot(0) == 0 && p->game.moby_slot(1) == 1 && p->game.moby_slot(2) == 2);
     }
@@ -274,6 +287,7 @@ void classes_are_shared_as_they_should_be() {
     tick({&host, &member}, 16);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
 
+    // Both games hold the same mobys in level 0.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level =
@@ -284,6 +298,7 @@ void classes_are_shared_as_they_should_be() {
 
     member.game.hero_pose.position[0] = 6.0f;
 
+    // A second lets the world sync.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
