@@ -36,6 +36,8 @@ static uint8_t* presentation_item(int item) {
 }
 
 static int presentation_class(int item) {
+    /* Backpack equipment is not a held weapon; use its native pickup model. */
+    if (item == ITEM_HELI_PACK) return 607;
     const uint32_t table = strcmp(s_disc->version, "pal") == 0 ? 0x00179BC0u : 0x00179AC0u;
     return get32(level_byte_at(table) + item * 0x4Cu + 0x10);
 }
@@ -268,6 +270,7 @@ static int64_t selected_vendor_location(void) {
 
 /* Retail vendor weapons have authored poses for both the inset and hologram. */
 static int s_vendor_native_item = -1;
+static int64_t s_vendor_initializing_location = -1;
 static int s_vendor_template;
 static int s_vendor_patched_item = -1;
 static uint32_t s_vendor_patch_load;
@@ -405,38 +408,11 @@ static void presentation_tick(int phase) {
             if (native_vendor_reward() != s_vendor_native_item) {
                 vendor_initialize_presentation();
             }
-            if (s_vendor_native_item >= 0 && !s_vendor_template) {
-                char label[192];
-                int icon, frame;
-                const int display_class = reward_class(vendor, label, sizeof label, &icon, &frame);
-                const int gold_display = display_class >= 0x5B0 && display_class < 0x5BA;
-                const int infobot_display = display_class == 0x2EE;
-                const int bolt_display = display_class == 0x46E;
-                /* Request missing meshes, while keeping the retail pose/animation intact. */
-                for (int i = 0; i < 3 && s_visual_count < OPENRAC_MOBY_VISUALS_MAX; ++i) {
-                    if ((gold_display || infobot_display || bolt_display) && i < 2) {
-                        add_visual(s_vendor_preview[i], vendor, 0);
-                        continue;
-                    }
-                    if ((infobot_display || bolt_display) && i == 2) {
-                        if (s_vendor_preview[i]) {
-                            s_visuals[s_visual_count++] =
-                                (openrac_moby_visual){s_vendor_preview[i], -1, 0};
-                        }
-                        continue;
-                    }
-                    const int cls = s_vendor_preview[i]
-                                        ? OPENRAC_GREF(s_api, int16_t, s_vendor_preview[i] + 0xA6)
-                                        : -1;
-                    if (cls > 0 && cls < 0x800) {
-                        s_visuals[s_visual_count++] =
-                            (openrac_moby_visual){s_vendor_preview[i], cls, 0};
-                    }
-                }
-            } else {
-                add_visual(s_vendor_preview[0], vendor, 0);
-                add_visual(s_vendor_preview[1], vendor, 0);
-            }
+            /* Placement belongs to retail; geometry always belongs to the reward.
+             * In particular a gold reward requests its actual gold display class,
+             * never the normal weapon that supplied its placement or animation. */
+            add_visual(s_vendor_preview[0], vendor, 0);
+            add_visual(s_vendor_preview[1], vendor, 0);
             if ((s_vendor_native_item < 0 || s_vendor_template) && s_vendor_preview[2]
                 && s_visual_count < OPENRAC_MOBY_VISUALS_MAX) {
                 s_visuals[s_visual_count++] = (openrac_moby_visual){s_vendor_preview[2], -1, 0};
@@ -447,6 +423,7 @@ static void presentation_tick(int phase) {
 }
 
 static void vendor_initialize_presentation(void) {
+    const int64_t location = selected_vendor_location();
     vendor_restore_placement();
     s_vendor_native_item = native_vendor_reward();
     uint8_t* entry = NULL;
@@ -458,12 +435,19 @@ static void vendor_initialize_presentation(void) {
         vendor_capture_defaults();
         /* Non-vendor items have empty placement records. Give them the normal
          * Devastator display machinery without creating an unsupported game moby. */
-        const uint8_t* placement = s_vendor_default_placement[0][s_vendor_native_item];
-        int authored = 0;
-        for (int i = 0x20; i < 0x30; ++i) {
-            authored |= placement[i] != 0;
+        /* Nonzero bytes do not establish a usable retail vendor pose: gadget
+         * rows may contain unrelated data. Only retail vendor weapons own one. */
+        switch (s_vendor_native_item) {
+            case ITEM_BOMB_GLOVE: case ITEM_PYROCITOR: case ITEM_BLASTER:
+            case ITEM_GLOVE_OF_DOOM: case ITEM_TAUNTER: case ITEM_MINE_GLOVE:
+            case ITEM_DEVASTATOR: case ITEM_WALLOPER: case ITEM_VISIBOMB:
+            case ITEM_DECOY_GLOVE: case ITEM_DRONE_DEVICE: case ITEM_TESLA_CLAW:
+                s_vendor_template = 0;
+                break;
+            default:
+                s_vendor_template = 1;
+                break;
         }
-        s_vendor_template = !authored;
         if (s_vendor_template) {
             display = ITEM_DEVASTATOR;
         }
@@ -521,7 +505,10 @@ static void vendor_initialize_presentation(void) {
         /* Only model initialization sees this id. Actual prices and checks keep the source row. */
         set32(entry, display);
     }
+    /* The banner is initialized while entry carries the render-only display id. */
+    s_vendor_initializing_location = location;
     s_vendor_initialize();
+    s_vendor_initializing_location = -1;
     if (entry) {
         set32(entry, source);
     }
@@ -620,7 +607,11 @@ static uint32_t message_presentation(int32_t id) {
         return original;
     }
     const char* text = (const char*)OPENRAC_G(s_api, original);
-    const int64_t location = s_draw_vendor_details ? selected_vendor_location() : s_dialog_location;
+    const uint32_t game_mode = strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u;
+    const int mode = get32(level_byte_at(game_mode));
+    const int vendor_text = s_draw_vendor_details || (mode == 5 && !s_in_dialog_try);
+    const int64_t location = s_vendor_initializing_location >= 0 ? s_vendor_initializing_location
+        : vendor_text ? selected_vendor_location() : s_dialog_location;
     char label[192];
     int icon, frame;
     if (location < 0 || reward_class(location, label, sizeof label, &icon, &frame) < 0) {
@@ -671,18 +662,18 @@ static uint32_t message_presentation(int32_t id) {
             }
         }
     }
-    if (s_draw_vendor_details) {
+    if (vendor_text) {
         uint8_t* menu = level_byte_at(s_disc->vendor_menu);
         const int cursor = get32(menu + VENDOR_CURSOR);
         const int item = get32(menu + VENDOR_ENTRIES + cursor * VENDOR_ENTRY_SIZE);
-        if (id == get32(presentation_item(item))) {
+        const uint32_t banner_table = strcmp(s_disc->version, "pal") == 0 ? 0x1C2488u : 0x1C2108u;
+        const int banner = get32(level_byte_at(banner_table) + item * 0x14 + 0x10);
+        if (id == get32(presentation_item(item)) || id == banner) {
             const uint32_t replacement = s_visual_api->guest_text(s_mod, label);
             return replacement ? replacement : original;
         }
     }
     /* Retain the retail cost and any format arguments/buttons, replacing only the reward name. */
-    const uint32_t game_mode = strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u;
-    const int mode = get32(level_byte_at(game_mode));
     if (!s_draw_vendor_details && !s_in_dialog_try && mode != 2 && mode != 4) {
         return original;
     }

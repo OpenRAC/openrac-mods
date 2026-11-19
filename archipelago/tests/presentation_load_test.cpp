@@ -754,6 +754,9 @@ void serve(socket_t listener) {
                                     {{"location", retail_weapon},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", location_id(LOC_VENDOR, LEVEL_OLTANIS, ITEM_TESLA_CLAW)},
+                                     {"item", AP_BASE + AP_GOLD_WEAPON_OFFSET + ITEM_DECOY_GLOVE},
+                                     {"player", 1}},
                                     {{"location", gadget_vendor},
                                      {"item", AP_BASE + ITEM_HELI_PACK},
                                      {"player", 1}},
@@ -1173,6 +1176,11 @@ int main(int argc, char** argv) {
         CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [](const auto& v) {
             return v.moby == 0x1A00100 && v.oclass == 0x46E;
         }));
+        // The scrolling banner asks outside the details pass, using its own text id.
+        const uint32_t banner_table = std::strcmp(D->version, "pal") == 0 ? 0x1C2488u : 0x1C2108u;
+        put(banner_table + ITEM_PYROCITOR * 0x14 + 0x10, 258);
+        auto vendor_message = (uint32_t (*)(int))replacement("rac1.text.msg_string");
+        CHECK(std::string(reinterpret_cast<const char*>(at(vendor_message(258)))) == "Gold Bolt");
         auto icons = (void (*)())replacement("rac1.vendor.draw_icons");
         icons();
         CHECK(g_rendered_icon == 0x754F * 10 && g_ammo_icon == 502);
@@ -1229,11 +1237,11 @@ int main(int argc, char** argv) {
         // with its real geometry present in BOTH the inset and center hologram.
         for (const auto item : {ITEM_HELI_PACK, ITEM_MORPH_O_RAY}) {
             const int source = item == ITEM_HELI_PACK ? ITEM_TAUNTER : ITEM_DEVASTATOR;
-            const int model = item == ITEM_HELI_PACK ? 0x602 : 0x603;
+            const int model = item == ITEM_HELI_PACK ? 607 : 0x603;
             for (int i = 0; i < 3; ++i) {
-                std::memset(at(D->vendor_menu - offsets[i] + item * sizes[i]), 0, sizes[i]);
+                std::memset(at(D->vendor_menu - offsets[i] + item * sizes[i]), 0x33, sizes[i]);
             }
-            put(retail_models + item * 0x4C + 0x10, model);
+            put(retail_models + item * 0x4C + 0x10, item == ITEM_HELI_PACK ? 0 : model);
             put(D->vendor_menu + VENDOR_ENTRIES, source);
             put(game_mode, 5);
             initialize();
@@ -1252,6 +1260,18 @@ int main(int argc, char** argv) {
             }
             put(game_mode, 0);
             g_frame(g_frame_user);
+        }
+        // A gold vendor reward must submit the real gold mesh for both monitors,
+        // even when retail initialized a normal Decoy Glove to provide its pose.
+        put(retail_models + ITEM_DECOY_GLOVE * 0x4C + 0x10, 562);
+        put(D->vendor_menu + VENDOR_ENTRIES, ITEM_TESLA_CLAW);
+        put(game_mode, 5);
+        initialize();
+        g_frame(g_frame_user);
+        for (const uint32_t address : {0x1A00100u, 0x1A00300u}) {
+            CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [&](const auto& v) {
+                return v.moby == address && v.oclass == 1462;
+            }));
         }
         put(D->vendor_menu + VENDOR_ENTRIES, ITEM_PYROCITOR);
         put(game_mode, 0);
