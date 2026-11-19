@@ -381,6 +381,25 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_pokitaru_bob_needs_heli_pack_without_swingshot(self) -> None:
+        self.collect_by_name("Pokitaru Coordinates")
+        self.assertFalse(self.can_reach_location("Pokitaru: Bob"))
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Pokitaru: Bob"))
+
+    def test_pokitaru_owner_needs_no_swingshot(self) -> None:
+        self.collect_by_name(["Pokitaru Coordinates", "Heli-Pack", "Thruster-Pack"])
+        self.assertFalse(self.can_reach_location("Pokitaru: the resort owner"))
+        self.collect_by_name("Pilot's Helmet")
+        self.assertTrue(self.can_reach_location("Pokitaru: the resort owner"))
+
+    def test_pokitaru_persuader_needs_trespasser_without_swingshot(self) -> None:
+        self.collect_by_name(["Pokitaru Coordinates", "Heli-Pack"])
+        self.collect(self.world.create_item("Raritanium"))
+        self.assertFalse(self.can_reach_location("Pokitaru: the Persuader"))
+        self.collect_by_name("Trespasser")
+        self.assertTrue(self.can_reach_location("Pokitaru: the Persuader"))
+
     def test_gaspar_helmet_requires_heli_pack_without_swingshot(self) -> None:
         self.collect_by_name("Gaspar Coordinates")
         self.assertFalse(self.can_reach_location("Gaspar: the Pilot's Helmet's pickup"))

@@ -366,12 +366,12 @@ const rando_location rando_locations[] = {
     // this plane", "Destroy Blarg ships for O2 Mask": the mask takes all of them. The Persuader
     // trade consumes the player's real Raritanium even when its reward is shuffled.
     VENDOR("Pokitaru: the vendor's Decoy Glove", LEVEL_POKITARU, ITEM_DECOY_GLOVE, 30, LOCF_PRICEY),
-    GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 30, 0, WALK, 0),
+    GIVE_G("Pokitaru: Bob", LEVEL_POKITARU, ITEM_THRUSTER_PACK, 30, 0, HELI, 0),
     GIVE_G(
-        "Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 31, 0, THRUST | HELMET | WALK, 0
+        "Pokitaru: the resort owner", LEVEL_POKITARU, ITEM_O2_MASK, 31, 0, THRUST | HELMET | HELI, 0
     ),
     {"Pokitaru: the Persuader", LOC_SPECIAL, LEVEL_POKITARU, 5, POOL_ITEMS,
-     ITEM(ITEM_PERSUADER), 36, 0, SPECIAL_BIT(SPECIAL_RARITANIUM) | WALK, 0, 0, 0},
+     ITEM(ITEM_PERSUADER), 36, 0, SPECIAL_BIT(SPECIAL_RARITANIUM) | HELI | TRESP, 0, 0, 0},
     GOLDBOLT("Pokitaru: gold bolt", LEVEL_POKITARU, 0, 33),
 
     // Hoven: "With this Hydro-Pack, Ratchet can travel more quickly underwater. Get it, you'll need
