@@ -75,6 +75,7 @@ int ap_client_shuffle_gold_weapons(void);
 int ap_client_npc_infobots(void);
 /* Scouted purchase reward and recipient, for the gold-case preview. */
 int ap_client_location_hint(int64_t location, char* out, size_t size);
+int ap_client_location_presentation(int64_t location, int64_t* item, int* same_game, char* out, size_t size);
 
 /* The next line to show the player (an item sent or received, the connection), oldest first.
  * Returns 1 and the line in out (cut to size), or 0 when there is none. */

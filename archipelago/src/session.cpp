@@ -111,6 +111,18 @@ bool Session::location_hint(std::int64_t location, std::string& out) const {
     return true;
 }
 
+bool Session::location_presentation(std::int64_t location, std::int64_t& item, bool& same_game, std::string& label) const {
+    const auto it = scouted_.find(location);
+    if (it == scouted_.end()) return false;
+    item = it->second.first;
+    const int owner = it->second.second;
+    const auto player = players_.find(owner);
+    same_game = owner == slot_ || (player != players_.end() && player->second.game == config_.game);
+    label = item_name(item, owner);
+    if (owner != slot_) label += " for " + player_name(owner);
+    return true;
+}
+
 void Session::check(std::int64_t location, std::vector<std::string>& out) {
     // Play on another seed's save is that seed's.
     if (foreign_) {

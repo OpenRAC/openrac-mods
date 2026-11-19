@@ -105,6 +105,7 @@ public:
     bool location_item(std::int64_t location, std::int64_t& item, bool& own) const;
 
     bool location_hint(std::int64_t location, std::string& out) const;
+    bool location_presentation(std::int64_t location, std::int64_t& item, bool& same_game, std::string& label) const;
 
     int slot() const { return slot_; }
 

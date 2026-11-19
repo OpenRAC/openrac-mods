@@ -23,6 +23,7 @@
 #include <time.h>
 
 #include "ap_bridge.h"
+#include "ap_visual_api.h"
 #include "ap_ids.h"
 #include "ap_gold_weapons.h"
 #include "ap_npc_infobots.h"
@@ -83,7 +84,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.3.3"
+#define MOD_VERSION "2.4.0"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -101,6 +102,11 @@ typedef struct swap {
 static const openrac_api* s_api;
 static openrac_mod* s_mod;
 static const rando_disc* s_disc;
+static int acquisition_infobot(uint32_t moby,int row);
+static void acquisition_run(uint32_t moby,void (*original)(uint32_t));
+static void acquisition_item(int row);
+static int acquisition_vendor(int row);
+static int acquisition_case(int base,uint32_t moby);
 
 /* Each location's row by its key (as item_randomizer.c's); -1 for none. */
 static int s_by_item[RANDO_ITEM_COUNT];
@@ -540,13 +546,19 @@ static void item_give(int32_t id, int32_t equip) {
     }
 
     uint8_t* entry = vendor_purchase(id);
+    if (!entry) acquisition_item(location);
     *obtained(id) = 1; /* the location's own byte, which its place tests and the save keeps */
     found(location);
 
-    // A vendor purchase: the dialog takes the entry's item as the one bought, whose demo plays and
-    // which the hero is handed: the one bought before, as nothing was given here.
+    // The dialog copies this entry into its last-bought slot after GiveItem returns.
+    // Older hosts retain their previous demo; new hosts play the actual reward on exit.
     if (entry != NULL) {
-        set32(entry, get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT));
+        /* New hosts present the last actual reward after the vendor closes.
+         * Suppress retail's source-weapon demo, which would play the wrong item. */
+        if (acquisition_vendor(location)) {
+            set32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT,-1);
+            set32(entry,-1);
+        } else set32(entry, get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT));
         s_bought = id;
     }
 }
@@ -585,6 +597,7 @@ static void infobot_update(openrac_gaddr moby) {
         s_infobot_update(moby);
         return;
     }
+    if (acquisition_infobot(moby,location)) return;
 
     int64_t item = -1;
     int own = 0;
@@ -616,12 +629,12 @@ static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int ite
     const int location = s_by_item[item];
 
     if (location < 0) {
-        update(moby);
+        acquisition_run(moby,update);
         return;
     }
 
     swap_push(owned(item), location);
-    update(moby);
+    acquisition_run(moby,update);
     swap_pop();
 }
 
@@ -890,6 +903,7 @@ static void init_level_stock(void) {
     sync_seen();
 }
 
+
 /* The vendor's stock as the menu is built from it: a slot not bought, its weapon for sale; a slot
  * bought, its weapon's ammo when the hero owns it (from wherever), else nothing; a weapon owned
  * whose slot is still for sale, its ammo after the rest; the rest as it is, but the ammo of an
@@ -935,8 +949,9 @@ static void vendor_stock_shown(
     memset(shown + m, STOCK_END, (size_t)(VENDOR_STOCK_SIZE - m));
 }
 
-/* The retail menu also adds ammo for owned weapons outside the planet's stock.
- * Use the same price-table test as the PDA guard, including starting weapons. */
+/* The retail list builder also appends ammunition for owned weapons, even when
+ * they never appeared in this planet's stock (for example, a starting weapon).
+ * These are the weapons with a nonzero retail ammunition purchase price. */
 static int has_vendor_ammunition(void) {
     const uint8_t* prices = level_byte_at(s_disc->item_price_table);
     for (int item = 0; item < VENDOR_ITEM_COUNT; ++item) {
@@ -949,7 +964,7 @@ static int has_vendor_ammunition(void) {
     return 0;
 }
 
-/* Prevent opening a vendor whose Archipelago-filtered stock is empty. */
+/* Prevent opening a vendor only when neither rewards nor ammunition remain. */
 static void guard_empty_vendor(void) {
     if (s_disc == NULL || (strcmp(s_disc->version, "ntsc") != 0
         && strcmp(s_disc->version, "pal") != 0))
@@ -1023,7 +1038,25 @@ static void guard_empty_vendor(void) {
     }
 }
 
-/* Block an empty Gadgetron PDA vendor before the game builds its menu. */
+/* After a purchase the list may be shorter: the cursor stays on it and the menu redraws. */
+static void settle_menu_after_purchase(void) {
+    uint8_t* menu = level_byte_at(s_disc->vendor_menu);
+    const int32_t count = get32(menu + VENDOR_COUNT);
+    int32_t cursor = get32(menu + VENDOR_CURSOR);
+
+    if (count > 0 && cursor >= count) {
+        cursor = count - 1;
+        set32(menu + VENDOR_CURSOR, cursor);
+    }
+
+    if (cursor >= 0 && cursor < VENDOR_MAX_ENTRIES
+        && get32(menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE) != s_bought) {
+        set32(level_byte_at(s_disc->vendor_redraw), 1);
+    }
+
+    s_bought = -1;
+}
+
 static void open_vendor_menu_hook(uint32_t moby) {
     if (moby == 0 && s_disc != NULL) {
         uint8_t real[VENDOR_STOCK_SIZE];
@@ -1063,28 +1096,7 @@ static void open_vendor_menu_hook(uint32_t moby) {
 
     s_open_vendor_menu(moby);
 }
-/* After a purchase the list may be shorter: the cursor stays on it and the menu redraws. */
-static void settle_menu_after_purchase(void) {
-    uint8_t* menu = level_byte_at(s_disc->vendor_menu);
-    const int32_t count = get32(menu + VENDOR_COUNT);
-    int32_t cursor = get32(menu + VENDOR_CURSOR);
 
-    if (count > 0 && cursor >= count) {
-        cursor = count - 1;
-        set32(menu + VENDOR_CURSOR, cursor);
-    }
-
-    if (cursor >= 0 && cursor < VENDOR_MAX_ENTRIES
-        && get32(menu + VENDOR_ENTRIES + (uint32_t)cursor * VENDOR_ENTRY_SIZE) != s_bought) {
-        set32(level_byte_at(s_disc->vendor_redraw), 1);
-    }
-
-    s_bought = -1;
-}
-
-/* Keep the retail selector's assigned first drops, low-ammo priority and Bomb Glove
- * fallback. Only its candidate stock changes: AP can grant a weapon before the
- * planet that normally puts it in the vendor stock. Never change the saved stock. */
 static int32_t choose_drop(openrac_gaddr moby, openrac_gaddr out_item) {
     uint8_t* stock = byte_at(s_disc->vendor_stock);
     uint8_t real[VENDOR_STOCK_SIZE];
@@ -1106,6 +1118,7 @@ static int32_t choose_drop(openrac_gaddr moby, openrac_gaddr out_item) {
 
 /* Hook for VendorBuildItemList: built from the stock as the menu should see it. */
 static void build_item_list(int32_t skip_unflagged) {
+
     uint8_t* stock = byte_at(s_disc->vendor_stock);
     uint8_t real[VENDOR_STOCK_SIZE], shown[VENDOR_STOCK_SIZE];
     memcpy(real, stock, sizeof real);
@@ -1161,6 +1174,15 @@ static void gold_case_update(openrac_gaddr moby) {
     int16_t oclass;
     memcpy(&oclass, m + 0xA6, sizeof oclass);
     const uint32_t pvars = (uint32_t)get32(m + MOBY_PVARS);
+    if (oclass >= 0x5B0 && oclass < 0x5B0 + AP_GOLD_WEAPON_COUNT) {
+        const int index = oclass - 0x5B0;
+        const int base = k_ap_gold_bases[index];
+        const uint8_t real = *gold_owned(base);
+        *gold_owned(base) = (uint8_t)((gold_case_checks() >> index) & 1u);
+        s_gold_case_update(moby);
+        *gold_owned(base) = real;
+        return;
+    }
     if (oclass != 304 || !pvars) { s_gold_case_update(moby); return; }
     const int slot = i32_at(pvars + 0x40u);
     if (slot < 0 || slot >= 20) { s_gold_case_update(moby); return; }
@@ -1209,6 +1231,17 @@ static void gold_case_update(openrac_gaddr moby) {
     if (bought) {
         save_checks(saved_checks() | bit);
         ap_client_check(ap_gold_case_id(base));
+        if(acquisition_case(base,moby)) {
+            /* An instant case dialogue must not be finished again when the
+             * purchased Infobot's movie ends. This affects only this case. */
+            const uint32_t context=s_api->relocate_level_data(0,
+                strcmp(s_disc->version,"pal")==0?0x179200u:0x179100u);
+            if(OPENRAC_GREF(s_api,uint32_t,context+8)==moby
+                && OPENRAC_GREF(s_api,uint32_t,context+12)==pvars) {
+                OPENRAC_GREF(s_api,uint32_t,context+8)=0;
+                OPENRAC_GREF(s_api,uint32_t,context+12)=0;
+            }
+        }
     }
 }
 
@@ -1237,6 +1270,7 @@ static void new_game(void) {
     ++s_in_game_reset;
     s_new_game();
     --s_in_game_reset;
+
     if (!s_in_game_reset) { s_restoring_save = 0; begin_game(1); }
 }
 
@@ -1333,18 +1367,23 @@ static void show_notices(void) {
     }
 }
 
+#include "ap_npc_infobots.inc"
+#include "ap_presentation.inc"
+#include "ap_acquisition.inc"
+
 /* Each tick: a location had without passing through a hook (a gold bolt, a route that writes the
  * bytes itself) is told to the server, and the place's own item, when it wrote it as owned and the
  * server has not sent it, is taken back; then what the server sent is given; then the goal. */
-#include "ap_npc_infobots.inc"
-
 static void each_tick(void* user) {
     (void)user;
     uint32_t loads = 0;
     const int phase = play_phase(&loads);
+
     show_notices();
     read_received();
     watch_save_slot(phase);
+    presentation_tick(phase);
+    if (phase!=OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
 
     if (!playing_level()) {
         return;
@@ -1427,6 +1466,7 @@ static void each_tick(void* user) {
     guard_unowned_bomb_glove();
     guard_empty_vendor();
 
+    if (phase==OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
     // The goal, once.
     if (!s_goal && current_level() == LEVEL_VELDIN2 && drek_beaten(loads)) {
         s_goal = 1;
@@ -1479,6 +1519,7 @@ static int install_hooks(void) {
         s_mod, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent, OPENRAC_RAC1_SIG_GoldBolts_CountUnspent,
         (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
     s_gold_hook_warned = 0;
+    if (!presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
     if (!take(s_api->hook(s_mod, "rac1.save.update_state", "void()", (void*)save_update,
         (void**)&s_save_update), "rac1.save.update_state")
         || !take(s_api->hook(s_mod, "rac1.save.restore_data", "i32(u32,i32,u32)", (void*)restore_data,
@@ -1489,12 +1530,12 @@ static int install_hooks(void) {
                             ITEM_RANDOMIZER_SIG_Save_NewGamePlus, (void*)new_game_plus,
                             (void**)&s_new_game_plus), ITEM_RANDOMIZER_HOOK_Save_NewGamePlus)
            && HOOK(Moby_GoldWeaponCase_Update, gold_case_update, &s_gold_case_update)
-           && HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
            && HOOK(Item_Give, item_give, &s_item_give)
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
            && HOOK(Vendor_InitLevelStock, init_level_stock, &s_init_level_stock)
-           && HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)
            && HOOK(Ammo_ChooseDrop, choose_drop, &s_choose_drop)
+           && HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
+           && HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)
            && HOOK(GoldBolts_CountCollected, count_gold_bolts_hook, &s_count_gold_bolts)
            && HOOK(Moby_Infobot_Update, infobot_update, &s_infobot_update)
            && HOOK(Moby_PilotsHelmet_Update, helmet_update, &s_helmet_update)
@@ -1599,6 +1640,7 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
 
     api->on_frame(mod, each_tick, NULL);
 
+
     char uuid[33];
     make_uuid(uuid);
     const ap_config config = {
@@ -1626,5 +1668,6 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
 }
 
 OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
+    if (s_disc && s_visual_api) vendor_restore_placement();
     ap_client_stop();
 }

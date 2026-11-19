@@ -165,6 +165,35 @@ when there are no owned candidates. The real vendor stock is restored afterward.
 Shuffled gold cases can be purchased without the original base weapon. Enabling
 `shuffle_gold_weapons` opens the Novalis shop teleporter without requiring New Game+.
 Both currency costs still apply; no upgrades or completed-save inventory are granted.
+## Randomized reward presentation
+
+With OpenRAC's reward-presentation API (interface **1.18**, companion engine PR), scouted
+rewards replace the models shown by Gadgetron vendors, world Gold Bolts, equipment pickups,
+Infobot pickups and shuffled gold-weapon cases. Vendor names and icons match the reward;
+items from another game use a Gold Bolt with the item and recipient names. Ammunition retains
+its original weapon name, icon and price. NPC purchase prompts name the randomized reward,
+while NPC handoff models, inventory models and original NPC scenes remain unchanged.
+
+Approved model placement, orientation, size and spin settings are built in separately for
+vendor displays, equipment/Gold Bolt pickups, Infobot pickups and gold cases. Original vendor
+weapons retain their native presentation. Original Gold Bolts retain their native pickup
+appearance; Gold Bolts replacing equipment use native Gold Bolt scale and motion.
+
+Collection presents the actual reward: Gold Bolt pickup, a weapon's Gadgetron acquisition
+demo, or portable Infobot opening, its coordinates video and closing without flying away.
+Unsupported items collect immediately. The portable Infobot sequence is used for pickups
+and purchases, not NPC handoffs. Leaving a vendor plays only the last purchased reward's
+sequence. Shuffled gold-case purchasing and shop-access changes are proposed separately. Case reward sequences run at the room center and then restore the purchase
+position and facing. None of these presentations grant an extra item.
+
+Older hosts keep the existing randomizer behavior without the optional presentation API.
+A build against the pinned released SDK remains supported by the extension layout in
+`src/ap_visual_api.h`. To build against the companion engine checkout instead, pass
+`-DOPENRAC_SDK=<engine checkout>/sdk`. No model editor, adjustment files, preview catalogs,
+teleport tools or screenshot tooling are included.
+
+Gold-case purchase prompts name the randomized reward and retain its bolt price plus
+four Gold Bolts, including the retail formatted-price dialogue path.
 
 ### Saves during NPC rewards
 
@@ -213,3 +242,20 @@ without that pool the prompt names the vanilla Platinum Zoomerator.
 The Rilgar bouncer uses `Triangle: Bribe Bouncer with 4,000 bolts to get <reward>`.
 The cost and insufficient-bolts message stay native; the name comes from his
 coordinate-reward location (or its vanilla reward when not shuffled).
+The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
+are probed at runtime: `rac1.vendor.draw_icons`, `rac1.vendor.draw_details`, `rac1.ui.icon_frame`, `rac1.ui.sprite.draw`, `rac1.npc.try_dialog`, `rac1.pickup.start_scene`, `rac1.gold_case.start_demo`.
+The companion reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools.
+### Reward display options
+**Reward models** (`reward_models`) and **Reward text** (`reward_text`) both
+default to on and can be selected independently. Models controls randomized
+pickup/vendor models, inventory icons and receiving animations. Text controls
+randomized NPC prompts and vendor item names. Turning either off restores its
+original game presentation. Reload the mod after changing these local display
+preferences; they do not change the seed, item pool, prices or rewards.
+### Release publishing
+This PR prepares **2.4.0**. Once merged into `master`, a successful build
+automatically publishes `archipelago-v2.4.0` with the mod archives and
+checksums and `rac1.apworld`. The launcher index is then refreshed.
+PR builds do not publish releases. The request in `.github/mod-releases/`
+remains pending until a successful master build publishes its version tag.
+Later builds skip that tag; a newer version needs a new release request.
