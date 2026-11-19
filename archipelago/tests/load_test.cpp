@@ -103,6 +103,7 @@ int g_phase = OPENRAC_PLAY_PLAYING;
 bool g_vendor_present;
 int g_gives;
 std::string g_notice;
+int g_notice_clears;
 std::string g_server;
 bool g_new_game_plus;
 bool g_items_mode;
@@ -443,6 +444,7 @@ int moby_deletion(int, openrac_moby_deletion*) {
 
 int play_notice(openrac_mod*, const char* text) {
     g_notice = text != nullptr ? text : "";
+    if (g_notice.empty()) ++g_notice_clears;
     return OPENRAC_HOOK_OK;
 }
 
@@ -790,6 +792,11 @@ int main(int argc, char** argv) {
     CHECK(frames_until([challenge] { return *at(challenge) == int(g_new_game_plus); }));
     CHECK(*at(D->level + 0x9Cu) == int(g_gold_mode));
     if (g_new_game_plus) {
+        // NG+ confirmation must expire even outside a playable level.
+        const int clears_before = g_notice_clears;
+        set_level(-1);
+        for (int tick = 0; tick < 180; ++tick) g_frame(g_frame_user);
+        CHECK(g_notice_clears > clears_before);
         set_level(-1);
         *at(challenge) = 0;
         g_frame(g_frame_user);

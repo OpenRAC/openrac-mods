@@ -76,7 +76,7 @@
 #define JUDGE_WAIT_TICKS 120
 
 /* How long a line stays at the top of the screen, in ticks (60 a second). */
-#define NOTICE_TICKS 300
+#define NOTICE_TICKS (strcmp(s_disc->version, "pal") == 0 ? 150 : 180)
 #define NOTICE_SIZE 256
 
 /* The items the game side reads at once; a longer list is read into a larger buffer. */
@@ -153,6 +153,7 @@ static uint32_t s_generation = UINT32_MAX;
 
 /* The line at the top of the screen and the ticks it has left. */
 static int s_notice_ticks;
+static int s_menu_notice_warned;
 
 /* The save's memory card slot (interface 1.11): the game came from the title since the last level
  * start; its save waits to be judged until its slot is known; the slot known in this game. */
@@ -1406,8 +1407,12 @@ static void each_tick(void* user) {
     const int phase = play_phase(&loads);
 
     show_notices();
-    if (menu_mode()==1 && !s_menu_save)
-        s_api->play_notice(s_mod,"Shuffle items requires OpenRAC interface 1.16 or newer");
+    const int unsupported_items = menu_mode() == 1 && !s_menu_save;
+    if (unsupported_items && !s_menu_notice_warned) {
+        s_api->play_notice(s_mod, "Shuffle items requires OpenRAC interface 1.16 or newer");
+        s_notice_ticks = NOTICE_TICKS;
+    }
+    s_menu_notice_warned = unsupported_items;
     read_received();
     watch_save_slot(phase);
     presentation_tick(phase);
@@ -1627,6 +1632,8 @@ static int has_calls(const openrac_api* api) {
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
+    s_notice_ticks = 0;
+    s_menu_notice_warned = 0;
     s_mod = mod;
     s_disc = NULL;
 
