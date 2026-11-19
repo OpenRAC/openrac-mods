@@ -13,14 +13,17 @@
 namespace mp {
 namespace {
 
+// Pi, for the angles the short way round.
 constexpr float kPi = 3.14159265358979f;
 
+// Returns the IEEE bits of a float, which go on the wire as a u32.
 std::uint32_t float_bits(float f) {
     std::uint32_t u = 0;
     std::memcpy(&u, &f, sizeof u);
     return u;
 }
 
+// Returns the float whose IEEE bits are `u`.
 float bits_float(std::uint32_t u) {
     float f = 0;
     std::memcpy(&f, &u, sizeof f);
@@ -37,10 +40,12 @@ float sane_scale(float f) {
     return std::isfinite(f) && f > 0.01f && f < 100.0f ? f : 0.0f;
 }
 
+// Returns `v` truncated and clamped into 16 bits, the wire's width for a short.
 std::int16_t clamp16(double v) {
     return static_cast<std::int16_t>(std::clamp(v, -32768.0, 32767.0));
 }
 
+// Returns the distance between two poses' positions, in game units.
 double distance(const Pose& a, const Pose& b) {
     const double dx = a.position[0] - b.position[0];
     const double dy = a.position[1] - b.position[1];
@@ -48,6 +53,7 @@ double distance(const Pose& a, const Pose& b) {
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+// Returns the length of a pose's velocity, in units a second.
 double speed(const Pose& p) {
     return std::sqrt(
         p.velocity[0] * p.velocity[0] + p.velocity[1] * p.velocity[1]
@@ -61,6 +67,7 @@ double speed(const Pose& p) {
 // known here) out keeps the nearer one's.
 template <typename T>
 void run_on(const T& a, const T& b, bool blending, double s, T& out) {
+    // Another sequence, or a blend: the places in the two animations are not comparable.
     if (a.seq != b.seq || blending) {
         return;
     }
@@ -68,6 +75,7 @@ void run_on(const T& a, const T& b, bool blending, double s, T& out) {
     const double from = a.frame + static_cast<double>(a.anim_time);
     const double to = b.frame + static_cast<double>(b.anim_time);
 
+    // The animation came round to its start, so its keys are not known here.
     if (to < from) {
         return;
     }
@@ -75,6 +83,7 @@ void run_on(const T& a, const T& b, bool blending, double s, T& out) {
     const double place = from + (to - from) * s;
     out.frame = static_cast<std::uint32_t>(place);
     out.anim_time = static_cast<float>(place - out.frame);
+    // The next frame is the one the keys name: b's or a's for their own frame, else the one after.
     out.next_frame = out.frame == b.frame   ? b.next_frame
                      : out.frame == a.frame ? a.next_frame
                                             : out.frame + 1;
@@ -83,9 +92,11 @@ void run_on(const T& a, const T& b, bool blending, double s, T& out) {
 
 // The piece of `p` that is `piece` (the same slot, part and class), or none.
 const HeldPiece* same_piece(const Pose& p, const HeldPiece& piece) {
+    // A pose holds at most kHeldMax pieces, whatever its count says.
     for (std::uint32_t i = 0; i < p.held_count && i < kHeldMax; ++i) {
         const HeldPiece& h = p.held[i];
 
+        // The same piece has the same slot, part and class.
         if (h.slot == piece.slot && h.part == piece.part && h.oclass == piece.oclass) {
             return &h;
         }
@@ -100,18 +111,22 @@ const HeldPiece* same_piece(const Pose& p, const HeldPiece& piece) {
 void animate(const Pose& a, const Pose& b, double s, Pose& out) {
     run_on(a, b, ((a.flags | b.flags) & kPoseBlending) != 0, s, out);
 
+    // Each piece of the result that both poses have.
     for (std::uint32_t i = 0; i < out.held_count && i < kHeldMax; ++i) {
         HeldPiece& piece = out.held[i];
         const HeldPiece* pa = same_piece(a, piece);
         const HeldPiece* pb = same_piece(b, piece);
 
+        // A piece only one of the poses has has nothing to run along.
         if (pa == nullptr || pb == nullptr) {
             continue;
         }
 
         run_on(*pa, *pb, ((pa->flags | pb->flags) & kHeldBlending) != 0, s, piece);
 
+        // A piece loose in both poses (a thrown wrench) moves between its two places too.
         if ((pa->flags & pb->flags & kHeldLoose) != 0) {
+            // Each axis; the angles go the short way round.
             for (int c = 0; c < 3; ++c) {
                 piece.position[c] =
                     static_cast<float>(pa->position[c] + (pb->position[c] - pa->position[c]) * s);
@@ -125,18 +140,22 @@ void animate(const Pose& a, const Pose& b, double s, Pose& out) {
 // A piece off the body has no velocity of its own: past the newest pose it goes on along its last
 // step, for `ahead` ms of a step `span` ms long, as the body does along its velocity.
 void carry_loose_on(const Pose& before, double span, double ahead, Pose& out) {
+    // Two poses with no time between them give no step to go on along.
     if (span <= 0.0) {
         return;
     }
 
+    // Each piece of the result that the pose before had too.
     for (std::uint32_t i = 0; i < out.held_count && i < kHeldMax; ++i) {
         HeldPiece& piece = out.held[i];
         const HeldPiece* was = same_piece(before, piece);
 
+        // Only a piece loose in both poses has a step to go on along.
         if ((piece.flags & kHeldLoose) == 0 || was == nullptr || (was->flags & kHeldLoose) == 0) {
             continue;
         }
 
+        // Each axis goes on by its last step, scaled to `ahead` of the `span`.
         for (int c = 0; c < 3; ++c) {
             piece.position[c] +=
                 static_cast<float>((piece.position[c] - was->position[c]) * ahead / span);
@@ -155,6 +174,7 @@ Bytes encode_pose(const PoseMessage& m) {
         .u8(static_cast<std::uint8_t>(m.sequence >> 8))
         .u8(static_cast<std::uint8_t>(m.sequence))
         .i64(m.stamp_ms)
+        // The level is one signed byte.
         .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(std::clamp(p.level, -1, 127))))
         .u8(static_cast<std::uint8_t>(
             (p.flags & kPoseBlending) | (m.teleport ? kWireTeleport : 0)
@@ -162,14 +182,17 @@ Bytes encode_pose(const PoseMessage& m) {
             | ((p.flags & kPoseAirborne) != 0 ? kWireAirborne : 0) | (scaled ? kWireScale : 0)
         ));
 
+    // Position, rotation and velocity in turn, each float as its IEEE bits.
     for (const float f : p.position) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
     }
 
+    // Rotation, in the same form.
     for (const float f : p.rotation) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
     }
 
+    // Velocity, in the same form.
     for (const float f : p.velocity) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
     }
@@ -177,6 +200,7 @@ Bytes encode_pose(const PoseMessage& m) {
     // The 16-bit fields, high byte first.
     const std::int16_t shorts[3] = {clamp16(p.state), clamp16(p.health), clamp16(p.item)};
 
+    // State, health and item, in that order.
     for (const std::int16_t s : shorts) {
         w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(s) >> 8))
             .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(s)));
@@ -194,6 +218,7 @@ Bytes encode_pose(const PoseMessage& m) {
     const std::size_t count = std::min<std::size_t>(p.held_count, kHeldMax);
     w.u8(static_cast<std::uint8_t>(count));
 
+    // Each piece is 13 bytes, and a loose one adds its position and rotation.
     for (std::size_t i = 0; i < count; ++i) {
         const HeldPiece& h = p.held[i];
         const std::int16_t oclass = clamp16(h.oclass);
@@ -212,17 +237,21 @@ Bytes encode_pose(const PoseMessage& m) {
             .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(piece_speed) >> 8))
             .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(piece_speed)));
 
+        // Only a loose piece carries a position and rotation.
         if ((h.flags & kHeldLoose) != 0) {
+            // Position, then rotation, each float as its IEEE bits.
             for (const float f : h.position) {
                 w.i32(static_cast<std::int32_t>(float_bits(f)));
             }
 
+            // Rotation, in the same form.
             for (const float f : h.rotation) {
                 w.i32(static_cast<std::int32_t>(float_bits(f)));
             }
         }
     }
 
+    // The world's ack rides along only when the sender has one.
     if (m.world_ack) {
         w.u8(static_cast<std::uint8_t>(m.world_newest >> 8))
             .u8(static_cast<std::uint8_t>(m.world_newest));
@@ -238,6 +267,7 @@ Bytes encode_pose(const PoseMessage& m) {
 }
 
 bool decode_pose(const Bytes& bytes, PoseMessage& out) {
+    // Too short for the fixed part, or another kind.
     if (bytes.size() < kPoseBytes || bytes[0] != kPoseKind) {
         return false;
     }
@@ -259,20 +289,25 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     out.scene = (flags & kWireScene) != 0;
     out.menu = (flags & kWireMenu) != 0;
 
+    // Position, rotation and velocity in turn, read back from their IEEE bits; a NaN from a broken
+    // sender becomes 0.
     for (float& f : p.position) {
         f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
 
+    // Rotation, in the same form.
     for (float& f : p.rotation) {
         f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
 
+    // Velocity, in the same form.
     for (float& f : p.velocity) {
         f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
 
     std::int32_t* shorts[3] = {&p.state, &p.health, &p.item};
 
+    // State, health and item, high byte first.
     for (std::int32_t* s : shorts) {
         const auto high = static_cast<std::uint16_t>(r.u8() << 8);
         *s = static_cast<std::int16_t>(high | r.u8());
@@ -285,6 +320,7 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     const auto high = static_cast<std::uint16_t>(r.u8() << 8);
     p.anim_speed = static_cast<float>(static_cast<std::int16_t>(high | r.u8())) / 1000.0f;
 
+    // The fixed part was cut short.
     if (!r.ok()) {
         return false;
     }
@@ -296,6 +332,7 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
 
     const std::size_t count = std::min<std::size_t>(r.u8(), kHeldMax);
 
+    // Each piece, as encode_pose wrote it.
     for (std::size_t i = 0; i < count; ++i) {
         HeldPiece& h = p.held[i];
         h.slot = r.u8();
@@ -312,11 +349,14 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
         const auto speed_high = static_cast<std::uint16_t>(r.u8() << 8);
         h.anim_speed = static_cast<float>(static_cast<std::int16_t>(speed_high | r.u8())) / 1000.0f;
 
+        // Only a loose piece carries a position and rotation.
         if ((h.flags & kHeldLoose) != 0) {
+            // Position, then rotation, read back from their IEEE bits.
             for (float& f : h.position) {
                 f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
             }
 
+            // Rotation, in the same form.
             for (float& f : h.rotation) {
                 f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
             }
@@ -329,6 +369,7 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
     const bool scaled = (flags & kWireScale) != 0;
     const std::size_t scale_bytes = scaled ? kPoseScaleBytes : 0;
 
+    // The ack is there when enough bytes remain for it and, with a scale, for the scale after it.
     if (r.ok() && r.left() >= kPoseAckBytes + scale_bytes) {
         const auto newest_high = static_cast<std::uint16_t>(r.u8() << 8);
         out.world_newest = static_cast<std::uint16_t>(newest_high | r.u8());
@@ -336,6 +377,7 @@ bool decode_pose(const Bytes& bytes, PoseMessage& out) {
         out.world_ack = true;
     }
 
+    // The scale comes last, and only when the flag says so.
     if (scaled && r.ok() && r.left() >= kPoseScaleBytes) {
         p.scale = sane_scale(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
@@ -352,14 +394,17 @@ Bytes encode_shot(const ShotMessage& m) {
     w.u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(item) >> 8))
         .u8(static_cast<std::uint8_t>(static_cast<std::uint16_t>(item)));
 
+    // Position, velocity and aim in turn, each float as its IEEE bits.
     for (const float f : m.shot.position) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
     }
 
+    // Velocity, in the same form.
     for (const float f : m.shot.velocity) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
     }
 
+    // Aim, in the same form.
     for (const float f : m.shot.aim) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
     }
@@ -368,6 +413,7 @@ Bytes encode_shot(const ShotMessage& m) {
 }
 
 bool decode_shot(const Bytes& bytes, ShotMessage& out) {
+    // Too short for a SHOT, or another kind.
     if (bytes.size() < kShotBytes || bytes[0] != kShotKind) {
         return false;
     }
@@ -380,14 +426,17 @@ bool decode_shot(const Bytes& bytes, ShotMessage& out) {
     const auto high = static_cast<std::uint16_t>(r.u8() << 8);
     out.shot.item = static_cast<std::int16_t>(high | r.u8());
 
+    // Position, velocity and aim in turn, read back from their IEEE bits.
     for (float& f : out.shot.position) {
         f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
 
+    // Velocity, in the same form.
     for (float& f : out.shot.velocity) {
         f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
 
+    // Aim, in the same form.
     for (float& f : out.shot.aim) {
         f = finite(bits_float(static_cast<std::uint32_t>(r.i32())));
     }
@@ -397,26 +446,32 @@ bool decode_shot(const Bytes& bytes, ShotMessage& out) {
 
 namespace {
 
+// The bits of a SHOTX entry's "what follows" byte: which optional parts come after the position.
 constexpr std::uint8_t kHasVelocity = 0x1;
 constexpr std::uint8_t kHasAim = 0x2;
 constexpr std::uint8_t kHasVelocity2 = 0x4;
 constexpr std::uint8_t kHasAux = 0x8;
 constexpr std::uint8_t kHasTarget = 0x10;
 
+// Returns whether any value is not zero; a vector of zeros is left out of a SHOTX.
 template <std::size_t N>
 bool any_set(const float (&values)[N]) {
     return std::any_of(values, values + N, [](float f) { return f != 0.0f; });
 }
 
+// Writes each value as the IEEE bits of a u32.
 template <std::size_t N>
 void write_floats(Writer& w, const float (&values)[N]) {
+    // Each value in order.
     for (const float f : values) {
         w.i32(static_cast<std::int32_t>(float_bits(f)));
     }
 }
 
+// Reads values as write_floats wrote them.
 template <std::size_t N>
 void read_floats(Reader& r, float (&values)[N]) {
+    // Each value in order.
     for (float& f : values) {
         f = bits_float(static_cast<std::uint32_t>(r.i32()));
     }
@@ -429,6 +484,7 @@ Bytes encode_shotx(const std::vector<ShotEntry>& shots) {
     const std::size_t count = std::min(shots.size(), kShotXMax);
     w.u8(kShotXKind).u8(static_cast<std::uint8_t>(count));
 
+    // Each shot: its fixed part, then only the vectors that are set.
     for (std::size_t i = 0; i < count; ++i) {
         const ShotEntry& e = shots[i];
         const Shot& s = e.shot;
@@ -445,6 +501,7 @@ Bytes encode_shotx(const std::vector<ShotEntry>& shots) {
             .i32(static_cast<std::int32_t>(e.stamp));
         write_floats(w, s.position);
 
+        // The optional parts follow in the order of their bits.
         if ((has & kHasVelocity) != 0) {
             write_floats(w, s.velocity);
         }
@@ -474,6 +531,7 @@ Bytes encode_shotx(const std::vector<ShotEntry>& shots) {
 bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out) {
     out.clear();
 
+    // Too short for the kind byte and a count, or another kind.
     if (bytes.size() < 2 || bytes[0] != kShotXKind) {
         return false;
     }
@@ -481,10 +539,12 @@ bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out) {
     Reader r(bytes.data() + 1, bytes.size() - 1);
     const std::uint8_t count = r.u8();
 
+    // No sender writes more than kShotXMax shots, so a larger count is malformed.
     if (count > kShotXMax) {
         return false;
     }
 
+    // Each shot, as encode_shotx wrote it.
     for (std::uint8_t i = 0; i < count; ++i) {
         ShotEntry e;
         Shot& s = e.shot;
@@ -496,6 +556,7 @@ bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out) {
         e.stamp = static_cast<std::uint32_t>(r.i32());
         read_floats(r, s.position);
 
+        // The optional parts follow in the order of their bits.
         if ((has & kHasVelocity) != 0) {
             read_floats(r, s.velocity);
         }
@@ -517,6 +578,7 @@ bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out) {
             s.target_key = static_cast<std::int16_t>(high << 8 | r.u8());
         }
 
+        // One cut-short shot spoils the whole message.
         if (!r.ok()) {
             out.clear();
             return false;
@@ -552,6 +614,7 @@ float lerp_angle(float a, float b, float s) {
 }
 
 const char* shown_name(Shown s) {
+    // Each value has its name; none is left for the fallback.
     switch (s) {
         case Shown::kBefore:
             return "before";
@@ -618,6 +681,8 @@ void Interpolator::add(
     // its count started again) whatever comes is taken.
     const bool silent = !samples_.empty() && arrival_ms - last_arrival_ > kStallMs;
 
+    // A pose not newer than the newest, by sequence, is dropped; after a silence every pose is
+    // taken.
     if (!samples_.empty() && !silent && !sequence_newer(sequence, sequence_)) {
         return;
     }
@@ -627,12 +692,15 @@ void Interpolator::add(
     // by no more than a few jitters.
     const double transit = arrival_ms - time_ms;
 
+    // The first pose sets the estimates; later ones move them.
     if (!link_set_) {
         link_set_ = true;
         transit_ = transit;
         jitter_ = 0.0;
     } else {
         const double dev = transit - transit_;
+        // The jitter averages over about 10 poses and the transit over about 20; one pose moves the
+        // transit by at most 4 jitters and 20 ms.
         jitter_ += 0.1 * (std::fabs(dev) - jitter_);
         const double bound = 4.0 * jitter_ + 20.0;
         transit_ += 0.05 * std::clamp(dev, -bound, bound);
@@ -641,12 +709,13 @@ void Interpolator::add(
     const bool snap = teleport || samples_.empty() || pose.level != samples_.back().pose.level
                       || distance(pose, samples_.back().pose) > kSnapDistance;
 
+    // A teleport, a first pose, another level or a jump starts the buffer again.
     if (snap) {
         samples_.clear();
         cursor_set_ = false;
     } else if (silent) {
         // Back after a silence (a moby WORLD did not send while it stood, or a sender gone a
-        // while): on from where it stood, as if it stood until just before this pose.
+        // while): on from where it stood, as if it stood until right before this pose.
         Sample base = samples_.back();
         samples_.clear();
         base.time = time_ms - interval_;
@@ -655,10 +724,11 @@ void Interpolator::add(
         cursor_set_ = true;
         cursor_ = base.time;
     } else {
-        // A stamp not after the newest (a sender's clock step) is moved just past it.
+        // A stamp not after the newest (a sender's clock step) is moved right past it.
         const double gap = time_ms - samples_.back().time;
 
         if (gap <= 0.0) {
+            // One millisecond keeps the stamps strictly rising.
             time_ms = samples_.back().time + 1.0;
         } else if (gap < (derive_ ? kMobyPauseGapMs : kPauseGapMs)) {
             // The send interval, learned from the gaps of a steady stream (not a pause).
@@ -669,6 +739,7 @@ void Interpolator::add(
     // The poses lost on the way: the gaps in the sequence (a pose's own; WORLD's is its stamp's,
     // and a moby it leaves out stood still).
     if (!derive_ && !samples_.empty() && !silent && !snap) {
+        // A gap of n poses counts as n of n + 1 lost, at most 4 of 5, averaged over about 20 poses.
         const double missing = static_cast<std::uint16_t>(sequence - sequence_) - 1.0;
         loss_ += 0.05 * (std::min(missing, 4.0) / (missing + 1.0) - loss_);
     }
@@ -677,10 +748,12 @@ void Interpolator::add(
     sequence_ = sequence;
     samples_.push_back({time_ms, pose});
 
+    // The oldest pose goes once the buffer is full.
     if (samples_.size() > kBufferSamples) {
         samples_.pop_front();
     }
 
+    // A stream without velocities gets them from its neighbours, now the newest is in.
     if (derive_) {
         derive_velocities();
     }
@@ -689,6 +762,7 @@ void Interpolator::add(
 void Interpolator::derive_velocities() {
     const std::size_t n = samples_.size();
 
+    // Fewer than two poses give no step to take a velocity from; a single pose stands still.
     if (n < 2) {
         if (n == 1) {
             std::fill(samples_[0].pose.velocity, samples_[0].pose.velocity + 3, 0.0f);
@@ -699,13 +773,16 @@ void Interpolator::derive_velocities() {
 
     Sample& a = samples_[n - 2];
     Sample& b = samples_[n - 1];
+    // The step's time in seconds, as the velocities are per second.
     const double h1 = (b.time - a.time) / 1000.0;
 
+    // Each axis on its own.
     for (int i = 0; i < 3; ++i) {
         const double d1 = h1 > 0.0 ? (b.pose.position[i] - a.pose.position[i]) / h1 : 0.0;
         // The newest: along its last step (it is the end of the curve until the next one comes).
         b.pose.velocity[i] = static_cast<float>(d1);
 
+        // With two poses the older one gets the same step.
         if (n == 2) {
             a.pose.velocity[i] = static_cast<float>(d1);
             continue;
@@ -718,6 +795,7 @@ void Interpolator::derive_velocities() {
         const double d0 = h0 > 0.0 ? (a.pose.position[i] - z.pose.position[i]) / h0 : 0.0;
         double m = 0.0;
 
+        // Both steps go the same way: the weighted harmonic mean; otherwise it stays 0.
         if (d0 * d1 > 0.0) {
             m = 3.0 * (h0 + h1) / ((2.0 * h1 + h0) / d0 + (h1 + 2.0 * h0) / d1);
         }
@@ -730,6 +808,7 @@ bool Interpolator::at(double now_ms, Pose& out) {
     const double dt = shown_set_ ? std::max(0.0, now_ms - last_now_) : 0.0;
     const Shown before = shown_;
 
+    // No pose to show yet.
     if (!place(now_ms, out)) {
         shown_set_ = false;
         return false;
@@ -742,20 +821,25 @@ bool Interpolator::at(double now_ms, Pose& out) {
         (before == Shown::kAhead || before == Shown::kHeld) && shown_ == Shown::kBetween;
     const float ease = static_cast<float>(std::exp(-dt / kCatchUpMs));
 
+    // A first show, a jump or a new start puts the figure where it belongs, with no easing.
     if (!shown_set_ || shown_ == Shown::kJump || !cursor_set_) {
         std::fill(offset_, offset_ + 3, 0.0f);
     } else if (back) {
+        // The step it was taking carries it on from where it was shown.
         for (int i = 0; i < 3; ++i) {
             offset_[i] = shown_at_[i] + shown_step_[i] - out.position[i];
         }
     }
 
+    // An offset longer than a snap is not eased: the figure goes to the curve.
     if (std::sqrt(offset_[0] * offset_[0] + offset_[1] * offset_[1] + offset_[2] * offset_[2])
         > kSnapDistance) {
         std::fill(offset_, offset_ + 3, 0.0f);
     }
 
+    // Eases each axis, and notes the step for the next time.
     for (int i = 0; i < 3; ++i) {
+        // Coming back, the offset was set above; otherwise it fades.
         if (!back) {
             offset_[i] *= ease;
         }
@@ -771,13 +855,14 @@ bool Interpolator::at(double now_ms, Pose& out) {
 }
 
 double Interpolator::wanted_ms() const {
-    // Past the transit: the next pose's interval (one more without velocities: the one after a
-    // pose makes its velocity) and the jitter, and a frame. Whatever the stream's rate (a moby's
-    // goes with its priority, and all of WORLD slows while the party fires), at least two intervals:
-    // a lost pose leaves a gap of two. A figure's third comes by 5 % lost; a moby's, of the three
-    // the longer, by 25 %: at 5 % a third costs 100 ms of delay and shows nothing.
+    // Past the transit: the next pose's interval (one more without velocities: the one after a pose
+    // makes its velocity) and the jitter, and a frame. Whatever the stream's rate (a moby's goes
+    // with its priority, and all of WORLD slows while the party fires), at least two intervals: a
+    // lost pose leaves a gap of two. A figure's third comes by 5 % lost; a moby's, of the three the
+    // longer, by 25 %: at 5 % a third costs 100 ms of delay and shows nothing.
     const double sends =
         derive_ ? 2.0 + std::min(1.0, 4.0 * loss_) : 1.0 + std::min(1.0, 20.0 * loss_);
+    // The jitter's share and a frame (about 17 ms) go on top of the intervals.
     const double margin = std::clamp(
         std::max(sends * interval_ + 2.5 * jitter_ + 17.0, 2.0 * interval_),
         kMinBufferMs,
@@ -793,6 +878,7 @@ double Interpolator::delay_ms() const {
 bool Interpolator::place(double now_ms, Pose& out) {
     jumped_ = false;
 
+    // No pose, nothing to show.
     if (samples_.empty()) {
         shown_ = Shown::kNone;
         return false;
@@ -802,6 +888,7 @@ bool Interpolator::place(double now_ms, Pose& out) {
     const double dt = delay_set_ ? std::max(0.0, now_ms - last_now_) : 0.0;
     const double wanted = wanted_ms();
 
+    // The first delay is taken as wanted; after that it eases.
     if (!delay_set_) {
         delay_set_ = true;
         delay_ = wanted;
@@ -816,6 +903,7 @@ bool Interpolator::place(double now_ms, Pose& out) {
 
     // The cursor: put on its target at first and after a jump; otherwise run to it, a little
     // faster or slower (a deficit of 50 ms is made up at the most).
+    // Far off means more than 2.5 delays and at least 300 ms.
     if (!cursor_set_ || std::fabs(target - cursor_) > std::max(2.5 * delay, 300.0)) {
         jumped_ = cursor_set_;
         cursor_set_ = true;
@@ -842,6 +930,7 @@ bool Interpolator::place(double now_ms, Pose& out) {
         out = samples_.back().pose;
         shown_ = jumped_ ? Shown::kJump : Shown::kHeld;
 
+        // A loose piece goes on along the last step, which needs two poses.
         if (samples_.size() >= 2) {
             const Sample& last = samples_[samples_.size() - 2];
             carry_loose_on(
@@ -849,11 +938,13 @@ bool Interpolator::place(double now_ms, Pose& out) {
             );
         }
 
+        // A stream without velocities holds at the newest pose, with none.
         if (derive_) {
             std::fill(out.velocity, out.velocity + 3, 0.0f);
             return true;
         }
 
+        // A speed under 0.8 of the pose before's is a stop: hold.
         if (samples_.size() >= 2 && speed(out) < 0.8 * speed(samples_[samples_.size() - 2].pose)) {
             return true;
         }
@@ -863,6 +954,8 @@ bool Interpolator::place(double now_ms, Pose& out) {
         // The time moved: all of it until the fade, then less and less.
         double moved = ahead;
 
+        // Past the start of the fade the speed falls linearly, so the time moved follows a
+        // parabola.
         if (ahead > fade) {
             const double f = ahead - fade;
             moved = fade + f - f * f / (2.0 * kFadeMs);
@@ -872,7 +965,9 @@ bool Interpolator::place(double now_ms, Pose& out) {
         // velocity says he falls (the game's gravity, which the ground takes back each tick).
         const Pose* before = samples_.size() >= 2 ? &samples_[samples_.size() - 2].pose : nullptr;
 
+        // Each axis on its own.
         for (int i = 0; i < 3; ++i) {
+            // Go on along the velocity on an axis that moved, or when there is no pose before.
             if (before == nullptr
                 || std::fabs(out.position[i] - before->position[i]) >= kStillStep) {
                 out.position[i] += static_cast<float>(out.velocity[i] * moved / 1000.0);
@@ -886,6 +981,7 @@ bool Interpolator::place(double now_ms, Pose& out) {
     // Between two: a, the last at or before the cursor, and b after it.
     std::size_t b = 1;
 
+    // Finds the first pose after the cursor.
     while (b < samples_.size() && samples_[b].time <= cursor_) {
         ++b;
     }
@@ -894,6 +990,7 @@ bool Interpolator::place(double now_ms, Pose& out) {
     const Sample& sb = samples_[b];
     const double span = sb.time - sa.time;
     const double s = span > 0.0 ? (cursor_ - sa.time) / span : 1.0;
+    // The span in seconds, as the velocities are per second.
     const double h = span / 1000.0;
     const double s2 = s * s;
     const double s3 = s2 * s;
@@ -902,9 +999,11 @@ bool Interpolator::place(double now_ms, Pose& out) {
     const double h01 = -2 * s3 + 3 * s2;
     const double h11 = s3 - s2;
 
+    // What cannot be blended comes from the nearer pose.
     out = s < 0.5 ? sa.pose : sb.pose;
     animate(sa.pose, sb.pose, s, out);
 
+    // Each axis: a Hermite curve through the two positions and their velocities.
     for (int i = 0; i < 3; ++i) {
         // Along an axis the two poses did not move on, a straight line (it stands): not a bump
         // drawn through velocities that say otherwise (a standing Ratchet's says he falls).

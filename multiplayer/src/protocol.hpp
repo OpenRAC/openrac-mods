@@ -21,6 +21,7 @@
 
 namespace mp {
 
+// A run of bytes: a frame, a body or a payload.
 using Bytes = std::vector<std::uint8_t>;
 
 // The length prefix's bytes, the longest frame (its prefix included) and so the longest body.
@@ -38,8 +39,8 @@ constexpr std::size_t kCodeLength = 6;
 // it: printable ASCII, at most this long; and the most parties LIST answers with.
 constexpr std::size_t kMaxDescriptionLength = 48;
 constexpr std::size_t kMaxListedParties = 32;
-// A game family (openrac_api.world_family: "rac1-60-1", "rac2-pal-1") as the server takes it: printable
-// ASCII without spaces, at most this long.
+// A game family (openrac_api.world_family: "rac1-60-1", "rac2-pal-1") as the server takes it:
+// printable ASCII without spaces, at most this long.
 constexpr std::size_t kMaxFamilyLength = 32;
 // The longest launcher key a game takes (the launcher's are 32 hex digits).
 constexpr std::size_t kMaxKeyLength = 64;
@@ -110,6 +111,7 @@ constexpr std::int32_t kBroadcast = 0;
 // from a client and sender i32 + bytes from the server. At most kMaxDatagramBytes either way;
 // anything bigger, cut short, of an unknown kind or with the wrong token is dropped unanswered.
 constexpr std::size_t kMaxDatagramBytes = 1200;
+// The kinds of UDP datagram a client sends.
 enum class DatagramKind : std::uint8_t {
     kBind = 0,
     kState = 1
@@ -124,12 +126,19 @@ constexpr int kUdpTimeoutMs = 15000;
 // A body being written: bytes, big-endian integers, strings as the server reads them.
 class Writer {
 public:
+    // Appends one byte and returns the writer, so calls chain. The other appenders do the same.
     Writer& u8(std::uint8_t value);
+    // Appends a 32-bit integer, big-endian.
     Writer& i32(std::int32_t value);
+    // Appends a 64-bit integer, big-endian.
     Writer& i64(std::int64_t value);
+    // Appends a string behind its 16-bit length: an empty one as length -1, and one past 32,767
+    // bytes cut there.
     Writer& str(const std::string& value);
+    // Appends the bytes as they are, with no length.
     Writer& raw(const Bytes& value);
 
+    // Returns the body written so far.
     const Bytes& bytes() const { return bytes_; }
 
 private:
@@ -140,16 +149,24 @@ private:
 // underflow makes a packet malformed.
 class Reader {
 public:
+    // Reads the `size` bytes at `data`, which the caller keeps alive as long as the reader is used.
     Reader(const std::uint8_t* data, std::size_t size) : data_(data), size_(size) {}
 
+    // Reads one byte.
     std::uint8_t u8();
+    // Reads a big-endian 32-bit integer.
     std::int32_t i32();
+    // Reads a big-endian 64-bit integer.
     std::int64_t i64();
+    // Reads a string behind its 16-bit length; a length under 1 is the empty string.
     std::string str();
+    // Takes every byte not read yet.
     Bytes rest();
 
+    // Returns false once a read has gone past the end.
     bool ok() const { return ok_; }
 
+    // Returns how many bytes are not read yet.
     std::size_t left() const { return size_ - at_; }
 
 private:
@@ -170,12 +187,15 @@ Bytes frame(const Bytes& body);
 // larger than the server ever sends: the stream can no longer be trusted.
 class FrameReader {
 public:
+    // Appends bytes the socket gave, whole frames or not.
     void feed(const std::uint8_t* data, std::size_t size);
     // The next whole frame's body into `body`; false when none is whole yet.
     bool next(Bytes& body);
 
+    // Returns true once a length was larger than any frame; next() then gives nothing.
     bool broken() const { return broken_; }
 
+    // Drops the buffered bytes and clears broken(), for a new connection.
     void reset();
 
 private:
@@ -196,10 +216,15 @@ private:
 Bytes hello(
     const std::string& version, const std::string& name, std::uint8_t features = kClientResumes
 );
+// Returns CREATE: a new party with `description`.
 Bytes party_create(const std::string& description = "", const std::string& family = "");
+// Returns LIST: asks for the parties with room.
 Bytes party_list(const std::string& family = "");
+// Returns FIND: joins the oldest party with room, or hosts a new one.
 Bytes party_find(const std::string& family = "");
+// Returns JOIN: enters the party with this code.
 Bytes party_join(const std::string& code, const std::string& family = "");
+// Returns LEAVE: the client goes out of its party.
 Bytes party_leave();
 // KICK: the host has `member` taken out of the party (the member gets KICKED, the others LEFT).
 Bytes party_kick(std::int32_t member);
@@ -207,9 +232,13 @@ Bytes party_kick(std::int32_t member);
 Bytes party_resume(const std::string& code, std::int32_t session, std::int64_t token);
 // HOST_CHANGED: the host names who may follow it, the first choice first; or a new host declines.
 Bytes party_successors(const std::vector<std::int32_t>& members);
+// Returns the decline of HOST_CHANGED, from a new host that does not want the party.
 Bytes party_decline();
+// Returns CHAT with `message`.
 Bytes chat(const std::string& message);
+// Returns DATA with `payload` for member `target`, or for everyone else when it is kBroadcast.
 Bytes data(std::int32_t target, const Bytes& payload);
+// Returns TIME with the client's clock.
 Bytes time(std::int64_t client_ms);
 
 // The client's datagrams (no frame): BIND, and STATE for `target`.
@@ -220,8 +249,8 @@ Bytes datagram_state(
 
 // A member of a party as the server lists it.
 struct Member {
-    std::int32_t id = 0;
-    std::string name;
+    std::int32_t id = 0;  // The member's session id.
+    std::string name;     // The name the member joined with.
 };
 
 // A party LIST names: its code, its host's name, how many are in it of how many it takes, and its
@@ -236,6 +265,7 @@ struct Listing {
 
 // What the server says, one frame of it.
 struct Message {
+    // Which frame a Message holds.
     enum class Kind {
         kHello,
         kPartyInfo,
@@ -244,7 +274,7 @@ struct Message {
         kPartyEnd,
         kPartyKicked,
         kPartyList,
-        kPartyAway,
+        kPartyAway,  // The RESUME opcode, as a notice.
         kPartyHostChanged,
         kChat,
         kData,
@@ -252,6 +282,7 @@ struct Message {
         kTime,
         kUdp
     };
+    // Which frame this is; the fields below say what each kind fills.
     Kind kind = Kind::kHello;
     // HELLO: the session's id; JOINED, LEFT and AWAY: the member's; CHAT and DATA: the sender's.
     std::int32_t id = 0;
@@ -278,8 +309,8 @@ struct Message {
     std::int64_t server_ms = 0;
     // ERROR: why the server refused.
     ErrorReason reason = ErrorReason::kPartyNotFound;
-    // UDP: the session's token, the server's UDP port, its feature bits (none from an older one) and
-    // the token that takes this session back.
+    // UDP: the session's token, the server's UDP port, its feature bits (none from an older one)
+    // and the token that takes this session back.
     std::int64_t token = 0;
     std::int64_t resume_token = 0;
     std::int32_t udp_port = 0;
@@ -297,12 +328,16 @@ bool decode_datagram(const std::uint8_t* data, std::size_t size, Message& out);
 // The server's side, for the embedded host of Direct connect (host.hpp): the frames the server
 // sends, and the client's frames and datagrams as the server reads them.
 Bytes hello_reply(std::int32_t session);
+// Returns the UDP offer: the session's token, the UDP port, the feature bits and the token that
+// resumes the session.
 Bytes udp_offer(
     std::int64_t token,
     std::int32_t port,
     std::uint8_t features = kFeatureKick,
     std::int64_t resume_token = 0
 );
+// Returns INFO: the party's code, host, members and description, with the host epoch and the
+// members away when either is set.
 Bytes party_info(
     const std::string& code,
     std::int32_t host,
@@ -311,21 +346,33 @@ Bytes party_info(
     std::int32_t epoch = 0,
     const std::vector<std::int32_t>& away = {}
 );
+// Returns LIST's answer: at most kMaxListedParties of `parties`.
 Bytes party_list_reply(const std::vector<Listing>& parties);
+// Returns JOINED: `member` entered the party.
 Bytes party_joined(const Member& member);
+// Returns LEFT: member `member` is out of the party.
 Bytes party_left(std::int32_t member);
+// Returns END: the party is over.
 Bytes party_end();
+// Returns KICKED: this client was taken out by the host.
 Bytes party_kicked();
+// Returns the notice that member `member` lost its connection, or `back` that it came back.
 Bytes party_away(std::int32_t member, bool back);
+// Returns CHAT as the server forwards it, with the sender's id.
 Bytes chat_from(std::int32_t sender, const std::string& message);
+// Returns DATA as the server forwards it, with the sender's id.
 Bytes data_from(std::int32_t sender, const Bytes& payload);
+// Returns ERROR for `reason`; `family` is the party's, sent only with kOtherGame.
 Bytes error_reply(ErrorReason reason, const std::string& family = "");
+// Returns TIME's answer: the client's clock as it sent it, and the server's.
 Bytes time_reply(std::int64_t client_ms, std::int64_t server_ms);
+// Returns the STATE datagram a server sends: the sender's id and `payload`.
 Bytes datagram_state_from(std::int32_t sender, const Bytes& payload);
 
 // A client's frame as the server reads it. kInvalid: an id or opcode a client never sends (ERROR,
 // UDP, the server's party notices, unknown ones) or a body cut short, which closes a connection.
 struct Request {
+    // Which request a Request holds.
     enum class Kind {
         kInvalid,
         kHello,
@@ -340,6 +387,7 @@ struct Request {
         kData,
         kTime
     };
+    // Which request this is.
     Kind kind = Kind::kInvalid;
     // HELLO: the version and the name; JOIN: the code; CREATE: the description; CHAT: the
     // message. CREATE, LIST, FIND and JOIN: the asker's family ("" for none).
@@ -356,10 +404,13 @@ struct Request {
     std::int64_t client_ms = 0;
 };
 
+// Reads a frame's body a client sent, as the server does. Its kind is kInvalid when the body cannot
+// be read.
 Request decode_request(const Bytes& body);
 
 // A client's datagram as the server reads it; false for one cut short or of an unknown kind.
 struct ClientDatagram {
+    // The sender's session id and token, the kind, and for STATE the target and the bytes.
     std::int32_t session = 0;
     std::int64_t token = 0;
     DatagramKind kind = DatagramKind::kBind;
@@ -367,6 +418,7 @@ struct ClientDatagram {
     Bytes bytes;
 };
 
+// Reads the datagram of `size` bytes at `data` into `out`; false for one the server drops.
 bool decode_client_datagram(const std::uint8_t* data, std::size_t size, ClientDatagram& out);
 
 // A string's length as the server counts it (Java's String.length: UTF-16 units).

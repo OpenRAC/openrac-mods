@@ -13,7 +13,7 @@
 //   velocity 3 x f32, state i16, health i16, item i16, seq u8, frame u8, next frame u8,
 //   anim time u8 (0 to 255 for 0 to 1), anim speed i16 (thousandths)
 // 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32. Then what the
-// Ratchet wears and holds (since 0.7.0; a pose without it is read as wearing nothing):
+// Ratchet wears and holds (a pose without it is read as wearing nothing):
 //   count u8, then a piece each: slot u8, part u8, item u8, class i16, joint u8, flags u8 (hidden
 //   1, blending 2, loose 4), seq u8, frame u8, next frame u8, anim time u8, anim speed i16, and
 //   for a loose piece its position 3 x f32 and rotation 3 x f32
@@ -31,25 +31,25 @@
 // The buffer. Each pose is stamped with the sender's estimate of the server's clock; the receiver
 // turns it into its own clock and plays the poses back a delay behind their stamps. The delay is
 // the link's: the time in transit as measured (arrival less stamp, averaged, so the clock
-// estimates' error is in it too), and a margin past it of a send interval and the transit's
-// jitter, never under two send intervals of that stream (and kMinBufferMs), so one pose lost still
-// leaves a pose to play; up to an interval more while poses are lost. It rises
-// in about half a second when the link gets worse and falls in about four when it calms. Between
-// two poses: the position along a cubic Hermite curve through their velocities (a jump stays an
-// arc), the yaw the short way round, the place in the animation's seq on from the one's to the
-// other's (the game keeps the figure to it, play.c), and a new seq and the state from the nearer
-// one. Poses without velocities (the host's mobys and bolts, WORLD) get them from their
-// neighbours, limited so the curve never goes past a pose and back (Fritsch and Carlson), and the
-// margin has one interval more so a pose's neighbour after it is there before it plays. The
-// playback cursor runs up to 10 % fast or slow to keep its delay, so a change of delay never
-// jumps; far behind (a stall, then a burst), it jumps. Along an axis two poses did not move on
-// (kStillStep), the velocities are not used: a standing Ratchet's says he falls at 0.75 units a
-// second (gravity, which the ground takes back each tick). Past the newest pose a figure goes on along
-// its velocity for at most 150 ms, then holds (at once when it was slowing down: a stop); a moby
-// holds where it is (WORLD stops sending one that stops). When the next pose comes, what is shown
-// goes back onto the curve over about kCatchUpMs rather than at once. A teleport (the sender's flag, a level
-// change, or a step of more than kSnapDistance) starts the buffer again: the figure is put there.
-// One back after a silence (kStallMs) goes on from where it stood.
+// estimates' error is in it too), and a margin past it of a send interval and the transit's jitter,
+// never under two send intervals of that stream (and kMinBufferMs), so one pose lost still leaves a
+// pose to play; up to an interval more while poses are lost. It rises in about half a second when
+// the link gets worse and falls in about four when it calms. Between two poses: the position along
+// a cubic Hermite curve through their velocities (a jump stays an arc), the yaw the short way
+// round, the place in the animation's seq on from the one's to the other's (the game keeps the
+// figure to it, play.c), and a new seq and the state from the nearer one. Poses without velocities
+// (the host's mobys and bolts, WORLD) get them from their neighbours, limited so the curve never
+// goes past a pose and back (Fritsch and Carlson), and the margin has one interval more so a pose's
+// neighbour after it is there before it plays. The playback cursor runs up to 10 % fast or slow to
+// keep its delay, so a change of delay never jumps; far behind (a stall, then a burst), it jumps.
+// Along an axis two poses did not move on (kStillStep), the velocities are not used: a standing
+// Ratchet's says he falls at 0.75 units a second (gravity, which the ground takes back each tick).
+// Past the newest pose a figure goes on along its velocity for at most 150 ms, then holds (at once
+// when it was slowing down: a stop); a moby holds where it is (WORLD stops sending one that stops).
+// When the next pose comes, what is shown goes back onto the curve over about kCatchUpMs rather
+// than at once. A teleport (the sender's flag, a level change, or a step of more than
+// kSnapDistance) starts the buffer again: the figure is put there. One back after a silence
+// (kStallMs) goes on from where it stood.
 
 #ifndef MULTIPLAYER_PLAY_H
 #define MULTIPLAYER_PLAY_H
@@ -71,10 +71,13 @@ constexpr std::uint32_t kPoseSteady = 0x8;
 // His feet are off the ground (the SDK's OPENRAC_POSE_AIRBORNE): an enemy that takes him in the air
 // or in the water needs it on the host.
 constexpr std::uint32_t kPoseAirborne = 0x10;
+// The wire's flag for a teleport: the sender put the figure somewhere, it did not walk.
 constexpr std::uint8_t kWireTeleport = 0x2;
+// The wire's flag for a sender whose game plays a scene.
 constexpr std::uint8_t kWireScene = 0x4;
-// 0x8 is multiplayer 0.8.0's "in a pause/menu overlay": its peers send it, so it keeps that meaning.
+// 0x8 is "in a pause/menu overlay": peers already send it, so it keeps that meaning.
 constexpr std::uint8_t kWireMenu = 0x8;
+// The wire's flag for kPoseAirborne.
 constexpr std::uint8_t kWireAirborne = 0x10;
 // The pose ends with its scale (4 bytes, after the world's ack): without it a peer's figure kept
 // the scale the hero had when it was made, a wide Ratchet after Go to host.
@@ -86,17 +89,23 @@ constexpr std::uint8_t kWireScale = 0x20;
 constexpr std::uint32_t kHeldHidden = 0x1;
 constexpr std::uint32_t kHeldBlending = 0x2;
 constexpr std::uint32_t kHeldLoose = 0x4;
+// The most pieces one pose carries.
 constexpr std::size_t kHeldMax = 8;
 
+// One piece a Ratchet wears or holds, as the SDK's openrac_held_piece has it.
 struct HeldPiece {
+    // The game's slot and which of its mobys, the item, the moby's class and the joint it follows.
     std::int32_t slot = 0;
     std::int32_t part = 0;
     std::int32_t item = 0;
     std::int32_t oclass = 0;
     std::int32_t joint = 0;
+    // The kHeld* flags.
     std::uint32_t flags = 0;
+    // Where a loose piece is and how it turns, in the game's units.
     float position[3] = {0, 0, 0};
     float rotation[3] = {0, 0, 0};
+    // Its own animation: sequence, frame, next frame, the place between them (0 to 1) and speed.
     std::uint32_t seq = 0;
     std::uint32_t frame = 0;
     std::uint32_t next_frame = 0;
@@ -107,34 +116,45 @@ struct HeldPiece {
 // A pose of a Ratchet (the SDK's openrac_pose after its size; the game's units), and what it wears
 // and holds (the SDK's openrac_held: `held_count` of `held`).
 struct Pose {
+    // The level the figure is in; -1 for none.
     std::int32_t level = -1;
+    // Where it is and how it turns, in the game's units.
     float position[3] = {0, 0, 0};
     float rotation[3] = {0, 0, 0};
+    // The figure's scale; 0 keeps the one it has.
     float scale = 0;
+    // Its velocity, in units a second.
     float velocity[3] = {0, 0, 0};
+    // The game's state and health for it, and the item it holds (-1 for none).
     std::int32_t state = 0;
     std::int32_t health = 0;
     std::int32_t item = -1;
+    // The animation: sequence, frame, next frame, the place between them (0 to 1) and speed.
     std::uint32_t seq = 0;
     std::uint32_t frame = 0;
     std::uint32_t next_frame = 0;
     float anim_time = 0;
     float anim_speed = 0;
+    // The kPose* flags.
     std::uint32_t flags = 0;
+    // How many pieces of `held` are set, at most kHeldMax.
     std::uint32_t held_count = 0;
     HeldPiece held[kHeldMax];
 };
 
 // A POSE message: whose, its sequence and stamp, the teleport flag, the pose.
 struct PoseMessage {
+    // Whose Ratchet, the sequence (16 bits, wrapping) and the stamp (the server's clock, ms).
     std::int32_t owner = 0;
     std::uint16_t sequence = 0;
     std::int64_t stamp_ms = 0;
+    // The pose is a jump, not a step.
     bool teleport = false;
     // The sender's game plays a scene (a cutscene, a landing): its player waits on it.
     bool scene = false;
     // The sender is in a pause/menu overlay: status may inspect it, rescue may not progress.
     bool menu = false;
+    // The pose itself.
     Pose pose;
     // A member's word on WORLD: the newest sequence heard and, bit n, whether the one n + 1 before
     // it was.
@@ -145,11 +165,15 @@ struct PoseMessage {
 
 // The POSE kind's first byte (coop.hpp's kinds), and its size on the wire.
 constexpr std::uint8_t kPoseKind = kind::kPose;
-constexpr std::size_t kPoseBytes = 65;
+constexpr std::size_t kPoseBytes = 65;  // The fixed part of a pose.
+// The world's ack at the end of a pose: the newest sequence (2 bytes) and the bits (4).
 constexpr std::size_t kPoseAckBytes = 6;
 constexpr std::size_t kPoseScaleBytes = 4;
 
+// Returns the bytes of a POSE message: kPoseBytes, then the pieces, the ack when there is one and
+// the scale when the figure has one.
 Bytes encode_pose(const PoseMessage& message);
+// Reads a POSE message's bytes into `out`.
 // False for bytes that are not a whole POSE.
 bool decode_pose(const Bytes& bytes, PoseMessage& out);
 
@@ -161,27 +185,37 @@ constexpr std::uint32_t kShotMove = 0x2;
 constexpr std::uint32_t kShotStop = 0x4;
 constexpr std::uint32_t kShotBurst = 0x8;
 
+// One shot as the SDK's openrac_shot2 has it.
 struct Shot {
+    // The item (weapon) that fired it.
     std::int32_t item = 0;
+    // Where it starts, how it moves, and its aim.
     float position[3] = {0, 0, 0};
     float velocity[3] = {0, 0, 0};
     float aim[4] = {0, 0, 0, 0};
+    // The kShot* flags: where in a track this shot is.
     std::uint32_t flags = 0;
+    // The key of what it targets; -1 for none.
     std::int32_t target_key = -1;
+    // A second velocity, and extra values a weapon needs (aux[0] names the track).
     float velocity2[3] = {0, 0, 0};
     float aux[4] = {0, 0, 0, 0};
 };
 
+// A SHOT message: the shot, whose it is and the level it was fired in.
 struct ShotMessage {
     std::int32_t owner = 0;
     std::int32_t level = -1;
     Shot shot;
 };
 
+// The SHOT kind's first byte, and its size on the wire.
 constexpr std::uint8_t kShotKind = kind::kShot;
 constexpr std::size_t kShotBytes = 48;
 
+// Returns the bytes of a SHOT message.
 Bytes encode_shot(const ShotMessage& message);
+// Reads a SHOT message's bytes into `out`.
 // False for bytes that are not a whole SHOT.
 bool decode_shot(const Bytes& bytes, ShotMessage& out);
 
@@ -193,11 +227,14 @@ struct ShotEntry {
     Shot shot;
 };
 
+// The SHOTX kind's first byte.
 constexpr std::uint8_t kShotXKind = kind::kShotX;
 // The most shots a SHOTX holds: well within a datagram, at the most each can be.
 constexpr std::size_t kShotXMax = 12;
 
+// Returns the bytes of a SHOTX holding the first kShotXMax of `shots`.
 Bytes encode_shotx(const std::vector<ShotEntry>& shots);
+// Reads a SHOTX's bytes into `out`, which is empty when this returns false.
 // False for bytes that are not a whole SHOTX.
 bool decode_shotx(const Bytes& bytes, std::vector<ShotEntry>& out);
 
@@ -209,6 +246,7 @@ bool shot_replaces(const ShotEntry& newer, const ShotEntry& older);
 bool sequence_newer(std::uint16_t a, std::uint16_t b);
 
 // The buffer's constants (INTERPOLATION.md, section 2), in milliseconds and game units.
+// The most poses an Interpolator keeps.
 constexpr std::size_t kBufferSamples = 32;
 // The least margin past the transit, the most (a moby far from the player comes a few times a
 // second, so its margin of two intervals is longer), and the most delay in all.
@@ -216,16 +254,22 @@ constexpr double kMinBufferMs = 100.0;
 constexpr double kMaxBufferMs = 400.0;
 constexpr double kMaxMobyBufferMs = 700.0;
 constexpr double kMaxDelayMs = 1000.0;
+// How long past the newest pose a figure goes on along its velocity.
 constexpr double kExtrapolateMs = 150.0;
+// How long at the end of that its speed fades to nothing.
 constexpr double kFadeMs = 50.0;
+// A step of more than this between two poses, in game units, is a teleport.
 constexpr double kSnapDistance = 8.0;
 // A step between two poses along an axis below this is standing still on it: no velocity is
 // drawn or carried on along it (a grounded Ratchet's z velocity is the game's gravity).
 constexpr double kStillStep = 0.01;
+// Silence this long is a stall: the figure holds, and a pose after it starts from where it stood.
 constexpr double kStallMs = 1000.0;
 // A gap between two poses still counts as the send interval below this; past it, a pause.
 constexpr double kPauseGapMs = 200.0;
+// The same for a moby's stream, which sends less often.
 constexpr double kMobyPauseGapMs = 600.0;
+// The slowest and fastest the playback cursor runs, as a share of real time.
 constexpr double kRateMin = 0.9;
 constexpr double kRateMax = 1.1;
 // How fast the delay follows the link, up and down (time constants), ms.
@@ -245,6 +289,7 @@ enum class Shown : std::uint8_t {
     kJump
 };
 
+// Returns a Shown's name for the log.
 const char* shown_name(Shown s);
 
 // Counts as "between B ahead A held H jump J before F" for the verbose log.
@@ -300,9 +345,10 @@ public:
     // How many at()s showed each kind (Shown's order) since the last take_counts(), which zeroes
     // them.
     struct Counts {
-        int by[6] = {0, 0, 0, 0, 0, 0};
+        int by[6] = {0, 0, 0, 0, 0, 0};  // One count for each Shown value.
     };
 
+    // Returns the counts and zeroes them.
     Counts take_counts() {
         const Counts out = counts_;
         counts_ = Counts{};
@@ -318,10 +364,12 @@ public:
 
     double silence_ms(double now_ms) const { return empty() ? 1e9 : now_ms - last_arrival_; }
 
+    // Returns whether no pose is kept.
     bool empty() const { return samples_.empty(); }
 
     // The newest pose that came; false while none.
     bool newest(Pose& out) const {
+        // No pose has come yet, so there is nothing to give.
         if (samples_.empty()) {
             return false;
         }
@@ -330,14 +378,17 @@ public:
         return true;
     }
 
+    // Returns how many poses are kept.
     std::size_t size() const { return samples_.size(); }
 
     // Whether the last at() jumped (a teleport or the cursor far behind).
     bool jumped() const { return jumped_; }
 
+    // Drops the poses and the playback cursor; the link's estimates stay.
     void reset();
 
 private:
+    // A pose and its stamp in this game's clock, in milliseconds.
     struct Sample {
         double time = 0;
         Pose pose;
@@ -352,21 +403,37 @@ private:
     // Velocities for the newest pose and the one before it, from their neighbours (derive_).
     void derive_velocities();
 
+    // True for a stream whose poses carry no velocities (WORLD's).
     bool derive_ = false;
+    // The poses kept, oldest first, at most kBufferSamples.
     std::deque<Sample> samples_;
+    // The newest pose's sequence.
     std::uint16_t sequence_ = 0;
+    // The send interval learned from the gaps, in milliseconds.
     double interval_ = 50.0;
+    // Whether a pose has set the link estimates: the transit, its jitter and the loss.
     bool link_set_ = false;
+    // The average time in transit, in milliseconds.
     double transit_ = 0.0;
+    // The average deviation of the transit, in milliseconds.
     double jitter_ = 0.0;
+    // The share of poses that never came.
     double loss_ = 0.0;
+    // Whether delay_ has a value yet.
     bool delay_set_ = false;
+    // The delay played behind the stamps, in milliseconds.
     double delay_ = 0.0;
+    // When the newest pose arrived, in this game's clock (milliseconds).
     double last_arrival_ = 0.0;
+    // Whether the playback cursor has a value yet.
     bool cursor_set_ = false;
+    // The playback cursor, in the stamps' time (milliseconds).
     double cursor_ = 0.0;
+    // The clock reading at the last at(), in milliseconds.
     double last_now_ = 0.0;
+    // Whether the last at() jumped the cursor.
     bool jumped_ = false;
+    // What the last at() showed.
     Shown shown_ = Shown::kNone;
     // What was shown last, and the step that took it there; the way back to the curve after a
     // stretch past the newest pose (eased out over kCatchUpMs).

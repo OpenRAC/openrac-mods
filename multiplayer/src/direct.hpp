@@ -56,9 +56,9 @@ int ring_step(int value, int choice, const Ring& ring, int times = 1);
 // the last).
 class Acceleration {
 public:
-    static constexpr int kHeldRepeats = 8;
-    static constexpr std::uint64_t kHeldGapMs = 200;
-    static constexpr int kFast = 10;
+    static constexpr int kHeldRepeats = 8;            // Repeats before a hold speeds up.
+    static constexpr std::uint64_t kHeldGapMs = 200;  // The longest gap in a hold.
+    static constexpr int kFast = 10;                  // Steps a change takes in a long hold.
 
     // A change of row `item` at `now_ms`: the steps it takes.
     int times(int item, std::uint64_t now_ms);
@@ -67,16 +67,16 @@ public:
     void reset() { run_ = 0, item_ = -1; }
 
 private:
-    int item_ = -1;
-    int run_ = 0;
-    std::uint64_t last_ms_ = 0;
+    int item_ = -1;              // The row last changed; -1 for none.
+    int run_ = 0;                // How many repeats of that row in a row.
+    std::uint64_t last_ms_ = 0;  // When the row last changed, in milliseconds.
 };
 
 // The address Join by address connects to: four octets and the port. It starts at a common LAN
 // address with the default port, and keeps the last one joined for the rest of the game.
 struct DirectAddress {
-    std::array<int, 4> octets{192, 168, 1, 1};
-    int port = 7770;
+    std::array<int, 4> octets{192, 168, 1, 1};  // The four parts of the address.
+    int port = 7770;                            // The port.
 
     // "a.b.c.d:port", as connect_direct takes it.
     std::string text() const;

@@ -30,8 +30,8 @@ constexpr int kConnectMs = 3000;
 constexpr int kRetryMs = 3000;
 constexpr int kSliceMs = 20;
 // On a server that keeps a dropped player's slot: how often this thread says something whatever the
-// game is doing (a level loading stops its ticks), so silence means a dead link, and how long nothing
-// from the server means that on this side.
+// game is doing (a level loading stops its ticks), so silence means a dead link, and how long
+// nothing from the server means that on this side.
 constexpr std::int64_t kAliveMs = 2000;
 constexpr std::int64_t kServerSilentMs = 6000;
 // How long one select waits in connect_to, so a stop is noticed.
@@ -59,6 +59,7 @@ bool wait(socket_t fd, bool for_write, int ms, const std::atomic<bool>& stop) {
             &tv
         );
 
+        // A timeout (0) is waited out again; anything else is the answer, ready or an error.
         if (n != 0) {
             return n > 0;
         }
@@ -158,6 +159,7 @@ socket_t open_udp(socket_t tcp, std::int32_t port) {
     const bool keep_port = false;
 #endif
 
+    // The tests' proxies keep the TCP port; the server's UDP port replaces it otherwise.
     if (keep_port) {
         // The peer's port stays.
     } else if (peer.ss_family == AF_INET6) {
@@ -168,6 +170,7 @@ socket_t open_udp(socket_t tcp, std::int32_t port) {
 
     const socket_t fd = socket(peer.ss_family, SOCK_DGRAM, 0);
 
+    // No UDP socket for this address family: state stays on TCP.
     if (fd == kNoSocket) {
         return kNoSocket;
     }
@@ -266,7 +269,9 @@ bool Connection::start_hosting(int port) {
         Bytes body;
         Message m;
 
+        // The host's frames are cut and decoded as a socket's would be.
         while (reader.next(body)) {
+            // A frame this client does not know is skipped, as from a newer server.
             if (decode(body, m)) {
                 const std::lock_guard lock(mutex_);
                 inbox_.push_back(std::move(m));
@@ -331,6 +336,7 @@ void Connection::send(Bytes frame) {
         if (embedded_ != nullptr) {
             embedded_->local_send(frame);
 
+            // The host's LEAVE ended the party, so the host stops with it.
             if (embedded_->ended()) {
                 close();
             }
@@ -377,6 +383,7 @@ void Connection::send_state(std::int32_t target, const Bytes& bytes, bool tcp) {
         wake_.notify_all();
     }
 
+    // The session asks for DATA too while UDP is unconfirmed, or when the state does not fit.
     if (tcp) {
         send(data(target, bytes));
     }
@@ -390,10 +397,12 @@ std::vector<Message> Connection::receive() {
         out.swap(inbox_);
     }
 
+    // The lag setting is read from the environment on the first call only.
     if (lag_read_ == 0) {
         lag_read_ = 1;
         const char* lag = std::getenv("OPENRAC_MP_LAG");
 
+        // One or two numbers set the delay and the jitter; anything else leaves no lag.
         if (lag != nullptr && std::sscanf(lag, "%lf,%lf", &lag_ms_, &lag_jitter_ms_) >= 1) {
             lag_ms_ = std::max(0.0, lag_ms_);
             lag_jitter_ms_ = std::max(0.0, lag_jitter_ms_);
@@ -406,6 +415,7 @@ std::vector<Message> Connection::receive() {
         }
     }
 
+    // With no lag set and nothing held, messages go straight on.
     if (lag_ms_ <= 0.0 && lag_jitter_ms_ <= 0.0 && lagged_.empty()) {
         return out;
     }
@@ -414,7 +424,11 @@ std::vector<Message> Connection::receive() {
     const double now =
         std::chrono::duration<double, std::milli>(steady_clock::now().time_since_epoch()).count();
 
+    // Each new message gets a time to be handed on, never before the one ahead of it.
     for (Message& m : out) {
+        // One step of a linear congruential generator (Knuth's MMIX constants); its top 53 bits
+        // become a fraction below 1. The extra delay is exponential: mostly under the jitter,
+        // sometimes several times it. The 0.999 keeps the log's argument above zero.
         lag_random_ = lag_random_ * 6364136223846793005ull + 1442695040888963407ull;
         const double u = static_cast<double>(lag_random_ >> 11) / 9007199254740992.0;
         const double extra = -lag_jitter_ms_ * std::log(1.0 - 0.999 * u);
@@ -424,6 +438,7 @@ std::vector<Message> Connection::receive() {
 
     out.clear();
 
+    // Messages whose time has come, in the order they arrived.
     while (!lagged_.empty() && lagged_.front().first <= now) {
         out.push_back(std::move(lagged_.front().second));
         lagged_.pop_front();
@@ -496,6 +511,8 @@ void Connection::serve(std::intptr_t handle) {
 
         bool lost = false;
 
+        // On a server that keeps slots, this thread speaks and listens even while the game's ticks
+        // stop.
         if (keep_alive) {
             const auto now = static_cast<std::int64_t>(now_ms());
 
@@ -504,6 +521,7 @@ void Connection::serve(std::intptr_t handle) {
                 break;
             }
 
+            // A TIME frame tells the server the link is alive.
             if (now - alive_ms >= kAliveMs) {
                 alive_ms = now;
                 out.push_back(time(now));
@@ -519,6 +537,7 @@ void Connection::serve(std::intptr_t handle) {
             }
         }
 
+        // A failed write ends this connection; run() tries again.
         if (lost) {
             break;
         }
@@ -528,11 +547,13 @@ void Connection::serve(std::intptr_t handle) {
         if (udp != kNoSocket) {
             const auto now = static_cast<std::int64_t>(now_ms());
 
+            // BIND is due: it binds this address to the session and keeps the NAT mapping open.
             if (now >= next_bind_ms) {
                 datagrams.push_front(datagram_bind(udp_session_.load(), udp_token_.load()));
                 next_bind_ms = now + kBindMs;
             }
 
+            // The BIND goes first, then the state in the order it was sent.
             for (const Bytes& d : datagrams) {
                 ::send(udp, reinterpret_cast<const char*>(d.data()), static_cast<int>(d.size()), 0);
             }
@@ -553,6 +574,7 @@ void Connection::serve(std::intptr_t handle) {
 
         // Datagrams: STATE, handed in as the DATA it stands for.
         if (udp != kNoSocket && (fds[1].revents & POLLIN) != 0) {
+            // One byte over the longest datagram, so a longer one is seen as too long.
             std::uint8_t datagram[kMaxDatagramBytes + 1];
 
             // A bounded drain: an error report comes once, but never spin on one.
@@ -563,6 +585,7 @@ void Connection::serve(std::intptr_t handle) {
 
                 // None left, or an error report (a port unreachable): no datagram.
                 if (n < 0) {
+                    // No datagram is waiting any more.
                     if (would_block()) {
                         break;
                     }
@@ -572,6 +595,7 @@ void Connection::serve(std::intptr_t handle) {
 
                 Message m;
 
+                // Only a STATE counts; it proves datagrams come back.
                 if (decode_datagram(datagram, static_cast<std::size_t>(n), m)) {
                     udp_heard_ms_ = now_ms();
                     got.push_back(std::move(m));
@@ -631,6 +655,7 @@ void Connection::serve(std::intptr_t handle) {
 
     udp_ready_ = false;
 
+    // Only a connection that was offered UDP has a socket to close.
     if (udp != kNoSocket) {
         close_socket(udp);
     }

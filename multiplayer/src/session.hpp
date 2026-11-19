@@ -29,15 +29,15 @@
 // DATA over it is dropped and a strike, and enough strikes close the connection; state over it goes
 // without a word. So the game's data goes through here, and nothing is sent the server would drop:
 // send_data queues, in order, and flush (once a tick) sends what is queued, messages for one target
-// side by side going as one DATA (BATCH), as far as a bucket a little below the server's allows; the
-// rest waits, late but whole. State is the next update's to replace, so send_state refuses one over
-// its own bucket (and says so: the world keeps it to send again), and the fallback of state over TCP
-// only takes what events leave.
+// side by side going as one DATA (BATCH), as far as a bucket a little below the server's allows;
+// the rest waits, late but whole. State is the next update's to replace, so send_state refuses one
+// over its own bucket (and says so: the world keeps it to send again), and the fallback of state
+// over TCP only takes what events leave.
 //
 // A dropped connection is no end (migrate.hpp). On a server that takes RESUME the session keeps its
-// party, its id and its token while the connection comes back, and asks for its slot before anything
-// else; nothing it sends goes meanwhile. The server's word on anyone's connection, and every change
-// in who hosts, are events for the party's own code to act on (take_events).
+// party, its id and its token while the connection comes back, and asks for its slot before
+// anything else; nothing it sends goes meanwhile. The server's word on anyone's connection, and
+// every change in who hosts, are events for the party's own code to act on (take_events).
 //
 // The host's traffic carries the epoch once the party has changed hosts: 43 EPOCH, epoch u16, then
 // the message, DATA and state alike, so an old host's datagram on its way, or anything the old host
@@ -95,6 +95,8 @@ struct PartyEvent {
 // A token bucket, as the server's RateLimit, on a clock of milliseconds.
 class Pacer {
 public:
+    // Makes a bucket that holds `capacity` tokens and gains `per_second` of them each second. It
+    // starts full.
     Pacer(double capacity, double per_second)
         : capacity_(capacity),
           per_ms_(per_second / 1000.0),
@@ -108,39 +110,45 @@ public:
     void spend(std::uint64_t now);
 
 private:
-    double capacity_;
-    double per_ms_;
-    double tokens_;
-    std::uint64_t last_ = 0;
+    double capacity_;         // The most tokens the bucket holds.
+    double per_ms_;           // Tokens added each millisecond.
+    double tokens_;           // The tokens there were at last_.
+    std::uint64_t last_ = 0;  // The clock reading of the last refill, in milliseconds.
 };
 
 // What went through the session, for the verbose log and the tests: each DATA kind's messages and
 // bytes, out and in, by way of the reliable stream or as state; and what the buckets held back.
 struct NetCounts {
+    // The messages of one DATA kind and the bytes in them.
     struct Kind {
         std::uint64_t messages = 0;
         std::uint64_t bytes = 0;
     };
 
+    // Per DATA kind (indexed by its first byte): what went out through send_data, what went out as
+    // state, and what came in.
     std::array<Kind, 256> events_out{};
     std::array<Kind, 256> state_out{};
     std::array<Kind, 256> in{};
-    std::uint64_t data_frames = 0;      // DATA frames sent, the server's count
-    std::uint64_t state_datagrams = 0;  // state sent, the server's other count
-    std::uint64_t state_held = 0;       // state the bucket refused
-    std::uint64_t state_tcp = 0;        // state that also went as DATA
-    std::uint64_t state_tcp_held = 0;   // state whose TCP copy events left no room for
-    std::uint64_t waited = 0;           // flushes that left events queued for the bucket
-    std::size_t queue_most = 0;         // the most messages ever queued
+    std::uint64_t data_frames = 0;      // DATA frames sent, the server's count.
+    std::uint64_t state_datagrams = 0;  // State sent, the server's other count.
+    std::uint64_t state_held = 0;       // State the bucket refused.
+    std::uint64_t state_tcp = 0;        // State that also went as DATA.
+    std::uint64_t state_tcp_held = 0;   // State whose DATA copy events left no room for.
+    std::uint64_t waited = 0;           // Flushes that left events queued for the bucket.
+    std::size_t queue_most = 0;         // The most messages ever queued.
 };
 
 // A member's link to the server (or to the embedded host), as the party last heard it: its round
 // trip in milliseconds (-1 not known) and whether its game state goes by UDP.
 struct Link {
-    std::int32_t ping_ms = -1;
-    bool udp = false;
+    std::int32_t ping_ms = -1;  // The round trip in milliseconds; -1 when not known.
+    bool udp = false;           // Whether the member's game state goes by UDP.
 };
 
+// The player's session on the server and the party it is in. It owns no socket and no thread. The
+// game's thread calls everything, hands in the messages the connection received and flushes once a
+// tick. The Transport it is given takes the frames out and must outlive the session.
 class Session {
 public:
     // `clock` gives milliseconds of a monotonic clock (now_ms when none is given; a test's own).
@@ -170,6 +178,7 @@ public:
     // Who may follow this host, to the server that keeps the party going without it; a new host's
     // word that it cannot. Each does nothing on a server that takes no RESUME, or out of a game.
     void name_successors(const std::vector<std::int32_t>& members);
+    // Tells the server that this game, a new host, cannot lead the party.
     void decline_host();
 
     // Whether the party can outlive its host here.
@@ -181,10 +190,13 @@ public:
     // The player's actions; each does nothing when it makes no sense now (no hello yet, already in
     // a party, not the host).
     void create(const std::string& description = "");
+    // Asks to join the oldest party with room, or to host a new one (FIND).
     void find();
     // Asks for the parties with room (LIST; parties() once answered). Out of a party only.
     void list();
+    // Asks to join the party with this code, which has kCodeLength characters.
     void join(const std::string& code);
+    // Leaves the party; out of one it does nothing.
     void leave();
     // The host takes `member` out of the party. False when it cannot: not the host, or no such
     // member, or the host itself, or already asked.
@@ -193,6 +205,8 @@ public:
     // Whether the host asked `member` out and it has not gone yet: it gets no game meanwhile.
     bool kicking(std::int32_t member) const { return kicking_.count(member) != 0; }
 
+    // Flips this member's Ready and tells the host. The host, a started game and a member the ready
+    // gate turns away do nothing.
     void toggle_ready();
 
     // Who may say Ready (party_mods.hpp: a member whose mods match the host's); none set: anyone. A
@@ -204,9 +218,9 @@ public:
     // did.
     bool start();
 
-    // DATA that is not the lobby's: `callback(sender, bytes)` gets each, in a party; send_data sends
-    // bytes (their first not a LobbyKind) to `target` (kBroadcast: every other member; a member's
-    // DATA always goes to the host). For the gameplay to come; unused by the lobby itself.
+    // DATA that is not the lobby's: `callback(sender, bytes)` gets each, in a party; send_data
+    // sends bytes (their first not a LobbyKind) to `target` (kBroadcast: every other member; a
+    // member's DATA always goes to the host). For the gameplay to come; unused by the lobby itself.
     void on_data(std::function<void(std::int32_t sender, const Bytes& bytes)> callback);
     void send_data(std::int32_t target, const Bytes& bytes);
     // As send_data, for game state the next update replaces anyway (poses): over UDP where the
@@ -217,6 +231,7 @@ public:
     // Sends what send_data queued, as the bucket allows. Once a tick, and at its end.
     void flush();
 
+    // Returns what went through the session so far.
     const NetCounts& counts() const { return counts_; }
 
     // Tells the party this game's link (report it every few seconds): a member to the host, the
@@ -247,10 +262,11 @@ public:
 
     std::int32_t id() const { return id_; }
 
+    // Returns the name this session said in HELLO.
     const std::string& name() const { return name_; }
 
-    // The party: whether there is one, its code, its host, its members (the host first), who of them
-    // is ready, and whether the host started the game.
+    // The party: whether there is one, its code, its host, its members (the host first), who of
+    // them is ready, and whether the host started the game.
     bool in_party() const { return !code_.empty(); }
 
     const std::string& code() const { return code_; }
@@ -280,7 +296,7 @@ public:
     // Whether every member but the host is ready (the host's Start is its own word), as the
     // player last heard: true for a host alone, false out of a party. A member who joins is not
     // ready yet, so it takes all-ready away until it says so. Every release of the mod sends
-    // READY (it came with the lobby in 0.1.0), so no member is exempt: an old one says Ready too.
+    // READY, so no member is exempt: an old one says Ready too.
     bool all_ready() const;
 
     bool started() const { return started_; }
@@ -297,6 +313,7 @@ public:
     // which the server takes for Ratchet & Clank's.
     void set_family(std::string family) { family_ = std::move(family); }
 
+    // Returns the family set_family gave.
     const std::string& family() const { return family_; }
 
     // The server's refusal of a join into another game's party (kOtherGame), in the words of
@@ -304,6 +321,7 @@ public:
     std::string take_refusal();
 
 private:
+    // Clears the party and everything kept for it, and the queue.
     void reset_party();
     // A message for the wire as a lobby's would go (spends from the bucket, never waits).
     void send_lobby(std::int32_t target, const Bytes& bytes);
@@ -311,7 +329,9 @@ private:
     void send_state();
     // The host: tells everyone each member's link.
     void send_links();
+    // Takes a DATA from the server: checks the host's epoch stamp, then hands it to take_data.
     void handle_data(const Message& message);
+    // Counts a received message under its kind in counts_.
     void note_in(const Bytes& bytes);
     // Whether game bytes may go: in a party, and not one of the lobby's kinds.
     bool game_bytes(const Bytes& bytes) const;
@@ -324,9 +344,13 @@ private:
     // A DATA past its stamp.
     void take_data(const Message& message);
 
+    // Where frames go; not owned.
     Transport& transport_;
+    // The mod's version, sent in HELLO.
     const std::string version_;
+    // The player's name, sent in HELLO.
     const std::string name_;
+    // The session's id; 0 until the server greets it.
     std::int32_t id_ = 0;
 
     // What waits for the bucket, in order: each message and its target.
@@ -335,39 +359,65 @@ private:
         Bytes bytes;
     };
 
+    // What send_data queued and flush has not sent yet.
     std::deque<Queued> queue_;
+    // The buckets for DATA and for state, as the server counts them (kDataRate and kStateRate).
     Pacer data_bucket_;
     Pacer state_bucket_;
+    // What went through, as counts() gives it.
     NetCounts counts_;
+    // The party's code; empty out of a party.
     std::string code_;
+    // This game's part in the party.
     Role role_;
+    // The party's members, the host first.
     std::vector<Member> members_;
+    // The party's description, from INFO.
     std::string description_;
+    // The parties LIST last named, and how many answers came.
     std::vector<Listing> parties_;
     std::uint32_t lists_ = 0;
+    // Who is ready, as the player last heard.
     std::set<std::int32_t> ready_;
-    std::set<std::int32_t> kicking_;  // the host: asked out, not gone yet
-    std::set<std::int32_t> away_;     // members whose slot waits for them
+    std::set<std::int32_t> kicking_;  // The host: members asked out and not gone yet.
+    std::set<std::int32_t> away_;     // Members whose slot waits for them.
+    // The members' links as last heard, the player's own included.
     std::map<std::int32_t, Link> links_;
+    // True once the host started the game.
     bool started_ = false;
+    // True while an action waits for its answer.
     bool waiting_ = false;
-    bool server_kicks_ = false;    // the server said it takes KICK
-    bool server_resumes_ = false;  // the server said it takes RESUME
+    bool server_kicks_ = false;    // True when the server said it takes KICK.
+    bool server_resumes_ = false;  // True when the server said it takes RESUME.
+    // The token that takes this session back, from the server's UDP offer.
     std::int64_t resume_token_ = 0;
-    bool dropped_ = false;       // the connection went, the party stands
-    bool resume_asked_ = false;  // RESUME went on this connection
+    bool dropped_ = false;       // True while the connection is gone and the party stands.
+    bool resume_asked_ = false;  // True once RESUME went on this connection.
+    // The clock reading when the connection dropped, in milliseconds.
     std::uint64_t dropped_ms_ = 0;
+    // What take_events has not given yet.
     std::vector<PartyEvent> events_;
+    // Messages refused as from an old host, as stale() counts them.
     std::uint64_t stale_ = 0;
+    // Why the host asked this member out, as the host said; what the server's KICKED then shows.
     KickReason kick_reason_ = KickReason::kRemoved;
+    // The line for the page, as take_notice gives it.
     std::string notice_;
+    // This game's family, as set_family gave it.
     std::string family_;
+    // The line for the Refused page, as take_refusal gives it.
     std::string refusal_;
+    // The game's callback for DATA that is not the lobby's, as on_data set it.
     std::function<void(std::int32_t, const Bytes&)> on_data_;
+    // Who may say Ready, as set_ready_gate set it; empty for anyone.
     std::function<bool(std::int32_t)> ready_gate_;
+    // The clock in milliseconds: the caller's, or now_ms.
     std::function<std::uint64_t()> clock_;
+    // The TIME answers taken since the last HELLO.
     int clock_samples_ = 0;
+    // The last TIME round trip, in milliseconds.
     std::int64_t rtt_ms_ = 0;
+    // The server's clock minus this one, smoothed, in milliseconds.
     double offset_ms_ = 0.0;
 };
 
@@ -401,7 +451,8 @@ std::string choose_name(const std::string& setting, const std::string& launcher)
 // What a removed player reads.
 constexpr const char* kKickedNotice = "Removed";
 constexpr const char* kBannedNotice = "Banned";
-// What a player reads of the host leaving, with no one to follow it; and when it holds a party save.
+// What a player reads of the host leaving, with no one to follow it; and when it holds a party
+// save.
 constexpr const char* kHostLeftNotice = "Host left";
 constexpr const char* kContinueNotice = "Continue in Saves";
 // What a player reads when its way back is gone, whatever the reason.

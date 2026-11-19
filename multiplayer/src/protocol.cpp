@@ -197,6 +197,7 @@ namespace {
 
 // A request's family at its end: none is no bytes at all, as from a client before families.
 Bytes with_family(Writer w, const std::string& family) {
+    // Only a family that is set goes on the wire.
     if (!family.empty()) {
         w.str(family);
     }
@@ -234,6 +235,7 @@ Bytes party_successors(const std::vector<std::int32_t>& members) {
     Writer w = party(PartyOp::kHostChanged);
     w.u8(0).u8(static_cast<std::uint8_t>(members.size()));
 
+    // The first choice first, as the server reads them.
     for (const std::int32_t id : members) {
         w.i32(id);
     }
@@ -347,6 +349,7 @@ bool decode(const Bytes& body, Message& out) {
                 out.epoch = r.i32();
                 const std::uint8_t away = r.u8();
 
+                // One id for each member whose connection dropped.
                 for (std::uint8_t i = 0; i < away && r.ok(); ++i) {
                     out.away.push_back(r.i32());
                 }
@@ -483,6 +486,7 @@ Bytes party_info(
     if (epoch != 0 || !away.empty()) {
         w.i32(epoch).u8(static_cast<std::uint8_t>(away.size()));
 
+        // One id for each member whose connection dropped.
         for (const std::int32_t id : away) {
             w.i32(id);
         }
@@ -545,6 +549,7 @@ Bytes error_reply(ErrorReason reason, const std::string& family) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(PacketId::kError)).u8(static_cast<std::uint8_t>(reason));
 
+    // Only this refusal names the party's family.
     if (reason == ErrorReason::kOtherGame) {
         w.str(family);
     }
@@ -685,6 +690,7 @@ std::size_t utf16_length(const std::string& text) {
     for (const char c : text) {
         const auto b = static_cast<unsigned char>(c);
 
+        // A continuation byte (one starting with bits 10) belongs to a code point already counted.
         if ((b & 0xC0u) != 0x80u) {
             units += b >= 0xF0u ? 2 : 1;
         }

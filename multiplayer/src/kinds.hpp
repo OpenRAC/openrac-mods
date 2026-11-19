@@ -13,10 +13,10 @@
 //
 // Reserved ranges (free until their package lands):
 //    36-39 shared progress, 44-47 late join, 48-51 shots,
-//    52-55 camera (54 and 55 free), 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
-//    64-67), 71-72 the world's second range, 80-83 the team tools (comfort.hpp: rescue, rally
-//    points; 80 is multiplayer 0.8.0's, 81-83 free); free: 0, 73-79, 84-127 (and 128-255, which
-//    the wire does not use). Late join uses 44 to 46 (47 is free).
+//    52-55 camera (54 and 55 free), 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by
+// the Session, as 64-67), 71-72 the world's second range, 80-83 the team tools (comfort.hpp:
+// rescue, rally points; 80 is multiplayer 0.8.0's, 81-83 free); free: 0, 73-79, 84-127 (and
+// 128-255, which the wire does not use). Late join uses 44 to 46 (47 is free).
 //
 // Routing: Router::dispatch looks the owner of the first byte up in the table and calls what that
 // owner registered; a kind nobody registered goes to the fallback (the co-op), as a DATA the
@@ -127,18 +127,19 @@ constexpr std::uint8_t kComfort = 80;
 
 // One kind in use.
 struct KindInfo {
-    std::uint8_t value;
-    const char* name;
-    Owner owner;
+    std::uint8_t value;  // The kind's byte, the first byte of a DATA payload.
+    const char* name;    // The name the tests and logs show.
+    Owner owner;         // Who owns the kind.
 };
 
 // One range an owner holds (inclusive); the kinds in use lie inside their owner's.
 struct KindRange {
-    std::uint8_t first;
-    std::uint8_t last;
-    Owner owner;
+    std::uint8_t first;  // The range's lowest kind.
+    std::uint8_t last;   // The range's highest kind.
+    Owner owner;         // Who holds the range.
 };
 
+// Every kind in use, with its name and its owner.
 inline constexpr KindInfo kKinds[] = {
     {kind::kReady, "READY", Owner::kLobby},
     {kind::kState, "STATE", Owner::kLobby},
@@ -216,13 +217,17 @@ inline constexpr KindRange kReservedRanges[] = {
 
 // A kind's owner; kCount for a number nobody holds (0, 73 to 79, and 84 on).
 constexpr Owner owner_of(std::uint8_t value) {
+    // A kind in the table has the owner the table gives it.
     for (const KindInfo& k : kKinds) {
+        // The first row with this value names its owner.
         if (k.value == value) {
             return k.owner;
         }
     }
 
+    // A number the table does not list may lie in a range an owner reserved.
     for (const KindRange& r : kReservedRanges) {
+        // Both ends of a range belong to its owner.
         if (value >= r.first && value <= r.last) {
             return r.owner;
         }
@@ -235,8 +240,10 @@ constexpr Owner owner_of(std::uint8_t value) {
 constexpr bool kinds_unique() {
     constexpr std::size_t n = sizeof(kKinds) / sizeof(kKinds[0]);
 
+    // Every pair is compared once, so a repeated value is found.
     for (std::size_t i = 0; i < n; ++i) {
         for (std::size_t j = i + 1; j < n; ++j) {
+            // Two rows with one value would make owner_of ambiguous.
             if (kKinds[i].value == kKinds[j].value) {
                 return false;
             }
@@ -251,9 +258,11 @@ static_assert(kinds_unique(), "two wire kinds share a value (kinds.hpp)");
 // Where a received DATA goes: the handler each owner registered, else the fallback.
 class Router {
 public:
+    // What an owner registers: it gets the sender's session id and the DATA bytes.
     using Handler =
         std::function<void(std::int32_t sender, const std::vector<std::uint8_t>& bytes)>;
 
+    // Makes a router with a slot for each owner, all empty, and no fallback.
     Router() : handlers_(static_cast<std::size_t>(Owner::kCount)) {}
 
     // What a kind nobody registered goes to.
@@ -266,6 +275,7 @@ public:
 
     // Which owner a DATA goes to, or kCount for the fallback.
     Owner target(const std::vector<std::uint8_t>& bytes) const {
+        // An empty DATA has no kind byte, so no owner takes it.
         if (bytes.empty()) {
             return Owner::kCount;
         }
@@ -275,9 +285,12 @@ public:
                                                                                     : Owner::kCount;
     }
 
+    // Hands a DATA from member `sender` to its owner's handler, else to the fallback, else drops
+    // it.
     void dispatch(std::int32_t sender, const std::vector<std::uint8_t>& bytes) const {
         const Owner owner = target(bytes);
 
+        // An owner that registered a handler gets the DATA; the fallback takes the rest.
         if (owner != Owner::kCount) {
             handlers_[static_cast<std::size_t>(owner)](sender, bytes);
         } else if (fallback_) {
@@ -286,7 +299,9 @@ public:
     }
 
 private:
+    // One handler per owner, indexed by Owner; empty when the owner registered none.
     std::vector<Handler> handlers_;
+    // The handler for a kind no owner takes; empty for none.
     Handler fallback_;
 };
 

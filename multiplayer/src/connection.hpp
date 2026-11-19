@@ -59,6 +59,7 @@ public:
     // Game state for `target` (session.hpp's send_state): as DATA when `tcp` says, and by whatever
     // better the transport has (UDP).
     virtual void send_state(std::int32_t target, const Bytes& bytes, bool tcp) {
+        // A transport with nothing better sends the state as DATA when the session says so.
         if (tcp) {
             send(data(target, bytes));
         }
@@ -78,26 +79,30 @@ struct HostingStatus {
     std::string error;
 };
 
+// The link to the server, to another player's game or to this game's own embedded host, as the
+// session's Transport. The game's thread calls everything but run() and serve(), which belong to
+// the connection's thread. The two share what is marked as guarded by `mutex_` or atomic below.
 class Connection : public Transport {
 public:
     // What the connection is doing, for the page's status line.
     enum class State {
-        kIdle,
-        kConnecting,
-        kConnected,
-        kUnreachable,
-        kLost
+        kIdle,         // Nothing runs.
+        kConnecting,   // The thread is trying to connect.
+        kConnected,    // A connection is up.
+        kUnreachable,  // No connection could be made.
+        kLost          // A connection ended.
     };
 
     // How the session is linked.
     enum class Mode {
-        kNone,
-        kServer,
-        kDirect,
-        kHosting
+        kNone,    // Not linked.
+        kServer,  // An OpenRAC server.
+        kDirect,  // Another player's game.
+        kHosting  // This game's own embedded host.
     };
 
     Connection() = default;
+    // Closes the link: stops the thread and the embedded host, if any.
     ~Connection() override;
     Connection(const Connection&) = delete;
     Connection& operator=(const Connection&) = delete;
@@ -122,11 +127,13 @@ public:
     bool start_hosting(int port = kDefaultPort);
     void stop_hosting();
 
+    // Returns how the session is linked now.
     Mode mode() const { return mode_; }
 
     // The address linked to: the server's or the direct host's, "host:port"; empty when hosting.
     const std::string& address() const { return address_; }
 
+    // Returns what the embedded host is doing; only the last start failure when not hosting.
     HostingStatus hosting() const;
 
     // Whether game state travels over UDP now: datagrams came back lately.
@@ -135,35 +142,50 @@ public:
     // The embedded host's settings (tests shrink its limits); used by the next start_hosting.
     void set_host_config(const HostConfig& config) { host_config_ = config; }
 
+    // Queues the frame for the connection's thread, or hands it to the embedded host when hosting.
+    // A frame with no connection to go to is dropped.
     void send(Bytes frame) override;
+    // Returns false when UDP is confirmed and a datagram holds `bytes`, and when hosting.
     bool state_needs_tcp(std::size_t bytes) const override;
+    // Sends the state as a STATE datagram when UDP is up and it fits, and as DATA when `tcp` says.
     void send_state(std::int32_t target, const Bytes& bytes, bool tcp) override;
     // The messages the server sent since the last call, in order (OPENRAC_MP_LAG: those whose
     // extra delay is over).
     std::vector<Message> receive();
 
+    // Returns what the connection is doing now.
     State state() const { return state_.load(); }
 
     // Counts the connections made: a new value, a new session on the server.
     std::uint32_t generation() const { return generation_.load(); }
 
 private:
+    // The thread's body: connects, serves the connection while it lasts, waits, and tries again
+    // until stop_ is set.
     void run();
     // One connection's life: writes and reads until it goes or the thread stops.
     void serve(std::intptr_t fd);
     // Starts the thread for host:port in `mode`.
     void start_thread(const std::string& host, int port, Mode mode);
 
+    // The server or direct host the thread connects to.
     std::string host_name_;
     int port_ = 0;
+    // Set to ask the thread to end.
     std::atomic<bool> stop_{false};
+    // What the connection is doing; both threads read it.
     std::atomic<State> state_{State::kIdle};
+    // The connections made, as generation() counts them.
     std::atomic<std::uint32_t> generation_{0};
+    // The connection's thread; joinable while one runs.
     std::thread thread_;
     // Guards outbox_ and inbox_, which both threads touch.
     std::mutex mutex_;
+    // Wakes the thread when a frame is queued or stop_ is set.
     std::condition_variable wake_;
+    // Frames waiting to be written to the server.
     std::deque<Bytes> outbox_;
+    // Messages the server sent that receive() has not taken yet.
     std::vector<Message> inbox_;
     // Datagrams waiting for the thread's UDP socket (under mutex_).
     std::deque<Bytes> udp_outbox_;
@@ -178,10 +200,15 @@ private:
     std::deque<std::pair<double, Message>> lagged_;
     double lag_last_ = 0;
     std::uint64_t lag_random_ = 0x9E3779B97F4A7C15ull;
+    // The address linked to, as address() gives it.
     std::string address_;
+    // The settings the next start_hosting gives the embedded host.
     HostConfig host_config_;
+    // The embedded host while hosting, else null; used on the game's thread only.
     std::unique_ptr<Host> embedded_;
+    // Why the last start_hosting failed; empty when it did not.
     std::string host_error_;
+    // This machine's addresses, found when hosting started.
     std::vector<std::string> host_addresses_;
 
     // UDP, as the thread learns it: the session id and token (UDP is usable once both are known
