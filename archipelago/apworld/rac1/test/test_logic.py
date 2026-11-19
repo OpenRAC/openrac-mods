@@ -111,7 +111,7 @@ class TestDefault(RAC1TestBase):
     def test_drek_needs_the_magneboots(self) -> None:
         location = "Veldin (return): Drek"
         self.collect_by_name("Veldin (return) Coordinates")
-        self.collect_by_name(["Heli-Pack", "Grindboots", "O2 Mask", "Swingshot"])
+        self.collect_by_name(["Heli-Pack", "O2 Mask", "Swingshot", "Trespasser", "Hydrodisplacer", "Thruster-Pack"])
         self.sweep()
         self.assertFalse(self.can_reach_location(location))
         self.collect_by_name("Magneboots")
@@ -184,7 +184,7 @@ class TestExpert(RAC1TestBase):
 
     def test_drek_needs_only_his_hard_items(self) -> None:
         self.collect_by_name(["Veldin (return) Coordinates", "Swingshot", "Magneboots"])
-        self.collect_by_name(["Heli-Pack", "Grindboots", "O2 Mask"])
+        self.collect_by_name(["Heli-Pack", "Trespasser", "Hydrodisplacer", "Thruster-Pack"])
         self.sweep()
         self.assertTrue(self.can_reach_location("Veldin (return): Drek"))
 
@@ -381,6 +381,37 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_kalebo_race_needs_no_magneboots(self) -> None:
+        self.collect_by_name(["Kalebo III Coordinates", "Heli-Pack", "Swingshot", "Grindboots"])
+        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
+        self.collect(self.world.create_item("Hoverboard"))
+        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
+
+    def test_kalebo_help_desk_needs_no_heli_pack(self) -> None:
+        self.collect_by_name(["Kalebo III Coordinates", "Swingshot", "Grindboots"])
+        self.assertTrue(self.can_reach_location("Kalebo III: the help desk"))
+
+    def test_fleet_infobot_heli_pack_is_required_outside_expert(self) -> None:
+        self.collect_by_name(["Drek's Fleet Coordinates", "Magneboots", "O2 Mask", "Swingshot"])
+        self.assertEqual(self.can_reach_location("Drek's Fleet: the infobot"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Drek's Fleet: the infobot"))
+
+    def test_fleet_codebot_needs_only_water_equipment(self) -> None:
+        self.collect_by_name(["Drek's Fleet Coordinates", "Hydro-Pack"])
+        self.assertFalse(self.can_reach_location("Drek's Fleet: the CodeBot"))
+        self.collect_by_name("O2 Mask")
+        self.assertTrue(self.can_reach_location("Drek's Fleet: the CodeBot"))
+
+    def test_drek_o2_mask_is_required_outside_expert(self) -> None:
+        self.collect_by_name(["Veldin (return) Coordinates", "Magneboots", "Heli-Pack", "Swingshot",
+                              "Trespasser", "Hydrodisplacer", "Thruster-Pack"])
+        self.assertEqual(self.can_reach_location("Veldin (return): Drek"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("O2 Mask")
+        self.assertTrue(self.can_reach_location("Veldin (return): Drek"))
+
     def test_oltanis_pda_requires_only_magneboots(self) -> None:
         self.collect_by_name("Oltanis Coordinates")
         self.assertFalse(self.can_reach_location("Oltanis: the PDA's seller"))
@@ -399,10 +430,12 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("Grindboots")
         self.assertTrue(self.can_reach_location("Oltanis: Sam, the coordinates of Quartu"))
 
-    def test_quartu_bolt_grabber_requires_only_hydro_pack(self) -> None:
+    def test_quartu_bolt_grabber_requires_hydro_pack_and_o2_mask(self) -> None:
         self.collect_by_name("Quartu Coordinates")
         self.assertFalse(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
         self.collect_by_name("Hydro-Pack")
+        self.assertFalse(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
+        self.collect_by_name("O2 Mask")
         self.assertTrue(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
 
     def test_quartu_scientist_requires_only_swingshot(self) -> None:

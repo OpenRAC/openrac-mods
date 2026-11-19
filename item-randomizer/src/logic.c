@@ -432,7 +432,7 @@ const rando_location rando_locations[] = {
     // Quartu: the swimming route to the Bolt Grabber needs Hydro-Pack; the
     // scientist needs Swingshot. The disguise route needs Hologuise and Thruster-Pack.
     GIVE_X(
-        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, POOL_ITEMS, 45, 0, HYDROPACK, 0, 0, 0
+        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, POOL_ITEMS, 45, 0, HYDROPACK | O2, 0, 0, 0
     ),
     FIXED(
         "Quartu: the scientist, the coordinates of Kalebo III",
@@ -463,23 +463,23 @@ const rando_location rando_locations[] = {
         ITEM_HOLOGUISE,
         47,
         0,
-        HOVER | GRIND | MAGNE | WALK,
+        HOVER | GRIND | WALK,
         0
     ),
-    GIVE_X("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, POOL_ITEMS, 48, 0, GRIND | WALK, 0, 0, 0),
+    GIVE_X("Kalebo III: the help desk", LEVEL_KALEBO, ITEM_MAP_O_MATIC, POOL_ITEMS, 48, 0, GRIND | SWING, 0, 0, 0),
     GOLDBOLT("Kalebo III: gold bolt 1", LEVEL_KALEBO, 0, 49),
     GOLDBOLT("Kalebo III: gold bolt 2", LEVEL_KALEBO, 1, 49),
 
-    // Drek's Fleet: "This huge tanker ... you'll need to use your Hydro-Pack to get through
-    // something this big", "Swim through the water tanker" (the O2 Mask breathes underwater).
+    // Drek's Fleet: the CodeBot's water route needs Hydro-Pack and O2 Mask.
+    // The infobot route has no Hydro-Pack gate; Heli-Pack is expected outside Expert.
     INFOBOT(
         "Drek's Fleet: the infobot",
         LEVEL_FLEET,
         3,
         LEVEL_VELDIN2,
         51,
-        MAGNE | HYDROPACK | O2 | WALK,
-        0
+        MAGNE | O2 | SWING,
+        HELI
     ),
     GOLDBOLT("Drek's Fleet: gold bolt 1", LEVEL_FLEET, 0, 52),
     GOLDBOLT("Drek's Fleet: gold bolt 2", LEVEL_FLEET, 1, 52),
@@ -489,7 +489,7 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Veldin (return): gold bolt 2", LEVEL_VELDIN2, 1, 53),
     GOLDBOLT("Veldin (return): gold bolt 3", LEVEL_VELDIN2, 2, 53),
     FIXED(
-        "Veldin (return): Drek", LEVEL_VELDIN2, NONE, 54, LOCF_GOAL, MAGNE | GRIND | O2 | WALK, 0
+        "Veldin (return): Drek", LEVEL_VELDIN2, NONE, 54, LOCF_GOAL, MAGNE | TRESP | HYDRO | THRUST | WALK, O2
     ),
 #ifdef ITEM_RANDOMIZER_EXTENDED_POOLS
     {"Gold weapon case: Bomb Glove",
@@ -618,7 +618,7 @@ const rando_location rando_locations[] = {
     {"Hoven: the Foreman's Raritanium", LOC_SPECIAL, LEVEL_HOVEN, 1, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, WALK, 0, 0, 0},
     {"Drek's Fleet: the CodeBot", LOC_SPECIAL, LEVEL_FLEET, 2, POOL_ITEMS,
-     {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, MAGNE | HYDROPACK | O2 | WALK, 0, 0, 0},
+     {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, HYDROPACK | O2, 0, 0, 0},
     {"Orxon: Premium Nanotech", LOC_SPECIAL, LEVEL_ORXON, 3, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_PREMIUM_NANOTECH}, 35, LOCF_PRICEY, O2 | WALK, 0, 0, 0},
     {"Orxon: Ultra Nanotech", LOC_SPECIAL, LEVEL_ORXON, 4, POOL_ITEMS,
