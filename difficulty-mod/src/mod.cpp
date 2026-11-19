@@ -18,13 +18,13 @@ namespace {
 void load(openrac::Mod& mod) {
     // Ratchet & Clank.
     if (mod.game() == "rac1") {
-        rac1_load(mod);
+        difficulty::rac1::load(mod);
         return;
     }
 
     // Going Commando.
     if (mod.game() == "rac2") {
-        rac2_load(mod);
+        difficulty::rac2::load(mod);
         return;
     }
 

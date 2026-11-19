@@ -14,7 +14,7 @@
 #include <cstring>
 #include <string>
 
-namespace dm {
+namespace difficulty {
 
 namespace {
 
@@ -50,18 +50,18 @@ constexpr double kWholeSlack = 1e-9;
 // The HUD's counts of cells of health: 1 to 5 and 8 only (documented: rules.h: max_health).
 constexpr int kAllowedCells[] = {1, 2, 3, 4, 5, 8};
 
-// A spawned moby's own pvars, in bytes (documented: pool.h: k_spare_pvars).
+// A spawned moby's own pvars, in bytes (documented: pool.h: kSparePvars).
 constexpr int kSparePvarBytes = 0x80;
-// Gaspar's level number (documented: rules.h: k_gaspar_sparks).
+// Gaspar's level number (documented: rules.h: kGasparSparks).
 constexpr int kGasparLevel = 9;
-// Blarg Station's level number (documented: rules.h: k_blarg_spawns).
+// Blarg Station's level number (documented: rules.h: kBlargSpawns).
 constexpr int kBlargLevel = 6;
 
 }  // namespace
 
 // The sliders: the setting's key, what the log calls it, its range and Chaos's range (the
 // manifest's "settings" are in the same order).
-const KnobInfo k_knobs[KNOB_COUNT] = {
+const KnobInfo kKnobs[kKnobCount] = {
     {"enemy_count", "enemy count", 0.25, 4.0, 0.5, 2.5},
     {"damage_taken", "damage to Ratchet", 0.25, 4.0, 0.5, 3.0},
     {"damage_dealt", "damage to enemies", 0.25, 4.0, 0.5, 2.0},
@@ -79,9 +79,9 @@ const KnobInfo k_knobs[KNOB_COUNT] = {
 namespace {
 
 // What an event may push a knob to, past the sliders' ranges but no further.
-const double k_event_min[KNOB_COUNT] =
+const double kEventMin[kKnobCount] =
     {0.25, 0.1, 0.1, 0.25, 0.4, 0.1, 0.1, 0.0, 0.25, 0.0, 0.25, 0.0};
-const double k_event_max[KNOB_COUNT] = {4.0, 6.0, 6.0, 2.5, 2.5, 5.0, 5.0, 6.0, 4.0, 8.0, 2.0, 6.0};
+const double kEventMax[kKnobCount] = {4.0, 6.0, 6.0, 2.5, 2.5, 5.0, 5.0, 6.0, 4.0, 8.0, 2.0, 6.0};
 
 }  // namespace
 
@@ -102,13 +102,13 @@ double clamp_knob(int knob, double value) {
         return 1.0;
     }
 
-    const KnobInfo& k = k_knobs[knob];
+    const KnobInfo& k = kKnobs[knob];
     return value < k.min ? k.min : value > k.max ? k.max : value;
 }
 
 bool sliders_moved(const Values& sliders) {
     // Each slider, as the game would use it.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         // This one is off 1.0.
         if (clamp_knob(k, sliders[k]) != 1.0) {
             return true;
@@ -122,7 +122,7 @@ Values effective(bool chaos, const Values& sliders, std::uint64_t seed, int leve
     Values out = chaos ? chaos_roll(seed, level) : retail();
 
     // Each slider, clamped.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         const double s = clamp_knob(k, sliders[k]);
 
         // Without Chaos every slider plays; with it only one moved off 1.0 does, and holds.
@@ -156,9 +156,9 @@ Values chaos_roll(std::uint64_t seed, int level) {
     Values out;
 
     // Each knob: log-uniform in its Chaos range.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
-        const double lo = std::log(k_knobs[k].chaos_min);
-        const double hi = std::log(k_knobs[k].chaos_max);
+    for (int k = 0; k < kKnobCount; ++k) {
+        const double lo = std::log(kKnobs[k].chaos_min);
+        const double hi = std::log(kKnobs[k].chaos_max);
         // Rounded to hundredths, so that the log reads as what plays.
         out[k] = std::round(std::exp(lo + (hi - lo) * rng.unit()) * kRollRounding) / kRollRounding;
     }
@@ -271,29 +271,29 @@ int max_health(int retail_cells, double m) {
     return out;
 }
 
-const Event k_events[] = {
-    {"Turbo Ratchet: Ratchet runs half again as fast", {PLAYER_SPEED, PLAYER_SPEED}, {1.5, 1.0}},
-    {"Slow motion: the enemies at half speed", {ENEMY_SPEED, ENEMY_SPEED}, {0.5, 1.0}},
-    {"Frenzy: the enemies half again as fast", {ENEMY_SPEED, ENEMY_SPEED}, {1.5, 1.0}},
-    {"Double time: everyone half again as fast", {PLAYER_SPEED, ENEMY_SPEED}, {1.5, 1.5}},
-    {"Glass cannon: twice the damage, both ways", {DAMAGE_DEALT, DAMAGE_TAKEN}, {2.0, 2.0}},
-    {"Iron hide: half the damage to Ratchet", {DAMAGE_TAKEN, DAMAGE_TAKEN}, {0.5, 1.0}},
-    {"Bolt rain: three times the bolts", {BOLTS, BOLTS}, {3.0, 1.0}},
-    {"Ammo famine: twice the ammo per shot", {AMMO_USE, AMMO_USE}, {2.0, 1.0}},
-    {"Trigger happy: a quarter of the ammo per shot", {AMMO_USE, AMMO_USE}, {0.25, 1.0}},
+const Event kEvents[] = {
+    {"Turbo Ratchet: Ratchet runs half again as fast", {kPlayerSpeed, kPlayerSpeed}, {1.5, 1.0}},
+    {"Slow motion: the enemies at half speed", {kEnemySpeed, kEnemySpeed}, {0.5, 1.0}},
+    {"Frenzy: the enemies half again as fast", {kEnemySpeed, kEnemySpeed}, {1.5, 1.0}},
+    {"Double time: everyone half again as fast", {kPlayerSpeed, kEnemySpeed}, {1.5, 1.5}},
+    {"Glass cannon: twice the damage, both ways", {kDamageDealt, kDamageTaken}, {2.0, 2.0}},
+    {"Iron hide: half the damage to Ratchet", {kDamageTaken, kDamageTaken}, {0.5, 1.0}},
+    {"Bolt rain: three times the bolts", {kBolts, kBolts}, {3.0, 1.0}},
+    {"Ammo famine: twice the ammo per shot", {kAmmoUse, kAmmoUse}, {2.0, 1.0}},
+    {"Trigger happy: a quarter of the ammo per shot", {kAmmoUse, kAmmoUse}, {0.25, 1.0}},
     {"Nanotech surge: health pickups count three times",
-     {HEALTH_PICKUPS, HEALTH_PICKUPS},
+     {kHealthPickups, kHealthPickups},
      {3.0, 1.0}},
 };
-const int k_event_count = static_cast<int>(sizeof k_events / sizeof k_events[0]);
+const int kEventCount = static_cast<int>(sizeof kEvents / sizeof kEvents[0]);
 
 bool event_allowed(int event, unsigned knobs) {
     // Not one of the table's.
-    if (event < 0 || event >= k_event_count) {
+    if (event < 0 || event >= kEventCount) {
         return false;
     }
 
-    const Event& e = k_events[event];
+    const Event& e = kEvents[event];
     return (knobs & 1u << e.knob[0]) != 0 && (knobs & 1u << e.knob[1]) != 0;
 }
 
@@ -319,11 +319,11 @@ int EventClock::advance(double dt) {
     // Time for the next event: one is picked from the seed and how many there have been, among
     // those the game can play (all of them in rac1, so its picks are as they always were).
     if (clock >= every * (count + 1)) {
-        int allowed[sizeof k_events / sizeof k_events[0]];
+        int allowed[sizeof kEvents / sizeof kEvents[0]];
         int n = 0;
 
         // Each event, in the table's order.
-        for (int e = 0; e < k_event_count; ++e) {
+        for (int e = 0; e < kEventCount; ++e) {
             // One the game can play.
             if (event_allowed(e, knobs)) {
                 allowed[n++] = e;
@@ -348,7 +348,7 @@ int EventClock::advance(double dt) {
 namespace {
 
 // What a player reads for each slider, in the manifest's order.
-constexpr const char* k_rule_names[KNOB_COUNT] = {
+constexpr const char* kRuleNames[kKnobCount] = {
     "Enemy count",
     "Damage to Ratchet",
     "Damage to enemies",
@@ -365,8 +365,8 @@ constexpr const char* k_rule_names[KNOB_COUNT] = {
 
 // The bytes' format, and how many there are: format, chaos, events, minutes (u8 each), event (i8),
 // seed (u32), then the sliders (f64 bits each), big-endian.
-constexpr std::uint8_t k_rules_format = 1;
-constexpr std::size_t k_rules_bytes = 5 + 4 + 8 * KNOB_COUNT;
+constexpr std::uint8_t kRulesFormat = 1;
+constexpr std::size_t kRulesBytes = 5 + 4 + 8 * kKnobCount;
 
 // A multiplier as a player reads it: at most two decimals, no trailing zeros: x2, x1.5, x0.25.
 std::string times(double value) {
@@ -389,8 +389,8 @@ std::string times(double value) {
 
 std::vector<std::uint8_t> encode_party_rules(const PartyRules& rules) {
     std::vector<std::uint8_t> out;
-    out.reserve(k_rules_bytes);
-    out.push_back(k_rules_format);
+    out.reserve(kRulesBytes);
+    out.push_back(kRulesFormat);
     out.push_back(rules.chaos ? 1 : 0);
     out.push_back(rules.events ? 1 : 0);
     out.push_back(
@@ -406,7 +406,7 @@ std::vector<std::uint8_t> encode_party_rules(const PartyRules& rules) {
         out.push_back(static_cast<std::uint8_t>(rules.seed >> shift));
     }
 
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         std::uint64_t bits = 0;
         std::memcpy(&bits, &rules.sliders.v[k], sizeof bits);
 
@@ -422,7 +422,7 @@ bool decode_party_rules(const void* data, std::uint32_t size, PartyRules& out) {
     const auto* b = static_cast<const std::uint8_t*>(data);
 
     // Another format is another version's: the versions match in a party, so never read.
-    if (b == nullptr || size != k_rules_bytes || b[0] != k_rules_format) {
+    if (b == nullptr || size != kRulesBytes || b[0] != kRulesFormat) {
         return false;
     }
 
@@ -431,14 +431,14 @@ bool decode_party_rules(const void* data, std::uint32_t size, PartyRules& out) {
     r.events = b[2] != 0;
     r.minutes = b[3];
     r.event = static_cast<std::int8_t>(b[4]);
-    r.event = r.event < 0 || r.event >= k_event_count ? -1 : r.event;
+    r.event = r.event < 0 || r.event >= kEventCount ? -1 : r.event;
     std::size_t at = 5;
 
     for (int i = 0; i < 4; ++i) {
         r.seed = r.seed << 8 | b[at++];
     }
 
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         std::uint64_t bits = 0;
 
         for (int i = 0; i < 8; ++i) {
@@ -459,9 +459,9 @@ std::string party_rules_text(const PartyRules& rules) {
         out += (out.empty() ? "" : "\n") + line;
     };
 
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         if (rules.sliders[k] != 1.0) {
-            add(std::string(k_rule_names[k]) + " " + times(rules.sliders[k]));
+            add(std::string(kRuleNames[k]) + " " + times(rules.sliders[k]));
         }
     }
 
@@ -480,11 +480,11 @@ Values with_event(const Values& values, int event) {
     Values out = values;
 
     // No event on (or one that is not there).
-    if (event < 0 || event >= k_event_count) {
+    if (event < 0 || event >= kEventCount) {
         return out;
     }
 
-    const Event& e = k_events[event];
+    const Event& e = kEvents[event];
 
     // The event's two knobs.
     for (int i = 0; i < 2; ++i) {
@@ -495,7 +495,7 @@ Values with_event(const Values& values, int event) {
 
         const int k = e.knob[i];
         double x = out[k] * e.factor[i];
-        x = x < k_event_min[k] ? k_event_min[k] : x > k_event_max[k] ? k_event_max[k] : x;
+        x = x < kEventMin[k] ? kEventMin[k] : x > kEventMax[k] ? kEventMax[k] : x;
         out[k] = x;
     }
 
@@ -503,10 +503,10 @@ Values with_event(const Values& values, int event) {
 }
 
 int clone_budget(int free_slots, int level) {
-    const int level_use = level == kGasparLevel  ? k_gaspar_sparks
-                          : level == kBlargLevel ? k_blarg_spawns
+    const int level_use = level == kGasparLevel  ? kGasparSparks
+                          : level == kBlargLevel ? kBlargSpawns
                                                  : 0;
-    const int b = free_slots - k_pool_reserve - level_use;
+    const int b = free_slots - kPoolReserve - level_use;
     return b > 0 ? b : 0;
 }
 
@@ -514,4 +514,4 @@ int pvar_slots(int size) {
     return size <= kSparePvarBytes ? 0 : (size + kSparePvarBytes - 1) / kSparePvarBytes;
 }
 
-}  // namespace dm
+}  // namespace difficulty

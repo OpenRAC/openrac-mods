@@ -11,7 +11,7 @@
 #include <random>
 #include <string>
 
-namespace dm {
+namespace difficulty {
 
 namespace {
 
@@ -89,7 +89,7 @@ void on_party_rules(void*, const void* data, std::uint32_t size) {
     // The host's event, as this game's own would say it.
     if (rules.event != event) {
         s.mod->info(
-            rules.event >= 0 ? std::string("chaos: ") + k_events[rules.event].name
+            rules.event >= 0 ? std::string("chaos: ") + kEvents[rules.event].name
                              : std::string("chaos: back to normal")
         );
     }
@@ -113,10 +113,10 @@ std::string describe(const Values& values) {
     std::string out;
 
     // Each slider the game honours, in the manifest's order.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         // One this game has.
         if ((knobs & 1u << k) != 0) {
-            out += std::string(out.empty() ? "" : ", ") + k_knobs[k].name + " " + fmt(values[k]);
+            out += std::string(out.empty() ? "" : ", ") + kKnobs[k].name + " " + fmt(values[k]);
         }
     }
 
@@ -135,8 +135,8 @@ void start(openrac::Mod& mod, unsigned knobs) {
     s.chaos = mod.setting<bool>("chaos");
 
     // Each slider's setting.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
-        s.sliders[k] = clamp_knob(k, mod.setting<double>(k_knobs[k].key));
+    for (int k = 0; k < kKnobCount; ++k) {
+        s.sliders[k] = clamp_knob(k, mod.setting<double>(kKnobs[k].key));
     }
 
     const std::string seed_text = mod.setting<std::string>("seed");
@@ -192,7 +192,7 @@ void advance_events(double dt) {
         set_active();
         publish_rules(s);
         s.mod->info(
-            change > 0 ? std::string("chaos: ") + k_events[s.clock.current].name
+            change > 0 ? std::string("chaos: ") + kEvents[s.clock.current].name
                        : std::string("chaos: back to normal")
         );
     }
@@ -219,4 +219,4 @@ void log_start(const std::string& detail) {
     }
 }
 
-}  // namespace dm
+}  // namespace difficulty

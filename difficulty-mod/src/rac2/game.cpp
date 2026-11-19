@@ -46,6 +46,7 @@
 #include "rules.h"
 #include "session.h"
 
+namespace difficulty::rac2 {
 namespace {
 
 using openrac::gaddr;
@@ -53,41 +54,41 @@ using openrac::gaddr;
 // ---- Constants ----
 
 // The size of a game word: the stride of the ammo array.
-constexpr uint32_t kWord = 4u;
+constexpr std::uint32_t kWord = 4u;
 
-// The hero record (discs.h: dm2_disc.hero). Offsets are from its address (documented: discs.h).
-constexpr uint32_t kHeroTargetSpeed = 0x1B0u;
-constexpr uint32_t kHeroItemInHand = 0x1248u;
-constexpr uint32_t kHeroMoby = 0x2290u;
-constexpr uint32_t kHeroHealth = 0x24CCu;
+// The hero record (discs.h: Disc.hero). Offsets are from its address (documented: discs.h).
+constexpr std::uint32_t kHeroTargetSpeed = 0x1B0u;
+constexpr std::uint32_t kHeroItemInHand = 0x1248u;
+constexpr std::uint32_t kHeroMoby = 0x2290u;
+constexpr std::uint32_t kHeroHealth = 0x24CCu;
 // His vehicle mode, a byte: 1 in a vehicle, where the orbs fill his health to 4 at most
 // (documented: rac2-decomp src/game/0030F7B0-ball-sw-g8.c, the Hero's vehicle_mode and `lim`).
-constexpr uint32_t kHeroVehicleMode = 0x22B4u;
-constexpr int32_t kVehicleHealth = 4;
+constexpr std::uint32_t kHeroVehicleMode = 0x22B4u;
+constexpr std::int32_t kVehicleHealth = 4;
 
 // A moby: its class's header, a pointer (documented: rac2-decomp src/game/002A0430.c, RewardMoby's
 // mclass); the bolts it drops, s16 (the same struct's bolts).
-constexpr uint32_t kMobyClass = 0x24u;
-constexpr uint32_t kMobyBolts = 0xB4u;
+constexpr std::uint32_t kMobyClass = 0x24u;
+constexpr std::uint32_t kMobyBolts = 0xB4u;
 // A class header's kind, s16: 5 for the enemies the bestiary counts (documented: func_002A6C58
 // counts a kill in the bestiary for that kind only).
-constexpr uint32_t kClassKind = 0x46u;
-constexpr int16_t kKindEnemy = 5;
+constexpr std::uint32_t kClassKind = 0x46u;
+constexpr std::int16_t kKindEnemy = 5;
 // The game's memory, the most a pointer read from a moby is believed in (the EE's 32 MB).
-constexpr uint32_t kRamSize = 0x02000000u;
+constexpr std::uint32_t kRamSize = 0x02000000u;
 
 // A pending hit (what Moby_GetHitMessage returns): its damage, f32 (documented: rac2-decomp
 // src/game/002B00B0-damage-g8.c, F(hit, 0x2c)).
-constexpr uint32_t kHitDamage = 0x2Cu;
+constexpr std::uint32_t kHitDamage = 0x2Cu;
 
-// The weapon table (discs.h: dm2_disc.weapon_table): 119 records of 0xE0 bytes, the 120th a mark
+// The weapon table (discs.h: Disc.weapon_table): 119 records of 0xE0 bytes, the 120th a mark
 // (-2); the fields it rewrites (documented: discs.h; the records read from the USA v1.01 boot's
 // copy at 0x239BA0, the same bytes as each level's).
-constexpr int k_rows = 119;
-constexpr uint32_t k_row_size = 0xE0u;
-constexpr uint32_t kRowPrice = 0x80u;
-constexpr uint32_t kRowAmmoPrice = 0x88u;
-constexpr uint32_t kRowMaxAmmo = 0x8Eu;
+constexpr int kRows = 119;
+constexpr std::uint32_t kRowSize = 0xE0u;
+constexpr std::uint32_t kRowPrice = 0x80u;
+constexpr std::uint32_t kRowAmmoPrice = 0x88u;
+constexpr std::uint32_t kRowMaxAmmo = 0x8Eu;
 // The most a price may be (assumed), and what an ammo field, a u16, may be.
 constexpr int kMaxPrice = 9999999;
 constexpr int kMaxU16 = 65535;
@@ -97,25 +98,26 @@ constexpr int kMaxS16 = 32767;
 // The ammo array's slots: g_weaponAmmo is 0x1E0 bytes, g_weaponXp after it (documented:
 // rac2-decomp symbol_addrs). What Weapon_TakeAmmo is given for the item in hand (documented: its
 // C reads the item in hand for -1).
-constexpr int k_ammo_slots = 120;
-constexpr int32_t kItemInHand = -1;
+constexpr int kAmmoSlots = 120;
+constexpr std::int32_t kItemInHand = -1;
 
 // The nanotech boosts, a byte each (documented: discs.h), and the most health a count is made
 // (assumed: the HUD's three digits).
-constexpr int k_boosts = 10;
-constexpr int kMaxHealth = 999;
+constexpr int kBoosts = 10;
+constexpr int kMaxHealthCap = 999;
 
 // The levels there are, 0..30 (documented: rac2-decomp docs/LEVELS.md).
-constexpr int k_levels = 31;
+constexpr int kLevels = 31;
 
-// The game's state that is play (documented: discs.h: dm2_disc.game_state).
-constexpr int32_t kStatePlay = 0;
+// The game's state that is play (documented: discs.h: Disc.game_state).
+constexpr std::int32_t kStatePlay = 0;
 
 // The knobs Going Commando honours: all but the enemy count and the enemy speed.
-constexpr unsigned kKnobs = dm::k_all_knobs & ~(1u << dm::ENEMY_COUNT) & ~(1u << dm::ENEMY_SPEED);
+constexpr unsigned kKnobs =
+    difficulty::kAllKnobs & ~(1u << difficulty::kEnemyCount) & ~(1u << difficulty::kEnemySpeed);
 
 // The salt that makes a level's own random stream (the bolts' rounding) apart from the others.
-constexpr uint64_t kLevelRngSalt = 0x3000u;
+constexpr std::uint64_t kLevelRngSalt = 0x3000u;
 
 // ---- Hook points ----
 
@@ -125,35 +127,35 @@ struct TakeDamage {
     static constexpr const char* id = "rac2.player.take_damage";
     static constexpr const char* name = "Hero_TakeDamage";
     static constexpr const char* signature = "void(i32)";
-    using fn = void (*)(int32_t);
+    using fn = void (*)(std::int32_t);
 };
 
 struct GetHit {
     static constexpr const char* id = "rac2.combat.get_hit";
     static constexpr const char* name = "Moby_GetHitMessage";
     static constexpr const char* signature = "u32(u32,u32,i32)";
-    using fn = uint32_t (*)(uint32_t, uint32_t, int32_t);
+    using fn = std::uint32_t (*)(std::uint32_t, std::uint32_t, std::int32_t);
 };
 
 struct TakeAmmo {
     static constexpr const char* id = "rac2.weapon.take_ammo";
     static constexpr const char* name = "Weapon_TakeAmmo";
     static constexpr const char* signature = "i32(i32,i32)";
-    using fn = int32_t (*)(int32_t, int32_t);
+    using fn = std::int32_t (*)(std::int32_t, std::int32_t);
 };
 
 struct RecordDeath {
     static constexpr const char* id = "rac2.moby.record_death";
     static constexpr const char* name = "Moby_RecordDeath";
     static constexpr const char* signature = "void(u32,i32,i32)";
-    using fn = void (*)(uint32_t, int32_t, int32_t);
+    using fn = void (*)(std::uint32_t, std::int32_t, std::int32_t);
 };
 
 struct LevelLoad {
     static constexpr const char* id = "rac2.level.load";
     static constexpr const char* name = "Level_Load";
     static constexpr const char* signature = "i32(i32,i32)";
-    using fn = int32_t (*)(int32_t, int32_t);
+    using fn = std::int32_t (*)(std::int32_t, std::int32_t);
 };
 
 struct ApproachSpeed {
@@ -167,37 +169,37 @@ struct NanotechSteps {
     static constexpr const char* id = "rac2.player.nanotech_steps";
     static constexpr const char* name = "Hero_NanotechSteps";
     static constexpr const char* signature = "i32(u32,u32,u32)";
-    using fn = int32_t (*)(uint32_t, uint32_t, uint32_t);
+    using fn = std::int32_t (*)(std::uint32_t, std::uint32_t, std::uint32_t);
 };
 
 struct NanotechBall {
     static constexpr const char* id = "rac2.moby.nanotech_ball.update";
     static constexpr const char* name = "Moby_NanotechBall_Update";
     static constexpr const char* signature = "void(u32)";
-    using fn = void (*)(uint32_t);
+    using fn = void (*)(std::uint32_t);
 };
 
 // ---- State ----
 
 openrac::Mod* s_mod;
-const dm2_disc* s_disc;
-dm::Session& s_session = dm::session();
-dm::Rng s_rng(1);
+const Disc* s_disc;
+difficulty::Session& s_session = difficulty::session();
+difficulty::Rng s_rng(1);
 
 // Per level: the weapon table as the level's program has it, read before the first change. Game
 // thread only.
-std::vector<uint8_t> s_rows[k_levels];
-bool s_rows_read[k_levels];
+std::vector<std::uint8_t> s_rows[kLevels];
+bool s_rows_read[kLevels];
 
 // The carried-over fractions of damage taken, health pickups and ammo per shot (one per item).
 // Game thread only.
-dm::Accumulator s_damage;
-dm::Accumulator s_pickups;
-dm::Accumulator s_ammo[k_ammo_slots];
+difficulty::Accumulator s_damage;
+difficulty::Accumulator s_pickups;
+difficulty::Accumulator s_ammo[kAmmoSlots];
 
 // The hits whose damage was scaled, by the hit's address: the moby it was for and the value
 // written. Game thread only.
-std::unordered_map<uint32_t, std::pair<uint32_t, float>> s_hits;
+std::unordered_map<std::uint32_t, std::pair<std::uint32_t, float>> s_hits;
 
 // The max health last logged (with the trace), so each change is one line.
 int s_traced_max = -1;
@@ -215,17 +217,17 @@ void put(gaddr at, T v) {
 }
 
 // The base of the game's memory in this process: the game address a is mem() + a.
-uint8_t* mem() {
+std::uint8_t* mem() {
     return s_mod->memory().base();
 }
 
 // A global of the boot program, the loaded level's copy.
-gaddr exe(uint32_t address) {
+gaddr exe(std::uint32_t address) {
     return s_mod->relocate(address);
 }
 
 // A global of level 0's program, the loaded level's copy.
-gaddr level0(uint32_t address) {
+gaddr level0(std::uint32_t address) {
     return s_mod->relocate_level(0, address);
 }
 
@@ -235,13 +237,14 @@ gaddr hero() {
 
 // Whether a level is loaded and in play (not a menu, a scene, the vendor or a load).
 bool in_play() {
-    return s_mod->loaded_level() >= 0 && get<int32_t>(exe(s_disc->game_state)) == kStatePlay;
+    return s_mod->loaded_level() >= 0 && get<std::int32_t>(exe(s_disc->game_state)) == kStatePlay;
 }
 
 // Whether a moby is an enemy: its class is of the kind the bestiary counts.
-bool is_enemy(uint32_t moby) {
-    const uint32_t cls = get<uint32_t>(moby + kMobyClass);
-    return cls != 0 && cls < kRamSize - kClassKind && get<int16_t>(cls + kClassKind) == kKindEnemy;
+bool is_enemy(std::uint32_t moby) {
+    const std::uint32_t cls = get<std::uint32_t>(moby + kMobyClass);
+    return cls != 0 && cls < kRamSize - kClassKind
+           && get<std::int16_t>(cls + kClassKind) == kKindEnemy;
 }
 
 // ---- Damage, ammo, bolts, speed, health ----
@@ -249,8 +252,8 @@ bool is_enemy(uint32_t moby) {
 // A hit on Ratchet: its points before the armour's share, scaled and carried over between hits. A
 // hit scaled to nothing is not taken.
 template <class Original>
-void take_damage(Original original, int32_t amount) {
-    const double k = s_session.active[dm::DAMAGE_TAKEN];
+void take_damage(Original original, std::int32_t amount) {
+    const double k = s_session.active[difficulty::kDamageTaken];
 
     // No hit to scale (0 does nothing, below 0 heals), or the slider at retail: the game's call.
     if (amount <= 0 || k == 1.0) {
@@ -269,13 +272,15 @@ void take_damage(Original original, int32_t amount) {
 // The hit an enemy reads: its damage scaled once (the same hit read again keeps the value
 // written, which is how it is told from a new one).
 template <class Original>
-uint32_t get_hit(Original original, uint32_t moby, uint32_t mask, int32_t keep) {
-    const uint32_t hit = original(moby, mask, keep);
-    const double k = s_session.active[dm::DAMAGE_DEALT];
+std::uint32_t get_hit(
+    Original original, std::uint32_t moby, std::uint32_t mask, std::int32_t keep
+) {
+    const std::uint32_t hit = original(moby, mask, keep);
+    const double k = s_session.active[difficulty::kDamageDealt];
 
     // Nothing was hit, the slider is at retail, it is Ratchet who reads it (his own damage is the
     // damage to Ratchet's slider's), or the moby is no enemy.
-    if (hit == 0 || k == 1.0 || moby == get<uint32_t>(hero() + kHeroMoby) || !is_enemy(moby)) {
+    if (hit == 0 || k == 1.0 || moby == get<std::uint32_t>(hero() + kHeroMoby) || !is_enemy(moby)) {
         return hit;
     }
 
@@ -296,23 +301,25 @@ uint32_t get_hit(Original original, uint32_t moby, uint32_t mask, int32_t keep) 
 // A shot's ammo: the multiplier per shot, carried over per item; never a free shot from an empty
 // gun, and the last rounds still fire when a shot would want more than is left.
 template <class Original>
-int32_t take_ammo(Original original, int32_t item, int32_t amount) {
-    const double k = s_session.active[dm::AMMO_USE];
+std::int32_t take_ammo(Original original, std::int32_t item, std::int32_t amount) {
+    const double k = s_session.active[difficulty::kAmmoUse];
 
     // The slider is at retail, or the call takes no ammo: the game's own call.
     if (k == 1.0 || amount <= 0) {
         return original(item, amount);
     }
 
-    const int32_t id = item == kItemInHand ? get<int32_t>(hero() + kHeroItemInHand) : item;
+    const std::int32_t id =
+        item == kItemInHand ? get<std::int32_t>(hero() + kHeroItemInHand) : item;
 
     // Not an item the game has ammo for.
-    if (id < 0 || id >= k_ammo_slots) {
+    if (id < 0 || id >= kAmmoSlots) {
         return original(item, amount);
     }
 
-    const int32_t have = get<int32_t>(s_disc->ammo + kWord * static_cast<uint32_t>(id));
-    int32_t want = s_ammo[id].take(k, amount);
+    const std::int32_t have =
+        get<std::int32_t>(s_disc->ammo + kWord * static_cast<std::uint32_t>(id));
+    std::int32_t want = s_ammo[id].take(k, amount);
 
     // This shot's share rounds to nothing: a free shot only from a gun that has rounds, as the game
     // would refuse an empty one.
@@ -336,8 +343,8 @@ int32_t take_ammo(Original original, int32_t item, int32_t amount) {
 // The bolts a dying enemy or a broken crate drops: its bolt count scaled for the call, and the
 // game's own count back after it.
 template <class Original>
-void record_death(Original original, uint32_t moby, int32_t flags, int32_t arg) {
-    const double k = s_session.active[dm::BOLTS];
+void record_death(Original original, std::uint32_t moby, std::int32_t flags, std::int32_t arg) {
+    const double k = s_session.active[difficulty::kBolts];
 
     // The slider is at retail: the game's own call.
     if (k == 1.0) {
@@ -345,22 +352,22 @@ void record_death(Original original, uint32_t moby, int32_t flags, int32_t arg) 
         return;
     }
 
-    const int16_t own = get<int16_t>(moby + kMobyBolts);
-    const int n = dm::scale_count(own, k, s_rng);
-    const auto scaled = static_cast<int16_t>(n > kMaxS16 ? kMaxS16 : n);
-    put<int16_t>(moby + kMobyBolts, scaled);
+    const std::int16_t own = get<std::int16_t>(moby + kMobyBolts);
+    const int n = difficulty::scale_count(own, k, s_rng);
+    const auto scaled = static_cast<std::int16_t>(n > kMaxS16 ? kMaxS16 : n);
+    put<std::int16_t>(moby + kMobyBolts, scaled);
     original(moby, flags, arg);
 
     // The game left the scaled count as it was: its own back, so a later death is scaled from it.
-    if (get<int16_t>(moby + kMobyBolts) == scaled) {
-        put<int16_t>(moby + kMobyBolts, own);
+    if (get<std::int16_t>(moby + kMobyBolts) == scaled) {
+        put<std::int16_t>(moby + kMobyBolts, own);
     }
 }
 
 // Ratchet's ground speed eases toward his target speed: toward the target scaled, as fast.
 template <class Original>
 void approach_speed(Original original, float up, float down) {
-    const double k = s_session.active[dm::PLAYER_SPEED];
+    const double k = s_session.active[difficulty::kPlayerSpeed];
 
     // The slider is at retail: the game's own call.
     if (k == 1.0) {
@@ -386,8 +393,8 @@ int boosts() {
     int n = 0;
 
     // Each boost's byte.
-    for (int i = 0; i < k_boosts; ++i) {
-        n += get<uint8_t>(s_disc->boosts + static_cast<uint32_t>(i)) != 0;
+    for (int i = 0; i < kBoosts; ++i) {
+        n += get<std::uint8_t>(s_disc->boosts + static_cast<std::uint32_t>(i)) != 0;
     }
 
     return n;
@@ -398,9 +405,11 @@ int boosts() {
 // max health scaled (at least 1). The game's recount then gives the max health it shows, saves and
 // fills his health to when it changes; its HUD's callers ignore the count.
 template <class Original>
-int32_t nanotech_steps(Original original, uint32_t a0, uint32_t a1, uint32_t count) {
-    const int32_t r = original(a0, a1, count);
-    const double k = s_session.active[dm::MAX_HEALTH];
+std::int32_t nanotech_steps(
+    Original original, std::uint32_t a0, std::uint32_t a1, std::uint32_t count
+) {
+    const std::int32_t r = original(a0, a1, count);
+    const double k = s_session.active[difficulty::kMaxHealth];
 
     // The slider is at retail, or no count was given.
     if (k == 1.0 || count == 0) {
@@ -408,10 +417,12 @@ int32_t nanotech_steps(Original original, uint32_t a0, uint32_t a1, uint32_t cou
     }
 
     const int b = boosts();
-    const int retail = get<int32_t>(count) + b;
+    const int retail = get<std::int32_t>(count) + b;
     const double want = std::round(retail * k);
-    const int target = want < 1.0 ? 1 : want > kMaxHealth ? kMaxHealth : static_cast<int>(want);
-    put<int32_t>(count, target - b);
+    const int target = want < 1.0             ? 1
+                       : want > kMaxHealthCap ? kMaxHealthCap
+                                              : static_cast<int>(want);
+    put<std::int32_t>(count, target - b);
 
     // With the trace on, one line for each change.
     if (s_session.trace && target != s_traced_max) {
@@ -425,23 +436,23 @@ int32_t nanotech_steps(Original original, uint32_t a0, uint32_t a1, uint32_t cou
 // The nanotech orb: the health its pieces gave him this tick, scaled (carried over, so 1.5 is one
 // and then two), at most the most the game fills him to.
 template <class Original>
-void ball_update(Original original, uint32_t moby) {
-    const double k = s_session.active[dm::HEALTH_PICKUPS];
+void ball_update(Original original, std::uint32_t moby) {
+    const double k = s_session.active[difficulty::kHealthPickups];
     const gaddr hp = hero() + kHeroHealth;
-    const int32_t before = get<int32_t>(hp);
+    const std::int32_t before = get<std::int32_t>(hp);
     original(moby);
-    const int32_t gained = get<int32_t>(hp) - before;
+    const std::int32_t gained = get<std::int32_t>(hp) - before;
 
     // The slider is at retail, or the orb gave nothing this tick.
     if (k == 1.0 || gained <= 0) {
         return;
     }
 
-    const int32_t most = get<uint8_t>(hero() + kHeroVehicleMode) == 1
-                             ? kVehicleHealth
-                             : get<int32_t>(s_disc->max_health);
-    const int32_t now = before + s_pickups.take(k, gained);
-    put<int32_t>(hp, now > most ? (most > before ? most : before) : now);
+    const std::int32_t most = get<std::uint8_t>(hero() + kHeroVehicleMode) == 1
+                                  ? kVehicleHealth
+                                  : get<std::int32_t>(s_disc->max_health);
+    const std::int32_t now = before + s_pickups.take(k, gained);
+    put<std::int32_t>(hp, now > most ? (most > before ? most : before) : now);
 }
 
 // ---- A level's load: its values and the weapon table ----
@@ -450,34 +461,41 @@ void ball_update(Original original, uint32_t moby) {
 // (+0x8E), written whatever they are now (so a value is never scaled twice).
 void rewrite_rows(int level) {
     const gaddr table = level0(s_disc->weapon_table);
-    const uint8_t* at = mem() + table;
+    const std::uint8_t* at = mem() + table;
 
     // The first load of this level: keep its own table to scale from.
     if (!s_rows_read[level]) {
-        s_rows[level].assign(at, at + k_rows * k_row_size);
+        s_rows[level].assign(at, at + kRows * kRowSize);
         s_rows_read[level] = true;
     }
 
-    const uint8_t* own = s_rows[level].data();
-    const dm::Values& v = s_session.level;
+    const std::uint8_t* own = s_rows[level].data();
+    const difficulty::Values& v = s_session.level;
 
     // Each record.
-    for (int i = 0; i < k_rows; ++i) {
-        const uint32_t r = static_cast<uint32_t>(i) * k_row_size;
-        int32_t price;
+    for (int i = 0; i < kRows; ++i) {
+        const std::uint32_t r = static_cast<std::uint32_t>(i) * kRowSize;
+        std::int32_t price;
         std::memcpy(&price, own + r + kRowPrice, 4);
-        put<int32_t>(table + r + kRowPrice, dm::scale_amount(price, v[dm::WEAPON_COST], kMaxPrice));
-        uint16_t ammo_price;
-        std::memcpy(&ammo_price, own + r + kRowAmmoPrice, 2);
-        put<uint16_t>(
-            table + r + kRowAmmoPrice,
-            static_cast<uint16_t>(dm::scale_amount(ammo_price, v[dm::AMMO_COST], kMaxU16))
+        put<std::int32_t>(
+            table + r + kRowPrice,
+            difficulty::scale_amount(price, v[difficulty::kWeaponCost], kMaxPrice)
         );
-        uint16_t most;
+        std::uint16_t ammo_price;
+        std::memcpy(&ammo_price, own + r + kRowAmmoPrice, 2);
+        put<std::uint16_t>(
+            table + r + kRowAmmoPrice,
+            static_cast<std::uint16_t>(
+                difficulty::scale_amount(ammo_price, v[difficulty::kAmmoCost], kMaxU16)
+            )
+        );
+        std::uint16_t most;
         std::memcpy(&most, own + r + kRowMaxAmmo, 2);
-        put<uint16_t>(
+        put<std::uint16_t>(
             table + r + kRowMaxAmmo,
-            static_cast<uint16_t>(dm::scale_amount(most, v[dm::MAX_AMMO], kMaxU16))
+            static_cast<std::uint16_t>(
+                difficulty::scale_amount(most, v[difficulty::kMaxAmmo], kMaxU16)
+            )
         );
     }
 }
@@ -486,18 +504,19 @@ void rewrite_rows(int level) {
 // mobys), this level's values are rolled (with Chaos) or taken and the weapon table rewritten. It
 // runs again when the game reloads the level after a death: the same values, the same table.
 template <class Original>
-int32_t level_load(Original original, int32_t load, int32_t resume) {
-    const int32_t next = original(load, resume);
+std::int32_t level_load(Original original, std::int32_t load, std::int32_t resume) {
+    const std::int32_t next = original(load, resume);
     const int level = s_mod->loaded_level();
 
     // Not a level the mod knows: nothing to apply.
-    if (level < 0 || level >= k_levels) {
+    if (level < 0 || level >= kLevels) {
         return next;
     }
 
-    const uint64_t seed = dm::level_values(level);
+    const std::uint64_t seed = difficulty::level_values(level);
     s_hits.clear();
-    s_rng = dm::Rng(dm::mix(seed, kLevelRngSalt + static_cast<uint64_t>(level)));
+    s_rng =
+        difficulty::Rng(difficulty::mix(seed, kLevelRngSalt + static_cast<std::uint64_t>(level)));
     rewrite_rows(level);
     return next;
 }
@@ -515,7 +534,7 @@ void find_disc(openrac::Mod& mod) {
     s_disc = nullptr;
 
     // Each disc the mod knows: the one whose version this is.
-    for (const auto& disc : k_dm2_discs) {
+    for (const auto& disc : kDiscs) {
         // This is the disc's version.
         if (mod.version() == disc.version) {
             s_disc = &disc;
@@ -554,7 +573,7 @@ void reset_state() {
 void on_frame() {
     // Chaos events are on and the game is in play: the clock runs on play time only.
     if (s_session.events_on && !s_session.follow && in_play()) {
-        dm::advance_events(s_disc->tick_seconds);
+        difficulty::advance_events(s_disc->tick_seconds);
     }
 }
 
@@ -562,34 +581,42 @@ void on_frame() {
 
 // The rac2 part's entry (game.h): checks the disc, reads the settings, takes the hook points it
 // needs (one this OpenRAC lacks refuses the mod, naming it), and logs how it plays.
-void rac2_load(openrac::Mod& mod) {
+void load(openrac::Mod& mod) {
     s_mod = &mod;
     find_disc(mod);
-    dm::start(mod, kKnobs);
+    difficulty::start(mod, kKnobs);
     reset_state();
 
     // The hook points every slider needs: one this OpenRAC lacks refuses the mod, naming it.
-    take<TakeDamage>(mod, [](auto original, int32_t amount) { take_damage(original, amount); });
-    take<GetHit>(mod, [](auto original, uint32_t m, uint32_t mask, int32_t keep) {
+    take<TakeDamage>(mod, [](auto original, std::int32_t amount) {
+        take_damage(original, amount);
+    });
+    take<GetHit>(mod, [](auto original, std::uint32_t m, std::uint32_t mask, std::int32_t keep) {
         return get_hit(original, m, mask, keep);
     });
-    take<TakeAmmo>(mod, [](auto original, int32_t item, int32_t amount) {
+    take<TakeAmmo>(mod, [](auto original, std::int32_t item, std::int32_t amount) {
         return take_ammo(original, item, amount);
     });
-    take<RecordDeath>(mod, [](auto original, uint32_t m, int32_t flags, int32_t arg) {
-        record_death(original, m, flags, arg);
-    });
-    take<LevelLoad>(mod, [](auto original, int32_t load, int32_t resume) {
+    take<RecordDeath>(
+        mod, [](auto original, std::uint32_t m, std::int32_t flags, std::int32_t arg) {
+            record_death(original, m, flags, arg);
+        }
+    );
+    take<LevelLoad>(mod, [](auto original, std::int32_t load, std::int32_t resume) {
         return level_load(original, load, resume);
     });
     take<ApproachSpeed>(mod, [](auto original, float up, float down) {
         approach_speed(original, up, down);
     });
-    take<NanotechSteps>(mod, [](auto original, uint32_t a0, uint32_t a1, uint32_t count) {
-        return nanotech_steps(original, a0, a1, count);
-    });
-    take<NanotechBall>(mod, [](auto original, uint32_t moby) { ball_update(original, moby); });
+    take<NanotechSteps>(
+        mod, [](auto original, std::uint32_t a0, std::uint32_t a1, std::uint32_t count) {
+            return nanotech_steps(original, a0, a1, count);
+        }
+    );
+    take<NanotechBall>(mod, [](auto original, std::uint32_t moby) { ball_update(original, moby); });
 
     mod.on_frame(on_frame);
-    dm::log_start("enemy count and enemy speed are Ratchet & Clank's only");
+    difficulty::log_start("enemy count and enemy speed are Ratchet & Clank's only");
 }
+
+}  // namespace difficulty::rac2

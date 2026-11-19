@@ -11,20 +11,20 @@
 //                    n2 less one: 255 on every level but Drek's fleet (399)
 //   pvars            the spawned mobys' pvars, 0x80 bytes for each slot from spare on
 //
-// These are four globals of the level's program (discs.h: dm_disc.pool: base, spare at +4, end
+// These are four globals of the level's program (discs.h: Disc.pool: base, spare at +4, end
 // at +8, pvars at +0x10 in level 0's; each relocated on its own for the level loaded). What it
 // reads and writes is game memory through `mem` (the game address a is mem + a), so that the tests
 // can lay a pool out in an array.
-#ifndef DIFFICULTY_POOL_H
-#define DIFFICULTY_POOL_H
+
+#pragma once
 
 #include <cstdint>
 #include <vector>
 
-namespace dm {
+namespace difficulty {
 
-constexpr std::uint32_t k_moby_size = 0x100;
-constexpr std::uint32_t k_spare_pvars = 0x80;
+constexpr std::uint32_t kMobySize = 0x100;
+constexpr std::uint32_t kSparePvars = 0x80;
 
 // The four globals' addresses.
 struct PoolGlobals {
@@ -70,6 +70,4 @@ struct ClonePlan {
 
 ClonePlan plan_clones(const std::vector<CloneAsk>& asks, int budget);
 
-}  // namespace dm
-
-#endif  // DIFFICULTY_POOL_H
+}  // namespace difficulty

@@ -2,7 +2,7 @@
 // The moby pool's guard (src/pool.h): on a pool laid out here as LoadLevelGameplay lays one out,
 // the free slots are counted as CreateMoby would find them, the tail is reserved only while it was
 // never used and gives the room it says, and the copies' plan never takes more than its budget,
-// so the slots kept for the game (rules.h: k_pool_reserve) stay free.
+// so the slots kept for the game (rules.h: kPoolReserve) stay free.
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -20,7 +20,7 @@
         }                                                                                          \
     } while (0)
 
-using namespace dm;
+using namespace difficulty;
 
 namespace {
 
@@ -43,13 +43,13 @@ const PoolGlobals kAt = {kGlobals, kGlobals + 4, kGlobals + 8, kGlobals + 0x10};
 // A level of `placed` mobys and n2 spare slots, as the load leaves it.
 Pool lay_out(int placed, int n2) {
     std::fill(g_mem.begin(), g_mem.end(), 0);
-    const std::uint32_t spare = kBase + static_cast<std::uint32_t>(placed) * k_moby_size;
+    const std::uint32_t spare = kBase + static_cast<std::uint32_t>(placed) * kMobySize;
     const std::uint32_t end =
-        kBase + static_cast<std::uint32_t>(placed + n2) * k_moby_size - k_moby_size;
+        kBase + static_cast<std::uint32_t>(placed + n2) * kMobySize - kMobySize;
     put(kGlobals, kBase);
     put(kGlobals + 4, spare);
     put(kGlobals + 8, end);
-    put(kGlobals + 0x10, end + k_moby_size);
+    put(kGlobals + 0x10, end + kMobySize);
     g_mem[spare + 0x20] = 0xFF;
     return Pool::read(g_mem.data(), kAt);
 }
@@ -58,10 +58,10 @@ Pool lay_out(int placed, int n2) {
 std::uint32_t create() {
     const Pool p = Pool::read(g_mem.data(), kAt);
 
-    for (std::uint32_t m = p.spare; m < p.end; m += k_moby_size) {
+    for (std::uint32_t m = p.spare; m < p.end; m += kMobySize) {
         if (g_mem[m + 0x20] >= 0xFE) {
             if (g_mem[m + 0x20] == 0xFF) {
-                g_mem[m + k_moby_size + 0x20] = 0xFF;
+                g_mem[m + kMobySize + 0x20] = 0xFF;
             }
 
             g_mem[m + 0x20] = 0;
@@ -81,7 +81,7 @@ int main() {
     CHECK(count_free(g_mem.data(), p) == 255);
     // Some in use, one freed again (DeleteMoby's 0xFE).
     const std::uint32_t a = create(), b = create(), c = create();
-    CHECK(a == p.spare && b == a + k_moby_size && c == b + k_moby_size);
+    CHECK(a == p.spare && b == a + kMobySize && c == b + kMobySize);
     CHECK(count_free(g_mem.data(), p) == 252);
     g_mem[b + 0x20] = 0xFE;
     CHECK(count_free(g_mem.data(), p) == 253);
@@ -94,9 +94,9 @@ int main() {
     std::uint32_t room = 0, size = 0;
     CHECK(reserve_tail(g_mem.data(), kAt, 12, &room, &size));
     const Pool r = Pool::read(g_mem.data(), kAt);
-    CHECK(r.end == p.end - 12 * k_moby_size && r.usable() == 243);
-    CHECK(room == p.pvars + 243 * k_spare_pvars && size == 13 * k_spare_pvars);
-    CHECK(room + size == p.pvars + 256 * k_spare_pvars);  // the end of the spare pvars
+    CHECK(r.end == p.end - 12 * kMobySize && r.usable() == 243);
+    CHECK(room == p.pvars + 243 * kSparePvars && size == 13 * kSparePvars);
+    CHECK(room + size == p.pvars + 256 * kSparePvars);  // the end of the spare pvars
     CHECK(count_free(g_mem.data(), r) == 243);
 
     // CreateMoby never reaches the reserved slots: after every usable slot is taken it finds none.
@@ -121,7 +121,7 @@ int main() {
     // The plan: round by round, never past the budget.
     std::vector<CloneAsk> asks(200, CloneAsk{3, 0});
     ClonePlan plan = plan_clones(asks, clone_budget(255, 4));
-    CHECK(plan.slots + plan.pvar_slots == 255 - k_pool_reserve);
+    CHECK(plan.slots + plan.pvar_slots == 255 - kPoolReserve);
 
     for (int n : plan.copies) {
         CHECK(n == 0 || n == 1);  // spread: one each before anyone gets a second
@@ -156,14 +156,14 @@ int main() {
 
         if (plan.pvar_slots > 0) {
             CHECK(reserve_tail(g_mem.data(), kAt, plan.pvar_slots, &room, &size));
-            CHECK(size >= static_cast<std::uint32_t>(plan.pvar_slots) * k_spare_pvars);
+            CHECK(size >= static_cast<std::uint32_t>(plan.pvar_slots) * kSparePvars);
         }
 
         for (int i = 0; i < plan.slots; ++i) {
             CHECK(create() != 0);
         }
 
-        CHECK(count_free(g_mem.data(), Pool::read(g_mem.data(), kAt)) >= k_pool_reserve);
+        CHECK(count_free(g_mem.data(), Pool::read(g_mem.data(), kAt)) >= kPoolReserve);
     }
 
     std::printf("pool_test: ok\n");

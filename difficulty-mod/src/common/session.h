@@ -6,8 +6,8 @@
 // event on, the events' clock, and a party's host's rules (on_party_rules). Each game's code
 // (src/rac1, src/rac2) reads it through session() and changes the game where it takes each value;
 // nothing here knows an address. All of it is the game's thread's.
-#ifndef DIFFICULTY_SESSION_H
-#define DIFFICULTY_SESSION_H
+
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -15,7 +15,7 @@
 #include "openrac/mod.hpp"
 #include "rules.h"
 
-namespace dm {
+namespace difficulty {
 
 struct Session {
     openrac::Mod* mod = nullptr;
@@ -38,7 +38,7 @@ struct Session {
 
     // The knobs this game honours (rules.h: a bit each): the log names only these, and the events
     // of others are never picked.
-    unsigned knobs = k_all_knobs;
+    unsigned knobs = kAllKnobs;
 };
 
 // The one session of the library.
@@ -72,6 +72,4 @@ std::string fmt(double value);
 // the game's code adds (`detail`, after a "; "), the events, and the values without Chaos.
 void log_start(const std::string& detail);
 
-}  // namespace dm
-
-#endif  // DIFFICULTY_SESSION_H
+}  // namespace difficulty

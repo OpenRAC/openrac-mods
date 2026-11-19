@@ -19,27 +19,27 @@
         }                                                                                          \
     } while (0)
 
-using namespace dm;
+using namespace difficulty;
 
 static void ranges() {
     // 1.0 (retail) is in every slider's range, and Chaos's range inside it around 1.0. The presets
     // are the manifest's (tests/presets_test.py).
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         CHECK(retail()[k] == 1.0);
-        CHECK(k_knobs[k].min <= 1.0 && 1.0 <= k_knobs[k].max);
-        CHECK(k_knobs[k].min <= k_knobs[k].chaos_min && k_knobs[k].chaos_min <= 1.0);
-        CHECK(1.0 <= k_knobs[k].chaos_max && k_knobs[k].chaos_max <= k_knobs[k].max);
+        CHECK(kKnobs[k].min <= 1.0 && 1.0 <= kKnobs[k].max);
+        CHECK(kKnobs[k].min <= kKnobs[k].chaos_min && kKnobs[k].chaos_min <= 1.0);
+        CHECK(1.0 <= kKnobs[k].chaos_max && kKnobs[k].chaos_max <= kKnobs[k].max);
     }
 }
 
 static void clamping() {
-    CHECK(clamp_knob(ENEMY_COUNT, 10.0) == 4.0);
-    CHECK(clamp_knob(ENEMY_COUNT, 0.0) == 0.25);
-    CHECK(clamp_knob(ENEMY_SPEED, 3.0) == 2.0);
-    CHECK(clamp_knob(BOLTS, -1.0) == 0.0);
-    CHECK(clamp_knob(DAMAGE_TAKEN, std::numeric_limits<double>::quiet_NaN()) == 1.0);
-    CHECK(clamp_knob(DAMAGE_TAKEN, std::numeric_limits<double>::infinity()) == 1.0);
-    CHECK(clamp_knob(WEAPON_COST, 2.5) == 2.5);
+    CHECK(clamp_knob(kEnemyCount, 10.0) == 4.0);
+    CHECK(clamp_knob(kEnemyCount, 0.0) == 0.25);
+    CHECK(clamp_knob(kEnemySpeed, 3.0) == 2.0);
+    CHECK(clamp_knob(kBolts, -1.0) == 0.0);
+    CHECK(clamp_knob(kDamageTaken, std::numeric_limits<double>::quiet_NaN()) == 1.0);
+    CHECK(clamp_knob(kDamageTaken, std::numeric_limits<double>::infinity()) == 1.0);
+    CHECK(clamp_knob(kWeaponCost, 2.5) == 2.5);
 }
 
 static void effective_values() {
@@ -47,29 +47,29 @@ static void effective_values() {
     // The sliders untouched: everything 1.0, the game as it is.
     Values v = effective(false, ones, 1234, 3);
 
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         CHECK(v[k] == 1.0);
     }
 
     CHECK(!sliders_moved(ones));
     // The sliders are what plays (a preset fills them).
     Values sliders = ones;
-    sliders[ENEMY_SPEED] = 1.7;
-    sliders[DAMAGE_TAKEN] = 2.0;
+    sliders[kEnemySpeed] = 1.7;
+    sliders[kDamageTaken] = 2.0;
     CHECK(sliders_moved(sliders));
     v = effective(false, sliders, 1, 1);
-    CHECK(v[ENEMY_SPEED] == 1.7 && v[DAMAGE_TAKEN] == 2.0 && v[BOLTS] == 1.0);
+    CHECK(v[kEnemySpeed] == 1.7 && v[kDamageTaken] == 2.0 && v[kBolts] == 1.0);
     // A slider out of range counts clamped.
-    sliders[ENEMY_SPEED] = 9.0;
-    CHECK(effective(false, sliders, 1, 1)[ENEMY_SPEED] == 2.0);
+    sliders[kEnemySpeed] = 9.0;
+    CHECK(effective(false, sliders, 1, 1)[kEnemySpeed] == 2.0);
     // Chaos with a slider moved: the slider holds on every level, the rest roll.
     sliders = ones;
-    sliders[BOLTS] = 0.0;
+    sliders[kBolts] = 0.0;
 
     for (int level = 0; level < 19; ++level) {
         const Values c = effective(true, sliders, 77, level);
-        CHECK(c[BOLTS] == 0.0);
-        CHECK(c[DAMAGE_TAKEN] == chaos_roll(77, level)[DAMAGE_TAKEN]);
+        CHECK(c[kBolts] == 0.0);
+        CHECK(c[kDamageTaken] == chaos_roll(77, level)[kDamageTaken]);
     }
 }
 
@@ -81,13 +81,13 @@ static void chaos() {
         for (int level = -1; level < 19; ++level) {
             const Values a = chaos_roll(seed, level), b = chaos_roll(seed, level);
 
-            for (int k = 0; k < KNOB_COUNT; ++k) {
+            for (int k = 0; k < kKnobCount; ++k) {
                 CHECK(a[k] == b[k]);
-                CHECK(a[k] >= k_knobs[k].chaos_min - 1e-9 && a[k] <= k_knobs[k].chaos_max + 1e-9);
+                CHECK(a[k] >= kKnobs[k].chaos_min - 1e-9 && a[k] <= kKnobs[k].chaos_max + 1e-9);
                 CHECK(std::fabs(a[k] * 100.0 - std::round(a[k] * 100.0)) < 1e-6);
             }
 
-            seen.insert(a[DAMAGE_TAKEN]);
+            seen.insert(a[kDamageTaken]);
         }
     }
 
@@ -96,7 +96,7 @@ static void chaos() {
     const Values fixed = chaos_roll(0x12345678ull, 4);
     const Values again = chaos_roll(seed_from_text("12345678"), 4);
 
-    for (int k = 0; k < KNOB_COUNT; ++k) {
+    for (int k = 0; k < kKnobCount; ++k) {
         CHECK(fixed[k] == again[k]);
     }
 
@@ -130,7 +130,7 @@ static void events() {
         ends += c < 0;
 
         if (c > 0) {
-            CHECK(clock.current >= 0 && clock.current < k_event_count);
+            CHECK(clock.current >= 0 && clock.current < kEventCount);
         }
     }
 
@@ -158,7 +158,7 @@ static void events() {
             Rng rng(mix(77, 0x2000u + static_cast<std::uint64_t>(picked)));
             CHECK(
                 all.current
-                == static_cast<int>(rng.next() % static_cast<std::uint64_t>(k_event_count))
+                == static_cast<int>(rng.next() % static_cast<std::uint64_t>(kEventCount))
             );
             ++picked;
         }
@@ -167,11 +167,11 @@ static void events() {
     CHECK(picked >= 10);
     // Without the enemy speed (rac2): Slow motion, Frenzy and Double time never start; the others
     // do.
-    const unsigned no_enemy_clock = k_all_knobs & ~(1u << ENEMY_SPEED) & ~(1u << ENEMY_COUNT);
+    const unsigned no_enemy_clock = kAllKnobs & ~(1u << kEnemySpeed) & ~(1u << kEnemyCount);
     CHECK(event_allowed(0, no_enemy_clock) && !event_allowed(1, no_enemy_clock));
     CHECK(!event_allowed(2, no_enemy_clock) && !event_allowed(3, no_enemy_clock));
-    CHECK(event_allowed(4, no_enemy_clock) && !event_allowed(-1, k_all_knobs));
-    CHECK(!event_allowed(k_event_count, k_all_knobs));
+    CHECK(event_allowed(4, no_enemy_clock) && !event_allowed(-1, kAllKnobs));
+    CHECK(!event_allowed(kEventCount, kAllKnobs));
     EventClock some;
     some.seed = 9;
     some.every = 30.0;
@@ -199,15 +199,15 @@ static void events() {
     // An event changes only its knobs, within the safe ranges; none leaves a knob outside them.
     const Values ones = retail();
 
-    for (int e = 0; e < k_event_count; ++e) {
+    for (int e = 0; e < kEventCount; ++e) {
         const Values v = with_event(ones, e);
         int changed = 0;
 
-        for (int k = 0; k < KNOB_COUNT; ++k) {
+        for (int k = 0; k < kKnobCount; ++k) {
             changed += v[k] != 1.0;
             CHECK(
-                k != ENEMY_COUNT && k != WEAPON_COST && k != AMMO_COST && k != MAX_AMMO
-                        && k != MAX_HEALTH
+                k != kEnemyCount && k != kWeaponCost && k != kAmmoCost && k != kMaxAmmo
+                        && k != kMaxHealth
                     ? true
                     : v[k] == 1.0
             );
@@ -215,13 +215,13 @@ static void events() {
 
         CHECK(changed >= 1 && changed <= 2);
         Values high = ones;
-        high[PLAYER_SPEED] = 2.0;
-        high[ENEMY_SPEED] = 2.0;
+        high[kPlayerSpeed] = 2.0;
+        high[kEnemySpeed] = 2.0;
         const Values h = with_event(high, e);
-        CHECK(h[PLAYER_SPEED] <= 2.5 && h[ENEMY_SPEED] <= 2.5);
+        CHECK(h[kPlayerSpeed] <= 2.5 && h[kEnemySpeed] <= 2.5);
     }
 
-    CHECK(with_event(ones, -1)[PLAYER_SPEED] == 1.0);
+    CHECK(with_event(ones, -1)[kPlayerSpeed] == 1.0);
 }
 
 static void accumulators() {
@@ -298,16 +298,16 @@ static void amounts() {
 }
 
 static void budget() {
-    CHECK(clone_budget(255, 4) == 255 - k_pool_reserve);
-    CHECK(clone_budget(399, 17) == 399 - k_pool_reserve);
+    CHECK(clone_budget(255, 4) == 255 - kPoolReserve);
+    CHECK(clone_budget(399, 17) == 399 - kPoolReserve);
     CHECK(clone_budget(100, 4) == 0);
     CHECK(clone_budget(255, 9) == 0);  // Gaspar, a console's pool: the sparks need it all
     // OpenRAC's bigger pool: 767 free; on Gaspar the sparks keep a console's 255 besides.
-    CHECK(clone_budget(767, 4) == 767 - k_pool_reserve);
-    CHECK(clone_budget(767, 9) == 767 - k_pool_reserve - k_gaspar_sparks);
+    CHECK(clone_budget(767, 4) == 767 - kPoolReserve);
+    CHECK(clone_budget(767, 9) == 767 - kPoolReserve - kGasparSparks);
     // Blarg Station keeps room for its own spawns: no copies in its pool of 255.
     CHECK(clone_budget(253, 6) == 0);
-    CHECK(clone_budget(1000, 6) == 1000 - k_pool_reserve - k_blarg_spawns);
+    CHECK(clone_budget(1000, 6) == 1000 - kPoolReserve - kBlargSpawns);
     CHECK(pvar_slots(0) == 0 && pvar_slots(0x80) == 0);
     CHECK(
         pvar_slots(0x81) == 2 && pvar_slots(0x100) == 2 && pvar_slots(0x101) == 3
@@ -322,8 +322,8 @@ void party_rules() {
     r.events = true;
     r.minutes = 3;
     r.sliders = retail();
-    r.sliders[BOLTS] = 2.0;
-    r.sliders[ENEMY_COUNT] = 1.5;
+    r.sliders[kBolts] = 2.0;
+    r.sliders[kEnemyCount] = 1.5;
     r.seed = 0x0A1B2C3Du;
     r.event = 2;
     const std::vector<std::uint8_t> bytes = encode_party_rules(r);
@@ -331,8 +331,8 @@ void party_rules() {
     CHECK(decode_party_rules(bytes.data(), static_cast<std::uint32_t>(bytes.size()), back));
     CHECK(back.chaos && back.events && back.minutes == 3 && back.seed == r.seed && back.event == 2);
     CHECK(
-        back.sliders[BOLTS] == 2.0 && back.sliders[ENEMY_COUNT] == 1.5
-        && back.sliders[MAX_AMMO] == 1.0
+        back.sliders[kBolts] == 2.0 && back.sliders[kEnemyCount] == 1.5
+        && back.sliders[kMaxAmmo] == 1.0
     );
     CHECK(!decode_party_rules(bytes.data(), static_cast<std::uint32_t>(bytes.size()) - 1, back));
     CHECK(!decode_party_rules(nullptr, 0, back));
@@ -343,7 +343,7 @@ void party_rules() {
     PartyRules plain;
     plain.sliders = retail();
     CHECK(party_rules_text(plain) == "As in the game");
-    plain.sliders[ENEMY_SPEED] = 0.75;
+    plain.sliders[kEnemySpeed] = 0.75;
     CHECK(party_rules_text(plain) == "Enemy speed x0.75");
     // An event this version does not have is none.
     other = bytes;
@@ -365,18 +365,18 @@ void party_rules() {
 // takes no disc, and every address is in discs.h, which this core never includes). Pinned, so a
 // change that made them depend on anything else shows here.
 void a_seed_rolls_the_same_everywhere() {
-    const dm::Values level3 = dm::chaos_roll(0x1234ABCDu, 3);
-    const dm::Values again = dm::chaos_roll(0x1234ABCDu, 3);
+    const difficulty::Values level3 = difficulty::chaos_roll(0x1234ABCDu, 3);
+    const difficulty::Values again = difficulty::chaos_roll(0x1234ABCDu, 3);
     std::uint64_t hash = 14695981039346656037ull;
 
-    for (int k = 0; k < dm::KNOB_COUNT; ++k) {
+    for (int k = 0; k < difficulty::kKnobCount; ++k) {
         CHECK(level3[k] == again[k]);
         const auto thousandths = static_cast<std::int64_t>(std::llround(level3[k] * 1000.0));
         hash = (hash ^ static_cast<std::uint64_t>(thousandths)) * 1099511628211ull;
     }
 
     CHECK(hash == 0xb9618b0f40fab4cbull);
-    CHECK(dm::seed_from_text("1234abcd") == 0x1234ABCDu);
+    CHECK(difficulty::seed_from_text("1234abcd") == 0x1234ABCDu);
 }
 
 int main() {

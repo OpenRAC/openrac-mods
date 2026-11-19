@@ -4,30 +4,30 @@
 // The difficulty mod's rules, apart from the game: the sliders and their ranges, what plays with
 // them and Chaos, Chaos's roll for each level and its timed events, and the arithmetic that turns a multiplier into whole hits, bolts, prices and cells. No
 // game memory here: tests/rules_test.cpp checks it all.
-#ifndef DIFFICULTY_RULES_H
-#define DIFFICULTY_RULES_H
+
+#pragma once
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace dm {
+namespace difficulty {
 
 // The sliders, in the manifest's order (openrac-mod.json "settings").
 enum Knob {
-    ENEMY_COUNT,
-    DAMAGE_TAKEN,
-    DAMAGE_DEALT,
-    ENEMY_SPEED,
-    PLAYER_SPEED,
-    WEAPON_COST,
-    AMMO_COST,
-    AMMO_USE,
-    MAX_AMMO,
-    BOLTS,
-    MAX_HEALTH,
-    HEALTH_PICKUPS,
-    KNOB_COUNT
+    kEnemyCount,
+    kDamageTaken,
+    kDamageDealt,
+    kEnemySpeed,
+    kPlayerSpeed,
+    kWeaponCost,
+    kAmmoCost,
+    kAmmoUse,
+    kMaxAmmo,
+    kBolts,
+    kMaxHealth,
+    kHealthPickups,
+    kKnobCount
 };
 
 struct KnobInfo {
@@ -37,10 +37,10 @@ struct KnobInfo {
     double chaos_min, chaos_max;  // Chaos's range for each level
 };
 
-extern const KnobInfo k_knobs[KNOB_COUNT];
+extern const KnobInfo kKnobs[kKnobCount];
 
 struct Values {
-    double v[KNOB_COUNT];
+    double v[kKnobCount];
 
     double& operator[](int k) { return v[k]; }
 
@@ -104,11 +104,11 @@ struct Event {
     double factor[2];
 };
 
-extern const Event k_events[];
-extern const int k_event_count;
+extern const Event kEvents[];
+extern const int kEventCount;
 
 // A set of knobs, a bit each (1u << knob): the ones a game honours. Every knob is rac1's.
-constexpr unsigned k_all_knobs = (1u << KNOB_COUNT) - 1u;
+constexpr unsigned kAllKnobs = (1u << kKnobCount) - 1u;
 
 // Whether every knob an event changes is in `knobs`: an event a game cannot play is never picked
 // there (rac2 has no enemy clock, so no Slow motion, Frenzy or Double time).
@@ -116,13 +116,13 @@ bool event_allowed(int event, unsigned knobs);
 
 struct EventClock {
     std::uint64_t seed = 0;
-    double every = 180.0;          // seconds between events
-    double lasts = 45.0;           // seconds an event lasts
-    double clock = 0.0;            // seconds of play
-    int count = 0;                 // events started
-    int current = -1;              // the event on, -1 for none
-    double ends = 0.0;             // when it ends
-    unsigned knobs = k_all_knobs;  // the knobs the game honours: events of others are not picked
+    double every = 180.0;        // seconds between events
+    double lasts = 45.0;         // seconds an event lasts
+    double clock = 0.0;          // seconds of play
+    int count = 0;               // events started
+    int current = -1;            // the event on, -1 for none
+    double ends = 0.0;           // when it ends
+    unsigned knobs = kAllKnobs;  // the knobs the game honours: events of others are not picked
     // Advances by dt seconds of play; returns 1 when an event starts, -1 when one ends, else 0.
     int advance(double dt);
 };
@@ -150,20 +150,18 @@ std::string party_rules_text(const PartyRules& rules);
 
 // The moby pool's guard (README.md, "How many enemies"): the spawned mobys' pool keeps this many
 // free slots for what the game spawns (effects, shots, bolts), whatever the enemy count asks for.
-constexpr int k_pool_reserve = 160;
+constexpr int kPoolReserve = 160;
 // On Gaspar (level 9) the lava sparks alone nearly fill a console's pool of 255: there the copies
 // leave that many free for them too, so they get none in a pool of a console's size and the rest of
 // a bigger one (OpenRAC's port gives most levels 767).
-constexpr int k_gaspar_sparks = 255;
+constexpr int kGasparSparks = 255;
 // Blarg Station (level 6) spawns this many mobys of its own after the level load, before its
 // landing (measured on PAL: the first free slot goes from 2 to 195 of 255). The copies leave them
 // room too, or the landing has no slot for the ship and Clank.
-constexpr int k_blarg_spawns = 193;
+constexpr int kBlargSpawns = 193;
 // Slots the copies may take on a level with free_slots free.
 int clone_budget(int free_slots, int level);
 // Extra slots a copy whose pvars are size bytes needs for them (a spawned moby has 0x80).
 int pvar_slots(int size);
 
-}  // namespace dm
-
-#endif  // DIFFICULTY_RULES_H
+}  // namespace difficulty
