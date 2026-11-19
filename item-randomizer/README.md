@@ -87,7 +87,7 @@ Gold-case purchases play their reward at the room center, then return the hero t
 **Compatibility.** Existing version-2 seed codes retain their placement and fixed NPC coordinates.
 New codes also record whether NPC coordinates are shuffled. Seed codes override
 launcher pool switches. The NPC pool requires OpenRAC mod-save support (interface 1.16);
-presentation requires interface 1.19 from the companion changes. Older hosts continue to support
+presentation requires interface 1.22. Older hosts continue to support
 legacy seeds and give an update message when a code needs the extra pools. RAC2 is unchanged.
 Live adjustment editors, catalogs, teleport helpers and screenshot tools are not included.
 

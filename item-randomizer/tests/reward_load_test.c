@@ -337,7 +337,7 @@ int main(int argc, char** argv) {
     openrac_api* api = reward_visual_base(&ext);
     *api = make_api("rac1", D->version);
     api->size = sizeof ext;
-    api->api_minor = 19;
+    api->api_minor = 22;
     api->setting_bool = modern_setting;
     api->hook = modern_hook;
     api->hero_pose = pose;
