@@ -662,6 +662,12 @@ static void helmet_update(openrac_gaddr moby) {
 static int kerwan_randomizer_active(void) { return !s_from_title && !s_judge_wait && ap_client_new_game_plus() >= 0; }
 #include "kerwan_access.inc"
 
+static int aridia_reward_collected(void) {
+    return kerwan_randomizer_active() && had(s_by_item[ITEM_TRESPASSER]);
+}
+#include "aridia_access.inc"
+
+
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
 }
@@ -1547,7 +1553,7 @@ static int install_hooks(void) {
         s_mod, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent, OPENRAC_RAC1_SIG_GoldBolts_CountUnspent,
         (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
     s_gold_hook_warned = 0;
-    if (!presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
+    if (!aridia_access_hooks() || !presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
     /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
      * the NPC reward text itself; otherwise that text takes them on its own. */
     if (!s_presentation_text) npc_reward_text_hooks();
