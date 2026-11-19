@@ -32,9 +32,79 @@ party shares its items. With it on, the Multiplayer pages say so: turn it off to
 | Option | Default | |
 |---|---|---|
 | `logic` | `standard` | **standard**: an expensive purchase holds no progression, and a place counts only with the weapons the game suggests there. **relaxed**: the same, and no progression in a purchase you save up for either. **expert**: progression may be in any purchase, and any weapon will do |
+| `shuffle_items` | off | All nine entries in the Items category; off keeps them vanilla, independently of gadgets. Requires OpenRAC interface 1.16+ |
 | `shuffle_gadgets`, `shuffle_weapons`, `shuffle_vendor`, `shuffle_gold_bolts`, `shuffle_infobots` | on | Off: that pool keeps the game's own items in place |
-| `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. They stay optional: they never hold progression, of any world. Named by planet and number, in the game's flag order |
-| `keep_starting_gear` | on | Start with the Bomb Glove. Off: the start's Bomb Glove is a location too |
+| `shuffle_skill_points` | off | On: the 30 skill points are locations too, with 30 more gold bolts among the items. With gold cases shuffled, their gold bolts can finance purchases; otherwise they never hold progression. Named by planet and number, in the game's flag order |
+| `shuffle_gold_weapons` | off | Add the ten gold-weapon case purchases as locations, with the ten gold weapons among the items. Cases keep their retail bolt prices and cost four gold bolts each. Receiving a gold weapon gives its base weapon and gold upgrade; it never spends currency or buys the original case |
+| `start_in_new_game_plus` | off | Enable the game's New Game+ (challenge mode) after connecting and validating the save. Uses fresh Archipelago inventory and the selected starting weapon; does not import completed-save items or checks. False leaves an already earned New Game+ save as it is |
+| `starting_weapons` | `vanilla` | **vanilla**: start with Bomb Glove. **shuffled**: shuffle the starting location, with no guaranteed weapon. **non_broken**: start with one random normal or gold weapon except the R.Y.N.O. **unrestricted**: start with any one normal or gold weapon. This option controls the starting location independently of `shuffle_weapons`; random starting weapons exchange slots with Bomb Glove before shuffling, including when their pools are off |
+
+For a weighted choice, put this under `Ratchet & Clank:` in your player YAML:
+
+```yaml
+  starting_weapons:
+    vanilla: 50
+    shuffled: 0
+    non_broken: 0
+    unrestricted: 0
+```
+
+`starting_weapons` replaces `keep_starting_gear`: use `vanilla` for the former on behavior,
+or `shuffled` for the former off behavior with weapons shuffled. Old YAML files must be
+updated: `keep_starting_gear` is no longer recognized. Replace `keep_starting_gear: true` with
+`starting_weapons: vanilla`, or `keep_starting_gear: false` with `starting_weapons: shuffled`.
+
+These are relative weights: this example always selects vanilla. Set `non_broken: 50` and
+`vanilla: 0` to always start with a random weapon other than the R.Y.N.O. The weapon is chosen
+when the seed is generated. Install an APWorld containing this option before generating.
+
+To start in New Game+ with a random non-R.Y.N.O. weapon:
+
+```yaml
+  start_in_new_game_plus: true
+  starting_weapons: non_broken
+```
+
+This needs both an APWorld and a native mod containing the New Game+ option. Generate a new seed,
+connect to its server, and start a new game. The mod enables challenge mode once the server has
+sent the option and accepted the save; it does not run the completed-save restart or grant its inventory.
+
+To shuffle the gold-weapon cases and allow a random normal or gold starting weapon:
+
+```yaml
+  shuffle_gold_weapons: true
+  start_in_new_game_plus: true
+  starting_weapons: non_broken
+```
+
+Each gold weapon is one location shared across its appearances in both shops. Purchase checks
+are saved separately from owned upgrades, including across a completed-save New Game+ restart.
+Gold bolts become progression currency for this option; the game still spends only four per
+purchase, and the balance is capped at the retail total of 40. The logic conservatively expects
+all 40 before relying on these purchases so their order cannot exhaust currency. The player's
+own gold-bolt currency is never placed in these cases. Other rewards follow the normal
+expensive-purchase progression restrictions. Without a New Game+ start, the logic treats the
+full case selection as postgame; with it, full Novalis shop access is enabled without granting
+any upgrades or marking any cases bought. Cases retain their retail models and dialogue; a nearby-case preview names the actual scouted
+reward, recipient, bolt price and four-gold-bolt cost before purchase. Archipelago delivers the
+shuffled reward when the purchase is checked.
+
+Random starting-weapon modes include all ten gold variants even with gold-case shuffle off.
+With gold cases off, a gold starter replaces its base weapon's item and moves Bomb Glove to that
+base weapon's original slot. With gold cases on, it exchanges rewards with its own case.
+
+Randomized gold-case purchases need an OpenRAC build containing
+[OpenRAC/OpenRAC#444](https://github.com/OpenRAC/OpenRAC/pull/444), which adds the independent
+unspent-gold-bolt hook, `GoldBolts_CountUnspent`. SDK 1.14.6 does not provide this hook;
+a host built from that release cannot enable randomized gold-case purchases. Other mod options
+still load; gold-case purchases are blocked with an update notice rather than charging the
+wrong currency. Update the OpenRAC host to a build containing #444 to use gold-case shuffle.
+
+`shuffle_infobots` includes the 13 NPC coordinate rewards, such as the Novalis
+Plumber and Batalia deserter and commando, in the item pool. Turn it off to keep
+those rewards vanilla. The first Veldin-to-Novalis flight stays fixed. Generate a
+new seed with the updated APWorld to use these checks; older seeds retain their
+original NPC rewards. NPC purchase prompts retain the game's original text.
 
 ## How it works
 
@@ -51,6 +121,9 @@ party shares its items. With it on, the Multiplayer pages say so: turn it off to
   guesses from the checks: a save with checks the server never saw from your slot that lacks some
   it saw.
 - Items arrive only while you are in control in a level, not in a cutscene or a menu.
+- Until Bomb Glove is owned, the game's starting equipment and Circle/Triangle shortcuts cannot
+  bring it out. Stale Bomb Glove selections switch back to the wrench; other weapons and a Bomb
+  Glove awarded by the server keep their normal behavior.
 - The goal is sent when Drek's ending scene starts on Veldin.
 - The connection runs on a thread of its own and comes back by itself when it drops. `wss://`
   uses mbedTLS and the system's root certificates. The server's messages may come compressed
@@ -79,3 +152,144 @@ cmake --build build --target archipelago_data
 To test the world in an Archipelago checkout: put `rac1.apworld` in its `worlds/` and run
 `AP_TEST_WORLDS=rac1 python -m pytest test/general` (Archipelago's own checks, on the zip), then
 copy `apworld/rac1` to `worlds/rac1` instead and run `python -m pytest worlds/rac1`.
+
+Starting a new game over an occupied save slot replaces that slot's seed association only after the save succeeds. Cancelling or failing the overwrite keeps the old association. Loading a save from another seed still blocks its checks; saving that loaded game does not change its seed association.
+
+## Ammo drops
+
+Crates keep the game's assigned first-break ammo. When the game rolls a new ammo
+type, its candidate stock contains every owned weapon that supports ammunition,
+including weapons received before their normal planet. The original selector
+still prioritizes weapons below maximum ammo and falls back to the Bomb Glove
+when there are no owned candidates. The real vendor stock is restored afterward.
+
+Shuffled gold cases can be purchased without the original base weapon. Enabling
+`shuffle_gold_weapons` opens the Novalis shop teleporter without requiring New Game+.
+Both currency costs still apply; no upgrades or completed-save inventory are granted.
+
+## Randomized reward presentation
+
+With OpenRAC's reward-presentation API (interface **1.22**), scouted
+rewards replace the models shown by Gadgetron vendors, world Gold Bolts, equipment pickups,
+Infobot pickups and shuffled gold-weapon cases. Vendor names and icons match the reward;
+items from another game use a Gold Bolt with the item and recipient names. Ammunition retains
+its original weapon name, icon and price. NPC prompts name the randomized reward (see
+[NPC reward interaction text](#npc-reward-interaction-text)), while NPC handoff models, inventory models and original NPC scenes remain unchanged.
+
+Approved model placement, orientation, size and spin settings are built in separately for
+vendor displays, equipment/Gold Bolt pickups, Infobot pickups and gold cases. Original vendor
+weapons retain their native presentation. Original Gold Bolts retain their native pickup
+appearance; Gold Bolts replacing equipment use native Gold Bolt scale and motion.
+
+Collection presents the actual reward: Gold Bolt pickup, a weapon's Gadgetron acquisition
+demo, or portable Infobot opening, its coordinates video and closing without flying away.
+Unsupported items collect immediately. The portable Infobot sequence is used for pickups
+and purchases, not NPC handoffs. Leaving a vendor plays only the last purchased reward's
+sequence. Case reward sequences run at the room center and then restore the purchase
+position and facing. None of these presentations grant an extra item.
+
+Older hosts keep the existing randomizer behavior without the optional presentation API.
+A build against the pinned released SDK remains supported by the extension layout in
+`src/ap_visual_api.h`. To build against the companion engine checkout instead, pass
+`-DOPENRAC_SDK=<engine checkout>/sdk`. No model editor, adjustment files, preview catalogs,
+teleport tools or screenshot tooling are included.
+
+Gold-case purchase prompts name the randomized reward and retain its bolt price plus
+four Gold Bolts, including the retail formatted-price dialogue path.
+
+Each prompt has one owner. An NPC interaction prompt is named by the NPC reward text
+below, with its collected and scouting rules; the reward presentation names gold-case
+prompts, the vendor's item details and the purchase offers inside an NPC dialog that
+has opened. The dialog and text hooks are taken once and shared by both.
+
+The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
+are probed at runtime: `rac1.vendor.draw_icons`, `rac1.vendor.draw_details`,
+`rac1.ui.icon_frame`, `rac1.ui.sprite.draw`, `rac1.npc.try_dialog`,
+`rac1.pickup.start_scene`, `rac1.gold_case.start_demo`. The reward-presentation engine
+includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech
+profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special
+rewards use their native Items-menu icons. These display profiles do not add special
+items to the shuffle pools.
+
+### Saves during NPC rewards
+
+An NPC may autosave while the mod shows it a location's collection state instead of the
+item's ownership. Save preparation, autosaves and serialization use the real inventory;
+nested save calls keep that inventory until the outer save returns. The NPC then sees
+its collection state again. This prevents an original gadget being saved alongside a
+randomized reward; it does not repair a save already carrying that gadget.
+
+### Kerwan door and return taxi
+
+Big Al's door opens when his location is purchased or the player owns the Heli-Pack.
+Owning the Heli-Pack does not collect Al's randomized reward. Helga's return taxi
+remains available after buying her reward while the player lacks the Swingshot;
+receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
+and real item ownership remain separate.
+
+### NPC reward interaction text
+
+The **Reward text** option (`reward_text`) defaults to on. Turn it off to keep
+the original NPC prompts. Reload the mod after changing this option. This is a
+local display preference and does not change the seed or rewards.
+
+Purchase prompts replace the vanilla reward name with the assigned item, e.g.
+`Buy Devastator for 1,000 bolts` instead of `Buy Heli-Pack for 1,000 bolts`.
+Other handoff prompts show `Reward: <item>`.
+The native prompt, button and price are retained; long reward names are shortened
+to fit the game's panel. This covers gadget sellers, quest/race reward NPCs and
+NPC coordinates. Fixed rewards retain their vanilla names; collected randomized locations
+stop advertising a reward. Archipelago shows the scouted item and its recipient,
+or `Unscouted reward` until the room provides the scout.
+
+This optional text feature needs OpenRAC interface **1.22** and its
+`rac1.npc.try_dialog` / `rac1.text.msg_string` hooks (engine PR
+[OpenRAC/OpenRAC#540](https://github.com/OpenRAC/OpenRAC/pull/540)). On older
+hosts the mod retains native prompts. This feature does not change item pools,
+rewards, prices, models or acquisition animations. In-game verification is pending.
+
+Before the first Rilgar race win, the race starter's prompt is
+`Triangle: Enter race - Reward: <reward>`. It returns to the native `Triangle: Enter race`
+after that race's saved check is collected, including after saving/reloading.
+Owning the reward from another source does not consume the race check. Randomized
+race rewards use the optional Items pool from [#202](https://github.com/OpenRAC/openrac-mods/pull/202);
+without that pool the prompt names the vanilla Platinum Zoomerator.
+
+The Rilgar bouncer uses `Triangle: Bribe Bouncer with 4,000 bolts to get <reward>`.
+The cost and insufficient-bolts message stay native; the name comes from his
+coordinate-reward location (or its vanilla reward when not shuffled).
+
+### Items-menu rewards
+
+The APWorld's `shuffle_items` option includes Hoverboard, Persuader, Bolt Grabber,
+Map-o-Matic, Platinum Zoomerator, Raritanium, CodeBot, Premium Nanotech and Ultra
+Nanotech. The first, third and fourth are now controlled by this option instead
+of Shuffle gadgets. With the option disabled all nine stay vanilla.
+
+The five special flags have stable item IDs in `AP_BASE + 0x400`; the six newly
+shuffleable checks use `LOC_SPECIAL` locations. Real ownership and source collection
+are separate, including autosaves nested inside NPC updates. ReceivedItems replay
+preserves spent Raritanium; Ultra before Premium stays at eight maximum health.
+The two Nanotech checks retain their original prices and purchase order.
+
+Use a newly generated room and the matching APWorld. The new option requires an
+OpenRAC host with interface 1.16 save data; keep each save's `.moddata` sidecar.
+Older rooms without the option default off.
+
+### Reward display options
+
+**Reward models** (`reward_models`) and **Reward text** (`reward_text`) both
+default to on and can be selected independently. Models controls randomized
+pickup/vendor models, inventory icons and receiving animations. Text controls
+randomized NPC prompts and vendor item names. Turning either off restores its
+original game presentation. Reload the mod after changing these local display
+preferences; they do not change the seed, item pool, prices or rewards.
+
+### Release publishing
+
+A version requested in `.github/mod-releases/` (here **2.5.0**) is published by the
+first successful `master` build: `archipelago-v2.5.0` with the mod archives and
+checksums and `rac1.apworld`. The launcher index is then refreshed.
+PR builds do not publish releases. The request in `.github/mod-releases/`
+remains pending until a successful master build publishes its version tag.
+Later builds skip that tag; a newer version needs a new release request.

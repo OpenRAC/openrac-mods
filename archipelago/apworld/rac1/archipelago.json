@@ -1,6 +1,8 @@
 {
   "game": "Ratchet & Clank",
-  "world_version": "2.2.0",
+  "world_version": "2.5.0",
   "minimum_ap_version": "0.6.7",
-  "authors": ["Lynder063"]
+  "authors": [
+    "Lynder063"
+  ]
 }

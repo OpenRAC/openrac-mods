@@ -101,7 +101,9 @@ enum {
     REWARD_NONE = 0,
     REWARD_ITEM,
     REWARD_PLANET,
-    REWARD_GOLD_BOLT
+    REWARD_GOLD_BOLT,
+    REWARD_GOLD_WEAPON,
+    REWARD_SPECIAL
 };
 
 typedef struct rando_reward {
@@ -112,12 +114,15 @@ typedef struct rando_reward {
 /* ---- locations (logic.c) ---- */
 
 enum {
-    LOC_GIVE,    /* an NPC or a pickup: the game calls GiveItem(key), key its own item */
-    LOC_VENDOR,  /* the vendor's slot for item key, in the stock from level `level` on */
-    LOC_START,   /* the Bomb Glove the game gives at the first level start (key 0x0A) */
-    LOC_INFOBOT, /* an infobot: key its moby's mission slot on `level` */
-    LOC_GOLD,    /* a gold bolt: key its slot (0..3) on `level` */
-    LOC_FIXED,   /* never shuffled: an NPC's planet coordinates, the Persuader, the goal */
+    LOC_GIVE,      /* an NPC or a pickup: the game calls GiveItem(key), key its own item */
+    LOC_VENDOR,    /* the vendor's slot for item key, in the stock from level `level` on */
+    LOC_START,     /* the Bomb Glove the game gives at the first level start (key 0x0A) */
+    LOC_INFOBOT,   /* an infobot: key its moby's mission slot on `level` */
+    LOC_GOLD,      /* a gold bolt: key its slot (0..3) on `level` */
+    LOC_FIXED,     /* fixed story rewards (NPC coordinates: the NPC pool) and the goal */
+    LOC_SPECIAL,   /* Items-menu rewards with direct native ownership writes (its Archipelago
+                    * location ids carry this value) */
+    LOC_GOLD_CASE, /* RAC1 only, enabled separately from ordinary vendor slots */
 };
 
 /* The pools (the settings), each a set of locations whose rewards are shuffled together. */
@@ -126,7 +131,16 @@ enum {
 #define POOL_GOLD 0x04u    /* the gold bolts */
 #define POOL_PLANETS 0x08u /* the infobots */
 #define POOL_VENDOR 0x10u  /* the vendor's weapons */
-#define POOL_ALL 0x1Fu
+#define POOL_ALL 0x1Fu     /* legacy pool mask: keep seed format 2 unchanged */
+#define POOL_NPC_INFOBOTS 0x20u
+#define POOL_GOLD_WEAPONS 0x40u
+#define POOL_ITEMS 0x80u   /* RAC1 Items-menu entries */
+#define POOL_EXTENDED_ALL 0xFFu
+
+enum { SPECIAL_ZOOMERATOR, SPECIAL_RARITANIUM, SPECIAL_CODEBOT,
+       SPECIAL_PREMIUM_NANOTECH, SPECIAL_ULTRA_NANOTECH, SPECIAL_COUNT };
+#define SPECIAL_BIT(i) BIT(37 + (i))
+const char* rando_special_name(int item);
 
 /* A location's flags. */
 #define LOCF_COSTLY 0x01u /* bought for more bolts than a player has early on */
@@ -193,6 +207,7 @@ typedef struct rando_settings {
     uint8_t pools;      /* POOL_* */
     uint8_t keep_start; /* 1: the starting Bomb Glove stays where it is */
     uint8_t difficulty; /* DIFFICULTY_* */
+    uint8_t legacy_items; /* decoded format-2 seeds retain their original gadget pools */
 } rando_settings;
 
 #define RANDO_SEED_BITS 40

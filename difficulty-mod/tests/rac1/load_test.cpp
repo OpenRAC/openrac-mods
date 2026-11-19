@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
 // The difficulty mod's library as the port loads it in Ratchet & Clank, against a host table and
 // game memory made here (openrac_mod.h): it reports its id, refuses a game it is not for, an
 // unknown disc and an OpenRAC without its hook points, takes them with their signatures on both discs; with the sliders at
@@ -8,6 +10,7 @@
 // the scripted ones alone and keeps the slots the game needs free.
 //
 // Run with the library's path: difficulty_rac1_load_test <difficulty.dylib|.so|.dll>.
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -51,6 +54,8 @@ static void* symbol(void* lib, const char* name) {
         }                                                                                          \
     } while (0)
 
+using namespace difficulty::rac1;
+
 namespace {
 
 constexpr std::uint32_t kMemory = 0x00800000u;
@@ -63,8 +68,8 @@ std::map<std::string, std::string> g_strings;
 std::map<std::string, int> g_bools;
 std::string g_refuse_hook;  // a hook point this host lacks
 
-const dm_disc& disc() {
-    return std::strcmp(g_disc, "pal") == 0 ? k_dm_discs[0] : k_dm_discs[1];
+const Disc& disc() {
+    return std::strcmp(g_disc, "pal") == 0 ? kDiscs[0] : kDiscs[1];
 }
 
 template <class T>
@@ -83,33 +88,33 @@ void put(std::uint32_t at, T v) {
 
 std::vector<int> g_damage_calls;
 
-void game_take_damage(int32_t n) {
+void game_take_damage(std::int32_t n) {
     g_damage_calls.push_back(n);
 }
 
 std::uint32_t g_hit_returned;
 
-std::uint32_t game_get_hit(std::uint32_t, int32_t, int32_t) {
+std::uint32_t game_get_hit(std::uint32_t, std::int32_t, std::int32_t) {
     return g_hit_returned;
 }
 
 std::vector<std::pair<int, int>> g_ammo_calls;
 
-int32_t game_take_ammo(int32_t item, int32_t amount) {
+std::int32_t game_take_ammo(std::int32_t item, std::int32_t amount) {
     g_ammo_calls.push_back({item, amount});
     return 1;
 }
 
 int g_bolts_seen[2];
 
-void game_record_death(std::uint32_t m, int32_t, int32_t) {
-    g_bolts_seen[0] = get<int16_t>(m + 0xB4u);
-    g_bolts_seen[1] = get<int16_t>(m + 0xB6u);
+void game_record_death(std::uint32_t m, std::int32_t, std::int32_t) {
+    g_bolts_seen[0] = get<std::int16_t>(m + 0xB4u);
+    g_bolts_seen[1] = get<std::int16_t>(m + 0xB6u);
 }
 
 int g_loads;
 
-std::uint32_t game_load_gameplay(int32_t) {
+std::uint32_t game_load_gameplay(std::int32_t) {
     ++g_loads;
     return 0x00123450u;
 }
@@ -129,7 +134,7 @@ void game_update(std::uint32_t) {
 }
 
 void game_ball(std::uint32_t) {
-    put<int32_t>(disc().hero + 0x22A8u, get<int32_t>(disc().hero + 0x22A8u) + 1);
+    put<std::int32_t>(disc().hero + 0x22A8u, get<std::int32_t>(disc().hero + 0x22A8u) + 1);
 }
 
 // The game's functions the mod calls: a CreateMoby and DeleteMoby over the pool laid out below, a
@@ -140,7 +145,7 @@ std::uint32_t pool_word(int i) {
     return get<std::uint32_t>(disc().pool + 4u * static_cast<std::uint32_t>(i));
 }
 
-std::uint32_t game_create(int32_t cls) {
+std::uint32_t game_create(std::int32_t cls) {
     const std::uint32_t spare = pool_word(1), end = pool_word(2),
                         pvars = get<std::uint32_t>(disc().pool + 0x10u);
 
@@ -151,7 +156,7 @@ std::uint32_t game_create(int32_t cls) {
             }
 
             std::memset(g_mem + m, 0, 0x100);
-            put<int16_t>(m + 0xA6u, static_cast<int16_t>(cls));
+            put<std::int16_t>(m + 0xA6u, static_cast<std::int16_t>(cls));
             g_mem[m + 0x21] = 0xFF;
             g_mem[m + 0xA4] = 0xFF;
             put<std::uint32_t>(m + 0x78u, pvars + (m - spare) / 2u);
@@ -172,11 +177,11 @@ void game_build(std::uint32_t) {
     ++g_built;
 }
 
-float game_ground(std::uint32_t, int32_t, float) {
+float game_ground(std::uint32_t, std::int32_t, float) {
     return 0.5f;
 }
 
-int32_t game_line(std::uint32_t, std::uint32_t, int32_t, std::uint32_t, std::uint32_t) {
+std::int32_t game_line(std::uint32_t, std::uint32_t, std::int32_t, std::uint32_t, std::uint32_t) {
     return 0;
 }
 
@@ -201,7 +206,7 @@ int setting_bool(openrac_mod*, const char* key) {
     return g_bools.count(key) ? g_bools[key] : 0;
 }
 
-int64_t setting_int(openrac_mod*, const char* key) {
+std::int64_t setting_int(openrac_mod*, const char* key) {
     return std::strcmp(key, "chaos_minutes") == 0 ? 3 : 0;
 }
 
@@ -273,7 +278,7 @@ int host_on_pad(openrac_mod*, openrac_pad_fn, void*) {
 }
 
 void* host_function(const char* name) {
-    const dm_disc& d = disc();
+    const Disc& d = disc();
 
     if (std::strcmp(name, d.create_moby) == 0) {
         return (void*)game_create;
@@ -316,7 +321,7 @@ int loaded_level() {
 
 openrac_gaddr g_sp = 0x007F0000u;
 
-openrac_gaddr stack_push(uint32_t size, openrac_gaddr* saved) {
+openrac_gaddr stack_push(std::uint32_t size, openrac_gaddr* saved) {
     *saved = g_sp;
     g_sp -= (size + 15u) & ~15u;
     return g_sp;
@@ -331,6 +336,7 @@ std::vector<std::uint8_t> g_published;
 std::string g_published_text;
 int g_publishes;
 openrac_party_rules_fn g_rules_fn;
+void* g_rules_user = nullptr;
 
 int host_mod_count() {
     return 0;
@@ -344,7 +350,7 @@ int host_mod_setting(int, int, openrac_mod_setting*) {
     return OPENRAC_HOOK_UNKNOWN;
 }
 
-int host_rules_publish(openrac_mod*, const void* data, uint32_t size, const char* text) {
+int host_rules_publish(openrac_mod*, const void* data, std::uint32_t size, const char* text) {
     const auto* bytes = static_cast<const std::uint8_t*>(data);
     g_published.assign(bytes, bytes + size);
     g_published_text = text;
@@ -352,7 +358,7 @@ int host_rules_publish(openrac_mod*, const void* data, uint32_t size, const char
     return OPENRAC_HOOK_OK;
 }
 
-int host_rules_read(int, void*, uint32_t, uint32_t*) {
+int host_rules_read(int, void*, std::uint32_t, std::uint32_t*) {
     return -1;
 }
 
@@ -360,12 +366,13 @@ const char* host_rules_text(int) {
     return "";
 }
 
-int host_on_rules(openrac_mod*, openrac_party_rules_fn fn, void*) {
+int host_on_rules(openrac_mod*, openrac_party_rules_fn fn, void* user) {
     g_rules_fn = fn;
+    g_rules_user = user;
     return 0;
 }
 
-int host_rules_deliver(int, const void*, uint32_t) {
+int host_rules_deliver(int, const void*, std::uint32_t) {
     return OPENRAC_HOOK_UNKNOWN;
 }
 
@@ -446,22 +453,22 @@ constexpr std::uint32_t kBase = 0x00500000u;    // the moby array
 constexpr std::uint32_t kPlacedPvars = 0x00480000u;
 
 struct Placed {
-    int16_t cls;
+    std::int16_t cls;
     std::uint8_t group;
-    int32_t flags;
+    std::int32_t flags;
     std::uint32_t pvar_size;
 };
 
 // The gameplay file's moby links (+0x50): {pvar block, offset in it} and the moby index the field
 // holds after the load (-1: none).
 struct Link {
-    int32_t block;
+    std::int32_t block;
     std::uint32_t offset;
-    int32_t target;
+    std::int32_t target;
 };
 
 void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link>& links = {}) {
-    const dm_disc& d = disc();
+    const Disc& d = disc();
     std::memset(g_mem + kHeader, 0, 0x00180000u);
     const std::uint32_t n = static_cast<std::uint32_t>(placed.size());
     const std::uint32_t spare = kBase + n * 0x100u;
@@ -483,18 +490,18 @@ void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link
     for (std::uint32_t i = 0; i < n; ++i) {
         const std::uint32_t rec = section + 0x10u + i * 0x88u;
         put<std::uint32_t>(rec, 0x88u);
-        put<int32_t>(rec + 8u, placed[i].flags);
-        put<int32_t>(rec + 0x58u, static_cast<int32_t>(i));
+        put<std::int32_t>(rec + 8u, placed[i].flags);
+        put<std::int32_t>(rec + 0x58u, static_cast<std::int32_t>(i));
         put<std::uint32_t>(kHeader + 0x40000u + 8u * i, pv);
         put<std::uint32_t>(kHeader + 0x40000u + 8u * i + 4u, placed[i].pvar_size);
         const std::uint32_t m = kBase + i * 0x100u;
-        put<int16_t>(m + 0xA6u, placed[i].cls);
+        put<std::int16_t>(m + 0xA6u, placed[i].cls);
         g_mem[m + 0x21] = placed[i].group;
         put<std::uint32_t>(m + 0x78u, pv);
         put<float>(m + 0x10u, 10.0f + static_cast<float>(i) * 20.0f);
         put<float>(m + 0x14u, 5.0f);
         put<float>(m + 0x18u, 1.5f);
-        put<int16_t>(m + 0xB2u, static_cast<int16_t>(i));
+        put<std::int16_t>(m + 0xB2u, static_cast<std::int16_t>(i));
         g_mem[m + 0x20] = 0;
 
         for (std::uint32_t b = 0; b < placed[i].pvar_size; ++b) {
@@ -509,14 +516,14 @@ void lay_level(const std::vector<Placed>& placed, int n2, const std::vector<Link
         std::uint32_t q = kHeader + 0x60000u;
 
         for (const Link& l : links) {
-            put<int32_t>(q, l.block);
+            put<std::int32_t>(q, l.block);
             put<std::uint32_t>(q + 4u, l.offset);
             const std::uint32_t block = get<std::uint32_t>(kHeader + 0x40000u + 8u * l.block);
-            put<int32_t>(block + l.offset, l.target);
+            put<std::int32_t>(block + l.offset, l.target);
             q += 8u;
         }
 
-        put<int32_t>(q, -1);
+        put<std::int32_t>(q, -1);
     }
 
     g_mem[spare + 0x20] = 0xFF;
@@ -538,7 +545,7 @@ int free_slots() {
     return free;
 }
 
-using LoadFn = std::uint32_t (*)(int32_t);
+using LoadFn = std::uint32_t (*)(std::int32_t);
 
 }  // namespace
 
@@ -555,7 +562,7 @@ int main(int argc, char** argv) {
     query(&info);
     // The interface its manifest names (1.12), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.5.0") == 0);
+    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.5.1") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -571,12 +578,12 @@ int main(int argc, char** argv) {
     g_refuse_hook = "rac1.level.load_gameplay";
     CHECK(!load_with("pal") && g_failed.find("Level_LoadGameplay") != std::string::npos);
     // Without an enemy's update: loads, that class at its own speed.
-    g_refuse_hook = k_dm_update_hooks[0];
+    g_refuse_hook = kUpdateHooks[0];
     CHECK(load_with("ntsc") && g_failed.empty());
     g_refuse_hook.clear();
 
     // Both discs: the six hook points with their signatures, each enemy update and the orb's.
-    static const char* const k_points[][2] = {
+    static const char* const kPoints[][2] = {
         {"rac1.player.take_damage", "void(i32)"},
         {"rac1.combat.get_hit", "u32(u32,i32,i32)"},
         {"rac1.weapon.take_ammo", "i32(i32,i32)"},
@@ -585,13 +592,13 @@ int main(int argc, char** argv) {
         {"rac1.player.approach_speed", "void(f32,f32)"},
         {"rac1.moby.nanotech_ball.update", "void(u32)"},
     };
-    const std::size_t updates = sizeof k_dm_update_hooks / sizeof k_dm_update_hooks[0];
+    const std::size_t updates = sizeof kUpdateHooks / sizeof kUpdateHooks[0];
 
     for (const char* version : {"ntsc", "pal"}) {
         CHECK(load_with(version) && g_failed.empty());
         CHECK(g_hooks.size() == 7 + updates);
 
-        for (const auto& p : k_points) {
+        for (const auto& p : kPoints) {
             bool found = false;
 
             for (const Taken& t : g_hooks) {
@@ -602,14 +609,16 @@ int main(int argc, char** argv) {
         }
     }
 
-    const dm_disc& d = disc();
-    auto take_damage = (void (*)(int32_t))hook("rac1.player.take_damage");
-    auto get_hit = (std::uint32_t (*)(std::uint32_t, int32_t, int32_t))hook("rac1.combat.get_hit");
-    auto take_ammo = (int32_t (*)(int32_t, int32_t))hook("rac1.weapon.take_ammo");
-    auto record_death = (void (*)(std::uint32_t, int32_t, int32_t))hook("rac1.moby.record_death");
+    const Disc& d = disc();
+    auto take_damage = (void (*)(std::int32_t))hook("rac1.player.take_damage");
+    auto get_hit =
+        (std::uint32_t (*)(std::uint32_t, std::int32_t, std::int32_t))hook("rac1.combat.get_hit");
+    auto take_ammo = (std::int32_t (*)(std::int32_t, std::int32_t))hook("rac1.weapon.take_ammo");
+    auto record_death =
+        (void (*)(std::uint32_t, std::int32_t, std::int32_t))hook("rac1.moby.record_death");
     auto load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
     auto approach = (void (*)(float, float))hook("rac1.player.approach_speed");
-    auto update = (void (*)(std::uint32_t))hook(k_dm_update_hooks[0]);
+    auto update = (void (*)(std::uint32_t))hook(kUpdateHooks[0]);
     CHECK(
         take_damage && get_hit && take_ammo && record_death && load_gameplay && approach && update
     );
@@ -624,7 +633,7 @@ int main(int argc, char** argv) {
     take_damage(0);
     CHECK(g_damage_calls == (std::vector<int>{1, 1, 1, 1, 1, 0}));
     const std::uint32_t ring = d.hit_ring, enemy = 0x00600000u;
-    put<int16_t>(enemy + 0xA6u, 427);  // a Blarg trooper
+    put<std::int16_t>(enemy + 0xA6u, 427);  // a Blarg trooper
     put<float>(ring + 3u * 0x40u + 0x2Cu, 1.0f);
     g_hit_returned = ring + 3u * 0x40u;
     CHECK(
@@ -634,8 +643,8 @@ int main(int argc, char** argv) {
     CHECK(take_ammo(-1, 1) == 1 && take_ammo(5, 1) == 1);
     CHECK(g_ammo_calls == (std::vector<std::pair<int, int>>{{-1, 1}, {5, 1}}));
     const std::uint32_t crate = 0x00610000u;
-    put<int16_t>(crate + 0xB4u, 12);
-    put<int16_t>(crate + 0xB6u, 7);
+    put<std::int16_t>(crate + 0xB4u, 12);
+    put<std::int16_t>(crate + 0xB6u, 7);
     record_death(crate, 0x100, 0);
     CHECK(g_bolts_seen[0] == 12 && g_bolts_seen[1] == 7);
     put<float>(d.hero + 0x190u, 0.1f);
@@ -647,16 +656,16 @@ int main(int argc, char** argv) {
 
     // The items' table and the level: as they were.
     for (std::uint32_t id = 0; id < 37; ++id) {
-        put<int32_t>(d.item_table + id * 0x18u, 1000 + static_cast<int32_t>(id));
-        put<uint16_t>(d.item_table + id * 0x18u + 8u, id % 3 ? 4 : 0);
-        put<uint16_t>(d.item_table + id * 0x18u + 0xEu, id % 3 ? 40 : 0);
+        put<std::int32_t>(d.item_table + id * 0x18u, 1000 + static_cast<std::int32_t>(id));
+        put<std::uint16_t>(d.item_table + id * 0x18u + 8u, id % 3 ? 4 : 0);
+        put<std::uint16_t>(d.item_table + id * 0x18u + 0xEu, id % 3 ? 40 : 0);
     }
 
     lay_level(std::vector<Placed>(50, Placed{427, 0xFF, 0, 0x40}), 256);
     CHECK(load_gameplay(1) == 0x00123450u && g_created == 0 && g_deleted == 0);
     CHECK(
-        get<int32_t>(d.item_table + 2u * 0x18u) == 1002
-        && get<uint16_t>(d.item_table + 2u * 0x18u + 0xEu) == 40
+        get<std::int32_t>(d.item_table + 2u * 0x18u) == 1002
+        && get<std::uint16_t>(d.item_table + 2u * 0x18u + 0xEu) == 40
     );
 
     // ---- The sliders moved ----
@@ -671,13 +680,15 @@ int main(int argc, char** argv) {
          {"max_ammo", 0.5},
          {"ammo_cost", 3.0}};
     CHECK(load_with("pal"));
-    take_damage = (void (*)(int32_t))hook("rac1.player.take_damage");
-    get_hit = (std::uint32_t (*)(std::uint32_t, int32_t, int32_t))hook("rac1.combat.get_hit");
-    take_ammo = (int32_t (*)(int32_t, int32_t))hook("rac1.weapon.take_ammo");
-    record_death = (void (*)(std::uint32_t, int32_t, int32_t))hook("rac1.moby.record_death");
+    take_damage = (void (*)(std::int32_t))hook("rac1.player.take_damage");
+    get_hit =
+        (std::uint32_t (*)(std::uint32_t, std::int32_t, std::int32_t))hook("rac1.combat.get_hit");
+    take_ammo = (std::int32_t (*)(std::int32_t, std::int32_t))hook("rac1.weapon.take_ammo");
+    record_death =
+        (void (*)(std::uint32_t, std::int32_t, std::int32_t))hook("rac1.moby.record_death");
     load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
     approach = (void (*)(float, float))hook("rac1.player.approach_speed");
-    update = (void (*)(std::uint32_t))hook(k_dm_update_hooks[0]);
+    update = (void (*)(std::uint32_t))hook(kUpdateHooks[0]);
     // Two cells a hit.
     g_damage_calls.clear();
     take_damage(1);
@@ -696,26 +707,26 @@ int main(int argc, char** argv) {
     put<float>(g_hit_returned + 0x2Cu, 1.0f);
     get_hit(hero_moby, 1, 0);
     CHECK(get<float>(g_hit_returned + 0x2Cu) == 1.0f);
-    put<int16_t>(mine + 0xA6u, 74);
+    put<std::int16_t>(mine + 0xA6u, 74);
     get_hit(mine, 0x330000, 0);
     CHECK(get<float>(g_hit_returned + 0x2Cu) == 1.0f);
     // Two rounds a shot; the last round still fires; an empty gun gets the game's answer.
-    put<int32_t>(d.item_in_hand, 6);
-    put<int32_t>(d.ammo + 6u * 4u, 5);
+    put<std::int32_t>(d.item_in_hand, 6);
+    put<std::int32_t>(d.ammo + 6u * 4u, 5);
     g_ammo_calls.clear();
     take_ammo(-1, 1);
-    put<int32_t>(d.ammo + 6u * 4u, 1);
+    put<std::int32_t>(d.ammo + 6u * 4u, 1);
     take_ammo(-1, 1);
-    put<int32_t>(d.ammo + 6u * 4u, 0);
+    put<std::int32_t>(d.ammo + 6u * 4u, 0);
     take_ammo(-1, 1);
     CHECK(g_ammo_calls == (std::vector<std::pair<int, int>>{{-1, 2}, {-1, 1}, {-1, 1}}));
     // Twice the bolts.
-    put<int16_t>(crate + 0xB4u, 12);
-    put<int16_t>(crate + 0xB6u, 7);
+    put<std::int16_t>(crate + 0xB4u, 12);
+    put<std::int16_t>(crate + 0xB6u, 7);
     record_death(crate, 0x100, 0);
     CHECK(g_bolts_seen[0] == 24 && g_bolts_seen[1] == 14);
     // The game's own counts back after the call: a second death of it is scaled from them again.
-    CHECK(get<int16_t>(crate + 0xB4u) == 12 && get<int16_t>(crate + 0xB6u) == 7);
+    CHECK(get<std::int16_t>(crate + 0xB4u) == 12 && get<std::int16_t>(crate + 0xB6u) == 7);
     record_death(crate, 0x100, 0);
     CHECK(g_bolts_seen[0] == 24 && g_bolts_seen[1] == 14);
     // Ratchet toward one and a half times his target, as fast; the target put back.
@@ -733,14 +744,14 @@ int main(int argc, char** argv) {
     lay_level(std::vector<Placed>(10, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     load_gameplay(1);
-    CHECK(get<int32_t>(d.item_table + 2u * 0x18u) == 2004);
+    CHECK(get<std::int32_t>(d.item_table + 2u * 0x18u) == 2004);
     CHECK(
-        get<uint16_t>(d.item_table + 2u * 0x18u + 8u) == 12
-        && get<uint16_t>(d.item_table + 2u * 0x18u + 0xEu) == 20
+        get<std::uint16_t>(d.item_table + 2u * 0x18u + 8u) == 12
+        && get<std::uint16_t>(d.item_table + 2u * 0x18u + 0xEu) == 20
     );
     CHECK(
-        get<uint16_t>(d.item_table + 3u * 0x18u + 8u) == 0
-        && get<uint16_t>(d.item_table + 3u * 0x18u + 0xEu) == 0
+        get<std::uint16_t>(d.item_table + 3u * 0x18u + 8u) == 0
+        && get<std::uint16_t>(d.item_table + 3u * 0x18u + 0xEu) == 0
     );
 
     // ---- The enemy count: within the pool's budget ----
@@ -750,12 +761,12 @@ int main(int argc, char** argv) {
     // 120 troopers asking three copies each: 95 slots of 255 may go, 160 stay free.
     lay_level(std::vector<Placed>(120, Placed{427, 0xFF, 0, 0x60}), 256);
     load_gameplay(1);
-    CHECK(g_created == 255 - dm::k_pool_reserve && g_built == g_created);
-    CHECK(free_slots() >= dm::k_pool_reserve);
+    CHECK(g_created == 255 - difficulty::kPoolReserve && g_built == g_created);
+    CHECK(free_slots() >= difficulty::kPoolReserve);
     // A copy: the original's class and pvars (its own slot's), beside it, no save id, no bolts.
     const std::uint32_t spare = pool_word(1);
     CHECK(
-        get<int16_t>(spare + 0xA6u) == 427 && get<uint16_t>(spare + 0xB2u) == 0xFFFF
+        get<std::int16_t>(spare + 0xA6u) == 427 && get<std::uint16_t>(spare + 0xB2u) == 0xFFFF
         && g_mem[spare + 0xB1] == 0xFE
     );
     CHECK(get<std::uint32_t>(spare + 0x78u) == get<std::uint32_t>(d.pool + 0x10u));
@@ -768,7 +779,7 @@ int main(int argc, char** argv) {
     const std::uint32_t end_before = pool_word(2);
     load_gameplay(1);
     CHECK(g_created > 0 && pool_word(2) < end_before);
-    CHECK(free_slots() >= dm::k_pool_reserve);
+    CHECK(free_slots() >= difficulty::kPoolReserve);
     const std::uint32_t spare40 = pool_word(1);
     const std::uint32_t pv = get<std::uint32_t>(spare40 + 0x78u);
     CHECK(pv >= get<std::uint32_t>(d.pool + 0x10u) + (pool_word(2) - spare40) / 2u);
@@ -793,7 +804,7 @@ int main(int argc, char** argv) {
     );
     load_gameplay(1);
     CHECK(g_created == 3);
-    CHECK(get<int16_t>(pool_word(1) + 0xA6u) == 427);
+    CHECK(get<std::int16_t>(pool_word(1) + 0xA6u) == 427);
     {
         // All three copies are of the first: the same pvars.
         bool all_first = true;
@@ -850,13 +861,21 @@ int main(int argc, char** argv) {
     g_floats = {{"enemy_count", 2.0}, {"bolts", 3.0}};
     g_publishes = 0;
     CHECK(load_with("pal") && g_publishes == 1);
-    dm::PartyRules host;
-    CHECK(dm::decode_party_rules(g_published.data(), static_cast<std::uint32_t>(g_published.size()), host));
-    CHECK(host.seed != 0 && host.sliders[dm::ENEMY_COUNT] == 2.0 && host.sliders[dm::BOLTS] == 3.0 && !host.chaos);
+    difficulty::PartyRules host;
+    CHECK(
+        difficulty::decode_party_rules(
+            g_published.data(), static_cast<std::uint32_t>(g_published.size()), host
+        )
+    );
+    CHECK(
+        host.seed != 0 && host.sliders[difficulty::kEnemyCount] == 2.0
+        && host.sliders[difficulty::kBolts] == 3.0 && !host.chaos
+    );
     CHECK(g_published_text == "Enemy count x2\nBolts x3");
     const std::vector<std::uint8_t> host_bytes = g_published;
     load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
-    record_death = (void (*)(std::uint32_t, int32_t, int32_t))hook("rac1.moby.record_death");
+    record_death =
+        (void (*)(std::uint32_t, std::int32_t, std::int32_t))hook("rac1.moby.record_death");
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created > 0);
@@ -866,13 +885,14 @@ int main(int argc, char** argv) {
     g_floats.clear();
     CHECK(load_with("pal"));
     load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
-    record_death = (void (*)(std::uint32_t, int32_t, int32_t))hook("rac1.moby.record_death");
-    g_rules_fn(nullptr, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
+    record_death =
+        (void (*)(std::uint32_t, std::int32_t, std::int32_t))hook("rac1.moby.record_death");
+    g_rules_fn(g_rules_user, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
-    put<int16_t>(kBase + 0xB4u, 10);
-    put<int16_t>(kBase + 0xB6u, 0);
+    put<std::int16_t>(kBase + 0xB4u, 10);
+    put<std::int16_t>(kBase + 0xB6u, 0);
     record_death(kBase, 0, 0);
     CHECK(g_bolts_seen[0] == 30);
     // A respawn, the same load again: still none of its own.
@@ -880,24 +900,24 @@ int main(int argc, char** argv) {
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
     // Removals below 1 are the host's too.
-    dm::PartyRules fewer = host;
-    fewer.sliders[dm::ENEMY_COUNT] = 0.5;
-    const std::vector<std::uint8_t> bytes = dm::encode_party_rules(fewer);
-    g_rules_fn(nullptr, bytes.data(), static_cast<std::uint32_t>(bytes.size()));
+    difficulty::PartyRules fewer = host;
+    fewer.sliders[difficulty::kEnemyCount] = 0.5;
+    const std::vector<std::uint8_t> bytes = difficulty::encode_party_rules(fewer);
+    g_rules_fn(g_rules_user, bytes.data(), static_cast<std::uint32_t>(bytes.size()));
     lay_level(std::vector<Placed>(200, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
     // The host's event (Bolt rain: x3, to at most x8) holds here until the host ends it; one that
     // never ends (a host that took over passes the rules on as they were) is ended after twice an
     // event's length.
-    dm::PartyRules raining = host;
+    difficulty::PartyRules raining = host;
     raining.event = 6;
-    const std::vector<std::uint8_t> rain = dm::encode_party_rules(raining);
-    g_rules_fn(nullptr, rain.data(), static_cast<std::uint32_t>(rain.size()));
+    const std::vector<std::uint8_t> rain = difficulty::encode_party_rules(raining);
+    g_rules_fn(g_rules_user, rain.data(), static_cast<std::uint32_t>(rain.size()));
     put<float>(disc().tick + 12u, 0.05f);
     const auto bolts_now = [&] {
-        put<int16_t>(kBase + 0xB4u, 10);
-        put<int16_t>(kBase + 0xB6u, 0);
+        put<std::int16_t>(kBase + 0xB4u, 10);
+        put<std::int16_t>(kBase + 0xB6u, 0);
         record_death(kBase, 0, 0);
         return g_bolts_seen[0];
     };
@@ -910,25 +930,32 @@ int main(int argc, char** argv) {
         g_frame(g_frame_user);
     }
     CHECK(bolts_now() == 30);
-    g_rules_fn(nullptr, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
+    g_rules_fn(g_rules_user, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
     // The host left and this game took over (0 bytes, not null): it publishes the party's rules as
     // its own and makes the copies from the next level on.
     const int publishes = g_publishes;
     static const std::uint8_t kTakeOver = 0;
-    g_rules_fn(nullptr, &kTakeOver, 0);
+    g_rules_fn(g_rules_user, &kTakeOver, 0);
     CHECK(g_publishes == publishes + 1);
-    dm::PartyRules taken;
-    CHECK(dm::decode_party_rules(g_published.data(), static_cast<std::uint32_t>(g_published.size()), taken));
-    CHECK(taken.seed == host.seed && taken.sliders[dm::ENEMY_COUNT] == 2.0 && taken.sliders[dm::BOLTS] == 3.0);
+    difficulty::PartyRules taken;
+    CHECK(
+        difficulty::decode_party_rules(
+            g_published.data(), static_cast<std::uint32_t>(g_published.size()), taken
+        )
+    );
+    CHECK(
+        taken.seed == host.seed && taken.sliders[difficulty::kEnemyCount] == 2.0
+        && taken.sliders[difficulty::kBolts] == 3.0
+    );
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created > 0);
     // The party gone: this game's own settings again, here retail.
-    g_rules_fn(nullptr, nullptr, 0);
+    g_rules_fn(g_rules_user, nullptr, 0);
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
-    put<int16_t>(kBase + 0xB4u, 10);
+    put<std::int16_t>(kBase + 0xB4u, 10);
     record_death(kBase, 0, 0);
     CHECK(g_bolts_seen[0] == 10);
     // Mutation: without the host's rules, a member's own enemy count would make its copies.

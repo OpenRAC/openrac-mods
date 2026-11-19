@@ -28,18 +28,21 @@ and start a **new game**.
 |---|---|---|
 | Seed | blank | A **seed code** someone shared (`4ZRJ-6HB7-H6Q5`: it carries their settings, so you play their game), or any word (`ratchet`: the same word with the same settings gives the same game). Blank: a random seed, rolled the first time and kept for your next starts; to roll another, type any word, or delete `seed.txt` in the data folder below. Codes from before version 2 no longer work: their game cannot be made again |
 | New games only | on | The mod changes only a game started with it: a **new game** started with it on, or a save that game made (the save carries the seed's tag). A save from a game started without it, or with another seed, plays as the game does, so a playthrough is never changed partway; the log says why. Off: such a save is randomized from where it is |
+| Start in New Game+ | off | RAC1 only: enables New Game+ and the Goodies menu for this randomized save, without granting gold weapons or completed-save inventory. Selected separately from the seed code |
 | Logic | Standard | **Standard**: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. **Relaxed**: what you need also comes early in the game, and never behind a purchase you have to save up for. **Expert**: what you need may be behind any purchase, even the most expensive, and you get by with any weapon |
 | Shuffle gadgets | on | The Heli-Pack, the Swingshot, the Magneboots, the Grindboots, ... from NPCs and pickups |
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
 | Shuffle the vendor | on | Each weapon the vendor sells is a slot: buying it, at its price, gives what the seed put there |
+| Shuffle items | off | RAC1: shuffle every entry in the Items menu (listed below), independently of gadgets. Requires OpenRAC interface 1.16 or newer. |
 | Shuffle gold bolts | on | A gold bolt may be anywhere, and a gold bolt's place may hold a weapon or a useful extra, never something you need to go on. The pause screen counts the gold bolts you have found, wherever they were |
-| Shuffle infobots | on | The planets' coordinates the infobots give join the pool |
+| Shuffle gold-weapon cases | off | RAC1 only: shuffle ten gold upgrades and their cases; open the Novalis shop without New Game+ |
+| Shuffle infobots | on | Pickup Infobots and NPC coordinate rewards join the pool in new RAC1 seeds |
 | Show what the vendor gives | on | A line above the picture says what buying a weapon at the vendor gives you. Off: buying is a surprise |
 | Keep the starting gear | on | Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too |
 | Spoiler log | on | Writes where everything is, and a way through, to the data folder |
 
 The game's log names the seed's code at each start (`seed 4ZRJ-6HB7-H6Q5 (new), standard`): share
-that code. All the settings but the spoiler log and the vendor's line are in it.
+that code. All placement settings are in it. New Game+ mode, the spoiler log and the vendor's line are selected separately.
 
 **The data folder** holds `seed.txt` (the seed a blank setting rolled) and `spoiler-<code>.txt`, one
 per seed. It is the folder OpenRAC gives each mod, `mod-data/item-randomizer` beside the memory
@@ -58,7 +61,7 @@ the app's storage); a seed remembered there is carried over at the first start, 
 logs stay there. With an OpenRAC older than mod interface 1.11 the mod still uses that old folder.
 
 **Saves.** What you have found is the game's own record, and where everything is comes from the
-seed; the one thing of the mod's in a save is its **seed's tag**, set when a new game starts with
+seed. The mod also saves NPC-coordinate and gold-case checks through OpenRAC's mod save data. Its **seed's tag** is set when a new game starts with
 it (Ratchet & Clank: chunk 24 of the save, a word no code of the game reads or writes; Going
 Commando: chunk 5's `+0xC0`). So a save made with the mod **belongs to its seed**: load it with the
 same seed code and settings. With **New games only** on (the default) a save with no tag (a game
@@ -69,21 +72,29 @@ save of the game, with the items you had. Saves from before version 2 belong to 
 longer be made: start a new game. Ratchet & Clank saves from before 2.4.0 have no tag: they play as
 the game does unless New games only is off.
 
-**What stays as the game has it.** The OmniWrench; the Persuader on Pokitaru; the planets'
-coordinates the NPCs give (the mechanic on Novalis, Agnogg's ship, the bouncer, the commando and the
-deserter, Sam, the scientist, ...): only the infobots' are shuffled. Gold weapons, ammo and bolts are
-the game's.
+**What stays as the game has it.** The OmniWrench, ammo and ordinary bolts; the Persuader unless
+**Shuffle items** is on.
+
+**RAC1 reward presentation.** With the companion [OpenRAC changes](https://github.com/OpenRAC/OpenRAC/pull/540),
+vendors and world pickups show their actual reward's model, name and icon.
+The approved item profiles set each model's position, scale, rotation and spin center. Native
+vendor weapons retain their original presentation. Long vendor names fit the left display.
+NPC handoff models and story scenes remain the game's; purchase prompts name the reward.
+
+World pickups play the reward's Gold Bolt, weapon purchase demo, or Infobot animation where
+available. Infobots show the received coordinates' video and close before gameplay resumes.
+NPCs keep their original scenes. Leaving a vendor plays only the last purchased reward's animation.
+Gold-case purchases play their reward at the room center, then return the hero to the case.
+
+**Compatibility.** Existing seed codes retain their placement and fixed NPC coordinates.
+New codes also record whether NPC coordinates, gold cases and the Items menu are shuffled. Seed codes override
+launcher pool switches. The NPC pool requires OpenRAC mod-save support (interface 1.16);
+presentation requires interface 1.22. Older hosts continue to support
+legacy seeds and give an update message when a code needs the extra pools. RAC2 is unchanged.
+Live adjustment editors, catalogs, teleport helpers and screenshot tools are not included.
 
 **What you will notice.**
 
-- An NPC or pickup plays its own scene and then gives the seed's reward; a line of text names it,
-  once you are back in control. Its speech still talks of what it would have given.
-- A vendor slot shows the weapon it stands for, at that weapon's price, and a line above the picture
-  says what it gives. It goes into your inventory and quick select as if the game had sold it. Once
-  bought, the slot becomes ammo for the reward, if the reward takes ammo. Ammo for a weapon you own
-  whose slot is still for sale is sold too.
-- An infobot shows its own planet's video, and gives what the seed put there.
-- A gold bolt's place shows the gold bolt's scene, then the reward.
 - Orxon starts with Clank until his part is done, even if you already have the O2 Mask: two things
   are found there.
 - The Hydro-Pack does not go on your back when you get it: it comes on by itself in the water.
@@ -152,6 +163,7 @@ again for a few ticks, over the banner the game's own code shows next for the it
 | `Planet_Unlock` | `rac1.planet.unlock` | inside an infobot's update: the infobot's reward instead of its planet. Elsewhere (NPCs, the planet arrived at) the game's |
 | `Vendor_InitLevelStock` | `rac1.vendor.init_level_stock` | a level's start: gives back a reward a save lost, and takes the had states as they are; with the starting gear shuffled, the Bomb Glove is taken back out of the stock and the double-tap weapon when it was not the reward |
 | `Vendor_BuildItemList` | `rac1.vendor.build_item_list` | the stock as the menu sees it: slots not bought for sale, bought ones as their reward's ammo; the cursor stays on the list and the item is drawn again |
+| `Vendor_OpenMenu` | `rac1.vendor.open_menu` | refuses the Gadgetron PDA when no ammunition rows are available |
 | `Vendor_MenuUpdate` | `rac1.vendor.menu_update` | the line above the picture over a slot |
 | `Ammo_ChooseDrop` | `rac1.ammo.choose_drop` | a crate's drop chooses from the same stock as the menu |
 | `GoldBolts_CountCollected` | `rac1.gold_bolt.count_collected` | with gold bolts shuffled: the gold bolt rewards had |
@@ -219,6 +231,15 @@ mod with the reason ("this OpenRAC cannot hook Item_Give").
 Going Commando's PAL and v2.00 discs need an OpenRAC whose ports have the givers' hook points on
 those discs too (OpenRAC #390); an older one refuses the mod the same way. Going Commando also needs
 the equip hook point, `rac2.item.equip` (SDK 1.14.3).
+
+RAC1 vendor safety: empty filtered vendors cannot be opened, and buying the last row starts
+the normal menu closing transition. The Gadgetron PDA opens only when ammunition is available,
+including ammunition generated for owned weapons. These protections cover NTSC-U and PAL v2.00
+and require an OpenRAC build with `Vendor_OpenMenu` (OpenRAC/OpenRAC#422).
+
+When Bomb Glove is not owned, stale starting equipment and Circle/Triangle shortcuts fall back
+to the wrench. An owned Bomb Glove (kept starting gear or a reward) works normally. This guard
+also respects the save/seed gate.
 
 ## Going Commando
 
@@ -302,3 +323,114 @@ with New games only's new game, tagged save, untagged save and another seed's sa
   game, or a save carrying its seed's tag) and leaves any other save as the game has it, so an
   update or a mod switched on can no longer change a playthrough partway. Ratchet & Clank saves
   now carry the tag too. Built against the mod SDK 1.14.4.
+
+### Ratchet & Clank ammo drops
+
+Crates retain the game's assigned first-break ammo. When the game rolls a new
+ammo type, candidates include all owned weapons that support ammunition, even
+when absent from the planet's vendor stock. The original selector retains its
+low-ammo priority and Bomb Glove fallback. The real vendor stock is restored
+after the call. Saves outside this seed retain the game's original behavior.
+
+Gold-case shuffling retains the normal bolt price and four-Gold-Bolt cost, without requiring
+ownership of the original base weapon. Received gold weapons grant the base weapon and upgrade.
+Gold Bolt currency and progression stay outside cases. Case checks are saved separately from
+upgrade ownership through OpenRAC interface 1.16. Older seed codes retain their exact placement;
+new codes record this option. RAC2 is unchanged.
+This gameplay change does not replace reward models, icons or animations.
+
+Gold-case purchase prompts name the randomized reward and retain its bolt price plus
+four Gold Bolts, including the retail formatted-price dialogue path.
+
+### Saves during NPC rewards
+
+An NPC may autosave while the mod shows it a location's collection state instead of the
+item's ownership. Save preparation, autosaves and serialization use the real inventory;
+nested save calls keep that inventory until the outer save returns. The NPC then sees
+its collection state again. This prevents an original gadget being saved alongside a
+randomized reward; it does not repair a save already carrying that gadget.
+
+The release manifest lists hooks supported by the pinned SDK. Newer optional host hooks
+are probed at runtime: `rac1.gold_bolt.count_unspent`, `rac1.vendor.draw_icons`, `rac1.vendor.draw_details`, `rac1.ui.icon_frame`, `rac1.ui.sprite.draw`, `rac1.npc.try_dialog`, `rac1.pickup.start_scene`, `rac1.gold_case.start_demo`.
+
+### Kerwan door and return taxi
+
+Big Al's door opens when his location is purchased or the player owns the Heli-Pack.
+Owning the Heli-Pack does not collect Al's randomized reward. Helga's return taxi
+remains available after buying her reward while the player lacks the Swingshot;
+receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
+and real item ownership remain separate.
+
+### NPC reward interaction text
+
+The **Reward text** option (`reward_text`) defaults to on. Turn it off to keep
+the original NPC prompts. Reload the mod after changing this option. This is a
+local display preference and does not change the seed or rewards.
+
+Purchase prompts replace the vanilla reward name with the assigned item, e.g.
+`Buy Devastator for 1,000 bolts` instead of `Buy Heli-Pack for 1,000 bolts`.
+Other handoff prompts show `Reward: <item>`.
+The native prompt, button and price are retained; long reward names are shortened
+to fit the game's panel. This covers gadget sellers, quest/race reward NPCs and
+NPC coordinates. Fixed rewards retain their vanilla names; collected randomized locations
+stop advertising a reward. Archipelago shows the scouted item and its recipient,
+or `Unscouted reward` until the room provides the scout.
+
+This optional text feature needs OpenRAC interface **1.22** and its
+`rac1.npc.try_dialog` / `rac1.text.msg_string` hooks (engine PR
+[OpenRAC/OpenRAC#540](https://github.com/OpenRAC/OpenRAC/pull/540)). On older
+hosts the mod retains native prompts. This feature does not change item pools,
+rewards, prices, models or acquisition animations. In-game verification is pending.
+
+Before the first Rilgar race win, the race starter's prompt is
+`Triangle: Enter race - Reward: <reward>`. It returns to the native `Triangle: Enter race`
+after that race's saved check is collected, including after saving/reloading.
+Owning the reward from another source does not consume the race check. Randomized
+race rewards use the optional Items pool from [#202](https://github.com/OpenRAC/openrac-mods/pull/202);
+without that pool the prompt names the vanilla Platinum Zoomerator.
+
+The Rilgar bouncer uses `Triangle: Bribe Bouncer with 4,000 bolts to get <reward>`.
+The cost and insufficient-bolts message stay native; the name comes from his
+coordinate-reward location (or its vanilla reward when not shuffled).
+
+The reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools.
+
+### Reward display options
+
+**Reward models** (`reward_models`) and **Reward text** (`reward_text`) both
+default to on and can be selected independently. Models controls randomized
+pickup/vendor models, inventory icons and receiving animations. Text controls
+randomized NPC prompts and vendor item names. Turning either off restores its
+original game presentation. Reload the mod after changing these local display
+preferences; they do not change the seed, item pool, prices or rewards.
+
+### Release publishing
+
+A version requested in `.github/mod-releases/` (here **2.6.0**) is published by the
+first successful `master` build: `item-randomizer-v2.6.0` with the mod archives and
+checksums. The launcher index is then refreshed.
+PR builds do not publish releases. The request in `.github/mod-releases/`
+remains pending until a successful master build publishes its version tag.
+Later builds skip that tag; a newer version needs a new release request.
+
+### RAC1 Items menu pool
+
+`shuffle_items` (Shuffle items, off by default) controls all nine entries in the
+Items category: Hoverboard, Persuader, Bolt Grabber, Map-o-Matic, Platinum Zoomerator,
+Raritanium, CodeBot, Premium Nanotech and Ultra Nanotech. When off, all nine remain
+at their vanilla locations, even with Shuffle gadgets enabled. Weapons, gadgets,
+Gold Bolts and coordinate rewards keep their own options.
+
+The Rilgar race, Hoven Foreman, Drek's Fleet CodeBot, both Orxon Nanotech purchases
+and Pokitaru Persuader trade can now give any shuffled reward. Retail costs and
+Raritanium consumption remain in place. Ultra Nanotech grants eight maximum health;
+receiving Premium afterward never lowers it. The solver requires the actual
+Zoomerator for Skid's agent, Raritanium for the trade and CodeBot for Quartu vault access
+(conservatively required for both Quartu Gold Bolts).
+
+Collection checks are stored through OpenRAC interface 1.16's save-scoped mod data,
+separately from inventory, in the same record as the gold-case and NPC checks. Keep the `.moddata` sidecar with the game save. New RAC1
+seed codes encode the Items switch and its separate category (formats 6 to 13, with the
+NPC-coordinate and gold-case switches); older codes (formats 2 to 5) retain their previous
+pools and placement. RAC2 keeps its
+existing format and has no Items option.

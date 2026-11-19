@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The OpenRAC server's wire format (protocol.hpp), written as the server's OutputBuffer writes it
- * and read as its InputBuffer reads it: big-endian integers, strings behind a signed 16-bit length
- * that is -1 for an empty one, and a frame's length counting what follows it (Netty's
- * LengthFieldPrepender and LengthFieldBasedFrameDecoder with a 4-byte field, no adjustment).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The OpenRAC server's wire format (protocol.hpp), written as the server's OutputBuffer writes it
+// and read as its InputBuffer reads it: big-endian integers, strings behind a signed 16-bit length
+// that is -1 for an empty one, and a frame's length counting what follows it (Netty's
+// LengthFieldPrepender and LengthFieldBasedFrameDecoder with a 4-byte field, no adjustment).
+
 #include "protocol.hpp"
 
 #include <algorithm>
@@ -13,13 +13,13 @@
 namespace mp {
 namespace {
 
-/* The 16-bit length an empty string is written with (OutputBuffer.writeString). */
+// The 16-bit length an empty string is written with (OutputBuffer.writeString).
 constexpr std::uint16_t kEmptyString = 0xFFFFu;
 
-/* The longest string a 16-bit signed length holds. */
+// The longest string a 16-bit signed length holds.
 constexpr std::size_t kMaxStringBytes = 0x7FFF;
 
-/* A PARTY body's start: the id and the opcode. */
+// A PARTY body's start: the id and the opcode.
 Writer party(PartyOp op) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(PacketId::kParty)).u8(static_cast<std::uint8_t>(op));
@@ -176,9 +176,10 @@ void FrameReader::reset() {
 }
 
 bool valid_key(const std::string& key) {
-    return !key.empty() && key.size() <= kMaxKeyLength && std::all_of(key.begin(), key.end(), [](char c) {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-    });
+    return !key.empty() && key.size() <= kMaxKeyLength
+           && std::all_of(key.begin(), key.end(), [](char c) {
+                  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+              });
 }
 
 Bytes hello(const std::string& version, const std::string& name, std::uint8_t features) {
@@ -194,8 +195,9 @@ Bytes hello(const std::string& version, const std::string& name, std::uint8_t fe
 
 namespace {
 
-/* A request's family at its end: none is no bytes at all, as from a client before families. */
+// A request's family at its end: none is no bytes at all, as from a client before families.
 Bytes with_family(Writer w, const std::string& family) {
+    // Only a family that is set goes on the wire.
     if (!family.empty()) {
         w.str(family);
     }
@@ -233,6 +235,7 @@ Bytes party_successors(const std::vector<std::int32_t>& members) {
     Writer w = party(PartyOp::kHostChanged);
     w.u8(0).u8(static_cast<std::uint8_t>(members.size()));
 
+    // The first choice first, as the server reads them.
     for (const std::int32_t id : members) {
         w.i32(id);
     }
@@ -346,6 +349,7 @@ bool decode(const Bytes& body, Message& out) {
                 out.epoch = r.i32();
                 const std::uint8_t away = r.u8();
 
+                // One id for each member whose connection dropped.
                 for (std::uint8_t i = 0; i < away && r.ok(); ++i) {
                     out.away.push_back(r.i32());
                 }
@@ -446,7 +450,9 @@ Bytes hello_reply(std::int32_t session) {
     return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).i32(session).bytes());
 }
 
-Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features, std::int64_t resume_token) {
+Bytes udp_offer(
+    std::int64_t token, std::int32_t port, std::uint8_t features, std::int64_t resume_token
+) {
     return frame(
         Writer()
             .u8(static_cast<std::uint8_t>(PacketId::kUdp))
@@ -480,6 +486,7 @@ Bytes party_info(
     if (epoch != 0 || !away.empty()) {
         w.i32(epoch).u8(static_cast<std::uint8_t>(away.size()));
 
+        // One id for each member whose connection dropped.
         for (const std::int32_t id : away) {
             w.i32(id);
         }
@@ -542,6 +549,7 @@ Bytes error_reply(ErrorReason reason, const std::string& family) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(PacketId::kError)).u8(static_cast<std::uint8_t>(reason));
 
+    // Only this refusal names the party's family.
     if (reason == ErrorReason::kOtherGame) {
         w.str(family);
     }
@@ -636,6 +644,7 @@ Request decode_request(const Bytes& body) {
                 default:
                     break;
             }
+
             break;
         default:
             // ERROR and UDP are the server's, and any other id is unknown.
@@ -681,6 +690,7 @@ std::size_t utf16_length(const std::string& text) {
     for (const char c : text) {
         const auto b = static_cast<unsigned char>(c);
 
+        // A continuation byte (one starting with bits 10) belongs to a code point already counted.
         if ((b & 0xC0u) != 0x80u) {
             units += b >= 0xF0u ? 2 : 1;
         }

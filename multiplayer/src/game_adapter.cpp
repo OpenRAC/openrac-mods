@@ -1,41 +1,57 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's game (game_adapter.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's game (game_adapter.hpp).
+
 #include "game_adapter.hpp"
-#include "mod_state.hpp"
-#include "save_check.hpp"
 
 #include <algorithm>
 #include <cstdint>
 #include <ctime>
 
+#include "mod_state.hpp"
+#include "save_check.hpp"
+
 namespace mpmod {
 
-/* Where each disc keeps the progress a party shares (progress.hpp; rac1-decomp's names, the US
- * addresses from OpenRAC's versionmap): item_available (40 bytes, a byte an item), the gold bolts
- * (gold_bolts_collected, 4 a level), level_available (the planets, 20), and the game's own GiveItem
- * (grant_inventory_item) and UnlockPlanet (unlock_planet). For a quiet give: the planets in order
- * of unlocking (gGalaxyList, a word each) and GiveItem's banner text per item, then per item already
- * had (item_pickup_banner_ids, 37 + 37 words in level 0's program, -1 for none). */
+// Where each disc keeps the progress a party shares (progress.hpp; rac1-decomp's names, the US
+// addresses from OpenRAC's versionmap): item_available (40 bytes, a byte an item), the gold bolts
+// (gold_bolts_collected, 4 a level), level_available (the planets, 20), and the game's own GiveItem
+// (grant_inventory_item) and UnlockPlanet (unlock_planet). For a quiet give: the planets in order
+// of unlocking (gGalaxyList, a word each) and GiveItem's banner text per item, then per item
+// already had (item_pickup_banner_ids, 37 + 37 words in level 0's program, -1 for none).
 struct ProgressDisc {
-    const char* version;
-    openrac::gaddr items;
-    openrac::gaddr gold;
-    openrac::gaddr planets;
-    const char* give_item;
-    const char* unlock_planet;
-    openrac::gaddr planet_order;
-    openrac::gaddr item_banners;
+    const char* version;          // The disc's version string.
+    openrac::gaddr items;         // The item_available table.
+    openrac::gaddr gold;          // The gold bolts.
+    openrac::gaddr planets;       // The level_available table.
+    const char* give_item;        // The symbol of the game's GiveItem.
+    const char* unlock_planet;    // The symbol of the game's UnlockPlanet.
+    openrac::gaddr planet_order;  // The order of unlocking (gGalaxyList).
+    openrac::gaddr item_banners;  // GiveItem's banner words.
 };
 
+// One row for each disc version the progress places are known for.
 constexpr ProgressDisc kProgressDiscs[] = {
-    {"pal", 0x0013D5C8u, 0x0014BFC0u, 0x0013DE48u, "func_L00_002618D8", "func_L00_00261848", 0x0013D618u, 0x001B06C0u},
-    {"ntsc", 0x0013D4C0u, 0x0014BEC0u, 0x0013DD40u, "FUN_L00_00260860", "FUN_L00_002607d0", 0x0013D510u, 0x001B0340u},
+    {"pal",
+     0x0013D5C8u,
+     0x0014BFC0u,
+     0x0013DE48u,
+     "func_L00_002618D8",
+     "func_L00_00261848",
+     0x0013D618u,
+     0x001B06C0u},
+    {"ntsc",
+     0x0013D4C0u,
+     0x0014BEC0u,
+     0x0013DD40u,
+     "FUN_L00_00260860",
+     "FUN_L00_002607d0",
+     0x0013D510u,
+     0x001B0340u},
 };
 
-/* GiveItem's table: this many items, then as many again for an item already had. */
+// GiveItem's table: this many items, then as many again for an item already had.
 constexpr int kBannerItems = 37;
 
 mp::GameStatus ModGame::status() {
@@ -46,6 +62,7 @@ mp::GameStatus ModGame::status() {
 bool ModGame::save_usable(const mp::Bytes& save) {
     const mp::SaveFault fault = mp::check_save(save);
 
+    // A save the check refuses is logged with the reason.
     if (fault != mp::SaveFault::kNone) {
         mod_.warn(std::string("multiplayer: a save was refused: ") + mp::save_fault_name(fault));
     }
@@ -53,38 +70,63 @@ bool ModGame::save_usable(const mp::Bytes& save) {
     return fault == mp::SaveFault::kNone;
 }
 
-std::uint32_t ModGame::sim_digest(int level) { return mod_.sim_digest(level); }
+std::uint32_t ModGame::sim_digest(int level) {
+    return mod_.sim_digest(level);
+}
 
 bool ModGame::start(int level, const mp::Bytes& save) {
     return mod_.play_start(level, save) == OPENRAC_HOOK_OK;
 }
 
-bool ModGame::has_card_filter() { return mod_.has_save_filter() && mod_.has_card_notes(); }
+bool ModGame::has_card_filter() {
+    return mod_.has_save_filter() && mod_.has_card_notes();
+}
 
 bool ModGame::card_filter(int mode) {
+    // Only the redirect mode names the co-op's folder.
     return mod_.card_filter(mode, mode == mp::kCardRedirect ? mp::kCoFolder : "");
 }
 
-void ModGame::card_slot(int slot) { mod_.card_slot_hint(slot); }
+void ModGame::card_slot(int slot) {
+    mod_.card_slot_hint(slot);
+}
 
-bool ModGame::card_write(int slot, const mp::Bytes& save) { return mod_.coop_save_write(slot, save); }
+bool ModGame::card_write(int slot, const mp::Bytes& save) {
+    return mod_.coop_save_write(slot, save);
+}
 
-mp::Bytes ModGame::card_read(int slot) { return mod_.save_read2(mp::kCoFolder, slot); }
+mp::Bytes ModGame::card_read(int slot) {
+    return mod_.save_read2(mp::kCoFolder, slot);
+}
 
-std::uint32_t ModGame::card_saves() { return mod_.card_saves(); }
+std::uint32_t ModGame::card_saves() {
+    return mod_.card_saves();
+}
 
-std::string ModGame::card_note(int slot) { return mod_.card_note_read(mp::kCoFolder, slot); }
+std::string ModGame::card_note(int slot) {
+    return mod_.card_note_read(mp::kCoFolder, slot);
+}
 
-void ModGame::card_note_write(int slot, const std::string& text) { mod_.card_note_write(slot, text); }
+void ModGame::card_note_write(int slot, const std::string& text) {
+    mod_.card_note_write(slot, text);
+}
 
-std::int64_t ModGame::wall_seconds() { return static_cast<std::int64_t>(std::time(nullptr)); }
+std::int64_t ModGame::wall_seconds() {
+    return static_cast<std::int64_t>(std::time(nullptr));
+}
 
 #ifdef MULTIPLAYER_BOT
 bool ModGame::game_save() {
     // memcard_Save(0, -1), as a gold bolt's pickup calls it.
     const ProgressDisc* disc = progress_disc();
-    const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_0020BFC8" : "FUN_0020b178";
-    const auto save = name != nullptr ? mod_.function<std::int32_t (*)(std::int32_t, std::int32_t)>(name) : nullptr;
+    // The two discs name this function differently; the PAL one is the disc with the PAL gold
+    // address.
+    const char* name = disc == nullptr             ? nullptr
+                       : disc->gold == 0x0014BFC0u ? "func_0020BFC8"
+                                                   : "FUN_0020b178";
+    const auto save = name != nullptr
+                          ? mod_.function<std::int32_t (*)(std::int32_t, std::int32_t)>(name)
+                          : nullptr;
 
     if (save == nullptr) {
         return false;
@@ -95,15 +137,22 @@ bool ModGame::game_save() {
 }
 #endif
 
-bool ModGame::travel(int level) { return mod_.play_travel(level) == OPENRAC_HOOK_OK; }
+bool ModGame::travel(int level) {
+    return mod_.play_travel(level) == OPENRAC_HOOK_OK;
+}
 
 bool ModGame::ship_takeoff(int level) {
     // The game's travel takes a level of its own only: another number reads past its tables.
     if (level < 0 || level >= mod_.play_status().levels) {
         return false;
     }
+
     const ProgressDisc* disc = progress_disc();
-    const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_L00_00290030" : "FUN_L00_0028ed58";
+    // The two discs name this function differently; the PAL one is the disc with the PAL gold
+    // address.
+    const char* name = disc == nullptr             ? nullptr
+                       : disc->gold == 0x0014BFC0u ? "func_L00_00290030"
+                                                   : "FUN_L00_0028ed58";
     const auto travel_to = name != nullptr ? mod_.function<void (*)(std::int32_t)>(name) : nullptr;
 
     if (travel_to == nullptr) {
@@ -114,7 +163,9 @@ bool ModGame::ship_takeoff(int level) {
     return true;
 }
 
-mp::Bytes ModGame::capture() { return mod_.save_capture(); }
+mp::Bytes ModGame::capture() {
+    return mod_.save_capture();
+}
 
 bool ModGame::hero(mp::Pose& out) {
     openrac_pose p{};
@@ -134,13 +185,16 @@ bool ModGame::hero(mp::Pose& out) {
     return true;
 }
 
-int ModGame::figure_create() { return mod_.figure_create(); }
+int ModGame::figure_create() {
+    return mod_.figure_create();
+}
 
 bool ModGame::figure_pose(int id, const mp::Pose& pose) {
     if (!mod_.figure_pose(id, to_sdk(pose))) {
         return false;
     }
 
+    // Held pieces go only to a port that has them.
     if (mod_.has_held()) {
         mod_.figure_held(id, held_to_sdk(pose));
     }
@@ -151,6 +205,7 @@ bool ModGame::figure_pose(int id, const mp::Pose& pose) {
 std::vector<mp::Shot> ModGame::hero_shots() {
     std::vector<mp::Shot> out;
 
+    // A port with the second shot call reports flags, a target and the extra vectors too.
     if (mod_.has_shots2()) {
         for (const openrac_shot2& s : mod_.hero_shots2()) {
             mp::Shot shot;
@@ -181,6 +236,7 @@ std::vector<mp::Shot> ModGame::hero_shots() {
 }
 
 bool ModGame::figure_shot(int id, const mp::Shot& shot) {
+    // A port with the second shot call takes those fields too.
     if (mod_.has_shots2()) {
         openrac_shot2 s{};
         s.size = sizeof s;
@@ -204,7 +260,9 @@ bool ModGame::figure_shot(int id, const mp::Shot& shot) {
     return mod_.figure_shot(id, s);
 }
 
-void ModGame::figure_remove(int id) { mod_.figure_remove(id); }
+void ModGame::figure_remove(int id) {
+    mod_.figure_remove(id);
+}
 
 std::vector<mp::MobyState> ModGame::mobys() {
     std::vector<mp::MobyState> out;
@@ -227,6 +285,7 @@ std::vector<mp::MobyState> ModGame::mobys() {
         out.push_back(s);
     };
 
+    // A port with the second moby list reports each moby's mission; the first list has none, so -1.
     if (mod_.has_moby_list2()) {
         for (const openrac_moby2& m : mod_.moby_list2()) {
             add(m, m.mission);
@@ -241,15 +300,21 @@ std::vector<mp::MobyState> ModGame::mobys() {
 }
 
 // --- WP-DEATH ---
-bool ModGame::can_revive() { return mod_.has_hero_place(); }
+bool ModGame::can_revive() {
+    return mod_.has_hero_place();
+}
 
 void ModGame::hold_death(bool on) {
     mod_.hero_revive(nullptr, on ? OPENRAC_REVIVE_HOLD : OPENRAC_REVIVE_LET_GO);
 }
 
-bool ModGame::revive() { return mod_.hero_revive(); }
+bool ModGame::revive() {
+    return mod_.hero_revive();
+}
 
-bool ModGame::respawn() { return mod_.hero_revive(nullptr, OPENRAC_REVIVE_RESPAWN); }
+bool ModGame::respawn() {
+    return mod_.hero_revive(nullptr, OPENRAC_REVIVE_RESPAWN);
+}
 
 bool ModGame::mission_row(int level, std::uint8_t* out) {
     static_assert(mp::kMissions == OPENRAC_MISSION_STATE_SIZE);
@@ -262,6 +327,7 @@ bool ModGame::mission_row(int level, std::uint8_t* out) {
     std::copy(row, row + OPENRAC_MISSION_STATE_SIZE, out);
     return true;
 }
+
 // --- end WP-DEATH ---
 
 bool ModGame::mission_clear(int level, const std::uint8_t* flags) {
@@ -276,15 +342,25 @@ bool ModGame::mission_set(int level, const std::uint8_t* flags) {
     return mod_.mission_state_write(level, row);
 }
 
-int ModGame::moby_slot(int key) { return mod_.moby_slot(key); }
+int ModGame::moby_slot(int key) {
+    return mod_.moby_slot(key);
+}
 
-bool ModGame::moby_drive(int slot, bool on) { return mod_.moby_drive(slot, on); }
+bool ModGame::moby_drive(int slot, bool on) {
+    return mod_.moby_drive(slot, on);
+}
 
-bool ModGame::moby_pose(int slot, const mp::Pose& pose) { return mod_.moby_pose(slot, moby_of(pose)); }
+bool ModGame::moby_pose(int slot, const mp::Pose& pose) {
+    return mod_.moby_pose(slot, moby_of(pose));
+}
 
-bool ModGame::moby_kill(int slot) { return mod_.moby_kill(slot); }
+bool ModGame::moby_kill(int slot) {
+    return mod_.moby_kill(slot);
+}
 
-bool ModGame::moby_hide(int slot, bool hidden) { return mod_.moby_hide(slot, hidden); }
+bool ModGame::moby_hide(int slot, bool hidden) {
+    return mod_.moby_hide(slot, hidden);
+}
 
 bool ModGame::moby_deletion(int slot, int& by, int& by_class, bool& by_mod) {
     openrac_moby_deletion d{};
@@ -340,13 +416,17 @@ int ModGame::moby_spawn(int oclass, const mp::Pose& pose) {
     return mod_.moby_spawn(oclass, moby_of(pose));
 }
 
-int ModGame::figure_slot(int id) { return mod_.figure_slot(id); }
+int ModGame::figure_slot(int id) {
+    return mod_.figure_slot(id);
+}
 
 bool ModGame::stand_in(const float* position, int figure) {
     return mod_.hero_stand_in(position, figure);
 }
 
-bool ModGame::can_hold() { return mod_.has_hero_hold(); }
+bool ModGame::can_hold() {
+    return mod_.has_hero_hold();
+}
 
 bool ModGame::stand_in_as(const mp::StandIn& as, int figure) {
     openrac_stand_in in{};
@@ -372,14 +452,18 @@ bool ModGame::stand_in_read(mp::StandIn& out) {
     return true;
 }
 
-bool ModGame::grab(int animation, std::uint32_t flags) { return mod_.hero_grab(animation, flags); }
+bool ModGame::grab(int animation, std::uint32_t flags) {
+    return mod_.hero_grab(animation, flags);
+}
 
 bool ModGame::hold_at(const float* position, float yaw) {
     const float at[3] = {position[0], position[1], position[2]};
     return mod_.hero_hold_at(at, yaw);
 }
 
-bool ModGame::let_go() { return mod_.hero_release(); }
+bool ModGame::let_go() {
+    return mod_.hero_release();
+}
 
 bool ModGame::hit(const mp::Hit& h) {
     openrac_hit out{};
@@ -392,9 +476,13 @@ bool ModGame::hit(const mp::Hit& h) {
     return mod_.moby_hit(out);
 }
 
-void ModGame::eyes(const std::vector<float>& xyz) { mod_.play_eyes(xyz); }
+void ModGame::eyes(const std::vector<float>& xyz) {
+    mod_.play_eyes(xyz);
+}
 
-int ModGame::bolts(int add) { return mod_.bolts(add); }
+int ModGame::bolts(int add) {
+    return mod_.bolts(add);
+}
 
 bool ModGame::shared_read(int tag, mp::Bytes& out) {
     return mp::in_level(mod_.play_status().phase) && mod_.shared_read(tag, out);
@@ -407,6 +495,7 @@ bool ModGame::shared_give(int tag, const mp::Bytes& data) {
 bool ModGame::progress(mp::ProgressBits& out) {
     const ProgressDisc* disc = progress_disc();
 
+    // A disc this mod does not know, or a game outside a level, has no progress to read.
     if (disc == nullptr || !mp::in_level(mod_.play_status().phase)) {
         return false;
     }
@@ -420,7 +509,9 @@ bool ModGame::progress(mp::ProgressBits& out) {
 
 bool ModGame::give_item(int id) {
     const ProgressDisc* disc = progress_disc();
-    const auto give = disc != nullptr ? mod_.function<void (*)(std::int32_t, std::int32_t)>(disc->give_item) : nullptr;
+    const auto give = disc != nullptr
+                          ? mod_.function<void (*)(std::int32_t, std::int32_t)>(disc->give_item)
+                          : nullptr;
 
     if (give == nullptr) {
         return false;
@@ -436,6 +527,7 @@ bool ModGame::give_item(int id) {
     const std::int32_t first_text = quiet ? memory.read<std::int32_t>(first) : -1;
     const std::int32_t again_text = quiet ? memory.read<std::int32_t>(again) : -1;
 
+    // Blank this item's banner words for the call.
     if (quiet) {
         memory.write<std::int32_t>(first, -1);
         memory.write<std::int32_t>(again, -1);
@@ -446,6 +538,7 @@ bool ModGame::give_item(int id) {
     give(id, 0);
     mod_.party_replay(false);
 
+    // Put the banner words back as they were.
     if (quiet) {
         memory.write<std::int32_t>(first, first_text);
         memory.write<std::int32_t>(again, again_text);
@@ -457,27 +550,34 @@ bool ModGame::give_item(int id) {
 bool ModGame::give_gold_bolt(int index) {
     const ProgressDisc* disc = progress_disc();
 
+    // A disc this mod does not know, or a bolt past the gold bolts, is refused.
     if (disc == nullptr || index < 0 || index >= static_cast<int>(mp::kProgressGoldBolts)) {
         return false;
     }
 
-    mod_.memory().write<std::uint8_t>(mod_.relocate(disc->gold) + static_cast<openrac::gaddr>(index), 1);
+    mod_.memory()
+        .write<std::uint8_t>(mod_.relocate(disc->gold) + static_cast<openrac::gaddr>(index), 1);
     return true;
 }
 
 bool ModGame::unlock_planet(int planet) {
     const ProgressDisc* disc = progress_disc();
 
-    // A joiner's: UnlockPlanet less its message, the planet marked and next in the order of unlocking.
-    if (quiet_ && disc != nullptr && planet >= 0 && planet < static_cast<int>(mp::kProgressPlanets)) {
+    // A joiner's: UnlockPlanet less its message, the planet marked and next in the order of
+    // unlocking.
+    if (quiet_ && disc != nullptr && planet >= 0
+        && planet < static_cast<int>(mp::kProgressPlanets)) {
         const openrac::Memory memory = mod_.memory();
         const openrac::gaddr planets = mod_.relocate(disc->planets);
         int count = 0;
 
+        // The planets already unlocked are counted: the new one goes next in the order.
         for (int i = 0; i < static_cast<int>(mp::kProgressPlanets); ++i) {
-            count += memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(i)) != 0 ? 1 : 0;
+            count +=
+                memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(i)) != 0 ? 1 : 0;
         }
 
+        // A planet already marked keeps its place in the order.
         if (memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(planet)) == 0) {
             memory.write<std::uint8_t>(planets + static_cast<openrac::gaddr>(planet), 1);
             memory.write<std::int32_t>(
@@ -488,7 +588,8 @@ bool ModGame::unlock_planet(int planet) {
         return true;
     }
 
-    const auto unlock = disc != nullptr ? mod_.function<void (*)(std::int32_t)>(disc->unlock_planet) : nullptr;
+    const auto unlock =
+        disc != nullptr ? mod_.function<void (*)(std::int32_t)>(disc->unlock_planet) : nullptr;
 
     if (unlock == nullptr) {
         return false;
@@ -501,14 +602,20 @@ bool ModGame::unlock_planet(int planet) {
 }
 
 // --- WP-JOIN ---
-bool ModGame::can_place() { return mod_.has_hero_place(); }
+bool ModGame::can_place() {
+    return mod_.has_hero_place();
+}
 
 bool ModGame::place(const float* position, float yaw, bool beside) {
     const float at[3] = {position[0], position[1], position[2]};
-    return mod_.hero_place(at, yaw, OPENRAC_PLACE_INVULNERABLE | (beside ? OPENRAC_PLACE_BESIDE : 0u));
+    return mod_
+        .hero_place(at, yaw, OPENRAC_PLACE_INVULNERABLE | (beside ? OPENRAC_PLACE_BESIDE : 0u));
 }
 
-std::string ModGame::level_name(int level) { return mod_.level_name(level); }
+std::string ModGame::level_name(int level) {
+    return mod_.level_name(level);
+}
+
 // --- end WP-JOIN ---
 
 mp::ModList ModGame::mod_list() {
@@ -533,6 +640,7 @@ mp::ModList ModGame::mod_list() {
     openrac_packs_info packs{};
     packs.size = sizeof packs;
 
+    // A port without the packs call lists none.
     if (mod_.packs_info(packs)) {
         for (int i = 0; i < packs.count; ++i) {
             mp::PackInfo p;
@@ -543,7 +651,9 @@ mp::ModList ModGame::mod_list() {
         }
     }
 
+    // Every other mod of this run goes in the list.
     for (const openrac::ModEntry& e : mod_.mods()) {
+        // Multiplayer is the build's own, not a mod to compare.
         if (e.id == "multiplayer") {
             continue;
         }
@@ -567,10 +677,12 @@ mp::ModList ModGame::mod_list() {
 std::vector<mp::PartyRules> ModGame::party_rules() {
     std::vector<mp::PartyRules> out;
 
+    // Each mod that may publish rules, by id.
     for (const auto& [id, index] : indices_) {
         mp::Bytes data;
         std::uint32_t version = 0;
 
+        // Only a mod with rules to publish is listed.
         if (mod_.party_rules_read(index, data, version)) {
             out.push_back({id, std::move(data), mod_.party_rules_text(index), version});
         }
@@ -601,22 +713,29 @@ void ModGame::overlay_pause(bool on) {
     }
 }
 
-void ModGame::skip() { mod_.play_skip(); }
+void ModGame::skip() {
+    mod_.play_skip();
+}
 
-bool ModGame::play_scene(int scene) { return mod_.play_scene(scene); }
+bool ModGame::play_scene(int scene) {
+    return mod_.play_scene(scene);
+}
 
 // --- WP-CAMERA ---
 bool ModGame::camera_view(mp::CameraView& out) {
     return mod_.camera_script_view(out.eye, out.rotation, out.where, &out.stand_in);
 }
 
-bool ModGame::camera_play(int id) { return mod_.camera_script_play(id); }
+bool ModGame::camera_play(int id) {
+    return mod_.camera_script_play(id);
+}
 
 bool ModGame::camera_show(const float* eye, const float* rotation) {
     const float at[3] = {eye[0], eye[1], eye[2]};
     const float turned[3] = {rotation[0], rotation[1], rotation[2]};
     return mod_.camera_script_show(at, turned);
 }
+
 // --- end WP-CAMERA ---
 
 openrac_moby ModGame::moby_of(const mp::Pose& p) {
@@ -658,6 +777,7 @@ void ModGame::held_from_sdk(const openrac_held& h, mp::Pose& out) {
     );
     out.held_count = static_cast<std::uint32_t>(count);
 
+    // Each piece the SDK reports is copied across.
     for (std::size_t i = 0; i < count; ++i) {
         const openrac_held_piece& s = h.pieces[i];
         mp::HeldPiece& d = out.held[i];
@@ -683,6 +803,7 @@ openrac_held ModGame::held_to_sdk(const mp::Pose& p) {
     const std::size_t count = std::min<std::size_t>(p.held_count, OPENRAC_HELD_MAX);
     h.count = static_cast<std::int32_t>(count);
 
+    // Each piece is copied across, up to the count.
     for (std::size_t i = 0; i < count; ++i) {
         const mp::HeldPiece& s = p.held[i];
         openrac_held_piece& d = h.pieces[i];
@@ -724,9 +845,12 @@ openrac_pose ModGame::to_sdk(const mp::Pose& p) {
     return out;
 }
 
-bool ModGame::open_home() { return home != nullptr && home->open(); }
+bool ModGame::open_home() {
+    return home != nullptr && home->open();
+}
 
 const ProgressDisc* ModGame::progress_disc() const {
+    // The disc is found by its version string.
     for (const ProgressDisc& d : kProgressDiscs) {
         if (mod_.version() == d.version) {
             return &d;
@@ -736,7 +860,10 @@ const ProgressDisc* ModGame::progress_disc() const {
     return nullptr;
 }
 
-void ModGame::read_bytes(const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n) {
+void ModGame::read_bytes(
+    const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n
+) {
+    // The bytes are read one at a time through the game's memory.
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = memory.read<std::uint8_t>(at + static_cast<openrac::gaddr>(i));
     }

@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The verbose log (trace.hpp): its lines, at most kTraceLinesPerSecond a second.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The verbose log (trace.hpp): its lines, at most kTraceLinesPerSecond a second.
+
 #include "trace.hpp"
 
 #include <cstdio>
@@ -21,6 +21,7 @@ void Trace::flush() {
         return;
     }
 
+    // Only a second that dropped lines says so.
     if (dropped_ > 0 && sink_) {
         sink_(
             "[mp-trace] f=" + std::to_string(frame_) + " t=" + std::to_string(now_) + " " + side_
@@ -42,10 +43,13 @@ void Trace::tick(std::uint64_t now, const std::string& side) {
 }
 
 void Trace::line(const std::string& what, const std::string& text) {
+    // A trace with no sink is off.
     if (!sink_) {
         return;
     }
 
+    // Past the second's cap a line is dropped and counted, and the count is said when the second
+    // ends.
     if (lines_ >= kTraceLinesPerSecond) {
         ++dropped_;
         ++dropped_total_;

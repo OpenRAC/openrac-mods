@@ -12,14 +12,16 @@
 //                          [--shard i/n] [--csv]
 //   multiplayer_sweep_test --takeover [--seeds N] [--base B] [--shard i/n]
 //
-// `--takeover` kills the host instead, at each awkward moment of takeover_sim.hpp, on 2 to 4 players,
-// 0, 5 and 15 % loss and 30 and 250 ms: a line a kind of moment, and one a run that ended wrong.
-#include "takeover_sim.hpp"
+// `--takeover` kills the host instead, at each awkward moment of takeover_sim.hpp, on 2 to 4
+// players, 0, 5 and 15 % loss and 30 and 250 ms: a line a kind of moment, and one a run that ended
+// wrong.
 
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+
+#include "takeover_sim.hpp"
 
 int g_failures = 0;
 
@@ -27,20 +29,33 @@ namespace {
 
 using namespace mpt;
 
-/* Seconds played a run. */
+// Seconds played a run.
 constexpr double kPlaySeconds = 14.0;
 
+// A named plan: what a sweep run plays.
 struct Named {
     const char* name;
     SimPlan plan;
 };
 
+// The plans a sweep runs, from the most WORLD traffic to a level mostly standing still, and one
+// with shots.
 const Named kPlans[] = {
-    {"walk", SimPlan{}},                                       // every enemy walks: the most WORLD can have to say
-    {"sparse", [] { SimPlan p; p.walk_every = 12; return p; }()},  // a level as it stands most of the time
-    {"fire", [] { SimPlan p; p.fire = true; return p; }()},   // and the shots take their share
+    {"walk", SimPlan{}},  // every enemy walks: the most WORLD can have to say
+    {"sparse",
+     [] {
+         SimPlan p;
+         p.walk_every = 12;
+         return p;
+     }()},  // a level as it stands most of the time
+    {"fire", [] {
+         SimPlan p;
+         p.fire = true;
+         return p;
+     }()},  // and the shots take their share
 };
 
+// The runs of one mix of players, loss and latency, summed for one line of the table.
 struct Cell {
     long runs = 0, bad = 0;
     std::vector<long> settled;
@@ -52,6 +67,7 @@ struct Cell {
     double seconds = 0;
 };
 
+// Returns the value `at` of the way up through the sorted values, 0 for none (0.5 is the median).
 long percentile(std::vector<long> v, double at) {
     if (v.empty()) {
         return 0;
@@ -61,24 +77,34 @@ long percentile(std::vector<long> v, double at) {
     return v[std::min(v.size() - 1, static_cast<std::size_t>(at * static_cast<double>(v.size())))];
 }
 
+// Returns the name of a message kind in the tables, or "other".
 const char* kind_name(int kind) {
-    return kind == mp::kind::kWorld ? "WORLD" : kind == mp::kind::kPoses ? "POSES" : kind == mp::kind::kPose ? "POSE"
-           : kind == mp::kind::kShotX ? "SHOTX" : "other";
+    return kind == mp::kind::kWorld   ? "WORLD"
+           : kind == mp::kind::kPoses ? "POSES"
+           : kind == mp::kind::kPose  ? "POSE"
+           : kind == mp::kind::kShotX ? "SHOTX"
+                                      : "other";
 }
 
 }  // namespace
 
-/* The takeover sweep: the runs that ended wrong. */
+// The takeover sweep: the runs that ended wrong.
 long sweep_takeover(int seeds, unsigned base, int shard, int shards) {
     long index = 0, bad = 0, runs = 0;
 
+    // Each awkward moment gets its own line of results.
     for (const HostGone how : kHostGoneAll) {
         long wrong = 0, ran = 0;
 
+        // Party sizes of 2 to 4 players.
         for (int members = 1; members <= 3; ++members) {
+            // The loss each way, in percent.
             for (const double loss : {0.0, 5.0, 15.0}) {
+                // The round-trip latency in ms, which each leg takes half of.
                 for (const double latency : {30.0, 250.0}) {
                     for (int s = 0; s < seeds; ++s) {
+                        // Runs are dealt to the shards in turn, so machines can split a sweep
+                        // without overlap.
                         if (index++ % shards != shard) {
                             continue;
                         }
@@ -93,12 +119,28 @@ long sweep_takeover(int seeds, unsigned base, int shard, int shards) {
                         const TakeoverResult r = run_takeover(link, seed, members, how);
                         ++ran;
 
+                        // A run that ended wrong is printed with its numbers.
                         if (r.bad()) {
                             ++wrong;
-                            std::printf("%s pl %d loss %.0f ms %.0f seed %u: host %d hosted %d stuck %d crates %d dead %d place %d "
-                                        "saves %d spawned %d held %d\n",
-                                        host_gone_name(how), members + 1, loss, latency, seed, r.host, r.hosted, r.stuck,
-                                        r.wrong_crates, r.wrong_dead, r.wrong_place, r.torn_saves, r.spawned_apart, r.held_on);
+                            std::printf(
+                                "%s pl %d loss %.0f ms %.0f seed %u: host %d hosted %d stuck %d "
+                                "crates %d dead %d place %d "
+                                "saves %d spawned %d held %d\n",
+                                host_gone_name(how),
+                                members + 1,
+                                loss,
+                                latency,
+                                seed,
+                                r.host,
+                                r.hosted,
+                                r.stuck,
+                                r.wrong_crates,
+                                r.wrong_dead,
+                                r.wrong_place,
+                                r.torn_saves,
+                                r.spawned_apart,
+                                r.held_on
+                            );
                         }
                     }
                 }
@@ -123,6 +165,7 @@ int main(int argc, char** argv) {
     std::string plans = "all";
     int settle = 0;
 
+    // A flag that takes a value skips that value.
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         const char* value = i + 1 < argc ? argv[i + 1] : "";
@@ -149,6 +192,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    // The takeover sweep replaces the other sweep.
     if (takeover) {
         const long wrong = sweep_takeover(seeds, base, shard, shards);
         return wrong != 0 || g_failures != 0 ? 1 : 0;
@@ -157,24 +201,46 @@ int main(int argc, char** argv) {
     const auto started = std::chrono::steady_clock::now();
     long runs = 0, index = 0, bad = 0;
 
+    // The table's header is left out of the CSV.
     if (!csv) {
-        std::printf("%-7s %3s %5s %4s %5s %4s %7s %7s %7s %6s %7s %7s %7s %7s\n", "plan", "pl", "loss", "ms", "runs", "bad", "settle50",
-                    "99", "max", "gapmax", "WORLD/s", "dgram/s", "kB/s", "total");
+        std::printf(
+            "%-7s %3s %5s %4s %5s %4s %7s %7s %7s %6s %7s %7s %7s %7s\n",
+            "plan",
+            "pl",
+            "loss",
+            "ms",
+            "runs",
+            "bad",
+            "settle50",
+            "99",
+            "max",
+            "gapmax",
+            "WORLD/s",
+            "dgram/s",
+            "kB/s",
+            "total"
+        );
     }
 
     for (Named named : kPlans) {
+        // `--plans` picks one plan, else all of them run.
         if (plans != "all" && plans != named.name) {
             continue;
         }
 
         named.plan.settle_ms = settle != 0 ? settle : named.plan.settle_ms;
 
+        // Party sizes of 2 to 4 players.
         for (int members = 1; members <= 3; ++members) {
+            // The loss each way, in percent.
             for (const double loss : {0.0, 1.0, 5.0, 15.0}) {
+                // The round-trip latency in ms, which each leg takes half of.
                 for (const double latency : {30.0, 100.0, 250.0}) {
                     Cell cell;
 
                     for (int s = 0; s < seeds; ++s) {
+                        // Runs are dealt to the shards in turn, so machines can split a sweep
+                        // without overlap.
                         if (index++ % shards != shard) {
                             continue;
                         }
@@ -187,8 +253,11 @@ int main(int argc, char** argv) {
                         link.duplicate = 0.01;
                         SimNet* net = nullptr;
                         const unsigned seed = base + static_cast<unsigned>(s);
-                        const SimResult r = run_sim(link, seed, members, kPlaySeconds, &net, named.plan);
-                        const bool wrong = r.refused != 0 || r.settled_ms < 0 || net->state_drops != 0 || net->data_drops != 0 || net->kicked != 0;
+                        const SimResult r =
+                            run_sim(link, seed, members, kPlaySeconds, &net, named.plan);
+                        const bool wrong = r.refused != 0 || r.settled_ms < 0
+                                           || net->state_drops != 0 || net->data_drops != 0
+                                           || net->kicked != 0;
                         ++cell.runs;
                         ++runs;
                         cell.bad += wrong ? 1 : 0;
@@ -201,26 +270,52 @@ int main(int argc, char** argv) {
                         cell.kicked += net->kicked;
                         cell.seconds += kPlaySeconds + named.plan.settle_ms / 1000.0;
 
+                        // The host's state is summed by kind over the runs of a cell.
                         for (const auto& [kind, t] : net->host_state) {
                             cell.host_state[kind].messages += t.messages;
                             cell.host_state[kind].bytes += t.bytes;
                         }
 
+                        // What members send up is summed over all kinds.
                         for (const auto& [kind, t] : net->member_state) {
                             cell.member_state_bytes += t.bytes;
                         }
 
+                        // The CSV has one line per run.
                         if (csv) {
-                            std::printf("%s,%d,%.0f,%.0f,%u,%d,%ld,%d,%d,%d,%d,%.0f,%ld,%ld,%ld", named.name, members + 1, loss, latency, seed,
-                                        wrong ? 1 : 0, r.settled_ms, r.most_wrong, r.wrong_place, r.wrong_hidden, r.wrong_crates,
-                                        r.worst_gap_ms, net->state_drops, net->data_drops, net->kicked);
+                            std::printf(
+                                "%s,%d,%.0f,%.0f,%u,%d,%ld,%d,%d,%d,%d,%.0f,%ld,%ld,%ld",
+                                named.name,
+                                members + 1,
+                                loss,
+                                latency,
+                                seed,
+                                wrong ? 1 : 0,
+                                r.settled_ms,
+                                r.most_wrong,
+                                r.wrong_place,
+                                r.wrong_hidden,
+                                r.wrong_crates,
+                                r.worst_gap_ms,
+                                net->state_drops,
+                                net->data_drops,
+                                net->kicked
+                            );
 
                             // In the play, then all of the run.
                             for (const auto* traffic : {&net->played_state, &net->host_state}) {
-                                for (const int kind : {mp::kind::kWorld, mp::kind::kPoses, mp::kind::kPose, mp::kind::kShotX}) {
+                                // These are the four kinds the table follows.
+                                for (const int kind :
+                                     {mp::kind::kWorld,
+                                      mp::kind::kPoses,
+                                      mp::kind::kPose,
+                                      mp::kind::kShotX}) {
                                     const auto it = traffic->find(kind);
-                                    std::printf(",%ld,%ld", it != traffic->end() ? it->second.messages : 0,
-                                                it != traffic->end() ? it->second.bytes : 0);
+                                    std::printf(
+                                        ",%ld,%ld",
+                                        it != traffic->end() ? it->second.messages : 0,
+                                        it != traffic->end() ? it->second.bytes : 0
+                                    );
                                 }
                             }
 
@@ -234,33 +329,50 @@ int main(int argc, char** argv) {
                         }
                     }
 
+                    // A cell whose runs all went to other shards prints nothing.
                     if (!csv && cell.runs != 0) {
                         long messages = 0, bytes = 0;
 
+                        // The totals cover every kind.
                         for (const auto& [kind, t] : cell.host_state) {
                             messages += t.messages;
                             bytes += t.bytes;
                         }
 
                         const SimNet::Traffic world = cell.host_state[mp::kind::kWorld];
-                        std::printf("%-7s %3d %5.0f %4.0f %5ld %4ld %7ld %7ld %7ld %6.0f %7.1f %7.1f %7.1f %7.1f\n", named.name, members + 1, loss,
-                                    latency, cell.runs, cell.bad, percentile(cell.settled, 0.5), percentile(cell.settled, 0.99),
-                                    percentile(cell.settled, 1.0), *std::max_element(cell.gaps.begin(), cell.gaps.end()),
-                                    static_cast<double>(world.messages) / cell.seconds, static_cast<double>(messages) / cell.seconds,
-                                    static_cast<double>(world.bytes) / cell.seconds / 1000.0,
-                                    static_cast<double>(bytes) / cell.seconds / 1000.0);
+                        std::printf(
+                            "%-7s %3d %5.0f %4.0f %5ld %4ld %7ld %7ld %7ld %6.0f %7.1f %7.1f %7.1f "
+                            "%7.1f\n",
+                            named.name,
+                            members + 1,
+                            loss,
+                            latency,
+                            cell.runs,
+                            cell.bad,
+                            percentile(cell.settled, 0.5),
+                            percentile(cell.settled, 0.99),
+                            percentile(cell.settled, 1.0),
+                            *std::max_element(cell.gaps.begin(), cell.gaps.end()),
+                            static_cast<double>(world.messages) / cell.seconds,
+                            static_cast<double>(messages) / cell.seconds,
+                            static_cast<double>(world.bytes) / cell.seconds / 1000.0,
+                            static_cast<double>(bytes) / cell.seconds / 1000.0
+                        );
                     }
                 }
             }
         }
     }
 
-    const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    const double took =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 
+    // The summary line is for people, so the CSV leaves it out.
     if (!csv) {
         std::printf("%ld runs, %ld wrong, %.1f s\n", runs, bad, took);
     }
 
+    // Any wrong run fails the sweep.
     if (bad != 0 || g_failures != 0) {
         std::fprintf(stderr, "%ld of %ld runs ended wrong\n", bad, runs);
         return 1;

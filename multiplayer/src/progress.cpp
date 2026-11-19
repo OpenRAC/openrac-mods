@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The party's shared progress (progress.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The party's shared progress (progress.hpp).
+
 #include "progress.hpp"
 
 #include <algorithm>
@@ -11,36 +11,41 @@ namespace mp {
 
 namespace {
 
+// Writes the number of flags, then one byte for each: 1 for had, 0 for not.
 template <std::size_t N>
 void put_bytes(Writer& w, const std::array<std::uint8_t, N>& bytes) {
     w.u8(static_cast<std::uint8_t>(N));
 
+    // Any non-zero flag goes as 1.
     for (const std::uint8_t b : bytes) {
         w.u8(b != 0 ? 1 : 0);
     }
 }
 
-/* A count and its bytes into `out`: those past what `out` holds left out, those it holds beyond
- * the count left as they are (an older or newer mod's lists). */
+// A count and its bytes into `out`: those past what `out` holds left out, those it holds beyond
+// the count left as they are (an older or newer mod's lists).
 template <std::size_t N>
 void take_bytes(Reader& r, std::array<std::uint8_t, N>& out) {
     const std::uint8_t count = r.u8();
 
+    // Every byte of the count is read, even past what `out` holds, so the message stays in step.
     for (std::size_t i = 0; i < count && r.ok(); ++i) {
         const std::uint8_t b = r.u8();
 
+        // A byte past what this mod holds is read and dropped.
         if (i < N) {
             out[i] = b != 0 ? 1 : 0;
         }
     }
 }
 
-/* The ids `a` has and `b` has not, as text ("3 7 12"; "" for none). */
+// The ids `a` has and `b` has not, as text ("3 7 12"; "" for none).
 template <std::size_t N>
 std::string more(const std::array<std::uint8_t, N>& a, const std::array<std::uint8_t, N>& b) {
     std::string text;
 
     for (std::size_t i = 0; i < N; ++i) {
+        // Only an id that `a` has and `b` lacks is named.
         if (a[i] != 0 && b[i] == 0) {
             text += (text.empty() ? "" : " ") + std::to_string(i);
         }
@@ -49,6 +54,7 @@ std::string more(const std::array<std::uint8_t, N>& a, const std::array<std::uin
     return text;
 }
 
+// Returns the log's words for what `a` has that `b` lacks, or " nothing new".
 std::string what_more(const ProgressBits& a, const ProgressBits& b) {
     std::string text;
     const std::string items = more(a.items, b.items);
@@ -72,6 +78,7 @@ Bytes encode_progress(const ProgressBits& bits) {
 }
 
 bool decode_progress(const Bytes& bytes, ProgressBits& out) {
+    // A message of another kind is not a PROGRESS.
     if (bytes.empty() || bytes[0] != kProgressKind) {
         return false;
     }
@@ -82,6 +89,7 @@ bool decode_progress(const Bytes& bytes, ProgressBits& out) {
     take_bytes(r, bits.gold);
     take_bytes(r, bits.planets);
 
+    // A message cut short changes nothing: `out` is written only after a full read.
     if (!r.ok()) {
         return false;
     }
@@ -90,7 +98,10 @@ bool decode_progress(const Bytes& bytes, ProgressBits& out) {
     return true;
 }
 
-Progress::Progress(Session& session, Game& game, Coop& coop) : session_(session), game_(game), coop_(coop) {}
+Progress::Progress(Session& session, Game& game, Coop& coop)
+    : session_(session),
+      game_(game),
+      coop_(coop) {}
 
 void Progress::reset() {
     read_ = false;
@@ -108,13 +119,16 @@ void Progress::reset() {
 void Progress::handle(std::int32_t sender, const Bytes& bytes) {
     ProgressBits bits;
 
+    // Outside a party, or for a message that does not decode, nothing is kept.
     if (!session_.in_party() || !decode_progress(bytes, bits)) {
         return;
     }
 
     // The host keeps a member's word until its game can take it; a member takes the host's only.
     if (session_.is_host() && sender != session_.id()) {
-        trace_line("received PROGRESS from " + std::to_string(sender) + ":" + what_more(bits, here_));
+        trace_line(
+            "received PROGRESS from " + std::to_string(sender) + ":" + what_more(bits, here_)
+        );
         reports_[sender] = bits;
     } else if (!session_.is_host() && sender == session_.host()) {
         trace_line("received PROGRESS from the host:" + what_more(bits, here_));
@@ -126,7 +140,10 @@ void Progress::handle(std::int32_t sender, const Bytes& bytes) {
 bool Progress::give(const ProgressBits& want, const std::string& from) {
     bool gave = false;
 
+    // Each item the party has that this game lacks is given as the game gives one.
     for (std::size_t i = 1; i < kProgressItems; ++i) {
+        // It is marked had only once the game took it, so a refusal is tried again at the next
+        // reading.
         if (want.items[i] != 0 && here_.items[i] == 0 && game_.give_item(static_cast<int>(i))) {
             here_.items[i] = 1;
             gave = true;
@@ -135,17 +152,22 @@ bool Progress::give(const ProgressBits& want, const std::string& from) {
         }
     }
 
+    // Gold bolts follow the same rule as items; the index is level * 4 + the bolt's number
+    // (coop.hpp).
     for (std::size_t i = 0; i < kProgressGoldBolts; ++i) {
         if (want.gold[i] != 0 && here_.gold[i] == 0 && game_.give_gold_bolt(static_cast<int>(i))) {
             here_.gold[i] = 1;
             gave = true;
-            log("given gold bolt " + std::to_string(i % 4) + " of level " + std::to_string(i / 4) + " (" + from + ")");
+            log("given gold bolt " + std::to_string(i % 4) + " of level " + std::to_string(i / 4)
+                + " (" + from + ")");
             trace_line("given gold bolt " + std::to_string(i) + " (" + from + ")");
         }
     }
 
+    // Planets follow the same rule.
     for (std::size_t i = 0; i < kProgressPlanets; ++i) {
-        if (want.planets[i] != 0 && here_.planets[i] == 0 && game_.unlock_planet(static_cast<int>(i))) {
+        if (want.planets[i] != 0 && here_.planets[i] == 0
+            && game_.unlock_planet(static_cast<int>(i))) {
             here_.planets[i] = 1;
             gave = true;
             log("given planet " + std::to_string(i) + " (" + from + ")");
@@ -157,7 +179,9 @@ bool Progress::give(const ProgressBits& want, const std::string& from) {
 }
 
 void Progress::send(std::int32_t target, const ProgressBits& bits, const std::string& to) {
-    trace_line("sent PROGRESS to " + to + ":" + what_more(bits, sent_any_ ? sent_ : ProgressBits{}));
+    trace_line(
+        "sent PROGRESS to " + to + ":" + what_more(bits, sent_any_ ? sent_ : ProgressBits{})
+    );
     session_.send_data(target, encode_progress(bits));
     sent_ = bits;
     sent_any_ = true;
@@ -166,6 +190,7 @@ void Progress::send(std::int32_t target, const ProgressBits& bits, const std::st
 void Progress::tick(std::uint64_t now) {
     // Only while the party plays its game.
     if (!session_.in_party() || !coop_.playing()) {
+        // Leaving the party or its game drops what was kept, once.
         if (read_ || heard_ || !reports_.empty()) {
             reset();
         }
@@ -173,12 +198,14 @@ void Progress::tick(std::uint64_t now) {
         return;
     }
 
+    // A reading is taken a few times a second, not every tick.
     if (read_ && now - read_ms_ < kProgressReadMs) {
         return;
     }
 
     ProgressBits bits;
 
+    // The game cannot be read right now; it is tried again next tick.
     if (!game_.progress(bits)) {
         return;
     }
@@ -190,6 +217,7 @@ void Progress::tick(std::uint64_t now) {
     // What another game has is given here only while the player is in control.
     const bool control = game_.status().phase == kPhasePlaying;
 
+    // The host gives its game what the members have and tells the party what this game has.
     if (session_.is_host()) {
         // The members' words: what they have that this game lacks.
         for (auto it = reports_.begin(); it != reports_.end() && control;) {
@@ -201,7 +229,9 @@ void Progress::tick(std::uint64_t now) {
         // and now and then.
         const std::size_t members = session_.members().size();
 
-        if (!sent_any_ || here_ != sent_ || members != members_ || now - sent_ms_ >= kProgressResendMs) {
+        // Due at a change, at a new member, or when the resend time has gone by.
+        if (!sent_any_ || here_ != sent_ || members != members_
+            || now - sent_ms_ >= kProgressResendMs) {
             members_ = members;
             sent_ms_ = now;
             send(kBroadcast, here_, "all");
@@ -215,6 +245,7 @@ void Progress::tick(std::uint64_t now) {
         give(party_, coop_.quiet_gifts() ? "the host's, quietly" : "the host's");
     }
 
+    // A member tells the host at a change and now and then.
     if (!sent_any_ || here_ != sent_ || now - sent_ms_ >= kProgressResendMs) {
         sent_ms_ = now;
         send(session_.host(), here_, "the host");

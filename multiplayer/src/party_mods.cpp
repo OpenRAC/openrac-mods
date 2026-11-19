@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The mods a party has to agree on (party_mods.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The mods a party has to agree on (party_mods.hpp).
+
 #include "party_mods.hpp"
 
 #include <algorithm>
@@ -16,25 +16,31 @@
 namespace mp {
 namespace {
 
+// Writes the low 16 bits of `v`, high byte first.
 void u16(Writer& w, std::size_t v) {
     w.u8(static_cast<std::uint8_t>(v >> 8)).u8(static_cast<std::uint8_t>(v));
 }
 
+// Reads two bytes, high byte first.
 std::size_t u16(Reader& r) {
     const auto high = static_cast<std::size_t>(r.u8()) << 8;
     return high | r.u8();
 }
 
-/* FNV-1a, 32 bits. */
+// FNV-1a, 32 bits.
 void mix(std::uint32_t& hash, const std::string& text) {
+    // FNV-1a takes each byte in turn: xor it in, then multiply by the 32-bit prime.
     for (const char c : text) {
-        hash = (hash ^ static_cast<std::uint8_t>(c)) * 16777619u;
+        hash = (hash ^ static_cast<std::uint8_t>(c)) * 16777619u;  // FNV prime
     }
 
+    // A 0xFF byte ends the text, so two texts hashed in a row differ from one text of both.
     hash = (hash ^ 0xFFu) * 16777619u;
 }
 
+// Returns the mod of `list` with `id`, or nullptr.
 const ModInfo* find_mod(const ModList& list, const std::string& id) {
+    // Lists are short, so a scan by id finds a mod.
     for (const ModInfo& m : list.mods) {
         if (m.id == id) {
             return &m;
@@ -44,7 +50,9 @@ const ModInfo* find_mod(const ModList& list, const std::string& id) {
     return nullptr;
 }
 
+// Returns the setting of `mod` with `key`, or nullptr.
 const ModSettingInfo* find_setting(const ModInfo& mod, const std::string& key) {
+    // Lists are short, so a scan by key finds a setting.
     for (const ModSettingInfo& s : mod.settings) {
         if (s.key == key) {
             return &s;
@@ -54,7 +62,9 @@ const ModSettingInfo* find_setting(const ModInfo& mod, const std::string& key) {
     return nullptr;
 }
 
+// Returns the pack of `list` with `id`, or nullptr.
 const PackInfo* find_pack(const ModList& list, const std::string& id) {
+    // Lists are short, so a scan by id finds a pack.
     for (const PackInfo& p : list.packs) {
         if (p.id == id) {
             return &p;
@@ -64,6 +74,7 @@ const PackInfo* find_pack(const ModList& list, const std::string& id) {
     return nullptr;
 }
 
+// Returns `first`, with ", N more" after it when `others` differences are not named.
 std::string with_more(const std::string& first, std::size_t others) {
     return others == 0 ? first : first + ", " + std::to_string(others) + " more";
 }
@@ -73,15 +84,18 @@ std::string with_more(const std::string& first, std::size_t others) {
 Bytes encode_mod_list(const ModList& list) {
     Writer w;
     w.str(list.multiplayer).str(list.openrac).str(list.disc);
+    // Each count goes out as one byte, so a list is cut at 255 entries.
     const std::size_t count = std::min<std::size_t>(list.mods.size(), 255);
     w.u8(static_cast<std::uint8_t>(count));
 
+    // A mod's settings follow it, so a reader pairs them by position.
     for (std::size_t i = 0; i < count; ++i) {
         const ModInfo& m = list.mods[i];
         const std::size_t settings = std::min<std::size_t>(m.settings.size(), 255);
         w.str(m.id).str(m.name).str(m.version).u8(static_cast<std::uint8_t>(m.party));
         w.u8(static_cast<std::uint8_t>(settings));
 
+        // Each setting goes out as its key, name, value, shown text, kind and default flag.
         for (std::size_t k = 0; k < settings; ++k) {
             const ModSettingInfo& s = m.settings[k];
             w.str(s.key).str(s.name).str(s.value).str(s.shown).u8(
@@ -95,6 +109,7 @@ Bytes encode_mod_list(const ModList& list) {
     const std::size_t packs = std::min<std::size_t>(list.packs.size(), 255);
     w.u8(static_cast<std::uint8_t>(packs));
 
+    // The packs come last, in the order they apply.
     for (std::size_t i = 0; i < packs; ++i) {
         const PackInfo& p = list.packs[i];
         w.str(p.id).str(p.name).str(p.version).i32(static_cast<std::int32_t>(p.digest));
@@ -110,6 +125,7 @@ bool decode_mod_list(Reader& r, ModList& out) {
     out.disc = r.str();
     const std::uint8_t count = r.u8();
 
+    // A cut message ends the loop, so a count that lies cannot run on.
     for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
         ModInfo m;
         m.id = r.str();
@@ -118,6 +134,7 @@ bool decode_mod_list(Reader& r, ModList& out) {
         m.party = r.u8();
         const std::uint8_t settings = r.u8();
 
+        // A cut message ends this loop too.
         for (std::uint8_t k = 0; k < settings && r.ok(); ++k) {
             ModSettingInfo s;
             s.key = r.str();
@@ -132,6 +149,8 @@ bool decode_mod_list(Reader& r, ModList& out) {
         out.mods.push_back(std::move(m));
     }
 
+    // A MODS from an older game stops short: its family is its disc, and it has no code, key or
+    // packs.
     out.family = r.left() > 0 ? r.str() : out.disc;
     out.modcode = r.left() > 0 ? r.str() : "";
 
@@ -149,6 +168,7 @@ bool decode_mod_list(Reader& r, ModList& out) {
 
     const std::uint8_t packs = r.left() > 0 ? r.u8() : 0;
 
+    // The data packs may be missing (an older game), which reads as none.
     for (std::uint8_t i = 0; i < packs && r.ok(); ++i) {
         PackInfo p;
         p.id = r.str();
@@ -172,15 +192,18 @@ std::uint32_t mods_digest(const ModList& list) {
 
         std::vector<std::string> settings;
 
+        // Only the settings every player shares count; the others may differ between players.
         for (const ModSettingInfo& s : m.settings) {
             if (s.party == kSettingShared) {
                 settings.push_back(s.key + "=" + s.value);
             }
         }
 
+        // Sorted, so the order a mod lists its settings in does not count.
         std::sort(settings.begin(), settings.end());
         std::string part = m.id + " " + m.version;
 
+        // Each setting follows the id and version, one to a line.
         for (const std::string& s : settings) {
             part += "\n" + s;
         }
@@ -189,11 +212,12 @@ std::uint32_t mods_digest(const ModList& list) {
     }
 
     std::sort(parts.begin(), parts.end());
-    std::uint32_t hash = 2166136261u;
+    std::uint32_t hash = 2166136261u;  // FNV offset basis
     mix(hash, list.multiplayer);
     mix(hash, list.openrac);
     mix(hash, list.family);
 
+    // The parts follow the three build strings, then the packs.
     for (const std::string& part : parts) {
         mix(hash, part);
     }
@@ -209,7 +233,9 @@ std::uint32_t mods_digest(const ModList& list) {
 std::vector<Difference> solo_mods(const ModList& own) {
     std::vector<Difference> out;
 
+    // Each mod marked solo is reported by name.
     for (const ModInfo& m : own.mods) {
+        // Only the solo kind cannot be played in a party.
         if (m.party == kModSolo) {
             Difference d;
             d.kind = Difference::Kind::kSolo;
@@ -241,10 +267,12 @@ std::vector<Difference> compare_mods(const ModList& own, const ModList& host) {
         add(Kind::kDisc, "", own.family, host.family);
     }
 
+    // The OpenRAC build must be the host's: the digest and the check both follow it.
     if (own.openrac != host.openrac) {
         add(Kind::kOpenRac, "", own.openrac, host.openrac);
     }
 
+    // So must Multiplayer's version, which the digest mixes in too.
     if (own.multiplayer != host.multiplayer) {
         add(Kind::kMultiplayer, "", own.multiplayer, host.multiplayer);
     }
@@ -253,28 +281,36 @@ std::vector<Difference> compare_mods(const ModList& own, const ModList& host) {
     for (const ModInfo& h : host.mods) {
         const ModInfo* m = find_mod(own, h.id);
 
+        // A mod the party does not compare is skipped, unless the player's copy of it does count.
         if (!h.counts() && (m == nullptr || !m->counts())) {
             continue;
         }
 
+        // The host's mod is missing here, at another version, or at the same version with settings
+        // to compare.
         if (m == nullptr) {
             add(Kind::kHostOnly, h.name, "", h.version);
         } else if (m->version != h.version) {
+            // The same mod at another version.
             add(Kind::kVersion, h.name, m->version, h.version);
         } else {
+            // The same version: only the shared settings can still differ.
             Difference d;
             d.kind = Kind::kSettings;
             d.mod = h.name;
 
+            // Each of the host's shared settings must hold the same value here.
             for (const ModSettingInfo& theirs : h.settings) {
                 const ModSettingInfo* mine = find_setting(*m, theirs.key);
 
+                // A shared setting that is missing here differs too.
                 if (theirs.party == kSettingShared
                     && (mine == nullptr || mine->value != theirs.value)) {
                     d.settings.push_back(theirs.name);
                 }
             }
 
+            // A mod with no differing setting adds nothing.
             if (!d.settings.empty()) {
                 out.push_back(std::move(d));
             }
@@ -282,6 +318,7 @@ std::vector<Difference> compare_mods(const ModList& own, const ModList& host) {
     }
 
     // What only this game has.
+    // A gameplay mod the host lacks is extra; input and cosmetic mods stay the player's own.
     for (const ModInfo& m : own.mods) {
         if (m.party == kModGameplay && find_mod(host, m.id) == nullptr) {
             add(Kind::kYouOnly, m.name, m.version, "");
@@ -291,16 +328,20 @@ std::vector<Difference> compare_mods(const ModList& own, const ModList& host) {
     // The data packs: each of the host's here, holding the same; nothing more; in the same order.
     const std::size_t before = out.size();
 
+    // Each of the host's packs must be here, holding the same.
     for (const PackInfo& h : host.packs) {
         const PackInfo* p = find_pack(own, h.id);
 
+        // A pack the player lacks.
         if (p == nullptr) {
             add(Kind::kHostOnly, h.name, "", h.version);
         } else if (p->digest != h.digest || p->version != h.version) {
+            // A pack that holds something else, or is at another version.
             add(Kind::kPack, h.name, p->version, h.version);
         }
     }
 
+    // A pack the host lacks is extra.
     for (const PackInfo& p : own.packs) {
         if (find_pack(host, p.id) == nullptr) {
             add(Kind::kYouOnly, p.name, p.version, "");
@@ -309,7 +350,9 @@ std::vector<Difference> compare_mods(const ModList& own, const ModList& host) {
 
     // Nothing else of theirs differs, so the same packs: a later one wins where two overlap.
     if (out.size() == before) {
+        // The orders are compared pair by pair, as far as both lists go.
         for (std::size_t i = 0; i < own.packs.size() && i < host.packs.size(); ++i) {
+            // The first place with another pack is enough to report.
             if (own.packs[i].id != host.packs[i].id) {
                 add(Kind::kPackOrder, "", "", "");
                 break;
@@ -325,6 +368,7 @@ std::vector<std::string> wrap_text(const std::string& text, std::size_t width) {
     std::string line;
     std::size_t at = 0;
 
+    // Each word goes on the current line or starts the next.
     while (at < text.size()) {
         std::size_t end = text.find(' ', at);
         end = end == std::string::npos ? text.size() : end;
@@ -333,6 +377,7 @@ std::vector<std::string> wrap_text(const std::string& text, std::size_t width) {
 
         // A word wider than a line (a long name) is cut, not lost.
         while (word.size() > width) {
+            // The line so far goes out before the pieces of the cut word.
             if (!line.empty()) {
                 out.push_back(line);
                 line.clear();
@@ -342,6 +387,7 @@ std::vector<std::string> wrap_text(const std::string& text, std::size_t width) {
             word.erase(0, width);
         }
 
+        // A word that no longer fits after the line so far starts a new line.
         if (!line.empty() && line.size() + 1 + word.size() > width) {
             out.push_back(line);
             line.clear();
@@ -350,6 +396,7 @@ std::vector<std::string> wrap_text(const std::string& text, std::size_t width) {
         line += (line.empty() ? "" : " ") + word;
     }
 
+    // The last line is still open, so it goes out here.
     if (!line.empty()) {
         out.push_back(line);
     }
@@ -361,9 +408,11 @@ std::vector<std::string> wrap_list(const std::vector<std::string>& items, std::s
     std::vector<std::string> out;
     std::string line;
 
+    // The items are joined with commas, the last without one.
     for (std::size_t i = 0; i < items.size(); ++i) {
         const std::string item = items[i] + (i + 1 < items.size() ? "," : "");
 
+        // An item that would pass the width starts a new line.
         if (!line.empty() && line.size() + 1 + item.size() > width) {
             out.push_back(line);
             line.clear();
@@ -372,11 +421,14 @@ std::vector<std::string> wrap_list(const std::vector<std::string>& items, std::s
         line += (line.empty() ? "" : " ") + item;
     }
 
+    // The last line is still open, so it goes out here.
     if (!line.empty()) {
         out.push_back(line);
     }
 
+    // An item wider than a line (a long name) is cut by words.
     for (std::size_t i = 0; i < out.size(); ++i) {
+        // Only lines past the width need cutting.
         if (out[i].size() > width) {
             const std::vector<std::string> cut = wrap_text(out[i], width);
             out.erase(out.begin() + static_cast<std::ptrdiff_t>(i));
@@ -398,7 +450,9 @@ std::vector<std::string> refusal_lines(
         out.insert(out.end(), lines.begin(), lines.end());
     };
 
+    // Each difference gives one line or more, in the order compare_mods found them.
     for (const Difference& d : differences) {
+        // Each kind of difference has its own wording.
         switch (d.kind) {
             case Kind::kDisc:
                 add(kDifferentDisc);
@@ -442,6 +496,7 @@ std::vector<std::string> refusal_lines(
 std::string refusal_short(const std::vector<Difference>& differences) {
     using Kind = Difference::Kind;
 
+    // With nothing different there is no reason to give.
     if (differences.empty()) {
         return "";
     }
@@ -449,6 +504,7 @@ std::string refusal_short(const std::vector<Difference>& differences) {
     const Difference& d = differences.front();
     std::string first;
 
+    // Only the first difference is named; the others are counted.
     switch (d.kind) {
         case Kind::kDisc:
             first = "a different disc";
@@ -493,7 +549,9 @@ std::vector<std::string> rules_lines(
         out.insert(out.end(), lines.begin(), lines.end());
     };
 
+    // Each gameplay mod of the host's, with what the party plays by.
     for (const ModInfo& m : host.mods) {
+        // Input and cosmetic mods are not the party's rules.
         if (!m.counts()) {
             continue;
         }
@@ -504,13 +562,16 @@ std::vector<std::string> rules_lines(
         });
         std::vector<std::string> items;
 
+        // The mod's own words win over the compared settings.
         if (rule != rules.end() && !rule->text.empty()) {
             std::size_t at = 0;
 
+            // The words are one item to a line.
             while (at <= rule->text.size()) {
                 std::size_t end = rule->text.find('\n', at);
                 end = end == std::string::npos ? rule->text.size() : end;
 
+                // Empty lines are skipped.
                 if (end > at) {
                     items.push_back(rule->text.substr(at, end - at));
                 }
@@ -518,7 +579,10 @@ std::vector<std::string> rules_lines(
                 at = end + 1;
             }
         } else {
+            // Each setting the host changed from its default.
+            // Without words, the shared settings the host changed from the default are listed.
             for (const ModSettingInfo& s : m.settings) {
+                // A setting still at its default is not worth a line.
                 if (s.party == kSettingShared && !s.is_default) {
                     items.push_back(s.name + ": " + s.shown);
                 }
@@ -528,10 +592,12 @@ std::vector<std::string> rules_lines(
         add(wrap_list(items, width));
     }
 
+    // The data packs follow, by name and version.
     for (const PackInfo& p : host.packs) {
         add(wrap_text(p.name + (p.version.empty() ? "" : " " + p.version), width));
     }
 
+    // A party with no mods says so, not an empty page.
     if (out.empty()) {
         add(wrap_text("No gameplay mods", width));
     }
@@ -541,16 +607,21 @@ std::vector<std::string> rules_lines(
         add(wrap_text("Enemies: the host's game", width));
     }
 
-    // What stays the player's: its input and look mods, the settings its gameplay mods call its own.
+    // What stays the player's: its input and look mods, the settings its gameplay mods call its
+    // own.
     std::vector<std::string> mine;
 
+    // What stays the player's own, mod by mod.
     for (const ModInfo& m : own.mods) {
+        // A mod the party does not compare is the player's own as a whole.
         if (!m.counts()) {
             mine.push_back(m.name);
             continue;
         }
 
+        // Of a gameplay mod, only the settings it calls the player's own.
         for (const ModSettingInfo& s : m.settings) {
+            // The player's own settings, not the shared or the host's.
             if (s.party == kSettingOwn) {
                 mine.push_back(s.name);
             }
@@ -559,6 +630,7 @@ std::vector<std::string> rules_lines(
 
     add(wrap_text("Yours: controls and looks", width));
 
+    // With nothing of its own the heading stands alone.
     if (!mine.empty()) {
         add(wrap_list(mine, width));
     }
@@ -568,12 +640,16 @@ std::vector<std::string> rules_lines(
 
 std::string digest_tag(std::uint32_t digest) {
     char tag[8];
+    // Four hex digits make the low 16 bits.
     std::snprintf(tag, sizeof tag, "%04x", static_cast<unsigned>(digest & 0xFFFFu));
     return tag;
 }
 
-std::string tagged_description(const std::string& description, std::uint32_t digest, const std::string& game) {
-    const std::string tag = "|" + digest_tag(digest) + (game == kGameRac1 ? std::string() : "/" + game);
+std::string tagged_description(
+    const std::string& description, std::uint32_t digest, const std::string& game
+) {
+    const std::string tag =
+        "|" + digest_tag(digest) + (game == kGameRac1 ? std::string() : "/" + game);
     return description.substr(0, kMaxDescriptionLength - tag.size()) + tag;
 }
 
@@ -584,7 +660,7 @@ std::string plain_description(const std::string& description) {
 
 namespace {
 
-/* All after the description's last bar: the digest, then the game's id after a slash. */
+// All after the description's last bar: the digest, then the game's id after a slash.
 std::string whole_tag(const std::string& description) {
     const std::size_t bar = description.rfind('|');
     return bar == std::string::npos ? "" : description.substr(bar + 1);
@@ -601,6 +677,7 @@ std::string description_game(const std::string& description) {
     const std::string tag = whole_tag(description);
     const std::size_t slash = tag.find('/');
 
+    // A description without a tag names no game.
     if (tag.empty()) {
         return "";
     }
@@ -611,6 +688,7 @@ std::string description_game(const std::string& description) {
 bool other_game(const std::string& description, const std::string& game) {
     const std::string named = description_game(description);
 
+    // Ratchet & Clank takes an untagged party for its own, so only another game's tag counts.
     if (game == kGameRac1) {
         return !named.empty() && named != kGameRac1;
     }
@@ -625,6 +703,7 @@ PartyMods::PartyMods(
       game_(game),
       own_(std::move(own)),
       clock_(std::move(clock)) {
+    // A test passes its own clock; the game uses the wall clock.
     if (!clock_) {
         clock_ = now_ms;
     }
@@ -635,6 +714,7 @@ const ModList& PartyMods::host_list() const {
 }
 
 Fit PartyMods::fit(std::int32_t member) const {
+    // The host always fits its own party.
     if (member == session_.host()) {
         return Fit::kMatch;
     }
@@ -664,6 +744,7 @@ bool PartyMods::host_silent() const {
 
 void PartyMods::clear() {
     // The party went: this game's mods go by their own settings again.
+    // Each mod that took the party's rules goes back to its own.
     for (const std::string& id : delivered_) {
         game_.deliver_rules(id, {});
     }
@@ -679,12 +760,14 @@ void PartyMods::clear() {
 }
 
 void PartyMods::set_mod_code(const std::string& code) {
+    // A code that has not changed tells the party nothing.
     if (code == own_.modcode) {
         return;
     }
 
     own_.modcode = code;
 
+    // Only a host in a party has anyone to tell.
     if (session_.in_party() && session_.is_host()) {
         send_mods(kBroadcast);
     }
@@ -695,9 +778,11 @@ void PartyMods::host_moved(std::uint64_t now) {
     party_epoch_ = session_.role().epoch();
     party_host_ = session_.host();
 
+    // A host that took over keeps the party's list; a member waits for the new host's.
     if (session_.is_host()) {
         // Everyone in the party was checked against the first host's list, and its rules are what
         // this game's mods play by. Only the disc is this game's own.
+        // A host that never heard the first host has no list to keep.
         if (had) {
             basis_ = host_;
             basis_.disc = own_.disc;
@@ -750,6 +835,7 @@ void PartyMods::send_fits() {
     Writer w;
     w.u8(static_cast<std::uint8_t>(ModsKind::kFits)).u8(static_cast<std::uint8_t>(peers_.size()));
 
+    // Each member the host knows goes out with its fit and reason.
     for (const auto& [id, peer] : peers_) {
         w.i32(id).u8(static_cast<std::uint8_t>(peer.fit)).str(peer.why);
     }
@@ -761,6 +847,7 @@ void PartyMods::send_rules(std::int32_t target) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(ModsKind::kRules)).u8(static_cast<std::uint8_t>(rules_.size()));
 
+    // Each rule goes out as its id, a length, its bytes and its words.
     for (const PartyRules& r : rules_) {
         w.str(r.id);
         u16(w, r.data.size());
@@ -773,11 +860,14 @@ void PartyMods::send_rules(std::int32_t target) {
 void PartyMods::on_mods(std::int32_t sender, Reader& r) {
     ModList theirs;
 
+    // A cut message is dropped.
     if (!decode_mod_list(r, theirs)) {
         return;
     }
 
+    // A member only listens to the host.
     if (!session_.is_host()) {
+        // A MODS from another member is not for it.
         if (sender != session_.host()) {
             return;
         }
@@ -787,6 +877,7 @@ void PartyMods::on_mods(std::int32_t sender, Reader& r) {
         host_ = std::move(theirs);
         differences_ = compare_mods(own_, host_);
 
+        // The first list is logged; later ones only replace it.
         if (first) {
             log(differences_.empty() ? "the host's mods match"
                                      : "the host's mods differ: " + refusal_short(differences_));
@@ -806,12 +897,14 @@ void PartyMods::on_mods(std::int32_t sender, Reader& r) {
     peer.why = why;
     peer.answered = true;
 
+    // The first MODS from a member gets the host's list back.
     if (first) {
         send_mods(sender);
         log("player " + std::to_string(sender)
             + (fit == Fit::kMatch ? ": mods match" : ": mods differ: " + why));
     }
 
+    // A verdict that changed is told to everyone.
     if (changed) {
         send_fits();
     }
@@ -828,11 +921,13 @@ void PartyMods::on_mods(std::int32_t sender, Reader& r) {
 void PartyMods::on_fits(Reader& r) {
     const std::uint8_t count = r.u8();
 
+    // Each entry is a member's id, fit and reason.
     for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
         const std::int32_t id = r.i32();
         const auto fit = static_cast<Fit>(r.u8());
         std::string why = r.str();
 
+        // A cut entry is not kept.
         if (r.ok()) {
             Peer& peer = peers_[id];
             peer.fit = fit;
@@ -845,17 +940,20 @@ void PartyMods::on_rules(Reader& r) {
     std::vector<PartyRules> rules;
     const std::uint8_t count = r.u8();
 
+    // Each rule is an id, a length, its bytes and its words.
     for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
         PartyRules rule;
         rule.id = r.str();
         const std::size_t size = u16(r);
 
+        // A length past the end of the message means it is cut: drop it all.
         if (size > r.left()) {
             return;
         }
 
         rule.data.resize(size);
 
+        // The bytes come one at a time into the rule's data.
         for (std::uint8_t& b : rule.data) {
             b = r.u8();
         }
@@ -864,6 +962,7 @@ void PartyMods::on_rules(Reader& r) {
         rules.push_back(std::move(rule));
     }
 
+    // A message that is cut short changes no rules.
     if (!r.ok()) {
         return;
     }
@@ -874,7 +973,9 @@ void PartyMods::on_rules(Reader& r) {
             return x.id == rule.id;
         });
 
+        // Only a rule that is new or changed goes to the mod.
         if (old == rules_.end() || old->data != rule.data) {
+            // Remember that the mod took one, so clear() can reset it.
             if (game_.deliver_rules(rule.id, rule.data)
                 && std::find(delivered_.begin(), delivered_.end(), rule.id) == delivered_.end()) {
                 delivered_.push_back(rule.id);
@@ -886,6 +987,7 @@ void PartyMods::on_rules(Reader& r) {
 }
 
 void PartyMods::handle(std::int32_t sender, const Bytes& bytes) {
+    // An empty message, or one from outside a party, is dropped.
     if (bytes.empty() || !session_.in_party()) {
         return;
     }
@@ -894,6 +996,7 @@ void PartyMods::handle(std::int32_t sender, const Bytes& bytes) {
     const auto kind = static_cast<ModsKind>(bytes[0]);
     const bool from_host = sender == session_.host() && !session_.is_host();
 
+    // MODS comes from anyone; FITS and RULES only from the host a member follows.
     if (kind == ModsKind::kMods) {
         on_mods(sender, r);
     } else if (kind == ModsKind::kFits && from_host) {
@@ -943,13 +1046,16 @@ bool PartyMods::refresh_rules() {
                              }
                          );
 
+    // Rules that did not change are not sent again.
     if (!changed) {
         return false;
     }
 
     rules_ = std::move(rules);
 
+    // Each member that matches the host gets the new rules.
     for (const auto& [id, peer] : peers_) {
+        // A member that differs does not get the game, so it needs no rules.
         if (peer.fit == Fit::kMatch) {
             send_rules(id);
         }
@@ -971,6 +1077,7 @@ void PartyMods::tick_host(std::uint64_t now) {
         it = here ? std::next(it) : peers_.erase(it);
     }
 
+    // A member not in the table yet starts its wait now.
     for (const Member& m : session_.members()) {
         if (m.id != session_.id() && peers_.count(m.id) == 0) {
             peers_[m.id].since = now;
@@ -986,10 +1093,12 @@ void PartyMods::tick_host(std::uint64_t now) {
         }
     }
 
+    // A forgotten or silent member changes the verdicts, so everyone hears.
     if (gone) {
         send_fits();
     }
 
+    // The rules are read every kRulesPollMs, not every tick.
     if (now - polled_ms_ < kRulesPollMs) {
         return;
     }
@@ -999,7 +1108,9 @@ void PartyMods::tick_host(std::uint64_t now) {
 }
 
 void PartyMods::tick(std::uint64_t now) {
+    // Out of a party, the last one is forgotten once.
     if (!session_.in_party()) {
+        // Only on the tick that finds the party gone.
         if (in_party_) {
             in_party_ = false;
             clear();
@@ -1019,6 +1130,7 @@ void PartyMods::tick(std::uint64_t now) {
         in_party_ = false;
     }
 
+    // A new party starts its clocks and takes this game's rules, if it hosts.
     if (!in_party_) {
         in_party_ = true;
         joined_ms_ = now;
@@ -1027,14 +1139,17 @@ void PartyMods::tick(std::uint64_t now) {
         party_code_ = session_.code();
         party_epoch_ = session_.role().epoch();
 
+        // A host starts with the rules its own mods publish.
         if (session_.is_host()) {
             rules_ = game_.party_rules();
         }
     }
 
+    // The host checks its members; a member says its mods until the host's list comes.
     if (session_.is_host()) {
         tick_host(now);
     } else if (!heard_host_ && (sent_ms_ == 0 || now - sent_ms_ >= kModsMs)) {
+        // A member sends its list at once and then every kModsMs until the host answers.
         sent_ms_ = now;
         send_mods(session_.host());
     }

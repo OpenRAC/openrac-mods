@@ -5,12 +5,13 @@
 // would find them, taking the tail's slots out of its reach for the copies' large pvars, and
 // planning how many copies each enemy gets within the slots there are. It touches game memory only
 // through the `mem` pointer it is given, so the tests lay a pool out in an array.
+
 #include "pool.h"
 
 #include <cstddef>
 #include <cstring>
 
-namespace dm {
+namespace difficulty {
 
 namespace {
 
@@ -50,13 +51,13 @@ Pool Pool::read(const std::uint8_t* mem, const PoolGlobals& at) {
 }
 
 bool Pool::sane() const {
-    return base != 0 && spare >= base && end > spare && (spare - base) % k_moby_size == 0
-           && (end - spare) % k_moby_size == 0 && (end - spare) / k_moby_size < kMaxSpareSlots
+    return base != 0 && spare >= base && end > spare && (spare - base) % kMobySize == 0
+           && (end - spare) % kMobySize == 0 && (end - spare) / kMobySize < kMaxSpareSlots
            && pvars != 0;
 }
 
 int Pool::usable() const {
-    return sane() ? static_cast<int>((end - spare) / k_moby_size) : 0;
+    return sane() ? static_cast<int>((end - spare) / kMobySize) : 0;
 }
 
 int count_free(const std::uint8_t* mem, const Pool& pool) {
@@ -68,12 +69,12 @@ int count_free(const std::uint8_t* mem, const Pool& pool) {
     int free = 0;
 
     // Each slot from the first spawned one.
-    for (std::uint32_t m = pool.spare; m < pool.end; m += k_moby_size) {
+    for (std::uint32_t m = pool.spare; m < pool.end; m += kMobySize) {
         const std::uint8_t s = state(mem, m);
 
         // The never-used mark: this slot and all after it are free.
         if (s == kNeverUsed) {
-            return free + static_cast<int>((pool.end - m) / k_moby_size);
+            return free + static_cast<int>((pool.end - m) / kMobySize);
         }
 
         // A freed slot: free too.
@@ -100,13 +101,13 @@ bool reserve_tail(
         return false;
     }
 
-    const std::uint32_t new_end = pool.end - static_cast<std::uint32_t>(slots) * k_moby_size;
+    const std::uint32_t new_end = pool.end - static_cast<std::uint32_t>(slots) * kMobySize;
     // The never-used mark must be before the new end, and every slot from there to the old end
     // (the end slot itself too) never used: zero, as the load left it.
     std::uint32_t mark = 0;
 
     // The first never-used slot.
-    for (std::uint32_t m = pool.spare; m < pool.end; m += k_moby_size) {
+    for (std::uint32_t m = pool.spare; m < pool.end; m += kMobySize) {
         // This is the mark.
         if (state(mem, m) == kNeverUsed) {
             mark = m;
@@ -120,7 +121,7 @@ bool reserve_tail(
     }
 
     // Each slot of the tail and the end slot.
-    for (std::uint32_t m = new_end; m <= pool.end; m += k_moby_size) {
+    for (std::uint32_t m = new_end; m <= pool.end; m += kMobySize) {
         // One was used: its state is not the load's zero.
         if (state(mem, m) != 0) {
             return false;
@@ -129,8 +130,8 @@ bool reserve_tail(
 
     const std::uint32_t kept = static_cast<std::uint32_t>(usable - slots);
     std::memcpy(mem + at.end, &new_end, kWord);
-    *room = pool.pvars + kept * k_spare_pvars;
-    *room_size = static_cast<std::uint32_t>(slots + 1) * k_spare_pvars;
+    *room = pool.pvars + kept * kSparePvars;
+    *room_size = static_cast<std::uint32_t>(slots + 1) * kSparePvars;
     return true;
 }
 
@@ -168,4 +169,4 @@ ClonePlan plan_clones(const std::vector<CloneAsk>& asks, int budget) {
     return plan;
 }
 
-}  // namespace dm
+}  // namespace difficulty

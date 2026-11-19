@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Direct connect's page logic (direct.hpp): ring rows, their acceleration, the address, the
- * hosting lines.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Direct connect's page logic (direct.hpp): ring rows, their acceleration, the address, the
+// hosting lines.
+
 #include "direct.hpp"
 
 namespace mp {
@@ -24,6 +24,8 @@ std::vector<std::string> ring_choices(int value, const Ring& ring) {
     std::vector<std::string> choices;
     choices.reserve(kRingWindow);
 
+    // The window runs from kRingCentre steps below `value` to the rest above it, each wrapped into
+    // the ring.
     for (int i = 0; i < kRingWindow; ++i) {
         const long long at =
             static_cast<long long>(value) + static_cast<long long>(i - kRingCentre) * ring.step;
@@ -54,6 +56,7 @@ int Acceleration::times(int item, std::uint64_t now_ms) {
 std::string DirectAddress::text() const {
     std::string text;
 
+    // Dots go between the octets, none before the first.
     for (std::size_t i = 0; i < octets.size(); ++i) {
         text += (i != 0 ? "." : "") + std::to_string(octets[i]);
     }
@@ -67,6 +70,7 @@ std::vector<std::string> hosting_lines(
     const std::string suffix = ":" + std::to_string(port);
     std::vector<std::string> lines;
 
+    // The addresses in the order given, each with the port.
     for (const std::string& address : addresses) {
         // The page has room for so many.
         if (lines.size() >= most) {

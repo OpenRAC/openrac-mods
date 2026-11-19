@@ -1,0 +1,118 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The tiers in play and the save they belong to: each weapon's level and whether the mod counts its
+// experience yet, the party host's levels when a party gives them, and the book of saves kept in
+// the mod's data folder (tiers.txt), with the watch on the save's clock that tells which save's
+// tiers are in play (save_book.h has the rules).
+
+#pragma once
+
+#include <cstdint>
+#include <string>
+
+#include "game_view.h"
+#include "save_book.h"
+#include "tiers.h"
+
+namespace ng_plus_plus {
+
+// A level per item, 0 for none.
+using Levels = std::array<std::uint8_t, kItems>;
+
+// The tiers in play and the book they are kept in.
+//
+// Holds the mod by reference (it outlives this; the mod's state owns both). Only the game's thread
+// uses it.
+class SaveTiers {
+public:
+    // Starts with no tiers; the book is read by load_book.
+    explicit SaveTiers(const openrac::Mod& mod) : m_mod(mod) {}
+
+    // Reads the book from the mod's data folder; a missing or unreadable file is an empty book.
+    void load_book();
+
+    // ---- The levels ----
+
+    // Returns the level the game plays item `item` at: the party host's in a party, else this
+    // save's.
+    int level(int item) const;
+
+    // Returns this save's own level of item `item`, the one that steps and is kept.
+    int own_level(int item) const { return m_level[static_cast<std::size_t>(item)]; }
+
+    // Returns whether a party host's levels are in play (a guest never steps its own).
+    bool party_on() const { return m_party_on; }
+
+    // Takes item `item`'s next step and keeps it at once, so a restart loses nothing.
+    void step(int item);
+
+    // Returns whether the mod counts item `item`'s experience yet, and marks it counted.
+    bool started(int item) const { return m_started[static_cast<std::size_t>(item)]; }
+
+    void start(int item) { m_started[static_cast<std::size_t>(item)] = true; }
+
+    // ---- The save's clock ----
+
+    // Looks at the save's clock and data each tick, at the title too: when the clock moved, the
+    // levels of the save it names come into play (clock_case_of).
+    void watch(const GameView& view);
+
+    // Returns whether the clock seen last is a save's (not all zeros, nor none yet).
+    bool clock_known() const { return m_clock_seen && !is_zero(m_clock); }
+
+    // ---- The party ----
+
+    // Takes a party host's rules: `size` bytes at `data`, a level per item; null or short when
+    // there are none (the party left).
+    void take_party_rules(const void* data, std::uint32_t size);
+
+    // Publishes this game's levels for a party it hosts, once after each change.
+    void publish();
+
+    // Marks the levels changed, so publish sends them again.
+    void mark_changed() { m_published = false; }
+
+private:
+    // The level bytes of the levels and started marks now, as the book keeps them.
+    LevelBytes level_bytes() const;
+
+    // Keeps the levels now under `clock` in the book and writes the book.
+    void keep(const Clock& clock);
+
+    // Brings in the levels of the save `clock` names; `now` is the save's data now.
+    void clock_moved(const Clock& clock, const SavePrint& now, const GameView& view);
+
+    // Brings in the levels and started marks of the book's `record`.
+    void take_record(const Record& record);
+
+    // Writes the book to the mod's data folder, through a new file put in the old one's place.
+    void save_book() const;
+
+    // Returns the book's path, "" with no data folder.
+    std::string book_path() const;
+
+    const openrac::Mod& m_mod;  // The mod; outlives this.
+
+    Levels m_level{};                      // This save's level per item.
+    std::array<bool, kItems> m_started{};  // Whether the mod counts each one's experience.
+    Levels m_party{};                      // The party host's levels.
+    bool m_party_on = false;               // The host's levels are in play.
+    bool m_published = false;              // The levels now have been published.
+
+    SaveBook m_book;             // The book of saves, as tiers.txt has it.
+    Clock m_clock{};             // The clock seen last.
+    bool m_clock_seen = false;   // A clock has been seen since load.
+    bool m_from_nothing = true;  // No save's levels since load or the last zeros.
+    SavePrint m_print;           // The save's data at the last tick.
+    bool m_print_seen = false;   // m_print holds a tick's data.
+
+    // The levels in play when the clock went to zeros, and the save's data then: challenge mode's
+    // next game carries them on.
+    bool m_carried = false;
+    Levels m_carry_level{};
+    std::array<bool, kItems> m_carry_started{};
+    SavePrint m_carry_print;
+};
+
+}  // namespace ng_plus_plus

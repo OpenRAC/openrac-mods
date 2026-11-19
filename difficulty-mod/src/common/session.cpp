@@ -3,6 +3,7 @@
 //
 // The difficulty mod's shared state (session.h): the settings, the level's values, Chaos's events
 // and a party's rules, the same in every game.
+
 #include "session.h"
 
 #include <cstdint>
@@ -11,115 +12,147 @@
 #include <random>
 #include <string>
 
-namespace dm {
-
+namespace difficulty {
 namespace {
 
 // The salt that keeps the events' clock on a stream of its own.
 constexpr std::uint64_t kEventClockSalt = 0x4000u;
+
 // A seed is 32 bits (the code is 8 hex digits).
 constexpr std::uint64_t kSeedMask = 0xFFFFFFFFu;
+
 // The seconds in a minute, and the gap between events when the setting is below one.
 constexpr double kSecondsPerMinute = 60.0;
 constexpr double kDefaultEventGap = 180.0;
 // A host's event on for this many times an event's length (in this game's play) is taken as over.
 constexpr double kEventHeldLimit = 2.0;
 
+// The room a value formatted with two decimals needs.
+constexpr std::size_t kTextBytes = 32;
+
 // This game's own settings: Chaos, the sliders, the seed (as resolved at the start) and the
 // events.
-void read_own(Session& s) {
-    s.chaos = s.mod->setting<bool>("chaos");
+void read_own(Session& session) {
+    session.chaos = session.mod->setting<bool>("chaos");
 
     // Each slider's setting.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
-        s.sliders[k] = clamp_knob(k, s.mod->setting<double>(k_knobs[k].key));
+    for (int knob = 0; knob < kKnobCount; ++knob) {
+        session.sliders[knob] = clamp_knob(knob, session.mod->setting<double>(kKnobs[knob].key));
     }
 
-    s.seed = s.own_seed;
-    s.events_on = s.mod->setting<bool>("chaos_events");
+    session.seed = session.own_seed;
+    session.events_on = session.mod->setting<bool>("chaos_events");
 }
 
 // The events' clock as at a start.
-void reset_clock(Session& s) {
-    s.clock = EventClock{};
-    s.clock.seed = mix(s.seed, kEventClockSalt);
-    s.clock.knobs = s.knobs;
-    s.clock.every = kSecondsPerMinute * static_cast<double>(s.mod->setting<int>("chaos_minutes"));
+void reset_clock(Session& session) {
+    session.clock = EventClock{};
+    session.clock.seed = mix(session.seed, kEventClockSalt);
+    session.clock.knobs = session.knobs;
+    session.clock.every =
+        kSecondsPerMinute * static_cast<double>(session.mod->setting<int>("chaos_minutes"));
 
     // Less than a minute (or not a number): the default gap.
-    if (!(s.clock.every >= kSecondsPerMinute)) {
-        s.clock.every = kDefaultEventGap;
+    if (!(session.clock.every >= kSecondsPerMinute)) {
+        session.clock.every = kDefaultEventGap;
     }
 }
 
 // What this game plays by, for a party it hosts.
-void publish_rules(Session& s) {
-    PartyRules r;
-    r.chaos = s.chaos;
-    r.events = s.events_on;
-    r.minutes = static_cast<int>(s.clock.every / kSecondsPerMinute);
-    r.sliders = s.sliders;
-    r.seed = s.seed;
-    r.event = s.clock.current;
-    s.mod->party_rules_publish(encode_party_rules(r), party_rules_text(r));
+void publish_rules(Session& session) {
+    PartyRules rules;
+    rules.chaos = session.chaos;
+    rules.events = session.events_on;
+    rules.minutes = static_cast<int>(session.clock.every / kSecondsPerMinute);
+    rules.sliders = session.sliders;
+    rules.seed = session.seed;
+    rules.event = session.clock.current;
+    session.mod->party_rules_publish(encode_party_rules(rules), party_rules_text(rules));
 }
 
 // This game hosts the party now (the old host left): the party's rules become its own, the event
 // on goes on for a whole event's length from here, and the next starts a gap after it.
-void take_over(Session& s) {
-    s.follow = false;
-    s.took_over = true;
-    s.chaos = s.rules.chaos;
-    s.sliders = s.rules.sliders;
-    s.seed = s.rules.seed;
-    s.events_on = s.rules.events;
-    const int event = s.clock.current;
-    s.clock = EventClock{};
-    s.clock.seed = mix(s.seed, kEventClockSalt);
-    s.clock.knobs = s.knobs;
-    s.clock.every = kSecondsPerMinute * static_cast<double>(s.rules.minutes);
+void take_over(Session& session) {
+    session.follow = false;
+    session.took_over = true;
+    session.chaos = session.rules.chaos;
+    session.sliders = session.rules.sliders;
+    session.seed = session.rules.seed;
+    session.events_on = session.rules.events;
+    const int event = session.clock.current;
+    session.clock = EventClock{};
+    session.clock.seed = mix(session.seed, kEventClockSalt);
+    session.clock.knobs = session.knobs;
+    session.clock.every = kSecondsPerMinute * static_cast<double>(session.rules.minutes);
 
     // Not a gap the settings allow: the default.
-    if (!(s.clock.every >= kSecondsPerMinute)) {
-        s.clock.every = kDefaultEventGap;
+    if (!(session.clock.every >= kSecondsPerMinute)) {
+        session.clock.every = kDefaultEventGap;
     }
 
     // An event on: it ends an event's length from now.
-    if (event >= 0 && s.events_on) {
-        s.clock.current = event;
-        s.clock.ends = s.clock.lasts;
+    if (event >= 0 && session.events_on) {
+        session.clock.current = event;
+        session.clock.ends = session.clock.lasts;
     }
 
-    set_active();
-    publish_rules(s);
-    s.mod->info(
-        "this game hosts the party now: it plays on by the party's rules, seed " + seed_code(s.seed)
+    set_active(session);
+    publish_rules(session);
+    session.mod->info(
+        "this game hosts the party now: it plays on by the party's rules, seed "
+        + seed_code(session.seed)
     );
+}
+
+// The log's line for an event on or off: its name, or "back to normal" for none.
+std::string event_line(int event) {
+    // No event is on: the values are the level's again.
+    if (event < 0) {
+        return "chaos: back to normal";
+    }
+
+    return std::string("chaos: ") + kEvents[event].name;
+}
+
+// How the mod plays, for the load's log line: chaos, moved sliders or retail.
+std::string play_mode(const Session& session) {
+    // Chaos rolls whatever the sliders leave at 1.0.
+    if (session.chaos) {
+        return "chaos";
+    }
+
+    // No Chaos: the sliders are the values, if any is moved.
+    if (sliders_moved(session.sliders)) {
+        return "sliders";
+    }
+
+    return "retail";
 }
 
 // The host's rules reached this game, or (none) the party went and its own count again from the
 // next level loaded. An event starting or ending in the host's game comes this way too, and (0
-// bytes) word that this game took over as host.
-void on_party_rules(void*, const void* data, std::uint32_t size) {
-    Session& s = session();
+// bytes) word that this game took over as host. `user` is the game's Session.
+void on_party_rules(void* user, const void* data, std::uint32_t size) {
+    Session& session = *static_cast<Session*>(user);
 
+    // The party went.
     if (data == nullptr) {
         // It had taken over as host: its own settings again, from the next level loaded.
-        if (s.took_over) {
-            s.took_over = false;
-            read_own(s);
-            reset_clock(s);
-            set_active();
-            publish_rules(s);
-            s.mod->info("out of the party: this game's own settings count again");
+        if (session.took_over) {
+            session.took_over = false;
+            read_own(session);
+            reset_clock(session);
+            set_active(session);
+            publish_rules(session);
+            session.mod->info("out of the party: this game's own settings count again");
         }
 
         // Only a member that took rules has any to leave.
-        if (s.follow) {
-            s.follow = false;
-            reset_clock(s);
-            set_active();
-            s.mod->info("out of the party: this game's own settings count again");
+        if (session.follow) {
+            session.follow = false;
+            reset_clock(session);
+            set_active(session);
+            session.mod->info("out of the party: this game's own settings count again");
         }
 
         return;
@@ -129,8 +162,8 @@ void on_party_rules(void*, const void* data, std::uint32_t size) {
     // its own, runs the events (and, in a level loaded from now on, the copies) a host runs, and
     // publishes them for the members.
     if (size == 0) {
-        if (s.follow) {
-            take_over(s);
+        if (session.follow) {
+            take_over(session);
         }
 
         return;
@@ -138,176 +171,169 @@ void on_party_rules(void*, const void* data, std::uint32_t size) {
 
     PartyRules rules;
 
+    // The host runs another version of the mod, whose rules are laid out differently.
     if (!decode_party_rules(data, size, rules)) {
-        s.mod->warn("the host's rules cannot be read here: its Difficulty is another version");
+        session.mod->warn(
+            "the host's rules cannot be read here: its Difficulty is another version"
+        );
         return;
     }
 
-    const bool first = !s.follow;
-    const int event = s.clock.current;
+    const bool first = !session.follow;
+    const int event = session.clock.current;
 
     // A new event, or the first rules: its time starts now.
     if (first || rules.event != event) {
-        s.event_held = 0.0;
+        session.event_held = 0.0;
     }
 
-    s.follow = true;
-    s.rules = rules;
-    s.clock.current = rules.event;
-    set_active();
+    session.follow = true;
+    session.rules = rules;
+    session.clock.current = rules.event;
+    set_active(session);
 
+    // The first rules of a party: say what the host plays by.
     if (first) {
-        s.mod->info(
+        session.mod->info(
             "in a party: playing by the host's rules, seed " + seed_code(rules.seed) + ": "
-            + describe(rules.sliders) + (rules.chaos ? ", chaos" : "")
+            + describe(session, rules.sliders) + (rules.chaos ? ", chaos" : "")
         );
     }
 
     // The host's event, as this game's own would say it.
     if (rules.event != event) {
-        s.mod->info(
-            rules.event >= 0 ? std::string("chaos: ") + k_events[rules.event].name
-                             : std::string("chaos: back to normal")
-        );
+        session.mod->info(event_line(rules.event));
     }
 }
 
 }  // namespace
 
-Session& session() {
-    static Session s;
-    return s;
-}
-
 std::string fmt(double value) {
-    char b[32];
-    std::snprintf(b, sizeof b, "%.2f", value);
-    return b;
+    char text[kTextBytes];
+    std::snprintf(text, sizeof text, "%.2f", value);
+    return text;
 }
 
-std::string describe(const Values& values) {
-    const unsigned knobs = session().knobs;
+std::string describe(const Session& session, const Values& values) {
     std::string out;
 
     // Each slider the game honours, in the manifest's order.
-    for (int k = 0; k < KNOB_COUNT; ++k) {
-        // One this game has.
-        if ((knobs & 1u << k) != 0) {
-            out += std::string(out.empty() ? "" : ", ") + k_knobs[k].name + " " + fmt(values[k]);
+    for (int knob = 0; knob < kKnobCount; ++knob) {
+        // Only the sliders this game has.
+        if ((session.knobs & 1u << knob) != 0) {
+            out +=
+                std::string(out.empty() ? "" : ", ") + kKnobs[knob].name + " " + fmt(values[knob]);
         }
     }
 
     return out;
 }
 
-void set_active() {
-    Session& s = session();
-    s.active = with_event(s.level, s.clock.current);
+void set_active(Session& session) {
+    session.active = with_event(session.level, session.clock.current);
 }
 
-void start(openrac::Mod& mod, unsigned knobs) {
-    Session& s = session();
-    s.mod = &mod;
-    s.knobs = knobs;
+void start(Session& session, openrac::Mod& mod, unsigned knobs) {
+    session.mod = &mod;
+    session.knobs = knobs;
     const std::string seed_text = mod.setting<std::string>("seed");
 
     // Blank: a new seed from the machine and the time, shown in the log to play it again.
     if (seed_text.empty()) {
-        std::random_device rd;
-        s.seed = (static_cast<std::uint64_t>(rd()) ^ static_cast<std::uint64_t>(std::time(nullptr)))
-                 & kSeedMask;
+        std::random_device device;
+        session.seed =
+            (static_cast<std::uint64_t>(device()) ^ static_cast<std::uint64_t>(std::time(nullptr)))
+            & kSeedMask;
     } else {
-        s.seed = seed_from_text(seed_text);
+        session.seed = seed_from_text(seed_text);
     }
 
-    s.own_seed = s.seed;
-    read_own(s);
-    s.trace = mod.setting<bool>("trace");
-    reset_clock(s);
-    s.level = effective(s.chaos, s.sliders, s.seed, -1);
-    set_active();
-    s.follow = false;
-    publish_rules(s);
-    mod.on_party_rules(on_party_rules);
+    session.own_seed = session.seed;
+    read_own(session);
+    session.trace = mod.setting<bool>("trace");
+    reset_clock(session);
+    session.level = effective(session.chaos, session.sliders, session.seed, -1);
+    set_active(session);
+    session.follow = false;
+    publish_rules(session);
+    mod.on_party_rules(on_party_rules, &session);
 }
 
-std::uint64_t level_values(int level) {
-    Session& s = session();
+std::uint64_t level_values(Session& session, int level) {
     // A party's member plays by the host's: the same rolls from the same seed.
-    const bool chaos = s.follow ? s.rules.chaos : s.chaos;
-    const Values& sliders = s.follow ? s.rules.sliders : s.sliders;
-    const std::uint64_t seed = s.follow ? s.rules.seed : s.seed;
-    s.level = effective(chaos, sliders, seed, level);
-    set_active();
+    const bool chaos = session.follow ? session.rules.chaos : session.chaos;
+    const Values& sliders = session.follow ? session.rules.sliders : session.sliders;
+    const std::uint64_t seed = session.follow ? session.rules.seed : session.seed;
+    session.level = effective(chaos, sliders, seed, level);
+    set_active(session);
 
     // Chaos rolls new values each level, and the trace asks for them: say what plays.
-    if (chaos || s.trace) {
-        s.mod->info("level " + std::to_string(level) + ": " + describe(s.level));
+    if (chaos || session.trace) {
+        session.mod->info(
+            "level " + std::to_string(level) + ": " + describe(session, session.level)
+        );
     }
 
     return seed;
 }
 
-void advance_events(double dt) {
-    Session& s = session();
-
+void advance_events(Session& session, double dt) {
     // A party's member: the host decides the events. One on far longer than an event lasts is
     // ended here (a host that took over passes on the rules as they were, the event never ending).
-    if (s.follow) {
+    if (session.follow) {
         // No event on, or no time passed.
-        if (s.clock.current < 0 || !(dt > 0.0)) {
+        if (session.clock.current < 0 || !(dt > 0.0)) {
             return;
         }
 
-        s.event_held += dt;
+        session.event_held += dt;
 
         // On too long: back to normal here.
-        if (s.event_held >= s.clock.lasts * kEventHeldLimit) {
-            s.clock.current = -1;
-            set_active();
-            s.mod->info("chaos: back to normal (the host's event never ended)");
+        if (session.event_held >= session.clock.lasts * kEventHeldLimit) {
+            session.clock.current = -1;
+            set_active(session);
+            session.mod->info("chaos: back to normal (the host's event never ended)");
         }
 
         return;
     }
 
     // The events are off.
-    if (!s.events_on) {
+    if (!session.events_on) {
         return;
     }
 
-    const int change = s.clock.advance(dt);
+    const int change = session.clock.advance(dt);
 
     // An event started or ended: a party's members take it from these rules.
     if (change != 0) {
-        set_active();
-        publish_rules(s);
-        s.mod->info(
-            change > 0 ? std::string("chaos: ") + k_events[s.clock.current].name
-                       : std::string("chaos: back to normal")
-        );
+        set_active(session);
+        publish_rules(session);
+        session.mod->info(event_line(change > 0 ? session.clock.current : -1));
     }
 }
 
-void log_start(const std::string& detail) {
-    Session& s = session();
-    std::string mode = s.chaos ? "chaos" : sliders_moved(s.sliders) ? "sliders" : "retail";
+void log_start(const Session& session, const std::string& detail) {
+    std::string mode = play_mode(session);
 
     // Chaos with sliders held off 1.0: say that they hold.
-    if (s.chaos && sliders_moved(s.sliders)) {
+    if (session.chaos && sliders_moved(session.sliders)) {
         mode += ", with sliders moved off 1.0 holding";
     }
 
-    s.mod->info(
-        mode + " on the " + std::string(s.mod->version()) + " disc; seed " + seed_code(s.seed)
-        + " (put it in Seed to play the same rolls again)" + (detail.empty() ? "" : "; " + detail)
-        + (s.events_on ? "; chaos events every " + fmt(s.clock.every / 60.0) + " min" : "")
+    session.mod->info(
+        mode + " on the " + std::string(session.mod->version()) + " disc; seed "
+        + seed_code(session.seed) + " (put it in Seed to play the same rolls again)"
+        + (detail.empty() ? "" : "; " + detail)
+        + (session.events_on
+               ? "; chaos events every " + fmt(session.clock.every / kSecondsPerMinute) + " min"
+               : "")
     );
 
     // Without Chaos the values are the sliders': one line says them.
-    if (!s.chaos) {
-        s.mod->info(describe(s.level));
+    if (!session.chaos) {
+        session.mod->info(describe(session, session.level));
     }
 }
 
-}  // namespace dm
+}  // namespace difficulty

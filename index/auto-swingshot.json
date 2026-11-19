@@ -1,0 +1,27 @@
+{
+  "id": "auto-swingshot",
+  "repo": "https://github.com/glawks/auto-swingshot",
+  "path": "",
+  "description": "Automatically equips the Swingshot when pressing Circle near a Versa-Target in Ratchet & Clank 1, then restores your previous weapon. Supports swinging and pulling targets, airborne chaining, and configurable activation range.",
+  "tags": [
+    "gameplay",
+    "controls",
+    "qol",
+    "accessibility"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/glawks/auto-swingshot/issues"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "XIBxCquPN5k",
+        "caption": "Trailer"
+      }
+    ]
+  }
+}

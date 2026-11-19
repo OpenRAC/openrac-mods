@@ -30,6 +30,7 @@ import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import binary_scan  # noqa: E402
 import build_index as b  # noqa: E402
 import media  # noqa: E402
 
@@ -661,21 +662,40 @@ def safe_rel(rel: str) -> bool:
     return bool(rel) and not rel.startswith("/") and ".." not in parts and not rel.startswith(".git")
 
 
-def push_master(repo: Path, paths: list[str], message: str, branch: str, run=run_cmd) -> str:
-    """Commits to master; if master refuses the push (protected), opens a pull request instead."""
+def push_master(repo: Path, paths: list[str], message: str, branch: str, run=run_cmd, write=None,
+                closes: str = "") -> str:
+    """Commits to master. Master moves often, so a refused push is retried on the new master, where
+    `write()` makes the change again (False: it is already there). Last resort: a pull request."""
     git = ["git", "-C", str(repo)]
     run(["gh", "auth", "setup-git"])
     run(git + ["config", "user.name", BOT_NAME])
     run(git + ["config", "user.email", BOT_EMAIL])
-    run(git + ["add", "--", *paths])
-    run(git + ["commit", "-m", message])
-    try:
-        run(git + ["push", "origin", "HEAD:refs/heads/master"])
-        return "master"
-    except subprocess.CalledProcessError:
-        run(git + ["push", "--force", "origin", f"HEAD:refs/heads/{branch}"])
-        return run(["gh", "pr", "create", "--base", "master", "--head", branch, "--title", message,
-                    "--body", "Opened by the index bot: master did not take a direct push."]).strip()
+    for attempt in range(4):
+        if attempt:
+            try:
+                run(git + ["fetch", "origin", "master"])
+                run(git + ["reset", "--hard", "FETCH_HEAD"])
+            except subprocess.CalledProcessError:
+                break
+        if write is not None and not write():
+            return "master"
+        run(git + ["add", "--", *paths])
+        run(git + ["commit", "-m", message])
+        try:
+            run(git + ["push", "origin", "HEAD:refs/heads/master"])
+            return "master"
+        except subprocess.CalledProcessError:
+            if write is None:
+                break
+    run(git + ["push", "--force", "origin", f"HEAD:refs/heads/{branch}"])
+    prs = json.loads(run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "url"]) or "[]")
+    if prs:
+        return prs[0]["url"]
+    body = "Opened by the index bot: master did not take a direct push."
+    if closes:
+        body += f"\n\nCloses #{closes}"
+    return run(["gh", "pr", "create", "--base", "master", "--head", branch, "--title", message,
+                "--body", body]).strip()
 
 
 # ------------------------------------------------------------------------------------------------
@@ -686,7 +706,57 @@ def review_title(item: dict) -> str:
     return f"Review {item['id']} {item['version']}"
 
 
-def review_body(item: dict) -> str:
+SCAN_LIMIT = 256 * 1024 * 1024  # the largest archive downloaded for the scan
+SCAN_TITLE = binary_scan.TITLE
+REVIEW_BY_HAND = "review by hand"
+
+
+def scan_release(repo: str, tag: str, platforms: dict, http) -> dict | None:
+    """binary_scan's view of a release's archives (all platforms together), each checked against
+    its SHA-256 first; None when one cannot be downloaded."""
+    merged = {"libraries": {}, "urls": set(), "ips": set(), "telling": set(), "problems": []}
+    for plat, a in sorted(platforms.items()):
+        r = http.get(f"{repo}/releases/download/{tag}/{a['asset']}", limit=SCAN_LIMIT)
+        if r.status != 200 or hashlib.sha256(r.body).hexdigest() != a["sha256"]:
+            return None
+        one = binary_scan.scan_archive(r.body)
+        merged["libraries"].update({f"{plat}: {k}": v for k, v in one["libraries"].items()})
+        for key in ("urls", "ips", "telling"):
+            merged[key] |= one[key]
+        merged["problems"] += [f"{plat}: {p}" for p in one["problems"]]
+    return merged
+
+
+def scan_section(item: dict, http) -> str:
+    """The review issue's account of what the new libraries can do, and what is new in them."""
+    try:
+        new = scan_release(item["repo"], item["tag"], item["platforms"], http)
+        prev = item.get("previous")
+        old = scan_release(item["repo"], prev["tag"], prev["platforms"], http) if prev else None
+    except Exception as err:  # noqa: BLE001 - a scan that fails must not stop the review issue
+        return f"{SCAN_TITLE}\n\nThe scan failed ({err.__class__.__name__}): {REVIEW_BY_HAND}.\n"
+    if new is None:
+        return f"{SCAN_TITLE}\n\nThe archives could not be downloaded for the scan: {REVIEW_BY_HAND}.\n"
+    text = binary_scan.report(new, old)
+    if prev:
+        text += f"\nCompared with {prev['version']}" + ("." if old else f", whose archives could not be downloaded: {REVIEW_BY_HAND}.") + "\n"
+    return text
+
+
+def kept_scan(body: str | None, item: dict) -> str | None:
+    """The scan an issue already shows, when it was made from these very archives and finished."""
+    if not body or reviewed_hashes(body) != b.archive_hashes(item):
+        return None
+    # From the end: the changelog above it is the author's text and may hold the same words.
+    end = body.rfind(f"{MAINTAINERS}: to approve")
+    start = body.rfind(SCAN_TITLE, 0, max(end, 0))
+    if start < 0 or end < 0:
+        return None
+    scan = body[start:end].rstrip("\n") + "\n"
+    return None if REVIEW_BY_HAND in scan else scan
+
+
+def review_body(item: dict, scan: str = "") -> str:
     fence = "~" * max(4, max((len(x) for x in re.findall(r"~+", item.get("changelog", ""))), default=0) + 1)
     rows = "\n".join(f"| {p} | `{v['asset']}` | `{v['sha256']}` | {v['size']} |"
                      for p, v in item["platforms"].items())
@@ -695,22 +765,63 @@ def review_body(item: dict) -> str:
             f"- Release: {item['repo']}/releases/tag/{item['tag']} ({item['released']})\n\n"
             f"| Platform | Archive | SHA-256 | Bytes |\n|---|---|---|---|\n{rows}\n\n"
             f"Changelog:\n\n{fence}\n{item.get('changelog', '')}\n{fence}\n\n"
-            f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 1 h after its release.\n")
+            f"{scan}{chr(10) if scan else ''}"
+            f"{MAINTAINERS}: to approve, apply the label `approved`. It is published 1 h after its release, "
+            f"and only with these exact archives.\n\n"
+            f"{REVIEW_MARK}{json.dumps({'sha256': b.archive_hashes(item)}, sort_keys=True)} -->\n")
 
 
-def review(items: list[dict], run=run_cmd) -> int:
+REVIEW_MARK = "<!-- openrac-review "
+
+
+def reviewed_hashes(body: str | None) -> dict | None:
+    """The archive hashes a review issue shows, from its last line (the bot writes it; the changelog
+    above it is the author's text, so only the last line counts)."""
+    lines = (body or "").strip().splitlines()
+    last = lines[-1] if lines else ""
+    if not (last.startswith(REVIEW_MARK) and last.endswith(" -->")):
+        return None
+    try:
+        data = json.loads(last[len(REVIEW_MARK):-4])
+    except ValueError:
+        return None
+    sha = data.get("sha256") if isinstance(data, dict) else None
+    ok = isinstance(sha, dict) and sha and all(p in b.PLATFORMS and isinstance(h, str) and b.HEX64.match(h)
+                                              for p, h in sha.items())
+    return sha if ok else None
+
+
+def review(items: list[dict], run=run_cmd, http=None) -> int:
+    http = http or b.Http()
     run(["gh", "label", "create", "mod-review", "--color", "FBCA04", "--description",
          "A mod version waits for review", "--force"], check=False)
     for item in items:
         title = review_title(item)
         found = json.loads(run(["gh", "issue", "list", "--label", "mod-review", "--state", "all", "--search",
-                                f"\"{title}\" in:title", "--json", "number,title,state"]) or "[]")
+                                f"\"{title}\" in:title", "--json", "number,title,state,body"]) or "[]")
         same = [i for i in found if i["title"] == title]
-        body = review_body(item)
+        # The archives are downloaded for the scan once: while they stay the same, the issue keeps it.
+        scan = kept_scan(same[0].get("body"), item) if same else None
+        body = review_body(item, scan if scan is not None else scan_section(item, http))
         if not same:
             run(["gh", "issue", "create", "--title", title, "--label", "mod-review", "--body-file", "-"], input=body)
-        elif same[0]["state"] == "OPEN":
-            run(["gh", "issue", "edit", str(same[0]["number"]), "--body-file", "-"], input=body)
+            continue
+        num, was = str(same[0]["number"]), reviewed_hashes(same[0].get("body"))
+        changed = was is not None and was != b.archive_hashes(item)
+        if same[0]["state"] == "OPEN":
+            run(["gh", "issue", "edit", num, "--body-file", "-"], input=body)
+            if changed:
+                run(["gh", "issue", "edit", num, "--remove-label", "approved"], check=False)
+                run(["gh", "issue", "comment", num, "--body",
+                     "The release's archives changed while this issue was open. Review them again."])
+        elif item.get("changed") and changed:
+            # Approved, then the author replaced an archive: it is not published until reviewed again.
+            # Only once per change: a maintainer who closes it again (rejected) is not asked every hour.
+            run(["gh", "issue", "reopen", num])
+            run(["gh", "issue", "edit", num, "--remove-label", "approved", "--body-file", "-"], input=body)
+            run(["gh", "issue", "comment", num, "--body",
+                 f"{MAINTAINERS}: the release's archives changed after they were approved. "
+                 "Players keep the last published version until this one is reviewed again."])
     return 0
 
 
@@ -730,13 +841,27 @@ def approve(event: dict, repo: Path, http: b.Http, run=run_cmd) -> int:
         run(["gh", "issue", "edit", num, "--remove-label", "approved"], check=False)
         return 0
     mid, version = m.group(1), m.group(2)
+    sha = reviewed_hashes(issue.get("body"))
+    if sha is None:
+        run(["gh", "issue", "comment", num, "--body",
+             "This issue shows no archive hashes yet. Apply the label again after the next index build."])
+        run(["gh", "issue", "edit", num, "--remove-label", "approved"], check=False)
+        return 0
     path = repo / "index" / "approved.json"
-    data = json.loads(path.read_text()) if path.is_file() else {}
-    vs = sorted(set(data.get(mid, [])) | {version}, key=b.semver_key)
-    data[mid] = vs
-    path.write_text(json.dumps(dict(sorted(data.items())), indent=2) + "\n")
+    item = {"version": version, "sha256": sha}
+
+    def write() -> bool:
+        data = json.loads(path.read_text()) if path.is_file() else {}
+        have = data.get(mid, [])
+        if item in have:
+            return False
+        rest = [a for a in have if (a["version"] if isinstance(a, dict) else a) != version]
+        data[mid] = sorted(rest + [item], key=lambda a: b.semver_key(a["version"] if isinstance(a, dict) else a))
+        path.write_text(json.dumps(dict(sorted(data.items())), indent=2) + "\n")
+        return True
+
     where = push_master(repo, ["index/approved.json"], f"chore(index): approve {mid} {version}",
-                        f"approve/{mid}-{version}", run)
+                        f"approve/{mid}-{version}", run, write, num)
     if where == "master":
         run(["gh", "workflow", "run", "index.yml", "--ref", "master"], check=False)
         run(["gh", "issue", "close", num, "--comment",
@@ -805,8 +930,13 @@ def discussions(index: dict, repo: Path, run=run_cmd, category: str = "Mods") ->
         numbers[mod["id"]] = number
         changed = True
     if changed:
-        path.write_text(json.dumps(dict(sorted(numbers.items())), indent=2) + "\n")
-        push_master(repo, ["index/discussions.json"], "chore(index): discussion numbers", "index/discussions", run)
+        def write() -> bool:
+            now = json.loads(path.read_text()) if path.is_file() else {}
+            path.write_text(json.dumps(dict(sorted({**now, **numbers}.items())), indent=2) + "\n")
+            return True
+
+        push_master(repo, ["index/discussions.json"], "chore(index): discussion numbers", "index/discussions",
+                    run, write)
     return 0
 
 

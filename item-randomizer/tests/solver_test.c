@@ -35,6 +35,8 @@ static uint64_t plan_hash(const rando_plan* p) {
     uint64_t h = 0xCBF29CE484222325ull;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
+        if(rando_locations[i].kind==LOC_GOLD_CASE && !p->shuffled[i])continue;
+        if (p->settings.legacy_items && rando_locations[i].kind==LOC_SPECIAL && rando_locations[i].key!=5) continue;
         h = (h ^ (uint64_t)(p->reward[i].kind * 256u + p->reward[i].value)) * 0x100000001B3ull;
     }
 
@@ -133,7 +135,7 @@ static void check_tables(void) {
 static void check_plan(const rando_settings* s, const rando_plan* p) {
     CHECK(rando_beatable(p, NULL));
     /* The shuffled locations' rewards are their vanilla rewards, moved; the rest are as the game has them. */
-    int count[4][64];
+    int count[5][64];
     memset(count, 0, sizeof count);
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -141,7 +143,8 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
         CHECK(p->shuffled[i] == rando_location_shuffled(s, l));
 
         if (!p->shuffled[i]) {
-            CHECK(p->reward[i].kind == l->vanilla.kind && p->reward[i].value == l->vanilla.value);
+            CHECK((l->kind==LOC_GOLD_CASE && p->reward[i].kind==REWARD_NONE)
+                || (p->reward[i].kind == l->vanilla.kind && p->reward[i].value == l->vanilla.value));
             continue;
         }
 
@@ -163,7 +166,7 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
 
     CHECK(rando_stranded(p) == 0);
 
-    for (int k = 0; k < 4; ++k) {
+    for (int k = 0; k < 5; ++k) {
         for (int v = 0; v < 64; ++v) {
             CHECK(count[k][v] == 0);
         }
@@ -177,7 +180,7 @@ int main(int argc, char** argv) {
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
-    const rando_settings fixed = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD};
+    const rando_settings fixed = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD, 1};
     CHECK(rando_solve(&fixed, &p) == 0);
     printf(
         "fixed placement hash %016llx after %d attempt(s)\n",
@@ -190,11 +193,14 @@ int main(int argc, char** argv) {
     long solved = 0;
     int worst = 0;
 
-    for (int pools = 0; pools <= (int)POOL_ALL; ++pools) {
+    /* The legacy pools, each with and without the Items-menu pool (NPC coordinates and gold
+     * cases have their own tests). */
+    for (int set = 0; set < 2 * ((int)POOL_ALL + 1); ++set) {
+        const int pools = (set & (int)POOL_ALL) | (set > (int)POOL_ALL ? (int)POOL_ITEMS : 0);
         for (int keep = 0; keep <= 1; ++keep) {
             for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) {
                 rando_rng r = {
-                    (uint64_t)first * 0x9E3779B97F4A7C15ull + (uint64_t)(pools * 6 + keep * 3 + d)
+                    (uint64_t)first * 0x9E3779B97F4A7C15ull + (uint64_t)(set * 6 + keep * 3 + d)
                 };
 
                 for (long k = 0; k < n; ++k) {
@@ -226,7 +232,7 @@ int main(int argc, char** argv) {
     }
     /* A different seed, a different placement (almost always: here, for these two). */
     CHECK(rando_solve(&fixed, &p) == 0);
-    const rando_settings other = {fixed.seed + 1, POOL_ALL, 1, DIFFICULTY_STANDARD};
+    const rando_settings other = {fixed.seed + 1, POOL_ALL, 1, DIFFICULTY_STANDARD, 1};
     CHECK(rando_solve(&other, &q) == 0 && memcmp(p.reward, q.reward, sizeof p.reward) != 0);
 
     /* The spoiler log names the code and ends beatable. */

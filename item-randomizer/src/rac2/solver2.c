@@ -239,6 +239,7 @@ static void fill_stock(const rando_settings* s, r2_plan* plan, rando_rng* rng) {
 int r2_solve(const rando_settings* s, r2_plan* plan) {
     memset(plan, 0, sizeof *plan);
     plan->settings = *s;
+    plan->settings.legacy_items = 1;
     rando_rng rng = {
         s->seed ^ STREAM_GAME ^ ((uint64_t)s->pools << 40) ^ ((uint64_t)s->difficulty << 48)
     };

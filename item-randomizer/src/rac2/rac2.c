@@ -683,11 +683,16 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_vendor"),
         1,
         api->setting_string(mod, "difficulty"),
+        0,
+        0,
+        0,
     };
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
 
+    settings.legacy_items = 1;
+    settings.pools &= POOL_ALL;
     if (!play_settings(&settings)) {
         api->fail(mod, "no placement for these settings (please report them)");
         return 1;

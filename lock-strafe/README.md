@@ -146,8 +146,8 @@ Everything else is the game's code: each of the six hook points
 `Hero_SetPlanarVelocity`, `FollowCamera_ApplyOverrides`,
 `Hero_AdvanceAnimation`) calls what it replaced, the game's own or another
 mod's, and whenever the hero is not strafing does nothing else. Each disc's
-addresses and function names are in [src/rac1/discs.h](src/rac1/discs.h); the decision
-is in [src/rac1/strafe.h](src/rac1/strafe.h), apart from game memory, and tested by
+addresses and function names are in [src/rac1/discs.hpp](src/rac1/discs.hpp); the decision
+is in [src/rac1/strafe.hpp](src/rac1/strafe.hpp), apart from game memory, and tested by
 `hero_strafe` (ctest); `lock_strafe_load` loads the library against a host
 table of its own and checks its hooks.
 

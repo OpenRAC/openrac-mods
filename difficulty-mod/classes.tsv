@@ -1,6 +1,6 @@
 # The difficulty mod's moby classes: what it does with each (README.md, "Which mobys count as enemies").
-# tools/gen_classes.py writes src/classes.h from this table and the SDK's behaviour catalogue
-# (catalogue/rac1/classes.json); tests/classes_test.cpp checks that every catalogue class whose name
+# tools/gen_classes.py writes src/rac1/classes.h from this table and the SDK's behaviour catalogue
+# (catalogue/rac1/classes.json); tests/rac1/classes_test.py checks that every catalogue class whose name
 # says enemy, turret, mine, boss, ship or thief is here.
 #
 # role:

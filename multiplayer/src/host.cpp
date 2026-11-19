@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Direct connect's embedded host (host.hpp): the server's party routing for one party, in the
- * hosting game. Each piece follows its Java counterpart in the Server repository: the packet
- * checks and limits of ServerPacketHandler, the joins and leaves of PartyController, the routing
- * of Party.forward, and the datagrams of ServerDatagramHandler and Session.sendState.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Direct connect's embedded host (host.hpp): the server's party routing for one party, in the
+// hosting game. Each piece follows its Java counterpart in the Server repository: the packet
+// checks and limits of ServerPacketHandler, the joins and leaves of PartyController, the routing
+// of Party.forward, and the datagrams of ServerDatagramHandler and Session.sendState.
+
 #include "host.hpp"
 
 #include <algorithm>
@@ -23,29 +23,32 @@ using namespace net;
 
 namespace {
 
-/* How long one poll waits, how much one read takes, the most bytes a slow client may have waiting
- * before it is closed, and how long stop() keeps trying to hand the last frames over. */
+// How long one poll waits, how much one read takes, the most bytes a slow client may have waiting
+// before it is closed, and how long stop() keeps trying to hand the last frames over.
 constexpr int kPollMs = 10;
 constexpr std::size_t kReadChunkBytes = 16384;
 constexpr std::size_t kMaxPendingBytes = 1u << 20;
 constexpr int kFlushMs = 300;
 
+// Returns the steady clock in nanoseconds.
 std::int64_t steady_ns() {
     using namespace std::chrono;
     return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
-/* A token bucket (the server's RateLimit): a burst, then a steady rate. */
+// A token bucket (the server's RateLimit): a burst, then a steady rate.
 class Bucket {
 public:
     Bucket() = default;
 
+    // Makes a full bucket of `rate`.
     explicit Bucket(Rate rate)
         : capacity_(rate.burst),
           per_ns_(rate.per_second / 1e9),
           tokens_(rate.burst),
           last_(steady_ns()) {}
 
+    // Takes one token if there is one; false when the bucket is empty.
     bool take() {
         const std::int64_t now = steady_ns();
         tokens_ = std::min(capacity_, tokens_ + static_cast<double>(now - last_) * per_ns_);
@@ -61,13 +64,13 @@ public:
     }
 
 private:
-    double capacity_ = 0.0;
-    double per_ns_ = 0.0;
-    double tokens_ = 0.0;
-    std::int64_t last_ = 0;
+    double capacity_ = 0.0;  // The most tokens.
+    double per_ns_ = 0.0;    // Tokens added each nanosecond.
+    double tokens_ = 0.0;    // The tokens there were at last_.
+    std::int64_t last_ = 0;  // The steady clock at the last refill, in ns.
 };
 
-/* Java's String.strip, for the whitespace a name may carry. */
+// Java's String.strip, for the whitespace a name may carry.
 std::string strip(const std::string& text) {
     const char* space = " \t\n\v\f\r\x1c\x1d\x1e\x1f";
     const auto begin = text.find_first_not_of(space);
@@ -80,7 +83,7 @@ std::string strip(const std::string& text) {
     return text.substr(begin, text.find_last_not_of(space) - begin + 1);
 }
 
-/* ServerPacketHandler.isValid: neither blank nor longer than `max` characters. */
+// ServerPacketHandler.isValid: neither blank nor longer than `max` characters.
 bool valid(const std::string& text, std::size_t max) {
     return !strip(text).empty() && utf16_length(text) <= max;
 }
@@ -92,6 +95,7 @@ std::string description_text(const std::string& text) {
 
     // Lists are drawn by clients with a plain font.
     for (const char c : text) {
+        // Printable ASCII only, from the space to the tilde.
         if (c >= 0x20 && c <= 0x7E) {
             kept += c;
         }
@@ -110,10 +114,10 @@ std::string description_text(const std::string& text) {
 
 namespace {
 
-/* How long a new client with a slot waiting is kept out in case its RESUME comes. */
+// How long a new client with a slot waiting is kept out in case its RESUME comes.
 constexpr std::int64_t kResumeWaitMs = 500;
 
-/* A 64-bit token no one can guess from the outside. */
+// A 64-bit token no one can guess from the outside.
 std::int64_t new_token() {
     std::random_device random;
     const std::uint64_t high = random();
@@ -121,7 +125,7 @@ std::int64_t new_token() {
     return static_cast<std::int64_t>((high << 32) ^ low);
 }
 
-/* The numeric address of a socket address, without its port. */
+// The numeric address of a socket address, without its port.
 std::string address_text(const sockaddr* address, socklen_t length) {
     char host[NI_MAXHOST] = {};
 
@@ -134,13 +138,14 @@ std::string address_text(const sockaddr* address, socklen_t length) {
 
     // A dual-stack socket names IPv4 clients as mapped IPv6 addresses.
     if (text.rfind("::ffff:", 0) == 0 && text.find('.') != std::string::npos) {
-        text = text.substr(7);
+        text = text.substr(7);  // Drops the 7-character prefix.
     }
 
     return text;
 }
 
-/* Opens a socket of `type` on `port`, IPv6 and IPv4 at once where the system allows, else IPv4. */
+// Opens a socket of `type` on `port`, IPv6 and IPv4 at once where the system allows, else IPv4.
+// `error_kind` says why it failed: 1 for a port in use, 2 for anything else, else 0.
 socket_t listen_on(int type, int port, int& error_kind) {
     error_kind = 0;
 
@@ -173,6 +178,7 @@ socket_t listen_on(int type, int port, int& error_kind) {
         sockaddr_storage address{};
         socklen_t length = 0;
 
+        // The IPv6 socket takes IPv4 clients too, so V6ONLY is switched off.
         if (family == AF_INET6) {
             int off = 0;
             setsockopt(
@@ -190,6 +196,7 @@ socket_t listen_on(int type, int port, int& error_kind) {
             length = sizeof(sockaddr_in);
         }
 
+        // Bound, and for TCP also listening (a backlog of 16): this is the socket.
         if (bind(fd, reinterpret_cast<sockaddr*>(&address), length) == 0
             && (type != SOCK_STREAM || listen(fd, 16) == 0)) {
             set_blocking(fd, false);
@@ -200,6 +207,7 @@ socket_t listen_on(int type, int port, int& error_kind) {
         const bool in_use = address_in_use();
         close_socket(fd);
 
+        // A port in use is reported as that; any other failure is 2 and the next family is tried.
         if (in_use) {
             error_kind = 1;
             return kNoSocket;
@@ -211,7 +219,7 @@ socket_t listen_on(int type, int port, int& error_kind) {
     return kNoSocket;
 }
 
-/* The port a socket is bound to. */
+// The port a socket is bound to.
 int bound_port(socket_t fd) {
     sockaddr_storage address{};
     socklen_t length = sizeof address;
@@ -223,34 +231,38 @@ int bound_port(socket_t fd) {
 
 }  // namespace
 
-/* One connection: a client's socket, or the local game (no socket). */
+// One connection: a client's socket, or the local game (no socket).
 struct Host::Peer {
-    socket_t fd = kNoSocket;
-    bool local = false;
-    /* The session id (0 until HELLO) and the name. */
+    socket_t fd = kNoSocket;  // The client's socket; kNoSocket for the local game.
+    bool local = false;       // True for the local game.
+    // The session id (0 until HELLO) and the name.
     std::int32_t id = 0;
     std::string name;
-    std::string address;
-    std::int64_t opened_ns = 0;
-    FrameReader in;
-    Bytes out;
+    std::string address;         // The client's numeric address, for the per-address limit.
+    std::int64_t opened_ns = 0;  // When it connected, for the HELLO deadline (steady ns).
+    FrameReader in;              // Bytes read, cut into frames.
+    Bytes out;                   // Frames waiting to be written.
+    // One bucket per kind of packet (HostConfig), `strikes` for the packets over them, and `state`
+    // for STATE datagrams.
     Bucket chat, party, data, time, strikes, state;
+    // Whether it is in the party.
     bool in_party = false;
-    /* Greeted before the party existed: joins when it does. */
+    // Greeted before the party existed: joins when it does.
     bool waiting = false;
-    /* Closed: no more frames; its socket is closed and it is forgotten on the thread's next pass. */
+    // Closed: no more frames; its socket is closed and it is forgotten on the thread's next pass.
     bool dead = false;
-    /* UDP: the token, and where its last valid datagram came from and when. */
+    // UDP: the token, and where its last valid datagram came from and when.
     std::int64_t token = 0;
     sockaddr_storage udp{};
     socklen_t udp_length = 0;
     std::int64_t udp_heard_ns = 0;
-    /* What takes this session back, whether its client comes back at all, and until when it is kept
-     * out of the party in case it is coming back. */
+    // What takes this session back, whether its client comes back at all, and until when it is kept
+    // out of the party in case it is coming back.
     std::int64_t resume_token = 0;
     bool resumes = false;
     std::int64_t resuming_ns = 0;
 
+    // Returns this peer as a party member.
     Member member() const { return {id, name}; }
 };
 
@@ -333,21 +345,25 @@ void Host::stop() {
 }
 
 void Host::close_all() {
+    // Milliseconds to nanoseconds.
     const std::int64_t until = steady_ns() + std::int64_t{kFlushMs} * 1000000;
 
     // The last frames (END) out, for as long as the clients take them.
     for (auto& p : peers_) {
+        // Waits for the client's socket to take what is queued, until the flush time is up.
         while (!p->local && !p->dead && !p->out.empty() && steady_ns() < until) {
             flush(*p);
 
+            // Still queued: its buffer is full, so wait until it can be written.
             if (!p->out.empty()) {
                 pollfd_t fd{};
                 fd.fd = p->fd;
                 fd.events = POLLOUT;
-                poll_sockets(&fd, 1, 10);
+                poll_sockets(&fd, 1, 10);  // Waits up to 10 ms.
             }
         }
 
+        // Only a client has a socket; the local game has none.
         if (p->fd != kNoSocket) {
             // A close with the client's frames unread resets the connection (Windows always),
             // and a reset throws away what the client has not read yet: END among it. So the
@@ -356,15 +372,18 @@ void Host::close_all() {
             shutdown_send(p->fd);
             char sink[4096];
 
+            // Reads away what the client still sends, until it closes or the time is up.
             while (!p->local && steady_ns() < until) {
                 pollfd_t fd{};
                 fd.fd = p->fd;
                 fd.events = POLLIN;
 
+                // Nothing to read yet after up to 10 ms: wait again until the time is up.
                 if (poll_sockets(&fd, 1, 10) <= 0) {
                     continue;
                 }
 
+                // The client closed, or the read failed: nothing more is coming.
                 if (recv(p->fd, sink, static_cast<int>(sizeof sink), 0) <= 0) {
                     break;
                 }
@@ -379,11 +398,13 @@ void Host::close_all() {
     party_.clear();
     local_ = nullptr;
 
+    // -1 marks a socket already closed or never opened.
     if (listener_ != -1) {
         close_socket(static_cast<socket_t>(listener_));
         listener_ = -1;
     }
 
+    // UDP is not always offered.
     if (udp_ != -1) {
         close_socket(static_cast<socket_t>(udp_));
         udp_ = -1;
@@ -391,6 +412,7 @@ void Host::close_all() {
 }
 
 std::int64_t Host::clock_ms() const {
+    // Nanoseconds to milliseconds.
     return (steady_ns() - started_ns_) / 1000000;
 }
 
@@ -398,6 +420,7 @@ std::vector<Member> Host::members() const {
     const std::lock_guard lock(mutex_);
     std::vector<Member> out;
 
+    // The host first, as party_ is ordered.
     for (const Peer* p : party_) {
         out.push_back(p->member());
     }
@@ -429,6 +452,7 @@ void Host::run() {
 
             // Each live client: to read, and to write while frames wait.
             for (auto& p : peers_) {
+                // The local game has no socket, and a dead client's is closed.
                 if (p->local || p->dead) {
                     continue;
                 }
@@ -460,10 +484,12 @@ void Host::run() {
             Peer& p = *polled[i];
             const short events = fds[first + i].revents;
 
+            // A hang-up or an error is read too: the read finds that the client closed.
             if (!p.dead && (events & (POLLIN | POLLHUP | POLLERR)) != 0) {
                 read_peer(p);
             }
 
+            // Frames queued while handling go out now.
             if (!p.dead && !p.out.empty()) {
                 flush(p);
             }
@@ -474,6 +500,7 @@ void Host::run() {
 
         // A connection that never says hello would hold a socket for nothing.
         for (auto& p : peers_) {
+            // No HELLO within the deadline (milliseconds to nanoseconds) closes the connection.
             if (!p->local && !p->dead && p->id == 0
                 && now - p->opened_ns > std::int64_t{config_.hello_timeout_ms} * 1000000) {
                 kill(*p);
@@ -482,6 +509,7 @@ void Host::run() {
 
         // The closed ones' sockets.
         for (auto& p : peers_) {
+            // kill() only marks a client dead; its socket is closed here, once.
             if (p->dead && p->fd != kNoSocket) {
                 close_socket(p->fd);
                 p->fd = kNoSocket;
@@ -515,7 +543,9 @@ void Host::accept_clients() {
         std::size_t open = 0;
         std::size_t open_here = 0;
 
+        // Counts the open clients, and those from this address, for the connection limits.
         for (const auto& p : peers_) {
+            // The local game and closed clients are not connections.
             if (!p->local && !p->dead) {
                 ++open;
                 open_here += p->address == from ? 1 : 0;
@@ -586,6 +616,7 @@ void Host::flush(Peer& peer) {
             kSendFlags
         );
 
+        // Part or all went: drop it from the queue and try the rest.
         if (n > 0) {
             peer.out.erase(peer.out.begin(), peer.out.begin() + n);
             continue;
@@ -611,6 +642,7 @@ void Host::send_to(Peer& peer, const Bytes& frame) {
         return;
     }
 
+    // A closed client gets nothing more.
     if (peer.dead) {
         return;
     }
@@ -652,6 +684,7 @@ void Host::local_send(const Bytes& frame) {
     local_->in.feed(frame.data(), frame.size());
     Bytes body;
 
+    // Every whole frame the game wrote.
     while (local_->in.next(body)) {
         handle(*local_, body);
     }
@@ -692,6 +725,7 @@ void Host::handle(Peer& peer, const Bytes& body) {
     if (!peer.local) {
         bool within = true;
 
+        // Each kind that has a bucket takes one token from it; HELLO has none.
         switch (q.kind) {
             case Request::Kind::kChat:
                 within = peer.chat.take();
@@ -715,7 +749,9 @@ void Host::handle(Peer& peer, const Bytes& body) {
                 break;
         }
 
+        // Over its bucket the packet is a strike, and a client with none left is closed.
         if (!within) {
+            // Strikes are a bucket too: running out of them closes the connection.
             if (!peer.strikes.take()) {
                 kill(peer);
             }
@@ -724,6 +760,7 @@ void Host::handle(Peer& peer, const Bytes& body) {
         }
     }
 
+    // Each request goes to its handler.
     switch (q.kind) {
         case Request::Kind::kHello:
             hello(peer, q);
@@ -738,6 +775,7 @@ void Host::handle(Peer& peer, const Bytes& body) {
             // The one party, while it has room, to those not in it (PartyController.list).
             std::vector<Listing> parties;
 
+            // The party is listed only while it has room, and only to a client outside it.
             if (!peer.in_party && !party_.empty() && party_.size() < config_.max_party_size) {
                 parties.push_back(
                     {kDirectCode,
@@ -775,6 +813,8 @@ void Host::handle(Peer& peer, const Bytes& body) {
 
             const Bytes frame = chat_from(peer.id, q.text);
 
+            // Walks a copy of the party: a send may close a client, which takes it out of the
+            // party.
             for (Peer* m : std::vector<Peer*>(party_)) {
                 send_to(*m, frame);
             }
@@ -810,6 +850,7 @@ void Host::hello(Peer& peer, const Request& q) {
 
     // Blank or oversized fields only come from a broken client; the local game is the launcher's.
     if (!valid(q.version, kMaxNameLength) || !valid(name, kMaxNameLength)) {
+        // The local game is the launcher's: a bad name is mended for it, not refused.
         if (!peer.local) {
             kill(peer);
             return;
@@ -824,7 +865,9 @@ void Host::hello(Peer& peer, const Request& q) {
 
     // A client may add UDP for its state; the local game has no need.
     if (udp_ok_ && !peer.local) {
-        send_to(peer, udp_offer(peer.token, port_, kFeatureKick | kFeatureResume, peer.resume_token));
+        send_to(
+            peer, udp_offer(peer.token, port_, kFeatureKick | kFeatureResume, peer.resume_token)
+        );
     }
 
     peer.resumes = (q.features & kClientResumes) != 0;
@@ -832,6 +875,8 @@ void Host::hello(Peer& peer, const Request& q) {
     // A client is put in the party at once, so its lobby opens with nothing typed. With a slot
     // waiting this may be its player, whose RESUME comes next.
     if (!peer.local) {
+        // A client that resumes may be the player of a waiting slot, so it gets a moment before it
+        // counts as new.
         if (peer.resumes && !slots_.empty()) {
             peer.resuming_ns = steady_ns() + kResumeWaitMs * 1000000;
         } else {
@@ -845,10 +890,13 @@ void Host::hello(Peer& peer, const Request& q) {
     peer.in_party = true;
     party_.assign(1, &peer);
     send_to(
-        peer, party_info(kDirectCode, peer.id, {peer.member()}, description_text(config_.description))
+        peer,
+        party_info(kDirectCode, peer.id, {peer.member()}, description_text(config_.description))
     );
 
+    // Clients greeted before the party existed join now.
     for (auto& p : peers_) {
+        // Only clients still waiting, and still connected, join.
         if (p->waiting && !p->dead) {
             p->waiting = false;
             join(*p);
@@ -884,6 +932,7 @@ void Host::join(Peer& peer) {
     // The members hear of it first, then the newcomer gets the whole party (PartyController.add).
     const Bytes joined = party_joined(peer.member());
 
+    // Walks a copy of the party: a send may close a client, which takes it out of the party.
     for (Peer* m : std::vector<Peer*>(party_)) {
         send_to(*m, joined);
     }
@@ -897,16 +946,20 @@ Bytes Host::info() const {
     std::vector<Member> members;
     std::vector<std::int32_t> away;
 
+    // The members present, the host first.
     for (const Peer* m : party_) {
         members.push_back(m->member());
     }
 
+    // Each slot's member is listed too, marked away.
     for (const Slot& slot : slots_) {
         members.push_back(slot.member);
         away.push_back(slot.member.id);
     }
 
-    return party_info(kDirectCode, party_.front()->id, members, description_text(config_.description), 0, away);
+    return party_info(
+        kDirectCode, party_.front()->id, members, description_text(config_.description), 0, away
+    );
 }
 
 void Host::resume(Peer& peer, const Request& q) {
@@ -929,7 +982,9 @@ void Host::resume(Peer& peer, const Request& q) {
     party_.push_back(&peer);
     const Bytes back = party_away(peer.id, true);
 
+    // Walks a copy of the party: a send may close a client, which takes it out of the party.
     for (Peer* m : std::vector<Peer*>(party_)) {
+        // The resumed client learns of the party from its own INFO below.
         if (m != &peer) {
             send_to(*m, back);
         }
@@ -942,7 +997,9 @@ void Host::resume(Peer& peer, const Request& q) {
 
 void Host::tick_slots(std::int64_t now_ns) {
     // A slot's time out: it left. The rest of the party has known since it dropped.
+    // Erasing while walking, so the iterator moves only when the slot stays.
     for (auto it = slots_.begin(); it != slots_.end();) {
+        // A slot younger than the resume time (milliseconds to nanoseconds) keeps waiting.
         if (now_ns - it->dropped_ns < static_cast<std::int64_t>(kResumeMs) * 1000000) {
             ++it;
             continue;
@@ -951,6 +1008,7 @@ void Host::tick_slots(std::int64_t now_ns) {
         const Bytes left = party_left(it->member.id);
         it = slots_.erase(it);
 
+        // Walks a copy of the party: a send may close a client, which takes it out of the party.
         for (Peer* m : std::vector<Peer*>(party_)) {
             send_to(*m, left);
         }
@@ -958,6 +1016,7 @@ void Host::tick_slots(std::int64_t now_ns) {
 
     // One that said no RESUME is a new player after all.
     for (auto& p : peers_) {
+        // A client whose wait for RESUME ran out, and that is still connected, is a new player.
         if (p->resuming_ns != 0 && now_ns >= p->resuming_ns && !p->dead) {
             p->resuming_ns = 0;
             join(*p);
@@ -970,6 +1029,7 @@ void Host::leave(Peer& peer, bool asked) {
 
     // Leaving nothing is worth telling the client about.
     if (!peer.in_party) {
+        // Only a client that asked is told; a dropped connection is not listening.
         if (asked) {
             send_to(peer, error_reply(ErrorReason::kNotInParty));
         }
@@ -988,18 +1048,21 @@ void Host::leave(Peer& peer, bool asked) {
     // A dropped connection that can come back keeps its slot; one that said so leaves.
     const bool held = !asked && peer.resumes;
 
+    // The slot waits for the player's RESUME.
     if (held) {
         slots_.push_back({peer.member(), peer.resume_token, steady_ns()});
     }
 
     const Bytes left = held ? party_away(peer.id, false) : party_left(peer.id);
 
+    // Walks a copy of the party: a send may close a client, which takes it out of the party.
     for (Peer* m : std::vector<Peer*>(party_)) {
         send_to(*m, left);
     }
 }
 
 void Host::kick(Peer& peer, std::int32_t member) {
+    // Only a member of the party can remove anyone.
     if (!peer.in_party) {
         send_to(peer, error_reply(ErrorReason::kNotInParty));
         return;
@@ -1016,10 +1079,12 @@ void Host::kick(Peer& peer, std::int32_t member) {
         return s.member.id == member;
     });
 
+    // A waiting slot's connection is already gone, so there is nobody to send KICKED to.
     if (slot != slots_.end()) {
         slots_.erase(slot);
         const Bytes left = party_left(member);
 
+        // Walks a copy of the party: a send may close a client, which takes it out of the party.
         for (Peer* other : std::vector<Peer*>(party_)) {
             send_to(*other, left);
         }
@@ -1027,6 +1092,7 @@ void Host::kick(Peer& peer, std::int32_t member) {
         return;
     }
 
+    // Finds the member among those present, on a copy: the party changes inside.
     for (Peer* m : std::vector<Peer*>(party_)) {
         // A host cannot remove itself: leaving is how a party ends.
         if (m->id != member || m == &peer) {
@@ -1038,6 +1104,7 @@ void Host::kick(Peer& peer, std::int32_t member) {
         send_to(*m, party_kicked());
         const Bytes left = party_left(m->id);
 
+        // Walks a copy of the party: a send may close a client, which takes it out of the party.
         for (Peer* other : std::vector<Peer*>(party_)) {
             send_to(*other, left);
         }
@@ -1057,6 +1124,7 @@ void Host::end_party() {
     for (Peer* m : members) {
         m->in_party = false;
 
+        // The local game is the host that left, so it needs no END.
         if (!m->local) {
             send_to(*m, end);
         }
@@ -1079,6 +1147,7 @@ void Host::forward(Peer& sender, std::int32_t target, const std::function<void(P
 
     // From the host: everyone else (kBroadcast), or the one member named.
     for (Peer* m : std::vector<Peer*>(party_)) {
+        // The host is not its own recipient.
         if (m != host && (target == kBroadcast || m->id == target)) {
             delivery(*m);
         }
@@ -1127,6 +1196,7 @@ void Host::read_datagrams() {
 
         // None left (or a port-unreachable report from an earlier send, which is no datagram).
         if (n < 0) {
+            // No datagram is waiting any more.
             if (would_block()) {
                 return;
             }
@@ -1144,7 +1214,9 @@ void Host::read_datagrams() {
 
         Peer* peer = nullptr;
 
+        // Finds the client by the session id in the datagram.
         for (auto& p : peers_) {
+            // Only a greeted, connected client owns a session id.
             if (!p->local && !p->dead && p->id != 0 && p->id == d.session) {
                 peer = p.get();
             }
@@ -1186,10 +1258,12 @@ std::vector<std::string> local_addresses() {
     remote.sin_port = htons(53);
     inet_pton(AF_INET, "192.0.2.1", &remote.sin_addr);  // TEST-NET-1: routed, never reached.
 
+    // A route exists, so the socket now has a local address.
     if (connect(fd, reinterpret_cast<sockaddr*>(&remote), sizeof remote) == 0) {
         sockaddr_in self{};
         socklen_t length = sizeof self;
 
+        // An address that is neither the wildcard nor the loopback is one others may reach.
         if (getsockname(fd, reinterpret_cast<sockaddr*>(&self), &length) == 0
             && self.sin_addr.s_addr != htonl(INADDR_ANY)
             && self.sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {

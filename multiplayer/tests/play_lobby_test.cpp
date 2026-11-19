@@ -3,19 +3,20 @@
 //
 // Tests of the party's management: a host taking a member out, a ban of a co-op save against a
 // launcher's key, and the data packs a party compares.
-#include "test_support.hpp"
 
 #include <cstring>
 
 #include "menu.hpp"
+#include "test_support.hpp"
 
 namespace mpt {
 namespace {
 
+// Two player keys (32 hex digits each) for the ban tests.
 const std::string kKeyA = "0123456789abcdef0123456789abcdef";
 const std::string kKeyB = "fedcba9876543210fedcba9876543210";
 
-/* The server's offer, as the connection hands it on: `features` what it takes. */
+// The server's offer, as the connection hands it on: `features` what it takes.
 void offer(Player& p, std::uint8_t features) {
     mp::Message m;
     m.kind = mp::Message::Kind::kUdp;
@@ -23,17 +24,19 @@ void offer(Player& p, std::uint8_t features) {
     p.session.handle(m);
 }
 
+// Delivers the server's word that `p` was kicked from the party.
 void kicked(Player& p) {
     mp::Message m;
     m.kind = mp::Message::Kind::kPartyKicked;
     p.session.handle(m);
 }
 
-/* What `from` sent since the last look, as requests. */
+// What `from` sent since the last look, as requests.
 std::vector<mp::Request> sent(Player& from) {
     from.session.flush();
     std::vector<mp::Request> out;
 
+    // Each frame the player sent is read back as the request it carries.
     for (const Bytes& frame : from.link.frames) {
         mp::FrameReader r;
         r.feed(frame.data(), frame.size());
@@ -48,6 +51,7 @@ std::vector<mp::Request> sent(Player& from) {
     return out;
 }
 
+// Hands the data of request `q`, sent by player `from`, to `to` as the server would.
 void deliver(const mp::Request& q, std::int32_t from, Player& to) {
     mp::Message m;
     m.kind = mp::Message::Kind::kData;
@@ -56,12 +60,15 @@ void deliver(const mp::Request& q, std::int32_t from, Player& to) {
     to.session.handle(m);
 }
 
-/* A party of three playing a save, each in its co-op slot. */
+// A party of three playing a save, each in its co-op slot.
 struct Saving {
+    // The three players and the party's member list.
     Player host{1}, a{2}, b{3};
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
 
+    // Starts the party on a save of 59,912 bytes the host chose, everyone ready.
     Saving() {
+        // Every player has a memory card and hears the member list.
         for (Player* p : players()) {
             p->game.card_on = true;
             p->session.handle(info(all));
@@ -72,6 +79,7 @@ struct Saving {
         route(players());
         tick(players(), 16);
 
+        // Each player enters level 4 holding a live save of its own, told apart by its id.
         for (Player* p : players()) {
             p->game.now = {mp::kPhasePlaying, 4, 2};
             p->game.live_save = Bytes(59912, static_cast<std::uint8_t>(0x10 + p->id));
@@ -83,10 +91,13 @@ struct Saving {
     std::vector<Player*> players() { return {&host, &a, &b}; }
 };
 
+// Checks that a kick sends the member the host's word, then asks the server, once.
 void a_kick_goes_through_the_server() {
     Player host(1), member(2), other(3);
     const std::vector<mp::Member> all = {{1, "P1"}, {2, "P2"}, {3, "P3"}};
 
+    // Every player joins and the server offers kicking; what that sent is cleared, so tests read
+    // only what follows.
     for (Player* p : {&host, &member, &other}) {
         p->session.handle(info(all));
         offer(*p, mp::kFeatureKick);
@@ -128,10 +139,12 @@ void a_kick_goes_through_the_server() {
     CHECK(other.session.take_notice() == mp::kKickedNotice);
 }
 
+// Checks that no kick request is sent to a server that does not take them.
 void a_server_without_kick_gets_no_request() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
 
+    // Every player joins a server that offers no kicking.
     for (Player* p : {&host, &member}) {
         p->session.handle(info(both));
         offer(*p, 0);
@@ -150,16 +163,22 @@ void a_server_without_kick_gets_no_request() {
     CHECK(leaving.size() == 1 && leaving[0].kind == mp::Request::Kind::kLeave);
 }
 
+// Checks that each lobby text fits the pause menu's line or the footer.
 void the_words_fit_their_lines() {
-    for (const char* line : {mp::kRemoveLabel, mp::kBanLabel, mp::kRemoveNote, mp::kBanNote, mp::kCopyCodeLabel}) {
+    // Each label must fit the pause menu's line.
+    for (const char* line :
+         {mp::kRemoveLabel, mp::kBanLabel, mp::kRemoveNote, mp::kBanNote, mp::kCopyCodeLabel}) {
         CHECK(std::strlen(line) <= mp::kPauseLine);
     }
 
-    for (const char* line : {mp::kKickedNotice, mp::kBannedNotice, mp::kBannedSent, mp::kRemoveHint}) {
+    // Each notice must fit the footer.
+    for (const char* line :
+         {mp::kKickedNotice, mp::kBannedNotice, mp::kBannedSent, mp::kRemoveHint}) {
         CHECK(std::strlen(line) <= mp::kFooterMax);
     }
 }
 
+// Checks that a direct party, with no server, still sends a kick.
 void a_direct_party_always_kicks() {
     Player host(1);
     mp::Message m = info({{1, "P1"}, {2, "P2"}});
@@ -171,6 +190,7 @@ void a_direct_party_always_kicks() {
     CHECK(out.size() == 2 && out[1].kind == mp::Request::Kind::kKick);
 }
 
+// Checks that the lobby's message kinds are never sent by the game nor handed to it.
 void the_lobby_keeps_its_kinds() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -178,6 +198,7 @@ void the_lobby_keeps_its_kinds() {
     member.session.handle(info(both));
     sent(host);
 
+    // Kinds 64 to 70 are the lobby's, and the game's send paths must refuse them.
     for (std::uint8_t kind = 64; kind <= 70; ++kind) {
         // Not the game's to send, and not handed to the game.
         host.session.send_data(2, {kind, 0});
@@ -188,6 +209,7 @@ void the_lobby_keeps_its_kinds() {
     int reached = 0;
     member.session.on_data([&reached](std::int32_t, const Bytes&) { ++reached; });
 
+    // Of those, 68 to 70 come from the host and must not reach the game's handler.
     for (std::uint8_t kind = 68; kind <= 70; ++kind) {
         mp::Message m;
         m.kind = mp::Message::Kind::kData;
@@ -209,6 +231,7 @@ void removing_a_differing_member_lets_the_host_start() {
     gate(member, differs);
     gate(other, sample_list());
 
+    // Every player joins and the server offers kicking.
     for (Player* p : {&host, &member, &other}) {
         p->session.handle(info(all));
         offer(*p, mp::kFeatureKick);
@@ -228,9 +251,11 @@ void removing_a_differing_member_lets_the_host_start() {
     CHECK(host.session.all_ready() && host.coop.start());
 }
 
+// Checks that a member removed during the game goes home and the others play on.
 void a_member_removed_in_the_game_goes_home_alone() {
     Party party;
 
+    // The server offers kicking to everyone.
     for (Player* p : party.players()) {
         offer(*p, mp::kFeatureKick);
     }
@@ -273,6 +298,7 @@ void no_game_for_someone_being_removed() {
         route({&host, &late});
         CHECK(host.mods.fit(2) == mp::Fit::kMatch && host.mods.may_play(2));
 
+        // A member the host asks out may no longer play, though its mods still match.
         if (removed) {
             CHECK(host.session.kick(2));
             CHECK(!host.mods.may_play(2) && host.mods.fit(2) == mp::Fit::kMatch);
@@ -315,10 +341,13 @@ void a_members_key_reaches_the_host_alone() {
     CHECK(mp::decode_mod_list(r, back) && back.key.empty());
 }
 
+// Checks that the host's bans are kept with the save and only the host can add them.
 void a_ban_stays_with_the_save() {
     Saving party;
     Player& host = party.host;
-    const auto key_of = [](std::int32_t id) { return id == 2 ? kKeyA : id == 3 ? kKeyB : std::string(); };
+    const auto key_of = [](std::int32_t id) {
+        return id == 2 ? kKeyA : id == 3 ? kKeyB : std::string();
+    };
     CHECK(host.cosave.banned_members(key_of).empty());
     CHECK(!host.cosave.ban("not a key"));
     CHECK(!party.a.cosave.ban(kKeyB));  // only the host's
@@ -355,6 +384,7 @@ void a_ban_stays_with_the_save() {
     CHECK(mp::parse_note(host.game.notes[host.cosave.slot()], note) && note.bans.empty());
 }
 
+// Checks that bans survive writing and reading the save's note, within the limit on how many.
 void bans_read_back_within_their_limits() {
     mp::CoNote note;
     note.key = 7;
@@ -365,6 +395,7 @@ void bans_read_back_within_their_limits() {
 
     std::string text = "format=1\nkey=7\n";
 
+    // More bans than the limit are written, to see that reading stops at the limit.
     for (std::size_t i = 0; i < mp::kMaxBans + 5; ++i) {
         text += "ban=a" + std::to_string(i) + "\n";
     }
@@ -375,6 +406,7 @@ void bans_read_back_within_their_limits() {
     Saving party;
     party.host.cosave.lift_bans();
 
+    // One ban more than the limit is tried, and the host stops at the limit.
     for (std::size_t i = 0; i < mp::kMaxBans + 1; ++i) {
         CHECK(party.host.cosave.ban("a" + std::to_string(i)));
     }
@@ -383,17 +415,22 @@ void bans_read_back_within_their_limits() {
     CHECK(!party.host.cosave.banned("a0") && party.host.cosave.banned("a1"));
 }
 
+// Returns a data pack's description: its id, a digest of its contents and its version text.
 mp::PackInfo pack(const std::string& id, std::uint32_t digest, const std::string& version = "") {
     return {id, "Pack " + id, version, digest};
 }
 
+// Checks that a comparison of data packs reports missing, extra, differing and reordered ones.
 void data_packs_are_compared() {
     using Kind = mp::Difference::Kind;
     const mp::ModList none = sample_list();
     mp::ModList host = sample_list(), own = sample_list();
     host.packs = own.packs = {pack("a", 1), pack("b", 2)};
     CHECK(mp::compare_mods(own, host).empty());
-    CHECK(mp::mods_digest(own) == mp::mods_digest(host) && mp::mods_digest(host) != mp::mods_digest(none));
+    CHECK(
+        mp::mods_digest(own) == mp::mods_digest(host)
+        && mp::mods_digest(host) != mp::mods_digest(none)
+    );
 
     // The same packs on either disc: the world's family is what counts, and the digests agree.
     mp::ModList other = host;
@@ -436,6 +473,7 @@ void data_packs_are_compared() {
     // What the player reads of what the party plays by.
     bool named = false;
 
+    // Look for the pack's line among the rules the player reads.
     for (const std::string& line : mp::rules_lines(host, {}, host, mp::kPauseLine)) {
         named = named || line == "Pack a";
     }
@@ -443,6 +481,7 @@ void data_packs_are_compared() {
     CHECK(named);
 }
 
+// Checks that a member with an extra data pack is not allowed to play with the host.
 void a_member_with_another_pack_is_refused() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};

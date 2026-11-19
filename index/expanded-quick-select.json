@@ -1,0 +1,38 @@
+{
+  "id": "expanded-quick-select",
+  "repo": "https://github.com/glawks/expanded-quick-select",
+  "path": "",
+  "description": "Adds 1–8 configurable Quick Select weapon wheels to Ratchet & Clank 1, with independent weapon assignments, easy page switching, and persistent loadouts for each save slot.",
+  "tags": [
+    "gameplay",
+    "qol",
+    "controls",
+    "ui"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/glawks/expanded-quick-select/issues"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "1tIIvKuPilY",
+        "caption": "Trailer"
+      }
+    ],
+    "screenshots": [
+      {
+        "src": "index/media/expanded-quick-select/ab53911adb8f.png"
+      },
+      {
+        "src": "index/media/expanded-quick-select/7474e94eebcd.png"
+      },
+      {
+        "src": "index/media/expanded-quick-select/3b3d860031d4.png"
+      }
+    ]
+  }
+}

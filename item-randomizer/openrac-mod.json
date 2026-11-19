@@ -2,7 +2,7 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "2.4.1",
+  "version": "2.6.0",
   "author": "Keros",
   "description": "Shuffles what the game gives out (Ratchet & Clank, and Going Commando): the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. Every seed can be finished: what you need is only ever placed where you can get it without it. Share a seed's code and a friend plays the same game. Each seed writes a spoiler log to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",
@@ -21,10 +21,14 @@
     ]
   },
   "hooks": [
+    "rac1.save.prepare",
+    "rac1.save.request_autosave",
+    "rac1.save.serialize",
     "rac1.item.give",
     "rac1.planet.unlock",
     "rac1.vendor.init_level_stock",
     "rac1.vendor.build_item_list",
+    "rac1.vendor.open_menu",
     "rac1.gold_bolt.count_collected",
     "rac1.moby.infobot.update",
     "rac1.moby.moby1290.update",
@@ -54,7 +58,36 @@
     "rac2.moby.charge_boots_rider.update",
     "rac2.moby.race_controller.update",
     "rac2.moby.mapper_return.update",
-    "rac2.moby.hypnomatic_maker.update"
+    "rac2.moby.hypnomatic_maker.update",
+    "rac1.moby.item_offer.update",
+    "rac1.save.update_state",
+    "rac1.save.restore_data",
+    "rac1.vendor.initialize_selected",
+    "rac1.text.msg_string",
+    "rac1.moby.talking_npc.update",
+    "rac1.moby.agnogg_ship.update",
+    "rac1.moby.unlock_planet_pad.update",
+    "rac1.moby.shuttle.update",
+    "rac1.moby.bouncer.update",
+    "rac1.moby.moby436.update",
+    "rac1.moby.commando.update",
+    "rac1.moby.deserter.update",
+    "rac1.moby.moby1267.update",
+    "rac1.moby.moby1353.update",
+    "rac1.moby.moby924.update",
+    "rac1.moby.ultramech_scientist.update",
+    "rac1.moby.moby1419.update",
+    "rac1.moby.gold_bolt.update",
+    "rac1.moby.warp_portal.update",
+    "rac1.moby.moby1005.update",
+    "rac1.moby.spinning_pickup.update",
+    "rac1.moby.collectible_pickup.update",
+    "rac1.moby.moby1388.update",
+    "rac1.moby.hoverboard_girl.update",
+    "rac1.moby.miner.update",
+    "rac1.moby.moby1428.update",
+    "rac1.moby.nanotech_vendor.update",
+    "rac1.moby.pokitaru_vendor.update"
   ],
   "settings": [
     {
@@ -88,6 +121,16 @@
       "description": "Standard: what you need is never behind a very expensive purchase, and each place is expected to be done with the weapons the game suggests there. Relaxed: what you need also comes early in the game, and never behind a purchase you have to save up for. Expert: what you need may be behind any purchase, even the most expensive, and you get by with any weapon."
     },
     {
+      "key": "start_in_new_game_plus",
+      "name": "Start in New Game+",
+      "type": "bool",
+      "default": false,
+      "description": "Ratchet & Clank: enable New Game+ and the Goodies menu for this randomized save. Does not grant gold weapons or completed-save inventory. Existing seed codes keep their item placement; this mode is selected separately.",
+      "games": [
+        "rac1"
+      ]
+    },
+    {
       "key": "new_game_only",
       "multiplayer": "own",
       "name": "New games only",
@@ -100,7 +143,15 @@
       "name": "Shuffle gadgets",
       "type": "bool",
       "default": true,
-      "description": "The gadgets NPCs and pickups give: the Swingshot, the Heli-Pack, the Magneboots, ... Going Commando: the Dynamo, the Swingshot, the Grindboots, Clank's packs, the Thermanator, the Glider, the Gravity Boots, ..."
+      "description": "The gadgets NPCs and pickups give: the Swingshot, the Heli-Pack, the Magneboots, ... Going Commando: the Dynamo, the Swingshot, the Grindboots, Clank's packs, the Thermanator, the Glider, the Gravity Boots, ... Hoverboard, Bolt Grabber and Map-o-Matic are controlled by Shuffle items."
+    },
+    {
+      "key": "shuffle_items",
+      "name": "Shuffle items",
+      "type": "bool",
+      "default": false,
+      "multiplayer": "host",
+      "description": "RAC1: shuffle all nine Items-menu entries: Hoverboard, Persuader, Bolt Grabber, Map-o-Matic, Platinum Zoomerator, Raritanium, CodeBot, Premium Nanotech and Ultra Nanotech. When off they stay vanilla. Requires OpenRAC interface 1.16+."
     },
     {
       "key": "shuffle_weapons",
@@ -131,7 +182,7 @@
       "name": "Shuffle infobots",
       "type": "bool",
       "default": true,
-      "description": "The planets' coordinates the infobots give join the pool.",
+      "description": "Ratchet & Clank: coordinates from pickups and NPCs join the pool. Existing seed codes keep their original settings.",
       "games": [
         "rac1"
       ]
@@ -158,12 +209,44 @@
       ]
     },
     {
+      "key": "shuffle_gold_weapons",
+      "name": "Shuffle gold-weapon cases",
+      "type": "bool",
+      "default": false,
+      "description": "Ratchet & Clank: shuffle the ten gold upgrades and their case rewards. Opens the Novalis shop without New Game+. Purchases keep bolt and Gold Bolt costs, without requiring the original base weapon. Requires OpenRAC mod-save support (interface 1.16).",
+      "games": [
+        "rac1"
+      ]
+    },
+    {
       "key": "spoiler_log",
       "multiplayer": "own",
       "name": "Spoiler log",
       "type": "bool",
       "default": true,
       "description": "Write where everything is, and a way through, to the mod's data folder."
+    },
+    {
+      "key": "reward_models",
+      "name": "Reward models",
+      "type": "bool",
+      "default": true,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Show randomized reward models, inventory icons and receiving animations at pickups and vendors. Off: use the original game presentation. Reload the mod after changing this option."
+    },
+    {
+      "key": "reward_text",
+      "name": "Reward text",
+      "type": "bool",
+      "default": true,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Show randomized item names in NPC interaction prompts and supported vendor text. Off: use the original game text. Reload the mod after changing this option."
     }
   ]
 }

@@ -2,9 +2,9 @@
   "format": 2,
   "id": "ng-plus-plus",
   "name": "NG++",
-  "version": "0.1.3",
+  "version": "0.3.4",
   "author": "Keros",
-  "description": "New Game++ for Going Commando: eight more tiers for every Going Commando weapon, past its last version: Alpha to Omega (V5 to V12). As with the game's own Mega and V4, you buy one at the vendor, then level the next with experience: Alpha bought, Beta by experience, Gamma bought, and so on up to Omega. Each tier hits harder, holds more ammo and has its own tint, Omega a shifting rainbow. The RYNO II gets an upgrade path first: RYNO II Heavy by experience, then RYNO II Ultima at the vendor. Each tier's price follows the weapon's own Mega price. The tiers are kept with each save, in the mod's own data folder. From the second challenge mode on, the enemies get more health and hit harder with each new game, in step with the tiers.",
+  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. The RYNO II gets two upgrades first: Heavy RYNO II by XP, then Ultima RYNO II from the vendor. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x1.5 up to x6, more from tough enemies), part of them as platinum bolts worth five times the gold ones: the longer your kill streak, the more platinum. The first challenge mode already drops a few platinum bolts. Platinum bolts need OpenRAC with mod interface 1.23.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ng-plus-plus",
   "api": "1.14",
@@ -22,7 +22,10 @@
     "rac2.item.upgrade",
     "rac2.item.colors",
     "rac2.combat.post_hit",
-    "rac2.player.take_damage"
+    "rac2.player.take_damage",
+    "rac2.item.version_color",
+    "rac2.text.by_id",
+    "rac2.vendor.draw_list"
   ],
   "settings": [
     {
@@ -31,7 +34,7 @@
       "name": "Tier names on screen",
       "type": "bool",
       "default": true,
-      "description": "A line at the top of the screen with the weapon's full name (\"Heavy Lancer Alpha\") when it reaches a tier and when you take a tiered weapon in hand."
+      "description": "Shows the weapon's full name (\"Beta Heavy Lancer\") at the top of the screen when it reaches a tier and when you switch to a tiered weapon."
     },
     {
       "key": "enemy_scaling",
@@ -39,7 +42,7 @@
       "name": "Tougher enemies each new game",
       "type": "bool",
       "default": true,
-      "description": "From the second challenge mode on, the enemies have more health and hit harder with each new game, in step with the tiers you can have by then (the curve is in the README). The game's first challenge mode is as the game has it."
+      "description": "From the second challenge mode on, enemies have more health and hit harder each new game, but stay behind the damage of the tiers you should have by then (the table is in the README). The first challenge mode is unchanged."
     },
     {
       "key": "enemy_strength",
@@ -50,7 +53,20 @@
       "min": 0.0,
       "max": 3.0,
       "step": 0.25,
-      "description": "Times what the curve adds: 1 the curve as it is, 0.5 half of it, 2 twice it."
+      "description": "Multiplies how much tougher enemies get: 1 as in the README's table, 0.5 half as much, 2 twice as much."
+    },
+    {
+      "key": "bolt_scaling",
+      "multiplayer": "host",
+      "name": "Bolt scaling",
+      "type": "choice",
+      "default": "normal",
+      "choices": [
+        { "value": "off", "name": "Off" },
+        { "value": "normal", "name": "Normal" },
+        { "value": "generous", "name": "Generous" }
+      ],
+      "description": "From the second challenge mode on, drops pay more bolts each new game (x1.5, x2.5, x4, then x6), tough enemies up to twice that, and part of each drop comes as platinum bolts worth five times the gold ones (more with a longer kill streak); the first challenge mode already drops a few. Generous pays half as much again. Off leaves the game's drops as they are. Needs OpenRAC with mod interface 1.23."
     }
   ],
   "save_data": {
@@ -75,7 +91,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 26,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_12",
@@ -93,7 +117,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 12,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_37",
@@ -111,7 +143,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 37,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_22",
@@ -129,7 +169,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 22,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_9",
@@ -147,7 +195,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 9,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_17",
@@ -165,7 +221,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 17,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_42",
@@ -183,7 +247,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 42,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_25",
@@ -201,7 +273,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 25,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_30",
@@ -219,7 +299,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 30,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_29",
@@ -237,7 +325,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 29,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_27",
@@ -255,7 +351,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 27,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_41",
@@ -273,7 +377,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 41,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_28",
@@ -291,7 +403,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 28,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_23",
@@ -309,7 +429,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 23,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_44",
@@ -329,7 +457,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 44,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_24",
@@ -347,7 +483,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 24,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_16",
@@ -365,7 +509,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 16,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_45",
@@ -383,7 +535,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 45,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_32",
@@ -401,7 +561,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 32,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_31",
@@ -419,7 +587,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 31,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_18",
@@ -437,7 +613,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 18,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_14",
@@ -455,7 +639,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 14,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_53",
@@ -473,7 +665,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 53,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       },
       {
         "key": "item_43",
@@ -491,7 +691,15 @@
           "Zeta",
           "Eta",
           "Omega"
-        ]
+        ],
+        "attach": {
+          "to": "item",
+          "id": 43,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
       }
     ]
   }

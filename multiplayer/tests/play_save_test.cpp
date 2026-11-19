@@ -1,34 +1,41 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * A save a party starts from (save_check.hpp): what passes and what does not, and what the game
- * does with one that does not. MP_REAL_SAVES=<folder> also runs every save<n>.bin under it that is
- * a played slot (an empty slot's level is -1).
- */
-#include "save_check.hpp"
-#include "test_support.hpp"
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// A save a party starts from (save_check.hpp): what passes and what does not, and what the game
+// does with one that does not. MP_REAL_SAVES=<folder> also runs every save<n>.bin under it that is
+// a played slot (an empty slot's level is -1).
 
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 
+#include "save_check.hpp"
+#include "test_support.hpp"
+
 namespace mpt {
 
 namespace {
 
-void put(Bytes& out, std::size_t at, std::int32_t value) { std::memcpy(out.data() + at, &value, 4); }
+// Writes `value` as four bytes at offset `at` of `out`.
+void put(Bytes& out, std::size_t at, std::int32_t value) {
+    std::memcpy(out.data() + at, &value, 4);
+}
 
+// Returns the four bytes at offset `at` of `out` as a 32-bit value.
 std::int32_t got(const Bytes& out, std::size_t at) {
     std::int32_t v = 0;
     std::memcpy(&v, out.data() + at, 4);
     return v;
 }
 
-/* A part's blocks written as the game does (memcard_PrepData), zeros in each. */
-void write_part(Bytes& out, std::size_t at, std::size_t size, const mp::SaveBlock* blocks, std::size_t count) {
+// A part's blocks written as the game does (memcard_PrepData), zeros in each.
+void write_part(
+    Bytes& out, std::size_t at, std::size_t size, const mp::SaveBlock* blocks, std::size_t count
+) {
     std::size_t p = at + 8;
 
+    // Blocks follow each other, each padded to a multiple of 4 bytes, as the game writes them.
     for (std::size_t i = 0; i < count; ++i) {
         put(out, p, blocks[i].id);
         put(out, p + 4, blocks[i].size);
@@ -40,14 +47,20 @@ void write_part(Bytes& out, std::size_t at, std::size_t size, const mp::SaveBloc
     put(out, at, static_cast<std::int32_t>(size - 8));
 }
 
+// Writes the checksum of the part at `at`, `size` bytes long, into its header.
 void seal(Bytes& out, std::size_t at, std::size_t size) {
     put(out, at + 4, static_cast<std::int32_t>(mp::save_checksum(out.data() + at + 8, size - 8)));
 }
 
+// The offset of the game's part in a save: it follows the two size words (documented: rac1_save.h).
 constexpr std::size_t kGamePart = 8;
 
-std::size_t level_part(std::size_t i) { return 8 + mp::kSaveGameBytes + i * mp::kSaveLevelBytes; }
+// Returns the offset of level `i`'s part, which follows the game's part.
+std::size_t level_part(std::size_t i) {
+    return 8 + mp::kSaveGameBytes + i * mp::kSaveLevelBytes;
+}
 
+// Returns a save of the right size whose parts have the game's blocks and right checksums.
 Bytes good_save() {
     Bytes out(mp::kSaveBytes, 0);
     put(out, 0, static_cast<std::int32_t>(mp::kSaveGameBytes));
@@ -58,6 +71,7 @@ Bytes good_save() {
     seal(out, kGamePart, mp::kSaveGameBytes);
     blocks = mp::save_level_blocks(count);
 
+    // Every level part is written and sealed the same way.
     for (std::size_t i = 0; i < mp::kSaveLevels; ++i) {
         write_part(out, level_part(i), mp::kSaveLevelBytes, blocks, count);
         seal(out, level_part(i), mp::kSaveLevelBytes);
@@ -66,12 +80,13 @@ Bytes good_save() {
     return out;
 }
 
-/* Where a game block's value is in the file. */
+// Where a game block's value is in the file.
 std::size_t game_value(std::int32_t id) {
     std::size_t count = 0;
     const mp::SaveBlock* blocks = mp::save_game_blocks(count);
     std::size_t p = kGamePart + 8;
 
+    // Blocks are laid out one after another, so a value's place is found by walking them.
     for (std::size_t i = 0; i < count; ++i) {
         if (blocks[i].id == id) {
             return p + 8;
@@ -84,8 +99,8 @@ std::size_t game_value(std::int32_t id) {
     return 0;
 }
 
-/* The good save with a game block's first word set, the checksum made right again: what a host
- * that means harm sends. */
+// The good save with a game block's first word set, the checksum made right again: what a host
+// that means harm sends.
 mp::SaveFault with_value(std::int32_t id, std::int32_t value) {
     Bytes save = good_save();
     put(save, game_value(id), value);
@@ -93,6 +108,7 @@ mp::SaveFault with_value(std::int32_t id, std::int32_t value) {
     return mp::check_save(save);
 }
 
+// Checks the save's block counts and size, the game's checksum and that a good save passes.
 void a_save_read_as_the_game_writes_it() {
     std::size_t game = 0, level = 0;
     mp::save_game_blocks(game);
@@ -106,6 +122,7 @@ void a_save_read_as_the_game_writes_it() {
     CHECK(mp::check_save(good_save()) == mp::SaveFault::kNone);
 }
 
+// Checks that each way a save can be wrong is found and named.
 void what_does_not_pass() {
     using F = mp::SaveFault;
     // The size, either way, and the sizes at its front.
@@ -176,18 +193,22 @@ void what_does_not_pass() {
     CHECK(with_value(1011, 0x96) == F::kNone);
 }
 
+// Checks every played save under the folder named by MP_REAL_SAVES; does nothing when it is unset.
 void real_saves() {
     const char* folder = std::getenv("MP_REAL_SAVES");
 
+    // With no folder set there are no real saves to check.
     if (folder == nullptr) {
         return;
     }
 
     int played = 0;
 
+    // Every file under the folder is a candidate.
     for (const auto& e : std::filesystem::recursive_directory_iterator(folder)) {
         const std::string name = e.path().filename().string();
 
+        // Only files named save<n>.bin are saves.
         if (name.rfind("save", 0) != 0 || e.path().extension() != ".bin") {
             continue;
         }
@@ -196,6 +217,7 @@ void real_saves() {
         Bytes save((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         const mp::SaveFault fault = mp::check_save(save);
 
+        // An empty slot has level -1 and fails the range check; a played slot must pass.
         if (got(save, 8 + 8 + 8) == -1) {
             CHECK(fault == mp::SaveFault::kRange);  // an empty slot: its level is -1
         } else {
@@ -207,8 +229,8 @@ void real_saves() {
     std::printf("real saves: %d played slots pass\n", played);
 }
 
-/* A member given a save that does not pass does not load it, is told, and does not ask again; the
- * host's own that does not pass tells nobody of a game. */
+// A member given a save that does not pass does not load it, is told, and does not ask again; the
+// host's own that does not pass tells nobody of a game.
 void a_refused_save() {
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
     {

@@ -34,6 +34,9 @@ static void put_string(const char* s) {
 /* A reward's item name in the multiworld: the item's own, "<Planet> Coordinates", "Gold Bolt". */
 static void reward_name(rando_reward r, char* out, size_t size) {
     switch (r.kind) {
+        case REWARD_SPECIAL:
+            snprintf(out,size,"%s",rando_special_name(r.value));
+            break;
         case REWARD_ITEM:
             snprintf(out, size, "%s", rando_item_name(r.value));
             break;
@@ -53,10 +56,10 @@ static void put_mask(uint64_t mask) {
     int count = 0;
     putchar('(');
 
-    for (int item = 0; item < RANDO_ITEM_COUNT; ++item) {
+    for (int item = 0; item < 37 + SPECIAL_COUNT; ++item) {
         if (mask & BIT(item)) {
             printf(count ? ", " : "");
-            put_string(rando_item_name(item));
+            put_string(item >= 37 ? rando_special_name(item-37) : rando_item_name(item));
             ++count;
         }
     }
@@ -77,11 +80,13 @@ static uint8_t pool_of(rando_reward r) {
     return 0;
 }
 
-static const char* const k_kinds[] = {"give", "vendor", "start", "infobot", "gold", "fixed"};
+static const char* const k_kinds[] = {"give", "vendor", "start", "infobot", "gold", "fixed", "special"};
 
 /* A pool's option in the APWorld (options.py). */
 static const char* pool_option(uint8_t pool) {
     switch (pool) {
+        case POOL_ITEMS:
+            return "shuffle_items";
         case POOL_WEAPONS:
             return "shuffle_weapons";
         case POOL_GADGETS:
@@ -107,7 +112,7 @@ static const char* item_group(rando_reward r, uint8_t pool) {
         return "Gold Bolts";
     }
 
-    return pool == POOL_GADGETS ? "Gadgets" : "Weapons";
+    return pool == POOL_ITEMS ? "Items" : pool == POOL_GADGETS ? "Gadgets" : "Weapons";
 }
 
 /* The items some rule asks for: the table's, and what a skill point's code tests. */
@@ -141,10 +146,10 @@ static void dump(void) {
 
     printf(")\n\n# Every item some location gives: (id, name, group, progression).\nITEMS = (\n");
 
-    for (int kind = REWARD_ITEM; kind <= REWARD_GOLD_BOLT; ++kind) {
+    for (int kind = REWARD_ITEM; kind <= REWARD_SPECIAL; ++kind) {
         const int count = kind == REWARD_ITEM     ? RANDO_ITEM_COUNT
                           : kind == REWARD_PLANET ? LEVEL_COUNT
-                                                  : 1;
+                                                  : kind == REWARD_SPECIAL ? SPECIAL_COUNT : 1;
 
         for (int v = 0; v < count; ++v) {
             const rando_reward r = {(uint8_t)kind, (uint8_t)v};
@@ -154,7 +159,8 @@ static void dump(void) {
                 continue;
             }
 
-            const int progression = kind == REWARD_PLANET
+            const int progression = (kind == REWARD_SPECIAL && v <= SPECIAL_CODEBOT)
+                                    || kind == REWARD_PLANET
                                     || (kind == REWARD_ITEM && (progression_items() & BIT(v)));
             reward_name(r, name, sizeof name);
             printf("    ItemData(0x%llX, ", (unsigned long long)ap_item_id(r));

@@ -1,0 +1,25 @@
+{
+  "id": "auto-head-gear",
+  "repo": "https://github.com/Promises/rac1-auto-head-gear",
+  "path": "",
+  "description": "The Sonic Summoner and the O2 Mask work as soon as you own them, as if worn, like in the later games: no more trips to the Items menu. Ratchet's head stays as it is, and each item has a switch in the settings.",
+  "tags": [
+    "qol",
+    "gameplay"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Promises/rac1-auto-head-gear/issues"
+  },
+  "media": {
+    "screenshots": [
+      {
+        "src": "docs/sand-mouse-with-o2-mask.png",
+        "caption": "The O2 Mask on, the Sonic Summoner only owned: the sand mouse still comes."
+      }
+    ]
+  }
+}

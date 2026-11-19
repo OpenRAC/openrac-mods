@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 // Original mod UI text in the five PAL languages. UTF-8 is converted by the port's UI API.
+
 #pragma once
 
 #include <cstdint>
@@ -10,6 +11,7 @@
 
 namespace mp {
 
+// The languages of the mod's text, in the order of the columns of kWords.
 enum class Language {
     kEnglish,
     kFrench,
@@ -32,20 +34,22 @@ inline std::uint32_t language_address(std::string_view disc) {
 // Going Commando's: a byte (0x001A7BB4 on USA v1.01, the menus' action type 9 sets it), the same
 // indexes as Ratchet & Clank's (the port's rac2_version.h maps it for PAL and USA v2.00).
 inline std::uint32_t rac2_language_address(std::string_view disc) {
-    return disc == "ntsc" ? 0x001A7BB4u : disc == "pal" ? 0x001A7C3Cu : disc == "ntsc2" ? 0x001A7BBCu : 0;
+    return disc == "ntsc"    ? 0x001A7BB4u
+           : disc == "pal"   ? 0x001A7C3Cu
+           : disc == "ntsc2" ? 0x001A7BBCu
+                             : 0;
 }
 
+// One text of the mod in each language, in the order of Language. `text[0]`, the English, is the
+// key `translated` looks up.
 struct Words {
-    const char* text[5];
+    const char* text[5];  // One text for each Language.
 };
 
+// The table of every text the mod shows, one row each.
 inline constexpr Words kWords[] = {
     {{" units", " unités", " Einheiten", " unidades", " unità"}},
-    {{"Team tools",
-      "Outils équipe",
-      "Team-Werkzeuge",
-      "Equipo",
-      "Strumenti squadra"}},
+    {{"Team tools", "Outils équipe", "Team-Werkzeuge", "Equipo", "Strumenti squadra"}},
     {{"Co-op rescue",
       "Sauvetage coop",
       "Koop-Wiederbeleben",
@@ -169,7 +173,7 @@ inline constexpr Words kWords[] = {
     {{"Refresh", "Actualiser", "Aktualisieren", "Actualizar", "Aggiorna"}},
     {{"Asking...", "Requête...", "Frage an...", "Consultando...", "Richiesta..."}},
     {{"No games", "Aucune partie", "Keine Spiele", "Sin partidas", "Nessuna partita"}},
-        {{"Hosting", "Hébergé", "Hosting", "Alojando", "Host"}},
+    {{"Hosting", "Hébergé", "Hosting", "Alojando", "Host"}},
     {{" (TCP)", " (TCP)", " (TCP)", " (TCP)", " (TCP)"}},
     {{"Not connected", "Non connecté", "Nicht verbunden", "Sin conexión", "Non connesso"}},
     {{"Joining...", "Connexion...", "Beitritt...", "Uniéndose...", "Accesso..."}},
@@ -205,7 +209,11 @@ inline constexpr Words kWords[] = {
     {{"End the party?", "Dissoudre ?", "Auflösen?", "¿Disolver?", "Sciogliere?"}},
     {{"No such code", "Code inconnu", "Code unbekannt", "Código erróneo", "Codice errato"}},
     {{"Party full", "Groupe complet", "Gruppe voll", "Grupo lleno", "Gruppo pieno"}},
-    {{"For Ratchet & Clank", "Pour Ratchet & Clank", "Für Ratchet & Clank", "Para Ratchet & Clank", "Per Ratchet & Clank"}},
+    {{"For Ratchet & Clank",
+      "Pour Ratchet & Clank",
+      "Für Ratchet & Clank",
+      "Para Ratchet & Clank",
+      "Per Ratchet & Clank"}},
     {{"For Ratchet & Clank 2",
       "Pour Ratchet & Clank 2",
       "Für Ratchet & Clank 2",
@@ -240,32 +248,48 @@ inline constexpr Words kWords[] = {
     {{" gold bolt", " boulon en or", " Gold-Bolt", " guitón de oro", " bolt d'oro"}},
     {{" gold bolts", " boulons en or", " Gold-Bolts", " guitones de oro", " bolt d'oro"}},
     {{"Bad address", "Adresse fausse", "Falsche Adresse", "Dirección mala", "Indirizzo errato"}},
-    {{"Port {0} busy",
-      "Port {0} occupé",
-      "Port {0} belegt",
-      "Pto. {0} usado",
-      "Porta {0} in uso"}},
-    {{"Port {0} failed",
-      "Port {0} échoué",
-      "Port {0} Fehler",
-      "Puerto {0} falló",
-      "Porta {0} KO"}},
+    {{"Port {0} busy", "Port {0} occupé", "Port {0} belegt", "Pto. {0} usado", "Porta {0} in uso"}},
+    {{"Port {0} failed", "Port {0} échoué", "Port {0} Fehler", "Puerto {0} falló", "Porta {0} KO"}},
     {{" (differs)", " (différent)", " (anders)", " (distinto)", " (diverso)"}},
     {{" (checking)", " (vérif.)", " (prüft)", " (revisando)", " (verifica)"}},
-    {{"(differs): mods", "(différent) : mods", "(anders): Mods", "(distinto): mods", "(diverso): mod"}},
+    {{"(differs): mods",
+      "(différent) : mods",
+      "(anders): Mods",
+      "(distinto): mods",
+      "(diverso): mod"}},
     {{"Back", "Retour", "Zurück", "Atrás", "Indietro"}},
     {{"Why can't I join?", "Pourquoi ?", "Warum nicht?", "¿Por qué no?", "Perché no?"}},
     {{"Host too old", "Hôte trop ancien", "Host zu alt", "Host muy viejo", "Host obsoleto"}},
-    {{"Checking mods...", "Vérification...", "Prüfe Mods...", "Revisando mods...", "Verifica mod..."}},
+    {{"Checking mods...",
+      "Vérification...",
+      "Prüfe Mods...",
+      "Revisando mods...",
+      "Verifica mod..."}},
     {{"Can't join", "Accès refusé", "Kein Beitritt", "No puedes unirte", "Accesso negato"}},
     {{"Can't play", "Jeu impossible", "Kein Spiel", "No puedes jugar", "Gioco negato"}},
     {{"Remove ", "Retirer ", "Entfernen: ", "Quitar a ", "Rimuovi "}},
-    {{"Remove a player", "Retirer un joueur", "Spieler entfernen", "Quitar jugador", "Rimuovi giocatore"}},
-    {{"Continue as host", "Reprendre en hôte", "Als Host weiter", "Seguir de host", "Continua da host"}},
+    {{"Remove a player",
+      "Retirer un joueur",
+      "Spieler entfernen",
+      "Quitar jugador",
+      "Rimuovi giocatore"}},
+    {{"Continue as host",
+      "Reprendre en hôte",
+      "Als Host weiter",
+      "Seguir de host",
+      "Continua da host"}},
     {{"Past parties", "Anciens groupes", "Frühere Gruppen", "Grupos previos", "Gruppi passati"}},
     {{"Own copies", "Chacun sa copie", "Eigene Kopien", "Copias propias", "Copie proprie"}},
-    {{"Press Start when ready", "Start si prêt", "Start, wenn bereit", "Start al estar listo", "Start se pronto"}},
-    {{"Stand by a fallen player", "Près d'un joueur à terre", "Neben Gefallenem stehen", "Junto a un caído", "Vicino a un caduto"}},
+    {{"Press Start when ready",
+      "Start si prêt",
+      "Start, wenn bereit",
+      "Start al estar listo",
+      "Start se pronto"}},
+    {{"Stand by a fallen player",
+      "Près d'un joueur à terre",
+      "Neben Gefallenem stehen",
+      "Junto a un caído",
+      "Vicino a un caduto"}},
     {{"Revive rule: on", "Secours : actif", "Wiederbeleben: an", "Reanimar: sí", "Rianimare: sì"}},
     {{"\x10 Select  \x12 Back",
       "\x10 Choix  \x12 Retour",
@@ -279,13 +303,18 @@ inline constexpr Words kWords[] = {
       "\x10 Scegli  \x12 Esci"}},
 };
 
+// Returns the text of the row whose English is `english`, in `language`; `english` itself when no
+// row has it.
 inline const char* translated(const char* english, Language language) {
     const auto index = static_cast<unsigned>(language);
+
+    // Rows are found by their English text; a language past the five falls back to it.
     for (const Words& words : kWords) {
         if (std::strcmp(words.text[0], english) == 0) {
             return words.text[index < 5 ? index : 0];
         }
     }
+
     return english;
 }
 
@@ -299,44 +328,63 @@ inline constexpr std::size_t kFooterLineMax = 20;
 // The current UI API truncates bytes, not UTF-8 characters. Reserve an ASCII ellipsis and
 // stop before a continuation byte, so a long dynamic label never loses half an accented letter.
 inline std::string fit_ui_text(const std::string& value, std::size_t limit) {
+    // A value that fits is left as it is.
     if (value.size() <= limit) {
         return value;
     }
+
     std::size_t end = limit >= 3 ? limit - 3 : limit;
+
+    // A UTF-8 continuation byte starts with the bits 10 (documented), so the cut backs up to the
+    // start of the character.
     while (end > 0 && (static_cast<unsigned char>(value[end]) & 0xC0u) == 0x80u) {
         --end;
     }
+
     return value.substr(0, end) + (limit >= 3 ? "..." : "");
 }
 
 // Notices remain English in the network/session layer. Translate only known mod-owned messages
 // at the display boundary, never player names, chat, server text or remote save descriptions.
+// Returns `notice` in `language` when it is one of the mod's own notices, else as it is.
 inline std::string localized_notice(const std::string& notice, Language language) {
     const char* exact = translated(notice.c_str(), language);
+
+    // `translated` returns its argument when no row matches, so any other pointer is a translation.
     if (exact != notice.c_str()) {
         return exact;
     }
+
+    // A notice that starts with a known prefix keeps the rest of its text.
     for (const char* prefix : {"Host has "}) {
         const std::size_t n = std::strlen(prefix);
+
         if (notice.compare(0, n, prefix) == 0) {
             const std::string rest = notice.substr(n);
             return std::string(translated(prefix, language))
                    + (rest == "another" ? translated("another", language) : rest);
         }
     }
+
     // The local host's bind errors, with the numeric port intact.
     for (const char* tail : {" busy", " failed"}) {
         const std::string suffix = tail;
+
+        // Only "Port N busy" and "Port N failed" are translated, with N put back.
         if (notice.compare(0, 5, "Port ") == 0 && notice.size() > 5 + suffix.size()
             && notice.compare(notice.size() - suffix.size(), suffix.size(), suffix) == 0) {
             const std::string port = notice.substr(5, notice.size() - 5 - suffix.size());
+
+            // Only digits make a port number; anything else is left as it came.
             if (port.find_first_not_of("0123456789") == std::string::npos) {
-                std::string text = translated(suffix == " busy" ? "Port {0} busy" : "Port {0} failed", language);
+                std::string text =
+                    translated(suffix == " busy" ? "Port {0} busy" : "Port {0} failed", language);
                 text.replace(text.find("{0}"), 3, port);
                 return text;
             }
         }
     }
+
     return notice;
 }
 

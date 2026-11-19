@@ -1,0 +1,18 @@
+{
+  "id": "rac1-enhanced-movement",
+  "repo": "https://github.com/kmomoney/rac1-enhanced-movement",
+  "path": "",
+  "description": "Ratchet moves like he does in Going Commando: speed follows the stick, quicker starts and stops, no skid, more air control, an L2/R2 strafe with flips, Going Commando wrench timing, a faster camera and better Clank controls. Jump heights and damage stay the same.",
+  "tags": [
+    "gameplay",
+    "controls",
+    "camera"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/kmomoney/rac1-enhanced-movement/issues"
+  }
+}

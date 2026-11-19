@@ -7,7 +7,8 @@
 //     big-endian integers, strings behind a 16-bit length, -1 for an empty one), and the frame
 //     reader cutting frames however the bytes arrive;
 //   - the session's lobby against a recorder: hello, a party created and joined, members coming
-//     and going, Ready and Start in DATA, refusals, the host leaving, the game's own DATA passed on;
+//     and going, Ready and Start in DATA, refusals, the host leaving, the game's own DATA passed
+//     on;
 //     Ready toggling, and Start refused until every member is ready (a newcomer is not);
 //   - the connection against a server made here on the loopback: TCP, hello sent, the answer read;
 //   - Direct connect: the embedded host (host.hpp) in-process with two clients on the loopback:
@@ -19,6 +20,7 @@
 //     the player's name chosen from the setting and the launcher's.
 //
 // The expected bytes are written out by hand from the server's README and its Java encoders.
+
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -68,6 +70,7 @@ using mp::Bytes;
 struct Recorder : mp::Transport {
     std::vector<Bytes> frames;
 
+    // Records a frame the session sends.
     void send(Bytes frame) override { frames.push_back(std::move(frame)); }
 };
 
@@ -91,15 +94,19 @@ Bytes body_of(const Bytes& frame) {
     return body;
 }
 
+// Returns the message a frame decodes to, failing the test when it does not decode.
 mp::Message decoded(const Bytes& frame) {
     mp::Message m;
     CHECK(mp::decode(body_of(frame), m));
     return m;
 }
 
+// Checks that the client's frames are the bytes the server's Java side reads.
 void client_frames_are_the_servers_bytes() {
     // HELLO "v1", "Bob": length 10, id 0, then two strings.
-    CHECK(mp::hello("v1", "Bob") == (Bytes{0, 0, 0, 11, 0, 0, 2, 'v', '1', 0, 3, 'B', 'o', 'b', 1}));
+    CHECK(
+        mp::hello("v1", "Bob") == (Bytes{0, 0, 0, 11, 0, 0, 2, 'v', '1', 0, 3, 'B', 'o', 'b', 1})
+    );
     // PARTY CREATE: id 1, the opcode and the description (none: -1); LEAVE and LIST the opcode
     // alone.
     CHECK(mp::party_create() == (Bytes{0, 0, 0, 4, 1, 0, 0xFF, 0xFF}));
@@ -121,6 +128,8 @@ void client_frames_are_the_servers_bytes() {
     CHECK(mp::time(0x0102030405060708) == (Bytes{0, 0, 0, 9, 5, 1, 2, 3, 4, 5, 6, 7, 8}));
 }
 
+// Checks that the server's frames decode into the messages they stand for, and that malformed ones
+// are refused.
 void server_frames_are_read() {
     mp::Message m = decoded(server(mp::Writer().u8(0).i32(7)));
     CHECK(m.kind == mp::Message::Kind::kHello && m.id == 7);
@@ -153,7 +162,8 @@ void server_frames_are_read() {
     m = decoded(server(mp::Writer().u8(2).i32(3).str("")));
     CHECK(m.kind == mp::Message::Kind::kChat && m.text.empty());
 
-    // Unknown ids, opcodes the client sends itself, unknown reasons and cut-short bodies are refused.
+    // Unknown ids, opcodes the client sends itself, unknown reasons and cut-short bodies are
+    // refused.
     mp::Message x;
     CHECK(!mp::decode(Bytes{9}, x));
     CHECK(!mp::decode(Bytes{1, 0}, x));
@@ -163,6 +173,8 @@ void server_frames_are_read() {
     CHECK(!mp::decode(Bytes{1, 3, 0, 6, 'A'}, x));
 }
 
+// Checks that the frame reader returns a frame only once it is whole, whatever the size of the
+// pieces, and breaks on a length past the largest frame.
 void frames_are_cut_however_they_arrive() {
     const Bytes a = mp::frame({1, 2, 3});
     const Bytes b = mp::frame({4});
@@ -175,6 +187,7 @@ void frames_are_cut_however_they_arrive() {
     for (std::size_t i = 0; i < both.size(); ++i) {
         r.feed(&both[i], 1);
 
+        // Until the first frame's last byte is in, no frame is whole.
         if (i + 1 < a.size()) {
             CHECK(!r.next(body));
         }
@@ -190,6 +203,8 @@ void frames_are_cut_however_they_arrive() {
     CHECK(!r.next(body) && r.broken());
 }
 
+// Checks the session's lobby, from creating and joining a party to Start and leaving, as the
+// server's frames drive it.
 void a_party_is_created_joined_and_left() {
     Recorder host_link;
     mp::Session host(host_link, "v", "Hosty");
@@ -325,6 +340,8 @@ void match_finding_and_the_clock() {
     CHECK(s.in_party() && !s.is_host() && s.host() == 9);
 }
 
+// Checks that names are accepted and refused as the server does and that addresses parse with the
+// default port.
 void names_and_addresses() {
     CHECK(mp::valid_name("Brave_Lombax42") && mp::valid_name("abc"));
     CHECK(
@@ -343,6 +360,7 @@ void names_and_addresses() {
     CHECK(!mp::parse_address("", host, port) && !mp::parse_address(":7770", host, port));
 }
 
+// A socket handle and the call that closes one, for the platform.
 #if defined(_WIN32)
 using socket_t = SOCKET;
 
@@ -381,6 +399,7 @@ void the_connection_talks_tcp() {
         heard.resize(expected.size());
         std::size_t got = 0;
 
+        // The HELLO may arrive in pieces, so the server reads until all of it is in.
         while (got < heard.size()) {
             const auto n = recv(
                 client,
@@ -389,6 +408,7 @@ void the_connection_talks_tcp() {
                 0
             );
 
+            // A closed or failed read ends the wait.
             if (n <= 0) {
                 break;
             }
@@ -410,6 +430,7 @@ void the_connection_talks_tcp() {
 
     // As the page does each frame: hello on a new connection, then the messages.
     while (!session.greeted() && std::chrono::steady_clock::now() < until) {
+        // Hello goes out once per new connection.
         if (connection.state() == mp::Connection::State::kConnected
             && connection.generation() != generation) {
             generation = connection.generation();
@@ -439,10 +460,12 @@ struct Player {
     std::uint32_t generation = 0;
     std::vector<mp::Message> log;
 
+    // Starts a session on the player's connection.
     explicit Player(const std::string& name) {
         session = std::make_unique<mp::Session>(connection, "rac1-multiplayer/test", name);
     }
 
+    // Reads what arrived, sends hello on a new link, and tells the session when the link is lost.
     void pump() {
         const bool connected = connection.state() == mp::Connection::State::kConnected;
 
@@ -465,6 +488,7 @@ struct Player {
         int n = 0;
 
         for (const mp::Message& m : log) {
+            // A message counts when its kind, sender and bytes match what was asked for.
             if (m.kind == kind && (id == 0 || m.id == id)
                 && (bytes == nullptr || m.bytes == *bytes)) {
                 ++n;
@@ -507,6 +531,7 @@ socket_t raw_connect(int port) {
     return fd;
 }
 
+// Sends bytes on a raw socket.
 void raw_send(socket_t fd, const Bytes& bytes) {
     send(fd, reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()), 0);
 }
@@ -528,10 +553,13 @@ bool closed_within(socket_t fd, int ms) {
         const int ready = poll(&p, 1, 20);
 #endif
 
+        // Whatever the host sends is read and dropped; a read that fails means the host closed the
+        // socket.
         if (ready > 0) {
             char buffer[4096];
             const auto n = recv(fd, buffer, static_cast<int>(sizeof buffer), 0);
 
+            // A read of 0 or less means the host closed the socket.
             if (n <= 0) {
                 return true;
             }
@@ -547,7 +575,8 @@ bool closed_within(socket_t fd, int ms) {
 std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
     mp::FrameReader frames;
     std::vector<mp::Message> out;
-    const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(want > 0 ? ms * 10 : ms);
+    const auto until =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(want > 0 ? ms * 10 : ms);
 
     while (std::chrono::steady_clock::now() < until && (want == 0 || out.size() < want)) {
 #if defined(_WIN32)
@@ -562,6 +591,7 @@ std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
         const int ready = poll(&p, 1, 20);
 #endif
 
+        // With nothing to read yet, polling goes on until the time is up.
         if (ready <= 0) {
             continue;
         }
@@ -570,6 +600,7 @@ std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
         const auto n =
             recv(fd, reinterpret_cast<char*>(buffer), static_cast<int>(sizeof buffer), 0);
 
+        // The host closed the socket, so nothing more will come.
         if (n <= 0) {
             break;
         }
@@ -577,9 +608,11 @@ std::vector<mp::Message> raw_read(socket_t fd, int ms, std::size_t want = 0) {
         frames.feed(buffer, static_cast<std::size_t>(n));
         Bytes body;
 
+        // One read may hold several frames.
         while (frames.next(body)) {
             mp::Message m;
 
+            // Frames that do not decode are left out.
             if (mp::decode(body, m)) {
                 out.push_back(m);
             }
@@ -594,23 +627,39 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::hello_reply(7) == server(mp::Writer().u8(0).i32(7)));
     CHECK(
         mp::udp_offer(0x0102030405060708LL, 7770)
-        == server(mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770).u8(mp::kFeatureKick).i64(0))
+        == server(
+            mp::Writer().u8(6).i64(0x0102030405060708LL).i32(7770).u8(mp::kFeatureKick).i64(0)
+        )
     );
     CHECK(mp::party_kicked() == server(mp::Writer().u8(1).u8(12)));
     CHECK(mp::party_kick(7) == server(mp::Writer().u8(1).u8(11).i32(7)));
     {
         // What the server sends: the feature bits, and none from one that stops at the port.
         mp::Message m;
-        CHECK(mp::decode(mp::Writer().u8(6).i64(1).i32(7770).u8(1).bytes(), m) && m.features == mp::kFeatureKick);
+        CHECK(
+            mp::decode(mp::Writer().u8(6).i64(1).i32(7770).u8(1).bytes(), m)
+            && m.features == mp::kFeatureKick
+        );
         CHECK(mp::decode(mp::Writer().u8(6).i64(1).i32(7770).bytes(), m) && m.features == 0);
-        CHECK(mp::decode(mp::Writer().u8(1).u8(12).bytes(), m) && m.kind == mp::Message::Kind::kPartyKicked);
-        CHECK(mp::decode(mp::Writer().u8(4).u8(4).bytes(), m) && m.reason == mp::ErrorReason::kNotHost);
+        CHECK(
+            mp::decode(mp::Writer().u8(1).u8(12).bytes(), m)
+            && m.kind == mp::Message::Kind::kPartyKicked
+        );
+        CHECK(
+            mp::decode(mp::Writer().u8(4).u8(4).bytes(), m) && m.reason == mp::ErrorReason::kNotHost
+        );
         CHECK(!mp::decode(mp::Writer().u8(4).u8(7).bytes(), m));
         const mp::Request q = mp::decode_request(mp::Writer().u8(1).u8(11).i32(7).bytes());
         CHECK(q.kind == mp::Request::Kind::kKick && q.target == 7);
-        CHECK(mp::decode_request(mp::Writer().u8(1).u8(11).bytes()).kind == mp::Request::Kind::kInvalid);
+        CHECK(
+            mp::decode_request(mp::Writer().u8(1).u8(11).bytes()).kind
+            == mp::Request::Kind::kInvalid
+        );
         // A notice of the server's is no request.
-        CHECK(mp::decode_request(mp::Writer().u8(1).u8(12).bytes()).kind == mp::Request::Kind::kInvalid);
+        CHECK(
+            mp::decode_request(mp::Writer().u8(1).u8(12).bytes()).kind
+            == mp::Request::Kind::kInvalid
+        );
     }
     CHECK(
         mp::party_info("DIRECT", 1, {{1, "A"}, {2, "B"}})
@@ -623,12 +672,19 @@ void host_frames_are_the_servers_bytes() {
     // LIST: a count, then code, host, members, size and description per party.
     CHECK(
         mp::party_list_reply({{"DIRECT", "Ann", 1, 4, "New game"}})
-        == server(mp::Writer().u8(1).u8(8).u8(1).str("DIRECT").str("Ann").u8(1).u8(4).str("New game"))
+        == server(
+            mp::Writer().u8(1).u8(8).u8(1).str("DIRECT").str("Ann").u8(1).u8(4).str("New game")
+        )
     );
     // The client reads LIST, and INFO's description (absent from an older server).
     mp::Message list;
     CHECK(
-        mp::decode(body_of(mp::party_list_reply({{"ABCDEF", "Bo", 2, 4, "Kerwan"}, {"GHJKLM", "Cy", 1, 4, ""}})), list)
+        mp::decode(
+            body_of(
+                mp::party_list_reply({{"ABCDEF", "Bo", 2, 4, "Kerwan"}, {"GHJKLM", "Cy", 1, 4, ""}})
+            ),
+            list
+        )
         && list.kind == mp::Message::Kind::kPartyList && list.parties.size() == 2
         && list.parties[0].host == "Bo" && list.parties[0].members == 2
         && list.parties[0].description == "Kerwan" && list.parties[1].description.empty()
@@ -647,7 +703,10 @@ void host_frames_are_the_servers_bytes() {
     );
     // The server's reading of CREATE (with and without a description) and LIST.
     CHECK(mp::decode_request(body_of(mp::party_create("Pokitaru"))).text == "Pokitaru");
-    CHECK(mp::decode_request(body_of(server(mp::Writer().u8(1).u8(0)))).kind == mp::Request::Kind::kCreate);
+    CHECK(
+        mp::decode_request(body_of(server(mp::Writer().u8(1).u8(0)))).kind
+        == mp::Request::Kind::kCreate
+    );
     CHECK(mp::decode_request(body_of(mp::party_list())).kind == mp::Request::Kind::kList);
     // Descriptions kept as the server keeps them.
     CHECK(mp::description_text("  Kerwan\x01, 3 gold\xC3\xA9  ") == "Kerwan, 3 gold");
@@ -656,16 +715,31 @@ void host_frames_are_the_servers_bytes() {
     CHECK(mp::party_left(2) == server(mp::Writer().u8(1).u8(5).i32(2)));
     CHECK(mp::party_end() == server(mp::Writer().u8(1).u8(6)));
     // RESUME, both ways; INFO's tail where it means something, none where it does not.
-    CHECK(mp::party_resume("ABCDEF", 7, 9) == server(mp::Writer().u8(1).u8(10).str("ABCDEF").i32(7).i64(9)));
+    CHECK(
+        mp::party_resume("ABCDEF", 7, 9)
+        == server(mp::Writer().u8(1).u8(10).str("ABCDEF").i32(7).i64(9))
+    );
     CHECK(mp::party_away(7, true) == server(mp::Writer().u8(1).u8(10).i32(7).u8(1)));
-    CHECK(mp::decode(body_of(mp::party_away(7, false)), info) && info.kind == mp::Message::Kind::kPartyAway && !info.back);
-    CHECK(mp::decode(body_of(mp::party_info("ABCDEF", 1, {{1, "A"}}, "d", 2, {3})), info) && info.epoch == 2
-          && info.away == std::vector<std::int32_t>{3} && info.description == "d");
-    CHECK(mp::party_successors({4, 5}) == server(mp::Writer().u8(1).u8(9).u8(0).u8(2).i32(4).i32(5)));
+    CHECK(
+        mp::decode(body_of(mp::party_away(7, false)), info)
+        && info.kind == mp::Message::Kind::kPartyAway && !info.back
+    );
+    CHECK(
+        mp::decode(body_of(mp::party_info("ABCDEF", 1, {{1, "A"}}, "d", 2, {3})), info)
+        && info.epoch == 2 && info.away == std::vector<std::int32_t>{3} && info.description == "d"
+    );
+    CHECK(
+        mp::party_successors({4, 5}) == server(mp::Writer().u8(1).u8(9).u8(0).u8(2).i32(4).i32(5))
+    );
     CHECK(mp::party_decline() == server(mp::Writer().u8(1).u8(9).u8(1).u8(0)));
-    CHECK(mp::decode(body_of(server(mp::Writer().u8(1).u8(9).i32(4).i32(2))), info)
-          && info.kind == mp::Message::Kind::kPartyHostChanged && info.host == 4 && info.epoch == 2);
-    CHECK(mp::decode_request(body_of(mp::party_resume("ABCDEF", 7, 9))).kind == mp::Request::Kind::kResume);
+    CHECK(
+        mp::decode(body_of(server(mp::Writer().u8(1).u8(9).i32(4).i32(2))), info)
+        && info.kind == mp::Message::Kind::kPartyHostChanged && info.host == 4 && info.epoch == 2
+    );
+    CHECK(
+        mp::decode_request(body_of(mp::party_resume("ABCDEF", 7, 9))).kind
+        == mp::Request::Kind::kResume
+    );
     CHECK(mp::decode_request(body_of(mp::party_resume("ABCDEF", 7, 9))).token == 9);
     CHECK((mp::decode_request(body_of(mp::hello("v", "N"))).features & mp::kClientResumes) != 0);
     CHECK(mp::decode_request(body_of(server(mp::Writer().u8(0).str("v").str("N")))).features == 0);
@@ -1089,9 +1163,12 @@ void the_host_keeps_the_servers_limits() {
     raw_send(member, mp::chat("one"));
     got = raw_read(member, 200, 1);
     CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kChat && got[0].text == "one");
+
+    // A burst over the chat rate earns strikes, and enough strikes close the connection.
     for (int i = 0; i < 5; ++i) {
         raw_send(member, mp::chat("flood"));
     }
+
     CHECK(closed_within(member, 2000));
     close_socket(member);
 
@@ -1130,11 +1207,15 @@ void the_host_keeps_the_servers_limits() {
 
     // Connections from one address past the limit are closed at once.
     std::vector<socket_t> many;
+
+    // Six connections from one address reach the limit of six.
     for (int i = 0; i < 6; ++i) {
         many.push_back(raw_connect(port));
     }
+
     // extra is one of the address's six already, so the sixth here is past it.
     CHECK(closed_within(many.back(), 1000));
+
     for (const socket_t fd : many) {
         close_socket(fd);
     }
@@ -1173,7 +1254,10 @@ void direct_host_keeps_a_dropped_members_slot() {
 
     close_socket(first);
     got = raw_read(second, 300, 1);
-    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyAway && got[0].id == id && !got[0].back);
+    CHECK(
+        got.size() == 1 && got[0].kind == mp::Message::Kind::kPartyAway && got[0].id == id
+        && !got[0].back
+    );
 
     // Someone else has no way in with a guess.
     const socket_t thief = raw_connect(host.port());
@@ -1181,7 +1265,10 @@ void direct_host_keeps_a_dropped_members_slot() {
     CHECK(raw_read(thief, 200, 2).size() == 2);  // HELLO, UDP: held out for a RESUME
     raw_send(thief, mp::party_resume("DIRECT", id, token ^ 1));
     got = raw_read(thief, 200, 1);
-    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kError && got[0].reason == mp::ErrorReason::kResumeRefused);
+    CHECK(
+        got.size() == 1 && got[0].kind == mp::Message::Kind::kError
+        && got[0].reason == mp::ErrorReason::kResumeRefused
+    );
     close_socket(thief);
 
     const socket_t back = raw_connect(host.port());
@@ -1192,7 +1279,10 @@ void direct_host_keeps_a_dropped_members_slot() {
     CHECK(got.size() == 3 && got[0].kind == mp::Message::Kind::kHello && got[0].id == id);
     CHECK(got[2].kind == mp::Message::Kind::kPartyInfo && got[2].members.size() == 3);
     got = raw_read(second, 700);
-    CHECK(!got.empty() && got[0].kind == mp::Message::Kind::kPartyAway && got[0].id == id && got[0].back);
+    CHECK(
+        !got.empty() && got[0].kind == mp::Message::Kind::kPartyAway && got[0].id == id
+        && got[0].back
+    );
     close_socket(second);
     close_socket(back);
     host.stop();
@@ -1225,7 +1315,10 @@ void direct_host_removes_a_member() {
     // A member has no say, of another or of the host.
     raw_send(first, mp::party_kick(b));
     std::vector<mp::Message> got = raw_read(first, 200, 1);
-    CHECK(got.size() == 1 && got[0].kind == mp::Message::Kind::kError && got[0].reason == mp::ErrorReason::kNotHost);
+    CHECK(
+        got.size() == 1 && got[0].kind == mp::Message::Kind::kError
+        && got[0].reason == mp::ErrorReason::kNotHost
+    );
     CHECK(host.members().size() == 3);
 
     // The host itself and a stranger: nothing.
@@ -1284,12 +1377,16 @@ void direct_page_logic() {
     std::uint64_t t = 1250;  // the port's first repeat comes later than the gap: a new press
     CHECK(a.times(0, t) == 1);
     int fast_at = 0;
+
+    // Single steps come first; ten at a time starts after the port has repeated a while.
     for (int i = 1; i <= 12; ++i) {
         t += 67;
+
         if (a.times(0, t) == mp::Acceleration::kFast && fast_at == 0) {
             fast_at = i;
         }
     }
+
     CHECK(fast_at == mp::Acceleration::kHeldRepeats);
     CHECK(a.times(0, t + 67) == mp::Acceleration::kFast);
     CHECK(a.times(1, t + 134) == 1);   // another row
@@ -1311,15 +1408,9 @@ void direct_page_logic() {
     std::vector<std::string> lines = mp::hosting_lines({"192.168.1.20"}, 7770, 5);
     CHECK(lines == std::vector<std::string>{"192.168.1.20:7770"});
     lines = mp::hosting_lines({"192.168.1.20", "10.0.0.5", "172.16.0.2"}, 7770, 2);
-    CHECK(
-        lines
-        == (std::vector<std::string>{"192.168.1.20:7770", "10.0.0.5:7770"})
-    );
+    CHECK(lines == (std::vector<std::string>{"192.168.1.20:7770", "10.0.0.5:7770"}));
     CHECK(mp::hosting_lines({}, 7770, 5) == std::vector<std::string>{"Port 7770"});
-    CHECK(
-        mp::hosting_lines({"192.168.1.20"}, 7770, 0)
-        == std::vector<std::string>{"Port 7770"}
-    );
+    CHECK(mp::hosting_lines({"192.168.1.20"}, 7770, 0) == std::vector<std::string>{"Port 7770"});
     CHECK(mp::hosting_lines({"255.255.255.255"}, 65535, 1)[0].size() <= mp::kItemMax);
 
     // The player's name: the setting when valid, else the launcher's when valid, else none.
@@ -1360,10 +1451,11 @@ void direct_connect_ignores_the_server() {
     in.address = "255.255.255.255:65535";
     in.hosting_port = 7770;
     const Mode modes[] = {Mode::kNone, Mode::kServer, Mode::kDirect, Mode::kHosting};
-    const State states[] = {
-        State::kIdle, State::kConnecting, State::kConnected, State::kUnreachable, State::kLost};
+    const State states[] =
+        {State::kIdle, State::kConnecting, State::kConnected, State::kUnreachable, State::kLost};
     std::size_t longest = 0;
 
+    // Every mode, state and flag combination is a possible status line.
     for (const Mode mode : modes) {
         for (const State state : states) {
             for (int bits = 0; bits < 4; ++bits) {
@@ -1379,8 +1471,14 @@ void direct_connect_ignores_the_server() {
     }
 
     // The notices the session raises fit too.
-    for (const char* notice : {"Starting", "Host left", "No such code", "Party full", "Already in party", "No party",
-                               "Refused"}) {
+    for (const char* notice :
+         {"Starting",
+          "Host left",
+          "No such code",
+          "Party full",
+          "Already in party",
+          "No party",
+          "Refused"}) {
         CHECK(std::strlen(notice) <= mp::kFooterMax);
     }
 
@@ -1395,6 +1493,7 @@ void direct_connect_ignores_the_server() {
     CHECK(connection.mode() == Mode::kServer);
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
 
+    // The connect to a closed port fails quickly, so the state is awaited rather than assumed.
     while (connection.state() != State::kUnreachable && std::chrono::steady_clock::now() < until) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -1417,7 +1516,8 @@ void direct_connect_ignores_the_server() {
     CHECK(host.connection.start_hosting(0));
     guest.connection.open("127.0.0.1", 1);
     CHECK(guest.connection.connect_direct(
-        "127.0.0.1:" + std::to_string(host.connection.hosting().port)));
+        "127.0.0.1:" + std::to_string(host.connection.hosting().port)
+    ));
     CHECK(pump_until(all, [&] { return guest.session->in_party(); }));
     guest.connection.close();
     host.connection.close();
@@ -1435,23 +1535,37 @@ void direct_connect_ignores_the_server() {
     blackhole.close();
 }
 
+// Checks that the family travels with each request and that a refusal for another game reads as its
+// own page.
 void parties_keep_to_their_family() {
     // CREATE, LIST, FIND and JOIN end with the family; none is the old bytes exactly.
     CHECK(mp::party_create("", "") == mp::party_create());
-    CHECK(mp::party_create("New game", "rac2-pal-1")
-          == server(mp::Writer().u8(1).u8(0).str("New game").str("rac2-pal-1")));
-    CHECK(mp::party_create("", "rac1-60-1") == server(mp::Writer().u8(1).u8(0).str("").str("rac1-60-1")));
+    CHECK(
+        mp::party_create("New game", "rac2-pal-1")
+        == server(mp::Writer().u8(1).u8(0).str("New game").str("rac2-pal-1"))
+    );
+    CHECK(
+        mp::party_create("", "rac1-60-1")
+        == server(mp::Writer().u8(1).u8(0).str("").str("rac1-60-1"))
+    );
     CHECK(mp::party_list("rac1-60-1") == server(mp::Writer().u8(1).u8(8).str("rac1-60-1")));
     CHECK(mp::party_find("rac2-ntsc-1") == server(mp::Writer().u8(1).u8(7).str("rac2-ntsc-1")));
-    CHECK(mp::party_join("ABCDEF", "rac2-ntsc-1")
-          == server(mp::Writer().u8(1).u8(1).str("ABCDEF").str("rac2-ntsc-1")));
+    CHECK(
+        mp::party_join("ABCDEF", "rac2-ntsc-1")
+        == server(mp::Writer().u8(1).u8(1).str("ABCDEF").str("rac2-ntsc-1"))
+    );
     CHECK(mp::party_join("ABCDEF", "") == mp::party_join("ABCDEF"));
 
     // As a server reads them: the family after the other fields, "" from an older client.
     const mp::Request create = mp::decode_request(body_of(mp::party_create("Oozla", "rac2-pal-1")));
-    CHECK(create.kind == mp::Request::Kind::kCreate && create.text == "Oozla" && create.family == "rac2-pal-1");
+    CHECK(
+        create.kind == mp::Request::Kind::kCreate && create.text == "Oozla"
+        && create.family == "rac2-pal-1"
+    );
     const mp::Request join = mp::decode_request(body_of(mp::party_join("ABCDEF", "rac1-60-1")));
-    CHECK(join.kind == mp::Request::Kind::kJoin && join.text == "ABCDEF" && join.family == "rac1-60-1");
+    CHECK(
+        join.kind == mp::Request::Kind::kJoin && join.text == "ABCDEF" && join.family == "rac1-60-1"
+    );
     CHECK(mp::decode_request(body_of(mp::party_list("rac1-60-1"))).family == "rac1-60-1");
     CHECK(mp::decode_request(body_of(mp::party_find("rac1-60-1"))).family == "rac1-60-1");
     CHECK(mp::decode_request(body_of(mp::party_list())).family.empty());
@@ -1459,11 +1573,15 @@ void parties_keep_to_their_family() {
     CHECK(mp::decode_request(body_of(server(mp::Writer().u8(1).u8(0)))).family.empty());
 
     // OTHER_GAME (6) carries the party's family; the other reasons nothing.
-    CHECK(mp::error_reply(mp::ErrorReason::kOtherGame, "rac2-ntsc-1")
-          == server(mp::Writer().u8(4).u8(6).str("rac2-ntsc-1")));
+    CHECK(
+        mp::error_reply(mp::ErrorReason::kOtherGame, "rac2-ntsc-1")
+        == server(mp::Writer().u8(4).u8(6).str("rac2-ntsc-1"))
+    );
     const mp::Message other = decoded(mp::error_reply(mp::ErrorReason::kOtherGame, "rac2-ntsc-1"));
-    CHECK(other.kind == mp::Message::Kind::kError && other.reason == mp::ErrorReason::kOtherGame
-          && other.text == "rac2-ntsc-1");
+    CHECK(
+        other.kind == mp::Message::Kind::kError && other.reason == mp::ErrorReason::kOtherGame
+        && other.text == "rac2-ntsc-1"
+    );
     // An unknown reason is still not read.
     mp::Message m;
     CHECK(!mp::decode(body_of(server(mp::Writer().u8(4).u8(7))), m));

@@ -2,12 +2,13 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: the shared world: its bytes, the host's mobys and the despawn log.
+
 #include "test_support.hpp"
 
 namespace mpt {
 namespace {
 
-
+// Checks that a WORLD datagram encodes, decodes and is cut to the entries a datagram holds.
 void world_bytes() {
     mp::Pose p = pose_at(12.5f);
     p.rotation[2] = -1.5f;
@@ -23,12 +24,16 @@ void world_bytes() {
     std::int64_t stamp = 0;
     std::vector<mp::WorldEntry> out;
     CHECK(mp::decode_world(b, level, stamp, out) && level == 4 && stamp == 123456);
-    CHECK(out.size() == mp::kWorldEntries && out[0].id == 0x8003 && out[0].pose.position[0] == 12.5f);
-    CHECK(std::fabs(out[0].pose.rotation[2] + 1.5f) < 1e-3f && out[0].pose.seq == 7 && out[0].pose.frame == 3);
+    CHECK(
+        out.size() == mp::kWorldEntries && out[0].id == 0x8003 && out[0].pose.position[0] == 12.5f
+    );
+    CHECK(
+        std::fabs(out[0].pose.rotation[2] + 1.5f) < 1e-3f && out[0].pose.seq == 7
+        && out[0].pose.frame == 3
+    );
     CHECK(std::fabs(out[0].pose.anim_time - 0.5f) < 0.01f && out[0].pose.anim_speed == 2.0f);
     CHECK(!mp::decode_world(Bytes(b.begin(), b.end() - 3), level, stamp, out));
 }
-
 
 // The host runs the level's world; the member drives its copy from it.
 void the_world_is_the_hosts() {
@@ -44,14 +49,21 @@ void the_world_is_the_hosts() {
     // The same level in both: an enemy (key 0), a crate (key 1), a static rock (key 2, no
     // update); the host also has a bolt it spawned (slot 300, class 13).
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced;
+
+    // Both games load the same level.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
-        p->game.level = {moby(0, 0, 300, runs | mp::kMobyCreature, 10.0f), moby(1, 1, 500, runs, 20.0f),
-                         moby(2, 2, 77, mp::kMobyPlaced, 30.0f)};
+        p->game.level =
+            {moby(0, 0, 300, runs | mp::kMobyCreature, 10.0f),
+             moby(1, 1, 500, runs, 20.0f),
+             moby(2, 2, 77, mp::kMobyPlaced, 30.0f)};
     }
+
     host.game.level.push_back(moby(300, -1, 13, mp::kMobyUpdates, 11.0f));
     host.game.hero_pose.position[0] = 100.0f;
     member.game.hero_pose.position[0] = 12.0f;
+
+    // A second lets the world sync and the enemy be driven.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
@@ -59,16 +71,24 @@ void the_world_is_the_hosts() {
     // The member drives the enemy only (not the crate: each game's; not the rock: no update).
     CHECK((member.game.drives == std::set<int>{0}));
     CHECK(member.world.driven() == 2 && member.world.spawned() == 1);  // the enemy, the bolt
-    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 13") == 1);
+    CHECK(
+        std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 13") == 1
+    );
     CHECK(host.world.hosting() && !member.world.hosting());
 
     // The host's enemy moves: the member's follows, a delay behind.
     host.game.level[0].pose.position[0] = 15.0f;
     host.game.level[0].pose.seq = 4;
+
+    // A second lets the host's enemy move and the member follow.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
-    CHECK(std::fabs(member.game.level[0].pose.position[0] - 15.0f) < 0.01f && member.game.level[0].pose.seq == 4);
+
+    CHECK(
+        std::fabs(member.game.level[0].pose.position[0] - 15.0f) < 0.01f
+        && member.game.level[0].pose.seq == 4
+    );
 
     // The enemy's update on the host: the member is nearer than the host, so it stands in; the
     // bolts its update gave go to the member.
@@ -94,7 +114,10 @@ void the_world_is_the_hosts() {
     wrench.damage = 1.0f;
     CHECK(member.world.hit(wrench));
     route({&host, &member});
-    CHECK(host.game.hits.size() == 1 && host.game.hits[0].victim == 0 && host.game.hits[0].mask == 0x10000);
+    CHECK(
+        host.game.hits.size() == 1 && host.game.hits[0].victim == 0
+        && host.game.hits[0].mask == 0x10000
+    );
     CHECK(host.game.hits[0].attacker == 100 + host.coop.figure_of(2));
     // A hit on the member's own hero is its game's.
     wrench.victim = 99;
@@ -108,7 +131,10 @@ void the_world_is_the_hosts() {
     bite.damage = 2.0f;
     CHECK(host.world.hit(bite));
     route({&host, &member});
-    CHECK(member.game.hits.size() == 1 && member.game.hits[0].victim == 99 && member.game.hits[0].attacker == 0);
+    CHECK(
+        member.game.hits.size() == 1 && member.game.hits[0].victim == 99
+        && member.game.hits[0].attacker == 0
+    );
     CHECK(member.game.hits[0].damage == 2.0f);
 
     // The member breaks the crate: the host's breaks too (a wrench's hit posted to it, its drop
@@ -132,7 +158,6 @@ void the_world_is_the_hosts() {
     CHECK(member.game.moby_slot(2) == 2 && member.game.moby_slot(1) == -1);
 }
 
-
 // An enemy the host's game hides (its update: one waiting to appear) is hidden in the member's,
 // whose game does not run that update, and shown with the host's; one the host has not sent is held
 // as it is (a missing snapshot changes nothing).
@@ -148,54 +173,77 @@ void the_hosts_hidden_mobys_are_hidden_here() {
 
     // Two enemies: key 0 near the member, key 1 far from it and still (sent once, then held).
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+
+    // Both games hold two enemies, one near the member and one far from it.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {moby(0, 0, 300, runs, 10.0f), moby(1, 1, 301, runs, 900.0f)};
     }
+
     member.game.hero_pose.position[0] = 12.0f;
     host.game.level[0].flags |= mp::kMobyHidden;
+
+    // A second with the host's enemy hidden.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK((member.game.drives == std::set<int>{0, 1}));
     CHECK((member.game.level[0].flags & mp::kMobyHidden) != 0);
     CHECK((member.game.level[1].flags & mp::kMobyHidden) == 0);
 
     // It appears in the host's game: shown in the member's.
     host.game.level[0].flags &= ~mp::kMobyHidden;
+
+    // A second after the host's enemy appears.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK((member.game.level[0].flags & mp::kMobyHidden) == 0);
-    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "hide 0") == 1);
-    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "show 0") == 1);
+    CHECK(
+        std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "hide 0") == 1
+    );
+    CHECK(
+        std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "show 0") == 1
+    );
 
     // The host stops sending both (no snapshot for a long while): nothing hidden, nothing killed.
     host.game.listing_blank = true;
     const std::size_t calls = member.game.world_calls.size();
+
+    // A long time passes with no snapshot from the host.
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 100);
     }
-    CHECK(member.game.world_calls.size() == calls && member.game.moby_slot(0) == 0
-          && member.game.moby_slot(1) == 1);
-}
 
+    CHECK(
+        member.game.world_calls.size() == calls && member.game.moby_slot(0) == 0
+        && member.game.moby_slot(1) == 1
+    );
+}
 
 // The despawn log's who and why, from each tick's listing against the last.
 void the_despawn_log_says_who_and_why() {
     std::vector<std::string> lines;
     std::map<int, mp::MobyDeletion> deleted;
     mp::DespawnLog log;
-    log.out = [&](const std::string& l) { lines.push_back(l); };
+    log.out = [&](const std::string& l) {
+        lines.push_back(l);
+    };
     log.deletion = [&](int slot, mp::MobyDeletion& d) {
         const auto it = deleted.find(slot);
+
         if (it == deleted.end()) {
             return false;
         }
+
         d = it->second;
         return true;
     };
-    log.role = [](int slot, const mp::MobyState&) { return slot < 5 ? std::string("driven") : std::string("local"); };
+    log.role = [](int slot, const mp::MobyState&) {
+        return slot < 5 ? std::string("driven") : std::string("local");
+    };
     mp::DespawnLog::View view;
     view.hero = true;
     view.hero_at[0] = 10.0f;
@@ -204,9 +252,14 @@ void the_despawn_log_says_who_and_why() {
 
     const std::uint32_t placed = mp::kMobyPlaced | mp::kMobyUpdates;
     std::vector<mp::MobyState> level;
+
+    // Eight mobys: six placed by the level, with keys, and two spawned, without.
     for (int slot = 0; slot < 8; ++slot) {
-        level.push_back(moby(slot, slot < 6 ? slot : -1, 300 + slot, slot < 6 ? placed : mp::kMobyUpdates, 20.0f));
+        level.push_back(moby(
+            slot, slot < 6 ? slot : -1, 300 + slot, slot < 6 ? placed : mp::kMobyUpdates, 20.0f
+        ));
     }
+
     log.tick(1000, level, view);
     CHECK(lines.empty());
 
@@ -220,18 +273,25 @@ void the_despawn_log_says_who_and_why() {
     deleted[3] = {-1, -1, true, 303};
     log.note_death(1);
     std::vector<mp::MobyState> next = level;
+
     for (int slot : {0, 1, 2, 3, 4}) {
         next[static_cast<std::size_t>(slot)].flags |= mp::kMobyDead;
     }
+
     next[5].flags |= mp::kMobyHidden;
     next.erase(next.begin() + 6);
     log.tick(1050, next, view);
 
     const auto has = [&](const std::string& text) {
-        return std::any_of(lines.begin(), lines.end(), [&](const std::string& l) { return l.find(text) != std::string::npos; });
+        return std::any_of(lines.begin(), lines.end(), [&](const std::string& l) {
+            return l.find(text) != std::string::npos;
+        });
     };
     CHECK(lines.size() == 7);
-    CHECK(has("gone class 300 key 0 slot 0 driven by sync (KILLED from 1) at 20.0 0.0 0.0, hero 10.0, camera 6.0"));
+    CHECK(
+        has("gone class 300 key 0 slot 0 driven by sync (KILLED from 1) at 20.0 0.0 0.0, hero "
+            "10.0, camera 6.0")
+    );
     CHECK(has("gone class 301 key 1 slot 1 driven by game (its own update, its death recorded)"));
     CHECK(has("gone class 302 key 2 slot 2 driven by game (the update of slot 7 class 307)"));
     CHECK(has("gone class 303 key 3 slot 3 driven by mod (moby_kill, not the sync's)"));
@@ -251,7 +311,10 @@ void the_despawn_log_says_who_and_why() {
     std::vector<mp::MobyState> again = next;
     again.back().oclass = 999;  // slot 7 now another moby
     log.tick(1250, again, view);
-    CHECK(lines.size() == 2 && has("shown class 305") && has("gone class 307 key -1 slot 7 local vanished"));
+    CHECK(
+        lines.size() == 2 && has("shown class 305")
+        && has("gone class 307 key -1 slot 7 local vanished")
+    );
 
     // The verbose log's cap: kTraceLinesPerSecond lines a second, the rest said in the next.
     mp::Trace trace;
@@ -261,16 +324,24 @@ void the_despawn_log_says_who_and_why() {
     CHECK(!trace.on() && trace.written() == 0);
     trace.open([&](const std::string& l) { traced.push_back(l); });
     trace.tick(5000, "host");
+
+    // More lines than the limit are sent within one second, to see the limit hold.
     for (int i = 0; i < mp::kTraceLinesPerSecond + 10; ++i) {
         trace.line("run", "far");
     }
-    CHECK(traced.size() == static_cast<std::size_t>(mp::kTraceLinesPerSecond) && trace.dropped() == 10);
+
+    CHECK(
+        traced.size() == static_cast<std::size_t>(mp::kTraceLinesPerSecond) && trace.dropped() == 10
+    );
     CHECK(traced.front() == "[mp-trace] f=2 t=5000 host run far");
     trace.tick(6100, "host");
     CHECK(traced.size() == static_cast<std::size_t>(mp::kTraceLinesPerSecond) + 1);
-    CHECK(traced.back() == "[mp-trace] f=3 t=6100 host trace dropped 10 lines in the last second (at most 2000 a second)");
+    CHECK(
+        traced.back()
+        == "[mp-trace] f=3 t=6100 host trace dropped 10 lines in the last second (at most 2000 a "
+           "second)"
+    );
 }
-
 
 // With the verbose log on, the member's despawn line for a moby the host killed names the sync and the
 // sender, and the moby as one it drove.
@@ -288,31 +359,41 @@ void the_world_logs_its_despawns() {
     trace.open([&](const std::string& l) { member_log.push_back(l); });
     member.world.trace(&trace);
     const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+
+    // Both games hold the same two mobys in level 0.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         // (and a rock: a level always lists some moby alive)
         p->game.level = {moby(0, 0, 300, runs, 10.0f), moby(1, 1, 77, mp::kMobyPlaced, 30.0f)};
     }
+
     host.game.hero_pose.position[0] = 100.0f;
     member.game.hero_pose.position[0] = 12.0f;
+
+    // A second lets the world sync and the enemy be driven.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     host.game.die(0);
+
+    // A few ticks let the member see the host kill the enemy.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(std::any_of(member_log.begin(), member_log.end(), [](const std::string& l) {
         return l.rfind("[mp-trace] ", 0) == 0
-               && l.find(" despawn gone class 300 key 0 slot 0 driven by sync (KILLED from 1)") != std::string::npos
+               && l.find(" despawn gone class 300 key 0 slot 0 driven by sync (KILLED from 1)")
+                      != std::string::npos
                && l.find("host sent it") != std::string::npos;
     }));
 }
 
-
 // The verbose log: none of its lines while off; on, a pause with a moby going out of range, a
 // snapshot with a moby missing, a moby driven, KILLED, and a census's comings and goings.
 void the_verbose_log_traces_a_pause() {
+    // The log is tried once with the verbose log off and once with it on.
     for (const bool on : {false, true}) {
         Player host(1), member(2);
         const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -324,37 +405,49 @@ void the_verbose_log_traces_a_pause() {
         tick({&host, &member}, 16);
         std::vector<std::string> host_lines, member_lines;
         mp::Trace host_trace, member_trace;
+
+        // With the log on, each side's trace goes into its own list of lines.
         if (on) {
             host_trace.open([&](const std::string& l) { host_lines.push_back(l); });
             member_trace.open([&](const std::string& l) { member_lines.push_back(l); });
         }
+
         host.world.on_log([&](const std::string& l) { host_lines.push_back(l); });
         member.world.on_log([&](const std::string& l) { member_lines.push_back(l); });
         host.world.trace(&host_trace);
         member.world.trace(&member_trace);
         const auto step = [&](int n) {
+            // Each step advances both clocks and both traces by 50 ms.
             for (int i = 0; i < n; ++i) {
                 host.clock += 50;
                 member.clock += 50;
                 host_trace.tick(host.clock, "host");
                 member_trace.tick(member.clock, "member");
+
                 for (Player* p : {&host, &member}) {
                     p->coop.tick(p->clock);
                     p->world.tick(p->clock);
                 }
+
                 route({&host, &member});
             }
         };
         const std::uint32_t runs = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
+
+        // Both games hold the same mobys in level 0.
         for (Player* p : {&host, &member}) {
             p->game.now = {mp::kPhasePlaying, 0, 2};
-            p->game.level = {moby(0, 0, 300, runs, 10.0f), moby(1, 1, 77, mp::kMobyPlaced, 30.0f),
-                             moby(2, 2, 301, runs, 1000.0f), moby(3, 3, 78, mp::kMobyPlaced, 40.0f)};
+            p->game.level =
+                {moby(0, 0, 300, runs, 10.0f),
+                 moby(1, 1, 77, mp::kMobyPlaced, 30.0f),
+                 moby(2, 2, 301, runs, 1000.0f),
+                 moby(3, 3, 78, mp::kMobyPlaced, 40.0f)};
             p->game.run_on = true;
             p->game.run.ran = 3;  // near
             p->game.run.update_dist = 50;
             p->game.run.distance = 10.0f;
         }
+
         host.game.hero_pose.position[0] = 100.0f;
         member.game.hero_pose.position[0] = 12.0f;
         step(30);
@@ -389,17 +482,27 @@ void the_verbose_log_traces_a_pause() {
         };
         const auto any_trace = [](const std::vector<std::string>& lines) {
             return std::any_of(lines.begin(), lines.end(), [](const std::string& l) {
-                return l.find("[mp-trace]") != std::string::npos || l.find("despawn") != std::string::npos;
+                return l.find("[mp-trace]") != std::string::npos
+                       || l.find("despawn") != std::string::npos;
             });
         };
+
+        // With the log off nothing is traced, so there is nothing more to check.
         if (!on) {
             CHECK(!any_trace(host_lines) && !any_trace(member_lines));
             continue;
         }
-        CHECK(has(host_lines, " host pause enter phase 5 level 0 mode 0 scene -1 camera_position 256.0 0.0 0.0"
-                              " run_camera 0.0 0.0 0.0 level_camera 99.0 0.0 0.0 menu level-camera menu_ticks 1"));
+
+        CHECK(
+            has(host_lines,
+                " host pause enter phase 5 level 0 mode 0 scene -1 camera_position 256.0 0.0 0.0"
+                " run_camera 0.0 0.0 0.0 level_camera 99.0 0.0 0.0 menu level-camera menu_ticks 1")
+        );
         CHECK(has(host_lines, " host pause frame phase 5"));
-        CHECK(has(host_lines, " host run out slot 0 class 300 key 0 at 11.0 0.0 0.0 distance 60.0 update_dist 50"));
+        CHECK(
+            has(host_lines,
+                " host run out slot 0 class 300 key 0 at 11.0 0.0 0.0 distance 60.0 update_dist 50")
+        );
         CHECK(has(host_lines, " host pause exit phase 3"));
         CHECK(has(host_lines, " host run in slot 0 class 300"));
         CHECK(has(host_lines, " host snap sent to 2 n=1 added [] missing [2]"));
@@ -415,6 +518,7 @@ void the_verbose_log_traces_a_pause() {
 }
 }  // namespace
 
+// Checks that a joiner's save keeps a mission's done flag only where its level load makes a moby.
 void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
     Player host(1);
     host.session.handle(info({{1, "P1"}}));
@@ -430,9 +534,12 @@ void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
     person.mission = 3;
     host.game.now = {mp::kPhasePlaying, 15, 2};
     host.game.level = {there, person};
+
+    // Ten ticks let the host's world list the level's mobys.
     for (int i = 0; i < 10; ++i) {
         tick({&host}, 50);
     }
+
     host.game.mission_row_bytes[8] = 0xFF;  // done since the load: its moby is still here
     host.game.mission_row_bytes[3] = 0xFF;
     host.game.mission_row_bytes[5] = 0xFF;  // done, no moby here: its load would make none either
@@ -445,6 +552,7 @@ void a_joiners_save_leaves_out_missions_its_load_would_miss_mobys_for() {
     CHECK(host.game.mission_row_bytes[8] == 0xFF);
 }
 
+// Checks that a hit with a bad damage, or from too far away, is refused.
 void a_hit_that_makes_no_sense_is_refused() {
     mp::Hit fine;
     fine.damage = 3.0f;
@@ -472,16 +580,23 @@ void a_hit_that_makes_no_sense_is_refused() {
     CHECK(start_ready(host));
     route({&host, &member});
     tick({&host, &member}, 16);
-    const mp::MobyState enemy = moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f);
+    const mp::MobyState enemy =
+        moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f);
+
+    // Both games hold the same enemy.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
         p->game.level = {enemy};
     }
+
     member.game.hero_pose.position[0] = 12.0f;
     member.game.hero_pose.level = 0;
+
+    // Two seconds let the world sync.
     for (int i = 0; i < 40; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.world.synced());
     const auto member_hits = [&](float damage) {
         mp::Hit by;
@@ -502,14 +617,18 @@ void a_hit_that_makes_no_sense_is_refused() {
 
     // From across the level: refused; the same damage nearer was taken.
     member.game.hero_pose.position[0] = 10.0f + mp::kHitReach + 50.0f;
+
+    // Half a second lets the host take or refuse the member's hit.
     for (int i = 0; i < 10; ++i) {
         tick({&host, &member}, 50);
     }
+
     member_hits(2.0f);
     CHECK(host.game.hits.size() == was + 1);
     CHECK(host.world.hits_refused() == 2);
 }
 
+// Checks that a moby the host hatches from a placed egg is shared as one the host spawned.
 void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -522,15 +641,18 @@ void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     const std::uint32_t alive = mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature;
     const mp::MobyState other = moby(0, 0, 300, alive, 90.0f);
     const auto settle = [&] {
+        // A second lets changes travel to the other game.
         for (int i = 0; i < 20; ++i) {
             tick({&host, &member}, 50);
         }
     };
+
     // Both games' level deleted it at its start: the hatch's waiting slot, dead in both.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 9, 2};
         p->game.level = {other, moby(57, 70, 193, alive | mp::kMobyDead, 10.0f)};
     }
+
     settle();
     CHECK(member.world.spawned() == 0);
 
@@ -538,7 +660,9 @@ void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     host.game.level = {other, moby(57, 70, 193, alive, 20.0f)};
     settle();
     CHECK(member.world.spawned() == 1);
-    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 1);
+    CHECK(
+        std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 1
+    );
 
     // Killed there: gone here, and hatched again it is a new one.
     host.game.level = {other, moby(57, 70, 193, alive | mp::kMobyDead, 20.0f)};
@@ -547,9 +671,12 @@ void a_placed_moby_hatched_is_shared_as_a_spawned_one() {
     host.game.level = {other, moby(57, 70, 193, alive, 30.0f)};
     settle();
     CHECK(member.world.spawned() == 1);
-    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 2);
+    CHECK(
+        std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 193") == 2
+    );
 }
 
+// Checks that a member adopts its own copy of a moby the level made rather than a second one.
 void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -561,18 +688,32 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     tick({&host, &member}, 16);
     // Both games' maker made its turret at its first update: slot 700 in each, unkeyed.
     const mp::MobyState turret = moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f);
+
+    // Both games hold the same enemy and turret.
     for (Player* p : {&host, &member}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
-        p->game.level = {moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f), turret};
+        p->game.level = {
+            moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f), turret
+        };
     }
+
+    // A second lets the world sync and the turrets be matched up.
     for (int i = 0; i < 20; ++i) {
         tick({&host, &member}, 50);
     }
+
     CHECK(member.world.spawned() == 1);
-    CHECK(std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 872") == 0);
-    CHECK(std::count_if(member.game.level.begin(), member.game.level.end(), [](const mp::MobyState& m) {
-              return m.oclass == 872;
-          }) == 1);
+    CHECK(
+        std::count(member.game.world_calls.begin(), member.game.world_calls.end(), "spawn 872") == 0
+    );
+    CHECK(
+        std::count_if(
+            member.game.level.begin(),
+            member.game.level.end(),
+            [](const mp::MobyState& m) { return m.oclass == 872; }
+        )
+        == 1
+    );
     CHECK(member.game.drives.count(700) == 1);
 
     // Its copy too far from the host's, whose maker moved: the host's is made, its own goes.
@@ -583,19 +724,35 @@ void a_member_takes_over_its_own_copy_of_what_the_level_spawned() {
     CHECK(start_ready(host2));
     route({&host2, &member2});
     tick({&host2, &member2}, 16);
+
+    // Both games hold the same enemy.
     for (Player* p : {&host2, &member2}) {
         p->game.now = {mp::kPhasePlaying, 0, 2};
-        p->game.level = {moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f)};
+        p->game.level = {
+            moby(0, 0, 300, mp::kMobyUpdates | mp::kMobyPlaced | mp::kMobyCreature, 10.0f)
+        };
     }
+
     host2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 500.0f));
     member2.game.level.push_back(moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f));
+
+    // A second lets the world sync.
     for (int i = 0; i < 20; ++i) {
         tick({&host2, &member2}, 50);
     }
-    CHECK(std::count(member2.game.world_calls.begin(), member2.game.world_calls.end(), "spawn 872") == 1);
-    CHECK(std::count_if(member2.game.world_calls.begin(), member2.game.world_calls.end(), [](const std::string& c) {
-              return c.rfind("kill 700", 0) == 0;
-          }) == 1);
+
+    CHECK(
+        std::count(member2.game.world_calls.begin(), member2.game.world_calls.end(), "spawn 872")
+        == 1
+    );
+    CHECK(
+        std::count_if(
+            member2.game.world_calls.begin(),
+            member2.game.world_calls.end(),
+            [](const std::string& c) { return c.rfind("kill 700", 0) == 0; }
+        )
+        == 1
+    );
 }
 
 void run_world_tests() {

@@ -10,7 +10,8 @@
 # script mod packaged as <id>-<version>.zip; and SHA256SUMS over them all: the run's artifacts. A tag
 # v<version> (or <id>-v<version>) also publishes them on that release, which is what OpenRAC's
 # launcher installs from when a player pastes the repository's address (MODS.md, section 10):
-# push a tag, nothing else. The libraries are not signed.
+# Randomizer release requests in .github/mod-releases/ also publish after a successful
+# master/main build. The libraries are not signed.
 #
 # Every action is pinned to a commit.
 name: build
@@ -80,15 +81,16 @@ jobs:
             os: ubuntu-22.04
           - name: linux-aarch64
             os: ubuntu-24.04-arm
-          # Apple silicon, and Intel cross-built on the same runner (one architecture per build).
+          # Use the Intel pool while hosted Apple silicon runners have capacity constraints.
+          # Both architectures still build and package; execute tests on the native Intel build.
           - name: macos-arm64
-            os: macos-15
+            os: macos-15-intel
             configure: -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-          - name: macos-x86_64
-            os: macos-15
-            configure: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-            # An Intel build's tests cannot run on an Apple silicon runner without Rosetta.
+            # Apple silicon test executables cannot run on an Intel runner.
             skip_tests: true
+          - name: macos-x86_64
+            os: macos-15-intel
+            configure: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
           # Android (OpenRAC's app, arm64): the runner's NDK, cross-built, no test run here.
           - name: android-arm64
             os: ubuntu-24.04
@@ -211,7 +213,7 @@ jobs:
           printf '%s\n' 'name: Rac{number}' 'game: Ratchet & Clank' 'Ratchet & Clank:' \
             '  logic: random' '  shuffle_gadgets: random' '  shuffle_weapons: random' \
             '  shuffle_vendor: random' '  shuffle_gold_bolts: random' '  shuffle_infobots: random' \
-            '  keep_starting_gear: random' > players/rac.yaml
+            '  starting_weapons: random' '  start_in_new_game_plus: random' '  shuffle_gold_weapons: random' > players/rac.yaml
           cd ap && for seed in $(seq 1 100); do
             python Generate.py --player_files_path ../players --outputpath ../out --seed "$seed" --skip_output > /dev/null
           done
@@ -263,10 +265,10 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
 
-  # A tag: every archive and SHA256SUMS on the tag's release, published, for the launcher.
+  # Publish tags, and pending Archipelago/Item Randomizer releases merged into master/main.
   release:
     needs: merge
-    if: ${{ !cancelled() && needs.merge.result == 'success' && startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ !cancelled() && needs.merge.result == 'success' && (startsWith(github.ref, 'refs/tags/') || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -276,41 +278,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: mods
           path: dist
       - name: Publish the release
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          sdk=$(python3 -c 'import json; print(json.load(open("sdk.lock"))["version"])')
-          printf 'Built by the build workflow from %s, against the OpenRAC mod SDK %s.\n\nInstall: paste this repository'"'"'s address in the OpenRAC launcher'"'"'s Mods tab, or add a .zip there.\n' \
-            "$GITHUB_SHA" "$sdk" > notes.md
-          # A tag <id>-v<version> releases that one mod of a repository of several: only its
-          # archives, and SHA256SUMS listing them. v<version> releases every mod.
-          case "$TAG" in
-            v[0-9]*) ;;
-            *-v[0-9]*)
-              mod="${TAG%-v*}" version="${TAG##*-v}"
-              ls dist/"$mod-$version"*.zip > /dev/null 2>&1 || { echo "::error::$TAG: no archive of $mod $version"; exit 1; }
-              find dist -name '*.zip' ! -name "$mod-$version.zip" ! -name "$mod-$version-*.zip" -delete
-              # The APWorld goes with the Archipelago mod only.
-              [ "$mod" = archipelago ] || rm -f dist/*.apworld
-              (cd dist && sha256sum *.zip $(ls *.apworld 2>/dev/null) > SHA256SUMS)
-              ;;
-          esac
-          ls dist
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" --clobber dist/*
-          else
-            gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag dist/*
-          fi
+        run: >-
+          python3 tools/publish_releases.py
+          --ref "$GITHUB_REF" --sha "$GITHUB_SHA" --dist dist
       # A release made with this token starts no workflow, so index.yml's release event never comes:
       # start it from here. A dispatch is an event this token may start a workflow with.
       - name: Build the index with the new release
+        if: steps.publish.outputs.released == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
