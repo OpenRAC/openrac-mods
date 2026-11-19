@@ -122,6 +122,25 @@ which the workflow finds by itself. Commits follow
 [Conventional Commits](https://www.conventionalcommits.org/), with the mod's
 id as the scope: `feat(lock-strafe): ...`.
 
+A native mod's code follows OpenRAC's
+[coding conventions](https://github.com/OpenRAC/OpenRAC/blob/develop/port/docs/CODING_CONVENTIONS.md)
+(layout by the port's `.clang-format`, comments and documentation, names,
+ownership, errors, file-local code in an anonymous namespace, state in
+objects), adapted to a mod:
+
+- C++17, through the SDK's `openrac/mod.hpp`, where the port's rules ask for
+  C++20 (`std::span` and `std::format` are not there; use views, pointers and
+  sizes, and `std::string` or `std::to_string`).
+- The game is reached only through the SDK's C ABI (`openrac/openrac_mod.h`)
+  and its hook points; no exception leaves a hook or a callback (the SDK's
+  layer catches them).
+- A mod keeps what it saves in its own data folder (`data_dir`), never in the
+  memory card or the game's files.
+- No game data in a mod: no code, text or bytes of the discs, in sources,
+  tests or logs.
+
+[ng-plus-plus](ng-plus-plus/README.md) is laid out this way.
+
 What a mod may use of the game is what the port offers it: the hook points
 of the SDK's `openrac/games/rac1.h` (and, for scripts, `types/rac1.d.luau`). One it needs and the port lacks is a
 change to OpenRAC first (a `hook` row in the disc's `libraries.tsv`).
