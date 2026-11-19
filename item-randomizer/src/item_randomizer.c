@@ -1760,7 +1760,7 @@ static void each_tick(void* user) {
     acquisition_tick(reward_phase, reward_load);
     presentation_tick(reward_phase);
 
-    // The line over the vendor goes a tick after the menu's hook stopped asking for it.
+    // Confirmations expire after three seconds; interaction hints refresh a short lease.
     if (s_hint_showing > 0 && --s_hint_showing == 0) {
         s_api->play_notice(s_mod, NULL);
     }
@@ -1792,6 +1792,7 @@ static void each_tick(void* user) {
             set32(challenge, 1);
             log_line(OPENRAC_LOG_INFO, "Item randomizer: New Game+ enabled for this slot");
             s_api->play_notice(s_mod, "Item randomizer: New Game+ enabled");
+            s_hint_showing = strcmp(s_disc->version, "pal") == 0 ? 150 : 180;
         }
     }
 
@@ -2131,6 +2132,7 @@ static void log_start_up(int source) {
  * success; 1 (after api->fail told the port why) when the mod cannot run. */
 int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
+    s_hint_showing = 0;
     s_mod = mod;
     s_disc = NULL;
     s_notice_count = 0;

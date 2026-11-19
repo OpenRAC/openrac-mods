@@ -124,6 +124,7 @@ static void reward_case_hint_tick(void) {
         rando_reward_name(s_plan.reward[s_gold_hint_location], item, sizeof item);
         snprintf(line, sizeof line, "%s - %u bolts + 4 Gold Bolts", item, s_gold_hint_price);
         s_api->play_notice(s_mod, line);
+        s_hint_showing = 2;
     }
     s_gold_hint_location = -1;
     s_gold_hint_distance = 9;
