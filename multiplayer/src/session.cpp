@@ -291,10 +291,14 @@ void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) 
     on_data_ = std::move(callback);
 }
 
+namespace {
+
 // Whether a DATA's first byte is one of the lobby's kinds.
-static bool lobby_kind(std::uint8_t kind) {
+bool lobby_kind(std::uint8_t kind) {
     return owner_of(kind) == Owner::kLobby;
 }
+
+}  // namespace
 
 bool Session::game_bytes(const Bytes& bytes) const {
     // Game data goes only inside a party, and never as one of the lobby's kinds; a game whose

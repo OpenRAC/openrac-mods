@@ -22,24 +22,8 @@
 
 #if defined(_WIN32)
 #include <windows.h>
-
-static void* open_library(const char* path) {
-    return (void*)LoadLibraryA(path);
-}
-
-static void* symbol(void* lib, const char* name) {
-    return (void*)GetProcAddress((HMODULE)lib, name);
-}
 #else
 #include <dlfcn.h>
-
-static void* open_library(const char* path) {
-    return dlopen(path, RTLD_NOW | RTLD_LOCAL);
-}
-
-static void* symbol(void* lib, const char* name) {
-    return dlsym(lib, name);
-}
 #endif
 
 #define CHECK(c)                                                                                   \
@@ -51,6 +35,24 @@ static void* symbol(void* lib, const char* name) {
     } while (0)
 
 namespace {
+
+// Opens the library at `path`; null when it cannot be loaded.
+void* open_library(const char* path) {
+#if defined(_WIN32)
+    return (void*)LoadLibraryA(path);
+#else
+    return dlopen(path, RTLD_NOW | RTLD_LOCAL);
+#endif
+}
+
+// Looks up `name` in the library `lib`; null when it has no such symbol.
+void* symbol(void* lib, const char* name) {
+#if defined(_WIN32)
+    return (void*)GetProcAddress((HMODULE)lib, name);
+#else
+    return dlsym(lib, name);
+#endif
+}
 
 std::string g_failed;
 std::vector<std::string> g_log;
