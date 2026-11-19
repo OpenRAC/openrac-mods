@@ -1168,6 +1168,12 @@ static void o2_pickup_update(openrac_gaddr moby) {
 static int kerwan_randomizer_active(void) { return rando_on(); }
 #include "kerwan_access.inc"
 
+static int aridia_reward_collected(void) {
+    return rando_on() && had(s_by_item[ITEM_TRESPASSER]);
+}
+#include "aridia_access.inc"
+
+
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
 }
@@ -1868,7 +1874,7 @@ static int take(int result, const char* point) {
 /* Takes every hook point the mod needs; 1 when all are in place, 0 (the port told) when not. */
 static int install_hooks(void) {
     s_gold_case_present = acquisition_case;
-    if (!presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
+    if (!aridia_access_hooks() || !presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
         return 0;
     }
     /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
