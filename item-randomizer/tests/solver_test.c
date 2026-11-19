@@ -51,10 +51,28 @@ static void check_tables(void) {
         const rando_location* a = &rando_locations[i];
         CHECK(a->name != NULL && a->level < LEVEL_COUNT);
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            const uint64_t heli = BIT(ITEM_HELI_PACK), swing = BIT(ITEM_SWINGSHOT);
+            if (!strcmp(a->name, "Kalebo III: the Gadgetron CEO's race"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HOVERBOARD) | BIT(ITEM_GRINDBOOTS) | heli | swing));
+            if (!strcmp(a->name, "Kalebo III: the help desk"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | swing));
+            if (!strcmp(a->name, "Drek's Fleet: the infobot"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing
+                    | (d == DIFFICULTY_EXPERT ? 0 : heli)));
+            if (!strcmp(a->name, "Drek's Fleet: the CodeBot")
+                || !strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
+            if (!strcmp(a->name, "Veldin (return): Drek"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_TRESPASSER)
+                    | BIT(ITEM_HYDRODISPLACER) | BIT(ITEM_THRUSTER_PACK) | heli | swing
+                    | (d == DIFFICULTY_EXPERT ? 0 : BIT(ITEM_O2_MASK))));
+        }
+
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
             if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS)));
             if (!strcmp(a->name, "Oltanis: the Morph-o-Ray's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
-            if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK)));
+            if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
             if (!strcmp(a->name, "Quartu: the scientist, the coordinates of Kalebo III")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Quartu: in disguise, the coordinates of Drek's Fleet")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HOLOGUISE) | BIT(ITEM_THRUSTER_PACK) | BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT)));
         }
@@ -486,7 +504,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0x7a939a8872a71872ull);
+    CHECK(plan_hash(&p) == 0xdf1126b085d2d4e4ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
