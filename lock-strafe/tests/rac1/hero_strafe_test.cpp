@@ -730,7 +730,7 @@ void test_the_hip_twist_eases_to_its_target_and_back() {
 
     CHECK(spring_is_still(s));
     // From one side to the other it goes straight through 0, not round the back.
-    s = (Spring){2.5f, 0.0f};
+    s = Spring{2.5f, 0.0f};
     spring_step(s, -2.5f, 0.037f, 0.27f);
     CHECK(s.velocity < 0.0f && s.angle < 2.5f);
 }
