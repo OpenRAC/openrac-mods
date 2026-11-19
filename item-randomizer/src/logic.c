@@ -238,7 +238,8 @@ const rando_location rando_locations[] = {
     // of them (hero_high_jump_input, update_hero_idle_and_item_input), so only that opens the gap.
     GIVE_G("Kerwan: Big Al", LEVEL_KERWAN, ITEM_HELI_PACK, 8, 0, 0, 0),
     VENDOR("Kerwan: the vendor's Blaster", LEVEL_KERWAN, ITEM_BLASTER, 8, 0),
-    GIVE_G("Kerwan: Helga", LEVEL_KERWAN, ITEM_SWINGSHOT, 9, 0, HELI, 0),
+    // Helga can be reached without the Heli-Pack.
+    GIVE_G("Kerwan: Helga", LEVEL_KERWAN, ITEM_SWINGSHOT, 9, 0, 0, 0),
     INFOBOT("Kerwan: the infobot", LEVEL_KERWAN, 3, LEVEL_EUDORA, 10, WALK, 0),
     GOLDBOLT("Kerwan: gold bolt 1", LEVEL_KERWAN, 0, 11),
     GOLDBOLT("Kerwan: gold bolt 2", LEVEL_KERWAN, 1, 11),

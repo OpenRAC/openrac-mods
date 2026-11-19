@@ -215,11 +215,31 @@ static void check_edwina_water_route(void) {
     }
 }
 
+/* Unlocking Kerwan alone is sufficient to reach Helga. No Heli-Pack reward
+ * exists anywhere in this plan, so inventory elsewhere cannot mask the rule. */
+static void check_helga_without_heli_pack(void) {
+    rando_plan p = {0};
+    int helga = -1, start = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (!strcmp(rando_locations[i].name, "Kerwan: Helga")) helga = (int)i;
+        if (rando_locations[i].kind == LOC_START) start = (int)i;
+    }
+    CHECK(helga >= 0 && start >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_KERWAN};
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        rando_beatable(&p, spheres);
+        CHECK(spheres[helga] >= 0);
+    }
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
     check_tables();
     check_edwina_water_route();
+    check_helga_without_heli_pack();
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
@@ -230,7 +250,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xc560e2bd20835200ull);
+    CHECK(plan_hash(&p) == 0x4ebad4a8c13e205eull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
