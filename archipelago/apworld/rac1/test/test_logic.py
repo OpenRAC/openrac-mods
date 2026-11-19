@@ -378,3 +378,25 @@ class TestNPCInfobotsOff(RAC1TestBase):
         self.sweep()
         self.assertTrue(self.can_reach_region("Aridia"))
         self.assertTrue(self.can_reach_region("Kerwan"))
+
+
+class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_hoven_gold_bolt_2_requires_hydrodisplacer(self) -> None:
+        self.collect_all_but(["Hydrodisplacer"])
+        self.assertFalse(self.can_reach_location("Hoven: gold bolt 2"))
+        self.collect_by_name("Hydrodisplacer")
+        self.assertTrue(self.can_reach_location("Hoven: gold bolt 2"))
+
+    def test_edwina_requires_hydrodisplacer(self) -> None:
+        self.collect_by_name(["Hoven Coordinates", "Heli-Pack"])
+        self.assertFalse(self.can_reach_location("Hoven: Edwina"))
+        self.collect_by_name("Hydrodisplacer")
+        self.assertTrue(self.can_reach_location("Hoven: Edwina"))
+
+
+class TestEdwinaHydrodisplacerRelaxed(TestEdwinaHydrodisplacer):
+    options = {"logic": "relaxed"}
+
+
+class TestEdwinaHydrodisplacerExpert(TestEdwinaHydrodisplacer):
+    options = {"logic": "expert"}

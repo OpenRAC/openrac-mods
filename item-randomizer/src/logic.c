@@ -378,7 +378,8 @@ const rando_location rando_locations[] = {
     // it." "You need a Devastator to take out that helicopter!" (play expects it; the game's hint,
     // not a wall).
     VENDOR("Hoven: the vendor's Drone Device", LEVEL_HOVEN, ITEM_DRONE_DEVICE, 37, LOCF_PRICEY),
-    GIVE_G("Hoven: Edwina", LEVEL_HOVEN, ITEM_HYDRO_PACK, 37, 0, WALK, 0),
+    // The flooded route to Edwina requires the Hydrodisplacer at every difficulty.
+    GIVE_G("Hoven: Edwina", LEVEL_HOVEN, ITEM_HYDRO_PACK, 37, 0, HYDRO | HELI, 0),
     FIXED(
         "Hoven: the coordinates of Gemlik",
         LEVEL_HOVEN,
