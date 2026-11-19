@@ -346,7 +346,7 @@ const rando_location rando_locations[] = {
 
     // Gaspar: "Find the Pilot's Helmet".
     VENDOR("Gaspar: the vendor's Walloper", LEVEL_GASPAR, ITEM_WALLOPER, 27, LOCF_PRICEY),
-    GIVE_G("Gaspar: the Pilot's Helmet's pickup", LEVEL_GASPAR, ITEM_PILOTS_HELMET, 27, 0, WALK, 0),
+    GIVE_G("Gaspar: the Pilot's Helmet's pickup", LEVEL_GASPAR, ITEM_PILOTS_HELMET, 27, 0, HELI, 0),
     GOLDBOLT("Gaspar: gold bolt 1", LEVEL_GASPAR, 0, 28),
     GOLDBOLT("Gaspar: gold bolt 2", LEVEL_GASPAR, 1, 28),
 
