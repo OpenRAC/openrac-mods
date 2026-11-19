@@ -285,6 +285,7 @@ std::vector<std::uint8_t> g_published;
 std::string g_published_text;
 int g_publishes;
 openrac_party_rules_fn g_rules_fn;
+void* g_rules_user = nullptr;
 
 int host_mod_count() {
     return 0;
@@ -314,8 +315,9 @@ const char* host_rules_text(int) {
     return "";
 }
 
-int host_on_rules(openrac_mod*, openrac_party_rules_fn fn, void*) {
+int host_on_rules(openrac_mod*, openrac_party_rules_fn fn, void* user) {
     g_rules_fn = fn;
+    g_rules_user = user;
     return 0;
 }
 
@@ -733,13 +735,13 @@ int main(int argc, char** argv) {
     lay_game();
     {
         Hooks h = hooks();
-        g_rules_fn(nullptr, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
+        g_rules_fn(g_rules_user, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
         h.level_load(1, 0);
         put<std::int16_t>(kCrate + 0xB4u, 10);
         h.record_death(kCrate, 0, 0);
         CHECK(g_bolts_seen == 30);
         // The party gone: this game's own, retail, from the next level loaded.
-        g_rules_fn(nullptr, nullptr, 0);
+        g_rules_fn(g_rules_user, nullptr, 0);
         h.level_load(1, 0);
         h.record_death(kCrate, 0, 0);
         CHECK(g_bolts_seen == 10);

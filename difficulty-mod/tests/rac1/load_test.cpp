@@ -333,6 +333,7 @@ std::vector<std::uint8_t> g_published;
 std::string g_published_text;
 int g_publishes;
 openrac_party_rules_fn g_rules_fn;
+void* g_rules_user = nullptr;
 
 int host_mod_count() {
     return 0;
@@ -362,8 +363,9 @@ const char* host_rules_text(int) {
     return "";
 }
 
-int host_on_rules(openrac_mod*, openrac_party_rules_fn fn, void*) {
+int host_on_rules(openrac_mod*, openrac_party_rules_fn fn, void* user) {
     g_rules_fn = fn;
+    g_rules_user = user;
     return 0;
 }
 
@@ -878,7 +880,7 @@ int main(int argc, char** argv) {
     load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");
     record_death =
         (void (*)(std::uint32_t, std::int32_t, std::int32_t))hook("rac1.moby.record_death");
-    g_rules_fn(nullptr, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
+    g_rules_fn(g_rules_user, host_bytes.data(), static_cast<std::uint32_t>(host_bytes.size()));
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
@@ -894,12 +896,12 @@ int main(int argc, char** argv) {
     difficulty::PartyRules fewer = host;
     fewer.sliders[difficulty::kEnemyCount] = 0.5;
     const std::vector<std::uint8_t> bytes = difficulty::encode_party_rules(fewer);
-    g_rules_fn(nullptr, bytes.data(), static_cast<std::uint32_t>(bytes.size()));
+    g_rules_fn(g_rules_user, bytes.data(), static_cast<std::uint32_t>(bytes.size()));
     lay_level(std::vector<Placed>(200, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
     // The party gone: this game's own settings again, here retail.
-    g_rules_fn(nullptr, nullptr, 0);
+    g_rules_fn(g_rules_user, nullptr, 0);
     lay_level(std::vector<Placed>(8, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
     CHECK(g_created == 0 && g_deleted == 0);
