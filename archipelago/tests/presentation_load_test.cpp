@@ -1376,6 +1376,25 @@ int main(int argc, char** argv) {
             std::strcmp(reinterpret_cast<char*>(at(message(257))), "Buy Gold Bolt for 500 bolts")
             == 0
         );
+        {
+            // Helga is the NPC reward text's: one owner names her selected prompt, and any other
+            // text of her interaction (speech, another entry) is not rewritten here either.
+            const uint32_t request = 0x1803000, entries = 0x1804000;
+            const int16_t index = 0;
+            uint16_t entry_msg = 257;
+            put(request + 0x3C, entries);
+            std::memcpy(at(request + 0x36), &index, 2);
+            std::memcpy(at(entries), &entry_msg, 2);
+            set_level(LEVEL_KERWAN);
+            g_dialog_starts = false;
+            CHECK(dialog(0x1800000, request) == 0);
+            CHECK(g_rendered_prompt == "Buy Gold Bolt for 500 bolts");
+            entry_msg = 258;
+            std::memcpy(at(entries), &entry_msg, 2);
+            CHECK(dialog(0x1800000, request) == 0);
+            CHECK(g_rendered_prompt == "Buy Infobot for 500 bolts");
+            g_dialog_starts = true;
+        }
         set_level(LEVEL_NOVALIS);
         if (g_gold_mode) {
             const uint32_t moby = 0x1800000, request = 0x1801000, entries = 0x1802000;

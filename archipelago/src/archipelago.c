@@ -1368,6 +1368,8 @@ static void show_notices(void) {
 }
 
 #include "ap_npc_infobots.inc"
+#include "npc_reward_label.inc"
+#include "npc_reward_text.inc"
 #include "ap_presentation.inc"
 #include "ap_acquisition.inc"
 
@@ -1507,12 +1509,7 @@ static int take(int result, const char* point) {
         #point                                                                                     \
     )
 
-#include "npc_reward_label.inc"
-#include "npc_reward_text.inc"
-
 static int install_hooks(void) {
-    npc_reward_text_hooks();
-    if (!npc_infobot_hooks()) return 0;
     /* Older ports still support every other option. Never permit randomized purchases
      * without independent currency accounting; the player gets a clear update notice. */
     s_has_gold_currency_hook = s_api->hook(
@@ -1520,6 +1517,9 @@ static int install_hooks(void) {
         (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
     s_gold_hook_warned = 0;
     if (!presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
+    /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
+     * the NPC reward text itself; otherwise that text takes them on its own. */
+    if (!s_presentation_text) npc_reward_text_hooks();
     if (!take(s_api->hook(s_mod, "rac1.save.update_state", "void()", (void*)save_update,
         (void**)&s_save_update), "rac1.save.update_state")
         || !take(s_api->hook(s_mod, "rac1.save.restore_data", "i32(u32,i32,u32)", (void*)restore_data,

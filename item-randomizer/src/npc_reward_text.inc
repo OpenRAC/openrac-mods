@@ -58,6 +58,26 @@ static int32_t npc_reward_try(uint32_t moby, uint32_t request) {
     return result;
 }
 
+/* Whether an NPC interaction this text owns is being tried: its prompt is rewritten here, and
+ * a mod's other text owner must leave it alone. */
+static inline int npc_reward_text_owns(void) {
+    return s_npc_text_copy && s_npc_text_request && s_npc_text_source;
+}
+
+/* For a mod that hooks rac1.npc.try_dialog and rac1.text.msg_string itself (the Archipelago
+ * reward presentation): each hook point is taken once, and that mod's hooks call
+ * npc_reward_try and npc_reward_message, which go on to `try_dialog` and `message`. */
+static inline int npc_reward_text_attach(
+    int32_t (*try_dialog)(uint32_t, uint32_t), uint32_t (*message)(int32_t)
+) {
+    s_npc_text_source = NULL;
+    s_npc_text_request = 0;
+    s_npc_text_try = try_dialog;
+    s_npc_text_message = message;
+    s_npc_text_copy = npc_text_allocator(s_api);
+    return s_npc_text_copy != NULL;
+}
+
 static void npc_reward_text_hooks(void) {
     if (s_api->setting_bool && !s_api->setting_bool(s_mod, "reward_text")) {
         return;
