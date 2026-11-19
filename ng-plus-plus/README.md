@@ -3,6 +3,8 @@
 New Game++ for Going Commando, for OpenRAC's native port (NTSC-U, PAL and NTSC-U v2.00 discs):
 eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). The game's
 own versions stay as they are; NG++ adds its tiers on top and keeps track of them itself.
+From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
+comes as platinum bolts, worth five times the gold ones.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
@@ -128,11 +130,53 @@ at the expected tier killed slower than V4, at 0.8, 0.7, 0.67 and 0.5 times its 
 | Tier names on screen | on | The weapon's name at the top of the screen |
 | Tougher enemies each new game | on | The table above |
 | How much tougher | 1 | Multiplies what the table adds, 0 to 3 |
+| Bolt scaling | normal | Platinum bolts and bigger drops (below): off, normal or generous |
 
 With the [difficulty](../difficulty-mod/README.md) mod, both apply and **multiply**: its "damage
 dealt" and "damage taken" sliders scale the same hits as this mod's tiers and enemies, so with
 damage dealt x0.5 and a Beta weapon in the second challenge mode a hit does x0.5 x 2 / 2. Turn
 **Tougher enemies each new game** off to leave the enemies to the difficulty mod alone.
+
+### Platinum bolts and bolt scaling
+
+Tiers cost millions, so from the second challenge mode on, enemies and crates drop more bolts, and
+part of every drop comes as **platinum bolts**: the game's own bolt pickups in a shiny white metal,
+each worth five times its gold twin.
+
+| Gold bolt | 1 | 5 | 20 | 50 | 100 | 500 | 1,000 |
+|---|---|---|---|---|---|---|---|
+| **Platinum bolt** | **5** | **25** | **100** | **250** | **500** | **2,500** | **5,000** |
+
+**Bigger drops.** The game works out a drop as always (the enemy's bolts, your kill streak up to
+x20, challenge mode's doubling), then the mod multiplies it by the new game you are in, the same
+steps as the tier prices (x1.5, x2.5, x4, x6), so the tier you are saving for takes about as many
+kills in every new game:
+
+| New game | Challenge mode | Bolts (normal) | Bolts (generous) | Platinum at x1 streak | Platinum at x20 streak |
+|---|---|---|---|---|---|
+| 1, 2 | -, 1st | x1 | x1 | none | none |
+| 3 | 2nd | x1.5 | x2.25 | 10% | 50% |
+| 4 | 3rd | x2.5 | x3.75 | 15% | 65% |
+| 5 | 4th | x4 | x6 | 20% | 80% |
+| 6 on | 5th on | x6 | x9 | 25% | 90% |
+
+**Tough enemies pay more.** On top of that, an enemy that drops a lot by itself (the game's own
+bolts for it, before your streak) pays up to twice as much: x1 up to 20 bolts, then the square root
+of its bolts over 20 (45 bolts: x1.5, 80 or more: x2). Small enemies and crates keep x1.
+
+**Platinum share.** The longer your kill streak, the more of a drop comes as platinum, from the
+"x1" column at no streak up to the "x20" one at a full x20 streak, in even steps between. It changes
+how the bolts come, not how many: a drop of 15,000 at 65% is a platinum 5,000, a platinum 2,500,
+four platinum 500s and a platinum 250 (9,750), and 5,250 in gold. Fewer, bigger pickups.
+
+The total is always the game's own after its roll, so its kill streak, doubling and its own pacing
+still count. Before the second challenge mode nothing changes. **Bolt scaling** off leaves every
+drop to the game; generous pays half as much again as normal (the table's generous column), with
+the same platinum share.
+
+Platinum bolts need OpenRAC with interface 1.23 (the bolt hook points and the platinum look). On an
+older OpenRAC the drops stay the game's, and the rest of the mod works as before (the log says so
+once).
 
 ### Saves
 
@@ -164,7 +208,8 @@ host's tiers.
 
 ## How it works
 
-Through OpenRAC's rac2 hook points of SDK 1.14.6 (the addresses are NTSC-U v1.01's):
+Through OpenRAC's rac2 hook points of SDK 1.14.6, and the bolts' of interface 1.23 (the addresses
+are NTSC-U v1.01's):
 
 | | Where |
 |---|---|
@@ -175,6 +220,7 @@ Through OpenRAC's rac2 hook points of SDK 1.14.6 (the addresses are NTSC-U v1.01
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
+| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as platinum and gold coins at those places, the platinum ones drawn with `moby_material` (interface 1.23); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); what a coin limit leaves goes to the game's word at +0x1C (`D_001A7A14`), divided by the streak, as the game does |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
 
 The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
@@ -192,11 +238,15 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/vendor.h` | the vendor's entries, prices, purchases and tints |
 | `src/experience.h` | steps by experience, the level-up, the rows' ammo and bar, the line at the top |
 | `src/combat.h` | the tiers' damage and the enemies across new games |
+| `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness, the platinum share and the split into coins |
+| `src/platinum_bolts.h` | platinum bolts and bolt scaling behind the bolt hook points |
+| `src/bolt_api.h` | interface 1.23's `moby_material`, read from the port's table while the mods build against SDK 1.20 |
 | `src/ng_plus_plus.cpp` | the entry point: the disc, the state, the hooks and the tick |
 
-The tests: `ng_plus_plus_rules` (the rules and the book), `ng_plus_plus_text` (the resolver's
-substitution) and `ng_plus_plus_load` (the built library against a game of the test's own, on the
-three discs).
+The tests: `ng_plus_plus_rules` (the rules and the book), `ng_plus_plus_bolt_rules` (the bolt
+rules), `ng_plus_plus_text` (the resolver's substitution) and `ng_plus_plus_load` (the built library
+against a game of the test's own, on the three discs, with a port of 1.23 that has the bolt hook
+points, one of 1.22 without, and the bolt setting off).
 
 Not yet:
 
@@ -210,4 +260,7 @@ Not yet:
   whose moby classes are not yet traced to their hit code, scale by the weapon held when they hit.
 - The game's health drains (`weapon_start_health_drain`, the drain slots) take health straight off
   an enemy without posting a hit, so neither the tier nor the enemies' health applies to them.
+- A platinum bolt's extra worth goes to your bolts, not to the level's bolt score the game keeps
+  for its own pacing. If the port can't draw a coin as platinum (over 1,024 at once), its extra
+  worth is added when it drops.
 - No fire rate change, and RYNO II Ultima's split volley is a follow-up: Ultima is the damage boost.
