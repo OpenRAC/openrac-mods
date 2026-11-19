@@ -161,6 +161,19 @@ public:
     // Returns the challenge mode counter of the game in progress.
     int cycle() const;
 
+    // ---- Bolts ----
+
+    // Returns the kill streak's multiplier (1 to 20; 0 before the first kill counts).
+    int streak() const;
+
+    // Adds `bolts` to the game's word of bolts a burst could not make into coins (where the game's
+    // burst puts a coin limit's rest, and its coin maker a coin it could not make).
+    void add_bolt_credit(std::int32_t bolts) const;
+
+    // Returns the own bolts of the moby at game address `moby` when it is an enemy (its class
+    // record's kind), else none: a crate, a scripted burst's moby, no moby.
+    std::optional<std::int32_t> enemy_bolts(std::uint32_t moby) const;
+
     // ---- The vendor ----
 
     // Returns the vendor's cursor, and its list's count.

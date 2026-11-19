@@ -155,6 +155,24 @@ inline constexpr std::uint32_t kColorAlpha = 0xFF000000u;
 // func_002DE990).
 inline constexpr std::uint32_t kProgressCycle = 0x12u;
 
+// The kill streak's multiplier in the save block, u8 (g_bolt_multiplier, D_001A7A32 on NTSC-U:
+// 1 to 20, shown as "x2" to "x20"; moby_spawn_bolt_pickups and SetDeathBits).
+inline constexpr std::uint32_t kProgressStreak = 0x3Au;
+
+// The bolts a burst could not make into coins, s32 (D_001A7A14 on NTSC-U: the word
+// moby_spawn_bolt_pickups adds a coin limit's rest to, divided by the streak).
+inline constexpr std::uint32_t kProgressBoltCredit = 0x1Cu;
+
+// A moby's class record, u32 (+0x24), and the record's kind, s16 (+0x46), 5 for an enemy: what
+// SetDeathBits checks before it counts a kill toward the streak (rac2-decomp src/game/002A0430.c).
+inline constexpr std::uint32_t kMobyClassInfo = 0x24u;
+inline constexpr std::uint32_t kClassKind = 0x46u;
+inline constexpr std::int16_t kKindEnemy = 5;
+
+// A moby's own bolts, s16 (+0xB4: its drop before the repeat-kill falloff and the streak, set per
+// moby in the level's data; SetDeathBits).
+inline constexpr std::uint32_t kMobyBolts = 0xB4u;
+
 // A hit request's fields (Moby_PostHit, QueueMobyImpact in rac2-decomp: src/game/002A7750.c,
 // L_A8E20Req; filled by make_hit_descriptor and part_init_effect_record).
 inline constexpr std::uint32_t kHitSource = 0x10u;  // u32: the moby that dealt it (the shot, blast...).

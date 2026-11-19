@@ -6,7 +6,12 @@
 // levelled to Beta by experience, its tint, damage, most ammo and texts (its name, the vendor's
 // label and title, the ammo pickup's message, the level-up line); the RYNO II reaching Heavy; the
 // levels kept by the save's clock in the mod's data folder, each save with its own (a save loaded
-// at the title or in a level, stamped again, challenge mode's next game).
+// at the title or in a level, stamped again, challenge mode's next game); then the bolts: on a port
+// of 1.23 a drop in challenge mode's fourth run at a x20 streak made again as gold and platinum
+// coins (the platinum ones drawn so), a platinum coin collected for five times its class, the
+// coins of a level left forgotten, and the drops before cycle 2 left alone; on a port of 1.22 (no
+// bolt hook points, no moby_material) and with the setting off, the mod loads as before and takes
+// none of them.
 //
 // The test's game holds made-up rows and texts in the game's layout (src/discs.h); the expected
 // values are the README's rules worked out for them.
@@ -19,9 +24,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
+#include "bolt_api.h"
+#include "bolt_rules.h"
 #include "check.h"
 #include "discs.h"
 #include "hooks.h"
@@ -67,6 +75,28 @@ constexpr std::uint32_t kMobyHero = 0x00310000u;
 constexpr std::uint32_t kMobyEnemy = 0x00310100u;
 constexpr std::uint32_t kMobyShot = 0x00310200u;   // A Lancer shot still in flight.
 constexpr std::uint32_t kMobyOther = 0x00310300u;  // A moby of a class no weapon owns.
+
+// The bolts' records.
+constexpr std::uint32_t kEnemyClassAt = 0x00311000u;  // The enemy's class record.
+constexpr std::uint32_t kBurstAt = 0x00312000u;       // The game's burst's start and speed.
+constexpr std::uint32_t kCoinsAt = 0x00320000u;       // The coins' mobys.
+constexpr std::uint32_t kCoinBytes = 0x100u;          // One coin's moby.
+constexpr std::uint32_t kStackTop = 0x003F0000u;      // The game's stack, growing down.
+
+// The ports the test plays: 1.23 with the bolt hook points, 1.22 without, 1.23 with the setting
+// off.
+enum class Host {
+    Bolts,
+    Old,
+    Off
+};
+
+// One coin the test's game made: its moby and worth, and where the mod said it starts.
+struct Coin {
+    std::uint32_t moby;
+    std::int32_t value;
+    float x;
+};
 
 // The Lancer's rows: its first version, Heavy Lancer (by experience), the Mega (bought) and V4.
 constexpr int kLancer = 30;
@@ -119,6 +149,13 @@ std::uint32_t g_row_tint[16];
 int g_banners = 0;
 std::int32_t g_banner_key = 0;
 int g_level_now = 1;
+Host g_host = Host::Bolts;
+std::string g_log;
+std::int32_t g_bolts = 0;
+std::int32_t g_burst_high = -1;
+std::vector<Coin> g_coins;
+std::map<std::uint32_t, std::uint32_t> g_materials;  // Moby to material, as the port draws them.
+std::uint32_t g_sp = kStackTop;
 
 // ---- Game memory ----
 
@@ -310,9 +347,126 @@ std::string ammo_message(int item, int count) {
     return string_at(port_text(id));
 }
 
+// ---- The bolts ----
+
+// Bolt_SpawnPickup: one coin of the class worth `value` (else the 1-bolt one), a moby of its own.
+std::uint32_t game_spawn_pickup(
+    std::uint32_t /*source*/,
+    std::uint32_t position,
+    std::uint32_t /*velocity*/,
+    std::uint32_t /*flags*/,
+    std::int32_t value,
+    std::int32_t /*counted*/
+) {
+    int kind = 0;
+
+    // The class worth `value`.
+    for (int n = 0; n < kCoinKinds; ++n) {
+        // Found.
+        if (kCoinValues[static_cast<std::size_t>(n)] == value) {
+            kind = n;
+        }
+    }
+
+    const std::uint32_t moby = kCoinsAt + static_cast<std::uint32_t>(g_coins.size()) * kCoinBytes;
+    set<std::uint16_t>(moby + kMobyClass, static_cast<std::uint16_t>(kCoinClass + kind));
+    g_coins.push_back({moby, kCoinValues[static_cast<std::size_t>(kind)], get<float>(position)});
+    return moby;
+}
+
+// The port's coin maker: the mod's replacement, else the game's.
+std::uint32_t port_spawn_pickup(
+    std::uint32_t source,
+    std::uint32_t position,
+    std::uint32_t velocity,
+    std::uint32_t flags,
+    std::int32_t value,
+    std::int32_t counted
+) {
+    const auto hook = hooked<hooks::Bolt_SpawnPickup>();
+    return hook != nullptr ? hook(source, position, velocity, flags, value, counted)
+                           : game_spawn_pickup(source, position, velocity, flags, value, counted);
+}
+
+// Bolt_SpawnPickups as the game's (moby_spawn_bolt_pickups), with no roll (the amount is `high`):
+// doubled in challenge mode, split into the biggest coins within `maximum` under flags 8, each coin
+// starting at x = its place in the burst.
+void game_spawn_pickups(
+    std::uint32_t source,
+    std::int32_t low,
+    std::int32_t high,
+    std::int32_t flags,
+    std::int32_t /*surface*/,
+    std::int32_t maximum,
+    float /*height*/
+) {
+    g_burst_high = high;
+
+    // Nothing asked for.
+    if (flags == 0 || (low == 0 && high == 0)) {
+        return;
+    }
+
+    const bool doubled = get<std::int16_t>(g_disc->progress + kProgressCycle) != 0;
+    std::int32_t value = doubled ? high * 2 : high;
+    int room = (flags & 8) != 0 ? maximum : 1'000'000;
+    int place = 0;
+
+    // The biggest coin first, while there is room.
+    for (int kind = kCoinKinds - 1; kind >= 0 && room > 0; --kind) {
+        const std::int32_t worth = kCoinValues[static_cast<std::size_t>(kind)];
+
+        // Each coin of the class.
+        while (value >= worth && room > 0) {
+            set<float>(kBurstAt, static_cast<float>(place));
+            set<float>(kBurstAt + 16, 0.5f);
+            port_spawn_pickup(
+                source, kBurstAt, kBurstAt + 16, static_cast<std::uint32_t>(flags), worth, 1
+            );
+            value -= worth;
+            --room;
+            ++place;
+        }
+    }
+}
+
+// The port's burst: the mod's replacement, else the game's.
+void port_spawn_pickups(std::uint32_t moby, std::int32_t amount, std::int32_t flags) {
+    const auto hook = hooked<hooks::Bolt_SpawnPickups>();
+
+    // The game's death handler's call: no path, no lift, at most 64 coins.
+    if (hook != nullptr) {
+        hook(moby, amount, amount, flags, -1, 64, 0.0f);
+    } else {
+        game_spawn_pickups(moby, amount, amount, flags, -1, 64, 0.0f);
+    }
+}
+
+// Bolt_Collect: the coin's class's worth added to the bolts.
+std::uint32_t game_collect(std::uint32_t moby) {
+    const int kind = get<std::uint16_t>(moby + kMobyClass) - kCoinClass;
+    g_bolts += kCoinValues[static_cast<std::size_t>(kind)];
+    return 0;
+}
+
+// The port's collect: the mod's replacement, else the game's.
+void port_collect(std::uint32_t moby) {
+    const auto hook = hooked<hooks::Bolt_Collect>();
+
+    // The mod's, which goes on to the game's.
+    if (hook != nullptr) {
+        hook(moby);
+    } else {
+        game_collect(moby);
+    }
+}
+
 // ---- The host ----
 
-void host_log(openrac_mod* /*mod*/, int /*level*/, const char* /*text*/) {}
+void host_log(openrac_mod* /*mod*/, int /*level*/, const char* text) {
+    g_log += text;
+    g_log += '\n';
+}
 
 void host_fail(openrac_mod* /*mod*/, const char* reason) {
     g_failed = reason;
@@ -320,6 +474,15 @@ void host_fail(openrac_mod* /*mod*/, const char* reason) {
 
 int setting_bool(openrac_mod* /*mod*/, const char* key) {
     return std::strcmp(key, "notices") == 0 || std::strcmp(key, "enemy_scaling") == 0;
+}
+
+const char* setting_string(openrac_mod* /*mod*/, const char* key) {
+    // The bolts' setting as the host plays it.
+    if (std::strcmp(key, "bolt_scaling") == 0) {
+        return g_host == Host::Off ? "off" : "normal";
+    }
+
+    return nullptr;
 }
 
 double setting_float(openrac_mod* /*mod*/, const char* key) {
@@ -343,10 +506,20 @@ int host_hook(
         {hooks::Vendor_DrawList::id, reinterpret_cast<void*>(&game_draw_list)},
         {hooks::Item_VersionColor::id, reinterpret_cast<void*>(&game_version_color)},
         {hooks::Text_ById::id, reinterpret_cast<void*>(&game_text)},
+        {hooks::Bolt_SpawnPickups::id, reinterpret_cast<void*>(&game_spawn_pickups)},
+        {hooks::Bolt_SpawnPickup::id, reinterpret_cast<void*>(&game_spawn_pickup)},
+        {hooks::Bolt_Collect::id, reinterpret_cast<void*>(&game_collect)},
     };
 
     // Each hook point the test's port has.
     for (const auto& point : points) {
+        const bool bolt = std::strncmp(point.id, "rac2.bolt.", 10) == 0;
+
+        // A port of 1.22 has no bolt hook points.
+        if (bolt && g_host == Host::Old) {
+            continue;
+        }
+
         // Found: the mod goes on to the game's.
         if (std::strcmp(id, point.id) == 0) {
             *original = point.game;
@@ -400,6 +573,39 @@ const char* host_data_dir(openrac_mod* /*mod*/) {
 int host_publish(
     openrac_mod* /*mod*/, const void* /*data*/, std::uint32_t /*size*/, const char* /*text*/
 ) {
+    return OPENRAC_HOOK_OK;
+}
+
+int host_bolts(int add) {
+    g_bolts += add;
+    return g_bolts;
+}
+
+openrac_gaddr host_stack_push(std::uint32_t size, openrac_gaddr* saved) {
+    *saved = g_sp;
+    g_sp -= (size + 15u) & ~15u;
+    return g_sp;
+}
+
+void host_stack_pop(openrac_gaddr saved) {
+    g_sp = saved;
+}
+
+int host_material(
+    openrac_mod* /*mod*/, openrac_gaddr moby, std::uint32_t material, std::uint32_t rgb
+) {
+    // What the port refuses.
+    if (moby == 0 || material > kMaterialPlatinum || rgb > kNoTint) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    // None takes the mod's material off.
+    if (material == kMaterialNone) {
+        g_materials.erase(moby);
+    } else {
+        g_materials[moby] = material;
+    }
+
     return OPENRAC_HOOK_OK;
 }
 
@@ -520,15 +726,25 @@ void set_experience(int item, std::int32_t points) {
     set<std::int32_t>(g_disc->exp + 4u * static_cast<std::uint32_t>(item), points * kExpUnit);
 }
 
-// The table the port hands the mod.
-openrac_api g_api;
+// The table the port hands the mod: this SDK's, then the entries up to 1.23's moby_material.
+BoltApi g_table;
+openrac_api& g_api = bolt_base(g_table);
 
 // Fills the port's table for the disc the test runs on.
 void make_api() {
-    g_api = openrac_api{};
-    g_api.size = sizeof g_api;
+    g_table = BoltApi{};
     g_api.api_major = OPENRAC_MOD_API_MAJOR;
-    g_api.api_minor = OPENRAC_MOD_API_MINOR;
+
+    // A port of 1.22 ends its table before moby_material; the others have it.
+    if (g_host == Host::Old) {
+        g_api.size = static_cast<std::uint32_t>(offsetof(BoltApi, moby_material));
+        g_api.api_minor = 22;
+    } else {
+        g_api.size = sizeof g_table;
+        g_api.api_minor = kMaterialMinor;
+        g_table.moby_material = host_material;
+    }
+
     g_api.game = "rac2";
     g_api.version = g_disc->version;
     g_api.openrac_version = "test";
@@ -538,6 +754,10 @@ void make_api() {
     g_api.fail = host_fail;
     g_api.setting_bool = setting_bool;
     g_api.setting_float = setting_float;
+    g_api.setting_string = setting_string;
+    g_api.bolts = host_bolts;
+    g_api.stack_push = host_stack_push;
+    g_api.stack_pop = host_stack_pop;
     g_api.hook = host_hook;
     g_api.on_frame = host_on_frame;
     g_api.function = host_function;
@@ -949,10 +1169,137 @@ void test_saves_from_inside_a_level() {
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
 }
 
-// Runs every check on `disc`, with the library at `path`.
-void run(const char* path, const Disc& disc) {
-    g_disc = &disc;
+// Sets the challenge mode counter and the kill streak.
+void set_run(std::int16_t cycle, std::uint8_t streak) {
+    set<std::int16_t>(g_disc->progress + kProgressCycle, cycle);
+    set<std::uint8_t>(g_disc->progress + kProgressStreak, streak);
+}
+
+// Makes the enemy a tough one: its class record says enemy, its own bolts are 80 (x2 toughness).
+void lay_out_enemy() {
+    set<std::uint32_t>(kMobyEnemy + kMobyClassInfo, kEnemyClassAt);
+    set<std::int16_t>(kEnemyClassAt + kClassKind, kKindEnemy);
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, 80);
+}
+
+// Returns what the coins made are worth, a platinum one (drawn so) five times its class.
+std::int32_t coins_worth() {
+    std::int32_t total = 0;
+
+    // Each coin, as the player will collect it.
+    for (const Coin& coin : g_coins) {
+        const bool platinum = g_materials.count(coin.moby) != 0;
+        total += platinum ? coin.value * kPlatinumTimes : coin.value;
+    }
+
+    return total;
+}
+
+// Checks a drop in challenge mode's fourth run (cycle 3) at a x20 streak from a tough enemy: the
+// game asked for five times the amount (x2.5 the run, x2 its toughness), its 15,000 made again as
+// 9,750 in platinum and 5,250 in gold at the game's places; collecting pays five times a platinum
+// coin's class and takes its material off.
+void test_platinum_drop() {
+    lay_out_enemy();
+    set_run(3, 20);
+    g_coins.clear();
+    g_materials.clear();
+    port_spawn_pickups(kMobyEnemy, 1500, 9);
+    CHECK(g_burst_high == 7500);
+    CHECK(g_coins.size() == 15);
+    CHECK(g_materials.size() == 7);
+    CHECK(coins_worth() == 15'000);
+    CHECK(g_sp == kStackTop);
+
+    // The biggest first: a platinum 5,000 (the 1,000 coin drawn as platinum), then gold 1,000s.
+    CHECK(g_coins.size() > 1 && g_coins[0].value == 1000 && g_coins[1].value == 1000);
+    CHECK(g_materials.count(g_coins[0].moby) == 1);
+    CHECK(g_materials[g_coins[0].moby] == kMaterialPlatinum);
+    CHECK(g_materials.count(g_coins[1].moby) == 0);
+
+    // Each coin starts where the game's coin of its place did.
+    for (std::size_t n = 0; n < g_coins.size(); ++n) {
+        CHECK(g_coins[n].x == static_cast<float>(n));
+    }
+
+    // The platinum 5,000, then a gold 1,000.
+    g_bolts = 0;
+    port_collect(g_coins[0].moby);
+    CHECK(g_bolts == 5000);
+    CHECK(g_materials.count(g_coins[0].moby) == 0);
+    port_collect(g_coins[1].moby);
+    CHECK(g_bolts == 6000);
+
+    // The rest: the whole drop.
+    for (std::size_t n = 2; n < g_coins.size(); ++n) {
+        port_collect(g_coins[n].moby);
+    }
+
+    CHECK(g_bolts == 15'000);
+    CHECK(g_materials.empty());
+}
+
+// Checks that a level left forgets its platinum coins: a moby of the next level is worth its class.
+void test_level_left() {
+    set_run(3, 20);
+    g_coins.clear();
+    port_spawn_pickups(kMobyEnemy, 1500, 9);
+    g_level_now = 2;
+    tick(1);
+    g_bolts = 0;
+    port_collect(g_coins[0].moby);
+    CHECK(g_bolts == 1000);
     g_level_now = 1;
+    tick(1);
+    g_materials.clear();
+}
+
+// Checks the drops the mod leaves to the game: before cycle 2, and (from cycle 2) a crate's, which
+// is scaled by the run only, at the least platinum share.
+void test_drops_before_and_crates() {
+    set_run(1, 20);
+    g_coins.clear();
+    port_spawn_pickups(kMobyEnemy, 100, 9);
+    CHECK(g_burst_high == 100);
+    CHECK(g_coins.size() == 2);  // 200 (doubled) as two 100s
+    CHECK(g_materials.empty());
+
+    // A crate in challenge mode's third run (cycle 2), no streak: x1.5 the run, 10% platinum.
+    set_run(2, 1);
+    g_coins.clear();
+    port_spawn_pickups(kMobyOther, 100, 9);
+    CHECK(g_burst_high == 150);
+    CHECK(coins_worth() == 300);
+    CHECK(g_materials.size() == 2);  // 30 as a platinum 25 and a platinum 5
+    g_materials.clear();
+    set_run(1, 0);
+}
+
+// Checks a port without the bolts (1.22), or the setting off: no bolt hook point taken, the drop
+// as the game makes it.
+void test_drops_untouched() {
+    lay_out_enemy();
+    set_run(3, 20);
+    g_coins.clear();
+    port_spawn_pickups(kMobyEnemy, 1500, 9);
+    CHECK(g_burst_high == 1500);
+    CHECK(g_coins.size() == 3);
+    CHECK(g_materials.empty());
+    CHECK(coins_worth() == 3000);
+    set_run(1, 0);
+}
+
+// Runs every check on `disc`, with the library at `path`, against a port of `host`.
+void run(const char* path, const Disc& disc, Host host) {
+    g_disc = &disc;
+    g_host = host;
+    g_level_now = 1;
+    g_log.clear();
+    g_bolts = 0;
+    g_burst_high = -1;
+    g_coins.clear();
+    g_materials.clear();
+    g_sp = kStackTop;
     g_memory.assign(kMemoryBytes, 0);
     g_hooks.clear();
     g_upgraded = -1;
@@ -972,7 +1319,9 @@ void run(const char* path, const Disc& disc) {
     make_api();
     CHECK(reload(load));
     CHECK(g_failed.empty());
-    CHECK(g_hooks.size() == 9);
+    // The nine of before, and the three bolt hook points on a port of 1.23 with the setting on.
+    CHECK(g_hooks.size() == (host == Host::Bolts ? 12u : 9u));
+    CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
     lay_out_game();
     test_a_new_save_counts_from_zero();
     test_the_vendor_offers_alpha();
@@ -984,6 +1333,15 @@ void run(const char* path, const Disc& disc) {
     test_a_restart_keeps_the_steps(load);
     test_each_save_has_its_own();
     test_saves_from_inside_a_level();
+
+    // The bolts as the port offers them.
+    if (host == Host::Bolts) {
+        test_platinum_drop();
+        test_level_left();
+        test_drops_before_and_crates();
+    } else {
+        test_drops_untouched();
+    }
 }
 
 }  // namespace
@@ -1006,7 +1364,10 @@ int main(int argc, char** argv) try {
 
     // Every disc NG++ knows.
     for (const Disc& disc : kDiscs) {
-        run(argv[1], disc);
+        // Each port: 1.23 with the bolts, 1.22 without, the setting off.
+        for (const Host host : {Host::Bolts, Host::Old, Host::Off}) {
+            run(argv[1], disc, host);
+        }
     }
 
     return ng_plus_plus::test::result("ng_plus_plus_load");

@@ -160,6 +160,32 @@ int GameView::cycle() const {
     return memory().read<std::int16_t>(at(m_disc.progress) + kProgressCycle);
 }
 
+int GameView::streak() const {
+    return memory().read<std::uint8_t>(at(m_disc.progress) + kProgressStreak);
+}
+
+void GameView::add_bolt_credit(std::int32_t bolts) const {
+    const openrac::gaddr credit = at(m_disc.progress) + kProgressBoltCredit;
+    memory().write(credit, memory().read<std::int32_t>(credit) + bolts);
+}
+
+std::optional<std::int32_t> GameView::enemy_bolts(std::uint32_t moby) const {
+    // No moby, or one the game's memory does not hold.
+    if (!in_memory(moby, kMobyBolts + sizeof(std::int16_t))) {
+        return std::nullopt;
+    }
+
+    const auto info = memory().read<std::uint32_t>(moby + kMobyClassInfo);
+
+    // Only an enemy's class record says kind 5; a moby without one is no enemy.
+    if (!in_memory(info, kClassKind + sizeof(std::int16_t))
+        || memory().read<std::int16_t>(info + kClassKind) != kKindEnemy) {
+        return std::nullopt;
+    }
+
+    return memory().read<std::int16_t>(moby + kMobyBolts);
+}
+
 int GameView::vendor_cursor() const {
     return memory().read<std::int32_t>(at(m_disc.vendor) + kVendorCursor);
 }

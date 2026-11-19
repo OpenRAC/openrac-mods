@@ -51,6 +51,19 @@
       "max": 3.0,
       "step": 0.25,
       "description": "Multiplies how much tougher enemies get: 1 as in the README's table, 0.5 half as much, 2 twice as much."
+    },
+    {
+      "key": "bolt_scaling",
+      "multiplayer": "host",
+      "name": "Bolt scaling",
+      "type": "choice",
+      "default": "normal",
+      "choices": [
+        { "value": "off", "name": "Off" },
+        { "value": "normal", "name": "Normal" },
+        { "value": "generous", "name": "Generous" }
+      ],
+      "description": "From the second challenge mode on, drops pay more bolts each new game (x1.5, x2.5, x4, then x6), tough enemies up to twice that, and part of each drop comes as platinum bolts worth five times the gold ones (more with a longer kill streak). Generous pays half as much again. Off leaves the game's drops as they are. Needs OpenRAC with mod interface 1.23."
     }
   ],
   "save_data": {

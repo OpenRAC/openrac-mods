@@ -13,15 +13,19 @@
 //   vendor.h       the vendor's entries, prices, purchases and tints
 //   experience.h   steps by experience, the level-up, the rows' ammo and bar, the notices
 //   combat.h       the tiers' damage and the enemies across new games
+//   bolt_rules.h   the drops' scaling, the platinum share and the split into coins
+//   platinum_bolts.h
+//                  platinum bolts and bolt scaling, behind the bolt hook points (OpenRAC 1.23)
 //
-// Each tick: the save's clock is watched (at the title too); in a level, the steps by experience
-// are taken, the last versions' rows written, the levels published to a party, and a tiered weapon
-// taken in hand named.
+// Each tick: the save's clock is watched (at the title too) and a level left forgets its platinum
+// coins; in a level, the steps by experience are taken, the last versions' rows written, the
+// levels published to a party, and a tiered weapon taken in hand named.
 
 #include <memory>
 #include <optional>
 #include <string>
 
+#include "bolt_rules.h"
 #include "combat.h"
 #include "discs.h"
 #include "experience.h"
@@ -29,6 +33,7 @@
 #include "hooks.h"
 #include "openrac/games/rac2.hpp"
 #include "openrac/mod.hpp"
+#include "platinum_bolts.h"
 #include "save_tiers.h"
 #include "text.h"
 #include "vendor.h"
@@ -52,7 +57,8 @@ public:
           m_experience(m_tiers, m_weapons, mod.setting<bool>("notices")),
           m_vendor(m_weapons, m_experience),
           m_combat(m_weapons, enemy_settings(mod)),
-          m_text(m_view, m_weapons, m_vendor, m_experience) {}
+          m_text(m_view, m_weapons, m_vendor, m_experience),
+          m_bolts(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))) {}
 
     ~NgPlusPlus() = default;
     NgPlusPlus(const NgPlusPlus&) = delete;
@@ -75,7 +81,7 @@ private:
     template <class HookPoint, class F>
     void take(F&& callable);
 
-    // Takes the optional hook points: the vendor's tints and the text lookup.
+    // Takes the optional hook points: the vendor's tints, the text lookup and the bolts.
     void take_optional();
 
     // An item's colours (rac2.item.colors), for the quick select's and the weapons screen's icons
@@ -104,6 +110,7 @@ private:
     Vendor m_vendor;           // The vendor's entries.
     Combat m_combat;           // Damage and the enemies.
     TextResolver m_text;       // Weapon texts at their tiers.
+    PlatinumBolts m_bolts;     // Platinum bolts and the drops' scaling.
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
 
@@ -199,6 +206,9 @@ void NgPlusPlus::take_optional() {
         m_mod.info(std::string("no tier names in the game's texts: ") + error.what());
     }
 
+    // Platinum bolts and bolt scaling: an OpenRAC before 1.23 keeps the game's drops.
+    m_bolts.start();
+
     // What this build lacks, for a player's log.
     if (m_view.upgrade_fx() == nullptr) {
         m_mod.info(
@@ -260,6 +270,7 @@ void NgPlusPlus::tick() {
 
     // The save's clock: a load, a save or a new game; at the title too.
     m_tiers.watch(m_view);
+    m_bolts.tick();
 
     // The rest only in a level.
     if (m_view.loaded_level() < 0) {
