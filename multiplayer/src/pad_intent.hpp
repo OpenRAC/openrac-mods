@@ -39,6 +39,7 @@ enum class Intent {
 // button held (Right bit 5, Left bit 7, Cross bit 14); then the right stick's x and y, then the
 // left's, 0x80 at rest. The game takes a stick as a direction 0x30 from its centre.
 inline Intent read_intent(const std::uint8_t* report, int size) {
+    // No report, or one too short for the buttons, says nothing.
     if (report == nullptr || size < 2) {
         return Intent::Unknown;
     }
@@ -81,9 +82,9 @@ inline Intent read_intent(const std::uint8_t* report, int size) {
 }
 
 // Returns the event a page is given for `e`, the player doing `intent`: a choice stepped by the
-// cursor moving, or a button chosen by anything but Cross, becomes a tick's event (OPENRAC_UI_FRAME,
-// which every page takes each tick and only shows itself again on); a question's Yes by anything
-// but Cross becomes No. Everything else is `e` as it is.
+// cursor moving, or a button chosen by anything but Cross, becomes a tick's event
+// (OPENRAC_UI_FRAME, which every page takes each tick and only shows itself again on); a question's
+// Yes by anything but Cross becomes No. Everything else is `e` as it is.
 inline openrac_ui_event as_meant(Intent intent, const openrac_ui_event& e) {
     openrac_ui_event out = e;
     const bool chosen = intent == Intent::Choose || intent == Intent::Unknown;
@@ -95,6 +96,7 @@ inline openrac_ui_event as_meant(Intent intent, const openrac_ui_event& e) {
         out.item = -1;
         out.value = 0;
     } else if (e.kind == OPENRAC_UI_ANSWER && e.value != 0 && !chosen) {
+        // A question's Yes by anything but Cross becomes No.
         out.value = 0;
     }
 

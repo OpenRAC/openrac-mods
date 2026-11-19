@@ -1,65 +1,68 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// Losing a connection, coming back, and the party going on without its host (DECISIONS 6). No socket
-// and no game here: given the session's word on who dropped, who came back and who hosts now, on the
-// game's thread, once a tick, it tells the co-op and the world what that means for them.
+// Losing a connection, coming back, and the party going on without its host (DECISIONS 6). No
+// socket and no game here: given the session's word on who dropped, who came back and who hosts
+// now, on the game's thread, once a tick, it tells the co-op and the world what that means for
+// them.
 //
 // A dropped player keeps its slot for kResumeMs (Session, the server's RESUME). Its id stays, so
 // what the party knows of it (its figure, its mods, its ban, its ready) stands. A member who comes
-// back goes through the late-join path: the world again (HELLO, DEAD, SPAWN, SYNCED), its place beside
-// the host, the party's progress quietly. Its own bolts, ammo and nanotech were never the party's.
-// While it is gone its figure stands where it was, its enemies look for someone else, its grabs end,
-// and it holds up no wait. Direct connect does the same, its host being the server, and goes no
-// further: its party ends with its host.
+// back goes through the late-join path: the world again (HELLO, DEAD, SPAWN, SYNCED), its place
+// beside the host, the party's progress quietly. Its own bolts, ammo and nanotech were never the
+// party's. While it is gone its figure stands where it was, its enemies look for someone else, its
+// grabs end, and it holds up no wait. Direct connect does the same, its host being the server, and
+// goes no further: its party ends with its host.
 //
 // The host dropping: everyone waits for kHostGraceMs with a line saying so and their heroes still.
-// Back in time, it plays on: what went into its reliable stream meanwhile never left, so every member
-// asks for the world again.
+// Back in time, it plays on: what went into its reliable stream meanwhile never left, so every
+// member asks for the world again.
 //
 // Out of time, or a host that left on purpose (at once): the server gives the party to the first of
 // the host's list (SUCCESSOR) who is there. The list is the members who hold the world and may
-// play, by their link (the round trip, TCP-only behind UDP), then by when they joined; either disc will
-// do. Nobody on it, or nobody left able: END, and any member can Continue as host from its co-op slot.
+// play, by their link (the round trip, TCP-only behind UDP), then by when they joined; either disc
+// will do. Nobody on it, or nobody left able: END, and any member can Continue as host from its
+// co-op slot.
 //
 // The ledger is what makes it possible. A new host's copy of a level "will not be identical": its
-// members' mobys were driven, and a door that never got its word can stop a mission for good. So the
-// party keeps a little state off the host: what is dead, what was spawned, the dug piles, the moby
-// ids, the level, the travel and scene counts and the revive rule, whole (never a piece of a change),
-// versioned and numbered, on the reliable stream to everyone at each change, at most once a second.
-// Positions stay in the games; nothing in it is an enemy's mind.
+// members' mobys were driven, and a door that never got its word can stop a mission for good. So
+// the party keeps a little state off the host: what is dead, what was spawned, the dug piles, the
+// moby ids, the level, the travel and scene counts and the revive rule, whole (never a piece of a
+// change), versioned and numbered, on the reliable stream to everyone at each change, at most once
+// a second. Positions stay in the games; nothing in it is an enemy's mind.
 //
-// Takeover, on the successor. It asks everyone for their ledger (a member may have got one this game
-// did not) and takes the newest by (epoch, generation): an old host can never overwrite a newer one,
-// and its traffic is refused by the epoch (Session). It matches its game to the ledger, each moby by
-// itself so one that fails stops nothing, lets the game run them, and hosts. Each member gives up what
-// the old host spawned and says HELLO: the one way the world ever arrives. A host that cannot (a
-// joiner, one in the title, no ledger) declines, and the next is asked.
+// Takeover, on the successor. It asks everyone for their ledger (a member may have got one this
+// game did not) and takes the newest by (epoch, generation): an old host can never overwrite a
+// newer one, and its traffic is refused by the epoch (Session). It matches its game to the ledger,
+// each moby by itself so one that fails stops nothing, lets the game run them, and hosts. Each
+// member gives up what the old host spawned and says HELLO: the one way the world ever arrives. A
+// host that cannot (a joiner, one in the title, no ledger) declines, and the next is asked.
 //
 // What becomes of what, on a change of host:
 //
 // World. party_dead_, dug_, spared_: the ledger's. shared_, next_net_: the spawned net ids go on as
 // they were, each member's copies made anew from SPAWN. driven_: released to the game. poses_,
 // hidden_, stamps_, host_ms_: gone, the game runs them. members_ and everything in them (WORLD's
-// tracked, window, sequence, rtt, hit_ms, priorities): new, from a member's HELLO. A WORLD ack of the
-// old host: none (no_world_ack), and old datagrams fall to the epoch. aims_: gone, so an enemy picks
-// its target afresh; a keeps_hero_class enemy kept nothing here, its update having been off. holds_
-// and a held hero: every grab ends (a member's game has let go by HOLD's kHoldLeaseMs, 1.5 s, inside
-// the wait; a host that left on purpose: at the event, release_holds), and a new grab starts from a new
-// update. The host's own hero's locks went with it. The port's stand-in guards live for one update
-// and carry nothing. deaths_, downs_: gone: a player down stays down by its own game's timer
-// (kDownedMs). flights_: fly on where they are. claimed_, broke_, reported_, host_killed_, digs_: gone:
-// a claim or a dig not answered is dropped (the pile stands, the bolt lies there); what a game had
-// already broken comes in as dead at the next listing. restored_: those mobys are this game's now.
-// level_own_: spawned loot of this game's own, unshared. revive_rule_: the ledger's.
+// tracked, window, sequence, rtt, hit_ms, priorities): new, from a member's HELLO. A WORLD ack of
+// the old host: none (no_world_ack), and old datagrams fall to the epoch. aims_: gone, so an enemy
+// picks its target afresh; a keeps_hero_class enemy kept nothing here, its update having been off.
+// holds_ and a held hero: every grab ends (a member's game has let go by HOLD's kHoldLeaseMs, 1.5
+// s, inside the wait; a host that left on purpose: at the event, release_holds), and a new grab
+// starts from a new update. The host's own hero's locks went with it. The port's stand-in guards
+// live for one update and carry nothing. deaths_, downs_: gone: a player down stays down by its own
+// game's timer (kDownedMs). flights_: fly on where they are. claimed_, broke_, reported_,
+// host_killed_, digs_: gone: a claim or a dig not answered is dropped (the pile stands, the bolt
+// lies there); what a game had already broken comes in as dead at the next listing. restored_:
+// those mobys are this game's now. level_own_: spawned loot of this game's own, unshared.
+// revive_rule_: the ledger's.
 //
 // Coop. play_, applied_, the slot: the same game. told_: all who are in. chosen_: the new host's
-// co-op slot, for one who asks from the title. LEVEL: at once. Scenes: the old host's scene is skipped
-// in the new host's game, then in each member's by LEVEL (kHostOutMs); reset_scenes, the sequence
-// going on from the ledger. A ship travel: a new host on its way finishes the trip and the rest follow
-// by LEVEL, its barrier gone; nobody is waited for. A wait or its votes: gone. Joining: a joiner goes
-// on with the new host, its PLAY asked for again if it was cut. A place being asked: goes to the
-// new host. Remotes: stay, an old host's figure gone with it.
+// co-op slot, for one who asks from the title. LEVEL: at once. Scenes: the old host's scene is
+// skipped in the new host's game, then in each member's by LEVEL (kHostOutMs); reset_scenes, the
+// sequence going on from the ledger. A ship travel: a new host on its way finishes the trip and the
+// rest follow by LEVEL, its barrier gone; nobody is waited for. A wait or its votes: gone. Joining:
+// a joiner goes on with the new host, its PLAY asked for again if it was cut. A place being asked:
+// goes to the new host. Remotes: stay, an old host's figure gone with it.
 //
 // Shared, Progress. Whole again from the new host (again()): every game has what it was given, the
 // new host's game is the party's progress from here on. Mission rows: its own.
@@ -67,16 +70,18 @@
 // Camera scripts: any being shown ends (reset), the next the new host's.
 //
 // Mods. The rules (Difficulty, a seed) stand: the new host's own mods play by them and keep what
-// was delivered, and it passes them on instead of its own settings. It checks members against the list
-// they were all checked against, not its own, and sends that list under its own disc, so "Enemies
-// follow the host's game" (party_mods) comes and goes by the new host's disc. Each member sends it
-// its mods and its key, so bans go on. Bans are on every slot already (COPARTY).
+// was delivered, and it passes them on instead of its own settings. It checks members against the
+// list they were all checked against, not its own, and sends that list under its own disc, so
+// "Enemies follow the host's game" (party_mods) comes and goes by the new host's disc. Each member
+// sends it its mods and its key, so bans go on. Bans are on every slot already (COPARTY).
 //
 // Saves. key(): the same party, the same slots; each member's slot() is untouched. A save on its
-// way is dropped: the slot keeps its last whole one. The new host's saves go to everyone from now on.
+// way is dropped: the slot keeps its last whole one. The new host's saves go to everyone from now
+// on.
 //
-// An old host that comes back within its slot finds a member's place: it leaves its game for the title
-// and comes in as a late joiner, since its world is no one's now. After that: the party's code.
+// An old host that comes back within its slot finds a member's place: it leaves its game for the
+// title and comes in as a late joiner, since its world is no one's now. After that: the party's
+// code.
 //
 // Wire (kinds.hpp, 40 to 43; 43 is the Session's):
 //   40 SUCCESSOR  count u8, ids i32...     the host to everyone: who follows it, in order; the same
@@ -106,8 +111,9 @@
 
 namespace mp {
 
-// How often the host may say its list and its ledger, how long a new host waits for the others' ledgers, how long
-// a member stands still for a new host's world, and how long the line about it stays.
+// How often the host may say its list and its ledger, how long a new host waits for the others'
+// ledgers, how long a member stands still for a new host's world, and how long the line about it
+// stays.
 constexpr std::uint64_t kSuccessorMs = 3000;
 constexpr std::uint64_t kLedgerMs = 1000;
 constexpr std::uint64_t kGatherMs = 1000;
@@ -119,12 +125,12 @@ constexpr std::uint8_t kLedgerVersion = 1;
 
 // The whole of what every member keeps.
 struct Ledger {
-    std::uint16_t epoch = 0;
-    std::uint32_t generation = 0;
-    std::int32_t play = 0;
-    std::uint16_t travel = 0;
-    std::uint16_t scene = 0;
-    LedgerWorld world;
+    std::uint16_t epoch = 0;       // The host epoch the ledger was made in.
+    std::uint32_t generation = 0;  // Counts the changes within an epoch.
+    std::int32_t play = 0;         // The co-op's game number.
+    std::uint16_t travel = 0;      // The count of ship travels.
+    std::uint16_t scene = 0;       // The count of scenes.
+    LedgerWorld world;             // The world's part of the ledger.
 };
 
 // A ledger's bytes (the kind first) and back; false for one cut short, or of another version.
@@ -139,18 +145,26 @@ constexpr std::int16_t kLedgerEpochReach = 4;
 
 // The members in the order they would follow the host: the link's worth first, then as given.
 struct Candidate {
-    std::int32_t id = 0;
-    Link link;
+    std::int32_t id = 0;  // The member's id.
+    Link link;            // The round trip to it and whether UDP works.
 };
 
+// Returns the ids of `candidates` in the order they would follow the host: the cheapest link first,
+// and candidates of equal cost as given.
 std::vector<std::int32_t> successor_order(std::vector<Candidate> candidates);
 
 // What the players read.
 constexpr const char* kDroppedLine = "Reconnecting";
 constexpr const char* kYouHostLine = "You host now";
 
+// The change of connection and of host for one game: it takes the session's events and the ledger
+// traffic, and tells the co-op, the world and the rest what each means.
+//
+// Holds references to all of them, which outlive it. Only the game's thread uses it.
 class Migrate {
 public:
+    // Creates it over the parts of one game. `clock` returns milliseconds; when empty it is the
+    // wall clock (now_ms), and a test passes its own.
     Migrate(
         Session& session,
         Game& game,
@@ -185,45 +199,76 @@ public:
     // Whether this game took the party over: the host's rules are the party's, not its settings.
     bool took_over() const { return took_over_; }
 
+    // Returns the newest ledger this game has.
     const Ledger& ledger() const { return ledger_; }
 
+    // Sets where this object's log lines go.
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
 private:
+    // Acts on one event the session reported: a drop, a return, a member away or back, or a new
+    // host.
     void take(const PartyEvent& event, std::uint64_t now);
+    // Handles the session's word that `host` hosts now. This game either asks the members for their
+    // ledgers, to take over, or declines, or stands still until the new host's world comes.
     void host_changed(std::int32_t host, std::uint64_t now);
+    // Ends the wait for ledgers: takes the party over with the newest one, or declines when none
+    // matches the game that is on.
     void finish_gather(std::uint64_t now);
+    // The host's part of a tick: sends the ledger when it changed and names the members that would
+    // follow it.
     void tick_host(std::uint64_t now);
+    // Ends a member's stand when the new host's world is here or kNewHostMs has passed.
     void tick_stand(std::uint64_t now);
+    // Forgets all of this party's state, and lets the co-op go on.
     void clear();
+    // Sends the ledger to everyone when it changed since the last one, or the members did, under
+    // the next generation number.
     void send_ledger(std::uint64_t now);
+    // Returns the name of `member`, or empty for none.
     std::string name_of(std::int32_t member) const;
 
+    // Writes `line` to the log callback, if one is set.
     void log(const std::string& line) const {
         if (log_) {
             log_(line);
         }
     }
 
+    // The session, which reports the events and carries the messages.
     Session& session_;
+    // The game, to read a card slot and test a save.
     Game& game_;
+    // The co-op, held and released around a change of host.
     Coop& coop_;
+    // The world's replication, which holds the ledger's world.
     World& world_;
+    // The party's progress, sent again after a change.
     Progress& progress_;
+    // The shared state, sent again after a change.
     Shared& shared_;
+    // The party's mods, asked who may play.
     PartyMods& mods_;
+    // The co-op saves, told of a new host.
     CoSave& cosave_;
+    // The camera scripts, reset on a new host.
     CamScripts& cam_;
+    // Milliseconds: the wall clock unless a test gave its own.
     std::function<std::uint64_t()> clock_;
+    // Where log lines go; empty for nowhere.
     std::function<void(const std::string&)> log_;
     // Since when the host has been gone (0: it has not); whether this game was the host last tick.
     std::uint64_t host_gone_ms_ = 0;
     bool was_host_ = false;
+    // The host as of the last tick, to forget it when a new one comes.
     std::int32_t old_host_ = 0;
     // The ledger: the newest this game has, whole.
     Ledger ledger_;
+    // When the ledger was last sent.
     std::uint64_t ledger_ms_ = 0;
+    // The bytes of the ledger last sent, to see when nothing changed.
     Bytes ledger_said_;
+    // The member count when the ledger was last sent.
     std::size_t ledger_members_ = 0;
     // The host: who it named last, when; a member: who is next.
     std::vector<std::int32_t> named_;
@@ -234,9 +279,10 @@ private:
     std::set<std::int32_t> answered_;
     // Who the new host asked (the members then): only they answer, once each.
     std::set<std::int32_t> asked_;
+    // True once this game has taken the party over.
     bool took_over_ = false;
-    // A member waiting for a new host's world: since when (0: not). The line about the new host: who,
-    // until when.
+    // A member waiting for a new host's world: since when (0: not). The line about the new host:
+    // who, until when.
     std::uint64_t stand_ms_ = 0;
     std::int32_t new_host_ = 0;
     std::uint64_t new_host_until_ = 0;

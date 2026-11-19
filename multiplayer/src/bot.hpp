@@ -54,17 +54,23 @@
 
 namespace mp {
 
+// The test bot: a listener on the loopback address that runs one driver's commands against the real
+// game.
+//
+// Owns its two sockets and closes them in the destructor. Only the game's thread uses it: poll()
+// runs each frame and pad() from the pad hook.
 class Bot {
 public:
+    // The parts of the mod the bot drives. All are borrowed: they outlive the bot.
     struct Parts {
-        Connection& connection;
-        Session& session;
-        Game& game;
-        Coop& coop;
-        World& world;
-        PartyMods& mods;
-        CamScripts& camscripts;
-        Migrate& migrate;
+        Connection& connection;  // The server connection (connect).
+        Session& session;        // The party's session.
+        Game& game;              // The game, read and driven.
+        Coop& coop;              // The co-op.
+        World& world;            // The world's replication.
+        PartyMods& mods;         // The party's mod check.
+        CamScripts& camscripts;  // The camera scripts.
+        Migrate& migrate;        // The change of host.
         // The hero's position written to game memory.
         std::function<void(const float*)> teleport;
         // The item given, with ammunition, and asked for in the hand.
@@ -80,7 +86,10 @@ public:
         std::function<bool()> game_save;
     };
 
+    // Creates the bot over `parts`. It listens only when OPENRAC_MP_BOT names a port that can be
+    // bound; otherwise on() is false.
     explicit Bot(Parts parts);
+    // Closes the driver's socket and the listening one.
     ~Bot();
 
     // Whether OPENRAC_MP_BOT asked for it.
@@ -93,21 +102,27 @@ public:
     void pad(std::uint8_t* report, int size);
 
 private:
+    // Runs one command `line` and returns the answer line: JSON, "ok" or "error ...".
     std::string run(const std::string& line);
+    // Returns the status command's JSON object.
     std::string status();
+    // Returns the dump command's JSON list of the level's mobys.
     std::string dump();
+    // Returns the stats command's JSON object of what the network layer counted.
     std::string stats();
+    // Returns the mods command's JSON object of what the party's mod check knows.
     std::string mods();
 
+    // The parts it drives.
     Parts parts_;
-    long listen_ = -1;
-    long client_ = -1;
-    std::string input_;
-    float at_[3] = {0, 0, 0};
-    int teleport_ticks_ = 0;
-    std::uint32_t mask_ = 0;
-    int press_ticks_ = 0;
-    int stick_[2] = {128, 128};
+    long listen_ = -1;           // The listening socket; -1 when the bot is off.
+    long client_ = -1;           // The driver's socket; -1 when none is connected.
+    std::string input_;          // Bytes received that are not yet a whole line.
+    float at_[3] = {0, 0, 0};    // Where the teleport puts the hero.
+    int teleport_ticks_ = 0;     // How many more ticks the teleport is written.
+    std::uint32_t mask_ = 0;     // The pressed buttons, the pad's mask.
+    int press_ticks_ = 0;        // How many more reports the press is written into.
+    int stick_[2] = {128, 128};  // The stick's x and y; 128 is centred.
 };
 
 }  // namespace mp

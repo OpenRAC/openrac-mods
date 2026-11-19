@@ -2,11 +2,11 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // The mod code of the set in place: the launcher leaves <data>/plugins/modset.json for the game
-// when a player shares its mods, and takes it away when they change. The game shows the code on
-// the host's Rules page and, passed on in MODS, on a refused player's page, only while what this
-// game runs is what the file names: the file is the launcher's word, and it is checked, not trusted.
-// The other way round, a host's code is only ever text of a code's shape: a member makes the link
-// from it, so no party can hand a player a link to anywhere else.
+// when a player shares its mods, and takes it away when they change. The game shows the code on the
+// host's Rules page and, passed on in MODS, on a refused player's page, only while what this game
+// runs is what the file names: the file is the launcher's word, and it is checked, not trusted. The
+// other way round, a host's code is only ever text of a code's shape: a member makes the link from
+// it, so no party can hand a player a link to anywhere else.
 
 #ifndef MULTIPLAYER_MODCODE_H
 #define MULTIPLAYER_MODCODE_H
@@ -22,8 +22,8 @@ namespace mp {
 // The launcher's file, format 1. `code` is empty when the server could not be reached: the set has
 // only its long code then, which is the launcher's to show.
 struct ModSetFile {
-    std::string code;
-    std::string link;
+    std::string code;                                       // The short code, or empty.
+    std::string link;                                       // The launcher's long link to the set.
     std::vector<std::pair<std::string, std::string>> mods;  // id, version
 };
 
@@ -54,6 +54,9 @@ struct ModCode {
     bool shared = false;  // the file is there and matches, short code or not
 };
 
+// Reads `folder`/modset.json and returns its code and whether the file matches `own`. Both stay
+// empty and false for no folder, no file, a file that is not whole format 1, or a set other than
+// the one this game runs.
 ModCode read_mod_code(const std::string& folder, const ModList& own);
 
 // The words of a page.

@@ -31,23 +31,29 @@
 namespace mp {
 namespace {
 
+// How many ticks a teleport is held, so the game's own update does not undo it.
 constexpr int kTeleportTicks = 10;
 
+// Makes the socket `fd` return at once when there is nothing to read or accept.
 void nonblocking(int fd) {
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 }
 
+// Returns `lines` as a JSON list of strings. Quotes and backslashes are escaped and control
+// characters left out.
 std::string quoted(const std::vector<std::string>& lines) {
     std::string out = "[";
 
     for (std::size_t i = 0; i < lines.size(); ++i) {
         out += i != 0 ? ",\"" : "\"";
 
+        // Quotes and backslashes are escaped so the answer stays one valid JSON line.
         for (const char c : lines[i]) {
             if (c == '"' || c == '\\') {
                 out += '\\';
             }
 
+            // Control characters would break the one-line answer, so they are left out.
             if (static_cast<unsigned char>(c) >= 0x20) {
                 out += c;
             }
@@ -59,6 +65,7 @@ std::string quoted(const std::vector<std::string>& lines) {
     return out + "]";
 }
 
+// Returns `f` written with three decimals.
 std::string number(float f) {
     char text[32];
     std::snprintf(text, sizeof text, "%.3f", static_cast<double>(f));
@@ -70,6 +77,7 @@ std::string number(float f) {
 Bot::Bot(Parts parts) : parts_(std::move(parts)) {
     const char* port = std::getenv("OPENRAC_MP_BOT");
 
+    // Without OPENRAC_MP_BOT the bot stays off.
     if (port == nullptr) {
         return;
     }
@@ -82,6 +90,7 @@ Bot::Bot(Parts parts) : parts_(std::move(parts)) {
     at.sin_port = htons(static_cast<std::uint16_t>(std::atoi(port)));
     at.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
+    // A port in use leaves the bot off, with a line on stderr.
     if (bind(fd, reinterpret_cast<sockaddr*>(&at), sizeof at) != 0 || listen(fd, 1) != 0) {
         std::fprintf(stderr, "multiplayer: the bot cannot listen on %s\n", port);
         close(fd);
@@ -103,15 +112,18 @@ Bot::~Bot() {
 }
 
 void Bot::poll() {
+    // A bot that is off has nothing to poll.
     if (listen_ < 0) {
         return;
     }
 
+    // A teleport is written again each tick until its count runs out.
     if (teleport_ticks_ > 0) {
         --teleport_ticks_;
         parts_.teleport(at_);
     }
 
+    // The one driver is waited for.
     if (client_ < 0) {
         const int fd = accept(static_cast<int>(listen_), nullptr, nullptr);
 
@@ -126,6 +138,7 @@ void Bot::poll() {
     char chunk[1024];
     const auto n = recv(static_cast<int>(client_), chunk, sizeof chunk, 0);
 
+    // A closed or failed connection drops the driver, and another may connect.
     if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
         close(static_cast<int>(client_));
         client_ = -1;
@@ -133,15 +146,18 @@ void Bot::poll() {
         return;
     }
 
+    // Data that came is added to the part of a line already held.
     if (n > 0) {
         input_.append(chunk, static_cast<std::size_t>(n));
     }
 
+    // Each whole line is one command, answered with one line.
     for (auto end = input_.find('\n'); end != std::string::npos; end = input_.find('\n')) {
         const std::string answer = run(input_.substr(0, end)) + "\n";
         input_.erase(0, end + 1);
         std::size_t sent = 0;
 
+        // The whole answer goes out, retried until the socket has taken it.
         while (sent < answer.size()) {
             const auto wrote = send(
                 static_cast<int>(client_), answer.data() + sent, answer.size() - sent, MSG_NOSIGNAL
@@ -150,6 +166,7 @@ void Bot::poll() {
             if (wrote > 0) {
                 sent += static_cast<std::size_t>(wrote);
             } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                // A full buffer is retried; any other error gives up on this answer.
                 break;
             }
         }
@@ -157,11 +174,14 @@ void Bot::poll() {
 }
 
 void Bot::pad(std::uint8_t* report, int size) {
+    // Nothing pressed, or a report too short to hold the sticks, leaves the report as it is.
     if (press_ticks_ <= 0 || size < 6) {
         return;
     }
 
     --press_ticks_;
+    // A pressed button is a cleared bit in bytes 0 and 1 (seen in game code: the port's pad
+    // report).
     report[0] = static_cast<std::uint8_t>(report[0] & ~(mask_ & 0xFF));
     report[1] = static_cast<std::uint8_t>(report[1] & ~(mask_ >> 8));
     report[4] = static_cast<std::uint8_t>(stick_[0]);
@@ -209,6 +229,7 @@ std::string Bot::status() {
       << ",\"ledger\":" << parts_.migrate.ledger().generation << ",\"migrate_banner\":\""
       << parts_.migrate.banner(now_ms()) << "\"";
 
+    // The hero's place is only there while a level is loaded.
     if (has_hero) {
         o << ",\"hero\":[" << number(hero.position[0]) << "," << number(hero.position[1]) << ","
           << number(hero.position[2]) << "],\"health\":" << hero.health
@@ -234,6 +255,7 @@ std::string Bot::mods() {
       << ",\"solo\":" << m.solo() << ",\"fits\":{";
     bool first = true;
 
+    // Each member goes in by name with its fit.
     for (const Member& member : session.members()) {
         o << (first ? "" : ",") << "\"" << member.name
           << "\":" << static_cast<int>(m.fit(member.id));
@@ -275,6 +297,7 @@ std::string Bot::stats() {
         o << "\"" << name << "\":{";
         bool first = true;
 
+        // Only the kinds that were seen are listed.
         for (std::size_t i = 0; i < all.size(); ++i) {
             if (all[i].messages != 0) {
                 o << (first ? "" : ",") << "\"" << i << "\":[" << all[i].messages << ","
@@ -303,6 +326,7 @@ std::string Bot::run(const std::string& line) {
     std::string command;
     in >> command;
 
+    // One branch per command of the list in bot.hpp; most answer "ok" at the end.
     if (command == "connect") {
         std::string host;
         int port = 0;
@@ -314,6 +338,7 @@ std::string Bot::run(const std::string& line) {
         in >> path;
         Bytes save;
 
+        // A test may name a save's file to start from.
         if (!path.empty()) {
             std::ifstream file(path, std::ios::binary);
             save.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
@@ -335,6 +360,7 @@ std::string Bot::run(const std::string& line) {
         std::string name;
         in >> name;
 
+        // Members are found by name.
         for (const Member& m : parts_.session.members()) {
             if (m.name == name) {
                 // A ban takes hold through the mod's frame (the key is what it knows them by).
@@ -364,12 +390,15 @@ std::string Bot::run(const std::string& line) {
         in >> name;
         std::string out = "[";
 
+        // Each line of the page gives its width.
         for (const std::string& text : parts_.page(name)) {
             out += (out.size() > 1 ? "," : "") + std::to_string(parts_.width(text));
         }
 
         return out + "]";
     } else if (command == "line") {
+        // Asks whether the level's geometry blocks the way from the camera to a point, and how many
+        // microseconds the answer took.
         float to[3] = {0, 0, 0};
         float camera[3] = {0, 0, 0};
         in >> to[0] >> to[1] >> to[2];
@@ -405,6 +434,7 @@ std::string Bot::run(const std::string& line) {
         const int slot = parts_.game.moby_slot(key);
         Pose hero;
 
+        // A moby that is not placed, or no hero to hit from, is an error.
         if (slot < 0 || !parts_.game.hero(hero)) {
             return "error no such moby";
         }
@@ -439,12 +469,14 @@ std::string Bot::run(const std::string& line) {
         in >> tag;
         Bytes bytes;
 
+        // A section the game does not have is an error.
         if (!parts_.game.shared_read(tag, bytes)) {
             return "error none";
         }
 
         std::string list = "[";
 
+        // The indices that are held, those with a byte that is not 0.
         for (std::size_t i = 0; i < bytes.size(); ++i) {
             if (bytes[i] != 0) {
                 list += (list.size() > 1 ? "," : "") + std::to_string(i);
@@ -458,6 +490,7 @@ std::string Bot::run(const std::string& line) {
         in >> tag >> index;
         Bytes bytes;
 
+        // A section or index that is not there is an error.
         if (!parts_.game.shared_read(tag, bytes) || index >= bytes.size()) {
             return "error none";
         }
@@ -481,6 +514,7 @@ std::string Bot::run(const std::string& line) {
         in >> slot;
         const Bytes save = parts_.game.card_read(slot);
 
+        // A slot with no save in it is an error.
         if (save.empty()) {
             return "error no such save";
         }
@@ -491,6 +525,7 @@ std::string Bot::run(const std::string& line) {
     } else if (command == "damage") {
         Pose hero;
 
+        // With no hero there is nothing to hit.
         if (!parts_.game.hero(hero)) {
             return "error no hero";
         }
@@ -503,9 +538,12 @@ std::string Bot::run(const std::string& line) {
         std::copy(hero.position, hero.position + 3, h.position);
         parts_.game.hit(h);
     } else if (command == "fall") {
+        // A point outside the level's bounds, where the game's own fall check kills the hero
+        // (measured: the e2e fall tests).
         const float out[3] = {1.0f, 1.0f, 100.0f};
         parts_.teleport(out);
     } else if (command != "hello") {
+        // hello is a probe that only answers ok; any other word is unknown.
         return "error unknown command";
     }
 

@@ -18,11 +18,14 @@
 
 namespace mp {
 
+// The sizes of a save, from the SDK's header: the game part, one level part, the number of level
+// parts and the whole save (documented: rac1_save.h).
 constexpr std::size_t kSaveGameBytes = OPENRAC_RAC1_SAVE_GAME_BYTES;
 constexpr std::size_t kSaveLevelBytes = OPENRAC_RAC1_SAVE_LEVEL_BYTES;
 constexpr std::size_t kSaveLevels = OPENRAC_RAC1_SAVE_LEVELS;
 constexpr std::size_t kSaveBytes = OPENRAC_RAC1_SAVE_BYTES;
 
+// What check_save finds wrong with a save, as the SDK numbers it.
 enum class SaveFault : std::uint8_t {
     kNone = OPENRAC_RAC1_SAVE_OK,
     kSize =
@@ -34,6 +37,7 @@ enum class SaveFault : std::uint8_t {
 
 // What is wrong with `save`, for the log: never shown to a player.
 SaveFault check_save(const Bytes& save);
+// Returns a short name for `fault`, for the log.
 const char* save_fault_name(SaveFault fault);
 
 // The game's checksum of a part (memcard_Checksum).

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// The multiplayer mod's game in Going Commando (coop.hpp's Game): Ratchet & Clank's (game_adapter.hpp),
-// whose calls are the SDK's, with what OpenRAC does not answer for rac2 yet left at Game's "not
-// here". OpenRAC answers rac2's play calls (port/game/rac2/host/play.c): the phase, the level and
-// its loads; a start from the title (a new game or a save's bytes) and a travel; the live save; the
-// hero's pose; the figures; the card's saves; the camera (the names over the figures); the overlay
-// pause, a level's name and the mods a party agrees on. Its world (the mobys a party shares, hits,
-// kills, pickups), shared progress, scenes, shots, placing and the hero's rescue are not shared yet:
-// README.md lists them. No address of the game's: everything is the SDK's.
+// The multiplayer mod's game in Going Commando (coop.hpp's Game): Ratchet & Clank's
+// (game_adapter.hpp), whose calls are the SDK's, with what OpenRAC does not answer for rac2 yet
+// left at Game's "not here". OpenRAC answers rac2's play calls (port/game/rac2/host/play.c): the
+// phase, the level and its loads; a start from the title (a new game or a save's bytes) and a
+// travel; the live save; the hero's pose; the figures; the card's saves; the camera (the names over
+// the figures); the overlay pause, a level's name and the mods a party agrees on. Its world (the
+// mobys a party shares, hits, kills, pickups), shared progress, scenes, shots, placing and the
+// hero's rescue are not shared yet: README.md lists them. No address of the game's: everything is
+// the SDK's.
 
 #ifndef MULTIPLAYER_RAC2_GAME_H
 #define MULTIPLAYER_RAC2_GAME_H
@@ -21,8 +22,11 @@
 
 namespace mpmod {
 
+// The multiplayer mod's game in Going Commando: ModGame's calls, with those OpenRAC does not answer
+// for rac2 yet left at Game's "not here". Only the game's thread uses it.
 class Rac2Game : public ModGame {
 public:
+    // Creates it over `mod`, which outlives it.
     explicit Rac2Game(openrac::Mod& mod) : ModGame(mod) {}
 
     // The port checks the save it starts (play.c's save_check): a save that is not one is refused
@@ -30,9 +34,11 @@ public:
     bool save_usable(const mp::Bytes& save) override { return !save.empty(); }
 
     // Not answered for Going Commando yet: Game's "not here". The card's party folder (the save
-    // filter and notes) is Ratchet & Clank's only, so a party's game saves as the player's own does.
+    // filter and notes) is Ratchet & Clank's only, so a party's game saves as the player's own
+    // does.
     bool has_card_filter() override { return mp::Game::has_card_filter(); }
 
+    // From here to mission_set each call is Game's own answer, "not here".
     bool card_filter(int mode) override { return mp::Game::card_filter(mode); }
 
     void card_slot(int slot) override { mp::Game::card_slot(slot); }

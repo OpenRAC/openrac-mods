@@ -2,7 +2,8 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // The pages' logic that needs no game (multiplayer.cpp draws them): which of Home's items the
-// connection allows, the status line's words, and the lines of the pause menu's Multiplayer page. Header only, so the tests use it as the pages do.
+// connection allows, the status line's words, and the lines of the pause menu's Multiplayer page.
+// Header only, so the tests use it as the pages do.
 //
 // Only Find match, Create match and Join by code depend on the OpenRAC server. Direct connect (and
 // Host directly, Join by address) never do: they are always selectable, and the server's state
@@ -36,14 +37,16 @@ constexpr std::size_t kFooterMax = kFooterLineMax;
 
 // What the status line is made of.
 struct StatusInput {
+    // How the game is linked.
     Connection::Mode mode = Connection::Mode::kNone;
+    // The state of that link.
     Connection::State state = Connection::State::kIdle;
-    bool greeted = false;  // the session said hello and was answered
-    bool waiting = false;  // the session waits for the server's answer
-    std::string notice;    // the last refusal or news
-    std::string address;   // the direct host's, "host:port"
-    int hosting_port = 0;
-    bool hosting_udp = false;
+    bool greeted = false;      // the session said hello and was answered
+    bool waiting = false;      // the session waits for the server's answer
+    std::string notice;        // the last refusal or news
+    std::string address;       // the direct host's, "host:port"
+    int hosting_port = 0;      // The port a local host listens on.
+    bool hosting_udp = false;  // True when the local host is reached over UDP.
 };
 
 // Whether Find match, Create match and Join by code can be chosen: linked to the server, which
@@ -66,6 +69,7 @@ inline std::string status_text(const StatusInput& in, Language language = Langua
     const bool direct = in.mode == Mode::kDirect;
 
     // Hosting is connected from the start; nothing linked is the moment after a failed host.
+    // A host's status is its notice, if it has one, else that it hosts and over which link.
     if (in.mode == Mode::kHosting) {
         if (!in.notice.empty()) {
             return localized_notice(in.notice, language);
@@ -77,6 +81,7 @@ inline std::string status_text(const StatusInput& in, Language language = Langua
         return translated("Not connected", language);
     }
 
+    // A link that is not up yet says where it is.
     switch (in.state) {
         case State::kIdle:
         case State::kConnecting:
@@ -96,10 +101,12 @@ inline std::string status_text(const StatusInput& in, Language language = Langua
         return localized_notice(in.notice, language);
     }
 
+    // The server has not said hello yet.
     if (!in.greeted) {
         return translated("Connecting...", language);
     }
 
+    // The session waits for the server's answer.
     if (in.waiting) {
         return translated("Waiting...", language);
     }
@@ -117,6 +124,8 @@ inline std::string leave_reason(
     const std::string& notice,
     Language language = Language::kEnglish
 ) {
+    // The player's own leaving gives no reason; else the session's word, the link that went, or
+    // that it ended.
     if (left) {
         return "";
     } else if (!notice.empty()) {
@@ -133,17 +142,17 @@ inline std::string leave_reason(
 // A member as the page shows it: its name, whether it hosts, whether it is the player, its link
 // (session.hpp's Link: the round trip, -1 not known, and UDP or TCP).
 struct PartyMemberLine {
-    std::string name;
-    bool host = false;
-    bool you = false;
-    std::int32_t ping_ms = -1;
-    bool udp = false;
-    std::int32_t id = 0;
+    std::string name;           // The member's name.
+    bool host = false;          // True for the host.
+    bool you = false;           // True for the player's own line.
+    std::int32_t ping_ms = -1;  // The round trip in ms; -1 when not known.
+    bool udp = false;           // True when the link is UDP.
+    std::int32_t id = 0;        // The member's id in the session.
 };
 
 // What the page is made of.
 struct PartyPageInput {
-    bool in_party = false;
+    bool in_party = false;                 // True when the player is in a party.
     bool removes = false;                  // the player hosts: a member's line is a button
     bool direct = false;                   // a Direct connect party: no code, `where` instead
     std::string code;                      // the party's code
@@ -155,6 +164,7 @@ struct PartyPageInput {
 
 // A line of the page: a label and its value (a line of information, or the Leave button).
 struct PartyLine {
+    // What a line of the page is.
     enum class Kind {
         kInfo,
         kLeave,
@@ -163,12 +173,13 @@ struct PartyLine {
         kGoToHost,
         kMember
     };
-    Kind kind = Kind::kInfo;
-    std::string label;
-    std::string value;
+    Kind kind = Kind::kInfo;  // What the line is.
+    std::string label;        // The text on the left.
+    std::string value;        // The text on the right.
     std::int32_t member = 0;  // kMember: whose line
 };
 
+// The pause page's title and labels, in English; `translated` turns them into the game's language.
 constexpr const char* kPartyPageTitle = "Multiplayer";
 constexpr const char* kLeavePartyLabel = "Leave party";
 constexpr const char* kPartyRulesLabel = "Party rules";
@@ -193,6 +204,7 @@ inline std::vector<PartyLine> party_lines(
 ) {
     using Kind = PartyLine::Kind;
 
+    // Out of a party the page has only a line saying so.
     if (!in.in_party) {
         return {{Kind::kText, translated("Not in a party", language), ""}};
     }
@@ -208,6 +220,8 @@ inline std::vector<PartyLine> party_lines(
          in.host_level.empty() ? translated("None", language) : in.host_level}
     );
 
+    // Each member gets a line; the host and the player's own are marked, and others can be picked
+    // to remove.
     for (const PartyMemberLine& m : in.members) {
         const std::string mark = m.host && m.you ? translated(" (host, you)", language)
                                  : m.host        ? translated(" (host)", language)
@@ -222,6 +236,7 @@ inline std::vector<PartyLine> party_lines(
         );
     }
 
+    // Go to host is offered only when this player can ask for it.
     if (in.go_to_host) {
         lines.push_back({Kind::kGoToHost, translated(kGoToHostLabel, language), ""});
     }
@@ -234,14 +249,16 @@ inline std::vector<PartyLine> party_lines(
 // A member's line in the lobby: its name, the host marked, one whose mods differ or are still being
 // checked, ready or not, and the player's own.
 struct LobbyMemberInput {
-    std::string name;
-    bool host = false;
-    bool you = false;
-    bool ready = false;
-    bool differs = false;
-    bool checking = false;
+    std::string name;       // The member's name.
+    bool host = false;      // True for the host.
+    bool you = false;       // True for the player's own line.
+    bool ready = false;     // True once it is Ready.
+    bool differs = false;   // True when its mods differ from the host's.
+    bool checking = false;  // True while its mods are still being checked.
 };
 
+// Returns the lobby line of `m`: its name, cut to fit, then its state in brackets and " - you" for
+// the player's own.
 inline std::string lobby_member_line(
     const LobbyMemberInput& m, Language language = Language::kEnglish
 ) {

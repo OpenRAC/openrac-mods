@@ -18,8 +18,10 @@ namespace {
 
 // The most keys a set of them holds on the wire: a level has fewer records than this.
 constexpr std::size_t kMaxKeys = 0x8000;
+// The most spawned mobys a ledger lists.
 constexpr std::size_t kMaxSpawned = 0x1000;
 
+// Writes `keys` as a 16-bit count and then each key as 16 bits.
 void put_keys(Writer& w, const std::set<int>& keys) {
     u16(w, static_cast<std::uint16_t>(keys.size()));
 
@@ -28,9 +30,11 @@ void put_keys(Writer& w, const std::set<int>& keys) {
     }
 }
 
+// Reads a set written by put_keys. At most kMaxKeys keys are kept; a cut message ends it early.
 void take_keys(Reader& r, std::set<int>& keys) {
     const std::size_t count = u16(r);
 
+    // A cut message or a count past the limit stops the reading.
     for (std::size_t i = 0; i < count && r.ok() && i < kMaxKeys; ++i) {
         keys.insert(u16(r));
     }
@@ -45,6 +49,7 @@ Bytes encode_ledger(const Ledger& l) {
     w.i32(static_cast<std::int32_t>(l.generation)).i32(l.play);
     u16(w, l.travel);
     u16(w, l.scene);
+    // The level goes as one signed byte, -1 for none.
     w.u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(l.world.level)))
         .u8(l.world.revive ? 1 : 0);
     u16(w, l.world.next_net);
@@ -53,6 +58,7 @@ Bytes encode_ledger(const Ledger& l) {
     put_keys(w, l.world.spared);
     u16(w, static_cast<std::uint16_t>(l.world.spawned.size()));
 
+    // Each spawned moby goes out as its net id, class, position and yaw.
     for (const LedgerMoby& m : l.world.spawned) {
         u16(w, m.net);
         u16(w, static_cast<std::uint16_t>(static_cast<std::int16_t>(m.oclass)));
@@ -64,6 +70,7 @@ Bytes encode_ledger(const Ledger& l) {
 }
 
 bool decode_ledger(const Bytes& bytes, Ledger& out) {
+    // A header of another kind or version is not a ledger.
     if (bytes.size() < 2 || bytes[0] != kind::kLedger || bytes[1] != kLedgerVersion) {
         return false;
     }
@@ -88,6 +95,7 @@ bool decode_ledger(const Bytes& bytes, Ledger& out) {
         return false;
     }
 
+    // Each spawned moby is its net id, class, position and yaw.
     for (std::size_t i = 0; i < count && r.ok(); ++i) {
         LedgerMoby m;
         m.net = u16(r);
@@ -97,6 +105,7 @@ bool decode_ledger(const Bytes& bytes, Ledger& out) {
         l.world.spawned.push_back(m);
     }
 
+    // A cut message is no ledger.
     if (!r.ok()) {
         return false;
     }
@@ -106,6 +115,7 @@ bool decode_ledger(const Bytes& bytes, Ledger& out) {
 }
 
 bool ledger_newer(const Ledger& a, const Ledger& b) {
+    // The epochs are 16-bit counters that wrap, so the signed difference says which is later.
     return a.epoch != b.epoch
                ? static_cast<std::int16_t>(static_cast<std::uint16_t>(a.epoch - b.epoch)) > 0
                : a.generation > b.generation;
@@ -114,6 +124,7 @@ bool ledger_newer(const Ledger& a, const Ledger& b) {
 std::vector<std::int32_t> successor_order(std::vector<Candidate> candidates) {
     // What a link is worth: a known round trip, and more of it for one that has only TCP.
     const auto cost = [](const Candidate& c) {
+        // Milliseconds: 5000 for a round trip not measured yet, 100 more for TCP only.
         return (c.link.ping_ms >= 0 ? c.link.ping_ms : 5000) + (c.link.udp ? 0 : 100);
     };
 
@@ -154,33 +165,40 @@ Migrate::Migrate(
       cosave_(cosave),
       cam_(cam),
       clock_(std::move(clock)) {
+    // A test passes its own clock; the game uses the wall clock.
     if (!clock_) {
         clock_ = now_ms;
     }
 }
 
 void Migrate::handle(std::int32_t sender, const Bytes& bytes) {
+    // A message from outside a party is not for it.
     if (bytes.empty() || !session_.in_party()) {
         return;
     }
 
     const bool from_host = session_.role().from_host(sender);
 
+    // The host names who follows it, in order.
     if (bytes[0] == kind::kSuccessor && from_host) {
         Reader r(bytes.data() + 1, bytes.size() - 1);
         const std::uint8_t count = r.u8();
         std::vector<std::int32_t> next;
 
+        // The ids come as a count and then each id.
         for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
             next.push_back(r.i32());
         }
 
+        // A cut list changes nothing.
         if (r.ok()) {
             next_ = std::move(next);
         }
     } else if (bytes[0] == kind::kLedger) {
+        // A ledger comes from the host, or from a member this game asked.
         Ledger heard;
 
+        // A ledger that does not decode is dropped.
         if (!decode_ledger(bytes, heard)) {
             return;
         }
@@ -192,10 +210,12 @@ void Migrate::handle(std::int32_t sender, const Bytes& bytes) {
         const bool answer = !from_host && gather_ms_ != 0 && asked_.count(sender) != 0
                             && answered_.count(sender) == 0;
 
+        // A ledger from anyone else is refused.
         if (!from_host && !answer) {
             return;
         }
 
+        // Each member answers once.
         if (answer) {
             answered_.insert(sender);
         }
@@ -207,11 +227,13 @@ void Migrate::handle(std::int32_t sender, const Bytes& bytes) {
             ledger_ = std::move(heard);
         }
     } else if (bytes[0] == kind::kLedgerAsk && from_host) {
+        // A new host asks for the ledgers: the answer goes to it.
         session_.send_data(session_.host(), encode_ledger(ledger_));
     }
 }
 
 std::string Migrate::name_of(std::int32_t member) const {
+    // The member is found by id.
     for (const Member& m : session_.members()) {
         if (m.id == member) {
             return m.name;
@@ -222,6 +244,7 @@ std::string Migrate::name_of(std::int32_t member) const {
 }
 
 void Migrate::clear() {
+    // The hold is lifted only when this object put it on.
     if (host_gone_ms_ != 0 || stand_ms_ != 0) {
         coop_.hold_for_host(false);
     }
@@ -240,6 +263,7 @@ void Migrate::clear() {
 }
 
 void Migrate::leaving() {
+    // A host with someone to follow it says the ledger as it leaves.
     if (session_.is_host() && !named_.empty()) {
         send_ledger(clock_());
     }
@@ -259,9 +283,12 @@ void Migrate::host_changed(std::int32_t host, std::uint64_t now) {
     progress_.again();
     shared_.again();
 
+    // This game is the host the session named.
     if (host == session_.id()) {
         log("the party's host is gone: this game is next");
 
+        // A game that cannot host (a joiner, one in the title, no ledger) declines, and the next is
+        // asked.
         if (!coop_.can_take_over()) {
             log("this game cannot carry it on: the next one is asked");
             coop_.hold_for_host(true);
@@ -279,6 +306,7 @@ void Migrate::host_changed(std::int32_t host, std::uint64_t now) {
         answered_.clear();
         asked_.clear();
 
+        // Every other member is asked for its ledger.
         for (const Member& m : session_.members()) {
             if (m.id != session_.id()) {
                 asked_.insert(m.id);
@@ -309,6 +337,7 @@ void Migrate::finish_gather(std::uint64_t now) {
 
     Bytes save = cosave_.slot() >= 0 ? game_.card_read(cosave_.slot()) : Bytes{};
 
+    // A save this game cannot use is left out.
     if (!save.empty() && !game_.save_usable(save)) {
         save.clear();
     }
@@ -327,6 +356,7 @@ void Migrate::finish_gather(std::uint64_t now) {
 }
 
 void Migrate::take(const PartyEvent& event, std::uint64_t now) {
+    // Each kind of event the session reports.
     switch (event.kind) {
         case PartyEvent::Kind::kDropped:
             log("connection lost: keeping this game's place in the party");
@@ -336,6 +366,7 @@ void Migrate::take(const PartyEvent& event, std::uint64_t now) {
             progress_.again();
             shared_.again();
 
+            // The host's own game brings its world back; a member comes in again.
             if (session_.role().host()) {
                 world_.host_back();
             } else {
@@ -354,10 +385,12 @@ void Migrate::take(const PartyEvent& event, std::uint64_t now) {
         case PartyEvent::Kind::kAway:
             log(name_of(event.id) + "'s connection dropped");
 
+            // The host's connection starts the wait; a member's matters to the host alone.
             if (session_.role().from_host(event.id)) {
                 host_gone_ms_ = now;
                 coop_.hold_for_host(true);
             } else if (session_.role().host()) {
+                // A member's connection dropped: the host marks its place in the world.
                 world_.member_away(event.id);
                 named_ms_ = 0;
             }
@@ -366,11 +399,14 @@ void Migrate::take(const PartyEvent& event, std::uint64_t now) {
         case PartyEvent::Kind::kBack:
             log(name_of(event.id) + " is back");
 
+            // The host coming back ends the wait; a member coming back is the host's to bring up to
+            // date.
             if (session_.role().from_host(event.id)) {
                 host_gone_ms_ = 0;
                 coop_.hold_for_host(false);
                 world_.rejoined();
             } else if (session_.role().host()) {
+                // A member is back: the host brings it up to date.
                 coop_.member_back(event.id);
                 world_.member_back(event.id);
                 progress_.again();
@@ -397,6 +433,7 @@ void Migrate::send_ledger(std::uint64_t now) {
     l.world = world_.ledger();
     const std::size_t members = session_.members().size();
 
+    // Nothing changed since the last one, so nothing is sent.
     if (encode_ledger(l) == ledger_said_ && members == ledger_members_) {
         return;
     }
@@ -410,14 +447,17 @@ void Migrate::send_ledger(std::uint64_t now) {
 }
 
 void Migrate::tick_host(std::uint64_t now) {
+    // The ledger is only for a game that is on.
     if (!coop_.playing()) {
         return;
     }
 
+    // The ledger goes while the world is hosted and no one is arriving, at most every kLedgerMs.
     if (world_.hosting() && !coop_.arriving() && now - ledger_ms_ >= kLedgerMs) {
         send_ledger(now);
     }
 
+    // Successors are named only when a change of host is possible, at most every kSuccessorMs.
     if (!session_.can_change_host() || now - named_ms_ < kSuccessorMs) {
         return;
     }
@@ -425,6 +465,7 @@ void Migrate::tick_host(std::uint64_t now) {
     named_ms_ = now;
     std::vector<Candidate> candidates;
 
+    // Candidates are the other members who are here, not being kicked, may play and hold the world.
     for (const Member& m : session_.members()) {
         if (m.id != session_.id() && !session_.away(m.id) && !session_.kicking(m.id)
             && mods_.may_play(m.id) && world_.has_world(m.id)) {
@@ -434,6 +475,7 @@ void Migrate::tick_host(std::uint64_t now) {
 
     const std::vector<std::int32_t> order = successor_order(std::move(candidates));
 
+    // A list that did not change is not sent again.
     if (order == named_) {
         return;
     }
@@ -463,6 +505,7 @@ void Migrate::tick_stand(std::uint64_t now) {
 }
 
 void Migrate::tick(std::uint64_t now) {
+    // Outside a party nothing is kept.
     if (!session_.in_party()) {
         clear();
         was_host_ = false;
@@ -470,6 +513,7 @@ void Migrate::tick(std::uint64_t now) {
         return;
     }
 
+    // The events come in the order they happened.
     for (const PartyEvent& event : session_.take_events()) {
         take(event, now);
     }
@@ -478,6 +522,7 @@ void Migrate::tick(std::uint64_t now) {
     old_host_ = session_.host();
 
     // Everyone it asked answered, or it has given them long enough.
+    // A new host is waiting for the ledgers.
     if (gather_ms_ != 0) {
         std::size_t others = 0;
 
@@ -489,6 +534,7 @@ void Migrate::tick(std::uint64_t now) {
             finish_gather(now);
         }
     } else if (session_.is_host() && !session_.dropped()) {
+        // A host that is still in the party names its successors and sends the ledger.
         tick_host(now);
     }
 
@@ -496,10 +542,12 @@ void Migrate::tick(std::uint64_t now) {
 }
 
 std::string Migrate::banner(std::uint64_t now) const {
+    // A dropped connection shows the reconnecting line.
     if (session_.dropped()) {
         return kDroppedLine;
     }
 
+    // With the host away, the line counts the grace down in whole seconds.
     if (host_gone_ms_ != 0) {
         const std::uint64_t waited = now - host_gone_ms_;
         const std::uint64_t left = waited < kHostGraceMs ? (kHostGraceMs - waited + 999) / 1000 : 0;
@@ -509,6 +557,7 @@ std::string Migrate::banner(std::uint64_t now) const {
                + std::to_string(left) + ")";
     }
 
+    // The line about a new host stays up for a while.
     if (now < new_host_until_) {
         return new_host_ == session_.id() ? std::string(kYouHostLine)
                                           : name_of(new_host_) + " hosts now";

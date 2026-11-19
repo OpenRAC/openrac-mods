@@ -26,6 +26,7 @@ SaveFault check_save(const Bytes& save) {
 }
 
 const char* save_fault_name(SaveFault fault) {
+    // Each fault has one word in the log.
     switch (fault) {
         case SaveFault::kNone:
             return "none";
