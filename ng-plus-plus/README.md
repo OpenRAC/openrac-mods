@@ -15,8 +15,7 @@ Install it from the launcher's **Mods** tab (**Add from a link**:
 is at its last version, the vendor sells its next tier; once that tier is levelled with experience,
 the vendor sells the next.
 
-| Level | Name | How | Price | Experience | Damage | Most ammo | Vendor's text | `rac2.text.by_id` (`func_00288FB8`): "Mega" under the tier's icon (text 0x325F, while `rac2.vendor.draw_list` draws its row) and the Mega's name in the dialog and preview become the tier's, written into the port's text slots; optional |
-| Tint |
+| Level | Name | How | Price | Experience | Damage | Most ammo | Tint |
 |---|---|---|---|---|---|---|---|
 | V5 | Alpha | bought | Mega x1.5 | | x1.25 | x1.10 | lime |
 | V6 | Beta | experience | | 8,000 | x1.50 | x1.20 | cyan |
@@ -60,7 +59,9 @@ and 9,000,000. Lancer and Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900
 - **RYNO II**: first **Heavy RYNO II** by 30,000 experience (x1.4 damage, x1.5 ammo, orange), then
   **Ultima RYNO II** at the vendor for 1,500,000 (its price 1,000,000 times 1.5; then Alpha
   2,500,000, Gamma 4,000,000, Epsilon 6,000,000, Eta 9,000,000) (x2.2 damage, x2 ammo, a black and red tint), then
-  Alpha (after 30,000 more experience) to Omega, each adding its gain to Ultima's. The RYNO II levels five times slower than the other weapons: its Beta, Delta, Zeta and Omega need 40,000, 60,000, 80,000 and 120,000 (WT_RYNO_EXP_SCALE in src/tiers.c).
+  Alpha (after 30,000 more experience) to Omega, each adding its gain to Ultima's. The RYNO II
+  levels five times slower than the other weapons: its Beta, Delta, Zeta and Omega need 40,000,
+  60,000, 80,000 and 120,000 (`kRynoExpScale` in src/tiers.h).
 
 The tier takes the place of the game's top version in the weapon's name: it goes in front of the
 game's name of the version the weapon reaches before that bought top. A four-version weapon is
@@ -69,12 +70,27 @@ named after its second version, the one before the Mega: "Beta Meteor Gun", "Alp
 Glove". The Clank Zapper after its last, "Alpha Clank Shocker"; the Sheepinator after its last by
 experience, "Alpha Black Sheepinator"; the Zodiac and the RYNO II after their one version ("Heavy
 RYNO II", "Ultima RYNO II", "Alpha RYNO II"). The names are the game's own texts, looked up from
-the item table's rows (`wt_name_version` in src/tiers.c), so each disc's language is kept. A tier reached by experience comes with the game's own level-up popup and line (as for a weapon
-levelled out of hand: func_00288508), naming the weapon at its new tier; a bought one with the
-vendor's own purchase feedback. The name shows at the top of the screen when you take a tiered
-weapon in hand, and everywhere the game prints the weapon's name: the ammo
-pickup's message, the weapons menu, the quick select and the vendor. A name text two items share is
-left as the game has it.
+the item table's rows (`name_version` in src/tiers.h), so each disc's language is kept. A tier
+reached by experience comes with the game's own level-up popup and line (as for a weapon levelled
+out of hand: func_00288508), naming the weapon at its new tier; a bought one with the vendor's own
+purchase feedback. The name shows at the top of the screen when you take a tiered weapon in hand.
+
+Everywhere the game prints a text of the weapon, the tier is named in it. The game keeps several
+finished, translated texts in each version's row of its item table, and each screen reads its own:
+
+| Row field | Where the game shows it |
+|---|---|
+| +0x08 | the name in the vendor's dialog and buy prompt, the item menus, the weapons screen's grid and the upgrade price line |
+| +0x38, +0x3A | the ammo pickup's message, for several rounds (with the count) and for one |
+| +0x42 | the pause menu's weapon panel |
+| +0x46 | the vendor's description of the weapon |
+| +0x48 | the name on the weapon wheel |
+
+The mod takes the game's own text and puts the tier's name where the version's name is ("12 Ultra
+Meteor Gun rounds" becomes "12 Beta Meteor Gun rounds"), so every language and every placeholder is
+kept; a text that does not hold the version's name, or that two weapons' rows share, is left as the
+game has it. In the vendor, "Mega" under the next tier's icon becomes the tier's name ("Alpha"), and
+the dialog and description of that entry name the weapon at the tier for sale.
 
 In the vendor's list, the next tier's entry carries that tier's tint, and the weapon's own entry
 carries the tint of the tier it has.
@@ -153,16 +169,36 @@ Through OpenRAC's rac2 hook points of SDK 1.14.6 (the addresses are NTSC-U v1.01
 | Most ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Tint | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
+| Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
+
+The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
+[coding conventions](https://github.com/OpenRAC/OpenRAC/blob/develop/port/docs/CODING_CONVENTIONS.md)):
+
+| File | What it owns |
+|---|---|
+| `src/tiers.h` | the rules alone: steps, prices, experience, damage, ammo, tints, names, the enemies' curve |
+| `src/save_book.h` | the book of saves (`tiers.txt`'s records) and which save a moved clock means |
+| `src/save_tiers.h` | the tiers in play, the clock's watch, the file, a party's levels |
+| `src/discs.h` | the game's addresses per disc (one table) and its records' layouts, the row text fields among them |
+| `src/game_view.h` | typed reads and writes of the game: rows, items, hero, vendor, save, texts and text slots |
+| `src/weapons.h` | which weapon, which row, which tier: what every other part asks |
+| `src/text.h` | the text resolver behind `rac2.text.by_id` |
+| `src/vendor.h` | the vendor's entries, prices, purchases and tints |
+| `src/experience.h` | steps by experience, the level-up, the rows' ammo and bar, the line at the top |
+| `src/combat.h` | the tiers' damage and the enemies across new games |
+| `src/ng_plus_plus.cpp` | the entry point: the disc, the state, the hooks and the tick |
+
+The tests: `ng_plus_plus_rules` (the rules and the book), `ng_plus_plus_text` (the resolver's
+substitution) and `ng_plus_plus_load` (the built library against a game of the test's own, on the
+three discs).
 
 Not yet:
 
 - The HUD's weapon icon draws its own colour and keeps the game's.
-- The vendor's upgrade entry is the game's own kind of entry: its icon is the game's. Its label and
-  name are the tier's ("Alpha" under the icon, "Alpha Heavy Lancer" as the title) with an OpenRAC that
-  has `rac2.text.by_id`; the label under the icon only on NTSC-U v1.01 (the one disc with
-  `rac2.vendor.draw_list`), and the RYNO II's and the Zodiac's titles stay the game's (the game has
-  no Mega row to name them by).
-- The weapon's name in the game's own menus is the game's; the tier's name is the line at the top.
+- The vendor's upgrade entry is the game's own kind of entry: its icon is the game's. Its label is
+  the tier's only on NTSC-U v1.01 (the one disc with `rac2.vendor.draw_list`).
+- A text longer than the port's text slot (95 characters) once the tier's name is in it stays the
+  game's.
 - Damage scales by the weapon in Ratchet's hand: a Synthenoid's or a turret's shots scale by the
   weapon held when they hit.
 - No fire rate change, and RYNO II Ultima's split volley is a follow-up: Ultima is the damage boost.
