@@ -408,7 +408,7 @@ static void presentation_tick(int phase) {
     s_visual_count = 0;
     if (phase != OPENRAC_PLAY_FRONT_END && (reward_ready() >= 0)) {
         const int mode =
-            get32(level_byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u));
+            get32(level_byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u));
         if (mode != 5) {
             vendor_restore_placement();
             s_vendor_native_item = -1;
@@ -649,7 +649,7 @@ static uint32_t message_presentation(int32_t id) {
         return original;
     }
     const char* text = (const char*)OPENRAC_G(s_api, original);
-    const uint32_t game_mode = strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u;
+    const uint32_t game_mode = strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;
     const int mode = get32(level_byte_at(game_mode));
     const int vendor_text = s_draw_vendor_details || (mode == 5 && !s_in_dialog_try);
     const int64_t location = s_vendor_initializing_location >= 0 ? s_vendor_initializing_location
