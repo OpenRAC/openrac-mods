@@ -24,27 +24,78 @@ constexpr int kLevelUpSlot = 7;      // The level-up line.
 
 static_assert(kLevelUpSlot < hooks::kTextSlots, "the port has eight slots");
 
+// Returns whether `c` is one of the game's in-text codes rather than a letter: the colours (0x08
+// the default, 0x0C a highlight, ...) and the buttons' glyphs (0x10 to 0x13), all below a space.
+// The game's messages wrap a weapon's name in them, between its words too ("Got %d Ultra
+// \x0cHeavy \x0cLancer\x08\x08 ammo"), where the row's name has none ("Ultra Heavy Lancer").
+bool is_text_code(char c) {
+    return static_cast<unsigned char>(c) < 0x20u;
+}
+
 }  // namespace
 
 std::optional<std::string> substitute(
     std::string_view message, std::string_view game_name, std::string_view tier_name
 ) {
+    // The name's own padding is no part of it: the game's names can end in a space ("Ultra
+    // Vaporizer ") that its messages do not repeat.
+    const std::size_t first = game_name.find_first_not_of(' ');
+    const std::size_t last = game_name.find_last_not_of(' ');
+
     // An empty name is in every text; it names nothing.
-    if (game_name.empty()) {
+    if (first == std::string_view::npos) {
         return std::nullopt;
     }
 
-    const std::size_t at = message.find(game_name);
+    const std::string_view name = game_name.substr(first, last - first + 1);
+
+    // Each place the name can start, in order: the first mention wins.
+    for (std::size_t at = 0; at < message.size(); ++at) {
+        // A name starts on its own first letter, never on a control byte.
+        if (message[at] != name[0]) {
+            continue;
+        }
+
+        std::size_t in_message = at;
+        std::size_t in_name = 0;
+        std::string codes;  // The control bytes met inside the name, kept in order.
+
+        // Letter by letter, stepping over the game's control bytes between them.
+        while (in_message < message.size() && in_name < name.size()) {
+            const char c = message[in_message];
+
+            // A colour or glyph code inside the name: not a letter of it, kept.
+            if (is_text_code(c) && !is_text_code(name[in_name])) {
+                codes += c;
+                ++in_message;
+                continue;
+            }
+
+            // A letter that differs: not the name here.
+            if (c != name[in_name]) {
+                break;
+            }
+
+            ++in_message;
+            ++in_name;
+        }
+
+        // Not the whole name from here.
+        if (in_name < name.size()) {
+            continue;
+        }
+
+        // The codes first, so a colour opened inside the name now opens before the tier's name
+        // and every code the game closes later still has its opener.
+        std::string out(message.substr(0, at));
+        out += codes;
+        out += tier_name;
+        out += message.substr(in_message);
+        return out;
+    }
 
     // The text does not name the version as its row does.
-    if (at == std::string_view::npos) {
-        return std::nullopt;
-    }
-
-    std::string out(message.substr(0, at));
-    out += tier_name;
-    out += message.substr(at + game_name.size());
-    return out;
+    return std::nullopt;
 }
 
 std::optional<std::string> retell(

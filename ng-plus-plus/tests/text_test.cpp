@@ -41,6 +41,33 @@ void test_a_message_keeps_its_placeholders() {
     );
 }
 
+// Checks the game's own messages: the name wrapped in colour codes, between its words too, and a
+// name that ends in a space its message does not repeat (the English disc's texts).
+void test_the_games_codes_inside_the_name() {
+    CHECK(
+        substitute("Got %d Ultra \x0cHeavy \x0cLancer\x08\x08 ammo", "Ultra Heavy Lancer",
+                   "Beta Heavy Lancer")
+        == "Got %d \x0c\x0c" "Beta Heavy Lancer\x08\x08 ammo"
+    );
+    CHECK(
+        substitute("Got %d Ultra \x0cMeteor Gun\x08 ammo", "Ultra Meteor Gun", "Beta Meteor Gun")
+        == "Got %d \x0c" "Beta Meteor Gun\x08 ammo"
+    );
+    CHECK(
+        substitute("Got %d Ultra \x0cVaporizer\x08 ammo", "Ultra Vaporizer ", "Beta Vaporizer")
+        == "Got %d \x0c" "Beta Vaporizer\x08 ammo"
+    );
+    CHECK(
+        substitute("Got %d \x0cUltra Megaturret \x08" "ammo", "Ultra Megaturret ",
+                   "Beta Megaturret Glove")
+        == "Got %d \x0c" "Beta Megaturret Glove \x08" "ammo"
+    );
+    // A code never starts the name, and a name that is not there stays not there.
+    CHECK(!substitute("Got %d Ultra \x0cMegarocket Cannon\x08 ammo", "Ultra Mega Rocket", "Beta"));
+    CHECK(!substitute("Ultra\x0c", "Ultra Lancer", "Beta Lancer"));
+    CHECK(!substitute("Mega Lancer", "   ", "Alpha"));
+}
+
 // Checks that only the first mention is replaced.
 void test_only_the_first_mention_is_replaced() {
     CHECK(substitute("Lancer, Lancer", "Lancer", "Alpha Lancer") == "Alpha Lancer, Lancer");
@@ -82,6 +109,7 @@ void test_a_result_too_long_is_left_alone() {
 int main() try {
     test_a_name_becomes_the_tiers_name();
     test_a_message_keeps_its_placeholders();
+    test_the_games_codes_inside_the_name();
     test_only_the_first_mention_is_replaced();
     test_a_message_without_the_name_is_left_alone();
     test_the_longest_name_wins();

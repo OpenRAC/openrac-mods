@@ -34,7 +34,10 @@
 namespace ng_plus_plus {
 
 // Returns `message` with its first `game_name` replaced by `tier_name`, or none when `game_name`
-// is empty or not in it. Pure: the resolver's one substitution.
+// is empty or not in it. The name is matched without its own leading and trailing spaces and
+// through the game's in-text codes (bytes below a space: colours, button glyphs) in the message,
+// which the game puts around and inside a name ("Got %d Ultra \x0cHeavy \x0cLancer\x08\x08
+// ammo"); the codes met inside it go before the tier's name. Pure: the resolver's one substitution.
 std::optional<std::string> substitute(
     std::string_view message, std::string_view game_name, std::string_view tier_name
 );

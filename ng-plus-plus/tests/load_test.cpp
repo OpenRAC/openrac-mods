@@ -86,6 +86,8 @@ constexpr std::int32_t kRynoLabelText = 0x5555;    // "RYNO II": the RYNO II's v
 constexpr std::int32_t kAmmoManyText = 0x2001;     // "%d Mega Lancer rounds".
 constexpr std::int32_t kAmmoOneText = 0x2002;      // "1 Mega Lancer round".
 constexpr std::int32_t kAmmoFullText = 0x2003;     // "Ammo full": names no weapon.
+// The game's own shape of the message: the name in colour codes, between its words too.
+constexpr std::int32_t kAmmoCodedText = 0x2004;    // "Got %d \x0cMega \x0cLancer\x08\x08 ammo".
 
 // The ammo pickup's fields of a row (src/discs.h, kRowTextFields).
 constexpr std::uint32_t kRowAmmoMany = 0x38u;
@@ -230,6 +232,8 @@ std::int32_t game_text(std::int32_t id) {
             return static_cast<std::int32_t>(kTextAt + 0x440);
         case kAmmoFullText:
             return static_cast<std::int32_t>(kTextAt + 0x480);
+        case kAmmoCodedText:
+            return static_cast<std::int32_t>(kTextAt + 0x4C0);
         // No such text.
         default:
             return 0;
@@ -491,6 +495,7 @@ void lay_out_game() {
     put_string(kTextAt + 0x400, "%d Mega Lancer rounds");
     put_string(kTextAt + 0x440, "1 Mega Lancer round");
     put_string(kTextAt + 0x480, "Ammo full");
+    put_string(kTextAt + 0x4C0, "Got %d \x0cMega \x0cLancer\x08\x08 ammo");
     put_string(kMegaAt, "Mega");
     set<std::int16_t>(row(kRyno) + kRowName, kRynoText);
     g_memory[g_disc->owned + kRyno] = 1;
@@ -675,6 +680,13 @@ void test_beta_by_experience() {
     set<std::int16_t>(row(kLancerV4) + kRowAmmoOne, kAmmoFullText);
     CHECK(ammo_message(kLancer, 1) == "Ammo full");
     set<std::int16_t>(row(kLancerV4) + kRowAmmoOne, kAmmoOneText);
+    // The game's messages wrap the name in colour codes, between its words too ("Got %d Ultra
+    // \x0cHeavy \x0cLancer\x08\x08 ammo" for "Ultra Heavy Lancer"); 0.2.0 looked for the name
+    // as one run of letters, found none and left the game's "Ultra". The tier's name takes its
+    // place, the codes kept before it so each closing code still has its opener.
+    set<std::int16_t>(row(kLancerV4) + kRowAmmoMany, kAmmoCodedText);
+    CHECK(ammo_message(kLancer, 12) == "Got %d \x0c\x0c" "Beta Heavy Lancer\x08\x08 ammo");
+    set<std::int16_t>(row(kLancerV4) + kRowAmmoMany, kAmmoManyText);
     CHECK(experience(kLancer) == 0);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(get<std::int32_t>(row(kLancerV4) + kRowExpGoal) == 0);  // Gamma is for sale at once

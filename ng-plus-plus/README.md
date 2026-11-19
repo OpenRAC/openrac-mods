@@ -88,8 +88,11 @@ finished, translated texts in each version's row of its item table, and each scr
 
 The mod takes the game's own text and puts the tier's name where the version's name is ("12 Ultra
 Meteor Gun rounds" becomes "12 Beta Meteor Gun rounds"), so every language and every placeholder is
-kept; a text that does not hold the version's name, or that two weapons' rows share, is left as the
-game has it. In the vendor, "Mega" under the next tier's icon becomes the tier's name ("Alpha"), and
+kept. The game's messages wrap the name in colour codes, between its words too ("Got 12 Ultra
+<code>Heavy <code>Lancer<code><code> ammo"), and a name can end in a space its messages do not
+repeat: the name is matched through both, and the codes stay with the tier's name. A text that does
+not hold the version's name, or that two weapons' rows share, is left as the game has it (the Mega
+Rocket's "Ultra Megarocket Cannon" ammo message, whose row calls it "Ultra Mega Rocket"). In the vendor, "Mega" under the next tier's icon becomes the tier's name ("Alpha"), and
 the dialog and description of that entry name the weapon at the tier for sale.
 
 In the vendor's list, the next tier's entry carries that tier's tint, and the weapon's own entry
