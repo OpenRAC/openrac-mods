@@ -352,8 +352,7 @@ void Connection::send(Bytes frame) {
 }
 
 bool Connection::state_needs_tcp(std::size_t bytes) const {
-    return mode_ != Mode::kHosting
-           && !(udp() && kClientStateHeader + bytes <= kMaxDatagramBytes);
+    return mode_ != Mode::kHosting && !(udp() && kClientStateHeader + bytes <= kMaxDatagramBytes);
 }
 
 void Connection::send_state(std::int32_t target, const Bytes& bytes, bool tcp) {
@@ -398,7 +397,12 @@ std::vector<Message> Connection::receive() {
         if (lag != nullptr && std::sscanf(lag, "%lf,%lf", &lag_ms_, &lag_jitter_ms_) >= 1) {
             lag_ms_ = std::max(0.0, lag_ms_);
             lag_jitter_ms_ = std::max(0.0, lag_jitter_ms_);
-            std::fprintf(stderr, "multiplayer: OPENRAC_MP_LAG: %.0f ms more, jitter %.0f ms\n", lag_ms_, lag_jitter_ms_);
+            std::fprintf(
+                stderr,
+                "multiplayer: OPENRAC_MP_LAG: %.0f ms more, jitter %.0f ms\n",
+                lag_ms_,
+                lag_jitter_ms_
+            );
         }
     }
 
@@ -648,9 +652,8 @@ bool parse_address(const std::string& text, std::string& host, int& port) {
 
         host = rest.substr(1, close - 1);
         port_text = close + 1 < rest.size() && rest[close + 1] == ':' ? rest.substr(close + 2) : "";
-    } else if (
-        const auto colon = rest.rfind(':'); colon != std::string::npos && rest.find(':') == colon
-    ) {
+    } else if (const auto colon = rest.rfind(':');
+               colon != std::string::npos && rest.find(':') == colon) {
         // "host:port": one colon (more is a bare IPv6 address).
         host = rest.substr(0, colon);
         port_text = rest.substr(colon + 1);

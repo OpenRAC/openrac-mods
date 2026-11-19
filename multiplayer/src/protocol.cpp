@@ -176,9 +176,10 @@ void FrameReader::reset() {
 }
 
 bool valid_key(const std::string& key) {
-    return !key.empty() && key.size() <= kMaxKeyLength && std::all_of(key.begin(), key.end(), [](char c) {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-    });
+    return !key.empty() && key.size() <= kMaxKeyLength
+           && std::all_of(key.begin(), key.end(), [](char c) {
+                  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+              });
 }
 
 Bytes hello(const std::string& version, const std::string& name, std::uint8_t features) {
@@ -446,7 +447,9 @@ Bytes hello_reply(std::int32_t session) {
     return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).i32(session).bytes());
 }
 
-Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features, std::int64_t resume_token) {
+Bytes udp_offer(
+    std::int64_t token, std::int32_t port, std::uint8_t features, std::int64_t resume_token
+) {
     return frame(
         Writer()
             .u8(static_cast<std::uint8_t>(PacketId::kUdp))
@@ -636,6 +639,7 @@ Request decode_request(const Bytes& body) {
                 default:
                     break;
             }
+
             break;
         default:
             // ERROR and UDP are the server's, and any other id is unknown.

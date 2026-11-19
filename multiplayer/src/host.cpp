@@ -824,7 +824,9 @@ void Host::hello(Peer& peer, const Request& q) {
 
     // A client may add UDP for its state; the local game has no need.
     if (udp_ok_ && !peer.local) {
-        send_to(peer, udp_offer(peer.token, port_, kFeatureKick | kFeatureResume, peer.resume_token));
+        send_to(
+            peer, udp_offer(peer.token, port_, kFeatureKick | kFeatureResume, peer.resume_token)
+        );
     }
 
     peer.resumes = (q.features & kClientResumes) != 0;
@@ -845,7 +847,8 @@ void Host::hello(Peer& peer, const Request& q) {
     peer.in_party = true;
     party_.assign(1, &peer);
     send_to(
-        peer, party_info(kDirectCode, peer.id, {peer.member()}, description_text(config_.description))
+        peer,
+        party_info(kDirectCode, peer.id, {peer.member()}, description_text(config_.description))
     );
 
     for (auto& p : peers_) {
@@ -906,7 +909,9 @@ Bytes Host::info() const {
         away.push_back(slot.member.id);
     }
 
-    return party_info(kDirectCode, party_.front()->id, members, description_text(config_.description), 0, away);
+    return party_info(
+        kDirectCode, party_.front()->id, members, description_text(config_.description), 0, away
+    );
 }
 
 void Host::resume(Peer& peer, const Request& q) {

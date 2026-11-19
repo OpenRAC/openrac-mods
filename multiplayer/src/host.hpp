@@ -151,12 +151,14 @@ private:
     Peer* local_ = nullptr;
     /* The party: the host (the local game once greeted) first, then the members as they joined. */
     std::vector<Peer*> party_;
+
     /* A member whose connection dropped: its slot, for it to come back to (migrate.hpp). */
     struct Slot {
         Member member;
         std::int64_t token = 0;
         std::int64_t dropped_ns = 0;
     };
+
     std::vector<Slot> slots_;
     std::int32_t next_id_ = 1;
     std::int64_t started_ns_ = 0;

@@ -7,12 +7,12 @@
  */
 #include "session.hpp"
 
-#include "party_mods.hpp"
-
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <utility>
+
+#include "party_mods.hpp"
 
 namespace mp {
 namespace {
@@ -120,7 +120,10 @@ Bytes Session::stamped(const Bytes& bytes) const {
     }
 
     Writer w;
-    w.u8(kind::kEpoch).u8(static_cast<std::uint8_t>(role_.epoch() >> 8)).u8(static_cast<std::uint8_t>(role_.epoch())).raw(bytes);
+    w.u8(kind::kEpoch)
+        .u8(static_cast<std::uint8_t>(role_.epoch() >> 8))
+        .u8(static_cast<std::uint8_t>(role_.epoch()))
+        .raw(bytes);
     return w.bytes();
 }
 
@@ -218,7 +221,13 @@ bool Session::kick(std::int32_t member, KickReason reason) {
         return false;
     }
 
-    send_lobby(member, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kKick)).u8(static_cast<std::uint8_t>(reason)).bytes());
+    send_lobby(
+        member,
+        Writer()
+            .u8(static_cast<std::uint8_t>(LobbyKind::kKick))
+            .u8(static_cast<std::uint8_t>(reason))
+            .bytes()
+    );
 
     // An embedded host always takes it; of a server, its offer says.
     if (server_kicks_ || direct()) {
@@ -235,7 +244,10 @@ void Session::toggle_ready() {
     }
 
     const bool now = !ready(id_);
-    send_lobby(role_.host_id(), Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes());
+    send_lobby(
+        role_.host_id(),
+        Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes()
+    );
 
     // Shown at once; the host's STATE confirms it.
     if (now) {
@@ -248,7 +260,8 @@ void Session::toggle_ready() {
 bool Session::all_ready() const {
     // Out of a party nobody is; in one, each member but the host.
     return in_party() && std::all_of(members_.begin(), members_.end(), [&](const Member& m) {
-               return m.id == role_.host_id() || (ready(m.id) && (!is_host() || !ready_gate_ || ready_gate_(m.id)));
+               return m.id == role_.host_id()
+                      || (ready(m.id) && (!is_host() || !ready_gate_ || ready_gate_(m.id)));
            });
 }
 
@@ -371,7 +384,9 @@ void Session::flush() {
         Writer w;
         w.u8(static_cast<std::uint8_t>(LobbyKind::kBatch));
         const auto put = [&w](const Bytes& b) {
-            w.u8(static_cast<std::uint8_t>(b.size() >> 8)).u8(static_cast<std::uint8_t>(b.size())).raw(b);
+            w.u8(static_cast<std::uint8_t>(b.size() >> 8))
+                .u8(static_cast<std::uint8_t>(b.size()))
+                .raw(b);
         };
         put(one);
 
@@ -695,8 +710,9 @@ void Session::take_data(const Message& m) {
         }
     } else if (kind == LobbyKind::kKick && m.id == role_.host_id() && !is_host()) {
         // The host's word on why; the server's KICKED does the rest, or there is none to.
-        const auto reason = r.u8() == static_cast<std::uint8_t>(KickReason::kBanned) ? KickReason::kBanned
-                                                                                      : KickReason::kRemoved;
+        const auto reason = r.u8() == static_cast<std::uint8_t>(KickReason::kBanned)
+                                ? KickReason::kBanned
+                                : KickReason::kRemoved;
 
         if (!r.ok()) {
             return;
@@ -802,7 +818,9 @@ const char* error_text(ErrorReason reason) {
 
 const char* other_game_text(const std::string& own, const std::string& theirs) {
     // A family's game is its first word: "rac1-60-1", "rac2-pal-1".
-    const auto game = [](const std::string& family) { return family.substr(0, family.find('-')); };
+    const auto game = [](const std::string& family) {
+        return family.substr(0, family.find('-'));
+    };
     const std::string host = game(theirs);
 
     if (host != game(own) && host == kGameRac1) {

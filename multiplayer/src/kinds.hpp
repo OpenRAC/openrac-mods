@@ -251,7 +251,8 @@ static_assert(kinds_unique(), "two wire kinds share a value (kinds.hpp)");
 /* Where a received DATA goes: the handler each owner registered, else the fallback. */
 class Router {
 public:
-    using Handler = std::function<void(std::int32_t sender, const std::vector<std::uint8_t>& bytes)>;
+    using Handler =
+        std::function<void(std::int32_t sender, const std::vector<std::uint8_t>& bytes)>;
 
     Router() : handlers_(static_cast<std::size_t>(Owner::kCount)) {}
 
@@ -259,7 +260,9 @@ public:
     void fallback(Handler handler) { fallback_ = std::move(handler); }
 
     /* The owner's handler; it gets every kind the table gives the owner. */
-    void route(Owner owner, Handler handler) { handlers_[static_cast<std::size_t>(owner)] = std::move(handler); }
+    void route(Owner owner, Handler handler) {
+        handlers_[static_cast<std::size_t>(owner)] = std::move(handler);
+    }
 
     /* Which owner a DATA goes to, or kCount for the fallback. */
     Owner target(const std::vector<std::uint8_t>& bytes) const {
@@ -268,7 +271,8 @@ public:
         }
 
         const Owner owner = owner_of(bytes[0]);
-        return owner != Owner::kCount && handlers_[static_cast<std::size_t>(owner)] ? owner : Owner::kCount;
+        return owner != Owner::kCount && handlers_[static_cast<std::size_t>(owner)] ? owner
+                                                                                    : Owner::kCount;
     }
 
     void dispatch(std::int32_t sender, const std::vector<std::uint8_t>& bytes) const {

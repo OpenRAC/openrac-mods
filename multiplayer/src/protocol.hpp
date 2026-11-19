@@ -193,7 +193,9 @@ private:
  * the server keeps each party to its host's family, lists and finds only the asker's, and refuses a
  * join into another's with kOtherGame. A server from before families stops reading before it, and
  * takes a request without one for Ratchet & Clank's. */
-Bytes hello(const std::string& version, const std::string& name, std::uint8_t features = kClientResumes);
+Bytes hello(
+    const std::string& version, const std::string& name, std::uint8_t features = kClientResumes
+);
 Bytes party_create(const std::string& description = "", const std::string& family = "");
 Bytes party_list(const std::string& family = "");
 Bytes party_find(const std::string& family = "");

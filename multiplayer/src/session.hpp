@@ -82,10 +82,10 @@ enum class KickReason : std::uint8_t {
 /* What happened to the party that the session cannot deal with by itself. */
 struct PartyEvent {
     enum class Kind {
-        kAway,      // a member's connection dropped, its slot waits
-        kBack,      // it came back
-        kDropped,   // this game's connection went
-        kResumed,   // this game has its slot again
+        kAway,        // a member's connection dropped, its slot waits
+        kBack,        // it came back
+        kDropped,     // this game's connection went
+        kResumed,     // this game has its slot again
         kHostChanged  // someone else hosts now (`id`, this game among them)
     };
     Kind kind = Kind::kAway;
@@ -96,7 +96,9 @@ struct PartyEvent {
 class Pacer {
 public:
     Pacer(double capacity, double per_second)
-        : capacity_(capacity), per_ms_(per_second / 1000.0), tokens_(capacity) {}
+        : capacity_(capacity),
+          per_ms_(per_second / 1000.0),
+          tokens_(capacity) {}
 
     /* The tokens there are now. */
     double level(std::uint64_t now);
@@ -187,13 +189,17 @@ public:
     /* The host takes `member` out of the party. False when it cannot: not the host, or no such
      * member, or the host itself, or already asked. */
     bool kick(std::int32_t member, KickReason reason = KickReason::kRemoved);
+
     /* Whether the host asked `member` out and it has not gone yet: it gets no game meanwhile. */
     bool kicking(std::int32_t member) const { return kicking_.count(member) != 0; }
+
     void toggle_ready();
+
     /* Who may say Ready (party_mods.hpp: a member whose mods match the host's); none set: anyone. A
      * host takes no Ready of one that may not, and it does not count as ready; a member's own
      * toggle does nothing. */
     void set_ready_gate(std::function<bool(std::int32_t)> gate) { ready_gate_ = std::move(gate); }
+
     /* The host starts the game for everyone, once, and only when all_ready(). Returns whether it
      * did. */
     bool start();
@@ -290,6 +296,7 @@ public:
      * server lists and finds only parties of it, and refuses a join into another. Empty: none said,
      * which the server takes for Ratchet & Clank's. */
     void set_family(std::string family) { family_ = std::move(family); }
+
     const std::string& family() const { return family_; }
 
     /* The server's refusal of a join into another game's party (kOtherGame), in the words of
@@ -321,6 +328,7 @@ private:
     const std::string version_;
     const std::string name_;
     std::int32_t id_ = 0;
+
     /* What waits for the bucket, in order: each message and its target. */
     struct Queued {
         std::int32_t target = 0;
@@ -343,7 +351,7 @@ private:
     std::map<std::int32_t, Link> links_;
     bool started_ = false;
     bool waiting_ = false;
-    bool server_kicks_ = false;  // the server said it takes KICK
+    bool server_kicks_ = false;    // the server said it takes KICK
     bool server_resumes_ = false;  // the server said it takes RESUME
     std::int64_t resume_token_ = 0;
     bool dropped_ = false;       // the connection went, the party stands
