@@ -270,7 +270,7 @@ const rando_location rando_locations[] = {
         ITEM_HYDRODISPLACER,
         14,
         0,
-        WALK | TRESP,
+        TRESP,
         0
     ),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, WALK, 0),
