@@ -37,4 +37,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("difficulty", "1.5.0", load)
+OPENRAC_MOD_CPP("difficulty", "1.5.1", load)
