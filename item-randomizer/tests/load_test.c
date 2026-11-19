@@ -921,7 +921,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.0") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.3") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -1792,6 +1792,17 @@ int main(int argc, char** argv) {
             set32(s_memory + D->level, LEVEL_NOVALIS);
             s_frame(NULL);
             CHECK(get32(s_memory + challenge) == enabled);
+            if (enabled) {
+                CHECK(strcmp(s_notice, "Item randomizer: New Game+ enabled") == 0);
+                const int duration = disc == 0 ? 150 : 180;
+                // Expiration continues outside gameplay, without re-enabling NG+.
+                set32(s_memory + D->level, -1);
+                for (int tick = 0; tick < duration - 1; ++tick) s_frame(NULL);
+                CHECK(s_notice[0] != 0);
+                s_frame(NULL);
+                CHECK(s_notice[0] == 0);
+                set32(s_memory + D->level, LEVEL_NOVALIS);
+            }
             CHECK(s_memory[D->owned + ITEM_RYNO] == 0);
             CHECK(get32(s_memory + D->level + 0x9Cu) == 0); /* no postgame shop flag */
             set32(s_memory + challenge, 1);
