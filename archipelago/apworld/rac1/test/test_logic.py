@@ -381,6 +381,23 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_rilgar_salesman_requires_only_heli_pack(self) -> None:
+        self.collect_by_name("Rilgar Coordinates")
+        self.assertFalse(self.can_reach_location("Rilgar: the shady salesman"))
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Rilgar: the shady salesman"))
+
+    def test_rilgar_bouncer_does_not_require_hoverboard(self) -> None:
+        self.collect_by_name(["Rilgar Coordinates", "Heli-Pack", "Swingshot"])
+        self.assertTrue(self.can_reach_location("Rilgar: the bouncer, the coordinates of Umbris"))
+
+    def test_rilgar_race_does_not_require_swingshot(self) -> None:
+        self.collect_by_name(["Rilgar Coordinates", "Heli-Pack"])
+        self.assertFalse(self.can_reach_location("Rilgar: the Hoverboard race"))
+        # Items-menu shuffle defaults off, so Hoverboard may be a locked reward.
+        self.collect(self.world.create_item("Hoverboard"))
+        self.assertTrue(self.can_reach_location("Rilgar: the Hoverboard race"))
+
     def test_eudora_warp_pad_requires_only_heli_pack(self) -> None:
         self.collect_by_name("Eudora Coordinates")
         self.assertFalse(self.can_reach_location("Eudora: the warp pad"))

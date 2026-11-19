@@ -290,14 +290,14 @@ const rando_location rando_locations[] = {
     // Rilgar: "You need a Hoverboard to race", "Bribe Bouncer with 4,000 bolts"; "Purchase the
     // R.Y.N.O." for 150,000 bolts.
     VENDOR("Rilgar: the vendor's Mine Glove", LEVEL_RILGAR, ITEM_MINE_GLOVE, 18, LOCF_PRICEY),
-    GIVE_W("Rilgar: the shady salesman", LEVEL_RILGAR, ITEM_RYNO, 18, LOCF_COSTLY, WALK, 0),
+    GIVE_W("Rilgar: the shady salesman", LEVEL_RILGAR, ITEM_RYNO, 18, LOCF_COSTLY, HELI, 0),
     FIXED(
         "Rilgar: the bouncer, the coordinates of Umbris",
         LEVEL_RILGAR,
         PLANET(LEVEL_UMBRIS),
         19,
         0,
-        HOVER | WALK,
+        WALK,
         0
     ),
     GOLDBOLT("Rilgar: gold bolt 1", LEVEL_RILGAR, 0, 20),
@@ -615,7 +615,7 @@ const rando_location rando_locations[] = {
      0},
 #endif
     {"Rilgar: the Hoverboard race", LOC_SPECIAL, LEVEL_RILGAR, 0, POOL_ITEMS,
-     {REWARD_SPECIAL, SPECIAL_ZOOMERATOR}, 16, 0, HOVER | WALK, 0, 0, 0},
+     {REWARD_SPECIAL, SPECIAL_ZOOMERATOR}, 16, 0, HOVER | HELI, 0, 0, 0},
     {"Hoven: the Foreman's Raritanium", LOC_SPECIAL, LEVEL_HOVEN, 1, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, HYDROPACK | WALK, 0, 0, 0},
     {"Drek's Fleet: the CodeBot", LOC_SPECIAL, LEVEL_FLEET, 2, POOL_ITEMS,
