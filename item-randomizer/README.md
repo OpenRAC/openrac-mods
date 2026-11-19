@@ -429,7 +429,7 @@ Zoomerator for Skid's agent, Raritanium for the trade and CodeBot for Quartu vau
 (conservatively required for both Quartu Gold Bolts).
 
 Collection checks are stored through OpenRAC interface 1.16's save-scoped mod data,
-separately from inventory. Keep the `.moddata` sidecar with the game save. New RAC1
+separately from inventory, in the same record as the gold-case and NPC checks. Keep the `.moddata` sidecar with the game save. New RAC1
 seed codes encode the Items switch and its separate category (formats 6 to 13, with the
 NPC-coordinate and gold-case switches); older codes (formats 2 to 5) retain their previous
 pools and placement. RAC2 keeps its

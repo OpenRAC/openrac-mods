@@ -1,4 +1,6 @@
-/* Extra checks belong to the game save, alongside its existing native seed tag. */
+/* Extra checks belong to the game save, alongside its existing native seed tag: bits 0..9 the
+ * gold cases, 10..22 the NPC coordinates, 23..28 the Items-menu checks and 29 the consumed
+ * Raritanium (menu_items_runtime.inc, through menu_store and menu_restore). */
 #define REWARD_CHECK_MAGIC 0x52465231u
 
 static uint32_t saved_checks(void) {
@@ -8,12 +10,12 @@ static uint32_t saved_checks(void) {
         || state[0] != REWARD_CHECK_MAGIC || state[1] != rando_seed_tag(s_code)) {
         return 0;
     }
-    return state[2] & 0x7FFFFFu;
+    return state[2] & 0x3FFFFFFFu;
 }
 
 static void save_checks(uint32_t checks) {
     const reward_save_api* api = reward_save_host(s_api);
-    uint32_t state[3] = {REWARD_CHECK_MAGIC, rando_seed_tag(s_code), checks & 0x7FFFFFu};
+    uint32_t state[3] = {REWARD_CHECK_MAGIC, rando_seed_tag(s_code), checks & 0x3FFFFFFFu};
     if (api) {
         api->save_data_set(s_mod, state, sizeof state);
     }

@@ -362,6 +362,7 @@ static int play_phase(uint32_t* loads) {
 static int had(int location);
 
 #include "reward_state.inc"
+#define MENU_ITEMS_EXTERNAL_STATE
 #include "menu_items_runtime.inc"
 
 /* Whether the location has been had, by the game's own bytes (rando.h says which for each kind). */
@@ -585,6 +586,27 @@ static int tag_ours(uint32_t tag) {
  * take over any game. */
 static int rando_on(void) {
     return !s_new_game_only || tag_ours(save_tag());
+}
+
+/* The Items-menu checks and the consumed Raritanium, in the save record of the gold-case and
+ * NPC checks (reward_state.inc). Only a game of this seed keeps them. */
+#define MENU_CHECK_SHIFT 23
+#define MENU_CONSUMED_BIT (1u << 29)
+static void menu_store(void) {
+    if (!s_menu_save || !rando_on()) {
+        return;
+    }
+    const uint32_t others = saved_checks() & ~((0x3Fu << MENU_CHECK_SHIFT) | MENU_CONSUMED_BIT);
+    save_checks(
+        others | (s_menu_checks << MENU_CHECK_SHIFT) | (s_menu_consumed ? MENU_CONSUMED_BIT : 0)
+    );
+}
+
+static void menu_restore(void* user) {
+    (void)user;
+    const uint32_t checks = s_menu_save ? saved_checks() : 0;
+    s_menu_checks = (checks >> MENU_CHECK_SHIFT) & 0x3Fu;
+    s_menu_consumed = (checks & MENU_CONSUMED_BIT) ? 1u : 0u;
 }
 
 /* One line in the log each time the game in progress turns out another. */

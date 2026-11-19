@@ -84,12 +84,17 @@ int main(int argc,char** argv) {
         "rac1.moby.moby1428.update","rac1.moby.nanotech_vendor.update","rac1.moby.pokitaru_vendor.update"};
     for(int i=0;i<5;++i) {
         memset(s_memory+specials(),0,8); memset(s_memory+D->owned,0,RANDO_ITEM_COUNT);
-        memset(menu_data,0,sizeof menu_data); menu_on_restore(NULL);
+        /* One save record per mod: an NPC check already in it must survive the Items check. */
+        char code[RANDO_CODE_SIZE]; rando_encode(&settings,code);
+        menu_data[0]=0x52465231u; menu_data[1]=rando_seed_tag(code); menu_data[2]=1u<<10;
+        menu_on_restore(NULL);
         native_source_id=i; menu_snapshots=0;
         if(i==4) *special(1)=1;
         ((void(*)(uint32_t))hook_named(hooks[i]))(0x100000);
         const int index=i==4 ? 5 : i;
-        CHECK(menu_data[1] & (1u<<index)); CHECK(menu_disk[1] & (1u<<index));
+        /* The Items-menu checks share the mod's one save record, from bit 23. */
+        CHECK((menu_data[2]>>23) & (1u<<index)); CHECK((menu_disk[2]>>23) & (1u<<index));
+        CHECK(menu_data[2] & (1u<<10));
         CHECK(menu_snapshots==2); /* outer preparation and nested serialization */
         const rando_reward reward=plan.reward[menu_location_row(index)];
         const int expected=index==5 ? reward.kind==REWARD_ITEM && reward.value==ITEM_PERSUADER

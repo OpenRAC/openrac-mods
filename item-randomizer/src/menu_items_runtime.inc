@@ -26,6 +26,12 @@ static uint8_t* menu_max_health(void) { return byte_at(s_disc->level + 0x1Cu); }
 static int menu_special_held(int special) {
     return *menu_owned(special) || (special==SPECIAL_RARITANIUM && (s_menu_consumed & 1u));
 }
+#ifdef MENU_ITEMS_EXTERNAL_STATE
+/* A mod has one save record (save_data_set replaces it): a mod that keeps other checks there
+ * stores these with them, through its own menu_store and menu_restore. */
+static void menu_store(void);
+static void menu_restore(void* user);
+#else
 static void menu_store(void) {
     if (s_menu_save) {
         const uint32_t data[3] = {0x4D495431u, s_menu_checks, s_menu_consumed};
@@ -41,6 +47,7 @@ static void menu_restore(void* user) {
         s_menu_checks=data[1]; s_menu_consumed=data[2];
     }
 }
+#endif
 /* The host installs a loaded save's data before game updates, then notifies listeners
  * after that tick. Refresh before giving/checking rewards on the first update too. */
 static void menu_refresh(void) {
