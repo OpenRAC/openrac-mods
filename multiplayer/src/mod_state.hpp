@@ -21,28 +21,27 @@
 #include <vector>
 
 #include "bot.hpp"
+#include "camscripts.hpp"
 #include "comfort.hpp"
 #include "connection.hpp"
 #include "coop.hpp"
-#include "camscripts.hpp"
 #include "cosave.hpp"
 #include "direct.hpp"
+#include "game_adapter.hpp"
 #include "menu.hpp"
 #include "migrate.hpp"
 #include "modcode.hpp"
 #include "nametags.hpp"
-#include "progress.hpp"
-#include "shared.hpp"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
 #include "party_mods.hpp"
+#include "progress.hpp"
 #include "protocol.hpp"
 #include "session.hpp"
+#include "shared.hpp"
 #include "trace.hpp"
 #include "words.hpp"
 #include "world.hpp"
-
-#include "game_adapter.hpp"
 
 namespace mpmod {
 
@@ -51,7 +50,6 @@ constexpr const char* kModVersion = "0.12.5";
 constexpr const char* kVersion = "rac1-multiplayer/0.12.5";
 /* Going Commando's: its parties are its own (a party's description names the game). */
 constexpr const char* kVersionRac2 = "rac2-multiplayer/0.12.5";
-
 
 /* The question's tag: leaving the party (or hosting it). */
 constexpr std::uint32_t kAskLeave = 1;
@@ -126,23 +124,23 @@ struct State {
     std::unique_ptr<mp::CoSave> cosave;
     std::unique_ptr<mp::Migrate> migrate;
     std::unique_ptr<mp::Comfort> comfort;  // rescue, rally points and Team tools (comfort.hpp)
-    mp::Router router;             // where a received DATA goes (kinds.hpp)
-    bool listed_mods = false;      // the mods listed, once they had all loaded
-    bool told_refused = false;     // the page of why this party's game is refused was shown
-    bool refused_in_party = false;  // that page shows for a party, not for a solo mod
-    std::string join_party;         // the launcher's word: join this party (modcode.hpp)
+    mp::Router router;                     // where a received DATA goes (kinds.hpp)
+    bool listed_mods = false;              // the mods listed, once they had all loaded
+    bool told_refused = false;             // the page of why this party's game is refused was shown
+    bool refused_in_party = false;         // that page shows for a party, not for a solo mod
+    std::string join_party;                // the launcher's word: join this party (modcode.hpp)
     std::uint64_t join_ms = 0;
     bool join_asked = false;
-    bool start_taken = false;       // this press of Start said ready for the host's ship
-    bool hold_party = false;        // the host's rule (the `hold_party` setting)
-    bool revive = false;            // the host's rule (the `revive` setting)
+    bool start_taken = false;  // this press of Start said ready for the host's ship
+    bool hold_party = false;   // the host's rule (the `hold_party` setting)
+    bool revive = false;       // the host's rule (the `revive` setting)
 #ifdef MULTIPLAYER_BOT
     std::unique_ptr<mp::Bot> bot;  // the end-to-end tests' driver (bot.hpp)
 #endif
-    mp::Trace trace;            // the verbose log (trace.hpp), off unless asked for
-    std::ofstream trace_file;   // mp-trace.log, where it goes
+    mp::Trace trace;           // the verbose log (trace.hpp), off unless asked for
+    std::ofstream trace_file;  // mp-trace.log, where it goes
     openrac::Mod* mod = nullptr;
-    bool rac2 = false;  // Going Commando (rac2/game.hpp): its parties, its version
+    bool rac2 = false;             // Going Commando (rac2/game.hpp): its parties, its version
     std::uint32_t generation = 0;  // the connection's, as the session last saw it
     openrac::UiPage home, code_page, direct_page, lobby, browse, saves, refused, rules, remove;
     openrac::UiPage comfort_page;  // Team tools, from the lobby and the pause page
@@ -152,22 +150,22 @@ struct State {
     std::uint64_t frame_ms = 0;    // when the game last ticked (on_frame)
     bool start_held = false;       // Start as the pad last reported it
     SavesFor saves_for = SavesFor::kCreate;
-    bool saves_coop = false;       // the Saves page shows the party's own saves
+    bool saves_coop = false;     // the Saves page shows the party's own saves
     bool mod_code_long = false;  // the launcher's file matches, and has no short code
     bool code_copied = false;    // the shown mod code is on the clipboard: its button says so
     int rules_copy = -1;         // the Rules page's Copy mod code item, -1 with no code
     int rules_lift = -1;         // the Rules page's Lift bans item, -1 with none to lift
     std::vector<std::pair<int, std::int32_t>> lobby_rows;  // the Lobby's member rows: item, member
-    std::int32_t remove_member = 0;  // who the Remove page is about
-    std::uint64_t mod_code_ms = 0;  // when it was last read
+    std::int32_t remove_member = 0;                        // who the Remove page is about
+    std::uint64_t mod_code_ms = 0;                         // when it was last read
     std::vector<int> code = std::vector<int>(mp::kCodeLength, 0);  // indices into kCodeAlphabet
-    std::string notice;  // the last refusal or news, until the next action
-    std::string refusal; // the server's refusal of a join into another game's party, for Refused
-    std::string banner;  // the line shown over the game (play_notice)
+    std::string notice;   // the last refusal or news, until the next action
+    std::string refusal;  // the server's refusal of a join into another game's party, for Refused
+    std::string banner;   // the line shown over the game (play_notice)
     DirectView view = DirectView::kMenu;
     mp::DirectAddress address;  // Join by address's, the last joined kept for the game
     mp::Acceleration acceleration;
-    std::string direct_error;  // why Host directly or Join failed, on the Direct page
+    std::string direct_error;    // why Host directly or Join failed, on the Direct page
     openrac::UiPage pause_page;  // the pause menu's Multiplayer page (Options, in a level)
     int pause_leave = -1;        // its Leave party item, -1 out of a party
     int pause_rules = -1;        // its Party rules item, -1 out of a party
@@ -207,7 +205,9 @@ const char* game_tag();
 const char* session_version();
 
 /* The member whose row was chosen among `rows`, 0 for no such event. */
-inline std::int32_t row_member(const std::vector<std::pair<int, std::int32_t>>& rows, const openrac::UiEvent& e) {
+inline std::int32_t row_member(
+    const std::vector<std::pair<int, std::int32_t>>& rows, const openrac::UiEvent& e
+) {
     if (e.is(OPENRAC_UI_CHOOSE)) {
         for (const auto& [item, member] : rows) {
             if (item == e.item()) {

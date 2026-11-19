@@ -154,6 +154,7 @@ public:
     std::string level_name(int level) override;
 
     void quiet_gifts(bool on) override { quiet_ = on; }
+
     // --- end WP-JOIN ---
 
     // --- WP-DEATH ---
@@ -175,7 +176,9 @@ private:
     /* This disc's progress places, null for a disc it does not know. */
     const ProgressDisc* progress_disc() const;
 
-    static void read_bytes(const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n);
+    static void read_bytes(
+        const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n
+    );
 
     openrac::Mod& mod_;
     std::map<std::string, int> indices_;

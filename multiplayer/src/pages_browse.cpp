@@ -64,10 +64,7 @@ void show_browse() {
 
     if (parties.empty()) {
         c.items.push_back(
-            openrac::UiItem::text(
-                s.lists() == 0 ? text("Asking...")
-                               : text("No games")
-            )
+            openrac::UiItem::text(s.lists() == 0 ? text("Asking...") : text("No games"))
         );
     }
 

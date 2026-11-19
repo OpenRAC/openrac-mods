@@ -27,14 +27,18 @@ openrac::UiContent refused_content() {
     const bool solo = !mp::solo_mods(g->mods->own()).empty();
     openrac::UiContent c;
     c.title = s.in_party() ? text("Can't join") : text("Can't play");
-    c.items.push_back(openrac::UiItem::button(s.in_party() ? text(mp::kLeavePartyLabel) : text("Back")));
+    c.items.push_back(
+        openrac::UiItem::button(s.in_party() ? text(mp::kLeavePartyLabel) : text("Back"))
+    );
 
     // The host's mod code: what gets this game the host's mods.
     const std::string code = s.in_party() ? g->mods->host_list().modcode : "";
 
     if (!code.empty()) {
         c.items.push_back(openrac::UiItem::button(text(mp::kOpenInLauncher)));
-        c.items.push_back(openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel)));
+        c.items.push_back(
+            openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel))
+        );
         c.items.push_back(openrac::UiItem::text(text(mp::kModCodeLabel) + code));
         c.items.push_back(openrac::UiItem::text(text(mp::kModCodeHint)));
     }
@@ -47,8 +51,10 @@ openrac::UiContent refused_content() {
         c.items.push_back(openrac::UiItem::text(line));
     }
 
-    c.footer = {text(solo ? mp::kSoloHint1 : mp::kMatchHint1), text(solo ? mp::kSoloHint2 : mp::kMatchHint2),
-                text(mp::kBackHints)};
+    c.footer =
+        {text(solo ? mp::kSoloHint1 : mp::kMatchHint1),
+         text(solo ? mp::kSoloHint2 : mp::kMatchHint2),
+         text(mp::kBackHints)};
     return c;
 }
 

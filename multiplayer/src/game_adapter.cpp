@@ -4,12 +4,13 @@
  * The multiplayer mod's game (game_adapter.hpp).
  */
 #include "game_adapter.hpp"
-#include "mod_state.hpp"
-#include "save_check.hpp"
 
 #include <algorithm>
 #include <cstdint>
 #include <ctime>
+
+#include "mod_state.hpp"
+#include "save_check.hpp"
 
 namespace mpmod {
 
@@ -31,8 +32,22 @@ struct ProgressDisc {
 };
 
 constexpr ProgressDisc kProgressDiscs[] = {
-    {"pal", 0x0013D5C8u, 0x0014BFC0u, 0x0013DE48u, "func_L00_002618D8", "func_L00_00261848", 0x0013D618u, 0x001B06C0u},
-    {"ntsc", 0x0013D4C0u, 0x0014BEC0u, 0x0013DD40u, "FUN_L00_00260860", "FUN_L00_002607d0", 0x0013D510u, 0x001B0340u},
+    {"pal",
+     0x0013D5C8u,
+     0x0014BFC0u,
+     0x0013DE48u,
+     "func_L00_002618D8",
+     "func_L00_00261848",
+     0x0013D618u,
+     0x001B06C0u},
+    {"ntsc",
+     0x0013D4C0u,
+     0x0014BEC0u,
+     0x0013DD40u,
+     "FUN_L00_00260860",
+     "FUN_L00_002607d0",
+     0x0013D510u,
+     0x001B0340u},
 };
 
 /* GiveItem's table: this many items, then as many again for an item already had. */
@@ -53,38 +68,60 @@ bool ModGame::save_usable(const mp::Bytes& save) {
     return fault == mp::SaveFault::kNone;
 }
 
-std::uint32_t ModGame::sim_digest(int level) { return mod_.sim_digest(level); }
+std::uint32_t ModGame::sim_digest(int level) {
+    return mod_.sim_digest(level);
+}
 
 bool ModGame::start(int level, const mp::Bytes& save) {
     return mod_.play_start(level, save) == OPENRAC_HOOK_OK;
 }
 
-bool ModGame::has_card_filter() { return mod_.has_save_filter() && mod_.has_card_notes(); }
+bool ModGame::has_card_filter() {
+    return mod_.has_save_filter() && mod_.has_card_notes();
+}
 
 bool ModGame::card_filter(int mode) {
     return mod_.card_filter(mode, mode == mp::kCardRedirect ? mp::kCoFolder : "");
 }
 
-void ModGame::card_slot(int slot) { mod_.card_slot_hint(slot); }
+void ModGame::card_slot(int slot) {
+    mod_.card_slot_hint(slot);
+}
 
-bool ModGame::card_write(int slot, const mp::Bytes& save) { return mod_.coop_save_write(slot, save); }
+bool ModGame::card_write(int slot, const mp::Bytes& save) {
+    return mod_.coop_save_write(slot, save);
+}
 
-mp::Bytes ModGame::card_read(int slot) { return mod_.save_read2(mp::kCoFolder, slot); }
+mp::Bytes ModGame::card_read(int slot) {
+    return mod_.save_read2(mp::kCoFolder, slot);
+}
 
-std::uint32_t ModGame::card_saves() { return mod_.card_saves(); }
+std::uint32_t ModGame::card_saves() {
+    return mod_.card_saves();
+}
 
-std::string ModGame::card_note(int slot) { return mod_.card_note_read(mp::kCoFolder, slot); }
+std::string ModGame::card_note(int slot) {
+    return mod_.card_note_read(mp::kCoFolder, slot);
+}
 
-void ModGame::card_note_write(int slot, const std::string& text) { mod_.card_note_write(slot, text); }
+void ModGame::card_note_write(int slot, const std::string& text) {
+    mod_.card_note_write(slot, text);
+}
 
-std::int64_t ModGame::wall_seconds() { return static_cast<std::int64_t>(std::time(nullptr)); }
+std::int64_t ModGame::wall_seconds() {
+    return static_cast<std::int64_t>(std::time(nullptr));
+}
 
 #ifdef MULTIPLAYER_BOT
 bool ModGame::game_save() {
     // memcard_Save(0, -1), as a gold bolt's pickup calls it.
     const ProgressDisc* disc = progress_disc();
-    const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_0020BFC8" : "FUN_0020b178";
-    const auto save = name != nullptr ? mod_.function<std::int32_t (*)(std::int32_t, std::int32_t)>(name) : nullptr;
+    const char* name = disc == nullptr             ? nullptr
+                       : disc->gold == 0x0014BFC0u ? "func_0020BFC8"
+                                                   : "FUN_0020b178";
+    const auto save = name != nullptr
+                          ? mod_.function<std::int32_t (*)(std::int32_t, std::int32_t)>(name)
+                          : nullptr;
 
     if (save == nullptr) {
         return false;
@@ -95,15 +132,20 @@ bool ModGame::game_save() {
 }
 #endif
 
-bool ModGame::travel(int level) { return mod_.play_travel(level) == OPENRAC_HOOK_OK; }
+bool ModGame::travel(int level) {
+    return mod_.play_travel(level) == OPENRAC_HOOK_OK;
+}
 
 bool ModGame::ship_takeoff(int level) {
     // The game's travel takes a level of its own only: another number reads past its tables.
     if (level < 0 || level >= mod_.play_status().levels) {
         return false;
     }
+
     const ProgressDisc* disc = progress_disc();
-    const char* name = disc == nullptr ? nullptr : disc->gold == 0x0014BFC0u ? "func_L00_00290030" : "FUN_L00_0028ed58";
+    const char* name = disc == nullptr             ? nullptr
+                       : disc->gold == 0x0014BFC0u ? "func_L00_00290030"
+                                                   : "FUN_L00_0028ed58";
     const auto travel_to = name != nullptr ? mod_.function<void (*)(std::int32_t)>(name) : nullptr;
 
     if (travel_to == nullptr) {
@@ -114,7 +156,9 @@ bool ModGame::ship_takeoff(int level) {
     return true;
 }
 
-mp::Bytes ModGame::capture() { return mod_.save_capture(); }
+mp::Bytes ModGame::capture() {
+    return mod_.save_capture();
+}
 
 bool ModGame::hero(mp::Pose& out) {
     openrac_pose p{};
@@ -134,7 +178,9 @@ bool ModGame::hero(mp::Pose& out) {
     return true;
 }
 
-int ModGame::figure_create() { return mod_.figure_create(); }
+int ModGame::figure_create() {
+    return mod_.figure_create();
+}
 
 bool ModGame::figure_pose(int id, const mp::Pose& pose) {
     if (!mod_.figure_pose(id, to_sdk(pose))) {
@@ -204,7 +250,9 @@ bool ModGame::figure_shot(int id, const mp::Shot& shot) {
     return mod_.figure_shot(id, s);
 }
 
-void ModGame::figure_remove(int id) { mod_.figure_remove(id); }
+void ModGame::figure_remove(int id) {
+    mod_.figure_remove(id);
+}
 
 std::vector<mp::MobyState> ModGame::mobys() {
     std::vector<mp::MobyState> out;
@@ -241,15 +289,21 @@ std::vector<mp::MobyState> ModGame::mobys() {
 }
 
 // --- WP-DEATH ---
-bool ModGame::can_revive() { return mod_.has_hero_place(); }
+bool ModGame::can_revive() {
+    return mod_.has_hero_place();
+}
 
 void ModGame::hold_death(bool on) {
     mod_.hero_revive(nullptr, on ? OPENRAC_REVIVE_HOLD : OPENRAC_REVIVE_LET_GO);
 }
 
-bool ModGame::revive() { return mod_.hero_revive(); }
+bool ModGame::revive() {
+    return mod_.hero_revive();
+}
 
-bool ModGame::respawn() { return mod_.hero_revive(nullptr, OPENRAC_REVIVE_RESPAWN); }
+bool ModGame::respawn() {
+    return mod_.hero_revive(nullptr, OPENRAC_REVIVE_RESPAWN);
+}
 
 bool ModGame::mission_row(int level, std::uint8_t* out) {
     static_assert(mp::kMissions == OPENRAC_MISSION_STATE_SIZE);
@@ -262,6 +316,7 @@ bool ModGame::mission_row(int level, std::uint8_t* out) {
     std::copy(row, row + OPENRAC_MISSION_STATE_SIZE, out);
     return true;
 }
+
 // --- end WP-DEATH ---
 
 bool ModGame::mission_clear(int level, const std::uint8_t* flags) {
@@ -276,15 +331,25 @@ bool ModGame::mission_set(int level, const std::uint8_t* flags) {
     return mod_.mission_state_write(level, row);
 }
 
-int ModGame::moby_slot(int key) { return mod_.moby_slot(key); }
+int ModGame::moby_slot(int key) {
+    return mod_.moby_slot(key);
+}
 
-bool ModGame::moby_drive(int slot, bool on) { return mod_.moby_drive(slot, on); }
+bool ModGame::moby_drive(int slot, bool on) {
+    return mod_.moby_drive(slot, on);
+}
 
-bool ModGame::moby_pose(int slot, const mp::Pose& pose) { return mod_.moby_pose(slot, moby_of(pose)); }
+bool ModGame::moby_pose(int slot, const mp::Pose& pose) {
+    return mod_.moby_pose(slot, moby_of(pose));
+}
 
-bool ModGame::moby_kill(int slot) { return mod_.moby_kill(slot); }
+bool ModGame::moby_kill(int slot) {
+    return mod_.moby_kill(slot);
+}
 
-bool ModGame::moby_hide(int slot, bool hidden) { return mod_.moby_hide(slot, hidden); }
+bool ModGame::moby_hide(int slot, bool hidden) {
+    return mod_.moby_hide(slot, hidden);
+}
 
 bool ModGame::moby_deletion(int slot, int& by, int& by_class, bool& by_mod) {
     openrac_moby_deletion d{};
@@ -340,13 +405,17 @@ int ModGame::moby_spawn(int oclass, const mp::Pose& pose) {
     return mod_.moby_spawn(oclass, moby_of(pose));
 }
 
-int ModGame::figure_slot(int id) { return mod_.figure_slot(id); }
+int ModGame::figure_slot(int id) {
+    return mod_.figure_slot(id);
+}
 
 bool ModGame::stand_in(const float* position, int figure) {
     return mod_.hero_stand_in(position, figure);
 }
 
-bool ModGame::can_hold() { return mod_.has_hero_hold(); }
+bool ModGame::can_hold() {
+    return mod_.has_hero_hold();
+}
 
 bool ModGame::stand_in_as(const mp::StandIn& as, int figure) {
     openrac_stand_in in{};
@@ -372,14 +441,18 @@ bool ModGame::stand_in_read(mp::StandIn& out) {
     return true;
 }
 
-bool ModGame::grab(int animation, std::uint32_t flags) { return mod_.hero_grab(animation, flags); }
+bool ModGame::grab(int animation, std::uint32_t flags) {
+    return mod_.hero_grab(animation, flags);
+}
 
 bool ModGame::hold_at(const float* position, float yaw) {
     const float at[3] = {position[0], position[1], position[2]};
     return mod_.hero_hold_at(at, yaw);
 }
 
-bool ModGame::let_go() { return mod_.hero_release(); }
+bool ModGame::let_go() {
+    return mod_.hero_release();
+}
 
 bool ModGame::hit(const mp::Hit& h) {
     openrac_hit out{};
@@ -392,9 +465,13 @@ bool ModGame::hit(const mp::Hit& h) {
     return mod_.moby_hit(out);
 }
 
-void ModGame::eyes(const std::vector<float>& xyz) { mod_.play_eyes(xyz); }
+void ModGame::eyes(const std::vector<float>& xyz) {
+    mod_.play_eyes(xyz);
+}
 
-int ModGame::bolts(int add) { return mod_.bolts(add); }
+int ModGame::bolts(int add) {
+    return mod_.bolts(add);
+}
 
 bool ModGame::shared_read(int tag, mp::Bytes& out) {
     return mp::in_level(mod_.play_status().phase) && mod_.shared_read(tag, out);
@@ -420,7 +497,9 @@ bool ModGame::progress(mp::ProgressBits& out) {
 
 bool ModGame::give_item(int id) {
     const ProgressDisc* disc = progress_disc();
-    const auto give = disc != nullptr ? mod_.function<void (*)(std::int32_t, std::int32_t)>(disc->give_item) : nullptr;
+    const auto give = disc != nullptr
+                          ? mod_.function<void (*)(std::int32_t, std::int32_t)>(disc->give_item)
+                          : nullptr;
 
     if (give == nullptr) {
         return false;
@@ -461,7 +540,8 @@ bool ModGame::give_gold_bolt(int index) {
         return false;
     }
 
-    mod_.memory().write<std::uint8_t>(mod_.relocate(disc->gold) + static_cast<openrac::gaddr>(index), 1);
+    mod_.memory()
+        .write<std::uint8_t>(mod_.relocate(disc->gold) + static_cast<openrac::gaddr>(index), 1);
     return true;
 }
 
@@ -469,13 +549,15 @@ bool ModGame::unlock_planet(int planet) {
     const ProgressDisc* disc = progress_disc();
 
     // A joiner's: UnlockPlanet less its message, the planet marked and next in the order of unlocking.
-    if (quiet_ && disc != nullptr && planet >= 0 && planet < static_cast<int>(mp::kProgressPlanets)) {
+    if (quiet_ && disc != nullptr && planet >= 0
+        && planet < static_cast<int>(mp::kProgressPlanets)) {
         const openrac::Memory memory = mod_.memory();
         const openrac::gaddr planets = mod_.relocate(disc->planets);
         int count = 0;
 
         for (int i = 0; i < static_cast<int>(mp::kProgressPlanets); ++i) {
-            count += memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(i)) != 0 ? 1 : 0;
+            count +=
+                memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(i)) != 0 ? 1 : 0;
         }
 
         if (memory.read<std::uint8_t>(planets + static_cast<openrac::gaddr>(planet)) == 0) {
@@ -488,7 +570,8 @@ bool ModGame::unlock_planet(int planet) {
         return true;
     }
 
-    const auto unlock = disc != nullptr ? mod_.function<void (*)(std::int32_t)>(disc->unlock_planet) : nullptr;
+    const auto unlock =
+        disc != nullptr ? mod_.function<void (*)(std::int32_t)>(disc->unlock_planet) : nullptr;
 
     if (unlock == nullptr) {
         return false;
@@ -501,14 +584,20 @@ bool ModGame::unlock_planet(int planet) {
 }
 
 // --- WP-JOIN ---
-bool ModGame::can_place() { return mod_.has_hero_place(); }
+bool ModGame::can_place() {
+    return mod_.has_hero_place();
+}
 
 bool ModGame::place(const float* position, float yaw, bool beside) {
     const float at[3] = {position[0], position[1], position[2]};
-    return mod_.hero_place(at, yaw, OPENRAC_PLACE_INVULNERABLE | (beside ? OPENRAC_PLACE_BESIDE : 0u));
+    return mod_
+        .hero_place(at, yaw, OPENRAC_PLACE_INVULNERABLE | (beside ? OPENRAC_PLACE_BESIDE : 0u));
 }
 
-std::string ModGame::level_name(int level) { return mod_.level_name(level); }
+std::string ModGame::level_name(int level) {
+    return mod_.level_name(level);
+}
+
 // --- end WP-JOIN ---
 
 mp::ModList ModGame::mod_list() {
@@ -593,22 +682,29 @@ void ModGame::overlay_pause(bool on) {
     }
 }
 
-void ModGame::skip() { mod_.play_skip(); }
+void ModGame::skip() {
+    mod_.play_skip();
+}
 
-bool ModGame::play_scene(int scene) { return mod_.play_scene(scene); }
+bool ModGame::play_scene(int scene) {
+    return mod_.play_scene(scene);
+}
 
 // --- WP-CAMERA ---
 bool ModGame::camera_view(mp::CameraView& out) {
     return mod_.camera_script_view(out.eye, out.rotation, out.where, &out.stand_in);
 }
 
-bool ModGame::camera_play(int id) { return mod_.camera_script_play(id); }
+bool ModGame::camera_play(int id) {
+    return mod_.camera_script_play(id);
+}
 
 bool ModGame::camera_show(const float* eye, const float* rotation) {
     const float at[3] = {eye[0], eye[1], eye[2]};
     const float turned[3] = {rotation[0], rotation[1], rotation[2]};
     return mod_.camera_script_show(at, turned);
 }
+
 // --- end WP-CAMERA ---
 
 openrac_moby ModGame::moby_of(const mp::Pose& p) {
@@ -716,7 +812,9 @@ openrac_pose ModGame::to_sdk(const mp::Pose& p) {
     return out;
 }
 
-bool ModGame::open_home() { return home != nullptr && home->open(); }
+bool ModGame::open_home() {
+    return home != nullptr && home->open();
+}
 
 const ProgressDisc* ModGame::progress_disc() const {
     for (const ProgressDisc& d : kProgressDiscs) {
@@ -728,7 +826,9 @@ const ProgressDisc* ModGame::progress_disc() const {
     return nullptr;
 }
 
-void ModGame::read_bytes(const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n) {
+void ModGame::read_bytes(
+    const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n
+) {
     for (std::size_t i = 0; i < n; ++i) {
         out[i] = memory.read<std::uint8_t>(at + static_cast<openrac::gaddr>(i));
     }

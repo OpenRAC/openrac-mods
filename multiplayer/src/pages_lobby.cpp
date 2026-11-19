@@ -28,8 +28,8 @@ openrac::UiContent lobby_content() {
     // game is on, back in the title, joins it again.
     const bool title = g->game->status().phase == mp::kPhaseFrontEnd;
     const bool rejoin = !s.is_host() && g->coop->playing() && title;
-    const std::string first = s.is_host()              ? text(g->coop->starts_again() ? "Start again" : "Start")
-                              : refused()              ? text("Why can't I join?")
+    const std::string first = s.is_host() ? text(g->coop->starts_again() ? "Start again" : "Start")
+                              : refused() ? text("Why can't I join?")
                               : g->mods->host_silent() ? text("Host too old")
                               : checking()             ? text("Checking mods...")
                               : rejoin                 ? text("Join game")
@@ -69,7 +69,8 @@ openrac::UiContent lobby_content() {
         // the title.
         const std::size_t used = c.items.size() + why.size() + s.members().size() + 2;
         const std::size_t room = OPENRAC_UI_ITEMS_MAX > used ? OPENRAC_UI_ITEMS_MAX - used : 0;
-        const std::vector<std::string> lines = mp::hosting_lines(h.addresses, h.port, room, g_language);
+        const std::vector<std::string> lines =
+            mp::hosting_lines(h.addresses, h.port, room, g_language);
         c.title = text("Hosting");
 
         for (std::size_t i = 0; i < lines.size(); ++i) {
@@ -81,7 +82,8 @@ openrac::UiContent lobby_content() {
     }
 
     // What the party plays: the host's save (or a new game), as its INFO said.
-    const std::string playing = s.is_host() ? g->coop->description() : mp::plain_description(s.description());
+    const std::string playing =
+        s.is_host() ? g->coop->description() : mp::plain_description(s.description());
 
     if (!playing.empty()) {
         c.items.push_back(openrac::UiItem::text(text("Playing: ") + playing));
@@ -92,7 +94,8 @@ openrac::UiContent lobby_content() {
     }
 
     // Where its saves go: never over a player's own.
-    if (g->game->has_card_filter() && c.items.size() + s.members().size() + why.size() + 1 < OPENRAC_UI_ITEMS_MAX) {
+    if (g->game->has_card_filter()
+        && c.items.size() + s.members().size() + why.size() + 1 < OPENRAC_UI_ITEMS_MAX) {
         c.items.push_back(openrac::UiItem::text(text(mp::kCoSavesLine)));
     }
 
@@ -107,6 +110,7 @@ openrac::UiContent lobby_content() {
         line.ready = s.ready(m.id);
         line.differs = m.id == s.id() ? refused() : fit == mp::Fit::kDiffers;
         line.checking = m.id == s.id() ? checking() : fit == mp::Fit::kUnknown;
+
         // The host's way to anyone who holds the party up.
         if (s.is_host() && m.id != s.id()) {
             g->lobby_rows.emplace_back(static_cast<int>(c.items.size()), m.id);
@@ -150,8 +154,8 @@ void show_lobby() {
 void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Session& s = *g->session;
     const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
-    const bool direct_party = s.direct() || hosting
-                              || g->connection->mode() == mp::Connection::Mode::kDirect;
+    const bool direct_party =
+        s.direct() || hosting || g->connection->mode() == mp::Connection::Mode::kDirect;
 
     // Ready or Start; Leave and Triangle ask before the party is left.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->lobby_tools && g->lobby_tools >= 0) {
@@ -180,8 +184,8 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (const std::int32_t member = row_member(g->lobby_rows, e); member != 0) {
         open_remove(member);
     } else if ((e.is(OPENRAC_UI_CHOOSE) && e.item() == kLeaveItem) || e.is(OPENRAC_UI_BACK)) {
-        const char* question = hosting       ? "Stop hosting?"
-                               : !s.is_host() ? "Leave party?"
+        const char* question = hosting                  ? "Stop hosting?"
+                               : !s.is_host()           ? "Leave party?"
                                : g->migrate->followed() ? "Leave party?"
                                                         : "End the party?";
         page.confirm(text(question), kAskLeave);

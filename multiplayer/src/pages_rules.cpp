@@ -27,7 +27,9 @@ openrac::UiContent rules_content() {
     // The host's mod code, so that friends can get these mods.
     if (g->session->is_host() && !g->mods->own().modcode.empty()) {
         g->rules_copy = static_cast<int>(c.items.size());
-        c.items.push_back(openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel)));
+        c.items.push_back(
+            openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel))
+        );
         c.items.push_back(openrac::UiItem::text(text(mp::kModCodeLabel) + g->mods->own().modcode));
     } else if (g->session->is_host() && g->mod_code_long) {
         c.items.push_back(openrac::UiItem::text(text(mp::kModCodeInLauncher)));
@@ -48,7 +50,8 @@ openrac::UiContent rules_content() {
     }
 
     // The host's rule for its ship.
-    if (g->coop->hold_party_on() && g->session->in_party() && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
+    if (g->coop->hold_party_on() && g->session->in_party()
+        && c.items.size() < OPENRAC_UI_ITEMS_MAX) {
         c.items.push_back(openrac::UiItem::text(text("Press Start when ready")));
     }
 
@@ -58,8 +61,8 @@ openrac::UiContent rules_content() {
     }
 
     if (!level) {
-        c.footer = {text(g->session->is_host() ? "Your rules" : "Host's rules"),
-                    text(mp::kBackHints)};
+        c.footer =
+            {text(g->session->is_host() ? "Your rules" : "Host's rules"), text(mp::kBackHints)};
     }
 
     return c;

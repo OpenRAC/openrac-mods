@@ -23,8 +23,7 @@ std::string code_text() {
 /* Home: Browse games, Create match, Join by code (usable once the server said hello), Direct
  * connect (always: it needs no server), the name. */
 void show_home() {
-    const bool usable =
-        mp::server_items_enabled(g->connection->mode(), g->session->greeted());
+    const bool usable = mp::server_items_enabled(g->connection->mode(), g->session->greeted());
     openrac::UiContent c;
     c.title = text("Multiplayer");
     c.items = {
@@ -83,9 +82,7 @@ void show_direct() {
         c.items = {
             openrac::UiItem::button(text("Host directly")),
             openrac::UiItem::button(text("Join by address")),
-            openrac::UiItem::text(
-                text("No server: port ") + std::to_string(mp::kDefaultPort)
-            ),
+            openrac::UiItem::text(text("No server: port ") + std::to_string(mp::kDefaultPort)),
         };
         hints = text(mp::kSelectBackHints);
     } else {
@@ -136,14 +133,16 @@ void show_pause() {
 
     // The host's level: the host's own, a member's as the host's LEVEL said.
     const mp::GameStatus status = g->game->status();
-    const int level = s.is_host() ? (mp::in_level(status.phase) ? status.level : -1)
-                                  : g->coop->host_level();
+    const int level =
+        s.is_host() ? (mp::in_level(status.phase) ? status.level : -1) : g->coop->host_level();
     in.host_level = level >= 0 ? g->mod->level_name(level) : "";
     in.go_to_host = g->coop->can_go();
 
     for (const mp::Member& m : s.members()) {
         const mp::Link link = s.link(m.id);
-        in.members.push_back({m.name, m.id == s.host(), m.id == s.id(), link.ping_ms, link.udp, m.id});
+        in.members.push_back(
+            {m.name, m.id == s.host(), m.id == s.id(), link.ping_ms, link.udp, m.id}
+        );
     }
 
     in.removes = s.is_host();
@@ -228,7 +227,8 @@ void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
         const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
         page.confirm(
-            mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed(), g_language), kAskLeave
+            mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed(), g_language),
+            kAskLeave
         );
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_save && g->pause_save >= 0) {
         page.sound(g->cosave->save_party() ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);

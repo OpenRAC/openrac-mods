@@ -69,8 +69,9 @@ mp::Language game_language(const openrac::Mod& mod) {
     }
 
     const std::uint32_t address = mp::language_address(mod.version());
-    return address == 0 ? mp::Language::kEnglish
-                        : mp::language_from_game(mod.memory().read<std::int32_t>(mod.relocate(address)));
+    return address == 0
+               ? mp::Language::kEnglish
+               : mp::language_from_game(mod.memory().read<std::int32_t>(mod.relocate(address)));
 }
 
 const char* game_tag() {
@@ -108,14 +109,17 @@ constexpr std::uint64_t kNetTraceMs = 5000;
  * events, as state and received, and what the buckets held back. */
 void trace_net() {
     const mp::NetCounts& c = g->session->counts();
-    std::string line = "frames " + std::to_string(c.data_frames) + " state " + std::to_string(c.state_datagrams)
-                       + " state held " + std::to_string(c.state_held) + " state by tcp " + std::to_string(c.state_tcp)
-                       + " tcp copy held " + std::to_string(c.state_tcp_held) + " flushes that waited "
+    std::string line = "frames " + std::to_string(c.data_frames) + " state "
+                       + std::to_string(c.state_datagrams) + " state held "
+                       + std::to_string(c.state_held) + " state by tcp "
+                       + std::to_string(c.state_tcp) + " tcp copy held "
+                       + std::to_string(c.state_tcp_held) + " flushes that waited "
                        + std::to_string(c.waited) + " most queued " + std::to_string(c.queue_most);
     const auto kinds = [&line](const char* what, const std::array<mp::NetCounts::Kind, 256>& all) {
         for (std::size_t kind = 0; kind < all.size(); ++kind) {
             if (all[kind].messages != 0) {
-                line += std::string(" ") + what + std::to_string(kind) + "=" + std::to_string(all[kind].messages) + "/"
+                line += std::string(" ") + what + std::to_string(kind) + "="
+                        + std::to_string(all[kind].messages) + "/"
                         + std::to_string(all[kind].bytes);
             }
         }
@@ -166,7 +170,8 @@ std::string comfort_banner(std::uint64_t now) {
     }
 
     if (g->comfort->down()) {
-        return std::string(text("Awaiting rescue ")) + std::to_string(g->comfort->seconds_left(now)) + " s";
+        return std::string(text("Awaiting rescue ")) + std::to_string(g->comfort->seconds_left(now))
+               + " s";
     }
 
     if (g->comfort->near_downed()) {
@@ -176,7 +181,8 @@ std::string comfort_banner(std::uint64_t now) {
     const float distance = g->comfort->rally_distance();
 
     if (distance >= 0) {
-        return std::string(text("Rally point: ")) + std::to_string(static_cast<int>(distance)) + text(" units");
+        return std::string(text("Rally point: ")) + std::to_string(static_cast<int>(distance))
+               + text(" units");
     }
 
     return {};
@@ -210,7 +216,9 @@ void show_comfort() {
     openrac::UiContent c;
     c.title = text("Team tools");
     const auto choice = [host](const char* label, std::vector<std::string> values, int value) {
-        openrac::UiItem item = openrac::UiItem::choice_of(text(label), std::move(values), static_cast<std::uint32_t>(value));
+        openrac::UiItem item = openrac::UiItem::choice_of(
+            text(label), std::move(values), static_cast<std::uint32_t>(value)
+        );
 
         if (!host) {
             item.flags = OPENRAC_UI_DISABLED;
@@ -228,10 +236,13 @@ void show_comfort() {
         openrac::UiItem::button(text("Give up"), g->comfort->down()),
     };
     const float distance = g->comfort->rally_distance();
-    c.items.push_back(openrac::UiItem::text(
-        distance >= 0 ? std::string(text("Rally point: ")) + std::to_string(static_cast<int>(distance)) + text(" units")
-                      : std::string(text("No rally point"))
-    ));
+    c.items.push_back(
+        openrac::UiItem::text(
+            distance >= 0 ? std::string(text("Rally point: "))
+                                + std::to_string(static_cast<int>(distance)) + text(" units")
+                          : std::string(text("No rally point"))
+        )
+    );
 
     // The party's revive rule takes a fallen hero first (see the take-damage hook).
     if (party && revive_rule_held()) {
@@ -244,10 +255,12 @@ void show_comfort() {
         }
 
         mp::Pose p;
-        const bool have = member.id == g->session->id() ? g->game->hero(p) : g->coop->latest(member.id, p);
+        const bool have =
+            member.id == g->session->id() ? g->game->hero(p) : g->coop->latest(member.id, p);
         const auto peer = g->comfort->peers().find(member.id);
-        const bool help = member.id == g->session->id() ? g->comfort->down()
-                                                         : peer != g->comfort->peers().end() && peer->second.down;
+        const bool help = member.id == g->session->id()
+                              ? g->comfort->down()
+                              : peer != g->comfort->peers().end() && peer->second.down;
         const std::string line = member.name + ": "
                                  + (help   ? std::string(text("Needs rescue"))
                                     : have ? "HP " + std::to_string(std::max(0, p.health))
@@ -327,7 +340,9 @@ public:
         o_.rect(o_.context, x, y, w, h, colour);
     }
 
-    void text(float x, float y, float height, std::uint32_t colour, const std::string& line) override {
+    void text(
+        float x, float y, float height, std::uint32_t colour, const std::string& line
+    ) override {
         o_.text(o_.context, x, y, height, colour, line.c_str());
     }
 
@@ -435,8 +450,8 @@ void poll() {
     const std::uint32_t generation = g->connection->generation();
     const bool connected = g->connection->state() == mp::Connection::State::kConnected;
     const bool was_in = g->session->in_party();
-    const bool direct = g->session->direct()
-                        || g->connection->mode() == mp::Connection::Mode::kDirect;
+    const bool direct =
+        g->session->direct() || g->connection->mode() == mp::Connection::Mode::kDirect;
 
     // A new connection: a new session on the server.
     if (connected && generation != g->generation) {
@@ -470,8 +485,9 @@ void poll() {
     }
 
     if (was_in && !g->session->in_party()) {
-        g->leave_reason = g->left_differs ? mp::kDifferentDisc
-                                          : mp::leave_reason(g->leaving, !connected, direct, notice);
+        g->leave_reason = g->left_differs
+                              ? mp::kDifferentDisc
+                              : mp::leave_reason(g->leaving, !connected, direct, notice);
         g->left_differs = false;
     } else if (g->session->in_party()) {
         g->leave_reason.clear();
@@ -518,18 +534,23 @@ void load(openrac::Mod& mod) {
     const bool rac2 = mod.game() == "rac2";
 
     if (rac2 && !mod.has_play()) {
-        throw openrac::Error("this OpenRAC has no play calls for Going Commando (a newer OpenRAC has them)");
+        throw openrac::Error(
+            "this OpenRAC has no play calls for Going Commando (a newer OpenRAC has them)"
+        );
     }
 
     if (mod.game() != "rac1" && !rac2) {
-        throw openrac::Error("this mod is for Ratchet & Clank (rac1) and Going Commando (rac2), not "
-                             + std::string(mod.game()));
+        throw openrac::Error(
+            "this mod is for Ratchet & Clank (rac1) and Going Commando (rac2), not "
+            + std::string(mod.game())
+        );
     }
 
     // The pages of the game's own menus are interface 1.7's, playing together 1.8's.
     if (!mod.has_ui() || !mod.has_world() || !mod.has_party_rules()) {
         throw openrac::Error(
-            "this OpenRAC has no pages of the game's menus, world calls or party rules for mods (interface 1.11)"
+            "this OpenRAC has no pages of the game's menus, world calls or party rules for mods "
+            "(interface 1.11)"
         );
     }
 
@@ -562,34 +583,53 @@ void load(openrac::Mod& mod) {
     if (rac2) {
         g->coop->barrier(false);
     }
+
     g->mods = std::make_unique<mp::PartyMods>(*g->session, *g->game, mp::ModList{});
     g->mods->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // No Ready and no game for a member whose mods differ from the host's (party_mods.hpp).
     g->session->set_ready_gate([](std::int32_t member) {
-        return g->session->is_host() ? g->mods->may_play(member) : g->mods->heard_host() && !refused();
+        return g->session->is_host() ? g->mods->may_play(member)
+                                     : g->mods->heard_host() && !refused();
     });
     g->coop->set_gate([](std::int32_t member) { return g->mods->may_play(member); });
     g->world = std::make_unique<mp::World>(*g->session, *g->game, *g->coop);
     g->progress = std::make_unique<mp::Progress>(*g->session, *g->game, *g->coop);
     g->progress->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->cosave = std::make_unique<mp::CoSave>(*g->session, *g->game, mp::now_ms);
-    g->coop->set_save_hooks([](std::int32_t target) { g->cosave->announce(target); },
-                            [](const mp::Bytes& save) { return g->cosave->starting(save); });
+    g->coop->set_save_hooks(
+        [](std::int32_t target) { g->cosave->announce(target); },
+        [](const mp::Bytes& save) { return g->cosave->starting(save); }
+    );
     g->coop->on_start_again([] { g->cosave->start_again(); });
     g->coop->on_joiner_save([] { return g->world->save_for_a_joiner(); });
     g->shared = std::make_unique<mp::Shared>(*g->session, *g->game, *g->coop);
     g->shared->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->camscripts = std::make_unique<mp::CamScripts>(*g->session, *g->game, *g->coop);
     g->camscripts->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
-    g->migrate = std::make_unique<mp::Migrate>(*g->session, *g->game, *g->coop, *g->world, *g->progress, *g->shared, *g->mods,
-                                              *g->cosave, *g->camscripts);
+    g->migrate = std::make_unique<mp::Migrate>(
+        *g->session,
+        *g->game,
+        *g->coop,
+        *g->world,
+        *g->progress,
+        *g->shared,
+        *g->mods,
+        *g->cosave,
+        *g->camscripts
+    );
     g->migrate->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     g->coop->on_log([](const std::string& line) { g->mod->info("multiplayer: " + line); });
     // Team tools (comfort.hpp): what it knows of the party, the hero and the others' poses.
     mp::ComfortHooks comfort;
-    comfort.self = [] { return static_cast<int>(g->session->id()); };
-    comfort.host = [] { return static_cast<int>(g->session->host()); };
-    comfort.room = [] { return g->session->in_party() ? g->session->code() : std::string{}; };
+    comfort.self = [] {
+        return static_cast<int>(g->session->id());
+    };
+    comfort.host = [] {
+        return static_cast<int>(g->session->host());
+    };
+    comfort.room = [] {
+        return g->session->in_party() ? g->session->code() : std::string{};
+    };
     comfort.members = [] {
         std::vector<int> ids;
 
@@ -623,7 +663,9 @@ void load(openrac::Mod& mod) {
 
         return g->coop->latest(id, out);
     };
-    comfort.send = [](int target, const mp::Bytes& bytes) { g->session->send_data(target, bytes); };
+    comfort.send = [](int target, const mp::Bytes& bytes) {
+        g->session->send_data(target, bytes);
+    };
     // The deferred lethal hit, given to the game's own damage at last (no health or place written).
     comfort.expire = [] {
         if (auto original = g->mod->original<openrac::rac1::Hero_TakeDamage>()) {
@@ -638,14 +680,17 @@ void load(openrac::Mod& mod) {
     const char* trace_env = std::getenv("OPENRAC_MP_TRACE");
 
     g->revive = mod.setting<bool>("revive");
-    g->join_party = mp::take_join_request(mod.plugins_folder(), static_cast<std::int64_t>(std::time(nullptr)));
+    g->join_party =
+        mp::take_join_request(mod.plugins_folder(), static_cast<std::int64_t>(std::time(nullptr)));
     g->hold_party = mod.setting<bool>("hold_party");
 
-    if (mod.setting<bool>("verbose_log") || (trace_env != nullptr && std::string(trace_env) == "1")) {
+    if (mod.setting<bool>("verbose_log")
+        || (trace_env != nullptr && std::string(trace_env) == "1")) {
         std::error_code error;
         const std::string data = mod.data_dir();
         std::filesystem::path path =
-            (data.empty() ? std::filesystem::current_path(error) : std::filesystem::u8path(data)) / "mp-trace.log";
+            (data.empty() ? std::filesystem::current_path(error) : std::filesystem::u8path(data))
+            / "mp-trace.log";
         path = std::filesystem::absolute(path, error);
         g->trace_file.open(path, std::ios::out | std::ios::app);
 
@@ -654,24 +699,40 @@ void load(openrac::Mod& mod) {
             mod.info("multiplayer: verbose log on, its [mp-trace] lines in " + path.string());
         } else {
             g->trace.open([](const std::string& line) { g->mod->info(line); });
-            mod.warn("multiplayer: verbose log on, but " + path.string() + " does not open: its [mp-trace] lines go here");
+            mod.warn(
+                "multiplayer: verbose log on, but " + path.string()
+                + " does not open: its [mp-trace] lines go here"
+            );
         }
 
         if (!mod.has_moby_run()) {
-            mod.warn("multiplayer: this OpenRAC has no moby_run: the verbose log has no run lines or run cameras");
+            mod.warn(
+                "multiplayer: this OpenRAC has no moby_run: the verbose log has no run lines or "
+                "run cameras"
+            );
         }
     }
 
 #ifdef MULTIPLAYER_BOT
     g->bot = std::make_unique<mp::Bot>(mp::Bot::Parts{
-        *g->connection, *g->session, *g->game, *g->coop, *g->world, *g->mods, *g->camscripts, *g->migrate, [](const float* at) {
+        *g->connection,
+        *g->session,
+        *g->game,
+        *g->coop,
+        *g->world,
+        *g->mods,
+        *g->camscripts,
+        *g->migrate,
+        [](const float* at) {
             // The hero's motion position (the bot is a test's).
             openrac::Memory memory = g->mod->memory();
             const openrac::gaddr hero = g->mod->version() == "ntsc" ? 0x0013F3D0u : 0x0013F4D0u;
+
             for (unsigned i = 0; i < 3; ++i) {
                 memory.write<float>(hero + 4u * i, at[i]);
             }
-        }, [](int item) {
+        },
+        [](int item) {
             // weapon_ammo_counts and hero.pending_item[0] (the bot is a test's). The Drone Device
             // is no held weapon: choosing it asks for the drones (hero +0x1FF5), as the game does.
             g->game->give_item(item);
@@ -686,12 +747,13 @@ void load(openrac::Mod& mod) {
             } else {
                 memory.write<std::int32_t>(hero + 0x20B8u, item);
             }
-        }, [](const std::string& name) {
+        },
+        [](const std::string& name) {
             // What a page shows, as a player reads it.
-            const openrac::UiContent c = name == "refused" ? refused_content()
-                                         : name == "rules" ? rules_content()
+            const openrac::UiContent c = name == "refused"  ? refused_content()
+                                         : name == "rules"  ? rules_content()
                                          : name == "remove" ? remove_content()
-                                                           : lobby_content();
+                                                            : lobby_content();
             std::vector<std::string> lines = {c.title};
 
             for (const openrac::UiItem& item : c.items) {
@@ -700,7 +762,8 @@ void load(openrac::Mod& mod) {
 
             lines.insert(lines.end(), c.footer.begin(), c.footer.end());
             return lines;
-        }, [](const std::string& text) {
+        },
+        [](const std::string& text) {
             // How wide the game's list font draws it (each disc's glyph table; the bot is a test's):
             // the sum of each character's width, byte 3 of its 4-byte entry, as the port's menu_fit.
             const openrac::Memory memory = g->mod->memory();
@@ -712,8 +775,12 @@ void load(openrac::Mod& mod) {
             }
 
             return width;
-        }, [] { return mp::tagged_description("New game", mp::mods_digest(g->mods->own()), game_tag()); },
-        *g->cosave, [] { return g->game->game_save(); }
+        },
+        [] {
+            return mp::tagged_description("New game", mp::mods_digest(g->mods->own()), game_tag());
+        },
+        *g->cosave,
+        [] { return g->game->game_save(); }
     });
 #endif
     g->world->trace(&g->trace);
@@ -722,19 +789,40 @@ void load(openrac::Mod& mod) {
     g->shared->trace(&g->trace);
     g->camscripts->trace(&g->trace);
     // The game's DATA, to the owner of its kind (kinds.hpp); what nobody owns goes to the co-op.
-    g->router.fallback([](std::int32_t sender, const mp::Bytes& bytes) { g->coop->handle(sender, bytes); });
-    g->router.route(mp::Owner::kMods, [](std::int32_t sender, const mp::Bytes& bytes) { g->mods->handle(sender, bytes); });
-    g->router.route(mp::Owner::kWorld, [](std::int32_t sender, const mp::Bytes& bytes) { g->world->handle(sender, bytes); });
-    g->router.route(mp::Owner::kTether, [](std::int32_t sender, const mp::Bytes& bytes) { g->world->handle(sender, bytes); });
-    g->router.route(mp::Owner::kProgress, [](std::int32_t sender, const mp::Bytes& bytes) { g->progress->handle(sender, bytes); });
-    g->router.route(mp::Owner::kSave, [](std::int32_t sender, const mp::Bytes& bytes) { g->cosave->handle(sender, bytes); });
-    g->router.route(mp::Owner::kShare, [](std::int32_t sender, const mp::Bytes& bytes) { g->shared->handle(sender, bytes); });
-    g->router.route(mp::Owner::kMigrate, [](std::int32_t sender, const mp::Bytes& bytes) { g->migrate->handle(sender, bytes); });
-    g->router.route(mp::Owner::kCamera, [](std::int32_t sender, const mp::Bytes& bytes) { g->camscripts->handle(sender, bytes); });
+    g->router.fallback([](std::int32_t sender, const mp::Bytes& bytes) {
+        g->coop->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kMods, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->mods->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kWorld, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->world->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kTether, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->world->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kProgress, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->progress->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kSave, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->cosave->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kShare, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->shared->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kMigrate, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->migrate->handle(sender, bytes);
+    });
+    g->router.route(mp::Owner::kCamera, [](std::int32_t sender, const mp::Bytes& bytes) {
+        g->camscripts->handle(sender, bytes);
+    });
     g->router.route(mp::Owner::kComfort, [](std::int32_t sender, const mp::Bytes& bytes) {
         g->comfort->handle(sender, bytes, mp::now_ms());
     });
-    g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) { g->router.dispatch(sender, bytes); });
+    g->session->on_data([](std::int32_t sender, const mp::Bytes& bytes) {
+        g->router.dispatch(sender, bytes);
+    });
+
     // Ratchet & Clank's hook points (the manifest's): Going Commando's world, rescue and ship are
     // not shared yet (rac2/game.hpp).
     if (!rac2) {
@@ -784,7 +872,8 @@ void load(openrac::Mod& mod) {
                 return;
             }
 
-            const openrac::gaddr hero = g->mod->relocate(g->mod->version() == "pal" ? 0x13F450u : 0x13F350u);
+            const openrac::gaddr hero =
+                g->mod->relocate(g->mod->version() == "pal" ? 0x13F450u : 0x13F350u);
             const bool on_foot = g->mod->memory().read<std::uint8_t>(hero + 0x20A4u) == 0;
 
             if (!g->comfort->hit(mp::now_ms(), damage, on_foot)) {
@@ -798,11 +887,14 @@ void load(openrac::Mod& mod) {
             original(g->coop->taking_off() || g->coop->ship_travel(dest, here) ? dest : here);
         });
     }
+
     // The first pad: the host's Start in a scene or a movie skips it for the party (a member's is
     // taken out: only the host skips), a party's skip presses Start for a movie playing here, and
     // the scene barrier holds the control (coop.hpp). The report: buttons in
     // bytes 0 and 1 (a bit clear while held; Start 0x08), the sticks, then the pressures.
-    mod.on_camera_script([](void*, int id, int started) { g->camscripts->script(id, started != 0); });
+    mod.on_camera_script([](void*, int id, int started) {
+        g->camscripts->script(id, started != 0);
+    });
     mod.on_pad([](int port, std::uint8_t* report, int size) {
         if (port != 0 || size < 6) {
             return;
@@ -839,7 +931,9 @@ void load(openrac::Mod& mod) {
         // L3 and R3 held together (bits 0x02 and 0x04 of byte 0 clear), in a level, the window ours:
         // a rescue (Team tools).
         const openrac_input& input = g->mod->input().raw();
-        g->comfort->holding(phase == mp::kPhasePlaying && input.focused && !input.overlay && (report[0] & 0x06) == 0);
+        g->comfort->holding(
+            phase == mp::kPhasePlaying && input.focused && !input.overlay && (report[0] & 0x06) == 0
+        );
         // The press that says a member is ready for the host's ship is that and no more: to its
         // release, or the rest of it opens the pause menu.
         g->start_taken = start && (g->start_taken || g->coop->ship_held());
@@ -871,15 +965,18 @@ void load(openrac::Mod& mod) {
             report[0] = static_cast<std::uint8_t>(report[0] & ~0x08);
         }
     });
+
     // The game asks the world around each moby's update and of each hit it posts.
     // Two players must not dig one pile: in a member's game a dig waits for the host's word.
     if (mod.has_metal_detect()) {
-        mod.on_metal_detect([](void*, int, int key) { return g->world->metal_detect(key) ? 1 : 0; });
+        mod.on_metal_detect([](void*, int, int key) {
+            return g->world->metal_detect(key) ? 1 : 0;
+        });
     }
 
-    mod.on_moby_update(
-        [](void*, int slot, int phase) { return g->world->gate(slot, phase) ? 1 : 0; }
-    );
+    mod.on_moby_update([](void*, int slot, int phase) {
+        return g->world->gate(slot, phase) ? 1 : 0;
+    });
     mod.on_moby_hit([](void*, const openrac_hit* hit) {
         mp::Hit h;
         h.victim = hit->victim;
@@ -939,7 +1036,9 @@ void load(openrac::Mod& mod) {
             g->listed_mods = true;
             mp::ModList own = g->game->mod_list();
             char digest[16];
-            std::snprintf(digest, sizeof digest, "%08x", static_cast<unsigned>(mp::mods_digest(own)));
+            std::snprintf(
+                digest, sizeof digest, "%08x", static_cast<unsigned>(mp::mods_digest(own))
+            );
             g->coop->set_build(
                 std::string(session_version()) + " " + own.openrac + " " + own.family + " " + digest
             );
@@ -992,13 +1091,16 @@ void load(openrac::Mod& mod) {
         if (g->trace.on()) {
             g->trace.tick(
                 now,
-                !g->session->in_party() ? "solo" : g->session->is_host() ? "host" : "member"
+                !g->session->in_party() ? "solo"
+                : g->session->is_host() ? "host"
+                                        : "member"
             );
         }
 
         tick_auto_join(now);
         g->migrate->tick(now);
         g->coop->tick(now);
+
         // A host's rule: for a member, what its host said; one who took over keeps it.
         if (g->session->is_host() && !g->migrate->took_over()) {
             g->world->rule_revive(g->revive);

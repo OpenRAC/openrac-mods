@@ -21,7 +21,10 @@ std::string save_row(int slot, const openrac_save_info& info, bool there) {
     const int minutes = info.seconds / 60;
     const std::string time = std::to_string(minutes / 60) + ":" + (minutes % 60 < 10 ? "0" : "")
                              + std::to_string(minutes % 60);
-    return name + mp::save_description(g->mod->level_name(info.level), info.gold_bolts, false, g_language)
+    return name
+           + mp::save_description(
+               g->mod->level_name(info.level), info.gold_bolts, false, g_language
+           )
            + ", " + time;
 }
 
@@ -30,6 +33,7 @@ struct SlotRow {
     openrac_save_info info{};
     bool there = false;
 };
+
 std::vector<SlotRow> g_slots(kSaveSlots);
 
 std::vector<SlotRow> g_coop_slots(mp::kCoSlots);
@@ -56,7 +60,9 @@ std::string coop_save_row(int slot) {
     mp::CoNote note;
     mp::parse_note(g->game->card_note(slot), note);
     const std::string save =
-        row.there ? mp::save_description(g->mod->level_name(row.info.level), row.info.gold_bolts, false, g_language)
+        row.there ? mp::save_description(
+                        g->mod->level_name(row.info.level), row.info.gold_bolts, false, g_language
+                    )
                   : std::string();
     return mp::coop_row(slot, save, note, row.there);
 }
@@ -68,15 +74,18 @@ void show_coop_saves() {
     c.items.push_back(openrac::UiItem::button(text("Back")));
 
     for (int slot = 0; slot < mp::kCoSlots; ++slot) {
-        c.items.push_back(openrac::UiItem::button(
-            coop_save_row(slot), g_coop_slots[static_cast<std::size_t>(slot)].there
-        ));
+        c.items.push_back(
+            openrac::UiItem::button(
+                coop_save_row(slot), g_coop_slots[static_cast<std::size_t>(slot)].there
+            )
+        );
     }
 
-    c.footer = {text("Past parties"),
-                g->direct_error.empty() ? text("Own copies")
-                                        : mp::localized_notice(g->direct_error, g_language),
-                text(mp::kSelectBackHints)};
+    c.footer =
+        {text("Past parties"),
+         g->direct_error.empty() ? text("Own copies")
+                                 : mp::localized_notice(g->direct_error, g_language),
+         text(mp::kSelectBackHints)};
     set_content(g->saves, c);
 }
 
@@ -99,10 +108,11 @@ void show_saves() {
     }
 
     c.items.push_back(openrac::UiItem::button(text("Continue as host"), g_any_coop));
-    c.footer = {g->saves_for == SavesFor::kHost ? text("Port 7770") : status(),
-                g->direct_error.empty() ? text("Plays a copy")
-                                        : mp::localized_notice(g->direct_error, g_language),
-                text(mp::kSelectBackHints)};
+    c.footer =
+        {g->saves_for == SavesFor::kHost ? text("Port 7770") : status(),
+         g->direct_error.empty() ? text("Plays a copy")
+                                 : mp::localized_notice(g->direct_error, g_language),
+         text(mp::kSelectBackHints)};
     set_content(g->saves, c);
 }
 
@@ -130,7 +140,8 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
         if (e.item() > kNewGameItem) {
             const int slot = e.item() - 1;
             openrac_save_info info{};
-            save = g->saves_coop ? g->mod->save_read2(mp::kCoFolder, slot) : g->mod->save_read(slot);
+            save =
+                g->saves_coop ? g->mod->save_read2(mp::kCoFolder, slot) : g->mod->save_read(slot);
             const int there = g->saves_coop ? g->mod->save_slot2(mp::kCoFolder, slot, info)
                                             : g->mod->save_slot(slot, info);
 
@@ -153,7 +164,8 @@ void on_saves(const openrac::UiPage& page, const openrac::UiEvent& e) {
         g->coop->choose(save, description);
         g->notice.clear();
         // The list says what mods the game has, for Browse to mark the ones a player's do not fit.
-        const std::string listed = mp::tagged_description(description, mp::mods_digest(g->mods->own()), game_tag());
+        const std::string listed =
+            mp::tagged_description(description, mp::mods_digest(g->mods->own()), game_tag());
 
         if (g->saves_for == SavesFor::kCreate) {
             g->session->create(listed);

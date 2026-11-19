@@ -39,7 +39,9 @@ openrac::UiContent remove_content() {
     c.title = m != nullptr ? text("Remove ") + m->name : text("Remove a player");
     c.items.push_back(openrac::UiItem::button(text(mp::kRemoveLabel), m != nullptr));
     c.items.push_back(
-        openrac::UiItem::button(text(mp::kBanLabel), m != nullptr && !g->mods->key(g->remove_member).empty())
+        openrac::UiItem::button(
+            text(mp::kBanLabel), m != nullptr && !g->mods->key(g->remove_member).empty()
+        )
     );
     c.items.push_back(openrac::UiItem::button(text("Back")));
 
@@ -78,7 +80,9 @@ void remove_member(std::int32_t member) {
 /* The host: anyone in the party under a key banned from this save goes (a ban's whole effect:
  * whoever it was comes back by another name or address, and its MODS says who it is). */
 void remove_banned() {
-    const auto key_of = [](std::int32_t member) { return g->mods->key(member); };
+    const auto key_of = [](std::int32_t member) {
+        return g->mods->key(member);
+    };
 
     for (const mp::Member& m : g->cosave->banned_members(key_of)) {
         // Each is told once: a kick already asked for is no news.
