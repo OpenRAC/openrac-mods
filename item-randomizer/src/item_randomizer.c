@@ -1169,7 +1169,8 @@ static int kerwan_randomizer_active(void) { return rando_on(); }
 #include "kerwan_access.inc"
 
 static int aridia_reward_collected(void) {
-    return rando_on() && had(s_by_item[ITEM_TRESPASSER]);
+    const int loc = s_by_item[ITEM_TRESPASSER];
+    return rando_on() && loc >= 0 && had(loc);
 }
 #include "aridia_access.inc"
 
