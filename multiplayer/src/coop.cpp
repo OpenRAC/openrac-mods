@@ -4,7 +4,6 @@
  * Playing together (coop.hpp): the host's PLAY and its save, LEVEL, WANT and the tick.
  */
 #include "coop.hpp"
-#include "coop_util.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -12,11 +11,15 @@
 #include <cstdlib>
 #include <utility>
 
+#include "coop_util.hpp"
+
 namespace mp {
 
 using namespace coop_util;
 
-std::string save_description(const std::string& planet, int gold_bolts, bool new_game, Language language) {
+std::string save_description(
+    const std::string& planet, int gold_bolts, bool new_game, Language language
+) {
     if (new_game) {
         return translated("New game", language);
     }
@@ -26,14 +29,17 @@ std::string save_description(const std::string& planet, int gold_bolts, bool new
     // The gold bolts say how far a save has come, where the game has no percentage.
     if (gold_bolts > 0) {
         text += ", " + std::to_string(gold_bolts)
-                + (gold_bolts == 1 ? translated(" gold bolt", language) : translated(" gold bolts", language));
+                + (gold_bolts == 1 ? translated(" gold bolt", language)
+                                   : translated(" gold bolts", language));
     }
 
     return text;
 }
 
 Coop::Coop(Session& session, Game& game, std::function<std::uint64_t()> clock)
-    : session_(session), game_(game), clock_(std::move(clock)) {
+    : session_(session),
+      game_(game),
+      clock_(std::move(clock)) {
     // Without a clock of the caller's, the monotonic one.
     if (!clock_) {
         clock_ = now_ms;
@@ -111,8 +117,10 @@ bool Coop::start() {
         }
     }
 
-    log("starting " + (chosen_.empty() ? std::string("a new game") : "a save of "
-                       + std::to_string(chosen_.size()) + " bytes") + " for the party");
+    log("starting "
+        + (chosen_.empty() ? std::string("a new game")
+                           : "a save of " + std::to_string(chosen_.size()) + " bytes")
+        + " for the party");
 
     // The host plays it too; a refusal (a save the game will not take) is said.
     if (!about_to_start(chosen_)) {
@@ -219,7 +227,9 @@ void Coop::own_skip(int phase, std::uint64_t now) {
     const GameStatus status = game_.status();
     note_phase(status);
     const std::uint16_t shared = phase == kPhaseScene ? shared_here(now, status) : 0;
-    const std::uint8_t what = phase != kPhaseScene ? kSkipMovie : shared != 0 ? kSkipShared : kSkipOther;
+    const std::uint8_t what = phase != kPhaseScene ? kSkipMovie
+                              : shared != 0        ? kSkipShared
+                                                   : kSkipOther;
 
     if (shared != 0) {
         party_skip_ = shared;
@@ -338,7 +348,8 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             received_ = 0;
             save_.assign(expected_, 0);
             notice_ = "Starting";
-            log("the host's game: " + (save ? std::to_string(size) + " bytes of save" : std::string("a new game"))
+            log("the host's game: "
+                + (save ? std::to_string(size) + " bytes of save" : std::string("a new game"))
                 + ", level " + std::to_string(level));
             break;
         }
@@ -364,7 +375,8 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             // The host's travels (a host without them: none).
             const bool travels = r.left() >= 7;
             const std::uint8_t travel_high = travels ? r.u8() : 0;
-            const auto travel = static_cast<std::uint16_t>(travel_high << 8 | (travels ? r.u8() : 0));
+            const auto travel =
+                static_cast<std::uint16_t>(travel_high << 8 | (travels ? r.u8() : 0));
             const std::int32_t heard_dest = travels ? r.i32() : -1;
             const bool arriving = travels && r.u8() != 0;
             const bool ship_held = r.left() > 0 && r.u8() != 0;
@@ -375,10 +387,14 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
 
             // A level or a destination this game does not have is no travel to follow.
             const int levels = game_.status().levels;
-            const auto in_game = [levels](std::int32_t l) { return l >= 0 && (levels <= 0 || l < levels); };
+            const auto in_game = [levels](std::int32_t l) {
+                return l >= 0 && (levels <= 0 || l < levels);
+            };
+
             if (level != -1 && !in_game(level)) {
                 break;
             }
+
             const std::int32_t dest = in_game(heard_dest) ? heard_dest : -1;
 
             play_ = play;
@@ -411,7 +427,8 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                     }
 
                     depart_ms_ = now;
-                    log("the host's ship leaves for level " + std::to_string(dest) + ": leaving with it soon");
+                    log("the host's ship leaves for level " + std::to_string(dest)
+                        + ": leaving with it soon");
                 }
             }
 
@@ -433,7 +450,9 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             if (session_.role().host() && r.ok() && play_ != 0 && play == play_
                 && member_of(session_, sender) && may_play(sender)) {
                 const GameStatus status = game_.status();
-                const Bytes live = !in_level(status.phase) ? Bytes{} : joiner_save_ ? joiner_save_() : game_.capture();
+                const Bytes live = !in_level(status.phase) ? Bytes{}
+                                   : joiner_save_          ? joiner_save_()
+                                                           : game_.capture();
 
                 log("player " + std::to_string(sender) + " asked for the game");
 
@@ -484,7 +503,8 @@ void Coop::tick(std::uint64_t now) {
             const bool starting = start_ms_ != 0 && now - start_ms_ < kStartingMs;
 
             // (The host's game it played before the party, adopt: it goes on.)
-            if (party_game_ && !adopted_ && phase != kPhaseNone && (phase != kPhaseFrontEnd || starting)) {
+            if (party_game_ && !adopted_ && phase != kPhaseNone
+                && (phase != kPhaseFrontEnd || starting)) {
                 to_title_ = true;
                 title_since_ = now;
                 left_title_ = phase != kPhaseFrontEnd;
@@ -518,10 +538,11 @@ void Coop::tick(std::uint64_t now) {
 
     // Each change of the game's phase, level or load in the log, with the clock (the same on every
     // game of a machine): the party's timeline.
-    if (status.phase != logged_.phase || status.level != logged_.level || status.loads != logged_.loads) {
+    if (status.phase != logged_.phase || status.level != logged_.level
+        || status.loads != logged_.loads) {
         logged_ = status;
-        log("game at " + std::to_string(now) + " ms: phase " + std::to_string(status.phase) + ", level "
-            + std::to_string(status.level) + ", load " + std::to_string(status.loads)
+        log("game at " + std::to_string(now) + " ms: phase " + std::to_string(status.phase)
+            + ", level " + std::to_string(status.level) + ", load " + std::to_string(status.loads)
             + (arriving_ ? ", arriving" : ""));
     }
 
@@ -637,8 +658,8 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
 
     // A scene of the host's that started late here plays out as long as it was late (coop.hpp).
     tick_member_scene(now, status);
-    const bool host_out =
-        !host_scene_ && host_out_since_ != 0 && now - host_out_since_ >= kHostOutMs + scene_lag_ms();
+    const bool host_out = !host_scene_ && host_out_since_ != 0
+                          && now - host_out_since_ >= kHostOutMs + scene_lag_ms();
 
     if (together && status.phase == kPhaseScene && host_out
         && (skip_ms_ == 0 || now - skip_ms_ >= kSkipMs)) {
@@ -665,8 +686,9 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
         } else if (in_level(status.phase) && status.level != leave_dest_
                    && (leave_ms_ == 0 || now - leave_ms_ >= (took_off_ ? kTakeoffMs : kLeaveMs))) {
             if (leave_ms_ == 0) {
-                log("leaving level " + std::to_string(status.level) + " for " + std::to_string(leave_dest_)
-                    + " (phase " + std::to_string(status.phase) + ")");
+                log("leaving level " + std::to_string(status.level) + " for "
+                    + std::to_string(leave_dest_) + " (phase " + std::to_string(status.phase)
+                    + ")");
             }
 
             const bool first = leave_ms_ == 0;
@@ -701,8 +723,9 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     }
 
     // In the host's game: in the host's level (not while the party is on its way to it).
-    if (play_ != 0 && applied_ == play_ && status.phase == kPhasePlaying && host_level_ >= 0 && !arriving_
-        && status.level != host_level_ && (travel_ms_ == 0 || now - travel_ms_ >= kTravelMs)) {
+    if (play_ != 0 && applied_ == play_ && status.phase == kPhasePlaying && host_level_ >= 0
+        && !arriving_ && status.level != host_level_
+        && (travel_ms_ == 0 || now - travel_ms_ >= kTravelMs)) {
         travel_ms_ = now;
         log("travelling to the host's level " + std::to_string(host_level_));
         game_.travel(host_level_);
@@ -730,12 +753,14 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
 void Coop::reset() {
     world_ack_ = false;
     world_acks_.clear();
+
     for (auto& entry : remotes_) {
         drop_figure(entry.first, entry.second, "the party's game reset");
     }
 
     remotes_.clear();
     relay_.clear();
+
     if (quiet_) {
         quiet_ = false;
         game_.quiet_gifts(false);

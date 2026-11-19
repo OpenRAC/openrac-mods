@@ -81,17 +81,19 @@ public:
     virtual ~TagPainter() = default;
     virtual bool project(const float world[3], float& x, float& y) = 0;
     virtual void rect(float x, float y, float w, float h, std::uint32_t colour) = 0;
-    virtual void text(float x, float y, float height, std::uint32_t colour, const std::string& line) = 0;
+    virtual void text(
+        float x, float y, float height, std::uint32_t colour, const std::string& line
+    ) = 0;
     virtual float text_width(float height, const std::string& line) = 0;
     virtual float fade(float distance, float near_distance, float far_distance) = 0;
 };
 
 /* What the last frame's tags came to: for the bot (bot.hpp). */
 struct TagStats {
-    int tags = 0;       // players who could have one
-    int on_picture = 0; // those in front of the camera, on the picture
-    int drawn = 0;      // those near enough and in view: a name is on the picture
-    float x = 0;        // where the last of those is
+    int tags = 0;        // players who could have one
+    int on_picture = 0;  // those in front of the camera, on the picture
+    int drawn = 0;       // those near enough and in view: a name is on the picture
+    float x = 0;         // where the last of those is
     float y = 0;
 };
 
@@ -99,7 +101,9 @@ struct TagStats {
 std::uint32_t tag_colour(int slot);
 
 /* Draws `tags` as seen from `camera`. */
-TagStats draw_name_tags(TagPainter& painter, const float camera[3], const std::vector<NameTag>& tags);
+TagStats draw_name_tags(
+    TagPainter& painter, const float camera[3], const std::vector<NameTag>& tags
+);
 
 }  // namespace mp
 

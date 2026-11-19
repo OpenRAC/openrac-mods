@@ -11,11 +11,11 @@
  * still plays a scene plays it to its end (only the host skips a scene, coop_scenes.cpp); those who
  * waited simply have their control back.
  */
-#include "coop.hpp"
-#include "coop_util.hpp"
-
 #include <algorithm>
 #include <string>
+
+#include "coop.hpp"
+#include "coop_util.hpp"
 
 namespace mp {
 

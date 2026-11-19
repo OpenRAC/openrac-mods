@@ -121,9 +121,13 @@ public:
     bool ban(const std::string& key);
     void lift_bans();
     bool banned(const std::string& key) const;
+
     const std::vector<std::string>& bans() const { return bans_; }
+
     /* The host: the members in the party whose key (`key_of`) is banned; none of its own. */
-    std::vector<Member> banned_members(const std::function<std::string(std::int32_t)>& key_of) const;
+    std::vector<Member> banned_members(
+        const std::function<std::string(std::int32_t)>& key_of
+    ) const;
 
     /* The Save the party item: the host saves for everyone, a member asks it to. False too soon, or
      * with nothing to save. */
@@ -138,7 +142,9 @@ public:
 
     /* Whether the game's saves are the party's now, and in which slot (-1: none). */
     bool on() const { return on_; }
+
     int slot() const { return slot_; }
+
     std::uint32_t key() const { return key_; }
 
     /* What the pause page says of where saves go; empty out of a game of the party's. */
@@ -149,6 +155,7 @@ public:
 
     /* The host: how many members have its last save, of how many it went to. */
     std::size_t acked() const { return acked_.size(); }
+
     std::size_t sent_to() const { return sent_to_; }
 
 private:

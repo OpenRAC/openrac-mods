@@ -12,9 +12,9 @@ namespace mp {
 namespace {
 
 constexpr float kPictureWidth = 512.0f;
-constexpr float kMargin = 2.0f;   // around the text, and to the picture's edge
-constexpr float kMark = 4.0f;     // the lagging mark's size
-constexpr float kSeen = 0.004f;   // a tag this faint draws nothing
+constexpr float kMargin = 2.0f;  // around the text, and to the picture's edge
+constexpr float kMark = 4.0f;    // the lagging mark's size
+constexpr float kSeen = 0.004f;  // a tag this faint draws nothing
 constexpr std::uint32_t kBack = 0x000000A0u;
 constexpr std::uint32_t kLate = 0xFFB020FFu;
 
@@ -50,7 +50,9 @@ float TagSight::advance(double now_ms) {
     return strength_;
 }
 
-TagStats draw_name_tags(TagPainter& painter, const float camera[3], const std::vector<NameTag>& tags) {
+TagStats draw_name_tags(
+    TagPainter& painter, const float camera[3], const std::vector<NameTag>& tags
+) {
     TagStats stats;
 
     for (const NameTag& tag : tags) {
@@ -78,17 +80,28 @@ TagStats draw_name_tags(TagPainter& painter, const float camera[3], const std::v
         }
 
         ++stats.drawn;
-        const float size = kTagTextFar + (kTagTextNear - kTagTextFar) * painter.fade(distance, kTagNear, kTagFadeFrom);
+        const float size =
+            kTagTextFar
+            + (kTagTextNear - kTagTextFar) * painter.fade(distance, kTagNear, kTagFadeFrom);
         const float width = painter.text_width(size, tag.name);
         const float mark = tag.late ? kMark + kMargin : 0.0f;
         const float whole = width + mark;
-        const float left = std::clamp(x - whole / 2, kMargin, std::max(kMargin, kPictureWidth - whole - kMargin));
+        const float left =
+            std::clamp(x - whole / 2, kMargin, std::max(kMargin, kPictureWidth - whole - kMargin));
         const float top = std::max(kMargin, y - size - kMargin);
-        painter.rect(left - kMargin, top - kMargin, whole + 2 * kMargin, size + 2 * kMargin, faded(kBack, name));
+        painter.rect(
+            left - kMargin,
+            top - kMargin,
+            whole + 2 * kMargin,
+            size + 2 * kMargin,
+            faded(kBack, name)
+        );
         painter.text(left, top, size, faded(colour, name), tag.name);
 
         if (tag.late) {
-            painter.rect(left + width + kMargin, top + (size - kMark) / 2, kMark, kMark, faded(kLate, name));
+            painter.rect(
+                left + width + kMargin, top + (size - kMark) / 2, kMark, kMark, faded(kLate, name)
+            );
         }
     }
 

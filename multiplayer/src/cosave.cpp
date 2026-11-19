@@ -12,10 +12,12 @@ namespace mp {
 
 std::string note_text(const CoNote& note) {
     std::string host = note.host;
-    host.erase(std::remove_if(host.begin(), host.end(), [](char c) { return c == '\n' || c == '\r'; }),
-               host.end());
-    std::string text = "format=1\nkey=" + std::to_string(note.key) + "\nsaved=" + std::to_string(note.saved)
-                       + "\nhost=" + host + "\n";
+    host.erase(
+        std::remove_if(host.begin(), host.end(), [](char c) { return c == '\n' || c == '\r'; }),
+        host.end()
+    );
+    std::string text = "format=1\nkey=" + std::to_string(note.key)
+                       + "\nsaved=" + std::to_string(note.saved) + "\nhost=" + host + "\n";
 
     for (const std::string& key : note.bans) {
         if (valid_key(key)) {
@@ -80,9 +82,10 @@ int pick_slot(const std::vector<CoNote>& notes, std::uint32_t key) {
         }
     }
 
-    const auto oldest = std::min_element(notes.begin(), notes.end(), [](const CoNote& a, const CoNote& b) {
-        return a.saved < b.saved;
-    });
+    const auto oldest =
+        std::min_element(notes.begin(), notes.end(), [](const CoNote& a, const CoNote& b) {
+            return a.saved < b.saved;
+        });
     return oldest == notes.end() ? 0 : static_cast<int>(oldest - notes.begin());
 }
 
@@ -97,7 +100,9 @@ std::string coop_row(int slot, const std::string& save, const CoNote& note, bool
 }
 
 CoSave::CoSave(Session& session, Game& game, std::function<std::uint64_t()> clock)
-    : session_(session), game_(game), clock_(std::move(clock)) {}
+    : session_(session),
+      game_(game),
+      clock_(std::move(clock)) {}
 
 void CoSave::choose_new() {
     continuing_ = -1;
@@ -116,7 +121,9 @@ bool CoSave::banned(const std::string& key) const {
     return !key.empty() && std::find(bans_.begin(), bans_.end(), key) != bans_.end();
 }
 
-std::vector<Member> CoSave::banned_members(const std::function<std::string(std::int32_t)>& key_of) const {
+std::vector<Member> CoSave::banned_members(
+    const std::function<std::string(std::int32_t)>& key_of
+) const {
     std::vector<Member> out;
 
     if (session_.is_host()) {
@@ -178,8 +185,10 @@ std::string CoSave::host_name() const {
 void CoSave::ensure_key() {
     // The co-op save's it goes on from, else a new one (never 0: no party).
     if (key_ == 0) {
-        key_ = chosen_key_ != 0 ? chosen_key_
-                                : static_cast<std::uint32_t>((clock_() * 2654435761u) ^ game_.wall_seconds()) | 1u;
+        key_ =
+            chosen_key_ != 0
+                ? chosen_key_
+                : static_cast<std::uint32_t>((clock_() * 2654435761u) ^ game_.wall_seconds()) | 1u;
     }
 }
 
@@ -190,7 +199,9 @@ void CoSave::announce(std::int32_t target) {
 
     ensure_key();
     Writer w;
-    w.u8(kind::kCoParty).i32(static_cast<std::int32_t>(key_)).u8(static_cast<std::uint8_t>(bans_.size()));
+    w.u8(kind::kCoParty)
+        .i32(static_cast<std::int32_t>(key_))
+        .u8(static_cast<std::uint8_t>(bans_.size()));
 
     for (const std::string& key : bans_) {
         w.str(key);
@@ -293,8 +304,10 @@ void CoSave::broadcast(const Bytes& save) {
                 .u8(tag_)
                 .i32(total)
                 .i32(index)
-                .raw(Bytes(save.begin() + static_cast<std::ptrdiff_t>(at),
-                           save.begin() + static_cast<std::ptrdiff_t>(at + n)))
+                .raw(Bytes(
+                    save.begin() + static_cast<std::ptrdiff_t>(at),
+                    save.begin() + static_cast<std::ptrdiff_t>(at + n)
+                ))
                 .bytes()
         );
     }
@@ -382,8 +395,8 @@ void CoSave::take_piece(Reader& r) {
     const Bytes piece = r.rest();
     const std::size_t most = (kMaxSaveBytes + kChunkBytes - 1) / kChunkBytes;
 
-    if (!r.ok() || total <= 0 || static_cast<std::size_t>(total) > most || index < 0 || index >= total
-        || piece.empty() || piece.size() > kChunkBytes
+    if (!r.ok() || total <= 0 || static_cast<std::size_t>(total) > most || index < 0
+        || index >= total || piece.empty() || piece.size() > kChunkBytes
         || (index + 1 < total && piece.size() != kChunkBytes)) {
         return;
     }
@@ -423,9 +436,8 @@ void CoSave::take_piece(Reader& r) {
         write_note();
     }
 
-    session_.send_data(
-        session_.host(), Writer().u8(kind::kCoSaveAck).u8(tag).u8(ok ? 1 : 0).bytes()
-    );
+    session_
+        .send_data(session_.host(), Writer().u8(kind::kCoSaveAck).u8(tag).u8(ok ? 1 : 0).bytes());
 }
 
 void CoSave::handle(std::int32_t sender, const Bytes& bytes) {

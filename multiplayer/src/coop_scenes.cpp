@@ -332,7 +332,8 @@ void Coop::on_skip(std::int32_t sender, bool from_host, const Bytes& /*bytes*/, 
     if (what == kSkipShared) {
         // The host's scene `scene`: the newest known here (or one to come: its SCENE on its way);
         // an older one's skip is stale.
-        const std::uint16_t newest = session_.role().host() ? scene_sequence_ : host_scene_sequence_;
+        const std::uint16_t newest =
+            session_.role().host() ? scene_sequence_ : host_scene_sequence_;
 
         if (newest != 0 && older_scene(scene, newest)) {
             log(by + " of an earlier scene: ignored");

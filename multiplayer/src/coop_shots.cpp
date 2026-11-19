@@ -3,14 +3,14 @@
  *
  * Playing together (coop.hpp): the shots sent and shown.
  */
-#include "coop.hpp"
-#include "coop_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
+
+#include "coop.hpp"
+#include "coop_util.hpp"
 
 namespace mp {
 
@@ -45,8 +45,12 @@ void Coop::send_queued_shots(std::uint64_t now) {
     }
 
     // A state the rates refuse is not sent: these go in the next one, or expire.
-    if (session_.send_state(session_.role().host() ? kBroadcast : session_.host(), encode_shotx(entries))) {
-        shots_out_.erase(shots_out_.begin(), shots_out_.begin() + static_cast<std::ptrdiff_t>(entries.size()));
+    if (session_.send_state(
+            session_.role().host() ? kBroadcast : session_.host(), encode_shotx(entries)
+        )) {
+        shots_out_.erase(
+            shots_out_.begin(), shots_out_.begin() + static_cast<std::ptrdiff_t>(entries.size())
+        );
         shots_sent_ms_ = now;
     }
 }
@@ -61,8 +65,9 @@ void Coop::send_shots(const GameStatus& status) {
     }
 
     const std::uint64_t now = clock_();
-    const auto stamp =
-        static_cast<std::uint32_t>(session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(now));
+    const auto stamp = static_cast<std::uint32_t>(
+        session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(now)
+    );
 
     for (const Shot& shot : shots) {
         ShotEntry e;
@@ -98,7 +103,9 @@ void Coop::on_shot(std::int32_t sender, const Bytes& bytes) {
     ShotEntry e;
     e.owner = m.owner;
     e.level = m.level;
-    e.stamp = static_cast<std::uint32_t>(session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(clock_()));
+    e.stamp = static_cast<std::uint32_t>(
+        session_.has_clock() ? session_.server_ms() : static_cast<std::int64_t>(clock_())
+    );
     e.shot = m.shot;
     take_shot(e);
 }
@@ -154,7 +161,9 @@ void Coop::take_shot(const ShotEntry& e) {
         time = static_cast<double>(server - ago) - session_.clock_offset_ms();
     }
 
-    r.shots.push_back({std::max(now, time + r.poses.delay_ms()), e.level, e.shot, time + r.poses.delay_ms()});
+    r.shots.push_back(
+        {std::max(now, time + r.poses.delay_ms()), e.level, e.shot, time + r.poses.delay_ms()}
+    );
 }
 
 void Coop::fire_shots(Remote& r, std::uint64_t now, const GameStatus& status) {

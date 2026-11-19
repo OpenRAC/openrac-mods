@@ -3,14 +3,14 @@
  *
  * Playing together (coop.hpp): a player who leaves.
  */
-#include "coop.hpp"
-#include "coop_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
+
+#include "coop.hpp"
+#include "coop_util.hpp"
 
 namespace mp {
 

@@ -3,14 +3,14 @@
  *
  * Playing together (coop.hpp): the players' poses and their figures.
  */
-#include "coop.hpp"
-#include "coop_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
+
+#include "coop.hpp"
+#include "coop_util.hpp"
 
 namespace mp {
 
@@ -44,6 +44,7 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
     const double time =
         session_.has_clock() ? static_cast<double>(m.stamp_ms) - session_.clock_offset_ms() : now;
     Remote& r = remotes_[m.owner];
+
     if (tracing()) {
         std::fprintf(stderr, "ATRACE seq %u %d\n", m.sequence, m.teleport ? 1 : 0);
         mp::trace("R", now, time, m.pose);
@@ -55,12 +56,27 @@ void Coop::on_pose(std::int32_t sender, const Bytes& bytes) {
 
     if (trace_ != nullptr && trace_->on()) {
         char text[320];
-        std::snprintf(text, sizeof text,
-                      "recv player %d seq %u stamp %lld local %.0f arrival %.0f transit %.0f at %.3f %.3f %.3f "
-                      "vel %.3f %.3f %.3f state %d%s",
-                      m.owner, m.sequence, static_cast<long long>(m.stamp_ms), time, now, now - time,
-                      m.pose.position[0], m.pose.position[1], m.pose.position[2], m.pose.velocity[0],
-                      m.pose.velocity[1], m.pose.velocity[2], m.pose.state, m.teleport ? " teleport" : "");
+        std::snprintf(
+            text,
+            sizeof text,
+            "recv player %d seq %u stamp %lld local %.0f arrival %.0f transit %.0f at %.3f %.3f "
+            "%.3f "
+            "vel %.3f %.3f %.3f state %d%s",
+            m.owner,
+            m.sequence,
+            static_cast<long long>(m.stamp_ms),
+            time,
+            now,
+            now - time,
+            m.pose.position[0],
+            m.pose.position[1],
+            m.pose.position[2],
+            m.pose.velocity[0],
+            m.pose.velocity[1],
+            m.pose.velocity[2],
+            m.pose.state,
+            m.teleport ? " teleport" : ""
+        );
         trace_->line("pose", text);
     }
 }
@@ -133,7 +149,9 @@ void Coop::send_poses(const Bytes* own) {
 
         for (std::size_t i = at; i < end; ++i) {
             const auto length = poses[i]->size();
-            w.u8(static_cast<std::uint8_t>(length >> 8)).u8(static_cast<std::uint8_t>(length)).raw(*poses[i]);
+            w.u8(static_cast<std::uint8_t>(length >> 8))
+                .u8(static_cast<std::uint8_t>(length))
+                .raw(*poses[i]);
         }
 
         session_.send_state(kBroadcast, w.bytes());
@@ -167,9 +185,19 @@ void Coop::trace_hero(std::uint64_t now, const GameStatus& status) {
 
     if (now - h.since_ms >= kPoseTraceMs) {
         char text[192];
-        std::snprintf(text, sizeof text, "hero ticks %d z %.3f..%.3f changes %d now %s vel %.3f %.3f %.3f",
-                      h.ticks, h.low, h.high, h.changes, xyz(hero.position).c_str(), hero.velocity[0],
-                      hero.velocity[1], hero.velocity[2]);
+        std::snprintf(
+            text,
+            sizeof text,
+            "hero ticks %d z %.3f..%.3f changes %d now %s vel %.3f %.3f %.3f",
+            h.ticks,
+            h.low,
+            h.high,
+            h.changes,
+            xyz(hero.position).c_str(),
+            hero.velocity[0],
+            hero.velocity[1],
+            hero.velocity[2]
+        );
         trace_->line("pose", text);
         h = HeroZ{};
         h.since_ms = now;
@@ -287,7 +315,8 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
             hidden = "this game is out of a level";
         } else if (!r.poses.at(t, pose)) {
             hidden = "no pose";
-        } else if (r.poses.silence_ms(t) >= kGoneMs && !session_.away(it->first) && !session_.dropped()) {
+        } else if (r.poses.silence_ms(t) >= kGoneMs && !session_.away(it->first)
+                   && !session_.dropped()) {
             // (A connection that dropped: stood where it was, until the slot is given up.)
             hidden = "silent";
         } else if (pose.level != status.level) {
@@ -337,11 +366,13 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
             r.traced_ms = now;
             const Interpolator::Counts counts = r.poses.take_counts();
             trace_->line(
-                "pose", "shown player " + std::to_string(it->first) + " " + shown_name(r.poses.shown()) + " at "
-                            + xyz(pose.position) + " cursor " + std::to_string(std::llround(r.poses.cursor_ms()))
-                            + " " + r.poses.describe() + " frames " + counts_text(counts.by) + " clock rtt "
-                            + std::to_string(session_.rtt_ms()) + " offset "
-                            + std::to_string(std::llround(session_.clock_offset_ms()))
+                "pose",
+                "shown player " + std::to_string(it->first) + " " + shown_name(r.poses.shown())
+                    + " at " + xyz(pose.position) + " cursor "
+                    + std::to_string(std::llround(r.poses.cursor_ms())) + " " + r.poses.describe()
+                    + " frames " + counts_text(counts.by) + " clock rtt "
+                    + std::to_string(session_.rtt_ms()) + " offset "
+                    + std::to_string(std::llround(session_.clock_offset_ms()))
             );
         }
 
@@ -358,7 +389,8 @@ void Coop::show_remotes(std::uint64_t now, const GameStatus& status) {
         }
 
         std::copy(std::begin(pose.position), std::end(pose.position), std::begin(r.shown_at));
-        r.late = r.poses.silence_ms(t) >= kTagLateMs || session_.link(it->first).ping_ms >= kTagPingMs;
+        r.late =
+            r.poses.silence_ms(t) >= kTagLateMs || session_.link(it->first).ping_ms >= kTagPingMs;
 
         fire_shots(r, now, status);
 
@@ -421,7 +453,11 @@ std::vector<NameTag> Coop::name_tags() const {
             NameTag tag;
             tag.name = m.name;
             tag.slot = slot;
-            std::copy(std::begin(it->second.shown_at), std::end(it->second.shown_at), std::begin(tag.position));
+            std::copy(
+                std::begin(it->second.shown_at),
+                std::end(it->second.shown_at),
+                std::begin(tag.position)
+            );
             tag.late = it->second.late;
             tag.sight = it->second.sight.strength();
             tags.push_back(std::move(tag));

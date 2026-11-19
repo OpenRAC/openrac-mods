@@ -5,13 +5,13 @@
  */
 #pragma once
 
-#include "coop.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+
+#include "coop.hpp"
 
 namespace mp {
 namespace coop_util {
@@ -34,11 +34,28 @@ inline bool tracing() {
 }
 
 inline void trace(const char* what, double now, double extra, const Pose& p) {
-    std::fprintf(stderr,
-                 "ATRACE %s %.1f %.1f %d %u %.3f %.3f %.3f %.4f %.3f %.3f %.3f %d %u %u %u %.4f %.4f\n",
-                 what, now, extra, p.level, p.flags, p.position[0], p.position[1], p.position[2],
-                 p.rotation[2], p.velocity[0], p.velocity[1], p.velocity[2], p.state, p.seq, p.frame,
-                 p.next_frame, p.anim_time, p.anim_speed);
+    std::fprintf(
+        stderr,
+        "ATRACE %s %.1f %.1f %d %u %.3f %.3f %.3f %.4f %.3f %.3f %.3f %d %u %u %u %.4f %.4f\n",
+        what,
+        now,
+        extra,
+        p.level,
+        p.flags,
+        p.position[0],
+        p.position[1],
+        p.position[2],
+        p.rotation[2],
+        p.velocity[0],
+        p.velocity[1],
+        p.velocity[2],
+        p.state,
+        p.seq,
+        p.frame,
+        p.next_frame,
+        p.anim_time,
+        p.anim_speed
+    );
 }
 
 inline bool member_of(const Session& session, std::int32_t id) {

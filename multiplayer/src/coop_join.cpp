@@ -11,15 +11,15 @@
  * leaving, kPlaceMostMs; all leave it where the ship or the level's start put it, which is its
  * fallback too when no spot exists. For Go to host, the fallback is that landing place.
  */
-#include "coop.hpp"
-#include "coop_util.hpp"
-#include "world_util.hpp"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
+
+#include "coop.hpp"
+#include "coop_util.hpp"
+#include "world_util.hpp"
 
 namespace mp {
 
@@ -191,8 +191,10 @@ void Coop::send_play(std::int32_t target, const Bytes& save, int level, bool joi
         w.u8(static_cast<std::uint8_t>(GameKind::kChunk))
             .i32(play_)
             .i32(static_cast<std::int32_t>(at))
-            .raw(Bytes(save.begin() + static_cast<std::ptrdiff_t>(at),
-                       save.begin() + static_cast<std::ptrdiff_t>(at + n)));
+            .raw(Bytes(
+                save.begin() + static_cast<std::ptrdiff_t>(at),
+                save.begin() + static_cast<std::ptrdiff_t>(at + n)
+            ));
         session_.send_data(target, w.bytes());
     }
 }
@@ -297,7 +299,9 @@ void Coop::clear_game() {
     reset_scenes();
 }
 
-bool Coop::shielded() const { return joining_ || clock_() < shield_until_; }
+bool Coop::shielded() const {
+    return joining_ || clock_() < shield_until_;
+}
 
 bool Coop::can_go() const {
     const GameStatus status = game_.status();
@@ -403,7 +407,8 @@ void Coop::on_place(bool from_host, Reader& r) {
     if (answer == kPlaceNone) {
         no_place(now);
     } else if (answer == kPlaceHere || answer == kPlaceLast) {
-        log(answer == kPlaceHere ? "place: beside the host" : "place: at the host's last safe spot");
+        log(answer == kPlaceHere ? "place: beside the host"
+                                 : "place: at the host's last safe spot");
         place_at(at, yaw, true, now);
     }
 }
@@ -496,8 +501,8 @@ void Coop::on_place_ask(std::int32_t sender, Reader& r) {
     const auto ticket = static_cast<std::uint16_t>(high << 8 | r.u8());
     const bool last = r.u8() != 0;
 
-    if (!session_.role().host() || !r.ok() || play == 0 || play != play_ || !member_of(session_, sender)
-        || !may_play(sender)) {
+    if (!session_.role().host() || !r.ok() || play == 0 || play != play_
+        || !member_of(session_, sender) || !may_play(sender)) {
         return;
     }
 
