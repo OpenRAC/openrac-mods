@@ -419,7 +419,21 @@ int main(int argc, char** argv) {
             ((void (*)(void))hook_named("rac1.vendor.initialize_selected"))();
             CHECK(get32(menu + VENDOR_ENTRIES) == source);
             s_frame(NULL);
-            CHECK(visual_count >= 2);
+            /* A matching retail mesh needs no override (for example Devastator
+             * using the Devastator template). Check both resulting display meshes. */
+            const rando_reward reward = plan.reward[row];
+            const int expected_class = reward.kind == REWARD_ITEM ? 0x500 + reward.value
+                                       : reward.kind == REWARD_PLANET ? 0x2EE : 0x46E;
+            for (int body = 1; body <= 3; body += 2) {
+                const uint32_t moby = 0x1A0000 + body * 0x100;
+                int16_t native_class;
+                memcpy(&native_class, s_memory + moby + 0xA6, 2);
+                int displayed_class = native_class;
+                for (int v = 0; v < visual_count; ++v) {
+                    if (visual_rows[v].moby == moby) displayed_class = visual_rows[v].oclass;
+                }
+                CHECK(displayed_class == expected_class);
+            }
             ((void (*)(void))hook_named("rac1.vendor.draw_details"))();
             CHECK(strcmp(detail_name, "Buy Infobot for 500 bolts") != 0);
             game_buy(

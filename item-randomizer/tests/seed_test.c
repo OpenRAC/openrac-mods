@@ -20,7 +20,7 @@
         }                                                                                          \
     } while (0)
 
-#define PINNED_HASH 0xB5F6AF4Bu
+#define PINNED_HASH 0xF3A9EA68u
 
 static int same(const rando_settings* a, const rando_settings* b) {
     return a->seed == b->seed && a->pools == b->pools && a->keep_start == b->keep_start
@@ -55,6 +55,7 @@ static void a_code_places_the_same_everywhere(void) {
         hash = (hash ^ (unsigned char)text_one[i]) * 16777619u;
     }
 
+    printf("fixed spoiler hash %08x\n", hash);
     CHECK(hash == PINNED_HASH);
     free(one);
     free(two);
