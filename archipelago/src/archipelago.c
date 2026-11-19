@@ -76,7 +76,7 @@
 #define JUDGE_WAIT_TICKS 120
 
 /* How long a line stays at the top of the screen, in ticks (60 a second). */
-#define NOTICE_TICKS 300
+#define NOTICE_TICKS (strcmp(s_disc->version, "pal") == 0 ? 150 : 180)
 #define NOTICE_SIZE 256
 
 /* The items the game side reads at once; a longer list is read into a larger buffer. */
@@ -153,6 +153,7 @@ static uint32_t s_generation = UINT32_MAX;
 
 /* The line at the top of the screen and the ticks it has left. */
 static int s_notice_ticks;
+static int s_menu_notice_warned;
 
 /* The save's memory card slot (interface 1.11): the game came from the title since the last level
  * start; its save waits to be judged until its slot is known; the slot known in this game. */
@@ -660,6 +661,12 @@ static void helmet_update(openrac_gaddr moby) {
 
 static int kerwan_randomizer_active(void) { return !s_from_title && !s_judge_wait && ap_client_new_game_plus() >= 0; }
 #include "kerwan_access.inc"
+
+static int aridia_reward_collected(void) {
+    return kerwan_randomizer_active() && had(s_by_item[ITEM_TRESPASSER]);
+}
+#include "aridia_access.inc"
+
 
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
@@ -1181,6 +1188,9 @@ static int32_t count_gold_bolts_hook(void) {
 
 /* Retail still performs affordability checks and charges bolts. Only its bought/owned flag
  * is swapped while the case runs, because the random reward belongs to the AP server. */
+/* Defined in ap_presentation.inc, included after the acquisition helpers. */
+static int gold_case_base(uint32_t moby);
+
 static void gold_case_update(openrac_gaddr moby) {
     const int mode = ap_client_shuffle_gold_weapons();
     if (mode < 0) return; /* no purchases before the room settings/save are known */
@@ -1191,8 +1201,12 @@ static void gold_case_update(openrac_gaddr moby) {
     memcpy(&oclass, m + 0xA6, sizeof oclass);
     const uint32_t pvars = (uint32_t)get32(m + MOBY_PVARS);
     if (oclass >= 0x5B0 && oclass < 0x5B0 + AP_GOLD_WEAPON_COUNT) {
-        const int index = oclass - 0x5B0;
-        const int base = k_ap_gold_bases[index];
+        const int base = gold_case_base(moby);
+        const int index = ap_gold_weapon_index(base);
+        if (index < 0) {
+            s_gold_case_update(moby);
+            return;
+        }
         const uint8_t real = *gold_owned(base);
         *gold_owned(base) = (uint8_t)((gold_case_checks() >> index) & 1u);
         s_gold_case_update(moby);
@@ -1399,8 +1413,12 @@ static void each_tick(void* user) {
     const int phase = play_phase(&loads);
 
     show_notices();
-    if (menu_mode()==1 && !s_menu_save)
-        s_api->play_notice(s_mod,"Shuffle items requires OpenRAC interface 1.16 or newer");
+    const int unsupported_items = menu_mode() == 1 && !s_menu_save;
+    if (unsupported_items && !s_menu_notice_warned) {
+        s_api->play_notice(s_mod, "Shuffle items requires OpenRAC interface 1.16 or newer");
+        s_notice_ticks = NOTICE_TICKS;
+    }
+    s_menu_notice_warned = unsupported_items;
     read_received();
     watch_save_slot(phase);
     presentation_tick(phase);
@@ -1535,7 +1553,7 @@ static int install_hooks(void) {
         s_mod, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent, OPENRAC_RAC1_SIG_GoldBolts_CountUnspent,
         (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
     s_gold_hook_warned = 0;
-    if (!presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
+    if (!aridia_access_hooks() || !presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
     /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
      * the NPC reward text itself; otherwise that text takes them on its own. */
     if (!s_presentation_text) npc_reward_text_hooks();
@@ -1620,6 +1638,8 @@ static int has_calls(const openrac_api* api) {
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
+    s_notice_ticks = 0;
+    s_menu_notice_warned = 0;
     s_mod = mod;
     s_disc = NULL;
 

@@ -3,7 +3,10 @@
 #include "rando.h"
 #define RANDO_NPC_COUNT 13
 #define RANDO_GOLD_WEAPON_COUNT 10
-static const int k_rando_gold_bases[10] = {10, 16, 15, 20, 17, 11, 21, 25, 9, 12};
+static const int k_rando_gold_bases[RANDO_GOLD_WEAPON_COUNT] = {
+    ITEM_BOMB_GLOVE, ITEM_PYROCITOR, ITEM_BLASTER, ITEM_GLOVE_OF_DOOM, ITEM_MINE_GLOVE,
+    ITEM_DEVASTATOR, ITEM_DECOY_GLOVE, ITEM_TESLA_CLAW, ITEM_SUCK_CANNON, ITEM_MORPH_O_RAY
+};
 
 static inline int rando_gold_index(int base) {
     for (int i = 0; i < 10; ++i) {
