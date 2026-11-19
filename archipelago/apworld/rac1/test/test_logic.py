@@ -381,6 +381,25 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_hoven_gemlik_coordinates_need_no_water_pack_or_swingshot_or_grindboots(self) -> None:
+        self.collect_by_name(["Hoven Coordinates", "Heli-Pack"])
+        self.assertEqual(self.can_reach_location("Hoven: the coordinates of Gemlik"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Devastator")
+        self.assertTrue(self.can_reach_location("Hoven: the coordinates of Gemlik"))
+
+    def test_hoven_raritanium_needs_no_hydro_pack(self) -> None:
+        self.collect_by_name(["Hoven Coordinates", "Heli-Pack", "Swingshot"])
+        self.assertTrue(self.can_reach_location("Hoven: the Foreman's Raritanium"))
+
+    def test_gemlik_trespasser_is_required_outside_expert(self) -> None:
+        self.collect_by_name(["Gemlik Coordinates", "Heli-Pack", "Swingshot",
+                              "Magneboots", "Pilot's Helmet", "Devastator"])
+        self.assertEqual(self.can_reach_location("Gemlik: the coordinates of Oltanis"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Trespasser")
+        self.assertTrue(self.can_reach_location("Gemlik: the coordinates of Oltanis"))
+
     def test_pokitaru_bob_needs_heli_pack_without_swingshot(self) -> None:
         self.collect_by_name("Pokitaru Coordinates")
         self.assertFalse(self.can_reach_location("Pokitaru: Bob"))

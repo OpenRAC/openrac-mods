@@ -386,7 +386,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_GEMLIK),
         38,
         0,
-        GRIND | HYDROPACK | WALK,
+        HELI,
         DEVAST
     ),
     GOLDBOLT("Hoven: gold bolt 1", LEVEL_HOVEN, 0, 39),
@@ -402,7 +402,7 @@ const rando_location rando_locations[] = {
         40,
         0,
         MAGNE | HELMET | WALK,
-        0,
+        TRESP,
         DEVAST | VISI,
         0
     ),
@@ -617,7 +617,7 @@ const rando_location rando_locations[] = {
     {"Rilgar: the Hoverboard race", LOC_SPECIAL, LEVEL_RILGAR, 0, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_ZOOMERATOR}, 16, 0, HOVER | HELI, 0, 0, 0},
     {"Hoven: the Foreman's Raritanium", LOC_SPECIAL, LEVEL_HOVEN, 1, POOL_ITEMS,
-     {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, HYDROPACK | WALK, 0, 0, 0},
+     {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, WALK, 0, 0, 0},
     {"Drek's Fleet: the CodeBot", LOC_SPECIAL, LEVEL_FLEET, 2, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, MAGNE | HYDROPACK | O2 | WALK, 0, 0, 0},
     {"Orxon: Premium Nanotech", LOC_SPECIAL, LEVEL_ORXON, 3, POOL_ITEMS,
