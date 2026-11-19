@@ -1385,4 +1385,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("keyboard-mouse", "1.2.5", load)
+OPENRAC_MOD_CPP("keyboard-mouse", "1.2.6", load)
