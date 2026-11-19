@@ -406,8 +406,8 @@ preferences; they do not change the seed, item pool, prices or rewards.
 
 ### Release publishing
 
-A version requested in `.github/mod-releases/` (here **2.5.0**) is published by the
-first successful `master` build: `item-randomizer-v2.5.0` with the mod archives and
+A version requested in `.github/mod-releases/` (here **2.6.0**) is published by the
+first successful `master` build: `item-randomizer-v2.6.0` with the mod archives and
 checksums. The launcher index is then refreshed.
 PR builds do not publish releases. The request in `.github/mod-releases/`
 remains pending until a successful master build publishes its version tag.
