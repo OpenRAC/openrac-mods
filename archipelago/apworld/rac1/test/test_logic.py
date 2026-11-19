@@ -381,6 +381,42 @@ class TestNPCInfobotsOff(RAC1TestBase):
 
 
 class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_oltanis_pda_requires_only_magneboots(self) -> None:
+        self.collect_by_name("Oltanis Coordinates")
+        self.assertFalse(self.can_reach_location("Oltanis: the PDA's seller"))
+        self.collect_by_name("Magneboots")
+        self.assertTrue(self.can_reach_location("Oltanis: the PDA's seller"))
+
+    def test_oltanis_morph_o_ray_requires_only_swingshot(self) -> None:
+        self.collect_by_name("Oltanis Coordinates")
+        self.assertFalse(self.can_reach_location("Oltanis: the Morph-o-Ray's pickup"))
+        self.collect_by_name("Swingshot")
+        self.assertTrue(self.can_reach_location("Oltanis: the Morph-o-Ray's pickup"))
+
+    def test_oltanis_sam_requires_swingshot_and_grindboots(self) -> None:
+        self.collect_by_name(["Oltanis Coordinates", "Swingshot"])
+        self.assertFalse(self.can_reach_location("Oltanis: Sam, the coordinates of Quartu"))
+        self.collect_by_name("Grindboots")
+        self.assertTrue(self.can_reach_location("Oltanis: Sam, the coordinates of Quartu"))
+
+    def test_quartu_bolt_grabber_requires_only_hydro_pack(self) -> None:
+        self.collect_by_name("Quartu Coordinates")
+        self.assertFalse(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
+        self.collect_by_name("Hydro-Pack")
+        self.assertTrue(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
+
+    def test_quartu_scientist_requires_only_swingshot(self) -> None:
+        self.collect_by_name("Quartu Coordinates")
+        self.assertFalse(self.can_reach_location("Quartu: the scientist, the coordinates of Kalebo III"))
+        self.collect_by_name("Swingshot")
+        self.assertTrue(self.can_reach_location("Quartu: the scientist, the coordinates of Kalebo III"))
+
+    def test_quartu_disguise_route_requires_thruster_not_hydro_or_magneboots(self) -> None:
+        self.collect_by_name(["Quartu Coordinates", "Hologuise", "Heli-Pack", "Swingshot"])
+        self.assertFalse(self.can_reach_location("Quartu: in disguise, the coordinates of Drek's Fleet"))
+        self.collect_by_name("Thruster-Pack")
+        self.assertTrue(self.can_reach_location("Quartu: in disguise, the coordinates of Drek's Fleet"))
+
     def test_hoven_gemlik_coordinates_need_no_water_pack_or_swingshot_or_grindboots(self) -> None:
         self.collect_by_name(["Hoven Coordinates", "Heli-Pack"])
         self.assertEqual(self.can_reach_location("Hoven: the coordinates of Gemlik"),

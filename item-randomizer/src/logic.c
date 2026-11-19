@@ -411,9 +411,9 @@ const rando_location rando_locations[] = {
     // Oltanis: "Purchase Gadgetron PDA from 'Steve'", the Morph-o-Ray's pickup, "Buy Infobot from
     // scrap merchant" (Sam).
     VENDOR("Oltanis: the vendor's Tesla Claw", LEVEL_OLTANIS, ITEM_TESLA_CLAW, 41, LOCF_COSTLY),
-    GIVE_G("Oltanis: the PDA's seller", LEVEL_OLTANIS, ITEM_PDA, 41, 0, WALK, 0),
+    GIVE_G("Oltanis: the PDA's seller", LEVEL_OLTANIS, ITEM_PDA, 41, 0, MAGNE, 0),
     GIVE_W(
-        "Oltanis: the Morph-o-Ray's pickup", LEVEL_OLTANIS, ITEM_MORPH_O_RAY, 42, 0, MAGNE | WALK, 0
+        "Oltanis: the Morph-o-Ray's pickup", LEVEL_OLTANIS, ITEM_MORPH_O_RAY, 42, 0, SWING, 0
     ),
     FIXED(
         "Oltanis: Sam, the coordinates of Quartu",
@@ -421,7 +421,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_QUARTU),
         43,
         0,
-        MAGNE | WALK,
+        GRIND | SWING,
         0
     ),
     GOLDBOLT("Oltanis: gold bolt 1", LEVEL_OLTANIS, 0, 44),
@@ -429,11 +429,10 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Oltanis: gold bolt 3", LEVEL_OLTANIS, 2, 44),
     GOLDBOLT("Oltanis: gold bolt 4", LEVEL_OLTANIS, 3, 44),
 
-    // Quartu: "Find out more about the Ultra-Mech" (the scientist). "You'll need the Gadgetron
-    // Hologuise to explore the factory" and "You will need a Hydro-Pack upgrade to swim through
-    // those Tri-Rings and open the door", on the way to the secure area and Drek's Fleet.
+    // Quartu: the swimming route to the Bolt Grabber needs Hydro-Pack; the
+    // scientist needs Swingshot. The disguise route needs Hologuise and Thruster-Pack.
     GIVE_X(
-        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, POOL_ITEMS, 45, 0, MAGNE | WALK, 0, 0, 0
+        "Quartu: the Bolt Grabber's pickup", LEVEL_QUARTU, ITEM_BOLT_GRABBER, POOL_ITEMS, 45, 0, HYDROPACK, 0, 0, 0
     ),
     FIXED(
         "Quartu: the scientist, the coordinates of Kalebo III",
@@ -441,7 +440,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_KALEBO),
         46,
         0,
-        MAGNE | WALK,
+        SWING,
         0
     ),
     FIXED(
@@ -450,7 +449,7 @@ const rando_location rando_locations[] = {
         PLANET(LEVEL_FLEET),
         50,
         0,
-        HOLO | HYDROPACK | MAGNE | WALK,
+        HOLO | THRUST | WALK,
         0
     ),
     GOLDBOLT("Quartu: gold bolt 1", LEVEL_QUARTU, 0, 49),
