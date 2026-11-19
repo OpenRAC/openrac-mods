@@ -396,6 +396,9 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.assertEqual(self.can_reach_location("Drek's Fleet: the infobot"),
                          self.world.options.logic == "expert")
         self.collect_by_name("Heli-Pack")
+        self.assertEqual(self.can_reach_location("Drek's Fleet: the infobot"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Hydro-Pack")  # the tanker's hint: soft
         self.assertTrue(self.can_reach_location("Drek's Fleet: the infobot"))
 
     def test_fleet_codebot_needs_only_water_equipment(self) -> None:
@@ -444,21 +447,27 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("Swingshot")
         self.assertTrue(self.can_reach_location("Quartu: the scientist, the coordinates of Kalebo III"))
 
-    def test_quartu_disguise_route_requires_thruster_not_hydro_or_magneboots(self) -> None:
+    def test_quartu_disguise_route_requires_thruster_and_hinted_hydro_pack(self) -> None:
+        location = "Quartu: in disguise, the coordinates of Drek's Fleet"
         self.collect_by_name(["Quartu Coordinates", "Hologuise", "Heli-Pack", "Swingshot"])
-        self.assertFalse(self.can_reach_location("Quartu: in disguise, the coordinates of Drek's Fleet"))
+        self.assertFalse(self.can_reach_location(location))
         self.collect_by_name("Thruster-Pack")
-        self.assertTrue(self.can_reach_location("Quartu: in disguise, the coordinates of Drek's Fleet"))
+        self.assertEqual(self.can_reach_location(location), self.world.options.logic == "expert")
+        self.collect_by_name("Hydro-Pack")  # the Tri-Rings' hint: soft
+        self.assertTrue(self.can_reach_location(location))
 
-    def test_hoven_gemlik_coordinates_need_no_water_pack_or_swingshot_or_grindboots(self) -> None:
+    def test_hoven_gemlik_coordinates_need_no_swingshot_or_grindboots(self) -> None:
         self.collect_by_name(["Hoven Coordinates", "Heli-Pack"])
         self.assertEqual(self.can_reach_location("Hoven: the coordinates of Gemlik"),
                          self.world.options.logic == "expert")
-        self.collect_by_name("Devastator")
+        self.collect_by_name(["Devastator", "Hydro-Pack"])  # both hinted on Hoven: soft
         self.assertTrue(self.can_reach_location("Hoven: the coordinates of Gemlik"))
 
-    def test_hoven_raritanium_needs_no_hydro_pack(self) -> None:
+    def test_hoven_raritanium_needs_hydro_pack_only_outside_expert(self) -> None:
         self.collect_by_name(["Hoven Coordinates", "Heli-Pack", "Swingshot"])
+        self.assertEqual(self.can_reach_location("Hoven: the Foreman's Raritanium"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Hydro-Pack")  # Hoven's hint: soft
         self.assertTrue(self.can_reach_location("Hoven: the Foreman's Raritanium"))
 
     def test_gemlik_trespasser_is_required_outside_expert(self) -> None:
@@ -498,11 +507,16 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("Batalia Coordinates")
         self.assertFalse(self.can_reach_location("Batalia: the turret's commando"))
         self.collect_by_name("Magneboots")
+        self.assertEqual(self.can_reach_location("Batalia: the turret's commando"), self.world.options.logic == "expert")
+        self.collect_by_name("Grindboots")  # Batalia's hint: soft
         self.assertTrue(self.can_reach_location("Batalia: the turret's commando"))
 
-    def test_batalia_orxon_coordinates_need_no_gadgets(self) -> None:
+    def test_batalia_orxon_coordinates_need_only_hinted_grindboots(self) -> None:
+        location = "Batalia: the commando, the coordinates of Orxon"
         self.collect_by_name("Batalia Coordinates")
-        self.assertTrue(self.can_reach_location("Batalia: the commando, the coordinates of Orxon"))
+        self.assertEqual(self.can_reach_location(location), self.world.options.logic == "expert")
+        self.collect_by_name("Grindboots")  # Batalia's hint: soft
+        self.assertTrue(self.can_reach_location(location))
 
     def test_batalia_deserter_requires_only_grindboots(self) -> None:
         self.collect_by_name("Batalia Coordinates")
@@ -542,6 +556,8 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("Eudora Coordinates")
         self.assertFalse(self.can_reach_location("Eudora: the warp pad"))
         self.collect_by_name("Heli-Pack")
+        self.assertEqual(self.can_reach_location("Eudora: the warp pad"), self.world.options.logic == "expert")
+        self.collect_by_name("Trespasser")  # the security door's hint: soft
         self.assertTrue(self.can_reach_location("Eudora: the warp pad"))
 
     def test_helga_does_not_require_heli_pack(self) -> None:
