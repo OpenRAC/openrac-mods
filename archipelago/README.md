@@ -181,3 +181,35 @@ Owning the Heli-Pack does not collect Al's randomized reward. Helga's return tax
 remains available after buying her reward while the player lacks the Swingshot;
 receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
 and real item ownership remain separate.
+
+### NPC reward interaction text
+
+The **Reward text** option (`reward_text`) defaults to on. Turn it off to keep
+the original NPC prompts. Reload the mod after changing this option. This is a
+local display preference and does not change the seed or rewards.
+
+Purchase prompts replace the vanilla reward name with the assigned item, e.g.
+`Buy Devastator for 1,000 bolts` instead of `Buy Heli-Pack for 1,000 bolts`.
+Other handoff prompts show `Reward: <item>`.
+The native prompt, button and price are retained; long reward names are shortened
+to fit the game's panel. This covers gadget sellers, quest/race reward NPCs and
+NPC coordinates. Fixed rewards retain their vanilla names; collected randomized locations
+stop advertising a reward. Archipelago shows the scouted item and its recipient,
+or `Unscouted reward` until the room provides the scout.
+
+This optional text feature needs OpenRAC interface **1.19** and its
+`rac1.npc.try_dialog` / `rac1.text.msg_string` hooks (engine PR
+[OpenRAC/OpenRAC#540](https://github.com/OpenRAC/OpenRAC/pull/540)). On older
+hosts the mod retains native prompts. This feature does not change item pools,
+rewards, prices, models or acquisition animations. In-game verification is pending.
+
+Before the first Rilgar race win, the race starter's prompt is
+`Triangle: Enter race - Reward: <reward>`. It returns to the native `Triangle: Enter race`
+after that race's saved check is collected, including after saving/reloading.
+Owning the reward from another source does not consume the race check. Randomized
+race rewards use the optional Items pool from [#202](https://github.com/OpenRAC/openrac-mods/pull/202);
+without that pool the prompt names the vanilla Platinum Zoomerator.
+
+The Rilgar bouncer uses `Triangle: Bribe Bouncer with 4,000 bolts to get <reward>`.
+The cost and insufficient-bolts message stay native; the name comes from his
+coordinate-reward location (or its vanilla reward when not shuffled).

@@ -104,7 +104,10 @@ bool Session::location_item(std::int64_t location, std::int64_t& item, bool& own
 bool Session::location_hint(std::int64_t location, std::string& out) const {
     const auto it = scouted_.find(location);
     if (it == scouted_.end()) return false;
-    out = item_name(it->second.first, it->second.second) + " for " + player_name(it->second.second);
+    out = item_name(it->second.first, it->second.second);
+    if (it->second.second != slot_) {
+        out += " for " + player_name(it->second.second);
+    }
     return true;
 }
 

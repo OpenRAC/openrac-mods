@@ -1772,7 +1772,11 @@ static int take(int result, const char* point) {
     )
 
 /* Takes every hook point the mod needs; 1 when all are in place, 0 (the port told) when not. */
+#include "npc_reward_label.inc"
+#include "npc_reward_text.inc"
+
 static int install_hooks(void) {
+    npc_reward_text_hooks();
     if (!reward_extra_hooks()) {
         return 0;
     }

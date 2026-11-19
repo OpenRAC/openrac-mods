@@ -83,7 +83,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.3.2"
+#define MOD_VERSION "2.3.3"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -1467,7 +1467,11 @@ static int take(int result, const char* point) {
         #point                                                                                     \
     )
 
+#include "npc_reward_label.inc"
+#include "npc_reward_text.inc"
+
 static int install_hooks(void) {
+    npc_reward_text_hooks();
     if (!npc_infobot_hooks()) return 0;
     /* Older ports still support every other option. Never permit randomized purchases
      * without independent currency accounting; the player gets a clear update notice. */
