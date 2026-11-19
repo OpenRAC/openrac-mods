@@ -65,8 +65,8 @@ struct Bolt_SpawnPickup {
 struct Bolt_Collect {
     static constexpr const char* id = "rac2.bolt.collect";
     static constexpr const char* name = "Bolt_Collect";
-    static constexpr const char* signature = "u32(u32)";
-    using fn = std::uint32_t (*)(std::uint32_t);
+    static constexpr const char* signature = "void(u32)";
+    using fn = void (*)(std::uint32_t);
 };
 
 // The port's own slots for a mod's texts: the lookup returns the address of slot n for id

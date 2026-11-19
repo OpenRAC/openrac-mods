@@ -85,7 +85,7 @@ void PlatinumBolts::start() {
             return self->spawn_pickup(original, source, position, velocity, flags, value, counted);
         });
         m_mod.hook<hooks::Bolt_Collect>([self](auto original, std::uint32_t moby) {
-            return self->collect(original, moby);
+            self->collect(original, moby);
         });
         m_enabled = true;
     } catch (const openrac::Error& error) {
@@ -173,14 +173,15 @@ std::uint32_t PlatinumBolts::spawn_pickup(
     return moby;
 }
 
-std::uint32_t PlatinumBolts::collect(
-    openrac::Original<std::uint32_t(std::uint32_t)> original, std::uint32_t moby
+void PlatinumBolts::collect(
+    openrac::Original<void(std::uint32_t)> original, std::uint32_t moby
 ) {
     const auto found = m_platinum.find(moby);
 
     // A gold coin: the game's.
     if (found == m_platinum.end()) {
-        return original(moby);
+        original(moby);
+        return;
     }
 
     const int kind = found->second;
@@ -188,7 +189,7 @@ std::uint32_t PlatinumBolts::collect(
 
     // Still the coin the mod made (a moby of its class), so worth the platinum's.
     const bool same = m_view.moby_class(moby) == kCoinClass + kind;
-    const std::uint32_t result = original(moby);
+    original(moby);
 
     // The game added its class's worth; platinum is kPlatinumTimes as much.
     if (same) {
@@ -196,7 +197,6 @@ std::uint32_t PlatinumBolts::collect(
     }
 
     m_material(m_mod.handle(), moby, kMaterialNone, kNoTint);
-    return result;
 }
 
 void PlatinumBolts::tick() {

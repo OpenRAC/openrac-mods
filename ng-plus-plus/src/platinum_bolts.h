@@ -84,8 +84,8 @@ public:
 
     // A coin collected (Bolt_Collect): the game's, then for a platinum coin the four times its
     // class more, its material taken off.
-    std::uint32_t collect(
-        openrac::Original<std::uint32_t(std::uint32_t)> original, std::uint32_t moby
+    void collect(
+        openrac::Original<void(std::uint32_t)> original, std::uint32_t moby
     );
 
     // Once a game tick: forgets the platinum coins of a level left (the port drops their materials

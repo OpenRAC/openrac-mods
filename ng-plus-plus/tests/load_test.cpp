@@ -443,10 +443,9 @@ void port_spawn_pickups(std::uint32_t moby, std::int32_t amount, std::int32_t fl
 }
 
 // Bolt_Collect: the coin's class's worth added to the bolts.
-std::uint32_t game_collect(std::uint32_t moby) {
+void game_collect(std::uint32_t moby) {
     const int kind = get<std::uint16_t>(moby + kMobyClass) - kCoinClass;
     g_bolts += kCoinValues[static_cast<std::size_t>(kind)];
-    return 0;
 }
 
 // The port's collect: the mod's replacement, else the game's.
