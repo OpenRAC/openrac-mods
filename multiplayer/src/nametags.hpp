@@ -34,8 +34,8 @@ constexpr float kTagSeeHead = 1.2f;
 constexpr float kTagSeeMiddle = 0.6f;
 
 // How often a figure's sight is asked (a straight line through the level's collision, twice a
-// figure), how long a tag stays after the last clear line, so a corner or a post going past does not
-// blink it, and how long it takes to come or go.
+// figure), how long a tag stays after the last clear line, so a corner or a post going past does
+// not blink it, and how long it takes to come or go.
 constexpr double kTagSightMs = 120.0;
 constexpr double kTagHoldMs = 300.0;
 constexpr double kTagSightFadeMs = 180.0;
@@ -46,11 +46,11 @@ constexpr std::int32_t kTagPingMs = 250;
 
 // A player to show. `slot` is its place in the party, the same in every game: its colour.
 struct NameTag {
-    std::string name;
+    std::string name;  // The player's name.
     int slot = 0;
-    float position[3] = {0, 0, 0};
-    bool late = false;
-    float sight = 1.0f;  // how much of it the level leaves (TagSight), 0 to 1
+    float position[3] = {0, 0, 0};  // Where the figure's feet are, in the level's units.
+    bool late = false;              // True when its poses or its link lag (kTagLateMs, kTagPingMs).
+    float sight = 1.0f;             // how much of it the level leaves (TagSight), 0 to 1
 };
 
 // Whether a figure can be seen, over time: what the lines through the level said, held a little and
@@ -66,9 +66,12 @@ public:
     // The tag's strength now, 0 to 1. Called once a tick.
     float advance(double now_ms);
 
+    // Returns the strength advance() last gave, 0 to 1.
     float strength() const { return strength_; }
 
 private:
+    // When the lines were last asked and when one was last clear (ms, long ago at the start), when
+    // advance() last ran (-1 before the first), and the tag's strength, 0 to 1.
     double asked_ms_ = -1.0e12;
     double clear_ms_ = -1.0e12;
     double advanced_ms_ = -1.0;
@@ -76,15 +79,24 @@ private:
 };
 
 // What the port gives to draw with. Colours are 0xRRGGBBAA.
+// Implemented over the port's overlay (multiplayer.cpp) and by the tests; draw_name_tags borrows
+// one for the frame it draws.
 class TagPainter {
 public:
     virtual ~TagPainter() = default;
+    // Projects the world point `world` onto the picture: true with its place in `x` and `y`, false
+    // when the point is behind the camera or off the picture.
     virtual bool project(const float world[3], float& x, float& y) = 0;
+    // Fills the rectangle at `x`, `y` (its top left), `w` wide and `h` high, with `colour`.
     virtual void rect(float x, float y, float w, float h, std::uint32_t colour) = 0;
+    // Draws `line` with its top left at `x`, `y`, `height` tall, in `colour`.
     virtual void text(
         float x, float y, float height, std::uint32_t colour, const std::string& line
     ) = 0;
+    // Returns the width `line` takes at `height`.
     virtual float text_width(float height, const std::string& line) = 0;
+    // Returns how much of a full tag shows at `distance`: 1 up to `near_distance`, falling to 0 at
+    // `far_distance`.
     virtual float fade(float distance, float near_distance, float far_distance) = 0;
 };
 
@@ -101,6 +113,7 @@ struct TagStats {
 std::uint32_t tag_colour(int slot);
 
 // Draws `tags` as seen from `camera`.
+// Returns the counts of what the frame drew.
 TagStats draw_name_tags(
     TagPainter& painter, const float camera[3], const std::vector<NameTag>& tags
 );

@@ -19,7 +19,9 @@ std::string note_text(const CoNote& note) {
     std::string text = "format=1\nkey=" + std::to_string(note.key)
                        + "\nsaved=" + std::to_string(note.saved) + "\nhost=" + host + "\n";
 
+    // The bans follow, one `ban=` line each.
     for (const std::string& key : note.bans) {
+        // A key that would not fit a note line is not written.
         if (valid_key(key)) {
             text += "ban=" + key + "\n";
         }
@@ -34,9 +36,11 @@ bool parse_note(const std::string& text, CoNote& out) {
     CoNote note;
     bool format = false;
 
+    // The note is read line by line; a line that is no name=value pair is ignored.
     while (std::getline(in, line)) {
         const std::size_t equals = line.find('=');
 
+        // A line without `=` carries no field.
         if (equals == std::string::npos) {
             continue;
         }
@@ -44,7 +48,9 @@ bool parse_note(const std::string& text, CoNote& out) {
         const std::string name = line.substr(0, equals);
         const std::string value = line.substr(equals + 1);
 
+        // A number that does not parse makes the whole text no note.
         try {
+            // Each name sets its field; unknown names are ignored and bans stop at kMaxBans.
             if (name == "format") {
                 format = value == "1";
             } else if (name == "key") {
@@ -61,6 +67,7 @@ bool parse_note(const std::string& text, CoNote& out) {
         }
     }
 
+    // A text without the format line or a key is no note: key 0 is no party.
     if (!format || note.key == 0) {
         return false;
     }
@@ -70,13 +77,17 @@ bool parse_note(const std::string& text, CoNote& out) {
 }
 
 int pick_slot(const std::vector<CoNote>& notes, std::uint32_t key) {
+    // The party's own slot comes first.
     for (std::size_t i = 0; i < notes.size(); ++i) {
+        // A key of 0 is no party, so it never matches a slot.
         if (key != 0 && notes[i].key == key) {
             return static_cast<int>(i);
         }
     }
 
+    // Then a slot no party holds.
     for (std::size_t i = 0; i < notes.size(); ++i) {
+        // A key of 0 marks a slot no party has.
         if (notes[i].key == 0) {
             return static_cast<int>(i);
         }
@@ -92,6 +103,7 @@ int pick_slot(const std::vector<CoNote>& notes, std::uint32_t key) {
 std::string coop_row(int slot, const std::string& save, const CoNote& note, bool there) {
     const std::string name = "Co-op " + std::to_string(slot + 1) + ": ";
 
+    // A slot with no save is shown as empty.
     if (!there) {
         return name + "empty";
     }
@@ -126,8 +138,11 @@ std::vector<Member> CoSave::banned_members(
 ) const {
     std::vector<Member> out;
 
+    // Only the host can name whom to remove.
     if (session_.is_host()) {
+        // Each member is looked up by its launcher key.
         for (const Member& m : session_.members()) {
+            // The host's own key is never tested against the bans.
             if (m.id != session_.id() && banned(key_of(m.id))) {
                 out.push_back(m);
             }
@@ -138,11 +153,14 @@ std::vector<Member> CoSave::banned_members(
 }
 
 bool CoSave::ban(const std::string& key) {
+    // Only the host bans, and only a well formed key.
     if (!session_.is_host() || !valid_key(key)) {
         return false;
     }
 
+    // A key already banned is not added twice.
     if (!banned(key)) {
+        // At the cap the oldest ban makes room.
         if (bans_.size() == kMaxBans) {
             bans_.erase(bans_.begin());
         }
@@ -155,6 +173,7 @@ bool CoSave::ban(const std::string& key) {
 }
 
 void CoSave::lift_bans() {
+    // Only the host lifts bans, and only when there are some.
     if (session_.is_host() && !bans_.empty()) {
         bans_.clear();
         bans_changed();
@@ -162,6 +181,7 @@ void CoSave::lift_bans() {
 }
 
 void CoSave::bans_changed() {
+    // The slot's note keeps the bans, so Continue as host brings them back.
     if (on_ && slot_ >= 0) {
         write_note();
     }
@@ -173,6 +193,7 @@ void CoSave::bans_changed() {
 }
 
 std::string CoSave::host_name() const {
+    // The host is one of the members; its name goes on the note.
     for (const Member& m : session_.members()) {
         if (m.id == session_.host()) {
             return m.name;
@@ -185,6 +206,7 @@ std::string CoSave::host_name() const {
 void CoSave::ensure_key() {
     // The co-op save's it goes on from, else a new one (never 0: no party).
     if (key_ == 0) {
+        // A new key mixes the clock with the wall time, and bit 0 is set so it is never 0.
         key_ =
             chosen_key_ != 0
                 ? chosen_key_
@@ -193,6 +215,7 @@ void CoSave::ensure_key() {
 }
 
 void CoSave::announce(std::int32_t target) {
+    // Without the port's card filter there are no party saves to name.
     if (!game_.has_card_filter()) {
         return;
     }
@@ -211,15 +234,18 @@ void CoSave::announce(std::int32_t target) {
 }
 
 void CoSave::engage() {
+    // Nothing to start without the port's filter, or after it refused this start.
     if (refused_ || !game_.has_card_filter()) {
         return;
     }
 
     std::vector<CoNote> notes(kCoSlots);
 
+    // Each slot's note says whose party it holds.
     for (int slot = 0; slot < kCoSlots; ++slot) {
         CoNote note;
 
+        // A slot with no readable note stays free.
         if (parse_note(game_.card_note(slot), note)) {
             notes[static_cast<std::size_t>(slot)] = note;
         }
@@ -228,6 +254,7 @@ void CoSave::engage() {
     ensure_key();
     const int slot = session_.is_host() && continuing_ >= 0 ? continuing_ : pick_slot(notes, key_);
 
+    // A filter that will not redirect would let the party's saves reach the player's own.
     if (!game_.card_filter(kCardRedirect)) {
         // No write of the party's goes anywhere it should not: no game of the party's starts
         // (starting answers false); the next start asks again.
@@ -255,6 +282,7 @@ void CoSave::write_note() {
 }
 
 bool CoSave::write_copy(const Bytes& save) {
+    // A save is written only when it is one the game would read and the card took it.
     if (save.empty() || !game_.save_usable(save) || !game_.card_write(slot_, save)) {
         return false;
     }
@@ -272,10 +300,12 @@ void CoSave::start_again() {
 bool CoSave::starting(const Bytes& save) {
     refused_ = false;
 
+    // The first start engages the filter; a later one finds it on.
     if (!on_) {
         engage();
     }
 
+    // The slot gets a copy of the save this game starts from.
     if (on_) {
         copied_ = false;
         write_copy(save);
@@ -285,6 +315,7 @@ bool CoSave::starting(const Bytes& save) {
 }
 
 void CoSave::broadcast(const Bytes& save) {
+    // With no save or no party there is nothing to send.
     if (save.empty() || !session_.in_party()) {
         return;
     }
@@ -292,8 +323,10 @@ void CoSave::broadcast(const Bytes& save) {
     ++tag_;
     acked_.clear();
     sent_to_ = session_.members().empty() ? 0 : session_.members().size() - 1;
+    // The pieces are counted rounding up.
     const int total = static_cast<int>((save.size() + kChunkBytes - 1) / kChunkBytes);
 
+    // The save goes in pieces of kChunkBytes, in order.
     for (int index = 0; index < total; ++index) {
         const std::size_t at = static_cast<std::size_t>(index) * kChunkBytes;
         const std::size_t n = std::min(kChunkBytes, save.size() - at);
@@ -317,6 +350,7 @@ void CoSave::saved(std::uint64_t now) {
     saved_until_ = now + kCoSavedMs;
     write_note();
 
+    // Only the host's save goes to everyone; a member's stays in its own slot.
     if (session_.is_host()) {
         broadcast(game_.card_read(slot_));
     }
@@ -325,12 +359,14 @@ void CoSave::saved(std::uint64_t now) {
 bool CoSave::save_party() {
     const std::uint64_t now = clock_();
 
+    // Out of a party's game, or asked again too soon, there is nothing to save.
     if (!on_ || !session_.in_party() || (asked_ms_ != 0 && now - asked_ms_ < kCoSaveEveryMs)) {
         return false;
     }
 
     asked_ms_ = now;
 
+    // A member asks the host to save the party.
     if (!session_.is_host()) {
         session_.send_data(session_.host(), Writer().u8(kind::kSaveNow).bytes());
         return true;
@@ -339,6 +375,7 @@ bool CoSave::save_party() {
     // The game's state now; in a phase with none, what the slot last had.
     const Bytes live = game_.capture();
 
+    // The game's state now goes to the slot and to everyone.
     if (write_copy(live)) {
         saved_until_ = now + kCoSavedMs;
         write_note();
@@ -348,6 +385,7 @@ bool CoSave::save_party() {
 
     const Bytes kept = game_.card_read(slot_);
 
+    // A slot with nothing in it leaves nothing to send.
     if (kept.empty()) {
         return false;
     }
@@ -367,21 +405,25 @@ void CoSave::host_changed() {
 }
 
 void CoSave::leaving() {
+    // The last save is made once, and only for a party's slot.
     if (!on_ || last_) {
         return;
     }
 
     last_ = true;
 
+    // Out of a level the game holds no progress to save.
     if (!in_level(game_.status().phase)) {
         return;
     }
 
     const Bytes live = game_.capture();
 
+    // The last save goes to the slot, and the host's also to the members.
     if (write_copy(live)) {
         write_note();
 
+        // Only the host's save goes to everyone.
         if (session_.is_host()) {
             broadcast(live);
         }
@@ -393,8 +435,10 @@ void CoSave::take_piece(Reader& r) {
     const int total = r.i32();
     const int index = r.i32();
     const Bytes piece = r.rest();
+    // The most pieces a save of kMaxSaveBytes can come in, rounding up.
     const std::size_t most = (kMaxSaveBytes + kChunkBytes - 1) / kChunkBytes;
 
+    // A piece is dropped unless it fits a save of a size a game has: all but the last are full.
     if (!r.ok() || total <= 0 || static_cast<std::size_t>(total) > most || index < 0
         || index >= total || piece.empty() || piece.size() > kChunkBytes
         || (index + 1 < total && piece.size() != kChunkBytes)) {
@@ -413,6 +457,7 @@ void CoSave::take_piece(Reader& r) {
 
     const std::size_t at = static_cast<std::size_t>(index) * kChunkBytes;
 
+    // A piece already received is not copied again.
     if (in_got_[static_cast<std::size_t>(index)]) {
         return;
     }
@@ -421,6 +466,7 @@ void CoSave::take_piece(Reader& r) {
     std::copy(piece.begin(), piece.end(), in_bytes_.begin() + static_cast<std::ptrdiff_t>(at));
     in_size_ = std::max(in_size_, at + piece.size());
 
+    // A save with pieces still missing waits for them.
     if (std::find(in_got_.begin(), in_got_.end(), false) != in_got_.end()) {
         return;
     }
@@ -430,6 +476,7 @@ void CoSave::take_piece(Reader& r) {
     const bool ok = on_ && write_copy(in_bytes_);
     in_bytes_.clear();
 
+    // A save that was written gets its note and the banner.
     if (ok) {
         const std::uint64_t now = clock_();
         saved_until_ = now + kCoSavedMs;
@@ -441,28 +488,34 @@ void CoSave::take_piece(Reader& r) {
 }
 
 void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
+    // An empty datagram has no kind.
     if (bytes.empty()) {
         return;
     }
 
     Reader r(bytes.data() + 1, bytes.size() - 1);
 
+    // The kind byte says which of the party's save messages this is.
     switch (bytes[0]) {
         case kind::kCoSave:
+            // A save piece counts only when the host sends it to a member.
             if (!session_.is_host() && sender == session_.host()) {
                 take_piece(r);
             }
 
             break;
         case kind::kCoParty:
+            // The party's key and bans count only when the host sends them to a member.
             if (!session_.is_host() && sender == session_.host()) {
                 const std::uint32_t key = static_cast<std::uint32_t>(r.i32());
                 std::vector<std::string> bans;
                 const std::uint8_t count = r.u8();
 
+                // Each ban is read while the count and the bytes last.
                 for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
                     std::string ban = r.str();
 
+                    // A text that is no key, or past kMaxBans, is dropped.
                     if (valid_key(ban) && bans.size() < kMaxBans) {
                         bans.push_back(std::move(ban));
                     }
@@ -477,6 +530,7 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
                     on_ = false;
                     slot_ = -1;
 
+                    // A game already on in the old slot goes on in the new key's slot.
                     if (was_on) {
                         engage();
                     }
@@ -486,6 +540,7 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
                 if (r.ok() && key == key_) {
                     bans_ = std::move(bans);
 
+                    // The note beside the save is written again with the bans.
                     if (on_ && slot_ >= 0) {
                         write_note();
                     }
@@ -494,10 +549,12 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
 
             break;
         case kind::kCoSaveAck:
+            // Only the host counts acknowledgements.
             if (session_.is_host()) {
                 const std::uint8_t tag = r.u8();
                 const bool ok = r.u8() != 0;
 
+                // An ack counts once, for the save last sent, and only when the member wrote it.
                 if (r.ok() && ok && tag == tag_
                     && std::find(acked_.begin(), acked_.end(), sender) == acked_.end()) {
                     acked_.push_back(sender);
@@ -506,6 +563,7 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
 
             break;
         case kind::kSaveNow:
+            // Only the host acts on a request to save the party.
             if (session_.is_host()) {
                 save_party();
             }
@@ -517,6 +575,7 @@ void CoSave::handle(std::int32_t sender, const Bytes& bytes) {
 }
 
 void CoSave::tick(std::uint64_t now, bool playing) {
+    // Without the card filter there are no party saves.
     if (!game_.has_card_filter()) {
         return;
     }
@@ -528,15 +587,18 @@ void CoSave::tick(std::uint64_t now, bool playing) {
         engage();
     }
 
+    // With the filter off there is nothing to do.
     if (!on_) {
         return;
     }
 
     const int phase = game_.status().phase;
 
+    // While the party's game is on, this game's saves go to the party's slot.
     if (party) {
         last_ = false;
 
+        // Saves are copied only from a level.
         if (in_level(phase)) {
             // A new game's first copy; a member's save that has not come whole must not stop it.
             if (!copied_) {
@@ -545,6 +607,7 @@ void CoSave::tick(std::uint64_t now, bool playing) {
 
             const std::uint32_t saves = game_.card_saves();
 
+            // A change in the game's count of saves means it saved.
             if (saves != saves_seen_) {
                 saves_seen_ = saves;
                 saved(now);

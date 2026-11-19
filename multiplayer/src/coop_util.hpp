@@ -16,9 +16,12 @@
 namespace mp {
 namespace coop_util {
 
+// Returns the straight-line distance between the positions of `a` and `b`, in the level's units.
+// Rotation is not part of it.
 inline double step(const Pose& a, const Pose& b) {
     double sum = 0.0;
 
+    // The distance is over x, y and z.
     for (int i = 0; i < 3; ++i) {
         const double d = a.position[i] - b.position[i];
         sum += d * d;
@@ -33,6 +36,10 @@ inline bool tracing() {
     return on;
 }
 
+// Writes one ATRACE line to stderr for the pose `p`. `what` names the place it was seen at ("R"
+// received, "O" shown, "H" the hero's own), `now` is the game's clock in ms, and `extra` is a
+// second number for the line: the pose's time on this game's clock for "R", the delay of the poses'
+// buffer for "O", 0 for "H". Called on the game's tick thread, and only when tracing().
 inline void trace(const char* what, double now, double extra, const Pose& p) {
     std::fprintf(
         stderr,
@@ -58,6 +65,7 @@ inline void trace(const char* what, double now, double extra, const Pose& p) {
     );
 }
 
+// Returns whether `id` is one of the members the session holds now.
 inline bool member_of(const Session& session, std::int32_t id) {
     const std::vector<Member>& members = session.members();
     return std::any_of(members.begin(), members.end(), [&](const Member& m) { return m.id == id; });

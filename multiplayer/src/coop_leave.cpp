@@ -19,17 +19,22 @@ using namespace coop_util;
 void Coop::tick_leaving(std::uint64_t now) {
     const int phase = game_.status().phase;
 
+    // A game leaving after its party went is taken back to the title.
     if (to_title_) {
+        // Still in a level: the game's own travel is the way out.
         if (in_level(phase)) {
             // In the level (playing, a scene, a menu over it): the game's way back to the title,
             // asked again while it has not gone (a travel still to happen, or refused).
             left_title_ = true;
             const std::uint64_t wait = title_taken_ ? kTravelMs : kLeaveMs;
 
+            // The first ask goes at once, then again after kLeaveMs, or kTravelMs once the game
+            // took it.
             if (title_ms_ == 0 || now - title_ms_ >= wait) {
                 title_ms_ = now;
                 title_taken_ = game_.travel(-1);
 
+                // The log says when the game took the travel.
                 if (title_taken_) {
                     log("left the level for the title");
                 }
@@ -50,6 +55,7 @@ void Coop::tick_leaving(std::uint64_t now) {
     // Back in the title: the Multiplayer page asked for until it shows (the main menu may not be
     // up yet), for a while, and not once the player left the title again.
     if (home_) {
+        // The page is asked for only in the title, and for kHomeMs at most.
         if (phase != kPhaseFrontEnd || now - home_since_ >= kHomeMs) {
             home_ = false;
         } else if (home_ms_ == 0 || now - home_ms_ >= kHomeRetryMs) {

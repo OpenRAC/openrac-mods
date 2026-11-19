@@ -20,6 +20,7 @@ using namespace coop_util;
 std::string save_description(
     const std::string& planet, int gold_bolts, bool new_game, Language language
 ) {
+    // The lobby and the lists say "New game" for a start with no save.
     if (new_game) {
         return translated("New game", language);
     }
@@ -101,9 +102,11 @@ bool Coop::start() {
         start_again_();
     }
 
+    // The id mixes the clock with Knuth's multiplier and sets bit 0, so it is never 0.
     play_ = static_cast<std::int32_t>((clock_() * 2654435761u) | 1u);
     const int level = chosen_.empty() ? 0 : -1;
 
+    // Only the first start opens the session's game; a start again is in the same one.
     if (!again) {
         session_.start();
     }
@@ -111,7 +114,9 @@ bool Coop::start() {
     send_play(kBroadcast, chosen_, level, false);
     told_.clear();
 
+    // The members this PLAY went to are remembered as told.
     for (const Member& m : session_.members()) {
+        // The host is not told of its own game.
         if (m.id != session_.id()) {
             told_.push_back(m.id);
         }
@@ -129,6 +134,7 @@ bool Coop::start() {
         return false;
     }
 
+    // The game refused the start, and the player sees "Can't start".
     if (!game_.start(level, chosen_)) {
         notice_ = "Can't start";
         return false;
@@ -142,6 +148,7 @@ bool Coop::start() {
 bool Coop::adopt() {
     const GameStatus status = game_.status();
 
+    // Only the host of a party, standing in a level, can make that game the party's.
     if (!session_.in_party() || !session_.role().host() || !in_level(status.phase)) {
         return false;
     }
@@ -150,6 +157,7 @@ bool Coop::adopt() {
     const bool again = play_ != 0;
     clear_game();
 
+    // A new game of the party's saves to a slot of its own, as start() does.
     if (again && start_again_) {
         start_again_();
     }
@@ -169,12 +177,14 @@ bool Coop::adopt() {
 void Coop::ship_ready() {
     ship_held_ = false;
 
+    // Only a departure being followed has a leave time to bring forward.
     if (leave_dest_ >= 0) {
         leave_at_ = std::min(leave_at_, clock_());
     }
 }
 
 bool Coop::start_blocked(int phase) const {
+    // Held for the host's ship, a member's Start means ready and goes to no menu.
     if (phase == kPhasePlaying && ship_held()) {
         return true;
     }
@@ -231,6 +241,7 @@ void Coop::own_skip(int phase, std::uint64_t now) {
                               : shared != 0        ? kSkipShared
                                                    : kSkipOther;
 
+    // The host's scene skipped is remembered, so it is not played again here.
     if (shared != 0) {
         party_skip_ = shared;
     }
@@ -238,6 +249,7 @@ void Coop::own_skip(int phase, std::uint64_t now) {
     log("skip pressed here: the party skips it"
         + (shared != 0 ? std::string(" (the host's scene ") + std::to_string(shared) + ")"
                        : std::string()));
+    // The sequence and the scene go as two bytes each, high byte first.
     const Bytes bytes = Writer()
                             .u8(static_cast<std::uint8_t>(GameKind::kSkip))
                             .i32(session_.id())
@@ -262,6 +274,7 @@ bool Coop::movie_press(std::uint64_t now) {
         return joining_press_;
     }
 
+    // The presses stop once the skip is over, the movie's load has gone, or the game left loading.
     if (movie_presses_ <= 0 || now >= skip_until_ || status.phase != kPhaseLoading
         || movie_load_ != load_instance_) {
         movie_presses_ = 0;
@@ -274,22 +287,26 @@ bool Coop::movie_press(std::uint64_t now) {
 }
 
 void Coop::handle(std::int32_t sender, const Bytes& bytes) {
+    // Nothing is read from an empty datagram, or from one outside a party.
     if (bytes.empty() || !session_.in_party()) {
         return;
     }
 
     const auto kind = static_cast<GameKind>(bytes[0]);
 
+    // A POSE goes to its handler whole, kind byte included.
     if (kind == GameKind::kPose) {
         on_pose(sender, bytes);
         return;
     }
 
+    // A SHOT goes to its handler whole, kind byte included.
     if (kind == GameKind::kShot) {
         on_shot(sender, bytes);
         return;
     }
 
+    // A SHOTX goes to its handler whole, kind byte included.
     if (kind == GameKind::kShotX) {
         on_shotx(sender, bytes);
         return;
@@ -298,7 +315,9 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
     Reader r(bytes.data() + 1, bytes.size() - 1);
     const bool from_host = session_.role().from_host(sender);
 
+    // POSES is the host's relay of everyone's poses.
     if (kind == GameKind::kPoses) {
+        // A POSES from anyone but the host is dropped.
         if (from_host) {
             on_poses(sender, r);
         }
@@ -306,6 +325,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
         return;
     }
 
+    // The other kinds are read with a Reader past the kind byte.
     switch (kind) {
         case GameKind::kPlay: {
             const std::int32_t play = r.i32();
@@ -373,7 +393,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const std::int32_t level = r.i32();
             const bool scene = r.left() > 0 && r.u8() != 0;
             // The host's travels (a host without them: none).
-            const bool travels = r.left() >= 7;
+            const bool travels = r.left() >= 7;  // u16 count, i32 planet, u8 arriving
             const std::uint8_t travel_high = travels ? r.u8() : 0;
             const auto travel =
                 static_cast<std::uint16_t>(travel_high << 8 | (travels ? r.u8() : 0));
@@ -381,6 +401,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             const bool arriving = travels && r.u8() != 0;
             const bool ship_held = r.left() > 0 && r.u8() != 0;
 
+            // A LEVEL counts only whole, from the host, and for a game that is on.
             if (!from_host || !r.ok() || play == 0) {
                 break;
             }
@@ -391,6 +412,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                 return l >= 0 && (levels <= 0 || l < levels);
             };
 
+            // A level the game does not have is ignored whole.
             if (level != -1 && !in_game(level)) {
                 break;
             }
@@ -402,6 +424,7 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             host_scene_ = scene;
             host_arriving_ = arriving;
 
+            // A host without travel counts sends none of the departure's fields.
             if (!travels) {
                 break;
             }
@@ -414,6 +437,8 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
             } else if (travel != host_travel_) {
                 host_travel_ = travel;
 
+                // A departure is followed only toward a level this game has, once it plays the
+                // host's game.
                 if (dest >= 0 && applied_ == play_) {
                     const auto now = clock_();
                     leave_dest_ = travel_dest_ = dest;
@@ -422,6 +447,8 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
                     leave_ms_ = 0;
                     arriving_ = true;
 
+                    // A member waiting to be put beside the host stops waiting: the host left that
+                    // level.
                     if (placing_ != PlaceFor::kNone) {
                         end_place(now, "the host left the level");
                     }
@@ -456,6 +483,8 @@ void Coop::handle(std::int32_t sender, const Bytes& bytes) {
 
                 log("player " + std::to_string(sender) + " asked for the game");
 
+                // A game in a level goes as a live save to join; one in the title gets the chosen
+                // game.
                 if (!live.empty()) {
                     send_play(sender, live, status.level, true);
                 } else {
@@ -489,15 +518,18 @@ void Coop::tick(std::uint64_t now) {
     // A party playing: the world runs on under the game's menus; otherwise the game as it is.
     const bool overlay = session_.in_party() && play_ != 0;
 
+    // The game is told only when the party starts or stops playing.
     if (overlay != overlay_) {
         overlay_ = overlay;
         game_.overlay_pause(overlay);
     }
 
+    // Outside a party none of the co-op's work runs but the leaving.
     if (!session_.in_party()) {
         // The party went: so does what was shown of it, and a game playing the party's (the
         // host's as a member's: alone, its world is no game) goes back to the title, then to the
         // Multiplayer page. One in the title's pages stays.
+        // Only a party that left something behind has anything to reset.
         if (play_ != 0 || !remotes_.empty() || pending_) {
             const int phase = game_.status().phase;
             const bool starting = start_ms_ != 0 && now - start_ms_ < kStartingMs;
@@ -546,6 +578,7 @@ void Coop::tick(std::uint64_t now) {
             + (arriving_ ? ", arriving" : ""));
     }
 
+    // Which side's tick runs follows from who hosts.
     if (between_hosts_) {
         // Nothing of either until the party is this game's.
     } else if (session_.role().host()) {
@@ -561,6 +594,8 @@ void Coop::tick(std::uint64_t now) {
     if (session_.role().host() && !relay_.empty() && now - relay_ms_ >= 2 * kPoseMs) {
         relay_ms_ = now;
 
+        // A member's pose has someone to go to only when two members or more are there besides the
+        // host.
         if (session_.members().size() > 2) {
             send_poses(nullptr);
         } else {
@@ -568,6 +603,7 @@ void Coop::tick(std::uint64_t now) {
         }
     }
 
+    // With OPENRAC_ANIM_TRACE set, the hero's own pose is traced beside the sent and shown ones.
     if (tracing() && in_level(status.phase)) {
         Pose hero;
 
@@ -593,6 +629,7 @@ bool Coop::start_pending() {
 void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     // The host's game, once its save is all here.
     if (pending_ && (!pending_save_ || received_ >= expected_)) {
+        // A game can only be started from the title.
         if (status.phase == kPhaseFrontEnd) {
             // The host's save is not trusted: one that does not pass is not loaded, kept or asked
             // for again.
@@ -624,10 +661,14 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
                 save_.clear();
             }
         } else if (in_level(status.phase)) {
+            // A PLAY already applied here was asked for twice; any other is a new game of the
+            // host's.
             if (applied_ == pending_play_) {
                 // This game's own again (asked for twice): the level follows.
                 pending_ = false;
 
+                // A PLAY with no level (a save sends -1) leaves the host's level as LEVEL last said
+                // it.
                 if (pending_level_ >= 0) {
                     host_level_ = pending_level_;
                 }
@@ -643,6 +684,7 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     // A joiner's gifts come quietly, and a while after.
     const bool quiet = joining_ || now < quiet_until_;
 
+    // The game is told only when the quiet state changes.
     if (quiet != quiet_) {
         quiet_ = quiet;
         game_.quiet_gifts(quiet);
@@ -652,6 +694,7 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     // through the game's own skip, so the party goes on together.
     const bool together = play_ != 0 && applied_ == play_ && host_level_ == status.level;
 
+    // The count of how long the host has been out of scenes starts when it leaves one.
     if (host_scene_ || host_out_since_ == 0) {
         host_out_since_ = host_scene_ ? 0 : now;
     }
@@ -661,8 +704,10 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     const bool host_out = !host_scene_ && host_out_since_ != 0
                           && now - host_out_since_ >= kHostOutMs + scene_lag_ms();
 
+    // A scene of this game's is skipped only once the host has been out of its own a while.
     if (together && status.phase == kPhaseScene && host_out
         && (skip_ms_ == 0 || now - skip_ms_ >= kSkipMs)) {
+        // The log says it at the first ask, not at each one.
         if (skip_ms_ == 0) {
             log("skip requested: the host is out of the scene");
         }
@@ -678,6 +723,8 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
     // scene, the pause menu, a vendor), asked again until a level load says it went; then the
     // party arrives together (the host says when everyone is in).
     if (leave_dest_ >= 0 && now >= leave_at_) {
+        // The leave is done once a load went by since it was asked, or the level is the
+        // destination.
         if ((leave_ms_ != 0 && status.loads != leave_loads_)
             || (in_level(status.phase) && status.level == leave_dest_)) {
             log("left for level " + std::to_string(leave_dest_));
@@ -685,6 +732,7 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
             ship_held_ = false;
         } else if (in_level(status.phase) && status.level != leave_dest_
                    && (leave_ms_ == 0 || now - leave_ms_ >= (took_off_ ? kTakeoffMs : kLeaveMs))) {
+            // The log says it at the first ask only.
             if (leave_ms_ == 0) {
                 log("leaving level " + std::to_string(status.level) + " for "
                     + std::to_string(leave_dest_) + " (phase " + std::to_string(status.phase)
@@ -704,6 +752,7 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
                 taking_off_ = false;
             }
 
+            // A take-off from the pad is the whole leave; without one the plain flight starts.
             if (took_off_) {
                 log("taking off from the pad");
             } else {
@@ -712,7 +761,9 @@ void Coop::tick_member(std::uint64_t now, const GameStatus& status) {
         }
     }
 
+    // An arrival wait ends when the host says everyone is in, or after kArriveMs.
     if (arriving_) {
+        // The host says everyone is in, and this game stands in its level.
         if (!host_arriving_ && in_level(status.phase) && host_level_ == status.level) {
             arriving_ = false;
             log("everyone is in level " + std::to_string(status.level) + ": going on");
@@ -754,6 +805,7 @@ void Coop::reset() {
     world_ack_ = false;
     world_acks_.clear();
 
+    // Every figure shown is taken down before the remotes are forgotten.
     for (auto& entry : remotes_) {
         drop_figure(entry.first, entry.second, "the party's game reset");
     }
@@ -761,6 +813,7 @@ void Coop::reset() {
     remotes_.clear();
     relay_.clear();
 
+    // A game left quiet goes back to showing the game's banners.
     if (quiet_) {
         quiet_ = false;
         game_.quiet_gifts(false);

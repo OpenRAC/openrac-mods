@@ -57,8 +57,9 @@
 // The host plays what Create match chose: a new game (the first level) or a save of its memory
 // card. A member starts the same from the title (play_start), its own card untouched. Joining a
 // game that is on, a member gets the host's progress as it is now (save_capture), in the host's
-// level. A member whose build differs from the host's (the mod, OpenRAC, the world family, the gameplay mods'
-// digest: party_mods.hpp) refuses it, and the host gives no game to one the gate says differs.
+// level. A member whose build differs from the host's (the mod, OpenRAC, the world family, the
+// gameplay mods' digest: party_mods.hpp) refuses it, and the host gives no game to one the gate
+// says differs.
 // Scenes and movies end together: only the host skips them. Its Start in a scene or a movie skips
 // it in every game (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed
 // for the movie player); a member's Start there does nothing (the pad's Start taken out of the
@@ -93,11 +94,11 @@
 // "only the host skips" rule is for scenes the party plays together, which this is not.
 // Then it stays held, the banner saying so, until the host stands somewhere safe (on the level's
 // ground, not in a scene, not arriving: the pose's kPoseSteady, at most kSafeFreshMs ago), and is
-// put beside the host for a moment of safety (no DAMAGE, kShieldMs). After kPlaceWaitMs without such
-// a spot, the host's last safe one; with none in this level load, it stays where the ship or the
-// level's start put it. A host's scene does not use up that wait: it is waited out and not replayed,
-// and the joiner's own Start ends the wait where it stands. A port that cannot place the hero:
-// no wait, as before. Whatever comes to this game while it joins and for kQuietMs after (the
+// put beside the host for a moment of safety (no DAMAGE, kShieldMs). After kPlaceWaitMs without
+// such a spot, the host's last safe one; with none in this level load, it stays where the ship or
+// the level's start put it. A host's scene does not use up that wait: it is waited out and not
+// replayed, and the joiner's own Start ends the wait where it stands. A port that cannot place the
+// hero: no wait, as before. Whatever comes to this game while it joins and for kQuietMs after (the
 // party's progress) comes without its banners (Game::quiet_gifts).
 // Go to host. A member in the host's level may ask to be put beside the host at any time, by the
 // same answers, from the pause page; the hero moves once the menu is closed. No spot: the place
@@ -173,6 +174,7 @@ constexpr std::size_t kChunkBytes = 16000;
 // given it.
 constexpr const char* kBadSaveHost = "Bad save";
 constexpr const char* kBadSaveMember = "Bad host save";
+// What a player reads when the card cannot keep the party's saves apart from the player's own.
 constexpr const char* kNoCardFilter = "No card support";
 // The largest save a member takes (Ratchet & Clank's are 59,912 bytes).
 constexpr std::size_t kMaxSaveBytes = 1u << 17;
@@ -186,9 +188,9 @@ constexpr std::uint64_t kTravelMs = 4000;
 constexpr std::uint64_t kFigureRetryMs = 1000;
 constexpr double kGoneMs = 5000.0;
 // A shot not fired this long after it was due is dropped: a late flash reads as a bug, a lost one
-// goes unseen. The most a remote player's shots wait, the longest one waits to be sent, and how often
-// shots go: the host's state is mostly spent (POSES and WORLD take 50 of the 52 a second), and the
-// member's is not.
+// goes unseen. The most a remote player's shots wait, the longest one waits to be sent, and how
+// often shots go: the host's state is mostly spent (POSES and WORLD take 50 of the 52 a second),
+// and the member's is not.
 constexpr double kShotLateMs = 250.0;
 constexpr std::size_t kShotsWaiting = 32;
 constexpr std::uint64_t kShotHoldMs = 250;
@@ -206,6 +208,8 @@ constexpr std::uint64_t kSkipMs = 500;
 // How long the host must have been out of scenes before a member's scene is skipped (the same
 // scene may start in the member's game a moment before the host's word of its own comes).
 constexpr std::uint64_t kHostOutMs = 1000;
+// The most the host waits for members still in a scene, and a member for the host's scene (see
+// above).
 constexpr std::uint64_t kBarrierMs = 10000;
 constexpr std::uint64_t kHostSceneMs = 120000;
 // The longest the party waits for its members to arrive after a ship travel (from the host's
@@ -249,8 +253,8 @@ constexpr std::uint64_t kPlaceMoveMs = 1500;
 constexpr float kPlaceNear = 3.0f;
 // How old the host's safe spot may be and still count as where it stands now (a hop, a menu).
 constexpr std::uint64_t kSafeFreshMs = 2000;
-// How long a placed hero takes no damage from the party's enemies, how long a joiner takes its gifts
-// quietly after it is in, and how soon Go to host works again.
+// How long a placed hero takes no damage from the party's enemies, how long a joiner takes its
+// gifts quietly after it is in, and how soon Go to host works again.
 constexpr std::uint64_t kShieldMs = 3000;
 constexpr std::uint64_t kQuietMs = 5000;
 constexpr std::uint64_t kGoAgainMs = 5000;
@@ -258,7 +262,8 @@ constexpr std::uint64_t kGoAgainMs = 5000;
 constexpr std::uint64_t kTravelWarnMs = 2500;
 // A member's take-off from its pad: how long it may take to leave before the plain flight does it.
 constexpr std::uint64_t kTakeoffMs = 15000;
-// With the host's rule "hold the party": how long a member may stay behind before the ship takes it.
+// With the host's rule "hold the party": how long a member may stay behind before the ship takes
+// it.
 constexpr std::uint64_t kShipHoldMs = 30000;
 // What a wait is for (WAIT_VOTE's kind): nothing, the players still arriving, a scene.
 constexpr std::uint8_t kWaitNone = 0;
@@ -267,8 +272,12 @@ constexpr std::uint8_t kWaitScene = 2;
 
 // What the game is doing (the SDK's openrac_play_status).
 struct GameStatus {
+    // One of the kPhase* values.
     int phase = 0;
+    // The level played or loading, -1 for none (documented).
     int level = -1;
+    // The count of level loads: a new value means the figures and the world of the last one are
+    // gone (documented).
     std::uint32_t loads = 0;
     // The level's in-game scene playing (its number in the level, the SDK's scene_playing), -1 for
     // none (no scene, or a movie, a slideshow, the ship's landing).
@@ -285,25 +294,30 @@ constexpr std::size_t kProgressItems = 40;
 constexpr std::size_t kProgressGoldBolts = 76;
 constexpr std::size_t kProgressPlanets = 20;
 
+// A game's progress as the party shares it (progress.hpp): which items, gold bolts and planets it
+// has.
 struct ProgressBits {
+    // Indexed by item id, gold bolt and planet; non-zero is had.
     std::array<std::uint8_t, kProgressItems> items{};
     std::array<std::uint8_t, kProgressGoldBolts> gold{};
     std::array<std::uint8_t, kProgressPlanets> planets{};
 
+    // Returns whether all three arrays are equal.
     bool operator==(const ProgressBits& o) const {
         return items == o.items && gold == o.gold && planets == o.planets;
     }
 
+    // Returns whether any of the three arrays differs.
     bool operator!=(const ProgressBits& o) const { return !(*this == o); }
 };
 
 // The phases (the SDK's OPENRAC_PLAY_*).
-constexpr int kPhaseNone = 0;
-constexpr int kPhaseFrontEnd = 1;
-constexpr int kPhaseLoading = 2;
-constexpr int kPhasePlaying = 3;
-constexpr int kPhaseScene = 4;
-constexpr int kPhaseMenu = 5;
+constexpr int kPhaseNone = 0;      // No play known for this game (documented)
+constexpr int kPhaseFrontEnd = 1;  // The title and its menus (documented)
+constexpr int kPhaseLoading = 2;   // A level loading, or the flight between planets (documented)
+constexpr int kPhasePlaying = 3;   // A level, the player in control (documented)
+constexpr int kPhaseScene = 4;     // A level, a scene playing (documented)
+constexpr int kPhaseMenu = 5;      // A level, a menu over it (documented)
 
 // The view of a camera script running in this game, its moby's place, and whether it runs for a
 // player standing in (Game::camera_view). What ends one shown (the SDK's OPENRAC_CAMERA_SCRIPT_*).
@@ -314,25 +328,24 @@ struct CameraView {
     bool stand_in = false;
 };
 
-constexpr int kCameraEnd = -1;
-constexpr int kCameraCut = -2;
+constexpr int kCameraEnd = -1;  // Ends the script shown here (documented)
+constexpr int kCameraCut = -2;  // Also ends the script shown here (documented)
 
 // Whether a phase is in a level (playing, a scene, a menu over it).
 inline bool in_level(int phase) {
     return phase == kPhasePlaying || phase == kPhaseScene || phase == kPhaseMenu;
 }
 
-// A moby of the level as the world sees it (the SDK's openrac_moby): its slot here, its key (the
-// level's record, the same in every game; -1 for one spawned), class, flags, the game's state
-// byte, and pose.
 // A player a moby's update takes the hero for, and what the update did to him (the SDK's
 // openrac_stand_in).
-constexpr std::uint32_t kStandInAirborne = 0x1;
-constexpr std::uint32_t kStandInKilled = 0x2;
+constexpr std::uint32_t kStandInAirborne = 0x1;  // Feet off the ground (documented)
+constexpr std::uint32_t kStandInKilled = 0x2;    // The update killed the hero (documented)
 // What a grab does to the hero held (the SDK's OPENRAC_GRAB_*).
-constexpr std::uint32_t kGrabFatal = 0x1;
-constexpr std::uint32_t kGrabSpin = 0x2;
+constexpr std::uint32_t kGrabFatal = 0x1;  // The grab kills him (documented)
+constexpr std::uint32_t kGrabSpin = 0x2;   // He turns on the spot while held (documented)
 
+// The player a moby's update takes the hero for: where he stands, his yaw, state, health and flags
+// (kStandIn*).
 struct StandIn {
     float position[3] = {0, 0, 0};
     float yaw = 0;
@@ -341,6 +354,9 @@ struct StandIn {
     std::uint32_t flags = 0;
 };
 
+// A moby of the level as the world sees it (the SDK's openrac_moby): its slot here, its key (the
+// level's record, the same in every game; -1 for one spawned), class, flags, the game's state byte,
+// and pose.
 struct MobyState {
     int slot = -1;
     int key = -1;
@@ -357,19 +373,21 @@ constexpr int kMissions = 16;
 constexpr std::uint8_t kMissionDone = 0xFF;
 
 // openrac_moby's flags.
-constexpr std::uint32_t kMobyUpdates = 0x1;
-constexpr std::uint32_t kMobyDriven = 0x2;
-constexpr std::uint32_t kMobyPlaced = 0x4;
-constexpr std::uint32_t kMobyCreature = 0x8;
-constexpr std::uint32_t kMobyDead = 0x10;
-constexpr std::uint32_t kMobyScene = 0x20;
-constexpr std::uint32_t kMobyHidden = 0x40;
-constexpr std::uint32_t kMobyDrawn = 0x80;
+constexpr std::uint32_t kMobyUpdates = 0x1;   // It has an update of its own (documented)
+constexpr std::uint32_t kMobyDriven = 0x2;    // A mod drives it (documented)
+constexpr std::uint32_t kMobyPlaced = 0x4;    // The level placed it (documented)
+constexpr std::uint32_t kMobyCreature = 0x8;  // Its class is a creature (documented)
+constexpr std::uint32_t kMobyDead = 0x10;     // A placed moby the game deleted (documented)
+constexpr std::uint32_t kMobyScene = 0x20;    // An actor of the scene playing (documented)
+constexpr std::uint32_t kMobyHidden = 0x40;   // Hidden from drawing (documented)
+constexpr std::uint32_t kMobyDrawn = 0x80;    // Drawn in the last frame (documented)
 
 // A hit (the SDK's openrac_hit): victim and attacker by slot (-1 none).
 struct Hit {
     int victim = -1;
     int attacker = -1;
+    // The game's weapon or attack mask, the damage, where the hit landed and the velocity it
+    // carries (documented).
     std::uint32_t mask = 0;
     float damage = 0;
     float position[3] = {0, 0, 0};
@@ -379,6 +397,10 @@ struct Hit {
 // How the game ran the level's mobys in the last tick, and one moby in it (the SDK's
 // openrac_moby_run: the verbose log's, trace.hpp).
 struct MobyRun {
+    // As the SDK's openrac_moby_run (documented): the run lists built and the camera the last one
+    // measured from, the menu updates seen and what the last did, the level's camera and mode, the
+    // moby context, then for one moby its update and draw distances, whether it was drawn, how it
+    // was run (kRun*) and its distance from that camera.
     std::uint32_t runs = 0;
     float camera[3] = {0, 0, 0};
     std::uint32_t menu_ticks = 0;
@@ -394,23 +416,29 @@ struct MobyRun {
 };
 
 // What the game's card writes do (Game::card_filter; the SDK's OPENRAC_CARD_*).
-constexpr int kCardPass = 0;
-constexpr int kCardRedirect = 2;
+constexpr int kCardPass = 0;      // Writes reach the card as always (documented)
+constexpr int kCardRedirect = 2;  // Writes go to the mod's card folder (documented)
 
 // openrac_moby_run.ran and .menu (OPENRAC_MOBY_RUN_*, OPENRAC_RUN_MENU_*).
-constexpr int kRunNone = -1;
-constexpr int kRunFar = 0;
+constexpr int kRunNone = -1;  // Not looked at (documented)
+constexpr int kRunFar = 0;    // Left out: too far from the camera (documented)
 
 // What the co-op needs of the game: the SDK's play calls (multiplayer.cpp), or a test's.
+// Implemented by the mod's game adapter over the SDK's calls and by the tests' fakes. The co-op
+// borrows it, and calls it from the game's thread only.
 class Game {
 public:
     virtual ~Game() = default;
+    // Returns what the game is doing now.
     virtual GameStatus status() = 0;
     // From the title: a new game in `level` (no save), or the save continued. True when asked.
     virtual bool start(int level, const Bytes& save) = 0;
+    // Travels to `level`, or to the title for -1, through the game's own way. True when the game
+    // took the request.
     virtual bool travel(int level) = 0;
     // The progress now, as a save; empty for none.
     virtual Bytes capture() = 0;
+    // Reads the hero's pose into `out`. False when the game has no hero now.
     virtual bool hero(Pose& out) = 0;
     // A figure's id, -1 for none to have; posed (false: gone); removed.
     virtual int figure_create() = 0;
@@ -418,14 +446,20 @@ public:
     virtual void figure_remove(int id) = 0;
 
     // The world (world.hpp; the SDK's 1.9 calls). A game without them lists nothing.
+    // Returns the level's live mobys, and its placed ones deleted; empty outside a level.
     virtual std::vector<MobyState> mobys() { return {}; }
 
+    // Returns the slot of the placed moby `key`, -1 for none (killed, or no such record).
     virtual int moby_slot(int /*key*/) { return -1; }
 
+    // Has the mod drive the moby in `slot` (`on`: its update stops and the mod poses it), or lets
+    // it go. False when refused.
     virtual bool moby_drive(int /*slot*/, bool /*on*/) { return false; }
 
+    // Puts the moby in `slot` in `pose`. False when there is no such moby.
     virtual bool moby_pose(int /*slot*/, const Pose& /*pose*/) { return false; }
 
+    // Deletes the moby in `slot` as the game deletes one. False when there is none.
     virtual bool moby_kill(int /*slot*/) { return false; }
 
     // A moby hidden from drawing or shown again; the game's last deletion of a slot (despawn.hpp's
@@ -447,16 +481,26 @@ public:
     // How the last tick ran the level's mobys and the moby in `slot` (-1: none) in it.
     virtual bool moby_run(int /*slot*/, MobyRun& /*out*/) { return false; }
 
+    // Makes a moby of class `oclass` in `pose`, driven by the mod. Returns its slot, -1 for none
+    // (no level, no room, or a class the level has not).
     virtual int moby_spawn(int /*oclass*/, const Pose& /*pose*/) { return -1; }
 
+    // Returns the slot of the figure `id`, or of the hero's moby with -1; -1 for none.
     virtual int figure_slot(int /*id*/) { return -1; }
 
+    // Only in the gate's call before a moby's update: for that update the hero stands at `position`
+    // and his moby is the figure `figure` (-1: his own), as another player. False outside that
+    // call.
     virtual bool stand_in(const float* /*position*/, int /*figure*/) { return false; }
 
+    // Posts `hit` to its victim as the game posts one. False when there is no victim.
     virtual bool hit(const Hit& /*hit*/) { return false; }
 
+    // Sets the points besides the camera (x, y, z each) near which mobys also run; empty clears
+    // them.
     virtual void eyes(const std::vector<float>& /*xyz*/) {}
 
+    // Adds `add` to the player's bolts (0 for none) and returns them.
     virtual int bolts(int /*add*/) { return 0; }
 
     // The shared progress (progress.hpp): what this game has (false outside a level), and an item
@@ -475,20 +519,29 @@ public:
 
     // The port's card filter (cosave.hpp, the SDK's card_filter and its fellows): none in a game
     // without it.
+    // Returns whether the port has the card filter.
     virtual bool has_card_filter() { return false; }
 
+    // Sets what the game's card writes do (`mode`: kCardPass or kCardRedirect). False when the port
+    // refuses it.
     virtual bool card_filter(int /*mode*/) { return false; }
 
+    // Names the co-op slot the redirected writes go to.
     virtual void card_slot(int /*slot*/) {}
 
+    // Writes `save` into co-op slot `slot`. False when it was refused.
     virtual bool card_write(int /*slot*/, const Bytes& /*save*/) { return false; }
 
+    // Returns the bytes of co-op slot `slot`, empty for none.
     virtual Bytes card_read(int /*slot*/) { return {}; }
 
+    // Returns a count that changes each time the game saves.
     virtual std::uint32_t card_saves() { return 0; }
 
+    // Returns the note beside co-op slot `slot`, empty for none.
     virtual std::string card_note(int /*slot*/) { return {}; }
 
+    // Writes `text` as the note beside co-op slot `slot`.
     virtual void card_note_write(int /*slot*/, const std::string& /*text*/) {}
 
     // The clock on the wall, in seconds since 1970.
@@ -537,9 +590,9 @@ public:
     // Whether this game can put its hero somewhere.
     virtual bool can_place() { return false; }
 
-    // The hero put beside `position` (a spot around it, starting behind `yaw`, looking at it) or, not
-    // `beside`, at `position`, unharmed for a moment; it happens once the player is in control, and
-    // not at all when the game finds no spot. False when refused.
+    // The hero put beside `position` (a spot around it, starting behind `yaw`, looking at it) or,
+    // not `beside`, at `position`, unharmed for a moment; it happens once the player is in control,
+    // and not at all when the game finds no spot. False when refused.
     virtual bool place(const float* /*position*/, float /*yaw*/, bool /*beside*/) { return false; }
 
     // A level's name as the game shows it; empty when not known.
@@ -556,8 +609,11 @@ public:
     // once it is not up).
     virtual bool camera_view(CameraView& /*out*/) { return false; }
 
+    // Shows the camera script of the moby class `id`, or ends the one shown (kCameraEnd,
+    // kCameraCut).
     virtual bool camera_play(int /*id*/) { return false; }
 
+    // Puts the shown script's view at `eye` and `rotation`.
     virtual bool camera_show(const float* /*eye*/, const float* /*rotation*/) { return false; }
 
     // --- end WP-CAMERA ---
@@ -571,8 +627,8 @@ public:
     // In the gate's call after an update: what it did to the hero who stood in.
     virtual bool stand_in_read(StandIn& /*out*/) { return false; }
 
-    // This game's hero held by a grab: `animation` (below 0: the hold's own), kGrab* `flags`; on his
-    // way to `position`, and let go.
+    // This game's hero held by a grab: `animation` (below 0: the hold's own), kGrab* `flags`; on
+    // his way to `position`, and let go.
     virtual bool grab(int /*animation*/, std::uint32_t /*flags*/) { return false; }
 
     virtual bool hold_at(const float* /*position*/, float /*yaw*/) { return false; }
@@ -593,12 +649,12 @@ public:
     // The hero back at his checkpoint now, dead or not (the game's own respawn).
     virtual bool respawn() { return false; }
 
-    // The mission row of `level` in this game (kMissions bytes, kMissionDone for done); false when
-    // it cannot be read.
     // The ship's take-off from the pad for `level`, as the planet select starts it; false for a
     // game that cannot.
     virtual bool ship_takeoff(int /*level*/) { return false; }
 
+    // The mission row of `level` in this game (kMissions bytes, kMissionDone for done); false when
+    // it cannot be read.
     virtual bool mission_row(int /*level*/, std::uint8_t* /*out*/) { return false; }
 
     // Clears the flags of `level`'s row that `flags` (kMissions bytes) names, or sets them again.
@@ -627,10 +683,10 @@ public:
 
 // A remote player as the co-op keeps it: its poses and its figure.
 struct Remote {
-    Interpolator poses;
-    bool scene = false;  // its game plays a scene (its last pose said)
-    bool menu = false;   // its game is in a pause/menu overlay (its last pose said)
-    int figure = -1;
+    Interpolator poses;             // Its received poses, played back behind the newest.
+    bool scene = false;             // its game plays a scene (its last pose said)
+    bool menu = false;              // its game is in a pause/menu overlay (its last pose said)
+    int figure = -1;                // Its figure's id in the game, -1 for none.
     bool hidden = false;            // its figure hidden for a scene playing in this game
     float shown_at[3] = {0, 0, 0};  // where its figure was last put
     bool late = false;              // its poses or its link lag: its name tag says so
@@ -640,16 +696,19 @@ struct Remote {
 
     // Its shots to fire, each when its figure is as far behind as its poses are played.
     struct PendingShot {
-        double due_ms = 0;
-        std::int32_t level = -1;
+        double due_ms = 0;        // When to fire it, on this game's clock in ms.
+        std::int32_t level = -1;  // The level it was fired in.
         Shot shot;
         // When it should have been fired: what lateness is counted from.
         double shown_ms = 0;
     };
 
+    // The shots waiting to be fired, oldest first.
     std::deque<PendingShot> shots;
 };
 
+// Returns whether `remote`'s newest pose is fresh enough to count at `now_ms`: heard within
+// kStallMs and, unless `include_menu`, not in a scene or a menu.
 inline bool remote_pose_available(const Remote& remote, double now_ms, bool include_menu = false) {
     if (!include_menu && (remote.scene || remote.menu)) {
         return false;
@@ -658,18 +717,23 @@ inline bool remote_pose_available(const Remote& remote, double now_ms, bool incl
     return remote.poses.silence_ms(now_ms) <= kStallMs;
 }
 
+// The co-op's state for one game: the party's game and how it starts, the host's level, scenes and
+// ship travels, and the figures of the other players. It borrows the session and the game, which
+// outlive it. Everything runs on the game's thread (tick, handle and the getters); the connection's
+// thread only queues frames.
 class Coop {
 public:
     // `clock` gives the monotonic milliseconds poses arrive at (now_ms when none is given).
+    // `session` and `game` are borrowed and must outlive it.
     Coop(Session& session, Game& game, std::function<std::uint64_t()> clock = {});
 
     // The verbose log (trace.hpp; null or off: none): each pose received (its stamp, when it came,
     // its time in transit) and twice a second how each figure's poses are shown ("pose" lines).
     void trace(Trace* trace) { trace_ = trace; }
 
-    // What every game of a party must have the same of (the mod's version, OpenRAC's, the disc's world family, the
-    // gameplay mods' digest): the host sends it with PLAY, and a member with another refuses to
-    // start.
+    // What every game of a party must have the same of (the mod's version, OpenRAC's, the disc's
+    // world family, the gameplay mods' digest): the host sends it with PLAY, and a member with
+    // another refuses to start.
     void set_build(std::string build) { build_ = std::move(build); }
 
     // Who may get the host's game (party_mods.hpp: a member whose mods match); none set: anyone.
@@ -684,30 +748,35 @@ public:
         starting_ = std::move(starting);
     }
 
-    // The host is starting again: told before anyone hears of the new game.
+    // Gives the host's progress a joiner starts from; the game's own when none is set.
     void on_joiner_save(std::function<Bytes()> fn) { joiner_save_ = std::move(fn); }
 
+    // The host is starting again: told before anyone hears of the new game.
     void on_start_again(std::function<void()> again) { start_again_ = std::move(again); }
 
     // The host's choice (Create match's save picker): a new game (no bytes) or a save, and what the
     // lobby and the list say of it.
     void choose(Bytes save, std::string description);
 
+    // Returns the save the host chose, empty for a new game.
     const Bytes& chosen() const { return chosen_; }
 
+    // Returns what the lobby and the lists say of the chosen save.
     const std::string& description() const { return description_; }
 
     // The host's Start: everyone plays the chosen game, the host too. False when it cannot (not
     // the host, already playing, the game not in the title, a member not ready).
     bool start();
 
-    // A game without the lobby's pages (Going Commando): the host's own game, once it plays a level,
-    // is the party's. No PLAY to everyone and no start here: each member comes into it as one who
-    // joins late does (the host's live save, in the host's level), and the host's game, its own all
-    // along, stays where it is when the party goes. Again from a level after the title: a new game
-    // of the party's, as a start again is. False for a member, out of a party or out of a level.
+    // A game without the lobby's pages (Going Commando): the host's own game, once it plays a
+    // level, is the party's. No PLAY to everyone and no start here: each member comes into it as
+    // one who joins late does (the host's live save, in the host's level), and the host's game,
+    // its own all along, stays where it is when the party goes. Again from a level after the
+    // title: a new game of the party's, as a start again is. False for a member, out of a party or
+    // out of a level.
     bool adopt();
 
+    // Returns whether the host's own game was adopted as the party's (adopt).
     bool adopted() const { return adopted_; }
 
     // Whether the co-op may hold this game's control for the others (the scene and arrival
@@ -734,18 +803,20 @@ public:
     // The party is gone (left, ended, the connection lost): the figures go, nothing is pending.
     void reset();
 
-    // A change in who is connected (migrate.hpp). This game has its slot back: it comes in as a late
-    // joiner does; the host: a member came back; the party waits for its host.
+    // A change in who is connected (migrate.hpp). This game has its slot back: it comes in as a
+    // late joiner does; the host: a member came back; the party waits for its host.
     void rejoined(std::uint64_t now);
     void member_back(std::int32_t member);
     // A player no longer shown: an old host, whose world is gone with it.
     void forget(std::int32_t player);
 
+    // Holds this game's control while the party waits for its host (migrate.hpp).
     void hold_for_host(bool on) { host_hold_ = on; }
 
     // While on, this game is named the host and is not one yet: it runs nothing of a host's.
     void between_hosts(bool on) { between_hosts_ = on; }
 
+    // Returns whether this game is between hosts.
     bool between_hosts() const { return between_hosts_; }
 
     // Who hosts changed (migrate.hpp; the table there says what becomes of what). A member: the new
@@ -753,21 +824,28 @@ public:
     // with what the party has of it. An old host back as a member: it comes in afresh.
     void host_changed();
     bool can_take_over() const;
+    // Takes the host's place with the ledger counts `travel` and `scene`, the party's progress
+    // `save` and the clock `now`.
     void take_over(std::uint16_t travel, std::uint16_t scene, Bytes save, std::uint64_t now);
     void demoted();
 
     // The ledger's part: the travels and the scene sequence.
     std::uint16_t travels() const { return session_.role().host() ? travel_ : host_travel_; }
 
+    // Sets the host's rule "hold the party": members leave with its ship when ready, after
+    // kShipHoldMs at most.
     void rule_hold_party(bool on) { hold_rule_ = on; }
 
+    // Returns whether that rule is on.
     bool hold_party_on() const { return hold_rule_; }
 
     // A member held for the host's ship: its Start says it is ready, and goes in no menu.
     bool ship_held() const { return ship_held_ && leave_dest_ >= 0; }
 
+    // Marks a held member ready: the ship takes it along now.
     void ship_ready();
 
+    // Returns the scene sequence: the host's own count, or the one it last told.
     std::uint16_t scenes() const {
         return session_.role().host() ? scene_sequence_ : host_scene_sequence_;
     }
@@ -784,10 +862,11 @@ public:
     // waits for its save, the level the host plays, the remote players shown now.
     bool playing() const { return play_ != 0; }
 
-    // This game is joining, or just joined: what the party's progress gives comes quietly
+    // This game is joining, or has joined lately: what the party's progress gives comes quietly
     // (Game::quiet_gifts), and need not wait for control.
     bool quiet_gifts() const { return quiet_; }
 
+    // Returns the host's game id, 0 for none.
     std::int32_t play() const { return play_; }
 
     bool receiving() const { return pending_ && received_ < expected_; }
@@ -796,6 +875,7 @@ public:
 
     int figures() const;
 
+    // Returns the remote players as kept here, by player id.
     const std::map<std::int32_t, Remote>& remotes() const { return remotes_; }
 
     // A remote player's latest pose (its newest, not the played-back one) and its figure; false
@@ -810,6 +890,7 @@ public:
         world_bits_ = bits;
     }
 
+    // Clears that word, as after a load.
     void no_world_ack() { world_ack_ = false; }
 
     bool take_world_ack(std::int32_t player, std::uint16_t& newest, std::uint32_t& bits);
@@ -825,8 +906,10 @@ public:
     // What the frame's tags came to, kept for the bot.
     void note_tags(const TagStats& stats) { tag_stats_ = stats; }
 
+    // Returns the last frame's counts.
     const TagStats& tag_stats() const { return tag_stats_; }
 
+    // Returns the id of the figure shown for `player`, -1 for none.
     int figure_of(std::int32_t player) const;
 
     // The hero's shots sent, and the remote players' shots their figures fired.
@@ -853,6 +936,7 @@ public:
     // pressed and let go in turns for a while, so the movie player sees a press.
     bool movie_press(std::uint64_t now);
 
+    // Returns whether the host's scene plays (the host's own game for the host).
     bool host_scene() const { return host_scene_; }
 
     // The game's ship flies from `here` to `dest` (its planet select closed): true lets it, false
@@ -872,7 +956,7 @@ public:
     // The revive rule: a player down stays shown, to be found.
     void show_fallen(bool on) { show_fallen_ = on; }
 
-    // Whether the party's enemies leave this hero alone now: joining, or just placed.
+    // Whether the party's enemies leave this hero alone now: joining, or lately placed.
     bool shielded() const;
 
     // Go to host: whether a member can ask now, and it asking (false, and why on the banner, when
@@ -880,6 +964,7 @@ public:
     bool can_go() const;
     bool go_to_host(std::uint64_t now);
 
+    // Returns whether this game is being put beside the host.
     bool going() const { return placing_ != PlaceFor::kNone; }
 
     // A wait for others, as this player sees it: its kind (kWait*), the votes and who votes.
@@ -907,26 +992,41 @@ public:
     void on_log(std::function<void(const std::string&)> log) { log_ = std::move(log); }
 
 private:
+    // Sends the host's PLAY to `target` (kBroadcast for all), the save following in CHUNKs; `level`
+    // is the level it starts in and `joining` says the game is already on.
     void send_play(std::int32_t target, const Bytes& save, int level, bool joining);
     // False: the party's saves could not be kept apart from the player's, and no game starts.
     bool about_to_start(const Bytes& save);
     // A member's about_to_start, once for a start (its answer kept for the asks after).
     bool start_pending();
+    // Runs a joining member's tick: the hold, the wait to be placed and the end of joining.
     void tick_joining(std::uint64_t now, const GameStatus& status);
     // Being put beside the host (coop_join.cpp): a request begun and ended, what the host said, the
     // member's tick, the host's account of where it is safe and its answer.
+    // Why this game is being put somewhere: not (kNone), as a joiner (kJoin), or by Go to host
+    // (kHost).
     enum class PlaceFor : std::uint8_t {
         kNone,
         kJoin,
         kHost
     };
+    // Starts a request to be put somewhere, for `why`.
     void begin_place(PlaceFor why, std::uint64_t now);
+    // Ends the request; `how` goes in the log.
     void end_place(std::uint64_t now, const std::string& how);
+    // Asks the game to put the hero beside `position` (at it when not `beside`) from behind `yaw`,
+    // each member on its own side; no_place when the game refuses.
     void place_at(const float* position, float yaw, bool beside, std::uint64_t now);
+    // Falls back when no spot exists: a joiner stays where it is, Go to host tries the landing
+    // place once and then says so.
     void no_place(std::uint64_t now);
+    // Reads the host's PLACE answer.
     void on_place(bool from_host, Reader& r);
+    // The host: answers the PLACE_ASK of the member `sender`.
     void on_place_ask(std::int32_t sender, Reader& r);
+    // A member: keeps its request going, asking every kPlaceAskMs, until it is there or gives up.
     void tick_place(std::uint64_t now, const GameStatus& status);
+    // The host: remembers its last safe pose.
     void tick_safe(std::uint64_t now, const GameStatus& status);
     // A new `play` of the host's: what the old one left, on either side (coop_join.cpp).
     void clear_game();
@@ -939,30 +1039,52 @@ private:
     void tick_wait(std::uint64_t now, const GameStatus& status);
     void send_wait(std::uint64_t now, bool passed);
     void on_wait_vote(std::int32_t sender, bool from_host, Reader& r);
+    // Reads one POSE from `sender`: its figure shows it, and the host keeps it to pass on.
     void on_pose(std::int32_t sender, const Bytes& bytes);
+    // Reads the POSES datagram of the host's relay, one POSE at a time.
     void on_poses(std::int32_t sender, Reader& r);
     // The host: the poses waiting to go out, with `own` when given, in as few datagrams as fit.
     void send_poses(const Bytes* own);
+    // The host's tick: gives late members the game and sends the level, the arrival and the scenes.
     void tick_host(std::uint64_t now, const GameStatus& status);
+    // A member's tick: starts the host's game, follows its level and travels, and skips scenes the
+    // host is out of.
     void tick_member(std::uint64_t now, const GameStatus& status);
+    // Sends this game's hero's pose, at most every kPoseMs.
     void send_pose(std::uint64_t now, const GameStatus& status);
+    // Shows, hides or drops each remote player's figure by its latest pose, and fires its shots.
     void show_remotes(std::uint64_t now, const GameStatus& status);
     // Whether each figure shown can be seen from the camera (TagSight); a few lines a second.
     void update_tag_sight(double now);
+    // Returns whether the camera sees the figure at `feet`: a line to its head or its middle that
+    // the level does not block.
     bool sees_figure(const float* camera, const float* feet);
+    // Queues the hero's shots and sends them.
     void send_shots(const GameStatus& status);
+    // Reads a SHOT from `sender`.
     void on_shot(std::int32_t sender, const Bytes& bytes);
+    // Reads a SHOTX (several shots) from `sender`.
     void on_shotx(std::int32_t sender, const Bytes& bytes);
+    // Queues a remote player's shot to fire when its figure is as far behind as its poses.
     void take_shot(const ShotEntry& shot);
+    // Queues the hero's shot for the next SHOTX, replacing an older move of the same track.
     void queue_shot(const ShotEntry& shot);
+    // Sends the queued shots when the rates allow, dropping those held over kShotHoldMs.
     void send_queued_shots(std::uint64_t now);
+    // Fires the shots of `r` that are due, through its figure.
     void fire_shots(Remote& r, std::uint64_t now, const GameStatus& status);
+    // Works out whether this player is held for others (a scene, an arrival) and sets that.
     void update_barrier(std::uint64_t now, const GameStatus& status);
+    // Sends LEVEL: the level `level` played and whether it plays a scene `scene`, with the ship's
+    // travel fields.
     void send_level(std::uint64_t now, int level, bool scene);
+    // The host: ends the arrival once everyone is in the new level, or after kArriveMs.
     void tick_arrival(std::uint64_t now, const GameStatus& status);
+    // Takes the figure of `player` out of the game, and logs `why`.
     void drop_figure(std::int32_t player, Remote& r, const char* why);
     // A figure hidden for this game's scene, or shown again; false when the game cannot hide it.
     bool hide_figure(std::int32_t player, Remote& r, bool hidden);
+    // Takes this game back to the title after its party went, then asks for the Multiplayer page.
     void tick_leaving(std::uint64_t now);
     // The level's scenes played together (coop_scenes.cpp): SCENE heard, the host's scenes told,
     // a member's started, and the lateness a member's scene is let play out for.
@@ -972,6 +1094,7 @@ private:
     void send_scene(std::uint64_t now);
     void reset_scenes();
 
+    // Returns how late the host's scene started here, as the lateness it is let play out for.
     std::uint64_t scene_lag_ms() const { return shared_lag_ms_; }
 
     // Skips and the scenes they are for (coop_scenes.cpp): the game's scenes and loads counted as
@@ -989,10 +1112,14 @@ private:
     // Whether `member` may get the host's game.
     bool may_play(std::int32_t member) const { return !gate_ || gate_(member); }
 
+    // The session and the game this works on; borrowed, and both outlive it.
     Session& session_;
     Game& game_;
+    // The build string the host sends with PLAY and a member compares with its own (set_build).
     std::string build_;
+    // Whether a player who is down stays shown (show_fallen).
     bool show_fallen_ = false;
+    // Who may get the host's game (set_gate); none set: anyone.
     std::function<bool(std::int32_t)> gate_;
     // Whether this game plays the party's game (the host's own once started, a member's once it
     // started the host's): it goes back to the title when the party goes. When it last started one
@@ -1004,18 +1131,26 @@ private:
     std::uint64_t start_ms_ = 0;
     // Whether the game was asked to keep its world running under its menus.
     bool overlay_ = false;
+    // The monotonic clock in milliseconds.
     std::function<std::uint64_t()> clock_;
+    // The verbose log; null for none (trace).
     Trace* trace_ = nullptr;
+    // The save the host chose (empty for a new game) and its description.
     Bytes chosen_;
     std::string description_;
     // The host's game (0: none yet): its id, and the members told of it.
     std::int32_t play_ = 0;
     std::vector<std::int32_t> told_;
+    // Called before a PLAY goes to a target (set_save_hooks).
     std::function<void(std::int32_t)> announce_;
     // The host's progress as a joiner is to start from; the game's own without one.
     std::function<Bytes()> joiner_save_;
+    // Called before a game of the party's starts here, with its save (set_save_hooks).
     std::function<bool(const Bytes&)> starting_;
+    // Called when the host starts again (on_start_again).
     std::function<void()> start_again_;
+    // A member: whether about_to_start was asked for this start, and what it answered
+    // (start_pending).
     bool start_copied_ = false;
     bool start_allowed_ = true;
 
@@ -1025,6 +1160,8 @@ private:
     std::int32_t pending_play_ = 0;
     int pending_level_ = 0;
     bool pending_save_ = false;
+    // Whether the PLAY says the game is on, the save's size, the bytes received so far and the save
+    // they fill.
     bool pending_joining_ = false;
     std::size_t expected_ = 0;
     std::size_t received_ = 0;
@@ -1035,7 +1172,7 @@ private:
     std::uint64_t joining_since_ = 0;
     bool world_ready_ = false;
     bool joining_press_ = false;
-    bool joining_hold_ = false;
+    bool joining_hold_ = false;  // Whether control is held while joining (hold_input).
     // Being put beside the host: why (kNone: not), this asking's ticket, since when it waits (a
     // host's scene puts this forward), when it asked last, whether it now asks for the last safe
     // spot; whether the game was asked to move the hero, when, to where, and whether that was the
@@ -1087,6 +1224,9 @@ private:
     bool barrier_open_ = false;
     std::uint16_t released_scene_ = 0;
     std::uint64_t wait_sent_ms_ = 0;
+    // The host's game this game started (0 for none), the level the host plays (-1 for none), and
+    // when WANT, a travel to the host's level, LEVEL and the clock were last asked or sent (0 for
+    // not yet).
     std::int32_t applied_ = 0;
     int host_level_ = -1;
     std::uint64_t want_ms_ = 0;
@@ -1111,7 +1251,7 @@ private:
     // Whether this game played a scene at the last tick, and whether a skip was asked in it.
     bool in_scene_ = false;
     bool skip_asked_ = false;
-    int sent_level_ = -2;
+    int sent_level_ = -2;  // The level LEVEL last said (-2 for none sent).
     // Ship travels. The host's: its count, the planet it flies to, whether the party is arriving
     // there, since when, the level load it left from, the members it waits for, and whether the
     // last LEVEL said it arrived. A member's: the host's last travel heard (whether any), the
@@ -1126,6 +1266,8 @@ private:
     bool sent_arriving_ = false;
     bool heard_travel_ = false;
     std::uint16_t host_travel_ = 0;
+    // Whether this game's own take-off is under way (taking_off), and whether the pad's take-off
+    // took the last leave.
     bool taking_off_ = false;
     bool took_off_ = false;
     // The host's rule: members leave with its ship when ready (kShipHoldMs at most). The travel the
@@ -1133,6 +1275,8 @@ private:
     bool hold_rule_ = false;
     std::uint16_t ship_went_ = 0;
     bool ship_held_ = false;
+    // A member's leave: the planet it leaves for (-1 none), when it may go, when it was last asked,
+    // the load it was asked in, and whether the host's LEVEL says the party still arrives.
     int leave_dest_ = -1;
     std::uint64_t leave_at_ = 0;
     std::uint64_t leave_ms_ = 0;
@@ -1213,6 +1357,8 @@ private:
     std::uint16_t world_newest_ = 0;
     std::uint32_t world_bits_ = 0;
 
+    // A member's latest word on WORLD (world.hpp): `newest` and `bits` as World gave them to
+    // world_ack.
     struct WorldAck {
         std::uint16_t newest = 0;
         std::uint32_t bits = 0;
@@ -1224,6 +1370,7 @@ private:
 
     // The verbose log: this game's hero's z each tick, said twice a second (trace_hero).
     struct HeroZ {
+        // The window's start, its ticks, how often z changed, and its lowest, highest and last z.
         std::uint64_t since_ms = 0;
         int ticks = 0;
         int changes = 0;
@@ -1231,10 +1378,11 @@ private:
     };
 
     HeroZ hero_z_;
+    // Adds this tick's hero z to the window and says it twice a second in the verbose log.
     void trace_hero(std::uint64_t now, const GameStatus& status);
     std::uint16_t sequence_ = 0;
     std::uint32_t pose_loads_ = 0;
-    bool pose_sent_ = false;
+    bool pose_sent_ = false;  // Whether a pose has been sent: the first one is a teleport.
 
     // What goes out in the next SHOTX, when each was queued.
     struct QueuedShot {
@@ -1243,19 +1391,23 @@ private:
     };
 
     std::deque<QueuedShot> shots_out_;
-    std::uint64_t shots_sent_ms_ = 0;
+    std::uint64_t shots_sent_ms_ = 0;  // When a SHOTX last went, 0 for none.
     // The shots sent and the remote players' shots fired, for the log and the tests.
     std::uint64_t shots_sent_ = 0;
     std::uint64_t shots_fired_ = 0;
     std::uint64_t shots_late_ = 0;
-    Pose last_pose_;
+    Pose last_pose_;  // The last pose sent.
     // The level loads the figures were made in.
     std::uint32_t figure_loads_ = 0;
     TagStats tag_stats_;
+    // The remote players by player id.
     std::map<std::int32_t, Remote> remotes_;
+    // The last thing worth a line (take_notice).
     std::string notice_;
+    // Where the co-op says what it does (on_log).
     std::function<void(const std::string&)> log_;
 
+    // Says `line` through log_ when one is set.
     void log(const std::string& line) const {
         if (log_) {
             log_(line);
