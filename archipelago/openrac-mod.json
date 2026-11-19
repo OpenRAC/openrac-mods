@@ -16,6 +16,8 @@
     ]
   },
   "hooks": [
+    "rac1.moby.moby743.update",
+    "rac1.moby.moby744.update",
     "rac1.save.prepare",
     "rac1.save.request_autosave",
     "rac1.item.give",

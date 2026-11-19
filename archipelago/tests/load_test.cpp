@@ -103,6 +103,7 @@ int g_phase = OPENRAC_PLAY_PLAYING;
 bool g_vendor_present;
 int g_gives;
 std::string g_notice;
+int g_notice_clears;
 std::string g_server;
 bool g_new_game_plus;
 bool g_items_mode;
@@ -214,6 +215,12 @@ void game_gold_case(openrac_gaddr moby) {
     std::memcpy(&pvars, at(moby + MOBY_PVARS), 4);
     const int base = ITEM_BOMB_GLOVE;
     const std::uint32_t gold = std::strcmp(D->version, "pal") == 0 ? 0x13E620 : 0x13E520;
+    int16_t cls;
+    std::memcpy(&cls, at(moby + 0xA6), sizeof cls);
+    if (cls >= 0x5B0 && cls < 0x5BA) {
+        CHECK(*at(gold + base) == 1); // the checked slot, independent of its mesh class
+        return;
+    }
     if (*at(pvars + 4) == 2 && *at(D->owned + base) && !*at(gold + base) && g_unspent() >= 4 && g_bolts >= 1000) {
         g_bolts -= 1000;
         *at(gold + base) = 1;
@@ -437,6 +444,7 @@ int moby_deletion(int, openrac_moby_deletion*) {
 
 int play_notice(openrac_mod*, const char* text) {
     g_notice = text != nullptr ? text : "";
+    if (g_notice.empty()) ++g_notice_clears;
     return OPENRAC_HOOK_OK;
 }
 
@@ -686,7 +694,9 @@ int main(int argc, char** argv) {
     }
     const openrac_api& api=*base;
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_items_mode ? 43 : 38) && g_frame != nullptr);
+    CHECK(g_hooks == (g_items_mode ? 45 : 40) && g_frame != nullptr);
+    CHECK(replacement("rac1.moby.moby743.update") != nullptr);
+    CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 
@@ -784,6 +794,11 @@ int main(int argc, char** argv) {
     CHECK(frames_until([challenge] { return *at(challenge) == int(g_new_game_plus); }));
     CHECK(*at(D->level + 0x9Cu) == int(g_gold_mode));
     if (g_new_game_plus) {
+        // NG+ confirmation must expire even outside a playable level.
+        const int clears_before = g_notice_clears;
+        set_level(-1);
+        for (int tick = 0; tick < 180; ++tick) g_frame(g_frame_user);
+        CHECK(g_notice_clears > clears_before);
         set_level(-1);
         *at(challenge) = 0;
         g_frame(g_frame_user);
@@ -830,6 +845,11 @@ int main(int argc, char** argv) {
         const int after = g_bolts;
         update_case(moby);
         CHECK(g_bolts == after && g_unspent() == 36); // duplicate case, across either shop, costs nothing
+        const int16_t display_cls = 0x5B7;
+        std::memcpy(at(moby + 0xA6), &display_cls, sizeof display_cls);
+        update_case(moby);
+        CHECK(*at(gold + ITEM_BOMB_GLOVE) == 0); // real upgrade restored after display update
+        std::memcpy(at(moby + 0xA6), &cls, sizeof cls);
         auto restart = (item_randomizer_Save_NewGamePlus)replacement(ITEM_RANDOMIZER_HOOK_Save_NewGamePlus);
         restart(0);
         CHECK(g_unspent() == 36); // completed-save restart keeps purchased checks/currency
