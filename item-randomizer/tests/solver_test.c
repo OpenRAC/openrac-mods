@@ -318,6 +318,27 @@ static void check_blarg_hydrodisplacer_pickup(void) {
     }
 }
 
+/* Both Blarg coordinate records are reachable with planet access alone.
+ * No item rewards exist in this plan, including Heli-Pack and Swingshot. */
+static void check_blarg_infobot_routes(void) {
+    rando_plan p = {0};
+    int start = -1, infobot = -1, shuttle = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (l->kind == LOC_START) start = (int)i;
+        if (!strcmp(l->name, "Blarg: the infobot")) infobot = (int)i;
+        if (!strcmp(l->name, "Blarg: the shuttle, the coordinates of Rilgar")) shuttle = (int)i;
+    }
+    CHECK(start >= 0 && infobot >= 0 && shuttle >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_BLARG};
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        rando_beatable(&p, spheres);
+        CHECK(spheres[infobot] >= 0 && spheres[shuttle] >= 0);
+    }
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
@@ -327,6 +348,7 @@ int main(int argc, char** argv) {
     check_eudora_warp_pad();
     check_rilgar_routes();
     check_blarg_hydrodisplacer_pickup();
+    check_blarg_infobot_routes();
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
