@@ -214,6 +214,12 @@ void game_gold_case(openrac_gaddr moby) {
     std::memcpy(&pvars, at(moby + MOBY_PVARS), 4);
     const int base = ITEM_BOMB_GLOVE;
     const std::uint32_t gold = std::strcmp(D->version, "pal") == 0 ? 0x13E620 : 0x13E520;
+    int16_t cls;
+    std::memcpy(&cls, at(moby + 0xA6), sizeof cls);
+    if (cls >= 0x5B0 && cls < 0x5BA) {
+        CHECK(*at(gold + base) == 1); // the checked slot, independent of its mesh class
+        return;
+    }
     if (*at(pvars + 4) == 2 && *at(D->owned + base) && !*at(gold + base) && g_unspent() >= 4 && g_bolts >= 1000) {
         g_bolts -= 1000;
         *at(gold + base) = 1;
@@ -830,6 +836,11 @@ int main(int argc, char** argv) {
         const int after = g_bolts;
         update_case(moby);
         CHECK(g_bolts == after && g_unspent() == 36); // duplicate case, across either shop, costs nothing
+        const int16_t display_cls = 0x5B7;
+        std::memcpy(at(moby + 0xA6), &display_cls, sizeof display_cls);
+        update_case(moby);
+        CHECK(*at(gold + ITEM_BOMB_GLOVE) == 0); // real upgrade restored after display update
+        std::memcpy(at(moby + 0xA6), &cls, sizeof cls);
         auto restart = (item_randomizer_Save_NewGamePlus)replacement(ITEM_RANDOMIZER_HOOK_Save_NewGamePlus);
         restart(0);
         CHECK(g_unspent() == 36); // completed-save restart keeps purchased checks/currency

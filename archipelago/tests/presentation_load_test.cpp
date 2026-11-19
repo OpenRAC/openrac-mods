@@ -754,6 +754,9 @@ void serve(socket_t listener) {
                                     {{"location", retail_weapon},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", location_id(LOC_VENDOR, LEVEL_OLTANIS, ITEM_TESLA_CLAW)},
+                                     {"item", AP_BASE + AP_GOLD_WEAPON_OFFSET + ITEM_DECOY_GLOVE},
+                                     {"player", 1}},
                                     {{"location", gadget_vendor},
                                      {"item", AP_BASE + ITEM_HELI_PACK},
                                      {"player", 1}},
@@ -1149,7 +1152,10 @@ int main(int argc, char** argv) {
         put(D->vendor_menu + VENDOR_ENTRIES, ITEM_PYROCITOR);
         put(D->vendor_menu + VENDOR_ENTRIES + 4, 0);
         put(D->vendor_menu + 0x20, 0x1A00000);
-        const uint32_t game_mode = std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u;
+        // Verified NTSC level mode: D_L00_0015F5C4. The nearby 15F5A8 word
+        // stays zero, reproducing the real vendor that exposed the bad address.
+        if (std::strcmp(D->version, "ntsc") == 0) put(0x15F5A8u, 0);
+        const uint32_t game_mode = std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;
         put(game_mode, 5);
         g_play_phase = OPENRAC_PLAY_MENU;
         auto initialize = (void (*)())replacement("rac1.vendor.initialize_selected");
@@ -1173,6 +1179,11 @@ int main(int argc, char** argv) {
         CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [](const auto& v) {
             return v.moby == 0x1A00100 && v.oclass == 0x46E;
         }));
+        // The scrolling banner asks outside the details pass, using its own text id.
+        const uint32_t banner_table = std::strcmp(D->version, "pal") == 0 ? 0x1C2488u : 0x1C2108u;
+        put(banner_table + ITEM_PYROCITOR * 0x14 + 0x10, 258);
+        auto vendor_message = (uint32_t (*)(int))replacement("rac1.text.msg_string");
+        CHECK(std::string(reinterpret_cast<const char*>(at(vendor_message(258)))) == "Gold Bolt");
         auto icons = (void (*)())replacement("rac1.vendor.draw_icons");
         icons();
         CHECK(g_rendered_icon == 0x754F * 10 && g_ammo_icon == 502);
@@ -1229,11 +1240,11 @@ int main(int argc, char** argv) {
         // with its real geometry present in BOTH the inset and center hologram.
         for (const auto item : {ITEM_HELI_PACK, ITEM_MORPH_O_RAY}) {
             const int source = item == ITEM_HELI_PACK ? ITEM_TAUNTER : ITEM_DEVASTATOR;
-            const int model = item == ITEM_HELI_PACK ? 0x602 : 0x603;
+            const int model = item == ITEM_HELI_PACK ? 607 : 0x603;
             for (int i = 0; i < 3; ++i) {
-                std::memset(at(D->vendor_menu - offsets[i] + item * sizes[i]), 0, sizes[i]);
+                std::memset(at(D->vendor_menu - offsets[i] + item * sizes[i]), 0x33, sizes[i]);
             }
-            put(retail_models + item * 0x4C + 0x10, model);
+            put(retail_models + item * 0x4C + 0x10, item == ITEM_HELI_PACK ? 0 : model);
             put(D->vendor_menu + VENDOR_ENTRIES, source);
             put(game_mode, 5);
             initialize();
@@ -1252,6 +1263,18 @@ int main(int argc, char** argv) {
             }
             put(game_mode, 0);
             g_frame(g_frame_user);
+        }
+        // A gold vendor reward must submit the real gold mesh for both monitors,
+        // even when retail initialized a normal Decoy Glove to provide its pose.
+        put(retail_models + ITEM_DECOY_GLOVE * 0x4C + 0x10, 562);
+        put(D->vendor_menu + VENDOR_ENTRIES, ITEM_TESLA_CLAW);
+        put(game_mode, 5);
+        initialize();
+        g_frame(g_frame_user);
+        for (const uint32_t address : {0x1A00100u, 0x1A00300u}) {
+            CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [&](const auto& v) {
+                return v.moby == address && v.oclass == 1462;
+            }));
         }
         put(D->vendor_menu + VENDOR_ENTRIES, ITEM_PYROCITOR);
         put(game_mode, 0);
@@ -1365,12 +1388,12 @@ int main(int argc, char** argv) {
         const int16_t helga_class = 0x37A;
         std::memcpy(at(0x1800000 + 0xA6), &helga_class, 2);
         set_level(LEVEL_KERWAN);
-        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u, 2);
-        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u, 0);
+        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u, 2);
+        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u, 0);
         g_dialog_starts = false;
         CHECK(dialog(0x1800000, 0) == 0 && g_rendered_prompt == "Buy Gold Bolt for 500 bolts");
         g_dialog_starts = true;
-        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5A8u, 2);
+        put(std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u, 2);
         CHECK(dialog(0x1800000, 0) == 1);
         CHECK(
             std::strcmp(reinterpret_cast<char*>(at(message(257))), "Buy Gold Bolt for 500 bolts")
