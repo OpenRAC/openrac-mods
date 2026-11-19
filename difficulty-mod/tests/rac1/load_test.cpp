@@ -847,8 +847,15 @@ int main(int argc, char** argv) {
     g_publishes = 0;
     CHECK(load_with("pal") && g_publishes == 1);
     dm::PartyRules host;
-    CHECK(dm::decode_party_rules(g_published.data(), static_cast<std::uint32_t>(g_published.size()), host));
-    CHECK(host.seed != 0 && host.sliders[dm::ENEMY_COUNT] == 2.0 && host.sliders[dm::BOLTS] == 3.0 && !host.chaos);
+    CHECK(
+        dm::decode_party_rules(
+            g_published.data(), static_cast<std::uint32_t>(g_published.size()), host
+        )
+    );
+    CHECK(
+        host.seed != 0 && host.sliders[dm::ENEMY_COUNT] == 2.0 && host.sliders[dm::BOLTS] == 3.0
+        && !host.chaos
+    );
     CHECK(g_published_text == "Enemy count x2\nBolts x3");
     const std::vector<std::uint8_t> host_bytes = g_published;
     load_gameplay = (LoadFn)hook("rac1.level.load_gameplay");

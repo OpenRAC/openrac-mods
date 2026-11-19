@@ -336,6 +336,7 @@ struct Watched {
     int16_t cls;
     float spot[3];
 };
+
 std::vector<Watched> s_watch;
 
 // How deep an enemy's update called from another's is, so that the time is scaled only once.
@@ -1298,8 +1299,10 @@ void check_copies() {
 
         // Both are there: on the original's spot, or moved away from its own.
         if (!done) {
-            const float at[3] = {get<float>(w.orig + kMobyX), get<float>(w.orig + kMobyY),
-                                 get<float>(w.orig + kMobyZ)};
+            const float at[3] =
+                {get<float>(w.orig + kMobyX),
+                 get<float>(w.orig + kMobyY),
+                 get<float>(w.orig + kMobyZ)};
 
             // Its start put it on the original: take it out.
             if (distance(w.copy, at) < kStackedDistance) {

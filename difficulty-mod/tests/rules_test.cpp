@@ -156,7 +156,10 @@ static void events() {
         // An event started: the one the stream picks over all of them.
         if (all.advance(1.0 / 60.0) > 0) {
             Rng rng(mix(77, 0x2000u + static_cast<std::uint64_t>(picked)));
-            CHECK(all.current == static_cast<int>(rng.next() % static_cast<std::uint64_t>(k_event_count)));
+            CHECK(
+                all.current
+                == static_cast<int>(rng.next() % static_cast<std::uint64_t>(k_event_count))
+            );
             ++picked;
         }
     }
@@ -327,7 +330,10 @@ void party_rules() {
     PartyRules back;
     CHECK(decode_party_rules(bytes.data(), static_cast<std::uint32_t>(bytes.size()), back));
     CHECK(back.chaos && back.events && back.minutes == 3 && back.seed == r.seed && back.event == 2);
-    CHECK(back.sliders[BOLTS] == 2.0 && back.sliders[ENEMY_COUNT] == 1.5 && back.sliders[MAX_AMMO] == 1.0);
+    CHECK(
+        back.sliders[BOLTS] == 2.0 && back.sliders[ENEMY_COUNT] == 1.5
+        && back.sliders[MAX_AMMO] == 1.0
+    );
     CHECK(!decode_party_rules(bytes.data(), static_cast<std::uint32_t>(bytes.size()) - 1, back));
     CHECK(!decode_party_rules(nullptr, 0, back));
     std::vector<std::uint8_t> other = bytes;
@@ -342,11 +348,17 @@ void party_rules() {
     // An event this version does not have is none.
     other = bytes;
     other[4] = 120;
-    CHECK(decode_party_rules(other.data(), static_cast<std::uint32_t>(other.size()), back) && back.event == -1);
+    CHECK(
+        decode_party_rules(other.data(), static_cast<std::uint32_t>(other.size()), back)
+        && back.event == -1
+    );
     // The event gone is -1 again.
     r.event = -1;
     const std::vector<std::uint8_t> none = encode_party_rules(r);
-    CHECK(decode_party_rules(none.data(), static_cast<std::uint32_t>(none.size()), back) && back.event == -1);
+    CHECK(
+        decode_party_rules(none.data(), static_cast<std::uint32_t>(none.size()), back)
+        && back.event == -1
+    );
 }
 
 // A party's seed plays on any disc: a level's rolls come from the seed and the level alone (rules.h
