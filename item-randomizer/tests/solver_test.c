@@ -50,6 +50,11 @@ static void check_tables(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* a = &rando_locations[i];
         CHECK(a->name != NULL && a->level < LEVEL_COUNT);
+        if (!strcmp(a->name, "Novalis: gold bolt 2")) {
+            for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+                CHECK(rando_requirement(d, i) & BIT(ITEM_HYDRO_PACK));
+            }
+        }
         if (!strcmp(a->name, "Hoven: gold bolt 2")) {
             for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
                 CHECK(rando_requirement(d, i) & BIT(ITEM_HYDRODISPLACER));
