@@ -234,12 +234,39 @@ static void check_helga_without_heli_pack(void) {
     }
 }
 
+/* Eudora's warp-pad pickup requires Heli-Pack alone: no Swingshot or
+ * Trespasser exists in this isolated playthrough. */
+static void check_eudora_warp_pad(void) {
+    rando_plan p = {0};
+    int pickup = -1, start = -1, provider = -1;
+    int spheres[RANDO_MAX_LOCATIONS];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (!strcmp(l->name, "Eudora: the warp pad")) pickup = (int)i;
+        if (l->kind == LOC_START) start = (int)i;
+        if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+            && l->vanilla.value == LEVEL_NOVALIS) provider = (int)i;
+    }
+    CHECK(pickup >= 0 && start >= 0 && provider >= 0);
+    p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_EUDORA};
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        p.settings.difficulty = (uint8_t)d;
+        p.reward[provider] = (rando_reward){REWARD_NONE, 0};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[pickup] == -1);
+        p.reward[provider] = (rando_reward){REWARD_ITEM, ITEM_HELI_PACK};
+        rando_beatable(&p, spheres);
+        CHECK(spheres[pickup] >= 0);
+    }
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
     check_tables();
     check_edwina_water_route();
     check_helga_without_heli_pack();
+    check_eudora_warp_pad();
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
@@ -250,7 +277,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0x4ebad4a8c13e205eull);
+    CHECK(plan_hash(&p) == 0x8b2c39c24a6cb23cull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
