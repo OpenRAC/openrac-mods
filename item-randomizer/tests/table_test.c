@@ -103,21 +103,23 @@ static void check_words(void) {
     NEEDS("Aridia: the Trespasser's pickup", ITEM_SWINGSHOT);
     NEEDS("Eudora: the coordinates of Blarg", ITEM_TRESPASSER);
     NEEDS("Blarg: the Hydrodisplacer's pickup", ITEM_TRESPASSER);
-    NEEDS("Kerwan: Helga", ITEM_HELI_PACK);
+    CHECK(rando_locations[named("Kerwan: Helga")].hard == 0);
     NEEDS("Kerwan: the infobot", ITEM_SWINGSHOT);
-    NEEDS("Rilgar: the bouncer, the coordinates of Umbris", ITEM_HOVERBOARD);
+    NEEDS("Rilgar: the bouncer, the coordinates of Umbris", ITEM_HELI_PACK);
+    CHECK(!(rando_locations[named("Rilgar: the bouncer, the coordinates of Umbris")].hard & BIT(ITEM_HOVERBOARD)));
     NEEDS("Umbris: the coordinates of Batalia", ITEM_HYDRODISPLACER);
-    NEEDS("Batalia: the commando, the coordinates of Orxon", ITEM_GRINDBOOTS);
+    CHECK(rando_locations[named("Batalia: the commando, the coordinates of Orxon")].hard == 0);
+    NEEDS("Batalia: the deserter, the coordinates of Gaspar", ITEM_GRINDBOOTS);
     NEEDS("Pokitaru: the resort owner", ITEM_PILOTS_HELMET);
     NEEDS("Pokitaru: the resort owner", ITEM_THRUSTER_PACK);
     NEEDS("Orxon: Ratchet's infobot", ITEM_O2_MASK);
-    NEEDS("Hoven: the coordinates of Gemlik", ITEM_HYDRO_PACK);
+    CHECK(!(rando_locations[named("Hoven: the coordinates of Gemlik")].hard & BIT(ITEM_HYDRO_PACK)));
     NEEDS("Gemlik: the coordinates of Oltanis", ITEM_MAGNEBOOTS);
     NEEDS("Gemlik: the coordinates of Oltanis", ITEM_PILOTS_HELMET);
     NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_HOLOGUISE);
-    NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_HYDRO_PACK);
+    NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_THRUSTER_PACK);
     NEEDS("Kalebo III: the Gadgetron CEO's race", ITEM_HOVERBOARD);
-    NEEDS("Drek's Fleet: the infobot", ITEM_HYDRO_PACK);
+    CHECK(!(rando_locations[named("Drek's Fleet: the infobot")].hard & BIT(ITEM_HYDRO_PACK)));
 #undef NEEDS
     CHECK(
         rando_locations[named("Gemlik: the coordinates of Oltanis")].any
@@ -205,9 +207,9 @@ static void check_old_softlocks(void) {
     );
     CHECK(!rando_beatable(&p, NULL) || rando_stranded(&p) > 0);
 
-    /* The Hydro-Pack on Drek's Fleet, whose tanker it swims. */
+    /* The Hydro-Pack behind the CodeBot's swimming route. */
     CHECK(rando_solve(&s, &p) == 0);
-    swap_rewards(&p, where(&p, REWARD_ITEM, ITEM_HYDRO_PACK), named("Drek's Fleet: the infobot"));
+    swap_rewards(&p, where(&p, REWARD_ITEM, ITEM_HYDRO_PACK), named("Drek's Fleet: the CodeBot"));
     CHECK(!rando_beatable(&p, NULL) || rando_stranded(&p) > 0);
 
     /* Gemlik's towers, on the game's own placement: either weapon before it will do, neither will

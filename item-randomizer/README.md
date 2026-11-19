@@ -434,3 +434,9 @@ seed codes encode the Items switch and its separate category (formats 6 to 13, w
 NPC-coordinate and gold-case switches); older codes (formats 2 to 5) retain their previous
 pools and placement. RAC2 keeps its
 existing format and has no Items option.
+
+### Notification duration
+
+New Game+ confirmations and Going Commando reward notices clear after three
+seconds (150 PAL or 180 NTSC ticks). Vendor and gold-case hints stay visible
+while the interaction refreshes them, then clear when you leave.

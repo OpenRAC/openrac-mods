@@ -272,12 +272,15 @@ static void standins_read(void) {
 
 /* ---- giving ---- */
 
+static int s_notice_ticks;
+
 static void notice(const char* text) {
     char line[NOTICE_SIZE];
     snprintf(line, sizeof line, "Item randomizer: %s", text);
     log_line(OPENRAC_LOG_INFO, line);
     if (s_api->play_notice != NULL) {
         s_api->play_notice(s_mod, line);
+        s_notice_ticks = strcmp(s_api->version, "pal") == 0 ? 150 : 180;
     }
 }
 
@@ -486,6 +489,9 @@ static void endako_sets(void) {
 
 static void each_tick(void* user) {
     (void)user;
+    if (s_notice_ticks > 0 && --s_notice_ticks == 0) {
+        s_api->play_notice(s_mod, NULL);
+    }
     openrac_play_status st;
     memset(&st, 0, sizeof st);
     st.size = sizeof st;
@@ -647,6 +653,7 @@ static void write_files(int source) {
 
 int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
+    s_notice_ticks = 0;
     s_mod = mod;
     s_give = NULL;
     s_equip = NULL;
