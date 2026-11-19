@@ -128,6 +128,7 @@ static int s_bought = -1;
 static int s_infobot = -1;
 
 /* What the server has sent this slot: each item and planet, and the gold bolts. */
+static uint8_t s_received_special[SPECIAL_COUNT];
 static uint8_t s_received_item[RANDO_ITEM_COUNT];
 static uint8_t s_received_gold_weapon[RANDO_ITEM_COUNT];
 static int s_gold_case = -1;
@@ -275,6 +276,8 @@ static uint8_t* gold_owned(int base) {
     return byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013E620u + base : 0x0013E520u + base);
 }
 
+#include "menu_items_runtime.inc"
+
 /* ---- locations ---- */
 
 /* Whether the location has been had, by the game's own bytes (rando.h says which for each kind). */
@@ -287,6 +290,9 @@ static int had(int location) {
     const rando_location* l = &rando_locations[location];
 
     switch (l->kind) {
+        case LOC_SPECIAL:
+            return menu_mode()==1 ? menu_had(l->key)
+                : (l->key==5 ? *owned(ITEM_PERSUADER)!=0 : *menu_owned(l->key)!=0);
         case LOC_GIVE:
         case LOC_VENDOR:
         case LOC_START:
@@ -367,10 +373,10 @@ static unsigned s_save_depth;
 static void (*s_save_prepare)(int32_t, int32_t);
 static int32_t (*s_request_autosave)(int32_t, int32_t);
 static void save_scope_enter(void) {
-    if (s_save_depth++ == 0) swaps_suspend();
+    if (s_save_depth++ == 0) { menu_suspend(); swaps_suspend(); }
 }
 static void save_scope_leave(void) {
-    if (--s_save_depth == 0) swaps_resume();
+    if (--s_save_depth == 0) { swaps_resume(); menu_resume(); }
 }
 static void save_prepare(int32_t buffer, int32_t slot) {
     save_scope_enter();
@@ -463,6 +469,7 @@ static void read_received(void) {
     }
 
     s_generation = generation;
+    memset(s_received_special, 0, sizeof s_received_special);
     memset(s_received_item, 0, sizeof s_received_item);
     memset(s_received_gold_weapon, 0, sizeof s_received_gold_weapon);
     memset(s_received_planet, 0, sizeof s_received_planet);
@@ -478,7 +485,9 @@ static void read_received(void) {
         }
         const rando_reward r = ap_reward_of(ids[i]);
 
-        if (r.kind == REWARD_ITEM) {
+        if (r.kind == REWARD_SPECIAL) {
+            s_received_special[r.value] = 1;
+        } else if (r.kind == REWARD_ITEM) {
             s_received_item[r.value] = 1;
         } else if (r.kind == REWARD_PLANET) {
             s_received_planet[r.value] = 1;
@@ -490,6 +499,7 @@ static void read_received(void) {
 
 /* Gives what the server sent that the hero lacks: in a level, with the player in control. */
 static void give_received(void) {
+    for (int i=0;i<SPECIAL_COUNT;++i) if (s_received_special[i]) menu_give_special(i);
     /* Set the variant before GiveItem so initial ammo/model setup sees the gold weapon. */
     for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
         const int base = k_ap_gold_bases[i];
@@ -512,6 +522,12 @@ static void give_received(void) {
             banner_put_back(&banner);
         }
     }
+}
+
+static int menu_mode(void) { return ap_client_shuffle_items(); }
+static void menu_collected(int index) {
+    const int row=menu_location_row(index);
+    if (row>=0) { found(row); }
 }
 
 /* ---- the hooks (item_randomizer.c's, the reward always nothing) ---- */
@@ -1378,10 +1394,13 @@ static void show_notices(void) {
  * server has not sent it, is taken back; then what the server sent is given; then the goal. */
 static void each_tick(void* user) {
     (void)user;
+    menu_refresh();
     uint32_t loads = 0;
     const int phase = play_phase(&loads);
 
     show_notices();
+    if (menu_mode()==1 && !s_menu_save)
+        s_api->play_notice(s_mod,"Shuffle items requires OpenRAC interface 1.16 or newer");
     read_received();
     watch_save_slot(phase);
     presentation_tick(phase);
@@ -1634,7 +1653,7 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
 
     index_locations();
 
-    if (!install_hooks()) {
+    if (!menu_init() || !install_hooks() || (s_menu_save && !menu_hooks())) {
         return 1;
     }
 

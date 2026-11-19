@@ -33,6 +33,7 @@ and start a **new game**.
 | Shuffle gadgets | on | The Heli-Pack, the Swingshot, the Magneboots, the Grindboots, ... from NPCs and pickups |
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
 | Shuffle the vendor | on | Each weapon the vendor sells is a slot: buying it, at its price, gives what the seed put there |
+| Shuffle items | off | RAC1: shuffle every entry in the Items menu (listed below), independently of gadgets. Requires OpenRAC interface 1.16 or newer. |
 | Shuffle gold bolts | on | A gold bolt may be anywhere, and a gold bolt's place may hold a weapon or a useful extra, never something you need to go on. The pause screen counts the gold bolts you have found, wherever they were |
 | Shuffle gold-weapon cases | off | RAC1 only: shuffle ten gold upgrades and their cases; open the Novalis shop without New Game+ |
 | Shuffle infobots | on | Pickup Infobots and NPC coordinate rewards join the pool in new RAC1 seeds |
@@ -71,7 +72,8 @@ save of the game, with the items you had. Saves from before version 2 belong to 
 longer be made: start a new game. Ratchet & Clank saves from before 2.4.0 have no tag: they play as
 the game does unless New games only is off.
 
-**What stays as the game has it.** The OmniWrench, the Persuader, ammo and ordinary bolts.
+**What stays as the game has it.** The OmniWrench, ammo and ordinary bolts; the Persuader unless
+**Shuffle items** is on.
 
 **RAC1 reward presentation.** With the companion [OpenRAC changes](https://github.com/OpenRAC/OpenRAC/pull/540),
 vendors and world pickups show their actual reward's model, name and icon.
@@ -84,8 +86,8 @@ available. Infobots show the received coordinates' video and close before gamepl
 NPCs keep their original scenes. Leaving a vendor plays only the last purchased reward's animation.
 Gold-case purchases play their reward at the room center, then return the hero to the case.
 
-**Compatibility.** Existing version-2 seed codes retain their placement and fixed NPC coordinates.
-New codes also record whether NPC coordinates are shuffled. Seed codes override
+**Compatibility.** Existing seed codes retain their placement and fixed NPC coordinates.
+New codes also record whether NPC coordinates, gold cases and the Items menu are shuffled. Seed codes override
 launcher pool switches. The NPC pool requires OpenRAC mod-save support (interface 1.16);
 presentation requires interface 1.22. Older hosts continue to support
 legacy seeds and give an update message when a code needs the extra pools. RAC2 is unchanged.
@@ -410,3 +412,25 @@ checksums. The launcher index is then refreshed.
 PR builds do not publish releases. The request in `.github/mod-releases/`
 remains pending until a successful master build publishes its version tag.
 Later builds skip that tag; a newer version needs a new release request.
+
+### RAC1 Items menu pool
+
+`shuffle_items` (Shuffle items, off by default) controls all nine entries in the
+Items category: Hoverboard, Persuader, Bolt Grabber, Map-o-Matic, Platinum Zoomerator,
+Raritanium, CodeBot, Premium Nanotech and Ultra Nanotech. When off, all nine remain
+at their vanilla locations, even with Shuffle gadgets enabled. Weapons, gadgets,
+Gold Bolts and coordinate rewards keep their own options.
+
+The Rilgar race, Hoven Foreman, Drek's Fleet CodeBot, both Orxon Nanotech purchases
+and Pokitaru Persuader trade can now give any shuffled reward. Retail costs and
+Raritanium consumption remain in place. Ultra Nanotech grants eight maximum health;
+receiving Premium afterward never lowers it. The solver requires the actual
+Zoomerator for Skid's agent, Raritanium for the trade and CodeBot for Quartu vault access
+(conservatively required for both Quartu Gold Bolts).
+
+Collection checks are stored through OpenRAC interface 1.16's save-scoped mod data,
+separately from inventory. Keep the `.moddata` sidecar with the game save. New RAC1
+seed codes encode the Items switch and its separate category (formats 6 to 13, with the
+NPC-coordinate and gold-case switches); older codes (formats 2 to 5) retain their previous
+pools and placement. RAC2 keeps its
+existing format and has no Items option.

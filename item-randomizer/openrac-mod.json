@@ -82,7 +82,12 @@
     "rac1.moby.moby1005.update",
     "rac1.moby.spinning_pickup.update",
     "rac1.moby.collectible_pickup.update",
-    "rac1.moby.moby1388.update"
+    "rac1.moby.moby1388.update",
+    "rac1.moby.hoverboard_girl.update",
+    "rac1.moby.miner.update",
+    "rac1.moby.moby1428.update",
+    "rac1.moby.nanotech_vendor.update",
+    "rac1.moby.pokitaru_vendor.update"
   ],
   "settings": [
     {
@@ -138,7 +143,15 @@
       "name": "Shuffle gadgets",
       "type": "bool",
       "default": true,
-      "description": "The gadgets NPCs and pickups give: the Swingshot, the Heli-Pack, the Magneboots, ... Going Commando: the Dynamo, the Swingshot, the Grindboots, Clank's packs, the Thermanator, the Glider, the Gravity Boots, ..."
+      "description": "The gadgets NPCs and pickups give: the Swingshot, the Heli-Pack, the Magneboots, ... Going Commando: the Dynamo, the Swingshot, the Grindboots, Clank's packs, the Thermanator, the Glider, the Gravity Boots, ... Hoverboard, Bolt Grabber and Map-o-Matic are controlled by Shuffle items."
+    },
+    {
+      "key": "shuffle_items",
+      "name": "Shuffle items",
+      "type": "bool",
+      "default": false,
+      "multiplayer": "host",
+      "description": "RAC1: shuffle all nine Items-menu entries: Hoverboard, Persuader, Bolt Grabber, Map-o-Matic, Platinum Zoomerator, Raritanium, CodeBot, Premium Nanotech and Ultra Nanotech. When off they stay vanilla. Requires OpenRAC interface 1.16+."
     },
     {
       "key": "shuffle_weapons",

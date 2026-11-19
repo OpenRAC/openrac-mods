@@ -60,7 +60,12 @@
     "rac1.moby.moby1005.update",
     "rac1.moby.spinning_pickup.update",
     "rac1.moby.collectible_pickup.update",
-    "rac1.moby.moby1388.update"
+    "rac1.moby.moby1388.update",
+    "rac1.moby.hoverboard_girl.update",
+    "rac1.moby.miner.update",
+    "rac1.moby.moby1428.update",
+    "rac1.moby.nanotech_vendor.update",
+    "rac1.moby.pokitaru_vendor.update"
   ],
   "settings": [
     {

@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "ap_ids.h"
+#include "menu_save_api.h"
+#include "menu_items.h"
 #include "ap_gold_weapons.h"
 #include "ap_npc_infobots.h"
 #include "ap_skills.h"
@@ -103,6 +105,20 @@ int g_gives;
 std::string g_notice;
 std::string g_server;
 bool g_new_game_plus;
+bool g_items_mode;
+uint32_t g_menu_data[3];
+openrac_frame_fn g_menu_restore;
+int g_menu_source;
+uint32_t special_base() { return std::strcmp(D->version,"pal")==0 ? 0x13D490u : 0x13D388u; }
+int menu_save_set(openrac_mod*,const void* bytes,uint32_t n) {
+    CHECK(n==sizeof g_menu_data); std::memcpy(g_menu_data,bytes,n); return OPENRAC_HOOK_OK;
+}
+uint32_t menu_save_get(openrac_mod*,void* bytes,uint32_t n) {
+    if(n>=sizeof g_menu_data) std::memcpy(bytes,g_menu_data,sizeof g_menu_data);
+    return sizeof g_menu_data;
+}
+int menu_save_watch(openrac_mod*,openrac_frame_fn fn,void*) { g_menu_restore=fn; return OPENRAC_HOOK_OK; }
+
 bool g_gold_mode;
 bool g_npc_mode;
 int g_npc_purchases;
@@ -267,7 +283,22 @@ void game_npc(uint32_t moby) {
     }
 }
 
+void menu_source_native(uint32_t) {
+    if(g_menu_source==3) {
+        const int index=*at(special_base()+4) ? 5 : 4;
+        *at(special_base()+index)=1;
+        const int max=index==4 ? 5 : 8;
+        std::memcpy(at(D->level+0x1C),&max,4);
+    } else if(g_menu_source==4) {
+        *at(special_base()+1)=0; *at(D->owned+ITEM_PERSUADER)=1;
+    } else *at(special_base()+menu_native_index(g_menu_source))=1;
+    ((int32_t(*)(int32_t,int32_t))replacement("rac1.save.request_autosave"))(7,-1);
+}
+
 void* original_for(const std::string& name) {
+    if(name=="rac1.moby.hoverboard_girl.update" || name=="rac1.moby.miner.update"
+        || name=="rac1.moby.moby1428.update" || name=="rac1.moby.nanotech_vendor.update"
+        || name=="rac1.moby.pokitaru_vendor.update") return (void*)menu_source_native;
     if (name == "rac1.save.prepare") return (void*)game_save_prepare;
     if (name == "rac1.save.request_autosave") return (void*)game_request_autosave;
     if (name == OPENRAC_RAC1_HOOK_Moby_Helga_Update) return (void*)game_helga;
@@ -507,7 +538,7 @@ void serve(socket_t listener) {
                         {{"cmd", "Connected"},
                          {"team", 0},
                          {"slot", 1},
-                         {"slot_data", {{"start_in_new_game_plus", int(g_new_game_plus)}, {"shuffle_gold_weapons", int(g_gold_mode)}, {"npc_infobot_checks", int(g_npc_mode)}}},
+                         {"slot_data", {{"start_in_new_game_plus", int(g_new_game_plus)}, {"shuffle_gold_weapons", int(g_gold_mode)}, {"npc_infobot_checks", int(g_npc_mode)}, {"shuffle_items", int(g_items_mode)}}},
                          {"players", json::array()},
                          {"missing_locations", json::array()},
                          {"checked_locations", json::array()},
@@ -526,6 +557,9 @@ void serve(socket_t listener) {
                                                      {"location", 2}, {"player", 2}, {"flags", 1}});
                     for (int i = 0; i < (g_gold_mode ? 48 : 8); ++i) connected[1]["items"].push_back(
                         {{"item", AP_BASE + AP_GOLD_BOLT_OFFSET}, {"location", 3 + i}, {"player", 2}, {"flags", 0}});
+                    if(g_items_mode) for(int special : {SPECIAL_ZOOMERATOR,SPECIAL_ULTRA_NANOTECH})
+                        connected[1]["items"].push_back({{"item",AP_BASE+AP_SPECIAL_OFFSET+special},
+                            {"location",100+special},{"player",2},{"flags",1}});
                     if (g_npc_mode) for (int i = 0; i < AP_NPC_COUNT; ++i)
                         connected[0]["missing_locations"].push_back(ap_npc_id(i));
                     send_all(c, server_frame(connected.dump()));
@@ -596,6 +630,7 @@ int main(int argc, char** argv) {
     }
     g_new_game_plus = argc > 3 && std::strcmp(argv[3], "ngplus") == 0;
     for (int i = 2; i < argc; ++i) if (std::strcmp(argv[i], "npc") == 0) g_npc_mode = true;
+    for(int i=2;i<argc;++i) if(std::strcmp(argv[i],"items")==0) g_items_mode=true;
     g_gold_mode = argc > 4 && std::strcmp(argv[4], "gold") == 0;
     g_missing_gold_hook = argc > 5;
 
@@ -638,9 +673,20 @@ int main(int argc, char** argv) {
     std::filesystem::create_directory(dir);
     g_data_dir = dir.string();
     { std::ofstream book(dir / "save-slots.tsv"); book << "4\told-seed\tRatchet\n"; }
-    const openrac_api api = make_api();
+    menu_save_api ext{};
+#if OPENRAC_MOD_API_MINOR < 16
+    openrac_api* base=&ext.base;
+#else
+    openrac_api* base=&ext;
+#endif
+    *base=make_api();
+    if(g_items_mode) {
+        base->size=sizeof ext; base->api_minor=16;
+        ext.save_data_set=menu_save_set; ext.save_data_get=menu_save_get; ext.on_save_data=menu_save_watch;
+    }
+    const openrac_api& api=*base;
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == 38 && g_frame != nullptr);
+    CHECK(g_hooks == (g_items_mode ? 43 : 38) && g_frame != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
     CHECK(*at(challenge) == 0);
 
@@ -922,6 +968,29 @@ int main(int argc, char** argv) {
         set_level(LEVEL_NOVALIS); *at(D->planets+LEVEL_ARIDIA)=0;
         ((void(*)(uint32_t))replacement("Moby_ThePlumber_Update"))(npc_moby);
         CHECK(*at(D->planets+LEVEL_ARIDIA)==1);
+    }
+
+    if(g_items_mode) {
+        CHECK(frames_until([] { return *at(special_base()) && *at(special_base()+5); }));
+        const char* sources[5]={"rac1.moby.hoverboard_girl.update","rac1.moby.miner.update",
+            "rac1.moby.moby1428.update","rac1.moby.nanotech_vendor.update","rac1.moby.pokitaru_vendor.update"};
+        const int levels[5]={LEVEL_RILGAR,LEVEL_HOVEN,LEVEL_FLEET,LEVEL_ORXON,LEVEL_POKITARU};
+        for(int i=0;i<5;++i) {
+            set_level(levels[i]); g_menu_source=i;
+            if(i==4) *at(special_base()+1)=1;
+            const int gives=g_gives;
+            ((void(*)(uint32_t))replacement(sources[i]))(0x100000);
+            const int index=i==4 ? 5 : i;
+            CHECK(g_menu_data[1] & (1u<<index));
+            const auto id=ap_location_id(&rando_locations[menu_location_row(index)]);
+            CHECK(frames_until([id] { return g_checked.count(id)!=0; }));
+            CHECK(g_gives==gives); /* AP checks never grant the source's original item */
+            if(i==0) CHECK(*at(special_base())==1); /* remote Zoomerator ownership survives */
+            else if(i==4) CHECK(*at(D->owned+ITEM_PERSUADER)==0 && *at(special_base()+1)==0);
+            else CHECK(*at(special_base()+menu_native_index(index))==0);
+            if(i==3) CHECK(get(D->level+0x1C)==8); /* remote Ultra survives a shuffled Premium purchase */
+        }
+        CHECK(*at(special_base()+5)==1 && *at(special_base()+2)==0);
     }
 
     // Same-slot overwrite: a new game may replace an old seed only after a successful close.

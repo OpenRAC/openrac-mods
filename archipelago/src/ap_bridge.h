@@ -73,6 +73,7 @@ int ap_client_synced(void);
 int ap_client_new_game_plus(void);
 int ap_client_shuffle_gold_weapons(void);
 int ap_client_npc_infobots(void);
+int ap_client_shuffle_items(void);
 /* Scouted purchase reward and recipient, for the gold-case preview. */
 int ap_client_location_hint(int64_t location, char* out, size_t size);
 int ap_client_location_presentation(int64_t location, int64_t* item, int* same_game, char* out, size_t size);

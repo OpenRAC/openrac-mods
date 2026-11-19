@@ -21,6 +21,7 @@
    Ratchet & Clank:
      logic: standard
      shuffle_gadgets: true
+     shuffle_items: false  # all nine entries in the Items category
      shuffle_weapons: true
      shuffle_vendor: true
      shuffle_gold_bolts: true

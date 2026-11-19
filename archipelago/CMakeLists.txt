@@ -178,3 +178,10 @@ if(BUILD_TESTING)
   target_include_directories(archipelago_gold_case_prompt_test PRIVATE src)
   add_test(NAME archipelago_gold_case_prompt COMMAND archipelago_gold_case_prompt_test)
 endif()
+
+if(BUILD_TESTING)
+  foreach(disc pal ntsc)
+    add_test(NAME archipelago_menu_items_${disc}
+      COMMAND archipelago_load_test $<TARGET_FILE:archipelago> ${disc} items)
+  endforeach()
+endif()

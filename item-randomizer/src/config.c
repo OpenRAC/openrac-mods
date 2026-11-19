@@ -17,7 +17,9 @@ int rando_settings_of(
                          | (o->gold_bolts ? POOL_GOLD : 0) | (o->planets ? POOL_PLANETS : 0)
                          | (o->vendor ? POOL_VENDOR : 0)
                          | (o->gold_weapons ? POOL_GOLD_WEAPONS : 0)
-                         | (o->npc_infobots && o->planets ? POOL_NPC_INFOBOTS : 0));
+                         | (o->npc_infobots && o->planets ? POOL_NPC_INFOBOTS : 0)
+                         | (o->items ? POOL_ITEMS : 0));
+    s->legacy_items = 0;
     s->keep_start = (uint8_t)(o->keep_start != 0);
     const int d = rando_difficulty_of_name(o->difficulty);
     s->difficulty = (uint8_t)(d < 0 ? DIFFICULTY_STANDARD : d);

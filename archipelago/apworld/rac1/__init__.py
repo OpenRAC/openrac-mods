@@ -194,5 +194,6 @@ class RAC1World(World):
             "shuffle_skill_points",
             "starting_weapons",
             "shuffle_gold_weapons",
+            "shuffle_items",
             "start_in_new_game_plus",
         )}

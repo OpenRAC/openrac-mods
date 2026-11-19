@@ -398,6 +398,7 @@ static int setting_bool(openrac_mod* mod, const char* key) {
     if (strcmp(key, "start_in_new_game_plus") == 0) {
         return s_start_in_new_game_plus;
     }
+    if (strcmp(key, "shuffle_items") == 0) return 0;
 
     if (strcmp(key, "vendor_hints") == 0) {
         return 1;

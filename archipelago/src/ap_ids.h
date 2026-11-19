@@ -31,12 +31,15 @@ extern "C" {
 #define AP_BASE INT64_C(0x52430000)
 #define AP_PLANET_OFFSET 0x100
 #define AP_GOLD_BOLT_OFFSET 0x200
+#define AP_SPECIAL_OFFSET 0x400
 #define AP_LOCATION_OFFSET 0x10000
 #define AP_SKILL_KIND 0x10 /* past rando.h's LOC_*, which may grow */
 
 /* The id of a reward as an item of the multiworld; -1 for none. */
 static inline int64_t ap_item_id(rando_reward r) {
     switch (r.kind) {
+        case REWARD_SPECIAL:
+            return AP_BASE + AP_SPECIAL_OFFSET + r.value;
         case REWARD_ITEM:
             return AP_BASE + r.value;
         case REWARD_PLANET:
@@ -54,7 +57,9 @@ static inline rando_reward ap_reward_of(int64_t id) {
     const int64_t v = id - AP_BASE;
 
     // Each range of ids is one kind of reward.
-    if (v >= 0 && v < RANDO_ITEM_COUNT) {
+    if (v >= AP_SPECIAL_OFFSET && v < AP_SPECIAL_OFFSET + SPECIAL_COUNT) {
+        r.kind = REWARD_SPECIAL; r.value = (uint8_t)(v-AP_SPECIAL_OFFSET);
+    } else if (v >= 0 && v < RANDO_ITEM_COUNT) {
         r.kind = REWARD_ITEM;
         r.value = (uint8_t)v;
     } else if (v >= AP_PLANET_OFFSET && v < AP_PLANET_OFFSET + LEVEL_COUNT) {
