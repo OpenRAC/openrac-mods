@@ -694,7 +694,7 @@ int main(int argc, char** argv) {
     }
     const openrac_api& api=*base;
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_items_mode ? 45 : 40) && g_frame != nullptr);
+    CHECK(g_hooks == (g_items_mode ? 46 : 41) && g_frame != nullptr);
     CHECK(replacement("rac1.moby.moby743.update") != nullptr);
     CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
