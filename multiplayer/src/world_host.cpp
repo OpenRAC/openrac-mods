@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world (world.hpp): the host's side: the world sent to the members, spawns, deaths and the tick.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world (world.hpp): the host's side: the world sent to the members, spawns, deaths and the tick.
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

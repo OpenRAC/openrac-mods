@@ -3,6 +3,7 @@
 //
 // Tests of the party's management: a host taking a member out, a ban of a co-op save against a
 // launcher's key, and the data packs a party compares.
+
 #include <cstring>
 
 #include "menu.hpp"

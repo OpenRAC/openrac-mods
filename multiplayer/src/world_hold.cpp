@@ -1,28 +1,28 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world (world.hpp): an enemy's grab, on the host and in the grabbed player's game.
- *
- * The enemy runs in the host's game, with its victim standing in for the hero. What its update does
- * to that hero stays off the host's (the SDK's hero_stand_in_read says what it was), so the host
- * knows the grab began when the update puts the hero who stood in into the grab's state (grab_class).
- * From then on the moby and the player are locked to each other: pick_target gives it no other
- * target, however long the grab lasts; no second grab takes the player; the update goes on seeing
- * the hero in the grab's state, not what a pose says he is doing.
- *
- * The victim's game plays it (HOLD): its own hero in the same state, with his controls gone, going
- * where the host says the update holds him, a word at a time; RELEASE ends it with where he ends up.
- * A HOLD lost changes nothing, the next says the same, and the first one starts it. The host checks
- * what it asked: a player whose pose does not show the state in kHoldAckMs (he was in a scene, or on
- * a ride) is let go. His game does not rely on the host either: no word for kHoldLeaseMs, and it lets
- * him go by itself, as for a host who dropped.
- *
- * Every end is explicit: the update lets go, the moby is deleted, the player dies or leaves the level
- * or the party, a level is made again. A fatal grab ends when he is back from the dead.
- *
- * The host's own hero in a grab has no message to go by: the game does it all. The lock is all the
- * host needs, read from his pose after the update.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world (world.hpp): an enemy's grab, on the host and in the grabbed player's game.
+//
+// The enemy runs in the host's game, with its victim standing in for the hero. What its update does
+// to that hero stays off the host's (the SDK's hero_stand_in_read says what it was), so the host
+// knows the grab began when the update puts the hero who stood in into the grab's state (grab_class).
+// From then on the moby and the player are locked to each other: pick_target gives it no other
+// target, however long the grab lasts; no second grab takes the player; the update goes on seeing
+// the hero in the grab's state, not what a pose says he is doing.
+//
+// The victim's game plays it (HOLD): its own hero in the same state, with his controls gone, going
+// where the host says the update holds him, a word at a time; RELEASE ends it with where he ends up.
+// A HOLD lost changes nothing, the next says the same, and the first one starts it. The host checks
+// what it asked: a player whose pose does not show the state in kHoldAckMs (he was in a scene, or on
+// a ride) is let go. His game does not rely on the host either: no word for kHoldLeaseMs, and it lets
+// him go by itself, as for a host who dropped.
+//
+// Every end is explicit: the update lets go, the moby is deleted, the player dies or leaves the level
+// or the party, a level is made again. A fatal grab ends when he is back from the dead.
+//
+// The host's own hero in a grab has no message to go by: the game does it all. The lock is all the
+// host needs, read from his pose after the update.
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>

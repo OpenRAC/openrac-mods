@@ -16,6 +16,7 @@
 //   - a Ratchet standing still, whose velocity says he falls (the game's gravity, which the ground
 //     takes back: tests/data/pose_stall.csv), with poses now and then late enough that the cursor
 //     runs past the newest: he does not bob; and his jump drawn along its arc all the same.
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 // Original mod UI text in the five PAL languages. UTF-8 is converted by the port's UI API.
+
 #pragma once
 
 #include <cstdint>

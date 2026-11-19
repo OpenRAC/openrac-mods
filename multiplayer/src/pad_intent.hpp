@@ -12,6 +12,7 @@
 // rescue or remove a member. Each event is checked against the pad's report of that tick: the stick
 // pushed more up or down than sideways changes nothing, and only Cross (or a press the pad does not
 // show: a mouse click, a touch) chooses or answers Yes.
+
 #pragma once
 
 #include <cstdint>

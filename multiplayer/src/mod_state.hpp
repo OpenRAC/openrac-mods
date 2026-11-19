@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's shared state and the functions its files call each other by: the
- * entry and glue (multiplayer.cpp), the pages (pages_*.cpp) and the game adapter
- * (game_adapter.hpp). All of it is mod-internal: nothing here is the mod's interface.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's shared state and the functions its files call each other by: the
+// entry and glue (multiplayer.cpp), the pages (pages_*.cpp) and the game adapter
+// (game_adapter.hpp). All of it is mod-internal: nothing here is the mod's interface.
+
 #ifndef MULTIPLAYER_MOD_STATE_H
 #define MULTIPLAYER_MOD_STATE_H
 

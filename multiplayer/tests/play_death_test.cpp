@@ -3,6 +3,7 @@
 //
 // Playing together, without the game or a socket: what a death leaves (missions, bolts, a full
 // wipe, the revive rule), crates that come back, buried bolts, and who an enemy goes for.
+
 #include "test_support.hpp"
 
 namespace mpt {

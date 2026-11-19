@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world (world.hpp): the host's snapshots, the ids of the mobys and the tick.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world (world.hpp): the host's snapshots, the ids of the mobys and the tick.
+
 #include "world.hpp"
 
 #include <algorithm>

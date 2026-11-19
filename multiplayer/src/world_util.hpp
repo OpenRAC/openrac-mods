@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world's private helpers (world*.cpp): the wire's numbers and the pose test.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world's private helpers (world*.cpp): the wire's numbers and the pose test.
+
 #pragma once
 
 #include <algorithm>

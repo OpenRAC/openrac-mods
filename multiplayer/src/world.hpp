@@ -1,157 +1,157 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world (world.cpp): the host's game runs the level (its enemies, crates, doors,
- * platforms, bolts) and the members' games show it. No socket and no game here: given the Session,
- * the Game (the SDK's 1.9 world calls) and the Coop (the players' poses and figures), on the game's
- * thread, once a tick, plus the game's gate and hits as they come.
- *
- * A placed moby's own update hides and shows it (an enemy waiting to appear, a platform out of
- * sight), so a member, whose game no longer runs the update of one it drives, would keep it as it
- * was when the drive began: WORLD carries the host's (hidden or not), and the member hides or
- * shows its copy so.
- *
- * With the verbose log on (the `verbose_log` setting: trace.hpp), a line for each moby that leaves
- * the level, or is hidden or shown, here (despawn.hpp), on either side, and the world's pauses,
- * run lists, snapshots, drives, messages and a census each second (world_trace.cpp).
- *
- * A death is known only from the game saying so (a placed moby listed dead), never from a moby
- * missing from a listing; a tick the game lists nothing (loading) changes nothing.
- *
- * Host. Each moby the level placed is named by its key (its record in the level's file, the same in
- * every game). The host sends each member in its level, as state up to 15 times a second, the mobys
- * that moved or animated and that member does not have yet, what matters to it first (WORLD, at most
- * kWorldEntries a datagram), tells
- * everyone of the placed ones that died (KILLED) and of the ones it spawns that count (creatures,
- * bolts: SPAWN and DESPAWN, by a net id of its own), and gives a member that arrives in its level
- * the placed mobys dead there (DEAD) and what it has spawned. Every moby's update runs with
- * the nearest player standing in for the hero (the gate): an enemy chases and hits that player's
- * figure; a hit on a figure goes to its player (DAMAGE), the bolts a member's stand-in collected go
- * to it (BOLTS). Mobys near the members run as if near the host (eyes).
- *
- * Bolts are the host's, once in the world. Only the host's game drops them (its crates, those a
- * member broke too, and its enemies); a member's game drops none of its own (Moby_RecordDeath:
- * quiet_drop). Each one the host drops goes to the members (SPAWN); the member's copy flies out as
- * the host's does (WORLD poses it) and, once the host's has landed (WORLD's loose flag), runs in the
- * member's game, so it hovers and flies to that member's own Ratchet. A bolt collected in a member's
- * game (Moby_CollectBolt: collect) adds nothing there: it is a claim to the host (CLAIM, by net id
- * or a placed bolt's key). The host grants the first claim of each bolt, while its own copy is still
- * there and nobody (the host included) has taken it: it deletes its copy (DESPAWN or KILLED for
- * everyone) and gives the claimant the bolt's value (BOLTS). A later claim is refused, and its
- * player gets nothing. The host's own collection is the host's credit, and goes from every game.
- *
- * A bolt taken goes as the game takes one in every game that runs it: the host tells who took it
- * (TAKEN), and each game where it hovers by itself (the host's for a member's claim, a member's
- * for a bolt that landed, or a placed bolt) has it fly to that player (the taker's figure standing
- * in for the hero during its update, the game's own pickup flight), then the bolt update deletes
- * it there, nothing added (collect). DESPAWN or KILLED leave it to that flight; a bolt that has
- * not arrived within kFlightMs is deleted.
- *
- * Member. In the host's level it drives every placed moby that has an update of its own (the game
- * no longer runs it) and poses it from WORLD through a buffer per moby (play.hpp's, a delay
- * behind), kills what the host killed, makes what the host spawned (driven too). A hit its game
- * posts to a driven moby goes to the host (HIT) instead of the moby; a DAMAGE is posted to its own
- * hero (who is hurt as the game hurts him); BOLTS are added to its own, the only bolts it gets in the
- * host's level.
- *
- * The world's DATA kinds, after coop.hpp's:
- *    9 WORLD   level i8, stamp i64, sequence u16 (this member's, each datagram one more), count u8,
- *              then per moby: id u16 (a key; 0x8000 | a net id for
- *              one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq u8, frame u8,
- *              anim time u8 (/255), anim speed u8 (/32), flags u8 (1: hidden, drawn by nothing;
- *              2: loose, a bolt landed in the host's game: the member's copy runs as its own)
- *                                                                  the host to a member, as state;
- *   10 KILLED  level i8, count u16, keys u16...                   the host to everyone;
- *   11 SPAWN   level i8, net u16, class i16, position 3 x f32, yaw i16     the host;
- *   12 DESPAWN level i8, count u16, nets u16...                   the host;
- *   13 HIT     id u16, mask u32, damage f32, position 3 x f32, velocity 3 x f32   a member;
- *   14 DAMAGE  attacker id u16 (0xFFFF none), mask u32, damage f32, position, velocity   the host;
- *   15 BOLTS   count i32                                          the host to a member;
- *   16 DEAD    level i8, count u16 (records), then a bit a record, 1 dead   the host to a member;
- *   17 BROKE   level i8, key u16                                  a member broke a crate;
- *   22 CLAIM   level i8, id u16 (a key; 0x8000 | a net id)        a member collected a bolt;
- *   24 TAKEN   level i8, id u16 (as CLAIM's), player i32          the host: who took a bolt;
- *   26 HELLO   level i8, load u32                                 a member: its game has this
- *              level's mobys as made by this load, nothing of the host's world on them yet;
- *   27 RESET   level i8                                           the host: its level was made
- *              again (a death): what it spawned is gone, each member asks for the world again;
- *   28 SYNCED  level i8, load u32 (HELLO's), rules u8 (1: revive)  the host to a member: all of
- *              the world came, ahead of this message on the reliable stream;
- *   71 REVIVE  how u8 (0: up where it lies, 1: to its checkpoint)  the host to a player down;
- *   72 RESTORE level i8, key u16, class i16, position, yaw i16     the host: a placed moby back
- *              in its level, made here if this game's copy is gone.
- * RESET's optional byte is 1 for a level that does not agree, 2 for a full wipe. BROKE from the host
- * tells a member of a respawning crate's break, and from a member has a byte, 1 for such a crate.
- * CLAIM has a byte too, what: 1 for a pile of buried bolts by key.
- *
- * Levels that agree. WORLD names a placed moby by its record in the level's file, which holds for
- * two games only if their records agree. Two discs of one world family do on all 19 levels today,
- * measured; the sim digest (openrac_api.sim_digest) is what would catch a level that does not, at
- * the moment it would start to go wrong: the member is given no world, and leaves the party with
- * the words a different disc gets.
- *
- * Death (DECISIONS 9). A player's death is that player's own: each game's respawn makes its level
- * again and the world goes on as the party left it (above and below). Three things come with it.
- * - A placed moby that goes with a mission the host has not done comes back with the host's level:
- *   the mission starts again, so it would be lost for good if it stayed dead. It leaves party_dead_
- *   and each member, whose copy is gone, makes one to show it (RESTORE). A local class comes back
- *   only in the host's game. Crates do not: a level ties its crates to a mission too, and one broken
- *   stays broken for the party.
- * - The bolts lying about when the host dies are made again where they lay (they are what the
- *   party can still see). Enemies it had spawned go with its level; the level's spawners make new.
- * - A full wipe: the host's level made again with every member dead too, or dead a moment ago. The
- *   party goes back to the host's last checkpoint: only what the host's reloaded level has dead
- *   stays dead, every member goes through its own respawn (RESET's wipe) and is then put by the host.
- * A host rule, off by default (the setting "revive", to members in SYNCED): a player who dies on
- * his feet stays down for kDownedMs, and a living player standing over him for kReviveMs brings him
- * back (REVIVE, the host's word). A player left down goes to his checkpoint as always; everyone down
- * at once is a full wipe.
- *
- * Respawning crates. Level 5 (349), 16 (314) and 18 (24 ammo crates) have crates that come back: the
- * byte at +0xC8 of the crate's pvars. Such a crate is never deleted: after its break it hides (state
- * kCrateWaiting) until its timer is up and no camera sees it, in each game by itself. So the game
- * never lists it dead, and no KILLED or BROKE came of it, yet a member's drop is left out. A crate
- * going to that state is its break: a member says BROKE, the host's copy breaks and drops, and the
- * host tells the others with BROKE (each game's copy breaks once; coming back stays each game's).
- *
- * Buried bolts. The metal detector digs a pile in one tick (Game's metal detect hook). In a member's
- * game the dig waits for the host (CLAIM, what 1): the first claim of a pile that is still there
- * gets TAKEN, and only that game digs; every other copy goes (KILLED). The host's own dig needs no
- * asking, and its pile goes from every game the same way.
- *
- * What a game's own load does. A level is made more often than it is loaded: each death of a hero
- * (the game's own respawn) runs the level's loader again in one frame, every moby back as the
- * level file has it, the spawned ones gone (status.loads changes, level does not). So the world
- * is never assumed to last. A member whose mobys were made, for whatever reason, says so (HELLO,
- * again each kHelloMs until answered) and the host gives it the whole world as it stands, in order
- * on the reliable stream: every placed moby dead (DEAD), every spawned one (SPAWN), SYNCED; WORLD
- * goes to it from then on. A joiner's first load is no different, so a late joiner gets the same.
- * What is dead for the party is the host's party_dead_, which outlives a respawn in the host's own
- * game: there the mobys it kept are deleted again at once, and the members told (RESET) to drop
- * what its game no longer has. One player's death puts nothing back for the others.
- *
- * WORLD is state and its datagrams are lost, so the host keeps count of what each member has. Each
- * datagram has a sequence of that member's, and each pose the member sends says which of the last
- * 33 it heard (play.hpp). The host keeps what each datagram carried: a moby is due until the newest
- * word sent of it is known to have come and still says what it is. A word on its way holds the moby
- * back until it is delivered or lost (two newer ones heard and not it, or twice the round trip gone
- * by), when the moby is due again, at once if it stands. So a change that was delivered
- * costs one entry and one that was lost goes again a round trip later, however far off the moby is:
- * nothing repeats blindly and nothing waits for a refresh. What cannot be known (no pose coming
- * back) comes down to a send each time-out. A moby that stands for kWorldKeepMs goes once more,
- * for whatever a member's game did to it that the host cannot see. Only what a member took counts as
- * heard; a snapshot refused by the session's bucket counts as not sent. Entries older than one
- * already taken are dropped, per moby, so a late datagram brings nothing back.
- *
- * What goes first, when more is due than a datagram holds: a priority accumulator per member and
- * moby. Each snapshot adds the moby's weight for that member (world_weight: distance
- * first, then what can hurt the player, what it looks at, what it hit a moment ago, and what flies
- * at it), a moby goes once its priority reaches 1, the highest first, and goes back to 0 when it does.
- * The weight's floor is what keeps a far moby from starving: it may wait, but it rises until it is
- * taken. It also sets how often a moby goes at all: a close one each snapshot, a far one each
- * kWorldFloorMs, so the far part of a level costs a quarter of what it did. A moby that stands and
- * was not delivered, or that hid or showed, goes at the next snapshot.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world (world.cpp): the host's game runs the level (its enemies, crates, doors,
+// platforms, bolts) and the members' games show it. No socket and no game here: given the Session,
+// the Game (the SDK's 1.9 world calls) and the Coop (the players' poses and figures), on the game's
+// thread, once a tick, plus the game's gate and hits as they come.
+//
+// A placed moby's own update hides and shows it (an enemy waiting to appear, a platform out of
+// sight), so a member, whose game no longer runs the update of one it drives, would keep it as it
+// was when the drive began: WORLD carries the host's (hidden or not), and the member hides or
+// shows its copy so.
+//
+// With the verbose log on (the `verbose_log` setting: trace.hpp), a line for each moby that leaves
+// the level, or is hidden or shown, here (despawn.hpp), on either side, and the world's pauses,
+// run lists, snapshots, drives, messages and a census each second (world_trace.cpp).
+//
+// A death is known only from the game saying so (a placed moby listed dead), never from a moby
+// missing from a listing; a tick the game lists nothing (loading) changes nothing.
+//
+// Host. Each moby the level placed is named by its key (its record in the level's file, the same in
+// every game). The host sends each member in its level, as state up to 15 times a second, the mobys
+// that moved or animated and that member does not have yet, what matters to it first (WORLD, at most
+// kWorldEntries a datagram), tells
+// everyone of the placed ones that died (KILLED) and of the ones it spawns that count (creatures,
+// bolts: SPAWN and DESPAWN, by a net id of its own), and gives a member that arrives in its level
+// the placed mobys dead there (DEAD) and what it has spawned. Every moby's update runs with
+// the nearest player standing in for the hero (the gate): an enemy chases and hits that player's
+// figure; a hit on a figure goes to its player (DAMAGE), the bolts a member's stand-in collected go
+// to it (BOLTS). Mobys near the members run as if near the host (eyes).
+//
+// Bolts are the host's, once in the world. Only the host's game drops them (its crates, those a
+// member broke too, and its enemies); a member's game drops none of its own (Moby_RecordDeath:
+// quiet_drop). Each one the host drops goes to the members (SPAWN); the member's copy flies out as
+// the host's does (WORLD poses it) and, once the host's has landed (WORLD's loose flag), runs in the
+// member's game, so it hovers and flies to that member's own Ratchet. A bolt collected in a member's
+// game (Moby_CollectBolt: collect) adds nothing there: it is a claim to the host (CLAIM, by net id
+// or a placed bolt's key). The host grants the first claim of each bolt, while its own copy is still
+// there and nobody (the host included) has taken it: it deletes its copy (DESPAWN or KILLED for
+// everyone) and gives the claimant the bolt's value (BOLTS). A later claim is refused, and its
+// player gets nothing. The host's own collection is the host's credit, and goes from every game.
+//
+// A bolt taken goes as the game takes one in every game that runs it: the host tells who took it
+// (TAKEN), and each game where it hovers by itself (the host's for a member's claim, a member's
+// for a bolt that landed, or a placed bolt) has it fly to that player (the taker's figure standing
+// in for the hero during its update, the game's own pickup flight), then the bolt update deletes
+// it there, nothing added (collect). DESPAWN or KILLED leave it to that flight; a bolt that has
+// not arrived within kFlightMs is deleted.
+//
+// Member. In the host's level it drives every placed moby that has an update of its own (the game
+// no longer runs it) and poses it from WORLD through a buffer per moby (play.hpp's, a delay
+// behind), kills what the host killed, makes what the host spawned (driven too). A hit its game
+// posts to a driven moby goes to the host (HIT) instead of the moby; a DAMAGE is posted to its own
+// hero (who is hurt as the game hurts him); BOLTS are added to its own, the only bolts it gets in the
+// host's level.
+//
+// The world's DATA kinds, after coop.hpp's:
+//    9 WORLD   level i8, stamp i64, sequence u16 (this member's, each datagram one more), count u8,
+//              then per moby: id u16 (a key; 0x8000 | a net id for
+//              one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq u8, frame u8,
+//              anim time u8 (/255), anim speed u8 (/32), flags u8 (1: hidden, drawn by nothing;
+//              2: loose, a bolt landed in the host's game: the member's copy runs as its own)
+//                                                                  the host to a member, as state;
+//   10 KILLED  level i8, count u16, keys u16...                   the host to everyone;
+//   11 SPAWN   level i8, net u16, class i16, position 3 x f32, yaw i16     the host;
+//   12 DESPAWN level i8, count u16, nets u16...                   the host;
+//   13 HIT     id u16, mask u32, damage f32, position 3 x f32, velocity 3 x f32   a member;
+//   14 DAMAGE  attacker id u16 (0xFFFF none), mask u32, damage f32, position, velocity   the host;
+//   15 BOLTS   count i32                                          the host to a member;
+//   16 DEAD    level i8, count u16 (records), then a bit a record, 1 dead   the host to a member;
+//   17 BROKE   level i8, key u16                                  a member broke a crate;
+//   22 CLAIM   level i8, id u16 (a key; 0x8000 | a net id)        a member collected a bolt;
+//   24 TAKEN   level i8, id u16 (as CLAIM's), player i32          the host: who took a bolt;
+//   26 HELLO   level i8, load u32                                 a member: its game has this
+//              level's mobys as made by this load, nothing of the host's world on them yet;
+//   27 RESET   level i8                                           the host: its level was made
+//              again (a death): what it spawned is gone, each member asks for the world again;
+//   28 SYNCED  level i8, load u32 (HELLO's), rules u8 (1: revive)  the host to a member: all of
+//              the world came, ahead of this message on the reliable stream;
+//   71 REVIVE  how u8 (0: up where it lies, 1: to its checkpoint)  the host to a player down;
+//   72 RESTORE level i8, key u16, class i16, position, yaw i16     the host: a placed moby back
+//              in its level, made here if this game's copy is gone.
+// RESET's optional byte is 1 for a level that does not agree, 2 for a full wipe. BROKE from the host
+// tells a member of a respawning crate's break, and from a member has a byte, 1 for such a crate.
+// CLAIM has a byte too, what: 1 for a pile of buried bolts by key.
+//
+// Levels that agree. WORLD names a placed moby by its record in the level's file, which holds for
+// two games only if their records agree. Two discs of one world family do on all 19 levels today,
+// measured; the sim digest (openrac_api.sim_digest) is what would catch a level that does not, at
+// the moment it would start to go wrong: the member is given no world, and leaves the party with
+// the words a different disc gets.
+//
+// Death (DECISIONS 9). A player's death is that player's own: each game's respawn makes its level
+// again and the world goes on as the party left it (above and below). Three things come with it.
+// - A placed moby that goes with a mission the host has not done comes back with the host's level:
+//   the mission starts again, so it would be lost for good if it stayed dead. It leaves party_dead_
+//   and each member, whose copy is gone, makes one to show it (RESTORE). A local class comes back
+//   only in the host's game. Crates do not: a level ties its crates to a mission too, and one broken
+//   stays broken for the party.
+// - The bolts lying about when the host dies are made again where they lay (they are what the
+//   party can still see). Enemies it had spawned go with its level; the level's spawners make new.
+// - A full wipe: the host's level made again with every member dead too, or dead a moment ago. The
+//   party goes back to the host's last checkpoint: only what the host's reloaded level has dead
+//   stays dead, every member goes through its own respawn (RESET's wipe) and is then put by the host.
+// A host rule, off by default (the setting "revive", to members in SYNCED): a player who dies on
+// his feet stays down for kDownedMs, and a living player standing over him for kReviveMs brings him
+// back (REVIVE, the host's word). A player left down goes to his checkpoint as always; everyone down
+// at once is a full wipe.
+//
+// Respawning crates. Level 5 (349), 16 (314) and 18 (24 ammo crates) have crates that come back: the
+// byte at +0xC8 of the crate's pvars. Such a crate is never deleted: after its break it hides (state
+// kCrateWaiting) until its timer is up and no camera sees it, in each game by itself. So the game
+// never lists it dead, and no KILLED or BROKE came of it, yet a member's drop is left out. A crate
+// going to that state is its break: a member says BROKE, the host's copy breaks and drops, and the
+// host tells the others with BROKE (each game's copy breaks once; coming back stays each game's).
+//
+// Buried bolts. The metal detector digs a pile in one tick (Game's metal detect hook). In a member's
+// game the dig waits for the host (CLAIM, what 1): the first claim of a pile that is still there
+// gets TAKEN, and only that game digs; every other copy goes (KILLED). The host's own dig needs no
+// asking, and its pile goes from every game the same way.
+//
+// What a game's own load does. A level is made more often than it is loaded: each death of a hero
+// (the game's own respawn) runs the level's loader again in one frame, every moby back as the
+// level file has it, the spawned ones gone (status.loads changes, level does not). So the world
+// is never assumed to last. A member whose mobys were made, for whatever reason, says so (HELLO,
+// again each kHelloMs until answered) and the host gives it the whole world as it stands, in order
+// on the reliable stream: every placed moby dead (DEAD), every spawned one (SPAWN), SYNCED; WORLD
+// goes to it from then on. A joiner's first load is no different, so a late joiner gets the same.
+// What is dead for the party is the host's party_dead_, which outlives a respawn in the host's own
+// game: there the mobys it kept are deleted again at once, and the members told (RESET) to drop
+// what its game no longer has. One player's death puts nothing back for the others.
+//
+// WORLD is state and its datagrams are lost, so the host keeps count of what each member has. Each
+// datagram has a sequence of that member's, and each pose the member sends says which of the last
+// 33 it heard (play.hpp). The host keeps what each datagram carried: a moby is due until the newest
+// word sent of it is known to have come and still says what it is. A word on its way holds the moby
+// back until it is delivered or lost (two newer ones heard and not it, or twice the round trip gone
+// by), when the moby is due again, at once if it stands. So a change that was delivered
+// costs one entry and one that was lost goes again a round trip later, however far off the moby is:
+// nothing repeats blindly and nothing waits for a refresh. What cannot be known (no pose coming
+// back) comes down to a send each time-out. A moby that stands for kWorldKeepMs goes once more,
+// for whatever a member's game did to it that the host cannot see. Only what a member took counts as
+// heard; a snapshot refused by the session's bucket counts as not sent. Entries older than one
+// already taken are dropped, per moby, so a late datagram brings nothing back.
+//
+// What goes first, when more is due than a datagram holds: a priority accumulator per member and
+// moby. Each snapshot adds the moby's weight for that member (world_weight: distance
+// first, then what can hurt the player, what it looks at, what it hit a moment ago, and what flies
+// at it), a moby goes once its priority reaches 1, the highest first, and goes back to 0 when it does.
+// The weight's floor is what keeps a far moby from starving: it may wait, but it rises until it is
+// taken. It also sets how often a moby goes at all: a close one each snapshot, a far one each
+// kWorldFloorMs, so the far part of a level costs a quarter of what it did. A moby that stands and
+// was not delivered, or that hid or showed, goes at the next snapshot.
+
 #ifndef MULTIPLAYER_WORLD_H
 #define MULTIPLAYER_WORLD_H
 

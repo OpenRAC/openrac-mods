@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The launcher's modset.json, read and checked (modcode.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The launcher's modset.json, read and checked (modcode.hpp).
+
 #include "modcode.hpp"
 
 #include <algorithm>

@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The player's session and party (session.hpp), from the server's packets: INFO gives the whole
- * party, JOINED and LEFT change it, END means the host left and the party is gone, ERROR refuses
- * the last action.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The player's session and party (session.hpp), from the server's packets: INFO gives the whole
+// party, JOINED and LEFT change it, END means the host left and the party is gone, ERROR refuses
+// the last action.
+
 #include "session.hpp"
 
 #include <algorithm>

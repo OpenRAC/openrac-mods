@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's pages: Home, Code, Direct connect and the pause menu's page (multiplayer.cpp's header says what each page is).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's pages: Home, Code, Direct connect and the pause menu's page (multiplayer.cpp's header says what each page is).
+
 #include "mod_state.hpp"
 
 namespace mpmod {

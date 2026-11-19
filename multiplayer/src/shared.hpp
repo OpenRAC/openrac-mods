@@ -1,44 +1,44 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The party's shared progress past the items, gold bolts and planets (progress.hpp): the gold
- * weapons, the skill points, the story's flags and the game's special items. No socket and no game
- * here: given the Session, the Game and the Coop, on the game's thread, once a tick.
- *
- * Host-authoritative, as PROGRESS. Each game reads its sections a few times a second. A member tells
- * the host what it has (SHARED) when that changes and every few seconds; the host merges what it
- * lacks and tells every member what the party has. A game only ever gets more: a flag is set, never
- * cleared, and a flag a game once had and lost by itself (a special item spent, a challenge
- * restarted) is not put back. Everything is set silently, in place: no banner, no sound, no reward,
- * nothing on the memory card, whether the player was there or joined late. What the host's game
- * holds is what its save, and so each member's co-op save, holds.
- *
- * The story's flags are the game's per-level mission bytes (shared.c in the port; saved_mission_state,
- * 16 for each of 20 levels, 0 or 0xFF). A flag is set when a mission moby is done or a checkpoint is
- * reached; doors, lifts and people read it. No reader starts a scene because a flag was set, so a
- * flag can be set in a level that is playing. It goes the other way round for the scenes a player
- * starts at their own copy of a person or a pickup (local_class in world.hpp): the flag is set as
- * the scene ends, and in the game that has it the scene will not play again. Those flags
- * (kSceneFlags, read from the game's code and both discs' levels) must not cross to a game that is
- * still to play the scene:
- *   - a member's never reaches the host: the story is the host's, and it plays the scene for the
- *     party when it gets there;
- *   - the host's reaches a member only once the member has left that level, so that the person is
- *     not taken from under a member talking to them, and a later visit finds the story as it is.
- *
- * MISSION carries one level's row, host to members: at once when the row of the host's level
- * changes, and on a member's arrival in a level (SHARED_ASK), so a member's doors and people follow
- * the host's without waiting for the next SHARED. A member still on its way holds the row of the
- * host's level until it has arrived: set before its load, a flag would keep that load from making
- * the mobys the host's load made. The nanotech upgrades among the special items stay
- * each player's own, as all health does.
- *
- * DATA kind 36 SHARED: u8 count, then per section u8 tag, u16 length, its bytes: bits, 1 for had.
- * Tags (a section of a tag unknown here is skipped): 1 gold weapons (40 bits by item id), 2 skill
- * points (32), 3 flags (320: level x 16 + flag), 4 special items (128).
- * DATA kind 37 MISSION: i8 level, 16 bytes of the level's row, the host's.
- * DATA kind 38 SHARED_ASK: i8 level, a member's: the host answers with a MISSION.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The party's shared progress past the items, gold bolts and planets (progress.hpp): the gold
+// weapons, the skill points, the story's flags and the game's special items. No socket and no game
+// here: given the Session, the Game and the Coop, on the game's thread, once a tick.
+//
+// Host-authoritative, as PROGRESS. Each game reads its sections a few times a second. A member tells
+// the host what it has (SHARED) when that changes and every few seconds; the host merges what it
+// lacks and tells every member what the party has. A game only ever gets more: a flag is set, never
+// cleared, and a flag a game once had and lost by itself (a special item spent, a challenge
+// restarted) is not put back. Everything is set silently, in place: no banner, no sound, no reward,
+// nothing on the memory card, whether the player was there or joined late. What the host's game
+// holds is what its save, and so each member's co-op save, holds.
+//
+// The story's flags are the game's per-level mission bytes (shared.c in the port; saved_mission_state,
+// 16 for each of 20 levels, 0 or 0xFF). A flag is set when a mission moby is done or a checkpoint is
+// reached; doors, lifts and people read it. No reader starts a scene because a flag was set, so a
+// flag can be set in a level that is playing. It goes the other way round for the scenes a player
+// starts at their own copy of a person or a pickup (local_class in world.hpp): the flag is set as
+// the scene ends, and in the game that has it the scene will not play again. Those flags
+// (kSceneFlags, read from the game's code and both discs' levels) must not cross to a game that is
+// still to play the scene:
+//   - a member's never reaches the host: the story is the host's, and it plays the scene for the
+//     party when it gets there;
+//   - the host's reaches a member only once the member has left that level, so that the person is
+//     not taken from under a member talking to them, and a later visit finds the story as it is.
+//
+// MISSION carries one level's row, host to members: at once when the row of the host's level
+// changes, and on a member's arrival in a level (SHARED_ASK), so a member's doors and people follow
+// the host's without waiting for the next SHARED. A member still on its way holds the row of the
+// host's level until it has arrived: set before its load, a flag would keep that load from making
+// the mobys the host's load made. The nanotech upgrades among the special items stay
+// each player's own, as all health does.
+//
+// DATA kind 36 SHARED: u8 count, then per section u8 tag, u16 length, its bytes: bits, 1 for had.
+// Tags (a section of a tag unknown here is skipped): 1 gold weapons (40 bits by item id), 2 skill
+// points (32), 3 flags (320: level x 16 + flag), 4 special items (128).
+// DATA kind 37 MISSION: i8 level, 16 bytes of the level's row, the host's.
+// DATA kind 38 SHARED_ASK: i8 level, a member's: the host answers with a MISSION.
+
 #ifndef MULTIPLAYER_SHARED_H
 #define MULTIPLAYER_SHARED_H
 

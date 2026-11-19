@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The few socket calls the connection (connection.cpp) and the embedded host (host.cpp) share,
- * the same on Winsock and on POSIX sockets.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The few socket calls the connection (connection.cpp) and the embedded host (host.cpp) share,
+// the same on Winsock and on POSIX sockets.
+
 #ifndef MULTIPLAYER_SOCKETS_H
 #define MULTIPLAYER_SOCKETS_H
 

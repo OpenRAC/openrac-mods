@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * A save a party starts from, checked (save_check.hpp): the SDK's check, in the co-op's names.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// A save a party starts from, checked (save_check.hpp): the SDK's check, in the co-op's names.
+
 #include "save_check.hpp"
 
 namespace mp {

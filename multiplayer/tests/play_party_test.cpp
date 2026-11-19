@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: figures, ship travel and players who leave.
+
 #include "test_support.hpp"
 
 namespace mpt {

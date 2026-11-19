@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The co-op's private helpers (coop*.cpp): the pose step, the animation trace and the member test.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The co-op's private helpers (coop*.cpp): the pose step, the animation trace and the member test.
+
 #pragma once
 
 #include <algorithm>

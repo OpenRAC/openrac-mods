@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Playing together (coop.hpp): the host's PLAY and its save, LEVEL, WANT and the tick.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Playing together (coop.hpp): the host's PLAY and its save, LEVEL, WANT and the tick.
+
 #include "coop.hpp"
 
 #include <algorithm>

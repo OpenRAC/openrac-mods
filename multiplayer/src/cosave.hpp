@@ -1,46 +1,46 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The party's saves. Everyone in a party, the host too, plays in a co-op slot of its own card,
- * beside the game's folder (<the game's folder>-coop, save0.bin to save4.bin): whatever the game
- * saves while a party plays goes there, through the port's card filter, and a player's own saves
- * stay as they were.
- *
- * A session starts from a copy of the save it plays: a player's slot is written with those bytes
- * before the game starts (a new game's, from the game's first moment in a level, since a save of
- * the game's own writes only two parts of a file that must be there). When the host's game saves,
- * the host's slot goes to every member, which writes it over its own; a member's game saving
- * writes that member's slot, so a slot is the newest of the two. Each player's slot is a save like
- * any other: Continue as host (the Saves page) starts a party from one, whoever made it.
- *
- * A slot has a note beside it: the party it belongs to (a key the host makes when a game starts
- * from anything but a co-op save, which goes on when one does), when it last saved, whose party it
- * was and who is banned from it. The same party comes back to the same slot; another takes a free
- * one, then the oldest.
- *
- * A ban is of a co-op save, against the key of a launcher (the SDK's identity_key, which MODS
- * carries), so neither a new name nor another address gets round it. It lasts as long as the save:
- * Continue as host brings it back, and the bans go to the members with COPARTY, so any member's
- * slot has them when that member hosts it. A key is a text no party can read anything from: a
- * player's own to give, not a proof of who it is.
- *
- * The filter stays on until the game is back at the title: a party gone leaves the game in a level
- * for a while, with the party's progress in it, and the game's next save would reach the player's
- * own slot. Before that, one last save of what the game holds now.
- *
- * Wire (kinds.hpp, 32 to 35; TCP, in order):
- *   32 COSAVE     tag u8, total i32, index i32, bytes    host to member: a piece of the host's save,
- *                                                        at most kChunkBytes; `tag` names the save
- *   33 COSAVE_ACK tag u8, ok u8                          member to host: that save is in its slot
- *   34 SAVE_NOW                                          member to host: please save the party
- *   35 COPARTY    key i32, count u8, then each ban (string)  host to member, before PLAY: whose
- *                                                        this is; to all when the bans change
- *
- * The host's save is untrusted here as anywhere: only the host's word counts, the pieces must make
- * a save of a size a game has, and every save written to a slot passes the one check first
- * (Game::save_usable here, the same check again in the port's coop_save_write). Continue as host
- * goes the way of any chosen save: Coop::start's check, then the port's before the game loads it.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The party's saves. Everyone in a party, the host too, plays in a co-op slot of its own card,
+// beside the game's folder (<the game's folder>-coop, save0.bin to save4.bin): whatever the game
+// saves while a party plays goes there, through the port's card filter, and a player's own saves
+// stay as they were.
+//
+// A session starts from a copy of the save it plays: a player's slot is written with those bytes
+// before the game starts (a new game's, from the game's first moment in a level, since a save of
+// the game's own writes only two parts of a file that must be there). When the host's game saves,
+// the host's slot goes to every member, which writes it over its own; a member's game saving
+// writes that member's slot, so a slot is the newest of the two. Each player's slot is a save like
+// any other: Continue as host (the Saves page) starts a party from one, whoever made it.
+//
+// A slot has a note beside it: the party it belongs to (a key the host makes when a game starts
+// from anything but a co-op save, which goes on when one does), when it last saved, whose party it
+// was and who is banned from it. The same party comes back to the same slot; another takes a free
+// one, then the oldest.
+//
+// A ban is of a co-op save, against the key of a launcher (the SDK's identity_key, which MODS
+// carries), so neither a new name nor another address gets round it. It lasts as long as the save:
+// Continue as host brings it back, and the bans go to the members with COPARTY, so any member's
+// slot has them when that member hosts it. A key is a text no party can read anything from: a
+// player's own to give, not a proof of who it is.
+//
+// The filter stays on until the game is back at the title: a party gone leaves the game in a level
+// for a while, with the party's progress in it, and the game's next save would reach the player's
+// own slot. Before that, one last save of what the game holds now.
+//
+// Wire (kinds.hpp, 32 to 35; TCP, in order):
+//   32 COSAVE     tag u8, total i32, index i32, bytes    host to member: a piece of the host's save,
+//                                                        at most kChunkBytes; `tag` names the save
+//   33 COSAVE_ACK tag u8, ok u8                          member to host: that save is in its slot
+//   34 SAVE_NOW                                          member to host: please save the party
+//   35 COPARTY    key i32, count u8, then each ban (string)  host to member, before PLAY: whose
+//                                                        this is; to all when the bans change
+//
+// The host's save is untrusted here as anywhere: only the host's word counts, the pieces must make
+// a save of a size a game has, and every save written to a slot passes the one check first
+// (Game::save_usable here, the same check again in the port's coop_save_write). Continue as host
+// goes the way of any chosen save: Coop::start's check, then the port's before the game loads it.
+
 #ifndef MULTIPLAYER_COSAVE_H
 #define MULTIPLAYER_COSAVE_H
 

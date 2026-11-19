@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: the pause page and what a pause leaves whole.
+
 #include "test_support.hpp"
 
 namespace mpt {

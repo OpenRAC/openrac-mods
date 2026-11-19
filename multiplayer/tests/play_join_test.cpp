@@ -3,6 +3,7 @@
 //
 // Playing together, without the game or a socket: a late member put beside the host, Go to host,
 // the warning before the ship, votes on waits, and a host that starts again.
+
 #include <cmath>
 
 #include "test_support.hpp"

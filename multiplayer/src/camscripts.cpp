@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Camera scripts shown to the players near (camscripts.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Camera scripts shown to the players near (camscripts.hpp).
+
 #include "camscripts.hpp"
 
 #include <algorithm>

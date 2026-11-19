@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The players' poses on the wire and the buffer they are played back from (play.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The players' poses on the wire and the buffer they are played back from (play.hpp).
+
 #include "play.hpp"
 
 #include <algorithm>

@@ -3,6 +3,7 @@
 //
 // The play tests' shared support (play_test.cpp, play_*_test.cpp): CHECK, the recorders, the fake games
 // and the players that talk through a router, and the simulated links.
+
 #pragma once
 
 #include <algorithm>

@@ -3,6 +3,7 @@
 //
 // Camera scripts shown to the players near (camscripts.hpp): who sees which, what takes the camera
 // back, a joiner and a party of two discs, and what a lost word does.
+
 #include "test_support.hpp"
 
 namespace mpt {

@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The party's shared progress past the items, gold bolts and planets (shared.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The party's shared progress past the items, gold bolts and planets (shared.hpp).
+
 #include "shared.hpp"
 
 #include <algorithm>

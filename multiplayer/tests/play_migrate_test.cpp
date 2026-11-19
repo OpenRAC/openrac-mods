@@ -3,6 +3,7 @@
 //
 // Playing together, without the game or a socket: a connection lost and found again, the host's
 // among them (migrate.hpp).
+
 #include "takeover_sim.hpp"
 
 namespace mpt {

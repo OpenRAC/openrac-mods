@@ -3,6 +3,7 @@
 //
 // Playing together, without the game or a socket: the names over the figures, and the mod code a
 // party's pages show.
+
 #include <cstdio>
 #include <filesystem>
 #include <fstream>

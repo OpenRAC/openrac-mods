@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The connection to the OpenRAC server (connection.hpp): a socket on a thread of its own, as
- * live-splits' client keeps its LiveSplit socket. The connect is non-blocking with a time limit, so
- * that close() (at the game's end) never waits on an address that does not answer.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The connection to the OpenRAC server (connection.hpp): a socket on a thread of its own, as
+// live-splits' client keeps its LiveSplit socket. The connect is non-blocking with a time limit, so
+// that close() (at the game's end) never waits on an address that does not answer.
+
 #include "connection.hpp"
 
 #include <algorithm>

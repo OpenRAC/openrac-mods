@@ -1,53 +1,53 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Ratchet & Clank: online multiplayer (README.md): a Multiplayer item in the title's main menu,
- * under Load Game, whose pages are the game's own menus (mod interface 1.7): they connect to the
- * OpenRAC server, show the player's name (the `name` setting, else the launcher's,
- * OPENRAC_PLAYER_NAME), list the games others host, create one from a save (or a new game), or
- * join one by its code, then show the lobby: the code, the save, the members with the host marked,
- * Ready or Start, and Leave. Direct connect plays without a server: this game hosts
- * (connection.hpp's embedded host), or joins another's by its address. The host's Start starts the
- * game for everyone, and each game shows the others' Ratchets in its level (coop.hpp, on the play
- * calls of interface 1.8). The mods a party has to agree on are checked as a player joins
- * (party_mods.hpp): one whose differ is told why, and cannot be Ready.
- *
- * Over the game the other players' names (nametags.hpp), through the port's overlay.
- *
- * The pages, drawn by the game (its frames, list, font, prompt box and sounds):
- *   Home    Browse games (the parties others host), Create match (a party of the player's own,
- *           from a save), Join by code and Direct connect (the next pages), and the player's name;
- *   Browse  Refresh, then a row per party with room (its host, its save, how many are in it);
- *           Cross on one joins it; the list is asked again every few seconds;
- *   Saves   New game and the memory card's saves (their planet, gold bolts and time): the one
- *           chosen is what the party plays (Create match, and Host directly); Continue as host
- *           shows the party saves of past parties (cosave.hpp) in their place;
- *   Code    a row per character of the code, Left and Right step it through the server's code
- *           alphabet, then Join;
- *   Direct  Host directly and Join by address; Join by address's rows (the address's four octets
- *           and the port, direct.hpp's rings) and Join take the page's place;
- *   Refused why this game cannot join the host's (the mods that differ) and what to do;
- *   Rules   what the party plays by, and what stays the player's own (also from the pause menu);
- *   Lobby   Ready (a member) or Start (the host), Leave, Party rules, and the party's members (each
- *           with whether its mods match); a direct one
- *           says where it is hosted instead of a code. Leave and Triangle ask first, in the
- *           game's prompt box. Leaving a direct party goes back to the server. A host's Cross on a
- *           member opens Remove;
- *   Remove  a member taken out of the party, or banned from this save (from the lobby, and from the
- *           pause menu's Multiplayer page);
- *   Team tools  co-op rescue, its window and the host's rally point (the host's to set), Mark host
- *           position, Clear rally point, Give up, and each member's health (comfort.hpp; from the
- *           lobby and the pause menu's Multiplayer page).
- * The pages speak the game's language (words.hpp: the five PAL languages), read again each tick.
- * Cross chooses, Triangle goes back a page (from Home, to the game's menu). The footer says what
- * the connection is doing. The connection (connection.cpp) is opened the first time Home shows and
- * lasts until the game ends, reconnecting when the server goes; the session follows it every tick.
- *
- * Settings (openrac-mod.json):
- *   server  (string, default game.openrac.dev:7770)  The OpenRAC server, host:port.
- *   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
- *           empty or invalid: the launcher's Multiplayer name.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Ratchet & Clank: online multiplayer (README.md): a Multiplayer item in the title's main menu,
+// under Load Game, whose pages are the game's own menus (mod interface 1.7): they connect to the
+// OpenRAC server, show the player's name (the `name` setting, else the launcher's,
+// OPENRAC_PLAYER_NAME), list the games others host, create one from a save (or a new game), or
+// join one by its code, then show the lobby: the code, the save, the members with the host marked,
+// Ready or Start, and Leave. Direct connect plays without a server: this game hosts
+// (connection.hpp's embedded host), or joins another's by its address. The host's Start starts the
+// game for everyone, and each game shows the others' Ratchets in its level (coop.hpp, on the play
+// calls of interface 1.8). The mods a party has to agree on are checked as a player joins
+// (party_mods.hpp): one whose differ is told why, and cannot be Ready.
+//
+// Over the game the other players' names (nametags.hpp), through the port's overlay.
+//
+// The pages, drawn by the game (its frames, list, font, prompt box and sounds):
+//   Home    Browse games (the parties others host), Create match (a party of the player's own,
+//           from a save), Join by code and Direct connect (the next pages), and the player's name;
+//   Browse  Refresh, then a row per party with room (its host, its save, how many are in it);
+//           Cross on one joins it; the list is asked again every few seconds;
+//   Saves   New game and the memory card's saves (their planet, gold bolts and time): the one
+//           chosen is what the party plays (Create match, and Host directly); Continue as host
+//           shows the party saves of past parties (cosave.hpp) in their place;
+//   Code    a row per character of the code, Left and Right step it through the server's code
+//           alphabet, then Join;
+//   Direct  Host directly and Join by address; Join by address's rows (the address's four octets
+//           and the port, direct.hpp's rings) and Join take the page's place;
+//   Refused why this game cannot join the host's (the mods that differ) and what to do;
+//   Rules   what the party plays by, and what stays the player's own (also from the pause menu);
+//   Lobby   Ready (a member) or Start (the host), Leave, Party rules, and the party's members (each
+//           with whether its mods match); a direct one
+//           says where it is hosted instead of a code. Leave and Triangle ask first, in the
+//           game's prompt box. Leaving a direct party goes back to the server. A host's Cross on a
+//           member opens Remove;
+//   Remove  a member taken out of the party, or banned from this save (from the lobby, and from the
+//           pause menu's Multiplayer page);
+//   Team tools  co-op rescue, its window and the host's rally point (the host's to set), Mark host
+//           position, Clear rally point, Give up, and each member's health (comfort.hpp; from the
+//           lobby and the pause menu's Multiplayer page).
+// The pages speak the game's language (words.hpp: the five PAL languages), read again each tick.
+// Cross chooses, Triangle goes back a page (from Home, to the game's menu). The footer says what
+// the connection is doing. The connection (connection.cpp) is opened the first time Home shows and
+// lasts until the game ends, reconnecting when the server goes; the session follows it every tick.
+//
+// Settings (openrac-mod.json):
+//   server  (string, default game.openrac.dev:7770)  The OpenRAC server, host:port.
+//   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
+//           empty or invalid: the launcher's Multiplayer name.
+
 #include <ctime>
 #include <memory>
 

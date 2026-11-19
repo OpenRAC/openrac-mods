@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * A save a party starts from (save_check.hpp): what passes and what does not, and what the game
- * does with one that does not. MP_REAL_SAVES=<folder> also runs every save<n>.bin under it that is
- * a played slot (an empty slot's level is -1).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// A save a party starts from (save_check.hpp): what passes and what does not, and what the game
+// does with one that does not. MP_REAL_SAVES=<folder> also runs every save<n>.bin under it that is
+// a played slot (an empty slot's level is -1).
+
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>

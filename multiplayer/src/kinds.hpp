@@ -1,27 +1,27 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The wire registry: every kind of DATA (the first payload byte the server forwards as it is), who
- * owns it, and the router that hands a received DATA to its owner.
- *
- * One table is the truth. A kind is a number in a range one owner holds; no two kinds share a value
- * (static_asserts below, and tests/kinds_test.cpp over the whole table). A feature that adds a
- * message takes its numbers from its own range only; one that runs out asks the lead to widen the
- * range here. The enums of each file (session.hpp's LobbyKind, coop.hpp's GameKind, world.hpp's
- * WorldKind, party_mods.hpp's ModsKind, progress.hpp's kProgressKind, comfort.hpp's kComfortKind)
- * take their values from the `kind::` names, so a number is written once.
- *
- * Reserved ranges (free until their package lands):
- *    36-39 shared progress, 44-47 late join, 48-51 shots,
- *    52-55 camera (54 and 55 free), 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
- *    64-67), 71-72 the world's second range, 80-83 the team tools (comfort.hpp: rescue, rally
- *    points; 80 is multiplayer 0.8.0's, 81-83 free); free: 0, 73-79, 84-127 (and 128-255, which
- *    the wire does not use). Late join uses 44 to 46 (47 is free).
- *
- * Routing: Router::dispatch looks the owner of the first byte up in the table and calls what that
- * owner registered; a kind nobody registered goes to the fallback (the co-op), as a DATA the
- * registry does not know always did.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The wire registry: every kind of DATA (the first payload byte the server forwards as it is), who
+// owns it, and the router that hands a received DATA to its owner.
+//
+// One table is the truth. A kind is a number in a range one owner holds; no two kinds share a value
+// (static_asserts below, and tests/kinds_test.cpp over the whole table). A feature that adds a
+// message takes its numbers from its own range only; one that runs out asks the lead to widen the
+// range here. The enums of each file (session.hpp's LobbyKind, coop.hpp's GameKind, world.hpp's
+// WorldKind, party_mods.hpp's ModsKind, progress.hpp's kProgressKind, comfort.hpp's kComfortKind)
+// take their values from the `kind::` names, so a number is written once.
+//
+// Reserved ranges (free until their package lands):
+//    36-39 shared progress, 44-47 late join, 48-51 shots,
+//    52-55 camera (54 and 55 free), 56-59 tether, 60-63 the party's rules, 68-70 lobby (read by the Session, as
+//    64-67), 71-72 the world's second range, 80-83 the team tools (comfort.hpp: rescue, rally
+//    points; 80 is multiplayer 0.8.0's, 81-83 free); free: 0, 73-79, 84-127 (and 128-255, which
+//    the wire does not use). Late join uses 44 to 46 (47 is free).
+//
+// Routing: Router::dispatch looks the owner of the first byte up in the table and calls what that
+// owner registered; a kind nobody registered goes to the fallback (the co-op), as a DATA the
+// registry does not know always did.
+
 #ifndef MULTIPLAYER_KINDS_H
 #define MULTIPLAYER_KINDS_H
 

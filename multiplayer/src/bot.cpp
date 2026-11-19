@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The test bot (bot.hpp): development builds only. POSIX sockets: the end-to-end tests run on
- * Linux and macOS.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The test bot (bot.hpp): development builds only. POSIX sockets: the end-to-end tests run on
+// Linux and macOS.
+
 #ifdef MULTIPLAYER_BOT
 
 #include "bot.hpp"

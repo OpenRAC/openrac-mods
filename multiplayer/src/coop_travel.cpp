@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Playing together (coop.hpp): the level followed, the barrier and the ship's travel.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Playing together (coop.hpp): the level followed, the barrier and the ship's travel.
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

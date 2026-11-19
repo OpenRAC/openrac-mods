@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The mods a party has to agree on (party_mods.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The mods a party has to agree on (party_mods.hpp).
+
 #include "party_mods.hpp"
 
 #include <algorithm>

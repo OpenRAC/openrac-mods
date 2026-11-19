@@ -1,13 +1,13 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The mod code of the set in place: the launcher leaves <data>/plugins/modset.json for the game
- * when a player shares its mods, and takes it away when they change. The game shows the code on
- * the host's Rules page and, passed on in MODS, on a refused player's page, only while what this
- * game runs is what the file names: the file is the launcher's word, and it is checked, not trusted.
- * The other way round, a host's code is only ever text of a code's shape: a member makes the link
- * from it, so no party can hand a player a link to anywhere else.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The mod code of the set in place: the launcher leaves <data>/plugins/modset.json for the game
+// when a player shares its mods, and takes it away when they change. The game shows the code on
+// the host's Rules page and, passed on in MODS, on a refused player's page, only while what this
+// game runs is what the file names: the file is the launcher's word, and it is checked, not trusted.
+// The other way round, a host's code is only ever text of a code's shape: a member makes the link
+// from it, so no party can hand a player a link to anywhere else.
+
 #ifndef MULTIPLAYER_MODCODE_H
 #define MULTIPLAYER_MODCODE_H
 

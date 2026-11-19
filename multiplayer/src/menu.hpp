@@ -1,13 +1,13 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The pages' logic that needs no game (multiplayer.cpp draws them): which of Home's items the
- * connection allows, the status line's words, and the lines of the pause menu's Multiplayer page. Header only, so the tests use it as the pages do.
- *
- * Only Find match, Create match and Join by code depend on the OpenRAC server. Direct connect (and
- * Host directly, Join by address) never do: they are always selectable, and the server's state
- * never shows on their pages.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The pages' logic that needs no game (multiplayer.cpp draws them): which of Home's items the
+// connection allows, the status line's words, and the lines of the pause menu's Multiplayer page. Header only, so the tests use it as the pages do.
+//
+// Only Find match, Create match and Join by code depend on the OpenRAC server. Direct connect (and
+// Host directly, Join by address) never do: they are always selectable, and the server's state
+// never shows on their pages.
+
 #ifndef MULTIPLAYER_MENU_H
 #define MULTIPLAYER_MENU_H
 

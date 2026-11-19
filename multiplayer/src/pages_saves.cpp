@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's pages: Saves (multiplayer.cpp's header says what each page is), and from
- * it Continue as host: the party's own saves (cosave.hpp), any of which a player can host from.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's pages: Saves (multiplayer.cpp's header says what each page is), and from
+// it Continue as host: the party's own saves (cosave.hpp), any of which a player can host from.
+
 #include "mod_state.hpp"
 
 namespace mpmod {

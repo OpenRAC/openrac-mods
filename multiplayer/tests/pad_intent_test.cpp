@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The pages' events as the player meant them (pad_intent.hpp): what the pad's report says, and the
- * event a page is given for each event the port sends with it.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The pages' events as the player meant them (pad_intent.hpp): what the pad's report says, and the
+// event a page is given for each event the port sends with it.
+
 #include <array>
 #include <cstdint>
 #include <cstdio>

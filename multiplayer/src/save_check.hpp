@@ -1,12 +1,12 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * A save a party starts from, checked before the game loads it. The check is the SDK's
- * (openrac/games/rac1_save.h), the one the port runs before play_start and coop_save_write, so a
- * save has one answer everywhere: the size, the two sizes at its front, each part's checksum, every
- * block's id and size in the game's own order, and the values the game uses as an index or a count.
- * These are the co-op's names for it. Nothing here needs a game: tests/play_save_test.cpp.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// A save a party starts from, checked before the game loads it. The check is the SDK's
+// (openrac/games/rac1_save.h), the one the port runs before play_start and coop_save_write, so a
+// save has one answer everywhere: the size, the two sizes at its front, each part's checksum, every
+// block's id and size in the game's own order, and the values the game uses as an index or a count.
+// These are the co-op's names for it. Nothing here needs a game: tests/play_save_test.cpp.
+
 #ifndef MULTIPLAYER_SAVE_CHECK_H
 #define MULTIPLAYER_SAVE_CHECK_H
 

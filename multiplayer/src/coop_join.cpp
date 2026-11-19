@@ -1,16 +1,16 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Playing together (coop.hpp): the PLAY sent, the joining and the rejoin, being put beside the host
- * and starting again.
- *
- * The place (the host's word, and only its word: the member's game finds the spot itself, as a
- * spot means something only against a level as it stands, and asks the port to put the hero
- * there). The host keeps its last safe pose and answers what is asked; each asking has a ticket, so
- * an answer to an earlier one moves nobody. Ways out, for a joiner: its own Start, the host's ship
- * leaving, kPlaceMostMs; all leave it where the ship or the level's start put it, which is its
- * fallback too when no spot exists. For Go to host, the fallback is that landing place.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Playing together (coop.hpp): the PLAY sent, the joining and the rejoin, being put beside the host
+// and starting again.
+//
+// The place (the host's word, and only its word: the member's game finds the spot itself, as a
+// spot means something only against a level as it stands, and asks the port to put the hero
+// there). The host keeps its last safe pose and answers what is asked; each asking has a ticket, so
+// an answer to an earlier one moves nobody. Ways out, for a joiner: its own Start, the host's ship
+// leaving, kPlaceMostMs; all leave it where the ship or the level's start put it, which is its
+// fallback too when no spot exists. For Go to host, the fallback is that landing place.
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

@@ -1,16 +1,16 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Playing together (coop.hpp): waits for others, and going on without them.
- *
- * A wait is the host's to name. While players stand held for others (the party arriving on a planet
- * with some still on their way; a scene that others still play), the host gives the wait an id and
- * says who it holds (WAIT_VOTE): those not being waited for. Each of them may press Start. The host's
- * ends the wait at once. A member's is a vote; more than half of those held end it. A skip of a wait
- * is no skip of anything else: the players still on their way arrive when they arrive, and whoever
- * still plays a scene plays it to its end (only the host skips a scene, coop_scenes.cpp); those who
- * waited simply have their control back.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Playing together (coop.hpp): waits for others, and going on without them.
+//
+// A wait is the host's to name. While players stand held for others (the party arriving on a planet
+// with some still on their way; a scene that others still play), the host gives the wait an id and
+// says who it holds (WAIT_VOTE): those not being waited for. Each of them may press Start. The host's
+// ends the wait at once. A member's is a vote; more than half of those held end it. A skip of a wait
+// is no skip of anything else: the players still on their way arrive when they arrive, and whoever
+// still plays a scene plays it to its end (only the host skips a scene, coop_scenes.cpp); those who
+// waited simply have their control back.
+
 #include <algorithm>
 #include <string>
 

@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The verbose log (trace.hpp): its lines, at most kTraceLinesPerSecond a second.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The verbose log (trace.hpp): its lines, at most kTraceLinesPerSecond a second.
+
 #include "trace.hpp"
 
 #include <cstdio>

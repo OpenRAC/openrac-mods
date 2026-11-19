@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The world's verbose log (world.hpp, trace.hpp): each tick, after the world's own, what the game
- * is doing (pause), how its run list treated the mobys (run), what changed of each (vis, drive),
- * and every second a census.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The world's verbose log (world.hpp, trace.hpp): each tick, after the world's own, what the game
+// is doing (pause), how its run list treated the mobys (run), what changed of each (vis, drive),
+// and every second a census.
+
 #include <cstdio>
 
 #include "world.hpp"

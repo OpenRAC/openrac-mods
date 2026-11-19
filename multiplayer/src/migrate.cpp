@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Losing a connection, coming back, and the party going on without its host (migrate.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Losing a connection, coming back, and the party going on without its host (migrate.hpp).
+
 #include "migrate.hpp"
 
 #include <algorithm>

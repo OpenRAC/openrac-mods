@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 // PAL language selection, the real font's repertoire, UI byte limits and localized page states.
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

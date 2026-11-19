@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's game, for the co-op (coop.hpp's Game, on interface 1.8's play calls and the
- * ones after): what each of the co-op's questions asks the SDK. Its definitions are in
- * game_adapter.cpp.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's game, for the co-op (coop.hpp's Game, on interface 1.8's play calls and the
+// ones after): what each of the co-op's questions asks the SDK. Its definitions are in
+// game_adapter.cpp.
+
 #ifndef MULTIPLAYER_GAME_ADAPTER_H
 #define MULTIPLAYER_GAME_ADAPTER_H
 

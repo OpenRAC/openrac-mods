@@ -1,34 +1,34 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The party's shared progress (progress.cpp): what one player gets, every player has. The items
- * owned (weapons, gadgets, the packs: whatever the game gave, bought or found), the gold bolts
- * collected (and so their count) and the planets unlocked. No socket and no game here: given the
- * Session, the Game and the Coop, on the game's thread, once a tick.
- *
- * Host-authoritative. Each game reads its own progress a few times a second. A member tells the
- * host what it has (PROGRESS) when that changes and every few seconds; the host gives its own game
- * what a member has that it lacks, and tells every member what the party has (its own game's
- * progress, PROGRESS to all) when that changes and every few seconds. A member gives its game what
- * the host's has that it lacks; nothing is ever taken away. An item is given as the game gives it
- * (GiveItem: its banner, its starting ammo, the vendor's mark; not put in hand), a planet unlocked
- * as the game unlocks one, a gold bolt marked collected (its count follows; one placed in a level
- * not reached yet is gone when that level loads). Given while the player is in control only (no
- * menu, scene or load in the way). Nothing is written to any memory card: the progress lives in
- * each game's memory, and a member who joins later gets it with the host's live save.
- *
- * What the party had when a member arrived is not news: while a late joiner joins and for a while
- * after (Coop::quiet_gifts: what changed between the save it was given and its arrival) it is given
- * at once and silently, with no banner, no sound and nothing to wait for.
- *
- * A gold bolt's pickup scene is the collector's alone: the game plays it in its level's play mode
- * (CameraScript, not a scene of the level's), so the co-op neither shares it (SCENE) nor waits for
- * it; the gold bolt moby is a pickup (world.hpp), gone from every game when taken.
- *
- * DATA kind 23 PROGRESS: items u8 count, then a byte each; gold bolts u8 count, a byte each;
- * planets u8 count, a byte each (non-zero had). A member's to the host (what it has), the host's to
- * everyone (what the party has).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The party's shared progress (progress.cpp): what one player gets, every player has. The items
+// owned (weapons, gadgets, the packs: whatever the game gave, bought or found), the gold bolts
+// collected (and so their count) and the planets unlocked. No socket and no game here: given the
+// Session, the Game and the Coop, on the game's thread, once a tick.
+//
+// Host-authoritative. Each game reads its own progress a few times a second. A member tells the
+// host what it has (PROGRESS) when that changes and every few seconds; the host gives its own game
+// what a member has that it lacks, and tells every member what the party has (its own game's
+// progress, PROGRESS to all) when that changes and every few seconds. A member gives its game what
+// the host's has that it lacks; nothing is ever taken away. An item is given as the game gives it
+// (GiveItem: its banner, its starting ammo, the vendor's mark; not put in hand), a planet unlocked
+// as the game unlocks one, a gold bolt marked collected (its count follows; one placed in a level
+// not reached yet is gone when that level loads). Given while the player is in control only (no
+// menu, scene or load in the way). Nothing is written to any memory card: the progress lives in
+// each game's memory, and a member who joins later gets it with the host's live save.
+//
+// What the party had when a member arrived is not news: while a late joiner joins and for a while
+// after (Coop::quiet_gifts: what changed between the save it was given and its arrival) it is given
+// at once and silently, with no banner, no sound and nothing to wait for.
+//
+// A gold bolt's pickup scene is the collector's alone: the game plays it in its level's play mode
+// (CameraScript, not a scene of the level's), so the co-op neither shares it (SCENE) nor waits for
+// it; the gold bolt moby is a pickup (world.hpp), gone from every game when taken.
+//
+// DATA kind 23 PROGRESS: items u8 count, then a byte each; gold bolts u8 count, a byte each;
+// planets u8 count, a byte each (non-zero had). A member's to the host (what it has), the host's to
+// everyone (what the party has).
+
 #ifndef MULTIPLAYER_PROGRESS_H
 #define MULTIPLAYER_PROGRESS_H
 

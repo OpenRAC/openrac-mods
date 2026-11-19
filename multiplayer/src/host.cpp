@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Direct connect's embedded host (host.hpp): the server's party routing for one party, in the
- * hosting game. Each piece follows its Java counterpart in the Server repository: the packet
- * checks and limits of ServerPacketHandler, the joins and leaves of PartyController, the routing
- * of Party.forward, and the datagrams of ServerDatagramHandler and Session.sendState.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Direct connect's embedded host (host.hpp): the server's party routing for one party, in the
+// hosting game. Each piece follows its Java counterpart in the Server repository: the packet
+// checks and limits of ServerPacketHandler, the joins and leaves of PartyController, the routing
+// of Party.forward, and the datagrams of ServerDatagramHandler and Session.sendState.
+
 #include "host.hpp"
 
 #include <algorithm>

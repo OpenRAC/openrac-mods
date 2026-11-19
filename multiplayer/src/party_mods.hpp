@@ -1,44 +1,44 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The mods a party has to agree on (party_mods.cpp). Every game of a party must play the same game:
- * the same build, and the same gameplay mods at the same versions with the same gameplay settings.
- * Input and cosmetic mods are each player's own, and so are the settings a mod declares its own or
- * the host's (its manifest's "multiplayer", OpenRAC's MODS.md section 3). No socket and no game
- * here: given the Session and the Game, on the game's thread, once a tick.
- *
- * Over DATA, the host's word first:
- *   29 MODS   multiplayer's version, OpenRAC's and the disc (3 strings), count u8, then per mod: id,
- *             name, version (strings), kind u8 (OPENRAC_PARTY_MOD_*), settings u8, per setting: key,
- *             name, value, shown (strings), kind u8 (OPENRAC_PARTY_SETTING_*), default u8; then the
- *             world family (string), the mod code (string, "" for none: modcode.hpp), the sender's
- *             key (string: a member's, "" from the host), count u8, then per data pack: id, name,
- *             version (strings), digest i32
- *             a member to the host every kModsMs until the host's comes; the host's to that member;
- *   30 FITS   count u8, then id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string)
- *             the host to everyone, at each change;
- *   31 RULES  count u8, then per mod: id, length u16 + its bytes, its words (a string)
- *             the host to one member it found matching, and to all whenever its mods publish new
- *             rules (a Chaos event). On the reliable stream ahead of PLAY: a member has them before
- *             it loads any level.
- *
- * Data packs. Those that change the game (the SDK's packs_info: gameplay data, collision, a map) are
- * compared as gameplay mods are, in order, by what they hold: a pack that holds the same on two discs
- * has the same digest. One of looks alone is each player's own, and the port does not list it.
- *
- * Discs. Two discs of one world family (openrac_api.world_family) play together: the check, the
- * digest and the build follow the family, and the disc is only said. A level that still does not
- * agree is found as it loads (World, sim digest).
- *
- * The check. The host compares each member's MODS with its own (compare_mods) and tells everyone
- * (FITS); a member compares for itself too, for the words on its page. The host takes no Ready of a
- * member that differs, or has said nothing, which holds Start, and gives it no game (Coop's gate).
- * The mods' digest is also in the build PLAY carries, so a game that slipped past is still refused.
- *
- * The rules. A mod publishes its rules in every game (openrac_api.party_rules_publish); a host's
- * mods' go to the members, whose same mods take them (party_rules_deliver) for as long as the party
- * lasts, through any level load or respawn, and are told when it goes.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The mods a party has to agree on (party_mods.cpp). Every game of a party must play the same game:
+// the same build, and the same gameplay mods at the same versions with the same gameplay settings.
+// Input and cosmetic mods are each player's own, and so are the settings a mod declares its own or
+// the host's (its manifest's "multiplayer", OpenRAC's MODS.md section 3). No socket and no game
+// here: given the Session and the Game, on the game's thread, once a tick.
+//
+// Over DATA, the host's word first:
+//   29 MODS   multiplayer's version, OpenRAC's and the disc (3 strings), count u8, then per mod: id,
+//             name, version (strings), kind u8 (OPENRAC_PARTY_MOD_*), settings u8, per setting: key,
+//             name, value, shown (strings), kind u8 (OPENRAC_PARTY_SETTING_*), default u8; then the
+//             world family (string), the mod code (string, "" for none: modcode.hpp), the sender's
+//             key (string: a member's, "" from the host), count u8, then per data pack: id, name,
+//             version (strings), digest i32
+//             a member to the host every kModsMs until the host's comes; the host's to that member;
+//   30 FITS   count u8, then id i32, fit u8 (0 unknown, 1 they match, 2 they differ), why (string)
+//             the host to everyone, at each change;
+//   31 RULES  count u8, then per mod: id, length u16 + its bytes, its words (a string)
+//             the host to one member it found matching, and to all whenever its mods publish new
+//             rules (a Chaos event). On the reliable stream ahead of PLAY: a member has them before
+//             it loads any level.
+//
+// Data packs. Those that change the game (the SDK's packs_info: gameplay data, collision, a map) are
+// compared as gameplay mods are, in order, by what they hold: a pack that holds the same on two discs
+// has the same digest. One of looks alone is each player's own, and the port does not list it.
+//
+// Discs. Two discs of one world family (openrac_api.world_family) play together: the check, the
+// digest and the build follow the family, and the disc is only said. A level that still does not
+// agree is found as it loads (World, sim digest).
+//
+// The check. The host compares each member's MODS with its own (compare_mods) and tells everyone
+// (FITS); a member compares for itself too, for the words on its page. The host takes no Ready of a
+// member that differs, or has said nothing, which holds Start, and gives it no game (Coop's gate).
+// The mods' digest is also in the build PLAY carries, so a game that slipped past is still refused.
+//
+// The rules. A mod publishes its rules in every game (openrac_api.party_rules_publish); a host's
+// mods' go to the members, whose same mods take them (party_rules_deliver) for as long as the party
+// lasts, through any level load or respawn, and are told when it goes.
+
 #ifndef MULTIPLAYER_PARTY_MODS_H
 #define MULTIPLAYER_PARTY_MODS_H
 

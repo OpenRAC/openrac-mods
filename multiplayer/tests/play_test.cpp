@@ -19,6 +19,7 @@
 //     level; a member back in the title asks again (WANT) and gets the host's progress; one who
 //     joins late gets it unasked; poses pass through the host to the others and become figures in
 //     the same level only, which go with the level, the silence or the party.
+
 #include "test_support.hpp"
 
 int g_failures = 0;

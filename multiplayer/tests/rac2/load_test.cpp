@@ -9,6 +9,7 @@
 // Slots the table leaves empty are ones the mod must not call here: a call would crash the test.
 //
 // Run with the library's path: multiplayer_rac2_load_test <multiplayer.dylib|.so|.dll>.
+
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>

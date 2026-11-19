@@ -5,6 +5,7 @@
 // other files test those), and a party's description that names the game, so each game keeps to its
 // own parties: Ratchet & Clank's untagged and digest-tagged ones are its own, Going Commando's only
 // those tagged rac2.
+
 #include "../test_support.hpp"
 
 namespace mpt {

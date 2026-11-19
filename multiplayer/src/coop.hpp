@@ -1,119 +1,119 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Playing together (coop.cpp): the game started for the whole party, everyone kept in the host's
- * level, each player's Ratchet sent to the others, and the others shown as figures (puppets) in
- * one's own level. No socket and no game here: it is given the Session and a Game (the SDK's play
- * calls in the mod, a fake in the tests), on the game's thread, once a tick.
- *
- * The game's own kinds of DATA (after the lobby's 1 to 3, session.hpp), the host's word first:
- *   4 PLAY   play i32, mode u8 (0 a new game, 1 a save), level i32, save size i32, build string,
- *            joining u8
- *            the host to everyone (at Start) or to one member (who came late, or asked): play this;
- *            a save follows in CHUNKs. `play` names the host's game: a member plays each once.
- *            `joining`: the game is on, this member comes into it (below).
- *   5 CHUNK  play i32, offset i32, bytes        a piece of PLAY's save, at most kChunkBytes;
- *   6 LEVEL  play i32, level i32, scene u8, travel u16, dest i32, arriving u8
- *            the host to everyone, once a second and at each change: the level it plays (-1 none),
- *            whether it plays a scene, its last ship travel (a count, and the planet it flies to)
- *            and whether the party is still arriving there; a member in another level travels
- *            there, and a member who has not left for the host's newest travel leaves at once;
- *   7 POSE   (play.hpp)                         each player's Ratchet, as state: a member's to the
- *            host, who passes everyone's on to everyone;
- *   8 WANT   play i32                           a member in the title's menus that has not played
- *            the host's game (it left it, or missed PLAY) asks for it again;
- *  18 SKIP   origin i32, sequence u16, play i32, what u8, scene u16
- *            the host pressed Start in a scene or a movie: to everyone (a member's, from an older
- *            build, the host ignores); each game skips the scene or movie it plays (the host's own
- *            is already skipping), and only that one: `what` says what it was pressed
- *            in (kSkipOther a scene of its game's own, kSkipShared the host's scene `scene`, by
- *            SCENE's sequence, kSkipMovie a movie). A skip of an older scene of the host's, of
- *            another play, or without these (an older build) skips nothing.
- *  20 SCENE  play i32, level i32, scene i32, sequence u16, elapsed u32
- *            the host to everyone, when an in-level scene starts in its game (the level's number of
- *            it, a new sequence each start), once a second while it plays, and when it ends (scene
- *            -1): `elapsed` the ms it has played; a member in that level plays the same scene
- *            (coop_scenes.cpp).
- *  21 SCENE_STATE play i32, sequence u16, state u8
- *            a member to the host, at each change and once a second while it knows of a host's
- *            scene: where it is with the host's scene `sequence` (kScenePending to play,
- *            kScenePlaying, kSceneOut played, skipped or given up); the host's barrier waits for
- *            those of its newest scene only (a word of an older one is no word of this one).
- *  44 PLACE  play i32, ticket u16, answer u8, position 3 x f32, yaw f32
- *            the host to a member who asked: where to stand (coop_join.cpp, kPlace*);
- *  45 PLACE_ASK play i32, ticket u16, last u8
- *            a member to the host, twice a second while it is to be put beside the host; `last`:
- *            it waited long enough, the host's last safe spot will do;
- *  46 WAIT_VOTE play i32, wait u16; from the host then kind u8, votes u8, voters u8, passed u8
- *            a player held by a wait for others (coop_wait.cpp): a member's vote to go on without
- *            them; the host's word of the wait, at each change and once a second;
- *  25 POSES  count u8, then per pose length u16 + its POSE
- *            the host to everyone, as state, every kPoseMs: its own Ratchet's and the members'
- *            newest, in one datagram (each POSE on its own would be 20 a second a player of the
- *            server's 60 a second for the host); a game skips its own. With one member there is
- *            nobody to pass poses on to, and a POSE goes.
- * A member's DATA always reaches the host only; the host's goes to everyone or to one.
- *
- * The host plays what Create match chose: a new game (the first level) or a save of its memory
- * card. A member starts the same from the title (play_start), its own card untouched. Joining a
- * game that is on, a member gets the host's progress as it is now (save_capture), in the host's
- * level. A member whose build differs from the host's (the mod, OpenRAC, the world family, the gameplay mods'
- * digest: party_mods.hpp) refuses it, and the host gives no game to one the gate says differs.
- * Scenes and movies end together: only the host skips them. Its Start in a scene or a movie skips
- * it in every game (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed
- * for the movie player); a member's Start there does nothing (the pad's Start taken out of the
- * report: start_blocked) but say "Only the host can skip". When the host is out of its scene, a
- * member still in one is skipped too. While this game plays a scene the other players' figures are
- * hidden, their pieces with them, and their shots dropped; shown again after it. Then nobody
- * moves on until everyone is out (the barrier: a player out first has no control, for at most
- * kBarrierMs, a member while the host's scene goes on).
- * The level's own scenes play in every game: the scenes the level's mobys start (a person spoken
- * to, a place reached, Veldin's opening) run in the host's game only, since the members' copies of
- * those mobys are driven from the host's (world.hpp), so the host says which scene starts (SCENE)
- * and a member in the same level starts it too, from its start, through the game's own start
- * (play_scene), as soon as its player is in control (late: from the start all the same, the
- * barrier waiting for it). A member's scene that started late is skipped after the host's ends
- * only once it had as long as it was late, so it plays out; the host's skip skips it at once.
- * Travel. Only the host flies the ship while the party plays: a member's planet select to another
- * planet lands the ship again where it is (ship_travel says no). When the host's ship leaves for
- * another planet, every member leaves its level that moment, from wherever it is (playing, a scene,
- * the pause menu, a vendor: the game's own way out of a level, then its flight and its landing),
- * and the party arrives together: until every member who was in the host's game is in the new
- * level (or kArriveMs went by), nobody has control once out of its landing, no figure is shown and
- * the host's world sends nothing (world.hpp), so nothing of the old level carries over and nothing
- * of the new one moves before all are in. A member is told kTravelWarnMs before it is pulled away:
- * the banner names the planet, and it leaves when that is up (the host's take-off plays meanwhile).
- * Joining. A member that comes into a game already on has none of the party's scenes to play and
- * nobody to wait for it. Its game loads the host's level from the host's live save, which has
- * everything it must get past on the way: the game's movies, the ship's landing, whatever story
- * scene the level's mobys start at their first update. From PLAY's `joining` until it stands in the
- * host's level with the host's world (World's SYNCED), this game presses through all of it by
- * itself (Start for a movie, the game's own skip for a scene), says no scene of the host's is its
- * to play, tells no scene in its poses, and is held by nothing, so no other player waits on it; the
- * "only the host skips" rule is for scenes the party plays together, which this is not.
- * Then it stays held, the banner saying so, until the host stands somewhere safe (on the level's
- * ground, not in a scene, not arriving: the pose's kPoseSteady, at most kSafeFreshMs ago), and is
- * put beside the host for a moment of safety (no DAMAGE, kShieldMs). After kPlaceWaitMs without such
- * a spot, the host's last safe one; with none in this level load, it stays where the ship or the
- * level's start put it. A host's scene does not use up that wait: it is waited out and not replayed,
- * and the joiner's own Start ends the wait where it stands. A port that cannot place the hero:
- * no wait, as before. Whatever comes to this game while it joins and for kQuietMs after (the
- * party's progress) comes without its banners (Game::quiet_gifts).
- * Go to host. A member in the host's level may ask to be put beside the host at any time, by the
- * same answers, from the pause page; the hero moves once the menu is closed. No spot: the place
- * this game landed in the level.
- * Starting again. The host, back in the title with the party still there, may Start again: a new
- * `play`. A member in a level leaves it for the title and starts the new game from there.
- * Waits. A player held for others can press Start: the host goes on at once, a member's is a vote
- * (coop_wait.cpp).
- * Leaving. A player whose party goes while it plays the party's game (it left, the host ended the
- * party, the connection went) leaves its level for the title at once, from wherever it is (playing,
- * a scene, the pause menu: play_travel(-1)), and the title opens the mod's Multiplayer page (Home):
- * the host leaving takes everyone there, a member leaving only itself (the host's party goes on
- * with the others). A player in the title's pages (the lobby) stays where it is. While the
- * party plays, no game pauses: the pause menu and the game's dialogs open over a world that keeps
- * running (the SDK's play_overlay_pause), so a player in a menu never stops the others.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Playing together (coop.cpp): the game started for the whole party, everyone kept in the host's
+// level, each player's Ratchet sent to the others, and the others shown as figures (puppets) in
+// one's own level. No socket and no game here: it is given the Session and a Game (the SDK's play
+// calls in the mod, a fake in the tests), on the game's thread, once a tick.
+//
+// The game's own kinds of DATA (after the lobby's 1 to 3, session.hpp), the host's word first:
+//   4 PLAY   play i32, mode u8 (0 a new game, 1 a save), level i32, save size i32, build string,
+//            joining u8
+//            the host to everyone (at Start) or to one member (who came late, or asked): play this;
+//            a save follows in CHUNKs. `play` names the host's game: a member plays each once.
+//            `joining`: the game is on, this member comes into it (below).
+//   5 CHUNK  play i32, offset i32, bytes        a piece of PLAY's save, at most kChunkBytes;
+//   6 LEVEL  play i32, level i32, scene u8, travel u16, dest i32, arriving u8
+//            the host to everyone, once a second and at each change: the level it plays (-1 none),
+//            whether it plays a scene, its last ship travel (a count, and the planet it flies to)
+//            and whether the party is still arriving there; a member in another level travels
+//            there, and a member who has not left for the host's newest travel leaves at once;
+//   7 POSE   (play.hpp)                         each player's Ratchet, as state: a member's to the
+//            host, who passes everyone's on to everyone;
+//   8 WANT   play i32                           a member in the title's menus that has not played
+//            the host's game (it left it, or missed PLAY) asks for it again;
+//  18 SKIP   origin i32, sequence u16, play i32, what u8, scene u16
+//            the host pressed Start in a scene or a movie: to everyone (a member's, from an older
+//            build, the host ignores); each game skips the scene or movie it plays (the host's own
+//            is already skipping), and only that one: `what` says what it was pressed
+//            in (kSkipOther a scene of its game's own, kSkipShared the host's scene `scene`, by
+//            SCENE's sequence, kSkipMovie a movie). A skip of an older scene of the host's, of
+//            another play, or without these (an older build) skips nothing.
+//  20 SCENE  play i32, level i32, scene i32, sequence u16, elapsed u32
+//            the host to everyone, when an in-level scene starts in its game (the level's number of
+//            it, a new sequence each start), once a second while it plays, and when it ends (scene
+//            -1): `elapsed` the ms it has played; a member in that level plays the same scene
+//            (coop_scenes.cpp).
+//  21 SCENE_STATE play i32, sequence u16, state u8
+//            a member to the host, at each change and once a second while it knows of a host's
+//            scene: where it is with the host's scene `sequence` (kScenePending to play,
+//            kScenePlaying, kSceneOut played, skipped or given up); the host's barrier waits for
+//            those of its newest scene only (a word of an older one is no word of this one).
+//  44 PLACE  play i32, ticket u16, answer u8, position 3 x f32, yaw f32
+//            the host to a member who asked: where to stand (coop_join.cpp, kPlace*);
+//  45 PLACE_ASK play i32, ticket u16, last u8
+//            a member to the host, twice a second while it is to be put beside the host; `last`:
+//            it waited long enough, the host's last safe spot will do;
+//  46 WAIT_VOTE play i32, wait u16; from the host then kind u8, votes u8, voters u8, passed u8
+//            a player held by a wait for others (coop_wait.cpp): a member's vote to go on without
+//            them; the host's word of the wait, at each change and once a second;
+//  25 POSES  count u8, then per pose length u16 + its POSE
+//            the host to everyone, as state, every kPoseMs: its own Ratchet's and the members'
+//            newest, in one datagram (each POSE on its own would be 20 a second a player of the
+//            server's 60 a second for the host); a game skips its own. With one member there is
+//            nobody to pass poses on to, and a POSE goes.
+// A member's DATA always reaches the host only; the host's goes to everyone or to one.
+//
+// The host plays what Create match chose: a new game (the first level) or a save of its memory
+// card. A member starts the same from the title (play_start), its own card untouched. Joining a
+// game that is on, a member gets the host's progress as it is now (save_capture), in the host's
+// level. A member whose build differs from the host's (the mod, OpenRAC, the world family, the gameplay mods'
+// digest: party_mods.hpp) refuses it, and the host gives no game to one the gate says differs.
+// Scenes and movies end together: only the host skips them. Its Start in a scene or a movie skips
+// it in every game (SKIP: a scene through the game's own skip, play_skip; a movie by Start pressed
+// for the movie player); a member's Start there does nothing (the pad's Start taken out of the
+// report: start_blocked) but say "Only the host can skip". When the host is out of its scene, a
+// member still in one is skipped too. While this game plays a scene the other players' figures are
+// hidden, their pieces with them, and their shots dropped; shown again after it. Then nobody
+// moves on until everyone is out (the barrier: a player out first has no control, for at most
+// kBarrierMs, a member while the host's scene goes on).
+// The level's own scenes play in every game: the scenes the level's mobys start (a person spoken
+// to, a place reached, Veldin's opening) run in the host's game only, since the members' copies of
+// those mobys are driven from the host's (world.hpp), so the host says which scene starts (SCENE)
+// and a member in the same level starts it too, from its start, through the game's own start
+// (play_scene), as soon as its player is in control (late: from the start all the same, the
+// barrier waiting for it). A member's scene that started late is skipped after the host's ends
+// only once it had as long as it was late, so it plays out; the host's skip skips it at once.
+// Travel. Only the host flies the ship while the party plays: a member's planet select to another
+// planet lands the ship again where it is (ship_travel says no). When the host's ship leaves for
+// another planet, every member leaves its level that moment, from wherever it is (playing, a scene,
+// the pause menu, a vendor: the game's own way out of a level, then its flight and its landing),
+// and the party arrives together: until every member who was in the host's game is in the new
+// level (or kArriveMs went by), nobody has control once out of its landing, no figure is shown and
+// the host's world sends nothing (world.hpp), so nothing of the old level carries over and nothing
+// of the new one moves before all are in. A member is told kTravelWarnMs before it is pulled away:
+// the banner names the planet, and it leaves when that is up (the host's take-off plays meanwhile).
+// Joining. A member that comes into a game already on has none of the party's scenes to play and
+// nobody to wait for it. Its game loads the host's level from the host's live save, which has
+// everything it must get past on the way: the game's movies, the ship's landing, whatever story
+// scene the level's mobys start at their first update. From PLAY's `joining` until it stands in the
+// host's level with the host's world (World's SYNCED), this game presses through all of it by
+// itself (Start for a movie, the game's own skip for a scene), says no scene of the host's is its
+// to play, tells no scene in its poses, and is held by nothing, so no other player waits on it; the
+// "only the host skips" rule is for scenes the party plays together, which this is not.
+// Then it stays held, the banner saying so, until the host stands somewhere safe (on the level's
+// ground, not in a scene, not arriving: the pose's kPoseSteady, at most kSafeFreshMs ago), and is
+// put beside the host for a moment of safety (no DAMAGE, kShieldMs). After kPlaceWaitMs without such
+// a spot, the host's last safe one; with none in this level load, it stays where the ship or the
+// level's start put it. A host's scene does not use up that wait: it is waited out and not replayed,
+// and the joiner's own Start ends the wait where it stands. A port that cannot place the hero:
+// no wait, as before. Whatever comes to this game while it joins and for kQuietMs after (the
+// party's progress) comes without its banners (Game::quiet_gifts).
+// Go to host. A member in the host's level may ask to be put beside the host at any time, by the
+// same answers, from the pause page; the hero moves once the menu is closed. No spot: the place
+// this game landed in the level.
+// Starting again. The host, back in the title with the party still there, may Start again: a new
+// `play`. A member in a level leaves it for the title and starts the new game from there.
+// Waits. A player held for others can press Start: the host goes on at once, a member's is a vote
+// (coop_wait.cpp).
+// Leaving. A player whose party goes while it plays the party's game (it left, the host ended the
+// party, the connection went) leaves its level for the title at once, from wherever it is (playing,
+// a scene, the pause menu: play_travel(-1)), and the title opens the mod's Multiplayer page (Home):
+// the host leaving takes everyone there, a member leaving only itself (the host's party goes on
+// with the others). A player in the title's pages (the lobby) stays where it is. While the
+// party plays, no game pauses: the pause menu and the game's dialogs open over a world that keeps
+// running (the SDK's play_overlay_pause), so a player in a menu never stops the others.
+
 #ifndef MULTIPLAYER_COOP_H
 #define MULTIPLAYER_COOP_H
 

@@ -1,31 +1,31 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The one TCP connection to the OpenRAC server (connection.cpp), on a thread of its own.
- *
- * The game's thread never waits for the network: it queues frames (send) and takes the server's
- * messages (receive), both under a mutex. The connection's thread connects (TCP_NODELAY on),
- * writes what is queued, reads and cuts frames (protocol.hpp), and when the server is not there or
- * goes, tries again every few seconds. Each connection made is a new generation(): the session
- * says hello again, since the server knows nothing of the last one. Frames queued while there is
- * no connection are dropped, as a party's state on the server went with the connection.
- *
- * It links the session one of three ways (mode()): to the configured OpenRAC server (open, the
- * default), to another player's game by address (connect_direct, Direct connect), or to this
- * game's own embedded host (start_hosting, host.hpp), linked in-process: then it is connected at
- * once, the host's frames arrive through receive() as the server's would, and the session cannot
- * tell the difference. Each switch is a new generation, so the session says hello again.
- *
- * UDP: when the server (or a host) offers it (the UDP packet after HELLO), the thread binds a UDP
- * socket to the same address, sends BIND every kBindMs, and hands STATE datagrams in as DATA
- * messages. send_state sends game state as a STATE datagram, and also as TCP DATA until datagrams
- * come back (UDP is confirmed, udp()), so blocked UDP never loses state; once confirmed, UDP only.
- * Without a UDP offer (an older server), state goes as DATA.
- *
- * Testing a bad link: OPENRAC_MP_LAG="<ms>[,<jitter ms>]" holds each message the server sent for
- * that long more before receive() hands it on, plus a random extra of about the jitter (mostly
- * less, now and then several times it), in the order they came (a TCP stream's stall and burst).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The one TCP connection to the OpenRAC server (connection.cpp), on a thread of its own.
+//
+// The game's thread never waits for the network: it queues frames (send) and takes the server's
+// messages (receive), both under a mutex. The connection's thread connects (TCP_NODELAY on),
+// writes what is queued, reads and cuts frames (protocol.hpp), and when the server is not there or
+// goes, tries again every few seconds. Each connection made is a new generation(): the session
+// says hello again, since the server knows nothing of the last one. Frames queued while there is
+// no connection are dropped, as a party's state on the server went with the connection.
+//
+// It links the session one of three ways (mode()): to the configured OpenRAC server (open, the
+// default), to another player's game by address (connect_direct, Direct connect), or to this
+// game's own embedded host (start_hosting, host.hpp), linked in-process: then it is connected at
+// once, the host's frames arrive through receive() as the server's would, and the session cannot
+// tell the difference. Each switch is a new generation, so the session says hello again.
+//
+// UDP: when the server (or a host) offers it (the UDP packet after HELLO), the thread binds a UDP
+// socket to the same address, sends BIND every kBindMs, and hands STATE datagrams in as DATA
+// messages. send_state sends game state as a STATE datagram, and also as TCP DATA until datagrams
+// come back (UDP is confirmed, udp()), so blocked UDP never loses state; once confirmed, UDP only.
+// Without a UDP offer (an older server), state goes as DATA.
+//
+// Testing a bad link: OPENRAC_MP_LAG="<ms>[,<jitter ms>]" holds each message the server sent for
+// that long more before receive() hands it on, plus a random extra of about the jitter (mostly
+// less, now and then several times it), in the order they came (a TCP stream's stall and burst).
+
 #ifndef MULTIPLAYER_CONNECTION_H
 #define MULTIPLAYER_CONNECTION_H
 

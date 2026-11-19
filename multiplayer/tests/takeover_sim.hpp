@@ -3,6 +3,7 @@
 //
 // The party on a seeded network, its host gone at an awkward moment (migrate.hpp): what is wrong
 // once those left have played on and the link has settled stays wrong.
+
 #ifndef MULTIPLAYER_TAKEOVER_SIM_H
 #define MULTIPLAYER_TAKEOVER_SIM_H
 

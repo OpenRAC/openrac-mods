@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Two discs in one party: the check goes by the world the disc belongs to, a player never reads of a
- * disc that plays, and a level that does not agree is caught as it loads.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Two discs in one party: the check goes by the world the disc belongs to, a player never reads of a
+// disc that plays, and a level that does not agree is caught as it loads.
+
 #include <algorithm>
 
 #include "test_support.hpp"

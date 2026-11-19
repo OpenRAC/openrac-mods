@@ -4,6 +4,7 @@
 // Playing together, without the game or a socket: WORLD's delivery (acks, what goes again), its
 // priority, its share of the state budget and each stream's margin. A pair of games whose datagrams
 // the test delivers one by one, so a loss is the one the test means.
+
 #include "test_support.hpp"
 
 namespace mpt {

@@ -1,13 +1,13 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The names over the other players' figures: what a tag says and looks like, drawn through a
- * TagPainter so that it is tested without a game. multiplayer.cpp's painter is the port's overlay
- * (the SDK's openrac_overlay). Only figures that are shown have a tag, so a scene or a figure out
- * of the level has none, and the port draws none under a menu. A tag is for a player nearby in
- * plain view: it fades out with distance, and goes when the level stands between the camera and the
- * figure (TagSight).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The names over the other players' figures: what a tag says and looks like, drawn through a
+// TagPainter so that it is tested without a game. multiplayer.cpp's painter is the port's overlay
+// (the SDK's openrac_overlay). Only figures that are shown have a tag, so a scene or a figure out
+// of the level has none, and the port draws none under a menu. A tag is for a player nearby in
+// plain view: it fades out with distance, and goes when the level stands between the camera and the
+// figure (TagSight).
+
 #ifndef MULTIPLAYER_NAMETAGS_H
 #define MULTIPLAYER_NAMETAGS_H
 

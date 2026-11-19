@@ -1,49 +1,49 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The player's session on the OpenRAC server and the party it is in (session.cpp): what the lobby
- * shows, kept from the server's messages, and the player's actions turned into frames. No socket
- * and no thread: it is given a Transport and the messages, on the game's thread, so the tests drive
- * it with a recorder.
- *
- * Ready and Start are the mod's own, carried in DATA (the server only forwards it), one kind byte
- * first:
- *   1 READY  flag u8        a member to the host (the server sends a member's DATA to the host);
- *   2 STATE  count u8, then id i32 + flag u8 per member   the host to everyone: who is ready;
- *   3 START                 the host to everyone: the game starts;
- *  64 LINK   ping i32, udp u8   a member to the host: its round trip to the server (-1 not known
- *                              yet) and whether its game state goes by UDP;
- *  65 LINKS  count u8, then id i32 + ping i32 + udp u8 per member   the host to everyone: each
- *                              member's link (its own among them), each time one comes or the host
- *                              reports its own; for the pause menu's Multiplayer page;
- *  66 BATCH  then per message length u16 + its bytes   several of the game's messages for one
- *                              target in one DATA (below);
- *  67 KICK   reason u8         the host to the member it removes, ahead of the server's KICK (which
- *                              says nothing of why): removed, or banned from this save. A server
- *                              that takes no KICK (UDP's feature bits) has only this word: the
- *                              member leaves by itself.
- * Any other first byte is the game's own (coop.hpp: the game, the poses): handed as it is to the
- * callback set with on_data, and sent with send_data, with a monotonic clock (now_ms) to stamp it.
- *
- * Pacing. The server counts DATA and state by the packet: 60 a second each, over a burst of 120. A
- * DATA over it is dropped and a strike, and enough strikes close the connection; state over it goes
- * without a word. So the game's data goes through here, and nothing is sent the server would drop:
- * send_data queues, in order, and flush (once a tick) sends what is queued, messages for one target
- * side by side going as one DATA (BATCH), as far as a bucket a little below the server's allows; the
- * rest waits, late but whole. State is the next update's to replace, so send_state refuses one over
- * its own bucket (and says so: the world keeps it to send again), and the fallback of state over TCP
- * only takes what events leave.
- *
- * A dropped connection is no end (migrate.hpp). On a server that takes RESUME the session keeps its
- * party, its id and its token while the connection comes back, and asks for its slot before anything
- * else; nothing it sends goes meanwhile. The server's word on anyone's connection, and every change
- * in who hosts, are events for the party's own code to act on (take_events).
- *
- * The host's traffic carries the epoch once the party has changed hosts: 43 EPOCH, epoch u16, then
- * the message, DATA and state alike, so an old host's datagram on its way, or anything the old host
- * says should it come back, is refused here, ahead of everything the message would have changed.
- * The first host sends none, so a party that never changes hosts pays nothing.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The player's session on the OpenRAC server and the party it is in (session.cpp): what the lobby
+// shows, kept from the server's messages, and the player's actions turned into frames. No socket
+// and no thread: it is given a Transport and the messages, on the game's thread, so the tests drive
+// it with a recorder.
+//
+// Ready and Start are the mod's own, carried in DATA (the server only forwards it), one kind byte
+// first:
+//   1 READY  flag u8        a member to the host (the server sends a member's DATA to the host);
+//   2 STATE  count u8, then id i32 + flag u8 per member   the host to everyone: who is ready;
+//   3 START                 the host to everyone: the game starts;
+//  64 LINK   ping i32, udp u8   a member to the host: its round trip to the server (-1 not known
+//                              yet) and whether its game state goes by UDP;
+//  65 LINKS  count u8, then id i32 + ping i32 + udp u8 per member   the host to everyone: each
+//                              member's link (its own among them), each time one comes or the host
+//                              reports its own; for the pause menu's Multiplayer page;
+//  66 BATCH  then per message length u16 + its bytes   several of the game's messages for one
+//                              target in one DATA (below);
+//  67 KICK   reason u8         the host to the member it removes, ahead of the server's KICK (which
+//                              says nothing of why): removed, or banned from this save. A server
+//                              that takes no KICK (UDP's feature bits) has only this word: the
+//                              member leaves by itself.
+// Any other first byte is the game's own (coop.hpp: the game, the poses): handed as it is to the
+// callback set with on_data, and sent with send_data, with a monotonic clock (now_ms) to stamp it.
+//
+// Pacing. The server counts DATA and state by the packet: 60 a second each, over a burst of 120. A
+// DATA over it is dropped and a strike, and enough strikes close the connection; state over it goes
+// without a word. So the game's data goes through here, and nothing is sent the server would drop:
+// send_data queues, in order, and flush (once a tick) sends what is queued, messages for one target
+// side by side going as one DATA (BATCH), as far as a bucket a little below the server's allows; the
+// rest waits, late but whole. State is the next update's to replace, so send_state refuses one over
+// its own bucket (and says so: the world keeps it to send again), and the fallback of state over TCP
+// only takes what events leave.
+//
+// A dropped connection is no end (migrate.hpp). On a server that takes RESUME the session keeps its
+// party, its id and its token while the connection comes back, and asks for its slot before anything
+// else; nothing it sends goes meanwhile. The server's word on anyone's connection, and every change
+// in who hosts, are events for the party's own code to act on (take_events).
+//
+// The host's traffic carries the epoch once the party has changed hosts: 43 EPOCH, epoch u16, then
+// the message, DATA and state alike, so an old host's datagram on its way, or anything the old host
+// says should it come back, is refused here, ahead of everything the message would have changed.
+// The first host sends none, so a party that never changes hosts pays nothing.
+
 #ifndef MULTIPLAYER_SESSION_H
 #define MULTIPLAYER_SESSION_H
 

@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Direct connect's page logic (direct.hpp): ring rows, their acceleration, the address, the
- * hosting lines.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Direct connect's page logic (direct.hpp): ring rows, their acceleration, the address, the
+// hosting lines.
+
 #include "direct.hpp"
 
 namespace mp {

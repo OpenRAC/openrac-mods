@@ -1,25 +1,25 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The despawn lines of the verbose log (despawn.cpp, trace.hpp's `despawn`): a line for each moby
- * that leaves the level in this game, and for each one hidden (or shown again) while it lives, with
- * who removed it and why. No socket and no game here: the World gives it each tick's listing and
- * what it did itself (the sync's removals), and asks the game how it deleted a moby (the port's
- * moby_deletion) as the moby goes.
- *
- * Who removed it:
- *   sync      the World, for a message (KILLED, DESPAWN, DEAD from the host; BROKE from a member;
- *             a replayed crate's deadline), with the sender;
- *   game      this game: the update of the moby itself or of another (by slot and class), or code
- *             outside any moby's update; a death the game recorded (killed in play) is said;
- *   mod       a mod's moby_kill that was not the sync's;
- *   vanished  gone from the listing, or listed dead, with no deletion seen.
- *
- * Each line: what (gone, hidden, shown), class, key (-1 spawned), slot, driven (this game poses it
- * from the host's), shared (the host's that members pose) or local, who and why, its last place,
- * the distance from the local hero and the camera, its state and flags then, and on a member when
- * the host last sent it. The verbose log caps them with its other lines (trace.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The despawn lines of the verbose log (despawn.cpp, trace.hpp's `despawn`): a line for each moby
+// that leaves the level in this game, and for each one hidden (or shown again) while it lives, with
+// who removed it and why. No socket and no game here: the World gives it each tick's listing and
+// what it did itself (the sync's removals), and asks the game how it deleted a moby (the port's
+// moby_deletion) as the moby goes.
+//
+// Who removed it:
+//   sync      the World, for a message (KILLED, DESPAWN, DEAD from the host; BROKE from a member;
+//             a replayed crate's deadline), with the sender;
+//   game      this game: the update of the moby itself or of another (by slot and class), or code
+//             outside any moby's update; a death the game recorded (killed in play) is said;
+//   mod       a mod's moby_kill that was not the sync's;
+//   vanished  gone from the listing, or listed dead, with no deletion seen.
+//
+// Each line: what (gone, hidden, shown), class, key (-1 spawned), slot, driven (this game poses it
+// from the host's), shared (the host's that members pose) or local, who and why, its last place,
+// the distance from the local hero and the camera, its state and flags then, and on a member when
+// the host last sent it. The verbose log caps them with its other lines (trace.hpp).
+
 #ifndef MULTIPLAYER_DESPAWN_H
 #define MULTIPLAYER_DESPAWN_H
 

@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The wire registry (kinds.hpp): the kinds in use share no value and lie in their owner's place,
- * the reserved ranges do not overlap each other or a kind in use, and the router sends every
- * possible first byte where the chain of tests it replaced did.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The wire registry (kinds.hpp): the kinds in use share no value and lie in their owner's place,
+// the reserved ranges do not overlap each other or a kind in use, and the router sends every
+// possible first byte where the chain of tests it replaced did.
+
 #include <cstdint>
 #include <cstdio>
 #include <vector>

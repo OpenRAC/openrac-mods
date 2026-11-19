@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The despawn lines (despawn.hpp): each tick's listing against the last one's.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The despawn lines (despawn.hpp): each tick's listing against the last one's.
+
 #include "despawn.hpp"
 
 #include <cmath>

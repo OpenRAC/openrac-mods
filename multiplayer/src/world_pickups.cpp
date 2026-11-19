@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world (world.hpp): pickups taken, claimed and flown to their player; crates broken again.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world (world.hpp): pickups taken, claimed and flown to their player; crates broken again.
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

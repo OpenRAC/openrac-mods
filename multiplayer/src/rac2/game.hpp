@@ -1,15 +1,15 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's game in Going Commando (coop.hpp's Game): Ratchet & Clank's (game_adapter.hpp),
- * whose calls are the SDK's, with what OpenRAC does not answer for rac2 yet left at Game's "not
- * here". OpenRAC answers rac2's play calls (port/game/rac2/host/play.c): the phase, the level and
- * its loads; a start from the title (a new game or a save's bytes) and a travel; the live save; the
- * hero's pose; the figures; the card's saves; the camera (the names over the figures); the overlay
- * pause, a level's name and the mods a party agrees on. Its world (the mobys a party shares, hits,
- * kills, pickups), shared progress, scenes, shots, placing and the hero's rescue are not shared yet:
- * README.md lists them. No address of the game's: everything is the SDK's.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's game in Going Commando (coop.hpp's Game): Ratchet & Clank's (game_adapter.hpp),
+// whose calls are the SDK's, with what OpenRAC does not answer for rac2 yet left at Game's "not
+// here". OpenRAC answers rac2's play calls (port/game/rac2/host/play.c): the phase, the level and
+// its loads; a start from the title (a new game or a save's bytes) and a travel; the live save; the
+// hero's pose; the figures; the card's saves; the camera (the names over the figures); the overlay
+// pause, a level's name and the mods a party agrees on. Its world (the mobys a party shares, hits,
+// kills, pickups), shared progress, scenes, shots, placing and the hero's rescue are not shared yet:
+// README.md lists them. No address of the game's: everything is the SDK's.
+
 #ifndef MULTIPLAYER_RAC2_GAME_H
 #define MULTIPLAYER_RAC2_GAME_H
 

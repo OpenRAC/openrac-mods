@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: the host's save, the new game and the members who ask for it.
+
 #include "test_support.hpp"
 
 namespace mpt {

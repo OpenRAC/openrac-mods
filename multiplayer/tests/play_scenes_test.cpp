@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: scenes played together and their skips.
+
 #include "test_support.hpp"
 
 namespace mpt {

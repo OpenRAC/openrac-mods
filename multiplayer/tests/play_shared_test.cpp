@@ -5,6 +5,7 @@
 // the special items, merged upward through the host; the flags a player's own scene sets kept from a
 // game still to play it; the mission rows the same in every game after a scripted mission, over a
 // bad link too; and a late joiner taking what it lacks without a banner (progress.hpp).
+
 #include "test_support.hpp"
 
 namespace mpt {

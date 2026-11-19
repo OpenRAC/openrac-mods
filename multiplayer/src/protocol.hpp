@@ -1,14 +1,14 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The OpenRAC server's wire format, the client's side (protocol.cpp; the server's README and its
- * common module, com.openrac.net, are the reference). Every packet is a frame: a 4-byte big-endian
- * length (of what follows it), the packet id byte, an opcode byte for the packets that have one,
- * then the payload. Integers are big-endian; a string is a 2-byte length then its UTF-8 bytes, an
- * empty one written as length -1. A frame is at most 65,536 bytes, its length included.
- *
- * Plain bytes in and out: no socket here (connection.cpp has it), so the tests check the bytes.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The OpenRAC server's wire format, the client's side (protocol.cpp; the server's README and its
+// common module, com.openrac.net, are the reference). Every packet is a frame: a 4-byte big-endian
+// length (of what follows it), the packet id byte, an opcode byte for the packets that have one,
+// then the payload. Integers are big-endian; a string is a 2-byte length then its UTF-8 bytes, an
+// empty one written as length -1. A frame is at most 65,536 bytes, its length included.
+//
+// Plain bytes in and out: no socket here (connection.cpp has it), so the tests check the bytes.
+
 #ifndef MULTIPLAYER_PROTOCOL_H
 #define MULTIPLAYER_PROTOCOL_H
 

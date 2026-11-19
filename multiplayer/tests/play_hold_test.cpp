@@ -4,6 +4,7 @@
 // Playing together, without the game or a socket: an enemy's grab (world_hold.cpp): the lock on its
 // victim, the victim's game holding its own hero, every way a grab ends, and what an update does to
 // a player standing in.
+
 #include "test_support.hpp"
 #include "world_util.hpp"
 

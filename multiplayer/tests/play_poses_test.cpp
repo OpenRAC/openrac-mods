@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: a pose's bytes, the pieces held and the interpolation buffer.
+
 #include <limits>
 
 #include "test_support.hpp"

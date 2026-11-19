@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: the world over simulated links: respawns, deaths, late members and bad networks.
+
 #include "test_support.hpp"
 
 namespace mpt {

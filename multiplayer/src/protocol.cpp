@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The OpenRAC server's wire format (protocol.hpp), written as the server's OutputBuffer writes it
- * and read as its InputBuffer reads it: big-endian integers, strings behind a signed 16-bit length
- * that is -1 for an empty one, and a frame's length counting what follows it (Netty's
- * LengthFieldPrepender and LengthFieldBasedFrameDecoder with a 4-byte field, no adjustment).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The OpenRAC server's wire format (protocol.hpp), written as the server's OutputBuffer writes it
+// and read as its InputBuffer reads it: big-endian integers, strings behind a signed 16-bit length
+// that is -1 for an empty one, and a frame's length counting what follows it (Netty's
+// LengthFieldPrepender and LengthFieldBasedFrameDecoder with a 4-byte field, no adjustment).
+
 #include "protocol.hpp"
 
 #include <algorithm>

@@ -1,34 +1,34 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Direct connect's embedded host (host.cpp): a small copy of the OpenRAC server's party routing
- * (the Server repository's ServerPacketHandler, PartyController, Party and ServerDatagramHandler)
- * run inside the hosting player's game, for one party and no matchmaking. Clients connect to it
- * exactly as to the server: the same frames on TCP, the same datagrams on UDP (the same port), so
- * the lobby, the puppets and their interpolation work unchanged in either mode.
- *
- * The hosting game itself is the party's host, linked in-process (local_send, local_state and the
- * sink), not through a socket. How it differs from the server:
- *   - One party, code kDirectCode. It exists from the local game's HELLO, which makes it the host.
- *   - A client is put in it right after its HELLO (and UDP) answer: INFO comes unasked, so the
- *     client's lobby opens with no code typed. CREATE, JOIN (any code) and FIND join the same party
- *     (after a LEAVE, say); in it already: ALREADY_IN_PARTY; full: PARTY_FULL (the client stays
- *     connected, out of the party, as on the server). A client greeted before the local HELLO
- *     joins once the party exists.
- *   - KICK from the local game takes a member out as on the server: KICKED to it, LEFT to the others,
- *     its connection staying; a client's KICK is refused (NOT_HOST).
- *   - The host leaving (LEAVE from the local game) ends the party: END to every member, and ended()
- *     tells the owner to stop() the host. stop() sends END too, flushes, and closes everything.
- *   - The local link has no rate limits, no hello deadline, and its bad frames are dropped rather
- *     than closing anything.
- * The same limits as the server otherwise (its .env.defaults): frames of 65,536 bytes at most,
- * names and versions 1 to 32 characters, chat 1 to 256, a party of 4, per-connection token buckets
- * with strikes, hello within 10 s, 8 connections an address; plus at most max_connections clients.
- *
- * Its own thread does the sockets (poll over the listener, the UDP socket and the clients). Every
- * change of the party runs under one mutex, from that thread or the game's (local_*), and frames
- * for the local game go to the sink under it: the sink must not call back into the host.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Direct connect's embedded host (host.cpp): a small copy of the OpenRAC server's party routing
+// (the Server repository's ServerPacketHandler, PartyController, Party and ServerDatagramHandler)
+// run inside the hosting player's game, for one party and no matchmaking. Clients connect to it
+// exactly as to the server: the same frames on TCP, the same datagrams on UDP (the same port), so
+// the lobby, the puppets and their interpolation work unchanged in either mode.
+//
+// The hosting game itself is the party's host, linked in-process (local_send, local_state and the
+// sink), not through a socket. How it differs from the server:
+//   - One party, code kDirectCode. It exists from the local game's HELLO, which makes it the host.
+//   - A client is put in it right after its HELLO (and UDP) answer: INFO comes unasked, so the
+//     client's lobby opens with no code typed. CREATE, JOIN (any code) and FIND join the same party
+//     (after a LEAVE, say); in it already: ALREADY_IN_PARTY; full: PARTY_FULL (the client stays
+//     connected, out of the party, as on the server). A client greeted before the local HELLO
+//     joins once the party exists.
+//   - KICK from the local game takes a member out as on the server: KICKED to it, LEFT to the others,
+//     its connection staying; a client's KICK is refused (NOT_HOST).
+//   - The host leaving (LEAVE from the local game) ends the party: END to every member, and ended()
+//     tells the owner to stop() the host. stop() sends END too, flushes, and closes everything.
+//   - The local link has no rate limits, no hello deadline, and its bad frames are dropped rather
+//     than closing anything.
+// The same limits as the server otherwise (its .env.defaults): frames of 65,536 bytes at most,
+// names and versions 1 to 32 characters, chat 1 to 256, a party of 4, per-connection token buckets
+// with strikes, hello within 10 s, 8 connections an address; plus at most max_connections clients.
+//
+// Its own thread does the sockets (poll over the listener, the UDP socket and the clients). Every
+// change of the party runs under one mutex, from that thread or the game's (local_*), and frames
+// for the local game go to the sink under it: the sink must not call back into the host.
+
 #ifndef MULTIPLAYER_HOST_H
 #define MULTIPLAYER_HOST_H
 

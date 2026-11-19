@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // Playing together, without the game or a socket: the mods and rules a party agrees on.
+
 #include "test_support.hpp"
 
 namespace mpt {

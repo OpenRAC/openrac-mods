@@ -1,26 +1,26 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The level's scenes played together (coop.hpp: SCENE). A scene of the level's own (a cutscene
- * the level's mobys start: a person spoken to, a place reached, Veldin's opening) starts in the
- * host's game only, since the members' copies of the mobys that start them are driven from the
- * host's. So the host tells each one it starts, by the level's number of it, and a member in that
- * level starts the same one, from its start, through the game's own start (the SDK's play_scene),
- * once its player is in control. The scene's actors are then its own game's (made by the scene,
- * the world shares none of them: world.cpp).
- *
- * The barrier (coop.cpp) waits for everyone as before. A member's scene that started late is
- * skipped after the host's has ended only once it has had as long as it was late (at most
- * kSceneLagMs), so it plays out in full; the host's skip skips it at once (SKIP: only the host's).
- *
- * Each start of a host's scene is its own (SCENE's sequence, the party's count of them, the host's):
- * a skip says which one it was pressed in, and a member's SCENE_STATE which one it is in or out of,
- * so a skip or an "out" of one scene never ends or opens the next. A member that has not played the
- * host's scene yet (in a menu, a load) plays it once it can, even after the host's has ended, and
- * the barrier waits for it: a member's until it played it, the host's while the member says it
- * still plays it; the host's skip of it ends that wait. Every game counts its own scenes and loads
- * as they start (note_phase), and a skip asked of it acts on the one it came in only.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The level's scenes played together (coop.hpp: SCENE). A scene of the level's own (a cutscene
+// the level's mobys start: a person spoken to, a place reached, Veldin's opening) starts in the
+// host's game only, since the members' copies of the mobys that start them are driven from the
+// host's. So the host tells each one it starts, by the level's number of it, and a member in that
+// level starts the same one, from its start, through the game's own start (the SDK's play_scene),
+// once its player is in control. The scene's actors are then its own game's (made by the scene,
+// the world shares none of them: world.cpp).
+//
+// The barrier (coop.cpp) waits for everyone as before. A member's scene that started late is
+// skipped after the host's has ended only once it has had as long as it was late (at most
+// kSceneLagMs), so it plays out in full; the host's skip skips it at once (SKIP: only the host's).
+//
+// Each start of a host's scene is its own (SCENE's sequence, the party's count of them, the host's):
+// a skip says which one it was pressed in, and a member's SCENE_STATE which one it is in or out of,
+// so a skip or an "out" of one scene never ends or opens the next. A member that has not played the
+// host's scene yet (in a menu, a load) plays it once it can, even after the host's has ended, and
+// the barrier waits for it: a member's until it played it, the host's while the member says it
+// still plays it; the host's skip of it ends that wait. Every game counts its own scenes and loads
+// as they start (note_phase), and a skip asked of it acts on the one it came in only.
+
 #include <algorithm>
 #include <string>
 

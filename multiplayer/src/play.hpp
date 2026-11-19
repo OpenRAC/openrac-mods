@@ -1,56 +1,56 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The players' poses (play.cpp): a pose as the game gives it (the SDK's openrac_pose, without the
- * SDK: the tests need no game), its bytes on the wire, and the buffer a remote player's poses go
- * through to be shown smoothly (INTERPOLATION.md).
- *
- * The wire, the POSE kind of the game's DATA (coop.hpp), sent as state (UDP where offered), each
- * game about 20 a second:
- *   kind u8 (7), owner i32 (whose Ratchet), sequence u16, stamp i64 (the server's clock, ms),
- *   level i8, flags u8 (blending 1, teleport 2, in a scene 4, in a menu 8, airborne 0x10),
- *   position 3 x f32, rotation 3 x f32,
- *   velocity 3 x f32, state i16, health i16, item i16, seq u8, frame u8, next frame u8,
- *   anim time u8 (0 to 255 for 0 to 1), anim speed i16 (thousandths)
- * 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32. Then what the
- * Ratchet wears and holds (since 0.7.0; a pose without it is read as wearing nothing):
- *   count u8, then a piece each: slot u8, part u8, item u8, class i16, joint u8, flags u8 (hidden
- *   1, blending 2, loose 4), seq u8, frame u8, next frame u8, anim time u8, anim speed i16, and
- *   for a loose piece its position 3 x f32 and rotation 3 x f32
- * (13 bytes a piece, 37 a loose one).
- *
- * A SHOTX (coop.hpp's kinds; state: it may be lost, and comes late only to be dropped): kind u8
- * (48), count u8, then for each shot owner i32, level i8, item u8, flags u8, what follows u8 (bits:
- * velocity, aim, velocity2, aux, target), stamp u32, position 3 x f32, and what follows of velocity
- * 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16.
- *
- * A SHOT (coop.hpp's kinds; reliable): kind u8 (19), owner i32, level i8, item i16, position
- * 3 x f32, velocity 3 x f32, aim 4 x f32: 48 bytes. The figure fires it as far behind as its poses
- * are played.
- *
- * The buffer. Each pose is stamped with the sender's estimate of the server's clock; the receiver
- * turns it into its own clock and plays the poses back a delay behind their stamps. The delay is
- * the link's: the time in transit as measured (arrival less stamp, averaged, so the clock
- * estimates' error is in it too), and a margin past it of a send interval and the transit's
- * jitter, never under two send intervals of that stream (and kMinBufferMs), so one pose lost still
- * leaves a pose to play; up to an interval more while poses are lost. It rises
- * in about half a second when the link gets worse and falls in about four when it calms. Between
- * two poses: the position along a cubic Hermite curve through their velocities (a jump stays an
- * arc), the yaw the short way round, the place in the animation's seq on from the one's to the
- * other's (the game keeps the figure to it, play.c), and a new seq and the state from the nearer
- * one. Poses without velocities (the host's mobys and bolts, WORLD) get them from their
- * neighbours, limited so the curve never goes past a pose and back (Fritsch and Carlson), and the
- * margin has one interval more so a pose's neighbour after it is there before it plays. The
- * playback cursor runs up to 10 % fast or slow to keep its delay, so a change of delay never
- * jumps; far behind (a stall, then a burst), it jumps. Along an axis two poses did not move on
- * (kStillStep), the velocities are not used: a standing Ratchet's says he falls at 0.75 units a
- * second (gravity, which the ground takes back each tick). Past the newest pose a figure goes on along
- * its velocity for at most 150 ms, then holds (at once when it was slowing down: a stop); a moby
- * holds where it is (WORLD stops sending one that stops). When the next pose comes, what is shown
- * goes back onto the curve over about kCatchUpMs rather than at once. A teleport (the sender's flag, a level
- * change, or a step of more than kSnapDistance) starts the buffer again: the figure is put there.
- * One back after a silence (kStallMs) goes on from where it stood.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The players' poses (play.cpp): a pose as the game gives it (the SDK's openrac_pose, without the
+// SDK: the tests need no game), its bytes on the wire, and the buffer a remote player's poses go
+// through to be shown smoothly (INTERPOLATION.md).
+//
+// The wire, the POSE kind of the game's DATA (coop.hpp), sent as state (UDP where offered), each
+// game about 20 a second:
+//   kind u8 (7), owner i32 (whose Ratchet), sequence u16, stamp i64 (the server's clock, ms),
+//   level i8, flags u8 (blending 1, teleport 2, in a scene 4, in a menu 8, airborne 0x10),
+//   position 3 x f32, rotation 3 x f32,
+//   velocity 3 x f32, state i16, health i16, item i16, seq u8, frame u8, next frame u8,
+//   anim time u8 (0 to 255 for 0 to 1), anim speed i16 (thousandths)
+// 65 bytes. Integers big-endian as the server's; floats their IEEE bits as a u32. Then what the
+// Ratchet wears and holds (since 0.7.0; a pose without it is read as wearing nothing):
+//   count u8, then a piece each: slot u8, part u8, item u8, class i16, joint u8, flags u8 (hidden
+//   1, blending 2, loose 4), seq u8, frame u8, next frame u8, anim time u8, anim speed i16, and
+//   for a loose piece its position 3 x f32 and rotation 3 x f32
+// (13 bytes a piece, 37 a loose one).
+//
+// A SHOTX (coop.hpp's kinds; state: it may be lost, and comes late only to be dropped): kind u8
+// (48), count u8, then for each shot owner i32, level i8, item u8, flags u8, what follows u8 (bits:
+// velocity, aim, velocity2, aux, target), stamp u32, position 3 x f32, and what follows of velocity
+// 3 x f32, aim 4 x f32, velocity2 3 x f32, aux 4 x f32, target key i16.
+//
+// A SHOT (coop.hpp's kinds; reliable): kind u8 (19), owner i32, level i8, item i16, position
+// 3 x f32, velocity 3 x f32, aim 4 x f32: 48 bytes. The figure fires it as far behind as its poses
+// are played.
+//
+// The buffer. Each pose is stamped with the sender's estimate of the server's clock; the receiver
+// turns it into its own clock and plays the poses back a delay behind their stamps. The delay is
+// the link's: the time in transit as measured (arrival less stamp, averaged, so the clock
+// estimates' error is in it too), and a margin past it of a send interval and the transit's
+// jitter, never under two send intervals of that stream (and kMinBufferMs), so one pose lost still
+// leaves a pose to play; up to an interval more while poses are lost. It rises
+// in about half a second when the link gets worse and falls in about four when it calms. Between
+// two poses: the position along a cubic Hermite curve through their velocities (a jump stays an
+// arc), the yaw the short way round, the place in the animation's seq on from the one's to the
+// other's (the game keeps the figure to it, play.c), and a new seq and the state from the nearer
+// one. Poses without velocities (the host's mobys and bolts, WORLD) get them from their
+// neighbours, limited so the curve never goes past a pose and back (Fritsch and Carlson), and the
+// margin has one interval more so a pose's neighbour after it is there before it plays. The
+// playback cursor runs up to 10 % fast or slow to keep its delay, so a change of delay never
+// jumps; far behind (a stall, then a burst), it jumps. Along an axis two poses did not move on
+// (kStillStep), the velocities are not used: a standing Ratchet's says he falls at 0.75 units a
+// second (gravity, which the ground takes back each tick). Past the newest pose a figure goes on along
+// its velocity for at most 150 ms, then holds (at once when it was slowing down: a stop); a moby
+// holds where it is (WORLD stops sending one that stops). When the next pose comes, what is shown
+// goes back onto the curve over about kCatchUpMs rather than at once. A teleport (the sender's flag, a level
+// change, or a step of more than kSnapDistance) starts the buffer again: the figure is put there.
+// One back after a silence (kStallMs) goes on from where it stood.
+
 #ifndef MULTIPLAYER_PLAY_H
 #define MULTIPLAYER_PLAY_H
 

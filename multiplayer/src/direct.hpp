@@ -1,16 +1,16 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Direct connect's page logic without the game (direct.cpp), so the tests check it: the address
- * typed with choice rows, and the lobby's lines when hosting.
- *
- * The game's front end has no text entry, and a choice row steps through at most
- * OPENRAC_UI_CHOICES_MAX (64) values. An octet (0 to 255) and a port (1 to 65535) have more, so a
- * row is a ring: the page gives it a window of kRingWindow values with the current one in the
- * middle (kRingCentre), and after each step reads the new value from the choice and gives a new
- * window centred on it. Left and Right step it by one choice, around the ends (255 to 0); held,
- * the port repeats the step, and Acceleration makes a long hold step ten at a time.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Direct connect's page logic without the game (direct.cpp), so the tests check it: the address
+// typed with choice rows, and the lobby's lines when hosting.
+//
+// The game's front end has no text entry, and a choice row steps through at most
+// OPENRAC_UI_CHOICES_MAX (64) values. An octet (0 to 255) and a port (1 to 65535) have more, so a
+// row is a ring: the page gives it a window of kRingWindow values with the current one in the
+// middle (kRingCentre), and after each step reads the new value from the choice and gives a new
+// window centred on it. Left and Right step it by one choice, around the ends (255 to 0); held,
+// the port repeats the step, and Acceleration makes a long hold step ten at a time.
+
 #ifndef MULTIPLAYER_DIRECT_H
 #define MULTIPLAYER_DIRECT_H
 

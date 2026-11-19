@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * This game's part in its party: the one thing that says who runs the world, so that a change of
- * host (migrate.hpp) changes one value. The Session keeps it from the server's word; the Coop and the
- * World ask it, never a flag of their own.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// This game's part in its party: the one thing that says who runs the world, so that a change of
+// host (migrate.hpp) changes one value. The Session keeps it from the server's word; the Coop and the
+// World ask it, never a flag of their own.
+
 #ifndef MULTIPLAYER_ROLE_H
 #define MULTIPLAYER_ROLE_H
 
