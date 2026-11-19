@@ -293,3 +293,10 @@ checksums and `rac1.apworld`. The launcher index is then refreshed.
 PR builds do not publish releases. The request in `.github/mod-releases/`
 remains pending until a successful master build publishes its version tag.
 Later builds skip that tag; a newer version needs a new release request.
+
+### Notification duration
+
+Client messages, New Game+ confirmations and compatibility warnings clear after
+three seconds (150 PAL or 180 NTSC ticks). The unsupported Shuffle items warning
+is shown once per unsupported state instead of refreshing every tick. Gold-case
+hints retain their existing short display time.
