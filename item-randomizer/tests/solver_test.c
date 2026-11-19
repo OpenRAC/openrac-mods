@@ -260,6 +260,39 @@ static void check_eudora_warp_pad(void) {
     }
 }
 
+/* Isolate the three Rilgar routes, supplying only each route's required
+ * inventory. Omitted gadgets have no reward anywhere in these plans. */
+static void check_rilgar_routes(void) {
+    const char* names[] = {"Rilgar: the shady salesman",
+        "Rilgar: the bouncer, the coordinates of Umbris", "Rilgar: the Hoverboard race"};
+    const int extra[] = {0, ITEM_SWINGSHOT, ITEM_HOVERBOARD};
+    for (int route = 0; route < 3; ++route) {
+        rando_plan p = {0};
+        int target = -1, start = -1, heli = -1, supplier = -1;
+        int spheres[RANDO_MAX_LOCATIONS];
+        for (size_t i = 0; i < rando_location_count; ++i) {
+            const rando_location* l = &rando_locations[i];
+            if (!strcmp(l->name, names[route])) target = (int)i;
+            if (l->kind == LOC_START) start = (int)i;
+            if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
+                && l->vanilla.value == LEVEL_NOVALIS) heli = (int)i;
+            if (l->kind == LOC_VENDOR && l->key == ITEM_MINE_GLOVE) supplier = (int)i;
+        }
+        CHECK(target >= 0 && start >= 0 && heli >= 0 && supplier >= 0);
+        p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_RILGAR};
+        if (extra[route]) p.reward[supplier] = (rando_reward){REWARD_ITEM, (uint8_t)extra[route]};
+        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+            p.settings.difficulty = (uint8_t)d;
+            p.reward[heli] = (rando_reward){REWARD_NONE, 0};
+            rando_beatable(&p, spheres);
+            CHECK(spheres[target] == -1);
+            p.reward[heli] = (rando_reward){REWARD_ITEM, ITEM_HELI_PACK};
+            rando_beatable(&p, spheres);
+            CHECK(spheres[target] >= 0);
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
@@ -267,6 +300,7 @@ int main(int argc, char** argv) {
     check_edwina_water_route();
     check_helga_without_heli_pack();
     check_eudora_warp_pad();
+    check_rilgar_routes();
 
     /* One fixed seed: its placement on every system. */
     static rando_plan p, q;
@@ -277,7 +311,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0x8b2c39c24a6cb23cull);
+    CHECK(plan_hash(&p) == 0x8472401c22e7ae9aull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
