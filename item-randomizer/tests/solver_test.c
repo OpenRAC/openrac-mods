@@ -31,6 +31,9 @@ static int is_progression(rando_reward r) {
            || (r.kind == REWARD_ITEM && (rando_progression_items & BIT(r.value)) != 0);
 }
 
+/* Items the game's hints ask for: required except on expert (logic.c's soft). */
+static uint64_t soft(int d, uint64_t items) { return d == DIFFICULTY_EXPERT ? 0 : items; }
+
 static uint64_t plan_hash(const rando_plan* p) {
     uint64_t h = 0xCBF29CE484222325ull;
 
@@ -58,7 +61,7 @@ static void check_tables(void) {
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | swing));
             if (!strcmp(a->name, "Drek's Fleet: the infobot"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing
-                    | (d == DIFFICULTY_EXPERT ? 0 : heli)));
+                    | soft(d, heli | BIT(ITEM_HYDRO_PACK))));
             if (!strcmp(a->name, "Drek's Fleet: the CodeBot")
                 || !strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
@@ -74,17 +77,18 @@ static void check_tables(void) {
             if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
             if (!strcmp(a->name, "Quartu: the scientist, the coordinates of Kalebo III")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
-            if (!strcmp(a->name, "Quartu: in disguise, the coordinates of Drek's Fleet")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HOLOGUISE) | BIT(ITEM_THRUSTER_PACK) | BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT)));
+            if (!strcmp(a->name, "Quartu: in disguise, the coordinates of Drek's Fleet")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HOLOGUISE) | BIT(ITEM_THRUSTER_PACK) | BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT) | soft(d, BIT(ITEM_HYDRO_PACK))));
         }
 
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
             if (!strcmp(a->name, "Hoven: the coordinates of Gemlik")) {
                 const uint64_t expected = BIT(ITEM_HELI_PACK)
-                    | (d == DIFFICULTY_EXPERT ? 0 : BIT(ITEM_DEVASTATOR));
+                    | soft(d, BIT(ITEM_DEVASTATOR) | BIT(ITEM_HYDRO_PACK));
                 CHECK(rando_requirement(d, i) == expected);
             }
             if (!strcmp(a->name, "Hoven: the Foreman's Raritanium")) {
-                CHECK(rando_requirement(d, i) == (BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT)));
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT)
+                    | soft(d, BIT(ITEM_HYDRO_PACK))));
             }
             if (!strcmp(a->name, "Gemlik: the coordinates of Oltanis")) {
                 CHECK(((rando_requirement(d, i) & BIT(ITEM_TRESPASSER)) != 0)
@@ -192,7 +196,7 @@ static void check_tables(void) {
 static void check_plan(const rando_settings* s, const rando_plan* p) {
     CHECK(rando_beatable(p, NULL));
     /* The shuffled locations' rewards are their vanilla rewards, moved; the rest are as the game has them. */
-    int count[5][64];
+    int count[REWARD_SPECIAL + 1][64];
     memset(count, 0, sizeof count);
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -223,7 +227,7 @@ static void check_plan(const rando_settings* s, const rando_plan* p) {
 
     CHECK(rando_stranded(p) == 0);
 
-    for (int k = 0; k < 5; ++k) {
+    for (int k = 0; k <= REWARD_SPECIAL; ++k) {
         for (int v = 0; v < 64; ++v) {
             CHECK(count[k][v] == 0);
         }
@@ -276,8 +280,8 @@ static void check_helga_without_heli_pack(void) {
     }
 }
 
-/* Eudora's warp-pad pickup requires Heli-Pack alone: no Swingshot or
- * Trespasser exists in this isolated playthrough. */
+/* On expert, Eudora's warp-pad pickup requires Heli-Pack alone: no Swingshot or
+ * Trespasser exists in this isolated playthrough (the others add the hinted Trespasser). */
 static void check_eudora_warp_pad(void) {
     rando_plan p = {0};
     int pickup = -1, start = -1, provider = -1;
@@ -291,7 +295,7 @@ static void check_eudora_warp_pad(void) {
     }
     CHECK(pickup >= 0 && start >= 0 && provider >= 0);
     p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_EUDORA};
-    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+    for (int d = DIFFICULTY_EXPERT; d <= DIFFICULTY_EXPERT; ++d) {
         p.settings.difficulty = (uint8_t)d;
         p.reward[provider] = (rando_reward){REWARD_NONE, 0};
         rando_beatable(&p, spheres);
@@ -381,7 +385,8 @@ static void check_blarg_infobot_routes(void) {
     }
 }
 
-/* Isolated Batalia routes have only their one required gadget, or none. */
+/* On expert, isolated Batalia routes have only their one required gadget, or none
+ * (the others add the hinted Grindboots). */
 static void check_batalia_routes(void) {
     const char* names[] = {"Batalia: the turret's commando",
         "Batalia: the commando, the coordinates of Orxon",
@@ -400,7 +405,7 @@ static void check_batalia_routes(void) {
         }
         CHECK(target >= 0 && start >= 0 && provider >= 0);
         p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_BATALIA};
-        for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        for (int d = DIFFICULTY_EXPERT; d <= DIFFICULTY_EXPERT; ++d) {
             p.settings.difficulty = (uint8_t)d;
             p.reward[provider] = (rando_reward){REWARD_NONE, 0};
             rando_beatable(&p, spheres);
@@ -504,7 +509,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xdf1126b085d2d4e4ull);
+    CHECK(plan_hash(&p) == 0xcf044a2320f1889cull);
 
     /* Every setting, n seeds each. */
     long solved = 0;
