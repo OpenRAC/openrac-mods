@@ -37,7 +37,7 @@
 #include <optional>
 #include <string>
 
-#include "discs.h"
+#include "discs.hpp"
 #include "kbm.hpp"
 #include "openrac/games/rac1.hpp"
 #include "openrac/mod.hpp"
@@ -51,8 +51,8 @@ using kbm::Context;
 
 // ---- Constants ----
 //
-// The game's addresses and structure offsets are in discs.h (KBM_*, k_kbm_discs). What is here is
-// what this file adds.
+// The game's addresses and structure offsets are in discs.hpp (kbm::kDiscs and the offsets). What
+// is here is what this file adds.
 
 // The start of the console's memory a game pointer may point at (assumed).
 constexpr gaddr kGameMemoryStart = 0x00100000u;
@@ -60,21 +60,21 @@ constexpr gaddr kGameMemoryStart = 0x00100000u;
 // The end of the console's 32 MB (assumed).
 constexpr gaddr kGameMemoryEnd = 0x02000000u;
 
-// In the menus' page record, the page shown is at +4 (assumed: discs.h states it).
+// In the menus' page record, the page shown is at +4 (assumed: discs.hpp states it).
 constexpr gaddr kMenuPageShownOffset = 4u;
 
-// In the pad's sticks, the right stick's y is at +4 (assumed: discs.h lists right x, y, ...). The
+// In the pad's sticks, the right stick's y is at +4 (assumed: discs.hpp lists right x, y, ...). The
 // follow camera reads its tilt from it.
 constexpr gaddr kPadRightYOffset = 4u;
 
-// In a hero's moby, his up vector is at +0xE0 (assumed: discs.h states it).
+// In a hero's moby, his up vector is at +0xE0 (assumed: discs.hpp states it).
 constexpr gaddr kMobyUpOffset = 0xE0u;
 
 // How many rows of a text list are read at most (assumed): a list that reaches it is no list.
 constexpr int kMaxListRows = 32;
 
-// The follow camera's locks (assumed: discs.h states it): bit 0 stops the stick turning it, bit 1 means
-// the game holds the tilt.
+// The follow camera's locks (assumed: discs.hpp states it): bit 0 stops the stick turning it, bit 1
+// means the game holds the tilt.
 constexpr std::int32_t kFollowLockTurn = 1;
 constexpr std::int32_t kFollowLockTilt = 2;
 
@@ -128,152 +128,332 @@ struct Tick {
     bool pointer = false;  // menu binds of the mouse count (out of play, the cursor over the game)
 };
 
-// ---- State ----
-//
-// Everything below is touched by the game's thread only: the pad callback and the follow camera's
-// hook point both run on it, in the order of a tick. load() sets it up before either runs.
-
-// The mod and the disc's addresses, set by load().
-openrac::Mod* s_mod = nullptr;
-const kbm_disc* s_disc = nullptr;
-
-// The player's settings, read by load() and not changed after.
-kbm::Bindings s_binds;
-kbm::MoveTuning s_move;
-kbm::LookTuning s_look_tuning;
-float s_ring_dead_zone = 30.0f;
-bool s_capture = true;
-bool s_menu_mouse = true;
-
-// What the keys and the mouse hold now: the pad they make, the left stick's keys, the right stick's
-// mouse, the Quick Select's pointer, the actions blocked after the game changed where it is, the
-// menus' queue of presses, the menus' mouse steps, and each menu direction's key repeat.
-kbm::Virtual s_pad;
-kbm::KeyStick s_keys;
-kbm::MouseLook s_look;
-kbm::RingPointer s_ring;
-kbm::Latch s_latch;
-kbm::Pulser s_pulses;
-kbm::Stepper s_stepper;
-std::array<kbm::Repeat, kMenuDirections> s_repeat;
-
-// Whether the Quick Select was held open at the last tick.
-bool s_ring_open = false;
-
-// The port's number of the tick last stepped, so that a tick steps once however often the game
-// reads the pad.
-std::uint32_t s_tick = kNoTick;
-
-// What was last asked of the port for the cursor (1 captured, 0 free), -1 before the first ask.
-int s_asked_capture = -1;
-
-// The camera's swing behind Ratchet: how many ticks it has left.
-int s_reset_ticks = 0;
-
-// The mouse's turn of the follow camera: the tick's motion, for its hook point to apply; the tick
-// the hook point last ran (the follow camera is the one in use); whether the mouse holds the tilt,
-// and where (the eye's elevation).
-float s_follow_dx = 0.0f;
-float s_follow_dy = 0.0f;
-std::uint32_t s_follow_tick = kNoTick;
-bool s_tilt_held = false;
-float s_tilt = 0.0f;
-
-// Whether the gamepad's right stick is off centre: the camera is the pad's.
-bool s_pad_look = false;
-
-// A click on an item not yet focused: the ticks until Cross, once the focus has moved, and the
-// buttons it presses.
-int s_click_wait = 0;
-std::uint16_t s_click_button = 0;
-
-// The game's own functions the camera's reset calls, found by load().
-float (*s_fast_cos)(float) = nullptr;
-float (*s_fast_sin)(float) = nullptr;
-void (*s_look_along)(gaddr, float, float) = nullptr;
-// The updates of the menu widgets the d-pad moves the focus between (discs.h): an item grid's and a
-// text list's, as the port's functions; null where this disc's build has none.
-void* s_grid_update = nullptr;
-void* s_list_update = nullptr;
-// The map widget's handler (DrawMapScreen) as the port's function; null where the build has none.
-void* s_map_screen = nullptr;
-
-// ---- Game memory ----
-
-// A reference to a value in the game's memory.
-template <class T>
-T& ref(gaddr address) {
-    return s_mod->memory().ref<T>(address);
-}
-
-// A value read from the game's memory.
-template <class T>
-T read(gaddr address) {
-    return s_mod->memory().read<T>(address);
-}
-
-// The address of the hero, on the disc in use.
-gaddr hero() {
-    return s_disc->hero;
-}
-
 // A game address worth reading: in the console's 32 MB, aligned.
 bool plausible(gaddr address) {
     return address >= kGameMemoryStart && address < kGameMemoryEnd && (address & 3u) == 0;
 }
 
-// Three floats from the game's memory as a vector.
-kbm::Vec3 read_vec(gaddr address) {
+// The keyboard and mouse as the game sees them: the state of the keys, the mouse, the menus' queue
+// of presses and the camera's swing, and the code that reads and writes the game around it.
+//
+// One object lives from load on (g_keyboard). The pad callback and the follow camera's hook point
+// both run on the game's thread, in the order of a tick; nothing here is touched by another
+// thread.
+class Keyboard {
+public:
+    // Makes the keyboard and mouse for `mod` on `disc`: reads the settings and finds the game's
+    // functions, or throws when one is missing. `mod` and `disc` outlive it: the mod lives until
+    // the program ends and the disc is a row of a table.
+    Keyboard(openrac::Mod& mod, const kbm::Disc& disc);
+
+    // The first pad's report, before the game reads it: the keys and the mouse on top of the pad's.
+    // Runs on the game's thread, as often as the game reads the pad.
+    void on_pad(int port, std::uint8_t* report, int size);
+
+    // The follow camera's per-tick requests: after the game's (and any mod's before this one), the
+    // mouse's turn (follow_look); while the camera's reset lasts, instead, a request to look along
+    // the way Ratchet faces, as the game's own camera volumes ask for a heading.
+    template <class Original>
+    void camera_overrides(Original original, gaddr camera);
+
+private:
+    // A reference to a value in the game's memory.
+    template <class T>
+    T& ref(gaddr address) const;
+
+    // A value read from the game's memory.
+    template <class T>
+    T read(gaddr address) const;
+
+    // The address of the hero, on the disc in use.
+    gaddr hero() const;
+
+    // Three floats from the game's memory as a vector.
+    kbm::Vec3 read_vec(gaddr address) const;
+
+    // A vector as three floats in the game's memory.
+    void write_vec(gaddr address, kbm::Vec3 v) const;
+
+    // The camera in use, 0 for none; its id in *id.
+    gaddr current_camera(int* id) const;
+
+    // Where the game is: a level's mode word (its program's copy) with a level loaded, else the
+    // boot program's (the title and the main menu). The freeze dialog's kind goes in *dialog_kind,
+    // -1 when the game is in no dialog.
+    Context context_now(int* dialog_kind) const;
+
+    // Whether one of an action's binds is held, or went down since the last tick (a tap shorter
+    // than a tick still presses for one): a mouse bind only where the mouse counts, any while the
+    // port's overlay leaves the input to the game.
+    bool active(const Tick& t, Action a) const;
+
+    // Whether one of an action's binds went down this tick (not held from before), where its input
+    // counts: used for the presses that act once, such as taking an item or clicking.
+    bool pressed_now(const Tick& t, Action a) const;
+
+    // An action's wheel binds that turned this tick (a notch is one press, sent as a pulse), where
+    // the mouse counts in a menu.
+    bool wheel_notch(const Tick& t, Action a) const;
+
+    // Whether one of an action's binds other than a wheel's is down: a key held makes a menu
+    // direction repeat, a wheel notch is only one step.
+    bool held_not_wheel(const Tick& t, Action a) const;
+
+    // The item a Quick Select slot holds, put in hand as the Quick Select does (the hero takes it
+    // on his next update); nothing for an empty slot or the item already in hand.
+    void take_item(std::int32_t item) const;
+
+    // The item ids in the Quick Select's slots, 0 for an empty one.
+    std::array<std::int32_t, kbm::kQuickSelectSlots> quick_select_slots() const;
+
+    // The number keys and the wheel: the item in a slot, or the next one round, taken at once. Only
+    // on foot in play, and not while the Quick Select is open (it picks the slot itself).
+    void weapons(const Tick& t) const;
+
+    // The menus' page shown now, 0 for none (a page changing, or no menu).
+    gaddr menu_page() const;
+
+    // A text list's rows: how many, and the selected one; false for a widget that is no text list.
+    bool text_list(gaddr widget, int* count, int* selected) const;
+
+    // A widget's links to the widgets the d-pad moves the focus to from it, into out (kbm::
+    // reachable_widgets): an item grid's four, a text list's two, none for a widget of another
+    // kind. The kind is its update's function (+0), in whichever program the menus are loaded from.
+    int focus_links(gaddr widget, std::uint32_t* out) const;
+
+    // A widget's rectangle on the screen, as the game wrote it this frame.
+    kbm::Rect rect_of(gaddr widget) const;
+
+    // Whether a widget is an item grid: its update is the grid's (discs.hpp).
+    bool is_grid(gaddr widget) const;
+
+    // An item grid's layout as the game draws it (kbm::GridLayout); false where it cannot be read
+    // (no grid, no menu moby or frame), so the mouse steps the d-pad over it instead.
+    bool grid_layout(gaddr widget, kbm::GridLayout* g) const;
+
+    // The mouse over the focused item grid: the selection steps to the cell under it, the presses
+    // for the whole way queued at once (a row at a time, then a column). Returns the menu_mouse
+    // result: false for a click that must wait for the selection to get there.
+    bool mouse_on_grid(
+        gaddr widget, const kbm::GridLayout& g, bool moved, bool click, float px, float py
+    );
+
+    // The mouse over a menu page's item, at (px, py) in the game's screen: the item becomes the
+    // focused one, or, once focused, a text list's row or an item grid's cell under the mouse is
+    // stepped to. Returns the menu_mouse result where the mouse is over an item (false: the click
+    // must wait for the focus or the selection to move), and nothing where it is over none, or over
+    // a widget whose rows it cannot read, which the d-pad steps instead.
+    std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, float py);
+
+    // The mouse in a menu: over a page's item, it is the one the game focuses (as the d-pad moves
+    // the focus between a page's items: the next tick's focus change plays the game's own sound);
+    // over a row of the focused list or a cell of the focused item grid, the d-pad steps the
+    // selection to it. Elsewhere (the vendor, the dialogs) its motion steps the d-pad. A click on
+    // an item not yet focused focuses it first. Returns false when the click must wait for the
+    // focus to move.
+    bool menu_mouse(const Tick& t, bool click);
+
+    // The first-person view turned by the tick's motion, before the game's update of it (which
+    // turns it by the sticks, 0 from the mouse, and squares its rows up again): the way it looks
+    // turned about Ratchet's up, and tilted, its tilt kept where the game keeps it.
+    void first_person_look(gaddr camera, float dx, float dy) const;
+
+    // The follow camera's tilt target where the mouse holds the eye (s_tilt): its eased target
+    // there and at rest, and the stick's y it reads this tick asking for the same.
+    void hold_tilt(gaddr state) const;
+
+    // The follow camera's orbit, its smoothed copy and the eye turned by the mouse's motion (dx,
+    // dy) about up, and tilted, as far as the game's locks allow; the tilt then held where the
+    // mouse leaves it.
+    void turn_follow_camera(gaddr state, float dx, float dy, std::int32_t locks);
+
+    // The follow camera turned by the tick's motion, from its hook point, before the game moves it
+    // on: the orbit (and its smoothed copy, and the eye's last place with them, so that neither the
+    // smoothing nor the follow pulls it back) turned about up, then tilted. The tilt stays where
+    // the mouse leaves it (Camera tilt: Stays) through the game's own target: its eased target set
+    // there at rest and the stick's y it reads written so that it asks for the same, whatever the
+    // game's invert option. The game's locks (a camera volume's) stop the mouse as they stop the
+    // stick.
+    void follow_look(gaddr camera);
+
+    // Asks the port to capture the cursor in play, and to free it everywhere else, when that
+    // changes. The port frees it too while the window is not focused or its overlay is open.
+    void update_capture(bool play, const openrac_input* in);
+
+    // The actions held this tick, before the latch holds back those held since before the game
+    // changed where it is.
+    kbm::ActionSet actions_held(const Tick& t) const;
+
+    // Whether a widget's handler is DrawMapScreen, in whichever program's copy (a level's own copy
+    // is at another address than the executable's).
+    bool is_map_screen(gaddr handler) const;
+
+    // Whether the map is focused in the menu: its handler (the widget's update or draw) is
+    // DrawMapScreen.
+    bool map_focused(const Tick& t) const;
+
+    // The menus' directions into v: the d-pad, a held key repeating; a wheel notch is one step.
+    void menu_directions(const Tick& t, kbm::ActionSet held, kbm::Virtual& v);
+
+    // The left stick into v: while the Quick Select is held, Triangle held and the mouse pointing
+    // the stick at a slot; else the movement keys.
+    void left_stick(const Tick& t, kbm::ActionSet held, bool ring, kbm::Virtual& v);
+
+    // The camera, in play and out of the ring: the follow camera and the first-person view turned
+    // by the mouse itself; any other camera (a scene's own) by the mouse as the right stick.
+    void mouse_camera(
+        const Tick& t, bool play, bool ring, std::uint16_t pad_buttons, kbm::Virtual& v
+    );
+
+    // The tick's pad from the keyboard and mouse: once a tick, when the port has read them anew.
+    void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look);
+
+    // The camera looking along the way Ratchet faces, as the game's own camera volumes ask for a
+    // heading: the swing behind him.
+    void look_behind_ratchet() const;
+
+    // One of the game's functions by the disc's name, which must be there.
+    template <class Fn>
+    Fn game_function(const char* name) const;
+
+    // The player's settings: the binds (warning of any two actions that share one) and the tunings.
+    void read_settings(openrac::Mod& mod);
+
+    // The mod and the disc's addresses, set by the constructor.
+    openrac::Mod* m_mod = nullptr;
+    const kbm::Disc* m_disc = nullptr;
+
+    // The player's settings, read by the constructor and not changed after.
+    kbm::Bindings m_binds;
+    kbm::MoveTuning m_move;
+
+    kbm::LookTuning m_look_tuning;
+    float m_ring_dead_zone = 30.0f;
+
+    bool m_capture = true;
+    bool m_menu_mouse = true;
+
+    // What the keys and the mouse hold now: the pad they make, the left stick's keys, the right
+    // stick's mouse, the Quick Select's pointer, the actions blocked after the game changed where
+    // it is, the menus' queue of presses, the menus' mouse steps, and each menu direction's key
+    // repeat.
+    kbm::Virtual m_pad;
+    kbm::KeyStick m_keys;
+
+    kbm::MouseLook m_look;
+    kbm::RingPointer m_ring;
+
+    kbm::Latch m_latch;
+    kbm::Pulser m_pulses;
+
+    kbm::Stepper m_stepper;
+    std::array<kbm::Repeat, kMenuDirections> m_repeat;
+
+    // Whether the Quick Select was held open at the last tick.
+    bool m_ring_open = false;
+
+    // The port's number of the tick last stepped, so that a tick steps once however often the game
+    // reads the pad.
+    std::uint32_t m_tick = kNoTick;
+
+    // What was last asked of the port for the cursor (1 captured, 0 free), -1 before the first ask.
+    int m_asked_capture = -1;
+
+    // The camera's swing behind Ratchet: how many ticks it has left.
+    int m_reset_ticks = 0;
+
+    // The mouse's turn of the follow camera: the tick's motion, for its hook point to apply; the
+    // tick the hook point last ran (the follow camera is the one in use); whether the mouse holds
+    // the tilt, and where (the eye's elevation).
+    float m_follow_dx = 0.0f;
+    float m_follow_dy = 0.0f;
+
+    std::uint32_t m_follow_tick = kNoTick;
+    bool m_tilt_held = false;
+
+    float m_tilt = 0.0f;
+
+    // Whether the gamepad's right stick is off centre: the camera is the pad's.
+    bool m_pad_look = false;
+
+    // A click on an item not yet focused: the ticks until Cross, once the focus has moved, and the
+    // buttons it presses.
+    int m_click_wait = 0;
+    std::uint16_t m_click_button = 0;
+
+    // The game's own functions the camera's reset calls, found by the constructor.
+    float (*m_fast_cos)(float) = nullptr;
+    float (*m_fast_sin)(float) = nullptr;
+
+    void (*m_look_along)(gaddr, float, float) = nullptr;
+
+    // The updates of the menu widgets the d-pad moves the focus between (discs.hpp): an item grid's
+    // and a text list's, as the port's functions; null where this disc's build has none.
+    void* m_grid_update = nullptr;
+    void* m_list_update = nullptr;
+
+    // The map widget's handler (DrawMapScreen) as the port's function; null where the build has
+    // none.
+    void* m_map_screen = nullptr;
+};
+
+template <class T>
+T& Keyboard::ref(gaddr address) const {
+    return m_mod->memory().ref<T>(address);
+}
+
+template <class T>
+T Keyboard::read(gaddr address) const {
+    return m_mod->memory().read<T>(address);
+}
+
+gaddr Keyboard::hero() const {
+    return m_disc->hero;
+}
+
+kbm::Vec3 Keyboard::read_vec(gaddr address) const {
     return {read<float>(address), read<float>(address + 4u), read<float>(address + 8u)};
 }
 
-// A vector as three floats in the game's memory.
-void write_vec(gaddr address, kbm::Vec3 v) {
-    s_mod->memory().write<float>(address, v.x);
-    s_mod->memory().write<float>(address + 4u, v.y);
-    s_mod->memory().write<float>(address + 8u, v.z);
+void Keyboard::write_vec(gaddr address, kbm::Vec3 v) const {
+    m_mod->memory().write<float>(address, v.x);
+    m_mod->memory().write<float>(address + 4u, v.y);
+    m_mod->memory().write<float>(address + 8u, v.z);
 }
 
-// The camera in use, 0 for none; its id in *id.
-gaddr current_camera(int* id) {
+gaddr Keyboard::current_camera(int* id) const {
     *id = -1;
 
     // Between levels there is no camera block to read.
-    if (s_mod->loaded_level() < 0) {
+    if (m_mod->loaded_level() < 0) {
         return 0;
     }
 
-    const gaddr cameras = s_mod->relocate_level(0, s_disc->cameras);
-    const gaddr camera = read<std::uint32_t>(cameras + KBM_CAMERAS_CURRENT);
+    const gaddr cameras = m_mod->relocate_level(0, m_disc->cameras);
+    const gaddr camera = read<std::uint32_t>(cameras + kbm::kCamerasCurrent);
 
     // A pointer that is not in the game's memory means there is no camera.
     if (!plausible(camera)) {
         return 0;
     }
 
-    *id = read<std::int16_t>(camera + KBM_CAMERA_ID);
+    *id = read<std::int16_t>(camera + kbm::kCameraId);
     return camera;
 }
 
-// Where the game is: a level's mode word (its program's copy) with a level loaded, else the boot
-// program's (the title and the main menu). The freeze dialog's kind goes in *dialog_kind, -1 when
-// the game is in no dialog.
-Context context_now(int* dialog_kind) {
-    const int level = s_mod->loaded_level();
+Context Keyboard::context_now(int* dialog_kind) const {
+    const int level = m_mod->loaded_level();
     const int level_mode =
-        level >= 0 ? read<std::int32_t>(s_mod->relocate_level(0, s_disc->level_mode)) : -1;
-    const int boot_mode = level < 0 ? read<std::int32_t>(s_disc->boot_mode) : -1;
+        level >= 0 ? read<std::int32_t>(m_mod->relocate_level(0, m_disc->level_mode)) : -1;
+    const int boot_mode = level < 0 ? read<std::int32_t>(m_disc->boot_mode) : -1;
     const Context c = kbm::context_of(level, level_mode, boot_mode);
-    *dialog_kind = c == Context::Dialog ? read<std::int32_t>(s_mod->relocate(s_disc->dialog)) : -1;
+    *dialog_kind = c == Context::Dialog ? read<std::int32_t>(m_mod->relocate(m_disc->dialog)) : -1;
     return c;
 }
 
 // ---- The tick's input ----
 
-// Whether one of an action's binds is held, or went down since the last tick (a tap shorter than a
-// tick still presses for one): a mouse bind only where the mouse counts, any while the port's
-// overlay leaves the input to the game.
-bool active(const Tick& t, Action a) {
+bool Keyboard::active(const Tick& t, Action a) const {
     const bool menu = kbm::kActions[static_cast<std::size_t>(a)].group == kbm::Group::Menu;
 
     // Menu actions are off in play, where the play layout is the keys'.
@@ -287,7 +467,7 @@ bool active(const Tick& t, Action a) {
     }
 
     // Look at each of the action's binds.
-    for (int b : s_binds.of(a)) {
+    for (int b : m_binds.of(a)) {
         // An empty bind slot holds nothing.
         if (b == 0) {
             continue;
@@ -308,9 +488,7 @@ bool active(const Tick& t, Action a) {
     return false;
 }
 
-// Whether one of an action's binds went down this tick (not held from before), where its input
-// counts: used for the presses that act once, such as taking an item or clicking.
-bool pressed_now(const Tick& t, Action a) {
+bool Keyboard::pressed_now(const Tick& t, Action a) const {
     // The port's overlay takes the input.
     if (t.in->overlay != 0) {
         return false;
@@ -319,7 +497,7 @@ bool pressed_now(const Tick& t, Action a) {
     const bool menu = kbm::kActions[static_cast<std::size_t>(a)].group == kbm::Group::Menu;
 
     // Look at each of the action's binds.
-    for (int b : s_binds.of(a)) {
+    for (int b : m_binds.of(a)) {
         // A set bind, whose input counts where the mouse does, that went down this tick.
         if (b != 0 && !(kbm::is_mouse(b) && !(menu ? t.pointer : t.play))
             && openrac_bind_pressed(t.in, b)) {
@@ -330,11 +508,9 @@ bool pressed_now(const Tick& t, Action a) {
     return false;
 }
 
-// An action's wheel binds that turned this tick (a notch is one press, sent as a pulse), where the
-// mouse counts in a menu.
-bool wheel_notch(const Tick& t, Action a) {
+bool Keyboard::wheel_notch(const Tick& t, Action a) const {
     // Look at each of the action's binds.
-    for (int b : s_binds.of(a)) {
+    for (int b : m_binds.of(a)) {
         // A wheel bind (they come after the mouse's buttons) that turned, with the cursor over the
         // game and the overlay shut.
         if (b >= OPENRAC_BIND_WHEEL_UP && t.pointer && t.in->overlay == 0
@@ -346,16 +522,14 @@ bool wheel_notch(const Tick& t, Action a) {
     return false;
 }
 
-// Whether one of an action's binds other than a wheel's is down: a key held makes a menu direction
-// repeat, a wheel notch is only one step.
-bool held_not_wheel(const Tick& t, Action a) {
+bool Keyboard::held_not_wheel(const Tick& t, Action a) const {
     // The port's overlay takes the input.
     if (t.in->overlay != 0) {
         return false;
     }
 
     // Look at each of the action's binds.
-    for (int b : s_binds.of(a)) {
+    for (int b : m_binds.of(a)) {
         // An empty slot, a wheel bind, or a mouse button with the cursor off the game holds
         // nothing.
         if (b == 0 || b >= OPENRAC_BIND_WHEEL_UP || (kbm::is_mouse(b) && !t.pointer)) {
@@ -373,33 +547,28 @@ bool held_not_wheel(const Tick& t, Action a) {
 
 // ---- Weapons ----
 
-// The item a Quick Select slot holds, put in hand as the Quick Select does (the hero takes it on
-// his next update); nothing for an empty slot or the item already in hand.
-void take_item(std::int32_t item) {
+void Keyboard::take_item(std::int32_t item) const {
     // An empty slot, or the item already in hand, needs no change.
-    if (item != 0 && item != ref<std::int32_t>(hero() + KBM_HERO_ITEM)) {
-        ref<std::int32_t>(hero() + KBM_HERO_PENDING) = item;
+    if (item != 0 && item != ref<std::int32_t>(hero() + kbm::kHeroItem)) {
+        ref<std::int32_t>(hero() + kbm::kHeroPending) = item;
     }
 }
 
-// The item ids in the Quick Select's slots, 0 for an empty one.
-std::array<std::int32_t, kbm::kQuickSelectSlots> quick_select_slots() {
+std::array<std::int32_t, kbm::kQuickSelectSlots> Keyboard::quick_select_slots() const {
     std::array<std::int32_t, kbm::kQuickSelectSlots> slots{};
 
     // Read each of the slots in turn.
     for (std::size_t i = 0; i < slots.size(); ++i) {
-        slots[i] = ref<std::int32_t>(s_disc->quick_select + static_cast<gaddr>(4 * i));
+        slots[i] = ref<std::int32_t>(m_disc->quick_select + static_cast<gaddr>(4 * i));
     }
 
     return slots;
 }
 
-// The number keys and the wheel: the item in a slot, or the next one round, taken at once. Only on
-// foot in play, and not while the Quick Select is open (it picks the slot itself).
-void weapons(const Tick& t) {
+void Keyboard::weapons(const Tick& t) const {
     // Weapons change only in play, on foot, and with the Quick Select shut.
-    if (t.where != Context::Play || ref<std::uint8_t>(hero() + KBM_HERO_VEHICLE) != 0
-        || s_ring_open) {
+    if (t.where != Context::Play || ref<std::uint8_t>(hero() + kbm::kHeroVehicle) != 0
+        || m_ring_open) {
         return;
     }
 
@@ -421,25 +590,23 @@ void weapons(const Tick& t) {
     // The wheel turned one way or the other.
     if (step != 0) {
         // From the item asked for and not yet in hand, so turning the wheel twice goes two on.
-        const std::int32_t pending = ref<std::int32_t>(hero() + KBM_HERO_PENDING);
+        const std::int32_t pending = ref<std::int32_t>(hero() + kbm::kHeroPending);
         const std::int32_t current =
-            pending != 0 ? pending : ref<std::int32_t>(hero() + KBM_HERO_ITEM);
+            pending != 0 ? pending : ref<std::int32_t>(hero() + kbm::kHeroItem);
         take_item(kbm::cycle_item(slots, current, step));
     }
 }
 
 // ---- The mouse over the menus ----
 
-// The menus' page shown now, 0 for none (a page changing, or no menu).
-gaddr menu_page() {
+gaddr Keyboard::menu_page() const {
     const gaddr page =
-        read<std::uint32_t>(s_mod->relocate(s_disc->page_menu) + kMenuPageShownOffset);
+        read<std::uint32_t>(m_mod->relocate(m_disc->page_menu) + kMenuPageShownOffset);
     return plausible(page) ? page : 0;
 }
 
-// A text list's rows: how many, and the selected one; false for a widget that is no text list.
-bool text_list(gaddr widget, int* count, int* selected) {
-    const gaddr items = read<std::uint32_t>(widget + KBM_LIST_ITEMS);
+bool Keyboard::text_list(gaddr widget, int* count, int* selected) const {
+    const gaddr items = read<std::uint32_t>(widget + kbm::kListItems);
 
     // A pointer that is not in the game's memory means there is no list.
     if (!plausible(items)) {
@@ -450,11 +617,11 @@ bool text_list(gaddr widget, int* count, int* selected) {
 
     // Count the rows: each item's text is nonzero, and the list ends on a zero.
     while (n < kMaxListRows
-           && read<std::int16_t>(items + KBM_LIST_ITEM_SIZE * static_cast<gaddr>(n)) != 0) {
+           && read<std::int16_t>(items + kbm::kListItemSize * static_cast<gaddr>(n)) != 0) {
         ++n;
     }
 
-    const std::int32_t sel = read<std::int32_t>(widget + KBM_LIST_SELECTED);
+    const std::int32_t sel = read<std::int32_t>(widget + kbm::kListSelected);
 
     // No rows, no end to them, or a selection outside them: this is not a text list.
     if (n == 0 || n == kMaxListRows || sel < 0 || sel >= n) {
@@ -466,94 +633,85 @@ bool text_list(gaddr widget, int* count, int* selected) {
     return true;
 }
 
-// A widget's links to the widgets the d-pad moves the focus to from it, into out (kbm::
-// reachable_widgets): an item grid's four, a text list's two, none for a widget of another kind.
-// The kind is its update's function (+0), in whichever program the menus are loaded from.
-int focus_links(gaddr widget, std::uint32_t* out) {
+int Keyboard::focus_links(gaddr widget, std::uint32_t* out) const {
     const gaddr update = read<std::uint32_t>(widget);
 
     // A widget with no update, or one this disc's build has no functions to tell apart: no links.
-    if (!plausible(update) || (s_grid_update == nullptr && s_list_update == nullptr)) {
+    if (!plausible(update) || (m_grid_update == nullptr && m_list_update == nullptr)) {
         return 0;
     }
 
-    void* const fn = reinterpret_cast<void*>(s_mod->function_at<void (*)()>(update));
+    void* const fn = reinterpret_cast<void*>(m_mod->function_at<void (*)()>(update));
 
     // An item grid: up, down, left and right.
-    if (fn != nullptr && fn == s_grid_update) {
-        for (int i = 0; i < KBM_GRID_LINK_COUNT; ++i) {
-            out[i] = read<std::uint32_t>(widget + KBM_GRID_LINKS + 4u * static_cast<gaddr>(i));
+    if (fn != nullptr && fn == m_grid_update) {
+        // Read each of the four links.
+        for (int i = 0; i < kbm::kGridLinkCount; ++i) {
+            out[i] = read<std::uint32_t>(widget + kbm::kGridLinks + 4u * static_cast<gaddr>(i));
         }
 
-        return KBM_GRID_LINK_COUNT;
+        return kbm::kGridLinkCount;
     }
 
     // A text list: up and down.
-    if (fn != nullptr && fn == s_list_update) {
-        out[0] = read<std::uint32_t>(widget + KBM_LIST_UP);
-        out[1] = read<std::uint32_t>(widget + KBM_LIST_DOWN);
+    if (fn != nullptr && fn == m_list_update) {
+        out[0] = read<std::uint32_t>(widget + kbm::kListUp);
+        out[1] = read<std::uint32_t>(widget + kbm::kListDown);
         return 2;
     }
 
     return 0;
 }
 
-// A widget's rectangle on the screen, as the game wrote it this frame.
-kbm::Rect rect_of(gaddr widget) {
+kbm::Rect Keyboard::rect_of(gaddr widget) const {
     kbm::Rect r;
-    r.x = read<std::int32_t>(widget + KBM_WIDGET_RECT);
-    r.y = read<std::int32_t>(widget + KBM_WIDGET_RECT + 4u);
-    r.w = read<std::int32_t>(widget + KBM_WIDGET_RECT + 8u);
-    r.h = read<std::int32_t>(widget + KBM_WIDGET_RECT + 12u);
+    r.x = read<std::int32_t>(widget + kbm::kWidgetRect);
+    r.y = read<std::int32_t>(widget + kbm::kWidgetRect + 4u);
+    r.w = read<std::int32_t>(widget + kbm::kWidgetRect + 8u);
+    r.h = read<std::int32_t>(widget + kbm::kWidgetRect + 12u);
     return r;
 }
 
-// Whether a widget is an item grid: its update is the grid's (discs.h).
-bool is_grid(gaddr widget) {
+bool Keyboard::is_grid(gaddr widget) const {
     const gaddr update = read<std::uint32_t>(widget);
-    return s_grid_update != nullptr && plausible(update)
-           && reinterpret_cast<void*>(s_mod->function_at<void (*)()>(update)) == s_grid_update;
+    return m_grid_update != nullptr && plausible(update)
+           && reinterpret_cast<void*>(m_mod->function_at<void (*)()>(update)) == m_grid_update;
 }
 
-// An item grid's layout as the game draws it (kbm::GridLayout); false where it cannot be read (no
-// grid, no menu moby or frame), so the mouse steps the d-pad over it instead.
-bool grid_layout(gaddr widget, kbm::GridLayout* g) {
+bool Keyboard::grid_layout(gaddr widget, kbm::GridLayout* g) const {
     // Only an item grid has this layout.
     if (!is_grid(widget)) {
         return false;
     }
 
-    const gaddr moby = read<std::uint32_t>(widget + KBM_WIDGET_MOBY);
-    const gaddr frame = plausible(moby) ? read<std::uint32_t>(moby + KBM_MENU_MOBY_FRAME) : 0;
+    const gaddr moby = read<std::uint32_t>(widget + kbm::kWidgetMoby);
+    const gaddr frame = plausible(moby) ? read<std::uint32_t>(moby + kbm::kMenuMobyFrame) : 0;
 
     // The frame the grid is laid out in is where its menu moby points.
     if (!plausible(frame)) {
         return false;
     }
 
-    const gaddr icon = s_mod->relocate(s_disc->grid_icon_size);
+    const gaddr icon = m_mod->relocate(m_disc->grid_icon_size);
     g->rect = rect_of(widget);
-    g->frame_w = read<float>(frame + KBM_FRAME_SIZE);
-    g->frame_h = read<float>(frame + KBM_FRAME_SIZE + 4u);
+    g->frame_w = read<float>(frame + kbm::kFrameSize);
+    g->frame_h = read<float>(frame + kbm::kFrameSize + 4u);
     g->icon_w = read<float>(icon);
     g->icon_h = read<float>(icon + 4u);
-    g->margin_x = read<float>(widget + KBM_GRID_MARGINS);
-    g->margin_y = read<float>(widget + KBM_GRID_MARGINS + 4u);
-    g->rows = read<std::int32_t>(widget + KBM_GRID_ROWS);
-    g->cols = read<std::int32_t>(widget + KBM_GRID_COLS);
-    g->flags = read<std::uint32_t>(widget + KBM_GRID_FLAGS);
+    g->margin_x = read<float>(widget + kbm::kGridMargins);
+    g->margin_y = read<float>(widget + kbm::kGridMargins + 4u);
+    g->rows = read<std::int32_t>(widget + kbm::kGridRows);
+    g->cols = read<std::int32_t>(widget + kbm::kGridCols);
+    g->flags = read<std::uint32_t>(widget + kbm::kGridFlags);
     return kbm::grid_layout_valid(*g);
 }
 
-// The mouse over the focused item grid: the selection steps to the cell under it, the presses
-// for the whole way queued at once (a row at a time, then a column). Returns the menu_mouse
-// result: false for a click that must wait for the selection to get there.
-bool mouse_on_grid(
+bool Keyboard::mouse_on_grid(
     gaddr widget, const kbm::GridLayout& g, bool moved, bool click, float px, float py
 ) {
     const int cell = kbm::grid_cell_at(g, px, py);
-    int at = read<std::int32_t>(widget + KBM_GRID_SELECTED);
-    s_stepper.reset();
+    int at = read<std::int32_t>(widget + kbm::kGridSelected);
+    m_stepper.reset();
 
     // Between the cells, or already on the one under the mouse: nothing to step.
     if (cell < 0 || cell == at || at < 0 || at >= g.rows * g.cols) {
@@ -561,7 +719,7 @@ bool mouse_on_grid(
     }
 
     // Steps already on their way (the selection is not where they lead yet): let them land.
-    if (!s_pulses.idle() || !(moved || click)) {
+    if (!m_pulses.idle() || !(moved || click)) {
         return !click;
     }
 
@@ -574,25 +732,22 @@ bool mouse_on_grid(
             break;
         }
 
-        s_pulses.push(dir);
+        m_pulses.push(dir);
         at += dir == kbm::kUp ? -g.cols : dir == kbm::kDown ? g.cols : dir == kbm::kLeft ? -1 : 1;
     }
 
     return !click;
 }
 
-// The mouse over a menu page's item, at (px, py) in the game's screen: the item becomes the focused
-// one, or, once focused, a text list's row or an item grid's cell under the mouse is stepped to.
-// Returns the menu_mouse result where the mouse is over an item (false: the click must wait for
-// the focus or the selection to move), and nothing where it is over none, or over a widget whose
-// rows it cannot read, which the d-pad steps instead.
-std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, float py) {
-    std::array<gaddr, KBM_PAGE_WIDGET_COUNT> present{};
+std::optional<bool> Keyboard::mouse_on_page(
+    gaddr page, bool moved, bool click, float px, float py
+) {
+    std::array<gaddr, kbm::kPageWidgetCount> present{};
     int present_count = 0;
 
     // Collect the page's widgets that are there (the slots are not all used).
-    for (int i = 0; i < KBM_PAGE_WIDGET_COUNT; ++i) {
-        const gaddr w = read<std::uint32_t>(page + KBM_PAGE_WIDGETS + 4u * static_cast<gaddr>(i));
+    for (int i = 0; i < kbm::kPageWidgetCount; ++i) {
+        const gaddr w = read<std::uint32_t>(page + kbm::kPageWidgets + 4u * static_cast<gaddr>(i));
 
         // Only the page's widgets that are there.
         if (plausible(w)) {
@@ -600,14 +755,14 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
         }
     }
 
-    const gaddr focused = read<std::uint32_t>(page + KBM_PAGE_FOCUS);
+    const gaddr focused = read<std::uint32_t>(page + kbm::kPageFocus);
     const std::uint32_t reachable = kbm::reachable_widgets(
-        focused, present.data(), present_count, [](std::uint32_t w, std::uint32_t* out) {
+        focused, present.data(), present_count, [this](std::uint32_t w, std::uint32_t* out) {
             return plausible(w) ? focus_links(w, out) : 0;
         }
     );
-    std::array<kbm::Rect, KBM_PAGE_WIDGET_COUNT> rects{};
-    std::array<gaddr, KBM_PAGE_WIDGET_COUNT> widgets{};
+    std::array<kbm::Rect, kbm::kPageWidgetCount> rects{};
+    std::array<gaddr, kbm::kPageWidgetCount> widgets{};
     int count = 0;
 
     // The widgets the mouse may point at: the focused one, and those the d-pad could take the
@@ -639,8 +794,8 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
     // the mouse moved or clicked and no move is already asked for.
     if (widget != focused) {
         // Where the mouse moved or clicked, and no focus move is asked for yet, ask for this one.
-        if ((moved || click) && read<std::uint32_t>(page + KBM_PAGE_PENDING) == 0) {
-            ref<std::uint32_t>(page + KBM_PAGE_PENDING) = widget;
+        if ((moved || click) && read<std::uint32_t>(page + kbm::kPagePending) == 0) {
+            ref<std::uint32_t>(page + kbm::kPagePending) = widget;
         }
 
         return !click;
@@ -658,20 +813,20 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
 
     // A text list that the mouse moved over: step its selection to the row under the mouse, once
     // the last step is done.
-    if (moved && text_list(widget, &rows, &selected) && rows > 1 && s_pulses.idle()) {
+    if (moved && text_list(widget, &rows, &selected) && rows > 1 && m_pulses.idle()) {
         const int row = kbm::list_row(
             rects[static_cast<std::size_t>(hit)],
             rows,
-            read<std::uint32_t>(widget + KBM_LIST_FLAGS),
+            read<std::uint32_t>(widget + kbm::kListFlags),
             py
         );
 
         // The row is on the list and not the selected one: one step of the d-pad toward it.
         if (row >= 0 && row != selected) {
-            s_pulses.push(row < selected ? kbm::kUp : kbm::kDown);
+            m_pulses.push(row < selected ? kbm::kUp : kbm::kDown);
         }
 
-        s_stepper.reset();
+        m_stepper.reset();
         return true;
     }
 
@@ -684,17 +839,12 @@ std::optional<bool> mouse_on_page(gaddr page, bool moved, bool click, float px, 
     return std::nullopt;
 }
 
-// The mouse in a menu: over a page's item, it is the one the game focuses (as the d-pad moves the
-// focus between a page's items: the next tick's focus change plays the game's own sound); over a
-// row of the focused list or a cell of the focused item grid, the d-pad steps the selection to it.
-// Elsewhere (the vendor, the dialogs) its motion steps the d-pad. A click on an item not yet focused focuses it first.
-// Returns false when the click must wait for the focus to move.
-bool menu_mouse(const Tick& t, bool click) {
+bool Keyboard::menu_mouse(const Tick& t, bool click) {
     const openrac_input* in = t.in;
     const bool moved = in->mouse_dx != 0.0f || in->mouse_dy != 0.0f;
 
     // The mouse has no say out of a menu, or when the player turned it off.
-    if (!t.pointer || !s_menu_mouse) {
+    if (!t.pointer || !m_menu_mouse) {
         return true;
     }
 
@@ -715,11 +865,11 @@ bool menu_mouse(const Tick& t, bool click) {
     // Elsewhere (and over a grid) the mouse's motion steps the d-pad, except on the title, which
     // has nothing to step.
     if (moved && t.where != Context::Title) {
-        const std::uint16_t dir = s_stepper.step(in->mouse_dx, in->mouse_dy);
+        const std::uint16_t dir = m_stepper.step(in->mouse_dx, in->mouse_dy);
 
         // A step of the d-pad was due: press it.
         if (dir != 0) {
-            s_pulses.push(dir);
+            m_pulses.push(dir);
         }
     }
 
@@ -728,66 +878,58 @@ bool menu_mouse(const Tick& t, bool click) {
 
 // ---- The camera from the mouse ----
 
-// The first-person view turned by the tick's motion, before the game's update of it (which turns
-// it by the sticks, 0 from the mouse, and squares its rows up again): the way it looks turned
-// about Ratchet's up, and tilted, its tilt kept where the game keeps it.
-void first_person_look(gaddr camera, float dx, float dy) {
-    const gaddr state = read<std::uint32_t>(camera + KBM_CAMERA_STATE);
+void Keyboard::first_person_look(gaddr camera, float dx, float dy) const {
+    const gaddr state = read<std::uint32_t>(camera + kbm::kCameraState);
 
     // The view has no state to tilt, or the mouse did not move: nothing to turn.
     if (!plausible(state) || (dx == 0.0f && dy == 0.0f)) {
         return;
     }
 
-    const gaddr moby = read<std::uint32_t>(hero() + KBM_HERO_MOBY);
+    const gaddr moby = read<std::uint32_t>(hero() + kbm::kHeroMoby);
     const kbm::Vec3 up = plausible(moby)
                              ? kbm::unit_or(read_vec(moby + kMobyUpOffset), kbm::kWorldUp)
                              : kbm::kWorldUp;
     kbm::Vec3 look = read_vec(camera);
-    look = kbm::rotate(look, up, kbm::DirectLook::yaw(dx, dy, s_look_tuning));
-    const float tilt = read<float>(state + KBM_FIRST_PERSON_TILT);
+    look = kbm::rotate(look, up, kbm::DirectLook::yaw(dx, dy, m_look_tuning));
+    const float tilt = read<float>(state + kbm::kFirstPersonTilt);
 
     // The game's tilt is a number: turn the view by how much the tilt changes, within the limit.
     if (std::isfinite(tilt)) {
-        const float wanted = tilt + kbm::DirectLook::pitch(dx, dy, s_look_tuning);
+        const float wanted = tilt + kbm::DirectLook::pitch(dx, dy, m_look_tuning);
         const float limit = kbm::kFirstPersonTiltLimit;
         const float now = kbm::clamp(wanted, -limit, limit);
         const float moved = kbm::clamp(tilt, -limit, limit);
         // Looking down lowers the view's elevation.
         look = kbm::with_elevation(look, up, kbm::elevation(look, up) - (now - moved));
-        s_mod->memory().write<float>(state + KBM_FIRST_PERSON_TILT, now);
+        m_mod->memory().write<float>(state + kbm::kFirstPersonTilt, now);
     }
 
     write_vec(camera, look);
 }
 
-// The follow camera's tilt target where the mouse holds the eye (s_tilt): its eased target there
-// and at rest, and the stick's y it reads this tick asking for the same.
-void hold_tilt(gaddr state) {
-    const float w = kbm::follow_target_of(s_tilt);
-    s_mod->memory().write<float>(state + KBM_FOLLOW_TILT, w);
-    s_mod->memory().write<float>(state + KBM_FOLLOW_TILT_RATE, 0.0f);
-    const bool inverts = read<std::int32_t>(s_mod->relocate(s_disc->tilt_invert)) != 0;
-    const gaddr stick_y = s_mod->relocate(s_disc->pad_sticks) + kPadRightYOffset;
-    s_mod->memory().write<float>(stick_y, kbm::follow_stick_for(w, inverts));
+void Keyboard::hold_tilt(gaddr state) const {
+    const float w = kbm::follow_target_of(m_tilt);
+    m_mod->memory().write<float>(state + kbm::kFollowTilt, w);
+    m_mod->memory().write<float>(state + kbm::kFollowTiltRate, 0.0f);
+    const bool inverts = read<std::int32_t>(m_mod->relocate(m_disc->tilt_invert)) != 0;
+    const gaddr stick_y = m_mod->relocate(m_disc->pad_sticks) + kPadRightYOffset;
+    m_mod->memory().write<float>(stick_y, kbm::follow_stick_for(w, inverts));
 }
 
-// The follow camera's orbit, its smoothed copy and the eye turned by the mouse's motion (dx, dy)
-// about up, and tilted, as far as the game's locks allow; the tilt then held where the mouse leaves
-// it.
-void turn_follow_camera(gaddr state, float dx, float dy, std::int32_t locks) {
-    const gaddr cameras = s_mod->relocate_level(0, s_disc->cameras);
-    const kbm::Vec3 up = kbm::unit_or(read_vec(cameras + KBM_CAMERAS_UP), kbm::kWorldUp);
-    const gaddr orbit = state + KBM_FOLLOW_ORBIT;
-    const gaddr smooth = state + KBM_FOLLOW_ORBIT_SMOOTH;
-    const kbm::Vec3 target = read_vec(state + KBM_FOLLOW_TARGET);
+void Keyboard::turn_follow_camera(gaddr state, float dx, float dy, std::int32_t locks) {
+    const gaddr cameras = m_mod->relocate_level(0, m_disc->cameras);
+    const kbm::Vec3 up = kbm::unit_or(read_vec(cameras + kbm::kCamerasUp), kbm::kWorldUp);
+    const gaddr orbit = state + kbm::kFollowOrbit;
+    const gaddr smooth = state + kbm::kFollowOrbitSmooth;
+    const kbm::Vec3 target = read_vec(state + kbm::kFollowTarget);
     kbm::Vec3 o = read_vec(orbit);
     kbm::Vec3 m = read_vec(smooth);
-    kbm::Vec3 e = kbm::minus(read_vec(state + KBM_FOLLOW_EYE), target);
+    kbm::Vec3 e = kbm::minus(read_vec(state + kbm::kFollowEye), target);
 
     // The mouse moved sideways and the game does not lock the turn: turn all three about up.
     if (dx != 0.0f && (locks & kFollowLockTurn) == 0) {
-        const float yaw = kbm::DirectLook::yaw(dx, dy, s_look_tuning);
+        const float yaw = kbm::DirectLook::yaw(dx, dy, m_look_tuning);
         o = kbm::rotate(o, up, yaw);
         m = kbm::rotate(m, up, yaw);
         e = kbm::rotate(e, up, yaw);
@@ -796,20 +938,20 @@ void turn_follow_camera(gaddr state, float dx, float dy, std::int32_t locks) {
     // The game holds the tilt (a camera volume's): the mouse leaves it be. Else a mouse that moved
     // up or down tilts it. Else, if the player chose Levels out, the mouse does not hold it.
     if ((locks & kFollowLockTilt) != 0) {
-        s_tilt_held = false;  // the game holds the tilt
+        m_tilt_held = false;  // the game holds the tilt
     } else if (dy != 0.0f) {
         // A tilt not held yet (or one that is not kept) starts from where the eye now is.
-        if (!s_tilt_held || !s_look_tuning.pitch_holds) {
-            s_tilt = kbm::elevation(o, up);
+        if (!m_tilt_held || !m_look_tuning.pitch_holds) {
+            m_tilt = kbm::elevation(o, up);
         }
 
-        s_tilt_held = true;
+        m_tilt_held = true;
         // Looking down lifts the eye above Ratchet.
         const float limit = kbm::follow_max_elevation();
-        const float pitch = kbm::DirectLook::pitch(dx, dy, s_look_tuning);
-        const float now = kbm::clamp(s_tilt + pitch, -limit, limit);
-        const float moved = now - s_tilt;
-        s_tilt = now;
+        const float pitch = kbm::DirectLook::pitch(dx, dy, m_look_tuning);
+        const float now = kbm::clamp(m_tilt + pitch, -limit, limit);
+        const float moved = now - m_tilt;
+        m_tilt = now;
         const auto tilt = [&](kbm::Vec3 v) {
             const float elevation = kbm::elevation(v, up) + moved;
             const float e =
@@ -819,51 +961,45 @@ void turn_follow_camera(gaddr state, float dx, float dy, std::int32_t locks) {
         o = tilt(o);
         m = tilt(m);
         e = tilt(e);
-    } else if (!s_look_tuning.pitch_holds) {
-        s_tilt_held = false;  // the mouse not tilting: the game levels the camera out
+    } else if (!m_look_tuning.pitch_holds) {
+        m_tilt_held = false;  // the mouse not tilting: the game levels the camera out
     }
 
     write_vec(orbit, o);
     write_vec(smooth, m);
-    write_vec(state + KBM_FOLLOW_EYE, kbm::plus(target, e));
+    write_vec(state + kbm::kFollowEye, kbm::plus(target, e));
 
     // The mouse holds the tilt: write the game's target for it.
-    if (s_tilt_held) {
+    if (m_tilt_held) {
         hold_tilt(state);
     }
 }
 
-// The follow camera turned by the tick's motion, from its hook point, before the game moves it on:
-// the orbit (and its smoothed copy, and the eye's last place with them, so that neither the
-// smoothing nor the follow pulls it back) turned about up, then tilted. The tilt stays where the
-// mouse leaves it (Camera tilt: Stays) through the game's own target: its eased target set there
-// at rest and the stick's y it reads written so that it asks for the same, whatever the game's
-// invert option. The game's locks (a camera volume's) stop the mouse as they stop the stick.
-void follow_look(gaddr camera) {
-    s_follow_tick = s_tick;
-    const float dx = s_follow_dx;
-    const float dy = s_follow_dy;
-    s_follow_dx = 0.0f;
-    s_follow_dy = 0.0f;
-    const gaddr state = read<std::uint32_t>(camera + KBM_CAMERA_STATE);
+void Keyboard::follow_look(gaddr camera) {
+    m_follow_tick = m_tick;
+    const float dx = m_follow_dx;
+    const float dy = m_follow_dy;
+    m_follow_dx = 0.0f;
+    m_follow_dy = 0.0f;
+    const gaddr state = read<std::uint32_t>(camera + kbm::kCameraState);
 
     // The camera has no state, or the gamepad's stick is turning it: the mouse lets go.
-    if (!plausible(state) || s_pad_look) {
-        s_tilt_held = false;
+    if (!plausible(state) || m_pad_look) {
+        m_tilt_held = false;
         return;
     }
 
-    const std::int32_t locks = read<std::int32_t>(state + KBM_FOLLOW_LOCKS);
+    const std::int32_t locks = read<std::int32_t>(state + kbm::kFollowLocks);
 
     // The mouse is at rest: only keep the tilt it holds, if it still may.
     if (dx == 0.0f && dy == 0.0f) {
         // The tilt is not kept (Levels out), or the game holds it: the mouse lets go.
-        if (!s_look_tuning.pitch_holds || (locks & kFollowLockTilt) != 0) {
-            s_tilt_held = false;
+        if (!m_look_tuning.pitch_holds || (locks & kFollowLockTilt) != 0) {
+            m_tilt_held = false;
         }
 
         // Keep holding the tilt where the mouse left it.
-        if (s_tilt_held) {
+        if (m_tilt_held) {
             hold_tilt(state);
         }
 
@@ -875,21 +1011,17 @@ void follow_look(gaddr camera) {
 
 // ---- The tick ----
 
-// Asks the port to capture the cursor in play, and to free it everywhere else, when that changes.
-// The port frees it too while the window is not focused or its overlay is open.
-void update_capture(bool play, const openrac_input* in) {
-    const int want = s_capture && play && in->focused != 0 && in->overlay == 0 ? 1 : 0;
+void Keyboard::update_capture(bool play, const openrac_input* in) {
+    const int want = m_capture && play && in->focused != 0 && in->overlay == 0 ? 1 : 0;
 
     // Ask the port only when the answer changed, not each tick.
-    if (want != s_asked_capture) {
-        s_mod->capture_mouse(want != 0);
-        s_asked_capture = want;
+    if (want != m_asked_capture) {
+        m_mod->capture_mouse(want != 0);
+        m_asked_capture = want;
     }
 }
 
-// The actions held this tick, before the latch holds back those held since before the game
-// changed where it is.
-kbm::ActionSet actions_held(const Tick& t) {
+kbm::ActionSet Keyboard::actions_held(const Tick& t) const {
     kbm::ActionSet held = 0;
 
     // Check each action in turn.
@@ -903,30 +1035,25 @@ kbm::ActionSet actions_held(const Tick& t) {
     return held;
 }
 
-// Whether a widget's handler is DrawMapScreen, in whichever program's copy (a level's own copy is
-// at another address than the executable's).
-bool is_map_screen(gaddr handler) {
-    return s_map_screen != nullptr && plausible(handler)
-           && reinterpret_cast<void*>(s_mod->function_at<void (*)()>(handler)) == s_map_screen;
+bool Keyboard::is_map_screen(gaddr handler) const {
+    return m_map_screen != nullptr && plausible(handler)
+           && reinterpret_cast<void*>(m_mod->function_at<void (*)()>(handler)) == m_map_screen;
 }
 
-// Whether the map is focused in the menu: its handler (the widget's update or draw) is
-// DrawMapScreen.
-bool map_focused(const Tick& t) {
+bool Keyboard::map_focused(const Tick& t) const {
     // The map is a page of the menus only.
     if (t.where != Context::Menu) {
         return false;
     }
 
     const gaddr page = menu_page();
-    const gaddr focused = page != 0 ? read<std::uint32_t>(page + KBM_PAGE_FOCUS) : 0;
+    const gaddr focused = page != 0 ? read<std::uint32_t>(page + kbm::kPageFocus) : 0;
     return plausible(focused)
            && (is_map_screen(read<std::uint32_t>(focused))
                || is_map_screen(read<std::uint32_t>(focused + 4u)));
 }
 
-// The menus' directions into v: the d-pad, a held key repeating; a wheel notch is one step.
-void menu_directions(const Tick& t, kbm::ActionSet held, kbm::Virtual& v) {
+void Keyboard::menu_directions(const Tick& t, kbm::ActionSet held, kbm::Virtual& v) {
     const Action dirs[kMenuDirections] =
         {Action::MenuUp, Action::MenuDown, Action::MenuLeft, Action::MenuRight};
     const std::uint16_t pads[kMenuDirections] = {kbm::kUp, kbm::kDown, kbm::kLeft, kbm::kRight};
@@ -938,18 +1065,16 @@ void menu_directions(const Tick& t, kbm::ActionSet held, kbm::Virtual& v) {
 
         // A wheel notch is one queued press; a key is held, and repeats while it stays down.
         if (notch) {
-            s_pulses.push(pads[i]);
-        } else if (s_repeat[static_cast<std::size_t>(i)].step(on)) {
+            m_pulses.push(pads[i]);
+        } else if (m_repeat[static_cast<std::size_t>(i)].step(on)) {
             v.held = static_cast<std::uint16_t>(v.held | pads[i]);
         }
     }
 
-    v.held = static_cast<std::uint16_t>(v.held | s_pulses.step());
+    v.held = static_cast<std::uint16_t>(v.held | m_pulses.step());
 }
 
-// The left stick into v: while the Quick Select is held, Triangle held and the mouse pointing the
-// stick at a slot; else the movement keys.
-void left_stick(const Tick& t, kbm::ActionSet held, bool ring, kbm::Virtual& v) {
+void Keyboard::left_stick(const Tick& t, kbm::ActionSet held, bool ring, kbm::Virtual& v) {
     const auto key = [&](Action a) {
         return (held & kbm::bit(a)) != 0;
     };
@@ -960,31 +1085,32 @@ void left_stick(const Tick& t, kbm::ActionSet held, bool ring, kbm::Virtual& v) 
 
         // The mouse counts only with the cursor captured in play.
         if (t.play) {
-            s_ring.add(t.in->mouse_dx, t.in->mouse_dy, s_ring_dead_zone);
+            m_ring.add(t.in->mouse_dx, t.in->mouse_dy, m_ring_dead_zone);
         }
 
-        const auto [x, y] = s_ring.stick(s_ring_dead_zone);
+        const auto [x, y] = m_ring.stick(m_ring_dead_zone);
         v.left_x = x;
         v.left_y = y;
-        s_keys = kbm::KeyStick{};
+        m_keys = kbm::KeyStick{};
     } else {
-        // The movement keys are the left stick everywhere: in a menu the game reads it as the d-pad.
-        s_keys.step(
+        // The movement keys are the left stick everywhere: in a menu the game reads it as the
+        // d-pad.
+        m_keys.step(
             key(Action::MoveForward),
             key(Action::MoveBack),
             key(Action::MoveLeft),
             key(Action::MoveRight),
             key(Action::Walk),
-            s_move
+            m_move
         );
-        v.left_x = s_keys.x;
-        v.left_y = s_keys.y;
+        v.left_x = m_keys.x;
+        v.left_y = m_keys.y;
     }
 }
 
-// The camera, in play and out of the ring: the follow camera and the first-person view turned by
-// the mouse itself; any other camera (a scene's own) by the mouse as the right stick.
-void mouse_camera(const Tick& t, bool play, bool ring, std::uint16_t pad_buttons, kbm::Virtual& v) {
+void Keyboard::mouse_camera(
+    const Tick& t, bool play, bool ring, std::uint16_t pad_buttons, kbm::Virtual& v
+) {
     const openrac_input* in = t.in;
 
     // In play with the cursor captured and the Quick Select shut, the mouse turns the camera.
@@ -992,60 +1118,59 @@ void mouse_camera(const Tick& t, bool play, bool ring, std::uint16_t pad_buttons
         int id = -1;
         const gaddr camera = current_camera(&id);
         const bool follow =
-            id == 0 || (s_follow_tick != kNoTick && s_tick - s_follow_tick <= kFollowSeenTicks);
+            id == 0 || (m_follow_tick != kNoTick && m_tick - m_follow_tick <= kFollowSeenTicks);
 
         // Which camera is in use decides how the mouse turns it.
-        if (camera != 0 && id == KBM_CAMERA_FIRST_PERSON) {
+        if (camera != 0 && id == kbm::kCameraFirstPerson) {
             first_person_look(camera, in->mouse_dx, in->mouse_dy);
-            s_look.reset();
+            m_look.reset();
         } else if (camera != 0 && follow) {
-            s_follow_dx = in->mouse_dx;
-            s_follow_dy = in->mouse_dy;
-            s_look.reset();
+            m_follow_dx = in->mouse_dx;
+            m_follow_dy = in->mouse_dy;
+            m_look.reset();
         } else {
             const bool first_person = ((v.held | pad_buttons) & kbm::kL1) != 0;
-            s_look.step(in->mouse_dx, in->mouse_dy, first_person, s_look_tuning);
-            v.right_x = s_look.x;
-            v.right_y = s_look.y;
+            m_look.step(in->mouse_dx, in->mouse_dy, first_person, m_look_tuning);
+            v.right_x = m_look.x;
+            v.right_y = m_look.y;
         }
 
         // The player turns the camera sideways: the swing behind Ratchet stops.
-        if (s_reset_ticks > 0 && in->mouse_dx != 0.0f) {
-            s_reset_ticks = 0;
+        if (m_reset_ticks > 0 && in->mouse_dx != 0.0f) {
+            m_reset_ticks = 0;
         }
     } else if (!play) {
         // Out of play the mouse's look rests, and the tilt it held is let go.
-        s_look.x = 0.0f;
-        s_look.y = 0.0f;
-        s_tilt_held = false;
+        m_look.x = 0.0f;
+        m_look.y = 0.0f;
+        m_tilt_held = false;
     }
 }
 
-// The tick's pad from the keyboard and mouse: once a tick, when the port has read them anew.
-void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
+void Keyboard::step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
     Tick t;
     t.in = in;
     int dialog_kind = -1;
     t.where = context_now(&dialog_kind);
     const bool play = t.where == Context::Play;
     t.play = play && in->captured != 0 && in->overlay == 0;
-    s_pad_look = pad_look;
-    s_follow_dx = 0.0f;
-    s_follow_dy = 0.0f;
+    m_pad_look = pad_look;
+    m_follow_dx = 0.0f;
+    m_follow_dy = 0.0f;
     t.pointer = !play && in->pointer_inside != 0 && in->focused != 0 && in->overlay == 0
                 && in->size >= offsetof(openrac_input, reserved2);
 
     update_capture(play, in);
 
     kbm::ActionSet held = actions_held(t);
-    const kbm::Context before = s_latch.last;
-    held = s_latch.filter(t.where, held);
+    const kbm::Context before = m_latch.last;
+    held = m_latch.filter(t.where, held);
 
     // The game changed where it is: what was queued or half done in the old place is dropped.
     if (before != t.where) {
-        s_pulses.clear();
-        s_stepper.reset();
-        s_click_wait = 0;
+        m_pulses.clear();
+        m_stepper.reset();
+        m_click_wait = 0;
     }
 
     const bool map = map_focused(t);
@@ -1060,8 +1185,8 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
         // A click on an item not yet focused is not pressed yet.
         if (!menu_mouse(t, click)) {
             held &= ~kbm::bit(Action::MenuConfirm);
-            s_click_wait = kClickWaitTicks;
-            s_click_button =
+            m_click_wait = kClickWaitTicks;
+            m_click_button =
                 kbm::buttons_for(t.where, kbm::bit(Action::MenuConfirm), dialog_kind, map);
         }
     }
@@ -1069,53 +1194,52 @@ void step(const openrac_input* in, std::uint16_t pad_buttons, bool pad_look) {
     v.held = kbm::buttons_for(t.where, held, dialog_kind, map);
 
     // A click that waited has waited long enough: press it now.
-    if (s_click_wait > 0 && --s_click_wait == 0) {
-        s_pulses.push(s_click_button);
+    if (m_click_wait > 0 && --m_click_wait == 0) {
+        m_pulses.push(m_click_button);
     }
 
     // In menus the directions are the d-pad; in play nothing is queued.
     if (!play) {
         menu_directions(t, held, v);
     } else {
-        s_pulses.clear();
+        m_pulses.clear();
     }
 
-    // The Quick Select: Triangle held while its bind is, the mouse pointing the left stick at a slot.
+    // The Quick Select: Triangle held while its bind is, the mouse pointing the left stick at a
+    // slot.
     const bool ring = play && (held & kbm::bit(Action::QuickSelect)) != 0;
 
-    // The Quick Select just opened: its pointer starts at the centre.
-    if (ring && !s_ring_open) {
-        s_ring.reset();
+    // The Quick Select has opened: its pointer starts at the centre.
+    if (ring && !m_ring_open) {
+        m_ring.reset();
     }
 
-    s_ring_open = ring;
+    m_ring_open = ring;
     left_stick(t, held, ring, v);
     mouse_camera(t, play, ring, pad_buttons, v);
 
     // The camera's reset: the mouse's look starts afresh, and the camera swings behind Ratchet.
     if (play && pressed_now(t, Action::CameraReset)) {
-        s_look.reset();
-        s_tilt_held = false;  // the swing levels it
-        s_reset_ticks = kResetTicks;
+        m_look.reset();
+        m_tilt_held = false;  // the swing levels it
+        m_reset_ticks = kResetTicks;
     }
 
     weapons(t);
-    s_pad = v;
+    m_pad = v;
 }
 
-// The first pad's report, before the game reads it: the keys and the mouse on top of the pad's.
-// Runs on the game's thread, as often as the game reads the pad.
-void on_pad(int port, std::uint8_t* report, int size) {
+void Keyboard::on_pad(int port, std::uint8_t* report, int size) {
     // Only the first pad, and a report that holds the buttons and sticks.
     if (port != 0 || size < kMinReportSize) {
         return;
     }
 
-    const openrac_input* in = s_mod->api().input();
+    const openrac_input* in = m_mod->api().input();
 
     // The port has read the input anew: step once for this tick, however often the game reads.
-    if (in->tick != s_tick) {
-        s_tick = in->tick;
+    if (in->tick != m_tick) {
+        m_tick = in->tick;
         const std::uint16_t pad_held = static_cast<std::uint16_t>(~(report[0] | (report[1] << 8)));
         // The pad's right stick past the game's dead zone (0.3): the camera is the pad's.
         const bool pad_look = std::abs(report[2] - kbm::kStickRestByte) > kPadLookDeadBytes
@@ -1123,67 +1247,60 @@ void on_pad(int port, std::uint8_t* report, int size) {
         step(in, pad_held, pad_look);
     }
 
-    kbm::merge(s_pad, report, size);
+    kbm::merge(m_pad, report, size);
 }
 
-// The camera looking along the way Ratchet faces, as the game's own camera volumes ask for a
-// heading: the swing behind him.
-void look_behind_ratchet() {
-    const float facing = s_mod->memory().read<float>(hero() + KBM_HERO_FACING);
-    openrac::StackFrame frame(*s_mod, kHeadingFrameBytes);
+void Keyboard::look_behind_ratchet() const {
+    const float facing = m_mod->memory().read<float>(hero() + kbm::kHeroFacing);
+    openrac::StackFrame frame(*m_mod, kHeadingFrameBytes);
     const gaddr dir = frame.address();
-    s_mod->memory().write<float>(dir, s_fast_cos(facing));
-    s_mod->memory().write<float>(dir + 4u, s_fast_sin(facing));
-    s_mod->memory().write<float>(dir + 8u, 0.0f);
-    s_mod->memory().write<float>(dir + 12u, 0.0f);
-    s_look_along(dir, kResetPitch, 0.0f);
+    m_mod->memory().write<float>(dir, m_fast_cos(facing));
+    m_mod->memory().write<float>(dir + 4u, m_fast_sin(facing));
+    m_mod->memory().write<float>(dir + 8u, 0.0f);
+    m_mod->memory().write<float>(dir + 12u, 0.0f);
+    m_look_along(dir, kResetPitch, 0.0f);
 }
 
-// The follow camera's per-tick requests: after the game's (and any mod's before this one), the
-// mouse's turn (follow_look); while the camera's reset lasts, instead, a request to look along the
-// way Ratchet faces, as the game's own camera volumes ask for a heading.
 template <class Original>
-void camera_overrides(Original original, gaddr camera) {
+void Keyboard::camera_overrides(Original original, gaddr camera) {
     original(camera);
     int kind = 0;
 
     // Out of play the follow camera is not the player's: drop what the mouse held.
     if (context_now(&kind) != Context::Play) {
-        s_reset_ticks = 0;
-        s_tilt_held = false;
-        s_follow_dx = 0.0f;
-        s_follow_dy = 0.0f;
+        m_reset_ticks = 0;
+        m_tilt_held = false;
+        m_follow_dx = 0.0f;
+        m_follow_dy = 0.0f;
         return;
     }
 
     // No swing running: the mouse turns the camera.
-    if (s_reset_ticks <= 0) {
-        s_reset_ticks = 0;
+    if (m_reset_ticks <= 0) {
+        m_reset_ticks = 0;
         follow_look(camera);
         return;
     }
 
-    s_follow_tick = s_tick;
-    s_follow_dx = 0.0f;
-    s_follow_dy = 0.0f;
-    --s_reset_ticks;
+    m_follow_tick = m_tick;
+    m_follow_dx = 0.0f;
+    m_follow_dy = 0.0f;
+    --m_reset_ticks;
     look_behind_ratchet();
 }
 
 // ---- Loading ----
 
-// One of the game's functions by the disc's name, which must be there.
 template <class Fn>
-Fn game_function(const char* name) {
-    return s_mod->required_function<Fn>(name);
+Fn Keyboard::game_function(const char* name) const {
+    return m_mod->required_function<Fn>(name);
 }
 
-// The player's settings: the binds (warning of any two actions that share one) and the tunings.
-void read_settings(openrac::Mod& mod) {
-    s_binds = kbm::read_bindings([&](const char* key) { return mod.setting<std::string>(key); });
+void Keyboard::read_settings(openrac::Mod& mod) {
+    m_binds = kbm::read_bindings([&](const char* key) { return mod.setting<std::string>(key); });
 
     // Warn of each pair of actions that share a bind.
-    for (const kbm::Conflict& c : kbm::conflicts(s_binds)) {
+    for (const kbm::Conflict& c : kbm::conflicts(m_binds)) {
         mod.warn(
             std::string(openrac_bind_to_name(c.bind)) + " is bound to both "
             + kbm::kActions[static_cast<std::size_t>(c.a)].key + " and "
@@ -1191,43 +1308,52 @@ void read_settings(openrac::Mod& mod) {
         );
     }
 
-    s_move.walk = static_cast<float>(mod.setting<double>("walk_speed"));
-    s_move.rise_ticks =
+    m_move.walk = static_cast<float>(mod.setting<double>("walk_speed"));
+    m_move.rise_ticks =
         static_cast<float>(mod.setting<double>("stick_ramp_ms")) * kTicksPerSecond / 1000.0f;
-    s_look_tuning.sensitivity = static_cast<float>(mod.setting<double>("mouse_sensitivity"));
-    s_look_tuning.acceleration = static_cast<float>(mod.setting<double>("mouse_acceleration"));
-    s_look_tuning.invert_y = mod.setting<bool>("invert_y");
-    s_look_tuning.pitch_holds = mod.setting<std::string>("camera_tilt") != "return";
-    s_ring_dead_zone = static_cast<float>(mod.setting<double>("quick_select_dead_zone"));
-    s_capture = mod.setting<bool>("capture_cursor");
-    s_menu_mouse = mod.setting<bool>("menu_mouse");
+    m_look_tuning.sensitivity = static_cast<float>(mod.setting<double>("mouse_sensitivity"));
+    m_look_tuning.acceleration = static_cast<float>(mod.setting<double>("mouse_acceleration"));
+    m_look_tuning.invert_y = mod.setting<bool>("invert_y");
+    m_look_tuning.pitch_holds = mod.setting<std::string>("camera_tilt") != "return";
+    m_ring_dead_zone = static_cast<float>(mod.setting<double>("quick_select_dead_zone"));
+    m_capture = mod.setting<bool>("capture_cursor");
+    m_menu_mouse = mod.setting<bool>("menu_mouse");
 }
 
-// Puts everything the keys and the mouse hold back to rest, as at the first tick.
-void reset_state() {
-    s_pad = kbm::Virtual{};
-    s_keys = kbm::KeyStick{};
-    s_look.reset();
-    s_ring.reset();
-    s_latch = kbm::Latch{};
-    s_pulses.clear();
-    s_stepper.reset();
-    s_repeat = {};
-    s_ring_open = false;
-    s_tick = kNoTick;
-    s_asked_capture = -1;
-    s_reset_ticks = 0;
-    s_click_wait = 0;
-    s_follow_dx = 0.0f;
-    s_follow_dy = 0.0f;
-    s_follow_tick = kNoTick;
-    s_tilt_held = false;
-    s_pad_look = false;
+Keyboard::Keyboard(openrac::Mod& mod, const kbm::Disc& disc) : m_mod(&mod), m_disc(&disc) {
+    read_settings(mod);
+
+    m_fast_cos = game_function<float (*)(float)>(m_disc->fast_cos);
+    m_fast_sin = game_function<float (*)(float)>(m_disc->fast_sin);
+    m_look_along = game_function<void (*)(gaddr, float, float)>(m_disc->camera_look_along);
+
+    // Without these the mouse moves no focus in the menus (it steps the d-pad there instead).
+    m_grid_update = reinterpret_cast<void*>(mod.function<void (*)()>(m_disc->grid_update));
+    m_list_update = reinterpret_cast<void*>(mod.function<void (*)()>(m_disc->list_update));
+    m_map_screen = reinterpret_cast<void*>(mod.function<void (*)()>(m_disc->map_screen));
 }
 
-// The mod's entry: finds the disc's addresses, reads the settings, takes the keyboard and the mouse
-// from the port, and hooks the pad and the follow camera. Throws when the game, the port or the
-// disc is not one it works with.
+// The one keyboard and mouse, made by load. The pad callback and the follow camera's hook point
+// reach it through this pointer, because the hook point's replacement carries no state; load sets
+// it before it takes either, and only the game's thread uses it after that.
+std::unique_ptr<Keyboard> g_keyboard;
+
+// Returns the table row for the disc `mod` runs on, or null when the mod has none.
+const kbm::Disc* find_disc(const openrac::Mod& mod) {
+    // The first row whose version names the running disc holds its addresses.
+    for (const kbm::Disc& d : kbm::kDiscs) {
+        // The disc's addresses whose version this is.
+        if (mod.version() == d.version) {
+            return &d;
+        }
+    }
+
+    return nullptr;
+}
+
+// Finds the disc's addresses, reads the settings, takes the keyboard and the mouse from the port,
+// and hooks the pad and the follow camera. Throws when the game, the port or the disc is not one it
+// works with.
 void load(openrac::Mod& mod) {
     // This mod is for Ratchet & Clank only.
     if (mod.game() != "rac1") {
@@ -1239,38 +1365,21 @@ void load(openrac::Mod& mod) {
         throw openrac::Error("needs OpenRAC with mod interface 1.3 (the keyboard and mouse)");
     }
 
-    s_mod = &mod;
-    s_disc = nullptr;
-
-    // Take the disc whose addresses match the game's version.
-    for (const kbm_disc& d : k_kbm_discs) {
-        // The disc's addresses whose version this is.
-        if (mod.version() == d.version) {
-            s_disc = &d;
-        }
-    }
+    const kbm::Disc* disc = find_disc(mod);
 
     // No disc matched: the mod has no addresses to work with.
-    if (s_disc == nullptr) {
+    if (disc == nullptr) {
         throw openrac::Error("no addresses for the " + std::string(mod.version()) + " disc");
     }
 
-    read_settings(mod);
-
-    s_fast_cos = game_function<float (*)(float)>(s_disc->fast_cos);
-    s_fast_sin = game_function<float (*)(float)>(s_disc->fast_sin);
-    s_look_along = game_function<void (*)(gaddr, float, float)>(s_disc->camera_look_along);
-    // Without these the mouse moves no focus in the menus (it steps the d-pad there instead).
-    s_grid_update = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->grid_update));
-    s_list_update = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->list_update));
-    s_map_screen = reinterpret_cast<void*>(mod.function<void (*)()>(s_disc->map_screen));
-
-    reset_state();
+    g_keyboard = std::make_unique<Keyboard>(mod, *disc);
 
     mod.take_input(OPENRAC_INPUT_KEYBOARD | OPENRAC_INPUT_MOUSE);
-    mod.on_pad([](int port, std::uint8_t* report, int size) { on_pad(port, report, size); });
+    mod.on_pad([](int port, std::uint8_t* report, int size) {
+        g_keyboard->on_pad(port, report, size);
+    });
     mod.hook<rac1::FollowCamera_ApplyOverrides>([](auto original, std::uint32_t camera) {
-        camera_overrides(original, camera);
+        g_keyboard->camera_overrides(original, camera);
     });
     mod.info("keyboard and mouse on the " + std::string(mod.version()) + " disc");
 }
