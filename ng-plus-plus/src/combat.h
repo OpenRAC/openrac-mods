@@ -31,9 +31,9 @@ public:
           m_enemies(enemies) {}
 
     // A hit posted to `victim` from the hit request at game address `request` (Moby_PostHit): on
-    // anyone but the hero, its damage times the tier of the weapon in his hand and divided by the
-    // enemies' health, for the call. The request is put back after, since the caller may post it
-    // to the next victim.
+    // anyone but the hero, its damage times the tier of the weapon that dealt it (fired_item) and
+    // divided by the enemies' health, for the call. The request is put back after, since the
+    // caller may post it to the next victim.
     void post_hit(
         openrac::Original<void(std::uint32_t, std::uint32_t)> original,
         std::uint32_t victim,
@@ -43,6 +43,11 @@ public:
     // A hit of `amount` points on the hero (Hero_TakeDamage): times the enemies' damage, the
     // fraction of a point carried to the next hit.
     void take_damage(openrac::Original<void(std::int32_t)> original, std::int32_t amount);
+
+    // Returns the item whose hit the request at game address `request` is: the weapon whose own
+    // moby is its source (kHitSources: a shot, blast or pool still hurting after a switch), else
+    // the weapon in the hero's hand; -1 for none.
+    int fired_item(std::uint32_t request) const;
 
 private:
     const Weapons& m_weapons;     // The weapons; outlive this.

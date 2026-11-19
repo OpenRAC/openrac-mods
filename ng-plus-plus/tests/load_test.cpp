@@ -65,6 +65,8 @@ constexpr std::uint32_t kSlotsAt = 0x00301000u;    // The port's text slots.
 constexpr std::uint32_t kMegaAt = 0x00302000u;     // The game's "Mega".
 constexpr std::uint32_t kMobyHero = 0x00310000u;
 constexpr std::uint32_t kMobyEnemy = 0x00310100u;
+constexpr std::uint32_t kMobyShot = 0x00310200u;   // A Lancer shot still in flight.
+constexpr std::uint32_t kMobyOther = 0x00310300u;  // A moby of a class no weapon owns.
 
 // The Lancer's rows: its first version, Heavy Lancer (by experience), the Mega (bought) and V4.
 constexpr int kLancer = 30;
@@ -703,20 +705,42 @@ void test_tint_damage_and_enemies() {
     hooked<rac2::Item_Colors>()(22, kTintAt + 8, kTintAt + 4, kTintAt);
     CHECK(get<std::uint32_t>(kTintAt) == 0x60F08040u);
 
-    // Beta's damage, with the Lancer in hand: 1.5 times for the call, put back after.
+    // Beta's damage, with the Lancer in hand: twice for the call, put back after.
     set<std::int32_t>(g_disc->hero + kHeroHeld, kLancer);
     set<float>(kRequestAt + kHitDamage, 10.0f);
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
-    CHECK(g_damage_seen == 15.0f);
+    CHECK(g_damage_seen == 20.0f);
     CHECK(get<float>(kRequestAt + kHitDamage) == 10.0f);
     hooked<rac2::Moby_PostHit>()(kMobyHero, kRequestAt);
     CHECK(g_damage_seen == 10.0f);
 
-    // Challenge mode's third game (cycle 2): enemies have 2.5 times the health, deal 1.25 times.
+    // A hit from the Lancer's own moby (class 1490, the request's source) after the player took
+    // the RYNO II in hand: the Lancer's tier, not the hand's.
+    set<std::uint16_t>(kMobyShot + kMobyClass, 1490);
+    set<std::uint16_t>(kMobyOther + kMobyClass, 9999);
+    set<std::uint32_t>(kRequestAt + kHitSource, kMobyShot);
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kRyno);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(g_damage_seen == 20.0f);
+    set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(g_damage_seen == 20.0f);
+    // A source no weapon owns, and none: the weapon in hand.
+    set<std::uint32_t>(kRequestAt + kHitSource, kMobyOther);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(g_damage_seen == 10.0f);
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kLancer);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(g_damage_seen == 20.0f);
+    set<std::uint32_t>(kRequestAt + kHitSource, 0);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(g_damage_seen == 20.0f);
+
+    // Challenge mode's third game (cycle 2): enemies have twice the health, deal 1.25 times.
     set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
     set<float>(kRequestAt + kHitDamage, 10.0f);
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
-    CHECK(std::fabs(g_damage_seen - 6.0f) < 0.001f);  // Beta's 1.5 over the health's 2.5
+    CHECK(std::fabs(g_damage_seen - 10.0f) < 0.001f);  // Beta's 2 over the health's 2
     g_taken = 0;
 
     // Four hits of one point: five, the quarters carried.

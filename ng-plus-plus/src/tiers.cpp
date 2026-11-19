@@ -14,14 +14,14 @@ namespace {
 // clang-format off: one step per row, so the columns read as the README's table.
 // The eight tiers: buy, then level. A bought tier's price is price()'s, from the weapon's Mega.
 constexpr Step kTierSteps[kTiers] = {
-    {"Alpha",   How::Buy, 0,      1.25f, 1.10f, Tint::Lime},
-    {"Beta",    How::Exp, 8'000,  1.50f, 1.20f, Tint::Cyan},
-    {"Gamma",   How::Buy, 0,      1.75f, 1.30f, Tint::Emerald},
-    {"Delta",   How::Exp, 12'000, 2.00f, 1.40f, Tint::Teal},
-    {"Epsilon", How::Buy, 0,      2.40f, 1.50f, Tint::Violet},
-    {"Zeta",    How::Exp, 16'000, 2.80f, 1.60f, Tint::Magenta},
-    {"Eta",     How::Buy, 0,      3.30f, 1.80f, Tint::Crimson},
-    {"Omega",   How::Exp, 24'000, 4.00f, 2.00f, Tint::Prismatic},
+    {"Alpha",   How::Buy, 0,      1.50f, 1.10f, Tint::Lime},
+    {"Beta",    How::Exp, 8'000,  2.00f, 1.20f, Tint::Cyan},
+    {"Gamma",   How::Buy, 0,      2.50f, 1.30f, Tint::Emerald},
+    {"Delta",   How::Exp, 12'000, 3.00f, 1.40f, Tint::Teal},
+    {"Epsilon", How::Buy, 0,      3.75f, 1.50f, Tint::Violet},
+    {"Zeta",    How::Exp, 16'000, 4.50f, 1.60f, Tint::Magenta},
+    {"Eta",     How::Buy, 0,      5.50f, 1.80f, Tint::Crimson},
+    {"Omega",   How::Exp, 24'000, 7.00f, 2.00f, Tint::Prismatic},
 };
 // clang-format on
 
@@ -29,14 +29,14 @@ constexpr Step kTierSteps[kTiers] = {
 // The eight tiers of a weapon that never earns experience (Kind::NoExp): all bought, the rest as
 // kTierSteps.
 constexpr Step kBoughtSteps[kTiers] = {
-    {"Alpha",   How::Buy, 0, 1.25f, 1.10f, Tint::Lime},
-    {"Beta",    How::Buy, 0, 1.50f, 1.20f, Tint::Cyan},
-    {"Gamma",   How::Buy, 0, 1.75f, 1.30f, Tint::Emerald},
-    {"Delta",   How::Buy, 0, 2.00f, 1.40f, Tint::Teal},
-    {"Epsilon", How::Buy, 0, 2.40f, 1.50f, Tint::Violet},
-    {"Zeta",    How::Buy, 0, 2.80f, 1.60f, Tint::Magenta},
-    {"Eta",     How::Buy, 0, 3.30f, 1.80f, Tint::Crimson},
-    {"Omega",   How::Buy, 0, 4.00f, 2.00f, Tint::Prismatic},
+    {"Alpha",   How::Buy, 0, 1.50f, 1.10f, Tint::Lime},
+    {"Beta",    How::Buy, 0, 2.00f, 1.20f, Tint::Cyan},
+    {"Gamma",   How::Buy, 0, 2.50f, 1.30f, Tint::Emerald},
+    {"Delta",   How::Buy, 0, 3.00f, 1.40f, Tint::Teal},
+    {"Epsilon", How::Buy, 0, 3.75f, 1.50f, Tint::Violet},
+    {"Zeta",    How::Buy, 0, 4.50f, 1.60f, Tint::Magenta},
+    {"Eta",     How::Buy, 0, 5.50f, 1.80f, Tint::Crimson},
+    {"Omega",   How::Buy, 0, 7.00f, 2.00f, Tint::Prismatic},
 };
 // clang-format on
 
@@ -98,15 +98,16 @@ constexpr std::int32_t kPriceRiseLeast = 5'000;
 constexpr double kRoundUnit = 5.0;
 constexpr double kRoundUnitsPerDecade = 200.0;
 
-// By cycle from 2 on: the health runs ahead of the damage of the tier a player can have by then
-// (cycle 2 Delta's x2, 3 Zeta's x2.8, 4 and on Omega's x4), so even a weapon at that tier takes a
-// quarter to twice as long as V4 did at cycle 1. The damage they deal rises more gently: a fight
-// lasting longer already costs more health.
-constexpr float kEnemyHealth[] = {1.0f, 1.0f, 2.5f, 4.0f, 6.0f, 8.0f};
+// By cycle from 2 on: the health stays behind the damage of the tier a player can have by then
+// (cycle 2 Delta's x3 over x2, 3 Zeta's x4.5 over x3, 4 Omega's x7 over x4), so a weapon at that
+// tier still kills faster than V4 did at cycle 1, by half again to three quarters; past Omega the
+// health catches up one cycle at a time (even at cycle 7). The damage they deal rises more gently:
+// a fight lasting longer already costs more health.
+constexpr float kEnemyHealth[] = {1.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
 constexpr float kEnemyDamage[] = {1.0f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
 
 // Past the tables, each cycle adds this much health and damage.
-constexpr float kHealthStep = 2.0f;
+constexpr float kHealthStep = 1.0f;
 constexpr float kDamageStep = 0.25f;
 
 // How many cycles the tables have.

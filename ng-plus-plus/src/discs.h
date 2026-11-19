@@ -155,7 +155,46 @@ inline constexpr std::uint32_t kColorAlpha = 0xFF000000u;
 // func_002DE990).
 inline constexpr std::uint32_t kProgressCycle = 0x12u;
 
-// A hit request's damage, f32 (Moby_PostHit).
-inline constexpr std::uint32_t kHitDamage = 0x1Cu;
+// A hit request's fields (Moby_PostHit, QueueMobyImpact in rac2-decomp: src/game/002A7750.c,
+// L_A8E20Req; filled by make_hit_descriptor and part_init_effect_record).
+inline constexpr std::uint32_t kHitSource = 0x10u;  // u32: the moby that dealt it (the shot, blast...).
+inline constexpr std::uint32_t kHitDamage = 0x1Cu;  // f32: the damage.
+
+// A moby's class, u16 (moby +0xAA: what the game's update dispatch and the ammo pickup key on).
+inline constexpr std::uint32_t kMobyClass = 0xAAu;
+
+// A moby class whose hits are one weapon's, and that weapon's item.
+struct HitSource {
+    std::uint16_t moby_class;  // The source moby's class.
+    std::uint8_t item;         // The item whose row its update reads its damage from.
+};
+
+// The weapons' own mobies that post their hits with themselves as the source, by the item row
+// their update code reads the damage from (g_weapon_table[g_item_slot_to_record[item]], a literal
+// item in each): a shot or blast still in flight, a lava pool or a barrier still hurting after the
+// player switched weapons is the weapon that fired it, not the one in hand. Every other source
+// (the hero himself, a class not listed) takes the weapon in hand. Sources: rac2-decomp's level
+// code (src/levels/shared, the function named) and docs/game/moby-dispatch.tsv's classes.
+// clang-format off: one class per row.
+inline constexpr HitSource kHitSources[] = {
+    {1490u, 30u},  // Lancer: lancer_update (L00_003A6C30), item 0x1E
+    {3077u, 30u},  // Heavy Lancer, the Lancer's upgrade model
+    {1489u, 26u},  // Blitz Gun: blitz_gun_update (L00_003A53E8), item 0x1A
+    {2801u, 26u},  // Blitz Cannon: UpdateSpreadWeapon (L00_003D1D28), item 0x1A
+    {1481u, 29u},  // Lava Gun: lava_gun_update (L00_00419C98), item 0x1D
+    {4406u, 29u},  // Lava Gun's lingering blobs: lava_gun_update_blobs (L00_00412928), item 0x1D
+    {1486u, 24u},  // Seeker Gun
+    {1497u, 24u},  // Seeker Projectile: seeker_apply_projectile_hit (L00_003AB388), item 0x18
+    {3329u, 24u},  // Seeker Projectile (the Mega's), the same hit code
+    {1498u, 27u},  // Minirocket Tube's homing shot: homing_l00_shot_update (L00_003ABEC0), item 0x1B
+    {3070u, 42u},  // Gravity Bomb's blast: mini_nuke_blast_update (L00_003E3258), item 0x2A
+    {3301u, 42u},  // Gravity Bomb's blast: blast_l00_update (L00_003EEE90), item 0x2A
+    {3790u, 37u},  // Bouncer's bouncing blast: UpdateBouncingBlastProjectile (L00_004096B0), 0x25
+    {3755u, 32u},  // Spiderbot's exploding trail: UpdateExplodingTrailProjectile (L00_004045E8), 0x20
+    {2652u, 45u},  // Shield Charger: tesla_barrier_update (L00_003C3D90), item 0x2D
+    {4498u, 45u},  // Tesla Barrier, the Shield Charger's upgrade, the same update
+    {177u, 18u},   // Tesla Claw: hero_tether_beam_update (the levels' *-tether files)
+};
+// clang-format on
 
 }  // namespace ng_plus_plus

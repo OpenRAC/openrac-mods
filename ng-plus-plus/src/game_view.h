@@ -147,6 +147,9 @@ public:
     // Returns the hero's moby.
     std::uint32_t hero_moby() const;
 
+    // Returns the class of the moby at game address `moby`, or none when it is no game memory.
+    std::optional<int> moby_class(std::uint32_t moby) const;
+
     // ---- The save ----
 
     // Returns the save's clock.

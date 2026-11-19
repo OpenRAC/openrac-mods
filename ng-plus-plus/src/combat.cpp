@@ -17,11 +17,11 @@ void Combat::post_hit(
 
     // Only hits on others: the hero's own hits are the enemies' business (take_damage).
     if (victim != view.hero_moby() && request != 0) {
-        const int held = view.held();
+        const int item = fired_item(request);
 
-        // The weapon in hand's tier, whatever fired the shot (README.md, "Not yet").
-        if (held >= 0 && held < kItems) {
-            scale *= damage(kind_of(held), m_weapons.tiers().level(held));
+        // The tier of the weapon that dealt the hit.
+        if (item >= 0 && item < kItems) {
+            scale *= damage(kind_of(item), m_weapons.tiers().level(item));
         }
 
         // Tougher enemies: their health times the cycle's, as the damage they take divided by it.
@@ -43,6 +43,25 @@ void Combat::post_hit(
 
     // The caller may post the same request to the next victim.
     memory.write(request + kHitDamage, damage_now);
+}
+
+int Combat::fired_item(std::uint32_t request) const {
+    const GameView& view = m_weapons.view();
+    const auto source = view.memory().read<std::uint32_t>(request + kHitSource);
+    const std::optional<int> source_class = view.moby_class(source);
+
+    // A weapon's own moby: its weapon, whatever is in hand now.
+    if (source_class) {
+        for (const HitSource& known : kHitSources) {
+            // The class's weapon.
+            if (known.moby_class == *source_class) {
+                return known.item;
+            }
+        }
+    }
+
+    // The hero's own hits and every source not known: the weapon in hand.
+    return view.held();
 }
 
 void Combat::take_damage(openrac::Original<void(std::int32_t)> original, std::int32_t amount) {

@@ -17,14 +17,14 @@ the vendor sells the next.
 
 | Level | Name | How | Price | Experience | Damage | Most ammo | Tint |
 |---|---|---|---|---|---|---|---|
-| V5 | Alpha | bought | Mega x1.5 | | x1.25 | x1.10 | lime |
-| V6 | Beta | experience | | 8,000 | x1.50 | x1.20 | cyan |
-| V7 | Gamma | bought | Mega x2.5 | | x1.75 | x1.30 | emerald |
-| V8 | Delta | experience | | 12,000 | x2.00 | x1.40 | teal |
-| V9 | Epsilon | bought | Mega x4 | | x2.40 | x1.50 | violet |
-| V10 | Zeta | experience | | 16,000 | x2.80 | x1.60 | magenta |
-| V11 | Eta | bought | Mega x6 | | x3.30 | x1.80 | crimson |
-| V12 | Omega | experience | | 24,000 | x4.00 | x2.00 | prismatic (cycles through all the tints) |
+| V5 | Alpha | bought | Mega x1.5 | | x1.50 | x1.10 | lime |
+| V6 | Beta | experience | | 8,000 | x2.00 | x1.20 | cyan |
+| V7 | Gamma | bought | Mega x2.5 | | x2.50 | x1.30 | emerald |
+| V8 | Delta | experience | | 12,000 | x3.00 | x1.40 | teal |
+| V9 | Epsilon | bought | Mega x4 | | x3.75 | x1.50 | violet |
+| V10 | Zeta | experience | | 16,000 | x4.50 | x1.60 | magenta |
+| V11 | Eta | bought | Mega x6 | | x5.50 | x1.80 | crimson |
+| V12 | Omega | experience | | 24,000 | x7.00 | x2.00 | prismatic (cycles through all the tints) |
 
 The damage and the most ammo are times the weapon's last real version's. The experience is the
 game's own weapon experience (what the quick select's bar counts), from the last tier on; the first
@@ -106,21 +106,25 @@ mode) but only tests whether one is on: it doubles ammo pickups and nanotech orb
 and its bolt multiplier grows with kills; it never scales enemy health or damage by the count.
 From the second challenge mode on, the mod does:
 
-| New game | Challenge mode | Enemy health | Damage they deal | The tier expected by then |
-|---|---|---|---|---|
-| 1 | - | x1 | x1 | V1 to V3 |
-| 2 | 1st | x1 | x1 | V4 (the game's own balance) |
-| 3 | 2nd | x2.5 | x1.25 | Delta (x2) |
-| 4 | 3rd | x4 | x1.5 | Zeta (x2.8) |
-| 5 | 4th | x6 | x1.75 | Omega (x4) |
-| 6 | 5th | x8 | x2 | Omega (x4) |
-| 7 on | 6th on | +2 each | +0.25 each | |
+| New game | Challenge mode | Enemy health | Damage they deal | The tier expected by then | Kills, against V4 in the 1st |
+|---|---|---|---|---|---|
+| 1 | - | x1 | x1 | V1 to V3 | |
+| 2 | 1st | x1 | x1 | V4, then Alpha to Gamma | x1 (V4), x1.5 to x2.5 |
+| 3 | 2nd | x2 | x1.25 | Delta (x3) | x1.5 faster |
+| 4 | 3rd | x3 | x1.5 | Zeta (x4.5) | x1.5 faster |
+| 5 | 4th | x4 | x1.75 | Omega (x7) | x1.75 faster |
+| 6 | 5th | x5 | x2 | Omega (x7) | x1.4 faster |
+| 7 on | 6th on | +1 each | +0.25 each | Omega (x7) | x1.17 in the 7th, even in the 8th |
 
-The health runs ahead of the damage of the tier a player can have by then, so even a weapon at that
-tier takes longer to kill an enemy than V4 did in the first challenge mode: a quarter longer in the
-third new game, half again in the fifth, twice as long in the sixth, and more each game after. The
-damage they deal rises more gently, since longer fights already cost more health. **How much
-tougher** scales what the curve adds (0.5: x1.75 health in the third new game instead of x2.5).
+The health stays behind the damage of the tier a player can have by then, so a weapon at that tier
+still kills faster than V4 did in the first challenge mode: half again as fast in the third and
+fourth new games, three quarters in the fifth. Past Omega there is nothing more to gain, and the
+health catches up one game at a time: even in the eighth new game, behind after it. The damage they
+deal rises more gently, since longer fights already cost more health. **How much tougher** scales
+what the curve adds (0.5: x1.5 health in the third new game instead of x2).
+
+(Before 0.2.1 the tiers gave x1.25 to x4 and the health ran x2.5, x4, x6, x8, +2 each: a weapon at
+the tier expected by then killed slower than V4, at 0.8, 0.7, 0.67 and 0.5 of its pace.)
 
 | Setting | Default | |
 |---|---|---|
@@ -132,7 +136,7 @@ With the [difficulty](../difficulty-mod/README.md) mod: both apply and **multipl
 dealt" and "damage taken" sliders scale the same hits as this mod's curve and tiers (the difficulty
 mod's on the hit an enemy reads and on Ratchet's hit, this mod's where the hit is posted and on
 Ratchet's hit), so with damage dealt x0.5 and a Beta weapon in the second challenge mode a hit is
-x0.5 x 1.5 / 1.5. Switch **Tougher enemies each new game** off to leave the enemies to the
+x0.5 x 2 / 2. Switch **Tougher enemies each new game** off to leave the enemies to the
 difficulty mod alone.
 
 The tiers are kept with each save: the mod's data folder has a `tiers.txt` with the tiers at each
@@ -168,7 +172,7 @@ Through OpenRAC's rac2 hook points of SDK 1.14.6 (the addresses are NTSC-U v1.01
 | For sale | `rac2.vendor.build_list` (`func_002F6608`): an upgrade entry for each weapon whose next tier is for sale, right after that weapon's own entry and built as the game builds its Mega entry; `rac2.vendor.price` (`func_002F6510`) prices it; `rac2.item.upgrade` (`func_002887B0`), which the vendor's purchase calls once it is paid, takes the tier instead of the game's Mega step |
 | Experience | each tick, a weapon at its last version whose experience (which the game keeps adding up there) reaches the tier's takes it; its experience starts again from 0, as the game's own Mega purchase does |
 | Experience bar | the last version's row (+0x6C, the experience to the next version, which the game leaves at 0 there: a full bar) set each tick to the next tier's goal, and back to the game's when none is left; the game's own level check skips every last version, so it never acts on it |
-| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet while he holds a tiered weapon has its damage scaled for that call |
+| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw), else the weapon in Ratchet's hand |
 | Most ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Tint | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
@@ -202,6 +206,9 @@ Not yet:
   the tier's only on NTSC-U v1.01 (the one disc with `rac2.vendor.draw_list`).
 - A text longer than the port's text slot (95 characters) once the tier's name is in it stays the
   game's.
-- Damage scales by the weapon in Ratchet's hand: a Synthenoid's or a turret's shots scale by the
-  weapon held when they hit.
+- Damage from a source `kHitSources` does not list scales by the weapon in Ratchet's hand: a
+  Synthenoid's or a turret's shots, the Chopper, Pulse Rifle, Plasma Coil, Hoverbomb and the rest
+  whose moby classes are not yet traced to their hit code, scale by the weapon held when they hit.
+- The game's health drains (`weapon_start_health_drain`, the drain slots) take health straight off
+  an enemy without posting a hit, so neither the tier nor the enemies' health applies to them.
 - No fire rate change, and RYNO II Ultima's split volley is a follow-up: Ultima is the damage boost.

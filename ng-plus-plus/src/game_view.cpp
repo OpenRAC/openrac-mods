@@ -129,6 +129,15 @@ std::uint32_t GameView::hero_moby() const {
     return memory().read<std::uint32_t>(at(m_disc.hero) + kHeroMoby);
 }
 
+std::optional<int> GameView::moby_class(std::uint32_t moby) const {
+    // No moby, or an address the game's memory does not hold.
+    if (!in_memory(moby, kMobyClass + sizeof(std::uint16_t))) {
+        return std::nullopt;
+    }
+
+    return memory().read<std::uint16_t>(moby + kMobyClass);
+}
+
 Clock GameView::clock() const {
     return memory().read<Clock>(at(m_disc.clock));
 }
