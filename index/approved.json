@@ -144,6 +144,19 @@
       }
     }
   ],
+  "gc-magneboots": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "d3403d5d9c21408c1408daf1c5ed42aa50887766d752a218acebb9a340299f11",
+        "linux-aarch64": "195f628fbc0d5621cd11e800de1515c56217a8e619b75b805c758ddfb7387186",
+        "linux-x86_64": "2b9c5568e3668e0126082a3f1e387c1d69c003cdb1a81ec41c7c54366a6be2b8",
+        "macos-arm64": "2082968c5afc5278a428264555f6a19ca50fe7c149b8142edab3ad55eac9e481",
+        "macos-x86_64": "8be36113280aacc0c3d0bafa3bc522b5e0a6431a17efe9b975664a886915e5dc",
+        "windows-x86_64": "e994ccfff0a45763f5c5fd28d892c2b41c0d27a1f2fb5bb59d6f36fb7c2e1c17"
+      }
+    }
+  ],
   "modern-controls": [
     "0.3.0",
     "0.3.3"
