@@ -317,6 +317,17 @@
       }
     },
     {
+      "version": "1.0.1",
+      "sha256": {
+        "android-arm64": "3e1be68cfa1cd5a03742dab735356309fc7eb803b1b27a778ec07785922f6309",
+        "linux-aarch64": "3937c6577588204fcde244ef1e0785f01ebc1bc49e49d40c1f1692fbc12123ce",
+        "linux-x86_64": "954441d9f6d405df143d7d28a292be3417c6879fad7d9da4a3e3c7d20a841e89",
+        "macos-arm64": "33cd29f20a1b9e91ad7f00983d0ca0ec944ffe9262940f418db2c3fefca1caf1",
+        "macos-x86_64": "9e242b053fe416a0697db59103e6ebf61f03623306161c211e9684cf5d95310f",
+        "windows-x86_64": "77e2f721e7da76bdf0ebf0b09df7372070948e7d5969714e7746ab66778928ce"
+      }
+    },
+    {
       "version": "1.0.2",
       "sha256": {
         "android-arm64": "9e8948b171b356f727412e7efea6b616ee8ec5d6cc5b852000d7102c82e510d7",
