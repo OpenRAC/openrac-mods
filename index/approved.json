@@ -241,6 +241,17 @@
     "0.3.1",
     "0.3.3"
   ],
+  "ryno-ammo-drops": [
+    {
+      "version": "0.1.2",
+      "sha256": {
+        "linux-x86_64": "cefbd52e13268fc53927ecb64c494fd875044bb3c684c87bc51736cd94bd563e",
+        "macos-arm64": "003b9e67a3b3f5c21e7d239e40b6bdb4fc447c8dcc94f32473b998dbbbb584d2",
+        "macos-x86_64": "8abd22cb4bcc580d33d77c345167a16cb7d996b051833a92083af13de86705fb",
+        "windows-x86_64": "eaf72e69979f4e7ed49f03ea7ec97b09c17b5dffdd5b108e601599e7aa008dfa"
+      }
+    }
+  ],
   "save-manager": [
     "0.1.0",
     "0.2.0"
