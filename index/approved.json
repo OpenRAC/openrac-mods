@@ -167,6 +167,19 @@
     "0.2.0",
     "0.2.1"
   ],
+  "rac1-enhanced-movement": [
+    {
+      "version": "0.4.1",
+      "sha256": {
+        "android-arm64": "bd5361d034ed702084ad1e7da21ee761844a8c0e919a5e52bcceea129b88288a",
+        "linux-aarch64": "7fbae19efe2025c28a2252787d68cf45e87b03cd309d07d4f3c9b752f90b55ee",
+        "linux-x86_64": "be51926670441fc4b8b976899942a1ae7ee180780db7bd90067a728bdea85dc0",
+        "macos-arm64": "6c3e0636ac0c5824d6a701fcf60c40f3e6ce00f2b15579e1fd00767d71c1f789",
+        "macos-x86_64": "f687d8e3dce50d7ae25f6053a4ae9fdb0cf8f4d43f58d7e04881721b2014bd34",
+        "windows-x86_64": "e31634c3d0a0114d48e3f2e6c908dfca870ccd6841bdb121df46a2901065e7d7"
+      }
+    }
+  ],
   "revolverator": [
     "0.3.1",
     "0.3.3"
