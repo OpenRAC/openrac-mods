@@ -684,7 +684,7 @@ std::vector<mp::PartyRules> ModGame::party_rules() {
 
         // Only a mod with rules to publish is listed.
         if (mod_.party_rules_read(index, data, version)) {
-            out.push_back({id, std::move(data), mod_.party_rules_text(index)});
+            out.push_back({id, std::move(data), mod_.party_rules_text(index), version});
         }
     }
 
@@ -694,6 +694,14 @@ std::vector<mp::PartyRules> ModGame::party_rules() {
 bool ModGame::deliver_rules(const std::string& id, const mp::Bytes& data) {
     const auto it = indices_.find(id);
     return it != indices_.end() && mod_.party_rules_deliver(it->second, data);
+}
+
+bool ModGame::hand_over_rules(const std::string& id) {
+    const auto it = indices_.find(id);
+    // Not null, 0 bytes: the SDK's wrapper would make an empty vector null (none any more).
+    static const std::uint8_t kNone = 0;
+    return it != indices_.end() && mod_.has_party_rules()
+           && mod_.api().party_rules_deliver(it->second, &kNone, 0) == OPENRAC_HOOK_OK;
 }
 
 void ModGame::overlay_pause(bool on) {

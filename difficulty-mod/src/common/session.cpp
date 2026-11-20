@@ -24,9 +24,25 @@ constexpr std::uint64_t kSeedMask = 0xFFFFFFFFu;
 // The seconds in a minute, and the gap between events when the setting is below one.
 constexpr double kSecondsPerMinute = 60.0;
 constexpr double kDefaultEventGap = 180.0;
+// A host's event on for this many times an event's length (in this game's play) is taken as over.
+constexpr double kEventHeldLimit = 2.0;
 
 // The room a value formatted with two decimals needs.
 constexpr std::size_t kTextBytes = 32;
+
+// This game's own settings: Chaos, the sliders, the seed (as resolved at the start) and the
+// events.
+void read_own(Session& session) {
+    session.chaos = session.mod->setting<bool>("chaos");
+
+    // Each slider's setting.
+    for (int knob = 0; knob < kKnobCount; ++knob) {
+        session.sliders[knob] = clamp_knob(knob, session.mod->setting<double>(kKnobs[knob].key));
+    }
+
+    session.seed = session.own_seed;
+    session.events_on = session.mod->setting<bool>("chaos_events");
+}
 
 // The events' clock as at a start.
 void reset_clock(Session& session) {
@@ -52,6 +68,40 @@ void publish_rules(Session& session) {
     rules.seed = session.seed;
     rules.event = session.clock.current;
     session.mod->party_rules_publish(encode_party_rules(rules), party_rules_text(rules));
+}
+
+// This game hosts the party now (the old host left): the party's rules become its own, the event
+// on goes on for a whole event's length from here, and the next starts a gap after it.
+void take_over(Session& session) {
+    session.follow = false;
+    session.took_over = true;
+    session.chaos = session.rules.chaos;
+    session.sliders = session.rules.sliders;
+    session.seed = session.rules.seed;
+    session.events_on = session.rules.events;
+    const int event = session.clock.current;
+    session.clock = EventClock{};
+    session.clock.seed = mix(session.seed, kEventClockSalt);
+    session.clock.knobs = session.knobs;
+    session.clock.every = kSecondsPerMinute * static_cast<double>(session.rules.minutes);
+
+    // Not a gap the settings allow: the default.
+    if (!(session.clock.every >= kSecondsPerMinute)) {
+        session.clock.every = kDefaultEventGap;
+    }
+
+    // An event on: it ends an event's length from now.
+    if (event >= 0 && session.events_on) {
+        session.clock.current = event;
+        session.clock.ends = session.clock.lasts;
+    }
+
+    set_active(session);
+    publish_rules(session);
+    session.mod->info(
+        "this game hosts the party now: it plays on by the party's rules, seed "
+        + seed_code(session.seed)
+    );
 }
 
 // The log's line for an event on or off: its name, or "back to normal" for none.
@@ -80,19 +130,40 @@ std::string play_mode(const Session& session) {
 }
 
 // The host's rules reached this game, or (none) the party went and its own count again from the
-// next level loaded. An event starting or ending in the host's game comes this way too. `user` is
-// the game's Session.
+// next level loaded. An event starting or ending in the host's game comes this way too, and (0
+// bytes) word that this game took over as host. `user` is the game's Session.
 void on_party_rules(void* user, const void* data, std::uint32_t size) {
     Session& session = *static_cast<Session*>(user);
 
     // The party went.
     if (data == nullptr) {
+        // It had taken over as host: its own settings again, from the next level loaded.
+        if (session.took_over) {
+            session.took_over = false;
+            read_own(session);
+            reset_clock(session);
+            set_active(session);
+            publish_rules(session);
+            session.mod->info("out of the party: this game's own settings count again");
+        }
+
         // Only a member that took rules has any to leave.
         if (session.follow) {
             session.follow = false;
             reset_clock(session);
             set_active(session);
             session.mod->info("out of the party: this game's own settings count again");
+        }
+
+        return;
+    }
+
+    // 0 bytes, not null: this game took over as the party's host. It keeps the party's rules as
+    // its own, runs the events (and, in a level loaded from now on, the copies) a host runs, and
+    // publishes them for the members.
+    if (size == 0) {
+        if (session.follow) {
+            take_over(session);
         }
 
         return;
@@ -110,6 +181,12 @@ void on_party_rules(void* user, const void* data, std::uint32_t size) {
 
     const bool first = !session.follow;
     const int event = session.clock.current;
+
+    // A new event, or the first rules: its time starts now.
+    if (first || rules.event != event) {
+        session.event_held = 0.0;
+    }
+
     session.follow = true;
     session.rules = rules;
     session.clock.current = rules.event;
@@ -159,13 +236,6 @@ void set_active(Session& session) {
 void start(Session& session, openrac::Mod& mod, unsigned knobs) {
     session.mod = &mod;
     session.knobs = knobs;
-    session.chaos = mod.setting<bool>("chaos");
-
-    // Each slider's setting.
-    for (int knob = 0; knob < kKnobCount; ++knob) {
-        session.sliders[knob] = clamp_knob(knob, mod.setting<double>(kKnobs[knob].key));
-    }
-
     const std::string seed_text = mod.setting<std::string>("seed");
 
     // Blank: a new seed from the machine and the time, shown in the log to play it again.
@@ -178,8 +248,9 @@ void start(Session& session, openrac::Mod& mod, unsigned knobs) {
         session.seed = seed_from_text(seed_text);
     }
 
+    session.own_seed = session.seed;
+    read_own(session);
     session.trace = mod.setting<bool>("trace");
-    session.events_on = mod.setting<bool>("chaos_events");
     reset_clock(session);
     session.level = effective(session.chaos, session.sliders, session.seed, -1);
     set_active(session);
@@ -207,8 +278,28 @@ std::uint64_t level_values(Session& session, int level) {
 }
 
 void advance_events(Session& session, double dt) {
-    // The events are off, or a party's host decides them.
-    if (!session.events_on || session.follow) {
+    // A party's member: the host decides the events. One on far longer than an event lasts is
+    // ended here (a host that took over passes on the rules as they were, the event never ending).
+    if (session.follow) {
+        // No event on, or no time passed.
+        if (session.clock.current < 0 || !(dt > 0.0)) {
+            return;
+        }
+
+        session.event_held += dt;
+
+        // On too long: back to normal here.
+        if (session.event_held >= session.clock.lasts * kEventHeldLimit) {
+            session.clock.current = -1;
+            set_active(session);
+            session.mod->info("chaos: back to normal (the host's event never ended)");
+        }
+
+        return;
+    }
+
+    // The events are off.
+    if (!session.events_on) {
         return;
     }
 

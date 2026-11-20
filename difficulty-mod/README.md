@@ -26,7 +26,11 @@ compared: the seed is the host's, and the log is your own. Everyone then plays b
 so a blank seed is the host's for everyone and each level rolls the same Chaos values in every game.
 Only the host's game makes copies of enemies or leaves some out (the others show the host's), enemy
 speed and bolt drops are the host's since its game runs them, and the host's game decides the Chaos
-events, which reach everyone as they start and end. With no party the mod works as below.
+events, which reach everyone as they start and end. When the host leaves and another player takes
+over, that player's game plays on by the same rules and does what the host did: the events, and the
+copies from the next level on. An event whose end never comes (a host on an older Multiplayer that
+does not hand the rules over) ends in each game after 90 seconds of play. With no party the mod
+works as below.
 
 ## Playing
 
@@ -75,7 +79,7 @@ The full table, slider by slider:
 
 | Slider | What it changes |
 |---|---|
-| **Enemy count** | Above 1: copies of the level's enemies beside them when the level loads (3 means about two copies of each). Below 1: that share of the free-roaming enemies left out (0.5: about half). Only enemies free of the level's scripts are copied or left out: never bosses, turrets, mines, spawners, the enemies of a wave or of a "defeat them all" door, nor any the story or another object needs (see [which mobys count as enemies](#which-mobys-count-as-enemies)). A copy stands on the same floor, in the open, 2.5 to 4 units from its original; where there is no such spot, it is not made. Copies drop no bolts and are not remembered as killed. How many copies a level gets is limited by room: see [how many enemies](#how-many-enemies) |
+| **Enemy count** | Above 1: copies of the level's enemies beside them when the level loads (3 means about two copies of each). Below 1: that share of the free-roaming enemies left out (0.5: about half). Only enemies free of the level's scripts are copied or left out: never bosses, turrets, mines, spawners, the enemies of a wave or of a "defeat them all" door, nor any the story or another object needs (see [which mobys count as enemies](#which-mobys-count-as-enemies)). A copy stands on the same floor, in the open, 2.5 to 4 units from its original and at least 2 from every other enemy of its class (a big one: its own size, up to 4); where there is no such spot, it is not made. When its AI takes it that near an enemy of its class (the same path or cover point, or one a spawner made later), it is moved apart a little each tick, never through a wall or, walking, off a ledge; the level's own enemies are never moved. Copies drop no bolts and are not remembered as killed. How many copies a level gets is limited by room: see [how many enemies](#how-many-enemies) |
 | **Damage to Ratchet** | How many cells of health a hit takes, on average: 2 is two cells a hit, 0.5 a cell every other hit, 1.5 one then two. Falls, crushers and other instant deaths are the game's |
 | **Damage to enemies** | The damage of every hit on an enemy, a turret or a boss: your weapons, the wrench, explosions |
 | **Enemy speed** | How fast enemies and turrets move, turn, animate, aim and fire: the clock their own code runs on. Bosses keep their own pace |
@@ -158,9 +162,10 @@ copies are spread: each enemy gets one before any gets a second.
 ## Which mobys count as enemies
 
 In Ratchet & Clank, the game's objects are classified in [classes.tsv](classes.tsv), 158 of
-them: 39 **enemies** (copied, left out, timed, hit harder or softer), 5
+them: 36 **enemies** (copied, left out, timed, hit harder or softer), 8
 **roamers** (left out, timed, hit; never copied: they fly a path, drop in on
-a cue, or are too big to stand beside the original), 7 **turrets** (timed and
+a cue, start at their path's first point, or are too big to stand beside the
+original), 7 **turrets** (timed and
 hit; fixed to the level, so never copied or left out), 5 **bosses** (only
 the damage to enemies applies to them) and 102 left as the game has them.
 Everything not in the table is left as it is.

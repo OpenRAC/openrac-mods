@@ -589,8 +589,9 @@ void find_disc(openrac::Mod& mod) {
 
 // Each frame: the events' clock, in play.
 void on_frame() {
-    // Chaos events are on and the game is in play: the clock runs on play time only.
-    if (state().session.events_on && !state().session.follow && in_play()) {
+    // Chaos events are on (or a party's host's event may be on) and the game is in play: the clock
+    // runs on play time only.
+    if ((state().session.events_on || state().session.follow) && in_play()) {
         difficulty::advance_events(state().session, state().disc->tick_seconds);
     }
 }

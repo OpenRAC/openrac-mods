@@ -254,6 +254,12 @@ joining a game that is on. Mods declare what they are in their `openrac-mod.json
 A setting of a gameplay mod may say `"multiplayer": "own"`, each player's (Detailed log, Spoiler
 log), or `"multiplayer": "host"`, which the host's rules bring (the seeds). Neither is compared.
 
+When another player takes over as host, the party's rules stay as they were. Its game tells each
+of its mods that took them that it hosts now (an empty delivery: 0 bytes, which no host publishes),
+and passes on the rules a mod publishes after that: Difficulty then runs the events and the enemy
+copies the old host ran, by the same rules. A mod that publishes nothing new keeps the old host's
+rules (the Item Randomizer's seed).
+
 **A player who does not match** can't say Ready, and the host can't Start while that player is in
 the party: the player leaves or fixes it, or the host removes it. The page says how, and shows by
 itself the first time:
