@@ -169,6 +169,17 @@
   ],
   "rac1-enhanced-movement": [
     {
+      "version": "0.2.1",
+      "sha256": {
+        "android-arm64": "5b0fa10426814cde2a156b7359362f197c8bc89345967b0da00114263cb5a1c0",
+        "linux-aarch64": "8fc5de5087cbf9094629252de8a681bc470a3779aeea30fa232a41806cbed2e1",
+        "linux-x86_64": "37b1703d9f0e5a47016827ef13ca64580e0c002e79b628553af994bd0cf707db",
+        "macos-arm64": "37c423cfe5ae66c8908443c8e89464daa924479f948346e9ca63f14ba775950e",
+        "macos-x86_64": "c340d4b37052d448fb032df8ca5548bd1f24552a2bd32f8a7e0b4332432c0fe4",
+        "windows-x86_64": "c1c08dab435592ae345ee246c7ca1013d9c1fd1df05cc8316fa24c26a429564c"
+      }
+    },
+    {
       "version": "0.4.0",
       "sha256": {
         "android-arm64": "e6be5654aea38f3e4cbdd5faeb67269593b9955f41ed2fd740ba1d7c606ad48a",
