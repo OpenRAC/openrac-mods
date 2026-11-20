@@ -163,19 +163,29 @@ CoinPlan split(std::int32_t total, float share, int limit) {
     std::int32_t platinum = static_cast<std::int32_t>(wanted / kPlatinumTimes) * kPlatinumTimes;
     std::int32_t gold = total - platinum;
     int room = limit;
+    bool platinum_taken = false;
 
-    // The most valuable coin first, each from its own part, while there is room.
+    // The most valuable coin first, each from its own part, while there is room. Under a limit,
+    // gold leaves the last place free while platinum has a coin's worth and no coin yet, so the
+    // game's big gold coins can't push platinum out of a small burst.
     for (const CoinKind& coin : kSplitOrder) {
         std::int32_t& part = coin.platinum ? platinum : gold;
         int count = part / coin.worth;
+        int fits = room;
+        if (limit >= 0 && !coin.platinum && !platinum_taken && platinum >= kPlatinumTimes) {
+            fits = room - 1;
+        }
 
         // Under a limit, only what still fits.
-        if (limit >= 0 && count > room) {
-            count = room;
+        if (limit >= 0 && count > fits) {
+            count = fits > 0 ? fits : 0;
         }
 
         part -= count * coin.worth;
         room -= count;
+        if (coin.platinum && count > 0) {
+            platinum_taken = true;
+        }
         auto& counts = coin.platinum ? plan.platinum : plan.gold;
         counts[static_cast<std::size_t>(coin.kind)] += count;
     }

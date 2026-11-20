@@ -133,6 +133,13 @@ void test_split() {
     CHECK(plan.gold[kThousand] == 1);
     CHECK(plan.leftover == 6500);
 
+    // A small burst (the game's 2-coin limit): 2,000 at 24% keeps one place for platinum, where
+    // the big gold coins took both before (480 platinum: a platinum 250; gold 1,000).
+    plan = split(2'000, 0.24f, 2);
+    CHECK(plan.coins() == 2);
+    CHECK(plan.platinum[kFifty] == 1);
+    CHECK(plan.gold[kThousand] == 1);
+
     // Nothing.
     plan = split(0, 0.5f, -1);
     CHECK(plan.coins() == 0);
