@@ -29,7 +29,8 @@ static int row_of(int kind, int level, int key) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
 
-        if (l->kind == kind && l->level == level && l->key == key) {
+        if (l->level == level && ((l->kind == kind && l->key == key)
+            || (kind == LOC_INFOBOT && rando_infobot_mission(l) == key))) {
             return (int)i;
         }
     }
@@ -106,7 +107,7 @@ static void check_words(void) {
     NEEDS("Kerwan: the infobot", ITEM_SWINGSHOT);
     NEEDS("Rilgar: the bouncer, the coordinates of Umbris", ITEM_HELI_PACK);
     CHECK(!(rando_locations[named("Rilgar: the bouncer, the coordinates of Umbris")].hard & BIT(ITEM_HOVERBOARD)));
-    NEEDS("Umbris: the infobot", ITEM_HYDRODISPLACER);
+    NEEDS("Umbris: the coordinates of Batalia", ITEM_HYDRODISPLACER);
     CHECK(rando_locations[named("Batalia: the commando, the coordinates of Orxon")].hard == 0);
     NEEDS("Batalia: the deserter, the coordinates of Gaspar", ITEM_GRINDBOOTS);
     NEEDS("Pokitaru: the resort owner", ITEM_PILOTS_HELMET);

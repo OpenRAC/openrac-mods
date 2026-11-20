@@ -383,17 +383,45 @@ int main(int argc, char** argv) {
             memcpy(s_memory + request + 0x36, &index, 2);
             memcpy(s_memory + entries, &entry, 2);
             ((int (*)(uint32_t, uint32_t))hook_named("rac1.npc.try_dialog"))(moby, request);
+            /* HUD wrapping inserts byte 1 between words. */
+            for (char* c = prompt; *c; ++c) if (*c == 1) *c = ' ';
             CHECK(strstr(prompt, " for 500 bolts") && strcmp(prompt, "Buy Infobot for 500 bolts"));
             entry = 998;
             memcpy(s_memory + entries, &entry, 2);
             ((int (*)(uint32_t, uint32_t))hook_named("rac1.npc.try_dialog"))(moby, request);
             CHECK(strcmp(prompt, "Buy Infobot for 500 bolts") == 0);
         }
+        /* Umbris: collect the infobot before the NPC. Blarg exercises NPC-first below. */
+        if (i == 5) {
+            const uint32_t bot = 0x182000, pvars = 0x183000;
+            set32(s_memory + bot + MOBY_PVARS, pvars);
+            set32(s_memory + pvars + INFOBOT_PLANET, k_rando_npcs[i].planet);
+            s_memory[bot + MOBY_MISSION] = 3;
+            s_unlock_hook = (openrac_rac1_Planet_Unlock)hook_named("Planet_Unlock");
+            ((void (*)(uint32_t))hook_named("Moby_Infobot_Update"))(bot);
+            CHECK(data_words[2] & (1u << (10 + i)));
+        }
         int before = npc_purchases;
+        const int expected = before + (i == 5 ? 0 : 1);
         ((void (*)(uint32_t))hook_named(k_rando_npcs[i].hook))(moby);
-        CHECK(npc_purchases == before + 1 && (data_words[2] & (1u << (10 + i))));
+        CHECK(npc_purchases == expected && (data_words[2] & (1u << (10 + i))));
         ((void (*)(uint32_t))hook_named(k_rando_npcs[i].hook))(moby);
-        CHECK(npc_purchases == before + 1);
+        CHECK(npc_purchases == expected);
+    }
+    for (int index = 0; index < RANDO_NPC_COUNT; ++index) {
+        const int row = rando_npc_row(index);
+        const int mission = rando_infobot_mission(&rando_locations[row]);
+        if (mission < 0) continue;
+        const uint32_t moby = 0x180000, pvars = 0x181000;
+        set32(s_memory + D->level, k_rando_npcs[index].level);
+        set32(s_memory + moby + MOBY_PVARS, pvars);
+        set32(s_memory + pvars + INFOBOT_PLANET, k_rando_npcs[index].planet);
+        s_memory[moby + MOBY_MISSION] = (uint8_t)mission;
+        s_memory[moby + 0x20] = 8;
+        const uint32_t before = data_words[2];
+        ((void (*)(uint32_t))hook_named("Moby_Infobot_Update"))(moby);
+        CHECK(s_memory[moby + 0x20] == 0xFD);
+        CHECK(data_words[2] == before && animation_calls == 0);
     }
     CHECK((data_words[2] & 0x3FFu) == 0 && animation_calls == 0);
     /* Vendor monitor text/models, original purchase rows, and last purchase on exit. */
@@ -466,7 +494,7 @@ int main(int argc, char** argv) {
         }
     }
     CHECK(vendor_count == 11);
-    CHECK((data_words[2] >> 10) == 0x1FFFu && serialized >= 13);
+    CHECK((data_words[2] >> 10) == 0x1FFFu && serialized >= RANDO_NPC_COUNT - 1);
     uint32_t checks = data_words[2];
     data_changed(NULL);
     CHECK(data_words[2] == checks);

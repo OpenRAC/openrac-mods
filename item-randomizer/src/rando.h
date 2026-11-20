@@ -281,6 +281,9 @@ void rando_reward_name(rando_reward r, char* buf, size_t n);
  * most size bytes with the terminator; returns the length it needed. */
 size_t rando_spoiler(const rando_plan* plan, const char* mod_version, char* out, size_t size);
 
+/* Native infobot trigger for a canonical coordinate source, or -1. */
+int rando_infobot_mission(const rando_location* location);
+
 #ifdef __cplusplus
 }
 #endif

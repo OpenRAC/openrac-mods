@@ -380,6 +380,15 @@ class TestNPCInfobotsOff(RAC1TestBase):
         self.assertTrue(self.can_reach_region("Kerwan"))
 
 
+class TestUniqueRewards(unittest.TestCase):
+    def test_one_source_per_coordinate(self) -> None:
+        from ..locations import LOCATION_ROWS, EVENT_ROWS
+        counts = Counter(row.vanilla for row in [*LOCATION_ROWS, *EVENT_ROWS]
+                         if row.vanilla and row.vanilla.endswith(" Coordinates"))
+        self.assertTrue(counts)
+        self.assertEqual({name: count for name, count in counts.items() if count != 1}, {})
+
+
 class TestEdwinaHydrodisplacer(RAC1TestBase):
     def test_kalebo_race_needs_no_magneboots(self) -> None:
         self.collect_by_name(["Kalebo III Coordinates", "Heli-Pack", "Swingshot", "Grindboots"])
@@ -524,9 +533,9 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("Grindboots")
         self.assertTrue(self.can_reach_location("Batalia: the deserter, the coordinates of Gaspar"))
 
-    def test_blarg_infobot_and_shuttle_need_no_movement_gadgets(self) -> None:
+    def test_blarg_shuttle_needs_no_movement_gadgets(self) -> None:
+        # The NPC and the infobot it spawns are one check: the shuttle's.
         self.collect_by_name("Blarg Coordinates")
-        self.assertTrue(self.can_reach_location("Blarg: the infobot"))
         self.assertTrue(self.can_reach_location("Blarg: the shuttle, the coordinates of Rilgar"))
 
     def test_blarg_hydrodisplacer_requires_only_trespasser(self) -> None:

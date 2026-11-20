@@ -328,6 +328,17 @@ void game_serialize(uint32_t) {
     std::memcpy(&g_serialized_checks, at(D->save_tag), 4);
 }
 
+void game_infobot(uint32_t moby) {
+    uint32_t vars;
+    int planet;
+    std::memcpy(&vars, at(moby + MOBY_PVARS), 4);
+    std::memcpy(&planet, at(vars + INFOBOT_PLANET), 4);
+    if (!*at(D->planets + planet)) {
+        ((void (*)(int))replacement(OPENRAC_RAC1_HOOK_Planet_Unlock))(planet);
+        *at(D->triggers + g_level * 16 + *at(moby + MOBY_MISSION)) = 0xFF;
+    }
+}
+
 void game_npc(uint32_t moby) {
     int16_t cls;
     std::memcpy(&cls, at(moby + 0xA6), 2);
@@ -415,6 +426,9 @@ void* original_for(const std::string& name) {
 
     if (name == OPENRAC_RAC1_HOOK_Item_Give) {
         return (void*)game_give;
+    }
+    if (name == OPENRAC_RAC1_HOOK_Moby_Infobot_Update) {
+        return (void*)game_infobot;
     }
     if (name == OPENRAC_RAC1_HOOK_Planet_Unlock) {
         return (void*)game_unlock;
@@ -1668,6 +1682,27 @@ int main(int argc, char** argv) {
         ((void (*)(uint32_t))replacement("Moby_ThePlumber_Update"))(npc_moby);
         CHECK(*at(D->planets + LEVEL_ARIDIA) == 0 && g_serialized_planets[LEVEL_ARIDIA] == 0);
         CHECK(frames_until([] { return g_checked.count(ap_npc_id(0)) != 0; }));
+        // NPC-first and infobot-first both spend exactly one canonical check.
+        for (int index : {3, 5}) {
+            const auto& npc = k_ap_npcs[index];
+            const uint32_t bot = 0x1820000, vars = 0x1821000;
+            set_level(npc.level);
+            std::memcpy(at(npc_moby + 0xA6), &npc.oclass, 2);
+            put(bot + MOBY_PVARS, vars);
+            put(vars + INFOBOT_PLANET, npc.planet);
+            *at(bot + MOBY_MISSION) = index == 3 ? 0 : 3;
+            *at(bot + 0x20) = 8;
+            auto npc_update = (void (*)(uint32_t))replacement(npc.hook);
+            auto bot_update = (void (*)(uint32_t))replacement("Moby_Infobot_Update");
+            const int before = g_npc_purchases;
+            if (index == 3) npc_update(npc_moby);
+            bot_update(bot);
+            CHECK(frames_until([index] { return g_checked.count(ap_npc_id(index)) != 0; }));
+            npc_update(npc_moby);
+            bot_update(bot);
+            CHECK(g_npc_purchases == before + (index == 3 ? 1 : 0));
+            CHECK(*at(bot + 0x20) == 0xFD);
+        }
         const int checks = get(D->save_tag);
         ((void (*)(int))replacement(ITEM_RANDOMIZER_HOOK_Save_NewGamePlus))(0);
         CHECK(get(D->save_tag) == checks);  // challenge restart preserves NPC and gold-case checks

@@ -132,6 +132,10 @@ static void check_tables(void) {
 
         for (size_t j = i + 1; j < rando_location_count; ++j) {
             const rando_location* b = &rando_locations[j];
+            /* Currency repeats; every distinct inventory/coordinate reward appears once. */
+            if (a->vanilla.kind != REWARD_NONE && a->vanilla.kind != REWARD_GOLD_BOLT) {
+                CHECK(a->vanilla.kind != b->vanilla.kind || a->vanilla.value != b->vanilla.value);
+            }
 
             if (a->kind == LOC_FIXED || b->kind == LOC_FIXED) {
                 continue;
@@ -364,24 +368,23 @@ static void check_blarg_hydrodisplacer_pickup(void) {
     }
 }
 
-/* Both Blarg coordinate records are reachable with planet access alone.
- * No item rewards exist in this plan, including Heli-Pack and Swingshot. */
+/* Blarg's coordinate record (the NPC and its infobot are one check) is reachable with planet
+ * access alone. No item rewards exist in this plan, including Heli-Pack and Swingshot. */
 static void check_blarg_infobot_routes(void) {
     rando_plan p = {0};
-    int start = -1, infobot = -1, shuttle = -1;
+    int start = -1, shuttle = -1;
     int spheres[RANDO_MAX_LOCATIONS];
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
         if (l->kind == LOC_START) start = (int)i;
-        if (!strcmp(l->name, "Blarg: the infobot")) infobot = (int)i;
         if (!strcmp(l->name, "Blarg: the shuttle, the coordinates of Rilgar")) shuttle = (int)i;
     }
-    CHECK(start >= 0 && infobot >= 0 && shuttle >= 0);
+    CHECK(start >= 0 && shuttle >= 0);
     p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_BLARG};
     for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
         p.settings.difficulty = (uint8_t)d;
         rando_beatable(&p, spheres);
-        CHECK(spheres[infobot] >= 0 && spheres[shuttle] >= 0);
+        CHECK(spheres[shuttle] >= 0);
     }
 }
 
@@ -509,7 +512,7 @@ int main(int argc, char** argv) {
         (unsigned long long)plan_hash(&p),
         p.attempts
     );
-    CHECK(plan_hash(&p) == 0xcf044a2320f1889cull);
+    CHECK(plan_hash(&p) == 0x90fce36b5c777277ull);
 
     /* Every setting, n seeds each. */
     long solved = 0;

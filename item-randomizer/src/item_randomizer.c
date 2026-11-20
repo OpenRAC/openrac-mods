@@ -1059,7 +1059,10 @@ static void planet_unlock(int32_t planet) {
     // An infobot's update is running and this is its planet: give its location's reward.
     if (s_infobot >= 0 && rando_locations[s_infobot].vanilla.value == planet) {
         const int location = s_infobot;
-        give_reward(location, 0, -1);
+        if (!had(location)) {
+            set_had(location);
+            give_reward(location, 0, -1);
+        }
         s_seen[location] = 1; /* the game marks its trigger slot next */
         return;
     }
@@ -2015,8 +2018,9 @@ static void index_locations(void) {
 
         // Infobots are found by level and mission; items by id; gold bolts by the check each
         // tick, so they have no entry.
-        if (l->kind == LOC_INFOBOT) {
-            s_by_infobot[l->level][l->key] = (int)i;
+        const int mission = rando_infobot_mission(l);
+        if (mission >= 0) {
+            s_by_infobot[l->level][mission] = (int)i;
         } else if (l->kind == LOC_GIVE || l->kind == LOC_VENDOR || l->kind == LOC_START) {
             s_by_item[l->key] = (int)i;
         }

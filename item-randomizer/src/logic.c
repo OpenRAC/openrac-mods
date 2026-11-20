@@ -275,7 +275,6 @@ const rando_location rando_locations[] = {
         0
     ),
     GIVE_G("Blarg: Fred", LEVEL_BLARG, ITEM_GRINDBOOTS, 15, 0, WALK, 0),
-    INFOBOT("Blarg: the infobot", LEVEL_BLARG, 0, LEVEL_RILGAR, 16, 0, 0),
     FIXED(
         "Blarg: the shuttle, the coordinates of Rilgar",
         LEVEL_BLARG,
@@ -305,7 +304,6 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Rilgar: gold bolt 2", LEVEL_RILGAR, 1, 20),
 
     // Umbris: "To progress any further in this area, you must have a Gadgetron Hydrodisplacer".
-    INFOBOT("Umbris: the infobot", LEVEL_UMBRIS, 3, LEVEL_BATALIA, 22, HYDRO | WALK, 0),
     FIXED(
         "Umbris: the coordinates of Batalia",
         LEVEL_UMBRIS,
@@ -706,4 +704,13 @@ int rando_reward_text(rando_reward r) {
         default:
             return 0;
     }
+}
+
+/* The NPC and its spawned infobot are one check, with one persistent reward. */
+int rando_infobot_mission(const rando_location* l) {
+    if (l->kind == LOC_INFOBOT) return l->key;
+    if (l->kind != LOC_FIXED || l->vanilla.kind != REWARD_PLANET) return -1;
+    if (l->level == LEVEL_BLARG && l->vanilla.value == LEVEL_RILGAR) return 0;
+    if (l->level == LEVEL_UMBRIS && l->vanilla.value == LEVEL_BATALIA) return 3;
+    return -1;
 }
