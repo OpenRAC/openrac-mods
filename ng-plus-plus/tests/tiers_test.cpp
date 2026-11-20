@@ -440,6 +440,48 @@ void test_ryno_fights() {
     }
 }
 
+// Checks a kill's weapon experience: the game's up to cycle 1, then the run's x1.5, x2.5, x3.5 and
+// x4.5, times the softened toughness of a bigger enemy, a boss's x5 or the final boss's x10; and
+// that levelling the tier of each run by experience takes about as long as Beta did in the first
+// challenge mode (its goal over Beta's, times the hits a kill takes, over the experience).
+void test_kill_experience() {
+    const Foe small = foe_of(false, false, 8);
+    const Foe common = foe_of(false, false, 45);
+    const Foe big = foe_of(false, false, 320);
+    const Foe huge = foe_of(false, false, 5000);
+    const Foe boss = foe_of(true, false, 0);
+    const Foe last = foe_of(true, true, 0);
+    CHECK(kill_experience(0, last) == 1.0f);
+    CHECK(kill_experience(1, big) == 1.0f);
+    CHECK(kill_experience(2, small) == 1.5f);
+    CHECK(kill_experience(3, small) == 2.5f);
+    CHECK(kill_experience(4, small) == 3.5f);
+    CHECK(kill_experience(5, small) == 4.5f);
+    CHECK(kill_experience(20, small) == 4.5f);
+    CHECK(std::fabs(kill_experience(2, big) - 3.0f) < 0.001f);  // 320 bolts: x2
+    CHECK(std::fabs(kill_experience(2, common) - 1.5f * std::sqrt(1.5f)) < 0.001f);
+    CHECK(kill_experience(2, huge) <= 1.5f * 2.45f);
+    CHECK(kill_experience(2, boss) == 7.5f);
+    CHECK(kill_experience(5, last) == 45.0f);
+
+    // The tier each run levels by experience (cycle 2 Delta, 3 Zeta, then Omega), and its goal.
+    const float beta = static_cast<float>(step_at(Kind::Four, 1)->exp);
+
+    // Every run.
+    for (int cycle = 2; cycle < 40; ++cycle) {
+        const int level = cycle == 2 ? 3 : (cycle == 3 ? 5 : 7);
+        const float goal = static_cast<float>(step_at(Kind::Four, level)->exp) / beta;
+        const float hits = enemy_health(cycle, 1.0f) / damage(Kind::Four, matching_level(cycle));
+
+        // Small fry and common enemies: within a quarter or so of the first challenge mode's pace.
+        for (const Foe& foe : {small, common}) {
+            const float pace = goal * hits / kill_experience(cycle, foe);
+            CHECK(pace >= 0.75f);
+            CHECK(pace <= 1.3f);
+        }
+    }
+}
+
 // Checks the book's records: replaced by clock, the oldest dropped when full, and its text form
 // read back as written.
 void test_book() {
@@ -606,6 +648,7 @@ int main() try {
     test_enemies();
     test_bosses();
     test_ryno_fights();
+    test_kill_experience();
     test_book();
     test_book_keeps();
     test_saves();

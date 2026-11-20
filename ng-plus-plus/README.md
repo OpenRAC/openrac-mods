@@ -193,6 +193,30 @@ and a bigger one holds out longer, by the square root of its bolts over 110, at 
 On ordinary enemies the RYNO II's Omega still hits over eight times as hard as the game's RYNO II in
 every run, four times what any other weapon's Omega keeps of its hit after enemy health.
 
+**Weapon experience keeps pace.** Since 0.4.1 a kill gives more weapon experience each new game, so
+a tier takes about as long to level as Beta did in the first challenge mode, despite the extra hits:
+x1.5, x2.5, x3.5 and x4.5 from the second challenge mode on (the 5th on stays at x4.5). On top of
+that a bigger enemy gives a little more, the fourth root of its own bolts over 20 (45 bolts: x1.22,
+320: x2, at most x2.45), a boss x5 and the final boss x10. The game's own experience already grows
+with an enemy, and the share it gives your other weapons grows the same way. The RYNO II keeps its
+five times slower goals.
+
+The tier you level by experience in each new game, with the kills it takes counted against the
+100 kills that Beta takes in the first challenge mode (same enemies; small fry have 20 bolts or
+fewer, a common enemy 45):
+
+| New game | Tier by experience | Its goal | Kills before | Kills now (small fry / common) | Hits a kill takes, vs the 1st | Play time now, vs Beta in the 1st |
+|---|---|---|---|---|---|---|
+| 2 (1st challenge mode) | Beta | 8,000 | 100 | 100 | x1 | x1 |
+| 3 (2nd) | Delta | 12,000 | 150 | 100 / 82 | x1.25 | x1.25 / x1.02 |
+| 4 (3rd) | Zeta | 16,000 | 200 | 80 / 65 | x1.33 | x1.07 / x0.87 |
+| 5 (4th) | Omega | 24,000 | 300 | 86 / 70 | x1.29 | x1.10 / x0.90 |
+| 6 (5th) | Omega (another weapon) | 24,000 | 300 | 67 / 54 | x1.39 | x0.93 / x0.76 |
+| 7 (6th) | Omega | 24,000 | 300 | 67 / 54 | x1.46 | x0.98 / x0.80 |
+| 8 on | Omega | 24,000 | 300 | 67 / 54 | x1.5 | x1 / x0.82 |
+
+Before 0.4.1 the same steps took 1.9, 2.7, 3.9, 4.2, 4.4 and 4.5 times as long as Beta in the first.
+
 (0.4.0's enemy health went x2.5, x4, x5.5, x6, x6.5, then x6.75, and divided the RYNO II's hits too,
 with no boss extra. Before 0.4.0 it went x2, x3, x4, x5, then +1 a game, and enemy damage x1.25,
 then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went x2.5, x4, x6, x8,
@@ -367,6 +391,7 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw), else the weapon in Ratchet's hand |
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve (a boss's, by the victim's class at +0xAA, by the boss column too, the final boss's by 1.5 more; the RYNO II's hits by its own rule, its tough enemies by their own bolts at +0xB4), the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
+| Weapon experience | `rac2.moby.record_death` (`func_002A6C58`, `SetDeathBits`): every weapon's experience (the s32 table at `D_00139868`, << 5) read before the game's own award and after, each gain times the run's rate and the moby's (a boss by its class at +0xAA, an enemy's own bolts at +0xB4) |
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
 | Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); from the second challenge mode without the game's coin limit (flag 8; `SetDeathBits` asks for three coins a kill), so the whole total is written down; the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as obsidian, platinum and gold coins at those places, the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word at +0x1C, `D_001A7A14`, divided by the streak, as the game does) |
 | Collectors | no hook point: their dialogs' texts (10135 Tabora's crystals, 10209 Grelbin's moonstones) through `rac2.text.by_id` get the scaled total in place of their second number; each tick a trade (the crystals at +0x22 of the save block, s16, or the moonstones at +0x24, s32, down to 0 in Tabora or Grelbin with the game's pay, 1,000 or 3,000 each, ten times in challenge mode, in the bolts at +0x00) gets the rest of the scaled pay through `openrac_api.bolts` |

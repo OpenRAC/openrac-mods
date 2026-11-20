@@ -5,6 +5,8 @@
 
 #include "combat.h"
 
+#include <array>
+#include <cmath>
 #include <optional>
 
 namespace ng_plus_plus {
@@ -54,6 +56,49 @@ void Combat::post_hit(
 
     // The caller may post the same request to the next victim.
     memory.write(request + kHitDamage, damage_now);
+}
+
+void Combat::record_death(
+    openrac::Original<void(std::uint32_t, std::int32_t, std::int32_t)> original,
+    std::uint32_t moby,
+    std::int32_t flags,
+    std::int32_t arg
+) {
+    const GameView& view = m_weapons.view();
+    const std::optional<int> moby_class = view.moby_class(moby);
+    const BossClass* boss = moby_class ? boss_of(*moby_class) : nullptr;
+    Foe foe;
+    foe.boss = boss != nullptr;
+    foe.last = boss != nullptr && boss->last;
+    foe.bolts = view.enemy_bolts(moby).value_or(0);
+    const float scale = m_enemies.scaling ? kill_experience(view.cycle(), foe) : 1.0f;
+
+    // Nothing to scale: the game's.
+    if (scale == 1.0f) {
+        original(moby, flags, arg);
+        return;
+    }
+
+    std::array<std::int32_t, kItems> before{};
+
+    // Each weapon's experience before the game's award.
+    for (int item = 0; item < kItems; ++item) {
+        before[static_cast<std::size_t>(item)] = view.raw_experience(item);
+    }
+
+    original(moby, flags, arg);
+
+    // What each gained, scaled.
+    for (int item = 0; item < kItems; ++item) {
+        const std::int32_t gained =
+            view.raw_experience(item) - before[static_cast<std::size_t>(item)];
+
+        // Only a gain.
+        if (gained > 0) {
+            const double more = std::floor(static_cast<double>(gained) * (scale - 1.0f) + 0.5);
+            view.add_raw_experience(item, static_cast<std::int32_t>(more));
+        }
+    }
 }
 
 int Combat::fired_item(std::uint32_t request) const {

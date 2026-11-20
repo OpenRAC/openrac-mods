@@ -185,6 +185,11 @@ void NgPlusPlus::start() {
     take<openrac::rac2::Hero_TakeDamage>([self](auto original, std::int32_t amount) {
         self->m_combat.take_damage(original, amount);
     });
+    take<openrac::rac2::Moby_RecordDeath>(
+        [self](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t arg) {
+            self->m_combat.record_death(original, moby, flags, arg);
+        }
+    );
     take_optional();
 
     // Once a game tick, on the game's thread.

@@ -137,6 +137,14 @@ constexpr float kRynoBossFirst = 3.0f;
 constexpr float kRynoBossStep = 1.0f;
 constexpr float kRynoBossMost = 7.0f;
 
+// The weapon experience of a kill by cycle from kFirstCurveCycle on; the last holds past it.
+constexpr float kExperienceRun[] = {1.5f, 2.5f, 3.5f, 4.5f};
+
+// An enemy's own bolts up to this give no more experience for its toughness; past it the fourth
+// root of its bolts over this, at most kExperienceToughMost.
+constexpr float kExperienceToughBolts = 20.0f;
+constexpr float kExperienceToughMost = 2.449f;
+
 // How many cycles the tables have.
 constexpr int kCurveCycles = static_cast<int>(sizeof kEnemyHealth / sizeof kEnemyHealth[0]);
 
@@ -595,6 +603,28 @@ float hit_divisor(Kind kind, int level, int cycle, float strength, const Foe& fo
     }
 
     return enemy_health(cycle, strength) * extra;
+}
+
+float kill_experience(int cycle, const Foe& foe) {
+    // The runs the game balances itself.
+    if (cycle < kFirstCurveCycle) {
+        return 1.0f;
+    }
+
+    constexpr int kRuns = static_cast<int>(sizeof kExperienceRun / sizeof kExperienceRun[0]);
+    const int at = cycle - kFirstCurveCycle;
+    const float run = kExperienceRun[at < kRuns ? at : kRuns - 1];
+
+    // A boss: a large extra, the final boss's larger.
+    if (foe.boss) {
+        return run * (foe.last ? kFinalBossExperience : kBossExperience);
+    }
+
+    // Softened toughness: the fourth root of its bolts over the least.
+    const float bolts = static_cast<float>(foe.bolts);
+    const float tough =
+        bolts > kExperienceToughBolts ? std::sqrt(std::sqrt(bolts / kExperienceToughBolts)) : 1.0f;
+    return run * std::min(tough, kExperienceToughMost);
 }
 
 }  // namespace ng_plus_plus

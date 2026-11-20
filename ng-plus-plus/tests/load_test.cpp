@@ -258,6 +258,14 @@ void game_post_hit(std::uint32_t /*victim*/, std::uint32_t request) {
     g_damage_seen = get<float>(request + kHitDamage);
 }
 
+// Moby_RecordDeath as the game's: g_kill_xp of experience (<< 5) to the item g_kill_item.
+int g_kill_item = 0;
+std::int32_t g_kill_xp = 0;
+void game_record_death(std::uint32_t /*moby*/, std::int32_t /*flags*/, std::int32_t /*arg*/) {
+    const std::uint32_t at = g_disc->exp + 4u * static_cast<std::uint32_t>(g_kill_item);
+    set<std::int32_t>(at, get<std::int32_t>(at) + g_kill_xp);
+}
+
 // Hero_TakeDamage: the points taken, added up.
 void game_take_damage(std::int32_t amount) {
     g_taken += amount;
@@ -551,6 +559,7 @@ int host_hook(
         {rac2::Item_Colors::id, reinterpret_cast<void*>(&game_colors)},
         {rac2::Moby_PostHit::id, reinterpret_cast<void*>(&game_post_hit)},
         {rac2::Hero_TakeDamage::id, reinterpret_cast<void*>(&game_take_damage)},
+        {rac2::Moby_RecordDeath::id, reinterpret_cast<void*>(&game_record_death)},
         {hooks::Vendor_DrawList::id, reinterpret_cast<void*>(&game_draw_list)},
         {hooks::Item_VersionColor::id, reinterpret_cast<void*>(&game_version_color)},
         {hooks::Text_ById::id, reinterpret_cast<void*>(&game_text)},
@@ -1387,6 +1396,57 @@ void set_run(std::int16_t cycle, std::uint8_t streak) {
     set<std::uint8_t>(g_disc->progress + kProgressStreak, streak);
 }
 
+// Makes the enemy a tough one (defined below).
+void lay_out_enemy();
+
+// Checks the experience of a kill: the game's in the first challenge mode; from the second on
+// times the run's x1.5 (an enemy of 20 bolts or none), times the fourth root of a bigger enemy's
+// bolts over 20 (320: x2), a boss's x5 and the final boss's x10 instead; x4.5 from cycle 5.
+void test_kill_experience() {
+    const auto enemy_class = get<std::uint16_t>(kMobyEnemy + kMobyClass);
+    const auto bolts = get<std::int16_t>(kMobyEnemy + kMobyBolts);
+    const auto info = get<std::uint32_t>(kMobyEnemy + kMobyClassInfo);
+    const auto cycle = get<std::int16_t>(g_disc->progress + kProgressCycle);
+    g_kill_item = kLancer;
+    g_kill_xp = 1000;
+
+    // The first challenge mode: the game's.
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
+    hooked<rac2::Moby_RecordDeath>()(kMobyOther, 0, 3);
+    CHECK(experience(kLancer) == 1000);
+
+    // Cycle 2, a moby with no bolts of its own: x1.5.
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
+    hooked<rac2::Moby_RecordDeath>()(kMobyOther, 0, 3);
+    CHECK(experience(kLancer) == 1500);
+
+    // A big enemy (320 bolts): x1.5 x 2.
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    lay_out_enemy();
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, 320);
+    hooked<rac2::Moby_RecordDeath>()(kMobyEnemy, 0, 3);
+    CHECK(experience(kLancer) == 3000);
+
+    // Cycle 5: the final boss x4.5 x 10, a boss x4.5 x 5.
+    set<std::int16_t>(g_disc->progress + kProgressCycle, 5);
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::uint16_t>(kMobyEnemy + kMobyClass, 4576);
+    hooked<rac2::Moby_RecordDeath>()(kMobyEnemy, 0, 3);
+    CHECK(experience(kLancer) == 45'000);
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::uint16_t>(kMobyEnemy + kMobyClass, 2644);
+    hooked<rac2::Moby_RecordDeath>()(kMobyEnemy, 0, 3);
+    CHECK(experience(kLancer) == 22'500);
+
+    set<std::uint16_t>(kMobyEnemy + kMobyClass, enemy_class);
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, bolts);
+    set<std::uint32_t>(kMobyEnemy + kMobyClassInfo, info);
+    set<std::int16_t>(g_disc->progress + kProgressCycle, cycle);
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+}
+
 // Makes the enemy a tough one: its class record says enemy, its own bolts are 80 (x2 toughness).
 void lay_out_enemy() {
     set<std::uint32_t>(kMobyEnemy + kMobyClassInfo, kEnemyClassAt);
@@ -1889,10 +1949,10 @@ void run(const char* path, const Disc& disc, Host host) {
     make_api();
     CHECK(reload(load));
     CHECK(g_failed.empty());
-    // The nine of before, and the three bolt hook points and the arena's on a port of 1.23 with
-    // the setting on.
+    // The ten of before (the kills' experience among them), and the three bolt hook points and
+    // the arena's on a port of 1.23 with the setting on.
     const bool bolts = host == Host::Bolts || host == Host::Obsidian || host == Host::Energy;
-    CHECK(g_hooks.size() == (bolts ? 13u : 9u));
+    CHECK(g_hooks.size() == (bolts ? 14u : 10u));
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
     // A port of 1.23 drops platinum only, and says so.
     CHECK((g_log.find("interface 1.24") != std::string::npos) == (host == Host::Bolts));
@@ -1909,6 +1969,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_each_save_has_its_own();
     test_saves_from_inside_a_level();
     test_in_hand_level_up();
+    test_kill_experience();
 
     test_collectors(host != Host::Off);
     test_prizes_and_prices(host != Host::Off, bolts);

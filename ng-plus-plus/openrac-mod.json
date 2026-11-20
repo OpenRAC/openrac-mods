@@ -23,6 +23,7 @@
     "rac2.item.colors",
     "rac2.combat.post_hit",
     "rac2.player.take_damage",
+    "rac2.moby.record_death",
     "rac2.item.version_color",
     "rac2.text.by_id",
     "rac2.vendor.draw_list"
@@ -42,7 +43,7 @@
       "name": "Tougher enemies each new game",
       "type": "bool",
       "default": true,
-      "description": "From the second challenge mode on, enemies have more health and hit harder each new game (x2.5 health in the second challenge mode, up to x6.75), but stay behind the damage of the tiers you should have by then, and a fully upgraded weapon stays ahead in every game (the table is in the README). The first challenge mode is unchanged."
+      "description": "From the second challenge mode on, enemies have more health and hit harder each new game (x3.75 health in the second challenge mode, up to x10.5): even with the tier you should have by then a fight takes a quarter to a half more hits. Bosses have two to three times more on top, the final boss half as much again; the RYNO II has its own rule. Kills give more weapon experience to match (the tables are in the README). The first challenge mode is unchanged."
     },
     {
       "key": "enemy_strength",

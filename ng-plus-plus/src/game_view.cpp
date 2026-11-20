@@ -113,6 +113,11 @@ void GameView::clear_experience(int item) const {
     memory().write(at(m_disc.exp) + kWordBytes * static_cast<std::uint32_t>(item), std::int32_t{0});
 }
 
+void GameView::add_raw_experience(int item, std::int32_t amount) const {
+    const openrac::gaddr at_item = at(m_disc.exp) + kWordBytes * static_cast<std::uint32_t>(item);
+    memory().write(at_item, memory().read<std::int32_t>(at_item) + amount);
+}
+
 void GameView::set_ammo(int item, std::int32_t rounds) const {
     memory().write(at(m_disc.ammo) + kWordBytes * static_cast<std::uint32_t>(item), rounds);
 }

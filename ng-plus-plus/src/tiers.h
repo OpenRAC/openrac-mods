@@ -244,4 +244,15 @@ float ryno_hits(int cycle, float strength, const Foe& foe);
 // times the game's own RYNO II's hits, whatever its tier.
 float hit_divisor(Kind kind, int level, int cycle, float strength, const Foe& foe);
 
+// The final boss's and a boss's weapon experience for a kill, times the run's (kill_experience).
+inline constexpr float kBossExperience = 5.0f;
+inline constexpr float kFinalBossExperience = 10.0f;
+
+// Returns how much more weapon experience a kill of `foe` gives in cycle `cycle`, so a tier takes
+// about as long to level as in the first challenge mode although enemies take more hits: 1.0 up to
+// cycle 1, then the run's x1.5, x2.5, x3.5 and x4.5 (from cycle 5 on), times a boss's
+// kBossExperience (the final boss's kFinalBossExperience) or else the enemy's toughness softened:
+// the fourth root of its bolts over 20, from x1 up to x2.45 (the square root of the drops' x6).
+float kill_experience(int cycle, const Foe& foe);
+
 }  // namespace ng_plus_plus

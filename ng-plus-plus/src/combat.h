@@ -40,6 +40,16 @@ public:
         std::uint32_t request
     );
 
+    // A moby's death recorded (Moby_RecordDeath): the game's, then from cycle 2 the weapon
+    // experience it gave (to whichever weapons: the killing one and the game's shares) times
+    // kill_experience for the moby (an enemy's own bolts, a boss by its class).
+    void record_death(
+        openrac::Original<void(std::uint32_t, std::int32_t, std::int32_t)> original,
+        std::uint32_t moby,
+        std::int32_t flags,
+        std::int32_t arg
+    );
+
     // A hit of `amount` points on the hero (Hero_TakeDamage): times the enemies' damage, the
     // fraction of a point carried to the next hit.
     void take_damage(openrac::Original<void(std::int32_t)> original, std::int32_t amount);

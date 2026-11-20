@@ -133,6 +133,9 @@ public:
     // Sets item `item`'s experience back to 0.
     void clear_experience(int item) const;
 
+    // Adds `amount` to item `item`'s experience as the game keeps it (<< 5).
+    void add_raw_experience(int item, std::int32_t amount) const;
+
     // Sets item `item`'s ammo to `rounds`.
     void set_ammo(int item, std::int32_t rounds) const;
 
