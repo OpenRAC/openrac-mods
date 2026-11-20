@@ -120,6 +120,8 @@ constexpr std::int32_t kAmmoOneText = 0x2002;      // "1 Mega Lancer round".
 constexpr std::int32_t kAmmoFullText = 0x2003;     // "Ammo full": names no weapon.
 // The game's own shape of the message: the name in colour codes, between its words too.
 constexpr std::int32_t kAmmoCodedText = 0x2004;    // "Got %d \x0cMega \x0cLancer\x08\x08 ammo".
+// The game's level-up table's line for the Lancer at its last version (help_show_message_for_id).
+constexpr std::int32_t kLevelUpLineText = 0x2005;  // "\x0cMega Lancer\x08 upgraded".
 
 // The ammo pickup's fields of a row (src/discs.h, kRowTextFields).
 constexpr std::uint32_t kRowAmmoMany = 0x38u;
@@ -147,6 +149,7 @@ std::string g_drawn_label;
 std::uint32_t g_drawn_tint = 0;
 std::uint32_t g_row_tint[16];
 int g_banners = 0;
+int g_fx_item = -1;  // The item the in-hand level-up was last started for.
 std::int32_t g_banner_key = 0;
 int g_level_now = 1;
 Host g_host = Host::Bolts;
@@ -273,6 +276,11 @@ std::int32_t game_text(std::int32_t id) {
             return static_cast<std::int32_t>(kTextAt + 0x480);
         case kAmmoCodedText:
             return static_cast<std::int32_t>(kTextAt + 0x4C0);
+        case kLevelUpLineText:
+            return static_cast<std::int32_t>(kTextAt + 0x500);
+        // Text 0: the game's empty string.
+        case 0:
+            return static_cast<std::int32_t>(kTextAt + 0x5F0);
         // No such text.
         default:
             return 0;
@@ -332,6 +340,12 @@ std::int32_t game_banner(std::int32_t key, std::int32_t selection) {
     ++g_banners;
     g_banner_key = selection == 1 ? key : -1;
     return 1;
+}
+
+// The game's in-hand level-up (func_L00_0037E6A8): the hero's animation starts; the test plays
+// its end, the game's popup, itself.
+void game_upgrade_fx(std::int32_t item, std::int32_t /*row*/) {
+    g_fx_item = item;
 }
 
 // The game's message line (func_002B0A18): it looks its text up and shows it.
@@ -537,9 +551,14 @@ int host_on_frame(openrac_mod* /*mod*/, openrac_frame_fn fn, void* user) {
 }
 
 void* host_function(const char* name) {
-    // The disc's names of the popup, the line and the lookup; no in-hand level-up.
+    // The disc's names of the popup, the line, the in-hand level-up and the lookup.
     if (std::strcmp(name, g_disc->banner) == 0) {
         return reinterpret_cast<void*>(&game_banner);
+    }
+
+    // The in-hand level-up by its name.
+    if (std::strcmp(name, g_disc->upgrade_fx) == 0) {
+        return reinterpret_cast<void*>(&game_upgrade_fx);
     }
 
     // The message line by its name.
@@ -703,6 +722,8 @@ void lay_out_game() {
     put_string(kTextAt + 0x440, "1 Mega Lancer round");
     put_string(kTextAt + 0x480, "Ammo full");
     put_string(kTextAt + 0x4C0, "Got %d \x0cMega \x0cLancer\x08\x08 ammo");
+    put_string(kTextAt + 0x500, "\x0cMega Lancer\x08 upgraded");
+    put_string(kTextAt + 0x5F0, "");
     put_string(kMegaAt, "Mega");
     set<std::int16_t>(row(kRyno) + kRowName, kRynoText);
     g_memory[g_disc->owned + kRyno] = 1;
@@ -1047,6 +1068,60 @@ void test_ryno_at_the_vendor() {
     CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);  // toward Beta
 }
 
+// Returns the vendor list place of item `item`'s upgrade entry, or -1.
+int upgrade_place(int item) {
+    int place = -1;
+
+    // Each entry of the list.
+    for (int n = 0; n < vendor_count(); ++n) {
+        // The item's upgrade entry.
+        if (get<std::int32_t>(entry(n) + kEntryItem) == item
+            && get<std::int32_t>(entry(n) + kEntryUpgrade) != 0) {
+            place = n;
+        }
+    }
+
+    return place;
+}
+
+// Checks a tier earned by a weapon in hand: the game's in-hand level-up, then at its end the
+// game's popup from its own level-up table named at the tier. The RYNO II has no line there, so
+// the game shows text 0, an empty box (0.3.5): the tier's name fills it. The Lancer's line names
+// its last version ("Ultra", the test's "Mega"): the tier's name takes its place. Each popup is
+// named once; after it text 0 is the game's again.
+void test_in_hand_level_up() {
+    set<std::int32_t>(g_disc->hero + kHeroReady, 1);
+
+    // The RYNO II in hand, at a tier by experience: no popup of the mod's, the animation instead.
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kRyno);
+    g_fx_item = -1;
+    const int banners = g_banners;
+    set_experience(kRyno, 1'000'000);
+    tick(1);
+    CHECK(g_fx_item == kRyno);
+    CHECK(g_banners == banners);
+    const std::string ryno = string_at(port_text(0));
+    CHECK(ryno.size() > std::string(" RYNO II").size());
+    CHECK(ryno.find(" RYNO II") == ryno.size() - std::string(" RYNO II").size());
+    CHECK(string_at(port_text(0)).empty());  // shown once
+
+    // The Lancer: Gamma bought, then Delta by experience in hand.
+    hooked<rac2::Vendor_BuildList>()(0);
+    set_cursor(upgrade_place(kLancer));
+    std::int32_t money = 100'000'000;
+    CHECK(purchase(money) > 0);
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kLancer);
+    g_fx_item = -1;
+    set_experience(kLancer, 1'000'000);
+    tick(1);
+    CHECK(g_fx_item == kLancer);
+    // Its own name in the HUD on the way, then the popup: the tier's name for the version's.
+    CHECK(string_at(port_text(kMegaLancerText)) == "Delta Heavy Lancer");
+    CHECK(string_at(port_text(kLevelUpLineText)) == "\x0c" "Delta Heavy Lancer\x08 upgraded");
+    CHECK(string_at(port_text(0)).empty());  // the popup was named: text 0 is the game's
+    set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
+}
+
 // Checks a restarted game (a new version of the mod): the steps bought since the last save were
 // kept at once, so the save loaded has them, at the title where its own clock shows before its
 // level starts, and after the game stamps a new one; then a new game has none.
@@ -1342,6 +1417,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_a_restart_keeps_the_steps(load);
     test_each_save_has_its_own();
     test_saves_from_inside_a_level();
+    test_in_hand_level_up();
 
     // The bolts as the port offers them.
     if (host == Host::Bolts) {

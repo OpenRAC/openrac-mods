@@ -67,6 +67,16 @@ public:
     // at its tier; none outside that call.
     std::optional<int> announcing() const;
 
+    // Returns the weapon in hand whose level-up animation the mod started and whose popup the game
+    // has not shown yet, or none. At the animation's end the game shows the popup of its own
+    // level-up table (help_show_message_for_id, func_00288508): a text naming the last version
+    // ("Ultra"), or text 0, an empty box, for a weapon the table has no line for (the RYNO II, the
+    // Zodiac); the text resolver names the weapon at its tier there instead.
+    std::optional<int> level_up_pending() const;
+
+    // The pending level-up's popup was named: the next lookups are the game's again.
+    void level_up_shown() { m_pending = -1; }
+
 private:
     // What the mod found and wrote in one last version's row.
     struct RowWrite {
@@ -93,6 +103,8 @@ private:
     int m_notice_ticks = 0;                 // Ticks the line at the top stays up.
     int m_held = -1;                        // The item in hand at the last tick.
     int m_announcing = -1;                  // The item of the level-up line being shown; -1 none.
+    int m_pending = -1;                     // The in-hand level-up waiting for its popup; -1 none.
+    int m_pending_ticks = 0;                // Ticks it still waits.
 };
 
 }  // namespace ng_plus_plus

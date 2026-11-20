@@ -13,6 +13,10 @@ namespace {
 // Ticks the line at the top of the screen stays up: two and a half seconds at 60 Hz.
 constexpr int kNoticeTicks = 150;
 
+// Ticks an in-hand level-up waits for the game's popup at its animation's end: ten seconds, far
+// past the animation, after which a lookup is the game's again.
+constexpr int kPendingTicks = 600;
+
 // The game's message line shows for its own default time when given this.
 constexpr std::int32_t kMessageDefaultTime = -1;
 
@@ -56,6 +60,8 @@ void Experience::show_earned(int item) {
     // its tier through the text resolver.
     if (item == view.held() && view.upgrade_fx() != nullptr) {
         view.upgrade_fx()(item, view.slot(item));
+        m_pending = item;
+        m_pending_ticks = kPendingTicks;
         return;
     }
 
@@ -81,6 +87,15 @@ std::optional<int> Experience::announcing() const {
     }
 
     return m_announcing;
+}
+
+std::optional<int> Experience::level_up_pending() const {
+    // None started, or its time is up.
+    if (m_pending < 0) {
+        return std::nullopt;
+    }
+
+    return m_pending;
 }
 
 void Experience::step_by_experience() {
@@ -181,6 +196,11 @@ void Experience::write_rows() {
 }
 
 void Experience::count_down_notice() {
+    // An in-hand level-up whose popup never came: forgotten.
+    if (m_pending >= 0 && --m_pending_ticks <= 0) {
+        m_pending = -1;
+    }
+
     // No line up.
     if (m_notice_ticks == 0) {
         return;
