@@ -990,11 +990,11 @@ void test_tint_damage_and_enemies() {
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
     CHECK(g_damage_seen == 20.0f);
 
-    // Challenge mode's third game (cycle 2): enemies have 2.5 times the health, deal 1.375 times.
+    // Challenge mode's third game (cycle 2): enemies have 3.5 times the health, deal 1.375 times.
     set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
     set<float>(kRequestAt + kHitDamage, 10.0f);
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
-    CHECK(std::fabs(g_damage_seen - 8.0f) < 0.001f);  // Beta's 2 over the health's 2.5
+    CHECK(std::fabs(g_damage_seen - 20.0f / 3.5f) < 0.001f);  // Beta's 2 over the health's 3.5
     g_taken = 0;
 
     // Four hits of one point: five (5.5, the fractions carried).

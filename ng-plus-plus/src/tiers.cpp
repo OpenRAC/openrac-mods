@@ -98,19 +98,20 @@ constexpr std::int32_t kPriceRiseLeast = 5'000;
 constexpr double kRoundUnit = 5.0;
 constexpr double kRoundUnitsPerDecade = 200.0;
 
-// By cycle from 2 on, growing half as fast again as 0.3's curve (x2, x3, x4, x5): the health stays
-// just behind the damage of the tier a player can have by then (cycle 2 Delta's x3 over x2.5, 3
-// Zeta's x4.5 over x4, 4 Omega's x7 over x5.5), so a weapon at that tier still kills faster than V4
-// did at cycle 1, by an eighth to a quarter; past Omega the health closes in, half a step a cycle,
-// and stops at kHealthMost, still behind Omega's x7. The damage they deal rises more gently: a
-// fight lasting longer already costs more health.
-constexpr float kEnemyHealth[] = {1.0f, 1.0f, 2.5f, 4.0f, 5.5f, 6.0f, 6.5f};
+// By cycle from 2 on. Up to 0.4.0 the health stayed just behind the damage of the tier a player can
+// have by then (x2.5, x4, x5.5 ...), so fights took fewer hits than V4's in the first challenge mode.
+// Now the enemies take more of a beating: the tier a player can have by then (cycle 2 Delta's x3, 3
+// Zeta's x4.5, 4 Omega's x7) needs about a sixth more hits than V4 did in the first challenge mode
+// (x3.5, x5.25), and past Omega the health closes in on Omega's x7 (x6.5, x6.75, x6.9, then up to
+// kHealthMost), so a fully upgraded weapon still out-damages it in every run. The damage they deal
+// rises more gently: a fight lasting longer already costs more health.
+constexpr float kEnemyHealth[] = {1.0f, 1.0f, 3.5f, 5.25f, 6.5f, 6.75f, 6.875f};
 constexpr float kEnemyDamage[] = {1.0f, 1.0f, 1.375f, 1.75f, 2.125f, 2.5f, 2.875f};
 
 // Past the tables, each cycle adds this much health and damage, up to the most.
-constexpr float kHealthStep = 0.25f;
+constexpr float kHealthStep = 0.0625f;
 constexpr float kDamageStep = 0.375f;
-constexpr float kHealthMost = 6.75f;  // under Omega's x7: a full weapon stays ahead
+constexpr float kHealthMost = 6.9375f;  // under Omega's x7: a full weapon stays ahead
 constexpr float kDamageMost = 4.0f;
 
 // How many cycles the tables have.

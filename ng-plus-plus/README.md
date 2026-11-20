@@ -105,26 +105,28 @@ game itself counts your challenge modes but only checks whether one is on: it do
 and nanotech orbs' health there, and its bolt multiplier grows with kills. It never makes enemies
 tougher. From the second challenge mode on, the mod does:
 
-| New game | Challenge mode | Enemy health | Enemy damage | Tier you should have by then | How fast you kill, vs V4 in the 1st |
-|---|---|---|---|---|---|
-| 1 | - | x1 | x1 | V1 to V3 | |
-| 2 | 1st | x1 | x1 | V4, then Alpha to Gamma | x1 (V4), x1.5 to x2.5 |
-| 3 | 2nd | x2.5 | x1.375 | Delta (x3) | x1.2 |
-| 4 | 3rd | x4 | x1.75 | Zeta (x4.5) | x1.125 |
-| 5 | 4th | x5.5 | x2.125 | Omega (x7) | x1.27 |
-| 6 | 5th | x6 | x2.5 | Omega (x7) | x1.17 |
-| 7 | 6th | x6.5 | x2.875 | Omega (x7) | x1.08 |
-| 8 on | 7th on | x6.75 | +0.375 each, up to x4 | Omega (x7) | x1.04 |
+| New game | Challenge mode | Enemy health | Enemy damage | Tier you should have by then | Hits to kill with it, vs V4 in the 1st | Hits vs 0.4.0 |
+|---|---|---|---|---|---|---|
+| 1 | - | x1 | x1 | V1 to V3 | | |
+| 2 | 1st | x1 | x1 | V4, then Alpha to Gamma | x1 (V4), x0.67 to x0.4 | the same |
+| 3 | 2nd | x3.5 | x1.375 | Delta (x3) | x1.17 | +40% |
+| 4 | 3rd | x5.25 | x1.75 | Zeta (x4.5) | x1.17 | +31% |
+| 5 | 4th | x6.5 | x2.125 | Omega (x7) | x0.93 | +18% |
+| 6 | 5th | x6.75 | x2.5 | Omega (x7) | x0.96 | +12.5% |
+| 7 | 6th | x6.875 | x2.875 | Omega (x7) | x0.98 | +6% |
+| 8 on | 7th on | x6.94 | +0.375 each, up to x4 | Omega (x7) | x0.99 | +3% |
 
-Enemies get tougher half as fast again as before 0.4.0, but enemy health stays just behind your
-damage: a weapon at the tier you should have by then still kills a little faster than V4 did in the
-first challenge mode, and the health stops at x6.75, so a fully upgraded (Omega) weapon stays ahead
-in every new game. Enemy damage grows more slowly, since longer fights already cost you more health.
-**How much tougher** scales what the mod adds (0.5: x1.75 health in the third new game instead of
-x2.5; above 1 enemies can pass your tiers).
+Since 0.4.1 enemies take more of a beating: with the tier you should have by then, a fight in the
+second and third challenge modes takes about a sixth more hits than one with V4 in the first, and
+from the fourth on the health closes in on Omega's x7 but stays under it, so a fully upgraded
+(Omega) weapon still beats them in every new game. A weapon below the tier you should have takes
+even more hits. Enemy damage grows more slowly, since longer fights already cost you more health.
+**How much tougher** scales what the mod adds (0.5: x2.25 health in the third new game instead of
+x3.5; above 1 enemies can pass your tiers).
 
-(Before 0.4.0 enemy health went x2, x3, x4, x5, then +1 a game, and enemy damage x1.25, then +0.25 a
-game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went x2.5, x4, x6, x8, +2 each.)
+(0.4.0's enemy health went x2.5, x4, x5.5, x6, x6.5, then x6.75. Before 0.4.0 it went x2, x3, x4,
+x5, then +1 a game, and enemy damage x1.25, then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to
+x4 and enemy health went x2.5, x4, x6, x8, +2 each.)
 
 | Setting | Default | |
 |---|---|---|
