@@ -144,6 +144,30 @@
       }
     }
   ],
+  "gc-magneboots": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "d3403d5d9c21408c1408daf1c5ed42aa50887766d752a218acebb9a340299f11",
+        "linux-aarch64": "195f628fbc0d5621cd11e800de1515c56217a8e619b75b805c758ddfb7387186",
+        "linux-x86_64": "2b9c5568e3668e0126082a3f1e387c1d69c003cdb1a81ec41c7c54366a6be2b8",
+        "macos-arm64": "2082968c5afc5278a428264555f6a19ca50fe7c149b8142edab3ad55eac9e481",
+        "macos-x86_64": "8be36113280aacc0c3d0bafa3bc522b5e0a6431a17efe9b975664a886915e5dc",
+        "windows-x86_64": "e994ccfff0a45763f5c5fd28d892c2b41c0d27a1f2fb5bb59d6f36fb7c2e1c17"
+      }
+    },
+    {
+      "version": "1.0.1",
+      "sha256": {
+        "android-arm64": "0a789593e5c2c05b76de6301e127ada394807f0b5e7da39451f47bdb2fa11c50",
+        "linux-aarch64": "64355c7817113b1ef52dbbb1e1d206bcf43b76f299a9c00dd848f255e0be48e1",
+        "linux-x86_64": "f114b2ac538714c7883fcf1f8d1a4586d4418b7557d755ae74c3e55548d152ff",
+        "macos-arm64": "9249ddb0ccd443bbd1dc6b2aa2011234f0b81f1491cf786c923ec9ba80d2d2c0",
+        "macos-x86_64": "8b322955ae8f8fb12a4c3a7f7631d42aef110e427f9384cb6f897a5f426e3d2d",
+        "windows-x86_64": "1cafcdaf2e09d80a080d8a0fc715c55e6df71e12a21477b07d891b3b72508de6"
+      }
+    }
+  ],
   "modern-controls": [
     "0.3.0",
     "0.3.3"
@@ -168,6 +192,17 @@
     "0.2.1"
   ],
   "rac1-enhanced-movement": [
+    {
+      "version": "0.2.1",
+      "sha256": {
+        "android-arm64": "5b0fa10426814cde2a156b7359362f197c8bc89345967b0da00114263cb5a1c0",
+        "linux-aarch64": "8fc5de5087cbf9094629252de8a681bc470a3779aeea30fa232a41806cbed2e1",
+        "linux-x86_64": "37b1703d9f0e5a47016827ef13ca64580e0c002e79b628553af994bd0cf707db",
+        "macos-arm64": "37c423cfe5ae66c8908443c8e89464daa924479f948346e9ca63f14ba775950e",
+        "macos-x86_64": "c340d4b37052d448fb032df8ca5548bd1f24552a2bd32f8a7e0b4332432c0fe4",
+        "windows-x86_64": "c1c08dab435592ae345ee246c7ca1013d9c1fd1df05cc8316fa24c26a429564c"
+      }
+    },
     {
       "version": "0.3.0",
       "sha256": {
@@ -250,7 +285,19 @@
   ],
   "revolverator": [
     "0.3.1",
-    "0.3.3"
+    "0.3.3",
+    {
+      "version": "0.3.4",
+      "sha256": {
+        "windows-x86_64": "360fadbb9c00dd18225d2c912fc9e333a779cfdb4525088148a636858394b5b7"
+      }
+    },
+    {
+      "version": "0.3.5",
+      "sha256": {
+        "windows-x86_64": "3edf941970b4eee5e2b0df482760395ad1e97ba4d697f315bd1061368e2870e9"
+      }
+    }
   ],
   "ryno-ammo-drops": [
     {
