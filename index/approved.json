@@ -306,6 +306,19 @@
   "steam-deck-pack": [
     "0.3.0"
   ],
+  "thruster-charge": [
+    {
+      "version": "1.0.2",
+      "sha256": {
+        "android-arm64": "9e8948b171b356f727412e7efea6b616ee8ec5d6cc5b852000d7102c82e510d7",
+        "linux-aarch64": "c71f8580b2bafa40166ecd9941a8bb754f6619e5aecfa4d83aaff0ae40ec3083",
+        "linux-x86_64": "077d4f918f498b9afd073fb40f2283ef78ad5097c2cca397d6df421f23f2dbc7",
+        "macos-arm64": "8e88c3a6e6ae1c45b2bdc3927d1412cb3dee54649ffc3e9ebfb68da95f428a84",
+        "macos-x86_64": "662f32a178d4a2becf2d5220a37b9e8fbbfdf975d9fe7790155bed1dfb522512",
+        "windows-x86_64": "771711288e02ceb4819d292a9a2b34a61ffd89e5a3185f0b3d82f52b302dc326"
+      }
+    }
+  ],
   "weapon-wheel-pause": [
     "0.1.0"
   ],
