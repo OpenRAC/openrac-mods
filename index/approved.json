@@ -90,6 +90,17 @@
         "macos-x86_64": "fd9133b5e58aca5c13ba568d2de6ad4a5e8ced07c5991efc1678c59cf36029f4",
         "windows-x86_64": "773574de517de6d4d4cd3a6ea86f0df6115b51aa6f80a164a385a7b9bbc1bf84"
       }
+    },
+    {
+      "version": "1.0.2",
+      "sha256": {
+        "android-arm64": "e405b82768c74605c1bdb3abe6880f72a6f70d47079b359df21d68b554b49af7",
+        "linux-aarch64": "20739b7262442c58e33842790e98ac97cbe3753bf214c9d660d24e23924060bb",
+        "linux-x86_64": "bc66add61fd20f5225e1b788b8b67d6ab87982452913f6cb796b5a6d1fbad51b",
+        "macos-arm64": "7c8323d21552eebd5e3cbae287f33e05f9601a9f66a4a66fb2a3d8702871b65f",
+        "macos-x86_64": "0055e8521874a80362d55e45f28755b99e7e5dd975f51abb5c625a083a6b5843",
+        "windows-x86_64": "583c61777c2a4f9c582d98b3265f8daa0097f03ecc90d89944ff958eccf51eb5"
+      }
     }
   ],
   "fast-travel": [
