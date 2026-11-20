@@ -67,7 +67,8 @@
     "rac1.moby.miner.update",
     "rac1.moby.moby1428.update",
     "rac1.moby.nanotech_vendor.update",
-    "rac1.moby.pokitaru_vendor.update"
+    "rac1.moby.pokitaru_vendor.update",
+    "rac1.moby.class_1035.update"
   ],
   "settings": [
     {
