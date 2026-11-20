@@ -190,7 +190,9 @@ void NgPlusPlus::start() {
     });
     take<openrac::rac2::Moby_RecordDeath>(
         [self](auto original, std::uint32_t moby, std::int32_t flags, std::int32_t arg) {
+            self->m_bolts.death_begins();
             self->m_combat.record_death(original, moby, flags, arg);
+            self->m_bolts.death_ends();
         }
     );
     take_optional();

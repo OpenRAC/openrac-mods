@@ -5,6 +5,7 @@
 
 #include "platinum_bolts.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -21,8 +22,18 @@ constexpr std::int32_t kFlagLimit = 8;
 constexpr int kPlatinumCycle = 1;
 constexpr int kFirstCycle = 2;
 
-// How many drops a session writes to the log.
+// How many drops a session writes to the log one by one.
 constexpr int kDropsLogged = 5;
+
+// The game's ticks between two summaries of the bolts paid (about a minute).
+constexpr int kSummaryTicks = 3600;
+
+// The most the game's word of owed bolts is let hold. The game's own drops leave a few thousand
+// there at most; 0.4.1's runaway left millions in some saves (README.md, "Why 0.4.2 pays less").
+constexpr std::int32_t kWordMost = 100'000;
+
+// Challenge mode doubles every drop in the game's burst, the word's part with it.
+constexpr std::int32_t kChallengeDoubling = 2;
 
 // Obsidian's glow, a shade per coin size (0xRRGGBB, from the 25-bolt coin to the 25,000 one):
 // violet on the small ones, through magenta, to ember red on the big ones.
@@ -142,6 +153,11 @@ void PlatinumBolts::spawn_pickups(
     // mod scales what they hold. Scaling after the limit, not the amount asked for, keeps the
     // streak from multiplying the scale (0.4.1 scaled the amount and lifted the limit: a big enemy
     // at x20 paid over 70 times the game's drop).
+    // What the kill took back out of the game's word (SetDeathBits adds 2% of it to the drop):
+    // bolts already earned, so never scaled again. Read before the burst, which adds to the word.
+    const std::int32_t repaid =
+        m_in_death ? std::max<std::int32_t>(0, m_word_before - m_view.bolt_credit()) : 0;
+    m_in_death = false;
     m_burst.clear();
     m_recording = true;
     original(moby, low, high, flags, surface, maximum, height);
@@ -159,7 +175,15 @@ void PlatinumBolts::spawn_pickups(
         paid += coin.value;
     }
 
-    const std::int32_t total = scaled ? scale_amount(paid, scale) : paid;
+    // The word's part of the coins (the burst doubled it with the rest in challenge mode) is paid as
+    // it is; only the enemy's own part is scaled.
+    const std::int32_t owed = std::min<std::int32_t>(paid, repaid * kChallengeDoubling);
+    const std::int32_t total = scaled ? owed + scale_amount(paid - owed, scale) : paid;
+    ++m_summary.drops;
+    m_summary.game += paid;
+    m_summary.repaid += owed;
+    m_summary.total += total;
+    m_summary.biggest = std::max(m_summary.biggest, total);
 
     // The game's coin limit, when the burst has one; a scaled drop's a few more, the tougher the
     // enemy the more.
@@ -189,7 +213,8 @@ void PlatinumBolts::spawn_pickups(
         m_mod.info(
             "drop of " + std::to_string(total) + " bolts (challenge mode " + std::to_string(cycle)
             + ", x" + std::to_string(m_view.streak()) + " streak, scale "
-            + std::to_string(scale).substr(0, 4) + "): " + std::to_string(obsidian_coins)
+            + std::to_string(scale).substr(0, 4) + ", " + std::to_string(owed)
+            + " of it from the game's word, unscaled): " + std::to_string(obsidian_coins)
             + " obsidian and " + std::to_string(platinum) + " platinum coins of "
             + std::to_string(plan.coins())
         );
@@ -249,16 +274,62 @@ void PlatinumBolts::collect(
     // The game added its class's worth; platinum is kPlatinumTimes as much, obsidian
     // kObsidianTimes.
     if (same) {
-        m_mod.bolts(
-            kCoinValues[static_cast<std::size_t>(marked.kind)] * (tier_times(marked.tier) - 1)
-        );
+        const std::int32_t extra =
+            kCoinValues[static_cast<std::size_t>(marked.kind)] * (tier_times(marked.tier) - 1);
+        m_mod.bolts(extra);
+        m_summary.collected += extra;
     }
 
     m_material(m_mod.handle(), moby, kMaterialNone, kNoTint);
 }
 
+void PlatinumBolts::death_begins() {
+    m_word_before = m_view.bolt_credit();
+    m_in_death = true;
+}
+
+void PlatinumBolts::death_ends() {
+    m_in_death = false;
+}
+
 void PlatinumBolts::tick() {
     const int level = m_view.loaded_level();
+    const std::int32_t word = m_enabled ? m_view.bolt_credit() : 0;
+
+    // A word 0.4.1's runaway filled: cut back to what the game's own drops could leave, said once
+    // a session.
+    if (word > kWordMost) {
+        m_view.add_bolt_credit(kWordMost - word);
+
+        // Said once.
+        if (!m_word_logged) {
+            m_mod.info(
+                "the game's word of owed bolts held " + std::to_string(word)
+                + " (NG++ 0.4.1's runaway); cut back to " + std::to_string(kWordMost)
+            );
+            m_word_logged = true;
+        }
+    }
+
+    // About once a minute of play, every bolt the mod paid since, when it paid any: the first few
+    // drops alone are logged one by one.
+    if (++m_summary.ticks >= kSummaryTicks) {
+        const Summary& s = m_summary;
+
+        // Something paid.
+        if (s.drops > 0 || s.collected > 0) {
+            m_mod.info(
+                "bolts in the last minute: " + std::to_string(s.drops) + " drops of "
+                + std::to_string(s.total) + " (the game's coins " + std::to_string(s.game)
+                + ", of which " + std::to_string(s.repaid) + " from its word, biggest "
+                + std::to_string(s.biggest) + "), " + std::to_string(s.at_once)
+                + " paid at once, " + std::to_string(s.collected)
+                + " for platinum and obsidian coins collected"
+            );
+        }
+
+        m_summary = Summary{};
+    }
 
     // A level left: its coins went with it.
     if (level != m_level) {
@@ -301,6 +372,7 @@ void PlatinumBolts::pay(const CoinPlan& plan, bool scaled) {
     // it into later drops, which the mod scales again).
     if (scaled) {
         m_mod.bolts(plan.leftover);
+        m_summary.at_once += plan.leftover;
         return;
     }
 
@@ -344,6 +416,7 @@ std::uint32_t PlatinumBolts::make_coin(int index, int kind, CoinTier tier) {
         const std::int32_t worth = kCoinValues[static_cast<std::size_t>(kind)];
         m_view.add_bolt_credit(-worth);
         m_mod.bolts(worth * tier_times(tier));
+        m_summary.at_once += worth * tier_times(tier);
         return 0;
     }
 
@@ -380,6 +453,7 @@ void PlatinumBolts::mark(std::uint32_t moby, int kind, CoinTier tier) {
     if (!drawn) {
         m_platinum.erase(moby);
         m_mod.bolts(extra);
+        m_summary.at_once += extra;
 
         // Said once.
         if (!m_mark_logged) {

@@ -181,6 +181,10 @@ int GameView::streak() const {
     return memory().read<std::uint8_t>(at(m_disc.progress) + kProgressStreak);
 }
 
+std::int32_t GameView::bolt_credit() const {
+    return memory().read<std::int32_t>(at(m_disc.progress) + kProgressBoltCredit);
+}
+
 void GameView::add_bolt_credit(std::int32_t bolts) const {
     const openrac::gaddr credit = at(m_disc.progress) + kProgressBoltCredit;
     memory().write(credit, memory().read<std::int32_t>(credit) + bolts);

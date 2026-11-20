@@ -92,7 +92,12 @@ public:
         openrac::Original<void(std::uint32_t)> original, std::uint32_t moby
     );
 
-    // Once a game tick: forgets the platinum coins of a level left (the port drops their materials
+    // Around the game's SetDeathBits (Moby_RecordDeath): notes the game's word before it takes 2% of
+    // it for the drop, so that part is not scaled; then forgets it.
+    void death_begins();
+    void death_ends();
+
+    // Once a game tick: logs a summary of the bolts paid about once a minute, and forgets the platinum coins of a level left (the port drops their materials
     // too).
     void tick();
 
@@ -136,6 +141,22 @@ private:
     bool m_scaled = false;                // The coins being made are a scaled drop's.
     int m_drops_logged = 0;               // Drops written to the log this session (the first few).
     std::vector<Recorded> m_burst;        // The coins the game's burst made.
+    bool m_word_logged = false;           // An overfull word was cut back and logged.
+    bool m_in_death = false;              // Inside the game's SetDeathBits.
+    std::int32_t m_word_before = 0;       // The game's word as SetDeathBits began.
+
+    // What the mod paid since the last summary.
+    struct Summary {
+        int ticks = 0;              // Game ticks.
+        int drops = 0;              // Drops made again.
+        std::int32_t game = 0;      // What the game's coins held.
+        std::int32_t repaid = 0;    // Of that, the word's part (unscaled).
+        std::int32_t total = 0;     // What the drops paid.
+        std::int32_t biggest = 0;   // The biggest drop.
+        std::int32_t at_once = 0;   // Paid at once (no coin to hold it).
+        std::int32_t collected = 0; // The extra worth of platinum and obsidian coins collected.
+    };
+    Summary m_summary;
     int m_level = -1;                     // The level the platinum coins are in.
     bool m_mark_logged = false;           // A coin that could not be drawn was logged.
 

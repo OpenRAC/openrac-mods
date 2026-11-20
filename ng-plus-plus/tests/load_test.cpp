@@ -260,11 +260,23 @@ void game_post_hit(std::uint32_t /*victim*/, std::uint32_t request) {
 }
 
 // Moby_RecordDeath as the game's: g_kill_xp of experience (<< 5) to the item g_kill_item.
+// With g_death_bolts set, it also drops them as SetDeathBits does: 2% of the game's word (rounded
+// up) taken out of it and added to the drop.
 int g_kill_item = 0;
 std::int32_t g_kill_xp = 0;
-void game_record_death(std::uint32_t /*moby*/, std::int32_t /*flags*/, std::int32_t /*arg*/) {
+std::int32_t g_death_bolts = 0;
+void port_kill_drop(std::uint32_t moby, std::int32_t amount);
+void game_record_death(std::uint32_t moby, std::int32_t /*flags*/, std::int32_t /*arg*/) {
     const std::uint32_t at = g_disc->exp + 4u * static_cast<std::uint32_t>(g_kill_item);
     set<std::int32_t>(at, get<std::int32_t>(at) + g_kill_xp);
+
+    // A drop too.
+    if (g_death_bolts > 0) {
+        const auto word = g_disc->progress + kProgressBoltCredit;
+        const std::int32_t extra = (get<std::int32_t>(word) + 49) / 50;
+        set<std::int32_t>(word, get<std::int32_t>(word) - extra);
+        port_kill_drop(moby, g_death_bolts + extra);
+    }
 }
 
 // Hero_TakeDamage: the points taken, added up.
@@ -1779,6 +1791,46 @@ void test_kill_drops() {
     set_run(1, 0);
 }
 
+// Checks that what a kill takes back out of the game's word is paid as it is, never scaled again
+// (0.4.1's runaway: coins it could not make went to the word, whose 2% a kill was scaled again). A
+// word of 1,000,000 in challenge mode's fourth run (x2.5) at x1: a small enemy's 10 bolts and
+// 20,000 of the word, doubled, fill the game's three 1,000s; all 3,000 are the word's, so the drop
+// is 3,000, not 7,500.
+void test_word_not_scaled() {
+    lay_out_enemy();
+    set_run(3, 1);
+    const auto word = g_disc->progress + kProgressBoltCredit;
+    const std::int32_t credit = get<std::int32_t>(word);
+    set<std::int32_t>(word, 1'000'000);
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, 10);
+    g_coins.clear();
+    g_materials.clear();
+    g_bolts = 0;
+    g_death_bolts = 10;
+    hooked<rac2::Moby_RecordDeath>()(kMobyEnemy, 0, 3);
+    g_death_bolts = 0;
+    CHECK(g_burst_high == 20'010);
+    CHECK(coins_worth() + g_bolts == 3'000);
+
+    // A kill with no word to take from: its own drop is scaled (10 bolts, doubled 20, x2.5).
+    set<std::int32_t>(word, 0);
+    g_coins.clear();
+    g_bolts = 0;
+    g_death_bolts = 10;
+    hooked<rac2::Moby_RecordDeath>()(kMobyEnemy, 0, 3);
+    g_death_bolts = 0;
+    CHECK(coins_worth() + g_bolts == 50);
+
+    // A word 0.4.1 filled is cut back to 100,000 at the next tick, and said.
+    set<std::int32_t>(word, 1'500'000);
+    tick(1);
+    CHECK(get<std::int32_t>(word) == 100'000);
+    CHECK(g_log.find("cut back to 100000") != std::string::npos);
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, 80);
+    set<std::int32_t>(word, credit);
+    set_run(1, 0);
+}
+
 // Checks that a level left forgets its platinum coins: a moby of the next level is worth its class.
 void test_level_left() {
     set_run(3, 20);
@@ -2173,6 +2225,7 @@ void run(const char* path, const Disc& disc, Host host) {
     if (host == Host::Obsidian || host == Host::Energy) {
         test_obsidian_drop();
         test_kill_drops();
+        test_word_not_scaled();
     } else if (host == Host::Bolts) {
         test_platinum_drop();
         test_level_left();

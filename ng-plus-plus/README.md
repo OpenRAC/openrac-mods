@@ -311,6 +311,19 @@ challenge mode (now 9,000) and the biggest 1,416,960 in the fifth (now 36,000), 
 bolts in five minutes of fighting. Now the streak only counts as far as the game's own limit, and
 the mod scales what the game paid.
 
+0.4.1 also fed itself: a drop of hundreds of coins was more than the game can make, and each coin it
+could not make went into the game's word of owed bolts (it saves with the game), of which every kill
+takes 2% back into its drop, which 0.4.1 then scaled again. A save played with it can hold millions
+there, which is how ordinary kills at a x1 streak paid 60,000 to 90,000 bolts. Now what a kill takes
+from the word is paid as it is, never scaled; under the game's three-coin limit that is at most
+3,000 bolts a kill until the word is spent, as in the game itself. A word over 100,000 (the game's
+own drops leave a few thousand there at most) is cut back to 100,000 when the game runs, and the log
+says so once.
+
+The log shows the first five drops one by one, then about once a minute a line with every bolt the
+mod paid since: the drops, how much of them came from the game's word, the biggest, what was paid at
+once and the extra worth of the platinum and obsidian coins collected.
+
 Bolts per minute of fighting, modelled on a typical planet: 6 kills a minute, 35% small fry (12
 bolts), 40% common (45), 15% at 110, 8% at 250 and 2% at 600, against one tier of a weapon with a
 600,000 Mega (the Mega itself in the 1st challenge mode, then Mega x1.5, x2.5, x4, x6). The target

@@ -176,6 +176,10 @@ public:
     // Returns the kill streak's multiplier (1 to 20; 0 before the first kill counts).
     int streak() const;
 
+    // Returns the game's word of bolts a burst could not make into coins (its kills pay 2% of it
+    // back each: SetDeathBits).
+    std::int32_t bolt_credit() const;
+
     // Adds `bolts` to the game's word of bolts a burst could not make into coins (where the game's
     // burst puts a coin limit's rest, and its coin maker a coin it could not make).
     void add_bolt_credit(std::int32_t bolts) const;
