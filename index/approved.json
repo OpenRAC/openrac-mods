@@ -3,6 +3,19 @@
     "0.1.0",
     "0.2.0"
   ],
+  "auto-head-gear": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "6fb23f83685e98bab5b6a09a28a97aa2817c37e9639fd3d0aa007dbe8e2f7476",
+        "linux-aarch64": "6a850c9add7d2d3466727554229f19c248f98e77a7580a481e946aee42854473",
+        "linux-x86_64": "aa18714575c4c7e4311f3b96cbe717b2b783364987c43fd8ddcc400601e0651c",
+        "macos-arm64": "4d45a588393a11e4b67199e61e8e5538ccf7d991bec463db427cfca0c8ca34bd",
+        "macos-x86_64": "434b6f4b93a7abdeda464f6e2db7d45a0498f30e69dd09b8cf30933ab4a53501",
+        "windows-x86_64": "7e12f56152dfce659ab5d730a8aec9f9b4edda2715120ec960f78b60e159b410"
+      }
+    }
+  ],
   "auto-swingshot": [
     {
       "version": "1.0.0",
