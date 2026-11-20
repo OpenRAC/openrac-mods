@@ -387,3 +387,220 @@ class TestUniqueRewards(unittest.TestCase):
                          if row.vanilla and row.vanilla.endswith(" Coordinates"))
         self.assertTrue(counts)
         self.assertEqual({name: count for name, count in counts.items() if count != 1}, {})
+
+
+class TestEdwinaHydrodisplacer(RAC1TestBase):
+    def test_kalebo_race_needs_no_magneboots(self) -> None:
+        self.collect_by_name(["Kalebo III Coordinates", "Heli-Pack", "Swingshot", "Grindboots"])
+        self.assertFalse(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
+        self.collect(self.world.create_item("Hoverboard"))
+        self.assertTrue(self.can_reach_location("Kalebo III: the Gadgetron CEO's race"))
+
+    def test_kalebo_help_desk_needs_no_heli_pack(self) -> None:
+        self.collect_by_name(["Kalebo III Coordinates", "Swingshot", "Grindboots"])
+        self.assertTrue(self.can_reach_location("Kalebo III: the help desk"))
+
+    def test_fleet_infobot_heli_pack_is_required_outside_expert(self) -> None:
+        self.collect_by_name(["Drek's Fleet Coordinates", "Magneboots", "O2 Mask", "Swingshot"])
+        self.assertEqual(self.can_reach_location("Drek's Fleet: the infobot"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Heli-Pack")
+        self.assertEqual(self.can_reach_location("Drek's Fleet: the infobot"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Hydro-Pack")  # the tanker's hint: soft
+        self.assertTrue(self.can_reach_location("Drek's Fleet: the infobot"))
+
+    def test_fleet_codebot_needs_only_water_equipment(self) -> None:
+        self.collect_by_name(["Drek's Fleet Coordinates", "Hydro-Pack"])
+        self.assertFalse(self.can_reach_location("Drek's Fleet: the CodeBot"))
+        self.collect_by_name("O2 Mask")
+        self.assertTrue(self.can_reach_location("Drek's Fleet: the CodeBot"))
+
+    def test_drek_o2_mask_is_required_outside_expert(self) -> None:
+        self.collect_by_name(["Veldin (return) Coordinates", "Magneboots", "Heli-Pack", "Swingshot",
+                              "Trespasser", "Hydrodisplacer", "Thruster-Pack"])
+        self.assertEqual(self.can_reach_location("Veldin (return): Drek"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("O2 Mask")
+        self.assertTrue(self.can_reach_location("Veldin (return): Drek"))
+
+    def test_oltanis_pda_requires_only_magneboots(self) -> None:
+        self.collect_by_name("Oltanis Coordinates")
+        self.assertFalse(self.can_reach_location("Oltanis: the PDA's seller"))
+        self.collect_by_name("Magneboots")
+        self.assertTrue(self.can_reach_location("Oltanis: the PDA's seller"))
+
+    def test_oltanis_morph_o_ray_requires_only_swingshot(self) -> None:
+        self.collect_by_name("Oltanis Coordinates")
+        self.assertFalse(self.can_reach_location("Oltanis: the Morph-o-Ray's pickup"))
+        self.collect_by_name("Swingshot")
+        self.assertTrue(self.can_reach_location("Oltanis: the Morph-o-Ray's pickup"))
+
+    def test_oltanis_sam_requires_swingshot_and_grindboots(self) -> None:
+        self.collect_by_name(["Oltanis Coordinates", "Swingshot"])
+        self.assertFalse(self.can_reach_location("Oltanis: Sam, the coordinates of Quartu"))
+        self.collect_by_name("Grindboots")
+        self.assertTrue(self.can_reach_location("Oltanis: Sam, the coordinates of Quartu"))
+
+    def test_quartu_bolt_grabber_requires_hydro_pack_and_o2_mask(self) -> None:
+        self.collect_by_name("Quartu Coordinates")
+        self.assertFalse(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
+        self.collect_by_name("Hydro-Pack")
+        self.assertFalse(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
+        self.collect_by_name("O2 Mask")
+        self.assertTrue(self.can_reach_location("Quartu: the Bolt Grabber's pickup"))
+
+    def test_quartu_scientist_requires_only_swingshot(self) -> None:
+        self.collect_by_name("Quartu Coordinates")
+        self.assertFalse(self.can_reach_location("Quartu: the scientist, the coordinates of Kalebo III"))
+        self.collect_by_name("Swingshot")
+        self.assertTrue(self.can_reach_location("Quartu: the scientist, the coordinates of Kalebo III"))
+
+    def test_quartu_disguise_route_requires_thruster_and_hinted_hydro_pack(self) -> None:
+        location = "Quartu: in disguise, the coordinates of Drek's Fleet"
+        self.collect_by_name(["Quartu Coordinates", "Hologuise", "Heli-Pack", "Swingshot"])
+        self.assertFalse(self.can_reach_location(location))
+        self.collect_by_name("Thruster-Pack")
+        self.assertEqual(self.can_reach_location(location), self.world.options.logic == "expert")
+        self.collect_by_name("Hydro-Pack")  # the Tri-Rings' hint: soft
+        self.assertTrue(self.can_reach_location(location))
+
+    def test_hoven_gemlik_coordinates_need_no_swingshot_or_grindboots(self) -> None:
+        self.collect_by_name(["Hoven Coordinates", "Heli-Pack"])
+        self.assertEqual(self.can_reach_location("Hoven: the coordinates of Gemlik"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name(["Devastator", "Hydro-Pack"])  # both hinted on Hoven: soft
+        self.assertTrue(self.can_reach_location("Hoven: the coordinates of Gemlik"))
+
+    def test_hoven_raritanium_needs_hydro_pack_only_outside_expert(self) -> None:
+        self.collect_by_name(["Hoven Coordinates", "Heli-Pack", "Swingshot"])
+        self.assertEqual(self.can_reach_location("Hoven: the Foreman's Raritanium"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Hydro-Pack")  # Hoven's hint: soft
+        self.assertTrue(self.can_reach_location("Hoven: the Foreman's Raritanium"))
+
+    def test_gemlik_trespasser_is_required_outside_expert(self) -> None:
+        self.collect_by_name(["Gemlik Coordinates", "Heli-Pack", "Swingshot",
+                              "Magneboots", "Pilot's Helmet", "Devastator"])
+        self.assertEqual(self.can_reach_location("Gemlik: the coordinates of Oltanis"),
+                         self.world.options.logic == "expert")
+        self.collect_by_name("Trespasser")
+        self.assertTrue(self.can_reach_location("Gemlik: the coordinates of Oltanis"))
+
+    def test_pokitaru_bob_needs_heli_pack_without_swingshot(self) -> None:
+        self.collect_by_name("Pokitaru Coordinates")
+        self.assertFalse(self.can_reach_location("Pokitaru: Bob"))
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Pokitaru: Bob"))
+
+    def test_pokitaru_owner_needs_no_swingshot(self) -> None:
+        self.collect_by_name(["Pokitaru Coordinates", "Heli-Pack", "Thruster-Pack"])
+        self.assertFalse(self.can_reach_location("Pokitaru: the resort owner"))
+        self.collect_by_name("Pilot's Helmet")
+        self.assertTrue(self.can_reach_location("Pokitaru: the resort owner"))
+
+    def test_pokitaru_persuader_needs_trespasser_without_swingshot(self) -> None:
+        self.collect_by_name(["Pokitaru Coordinates", "Heli-Pack"])
+        self.collect(self.world.create_item("Raritanium"))
+        self.assertFalse(self.can_reach_location("Pokitaru: the Persuader"))
+        self.collect_by_name("Trespasser")
+        self.assertTrue(self.can_reach_location("Pokitaru: the Persuader"))
+
+    def test_gaspar_helmet_requires_heli_pack_without_swingshot(self) -> None:
+        self.collect_by_name("Gaspar Coordinates")
+        self.assertFalse(self.can_reach_location("Gaspar: the Pilot's Helmet's pickup"))
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Gaspar: the Pilot's Helmet's pickup"))
+
+    def test_batalia_turret_requires_only_magneboots(self) -> None:
+        self.collect_by_name("Batalia Coordinates")
+        self.assertFalse(self.can_reach_location("Batalia: the turret's commando"))
+        self.collect_by_name("Magneboots")
+        self.assertEqual(self.can_reach_location("Batalia: the turret's commando"), self.world.options.logic == "expert")
+        self.collect_by_name("Grindboots")  # Batalia's hint: soft
+        self.assertTrue(self.can_reach_location("Batalia: the turret's commando"))
+
+    def test_batalia_orxon_coordinates_need_only_hinted_grindboots(self) -> None:
+        location = "Batalia: the commando, the coordinates of Orxon"
+        self.collect_by_name("Batalia Coordinates")
+        self.assertEqual(self.can_reach_location(location), self.world.options.logic == "expert")
+        self.collect_by_name("Grindboots")  # Batalia's hint: soft
+        self.assertTrue(self.can_reach_location(location))
+
+    def test_batalia_deserter_requires_only_grindboots(self) -> None:
+        self.collect_by_name("Batalia Coordinates")
+        self.assertFalse(self.can_reach_location("Batalia: the deserter, the coordinates of Gaspar"))
+        self.collect_by_name("Grindboots")
+        self.assertTrue(self.can_reach_location("Batalia: the deserter, the coordinates of Gaspar"))
+
+    def test_blarg_shuttle_needs_no_movement_gadgets(self) -> None:
+        # The NPC and the infobot it spawns are one check: the shuttle's.
+        self.collect_by_name("Blarg Coordinates")
+        self.assertTrue(self.can_reach_location("Blarg: the shuttle, the coordinates of Rilgar"))
+
+    def test_blarg_hydrodisplacer_requires_only_trespasser(self) -> None:
+        self.collect_by_name("Blarg Coordinates")
+        self.assertFalse(self.can_reach_location("Blarg: the Hydrodisplacer's pickup"))
+        self.collect_by_name("Trespasser")
+        self.assertTrue(self.can_reach_location("Blarg: the Hydrodisplacer's pickup"))
+
+    def test_rilgar_salesman_requires_only_heli_pack(self) -> None:
+        self.collect_by_name("Rilgar Coordinates")
+        self.assertFalse(self.can_reach_location("Rilgar: the shady salesman"))
+        self.collect_by_name("Heli-Pack")
+        self.assertTrue(self.can_reach_location("Rilgar: the shady salesman"))
+
+    def test_rilgar_bouncer_does_not_require_hoverboard(self) -> None:
+        self.collect_by_name(["Rilgar Coordinates", "Heli-Pack", "Swingshot"])
+        self.assertTrue(self.can_reach_location("Rilgar: the bouncer, the coordinates of Umbris"))
+
+    def test_rilgar_race_does_not_require_swingshot(self) -> None:
+        self.collect_by_name(["Rilgar Coordinates", "Heli-Pack"])
+        self.assertFalse(self.can_reach_location("Rilgar: the Hoverboard race"))
+        # Items-menu shuffle defaults off, so Hoverboard may be a locked reward.
+        self.collect(self.world.create_item("Hoverboard"))
+        self.assertTrue(self.can_reach_location("Rilgar: the Hoverboard race"))
+
+    def test_eudora_warp_pad_requires_only_heli_pack(self) -> None:
+        self.collect_by_name("Eudora Coordinates")
+        self.assertFalse(self.can_reach_location("Eudora: the warp pad"))
+        self.collect_by_name("Heli-Pack")
+        self.assertEqual(self.can_reach_location("Eudora: the warp pad"), self.world.options.logic == "expert")
+        self.collect_by_name("Trespasser")  # the security door's hint: soft
+        self.assertTrue(self.can_reach_location("Eudora: the warp pad"))
+
+    def test_helga_does_not_require_heli_pack(self) -> None:
+        self.collect_by_name("Kerwan Coordinates")
+        self.assertTrue(self.can_reach_location("Kerwan: Helga"))
+
+    def test_aridia_gold_bolt_3_requires_magneboots(self) -> None:
+        self.collect_all_but(["Magneboots"])
+        self.assertFalse(self.can_reach_location("Aridia: gold bolt 3"))
+        self.collect_by_name("Magneboots")
+        self.assertTrue(self.can_reach_location("Aridia: gold bolt 3"))
+
+    def test_novalis_gold_bolt_2_requires_hydro_pack(self) -> None:
+        self.collect_all_but(["Hydro-Pack"])
+        self.assertFalse(self.can_reach_location("Novalis: gold bolt 2"))
+        self.collect_by_name("Hydro-Pack")
+        self.assertTrue(self.can_reach_location("Novalis: gold bolt 2"))
+
+    def test_hoven_gold_bolt_2_requires_hydrodisplacer(self) -> None:
+        self.collect_all_but(["Hydrodisplacer"])
+        self.assertFalse(self.can_reach_location("Hoven: gold bolt 2"))
+        self.collect_by_name("Hydrodisplacer")
+        self.assertTrue(self.can_reach_location("Hoven: gold bolt 2"))
+
+    def test_edwina_requires_hydrodisplacer(self) -> None:
+        self.collect_by_name(["Hoven Coordinates", "Heli-Pack"])
+        self.assertFalse(self.can_reach_location("Hoven: Edwina"))
+        self.collect_by_name("Hydrodisplacer")
+        self.assertTrue(self.can_reach_location("Hoven: Edwina"))
+
+
+class TestEdwinaHydrodisplacerRelaxed(TestEdwinaHydrodisplacer):
+    options = {"logic": "relaxed"}
+
+
+class TestEdwinaHydrodisplacerExpert(TestEdwinaHydrodisplacer):
+    options = {"logic": "expert"}
