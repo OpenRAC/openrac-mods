@@ -36,6 +36,7 @@
 #include "openrac/games/rac2.hpp"
 #include "openrac/mod.hpp"
 #include "platinum_bolts.h"
+#include "rewards.h"
 #include "save_tiers.h"
 #include "text.h"
 #include "vendor.h"
@@ -67,7 +68,8 @@ public:
           m_bolts(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
           m_collectors(
               mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))
-          ) {}
+          ),
+          m_rewards(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))) {}
 
     ~NgPlusPlus() = default;
     NgPlusPlus(const NgPlusPlus&) = delete;
@@ -121,6 +123,7 @@ private:
     TextResolver m_text;       // Weapon texts at their tiers.
     PlatinumBolts m_bolts;     // Platinum bolts and the drops' scaling.
     Collectors m_collectors;   // Tabora's and Grelbin's collectors' pay.
+    Rewards m_rewards;         // The races' and arenas' prizes and the sellers' prices.
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
 
@@ -219,6 +222,9 @@ void NgPlusPlus::take_optional() {
     // Platinum bolts and bolt scaling: an OpenRAC before 1.23 keeps the game's drops.
     m_bolts.start();
 
+    // The arenas' prizes: an OpenRAC without the hook point keeps the game's.
+    m_rewards.start();
+
     // What this build lacks, for a player's log.
     if (m_view.upgrade_fx() == nullptr) {
         m_mod.info(
@@ -293,6 +299,7 @@ void NgPlusPlus::tick() {
     m_tiers.watch(m_view);
     m_bolts.tick();
     m_collectors.tick();
+    m_rewards.tick();
 
     // The rest only in a level.
     if (m_view.loaded_level() < 0) {

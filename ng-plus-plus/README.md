@@ -219,6 +219,33 @@ or platinum bolt.
 the second challenge mode (generous half as much again), so collecting keeps up with the tier
 prices. The collector's dialog shows the total you will get.
 
+**Prizes and prices.** From the second challenge mode the hoverbike races on Barlow and Joba and
+the arena challenges on Maktar and Joba pay the same x1.5, x2.5, x4 and x6 (generous half as much
+again), and the characters who sell for bolts ask half that rise: x1.25, x1.75, x2.5 and x3.5
+(generous x1.63, x2.38, x3.5, x5). The race menu, the arena menu and each seller's dialog show
+the new amount. The weapon vendor's prices are the tiers' own and stay as they are.
+
+| | First challenge mode (the game's) | 2nd (x1.5; prices x1.25) | 3rd (x2.5; x1.75) | 4th (x4; x2.5) | 5th on (x6; x3.5) |
+|---|---|---|---|---|---|
+| Barlow races, first win | 0 (the story race), 20,000, 30,000, 40,000, 60,000 | 30,000 to 90,000 | 50,000 to 150,000 | 80,000 to 240,000 | 120,000 to 360,000 |
+| Barlow races, second win | 2,500, 7,500, 10,000, 12,000, 20,000 | 3,750 to 30,000 | 6,250 to 50,000 | 10,000 to 80,000 | 15,000 to 120,000 |
+| Barlow races, later wins | 2,500, 2,500, 3,500, 4,000, 7,500 | 3,750 to 11,250 | 6,250 to 18,750 | 10,000 to 30,000 | 15,000 to 45,000 |
+| Joba races, first win | 0, 40,000, 50,000, 60,000, 80,000 | 60,000 to 120,000 | 100,000 to 200,000 | 160,000 to 320,000 | 240,000 to 480,000 |
+| Joba races, second win | 4,000, 12,000, 17,500, 20,000, 27,500 | 6,000 to 41,250 | 10,000 to 68,750 | 16,000 to 110,000 | 24,000 to 165,000 |
+| Joba races, later wins | 4,000, 4,000, 6,000, 7,500, 9,000 | 6,000 to 13,500 | 10,000 to 22,500 | 16,000 to 36,000 | 24,000 to 54,000 |
+| Maktar arena (first win) | 15,000 to 90,000 | 22,500 to 135,000 | 37,500 to 225,000 | 60,000 to 360,000 | 90,000 to 540,000 |
+| Joba arena (first win) | 50,000 to 125,000, and 2,000,000 | 75,000 to 187,500, 3,000,000 | 125,000 to 312,500, 5,000,000 | 200,000 to 500,000, 8,000,000 | 300,000 to 750,000, 12,000,000 |
+| Notak's toll door | 6,000 | 7,500 | 10,500 | 15,000 | 21,000 |
+| Dobbo's seller | 10,000 | 12,500 | 17,500 | 25,000 | 35,000 |
+| Aranos prison's seller | 20,000 | 25,000 | 35,000 | 50,000 | 70,000 |
+| Smolg's machine | 40,000 | 50,000 | 70,000 | 100,000 | 140,000 |
+
+An arena challenge won before pays less each time (the game's 0.3 per win, at least 5,000 in
+challenge mode), and the scale applies on top. The gadget sellers (Oozla's Tractor Beam, Barlow's
+Thermanator, Joba's Levitator, Damosel's Hypnomatic) ask half the rise too, should one still be
+selling. The arenas need an OpenRAC with the arena hook point; without it they pay as the game does
+and the rest works.
+
 The total is always the game's own after its roll, so its kill streak, doubling and its own pacing
 still count. The first game is left alone; the first challenge mode gets a few platinum bolts, a taste of them, with drops the same size. **Bolt scaling** off leaves every
 drop to the game; generous pays half as much again as normal (the table's generous column), with
@@ -273,6 +300,9 @@ material of 1.24 (the addresses are NTSC-U v1.01's):
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
 | Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); from the second challenge mode without the game's coin limit (flag 8; `SetDeathBits` asks for three coins a kill), so the whole total is written down; the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as obsidian, platinum and gold coins at those places, the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word at +0x1C, `D_001A7A14`, divided by the streak, as the game does) |
 | Collectors | no hook point: their dialogs' texts (10135 Tabora's crystals, 10209 Grelbin's moonstones) through `rac2.text.by_id` get the scaled total in place of their second number; each tick a trade (the crystals at +0x22 of the save block, s16, or the moonstones at +0x24, s32, down to 0 in Tabora or Grelbin with the game's pay, 1,000 or 3,000 each, ten times in challenge mode, in the bolts at +0x00) gets the rest of the scaled pay through `openrac_api.bolts` |
+| Races | no hook point (the race's panel, `func_L04_0040AD28`, and its finish, `race_update_player_progress`, read the prize straight from the table): while Barlow or Joba is loaded, each race's three prizes (+0x08, +0x0C, +0x10 of its 0x40 bytes in the level's race table, `D_L04_002C63C0`, `D_L11_002B6D40` in Joba) are written at the run scale, the game's kept and written back when the run pays as the game does; the game's x10 in challenge mode comes on top |
+| Arenas | `rac2.arena.prize` (`func_L02_003FCDF8`, `moby_compute_scaled_entry_value`, one function in Maktar's and Joba's code): the game's prize times the run scale; the arena's menu prints it and the win pays it |
+| Sellers | no hook point (each seller's dialog prints the price it then takes, both from the level's data): the bolt prices of the level's price table (`D_L06_002958D0`, `D_L09_0028E350`, `D_L14_00291850`, `D_L17_0028C550`: the game's and challenge mode's price of Notak's toll door, words 0-1, Dobbo's seller 4-5, the prison's seller 10-11, Smolg's machine 12-13; the crystals and moonstones of Tabora and Grelbin left alone) and the gadget sellers' item row (+0x80 of the item's row) are written at half the run scale's rise while their level is loaded, the same way as the races |
 | Level-up popup | a tier earned with the weapon in hand plays the game's in-hand level-up (`func_L00_0037E6A8`); at its end the game's popup from its own level-up table (`help_show_message_for_id`, `func_00288508`) names the last version, or is text 0 (an empty box) for a weapon the table has no line for (RYNO II, Zodiac): for ten seconds after, the resolver gives that popup the tier's name |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
 
@@ -294,6 +324,7 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness and extra coins, the platinum share and the split into coins |
 | `src/platinum_bolts.h` | platinum and obsidian bolts and bolt scaling behind the bolt hook points |
 | `src/collectors.h` | Tabora's and Grelbin's collectors' pay and dialogs |
+| `src/rewards.h` | the races' and arenas' prizes and the sellers' prices, and their tables per disc |
 | `src/bolt_api.h` | interface 1.23's `moby_material` (and 1.24's obsidian), read from the port's table while the mods build against SDK 1.20 |
 | `src/ng_plus_plus.cpp` | the entry point: the disc, the state, the hooks and the tick |
 

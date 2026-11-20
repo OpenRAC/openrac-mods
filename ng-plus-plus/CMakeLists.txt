@@ -18,7 +18,8 @@ add_library(ng_plus_plus_core STATIC
   src/text.cpp
   src/bolt_rules.cpp
   src/platinum_bolts.cpp
-  src/collectors.cpp)
+  src/collectors.cpp
+  src/rewards.cpp)
 target_include_directories(ng_plus_plus_core PUBLIC src)
 target_link_libraries(ng_plus_plus_core PUBLIC OpenRAC::mod)
 # Linked into the mod's shared library, so built for one, with its symbols as hidden as the mod's.

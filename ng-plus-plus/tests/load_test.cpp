@@ -33,6 +33,7 @@
 #include "check.h"
 #include "discs.h"
 #include "hooks.h"
+#include "rewards.h"
 #include "openrac/games/rac2.hpp"
 #include "openrac/openrac_mod.h"
 
@@ -484,6 +485,13 @@ void game_collect(std::uint32_t moby) {
     g_bolts += kCoinValues[static_cast<std::size_t>(kind)];
 }
 
+// Arena_Prize: the game's prize of a challenge, as challenge mode pays it (the record's 5,000 x10).
+constexpr std::int32_t kArenaPrize = 50'000;
+
+std::int32_t game_arena_prize(std::int32_t /*challenge*/) {
+    return kArenaPrize;
+}
+
 // The port's collect: the mod's replacement, else the game's.
 void port_collect(std::uint32_t moby) {
     const auto hook = hooked<hooks::Bolt_Collect>();
@@ -544,13 +552,15 @@ int host_hook(
         {hooks::Bolt_SpawnPickups::id, reinterpret_cast<void*>(&game_spawn_pickups)},
         {hooks::Bolt_SpawnPickup::id, reinterpret_cast<void*>(&game_spawn_pickup)},
         {hooks::Bolt_Collect::id, reinterpret_cast<void*>(&game_collect)},
+        {hooks::Arena_Prize::id, reinterpret_cast<void*>(&game_arena_prize)},
     };
 
     // Each hook point the test's port has.
     for (const auto& point : points) {
-        const bool bolt = std::strncmp(point.id, "rac2.bolt.", 10) == 0;
+        const bool bolt = std::strncmp(point.id, "rac2.bolt.", 10) == 0
+                          || std::strcmp(point.id, hooks::Arena_Prize::id) == 0;
 
-        // A port of 1.22 has no bolt hook points.
+        // A port of 1.22 has no bolt hook points, nor the arena's.
         if (bolt && g_host == Host::Old) {
             continue;
         }
@@ -592,6 +602,11 @@ void* host_function(const char* name) {
 }
 
 openrac_gaddr identity(openrac_gaddr address) {
+    return address;
+}
+
+// The test's levels keep their globals where the disc has them.
+openrac_gaddr level_identity(int /*level*/, openrac_gaddr address) {
     return address;
 }
 
@@ -809,6 +824,7 @@ void make_api() {
     g_api.on_frame = host_on_frame;
     g_api.function = host_function;
     g_api.relocate_data = identity;
+    g_api.relocate_level_data = level_identity;
     g_api.loaded_level = host_level;
     g_api.play_notice = host_notice;
     g_api.data_dir = host_data_dir;
@@ -1610,6 +1626,145 @@ void test_collectors(bool scaled) {
     g_level_now = 1;
 }
 
+// Returns the game address of the word `word` of disc table `table`.
+std::uint32_t table_word(const LevelTable& table, std::uint32_t offset) {
+    return table.address + offset;
+}
+
+// Returns the price word `word` of `table`.
+std::int32_t price_word(const LevelTable& table, int word) {
+    return get<std::int32_t>(table_word(table, static_cast<std::uint32_t>(word) * 4u));
+}
+
+// Returns race `race`'s prize `prize` (0: the first win's) of `table`.
+std::int32_t race_prize(const LevelTable& table, int race, int prize) {
+    const auto offset = static_cast<std::uint32_t>(race) * kRaceBytes + kRacePrize
+                        + static_cast<std::uint32_t>(prize) * 4u;
+    return get<std::int32_t>(table_word(table, offset));
+}
+
+// Lays out the game's prizes of `table` (Barlow's: race 0 pays 0, 250 and 250, race 1 2,000, 750
+// and 250, the others 3,000, 1,000 and 350).
+void lay_out_races(const LevelTable& table) {
+    const std::int32_t prizes[3][3] = {{0, 250, 250}, {2'000, 750, 250}, {3'000, 1'000, 350}};
+
+    // Each race, each prize.
+    for (int race = 0; race < kRaces; ++race) {
+        // The first, second and later wins.
+        for (int prize = 0; prize < kRacePrizes; ++prize) {
+            const auto offset = static_cast<std::uint32_t>(race) * kRaceBytes + kRacePrize
+                                + static_cast<std::uint32_t>(prize) * 4u;
+            set<std::int32_t>(table_word(table, offset), prizes[race < 2 ? race : 2][prize]);
+        }
+    }
+}
+
+// Lays out a level's price table as the discs have it: Notak's door 6,000, Tabora's 10 crystals,
+// Dobbo's 10,000, 6,000, 25,000, the prison's 20,000, Smolg's 40,000 and Grelbin's 9 moonstones.
+void lay_out_prices(const LevelTable& table) {
+    const std::int32_t pairs[] = {6'000, 10, 10'000, 6'000, 25'000, 20'000, 40'000, 9, 9};
+
+    // Each pair: the game's price and challenge mode's, the same on the discs.
+    for (std::uint32_t pair = 0; pair < 9; ++pair) {
+        set<std::int32_t>(table_word(table, pair * 8u), pairs[pair]);
+        set<std::int32_t>(table_word(table, pair * 8u + 4u), pairs[pair]);
+    }
+}
+
+// Checks the prizes and prices in challenge mode's fourth run (cycle 3, x2.5; prices x1.75): the
+// race tables of Barlow and Joba paid at x2.5 while each is loaded (race 0's first win still 0),
+// never scaled twice and scaled again after a level loaded anew; the arena's prize (the game's
+// 50,000) at 125,000 when the port has the hook point; the sellers' prices at x1.75 (Notak's door
+// 10,500, Dobbo's 17,500, the prison's 35,000, Smolg's 70,000), the crystals and moonstones left
+// alone; the gadget sellers' rows (Joba's Levitator 20,000: 35,000); and in the first challenge
+// mode the game's values written back. With bolt scaling off, the game's everywhere.
+void test_prizes_and_prices(bool scaled_run, bool arena) {
+    const RewardDisc* disc = reward_disc_of(g_disc->version);
+    CHECK(disc != nullptr);
+
+    // A disc without tables cannot be tested.
+    if (disc == nullptr) {
+        return;
+    }
+
+    set_run(3, 1);
+
+    // Barlow's races.
+    const LevelTable& barlow = disc->races[0];
+    CHECK(barlow.level == kBarlow);
+    lay_out_races(barlow);
+    g_level_now = kBarlow;
+    tick(1);
+    CHECK(race_prize(barlow, 0, 0) == 0);
+    CHECK(race_prize(barlow, 0, 1) == (scaled_run ? 625 : 250));
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
+    CHECK(race_prize(barlow, 1, 1) == (scaled_run ? 1'875 : 750));
+    CHECK(race_prize(barlow, 4, 2) == (scaled_run ? 875 : 350));
+    // Not scaled twice.
+    tick(3);
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
+    // The level loaded anew: the game's prize again, scaled again.
+    set<std::int32_t>(table_word(barlow, kRaceBytes + kRacePrize), 2'000);
+    tick(1);
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
+
+    // The first challenge mode: the game's prizes back.
+    set_run(1, 1);
+    tick(1);
+    CHECK(race_prize(barlow, 1, 0) == 2'000);
+    CHECK(race_prize(barlow, 0, 1) == 250);
+    set_run(3, 1);
+
+    // Joba's races, and the arena.
+    const LevelTable& joba = disc->races[1];
+    CHECK(joba.level == kJoba);
+    lay_out_races(joba);
+    g_memory[g_disc->slot + 8] = 8;
+    set<std::int32_t>(row(8) + kRowPrice, 20'000);
+    g_level_now = kJoba;
+    tick(1);
+    CHECK(race_prize(joba, 2, 0) == (scaled_run ? 7'500 : 3'000));
+    CHECK(get<std::int32_t>(row(8) + kRowPrice) == (scaled_run ? 35'000 : 20'000));
+    const auto prize = hooked<hooks::Arena_Prize>();
+    CHECK((prize != nullptr) == arena);
+
+    // The arena's prize, at the run's scale; the game's in the first challenge mode.
+    if (prize != nullptr) {
+        CHECK(prize(3) == 125'000);
+        set_run(1, 1);
+        CHECK(prize(3) == kArenaPrize);
+        set_run(3, 1);
+    }
+
+    // The sellers' price tables, each in its level.
+    for (const LevelTable& table : disc->prices) {
+        lay_out_prices(table);
+        g_level_now = table.level;
+        tick(1);
+        CHECK(price_word(table, 0) == (scaled_run ? 10'500 : 6'000));
+        CHECK(price_word(table, 1) == (scaled_run ? 10'500 : 6'000));
+        CHECK(price_word(table, 2) == 10);
+        CHECK(price_word(table, 5) == (scaled_run ? 17'500 : 10'000));
+        CHECK(price_word(table, 6) == 6'000);
+        CHECK(price_word(table, 8) == 25'000);
+        CHECK(price_word(table, 11) == (scaled_run ? 35'000 : 20'000));
+        CHECK(price_word(table, 12) == (scaled_run ? 70'000 : 40'000));
+        CHECK(price_word(table, 14) == 9);
+        CHECK(price_word(table, 16) == 9);
+    }
+
+    // Another level's tables are left alone: Smolg's at Dobbo.
+    lay_out_prices(disc->prices[3]);
+    g_level_now = kDobbo;
+    tick(1);
+    CHECK(price_word(disc->prices[3], 12) == 40'000);
+
+    set_run(0, 1);
+    g_memory[g_disc->slot + 8] = 0;
+    g_level_now = 1;
+    tick(1);
+}
+
 void run(const char* path, const Disc& disc, Host host) {
     g_disc = &disc;
     g_host = host;
@@ -1639,9 +1794,10 @@ void run(const char* path, const Disc& disc, Host host) {
     make_api();
     CHECK(reload(load));
     CHECK(g_failed.empty());
-    // The nine of before, and the three bolt hook points on a port of 1.23 with the setting on.
+    // The nine of before, and the three bolt hook points and the arena's on a port of 1.23 with
+    // the setting on.
     const bool bolts = host == Host::Bolts || host == Host::Obsidian;
-    CHECK(g_hooks.size() == (bolts ? 12u : 9u));
+    CHECK(g_hooks.size() == (bolts ? 13u : 9u));
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
     // A port of 1.23 drops platinum only, and says so.
     CHECK((g_log.find("interface 1.24") != std::string::npos) == (host == Host::Bolts));
@@ -1659,6 +1815,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_in_hand_level_up();
 
     test_collectors(host != Host::Off);
+    test_prizes_and_prices(host != Host::Off, bolts);
 
     // The bolts as the port offers them.
     if (host == Host::Obsidian) {
