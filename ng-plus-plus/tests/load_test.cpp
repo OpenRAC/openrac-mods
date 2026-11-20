@@ -121,6 +121,9 @@ constexpr std::int32_t kAmmoOneText = 0x2002;      // "1 Mega Lancer round".
 constexpr std::int32_t kAmmoFullText = 0x2003;     // "Ammo full": names no weapon.
 // The game's own shape of the message: the name in colour codes, between its words too.
 constexpr std::int32_t kAmmoCodedText = 0x2004;    // "Got %d \x0cMega \x0cLancer\x08\x08 ammo".
+// The collectors' dialogs (collectors.h): Tabora's crystals and Grelbin's moonstones.
+constexpr std::int32_t kCrystalText = 10135;    // "Trade %d crystals for %d bolts?".
+constexpr std::int32_t kMoonstoneText = 10209;  // "%d moonstones: %d bolts".
 // The game's level-up table's line for the Lancer at its last version (help_show_message_for_id).
 constexpr std::int32_t kLevelUpLineText = 0x2005;  // "\x0cMega Lancer\x08 upgraded".
 
@@ -280,6 +283,10 @@ std::int32_t game_text(std::int32_t id) {
             return static_cast<std::int32_t>(kTextAt + 0x4C0);
         case kLevelUpLineText:
             return static_cast<std::int32_t>(kTextAt + 0x500);
+        case kCrystalText:
+            return static_cast<std::int32_t>(kTextAt + 0x540);
+        case kMoonstoneText:
+            return static_cast<std::int32_t>(kTextAt + 0x580);
         // Text 0: the game's empty string.
         case 0:
             return static_cast<std::int32_t>(kTextAt + 0x5F0);
@@ -729,6 +736,8 @@ void lay_out_game() {
     put_string(kTextAt + 0x4C0, "Got %d \x0cMega \x0cLancer\x08\x08 ammo");
     put_string(kTextAt + 0x500, "\x0cMega Lancer\x08 upgraded");
     put_string(kTextAt + 0x5F0, "");
+    put_string(kTextAt + 0x540, "Trade %d crystals for %d bolts?");
+    put_string(kTextAt + 0x580, "%d moonstones: %d bolts");
     put_string(kMegaAt, "Mega");
     set<std::int16_t>(row(kRyno) + kRowName, kRynoText);
     g_memory[g_disc->owned + kRyno] = 1;
@@ -1467,6 +1476,65 @@ void test_drops_untouched() {
 }
 
 // Runs every check on `disc`, with the library at `path`, against a port of `host`.
+// Checks the collectors in challenge mode's fourth run (cycle 3, x2.5): Tabora's dialog shows the
+// scaled total of the crystals held (4 at 10,000: 100,000), and the trade pays it, the game's
+// 40,000 and the mod's 60,000; Grelbin's moonstones the same (3 at 30,000: 225,000). In the first
+// challenge mode, and with bolt scaling off, the game's own dialog and pay.
+void test_collectors(bool scaled) {
+    const std::uint32_t block = g_disc->progress;
+    set_run(3, 1);
+    set<std::int32_t>(block + kProgressBolts, 1'000);
+    set<std::int16_t>(block + kProgressCrystals, 4);
+    set<std::int32_t>(block + kProgressMoonstones, 3);
+
+    // Tabora: the dialog, then the trade as the game makes it.
+    g_level_now = 8;
+    tick(1);
+    CHECK(string_at(port_text(kCrystalText))
+          == (scaled ? "Trade %d crystals for 100000 bolts?" : "Trade %d crystals for %d bolts?"));
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressBolts, 41'000);
+    set<std::int16_t>(block + kProgressCrystals, 0);
+    tick(1);
+    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    // Nothing more on the next tick, and no dialog of nothing.
+    tick(1);
+    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    CHECK(string_at(port_text(kCrystalText)) == "Trade %d crystals for %d bolts?");
+
+    // Grelbin: the moonstones.
+    g_level_now = 19;
+    tick(1);
+    CHECK(string_at(port_text(kMoonstoneText))
+          == (scaled ? "%d moonstones: 225000 bolts" : "%d moonstones: %d bolts"));
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressBolts, 131'000);
+    set<std::int32_t>(block + kProgressMoonstones, 0);
+    tick(1);
+    CHECK(g_bolts == (scaled ? 135'000 : 0));
+
+    // A count that drops with no pay (a save loaded): nothing.
+    set<std::int32_t>(block + kProgressMoonstones, 5);
+    tick(1);
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressMoonstones, 0);
+    tick(1);
+    CHECK(g_bolts == 0);
+
+    // The first challenge mode: the game's.
+    set_run(1, 1);
+    set<std::int16_t>(block + kProgressCrystals, 2);
+    g_level_now = 8;
+    tick(1);
+    CHECK(string_at(port_text(kCrystalText)) == "Trade %d crystals for %d bolts?");
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressBolts, 151'000);
+    set<std::int16_t>(block + kProgressCrystals, 0);
+    tick(1);
+    CHECK(g_bolts == 0);
+    g_level_now = 1;
+}
+
 void run(const char* path, const Disc& disc, Host host) {
     g_disc = &disc;
     g_host = host;
@@ -1514,6 +1582,8 @@ void run(const char* path, const Disc& disc, Host host) {
     test_each_save_has_its_own();
     test_saves_from_inside_a_level();
     test_in_hand_level_up();
+
+    test_collectors(host != Host::Off);
 
     // The bolts as the port offers them.
     if (host == Host::Obsidian) {

@@ -161,6 +161,13 @@ public:
     // Returns the challenge mode counter of the game in progress.
     int cycle() const;
 
+    // Return the player's bolts, Tabora's crystals and Grelbin's moonstones held.
+    std::int32_t bolts() const;
+
+    std::int32_t crystals() const;
+
+    std::int32_t moonstones() const;
+
     // ---- Bolts ----
 
     // Returns the kill streak's multiplier (1 to 20; 0 before the first kill counts).

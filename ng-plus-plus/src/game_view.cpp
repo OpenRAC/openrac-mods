@@ -160,6 +160,18 @@ int GameView::cycle() const {
     return memory().read<std::int16_t>(at(m_disc.progress) + kProgressCycle);
 }
 
+std::int32_t GameView::bolts() const {
+    return memory().read<std::int32_t>(at(m_disc.progress) + kProgressBolts);
+}
+
+std::int32_t GameView::crystals() const {
+    return memory().read<std::int16_t>(at(m_disc.progress) + kProgressCrystals);
+}
+
+std::int32_t GameView::moonstones() const {
+    return memory().read<std::int32_t>(at(m_disc.progress) + kProgressMoonstones);
+}
+
 int GameView::streak() const {
     return memory().read<std::uint8_t>(at(m_disc.progress) + kProgressStreak);
 }

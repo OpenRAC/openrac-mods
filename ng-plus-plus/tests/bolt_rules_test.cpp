@@ -12,6 +12,7 @@
 
 #include "bolt_rules.h"
 #include "check.h"
+#include "collectors.h"
 
 namespace {
 
@@ -234,6 +235,21 @@ void test_split_obsidian() {
     CHECK(before.gold == now.gold && before.platinum == now.platinum);
 }
 
+// Checks the collectors' dialog text and totals: the second number becomes the scaled total.
+void test_collectors() {
+    CHECK(with_total("Trade %d crystals for %d bolts?", 25000) == "Trade %d crystals for 25000 bolts?");
+    CHECK(with_total("%d / %d", 7) == "%d / 7");
+    CHECK(!with_total("Only %d", 7));
+    CHECK(!with_total("No numbers", 7));
+    // The game's: 4 crystals at 10,000 (challenge mode) in the fourth run (x2.5).
+    CHECK(collector_total(4, kCrystalPay * kChallengePayTimes, 2.5f) == 100'000);
+    CHECK(collector_total(3, kMoonstonePay * kChallengePayTimes, 1.5f) == 135'000);
+    CHECK(collector_total(0, kMoonstonePay, 6.0f) == 0);
+    CHECK(collector_total(-2, kMoonstonePay, 6.0f) == 0);
+    // Never past an s32.
+    CHECK(collector_total(100'000, 30'000, 9.0f) == 2'147'483'647);
+}
+
 }  // namespace
 
 int main() try {
@@ -245,6 +261,7 @@ int main() try {
     test_split();
     test_obsidian_share();
     test_split_obsidian();
+    test_collectors();
     return ng_plus_plus::test::result("ng_plus_plus_bolt_rules");
 } catch (...) {
     // A test that throws has failed.
