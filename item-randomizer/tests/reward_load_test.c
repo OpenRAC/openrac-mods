@@ -16,7 +16,7 @@ static int place_pending, places;
 static openrac_moby_visual visual_rows[512];
 static int visual_count;
 static char detail_name[192], prompt[256];
-static int selected_native;
+static int selected_native, initialize_calls;
 
 static uint8_t* gold_flag(int base) {
     return s_memory + (strcmp(D->version, "pal") == 0 ? 0x13E620u : 0x13E520u) + base;
@@ -130,6 +130,7 @@ static int no_mobys(openrac_moby* rows, int n) {
 }
 
 static void original_initialize(void) {
+    ++initialize_calls;
     uint8_t* menu = s_memory + D->vendor_menu;
     selected_native =
         get32(menu + VENDOR_ENTRIES + get32(menu + VENDOR_CURSOR) * VENDOR_ENTRY_SIZE);
@@ -434,6 +435,21 @@ int main(int argc, char** argv) {
         uint16_t icon = (uint16_t)(0xEA60 + item);
         memcpy(s_memory + cls + 0x38, &icon, 2);
     }
+    /* Empty menu, invalid cursor and consumed selection cannot call retail initialization. */
+    uint8_t* empty_menu = s_memory + D->vendor_menu;
+    const int calls_before = initialize_calls;
+    set32(empty_menu + VENDOR_COUNT, 0);
+    set32(empty_menu + VENDOR_CURSOR, 0);
+    ((void (*)(void))hook_named("rac1.vendor.initialize_selected"))();
+    set32(empty_menu + VENDOR_COUNT, 1);
+    for (int cursor = -1; cursor <= 1; cursor += 2) {
+        set32(empty_menu + VENDOR_CURSOR, cursor);
+        ((void (*)(void))hook_named("rac1.vendor.initialize_selected"))();
+    }
+    set32(empty_menu + VENDOR_CURSOR, 0);
+    set32(empty_menu + VENDOR_ENTRIES, -1);
+    ((void (*)(void))hook_named("rac1.vendor.initialize_selected"))();
+    CHECK(initialize_calls == calls_before);
     int vendor_before = animation_calls, vendor_count = 0, pending_kind = 0, pending_item = 0;
     for (size_t row = 0; row < rando_location_count; ++row) {
         if (rando_locations[row].kind == LOC_VENDOR && plan.shuffled[row]) {

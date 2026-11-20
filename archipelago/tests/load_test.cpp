@@ -272,6 +272,8 @@ int32_t game_request_autosave(int32_t slot, int32_t flags) {
     CHECK(std::memcmp(g_saved_owned, at(D->owned), sizeof g_saved_owned) == 0);
     return 99;
 }
+int g_vendor_opens;
+void game_open_vendor(uint32_t) { ++g_vendor_opens; }
 void game_helga(uint32_t) {
     CHECK(*at(D->owned + ITEM_SWINGSHOT) == 1); // location checked, not item owned
     auto save = (int32_t(*)(int32_t,int32_t))replacement("rac1.save.request_autosave");
@@ -306,6 +308,7 @@ void* original_for(const std::string& name) {
     if(name=="rac1.moby.hoverboard_girl.update" || name=="rac1.moby.miner.update"
         || name=="rac1.moby.moby1428.update" || name=="rac1.moby.nanotech_vendor.update"
         || name=="rac1.moby.pokitaru_vendor.update") return (void*)menu_source_native;
+    if (name == OPENRAC_RAC1_HOOK_Vendor_OpenMenu) return (void*)game_open_vendor;
     if (name == "rac1.save.prepare") return (void*)game_save_prepare;
     if (name == "rac1.save.request_autosave") return (void*)game_request_autosave;
     if (name == OPENRAC_RAC1_HOOK_Moby_Helga_Update) return (void*)game_helga;
@@ -892,6 +895,32 @@ int main(int argc, char** argv) {
         std::memcpy(at(D->owned), saved_owned, sizeof saved_owned);
         std::memcpy(at(D->vendor_stock), saved_stock, sizeof saved_stock);
         g_phase = OPENRAC_PLAY_PLAYING;
+    }
+
+    // Reopening after the final reward is bought must be blocked without waiting a frame.
+    {
+        uint8_t saved_owned[RANDO_ITEM_COUNT], saved_stock[VENDOR_STOCK_SIZE];
+        std::memcpy(saved_owned, at(D->owned), sizeof saved_owned);
+        std::memcpy(saved_stock, at(D->vendor_stock), sizeof saved_stock);
+        const uint8_t saved_check = *at(D->obtained + ITEM_GLOVE_OF_DOOM);
+        std::memset(at(D->owned), 0, RANDO_ITEM_COUNT);
+        std::memset(at(D->vendor_stock), 0xFF, VENDOR_STOCK_SIZE);
+        *at(D->vendor_stock) = ITEM_GLOVE_OF_DOOM;
+        *at(D->obtained + ITEM_GLOVE_OF_DOOM) = 0;
+        auto open = (void (*)(uint32_t))replacement(OPENRAC_RAC1_HOOK_Vendor_OpenMenu);
+        const int before = g_vendor_opens;
+        open(0x180000);
+        CHECK(g_vendor_opens == before + 1);
+        *at(D->obtained + ITEM_GLOVE_OF_DOOM) = 1;
+        open(0x180000);
+        open(0);
+        CHECK(g_vendor_opens == before + 1);
+        *at(D->owned + ITEM_GLOVE_OF_DOOM) = 1;
+        open(0x180000);
+        CHECK(g_vendor_opens == before + 2); // ammo-only physical vendor is still usable
+        std::memcpy(at(D->owned), saved_owned, sizeof saved_owned);
+        std::memcpy(at(D->vendor_stock), saved_stock, sizeof saved_stock);
+        *at(D->obtained + ITEM_GLOVE_OF_DOOM) = saved_check;
     }
 
     // Its banner, in another level's text, is not left on screen.

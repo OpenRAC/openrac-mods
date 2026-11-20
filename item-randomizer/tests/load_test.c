@@ -1706,7 +1706,20 @@ int main(int argc, char** argv) {
         CHECK(s_menu_opens == 2); /* automatically generated ammunition */
         s_memory[D->owned + ITEM_BOMB_GLOVE] = 0;
         open(0x180000);
-        CHECK(s_menu_opens == 3); /* physical menu delegates */
+        CHECK(s_menu_opens == 2); /* empty physical vendor also blocked */
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 1;
+        open(0x180000);
+        CHECK(s_menu_opens == 3); /* physical vendor still sells owned-weapon ammo */
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 0;
+        s_memory[D->vendor_stock] = ITEM_GLOVE_OF_DOOM;
+        s_memory[D->obtained + ITEM_GLOVE_OF_DOOM] = 0;
+        open(0x180000);
+        CHECK(s_menu_opens == 4); /* one unchecked randomized reward */
+        s_memory[D->obtained + ITEM_GLOVE_OF_DOOM] = 1;
+        open(0x180000);
+        CHECK(s_menu_opens == 4); /* last reward bought: reopen blocked before any tick */
+        s_memory[D->obtained + ITEM_GLOVE_OF_DOOM] = 0;
+        memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
 
         const uint32_t base_ptr = disc == 0 ? 0x160098 : 0x15FFD8;
         const uint32_t moby = 0x180000;
@@ -1768,7 +1781,7 @@ int main(int argc, char** argv) {
         CHECK(get32(s_memory + hero + 0x20F0) == ITEM_BOMB_GLOVE);
         open = (openrac_rac1_Vendor_OpenMenu)hook_named("Vendor_OpenMenu");
         open(0);
-        CHECK(s_menu_opens == 4);
+        CHECK(s_menu_opens == 5);
         s_new_game_only = 0;
     }
 
