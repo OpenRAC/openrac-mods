@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// NG++'s bolt rules, apart from the game (README.md, "Platinum bolts and bolt scaling"): how much
-// more a drop pays in each challenge mode run, how much more a tough enemy pays, how much of a drop
-// comes as platinum and obsidian bolts, and the split of a drop into gold, platinum and obsidian
-// coins.
+// NG++'s bolt rules, apart from the game (README.md, "Platinum and obsidian bolts and bolt
+// scaling"): how much more a drop pays in each challenge mode run, how much more a tough enemy
+// pays, how much of a drop comes as platinum and obsidian bolts, and the split of a drop into gold,
+// platinum and obsidian coins.
 //
 // The game's coins are seven classes worth 1, 5, 20, 50, 100, 500 and 1,000 bolts (OpenRAC's
 // openrac/games/rac2.h). A platinum coin is one of the same seven drawn as platinum and worth five

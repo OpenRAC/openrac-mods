@@ -11,8 +11,8 @@
 // and coin limit still decide the total; the coins it makes (Bolt_SpawnPickup) are only written
 // down meanwhile: their worth, where and how fast each flies. Then the mod makes that total again
 // as gold, platinum and obsidian coins (bolt_rules.h's split), each at a place and speed the game
-// chose, and draws the rarer ones with moby_material. Collecting a platinum coin (Bolt_Collect) adds
-// the four times its class the game does not, an obsidian one 24 times.
+// chose, and draws the rarer ones with moby_material. Collecting a platinum coin (Bolt_Collect)
+// adds the four times its class the game does not, an obsidian one 24 times.
 
 #pragma once
 

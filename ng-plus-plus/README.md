@@ -4,7 +4,7 @@ New Game++ for Going Commando, for OpenRAC's native port (NTSC-U, PAL and NTSC-U
 eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). The game's
 own versions stay as they are; NG++ adds its tiers on top and keeps track of them itself.
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
-comes as platinum bolts, worth five times the gold ones.
+comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
@@ -109,43 +109,47 @@ tougher. From the second challenge mode on, the mod does:
 |---|---|---|---|---|---|
 | 1 | - | x1 | x1 | V1 to V3 | |
 | 2 | 1st | x1 | x1 | V4, then Alpha to Gamma | x1 (V4), x1.5 to x2.5 |
-| 3 | 2nd | x2 | x1.25 | Delta (x3) | x1.5 |
-| 4 | 3rd | x3 | x1.5 | Zeta (x4.5) | x1.5 |
-| 5 | 4th | x4 | x1.75 | Omega (x7) | x1.75 |
-| 6 | 5th | x5 | x2 | Omega (x7) | x1.4 |
-| 7 on | 6th on | +1 each | +0.25 each | Omega (x7) | x1.17 in the 7th, the same as V4 in the 8th |
+| 3 | 2nd | x2.5 | x1.375 | Delta (x3) | x1.2 |
+| 4 | 3rd | x4 | x1.75 | Zeta (x4.5) | x1.125 |
+| 5 | 4th | x5.5 | x2.125 | Omega (x7) | x1.27 |
+| 6 | 5th | x6 | x2.5 | Omega (x7) | x1.17 |
+| 7 | 6th | x6.5 | x2.875 | Omega (x7) | x1.08 |
+| 8 on | 7th on | x6.75 | +0.375 each, up to x4 | Omega (x7) | x1.04 |
 
-Enemy health stays behind your damage, so a weapon at the tier you should have by then still kills
-faster than V4 did in the first challenge mode: 1.5 times as fast in the third and fourth new games,
-1.75 times in the fifth. After Omega there is nothing more to gain, so enemies catch up one game at
-a time: even in the eighth new game, ahead of you after that. Enemy damage grows more slowly, since
-longer fights already cost you more health. **How much tougher** scales what the mod adds (0.5: x1.5
-health in the third new game instead of x2).
+Enemies get tougher half as fast again as before 0.4.0, but enemy health stays just behind your
+damage: a weapon at the tier you should have by then still kills a little faster than V4 did in the
+first challenge mode, and the health stops at x6.75, so a fully upgraded (Omega) weapon stays ahead
+in every new game. Enemy damage grows more slowly, since longer fights already cost you more health.
+**How much tougher** scales what the mod adds (0.5: x1.75 health in the third new game instead of
+x2.5; above 1 enemies can pass your tiers).
 
-(Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went x2.5, x4, x6, x8, +2 each: a weapon
-at the expected tier killed slower than V4, at 0.8, 0.7, 0.67 and 0.5 times its speed.)
+(Before 0.4.0 enemy health went x2, x3, x4, x5, then +1 a game, and enemy damage x1.25, then +0.25 a
+game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went x2.5, x4, x6, x8, +2 each.)
 
 | Setting | Default | |
 |---|---|---|
 | Tier names on screen | on | The weapon's name at the top of the screen |
 | Tougher enemies each new game | on | The table above |
 | How much tougher | 1 | Multiplies what the table adds, 0 to 3 |
-| Bolt scaling | normal | Platinum bolts and bigger drops (below): off, normal or generous |
+| Bolt scaling | normal | Platinum and obsidian bolts, bigger drops and the collectors' pay (below): off, normal or generous |
 
 With the [difficulty](../difficulty-mod/README.md) mod, both apply and **multiply**: its "damage
 dealt" and "damage taken" sliders scale the same hits as this mod's tiers and enemies, so with
 damage dealt x0.5 and a Beta weapon in the second challenge mode a hit does x0.5 x 2 / 2. Turn
 **Tougher enemies each new game** off to leave the enemies to the difficulty mod alone.
 
-### Platinum bolts and bolt scaling
+### Platinum and obsidian bolts and bolt scaling
 
 Tiers cost millions, so from the second challenge mode on, enemies and crates drop more bolts, and
 part of every drop comes as **platinum bolts**: the game's own bolt pickups in a shiny white metal,
-each worth five times its gold twin.
+each worth five times its gold twin. Above them are **obsidian bolts**: glossy black with a glow
+inside, violet on the small ones through magenta to ember red on the biggest, each worth 25 times its
+gold twin.
 
 | Gold bolt | 1 | 5 | 20 | 50 | 100 | 500 | 1,000 |
 |---|---|---|---|---|---|---|---|
 | **Platinum bolt** | **5** | **25** | **100** | **250** | **500** | **2,500** | **5,000** |
+| **Obsidian bolt** | **25** | **125** | **500** | **1,250** | **2,500** | **12,500** | **25,000** |
 
 **Bigger drops.** The game works out a drop as always (the enemy's bolts, your kill streak up to
 x20, challenge mode's doubling), then the mod multiplies it by the new game you are in, the same
@@ -170,14 +174,34 @@ of its bolts over 20 (45 bolts: x1.5, 80 or more: x2). Small enemies and crates 
 how the bolts come, not how many: a drop of 15,000 at 65% is a platinum 5,000, a platinum 2,500,
 four platinum 500s and a platinum 250 (9,750), and 5,250 in gold. Fewer, bigger pickups.
 
+**Obsidian share.** From the second challenge mode on, obsidian bolts show up now and then, mostly
+at long kill streaks: the share grows slowly with your streak at first and fast near x20, and grows
+with each new game. Obsidian takes its part of a drop first, then platinum its share, then gold.
+
+| New game | Challenge mode | Obsidian at x1 streak | at x10 | at x20 streak |
+|---|---|---|---|---|
+| 1 and 2 | - and 1st | none | none | none |
+| 3 | 2nd | none | 2% | 8% |
+| 4 | 3rd | 2% | 5% | 15% |
+| 5 | 4th | 5% | 10% | 25% |
+| 6 on | 5th on | 8% | 14% | 35% |
+
+When the game limits how many pickups a drop may have, each rarer kind keeps a place, so a small
+drop can still show an obsidian or platinum bolt.
+
+**Collectors.** Tabora's crystals and Grelbin's moonstones pay the same x1.5, x2.5, x4 and x6 from
+the second challenge mode (generous half as much again), so collecting keeps up with the tier
+prices. The collector's dialog shows the total you will get.
+
 The total is always the game's own after its roll, so its kill streak, doubling and its own pacing
 still count. The first game is left alone; the first challenge mode gets a few platinum bolts, a taste of them, with drops the same size. **Bolt scaling** off leaves every
 drop to the game; generous pays half as much again as normal (the table's generous column), with
 the same platinum share.
 
-Platinum bolts need OpenRAC with interface 1.23 (the bolt hook points and the platinum look). On an
-older OpenRAC the drops stay the game's, and the rest of the mod works as before (the log says so
-once).
+Platinum bolts need OpenRAC with interface 1.23 (the bolt hook points and the platinum look), and
+obsidian bolts 1.24 (the obsidian look). On an OpenRAC with 1.23 the drops have platinum but no
+obsidian; on an older one the drops stay the game's, and the rest of the mod works as before (the log
+says so once).
 
 ### Saves
 
@@ -209,8 +233,8 @@ host's tiers.
 
 ## How it works
 
-Through OpenRAC's rac2 hook points of SDK 1.14.6, and the bolts' of interface 1.23 (the addresses
-are NTSC-U v1.01's):
+Through OpenRAC's rac2 hook points of SDK 1.14.6, and the bolts' of interface 1.23 and the obsidian
+material of 1.24 (the addresses are NTSC-U v1.01's):
 
 | | Where |
 |---|---|
@@ -221,7 +245,9 @@ are NTSC-U v1.01's):
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
-| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as platinum and gold coins at those places, the platinum ones drawn with `moby_material` (interface 1.23); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); what a coin limit leaves goes to the game's word at +0x1C (`D_001A7A14`), divided by the streak, as the game does |
+| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as obsidian, platinum and gold coins at those places, the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); what a coin limit leaves goes to the game's word at +0x1C (`D_001A7A14`), divided by the streak, as the game does |
+| Collectors | no hook point: their dialogs' texts (10135 Tabora's crystals, 10209 Grelbin's moonstones) through `rac2.text.by_id` get the scaled total in place of their second number; each tick a trade (the crystals at +0x22 of the save block, s16, or the moonstones at +0x24, s32, down to 0 in Tabora or Grelbin with the game's pay, 1,000 or 3,000 each, ten times in challenge mode, in the bolts at +0x00) gets the rest of the scaled pay through `openrac_api.bolts` |
+| Level-up popup | a tier earned with the weapon in hand plays the game's in-hand level-up (`func_L00_0037E6A8`); at its end the game's popup from its own level-up table (`help_show_message_for_id`, `func_00288508`) names the last version, or is text 0 (an empty box) for a weapon the table has no line for (RYNO II, Zodiac): for ten seconds after, the resolver gives that popup the tier's name |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
 
 The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
@@ -240,14 +266,15 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/experience.h` | steps by experience, the level-up, the rows' ammo and bar, the line at the top |
 | `src/combat.h` | the tiers' damage and the enemies across new games |
 | `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness, the platinum share and the split into coins |
-| `src/platinum_bolts.h` | platinum bolts and bolt scaling behind the bolt hook points |
-| `src/bolt_api.h` | interface 1.23's `moby_material`, read from the port's table while the mods build against SDK 1.20 |
+| `src/platinum_bolts.h` | platinum and obsidian bolts and bolt scaling behind the bolt hook points |
+| `src/collectors.h` | Tabora's and Grelbin's collectors' pay and dialogs |
+| `src/bolt_api.h` | interface 1.23's `moby_material` (and 1.24's obsidian), read from the port's table while the mods build against SDK 1.20 |
 | `src/ng_plus_plus.cpp` | the entry point: the disc, the state, the hooks and the tick |
 
 The tests: `ng_plus_plus_rules` (the rules and the book), `ng_plus_plus_bolt_rules` (the bolt
 rules), `ng_plus_plus_text` (the resolver's substitution) and `ng_plus_plus_load` (the built library
-against a game of the test's own, on the three discs, with a port of 1.23 that has the bolt hook
-points, one of 1.22 without, and the bolt setting off).
+against a game of the test's own, on the three discs, with a port of 1.24 that draws obsidian, one
+of 1.23 that has the bolt hook points and platinum, one of 1.22 without, and the bolt setting off).
 
 Not yet:
 
@@ -261,7 +288,10 @@ Not yet:
   whose moby classes are not yet traced to their hit code, scale by the weapon held when they hit.
 - The game's health drains (`weapon_start_health_drain`, the drain slots) take health straight off
   an enemy without posting a hit, so neither the tier nor the enemies' health applies to them.
-- A platinum bolt's extra worth goes to your bolts, not to the level's bolt score the game keeps
-  for its own pacing. If the port can't draw a coin as platinum (over 1,024 at once), its extra
-  worth is added when it drops.
+- A platinum or obsidian bolt's extra worth goes to your bolts, not to the level's bolt score the
+  game keeps for its own pacing. If the port can't draw a coin as platinum or obsidian (over 1,024
+  at once), its extra worth is added when it drops.
+- No extra enemies yet: Going Commando has no table of which enemies a level's scripts need (waves,
+  arenas, doors that open when all are defeated), so copies could stall a level; the difficulty
+  mod leaves the enemy count out of Going Commando for the same reason.
 - No fire rate change, and RYNO II Ultima's split volley is a follow-up: Ultima is the damage boost.

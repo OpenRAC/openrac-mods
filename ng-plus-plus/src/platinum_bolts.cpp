@@ -350,7 +350,9 @@ void PlatinumBolts::mark(std::uint32_t moby, int kind, CoinTier tier) {
 
         // Said once.
         if (!m_mark_logged) {
-            m_mod.info("a platinum or obsidian bolt could not be drawn; its worth was added at once");
+            m_mod.info(
+                "a platinum or obsidian bolt could not be drawn; its worth was added at once"
+            );
             m_mark_logged = true;
         }
 

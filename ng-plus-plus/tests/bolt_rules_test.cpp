@@ -5,7 +5,8 @@
 // the platinum and obsidian shares, the scaled amount and the split into gold, platinum and
 // obsidian coins.
 //
-// Expected values are the README's tables ("Platinum bolts and bolt scaling") and their arithmetic.
+// Expected values are the README's tables ("Platinum and obsidian bolts and bolt scaling") and
+// their arithmetic.
 
 #include <array>
 #include <cmath>
@@ -237,7 +238,10 @@ void test_split_obsidian() {
 
 // Checks the collectors' dialog text and totals: the second number becomes the scaled total.
 void test_collectors() {
-    CHECK(with_total("Trade %d crystals for %d bolts?", 25000) == "Trade %d crystals for 25000 bolts?");
+    CHECK(
+        with_total("Trade %d crystals for %d bolts?", 25000)
+        == "Trade %d crystals for 25000 bolts?"
+    );
     CHECK(with_total("%d / %d", 7) == "%d / 7");
     CHECK(!with_total("Only %d", 7));
     CHECK(!with_total("No numbers", 7));
