@@ -228,11 +228,34 @@ then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went
 | Tougher enemies each new game | on | The table above |
 | How much tougher | 1 | Multiplies what the table adds, 0 to 3 |
 | Bolt scaling | normal | Platinum and obsidian bolts, bigger drops and the collectors' pay (below): off, normal or generous |
+| Extra enemies | on | Copies of each enemy from the second challenge mode (below) |
 
 With the [difficulty](../difficulty-mod/README.md) mod, both apply and **multiply**: its "damage
 dealt" and "damage taken" sliders scale the same hits as this mod's tiers and enemies, so with
 damage dealt x0.5 and a Beta weapon in the second challenge mode a hit does x0.5 x 2 / 2. Turn
 **Tougher enemies each new game** off to leave the enemies to the difficulty mod alone.
+
+### More enemies each new game
+
+From the second challenge mode on, every enemy a level places gets a copy beside it when the level
+loads, and two from the fourth challenge mode:
+
+| Challenge mode | 1st | 2nd and 3rd | 4th on |
+|---|---|---|---|
+| Copies of each enemy | none | 1 | 2 |
+
+A copy stands on its enemy's floor, in the open, 2.5 to 4 units away, and runs, fights and dies like
+it. It drops the bolts that enemy drops (with the run's bolt scaling, platinum and obsidian bolts)
+and counts for your kill streak; killing it never changes what the game remembers of the enemy it
+copies (a killed enemy stays killed, and its bolts do not fall off any faster).
+
+Some enemies are never copied: bosses, turrets, spawners, Tabora's and Grelbin's crystal creatures,
+and every enemy the level counts on as it is (a wave's, an arena's, the ones a door waits for, the
+ones a scene or another enemy names). OpenRAC decides which (its table is in
+`port/game/rac2/host/enemy_copies.c`), and leaves room for what the level spawns: in a crowded
+level some enemies get fewer copies. In a multiplayer party only the host's game copies enemies.
+Turn **Extra enemies** off to play with the game's own enemies. This needs OpenRAC with mod
+interface 1.25; an older one plays without copies and says so once in the log.
 
 ### Platinum and obsidian bolts and bolt scaling
 

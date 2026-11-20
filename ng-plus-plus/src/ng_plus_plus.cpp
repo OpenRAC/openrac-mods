@@ -33,6 +33,7 @@
 #include "combat.h"
 #include "discs.h"
 #include "experience.h"
+#include "extra_enemies.h"
 #include "game_view.h"
 #include "hooks.h"
 #include "openrac/games/rac2.hpp"
@@ -73,7 +74,8 @@ public:
               mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))
           ),
           m_rewards(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
-          m_visuals(mod, m_view, m_weapons) {}
+          m_visuals(mod, m_view, m_weapons),
+          m_enemies(mod, m_view, m_tiers, mod.setting<bool>("extra_enemies")) {}
 
     ~NgPlusPlus() = default;
     NgPlusPlus(const NgPlusPlus&) = delete;
@@ -129,6 +131,7 @@ private:
     Collectors m_collectors;   // Tabora's and Grelbin's collectors' pay.
     Rewards m_rewards;         // The races' and arenas' prizes and the sellers' prices.
     WeaponVisuals m_visuals;   // The tiers' colours on the weapons' mobys.
+    ExtraEnemies m_enemies;    // More enemies each new game.
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
 
@@ -237,6 +240,9 @@ void NgPlusPlus::take_optional() {
 
     // The tiers' colours on the weapons' mobys: an OpenRAC before 1.25 shows fewer of them.
     m_visuals.start();
+
+    // More enemies each new game: an OpenRAC before 1.25 makes none.
+    m_enemies.start();
 
     // What this build lacks, for a player's log.
     if (m_view.upgrade_fx() == nullptr) {

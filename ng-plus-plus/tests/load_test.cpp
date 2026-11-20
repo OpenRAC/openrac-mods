@@ -34,6 +34,7 @@
 #include "bolt_rules.h"
 #include "check.h"
 #include "discs.h"
+#include "extra_enemies.h"
 #include "hooks.h"
 #include "rewards.h"
 #include "openrac/games/rac2.hpp"
@@ -528,8 +529,12 @@ void host_fail(openrac_mod* /*mod*/, const char* reason) {
     g_failed = reason;
 }
 
+// The "extra_enemies" setting as the test plays it.
+bool g_extra_enemies = true;
+
 int setting_bool(openrac_mod* /*mod*/, const char* key) {
-    return std::strcmp(key, "notices") == 0 || std::strcmp(key, "enemy_scaling") == 0;
+    return std::strcmp(key, "notices") == 0 || std::strcmp(key, "enemy_scaling") == 0
+           || (std::strcmp(key, "extra_enemies") == 0 && g_extra_enemies);
 }
 
 const char* setting_string(openrac_mod* /*mod*/, const char* key) {
@@ -544,6 +549,80 @@ const char* setting_string(openrac_mod* /*mod*/, const char* key) {
 double setting_float(openrac_mod* /*mod*/, const char* key) {
     return std::strcmp(key, "enemy_strength") == 0 ? 1.0 : 0.0;
 }
+
+// ---- The level's enemies and their copies (interface 1.25) ----
+
+// The level's mobys the test's port lists: slot 0 the enemy (kMobyEnemy) and slot 1 another, both
+// free to copy; slot 2 a wave's, slot 3 a crystal creature of Tabora's (the port's table), slot 4
+// no enemy; slot 5 one the game made (key -1), never asked about.
+constexpr int kListed = 6;
+constexpr std::uint32_t kCopiesAt = 0x00320000u;  // Where the test's port puts copies.
+constexpr int kCopySlots = 100;                   // The copies' slots, from 100.
+int g_loads = 0;                                  // The game's level loads.
+std::vector<std::pair<int, int>> g_copies_asked;  // Each copy asked: slot, index.
+int g_copies_made = 0;
+
+int answer_of(int slot) {
+    static const int answers[kListed] = {
+        kCopyOk,
+        kCopyOk,
+        kCopyScripted,
+        kCopyListed,
+        kCopyNotEnemy,
+        kCopyNotPlaced,
+    };
+    return slot >= 0 && slot < kListed ? answers[slot] : OPENRAC_HOOK_UNKNOWN;
+}
+
+std::uint32_t moby_at(int slot) {
+    return slot == 0 ? kMobyEnemy : 0x00330000u + static_cast<std::uint32_t>(slot) * 0x100u;
+}
+
+int host_moby_list(openrac_moby* out, int max) {
+    // Each listed moby, as far as there is room.
+    for (int n = 0; n < kListed && n < max; ++n) {
+        out[n] = openrac_moby{};
+        out[n].size = sizeof(openrac_moby);
+        out[n].slot = n;
+        out[n].key = n == 5 ? -1 : 40 + n;
+        out[n].oclass = n == 3 ? 3000 : 2000;
+    }
+
+    return kListed;
+}
+
+int host_copy_check(openrac_mod* /*mod*/, int slot) {
+    return answer_of(slot);
+}
+
+// A copy: the original's moby in the next copy slot. Slot 1 has no clear spot for a second copy.
+int host_copy(openrac_mod* /*mod*/, int slot, int index) {
+    g_copies_asked.emplace_back(slot, index);
+
+    // Only what the check allowed; slot 1's second copy finds no spot.
+    if (answer_of(slot) != kCopyOk || (slot == 1 && index == 1)) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    const std::uint32_t copy = kCopiesAt + static_cast<std::uint32_t>(g_copies_made) * 0x100u;
+    std::memcpy(g_memory.data() + copy, g_memory.data() + moby_at(slot), 0x100u);
+    return kCopySlots + g_copies_made++;
+}
+
+// Level_Load: the game's own loads the level.
+std::int32_t game_level_load(std::int32_t /*load*/, std::int32_t /*resume*/) {
+    ++g_loads;
+    return 0;
+}
+
+// The port's level load: the mod's replacement, else the game's.
+void port_level_load() {
+    const auto hook = hooked<rac2::Level_Load>();
+    CHECK((hook != nullptr ? hook(1, 0) : game_level_load(1, 0)) == 0);
+}
+
+openrac_party_rules_fn g_rules = nullptr;
+void* g_rules_user = nullptr;
 
 int host_hook(
     openrac_mod* /*mod*/, const char* id, const char* /*sig*/, void* replacement, void** original
@@ -567,6 +646,7 @@ int host_hook(
         {hooks::Bolt_SpawnPickup::id, reinterpret_cast<void*>(&game_spawn_pickup)},
         {hooks::Bolt_Collect::id, reinterpret_cast<void*>(&game_collect)},
         {hooks::Arena_Prize::id, reinterpret_cast<void*>(&game_arena_prize)},
+        {rac2::Level_Load::id, reinterpret_cast<void*>(&game_level_load)},
     };
 
     // Each hook point the test's port has.
@@ -686,7 +766,9 @@ int host_material(
     return OPENRAC_HOOK_OK;
 }
 
-int host_on_rules(openrac_mod* /*mod*/, openrac_party_rules_fn /*fn*/, void* /*user*/) {
+int host_on_rules(openrac_mod* /*mod*/, openrac_party_rules_fn fn, void* user) {
+    g_rules = fn;
+    g_rules_user = user;
     return 0;
 }
 
@@ -807,13 +889,17 @@ void set_experience(int item, std::int32_t points) {
     set<std::int32_t>(g_disc->exp + 4u * static_cast<std::uint32_t>(item), points * kExpUnit);
 }
 
-// The table the port hands the mod: this SDK's, then the entries up to 1.23's moby_material.
-BoltApi g_table;
-openrac_api& g_api = bolt_base(g_table);
+// The table the port hands the mod: this SDK's, then the entries up to 1.25's copies.
+CopyApi g_table;
+#if OPENRAC_MOD_API_MINOR < 25
+openrac_api& g_api = bolt_base(g_table.upto_material);
+#else
+openrac_api& g_api = g_table;
+#endif
 
 // Fills the port's table for the disc the test runs on.
 void make_api() {
-    g_table = BoltApi{};
+    g_table = CopyApi{};
     g_api.api_major = OPENRAC_MOD_API_MAJOR;
 
     // A port of 1.22 ends its table before moby_material; the others have it.
@@ -825,8 +911,21 @@ void make_api() {
         g_api.api_minor = g_host == Host::Energy     ? kEnergyMinor
                           : g_host == Host::Obsidian ? kObsidianMinor
                                                      : kMaterialMinor;
+#if OPENRAC_MOD_API_MINOR < 25
+        g_table.upto_material.moby_material = host_material;
+#else
         g_table.moby_material = host_material;
+#endif
     }
+
+    // A port of 1.25 (energy's) makes copies; an older one ends its table before them.
+    if (g_host == Host::Energy) {
+        g_table.moby_copy_check = host_copy_check;
+        g_table.moby_copy = host_copy;
+    } else if (g_host != Host::Old) {
+        g_api.size = static_cast<std::uint32_t>(offsetof(CopyApi, moby_copy_check));
+    }
+    g_api.moby_list = host_moby_list;
 
     g_api.game = "rac2";
     g_api.version = g_disc->version;
@@ -1920,6 +2019,76 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     tick(1);
 }
 
+// Returns the game address of the test's port's copy `n` (from 0, in the order made).
+std::uint32_t copy_made(int n) {
+    return kCopiesAt + static_cast<std::uint32_t>(n) * 0x100u;
+}
+
+// Checks the copies at each level load on a port of 1.25: none in the first challenge mode, one
+// of each enemy the port allows from the second (the wave's, the crystal creature, the moby of
+// another kind and the game's own never asked for), two from the fourth (where the port finds no
+// spot for one: a copy fewer); none in a party guest's game; a copy's drop is its original's.
+void test_extra_enemies() {
+    lay_out_enemy();
+    g_level_now = 4;
+    const auto copies_asked = [] {
+        std::vector<std::pair<int, int>> asked;
+        asked.swap(g_copies_asked);
+        return asked;
+    };
+
+    // The first challenge mode: the game's enemies.
+    set_run(1, 0);
+    g_loads = 0;
+    g_copies_asked.clear();
+    g_copies_made = 0;
+    port_level_load();
+    CHECK(g_loads == 1);
+    CHECK(copies_asked().empty());
+
+    // The second: one copy of each of the two free enemies.
+    set_run(2, 0);
+    g_log.clear();
+    port_level_load();
+    CHECK((copies_asked() == std::vector<std::pair<int, int>>{{0, 0}, {1, 0}}));
+    CHECK(g_copies_made == 2);
+    CHECK(g_log.find("level 4: 2 extra enemies beside 2 (new game 2)") != std::string::npos);
+
+    // The fourth: two each, slot 1's second with no spot.
+    set_run(4, 0);
+    g_log.clear();
+    port_level_load();
+    CHECK((copies_asked() == std::vector<std::pair<int, int>>{{0, 0}, {0, 1}, {1, 0}, {1, 1}}));
+    CHECK(g_copies_made == 5);
+    CHECK(g_log.find("level 4: 3 extra enemies beside 2 (new game 4)") != std::string::npos);
+    CHECK(g_loads == 3);
+
+    // A copy drops its enemy's bolts, the run's scale and rare coins as its enemy's.
+    set_run(3, 20);
+    g_coins.clear();
+    g_materials.clear();
+    g_bolts = 0;
+    port_kill_drop(kMobyEnemy, 200);
+    const std::int32_t enemy = coins_worth() + g_bolts;
+    g_coins.clear();
+    g_materials.clear();
+    g_bolts = 0;
+    port_kill_drop(copy_made(2), 200);
+    CHECK(get<std::int16_t>(copy_made(2) + kMobyBolts) == get<std::int16_t>(kMobyEnemy + kMobyBolts));
+    CHECK(enemy > 200 && coins_worth() + g_bolts == enemy);
+
+    // A party guest's game: the host's copies, none of its own.
+    CHECK(g_rules != nullptr);
+    std::vector<std::uint8_t> levels(kItems, 0);
+    g_rules(g_rules_user, levels.data(), static_cast<std::uint32_t>(levels.size()));
+    set_run(4, 0);
+    port_level_load();
+    CHECK(copies_asked().empty());
+    g_rules(g_rules_user, nullptr, 0);
+    set_run(1, 0);
+    g_level_now = 1;
+}
+
 void run(const char* path, const Disc& disc, Host host) {
     g_disc = &disc;
     g_host = host;
@@ -1952,7 +2121,14 @@ void run(const char* path, const Disc& disc, Host host) {
     // The ten of before (the kills' experience among them), and the three bolt hook points and
     // the arena's on a port of 1.23 with the setting on.
     const bool bolts = host == Host::Bolts || host == Host::Obsidian || host == Host::Energy;
-    CHECK(g_hooks.size() == (bolts ? 14u : 10u));
+    // The level's load too on a port of 1.25, for the copies.
+    CHECK(g_hooks.size() == (bolts ? 14u : 10u) + (host == Host::Energy ? 1u : 0u));
+    // A port before 1.25 makes no copies, and says so once.
+    CHECK(
+        (g_log.find("no extra enemies in this OpenRAC: they need mod interface 1.25")
+         != std::string::npos)
+        == (host != Host::Energy)
+    );
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
     // A port of 1.23 drops platinum only, and says so.
     CHECK((g_log.find("interface 1.24") != std::string::npos) == (host == Host::Bolts));
@@ -1984,6 +2160,17 @@ void run(const char* path, const Disc& disc, Host host) {
         test_drops_before_and_crates();
     } else {
         test_drops_untouched();
+    }
+
+    // The copies on a port of 1.25; with the setting off, none, and no hook for them.
+    if (host == Host::Energy) {
+        test_extra_enemies();
+        g_extra_enemies = false;
+        CHECK(reload(load));
+        CHECK(hooked<rac2::Level_Load>() == nullptr);
+        g_extra_enemies = true;
+    } else {
+        CHECK(hooked<rac2::Level_Load>() == nullptr);
     }
 }
 

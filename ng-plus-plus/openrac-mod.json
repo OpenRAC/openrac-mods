@@ -30,6 +30,14 @@
   ],
   "settings": [
     {
+      "key": "extra_enemies",
+      "multiplayer": "host",
+      "name": "Extra enemies",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode, every enemy a level places gets a copy beside it, two from the fourth. Bosses, turrets, spawners, Tabora's and Grelbin's crystal creatures and the enemies a level's waves, arenas and doors count are never copied. Copies drop bolts like the enemy they copy and count for your kill streak. Needs OpenRAC with mod interface 1.25."
+    },
+    {
       "key": "notices",
       "multiplayer": "own",
       "name": "Tier names on screen",

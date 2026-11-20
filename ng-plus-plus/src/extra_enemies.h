@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// More enemies each new game (README.md, "More enemies"): from the second challenge mode, each
+// enemy a level places gets a copy beside it as the level loads, two from the fourth. OpenRAC
+// makes the copies (interface 1.25: moby_copy_check and moby_copy, port/game/rac2/host/
+// enemy_copies.c): it says which enemies may be copied (never a boss, a turret, a mine, a spawner,
+// the crystal creatures of Tabora and Grelbin, nor one the level's scripts need alone: a wave's, an
+// arena's, one of the enemies a door waits for) and puts each copy at a clear spot beside its
+// original, on its floor. A copy is the game's own enemy: it drops its original's bolts through the
+// game's own drop, so the run's scale, platinum and obsidian bolts apply, and it counts for the kill
+// streak.
+//
+// At the level's load (rac2.level.load, as it returns), in the party's host only (a guest's game
+// shows the host's). An OpenRAC before 1.25 has no copies: the mod says so once and goes without.
+//
+// Only the game's thread uses it.
+
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+
+#include "bolt_api.h"
+#include "openrac/mod.hpp"
+#include "save_tiers.h"
+#include "game_view.h"
+
+namespace ng_plus_plus {
+
+// The copies each enemy gets in challenge mode cycle `cycle` (the save's counter: 0 the first game,
+// 1 the first challenge mode): none up to cycle 1, one from cycle 2, two from cycle 4.
+int extra_copies(int cycle);
+
+// The interface minor that makes copies, and moby_copy_check's answers (OPENRAC_COPY_* of 1.25):
+// one it may copy, then why not.
+inline constexpr std::uint16_t kCopyMinor = 25;
+inline constexpr int kCopyOk = 0;
+inline constexpr int kCopyNotEnemy = 1;
+inline constexpr int kCopyNotPlaced = 2;
+inline constexpr int kCopyScripted = 3;
+inline constexpr int kCopyListed = 4;
+
+// moby_copy_check's and moby_copy's signatures.
+using MobyCopyCheckFn = int (*)(openrac_mod*, int);
+using MobyCopyFn = int (*)(openrac_mod*, int, int);
+
+#if OPENRAC_MOD_API_MINOR < 25
+// The port's table up to 1.25's copies, as released: the 1.23 table (bolt_api.h's) and the two
+// entries after it.
+struct CopyApi {
+    BoltApi upto_material;  // Up to 1.23's moby_material (1.24 added no entry).
+    MobyCopyCheckFn moby_copy_check;
+    MobyCopyFn moby_copy;
+};
+#else
+// An SDK of 1.25 or later: its own table has them.
+using CopyApi = openrac_api;
+#endif
+
+// The port's copy calls, or nulls on a port older than 1.25 (or whose table ends before them).
+struct CopyCalls {
+    MobyCopyCheckFn check = nullptr;
+    MobyCopyFn copy = nullptr;
+};
+
+// Returns `api`'s copy calls.
+inline CopyCalls copy_calls_of(const openrac_api& api) {
+    const std::size_t end = offsetof(CopyApi, moby_copy) + sizeof(MobyCopyFn);
+
+    // An older port has no such entries: what follows its table is not its.
+    if (api.api_minor < kCopyMinor || api.size < end) {
+        return {};
+    }
+
+    const auto* table = reinterpret_cast<const CopyApi*>(&api);
+    return {table->moby_copy_check, table->moby_copy};
+}
+
+// More enemies.
+//
+// Holds the mod, the view and the tiers by reference; the mod's state owns them.
+class ExtraEnemies {
+public:
+    // Copies enemies in `mod`'s game when `on` (the "extra_enemies" setting), not in a party
+    // guest's (`tiers`' party).
+    ExtraEnemies(openrac::Mod& mod, const GameView& view, const SaveTiers& tiers, bool on)
+        : m_mod(mod),
+          m_view(view),
+          m_tiers(tiers),
+          m_on(on) {}
+
+    // Takes the level's load. An OpenRAC without copies or without the hook point: logged once.
+    void start();
+
+    // At the level's load, once the game has placed its mobys: the copies of this cycle. Returns
+    // how many were made.
+    int level_loaded();
+
+private:
+    openrac::Mod& m_mod;      // The mod; the SDK keeps it for the program.
+    const GameView& m_view;   // The game on this disc.
+    const SaveTiers& m_tiers; // The tiers, for the party.
+    bool m_on;                // The setting.
+    CopyCalls m_calls;        // The port's copy calls, or none.
+};
+
+}  // namespace ng_plus_plus
