@@ -178,6 +178,17 @@
         "macos-x86_64": "f687d8e3dce50d7ae25f6053a4ae9fdb0cf8f4d43f58d7e04881721b2014bd34",
         "windows-x86_64": "e31634c3d0a0114d48e3f2e6c908dfca870ccd6841bdb121df46a2901065e7d7"
       }
+    },
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "57314b24bc898a3d257b8eb76ea048ad2af3e2818c6710c612a25a8fe79f7bb2",
+        "linux-aarch64": "ce004e8368165c6ee3dfe62038c74dc8193531e11b23f8900c6725c483f34de4",
+        "linux-x86_64": "24176c5bad6b14c2154f616dbb21e1f30c41cb3c0df4c0dfd9867eb381ccbab9",
+        "macos-arm64": "c691d969d3d4dae4f2bf12d419d5a13eefc71dbd6048b574ea47247edb6185cf",
+        "macos-x86_64": "96a5ae8601fe88728ef10fe062cd23663996203f44a37c1fa80b4d7870712e77",
+        "windows-x86_64": "d6b87a12a8dc3069990441da1371604b2ace8b1d2472a78da8baaa72f67772eb"
+      }
     }
   ],
   "revolverator": [
