@@ -98,17 +98,20 @@ constexpr std::int32_t kPriceRiseLeast = 5'000;
 constexpr double kRoundUnit = 5.0;
 constexpr double kRoundUnitsPerDecade = 200.0;
 
-// By cycle from 2 on: the health stays behind the damage of the tier a player can have by then
-// (cycle 2 Delta's x3 over x2, 3 Zeta's x4.5 over x3, 4 Omega's x7 over x4), so a weapon at that
-// tier still kills faster than V4 did at cycle 1, by half again to three quarters; past Omega the
-// health catches up one cycle at a time (even at cycle 7). The damage they deal rises more gently:
-// a fight lasting longer already costs more health.
-constexpr float kEnemyHealth[] = {1.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-constexpr float kEnemyDamage[] = {1.0f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
+// By cycle from 2 on, growing half as fast again as 0.3's curve (x2, x3, x4, x5): the health stays
+// just behind the damage of the tier a player can have by then (cycle 2 Delta's x3 over x2.5, 3
+// Zeta's x4.5 over x4, 4 Omega's x7 over x5.5), so a weapon at that tier still kills faster than V4
+// did at cycle 1, by an eighth to a quarter; past Omega the health closes in, half a step a cycle,
+// and stops at kHealthMost, still behind Omega's x7. The damage they deal rises more gently: a
+// fight lasting longer already costs more health.
+constexpr float kEnemyHealth[] = {1.0f, 1.0f, 2.5f, 4.0f, 5.5f, 6.0f, 6.5f};
+constexpr float kEnemyDamage[] = {1.0f, 1.0f, 1.375f, 1.75f, 2.125f, 2.5f, 2.875f};
 
-// Past the tables, each cycle adds this much health and damage.
-constexpr float kHealthStep = 1.0f;
-constexpr float kDamageStep = 0.25f;
+// Past the tables, each cycle adds this much health and damage, up to the most.
+constexpr float kHealthStep = 0.25f;
+constexpr float kDamageStep = 0.375f;
+constexpr float kHealthMost = 6.75f;  // under Omega's x7: a full weapon stays ahead
+constexpr float kDamageMost = 4.0f;
 
 // How many cycles the tables have.
 constexpr int kCurveCycles = static_cast<int>(sizeof kEnemyHealth / sizeof kEnemyHealth[0]);
@@ -168,15 +171,15 @@ std::uint32_t mix(std::uint32_t a, std::uint32_t b, std::uint32_t t) {
     return out;
 }
 
-// Returns the curve's value of `table` at `cycle`, `step` more per cycle past it, with `strength`
-// times what it adds past 1.0.
-float curve(const float* table, float step, int cycle, float strength) {
+// Returns the curve's value of `table` at `cycle`, `step` more per cycle past it up to `most`, with
+// `strength` times what it adds past 1.0.
+float curve(const float* table, float step, float most, int cycle, float strength) {
     const int at = cycle < 0 ? 0 : cycle;
     const float last = table[kCurveCycles - 1];
 
-    // Past the table each cycle adds its step to the last value.
-    const float k =
-        at < kCurveCycles ? table[at] : last + step * static_cast<float>(at - (kCurveCycles - 1));
+    // Past the table each cycle adds its step to the last value, up to the most.
+    const float past = last + step * static_cast<float>(at - (kCurveCycles - 1));
+    const float k = at < kCurveCycles ? table[at] : (past < most ? past : most);
     const float scale = strength < 0.0f ? 0.0f : strength;
 
     return 1.0f + (k - 1.0f) * scale;
@@ -455,11 +458,11 @@ std::string display_name(std::string_view base, Kind kind, int level) {
 }
 
 float enemy_health(int cycle, float strength) {
-    return curve(kEnemyHealth, kHealthStep, cycle, strength);
+    return curve(kEnemyHealth, kHealthStep, kHealthMost, cycle, strength);
 }
 
 float enemy_damage(int cycle, float strength) {
-    return curve(kEnemyDamage, kDamageStep, cycle, strength);
+    return curve(kEnemyDamage, kDamageStep, kDamageMost, cycle, strength);
 }
 
 }  // namespace ng_plus_plus
