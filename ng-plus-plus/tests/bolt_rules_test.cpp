@@ -57,14 +57,93 @@ void test_run_scale() {
     CHECK(run_scale(5, BoltScaling::Off) == 1.0f);
 }
 
-// Checks an enemy's toughness from its own bolts: x1 up to 20, the square root past it, at most x2.
+// Checks an enemy's toughness from its own bolts: x1 up to 20, the square root past it, at most x6;
+// and the coins a drop may hold beyond the game's limit: two per x1 of it.
 void test_toughness() {
     CHECK(toughness(0) == 1.0f);
     CHECK(toughness(-4) == 1.0f);
+    CHECK(toughness(8) == 1.0f);
     CHECK(toughness(20) == 1.0f);
     CHECK(near(toughness(45), 1.5f));
     CHECK(near(toughness(80), 2.0f));
-    CHECK(toughness(500) == 2.0f);
+    CHECK(near(toughness(320), 4.0f));
+    CHECK(near(toughness(720), 6.0f));
+    CHECK(toughness(984) == 6.0f);
+    CHECK(extra_coins(1.0f) == 2);
+    CHECK(extra_coins(0.0f) == 2);
+    CHECK(extra_coins(1.5f) == 3);
+    CHECK(extra_coins(4.0f) == 8);
+    CHECK(extra_coins(6.0f) == 12);
+}
+
+// A kill's drop as the game and the mod make it, with no roll: the enemy's `base` bolts times the
+// streak, times the run scale and its toughness, doubled in challenge mode.
+std::int32_t kill_drop(std::int32_t base, int cycle, int streak) {
+    const float scale = run_scale(cycle, BoltScaling::Normal) * toughness(base);
+    return scale_amount(base * streak, scale) * 2;
+}
+
+// The coins of that drop, within the game's three coins for a kill and the mod's extra ones.
+CoinPlan kill_coins(std::int32_t base, int cycle, int streak) {
+    return split(
+        kill_drop(base, cycle, streak),
+        platinum_share(cycle, streak),
+        obsidian_share(cycle, streak),
+        3 + extra_coins(toughness(base))
+    );
+}
+
+// Checks that drops differ by enemy: a tougher one (more bolts of its own) pays more than its bolts
+// alone, a small one the run scale only, and that long streaks reach the big platinum and obsidian
+// coins: a common enemy (45 bolts) a platinum 2,500 in the second challenge mode's run after (cycle
+// 3) and a platinum 5,000 from cycle 4; a big one (250 bolts) an obsidian 12,500 at cycle 3 and an
+// obsidian 25,000 at cycle 4. Every coin plan holds the whole drop with what it leaves over.
+void test_enemy_drops() {
+    // The commonest enemies' bolts on the disc: small fry to the biggest.
+    constexpr std::int32_t kBases[] = {8, 20, 45, 110, 250, 446, 984};
+
+    // Each run and streak: tougher enemies pay more, and more than their bolts.
+    for (int cycle = 2; cycle < 7; ++cycle) {
+        // Every streak.
+        for (int streak = 1; streak <= kTopStreak; ++streak) {
+            // Each enemy against the one before.
+            for (std::size_t n = 1; n < sizeof kBases / sizeof kBases[0]; ++n) {
+                const std::int32_t small = kill_drop(kBases[n - 1], cycle, streak);
+                const std::int32_t big = kill_drop(kBases[n], cycle, streak);
+                CHECK(big > small);
+                // Past 20 bolts, more than in proportion to the bolts (the game's own ratio).
+                const double bolts = static_cast<double>(kBases[n]) / kBases[n - 1];
+                CHECK(kBases[n - 1] < 20 || static_cast<double>(big) / small > bolts);
+            }
+        }
+    }
+
+    // A small enemy: only the run scale (x1.5 at cycle 2: 8 x 20 x 1.5 x 2).
+    CHECK(kill_drop(8, 2, 20) == 480);
+    // A 45-bolt enemy x1.5 more, a 984-bolt one x6 more.
+    CHECK(kill_drop(45, 2, 20) == 4050);
+    CHECK(kill_drop(984, 2, 20) == 354'240);
+
+    // A plan's coins and leftover are the whole drop, within the coin limit.
+    for (const std::int32_t base : kBases) {
+        // Every run.
+        for (int cycle = 2; cycle < 7; ++cycle) {
+            const CoinPlan plan = kill_coins(base, cycle, 20);
+            CHECK(plan.worth() + plan.leftover == kill_drop(base, cycle, 20));
+            CHECK(plan.coins() <= 3 + extra_coins(toughness(base)));
+        }
+    }
+
+    // The big platinum coins for a common enemy at x20.
+    CHECK(kill_coins(45, 2, 20).platinum[kFiveHundred] == 0);
+    CHECK(kill_coins(45, 3, 20).platinum[kFiveHundred] == 1);
+    CHECK(kill_coins(45, 4, 20).platinum[kThousand] == 1);
+    // The big obsidian coins for a big enemy at x20.
+    CHECK(kill_coins(250, 2, 20).obsidian[kHundred] >= 1);
+    CHECK(kill_coins(250, 3, 20).obsidian[kFiveHundred] == 1);
+    CHECK(kill_coins(250, 4, 20).obsidian[kThousand] == 1);
+    // Fewer coins for small fry than for the biggest.
+    CHECK(kill_coins(8, 4, 20).coins() < kill_coins(984, 4, 20).coins());
 }
 
 // Checks the platinum share: none before cycle 2, from the run's least at x1 to its most at x20.
@@ -260,6 +339,7 @@ int main() try {
     test_setting();
     test_run_scale();
     test_toughness();
+    test_enemy_drops();
     test_share();
     test_scale_amount();
     test_split();

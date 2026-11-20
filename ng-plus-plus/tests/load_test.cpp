@@ -465,6 +465,19 @@ void port_spawn_pickups(std::uint32_t moby, std::int32_t amount, std::int32_t fl
     }
 }
 
+// The port's burst as the game's death handler (SetDeathBits) calls it for a kill: flags 9, at most
+// three coins.
+void port_kill_drop(std::uint32_t moby, std::int32_t amount) {
+    const auto hook = hooked<hooks::Bolt_SpawnPickups>();
+
+    // The mod's replacement, else the game's.
+    if (hook != nullptr) {
+        hook(moby, amount, amount, 9, -1, 3, 0.0f);
+    } else {
+        game_spawn_pickups(moby, amount, amount, 9, -1, 3, 0.0f);
+    }
+}
+
 // Bolt_Collect: the coin's class's worth added to the bolts.
 void game_collect(std::uint32_t moby) {
     const int kind = get<std::uint16_t>(moby + kMobyClass) - kCoinClass;
@@ -1415,6 +1428,68 @@ void test_obsidian_drop() {
     CHECK(coins_worth() == 7'500);
 }
 
+// Checks kills under the game's own coin limit (three coins, as SetDeathBits asks) in challenge
+// mode's fourth run (cycle 3) at a x20 streak: the drop is no longer cut to three 1,000s. A small
+// enemy (10 bolts of its own: the game asks for 200) pays the run's x2.5, doubled, 1,000 in at most
+// five coins; a big one (320 bolts: 6,400) x2.5 times its toughness x4, doubled, 128,000 in at most
+// eleven coins, among them an obsidian 12,500 and a platinum 5,000, what the coins can't hold added
+// to the bolts at once and nothing put in the game's word.
+void test_kill_drops() {
+    lay_out_enemy();
+    set_run(3, 20);
+    const std::int32_t credit = get<std::int32_t>(g_disc->progress + kProgressBoltCredit);
+
+    // The small enemy.
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, 10);
+    g_coins.clear();
+    g_materials.clear();
+    g_bolts = 0;
+    port_kill_drop(kMobyEnemy, 200);
+    CHECK(g_burst_high == 500);
+    CHECK(g_coins.size() <= 5);
+    CHECK(coins_worth() + g_bolts == 1000);
+
+    // The big one.
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, 320);
+    g_coins.clear();
+    g_materials.clear();
+    g_bolts = 0;
+    port_kill_drop(kMobyEnemy, 6400);
+    CHECK(g_burst_high == 64'000);
+    CHECK(g_coins.size() > 3 && g_coins.size() <= 11);
+    CHECK(coins_worth() + g_bolts == 128'000);
+    CHECK(coins_worth() == 62'500);  // an obsidian 12,500 and ten platinum 5,000s
+    bool obsidian_12500 = false;
+    bool platinum_5000 = false;
+
+    // The big rare coins.
+    for (const Coin& coin : g_coins) {
+        const auto found = g_materials.find(coin.moby);
+
+        // Only the rare ones.
+        if (found == g_materials.end()) {
+            continue;
+        }
+
+        obsidian_12500 |= found->second == kMaterialObsidian && coin.value == 500;
+        platinum_5000 |= found->second == kMaterialPlatinum && coin.value == 1000;
+    }
+
+    CHECK(obsidian_12500);
+    CHECK(platinum_5000);
+    CHECK(get<std::int32_t>(g_disc->progress + kProgressBoltCredit) == credit);
+
+    // Collected, the coins pay what they showed: with what was added at once, the whole drop.
+    for (const Coin& coin : g_coins) {
+        port_collect(coin.moby);
+    }
+
+    CHECK(g_bolts == 128'000);
+    CHECK(g_materials.empty());
+    set<std::int16_t>(kMobyEnemy + kMobyBolts, 80);
+    set_run(1, 0);
+}
+
 // Checks that a level left forgets its platinum coins: a moby of the next level is worth its class.
 void test_level_left() {
     set_run(3, 20);
@@ -1588,6 +1663,7 @@ void run(const char* path, const Disc& disc, Host host) {
     // The bolts as the port offers them.
     if (host == Host::Obsidian) {
         test_obsidian_drop();
+        test_kill_drops();
     } else if (host == Host::Bolts) {
         test_platinum_drop();
         test_level_left();

@@ -58,9 +58,16 @@ inline constexpr std::int32_t kMostDrop = 1'000'000;
 inline constexpr float kGenerous = 1.5f;
 
 // An enemy's own bolts up to this pay no more for its toughness; past it the square root of its
-// bolts over this, at most kToughMost (twice: an enemy with four times these bolts or more).
+// bolts over this, at most kToughMost (six times: an enemy with 36 times these bolts, 720, or
+// more). The game's drop already grows with an enemy's bolts, so a drop grows as its bolts to the
+// power 1.5: an enemy with ten times the bolts pays about 32 times as much.
 inline constexpr std::int32_t kToughBase = 20;
-inline constexpr float kToughMost = 2.0f;
+inline constexpr float kToughMost = 6.0f;
+
+// A drop of the mod's may hold this many more coins per x1 of the enemy's toughness than the game
+// allows it (three for a kill), rounded: 2 more for a crate or small enemy, up to 12 for the
+// toughest, so a bigger enemy's drop is a bigger shower of coins.
+inline constexpr float kExtraCoins = 2.0f;
 
 // The "bolt_scaling" setting.
 enum class BoltScaling : std::uint8_t {
@@ -82,6 +89,10 @@ float run_scale(int cycle, BoltScaling scaling);
 // `base` pays: 1.0 up to kToughBase, then the square root of base over it, at most kToughMost.
 // The game already pays a big enemy more in proportion; this is on top of it.
 float toughness(std::int32_t base);
+
+// Returns how many more coins than the game's limit a drop of an enemy of `toughness` may hold:
+// kExtraCoins per x1 of it, rounded.
+int extra_coins(float toughness);
 
 // Returns the fraction of a drop paid in platinum in cycle `cycle` at a kill streak of `streak`
 // (1 to 20; 0 counts as 1): none up to cycle 1, then from the run's least at x1 to its most at x20.

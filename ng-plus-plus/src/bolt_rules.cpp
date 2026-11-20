@@ -112,6 +112,11 @@ float toughness(std::int32_t base) {
     return factor < kToughMost ? factor : kToughMost;
 }
 
+int extra_coins(float toughness) {
+    const float least = toughness < 1.0f ? 1.0f : toughness;
+    return static_cast<int>(std::lround(kExtraCoins * least));
+}
+
 float platinum_share(int cycle, int streak) {
     // No platinum in the first game.
     if (cycle < kTasteCycle) {

@@ -167,9 +167,33 @@ kills in every new game:
 | 5 | 4th | x4 | x6 | 20% | 80% |
 | 6 on | 5th on | x6 | x9 | 25% | 90% |
 
-**Tough enemies pay more.** On top of that, an enemy that drops a lot by itself (the game's own
-bolts for it, before your streak) pays up to twice as much: x1 up to 20 bolts, then the square root
-of its bolts over 20 (45 bolts: x1.5, 80 or more: x2). Small enemies and crates keep x1.
+**Every enemy pays its own.** Each enemy has its own bolts in the level's data (the game's drop for
+it, before your streak): on the disc, crates and small fry have under 20, the commonest enemies
+around 45, the bigger ones 100 to 500 and the biggest up to 984. The game already pays in proportion
+to those; the mod pays a bigger enemy more again on top of the table's run scale: x1 up to 20 bolts,
+then the square root of its bolts over 20, up to x6 (45 bolts: x1.5, 80: x2, 320: x4, 720 or more:
+x6). So an enemy with ten times the bolts pays about 32 times as much. Crates and small fry keep
+the run scale alone.
+
+A drop also gets more pickups the tougher the enemy: the game allows a kill three, the mod two more
+per x1 of toughness (5 for small fry and crates, 6 for a 45-bolt enemy, 11 for a 320-bolt one, 15
+for the biggest). Before 0.4.1 the game's limit of three cut every big drop to three 1,000s, so at
+long streaks every enemy dropped the same 3,000. What the pickups can't hold is added to your bolts
+at once.
+
+What one kill pays at a x20 streak (challenge mode's doubling included, before the game's roll of
+about a quarter up or down; **P** platinum, **O** obsidian):
+
+| Enemy's own bolts | 3rd game (2nd challenge mode) | 4th (3rd) | 5th (4th) | 6th on (5th on) |
+|---|---|---|---|---|
+| 8 (small fry) | 480 | 800 | 1,280 | 1,920 |
+| 45 (common) | 4,050 | 6,750: a P 2,500 | 10,800: a P 5,000, an O 2,500 | 16,200 |
+| 110 | 15,478: a P 5,000 | 25,798 | 41,276 | 61,914: an O 12,500 |
+| 250 | 53,034: an O 2,500 | 88,388: an O 12,500 | 141,422: an O 25,000 | 212,132 |
+| 446 | 126,368 | 210,614: an O 25,000 | 336,982 | 505,474 |
+| 984 (the biggest) | 354,240: an O 25,000 | 590,400 | 944,640 | 1,416,960 |
+
+At a x1 streak each is a twentieth of that, before the run's least platinum share.
 
 **Platinum share.** The longer your kill streak, the more of a drop comes as platinum, from the
 "x1" column at no streak up to the "x20" one at a full x20 streak, in even steps between. It changes
@@ -188,8 +212,8 @@ with each new game. Obsidian takes its part of a drop first, then platinum its s
 | 5 | 4th | 5% | 10% | 25% |
 | 6 on | 5th on | 8% | 14% | 35% |
 
-When the game limits how many pickups a drop may have, each rarer kind keeps a place, so a small
-drop can still show an obsidian or platinum bolt.
+Within a drop's pickups each rarer kind keeps a place, so a small drop can still show an obsidian
+or platinum bolt.
 
 **Collectors.** Tabora's crystals and Grelbin's moonstones pay the same x1.5, x2.5, x4 and x6 from
 the second challenge mode (generous half as much again), so collecting keeps up with the tier
@@ -247,7 +271,7 @@ material of 1.24 (the addresses are NTSC-U v1.01's):
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
-| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as obsidian, platinum and gold coins at those places, the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); what a coin limit leaves goes to the game's word at +0x1C (`D_001A7A14`), divided by the streak, as the game does |
+| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); from the second challenge mode without the game's coin limit (flag 8; `SetDeathBits` asks for three coins a kill), so the whole total is written down; the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as obsidian, platinum and gold coins at those places, the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word at +0x1C, `D_001A7A14`, divided by the streak, as the game does) |
 | Collectors | no hook point: their dialogs' texts (10135 Tabora's crystals, 10209 Grelbin's moonstones) through `rac2.text.by_id` get the scaled total in place of their second number; each tick a trade (the crystals at +0x22 of the save block, s16, or the moonstones at +0x24, s32, down to 0 in Tabora or Grelbin with the game's pay, 1,000 or 3,000 each, ten times in challenge mode, in the bolts at +0x00) gets the rest of the scaled pay through `openrac_api.bolts` |
 | Level-up popup | a tier earned with the weapon in hand plays the game's in-hand level-up (`func_L00_0037E6A8`); at its end the game's popup from its own level-up table (`help_show_message_for_id`, `func_00288508`) names the last version, or is text 0 (an empty box) for a weapon the table has no line for (RYNO II, Zodiac): for ten seconds after, the resolver gives that popup the tier's name |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
@@ -267,7 +291,7 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/vendor.h` | the vendor's entries, prices, purchases and tints |
 | `src/experience.h` | steps by experience, the level-up, the rows' ammo and bar, the line at the top |
 | `src/combat.h` | the tiers' damage and the enemies across new games |
-| `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness, the platinum share and the split into coins |
+| `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness and extra coins, the platinum share and the split into coins |
 | `src/platinum_bolts.h` | platinum and obsidian bolts and bolt scaling behind the bolt hook points |
 | `src/collectors.h` | Tabora's and Grelbin's collectors' pay and dialogs |
 | `src/bolt_api.h` | interface 1.23's `moby_material` (and 1.24's obsidian), read from the port's table while the mods build against SDK 1.20 |

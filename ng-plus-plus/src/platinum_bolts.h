@@ -7,8 +7,9 @@
 // that grow with each run and the kill streak, as obsidian coins worth 25 times (OpenRAC 1.24).
 //
 // A drop passes through three hook points of OpenRAC 1.23 (hooks.h). The burst (Bolt_SpawnPickups)
-// goes on to the game's with the scaled amount, so the game's roll, challenge mode doubling, pacing
-// and coin limit still decide the total; the coins it makes (Bolt_SpawnPickup) are only written
+// goes on to the game's with the scaled amount, so the game's roll, challenge mode doubling and
+// pacing still decide the total (from cycle 2 without the game's coin limit, which would cut every
+// big drop to three coins); the coins it makes (Bolt_SpawnPickup) are only written
 // down meanwhile: their worth, where and how fast each flies. Then the mod makes that total again
 // as gold, platinum and obsidian coins (bolt_rules.h's split), each at a place and speed the game
 // chose, and draws the rarer ones with moby_material. Collecting a platinum coin (Bolt_Collect)
@@ -104,9 +105,10 @@ private:
         std::int32_t value;             // Its worth.
     };
 
-    // Makes the coins of `plan` at the places the game chose for its own, then credits what the
-    // plan could not fit (`plan.leftover`) where the game does.
-    void pay(const CoinPlan& plan);
+    // Makes the coins of `plan` at the places the game chose for its own, then pays what the plan
+    // could not fit (`plan.leftover`): for a `scaled` drop (cycle 2 on) into the bolts at once,
+    // else to the game's word as the game does.
+    void pay(const CoinPlan& plan, bool scaled);
 
     // Makes one coin of class `kind` (from kCoinClass) and `tier`, as the `index`th of the burst.
     // Returns its moby, or 0.
