@@ -263,7 +263,13 @@
   ],
   "revolverator": [
     "0.3.1",
-    "0.3.3"
+    "0.3.3",
+    {
+      "version": "0.3.5",
+      "sha256": {
+        "windows-x86_64": "3edf941970b4eee5e2b0df482760395ad1e97ba4d697f315bd1061368e2870e9"
+      }
+    }
   ],
   "ryno-ammo-drops": [
     {
