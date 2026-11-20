@@ -2,8 +2,8 @@
 // Copyright (c) 2026 the OpenRAC contributors
 //
 // NG++'s bolt rules alone (src/bolt_rules.cpp): the setting, the run scale, an enemy's toughness,
-// the platinum and obsidian shares, the scaled amount and the split into gold, platinum and
-// obsidian coins.
+// a drop's scale, the platinum and obsidian shares, the scaled amount and the split into gold,
+// platinum and obsidian coins.
 //
 // Expected values are the README's tables ("Platinum and obsidian bolts and bolt scaling") and
 // their arithmetic.
@@ -57,7 +57,7 @@ void test_run_scale() {
     CHECK(run_scale(5, BoltScaling::Off) == 1.0f);
 }
 
-// Checks an enemy's toughness from its own bolts: x1 up to 20, the square root past it, at most x6;
+// Checks an enemy's toughness from its own bolts: x1 up to 20, the square root past it, at most x2;
 // and the coins a drop may hold beyond the game's limit: two per x1 of it.
 void test_toughness() {
     CHECK(toughness(0) == 1.0f);
@@ -66,21 +66,77 @@ void test_toughness() {
     CHECK(toughness(20) == 1.0f);
     CHECK(near(toughness(45), 1.5f));
     CHECK(near(toughness(80), 2.0f));
-    CHECK(near(toughness(320), 4.0f));
-    CHECK(near(toughness(720), 6.0f));
-    CHECK(toughness(984) == 6.0f);
+    CHECK(toughness(320) == 2.0f);
+    CHECK(toughness(984) == 2.0f);
     CHECK(extra_coins(1.0f) == 2);
     CHECK(extra_coins(0.0f) == 2);
     CHECK(extra_coins(1.5f) == 3);
-    CHECK(extra_coins(4.0f) == 8);
-    CHECK(extra_coins(6.0f) == 12);
+    CHECK(extra_coins(2.0f) == 4);
+}
+
+// Checks a drop's scale: the run's times the enemy's toughness, at most x12; nothing before cycle 2
+// or with scaling off; generous goes no further than the cap.
+void test_drop_scale() {
+    CHECK(drop_scale(0, BoltScaling::Normal, 984) == 1.0f);
+    CHECK(drop_scale(1, BoltScaling::Normal, 984) == 1.0f);
+    CHECK(drop_scale(5, BoltScaling::Off, 984) == 1.0f);
+    CHECK(near(drop_scale(2, BoltScaling::Normal, 0), 1.5f));     // a crate: the run's alone
+    CHECK(near(drop_scale(2, BoltScaling::Normal, 45), 2.25f));   // x1.5 x1.5
+    CHECK(near(drop_scale(2, BoltScaling::Normal, 984), 3.0f));   // x1.5 x2
+    CHECK(near(drop_scale(3, BoltScaling::Normal, 250), 5.0f));   // x2.5 x2
+    CHECK(near(drop_scale(5, BoltScaling::Normal, 984), 12.0f));  // x6 x2, the cap
+    CHECK(near(drop_scale(5, BoltScaling::Generous, 8), 9.0f));
+    CHECK(drop_scale(5, BoltScaling::Generous, 984) == kMostScale);
+    CHECK(drop_scale(9, BoltScaling::Generous, 45) == kMostScale);
+
+    // Never past the cap, whatever the run, enemy or setting.
+    for (int cycle = 0; cycle < 10; ++cycle) {
+        // The enemies' bolts, small fry to the biggest.
+        for (std::int32_t base = 0; base <= 1000; base += 7) {
+            CHECK(drop_scale(cycle, BoltScaling::Generous, base) <= kMostScale);
+            CHECK(drop_scale(cycle, BoltScaling::Normal, base) >= 1.0f);
+        }
+    }
+}
+
+// The game's coins for `amount` within `maximum` coins (moby_spawn_bolt_pickups under flags 8): the
+// biggest first; the rest goes to its word divided by the streak, outside the coins.
+std::int32_t game_coins(std::int32_t amount, int maximum) {
+    std::int32_t left = amount;
+    std::int32_t paid = 0;
+    int room = maximum;
+
+    // The biggest class first, while there is room.
+    for (int kind = kCoinKinds - 1; kind >= 0 && room > 0; --kind) {
+        const std::int32_t worth = kCoinValues[static_cast<std::size_t>(kind)];
+        const int count = left / worth < room ? left / worth : room;
+        paid += count * worth;
+        left -= count * worth;
+        room -= count;
+    }
+
+    return paid;
+}
+
+// What the game's word gets from that amount at a x`streak` streak: the rest over the streak.
+std::int32_t game_word(std::int32_t amount, int maximum, int streak) {
+    return (amount - game_coins(amount, maximum)) / (streak > 0 ? streak : 1);
 }
 
 // A kill's drop as the game and the mod make it, with no roll: the enemy's `base` bolts times the
-// streak, times the run scale and its toughness, doubled in challenge mode.
+// streak, doubled in challenge mode, cut to the game's three coins for a kill, then times the
+// drop's scale.
 std::int32_t kill_drop(std::int32_t base, int cycle, int streak) {
-    const float scale = run_scale(cycle, BoltScaling::Normal) * toughness(base);
-    return scale_amount(base * streak, scale) * 2;
+    const std::int32_t coins = game_coins(base * streak * 2, 3);
+    return scale_amount(coins, drop_scale(cycle, BoltScaling::Normal, base));
+}
+
+// 0.4.1's drop of the same kill: the amount asked for times the run and toughness up to x6, with
+// no coin limit.
+std::int32_t old_kill_drop(std::int32_t base, int cycle, int streak) {
+    const float tough =
+        base <= kToughBase ? 1.0f : std::fmin(6.0f, std::sqrt(static_cast<float>(base) / 20.0f));
+    return scale_amount(base * streak, run_scale(cycle, BoltScaling::Normal) * tough) * 2;
 }
 
 // The coins of that drop, within the game's three coins for a kill and the mod's extra ones.
@@ -93,36 +149,51 @@ CoinPlan kill_coins(std::int32_t base, int cycle, int streak) {
     );
 }
 
-// Checks that drops differ by enemy: a tougher one (more bolts of its own) pays more than its bolts
-// alone, a small one the run scale only, and that long streaks reach the big platinum and obsidian
-// coins: a common enemy (45 bolts) a platinum 2,500 in the second challenge mode's run after (cycle
-// 3) and a platinum 5,000 from cycle 4; a big one (250 bolts) an obsidian 12,500 at cycle 3 and an
-// obsidian 25,000 at cycle 4. Every coin plan holds the whole drop with what it leaves over.
+// Checks what kills pay: the game's coins (its streak and limit done) times the drop's scale, so a
+// kill pays at most the game's 3,000 times x12. The README's table: a x20 streak in each run.
 void test_enemy_drops() {
     // The commonest enemies' bolts on the disc: small fry to the biggest.
     constexpr std::int32_t kBases[] = {8, 20, 45, 110, 250, 446, 984};
 
-    // Each run and streak: tougher enemies pay more, and more than their bolts.
+    // The game's limit: 1,800 is a 1,000, a 500 and a 100, the 200 left to the word over x20.
+    CHECK(game_coins(1800, 3) == 1600);
+    CHECK(game_word(1800, 3, 20) == 10);
+    CHECK(game_coins(39'360, 3) == 3000);
+
+    // A x20 streak: small fry the run scale alone, bigger enemies their toughness too, the biggest
+    // at most 3,000 x the drop's scale.
+    CHECK(kill_drop(8, 2, 20) == 450);  // 320: three 100s, x1.5
+    CHECK(kill_drop(45, 2, 20) == 3600);  // 1,600 x2.25
+    CHECK(kill_drop(250, 2, 20) == 9000);  // 3,000 x3
+    CHECK(kill_drop(984, 2, 20) == 9000);
+    CHECK(kill_drop(45, 3, 20) == 6000);  // x2.5 x1.5
+    CHECK(kill_drop(984, 3, 20) == 15'000);
+    CHECK(kill_drop(45, 4, 20) == 9600);
+    CHECK(kill_drop(984, 4, 20) == 24'000);
+    CHECK(kill_drop(45, 5, 20) == 14'400);
+    CHECK(kill_drop(984, 5, 20) == 36'000);
+    // No streak: the enemy's bolts doubled, times the scale.
+    CHECK(kill_drop(45, 2, 1) == 203);  // 90 x2.25, rounded
+    CHECK(kill_drop(250, 3, 1) == 2500);  // 500 x5
+
+    // 0.4.1 paid a 250-bolt enemy at x20 in the second challenge mode 53,034; now 9,000.
+    CHECK(old_kill_drop(250, 2, 20) == 53'034);
+    CHECK(old_kill_drop(984, 5, 20) == 1'416'960);
+
+    // Each run, streak and enemy: a bigger enemy never pays less, no kill pays more than the
+    // game's limit times the cap, and none more than 0.4.1 did (but for rounding).
     for (int cycle = 2; cycle < 7; ++cycle) {
         // Every streak.
         for (int streak = 1; streak <= kTopStreak; ++streak) {
             // Each enemy against the one before.
-            for (std::size_t n = 1; n < sizeof kBases / sizeof kBases[0]; ++n) {
-                const std::int32_t small = kill_drop(kBases[n - 1], cycle, streak);
-                const std::int32_t big = kill_drop(kBases[n], cycle, streak);
-                CHECK(big > small);
-                // Past 20 bolts, more than in proportion to the bolts (the game's own ratio).
-                const double bolts = static_cast<double>(kBases[n]) / kBases[n - 1];
-                CHECK(kBases[n - 1] < 20 || static_cast<double>(big) / small > bolts);
+            for (std::size_t n = 0; n < sizeof kBases / sizeof kBases[0]; ++n) {
+                const std::int32_t drop = kill_drop(kBases[n], cycle, streak);
+                CHECK(n == 0 || drop >= kill_drop(kBases[n - 1], cycle, streak));
+                CHECK(drop <= static_cast<std::int32_t>(3000 * kMostScale));
+                CHECK(drop <= old_kill_drop(kBases[n], cycle, streak) + 1);
             }
         }
     }
-
-    // A small enemy: only the run scale (x1.5 at cycle 2: 8 x 20 x 1.5 x 2).
-    CHECK(kill_drop(8, 2, 20) == 480);
-    // A 45-bolt enemy x1.5 more, a 984-bolt one x6 more.
-    CHECK(kill_drop(45, 2, 20) == 4050);
-    CHECK(kill_drop(984, 2, 20) == 354'240);
 
     // A plan's coins and leftover are the whole drop, within the coin limit.
     for (const std::int32_t base : kBases) {
@@ -131,17 +202,23 @@ void test_enemy_drops() {
             const CoinPlan plan = kill_coins(base, cycle, 20);
             CHECK(plan.worth() + plan.leftover == kill_drop(base, cycle, 20));
             CHECK(plan.coins() <= 3 + extra_coins(toughness(base)));
+            // Obsidian stays a hint: never its 12,500 or 25,000 coin from a kill.
+            CHECK(plan.obsidian[kFiveHundred] == 0 && plan.obsidian[kThousand] == 0);
         }
     }
 
-    // The big platinum coins for a common enemy at x20.
-    CHECK(kill_coins(45, 2, 20).platinum[kFiveHundred] == 0);
-    CHECK(kill_coins(45, 3, 20).platinum[kFiveHundred] == 1);
-    CHECK(kill_coins(45, 4, 20).platinum[kThousand] == 1);
-    // The big obsidian coins for a big enemy at x20.
-    CHECK(kill_coins(250, 2, 20).obsidian[kHundred] >= 1);
-    CHECK(kill_coins(250, 3, 20).obsidian[kFiveHundred] == 1);
-    CHECK(kill_coins(250, 4, 20).obsidian[kThousand] == 1);
+    // The big platinum coins at x20: a platinum 2,500 for a 250-bolt enemy from the second
+    // challenge mode, a platinum 5,000 from the third.
+    CHECK(kill_coins(250, 2, 20).platinum[kFiveHundred] == 1);
+    CHECK(kill_coins(250, 3, 20).platinum[kThousand] == 1);
+    // Obsidian at x20: none for small fry in the second challenge mode (5% of 450 is under the
+    // smallest obsidian coin's 25), a small one for a big enemy; an obsidian 2,500 only from the
+    // fourth challenge mode.
+    CHECK(kill_coins(8, 2, 20).obsidian == (std::array<int, kCoinKinds>{}));
+    CHECK(kill_coins(250, 2, 20).obsidian[kTwenty] == 0);
+    CHECK(kill_coins(250, 2, 20).obsidian[kOne] + kill_coins(250, 2, 20).obsidian[kFive] > 0);
+    CHECK(kill_coins(984, 3, 20).obsidian[kHundred] == 0);
+    CHECK(kill_coins(984, 4, 20).obsidian[kHundred] == 1);
     // Fewer coins for small fry than for the biggest.
     CHECK(kill_coins(8, 4, 20).coins() < kill_coins(984, 4, 20).coins());
 }
@@ -170,14 +247,16 @@ void test_obsidian_share() {
     CHECK(obsidian_share(0, 20) == 0.0f);
     CHECK(obsidian_share(1, 20) == 0.0f);  // the first challenge mode: platinum only
     CHECK(obsidian_share(2, 1) == 0.0f);   // the second: none without a streak
-    CHECK(near(obsidian_share(2, 20), 0.08f));
+    CHECK(near(obsidian_share(2, 20), 0.05f));
     // By the square of the streak: at x10 (9 of 19 steps) under a quarter of the way.
-    CHECK(obsidian_share(2, 10) < 0.25f * 0.08f);
-    CHECK(near(obsidian_share(2, 10), 0.08f * (9.0f / 19.0f) * (9.0f / 19.0f)));
-    CHECK(near(obsidian_share(3, 1), 0.02f));
-    CHECK(near(obsidian_share(3, 20), 0.15f));
-    CHECK(near(obsidian_share(5, 20), 0.35f));
-    CHECK(near(obsidian_share(9, 20), 0.35f));
+    CHECK(obsidian_share(2, 10) < 0.25f * 0.05f);
+    CHECK(near(obsidian_share(2, 10), 0.05f * (9.0f / 19.0f) * (9.0f / 19.0f)));
+    CHECK(near(obsidian_share(3, 1), 0.01f));
+    CHECK(near(obsidian_share(3, 20), 0.08f));
+    CHECK(near(obsidian_share(4, 20), 0.12f));
+    CHECK(near(obsidian_share(5, 1), 0.03f));
+    CHECK(near(obsidian_share(5, 20), 0.15f));
+    CHECK(near(obsidian_share(9, 20), 0.15f));
     CHECK(obsidian_share(4, 0) == obsidian_share(4, 1));
     CHECK(obsidian_share(4, 99) == obsidian_share(4, 20));
 
@@ -339,6 +418,7 @@ int main() try {
     test_setting();
     test_run_scale();
     test_toughness();
+    test_drop_scale();
     test_enemy_drops();
     test_share();
     test_scale_amount();

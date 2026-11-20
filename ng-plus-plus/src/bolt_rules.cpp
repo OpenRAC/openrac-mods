@@ -23,9 +23,9 @@ constexpr float kShareLeast[] = {0.10f, 0.15f, 0.20f, 0.25f};
 constexpr float kShareMost[] = {0.50f, 0.65f, 0.80f, 0.90f};
 
 // The obsidian share from kFirstCycle on at a streak of x1, and at x20; the last holds past them.
-// Hints in the second challenge mode (none at x1, 8% at x20), growing with each run.
-constexpr float kObsidianLeast[] = {0.00f, 0.02f, 0.05f, 0.08f};
-constexpr float kObsidianMost[] = {0.08f, 0.15f, 0.25f, 0.35f};
+// Rare hints: in the second challenge mode none at x1 and 5% at x20, growing slowly with each run.
+constexpr float kObsidianLeast[] = {0.00f, 0.01f, 0.02f, 0.03f};
+constexpr float kObsidianMost[] = {0.05f, 0.08f, 0.12f, 0.15f};
 
 // The first challenge mode's (cycle 1) taste of platinum, at x1 and at x20, with no bigger drops,
 // so the platinum bolts show up before the run scale starts. Platinum comes in steps of 5 bolts:
@@ -112,6 +112,16 @@ float toughness(std::int32_t base) {
     return factor < kToughMost ? factor : kToughMost;
 }
 
+float drop_scale(int cycle, BoltScaling scaling, std::int32_t base) {
+    // Off, and the runs the game balances itself: as the game pays.
+    if (scaling == BoltScaling::Off || cycle < kFirstCycle) {
+        return 1.0f;
+    }
+
+    const float scale = run_scale(cycle, scaling) * toughness(base);
+    return scale < kMostScale ? scale : kMostScale;
+}
+
 int extra_coins(float toughness) {
     const float least = toughness < 1.0f ? 1.0f : toughness;
     return static_cast<int>(std::lround(kExtraCoins * least));
@@ -157,7 +167,7 @@ std::int32_t scale_amount(std::int32_t amount, float scale) {
 
     const double scaled = std::floor(static_cast<double>(amount) * scale + 0.5);
 
-    // At most kMostDrop: the game doubles and paces it after.
+    // At most kMostDrop.
     return scaled >= kMostDrop ? kMostDrop : static_cast<std::int32_t>(scaled);
 }
 

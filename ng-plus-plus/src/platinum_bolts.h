@@ -7,13 +7,14 @@
 // that grow with each run and the kill streak, as obsidian coins worth 25 times (OpenRAC 1.24).
 //
 // A drop passes through three hook points of OpenRAC 1.23 (hooks.h). The burst (Bolt_SpawnPickups)
-// goes on to the game's with the scaled amount, so the game's roll, challenge mode doubling and
-// pacing still decide the total (from cycle 2 without the game's coin limit, which would cut every
-// big drop to three coins); the coins it makes (Bolt_SpawnPickup) are only written
-// down meanwhile: their worth, where and how fast each flies. Then the mod makes that total again
-// as gold, platinum and obsidian coins (bolt_rules.h's split), each at a place and speed the game
-// chose, and draws the rarer ones with moby_material. Collecting a platinum coin (Bolt_Collect)
-// adds the four times its class the game does not, an obsidian one 24 times.
+// goes on to the game's as it is, so the game's roll, kill streak, challenge mode doubling, pacing
+// and coin limit decide what its coins hold, and the rest goes to its word divided by the streak,
+// as ever; the coins it makes (Bolt_SpawnPickup) are only written down meanwhile: their worth,
+// where and how fast each flies. Then the mod makes that worth, from cycle 2 times the run scale
+// and the enemy's toughness (bolt_rules.h's drop_scale), again as gold, platinum and obsidian coins
+// (bolt_rules.h's split), each at a place and speed the game chose, and draws the rarer ones with
+// moby_material. Collecting a platinum coin (Bolt_Collect) adds the four times its class the game
+// does not, an obsidian one 24 times.
 
 #pragma once
 
@@ -59,8 +60,9 @@ public:
     // Returns whether the drops are the mod's (the hook points taken, the setting on).
     bool enabled() const { return m_enabled; }
 
-    // A burst (Bolt_SpawnPickups): from cycle 2 on, the game's with the amount scaled, its coins
-    // made again as gold and platinum; else the game's as it is.
+    // A burst (Bolt_SpawnPickups): from cycle 1 on, the game's, its coins made again as gold,
+    // platinum and obsidian, from cycle 2 worth drop_scale times what the game's held; else the
+    // game's as it is.
     void spawn_pickups(
         openrac::Original<BurstFn> original,
         std::uint32_t moby,
@@ -131,6 +133,7 @@ private:
     bool m_obsidian = false;              // The port draws obsidian (1.24): obsidian is dropped.
     bool m_enabled = false;               // The hook points are taken.
     bool m_recording = false;             // Inside a burst of the mod's.
+    bool m_scaled = false;                // The coins being made are a scaled drop's.
     int m_drops_logged = 0;               // Drops written to the log this session (the first few).
     std::vector<Recorded> m_burst;        // The coins the game's burst made.
     int m_level = -1;                     // The level the platinum coins are in.

@@ -427,8 +427,9 @@ std::uint32_t port_spawn_pickup(
 }
 
 // Bolt_SpawnPickups as the game's (moby_spawn_bolt_pickups), with no roll (the amount is `high`):
-// doubled in challenge mode, split into the biggest coins within `maximum` under flags 8, each coin
-// starting at x = its place in the burst.
+// doubled in challenge mode, split into the biggest coins within `maximum` under flags 8 (the rest
+// to the game's word, divided by the kill streak), each coin starting at x = its place in the
+// burst.
 void game_spawn_pickups(
     std::uint32_t source,
     std::int32_t low,
@@ -465,6 +466,13 @@ void game_spawn_pickups(
             --room;
             ++place;
         }
+    }
+
+    // Under the limit, the rest to the word over the streak.
+    if ((flags & 8) != 0 && value > 0) {
+        const int streak = get<std::uint8_t>(g_disc->progress + kProgressStreak);
+        const auto word = g_disc->progress + kProgressBoltCredit;
+        set<std::int32_t>(word, get<std::int32_t>(word) + (streak > 0 ? value / streak : value));
     }
 }
 
@@ -1571,16 +1579,16 @@ std::int32_t coins_worth() {
 }
 
 // Checks a drop in challenge mode's fourth run (cycle 3) at a x20 streak from a tough enemy: the
-// game asked for five times the amount (x2.5 the run, x2 its toughness), its 15,000 made again as
-// 9,750 in platinum and 5,250 in gold at the game's places; collecting pays five times a platinum
-// coin's class and takes its material off.
+// game's own burst (1,500 doubled: three 1,000s), its 3,000 times five (x2.5 the run, x2 its
+// toughness), 15,000 made again as 9,750 in platinum and 5,250 in gold at the game's places;
+// collecting pays five times a platinum coin's class and takes its material off.
 void test_platinum_drop() {
     lay_out_enemy();
     set_run(3, 20);
     g_coins.clear();
     g_materials.clear();
     port_spawn_pickups(kMobyEnemy, 1500, 9);
-    CHECK(g_burst_high == 7500);
+    CHECK(g_burst_high == 1500);
     CHECK(g_coins.size() == 15);
     CHECK(g_materials.size() == 7);
     CHECK(coins_worth() == 15'000);
@@ -1592,9 +1600,9 @@ void test_platinum_drop() {
     CHECK(g_materials[g_coins[0].moby] == kMaterialPlatinum);
     CHECK(g_materials.count(g_coins[1].moby) == 0);
 
-    // Each coin starts where the game's coin of its place did.
+    // Each coin starts where one of the game's three did, round in turn.
     for (std::size_t n = 0; n < g_coins.size(); ++n) {
-        CHECK(g_coins[n].x == static_cast<float>(n));
+        CHECK(g_coins[n].x == static_cast<float>(n % 3));
     }
 
     // The platinum 5,000, then a gold 1,000.
@@ -1615,9 +1623,9 @@ void test_platinum_drop() {
 }
 
 // Checks obsidian on a port of 1.24: the same drop of 15,000 in challenge mode's fourth run (cycle
-// 3) at a x20 streak gives 15% as obsidian first (2,250: a 1,250 and two 500s, each class with its
-// own glow), then platinum's 65% (9,750) and gold; an obsidian coin collected is worth 25 times its
-// class. Without a streak there are only hints: 2% of a drop of 7,500.
+// 3) at a x20 streak gives 8% as obsidian first (1,200: two 500s, a 125 and three 25s, each class
+// with its own glow), then platinum's 65% (9,750) and gold; an obsidian coin collected is worth 25
+// times its class. Without a streak there are only hints: 1% of a drop of 7,500.
 void test_obsidian_drop() {
     lay_out_enemy();
     set_run(3, 20);
@@ -1630,8 +1638,8 @@ void test_obsidian_drop() {
     CHECK(g_log.find("interface 1.24") == std::string::npos);
 
     std::map<std::int32_t, int> obsidian;  // Obsidian coins by their gold class's worth.
-    std::uint32_t glow_1250 = 0;
     std::uint32_t glow_500 = 0;
+    std::uint32_t glow_25 = 0;
 
     // The coins drawn as obsidian, by class, and their glows.
     for (const Coin& coin : g_coins) {
@@ -1641,32 +1649,38 @@ void test_obsidian_drop() {
         }
 
         ++obsidian[coin.value];
-        (coin.value == 50 ? glow_1250 : glow_500) = g_glows[coin.moby];
+
+        // The biggest and the smallest.
+        if (coin.value == 20) {
+            glow_500 = g_glows[coin.moby];
+        } else if (coin.value == 1) {
+            glow_25 = g_glows[coin.moby];
+        }
     }
 
-    CHECK(obsidian.size() == 2 && obsidian[50] == 1 && obsidian[20] == 2);
+    CHECK(obsidian.size() == 3 && obsidian[20] == 2 && obsidian[5] == 1 && obsidian[1] == 3);
     // A shade per size: the bigger coin redder, each a colour, not the default white.
-    CHECK(glow_1250 != glow_500 && glow_1250 != kNoTint && glow_500 != kNoTint);
-    CHECK((glow_1250 >> 16) >= (glow_500 >> 16));
+    CHECK(glow_500 != glow_25 && glow_500 != kNoTint && glow_25 != kNoTint);
+    CHECK((glow_500 >> 16) >= (glow_25 >> 16));
     // The biggest first: obsidian before platinum and gold of a size.
     CHECK(!g_coins.empty() && g_coins[0].value == 1000);
     CHECK(g_materials[g_coins[0].moby] == kMaterialPlatinum);
 
-    // Collected: an obsidian 1,250 (a 50 coin) first, then the rest, the whole drop.
+    // Collected: an obsidian 500 (a 20 coin) first, then the rest, the whole drop.
     g_bolts = 0;
     std::uint32_t first = 0;
 
-    // The one obsidian 50 coin.
+    // The first obsidian 20 coin.
     for (const Coin& coin : g_coins) {
         // Found.
-        if (coin.value == 50 && g_materials[coin.moby] == kMaterialObsidian) {
+        if (coin.value == 20 && g_materials[coin.moby] == kMaterialObsidian) {
             first = coin.moby;
             break;
         }
     }
 
     port_collect(first);
-    CHECK(g_bolts == 1250);
+    CHECK(g_bolts == 500);
     CHECK(g_materials.count(first) == 0);
 
     // Every other coin.
@@ -1680,7 +1694,7 @@ void test_obsidian_drop() {
     CHECK(g_bolts == 15'000);
     CHECK(g_materials.empty());
 
-    // No streak: the 2% of a 7,500 drop at x1 is 150, an obsidian 125 and an obsidian 25.
+    // No streak: the 1% of a 7,500 drop at x1 is 75, three obsidian 25s.
     set_run(3, 1);
     g_coins.clear();
     port_spawn_pickups(kMobyEnemy, 750, 9);
@@ -1694,20 +1708,23 @@ void test_obsidian_drop() {
                               : 0;
     }
 
-    CHECK(obsidian_coins == 2);
+    CHECK(obsidian_coins == 3);
     CHECK(coins_worth() == 7'500);
 }
 
 // Checks kills under the game's own coin limit (three coins, as SetDeathBits asks) in challenge
-// mode's fourth run (cycle 3) at a x20 streak: the drop is no longer cut to three 1,000s. A small
-// enemy (10 bolts of its own: the game asks for 200) pays the run's x2.5, doubled, 1,000 in at most
-// five coins; a big one (320 bolts: 6,400) x2.5 times its toughness x4, doubled, 128,000 in at most
-// eleven coins, among them an obsidian 12,500 and a platinum 5,000, what the coins can't hold added
-// to the bolts at once and nothing put in the game's word.
+// mode's fourth run (cycle 3) at a x20 streak: the game's burst keeps its limit and its word, and
+// the mod scales what its three coins hold. A small enemy (10 bolts of its own: the game asks for
+// 200, doubled 400) leaves three 100s and 100 over x20 (5) in the word: 300 times the run's x2.5,
+// 750 in at most five coins. A big one (320 bolts: 6,400, doubled 12,800) leaves three 1,000s and
+// 9,800 over x20 (490) in the word: 3,000 times x2.5 and its toughness x2 (0.4.1 paid 128,000),
+// 15,000 in at most seven coins, among them an obsidian 500 and a platinum 5,000, what the coins
+// can't hold added to the bolts at once.
 void test_kill_drops() {
     lay_out_enemy();
     set_run(3, 20);
-    const std::int32_t credit = get<std::int32_t>(g_disc->progress + kProgressBoltCredit);
+    const auto word = g_disc->progress + kProgressBoltCredit;
+    const std::int32_t credit = get<std::int32_t>(word);
 
     // The small enemy.
     set<std::int16_t>(kMobyEnemy + kMobyBolts, 10);
@@ -1715,9 +1732,10 @@ void test_kill_drops() {
     g_materials.clear();
     g_bolts = 0;
     port_kill_drop(kMobyEnemy, 200);
-    CHECK(g_burst_high == 500);
+    CHECK(g_burst_high == 200);
     CHECK(g_coins.size() <= 5);
-    CHECK(coins_worth() + g_bolts == 1000);
+    CHECK(coins_worth() + g_bolts == 750);
+    CHECK(get<std::int32_t>(word) == credit + 5);
 
     // The big one.
     set<std::int16_t>(kMobyEnemy + kMobyBolts, 320);
@@ -1725,14 +1743,15 @@ void test_kill_drops() {
     g_materials.clear();
     g_bolts = 0;
     port_kill_drop(kMobyEnemy, 6400);
-    CHECK(g_burst_high == 64'000);
-    CHECK(g_coins.size() > 3 && g_coins.size() <= 11);
-    CHECK(coins_worth() + g_bolts == 128'000);
-    CHECK(coins_worth() == 62'500);  // an obsidian 12,500 and ten platinum 5,000s
-    bool obsidian_12500 = false;
+    CHECK(g_burst_high == 6400);
+    CHECK(g_coins.size() > 3 && g_coins.size() <= 7);
+    CHECK(coins_worth() + g_bolts == 15'000);
+    CHECK(coins_worth() == 12'000);  // a platinum 5,000 and 2,500, four 1,000s, an obsidian 500
+    CHECK(get<std::int32_t>(word) == credit + 5 + 490);
+    bool obsidian_500 = false;
     bool platinum_5000 = false;
 
-    // The big rare coins.
+    // The rare coins.
     for (const Coin& coin : g_coins) {
         const auto found = g_materials.find(coin.moby);
 
@@ -1741,22 +1760,22 @@ void test_kill_drops() {
             continue;
         }
 
-        obsidian_12500 |= found->second == kMaterialObsidian && coin.value == 500;
+        obsidian_500 |= found->second == kMaterialObsidian && coin.value == 20;
         platinum_5000 |= found->second == kMaterialPlatinum && coin.value == 1000;
     }
 
-    CHECK(obsidian_12500);
+    CHECK(obsidian_500);
     CHECK(platinum_5000);
-    CHECK(get<std::int32_t>(g_disc->progress + kProgressBoltCredit) == credit);
 
     // Collected, the coins pay what they showed: with what was added at once, the whole drop.
     for (const Coin& coin : g_coins) {
         port_collect(coin.moby);
     }
 
-    CHECK(g_bolts == 128'000);
+    CHECK(g_bolts == 15'000);
     CHECK(g_materials.empty());
     set<std::int16_t>(kMobyEnemy + kMobyBolts, 80);
+    set<std::int32_t>(word, credit);
     set_run(1, 0);
 }
 
@@ -1776,8 +1795,8 @@ void test_level_left() {
 }
 
 // Checks the drops before cycle 2: the first game's the game's own, the first challenge mode's
-// unscaled with a taste of platinum; and (from cycle 2) a crate's, which is scaled by the run only,
-// at the least platinum share.
+// unscaled with a taste of platinum; and (from cycle 2) a crate's: the game's coins scaled by the
+// run only, at the least platinum share.
 void test_drops_before_and_crates() {
     set_run(0, 20);
     g_coins.clear();
@@ -1799,7 +1818,7 @@ void test_drops_before_and_crates() {
     set_run(2, 1);
     g_coins.clear();
     port_spawn_pickups(kMobyOther, 100, 9);
-    CHECK(g_burst_high == 150);
+    CHECK(g_burst_high == 100);
     CHECK(coins_worth() == 300);
     CHECK(g_materials.size() == 2);  // 30 as a platinum 25 and a platinum 5
     g_materials.clear();

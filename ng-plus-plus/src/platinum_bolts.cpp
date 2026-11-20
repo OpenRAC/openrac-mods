@@ -128,29 +128,23 @@ void PlatinumBolts::spawn_pickups(
         return;
     }
 
-    // The run's scale, and an enemy's toughness from its own bolts (a crate or a scripted burst:
-    // none); the first challenge mode only some platinum, its drops the game's.
+    // The run's scale and an enemy's toughness from its own bolts (a crate or a scripted burst:
+    // none), together at most kMostScale; the first challenge mode only some platinum, its drops
+    // the game's.
     const bool scaled = cycle >= kFirstCycle;
-    const float tough = toughness(m_view.enemy_bolts(moby).value_or(0));
-    const float scale = scaled ? run_scale(cycle, m_scaling) * tough : 1.0f;
+    const std::int32_t base = m_view.enemy_bolts(moby).value_or(0);
+    const float tough = toughness(base);
+    const float scale = scaled ? drop_scale(cycle, m_scaling, base) : 1.0f;
 
-    // The game's burst with the scaled amount: its roll, doubling and pacing decide the total; its
-    // coins are written down (spawn_pickup), not made. A scaled drop goes without the game's coin
-    // limit (three coins for a kill), which would cut every big drop to the same three 1,000s and
-    // put the rest in its word divided by the streak: the whole total is written down instead.
-    const std::int32_t unlimited = flags & ~kFlagLimit;
-    const std::int32_t game_flags = scaled && unlimited != 0 ? unlimited : flags;
+    // The game's own burst, as it is: its roll, streak, doubling, pacing and coin limit decide what
+    // its coins hold (a kill: at most three, 3,000 bolts), and it puts the rest in its word divided
+    // by the streak, as it always does. Its coins are written down (spawn_pickup), not made; the
+    // mod scales what they hold. Scaling after the limit, not the amount asked for, keeps the
+    // streak from multiplying the scale (0.4.1 scaled the amount and lifted the limit: a big enemy
+    // at x20 paid over 70 times the game's drop).
     m_burst.clear();
     m_recording = true;
-    original(
-        moby,
-        scale_amount(low, scale),
-        scale_amount(high, scale),
-        game_flags,
-        surface,
-        maximum,
-        height
-    );
+    original(moby, low, high, flags, surface, maximum, height);
     m_recording = false;
 
     // No coins: nothing to pay (the game spawned none, or put it all in its word).
@@ -158,12 +152,14 @@ void PlatinumBolts::spawn_pickups(
         return;
     }
 
-    std::int32_t total = 0;
+    std::int32_t paid = 0;
 
     // What the game's coins were worth together.
     for (const Recorded& coin : m_burst) {
-        total += coin.value;
+        paid += coin.value;
     }
+
+    const std::int32_t total = scaled ? scale_amount(paid, scale) : paid;
 
     // The game's coin limit, when the burst has one; a scaled drop's a few more, the tougher the
     // enemy the more.
@@ -273,6 +269,7 @@ void PlatinumBolts::tick() {
 
 void PlatinumBolts::pay(const CoinPlan& plan, bool scaled) {
     int index = 0;
+    m_scaled = scaled;
 
     // The most valuable class first, as the game makes its own; obsidian, then platinum, then gold
     // in each.
@@ -340,6 +337,15 @@ std::uint32_t PlatinumBolts::make_coin(int index, int kind, CoinTier tier) {
         kCoinValues[static_cast<std::size_t>(kind)],
         place.counted
     );
+
+    // No coin made in a scaled drop: the game put its class's worth in its word, which a later drop
+    // would scale again. It comes back out of the word, and the coin's whole worth is paid at once.
+    if (moby == 0 && m_scaled) {
+        const std::int32_t worth = kCoinValues[static_cast<std::size_t>(kind)];
+        m_view.add_bolt_credit(-worth);
+        m_mod.bolts(worth * tier_times(tier));
+        return 0;
+    }
 
     // A rare coin is marked; a gold one in a moby a rare one had is not any more.
     if (tier != CoinTier::Gold) {

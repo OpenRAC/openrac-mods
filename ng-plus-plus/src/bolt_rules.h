@@ -50,22 +50,25 @@ constexpr std::int32_t tier_times(CoinTier tier) {
 // The kill streak's top, the game's x20 (rac2-decomp: g_bolt_multiplier, D_001A7A32).
 inline constexpr int kTopStreak = 20;
 
-// The largest amount a scaled drop asks the game for, so its own doubling and pacing stay far
-// inside an s32.
+// The largest drop the mod makes, far inside an s32.
 inline constexpr std::int32_t kMostDrop = 1'000'000;
 
 // Generous bolt scaling pays this many times the normal run scale.
 inline constexpr float kGenerous = 1.5f;
 
 // An enemy's own bolts up to this pay no more for its toughness; past it the square root of its
-// bolts over this, at most kToughMost (six times: an enemy with 36 times these bolts, 720, or
-// more). The game's drop already grows with an enemy's bolts, so a drop grows as its bolts to the
-// power 1.5: an enemy with ten times the bolts pays about 32 times as much.
+// bolts over this, at most kToughMost (twice: an enemy with 80 bolts or more). The game's drop
+// already grows with an enemy's bolts, up to its coin limit; past that limit (three coins for a
+// kill: at most 3,000) a bigger enemy pays the same, so toughness keeps a big enemy worth more.
 inline constexpr std::int32_t kToughBase = 20;
-inline constexpr float kToughMost = 6.0f;
+inline constexpr float kToughMost = 2.0f;
+
+// The most a drop is ever scaled, run and toughness together: normal's x6 times x2 (generous goes
+// no further).
+inline constexpr float kMostScale = 12.0f;
 
 // A drop of the mod's may hold this many more coins per x1 of the enemy's toughness than the game
-// allows it (three for a kill), rounded: 2 more for a crate or small enemy, up to 12 for the
+// allows it (three for a kill), rounded: 2 more for a crate or small enemy, up to 4 for the
 // toughest, so a bigger enemy's drop is a bigger shower of coins.
 inline constexpr float kExtraCoins = 2.0f;
 
@@ -87,8 +90,14 @@ float run_scale(int cycle, BoltScaling scaling);
 
 // Returns how much more an enemy whose own bolts (its base drop, before the kill streak) are
 // `base` pays: 1.0 up to kToughBase, then the square root of base over it, at most kToughMost.
-// The game already pays a big enemy more in proportion; this is on top of it.
+// The game already pays a big enemy more in proportion, up to its coin limit; this is on top of it.
 float toughness(std::int32_t base);
+
+// Returns how much more a drop pays in cycle `cycle` from an enemy whose own bolts are `base`: the
+// run scale times its toughness, at most kMostScale; 1.0 before cycle 2 and with scaling off. It
+// scales what the game's own burst paid in coins (its streak, doubling, pacing and coin limit
+// done), never the amount the game is asked for, so the streak never multiplies the scale.
+float drop_scale(int cycle, BoltScaling scaling, std::int32_t base);
 
 // Returns how many more coins than the game's limit a drop of an enemy of `toughness` may hold:
 // kExtraCoins per x1 of it, rounded.
