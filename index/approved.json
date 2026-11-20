@@ -184,6 +184,17 @@
   "wrench-throw": [
     "1.0.0",
     "1.0.1",
-    "1.0.2"
+    "1.0.2",
+    {
+      "version": "1.0.3",
+      "sha256": {
+        "android-arm64": "7cb2905cb30f39cc9578d109fd555e7c21fd5077bd8057bd42a59b8a56e9fdca",
+        "linux-aarch64": "7f10bafeebf524d044391529bf12bd298f78878dff536fbca062b35dd466af11",
+        "linux-x86_64": "27081d81aa404efc7ec13395a7548ccd34638fa282f6cf27a5f96b0b475f6f24",
+        "macos-arm64": "b7cd679382efdff06d7d5b737b44bc52ad54c0bdab795e28119ec3866418bac1",
+        "macos-x86_64": "f93a45a5b9438511d6f9d4529950c284d464d0193727204b242d82d5a779ed3f",
+        "windows-x86_64": "0e658840346842077d9a50096de17deacc5f200fd3634a6f22bb1c725ccd0f33"
+      }
+    }
   ]
 }
