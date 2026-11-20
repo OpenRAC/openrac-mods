@@ -1170,6 +1170,7 @@ static void o2_pickup_update(openrac_gaddr moby) {
 /* Kerwan links are valid only for the game load that supplied them. */
 static int kerwan_randomizer_active(void) { return rando_on(); }
 #include "kerwan_access.inc"
+#include "orxon_access.inc"
 
 static int aridia_reward_collected(void) {
     const int loc = s_by_item[ITEM_TRESPASSER];
@@ -1785,6 +1786,7 @@ static void each_tick(void* user) {
 
     // Outside the story's levels the mod leaves the game alone.
     if (!playing_level()) {
+        orxon_access_tick(reward_phase, reward_load, 0);
         return;
     }
 
@@ -1792,6 +1794,7 @@ static void each_tick(void* user) {
 
     // A game not this seed's: nothing is the mod's; what it has is not news when one becomes so.
     if (!rando_on()) {
+        orxon_access_tick(reward_phase, reward_load, 0);
         sync_seen();
         return;
     }
@@ -1847,6 +1850,7 @@ static void each_tick(void* user) {
     run_notices();
     reward_case_hint_tick();
     kerwan_access_tick();
+    orxon_access_tick(reward_phase, reward_load, kerwan_randomizer_active());
 }
 
 /* ---- loading ---- */

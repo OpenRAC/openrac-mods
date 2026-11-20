@@ -672,6 +672,7 @@ static void helmet_update(openrac_gaddr moby) {
 
 static int kerwan_randomizer_active(void) { return !s_from_title && !s_judge_wait && ap_client_new_game_plus() >= 0; }
 #include "kerwan_access.inc"
+#include "orxon_access.inc"
 
 static int aridia_reward_collected(void) {
     return kerwan_randomizer_active() && had(s_by_item[ITEM_TRESPASSER]);
@@ -1444,6 +1445,7 @@ static void each_tick(void* user) {
     if (phase!=OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
 
     if (!playing_level()) {
+        orxon_access_tick(phase, loads, 0);
         return;
     }
 
@@ -1532,6 +1534,7 @@ static void each_tick(void* user) {
         log_line(OPENRAC_LOG_INFO, "Drek is beaten: the goal is sent");
     }
     kerwan_access_tick();
+    orxon_access_tick(phase, loads, kerwan_randomizer_active());
 }
 
 /* ---- loading ---- */
