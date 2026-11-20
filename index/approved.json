@@ -204,6 +204,17 @@
   ],
   "rac1-travel-anywhere": [
     {
+      "version": "0.1.0",
+      "sha256": {
+        "android-arm64": "86652da2d0d371d6c527c0894b124f9c3a364ad4cac44505f77008bf3300a498",
+        "linux-aarch64": "4f019e3d27aa9c4651543c99935f2465193a7dfc71d9c5cf3c91178f05917864",
+        "linux-x86_64": "832fc7e09a304d5d7e3f6ceb1fe0f2cb6fb3ee568c05fe5907e9050963151368",
+        "macos-arm64": "9ccbc6b7a2cbe7c401634d1838279cb184ed33116311b99cacb29d89429b9e76",
+        "macos-x86_64": "0885b9d37c18545d3a2b0f1d314b6490e80f6f9b28985291cd0b38718dde9f20",
+        "windows-x86_64": "07a93ec494ab2c2a3a69ea1d28b15d2b2eea83f8c7062ec2c515bc9847f83ace"
+      }
+    },
+    {
       "version": "0.1.1",
       "sha256": {
         "android-arm64": "ad3515bbd52a33ebb3ae7be298c4520b536dd7f12d09ed63efb798dd21d296a3",
