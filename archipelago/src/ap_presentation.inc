@@ -428,6 +428,18 @@ static void presentation_tick(int phase) {
 }
 
 static void vendor_initialize_presentation(void) {
+    /* Retail indexes the selected item without bounds checks. An empty rebuild or
+     * consumed final row must never reach that initializer. */
+    uint8_t* selected_menu = level_byte_at(s_disc->vendor_menu);
+    const int count = get32(selected_menu + VENDOR_COUNT);
+    const int cursor = get32(selected_menu + VENDOR_CURSOR);
+    if (count <= 0 || count > VENDOR_MAX_ENTRIES || cursor < 0 || cursor >= count
+        || get32(selected_menu + VENDOR_ENTRIES + cursor * VENDOR_ENTRY_SIZE) < 0
+        || get32(selected_menu + VENDOR_ENTRIES + cursor * VENDOR_ENTRY_SIZE) >= RANDO_ITEM_COUNT) {
+        vendor_restore_placement();
+        s_vendor_native_item = -1;
+        return;
+    }
     const int64_t location = selected_vendor_location();
     vendor_restore_placement();
     s_vendor_native_item = native_vendor_reward();

@@ -1569,16 +1569,16 @@ static void guard_empty_vendor(void) {
     }
 }
 
-/* Block an empty Gadgetron PDA vendor before the game builds its menu. */
+/* Block every empty vendor at the opening boundary, including after its last purchase. */
 static void open_vendor_menu_hook(uint32_t moby) {
-    if (moby == 0 && rando_on() && s_disc != NULL) {
+    if (rando_on() && s_disc != NULL) {
         uint8_t real[VENDOR_STOCK_SIZE];
         uint8_t shown[VENDOR_STOCK_SIZE];
 
         memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
         vendor_stock_shown(real, shown);
 
-        int has_pda_stock = 0;
+        int has_stock = 0;
         uint8_t* item_info = level_byte_at(s_disc->item_price_table);
 
         for (int i = 0; i < VENDOR_STOCK_SIZE && shown[i] != STOCK_END; ++i) {
@@ -1586,25 +1586,30 @@ static void open_vendor_menu_hook(uint32_t moby) {
             if (item >= VENDOR_ITEM_COUNT) {
                 continue;
             }
+            /* Physical vendors sell unchecked reward rows; the PDA sells ammunition only. */
+            if (moby != 0 && !(shown[i] & STOCK_AMMO)) {
+                has_stock = 1;
+                break;
+            }
             uint16_t ammo_supported;
             memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
 
             if ((shown[i] & STOCK_AMMO) && ammo_supported != 0) {
-                has_pda_stock = 1;
+                has_stock = 1;
                 break;
             }
         }
 
-        for (int item = 0; item < VENDOR_ITEM_COUNT && !has_pda_stock; ++item) {
+        for (int item = 0; item < VENDOR_ITEM_COUNT && !has_stock; ++item) {
             uint16_t ammo_supported;
             memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
 
             if (*owned(item) != 0 && ammo_supported != 0) {
-                has_pda_stock = 1;
+                has_stock = 1;
             }
         }
 
-        if (!has_pda_stock) {
+        if (!has_stock) {
             return;
         }
     }

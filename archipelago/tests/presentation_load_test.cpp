@@ -1191,6 +1191,22 @@ int main(int argc, char** argv) {
             );
         }
 
+        // Empty menus and consumed rows must not reach the unsafe retail initializer.
+        g_vendor_initialized_item = -1234;
+        put(D->vendor_menu + VENDOR_COUNT, 0);
+        initialize();
+        CHECK(g_vendor_initialized_item == -1234);
+        put(D->vendor_menu + VENDOR_COUNT, 1);
+        for (int cursor : {-1, 1}) {
+            put(D->vendor_menu + VENDOR_CURSOR, cursor);
+            initialize();
+            CHECK(g_vendor_initialized_item == -1234);
+        }
+        put(D->vendor_menu + VENDOR_CURSOR, 0);
+        put(D->vendor_menu + VENDOR_ENTRIES, -1);
+        initialize();
+        CHECK(g_vendor_initialized_item == -1234);
+        put(D->vendor_menu + VENDOR_ENTRIES, ITEM_PYROCITOR);
         initialize();
         CHECK(frames_until([&] {
             details();
