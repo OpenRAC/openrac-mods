@@ -2,7 +2,7 @@
   "id": "thruster-charge",
   "repo": "https://github.com/Promises/rac1-thruster-charge",
   "path": "",
-  "description": "Going Commando's Charge Boots charge on Clank's Thruster-Pack, running Going Commando's own code: with the Thruster-Pack on, double-tap R1 and hold to charge, steering with the stick, its flames blue; enemies in the way are hit. Needs OpenRAC with the hook points of an open OpenRAC pull request.",
+  "description": "Going Commando's Charge Boots charge on Clank's Thruster-Pack, running Going Commando's own code: with the Thruster-Pack on, double-tap R1 and hold to charge, steering with the stick, its flames blue; enemies in the way are hit. Needs OpenRAC with the hook points of OpenRAC #617 (merged; in the next release).",
   "tags": [
     "gameplay",
     "controls"
