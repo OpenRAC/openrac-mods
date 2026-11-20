@@ -43,6 +43,17 @@
         "macos-x86_64": "91e80b54a11e06599ba27cda283aa2581d15399873b3f04bd19fb003944cac10",
         "windows-x86_64": "15360fe40f1de52300a25f75751e11e88997e530c59e6b02e5369638981b8ddc"
       }
+    },
+    {
+      "version": "0.3.1",
+      "sha256": {
+        "android-arm64": "6da15d25f430567734df50fb1001059073ad1381f2433a0e7e339bdc6069207b",
+        "linux-aarch64": "36633821959ec3a7452a3c05a736e3c233a305fe1391e650aaa2765b474548e5",
+        "linux-x86_64": "e26970377c922cc5b6d33197efa605f8c4372e9ad9ae9329a657b7c74061f053",
+        "macos-arm64": "e6d05719572f0ecd116b3fa8558f372dbc2a7ccc8df8596b898fc2a343f94919",
+        "macos-x86_64": "94e7cbb1827b2fd3a6f0370d0ae2bcda510a6c2ad4ca65d80c434dd9027db58a",
+        "windows-x86_64": "30fb1e0b296c64a22a2fdc0d2756e3406e58066a121cded725adbed82e889bc2"
+      }
     }
   ],
   "cutscene-manager": [
