@@ -363,4 +363,4 @@ void load(openrac::Mod& mod) {
 }  // namespace
 }  // namespace ng_plus_plus
 
-OPENRAC_MOD_CPP("ng-plus-plus", "0.4.0", ng_plus_plus::load)
+OPENRAC_MOD_CPP("ng-plus-plus", "0.4.1", ng_plus_plus::load)
