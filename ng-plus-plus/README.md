@@ -237,25 +237,80 @@ damage dealt x0.5 and a Beta weapon in the second challenge mode a hit does x0.5
 
 ### More enemies each new game
 
-From the second challenge mode on, every enemy a level places gets a copy beside it when the level
-loads, and two from the fourth challenge mode:
+From the second challenge mode on, the enemies of the table below get a copy beside each of them
+when the level loads, and two from the fourth challenge mode (one for the big ones):
 
 | Challenge mode | 1st | 2nd and 3rd | 4th on |
 |---|---|---|---|
-| Copies of each enemy | none | 1 | 2 |
+| Copies of each enemy of the table | none | 1 | 2 (1 for those marked 1) |
 
-A copy stands on its enemy's floor, in the open, 2.5 to 4 units away, and runs, fights and dies like
-it. It drops the bolts that enemy drops (with the run's bolt scaling, platinum and obsidian bolts)
-and counts for your kill streak; killing it never changes what the game remembers of the enemy it
-copies (a killed enemy stays killed, and its bolts do not fall off any faster).
+A copy stands on its enemy's floor, in the open, 2.5 to 4 units away, and wakes, runs, fights and
+dies with its squad. It drops the bolts that enemy drops, once (with the run's bolt scaling,
+platinum and obsidian bolts), counts for your kill streak, and is gone when it dies as the enemy it
+copies is; killing it never changes what the game remembers of that enemy (a killed enemy stays
+killed, and its bolts do not fall off any faster).
 
-Some enemies are never copied: bosses, turrets, spawners, Tabora's and Grelbin's crystal creatures,
-and every enemy the level counts on as it is (a wave's, an arena's, the ones a door waits for, the
-ones a scene or another enemy names). OpenRAC decides which (its table is in
-`port/game/rac2/host/enemy_copies.c`), and leaves room for what the level spawns: in a crowded
-level some enemies get fewer copies. In a multiplayer party only the host's game copies enemies.
-Turn **Extra enemies** off to play with the game's own enemies. This needs OpenRAC with mod
-interface 1.25; an older one plays without copies and says so once in the log.
+**Why a table.** 0.4.1 copied every enemy OpenRAC allowed, and most copies never woke: a squad's
+enemies sleep until the squad is woken through its list of members, which the copies were not on,
+so they stood undrawn and unhittable where they were made, and the ones you saw "dead" were never
+alive. OpenRAC now puts a copy on its squad's list (mod interface 1.26), and NG++ copies only the
+enemies a hidden test run of their planet saw copied, woken with their originals, hit, killed,
+dropping their bolts once and gone. Copies of an enemy that holds a part of its own (a gun or a
+head made as a second moby) are never made: OpenRAC refuses them (Todano's and Dobbo's guards hung
+or crashed the game). Bosses, turrets, spawners, the waves', arenas' and doors' enemies, Tabora's
+and Grelbin's crystal and moonstone creatures and the Y.E.T.I.s are never in the table, and
+OpenRAC refuses them too.
+
+| Planet (level) | Enemy | Copies of each, at most |
+|---|---|---|
+| Aranos (0) | enemy (class 2460) | 2 |
+| Aranos (0) | enemy (class 2826) | 2 |
+| Aranos (0) | enemy (class 2827) | 2 |
+| Oozla (1) | Mutant Swamp Beast | 2 |
+| Oozla (1) | Mutant Firefly | 2 |
+| Oozla (1) | Mutant Muckdweller | 2 |
+| Maktar Nebula (2) | enemy (class 2501) | 2 |
+| Maktar Nebula (2) | Megacorp Chickenbot | 2 |
+| Endako (3) | Megacorp Rivet Bot | 2 |
+| Endako (3) | Megacorp Laser Bot | 2 |
+| Barlow (4) | enemy (class 2234) | 1 |
+| Barlow (4) | Gadgetron Hound of Cuddly Death | 2 |
+| Notak (6) | enemy (class 3002) | 2 |
+| Notak (6) | enemy (class 3504) | 2 |
+| Siberius (7) | enemy (class 3369) | 2 |
+| Siberius (7) | enemy (class 3370) | 2 |
+| Dobbo (9) | enemy (class 3306) | 1 |
+| Dobbo (9) | Megacorp Trooper (class 3343) | 1 |
+| Dobbo (9) | enemy (class 3415) | 2 |
+| Dobbo (9) | enemy (class 3472) | 2 |
+| Joba (11) | Joba Tribesman | 1 |
+| Joba (11) | Jobian Saur-Beast | 1 |
+| Todano (12) | Mutant Test-Squirrel | 2 |
+| Boldan (13) | enemy (class 4587) | 2 |
+| Aranos's prison (14) | enemy (class 4395) | 1 |
+| Aranos's prison (14) | enemy (class 4396) | 1 |
+| Smolg (17) | Grulch | 2 |
+| Damosel (18) | Protopet | 2 |
+| Yeedil (20) | Protopet | 2 |
+| Yeedil (20) | Receiver Bot | 2 |
+| Jamming array (26) | Megacorp Chickenbot | 2 |
+
+Each was tried in hidden runs of its planet (OpenRAC's `OPENRAC_PLAY_TRACE=copies=1,copywatch,copykill=F,origkill=F`,
+Ratchet placed beside the enemies at one to three spots): its copies woke when their originals did,
+took hits, died, dropped their bolts once and were gone. Left out on purpose: Endako's Sweeper Bots
+(they hide and come back by design), Siberius's class 3357 (the originals die twice), Todano's
+guards (class 3889: they hold a part of their own and froze or crashed the game; OpenRAC refuses
+such copies now), and the enemies that woke with their originals but whose copies no test hit
+killed (Boldan's and Snivelak's classes 3747 and 3748, Damosel's class 4440, Grelbin's Protopets,
+Yeedil's Hover Tank) or that never woke where they were tried (Tabora's Dune Crawlers and Sandflies,
+Grelbin's Receiver Bots, the Aranos prison's class 2484, Yeedil's class 4847).
+
+In a crowded level some enemies get fewer copies: OpenRAC keeps room for what the level spawns, and
+has 64 KB for the copies' state past what a spawned moby holds (Barlow's 91 hounds fill it with one
+copy each). Every enemy's first copy is made before any second one.
+In a multiplayer party only the host's game copies enemies. Turn **Extra enemies** off to play
+with the game's own enemies. This needs OpenRAC with mod interface 1.26; an older one (1.25's
+copies never woke) plays without copies and says so once in the log.
 
 ### Platinum and obsidian bolts and bolt scaling
 

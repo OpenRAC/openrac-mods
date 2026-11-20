@@ -90,14 +90,21 @@ constexpr std::uint32_t kStackTop = 0x003F0000u;      // The game's stack, growi
 constexpr std::uint32_t kVisualMobys = 0x00340000u;   // The weapons' mobys, as the level's table.
 
 // The ports the test plays: 1.23 with the bolt hook points, 1.22 without, 1.23 with the setting
-// off, 1.24, whose moby_material draws obsidian too, and 1.25, which draws energy as well.
+// off, 1.24, whose moby_material draws obsidian too, 1.25, which draws energy as well and makes
+// copies that never wake with their squad, and 1.26, whose copies do.
 enum class Host {
     Bolts,
     Old,
     Off,
     Obsidian,
-    Energy
+    Energy,
+    Squads
 };
+
+// Whether the test's port draws energy (1.25 on).
+bool energy_host(Host host) {
+    return host == Host::Energy || host == Host::Squads;
+}
 
 // One coin the test's game made: its moby and worth, and where the mod said it starts.
 struct Coin {
@@ -573,9 +580,12 @@ double setting_float(openrac_mod* /*mod*/, const char* key) {
 // ---- The level's enemies and their copies (interface 1.25) ----
 
 // The level's mobys the test's port lists: slot 0 the enemy (kMobyEnemy) and slot 1 another, both
-// free to copy; slot 2 a wave's, slot 3 a crystal creature of Tabora's (the port's table), slot 4
-// no enemy; slot 5 one the game made (key -1), never asked about.
-constexpr int kListed = 6;
+// free to copy and of a class of Barlow's in NG++'s table (its hounds); slot 2 a wave's, slot 3 a
+// crystal creature of Tabora's (the port's table), slot 4 no enemy; slot 5 one the game made (key
+// -1), never asked about; slot 6 free to copy but of a class the table has not.
+constexpr int kListed = 7;
+constexpr int kTableClass = 4022;  // Barlow's Gadgetron Hounds of Cuddly Death.
+constexpr int kOtherClass = 2000;  // In no level's table.
 constexpr std::uint32_t kCopiesAt = 0x00320000u;  // Where the test's port puts copies.
 constexpr int kCopySlots = 100;                   // The copies' slots, from 100.
 int g_loads = 0;                                  // The game's level loads.
@@ -590,6 +600,7 @@ int answer_of(int slot) {
         kCopyListed,
         kCopyNotEnemy,
         kCopyNotPlaced,
+        kCopyOk,
     };
     return slot >= 0 && slot < kListed ? answers[slot] : OPENRAC_HOOK_UNKNOWN;
 }
@@ -605,7 +616,7 @@ int host_moby_list(openrac_moby* out, int max) {
         out[n].size = sizeof(openrac_moby);
         out[n].slot = n;
         out[n].key = n == 5 ? -1 : 40 + n;
-        out[n].oclass = n == 3 ? 3000 : 2000;
+        out[n].oclass = n == 3 ? 4098 : (n == 6 ? kOtherClass : kTableClass);
     }
 
     return kListed;
@@ -764,8 +775,8 @@ int host_material(
     openrac_mod* /*mod*/, openrac_gaddr moby, std::uint32_t material, std::uint32_t rgb
 ) {
     // What the port refuses: obsidian before 1.24, energy (with its level) before 1.25.
-    const bool obsidian = g_host == Host::Obsidian || g_host == Host::Energy;
-    const std::uint32_t most = g_host == Host::Energy ? kMaterialEnergy
+    const bool obsidian = g_host == Host::Obsidian || energy_host(g_host);
+    const std::uint32_t most = energy_host(g_host) ? kMaterialEnergy
                                : obsidian             ? kMaterialObsidian
                                                       : kMaterialPlatinum;
     const std::uint32_t kind = material & 0xFFu;
@@ -928,7 +939,8 @@ void make_api() {
         g_api.api_minor = 22;
     } else {
         g_api.size = sizeof g_table;
-        g_api.api_minor = g_host == Host::Energy     ? kEnergyMinor
+        g_api.api_minor = g_host == Host::Squads     ? kSquadCopyMinor
+                          : g_host == Host::Energy   ? kEnergyMinor
                           : g_host == Host::Obsidian ? kObsidianMinor
                                                      : kMaterialMinor;
 #if OPENRAC_MOD_API_MINOR < 25
@@ -939,7 +951,7 @@ void make_api() {
     }
 
     // A port of 1.25 (energy's) makes copies; an older one ends its table before them.
-    if (g_host == Host::Energy) {
+    if (energy_host(g_host)) {
         g_table.moby_copy_check = host_copy_check;
         g_table.moby_copy = host_copy;
     } else if (g_host != Host::Old) {
@@ -1229,7 +1241,7 @@ void test_weapon_visuals() {
     // The Lancer, Heavy Lancer, a dead slot, a class no weapon owns, a Gravity Bomb (not owned).
     lay_out_mobys({1490, 3077, 0, 9999, 3299});
     tick(1);
-    const bool energy = g_host == Host::Energy;
+    const bool energy = energy_host(g_host);
     const std::uint32_t beta = energy_at(4);  // Beta: the second of eight steps, 15 x 2 / 8
 
     // Energy: the Lancer's two guns in Beta's cyan, raised to full strength (0x00E0FF).
@@ -2129,7 +2141,7 @@ void test_extra_enemies() {
     set_run(4, 0);
     g_log.clear();
     port_level_load();
-    CHECK((copies_asked() == std::vector<std::pair<int, int>>{{0, 0}, {0, 1}, {1, 0}, {1, 1}}));
+    CHECK((copies_asked() == std::vector<std::pair<int, int>>{{0, 0}, {1, 0}, {0, 1}, {1, 1}}));
     CHECK(g_copies_made == 5);
     CHECK(g_log.find("level 4: 3 extra enemies beside 2 (new game 4)") != std::string::npos);
     CHECK(g_loads == 3);
@@ -2147,6 +2159,13 @@ void test_extra_enemies() {
     port_kill_drop(copy_made(2), 200);
     CHECK(get<std::int16_t>(copy_made(2) + kMobyBolts) == get<std::int16_t>(kMobyEnemy + kMobyBolts));
     CHECK(enemy > 200 && coins_worth() + g_bolts == enemy);
+
+    // Oozla: its table has no Barlow hounds, so none of these is copied.
+    set_run(2, 0);
+    g_level_now = 1;
+    port_level_load();
+    CHECK(copies_asked().empty());
+    g_level_now = 4;
 
     // A party guest's game: the host's copies, none of its own.
     CHECK(g_rules != nullptr);
@@ -2191,14 +2210,14 @@ void run(const char* path, const Disc& disc, Host host) {
     CHECK(g_failed.empty());
     // The ten of before (the kills' experience among them), and the three bolt hook points and
     // the arena's on a port of 1.23 with the setting on.
-    const bool bolts = host == Host::Bolts || host == Host::Obsidian || host == Host::Energy;
-    // The level's load too on a port of 1.25, for the copies.
-    CHECK(g_hooks.size() == (bolts ? 14u : 10u) + (host == Host::Energy ? 1u : 0u));
-    // A port before 1.25 makes no copies, and says so once.
+    const bool bolts = host == Host::Bolts || host == Host::Obsidian || energy_host(host);
+    // The level's load too on a port of 1.26, for the copies.
+    CHECK(g_hooks.size() == (bolts ? 14u : 10u) + (host == Host::Squads ? 1u : 0u));
+    // A port before 1.26 makes no copies (1.25's never woke), and says so once.
     CHECK(
-        (g_log.find("no extra enemies in this OpenRAC: they need mod interface 1.25")
+        (g_log.find("no extra enemies in this OpenRAC: they need mod interface 1.26")
          != std::string::npos)
-        == (host != Host::Energy)
+        == (host != Host::Squads)
     );
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
     // A port of 1.23 drops platinum only, and says so.
@@ -2222,7 +2241,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_prizes_and_prices(host != Host::Off, bolts);
 
     // The bolts as the port offers them.
-    if (host == Host::Obsidian || host == Host::Energy) {
+    if (host == Host::Obsidian || energy_host(host)) {
         test_obsidian_drop();
         test_kill_drops();
         test_word_not_scaled();
@@ -2234,8 +2253,8 @@ void run(const char* path, const Disc& disc, Host host) {
         test_drops_untouched();
     }
 
-    // The copies on a port of 1.25; with the setting off, none, and no hook for them.
-    if (host == Host::Energy) {
+    // The copies on a port of 1.26; with the setting off, none, and no hook for them.
+    if (host == Host::Squads) {
         test_extra_enemies();
         g_extra_enemies = false;
         CHECK(reload(load));
@@ -2267,7 +2286,8 @@ int main(int argc, char** argv) try {
     // Every disc NG++ knows.
     for (const Disc& disc : kDiscs) {
         // Each port: 1.23 with the bolts, 1.22 without, the setting off.
-        for (const Host host : {Host::Bolts, Host::Old, Host::Off, Host::Obsidian, Host::Energy}) {
+        for (const Host host :
+             {Host::Bolts, Host::Old, Host::Off, Host::Obsidian, Host::Energy, Host::Squads}) {
             run(argv[1], disc, host);
         }
     }

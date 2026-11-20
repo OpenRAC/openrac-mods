@@ -12,8 +12,10 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include "check.h"
+#include "extra_enemies.h"
 #include "save_book.h"
 #include "tiers.h"
 #include "weapon_visuals.h"
@@ -634,8 +636,47 @@ void test_weapon_looks() {
     CHECK(tinted && tinted->material == kMaterialTint && tinted->rgb == effect_rgb(Kind::Four, 3, 0));
 }
 
+// Checks the per-planet table: only its classes, each in its own level, at most its entry's copies.
+void test_copy_table() {
+    CHECK(copy_entry(4, 4022) != nullptr);
+    CHECK(copy_entry(1, 4022) == nullptr);
+    CHECK(copy_entry(4, 2000) == nullptr);
+    CHECK(copies_of(4, 4022, 1) == 0);
+    CHECK(copies_of(4, 4022, 2) == 1);
+    CHECK(copies_of(4, 4022, 4) == 2);
+    CHECK(copies_of(4, 2000, 4) == 0);
+
+    // A big one at most once, whatever the run.
+    const CopyEntry* beast = copy_entry(11, 3335);
+    CHECK(beast != nullptr && beast->most == 1 && copies_of(11, 3335, 6) == 1);
+
+    // Left out after the test runs: Endako's respawning Sweeper Bots, Siberius's enemies that die
+    // twice, Todano's guards with a part of their own, Tabora's Dune Crawlers and Sandflies (never
+    // woke where they were tried), the Hover Tank.
+    for (const auto& [level, oclass] : {std::pair{3, 4083}, std::pair{7, 3357}, std::pair{12, 3889},
+                                        std::pair{8, 2502}, std::pair{8, 4095}, std::pair{20, 3260}}) {
+        CHECK(copy_entry(level, oclass) == nullptr);
+    }
+
+    // Each entry is a level's class once, and names what it is.
+    for (int level = 0; level <= 30; ++level) {
+        for (int oclass = 2000; oclass < 5000; ++oclass) {
+            const CopyEntry* entry = copy_entry(level, oclass);
+            CHECK(entry == nullptr || (entry->most >= 1 && entry->most <= 2 && entry->what != nullptr));
+        }
+    }
+
+    // Never a boss, a spawner, a crystal or moonstone creature, nor a Y.E.T.I.
+    for (const int never : {3098, 3104, 2410, 4098, 3927, 4551, 4304, 2644, 3210, 3679, 4576}) {
+        for (int level = 0; level <= 30; ++level) {
+            CHECK(copy_entry(level, never) == nullptr);
+        }
+    }
+}
+
 int main() try {
     test_kinds();
+    test_copy_table();
     test_buy_then_level();
     test_mastery();
     test_no_experience();

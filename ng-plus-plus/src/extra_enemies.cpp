@@ -6,6 +6,7 @@
 #include "extra_enemies.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "openrac/games/rac2.hpp"
@@ -18,7 +19,82 @@ namespace {
 constexpr int kOneCopyCycle = 2;
 constexpr int kTwoCopiesCycle = 4;
 
+// The per-planet table (README.md, "More enemies"; filled from hidden test runs of each level).
+constexpr CopyEntry kCopyTable[] = {
+    // Aranos.
+    {0, 2460, 2, "Aranos: enemy (class 2460)"},
+    {0, 2826, 2, "Aranos: enemy (class 2826)"},
+    {0, 2827, 2, "Aranos: enemy (class 2827)"},
+    // Oozla.
+    {1, 2466, 2, "Oozla: Mutant Swamp Beast"},
+    {1, 2633, 2, "Oozla: Mutant Firefly"},
+    {1, 2859, 2, "Oozla: Mutant Muckdweller"},
+    // Maktar Nebula.
+    {2, 2501, 2, "Maktar Nebula: enemy (class 2501)"},
+    {2, 2638, 2, "Maktar Nebula: Megacorp Chickenbot"},
+    // Endako.
+    {3, 4092, 2, "Endako: Megacorp Rivet Bot"},
+    {3, 4093, 2, "Endako: Megacorp Laser Bot"},
+    // Barlow.
+    {4, 2234, 1, "Barlow: enemy (class 2234)"},
+    {4, 4022, 2, "Barlow: Gadgetron Hound of Cuddly Death"},
+    // Notak.
+    {6, 3002, 2, "Notak: enemy (class 3002)"},
+    {6, 3504, 2, "Notak: enemy (class 3504)"},
+    // Siberius.
+    {7, 3369, 2, "Siberius: enemy (class 3369)"},
+    {7, 3370, 2, "Siberius: enemy (class 3370)"},
+    // Dobbo.
+    {9, 3306, 1, "Dobbo: enemy (class 3306)"},
+    {9, 3343, 1, "Dobbo: Megacorp Trooper (class 3343)"},
+    {9, 3415, 2, "Dobbo: enemy (class 3415)"},
+    {9, 3472, 2, "Dobbo: enemy (class 3472)"},
+    // Joba.
+    {11, 3317, 1, "Joba: Joba Tribesman"},
+    {11, 3335, 1, "Joba: Jobian Saur-Beast"},
+    // Todano.
+    {12, 4020, 2, "Todano: Mutant Test-Squirrel"},
+    // Boldan.
+    {13, 4587, 2, "Boldan: enemy (class 4587)"},
+    // Aranos's prison.
+    {14, 4395, 1, "Aranos's prison: enemy (class 4395)"},
+    {14, 4396, 1, "Aranos's prison: enemy (class 4396)"},
+    // Smolg.
+    {17, 2952, 2, "Smolg: Grulch"},
+    // Damosel.
+    {18, 2921, 2, "Damosel: Protopet"},
+    // Yeedil.
+    {20, 2921, 2, "Yeedil: Protopet"},
+    {20, 3809, 2, "Yeedil: Receiver Bot"},
+    // Jamming array.
+    {26, 2638, 2, "Jamming array: Megacorp Chickenbot"},
+};
+
 }  // namespace
+
+const CopyEntry* copy_entry(int level, int oclass) {
+    // Each entry.
+    for (const CopyEntry& entry : kCopyTable) {
+        // The level's class.
+        if (entry.level == level && entry.oclass == oclass) {
+            return &entry;
+        }
+    }
+
+    return nullptr;
+}
+
+int copies_of(int level, int oclass, int cycle) {
+    const CopyEntry* entry = copy_entry(level, oclass);
+    const int each = extra_copies(cycle);
+
+    // Not in the table: none.
+    if (entry == nullptr) {
+        return 0;
+    }
+
+    return each < entry->most ? each : entry->most;
+}
 
 int extra_copies(int cycle) {
     // The fourth challenge mode on: two.
@@ -37,9 +113,9 @@ void ExtraEnemies::start() {
 
     m_calls = copy_calls_of(m_mod.api());
 
-    // An OpenRAC before 1.25 makes no copies.
+    // An OpenRAC before 1.26 makes no copies that wake.
     if (m_calls.check == nullptr || m_calls.copy == nullptr) {
-        m_mod.info("no extra enemies in this OpenRAC: they need mod interface 1.25");
+        m_mod.info("no extra enemies in this OpenRAC: they need mod interface 1.26");
         return;
     }
 
@@ -71,24 +147,32 @@ int ExtraEnemies::level_loaded() {
         return 0;
     }
 
-    // The placed enemies the port lets go first: copies made in between are not asked about.
-    std::vector<int> enemies;
+    // The placed enemies of the table's classes the port lets go, and how many copies each: first,
+    // so copies made in between are not asked about.
+    std::vector<std::pair<int, int>> enemies;
 
     // Each live moby of the level.
     for (const openrac_moby& moby : m_mod.moby_list()) {
-        // One OpenRAC may copy.
-        if (moby.key >= 0 && m_calls.check(m_mod.handle(), moby.slot) == kCopyOk) {
-            enemies.push_back(moby.slot);
+        const int copies = moby.key >= 0 ? copies_of(level, moby.oclass, cycle) : 0;
+
+        // A class of the table that OpenRAC may copy.
+        if (copies > 0 && m_calls.check(m_mod.handle(), moby.slot) == kCopyOk) {
+            enemies.emplace_back(moby.slot, copies);
         }
     }
 
     int made = 0;
 
-    // Each enemy's copies, until the port has no room or spot for one.
-    for (const int slot : enemies) {
-        // Its copies, each at its own spot.
-        for (int index = 0; index < each; ++index) {
-            made += m_calls.copy(m_mod.handle(), slot, index) >= 0 ? 1 : 0;
+    // Every enemy's first copy, then the second ones, until the port has no room or spot for one:
+    // the port's room for the copies' larger pvars (64 KB) runs out in a crowded level (Barlow's 91
+    // hounds fill it with one copy each), and a second copy never takes the place of a first.
+    for (int index = 0; index < each; ++index) {
+        // Each enemy that gets this many.
+        for (const auto& [slot, copies] : enemies) {
+            // Its copy at its own spot.
+            if (index < copies) {
+                made += m_calls.copy(m_mod.handle(), slot, index) >= 0 ? 1 : 0;
+            }
         }
     }
 

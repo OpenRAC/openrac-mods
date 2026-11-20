@@ -12,7 +12,8 @@
 // streak.
 //
 // At the level's load (rac2.level.load, as it returns), in the party's host only (a guest's game
-// shows the host's). An OpenRAC before 1.25 has no copies: the mod says so once and goes without.
+// shows the host's). Only the classes of the per-planet table (copy_entry) are copied. An OpenRAC
+// before 1.26 makes no copies (1.25's never woke): the mod says so once and goes without.
 //
 // Only the game's thread uses it.
 
@@ -32,9 +33,29 @@ namespace ng_plus_plus {
 // 1 the first challenge mode): none up to cycle 1, one from cycle 2, two from cycle 4.
 int extra_copies(int cycle);
 
-// The interface minor that makes copies, and moby_copy_check's answers (OPENRAC_COPY_* of 1.25):
-// one it may copy, then why not.
+// One enemy of the per-planet table: a class a level's copies may be of, at most how many copies of
+// each, and what it is. Only the classes a hidden run of that level saw copied, woken, fighting,
+// killed, dropping its bolts once and gone like its original are listed (README.md, "More
+// enemies").
+struct CopyEntry {
+    int level;         // The game's level number (rac2-decomp: src/levels/NN_name).
+    int oclass;        // The moby class.
+    int most;          // Copies of each at most (1 for the big ones).
+    const char* what;  // The enemy, and the planet.
+};
+
+// Returns the table's entry for class `oclass` in level `level`, or null: no copies of it.
+const CopyEntry* copy_entry(int level, int oclass);
+
+// Returns how many copies each enemy of class `oclass` gets in level `level` in cycle `cycle`: the
+// cycle's (extra_copies) up to the entry's most, none for a class the table has not.
+int copies_of(int level, int oclass, int cycle);
+
+// The interface minor that makes copies, the one whose copies wake with their squad (a 1.25 port's
+// copies of a squad's enemies never woke, were never drawn and could not be hit: NG++ 0.4.1's stuck
+// enemies), and moby_copy_check's answers (OPENRAC_COPY_* of 1.25): one it may copy, then why not.
 inline constexpr std::uint16_t kCopyMinor = 25;
+inline constexpr std::uint16_t kSquadCopyMinor = 26;
 inline constexpr int kCopyOk = 0;
 inline constexpr int kCopyNotEnemy = 1;
 inline constexpr int kCopyNotPlaced = 2;
@@ -58,7 +79,7 @@ struct CopyApi {
 using CopyApi = openrac_api;
 #endif
 
-// The port's copy calls, or nulls on a port older than 1.25 (or whose table ends before them).
+// The port's copy calls, or nulls on a port older than 1.26 (or whose table ends before them).
 struct CopyCalls {
     MobyCopyCheckFn check = nullptr;
     MobyCopyFn copy = nullptr;
@@ -68,8 +89,9 @@ struct CopyCalls {
 inline CopyCalls copy_calls_of(const openrac_api& api) {
     const std::size_t end = offsetof(CopyApi, moby_copy) + sizeof(MobyCopyFn);
 
-    // An older port has no such entries: what follows its table is not its.
-    if (api.api_minor < kCopyMinor || api.size < end) {
+    // An older port has no such entries (what follows its table is not its), or 1.25's copies,
+    // which never woke.
+    if (api.api_minor < kSquadCopyMinor || api.size < end) {
         return {};
     }
 

@@ -36,7 +36,7 @@
       "name": "Extra enemies",
       "type": "bool",
       "default": true,
-      "description": "From the second challenge mode, every enemy a level places gets a copy beside it, two from the fourth. Bosses, turrets, spawners, Tabora's and Grelbin's crystal creatures and the enemies a level's waves, arenas and doors count are never copied. Copies drop bolts like the enemy they copy and count for your kill streak. Needs OpenRAC with mod interface 1.25."
+      "description": "From the second challenge mode, the common enemies of each planet (a table tested on every planet) get a copy beside them, two from the fourth (one for big ones). A copy wakes and fights with its squad, drops its bolts once, counts for your kill streak and is gone when it dies. Bosses, turrets, spawners, Tabora's and Grelbin's crystal creatures, the Y.E.T.I.s and the enemies a level's waves, arenas and doors count are never copied. Needs OpenRAC with mod interface 1.26."
     },
     {
       "key": "notices",
