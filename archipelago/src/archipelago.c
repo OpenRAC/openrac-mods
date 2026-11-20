@@ -1560,7 +1560,19 @@ static int take(int result, const char* point) {
         #point                                                                                     \
     )
 
+/* Retail glide input checks Heli-Pack ownership even with the Thruster-Pack equipped.
+ * Borrow that flag only during movement; the existing swap/save scopes keep inventory real. */
+static void (*s_hero_update)(void);
+static void hero_update(void) {
+    const int borrow = *owned(ITEM_THRUSTER_PACK) && !*owned(ITEM_HELI_PACK);
+    if (borrow) swap_push(owned(ITEM_HELI_PACK), SWAP_FORCE_OWNED);
+    s_hero_update();
+    if (borrow) swap_pop();
+}
+
 static int install_hooks(void) {
+    if (!take(s_api->hook(s_mod, "rac1.player.update", "void()", (void*)hero_update,
+                          (void**)&s_hero_update), "rac1.player.update")) return 0;
     /* Older ports still support every other option. Never permit randomized purchases
      * without independent currency accounting; the player gets a clear update notice. */
     s_has_gold_currency_hook = s_api->hook(

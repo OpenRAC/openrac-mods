@@ -272,6 +272,12 @@ int32_t game_request_autosave(int32_t slot, int32_t flags) {
     CHECK(std::memcmp(g_saved_owned, at(D->owned), sizeof g_saved_owned) == 0);
     return 99;
 }
+int g_hero_saw_heli;
+void game_hero_update() {
+    g_hero_saw_heli = *at(D->owned + ITEM_HELI_PACK);
+    ((void (*)(int32_t, int32_t))replacement("rac1.save.prepare"))(0x1234, 7);
+    CHECK(*at(D->owned + ITEM_HELI_PACK) == g_hero_saw_heli);
+}
 void game_helga(uint32_t) {
     CHECK(*at(D->owned + ITEM_SWINGSHOT) == 1); // location checked, not item owned
     auto save = (int32_t(*)(int32_t,int32_t))replacement("rac1.save.request_autosave");
@@ -306,6 +312,7 @@ void* original_for(const std::string& name) {
     if(name=="rac1.moby.hoverboard_girl.update" || name=="rac1.moby.miner.update"
         || name=="rac1.moby.moby1428.update" || name=="rac1.moby.nanotech_vendor.update"
         || name=="rac1.moby.pokitaru_vendor.update") return (void*)menu_source_native;
+    if (name == "rac1.player.update") return (void*)game_hero_update;
     if (name == "rac1.save.prepare") return (void*)game_save_prepare;
     if (name == "rac1.save.request_autosave") return (void*)game_request_autosave;
     if (name == OPENRAC_RAC1_HOOK_Moby_Helga_Update) return (void*)game_helga;
@@ -694,7 +701,7 @@ int main(int argc, char** argv) {
     }
     const openrac_api& api=*base;
     CHECK(load(&api, reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_items_mode ? 46 : 41) && g_frame != nullptr);
+    CHECK(g_hooks == (g_items_mode ? 47 : 42) && g_frame != nullptr);
     CHECK(replacement("rac1.moby.moby743.update") != nullptr);
     CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
@@ -917,6 +924,21 @@ int main(int argc, char** argv) {
     *at(D->triggers + LEVEL_ORXON * 16 + ORXON_CLANK_MISSION) = 0;
     *at(D->owned + ITEM_O2_MASK) = 0;
     set_level(LEVEL_NOVALIS);
+
+    uint8_t pack_inventory[2] = {*at(D->owned + ITEM_HELI_PACK), *at(D->owned + ITEM_THRUSTER_PACK)};
+    for (int heli = 0; heli <= 1; ++heli) {
+        for (int thrust = 0; thrust <= 1; ++thrust) {
+            *at(D->owned + ITEM_HELI_PACK) = (uint8_t)heli;
+            *at(D->owned + ITEM_THRUSTER_PACK) = (uint8_t)thrust;
+            ((void (*)())replacement("rac1.player.update"))();
+            CHECK(g_hero_saw_heli == (heli || thrust));
+            CHECK(g_saved_owned[ITEM_HELI_PACK] == heli);
+            CHECK(g_saved_owned[ITEM_THRUSTER_PACK] == thrust);
+            CHECK(*at(D->owned + ITEM_HELI_PACK) == heli);
+        }
+    }
+    *at(D->owned + ITEM_HELI_PACK) = pack_inventory[0];
+    *at(D->owned + ITEM_THRUSTER_PACK) = pack_inventory[1];
 
     // Helga's Swingshot: nothing given, the location had and sent.
     const int gives = g_gives;

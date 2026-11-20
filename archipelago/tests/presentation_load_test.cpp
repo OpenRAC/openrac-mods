@@ -929,7 +929,7 @@ int main(int argc, char** argv) {
         api.pickup_animation = acquisition_request;
     }
     CHECK(load(ap_visual_base(&api), reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_acquisition_mode ? 56 : g_visual_mode ? 48 : 41) && g_frame != nullptr);
+    CHECK(g_hooks == (g_acquisition_mode ? 57 : g_visual_mode ? 49 : 42) && g_frame != nullptr);
     CHECK(replacement("rac1.moby.moby743.update") != nullptr);
     CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
