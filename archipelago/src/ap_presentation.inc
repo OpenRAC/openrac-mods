@@ -339,6 +339,11 @@ static int native_vendor_reward(void) {
     if (reward.kind == REWARD_GOLD_BOLT) {
         return ITEM_PYROCITOR;
     }
+    /* Zoomerator stands on local Z. Borrow the upright gadget placement,
+     * while reward_class continues to supply its own mesh and icon. */
+    if (reward.kind == REWARD_SPECIAL && reward.value == SPECIAL_ZOOMERATOR) {
+        return ITEM_HELI_PACK;
+    }
     if (reward.kind != REWARD_ITEM) {
         return -1;
     }

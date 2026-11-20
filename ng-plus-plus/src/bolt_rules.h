@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// NG++'s bolt rules, apart from the game (README.md, "Platinum bolts and bolt scaling"): how much
-// more a drop pays in each challenge mode run, how much more a tough enemy pays, how much of a drop
-// comes as platinum bolts, and the split of a drop into gold and platinum coins.
+// NG++'s bolt rules, apart from the game (README.md, "Platinum and obsidian bolts and bolt
+// scaling"): how much more a drop pays in each challenge mode run, how much more a tough enemy
+// pays, how much of a drop comes as platinum and obsidian bolts, and the split of a drop into gold,
+// platinum and obsidian coins.
 //
 // The game's coins are seven classes worth 1, 5, 20, 50, 100, 500 and 1,000 bolts (OpenRAC's
 // openrac/games/rac2.h). A platinum coin is one of the same seven drawn as platinum and worth five
-// times as much: 5, 25, 100, 250, 500, 2,500 and 5,000.
+// times as much: 5, 25, 100, 250, 500, 2,500 and 5,000. An obsidian coin is one drawn as obsidian
+// and worth 25 times: 25, 125, 500, 1,250, 2,500, 12,500 and 25,000.
 //
 // Nothing here reads or writes game memory, so tests/bolt_rules_test.cpp runs it alone.
 
@@ -28,6 +30,22 @@ inline constexpr std::array<std::int32_t, kCoinKinds> kCoinValues = {1, 5, 20, 5
 
 // A platinum coin is worth this many times its gold class.
 inline constexpr std::int32_t kPlatinumTimes = 5;
+
+// An obsidian coin is worth this many times its gold class.
+inline constexpr std::int32_t kObsidianTimes = 25;
+
+// The three kinds of coin, the commonest first.
+enum class CoinTier : std::uint8_t {
+    Gold,
+    Platinum,
+    Obsidian,
+};
+
+// Returns how many times its gold class a coin of `tier` is worth.
+constexpr std::int32_t tier_times(CoinTier tier) {
+    return tier == CoinTier::Obsidian ? kObsidianTimes
+                                      : (tier == CoinTier::Platinum ? kPlatinumTimes : 1);
+}
 
 // The kill streak's top, the game's x20 (rac2-decomp: g_bolt_multiplier, D_001A7A32).
 inline constexpr int kTopStreak = 20;
@@ -69,13 +87,20 @@ float toughness(std::int32_t base);
 // (1 to 20; 0 counts as 1): none up to cycle 1, then from the run's least at x1 to its most at x20.
 float platinum_share(int cycle, int streak);
 
+// Returns the fraction of a drop paid in obsidian in cycle `cycle` at a kill streak of `streak`
+// (1 to 20; 0 counts as 1): none before cycle 2, then hints that grow with each run and, faster,
+// with the streak (by the square of how far along the streak is), so most come at high streaks.
+// Obsidian takes its part of the drop before platinum's.
+float obsidian_share(int cycle, int streak);
+
 // Returns `amount` times `scale`, rounded, at most kMostDrop (0 stays 0, a negative 0).
 std::int32_t scale_amount(std::int32_t amount, float scale);
 
-// A drop as coins: how many of each class are gold and how many platinum, and what did not fit.
+// A drop as coins: how many of each class are gold, platinum and obsidian, and what did not fit.
 struct CoinPlan {
     std::array<int, kCoinKinds> gold{};      // Gold coins by class, from the 1-bolt one.
     std::array<int, kCoinKinds> platinum{};  // Platinum coins by class, from the 5-bolt one.
+    std::array<int, kCoinKinds> obsidian{};  // Obsidian coins by class, from the 25-bolt one.
     std::int32_t leftover = 0;               // Bolts no coin holds (only under a coin limit).
 
     // Returns how many coins the plan makes.
@@ -85,10 +110,17 @@ struct CoinPlan {
     std::int32_t worth() const;
 };
 
-// Splits `total` bolts into coins: `share` of it (rounded, then down to whole platinum bolts, a
-// multiple of 5) as platinum, the rest gold, the most valuable coin first of either kind, as the
-// game's own greedy split. With `limit` at 0 or more, at most that many coins; what does not fit
-// is leftover.
-CoinPlan split(std::int32_t total, float share, int limit);
+// Splits `total` bolts into coins: `obsidian_share` of it (rounded, then down to a multiple of 25)
+// as obsidian, then `share` of it (rounded, down to a multiple of 5, at most what obsidian left) as
+// platinum, the rest gold, the most valuable coin first of any kind, as the game's own greedy
+// split. With `limit` at 0 or more, at most that many coins; what does not fit is leftover. Under
+// a limit, each rarer kind with a coin's worth keeps a place until it has a coin, so the big
+// common coins can't push it out of a small burst.
+CoinPlan split(std::int32_t total, float share, float obsidian_share, int limit);
+
+// The split with no obsidian.
+inline CoinPlan split(std::int32_t total, float share, int limit) {
+    return split(total, share, 0.0f, limit);
+}
 
 }  // namespace ng_plus_plus

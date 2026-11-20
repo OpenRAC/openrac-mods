@@ -301,6 +301,13 @@ static int32_t game_request_autosave(int32_t slot, int32_t flags) {
     return 99;
 }
 
+static int s_hero_saw_heli;
+static void game_hero_update(void) {
+    s_hero_saw_heli = s_memory[D->owned + ITEM_HELI_PACK];
+    ((void (*)(int32_t, int32_t))hook_named("rac1.save.prepare"))(0x1234, 7);
+    CHECK(s_memory[D->owned + ITEM_HELI_PACK] == s_hero_saw_heli);
+}
+
 /* Helga: what she sees of the Swingshot; then she gives it when she is not done. */
 static void game_helga(openrac_gaddr moby) {
     (void)moby;
@@ -499,6 +506,8 @@ static void* original_for(const char* name) {
     if (strcmp(name, OPENRAC_RAC1_HOOK_Moby_Helga_Update) == 0) {
         return (void*)game_helga;
     }
+
+    if (strcmp(name, "rac1.player.update") == 0) return (void*)game_hero_update;
 
     if (strcmp(name, OPENRAC_RAC1_HOOK_Moby_Infobot_Update) == 0) {
         return (void*)game_infobot;
@@ -943,7 +952,7 @@ int main(int argc, char** argv) {
     D = &k_rando_discs[1];
     api = make_api("rac1", "ntsc");
     s_failed[0] = 0;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 27 && s_frame != NULL);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 28 && s_frame != NULL);
     CHECK(hook_named("rac1.moby.moby743.update") != NULL);
     CHECK(hook_named("rac1.moby.moby744.update") != NULL);
     s_hook_count = 0;
@@ -961,8 +970,9 @@ int main(int argc, char** argv) {
 
     D = &k_rando_discs[argc > 2 && strcmp(argv[2], "ntsc") == 0 ? 1 : 0];
     api = make_api("rac1", D->version);
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 27);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 28);
     static const char* const points[][2] = {
+        {"rac1.player.update", "void()"},
         {"rac1.moby.moby743.update", "void(u32)"},
         {"rac1.moby.moby744.update", "void(u32)"},
         {"rac1.moby.class_1035.update", "void(u32)"},
@@ -1033,6 +1043,22 @@ int main(int argc, char** argv) {
     memcpy(s_memory + D->level, &kerwan, 4);
     memset(s_memory + D->vendor_stock, 0xFF, 12);
     init();
+
+    /* Each pack combination: movement sees a pack, saves keep actual ownership. */
+    uint8_t pack_inventory[2] = {s_memory[D->owned + ITEM_HELI_PACK], s_memory[D->owned + ITEM_THRUSTER_PACK]};
+    for (int heli = 0; heli <= 1; ++heli) {
+        for (int thrust = 0; thrust <= 1; ++thrust) {
+            s_memory[D->owned + ITEM_HELI_PACK] = (uint8_t)heli;
+            s_memory[D->owned + ITEM_THRUSTER_PACK] = (uint8_t)thrust;
+            ((void (*)(void))hook_named("rac1.player.update"))();
+            CHECK(s_hero_saw_heli == (heli || thrust));
+            CHECK(s_saved_inventory[ITEM_HELI_PACK] == heli);
+            CHECK(s_saved_inventory[ITEM_THRUSTER_PACK] == thrust);
+            CHECK(s_memory[D->owned + ITEM_HELI_PACK] == heli);
+        }
+    }
+    s_memory[D->owned + ITEM_HELI_PACK] = pack_inventory[0];
+    s_memory[D->owned + ITEM_THRUSTER_PACK] = pack_inventory[1];
 
     /* Helga's place: she sees her place unhad though the Swingshot is owned from elsewhere. */
     const int helga_place = location_of(LOC_GIVE, 0, ITEM_SWINGSHOT);
@@ -1517,7 +1543,7 @@ int main(int argc, char** argv) {
         s_keep_start = 1;
         s_seed = "new games only";
         s_hook_count = 0;
-        CHECK(load(&api, mod) == 0 && s_hook_count == 27);
+        CHECK(load(&api, mod) == 0 && s_hook_count == 28);
         openrac_rac1_Item_Give g = (openrac_rac1_Item_Give)hook_named("Item_Give");
         void (*new_game)(void) = (void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame);
         void (*new_game_plus)(int32_t) =

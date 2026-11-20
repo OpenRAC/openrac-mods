@@ -3,6 +3,19 @@
     "0.1.0",
     "0.2.0"
   ],
+  "auto-head-gear": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "6fb23f83685e98bab5b6a09a28a97aa2817c37e9639fd3d0aa007dbe8e2f7476",
+        "linux-aarch64": "6a850c9add7d2d3466727554229f19c248f98e77a7580a481e946aee42854473",
+        "linux-x86_64": "aa18714575c4c7e4311f3b96cbe717b2b783364987c43fd8ddcc400601e0651c",
+        "macos-arm64": "4d45a588393a11e4b67199e61e8e5538ccf7d991bec463db427cfca0c8ca34bd",
+        "macos-x86_64": "434b6f4b93a7abdeda464f6e2db7d45a0498f30e69dd09b8cf30933ab4a53501",
+        "windows-x86_64": "7e12f56152dfce659ab5d730a8aec9f9b4edda2715120ec960f78b60e159b410"
+      }
+    }
+  ],
   "auto-swingshot": [
     {
       "version": "1.0.0",
@@ -43,6 +56,17 @@
         "macos-x86_64": "91e80b54a11e06599ba27cda283aa2581d15399873b3f04bd19fb003944cac10",
         "windows-x86_64": "15360fe40f1de52300a25f75751e11e88997e530c59e6b02e5369638981b8ddc"
       }
+    },
+    {
+      "version": "0.3.1",
+      "sha256": {
+        "android-arm64": "6da15d25f430567734df50fb1001059073ad1381f2433a0e7e339bdc6069207b",
+        "linux-aarch64": "36633821959ec3a7452a3c05a736e3c233a305fe1391e650aaa2765b474548e5",
+        "linux-x86_64": "e26970377c922cc5b6d33197efa605f8c4372e9ad9ae9329a657b7c74061f053",
+        "macos-arm64": "e6d05719572f0ecd116b3fa8558f372dbc2a7ccc8df8596b898fc2a343f94919",
+        "macos-x86_64": "94e7cbb1827b2fd3a6f0370d0ae2bcda510a6c2ad4ca65d80c434dd9027db58a",
+        "windows-x86_64": "30fb1e0b296c64a22a2fdc0d2756e3406e58066a121cded725adbed82e889bc2"
+      }
     }
   ],
   "cutscene-manager": [
@@ -79,6 +103,17 @@
         "macos-x86_64": "fd9133b5e58aca5c13ba568d2de6ad4a5e8ced07c5991efc1678c59cf36029f4",
         "windows-x86_64": "773574de517de6d4d4cd3a6ea86f0df6115b51aa6f80a164a385a7b9bbc1bf84"
       }
+    },
+    {
+      "version": "1.0.2",
+      "sha256": {
+        "android-arm64": "e405b82768c74605c1bdb3abe6880f72a6f70d47079b359df21d68b554b49af7",
+        "linux-aarch64": "20739b7262442c58e33842790e98ac97cbe3753bf214c9d660d24e23924060bb",
+        "linux-x86_64": "bc66add61fd20f5225e1b788b8b67d6ab87982452913f6cb796b5a6d1fbad51b",
+        "macos-arm64": "7c8323d21552eebd5e3cbae287f33e05f9601a9f66a4a66fb2a3d8702871b65f",
+        "macos-x86_64": "0055e8521874a80362d55e45f28755b99e7e5dd975f51abb5c625a083a6b5843",
+        "windows-x86_64": "583c61777c2a4f9c582d98b3265f8daa0097f03ecc90d89944ff958eccf51eb5"
+      }
     }
   ],
   "fast-travel": [
@@ -109,21 +144,160 @@
       }
     }
   ],
+  "gc-magneboots": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "d3403d5d9c21408c1408daf1c5ed42aa50887766d752a218acebb9a340299f11",
+        "linux-aarch64": "195f628fbc0d5621cd11e800de1515c56217a8e619b75b805c758ddfb7387186",
+        "linux-x86_64": "2b9c5568e3668e0126082a3f1e387c1d69c003cdb1a81ec41c7c54366a6be2b8",
+        "macos-arm64": "2082968c5afc5278a428264555f6a19ca50fe7c149b8142edab3ad55eac9e481",
+        "macos-x86_64": "8be36113280aacc0c3d0bafa3bc522b5e0a6431a17efe9b975664a886915e5dc",
+        "windows-x86_64": "e994ccfff0a45763f5c5fd28d892c2b41c0d27a1f2fb5bb59d6f36fb7c2e1c17"
+      }
+    },
+    {
+      "version": "1.0.1",
+      "sha256": {
+        "android-arm64": "0a789593e5c2c05b76de6301e127ada394807f0b5e7da39451f47bdb2fa11c50",
+        "linux-aarch64": "64355c7817113b1ef52dbbb1e1d206bcf43b76f299a9c00dd848f255e0be48e1",
+        "linux-x86_64": "f114b2ac538714c7883fcf1f8d1a4586d4418b7557d755ae74c3e55548d152ff",
+        "macos-arm64": "9249ddb0ccd443bbd1dc6b2aa2011234f0b81f1491cf786c923ec9ba80d2d2c0",
+        "macos-x86_64": "8b322955ae8f8fb12a4c3a7f7631d42aef110e427f9384cb6f897a5f426e3d2d",
+        "windows-x86_64": "1cafcdaf2e09d80a080d8a0fc715c55e6df71e12a21477b07d891b3b72508de6"
+      }
+    }
+  ],
   "modern-controls": [
     "0.3.0",
     "0.3.3"
   ],
   "pause-weapon-wheel": [
     "1.0.1",
-    "1.0.2"
+    "1.0.2",
+    {
+      "version": "1.0.3",
+      "sha256": {
+        "android-arm64": "5f14ecc6cedc8d626260897a7eb7c0908ef4b88e48cd0e20012d26c83fdf6914",
+        "linux-aarch64": "b533a94b08b1f725e961d9ddaecc9812184ce0a0c2ee83d80296c5a8765e4d57",
+        "linux-x86_64": "32dd40addefc3690569558ab151df3233f4ac583fa4f7a33326a9e82752c5952",
+        "macos-arm64": "0410828103a85747a964651f40783b30bfb9ae39645becd183c5227fd0c75166",
+        "macos-x86_64": "c935de4e4096fa2291b260e482fea7092cc43b2f2c46a9ab46792fd09d8cbe43",
+        "windows-x86_64": "051e154a44672e9a96234368d914cbd83b5f19491a151c10a49402e47a988d1b"
+      }
+    }
   ],
   "rac-board": [
     "0.2.0",
     "0.2.1"
   ],
+  "rac1-enhanced-movement": [
+    {
+      "version": "0.2.1",
+      "sha256": {
+        "android-arm64": "5b0fa10426814cde2a156b7359362f197c8bc89345967b0da00114263cb5a1c0",
+        "linux-aarch64": "8fc5de5087cbf9094629252de8a681bc470a3779aeea30fa232a41806cbed2e1",
+        "linux-x86_64": "37b1703d9f0e5a47016827ef13ca64580e0c002e79b628553af994bd0cf707db",
+        "macos-arm64": "37c423cfe5ae66c8908443c8e89464daa924479f948346e9ca63f14ba775950e",
+        "macos-x86_64": "c340d4b37052d448fb032df8ca5548bd1f24552a2bd32f8a7e0b4332432c0fe4",
+        "windows-x86_64": "c1c08dab435592ae345ee246c7ca1013d9c1fd1df05cc8316fa24c26a429564c"
+      }
+    },
+    {
+      "version": "0.4.0",
+      "sha256": {
+        "android-arm64": "e6be5654aea38f3e4cbdd5faeb67269593b9955f41ed2fd740ba1d7c606ad48a",
+        "linux-aarch64": "e6a1202f2b36efa1d85ea7930ddc65a2ed01f1973c0fbd233f7350034d4d19d4",
+        "linux-x86_64": "890d36d6e670a314e3ae661d9b9ed24a805b93331690c4f6d82393881cea968b",
+        "macos-arm64": "4649581dfcc6897f4aa8c821b4da9adac37075c4847776c457f6346105b1f423",
+        "macos-x86_64": "01eb166560abeaac1ac407d9c2d51bdfe64f46ae742124308e9282c77334c765",
+        "windows-x86_64": "4a050dbd08d98af0605fbdb8a1440e47a75fb4d40877568536403f355a2cfbb7"
+      }
+    },
+    {
+      "version": "0.4.1",
+      "sha256": {
+        "android-arm64": "bd5361d034ed702084ad1e7da21ee761844a8c0e919a5e52bcceea129b88288a",
+        "linux-aarch64": "7fbae19efe2025c28a2252787d68cf45e87b03cd309d07d4f3c9b752f90b55ee",
+        "linux-x86_64": "be51926670441fc4b8b976899942a1ae7ee180780db7bd90067a728bdea85dc0",
+        "macos-arm64": "6c3e0636ac0c5824d6a701fcf60c40f3e6ce00f2b15579e1fd00767d71c1f789",
+        "macos-x86_64": "f687d8e3dce50d7ae25f6053a4ae9fdb0cf8f4d43f58d7e04881721b2014bd34",
+        "windows-x86_64": "e31634c3d0a0114d48e3f2e6c908dfca870ccd6841bdb121df46a2901065e7d7"
+      }
+    },
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "57314b24bc898a3d257b8eb76ea048ad2af3e2818c6710c612a25a8fe79f7bb2",
+        "linux-aarch64": "ce004e8368165c6ee3dfe62038c74dc8193531e11b23f8900c6725c483f34de4",
+        "linux-x86_64": "24176c5bad6b14c2154f616dbb21e1f30c41cb3c0df4c0dfd9867eb381ccbab9",
+        "macos-arm64": "c691d969d3d4dae4f2bf12d419d5a13eefc71dbd6048b574ea47247edb6185cf",
+        "macos-x86_64": "96a5ae8601fe88728ef10fe062cd23663996203f44a37c1fa80b4d7870712e77",
+        "windows-x86_64": "d6b87a12a8dc3069990441da1371604b2ace8b1d2472a78da8baaa72f67772eb"
+      }
+    }
+  ],
+  "rac1-travel-anywhere": [
+    {
+      "version": "0.1.0",
+      "sha256": {
+        "android-arm64": "86652da2d0d371d6c527c0894b124f9c3a364ad4cac44505f77008bf3300a498",
+        "linux-aarch64": "4f019e3d27aa9c4651543c99935f2465193a7dfc71d9c5cf3c91178f05917864",
+        "linux-x86_64": "832fc7e09a304d5d7e3f6ceb1fe0f2cb6fb3ee568c05fe5907e9050963151368",
+        "macos-arm64": "9ccbc6b7a2cbe7c401634d1838279cb184ed33116311b99cacb29d89429b9e76",
+        "macos-x86_64": "0885b9d37c18545d3a2b0f1d314b6490e80f6f9b28985291cd0b38718dde9f20",
+        "windows-x86_64": "07a93ec494ab2c2a3a69ea1d28b15d2b2eea83f8c7062ec2c515bc9847f83ace"
+      }
+    },
+    {
+      "version": "0.1.1",
+      "sha256": {
+        "android-arm64": "ad3515bbd52a33ebb3ae7be298c4520b536dd7f12d09ed63efb798dd21d296a3",
+        "linux-aarch64": "84cf2b2b3336c4ce93e5770827ab12abf752bc9ec3f4f7794656f900603ec1b7",
+        "linux-x86_64": "677e35e64cfdb8cfebaf4d16291fcdfe17409ca8fa04683e93b42a0843549ba6",
+        "macos-arm64": "f0deb72d7f56b4595d8a502a23d88ebb6f3551664f2b50eee40e33697492fd5f",
+        "macos-x86_64": "53ae1f5f3d400ebcd97510c8d07d907b47a580ea296cb3873f6e326f6cd68cf2",
+        "windows-x86_64": "4b7567f62354a0856a2fb289b60eaa32521cc98ae655d54c927b6afcc6b1cd55"
+      }
+    },
+    {
+      "version": "0.1.2",
+      "sha256": {
+        "android-arm64": "740c2704c84629b5428d0db0ba028ef095a8fff26981330c359bdd3ae7652929",
+        "linux-aarch64": "3bfdc87104846fc83fad9d0747aa12122b51064546e7d7156eb15a53fe821573",
+        "linux-x86_64": "36bcc5491aa7f923420313e23f1038767fe032ef2fc6c036b0a304015ebcec2f",
+        "macos-arm64": "fdd90fb1e5c4b77ff346d8d51c25200d2f5acc0096583b337c17cae01042cd15",
+        "macos-x86_64": "50aee13ebecc9b7a99cc6af0c20b4b54e462c2a9cf666453d4a8b2ccfe25eed8",
+        "windows-x86_64": "44b26dea1dede80f5d5936d8e5d2d845d8363b2da967746fc21bae47366b1ad7"
+      }
+    }
+  ],
   "revolverator": [
     "0.3.1",
-    "0.3.3"
+    "0.3.3",
+    {
+      "version": "0.3.4",
+      "sha256": {
+        "windows-x86_64": "360fadbb9c00dd18225d2c912fc9e333a779cfdb4525088148a636858394b5b7"
+      }
+    },
+    {
+      "version": "0.3.5",
+      "sha256": {
+        "windows-x86_64": "3edf941970b4eee5e2b0df482760395ad1e97ba4d697f315bd1061368e2870e9"
+      }
+    }
+  ],
+  "ryno-ammo-drops": [
+    {
+      "version": "0.1.2",
+      "sha256": {
+        "linux-x86_64": "cefbd52e13268fc53927ecb64c494fd875044bb3c684c87bc51736cd94bd563e",
+        "macos-arm64": "003b9e67a3b3f5c21e7d239e40b6bdb4fc447c8dcc94f32473b998dbbbb584d2",
+        "macos-x86_64": "8abd22cb4bcc580d33d77c345167a16cb7d996b051833a92083af13de86705fb",
+        "windows-x86_64": "eaf72e69979f4e7ed49f03ea7ec97b09c17b5dffdd5b108e601599e7aa008dfa"
+      }
+    }
   ],
   "save-manager": [
     "0.1.0",
@@ -138,6 +312,17 @@
   "wrench-throw": [
     "1.0.0",
     "1.0.1",
-    "1.0.2"
+    "1.0.2",
+    {
+      "version": "1.0.3",
+      "sha256": {
+        "android-arm64": "7cb2905cb30f39cc9578d109fd555e7c21fd5077bd8057bd42a59b8a56e9fdca",
+        "linux-aarch64": "7f10bafeebf524d044391529bf12bd298f78878dff536fbca062b35dd466af11",
+        "linux-x86_64": "27081d81aa404efc7ec13395a7548ccd34638fa282f6cf27a5f96b0b475f6f24",
+        "macos-arm64": "b7cd679382efdff06d7d5b737b44bc52ad54c0bdab795e28119ec3866418bac1",
+        "macos-x86_64": "f93a45a5b9438511d6f9d4529950c284d464d0193727204b242d82d5a779ed3f",
+        "windows-x86_64": "0e658840346842077d9a50096de17deacc5f200fd3634a6f22bb1c725ccd0f33"
+      }
+    }
   ]
 }

@@ -25,11 +25,12 @@ struct Session {
     openrac::Mod* mod = nullptr;
 
     // What the player chose (read at load).
-    bool chaos = false;         // The Chaos switch.
-    Values sliders = retail();  // Each slider, clamped to its range.
-    std::uint64_t seed = 0;     // The seed Chaos rolls from.
-    bool trace = false;         // More lines in the log.
-    bool events_on = false;     // The timed events' switch.
+    bool chaos = false;          // The Chaos switch.
+    Values sliders = retail();   // Each slider, clamped to its range.
+    std::uint64_t seed = 0;      // The seed Chaos rolls from.
+    std::uint64_t own_seed = 0;  // This game's own, kept while it plays by a party's.
+    bool trace = false;          // More lines in the log.
+    bool events_on = false;      // The timed events' switch.
 
     // What plays on the level loaded, and with the event on.
     Values level = retail();   // The level's values, without the event.
@@ -39,6 +40,11 @@ struct Session {
     // The host's rules, while a party's host has given them.
     bool follow = false;  // True while a host's rules count.
     PartyRules rules;     // The host's rules, valid while `follow`.
+    // The seconds of play the host's event has been on here: one far past an event's length is
+    // ended here (a host that took over passes on the rules as they were, the event never ending).
+    double event_held = 0.0;
+    // It took over as the party's host (the old host left), playing on by the party's rules.
+    bool took_over = false;
 
     // The knobs this game honours (rules.h: a bit each): the log names only these, and the events
     // of others are never picked.
@@ -59,8 +65,8 @@ void set_active(Session& session);
 std::uint64_t level_values(Session& session, int level);
 
 // Advances the events' clock by `dt` seconds of play: an event starting or ending changes what
-// plays, is published to a party's members, and logged. Does nothing with the events off or in a
-// party's member (the host decides them).
+// plays, is published to a party's members, and logged. Does nothing with the events off. In a
+// party's member the host decides the events: only one on far longer than an event lasts is ended.
 void advance_events(Session& session, double dt);
 
 // The values as one log line: each honoured slider's name and value, two decimals each.

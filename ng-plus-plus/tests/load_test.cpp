@@ -84,11 +84,12 @@ constexpr std::uint32_t kCoinBytes = 0x100u;          // One coin's moby.
 constexpr std::uint32_t kStackTop = 0x003F0000u;      // The game's stack, growing down.
 
 // The ports the test plays: 1.23 with the bolt hook points, 1.22 without, 1.23 with the setting
-// off.
+// off, and 1.24, whose moby_material draws obsidian too.
 enum class Host {
     Bolts,
     Old,
-    Off
+    Off,
+    Obsidian
 };
 
 // One coin the test's game made: its moby and worth, and where the mod said it starts.
@@ -120,6 +121,11 @@ constexpr std::int32_t kAmmoOneText = 0x2002;      // "1 Mega Lancer round".
 constexpr std::int32_t kAmmoFullText = 0x2003;     // "Ammo full": names no weapon.
 // The game's own shape of the message: the name in colour codes, between its words too.
 constexpr std::int32_t kAmmoCodedText = 0x2004;    // "Got %d \x0cMega \x0cLancer\x08\x08 ammo".
+// The collectors' dialogs (collectors.h): Tabora's crystals and Grelbin's moonstones.
+constexpr std::int32_t kCrystalText = 10135;    // "Trade %d crystals for %d bolts?".
+constexpr std::int32_t kMoonstoneText = 10209;  // "%d moonstones: %d bolts".
+// The game's level-up table's line for the Lancer at its last version (help_show_message_for_id).
+constexpr std::int32_t kLevelUpLineText = 0x2005;  // "\x0cMega Lancer\x08 upgraded".
 
 // The ammo pickup's fields of a row (src/discs.h, kRowTextFields).
 constexpr std::uint32_t kRowAmmoMany = 0x38u;
@@ -147,6 +153,7 @@ std::string g_drawn_label;
 std::uint32_t g_drawn_tint = 0;
 std::uint32_t g_row_tint[16];
 int g_banners = 0;
+int g_fx_item = -1;  // The item the in-hand level-up was last started for.
 std::int32_t g_banner_key = 0;
 int g_level_now = 1;
 Host g_host = Host::Bolts;
@@ -155,6 +162,7 @@ std::int32_t g_bolts = 0;
 std::int32_t g_burst_high = -1;
 std::vector<Coin> g_coins;
 std::map<std::uint32_t, std::uint32_t> g_materials;  // Moby to material, as the port draws them.
+std::map<std::uint32_t, std::uint32_t> g_glows;      // Moby to the rgb it was drawn with.
 std::uint32_t g_sp = kStackTop;
 
 // ---- Game memory ----
@@ -273,6 +281,15 @@ std::int32_t game_text(std::int32_t id) {
             return static_cast<std::int32_t>(kTextAt + 0x480);
         case kAmmoCodedText:
             return static_cast<std::int32_t>(kTextAt + 0x4C0);
+        case kLevelUpLineText:
+            return static_cast<std::int32_t>(kTextAt + 0x500);
+        case kCrystalText:
+            return static_cast<std::int32_t>(kTextAt + 0x540);
+        case kMoonstoneText:
+            return static_cast<std::int32_t>(kTextAt + 0x580);
+        // Text 0: the game's empty string.
+        case 0:
+            return static_cast<std::int32_t>(kTextAt + 0x5F0);
         // No such text.
         default:
             return 0;
@@ -332,6 +349,12 @@ std::int32_t game_banner(std::int32_t key, std::int32_t selection) {
     ++g_banners;
     g_banner_key = selection == 1 ? key : -1;
     return 1;
+}
+
+// The game's in-hand level-up (func_L00_0037E6A8): the hero's animation starts; the test plays
+// its end, the game's popup, itself.
+void game_upgrade_fx(std::int32_t item, std::int32_t /*row*/) {
+    g_fx_item = item;
 }
 
 // The game's message line (func_002B0A18): it looks its text up and shows it.
@@ -537,9 +560,14 @@ int host_on_frame(openrac_mod* /*mod*/, openrac_frame_fn fn, void* user) {
 }
 
 void* host_function(const char* name) {
-    // The disc's names of the popup, the line and the lookup; no in-hand level-up.
+    // The disc's names of the popup, the line, the in-hand level-up and the lookup.
     if (std::strcmp(name, g_disc->banner) == 0) {
         return reinterpret_cast<void*>(&game_banner);
+    }
+
+    // The in-hand level-up by its name.
+    if (std::strcmp(name, g_disc->upgrade_fx) == 0) {
+        return reinterpret_cast<void*>(&game_upgrade_fx);
     }
 
     // The message line by its name.
@@ -593,16 +621,19 @@ void host_stack_pop(openrac_gaddr saved) {
 int host_material(
     openrac_mod* /*mod*/, openrac_gaddr moby, std::uint32_t material, std::uint32_t rgb
 ) {
-    // What the port refuses.
-    if (moby == 0 || material > kMaterialPlatinum || rgb > kNoTint) {
+    // What the port refuses: obsidian before 1.24.
+    const std::uint32_t most = g_host == Host::Obsidian ? kMaterialObsidian : kMaterialPlatinum;
+    if (moby == 0 || material > most || rgb > kNoTint) {
         return OPENRAC_HOOK_UNKNOWN;
     }
 
     // None takes the mod's material off.
     if (material == kMaterialNone) {
         g_materials.erase(moby);
+        g_glows.erase(moby);
     } else {
         g_materials[moby] = material;
+        g_glows[moby] = rgb;
     }
 
     return OPENRAC_HOOK_OK;
@@ -703,6 +734,10 @@ void lay_out_game() {
     put_string(kTextAt + 0x440, "1 Mega Lancer round");
     put_string(kTextAt + 0x480, "Ammo full");
     put_string(kTextAt + 0x4C0, "Got %d \x0cMega \x0cLancer\x08\x08 ammo");
+    put_string(kTextAt + 0x500, "\x0cMega Lancer\x08 upgraded");
+    put_string(kTextAt + 0x5F0, "");
+    put_string(kTextAt + 0x540, "Trade %d crystals for %d bolts?");
+    put_string(kTextAt + 0x580, "%d moonstones: %d bolts");
     put_string(kMegaAt, "Mega");
     set<std::int16_t>(row(kRyno) + kRowName, kRynoText);
     g_memory[g_disc->owned + kRyno] = 1;
@@ -740,7 +775,7 @@ void make_api() {
         g_api.api_minor = 22;
     } else {
         g_api.size = sizeof g_table;
-        g_api.api_minor = kMaterialMinor;
+        g_api.api_minor = g_host == Host::Obsidian ? kObsidianMinor : kMaterialMinor;
         g_table.moby_material = host_material;
     }
 
@@ -955,14 +990,14 @@ void test_tint_damage_and_enemies() {
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
     CHECK(g_damage_seen == 20.0f);
 
-    // Challenge mode's third game (cycle 2): enemies have twice the health, deal 1.25 times.
+    // Challenge mode's third game (cycle 2): enemies have 2.5 times the health, deal 1.375 times.
     set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
     set<float>(kRequestAt + kHitDamage, 10.0f);
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
-    CHECK(std::fabs(g_damage_seen - 10.0f) < 0.001f);  // Beta's 2 over the health's 2
+    CHECK(std::fabs(g_damage_seen - 8.0f) < 0.001f);  // Beta's 2 over the health's 2.5
     g_taken = 0;
 
-    // Four hits of one point: five, the quarters carried.
+    // Four hits of one point: five (5.5, the fractions carried).
     for (int n = 0; n < 4; ++n) {
         hooked<rac2::Hero_TakeDamage>()(1);
     }
@@ -1045,6 +1080,60 @@ void test_ryno_at_the_vendor() {
     CHECK(title(kRynoLabelText) == "Alpha RYNO II");
     tick(1);
     CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);  // toward Beta
+}
+
+// Returns the vendor list place of item `item`'s upgrade entry, or -1.
+int upgrade_place(int item) {
+    int place = -1;
+
+    // Each entry of the list.
+    for (int n = 0; n < vendor_count(); ++n) {
+        // The item's upgrade entry.
+        if (get<std::int32_t>(entry(n) + kEntryItem) == item
+            && get<std::int32_t>(entry(n) + kEntryUpgrade) != 0) {
+            place = n;
+        }
+    }
+
+    return place;
+}
+
+// Checks a tier earned by a weapon in hand: the game's in-hand level-up, then at its end the
+// game's popup from its own level-up table named at the tier. The RYNO II has no line there, so
+// the game shows text 0, an empty box (0.3.5): the tier's name fills it. The Lancer's line names
+// its last version ("Ultra", the test's "Mega"): the tier's name takes its place. Each popup is
+// named once; after it text 0 is the game's again.
+void test_in_hand_level_up() {
+    set<std::int32_t>(g_disc->hero + kHeroReady, 1);
+
+    // The RYNO II in hand, at a tier by experience: no popup of the mod's, the animation instead.
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kRyno);
+    g_fx_item = -1;
+    const int banners = g_banners;
+    set_experience(kRyno, 1'000'000);
+    tick(1);
+    CHECK(g_fx_item == kRyno);
+    CHECK(g_banners == banners);
+    const std::string ryno = string_at(port_text(0));
+    CHECK(ryno.size() > std::string(" RYNO II").size());
+    CHECK(ryno.find(" RYNO II") == ryno.size() - std::string(" RYNO II").size());
+    CHECK(string_at(port_text(0)).empty());  // shown once
+
+    // The Lancer: Gamma bought, then Delta by experience in hand.
+    hooked<rac2::Vendor_BuildList>()(0);
+    set_cursor(upgrade_place(kLancer));
+    std::int32_t money = 100'000'000;
+    CHECK(purchase(money) > 0);
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kLancer);
+    g_fx_item = -1;
+    set_experience(kLancer, 1'000'000);
+    tick(1);
+    CHECK(g_fx_item == kLancer);
+    // Its own name in the HUD on the way, then the popup: the tier's name for the version's.
+    CHECK(string_at(port_text(kMegaLancerText)) == "Delta Heavy Lancer");
+    CHECK(string_at(port_text(kLevelUpLineText)) == "\x0c" "Delta Heavy Lancer\x08 upgraded");
+    CHECK(string_at(port_text(0)).empty());  // the popup was named: text 0 is the game's
+    set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
 }
 
 // Checks a restarted game (a new version of the mod): the steps bought since the last save were
@@ -1187,8 +1276,12 @@ std::int32_t coins_worth() {
 
     // Each coin, as the player will collect it.
     for (const Coin& coin : g_coins) {
-        const bool platinum = g_materials.count(coin.moby) != 0;
-        total += platinum ? coin.value * kPlatinumTimes : coin.value;
+        const auto found = g_materials.find(coin.moby);
+        const bool rare = found != g_materials.end();
+        const std::int32_t times = !rare ? 1
+                                   : found->second == kMaterialObsidian ? kObsidianTimes
+                                                                        : kPlatinumTimes;
+        total += coin.value * times;
     }
 
     return total;
@@ -1236,6 +1329,90 @@ void test_platinum_drop() {
 
     CHECK(g_bolts == 15'000);
     CHECK(g_materials.empty());
+}
+
+// Checks obsidian on a port of 1.24: the same drop of 15,000 in challenge mode's fourth run (cycle
+// 3) at a x20 streak gives 15% as obsidian first (2,250: a 1,250 and two 500s, each class with its
+// own glow), then platinum's 65% (9,750) and gold; an obsidian coin collected is worth 25 times its
+// class. Without a streak there are only hints: 2% of a drop of 7,500.
+void test_obsidian_drop() {
+    lay_out_enemy();
+    set_run(3, 20);
+    g_coins.clear();
+    g_materials.clear();
+    g_glows.clear();
+    port_spawn_pickups(kMobyEnemy, 1500, 9);
+    CHECK(coins_worth() == 15'000);
+    CHECK(g_sp == kStackTop);
+    CHECK(g_log.find("interface 1.24") == std::string::npos);
+
+    std::map<std::int32_t, int> obsidian;  // Obsidian coins by their gold class's worth.
+    std::uint32_t glow_1250 = 0;
+    std::uint32_t glow_500 = 0;
+
+    // The coins drawn as obsidian, by class, and their glows.
+    for (const Coin& coin : g_coins) {
+        // Only the obsidian ones.
+        if (g_materials.count(coin.moby) == 0 || g_materials[coin.moby] != kMaterialObsidian) {
+            continue;
+        }
+
+        ++obsidian[coin.value];
+        (coin.value == 50 ? glow_1250 : glow_500) = g_glows[coin.moby];
+    }
+
+    CHECK(obsidian.size() == 2 && obsidian[50] == 1 && obsidian[20] == 2);
+    // A shade per size: the bigger coin redder, each a colour, not the default white.
+    CHECK(glow_1250 != glow_500 && glow_1250 != kNoTint && glow_500 != kNoTint);
+    CHECK((glow_1250 >> 16) >= (glow_500 >> 16));
+    // The biggest first: obsidian before platinum and gold of a size.
+    CHECK(!g_coins.empty() && g_coins[0].value == 1000);
+    CHECK(g_materials[g_coins[0].moby] == kMaterialPlatinum);
+
+    // Collected: an obsidian 1,250 (a 50 coin) first, then the rest, the whole drop.
+    g_bolts = 0;
+    std::uint32_t first = 0;
+
+    // The one obsidian 50 coin.
+    for (const Coin& coin : g_coins) {
+        // Found.
+        if (coin.value == 50 && g_materials[coin.moby] == kMaterialObsidian) {
+            first = coin.moby;
+            break;
+        }
+    }
+
+    port_collect(first);
+    CHECK(g_bolts == 1250);
+    CHECK(g_materials.count(first) == 0);
+
+    // Every other coin.
+    for (const Coin& coin : g_coins) {
+        // Not the one collected.
+        if (coin.moby != first) {
+            port_collect(coin.moby);
+        }
+    }
+
+    CHECK(g_bolts == 15'000);
+    CHECK(g_materials.empty());
+
+    // No streak: the 2% of a 7,500 drop at x1 is 150, an obsidian 125 and an obsidian 25.
+    set_run(3, 1);
+    g_coins.clear();
+    port_spawn_pickups(kMobyEnemy, 750, 9);
+    int obsidian_coins = 0;
+
+    // The obsidian coins of the drop.
+    for (const Coin& coin : g_coins) {
+        obsidian_coins += g_materials.count(coin.moby) != 0
+                                  && g_materials[coin.moby] == kMaterialObsidian
+                              ? 1
+                              : 0;
+    }
+
+    CHECK(obsidian_coins == 2);
+    CHECK(coins_worth() == 7'500);
 }
 
 // Checks that a level left forgets its platinum coins: a moby of the next level is worth its class.
@@ -1299,6 +1476,65 @@ void test_drops_untouched() {
 }
 
 // Runs every check on `disc`, with the library at `path`, against a port of `host`.
+// Checks the collectors in challenge mode's fourth run (cycle 3, x2.5): Tabora's dialog shows the
+// scaled total of the crystals held (4 at 10,000: 100,000), and the trade pays it, the game's
+// 40,000 and the mod's 60,000; Grelbin's moonstones the same (3 at 30,000: 225,000). In the first
+// challenge mode, and with bolt scaling off, the game's own dialog and pay.
+void test_collectors(bool scaled) {
+    const std::uint32_t block = g_disc->progress;
+    set_run(3, 1);
+    set<std::int32_t>(block + kProgressBolts, 1'000);
+    set<std::int16_t>(block + kProgressCrystals, 4);
+    set<std::int32_t>(block + kProgressMoonstones, 3);
+
+    // Tabora: the dialog, then the trade as the game makes it.
+    g_level_now = 8;
+    tick(1);
+    CHECK(string_at(port_text(kCrystalText))
+          == (scaled ? "Trade %d crystals for 100000 bolts?" : "Trade %d crystals for %d bolts?"));
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressBolts, 41'000);
+    set<std::int16_t>(block + kProgressCrystals, 0);
+    tick(1);
+    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    // Nothing more on the next tick, and no dialog of nothing.
+    tick(1);
+    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    CHECK(string_at(port_text(kCrystalText)) == "Trade %d crystals for %d bolts?");
+
+    // Grelbin: the moonstones.
+    g_level_now = 19;
+    tick(1);
+    CHECK(string_at(port_text(kMoonstoneText))
+          == (scaled ? "%d moonstones: 225000 bolts" : "%d moonstones: %d bolts"));
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressBolts, 131'000);
+    set<std::int32_t>(block + kProgressMoonstones, 0);
+    tick(1);
+    CHECK(g_bolts == (scaled ? 135'000 : 0));
+
+    // A count that drops with no pay (a save loaded): nothing.
+    set<std::int32_t>(block + kProgressMoonstones, 5);
+    tick(1);
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressMoonstones, 0);
+    tick(1);
+    CHECK(g_bolts == 0);
+
+    // The first challenge mode: the game's.
+    set_run(1, 1);
+    set<std::int16_t>(block + kProgressCrystals, 2);
+    g_level_now = 8;
+    tick(1);
+    CHECK(string_at(port_text(kCrystalText)) == "Trade %d crystals for %d bolts?");
+    g_bolts = 0;
+    set<std::int32_t>(block + kProgressBolts, 151'000);
+    set<std::int16_t>(block + kProgressCrystals, 0);
+    tick(1);
+    CHECK(g_bolts == 0);
+    g_level_now = 1;
+}
+
 void run(const char* path, const Disc& disc, Host host) {
     g_disc = &disc;
     g_host = host;
@@ -1329,8 +1565,11 @@ void run(const char* path, const Disc& disc, Host host) {
     CHECK(reload(load));
     CHECK(g_failed.empty());
     // The nine of before, and the three bolt hook points on a port of 1.23 with the setting on.
-    CHECK(g_hooks.size() == (host == Host::Bolts ? 12u : 9u));
+    const bool bolts = host == Host::Bolts || host == Host::Obsidian;
+    CHECK(g_hooks.size() == (bolts ? 12u : 9u));
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
+    // A port of 1.23 drops platinum only, and says so.
+    CHECK((g_log.find("interface 1.24") != std::string::npos) == (host == Host::Bolts));
     lay_out_game();
     test_a_new_save_counts_from_zero();
     test_the_vendor_offers_alpha();
@@ -1342,9 +1581,14 @@ void run(const char* path, const Disc& disc, Host host) {
     test_a_restart_keeps_the_steps(load);
     test_each_save_has_its_own();
     test_saves_from_inside_a_level();
+    test_in_hand_level_up();
+
+    test_collectors(host != Host::Off);
 
     // The bolts as the port offers them.
-    if (host == Host::Bolts) {
+    if (host == Host::Obsidian) {
+        test_obsidian_drop();
+    } else if (host == Host::Bolts) {
         test_platinum_drop();
         test_level_left();
         test_drops_before_and_crates();
@@ -1374,7 +1618,7 @@ int main(int argc, char** argv) try {
     // Every disc NG++ knows.
     for (const Disc& disc : kDiscs) {
         // Each port: 1.23 with the bolts, 1.22 without, the setting off.
-        for (const Host host : {Host::Bolts, Host::Old, Host::Off}) {
+        for (const Host host : {Host::Bolts, Host::Old, Host::Off, Host::Obsidian}) {
             run(argv[1], disc, host);
         }
     }

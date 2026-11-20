@@ -39,6 +39,11 @@
 // The rules. A mod publishes its rules in every game (openrac_api.party_rules_publish); a host's
 // mods' go to the members, whose same mods take them (party_rules_deliver) for as long as the party
 // lasts, through any level load or respawn, and are told when it goes.
+//
+// A member that takes over as host keeps the party's rules and passes them on. Each mod that took
+// them is told it hosts now by an empty delivery (0 bytes, not null: a host never publishes 0
+// bytes); a mod that then publishes again (Difficulty: the party's rules, and the events and copies
+// it now runs) has its new rules passed on, and the rest keep the old host's.
 
 #ifndef MULTIPLAYER_PARTY_MODS_H
 #define MULTIPLAYER_PARTY_MODS_H
@@ -187,6 +192,8 @@ struct PartyRules {
     std::string id;    // The id of the mod the rules are for.
     Bytes data;        // The rules as the mod publishes them, opaque here.
     std::string text;  // The mod's words about them, one item a line.
+    // How often this game's mod has published (party_rules_read's version); not sent.
+    std::uint32_t version = 0;
 };
 
 // The party's rules for a player, each line at most `width` bytes: per gameplay mod of the `host`'s
@@ -377,6 +384,8 @@ private:
     ModList basis_;
     // The ids of this game's mods that took the party's rules, so clear() can reset them.
     std::vector<std::string> delivered_;
+    // At the takeover: each of this game's mods' publish count, to tell which published since.
+    std::map<std::string, std::uint32_t> versions_at_takeover_;
 };
 
 }  // namespace mp

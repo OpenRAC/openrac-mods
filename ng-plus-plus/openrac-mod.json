@@ -2,9 +2,9 @@
   "format": 2,
   "id": "ng-plus-plus",
   "name": "NG++",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "author": "Keros",
-  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. The RYNO II gets two upgrades first: Heavy RYNO II by XP, then Ultima RYNO II from the vendor. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x1.5 up to x6, more from tough enemies), part of them as platinum bolts worth five times the gold ones: the longer your kill streak, the more platinum. The first challenge mode already drops a few platinum bolts. Platinum bolts need OpenRAC with mod interface 1.23.",
+  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. The RYNO II gets two upgrades first: Heavy RYNO II by XP, then Ultima RYNO II from the vendor. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x1.5 up to x6, more from tough enemies), part of them as platinum bolts worth five times the gold ones and, rarely at first, obsidian bolts worth 25 times: the longer your kill streak, the more of both. The first challenge mode already drops a few platinum bolts. Tabora's crystals and Grelbin's moonstones pay more each new game too. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ng-plus-plus",
   "api": "1.14",
@@ -42,7 +42,7 @@
       "name": "Tougher enemies each new game",
       "type": "bool",
       "default": true,
-      "description": "From the second challenge mode on, enemies have more health and hit harder each new game, but stay behind the damage of the tiers you should have by then (the table is in the README). The first challenge mode is unchanged."
+      "description": "From the second challenge mode on, enemies have more health and hit harder each new game (x2.5 health in the second challenge mode, up to x6.75), but stay behind the damage of the tiers you should have by then, and a fully upgraded weapon stays ahead in every game (the table is in the README). The first challenge mode is unchanged."
     },
     {
       "key": "enemy_strength",
@@ -66,7 +66,7 @@
         { "value": "normal", "name": "Normal" },
         { "value": "generous", "name": "Generous" }
       ],
-      "description": "From the second challenge mode on, drops pay more bolts each new game (x1.5, x2.5, x4, then x6), tough enemies up to twice that, and part of each drop comes as platinum bolts worth five times the gold ones (more with a longer kill streak); the first challenge mode already drops a few. Generous pays half as much again. Off leaves the game's drops as they are. Needs OpenRAC with mod interface 1.23."
+      "description": "From the second challenge mode on, drops pay more bolts each new game (x1.5, x2.5, x4, then x6), tough enemies up to twice that, and part of each drop comes as platinum bolts worth five times the gold ones and obsidian bolts worth 25 times (more of both with a longer kill streak); the first challenge mode already drops a few platinum bolts. Tabora's crystals and Grelbin's moonstones pay the same x1.5 to x6. Generous pays half as much again. Off leaves the game's drops and the collectors as they are. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24."
     }
   ],
   "save_data": {

@@ -155,6 +155,12 @@ inline constexpr std::uint32_t kColorAlpha = 0xFF000000u;
 // func_002DE990).
 inline constexpr std::uint32_t kProgressCycle = 0x12u;
 
+// The bolts, s32 (+0x00, D_001A79F8 on NTSC-U v1.01), Tabora's crystals, s16 (+0x22, D_001A7A1A),
+// and Grelbin's moonstones, s32 (+0x24, D_001A7A1C), of the save block.
+inline constexpr std::uint32_t kProgressBolts = 0x00u;
+inline constexpr std::uint32_t kProgressCrystals = 0x22u;
+inline constexpr std::uint32_t kProgressMoonstones = 0x24u;
+
 // The kill streak's multiplier in the save block, u8 (g_bolt_multiplier, D_001A7A32 on NTSC-U:
 // 1 to 20, shown as "x2" to "x20"; moby_spawn_bolt_pickups and SetDeathBits).
 inline constexpr std::uint32_t kProgressStreak = 0x3Au;

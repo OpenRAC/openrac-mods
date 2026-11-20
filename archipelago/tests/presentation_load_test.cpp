@@ -750,6 +750,7 @@ void serve(socket_t listener) {
                                  {{AP_GAME,
                                    {{"item_name_to_id",
                                      {{"Gold Bolt", AP_BASE + AP_GOLD_BOLT_OFFSET},
+                                      {"Platinum Zoomerator", AP_BASE + AP_SPECIAL_OFFSET + SPECIAL_ZOOMERATOR},
                                       {"Aridia Coordinates",
                                        AP_BASE + AP_PLANET_OFFSET + LEVEL_ARIDIA}}},
                                     {"location_name_to_id", json::object()}}}}}}}},
@@ -770,6 +771,9 @@ void serve(socket_t listener) {
                                      {"player", 1}},
                                     {{"location", location_id(LOC_VENDOR, LEVEL_OLTANIS, ITEM_TESLA_CLAW)},
                                      {"item", AP_BASE + AP_GOLD_WEAPON_OFFSET + ITEM_DECOY_GLOVE},
+                                     {"player", 1}},
+                                    {{"location", location_id(LOC_VENDOR, LEVEL_GASPAR, ITEM_WALLOPER)},
+                                     {"item", AP_BASE + AP_SPECIAL_OFFSET + SPECIAL_ZOOMERATOR},
                                      {"player", 1}},
                                     {{"location", gadget_vendor},
                                      {"item", AP_BASE + ITEM_HELI_PACK},
@@ -929,7 +933,7 @@ int main(int argc, char** argv) {
         api.pickup_animation = acquisition_request;
     }
     CHECK(load(ap_visual_base(&api), reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_acquisition_mode ? 56 : g_visual_mode ? 48 : 41) && g_frame != nullptr);
+    CHECK(g_hooks == (g_acquisition_mode ? 57 : g_visual_mode ? 49 : 42) && g_frame != nullptr);
     CHECK(replacement("rac1.moby.moby743.update") != nullptr);
     CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
@@ -1295,6 +1299,26 @@ int main(int argc, char** argv) {
             }
             put(game_mode, 0);
             g_frame(g_frame_user);
+        }
+        // Zoomerator uses the upright gadget pose in both monitors, not Walloper's tilt.
+        put(D->vendor_menu + VENDOR_ENTRIES, ITEM_WALLOPER);
+        put(game_mode, 5);
+        initialize();
+        CHECK(g_vendor_initialized_item == ITEM_DEVASTATOR);
+        CHECK(get(D->vendor_menu + VENDOR_ENTRIES) == ITEM_WALLOPER);
+        for (int table : {0, 2}) {
+            CHECK(get(D->vendor_menu - offsets[table] + ITEM_WALLOPER * sizes[table] + 0x14) == 0);
+        }
+        g_frame(g_frame_user);
+        for (const uint32_t address : {0x1A00100u, 0x1A00300u}) {
+            CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [&](const auto& v) {
+                return v.moby == address && v.oclass == 1002;
+            }));
+        }
+        put(game_mode, 0);
+        g_frame(g_frame_user);
+        for (int table : {0, 2}) {
+            CHECK(get(D->vendor_menu - offsets[table] + ITEM_DEVASTATOR * sizes[table] + 0x14) == 0x66666666 + table * 0x01010101);
         }
         // A gold vendor reward must submit the real gold mesh for both monitors,
         // even when retail initialized a normal Decoy Glove to provide its pose.

@@ -51,9 +51,14 @@ inline openrac_api& bolt_base(BoltApi& api) {
 // The interface minor that has moby_material.
 inline constexpr std::uint16_t kMaterialMinor = 23;
 
-// What moby_material draws (OPENRAC_MOBY_MATERIAL_NONE and _PLATINUM of interface 1.23).
+// What moby_material draws (OPENRAC_MOBY_MATERIAL_NONE and _PLATINUM of interface 1.23, and
+// _OBSIDIAN of 1.24, whose rgb is its glow's colour).
 inline constexpr std::uint32_t kMaterialNone = 0;
 inline constexpr std::uint32_t kMaterialPlatinum = 2;
+inline constexpr std::uint32_t kMaterialObsidian = 3;
+
+// The interface minor whose moby_material draws obsidian (the same entry; a 1.23 port refuses it).
+inline constexpr std::uint16_t kObsidianMinor = 24;
 
 // The rgb that leaves a material's colours as they are (0xRRGGBB, all channels full).
 inline constexpr std::uint32_t kNoTint = 0xFFFFFFu;
@@ -72,6 +77,11 @@ inline MobyMaterialFn moby_material_of(const openrac_api& api) {
     }
 
     return reinterpret_cast<const BoltApi*>(&api)->moby_material;
+}
+
+// Returns whether the port's moby_material draws obsidian (interface 1.24 or later).
+inline bool has_obsidian(const openrac_api& api) {
+    return moby_material_of(api) != nullptr && api.api_minor >= kObsidianMinor;
 }
 
 }  // namespace ng_plus_plus

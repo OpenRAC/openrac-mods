@@ -24,6 +24,12 @@ constexpr int kFirstCycle = 2;
 // How many drops a session writes to the log.
 constexpr int kDropsLogged = 5;
 
+// Obsidian's glow, a shade per coin size (0xRRGGBB, from the 25-bolt coin to the 25,000 one):
+// violet on the small ones, through magenta, to ember red on the big ones.
+constexpr std::uint32_t kObsidianGlow[kCoinKinds] = {
+    0x8A4DFFu, 0x9A3CFFu, 0xB030F0u, 0xC828D0u, 0xE02090u, 0xF01850u, 0xFF1028u,
+};
+
 // A coin's start and speed, four floats each, on the game's stack for the coin maker.
 constexpr std::uint32_t kVectorBytes = 16u;
 
@@ -56,6 +62,7 @@ void PlatinumBolts::start() {
     }
 
     m_material = moby_material_of(m_mod.api());
+    m_obsidian = has_obsidian(m_mod.api());
 
     // An OpenRAC before 1.23 cannot draw a platinum coin: the game's drops, said once.
     if (m_material == nullptr) {
@@ -93,6 +100,11 @@ void PlatinumBolts::start() {
             self->collect(original, moby);
         });
         m_enabled = true;
+
+        // An OpenRAC before 1.24 cannot draw obsidian: platinum only, said once.
+        if (!m_obsidian) {
+            m_mod.info("no obsidian bolts in this OpenRAC: they need interface 1.24");
+        }
     } catch (const openrac::Error& error) {
         m_mod.info(std::string("no platinum bolts or bolt scaling: ") + error.what());
     }
@@ -146,20 +158,27 @@ void PlatinumBolts::spawn_pickups(
     const int limit = (flags & kFlagLimit) != 0 ? maximum : -1;
 
     const float share = platinum_share(cycle, m_view.streak());
-    const CoinPlan plan = split(total, share, limit);
+    const float obsidian = m_obsidian ? obsidian_share(cycle, m_view.streak()) : 0.0f;
+    const CoinPlan plan = split(total, share, obsidian, limit);
 
     // The first few drops of a session in the log, to show what the drops pay.
     if (m_drops_logged < kDropsLogged) {
         ++m_drops_logged;
         int platinum = 0;
-        for (const int count : plan.platinum) {
-            platinum += count;
+        int obsidian_coins = 0;
+
+        // The rare coins of each class.
+        for (int kind = 0; kind < kCoinKinds; ++kind) {
+            platinum += plan.platinum[static_cast<std::size_t>(kind)];
+            obsidian_coins += plan.obsidian[static_cast<std::size_t>(kind)];
         }
+
         m_mod.info(
             "drop of " + std::to_string(total) + " bolts (challenge mode " + std::to_string(cycle)
             + ", x" + std::to_string(m_view.streak()) + " streak, scale "
-            + std::to_string(scale).substr(0, 4) + "): " + std::to_string(platinum)
-            + " platinum coins of " + std::to_string(plan.coins())
+            + std::to_string(scale).substr(0, 4) + "): " + std::to_string(obsidian_coins)
+            + " obsidian and " + std::to_string(platinum) + " platinum coins of "
+            + std::to_string(plan.coins())
         );
     }
 
@@ -191,7 +210,7 @@ std::uint32_t PlatinumBolts::spawn_pickup(
 
     const std::uint32_t moby = original(source, position, velocity, flags, value, counted);
 
-    // A gold coin in a moby a platinum one had: no longer platinum.
+    // A gold coin in a moby a rare one had: no longer rare.
     m_platinum.erase(moby);
     return moby;
 }
@@ -207,16 +226,19 @@ void PlatinumBolts::collect(
         return;
     }
 
-    const int kind = found->second;
+    const Marked marked = found->second;
     m_platinum.erase(found);
 
-    // Still the coin the mod made (a moby of its class), so worth the platinum's.
-    const bool same = m_view.moby_class(moby) == kCoinClass + kind;
+    // Still the coin the mod made (a moby of its class), so worth its tier's.
+    const bool same = m_view.moby_class(moby) == kCoinClass + marked.kind;
     original(moby);
 
-    // The game added its class's worth; platinum is kPlatinumTimes as much.
+    // The game added its class's worth; platinum is kPlatinumTimes as much, obsidian
+    // kObsidianTimes.
     if (same) {
-        m_mod.bolts(kCoinValues[static_cast<std::size_t>(kind)] * (kPlatinumTimes - 1));
+        m_mod.bolts(
+            kCoinValues[static_cast<std::size_t>(marked.kind)] * (tier_times(marked.tier) - 1)
+        );
     }
 
     m_material(m_mod.handle(), moby, kMaterialNone, kNoTint);
@@ -235,18 +257,24 @@ void PlatinumBolts::tick() {
 void PlatinumBolts::pay(const CoinPlan& plan) {
     int index = 0;
 
-    // The most valuable class first, as the game makes its own; platinum before gold in each.
+    // The most valuable class first, as the game makes its own; obsidian, then platinum, then gold
+    // in each.
     for (int kind = kCoinKinds - 1; kind >= 0; --kind) {
         const auto at = static_cast<std::size_t>(kind);
 
+        // Each obsidian coin of the class.
+        for (int n = 0; n < plan.obsidian[at]; ++n) {
+            make_coin(index++, kind, CoinTier::Obsidian);
+        }
+
         // Each platinum coin of the class.
         for (int n = 0; n < plan.platinum[at]; ++n) {
-            make_coin(index++, kind, true);
+            make_coin(index++, kind, CoinTier::Platinum);
         }
 
         // Each gold coin of the class.
         for (int n = 0; n < plan.gold[at]; ++n) {
-            make_coin(index++, kind, false);
+            make_coin(index++, kind, CoinTier::Gold);
         }
     }
 
@@ -259,7 +287,7 @@ void PlatinumBolts::pay(const CoinPlan& plan) {
     }
 }
 
-std::uint32_t PlatinumBolts::make_coin(int index, int kind, bool platinum) {
+std::uint32_t PlatinumBolts::make_coin(int index, int kind, CoinTier tier) {
     const auto count = static_cast<int>(m_burst.size());
     const Recorded& place = m_burst[static_cast<std::size_t>(index % count)];
     const float turn = kExtraTurn * static_cast<float>(index / count);
@@ -286,9 +314,9 @@ std::uint32_t PlatinumBolts::make_coin(int index, int kind, bool platinum) {
         place.counted
     );
 
-    // A platinum coin is marked; a gold one in a moby a platinum one had is not any more.
-    if (platinum) {
-        mark(moby, kind);
+    // A rare coin is marked; a gold one in a moby a rare one had is not any more.
+    if (tier != CoinTier::Gold) {
+        mark(moby, kind, tier);
     } else {
         m_platinum.erase(moby);
     }
@@ -296,8 +324,9 @@ std::uint32_t PlatinumBolts::make_coin(int index, int kind, bool platinum) {
     return moby;
 }
 
-void PlatinumBolts::mark(std::uint32_t moby, int kind) {
-    const std::int32_t extra = kCoinValues[static_cast<std::size_t>(kind)] * (kPlatinumTimes - 1);
+void PlatinumBolts::mark(std::uint32_t moby, int kind, CoinTier tier) {
+    const auto at = static_cast<std::size_t>(kind);
+    const std::int32_t extra = kCoinValues[at] * (tier_times(tier) - 1);
 
     // No coin made (the game put its class's worth in its word): the extra goes there too.
     if (moby == 0) {
@@ -305,26 +334,32 @@ void PlatinumBolts::mark(std::uint32_t moby, int kind) {
         return;
     }
 
-    // Drawn as platinum, within the port's room for one mod's materials.
+    // Drawn as its tier, within the port's room for one mod's materials: obsidian with its size's
+    // glow.
+    const bool obsidian = tier == CoinTier::Obsidian;
+    const std::uint32_t material = obsidian ? kMaterialObsidian : kMaterialPlatinum;
+    const std::uint32_t rgb = obsidian ? kObsidianGlow[at] : kNoTint;
     const bool room = m_platinum.size() < kMaterialsMax || m_platinum.count(moby) != 0;
     const bool drawn =
-        room && m_material(m_mod.handle(), moby, kMaterialPlatinum, kNoTint) == OPENRAC_HOOK_OK;
+        room && m_material(m_mod.handle(), moby, material, rgb) == OPENRAC_HOOK_OK;
 
-    // Not drawn as platinum: a gold coin to see, so its extra worth is paid at once.
+    // Not drawn as its tier: a gold coin to see, so its extra worth is paid at once.
     if (!drawn) {
         m_platinum.erase(moby);
         m_mod.bolts(extra);
 
         // Said once.
         if (!m_mark_logged) {
-            m_mod.info("a platinum bolt could not be drawn; its worth was added at once");
+            m_mod.info(
+                "a platinum or obsidian bolt could not be drawn; its worth was added at once"
+            );
             m_mark_logged = true;
         }
 
         return;
     }
 
-    m_platinum[moby] = kind;
+    m_platinum[moby] = Marked{kind, tier};
 }
 
 }  // namespace ng_plus_plus

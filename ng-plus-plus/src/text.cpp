@@ -24,6 +24,10 @@ constexpr int kLevelUpSlot = 7;      // The level-up line.
 
 static_assert(kLevelUpSlot < hooks::kTextSlots, "the port has eight slots");
 
+// The text the game's level-up popup shows for a weapon its table has no line for: none, an empty
+// box (help_show_message_for_id, func_00288508, passes 0 to the message line).
+constexpr std::int32_t kEmptyText = 0;
+
 // Returns whether `c` is one of the game's in-text codes rather than a letter: the colours (0x08
 // the default, 0x0C a highlight, ...) and the buttons' glyphs (0x10 to 0x13), all below a space.
 // The game's messages wrap a weapon's name in them, between its words too ("Got %d Ultra
@@ -161,8 +165,51 @@ std::optional<std::uint32_t> TextResolver::resolve(std::int32_t id) {
         }
     }
 
-    // 4. Every other screen: the weapon whose row holds the id.
+    // 4. The popup at the end of an in-hand level-up.
+    if (const std::optional<std::uint32_t> popup = level_up_popup(id)) {
+        return popup;
+    }
+
+    // 5. Every other screen: the weapon whose row holds the id.
     return owned_text(id);
+}
+
+std::optional<std::uint32_t> TextResolver::level_up_popup(std::int32_t id) {
+    const std::optional<int> item = m_experience.level_up_pending();
+
+    // No in-hand level-up waiting.
+    if (!item) {
+        return std::nullopt;
+    }
+
+    const WeaponView weapon = m_weapons.weapon(*item);
+    const std::string tier_name = m_weapons.name_at(*item, weapon.level);
+
+    // The game's table has no line for the weapon (the RYNO II, the Zodiac): it shows text 0, an
+    // empty box. The tier's name fills it.
+    if (id == kEmptyText) {
+        m_experience.level_up_shown();
+        return m_view.write_slot(kLevelUpSlot, tier_name);
+    }
+
+    // The table's line names the last version ("Ultra"): the tier's name in its place.
+    const Row& row = weapon.row;
+    const std::string label = row.label_id() != 0 ? m_view.text(row.label_id()) : std::string();
+    const std::string name = row.name_id() != 0 ? m_view.text(row.name_id()) : std::string();
+    const std::optional<std::string> told =
+        retell(m_view.text(id), {label, name}, tier_name, hooks::kTextSlotBytes);
+
+    // A text that does not name the weapon: the game's.
+    if (!told) {
+        return std::nullopt;
+    }
+
+    // Not one of the row's own texts (the HUD's name, its ammo): the popup itself, shown once.
+    if (!row.has_text(id)) {
+        m_experience.level_up_shown();
+    }
+
+    return m_view.write_slot(kLevelUpSlot, *told);
 }
 
 std::optional<std::uint32_t> TextResolver::vendor_label(std::int32_t id) {

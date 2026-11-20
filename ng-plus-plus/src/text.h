@@ -16,7 +16,9 @@
 //   2. the vendor's dialog and preview of the mod's entry (or the item bought last): the row the
 //      vendor names an upgrade by, at the tier for sale (or bought);
 //   3. the game's level-up line the mod shows for a tier earned: the weapon's row now;
-//   4. any other lookup: the row now of the one owned weapon whose row holds the id, at its tier.
+//   4. the game's popup at the end of an in-hand level-up the mod started: its text with the tier's
+//      name for the version's, or the tier's name alone for the game's empty text (id 0);
+//   5. any other lookup: the row now of the one owned weapon whose row holds the id, at its tier.
 
 #pragma once
 
@@ -61,7 +63,7 @@ public:
     // Resolves texts of `weapons`' game, writing through `view`; asks `vendor` and `experience`
     // which entry or level-up the game is naming.
     TextResolver(
-        GameView& view, const Weapons& weapons, const Vendor& vendor, const Experience& experience
+        GameView& view, const Weapons& weapons, const Vendor& vendor, Experience& experience
     )
         : m_view(view),
           m_weapons(weapons),
@@ -82,6 +84,9 @@ private:
         const Row& row, std::int32_t id, int item, int level, int slot
     );
 
+    // The popup of the in-hand level-up waiting for one (Experience::level_up_pending), or none.
+    std::optional<std::uint32_t> level_up_popup(std::int32_t id);
+
     // Text `id` of the one owned weapon whose row now holds it, at its tier; none when no weapon's
     // or two rows' do.
     std::optional<std::uint32_t> owned_text(std::int32_t id);
@@ -89,7 +94,7 @@ private:
     GameView& m_view;                // The game and its slots; outlive this.
     const Weapons& m_weapons;        // The weapons; outlive this.
     const Vendor& m_vendor;          // The vendor's entries; outlives this.
-    const Experience& m_experience;  // The level-up being shown; outlives this.
+    Experience& m_experience;        // The level-up being shown; outlives this.
     int m_next_shared = 0;           // The next of the slots owned_text takes in turn.
 };
 

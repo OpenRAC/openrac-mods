@@ -25,7 +25,9 @@
 #include <optional>
 #include <string>
 
+#include "collectors.h"
 #include "bolt_rules.h"
+#include "collectors.h"
 #include "combat.h"
 #include "discs.h"
 #include "experience.h"
@@ -41,6 +43,10 @@
 
 namespace ng_plus_plus {
 namespace {
+
+// The port's text slot the collectors' dialogs go into: the vendor's (text.cpp), as no vendor is
+// open while a collector talks.
+constexpr int kCollectorSlot = 1;
 
 // The mod's whole state: the parts, in the order they depend on each other.
 //
@@ -58,7 +64,10 @@ public:
           m_vendor(m_weapons, m_experience),
           m_combat(m_weapons, enemy_settings(mod)),
           m_text(m_view, m_weapons, m_vendor, m_experience),
-          m_bolts(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))) {}
+          m_bolts(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
+          m_collectors(
+              mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))
+          ) {}
 
     ~NgPlusPlus() = default;
     NgPlusPlus(const NgPlusPlus&) = delete;
@@ -111,6 +120,7 @@ private:
     Combat m_combat;           // Damage and the enemies.
     TextResolver m_text;       // Weapon texts at their tiers.
     PlatinumBolts m_bolts;     // Platinum bolts and the drops' scaling.
+    Collectors m_collectors;   // Tabora's and Grelbin's collectors' pay.
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
 
@@ -257,6 +267,17 @@ std::int32_t NgPlusPlus::text_by_id(
         return original(id);
     }
 
+    // The collectors' dialogs, with the scaled total: in the vendor's slot, as no vendor is open
+    // while a collector talks.
+    if (const std::optional<std::string> trade = m_collectors.dialog(id)) {
+        const std::optional<std::uint32_t> slot = m_view.write_slot(kCollectorSlot, *trade);
+
+        // Written: the game prints it.
+        if (slot) {
+            return static_cast<std::int32_t>(*slot);
+        }
+    }
+
     const std::optional<std::uint32_t> text = m_text.resolve(id);
 
     // A game address, as the lookup returns it (the port's slots are negative as an i32).
@@ -271,6 +292,7 @@ void NgPlusPlus::tick() {
     // The save's clock: a load, a save or a new game; at the title too.
     m_tiers.watch(m_view);
     m_bolts.tick();
+    m_collectors.tick();
 
     // The rest only in a level.
     if (m_view.loaded_level() < 0) {
@@ -314,4 +336,4 @@ void load(openrac::Mod& mod) {
 }  // namespace
 }  // namespace ng_plus_plus
 
-OPENRAC_MOD_CPP("ng-plus-plus", "0.3.4", ng_plus_plus::load)
+OPENRAC_MOD_CPP("ng-plus-plus", "0.4.0", ng_plus_plus::load)

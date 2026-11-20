@@ -240,33 +240,48 @@ void test_scaling() {
 void test_enemies() {
     CHECK(enemy_health(0, 1.0f) == 1.0f);
     CHECK(enemy_health(1, 1.0f) == 1.0f);
-    CHECK(enemy_health(2, 1.0f) == 2.0f);
-    CHECK(enemy_health(3, 1.0f) == 3.0f);
-    CHECK(enemy_health(4, 1.0f) == 4.0f);
-    CHECK(enemy_health(5, 1.0f) == 5.0f);
-    CHECK(enemy_health(7, 1.0f) == 7.0f);
+    CHECK(enemy_health(2, 1.0f) == 2.5f);
+    CHECK(enemy_health(3, 1.0f) == 4.0f);
+    CHECK(enemy_health(4, 1.0f) == 5.5f);
+    CHECK(enemy_health(5, 1.0f) == 6.0f);
+    CHECK(enemy_health(6, 1.0f) == 6.5f);
+    CHECK(enemy_health(7, 1.0f) == 6.75f);
+    CHECK(enemy_health(20, 1.0f) == 6.75f);
     CHECK(enemy_damage(1, 1.0f) == 1.0f);
-    CHECK(enemy_damage(2, 1.0f) == 1.25f);
-    CHECK(enemy_damage(7, 1.0f) == 2.5f);
-    CHECK(enemy_health(2, 0.5f) == 1.5f);
+    CHECK(enemy_damage(2, 1.0f) == 1.375f);
+    CHECK(enemy_damage(5, 1.0f) == 2.5f);
+    CHECK(enemy_damage(7, 1.0f) == 3.25f);
+    CHECK(enemy_damage(20, 1.0f) == 4.0f);
+    CHECK(enemy_health(2, 0.5f) == 1.75f);
     CHECK(enemy_health(9, 0.0f) == 1.0f);
-    // Behind the tiers: from cycle 2, a weapon at the tier a player can have by then (cycle 2
-    // Delta, 3 Zeta, 4 Omega) kills at least a third faster than V4 at cycle 1 (README.md).
-    CHECK(damage(Kind::Four, 4) / enemy_health(2, 1.0f) >= 1.33f);
-    CHECK(damage(Kind::Four, 6) / enemy_health(3, 1.0f) >= 1.33f);
-    CHECK(damage(Kind::Four, 8) / enemy_health(4, 1.0f) >= 1.33f);
-    // Omega still out-damages the enemies' growth until the curve catches up at cycle 7.
-    for (int cycle = 2; cycle < 7; ++cycle) {
+    // Half as fast again as 0.3's curve (x2, x3, x4, x5 from cycle 2).
+    CHECK(enemy_health(2, 1.0f) - 1.0f == 1.5f * (2.0f - 1.0f));
+    CHECK(enemy_health(3, 1.0f) - 1.0f == 1.5f * (3.0f - 1.0f));
+    CHECK(enemy_health(4, 1.0f) - 1.0f == 1.5f * (4.0f - 1.0f));
+    CHECK(enemy_damage(2, 1.0f) - 1.0f == 1.5f * (1.25f - 1.0f));
+    CHECK(enemy_damage(5, 1.0f) - 1.0f == 1.5f * (2.0f - 1.0f));
+    // Just behind the tiers: from cycle 2, a weapon at the tier a player can have by then (cycle 2
+    // Delta, 3 Zeta, 4 Omega) still kills faster than V4 at cycle 1, by an eighth at the least.
+    CHECK(damage(Kind::Four, 4) / enemy_health(2, 1.0f) >= 1.125f);
+    CHECK(damage(Kind::Four, 6) / enemy_health(3, 1.0f) >= 1.125f);
+    CHECK(damage(Kind::Four, 8) / enemy_health(4, 1.0f) >= 1.125f);
+    // A fully upgraded weapon (Omega) out-damages the enemies' health in every run, and so does
+    // every weapon kind's Omega.
+    for (int cycle = 0; cycle < 40; ++cycle) {
         CHECK(damage(Kind::Four, 8) > enemy_health(cycle, 1.0f));
+        CHECK(damage(Kind::Two, 8) > enemy_health(cycle, 1.0f));
+        CHECK(damage(Kind::Single, 8) > enemy_health(cycle, 1.0f));
+        CHECK(damage(Kind::Ryno, 10) > enemy_health(cycle, 1.0f));
     }
     // Every tier is a clear step on the game's own V4 (a quarter at the least).
     for (int level = 1; level <= kTiers; ++level) {
         CHECK(damage(Kind::Four, level) >= 1.5f);
     }
 
-    // Each cycle tougher than the one before, the health ahead of the damage.
+    // Each cycle tougher than the one before up to the most, the health ahead of the damage.
     for (int cycle = 2; cycle < 12; ++cycle) {
-        CHECK(enemy_health(cycle + 1, 1.0f) > enemy_health(cycle, 1.0f));
+        CHECK(enemy_health(cycle + 1, 1.0f) > enemy_health(cycle, 1.0f) || cycle >= 7);
+        CHECK(enemy_health(cycle + 1, 1.0f) >= enemy_health(cycle, 1.0f));
         CHECK(enemy_health(cycle, 1.0f) > enemy_damage(cycle, 1.0f));
     }
 }
