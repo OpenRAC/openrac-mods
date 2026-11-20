@@ -103,21 +103,39 @@ constexpr std::int32_t kPriceRiseLeast = 5'000;
 constexpr double kRoundUnit = 5.0;
 constexpr double kRoundUnitsPerDecade = 200.0;
 
-// By cycle from 2 on. Up to 0.4.0 the health stayed just behind the damage of the tier a player can
-// have by then (x2.5, x4, x5.5 ...), so fights took fewer hits than V4's in the first challenge mode.
-// Now the enemies take more of a beating: the tier a player can have by then (cycle 2 Delta's x3, 3
-// Zeta's x4.5, 4 Omega's x7) needs about a sixth more hits than V4 did in the first challenge mode
-// (x3.5, x5.25), and past Omega the health closes in on Omega's x7 (x6.5, x6.75, x6.9, then up to
-// kHealthMost), so a fully upgraded weapon still out-damages it in every run. The damage they deal
-// rises more gently: a fight lasting longer already costs more health.
-constexpr float kEnemyHealth[] = {1.0f, 1.0f, 3.5f, 5.25f, 6.5f, 6.75f, 6.875f};
+// By cycle from 2 on: the enemies take more of a beating than a player's tier can keep up with. The
+// tier a player can have by then (cycle 2 Delta's x3, 3 Zeta's x4.5, 4 on Omega's x7) needs a
+// quarter to a half more hits than V4 did in the first challenge mode (x3.75 1.25, x6 1.33, x9 1.29,
+// x9.75 1.39, x10.25 1.46, then x10.5 1.5), so the later runs are clearly harder even with every
+// weapon at Omega. The damage they deal rises more gently: a fight lasting longer already costs
+// more health.
+constexpr float kEnemyHealth[] = {1.0f, 1.0f, 3.75f, 6.0f, 9.0f, 9.75f, 10.25f};
 constexpr float kEnemyDamage[] = {1.0f, 1.0f, 1.375f, 1.75f, 2.125f, 2.5f, 2.875f};
 
 // Past the tables, each cycle adds this much health and damage, up to the most.
-constexpr float kHealthStep = 0.0625f;
+constexpr float kHealthStep = 0.25f;
 constexpr float kDamageStep = 0.375f;
-constexpr float kHealthMost = 6.9375f;  // under Omega's x7: a full weapon stays ahead
+constexpr float kHealthMost = 10.5f;  // Omega's x7 times 1.5: at most half as many hits again
 constexpr float kDamageMost = 4.0f;
+
+// A boss's health on top of the curve, by cycle as kEnemyHealth: twice from cycle 2, a quarter more
+// each run, up to kBossMost.
+constexpr float kBossHealth[] = {1.0f, 1.0f, 2.0f, 2.25f, 2.5f, 2.75f, 3.0f};
+constexpr float kBossStep = 0.0f;
+constexpr float kBossMost = 3.0f;
+
+// The first cycle of the curve.
+constexpr int kFirstCurveCycle = 2;
+
+// The RYNO II's hits on a tough enemy and on a boss, times the game's own RYNO II's (ryno_hits):
+// the first run's, what each run adds, the most; and the most a tough enemy's size multiplies.
+constexpr float kRynoToughFirst = 2.0f;
+constexpr float kRynoToughStep = 0.5f;
+constexpr float kRynoToughMost = 4.0f;
+constexpr float kRynoSizeMost = 3.0f;
+constexpr float kRynoBossFirst = 3.0f;
+constexpr float kRynoBossStep = 1.0f;
+constexpr float kRynoBossMost = 7.0f;
 
 // How many cycles the tables have.
 constexpr int kCurveCycles = static_cast<int>(sizeof kEnemyHealth / sizeof kEnemyHealth[0]);
@@ -520,6 +538,63 @@ float enemy_health(int cycle, float strength) {
 
 float enemy_damage(int cycle, float strength) {
     return curve(kEnemyDamage, kDamageStep, kDamageMost, cycle, strength);
+}
+
+float boss_health(int cycle, float strength) {
+    return curve(kBossHealth, kBossStep, kBossMost, cycle, strength);
+}
+
+const BossClass* boss_of(int moby_class) {
+    // The fights' own classes.
+    for (const BossClass& boss : kBossClasses) {
+        // Found.
+        if (boss.moby_class == moby_class) {
+            return &boss;
+        }
+    }
+
+    return nullptr;
+}
+
+float ryno_hits(int cycle, float strength, const Foe& foe) {
+    // The runs the game balances itself.
+    if (cycle < kFirstCurveCycle) {
+        return 0.0f;
+    }
+
+    const float scale = strength < 0.0f ? 0.0f : strength;
+    const auto runs = static_cast<float>(cycle - kFirstCurveCycle);
+
+    // A boss: many hits, the final boss more.
+    if (foe.boss) {
+        const float hits = std::min(kRynoBossFirst + kRynoBossStep * runs, kRynoBossMost);
+        return hits * (foe.last ? kFinalBoss : 1.0f) * scale;
+    }
+
+    // A small or medium enemy: as many hits as its level makes.
+    if (foe.bolts < kRynoToughBolts) {
+        return 0.0f;
+    }
+
+    const float hits = std::min(kRynoToughFirst + kRynoToughStep * runs, kRynoToughMost);
+    const float size = std::sqrt(static_cast<float>(foe.bolts) / static_cast<float>(kRynoToughBolts));
+    return hits * std::min(size, kRynoSizeMost) * scale;
+}
+
+float hit_divisor(Kind kind, int level, int cycle, float strength, const Foe& foe) {
+    const float boss = foe.boss ? boss_health(cycle, strength) : 1.0f;
+
+    // The final boss: kFinalBoss more, wherever a boss has more.
+    const float extra = foe.last && boss > 1.0f ? boss * kFinalBoss : boss;
+
+    // The RYNO II: none of the curve; on a tough enemy or a boss, the game's own hits times
+    // ryno_hits, whatever its tier.
+    if (kind == Kind::Ryno) {
+        const float hits = ryno_hits(cycle, strength, foe) * damage(kind, level);
+        return hits > 1.0f ? hits : 1.0f;
+    }
+
+    return enemy_health(cycle, strength) * extra;
 }
 
 }  // namespace ng_plus_plus

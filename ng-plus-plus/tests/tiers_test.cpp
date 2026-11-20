@@ -9,6 +9,8 @@
 // tier's factor, rounded to two and a half digits), and the decompiled game's behaviour named in
 // src/save_book.h for the clock's cases.
 
+#include <cmath>
+#include <cstdint>
 #include <string>
 
 #include "check.h"
@@ -262,50 +264,54 @@ void test_scaling() {
     CHECK(display_name("Lancer", Kind::Four, 0) == "Lancer");
 }
 
-// Checks the enemies' curve: the README's table, its strength, more hits than 0.4.0's, and Omega
-// still ahead of it.
+// The enemies' health of 0.4.0 from cycle 2 on (x2.5, x4, x5.5, x6, x6.5, then x6.75).
+float health_040(int cycle) {
+    constexpr float kHealth040[] = {2.5f, 4.0f, 5.5f, 6.0f, 6.5f, 6.75f};
+    return cycle < 2 ? 1.0f : kHealth040[cycle - 2 < 5 ? cycle - 2 : 5];
+}
+
+// Returns the tier level (of a four-version weapon) a player can have by cycle `cycle`: Delta at
+// 2, Zeta at 3, Omega from 4.
+int matching_level(int cycle) {
+    return cycle <= 2 ? 4 : (cycle == 3 ? 6 : 8);
+}
+
+// Checks the enemies' curve: the README's table, its strength, more hits than 0.4.0's, and the
+// tier a player can have by then needing at most half as many hits again as V4 in the first
+// challenge mode.
 void test_enemies() {
     CHECK(enemy_health(0, 1.0f) == 1.0f);
     CHECK(enemy_health(1, 1.0f) == 1.0f);
-    CHECK(enemy_health(2, 1.0f) == 3.5f);
-    CHECK(enemy_health(3, 1.0f) == 5.25f);
-    CHECK(enemy_health(4, 1.0f) == 6.5f);
-    CHECK(enemy_health(5, 1.0f) == 6.75f);
-    CHECK(enemy_health(6, 1.0f) == 6.875f);
-    CHECK(enemy_health(7, 1.0f) == 6.9375f);
-    CHECK(enemy_health(20, 1.0f) == 6.9375f);
+    CHECK(enemy_health(2, 1.0f) == 3.75f);
+    CHECK(enemy_health(3, 1.0f) == 6.0f);
+    CHECK(enemy_health(4, 1.0f) == 9.0f);
+    CHECK(enemy_health(5, 1.0f) == 9.75f);
+    CHECK(enemy_health(6, 1.0f) == 10.25f);
+    CHECK(enemy_health(7, 1.0f) == 10.5f);
+    CHECK(enemy_health(20, 1.0f) == 10.5f);
     CHECK(enemy_damage(1, 1.0f) == 1.0f);
     CHECK(enemy_damage(2, 1.0f) == 1.375f);
     CHECK(enemy_damage(5, 1.0f) == 2.5f);
     CHECK(enemy_damage(7, 1.0f) == 3.25f);
     CHECK(enemy_damage(20, 1.0f) == 4.0f);
-    CHECK(enemy_health(2, 0.5f) == 2.25f);
+    CHECK(enemy_health(2, 0.5f) == 2.375f);
     CHECK(enemy_health(9, 0.0f) == 1.0f);
-    // More hits than 0.4.0's curve (x2.5, x4, x5.5, x6, x6.5, then x6.75) in every run from cycle 2.
-    constexpr float kHealth040[] = {2.5f, 4.0f, 5.5f, 6.0f, 6.5f, 6.75f};
-    for (int cycle = 2; cycle < 12; ++cycle) {
-        const float before = kHealth040[cycle - 2 < 5 ? cycle - 2 : 5];
-        CHECK(enemy_health(cycle, 1.0f) > before);
+
+    // Every run from cycle 2: more hits than 0.4.0, and the tier a player can have by then needs a
+    // quarter to a half more hits than V4 did in the first challenge mode, never more.
+    for (int cycle = 2; cycle < 40; ++cycle) {
+        const float hits = enemy_health(cycle, 1.0f) / damage(Kind::Four, matching_level(cycle));
+        CHECK(enemy_health(cycle, 1.0f) > health_040(cycle));
+        CHECK(hits >= 1.25f);
+        CHECK(hits <= 1.5f);
     }
-    // At least 15% more hits than 0.4.0 where the tiers leave room (cycles 2 to 4).
-    CHECK(enemy_health(2, 1.0f) / 2.5f >= 1.15f);
-    CHECK(enemy_health(3, 1.0f) / 4.0f >= 1.15f);
-    CHECK(enemy_health(4, 1.0f) / 5.5f >= 1.15f);
-    // The tier a player can have by then (cycle 2 Delta, 3 Zeta) takes more hits than V4 did in the
-    // first challenge mode, but at most a fifth more; at cycle 4 Omega still kills faster.
-    CHECK(damage(Kind::Four, 4) / enemy_health(2, 1.0f) < 1.0f);
-    CHECK(damage(Kind::Four, 4) / enemy_health(2, 1.0f) >= 0.8f);
-    CHECK(damage(Kind::Four, 6) / enemy_health(3, 1.0f) < 1.0f);
-    CHECK(damage(Kind::Four, 6) / enemy_health(3, 1.0f) >= 0.8f);
-    CHECK(damage(Kind::Four, 8) / enemy_health(4, 1.0f) >= 1.0f);
-    // A fully upgraded weapon (Omega) out-damages the enemies' health in every run, and so does
-    // every weapon kind's Omega.
-    for (int cycle = 0; cycle < 40; ++cycle) {
-        CHECK(damage(Kind::Four, 8) > enemy_health(cycle, 1.0f));
-        CHECK(damage(Kind::Two, 8) > enemy_health(cycle, 1.0f));
-        CHECK(damage(Kind::Single, 8) > enemy_health(cycle, 1.0f));
-        CHECK(damage(Kind::Ryno, 10) > enemy_health(cycle, 1.0f));
+
+    // The later runs clearly harder than 0.4.0's, even with Omega: half again from cycle 5.
+    for (int cycle = 5; cycle < 40; ++cycle) {
+        CHECK(enemy_health(cycle, 1.0f) / health_040(cycle) >= 1.4f);
+        CHECK(enemy_health(cycle, 1.0f) > damage(Kind::Four, 8));
     }
+
     // Every tier is a clear step on the game's own V4 (a quarter at the least).
     for (int level = 1; level <= kTiers; ++level) {
         CHECK(damage(Kind::Four, level) >= 1.5f);
@@ -316,6 +322,121 @@ void test_enemies() {
         CHECK(enemy_health(cycle + 1, 1.0f) > enemy_health(cycle, 1.0f) || cycle >= 7);
         CHECK(enemy_health(cycle + 1, 1.0f) >= enemy_health(cycle, 1.0f));
         CHECK(enemy_health(cycle, 1.0f) > enemy_damage(cycle, 1.0f));
+    }
+}
+
+// Returns a foe: a boss (`last`: the final one) or an enemy with `bolts` of its own.
+Foe foe_of(bool boss, bool last, std::int32_t bolts) {
+    Foe foe;
+    foe.boss = boss;
+    foe.last = last;
+    foe.bolts = bolts;
+    return foe;
+}
+
+// Checks the bosses: x2 more health from cycle 2, a quarter more a run up to x3, the final boss
+// half as much again, by their classes; a hit on one divided by both.
+void test_bosses() {
+    CHECK(boss_health(0, 1.0f) == 1.0f);
+    CHECK(boss_health(1, 1.0f) == 1.0f);
+    CHECK(boss_health(2, 1.0f) == 2.0f);
+    CHECK(boss_health(3, 1.0f) == 2.25f);
+    CHECK(boss_health(6, 1.0f) == 3.0f);
+    CHECK(boss_health(30, 1.0f) == 3.0f);
+    CHECK(boss_health(2, 0.5f) == 1.5f);
+    CHECK(is_boss(2644));   // the Swamp Monster
+    CHECK(is_boss(4576));   // the mutated Protopet
+    CHECK(!is_boss(2921));  // an ordinary Protopet
+    CHECK(!is_boss(0));
+    CHECK(boss_of(4576)->last);
+    CHECK(!boss_of(2644)->last);
+
+    const Foe ordinary = foe_of(false, false, 45);
+    const Foe boss = foe_of(true, false, 0);
+    const Foe last = foe_of(true, true, 0);
+    CHECK(hit_divisor(Kind::Four, 8, 4, 1.0f, ordinary) == 9.0f);
+    CHECK(hit_divisor(Kind::Four, 8, 4, 1.0f, boss) == 22.5f);
+    CHECK(hit_divisor(Kind::Four, 8, 4, 1.0f, last) == 33.75f);
+    CHECK(hit_divisor(Kind::None, 0, 2, 1.0f, ordinary) == 3.75f);
+    // The first game and the first challenge mode: the game's own, bosses too.
+    CHECK(hit_divisor(Kind::Four, 0, 1, 1.0f, last) == 1.0f);
+
+    // Every run: a boss's health well past an ordinary enemy's, growing, the final boss's past it.
+    for (int cycle = 2; cycle < 12; ++cycle) {
+        const float on_boss = hit_divisor(Kind::Four, 8, cycle, 1.0f, boss);
+        CHECK(on_boss >= 2.0f * enemy_health(cycle, 1.0f));
+        CHECK(hit_divisor(Kind::Four, 8, cycle, 1.0f, last) > on_boss);
+        CHECK(boss_health(cycle + 1, 1.0f) >= boss_health(cycle, 1.0f));
+    }
+}
+
+// Returns how many times the game's own RYNO II's hits the RYNO II at `level` needs on `foe` in
+// `cycle`: what its hit is divided by, over its tier's damage.
+float ryno_times(int level, int cycle, const Foe& foe) {
+    return hit_divisor(Kind::Ryno, level, cycle, 1.0f, foe) / damage(Kind::Ryno, level);
+}
+
+// Checks the RYNO II's fights: the strongest weapon, none of the curve on an ordinary enemy (which it kills
+// as the game's own does, or faster with its tier); a tough one (110 bolts and more, the top
+// quarter) needs two to four times the game's RYNO II's hits, more in later runs and for bigger
+// ones; a boss three to seven times, the final boss half as many again.
+void test_ryno_fights() {
+    const Foe small = foe_of(false, false, 8);
+    const Foe common = foe_of(false, false, 45);
+    const Foe tough = foe_of(false, false, 110);
+    const Foe biggest = foe_of(false, false, 984);
+    const Foe boss = foe_of(true, false, 0);
+    const Foe last = foe_of(true, true, 0);
+
+    // The runs the game balances itself: as the game made it.
+    for (int cycle = 0; cycle < 2; ++cycle) {
+        CHECK(ryno_hits(cycle, 1.0f, last) == 0.0f);
+        CHECK(hit_divisor(Kind::Ryno, 10, cycle, 1.0f, tough) == 1.0f);
+    }
+
+    // Every run and every version: the game's, Heavy, Ultima, the eight tiers.
+    for (int cycle = 0; cycle < 40; ++cycle) {
+        // Each version.
+        for (int level = 0; level <= kMaxSteps; ++level) {
+            // An ordinary enemy: the hit as its tier makes it, never divided by the curve (one shot
+            // for one the game's own kills in one).
+            for (const Foe& foe : {small, common}) {
+                const float hit =
+                    damage(Kind::Ryno, level) / hit_divisor(Kind::Ryno, level, cycle, 1.0f, foe);
+                CHECK(hit >= 1.0f);
+                CHECK(hit == damage(Kind::Ryno, level));
+            }
+
+            // Past cycle 1: tough ones, bosses and the final boss each need more hits.
+            if (cycle >= 2) {
+                CHECK(ryno_times(level, cycle, tough) >= 1.999f);
+                CHECK(ryno_times(level, cycle, biggest) > ryno_times(level, cycle, tough));
+                CHECK(ryno_times(level, cycle, boss) >= 2.999f);
+                CHECK(ryno_times(level, cycle, last) > ryno_times(level, cycle, boss));
+                CHECK(ryno_times(level, cycle, last) >= 4.499f);
+            }
+        }
+    }
+
+    // More hits in later runs, up to the most.
+    CHECK(ryno_hits(2, 1.0f, tough) == 2.0f);
+    CHECK(ryno_hits(4, 1.0f, tough) == 3.0f);
+    CHECK(ryno_hits(9, 1.0f, tough) == 4.0f);
+    CHECK(std::fabs(ryno_hits(6, 1.0f, biggest) - 4.0f * std::sqrt(984.0f / 110.0f)) < 0.001f);
+    CHECK(ryno_hits(2, 1.0f, boss) == 3.0f);
+    CHECK(ryno_hits(6, 1.0f, boss) == 7.0f);
+    CHECK(ryno_hits(20, 1.0f, boss) == 7.0f);
+    CHECK(ryno_hits(2, 1.0f, last) == 4.5f);
+    CHECK(ryno_hits(6, 1.0f, last) == 10.5f);
+    CHECK(ryno_hits(6, 0.0f, last) == 0.0f);
+
+    // Still the strongest: on an ordinary enemy its Omega is over eight times the game's RYNO II in
+    // every run, four times and more what any other weapon's Omega keeps of its own after the curve.
+    for (int cycle = 2; cycle < 40; ++cycle) {
+        const float ryno = damage(Kind::Ryno, 10) / hit_divisor(Kind::Ryno, 10, cycle, 1.0f, common);
+        const float other = damage(Kind::Four, 8) / hit_divisor(Kind::Four, 8, cycle, 1.0f, common);
+        CHECK(ryno >= 8.0f);
+        CHECK(ryno >= 4.0f * other);
     }
 }
 
@@ -483,6 +604,8 @@ int main() try {
     test_ryno();
     test_scaling();
     test_enemies();
+    test_bosses();
+    test_ryno_fights();
     test_book();
     test_book_keeps();
     test_saves();

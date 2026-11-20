@@ -5,6 +5,8 @@
 
 #include "combat.h"
 
+#include <optional>
+
 namespace ng_plus_plus {
 
 void Combat::post_hit(
@@ -18,15 +20,24 @@ void Combat::post_hit(
     // Only hits on others: the hero's own hits are the enemies' business (take_damage).
     if (victim != view.hero_moby() && request != 0) {
         const int item = fired_item(request);
+        const Kind kind = item >= 0 && item < kItems ? kind_of(item) : Kind::None;
 
         // The tier of the weapon that dealt the hit.
         if (item >= 0 && item < kItems) {
-            scale *= damage(kind_of(item), m_weapons.tiers().level(item));
+            scale *= damage(kind, m_weapons.tiers().level(item));
         }
 
-        // Tougher enemies: their health times the cycle's, as the damage they take divided by it.
+        // Tougher enemies: their health times the cycle's (a boss's more, the final boss's more
+        // again; the RYNO II's hits by its own rule), as the damage they take divided by it.
         if (m_enemies.scaling) {
-            scale /= enemy_health(view.cycle(), m_enemies.strength);
+            const std::optional<int> victim_class = view.moby_class(victim);
+            const BossClass* boss = victim_class ? boss_of(*victim_class) : nullptr;
+            Foe foe;
+            foe.boss = boss != nullptr;
+            foe.last = boss != nullptr && boss->last;
+            foe.bolts = view.enemy_bolts(victim).value_or(0);
+            const int level = item >= 0 && item < kItems ? m_weapons.tiers().level(item) : 0;
+            scale /= hit_divisor(kind, level, view.cycle(), m_enemies.strength, foe);
         }
     }
 

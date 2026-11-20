@@ -1031,11 +1031,27 @@ void test_tint_damage_and_enemies() {
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
     CHECK(g_damage_seen == 20.0f);
 
-    // Challenge mode's third game (cycle 2): enemies have 3.5 times the health, deal 1.375 times.
+    // Challenge mode's third game (cycle 2): enemies have 3.75 times the health, deal 1.375 times.
     set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
     set<float>(kRequestAt + kHitDamage, 10.0f);
     hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
-    CHECK(std::fabs(g_damage_seen - 20.0f / 3.5f) < 0.001f);  // Beta's 2 over the health's 3.5
+    CHECK(std::fabs(g_damage_seen - 20.0f / 3.75f) < 0.001f);  // Beta's 2 over the health's 3.75
+
+    // The final boss (the mutated Protopet's class): a boss's twice that health, half again.
+    const auto enemy_class = get<std::uint16_t>(kMobyEnemy + kMobyClass);
+    set<std::uint16_t>(kMobyEnemy + kMobyClass, 4576);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(std::fabs(g_damage_seen - 20.0f / 11.25f) < 0.001f);
+
+    // The RYNO II in hand: on the final boss 4.5 times the game's own RYNO II's hits at cycle 2;
+    // on an ordinary enemy none of the curve, the game's own hit.
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kRyno);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(std::fabs(g_damage_seen - 10.0f / 4.5f) < 0.001f);
+    set<std::uint16_t>(kMobyEnemy + kMobyClass, enemy_class);
+    hooked<rac2::Moby_PostHit>()(kMobyEnemy, kRequestAt);
+    CHECK(g_damage_seen == 10.0f);
+    set<std::int32_t>(g_disc->hero + kHeroHeld, kLancer);
     g_taken = 0;
 
     // Four hits of one point: five (5.5, the fractions carried).

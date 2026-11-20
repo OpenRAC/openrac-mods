@@ -173,4 +173,75 @@ float enemy_health(int cycle, float strength);
 // Returns how much more damage the enemies deal in cycle `cycle`, as enemy_health.
 float enemy_damage(int cycle, float strength);
 
+// One boss of Going Commando: its moby class and what it is (seen in game code: each class's update
+// in the levels' moby dispatch tables, docs/game/moby-dispatch.tsv of rac2-decomp).
+struct BossClass {
+    int moby_class;     // The class.
+    bool last;          // The final boss.
+    const char* which;  // The fight.
+};
+
+// The bosses whose health grows past the curve's (boss_health): the fights' own mobys, not their
+// helpers, turrets or the enemies they call in.
+inline constexpr BossClass kBossClasses[] = {
+    {2644, false, "Oozla: the Swamp Monster II"},
+    {2701, false, "Oozla: the Swamp Monster's arms"},
+    {2702, false, "Oozla: the Swamp Monster's eye"},
+    {2552, false, "Maktar arena: Chainblade"},
+    {2628, false, "Maktar arena: the B2 Brawler"},
+    {3210, false, "Endako: the boss of the Megacorp building"},
+    {3679, false, "Siberius: the boss"},
+    {3973, false, "Hrugis Cloud: the boss"},
+    {2874, false, "Joba arena: a boss"},
+    {3402, false, "Joba arena: a boss"},
+    {4785, false, "Todano: the flying boss"},
+    {3961, false, "Snivelak: the boss"},
+    {3145, false, "the Thugs-4-Less leader"},
+    {3806, false, "Damosel: the leader's mech"},
+    {3967, false, "Damosel orbit: the mothership's parts"},
+    {4623, false, "Damosel orbit: the mothership's parts"},
+    {4576, true, "Yeedil: the mutated Protopet, the final boss"},
+};
+
+// What a hit lands on, for hit_divisor.
+struct Foe {
+    bool boss = false;        // One of kBossClasses.
+    bool last = false;        // The final boss.
+    std::int32_t bolts = 0;   // Its own bolts (+0xB4), 0 for none: how tough an enemy is.
+};
+
+// The final boss's health on top of a boss's.
+inline constexpr float kFinalBoss = 1.5f;
+
+// An enemy with at least these bolts of its own (the top quarter of Going Commando's enemies) is a
+// tough one for the RYNO II.
+inline constexpr std::int32_t kRynoToughBolts = 110;
+
+// Returns how much more health a boss has on top of enemy_health in cycle `cycle`: none up to
+// cycle 1, then x2, growing a quarter a run up to x3. `strength` scales it as enemy_health's.
+float boss_health(int cycle, float strength);
+
+// Returns the boss record of moby class `moby_class`, or null for one that is no boss.
+const BossClass* boss_of(int moby_class);
+
+// Returns whether moby class `moby_class` is one of kBossClasses.
+inline bool is_boss(int moby_class) {
+    return boss_of(moby_class) != nullptr;
+}
+
+// Returns how many times the game's own RYNO II's hits (its first version, in the first game) the
+// RYNO II at any level needs on `foe` in cycle `cycle`, from cycle 2 on: 0 for an ordinary enemy
+// (its hits as strong as its level makes them); for a tough one (kRynoToughBolts or more) x2 at
+// cycle 2, half more a run, up to x4, times the square root of its bolts over kRynoToughBolts (at
+// most x3); for a boss x3 at cycle 2, one more a run, up to x7, the final boss kFinalBoss times
+// that. Scaled by `strength` as the curve.
+float ryno_hits(int cycle, float strength, const Foe& foe);
+
+// Returns what a hit's damage is divided by in cycle `cycle` from a weapon of `kind` at tier
+// `level` on `foe`: the enemies' health, times a boss's extra (the final boss's kFinalBoss more).
+// The RYNO II is left out of the curve and stays the strongest weapon: an ordinary enemy takes its
+// hits as the game made them, or stronger with its tier; a tough enemy or a boss needs ryno_hits
+// times the game's own RYNO II's hits, whatever its tier.
+float hit_divisor(Kind kind, int level, int cycle, float strength, const Foe& foe);
+
 }  // namespace ng_plus_plus

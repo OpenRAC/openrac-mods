@@ -148,28 +148,55 @@ game itself counts your challenge modes but only checks whether one is on: it do
 and nanotech orbs' health there, and its bolt multiplier grows with kills. It never makes enemies
 tougher. From the second challenge mode on, the mod does:
 
-| New game | Challenge mode | Enemy health | Enemy damage | Tier you should have by then | Hits to kill with it, vs V4 in the 1st | Hits vs 0.4.0 |
-|---|---|---|---|---|---|---|
-| 1 | - | x1 | x1 | V1 to V3 | | |
-| 2 | 1st | x1 | x1 | V4, then Alpha to Gamma | x1 (V4), x0.67 to x0.4 | the same |
-| 3 | 2nd | x3.5 | x1.375 | Delta (x3) | x1.17 | +40% |
-| 4 | 3rd | x5.25 | x1.75 | Zeta (x4.5) | x1.17 | +31% |
-| 5 | 4th | x6.5 | x2.125 | Omega (x7) | x0.93 | +18% |
-| 6 | 5th | x6.75 | x2.5 | Omega (x7) | x0.96 | +12.5% |
-| 7 | 6th | x6.875 | x2.875 | Omega (x7) | x0.98 | +6% |
-| 8 on | 7th on | x6.94 | +0.375 each, up to x4 | Omega (x7) | x0.99 | +3% |
+| New game | Challenge mode | Enemy health | Boss health (on top) | Enemy damage | Tier you should have by then | Hits to kill with it, vs V4 in the 1st | Hits vs 0.4.0 |
+|---|---|---|---|---|---|---|---|
+| 1 | - | x1 | x1 | x1 | V1 to V3 | | |
+| 2 | 1st | x1 | x1 | x1 | V4, then Alpha to Gamma | x1 (V4), x0.67 to x0.4 | the same |
+| 3 | 2nd | x3.75 | x2 | x1.375 | Delta (x3) | x1.25 | +50% |
+| 4 | 3rd | x6 | x2.25 | x1.75 | Zeta (x4.5) | x1.33 | +50% |
+| 5 | 4th | x9 | x2.5 | x2.125 | Omega (x7) | x1.29 | +64% |
+| 6 | 5th | x9.75 | x2.75 | x2.5 | Omega (x7) | x1.39 | +63% |
+| 7 | 6th | x10.25 | x3 | x2.875 | Omega (x7) | x1.46 | +58% |
+| 8 on | 7th on | x10.5 | x3 | +0.375 each, up to x4 | Omega (x7) | x1.5 | +56% |
 
-Since 0.4.1 enemies take more of a beating: with the tier you should have by then, a fight in the
-second and third challenge modes takes about a sixth more hits than one with V4 in the first, and
-from the fourth on the health closes in on Omega's x7 but stays under it, so a fully upgraded
-(Omega) weapon still beats them in every new game. A weapon below the tier you should have takes
-even more hits. Enemy damage grows more slowly, since longer fights already cost you more health.
-**How much tougher** scales what the mod adds (0.5: x2.25 health in the third new game instead of
-x3.5; above 1 enemies can pass your tiers).
+Since 0.4.1 enemies outgrow your tiers: even with the tier you should have by then, a fight takes a
+quarter to a half more hits than one with V4 in the first challenge mode, and the later runs are
+clearly harder, Omega or not (health stops at x10.5, half as many hits again as Omega's x7). A
+weapon below the tier you should have takes even more. Enemy damage grows more slowly, since longer
+fights already cost you more health. **How much tougher** scales what the mod adds (0.5: x2.375
+health in the third new game instead of x3.75).
 
-(0.4.0's enemy health went x2.5, x4, x5.5, x6, x6.5, then x6.75. Before 0.4.0 it went x2, x3, x4,
-x5, then +1 a game, and enemy damage x1.25, then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to
-x4 and enemy health went x2.5, x4, x6, x8, +2 each.)
+**Bosses** have the boss column's health on top: x2 in the second challenge mode, a quarter more
+each new game, up to x3, so with Omega in the 6th challenge mode a boss takes about 4.4 times the
+hits V4 needed in the first. **The final boss** (the mutated Protopet on Yeedil) has half as much
+again on top of that (x3 to x4.5). The bosses: the Swamp Monster (Oozla), Chainblade and the B2
+Brawler (Maktar arena), the bosses of Endako, Siberius, Hrugis Cloud, Todano and Snivelak, the Joba
+arena bosses, the Thugs-4-Less leader, the leader's mech on Damosel, the mothership (Damosel orbit)
+and the mutated Protopet. A boss whose fight counts hits rather than damage is not changed.
+
+**The RYNO II stays the strongest weapon.** Enemy health doesn't apply to it: ordinary enemies take
+its hits as the game made them (its tiers on top), so whatever it killed in one shot it still does.
+Tough enemies, bosses and the final boss do hold out against it, from the second challenge mode on,
+whatever the RYNO's tier:
+
+| New game | Tough enemy (110 bolts or more) | the biggest (984 bolts) | Boss | Final boss |
+|---|---|---|---|---|
+| 3 (2nd challenge mode) | x2 | x6 | x3 | x4.5 |
+| 4 (3rd) | x2.5 | x7.5 | x4 | x6 |
+| 5 (4th) | x3 | x9 | x5 | x7.5 |
+| 6 (5th) | x3.5 | x10.5 | x6 | x9 |
+| 7 on (6th on) | x4 | x12 | x7 | x10.5 |
+
+These are times the hits the game's own first RYNO II needs. A tough enemy is one of the top quarter
+by its own bolts (the level data's measure of how big it is: 110 or more on Going Commando's disc),
+and a bigger one holds out longer, by the square root of its bolts over 110, at most three times.
+On ordinary enemies the RYNO II's Omega still hits over eight times as hard as the game's RYNO II in
+every run, four times what any other weapon's Omega keeps of its hit after enemy health.
+
+(0.4.0's enemy health went x2.5, x4, x5.5, x6, x6.5, then x6.75, and divided the RYNO II's hits too,
+with no boss extra. Before 0.4.0 it went x2, x3, x4, x5, then +1 a game, and enemy damage x1.25,
+then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went x2.5, x4, x6, x8,
++2 each.)
 
 | Setting | Default | |
 |---|---|---|
@@ -339,7 +366,7 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | Experience bar | the last version's row (+0x6C, the experience to the next version, which the game leaves at 0 there: a full bar) set each tick to the next tier's goal, and back to the game's when none is left; the game's own level check skips every last version, so it never acts on it |
 | Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw), else the weapon in Ratchet's hand |
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
-| Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve, the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
+| Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve (a boss's, by the victim's class at +0xAA, by the boss column too, the final boss's by 1.5 more; the RYNO II's hits by its own rule, its tough enemies by their own bolts at +0xB4), the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
 | Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): from the second challenge mode, the game's burst runs with its amount (low and high) times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks); from the second challenge mode without the game's coin limit (flag 8; `SetDeathBits` asks for three coins a kill), so the whole total is written down; the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total is made again as obsidian, platinum and gold coins at those places, the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word at +0x1C, `D_001A7A14`, divided by the streak, as the game does) |
 | Collectors | no hook point: their dialogs' texts (10135 Tabora's crystals, 10209 Grelbin's moonstones) through `rac2.text.by_id` get the scaled total in place of their second number; each tick a trade (the crystals at +0x22 of the save block, s16, or the moonstones at +0x24, s32, down to 0 in Tabora or Grelbin with the game's pay, 1,000 or 3,000 each, ten times in challenge mode, in the bolts at +0x00) gets the rest of the scaled pay through `openrac_api.bolts` |
