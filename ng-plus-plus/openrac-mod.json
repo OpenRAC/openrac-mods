@@ -26,7 +26,8 @@
     "rac2.moby.record_death",
     "rac2.item.version_color",
     "rac2.text.by_id",
-    "rac2.vendor.draw_list"
+    "rac2.vendor.draw_list",
+    "rac2.level.load"
   ],
   "settings": [
     {
