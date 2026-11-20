@@ -84,11 +84,12 @@ constexpr std::uint32_t kCoinBytes = 0x100u;          // One coin's moby.
 constexpr std::uint32_t kStackTop = 0x003F0000u;      // The game's stack, growing down.
 
 // The ports the test plays: 1.23 with the bolt hook points, 1.22 without, 1.23 with the setting
-// off.
+// off, and 1.24, whose moby_material draws obsidian too.
 enum class Host {
     Bolts,
     Old,
-    Off
+    Off,
+    Obsidian
 };
 
 // One coin the test's game made: its moby and worth, and where the mod said it starts.
@@ -158,6 +159,7 @@ std::int32_t g_bolts = 0;
 std::int32_t g_burst_high = -1;
 std::vector<Coin> g_coins;
 std::map<std::uint32_t, std::uint32_t> g_materials;  // Moby to material, as the port draws them.
+std::map<std::uint32_t, std::uint32_t> g_glows;      // Moby to the rgb it was drawn with.
 std::uint32_t g_sp = kStackTop;
 
 // ---- Game memory ----
@@ -612,16 +614,19 @@ void host_stack_pop(openrac_gaddr saved) {
 int host_material(
     openrac_mod* /*mod*/, openrac_gaddr moby, std::uint32_t material, std::uint32_t rgb
 ) {
-    // What the port refuses.
-    if (moby == 0 || material > kMaterialPlatinum || rgb > kNoTint) {
+    // What the port refuses: obsidian before 1.24.
+    const std::uint32_t most = g_host == Host::Obsidian ? kMaterialObsidian : kMaterialPlatinum;
+    if (moby == 0 || material > most || rgb > kNoTint) {
         return OPENRAC_HOOK_UNKNOWN;
     }
 
     // None takes the mod's material off.
     if (material == kMaterialNone) {
         g_materials.erase(moby);
+        g_glows.erase(moby);
     } else {
         g_materials[moby] = material;
+        g_glows[moby] = rgb;
     }
 
     return OPENRAC_HOOK_OK;
@@ -761,7 +766,7 @@ void make_api() {
         g_api.api_minor = 22;
     } else {
         g_api.size = sizeof g_table;
-        g_api.api_minor = kMaterialMinor;
+        g_api.api_minor = g_host == Host::Obsidian ? kObsidianMinor : kMaterialMinor;
         g_table.moby_material = host_material;
     }
 
@@ -1262,8 +1267,12 @@ std::int32_t coins_worth() {
 
     // Each coin, as the player will collect it.
     for (const Coin& coin : g_coins) {
-        const bool platinum = g_materials.count(coin.moby) != 0;
-        total += platinum ? coin.value * kPlatinumTimes : coin.value;
+        const auto found = g_materials.find(coin.moby);
+        const bool rare = found != g_materials.end();
+        const std::int32_t times = !rare ? 1
+                                   : found->second == kMaterialObsidian ? kObsidianTimes
+                                                                        : kPlatinumTimes;
+        total += coin.value * times;
     }
 
     return total;
@@ -1311,6 +1320,90 @@ void test_platinum_drop() {
 
     CHECK(g_bolts == 15'000);
     CHECK(g_materials.empty());
+}
+
+// Checks obsidian on a port of 1.24: the same drop of 15,000 in challenge mode's fourth run (cycle
+// 3) at a x20 streak gives 15% as obsidian first (2,250: a 1,250 and two 500s, each class with its
+// own glow), then platinum's 65% (9,750) and gold; an obsidian coin collected is worth 25 times its
+// class. Without a streak there are only hints: 2% of a drop of 7,500.
+void test_obsidian_drop() {
+    lay_out_enemy();
+    set_run(3, 20);
+    g_coins.clear();
+    g_materials.clear();
+    g_glows.clear();
+    port_spawn_pickups(kMobyEnemy, 1500, 9);
+    CHECK(coins_worth() == 15'000);
+    CHECK(g_sp == kStackTop);
+    CHECK(g_log.find("interface 1.24") == std::string::npos);
+
+    std::map<std::int32_t, int> obsidian;  // Obsidian coins by their gold class's worth.
+    std::uint32_t glow_1250 = 0;
+    std::uint32_t glow_500 = 0;
+
+    // The coins drawn as obsidian, by class, and their glows.
+    for (const Coin& coin : g_coins) {
+        // Only the obsidian ones.
+        if (g_materials.count(coin.moby) == 0 || g_materials[coin.moby] != kMaterialObsidian) {
+            continue;
+        }
+
+        ++obsidian[coin.value];
+        (coin.value == 50 ? glow_1250 : glow_500) = g_glows[coin.moby];
+    }
+
+    CHECK(obsidian.size() == 2 && obsidian[50] == 1 && obsidian[20] == 2);
+    // A shade per size: the bigger coin redder, each a colour, not the default white.
+    CHECK(glow_1250 != glow_500 && glow_1250 != kNoTint && glow_500 != kNoTint);
+    CHECK((glow_1250 >> 16) >= (glow_500 >> 16));
+    // The biggest first: obsidian before platinum and gold of a size.
+    CHECK(!g_coins.empty() && g_coins[0].value == 1000);
+    CHECK(g_materials[g_coins[0].moby] == kMaterialPlatinum);
+
+    // Collected: an obsidian 1,250 (a 50 coin) first, then the rest, the whole drop.
+    g_bolts = 0;
+    std::uint32_t first = 0;
+
+    // The one obsidian 50 coin.
+    for (const Coin& coin : g_coins) {
+        // Found.
+        if (coin.value == 50 && g_materials[coin.moby] == kMaterialObsidian) {
+            first = coin.moby;
+            break;
+        }
+    }
+
+    port_collect(first);
+    CHECK(g_bolts == 1250);
+    CHECK(g_materials.count(first) == 0);
+
+    // Every other coin.
+    for (const Coin& coin : g_coins) {
+        // Not the one collected.
+        if (coin.moby != first) {
+            port_collect(coin.moby);
+        }
+    }
+
+    CHECK(g_bolts == 15'000);
+    CHECK(g_materials.empty());
+
+    // No streak: the 2% of a 7,500 drop at x1 is 150, an obsidian 125 and an obsidian 25.
+    set_run(3, 1);
+    g_coins.clear();
+    port_spawn_pickups(kMobyEnemy, 750, 9);
+    int obsidian_coins = 0;
+
+    // The obsidian coins of the drop.
+    for (const Coin& coin : g_coins) {
+        obsidian_coins += g_materials.count(coin.moby) != 0
+                                  && g_materials[coin.moby] == kMaterialObsidian
+                              ? 1
+                              : 0;
+    }
+
+    CHECK(obsidian_coins == 2);
+    CHECK(coins_worth() == 7'500);
 }
 
 // Checks that a level left forgets its platinum coins: a moby of the next level is worth its class.
@@ -1404,8 +1497,11 @@ void run(const char* path, const Disc& disc, Host host) {
     CHECK(reload(load));
     CHECK(g_failed.empty());
     // The nine of before, and the three bolt hook points on a port of 1.23 with the setting on.
-    CHECK(g_hooks.size() == (host == Host::Bolts ? 12u : 9u));
+    const bool bolts = host == Host::Bolts || host == Host::Obsidian;
+    CHECK(g_hooks.size() == (bolts ? 12u : 9u));
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
+    // A port of 1.23 drops platinum only, and says so.
+    CHECK((g_log.find("interface 1.24") != std::string::npos) == (host == Host::Bolts));
     lay_out_game();
     test_a_new_save_counts_from_zero();
     test_the_vendor_offers_alpha();
@@ -1420,7 +1516,9 @@ void run(const char* path, const Disc& disc, Host host) {
     test_in_hand_level_up();
 
     // The bolts as the port offers them.
-    if (host == Host::Bolts) {
+    if (host == Host::Obsidian) {
+        test_obsidian_drop();
+    } else if (host == Host::Bolts) {
         test_platinum_drop();
         test_level_left();
         test_drops_before_and_crates();
@@ -1450,7 +1548,7 @@ int main(int argc, char** argv) try {
     // Every disc NG++ knows.
     for (const Disc& disc : kDiscs) {
         // Each port: 1.23 with the bolts, 1.22 without, the setting off.
-        for (const Host host : {Host::Bolts, Host::Old, Host::Off}) {
+        for (const Host host : {Host::Bolts, Host::Old, Host::Off, Host::Obsidian}) {
             run(argv[1], disc, host);
         }
     }
