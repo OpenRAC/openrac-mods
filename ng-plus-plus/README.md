@@ -98,6 +98,49 @@ dialog and description name the weapon at the tier for sale.
 In the vendor's list, the next tier's entry shows that tier's color, and the weapon's own entry the
 color of the tier it has.
 
+### How each weapon looks
+
+Each tier also changes how the weapon looks when you use it. The gun, and everything it fires or
+puts down (shots, bombs, blasts, bots, turrets, the shield), takes the tier's color: the model keeps
+its own colors with a touch of the tier's and gets a glowing edge in it, and its glow and the
+effects tied to it (sparks, flashes, arcs, trails, halos) are drawn in the tier's color instead of
+the game's. Each tier is a little stronger than the one before: the effects are brighter and the
+sparks and flashes larger, up to about half again as bright and a third larger at Omega. Omega's
+effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange and Ultima RYNO II
+beats between bright and deep red.
+
+This is only how things look: shots fly, spread and hit exactly as at the tier's damage.
+
+| Weapon | What takes the tier's color |
+|---|---|
+| Lancer / Heavy Lancer | the gun's glowing edge, the halo in its chamber and the flashes tied to the gun |
+| Gravity Bomb / Mini-Nuke | the bomb in flight (its body and glow) and its blast |
+| Chopper / Multi-Star | the spinning blades, body and glow |
+| Blitz Gun / Blitz Cannon | the gun's glowing edge and the effects tied to it |
+| Plasma Coil / Plasma Storm | the gun's glowing edge and the effects tied to it |
+| Lava Gun / Meteor Gun | the gun, and the burning blobs it leaves on the ground |
+| Minirocket Tube / Megarocket Cannon | the tube, and each homing rocket (its body, glow and trail) |
+| Spiderbot / Tankbot Glove | the bot itself (body and glow) and its exploding trail |
+| Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts |
+| Miniturret / Megaturret Glove | each turret you put down (body and glow) |
+| Hoverbomb / Tetrabomb Gun | the gun, and each hoverbomb (body and glow) |
+| Shield Charger / Tesla Barrier | the shield: its electric arcs and sparkles. It no longer turns green for good at the Mega: Alpha is lime, Beta cyan, Gamma emerald, Delta teal, Epsilon violet, Zeta magenta, Eta crimson, and Omega's shield cycles through them all |
+| Zodiac | the gun's glowing edge and the effects tied to it |
+| RYNO II | the launcher's glowing edge and the effects tied to it (orange at Heavy, beating red at Ultima, then the tiers' colors) |
+| Seeker Gun | the gun, and each seeker (body, glow and trail) |
+| Pulse Rifle / Vaporizer | the gun's glowing edge and the effects tied to it |
+| Visibomb Gun | the gun, and the missile you steer (body and glow) |
+| Bomb Glove | each bomb (body and glow) |
+| Decoy Glove | the glove, and the decoy |
+| Synthenoid | each drone (body and glow) |
+| Tesla Claw, Walloper, Sheepinator, Clank Zapper | the weapon's glowing edge and the effects tied to it |
+
+Some of a weapon's effects are drawn by the game on their own, not tied to the gun or its shot
+(the trail of a stray spark, a ricochet): those keep the game's colors.
+
+This needs OpenRAC with mod interface 1.25. With 1.23 or 1.24 only the bodies of the shots, bombs,
+bots and turrets take the tier's color, and with an older OpenRAC everything looks as in the game.
+
 ### Tougher enemies each new game
 
 The tiers make weapons much stronger, so enemies get tougher across challenge mode's new games. The
@@ -286,8 +329,8 @@ host's tiers.
 
 ## How it works
 
-Through OpenRAC's rac2 hook points of SDK 1.14.6, and the bolts' of interface 1.23 and the obsidian
-material of 1.24 (the addresses are NTSC-U v1.01's):
+Through OpenRAC's rac2 hook points of SDK 1.14.6, and the bolts' of interface 1.23, the obsidian
+material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01's):
 
 | | Where |
 |---|---|
@@ -304,6 +347,7 @@ material of 1.24 (the addresses are NTSC-U v1.01's):
 | Arenas | `rac2.arena.prize` (`func_L02_003FCDF8`, `moby_compute_scaled_entry_value`, one function in Maktar's and Joba's code): the game's prize times the run scale; the arena's menu prints it and the win pays it |
 | Sellers | no hook point (each seller's dialog prints the price it then takes, both from the level's data): the bolt prices of the level's price table (`D_L06_002958D0`, `D_L09_0028E350`, `D_L14_00291850`, `D_L17_0028C550`: the game's and challenge mode's price of Notak's toll door, words 0-1, Dobbo's seller 4-5, the prison's seller 10-11, Smolg's machine 12-13; the crystals and moonstones of Tabora and Grelbin left alone) and the gadget sellers' item row (+0x80 of the item's row) are written at half the run scale's rise while their level is loaded, the same way as the races |
 | Level-up popup | a tier earned with the weapon in hand plays the game's in-hand level-up (`func_L00_0037E6A8`); at its end the game's popup from its own level-up table (`help_show_message_for_id`, `func_00288508`) names the last version, or is text 0 (an empty box) for a weapon the table has no line for (RYNO II, Zodiac): for ten seconds after, the resolver gives that popup the tier's name |
+| Weapon looks | each tick, the level's moby table (the first moby's and past the last's words, `g_mobyTableBase` and `g_mobyTableEnd`; 0x80 and up at +0x20 a dead slot) is looked through for the weapons' own classes (`kVisualClasses` in src/weapon_visuals.h: guns, shots, bombs, blasts, bots, turrets, the shield, each with its item); a moby whose weapon wears a tier is drawn with `moby_material`'s energy (interface 1.25) at the tier's strength in the tier's color (`effect_rgb`, `effect_strength` in src/tiers.h), sent again only when it changes (Omega and Ultima every other tick). OpenRAC draws the body with a touch of the color and a glowing rim, and the moby's glow packets, its draw callbacks' quads and the particles naming it as their owner in the color. On a port of 1.23 or 1.24, a tint on the shots', bombs' and bots' bodies only |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
 
 The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
@@ -317,6 +361,7 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/discs.h` | the game's addresses per disc (one table) and its records' layouts, the row text fields among them |
 | `src/game_view.h` | typed reads and writes of the game: rows, items, hero, vendor, save, texts and text slots |
 | `src/weapons.h` | which weapon, which row, which tier: what every other part asks |
+| `src/weapon_visuals.h` | the tiers' looks on the weapons' mobys: which classes, which look, sent each tick |
 | `src/text.h` | the text resolver behind `rac2.text.by_id` |
 | `src/vendor.h` | the vendor's entries, prices, purchases and tints |
 | `src/experience.h` | steps by experience, the level-up, the rows' ammo and bar, the line at the top |
@@ -330,8 +375,10 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 
 The tests: `ng_plus_plus_rules` (the rules and the book), `ng_plus_plus_bolt_rules` (the bolt
 rules), `ng_plus_plus_text` (the resolver's substitution) and `ng_plus_plus_load` (the built library
-against a game of the test's own, on the three discs, with a port of 1.24 that draws obsidian, one
-of 1.23 that has the bolt hook points and platinum, one of 1.22 without, and the bolt setting off).
+against a game of the test's own, on the three discs, with a port of 1.25 that draws energy, one of
+1.24 that draws obsidian, one of 1.23 that has the bolt hook points and platinum, one of 1.22
+without, and the bolt setting off; the weapons' looks: which moby gets which material and color at
+a tier, a dead slot, another class and a level left).
 
 Not yet:
 
@@ -352,3 +399,10 @@ Not yet:
   arenas, doors that open when all are defeated), so copies could stall a level; the difficulty
   mod leaves the enemy count out of Going Commando for the same reason.
 - No fire rate change, and RYNO II Ultima's split volley is a follow-up: Ultima is the damage boost.
+- The weapons' looks change only how things are drawn: shots are no faster and blasts reach no
+  farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
+  game's item rows keep the shots' speed and size in fields that mean different things for each
+  weapon, so changing them waits until each weapon's fields are traced.
+- An effect the game draws on its own, not tied to the gun or the shot that made it, keeps the
+  game's colors, and so do a few weapons' shots whose moby classes are not yet traced (the Pulse
+  Rifle's and the Plasma Coil's bolts among them, if they are mobys of their own).

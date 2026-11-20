@@ -14,6 +14,7 @@
 #include "check.h"
 #include "save_book.h"
 #include "tiers.h"
+#include "weapon_visuals.h"
 
 namespace {
 
@@ -232,6 +233,31 @@ void test_scaling() {
     CHECK(tint_rgb(Kind::Four, 8, 0) != tint_rgb(Kind::Four, 8, 100));
     CHECK(tint_rgb(Kind::Four, 1, 0) == tint_rgb(Kind::Four, 1, 100));
     CHECK(tint_rgb(Kind::Ryno, 2, 0) != tint_rgb(Kind::Ryno, 2, 30));
+    // The effects' colours: the tint's hue at full strength, 0xRRGGBB; Ultima's red beats from
+    // bright to deep, never to black; Omega's rainbow moves.
+    CHECK(!effect_rgb(Kind::Four, 0, 0));
+    CHECK(effect_rgb(Kind::Four, 1, 0) == 0xB0FF20u);  // lime
+    CHECK(effect_rgb(Kind::Four, 2, 0) == 0x00E0FFu);  // cyan
+    CHECK(effect_rgb(Kind::Four, 3, 0) == 0x1AFF80u);  // emerald, raised
+    CHECK(effect_rgb(Kind::Four, 4, 0) == 0x00FFFFu);  // teal, raised
+    CHECK(effect_rgb(Kind::Four, 8, 0) != effect_rgb(Kind::Four, 8, 100));
+    CHECK(effect_rgb(Kind::Ryno, 1, 0) == 0xFF8000u);  // Heavy's orange
+    CHECK(effect_rgb(Kind::Ryno, 2, 0) == 0xFF1A1Au);  // Ultima, bright
+    CHECK(effect_rgb(Kind::Ryno, 2, 30) == 0x600000u);  // Ultima, deep
+    // Stronger with each tier, the top at the last.
+    CHECK(effect_strength(Kind::Four, 0) == 0);
+    CHECK(effect_strength(Kind::Four, 1) == 2);
+    CHECK(effect_strength(Kind::Four, 8) == kEffectTop);
+    CHECK(effect_strength(Kind::Ryno, 1) == 2);
+    CHECK(effect_strength(Kind::Ryno, 10) == kEffectTop);
+    CHECK(effect_strength(Kind::None, 3) == 0);
+
+    for (int level = 1; level < kTiers; ++level) {
+        CHECK(effect_strength(Kind::Four, level + 1) > effect_strength(Kind::Four, level));
+    }
+
+    CHECK(tint_moves(Kind::Four, 8) && tint_moves(Kind::Ryno, 2));
+    CHECK(!tint_moves(Kind::Four, 1) && !tint_moves(Kind::Ryno, 1) && !tint_moves(Kind::Four, 0));
     CHECK(display_name("Lancer", Kind::Four, 1) == "Alpha Lancer");
     CHECK(display_name("Lancer", Kind::Four, 0) == "Lancer");
 }
@@ -405,6 +431,46 @@ void test_saves() {
 
 }  // namespace
 
+// Checks the weapons' looks (weapon_visuals.h): every class names a weapon the tiers know, the
+// Shield Charger's shield takes each tier's own colour and stronger energy, Omega's moving, and
+// without energy only a shot's or bot's body is tinted.
+void test_weapon_looks() {
+    // Each class a weapon of the tiers', listed once.
+    for (const VisualClass& visual : kVisualClasses) {
+        CHECK(kind_of(visual.item) != Kind::None);
+        CHECK(visual_class(visual.moby_class) == &visual);
+    }
+
+    CHECK(visual_class(9999) == nullptr);
+    const VisualClass* shield = visual_class(2652);
+    const VisualClass* barrier = visual_class(4498);
+    CHECK(shield != nullptr && shield->item == 45 && barrier != nullptr && barrier->item == 45);
+    const Kind kind = kind_of(45);
+    CHECK(!look_for(*shield, kind, 0, true, 0));
+    std::uint32_t last_rgb = 0;
+    std::uint32_t last_material = 0;
+
+    // Alpha to Eta: each its own colour, each stronger than the one before.
+    for (int level = 1; level < kTiers; ++level) {
+        const std::optional<MobyLook> look = look_for(*shield, kind, level, true, 0);
+        CHECK(look && (look->material & 0xFFu) == kMaterialEnergy);
+        CHECK(look && look->rgb == effect_rgb(kind, level, 0) && look->rgb != last_rgb);
+        CHECK(look && look->material > last_material);
+        last_rgb = look ? look->rgb : 0;
+        last_material = look ? look->material : 0;
+    }
+
+    // Omega: the strongest, its colour cycling.
+    const std::optional<MobyLook> omega = look_for(*shield, kind, kTiers, true, 0);
+    CHECK(omega && omega->material == energy_at(kEffectTop));
+    CHECK(omega && omega != look_for(*shield, kind, kTiers, true, 100));
+    // No energy: the shield (no body) left as the game draws it; a bot's body tinted.
+    CHECK(!look_for(*shield, kind, 3, false, 0));
+    const VisualClass* bot = visual_class(2904);
+    const std::optional<MobyLook> tinted = look_for(*bot, kind_of(bot->item), 3, false, 0);
+    CHECK(tinted && tinted->material == kMaterialTint && tinted->rgb == effect_rgb(Kind::Four, 3, 0));
+}
+
 int main() try {
     test_kinds();
     test_buy_then_level();
@@ -420,6 +486,7 @@ int main() try {
     test_book();
     test_book_keeps();
     test_saves();
+    test_weapon_looks();
     return ng_plus_plus::test::result("ng_plus_plus_rules");
 } catch (...) {
     // A test that throws has failed.

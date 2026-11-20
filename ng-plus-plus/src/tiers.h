@@ -143,6 +143,23 @@ std::int32_t ammo_max(Kind kind, int level, std::int32_t base);
 // none at level 0.
 std::optional<std::uint32_t> tint_rgb(Kind kind, int level, std::uint32_t tick);
 
+// The strongest a weapon's effects are drawn (OpenRAC's energy level, 0 to 15): at its last step.
+inline constexpr int kEffectTop = 15;
+
+// Returns the colour a weapon's shots, blasts and other effects take at `level`, 0xRRGGBB (red
+// highest, as the port's materials take it), at full strength: the tier's tint with its brightest
+// channel raised to 0xFF (Omega's rainbow cycling with the tick as its icon's), the RYNO II
+// Ultima's red beating from bright to deep instead of to black, which effects drawn by adding
+// light would lose; none at level 0.
+std::optional<std::uint32_t> effect_rgb(Kind kind, int level, std::uint32_t tick);
+
+// Returns how strong a weapon's effects are drawn at `level`: 0 for none, rising with each step to
+// kEffectTop at the last (Omega; the RYNO II's too).
+int effect_strength(Kind kind, int level);
+
+// Returns whether the tint at `level` moves with the tick (Omega's rainbow, Ultima's beat).
+bool tint_moves(Kind kind, int level);
+
 // Returns "<step> <base>" ("Beta Meteor Gun", `base` the name of the version name_version gives), or
 // `base` at level 0.
 std::string display_name(std::string_view base, Kind kind, int level);

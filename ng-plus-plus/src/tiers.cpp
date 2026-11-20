@@ -5,6 +5,7 @@
 
 #include "tiers.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 
@@ -72,6 +73,10 @@ constexpr std::uint32_t kOrangeRgb = 0x0080FFu;
 // RYNO II Ultima's two colours: a red that sinks to near black and back, 0x00BBGGRR.
 constexpr std::uint32_t kUltimaRed = 0x0000E0u;
 constexpr std::uint32_t kUltimaBlack = 0x080808u;
+
+// RYNO II Ultima's effects: a bright red and a deep one, 0x00BBGGRR (effect_rgb).
+constexpr std::uint32_t kEffectUltimaBright = 0x1A1AFFu;
+constexpr std::uint32_t kEffectUltimaDeep = 0x000060u;
 
 // Ticks a prismatic tint takes from one colour to the next.
 constexpr std::uint32_t kPrismTicks = 45u;
@@ -456,6 +461,57 @@ std::string display_name(std::string_view base, Kind kind, int level) {
     name += ' ';
     name += base;
     return name;
+}
+
+std::optional<std::uint32_t> effect_rgb(Kind kind, int level, std::uint32_t tick) {
+    const Step* step = step_at(kind, level - 1);
+
+    // Level 0: the game's own effects.
+    if (step == nullptr) {
+        return std::nullopt;
+    }
+
+    // Ultima: bright red beating to deep red, on the beat of its icon's red and black.
+    if (step->tint == Tint::Ultima) {
+        const std::uint32_t phase = tick % kUltimaTicks;
+        const std::uint32_t half = kUltimaTicks / 2u;
+        const std::uint32_t rise = phase < half ? phase : kUltimaTicks - phase;
+        const std::uint32_t bgr = mix(kEffectUltimaBright, kEffectUltimaDeep, rise * kMixSteps / half);
+        return (bgr & 0xFFu) << 16 | (bgr & 0xFF00u) | (bgr >> 16 & 0xFFu);
+    }
+
+    const std::optional<std::uint32_t> tint = tint_rgb(kind, level, tick);
+
+    // Every other tint has a colour; none would be a step without one.
+    if (!tint) {
+        return std::nullopt;
+    }
+
+    // 0x00BBGGRR to 0xRRGGBB, its brightest channel raised to 0xFF and the others with it.
+    const std::uint32_t red = *tint & 0xFFu;
+    const std::uint32_t green = *tint >> 8 & 0xFFu;
+    const std::uint32_t blue = *tint >> 16 & 0xFFu;
+    const std::uint32_t top = std::max({red, green, blue, 1u});
+    const auto lift = [top](std::uint32_t channel) { return (channel * 0xFFu + top / 2u) / top; };
+    return lift(red) << 16 | lift(green) << 8 | lift(blue);
+}
+
+int effect_strength(Kind kind, int level) {
+    const int steps = step_count(kind);
+
+    // No step, or none taken yet.
+    if (steps == 0 || level <= 0) {
+        return 0;
+    }
+
+    // Each step a share of the top, the last at the top.
+    const int clamped = level < steps ? level : steps;
+    return (clamped * kEffectTop + steps / 2) / steps;
+}
+
+bool tint_moves(Kind kind, int level) {
+    const Step* step = step_at(kind, level - 1);
+    return step != nullptr && (step->tint == Tint::Prismatic || step->tint == Tint::Ultima);
 }
 
 float enemy_health(int cycle, float strength) {

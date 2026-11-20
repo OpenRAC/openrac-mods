@@ -11,7 +11,9 @@
 // coins (the platinum ones drawn so), a platinum coin collected for five times its class, the
 // coins of a level left forgotten, and the drops before cycle 2 left alone; on a port of 1.22 (no
 // bolt hook points, no moby_material) and with the setting off, the mod loads as before and takes
-// none of them.
+// none of them. Then the weapons' looks (weapon_visuals.h): on a port of 1.25 the Lancer's guns
+// at Beta drawn with energy in Beta's colour and strength, nothing on a dead slot or another
+// class; on 1.23 and 1.24 the guns left as the game draws them; on 1.22 nothing at all.
 //
 // The test's game holds made-up rows and texts in the game's layout (src/discs.h); the expected
 // values are the README's rules worked out for them.
@@ -36,6 +38,7 @@
 #include "rewards.h"
 #include "openrac/games/rac2.hpp"
 #include "openrac/openrac_mod.h"
+#include "weapon_visuals.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -83,14 +86,16 @@ constexpr std::uint32_t kBurstAt = 0x00312000u;       // The game's burst's star
 constexpr std::uint32_t kCoinsAt = 0x00320000u;       // The coins' mobys.
 constexpr std::uint32_t kCoinBytes = 0x100u;          // One coin's moby.
 constexpr std::uint32_t kStackTop = 0x003F0000u;      // The game's stack, growing down.
+constexpr std::uint32_t kVisualMobys = 0x00340000u;   // The weapons' mobys, as the level's table.
 
 // The ports the test plays: 1.23 with the bolt hook points, 1.22 without, 1.23 with the setting
-// off, and 1.24, whose moby_material draws obsidian too.
+// off, 1.24, whose moby_material draws obsidian too, and 1.25, which draws energy as well.
 enum class Host {
     Bolts,
     Old,
     Off,
-    Obsidian
+    Obsidian,
+    Energy
 };
 
 // One coin the test's game made: its moby and worth, and where the mod said it starts.
@@ -649,9 +654,14 @@ void host_stack_pop(openrac_gaddr saved) {
 int host_material(
     openrac_mod* /*mod*/, openrac_gaddr moby, std::uint32_t material, std::uint32_t rgb
 ) {
-    // What the port refuses: obsidian before 1.24.
-    const std::uint32_t most = g_host == Host::Obsidian ? kMaterialObsidian : kMaterialPlatinum;
-    if (moby == 0 || material > most || rgb > kNoTint) {
+    // What the port refuses: obsidian before 1.24, energy (with its level) before 1.25.
+    const bool obsidian = g_host == Host::Obsidian || g_host == Host::Energy;
+    const std::uint32_t most = g_host == Host::Energy ? kMaterialEnergy
+                               : obsidian             ? kMaterialObsidian
+                                                      : kMaterialPlatinum;
+    const std::uint32_t kind = material & 0xFFu;
+    const bool level_ok = material == kind || (kind == kMaterialEnergy && material <= 0xFFFu);
+    if (moby == 0 || kind > most || !level_ok || rgb > kNoTint) {
         return OPENRAC_HOOK_UNKNOWN;
     }
 
@@ -803,7 +813,9 @@ void make_api() {
         g_api.api_minor = 22;
     } else {
         g_api.size = sizeof g_table;
-        g_api.api_minor = g_host == Host::Obsidian ? kObsidianMinor : kMaterialMinor;
+        g_api.api_minor = g_host == Host::Energy     ? kEnergyMinor
+                          : g_host == Host::Obsidian ? kObsidianMinor
+                                                     : kMaterialMinor;
         g_table.moby_material = host_material;
     }
 
@@ -1036,6 +1048,73 @@ void test_tint_damage_and_enemies() {
     g_taken = 0;
     hooked<rac2::Hero_TakeDamage>()(3);
     CHECK(g_taken == 3);
+}
+
+// Lays the level's moby table out over `classes` (0 for a dead slot), one moby each from
+// kVisualMobys; an empty list takes the table away.
+void lay_out_mobys(const std::vector<int>& classes) {
+    const std::uint32_t table = std::string(g_disc->version) == "ntsc2" ? 0x001B1ADCu : 0x001B1B5Cu;
+    const auto count = static_cast<std::uint32_t>(classes.size());
+    set<std::uint32_t>(table, count == 0 ? 0u : kVisualMobys);
+    set<std::uint32_t>(table + 8u, count == 0 ? 0u : kVisualMobys + count * 0x100u);
+
+    // Each moby: its class, and its state (0x80 and up for a dead slot).
+    for (std::uint32_t n = 0; n < count; ++n) {
+        const std::uint32_t moby = kVisualMobys + n * 0x100u;
+        const int cls = classes[n];
+        set<std::uint16_t>(moby + kMobyClass, static_cast<std::uint16_t>(cls == 0 ? 1490 : cls));
+        g_memory[moby + 0x20u] = cls == 0 ? 0xFFu : 0x01u;
+    }
+}
+
+// Returns the material the port draws the weapon moby in slot `n` with (0 for none), and its rgb.
+std::uint32_t visual_material(std::uint32_t n) {
+    const auto found = g_materials.find(kVisualMobys + n * 0x100u);
+    return found != g_materials.end() ? found->second : 0u;
+}
+
+std::uint32_t visual_rgb(std::uint32_t n) {
+    const auto found = g_glows.find(kVisualMobys + n * 0x100u);
+    return found != g_glows.end() ? found->second : 0u;
+}
+
+// Checks the weapons' looks with the Lancer at Beta: its gun and Heavy Lancer's in Beta's cyan at
+// Beta's strength on a port with energy, a dead slot, another class and an unowned weapon's bomb
+// left alone; on an older port the guns as the game draws them, and on 1.22 nothing.
+void test_weapon_visuals() {
+    // The Lancer, Heavy Lancer, a dead slot, a class no weapon owns, a Gravity Bomb (not owned).
+    lay_out_mobys({1490, 3077, 0, 9999, 3299});
+    tick(1);
+    const bool energy = g_host == Host::Energy;
+    const std::uint32_t beta = energy_at(4);  // Beta: the second of eight steps, 15 x 2 / 8
+
+    // Energy: the Lancer's two guns in Beta's cyan, raised to full strength (0x00E0FF).
+    CHECK(visual_material(0) == (energy ? beta : 0u));
+    CHECK(visual_material(1) == (energy ? beta : 0u));
+    CHECK(!energy || (visual_rgb(0) == 0x00E0FFu && visual_rgb(1) == 0x00E0FFu));
+    CHECK(visual_material(2) == 0u && visual_material(3) == 0u && visual_material(4) == 0u);
+
+    // Its slot taken by another class: the new moby gets its own look, the Gravity Bomb's none.
+    lay_out_mobys({3299, 3077, 0, 9999, 3299});
+    g_materials.erase(kVisualMobys);
+    tick(1);
+    CHECK(visual_material(0) == 0u);
+    CHECK(visual_material(1) == (energy ? beta : 0u));
+
+    // A level left: the port forgets the looks; back in a level, they are drawn again.
+    g_materials.clear();
+    g_glows.clear();
+    g_level_now = -1;
+    tick(1);
+    g_level_now = 1;
+    tick(1);
+    CHECK(visual_material(1) == (energy ? beta : 0u));
+
+    // The table taken away for the tests after.
+    lay_out_mobys({});
+    tick(1);
+    g_materials.clear();
+    g_glows.clear();
 }
 
 // Checks the RYNO II reaching Heavy by experience, and the levels kept by the save's clock.
@@ -1796,7 +1875,7 @@ void run(const char* path, const Disc& disc, Host host) {
     CHECK(g_failed.empty());
     // The nine of before, and the three bolt hook points and the arena's on a port of 1.23 with
     // the setting on.
-    const bool bolts = host == Host::Bolts || host == Host::Obsidian;
+    const bool bolts = host == Host::Bolts || host == Host::Obsidian || host == Host::Energy;
     CHECK(g_hooks.size() == (bolts ? 13u : 9u));
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
     // A port of 1.23 drops platinum only, and says so.
@@ -1807,6 +1886,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_alpha_bought();
     test_beta_by_experience();
     test_tint_damage_and_enemies();
+    test_weapon_visuals();
     test_ryno_heavy_and_kept();
     test_ryno_at_the_vendor();
     test_a_restart_keeps_the_steps(load);
@@ -1818,7 +1898,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_prizes_and_prices(host != Host::Off, bolts);
 
     // The bolts as the port offers them.
-    if (host == Host::Obsidian) {
+    if (host == Host::Obsidian || host == Host::Energy) {
         test_obsidian_drop();
         test_kill_drops();
     } else if (host == Host::Bolts) {
@@ -1851,7 +1931,7 @@ int main(int argc, char** argv) try {
     // Every disc NG++ knows.
     for (const Disc& disc : kDiscs) {
         // Each port: 1.23 with the bolts, 1.22 without, the setting off.
-        for (const Host host : {Host::Bolts, Host::Old, Host::Off, Host::Obsidian}) {
+        for (const Host host : {Host::Bolts, Host::Old, Host::Off, Host::Obsidian, Host::Energy}) {
             run(argv[1], disc, host);
         }
     }

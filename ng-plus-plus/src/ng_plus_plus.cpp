@@ -16,6 +16,8 @@
 //   bolt_rules.h   the drops' scaling, the platinum share and the split into coins
 //   platinum_bolts.h
 //                  platinum bolts and bolt scaling, behind the bolt hook points (OpenRAC 1.23)
+//   weapon_visuals.h
+//                  the tiers' colours on the weapons' guns, shots, bots and effects (OpenRAC 1.25)
 //
 // Each tick: the save's clock is watched (at the title too) and a level left forgets its platinum
 // coins; in a level, the steps by experience are taken, the last versions' rows written, the
@@ -40,6 +42,7 @@
 #include "save_tiers.h"
 #include "text.h"
 #include "vendor.h"
+#include "weapon_visuals.h"
 #include "weapons.h"
 
 namespace ng_plus_plus {
@@ -69,7 +72,8 @@ public:
           m_collectors(
               mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))
           ),
-          m_rewards(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))) {}
+          m_rewards(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
+          m_visuals(mod, m_view, m_weapons) {}
 
     ~NgPlusPlus() = default;
     NgPlusPlus(const NgPlusPlus&) = delete;
@@ -124,6 +128,7 @@ private:
     PlatinumBolts m_bolts;     // Platinum bolts and the drops' scaling.
     Collectors m_collectors;   // Tabora's and Grelbin's collectors' pay.
     Rewards m_rewards;         // The races' and arenas' prizes and the sellers' prices.
+    WeaponVisuals m_visuals;   // The tiers' colours on the weapons' mobys.
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
 
@@ -225,6 +230,9 @@ void NgPlusPlus::take_optional() {
     // The arenas' prizes: an OpenRAC without the hook point keeps the game's.
     m_rewards.start();
 
+    // The tiers' colours on the weapons' mobys: an OpenRAC before 1.25 shows fewer of them.
+    m_visuals.start();
+
     // What this build lacks, for a player's log.
     if (m_view.upgrade_fx() == nullptr) {
         m_mod.info(
@@ -300,6 +308,7 @@ void NgPlusPlus::tick() {
     m_bolts.tick();
     m_collectors.tick();
     m_rewards.tick();
+    m_visuals.tick(m_tick);
 
     // The rest only in a level.
     if (m_view.loaded_level() < 0) {
