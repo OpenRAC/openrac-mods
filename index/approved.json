@@ -308,6 +308,15 @@
   ],
   "thruster-charge": [
     {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "43d2637d5968b15e03b1be73b34b609486846308af401796b02145ff8345ad35",
+        "linux-aarch64": "e41a5f78b7a95e0defda4eb7b8194f08ff0f1a2e8120770b51ce35835d426c09",
+        "linux-x86_64": "977a075bc7db9753b99042539d7c1512bc29aaa6392ce3f371838f8439c9c7aa",
+        "macos-x86_64": "e860b1b46f0a12ed3dbc1e597fc22b93820f0538022436f392d35c092add3db2"
+      }
+    },
+    {
       "version": "1.0.2",
       "sha256": {
         "android-arm64": "9e8948b171b356f727412e7efea6b616ee8ec5d6cc5b852000d7102c82e510d7",
