@@ -126,7 +126,18 @@
   ],
   "pause-weapon-wheel": [
     "1.0.1",
-    "1.0.2"
+    "1.0.2",
+    {
+      "version": "1.0.3",
+      "sha256": {
+        "android-arm64": "5f14ecc6cedc8d626260897a7eb7c0908ef4b88e48cd0e20012d26c83fdf6914",
+        "linux-aarch64": "b533a94b08b1f725e961d9ddaecc9812184ce0a0c2ee83d80296c5a8765e4d57",
+        "linux-x86_64": "32dd40addefc3690569558ab151df3233f4ac583fa4f7a33326a9e82752c5952",
+        "macos-arm64": "0410828103a85747a964651f40783b30bfb9ae39645becd183c5227fd0c75166",
+        "macos-x86_64": "c935de4e4096fa2291b260e482fea7092cc43b2f2c46a9ab46792fd09d8cbe43",
+        "windows-x86_64": "051e154a44672e9a96234368d914cbd83b5f19491a151c10a49402e47a988d1b"
+      }
+    }
   ],
   "rac-board": [
     "0.2.0",
