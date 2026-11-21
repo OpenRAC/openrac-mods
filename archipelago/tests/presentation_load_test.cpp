@@ -751,6 +751,7 @@ void serve(socket_t listener) {
                                    {{"item_name_to_id",
                                      {{"Gold Bolt", AP_BASE + AP_GOLD_BOLT_OFFSET},
                                       {"Platinum Zoomerator", AP_BASE + AP_SPECIAL_OFFSET + SPECIAL_ZOOMERATOR},
+                                      {"Devastator", AP_BASE + ITEM_DEVASTATOR},
                                       {"Aridia Coordinates",
                                        AP_BASE + AP_PLANET_OFFSET + LEVEL_ARIDIA}}},
                                     {"location_name_to_id", json::object()}}}}}}}},
@@ -800,6 +801,18 @@ void serve(socket_t listener) {
                                     {{"location", location_id(LOC_INFOBOT, LEVEL_KERWAN, 3)},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", ap_npc_id(11)},
+                                     {"item", AP_BASE + AP_GOLD_BOLT_OFFSET},
+                                     {"player", 1}},
+                                    {{"location", ap_npc_id(3)},
+                                     {"item", AP_BASE + ITEM_DEVASTATOR},
+                                     {"player", 1}},
+                                    {{"location", location_id(LOC_GIVE, LEVEL_BLARG, ITEM_HYDRODISPLACER)},
+                                     {"item", AP_BASE + ITEM_DEVASTATOR},
+                                     {"player", 1}},
+                                    {{"location", ap_npc_id(0)},
+                                     {"item", 7},
+                                     {"player", 2}},
                                     {{"location", ap_gold_case_id(ITEM_PYROCITOR)},
                                      {"item", AP_BASE + AP_GOLD_BOLT_OFFSET},
                                      {"player", 1}},
@@ -933,7 +946,7 @@ int main(int argc, char** argv) {
         api.pickup_animation = acquisition_request;
     }
     CHECK(load(ap_visual_base(&api), reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_acquisition_mode ? 57 : g_visual_mode ? 49 : 42) && g_frame != nullptr);
+    CHECK(g_hooks == (g_acquisition_mode ? 60 : g_visual_mode ? 52 : 45) && g_frame != nullptr);
     CHECK(replacement("rac1.moby.moby743.update") != nullptr);
     CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
@@ -1300,11 +1313,11 @@ int main(int argc, char** argv) {
             put(game_mode, 0);
             g_frame(g_frame_user);
         }
-        // Zoomerator uses the upright gadget pose in both monitors, not Walloper's tilt.
+        // Zoomerator keeps its calibrated Suck Cannon reference even in Walloper's slot.
         put(D->vendor_menu + VENDOR_ENTRIES, ITEM_WALLOPER);
         put(game_mode, 5);
         initialize();
-        CHECK(g_vendor_initialized_item == ITEM_DEVASTATOR);
+        CHECK(g_vendor_initialized_item == ITEM_SUCK_CANNON);
         CHECK(get(D->vendor_menu + VENDOR_ENTRIES) == ITEM_WALLOPER);
         for (int table : {0, 2}) {
             CHECK(get(D->vendor_menu - offsets[table] + ITEM_WALLOPER * sizes[table] + 0x14) == 0);
@@ -1349,6 +1362,30 @@ int main(int argc, char** argv) {
         CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [](const auto& v) {
             return v.moby == 0x1800000 && v.oclass == 0x2EE;
         }));
+        // Blarg world pickup and shuttle infobot render the actual reward, also during scenes.
+        set_level(LEVEL_BLARG);
+        const uint32_t blarg_model_table = std::strcmp(D->version, "pal") == 0 ? 0x179BC0u : 0x179AC0u;
+        const int previous_blarg_model = get(blarg_model_table + ITEM_DEVASTATOR * 0x4C + 0x10);
+        put(blarg_model_table + ITEM_DEVASTATOR * 0x4C + 0x10, 0x602);
+        put(0x1800000 + 0x78, 0x1810000);
+        put(0x1810000 + 4, LEVEL_RILGAR);
+        *at(0x1800000 + 0xB0) = 15;
+        for (int cls : {1016, 750}) {
+            const int16_t c = static_cast<int16_t>(cls);
+            std::memcpy(at(0x1800000 + 0xA6), &c, 2);
+            for (int phase : {OPENRAC_PLAY_PLAYING, OPENRAC_PLAY_SCENE}) {
+                g_play_phase = phase;
+                g_frame(g_frame_user);
+                CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [](const auto& v) {
+                    return v.moby == 0x1800000 && v.oclass == 0x602;
+                }));
+            }
+        }
+        put(blarg_model_table + ITEM_DEVASTATOR * 0x4C + 0x10, previous_blarg_model);
+        g_play_phase = OPENRAC_PLAY_PLAYING;
+        set_level(LEVEL_NOVALIS);
+        std::memcpy(at(0x1800000 + 0xA6), &bolt_class, 2);
+        put(0x1810000, 0);
         // Real Novalis Gold Bolts occupy slots 958-960, beyond the old 512 cap.
         const uint32_t model_table = std::strcmp(D->version, "pal") == 0 ? 0x179BC0u : 0x179AC0u;
         put(model_table + ITEM_BLASTER * 0x4C + 0x10, 0x600);
@@ -1455,6 +1492,24 @@ int main(int argc, char** argv) {
             std::strcmp(reinterpret_cast<char*>(at(message(257))), "Buy Gold Bolt for 500 bolts")
             == 0
         );
+        // Blarg's queued Rilgar message names the randomized coordinates, even elsewhere.
+        set_level(LEVEL_RILGAR);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x177B)))) == "Collected Devastator");
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3F1)))).find("Collected ") == 0);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3F1)))).find(" for ") != std::string::npos);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA1)))) == "Collected Gold Bolt");
+        set_level(LEVEL_QUARTU);
+        std::string giant_prompt = reinterpret_cast<const char*>(at(message(0x3AA4)));
+        std::replace(giant_prompt.begin(), giant_prompt.end(), '\1', ' ');
+        CHECK(giant_prompt == "Transform into Giant Clank - Reward: Gold Bolt");
+        // Once its canonical reward has been collected, retain the native hint.
+        const uint32_t checks_before_giant = get(D->save_tag);
+        put(D->save_tag, 0xA8000000u | (checks_before_giant & 0x7FFFFFu) | (1u << (10 + 11)));
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA4)))) == "Pyrocitor");
+        put(D->save_tag, checks_before_giant);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA5)))) == "Pyrocitor");
+        set_level(LEVEL_VELDIN2);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA4)))) == "Pyrocitor");
         {
             // Helga is the NPC reward text's: one owner names her selected prompt, and any other
             // text of her interaction (speech, another entry) is not rewritten here either.

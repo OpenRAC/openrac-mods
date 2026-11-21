@@ -20,8 +20,11 @@ static int special_item_visual(const char* name, int* icon, int* frame) {
         return -1;
     }
     /* Older labels used these spellings; keep their native display identity too. */
-    if (strcmp(name, "Zoomerator") == 0) name = "Platinum Zoomerator";
-    else if (strcmp(name, "Codebot") == 0) name = "CodeBot";
+    if (strcmp(name, "Zoomerator") == 0) {
+        name = "Platinum Zoomerator";
+    } else if (strcmp(name, "Codebot") == 0) {
+        name = "CodeBot";
+    }
     for (unsigned i = 0; i < sizeof entries / sizeof entries[0]; ++i) {
         if (strcmp(name, entries[i].name) != 0) {
             continue;
@@ -37,5 +40,24 @@ static int special_item_visual(const char* name, int* icon, int* frame) {
 static int special_item_acquisition(const char* name) {
     int icon, frame;
     return special_item_visual(name, &icon, &frame);
+}
+
+/* Immutable retail rows against which the approved special-item offsets were authored. */
+static int special_item_vendor_reference(const char* name) {
+    switch (special_item_acquisition(name)) {
+        case 1002:
+            return ITEM_SUCK_CANNON;
+        case 37:
+        case 407:
+            return ITEM_BOMB_GLOVE;
+        case 1428:
+            return ITEM_DEVASTATOR;
+        case 645:
+            return ITEM_VISIBOMB;
+        case 1433:
+            return ITEM_TAUNTER;
+        default:
+            return -1;
+    }
 }
 #endif

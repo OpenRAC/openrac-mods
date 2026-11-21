@@ -1,5 +1,7 @@
 #include "gold_case_prompt.h"
 #include "special_item_visual.h"
+#include "infobot_collection.h"
+#include "infobot_collection.h"
 
 /* Render-only seeded item-randomizer reward displays. Included after the location/game helpers. */
 static int take(int result, const char* point);
@@ -237,6 +239,15 @@ static int64_t moby_location(uint32_t moby) {
         const int row = find_presentation_location(LOC_GOLD, level, key);
         return row >= 0 ? reward_location_id(&rando_locations[row]) : -1;
     }
+    if (cls == 750 && vars && level == LEVEL_BLARG
+        && i32_at(vars + INFOBOT_PLANET) == LEVEL_RILGAR) {
+        for (size_t i = 0; i < rando_location_count; ++i) {
+            const rando_location *l = &rando_locations[i];
+            if (l->kind == LOC_FIXED && l->level == LEVEL_BLARG
+                && l->vanilla.kind == REWARD_PLANET && l->vanilla.value == LEVEL_RILGAR)
+                return reward_location_enabled(l) ? reward_location_id(l) : -1;
+        }
+    }
     if (cls == 0x2EE && vars) {
         const int mission = OPENRAC_GREF(s_api, uint8_t, moby + MOBY_MISSION);
         const int row = mission < TRIGGER_SLOTS && level >= 0 && level < LEVEL_COUNT
@@ -270,7 +281,7 @@ static int64_t moby_location(uint32_t moby) {
             && (presentation_class(l->vanilla.value) == cls
                 || (level == LEVEL_EUDORA && l->key == ITEM_SUCK_CANNON && cls == 1120)
                 || (level == LEVEL_ARIDIA && l->key == ITEM_TRESPASSER && cls == 1005)
-                || (level == LEVEL_RILGAR && l->key == ITEM_HYDRODISPLACER && cls == 1016)
+                || (level == LEVEL_BLARG && l->key == ITEM_HYDRODISPLACER && cls == 1016)
                 || (level == LEVEL_ORXON && l->key == ITEM_MAGNEBOOTS && cls == 18)
                 || (level == LEVEL_OLTANIS && l->key == ITEM_MORPH_O_RAY && cls == 1354)
                 || (level == LEVEL_QUARTU && l->key == ITEM_BOLT_GRABBER && cls == 1388))
@@ -386,6 +397,10 @@ static int native_vendor_reward(void) {
     }
     /* Zoomerator stands on local Z. Borrow the upright gadget placement,
      * while reward_class continues to supply its own mesh and icon. */
+    const int reference = special_item_vendor_reference(label);
+    if (reference >= 0) {
+        return reference;
+    }
     if (reward.kind == REWARD_SPECIAL && reward.value == SPECIAL_ZOOMERATOR) {
         return ITEM_HELI_PACK;
     }
@@ -439,7 +454,7 @@ static void presentation_tick(int phase) {
             level_byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x00160098u : 0x0015FFD8u)
         );
         /* Inventory and cutscene models can reuse world classes and addresses. */
-        for (int i = 0; phase == OPENRAC_PLAY_PLAYING && pool && i < n; ++i) {
+        for (int i = 0; pool && i < n; ++i) {
             if (mobys[i].slot < 0 || (mobys[i].flags & OPENRAC_MOBY_DEAD)) {
                 continue;
             }
@@ -448,6 +463,9 @@ static void presentation_tick(int phase) {
                 continue;
             }
             const uint32_t moby = (uint32_t)address;
+            const int cls = OPENRAC_GREF(s_api, int16_t, moby + 0xA6);
+            const int blarg_reward = current_level() == LEVEL_BLARG && (cls == 1016 || cls == 750);
+            if (phase != OPENRAC_PLAY_PLAYING && !(phase == OPENRAC_PLAY_SCENE && blarg_reward)) continue;
             const int64_t location = moby_location(moby);
             if (location >= 0) {
                 add_visual(moby, location, 1.0f);
@@ -493,6 +511,45 @@ static void vendor_initialize_presentation(void) {
     s_vendor_template = 0;
     uint8_t saved_display[3][0x40];
     int restore_display = 0;
+    /* Calibration belongs to the reward, never the vendor row it replaces. */
+    if (s_vendor_native_item < 0) {
+        int64_t reward;
+        int same;
+        char label[192];
+        if (presentation_reward(location, &reward, &same, label, sizeof label)) {
+            const int reference = same ? special_item_vendor_reference(label) : ITEM_SUCK_CANNON;
+            if (reference >= 0) {
+                vendor_capture_defaults();
+                entry = selected_menu + VENDOR_ENTRIES + cursor * VENDOR_ENTRY_SIZE;
+                source = get32(entry);
+                display = reference;
+                for (int i = 0; i < 3; ++i) {
+                    memcpy(
+                        vendor_placement(i, display),
+                        s_vendor_default_placement[i][display],
+                        k_vendor_placement_sizes[i]
+                    );
+                    if (source != display) {
+                        memcpy(
+                            s_vendor_saved_placement[i],
+                            s_vendor_default_placement[i][source],
+                            k_vendor_placement_sizes[i]
+                        );
+                        memcpy(
+                            vendor_placement(i, source),
+                            s_vendor_default_placement[i][display],
+                            k_vendor_placement_sizes[i]
+                        );
+                    }
+                }
+                if (source != display) {
+                    play_phase(&s_vendor_patch_load);
+                    s_vendor_patched_item = source;
+                }
+                set32(entry, display);
+            }
+        }
+    }
     if (s_vendor_native_item >= 0) {
         vendor_capture_defaults();
         /* Non-vendor items have empty placement records. Give them the normal
@@ -667,6 +724,30 @@ static uint32_t message_presentation(int32_t id) {
     const uint32_t original = s_message_string(id);
     if (!original || !s_visual_api || (reward_ready() < 0)) {
         return original;
+    }
+    /* Quartu's transformation hint is a help message, not an NPC dialog.
+     * The scientist's canonical check is the first Giant Clank victory reward. */
+    if (id == 0x3AA4 && current_level() == LEVEL_QUARTU) {
+        const npc_reward_source *source = npc_reward_source_for(LEVEL_QUARTU, 1446);
+        char reward[192], prompt[120];
+        if (source && npc_reward_label(source, reward, sizeof reward)
+            && npc_label_between(prompt, "Transform into Giant Clank - Reward: ", reward, "")) {
+            npc_reward_wrap(prompt);
+            const uint32_t replacement = s_visual_api->guest_text(s_mod, prompt);
+            return replacement ? replacement : original;
+        }
+    }
+    const int collection_row = infobot_collection_row(id);
+    if (collection_row >= 0) {
+        char collected[192], message[224];
+        int64_t reward_id;
+        int same_game;
+        if (s_plan.shuffled[collection_row] && presentation_reward(collection_row,
+                &reward_id, &same_game, collected, sizeof collected)) {
+            snprintf(message, sizeof message, "Collected %s", collected);
+            const uint32_t replacement = s_visual_api->guest_text(s_mod, message);
+            return replacement ? replacement : original;
+        }
     }
     const char* text = (const char*)OPENRAC_G(s_api, original);
     const uint32_t game_mode = strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;
