@@ -361,6 +361,12 @@
       }
     },
     {
+      "version": "0.4.5",
+      "sha256": {
+        "windows-x86_64": "cc0e5d7b22e418e3f129873d13e5a7cacadce8d18f304c893e5690197d6dcb93"
+      }
+    },
+    {
       "version": "0.4.6",
       "sha256": {
         "windows-x86_64": "0d1245da3fae167e3fd8e6abc5f4cd28ed9bd6008b91dfcd0b5b01bf0e300695"
