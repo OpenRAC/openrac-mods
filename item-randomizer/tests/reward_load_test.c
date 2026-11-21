@@ -431,7 +431,7 @@ int main(int argc, char** argv) {
         uint32_t info = (strcmp(D->version, "pal") == 0 ? 0x1864D0 : 0x1863D0) + item * 0x4C;
         set32(s_memory + info, 1000 + item);
         uint32_t cls = (strcmp(D->version, "pal") == 0 ? 0x179BC0 : 0x179AC0) + item * 0x4C;
-        set32(s_memory + cls + 0x10, 0x500 + item);
+        set32(s_memory + cls + 0x10, item == ITEM_DRONE_DEVICE ? 483 : 0x500 + item);
         uint16_t icon = (uint16_t)(0xEA60 + item);
         memcpy(s_memory + cls + 0x38, &icon, 2);
     }
@@ -469,7 +469,9 @@ int main(int argc, char** argv) {
             const rando_reward reward = plan.reward[row];
             int expected = 0x46E;
             if (reward.kind == REWARD_ITEM) {
-                expected = reward.value == ITEM_HELI_PACK ? 607 : 0x500 + reward.value;
+                expected = reward.value == ITEM_HELI_PACK      ? 607
+                           : reward.value == ITEM_DRONE_DEVICE ? 479
+                                                               : 0x500 + reward.value;
             } else if (reward.kind == REWARD_GOLD_WEAPON) {
                 expected = 0x5B0 + rando_gold_index(reward.value);
             } else if (reward.kind == REWARD_PLANET) {

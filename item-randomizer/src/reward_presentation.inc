@@ -81,6 +81,9 @@ static uint8_t* presentation_item(int item) {
 static int presentation_class(int item) {
     /* Backpack equipment is not a held weapon; use its native pickup model. */
     if (item == ITEM_HELI_PACK) return 607;
+    /* The NTSC level table can alias this held model to Hologuise (483).
+     * Reward previews use the Drone Device's standalone mesh instead. */
+    if (item == ITEM_DRONE_DEVICE) return 479;
     const uint32_t table = strcmp(s_disc->version, "pal") == 0 ? 0x00179BC0u : 0x00179AC0u;
     return get32(level_byte_at(table) + item * 0x4Cu + 0x10);
 }
