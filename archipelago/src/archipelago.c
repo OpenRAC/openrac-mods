@@ -1576,11 +1576,13 @@ static int take(int result, const char* point) {
 
 /* Retail glide input checks Heli-Pack ownership even with the Thruster-Pack equipped.
  * Borrow that flag only during movement; the existing swap/save scopes keep inventory real. */
+#include "hoverboard_races.inc"
+
 static void (*s_hero_update)(void);
 static void hero_update(void) {
     const int borrow = *owned(ITEM_THRUSTER_PACK) && !*owned(ITEM_HELI_PACK);
     if (borrow) swap_push(owned(ITEM_HELI_PACK), SWAP_FORCE_OWNED);
-    s_hero_update();
+    hoverboard_race_player(s_hero_update);
     if (borrow) swap_pop();
 }
 
