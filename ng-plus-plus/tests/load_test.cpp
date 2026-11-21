@@ -2285,12 +2285,11 @@ void test_pool_room() {
         return made;
     };
 
-    // Room: the whole drop's coins.
-    CHECK(drop(0, 500, kBurstMost) > 6);
+    // Room: the whole drop's coins, however many pickups are alive (the pool counts, not a cap).
+    CHECK(drop(0, 500, 1000) > 6);
     CHECK(g_log.find("folded") == std::string::npos);
-    // 90 pickups alive, the cap 96: six more at most, the same bolts.
-    CHECK(drop(90, 500, 6) > 0);
-    CHECK(g_log.find("folded into at most 6 coins") != std::string::npos);
+    CHECK(drop(200, 500, 1000) > 6);
+    CHECK(g_log.find("folded") == std::string::npos);
     // The pool's last slots (26 free, 24 kept): two coins.
     CHECK(drop(0, 26, 2) > 0);
     // Nothing free: no coin, the whole drop paid at once.
@@ -2324,6 +2323,30 @@ void test_pool_room() {
     CHECK(g_copies_made == 0);
     g_level_now = 4;
     g_pool_free = 500;
+    set_run(1, 0);
+}
+
+// Checks the fallback caps on a port that cannot count its pool (before 1.27): with 90 pickups alive
+// of the 96 allowed a big drop folds into six coins, every bolt kept.
+void test_fallback_caps() {
+    lay_out_enemy();
+    set_run(3, 20);
+    g_fake_coins = 90;
+    g_coins.clear();
+    g_materials.clear();
+    g_bolts = 0;
+    g_log.clear();
+    port_spawn_pickups(kMobyEnemy, 1500, 9);
+    CHECK(!g_coins.empty() && g_coins.size() <= 6);
+    CHECK(g_log.find("folded into at most 6 coins") != std::string::npos);
+
+    // Every coin collected: the whole drop.
+    for (const Coin& coin : std::vector<Coin>(g_coins)) {
+        port_collect(coin.moby);
+    }
+
+    CHECK(g_bolts == 15'000);
+    g_fake_coins = 0;
     set_run(1, 0);
 }
 
@@ -2362,7 +2385,7 @@ void run(const char* path, const Disc& disc, Host host) {
     // The pool: asked for on a port of 1.27, a line in the log of an older one.
     CHECK((g_pool_asked == kPoolExtra) == (host == Host::Pool));
     CHECK(
-        (g_log.find("asked for 400 more spare moby slots") != std::string::npos)
+        (g_log.find("asked for 800 more spare moby slots") != std::string::npos)
         == (host == Host::Pool)
     );
     CHECK(
@@ -2403,6 +2426,12 @@ void run(const char* path, const Disc& disc, Host host) {
     // The bolts as the port offers them.
     if (host == Host::Obsidian || energy_host(host)) {
         test_obsidian_drop();
+
+        // A port that cannot count its pool keeps to the fixed caps.
+        if (host != Host::Pool) {
+            test_fallback_caps();
+        }
+
         test_kill_drops();
         test_word_not_scaled();
     } else if (host == Host::Bolts) {

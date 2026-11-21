@@ -202,8 +202,11 @@ void PlatinumBolts::spawn_pickups(
     // is paid at once, folded into the fewer, bigger coins that split makes first.
     const int live = live_pickups();
     const int wanted = limit;
+    // With the port's pool counted the room is what is free; without it, the fixed caps.
+    PoolStatus pool;
+    const bool pooled = pool_status(m_mod, pool);
     const int most = pickups_most(live);
-    limit = coin_budget(limit, live, kBurstMost, most);
+    limit = coin_budget(limit, live, pooled ? kNoBurstCap : kBurstMost, most);
 
     const float share = platinum_share(cycle, m_view.streak());
     const float obsidian = m_obsidian ? obsidian_share(cycle, m_view.streak()) : 0.0f;
@@ -211,7 +214,7 @@ void PlatinumBolts::spawn_pickups(
 
     // Folded: the budget left out coins the game's own limit would have let be made. Said for the
     // first few and counted in the summary.
-    if (limit < (wanted < 0 ? kBurstMost + 1 : wanted)
+    if (limit < (wanted < 0 ? (pooled ? kNoBurstCap : kBurstMost) + 1 : wanted)
         && plan.coins() < split(total, share, obsidian, wanted).coins()) {
         ++m_summary.folded;
 
@@ -384,10 +387,9 @@ int PlatinumBolts::pickups_most(int live) const {
     PoolStatus pool;
 
     // The port counts the pool: the pickups may take what is free past the few slots the level
-    // keeps, and no more than the cap.
+    // keeps; the fixed caps are only for a port that cannot say.
     if (pool_status(m_mod, pool)) {
-        const int room = std::max(0, std::min(kLivePickupsMost - live, pool.free - kKeepSlots));
-        return live + room;
+        return live + std::max(0, pool.free - kKeepSlots);
     }
 
     return kLivePickupsMost;

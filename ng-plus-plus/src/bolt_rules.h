@@ -81,6 +81,9 @@ inline constexpr int kBurstMost = 24;
 // is a moby of the game's table, and past the table's end the game cannot make one.
 inline constexpr int kLivePickupsMost = 96;
 
+// A burst with no cap of its own: the pool's free slots are its only limit.
+inline constexpr int kNoBurstCap = 1 << 20;
+
 // The "bolt_scaling" setting.
 enum class BoltScaling : std::uint8_t {
     Off,       // the game's drops as they are
