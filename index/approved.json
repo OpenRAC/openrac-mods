@@ -246,6 +246,17 @@
         "macos-x86_64": "96a5ae8601fe88728ef10fe062cd23663996203f44a37c1fa80b4d7870712e77",
         "windows-x86_64": "d6b87a12a8dc3069990441da1371604b2ace8b1d2472a78da8baaa72f67772eb"
       }
+    },
+    {
+      "version": "1.0.1",
+      "sha256": {
+        "android-arm64": "1884ef0bff4e7b6ed1ef95667cd395b3540354f9ee7c424ae8125851ad2555a0",
+        "linux-aarch64": "e019f5c5537b0d69b4e4080fa36cce89261dbb50c73ae7fd9f79228fa4177382",
+        "linux-x86_64": "9519ecaa143f52afd425cb2c1bdb4c58b9e9c13be5aeb0b51fff826a33bc328e",
+        "macos-arm64": "3d5487c784e4b05fc01cf5fb328a1ab2a05c71dbbec18f95d76a66ed261cf259",
+        "macos-x86_64": "51504637f39d2def616eac612e502aa7249de03e5f144bc24488a60698f6f5a1",
+        "windows-x86_64": "02434a4bdcfb481fe87eba90132a7e5516d193edded395a2f92f0df82635f73c"
+      }
     }
   ],
   "rac1-travel-anywhere": [
