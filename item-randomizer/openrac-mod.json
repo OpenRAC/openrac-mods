@@ -2,7 +2,7 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "2.6.5",
+  "version": "2.6.12",
   "author": "Keros",
   "description": "Shuffles what the game gives out (Ratchet & Clank, and Going Commando): the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. Every seed can be finished: what you need is only ever placed where you can get it without it. Share a seed's code and a friend plays the same game. Each seed writes a spoiler log to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",
@@ -252,6 +252,17 @@
         "rac1"
       ],
       "description": "Show randomized item names in NPC interaction prompts and supported vendor text. Off: use the original game text. Reload the mod after changing this option."
+    },
+    {
+      "key": "random_starting_planet",
+      "name": "Random starting planet",
+      "type": "bool",
+      "default": false,
+      "multiplayer": "host",
+      "games": [
+        "rac1"
+      ],
+      "description": "New games skip the Veldin tutorial and fly to a seeded planet with an item-free route, or a ship-side vendor selling the item needed for a route. Included in seed codes (R: prefix)."
     }
   ]
 }

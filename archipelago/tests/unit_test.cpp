@@ -478,6 +478,27 @@ void test_save() {
     }
 }
 
+void test_starting_planet() {
+    std::vector<std::string> out;
+    for (const json value : {json(0), json(1), json(10), json(17), json(18), json(-1), json(true), json("3"), json(nullptr)}) {
+        ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+        expect(s.starting_planet() == -1, "start unknown before connection");
+        s.on_open();
+        s.on_message(json::array({{{"cmd", "Connected"}, {"slot_data", {{"starting_planet", value}}}}}).dump(), out);
+        expect(s.starting_planet() == -1, "start withheld until save judgment");
+        s.save_loaded({}, -1, out);
+        const int expected = value.is_number_integer() && value > 0 && value < 18 ? value.get<int>() : 0;
+        expect(s.starting_planet() == expected, "validated planet from slot data");
+        s.on_close(); expect(s.starting_planet() == -1, "disconnected start withheld");
+        s.on_open(); s.on_message(R"([{"cmd":"Connected"}])", out);
+        expect(s.starting_planet() == 0, "older slots retain Veldin on reconnect");
+    }
+    ap::Session s({AP_GAME, "Ratchet", "", "uuid"});
+    s.book().slots[2] = {"other-seed", "Ratchet"}; s.save_loaded({}, 2, out);
+    s.on_message(R"([{"cmd":"RoomInfo","seed_name":"this-seed"},{"cmd":"Connected","slot_data":{"starting_planet":3}}])",out);
+    expect(s.foreign_save() && s.starting_planet() == -1, "foreign saves never redirected");
+}
+
 void test_new_game_plus() {
     std::vector<std::string> out;
     for (const json value : {json(true), json(1), json(false), json(0), json("true"), json(2), json(nullptr)}) {
@@ -577,6 +598,7 @@ int main() {
     test_ids();
     test_session();
     test_save();
+    test_starting_planet();
     test_new_game_plus();
     test_npc_infobots();
     test_items_menu();

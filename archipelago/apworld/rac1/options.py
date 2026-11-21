@@ -86,6 +86,13 @@ class StartingWeapons(Choice):
     default = 0
 
 
+class RandomStartingPlanet(Toggle):
+    """Skip Veldin and fly to a seeded planet with an item-free route. A ship-side
+    vendor may instead hold a guaranteed local item that opens a route.
+    The starting planet is fixed when the world is generated, including on reconnect."""
+    display_name = "Random starting planet"
+
+
 @dataclass
 class RAC1Options(PerGameCommonOptions):
     logic: Logic
@@ -97,13 +104,14 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_infobots: ShuffleInfobots
     shuffle_skill_points: ShuffleSkillPoints
     shuffle_gold_weapons: ShuffleGoldWeapons
+    random_starting_planet: RandomStartingPlanet
     starting_weapons: StartingWeapons
     start_in_new_game_plus: StartInNewGamePlus
     start_inventory_from_pool: StartInventoryPool
 
 
 OPTION_GROUPS = [
-    OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus]),
+    OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus, RandomStartingPlanet]),
     OptionGroup(
         "Pools",
         [ShuffleGadgets, ShuffleItems, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],

@@ -440,3 +440,11 @@ existing format and has no Items option.
 New Game+ confirmations and Going Commando reward notices clear after three
 seconds (150 PAL or 180 NTSC ticks). Vendor and gold-case hints stay visible
 while the interaction refreshes them, then clear when you leave.
+
+### Random starting planet
+
+Set **Random starting planet** in the launcher (RAC1 only). It defaults to off.
+
+New games skip the Veldin tutorial and depart for a seeded starting planet. Clank accompanies Ratchet; no movement gadgets are granted. The selected planet must have a non-optional reward route playable without items. A ship-side vendor may instead sell the one local item needed to open a route; generation verifies or reserves that reward. Other planets' coordinates still need to be collected. The skipped first flight grants the selected planet instead of Novalis.
+
+Random-start seed codes use an `R:` prefix. A shared code includes this setting and reproduces both the starting planet and rewards; ordinary seed codes keep their original starts and placements. The spoiler log names the starting planet.

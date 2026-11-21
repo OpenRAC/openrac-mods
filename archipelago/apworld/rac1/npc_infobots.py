@@ -12,4 +12,4 @@ NPC_LOCATION_ROWS = [row._replace(
 existing = {item.name for item in ITEMS}
 NPC_ITEMS = tuple(ItemData(0x52430100 + PLANETS.index(name.removesuffix(" Coordinates")),
                           name, "Coordinates", True)
-                  for name in sorted({row.vanilla for row in NPC_SOURCE_ROWS} - existing))
+                  for name in sorted(({row.vanilla for row in NPC_SOURCE_ROWS} | {"Novalis Coordinates"}) - existing))

@@ -84,7 +84,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.5.4"
+#define MOD_VERSION "2.5.11"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -1432,6 +1432,9 @@ static void show_notices(void) {
 /* Each tick: a location had without passing through a hook (a gold bolt, a route that writes the
  * bytes itself) is told to the server, and the place's own item, when it wrote it as owned and the
  * server has not sent it, is taken back; then what the server sent is given; then the goal. */
+static int random_start_level(void) { return !s_from_title && !s_judge_wait ? ap_client_starting_planet() : -1; }
+#include "random_start.inc"
+
 static void each_tick(void* user) {
     (void)user;
     menu_refresh();
@@ -1448,6 +1451,7 @@ static void each_tick(void* user) {
     read_received();
     watch_save_slot(phase);
     presentation_tick(phase);
+    random_start_tick(phase, loads);
     if (phase!=OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
 
     if (!playing_level()) {

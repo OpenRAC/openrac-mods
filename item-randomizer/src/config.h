@@ -26,6 +26,7 @@ typedef struct rando_options {
     int gold_weapons;       /* RAC1 launcher switch: shuffled gold cases and upgrades */
     int npc_infobots;       /* RAC1 new seeds: NPC coordinates follow Shuffle Infobots */
     int items;              /* "shuffle_items": every Items-menu entry */
+    int random_start;
 } rando_options;
 
 /* Where the seed came from. */

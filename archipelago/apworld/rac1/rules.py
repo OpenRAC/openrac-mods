@@ -56,7 +56,7 @@ def set_rules(world: "RAC1World") -> None:
     for index, planet in enumerate(PLANETS):
         region = world.get_region(planet)
         # Veldin, where the game starts, needs nothing.
-        rule = True_() if index == 0 else HasAny(*coordinates(planet))
+        rule = True_() if index == 0 or planet == world.starting_planet else HasAny(*coordinates(planet))
         world.create_entrance(ship, region, rule, name=f"Fly to {planet}", force_creation=True)
 
     logic = world.options.logic

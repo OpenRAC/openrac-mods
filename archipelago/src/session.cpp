@@ -455,12 +455,16 @@ void Session::on_packet(const json& p, std::vector<std::string>& out) {
              {"slot_data", true}}
         ));
     } else if (cmd == "Connected") {
+        starting_planet_ = 0;
         new_game_plus_ = false;
         shuffle_gold_weapons_ = false;
         npc_infobots_ = false;
         shuffle_items_ = false;
         const auto data = p.find("slot_data");
         if (data != p.end() && data->is_object()) {
+            const auto start = data->find("starting_planet");
+            if (start != data->end() && start->is_number_integer()
+                && *start > 0 && *start < 18) starting_planet_ = start->get<int>();
             const auto npc_option = data->find("npc_infobot_checks");
             if (npc_option != data->end()) npc_infobots_ = (npc_option->is_boolean() && npc_option->get<bool>())
                 || (npc_option->is_number_integer() && *npc_option == 1);

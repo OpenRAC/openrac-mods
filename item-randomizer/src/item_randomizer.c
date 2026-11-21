@@ -1774,6 +1774,9 @@ static int32_t count_gold_bolts_hook(void) {
 /* Each tick: a location had since the last tick without passing through a hook (a gold bolt, a
  * route that writes the bytes itself) gets its reward, unless it is the player's already (a save
  * just loaded has its rewards). A place that wrote its own item's bytes gives that item back. */
+static int random_start_level(void) { return rando_on() && s_plan.settings.random_start ? s_plan.start_level : 0; }
+#include "random_start.inc"
+
 static void each_tick(void* user) {
     (void)user;
     menu_refresh();
@@ -1794,6 +1797,7 @@ static void each_tick(void* user) {
     }
 
     gate_tick();
+    random_start_tick(reward_phase, reward_load);
     orxon_access_tick(reward_phase, reward_load, rando_on());
 
     // A game not this seed's: nothing is the mod's; what it has is not news when one becomes so.
@@ -2226,12 +2230,13 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_gold_weapons"),
         reward_save_host(api) != NULL,
         api->setting_bool(mod, "shuffle_items"),
+        api->setting_bool(mod, "random_starting_planet"),
     };
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
 
-    if ((settings.pools & (POOL_GOLD_WEAPONS | POOL_NPC_INFOBOTS | POOL_ITEMS))
+    if ((settings.random_start || (settings.pools & (POOL_GOLD_WEAPONS | POOL_NPC_INFOBOTS | POOL_ITEMS)))
         && !reward_save_host(api)) {
         api->fail(
             mod, "This seed needs OpenRAC 1.16 save-data support."
