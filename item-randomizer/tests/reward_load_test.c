@@ -365,6 +365,22 @@ int main(int argc, char** argv) {
     char code[RANDO_CODE_SIZE];
     rando_encode(&settings, code);
     set_tag_word(rando_seed_tag(code));
+    /* Kalebo's rail pickup grants its reward without animation or hero placement. */
+    {
+        const uint32_t moby=0x180000, vars=0x181000;
+        const int16_t cls=1134;
+        set32(s_memory+D->level,LEVEL_KALEBO);
+        memcpy(s_memory+moby+0xA6,&cls,2);set32(s_memory+moby+MOBY_PVARS,vars);
+        set32(s_memory+vars,1);s_memory[moby+0x20]=1;
+        memcpy(s_memory+moby+0x10,hero_position,12);
+        s_memory[D->gold_bolts+LEVEL_KALEBO*4+1]=0;
+        const int before=animation_calls, before_places=places;
+        ((void(*)(uint32_t))hook_named("rac1.moby.gold_bolt.update"))(moby);
+        for(int i=0;i<3;++i)s_frame(NULL);
+        CHECK(s_memory[D->gold_bolts+LEVEL_KALEBO*4+1]==1);
+        CHECK(s_memory[moby+0x20]==0xFD);
+        CHECK(animation_calls==before&&places==before_places);
+    }
     /* Every coordinate can already be owned without spending its NPC check. */
     memset(s_memory + D->planets, 1, LEVEL_COUNT);
     for (int i = 0; i < 13; ++i) {

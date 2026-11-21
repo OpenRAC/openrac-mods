@@ -800,6 +800,8 @@ void serve(socket_t listener) {
                                     {{"location", location_id(LOC_INFOBOT, LEVEL_KERWAN, 3)},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", location_id(LOC_GOLD, LEVEL_KALEBO, 1)},
+                                     {"item", AP_BASE + ITEM_DEVASTATOR}, {"player", 1}},
                                     {{"location", ap_gold_case_id(ITEM_PYROCITOR)},
                                      {"item", AP_BASE + AP_GOLD_BOLT_OFFSET},
                                      {"player", 1}},
@@ -1544,6 +1546,18 @@ int main(int argc, char** argv) {
         g_frame(g_frame_user);
         CHECK(*at(D->triggers + LEVEL_KERWAN * 16 + 3) == 0xFF && *at(moby + 0x20) == 0xFD);
         CHECK(g_acquisitions.back() == std::make_pair(2, int(ITEM_DEVASTATOR)));
+        // Kalebo's rail pickup checks immediately and never queues its weapon animation.
+        set_level(LEVEL_KALEBO);
+        const int16_t rail_class=1134;
+        std::memcpy(at(moby+0xA6),&rail_class,2);put(vars,1);
+        *at(moby+0x20)=1;*at(D->gold_bolts+LEVEL_KALEBO*4+1)=0;
+        const auto before_rail=g_acquisitions.size();
+        ((void(*)(uint32_t))replacement("rac1.moby.gold_bolt.update"))(moby);
+        g_frame(g_frame_user);g_frame(g_frame_user);
+        CHECK(*at(D->gold_bolts+LEVEL_KALEBO*4+1)==1&&*at(moby+0x20)==0xFD);
+        CHECK(g_acquisitions.size()==before_rail);
+        CHECK(frames_until([] { return g_checked.count(location_id(LOC_GOLD, LEVEL_KALEBO, 1)) != 0; }));
+        CHECK(g_acquisitions.size()==before_rail);
         set_level(LEVEL_NOVALIS);
         // Vendor presentations wait for exit and only the final purchase survives.
         auto buy = (openrac_rac1_Item_Give)replacement(OPENRAC_RAC1_HOOK_Item_Give);

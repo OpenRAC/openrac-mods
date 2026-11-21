@@ -1,3 +1,4 @@
+#include "pickup_animation_rules.h"
 /* Reward-based world pickup sequences. Collection and network delivery stay independent. */
 #include "ap_acquisition_rules.h"
 static const ap_pickup_api* s_acquisition_api;
@@ -58,6 +59,7 @@ static void acquisition_enqueue(int kind, int item) {
 }
 
 static void acquisition_queue(int row) {
+    if (row >= 0 && pickup_without_animation(&rando_locations[row])) return;
     int kind, item;
     if (s_acquisition_api && acquisition_reward(row, &kind, &item)) {
         acquisition_enqueue(kind, item);
@@ -269,7 +271,8 @@ static void acquisition_gold(uint32_t moby) {
         }
     }
     if (row >= 0 && OPENRAC_GREF(s_api, uint8_t, moby + 0x20) == 1
-        && acquisition_reward(row, &kind, &item) && kind != AP_ACQUIRE_GOLD) {
+        && acquisition_reward(row, &kind, &item)
+        && (kind != AP_ACQUIRE_GOLD || pickup_without_animation(&rando_locations[row]))) {
         openrac_pose hero = {0};
         hero.size = sizeof hero;
         if (s_api->hero_pose(&hero) == OPENRAC_HOOK_OK && hero.health > 0) {
