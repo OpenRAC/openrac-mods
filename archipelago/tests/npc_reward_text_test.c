@@ -121,6 +121,25 @@ int main(void) {
         checked = 0;
         assert(npc_reward_label(starter, text, sizeof text));
     }
+    for (int special = SPECIAL_PREMIUM_NANOTECH; special <= SPECIAL_ULTRA_NANOTECH; ++special) {
+        const npc_reward_source machine = {LEVEL_ORXON, 1326, REWARD_SPECIAL, special, NULL};
+        const int row = npc_reward_row(&machine);
+        assert(row >= 0 && rando_locations[row].vanilla.value == special);
+        items_mode = 1;
+        assert(npc_reward_label(&machine, text, sizeof text));
+        assert(strcmp(text, "Other Game Item for Player %s") == 0);
+        assert(last_location == ap_location_id(&rando_locations[row]));
+        scouted = 0;
+        assert(npc_reward_label(&machine, text, sizeof text));
+        assert(strcmp(text, "Unscouted reward") == 0);
+        scouted = 1;
+        checked = 1;
+        assert(!npc_reward_label(&machine, text, sizeof text));
+        checked = 0;
+        items_mode = 0;
+        assert(npc_reward_label(&machine, text, sizeof text));
+        assert(strcmp(text, "Other Game Item for Player %s") == 0);
+    }
     puts("AP NPC scout, recipient, collection and vanilla-coordinate cases passed");
     return 0;
 }

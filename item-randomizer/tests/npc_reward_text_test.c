@@ -37,6 +37,16 @@ static int npc_reward_label(const npc_reward_source* source, char* out, size_t s
     if (!enabled) {
         return 0;
     }
+    if (source->kind == REWARD_SPECIAL) {
+        assert(source->cls == 1326 && source->level == LEVEL_ORXON);
+        snprintf(
+            out,
+            size,
+            "%s",
+            source->value == SPECIAL_PREMIUM_NANOTECH ? "Premium reward 100%" : "Ultra reward 100%"
+        );
+        return 1;
+    }
     snprintf(
         out, size, "%s", source->cls == 890 ? "Gold Bolt for Helga" : "Swingshot 100% for Player %s"
     );
@@ -174,8 +184,52 @@ int main(void) {
         strcmp(formatted, "\x12 Bribe Bouncer with 4,000 bolts to get Swingshot 100% for Player %s")
         == 0
     );
+    level = LEVEL_ORXON;
+    assert(!s_npc_text_request && !s_npc_text_source);
+    for (int ultra = 0; ultra < 2; ++ultra) {
+        const int offer = ultra ? 0x271F : 0x271E;
+        const int warning = ultra ? 0x2721 : 0x2720;
+        strcpy(
+            (char*)memory + 0x100,
+            ultra ? "# Buy Ultra Nanotech for 30,000 bolts"
+                  : "# Buy Premium Nanotech for 4,000 bolts"
+        );
+        assert(npc_reward_message(offer) == 0x1000);
+        strcpy(formatted, (char*)memory + 0x1000);
+        flatten(formatted);
+        assert(
+            !strstr(formatted, "Nanotech")
+            && strstr(formatted, ultra ? "Ultra reward 100%%" : "Premium reward 100%%")
+        );
+        assert(strstr(formatted, ultra ? "30,000 bolts" : "4,000 bolts"));
+        strcpy(
+            (char*)memory + 0x100,
+            ultra ? "You need 30,000 bolts to buy Ultra Nanotech"
+                  : "You need 4,000 bolts to buy Premium Nanotech"
+        );
+        assert(npc_reward_message(warning) == 0x1000);
+        strcpy(formatted, (char*)memory + 0x1000);
+        flatten(formatted);
+        assert(
+            !strstr(formatted, "Nanotech")
+            && strstr(formatted, ultra ? "Ultra reward" : "Premium reward")
+        );
+        assert(npc_reward_message(42) == 0x100); /* unrelated Orxon help */
+    }
+    enabled = 0;
+    assert(npc_reward_message(0x271E) == 0x100);
+    enabled = 1;
     level = 3;
+    assert(npc_reward_message(0x271E) == 0x100); /* same id on another planet */
     char prompt[120], huge[1000];
+    assert(npc_nanotech_prompt(
+        prompt, "Premium Nanotech for %d bolts", "Gold Bolt", SPECIAL_PREMIUM_NANOTECH
+    ));
+    assert(strcmp(prompt, "Gold Bolt for %d bolts") == 0);
+    assert(npc_nanotech_prompt(
+        prompt, "\x12 Buy NANOTECH\x01PREMIUM for 4,000 bolts", "Codebot", SPECIAL_PREMIUM_NANOTECH
+    ));
+    assert(strcmp(prompt, "\x12 Buy Codebot for 4,000 bolts") == 0);
     memset(huge, 'a', sizeof huge);
     huge[999] = 0;
     assert(npc_reward_prompt(prompt, "# Talk", huge));

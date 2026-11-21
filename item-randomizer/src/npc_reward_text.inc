@@ -9,6 +9,22 @@ static const npc_reward_source* s_npc_text_source;
 
 static uint32_t npc_reward_message(int32_t id) {
     const uint32_t original = s_npc_text_message(id);
+    const int special = npc_nanotech_special(id);
+    if (original && s_npc_text_copy && current_level() == LEVEL_ORXON && special >= 0) {
+        const npc_reward_source source = {LEVEL_ORXON, 1326, REWARD_SPECIAL, special, NULL};
+        char reward[192], prompt[120];
+        if (npc_reward_label(&source, reward, sizeof reward)
+            && npc_nanotech_prompt(
+                prompt, (const char*)OPENRAC_G(s_api, original), reward, special
+            )) {
+            npc_reward_wrap(prompt);
+            const uint32_t replacement = s_npc_text_copy(s_mod, prompt);
+            if (replacement) {
+                return replacement;
+            }
+        }
+        return original;
+    }
     if (!original || !s_npc_text_request || !s_npc_text_source) {
         return original;
     }
