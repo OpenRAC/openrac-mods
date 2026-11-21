@@ -403,8 +403,19 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name(["Kalebo III Coordinates", "Swingshot", "Grindboots"])
         self.assertTrue(self.can_reach_location("Kalebo III: the help desk"))
 
+    def test_fleet_always_requires_hologuise(self) -> None:
+        self.collect_all_but(["Hologuise"])
+        self.assertFalse(self.can_reach_region("Drek's Fleet"))
+        for name in ["Drek's Fleet: the infobot", "Drek's Fleet: the CodeBot",
+                     "Drek's Fleet: gold bolt 1", "Drek's Fleet: gold bolt 2"]:
+            if name in {location.name for location in self.multiworld.get_locations(self.player)}:
+                self.assertFalse(self.can_reach_location(name))
+        self.collect_by_name("Hologuise")
+        self.assertTrue(self.can_reach_region("Drek's Fleet"))
+        self.assertTrue(self.can_reach_location("Drek's Fleet: the infobot"))
+
     def test_fleet_infobot_heli_pack_is_required_outside_expert(self) -> None:
-        self.collect_by_name(["Drek's Fleet Coordinates", "Magneboots", "O2 Mask", "Swingshot"])
+        self.collect_by_name(["Drek's Fleet Coordinates", "Magneboots", "O2 Mask", "Swingshot", "Hologuise"])
         self.assertEqual(self.can_reach_location("Drek's Fleet: the infobot"),
                          self.world.options.logic == "expert")
         self.collect_by_name("Heli-Pack")
@@ -413,8 +424,8 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("Hydro-Pack")  # the tanker's hint: soft
         self.assertTrue(self.can_reach_location("Drek's Fleet: the infobot"))
 
-    def test_fleet_codebot_needs_only_water_equipment(self) -> None:
-        self.collect_by_name(["Drek's Fleet Coordinates", "Hydro-Pack"])
+    def test_fleet_codebot_needs_water_equipment_and_hologuise(self) -> None:
+        self.collect_by_name(["Drek's Fleet Coordinates", "Hydro-Pack", "Hologuise"])
         self.assertFalse(self.can_reach_location("Drek's Fleet: the CodeBot"))
         self.collect_by_name("O2 Mask")
         self.assertTrue(self.can_reach_location("Drek's Fleet: the CodeBot"))

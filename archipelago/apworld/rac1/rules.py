@@ -57,6 +57,8 @@ def set_rules(world: "RAC1World") -> None:
         region = world.get_region(planet)
         # Veldin, where the game starts, needs nothing.
         rule = True_() if index == 0 else HasAny(*coordinates(planet))
+        if planet == "Drek's Fleet":
+            rule = rule & Has("Hologuise")
         world.create_entrance(ship, region, rule, name=f"Fly to {planet}", force_creation=True)
 
     logic = world.options.logic

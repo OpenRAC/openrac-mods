@@ -60,10 +60,11 @@ static void check_tables(void) {
             if (!strcmp(a->name, "Kalebo III: the help desk"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | swing));
             if (!strcmp(a->name, "Drek's Fleet: the infobot"))
-                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing | BIT(ITEM_HOLOGUISE)
                     | soft(d, heli | BIT(ITEM_HYDRO_PACK))));
-            if (!strcmp(a->name, "Drek's Fleet: the CodeBot")
-                || !strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
+            if (!strcmp(a->name, "Drek's Fleet: the CodeBot"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK) | BIT(ITEM_HOLOGUISE)));
+            if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
             if (!strcmp(a->name, "Veldin (return): Drek"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_TRESPASSER)
