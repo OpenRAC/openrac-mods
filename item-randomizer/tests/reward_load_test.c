@@ -4,6 +4,7 @@
 #undef main
 #include "reward_api.h"
 #include "reward_pools.h"
+#include "npc_reward_text.h"
 #include "special_item_visual.h"
 
 static uint32_t data_words[3], data_size;
@@ -379,6 +380,33 @@ int main(int argc, char** argv) {
         set32(s_memory + D->level, LEVEL_RILGAR);
         CHECK(strcmp((char*)s_memory + message(0x177B), expected) == 0);
         CHECK(strcmp((char*)s_memory + message(0x7FFF), "Buy Infobot for 500 bolts") == 0);
+        const int quartu = rando_npc_row(11);
+        CHECK(quartu >= 0 && plan.shuffled[quartu]);
+        r = plan.reward[quartu];
+        if (r.kind == REWARD_PLANET) snprintf(label, sizeof label, "%s Coordinates", rando_planet_name(r.value));
+        else if (r.kind == REWARD_GOLD_BOLT) snprintf(label, sizeof label, "Gold Bolt");
+        else rando_reward_name(r, label, sizeof label);
+        snprintf(expected, sizeof expected, "Collected %s", label);
+        CHECK(strcmp((char*)s_memory + message(0x3AA1), expected) == 0);
+        set32(s_memory + D->level, LEVEL_QUARTU);
+        char actual[120], wanted[120], prompt_label[192];
+        rando_reward_name(r, prompt_label, sizeof prompt_label);
+        npc_label_between(wanted, "Transform into Giant Clank - Reward: ", prompt_label, "");
+        npc_reward_wrap(wanted);
+        snprintf(actual, sizeof actual, "%s", (char*)s_memory + message(0x3AA4));
+        CHECK(strcmp(actual, wanted) == 0);
+        const uint32_t before_checks = data_words[2];
+        data_words[0] = 0x52465231u;
+        data_words[1] = rando_seed_tag(code);
+        data_words[2] = before_checks | (1u << (10 + 11));
+        data_size = sizeof data_words;
+        CHECK(strcmp((char*)s_memory + message(0x3AA4), "Buy Infobot for 500 bolts") == 0);
+        data_words[2] = before_checks;
+        // The inverse transformation and Veldin pad keep their native hints.
+        CHECK(strcmp((char*)s_memory + message(0x3AA5), "Buy Infobot for 500 bolts") == 0);
+        set32(s_memory + D->level, LEVEL_VELDIN2);
+        CHECK(strcmp((char*)s_memory + message(0x3AA4), "Buy Infobot for 500 bolts") == 0);
+
     }
     /* Every coordinate can already be owned without spending its NPC check. */
     memset(s_memory + D->planets, 1, LEVEL_COUNT);

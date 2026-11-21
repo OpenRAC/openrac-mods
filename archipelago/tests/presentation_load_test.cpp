@@ -800,6 +800,9 @@ void serve(socket_t listener) {
                                     {{"location", location_id(LOC_INFOBOT, LEVEL_KERWAN, 3)},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", ap_npc_id(11)},
+                                     {"item", AP_BASE + AP_GOLD_BOLT_OFFSET},
+                                     {"player", 1}},
                                     {{"location", ap_npc_id(3)},
                                      {"item", AP_BASE + AP_PLANET_OFFSET + LEVEL_ARIDIA},
                                      {"player", 1}},
@@ -1452,6 +1455,19 @@ int main(int argc, char** argv) {
         CHECK(std::string(reinterpret_cast<const char*>(at(message(0x177B)))) == "Collected Aridia Coordinates");
         CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3F1)))).find("Collected ") == 0);
         CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3F1)))).find(" for ") != std::string::npos);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA1)))) == "Collected Gold Bolt");
+        set_level(LEVEL_QUARTU);
+        std::string giant_prompt = reinterpret_cast<const char*>(at(message(0x3AA4)));
+        std::replace(giant_prompt.begin(), giant_prompt.end(), '\1', ' ');
+        CHECK(giant_prompt == "Transform into Giant Clank - Reward: Gold Bolt");
+        // Once its canonical reward has been collected, retain the native hint.
+        const uint32_t checks_before_giant = get(D->save_tag);
+        put(D->save_tag, 0xA8000000u | (checks_before_giant & 0x7FFFFFu) | (1u << (10 + 11)));
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA4)))) == "Pyrocitor");
+        put(D->save_tag, checks_before_giant);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA5)))) == "Pyrocitor");
+        set_level(LEVEL_VELDIN2);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3AA4)))) == "Pyrocitor");
         const int16_t helga_class = 0x37A;
         std::memcpy(at(0x1800000 + 0xA6), &helga_class, 2);
         set_level(LEVEL_KERWAN);

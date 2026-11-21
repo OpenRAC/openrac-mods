@@ -624,6 +624,18 @@ static uint32_t message_presentation(int32_t id) {
     if (!original || !s_visual_api || (ap_client_new_game_plus() < 0)) {
         return original;
     }
+    /* Quartu's transformation hint is a help message, not an NPC dialog.
+     * The scientist's canonical check is the first Giant Clank victory reward. */
+    if (id == 0x3AA4 && current_level() == LEVEL_QUARTU) {
+        const npc_reward_source *source = npc_reward_source_for(LEVEL_QUARTU, 1446);
+        char reward[192], prompt[120];
+        if (source && npc_reward_label(source, reward, sizeof reward)
+            && npc_label_between(prompt, "Transform into Giant Clank - Reward: ", reward, "")) {
+            npc_reward_wrap(prompt);
+            const uint32_t replacement = s_visual_api->guest_text(s_mod, prompt);
+            return replacement ? replacement : original;
+        }
+    }
     const int collection_row = infobot_collection_row(id);
     if (collection_row >= 0) {
         char collected[192], message[224];
