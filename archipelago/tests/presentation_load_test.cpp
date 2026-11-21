@@ -750,7 +750,8 @@ void serve(socket_t listener) {
                                  {{AP_GAME,
                                    {{"item_name_to_id",
                                      {{"Gold Bolt", AP_BASE + AP_GOLD_BOLT_OFFSET},
-                                      {"Platinum Zoomerator", AP_BASE + AP_SPECIAL_OFFSET + SPECIAL_ZOOMERATOR},
+                                      {"Platinum Zoomerator",
+                                       AP_BASE + AP_SPECIAL_OFFSET + SPECIAL_ZOOMERATOR},
                                       {"Aridia Coordinates",
                                        AP_BASE + AP_PLANET_OFFSET + LEVEL_ARIDIA}}},
                                     {"location_name_to_id", json::object()}}}}}}}},
@@ -769,10 +770,12 @@ void serve(socket_t listener) {
                                     {{"location", retail_weapon},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
-                                    {{"location", location_id(LOC_VENDOR, LEVEL_OLTANIS, ITEM_TESLA_CLAW)},
+                                    {{"location",
+                                      location_id(LOC_VENDOR, LEVEL_OLTANIS, ITEM_TESLA_CLAW)},
                                      {"item", AP_BASE + AP_GOLD_WEAPON_OFFSET + ITEM_DECOY_GLOVE},
                                      {"player", 1}},
-                                    {{"location", location_id(LOC_VENDOR, LEVEL_GASPAR, ITEM_WALLOPER)},
+                                    {{"location",
+                                      location_id(LOC_VENDOR, LEVEL_GASPAR, ITEM_WALLOPER)},
                                      {"item", AP_BASE + AP_SPECIAL_OFFSET + SPECIAL_ZOOMERATOR},
                                      {"player", 1}},
                                     {{"location", gadget_vendor},
@@ -1174,7 +1177,9 @@ int main(int argc, char** argv) {
         put(D->vendor_menu + 0x20, 0x1A00000);
         // Verified NTSC level mode: D_L00_0015F5C4. The nearby 15F5A8 word
         // stays zero, reproducing the real vendor that exposed the bad address.
-        if (std::strcmp(D->version, "ntsc") == 0) put(0x15F5A8u, 0);
+        if (std::strcmp(D->version, "ntsc") == 0) {
+            put(0x15F5A8u, 0);
+        }
         const uint32_t game_mode = std::strcmp(D->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;
         put(game_mode, 5);
         g_play_phase = OPENRAC_PLAY_MENU;
@@ -1300,11 +1305,11 @@ int main(int argc, char** argv) {
             put(game_mode, 0);
             g_frame(g_frame_user);
         }
-        // Zoomerator uses the upright gadget pose in both monitors, not Walloper's tilt.
+        // Zoomerator keeps its calibrated Suck Cannon reference even in Walloper's slot.
         put(D->vendor_menu + VENDOR_ENTRIES, ITEM_WALLOPER);
         put(game_mode, 5);
         initialize();
-        CHECK(g_vendor_initialized_item == ITEM_DEVASTATOR);
+        CHECK(g_vendor_initialized_item == ITEM_SUCK_CANNON);
         CHECK(get(D->vendor_menu + VENDOR_ENTRIES) == ITEM_WALLOPER);
         for (int table : {0, 2}) {
             CHECK(get(D->vendor_menu - offsets[table] + ITEM_WALLOPER * sizes[table] + 0x14) == 0);
@@ -1318,7 +1323,10 @@ int main(int argc, char** argv) {
         put(game_mode, 0);
         g_frame(g_frame_user);
         for (int table : {0, 2}) {
-            CHECK(get(D->vendor_menu - offsets[table] + ITEM_DEVASTATOR * sizes[table] + 0x14) == 0x66666666 + table * 0x01010101);
+            CHECK(
+                get(D->vendor_menu - offsets[table] + ITEM_DEVASTATOR * sizes[table] + 0x14)
+                == 0x66666666 + table * 0x01010101
+            );
         }
         // A gold vendor reward must submit the real gold mesh for both monitors,
         // even when retail initialized a normal Decoy Glove to provide its pose.
@@ -1735,7 +1743,9 @@ int main(int argc, char** argv) {
             auto npc_update = (void (*)(uint32_t))replacement(npc.hook);
             auto bot_update = (void (*)(uint32_t))replacement("Moby_Infobot_Update");
             const int before = g_npc_purchases;
-            if (index == 3) npc_update(npc_moby);
+            if (index == 3) {
+                npc_update(npc_moby);
+            }
             bot_update(bot);
             CHECK(frames_until([index] { return g_checked.count(ap_npc_id(index)) != 0; }));
             npc_update(npc_moby);

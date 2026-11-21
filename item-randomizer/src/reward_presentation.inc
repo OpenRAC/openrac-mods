@@ -80,7 +80,9 @@ static uint8_t* presentation_item(int item) {
 
 static int presentation_class(int item) {
     /* Backpack equipment is not a held weapon; use its native pickup model. */
-    if (item == ITEM_HELI_PACK) return 607;
+    if (item == ITEM_HELI_PACK) {
+        return 607;
+    }
     const uint32_t table = strcmp(s_disc->version, "pal") == 0 ? 0x00179BC0u : 0x00179AC0u;
     return get32(level_byte_at(table) + item * 0x4Cu + 0x10);
 }
@@ -156,7 +158,8 @@ static int gold_case_base(uint32_t moby) {
         return -1;
     }
     const uint32_t table = strcmp(s_disc->version, "pal") == 0 ? 0x001DEDE0u : 0x001DEB10u;
-    const int base = get32((uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, table)) + slot * 4);
+    const int base =
+        get32((uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, table)) + slot * 4);
     return rando_gold_index(base) >= 0 ? base : -1;
 }
 
@@ -284,7 +287,15 @@ static void add_visual(uint32_t moby, int64_t location, float height) {
     }
     char label[192];
     int icon, frame;
-    const int cls = reward_class(location, label, sizeof label, &icon, &frame);
+    int cls = reward_class(location, label, sizeof label, &icon, &frame);
+    if (height == 0 && cls == 1134 && s_api->api_minor >= 27) {
+        int64_t reward;
+        int same;
+        char name[192];
+        if (presentation_reward(location, &reward, &same, name, sizeof name) && !same) {
+            cls = 0x7FF; /* Interface 1.27: independent other-game vendor profile. */
+        }
+    }
     if (cls < 0) {
         return; /* scouts not received: preserve the original display */
     }
@@ -366,6 +377,9 @@ static int native_vendor_reward(void) {
     if (location < 0 || !presentation_reward(location, &id, &same, label, sizeof label) || !same) {
         return -1;
     }
+    if (special_item_vendor_reference(label) >= 0) {
+        return -1;
+    }
     const int gold_base = display_gold_base(id);
     if (gold_base >= 0) {
         return gold_base;
@@ -380,11 +394,6 @@ static int native_vendor_reward(void) {
     /* Approved Kerwan Gold Bolt reference: Pyrocitor's retail display rows. */
     if (reward.kind == REWARD_GOLD_BOLT) {
         return ITEM_PYROCITOR;
-    }
-    /* Zoomerator stands on local Z. Borrow the upright gadget placement,
-     * while reward_class continues to supply its own mesh and icon. */
-    if (reward.kind == REWARD_SPECIAL && reward.value == SPECIAL_ZOOMERATOR) {
-        return ITEM_HELI_PACK;
     }
     if (reward.kind != REWARD_ITEM) {
         return -1;
@@ -490,6 +499,45 @@ static void vendor_initialize_presentation(void) {
     s_vendor_template = 0;
     uint8_t saved_display[3][0x40];
     int restore_display = 0;
+    /* Calibration belongs to the reward, never the vendor row it replaces. */
+    if (s_vendor_native_item < 0) {
+        int64_t reward;
+        int same;
+        char label[192];
+        if (presentation_reward(location, &reward, &same, label, sizeof label)) {
+            const int reference = same ? special_item_vendor_reference(label) : ITEM_SUCK_CANNON;
+            if (reference >= 0) {
+                vendor_capture_defaults();
+                entry = selected_menu + VENDOR_ENTRIES + cursor * VENDOR_ENTRY_SIZE;
+                source = get32(entry);
+                display = reference;
+                for (int i = 0; i < 3; ++i) {
+                    memcpy(
+                        vendor_placement(i, display),
+                        s_vendor_default_placement[i][display],
+                        k_vendor_placement_sizes[i]
+                    );
+                    if (source != display) {
+                        memcpy(
+                            s_vendor_saved_placement[i],
+                            s_vendor_default_placement[i][source],
+                            k_vendor_placement_sizes[i]
+                        );
+                        memcpy(
+                            vendor_placement(i, source),
+                            s_vendor_default_placement[i][display],
+                            k_vendor_placement_sizes[i]
+                        );
+                    }
+                }
+                if (source != display) {
+                    play_phase(&s_vendor_patch_load);
+                    s_vendor_patched_item = source;
+                }
+                set32(entry, display);
+            }
+        }
+    }
     if (s_vendor_native_item >= 0) {
         vendor_capture_defaults();
         /* Non-vendor items have empty placement records. Give them the normal
@@ -497,10 +545,18 @@ static void vendor_initialize_presentation(void) {
         /* Nonzero bytes do not establish a usable retail vendor pose: gadget
          * rows may contain unrelated data. Only retail vendor weapons own one. */
         switch (s_vendor_native_item) {
-            case ITEM_BOMB_GLOVE: case ITEM_PYROCITOR: case ITEM_BLASTER:
-            case ITEM_GLOVE_OF_DOOM: case ITEM_TAUNTER: case ITEM_MINE_GLOVE:
-            case ITEM_DEVASTATOR: case ITEM_WALLOPER: case ITEM_VISIBOMB:
-            case ITEM_DECOY_GLOVE: case ITEM_DRONE_DEVICE: case ITEM_TESLA_CLAW:
+            case ITEM_BOMB_GLOVE:
+            case ITEM_PYROCITOR:
+            case ITEM_BLASTER:
+            case ITEM_GLOVE_OF_DOOM:
+            case ITEM_TAUNTER:
+            case ITEM_MINE_GLOVE:
+            case ITEM_DEVASTATOR:
+            case ITEM_WALLOPER:
+            case ITEM_VISIBOMB:
+            case ITEM_DECOY_GLOVE:
+            case ITEM_DRONE_DEVICE:
+            case ITEM_TESLA_CLAW:
                 s_vendor_template = 0;
                 break;
             default:
@@ -670,7 +726,8 @@ static uint32_t message_presentation(int32_t id) {
     const int mode = get32(level_byte_at(game_mode));
     const int vendor_text = s_draw_vendor_details || (mode == 5 && !s_in_dialog_try);
     const int64_t location = s_vendor_initializing_location >= 0 ? s_vendor_initializing_location
-        : vendor_text ? selected_vendor_location() : s_dialog_location;
+                             : vendor_text                       ? selected_vendor_location()
+                                                                 : s_dialog_location;
     char label[192];
     int icon, frame;
     if (location < 0 || reward_class(location, label, sizeof label, &icon, &frame) < 0) {
