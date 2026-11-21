@@ -345,8 +345,16 @@ def check_listing(d: dict, where: str, extra_keys=frozenset()) -> None:
         raise EntryError(f"{where}: description must be text of at most {MAX_DESCRIPTION} characters")
     for key, allowed in (("tags", TAGS), ("impact", IMPACT)):
         v = d.get(key, [])
-        if not isinstance(v, list) or any(x not in allowed for x in v) or len(set(v)) != len(v):
-            raise EntryError(f"{where}: {key} must be distinct values of: {', '.join(allowed)}")
+        if not isinstance(v, list):
+            raise EntryError(f"{where}: {key} must be a list")
+        unknown = [x for x in v if x not in allowed]
+        if unknown:
+            raise EntryError(
+                f"{where}: unknown {key} {', '.join(repr(x) for x in unknown)}. "
+                f"{key.capitalize()} must be strictly chosen from: {', '.join(allowed)}"
+            )
+        if len(set(v)) != len(v):
+            raise EntryError(f"{where}: {key} must not contain duplicate values: {', '.join(v)}")
     for key in ("recommends", "suggests", "aliases"):
         v = d.get(key, [])
         if not isinstance(v, list) or len(v) > MAX_ALIASES * 3:
