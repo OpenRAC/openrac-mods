@@ -325,6 +325,12 @@
       "sha256": {
         "windows-x86_64": "db50abe72e636f5aeaae94ead2c525ff259740af8eda5eff18121cd60b64c89a"
       }
+    },
+    {
+      "version": "0.4.3",
+      "sha256": {
+        "windows-x86_64": "914e6616022d5a583b0b946bef892e07b9cd64925d31785d5bd0b47065e821dd"
+      }
     }
   ],
   "ryno-ammo-drops": [
