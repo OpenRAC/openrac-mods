@@ -20,6 +20,12 @@
         "src": "docs/thruster-charge.png",
         "caption": "A charge down a tunnel on Clank's Thruster-Pack, its flames blue."
       }
+    ],
+    "videos": [
+      {
+        "youtube": "https://youtu.be/f8HDEewX6Qk",
+        "caption": "Charges on Clank's Thruster-Pack down rain-soaked streets, its flames blue."
+      }
     ]
   }
 }

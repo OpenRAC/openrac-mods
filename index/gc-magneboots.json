@@ -14,5 +14,13 @@
   "aiAssisted": true,
   "links": {
     "bugs": "https://github.com/Promises/rac1-gc-magneboots/issues"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "https://youtu.be/TKqdbXuQDlA",
+        "caption": "Running and fighting upside down on a magnetic track."
+      }
+    ]
   }
 }
