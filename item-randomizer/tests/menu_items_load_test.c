@@ -79,7 +79,7 @@ int main(int argc,char** argv) {
     rando_settings settings; rando_settings_of(&options,NULL,0,&settings);
     rando_plan plan; CHECK(rando_solve(&settings,&plan)==0);
     /* 29, the gold cases' two and the thirteen NPC coordinates' (save data shuffles them). */
-    CHECK(load(api,(openrac_mod*)1)==0 && s_hook_count==48 && menu_on_restore);
+    CHECK(load(api,(openrac_mod*)1)==0 && s_hook_count==49 && menu_on_restore);
     CHECK(hook_named("rac1.moby.moby743.update") != NULL);
     CHECK(hook_named("rac1.moby.moby744.update") != NULL);
     const char* hooks[5]={"rac1.moby.hoverboard_girl.update","rac1.moby.miner.update",

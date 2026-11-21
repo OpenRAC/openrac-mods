@@ -1179,6 +1179,8 @@ static int aridia_reward_collected(void) {
 
 static int blarg_o2_access_active(void) { return rando_on(); }
 #include "blarg_access.inc"
+static int kalebo_taxi_mode(void) { return rando_on(); }
+#include "kalebo_taxi.inc"
 
 
 static void bob_update(openrac_gaddr moby) {
@@ -1899,7 +1901,7 @@ static int install_hooks(void) {
     if (!take(s_api->hook(s_mod, "rac1.player.update", "void()", (void*)hero_update,
                           (void**)&s_hero_update), "rac1.player.update")) return 0;
     s_gold_case_present = acquisition_case;
-    if (!aridia_access_hooks() || !blarg_access_hooks() || !presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
+    if (!aridia_access_hooks() || !blarg_access_hooks() || !kalebo_taxi_hooks() || !presentation_hooks() || !acquisition_hooks() || !reward_extra_hooks()) {
         return 0;
     }
     /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
