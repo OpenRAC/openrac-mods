@@ -97,6 +97,12 @@ int rando_location_shuffled(const rando_settings* s, const rando_location* l) {
 uint64_t rando_requirement(int difficulty, size_t location) {
     const rando_location* l = &rando_locations[location];
 
+    /* Relaxed keeps the conventional approach to Oltanis's PDA seller. */
+    if (difficulty == DIFFICULTY_RELAXED && l->kind == LOC_GIVE
+        && l->level == LEVEL_OLTANIS && l->key == ITEM_PDA) {
+        return l->hard | l->soft | BIT(ITEM_HELI_PACK);
+    }
+
     // Expert counts only what a place cannot be done without.
     if (difficulty == DIFFICULTY_EXPERT) {
         return l->hard;

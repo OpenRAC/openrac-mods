@@ -438,10 +438,13 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("O2 Mask")
         self.assertTrue(self.can_reach_location("Veldin (return): Drek"))
 
-    def test_oltanis_pda_requires_only_magneboots(self) -> None:
+    def test_oltanis_pda_heli_pack_only_in_relaxed(self) -> None:
         self.collect_by_name("Oltanis Coordinates")
         self.assertFalse(self.can_reach_location("Oltanis: the PDA's seller"))
         self.collect_by_name("Magneboots")
+        self.assertEqual(self.can_reach_location("Oltanis: the PDA's seller"),
+                         self.world.options.logic != "relaxed")
+        self.collect_by_name("Heli-Pack")
         self.assertTrue(self.can_reach_location("Oltanis: the PDA's seller"))
 
     def test_oltanis_morph_o_ray_requires_only_swingshot(self) -> None:

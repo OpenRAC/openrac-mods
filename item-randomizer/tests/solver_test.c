@@ -73,7 +73,7 @@ static void check_tables(void) {
         }
 
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
-            if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS)));
+            if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | (d == DIFFICULTY_RELAXED ? BIT(ITEM_HELI_PACK) : 0)));
             if (!strcmp(a->name, "Oltanis: the Morph-o-Ray's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));

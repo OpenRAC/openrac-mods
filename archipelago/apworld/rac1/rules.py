@@ -40,6 +40,8 @@ def row_rule(row: LocationData) -> Rule:
     extra = [name for name in row.soft if name not in row.hard]
     if extra:
         rule = rule & (HasAll(*extra) | EXPERT)
+    if row.name == "Oltanis: the PDA's seller":
+        rule = rule & (Has("Heli-Pack") | OptionFilter(Logic, Logic.option_relaxed, "ne"))
     return rule
 
 
