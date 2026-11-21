@@ -420,11 +420,13 @@ at long streaks.
 the second challenge mode (generous half as much again), so collecting keeps up with the tier
 prices. The collector's dialog shows the total you will get.
 
-**Prizes and prices.** From the second challenge mode the hoverbike races on Barlow and Joba and
-the arena challenges on Maktar and Joba pay the same x1.5, x2.5, x4 and x6 (generous half as much
-again), and the characters who sell for bolts ask half that rise: x1.25, x1.75, x2.5 and x3.5
-(generous x1.63, x2.38, x3.5, x5). The race menu, the arena menu and each seller's dialog show
-the new amount. The weapon vendor's prices are the tiers' own and stay as they are.
+**Prizes and prices.** From the second challenge mode the hoverbike races on Barlow and Joba, the
+space missions of Feltzin, Hrugis and Gorn (since 0.4.3) and the arena challenges on Maktar and
+Joba pay the same x1.5, x2.5, x4 and x6 (generous half as much again), and the characters who sell
+for bolts ask half that rise: x1.25, x1.75, x2.5 and x3.5 (generous x1.63, x2.38, x3.5, x5). The
+race menu, the mission's reward panel, the arena menu and each seller's dialog show the new amount,
+and the log says once a level what its races or missions pay ("level 5: the space missions pay
+x4.00 (the second mission 5500 -> 22000)", before the game's own x10 in challenge mode). The weapon vendor's prices are the tiers' own and stay as they are.
 
 | | First challenge mode (the game's) | 2nd (x1.5; prices x1.25) | 3rd (x2.5; x1.75) | 4th (x4; x2.5) | 5th on (x6; x3.5) |
 |---|---|---|---|---|---|

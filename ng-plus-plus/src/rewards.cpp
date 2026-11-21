@@ -92,6 +92,7 @@ void Rewards::tick() {
     if (level != m_level) {
         m_words.clear();
         m_level = level;
+        m_logged = false;
     }
 
     // No level, or a disc without the tables. Off leaves the game's (none was ever written).
@@ -119,6 +120,45 @@ void Rewards::tick() {
                                     + static_cast<std::uint32_t>(prize) * 4u;
                 scale_word(base + offset, run_now);
             }
+        }
+
+        // Once a level: what the second race pays now (the first's first win pays nothing).
+        if (!m_logged && run_now != 1.0f) {
+            m_logged = true;
+            const auto first = m_words.find(base + kRaceBytes + kRacePrize);
+            m_mod.info(
+                "level " + std::to_string(level) + ": the races pay x"
+                + std::to_string(run_now).substr(0, 4) + " (the second race "
+                + std::to_string(first != m_words.end() ? first->second.game : 0) + " -> "
+                + std::to_string(first != m_words.end() ? first->second.written : 0) + ")"
+            );
+        }
+    }
+
+    // The level's space missions: each mission's three rewards.
+    for (const LevelTable& table : m_disc->missions) {
+        // Only the level loaded.
+        if (table.level != level) {
+            continue;
+        }
+
+        const openrac::gaddr base = m_mod.relocate_level(level, table.address);
+
+        // Each mission, each reward.
+        for (int word = 0; word < kMissions * kMissionRewards; ++word) {
+            scale_word(base + static_cast<std::uint32_t>(word) * 4u, run_now);
+        }
+
+        // Once a level: what the second mission pays now (the first's first win pays nothing).
+        if (!m_logged && run_now != 1.0f) {
+            m_logged = true;
+            const auto first = m_words.find(base + static_cast<std::uint32_t>(kMissionRewards) * 4u);
+            m_mod.info(
+                "level " + std::to_string(level) + ": the space missions pay x"
+                + std::to_string(run_now).substr(0, 4) + " (the second mission "
+                + std::to_string(first != m_words.end() ? first->second.game : 0) + " -> "
+                + std::to_string(first != m_words.end() ? first->second.written : 0) + ")"
+            );
         }
     }
 

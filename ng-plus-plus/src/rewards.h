@@ -13,6 +13,11 @@
 //     later wins. The race's panel (func_L04_0040AD28) prints it and the finish
 //     (race_update_player_progress) pays it, ten times in challenge mode, both straight from the
 //     table: the mod writes the scaled prizes into the table while the level is loaded.
+//   - The space missions of Feltzin, Hrugis and Gorn: each level's reward table (4 missions of 3
+//     words, the bolts of a mission's first, second and later wins: g_feltzin_reward_table,
+//     D_L05_001B13F8; g_reward_table_first, D_L10_001B1448; g_gorn_reward_table, D_L15_001B15D8).
+//     The mission's panel prints it and its end pays it, ten times in challenge mode, both from
+//     the table: the mod writes the scaled rewards while the level is loaded, as the races'.
 //   - The arenas of Maktar and Joba: their prize function (moby_compute_scaled_entry_value), which
 //     the menu prints and the win pays: the hook point rac2.arena.prize.
 //   - The sellers: each level's price table (pairs of the game's and challenge mode's price, 0x48
@@ -65,6 +70,13 @@ inline constexpr int kJoba = 11;
 inline constexpr int kAranosPrison = 14;
 inline constexpr int kSmolg = 17;
 inline constexpr int kDamosel = 18;
+inline constexpr int kFeltzin = 5;
+inline constexpr int kHrugis = 10;
+inline constexpr int kGorn = 15;
+
+// A space mission level's reward table: its missions and the three rewards of each.
+inline constexpr int kMissions = 4;
+inline constexpr int kMissionRewards = 3;
 
 // The race table: its races, their size, and the three prizes' place in a race.
 inline constexpr int kRaces = 5;
@@ -87,21 +99,26 @@ struct RewardDisc {
     const char* version;     // openrac_api.version.
     LevelTable races[2];     // Barlow's and Joba's race table (g_race_challenge_table).
     LevelTable prices[4];    // Notak's, Dobbo's, the prison's and Smolg's price table.
+    LevelTable missions[3];  // Feltzin's, Hrugis's and Gorn's space mission rewards.
 };
 
 // clang-format off: one disc per row. NTSC-U v1.01's names: D_L04_002C63C0 (D_L11_002B6D40 in
-// Joba), D_L06_002958D0, D_L09_0028E350, D_L14_00291850, D_L17_0028C550; the other discs' from
-// OpenRAC's port/game/rac2-<disc>/release/release_names.json, each checked against the disc's data.
+// Joba), D_L06_002958D0, D_L09_0028E350, D_L14_00291850, D_L17_0028C550, D_L05_001B13F8,
+// D_L10_001B1448, D_L15_001B15D8; the other discs' from OpenRAC's port/game/rac2-<disc>/release/
+// release_names.json and data_moves.tsv, each checked against the disc's data.
 inline constexpr RewardDisc kRewardDiscs[] = {
     {"ntsc",  {{kBarlow, 0x002C63C0u}, {kJoba, 0x002B6D40u}},
               {{kNotak, 0x002958D0u}, {kDobbo, 0x0028E350u}, {kAranosPrison, 0x00291850u},
-               {kSmolg, 0x0028C550u}}},
+               {kSmolg, 0x0028C550u}},
+              {{kFeltzin, 0x001B13F8u}, {kHrugis, 0x001B1448u}, {kGorn, 0x001B15D8u}}},
     {"pal",   {{kBarlow, 0x002C6240u}, {kJoba, 0x002B6BC0u}},
               {{kNotak, 0x002956D0u}, {kDobbo, 0x0028E150u}, {kAranosPrison, 0x002915D0u},
-               {kSmolg, 0x0028C350u}}},
+               {kSmolg, 0x0028C350u}},
+              {{kFeltzin, 0x001B1408u}, {kHrugis, 0x001B1458u}, {kGorn, 0x001B15E8u}}},
     {"ntsc2", {{kBarlow, 0x002C64C0u}, {kJoba, 0x002B6E40u}},
               {{kNotak, 0x00295950u}, {kDobbo, 0x0028E350u}, {kAranosPrison, 0x00291850u},
-               {kSmolg, 0x0028C5D0u}}},
+               {kSmolg, 0x0028C5D0u}},
+              {{kFeltzin, 0x001B1398u}, {kHrugis, 0x001B13E8u}, {kGorn, 0x001B1588u}}},
 };
 // clang-format on
 
@@ -150,7 +167,8 @@ public:
     // Takes the arena's hook point, when bolt scaling is on and the port has it.
     void start();
 
-    // Once a game tick: the loaded level's race prizes and prices at the run's scale.
+    // Once a game tick: the loaded level's race prizes, space mission rewards and prices at the
+    // run's scale; the first time in a level, what it pays is logged.
     void tick();
 
 private:
@@ -176,6 +194,7 @@ private:
     const Disc* m_items;                       // This disc's item table (null: none known).
     int m_level = -1;                          // The level the words below are of.
     std::map<openrac::gaddr, Word> m_words;    // The words written in that level.
+    bool m_logged = false;                     // That level's prizes were logged.
 };
 
 }  // namespace ng_plus_plus

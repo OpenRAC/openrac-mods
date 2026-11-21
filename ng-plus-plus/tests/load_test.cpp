@@ -2030,6 +2030,7 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     const LevelTable& barlow = disc->races[0];
     CHECK(barlow.level == kBarlow);
     lay_out_races(barlow);
+    g_log.clear();
     g_level_now = kBarlow;
     tick(1);
     CHECK(race_prize(barlow, 0, 0) == 0);
@@ -2037,6 +2038,7 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
     CHECK(race_prize(barlow, 1, 1) == (scaled_run ? 1'875 : 750));
     CHECK(race_prize(barlow, 4, 2) == (scaled_run ? 875 : 350));
+    CHECK((g_log.find("the races pay x2.50 (the second race 2000 -> 5000)") != std::string::npos) == scaled_run);
     // Not scaled twice.
     tick(3);
     CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
@@ -2051,6 +2053,29 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     CHECK(race_prize(barlow, 1, 0) == 2'000);
     CHECK(race_prize(barlow, 0, 1) == 250);
     set_run(3, 1);
+
+    // The space missions of Feltzin, Hrugis and Gorn: each mission's rewards at x2.5, logged once.
+    for (const LevelTable& table : disc->missions) {
+        // Each mission's 1,000, 500 and 250.
+        for (int word = 0; word < kMissions * kMissionRewards; ++word) {
+            const std::int32_t rewards[kMissionRewards] = {1'000, 500, 250};
+            set<std::int32_t>(
+                table_word(table, static_cast<std::uint32_t>(word) * 4u),
+                rewards[word % kMissionRewards]
+            );
+        }
+
+        g_log.clear();
+        g_level_now = table.level;
+        tick(2);
+        CHECK(get<std::int32_t>(table_word(table, 0)) == (scaled_run ? 2'500 : 1'000));
+        CHECK(get<std::int32_t>(table_word(table, 44)) == (scaled_run ? 625 : 250));
+        CHECK(
+            (g_log.find("the space missions pay x2.50 (the second mission 1000 -> 2500)")
+             != std::string::npos)
+            == scaled_run
+        );
+    }
 
     // Joba's races, and the arena.
     const LevelTable& joba = disc->races[1];
