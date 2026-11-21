@@ -316,6 +316,17 @@
       }
     }
   ],
+  "rac2-wrench-swap": [
+    {
+      "version": "0.1.6",
+      "sha256": {
+        "android-arm64": "dc10fa0cff3045b20d08d007bf6505557e67a2c48804d36d1487d6f2b939936f",
+        "linux-aarch64": "3fd390e45beb95981154da06d97fa5e0e436f577b6660ffe6c39624e0fe1ceeb",
+        "linux-x86_64": "3ace6c9b6b7e2f01639760b21ee9b9f9257ba0d66893cfea494e1a74d66b40d7",
+        "windows-x86_64": "69442ccd94ced4b93ed815160588cc7d5906da409f7827c2c9cb2c4bd1471898"
+      }
+    }
+  ],
   "revolverator": [
     "0.3.1",
     "0.3.3",
