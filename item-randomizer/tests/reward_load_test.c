@@ -4,6 +4,7 @@
 #undef main
 #include "reward_api.h"
 #include "reward_pools.h"
+#include "npc_reward_text.h"
 #include "special_item_visual.h"
 
 static uint32_t data_words[3], data_size;
@@ -123,10 +124,10 @@ static void apply_place(void) {
     }
 }
 
+static int test_world;
 static int no_mobys(openrac_moby* rows, int n) {
-    (void)rows;
-    (void)n;
-    return 0;
+    if (test_world && rows && n > 0) { memset(rows,0,sizeof *rows);rows[0].size=sizeof *rows;rows[0].slot=0; }
+    return test_world;
 }
 
 static void original_initialize(void) {
@@ -365,6 +366,88 @@ int main(int argc, char** argv) {
     char code[RANDO_CODE_SIZE];
     rando_encode(&settings, code);
     set_tag_word(rando_seed_tag(code));
+    /* Kalebo's rail pickup grants its reward without animation or hero placement. */
+    {
+        const uint32_t moby=0x180000, vars=0x181000;
+        const int16_t cls=1134;
+        set32(s_memory+D->level,LEVEL_KALEBO);
+        memcpy(s_memory+moby+0xA6,&cls,2);set32(s_memory+moby+MOBY_PVARS,vars);
+        set32(s_memory+vars,1);s_memory[moby+0x20]=1;
+        memcpy(s_memory+moby+0x10,hero_position,12);
+        s_memory[D->gold_bolts+LEVEL_KALEBO*4+1]=0;
+        const int before=animation_calls, before_places=places;
+        ((void(*)(uint32_t))hook_named("rac1.moby.gold_bolt.update"))(moby);
+        for(int i=0;i<3;++i)s_frame(NULL);
+        CHECK(s_memory[D->gold_bolts+LEVEL_KALEBO*4+1]==1);
+        CHECK(s_memory[moby+0x20]==0xFD);
+        CHECK(animation_calls==before&&places==before_places);
+    }
+    /* Both Blarg reward props use their canonical randomized model, including scenes. */
+    {
+        const uint32_t moby=0x180000, vars=0x181000;
+        const uint32_t table=!strcmp(D->version,"pal")?0x179BC0u:0x179AC0u;
+        for(int item=0;item<RANDO_ITEM_COUNT;++item) set32(s_memory+table+item*0x4C+0x10,0x600+item);
+        set32(s_memory+pool_word(),moby);set32(s_memory+D->level,LEVEL_BLARG);
+        set32(s_memory+moby+MOBY_PVARS,vars);set32(s_memory+vars+INFOBOT_PLANET,LEVEL_RILGAR);
+        s_memory[moby+MOBY_MISSION]=15; // a spawned infobot need not carry canonical mission 0
+        test_world=1;
+        for(int prop=0;prop<2;++prop){
+            const int16_t cls=prop?750:1016;memcpy(s_memory+moby+0xA6,&cls,2);
+            int row=prop?rando_npc_row(3):location_of(LOC_GIVE,LEVEL_BLARG,ITEM_HYDRODISPLACER);
+            CHECK(row>=0&&plan.shuffled[row]);rando_reward reward=plan.reward[row];
+            char label[160];rando_reward_name(reward,label,sizeof label);int icon,frame;
+            int expected=special_item_visual(label,&icon,&frame);
+            if(expected<0) expected=reward.kind==REWARD_PLANET?750:
+                reward.kind==REWARD_ITEM?(reward.value==ITEM_HELI_PACK?607:0x600+reward.value):
+                reward.kind==REWARD_GOLD_WEAPON?0x5B0+rando_gold_index(reward.value):1134;
+            for(int scene=0;scene<2;++scene){
+                s_phase=scene?OPENRAC_PLAY_SCENE:OPENRAC_PLAY_PLAYING;s_frame(NULL);
+                CHECK(expected==cls?visual_count==0:visual_count==1&&visual_rows[0].moby==moby&&visual_rows[0].oclass==expected);
+            }
+        }
+        test_world=0;set32(s_memory+pool_word(),0);s_phase=OPENRAC_PLAY_PLAYING;
+    }
+    /* Collection messages resolve the canonical reward even after shuttle travel. */
+    {
+        uint32_t (*message)(int) = (uint32_t (*)(int))hook_named("rac1.text.msg_string");
+        const int blarg = rando_npc_row(3);
+        CHECK(blarg >= 0 && plan.shuffled[blarg]);
+        char label[160], expected[192];
+        rando_reward r = plan.reward[blarg];
+        if (r.kind == REWARD_PLANET) snprintf(label, sizeof label, "%s Coordinates", rando_planet_name(r.value));
+        else if (r.kind == REWARD_GOLD_BOLT) snprintf(label, sizeof label, "Gold Bolt");
+        else rando_reward_name(r, label, sizeof label);
+        snprintf(expected, sizeof expected, "Collected %s", label);
+        set32(s_memory + D->level, LEVEL_RILGAR);
+        CHECK(strcmp((char*)s_memory + message(0x177B), expected) == 0);
+        CHECK(strcmp((char*)s_memory + message(0x7FFF), "Buy Infobot for 500 bolts") == 0);
+        const int quartu = rando_npc_row(11);
+        CHECK(quartu >= 0 && plan.shuffled[quartu]);
+        r = plan.reward[quartu];
+        if (r.kind == REWARD_PLANET) snprintf(label, sizeof label, "%s Coordinates", rando_planet_name(r.value));
+        else if (r.kind == REWARD_GOLD_BOLT) snprintf(label, sizeof label, "Gold Bolt");
+        else rando_reward_name(r, label, sizeof label);
+        snprintf(expected, sizeof expected, "Collected %s", label);
+        CHECK(strcmp((char*)s_memory + message(0x3AA1), expected) == 0);
+        set32(s_memory + D->level, LEVEL_QUARTU);
+        char actual[120], wanted[120], prompt_label[192];
+        rando_reward_name(r, prompt_label, sizeof prompt_label);
+        npc_label_between(wanted, "Transform into Giant Clank - Reward: ", prompt_label, "");
+        npc_reward_wrap(wanted);
+        snprintf(actual, sizeof actual, "%s", (char*)s_memory + message(0x3AA4));
+        CHECK(strcmp(actual, wanted) == 0);
+        const uint32_t before_checks = data_words[2];
+        data_words[0] = 0x52465231u;
+        data_words[1] = rando_seed_tag(code);
+        data_words[2] = before_checks | (1u << (10 + 11));
+        data_size = sizeof data_words;
+        CHECK(strcmp((char*)s_memory + message(0x3AA4), "Buy Infobot for 500 bolts") == 0);
+        data_words[2] = before_checks;
+        // The inverse transformation and Veldin pad keep their native hints.
+        CHECK(strcmp((char*)s_memory + message(0x3AA5), "Buy Infobot for 500 bolts") == 0);
+        set32(s_memory + D->level, LEVEL_VELDIN2);
+        CHECK(strcmp((char*)s_memory + message(0x3AA4), "Buy Infobot for 500 bolts") == 0);
+    }
     /* Every coordinate can already be owned without spending its NPC check. */
     memset(s_memory + D->planets, 1, LEVEL_COUNT);
     for (int i = 0; i < 13; ++i) {

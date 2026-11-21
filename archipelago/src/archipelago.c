@@ -84,7 +84,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.5.0"
+#define MOD_VERSION "2.5.4"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -680,6 +680,13 @@ static int aridia_reward_collected(void) {
 
 static int blarg_o2_access_active(void) { return kerwan_randomizer_active(); }
 #include "blarg_access.inc"
+#include "pickup_platforms.inc"
+#include "orxon_access.inc"
+static int kalebo_taxi_mode(void) {
+    if (s_from_title || s_judge_wait || ap_client_new_game_plus() < 0) return -1;
+    return 1;
+}
+#include "kalebo_taxi.inc"
 
 
 static void bob_update(openrac_gaddr moby) {
@@ -1444,6 +1451,7 @@ static void each_tick(void* user) {
     if (phase!=OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
 
     if (!playing_level()) {
+        orxon_access_tick(phase, loads, 0);
         return;
     }
 
@@ -1532,6 +1540,7 @@ static void each_tick(void* user) {
         log_line(OPENRAC_LOG_INFO, "Drek is beaten: the goal is sent");
     }
     kerwan_access_tick();
+    orxon_access_tick(phase, loads, kerwan_randomizer_active());
 }
 
 /* ---- loading ---- */
@@ -1584,7 +1593,7 @@ static int install_hooks(void) {
         s_mod, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent, OPENRAC_RAC1_SIG_GoldBolts_CountUnspent,
         (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
     s_gold_hook_warned = 0;
-    if (!aridia_access_hooks() || !blarg_access_hooks() || !presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
+    if (!aridia_access_hooks() || !blarg_access_hooks() || !pickup_platform_hooks() || !kalebo_taxi_hooks() || !presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
     /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
      * the NPC reward text itself; otherwise that text takes them on its own. */
     if (!s_presentation_text) npc_reward_text_hooks();
