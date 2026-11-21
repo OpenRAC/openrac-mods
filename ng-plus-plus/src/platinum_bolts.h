@@ -154,10 +154,14 @@ private:
         std::int32_t total = 0;     // What the drops paid.
         std::int32_t biggest = 0;   // The biggest drop.
         std::int32_t at_once = 0;   // Paid at once (no coin to hold it).
+        int folded = 0;             // Drops the budget folded into fewer coins.
         std::int32_t collected = 0; // The extra worth of platinum and obsidian coins collected.
     };
     Summary m_summary;
+    int live_pickups() const;  // The bolt pickups alive in the level.
+    int pickups_most(int live) const;  // How many may be alive at once, `live` of them now.
     int m_level = -1;                     // The level the platinum coins are in.
+    int m_folds_logged = 0;               // Folds written to the log.
     bool m_mark_logged = false;           // A coin that could not be drawn was logged.
 
     // The platinum and obsidian coins out: each one's moby to its class and tier.

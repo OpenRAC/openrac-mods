@@ -34,6 +34,7 @@
 #include "discs.h"
 #include "experience.h"
 #include "extra_enemies.h"
+#include "moby_pool.h"
 #include "game_view.h"
 #include "hooks.h"
 #include "openrac/games/rac2.hpp"
@@ -197,6 +198,16 @@ void NgPlusPlus::start() {
     );
     take_optional();
 
+    // More spare moby slots in the levels to come: the game's pool of spawned mobys is 200 to 400,
+    // and the copies and a long streak's coins fill it (moby_pool.h). An older OpenRAC keeps the
+    // game's pool, and the drops and copies keep inside it.
+    const int granted = request_pool(m_mod);
+    m_mod.info(
+        granted > 0 ? "asked for " + std::to_string(granted) + " more spare moby slots"
+                    : std::string("this OpenRAC has no more moby slots to give (mod interface 1.27): "
+                                  "the bolts and copies keep to the game's pool")
+    );
+
     // Once a game tick, on the game's thread.
     try {
         m_mod.on_frame([self] { self->tick(); });
@@ -320,6 +331,7 @@ void NgPlusPlus::tick() {
     m_tiers.watch(m_view);
     m_bolts.tick();
     m_collectors.tick();
+    m_enemies.tick();
     m_rewards.tick();
     m_visuals.tick(m_tick);
 

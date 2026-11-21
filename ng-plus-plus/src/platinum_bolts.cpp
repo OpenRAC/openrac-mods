@@ -10,6 +10,7 @@
 #include <string>
 
 #include "hooks.h"
+#include "moby_pool.h"
 
 namespace ng_plus_plus {
 namespace {
@@ -21,6 +22,9 @@ constexpr std::int32_t kFlagLimit = 8;
 // pay more (bolt_rules.cpp's tables start there).
 constexpr int kPlatinumCycle = 1;
 constexpr int kFirstCycle = 2;
+
+// The free spare moby slots the pickups leave to the level (its spawns need some).
+constexpr int kKeepSlots = 24;
 
 // How many drops a session writes to the log one by one.
 constexpr int kDropsLogged = 5;
@@ -194,9 +198,32 @@ void PlatinumBolts::spawn_pickups(
         limit += extra_coins(tough);
     }
 
+    // The budget: no more coins than a burst or the game's table has room for. What it leaves out
+    // is paid at once, folded into the fewer, bigger coins that split makes first.
+    const int live = live_pickups();
+    const int wanted = limit;
+    const int most = pickups_most(live);
+    limit = coin_budget(limit, live, kBurstMost, most);
+
     const float share = platinum_share(cycle, m_view.streak());
     const float obsidian = m_obsidian ? obsidian_share(cycle, m_view.streak()) : 0.0f;
     const CoinPlan plan = split(total, share, obsidian, limit);
+
+    // Folded: the budget left out coins the game's own limit would have let be made. Said for the
+    // first few and counted in the summary.
+    if (limit < (wanted < 0 ? kBurstMost + 1 : wanted)
+        && plan.coins() < split(total, share, obsidian, wanted).coins()) {
+        ++m_summary.folded;
+
+        if (m_folds_logged < kDropsLogged) {
+            ++m_folds_logged;
+            m_mod.info(
+                "drop of " + std::to_string(total) + " bolts folded into at most "
+                + std::to_string(limit) + " coins (" + std::to_string(live)
+                + " bolt pickups alive, room for " + std::to_string(most) + ")"
+            );
+        }
+    }
 
     // The first few drops of a session in the log, to show what the drops pay.
     if (m_drops_logged < kDropsLogged) {
@@ -336,6 +363,34 @@ void PlatinumBolts::tick() {
         m_platinum.clear();
         m_level = level;
     }
+}
+
+int PlatinumBolts::live_pickups() const {
+    int live = 0;
+
+    // Each live moby of the coins' classes.
+    for (const openrac_moby& moby : m_mod.moby_list()) {
+        const bool coin = moby.oclass >= kCoinClass && moby.oclass < kCoinClass + kCoinKinds;
+
+        if (coin && moby.state < 0x80 && (moby.flags & OPENRAC_MOBY_DEAD) == 0) {
+            ++live;
+        }
+    }
+
+    return live;
+}
+
+int PlatinumBolts::pickups_most(int live) const {
+    PoolStatus pool;
+
+    // The port counts the pool: the pickups may take what is free past the few slots the level
+    // keeps, and no more than the cap.
+    if (pool_status(m_mod, pool)) {
+        const int room = std::max(0, std::min(kLivePickupsMost - live, pool.free - kKeepSlots));
+        return live + room;
+    }
+
+    return kLivePickupsMost;
 }
 
 void PlatinumBolts::pay(const CoinPlan& plan, bool scaled) {

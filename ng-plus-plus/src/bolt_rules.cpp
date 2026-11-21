@@ -127,6 +127,18 @@ int extra_coins(float toughness) {
     return static_cast<int>(std::lround(kExtraCoins * least));
 }
 
+int coin_budget(int limit, int live, int burst_most, int live_most) {
+    const int room = live_most > live ? live_most - live : 0;
+    int budget = burst_most < room ? burst_most : room;
+
+    // The game's own limit, when it has one.
+    if (limit >= 0 && limit < budget) {
+        budget = limit;
+    }
+
+    return budget < 0 ? 0 : budget;
+}
+
 float platinum_share(int cycle, int streak) {
     // No platinum in the first game.
     if (cycle < kTasteCycle) {

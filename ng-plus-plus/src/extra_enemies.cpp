@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "moby_pool.h"
 #include "openrac/games/rac2.hpp"
 
 namespace ng_plus_plus {
@@ -18,6 +19,10 @@ namespace {
 // The cycles from which each enemy gets one copy, then two.
 constexpr int kOneCopyCycle = 2;
 constexpr int kTwoCopiesCycle = 4;
+
+// The free spare slots a copy leaves: the bolts of a long streak and what the level spawns need
+// them (the port keeps 128 itself; this is the mod's own, above it, with the pool's status).
+constexpr int kKeepFree = 160;
 
 // The per-planet table (README.md, "More enemies"; filled from hidden test runs of each level).
 constexpr CopyEntry kCopyTable[] = {
@@ -144,6 +149,7 @@ int ExtraEnemies::level_loaded() {
     // No copies this cycle, none in this OpenRAC, or a party guest's game (the host's copies are
     // its).
     if (each == 0 || m_calls.copy == nullptr || level < 0 || m_tiers.party_on()) {
+        m_pending.clear();
         return 0;
     }
 
@@ -162,25 +168,98 @@ int ExtraEnemies::level_loaded() {
     }
 
     int made = 0;
+    int left_alone = 0;
+    m_pending.clear();
+    m_pending_level = level;
+    m_retries = 0;
+    m_wait = kRetryTicks;
 
-    // Every enemy's first copy, then the second ones, until the port has no room or spot for one:
-    // the port's room for the copies' larger pvars (64 KB) runs out in a crowded level (Barlow's 91
-    // hounds fill it with one copy each), and a second copy never takes the place of a first.
+    // Every enemy's first copy, then the second ones, until the pool is near its end or the port
+    // has no room or spot for one: the port's room for the copies' larger pvars (64 KB) runs out in
+    // a crowded level (Barlow's 91 hounds fill it with one copy each), and a second copy never
+    // takes the place of a first.
     for (int index = 0; index < each; ++index) {
         // Each enemy that gets this many.
         for (const auto& [slot, copies] : enemies) {
             // Its copy at its own spot.
             if (index < copies) {
-                made += m_calls.copy(m_mod.handle(), slot, index) >= 0 ? 1 : 0;
+                const int result = make_copy(slot, index);
+                made += result > 0 ? 1 : 0;
+                left_alone += result < 0 ? 1 : 0;
+
+                // Not made: tried again later.
+                if (result <= 0) {
+                    m_pending.emplace_back(slot, index);
+                }
             }
         }
     }
 
+    PoolStatus pool;
+    const bool known = pool_status(m_mod, pool);
     m_mod.info(
         "level " + std::to_string(level) + ": " + std::to_string(made) + " extra enemies beside "
         + std::to_string(enemies.size()) + " (new game " + std::to_string(cycle) + ")"
+        + (known ? ", pool " + std::to_string(pool.live) + " alive of " + std::to_string(pool.capacity)
+                       + " (" + std::to_string(pool.free) + " free, " + std::to_string(pool.extra)
+                       + " added)"
+                 : std::string(", pool unknown (" + std::to_string(m_mod.moby_list().size())
+                               + " mobys alive)"))
+        + (left_alone > 0 ? ", " + std::to_string(left_alone) + " copies left out to keep the pool's room"
+                          : std::string())
     );
     return made;
+}
+
+int ExtraEnemies::make_copy(int slot, int index) {
+    PoolStatus pool;
+
+    // Near the pool's end: the bolts and the level need the last slots more.
+    if (pool_status(m_mod, pool) && pool.free < kKeepFree) {
+        return -1;
+    }
+
+    return m_calls.copy(m_mod.handle(), slot, index) >= 0 ? 1 : 0;
+}
+
+void ExtraEnemies::tick() {
+    // Nothing missed, or a level left.
+    if (m_pending.empty() || m_retries >= kRetries || m_wait-- > 0) {
+        return;
+    }
+
+    // Another level: its pending copies are gone with it.
+    if (m_view.loaded_level() != m_pending_level) {
+        m_pending.clear();
+        return;
+    }
+
+    ++m_retries;
+    m_wait = kRetryTicks;
+    std::vector<std::pair<int, int>> still;
+    int made = 0;
+
+    // Each missed copy again, while the pool has room.
+    for (const auto& [slot, index] : m_pending) {
+        const int result = make_copy(slot, index);
+        made += result > 0 ? 1 : 0;
+
+        // Still missing.
+        if (result <= 0) {
+            still.emplace_back(slot, index);
+        }
+    }
+
+    m_pending = std::move(still);
+
+    // Said when it made some.
+    if (made > 0) {
+        m_mod.info(
+            "level " + std::to_string(m_pending_level) + ": " + std::to_string(made)
+            + " more extra enemies on try " + std::to_string(m_retries) + ", "
+            + std::to_string(m_pending.size()) + " still missing"
+        );
+    }
 }
 
 }  // namespace ng_plus_plus

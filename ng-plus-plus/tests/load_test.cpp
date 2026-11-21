@@ -35,6 +35,7 @@
 #include "check.h"
 #include "discs.h"
 #include "extra_enemies.h"
+#include "moby_pool.h"
 #include "hooks.h"
 #include "rewards.h"
 #include "openrac/games/rac2.hpp"
@@ -98,12 +99,18 @@ enum class Host {
     Off,
     Obsidian,
     Energy,
-    Squads
+    Squads,
+    Pool
 };
 
 // Whether the test's port draws energy (1.25 on).
 bool energy_host(Host host) {
-    return host == Host::Energy || host == Host::Squads;
+    return host == Host::Energy || host == Host::Squads || host == Host::Pool;
+}
+
+// Whether the test's port makes copies that wake (1.26 on).
+bool squads_host(Host host) {
+    return host == Host::Squads || host == Host::Pool;
 }
 
 // One coin the test's game made: its moby and worth, and where the mod said it starts.
@@ -609,6 +616,10 @@ std::uint32_t moby_at(int slot) {
     return slot == 0 ? kMobyEnemy : 0x00330000u + static_cast<std::uint32_t>(slot) * 0x100u;
 }
 
+int g_fake_coins = 0;  // Bolt pickups the test's level has alive besides the listed mobys.
+int g_pool_asked = 0;  // The spare slots the mod asked the port for.
+int g_pool_free = 500; // The free spare slots the test's pool reports.
+
 int host_moby_list(openrac_moby* out, int max) {
     // Each listed moby, as far as there is room.
     for (int n = 0; n < kListed && n < max; ++n) {
@@ -619,7 +630,34 @@ int host_moby_list(openrac_moby* out, int max) {
         out[n].oclass = n == 3 ? 4098 : (n == 6 ? kOtherClass : kTableClass);
     }
 
-    return kListed;
+    // The bolt pickups alive (classes 13 to 19), none the level placed.
+    for (int n = 0; n < g_fake_coins && kListed + n < max; ++n) {
+        openrac_moby& coin = out[kListed + n];
+        coin = openrac_moby{};
+        coin.size = sizeof(openrac_moby);
+        coin.slot = 200 + n;
+        coin.key = -1;
+        coin.oclass = 13 + n % 7;
+        coin.state = 1;
+    }
+
+    return kListed + g_fake_coins;
+}
+
+// 1.27's pool: a raise is granted as asked (the mod's request is written down), the status has 600
+// spare slots of which g_pool_free are free.
+int host_pool_raise(openrac_mod* /*mod*/, int extra) {
+    g_pool_asked = extra;
+    return extra;
+}
+
+int host_pool_status(openrac_mod* /*mod*/, PoolStatus* out) {
+    out->capacity = 600;
+    out->free = g_pool_free;
+    out->live = 600 - g_pool_free;
+    out->extra = g_pool_asked;
+    out->requested = g_pool_asked;
+    return OPENRAC_HOOK_OK;
 }
 
 int host_copy_check(openrac_mod* /*mod*/, int slot) {
@@ -921,16 +959,21 @@ void set_experience(int item, std::int32_t points) {
 }
 
 // The table the port hands the mod: this SDK's, then the entries up to 1.25's copies.
-CopyApi g_table;
-#if OPENRAC_MOD_API_MINOR < 25
-openrac_api& g_api = bolt_base(g_table.upto_material);
+PoolApi g_table;
+#if OPENRAC_MOD_API_MINOR < 27
+CopyApi& g_copy_table = g_table.upto_copy;
 #else
-openrac_api& g_api = g_table;
+openrac_api& g_copy_table = g_table;
+#endif
+#if OPENRAC_MOD_API_MINOR < 25
+openrac_api& g_api = bolt_base(g_copy_table.upto_material);
+#else
+openrac_api& g_api = g_copy_table;
 #endif
 
 // Fills the port's table for the disc the test runs on.
 void make_api() {
-    g_table = CopyApi{};
+    g_table = PoolApi{};
     g_api.api_major = OPENRAC_MOD_API_MAJOR;
 
     // A port of 1.22 ends its table before moby_material; the others have it.
@@ -938,24 +981,34 @@ void make_api() {
         g_api.size = static_cast<std::uint32_t>(offsetof(BoltApi, moby_material));
         g_api.api_minor = 22;
     } else {
-        g_api.size = sizeof g_table;
-        g_api.api_minor = g_host == Host::Squads     ? kSquadCopyMinor
+        // A port before 1.27 ends its table at the copies.
+        g_api.size = static_cast<std::uint32_t>(
+            g_host == Host::Pool ? sizeof g_table : sizeof g_copy_table
+        );
+        g_api.api_minor = g_host == Host::Pool       ? kPoolMinor
+                          : g_host == Host::Squads   ? kSquadCopyMinor
                           : g_host == Host::Energy   ? kEnergyMinor
                           : g_host == Host::Obsidian ? kObsidianMinor
                                                      : kMaterialMinor;
 #if OPENRAC_MOD_API_MINOR < 25
-        g_table.upto_material.moby_material = host_material;
+        g_copy_table.upto_material.moby_material = host_material;
 #else
-        g_table.moby_material = host_material;
+        g_copy_table.moby_material = host_material;
 #endif
     }
 
     // A port of 1.25 (energy's) makes copies; an older one ends its table before them.
     if (energy_host(g_host)) {
-        g_table.moby_copy_check = host_copy_check;
-        g_table.moby_copy = host_copy;
+        g_copy_table.moby_copy_check = host_copy_check;
+        g_copy_table.moby_copy = host_copy;
     } else if (g_host != Host::Old) {
         g_api.size = static_cast<std::uint32_t>(offsetof(CopyApi, moby_copy_check));
+    }
+
+    // A port of 1.27 has the pool.
+    if (g_host == Host::Pool) {
+        g_table.moby_pool_raise = host_pool_raise;
+        g_table.moby_pool_status = reinterpret_cast<decltype(g_table.moby_pool_status)>(host_pool_status);
     }
     g_api.moby_list = host_moby_list;
 
@@ -2204,6 +2257,76 @@ void test_extra_enemies() {
     g_level_now = 1;
 }
 
+// Checks the pool's room (a port of 1.27): a big drop in a level whose pool is nearly full folds into
+// the few coins that fit, bolts all kept; copies stop short of the pool's end and come back when
+// room is freed.
+void test_pool_room() {
+    lay_out_enemy();
+    set_run(3, 20);
+    g_level_now = 4;
+    int total_expected = 15'000;
+    const auto drop = [&](int fake_coins, int free_slots, std::size_t most_coins) {
+        g_fake_coins = fake_coins;
+        g_pool_free = free_slots;
+        g_coins.clear();
+        g_materials.clear();
+        g_bolts = 0;
+        g_log.clear();
+        port_spawn_pickups(kMobyEnemy, 1500, 9);
+        const std::size_t made = g_coins.size();
+        CHECK(made <= most_coins);
+
+        // Every coin collected: the whole drop, the coins' and what was paid at once.
+        for (const Coin& coin : std::vector<Coin>(g_coins)) {
+            port_collect(coin.moby);
+        }
+
+        CHECK(g_bolts == total_expected);
+        return made;
+    };
+
+    // Room: the whole drop's coins.
+    CHECK(drop(0, 500, kBurstMost) > 6);
+    CHECK(g_log.find("folded") == std::string::npos);
+    // 90 pickups alive, the cap 96: six more at most, the same bolts.
+    CHECK(drop(90, 500, 6) > 0);
+    CHECK(g_log.find("folded into at most 6 coins") != std::string::npos);
+    // The pool's last slots (26 free, 24 kept): two coins.
+    CHECK(drop(0, 26, 2) > 0);
+    // Nothing free: no coin, the whole drop paid at once.
+    CHECK(drop(0, 10, 0) == 0);
+    g_fake_coins = 0;
+
+    // Copies: the pool near its end gets none, and says so.
+    g_pool_free = 100;
+    set_run(2, 0);
+    g_copies_asked.clear();
+    g_copies_made = 0;
+    g_log.clear();
+    port_level_load();
+    CHECK(g_copies_asked.empty() && g_copies_made == 0);
+    CHECK(g_log.find("2 copies left out to keep the pool's room") != std::string::npos);
+
+    // Room comes back: the missed copies are made a second later.
+    g_pool_free = 500;
+    g_log.clear();
+    tick(ng_plus_plus::kRetryTicks + 2);
+    CHECK(g_copies_made == 2);
+    CHECK(g_log.find("2 more extra enemies on try 1, 0 still missing") != std::string::npos);
+
+    // A new load of another level forgets what was missed.
+    g_pool_free = 100;
+    port_level_load();
+    g_level_now = 1;
+    g_pool_free = 500;
+    g_copies_made = 0;
+    tick(ng_plus_plus::kRetryTicks + 2);
+    CHECK(g_copies_made == 0);
+    g_level_now = 4;
+    g_pool_free = 500;
+    set_run(1, 0);
+}
+
 void run(const char* path, const Disc& disc, Host host) {
     g_disc = &disc;
     g_host = host;
@@ -2211,6 +2334,9 @@ void run(const char* path, const Disc& disc, Host host) {
     g_log.clear();
     g_bolts = 0;
     g_burst_high = -1;
+    g_pool_asked = 0;
+    g_fake_coins = 0;
+    g_pool_free = 500;
     g_coins.clear();
     g_materials.clear();
     g_sp = kStackTop;
@@ -2233,16 +2359,25 @@ void run(const char* path, const Disc& disc, Host host) {
     make_api();
     CHECK(reload(load));
     CHECK(g_failed.empty());
+    // The pool: asked for on a port of 1.27, a line in the log of an older one.
+    CHECK((g_pool_asked == kPoolExtra) == (host == Host::Pool));
+    CHECK(
+        (g_log.find("asked for 400 more spare moby slots") != std::string::npos)
+        == (host == Host::Pool)
+    );
+    CHECK(
+        (g_log.find("no more moby slots to give") != std::string::npos) == (host != Host::Pool)
+    );
     // The ten of before (the kills' experience among them), and the three bolt hook points and
     // the arena's on a port of 1.23 with the setting on.
     const bool bolts = host == Host::Bolts || host == Host::Obsidian || energy_host(host);
     // The level's load too on a port of 1.26, for the copies.
-    CHECK(g_hooks.size() == (bolts ? 14u : 10u) + (host == Host::Squads ? 1u : 0u));
+    CHECK(g_hooks.size() == (bolts ? 14u : 10u) + (squads_host(host) ? 1u : 0u));
     // A port before 1.26 makes no copies (1.25's never woke), and says so once.
     CHECK(
         (g_log.find("no extra enemies in this OpenRAC: they need mod interface 1.26")
          != std::string::npos)
-        == (host != Host::Squads)
+        == !squads_host(host)
     );
     CHECK((g_log.find("interface 1.23") != std::string::npos) == (host == Host::Old));
     // A port of 1.23 drops platinum only, and says so.
@@ -2279,8 +2414,14 @@ void run(const char* path, const Disc& disc, Host host) {
     }
 
     // The copies on a port of 1.26; with the setting off, none, and no hook for them.
-    if (host == Host::Squads) {
+    if (squads_host(host)) {
         test_extra_enemies();
+
+        // A port of 1.27: the pool's room.
+        if (host == Host::Pool) {
+            test_pool_room();
+        }
+
         g_extra_enemies = false;
         CHECK(reload(load));
         CHECK(hooked<rac2::Level_Load>() == nullptr);
@@ -2312,7 +2453,7 @@ int main(int argc, char** argv) try {
     for (const Disc& disc : kDiscs) {
         // Each port: 1.23 with the bolts, 1.22 without, the setting off.
         for (const Host host :
-             {Host::Bolts, Host::Old, Host::Off, Host::Obsidian, Host::Energy, Host::Squads}) {
+             {Host::Bolts, Host::Old, Host::Off, Host::Obsidian, Host::Energy, Host::Squads, Host::Pool}) {
             run(argv[1], disc, host);
         }
     }

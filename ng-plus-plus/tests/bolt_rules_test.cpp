@@ -414,6 +414,36 @@ void test_collectors() {
 
 }  // namespace
 
+// Checks the coin budget: the game's limit, the burst's cap and the room left for pickups; and that
+// folding a huge drop into the budget keeps every bolt (coins plus what is paid at once).
+void test_coin_budget() {
+    CHECK(coin_budget(3, 0, kBurstMost, kLivePickupsMost) == 3);
+    CHECK(coin_budget(-1, 0, kBurstMost, kLivePickupsMost) == kBurstMost);
+    CHECK(coin_budget(40, 0, kBurstMost, kLivePickupsMost) == kBurstMost);
+    CHECK(coin_budget(-1, kLivePickupsMost - 2, kBurstMost, kLivePickupsMost) == 2);
+    CHECK(coin_budget(-1, kLivePickupsMost, kBurstMost, kLivePickupsMost) == 0);
+    CHECK(coin_budget(-1, kLivePickupsMost + 9, kBurstMost, kLivePickupsMost) == 0);
+    CHECK(coin_budget(0, 0, kBurstMost, kLivePickupsMost) == 0);
+
+    // Drops of every size and share, in every budget: never past it, every bolt kept.
+    for (const std::int32_t total : {1, 7, 99, 1500, 48'000, 700'000, kMostDrop}) {
+        for (const float share : {0.0f, 0.3f, 1.0f}) {
+            for (const float obsidian : {0.0f, 0.25f}) {
+                for (int budget = 0; budget <= kBurstMost; ++budget) {
+                    const CoinPlan plan = split(total, share, obsidian, budget);
+                    CHECK(plan.coins() <= budget);
+                    CHECK(plan.worth() + plan.leftover == total);
+                }
+            }
+        }
+    }
+
+    // A huge streak drop in a few coins: the big ones first, the rest left over.
+    const CoinPlan huge = split(kMostDrop, 0.5f, 0.2f, kBurstMost);
+    CHECK(huge.coins() == kBurstMost);
+    CHECK(huge.worth() + huge.leftover == kMostDrop);
+}
+
 int main() try {
     test_setting();
     test_run_scale();
@@ -425,6 +455,7 @@ int main() try {
     test_split();
     test_obsidian_share();
     test_split_obsidian();
+    test_coin_budget();
     test_collectors();
     return ng_plus_plus::test::result("ng_plus_plus_bolt_rules");
 } catch (...) {

@@ -359,6 +359,22 @@ its roll of about a quarter up or down):
 | 45 (common) | 3,600 | 6,000 | 9,600 | 14,400 |
 | 110 or more | 9,000 | 15,000 | 24,000 | 36,000 |
 
+**Why 0.4.4 asks for more room.** The game makes every spawned moby (a bolt, a shot, an effect, an
+enemy copy) from a pool of spare slots its level's file sets, 200 to 400 (Barlow's is 398), and a spawn
+with none free is lost, a bolt with it. Barlow's 79 copies at the fourth challenge mode took a fifth of
+the pool before the level spawned anything, and a long streak's drops fill the rest: in a hidden run a
+flood of 300 pickups there made 228. From 0.4.4 NG++ asks OpenRAC (mod interface 1.27) for 400 more spare
+slots in every level, and keeps to what is free:
+
+- A burst makes at most 24 coins and the level at most 96 bolt pickups alive (fewer when the pool has
+  fewer than 24 slots free), the most valuable coins first. What no coin holds is paid at once, so the
+  bolts of a drop never change: a 256,000-bolt drop made 66 coins in 0.4.3 and 24 in 0.4.4, and all
+  256,000 were collected. The log says when a drop was folded.
+- A copy is made only while 160 spare slots are free, so the bolts and the level keep their room. The
+  copies a load missed are tried again, up to three times a second apart. The log says how many were
+  made and left out, with the pool beside.
+- An OpenRAC older than 1.27 keeps the game's pool: the same caps hold by counting the pickups alive.
+
 **Why 0.4.2 pays less.** 0.4.1 multiplied the amount the game was asked for, streak included, by
 the run scale and a toughness of up to x6, and lifted the game's three-pickup limit, so the streak,
 the run and toughness all multiplied each other: a 250-bolt enemy at x20 paid 53,034 in the second

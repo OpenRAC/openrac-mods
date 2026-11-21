@@ -21,6 +21,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
+#include <vector>
 
 #include "bolt_api.h"
 #include "openrac/mod.hpp"
@@ -99,6 +101,10 @@ inline CopyCalls copy_calls_of(const openrac_api& api) {
     return {table->moby_copy_check, table->moby_copy};
 }
 
+// The ticks between the tries at a load's missed copies, and how many tries.
+inline constexpr int kRetryTicks = 60;
+inline constexpr int kRetries = 3;
+
 // More enemies.
 //
 // Holds the mod, the view and the tiers by reference; the mod's state owns them.
@@ -119,12 +125,28 @@ public:
     // how many were made.
     int level_loaded();
 
+    // Once a game tick: copies a crowded load left out are tried again (a few times, a second
+    // apart) once the level has spawned and the pool has room.
+    void tick();
+
 private:
     openrac::Mod& m_mod;      // The mod; the SDK keeps it for the program.
     const GameView& m_view;   // The game on this disc.
     const SaveTiers& m_tiers; // The tiers, for the party.
     bool m_on;                // The setting.
     CopyCalls m_calls;        // The port's copy calls, or none.
+
+    // The copies a load could not make (no room or no spot yet): the placed enemy's slot and the
+    // copy's index, tried again by tick() while the level stays.
+    std::vector<std::pair<int, int>> m_pending;
+    int m_pending_level = -1;  // The level they are for.
+    int m_retries = 0;         // Tries made again for this load.
+    int m_wait = 0;            // Ticks to the next one.
+
+    // Makes copy `index` of the enemy in `slot` unless the pool is near its end. Returns 1 made, 0
+    // not made (the port had no room or spot), -1 left alone to keep the pool's last slots for the
+    // bolts and the level.
+    int make_copy(int slot, int index);
 };
 
 }  // namespace ng_plus_plus

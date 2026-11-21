@@ -72,6 +72,15 @@ inline constexpr float kMostScale = 12.0f;
 // toughest, so a bigger enemy's drop is a bigger shower of coins.
 inline constexpr float kExtraCoins = 2.0f;
 
+// The most coins one burst makes, whatever the game's coin limit and the toughness allow (the game's
+// own three plus up to four more is seven, and a test drop of 15,000 bolts at a x20 streak splits
+// into 21; nothing past this is made).
+inline constexpr int kBurstMost = 24;
+
+// The most bolt pickups alive at once when the port cannot say how many moby slots are free: each
+// is a moby of the game's table, and past the table's end the game cannot make one.
+inline constexpr int kLivePickupsMost = 96;
+
 // The "bolt_scaling" setting.
 enum class BoltScaling : std::uint8_t {
     Off,       // the game's drops as they are
@@ -102,6 +111,12 @@ float drop_scale(int cycle, BoltScaling scaling, std::int32_t base);
 // Returns how many more coins than the game's limit a drop of an enemy of `toughness` may hold:
 // kExtraCoins per x1 of it, rounded.
 int extra_coins(float toughness);
+
+// Returns how many coins a burst may make: the game's own limit `limit` (negative for none), at most
+// `burst_most`, and at most the room left for pickups (`live_most` less the `live` ones alive, 0
+// when none). Never negative. What the budget leaves out of a drop is paid at once, so a smaller
+// budget folds the same bolts into fewer, bigger coins (split takes the most valuable first).
+int coin_budget(int limit, int live, int burst_most, int live_most);
 
 // Returns the fraction of a drop paid in platinum in cycle `cycle` at a kill streak of `streak`
 // (1 to 20; 0 counts as 1): none up to cycle 1, then from the run's least at x1 to its most at x20.
