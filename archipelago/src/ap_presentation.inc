@@ -1,5 +1,6 @@
 #include "gold_case_prompt.h"
 #include "special_item_visual.h"
+#include "infobot_collection.h"
 
 /* Render-only Archipelago reward displays. Included after the location/game helpers. */
 static int take(int result, const char* point);
@@ -622,6 +623,18 @@ static uint32_t message_presentation(int32_t id) {
     const uint32_t original = s_message_string(id);
     if (!original || !s_visual_api || (ap_client_new_game_plus() < 0)) {
         return original;
+    }
+    const int collection_row = infobot_collection_row(id);
+    if (collection_row >= 0) {
+        char collected[192], message[224];
+        if ((ap_is_location(&rando_locations[collection_row])
+             || ap_client_npc_infobots() == 1)
+            && ap_client_location_hint(ap_location_id(&rando_locations[collection_row]),
+                                       collected, sizeof collected)) {
+            snprintf(message, sizeof message, "Collected %s", collected);
+            const uint32_t replacement = s_visual_api->guest_text(s_mod, message);
+            return replacement ? replacement : original;
+        }
     }
     const char* text = (const char*)OPENRAC_G(s_api, original);
     const uint32_t game_mode = strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;

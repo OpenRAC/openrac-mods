@@ -1,5 +1,6 @@
 #include "gold_case_prompt.h"
 #include "special_item_visual.h"
+#include "infobot_collection.h"
 
 /* Render-only seeded item-randomizer reward displays. Included after the location/game helpers. */
 static int take(int result, const char* point);
@@ -664,6 +665,18 @@ static uint32_t message_presentation(int32_t id) {
     const uint32_t original = s_message_string(id);
     if (!original || !s_visual_api || (reward_ready() < 0)) {
         return original;
+    }
+    const int collection_row = infobot_collection_row(id);
+    if (collection_row >= 0) {
+        char collected[192], message[224];
+        int64_t reward_id;
+        int same_game;
+        if (s_plan.shuffled[collection_row] && presentation_reward(collection_row,
+                &reward_id, &same_game, collected, sizeof collected)) {
+            snprintf(message, sizeof message, "Collected %s", collected);
+            const uint32_t replacement = s_visual_api->guest_text(s_mod, message);
+            return replacement ? replacement : original;
+        }
     }
     const char* text = (const char*)OPENRAC_G(s_api, original);
     const uint32_t game_mode = strcmp(s_disc->version, "pal") == 0 ? 0x15F6A8u : 0x15F5C4u;

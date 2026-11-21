@@ -800,6 +800,12 @@ void serve(socket_t listener) {
                                     {{"location", location_id(LOC_INFOBOT, LEVEL_KERWAN, 3)},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", ap_npc_id(3)},
+                                     {"item", AP_BASE + AP_PLANET_OFFSET + LEVEL_ARIDIA},
+                                     {"player", 1}},
+                                    {{"location", ap_npc_id(0)},
+                                     {"item", 7},
+                                     {"player", 2}},
                                     {{"location", ap_gold_case_id(ITEM_PYROCITOR)},
                                      {"item", AP_BASE + AP_GOLD_BOLT_OFFSET},
                                      {"player", 1}},
@@ -1441,6 +1447,11 @@ int main(int argc, char** argv) {
         put(pool_pointer, 0);
         auto dialog = (int (*)(uint32_t, uint32_t))replacement("rac1.npc.try_dialog");
         auto message = (uint32_t (*)(int))replacement("rac1.text.msg_string");
+        // Blarg's queued Rilgar message names the randomized coordinates, even elsewhere.
+        set_level(LEVEL_RILGAR);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x177B)))) == "Collected Aridia Coordinates");
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3F1)))).find("Collected ") == 0);
+        CHECK(std::string(reinterpret_cast<const char*>(at(message(0x3F1)))).find(" for ") != std::string::npos);
         const int16_t helga_class = 0x37A;
         std::memcpy(at(0x1800000 + 0xA6), &helga_class, 2);
         set_level(LEVEL_KERWAN);

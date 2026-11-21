@@ -365,6 +365,21 @@ int main(int argc, char** argv) {
     char code[RANDO_CODE_SIZE];
     rando_encode(&settings, code);
     set_tag_word(rando_seed_tag(code));
+    /* Collection messages resolve the canonical reward even after shuttle travel. */
+    {
+        uint32_t (*message)(int) = (uint32_t (*)(int))hook_named("rac1.text.msg_string");
+        const int blarg = rando_npc_row(3);
+        CHECK(blarg >= 0 && plan.shuffled[blarg]);
+        char label[160], expected[192];
+        rando_reward r = plan.reward[blarg];
+        if (r.kind == REWARD_PLANET) snprintf(label, sizeof label, "%s Coordinates", rando_planet_name(r.value));
+        else if (r.kind == REWARD_GOLD_BOLT) snprintf(label, sizeof label, "Gold Bolt");
+        else rando_reward_name(r, label, sizeof label);
+        snprintf(expected, sizeof expected, "Collected %s", label);
+        set32(s_memory + D->level, LEVEL_RILGAR);
+        CHECK(strcmp((char*)s_memory + message(0x177B), expected) == 0);
+        CHECK(strcmp((char*)s_memory + message(0x7FFF), "Buy Infobot for 500 bolts") == 0);
+    }
     /* Every coordinate can already be owned without spending its NPC check. */
     memset(s_memory + D->planets, 1, LEVEL_COUNT);
     for (int i = 0; i < 13; ++i) {
