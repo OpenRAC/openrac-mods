@@ -123,10 +123,10 @@ static void apply_place(void) {
     }
 }
 
+static int test_world;
 static int no_mobys(openrac_moby* rows, int n) {
-    (void)rows;
-    (void)n;
-    return 0;
+    if (test_world && rows && n > 0) { memset(rows,0,sizeof *rows);rows[0].size=sizeof *rows;rows[0].slot=0; }
+    return test_world;
 }
 
 static void original_initialize(void) {
@@ -365,6 +365,31 @@ int main(int argc, char** argv) {
     char code[RANDO_CODE_SIZE];
     rando_encode(&settings, code);
     set_tag_word(rando_seed_tag(code));
+    /* Both Blarg reward props use their canonical randomized model, including scenes. */
+    {
+        const uint32_t moby=0x180000, vars=0x181000;
+        const uint32_t table=!strcmp(D->version,"pal")?0x179BC0u:0x179AC0u;
+        for(int item=0;item<RANDO_ITEM_COUNT;++item) set32(s_memory+table+item*0x4C+0x10,0x600+item);
+        set32(s_memory+pool_word(),moby);set32(s_memory+D->level,LEVEL_BLARG);
+        set32(s_memory+moby+MOBY_PVARS,vars);set32(s_memory+vars+INFOBOT_PLANET,LEVEL_RILGAR);
+        s_memory[moby+MOBY_MISSION]=15; // a spawned infobot need not carry canonical mission 0
+        test_world=1;
+        for(int prop=0;prop<2;++prop){
+            const int16_t cls=prop?750:1016;memcpy(s_memory+moby+0xA6,&cls,2);
+            int row=prop?rando_npc_row(3):location_of(LOC_GIVE,LEVEL_BLARG,ITEM_HYDRODISPLACER);
+            CHECK(row>=0&&plan.shuffled[row]);rando_reward reward=plan.reward[row];
+            char label[160];rando_reward_name(reward,label,sizeof label);int icon,frame;
+            int expected=special_item_visual(label,&icon,&frame);
+            if(expected<0) expected=reward.kind==REWARD_PLANET?750:
+                reward.kind==REWARD_ITEM?(reward.value==ITEM_HELI_PACK?607:0x600+reward.value):
+                reward.kind==REWARD_GOLD_WEAPON?0x5B0+rando_gold_index(reward.value):1134;
+            for(int scene=0;scene<2;++scene){
+                s_phase=scene?OPENRAC_PLAY_SCENE:OPENRAC_PLAY_PLAYING;s_frame(NULL);
+                CHECK(expected==cls?visual_count==0:visual_count==1&&visual_rows[0].moby==moby&&visual_rows[0].oclass==expected);
+            }
+        }
+        test_world=0;set32(s_memory+pool_word(),0);s_phase=OPENRAC_PLAY_PLAYING;
+    }
     /* Every coordinate can already be owned without spending its NPC check. */
     memset(s_memory + D->planets, 1, LEVEL_COUNT);
     for (int i = 0; i < 13; ++i) {

@@ -680,6 +680,7 @@ static int aridia_reward_collected(void) {
 
 static int blarg_o2_access_active(void) { return kerwan_randomizer_active(); }
 #include "blarg_access.inc"
+#include "pickup_platforms.inc"
 
 
 static void bob_update(openrac_gaddr moby) {
@@ -1584,7 +1585,7 @@ static int install_hooks(void) {
         s_mod, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent, OPENRAC_RAC1_SIG_GoldBolts_CountUnspent,
         (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
     s_gold_hook_warned = 0;
-    if (!aridia_access_hooks() || !blarg_access_hooks() || !presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
+    if (!aridia_access_hooks() || !blarg_access_hooks() || !pickup_platform_hooks() || !presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
     /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
      * the NPC reward text itself; otherwise that text takes them on its own. */
     if (!s_presentation_text) npc_reward_text_hooks();

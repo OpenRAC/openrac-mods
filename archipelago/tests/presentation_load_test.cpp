@@ -800,6 +800,10 @@ void serve(socket_t listener) {
                                     {{"location", location_id(LOC_INFOBOT, LEVEL_KERWAN, 3)},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", ap_npc_id(3)},
+                                     {"item", AP_BASE + ITEM_DEVASTATOR}, {"player", 1}},
+                                    {{"location", location_id(LOC_GIVE, LEVEL_BLARG, ITEM_HYDRODISPLACER)},
+                                     {"item", AP_BASE + ITEM_DEVASTATOR}, {"player", 1}},
                                     {{"location", ap_gold_case_id(ITEM_PYROCITOR)},
                                      {"item", AP_BASE + AP_GOLD_BOLT_OFFSET},
                                      {"player", 1}},
@@ -933,7 +937,7 @@ int main(int argc, char** argv) {
         api.pickup_animation = acquisition_request;
     }
     CHECK(load(ap_visual_base(&api), reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_acquisition_mode ? 57 : g_visual_mode ? 49 : 42) && g_frame != nullptr);
+    CHECK(g_hooks == (g_acquisition_mode ? 59 : g_visual_mode ? 51 : 44) && g_frame != nullptr);
     CHECK(replacement("rac1.moby.moby743.update") != nullptr);
     CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
@@ -1349,6 +1353,23 @@ int main(int argc, char** argv) {
         CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [](const auto& v) {
             return v.moby == 0x1800000 && v.oclass == 0x2EE;
         }));
+        // Blarg world pickup and shuttle infobot render the actual reward, also during scenes.
+        set_level(LEVEL_BLARG);
+        const uint32_t blarg_model_table=std::strcmp(D->version,"pal")==0?0x179BC0u:0x179AC0u;
+        const int previous_blarg_model=get(blarg_model_table+ITEM_DEVASTATOR*0x4C+0x10);
+        put(blarg_model_table+ITEM_DEVASTATOR*0x4C+0x10,0x602);
+        put(0x1800000+0x78,0x1810000);put(0x1810000+4,LEVEL_RILGAR);
+        *at(0x1800000+0xB0)=15;
+        for(int cls:{1016,750}){
+            const int16_t c=static_cast<int16_t>(cls);std::memcpy(at(0x1800000+0xA6),&c,2);
+            for(int phase:{OPENRAC_PLAY_PLAYING,OPENRAC_PLAY_SCENE}){
+                g_play_phase=phase;g_frame(g_frame_user);
+                CHECK(std::any_of(g_visuals.begin(),g_visuals.end(),[](const auto& v){return v.moby==0x1800000&&v.oclass==0x602;}));
+            }
+        }
+        put(blarg_model_table+ITEM_DEVASTATOR*0x4C+0x10,previous_blarg_model);
+        g_play_phase=OPENRAC_PLAY_PLAYING;set_level(LEVEL_NOVALIS);
+        std::memcpy(at(0x1800000+0xA6),&bolt_class,2);put(0x1810000,0);
         // Real Novalis Gold Bolts occupy slots 958-960, beyond the old 512 cap.
         const uint32_t model_table = std::strcmp(D->version, "pal") == 0 ? 0x179BC0u : 0x179AC0u;
         put(model_table + ITEM_BLASTER * 0x4C + 0x10, 0x600);

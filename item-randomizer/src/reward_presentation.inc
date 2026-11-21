@@ -234,6 +234,15 @@ static int64_t moby_location(uint32_t moby) {
         const int row = find_presentation_location(LOC_GOLD, level, key);
         return row >= 0 ? reward_location_id(&rando_locations[row]) : -1;
     }
+    if (cls == 750 && vars && level == LEVEL_BLARG
+        && i32_at(vars + INFOBOT_PLANET) == LEVEL_RILGAR) {
+        for (size_t i = 0; i < rando_location_count; ++i) {
+            const rando_location *l = &rando_locations[i];
+            if (l->kind == LOC_FIXED && l->level == LEVEL_BLARG
+                && l->vanilla.kind == REWARD_PLANET && l->vanilla.value == LEVEL_RILGAR)
+                return reward_location_enabled(l) ? reward_location_id(l) : -1;
+        }
+    }
     if (cls == 0x2EE && vars) {
         const int mission = OPENRAC_GREF(s_api, uint8_t, moby + MOBY_MISSION);
         const int row = mission < TRIGGER_SLOTS && level >= 0 && level < LEVEL_COUNT
@@ -267,7 +276,7 @@ static int64_t moby_location(uint32_t moby) {
             && (presentation_class(l->vanilla.value) == cls
                 || (level == LEVEL_EUDORA && l->key == ITEM_SUCK_CANNON && cls == 1120)
                 || (level == LEVEL_ARIDIA && l->key == ITEM_TRESPASSER && cls == 1005)
-                || (level == LEVEL_RILGAR && l->key == ITEM_HYDRODISPLACER && cls == 1016)
+                || (level == LEVEL_BLARG && l->key == ITEM_HYDRODISPLACER && cls == 1016)
                 || (level == LEVEL_ORXON && l->key == ITEM_MAGNEBOOTS && cls == 18)
                 || (level == LEVEL_OLTANIS && l->key == ITEM_MORPH_O_RAY && cls == 1354)
                 || (level == LEVEL_QUARTU && l->key == ITEM_BOLT_GRABBER && cls == 1388))
@@ -436,7 +445,7 @@ static void presentation_tick(int phase) {
             level_byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x00160098u : 0x0015FFD8u)
         );
         /* Inventory and cutscene models can reuse world classes and addresses. */
-        for (int i = 0; phase == OPENRAC_PLAY_PLAYING && pool && i < n; ++i) {
+        for (int i = 0; pool && i < n; ++i) {
             if (mobys[i].slot < 0 || (mobys[i].flags & OPENRAC_MOBY_DEAD)) {
                 continue;
             }
@@ -445,6 +454,9 @@ static void presentation_tick(int phase) {
                 continue;
             }
             const uint32_t moby = (uint32_t)address;
+            const int cls = OPENRAC_GREF(s_api, int16_t, moby + 0xA6);
+            const int blarg_reward = current_level() == LEVEL_BLARG && (cls == 1016 || cls == 750);
+            if (phase != OPENRAC_PLAY_PLAYING && !(phase == OPENRAC_PLAY_SCENE && blarg_reward)) continue;
             const int64_t location = moby_location(moby);
             if (location >= 0) {
                 add_visual(moby, location, 1.0f);
