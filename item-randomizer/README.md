@@ -440,3 +440,18 @@ existing format and has no Items option.
 New Game+ confirmations and Going Commando reward notices clear after three
 seconds (150 PAL or 180 NTSC ticks). Vendor and gold-case hints stay visible
 while the interaction refreshes them, then clear when you leave.
+
+### Return to ship
+
+In the launcher, **Return to ship buttons** chooses a local controller shortcut for RAC1.
+The default is `L1+R1+L2+R2+Start`: hold all four shoulder buttons, then press Start.
+The last button is the trigger; all earlier buttons must already be held. For example,
+`L3+Select` holds L3 and presses Select. Use `Off` to disable the shortcut.
+
+The shortcut returns through the current planet's ship-arrival sequence, preserving
+collected rewards and inventory. It works during Ratchet gameplay, including a rail or
+vehicle ride, and is disabled in menus, cutscenes, while dead, or while playing as Clank.
+The trigger press is consumed until release so the default does not also pause the game.
+
+On Novalis, the ship is available before completing its normal quest. The quest’s
+randomized reward remains available separately; this grants no extra coordinates.

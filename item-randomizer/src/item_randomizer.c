@@ -1170,6 +1170,9 @@ static void o2_pickup_update(openrac_gaddr moby) {
 /* Kerwan links are valid only for the game load that supplied them. */
 static int kerwan_randomizer_active(void) { return rando_on(); }
 #include "kerwan_access.inc"
+static int return_ship_active(void) { return rando_on(); }
+#include "return_ship.inc"
+#include "novalis_ship.inc"
 
 static int aridia_reward_collected(void) {
     const int loc = s_by_item[ITEM_TRESPASSER];
@@ -1781,6 +1784,8 @@ static void each_tick(void* user) {
     int reward_phase = play_phase(&reward_load);
     acquisition_tick(reward_phase, reward_load);
     presentation_tick(reward_phase);
+    novalis_ship_tick(reward_phase, reward_load);
+    return_ship_tick(reward_phase, reward_load);
 
     // Confirmations expire after three seconds; interaction hints refresh a short lease.
     if (s_hint_showing > 0 && --s_hint_showing == 0) {
@@ -2282,6 +2287,8 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
             return 1;
         }
 
+        novalis_ship_init();
+        return_ship_init();
         api->on_frame(mod, each_tick, NULL);
     }
 
