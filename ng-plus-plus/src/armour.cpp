@@ -58,6 +58,22 @@ void Armour::hurt(std::int32_t amount) {
     }
 }
 
+std::int32_t Armour::spare(std::int32_t points) {
+    const ArmourPerk perk = armour_perk(tier());
+    const std::int32_t health = m_view.hero_health();
+
+    // No last stand at this tier, not ready, a heal, or a hit he lives through.
+    if (perk.last_stand_ticks <= 0 || m_tick < m_last_stand_ready || points <= 0 || health <= 1
+        || points < health) {
+        return points;
+    }
+
+    m_last_stand_ready = m_tick + static_cast<std::uint32_t>(perk.last_stand_ticks);
+    m_mod.info("last stand: the armour kept Ratchet at 1 point");
+    m_mod.api().play_notice(m_mod.handle(), "Last stand!");
+    return health - 1;
+}
+
 void Armour::tick(std::uint32_t tick) {
     m_tick = tick;
     const int level = m_view.loaded_level();

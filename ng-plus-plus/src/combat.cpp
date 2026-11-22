@@ -178,8 +178,12 @@ void Combat::take_damage(openrac::Original<void(std::int32_t)> original, std::in
         scale *= m_armour->damage_scale();
     }
 
-    // A heal or nothing to scale: the game's own.
+    // A heal or nothing to scale: the game's own (the armour's last stand first).
     if (amount <= 0 || scale == 1.0f) {
+        if (m_armour != nullptr) {
+            amount = m_armour->spare(amount);
+        }
+
         original(amount);
 
         if (m_armour != nullptr) {
@@ -193,11 +197,12 @@ void Combat::take_damage(openrac::Original<void(std::int32_t)> original, std::in
     const float exact = static_cast<float>(amount) * scale + m_damage_carry;
     const auto points = static_cast<std::int32_t>(exact);
     m_damage_carry = exact - static_cast<float>(points);
-    original(points);
+    const std::int32_t dealt = m_armour != nullptr ? m_armour->spare(points) : points;
+    original(dealt);
 
     // The armour's thorns and last stand.
     if (m_armour != nullptr) {
-        m_armour->hurt(points);
+        m_armour->hurt(dealt);
     }
 }
 

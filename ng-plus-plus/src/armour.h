@@ -60,6 +60,11 @@ public:
     // After a hit of `amount` points on the hero: the thorns and the last stand.
     void hurt(std::int32_t amount);
 
+    // Before a hit of `points` on the hero: the last stand, when it is ready and the hit would end
+    // him, takes it down to leave him 1 point (so the game never starts his death). Returns the
+    // points to deal.
+    std::int32_t spare(std::int32_t points);
+
     // Once a game tick: the hero's glow.
     void tick(std::uint32_t tick);
 
