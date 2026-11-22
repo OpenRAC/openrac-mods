@@ -193,6 +193,10 @@ inline constexpr std::uint32_t kHitDamage = 0x1Cu;  // f32: the damage.
 // A moby's class, u16 (moby +0xAA: what the game's update dispatch and the ammo pickup key on).
 inline constexpr std::uint32_t kMobyClass = 0xAAu;
 
+// The hero moby's class while the player is Clank (Aranos Prison and the other Clank sections;
+// Ratchet's is another): what the port's rac2 profile keys Clank's shadow on.
+inline constexpr int kClankHeroClass = 87;
+
 // A moby class whose hits are one weapon's, and that weapon's item.
 struct HitSource {
     std::uint16_t moby_class;  // The source moby's class.

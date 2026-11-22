@@ -24,7 +24,18 @@ class SpaceMissions;
 struct EnemySettings {
     bool scaling = true;    // The "enemy_scaling" setting: the curve is on.
     float strength = 1.0f;  // The "enemy_strength" setting: times what the curve adds.
+    bool gentle_clank = true;  // The "gentle_clank" setting: Clank takes at most a point a hit.
 };
+
+// The most points a hit takes off Clank while he is the hero (Aranos Prison and the other Clank
+// sections), with the "gentle_clank" setting on: he has four and only his punch, so the scaled
+// hits of the challenge modes (two points each) made swarms of enemies impossible.
+inline constexpr std::int32_t kClankMostHit = 1;
+
+// Returns the points a hit of `points` takes off the hero: at most kClankMostHit when `clank`.
+inline std::int32_t hero_hit(std::int32_t points, bool clank) {
+    return clank && points > kClankMostHit ? kClankMostHit : points;
+}
 
 // The fights.
 //

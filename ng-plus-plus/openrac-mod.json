@@ -111,6 +111,14 @@
       "description": "Multiplies how much tougher enemies get: 1 as in the README's table, 0.5 half as much, 2 twice as much."
     },
     {
+      "key": "gentle_clank",
+      "multiplayer": "host",
+      "name": "Gentler Clank sections",
+      "type": "bool",
+      "default": true,
+      "description": "While you play as Clank (Aranos Prison and the other Clank sections), every hit takes at most one of his four health points, after the challenge modes' tougher enemies and modifiers: he only has his punch, and with two points a hit swarms could not be beaten. Ratchet is not affected. Off: Clank takes the scaled hits too."
+    },
+    {
       "key": "bolt_scaling",
       "multiplayer": "host",
       "name": "Bolt scaling",

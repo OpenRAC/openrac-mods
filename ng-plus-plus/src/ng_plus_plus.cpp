@@ -216,6 +216,7 @@ EnemySettings NgPlusPlus::enemy_settings(const openrac::Mod& mod) {
     EnemySettings settings;
     settings.scaling = mod.setting<bool>("enemy_scaling");
     settings.strength = mod.setting<float>("enemy_strength");
+    settings.gentle_clank = mod.setting<bool>("gentle_clank");
     return settings;
 }
 

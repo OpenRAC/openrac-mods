@@ -178,12 +178,17 @@ void Combat::take_damage(openrac::Original<void(std::int32_t)> original, std::in
         scale *= m_armour->damage_scale();
     }
 
+    // Clank as the hero: at most a point a hit, after the scaling and the modifiers.
+    const bool clank =
+        m_enemies.gentle_clank && view.moby_class(view.hero_moby()) == kClankHeroClass;
+
     // A heal or nothing to scale: the game's own (the armour's last stand first).
     if (amount <= 0 || scale == 1.0f) {
         if (m_armour != nullptr) {
             amount = m_armour->spare(amount);
         }
 
+        amount = hero_hit(amount, clank);
         original(amount);
 
         if (m_armour != nullptr) {
@@ -197,7 +202,8 @@ void Combat::take_damage(openrac::Original<void(std::int32_t)> original, std::in
     const float exact = static_cast<float>(amount) * scale + m_damage_carry;
     const auto points = static_cast<std::int32_t>(exact);
     m_damage_carry = exact - static_cast<float>(points);
-    const std::int32_t dealt = m_armour != nullptr ? m_armour->spare(points) : points;
+    const std::int32_t spared = m_armour != nullptr ? m_armour->spare(points) : points;
+    const std::int32_t dealt = hero_hit(spared, clank);
     original(dealt);
 
     // The armour's thorns and last stand.

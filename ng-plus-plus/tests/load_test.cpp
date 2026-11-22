@@ -576,6 +576,7 @@ bool g_extra_enemies = true;
 
 int setting_bool(openrac_mod* /*mod*/, const char* key) {
     return std::strcmp(key, "notices") == 0 || std::strcmp(key, "enemy_scaling") == 0
+           || std::strcmp(key, "gentle_clank") == 0
            || (std::strcmp(key, "extra_enemies") == 0 && g_extra_enemies);
 }
 
@@ -1392,10 +1393,29 @@ void test_tint_damage_and_enemies() {
 
     CHECK(g_taken == 5);
 
+    // Clank as the hero (class 87): every hit at most one point, scaled or not; a heal as it is.
+    // Ratchet again: the scaled hits.
+    set<std::uint16_t>(kMobyHero + kMobyClass, static_cast<std::uint16_t>(kClankHeroClass));
+    g_taken = 0;
+    hooked<rac2::Hero_TakeDamage>()(3);
+    CHECK(g_taken == 1);
+    hooked<rac2::Hero_TakeDamage>()(1);
+    CHECK(g_taken == 2);
+    hooked<rac2::Hero_TakeDamage>()(-2);
+    CHECK(g_taken == 0);
+    set<std::uint16_t>(kMobyHero + kMobyClass, 0);
+    g_taken = 0;
+    hooked<rac2::Hero_TakeDamage>()(3);
+    CHECK(g_taken > 3);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
     g_taken = 0;
     hooked<rac2::Hero_TakeDamage>()(3);
     CHECK(g_taken == 3);
+    set<std::uint16_t>(kMobyHero + kMobyClass, static_cast<std::uint16_t>(kClankHeroClass));
+    g_taken = 0;
+    hooked<rac2::Hero_TakeDamage>()(3);
+    CHECK(g_taken == 1);
+    set<std::uint16_t>(kMobyHero + kMobyClass, 0);
 }
 
 // Lays the level's moby table out over `classes` (0 for a dead slot), one moby each from
