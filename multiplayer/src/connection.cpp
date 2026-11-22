@@ -661,39 +661,4 @@ void Connection::serve(std::intptr_t handle) {
     }
 }
 
-bool parse_address(const std::string& text, std::string& host, int& port) {
-    port = kDefaultPort;
-    std::string rest = text;
-    std::string port_text;
-
-    // "[v6]:port" or "[v6]".
-    if (!rest.empty() && rest.front() == '[') {
-        const auto close = rest.find(']');
-
-        // An opening bracket alone is no address.
-        if (close == std::string::npos) {
-            return false;
-        }
-
-        host = rest.substr(1, close - 1);
-        port_text = close + 1 < rest.size() && rest[close + 1] == ':' ? rest.substr(close + 2) : "";
-    } else if (const auto colon = rest.rfind(':');
-               colon != std::string::npos && rest.find(':') == colon) {
-        // "host:port": one colon (more is a bare IPv6 address).
-        host = rest.substr(0, colon);
-        port_text = rest.substr(colon + 1);
-    } else {
-        host = rest;
-    }
-
-    // A port of digits from 1 to 65535; anything else keeps the default.
-    if (!port_text.empty() && port_text.size() <= 5
-        && port_text.find_first_not_of("0123456789") == std::string::npos) {
-        const int p = std::stoi(port_text);
-        port = p >= 1 && p <= 65535 ? p : kDefaultPort;
-    }
-
-    return !host.empty();
-}
-
 }  // namespace mp
