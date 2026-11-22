@@ -97,7 +97,7 @@ def build(geo, signs, posters, art=None):
     for r, count in ((6, 8), (17, 16), (27, 16), (37, 24), (R_DECK - 0.8, 32)):
         for k in range(count):
             p = C2 + ang(360 * k / count + 11.25) * r
-            geo.cylinder("om_planks_dark", (p[0], p[1]), 0.75, island.SEA - 8, F0 - 0.4, 8)
+            geo.cylinder("om_planks_dark", (p[0], p[1]), 0.75, float(island.height(p[0], p[1])) - 1.5, F0 - 0.4, 8)
     for s in range(8):
         trap(geo, "om_planks_light", s, 0.01, R_DECK, F0, thick=0.6)
     deck_railing(geo)

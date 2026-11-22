@@ -92,40 +92,11 @@ def disc(geo, material, centre, radius, z, sides=20, glow=None):
         geo.mesh.add(material, p, [[0, 0, 1]] * 3, uv, [glow or [0.6, 0.6, 0.6]] * 3, [[0, 1, 2]])
 
 
-def tower_legs(geo, x, y, z, half, legs=4, yaw=0.0, splay=0.16):
-    """Legs that stand on the ground under a top at Z: splayed out towards the foot, braced by
-    rings of beams and crossed between them, so a tall support reads as built, not a stick."""
-    ground = float(island.height(x, y))
-    foot = min(ground, SEA) - 1.5
-    height = z - foot
-    if height <= 0.5:
-        return
-    corners = []
-    for k in range(legs):
-        a = math.radians(yaw + 45 + 360 * k / legs)
-        d = np.array([math.cos(a), math.sin(a)])
-        top = np.array([x, y]) + d * half
-        bottom = np.array([x, y]) + d * (half + height * splay)
-        corners.append((top, bottom))
-        geo.beam("om_planks_dark", (*bottom, foot), (*top, z), 0.42)
-    rings = max(1, int(height // 7))
-    for r in range(rings + 1):
-        t = r / rings
-        ring = [b + (tp - b) * t for tp, b in corners]
-        zz = foot + height * t
-        if zz < SEA - 0.5:
-            continue
-        for k in range(legs):
-            geo.beam("om_planks_dark", (*ring[k], zz), (*ring[(k + 1) % legs], zz), 0.22)
-            if r < rings:
-                nxt = [b + (tp - b) * ((r + 1) / rings) for tp, b in corners]
-                geo.beam("om_planks", (*ring[k], zz), (*nxt[(k + 1) % legs], foot + height * (r + 1) / rings), 0.16)
-
-
 def pole_raft(geo, centre, z, size=3.2):
-    """A small square raft on braced legs: a landing between two swings."""
+    """A small square raft on a pole: a landing between two swings. The pole stands on the ground
+    or the sea floor (clear water shows a pole that stops short)."""
     x, y = centre
-    tower_legs(geo, x, y, z - 0.5, size * 0.8)
+    geo.cylinder("om_planks_dark", (x, y), 0.45, float(island.height(x, y)) - 1.5, z - 0.4, 8)
     geo.box("om_planks_light", (x - size, y - size, z - 0.5), (x + size, y + size, z))
     geo.box("om_gold", (x - size - 0.1, y - size - 0.1, z - 0.7), (x + size + 0.1, y + size + 0.1, z - 0.5), solid=False)
 
@@ -251,7 +222,10 @@ def platform(geo, centre, z, half, legs=True, rail=True, gaps=()):
             for sy in (-1, 1):
                 gx, gy = x + sx * (half - 0.6), y + sy * (half - 0.6)
                 g = float(island.height(gx, gy))
-                geo.box("om_planks_dark", (gx - 0.5, gy - 0.5, min(g, SEA) - 2), (gx + 0.5, gy + 0.5, z - 0.5))
+                cut = max(g - 1.5, SEA - 2)    # solid only where the hero can meet it
+                geo.box("om_planks_dark", (gx - 0.5, gy - 0.5, cut), (gx + 0.5, gy + 0.5, z - 0.5))
+                if cut > g - 1.5:
+                    geo.box("om_planks_dark", (gx - 0.5, gy - 0.5, g - 1.5), (gx + 0.5, gy + 0.5, cut), solid=False)
     if rail:
         edges = [((x - half, y - half), (x + half, y - half), "s"), ((x + half, y - half), (x + half, y + half), "e"),
                  ((x + half, y + half), (x - half, y + half), "n"), ((x - half, y + half), (x - half, y - half), "w")]
@@ -268,15 +242,8 @@ def rail_model(geo, points, post_every=8, solid_posts=False):
         geo.beam("om_rail", a, b, 0.35)
     for k in range(0, len(points), post_every):
         p = np.asarray(points[k], float)
-        q = np.asarray(points[min(k + 1, len(points) - 1)], float) - np.asarray(points[max(k - 1, 0)], float)
-        yaw = math.degrees(math.atan2(q[1], q[0]))
         g = float(island.height(p[0], p[1]))
-        if p[2] - min(g, SEA) < 6:
-            geo.beam("om_planks_dark", (p[0], p[1], min(g, SEA) - 2), (p[0], p[1], p[2] - 0.3), 0.45, solid=solid_posts)
-        else:
-            # A tall support: a braced trestle standing on the ground, a cap under the rail.
-            tower_legs(geo, p[0], p[1], p[2] - 0.4, 0.9, yaw=yaw)
-            geo.box("om_planks_dark", (p[0] - 1.1, p[1] - 1.1, p[2] - 0.8), (p[0] + 1.1, p[1] + 1.1, p[2] - 0.3), solid=False)
+        geo.beam("om_planks_dark", (p[0], p[1], g - 1.5), (p[0], p[1], p[2] - 0.3), 0.45, solid=solid_posts)
 
 
 def build(geo: Geo, pictures, mats):
@@ -406,7 +373,7 @@ def build(geo: Geo, pictures, mats):
         p = rp(-95, 205 + k * 6, 0)
         geo.box("om_planks_light", (p[0] - 3, p[1] - 3, pier_z - 0.4), (p[0] + 3, p[1] + 3, pier_z))
         for s in (-1, 1):
-            geo.cylinder("om_planks_dark", (p[0] + s * 2.7, p[1]), 0.35, SEA - 8, pier_z + 1.0, 6)
+            geo.cylinder("om_planks_dark", (p[0] + s * 2.7, p[1]), 0.35, float(island.height(p[0] + s * 2.7, p[1])) - 1.5, pier_z + 1.0, 6)
     add_sign(geo, pictures, mats, "om_sign_pier", "OPEN MUSEUM", "this way to the house",
              (pier[0] + 4, pier[1] - 2, pier[2] + 2.8), 90)
 
