@@ -83,20 +83,45 @@ private:
     std::vector<Record> m_records;
 };
 
-// What the save's data the mod compares is: the bolts, and each item's experience and row.
+// What the save's data the mod compares is: the bolts and raritanium, and each item's experience
+// and row.
 struct SavePrint {
     std::int32_t bolts = 0;                  // The bolts the save holds.
+    std::int32_t raritanium = 0;             // Its raritanium (what the ship's tiers cost).
     std::array<std::int32_t, kItems> exp{};  // Each item's experience as the game keeps it, << 5.
     std::array<std::uint8_t, kItems> row{};  // Each item's row in the item table.
+
+    // Returns whether both prints hold the same data.
+    bool operator==(const SavePrint& other) const {
+        return bolts == other.bolts && raritanium == other.raritanium && exp == other.exp
+               && row == other.row;
+    }
+
+    bool operator!=(const SavePrint& other) const { return !(*this == other); }
 };
 
-// Returns how many of the bolts and the items (experience or row) differ between `a` and `b`.
+// Returns how many of the bolts and the items (experience or row) differ between `a` and `b` (the
+// raritanium left out: the clock's cases were weighed without it).
 int print_changes(const SavePrint& a, const SavePrint& b);
 
 // From this many changes in the tick the clock moved, the save's data was replaced: another save
 // was loaded. A save made changes nothing (the game is paused or between levels), or at most one
 // thing in the same tick.
 inline constexpr int kLoadChanges = 2;
+
+// Returns whether the tick from `before` to `now` loaded again the save the clock names, made or
+// loaded when its data was `saved` and its levels `saved_levels`: the clock stays as it was (the
+// game stamps a new one only as the next level starts), but the data, changed in this tick, is the
+// save's again to the last bolt, raritanium and point of experience, while the levels in play
+// (`live`) are no longer the save's. A purchase or a step never takes the data back to the save's,
+// so only a load does.
+bool is_reload(
+    const SavePrint& before,
+    const SavePrint& now,
+    const SavePrint& saved,
+    const LevelBytes& live,
+    const LevelBytes& saved_levels
+);
 
 // What the save's clock moving to a new value means.
 enum class ClockCase : std::uint8_t {

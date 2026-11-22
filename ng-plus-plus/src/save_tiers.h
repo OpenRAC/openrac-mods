@@ -5,6 +5,11 @@
 // experience yet, the party host's levels when a party gives them, and the book of saves kept in
 // the mod's data folder (tiers.txt), with the watch on the save's clock that tells which save's
 // tiers are in play (save_book.h has the rules).
+//
+// The tiers follow the saves as the game's own progress does: a step taken since the last save is
+// the game in progress's only, as the bolts it cost are; the book takes the tiers in play when the
+// game stamps the save's clock (a save, an autosave, a level's start), and a save loaded gets back
+// the tiers of its own clock, never later ones.
 
 #pragma once
 
@@ -67,7 +72,7 @@ public:
     // Returns whether a party host's levels are in play (a guest never steps its own).
     bool party_on() const { return m_party_on; }
 
-    // Takes item `item`'s next step and keeps it at once, so a restart loses nothing.
+    // Takes item `item`'s next step: the game in progress's, kept in the book at the next save.
     void step(int item);
 
 #ifdef NGPP_TEST_SETUP
@@ -114,8 +119,11 @@ private:
     // Brings in the levels of the save `clock` names; `now` is the save's data now.
     void clock_moved(const Clock& clock, const SavePrint& now, const GameView& view);
 
-    // Brings in the levels and started marks of the book's `record`.
-    void take_record(const Record& record);
+    // Brings in the levels and started marks of `levels`, as the book keeps them.
+    void take_levels(const LevelBytes& levels);
+
+    // Remembers the save the clock now names as it is now: its data `now` and the levels in play.
+    void mark_saved(const SavePrint& now);
 
     // Writes the book to the mod's data folder, through a new file put in the old one's place.
     void save_book() const;
@@ -137,6 +145,12 @@ private:
     bool m_from_nothing = true;  // No save's levels since load or the last zeros.
     SavePrint m_print;           // The save's data at the last tick.
     bool m_print_seen = false;   // m_print holds a tick's data.
+
+    // The save the clock names, as it was when the clock moved to it: its data and levels. The
+    // same save loaded again leaves the clock as it is and brings back this data (is_reload).
+    bool m_saved_known = false;
+    SavePrint m_saved_print;
+    LevelBytes m_saved_levels{};
 
     // The levels in play when the clock went to zeros, and the save's data then: challenge mode's
     // next game carries them on.

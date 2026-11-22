@@ -159,6 +159,8 @@ inline constexpr std::uint32_t kProgressCycle = 0x12u;
 // The bolts, s32 (+0x00, D_001A79F8 on NTSC-U v1.01), Tabora's crystals, s16 (+0x22, D_001A7A1A),
 // and Grelbin's moonstones, s32 (+0x24, D_001A7A1C), of the save block.
 inline constexpr std::uint32_t kProgressBolts = 0x00u;
+// The raritanium, s32 (+0x04: the Ship Shack's confirm takes its price from it).
+inline constexpr std::uint32_t kProgressRaritanium = 0x04u;
 // The hero's armour, s16 (g_player_stats +0x18: 0 none to 4, the best; AdjustPlayerHealth,
 // func_L00_002A4EF8, clamps it and scales each hit by g_player_damage_scale's entry for it).
 inline constexpr std::uint32_t kProgressArmour = 0x20u;

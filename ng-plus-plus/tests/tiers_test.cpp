@@ -758,6 +758,45 @@ void test_saves() {
     CHECK(verdict.record != nullptr && verdict.record->levels[29] == 0x82);
 }
 
+// Checks the save in play loaded again with its clock unchanged (is_reload): only a tick that takes
+// the data back to the save's, with levels no longer the save's, is one.
+void test_reload() {
+    SavePrint saved;
+    saved.bolts = 4'000'000;
+    saved.raritanium = 200;
+    saved.exp[kLancer] = 77 * kExpUnit;
+    saved.row[kLancer] = 80;
+    LevelBytes saved_levels{};
+    saved_levels[kLancer] = static_cast<std::uint8_t>(2u | kStartedBit);
+
+    // A tier bought: its price gone, its experience started again, a level up.
+    SavePrint bought = saved;
+    bought.bolts -= 2'250'000;
+    bought.exp[kLancer] = 0;
+    LevelBytes live = saved_levels;
+    live[kLancer] = static_cast<std::uint8_t>(3u | kStartedBit);
+
+    // The save loaded again: its data back in one tick.
+    CHECK(is_reload(bought, saved, saved, live, saved_levels));
+    // Nothing changed in the tick: not a load.
+    CHECK(!is_reload(saved, saved, saved, live, saved_levels));
+    // The levels still the save's: nothing to take back.
+    CHECK(!is_reload(bought, saved, saved, saved_levels, saved_levels));
+    // The data not the save's to the last bolt: not it.
+    SavePrint near = saved;
+    near.bolts += 1;
+    CHECK(!is_reload(bought, near, saved, live, saved_levels));
+    // The ship's tier, bought for raritanium alone: the raritanium tells.
+    SavePrint ship = saved;
+    ship.raritanium -= 80;
+    CHECK(ship != saved);
+    CHECK(is_reload(ship, saved, saved, live, saved_levels));
+    // A started mark alone counts as a change of the levels.
+    LevelBytes started = saved_levels;
+    started[kRyno] = kStartedBit;
+    CHECK(is_reload(bought, saved, saved, started, saved_levels));
+}
+
 }  // namespace
 
 // Checks the weapons' looks (weapon_visuals.h): every class names a weapon the tiers know, the
@@ -860,6 +899,7 @@ int main() try {
     test_book();
     test_book_keeps();
     test_saves();
+    test_reload();
     test_weapon_looks();
     return ng_plus_plus::test::result("ng_plus_plus_rules");
 } catch (...) {

@@ -149,7 +149,8 @@ Clock GameView::clock() const {
 
 SavePrint GameView::print() const {
     SavePrint print;
-    print.bolts = memory().read<std::int32_t>(at(m_disc.progress));
+    print.bolts = memory().read<std::int32_t>(at(m_disc.progress) + kProgressBolts);
+    print.raritanium = memory().read<std::int32_t>(at(m_disc.progress) + kProgressRaritanium);
 
     // All below the programs: the same words at the title and in every level.
     for (int item = 0; item < kItems; ++item) {

@@ -128,6 +128,8 @@ constexpr int kLancer = 30;
 constexpr int kLancerV2 = 60;
 constexpr int kLancerV3 = 79;
 constexpr int kLancerV4 = 80;
+// The Lancer's most ammo at Gamma (500 at V4, 50 more a tier).
+constexpr std::uint16_t kLancerGammaAmmo = 650;
 constexpr int kRyno = 44;
 
 // The game keeps experience times this (<< 5; seen in game code: g_weaponXp).
@@ -1389,6 +1391,7 @@ void test_tint_damage_and_enemies() {
     }
 
     CHECK(g_taken == 5);
+
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
     g_taken = 0;
     hooked<rac2::Hero_TakeDamage>()(3);
@@ -1618,10 +1621,30 @@ void test_in_hand_level_up() {
     set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
 }
 
-// Checks a restarted game (a new version of the mod): the steps bought since the last save were
-// kept at once, so the save loaded has them, at the title where its own clock shows before its
-// level starts, and after the game stamps a new one; then a new game has none.
-void test_a_restart_keeps_the_steps(openrac_mod_load_fn load) {
+// Buys the Lancer's Gamma at the vendor, taking its price from the bolts as the game does, and
+// checks its most ammo.
+void buy_lancer_gamma() {
+    hooked<rac2::Vendor_BuildList>()(0);
+    set_cursor(upgrade_place(kLancer));
+    std::int32_t money = 100'000'000;
+    const std::int32_t price = purchase(money);
+    CHECK(price > 0);
+    set<std::int32_t>(g_disc->progress, get<std::int32_t>(g_disc->progress) - price);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == kLancerGammaAmmo);
+}
+
+// Checks a restarted game (a new version of the mod): the steps saved are kept, so the save loaded
+// has them, at the title where its own clock shows before its level starts, and after the game
+// stamps a new one; a step bought after the last save is gone, as the bolts it cost come back with
+// the save; then a new game has none.
+void test_a_restart_keeps_the_saved_steps(openrac_mod_load_fn load) {
+    // Saved after the RYNO II's Alpha (a new clock), then the Lancer's Gamma bought and not saved.
+    set<std::int32_t>(g_disc->progress, 9'000'000);
+    set_clock(0x30);
+    tick(1);
+    buy_lancer_gamma();
+
     // Twice: the second restart loads the clock the first one stamped.
     for (int restart = 0; restart < 2; ++restart) {
         CHECK(reload(load));
@@ -1634,12 +1657,14 @@ void test_a_restart_keeps_the_steps(openrac_mod_load_fn load) {
         CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);  // nothing yet
         g_level_now = -1;
         tick(1);
-        set_clock(restart == 0 ? 0x20 : 0x50);
+        set<std::int32_t>(g_disc->progress, 9'000'000);  // the save's bolts
+        set_clock(restart == 0 ? 0x30 : 0x50);
         tick(2);
         g_level_now = 1;
         set_clock(static_cast<std::uint8_t>(0x50 + restart));
         tick(1);
         CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+        CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);  // Beta: Gamma unsaved
     }
 
     // A new game after it: nothing; its first clock (the counter 0, the weapons gone) nothing
@@ -1737,6 +1762,126 @@ void test_saves_from_inside_a_level() {
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
+}
+
+// Puts save S's data in the game: A's, with its own bolts.
+void load_save_s(std::int32_t bolts) {
+    load_save_a();
+    set<std::int32_t>(g_disc->progress, bolts);
+}
+
+// Returns the Lancer's level byte in the book's record of the clock `first` (set_clock's), or -1.
+int booked_lancer(std::uint8_t first) {
+    const std::string text = file_text(g_dir / "tiers.txt");
+    char clock[17];
+    std::snprintf(
+        clock, sizeof clock, "%02x%02x%02x%02x%02x%02x%02x%02x", first, first + 1, first + 2,
+        first + 3, first + 4, first + 5, first + 6, first + 7
+    );
+    const std::size_t at = text.rfind(std::string(clock) + " ");
+
+    // No record of that clock.
+    if (at == std::string::npos) {
+        return -1;
+    }
+
+    const std::string hex = text.substr(at + 17 + 2 * static_cast<std::size_t>(kLancer), 2);
+    return static_cast<int>(std::strtol(hex.c_str(), nullptr, 16)) & 0x7F;
+}
+
+// Checks that the tiers follow the saves as the bolts do (0.5.2): a tier bought after the last save
+// is the game in progress's only, so another save loaded and this one loaded back (or this one
+// loaded again at once, its clock unchanged) has the tier gone with the bolts back; a tier bought
+// and saved stays with that save; two saves keep their own; a restart keeps what was saved.
+void test_tiers_follow_the_saves(openrac_mod_load_fn load) {
+    // Save S: A's tiers (the Lancer at Beta), saved with 4,000,000 bolts.
+    load_save_s(4'000'000);
+    set_clock(0x80);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
+    CHECK(booked_lancer(0x80) == 2);
+
+    // Bought, not saved: the book's record of S is as S was saved.
+    buy_lancer_gamma();
+    CHECK(booked_lancer(0x80) == 2);
+
+    // B loaded, then S loaded back: the Gamma gone, as the bolts it cost come back.
+    set_experience(kRyno, 0);
+    set_experience(kLancer, 0);
+    set<std::int32_t>(g_disc->progress, 123);
+    set_clock(0x61);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 500);
+    load_save_s(4'000'000);
+    set_clock(0x80);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);  // the RYNO II's Alpha kept
+
+    // Bought again, then S loaded again at once: the clock stays S's, its data comes back.
+    buy_lancer_gamma();
+    load_save_s(4'000'000);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
+    CHECK(g_log.find("the save in play loaded again") != std::string::npos);
+    // Its level starting stamps a new clock: S's tiers go on under it.
+    set_clock(0x81);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
+    CHECK(booked_lancer(0x81) == 2);
+
+    // Bought and saved as T: kept with T, through B and back.
+    buy_lancer_gamma();
+    const std::int32_t t_bolts = get<std::int32_t>(g_disc->progress);
+    set_clock(0x90);
+    tick(1);
+    CHECK(booked_lancer(0x90) == 3);
+    CHECK(booked_lancer(0x80) == 2);
+    set_experience(kRyno, 0);
+    set_experience(kLancer, 0);
+    set<std::int32_t>(g_disc->progress, 123);
+    set_clock(0x61);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 500);
+    load_save_s(t_bolts);
+    set_experience(kLancer, 0);  // the Gamma's purchase started its count again
+    set_clock(0x90);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == kLancerGammaAmmo);
+
+    // Two saves, each with its own: S at Beta, T at Gamma, either way round.
+    load_save_s(4'000'000);
+    set_clock(0x80);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
+    load_save_s(t_bolts);
+    set_experience(kLancer, 0);
+    set_clock(0x90);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == kLancerGammaAmmo);
+
+    // Saved and quit, the game started again: T loaded at the title has its Gamma.
+    CHECK(reload(load));
+    // A restarted game has the table as the disc has it.
+    set<std::int32_t>(row(kRyno) + kRowExpGoal, 0);
+    set<std::uint16_t>(row(kLancerV4) + kRowAmmoMax, 500);
+    set<std::uint16_t>(row(kRyno) + kRowAmmoMax, 100);
+    set_clock(0);
+    tick(1);
+    g_level_now = -1;
+    tick(1);
+    set_clock(0x90);
+    tick(2);
+    g_level_now = 1;
+    set_clock(0x91);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == kLancerGammaAmmo);
+
+    // S again for the tests after: the Lancer at Beta.
+    load_save_s(4'000'000);
+    set_clock(0x80);
+    tick(1);
+    CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
 }
 
 // Sets the challenge mode counter and the kill streak.
@@ -2597,9 +2742,10 @@ void run(const char* path, const Disc& disc, Host host) {
     test_weapon_visuals();
     test_ryno_heavy_and_kept();
     test_ryno_at_the_vendor();
-    test_a_restart_keeps_the_steps(load);
+    test_a_restart_keeps_the_saved_steps(load);
     test_each_save_has_its_own();
     test_saves_from_inside_a_level();
+    test_tiers_follow_the_saves(load);
     test_in_hand_level_up();
     test_ryno_to_ultima();
     test_kill_experience();

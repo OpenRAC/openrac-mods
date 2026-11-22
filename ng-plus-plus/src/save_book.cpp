@@ -171,6 +171,16 @@ int print_changes(const SavePrint& a, const SavePrint& b) {
     return changes;
 }
 
+bool is_reload(
+    const SavePrint& before,
+    const SavePrint& now,
+    const SavePrint& saved,
+    const LevelBytes& live,
+    const LevelBytes& saved_levels
+) {
+    return now != before && now == saved && live != saved_levels;
+}
+
 bool is_zero(const Clock& clock) {
     return std::all_of(clock.begin(), clock.end(), [](std::uint8_t byte) { return byte == 0; });
 }

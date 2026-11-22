@@ -117,13 +117,10 @@ int SaveTiers::level(int item) const {
 }
 
 void SaveTiers::step(int item) {
+    // The game in progress's only, as the bolts it cost: the book takes it when the game saves (a
+    // new clock), and a save loaded before then brings back its own levels.
     ++m_level[static_cast<std::size_t>(item)];
-
-    // Kept at once, not only at the next save: a restart (a new version of the mod) loses nothing.
-    // A guest's levels are the host's, never kept.
-    if (clock_known() && !m_party_on) {
-        keep(m_clock);
-    }
+    m_published = false;
 }
 
 LevelBytes SaveTiers::level_bytes() const {
@@ -208,6 +205,15 @@ void SaveTiers::watch(const GameView& view) {
         m_clock_seen = true;
         clock_moved(clock, now, view);
         m_published = false;
+    } else if (
+        m_saved_known && m_print_seen && !m_party_on
+        && is_reload(m_print, now, m_saved_print, level_bytes(), m_saved_levels)
+    ) {
+        // The save the clock names loaded again (the clock stays until its level starts): its
+        // levels as they were saved, the steps taken since gone with the bolts they cost.
+        take_levels(m_saved_levels);
+        m_published = false;
+        m_mod.info("the save in play loaded again: its levels as saved");
     }
 
     m_print = now;
@@ -248,10 +254,11 @@ void SaveTiers::clock_moved(const Clock& clock, const SavePrint& now, const Game
             m_level = {};
             m_started = {};
             m_from_nothing = true;
+            m_saved_known = false;
             return;
         // That save's levels.
         case ClockCase::Record:
-            take_record(*verdict.record);
+            take_levels(verdict.record->levels);
             break;
         // The save in play stamped again: its levels go on.
         case ClockCase::Same:
@@ -271,16 +278,23 @@ void SaveTiers::clock_moved(const Clock& clock, const SavePrint& now, const Game
     m_from_nothing = false;
     m_carried = false;
     keep(clock);
+    mark_saved(now);
 }
 
-void SaveTiers::take_record(const Record& record) {
+void SaveTiers::mark_saved(const SavePrint& now) {
+    m_saved_known = true;
+    m_saved_print = now;
+    m_saved_levels = level_bytes();
+}
+
+void SaveTiers::take_levels(const LevelBytes& levels) {
     // Each item's level, cut to what the weapon has; a level means its count had started.
     for (int item = 0; item < kItems; ++item) {
         const auto n = static_cast<std::size_t>(item);
         const int most = max_level(item);
-        const int kept = static_cast<int>(record.levels[n] & kLevelBits);
+        const int kept = static_cast<int>(levels[n] & kLevelBits);
         m_level[n] = static_cast<std::uint8_t>(kept > most ? most : kept);
-        m_started[n] = (record.levels[n] & kStartedBit) != 0 || kept != 0;
+        m_started[n] = (levels[n] & kStartedBit) != 0 || kept != 0;
     }
 }
 
