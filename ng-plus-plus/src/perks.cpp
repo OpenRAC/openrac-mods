@@ -11,6 +11,7 @@
 #include <string>
 
 #include "discs.h"
+#include "shots.h"
 #include "weapon_visuals.h"
 
 namespace ng_plus_plus {
@@ -100,20 +101,6 @@ Stage Perks::stage_now(int item) const {
     return overdrive ? raised(stage) : stage;
 }
 
-float Perks::hit_scale(std::uint32_t victim) const {
-    const auto found = m_frozen.find(victim);
-
-    // Not slowed, or a boss.
-    if (found == m_frozen.end() || found->second.boss) {
-        return 1.0f;
-    }
-
-    const Frozen& f = found->second;
-    const int every =
-        m_tick < f.freeze_until ? f.freeze_every : (m_tick < f.chill_until ? f.chill_every : 1);
-    return ice_hit_scale(every);
-}
-
 std::array<float, 3> Perks::hero_position() const {
     const std::uint32_t hero = m_view.hero_moby();
     return GameView::is_memory(hero, kMobyRecordBytes) ? m_scan.position(hero)
@@ -127,6 +114,7 @@ bool Perks::post(std::uint32_t target, float damage) {
     }
 
     --m_budget;
+    ++m_posted;
     const openrac::Memory memory = m_view.memory();
 
     // Inside a hit: its own request, as the game posts one request to several victims.
@@ -290,6 +278,13 @@ void Perks::hit(
     const Stage stage = stage_now(item);
     const bool overdrive = item == m_overdrive_item && m_tick < m_overdrive_until;
     const int ryno_tier = std::min(tier_of(weapon.kind, weapon.level) + (overdrive ? 3 : 0), 9);
+    const bool real_shots = m_shots != nullptr && m_shots->active();
+
+    // The RYNO II's split rockets are the game's own with 1.29 (shots.cpp): no hits stand for them.
+    if (weapon.kind == Kind::Ryno && real_shots) {
+        return;
+    }
+
     const HitPerk perk = weapon.kind == Kind::Ryno ? ryno_perk(ryno_tier) : hit_perk(item, stage);
     const auto n = static_cast<std::size_t>(item);
 
@@ -304,7 +299,9 @@ void Perks::hit(
 
     // The posts go through this hit's own request.
     m_request = request;
+    m_item_now = item;
     apply(perk, target, damage, nth);
+    m_item_now = -1;
     m_request = 0;
 
     // Once, for a player's log.
@@ -332,6 +329,12 @@ void Perks::apply(const HitPerk& perk, const ScannedMoby& victim, float damage, 
 
         visited.push_back(next->address);
         post(next->address, damage * share);
+
+        // Slowed or stunned by it (1.29).
+        if (perk.status != Status::None && m_shots != nullptr) {
+            m_shots->status(next->slot, perk.status, perk.status_ticks);
+        }
+
         from = next->position;
         share *= perk.hop_decay;
     }
@@ -339,6 +342,10 @@ void Perks::apply(const HitPerk& perk, const ScannedMoby& victim, float damage, 
     // The chain's last jump explodes.
     if (perk.end_radius > 0.0f && visited.size() > 1) {
         burst(from, perk.end_radius, damage * perk.end_share, visited.back());
+
+        if (m_shots != nullptr) {
+            m_shots->blast(from, m_item_now);
+        }
     }
 
     // The fan, and the fan again from each it reached.
@@ -371,7 +378,22 @@ void Perks::apply(const HitPerk& perk, const ScannedMoby& victim, float damage, 
 
     // The burst around the victim (on the strong hits only, for an explosive pulse).
     if (perk.burst_radius > 0.0f && (!perk.burst_on_nth || nth)) {
-        burst(victim.position, perk.burst_radius, damage * perk.burst_share, victim.address);
+        const std::vector<std::uint32_t> hit =
+            burst(victim.position, perk.burst_radius, damage * perk.burst_share, victim.address);
+
+        // Staggered by it (1.29).
+        for (const std::uint32_t moby : hit) {
+            const ScannedMoby* at = m_scan.find(moby);
+
+            if (perk.status != Status::None && m_shots != nullptr && at != nullptr) {
+                m_shots->status(at->slot, perk.status, perk.status_ticks);
+            }
+        }
+
+        // An explosive pulse is the game's blast (1.29).
+        if (perk.burst_on_nth && m_shots != nullptr) {
+            m_shots->blast(victim.position, m_item_now);
+        }
     }
 
     // Through the victim, away from the hero.
@@ -453,19 +475,33 @@ void Perks::chill(const ScannedMoby& victim, int tier, float damage) {
         f.boss = is_boss(victim.moby_class);
     }
 
+    f.slot = victim.slot;
     f.tier = tier;
     f.last_hit = damage;
     f.chill_every = ice.chill_every;
-    f.freeze_every = ice.freeze_every;
     f.chill_until = std::max(f.chill_until, m_tick + static_cast<std::uint32_t>(ice.chill_ticks));
+    bool fresh = false;
 
     // Frozen solid from Epsilon, a fresh freeze only once the last one has thawed into its chill,
     // so a stream holds it slowed, frozen again and again, never for good.
     if (ice.freeze_ticks > 0 && m_tick >= f.freeze_until + 60u) {
         f.freeze_until = m_tick + static_cast<std::uint32_t>(ice.freeze_ticks);
+        fresh = true;
     }
 
     const bool frozen = m_tick < f.freeze_until;
+    const bool statuses = m_shots != nullptr && m_shots->active() && !f.boss;
+
+    // The status (OpenRAC 1.29): frozen solid, else slowed, renewed while the chill lasts.
+    if (statuses && fresh) {
+        m_shots->status(f.slot, Status::Freeze, ice.freeze_ticks);
+        f.slowed_until = 0;
+    } else if (
+        statuses && !frozen
+        && f.slowed_until < m_tick + static_cast<std::uint32_t>(ice.chill_ticks / 2)
+    ) {
+        slow(f);
+    }
 
     // Its glow: icy blue while frozen, paler while chilled.
     if (!f.drawn || f.drawn_frozen != frozen) {
@@ -475,73 +511,42 @@ void Perks::chill(const ScannedMoby& victim, int tier, float damage) {
     }
 }
 
-void Perks::hold_frozen() {
-    const openrac::Memory memory = m_view.memory();
+void Perks::slow(Frozen& f) {
+    const Status kind = f.chill_every >= 3 ? Status::SlowThird : Status::SlowHalf;
+    const auto ticks = static_cast<int>(f.chill_until - m_tick);
 
-    // Each slowed enemy.
+    // Sent for the chill left.
+    if (ticks > 0 && m_shots->status(f.slot, kind, ticks)) {
+        f.slowed_until = f.chill_until;
+    }
+}
+
+void Perks::thaw() {
+    // Each chilled enemy.
     for (auto it = m_frozen.begin(); it != m_frozen.end();) {
         const std::uint32_t moby = it->first;
         Frozen& f = it->second;
 
-        // Gone, or its slot holds another moby now: nothing of it to put back.
+        // Gone, or its slot holds another moby now.
         if (!m_scan.alive(moby, f.moby_class)) {
             it = m_frozen.erase(it);
             continue;
         }
 
-        const auto flags_now = memory.read<std::uint16_t>(moby + kMobyFlags);
-        const auto update_now = memory.read<std::uint32_t>(moby + kMobyUpdate);
         const bool frozen = m_tick < f.freeze_until;
-        const bool chilled = m_tick < f.chill_until;
 
-        // Thawed: its update and animation back, its glow gone.
-        if (!chilled) {
-            if (update_now == 0 && f.saved_update != 0) {
-                memory.write(moby + kMobyUpdate, f.saved_update);
-            }
-
-            if (f.anim_held) {
-                memory.write(
-                    moby + kMobyFlags, static_cast<std::uint16_t>(flags_now & ~kFlagNoAnimation)
-                );
-            }
-
+        // Thawed: its glow gone (the port ends the status by itself).
+        if (m_tick >= f.chill_until) {
             undraw(moby);
             m_elites.redraw(moby);
             it = m_frozen.erase(it);
             continue;
         }
 
-        // A boss keeps running: the glow only.
-        if (f.boss) {
-            ++it;
-            continue;
-        }
-
-        const int every = frozen ? f.freeze_every : f.chill_every;
-        const bool run = every <= 1 || m_tick % static_cast<std::uint32_t>(every) == 0;
-
-        // This tick it runs: its update back where the mod held it.
-        if (run) {
-            if (update_now == 0 && f.saved_update != 0) {
-                memory.write(moby + kMobyUpdate, f.saved_update);
-            }
-        } else if (update_now != 0) {
-            // Held: its update kept (it may have changed it) and none run.
-            f.saved_update = update_now;
-            memory.write(moby + kMobyUpdate, std::uint32_t{0});
-        }
-
-        // Frozen solid: its animation stands; thawed into the chill: it moves again.
-        if (frozen && !f.anim_held && (flags_now & kFlagNoAnimation) == 0) {
-            memory
-                .write(moby + kMobyFlags, static_cast<std::uint16_t>(flags_now | kFlagNoAnimation));
-            f.anim_held = true;
-        } else if (!frozen && f.anim_held) {
-            memory.write(
-                moby + kMobyFlags, static_cast<std::uint16_t>(flags_now & ~kFlagNoAnimation)
-            );
-            f.anim_held = false;
+        // Out of the freeze into the chill: slowed for what is left.
+        if (!frozen && !f.boss && m_shots != nullptr && m_shots->active()
+            && f.slowed_until < f.chill_until) {
+            slow(f);
         }
 
         // Its glow follows the freeze.
@@ -571,23 +576,16 @@ void Perks::death(std::uint32_t moby) {
     if (frozen != m_frozen.end()) {
         const Frozen f = frozen->second;
         const IceEffect ice = ice_effect(f.tier);
-        const openrac::Memory memory = m_view.memory();
-
-        // Whatever the mod holds is put back: the game is ending it.
-        if (memory.read<std::uint32_t>(moby + kMobyUpdate) == 0 && f.saved_update != 0) {
-            memory.write(moby + kMobyUpdate, f.saved_update);
-        }
-
-        if (f.anim_held) {
-            const auto flags = memory.read<std::uint16_t>(moby + kMobyFlags);
-            memory.write(moby + kMobyFlags, static_cast<std::uint16_t>(flags & ~kFlagNoAnimation));
-        }
-
         m_frozen.erase(frozen);
 
-        // The shards.
+        // The shards: the game's own blast in the Ice Gun's colour (1.29), and their hits.
         if (ice.shatter_radius > 0.0f && m_later.size() < kLaterMost) {
             draw(moby, kEffectTop, kShatterRgb);
+
+            if (m_shots != nullptr) {
+                m_shots->blast(at, kLavaGun);
+            }
+
             Later later;
             later.at = at;
             later.radius = ice.shatter_radius;
@@ -630,10 +628,41 @@ void Perks::death(std::uint32_t moby) {
         later.damage = m_reference * kVolatileShare;
         later.skip = moby;
         later.when = m_tick + 2;
+        later.blast_item = m_view.held();
         m_later.push_back(later);
     }
 
     m_elites.died(moby);
+}
+
+std::vector<Perks::Target> Perks::targets(
+    const std::array<float, 3>& at, float radius, int count, int skip_slot
+) {
+    std::vector<Target> out;
+    m_scan.read(m_tick);
+    std::vector<std::uint32_t> visited;
+
+    // One at a time, nearest first.
+    for (int n = 0; n < count; ++n) {
+        const ScannedMoby* next = nearest(at, radius, visited);
+
+        // No one left in reach.
+        if (next == nullptr) {
+            break;
+        }
+
+        visited.push_back(next->address);
+
+        // Left out.
+        if (next->slot == skip_slot) {
+            --n;
+            continue;
+        }
+
+        out.push_back(Target{next->slot, next->address, next->position});
+    }
+
+    return out;
 }
 
 bool Perks::burst_later(const std::array<float, 3>& at, float radius, float share) {
@@ -678,7 +707,8 @@ void Perks::watch() {
             if (item == 42 && stage != Stage::None && base > 0.0f) {
                 m_later.push_back(Later{moby.position, 9.0f, base * 0.5f, 0, 0, m_tick + 1, 0});
 
-                if (stage >= Stage::Epsilon) {
+                // With 1.29 the mini bombs and the second pull are the game's own (shots.cpp).
+                if (stage >= Stage::Epsilon && (m_shots == nullptr || !m_shots->active())) {
                     const int minis = stage == Stage::Omega ? 8 : 4;
 
                     // Each mini bomb a little apart, a third of a second on.
@@ -692,7 +722,7 @@ void Perks::watch() {
                     }
                 }
 
-                if (stage == Stage::Omega) {
+                if (stage == Stage::Omega && (m_shots == nullptr || !m_shots->active())) {
                     m_later.push_back(Later{moby.position, 9.0f, base, 0, 0, m_tick + 60, 0});
                 }
             }
@@ -743,10 +773,12 @@ void Perks::watch() {
         if (w.item == 17 && stage >= Stage::Epsilon) {
             const float share = stage == Stage::Omega ? 3.0f : 2.0f;
             const float radius = stage == Stage::Omega ? 9.0f : 6.0f;
-            m_later.push_back(Later{w.at, radius, m_reference * share, 0, 0, m_tick, 0});
+            m_later.push_back(Later{w.at, radius, m_reference * share, 0, 0, m_tick, 0, 17});
 
             if (stage == Stage::Omega) {
-                m_later.push_back(Later{w.at, radius, m_reference * share, 0, 0, m_tick + 30, 0});
+                m_later.push_back(
+                    Later{w.at, radius, m_reference * share, 0, 0, m_tick + 30, 0, 17}
+                );
             }
         }
 
@@ -756,18 +788,24 @@ void Perks::watch() {
                 stage == Stage::Omega ? 8.0f : (stage == Stage::Epsilon ? 6.0f : 4.0f);
             const float share =
                 stage == Stage::Omega ? 2.0f : (stage == Stage::Epsilon ? 1.5f : 1.0f);
-            m_later.push_back(Later{w.at, radius, m_reference * share, 0, 0, m_tick, 0});
+            m_later.push_back(Later{w.at, radius, m_reference * share, 0, 0, m_tick, 0, 16});
         }
 
         // The shield bursts as it ends, at Omega.
         if (w.item == 45 && stage == Stage::Omega) {
-            m_later.push_back(Later{w.at, 8.0f, m_reference * 2.0f, 0, 0, m_tick, 0});
+            m_later.push_back(Later{w.at, 8.0f, m_reference * 2.0f, 0, 0, m_tick, 0, 45});
         }
 
-        // The Visibomb's missile releases its minis from Epsilon (as hits on the nearest).
+        // The Visibomb's missile releases its minis from Epsilon: homing rockets in its colour with
+        // 1.29, else hits on the nearest.
         if (w.item == 14 && stage >= Stage::Epsilon) {
             const int minis = stage == Stage::Omega ? 6 : 3;
-            m_later.push_back(Later{w.at, 12.0f, m_reference * 0.8f, 0, 0, m_tick, minis});
+            const bool real =
+                m_shots != nullptr && m_shots->rockets_at(w.at, kMiniRocket, minis, 12.0f, 14) > 0;
+
+            if (!real) {
+                m_later.push_back(Later{w.at, 12.0f, m_reference * 0.8f, 0, 0, m_tick, minis});
+            }
         }
     }
 
@@ -803,8 +841,25 @@ void Perks::tick(std::uint32_t tick) {
         return;
     }
 
-    hold_frozen();
+    thaw();
     watch();
+
+    // A summary for a player's log, about once a minute when the perks acted.
+    if (tick >= m_summary_tick + 3600u) {
+        m_summary_tick = tick;
+        const Shots::Counts shots = m_shots != nullptr ? m_shots->take_counts() : Shots::Counts{};
+
+        if (m_posted > 0 || shots.refires > 0 || shots.spawns > 0 || shots.statuses > 0) {
+            m_mod.info(
+                "perks in the last minute: " + std::to_string(m_posted) + " extra hits, "
+                + std::to_string(shots.refires) + " extra shots, " + std::to_string(shots.spawns)
+                + " shots made (" + std::to_string(shots.blasts) + " blasts), "
+                + std::to_string(shots.statuses) + " freezes and slows"
+            );
+        }
+
+        m_posted = 0;
+    }
 
     // The arenas' spawned enemies, each seen once.
     if (is_arena_level(level)) {
@@ -836,6 +891,11 @@ void Perks::tick(std::uint32_t tick) {
 
         const std::vector<std::uint32_t> hit =
             burst(later.at, later.radius, later.damage, later.skip, later.fan);
+
+        // The game's blast there, in the weapon's look (1.29).
+        if (later.blast_item >= 0 && m_shots != nullptr) {
+            m_shots->blast(later.at, later.blast_item);
+        }
 
         // The Ice Gun's shards freeze what they hit.
         if (later.freeze_tier > 0) {

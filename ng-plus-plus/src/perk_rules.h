@@ -48,6 +48,14 @@ Stage raised(Stage stage);
 
 // ---- Hit perks ----
 
+// A status a perk puts an enemy under (OpenRAC 1.29's moby_status; the same numbers).
+enum class Status : std::uint8_t {
+    None = 0,
+    Freeze = 1,
+    SlowHalf = 2,
+    SlowThird = 3
+};
+
 // What one hit of a weapon does besides its own damage: extra hits the mod posts to other enemies,
 // each a share of the hit's damage as it landed (after the tier and the enemies' curve). Every
 // field 0 is nothing.
@@ -93,6 +101,11 @@ struct HitPerk {
     float nth_share = 0.0f;
     bool burst_on_nth = false;  // The burst only on the strong hits (an explosive pulse).
 
+    // The status the enemies the chain and the burst reach are put under, and for how long
+    // (OpenRAC 1.29; none before): the Plasma Coil's slow, the Tesla Claw's stun.
+    Status status = Status::None;
+    int status_ticks = 0;
+
     // Ticks after a hit before the weapon's next hit can set off a perk: the streams (the Tesla
     // Claw's beam, the Lava Gun) hit every tick and would chain every tick.
     int cooldown = 0;
@@ -123,6 +136,43 @@ HitPerk hit_perk(int item, Stage stage);
 // splitting again at Omega Prime), the real rockets once OpenRAC spawns them (H1).
 HitPerk ryno_perk(int tier);
 
+// ---- Shots (OpenRAC 1.29's weapon calls) ----
+
+// What a weapon's shots do at a stage: more of each shot, fired again by the game's own spawn
+// (weapon_refire), and what a shot does as it ends (on_shot_end, moby_spawn_live).
+struct ShotPerk {
+    int refires = 0;          // Copies of each shot, fanned out.
+    float spread = 0.0f;      // Radians between two copies.
+    int split_after = 0;      // A rocket splits in two this many ticks into its flight (0 never).
+    int end_shots = 0;        // Shots of `end_class` made where a shot ends...
+    int end_class = 0;        // ...of this class (1498 rockets, 3799 RYNO rockets, 3329 seekers,
+                              // 121 mini bombs, 3300 a gravity bomb)...
+    int end_generations = 0;  // ...and the ones made so split again, this many times.
+    int end_most = 0;         // At most this many made from one shot in all.
+    bool end_homing = false;  // They fly at the nearest enemies (else they scatter).
+    int end_blasts = 0;       // Small blasts where it ends (the game's rocket blast).
+    int end_again_ticks = 0;  // A second shot of the shot's own class where it ended, this late.
+};
+
+// The classes moby_spawn_live makes (OpenRAC 1.29).
+inline constexpr int kMiniRocket = 1498;
+inline constexpr int kRynoRocket = 3799;
+inline constexpr int kSeeker = 3329;
+inline constexpr int kMiniBomb = 121;
+inline constexpr int kGravityBomb = 3300;
+
+// Returns what item `item`'s shots do at `stage` (`tier` the RYNO II's, 9 Omega Prime): the
+// Minirocket Tube, Seeker Gun, Hoverbomb Gun, Bomb Glove, Gravity Bomb, Bouncer, Decoy Glove,
+// Miniturret Glove and the RYNO II; nothing for the others (no shot moby of their own).
+ShotPerk shot_perk(int item, Stage stage, int tier);
+
+// Returns the yaw of copy `n` (from 0) of a shot fanned by `spread`: right, left, further right...
+float refire_yaw(int n, float spread);
+
+// Returns the shots a second the Pulse Rifle's record takes at `stage`, times its own (weapon
+// stat: OpenRAC 1.29's weapon_record +0x54).
+float fire_rate(int item, Stage stage);
+
 // ---- The Ice Gun (the Lava Gun's tiers) ----
 
 // The Lava Gun's item.
@@ -137,7 +187,6 @@ struct IceEffect {
     int chill_ticks = 0;          // Slowed this long after each hit.
     int chill_every = 1;          // While slowed, its update runs one tick in this many.
     int freeze_ticks = 0;         // Frozen this long after each hit (inside the chill).
-    int freeze_every = 1;         // While frozen, one tick in this many (it still reads its hits).
     float shatter_radius = 0.0f;  // A frozen or chilled enemy killed shatters: enemies within it...
     float shatter_share = 0.0f;   // ...take this share of the killing hit.
     bool shatter_freezes = false;  // The shards freeze what they hit.
@@ -148,11 +197,6 @@ struct IceEffect {
 // the icy glow, a deeper chill at Gamma, a freeze from Epsilon that shatters on the kill, a long
 // freeze at Omega whose shards freeze their neighbours.
 IceEffect ice_effect(int tier);
-
-// Returns the damage a hit on an enemy slowed to one update in `every` is multiplied by: the game
-// keeps one pending hit per enemy (the stronger of two), so a stream's hits between two updates
-// would be lost; the one it reads stands for all of them.
-float ice_hit_scale(int every);
 
 // The Ice Gun's colours by tier, 0x00BBGGRR as tint_rgb's: frost, glacier, ice, arctic, deep ice,
 // polar, cobalt, and an aurora cycling at Omega (in place of the tiers' lime to rainbow).

@@ -2385,7 +2385,7 @@ void run(const char* path, const Disc& disc, Host host) {
     // The pool: asked for on a port of 1.27, a line in the log of an older one.
     CHECK((g_pool_asked == kPoolExtra) == (host == Host::Pool));
     CHECK(
-        (g_log.find("asked for 800 more spare moby slots") != std::string::npos)
+        (g_log.find("asked for 1024 more spare moby slots") != std::string::npos)
         == (host == Host::Pool)
     );
     CHECK(

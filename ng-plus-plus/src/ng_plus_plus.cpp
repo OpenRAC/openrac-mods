@@ -22,6 +22,7 @@
 //   perks.h        the perks in the game: chains, fans, bursts, fields, the Ice Gun's freeze
 //   elites.h       elite enemies and the challenge modes' modifiers
 //   armour.h       the armour tiers: protection, glow, thorns, last stand, the vendor's entry
+//   shots.h        OpenRAC 1.29's: extra shots, split rockets, mini bombs, shot looks, statuses
 //
 // Each tick: the save's clock is watched (at the title too) and a level left forgets its platinum
 // coins; in a level, the steps by experience are taken, the last versions' rows written, the
@@ -49,6 +50,8 @@
 #include "platinum_bolts.h"
 #include "rewards.h"
 #include "save_tiers.h"
+#include "shots.h"
+#include "test_setup.h"
 #include "text.h"
 #include "vendor.h"
 #include "weapon_visuals.h"
@@ -89,7 +92,14 @@ public:
               mod.setting<bool>("challenge_modifiers")
           ),
           m_perks(mod, m_view, m_weapons, m_elites, mod.setting<bool>("weapon_perks")),
-          m_armour(mod, m_view, m_tiers, m_perks) {
+          m_armour(mod, m_view, m_tiers, m_perks),
+          m_shots(mod, m_view, m_weapons, m_perks)
+#ifdef NGPP_TEST_SETUP
+          ,
+          m_test(mod, m_view, m_tiers, m_weapons)
+#endif
+    {
+        m_perks.set_shots(&m_shots);
         m_combat.set_parts(&m_perks, &m_elites, &m_armour);
         m_vendor.set_armour(&m_armour);
         m_enemies.set_elites(&m_elites);
@@ -161,6 +171,10 @@ private:
     Elites m_elites;           // Elite enemies and the run's modifier.
     Perks m_perks;             // The weapons' perks and the Ice Gun.
     Armour m_armour;           // The armour tiers.
+    Shots m_shots;             // The perks of OpenRAC 1.29's weapon calls.
+#ifdef NGPP_TEST_SETUP
+    TestSetup m_test;          // Test runs only.
+#endif
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
 
@@ -289,6 +303,7 @@ void NgPlusPlus::take_optional() {
     m_elites.start();
     m_perks.start();
     m_armour.start();
+    m_shots.start();
 
     // The hero's health from Omega weapons: an OpenRAC without the hook point goes without.
     try {
@@ -380,6 +395,10 @@ void NgPlusPlus::tick() {
     m_visuals.tick(m_tick);
     m_elites.tick();
     m_perks.tick(m_tick);
+    m_shots.tick(m_tick);
+#ifdef NGPP_TEST_SETUP
+    m_test.tick();
+#endif
     m_armour.tick(m_tick);
 
     // The rest only in a level.

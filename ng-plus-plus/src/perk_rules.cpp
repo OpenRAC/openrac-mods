@@ -185,6 +185,10 @@ HitPerk hit_perk(int item, Stage stage) {
             perk.hop_radius = 9.0f;
             perk.hop_share = 0.6f;
             perk.hop_decay = 0.9f;
+            if (s >= 2) {
+                perk.status = Status::SlowHalf;
+                perk.status_ticks = s >= 3 ? 150 : 90;
+            }
             if (s >= 3) {
                 perk.end_radius = 5.0f;
                 perk.end_share = 0.8f;
@@ -199,6 +203,10 @@ HitPerk hit_perk(int item, Stage stage) {
             perk.hop_share = 1.5f;  // A beam's tick is small: an arc is several ticks' worth.
             perk.hop_decay = 0.85f;
             perk.cooldown = 8;
+            if (s >= 2) {
+                perk.status = Status::Freeze;
+                perk.status_ticks = s >= 3 ? 45 : 30;
+            }
             break;
 
         // Clank Zapper: a wider zap, then two targets, then chain lightning.
@@ -227,6 +235,10 @@ HitPerk hit_perk(int item, Stage stage) {
                 perk.hops = 3;
                 perk.hop_radius = 8.0f;
                 perk.hop_share = 0.7f;
+            }
+            if (s >= 2) {
+                perk.status = Status::Freeze;  // Staggered by the wave.
+                perk.status_ticks = 20;
             }
             perk.cooldown = 10;
             break;
@@ -327,6 +339,147 @@ HitPerk ryno_perk(int tier) {
     return perk;
 }
 
+ShotPerk shot_perk(int item, Stage stage, int tier) {
+    ShotPerk perk;
+    const int s = static_cast<int>(stage);
+
+    // By weapon; Gamma's first, then what Epsilon and Omega add.
+    switch (item) {
+        // Minirocket Tube: more rockets, rockets splitting in flight, a cluster blast each.
+        case 27:
+            if (s >= 1) {
+                perk.refires = s >= 3 ? 2 : 1;
+                perk.spread = 0.18f;
+            }
+            if (s >= 2) {
+                perk.split_after = 30;
+            }
+            if (s >= 3) {
+                perk.end_blasts = 2;
+            }
+            break;
+
+        // Seeker Gun: two more seekers, re-seeking after a hit, four more and seeking twice at
+        // Omega.
+        case 24:
+            if (s >= 1) {
+                perk.refires = s >= 3 ? 4 : 2;
+                perk.spread = 0.2f;
+            }
+            if (s >= 2) {
+                perk.end_shots = 1;
+                perk.end_class = kSeeker;
+                perk.end_homing = true;
+                perk.end_generations = s >= 3 ? 2 : 0;
+                perk.end_most = 6;
+            }
+            break;
+
+        // Hoverbomb Gun: one more, then four in all at Omega.
+        case 25:
+            if (s >= 1) {
+                perk.refires = s >= 3 ? 3 : 1;
+                perk.spread = 0.3f;
+            }
+            break;
+
+        // Bomb Glove: one more bomb, bursting into four mini bombs at Omega.
+        case 12:
+            if (s >= 1) {
+                perk.refires = 1;
+                perk.spread = 0.2f;
+            }
+            if (s >= 3) {
+                perk.end_shots = 4;
+                perk.end_class = kMiniBomb;
+                perk.end_most = 4;
+            }
+            break;
+
+        // Gravity Bomb: mini bombs scatter from its blast from Epsilon, eight and a second bomb at
+        // Omega, which also throws two.
+        case 42:
+            if (s >= 2) {
+                perk.end_shots = s >= 3 ? 8 : 4;
+                perk.end_class = kMiniBomb;
+                perk.end_most = perk.end_shots;
+            }
+            if (s >= 3) {
+                perk.refires = 1;
+                perk.spread = 0.25f;
+                perk.end_again_ticks = 60;
+            }
+            break;
+
+        // Bouncer: two more bomblets, three at Epsilon.
+        case 37:
+            if (s >= 1) {
+                perk.refires = s >= 2 ? 3 : 2;
+                perk.spread = 0.25f;
+            }
+            break;
+
+        // Decoy Glove: two decoys from Epsilon, three at Omega.
+        case 17:
+            if (s >= 2) {
+                perk.refires = s >= 3 ? 2 : 1;
+                perk.spread = 0.5f;
+            }
+            break;
+
+        // Miniturret Glove: one more turret, three a throw at Omega.
+        case 41:
+            if (s >= 1) {
+                perk.refires = s >= 3 ? 2 : 1;
+                perk.spread = 0.6f;
+            }
+            break;
+
+        // RYNO II: each rocket splits into 2, then 3 homing rockets where it ends; they split again
+        // once at Omega, twice at Omega Prime.
+        case 44:
+            if (s >= 1) {
+                perk.end_shots = s >= 2 ? 3 : 2;
+                perk.end_class = kRynoRocket;
+                perk.end_homing = true;
+                perk.end_generations = tier > 8 ? 2 : (s >= 3 ? 1 : 0);
+                perk.end_most = tier > 8 ? 13 : kFanMost;
+            }
+            break;
+
+        // Every other weapon has no shot moby of its own.
+        default:
+            break;
+    }
+
+    return perk;
+}
+
+float refire_yaw(int n, float spread) {
+    const int step = n / 2 + 1;
+    return static_cast<float>(n % 2 == 0 ? step : -step) * spread;
+}
+
+float fire_rate(int item, Stage stage) {
+    // The Pulse Rifle only: a quarter faster at Gamma, a third at Epsilon, half at Omega.
+    if (item != 23) {
+        return 1.0f;
+    }
+
+    switch (stage) {
+        case Stage::None:
+            return 1.0f;
+        case Stage::Gamma:
+            return 1.25f;
+        case Stage::Epsilon:
+            return 1.35f;
+        case Stage::Omega:
+            return 1.5f;
+    }
+
+    return 1.0f;
+}
+
 IceEffect ice_effect(int tier) {
     IceEffect ice;
 
@@ -351,7 +504,6 @@ IceEffect ice_effect(int tier) {
     // Epsilon: frozen solid for a moment, shattering on the kill.
     if (stage >= Stage::Epsilon) {
         ice.freeze_ticks = 60;
-        ice.freeze_every = 8;
         ice.shatter_radius = 5.0f;
         ice.shatter_share = 0.6f;
     }
@@ -360,17 +512,12 @@ IceEffect ice_effect(int tier) {
     if (stage >= Stage::Omega) {
         ice.chill_ticks = 180;
         ice.freeze_ticks = 120;
-        ice.freeze_every = 12;
         ice.shatter_radius = 8.0f;
         ice.shatter_share = 1.0f;
         ice.shatter_freezes = true;
     }
 
     return ice;
-}
-
-float ice_hit_scale(int every) {
-    return every > 1 ? static_cast<float>(every) : 1.0f;
 }
 
 std::optional<std::uint32_t> ice_tint_rgb(int tier, std::uint32_t tick) {

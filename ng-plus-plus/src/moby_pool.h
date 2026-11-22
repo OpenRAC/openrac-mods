@@ -23,9 +23,10 @@ namespace ng_plus_plus {
 // The interface minor with the pool calls.
 inline constexpr std::uint16_t kPoolMinor = 27;
 
-// How many slots NG++ asks for: about three times Barlow's 398 in all, for its copies, the bolts of a
-// long streak and whatever else a crowded level spawns.
-inline constexpr int kPoolExtra = 800;
+// How many slots NG++ asks for: the most the port grants (OPENRAC_MOBY_POOL_EXTRA_MAX), for its
+// copies, the bolts of a long streak, the perks' extra shots and whatever else a crowded level
+// spawns.
+inline constexpr int kPoolExtra = 1024;
 
 // moby_pool_status's answer, openrac_moby_pool's layout of 1.27.
 struct PoolStatus {

@@ -143,9 +143,6 @@ void test_ice_effect() {
 
         CHECK(effect.shatter_freezes == (tier == 8));
     }
-
-    CHECK(ice_hit_scale(1) == 1.0f);
-    CHECK(ice_hit_scale(3) == 3.0f);
 }
 
 // Checks the Ice Gun's colours and the weapon colour dispatch.
@@ -363,6 +360,82 @@ void test_book_new_levels() {
     }
 }
 
+// Checks the shots' perks (OpenRAC 1.29): more shots of the shot weapons, never fewer at a higher
+// stage, the RYNO II's split rockets by tier, the Gravity Bomb's and the Bomb Glove's mini bombs.
+void test_shot_perks() {
+    constexpr int kShotWeapons[] = {27, 24, 25, 12, 42, 37, 17, 41};
+    constexpr Stage kStages[] = {Stage::None, Stage::Gamma, Stage::Epsilon, Stage::Omega};
+
+    for (const int item : kShotWeapons) {
+        CHECK(shot_perk(item, Stage::None, 0).refires == 0);
+        int last = 0;
+
+        for (const Stage stage : kStages) {
+            const ShotPerk perk = shot_perk(item, stage, 0);
+            CHECK(perk.refires >= last);
+            CHECK(perk.refires == 0 || perk.spread > 0.0f);
+            last = perk.refires;
+        }
+
+        CHECK(shot_perk(item, Stage::Omega, 8).refires > 0);
+    }
+
+    // The weapons with no shot moby of their own get none.
+    CHECK(shot_perk(30, Stage::Omega, 8).refires == 0);    // Lancer
+    CHECK(shot_perk(22, Stage::Omega, 8).end_shots == 0);  // Chopper
+
+    // The Minirocket Tube splits from Epsilon and blasts at Omega.
+    CHECK(shot_perk(27, Stage::Gamma, 3).split_after == 0);
+    CHECK(shot_perk(27, Stage::Epsilon, 5).split_after > 0);
+    CHECK(shot_perk(27, Stage::Omega, 8).end_blasts == 2);
+
+    // The RYNO II: 2, then 3 homing RYNO rockets, splitting once at Omega and twice at Omega Prime.
+    CHECK(shot_perk(44, Stage::None, 2).end_shots == 0);
+    CHECK(shot_perk(44, Stage::Gamma, 3).end_shots == 2);
+    CHECK(shot_perk(44, Stage::Epsilon, 5).end_shots == 3);
+    CHECK(shot_perk(44, Stage::Gamma, 3).end_class == kRynoRocket);
+    CHECK(shot_perk(44, Stage::Gamma, 3).end_homing);
+    CHECK(shot_perk(44, Stage::Epsilon, 5).end_generations == 0);
+    CHECK(shot_perk(44, Stage::Omega, 8).end_generations == 1);
+    CHECK(shot_perk(44, Stage::Omega, 9).end_generations == 2);
+    CHECK(shot_perk(44, Stage::Omega, 9).end_most > shot_perk(44, Stage::Omega, 8).end_most);
+
+    // The Gravity Bomb's mini bombs from Epsilon, eight and a second bomb at Omega.
+    CHECK(shot_perk(42, Stage::Gamma, 3).end_shots == 0);
+    CHECK(shot_perk(42, Stage::Epsilon, 5).end_shots == 4);
+    CHECK(shot_perk(42, Stage::Omega, 8).end_shots == 8);
+    CHECK(shot_perk(42, Stage::Omega, 8).end_class == kMiniBomb);
+    CHECK(shot_perk(42, Stage::Omega, 8).end_again_ticks > 0);
+
+    // The Bomb Glove bursts into four at Omega; the Seeker Gun seeks again from Epsilon.
+    CHECK(shot_perk(12, Stage::Omega, 8).end_shots == 4);
+    CHECK(shot_perk(24, Stage::Epsilon, 5).end_class == kSeeker);
+}
+
+// Checks the copies' fan: right, left, further right, and the Pulse Rifle's fire rate by stage.
+void test_refire_and_rate() {
+    CHECK(refire_yaw(0, 0.2f) > 0.0f);
+    CHECK(refire_yaw(1, 0.2f) < 0.0f);
+    CHECK(refire_yaw(2, 0.2f) > refire_yaw(0, 0.2f));
+    CHECK(refire_yaw(0, 0.2f) == -refire_yaw(1, 0.2f));
+    CHECK(fire_rate(23, Stage::None) == 1.0f);
+    CHECK(fire_rate(23, Stage::Gamma) > 1.0f);
+    CHECK(fire_rate(23, Stage::Omega) > fire_rate(23, Stage::Epsilon));
+    CHECK(fire_rate(30, Stage::Omega) == 1.0f);
+}
+
+// Checks the status perks: the Plasma Coil slows, the Tesla Claw and the Walloper stun, from
+// Epsilon only.
+void test_status_perks() {
+    CHECK(hit_perk(28, Stage::Gamma).status == Status::None);
+    CHECK(hit_perk(28, Stage::Epsilon).status == Status::SlowHalf);
+    CHECK(hit_perk(28, Stage::Omega).status_ticks > hit_perk(28, Stage::Epsilon).status_ticks);
+    CHECK(hit_perk(18, Stage::Gamma).status == Status::None);
+    CHECK(hit_perk(18, Stage::Epsilon).status == Status::Freeze);
+    CHECK(hit_perk(53, Stage::Epsilon).status == Status::Freeze);
+    CHECK(hit_perk(53, Stage::Epsilon).status_ticks > 0);
+}
+
 }  // namespace
 
 int main() try {
@@ -381,6 +454,9 @@ int main() try {
     test_arenas_and_health();
     test_omega_prime();
     test_book_new_levels();
+    test_shot_perks();
+    test_refire_and_rate();
+    test_status_perks();
     return ng_plus_plus::test::result("ng_plus_plus_perks");
 } catch (...) {
     // A test that throws has failed.

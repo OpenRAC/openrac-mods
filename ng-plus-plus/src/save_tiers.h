@@ -47,6 +47,14 @@ public:
     // Takes item `item`'s next step and keeps it at once, so a restart loses nothing.
     void step(int item);
 
+#ifdef NGPP_TEST_SETUP
+    // Test runs only (test_setup.h): item `item`'s level in play, kept nowhere.
+    void set_level_for_test(int item, int level) {
+        m_level[static_cast<std::size_t>(item)] = static_cast<std::uint8_t>(level);
+        m_started[static_cast<std::size_t>(item)] = true;
+    }
+#endif
+
     // Returns whether the mod counts item `item`'s experience yet, and marks it counted.
     bool started(int item) const { return m_started[static_cast<std::size_t>(item)]; }
 

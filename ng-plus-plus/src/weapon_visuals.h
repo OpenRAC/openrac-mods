@@ -64,6 +64,10 @@ inline constexpr VisualClass kVisualClasses[] = {
     {1487u, 27u, false},  // Minirocket Tube
     {4100u, 27u, false},  // Megarocket Cannon, its Mega
     {1498u, 27u, true},   // Minirocket Tube's homing rocket (homing_l00_shot_update)
+    {3799u, 44u, true},   // RYNO II's rocket (OpenRAC 1.29's weapon shots)
+    {3300u, 42u, true},   // the gravity bomb in flight (the same)
+    {121u,  12u, true},   // Bomb Glove's bomb, the mini bombs (the same)
+    {3684u, 37u, true},   // Bouncer's bomblet (the same)
     {3299u, 42u, true},   // Gravity Bomb
     {2650u, 42u, true},   // Mini-Nuke, its Mega
     {3079u, 42u, true},   // Mini-Nuke's projectile

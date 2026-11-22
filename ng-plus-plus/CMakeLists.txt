@@ -27,8 +27,16 @@ add_library(ng_plus_plus_core STATIC
   src/moby_scan.cpp
   src/elites.cpp
   src/perks.cpp
-  src/armour.cpp)
+  src/armour.cpp
+  src/shots.cpp
+  src/test_setup.cpp)
 target_include_directories(ng_plus_plus_core PUBLIC src)
+
+# A setup for hidden test runs only (src/test_setup.h): never in a package.
+option(NGPP_TEST_SETUP "NG++: the hidden test runs' setup (NGPP_TEST)" OFF)
+if(NGPP_TEST_SETUP)
+  target_compile_definitions(ng_plus_plus_core PUBLIC NGPP_TEST_SETUP)
+endif()
 target_link_libraries(ng_plus_plus_core PUBLIC OpenRAC::mod)
 # Linked into the mod's shared library, so built for one, with its symbols as hidden as the mod's.
 set_target_properties(ng_plus_plus_core PROPERTIES

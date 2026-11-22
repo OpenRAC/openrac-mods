@@ -18,11 +18,8 @@
 namespace ng_plus_plus {
 
 // A moby's fields the perks read and write (OpenRAC's port/game/rac2/host/play.c's MOBY_*).
-inline constexpr std::uint32_t kMobyPosition = 0x10u;     // f32[3]: where it is.
-inline constexpr std::uint32_t kMobyStateByte = 0x20u;    // u8: 0x80 and over dead or free.
-inline constexpr std::uint32_t kMobyFlags = 0x34u;        // u16: the moby loop's flags.
-inline constexpr std::uint32_t kMobyUpdate = 0x64u;       // u32: its update, 0 for none.
-inline constexpr std::uint16_t kFlagNoAnimation = 0x40u;  // Its animation not advanced.
+inline constexpr std::uint32_t kMobyPosition = 0x10u;   // f32[3]: where it is.
+inline constexpr std::uint32_t kMobyStateByte = 0x20u;  // u8: 0x80 and over dead or free.
 inline constexpr std::uint32_t kMobyRecordBytes = 0x100u;
 
 // One live moby.

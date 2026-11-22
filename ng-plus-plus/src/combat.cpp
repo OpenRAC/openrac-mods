@@ -48,14 +48,9 @@ void Combat::post_hit(
             scale /= hit_divisor(kind, level, view.cycle(), m_enemies.strength, foe);
         }
 
-        // An elite has more health; an Ice Gun's slowed enemy reads one hit for the ticks it
-        // misses.
+        // An elite has more health.
         if (m_elites != nullptr) {
             scale /= m_elites->health(victim);
-        }
-
-        if (m_perks != nullptr) {
-            scale *= m_perks->hit_scale(victim);
         }
     }
 

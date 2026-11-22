@@ -215,6 +215,10 @@ inline constexpr HitSource kHitSources[] = {
     {1497u, 24u},  // Seeker Projectile: seeker_apply_projectile_hit (L00_003AB388), item 0x18
     {3329u, 24u},  // Seeker Projectile (the Mega's), the same hit code
     {1498u, 27u},  // Minirocket Tube's homing shot: homing_l00_shot_update (L00_003ABEC0), item 0x1B
+    {3799u, 44u},  // RYNO II's rocket (OpenRAC 1.29's on_weapon_fire classes)
+    {3300u, 42u},  // the gravity bomb in flight (the same)
+    {121u, 12u},   // Bomb Glove's bomb (the same)
+    {3684u, 37u},  // Bouncer's bomblet (the same)
     {3070u, 42u},  // Gravity Bomb's blast: mini_nuke_blast_update (L00_003E3258), item 0x2A
     {3301u, 42u},  // Gravity Bomb's blast: blast_l00_update (L00_003EEE90), item 0x2A
     {3790u, 37u},  // Bouncer's bouncing blast: UpdateBouncingBlastProjectile (L00_004096B0), 0x25
