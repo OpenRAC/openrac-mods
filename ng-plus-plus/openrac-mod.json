@@ -28,7 +28,11 @@
     "rac2.text.by_id",
     "rac2.vendor.draw_list",
     "rac2.level.load",
-    "rac2.player.nanotech_steps"
+    "rac2.player.nanotech_steps",
+    "rac2.bolt.spawn_pickups",
+    "rac2.bolt.spawn_pickup",
+    "rac2.bolt.collect",
+    "rac2.arena.prize"
   ],
   "settings": [
     {
