@@ -309,10 +309,12 @@ the hits running away; the eruptions and the storm are where it spreads.
 
 ### Armor tiers
 
-Past the best armour (Infernox) there are **8 more armor tiers**, Alpha Armor to Omega Armor. Once
-you have bought the best armour, the weapon vendor sells the next tier as the **last entry** in its
-list, with the Shield Charger's icon (another weapon's you own when you don't have the Shield
-Charger). Each is bought, in order. Each takes a share off every hit on Ratchet, on top of the
+Past the best armour (Carbonox) there are **8 more armor tiers**, Alpha Armor to Omega Armor. Once
+you own Carbonox, the **weapon vendor** (not the armour shop) sells the next tier as the **last
+entry** in its list, with the Shield Charger's icon (another weapon's you own when you don't have
+the Shield Charger). The armour shop only lists the game's four armours above the one you wear and
+gives a mod no way to add to that list, so the tiers stay with the weapons; they keep their place
+there even when the list is full. Each is bought, in order. Each takes a share off every hit on Ratchet, on top of the
 game's armour, and he glows in the tier's color. Ratchet's armour keeps the best armour's look,
 tinted and glowing in the tier's color (needs OpenRAC 1.25; without it the protection works but
 nothing glows). The tier is saved with the weapons in the mod's `tiers.txt`, and the launcher's save

@@ -38,6 +38,7 @@
 #include "discs.h"
 #include "extra_enemies.h"
 #include "moby_pool.h"
+#include "perk_rules.h"
 #include "hooks.h"
 #include "rewards.h"
 #include "openrac/games/rac2.hpp"
@@ -240,16 +241,19 @@ typename HookPoint::fn hooked() {
 
 // ---- The test's game ----
 
-// Vendor_BuildList: two entries, the ammo of items 22 and 23.
+// The entries the test's game makes (a full list's test sets more).
+int g_game_entries = 2;
+
+// Vendor_BuildList: g_game_entries entries, the ammo of items 22 and 23 (and of 22 after them).
 void game_build_list(std::int32_t /*hide*/) {
-    // The game's two entries.
-    for (int n = 0; n < 2; ++n) {
-        set<std::int32_t>(entry(n) + kEntryItem, 22 + n);
+    // The game's entries.
+    for (int n = 0; n < g_game_entries; ++n) {
+        set<std::int32_t>(entry(n) + kEntryItem, n < 2 ? 22 + n : 22);
         set<std::int32_t>(entry(n) + kEntryKind, 1);
         set<std::int32_t>(entry(n) + kEntryUpgrade, 0);
     }
 
-    set<std::int32_t>(g_disc->vendor + kVendorCount, 2);
+    set<std::int32_t>(g_disc->vendor + kVendorCount, g_game_entries);
 }
 
 // Vendor_Price: the game's price of whatever is under the cursor.
@@ -1118,6 +1122,83 @@ void test_old_book_moved(openrac_mod_load_fn load) {
     }
 
     CHECK(reload(load));
+}
+
+// The armour tiers' first two prices: perk_rules.h's ladder from its base, x1.5 and x2.
+constexpr std::int32_t kAlphaArmorPrice = 900'000;
+constexpr std::int32_t kBetaArmorPrice = 1'200'000;
+
+// Returns the vendor list place of the mod's armour entry (the last, an upgrade of the Lancer's,
+// the first weapon owned with no Shield Charger) after the list is built, or -1.
+int armour_place() {
+    hooked<rac2::Vendor_BuildList>()(0);
+    const int last = vendor_count() - 1;
+
+    // The armour entry is the list's last, an upgrade entry under the carrier's icon.
+    if (last < 0 || get<std::int32_t>(entry(last) + kEntryUpgrade) == 0
+        || get<std::int32_t>(entry(last) + kEntryItem) != kLancer) {
+        return -1;
+    }
+
+    set_cursor(last);
+    return hooked<rac2::Vendor_Price>()() == kAlphaArmorPrice ? last : -1;
+}
+
+// Checks the armour tiers at the weapon vendor: none below Carbonox (armour 3, Electrosteel), Alpha
+// Armor as the list's last entry at Carbonox (armour 4), its label, price and purchase (the
+// game's Mega step left alone, Beta Armor next), a hit taken at Alpha's share, and the entry's
+// room kept in a full list.
+void test_armour_at_the_vendor() {
+    const std::uint32_t worn = g_disc->progress + kProgressArmour;
+    set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
+    set<std::int16_t>(worn, 3);
+    CHECK(armour_place() == -1);
+    set<std::int16_t>(worn, kBestArmour);
+    const int place = armour_place();
+    CHECK(place >= 0);
+    CHECK(g_log.find("armour 4 worn (4 is Carbonox), tier 0, Alpha Armor for sale")
+          != std::string::npos);
+
+    // Drawn with the cursor on it: its label names the tier.
+    g_drawn_label.clear();
+    g_drawing_vendor = g_disc->vendor;
+    hooked<hooks::Vendor_DrawList>()();
+    CHECK(g_drawn_label == "Alpha Armor");
+
+    // Bought: the tier, not the game's Mega step; Beta Armor for sale next, at the next price.
+    g_upgraded = -1;
+    std::int32_t money = 1'000'000;
+    CHECK(purchase(money) == kAlphaArmorPrice);
+    CHECK(money == 100'000);
+    CHECK(g_upgraded == -1);
+    CHECK(g_log.find("purchase: armour tier 0 -> 1") != std::string::npos);
+    hooked<rac2::Vendor_BuildList>()(0);
+    set_cursor(vendor_count() - 1);
+    CHECK(hooked<rac2::Vendor_Price>()() == kBetaArmorPrice);
+
+    // A hit of ten at Alpha: nine.
+    g_taken = 0;
+    hooked<rac2::Hero_TakeDamage>()(10);
+    CHECK(g_taken == 9);
+
+    // Without Carbonox no entry, whatever the tier.
+    set<std::int16_t>(worn, 0);
+    hooked<rac2::Vendor_BuildList>()(0);
+    const int count = vendor_count();
+    CHECK(count == 0 || get<std::int32_t>(entry(count - 1) + kEntryPrice) == kPriceText);
+    set_cursor(count > 0 ? count - 1 : 0);
+    CHECK(count == 0 || hooked<rac2::Vendor_Price>()() != kBetaArmorPrice);
+
+    // A list the weapons' entries would fill: the armour entry keeps the last place.
+    set<std::int16_t>(worn, kBestArmour);
+    g_game_entries = kVendorMaxEntries - 1;
+    hooked<rac2::Vendor_BuildList>()(0);
+    CHECK(vendor_count() == kVendorMaxEntries);
+    set_cursor(kVendorMaxEntries - 1);
+    CHECK(get<std::int32_t>(entry(kVendorMaxEntries - 1) + kEntryItem) == kLancer);
+    CHECK(hooked<rac2::Vendor_Price>()() == kBetaArmorPrice);
+    g_game_entries = 2;
+    set<std::int16_t>(worn, 0);
 }
 
 // Checks a save's RYNO II with all the experience it ever had: not Heavy at once, counted from 0;
@@ -2563,6 +2644,7 @@ void run(const char* path, const Disc& disc, Host host) {
     }
 
     test_old_book_moved(load);
+    test_armour_at_the_vendor();
 }
 
 }  // namespace

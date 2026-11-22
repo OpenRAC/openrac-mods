@@ -39,7 +39,7 @@ public:
         : m_weapons(weapons),
           m_experience(experience) {}
 
-    // Sells the armour tiers of `armour` too (an entry at the end of the list).
+    // Sells the armour tiers of `armour` too (an entry at the end of the list, its room kept).
     void set_armour(Armour* armour) { m_armour = armour; }
 
     // ---- Hooks ----
@@ -94,6 +94,10 @@ private:
     // Returns the item of the mod's entry at `place` of the list, or -1.
     int added_item_at(int place) const;
 
+    // Logs the armour tiers' offer when it changed since the last build: the armour worn, the
+    // tier, and whether the next is `offered`.
+    void log_armour(bool offered);
+
     // Returns whether `place` holds the mod's armour entry.
     bool armour_at(int place) const;
 
@@ -112,6 +116,9 @@ private:
     int m_armour_place = -1;       // The armour entry's place at the last build, -1 for none.
     int m_armour_item = -1;        // The item its icon shows.
     int m_bought_ticks = 0;  // Ticks the purchase feedback keeps naming it.
+    int m_logged_worn = -1;         // The armour, tier and offer the log named last.
+    int m_logged_tier = -1;
+    bool m_logged_offered = false;
 };
 
 }  // namespace ng_plus_plus

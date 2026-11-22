@@ -29,8 +29,16 @@ void Vendor::build_list(openrac::Original<void(std::int32_t)> original, std::int
         return;
     }
 
+    m_armour_place = -1;
+    m_armour_item = armour_carrier();
+    const bool armour = m_armour != nullptr && m_armour->for_sale() && m_armour_item >= 0;
+    log_armour(armour);
+
+    // The armour entry's room kept: the weapons' entries never crowd it out.
+    const int room = armour ? kVendorMaxEntries - 1 : kVendorMaxEntries;
+
     // Each weapon whose next tier is for sale, while the list has room.
-    for (int item = 0; item < kItems && count < kVendorMaxEntries; ++item) {
+    for (int item = 0; item < kItems && count < room; ++item) {
         // Nothing for sale: no entry.
         if (!m_weapons.for_sale(item)) {
             continue;
@@ -61,18 +69,39 @@ void Vendor::build_list(openrac::Original<void(std::int32_t)> original, std::int
         ++count;
     }
 
-    m_armour_place = -1;
-    m_armour_item = armour_carrier();
-
     // The next armour tier, at the end of the list.
-    if (m_armour != nullptr && m_armour->for_sale() && m_armour_item >= 0
-        && count < kVendorMaxEntries) {
+    if (armour && count < kVendorMaxEntries) {
         view.put_upgrade_entry(count, m_armour_item, m_weapons.upgrade_row(m_armour_item));
         m_armour_place = count;
         ++count;
     }
 
     view.set_vendor_count(count);
+}
+
+void Vendor::log_armour(bool offered) {
+    // No armour tiers.
+    if (m_armour == nullptr) {
+        return;
+    }
+
+    const int worn = m_weapons.view().armour();
+    const int tier = m_armour->own_tier();
+
+    // Said once for each change: the vendor builds its list after every purchase.
+    if (worn == m_logged_worn && tier == m_logged_tier && offered == m_logged_offered) {
+        return;
+    }
+
+    m_logged_worn = worn;
+    m_logged_tier = tier;
+    m_logged_offered = offered;
+    m_weapons.view().mod().info(
+        "armour tiers: armour " + std::to_string(worn) + " worn (" + std::to_string(kBestArmour)
+        + " is Carbonox), tier " + std::to_string(tier) + ", "
+        + (offered ? armour_name(tier + 1) + " for sale at the end of the list"
+                   : std::string("none for sale"))
+    );
 }
 
 bool Vendor::armour_at(int place) const {

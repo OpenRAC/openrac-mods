@@ -276,10 +276,14 @@ inline constexpr std::uint32_t kChilledRgb = 0xB0E8FFu;
 
 // ---- Armour tiers ----
 
-// The tiers of armour past the game's best (Infernox, armour 4), bought at the weapon vendor.
+// The tiers of armour past the game's best (Carbonox, armour 4), bought at the weapon vendor: the
+// armour shop's list (shop_rebuild_unlocked_slot_list, func_002F71B8 on NTSC-U) is no hook point,
+// and its purchase sets the armour level its tables of five (names, models) are read by.
 inline constexpr int kArmourTiers = 8;
 
-// The game's best armour (the s16 armour level the hero's damage reads, 0 none to 4).
+// The game's best armour, Carbonox: the s16 armour level the hero's damage reads (g_player_stats
+// +0x18, the save block's +0x20; AdjustPlayerHealth clamps it to 0..4), 0 none, 1 Tetrafiber,
+// 2 Duraplate, 3 Electrosteel, 4 Carbonox (the armour shop lists the levels above it, 1 to 4).
 inline constexpr int kBestArmour = 4;
 
 // The item byte NG++'s book keeps the armour tier in: no item of the game's (none of its rows is

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 the OpenRAC contributors
 //
-// The armour tiers (README.md, "Armor tiers"): past the game's best armour (armour 4, which the
-// hero's damage reads from g_player_stats +0x18), eight tiers, Alpha Armor to Omega Armor, bought
-// at the weapon vendor (an entry of the mod's at the end of the list, under the Shield Charger's
-// icon, priced up perk_rules.h's armour ladder). Each takes a share off every hit on the hero on
+// The armour tiers (README.md, "Armor tiers"): past the game's best armour (Carbonox, armour 4,
+// which the hero's damage reads from g_player_stats +0x18), eight tiers, Alpha Armor to Omega
+// Armor, bought at the weapon vendor (an entry of the mod's at the end of the list, under the
+// Shield Charger's icon, priced up perk_rules.h's armour ladder; the armour shop's list takes no
+// entry of a mod's, perk_rules.h). Each takes a share off every hit on the hero on
 // top of the game's armour, draws the hero's armour in the tier's colour with a glow (OpenRAC's
 // energy material on his moby, 1.25), and from Gamma shocks the enemies near him when he is hit
 // (thorns), from Epsilon leaves him 1 point of health once a minute when a hit would end him.

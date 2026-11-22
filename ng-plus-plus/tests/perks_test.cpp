@@ -176,8 +176,10 @@ void test_ice_tint() {
     CHECK(max_level(13) == 0);
 }
 
-// Checks the armour's damage, price and name by tier.
+// Checks the armour's damage, price and name by tier, and that the tiers open at Carbonox, the
+// game's armour 4 (the armour shop's levels 1 to 4: Tetrafiber, Duraplate, Electrosteel, Carbonox).
 void test_armour_numbers() {
+    CHECK(kBestArmour == 4);
     CHECK(armour_damage(0) == 1.0f);
 
     float before = 1.0f;
