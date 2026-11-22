@@ -1421,6 +1421,14 @@ void direct_page_logic() {
     CHECK(mp::choose_name("seventeen_letters", "Ratchet") == "Ratchet");
     CHECK(mp::choose_name("${player_name}", "Ratchet") == "Ratchet");
     CHECK(mp::choose_name("${player_name}", "no!").empty());
+
+    // The server: the mod's setting, else the launcher's (OPENRAC_SERVER), else the official one.
+    CHECK(mp::choose_server("localhost:7000", "mp.example.org:7770") == "localhost:7000");
+    CHECK(mp::choose_server("", "mp.example.org:7771") == "mp.example.org:7771");
+    CHECK(mp::choose_server("", "[::1]:7770") == "[::1]:7770");
+    CHECK(mp::choose_server(":7770", "mp.example.org:7771") == "mp.example.org:7771");
+    CHECK(mp::choose_server("", "") == "game.openrac.dev:7770");
+    CHECK(mp::choose_server("[", ":1") == "game.openrac.dev:7770");
     CHECK(mp::choose_name("", "no!").empty());
     CHECK(mp::choose_name("", "").empty());
 }

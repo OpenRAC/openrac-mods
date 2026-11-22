@@ -44,7 +44,8 @@
 // lasts until the game ends, reconnecting when the server goes; the session follows it every tick.
 //
 // Settings (openrac-mod.json):
-//   server  (string, default game.openrac.dev:7770)  The OpenRAC server, host:port.
+//   server  (string, default empty)  The OpenRAC server, host:port; empty or not an address: the
+//           launcher's Multiplayer server (OPENRAC_SERVER), else game.openrac.dev:7770.
 //   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
 //           empty or invalid: the launcher's Multiplayer name.
 
@@ -605,14 +606,16 @@ void load(openrac::Mod& mod) {
     g = std::make_unique<State>();
     g->rac2 = rac2;
     g->language = game_language(mod);
-    const std::string server = mod.setting<std::string>("server");
+    const std::string setting = mod.setting<std::string>("server");
+    const char* launcher = std::getenv("OPENRAC_SERVER");
+    const std::string server = mp::choose_server(setting, launcher != nullptr ? launcher : "");
 
-    // An address that does not read is the default's.
-    if (!mp::parse_address(server, g->host, g->port)) {
-        g->host = "game.openrac.dev";
-        g->port = mp::kDefaultPort;
-        mod.warn("server \"" + server + "\" is not host:port; using game.openrac.dev:7770");
+    // An address the player typed that does not read: said once, and the next choice used.
+    if (!setting.empty() && server != setting) {
+        mod.warn("server \"" + setting + "\" is not host:port; using " + server);
     }
+
+    mp::parse_address(server, g->host, g->port);
 
     g->connection = std::make_unique<mp::Connection>();
     g->session = std::make_unique<mp::Session>(
@@ -1215,7 +1218,7 @@ void load(openrac::Mod& mod) {
 }  // namespace
 
 // The id and version are the manifest's: the port checks they agree.
-OPENRAC_MOD_CPP("multiplayer", "0.12.6", load)
+OPENRAC_MOD_CPP("multiplayer", "0.13.0", load)
 
 // The port calls this at its exit: the connection's thread goes with it.
 extern "C" OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {

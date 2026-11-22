@@ -448,6 +448,13 @@ bool valid_name(const std::string& name);
 // (OPENRAC_PLAYER_NAME) when valid, else empty (the mod then makes one up).
 std::string choose_name(const std::string& setting, const std::string& launcher);
 
+// The official OpenRAC server, the server when neither the mod's setting nor the launcher names one.
+constexpr const char* kOfficialServer = "game.openrac.dev:7770";
+
+// The server to connect to: the mod's `server` setting when it is an address, else the launcher's
+// Multiplayer server (OPENRAC_SERVER) when it is one, else kOfficialServer.
+std::string choose_server(const std::string& setting, const std::string& launcher);
+
 // What a removed player reads.
 constexpr const char* kKickedNotice = "Removed";
 constexpr const char* kBannedNotice = "Banned";

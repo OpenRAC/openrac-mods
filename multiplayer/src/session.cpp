@@ -838,6 +838,18 @@ std::string choose_name(const std::string& setting, const std::string& launcher)
     return valid_name(launcher) ? launcher : std::string();
 }
 
+std::string choose_server(const std::string& setting, const std::string& launcher) {
+    // The mod's own setting first, then the launcher's; one that does not read is passed over.
+    std::string host;
+    int port = 0;
+
+    if (parse_address(setting, host, port)) {
+        return setting;
+    }
+
+    return parse_address(launcher, host, port) ? launcher : std::string(kOfficialServer);
+}
+
 const char* error_text(ErrorReason reason) {
     // Each reason its own words.
     switch (reason) {
