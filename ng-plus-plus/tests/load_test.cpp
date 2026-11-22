@@ -26,6 +26,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <string>
 #include <vector>
@@ -1065,6 +1067,59 @@ bool reload(openrac_mod_load_fn load) {
     return load(&g_api, reinterpret_cast<openrac_mod*>(&g_api)) == 0;
 }
 
+// Returns the text of the file at `path`, "" for none.
+std::string file_text(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+// Checks a book of the layout before the RYNO II's path changed (Heavy, Ultima, Alpha to Omega,
+// Omega Prime) moved over once as the mod loads: old Ultima (2) to Alpha, old Omega (10) to Omega
+// (9), Omega Prime (11) to Ultima (10), the started bit and the other items kept; loaded again, the
+// book stays as it is. The book before is put back after.
+void test_old_book_moved(openrac_mod_load_fn load) {
+    const std::filesystem::path book = g_dir / "tiers.txt";
+    const std::string before = file_text(book);
+    // Three saves: the RYNO II at old Ultima (counting), old Omega, old Omega Prime; the Lancer 5.
+    const std::string zeros(112, '0');
+    std::string first = zeros;
+    first.replace(kRyno * 2, 2, "82");
+    first.replace(kLancer * 2, 2, "05");
+    std::string second = zeros;
+    second.replace(kRyno * 2, 2, "0a");
+    std::string third = zeros;
+    third.replace(kRyno * 2, 2, "0b");
+    {
+        std::ofstream file(book, std::ios::binary | std::ios::trunc);
+        file << "0100000000000011 " << first << "\n0200000000000011 " << second
+             << "\n0300000000000011 " << third << "\n";
+    }
+
+    CHECK(reload(load));
+    const std::string moved = file_text(book);
+    std::string first_now = zeros;
+    first_now.replace(kRyno * 2, 2, "82");
+    first_now.replace(kLancer * 2, 2, "05");
+    std::string second_now = zeros;
+    second_now.replace(kRyno * 2, 2, "09");
+    std::string third_now = zeros;
+    third_now.replace(kRyno * 2, 2, "0a");
+    CHECK(moved == "ngpp-tiers 2\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+                       + "\n0300000000000011 " + third_now + "\n");
+
+    // Loaded again: never moved twice.
+    CHECK(reload(load));
+    CHECK(file_text(book) == moved);
+
+    // The book before back, as the tests after it had it.
+    {
+        std::ofstream file(book, std::ios::binary | std::ios::trunc);
+        file << before;
+    }
+
+    CHECK(reload(load));
+}
+
 // Checks a save's RYNO II with all the experience it ever had: not Heavy at once, counted from 0;
 // the bars' goals.
 void test_a_new_save_counts_from_zero() {
@@ -1336,7 +1391,7 @@ void test_ryno_heavy_and_kept() {
     tick(1);
     CHECK(g_notice == "Heavy RYNO II");
     CHECK(get<std::uint16_t>(row(kRyno) + kRowAmmoMax) == 150);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Ultima is for sale at once
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Alpha is for sale at once
 
     // Saved (a new clock): kept. A new game (zeros) has none; the save loaded again has them.
     set_clock(0x20);
@@ -1366,38 +1421,66 @@ int ryno_place() {
     return place;
 }
 
-// Checks the RYNO II at the vendor after the Lancer's Gamma: Ultima (named by its own row's text,
-// having no version 2 row), then Alpha once Ultima is mastered.
-void test_ryno_at_the_vendor() {
-    set<std::int32_t>(row(kRyno) + kRowLabel, kRynoLabelText);
+// Buys the RYNO II's tier for sale at the vendor's last entry, named `name`, and checks it.
+void buy_ryno(const std::string& name) {
     hooked<rac2::Vendor_BuildList>()(0);
     CHECK(vendor_count() == 4);
     CHECK(ryno_place() == 3);
-    set_cursor(ryno_place());
-    CHECK(title(kRynoLabelText) == "Ultima RYNO II");
+    set_cursor(3);
+    CHECK(title(kRynoLabelText) == name);
     std::int32_t money = 10'000'000;
     CHECK(purchase(money) > 0);
-    CHECK(g_notice == "Ultima RYNO II");
-    // Bought: no entry left until Ultima is mastered (five times the others' experience).
-    CHECK(vendor_count() == 3);
-    CHECK(get<std::int32_t>(g_disc->vendor + kVendorCursor) == 2);  // kept in the list
+    CHECK(g_notice == name);
+    CHECK(vendor_count() == 3);  // the next is by experience: no entry
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);
-    set_experience(kRyno, 29'999);
-    hooked<rac2::Vendor_BuildList>()(0);
-    CHECK(vendor_count() == 3);
-    set_experience(kRyno, 30'000);
-    hooked<rac2::Vendor_BuildList>()(0);
-    CHECK(vendor_count() == 4);
-    set_cursor(3);
-    CHECK(title(kRynoLabelText) == "Alpha RYNO II");
-    money = 10'000'000;
-    CHECK(purchase(money) > 0);
-    CHECK(g_notice == "Alpha RYNO II");
-    CHECK(vendor_count() == 3);  // Beta is by experience: no entry
-    CHECK(title(kRynoLabelText) == "Alpha RYNO II");
+}
+
+// Levels the RYNO II up to `name` by `exp` of experience, checking the bar's goal before.
+void level_ryno(std::int32_t exp, const std::string& name) {
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == exp);
+    set_experience(kRyno, exp - 1);
     tick(1);
+    CHECK(g_notice != name);
+    set_experience(kRyno, exp);
+    tick(1);
+    CHECK(g_notice == name);
+}
+
+// Checks the RYNO II at the vendor after the Lancer's Gamma, from Heavy: Alpha for sale at once
+// (named by its own row's text, having no version 2 row), then the bar toward Beta.
+void test_ryno_at_the_vendor() {
+    set<std::int32_t>(row(kRyno) + kRowLabel, kRynoLabelText);
+    buy_ryno("Alpha RYNO II");
+    CHECK(title(kRynoLabelText) == "Alpha RYNO II");
     CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);  // toward Beta
+}
+
+// Checks the rest of the RYNO II's path, from Beta (reached in hand): Gamma for sale at once,
+// Delta, Epsilon, Zeta and Eta in turn, Omega by experience, and Ultima, its last, by experience
+// after Omega, with a full bar and nothing for sale or to level after it.
+void test_ryno_to_ultima() {
+    set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
+    set_experience(kRyno, 0);
+    tick(1);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Gamma for sale at once
+    buy_ryno("Gamma RYNO II");
+    level_ryno(60'000, "Delta RYNO II");
+    buy_ryno("Epsilon RYNO II");
+    level_ryno(80'000, "Zeta RYNO II");
+    buy_ryno("Eta RYNO II");
+    level_ryno(120'000, "Omega RYNO II");
+    tick(1);
+    level_ryno(150'000, "Ultima RYNO II");
+    tick(1);
+    // The last step: a full bar, no goal, nothing at the vendor, no step for more experience.
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);
+    hooked<rac2::Vendor_BuildList>()(0);
+    CHECK(vendor_count() == 3);
+    g_notice.clear();
+    set_experience(kRyno, 10'000'000);
+    tick(1);
+    CHECK(g_notice.empty());
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);
 }
 
 // Returns the vendor list place of item `item`'s upgrade entry, or -1.
@@ -2419,6 +2502,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_each_save_has_its_own();
     test_saves_from_inside_a_level();
     test_in_hand_level_up();
+    test_ryno_to_ultima();
     test_kill_experience();
 
     test_collectors(host != Host::Off);
@@ -2459,6 +2543,8 @@ void run(const char* path, const Disc& disc, Host host) {
     } else {
         CHECK(hooked<rac2::Level_Load>() == nullptr);
     }
+
+    test_old_book_moved(load);
 }
 
 }  // namespace

@@ -25,15 +25,18 @@ namespace ng_plus_plus {
 // g_itemEquippedSlot).
 inline constexpr int kItems = 56;
 
-// The most steps a weapon has: the RYNO II's two of its own, the eight tiers and its Omega Prime.
-inline constexpr int kMaxSteps = 11;
-
 // The eight tiers every weapon gets, V5 to V12.
 inline constexpr int kTiers = 8;
 
+// The RYNO II's steps: Heavy, the eight tiers and Ultima, its last.
+inline constexpr int kRynoStepCount = kTiers + 2;
+
+// The most steps a weapon has: the RYNO II's.
+inline constexpr int kMaxSteps = kRynoStepCount;
+
 // The experience (>> 5) a weapon needs at a bought version before the next purchase opens, where
-// the game has no experience step of its own there (the two-version weapons' Mega, the Zodiac, the
-// RYNO II Ultima, and each bought tier).
+// the game has no experience step of its own there (the two-version weapons' Mega, the Zodiac and
+// each bought tier).
 inline constexpr std::int32_t kMasteryExp = 6000;
 
 // The RYNO II's experience goals (its steps by experience and its mastery) are this many times the
@@ -53,7 +56,7 @@ enum class Kind : std::uint8_t {
     Zapper,  // the Clank Zapper: V2 by experience
     Sheep,   // the Sheepinator: V4 by experience, no Mega: Alpha is for sale at V4
     Single,  // one version, bought (the Zodiac)
-    Ryno,    // the RYNO II: Heavy by experience and Ultima bought first
+    Ryno,    // the RYNO II: Heavy by experience, the tiers, then Ultima by experience last
 };
 
 // How a step is reached.
@@ -73,8 +76,7 @@ enum class Tint : std::uint8_t {
     Crimson,
     Prismatic,  // cycles through the seven above
     Orange,     // RYNO II Heavy
-    Ultima,     // RYNO II Ultima: black and red
-    Prime,      // RYNO II Omega Prime: white and gold, beating
+    Ultima,     // RYNO II Ultima, its last step: black and red, beating
 };
 
 // One step: its name, put before the weapon's ("Alpha"), how it is reached, what it needs and what
@@ -112,8 +114,8 @@ int name_version(Kind kind);
 
 // Returns the price of the step at `level` when it is bought (0 for one by experience), from the
 // weapon's Mega price `mega` (0 for none): the base (`mega`, at least kPriceFloor; kPriceLadder with
-// none) times 1.5, 2.5, 4, 6 (and 9, the RYNO II's fifth), rounded, each strictly above the one
-// before and above `mega`. A Kind::NoExp weapon buys all eight: the same ladder at Alpha, Gamma,
+// none) times 1.5, 2.5, 4 and 6 (the RYNO II's a step up: 2.5, 4, 6 and 9), rounded, each strictly
+// above the one before and above `mega`. A Kind::NoExp weapon buys all eight: the same ladder at Alpha, Gamma,
 // Epsilon and Eta, with Beta, Delta and Zeta between (2, 3.25, 5) and Omega at 9.
 std::int32_t price(Kind kind, int level, std::int32_t mega);
 
@@ -159,7 +161,7 @@ inline constexpr int kEffectFirst = 6;
 std::optional<std::uint32_t> effect_rgb(Kind kind, int level, std::uint32_t tick);
 
 // Returns how strong a weapon's effects are drawn at `level`: 0 for none, kEffectFirst at the first
-// step, rising with each step to kEffectTop at the last (Omega; the RYNO II's Omega Prime).
+// step, rising with each step to kEffectTop at the last (Omega; the RYNO II's Ultima).
 int effect_strength(Kind kind, int level);
 
 // Returns the colour a weapon's effects take from its icon's tint `bgr` (0x00BBGGRR), 0xRRGGBB:

@@ -17,6 +17,7 @@
 #include "check.h"
 #include "extra_enemies.h"
 #include "save_book.h"
+#include "save_tiers.h"
 #include "tiers.h"
 #include "weapon_visuals.h"
 
@@ -48,7 +49,8 @@ void test_kinds() {
     CHECK(kind_of(13) == Kind::None);  // Swingshot
     CHECK(kind_of(10) == Kind::None);  // the wrench
     CHECK(step_count(Kind::Four) == 8);
-    CHECK(step_count(Kind::Ryno) == 11);  // Heavy, Ultima, the eight tiers, Omega Prime
+    CHECK(step_count(Kind::Ryno) == 10);  // Heavy, the eight tiers, Ultima
+    CHECK(step_count(Kind::Ryno) == kMaxSteps);
     CHECK(step_count(Kind::None) == 0);
 }
 
@@ -148,8 +150,12 @@ void test_prices() {
     CHECK(price(Kind::Four, 6, 150'000) == 900'000);
     CHECK(price(Kind::Four, 0, 375'000) == 565'000);
     CHECK(price(Kind::Two, 0, 1'000) == 225'000);         // the floor
-    CHECK(price(Kind::Ryno, 1, 1'000'000) == 1'500'000);  // Ultima
-    CHECK(price(Kind::Ryno, 8, 1'000'000) == 9'000'000);  // Eta
+    CHECK(price(Kind::Ryno, 0, 1'000'000) == 0);          // Heavy: by experience
+    CHECK(price(Kind::Ryno, 1, 1'000'000) == 2'500'000);  // Alpha
+    CHECK(price(Kind::Ryno, 3, 1'000'000) == 4'000'000);  // Gamma
+    CHECK(price(Kind::Ryno, 5, 1'000'000) == 6'000'000);  // Epsilon
+    CHECK(price(Kind::Ryno, 7, 1'000'000) == 9'000'000);  // Eta
+    CHECK(price(Kind::Ryno, 9, 1'000'000) == 0);          // Ultima: by experience
 }
 
 // Returns whether every bought tier of a four-version weapon with Mega `mega` costs more than the
@@ -180,39 +186,125 @@ void test_prices_rise() {
     }
 }
 
-// Checks the RYNO II's own two steps, its slower experience and its names.
+// Checks the RYNO II's path: Heavy by experience, Alpha to Omega, Ultima by experience last; its
+// slower experience and its names.
 void test_ryno() {
-    CHECK(std::string(step_at(Kind::Ryno, 0)->name) == "Heavy");
+    constexpr const char* kNames[] = {
+        "Heavy", "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Omega", "Ultima"
+    };
+    constexpr How kHow[] = {How::Exp, How::Buy, How::Exp, How::Buy, How::Exp,
+                            How::Buy, How::Exp, How::Buy, How::Exp, How::Exp};
+
+    // Each step's name and how it is reached.
+    for (int level = 0; level < step_count(Kind::Ryno); ++level) {
+        CHECK(std::string(step_at(Kind::Ryno, level)->name) == kNames[level]);
+        CHECK(step_at(Kind::Ryno, level)->how == kHow[level]);
+    }
+
+    CHECK(step_at(Kind::Ryno, 10) == nullptr);  // Ultima is the last: no Omega Prime
     CHECK(!exp_reached(Kind::Ryno, 0, true, 29'999));
     CHECK(exp_reached(Kind::Ryno, 0, true, 30'000));
     CHECK(!can_buy(Kind::Ryno, 0, true, 1'000'000));
-    CHECK(can_buy(Kind::Ryno, 1, true, 0));   // Ultima: Heavy reached
-    CHECK(!can_buy(Kind::Ryno, 2, true, 0));  // Alpha: Ultima must be mastered
-    CHECK(!can_buy(Kind::Ryno, 2, true, kMasteryExp));
-    CHECK(can_buy(Kind::Ryno, 2, true, 30'000));
-    // The bar's goal: Heavy's experience, none for Ultima (for sale at once), Ultima's mastery for
-    // Alpha, a step's own by experience, none past the last.
+    CHECK(can_buy(Kind::Ryno, 1, true, 0));   // Alpha: for sale once Heavy is reached
+    CHECK(!can_buy(Kind::Ryno, 1, false, 0));
+    CHECK(can_buy(Kind::Ryno, 3, true, 0));  // Gamma: for sale once Beta is reached
+    // The bar's goal: Heavy's experience, none for Alpha (for sale at once), a step's own by
+    // experience, Ultima's after Omega, none past it.
     CHECK(exp_goal(Kind::Ryno, 0) == 30'000);
     CHECK(exp_goal(Kind::Ryno, 1) == 0);
-    CHECK(exp_goal(Kind::Ryno, 2) == 30'000);
-    // Beta, Delta, Zeta and Omega: five times the others'.
-    CHECK(exp_goal(Kind::Ryno, 3) == 40'000);
-    CHECK(exp_goal(Kind::Ryno, 5) == 60'000);
-    CHECK(exp_goal(Kind::Ryno, 7) == 80'000);
-    CHECK(exp_goal(Kind::Ryno, 9) == 120'000);
-    CHECK(!exp_reached(Kind::Ryno, 3, true, 39'999));
-    CHECK(exp_reached(Kind::Ryno, 3, true, 40'000));
+    // Beta, Delta, Zeta, Omega and Ultima: five times the others'.
+    CHECK(exp_goal(Kind::Ryno, 2) == 40'000);
+    CHECK(exp_goal(Kind::Ryno, 4) == 60'000);
+    CHECK(exp_goal(Kind::Ryno, 6) == 80'000);
+    CHECK(exp_goal(Kind::Ryno, 8) == 120'000);
+    CHECK(exp_goal(Kind::Ryno, 9) == 150'000);
+    CHECK(!exp_reached(Kind::Ryno, 2, true, 39'999));
+    CHECK(exp_reached(Kind::Ryno, 2, true, 40'000));
+    CHECK(!exp_reached(Kind::Ryno, 9, true, 149'999));
+    CHECK(exp_reached(Kind::Ryno, 9, true, 150'000));
     CHECK(exp_goal(Kind::Four, 0) == 0);
     CHECK(exp_goal(Kind::Four, 1) == step_at(Kind::Four, 1)->exp);
     CHECK(exp_goal(Kind::Four, 2) == 0);
     CHECK(exp_goal(Kind::Two, 0) == kMasteryExp);
     CHECK(exp_goal(Kind::Ryno, step_count(Kind::Ryno)) == 0);
     CHECK(exp_goal(Kind::None, 0) == 0);
-    CHECK(damage(Kind::Ryno, 2) > damage(Kind::Ryno, 1));
-    CHECK(damage(Kind::Ryno, 3) > damage(Kind::Ryno, 2));
+    // Damage and ammo: Heavy's x1.4 and x1.5, rising each step to Ultima's x9.7 and x3.2.
+    CHECK(std::fabs(damage(Kind::Ryno, 1) - 1.4f) < 0.001f);
+    CHECK(std::fabs(ammo(Kind::Ryno, 1) - 1.5f) < 0.001f);
+    CHECK(std::fabs(damage(Kind::Ryno, 10) - 9.7f) < 0.001f);
+    CHECK(std::fabs(ammo(Kind::Ryno, 10) - 3.2f) < 0.001f);
+    CHECK(ammo_max(Kind::Ryno, 10, 100) == 320);
+
+    // No step weaker than the one before, and the gains between steps never shrink much: a
+    // smooth curve.
+    for (int level = 1; level < step_count(Kind::Ryno); ++level) {
+        CHECK(damage(Kind::Ryno, level + 1) > damage(Kind::Ryno, level));
+        CHECK(ammo(Kind::Ryno, level + 1) > ammo(Kind::Ryno, level));
+    }
+
+    for (int level = 2; level < step_count(Kind::Ryno); ++level) {
+        const float gain = damage(Kind::Ryno, level + 1) - damage(Kind::Ryno, level);
+        CHECK(gain >= damage(Kind::Ryno, level) - damage(Kind::Ryno, level - 1) - 0.001f);
+    }
+
     CHECK(display_name("RYNO II", Kind::Ryno, 1) == "Heavy RYNO II");
-    CHECK(display_name("RYNO II", Kind::Ryno, 2) == "Ultima RYNO II");
-    CHECK(display_name("RYNO II", Kind::Ryno, 10) == "Omega RYNO II");
+    CHECK(display_name("RYNO II", Kind::Ryno, 2) == "Alpha RYNO II");
+    CHECK(display_name("RYNO II", Kind::Ryno, 9) == "Omega RYNO II");
+    CHECK(display_name("RYNO II", Kind::Ryno, 10) == "Ultima RYNO II");
+}
+
+// Checks the experience bar for every kind: at the last step it is full (goal 0) with nothing past
+// it; at every other step its goal leads to a real next step: the next by experience reached at
+// that goal, or the next bought for sale at that goal (at once with none).
+void test_bar_goals() {
+    for (const Kind kind : {
+             Kind::Four, Kind::Two, Kind::NoExp, Kind::Zapper, Kind::Sheep, Kind::Single, Kind::Ryno
+         }) {
+        const int steps = step_count(kind);
+
+        // At the last step: full, nothing to fill toward and nothing to reach or buy.
+        CHECK(exp_goal(kind, steps) == 0);
+        CHECK(step_at(kind, steps) == nullptr);
+        CHECK(!exp_reached(kind, steps, true, 10'000'000));
+        CHECK(!can_buy(kind, steps, true, 10'000'000));
+
+        // Every step before: its goal gives the next step, and no less does.
+        for (int level = 0; level < steps; ++level) {
+            const std::int32_t goal = exp_goal(kind, level);
+            const Step* next = step_at(kind, level);
+            CHECK(next != nullptr);
+
+            // The next by experience: reached at the goal, not before.
+            if (next->how == How::Exp) {
+                CHECK(goal > 0);
+                CHECK(exp_reached(kind, level, true, goal));
+                CHECK(!exp_reached(kind, level, true, goal - 1));
+                continue;
+            }
+
+            // The next bought: for sale at the goal, not before; a full bar means for sale now.
+            CHECK(can_buy(kind, level, true, goal));
+            CHECK(goal == 0 || !can_buy(kind, level, true, goal - 1));
+        }
+    }
+}
+
+// Checks the RYNO II's colours along its path: Heavy orange, the tiers' tints, Ultima black and red.
+void test_ryno_colours() {
+    CHECK(tint_rgb(Kind::Ryno, 1, 0) == 0x0080FFu);  // Heavy's orange
+
+    // Alpha to Omega: the tiers' own tints.
+    for (int tier = 1; tier <= kTiers; ++tier) {
+        CHECK(step_at(Kind::Ryno, tier)->tint == step_at(Kind::Four, tier - 1)->tint);
+        CHECK(tint_rgb(Kind::Ryno, tier + 1, 77) == tint_rgb(Kind::Four, tier, 77));
+    }
+
+    CHECK(step_at(Kind::Ryno, 9)->tint == Tint::Ultima);
+    CHECK(tint_rgb(Kind::Ryno, 10, 0) == 0x0000E0u);  // Ultima's red...
+    CHECK(tint_rgb(Kind::Ryno, 10, 30) == 0x080808u);  // ...beating to black
+    CHECK(tint_moves(Kind::Ryno, 10));
+    CHECK(effect_rgb(Kind::Ryno, 10, 0) == 0xFF1A1Au);  // bright red
+    CHECK(effect_rgb(Kind::Ryno, 10, 30) == 0x600000u);  // deep red
 }
 
 // Checks damage, ammo, tints and names rising with the tiers.
@@ -237,7 +329,7 @@ void test_scaling() {
     // Omega moves; Alpha does not.
     CHECK(tint_rgb(Kind::Four, 8, 0) != tint_rgb(Kind::Four, 8, 100));
     CHECK(tint_rgb(Kind::Four, 1, 0) == tint_rgb(Kind::Four, 1, 100));
-    CHECK(tint_rgb(Kind::Ryno, 2, 0) != tint_rgb(Kind::Ryno, 2, 30));
+    CHECK(tint_rgb(Kind::Ryno, 10, 0) != tint_rgb(Kind::Ryno, 10, 30));
     // The effects' colours: the tint's hue at full strength, 0xRRGGBB; Ultima's red beats from
     // bright to deep, never to black; Omega's rainbow moves.
     CHECK(!effect_rgb(Kind::Four, 0, 0));
@@ -247,22 +339,23 @@ void test_scaling() {
     CHECK(effect_rgb(Kind::Four, 4, 0) == 0x00FFFFu);  // teal, raised
     CHECK(effect_rgb(Kind::Four, 8, 0) != effect_rgb(Kind::Four, 8, 100));
     CHECK(effect_rgb(Kind::Ryno, 1, 0) == 0xFF8000u);  // Heavy's orange
-    CHECK(effect_rgb(Kind::Ryno, 2, 0) == 0xFF1A1Au);  // Ultima, bright
-    CHECK(effect_rgb(Kind::Ryno, 2, 30) == 0x600000u);  // Ultima, deep
+    CHECK(effect_rgb(Kind::Ryno, 2, 0) == 0xB0FF20u);  // Alpha's lime
+    CHECK(effect_rgb(Kind::Ryno, 10, 0) == 0xFF1A1Au);  // Ultima, bright
+    CHECK(effect_rgb(Kind::Ryno, 10, 30) == 0x600000u);  // Ultima, deep
     // Stronger with each tier, the top at the last.
     CHECK(effect_strength(Kind::Four, 0) == 0);
     CHECK(effect_strength(Kind::Four, 1) == kEffectFirst);
     CHECK(effect_strength(Kind::Four, 8) == kEffectTop);
     CHECK(effect_strength(Kind::Ryno, 1) == kEffectFirst);
-    CHECK(effect_strength(Kind::Ryno, 10) == 14);
-    CHECK(effect_strength(Kind::Ryno, 11) == kEffectTop);  // Omega Prime
+    CHECK(effect_strength(Kind::Ryno, 9) == 14);
+    CHECK(effect_strength(Kind::Ryno, 10) == kEffectTop);  // Ultima
     CHECK(effect_strength(Kind::None, 3) == 0);
 
     for (int level = 1; level < kTiers; ++level) {
         CHECK(effect_strength(Kind::Four, level + 1) > effect_strength(Kind::Four, level));
     }
 
-    CHECK(tint_moves(Kind::Four, 8) && tint_moves(Kind::Ryno, 2));
+    CHECK(tint_moves(Kind::Four, 8) && tint_moves(Kind::Ryno, 10) && !tint_moves(Kind::Ryno, 2));
     CHECK(!tint_moves(Kind::Four, 1) && !tint_moves(Kind::Ryno, 1) && !tint_moves(Kind::Four, 0));
     CHECK(display_name("Lancer", Kind::Four, 1) == "Alpha Lancer");
     CHECK(display_name("Lancer", Kind::Four, 0) == "Lancer");
@@ -398,7 +491,7 @@ void test_ryno_fights() {
         CHECK(hit_divisor(Kind::Ryno, 10, cycle, 1.0f, tough) == 1.0f);
     }
 
-    // Every run and every version: the game's, Heavy, Ultima, the eight tiers.
+    // Every run and every version: the game's, Heavy, the eight tiers, Ultima.
     for (int cycle = 0; cycle < 40; ++cycle) {
         // Each version.
         for (int level = 0; level <= kMaxSteps; ++level) {
@@ -437,11 +530,80 @@ void test_ryno_fights() {
     // Still the strongest: on an ordinary enemy its Omega is over eight times the game's RYNO II in
     // every run, four times and more what any other weapon's Omega keeps of its own after the curve.
     for (int cycle = 2; cycle < 40; ++cycle) {
-        const float ryno = damage(Kind::Ryno, 10) / hit_divisor(Kind::Ryno, 10, cycle, 1.0f, common);
+        const float ryno = damage(Kind::Ryno, 9) / hit_divisor(Kind::Ryno, 9, cycle, 1.0f, common);
         const float other = damage(Kind::Four, 8) / hit_divisor(Kind::Four, 8, cycle, 1.0f, common);
         CHECK(ryno >= 8.0f);
         CHECK(ryno >= 4.0f * other);
     }
+}
+
+// Returns a clock of the test's own, its first byte `n`.
+Clock clock_of(std::uint8_t n) {
+    Clock clock{};
+    clock[0] = n;
+    clock[7] = 0x11;
+    return clock;
+}
+
+// Checks the book's move to the RYNO II's path now: old Heavy stays, old Ultima becomes Alpha, old
+// Alpha to Omega keep their tier, old Omega Prime becomes Ultima; the started bit, the other items
+// and the records' order stay; and a book with the marker is never moved again.
+void test_ryno_migration() {
+    // Every old level, with and without the started bit.
+    constexpr int kOldToNew[] = {0, 1, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+    for (int old = 0; old <= 11; ++old) {
+        const auto bare = static_cast<std::uint8_t>(old);
+        CHECK(ryno_level_from_old(bare) == kOldToNew[old]);
+        CHECK(ryno_level_from_old(static_cast<std::uint8_t>(bare | kStartedBit))
+              == (kOldToNew[old] | kStartedBit));
+    }
+
+    // The names: old Ultima (2) is Alpha now, old Alpha (3) too, old Omega (10) Omega, old Omega
+    // Prime (11) Ultima.
+    CHECK(display_name("RYNO II", Kind::Ryno, ryno_level_from_old(2)) == "Alpha RYNO II");
+    CHECK(display_name("RYNO II", Kind::Ryno, ryno_level_from_old(3)) == "Alpha RYNO II");
+    CHECK(display_name("RYNO II", Kind::Ryno, ryno_level_from_old(10)) == "Omega RYNO II");
+    CHECK(display_name("RYNO II", Kind::Ryno, ryno_level_from_old(11)) == "Ultima RYNO II");
+
+    // A book of the layout before: no marker.
+    SaveBook book;
+    LevelBytes first{};
+    first[kRyno] = static_cast<std::uint8_t>(2 | kStartedBit);  // Ultima, counting
+    first[kLancer] = 5;
+    LevelBytes second{};
+    second[kRyno] = 11;  // Omega Prime
+    LevelBytes third{};
+    third[kRyno] = 1;  // Heavy
+    book.put(clock_of(1), first);
+    book.put(clock_of(2), second);
+    book.put(clock_of(3), third);
+    const std::string old_text = book.write();
+    CHECK(!book_current(old_text));
+
+    SaveBook read;
+    read.read(old_text);
+    migrate_book(read);
+    CHECK(read.records().size() == 3);
+    CHECK(read.records()[0].clock == clock_of(1));  // the order stays
+    CHECK(read.find(clock_of(1))->levels[kRyno] == (2 | kStartedBit));  // Alpha
+    CHECK(read.find(clock_of(1))->levels[kLancer] == 5);                // others untouched
+    CHECK(read.find(clock_of(2))->levels[kRyno] == 10);                 // Ultima
+    CHECK(read.find(clock_of(3))->levels[kRyno] == 1);                  // Heavy
+
+    // Written with the marker: read back as it is, never moved again.
+    const std::string text = book_text(read);
+    CHECK(book_current(text));
+    CHECK(text.rfind(std::string(kBookMarker) + "\n", 0) == 0);
+    SaveBook again;
+    CHECK(again.read(text) == 3);
+    CHECK(again.find(clock_of(2))->levels[kRyno] == 10);
+    CHECK(again.find(clock_of(1))->levels[kRyno] == (2 | kStartedBit));
+
+    // The marker wherever the launcher's editor left it, and with a Windows line end.
+    CHECK(book_current(old_text + std::string(kBookMarker) + "\r\n"));
+    CHECK(!book_current("ngpp-tiers 1\n"));
+    CHECK(!book_current(""));
 }
 
 // Checks a kill's weapon experience: the game's up to cycle 1, then the run's x1.5, x2.5, x3.5 and
@@ -687,6 +849,9 @@ int main() try {
     test_prices();
     test_prices_rise();
     test_ryno();
+    test_bar_goals();
+    test_ryno_colours();
+    test_ryno_migration();
     test_scaling();
     test_enemies();
     test_bosses();

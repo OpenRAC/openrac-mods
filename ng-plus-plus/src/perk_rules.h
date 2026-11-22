@@ -23,7 +23,7 @@ namespace ng_plus_plus {
 // ---- Tiers and stages ----
 
 // Returns the tier a weapon of `kind` wears at `level`: 0 for none, 1 Alpha to 8 Omega, 9 the RYNO
-// II's Omega Prime (its RYNO-only steps, Heavy and Ultima, are no tier).
+// II's Ultima (its first step, Heavy, is no tier).
 int tier_of(Kind kind, int level);
 
 // A perk's stage: none, Gamma's (Gamma and Delta), Epsilon's (Epsilon to Eta), Omega's.
@@ -34,8 +34,8 @@ enum class Stage : std::uint8_t {
     Omega = 3
 };
 
-// Returns the stage of tier `tier` (tier_of): from Gamma (3), Epsilon (5) and Omega (8; Omega
-// Prime too).
+// Returns the stage of tier `tier` (tier_of): from Gamma (3), Epsilon (5) and Omega (8; the RYNO
+// II's Ultima too).
 Stage stage_of_tier(int tier);
 
 // Returns the stage of a weapon of `kind` at `level`.
@@ -131,9 +131,9 @@ inline constexpr int kFieldPulseTicks = 15;
 // need the fire, spawn or status hook points: README.md, "Needs a newer OpenRAC").
 HitPerk hit_perk(int item, Stage stage);
 
-// Returns the perk of a hit of the RYNO II at `tier` (tier_of: 9 Omega Prime): the survey's split
+// Returns the perk of a hit of the RYNO II at `tier` (tier_of: 9 Ultima): the survey's split
 // rockets as hits on the nearest enemies (2 at Gamma, 3 at Epsilon, re-split at Omega, 3 and
-// splitting again at Omega Prime), the real rockets once OpenRAC spawns them (H1).
+// splitting again at Ultima), the real rockets once OpenRAC spawns them (H1).
 HitPerk ryno_perk(int tier);
 
 // ---- Shots (OpenRAC 1.29's weapon calls) ----
@@ -161,7 +161,7 @@ inline constexpr int kSeeker = 3329;
 inline constexpr int kMiniBomb = 121;
 inline constexpr int kGravityBomb = 3300;
 
-// Returns what item `item`'s shots do at `stage` (`tier` the RYNO II's, 9 Omega Prime): the
+// Returns what item `item`'s shots do at `stage` (`tier` the RYNO II's, 9 Ultima): the
 // Minirocket Tube, Seeker Gun, Hoverbomb Gun, Bomb Glove, Gravity Bomb, Bouncer, Decoy Glove,
 // Miniturret Glove and the RYNO II; nothing for the others (no shot moby of their own).
 ShotPerk shot_perk(int item, Stage stage, int tier);

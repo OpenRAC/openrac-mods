@@ -4,7 +4,8 @@ New Game++ for Going Commando, for OpenRAC's native port (NTSC-U, PAL and NTSC-U
 eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). The game's
 own versions stay as they are; NG++ adds its tiers on top and keeps track of them itself.
 Version 0.5.0 adds weapon perks from Gamma on (the Lava Gun becomes the Ice Gun), eight armor tiers,
-elite enemies, a modifier for each new game, the RYNO II's Omega Prime and health from Omega weapons.
+elite enemies, a modifier for each new game, an extra final RYNO II step (Ultima RYNO II since the path
+changed) and health from Omega weapons.
 Version 0.5.1 makes the Ice Gun a choice (or a fire path for the Meteor Gun), the Tesla Claw hit
 steadily, the Zodiac hurt bosses and the decoy last longer (see "Weapon tuning").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
@@ -61,21 +62,36 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 - **Clank Zapper**: Alpha is for sale once it is V2.
 - **Sheepinator**: like the four-version weapons, Alpha is for sale once it is V4 (it has no Mega,
   so its prices start from 1,500,000).
-- **RYNO II**: first **Heavy RYNO II** at 30,000 XP (x1.4 damage, x1.5 max ammo, orange), then
-  **Ultima RYNO II** from the vendor for 1,500,000 (x2.2 damage, x2 max ammo, black and red), then
-  Alpha (after 30,000 more XP) to Omega, each adding its bonus on top of Ultima's. Its prices are
-  1,000,000 times 1.5, 2.5, 4, 6 and 9: Ultima 1,500,000, Alpha 2,500,000, Gamma 4,000,000,
-  Epsilon 6,000,000, Eta 9,000,000. After Omega it has an 11th step by XP, Omega Prime (see below).
-  The RYNO II levels up five times slower than other weapons: its
-  Beta, Delta, Zeta and Omega need 40,000, 60,000, 80,000 and 120,000 XP (`kRynoExpScale` in
-  src/tiers.h).
+- **RYNO II**: first **Heavy RYNO II** at 30,000 XP, then Alpha to Omega (Alpha for sale as soon as
+  it is Heavy), and last **Ultima RYNO II**, by XP after Omega: ten steps, Ultima the final one. The
+  RYNO II has its own curve, rising from Heavy to Ultima, and levels up five times slower than
+  other weapons (`kRynoExpScale` in src/tiers.h). Its prices are 1,000,000 (its own price) times
+  2.5, 4, 6 and 9:
+
+  | Step | How | Price | XP | Damage | Max ammo | Color |
+  |---|---|---|---|---|---|---|
+  | Heavy | level up | | 30,000 | x1.40 | x1.50 | orange |
+  | Alpha | buy | 2,500,000 | | x2.00 | x1.65 | lime |
+  | Beta | level up | | 40,000 | x2.70 | x1.80 | cyan |
+  | Gamma | buy | 4,000,000 | | x3.45 | x1.95 | emerald |
+  | Delta | level up | | 60,000 | x4.30 | x2.15 | teal |
+  | Epsilon | buy | 6,000,000 | | x5.20 | x2.35 | violet |
+  | Zeta | level up | | 80,000 | x6.20 | x2.55 | magenta |
+  | Eta | buy | 9,000,000 | | x7.30 | x2.75 | crimson |
+  | Omega | level up | | 120,000 | x8.45 | x2.95 | rainbow |
+  | Ultima | level up | | 150,000 | x9.70 | x3.20 | black and red, beating |
+
+  At Ultima the XP bar shows full: there is nothing past it. Saves from before the path changed, when
+  the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, are moved over once: Heavy
+  stays Heavy, the old Ultima becomes Alpha, Alpha to Omega keep their tier, and Omega Prime becomes
+  Ultima.
 
 **Names**: the tier replaces the game's top version in the weapon's name, in front of the name the
 weapon had before its Mega. A four-version weapon uses its second version's name: "Beta Meteor
 Gun", "Alpha Heavy Lancer" (not "Beta Lava Gun", nor the Mega's name). A two-version weapon uses
 its first: "Alpha Bomb Glove". The Clank Zapper uses its last, "Alpha Clank Shocker"; the
 Sheepinator its last XP version, "Alpha Black Sheepinator"; the Zodiac and the RYNO II their only
-one ("Heavy RYNO II", "Ultima RYNO II", "Alpha RYNO II"). The names come from the game's own text,
+one ("Heavy RYNO II", "Alpha RYNO II", "Ultima RYNO II"). The names come from the game's own text,
 so every language works. A tier reached by XP shows the game's own level-up popup and message with
 the new name; a bought one shows the vendor's usual purchase message. The name also shows at the
 top of the screen when you switch to a tiered weapon.
@@ -112,8 +128,8 @@ its own colors with a touch of the tier's and gets a glowing edge in it, and its
 effects tied to it (sparks, flashes, arcs, trails, halos) are drawn in the tier's color instead of
 the game's. Each tier is a little stronger than the one before: the effects are brighter and the
 sparks and flashes larger, up to about half again as bright and a third larger at Omega. Omega's
-effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange and Ultima RYNO II
-beats between bright and deep red.
+effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange, Alpha to Omega RYNO II
+in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
 
 This is only how things look: shots fly, spread and hit exactly as at the tier's damage.
 
@@ -132,7 +148,7 @@ This is only how things look: shots fly, spread and hit exactly as at the tier's
 | Hoverbomb / Tetrabomb Gun | the gun, and each hoverbomb (body and glow) |
 | Shield Charger / Tesla Barrier | the shield: its electric arcs and sparkles. It no longer turns green for good at the Mega: Alpha is lime, Beta cyan, Gamma emerald, Delta teal, Epsilon violet, Zeta magenta, Eta crimson, and Omega's shield cycles through them all |
 | Zodiac | the gun's glowing edge and the effects tied to it |
-| RYNO II | the launcher's glowing edge and the effects tied to it (orange at Heavy, beating red at Ultima, then the tiers' colors) |
+| RYNO II | the launcher's glowing edge and the effects tied to it (orange at Heavy, then the tiers' colors, beating red at Ultima) |
 | Seeker Gun | the gun, and each seeker (body, glow and trail) |
 | Pulse Rifle / Vaporizer | the gun's glowing edge and the effects tied to it |
 | Visibomb Gun | the gun, and the missile you steer (body and glow) |
@@ -186,7 +202,7 @@ is not done even on 1.29 (see "Not yet" at the end): the weapon only gets its ti
 | Hoverbomb Gun | 1 more hoverbomb in every throw (OpenRAC 1.29) | As Gamma | 3 more, 4 in every throw (OpenRAC 1.29). (Orbit and dive: can't be done yet) |
 | Shield Charger | The reflect: can't be done yet | Every second the shield zaps the nearest enemy within 8 units for 60% of Ratchet's last weapon hit | The shield zaps the 3 nearest, and bursts when it ends: enemies within 8 units take twice Ratchet's last weapon hit (OpenRAC 1.29: the burst is the game's own blast) |
 | Zodiac | can't be done yet | can't be done yet | Its pulse leaves a field for 3 s on each of the 8 enemies nearest the gun: every quarter second the enemies within 6 units take 15% of what the pulse drains in a quarter second (20 a frame) times the Zodiac's tier. (More stars: can't be done yet). At every tier it hurts bosses (see "Weapon tuning") |
-| RYNO II | 3 split rockets (from Ultima and Alpha, 2: see below) | As Gamma | Each split rocket splits once more (at most 9 in all). See Omega Prime below |
+| RYNO II | 3 split rockets (from Alpha, 2: see below) | As Gamma | Each split rocket splits once more (at most 9 in all); at Ultima twice more (see below) |
 | Seeker Gun | 2 more seekers in every shot (OpenRAC 1.29) | A seeker that ends sends one more seeking the nearest enemy (OpenRAC 1.29) | 4 more seekers in every shot, and the seekers it sends seek again, twice over (at most 6 made from one seeker; OpenRAC 1.29) |
 | Pulse Rifle | Fires 1.25 times as fast (OpenRAC 1.29) | Fires 1.35 times as fast. Every 4th pulse explodes: enemies within 4 units take 60% of the hit | Fires 1.5 times as fast. Pulses pierce up to 2 enemies behind the victim within 12 units (80%) and chain to 2 more within 7 units (50%) |
 | Visibomb Gun | The missile burns a trail: every quarter second the enemies within 3 units of it take 30% of Ratchet's last weapon hit | When the missile ends it releases 3 mini rockets that home in on the 3 nearest enemies within 12 units (OpenRAC 1.29; before, the 3 nearest take 80% of Ratchet's last weapon hit) | 6 mini rockets |
@@ -318,21 +334,21 @@ is not sold in a multiplayer party.
 
 ### RYNO II split rockets
 
-From **Ultima RYNO II** (its last step before the tiers) and its first tier, **Alpha RYNO II**, on, each RYNO II rocket splits where it ends into 2 smaller
-homing rockets, and into 3 from Gamma (OpenRAC 1.29). They start just clear of what the rocket hit,
-fly at the nearest other enemies within 40 units, home on them as the game's own rockets do and
-explode like them, in the tier's colour. Heavy RYNO II, the first version before the tiers,
-doesn't split. On a port before 1.29, from Gamma the 2 nearest enemies within 15 units take 45% of
-the hit instead (3 from Epsilon).
+From its first tier, **Alpha RYNO II**, on, each RYNO II rocket splits where it ends into 2
+smaller homing rockets, and into 3 from Gamma (OpenRAC 1.29). They start just clear of what the
+rocket hit, fly at the nearest other enemies within 40 units, home on them as the game's own
+rockets do and explode like them, in the tier's colour. At Omega each split rocket splits once
+more (at most 9 from one rocket). Heavy RYNO II, its first step, doesn't split. On a port before
+1.29, from Gamma the 2 nearest enemies within 15 units take 45% of the hit instead (3 from
+Epsilon).
 
-### RYNO II Omega Prime
+### Ultima RYNO II
 
-After Omega the RYNO II has an 11th step, **Omega Prime**, reached by experience, not bought:
-30,000 x5 = 150,000 XP (the RYNO II's goals are five times the usual). It does x9.7 damage (its 8.5 added
-to Ultima's x2.2 the way the other tiers are, 2.2 + 7.5) and x3.2 max ammo, and
-is white and gold, beating between the two like Ultima's red. Its rockets split in 3 and each split
-rocket splits twice more (OpenRAC 1.29: real homing rockets, at most 13 from one rocket; before 1.29,
-hits at 60% on at most 9 enemies). The RYNO II's tiers other than this one are in the table above.
+The RYNO II's final step, after Omega, is **Ultima RYNO II**, reached by experience, not bought:
+30,000 x5 = 150,000 XP (the RYNO II's goals are five times the usual). It does x9.7 damage and
+x3.2 max ammo, and beats between black and red. Its rockets split in 3 and each split rocket
+splits twice more (OpenRAC 1.29: real homing rockets, at most 13 from one rocket; before 1.29,
+hits at 60% on at most 9 enemies). Nothing comes after it: its XP bar shows full.
 
 ### Elites and modifiers
 
@@ -409,7 +425,7 @@ is pictures on the disc, so the looks are drawn over the paint (OpenRAC 1.25's e
 ### Health from Omega weapons
 
 Ratchet gets one more health step (a nanotech step, as from the game's own orbs) for every **two
-weapons at Omega**, at most 12 steps. The RYNO II counts at Omega Prime as at Omega.
+weapons at Omega**, at most 12 steps. The RYNO II counts at Ultima as at Omega.
 
 ### Tougher enemies each new game
 
@@ -767,6 +783,10 @@ restart or a mod update loses nothing. Each save gets only its own tiers:
 
 A record with tiers is never overwritten with an empty one. Nothing is written to the memory card
 or its folder.
+
+The file's first line, `ngpp-tiers 2`, marks the RYNO II's path Heavy, Alpha to Omega, Ultima. A
+file without it is from before that path and is moved over once when the mod loads (see RYNO II
+above), then written with the line, so it is never moved twice.
 
 The launcher's save editor shows each weapon's tier in its version picker for the save you open
 while the mod is on, and saves your changes to `tiers.txt`; close the game first. It also lets you

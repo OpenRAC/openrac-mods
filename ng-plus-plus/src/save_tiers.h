@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "game_view.h"
 #include "save_book.h"
@@ -19,6 +20,28 @@ namespace ng_plus_plus {
 
 // A level per item, 0 for none.
 using Levels = std::array<std::uint8_t, kItems>;
+
+// ---- The book's layout ----
+
+// The first line of tiers.txt in the book's layout now: the RYNO II's path Heavy, Alpha to Omega,
+// Ultima (README.md, "RYNO II"). A book without it is the layout before, whose RYNO II went Heavy,
+// Ultima, Alpha to Omega, Omega Prime; it is moved over once, as it is read. Lines that are no
+// record are skipped by SaveBook::read and kept by the launcher's save editor.
+inline constexpr std::string_view kBookMarker = "ngpp-tiers 2";
+
+// Returns whether the book `text` has kBookMarker: the layout now.
+bool book_current(std::string_view text);
+
+// Returns the RYNO II's level now for its level `old` in the layout before: Heavy stays Heavy, the
+// old Ultima (2) becomes Alpha, Alpha to Omega keep their tier (3 to 10 become 2 to 9), Omega Prime
+// (11) becomes Ultima (10). The started bit stays as it is.
+std::uint8_t ryno_level_from_old(std::uint8_t old);
+
+// Moves every record of `book`, read from the layout before, to the layout now, in their order.
+void migrate_book(SaveBook& book);
+
+// Returns `book` as tiers.txt keeps it: kBookMarker, then a line a record.
+std::string book_text(const SaveBook& book);
 
 // The tiers in play and the book they are kept in.
 //

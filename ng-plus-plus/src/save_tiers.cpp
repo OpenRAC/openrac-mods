@@ -29,6 +29,60 @@ constexpr const char* kCaseNames[] =
 
 }  // namespace
 
+bool book_current(std::string_view text) {
+    // The marker's line, wherever it is (the launcher's editor keeps it in its place).
+    while (!text.empty()) {
+        const std::size_t end = text.find('\n');
+        std::string_view line = text.substr(0, end);
+
+        // A line written on Windows ends in a carriage return.
+        if (!line.empty() && line.back() == '\r') {
+            line.remove_suffix(1);
+        }
+
+        // Found.
+        if (line == kBookMarker) {
+            return true;
+        }
+
+        text = end == std::string_view::npos ? std::string_view() : text.substr(end + 1);
+    }
+
+    return false;
+}
+
+std::uint8_t ryno_level_from_old(std::uint8_t old) {
+    // The old layout: 0 none, 1 Heavy, 2 Ultima, 3 Alpha to 10 Omega, 11 Omega Prime.
+    constexpr int kOldUltima = 2;
+    const auto started = static_cast<std::uint8_t>(old & kStartedBit);
+    const int level = static_cast<int>(old & kLevelBits);
+
+    // None and Heavy stay; the old Ultima is Alpha now; the tiers and Omega Prime move down one.
+    const int now = level < kOldUltima ? level : (level == kOldUltima ? kOldUltima : level - 1);
+    return static_cast<std::uint8_t>(now | started);
+}
+
+void migrate_book(SaveBook& book) {
+    constexpr std::size_t kRyno = 44;
+    SaveBook moved;
+
+    // Oldest first, so the order stays.
+    for (const Record& record : book.records()) {
+        LevelBytes levels = record.levels;
+        levels[kRyno] = ryno_level_from_old(levels[kRyno]);
+        moved.put(record.clock, levels);
+    }
+
+    book = moved;
+}
+
+std::string book_text(const SaveBook& book) {
+    std::string text(kBookMarker);
+    text += '\n';
+    text += book.write();
+    return text;
+}
+
 void SaveTiers::load_book() {
     const std::string path = book_path();
     std::ifstream file(path, std::ios::binary);
@@ -44,6 +98,14 @@ void SaveTiers::load_book() {
     file.read(text.data(), static_cast<std::streamsize>(text.size()));
     text.resize(static_cast<std::size_t>(file.gcount()));
     m_book.read(text);
+
+    // A book of the layout before: moved over once, and written at once with the marker, so it is
+    // never moved again.
+    if (!book_current(text)) {
+        migrate_book(m_book);
+        m_mod.info("tiers.txt: the RYNO II's levels moved to its path Heavy, Alpha to Omega, Ultima");
+        save_book();
+    }
 }
 
 int SaveTiers::level(int item) const {
@@ -108,7 +170,7 @@ void SaveTiers::save_book() const {
     }
 
     const std::string temp = path + ".new";
-    const std::string text = m_book.write();
+    const std::string text = book_text(m_book);
     std::error_code error;
 
     // Written whole to the new file first, so a crash never leaves half a book.

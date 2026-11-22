@@ -3,7 +3,7 @@
 //
 // NG++ 0.5.0's rules past damage, ammo and colour (src/perk_rules.cpp): tiers and stages, the hit
 // perks, the RYNO II's split rockets, the Ice Gun, the armour, the modifiers and elites, and the
-// RYNO II's Omega Prime step (src/tiers.cpp), then the book keeping the new level bytes.
+// RYNO II's Ultima, its last step (src/tiers.cpp), then the book keeping the new level bytes.
 //
 // Expected values are the README's tables ("What each tier does") and the rules' own doc comments
 // in src/perk_rules.h.
@@ -33,14 +33,14 @@ void test_tiers_and_stages() {
         CHECK(tier_of(Kind::Four, level) == level);
     }
 
-    CHECK(tier_of(Kind::Ryno, 1) == 0);
-    CHECK(tier_of(Kind::Ryno, 2) == 0);
+    CHECK(tier_of(Kind::Ryno, 1) == 0);  // Heavy
 
-    for (int level = 3; level <= 10; ++level) {
-        CHECK(tier_of(Kind::Ryno, level) == level - 2);
+    // Alpha to Omega.
+    for (int level = 2; level <= 9; ++level) {
+        CHECK(tier_of(Kind::Ryno, level) == level - 1);
     }
 
-    CHECK(tier_of(Kind::Ryno, 11) == 9);
+    CHECK(tier_of(Kind::Ryno, 10) == 9);  // Ultima
 
     CHECK(stage_of_tier(0) == Stage::None);
     CHECK(stage_of_tier(2) == Stage::None);
@@ -53,7 +53,8 @@ void test_tiers_and_stages() {
 
     CHECK(stage_of(Kind::Four, 3) == Stage::Gamma);
     CHECK(stage_of(Kind::Four, 8) == Stage::Omega);
-    CHECK(stage_of(Kind::Ryno, 5) == Stage::Gamma);
+    CHECK(stage_of(Kind::Ryno, 4) == Stage::Gamma);
+    CHECK(stage_of(Kind::Ryno, 9) == Stage::Omega);
     CHECK(stage_of(Kind::Ryno, 10) == Stage::Omega);
 
     CHECK(raised(Stage::None) == Stage::Gamma);
@@ -170,7 +171,7 @@ void test_ice_tint() {
     }
 
     CHECK(max_level(55) == 8);
-    CHECK(max_level(44) == 11);
+    CHECK(max_level(44) == 10);
     CHECK(max_level(30) == 8);
     CHECK(max_level(13) == 0);
 }
@@ -313,30 +314,62 @@ void test_arenas_and_health() {
     CHECK(omega_health(25) == 12);
 }
 
-// Checks the RYNO II's Omega Prime step.
-void test_omega_prime() {
-    const Step* step = step_at(Kind::Ryno, 10);
+// Checks the RYNO II's Ultima: its last step, by experience after Omega, with no step past it.
+void test_ultima_last() {
+    const Step* step = step_at(Kind::Ryno, 9);
 
     CHECK(step != nullptr);
 
     if (step != nullptr) {
-        CHECK(std::strcmp(step->name, "Omega Prime") == 0);
+        CHECK(std::strcmp(step->name, "Ultima") == 0);
         CHECK(step->how == How::Exp);
-        CHECK(step->tint == Tint::Prime);
+        CHECK(step->tint == Tint::Ultima);
     }
 
-    CHECK(exp_goal(Kind::Ryno, 10) == 30000 * kRynoExpScale);
-    CHECK(damage(Kind::Ryno, 11) > damage(Kind::Ryno, 10));
-    CHECK(price(Kind::Ryno, 10, 1'000'000) == 0);
-    CHECK(price(Kind::Ryno, 10, 0) == 0);
-    CHECK(display_name("RYNO II", Kind::Ryno, 11) == "Omega Prime RYNO II");
+    CHECK(step_at(Kind::Ryno, 10) == nullptr);
+    CHECK(max_level(kRyno) == 10);
+    CHECK(exp_goal(Kind::Ryno, 9) == 30000 * kRynoExpScale);
+    CHECK(exp_goal(Kind::Ryno, 10) == 0);  // at Ultima: a full bar, nothing past it
+    CHECK(damage(Kind::Ryno, 10) > damage(Kind::Ryno, 9));
+    CHECK(price(Kind::Ryno, 9, 1'000'000) == 0);
+    CHECK(price(Kind::Ryno, 9, 0) == 0);
+    CHECK(display_name("RYNO II", Kind::Ryno, 10) == "Ultima RYNO II");
 }
 
-// Checks that the book keeps the RYNO II's 11th level and the armour's tier.
+// Checks the RYNO II's split rockets along its path, as Shots takes them (its tier and stage at
+// each level): none at Heavy, 2 from Alpha, 3 from Gamma, splitting once more at Omega and twice
+// more at Ultima, at most 13.
+void test_ryno_splits() {
+    // Returns the shots' perk of the RYNO II at `level`.
+    const auto at = [](int level) {
+        return shot_perk(44, stage_of(Kind::Ryno, level), tier_of(Kind::Ryno, level));
+    };
+
+    CHECK(at(0).end_shots == 0);
+    CHECK(at(1).end_shots == 0);  // Heavy
+    CHECK(at(2).end_shots == 2);  // Alpha
+    CHECK(at(3).end_shots == 2);  // Beta
+    CHECK(at(2).end_generations == 0);
+
+    // Gamma to Eta: 3, no second split.
+    for (int level = 4; level <= 8; ++level) {
+        CHECK(at(level).end_shots == 3);
+        CHECK(at(level).end_generations == 0);
+    }
+
+    CHECK(at(9).end_shots == 3);  // Omega
+    CHECK(at(9).end_generations == 1);
+    CHECK(at(9).end_most == kFanMost);
+    CHECK(at(10).end_shots == 3);  // Ultima
+    CHECK(at(10).end_generations == 2);
+    CHECK(at(10).end_most == 13);
+}
+
+// Checks that the book keeps the RYNO II's last level and the armour's tier.
 void test_book_new_levels() {
     LevelBytes levels{};
 
-    levels[kRyno] = 11;
+    levels[kRyno] = 10;
     levels[55] = 8;
     levels[3] = static_cast<std::uint8_t>(kStartedBit | 2);
 
@@ -354,7 +387,7 @@ void test_book_new_levels() {
     CHECK(record != nullptr);
 
     if (record != nullptr) {
-        CHECK(record->levels[kRyno] == 11);
+        CHECK(record->levels[kRyno] == 10);
         CHECK(record->levels[55] == 8);
         CHECK((record->levels[3] & kStartedBit) != 0);
         CHECK(record->levels == levels);
@@ -390,7 +423,7 @@ void test_shot_perks() {
     CHECK(shot_perk(27, Stage::Epsilon, 5).split_after > 0);
     CHECK(shot_perk(27, Stage::Omega, 8).end_blasts == 2);
 
-    // The RYNO II: 2, then 3 homing RYNO rockets, splitting once at Omega and twice at Omega Prime.
+    // The RYNO II: 2, then 3 homing RYNO rockets, splitting once at Omega and twice at Ultima.
     CHECK(shot_perk(44, Stage::None, 0).end_shots == 0);
     CHECK(shot_perk(44, Stage::None, 1).end_shots == 2);
     CHECK(shot_perk(44, Stage::None, 2).end_shots == 2);
@@ -554,7 +587,8 @@ int main() try {
     test_elite_percent();
     test_is_elite();
     test_arenas_and_health();
-    test_omega_prime();
+    test_ultima_last();
+    test_ryno_splits();
     test_book_new_levels();
     test_shot_perks();
     test_refire_and_rate();

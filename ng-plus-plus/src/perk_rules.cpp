@@ -12,8 +12,8 @@
 namespace ng_plus_plus {
 namespace {
 
-// The RYNO II's own steps before its tiers (Heavy, Ultima).
-constexpr int kRynoOwn = 2;
+// The RYNO II's own step before its tiers (Heavy).
+constexpr int kRynoOwn = 1;
 
 // The tiers each stage starts at.
 constexpr int kGammaTier = 3;
@@ -132,7 +132,7 @@ int tier_of(Kind kind, int level) {
         return 0;
     }
 
-    // The RYNO II's own two steps come first: no tier.
+    // The RYNO II's Heavy comes first: no tier. Its Ultima, after Omega, is the 9th.
     const int tier = kind == Kind::Ryno ? level - kRynoOwn : level;
     return std::clamp(tier, 0, kOmegaTier + 1);
 }
@@ -343,8 +343,8 @@ HitPerk ryno_perk(int tier) {
         return perk;
     }
 
-    // Each rocket splits on impact into 2, then 3 homing rockets, which split once more at Omega
-    // and Omega Prime.
+    // Each rocket splits on impact into 2, then 3 homing rockets, which split once more at Omega,
+    // twice at Ultima.
     perk.fan = stage == Stage::Gamma ? 2 : 3;
     perk.fan_again = stage == Stage::Omega ? (tier > kOmegaTier ? 2 : 1) : 0;
     perk.fan_radius = 15.0f;
@@ -450,7 +450,7 @@ ShotPerk shot_perk(int item, Stage stage, int tier) {
             break;
 
         // RYNO II: from its first tier (Alpha) each rocket splits into 2 homing rockets where it
-        // ends, 3 from Gamma; they split again once at Omega, twice at Omega Prime. The stage
+        // ends, 3 from Gamma; they split again once at Omega, twice at Ultima. The stage
         // counts too, so an overdrive raises it.
         case 44: {
             const int stage_tier =
