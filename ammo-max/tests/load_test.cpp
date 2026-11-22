@@ -91,11 +91,11 @@ struct Host {
     // How many log lines the mod wrote.
     int log_lines = 0;
 
-    // The tick callback the mod registered, null until it does.
+    // Both the original dialog watcher and Buy All register game-frame callbacks.
     openrac_frame_fn tick = nullptr;
-
-    // The user pointer to pass back to the tick callback.
     void* tick_user = nullptr;
+    openrac_frame_fn buy_all_tick = nullptr;
+    void* buy_all_tick_user = nullptr;
 
     // The disc whose vendor the test has laid out.
     const ammo_max::Disc* disc = nullptr;
@@ -153,9 +153,14 @@ int host_hook(
 
 // Keeps the tick callback and its user pointer.
 int host_on_frame(openrac_mod* /*mod*/, openrac_frame_fn callback, void* user) {
-    g_host->tick = callback;
-    g_host->tick_user = user;
-
+    if (!g_host->tick) {
+        g_host->tick = callback;
+        g_host->tick_user = user;
+    } else {
+        CHECK(g_host->buy_all_tick == nullptr);
+        g_host->buy_all_tick = callback;
+        g_host->buy_all_tick_user = user;
+    }
     return OPENRAC_HOOK_OK;
 }
 
@@ -164,8 +169,12 @@ int host_on_pad(openrac_mod* /*mod*/, openrac_pad_fn /*callback*/, void* /*user*
     return OPENRAC_HOOK_OK;
 }
 
-// Finds no game function by name.
-void* host_function(const char* /*name*/) {
+// The added RAC1 Buy All loader resolves the vendor sound function at load.
+int test_vendor_sound(int, int, openrac_gaddr) { return 0; }
+void* host_function(const char* name) {
+    if (std::strcmp(name, "func_0022ED80") == 0 ||
+        std::strcmp(name, "FUN_0022da68") == 0)
+        return reinterpret_cast<void*>(&test_vendor_sound);
     return nullptr;
 }
 
@@ -202,6 +211,14 @@ openrac_gaddr stack_push(std::uint32_t /*size*/, openrac_gaddr* saved) {
 // Takes back the stack frame the mod does not use.
 void stack_pop(openrac_gaddr /*saved*/) {}
 
+// An SDK 1.20 host must provide keyboard/mouse input if it advertises
+// the corresponding API slots. The Buy All frame callback checks input
+// activity even while the vendor is closed, so provide an idle snapshot.
+const openrac_input* host_input() {
+    static const openrac_input idle{};
+    return &idle;
+}
+
 // Returns the host table for a game and a disc, over the test's memory.
 openrac_api make_api(const char* game, const char* version) {
     openrac_api api;
@@ -224,6 +241,7 @@ openrac_api make_api(const char* game, const char* version) {
     api.hook = host_hook;
     api.on_frame = host_on_frame;
     api.on_pad = host_on_pad;
+    api.input = host_input;
     api.function = host_function;
     api.function_at = host_function_at;
     api.relocate_data = identity;
@@ -304,6 +322,7 @@ void set_state(std::int32_t value) {
 // Runs the mod's tick callback once.
 void run_tick() {
     g_host->tick(g_host->tick_user);
+    if (g_host->buy_all_tick) g_host->buy_all_tick(g_host->buy_all_tick_user);
 }
 
 // Lays out the vendor of the running disc: row 2 chosen, item 0x0B's ammo (10 bolts a round, 15
@@ -362,10 +381,11 @@ void test_the_count_starts_at_the_most_on_a_disc(
     g_host->failed.clear();
     g_host->hooks = 0;
     g_host->tick = nullptr;
+    g_host->buy_all_tick = nullptr;
     g_host->level = 3;
     CHECK(
         load(&api, mod) == 0 && g_host->failed.empty() && g_host->hooks == 0
-        && g_host->tick != nullptr
+        && g_host->tick != nullptr && g_host->buy_all_tick != nullptr
     );
 
     // 0 of 160 and bolts for all of it: 160.
@@ -451,17 +471,17 @@ int main(int argc, char** argv) {
     query(&info);
 
     // The interface its manifest names (1.1), whatever the SDK it was built with.
-    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 1);
-    CHECK(std::strcmp(info.id, "ammo-max") == 0 && std::strcmp(info.version, "1.0.4") == 0);
+    CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 20);
+    CHECK(std::strcmp(info.id, "ammo-max") == 0 && std::strcmp(info.version, "1.1.0") == 0);
 
     // Any handle will do: the mod only passes it back.
     auto* mod = reinterpret_cast<openrac_mod*>(&info);
 
     // Another game, an unknown disc: refused, with a reason, before any callback.
-    openrac_api api = make_api("rac2", "ntsc");
+    openrac_api api = make_api("rac3", "ntsc");
 
     CHECK(
-        load(&api, mod) != 0 && host.failed.find("rac1") != std::string::npos
+        load(&api, mod) != 0 && host.failed.find("RAC1") != std::string::npos
         && host.tick == nullptr
     );
     api = make_api("rac1", "jp");

@@ -260,5 +260,5 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-// The id and version are the manifest's: the port checks they agree.
-OPENRAC_MOD_CPP("ammo-max", "1.0.4", load)
+// The integration entry point registers the original dialog watcher for RAC1.
+void load_ammo_max(openrac::Mod& mod) { load(mod); }
