@@ -151,7 +151,16 @@ int Shots::tier(int item) const {
     }
 
     const WeaponView weapon = m_weapons.weapon(item);
-    return weapon.has_tier() ? tier_of(weapon.kind, weapon.level) : 0;
+    if (!weapon.has_tier()) {
+        return 0;
+    }
+
+    // The RYNO II splits from Ultima, its own last step before the tiers: Ultima shoots as Alpha.
+    const int tier = tier_of(weapon.kind, weapon.level);
+    if (weapon.kind == Kind::Ryno && weapon.level >= 2) {
+        return std::max(tier, 1);
+    }
+    return tier;
 }
 
 void Shots::on_fire(const WeaponShot& shot) {
