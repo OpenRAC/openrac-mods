@@ -435,8 +435,10 @@ float ammo(Kind kind, int level) {
 }
 
 std::int32_t ammo_max(Kind kind, int level, std::int32_t base) {
-    // The game's most ammo is a u16.
-    constexpr std::int32_t kMostAmmo = 0xFFFF;
+    // The HUD's ammo count has room for three digits: at 1,000 its draw ran past the scratchpad
+    // (a crash at 0x70009F00 with the Omega Heavy Lancer, 500 x 2). A game's own count past it
+    // stays as it is.
+    constexpr std::int32_t kMostAmmo = 999;
 
     // No capacity is endless ammo, and stays so.
     if (base <= 0) {
@@ -445,7 +447,8 @@ std::int32_t ammo_max(Kind kind, int level, std::int32_t base) {
 
     const float exact = static_cast<float>(base) * ammo(kind, level);
     const auto most = static_cast<std::int32_t>(std::floor(exact + 0.5f));
-    return most > kMostAmmo ? kMostAmmo : most;
+    const std::int32_t cap = base > kMostAmmo ? base : kMostAmmo;
+    return most > cap ? cap : most;
 }
 
 std::optional<std::uint32_t> tint_rgb(Kind kind, int level, std::uint32_t tick) {

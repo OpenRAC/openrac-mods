@@ -32,10 +32,11 @@ the next one.
 | V11 | Eta | buy | Mega x6 | | x5.50 | x1.80 | crimson |
 | V12 | Omega | level up | | 24,000 | x7.00 | x2.00 | rainbow (cycles through all the colors) |
 
-Damage and max ammo are multiplied from the weapon's last real version. XP is the game's own weapon
-XP (the bar in the quick select). It starts again from 0 at each tier, and the first time the mod
-sees a weapon at its last version it resets the XP to 0, so XP from before the mod or from earlier
-games never gives a tier right away. The XP bar (weapons screen and quick select) fills toward the
+Damage and max ammo are multiplied from the weapon's last real version; max ammo stops at 999,
+as many as the HUD's three digits show (the Omega Heavy Lancer's 1,000 made it crash). XP is the
+game's own weapon XP (the bar in the quick select). It starts again from 0 at each tier, and the
+first time the mod sees a weapon at its last version it resets the XP to 0, so XP from before the
+mod or from earlier games never gives a tier right away. The XP bar (weapons screen and quick select) fills toward the
 next tier, or toward the 6,000 XP a bought tier needs before you can buy the next one. It shows full
 only when the next tier is already for sale or there is nothing left.
 

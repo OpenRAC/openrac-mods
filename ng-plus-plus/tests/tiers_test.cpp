@@ -229,7 +229,8 @@ void test_scaling() {
     CHECK(ammo_max(Kind::Four, 1, 50) == 55);
     CHECK(ammo_max(Kind::Four, 8, 50) == 100);
     CHECK(ammo_max(Kind::Sheep, 3, 0) == 0);  // endless stays endless
-    CHECK(ammo_max(Kind::Four, 8, 60'000) == 0xFFFF);
+    CHECK(ammo_max(Kind::Four, 8, 500) == 999);  // the HUD's three digits
+    CHECK(ammo_max(Kind::Four, 8, 60'000) == 60'000);
     CHECK(!tint_rgb(Kind::Four, 0, 0));
     CHECK(tint_rgb(Kind::Four, 1, 0) == 0x20FFB0u);
     CHECK(tint_rgb(Kind::Four, 2, 0) == 0xFFE000u);
