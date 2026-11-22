@@ -61,6 +61,9 @@ public:
     // Draws `moby` as an elite again (after the Ice Gun's glow left it).
     void redraw(std::uint32_t moby) const;
 
+    // Returns how many elites the level has had marked.
+    int count() const { return static_cast<int>(m_elites.size()); }
+
     // A moby's death: it is an elite no more.
     void died(std::uint32_t moby);
 

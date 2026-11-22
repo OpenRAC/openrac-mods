@@ -213,6 +213,9 @@ int ExtraEnemies::level_loaded() {
                                + " mobys alive)"))
         + (left_alone > 0 ? ", " + std::to_string(left_alone) + " copies left out to keep the pool's room"
                           : std::string())
+        + (m_elites != nullptr && m_elites->count() > 0
+               ? ", " + std::to_string(m_elites->count()) + " of them elites"
+               : std::string())
     );
     return made;
 }
