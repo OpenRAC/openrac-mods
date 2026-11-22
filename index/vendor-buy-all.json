@@ -1,0 +1,19 @@
+{
+  "id": "vendor-buy-all",
+  "repo": "https://github.com/glawks/Vendor-Buy-All",
+  "path": "",
+  "description": "Adds a Buy All Ammo option to weapon vendors in Ratchet & Clank 1 and 2. Refill all eligible weapons at normal prices with one button, with partial purchases, HUD feedback and native purchase sounds.",
+  "tags": [
+    "gameplay",
+    "qol",
+    "ui"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/glawks/Vendor-Buy-All/issues",
+    "docs": "https://github.com/glawks/Vendor-Buy-All"
+  }
+}
