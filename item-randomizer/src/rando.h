@@ -208,13 +208,14 @@ typedef struct rando_settings {
     uint8_t keep_start; /* 1: the starting Bomb Glove stays where it is */
     uint8_t difficulty; /* DIFFICULTY_* */
     uint8_t legacy_items; /* decoded format-2 seeds retain their original gadget pools */
+    uint8_t random_start; /* skip the tutorial and choose a logic-safe first planet */
 } rando_settings;
 
 #define RANDO_SEED_BITS 40
 #define RANDO_SEED_MASK ((((uint64_t)1) << RANDO_SEED_BITS) - 1)
 #define RANDO_CODE_FORMAT 2
-/* "XXXX-XXXX-XXXX": 12 characters of Crockford's base 32 and two hyphens, and the terminator. */
-#define RANDO_CODE_SIZE 15
+/* Ordinary codes are "XXXX-XXXX-XXXX"; random-start codes add the "R:" prefix. */
+#define RANDO_CODE_SIZE 17 /* optional R: prefix identifies random-start seeds */
 
 /* The settings' code: format, difficulty, starting gear, pools, seed and a checksum, 60 bits. */
 void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]);
@@ -252,6 +253,7 @@ typedef struct rando_plan {
     rando_settings settings;
     uint8_t shuffled[RANDO_MAX_LOCATIONS];    /* 1: in a pool the settings shuffle */
     rando_reward reward[RANDO_MAX_LOCATIONS]; /* what each location gives with this seed */
+    int start_level; /* selected first planet, or Veldin for a normal start */
     int attempts;                             /* fills tried before one held */
 } rando_plan;
 
@@ -264,6 +266,7 @@ uint64_t rando_requirement(int difficulty, size_t location);
 /* How many shuffled locations of plan cannot be had even at the end of the game; 0 for a placement
  * with no reward locked behind itself. */
 int rando_stranded(const rando_plan* plan);
+int rando_start_safe(const rando_plan* plan);
 
 /* Fills plan for its settings. 0 on success; -1 when no placement was found (never, for the
  * tables here: the tests try many seeds of every setting). */

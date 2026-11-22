@@ -81,6 +81,10 @@ public:
     bool synced() const { return synced_; }
 
     // Unknown until connected and the save is judged; never apply room settings to a foreign save.
+    int starting_planet() const {
+        return connected_ && save_judged_ && !foreign_ ? starting_planet_ : -1;
+    }
+
     int new_game_plus() const {
         return connected_ && save_judged_ && !foreign_ ? int(new_game_plus_) : -1;
     }
@@ -149,6 +153,7 @@ private:
     bool foreign_ = false;
     bool fresh_game_ = false;
     bool save_judged_ = false;
+    int starting_planet_ = 0;
     bool new_game_plus_ = false;
     bool shuffle_gold_weapons_ = false;
     bool npc_infobots_ = false;

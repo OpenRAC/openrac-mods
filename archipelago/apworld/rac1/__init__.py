@@ -11,7 +11,7 @@ from BaseClasses import CollectionState, Item, ItemClassification, Tutorial
 from Fill import fill_restrictive
 from worlds.AutoWorld import WebWorld, World
 
-from .data import GAME
+from .data import GAME, PLANETS
 from .defs import LocationData
 from .gold_weapons import GOLD_WEAPONS
 from .items import FILLER, ITEM_NAME_GROUPS, ITEM_NAME_TO_ID, ITEM_TABLE, RAC1Item, classification
@@ -19,6 +19,7 @@ from .locations import EVENT_ROWS, LOCATION_NAME_GROUPS, LOCATION_NAME_TO_ID, LO
 from .options import OPTION_GROUPS, OPTION_PRESETS, RAC1Options
 from .regions import SHIP, create_regions
 from .rules import holds_progression, set_rules
+from .starting_planet import starting_candidates
 
 
 # In a multiworld, a world with fewer spare places for its progression than this places it itself.
@@ -69,9 +70,21 @@ class RAC1World(World):
                 weapons.remove("R.Y.N.O.")
             self.starting_weapon = self.random.choice(weapons)
 
+        self.starting_planet = "Veldin"
+        self.starting_vendor = None
+        self.starting_vendor_item = None
+        if getattr(self.options, "random_starting_planet", False):
+            candidates = starting_candidates(self)
+            self.starting_planet, self.starting_vendor, keys = self.random.choice(candidates)
+            if keys:
+                self.starting_vendor_item = self.random.choice(keys)
+
     def vanilla_item(self, row: LocationData) -> str:
         if row.kind == "start":
             return self.starting_weapon
+        if (getattr(getattr(self, "options", None), "random_starting_planet", False) and self.starting_planet != "Novalis"
+                and row.vanilla == f"{self.starting_planet} Coordinates"):
+            return "Novalis Coordinates"
         swapped = self.starting_weapon
         if swapped in GOLD_WEAPONS and not self.options.shuffle_gold_weapons:
             swapped = GOLD_WEAPONS[swapped]
@@ -115,7 +128,10 @@ class RAC1World(World):
         create_regions(self)
         for row in EVENT_ROWS:
             location = self.get_location(row.name)
-            location.place_locked_item(RAC1Item(event_item(row), ItemClassification.progression, None, self.player))
+            name = event_item(row)
+            if self.options.random_starting_planet and row.planet == "Veldin":
+                name = f"{self.starting_planet} Coordinates"
+            location.place_locked_item(RAC1Item(name, ItemClassification.progression, None, self.player))
 
     def create_items(self) -> None:
         # A pool turned off keeps the game's own item in place; the rest go to the multiworld.
@@ -124,7 +140,9 @@ class RAC1World(World):
         if self.options.shuffle_infobots and not own:
             # NPC coordinates no longer open both first planets for free. Keep one initial
             # flight in the first reachable sphere, also when another world shares our pool.
-            exit_item = self.random.choice(("Aridia Coordinates", "Kerwan Coordinates"))
+            exit_item = ("Novalis Coordinates" if self.options.random_starting_planet
+                         and self.starting_planet != "Novalis" else
+                         self.random.choice(("Aridia Coordinates", "Kerwan Coordinates")))
             early = self.multiworld.local_early_items[self.player]
             early[exit_item] = max(early.get(exit_item, 0), 1)
 
@@ -134,6 +152,16 @@ class RAC1World(World):
                 (self.own_progression if own and item.advancement else self.multiworld.itempool).append(item)
             else:
                 self.get_location(row.name).place_locked_item(item)
+
+        if self.starting_vendor:
+            pools = (self.own_progression, self.multiworld.itempool)
+            item = next(item for pool in pools for item in pool
+                        if item.player == self.player and item.name == self.starting_vendor_item)
+            for pool in pools:
+                if item in pool:
+                    pool.remove(item)
+                    break
+            self.get_location(self.starting_vendor).place_locked_item(item)
 
     def set_rules(self) -> None:
         set_rules(self)
@@ -184,7 +212,7 @@ class RAC1World(World):
         self.own_progression = []
 
     def fill_slot_data(self) -> Mapping[str, Any]:
-        return {"npc_infobot_checks": 1, **self.options.as_dict(
+        return {"npc_infobot_checks": 1, "starting_planet": PLANETS.index(self.starting_planet), **self.options.as_dict(
             "logic",
             "shuffle_gadgets",
             "shuffle_weapons",
@@ -196,4 +224,5 @@ class RAC1World(World):
             "shuffle_gold_weapons",
             "shuffle_items",
             "start_in_new_game_plus",
+            "random_starting_planet",
         )}

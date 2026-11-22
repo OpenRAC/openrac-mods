@@ -19,6 +19,9 @@
  *   40 bits the seed
  *   8 bits  a checksum of the 52 above (a mistyped character is caught)
  *
+ * Random-start codes wrap this unchanged payload in an R: prefix. Normal codes retain their
+ * original encoding and placement stream.
+ *
  * So a code says the whole game: two players with the same code get the same placement, whatever
  * their other settings.
  */
@@ -123,6 +126,7 @@ void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]) {
     const uint64_t payload = payload_of(s);
     const uint64_t bits = (payload << CODE_CHECKSUM_BITS) | checksum(payload);
     int o = 0;
+    if (s->random_start) { out[o++] = 'R'; out[o++] = ':'; }
 
     // One base 32 character at a time, from the top of the code.
     for (int i = 0; i < CODE_CHARS; ++i) {
@@ -163,6 +167,11 @@ static int digit(char c) {
  * *s is left alone on 0. */
 int rando_decode(const char* text, rando_settings* s) {
     uint64_t bits = 0;
+    int random_start = 0;
+    while (*text == ' ') ++text;
+    if ((text[0] == 'R' || text[0] == 'r') && text[1] == ':') {
+        random_start = 1; text += 2;
+    }
     int n = 0;
 
     // Each character of the text, read as a base 32 digit.
@@ -204,6 +213,7 @@ int rando_decode(const char* text, rando_settings* s) {
         return 0;
     }
 
+    s->random_start = (uint8_t)random_start;
     s->difficulty = (uint8_t)difficulty;
     s->keep_start = (uint8_t)((payload >> CODE_KEEP_SHIFT) & CODE_KEEP_MASK);
     s->pools = (uint8_t)((payload >> CODE_POOLS_SHIFT) & POOL_ALL);

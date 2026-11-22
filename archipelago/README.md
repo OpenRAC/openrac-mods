@@ -315,3 +315,11 @@ The trigger press is consumed until release so the default does not also pause t
 
 On Novalis, the ship is available before completing its normal quest. The quest’s
 randomized reward remains available separately; this grants no extra coordinates.
+
+### Random starting planet
+
+Set `random_starting_planet: true` in your Archipelago YAML before generating a new world. It defaults to false; there is no launcher override.
+
+New games skip the Veldin tutorial and depart for a seeded starting planet. Clank accompanies Ratchet; no movement gadgets are granted. The selected planet must have a non-optional reward route playable without items. A ship-side vendor may instead sell the one local item needed to open a route; generation verifies or reserves that reward. Other planets' coordinates still need to be collected. The skipped first flight grants the selected planet instead of Novalis.
+
+The generated slot data fixes the starting planet for reconnects. Vendor-assisted starts reserve the required item locally before multiworld fill. The starting weapon check remains available without replaying the tutorial.

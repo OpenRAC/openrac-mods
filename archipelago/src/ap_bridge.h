@@ -70,6 +70,7 @@ int ap_client_synced(void);
 
 /* The slot's New Game+ option: -1 until connected and the save matches, else 0 or 1.
  * Missing options from older APWorlds default to 0. */
+int ap_client_starting_planet(void);
 int ap_client_new_game_plus(void);
 int ap_client_shuffle_gold_weapons(void);
 int ap_client_npc_infobots(void);

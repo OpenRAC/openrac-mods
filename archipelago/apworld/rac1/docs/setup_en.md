@@ -29,6 +29,7 @@
      shuffle_skill_points: false
      starting_weapons: vanilla
      start_in_new_game_plus: false
+     random_starting_planet: false
      shuffle_gold_weapons: false
    ```
 

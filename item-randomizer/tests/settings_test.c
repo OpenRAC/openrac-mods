@@ -84,6 +84,14 @@ int main(int argc, char** argv) {
     o.seed=items_code; o.items=0;
     CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_CODE && (s.pools & POOL_ITEMS));
 
+    o.seed="random-start"; o.random_start=1;
+    CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_WORD && s.random_start);
+    char start_code[RANDO_CODE_SIZE]; rando_encode(&s,start_code);
+    o.seed=start_code; o.random_start=0;
+    CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_CODE && s.random_start);
+    o.seed=items_code; o.random_start=1;
+    CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_CODE && !s.random_start);
+
     /* The manifest declares what the mod reads. */
 
     if (argc > 1) {
@@ -106,6 +114,7 @@ int main(int argc, char** argv) {
              "\"spoiler_log\"",
              "\"new_game_only\"",
              "\"start_in_new_game_plus\"",
+             "\"random_starting_planet\"",
              "\"vendor_hints\"",
              "\"rac1.item.give\"",
              "\"rac2.item.give\"",
