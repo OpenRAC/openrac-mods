@@ -8,10 +8,38 @@ elite enemies, a modifier for each new game, an extra final RYNO II step (Ultima
 changed) and health from Omega weapons.
 Version 0.5.1 makes the Ice Gun a choice (or a fire path for the Meteor Gun), the Tesla Claw hit
 steadily, the Zodiac hurt bosses and the decoy last longer (see "Weapon tuning").
+Version 0.5.2 ties the tiers to your saves exactly as the game's own progress is, gives the RYNO II
+its new path and prices, and makes Clank's sections fair again (see "What's new in 0.5.2").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
+
+## What's new in 0.5.2
+
+- **Tiers follow your saves.** A tier bought or levelled up after your last save belongs to the game
+  in progress only, like the bolts it cost: load any save, the same one included, and you get that
+  save's tiers back, never newer ones. Buying a tier, loading another save and loading back no
+  longer gives you the tier and your bolts back; a tier you saved stays with that save, through
+  other saves, a restart and the launcher's export (see "Saves"). The armor and ship weapon tiers
+  and the weapons' XP counts follow the same rule.
+- **The RYNO II's path** is Heavy (by XP), then Alpha to Omega, then Ultima (by XP after Omega);
+  older `tiers.txt` files are moved over once. Its bought tiers cost 6, 10, 16 and 25 million
+  (Alpha, Gamma, Epsilon, Eta) and its XP goals rise by a quarter. Its rockets split by chance at the low
+  tiers (25% at Alpha up to 80% at Epsilon, always from Zeta), into homing rockets that split again
+  at Omega and Ultima, and the split rockets fly, home in and leave their trails (the trails need
+  OpenRAC develop with #712).
+- **Gentler Clank sections** (a setting, on): while you play as Clank, every hit takes at most one
+  of his four health points, after the challenge modes' scaling and modifiers.
+- **Weapon fixes** from an audit of every weapon: shots made at another shot's end start clear of
+  it and only rockets in range split; the Plasma Coil's, Plasma Storm's and Pulse Rifle's shots
+  count as the hero's; the Zodiac's Omega fields, every Blitz Gun pellet's spark and the Tesla
+  storm's hit work; the armor's last stand cuts the lethal hit.
+- **Armor tiers** are sold at the weapon vendor as soon as you own Carbonox, and their entry keeps
+  its place in the list.
+- **Extra enemies** are placed on every planet (OpenRAC #707), also when a challenge mode starts
+  within a level, and the run's modifier is named on screen when the challenge mode changes.
+- **Windows:** `tiers.txt` is closed before it is rewritten, so the RYNO II's move works there.
 
 ## Playing
 
@@ -541,6 +569,7 @@ then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went
 | Steady Tesla Claw | on | The Tesla Claw's steady hits (Weapon tuning, above) |
 | Elite enemies | on | Elites among the copies and in the arenas |
 | Challenge mode modifiers | on | Swarm, Elite guard, Volatile and Bounty, one for each new game |
+| Gentler Clank sections | on | As Clank, every hit takes at most one of his four health points, after the scaling and modifiers; Ratchet is not affected |
 
 With the [difficulty](../difficulty-mod/README.md) mod, both apply and **multiply**: its "damage
 dealt" and "damage taken" sliders scale the same hits as this mod's tiers and enemies, so with
@@ -789,9 +818,12 @@ says so once).
 
 ### Saves
 
-The tiers are kept with each save: the mod's data folder has a `tiers.txt` with the tiers of each
-save the game made (by the save's own clock), and each new tier is written there right away, so a
-restart or a mod update loses nothing. Each save gets only its own tiers:
+The tiers are kept with each save, the way the game keeps its own progress: the mod's data folder
+has a `tiers.txt` with the tiers of each save the game made, by the save's own clock (the time the
+game stamps it with when it saves, at an autosave and as a level starts). A tier is written there
+when the game saves, with the tiers you had then; a tier bought or levelled up after your last save
+is only the game in progress's, like the bolts it cost, and is gone if you load a save or quit
+without saving. Each save gets only its own tiers, exactly as they were when it was saved:
 
 - The mod watches the save's clock at the title screen too, where a loaded save shows its own clock
   before its level starts and the game stamps a new one; the new clock keeps the save's tiers.
@@ -799,6 +831,9 @@ restart or a mod update loses nothing. Each save gets only its own tiers:
   level start) only if the save's data didn't change; if it did change (bolts, weapon XP or
   versions), you loaded a save the mod has never seen, and it starts with no tiers and its weapons'
   XP counted from 0, like any save new to the mod.
+- The save you just made, loaded again before a new level starts, keeps its clock: the mod sees its
+  data (bolts, raritanium, weapon XP and versions) come back exactly as saved and takes back the
+  tiers bought since.
 - After a new game's zero clock, the tiers carry over only into challenge mode's next game, which
   keeps your weapons; a plain new game starts with none.
 
