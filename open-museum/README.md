@@ -19,7 +19,7 @@ install it (Pokitaru's own, so the island looks like the game's planets).
    OPENRAC_ROOT=path/to/OpenRAC python3 tools/install.py PROJECTS --editor path/to/OpenRAC-Editor
    ```
 
-   The editor needs its terrain tools (`openrac/tools/terrain.py`): the island's rock is built
+   The editor needs its terrain tools (`openrac/tools/terrain_tools.py`): the island's rock is built
    with them from `tools/rocks.py` (stacks and mesas with overhangs, caves, baked sun and shade).
 
    It backs up Pokitaru's scene once (`level_11/.openrac-backups/open-museum/`) and starts from that

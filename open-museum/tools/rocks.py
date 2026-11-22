@@ -1,5 +1,5 @@
 """The island's rock: Pokitaru-style stacks and mesas with overhangs, built as one mesh by the
-editor's terrain tools (openrac/tools/terrain.py: a density field of rocks, surface nets).
+editor's terrain tools (openrac/tools/terrain_tools.py: a density field of rocks, surface nets).
 
 The low ground (the lagoon, the beaches, the lowland round the house) stays a height field
 (island.base_height); everything tall is rock from this recipe. island.height reads the rock's
@@ -23,7 +23,7 @@ def rp(angle, r):
 
 def rock(x, y, top, radius, seed, **kw):
     r = {"x": float(x), "y": float(y), "z0": kw.pop("z0", FOOT), "z1": SEA + top, "radius": float(radius),
-         "undercut": 0.32, "bulge": 0.16, "taper": 0.12, "roughness": 0.22, "layering": 0.035,
+         "undercut": 0.32, "bulge": 0.16, "taper": 0.12, "roughness": 0.22, "layering": 0.02,
          "layer": 7.0, "warp": 0.32, "seed": seed}
     r.update(kw)
     return r
@@ -52,7 +52,7 @@ def recipe():
 
     # The volcano: a tall tapering spire, a crater at its top, a pillar for the shrine's ledge.
     vx, vy = island.VOLCANO
-    add(vx, vy, island.VOLCANO_TOP - SEA, 56, taper=0.58, undercut=0.22, bulge=0.12, roughness=0.22, layer=13.0, layering=0.05, warp=0.22)
+    add(vx, vy, island.VOLCANO_TOP - SEA, 56, taper=0.58, undercut=0.22, bulge=0.12, roughness=0.22, layer=13.0, layering=0.025, warp=0.22)
     lx, ly = island.VOLCANO_LEDGE
     d = np.array([lx - vx, ly - vy]) / 60.0
     add(lx + d[0] * 2, ly + d[1] * 2, island.LEDGE_Z - SEA - 0.5, 15, taper=0.05, undercut=0.25, roughness=0.15, warp=0.2)
@@ -92,7 +92,7 @@ def recipe():
     # The crater.
     caves.append({"at": [float(vx), float(vy), island.VOLCANO_TOP + 6], "radius": 16, "scale": [1, 1, 0.8]})
     return {"rocks": rocks, "caves": caves, "blend": 5.0, "sea": SEA, "keep_below_sea": 5.0, "tile": 3.0, "lip": 4.0,
-            "top_slope": 0.6, "creepers": 0.3, "tiles": {"wall": 5.0, "under": 5.0, "creeper": 4.0}, "uv": "wrap",
+            "top_slope": 0.6, "creepers": 0.3, "min_top_area": 4.5, "lip_top_area": 6.0, "smooth_passes": 3, "tiles": {"wall": 5.0, "under": 5.0, "creeper": 4.0}, "uv": "wrap",
             "textures": {"top": "textures/om_grass.png", "lip": "textures/om_cliff.png", "wall": "textures/om_rock.png",
                          "creeper": "textures/om_jungle.png", "under": "textures/om_basalt.png",
                          "shore": "textures/om_wet_sand.png"}}

@@ -370,6 +370,32 @@ DISC = {
 }
 
 
+# Ground and rock pictures that tile over wide areas: their big light and dark blotches are taken
+# out, so the same blotch does not show again every few metres (the fine grain stays).
+EVEN = {"om_grass", "om_sand", "om_wet_sand", "om_rock", "om_basalt", "om_jungle", "om_path", "om_stone"}
+
+
+def even_out(im, keep=0.25):
+    """IM with its low frequencies (blotches wider than about a sixth of it) flattened to KEEP of
+    their strength; done in the frequency domain, so the picture still tiles."""
+    a = np.asarray(im, np.float32)
+    h, w = a.shape[:2]
+    # Seamless first: near the edges the picture fades into itself moved by half (whose own
+    # edges then lie in the middle, where the original shows).
+    ey = np.minimum(np.arange(h), h - 1 - np.arange(h)) / (h / 2)
+    ex = np.minimum(np.arange(w), w - 1 - np.arange(w)) / (w / 2)
+    wgt = np.clip(np.minimum(ey[:, None], ex[None, :]) * 3.0, 0, 1)[..., None]
+    a = a * wgt + np.roll(a, (h // 2, w // 2), (0, 1)) * (1 - wgt)
+    fy = np.fft.fftfreq(h)[:, None]
+    fx = np.fft.fftfreq(w)[None, :]
+    r = np.sqrt(fx * fx + fy * fy)
+    low = np.exp(-(r / (6.0 / max(h, w))) ** 2)          # 1 at the mean, 0 for fine grain
+    gain = 1 - (1 - keep) * low
+    gain[0, 0] = 1.0                                     # the mean colour stays
+    out = np.stack([np.real(np.fft.ifft2(np.fft.fft2(a[..., c]) * gain)) for c in range(3)], -1)
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+
+
 def from_disc(folder):
     """The pictures of DISC found in FOLDER (the level's textures/), as PNG bytes."""
     out = {}
@@ -379,6 +405,8 @@ def from_disc(folder):
         path = Path(folder) / file
         if path.is_file():
             im = Image.open(path).convert("RGB")
+            if name in EVEN:
+                im = even_out(im)
             buf = io.BytesIO()
             im.save(buf, "PNG")
             out[name] = buf.getvalue()

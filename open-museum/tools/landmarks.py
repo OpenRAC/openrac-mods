@@ -92,11 +92,40 @@ def disc(geo, material, centre, radius, z, sides=20, glow=None):
         geo.mesh.add(material, p, [[0, 0, 1]] * 3, uv, [glow or [0.6, 0.6, 0.6]] * 3, [[0, 1, 2]])
 
 
-def pole_raft(geo, centre, z, size=3.2):
-    """A small square raft on a pole: a landing between two swings."""
-    x, y = centre
+def tower_legs(geo, x, y, z, half, legs=4, yaw=0.0, splay=0.16):
+    """Legs that stand on the ground under a top at Z: splayed out towards the foot, braced by
+    rings of beams and crossed between them, so a tall support reads as built, not a stick."""
     ground = float(island.height(x, y))
-    geo.cylinder("om_planks_dark", (x, y), 0.45, min(ground, SEA) - 2, z - 0.4, 8)
+    foot = min(ground, SEA) - 1.5
+    height = z - foot
+    if height <= 0.5:
+        return
+    corners = []
+    for k in range(legs):
+        a = math.radians(yaw + 45 + 360 * k / legs)
+        d = np.array([math.cos(a), math.sin(a)])
+        top = np.array([x, y]) + d * half
+        bottom = np.array([x, y]) + d * (half + height * splay)
+        corners.append((top, bottom))
+        geo.beam("om_planks_dark", (*bottom, foot), (*top, z), 0.42)
+    rings = max(1, int(height // 7))
+    for r in range(rings + 1):
+        t = r / rings
+        ring = [b + (tp - b) * t for tp, b in corners]
+        zz = foot + height * t
+        if zz < SEA - 0.5:
+            continue
+        for k in range(legs):
+            geo.beam("om_planks_dark", (*ring[k], zz), (*ring[(k + 1) % legs], zz), 0.22)
+            if r < rings:
+                nxt = [b + (tp - b) * ((r + 1) / rings) for tp, b in corners]
+                geo.beam("om_planks", (*ring[k], zz), (*nxt[(k + 1) % legs], foot + height * (r + 1) / rings), 0.16)
+
+
+def pole_raft(geo, centre, z, size=3.2):
+    """A small square raft on braced legs: a landing between two swings."""
+    x, y = centre
+    tower_legs(geo, x, y, z - 0.5, size * 0.8)
     geo.box("om_planks_light", (x - size, y - size, z - 0.5), (x + size, y + size, z))
     geo.box("om_gold", (x - size - 0.1, y - size - 0.1, z - 0.7), (x + size + 0.1, y + size + 0.1, z - 0.5), solid=False)
 
@@ -157,13 +186,15 @@ def coarse_height(q, step=4.0):
     return max(float(island.height(ox + (i + a) * step, oy + (j + b) * step)) for a in (0, 1) for b in (0, 1))
 
 
-def volcano_rafts(a, za, b, zb, reach=25.0, rise=19.0):
+def volcano_rafts(a, za, b, zb, reach=25.0, rise=19.0, steep=1.0):
     """Rafts from A (deck ZA) to B (deck ZB), each above the mountain, each pull within reach."""
     cand = []
-    for t in np.linspace(0.04, 0.86, 42):
-        p = a + (b - a) * t
-        ground = max(coarse_height(p + o) for o in (np.array([3, 3]), np.array([-3, 3]), np.array([3, -3]), np.array([-3, -3])))
-        cand.append((p, max(za + (zb - za) * t, ground + 5.0)))
+    side = np.array([-(b - a)[1], (b - a)[0]]) / np.linalg.norm(b - a)
+    for t in np.linspace(0.04, 0.9, 44):
+        for off in (0.0, -7.0, 7.0, -14.0, 14.0):     # off the straight line too: away from the rock
+            p = a + (b - a) * t + side * off
+            ground = max(coarse_height(p + o) for o in (np.array([3, 3]), np.array([-3, 3]), np.array([3, -3]), np.array([-3, -3])))
+            cand.append((p, max(za + (zb - za) * t, ground + 5.0)))
     cand.append((b, zb))
 
     def clear(p0, z0, p1, z1):
@@ -188,6 +219,8 @@ def volcano_rafts(a, za, b, zb, reach=25.0, rise=19.0):
             horizontal = float(np.linalg.norm(p1 - p0))
             if horizontal < (4 if last else 10) or math.hypot(horizontal, z1 + 6 - z0) > reach or z1 - z0 > rise:
                 continue
+            if z1 + 6 - z0 > steep * horizontal:      # the Swingshot does not catch a target that steep above
+                continue
             if not clear(p0, z0, p1, z1):
                 continue
             prev[j] = i
@@ -202,10 +235,11 @@ def volcano_rafts(a, za, b, zb, reach=25.0, rise=19.0):
     return out[::-1]
 
 
-def grapple_chain(geo, moby, rafts, note):
-    """Rafts ((x, y), deck z), each with a Versatarget 6 units over its middle."""
+def grapple_chain(geo, moby, rafts, note, size=3.2):
+    """Rafts ((x, y), deck z), each with a Versatarget 6 units over its middle. The volcano's steep
+    rafts are bigger: there the pull drops the hero near a raft's edge."""
     for (p, z) in rafts:
-        pole_raft(geo, p, z)
+        pole_raft(geo, p, z, size)
         moby("swing_target", (p[0], p[1], z + 6.0), note=note)
 
 
@@ -233,10 +267,16 @@ def rail_model(geo, points, post_every=8, solid_posts=False):
     for a, b in zip(points, points[1:]):
         geo.beam("om_rail", a, b, 0.35)
     for k in range(0, len(points), post_every):
-        p = points[k]
+        p = np.asarray(points[k], float)
+        q = np.asarray(points[min(k + 1, len(points) - 1)], float) - np.asarray(points[max(k - 1, 0)], float)
+        yaw = math.degrees(math.atan2(q[1], q[0]))
         g = float(island.height(p[0], p[1]))
-        bottom = max(min(g, SEA) - 3, p[2] - 80)
-        geo.beam("om_planks_dark", (p[0], p[1], bottom), (p[0], p[1], p[2] - 0.3), 0.4, solid=solid_posts)
+        if p[2] - min(g, SEA) < 6:
+            geo.beam("om_planks_dark", (p[0], p[1], min(g, SEA) - 2), (p[0], p[1], p[2] - 0.3), 0.45, solid=solid_posts)
+        else:
+            # A tall support: a braced trestle standing on the ground, a cap under the rail.
+            tower_legs(geo, p[0], p[1], p[2] - 0.4, 0.9, yaw=yaw)
+            geo.box("om_planks_dark", (p[0] - 1.1, p[1] - 1.1, p[2] - 0.8), (p[0] + 1.1, p[1] + 1.1, p[2] - 0.3), solid=False)
 
 
 def build(geo: Geo, pictures, mats):
@@ -411,7 +451,7 @@ def build(geo: Geo, pictures, mats):
     moby("gold_bolt", (ledge[0] + 1.5, ledge[1], lz + 0.6), note="volcano ledge")
     moby("nanotech_crate", (ledge[0] - 2, ledge[1] - 1.5, lz), note="volcano ledge")
     rafts = volcano_rafts(np.array(look[:2]), float(look[2]), ledge, lz)
-    grapple_chain(geo, moby, rafts, "swing chain up the volcano")
+    grapple_chain(geo, moby, rafts, "swing chain up the volcano", size=4.2)
     moby("swing_target", (ledge[0], ledge[1], lz + 6.0), note="swing chain up the volcano")
     layout["volcano_rim"] = [float(ledge[0]), float(ledge[1]), lz]
     layout["volcano_rafts"] = [[p[0], p[1], z] for (p, z) in rafts]

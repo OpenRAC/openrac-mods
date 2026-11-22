@@ -37,19 +37,19 @@ from build import Geo
 
 
 def editor_terrain():
-    """The editor's terrain tools (openrac/tools/terrain.py), found beside its static_assets.py on
-    sys.path or in OPENRAC_EDITOR_TOOLS. Loaded by its path: OpenRAC's extractor has a terrain
-    module of its own."""
+    """The editor's terrain tools (openrac/tools/terrain_tools.py; terrain.py in older editors),
+    found beside its static_assets.py on sys.path or in OPENRAC_EDITOR_TOOLS. Loaded by its path:
+    OpenRAC's extractor has a terrain module of its own."""
     import importlib.util
     folders = [os.environ.get("OPENRAC_EDITOR_TOOLS")] + sys.path
-    for folder in folders:
-        if folder and (Path(folder) / "terrain.py").is_file() and (Path(folder) / "static_assets.py").is_file():
-            spec = importlib.util.spec_from_file_location("openrac_editor_terrain", Path(folder) / "terrain.py")
+    for folder, name in [(f, n) for f in folders for n in ("terrain_tools.py", "terrain.py")]:
+        if folder and (Path(folder) / name).is_file() and (Path(folder) / "static_assets.py").is_file():
+            spec = importlib.util.spec_from_file_location("openrac_editor_terrain", Path(folder) / name)
             module = importlib.util.module_from_spec(spec)
             sys.modules[spec.name] = module
             spec.loader.exec_module(module)
             return module
-    raise SystemExit("OpenRAC Editor's terrain tools (openrac/tools/terrain.py) not found: pass --editor "
+    raise SystemExit("OpenRAC Editor's terrain tools (openrac/tools/terrain_tools.py) not found: pass --editor "
                      "with an editor that has them, or set OPENRAC_EDITOR_TOOLS")
 
 
@@ -128,7 +128,12 @@ def bake(terrain, t, models=(), lights=()):
         name = t.materials[p.material].get("name", "")
         tint = ground.BRIGHT.get(name, 1.0) * (0.85 if name in ROCKY else 0.6)
         warm = np.array([1.1, 0.96, 0.76]) if name in ROCKY else np.ones(3)   # Pokitaru's rock is warm grey
-        p.attrs["COLOR_0"] = np.concatenate([np.tile(tint * warm, (len(p.pos), 1)), np.ones((len(p.pos), 1))], 1)
+        # Big soft patches of lighter and darker ground (tens of units wide): the eye stops
+        # seeing the picture repeat.
+        P = p.pos
+        patch = 0.8 + 0.4 * (terrain.value_noise3(P / 38.0, 21, 3) * 0.7 + terrain.value_noise3(P / 11.0, 22, 2) * 0.3)
+        col = tint * warm[None] * patch[:, None]
+        p.attrs["COLOR_0"] = np.concatenate([col, np.ones((len(P), 1))], 1)
     args = types.SimpleNamespace(sun=[-35.0, 40.0], region=[230.0, -20.0, 1100.0, 920.0], ao=20, cell=0.9, bias=0.8,
                                  strength=1.0, ambient=0.22, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.72, 0.7, 0.68],
                                  bounce_colour=[0.32, 0.27, 0.16], keep_tint=True, lights=list(lights))
