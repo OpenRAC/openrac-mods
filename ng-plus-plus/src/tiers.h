@@ -114,7 +114,7 @@ int name_version(Kind kind);
 
 // Returns the price of the step at `level` when it is bought (0 for one by experience), from the
 // weapon's Mega price `mega` (0 for none): the base (`mega`, at least kPriceFloor; kPriceLadder with
-// none) times 1.5, 2.5, 4 and 6 (the RYNO II's a step up: 2.5, 4, 6 and 9), rounded, each strictly
+// none) times 1.5, 2.5, 4 and 6 (the RYNO II's 6, 10, 16 and 25), rounded, each strictly
 // above the one before and above `mega`. A Kind::NoExp weapon buys all eight: the same ladder at Alpha, Gamma,
 // Epsilon and Eta, with Beta, Delta and Zeta between (2, 3.25, 5) and Omega at 9.
 std::int32_t price(Kind kind, int level, std::int32_t mega);

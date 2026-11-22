@@ -62,24 +62,27 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 - **Clank Zapper**: Alpha is for sale once it is V2.
 - **Sheepinator**: like the four-version weapons, Alpha is for sale once it is V4 (it has no Mega,
   so its prices start from 1,500,000).
-- **RYNO II**: first **Heavy RYNO II** at 30,000 XP, then Alpha to Omega (Alpha for sale as soon as
+- **RYNO II**: first **Heavy RYNO II** at 37,500 XP, then Alpha to Omega (Alpha for sale as soon as
   it is Heavy), and last **Ultima RYNO II**, by XP after Omega: ten steps, Ultima the final one. The
   RYNO II has its own curve, rising from Heavy to Ultima, and levels up five times slower than
-  other weapons (`kRynoExpScale` in src/tiers.h). Its prices are 1,000,000 (its own price) times
-  2.5, 4, 6 and 9:
+  other weapons (`kRynoExpScale` in src/tiers.h). It is the strongest weapon, so it costs far more than
+  the others' top tiers: 1,000,000 (its own price) times 6, 10, 16 and 25, about 2.5 to 2.8 times the
+  ladder of 1.5M to 9M the others' biggest Mega prices reach. At the bolt scaling of the later
+  challenge modes (x4 to x6, platinum and obsidian bolts) a common enemy at a full streak pays 10,000
+  to 15,000, so Eta is a couple of thousand such kills:
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
-  | Heavy | level up | | 30,000 | x1.40 | x1.50 | orange |
-  | Alpha | buy | 2,500,000 | | x2.00 | x1.65 | lime |
-  | Beta | level up | | 40,000 | x2.70 | x1.80 | cyan |
-  | Gamma | buy | 4,000,000 | | x3.45 | x1.95 | emerald |
-  | Delta | level up | | 60,000 | x4.30 | x2.15 | teal |
-  | Epsilon | buy | 6,000,000 | | x5.20 | x2.35 | violet |
-  | Zeta | level up | | 80,000 | x6.20 | x2.55 | magenta |
-  | Eta | buy | 9,000,000 | | x7.30 | x2.75 | crimson |
-  | Omega | level up | | 120,000 | x8.45 | x2.95 | rainbow |
-  | Ultima | level up | | 150,000 | x9.70 | x3.20 | black and red, beating |
+  | Heavy | level up | | 37,500 | x1.40 | x1.50 | orange |
+  | Alpha | buy | 6,000,000 | | x2.00 | x1.65 | lime |
+  | Beta | level up | | 50,000 | x2.70 | x1.80 | cyan |
+  | Gamma | buy | 10,000,000 | | x3.45 | x1.95 | emerald |
+  | Delta | level up | | 75,000 | x4.30 | x2.15 | teal |
+  | Epsilon | buy | 16,000,000 | | x5.20 | x2.35 | violet |
+  | Zeta | level up | | 100,000 | x6.20 | x2.55 | magenta |
+  | Eta | buy | 25,000,000 | | x7.30 | x2.75 | crimson |
+  | Omega | level up | | 150,000 | x8.45 | x2.95 | rainbow |
+  | Ultima | level up | | 187,500 | x9.70 | x3.20 | black and red, beating |
 
   At Ultima the XP bar shows full: there is nothing past it. Saves from before the path changed, when
   the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, are moved over once: Heavy
@@ -347,7 +350,7 @@ Epsilon).
 ### Ultima RYNO II
 
 The RYNO II's final step, after Omega, is **Ultima RYNO II**, reached by experience, not bought:
-30,000 x5 = 150,000 XP (the RYNO II's goals are five times the usual). It does x9.7 damage and
+37,500 x5 = 187,500 XP (the RYNO II's goals are five times the usual). It does x9.7 damage and
 x3.2 max ammo, and beats between black and red. Its rockets split in 3 and each split rocket
 splits twice more (OpenRAC 1.29: real homing rockets, at most 13 from one rocket; before 1.29,
 hits at 60% on at most 9 enemies). Nothing comes after it: its XP bar shows full.

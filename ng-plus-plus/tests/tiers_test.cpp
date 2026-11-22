@@ -149,13 +149,13 @@ void test_prices() {
     CHECK(price(Kind::Four, 4, 150'000) == 600'000);
     CHECK(price(Kind::Four, 6, 150'000) == 900'000);
     CHECK(price(Kind::Four, 0, 375'000) == 565'000);
-    CHECK(price(Kind::Two, 0, 1'000) == 225'000);         // the floor
-    CHECK(price(Kind::Ryno, 0, 1'000'000) == 0);          // Heavy: by experience
-    CHECK(price(Kind::Ryno, 1, 1'000'000) == 2'500'000);  // Alpha
-    CHECK(price(Kind::Ryno, 3, 1'000'000) == 4'000'000);  // Gamma
-    CHECK(price(Kind::Ryno, 5, 1'000'000) == 6'000'000);  // Epsilon
-    CHECK(price(Kind::Ryno, 7, 1'000'000) == 9'000'000);  // Eta
-    CHECK(price(Kind::Ryno, 9, 1'000'000) == 0);          // Ultima: by experience
+    CHECK(price(Kind::Two, 0, 1'000) == 225'000);          // the floor
+    CHECK(price(Kind::Ryno, 0, 1'000'000) == 0);           // Heavy: by experience
+    CHECK(price(Kind::Ryno, 1, 1'000'000) == 6'000'000);   // Alpha
+    CHECK(price(Kind::Ryno, 3, 1'000'000) == 10'000'000);  // Gamma
+    CHECK(price(Kind::Ryno, 5, 1'000'000) == 16'000'000);  // Epsilon
+    CHECK(price(Kind::Ryno, 7, 1'000'000) == 25'000'000);  // Eta
+    CHECK(price(Kind::Ryno, 9, 1'000'000) == 0);           // Ultima: by experience
 }
 
 // Returns whether every bought tier of a four-version weapon with Mega `mega` costs more than the
@@ -202,26 +202,26 @@ void test_ryno() {
     }
 
     CHECK(step_at(Kind::Ryno, 10) == nullptr);  // Ultima is the last: no Omega Prime
-    CHECK(!exp_reached(Kind::Ryno, 0, true, 29'999));
-    CHECK(exp_reached(Kind::Ryno, 0, true, 30'000));
+    CHECK(!exp_reached(Kind::Ryno, 0, true, 37'499));
+    CHECK(exp_reached(Kind::Ryno, 0, true, 37'500));
     CHECK(!can_buy(Kind::Ryno, 0, true, 1'000'000));
     CHECK(can_buy(Kind::Ryno, 1, true, 0));   // Alpha: for sale once Heavy is reached
     CHECK(!can_buy(Kind::Ryno, 1, false, 0));
     CHECK(can_buy(Kind::Ryno, 3, true, 0));  // Gamma: for sale once Beta is reached
     // The bar's goal: Heavy's experience, none for Alpha (for sale at once), a step's own by
     // experience, Ultima's after Omega, none past it.
-    CHECK(exp_goal(Kind::Ryno, 0) == 30'000);
+    CHECK(exp_goal(Kind::Ryno, 0) == 37'500);
     CHECK(exp_goal(Kind::Ryno, 1) == 0);
     // Beta, Delta, Zeta, Omega and Ultima: five times the others'.
-    CHECK(exp_goal(Kind::Ryno, 2) == 40'000);
-    CHECK(exp_goal(Kind::Ryno, 4) == 60'000);
-    CHECK(exp_goal(Kind::Ryno, 6) == 80'000);
-    CHECK(exp_goal(Kind::Ryno, 8) == 120'000);
-    CHECK(exp_goal(Kind::Ryno, 9) == 150'000);
-    CHECK(!exp_reached(Kind::Ryno, 2, true, 39'999));
-    CHECK(exp_reached(Kind::Ryno, 2, true, 40'000));
-    CHECK(!exp_reached(Kind::Ryno, 9, true, 149'999));
-    CHECK(exp_reached(Kind::Ryno, 9, true, 150'000));
+    CHECK(exp_goal(Kind::Ryno, 2) == 50'000);
+    CHECK(exp_goal(Kind::Ryno, 4) == 75'000);
+    CHECK(exp_goal(Kind::Ryno, 6) == 100'000);
+    CHECK(exp_goal(Kind::Ryno, 8) == 150'000);
+    CHECK(exp_goal(Kind::Ryno, 9) == 187'500);
+    CHECK(!exp_reached(Kind::Ryno, 2, true, 49'999));
+    CHECK(exp_reached(Kind::Ryno, 2, true, 50'000));
+    CHECK(!exp_reached(Kind::Ryno, 9, true, 187'499));
+    CHECK(exp_reached(Kind::Ryno, 9, true, 187'500));
     CHECK(exp_goal(Kind::Four, 0) == 0);
     CHECK(exp_goal(Kind::Four, 1) == step_at(Kind::Four, 1)->exp);
     CHECK(exp_goal(Kind::Four, 2) == 0);

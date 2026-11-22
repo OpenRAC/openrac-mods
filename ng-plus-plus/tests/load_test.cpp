@@ -1212,7 +1212,7 @@ void test_a_new_save_counts_from_zero() {
     CHECK(g_notice.find("Heavy") == std::string::npos);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 500);
     // The RYNO II's bar fills toward Heavy; the Lancer's Alpha is bought, so its bar stays full.
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);  // five times the others'
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);  // five times the others'
     CHECK(get<std::int32_t>(row(kLancerV4) + kRowExpGoal) == 0);
 }
 
@@ -1465,10 +1465,10 @@ void test_weapon_visuals() {
 
 // Checks the RYNO II reaching Heavy by experience, and the levels kept by the save's clock.
 void test_ryno_heavy_and_kept() {
-    set_experience(kRyno, 29'999);
+    set_experience(kRyno, 37'499);
     tick(1);
     CHECK(g_notice.find("RYNO") == std::string::npos);
-    set_experience(kRyno, 30'000);
+    set_experience(kRyno, 37'500);
     tick(1);
     CHECK(g_notice == "Heavy RYNO II");
     CHECK(get<std::uint16_t>(row(kRyno) + kRowAmmoMax) == 150);
@@ -1480,7 +1480,7 @@ void test_ryno_heavy_and_kept() {
     set_clock(0);
     tick(1);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 500);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);  // toward Heavy again
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);  // toward Heavy again
     set_clock(0x20);
     tick(1);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
@@ -1509,7 +1509,7 @@ void buy_ryno(const std::string& name) {
     CHECK(ryno_place() == 3);
     set_cursor(3);
     CHECK(title(kRynoLabelText) == name);
-    std::int32_t money = 10'000'000;
+    std::int32_t money = 30'000'000;
     CHECK(purchase(money) > 0);
     CHECK(g_notice == name);
     CHECK(vendor_count() == 3);  // the next is by experience: no entry
@@ -1533,7 +1533,7 @@ void test_ryno_at_the_vendor() {
     set<std::int32_t>(row(kRyno) + kRowLabel, kRynoLabelText);
     buy_ryno("Alpha RYNO II");
     CHECK(title(kRynoLabelText) == "Alpha RYNO II");
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);  // toward Beta
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);  // toward Beta
 }
 
 // Checks the rest of the RYNO II's path, from Beta (reached in hand): Gamma for sale at once,
@@ -1545,13 +1545,13 @@ void test_ryno_to_ultima() {
     tick(1);
     CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Gamma for sale at once
     buy_ryno("Gamma RYNO II");
-    level_ryno(60'000, "Delta RYNO II");
+    level_ryno(75'000, "Delta RYNO II");
     buy_ryno("Epsilon RYNO II");
-    level_ryno(80'000, "Zeta RYNO II");
+    level_ryno(100'000, "Zeta RYNO II");
     buy_ryno("Eta RYNO II");
-    level_ryno(120'000, "Omega RYNO II");
+    level_ryno(150'000, "Omega RYNO II");
     tick(1);
-    level_ryno(150'000, "Ultima RYNO II");
+    level_ryno(187'500, "Ultima RYNO II");
     tick(1);
     // The last step: a full bar, no goal, nothing at the vendor, no step for more experience.
     CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);
@@ -1631,7 +1631,7 @@ void test_a_restart_keeps_the_steps(openrac_mod_load_fn load) {
         set<std::uint16_t>(row(kRyno) + kRowAmmoMax, 100);
         set_clock(0);
         tick(1);
-        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);  // nothing yet
+        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);  // nothing yet
         g_level_now = -1;
         tick(1);
         set_clock(restart == 0 ? 0x20 : 0x50);
@@ -1639,14 +1639,14 @@ void test_a_restart_keeps_the_steps(openrac_mod_load_fn load) {
         g_level_now = 1;
         set_clock(static_cast<std::uint8_t>(0x50 + restart));
         tick(1);
-        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);
+        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
     }
 
     // A new game after it: nothing; its first clock (the counter 0, the weapons gone) nothing
     // either.
     set_clock(0);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 0);
     set_experience(kLancer, 0);
     set_experience(kRyno, 0);
@@ -1654,7 +1654,7 @@ void test_a_restart_keeps_the_steps(openrac_mod_load_fn load) {
     tick(1);
     set_clock(0x58);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);
     g_memory[g_disc->slot + kLancer] = kLancerV4;
 }
 
@@ -1677,7 +1677,7 @@ void test_each_save_has_its_own() {
     g_level_now = 1;
     set_clock(0x52);  // stamped again as its level starts
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);  // started: kept
 
@@ -1693,7 +1693,7 @@ void test_each_save_has_its_own() {
     g_level_now = 1;
     set_clock(0x61);
     tick(2);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);  // toward Heavy: no tier
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);  // toward Heavy: no tier
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 500);
     CHECK(experience(kRyno) == 0);
     CHECK(experience(kLancer) == 0);
@@ -1707,7 +1707,7 @@ void test_saves_from_inside_a_level() {
     load_save_a();
     set_clock(0x52);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);
 
@@ -1717,7 +1717,7 @@ void test_saves_from_inside_a_level() {
     set<std::int32_t>(g_disc->progress, 123);
     set_clock(0x61);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 500);
 
     // A once more, then challenge mode's next game: the clock to zeros with the weapons kept and
@@ -1725,15 +1725,15 @@ void test_saves_from_inside_a_level() {
     load_save_a();
     set_clock(0x52);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
     set_clock(0);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 30'000);  // nothing while zeros
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 37'500);  // nothing while zeros
     CHECK(experience(kRyno) == 1234 * kExpUnit);                   // not zeroed while zeros
     set_clock(0x70);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 40'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);

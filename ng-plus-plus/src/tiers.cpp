@@ -45,16 +45,16 @@ constexpr Step kBoughtSteps[kTiers] = {
 // The RYNO II's path: Heavy by experience, the eight tiers on it, and Ultima last, by experience at
 // Omega. Its own curve, rising from Heavy's x1.4 to Ultima's x9.7, each step above the one before.
 constexpr Step kRynoSteps[kRynoStepCount] = {
-    {"Heavy",   How::Exp, 6'000,  1.40f, 1.50f, Tint::Orange},
+    {"Heavy",   How::Exp, 7'500,  1.40f, 1.50f, Tint::Orange},
     {"Alpha",   How::Buy, 0,      2.00f, 1.65f, Tint::Lime},
-    {"Beta",    How::Exp, 8'000,  2.70f, 1.80f, Tint::Cyan},
+    {"Beta",    How::Exp, 10'000, 2.70f, 1.80f, Tint::Cyan},
     {"Gamma",   How::Buy, 0,      3.45f, 1.95f, Tint::Emerald},
-    {"Delta",   How::Exp, 12'000, 4.30f, 2.15f, Tint::Teal},
+    {"Delta",   How::Exp, 15'000, 4.30f, 2.15f, Tint::Teal},
     {"Epsilon", How::Buy, 0,      5.20f, 2.35f, Tint::Violet},
-    {"Zeta",    How::Exp, 16'000, 6.20f, 2.55f, Tint::Magenta},
+    {"Zeta",    How::Exp, 20'000, 6.20f, 2.55f, Tint::Magenta},
     {"Eta",     How::Buy, 0,      7.30f, 2.75f, Tint::Crimson},
-    {"Omega",   How::Exp, 24'000, 8.45f, 2.95f, Tint::Prismatic},
-    {"Ultima",  How::Exp, 30'000, 9.70f, 3.20f, Tint::Ultima},
+    {"Omega",   How::Exp, 30'000, 8.45f, 2.95f, Tint::Prismatic},
+    {"Ultima",  How::Exp, 37'500, 9.70f, 3.20f, Tint::Ultima},
 };
 // clang-format on
 
@@ -96,8 +96,10 @@ constexpr std::uint32_t kMixSteps = 256u;
 // Times the base, for the first bought step, the second, ...
 constexpr float kPriceTimes[] = {1.5f, 2.5f, 4.0f, 6.0f};
 
-// The RYNO II's: its four bought tiers (Alpha, Gamma, Epsilon, Eta) a step up the ladder.
-constexpr float kRynoPriceTimes[] = {2.5f, 4.0f, 6.0f, 9.0f};
+// The RYNO II's: its four bought tiers (Alpha, Gamma, Epsilon, Eta), far up the ladder (the
+// strongest weapon: about 2.5 to 2.8 times the other weapons' top ladder, 6 to 25 million on its 1
+// million).
+constexpr float kRynoPriceTimes[] = {6.0f, 10.0f, 16.0f, 25.0f};
 
 // For a weapon that buys every tier (Kind::NoExp): the ladder above at Alpha, Gamma, Epsilon and
 // Eta, the tiers between in between, Omega at the RYNO II's top.
@@ -596,7 +598,8 @@ float ryno_hits(int cycle, float strength, const Foe& foe) {
     }
 
     const float hits = std::min(kRynoToughFirst + kRynoToughStep * runs, kRynoToughMost);
-    const float size = std::sqrt(static_cast<float>(foe.bolts) / static_cast<float>(kRynoToughBolts));
+    const float size =
+        std::sqrt(static_cast<float>(foe.bolts) / static_cast<float>(kRynoToughBolts));
     return hits * std::min(size, kRynoSizeMost) * scale;
 }
 
