@@ -489,6 +489,17 @@
   ],
   "vendor-buy-all": [
     {
+      "version": "0.2.0",
+      "sha256": {
+        "android-arm64": "ae34611a0727173b05d635f59fbb1222f417353539b86a61a79a923f6e9cddb6",
+        "linux-aarch64": "922f5a7e135d40f10289ff6e2db5bdaf38eb9c301fe49b4cc04d4e2b0bbb8032",
+        "linux-x86_64": "c34787aabc3070f268cf4e8e1f49de4ff86185aa8c5be1bc9913050dda6e1bf9",
+        "macos-arm64": "f9c09e336bf4d91520c39262e52eeaa7129b3c0f98314763f7ef58f8187261a3",
+        "macos-x86_64": "1619d765fe8cabc3b0a88b2bcb68ffa14d1e3418164d6f238dbb59fd818e71f6",
+        "windows-x86_64": "a7f158ebd218aabc78e7bdbaabc80c024463027f229c664e5374c67c8b1de701"
+      }
+    },
+    {
       "version": "0.2.1",
       "sha256": {
         "android-arm64": "07d58d60a66b90c8c16ed665e76ba969895191530a38b952e40b683fb644d735",
