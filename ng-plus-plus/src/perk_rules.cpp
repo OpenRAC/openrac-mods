@@ -449,17 +449,22 @@ ShotPerk shot_perk(int item, Stage stage, int tier) {
             }
             break;
 
-        // RYNO II: each rocket splits into 2, then 3 homing rockets where it ends; they split again
-        // once at Omega, twice at Omega Prime.
-        case 44:
-            if (s >= 1) {
-                perk.end_shots = s >= 2 ? 3 : 2;
+        // RYNO II: from its first tier (Alpha) each rocket splits into 2 homing rockets where it
+        // ends, 3 from Gamma; they split again once at Omega, twice at Omega Prime. The stage
+        // counts too, so an overdrive raises it.
+        case 44: {
+            const int stage_tier =
+                s >= 3 ? kOmegaTier : (s >= 2 ? kEpsilonTier : (s >= 1 ? kGammaTier : 0));
+            const int t = std::max(tier, stage_tier);
+            if (t >= 1) {
+                perk.end_shots = t >= kGammaTier ? 3 : 2;
                 perk.end_class = kRynoRocket;
                 perk.end_homing = true;
-                perk.end_generations = tier > 8 ? 2 : (s >= 3 ? 1 : 0);
-                perk.end_most = tier > 8 ? 13 : kFanMost;
+                perk.end_generations = t > kOmegaTier ? 2 : (t >= kOmegaTier ? 1 : 0);
+                perk.end_most = t > kOmegaTier ? 13 : kFanMost;
             }
             break;
+        }
 
         // Every other weapon has no shot moby of its own.
         default:

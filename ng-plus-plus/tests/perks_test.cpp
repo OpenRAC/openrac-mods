@@ -391,8 +391,11 @@ void test_shot_perks() {
     CHECK(shot_perk(27, Stage::Omega, 8).end_blasts == 2);
 
     // The RYNO II: 2, then 3 homing RYNO rockets, splitting once at Omega and twice at Omega Prime.
-    CHECK(shot_perk(44, Stage::None, 2).end_shots == 0);
-    CHECK(shot_perk(44, Stage::Gamma, 3).end_shots == 2);
+    CHECK(shot_perk(44, Stage::None, 0).end_shots == 0);
+    CHECK(shot_perk(44, Stage::None, 1).end_shots == 2);
+    CHECK(shot_perk(44, Stage::None, 2).end_shots == 2);
+    CHECK(shot_perk(44, Stage::Gamma, 3).end_shots == 3);
+    CHECK(shot_perk(44, Stage::Gamma, 0).end_shots == 3);
     CHECK(shot_perk(44, Stage::Epsilon, 5).end_shots == 3);
     CHECK(shot_perk(44, Stage::Gamma, 3).end_class == kRynoRocket);
     CHECK(shot_perk(44, Stage::Gamma, 3).end_homing);

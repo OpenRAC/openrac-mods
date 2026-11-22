@@ -25,6 +25,24 @@ constexpr float kScatterUp = 0.18f;
 // How far a split rocket or seeker looks for its enemy.
 constexpr float kHomingRadius = 40.0f;
 
+// Where a split rocket starts from a rocket that hit: this far back along the rocket's way and up,
+// clear of what it hit, so that its first step is not into the same wall or enemy (it would go off
+// at once, unseen in the first rocket's blast).
+constexpr float kSplitBack = 1.2f;
+constexpr float kSplitUp = 1.0f;
+
+// A split rocket's size beside the RYNO II's own rockets, and the moby's scale word.
+constexpr float kSplitScale = 0.6f;
+constexpr std::uint32_t kMobyScale = 0x2C;
+
+// An enemy this near where a rocket hit is the one it hit: its splits seek the others.
+constexpr float kVictimReach = 3.0f;
+
+// After a hit, the enemies a split leaves alone as behind what it hit: the cosine of their angle
+// off the shot's way above which they count as ahead (an enemy hit, a wall or the ground hit).
+constexpr float kBlockedAhead = 0.85f;
+constexpr float kWallAhead = 0.2f;
+
 // The yaw a rocket splitting in flight turns its half by.
 constexpr float kSplitYaw = 0.35f;
 
@@ -246,10 +264,45 @@ void Shots::on_end(const ShotEnd& end) {
         return;
     }
 
-    // At the nearest enemies, or scattered round.
-    const std::vector<Perks::Target> targets =
-        perk.end_homing ? m_perks.targets(at, kHomingRadius, count, end.target)
-                        : std::vector<Perks::Target>{};
+    // Homing shots start clear of what the shot hit: back along its way and up.
+    std::array<float, 3> from = at;
+    if (perk.end_homing && end.reason == kEndImpact) {
+        for (int c = 0; c < 3; ++c) {
+            from[static_cast<std::size_t>(c)] -=
+                tracked.direction[static_cast<std::size_t>(c)] * kSplitBack;
+        }
+        from[2] += kSplitUp;
+    }
+
+    // At the nearest enemies but the one it hit, or scattered round. After a hit, an enemy ahead
+    // along the shot's way is behind what it hit (the wall, or the enemy it hit): a split sent
+    // there goes off on it at once. Ahead is within kBlockedAhead of the way when the shot hit an
+    // enemy, anywhere in front when it hit a wall or the ground.
+    const bool impact = end.reason == kEndImpact;
+    const std::array<float, 3>& way = tracked.direction;
+    const bool has_way = way[0] != 0.0f || way[1] != 0.0f || way[2] != 0.0f;
+    std::vector<Perks::Target> targets;
+    if (perk.end_homing) {
+        const std::array<float, 3> hit{end.position[0], end.position[1], end.position[2]};
+        const std::vector<Perks::Target> near =
+            m_perks.targets(from, kHomingRadius, count + 4, end.target);
+        bool hit_enemy = false;
+        for (const Perks::Target& t : near) {
+            hit_enemy = hit_enemy || distance2(t.position, hit) < kVictimReach * kVictimReach;
+        }
+        const float ahead = hit_enemy ? kBlockedAhead : kWallAhead;
+        for (const Perks::Target& t : near) {
+            const bool victim = impact && distance2(t.position, hit) < kVictimReach * kVictimReach;
+            const std::array<float, 3> to = scaled(
+                {t.position[0] - from[0], t.position[1] - from[1], t.position[2] - from[2]}, 1.0f
+            );
+            const bool blocked =
+                impact && has_way && to[0] * way[0] + to[1] * way[1] + to[2] * way[2] > ahead;
+            if (!victim && !blocked && static_cast<int>(targets.size()) < count) {
+                targets.push_back(t);
+            }
+        }
+    }
     const float speed = tracked.speed > 0.0f ? tracked.speed : kDefaultSpeed;
 
     for (int n = 0; n < count; ++n) {
@@ -257,7 +310,7 @@ void Shots::on_end(const ShotEnd& end) {
         shot.when = m_tick + (tracked.item == 42 && !perk.end_homing ? kGravityScatterTicks : 0u);
         shot.oclass = perk.end_class;
         shot.item = tracked.item;
-        shot.at = at;
+        shot.at = from;
         shot.generation = tracked.generation + 1;
         shot.root = tracked.root;
         const float angle = 6.2831853f * static_cast<float>(n) / static_cast<float>(count);
@@ -267,8 +320,15 @@ void Shots::on_end(const ShotEnd& end) {
             const Perks::Target& t = targets[static_cast<std::size_t>(n)];
             shot.target = t.slot;
             shot.velocity = scaled(
-                {t.position[0] - at[0], t.position[1] - at[1], t.position[2] + 0.5f - at[2]}, speed
+                {t.position[0] - from[0], t.position[1] - from[1], t.position[2] + 0.5f - from[2]},
+                speed
             );
+        } else if (perk.end_homing && impact && has_way) {
+            // No enemy to seek: fanned out back from what it hit, a little up.
+            const float side =
+                (static_cast<float>(n) - 0.5f * static_cast<float>(count - 1)) * 0.6f;
+            const std::array<float, 3> back = turned({-way[0], -way[1], 0.0f}, side);
+            shot.velocity = scaled({back[0], back[1], 0.35f}, speed);
         } else if (perk.end_homing) {
             shot.velocity = scaled({std::cos(angle), std::sin(angle), 0.15f}, speed);
         } else {
@@ -277,7 +337,9 @@ void Shots::on_end(const ShotEnd& end) {
         }
 
         // Out of the enemy or the ground it ended on.
-        shot.at = moved(at, shot.velocity, perk.end_homing ? kEndClear : kScatterClear);
+        shot.at = moved(
+            perk.end_homing ? from : at, shot.velocity, perk.end_homing ? kEndClear : kScatterClear
+        );
         m_pending.push_back(shot);
         ++made;
     }
@@ -324,6 +386,19 @@ int Shots::spawn(const Pending& shot) {
     }
 
     ++m_counts.spawns;
+
+    // A RYNO II split rocket is a smaller one: its moby's scale (+0x2C), which the game's matrix
+    // step multiplies its rows by each tick.
+    if (shot.oclass == kRynoRocket && shot.generation > 0 && (shot.flags & kSpawnDetonate) == 0) {
+        const std::uint32_t moby = MobyScan::slot_address(m_view, slot);
+        if (moby != 0) {
+            const openrac::Memory memory = m_view.memory();
+            const float scale = memory.read<float>(moby + kMobyScale);
+            if (scale > 0.0f && scale < 100.0f) {
+                memory.write(moby + kMobyScale, scale * kSplitScale);
+            }
+        }
+    }
 
     // A shot that flies: kept for its end (a blast is not).
     if ((shot.flags & kSpawnDetonate) == 0) {
