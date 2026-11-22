@@ -144,12 +144,21 @@ void ExtraEnemies::start() {
     }
 }
 
+int ExtraEnemies::copies_each() const {
+    const int swarm =
+        m_elites != nullptr && m_elites->modifier() == Modifier::Swarm ? kSwarmCopies : 0;
+    const int each = extra_copies(m_view.cycle());
+    return each + (each > 0 ? swarm : 0);
+}
+
 int ExtraEnemies::level_loaded() {
     const int level = m_view.loaded_level();
     const int cycle = m_view.cycle();
     const int swarm =
         m_elites != nullptr && m_elites->modifier() == Modifier::Swarm ? kSwarmCopies : 0;
-    const int each = extra_copies(cycle) + (extra_copies(cycle) > 0 ? swarm : 0);
+    const int each = copies_each();
+    m_load_level = level;
+    m_load_each = each;
 
     // No copies this cycle, none in this OpenRAC, or a party guest's game (the host's copies are
     // its).
@@ -181,9 +190,9 @@ int ExtraEnemies::level_loaded() {
     m_wait = kRetryTicks;
 
     // Every enemy's first copy, then the second ones, until the pool is near its end or the port
-    // has no room or spot for one: the port's room for the copies' larger pvars (64 KB) runs out in
-    // a crowded level (Barlow's 91 hounds fill it with one copy each), and a second copy never
-    // takes the place of a first.
+    // has no room or spot for one: an OpenRAC before develop of 2026-11-22 kept 192 KB for the
+    // copies' larger pvars, which Barlow's hounds (832 bytes each) filled before their third
+    // copies, and a second copy never takes the place of a first.
     for (int index = 0; index < each; ++index) {
         // Each enemy that gets this many.
         for (const auto& [slot, copies] : enemies) {
@@ -239,6 +248,14 @@ int ExtraEnemies::make_copy(int slot, int index) {
 }
 
 void ExtraEnemies::tick() {
+    // The level's load made none, and the cycle has changed since to one with copies (set within
+    // the level, as a test run's setup does): this cycle's copies now.
+    if (m_on && m_calls.copy != nullptr && m_load_each == 0 && m_load_level >= 0
+        && m_view.loaded_level() == m_load_level && copies_each() > 0) {
+        level_loaded();
+        return;
+    }
+
     // Nothing missed, or a level left.
     if (m_pending.empty() || m_retries >= kRetries || m_wait-- > 0) {
         return;
@@ -268,12 +285,13 @@ void ExtraEnemies::tick() {
 
     m_pending = std::move(still);
 
-    // Said when it made some.
-    if (made > 0) {
+    // Said when it made some, and once when the last try leaves some out.
+    if (made > 0 || (m_retries == kRetries && !m_pending.empty())) {
         m_mod.info(
             "level " + std::to_string(m_pending_level) + ": " + std::to_string(made)
             + " more extra enemies on try " + std::to_string(m_retries) + ", "
             + std::to_string(m_pending.size()) + " still missing"
+            + (m_retries == kRetries && !m_pending.empty() ? " (the last try)" : "")
         );
     }
 }

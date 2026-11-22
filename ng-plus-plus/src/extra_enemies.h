@@ -105,9 +105,10 @@ inline CopyCalls copy_calls_of(const openrac_api& api) {
     return {table->moby_copy_check, table->moby_copy};
 }
 
-// The ticks between the tries at a load's missed copies, and how many tries.
-inline constexpr int kRetryTicks = 60;
-inline constexpr int kRetries = 3;
+// The ticks between the tries at a load's missed copies, and how many tries: two seconds apart for
+// twenty seconds, while the level wakes and its packs move apart.
+inline constexpr int kRetryTicks = 120;
+inline constexpr int kRetries = 10;
 
 // More enemies.
 //
@@ -133,7 +134,7 @@ public:
     int level_loaded();
 
     // Once a game tick: copies a crowded load left out are tried again (a few times, a second
-    // apart) once the level has spawned and the pool has room.
+    // apart) once the level has spawned, its packs have moved and the pool has room.
     void tick();
 
 private:
@@ -150,6 +151,11 @@ private:
     int m_pending_level = -1;  // The level they are for.
     int m_retries = 0;         // Tries made again for this load.
     int m_wait = 0;            // Ticks to the next one.
+    int m_load_level = -1;     // The level of the last load, and the copies each enemy got then.
+    int m_load_each = -1;
+
+    // The copies each enemy gets now: the cycle's, and the Swarm modifier's one more.
+    int copies_each() const;
 
     // Makes copy `index` of the enemy in `slot` unless the pool is near its end. Returns 1 made, 0
     // not made (the port had no room or spot), -1 left alone to keep the pool's last slots for the

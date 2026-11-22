@@ -2407,6 +2407,24 @@ void test_pool_room() {
     CHECK(g_copies_made == 0);
     g_level_now = 4;
     g_pool_free = 500;
+
+    // The cycle set within a level whose load made none (a test run's setup): the cycle's copies
+    // then, as many as a load in that cycle makes, and once.
+    set_run(2, 0);
+    g_copies_made = 0;
+    port_level_load();
+    const int at_load = g_copies_made;
+    CHECK(at_load > 0);
+    set_run(0, 0);
+    port_level_load();
+    g_copies_made = 0;
+    tick(2);
+    CHECK(g_copies_made == 0);
+    set_run(2, 0);
+    tick(2);
+    CHECK(g_copies_made == at_load);
+    tick(ng_plus_plus::kRetryTicks + 2);
+    CHECK(g_copies_made == at_load);
     set_run(1, 0);
 }
 
