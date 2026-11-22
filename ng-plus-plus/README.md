@@ -3,6 +3,8 @@
 New Game++ for Going Commando, for OpenRAC's native port (NTSC-U, PAL and NTSC-U v2.00 discs):
 eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). The game's
 own versions stay as they are; NG++ adds its tiers on top and keeps track of them itself.
+Version 0.5.0 adds weapon perks from Gamma on (the Lava Gun becomes the Ice Gun), eight armor tiers,
+elite enemies, a modifier for each new game, the RYNO II's Omega Prime and health from Omega weapons.
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
@@ -60,7 +62,8 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   **Ultima RYNO II** from the vendor for 1,500,000 (x2.2 damage, x2 max ammo, black and red), then
   Alpha (after 30,000 more XP) to Omega, each adding its bonus on top of Ultima's. Its prices are
   1,000,000 times 1.5, 2.5, 4, 6 and 9: Ultima 1,500,000, Alpha 2,500,000, Gamma 4,000,000,
-  Epsilon 6,000,000, Eta 9,000,000. The RYNO II levels up five times slower than other weapons: its
+  Epsilon 6,000,000, Eta 9,000,000. After Omega it has an 11th step by XP, Omega Prime (see below).
+  The RYNO II levels up five times slower than other weapons: its
   Beta, Delta, Zeta and Omega need 40,000, 60,000, 80,000 and 120,000 XP (`kRynoExpScale` in
   src/tiers.h).
 
@@ -118,7 +121,7 @@ This is only how things look: shots fly, spread and hit exactly as at the tier's
 | Chopper / Multi-Star | the spinning blades, body and glow |
 | Blitz Gun / Blitz Cannon | the gun's glowing edge and the effects tied to it |
 | Plasma Coil / Plasma Storm | the gun's glowing edge and the effects tied to it |
-| Lava Gun / Meteor Gun | the gun, and the burning blobs it leaves on the ground |
+| Lava Gun / Meteor Gun (the Ice Gun) | the gun, and the blobs it leaves on the ground. Its tiers are icy: frost, glacier, ice, arctic, deep ice, polar, cobalt, and aurora at Omega (see The Ice Gun) |
 | Minirocket Tube / Megarocket Cannon | the tube, and each homing rocket (its body, glow and trail) |
 | Spiderbot / Tankbot Glove | the bot itself (body and glow) and its exploding trail |
 | Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts |
@@ -140,6 +143,156 @@ Some of a weapon's effects are drawn by the game on their own, not tied to the g
 
 This needs OpenRAC with mod interface 1.25. With 1.23 or 1.24 only the bodies of the shots, bombs,
 bots and turrets take the tier's color, and with an older OpenRAC everything looks as in the game.
+
+### What each tier does
+
+From 0.5.0 the tiers do more than damage. Each weapon gets perks at **Gamma** (Gamma and Delta),
+**Epsilon** (Epsilon to Eta) and **Omega**. They are cumulative: Epsilon keeps Gamma's perk and
+Omega keeps both, stronger each time. Perks come from your own hits and your weapons' own shots,
+bombs, bots, shield and decoys, never from an enemy's. They add hits on other enemies on top of the
+hit that landed, each a share of that hit's damage as it landed (after the tier and the enemies'
+health), so "half" means half the hit's damage. Enemies get the extra hits one after another, nearest
+first, and a weapon that hits every tick (a beam, a stream) rests a few ticks between perks. A
+radius is in the game's units.
+
+Where a perk needs a hook point the current OpenRAC does not have, the cell says **needs a newer
+OpenRAC**: the mod does not do it yet and the weapon only gets its tier's damage there. The
+weapons marked so are Minirocket Tube, Seeker Gun, Chopper, Spiderbot Glove, Bouncer (extra shots),
+Hoverbomb Gun, Miniturret Glove, Synthenoid and the Zodiac's stars (more of them per shot, or more
+bots, bombs, turrets and drones per throw); the Blitz Gun's extra pellets; the Bomb Glove's extra
+bombs; the Pulse Rifle's fire rate; slows, stuns, taunts and sheepify chains (the Plasma Coil's
+slow, the Tesla Claw's stun, the Decoy Glove's taunt, the Sheepinator's chain); the Shield
+Charger's reflect; and real split rockets and mini bombs as projectiles of their own. For now the
+RYNO II's split rockets and the Gravity Bomb's and Visibomb's mini bombs are dealt as hits and
+blasts on the nearest enemies, with no rocket or bomb flying.
+
+"Ratchet's last weapon hit" below is the damage of the last hit he landed with a tiered weapon.
+
+| Weapon | Gamma | Epsilon | Omega |
+|---|---|---|---|
+| Lancer | Each shot ricochets to the nearest other enemy within 8 units, for half the hit | Ricochets twice (each jump 85% of the one before) | Every 5th shot is a piercing round: full damage, 4 ricochets, and up to 2 enemies behind the victim within 10 units, also at full damage |
+| Blitz Gun | needs a newer OpenRAC | needs a newer OpenRAC | Each pellet that hits leaves a spark for 1 s: every quarter second the enemies within 2.5 units take a quarter of the hit. (More pellets: needs a newer OpenRAC) |
+| Lava Gun | The Ice Gun (next section) | The Ice Gun | The Ice Gun |
+| Plasma Coil | The arc chains to 1 more enemy within 9 units, 60% of the hit | Chains to 3 more (each jump 90% of the one before). The slow: needs a newer OpenRAC | Chains to 6 more, and the last jump explodes: enemies within 5 units take 80% of the hit |
+| Minirocket Tube | needs a newer OpenRAC | needs a newer OpenRAC | needs a newer OpenRAC |
+| Gravity Bomb | The blast reaches 9 units, for half the bomb's hit | 4 mini bombs 5 units around the blast, a third of a second later, each a blast of 4 units for half the hit | 8 mini bombs, and a second pull-and-blast of 9 units at the full hit a second later |
+| Chopper | needs a newer OpenRAC | needs a newer OpenRAC | needs a newer OpenRAC |
+| Spiderbot Glove | needs a newer OpenRAC | needs a newer OpenRAC | needs a newer OpenRAC |
+| Bouncer | needs a newer OpenRAC | needs a newer OpenRAC | Each blast drops a mini blast: enemies within 4 units take 40% of the hit. (More bomblets and bounces: needs a newer OpenRAC) |
+| Miniturret Glove | needs a newer OpenRAC | needs a newer OpenRAC | needs a newer OpenRAC |
+| Hoverbomb Gun | needs a newer OpenRAC | needs a newer OpenRAC | needs a newer OpenRAC |
+| Shield Charger | The reflect: needs a newer OpenRAC | Every second the shield zaps the nearest enemy within 8 units for 60% of Ratchet's last weapon hit | The shield zaps the 3 nearest, and bursts when it ends: enemies within 8 units take twice Ratchet's last weapon hit |
+| Zodiac | needs a newer OpenRAC | needs a newer OpenRAC | Its shot leaves a field for 3 s: every quarter second the enemies within 6 units take 15% of the hit. (More stars: needs a newer OpenRAC) |
+| RYNO II | Each rocket splits on impact: the 2 nearest enemies within 15 units take 45% of the hit | 3 split rockets | Each split rocket splits once more, at half that (at most 9 hit in all). See Omega Prime below |
+| Seeker Gun | needs a newer OpenRAC | needs a newer OpenRAC | needs a newer OpenRAC |
+| Pulse Rifle | The fire rate: needs a newer OpenRAC | Every 4th pulse explodes: enemies within 4 units take 60% of the hit | Pulses pierce up to 2 enemies behind the victim within 12 units (80%) and chain to 2 more within 7 units (50%) |
+| Visibomb Gun | The missile burns a trail: every quarter second the enemies within 3 units of it take 30% of Ratchet's last weapon hit | When the missile ends it releases 3 mini bombs: the 3 nearest enemies within 12 units take 80% of Ratchet's last weapon hit | 6 mini bombs |
+| Bomb Glove | The extra bomb: needs a newer OpenRAC | Bombs chain-blast: enemies within 5 units of the victim take half the hit | Each bomb also bursts into 4: the 4 nearest enemies within 8 units take 40% of the hit. (Extra bombs: needs a newer OpenRAC) |
+| Decoy Glove | The taunt: needs a newer OpenRAC | The decoy explodes when it goes: enemies within 6 units take twice Ratchet's last weapon hit | The explosion reaches 9 units for three times, and goes off again half a second later |
+| Synthenoid | needs a newer OpenRAC | needs a newer OpenRAC | needs a newer OpenRAC |
+| Tesla Claw | The beam arcs to 2 more enemies within 7 units, each arc one and a half times the beam's tick, falling by 15% a jump | Arcs to 5 more. The stun: needs a newer OpenRAC | A storm: every third of a second an arc strikes an enemy within 10 units of Ratchet, one and a half times his last weapon hit |
+| Walloper | A shockwave on each swing that lands: enemies within 4 units take half the hit | Wider: 6 units, 80% | The wave also chains to 3 more enemies within 8 units (70%) |
+| Sheepinator | A sheep explodes when it goes: enemies within 4 units take Ratchet's last weapon hit | 6 units, 1.5 times. The sheepify chain: needs a newer OpenRAC | 8 units, twice. The sheepify chain: needs a newer OpenRAC |
+| Clank Zapper | A wider zap: every other enemy within 4 units takes half the hit | Also the nearest enemy within 8 units, 80% | Chain lightning: 5 jumps within 8 units, 70% of the hit, falling by 10% a jump |
+
+**Overdrive.** 20 kills in a row with one tiered weapon (from Gamma) switch it on for 10 seconds:
+that weapon's perks act a stage higher (Gamma's as Epsilon's, Epsilon's as Omega's). Changing weapon
+starts the count again.
+
+The **Weapon perks** setting turns every perk off (and the Ice Gun back into the Lava Gun). Then
+the tiers give damage, ammo and colour only. In a multiplayer party the host's setting counts.
+
+### The Ice Gun
+
+The Lava Gun's tiers are the **Ice Gun**: "Alpha Ice Gun" up to "Omega Ice Gun". The gun keeps
+the Meteor Gun's model for now.
+The idea follows Up Your Arsenal's Liquid Nitrogen Gun (the Lava Gun's V5 there). Its colours:
+
+| Tier | Color |
+|---|---|
+| Alpha | frost |
+| Beta | glacier |
+| Gamma | ice |
+| Delta | arctic |
+| Epsilon | deep ice |
+| Zeta | polar |
+| Eta | cobalt |
+| Omega | aurora (cycles through sea green, ice blue, white, deep blue and mint) |
+
+What it does to an enemy it hits (a slowed enemy runs its update one tick in so many, and a hit on
+it counts for all the ticks it skipped, so the damage is the same as on a free enemy):
+
+| Tier | Effect |
+|---|---|
+| Alpha, Beta | Chill: slowed to half speed for 1 s after each hit, glowing pale blue |
+| Gamma, Delta | Deeper chill: one tick in 3 for 2 s |
+| Epsilon to Eta | Freeze: after each hit it is frozen solid for 1 s (one tick in 8, no animation, glowing ice blue), then chilled for the rest of 2 s. A fresh freeze comes only after it has thawed for a second, so a stream holds it slowed and never stuck for good. An enemy killed while frozen or chilled shatters: enemies within 5 units take the killing hit, counted as four hits of the stream (60% of each) |
+| Omega | Long freeze: 2 s (one tick in 12), chill 3 s. The shatter reaches 8 units at full share, and the shards freeze what they hit |
+
+**Bosses** only glow: they are never slowed or frozen. This is how the mod does it: it holds the
+enemy's update at 0 on the ticks it skips and sets the no-animation flag while it is frozen.
+
+### Armor tiers
+
+Past the best armour (Infernox) there are **8 more armor tiers**, Alpha Armor to Omega Armor. Once
+you have bought the best armour, the weapon vendor sells the next tier as the **last entry** in its
+list, with the Shield Charger's icon (another weapon's you own when you don't have the Shield
+Charger). Each is bought, in order. Each takes a share off every hit on Ratchet, on top of the
+game's armour, and he glows in the tier's color. Ratchet's armour keeps the best armour's look,
+tinted and glowing in the tier's color (needs OpenRAC 1.25; without it the protection works but
+nothing glows). The tier is saved with the weapons in the mod's `tiers.txt`, and the launcher's save
+editor has an **Armor tier** picker.
+
+| Tier | Damage taken | Price | Glow | Perk |
+|---|---|---|---|---|
+| Alpha | x0.90 | 900,000 | steel | |
+| Beta | x0.82 | 1,200,000 | azure | |
+| Gamma | x0.75 | 1,500,000 | jade | Thorns: a hit on Ratchet shocks the enemies within 5 units for half his last weapon hit |
+| Delta | x0.68 | 1,950,000 | gold | Thorns as Gamma |
+| Epsilon | x0.62 | 2,400,000 | amethyst | Thorns 7 units, the full hit. Last stand: a hit that would end him leaves 1 point of health, once a minute |
+| Zeta | x0.56 | 3,000,000 | rose | As Epsilon |
+| Eta | x0.50 | 3,600,000 | ember | As Epsilon |
+| Omega | x0.45 | 5,400,000 | prismatic (cycles through all the colors) | Thorns 9 units, twice the hit. Last stand every half minute |
+
+The prices are the weapons' ladder for a weapon whose every tier is bought, from 600,000. The armor
+is not sold in a multiplayer party.
+
+### RYNO II Omega Prime
+
+After Omega the RYNO II has an 11th step, **Omega Prime**, reached by experience, not bought:
+30,000 x5 = 150,000 XP (the RYNO II's goals are five times the usual). It does x9.7 damage (its 8.5 added
+to Ultima's x2.2 the way the other tiers are, 2.2 + 7.5) and x3.2 max ammo, and
+is white and gold, beating between the two like Ultima's red. Its rockets split in 3 and each split
+rocket splits twice more, with each split hit at 60% of the hit (at most 9 enemies in all). The
+RYNO II's tiers other than this one are in the table above.
+
+### Elites and modifiers
+
+**Elites.** From the third challenge mode, some of the extra enemies' copies are elites: drawn in
+obsidian (OpenRAC 1.24), with 2.5 times the health, 3 times the bolts and twice the weapon
+experience of an ordinary one of their kind. The share of copies is 15% in the third challenge mode,
+5% more each run up to 35%. In the Maktar and Joba arenas, from the second challenge mode on, every
+fourth enemy the waves send is an elite. Which copies are elites is fixed per level, so loading a
+level again makes the same ones. Elites need extra enemies (OpenRAC 1.26). The **Elite enemies**
+setting turns them off.
+
+**Modifiers.** From the second challenge mode each new game has one modifier, named on screen when
+its first level loads ("Challenge: Swarm"), in turn:
+
+| Challenge mode | Modifier | What it does |
+|---|---|---|
+| 2nd, 6th, ... | Swarm | One more copy of each enemy that gets copies |
+| 3rd, 7th, ... | Elite guard | Twice as many elites (30% in the 3rd, at most 70%) |
+| 4th, 8th, ... | Volatile | Every enemy bursts when it dies: enemies within 5 units take 60% of Ratchet's last weapon hit |
+| 5th, 9th, ... | Bounty | Enemies hit a fifth harder (x1.2) and drop a quarter more (x1.25) |
+
+The **Challenge mode modifiers** setting turns them off (the elites stay on their own setting).
+Swarm adds to the extra enemies and needs them on.
+
+### Health from Omega weapons
+
+Ratchet gets one more health step (a nanotech step, as from the game's own orbs) for every **two
+weapons at Omega**, at most 12 steps. The RYNO II counts at Omega Prime as at Omega.
 
 ### Tougher enemies each new game
 
@@ -229,6 +382,9 @@ then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went
 | How much tougher | 1 | Multiplies what the table adds, 0 to 3 |
 | Bolt scaling | normal | Platinum and obsidian bolts, bigger drops and the collectors' pay (below): off, normal or generous |
 | Extra enemies | on | Copies of each enemy from the second challenge mode (below) |
+| Weapon perks | on | What each tier does from Gamma, and the Ice Gun |
+| Elite enemies | on | Elites among the copies and in the arenas |
+| Challenge mode modifiers | on | Swarm, Elite guard, Volatile and Bounty, one for each new game |
 
 With the [difficulty](../difficulty-mod/README.md) mod, both apply and **multiply**: its "damage
 dealt" and "damage taken" sliders scale the same hits as this mod's tiers and enemies, so with
@@ -505,7 +661,7 @@ host's tiers.
 
 ## How it works
 
-Through OpenRAC's rac2 hook points of SDK 1.14.6, and the bolts' of interface 1.23, the obsidian
+Through OpenRAC's rac2 hook points of SDK 1.14.6 (and `rac2.player.nanotech_steps` for 0.5.0), and the bolts' of interface 1.23, the obsidian
 material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01's):
 
 | | Where |
@@ -525,6 +681,10 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | Sellers | no hook point (each seller's dialog prints the price it then takes, both from the level's data): the bolt prices of the level's price table (`D_L06_002958D0`, `D_L09_0028E350`, `D_L14_00291850`, `D_L17_0028C550`: the game's and challenge mode's price of Notak's toll door, words 0-1, Dobbo's seller 4-5, the prison's seller 10-11, Smolg's machine 12-13; the crystals and moonstones of Tabora and Grelbin left alone) and the gadget sellers' item row (+0x80 of the item's row) are written at half the run scale's rise while their level is loaded, the same way as the races |
 | Level-up popup | a tier earned with the weapon in hand plays the game's in-hand level-up (`func_L00_0037E6A8`); at its end the game's popup from its own level-up table (`help_show_message_for_id`, `func_00288508`) names the last version, or is text 0 (an empty box) for a weapon the table has no line for (RYNO II, Zodiac): for ten seconds after, the resolver gives that popup the tier's name |
 | Weapon looks | each tick, the level's moby table (the first moby's and past the last's words, `g_mobyTableBase` and `g_mobyTableEnd`; 0x80 and up at +0x20 a dead slot) is looked through for the weapons' own classes (`kVisualClasses` in src/weapon_visuals.h: guns, shots, bombs, blasts, bots, turrets, the shield, each with its item); a moby whose weapon wears a tier is drawn with `moby_material`'s energy (interface 1.25) at the tier's strength in the tier's color (`effect_rgb`, `effect_strength` in src/tiers.h), sent again only when it changes (Omega and Ultima every other tick). OpenRAC draws the body with a touch of the color and a glowing rim, and the moby's glow packets, its draw callbacks' quads and the particles naming it as their owner in the color. On a port of 1.23 or 1.24, a tint on the shots', bombs' and bots' bodies only |
+| Perks | the same `rac2.combat.post_hit` hook: the extra hits are posted through its original (the game's `QueueMobyImpact`), because OpenRAC's `moby_hit` and the update gate are rac1-only on the current port. The shield, Visibomb missile, Gravity Bomb blasts, decoys, sheep and Tesla Claw beam are watched as mobys of their own classes (`kWatchedClasses` in src/perks.cpp) |
+| Ice Gun | an enemy's update word (+0x64) is held at 0 on the ticks the Ice Gun makes it skip, and put back on the ones it runs; while frozen its no-animation flag (0x40 at +0x34) is set |
+| Health | `rac2.player.nanotech_steps`: the game's count of health steps plus one for every two Omega weapons (at most 12) |
+| Armor | the damage share in `rac2.player.take_damage` (the hit times the tier's share, Bounty's included); the armour level is read at `g_player_stats` +0x18; the tier is the book's item 55; the vendor's entry is built as a weapon's upgrade entry |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
 
 The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
@@ -542,6 +702,8 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/text.h` | the text resolver behind `rac2.text.by_id` |
 | `src/vendor.h` | the vendor's entries, prices, purchases and tints |
 | `src/experience.h` | steps by experience, the level-up, the rows' ammo and bar, the line at the top |
+| `src/perk_rules.h` | 0.5.0's rules alone: the perks, the Ice Gun, armor tiers, elites, modifiers, overdrive |
+| `src/perks.h`, `src/armour.h`, `src/elites.h` | the perks and the Ice Gun, the armor tiers, the elites and modifiers in the game |
 | `src/combat.h` | the tiers' damage and the enemies across new games |
 | `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness, the drop's scale and extra coins, the platinum and obsidian shares and the split into coins |
 | `src/platinum_bolts.h` | platinum and obsidian bolts and bolt scaling behind the bolt hook points |
@@ -572,10 +734,14 @@ Not yet:
 - A platinum or obsidian bolt's extra worth goes to your bolts, not to the level's bolt score the
   game keeps for its own pacing. If the port can't draw a coin as platinum or obsidian (over 1,024
   at once), its extra worth is added when it drops.
-- No extra enemies yet: Going Commando has no table of which enemies a level's scripts need (waves,
-  arenas, doors that open when all are defeated), so copies could stall a level; the difficulty
-  mod leaves the enemy count out of Going Commando for the same reason.
-- No fire rate change, and RYNO II Ultima's split volley is a follow-up: Ultima is the damage boost.
+- Perks that need a newer OpenRAC (hook points for a weapon firing, a shot spawning, an impact and a
+  status): extra shots for the Minirocket Tube, Seeker Gun, Chopper, Spiderbot Glove, Bouncer and
+  Hoverbomb Gun, the Blitz Gun's extra pellets, the Bomb Glove's extra bombs, the Miniturret Glove,
+  the Synthenoid and the Zodiac's stars; the Pulse Rifle's fire rate; the Plasma Coil's slow, the
+  Tesla Claw's stun, the Decoy Glove's taunt and the Sheepinator's chain; the Shield Charger's reflect;
+  and real split rockets and mini bombs as projectiles of their own. Until then the RYNO II's split
+  rockets and the Gravity Bomb's and Visibomb's mini bombs are hits on the nearest enemies.
+- The Ice Gun keeps the Meteor Gun's model.
 - The weapons' looks change only how things are drawn: shots are no faster and blasts reach no
   farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
   game's item rows keep the shots' speed and size in fields that mean different things for each
