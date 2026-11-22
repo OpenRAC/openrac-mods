@@ -251,9 +251,9 @@ void test_scaling() {
     CHECK(effect_rgb(Kind::Ryno, 2, 30) == 0x600000u);  // Ultima, deep
     // Stronger with each tier, the top at the last.
     CHECK(effect_strength(Kind::Four, 0) == 0);
-    CHECK(effect_strength(Kind::Four, 1) == 2);
+    CHECK(effect_strength(Kind::Four, 1) == kEffectFirst);
     CHECK(effect_strength(Kind::Four, 8) == kEffectTop);
-    CHECK(effect_strength(Kind::Ryno, 1) == 1);
+    CHECK(effect_strength(Kind::Ryno, 1) == kEffectFirst);
     CHECK(effect_strength(Kind::Ryno, 10) == 14);
     CHECK(effect_strength(Kind::Ryno, 11) == kEffectTop);  // Omega Prime
     CHECK(effect_strength(Kind::None, 3) == 0);

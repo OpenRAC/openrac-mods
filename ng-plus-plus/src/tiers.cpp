@@ -556,9 +556,10 @@ int effect_strength(Kind kind, int level) {
         return 0;
     }
 
-    // Each step a share of the top, the last at the top.
+    // From the first's strength, each step a share of the rest, the last at the top.
     const int clamped = level < steps ? level : steps;
-    return (clamped * kEffectTop + steps / 2) / steps;
+    const int span = kEffectTop - kEffectFirst;
+    return kEffectFirst + ((clamped - 1) * span + (steps - 1) / 2) / (steps - 1);
 }
 
 bool tint_moves(Kind kind, int level) {

@@ -1295,7 +1295,8 @@ void test_weapon_visuals() {
     lay_out_mobys({1490, 3077, 0, 9999, 3299});
     tick(1);
     const bool energy = energy_host(g_host);
-    const std::uint32_t beta = energy_at(4);  // Beta: the second of eight steps, 15 x 2 / 8
+    // Beta: the second of eight steps (effect_strength), from the first's strength.
+    const std::uint32_t beta = energy_at(kEffectFirst + (kEffectTop - kEffectFirst + 3) / 7);
 
     // Energy: the Lancer's two guns in Beta's cyan, raised to full strength (0x00E0FF).
     CHECK(visual_material(0) == (energy ? beta : 0u));
