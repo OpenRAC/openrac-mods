@@ -1,0 +1,24 @@
+{
+  "id": "rac2-showroom-star-explorer",
+  "repo": "https://github.com/slimcognitohimself/slim-gc-showroom-star-explorer",
+  "path": "",
+  "description": "Playthrough 1 starts with the showroom Star Explorer, with upgrades pre-installed to match the promotional material artwork. Blargian Red replaced with Showroom Silver. Upgrades that come with the Showroom Explorer are removed from the list to purchase from Slim.",
+  "tags": [
+    "gameplay",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/rac2-showroom-star-explorer/62f9a14eed9a.png"
+      },
+      {
+        "src": "index/media/rac2-showroom-star-explorer/94f35cfe96e3.png"
+      }
+    ]
+  }
+}
