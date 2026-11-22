@@ -34,6 +34,7 @@ add_library(ng_plus_plus_core STATIC
   src/ship_upgrades.cpp
   src/space_missions.cpp
   src/ship_looks.cpp
+  src/culling.cpp
   src/test_setup.cpp)
 target_include_directories(ng_plus_plus_core PUBLIC src)
 
@@ -94,6 +95,12 @@ if(BUILD_TESTING)
   target_link_libraries(ng_plus_plus_text_test PRIVATE ng_plus_plus_core)
   set_target_properties(ng_plus_plus_text_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_text COMMAND ng_plus_plus_text_test)
+
+  # 0.5.1's off-screen picks: weapon_ignore_culling found in the port's table.
+  add_executable(ng_plus_plus_culling_test tests/culling_test.cpp)
+  target_link_libraries(ng_plus_plus_culling_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_culling_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_culling COMMAND ng_plus_plus_culling_test)
 
   # The library as the port loads it, against a host table and game memory of the test's own.
   add_executable(ng_plus_plus_load_test tests/load_test.cpp)

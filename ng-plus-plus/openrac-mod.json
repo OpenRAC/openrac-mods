@@ -148,6 +148,14 @@
         { "value": "off", "name": "Off" }
       ],
       "description": "How the ship glows over its paint: in its ship weapon tier's colour, or in a look its tier has unlocked (the tier in brackets; before that, the tier's colour). Off leaves the game's paint alone. Needs OpenRAC with mod interface 1.25."
+    },
+    {
+      "key": "offscreen_targets",
+      "multiplayer": "host",
+      "name": "Zodiac and Plasma Coil hit off screen",
+      "type": "bool",
+      "default": true,
+      "description": "The Zodiac's blast and the arcs of the Plasma Coil and Plasma Storm hit every enemy in their range, also the ones behind the camera or off screen, which the PS2 game skips because it picks their targets among what it drew. Their range and the number they hit stay the game's. On at every tier and in the first playthrough too. Needs OpenRAC with mod interface 1.30."
     }
   ],
   "save_data": {

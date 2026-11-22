@@ -769,6 +769,15 @@ points) and with the [difficulty](../difficulty-mod/README.md) mod (its prices a
 the tiers multiply). In a [multiplayer](../multiplayer/README.md) party everyone plays with the
 host's tiers.
 
+### Off-screen enemies
+
+The Zodiac's blast and the arcs of the Plasma Coil and the Plasma Storm hit every enemy in their
+range, also the ones behind the camera or off screen. On the PlayStation 2 these weapons pick
+their targets only among what the game drew in the last frame, so an enemy behind Ratchet was
+missed. Their range and how many enemies they hit stay the game's. This is on at every tier and in
+the first playthrough too; the setting **Zodiac and Plasma Coil hit off screen** turns it off. It
+needs OpenRAC with mod interface 1.30; an older OpenRAC keeps the game's targets.
+
 ## How it works
 
 Through OpenRAC's rac2 hook points of SDK 1.14.6 (and `rac2.player.nanotech_steps` for 0.5.0), and the bolts' of interface 1.23, the obsidian
@@ -807,6 +816,7 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | Health | `rac2.player.nanotech_steps`: the game's count of health steps plus one for every two Omega weapons (at most 12) |
 | Armor | the damage share in `rac2.player.take_damage` (the hit times the tier's share, Bounty's included); the armour level is read at `g_player_stats` +0x18; the tier is the book's item 55; the vendor's entry is built as a weapon's upgrade entry |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
+| Off-screen targets | `weapon_ignore_culling` (interface 1.30) for the Zodiac (43) and the Plasma Coil (28), asked once at load unless `offscreen_targets` is off: the port's wrap of the game's target pick (`SelectBestTargetInCone`, `func_002AF580`) counts the enemies not drawn last frame as drawn for those weapons' gun and shots only |
 
 The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 [coding conventions](https://github.com/OpenRAC/OpenRAC/blob/develop/port/docs/CODING_CONVENTIONS.md)):

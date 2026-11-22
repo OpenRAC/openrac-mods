@@ -29,6 +29,7 @@
 //   space_missions.h
 //                  the space missions: more waves, tougher ships, elites, the ship's hits
 //   ship_looks.h   the ship's glow
+//   culling.h      OpenRAC 1.30's: the Zodiac and the Plasma Coil hit enemies off screen too
 //
 // Each tick: the save's clock is watched (at the title too) and a level left forgets its platinum
 // coins; in a level, the steps by experience are taken, the last versions' rows written, the
@@ -45,6 +46,7 @@
 #include "perk_rules.h"
 #include "perks.h"
 #include "combat.h"
+#include "culling.h"
 #include "discs.h"
 #include "experience.h"
 #include "extra_enemies.h"
@@ -341,6 +343,10 @@ void NgPlusPlus::take_optional() {
     m_tuning.start();
     m_space.start();
     m_ship_looks.start();
+
+    // 0.5.1: the Zodiac and the Plasma Coil hit off screen too (an OpenRAC before 1.30 keeps the
+    // game's picks).
+    start_culling(m_mod, m_mod.setting<bool>("offscreen_targets"));
 
     // The hero's health from Omega weapons: an OpenRAC without the hook point goes without.
     try {
