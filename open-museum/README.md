@@ -37,7 +37,8 @@ Needs Python 3 with numpy and Pillow.
 - **The house** in the middle of the lagoon: an octagonal pavilion on stilts, two rings of 8 rooms
   round a tall atrium (a fountain under the turning logo, high windows, a thatched spire), a
   gallery round the upper storey reached by a double stair on the west, a colonnade, dormers, and
-  a gateway with the museum's sign at the south bridge. Each room has its sign, framed paintings,
+  a gateway at the south bridge with a carved sign: raised gold letters, a cog with a glowing bolt
+  (`tools/gate.py`). Each room has its sign, framed paintings,
   exhibit boards, a rug, plinths with exhibits, flower pots and a bench; the windows have frames,
   shutters and flower boxes. Ground floor: Launcher, Renderer, Hostgen, The Port, Matching,
   Decompilation, Welcome, Mods and SDK. Upper floor: Multiplayer, Speedrun Corner, Enhanced,
@@ -56,6 +57,10 @@ Needs Python 3 with numpy and Pillow.
   game does not catch them yet (an editor issue being fixed); the tower is reached by Swingshot.
 
 ## Notes
+
+- The light is baked: the island, the house and the landmarks together with the editor's
+  `bake-light` (sun, shadows, sky, and every torch, lantern and campfire as a point light). It
+  costs nothing in the game and never flickers.
 
 - A new-planet session starts without a save, so it has no gadgets: start it with your own save,
   or with `--unlock-all-gadgets`.
