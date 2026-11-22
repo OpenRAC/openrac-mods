@@ -63,81 +63,87 @@ def angle_of(x, y):
     return np.degrees(np.arctan2(y - CENTRE[1], x - CENTRE[0]))
 
 
-def height(x, y):
-    """The ground's height at game X, Y (arrays or numbers)."""
+# The low ground: lobes of land round the lagoon (x, y, radius), not one round island. The rock
+# (rocks.py) stands on and round them.
+LOBES = [(620, 520, 128), (515, 425, 58), (603, 352, 40), (765, 445, 52), (468, 585, 46), (442, 725, 26),
+         (700, 420, 40), (540, 610, 40), (720, 600, 36)]
+
+
+def base_height(x, y):
+    """The low ground's height at game X, Y: the sea floor, the beaches, the lowland, the lagoon."""
     x = np.asarray(x, np.float64); y = np.asarray(y, np.float64)
     u, v = x - CENTRE[0], y - CENTRE[1]
     r = np.hypot(u, v)
     a = np.degrees(np.arctan2(v, u))
-    wobble = (fbm(x, y, 140, 3, 0) - 0.5) * 60
-    rr = r + wobble
-
-    # The sea floor, the beach and the low land.
-    land = SEA - 26 + 34 * smooth(330, 250, rr)          # up to SEA + 8 inland
-    land = land + (fbm(x, y, 60, 3, 1) - 0.5) * 4 * smooth(250, 200, rr)
-    beach = smooth(250, 215, rr)
-    land = np.minimum(land, SEA + 2.5 + 4.5 * smooth(235, 200, rr))
+    # Distance into the land (negative inland), its edge wandering.
+    wx = x + (fbm(x, y, 90, 3, 0) - 0.5) * 70
+    wy = y + (fbm(x + 300, y, 90, 3, 1) - 0.5) * 70
+    d = np.full(x.shape, 1e9)
+    for (lx, ly, lr) in LOBES:
+        d = np.minimum(d, np.hypot(wx - lx, wy - ly) - lr)
+    d = d + (fbm(x, y, 25, 2, 2) - 0.5) * 14
+    land = SEA - 24 + 31 * smooth(45, -8, d)                # up to SEA + 7 inland
+    land = np.minimum(land, SEA + 2.0 + 5.5 * smooth(-4, -30, d))
+    land = land + (fbm(x, y, 45, 3, 1) - 0.5) * 3 * smooth(-10, -30, d)
 
     # The lagoon round the house: a smooth bowl, 7 units deep.
     lagoon = smooth(LAGOON_R + 22, LAGOON_R - 6, r)
     land = land * (1 - lagoon) + (SEA - 7) * lagoon
 
-    # The mountains: a ridge on the north half, a steep face toward the house.
-    north = smooth(15, 40, a) * smooth(165, 140, a)
-    ridge_in = smooth(138, 162, r)                       # the cliff face
-    ridge_out = smooth(290, 230, rr)
-    peaks = 70 + 90 * fbm(x, y, 90, 4, 2)
-    raw = north * ridge_in * ridge_out * peaks
-    # Layered, except along the Swingshot climb from the lookout to the volcano (kept smooth).
-    lx, ly = LOOKOUT
-    dx, dy = VOLCANO_LEDGE[0] - lx, VOLCANO_LEDGE[1] - ly
-    t = np.clip(((x - lx) * dx + (y - ly) * dy) / (dx * dx + dy * dy), 0, 1)
-    climb = smooth(30, 45, np.hypot(x - lx - t * dx, y - ly - t * dy))
-    mountains = raw * (1 - climb) + terraced(raw, x, y, 10.0) * climb
-    # Notches where the waterfalls start.
-    for f in FALLS:
-        d = np.abs(((a - f["angle"] + 180) % 360) - 180)
-        notch = smooth(7, 2, d) * smooth(140, 170, r)
-        mountains = mountains * (1 - notch) + np.minimum(mountains, f["lip"] - SEA - 8) * notch
-    land = np.where(mountains > 0.5, np.maximum(land, SEA + 4 + mountains), land)
-
-    # The volcano, its crater glowing.
-    dv = np.hypot(x - VOLCANO[0], y - VOLCANO[1])
-    cone = (VOLCANO_TOP - SEA) * smooth(150, 18, dv) ** 1.25
-    crater = smooth(14, 4, dv) * 30
-    land = np.where(cone > 2, np.maximum(land, SEA + cone - crater), land)
-    # The shrine's terrace, cut into the volcano's side.
-    terrace = smooth(15, 11, np.hypot(x - VOLCANO_LEDGE[0], y - VOLCANO_LEDGE[1]))
-    land = land * (1 - terrace) + np.minimum(land, LEDGE_Z) * terrace
-
     # The two streams from the falls' pools to the lagoon.
     for f in FALLS:
         d = np.abs(((a - f["angle"] + 180) % 360) - 180)
-        stream = smooth(5, 1.5, d * r / 57.3 / 3) * smooth(LAGOON_R - 2, LAGOON_R + 6, r) * smooth(152, 140, r)
+        stream = smooth(5, 1.5, d * r / 57.3 / 3) * smooth(LAGOON_R - 2, LAGOON_R + 6, r) * smooth(160, 140, r)
         land = land * (1 - stream) + np.minimum(land, SEA - 2.5) * stream
         # The pool at the foot of the fall.
         px = CENTRE[0] + math.cos(math.radians(f["angle"])) * (f["r"] - 10)
         py = CENTRE[1] + math.sin(math.radians(f["angle"])) * (f["r"] - 10)
-        pool = smooth(16, 8, np.hypot(x - px, y - py))
+        pool = smooth(18, 9, np.hypot(x - px, y - py))
         land = land * (1 - pool) + np.minimum(land, SEA - 4) * pool
 
-    # The grotto behind the second waterfall: its floor, under a stone roof (landmarks.py).
+    # The grotto behind the second waterfall: its floor, inside the rock (rocks.py's cave).
     g = GROTTO
-    dg = np.abs(((a - g["angle"] + 180) % 360) - 180)
-    inside = smooth(g["half"] + 1.5, g["half"] - 0.5, dg * r / 57.2958) * smooth(g["r0"] - 2, g["r0"], r) * smooth(g["r1"] + 2, g["r1"], r)
+    inside = in_grotto(x, y, 1.5)
     land = land * (1 - inside) + (SEA + 2.0) * inside
-
-    # Rocky knolls on the low land, in layers like the mountains (kept under the collision's top).
-    for (kx, ky, kr, kh) in KNOLLS:
-        dk = np.hypot(x - kx, y - ky) + (fbm(x, y, 18, 2, 3) - 0.5) * kr * 0.5
-        k = smooth(kr, kr * 0.35, dk)
-        land = np.where(k > 0, np.maximum(land, SEA + 2 + terraced(kh * k, x, y, 6.0) - 6 * (1 - k)), land)
-
-    # Offshore islets and sea stacks: steep rock under a grass cap.
-    for (ix, iy, ir, ih) in ISLETS + STACKS + TOWN:
-        di = np.hypot(x - ix, y - iy) + (fbm(x, y, 14, 2, 1) - 0.5) * ir * 0.45
-        land = np.maximum(land, SEA - 20 + terraced((ih + 20) * smooth(ir, ir * 0.55, di), x, y, 7.0))
     return land
+
+
+def in_grotto(x, y, soft=0.0):
+    g = GROTTO
+    u, v = x - CENTRE[0], y - CENTRE[1]
+    r = np.hypot(u, v)
+    dg = np.abs(((np.degrees(np.arctan2(v, u)) - g["angle"] + 180) % 360) - 180)
+    if soft:
+        return smooth(g["half"] + soft, g["half"] - 0.5, dg * r / 57.2958) * smooth(g["r0"] - 6, g["r0"] - 4, r) * smooth(g["r1"] + 2, g["r1"], r)
+    return (dg * r / 57.2958 < g["half"]) & (r > g["r0"] - 5) & (r < g["r1"])
+
+
+_ROCK = None
+
+
+def set_rock_top(raster):
+    """The rock's top (rocks.top_raster), read by height() from now on."""
+    global _ROCK
+    _ROCK = raster
+
+
+def rock_top(x, y):
+    x = np.asarray(x, np.float64); y = np.asarray(y, np.float64)
+    if _ROCK is None:
+        return np.full(x.shape, -np.inf)
+    g, lo, cell = _ROCK["grid"], _ROCK["lo"], _ROCK["cell"]
+    i = np.clip(((x - lo) / cell).astype(int), 0, g.shape[0] - 1)
+    j = np.clip(((y - lo) / cell).astype(int), 0, g.shape[1] - 1)
+    return g[i, j].astype(np.float64)
+
+
+def height(x, y):
+    """The ground's height at game X, Y (arrays or numbers): the rock's top where there is rock
+    (but the grotto's floor inside it), else the low ground."""
+    x = np.asarray(x, np.float64); y = np.asarray(y, np.float64)
+    base = base_height(x, y)
+    top = rock_top(x, y)
+    return np.where(in_grotto(x, y) | ~np.isfinite(top), base, np.maximum(base, top))
 
 
 def terraced(h, x, y, step):
@@ -165,9 +171,10 @@ TOWN = [(1010, 300, 46, 9), (1015, 690, 40, 11), (800, 70, 44, 8), (400, 70, 40,
 KNOLLS = [(760, 470, 22, 16), (735, 385, 16, 12), (520, 330, 18, 14), (690, 330, 20, 18), (780, 560, 15, 12)]
 
 
-def normal(x, y, e=0.5):
-    hx = (height(x + e, y) - height(x - e, y)) / (2 * e)
-    hy = (height(x, y + e) - height(x, y - e)) / (2 * e)
+def normal(x, y, e=0.5, fn=None):
+    fn = fn or height
+    hx = (fn(x + e, y) - fn(x - e, y)) / (2 * e)
+    hy = (fn(x, y + e) - fn(x, y - e)) / (2 * e)
     n = np.stack([-hx, -hy, np.ones_like(hx)], -1)
     return n / np.linalg.norm(n, axis=-1, keepdims=True)
 

@@ -18,7 +18,9 @@ from the extracted level (DISC_TEXTURES) when it is given, else drawn too.
 
 import json
 import math
+import os
 import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -28,8 +30,111 @@ import house
 import island
 import landmarks
 import ground
+import rocks
 import textures
 from build import Geo
+
+
+def editor_terrain():
+    """The editor's terrain tools (openrac/tools/terrain.py), found beside its static_assets.py on
+    sys.path or in OPENRAC_EDITOR_TOOLS. Loaded by its path: OpenRAC's extractor has a terrain
+    module of its own."""
+    import importlib.util
+    folders = [os.environ.get("OPENRAC_EDITOR_TOOLS")] + sys.path
+    for folder in folders:
+        if folder and (Path(folder) / "terrain.py").is_file() and (Path(folder) / "static_assets.py").is_file():
+            spec = importlib.util.spec_from_file_location("openrac_editor_terrain", Path(folder) / "terrain.py")
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            spec.loader.exec_module(module)
+            return module
+    raise SystemExit("OpenRAC Editor's terrain tools (openrac/tools/terrain.py) not found: pass --editor "
+                     "with an editor that has them, or set OPENRAC_EDITOR_TOOLS")
+
+
+# The rock's detail: the island's rock at STEP units, the islets and stacks further out coarser.
+ROCK_STEP, FAR_STEP, COLLISION_STEP = 3.5, 5.0, 8.0
+NEAR = 330.0
+
+
+def rock_mesh(terrain, recipe, step):
+    """Surface nets over RECIPE's rocks: vertices, faces (outward), faces under the sea dropped."""
+    boxes = [terrain.rock_bounds(r) for r in recipe["rocks"]]
+    lo = np.min([b[0] for b in boxes], 0) - step * 2
+    hi = np.max([b[1] for b in boxes], 0) + step * 2
+    V, F = terrain.surface_nets(lambda P: terrain.recipe_density(P, recipe), lo, hi, step)
+    F = F[V[F].mean(1)[:, 2] > recipe["sea"] - recipe.get("keep_below_sea", 5.0)]
+    used, inverse = np.unique(F.reshape(-1), return_inverse=True)
+    return V[used], inverse.reshape(-1, 3)
+
+
+def split_recipe(recipe):
+    """The island's rocks (and the bottle's islet, which the hero reaches), and the rest."""
+    def near(r):
+        return math.hypot(r["x"] - island.CENTRE[0], r["y"] - island.CENTRE[1]) < NEAR
+    bottle = island.ISLETS[3]
+    reached = [r for r in recipe["rocks"] if near(r) or (r["x"], r["y"]) == (bottle[0], bottle[1])]
+    return (dict(recipe, rocks=[r for r in recipe["rocks"] if near(r)]),
+            dict(recipe, rocks=[r for r in recipe["rocks"] if not near(r)], caves=[]),
+            dict(recipe, rocks=reached))
+
+
+def reachable(c):
+    """Where the hero can meet the rock (the level's collision must fit Pokitaru's memory): its
+    foot, up to a jump over the low ground, the bottle's islet, and round the Swingshot chain up the
+    volcano. The high walls and tops nobody reaches have none."""
+    low = c[:, 2] < island.SEA + 16
+    ix, iy, ir, _ = island.ISLETS[3]
+    islet = np.hypot(c[:, 0] - ix, c[:, 1] - iy) < ir * 1.6
+    a = np.array(island.LOOKOUT); b = np.array(island.VOLCANO_LEDGE)
+    d = b - a
+    t = np.clip(((c[:, :2] - a) @ d) / (d @ d), 0, 1)
+    chain = np.hypot(*(c[:, :2] - (a + t[:, None] * d)).T) < 24
+    return low | islet | chain
+
+
+def normals(V, F):
+    fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    N = np.zeros_like(V)
+    for k in range(3):
+        np.add.at(N, F[:, k], fn)
+    return N / np.maximum(np.linalg.norm(N, axis=1), 1e-9)[:, None]
+
+
+def add_rocks(terrain, t, V, F, recipe):
+    """The rock into the editor's terrain T as its Rocks node, textured by the editor's rules."""
+    prim = terrain.Prim(t.material_for(recipe["textures"]["wall"]),
+                        {"POSITION": V, "NORMAL": normals(V, F), "TEXCOORD_0": np.zeros((len(V), 2)),
+                         "COLOR_0": np.ones((len(V), 4))}, F)
+    t.nodes = [n for n in t.nodes if n[0] != terrain.ROCKS_NODE]
+    t.nodes.append([terrain.ROCKS_NODE, None, [prim]])
+    terrain.auto_texture(t, recipe, types.SimpleNamespace())
+
+
+ROCKY = {"om_rock", "om_cliff", "om_basalt", "om_jungle", "om_wet_sand"}
+
+
+def bake(terrain, t):
+    """Sun, shadows and sky light into the ground's colours (the editor's bake), each picture's
+    own brightness kept as a tint (Pokitaru's pictures are dark, its ground lit up to 2)."""
+    for _, _, p in t.prims():
+        name = t.materials[p.material].get("name", "")
+        tint = ground.BRIGHT.get(name, 1.0) * (0.85 if name in ROCKY else 0.6)
+        warm = np.array([1.1, 0.96, 0.76]) if name in ROCKY else np.ones(3)   # Pokitaru's rock is warm grey
+        p.attrs["COLOR_0"] = np.concatenate([np.tile(tint * warm, (len(p.pos), 1)), np.ones((len(p.pos), 1))], 1)
+    args = types.SimpleNamespace(sun=[-35.0, 40.0], region=[230.0, -20.0, 1100.0, 920.0], ao=20, cell=0.9, bias=0.8,
+                                 strength=1.0, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.72, 0.7, 0.68],
+                                 bounce_colour=[0.32, 0.27, 0.16], keep_tint=True)
+    return terrain.bake_light(t, args)
+
+
+def append(terrain, t, path):
+    """Another glb's nodes into T, their materials matched by picture."""
+    other = terrain.Terrain(path)
+    for name, tr, prims in other.nodes:
+        for p in prims:
+            p.material = t.material_for(other.texture_uri(p.material))
+        t.nodes.append([name, tr, prims])
 
 MATERIALS = {name: {"texture": name, "double": True} for name in (
     "om_sand", "om_grass", "om_rock", "om_basalt", "om_planks", "om_planks_dark", "om_planks_light",
@@ -74,15 +179,38 @@ def main(out, disc_textures=None):
     tex = textures.all_textures()
     tex.update(textures.from_disc(disc_textures))
 
-    # The terrain: island, sea, horizon.
-    land = ground.island_terrain()
-    land.merge(ground.sea())
-    land.merge(ground.far_islands())
-    used = {m for m in land.parts}
-    glb.write(str(out / "terrain.glb"), [land], {k: MATERIALS[k] for k in used},
-              {k: tex[k] for k in used}, ["Island"], external="textures")
+    # The rock (the editor's terrain tools), then the low ground round it, the sea, the horizon.
+    terrain = editor_terrain()
+    recipe = rocks.recipe()
+    near, far, reached = split_recipe(recipe)
+    V1, F1 = rock_mesh(terrain, near, ROCK_STEP)
+    V2, F2 = rock_mesh(terrain, far, FAR_STEP)
+    V = np.concatenate([V1, V2]); F = np.concatenate([F1, F2 + len(V1)])
+    island.set_rock_top(rocks.top_raster(V, F))
+
+    def inside(P):
+        return terrain.recipe_density(P, recipe)
+    land = ground.island_terrain(inside)
+    names = set(MATERIALS) & (set(land.parts) | {Path(u).stem for u in recipe["textures"].values()})
+    (out / "textures").mkdir(exist_ok=True)
+    for name in names:
+        (out / "textures" / f"{name}.png").write_bytes(tex[name])
+    glb.write(str(out / "terrain.glb"), [land], {k: MATERIALS[k] for k in land.parts},
+              {k: tex[k] for k in land.parts}, ["Island"], external="textures")
     # Named Island, not Terrain_NNN: the port hides a Terrain_NNN node with the game's own terrain
     # fragment of that number (its far cull and occlusion), which is not ours.
+    t = terrain.Terrain(out / "terrain.glb")
+    add_rocks(terrain, t, V, F, recipe)
+    light = bake(terrain, t)
+    horizon = ground.sea()
+    horizon.merge(ground.far_islands())
+    glb.write(str(out / "horizon.glb"), [horizon], {k: MATERIALS[k] for k in horizon.parts},
+              {k: tex[k] for k in horizon.parts}, ["Horizon"], external="textures")
+    append(terrain, t, out / "horizon.glb")
+    (out / "horizon.glb").unlink()
+    t.save(out / "terrain.glb")
+    (out / "rocks.json").write_text(json.dumps(recipe, indent=1) + "\n", encoding="utf-8")
+    print(f"rock: {len(F)} triangles; light: {light}")
 
     # The house.
     geo = Geo()
@@ -121,13 +249,22 @@ def main(out, disc_textures=None):
         save(name, g)
 
     collision_glb(out / "collision" / "house.glb", geo.solid + marks.solid)
-    P, tris = ground.collision_mesh()
+    P, tris = ground.collision_mesh(inside)
     collision_glb(out / "collision" / "ground.glb", [((P[t[0]], P[t[1]], P[t[2]]), 0x1F) for t in tris])
+    # The rock's collision: its own mesh again on a coarser grid, faces kept as they are (outward:
+    # the rock is closed, so the hero only ever meets their fronts).
+    cV, cF = rock_mesh(terrain, reached, COLLISION_STEP)
+    cF = cF[reachable(cV[cF].mean(1)) & (cV[cF][:, :, 2].max(1) > island.SEA - 3)]
+    rock_tris = cV[cF].astype(np.float32)
+    mesh = glb.Mesh()
+    mesh.add("rc1_surface_1f", rock_tris.reshape(-1, 3), np.tile([0, 0, 1], (len(rock_tris) * 3, 1)),
+             np.zeros((len(rock_tris) * 3, 2)), np.ones((len(rock_tris) * 3, 3)) * 0.5, np.arange(len(rock_tris) * 3).reshape(-1, 3))
+    glb.write(str(out / "collision" / "rocks.glb"), [mesh], {"rc1_surface_1f": {"colour": [0.5, 0.5, 0.5, 1]}}, {})
 
     layout["house"] = {"centre": [house.CX, house.CY, 0.0]}
     layout["sea"] = island.SEA
     (out / "layout.json").write_text(json.dumps(layout, indent=1) + "\n", encoding="utf-8")
-    print(f"house: {geo.count} shapes, {len(geo.solid)} solid triangles; ground: {len(tris)} triangles")
+    print(f"house: {geo.count} shapes, {len(geo.solid)} solid triangles; ground: {len(tris)} + rock {len(cF)} collision triangles")
 
 
 if __name__ == "__main__":

@@ -256,7 +256,7 @@ def main():
     # (Their copies keep the model's index, so they pack as copies of it; the model node goes.)
 
     # 7. Our collision.
-    for name in ("ground", "house"):
+    for name in ("ground", "rocks", "house"):
         rid = f"om_collision_{name}"
         new_ext.append(f'[ext_resource type="PackedScene" path="res://{FOLDER}/collision/{name}.glb" id="{rid}"]\n\n')
         new_nodes.append(f'[node name="OM_{name.title()}" parent="Game/Collision" instance=ExtResource("{rid}")]\n'

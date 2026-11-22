@@ -141,6 +141,14 @@ def spiral(geo, centre, z0, z1, half=6.0, width=4.0):
     return top
 
 
+def lip_r(angle, lip):
+    """How far from the centre the fall's cliff reaches its top along ANGLE: the fall starts there."""
+    for r in np.arange(130.0, 240.0, 0.5):
+        if float(rp(angle, r)[2]) >= lip - 4:
+            return float(r) + 1.5
+    return 165.0
+
+
 def coarse_height(q, step=4.0):
     """The highest corner of the collision cell over Q (ground.py's mountain grid)."""
     ox, oy = island.CENTRE[0] - 404, island.CENTRE[1] - 120
@@ -243,7 +251,7 @@ def build(geo: Geo, pictures, mats):
     # --- The waterfalls ---
     falls = []
     for k, f in enumerate(island.FALLS):
-        top_r = 170.0 if k == 1 else 162.0
+        top_r = lip_r(f["angle"], f["lip"])
         top = rp(f["angle"], top_r)
         top_z = float(top[2]) + 0.6
         sheet = Geo()
@@ -412,6 +420,10 @@ def build(geo: Geo, pictures, mats):
     moby("swing_target", (ledge[0], ledge[1], lz + 6.0), note="swing chain up the volcano")
     layout["volcano_rim"] = [float(ledge[0]), float(ledge[1]), lz]
     layout["volcano_rafts"] = [[p[0], p[1], z] for (p, z) in rafts]
+
+    # --- The volcano's crater, glowing ---
+    vx, vy = island.VOLCANO
+    disc(geo, "om_lava", (vx, vy), 13.0, float(island.height(vx, vy)) + 0.4, 24, [0.95, 0.95, 0.95])
 
     # --- Crates spelling OPENRAC on the east beach: read them from the tower's top ---
     letters = {"O": ["111", "101", "101", "101", "111"], "P": ["111", "101", "111", "100", "100"],

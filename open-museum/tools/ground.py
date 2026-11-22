@@ -52,12 +52,13 @@ def material_of(z, n, x, y):
     return m
 
 
-def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=8.0):
+def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=3.5):
     X, Y = grid(x0, y0, x1, y1, step)
-    Z = island.height(X, Y)
-    N = island.normal(X, Y)
+    H = island.base_height
+    Z = H(X, Y)
+    N = island.normal(X, Y, fn=H)
     # Ambient occlusion: lower than the blurred ground round it is darker.
-    blur = island.height(X + 6, Y) + island.height(X - 6, Y) + island.height(X, Y + 6) + island.height(X, Y - 6)
+    blur = H(X + 6, Y) + H(X - 6, Y) + H(X, Y + 6) + H(X, Y - 6)
     ao = np.clip(1 - np.maximum(blur / 4 - Z, 0) * 0.04, 0.6, 1)
     h, w = X.shape
     idx = np.arange(h * w).reshape(h, w)
@@ -80,7 +81,7 @@ def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=8.0):
         steep = n[:, 2] < 0.75
         # Walls: the picture runs along the slope, its top up (the hanging grass at each ledge).
         side = np.where(np.abs(n[:, 0]) > np.abs(n[:, 1]), p[:, 1], p[:, 0])
-        tall = 10.0 if name in ("om_cliff", "om_jungle", "om_wet_sand") else uv_scale
+        tall = 4.0 if name in ("om_cliff", "om_jungle", "om_wet_sand") else uv_scale
         uv = np.where(steep[:, None], np.stack([side / tall, -p[:, 2] / tall], -1), p[:, :2] / uv_scale)
         cc = np.clip(col[used] * BRIGHT.get(name, 1.0) * WARM, 0, 2)
         if name == "om_lava":
@@ -89,11 +90,20 @@ def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=8.0):
     return mesh, P, tris
 
 
-def island_terrain():
-    """The island, its islets and the sea floor near it."""
+def inside_rock(c, inside):
+    """Whether each point C (N, 3) is a unit or more inside the rock (INSIDE: the rock's density)."""
+    if inside is None:
+        return np.zeros(len(c), bool)
+    return inside(c + np.array([0, 0, 1.0])) > 0.5
+
+
+def island_terrain(inside=None):
+    """The low ground and the sea floor near it; none where the rock stands on it."""
     def keep(c):
         r = np.hypot(c[:, 0] - island.CENTRE[0], c[:, 1] - island.CENTRE[1])
-        return (c[:, 2] > island.SEA - 14) | (r < 420)
+        k = (c[:, 2] > island.SEA - 14) | (r < 420)
+        k[k] = ~inside_rock(c[k], inside)
+        return k
     mesh, _, _ = heightfield_mesh(-120, -120, 1144, 1144, 4, keep)
     return mesh
 
@@ -179,55 +189,21 @@ def far_islands():
     return mesh
 
 
-def climbed(c):
-    """Where gadgets take the hero above the fine ground: the lookout's slope up to the volcano's
-    ledge, and the bottle's islet. (All the mountains would not fit the level's memory.)"""
-    look = np.array(island.LOOKOUT)
-    ledge = np.array(island.VOLCANO_LEDGE)
-    d = ledge - look
-    t = np.clip(((c[:, :2] - look) @ d) / (d @ d), 0, 1)
-    near_line = np.hypot(*(c[:, :2] - (look + t[:, None] * d)).T) < 18
-    # The grind rail's first stretch, over the mountain's foot.
-    rail = np.array([island.CENTRE[0] - 30, island.CENTRE[1] + 105]) - look
-    t = np.clip(((c[:, :2] - look) @ rail) / (rail @ rail), 0, 1)
-    near_line |= np.hypot(*(c[:, :2] - (look + t[:, None] * rail)).T) < 14
-    near_line |= np.hypot(c[:, 0] - look[0], c[:, 1] - look[1]) < 34   # round the lookout and its stair
-    ix, iy, ir, _ = island.ISLETS[3]
-    return near_line | (np.hypot(c[:, 0] - ix, c[:, 1] - iy) < ir + 4)
-
-
-def collision_mesh():
-    """The ground the hero walks on: the island within reach, a ground surface (0x1f)."""
-    def keep(c):
-        r = np.hypot(c[:, 0] - island.CENTRE[0], c[:, 1] - island.CENTRE[1])
-        ix, iy = island.ISLETS[3][:2]                     # the bottle's islet, reached by swingshot
-        near = np.hypot(c[:, 0] - ix, c[:, 1] - iy) < island.ISLETS[3][2] + 4
-        return ((r < 290) | near) & (c[:, 0] > 2) & (c[:, 1] > 2) & (c[:, 0] < 1022) & (c[:, 1] < 1022)
+def collision_mesh(inside=None):
+    """The low ground the hero walks on (surface 0x1f): from the lagoon's floor up, none under the
+    sea or inside the rock (the rock has its own collision, make_museum.rock_collision)."""
     X, Y = grid(island.CENTRE[0] - 404, island.CENTRE[1] - 404, min(island.CENTRE[0] + 404, 1020), island.CENTRE[1] + 404, 4)
-    Z = island.height(X, Y)
+    Z = island.base_height(X, Y)
     h, w = X.shape
     idx = np.arange(h * w).reshape(h, w)
     a, b, c, d = idx[:-1, :-1], idx[:-1, 1:], idx[1:, :-1], idx[1:, 1:]
     tris = np.concatenate([np.stack([a, b, d], -1).reshape(-1, 3), np.stack([a, d, c], -1).reshape(-1, 3)])
     P = np.stack([X, Y, Z], -1).reshape(-1, 3)
-    tris = tris[keep(P[tris].mean(1))]
-    # Only where the hero can be: from the lagoon's floor up the slopes he can climb. The sea
-    # floor and the high peaks have none, which keeps the level's collision about Pokitaru's size
-    # (it shares the console's 32 MB of memory with the rest of the level).
-    z = P[tris][:, :, 2]
     c = P[tris].mean(1)
+    z = P[tris][:, :, 2]
     lagoon = np.hypot(c[:, 0] - island.CENTRE[0], c[:, 1] - island.CENTRE[1]) < island.LAGOON_R + 24
-    tris = tris[((z.max(1) > island.SEA - 3) | lagoon) & (z.min(1) < island.SEA + 30)]
-    # The mountains and the volcano on a coarser grid (8 units), so the hero who climbs them with
-    # gadgets still stands on them; it overlaps the fine grid's top by a few units.
-    X2, Y2 = grid(island.CENTRE[0] - 404, island.CENTRE[1] - 120, min(island.CENTRE[0] + 300, 1020), island.CENTRE[1] + 400, 4)
-    Z2 = island.height(X2, Y2)
-    h2, w2 = X2.shape
-    idx2 = np.arange(h2 * w2).reshape(h2, w2) + len(P)
-    a, b, c, d = idx2[:-1, :-1], idx2[:-1, 1:], idx2[1:, :-1], idx2[1:, 1:]
-    tris2 = np.concatenate([np.stack([a, b, d], -1).reshape(-1, 3), np.stack([a, d, c], -1).reshape(-1, 3)])
-    P = np.concatenate([P, np.stack([X2, Y2, Z2], -1).reshape(-1, 3)])
-    z2 = P[tris2][:, :, 2]
-    c2 = P[tris2].mean(1)
-    tris2 = tris2[keep(c2) & (z2.max(1) > island.SEA + 26) & climbed(c2)]
-    return P, np.concatenate([tris, tris2])
+    inworld = (c[:, 0] > 2) & (c[:, 1] > 2) & (c[:, 0] < 1022) & (c[:, 1] < 1022)
+    tris = tris[((z.max(1) > island.SEA - 3) | lagoon) & inworld]
+    c = P[tris].mean(1)
+    tris = tris[~inside_rock(c, inside)]
+    return P, tris
