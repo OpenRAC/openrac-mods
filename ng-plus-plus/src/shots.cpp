@@ -28,6 +28,37 @@ constexpr float kHomingRadius = 40.0f;
 // The yaw a rocket splitting in flight turns its half by.
 constexpr float kSplitYaw = 0.35f;
 
+// How far from where a shot ended the shots made there start, along their flight: a rocket's first
+// update tests the line it moves along and skips only its gun and the hero, so one made inside the
+// enemy just hit blows up at once, unseen under the first one's blast. Mini bombs start nearer.
+constexpr float kEndClear = 2.0f;
+constexpr float kScatterClear = 1.0f;
+
+// The Gravity Bomb's mini bombs scatter a third of a second after its blast (README.md).
+constexpr std::uint32_t kGravityScatterTicks = 20;
+
+// How far (on the ground plane) from the hero a rocket of `oclass` lives: the game removes a
+// Minirocket Tube rocket past 75 units on its update (func_L00_003ABEC8) and a RYNO II rocket past
+// 60 (homing_l00_shot_update_3), so one made past that never shows. 0 for no limit.
+float rocket_range(int oclass) {
+    switch (oclass) {
+        case kMiniRocket:
+            return 75.0f;
+        case kRynoRocket:
+            return 60.0f;
+        default:
+            return 0.0f;
+    }
+}
+
+// A rocket made this near its range's end is refused: it would last a few ticks at most.
+constexpr float kRangeMargin = 10.0f;
+
+// Returns `at` moved `length` along `direction` (none for a null one).
+std::array<float, 3> moved(
+    const std::array<float, 3>& at, const std::array<float, 3>& direction, float length
+);
+
 // Returns `v` turned `yaw` radians about the up axis (+z).
 std::array<float, 3> turned(const std::array<float, 3>& v, float yaw) {
     const float c = std::cos(yaw);
@@ -40,6 +71,13 @@ std::array<float, 3> scaled(const std::array<float, 3>& v, float length) {
     const float n = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
     return n > 1e-4f ? std::array<float, 3>{v[0] / n * length, v[1] / n * length, v[2] / n * length}
                      : std::array<float, 3>{0.0f, 0.0f, 0.0f};
+}
+
+std::array<float, 3> moved(
+    const std::array<float, 3>& at, const std::array<float, 3>& direction, float length
+) {
+    const std::array<float, 3> step = scaled(direction, length);
+    return {at[0] + step[0], at[1] + step[1], at[2] + step[2]};
 }
 
 // Packs a look for the comparison of what was sent.
@@ -216,7 +254,7 @@ void Shots::on_end(const ShotEnd& end) {
 
     for (int n = 0; n < count; ++n) {
         Pending shot;
-        shot.when = m_tick;
+        shot.when = m_tick + (tracked.item == 42 && !perk.end_homing ? kGravityScatterTicks : 0u);
         shot.oclass = perk.end_class;
         shot.item = tracked.item;
         shot.at = at;
@@ -238,6 +276,8 @@ void Shots::on_end(const ShotEnd& end) {
                 {kScatterSpeed * std::cos(angle), kScatterSpeed * std::sin(angle), kScatterUp};
         }
 
+        // Out of the enemy or the ground it ended on.
+        shot.at = moved(at, shot.velocity, perk.end_homing ? kEndClear : kScatterClear);
         m_pending.push_back(shot);
         ++made;
     }
@@ -247,6 +287,19 @@ int Shots::spawn(const Pending& shot) {
     // This tick's shots are spent: the next tick's.
     if (m_budget <= 0) {
         return -1;
+    }
+
+    // A rocket past where the game keeps its rockets: it would go in its first update.
+    if (const float range = rocket_range(shot.oclass);
+        range > 0.0f && (shot.flags & kSpawnDetonate) == 0) {
+        const std::array<float, 3> hero = m_perks.hero_position();
+        const bool known = hero[0] != 0.0f || hero[1] != 0.0f || hero[2] != 0.0f;
+        const float dx = shot.at[0] - hero[0];
+        const float dy = shot.at[1] - hero[1];
+
+        if (known && dx * dx + dy * dy > (range - kRangeMargin) * (range - kRangeMargin)) {
+            return -1;
+        }
     }
 
     SpawnLive live{};
@@ -344,6 +397,7 @@ int Shots::rockets_at(
             {t.position[0] - at[0], t.position[1] - at[1], t.position[2] + 0.5f - at[2]},
             kDefaultSpeed
         );
+        shot.at = moved(at, shot.velocity, kEndClear);
         made += spawn(shot) >= 0 ? 1 : 0;
     }
 
