@@ -60,10 +60,11 @@ static void check_tables(void) {
             if (!strcmp(a->name, "Kalebo III: the help desk"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | swing));
             if (!strcmp(a->name, "Drek's Fleet: the infobot"))
-                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing | BIT(ITEM_HOLOGUISE)
                     | soft(d, heli | BIT(ITEM_HYDRO_PACK))));
-            if (!strcmp(a->name, "Drek's Fleet: the CodeBot")
-                || !strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
+            if (!strcmp(a->name, "Drek's Fleet: the CodeBot"))
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK) | BIT(ITEM_HOLOGUISE)));
+            if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
             if (!strcmp(a->name, "Veldin (return): Drek"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_TRESPASSER)
@@ -72,7 +73,7 @@ static void check_tables(void) {
         }
 
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
-            if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS)));
+            if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | (d == DIFFICULTY_RELAXED ? BIT(ITEM_HELI_PACK) : 0)));
             if (!strcmp(a->name, "Oltanis: the Morph-o-Ray's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));

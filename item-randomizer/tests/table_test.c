@@ -119,6 +119,12 @@ static void check_words(void) {
     NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_HOLOGUISE);
     NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_THRUSTER_PACK);
     NEEDS("Kalebo III: the Gadgetron CEO's race", ITEM_HOVERBOARD);
+    /* A randomized Fleet coordinate cannot bypass Hologuise, even in Expert. */
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (rando_locations[i].level != LEVEL_FLEET) continue;
+        for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) CHECK(rando_requirement(d, i) & BIT(ITEM_HOLOGUISE));
+    }
+
     CHECK(!(rando_locations[named("Drek's Fleet: the infobot")].hard & BIT(ITEM_HYDRO_PACK)));
 #undef NEEDS
     CHECK(

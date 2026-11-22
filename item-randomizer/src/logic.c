@@ -163,7 +163,7 @@ const uint64_t rando_progression_items = HELI | THRUST | HYDROPACK | SONIC | O2 
 #define INFOBOT(name, level, mission, planet, step, hard, soft)                                    \
     {name, LOC_INFOBOT, level, mission, POOL_PLANETS, PLANET(planet), step, 0, hard, soft, 0, 0}
 #define GOLDBOLT(name, level, slot, step)                                                          \
-    {name, LOC_GOLD, level, slot, POOL_GOLD, GOLD, step, 0, (GOLD_NEED | (level == LEVEL_QUARTU ? SPECIAL_BIT(SPECIAL_CODEBOT) : 0)), 0, 0, 0}
+    {name, LOC_GOLD, level, slot, POOL_GOLD, GOLD, step, 0, (GOLD_NEED | (level == LEVEL_QUARTU ? SPECIAL_BIT(SPECIAL_CODEBOT) : 0) | (level == LEVEL_FLEET ? HOLO : 0)), 0, 0, 0}
 #define FIXED_X(name, level, reward, step, flags, hard, soft, any, planets)                        \
     {name, LOC_FIXED, level, 0, 0, reward, step, flags, hard, soft, any, planets}
 #define FIXED(name, level, reward, step, flags, hard, soft)                                        \
@@ -470,14 +470,14 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Kalebo III: gold bolt 2", LEVEL_KALEBO, 1, 49),
 
     // Drek's Fleet: the CodeBot's water route needs Hydro-Pack and O2 Mask.
-    // The infobot route has no Hydro-Pack gate; Heli-Pack is expected outside Expert.
+    // Fleet access always needs Hologuise, including Expert logic.
     INFOBOT(
         "Drek's Fleet: the infobot",
         LEVEL_FLEET,
         3,
         LEVEL_VELDIN2,
         51,
-        MAGNE | O2 | SWING,
+        MAGNE | O2 | SWING | HOLO,
         HELI | HYDROPACK
     ),
     GOLDBOLT("Drek's Fleet: gold bolt 1", LEVEL_FLEET, 0, 52),
@@ -617,7 +617,7 @@ const rando_location rando_locations[] = {
     {"Hoven: the Foreman's Raritanium", LOC_SPECIAL, LEVEL_HOVEN, 1, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_RARITANIUM}, 38, 0, WALK, HYDROPACK, 0, 0},
     {"Drek's Fleet: the CodeBot", LOC_SPECIAL, LEVEL_FLEET, 2, POOL_ITEMS,
-     {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, HYDROPACK | O2, 0, 0, 0},
+     {REWARD_SPECIAL, SPECIAL_CODEBOT}, 52, 0, HYDROPACK | O2 | HOLO, 0, 0, 0},
     {"Orxon: Premium Nanotech", LOC_SPECIAL, LEVEL_ORXON, 3, POOL_ITEMS,
      {REWARD_SPECIAL, SPECIAL_PREMIUM_NANOTECH}, 35, LOCF_PRICEY, O2 | WALK, 0, 0, 0},
     {"Orxon: Ultra Nanotech", LOC_SPECIAL, LEVEL_ORXON, 4, POOL_ITEMS,
