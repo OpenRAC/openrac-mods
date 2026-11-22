@@ -1,6 +1,7 @@
 """Open Museum's textures: drawn from noise here, or Pokitaru's own from your disc at install (DISC)."""
 
 import io
+import math
 from pathlib import Path
 
 import numpy as np
@@ -176,6 +177,127 @@ def sign(text, sub="", width=512, height=192, wood=True):
         draw.text(((width - (box[2] - box[0])) / 2, height * 0.66), sub, font=small, fill=(250, 236, 200))
     buf = io.BytesIO()
     board.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def gear(draw, cx, cy, r, fill, teeth=12):
+    """A gear's outline filled, for the museum's logo."""
+    pts = []
+    for k in range(teeth * 4):
+        a = 2 * math.pi * k / (teeth * 4)
+        rr = r if (k // 2) % 2 == 0 else r * 0.78
+        pts.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr))
+    draw.polygon(pts, fill=fill)
+    draw.ellipse([cx - r * 0.42, cy - r * 0.42, cx + r * 0.42, cy + r * 0.42], fill=(20, 40, 60))
+
+
+def welcome_sign(title, sub, width=1024, height=384):
+    """The museum's big sign: a deep blue board, a gold double border with studs, gears either
+    side, raised gold letters with a dark edge, a cream line under them."""
+    img = Image.new("RGB", (width, height))
+    px = np.zeros((height, width, 3), np.float32)
+    yy = np.linspace(0, 1, height)[:, None]
+    px[...] = (np.array([18, 60, 92]) * (1 - yy) + np.array([10, 28, 52]) * yy)[:, None, :] if False else 0
+    top, bottom = np.array([24, 84, 118], np.float32), np.array([10, 30, 58], np.float32)
+    px = top * (1 - yy[..., None]) + bottom * yy[..., None]
+    px = np.broadcast_to(px, (height, width, 3)).copy()
+    # A soft glow behind the letters.
+    xx = np.linspace(-1, 1, width)[None, :]
+    glow = np.exp(-((xx / 0.55) ** 2 + ((yy - 0.42) / 0.3) ** 2))
+    px += glow[..., None] * np.array([60, 70, 40])
+    img = Image.fromarray(np.clip(px, 0, 255).astype(np.uint8))
+    draw = ImageDraw.Draw(img)
+    gold, dark = (246, 200, 80), (60, 36, 10)
+    draw.rounded_rectangle([6, 6, width - 7, height - 7], 28, outline=dark, width=14)
+    draw.rounded_rectangle([10, 10, width - 11, height - 11], 24, outline=gold, width=8)
+    draw.rounded_rectangle([30, 30, width - 31, height - 31], 16, outline=gold, width=3)
+    for (x, y) in ((30, 30), (width - 31, 30), (30, height - 31), (width - 31, height - 31)):
+        draw.ellipse([x - 12, y - 12, x + 12, y + 12], fill=gold, outline=dark, width=3)
+    for x in np.linspace(80, width - 80, 9):
+        draw.ellipse([x - 5, 18 - 5, x + 5, 18 + 5], fill=gold)
+        draw.ellipse([x - 5, height - 19 - 5, x + 5, height - 19 + 5], fill=gold)
+    gear(draw, 120, height * 0.45, 70, gold)
+    gear(draw, width - 120, height * 0.45, 70, gold)
+    big = font(118)
+    box = draw.textbbox((0, 0), title, font=big)
+    while box[2] - box[0] > width - 400 and big.size > 20:
+        big = font(big.size - 4)
+        box = draw.textbbox((0, 0), title, font=big)
+    tx = (width - (box[2] - box[0])) / 2 - box[0]
+    ty = height * 0.2
+    draw.text((tx + 5, ty + 6), title, font=big, fill=(4, 10, 20))
+    draw.text((tx, ty), title, font=big, fill=gold, stroke_width=4, stroke_fill=dark)
+    draw.text((tx, ty - 2), title, font=big, fill=(255, 232, 140))
+    small = font(40)
+    box = draw.textbbox((0, 0), sub, font=small)
+    sx = (width - (box[2] - box[0])) / 2
+    draw.line([sx - 70, height * 0.74, sx - 20, height * 0.74], fill=gold, width=4)
+    draw.line([sx + box[2] - box[0] + 20, height * 0.74, sx + box[2] - box[0] + 70, height * 0.74], fill=gold, width=4)
+    draw.text((sx, height * 0.74 - 26), sub, font=small, fill=(250, 238, 206))
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def painting(seed, width=320, height=240):
+    """A small landscape painting: a sky, a sun or planets, layered islands, the sea."""
+    r = rng(seed + 500)
+    yy = np.linspace(0, 1, height)[:, None, None]
+    palettes = [((40, 70, 140), (250, 170, 90)), ((20, 30, 70), (190, 90, 140)), ((90, 170, 230), (230, 240, 250)),
+                ((60, 20, 60), (250, 120, 60)), ((30, 110, 120), (210, 240, 200))]
+    a, b = palettes[seed % len(palettes)]
+    px = np.array(a, np.float32) * (1 - yy) + np.array(b, np.float32) * yy
+    px = np.broadcast_to(px, (height, width, 3)).copy()
+    img = Image.fromarray(px.astype(np.uint8))
+    d = ImageDraw.Draw(img)
+    for _ in range(int(r.integers(1, 3))):
+        x, y, rad = r.uniform(40, width - 40), r.uniform(20, height * 0.4), r.uniform(10, 34)
+        col = tuple(int(v) for v in r.uniform(150, 255, 3))
+        d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=col)
+        if r.random() < 0.5:
+            d.ellipse([x - rad * 1.8, y - rad * 0.3, x + rad * 1.8, y + rad * 0.3], outline=(240, 220, 170), width=2)
+    sea_y = int(height * r.uniform(0.62, 0.74))
+    for layer in range(3):
+        shade = 40 + layer * 30
+        base = sea_y - layer * 2
+        x = -10
+        while x < width:
+            w = r.uniform(30, 90)
+            h = r.uniform(20, 90) * (1 - layer * 0.25)
+            col = (int(shade * 0.6), int(shade * 1.1 + 20), int(shade * 0.7))
+            d.polygon([(x, base), (x + w * 0.15, base - h), (x + w * 0.85, base - h * r.uniform(0.7, 1)), (x + w, base)], fill=col)
+            d.rectangle([x + w * 0.15, base - h - 4, x + w * 0.85, base - h + 2], fill=(70, 150, 60))
+            x += w + r.uniform(10, 60)
+    d.rectangle([0, sea_y, width, height], fill=(40, 150, 160))
+    for k in range(12):
+        y = r.uniform(sea_y + 4, height - 4)
+        x = r.uniform(0, width - 40)
+        d.line([x, y, x + r.uniform(10, 40), y], fill=(170, 230, 230), width=1)
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def rug(seed, width=256, height=180):
+    """A woven rug: a border, a field, a diamond medallion, tassels."""
+    r = rng(seed + 700)
+    palettes = [((150, 40, 36), (230, 180, 80), (30, 70, 90)), ((30, 90, 110), (230, 210, 150), (140, 40, 40)),
+                ((90, 50, 110), (230, 190, 90), (40, 110, 80)), ((170, 90, 30), (240, 225, 180), (60, 40, 30))]
+    field, edge, accent = palettes[seed % len(palettes)]
+    img = Image.new("RGB", (width, height), field)
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, width - 1, height - 1], outline=edge, width=14)
+    d.rectangle([18, 18, width - 19, height - 19], outline=accent, width=6)
+    for k in range(0, width, 16):
+        d.polygon([(k, 7), (k + 8, 0), (k + 16, 7), (k + 8, 14)], fill=accent)
+        d.polygon([(k, height - 8), (k + 8, height - 15), (k + 16, height - 8), (k + 8, height - 1)], fill=accent)
+    cx, cy = width / 2, height / 2
+    for s, col in ((70, edge), (52, accent), (32, edge), (14, field)):
+        d.polygon([(cx - s * 1.3, cy), (cx, cy - s * 0.85), (cx + s * 1.3, cy), (cx, cy + s * 0.85)], fill=col)
+    arr = np.asarray(img).astype(np.float32)
+    arr *= (0.9 + 0.1 * r.random((height, width, 1)))
+    buf = io.BytesIO()
+    Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).save(buf, "PNG", optimize=True)
     return buf.getvalue()
 
 

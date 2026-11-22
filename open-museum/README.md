@@ -34,12 +34,17 @@ Needs Python 3 with numpy and Pillow.
 - **The island** in Pokitaru's layered style: rock walls with grass hanging over every ledge,
   rocky knolls, sea stacks round the coast, Pokitaru's rock and grass islets out at sea, and its
   turbine towers on the far islands.
-- **The house** in the middle of the lagoon: two floors of 8 rooms round an atrium, each with a
-  sign, four empty exhibit boards and three plinths. Ground floor: Welcome, Decompilation,
-  Matching, The Port, Hostgen, Renderer, Launcher, Mods and SDK. Upper floor: Devlog, OpenRAC
-  Editor, Cutscenes, Android, Enhanced, Speedrun Corner, Multiplayer, Thank You. Room names are in
-  `tools/house.py` (`GROUND`, `UPPER`). Tiki torches, planters with Pokitaru's bushes, banners
-  and lanterns round the deck.
+- **The house** in the middle of the lagoon: an octagonal pavilion on stilts, two rings of 8 rooms
+  round a tall atrium (a fountain under the turning logo, high windows, a thatched spire), a
+  gallery round the upper storey reached by a double stair on the west, a colonnade, dormers, and
+  a gateway with the museum's sign at the south bridge. Each room has its sign, framed paintings,
+  exhibit boards, a rug, plinths with exhibits, flower pots and a bench; the windows have frames,
+  shutters and flower boxes. Ground floor: Launcher, Renderer, Hostgen, The Port, Matching,
+  Decompilation, Welcome, Mods and SDK. Upper floor: Multiplayer, Speedrun Corner, Enhanced,
+  Android, Cutscenes, OpenRAC Editor, Devlog, Thank You (`tools/house.py`, `GROUND`, `UPPER`).
+- **Little scenes everywhere** (`tools/vignettes.py`): huts, canoes, campfires, totems, hammocks,
+  sunshades, signposts, fences, flower beds, tide pools, driftwood, stone lanterns, one per patch
+  of land, and Pokitaru's bushes and trees on every rock's top.
 - **Gadget routes** (Swingshot, each tested in the game from start to end):
   - north jetty to the tower's top room (the secret archive);
   - the coast to the message-in-a-bottle islet, over the sea;

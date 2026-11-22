@@ -24,6 +24,8 @@ def clear(x, y, margin=0.0):
     """False where things must not grow: the house, the bridges, the lagoon, the ship's pad."""
     if abs(x - house.CX) < house.HALF + house.DECK + 6 + margin and abs(y - house.CY) < house.HALF + house.DECK + 6 + margin:
         return False
+    if math.hypot(x - house.CX, y - (house.CY - island.LAGOON_R - 22)) < 17 + margin:   # the gate
+        return False
     if math.hypot(x - 490, y - 403) < 22 + margin:        # the ship's landing place
         return False
     if abs(x - house.CX) < 6 and house.CY - 140 < y < house.CY:   # the south bridge
@@ -99,10 +101,33 @@ def plants():
                 kind = (TIES["grey_rock"] if pick < 0.45 else TIES["grey_rock_small"] if pick < 0.7
                         else TIES["mossy_dark_boulder"] if pick < 0.85 else TIES["flat_dark_rock"])
                 out.append(("tie", kind, x + n[0] * 4, y + n[1] * 4, below - 1.5, yaw, float(rng.uniform(0.6, 1.2))))
+    # The rock's tops: bushes, ferns and trees on every mesa and stack, so none is a bare lawn.
+    added = 0
+    for _ in range(9000):
+        if added >= 320:
+            break
+        x, y = rng.uniform(C[0] - 470, C[0] + 470), rng.uniform(C[1] - 470, C[1] + 470)
+        top = float(island.rock_top(x, y))
+        if not np.isfinite(top) or top < SEA + 10 or not clear(x, y):
+            continue
+        n = island.normal(x, y)
+        if n[2] < 0.85:
+            continue
+        yaw = float(rng.uniform(0, 360))
+        pick = rng.random()
+        if pick < 0.3:
+            out.append(("tie", TIES["leafy_tree"], x, y, top - 0.3, yaw, float(rng.uniform(1.0, 1.8))))
+        elif pick < 0.5:
+            out.append(("tie", TIES["round_bush"], x, y, top - 0.5, yaw, float(rng.uniform(0.8, 1.4))))
+        elif pick < 0.75:
+            out.append(("shrub", SHRUBS["yellow_green_fern"], x, y, top, yaw, float(rng.uniform(1.0, 1.8))))
+        else:
+            out.append(("shrub", SHRUBS["green_grass_bush"], x, y, top, yaw, float(rng.uniform(1.0, 1.6))))
+        added += 1
     # Lilies on the lagoon, round the house.
     for _ in range(60):
         a = rng.uniform(0, 360)
-        r = rng.uniform(house.HALF * 1.5 + 6, island.LAGOON_R - 6)
+        r = rng.uniform(house.R_DECK / math.cos(math.radians(22.5)) + 3, island.LAGOON_R - 4)
         x, y = C[0] + math.cos(math.radians(a)) * r, C[1] + math.sin(math.radians(a)) * r
         if clear(x, y):
             out.append(("shrub", SHRUBS["white_lily"], x, y, SEA + 0.05, float(rng.uniform(0, 360)), 1.0))

@@ -23,7 +23,7 @@ def rp(angle, r):
 
 def rock(x, y, top, radius, seed, **kw):
     r = {"x": float(x), "y": float(y), "z0": kw.pop("z0", FOOT), "z1": SEA + top, "radius": float(radius),
-         "undercut": 0.32, "bulge": 0.16, "taper": 0.12, "roughness": 0.22, "layering": 0.07,
+         "undercut": 0.32, "bulge": 0.16, "taper": 0.12, "roughness": 0.22, "layering": 0.035,
          "layer": 7.0, "warp": 0.32, "seed": seed}
     r.update(kw)
     return r
@@ -73,7 +73,7 @@ def recipe():
     # Boulders on the low ground, out of the paths.
     for (x, y, top, rad) in [(735, 385, 13, 11), (520, 335, 15, 12), (790, 565, 16, 12),
                              (560, 450, 9, 7), (700, 470, 8, 6)]:
-        add(x, y, top, rad, undercut=0.4, bulge=0.1, roughness=0.35, layering=0.1, layer=4.0, taper=0.2)
+        add(x, y, top, rad, undercut=0.4, bulge=0.1, roughness=0.35, layering=0.05, layer=4.0, taper=0.2)
 
     # Islets and sea stacks round the island, and the broad islands of the turbine town.
     for (x, y, rad, top) in island.ISLETS:
@@ -92,7 +92,7 @@ def recipe():
     # The crater.
     caves.append({"at": [float(vx), float(vy), island.VOLCANO_TOP + 6], "radius": 16, "scale": [1, 1, 0.8]})
     return {"rocks": rocks, "caves": caves, "blend": 5.0, "sea": SEA, "keep_below_sea": 5.0, "tile": 3.0, "lip": 4.0,
-            "top_slope": 0.6, "creepers": 0.3, "tiles": {"wall": 4.5, "under": 4.5},
+            "top_slope": 0.6, "creepers": 0.3, "tiles": {"wall": 5.0, "under": 5.0, "creeper": 4.0}, "uv": "wrap",
             "textures": {"top": "textures/om_grass.png", "lip": "textures/om_cliff.png", "wall": "textures/om_rock.png",
                          "creeper": "textures/om_jungle.png", "under": "textures/om_basalt.png",
                          "shore": "textures/om_wet_sand.png"}}

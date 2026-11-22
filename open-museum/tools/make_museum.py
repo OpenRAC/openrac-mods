@@ -123,7 +123,7 @@ def bake(terrain, t):
         warm = np.array([1.1, 0.96, 0.76]) if name in ROCKY else np.ones(3)   # Pokitaru's rock is warm grey
         p.attrs["COLOR_0"] = np.concatenate([np.tile(tint * warm, (len(p.pos), 1)), np.ones((len(p.pos), 1))], 1)
     args = types.SimpleNamespace(sun=[-35.0, 40.0], region=[230.0, -20.0, 1100.0, 920.0], ao=20, cell=0.9, bias=0.8,
-                                 strength=1.0, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.72, 0.7, 0.68],
+                                 strength=1.0, ambient=0.22, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.72, 0.7, 0.68],
                                  bounce_colour=[0.32, 0.27, 0.16], keep_tint=True)
     return terrain.bake_light(t, args)
 
@@ -214,23 +214,23 @@ def main(out, disc_textures=None):
 
     # The house.
     geo = Geo()
-    signs, posters = [], []
-    house.build(geo, signs, posters)
+    signs, posters, art = [], [], []
+    house.build(geo, signs, posters, art)
     pictures = {}
     mats = dict(MATERIALS)
+    for key, kind, seed in art:
+        pictures[key] = textures.painting(seed) if kind == "painting" else textures.rug(seed)
+        mats[key] = {"texture": key, "double": True}
     for key, title, sub, centre, facing, w, h in signs:
-        pictures[key] = textures.sign(title, sub)
+        if key not in pictures:
+            pictures[key] = (textures.welcome_sign(title, sub) if key.startswith("om_sign_welcome")
+                             else textures.sign(title, sub))
         mats[key] = {"texture": key, "double": True}
         geo.sign(key, centre, facing, w, h)
     for n, (key, title, centre, facing, w, h) in enumerate(posters):
         pictures[key] = textures.poster(title, ["Exhibit " + str(n % 4 + 1)], n)
         mats[key] = {"texture": key, "double": True}
         geo.sign(key, centre, facing, w, h)
-    # The big welcome sign over the south door, outside.
-    welcome = "om_sign_welcome"
-    pictures[welcome] = textures.sign("OPEN MUSEUM", "how OpenRAC is made", 1024, 320)
-    mats[welcome] = {"texture": welcome, "double": True}
-    geo.sign(welcome, (house.CX, house.CY - house.HALF - house.WALL, house.F0 + 9.5), -90, 22, 6.9)
 
     marks = Geo()
     layout = landmarks.build(marks, pictures, mats)

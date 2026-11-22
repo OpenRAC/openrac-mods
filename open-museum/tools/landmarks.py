@@ -11,6 +11,7 @@ import numpy as np
 import house
 import island
 import textures
+import vignettes
 from build import Geo
 
 SEA = island.SEA
@@ -260,12 +261,6 @@ def build(geo: Geo, pictures, mats):
         pool = rp(f["angle"], f["r"] - 10)
         disc(foam, "om_foam", (pool[0], pool[1]), 9, SEA + 0.15, 24, [0.62, 0.62, 0.62])
         falls.append({"sheet": sheet, "foam": foam, "pool": pool})
-        # Rocks round the pool's edge.
-        for j in range(9):
-            a = f["angle"] + (j - 4) * 9
-            p = rp(a, f["r"] - 10 + 14 + (j % 2) * 2)
-            s = 1.5 + (j % 3)
-            geo.box("om_rock", (p[0] - s, p[1] - s, p[2] - 2), (p[0] + s, p[1] + s, p[2] + s * 0.8))
     layout["falls"] = [{"pool": list(map(float, f["pool"]))} for f in falls]
 
     # --- The grotto behind the second fall ---
@@ -442,8 +437,12 @@ def build(geo: Geo, pictures, mats):
                     moby("bolt_crate", (q[0], q[1], float(island.height(*q))), note="OPENRAC letters")
 
     # --- Lamps along the bridges and round the deck ---
-    for k in range(-3, 4):
-        layout["lamps"].append([house.CX + k * 9.5, house.CY - house.HALF - house.DECK + 0.8, house.F0])
+    for k in range(8):
+        a = math.radians(45 * k + 22.5)
+        r = (house.R_DECK - 2.2) / math.cos(math.radians(22.5))
+        if k in (3, 4):
+            continue                                  # the west side: the grand stair
+        layout["lamps"].append([house.CX + math.cos(a) * r, house.CY + math.sin(a) * r, house.F0])
     for k in range(4):
         p = rp(-90, island.LAGOON_R + 10 + k * 7)
         layout["lamps"].append([float(p[0]) + 3.6, float(p[1]), float(p[2])])
@@ -457,6 +456,7 @@ def build(geo: Geo, pictures, mats):
                           "falls": [{"position": [0, 0, 0], "move": [0, 0, -1], "distance": 1.5, "speed": 3.0},
                                     {"position": [0, 0, 0], "move": [0, 0, -1], "distance": 1.5, "speed": 2.6}]}
     build.falls = falls
+    layout["vignettes"] = vignettes.place(geo, layout)
     return layout
 
 
