@@ -329,6 +329,19 @@
       }
     }
   ],
+  "rac2-showroom-star-explorer": [
+    {
+      "version": "0.3.4",
+      "sha256": {
+        "android-arm64": "95fc89b16d09836ada10348a97a8c7dfe186002434e67d136b73b16317d4cb59",
+        "linux-aarch64": "b83f64c6acb9685d6a7ca029d5d896e1b3bfe22a99ff9028381911b3969093d0",
+        "linux-x86_64": "594ce34622b9aa0f7cf0cb49adfec18322d62731808917dfa9cc2c0aa4ea001c",
+        "macos-arm64": "03542c6c967be55ce7294eea34435b1972e4e4e87399b85bf3701ad61938acd6",
+        "macos-x86_64": "0af81fd79148cca1aa9f8c52aee5fcf74b848bb2c4a58f1863c899fba7fa4d41",
+        "windows-x86_64": "8aa6b04a5f10859a89e724dca12b4cfa3c64b26f41c78899eee11d1ebee57a87"
+      }
+    }
+  ],
   "rac2-wrench-swap": [
     {
       "version": "0.1.6",
