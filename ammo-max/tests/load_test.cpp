@@ -211,6 +211,14 @@ openrac_gaddr stack_push(std::uint32_t /*size*/, openrac_gaddr* saved) {
 // Takes back the stack frame the mod does not use.
 void stack_pop(openrac_gaddr /*saved*/) {}
 
+// An SDK 1.20 host must provide keyboard/mouse input if it advertises
+// the corresponding API slots. The Buy All frame callback checks input
+// activity even while the vendor is closed, so provide an idle snapshot.
+const openrac_input* host_input() {
+    static const openrac_input idle{};
+    return &idle;
+}
+
 // Returns the host table for a game and a disc, over the test's memory.
 openrac_api make_api(const char* game, const char* version) {
     openrac_api api;
@@ -233,6 +241,7 @@ openrac_api make_api(const char* game, const char* version) {
     api.hook = host_hook;
     api.on_frame = host_on_frame;
     api.on_pad = host_on_pad;
+    api.input = host_input;
     api.function = host_function;
     api.function_at = host_function_at;
     api.relocate_data = identity;
