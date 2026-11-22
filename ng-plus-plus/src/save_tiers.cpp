@@ -99,6 +99,9 @@ void SaveTiers::load_book() {
     text.resize(static_cast<std::size_t>(file.gcount()));
     m_book.read(text);
 
+    // Closed before any rewrite: Windows cannot replace a file still open.
+    file.close();
+
     // A book of the layout before: moved over once, and written at once with the marker, so it is
     // never moved again.
     if (!book_current(text)) {
