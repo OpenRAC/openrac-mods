@@ -400,6 +400,14 @@
       "sha256": {
         "windows-x86_64": "f18917754cc6cad99ecee40aee4f9a4031e0ade87822ba37e9e009946174b5df"
       }
+    },
+    {
+      "version": "0.5.0-preview.1",
+      "sha256": {
+        "android-arm64": "ace64f042170ed9c7079ccf22a71828d4c858e2c7508e35eab42227a9f8a705e",
+        "linux-x86_64": "9970b06f9f2b9dc1578a68024b1d37ca68a53a351f453652d2bb24c8cca7dd99",
+        "macos-arm64": "761f7379340b0d0ee58cf7a0876b5844a38c43ca7e95c1ec9728999984c8fd98"
+      }
     }
   ],
   "ryno-ammo-drops": [
