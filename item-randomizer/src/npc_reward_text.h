@@ -70,6 +70,7 @@ static int npc_race_row(void) {
 static uint32_t npc_race_native_flag(const char* version) {
     return strcmp(version, "pal") == 0 ? 0x13D490u : 0x13D388u;
 }
+
 static int npc_reward_row(const npc_reward_source* source) {
     if (source->level == LEVEL_RILGAR && source->cls == 918) {
         return npc_race_row();
@@ -117,13 +118,14 @@ static void npc_reward_wrap(char* text) {
         }
     }
 }
+
 /* Retail formats the prompt into its small panel. Escape external item/player
  * names without changing the native button, price or format arguments. */
 static int npc_label_between(
     char out[120], const char* prefix, const char* reward, const char* suffix
 ) {
     const size_t n = strlen(prefix), tail = strlen(suffix);
-    if (!n || n + tail + 1 >= 120 || !reward[0]) {
+    if (n + tail + 1 >= 120 || !reward[0]) {
         return 0;
     }
     memcpy(out, prefix, n);
@@ -214,6 +216,61 @@ static int npc_reward_prompt(char out[120], const char* original, const char* re
     snprintf(prefix, sizeof prefix, "%s - Reward: ", original);
     return npc_named_prompt(out, prefix, reward);
 }
+
+/* Orxon's machine uses help messages, not an NPC dialog request. These ids
+ * identify the offered location even when the player already owns an upgrade. */
+static int npc_nanotech_special(int id) {
+    switch (id) {
+        case 0x271E:
+        case 0x2720:
+            return SPECIAL_PREMIUM_NANOTECH;
+        case 0x271F:
+        case 0x2721:
+            return SPECIAL_ULTRA_NANOTECH;
+        default:
+            return -1;
+    }
+}
+
+static int npc_nanotech_prompt(char out[120], const char* text, const char* reward, int special) {
+    const char* names[2] =
+        {special == SPECIAL_PREMIUM_NANOTECH ? "Premium Nanotech" : "Ultra Nanotech",
+         special == SPECIAL_PREMIUM_NANOTECH ? "Nanotech Premium" : "Nanotech Ultra"};
+    for (int variant = 0; variant < 2; ++variant) {
+        const char* name = names[variant];
+        const size_t length = strlen(name);
+        for (const char* at = text; *at; ++at) {
+            size_t i = 0;
+            for (; i < length && at[i]; ++i) {
+                unsigned char a = (unsigned char)at[i], b = (unsigned char)name[i];
+                if (a == 1) {
+                    a = ' '; /* retail HUD line break */
+                }
+                if (a >= 'A' && a <= 'Z') {
+                    a += 'a' - 'A';
+                }
+                if (b >= 'A' && b <= 'Z') {
+                    b += 'a' - 'A';
+                }
+                if (a != b) {
+                    break;
+                }
+            }
+            if (i == length) {
+                const size_t prefix_length = (size_t)(at - text);
+                char prefix[120];
+                if (prefix_length >= sizeof prefix) {
+                    return 0;
+                }
+                memcpy(prefix, text, prefix_length);
+                prefix[prefix_length] = 0;
+                return npc_label_between(out, prefix, reward, at + length);
+            }
+        }
+    }
+    return npc_reward_prompt(out, text, reward);
+}
+
 /* Only the native race entry, not the missing-Hoverboard message. */
 static int npc_race_prompt(char out[120], const char* original, const char* reward) {
     if ((unsigned char)original[0] != 0x12 || strcmp(original + 1, " Enter race") != 0) {

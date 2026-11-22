@@ -715,6 +715,10 @@ static int32_t try_dialog_presentation(uint32_t moby, uint32_t request) {
 }
 
 static uint32_t message_presentation(int32_t id) {
+    /* Orxon offers use help messages outside the NPC dialog request path. */
+    if (current_level() == LEVEL_ORXON && npc_nanotech_special(id) >= 0) {
+        return npc_reward_message(id);
+    }
     /* One owner per prompt: an NPC interaction the NPC reward text knows is named there (its
      * collected rules), never rewritten again here. Gold cases, the vendor's details and an NPC
      * dialog already open stay this file's. */
