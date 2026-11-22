@@ -117,16 +117,17 @@ void Elites::enter(int level) {
         m_elites.clear();
         m_arena_seen = 0;
         m_level = level;
+    }
 
-        const Modifier now = modifier();
+    const Modifier now = modifier();
 
-        // The run's modifier, named once a run as its first level loads.
-        if (level >= 0 && now != Modifier::None && m_named_cycle != m_view.cycle()) {
-            m_named_cycle = m_view.cycle();
-            const std::string text = std::string("Challenge: ") + modifier_name(now);
-            m_mod.info("this run's modifier: " + std::string(modifier_name(now)));
-            m_mod.api().play_notice(m_mod.handle(), text.c_str());
-        }
+    // The run's modifier, named once a run in its first level: as the level loads, or as the cycle
+    // changes within it (a test run's setup).
+    if (level >= 0 && now != Modifier::None && m_named_cycle != m_view.cycle()) {
+        m_named_cycle = m_view.cycle();
+        const std::string text = std::string("Challenge: ") + modifier_name(now);
+        m_mod.info("this run's modifier: " + std::string(modifier_name(now)));
+        m_mod.api().play_notice(m_mod.handle(), text.c_str());
     }
 }
 
