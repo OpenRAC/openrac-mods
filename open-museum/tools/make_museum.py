@@ -25,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
+import gate
 import glb
 import house
 import island
@@ -114,9 +115,15 @@ def add_rocks(terrain, t, V, F, recipe):
 ROCKY = {"om_rock", "om_cliff", "om_basalt", "om_jungle", "om_wet_sand"}
 
 
-def bake(terrain, t):
-    """Sun, shadows and sky light into the ground's colours (the editor's bake), each picture's
-    own brightness kept as a tint (Pokitaru's pictures are dark, its ground lit up to 2)."""
+MODEL_TINT = 0.5      # the models' colours are half the terrain's scale in the port
+SUBDIVIDE = 2.2        # model faces split to this size, so their light shows shadows
+
+
+def bake(terrain, t, models=(), lights=()):
+    """Sun, shadows, sky light and point lights into the ground's and the models' colours (the
+    editor's bake: all of them together, so the house shades the deck and the deck the stilts),
+    each picture's own brightness kept as a tint (Pokitaru's pictures are dark, its ground lit up
+    to 2). Glowing parts of the models (flames, lamps) keep their colours."""
     for _, _, p in t.prims():
         name = t.materials[p.material].get("name", "")
         tint = ground.BRIGHT.get(name, 1.0) * (0.85 if name in ROCKY else 0.6)
@@ -124,8 +131,15 @@ def bake(terrain, t):
         p.attrs["COLOR_0"] = np.concatenate([np.tile(tint * warm, (len(p.pos), 1)), np.ones((len(p.pos), 1))], 1)
     args = types.SimpleNamespace(sun=[-35.0, 40.0], region=[230.0, -20.0, 1100.0, 920.0], ao=20, cell=0.9, bias=0.8,
                                  strength=1.0, ambient=0.22, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.72, 0.7, 0.68],
-                                 bounce_colour=[0.32, 0.27, 0.16], keep_tint=True)
-    return terrain.bake_light(t, args)
+                                 bounce_colour=[0.32, 0.27, 0.16], keep_tint=True, lights=list(lights))
+    for mt in models:
+        for _, _, p in mt.prims():
+            c = p.attrs["COLOR_0"]
+            p.keep = c[:, :3].max(1) > 0.9
+            terrain.subdivide(p, SUBDIVIDE)
+            c = p.attrs["COLOR_0"]
+            c[~p.keep, :3] = MODEL_TINT
+    return terrain.bake_light(t, args, models)
 
 
 def append(terrain, t, path):
@@ -201,16 +215,7 @@ def main(out, disc_textures=None):
     # fragment of that number (its far cull and occlusion), which is not ours.
     t = terrain.Terrain(out / "terrain.glb")
     add_rocks(terrain, t, V, F, recipe)
-    light = bake(terrain, t)
-    horizon = ground.sea()
-    horizon.merge(ground.far_islands())
-    glb.write(str(out / "horizon.glb"), [horizon], {k: MATERIALS[k] for k in horizon.parts},
-              {k: tex[k] for k in horizon.parts}, ["Horizon"], external="textures")
-    append(terrain, t, out / "horizon.glb")
-    (out / "horizon.glb").unlink()
-    t.save(out / "terrain.glb")
     (out / "rocks.json").write_text(json.dumps(recipe, indent=1) + "\n", encoding="utf-8")
-    print(f"rock: {len(F)} triangles; light: {light}")
 
     # The house.
     geo = Geo()
@@ -222,6 +227,10 @@ def main(out, disc_textures=None):
         pictures[key] = textures.painting(seed) if kind == "painting" else textures.rug(seed)
         mats[key] = {"texture": key, "double": True}
     for key, title, sub, centre, facing, w, h in signs:
+        if centre is None:            # a picture for a shape of its own (the gate's board)
+            pictures[key] = gate.picture(key, title, sub)
+            mats[key] = {"texture": key, "double": True}
+            continue
         if key not in pictures:
             pictures[key] = (textures.welcome_sign(title, sub) if key.startswith("om_sign_welcome")
                              else textures.sign(title, sub))
@@ -245,6 +254,21 @@ def main(out, disc_textures=None):
 
     save("house", geo)
     save("landmarks", marks)
+    # The light: terrain, house and landmarks baked together, with the flames and lamps.
+    lights = geo.lights + marks.lights + [{"at": [x, y, z + 4.0], "colour": [1.2, 0.95, 0.6], "radius": 9.0}
+                                          for x, y, z in layout["lamps"]]
+    models = [terrain.Terrain(out / "models" / f"{n}.glb") for n in ("house", "landmarks")]
+    light = bake(terrain, t, models, lights)
+    for mt in models:
+        mt.save()
+    horizon = ground.sea()
+    horizon.merge(ground.far_islands())
+    glb.write(str(out / "horizon.glb"), [horizon], {k: MATERIALS[k] for k in horizon.parts},
+              {k: tex[k] for k in horizon.parts}, ["Horizon"], external="textures")
+    append(terrain, t, out / "horizon.glb")
+    (out / "horizon.glb").unlink()
+    t.save(out / "terrain.glb")
+    print(f"rock: {len(F)} triangles; light: {light}")
     for name, g in landmarks.animated(mats).items():
         save(name, g)
 

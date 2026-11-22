@@ -10,6 +10,7 @@ import math
 
 import numpy as np
 
+import gate
 import island
 
 CX, CY = island.CENTRE
@@ -109,6 +110,7 @@ def build(geo, signs, posters, art=None):
     grand_stair(geo)
     atrium(geo)
     roofs(geo)
+    atrium_lights(geo)
     decorate(geo)
     tower(geo)
     bridges(geo)
@@ -308,6 +310,12 @@ def atrium(geo):
         geo.cylinder("om_planks_dark", (p[0], p[1]), 0.05, F1 + 3, TOP + 6, 4)
         geo.cylinder("om_red", (p[0], p[1]), 0.6, F1 + 1.6, F1 + 3.0, 8)
         geo.cone("om_yellow", (p[0], p[1]), 0.4, F1 + 1.9, F1 + 2.8, 8, glow=[1.8, 1.5, 0.8])
+        geo.light((p[0], p[1], F1 + 1.4), (1.1, 0.8, 0.45), 11)
+
+
+def atrium_lights(geo):
+    for z in (F0 + 4.5, F1 + 4.5, TOP + 3.0):
+        geo.light((CX, CY, z), (1.1, 0.95, 0.72), 16)
 
 
 def roofs(geo):
@@ -386,6 +394,7 @@ def decorate(geo):
         geo.cylinder("om_planks_dark", (p[0], p[1]), 0.05, TOP - 2.8, TOP - 0.4, 4)
         geo.cylinder("om_red", (p[0], p[1]), 0.5, TOP - 3.9, TOP - 2.8, 8)
         geo.cone("om_yellow", (p[0], p[1]), 0.3, TOP - 3.7, TOP - 3.0, 8, glow=[1.8, 1.5, 0.8])
+        geo.light((p[0], p[1], TOP - 4.2), (1.0, 0.72, 0.4), 8)
 
 
 def planters():
@@ -416,8 +425,7 @@ def gateway(geo, signs):
         geo.cone("om_gold", (x, g[1]), 1.0, top, top + 2.2, 4, glow=[1.3, 1.1, 0.6])
         torch(geo, x + (2.2 if x > g[0] else -2.2), g[1] - 1.5, gz, 3.4)
         for side in (-1, 1):
-            geo.oriented_box("om_red" if side < 0 else "om_teal", np.array([x - 0.7, g[1] + side * 0.95]),
-                             np.array([x + 0.7, g[1] + side * 0.95]), np.array([0, side * 1.0]), 0.05, top - 8.5, top - 1.0, solid=False)
+            gate.banner(geo, signs, "red" if side < 0 else "teal", x, g[1] + side * 0.97, side, 1.4, top - 8.5, top - 1.0)
     # The arch: beams stepping up to a peak, a thatched cap over it.
     pts = [(x0, top - 1.2), (g[0] - 5, top + 1.2), (g[0], top + 2.0), (g[0] + 5, top + 1.2), (x1, top - 1.2)]
     for (xa, za), (xb, zb) in zip(pts, pts[1:]):
@@ -430,21 +438,17 @@ def gateway(geo, signs):
         if n[2] < 0:
             q = q[[0, 3, 2, 1]]; n = -n
         geo.tri_quad("om_thatch", q, list(n), np.array([[0, 0], [4, 0], [4, 1], [0, 1]], np.float32), solid=False, both=True)
-    # Ropes and the sign: hung under the arch, facing the shore (south).
-    for x in (g[0] - 6.5, g[0] + 6.5):
-        geo.beam("om_planks_dark", (x, g[1], top - 1.2), (x, g[1], top - 2.8), 0.12)
-    geo.oriented_box("om_planks_dark", np.array([g[0] - 7.6, g[1] + 0.15]), np.array([g[0] + 7.6, g[1] + 0.15]),
-                     np.array([0, 1.0]), 0.3, top - 8.6, top - 2.6, solid=False)
-    signs.append(("om_sign_welcome", "OPEN MUSEUM", "how OpenRAC is made", (g[0], g[1] - 0.05, top - 5.6), -90, 15.0, 5.6))
-    signs.append(("om_sign_welcome_back", "OPEN MUSEUM", "how OpenRAC is made", (g[0], g[1] + 0.35, top - 5.6), 90, 15.0, 5.6))
+    # The sign, hung under the arch: carved, with raised gold letters (gate.py).
+    gate.build(geo, signs, g[0], g[1], top)
     # Flower pots and flags on poles either side of the path.
     for x in (g[0] - 6.6, g[0] + 6.6):
         flower_pot(geo, (x, g[1] - 3.5), gz, int(x * 3), 1.3)
     for k, x in enumerate((g[0] - 14, g[0] + 14)):
         z = float(island.height(x, g[1] - 2))
         geo.cylinder("om_planks_dark", (x, g[1] - 2), 0.18, z - 1, z + 14, 6)
-        geo.oriented_box(("om_red", "om_teal")[k], np.array([x + 0.2, g[1] - 2]), np.array([x + 4.2, g[1] - 2]),
-                         np.array([0, 1.0]), 0.06, z + 11.0, z + 13.8, solid=False)
+        geo.cone("om_gold", (x, g[1] - 2), 0.35, z + 14, z + 14.8, 6)
+        geo.beam("om_planks_dark", (x - 1.3, g[1] - 2.25, z + 13.2), (x + 1.3, g[1] - 2.25, z + 13.2), 0.12)
+        gate.banner(geo, signs, ("red", "teal")[k], x, g[1] - 2.25, -1, 2.4, z + 7.6, z + 13.1)
 
 
 def rooms(geo, signs, posters, art):
@@ -456,6 +460,9 @@ def rooms(geo, signs, posters, art):
             out = ang(45 * s)
             tang = np.array([-out[1], out[0]])
             key = f"om_sign_{storey}_{s}"
+            for r in (R_IN + 5.5, R_OUT - 5.0):                          # the room's warm ceiling lights
+                c = mid(s, r)
+                geo.light((c[0], c[1], z0 + 5.4), (1.5, 1.25, 0.9), 15)
             # The sign on the outer wall's inside, high, facing the atrium.
             p = mid(s, R_OUT - WALL / 2 - 0.05)
             signs.append((key, title, sub, (p[0], p[1], z0 + 6.4 if not (storey == 0 and s in DOORS) else z0 + 6.3), 45 * s + 180,
@@ -602,5 +609,6 @@ def torch(geo, x, y, z0, height=3.2):
     geo.cylinder("om_thatch", (x, y), 0.4, z0 + height, z0 + height + 0.6, 8)
     geo.cone("om_orange", (x, y), 0.36, z0 + height + 0.6, z0 + height + 1.6, 8, glow=[1.6, 1.1, 0.5])
     geo.cone("om_yellow", (x, y), 0.2, z0 + height + 0.6, z0 + height + 1.25, 8, glow=[1.8, 1.6, 0.8])
+    geo.light((x, y, z0 + height + 1.0), (1.5, 0.95, 0.45), 9)
 
 

@@ -85,6 +85,7 @@ def campfire(geo, p, z, yaw, r):
         geo.beam("om_planks_dark", (*(p - d * 0.9), z + 0.15), (*(p + d * 0.9), z + 0.35), 0.25)
     geo.cone("om_orange", (p[0], p[1]), 0.7, z + 0.2, z + 1.7, 6, glow=[1.7, 1.0, 0.4])
     geo.cone("om_yellow", (p[0], p[1]), 0.4, z + 0.2, z + 1.2, 6, glow=[1.9, 1.7, 0.8])
+    geo.light((p[0], p[1], z + 1.0), (1.7, 0.95, 0.4), 10)
     # Logs to sit on.
     for t in (-1, 1):
         q = p + f * 3.0 * t
@@ -195,6 +196,7 @@ def stone_lantern(geo, p, z, yaw, r):
     geo.box("om_stone", (p[0] - 0.6, p[1] - 0.6, z - 0.2), (p[0] + 0.6, p[1] + 0.6, z + 0.4), solid=False)
     geo.box("om_stone", (p[0] - 0.25, p[1] - 0.25, z + 0.4), (p[0] + 0.25, p[1] + 0.25, z + 1.4), solid=False)
     geo.box("om_yellow", (p[0] - 0.4, p[1] - 0.4, z + 1.4), (p[0] + 0.4, p[1] + 0.4, z + 2.0), solid=False, glow=[1.8, 1.6, 0.9])
+    geo.light((p[0], p[1], z + 1.7), (1.3, 1.0, 0.55), 7)
     geo.cone("om_stone", (p[0], p[1]), 0.9, z + 2.0, z + 2.7, 4)
 
 

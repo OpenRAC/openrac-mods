@@ -29,6 +29,10 @@ class Geo:
         self.mesh = Mesh()
         self.solid = []        # triangles [(p0, p1, p2), surface]
         self.count = 0
+        self.lights = []       # point lights for the bake: {"at", "colour", "radius"}
+
+    def light(self, at, colour=(1.5, 1.0, 0.5), radius=9.0):
+        self.lights.append({"at": [float(v) for v in at], "colour": list(colour), "radius": float(radius)})
 
     # --- the drawn and solid shapes ---
     def tri_quad(self, material, corners, normal, uv, solid=True, surface=0x1F, glow=None, both=False):

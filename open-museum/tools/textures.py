@@ -94,10 +94,11 @@ def thatch():
     n = fractal(SIZE, 11, 4, 2)
     y = np.arange(SIZE)[:, None] * np.ones((1, SIZE))
     x = np.ones((SIZE, 1)) * np.arange(SIZE)[None, :]
-    strands = np.sin(x * 0.9 + n * 30) * 0.5 + 0.5
-    rows = (np.sin(y / SIZE * np.pi * 2 * 6) * 0.5 + 0.5) ** 3
-    v = np.clip(strands * 0.6 + n * 0.4 - rows * 0.4, 0, 1)
-    return to_png(tint(v, (96, 72, 34), (204, 170, 96)))
+    # Broad strands and few rows, soft: fine stripes shimmer in the distance (moire).
+    strands = np.sin(x * (2 * np.pi * 10 / SIZE) + n * 9) * 0.5 + 0.5
+    rows = (np.sin(y / SIZE * np.pi * 2 * 3) * 0.5 + 0.5) ** 4
+    v = np.clip(0.38 + strands * 0.32 + (n - 0.5) * 0.22 - rows * 0.22, 0, 1)
+    return to_png(tint(v, (112, 84, 42), (196, 162, 92)))
 
 
 def water():
@@ -141,9 +142,18 @@ def solid(rgb):
     return to_png(np.ones((16, 16, 3)) * np.array(rgb, np.float32))
 
 
-def font(size):
-    for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                 "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"):
+def font(size, heavy=False, serif=False):
+    """A bold font of SIZE pixels: HEAVY a black one for the gate's letters, SERIF a bold serif for
+    carved lines; the first one found on Linux or Windows."""
+    paths = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "arialbd.ttf"]
+    if heavy:
+        paths = ["/usr/share/fonts/opentype/inter/InterDisplay-Black.otf", "/usr/share/fonts/opentype/inter/Inter-Black.otf",
+                 "ariblk.ttf", "seguibl.ttf"] + paths
+    if serif:
+        paths = ["/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+                 "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", "georgiab.ttf", "timesbd.ttf"] + paths
+    for path in paths:
         try:
             return ImageFont.truetype(path, size)
         except OSError:
