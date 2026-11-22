@@ -157,6 +157,7 @@ private:
         float pulse = 0.0f;       // The damage of a pulse.
         float last_hit = 0.0f;    // The meteor's hit that set it burning last.
         int tier = 0;             // The Lava Gun's tier then.
+        std::uint32_t splash_next = 0;  // Its next meteor hit that splashes.
     };
 
     // A field left at a place.
@@ -177,6 +178,7 @@ private:
         std::uint32_t born = 0;
         std::uint32_t seen = 0;
         std::uint32_t next = 0;  // Its next zap or pulse.
+        bool pulsing = false;    // The Zodiac's gun: its pulse under way.
     };
 
     // Posts a hit of `damage` on `target`: through the hit under way when there is one, else a

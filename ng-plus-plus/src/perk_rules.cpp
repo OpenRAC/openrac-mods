@@ -264,8 +264,7 @@ HitPerk hit_perk(int item, Stage stage) {
             if (s >= 3) {
                 perk.field_ticks = 60;
                 perk.field_radius = 2.5f;
-                perk.field_share = 0.25f;
-                perk.cooldown = 6;
+                perk.field_share = 0.25f;  // Every pellet: its hits land in one tick.
             }
             break;
 

@@ -12,6 +12,7 @@
 
 #include "discs.h"
 #include "shots.h"
+#include "tuning_rules.h"
 #include "weapon_visuals.h"
 
 namespace ng_plus_plus {
@@ -22,7 +23,7 @@ constexpr int kPostsPerTick = 192;
 
 // The most hits waiting for later at once.
 constexpr std::size_t kLaterMost = 256;
-constexpr std::size_t kFieldsMost = 48;
+constexpr std::size_t kFieldsMost = 96;
 
 // The bytes of a hit request the mod copies (make_hit_descriptor's and its callers' fields).
 constexpr std::uint32_t kRequestBytes = 0x40u;
@@ -43,6 +44,7 @@ constexpr WatchedClass kWatchedClasses[] = {
     {3070, 42},  // the Gravity Bomb's blast
     {3301, 42},  // its other blast
     {177, 18},   // the Tesla Claw's beam
+    {3784, 43},  // the Zodiac's gun (its pulse posts no hit: tuning.h)
 };
 
 // Returns the weapon of watched class `moby_class`, or -1.
@@ -61,6 +63,13 @@ int watched_item(int moby_class) {
 constexpr std::uint32_t kShieldZapTicks = 60;
 constexpr std::uint32_t kTrailTicks = 15;
 constexpr std::uint32_t kStormTicks = 20;
+
+// The Zodiac's Omega fields: at most this many from one pulse, on the enemies nearest the gun.
+constexpr int kZodiacFieldsMost = 8;
+
+// A fire-path meteor's splash and storm count rest this long on one enemy (the lingering blobs
+// hit every few ticks).
+constexpr std::uint32_t kSplashRestTicks = 6;
 
 // The Ice Gun's shatter glow on a dying enemy.
 constexpr std::uint32_t kShatterRgb = 0xD0F0FFu;
@@ -562,10 +571,12 @@ void Perks::ignite(const ScannedMoby& victim, int tier, float damage, bool splas
     b.last_hit = std::max(b.last_hit, damage);
     b.tier = tier;
 
-    // A meteor's own hit: the splash, and at Omega the storm.
-    if (!splash) {
+    // A meteor's own hit: the splash, and at Omega the storm; resting on this enemy a few ticks.
+    if (!splash || m_tick < b.splash_next) {
         return;
     }
+
+    b.splash_next = m_tick + kSplashRestTicks;
 
     // The splash of magma: the enemies around the impact, set on fire too.
     if (fire.splash_radius > 0.0f) {
@@ -884,10 +895,63 @@ void Perks::watch() {
             burst(w.at, 3.0f, m_reference * 0.3f, 0);
         }
 
+        // The Zodiac at Omega: its pulse posts no hit (tuning.h), so its field is left here, on
+        // the enemies nearest the gun as the pulse starts. "The hit" is the drain the pulse takes
+        // off an enemy in a field's pulse, times the Zodiac's tier.
+        if (item == kZodiac) {
+            const bool pulsing = m_view.memory().read<std::uint8_t>(moby.address + 0x20u)
+                                 == static_cast<std::uint8_t>(kZodiacPulse);
+
+            if (pulsing && !w.pulsing && stage == Stage::Omega) {
+                const WeaponView zodiac = m_weapons.weapon(kZodiac);
+                const HitPerk perk = hit_perk(kZodiac, stage);
+                const float hit = kZodiacDrain * static_cast<float>(kFieldPulseTicks)
+                                  * damage(zodiac.kind, zodiac.level);
+                std::vector<std::uint32_t> visited;
+
+                for (int n = 0; n < kZodiacFieldsMost && m_fields.size() < kFieldsMost; ++n) {
+                    const ScannedMoby* next = nearest(moby.position, kZodiacRange, visited);
+
+                    // No one left in reach.
+                    if (next == nullptr) {
+                        break;
+                    }
+
+                    visited.push_back(next->address);
+                    m_fields.push_back(
+                        Field{
+                            next->position,
+                            perk.field_radius,
+                            hit * perk.field_share,
+                            m_tick + static_cast<std::uint32_t>(perk.field_ticks),
+                            m_tick + static_cast<std::uint32_t>(kFieldPulseTicks)
+                        }
+                    );
+                }
+            }
+
+            w.pulsing = pulsing;
+        }
+
         // The Tesla Claw's storm at Omega: an arc to anything near the hero.
-        if (item == 18 && stage == Stage::Omega && m_tick >= w.next && m_reference > 0.0f) {
+        // Its own last hit, back to a whole claw hit (the steady hits are a share of one); a
+        // share of another weapon's hit would be that weapon's times 1/share.
+        const float claw_hit = m_last_damage[18] > 0.0f ? m_last_damage[18] / m_claw_share
+                                                        : m_reference;
+
+        if (item == 18 && stage == Stage::Omega && m_tick >= w.next && claw_hit > 0.0f) {
             w.next = m_tick + kStormTicks;
-            burst(hero_position(), 10.0f, m_reference * 1.5f / m_claw_share, 0, 1);
+            const std::vector<std::uint32_t> hit =
+                burst(hero_position(), 10.0f, claw_hit * 1.5f, 0, 1);
+
+            // The arcs' stun (1.29).
+            for (const std::uint32_t struck : hit) {
+                const ScannedMoby* at = m_scan.find(struck);
+
+                if (m_shots != nullptr && at != nullptr) {
+                    m_shots->status(at->slot, Status::Freeze, 45);
+                }
+            }
         }
     }
 
