@@ -115,7 +115,7 @@ def add_rocks(terrain, t, V, F, recipe):
 ROCKY = {"om_rock", "om_cliff", "om_basalt", "om_jungle", "om_wet_sand"}
 
 
-MODEL_TINT = 0.5      # the models' colours are half the terrain's scale in the port
+MODEL_TINT = 0.58     # the models' colours are half the terrain's scale in the port
 SUBDIVIDE = 2.2        # model faces split to this size, so their light shows shadows
 
 

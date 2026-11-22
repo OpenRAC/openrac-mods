@@ -41,7 +41,10 @@ class Geo:
         self.mesh.add(material, corners, [normal] * 4, uv, col, [[0, 1, 2], [0, 2, 3]])
         if both:
             back = [-x for x in normal]
-            self.mesh.add(material, corners[::-1], [back] * 4, uv[::-1], [light(back)] * 4,
+            # The underside a little apart: two faces in one place fight for the pixels, and once
+            # the light is baked (lit top, dark underside) that shows as blotches.
+            under = corners[::-1] + np.asarray(back, np.float32) * 0.1
+            self.mesh.add(material, under, [back] * 4, uv[::-1], [light(back)] * 4,
                           [[0, 1, 2], [0, 2, 3]])
         if solid:
             self.solid.append(((corners[0], corners[1], corners[2]), surface))

@@ -462,7 +462,7 @@ def rooms(geo, signs, posters, art):
             key = f"om_sign_{storey}_{s}"
             for r in (R_IN + 5.5, R_OUT - 5.0):                          # the room's warm ceiling lights
                 c = mid(s, r)
-                geo.light((c[0], c[1], z0 + 5.4), (1.5, 1.25, 0.9), 15)
+                geo.light((c[0], c[1], z0 + 5.4), (1.5, 1.25, 0.9), 18)
             # The sign on the outer wall's inside, high, facing the atrium.
             p = mid(s, R_OUT - WALL / 2 - 0.05)
             signs.append((key, title, sub, (p[0], p[1], z0 + 6.4 if not (storey == 0 and s in DOORS) else z0 + 6.3), 45 * s + 180,
