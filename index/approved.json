@@ -316,6 +316,19 @@
       }
     }
   ],
+  "rac2-seeker-fix": [
+    {
+      "version": "0.1.0",
+      "sha256": {
+        "android-arm64": "5fe34c279dd5ade0305f8a6896476cf8ab51b0af7fca8e7ae877b17eb9110993",
+        "linux-aarch64": "481bea9fd618d185297924998108d164f45deabaa1d6383c1e66c14f0dbf80df",
+        "linux-x86_64": "e538ec922e779ab1620bd8bea153d2ece63aa8d5aa20245101b509b7d63e6c27",
+        "macos-arm64": "a9ea4ba1e2ea5c7b9cfbfc221af367bd3c0100e663a880c7ceb36fb4c159aa3a",
+        "macos-x86_64": "5221144e7cb15affd1299f43e51849d7ca28e42ce030dbc25323f45b0c11dc5e",
+        "windows-x86_64": "1e4d88962ae18e7584143540287c0200bc154e1d6a7696b9d9a6f5741031ac09"
+      }
+    }
+  ],
   "rac2-wrench-swap": [
     {
       "version": "0.1.6",
