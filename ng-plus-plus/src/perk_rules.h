@@ -145,6 +145,9 @@ struct ShotPerk {
     float spread = 0.0f;      // Radians between two copies.
     int split_after = 0;      // A rocket splits in two this many ticks into its flight (0 never).
     int end_shots = 0;        // Shots of `end_class` made where a shot ends...
+    int end_chance = 100;     // ...by a shot the hero fired, this often in 100 (a roll per shot,
+                              // split_roll; the shots made from it always)...
+    int end_again_shots = 0;  // ...and by a shot made so, this many (0: end_shots)...
     int end_class = 0;        // ...of this class (1498 rockets, 3799 RYNO rockets, 3329 seekers,
                               // 121 mini bombs, 3300 a gravity bomb)...
     int end_generations = 0;  // ...and the ones made so split again, this many times.
@@ -165,6 +168,10 @@ inline constexpr int kGravityBomb = 3300;
 // Minirocket Tube, Seeker Gun, Hoverbomb Gun, Bomb Glove, Gravity Bomb, Bouncer, Decoy Glove,
 // Miniturret Glove and the RYNO II; nothing for the others (no shot moby of their own).
 ShotPerk shot_perk(int item, Stage stage, int tier);
+
+// Returns whether the shot with serial `serial` (the port's) makes its end shots at `chance` in 100:
+// a fixed roll of the serial, so it never changes for one shot; 100 or more always, 0 or less never.
+bool split_roll(std::uint32_t serial, int chance);
 
 // Returns the yaw of copy `n` (from 0) of a shot fanned by `spread`: right, left, further right...
 float refire_yaw(int n, float spread);

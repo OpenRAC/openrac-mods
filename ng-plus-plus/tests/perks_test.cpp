@@ -330,7 +330,7 @@ void test_ultima_last() {
 
     CHECK(step_at(Kind::Ryno, 10) == nullptr);
     CHECK(max_level(kRyno) == 10);
-    CHECK(exp_goal(Kind::Ryno, 9) == 30000 * kRynoExpScale);
+    CHECK(exp_goal(Kind::Ryno, 9) == 37500 * kRynoExpScale);
     CHECK(exp_goal(Kind::Ryno, 10) == 0);  // at Ultima: a full bar, nothing past it
     CHECK(damage(Kind::Ryno, 10) > damage(Kind::Ryno, 9));
     CHECK(price(Kind::Ryno, 9, 1'000'000) == 0);
@@ -339,8 +339,8 @@ void test_ultima_last() {
 }
 
 // Checks the RYNO II's split rockets along its path, as Shots takes them (its tier and stage at
-// each level): none at Heavy, 2 from Alpha, 3 from Gamma, splitting once more at Omega and twice
-// more at Ultima, at most 13.
+// each level): none at Heavy; by chance from Alpha (1 rocket at 25%) rising to always at Zeta (3);
+// 4 at Omega, each splitting in 2 once more, twice at Ultima, at most 16.
 void test_ryno_splits() {
     // Returns the shots' perk of the RYNO II at `level`.
     const auto at = [](int level) {
@@ -349,22 +349,30 @@ void test_ryno_splits() {
 
     CHECK(at(0).end_shots == 0);
     CHECK(at(1).end_shots == 0);  // Heavy
-    CHECK(at(2).end_shots == 2);  // Alpha
-    CHECK(at(3).end_shots == 2);  // Beta
-    CHECK(at(2).end_generations == 0);
 
-    // Gamma to Eta: 3, no second split.
-    for (int level = 4; level <= 8; ++level) {
-        CHECK(at(level).end_shots == 3);
-        CHECK(at(level).end_generations == 0);
+    // Alpha to Ultima (levels 2 to 10): the chance, the splits, their splits, the most.
+    constexpr int kChance[] = {25, 35, 50, 65, 80, 100, 100, 100, 100};
+    constexpr int kShots[] = {1, 1, 2, 2, 3, 3, 3, 4, 4};
+    constexpr int kAgain[] = {0, 0, 0, 0, 0, 0, 0, 1, 2};
+    for (int level = 2; level <= 10; ++level) {
+        const ShotPerk perk = at(level);
+        CHECK(perk.end_chance == kChance[level - 2]);
+        CHECK(perk.end_shots == kShots[level - 2]);
+        CHECK(perk.end_generations == kAgain[level - 2]);
+        CHECK(perk.end_again_shots == 2);
+        CHECK(perk.end_class == kRynoRocket && perk.end_homing);
     }
+    CHECK(at(9).end_most == 12);   // Omega: 4 and 8
+    CHECK(at(10).end_most == 16);  // Ultima: 4, 8, then 4 of the 16 more
 
-    CHECK(at(9).end_shots == 3);  // Omega
-    CHECK(at(9).end_generations == 1);
-    CHECK(at(9).end_most == kFanMost);
-    CHECK(at(10).end_shots == 3);  // Ultima
-    CHECK(at(10).end_generations == 2);
-    CHECK(at(10).end_most == 13);
+    // The roll: fixed for a serial, about its chance over many, never or always at the ends.
+    int hits = 0;
+    for (std::uint32_t serial = 1; serial <= 10'000; ++serial) {
+        CHECK(split_roll(serial, 25) == split_roll(serial, 25));
+        CHECK(split_roll(serial, 100) && !split_roll(serial, 0));
+        hits += split_roll(serial, 25) ? 1 : 0;
+    }
+    CHECK(hits > 2'300 && hits < 2'700);
 }
 
 // Checks that the book keeps the RYNO II's last level and the armour's tier.
@@ -425,13 +433,15 @@ void test_shot_perks() {
     CHECK(shot_perk(27, Stage::Epsilon, 5).split_after > 0);
     CHECK(shot_perk(27, Stage::Omega, 8).end_blasts == 2);
 
-    // The RYNO II: 2, then 3 homing RYNO rockets, splitting once at Omega and twice at Ultima.
+    // The RYNO II: 1, then 2, 3 and 4 homing RYNO rockets, splitting once at Omega and twice at
+    // Ultima; its stage (an overdrive) raises its tier.
     CHECK(shot_perk(44, Stage::None, 0).end_shots == 0);
-    CHECK(shot_perk(44, Stage::None, 1).end_shots == 2);
-    CHECK(shot_perk(44, Stage::None, 2).end_shots == 2);
-    CHECK(shot_perk(44, Stage::Gamma, 3).end_shots == 3);
-    CHECK(shot_perk(44, Stage::Gamma, 0).end_shots == 3);
+    CHECK(shot_perk(44, Stage::None, 1).end_shots == 1);
+    CHECK(shot_perk(44, Stage::None, 2).end_shots == 1);
+    CHECK(shot_perk(44, Stage::Gamma, 3).end_shots == 2);
+    CHECK(shot_perk(44, Stage::Gamma, 0).end_shots == 2);
     CHECK(shot_perk(44, Stage::Epsilon, 5).end_shots == 3);
+    CHECK(shot_perk(44, Stage::Omega, 8).end_shots == 4);
     CHECK(shot_perk(44, Stage::Gamma, 3).end_class == kRynoRocket);
     CHECK(shot_perk(44, Stage::Gamma, 3).end_homing);
     CHECK(shot_perk(44, Stage::Epsilon, 5).end_generations == 0);

@@ -255,9 +255,16 @@ void Shots::on_end(const ShotEnd& end) {
         return;
     }
 
+    // A shot the hero fired splits by its own roll of its serial (only the host's NG++ splits).
+    if (tracked.generation == 0 && !split_roll(end.serial, perk.end_chance)) {
+        return;
+    }
+
     int& made = m_root_made[tracked.root];
     const int room = std::max(0, perk.end_most - made);
-    const int count = std::min(perk.end_shots, room);
+    const int wanted =
+        tracked.generation > 0 && perk.end_again_shots > 0 ? perk.end_again_shots : perk.end_shots;
+    const int count = std::min(wanted, room);
 
     // Their count from this first shot is spent.
     if (count <= 0) {

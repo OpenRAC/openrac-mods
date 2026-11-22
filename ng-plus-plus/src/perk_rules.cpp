@@ -20,6 +20,37 @@ constexpr int kGammaTier = 3;
 constexpr int kEpsilonTier = 5;
 constexpr int kOmegaTier = 8;
 
+// The RYNO II's Ultima, after Omega.
+constexpr int kUltimaTier = 9;
+
+// The RYNO II's splits by tier (0 none, 1 Alpha ... 8 Omega, 9 Ultima): the chance in 100 that a
+// rocket the hero fired splits where it ends, into how many homing rockets, how many times those
+// split again, and the most made from one rocket in all.
+struct RynoSplit {
+    int chance;
+    int shots;
+    int generations;
+    int most;
+};
+
+// clang-format off: one tier per row.
+constexpr RynoSplit kRynoSplits[kUltimaTier + 1] = {
+    {0,   0, 0, 0},   // none
+    {25,  1, 0, 1},   // Alpha
+    {35,  1, 0, 1},   // Beta
+    {50,  2, 0, 2},   // Gamma
+    {65,  2, 0, 2},   // Delta
+    {80,  3, 0, 3},   // Epsilon
+    {100, 3, 0, 3},   // Zeta
+    {100, 3, 0, 3},   // Eta
+    {100, 4, 1, 12},  // Omega: 4, each splitting in 2
+    {100, 4, 2, 16},  // Ultima: 4, each splitting in 2 twice, at most 16
+};
+// clang-format on
+
+// A split rocket splitting again makes this many.
+constexpr int kRynoSplitAgain = 2;
+
 // Returns `rgb` (0xRRGGBB) as 0x00BBGGRR, or back.
 constexpr std::uint32_t swap_rb(std::uint32_t rgb) {
     return (rgb & 0xFFu) << 16 | (rgb & 0xFF00u) | (rgb >> 16 & 0xFFu);
@@ -449,19 +480,22 @@ ShotPerk shot_perk(int item, Stage stage, int tier) {
             }
             break;
 
-        // RYNO II: from its first tier (Alpha) each rocket splits into 2 homing rockets where it
-        // ends, 3 from Gamma; they split again once at Omega, twice at Ultima. The stage
-        // counts too, so an overdrive raises it.
+        // RYNO II: where a rocket ends it may split into homing rockets, by chance at the low
+        // tiers and always from Zeta, more of them up the tiers (kRynoSplits); at Omega each
+        // split splits once more, at Ultima twice. The stage counts too, so an overdrive raises it.
         case 44: {
             const int stage_tier =
                 s >= 3 ? kOmegaTier : (s >= 2 ? kEpsilonTier : (s >= 1 ? kGammaTier : 0));
-            const int t = std::max(tier, stage_tier);
+            const int t = std::min(std::max(tier, stage_tier), kUltimaTier);
             if (t >= 1) {
-                perk.end_shots = t >= kGammaTier ? 3 : 2;
+                const RynoSplit& split = kRynoSplits[t];
+                perk.end_shots = split.shots;
+                perk.end_chance = split.chance;
+                perk.end_again_shots = kRynoSplitAgain;
                 perk.end_class = kRynoRocket;
                 perk.end_homing = true;
-                perk.end_generations = t > kOmegaTier ? 2 : (t >= kOmegaTier ? 1 : 0);
-                perk.end_most = t > kOmegaTier ? 13 : kFanMost;
+                perk.end_generations = split.generations;
+                perk.end_most = split.most;
             }
             break;
         }
@@ -472,6 +506,22 @@ ShotPerk shot_perk(int item, Stage stage, int tier) {
     }
 
     return perk;
+}
+
+bool split_roll(std::uint32_t serial, int chance) {
+    if (chance >= 100) {
+        return true;
+    }
+    if (chance <= 0) {
+        return false;
+    }
+
+    // A fixed mix of the serial's bits (splitmix32's finish), so neighbouring serials roll apart.
+    std::uint32_t x = serial + 0x9E3779B9u;
+    x = (x ^ (x >> 16)) * 0x85EBCA6Bu;
+    x = (x ^ (x >> 13)) * 0xC2B2AE35u;
+    x ^= x >> 16;
+    return static_cast<int>(x % 100u) < chance;
 }
 
 float refire_yaw(int n, float spread) {

@@ -205,7 +205,7 @@ is not done even on 1.29 (see "Not yet" at the end): the weapon only gets its ti
 | Hoverbomb Gun | 1 more hoverbomb in every throw (OpenRAC 1.29) | As Gamma | 3 more, 4 in every throw (OpenRAC 1.29). (Orbit and dive: can't be done yet) |
 | Shield Charger | The reflect: can't be done yet | Every second the shield zaps the nearest enemy within 8 units for 60% of Ratchet's last weapon hit | The shield zaps the 3 nearest, and bursts when it ends: enemies within 8 units take twice Ratchet's last weapon hit (OpenRAC 1.29: the burst is the game's own blast) |
 | Zodiac | can't be done yet | can't be done yet | Its pulse leaves a field for 3 s on each of the 8 enemies nearest the gun: every quarter second the enemies within 6 units take 15% of what the pulse drains in a quarter second (20 a frame) times the Zodiac's tier. (More stars: can't be done yet). At every tier it hurts bosses (see "Weapon tuning") |
-| RYNO II | 3 split rockets (from Alpha, 2: see below) | As Gamma | Each split rocket splits once more (at most 9 in all); at Ultima twice more (see below) |
+| RYNO II | Split rockets by chance from Alpha, more and surer each tier (see below) | Always from Zeta, 3 | 4 split rockets, each splitting once more; at Ultima twice more (see below) |
 | Seeker Gun | 2 more seekers in every shot (OpenRAC 1.29) | A seeker that ends sends one more seeking the nearest enemy (OpenRAC 1.29) | 4 more seekers in every shot, and the seekers it sends seek again, twice over (at most 6 made from one seeker; OpenRAC 1.29) |
 | Pulse Rifle | Fires 1.25 times as fast (OpenRAC 1.29) | Fires 1.35 times as fast. Every 4th pulse explodes: enemies within 4 units take 60% of the hit | Fires 1.5 times as fast. Pulses pierce up to 2 enemies behind the victim within 12 units (80%) and chain to 2 more within 7 units (50%) |
 | Visibomb Gun | The missile burns a trail: every quarter second the enemies within 3 units of it take 30% of Ratchet's last weapon hit | When the missile ends it releases 3 mini rockets that home in on the 3 nearest enemies within 12 units (OpenRAC 1.29; before, the 3 nearest take 80% of Ratchet's last weapon hit) | 6 mini rockets |
@@ -339,20 +339,36 @@ is not sold in a multiplayer party.
 
 ### RYNO II split rockets
 
-From its first tier, **Alpha RYNO II**, on, each RYNO II rocket splits where it ends into 2
-smaller homing rockets, and into 3 from Gamma (OpenRAC 1.29). They start just clear of what the
-rocket hit, fly at the nearest other enemies within 40 units, home on them as the game's own
-rockets do and explode like them, in the tier's colour. At Omega each split rocket splits once
-more (at most 9 from one rocket). Heavy RYNO II, its first step, doesn't split. On a port before
-1.29, from Gamma the 2 nearest enemies within 15 units take 45% of the hit instead (3 from
-Epsilon).
+From its first tier, **Alpha RYNO II**, on, a RYNO II rocket may split where it ends into smaller
+homing rockets (OpenRAC 1.29): by chance at the low tiers, always from Zeta, and more of them up
+the tiers. They start just clear of what the rocket hit, fly at the nearest other enemies within 40
+units, home on them as the game's own rockets do and explode like them, in the tier's colour.
+Heavy RYNO II, its first step, doesn't split.
+
+| Tier | Chance a rocket splits | Split rockets | They split again |
+|---|---|---|---|
+| Alpha | 25% | 1 | |
+| Beta | 35% | 1 | |
+| Gamma | 50% | 2 | |
+| Delta | 65% | 2 | |
+| Epsilon | 80% | 3 | |
+| Zeta | always | 3 | |
+| Eta | always | 3 | |
+| Omega | always | 4 | each in 2, once (12 from one rocket) |
+| Ultima | always | 4 | each in 2, twice (at most 16 from one rocket) |
+
+The roll is each rocket's own, fixed by the port's number for that shot (`split_roll` in
+src/perk_rules.h), so a rocket never rolls twice; in a multiplayer party the host's NG++ makes the
+splits. An overdrive raises the tier as for the other perks (Gamma's stage as Epsilon, Epsilon's as
+Omega). On a port before 1.29, from Gamma the 2 nearest enemies within 15 units take 45% of the hit
+instead (3 from Epsilon).
 
 ### Ultima RYNO II
 
 The RYNO II's final step, after Omega, is **Ultima RYNO II**, reached by experience, not bought:
 37,500 x5 = 187,500 XP (the RYNO II's goals are five times the usual). It does x9.7 damage and
-x3.2 max ammo, and beats between black and red. Its rockets split in 3 and each split rocket
-splits twice more (OpenRAC 1.29: real homing rockets, at most 13 from one rocket; before 1.29,
+x3.2 max ammo, and beats between black and red. Its rockets split in 4 and each split rocket
+splits in 2 twice more (OpenRAC 1.29: real homing rockets, at most 16 from one rocket; before 1.29,
 hits at 60% on at most 9 enemies). Nothing comes after it: its XP bar shows full.
 
 ### Elites and modifiers
