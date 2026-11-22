@@ -10,6 +10,7 @@
 
 #include "bolt_api.h"
 #include "discs.h"
+#include "perk_rules.h"
 #include "tiers.h"
 
 namespace ng_plus_plus {
@@ -56,7 +57,7 @@ const VisualClass* visual_class(int moby_class) {
 std::optional<MobyLook> look_for(
     const VisualClass& visual, Kind kind, int level, bool energy, std::uint32_t tick
 ) {
-    const std::optional<std::uint32_t> rgb = effect_rgb(kind, level, tick);
+    const std::optional<std::uint32_t> rgb = weapon_effect_rgb(visual.item, level, tick);
 
     // No tier: the game's own look.
     if (!rgb) {
@@ -157,7 +158,7 @@ void WeaponVisuals::tick(std::uint32_t tick) {
         }
 
         // The same look as sent: an animated one moves on every other tick only.
-        const bool moves = tint_moves(weapon.kind, tier);
+        const bool moves = weapon_tint_moves(visual->item, tier);
         const bool same = known && drawn->second.look == *look;
         const bool resend = !known || (!same && (!moves || animated_tick));
 

@@ -22,7 +22,12 @@ add_library(ng_plus_plus_core STATIC
   src/collectors.cpp
   src/rewards.cpp
   src/weapon_visuals.cpp
-  src/extra_enemies.cpp)
+  src/extra_enemies.cpp
+  src/perk_rules.cpp
+  src/moby_scan.cpp
+  src/elites.cpp
+  src/perks.cpp
+  src/armour.cpp)
 target_include_directories(ng_plus_plus_core PUBLIC src)
 target_link_libraries(ng_plus_plus_core PUBLIC OpenRAC::mod)
 # Linked into the mod's shared library, so built for one, with its symbols as hidden as the mod's.
@@ -52,6 +57,12 @@ if(BUILD_TESTING)
   target_link_libraries(ng_plus_plus_rules_test PRIVATE ng_plus_plus_core)
   set_target_properties(ng_plus_plus_rules_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_rules COMMAND ng_plus_plus_rules_test)
+
+  # The 0.5.0 rules alone: the perks, the Ice Gun, the armour, the elites and the Omega Prime step.
+  add_executable(ng_plus_plus_perks_test tests/perks_test.cpp)
+  target_link_libraries(ng_plus_plus_perks_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_perks_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_perks COMMAND ng_plus_plus_perks_test)
 
   # The bolt rules alone: the scales, the platinum share and the split.
   add_executable(ng_plus_plus_bolt_rules_test tests/bolt_rules_test.cpp)

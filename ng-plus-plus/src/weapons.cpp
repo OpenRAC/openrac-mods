@@ -5,6 +5,8 @@
 
 #include "weapons.h"
 
+#include "perk_rules.h"
+
 namespace ng_plus_plus {
 namespace {
 
@@ -76,6 +78,12 @@ std::string Weapons::name_at(int item, int level) const {
     }
 
     const Row row = named ? *named : m_view.current_row(item);
+
+    // The Lava Gun's tiers are the Ice Gun's (rac3's Lava Gun V5 is its Liquid Nitrogen Gun).
+    if (item == kLavaGun && level > 0) {
+        return display_name(kIceGunName, kind, level);
+    }
+
     const std::string base = m_view.text(row.name_id());
     return display_name(base.empty() ? kFallbackName : base, kind, level);
 }
@@ -88,7 +96,7 @@ Row Weapons::upgrade_row(int item) const {
 }
 
 std::optional<std::uint32_t> Weapons::tint(int item, int level, std::uint32_t tick) const {
-    return tint_rgb(kind_of(item), level, tick);
+    return weapon_tint_rgb(item, level, tick);
 }
 
 }  // namespace ng_plus_plus

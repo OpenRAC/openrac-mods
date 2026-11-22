@@ -121,6 +121,7 @@ inline constexpr RowTextField kRowTextFields[] = {
 inline constexpr std::uint32_t kHeroReady = 0x0340u;  // s32: non-zero when he can play a level-up.
 inline constexpr std::uint32_t kHeroHeld = 0x1248u;   // s32: the item in hand.
 inline constexpr std::uint32_t kHeroMoby = 0x2290u;   // u32: his moby.
+inline constexpr std::uint32_t kHeroHealth = 0x24CCu; // s32: his health (AdjustPlayerHealth).
 
 // The vendor's state (func_002F6608, func_002F6510, func_002F8918).
 inline constexpr std::uint32_t kVendorCursor = 0x80u;      // s32: the entry under the cursor.
@@ -158,6 +159,9 @@ inline constexpr std::uint32_t kProgressCycle = 0x12u;
 // The bolts, s32 (+0x00, D_001A79F8 on NTSC-U v1.01), Tabora's crystals, s16 (+0x22, D_001A7A1A),
 // and Grelbin's moonstones, s32 (+0x24, D_001A7A1C), of the save block.
 inline constexpr std::uint32_t kProgressBolts = 0x00u;
+// The hero's armour, s16 (g_player_stats +0x18: 0 none to 4, the best; AdjustPlayerHealth,
+// func_L00_002A4EF8, clamps it and scales each hit by g_player_damage_scale's entry for it).
+inline constexpr std::uint32_t kProgressArmour = 0x20u;
 inline constexpr std::uint32_t kProgressCrystals = 0x22u;
 inline constexpr std::uint32_t kProgressMoonstones = 0x24u;
 

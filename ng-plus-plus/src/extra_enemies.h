@@ -30,6 +30,10 @@
 #include "game_view.h"
 
 namespace ng_plus_plus {
+class Elites;
+}
+
+namespace ng_plus_plus {
 
 // The copies each enemy gets in challenge mode cycle `cycle` (the save's counter: 0 the first game,
 // 1 the first challenge mode): none up to cycle 1, one from cycle 2, two from cycle 4.
@@ -118,6 +122,9 @@ public:
           m_tiers(tiers),
           m_on(on) {}
 
+    // Makes elites of some copies, and the Swarm modifier's extra copy, through `elites`.
+    void set_elites(Elites* elites) { m_elites = elites; }
+
     // Takes the level's load. An OpenRAC without copies or without the hook point: logged once.
     void start();
 
@@ -135,6 +142,7 @@ private:
     const SaveTiers& m_tiers; // The tiers, for the party.
     bool m_on;                // The setting.
     CopyCalls m_calls;        // The port's copy calls, or none.
+    Elites* m_elites = nullptr;  // The elites and the run's modifier, or none.
 
     // The copies a load could not make (no room or no spot yet): the placed enemy's slot and the
     // copy's index, tried again by tick() while the level stays.

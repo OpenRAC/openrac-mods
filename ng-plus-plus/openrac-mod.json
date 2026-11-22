@@ -2,9 +2,9 @@
   "format": 2,
   "id": "ng-plus-plus",
   "name": "NG++",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "author": "Keros",
-  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. The weapon's shots, bombs, bots, blasts and effects (the Shield Charger's shield too) glow in its tier's color, brighter with each tier (OpenRAC with mod interface 1.25). The RYNO II gets two upgrades first: Heavy RYNO II by XP, then Ultima RYNO II from the vendor. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x1.5 up to x6, more from tough enemies), part of them as platinum bolts worth five times the gold ones and, rarely at first, obsidian bolts worth 25 times: the longer your kill streak, the more of both. The first challenge mode already drops a few platinum bolts. Tabora's crystals and Grelbin's moonstones, the hoverbike races and the arenas pay more each new game too, and the characters who sell for bolts ask a little more. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24.",
+  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. From Gamma the tiers change how weapons behave (ricochets, chain arcs, split rockets, exploding decoys and sheep, shield zaps, shockwaves, fields), stronger at Epsilon and Omega, and the Lava Gun becomes the Ice Gun, which slows, freezes and shatters enemies. 20 kills in a row with one tiered weapon set off ten seconds of overdrive. Eight armor tiers past the best armor, Alpha Armor to Omega Armor, are sold at the weapon vendor: each takes more off every hit and makes Ratchet glow in its color, Gamma adds thorns and Epsilon a last stand. Every two weapons at Omega give Ratchet one more health step. The weapon's shots, bombs, bots, blasts and effects (the Shield Charger's shield too) glow in its tier's color, brighter with each tier (OpenRAC with mod interface 1.25). The RYNO II gets two upgrades first: Heavy RYNO II by XP, then Ultima RYNO II from the vendor, and one more after Omega by XP, Omega Prime, whose rockets split into homing rockets. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x1.5 up to x6, more from tough enemies), part of them as platinum bolts worth five times the gold ones and, rarely at first, obsidian bolts worth 25 times: the longer your kill streak, the more of both. The first challenge mode already drops a few platinum bolts. From the third challenge mode some extra enemies are elites, drawn in obsidian, tougher and richer, and each new game from the second challenge mode has a modifier (Swarm, Elite guard, Volatile, Bounty). Tabora's crystals and Grelbin's moonstones, the hoverbike races and the arenas pay more each new game too, and the characters who sell for bolts ask a little more. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ng-plus-plus",
   "api": "1.14",
@@ -27,9 +27,34 @@
     "rac2.item.version_color",
     "rac2.text.by_id",
     "rac2.vendor.draw_list",
-    "rac2.level.load"
+    "rac2.level.load",
+    "rac2.player.nanotech_steps"
   ],
   "settings": [
+    {
+      "key": "weapon_perks",
+      "multiplayer": "host",
+      "name": "Weapon perks",
+      "type": "bool",
+      "default": true,
+      "description": "From Gamma each tiered weapon does more than damage: the Lancer's shots ricochet, the Plasma Coil, Tesla Claw and Clank Zapper chain, the Walloper sends a shockwave, the RYNO II's rockets split, decoys and sheep explode, the shield zaps, and the Lava Gun becomes the Ice Gun, which slows, freezes and shatters enemies. Stronger at Epsilon, its signature at Omega (the tables are in the README). Off: the tiers give damage, ammo and colour only."
+    },
+    {
+      "key": "elite_enemies",
+      "multiplayer": "host",
+      "name": "Elite enemies",
+      "type": "bool",
+      "default": true,
+      "description": "From the third challenge mode some of the extra enemies are elites (15%, 5% more each run up to 35%), and in the Maktar and Joba arenas every fourth enemy the waves send: drawn in obsidian, with two and a half times the health, three times the bolts and twice the weapon experience. Needs OpenRAC with mod interface 1.26 (extra enemies) and 1.24 to draw them."
+    },
+    {
+      "key": "challenge_modifiers",
+      "multiplayer": "host",
+      "name": "Challenge mode modifiers",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode each new game has a modifier, named on screen at its first planet, in turn: Swarm (one more copy of each enemy), Elite guard (twice as many elites), Volatile (every enemy bursts when it dies, hurting the enemies around it) and Bounty (enemies hit a fifth harder and drop a quarter more bolts)."
+    },
     {
       "key": "extra_enemies",
       "multiplayer": "host",
@@ -454,7 +479,7 @@
         "name": "RYNO II",
         "offset": 44,
         "mask": 127,
-        "max": 10,
+        "max": 11,
         "choices": [
           "None",
           "Heavy",
@@ -466,7 +491,8 @@
           "Epsilon",
           "Zeta",
           "Eta",
-          "Omega"
+          "Omega",
+          "Omega Prime"
         ],
         "attach": {
           "to": "item",
@@ -710,6 +736,24 @@
         "requires": {
           "version": "last"
         }
+      },
+      {
+        "key": "armour",
+        "name": "Armor tier",
+        "offset": 55,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
       }
     ]
   }

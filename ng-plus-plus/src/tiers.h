@@ -25,8 +25,8 @@ namespace ng_plus_plus {
 // g_itemEquippedSlot).
 inline constexpr int kItems = 56;
 
-// The most steps a weapon has: the RYNO II's two of its own and the eight tiers.
-inline constexpr int kMaxSteps = 10;
+// The most steps a weapon has: the RYNO II's two of its own, the eight tiers and its Omega Prime.
+inline constexpr int kMaxSteps = 11;
 
 // The eight tiers every weapon gets, V5 to V12.
 inline constexpr int kTiers = 8;
@@ -74,6 +74,7 @@ enum class Tint : std::uint8_t {
     Prismatic,  // cycles through the seven above
     Orange,     // RYNO II Heavy
     Ultima,     // RYNO II Ultima: black and red
+    Prime,      // RYNO II Omega Prime: white and gold, beating
 };
 
 // One step: its name, put before the weapon's ("Alpha"), how it is reached, what it needs and what
@@ -154,8 +155,12 @@ inline constexpr int kEffectTop = 15;
 std::optional<std::uint32_t> effect_rgb(Kind kind, int level, std::uint32_t tick);
 
 // Returns how strong a weapon's effects are drawn at `level`: 0 for none, rising with each step to
-// kEffectTop at the last (Omega; the RYNO II's too).
+// kEffectTop at the last (Omega; the RYNO II's Omega Prime).
 int effect_strength(Kind kind, int level);
+
+// Returns the colour a weapon's effects take from its icon's tint `bgr` (0x00BBGGRR), 0xRRGGBB:
+// its brightest channel raised to 0xFF and the others with it.
+std::uint32_t effect_of_tint(std::uint32_t bgr);
 
 // Returns whether the tint at `level` moves with the tick (Omega's rainbow, Ultima's beat).
 bool tint_moves(Kind kind, int level);

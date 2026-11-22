@@ -14,6 +14,10 @@
 
 namespace ng_plus_plus {
 
+class Armour;
+class Elites;
+class Perks;
+
 // The enemies' curve, from the mod's settings.
 struct EnemySettings {
     bool scaling = true;    // The "enemy_scaling" setting: the curve is on.
@@ -29,6 +33,14 @@ public:
     Combat(const Weapons& weapons, EnemySettings enemies)
         : m_weapons(weapons),
           m_enemies(enemies) {}
+
+    // The 0.5.0 parts the fights ask: the perks (the Ice Gun's slowed enemies, the hits that set
+    // perks off), the elites (their health and experience) and the armour (its share of each hit).
+    void set_parts(Perks* perks, Elites* elites, Armour* armour) {
+        m_perks = perks;
+        m_elites = elites;
+        m_armour = armour;
+    }
 
     // A hit posted to `victim` from the hit request at game address `request` (Moby_PostHit): on
     // anyone but the hero, its damage times the tier of the weapon that dealt it (fired_item) and
@@ -63,6 +75,9 @@ private:
     const Weapons& m_weapons;     // The weapons; outlive this.
     EnemySettings m_enemies;      // The curve's settings.
     float m_damage_carry = 0.0f;  // The fraction of a point carried to the hero's next hit.
+    Perks* m_perks = nullptr;
+    Elites* m_elites = nullptr;
+    Armour* m_armour = nullptr;
 };
 
 }  // namespace ng_plus_plus

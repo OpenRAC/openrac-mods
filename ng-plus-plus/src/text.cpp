@@ -5,6 +5,8 @@
 
 #include "text.h"
 
+#include "perk_rules.h"
+
 #include <algorithm>
 #include <vector>
 
@@ -145,7 +147,9 @@ std::optional<std::uint32_t> TextResolver::resolve(std::int32_t id) {
     if (const std::optional<NamedTier> entry = m_vendor.named_entry()) {
         const Row row = m_weapons.upgrade_row(entry->item);
         const std::optional<std::uint32_t> text =
-            row_text(row, id, entry->item, entry->level, kVendorSlot);
+            entry->armour
+                ? row_text_named(row, id, armour_name(entry->level), kVendorSlot)
+                : row_text(row, id, entry->item, entry->level, kVendorSlot);
 
         // Any other text the vendor shows meanwhile goes on to the weapons' own.
         if (text) {
@@ -219,6 +223,15 @@ std::optional<std::uint32_t> TextResolver::vendor_label(std::int32_t id) {
     }
 
     const std::optional<NamedTier> drawn = m_vendor.drawn_upgrade();
+
+    // The armour entry: its tier's name in place of the label.
+    if (drawn && drawn->armour) {
+        const std::string label = m_view.text(id);
+        const std::optional<std::string> told =
+            retell(label, {label}, armour_name(drawn->level), hooks::kTextSlotBytes);
+        return told ? m_view.write_slot(kLabelSlot, *told) : std::nullopt;
+    }
+
     const Step* step = drawn ? step_at(kind_of(drawn->item), drawn->level - 1) : nullptr;
 
     // Not the mod's entry, or no tier left to sell.
@@ -242,8 +255,19 @@ std::optional<std::uint32_t> TextResolver::vendor_label(std::int32_t id) {
 std::optional<std::uint32_t> TextResolver::row_text(
     const Row& row, std::int32_t id, int item, int level, int slot
 ) {
-    // No tier to name, or not one of the row's own texts (kRowTextFields).
-    if (level <= 0 || !row.has_text(id)) {
+    // No tier to name.
+    if (level <= 0) {
+        return std::nullopt;
+    }
+
+    return row_text_named(row, id, m_weapons.name_at(item, level), slot);
+}
+
+std::optional<std::uint32_t> TextResolver::row_text_named(
+    const Row& row, std::int32_t id, const std::string& tier_name, int slot
+) {
+    // Not one of the row's own texts (kRowTextFields).
+    if (!row.has_text(id)) {
         return std::nullopt;
     }
 
@@ -251,7 +275,6 @@ std::optional<std::uint32_t> TextResolver::row_text(
     const std::string label = row.label_id() != 0 ? m_view.text(row.label_id()) : std::string();
     const std::string name = row.name_id() != 0 ? m_view.text(row.name_id()) : std::string();
     const std::string message = m_view.text(id);
-    const std::string tier_name = m_weapons.name_at(item, level);
     const std::optional<std::string> told =
         retell(message, {label, name}, tier_name, hooks::kTextSlotBytes);
 

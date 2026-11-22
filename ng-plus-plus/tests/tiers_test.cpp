@@ -48,7 +48,7 @@ void test_kinds() {
     CHECK(kind_of(13) == Kind::None);  // Swingshot
     CHECK(kind_of(10) == Kind::None);  // the wrench
     CHECK(step_count(Kind::Four) == 8);
-    CHECK(step_count(Kind::Ryno) == 10);
+    CHECK(step_count(Kind::Ryno) == 11);  // Heavy, Ultima, the eight tiers, Omega Prime
     CHECK(step_count(Kind::None) == 0);
 }
 
@@ -252,8 +252,9 @@ void test_scaling() {
     CHECK(effect_strength(Kind::Four, 0) == 0);
     CHECK(effect_strength(Kind::Four, 1) == 2);
     CHECK(effect_strength(Kind::Four, 8) == kEffectTop);
-    CHECK(effect_strength(Kind::Ryno, 1) == 2);
-    CHECK(effect_strength(Kind::Ryno, 10) == kEffectTop);
+    CHECK(effect_strength(Kind::Ryno, 1) == 1);
+    CHECK(effect_strength(Kind::Ryno, 10) == 14);
+    CHECK(effect_strength(Kind::Ryno, 11) == kEffectTop);  // Omega Prime
     CHECK(effect_strength(Kind::None, 3) == 0);
 
     for (int level = 1; level < kTiers; ++level) {

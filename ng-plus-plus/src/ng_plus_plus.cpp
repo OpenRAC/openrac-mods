@@ -18,6 +18,10 @@
 //                  platinum bolts and bolt scaling, behind the bolt hook points (OpenRAC 1.23)
 //   weapon_visuals.h
 //                  the tiers' colours on the weapons' guns, shots, bots and effects (OpenRAC 1.25)
+//   perk_rules.h   0.5.0's rules: perks, the Ice Gun, armour tiers, elites, modifiers, overdrive
+//   perks.h        the perks in the game: chains, fans, bursts, fields, the Ice Gun's freeze
+//   elites.h       elite enemies and the challenge modes' modifiers
+//   armour.h       the armour tiers: protection, glow, thorns, last stand, the vendor's entry
 //
 // Each tick: the save's clock is watched (at the title too) and a level left forgets its platinum
 // coins; in a level, the steps by experience are taken, the last versions' rows written, the
@@ -27,9 +31,12 @@
 #include <optional>
 #include <string>
 
-#include "collectors.h"
+#include "armour.h"
 #include "bolt_rules.h"
 #include "collectors.h"
+#include "elites.h"
+#include "perk_rules.h"
+#include "perks.h"
 #include "combat.h"
 #include "discs.h"
 #include "experience.h"
@@ -76,7 +83,18 @@ public:
           ),
           m_rewards(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
           m_visuals(mod, m_view, m_weapons),
-          m_enemies(mod, m_view, m_tiers, mod.setting<bool>("extra_enemies")) {}
+          m_enemies(mod, m_view, m_tiers, mod.setting<bool>("extra_enemies")),
+          m_elites(
+              mod, m_view, mod.setting<bool>("elite_enemies"),
+              mod.setting<bool>("challenge_modifiers")
+          ),
+          m_perks(mod, m_view, m_weapons, m_elites, mod.setting<bool>("weapon_perks")),
+          m_armour(mod, m_view, m_tiers, m_perks) {
+        m_combat.set_parts(&m_perks, &m_elites, &m_armour);
+        m_vendor.set_armour(&m_armour);
+        m_enemies.set_elites(&m_elites);
+        m_bolts.set_elites(&m_elites);
+    }
 
     ~NgPlusPlus() = default;
     NgPlusPlus(const NgPlusPlus&) = delete;
@@ -120,6 +138,13 @@ private:
     // Once a game tick.
     void tick();
 
+    // The hero's health steps (rac2.player.nanotech_steps): the game's, then a step for every two
+    // weapons at Omega added to the count at game address `count`.
+    std::int32_t nanotech_steps(
+        openrac::Original<std::int32_t(std::uint32_t, std::uint32_t, std::uint32_t)> original,
+        std::uint32_t a0, std::uint32_t a1, std::uint32_t count
+    );
+
     openrac::Mod& m_mod;       // The mod; the SDK keeps it for the program.
     GameView m_view;           // The game on this disc.
     SaveTiers m_tiers;         // The tiers in play and their book.
@@ -133,6 +158,9 @@ private:
     Rewards m_rewards;         // The races' and arenas' prizes and the sellers' prices.
     WeaponVisuals m_visuals;   // The tiers' colours on the weapons' mobys.
     ExtraEnemies m_enemies;    // More enemies each new game.
+    Elites m_elites;           // Elite enemies and the run's modifier.
+    Perks m_perks;             // The weapons' perks and the Ice Gun.
+    Armour m_armour;           // The armour tiers.
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
 
@@ -257,6 +285,22 @@ void NgPlusPlus::take_optional() {
     // More enemies each new game: an OpenRAC before 1.25 makes none.
     m_enemies.start();
 
+    // 0.5.0: elites, perks, armour.
+    m_elites.start();
+    m_perks.start();
+    m_armour.start();
+
+    // The hero's health from Omega weapons: an OpenRAC without the hook point goes without.
+    try {
+        m_mod.hook<openrac::rac2::Hero_NanotechSteps>(
+            [self](auto original, std::uint32_t a0, std::uint32_t a1, std::uint32_t count) {
+                return self->nanotech_steps(original, a0, a1, count);
+            }
+        );
+    } catch (const openrac::Error& error) {
+        m_mod.info(std::string("no health from Omega weapons: ") + error.what());
+    }
+
     // What this build lacks, for a player's log.
     if (m_view.upgrade_fx() == nullptr) {
         m_mod.info(
@@ -334,6 +378,9 @@ void NgPlusPlus::tick() {
     m_enemies.tick();
     m_rewards.tick();
     m_visuals.tick(m_tick);
+    m_elites.tick();
+    m_perks.tick(m_tick);
+    m_armour.tick(m_tick);
 
     // The rest only in a level.
     if (m_view.loaded_level() < 0) {
@@ -344,6 +391,30 @@ void NgPlusPlus::tick() {
     m_experience.write_rows();
     m_tiers.publish();
     m_experience.name_weapon_in_hand();
+}
+
+std::int32_t NgPlusPlus::nanotech_steps(
+    openrac::Original<std::int32_t(std::uint32_t, std::uint32_t, std::uint32_t)> original,
+    std::uint32_t a0, std::uint32_t a1, std::uint32_t count
+) {
+    const std::int32_t result = original(a0, a1, count);
+    int omega = 0;
+
+    // The weapons at Omega now.
+    for (int item = 0; item < kItems; ++item) {
+        const WeaponView weapon = m_weapons.weapon(item);
+        omega += weapon.has_tier() && tier_of(weapon.kind, weapon.level) >= kTiers ? 1 : 0;
+    }
+
+    const int extra = omega_health(omega);
+
+    // Added to the count the game sums into.
+    if (extra > 0 && GameView::is_memory(count, sizeof(std::int32_t))) {
+        const openrac::Memory memory = m_view.memory();
+        memory.write(count, memory.read<std::int32_t>(count) + extra);
+    }
+
+    return result;
 }
 
 void NgPlusPlus::on_party_rules(void* user, const void* data, std::uint32_t size) {
@@ -377,4 +448,4 @@ void load(openrac::Mod& mod) {
 }  // namespace
 }  // namespace ng_plus_plus
 
-OPENRAC_MOD_CPP("ng-plus-plus", "0.4.4", ng_plus_plus::load)
+OPENRAC_MOD_CPP("ng-plus-plus", "0.5.0", ng_plus_plus::load)

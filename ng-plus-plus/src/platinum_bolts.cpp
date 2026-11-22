@@ -5,6 +5,8 @@
 
 #include "platinum_bolts.h"
 
+#include "elites.h"
+
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -149,7 +151,8 @@ void PlatinumBolts::spawn_pickups(
     const bool scaled = cycle >= kFirstCycle;
     const std::int32_t base = m_view.enemy_bolts(moby).value_or(0);
     const float tough = toughness(base);
-    const float scale = scaled ? drop_scale(cycle, m_scaling, base) : 1.0f;
+    const float bonus = m_elites != nullptr ? m_elites->drops(moby) : 1.0f;
+    const float scale = scaled ? drop_scale(cycle, m_scaling, base) * bonus : 1.0f;
 
     // The game's own burst, as it is: its roll, streak, doubling, pacing and coin limit decide what
     // its coins hold (a kill: at most three, 3,000 bolts), and it puts the rest in its word divided

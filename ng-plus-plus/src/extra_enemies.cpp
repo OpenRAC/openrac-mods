@@ -5,6 +5,9 @@
 
 #include "extra_enemies.h"
 
+#include "elites.h"
+#include "moby_scan.h"
+
 #include <string>
 #include <utility>
 #include <vector>
@@ -144,7 +147,9 @@ void ExtraEnemies::start() {
 int ExtraEnemies::level_loaded() {
     const int level = m_view.loaded_level();
     const int cycle = m_view.cycle();
-    const int each = extra_copies(cycle);
+    const int swarm =
+        m_elites != nullptr && m_elites->modifier() == Modifier::Swarm ? kSwarmCopies : 0;
+    const int each = extra_copies(cycle) + (extra_copies(cycle) > 0 ? swarm : 0);
 
     // No copies this cycle, none in this OpenRAC, or a party guest's game (the host's copies are
     // its).
@@ -159,7 +164,8 @@ int ExtraEnemies::level_loaded() {
 
     // Each live moby of the level.
     for (const openrac_moby& moby : m_mod.moby_list()) {
-        const int copies = moby.key >= 0 ? copies_of(level, moby.oclass, cycle) : 0;
+        const int base = moby.key >= 0 ? copies_of(level, moby.oclass, cycle) : 0;
+        const int copies = base > 0 ? base + swarm : 0;
 
         // A class of the table that OpenRAC may copy.
         if (copies > 0 && m_calls.check(m_mod.handle(), moby.slot) == kCopyOk) {
@@ -219,7 +225,14 @@ int ExtraEnemies::make_copy(int slot, int index) {
         return -1;
     }
 
-    return m_calls.copy(m_mod.handle(), slot, index) >= 0 ? 1 : 0;
+    const int copy = m_calls.copy(m_mod.handle(), slot, index);
+
+    // Made: an elite at the run's share.
+    if (copy >= 0 && m_elites != nullptr) {
+        m_elites->copy_made(slot, index, MobyScan::slot_address(m_view, copy));
+    }
+
+    return copy >= 0 ? 1 : 0;
 }
 
 void ExtraEnemies::tick() {

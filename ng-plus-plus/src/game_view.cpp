@@ -169,6 +169,22 @@ std::int32_t GameView::bolts() const {
     return memory().read<std::int32_t>(at(m_disc.progress) + kProgressBolts);
 }
 
+int GameView::armour() const {
+    return memory().read<std::int16_t>(at(m_disc.progress) + kProgressArmour);
+}
+
+std::int32_t GameView::hero_health() const {
+    return memory().read<std::int32_t>(at(m_disc.hero) + kHeroHealth);
+}
+
+void GameView::set_hero_health(std::int32_t health) const {
+    memory().write(at(m_disc.hero) + kHeroHealth, health);
+}
+
+bool GameView::is_memory(std::uint32_t address, std::uint32_t size) {
+    return in_memory(address, size);
+}
+
 std::int32_t GameView::crystals() const {
     return memory().read<std::int16_t>(at(m_disc.progress) + kProgressCrystals);
 }

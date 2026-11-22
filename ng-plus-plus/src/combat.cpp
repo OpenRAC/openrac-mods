@@ -9,6 +9,10 @@
 #include <cmath>
 #include <optional>
 
+#include "armour.h"
+#include "elites.h"
+#include "perks.h"
+
 namespace ng_plus_plus {
 
 void Combat::post_hit(
@@ -18,10 +22,12 @@ void Combat::post_hit(
 ) {
     const GameView& view = m_weapons.view();
     float scale = 1.0f;
+    int item = -1;
+    const bool on_other = victim != view.hero_moby() && request != 0;
 
     // Only hits on others: the hero's own hits are the enemies' business (take_damage).
-    if (victim != view.hero_moby() && request != 0) {
-        const int item = fired_item(request);
+    if (on_other) {
+        item = fired_item(request);
         const Kind kind = item >= 0 && item < kItems ? kind_of(item) : Kind::None;
 
         // The tier of the weapon that dealt the hit.
@@ -41,21 +47,37 @@ void Combat::post_hit(
             const int level = item >= 0 && item < kItems ? m_weapons.tiers().level(item) : 0;
             scale /= hit_divisor(kind, level, view.cycle(), m_enemies.strength, foe);
         }
-    }
 
-    // Nothing to scale: the game's hit as it is.
-    if (scale == 1.0f) {
-        original(victim, request);
-        return;
+        // An elite has more health; an Ice Gun's slowed enemy reads one hit for the ticks it
+        // misses.
+        if (m_elites != nullptr) {
+            scale /= m_elites->health(victim);
+        }
+
+        if (m_perks != nullptr) {
+            scale *= m_perks->hit_scale(victim);
+        }
     }
 
     const openrac::Memory memory = view.memory();
     const auto damage_now = memory.read<float>(request + kHitDamage);
-    memory.write(request + kHitDamage, damage_now * scale);
-    original(victim, request);
 
-    // The caller may post the same request to the next victim.
-    memory.write(request + kHitDamage, damage_now);
+    // Nothing to scale: the game's hit as it is.
+    if (scale == 1.0f) {
+        original(victim, request);
+    } else {
+        memory.write(request + kHitDamage, damage_now * scale);
+        original(victim, request);
+
+        // The caller may post the same request to the next victim.
+        memory.write(request + kHitDamage, damage_now);
+    }
+
+    // The weapon's perks, from the damage as it landed.
+    if (on_other && m_perks != nullptr) {
+        const auto source = memory.read<std::uint32_t>(request + kHitSource);
+        m_perks->hit(original.get(), victim, request, item, source, damage_now * scale);
+    }
 }
 
 void Combat::record_death(
@@ -71,7 +93,13 @@ void Combat::record_death(
     foe.boss = boss != nullptr;
     foe.last = boss != nullptr && boss->last;
     foe.bolts = view.enemy_bolts(moby).value_or(0);
-    const float scale = m_enemies.scaling ? kill_experience(view.cycle(), foe) : 1.0f;
+    const float elite = m_elites != nullptr ? m_elites->experience(moby) : 1.0f;
+    const float scale = (m_enemies.scaling ? kill_experience(view.cycle(), foe) : 1.0f) * elite;
+
+    // The perks see the death first (the Ice Gun's shatter, overdrive, Volatile).
+    if (m_perks != nullptr) {
+        m_perks->death(moby);
+    }
 
     // Nothing to scale: the game's.
     if (scale == 1.0f) {
@@ -122,11 +150,25 @@ int Combat::fired_item(std::uint32_t request) const {
 
 void Combat::take_damage(openrac::Original<void(std::int32_t)> original, std::int32_t amount) {
     const GameView& view = m_weapons.view();
-    const float scale = m_enemies.scaling ? enemy_damage(view.cycle(), m_enemies.strength) : 1.0f;
+    float scale = m_enemies.scaling ? enemy_damage(view.cycle(), m_enemies.strength) : 1.0f;
+
+    // The run's Bounty hits harder; the armour tiers take their share off.
+    if (m_elites != nullptr && m_elites->modifier() == Modifier::Bounty) {
+        scale *= kBountyDamage;
+    }
+
+    if (m_armour != nullptr) {
+        scale *= m_armour->damage_scale();
+    }
 
     // A heal or nothing to scale: the game's own.
     if (amount <= 0 || scale == 1.0f) {
         original(amount);
+
+        if (m_armour != nullptr) {
+            m_armour->hurt(amount);
+        }
+
         return;
     }
 
@@ -135,6 +177,11 @@ void Combat::take_damage(openrac::Original<void(std::int32_t)> original, std::in
     const auto points = static_cast<std::int32_t>(exact);
     m_damage_carry = exact - static_cast<float>(points);
     original(points);
+
+    // The armour's thorns and last stand.
+    if (m_armour != nullptr) {
+        m_armour->hurt(points);
+    }
 }
 
 }  // namespace ng_plus_plus

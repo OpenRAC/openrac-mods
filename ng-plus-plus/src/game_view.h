@@ -188,6 +188,17 @@ public:
     // record's kind), else none: a crate, a scripted burst's moby, no moby.
     std::optional<std::int32_t> enemy_bolts(std::uint32_t moby) const;
 
+    // Returns the hero's armour (0 none to 4, the game's best), and his health and its setter.
+    int armour() const;
+    std::int32_t hero_health() const;
+    void set_hero_health(std::int32_t health) const;
+
+    // Returns whether `size` bytes at game address `address` are game memory.
+    static bool is_memory(std::uint32_t address, std::uint32_t size);
+
+    // Returns the game address `address` relocated for the loaded program (relocate_data).
+    openrac::gaddr address_of(std::uint32_t address) const { return at(address); }
+
     // ---- The vendor ----
 
     // Returns the vendor's cursor, and its list's count.

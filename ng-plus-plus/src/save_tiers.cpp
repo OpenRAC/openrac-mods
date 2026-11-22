@@ -5,6 +5,8 @@
 
 #include "save_tiers.h"
 
+#include "perk_rules.h"
+
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -210,7 +212,7 @@ void SaveTiers::take_record(const Record& record) {
     // Each item's level, cut to what the weapon has; a level means its count had started.
     for (int item = 0; item < kItems; ++item) {
         const auto n = static_cast<std::size_t>(item);
-        const int most = step_count(kind_of(item));
+        const int most = max_level(item);
         const int kept = static_cast<int>(record.levels[n] & kLevelBits);
         m_level[n] = static_cast<std::uint8_t>(kept > most ? most : kept);
         m_started[n] = (record.levels[n] & kStartedBit) != 0 || kept != 0;
@@ -229,7 +231,7 @@ void SaveTiers::take_party_rules(const void* data, std::uint32_t size) {
     // Each level cut to what the weapon has: a host's newer mod may know more.
     for (int item = 0; item < kItems; ++item) {
         const auto n = static_cast<std::size_t>(item);
-        const int most = step_count(kind_of(item));
+        const int most = max_level(item);
         m_party[n] = static_cast<std::uint8_t>(bytes[n] > most ? most : bytes[n]);
     }
 
@@ -245,8 +247,8 @@ void SaveTiers::publish() {
     int tiered = 0;
 
     // Count the weapons with a tier, for the party's line.
-    for (const std::uint8_t level : m_level) {
-        tiered += level != 0 ? 1 : 0;
+    for (int item = 0; item < kItems; ++item) {
+        tiered += item != kArmourItem && m_level[static_cast<std::size_t>(item)] != 0 ? 1 : 0;
     }
 
     const std::string text = "NG++: " + std::to_string(tiered) + " weapons";

@@ -57,6 +57,9 @@ public:
     // taken with the setting off. Only during load.
     void start();
 
+    // Scales the drops of elites and the Bounty modifier by `elites` (elites.h).
+    void set_elites(const class Elites* elites) { m_elites = elites; }
+
     // Returns whether the drops are the mod's (the hook points taken, the setting on).
     bool enabled() const { return m_enabled; }
 
@@ -135,6 +138,7 @@ private:
     const GameView& m_view;               // The game; outlives this.
     BoltScaling m_scaling;                // The "bolt_scaling" setting.
     MobyMaterialFn m_material = nullptr;  // The port's moby_material (null before 1.23).
+    const class Elites* m_elites = nullptr;  // Elites' and Bounty's drops, or none.
     bool m_obsidian = false;              // The port draws obsidian (1.24): obsidian is dropped.
     bool m_enabled = false;               // The hook points are taken.
     bool m_recording = false;             // Inside a burst of the mod's.

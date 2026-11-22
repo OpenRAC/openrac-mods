@@ -44,6 +44,10 @@ constexpr Step kBoughtSteps[kTiers] = {
 // The RYNO II's own steps before the tiers, as many as kRynoSteps says.
 constexpr int kRynoSteps = 2;
 
+// The RYNO II's level past Omega (plans/ngpp/045-weapons.md): reached by experience at Omega, its
+// rockets split into homing rockets (perk_rules.h's ryno_perk).
+constexpr Step kRynoPrime = {"Omega Prime", How::Exp, 30'000, 8.5f, 2.2f, Tint::Prime};
+
 // clang-format off: one step per row, as kTierSteps.
 // The RYNO II's two versions of its own, before the tiers.
 constexpr Step kRynoOwnSteps[kRynoSteps] = {
@@ -77,6 +81,10 @@ constexpr std::uint32_t kUltimaBlack = 0x080808u;
 // RYNO II Ultima's effects: a bright red and a deep one, 0x00BBGGRR (effect_rgb).
 constexpr std::uint32_t kEffectUltimaBright = 0x1A1AFFu;
 constexpr std::uint32_t kEffectUltimaDeep = 0x000060u;
+
+// RYNO II Omega Prime's two colours: white and gold, 0x00BBGGRR.
+constexpr std::uint32_t kPrimeWhite = 0xF0FFFFu;
+constexpr std::uint32_t kPrimeGold = 0x10B0FFu;
 
 // Ticks a prismatic tint takes from one colour to the next.
 constexpr std::uint32_t kPrismTicks = 45u;
@@ -268,7 +276,7 @@ int step_count(Kind kind) {
         return 0;
     }
 
-    return kind == Kind::Ryno ? kTiers + kRynoSteps : kTiers;
+    return kind == Kind::Ryno ? kTiers + kRynoSteps + 1 : kTiers;
 }
 
 const Step* step_at(Kind kind, int level) {
@@ -277,8 +285,12 @@ const Step* step_at(Kind kind, int level) {
         return nullptr;
     }
 
-    // The RYNO II's own two come first, then the tiers.
+    // The RYNO II's own two come first, then the tiers, then Omega Prime.
     if (kind == Kind::Ryno) {
+        if (level == kRynoSteps + kTiers) {
+            return &kRynoPrime;
+        }
+
         return level < kRynoSteps ? &kRynoOwnSteps[level] : &kTierSteps[level - kRynoSteps];
     }
 
@@ -461,6 +473,13 @@ std::optional<std::uint32_t> tint_rgb(Kind kind, int level, std::uint32_t tick) 
             const std::uint32_t rise = phase < half ? phase : kUltimaTicks - phase;
             return mix(kUltimaRed, kUltimaBlack, rise * kMixSteps / half);
         }
+        // White and gold, beating as Ultima's.
+        case Tint::Prime: {
+            const std::uint32_t phase = tick % kUltimaTicks;
+            const std::uint32_t half = kUltimaTicks / 2u;
+            const std::uint32_t rise = phase < half ? phase : kUltimaTicks - phase;
+            return mix(kPrimeWhite, kPrimeGold, rise * kMixSteps / half);
+        }
         case Tint::Lime:
         case Tint::Cyan:
         case Tint::Emerald:
@@ -513,10 +532,14 @@ std::optional<std::uint32_t> effect_rgb(Kind kind, int level, std::uint32_t tick
         return std::nullopt;
     }
 
+    return effect_of_tint(*tint);
+}
+
+std::uint32_t effect_of_tint(std::uint32_t bgr) {
     // 0x00BBGGRR to 0xRRGGBB, its brightest channel raised to 0xFF and the others with it.
-    const std::uint32_t red = *tint & 0xFFu;
-    const std::uint32_t green = *tint >> 8 & 0xFFu;
-    const std::uint32_t blue = *tint >> 16 & 0xFFu;
+    const std::uint32_t red = bgr & 0xFFu;
+    const std::uint32_t green = bgr >> 8 & 0xFFu;
+    const std::uint32_t blue = bgr >> 16 & 0xFFu;
     const std::uint32_t top = std::max({red, green, blue, 1u});
     const auto lift = [top](std::uint32_t channel) { return (channel * 0xFFu + top / 2u) / top; };
     return lift(red) << 16 | lift(green) << 8 | lift(blue);
@@ -537,7 +560,9 @@ int effect_strength(Kind kind, int level) {
 
 bool tint_moves(Kind kind, int level) {
     const Step* step = step_at(kind, level - 1);
-    return step != nullptr && (step->tint == Tint::Prismatic || step->tint == Tint::Ultima);
+    return step != nullptr
+           && (step->tint == Tint::Prismatic || step->tint == Tint::Ultima
+               || step->tint == Tint::Prime);
 }
 
 float enemy_health(int cycle, float strength) {

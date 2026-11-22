@@ -21,9 +21,12 @@ namespace ng_plus_plus {
 
 // An item and a tier the vendor names it at.
 struct NamedTier {
-    int item = 0;   // The item.
-    int level = 0;  // The tier, as a level (1: the first step).
+    int item = 0;         // The item (the armour entry's: the item whose icon it shows).
+    int level = 0;        // The tier, as a level (1: the first step).
+    bool armour = false;  // An armour tier (armour.h), not the item's.
 };
+
+class Armour;
 
 // The vendor's side of NG++.
 //
@@ -35,6 +38,9 @@ public:
     Vendor(const Weapons& weapons, Experience& experience)
         : m_weapons(weapons),
           m_experience(experience) {}
+
+    // Sells the armour tiers of `armour` too (an entry at the end of the list).
+    void set_armour(Armour* armour) { m_armour = armour; }
 
     // ---- Hooks ----
 
@@ -88,12 +94,23 @@ private:
     // Returns the item of the mod's entry at `place` of the list, or -1.
     int added_item_at(int place) const;
 
+    // Returns whether `place` holds the mod's armour entry.
+    bool armour_at(int place) const;
+
+    // Returns the item whose icon the armour entry shows: the Shield Charger when owned, else the
+    // first weapon owned; -1 for none.
+    int armour_carrier() const;
+
     const Weapons& m_weapons;    // The weapons; outlive this.
     Experience& m_experience;    // Steps a purchase; outlives this.
     std::vector<Added> m_added;  // The entries the mod added at the last build.
     int m_drawn = -1;        // Icons asked for so far while the list draws; -1 when not drawing.
     int m_drawn_place = -1;  // The list place the last icon was for; -1 for none.
     int m_bought = -1;       // The item a purchase stepped last; -1 for none.
+    bool m_bought_armour = false;  // That purchase was an armour tier.
+    Armour* m_armour = nullptr;    // The armour tiers, or none.
+    int m_armour_place = -1;       // The armour entry's place at the last build, -1 for none.
+    int m_armour_item = -1;        // The item its icon shows.
     int m_bought_ticks = 0;  // Ticks the purchase feedback keeps naming it.
 };
 

@@ -84,6 +84,11 @@ private:
         const Row& row, std::int32_t id, int item, int level, int slot
     );
 
+    // As row_text, with `tier_name` as the name told.
+    std::optional<std::uint32_t> row_text_named(
+        const Row& row, std::int32_t id, const std::string& tier_name, int slot
+    );
+
     // The popup of the in-hand level-up waiting for one (Experience::level_up_pending), or none.
     std::optional<std::uint32_t> level_up_popup(std::int32_t id);
 
