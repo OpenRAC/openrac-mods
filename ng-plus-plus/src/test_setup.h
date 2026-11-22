@@ -4,7 +4,8 @@
 // A setup for hidden test runs only (CMake option NGPP_TEST_SETUP, off in every package): from the
 // environment variable NGPP_TEST ("ITEM:LEVEL,...;hold=ITEM;near=1", NTSC-U only), once a level has
 // run 90 ticks, each weapon named is owned at its last version with full ammo and the tier given
-// (55 the armour tier, with the game's best armour), the weapon `hold` is equipped, the nearest
+// (55 the armour tier, with the game's best armour; 54 the ship's tier), the weapon `hold` is
+// equipped, `cycle=N` sets the challenge mode counter, the nearest
 // enemies are logged, and with near=1 the hero is put 6 units from the nearest one every 20
 // seconds. Nothing is kept in the book (a test run's clock is zeros).
 

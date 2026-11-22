@@ -13,6 +13,7 @@
 #include "discs.h"
 #include "moby_scan.h"
 #include "perk_rules.h"
+#include "ship_upgrades.h"
 
 namespace ng_plus_plus {
 namespace {
@@ -106,6 +107,13 @@ void TestSetup::apply() {
             continue;
         }
 
+        // The ship's weapon tier (ship_upgrades.h): the tier alone.
+        if (item == kShipItem) {
+            m_tiers.set_level_for_test(item, level);
+            m_mod.info("test: ship tier " + std::to_string(level));
+            continue;
+        }
+
         // Owned, at its last version, its ammo full, at the tier.
         memory.write(m_mod.relocate(kOwned) + static_cast<std::uint32_t>(item), std::uint8_t{1});
         Row row = m_view.row(item);
@@ -137,6 +145,14 @@ void TestSetup::apply() {
         const std::size_t h = rest.find("hold=");
         hold = h == std::string::npos ? -1 : std::atoi(rest.c_str() + h + 5);
         m_near = rest.find("near=1") != std::string::npos;
+        const std::size_t c = rest.find("cycle=");
+
+        // A challenge mode cycle (the save block's counter, +0x12).
+        if (c != std::string::npos) {
+            const auto cycle = static_cast<std::int16_t>(std::atoi(rest.c_str() + c + 6));
+            memory.write(m_mod.relocate(kProgress) + kProgressCycle, cycle);
+            m_mod.info("test: cycle " + std::to_string(cycle));
+        }
     }
 
     // The weapon in hand.

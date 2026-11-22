@@ -347,6 +347,55 @@ its first level loads ("Challenge: Swarm"), in turn:
 The **Challenge mode modifiers** setting turns them off (the elites stay on their own setting).
 Swarm adds to the extra enemies and needs them on.
 
+### The ship
+
+**Ship weapon tiers.** Past the ship's own upgrades the ship gets **8 weapon tiers**, Alpha to
+Omega, sold at Slim Cognito's **Ship Shack** as the **last entry** of its list, for raritanium like
+the game's own ship parts (which cost 10 to 60). Each is bought, in order, and raises the damage of
+every ship weapon (the twin guns, the specials, the missiles) and how fast they fire; Gamma, Epsilon
+and Omega add a perk. The tier is saved with the weapons in the mod's `tiers.txt`, and the
+launcher's save editor has a **Ship weapons tier** picker. Not sold to a multiplayer party's guest.
+
+| Tier | Damage | Fire rate | Price (raritanium) | Perk |
+|---|---|---|---|---|
+| Alpha | x1.25 | x1.10 | 80 | |
+| Beta | x1.5 | x1.20 | 120 | |
+| Gamma | x1.8 | x1.30 | 160 | Overcharge: every fourth hit deals double |
+| Delta | x2.1 | x1.40 | 200 | Overcharge |
+| Epsilon | x2.5 | x1.50 | 240 | Overcharge; a hit that leaves a ship (not a boss) under a fifth of its health destroys it |
+| Zeta | x3.0 | x1.65 | 280 | As Epsilon |
+| Eta | x3.5 | x1.80 | 320 | As Epsilon |
+| Omega | x4.2 | x2.00 | 360 | As Epsilon; 35% of each hit arcs to the nearest other enemy ship within 40 units |
+
+**Space missions.** From the second challenge mode Feltzin's, Hrugis's and Gorn's space combat
+missions get more of everything; never fewer ships than the game's:
+
+| Challenge mode | Extra waves | Elite ships | Feltzin's targets |
+|---|---|---|---|
+| 1st | none | none | the game's pace |
+| 2nd, 3rd | 1 | 20%, 30% | x1.5 as often |
+| 4th, 5th | 2 | 40%, 50% | x2 as often |
+| 6th on | 3 | 60% | x2 as often |
+
+- A wave: when a fight's ships are down to a quarter of the most it had at once, every ship of it
+  that was destroyed comes back, as the game brings its own ships to life when a mission starts. A
+  mission with a boss or a capital ship, or fewer than three ships, keeps the game's waves. Swarm
+  adds one more wave.
+- Elite ships are drawn in obsidian (OpenRAC 1.24; violet energy before) and have twice the health;
+  the ships of a wave NG++ brings back are elites 15% more often. Elite guard doubles the share (at
+  most 80%).
+- Every enemy ship takes the enemies' health curve (below), the bosses and the Gorn capital ship the
+  bosses' column too.
+- The **Space missions** setting turns the waves, elites and faster targets off (the health curve
+  stays on its own setting).
+
+**Ship looks.** The ship glows over its paint in its weapon tier's color (the weapons' tier colors,
+Omega's rainbow), its shots too. The **Ship look** setting picks another look once the tier unlocks
+it: Ion (cyan, Alpha), Plasma (violet, Beta), Solar (gold, Gamma), Inferno (crimson, Epsilon),
+Obsidian (Eta) and Prismatic (a rainbow cycling, Omega); before its tier the ship takes the tier's
+color. Off keeps the game's paint alone. The game's own 18 paints stay as they are: its paint list
+is pictures on the disc, so the looks are drawn over the paint (OpenRAC 1.25's energy material).
+
 ### Health from Omega weapons
 
 Ratchet gets one more health step (a nanotech step, as from the game's own orbs) for every **two
@@ -750,6 +799,10 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | Fire rate | `weapon_record` (interface 1.29): the Pulse Rifle's record in the level, its shots-a-second stat (+0x54) times the stage's rate, put back when the perk goes |
 | Moby pool | `moby_pool_raise` (interface 1.27): the request is 1024 spare slots, the most the port grants. Every extra shot counts toward the port's shots-a-tick limit, which NG++ keeps (64 of the 128) |
 | Version | the Ice Gun, extra shots, shot ends, shot colours and fire rate rows need OpenRAC develop 9753743cd or later (mod interface 1.29, SDK 1.29.0). Older ports keep the earlier perks |
+| Space waves | no wave spawner in the game: a mission's ships are the level's placed mobys, brought to life by `moby_init_spawned_sub_object` (`func_L05_0037AEC0`, in Feltzin's, Hrugis's, Gorn's and Wupash's code; PAL `func_L05_0037D610`, NTSC-U v2.00 `func_L05_0037C130`), alive while their motion record's +0x110 is 1 (the record at pvars +0x14). Each tick the fight's ships are counted, and a due wave calls that init again (`function_at`, the level's own address) on the dead ones, at most 6 a tick: they are the level's records, so no moby pool slot is used. Feltzin's target spawner (class 4378) has its timer (pvars +0x26C) run faster |
+| Space hits | `rac2.combat.post_hit` in a space level: the ship's hits (the shot's owner at its pvars +4, class 4031) times the ship tier and its perks, every enemy ship's divided by its health (the curve, a boss's, an elite's) |
+| Ship tiers | the Ship Shack is the vendor's mode 2 (+0x50 of its state; `shop_build_vendor_list_by_flags`, `func_002F7738`): 0x1C-byte entries at +0x140, count at +0x740. NG++ appends its entry while the list shows (its name and description in the port's text slots 0 and 1); its value is the equipment word's unused bit 21 (`g_equipment_bits`, `0x1A7AF0`), which the game's confirm (`func_L00_00374348`) writes once it has taken the raritanium (the save block +4). NG++ then clears the bit and takes the tier: the book's item 54. The fire rate: the ship's five weapon timers (pvars +0x08, +0x0A, +0xA8 s16, +0x20C, +0x210 s32; `UpdateShipWeapons`) run faster |
+| Ship looks | `moby_material` (energy, interface 1.25; obsidian, 1.24) each tick on the ship's mobys: class 4031 and its parts (4305 to 4325, 4742 to 4744), the hub's hull 3412 and its own shots (4090) |
 | Health | `rac2.player.nanotech_steps`: the game's count of health steps plus one for every two Omega weapons (at most 12) |
 | Armor | the damage share in `rac2.player.take_damage` (the hit times the tier's share, Bounty's included); the armour level is read at `g_player_stats` +0x18; the tier is the book's item 55; the vendor's entry is built as a weapon's upgrade entry |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |

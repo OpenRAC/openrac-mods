@@ -4,7 +4,7 @@
   "name": "NG++",
   "version": "0.5.1",
   "author": "Keros",
-  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. From Gamma the tiers change how weapons behave (ricochets, chain arcs, split rockets, exploding decoys and sheep, shield zaps, shockwaves, fields), stronger at Epsilon and Omega, and the Lava Gun becomes the Ice Gun, which slows, freezes and shatters enemies (or, by a setting, the Meteor Gun burns, splashes magma and calls down meteor storms). The Tesla Claw hits steadily and makes enemies flinch, the Zodiac hurts bosses and the decoy lasts longer. 20 kills in a row with one tiered weapon set off ten seconds of overdrive. Eight armor tiers past the best armor, Alpha Armor to Omega Armor, are sold at the weapon vendor: each takes more off every hit and makes Ratchet glow in its color, Gamma adds thorns and Epsilon a last stand. Every two weapons at Omega give Ratchet one more health step. The extra shots, the RYNO II's and Gravity Bomb's real split rockets and mini bombs, the shots' colors and glow, and the Ice Gun's freeze and the other slows and stuns need OpenRAC with mod interface 1.29 (develop 9753743cd or later); with 1.28 the other perks work and the splits come as hits. The weapon's shots, bombs, bots, blasts and effects (the Shield Charger's shield too) glow in its tier's color, brighter with each tier (OpenRAC with mod interface 1.25). The RYNO II gets two upgrades first: Heavy RYNO II by XP, then Ultima RYNO II from the vendor, and one more after Omega by XP, Omega Prime, whose rockets split into homing rockets. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x1.5 up to x6, more from tough enemies), part of them as platinum bolts worth five times the gold ones and, rarely at first, obsidian bolts worth 25 times: the longer your kill streak, the more of both. The first challenge mode already drops a few platinum bolts. From the third challenge mode some extra enemies are elites, drawn in obsidian, tougher and richer, and each new game from the second challenge mode has a modifier (Swarm, Elite guard, Volatile, Bounty). Tabora's crystals and Grelbin's moonstones, the hoverbike races and the arenas pay more each new game too, and the characters who sell for bolts ask a little more. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24.",
+  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. From Gamma the tiers change how weapons behave (ricochets, chain arcs, split rockets, exploding decoys and sheep, shield zaps, shockwaves, fields), stronger at Epsilon and Omega, and the Lava Gun becomes the Ice Gun, which slows, freezes and shatters enemies (or, by a setting, the Meteor Gun burns, splashes magma and calls down meteor storms). The Tesla Claw hits steadily and makes enemies flinch, the Zodiac hurts bosses and the decoy lasts longer. 20 kills in a row with one tiered weapon set off ten seconds of overdrive. Eight armor tiers past the best armor, Alpha Armor to Omega Armor, are sold at the weapon vendor: each takes more off every hit and makes Ratchet glow in its color, Gamma adds thorns and Epsilon a last stand. Every two weapons at Omega give Ratchet one more health step. The extra shots, the RYNO II's and Gravity Bomb's real split rockets and mini bombs, the shots' colors and glow, and the Ice Gun's freeze and the other slows and stuns need OpenRAC with mod interface 1.29 (develop 9753743cd or later); with 1.28 the other perks work and the splits come as hits. The weapon's shots, bombs, bots, blasts and effects (the Shield Charger's shield too) glow in its tier's color, brighter with each tier (OpenRAC with mod interface 1.25). The RYNO II gets two upgrades first: Heavy RYNO II by XP, then Ultima RYNO II from the vendor, and one more after Omega by XP, Omega Prime, whose rockets split into homing rockets. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x1.5 up to x6, more from tough enemies), part of them as platinum bolts worth five times the gold ones and, rarely at first, obsidian bolts worth 25 times: the longer your kill streak, the more of both. The first challenge mode already drops a few platinum bolts. From the third challenge mode some extra enemies are elites, drawn in obsidian, tougher and richer, and each new game from the second challenge mode has a modifier (Swarm, Elite guard, Volatile, Bounty). Tabora's crystals and Grelbin's moonstones, the hoverbike races and the arenas pay more each new game too, and the characters who sell for bolts ask a little more. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24. The ship gets eight weapon tiers too, Alpha to Omega, sold for raritanium at Slim Cognito's Ship Shack (80 to 360): each hits harder and fires faster, Gamma overcharges every fourth hit, Epsilon finishes off damaged ships and Omega's hits arc to the next ship, and the ship glows in its tier's colour or a look its tier unlocks. From the second challenge mode the space missions send more waves of ships, with elites among them.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ng-plus-plus",
   "api": "1.14",
@@ -122,6 +122,32 @@
         { "value": "generous", "name": "Generous" }
       ],
       "description": "From the second challenge mode on, drops pay more bolts each new game (x1.5, x2.5, x4, then x6), tough enemies up to twice that, and part of each drop comes as platinum bolts worth five times the gold ones and obsidian bolts worth 25 times (more of both with a longer kill streak); the first challenge mode already drops a few platinum bolts. Tabora's crystals and Grelbin's moonstones, the hoverbike races and the arena challenges pay the same x1.5 to x6, and the characters who sell for bolts (not the weapon vendor) ask half that rise. Generous pays half as much again. Off leaves the game's drops, collectors, prizes and prices as they are. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24."
+    },
+    {
+      "key": "space_missions",
+      "multiplayer": "host",
+      "name": "Space missions",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode Feltzin's, Hrugis's and Gorn's space missions send more waves of enemy ships (one more wave, two from the fourth challenge mode, three from the sixth, one more under Swarm), Feltzin's targets come faster, and a share of the ships are elites drawn in obsidian with twice the health (20% at the second challenge mode, up to 60%). The ships also get the enemies' health curve. Off: the game's missions, with only the health curve."
+    },
+    {
+      "key": "ship_look",
+      "multiplayer": "own",
+      "name": "Ship look",
+      "type": "choice",
+      "default": "tier",
+      "choices": [
+        { "value": "tier", "name": "Ship tier's colour" },
+        { "value": "ion", "name": "Ion (Alpha)" },
+        { "value": "plasma", "name": "Plasma (Beta)" },
+        { "value": "solar", "name": "Solar (Gamma)" },
+        { "value": "inferno", "name": "Inferno (Epsilon)" },
+        { "value": "obsidian", "name": "Obsidian (Eta)" },
+        { "value": "prismatic", "name": "Prismatic (Omega)" },
+        { "value": "off", "name": "Off" }
+      ],
+      "description": "How the ship glows over its paint: in its ship weapon tier's colour, or in a look its tier has unlocked (the tier in brackets; before that, the tier's colour). Off leaves the game's paint alone. Needs OpenRAC with mod interface 1.25."
     }
   ],
   "save_data": {
@@ -761,6 +787,24 @@
         "key": "armour",
         "name": "Armor tier",
         "offset": 55,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "ship_weapons",
+        "name": "Ship weapons tier",
+        "offset": 54,
         "mask": 127,
         "max": 8,
         "choices": [

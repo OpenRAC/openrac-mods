@@ -13,6 +13,7 @@
 #include "elites.h"
 #include "perks.h"
 #include "tuning.h"
+#include "space_missions.h"
 
 namespace ng_plus_plus {
 
@@ -25,6 +26,12 @@ void Combat::post_hit(
 }
 
 void Combat::post_hit_with(PostHitFn original, std::uint32_t victim, std::uint32_t request) {
+    // A space level's hits: the ship's and its enemies' (space_missions.h).
+    if (m_space != nullptr && m_space->owns_hits()) {
+        m_space->post_hit(original, victim, request);
+        return;
+    }
+
     const GameView& view = m_weapons.view();
     float scale = 1.0f;
     int item = -1;

@@ -18,6 +18,7 @@ class Armour;
 class Elites;
 class Perks;
 class WeaponTuning;
+class SpaceMissions;
 
 // The enemies' curve, from the mod's settings.
 struct EnemySettings {
@@ -42,6 +43,9 @@ public:
         m_elites = elites;
         m_armour = armour;
     }
+
+    // The space missions, which take every hit in a space level (space_missions.h).
+    void set_space(SpaceMissions* space) { m_space = space; }
 
     // A hit posted to `victim` from the hit request at game address `request` (Moby_PostHit): on
     // anyone but the hero, its damage times the tier of the weapon that dealt it (fired_item) and
@@ -93,6 +97,7 @@ private:
     Elites* m_elites = nullptr;
     Armour* m_armour = nullptr;
     WeaponTuning* m_tuning = nullptr;
+    SpaceMissions* m_space = nullptr;
 };
 
 }  // namespace ng_plus_plus

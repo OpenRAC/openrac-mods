@@ -31,6 +31,9 @@ add_library(ng_plus_plus_core STATIC
   src/shots.cpp
   src/tuning_rules.cpp
   src/tuning.cpp
+  src/ship_upgrades.cpp
+  src/space_missions.cpp
+  src/ship_looks.cpp
   src/test_setup.cpp)
 target_include_directories(ng_plus_plus_core PUBLIC src)
 
@@ -73,6 +76,12 @@ if(BUILD_TESTING)
   target_link_libraries(ng_plus_plus_perks_test PRIVATE ng_plus_plus_core)
   set_target_properties(ng_plus_plus_perks_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_perks COMMAND ng_plus_plus_perks_test)
+
+  # The space rules alone: the waves, the elites, the ship's tiers and looks.
+  add_executable(ng_plus_plus_space_test tests/space_test.cpp)
+  target_link_libraries(ng_plus_plus_space_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_space_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_space COMMAND ng_plus_plus_space_test)
 
   # The bolt rules alone: the scales, the platinum share and the split.
   add_executable(ng_plus_plus_bolt_rules_test tests/bolt_rules_test.cpp)

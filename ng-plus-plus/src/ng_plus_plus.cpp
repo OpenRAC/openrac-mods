@@ -24,6 +24,11 @@
 //   armour.h       the armour tiers: protection, glow, thorns, last stand, the vendor's entry
 //   shots.h        OpenRAC 1.29's: extra shots, split rockets, mini bombs, shot looks, statuses
 //   tuning.h       0.5.1's: the Tesla Claw's steady hits, the Zodiac on bosses, the decoy's health
+//   ship_upgrades.h
+//                  the ship's weapon tiers, sold at the Ship Shack
+//   space_missions.h
+//                  the space missions: more waves, tougher ships, elites, the ship's hits
+//   ship_looks.h   the ship's glow
 //
 // Each tick: the save's clock is watched (at the title too) and a level left forgets its platinum
 // coins; in a level, the steps by experience are taken, the last versions' rows written, the
@@ -51,7 +56,10 @@
 #include "platinum_bolts.h"
 #include "rewards.h"
 #include "save_tiers.h"
+#include "ship_looks.h"
+#include "ship_upgrades.h"
 #include "shots.h"
+#include "space_missions.h"
 #include "test_setup.h"
 #include "text.h"
 #include "tuning.h"
@@ -97,7 +105,10 @@ public:
           m_perks(mod, m_view, m_weapons, m_elites, mod.setting<bool>("weapon_perks")),
           m_armour(mod, m_view, m_tiers, m_perks),
           m_shots(mod, m_view, m_weapons, m_perks),
-          m_tuning(mod, m_view, m_weapons, m_combat, mod.setting<bool>("tesla_steady"))
+          m_tuning(mod, m_view, m_weapons, m_combat, mod.setting<bool>("tesla_steady")),
+          m_ship(mod, m_view, m_tiers, disc.progress, disc.vendor),
+          m_space(mod, m_view, m_tiers, m_ship, space_settings(mod)),
+          m_ship_looks(mod, m_view, m_ship, ship_look_of(mod.setting<std::string>("ship_look")))
 #ifdef NGPP_TEST_SETUP
           ,
           m_test(mod, m_view, m_tiers, m_weapons)
@@ -110,6 +121,8 @@ public:
         m_bolts.set_elites(&m_elites);
         m_combat.set_tuning(&m_tuning);
         m_perks.set_claw_share(mod.setting<bool>("tesla_steady") ? kTeslaShare : 1.0f);
+        m_combat.set_space(&m_space);
+        m_space.set_elites(&m_elites);
     }
 
     ~NgPlusPlus() = default;
@@ -128,6 +141,9 @@ public:
 private:
     // Returns the enemies' settings of `mod`.
     static EnemySettings enemy_settings(const openrac::Mod& mod);
+
+    // Returns the space missions' settings of `mod`.
+    static SpaceSettings space_settings(const openrac::Mod& mod);
 
     // Takes the hook point `HookPoint` for `callable`, refusing the load when the port lacks it.
     template <class HookPoint, class F>
@@ -179,6 +195,9 @@ private:
     Armour m_armour;           // The armour tiers.
     Shots m_shots;             // The perks of OpenRAC 1.29's weapon calls.
     WeaponTuning m_tuning;     // 0.5.1's Tesla Claw, Zodiac and decoy.
+    ShipUpgrades m_ship;       // The ship's weapon tiers.
+    SpaceMissions m_space;     // The space missions.
+    ShipLooks m_ship_looks;    // The ship's glow.
 #ifdef NGPP_TEST_SETUP
     TestSetup m_test;          // Test runs only.
 #endif
@@ -193,6 +212,14 @@ NgPlusPlus* g_state = nullptr;
 
 EnemySettings NgPlusPlus::enemy_settings(const openrac::Mod& mod) {
     EnemySettings settings;
+    settings.scaling = mod.setting<bool>("enemy_scaling");
+    settings.strength = mod.setting<float>("enemy_strength");
+    return settings;
+}
+
+SpaceSettings NgPlusPlus::space_settings(const openrac::Mod& mod) {
+    SpaceSettings settings;
+    settings.on = mod.setting<bool>("space_missions");
     settings.scaling = mod.setting<bool>("enemy_scaling");
     settings.strength = mod.setting<float>("enemy_strength");
     return settings;
@@ -312,6 +339,8 @@ void NgPlusPlus::take_optional() {
     m_armour.start();
     m_shots.start();
     m_tuning.start();
+    m_space.start();
+    m_ship_looks.start();
 
     // The hero's health from Omega weapons: an OpenRAC without the hook point goes without.
     try {
@@ -405,6 +434,9 @@ void NgPlusPlus::tick() {
     m_perks.tick(m_tick);
     m_shots.tick(m_tick);
     m_tuning.tick(m_tick);
+    m_ship.tick(m_tick);
+    m_space.tick(m_tick);
+    m_ship_looks.tick(m_tick);
 #ifdef NGPP_TEST_SETUP
     m_test.tick();
 #endif
