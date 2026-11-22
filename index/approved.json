@@ -487,6 +487,19 @@
       }
     }
   ],
+  "vendor-buy-all": [
+    {
+      "version": "0.2.1",
+      "sha256": {
+        "android-arm64": "07d58d60a66b90c8c16ed665e76ba969895191530a38b952e40b683fb644d735",
+        "linux-aarch64": "19a07b07189f636cbfe47c340df831bc2c52f654bcfe127172c390bde8618745",
+        "linux-x86_64": "893dc9b8cc044f0ac3b81f2726bd0740e0a017268992212a0b28aeb0b3ad25df",
+        "macos-arm64": "b9663d951e2ed65e28005809db06f720f05b7d4a40649d46dd8cf476e76de4cc",
+        "macos-x86_64": "dfb6692daf2981d0e8bc7a21f43bfffd7c64d441996cd30b2e48ee8e2829c320",
+        "windows-x86_64": "b2cf91b3a72007b9d948ac4c409c6c6f71838b0b033c21871a0fce249a1ed698"
+      }
+    }
+  ],
   "weapon-wheel-pause": [
     "0.1.0"
   ],
