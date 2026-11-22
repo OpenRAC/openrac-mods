@@ -321,8 +321,8 @@ is not sold in a multiplayer party.
 From **Ultima RYNO II** (its last step before the tiers) and its first tier, **Alpha RYNO II**, on, each RYNO II rocket splits where it ends into 2 smaller
 homing rockets, and into 3 from Gamma (OpenRAC 1.29). They start just clear of what the rocket hit,
 fly at the nearest other enemies within 40 units, home on them as the game's own rockets do and
-explode like them, in the tier's colour. Heavy and Ultima RYNO II, the versions before the tiers,
-don't split. On a port before 1.29, from Gamma the 2 nearest enemies within 15 units take 45% of
+explode like them, in the tier's colour. Heavy RYNO II, the first version before the tiers,
+doesn't split. On a port before 1.29, from Gamma the 2 nearest enemies within 15 units take 45% of
 the hit instead (3 from Epsilon).
 
 ### RYNO II Omega Prime
