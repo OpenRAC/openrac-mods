@@ -138,7 +138,7 @@ def main():
     built = project / FOLDER
     if built.exists():
         shutil.rmtree(built)
-    make_museum.main(built)
+    make_museum.main(built, level_dir / "textures")
     shutil.copyfile(built / "terrain.glb", level_dir / "terrain.glb")
     (level_dir / "textures").mkdir(exist_ok=True)
     for png in (built / "textures").glob("*.png"):
@@ -163,7 +163,7 @@ def main():
         if s.startswith("[ext_resource"):
             ext[Scene.attr(s, "id")] = Scene.attr(s, "path")
     template_nodes, tie_models, shrub_models = {}, {}, {}
-    keep_ties = set(scatter.TIES.values())
+    keep_ties = set(scatter.TIES.values()) | set(scatter.TOWERS)
     keep_shrubs = set(scatter.SHRUBS.values())
     drop = set()
     for i, s in scene.nodes():
@@ -241,7 +241,7 @@ def main():
 
     # 6. Pokitaru's plants and rocks, scattered on the island.
     tie_count = shrub_count = 0
-    for kind, number, x, y, z, yaw, scale in scatter.plants():
+    for kind, number, x, y, z, yaw, scale in scatter.plants() + list(scatter.sea_islets()) + scatter.town() + scatter.decor():
         model = (tie_models if kind == "tie" else shrub_models).get(number)
         if model is None:
             continue

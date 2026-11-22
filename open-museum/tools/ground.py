@@ -14,11 +14,17 @@ SUN = SUN / np.linalg.norm(SUN)
 def shade(normals, ao=None, warm=1.0):
     """Vertex colours at the port's half strength (0.5 is the game's normal brightness)."""
     lit = np.clip(normals @ SUN, 0, 1)
-    light = 0.42 + 0.7 * lit
+    light = 0.62 + 0.55 * lit
     if ao is not None:
         light = light * ao
     c = np.stack([light * warm, light, light * (2 - warm)], -1) * 0.5
     return np.clip(c, 0, 1)
+
+
+# Pokitaru's rock pictures are dark: their ground is lit up to twice the normal (vertex colour 1.0).
+BRIGHT = {"om_cliff": 2.9, "om_jungle": 2.0, "om_rock": 2.4, "om_basalt": 2.8, "om_wet_sand": 2.2,
+          "om_grass": 1.35, "om_sand": 1.15}
+WARM = np.array([1.0, 1.0, 0.78])   # Pokitaru's ground light is warm: less blue (its colours reach 2.0)
 
 
 def grid(x0, y0, x1, y1, step):
@@ -29,13 +35,19 @@ def grid(x0, y0, x1, y1, step):
 
 
 def material_of(z, n, x, y):
+    """Pokitaru's look: grass on every flat ledge, layered rock with grass hanging over it on the
+    risers, creepers here and there, sand and wet rock by the sea."""
     slope = 1 - n[..., 2]
     dv = np.hypot(x - island.VOLCANO[0], y - island.VOLCANO[1])
+    creep = island.fbm(x, y, 40, 2, 3)
     m = np.full(z.shape, "om_grass", dtype=object)
     m[z < island.SEA + 4.5] = "om_sand"
-    m[(slope > 0.28) & (z > island.SEA + 3)] = "om_rock"
-    m[(z > island.SEA + 120)] = "om_rock"
-    m[(dv < 70) & (z > island.SEA + 60)] = "om_basalt"
+    steep = (slope > 0.22) & (z > island.SEA + 2)
+    m[steep] = "om_cliff"
+    m[steep & (creep > 0.5) & (z < island.SEA + 120)] = "om_jungle"
+    m[steep & (z < island.SEA + 7)] = "om_wet_sand"
+    m[(z > island.SEA + 150) & (slope > 0.12)] = "om_rock"
+    m[(dv < 70) & (z > island.SEA + 70) & (slope > 0.12)] = "om_basalt"
     m[(dv < 16) & (z < island.VOLCANO_TOP - 8)] = "om_lava"
     return m
 
@@ -65,10 +77,12 @@ def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=8.0):
         t = tris[mats == name]
         used, inverse = np.unique(t.reshape(-1), return_inverse=True)
         p = P[used]; n = Nf[used]
-        steep = n[:, 2] < 0.7
-        uv = np.where(steep[:, None], np.stack([(p[:, 0] + p[:, 1]) / uv_scale, -p[:, 2] / uv_scale], -1),
-                      p[:, :2] / uv_scale)
-        cc = col[used]
+        steep = n[:, 2] < 0.75
+        # Walls: the picture runs along the slope, its top up (the hanging grass at each ledge).
+        side = np.where(np.abs(n[:, 0]) > np.abs(n[:, 1]), p[:, 1], p[:, 0])
+        tall = 10.0 if name in ("om_cliff", "om_jungle", "om_wet_sand") else uv_scale
+        uv = np.where(steep[:, None], np.stack([side / tall, -p[:, 2] / tall], -1), p[:, :2] / uv_scale)
+        cc = np.clip(col[used] * BRIGHT.get(name, 1.0) * WARM, 0, 2)
         if name == "om_lava":
             cc = np.full_like(cc, 0.9)
         mesh.add(name, p, n, uv, cc, inverse.reshape(-1, 3))
@@ -80,7 +94,7 @@ def island_terrain():
     def keep(c):
         r = np.hypot(c[:, 0] - island.CENTRE[0], c[:, 1] - island.CENTRE[1])
         return (c[:, 2] > island.SEA - 14) | (r < 420)
-    mesh, _, _ = heightfield_mesh(0, 0, 1024, 1024, 4, keep)
+    mesh, _, _ = heightfield_mesh(-120, -120, 1144, 1144, 4, keep)
     return mesh
 
 
@@ -114,45 +128,54 @@ FAR = [(15, 1700, 380, 330), (60, 2300, 520, 520), (100, 1900, 300, 260), (150, 
 
 
 def far_islands():
+    """Islands on the horizon in Pokitaru's layers: rock walls, a grass top on every tier."""
     mesh = Mesh()
     rng = np.random.default_rng(7)
     for k, (ang, dist, rad, hgt) in enumerate(FAR):
         cx = 512 + math.cos(math.radians(ang)) * dist
         cy = 512 + math.sin(math.radians(ang)) * dist
-        rings, seg = 10, 40
-        bumps = rng.random(seg) * 0.35 + 0.8
-        pts, faces = [], []
-        for i in range(rings + 1):
-            t = i / rings
-            r = rad * (1 - t)
-            zz = island.SEA - 30 + (hgt + 30) * (1 - (1 - t) ** 2.2) * (0.9 + 0.1 * math.sin(k + i))
-            for s in range(seg):
-                a = 2 * math.pi * s / seg
-                rr = r * (bumps[s] if 0 < i < rings else 1)
-                pts.append([cx + math.cos(a) * rr, cy + math.sin(a) * rr, zz])
-        for i in range(rings):
-            for s in range(seg):
-                s1 = (s + 1) % seg
-                a0, a1 = i * seg + s, i * seg + s1
-                b0, b1 = (i + 1) * seg + s, (i + 1) * seg + s1
-                faces += [[a0, a1, b1], [a0, b1, b0]]
-        p = np.array(pts, np.float32)
-        # Normals from the faces.
-        n = np.zeros_like(p)
-        f = np.array(faces)
-        fn = np.cross(p[f[:, 1]] - p[f[:, 0]], p[f[:, 2]] - p[f[:, 0]])
-        for j in range(3):
-            np.add.at(n, f[:, j], fn)
-        n /= np.linalg.norm(n, axis=1, keepdims=True)
-        z = p[:, 2]
-        col = shade(n) * 0.85 + 0.08  # hazy
-        low = z < island.SEA + hgt * 0.45
-        part = Mesh()
-        for name, mask in (("om_grass", low), ("om_rock", ~low)):
-            sel = f[np.all(mask[f], 1)] if name == "om_rock" else f[np.any(mask[f], 1)]
-            used, inv = np.unique(sel.reshape(-1), return_inverse=True)
-            part.add(name, p[used], n[used], p[used][:, :2] / 40, col[used], inv.reshape(-1, 3))
-        mesh.merge(part)
+        n_grid = 44
+        step = rad * 2.4 / n_grid
+        xs = cx - rad * 1.2 + np.arange(n_grid + 1) * step
+        ys = cy - rad * 1.2 + np.arange(n_grid + 1) * step
+        X, Y = np.meshgrid(xs, ys, indexing="xy")
+        # A few peaks, each a stack of tiers.
+        peaks = [(cx, cy, rad, hgt)] + [(cx + rng.uniform(-0.5, 0.5) * rad, cy + rng.uniform(-0.5, 0.5) * rad,
+                                          rad * rng.uniform(0.3, 0.55), hgt * rng.uniform(0.5, 1.25)) for _ in range(3)]
+        Z = np.full(X.shape, island.SEA - 40.0)
+        for (px, py, pr, ph) in peaks:
+            d = np.hypot(X - px, Y - py) + (island.fbm(X, Y, pr * 0.6, 3, k) - 0.5) * pr * 0.5
+            t = island.smooth(pr, pr * 0.15, d)
+            tiers = 5
+            q = t ** 0.8 * tiers
+            stairs = (np.floor(q) + island.smooth(0.55, 0.85, q - np.floor(q))) / tiers
+            Z = np.maximum(Z, island.SEA - 40 + (ph + 40) * stairs)
+        hx = np.gradient(Z, step, axis=1); hy = np.gradient(Z, step, axis=0)
+        N = np.stack([-hx, -hy, np.ones_like(hx)], -1)
+        N /= np.linalg.norm(N, axis=-1, keepdims=True)
+        h, w = X.shape
+        idx = np.arange(h * w).reshape(h, w)
+        a, b, c, d = idx[:-1, :-1], idx[:-1, 1:], idx[1:, :-1], idx[1:, 1:]
+        tris = np.concatenate([np.stack([a, b, d], -1).reshape(-1, 3), np.stack([a, d, c], -1).reshape(-1, 3)])
+        P = np.stack([X, Y, Z], -1).reshape(-1, 3)
+        Nf = N.reshape(-1, 3)
+        tris = tris[P[tris][:, :, 2].max(1) > island.SEA - 2]
+        cn = Nf[tris].mean(1)
+        cz = P[tris][:, :, 2].mean(1)
+        col = shade(Nf) * 0.8 + 0.12  # hazy
+        names = np.where(cn[:, 2] > 0.8, "om_grass", "om_cliff")
+        names[(cz < island.SEA + 6) & (cn[:, 2] > 0.8)] = "om_sand"
+        for name in ("om_grass", "om_cliff", "om_sand"):
+            t = tris[names == name]
+            if not len(t):
+                continue
+            used, inv = np.unique(t.reshape(-1), return_inverse=True)
+            p = P[used]
+            if name == "om_cliff":
+                uv = np.stack([(p[:, 0] + p[:, 1]) / 40, -p[:, 2] / (hgt / 5)], -1)
+            else:
+                uv = p[:, :2] / 40
+            mesh.add(name, p, Nf[used], uv, np.clip(col[used] * BRIGHT.get(name, 1.0) * WARM, 0, 2), inv.reshape(-1, 3))
     return mesh
 
 

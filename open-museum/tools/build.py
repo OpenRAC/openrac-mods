@@ -20,8 +20,8 @@ FACES = [  # normal, corner order (indices into the 8 corners: bit0 x, bit1 y, b
 def light(n, base=1.0):
     n = np.asarray(n, np.float64)
     n = n / (np.linalg.norm(n) or 1)
-    v = (0.5 + 0.55 * max(0.0, float(n @ SUN))) * base * 0.5
-    return [min(v * 1.04, 1), min(v, 1), min(v * 0.94, 1)]
+    v = (0.62 + 0.6 * max(0.0, float(n @ SUN))) * base * 0.62
+    return [min(v * 1.06, 2), min(v, 2), min(v * 0.86, 2)]
 
 
 class Geo:

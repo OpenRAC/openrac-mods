@@ -99,7 +99,7 @@ def write(path, meshes, materials, textures, node_names=None, external=None):
                 "POSITION": accessor(p, "VEC3", 5126, 34962, True),
                 "NORMAL": accessor(nn.astype(np.float32), "VEC3", 5126, 34962),
                 "TEXCOORD_0": accessor(t, "VEC2", 5126, 34962),
-                "COLOR_0": accessor(np.clip(c, 0, 1).astype(np.float32), "VEC4", 5126, 34962)},
+                "COLOR_0": accessor(np.clip(c, 0, 2).astype(np.float32), "VEC4", 5126, 34962)},
                 "indices": accessor(i, "SCALAR", 5125, 34963), "material": material_index[name]})
         gl_meshes.append({"primitives": prims})
         nodes.append({"mesh": n, "name": (node_names[n] if node_names else f"Mesh_{n:03}")})

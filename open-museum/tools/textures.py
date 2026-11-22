@@ -1,6 +1,7 @@
-"""Open Museum's own textures, drawn from noise: no picture comes from the disc."""
+"""Open Museum's textures: drawn from noise here, or Pokitaru's own from your disc at install (DISC)."""
 
 import io
+from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -209,9 +210,44 @@ def all_textures():
         "om_planks": planks(), "om_planks_dark": planks(21, (120, 76, 44), (66, 40, 20)),
         "om_planks_light": planks(22, (196, 150, 98), (128, 88, 52), 6),
         "om_thatch": thatch(), "om_water": water(), "om_foam": foam(), "om_falls": falls(),
-        "om_stone": stone_path(), "om_lava": lava(),
+        "om_stone": stone_path(), "om_lava": lava(), "om_path": stone_path(),
+        "om_cliff": rock(), "om_jungle": to_png(tint(fractal(SIZE, 41), (30, 60, 30), (70, 120, 50))),
+        "om_wet_sand": sand(),
         "om_gold": solid((236, 186, 64)), "om_white": solid((236, 232, 222)),
         "om_rail": solid((150, 156, 168)), "om_red": solid((176, 46, 38)),
         "om_teal": solid((40, 150, 150)), "om_glass": solid((90, 170, 110)),
         "om_yellow": solid((250, 210, 40)), "om_orange": solid((240, 120, 30)),
     }
+
+
+# Pokitaru's own pictures, from the level as extracted from your disc: the island then looks like
+# the game's own planets. Missing ones keep the drawn pictures above.
+DISC = {
+    "om_grass": "terrain_0003.png",       # grass
+    "om_cliff": "terrain_0012.png",       # rock with grass hanging over its top: the layered cliffs
+    "om_jungle": "terrain_0009.png",      # creepers over dark rock
+    "om_rock": "terrain_0017.png",        # bare rock, the peaks
+    "om_sand": "terrain_0022.png",
+    "om_wet_sand": "terrain_0027.png",    # rock with sand at its foot: the shore
+    "om_basalt": "terrain_0016.png",
+    "om_stone": "terrain_0006.png",       # cobbles
+    "om_path": "terrain_0005.png",        # cobbles with grass
+    "om_planks": "tie_0006.png",          # the house's walls
+    "om_planks_light": "tie_0018.png",    # floors and decks
+    "om_planks_dark": "terrain_0001.png", # posts and frames
+}
+
+
+def from_disc(folder):
+    """The pictures of DISC found in FOLDER (the level's textures/), as PNG bytes."""
+    out = {}
+    if folder is None:
+        return out
+    for name, file in DISC.items():
+        path = Path(folder) / file
+        if path.is_file():
+            im = Image.open(path).convert("RGB")
+            buf = io.BytesIO()
+            im.save(buf, "PNG")
+            out[name] = buf.getvalue()
+    return out

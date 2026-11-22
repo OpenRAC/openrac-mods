@@ -5,8 +5,9 @@ lagoon, mountains, two waterfalls, a volcano and small islets. Like the Insomnia
 later games, but about how OpenRAC is made. The rooms are empty frames, ready for exhibits.
 
 It is not a mod with a manifest: it is a set of Python scripts that turn your own Pokitaru level
-project into the museum. No game data is in this folder; the plants, rocks, lamps and gadget
-targets come from your disc when you install it.
+project into the museum. No game data is in this folder; the plants, rocks, rock islets, turbine
+towers, lamps, gadget targets and the ground and wood pictures come from your disc when you
+install it (Pokitaru's own, so the island looks like the game's planets).
 
 ## Install
 
@@ -27,11 +28,15 @@ Needs Python 3 with numpy and Pillow.
 
 ## What is in it
 
+- **The island** in Pokitaru's layered style: rock walls with grass hanging over every ledge,
+  rocky knolls, sea stacks round the coast, Pokitaru's rock and grass islets out at sea, and its
+  turbine towers on the far islands.
 - **The house** in the middle of the lagoon: two floors of 8 rooms round an atrium, each with a
   sign, four empty exhibit boards and three plinths. Ground floor: Welcome, Decompilation,
   Matching, The Port, Hostgen, Renderer, Launcher, Mods and SDK. Upper floor: Devlog, OpenRAC
   Editor, Cutscenes, Android, Enhanced, Speedrun Corner, Multiplayer, Thank You. Room names are in
-  `tools/house.py` (`GROUND`, `UPPER`).
+  `tools/house.py` (`GROUND`, `UPPER`). Tiki torches, planters with Pokitaru's bushes, banners
+  and lanterns round the deck.
 - **Gadget routes** (Swingshot, each tested in the game from start to end):
   - north jetty to the tower's top room (the secret archive);
   - the coast to the message-in-a-bottle islet, over the sea;

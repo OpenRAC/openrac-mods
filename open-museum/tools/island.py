@@ -87,7 +87,13 @@ def height(x, y):
     ridge_in = smooth(138, 162, r)                       # the cliff face
     ridge_out = smooth(290, 230, rr)
     peaks = 70 + 90 * fbm(x, y, 90, 4, 2)
-    mountains = north * ridge_in * ridge_out * peaks
+    raw = north * ridge_in * ridge_out * peaks
+    # Layered, except along the Swingshot climb from the lookout to the volcano (kept smooth).
+    lx, ly = LOOKOUT
+    dx, dy = VOLCANO_LEDGE[0] - lx, VOLCANO_LEDGE[1] - ly
+    t = np.clip(((x - lx) * dx + (y - ly) * dy) / (dx * dx + dy * dy), 0, 1)
+    climb = smooth(30, 45, np.hypot(x - lx - t * dx, y - ly - t * dy))
+    mountains = raw * (1 - climb) + terraced(raw, x, y, 10.0) * climb
     # Notches where the waterfalls start.
     for f in FALLS:
         d = np.abs(((a - f["angle"] + 180) % 360) - 180)
@@ -121,15 +127,42 @@ def height(x, y):
     inside = smooth(g["half"] + 1.5, g["half"] - 0.5, dg * r / 57.2958) * smooth(g["r0"] - 2, g["r0"], r) * smooth(g["r1"] + 2, g["r1"], r)
     land = land * (1 - inside) + (SEA + 2.0) * inside
 
-    # Offshore islets.
-    for (ix, iy, ir, ih) in ISLETS:
-        di = np.hypot(x - ix, y - iy)
-        land = np.maximum(land, SEA - 20 + (ih + 20) * smooth(ir, ir * 0.3, di))
+    # Rocky knolls on the low land, in layers like the mountains (kept under the collision's top).
+    for (kx, ky, kr, kh) in KNOLLS:
+        dk = np.hypot(x - kx, y - ky) + (fbm(x, y, 18, 2, 3) - 0.5) * kr * 0.5
+        k = smooth(kr, kr * 0.35, dk)
+        land = np.where(k > 0, np.maximum(land, SEA + 2 + terraced(kh * k, x, y, 6.0) - 6 * (1 - k)), land)
+
+    # Offshore islets and sea stacks: steep rock under a grass cap.
+    for (ix, iy, ir, ih) in ISLETS + STACKS + TOWN:
+        di = np.hypot(x - ix, y - iy) + (fbm(x, y, 14, 2, 1) - 0.5) * ir * 0.45
+        land = np.maximum(land, SEA - 20 + terraced((ih + 20) * smooth(ir, ir * 0.55, di), x, y, 7.0))
     return land
+
+
+def terraced(h, x, y, step):
+    """Layers of rock with flat tops, like Pokitaru's cliffs: steep risers every STEP units,
+    their edges wobbling so no two ledges are the same."""
+    h = np.asarray(h, np.float64)
+    wob = (fbm(x, y, 22, 2, 2) - 0.5) * step * 0.8
+    q = (h + wob) / step
+    base = np.floor(q)
+    frac = q - base
+    stairs = (base + smooth(0.45, 0.8, frac)) * step - wob
+    stairs = np.minimum(stairs, h + step * 0.5)
+    return np.where(h > 0.5, np.maximum(0.65 * stairs + 0.35 * h, 0), h)
 
 
 # Small islands around: (x, y, radius, height above SEA).
 ISLETS = [(870, 250, 26, 6), (330, 250, 20, 14), (600, 140, 18, 4), (300, 800, 30, 38)]
+# Tall stacks in the sea round the island, out of the gadget routes.
+STACKS = [(905, 400, 10, 24), (930, 470, 7, 16), (880, 640, 12, 30), (845, 800, 9, 20), (760, 860, 14, 34),
+          (520, 860, 8, 18), (690, 175, 9, 22), (470, 160, 11, 26), (395, 300, 7, 18), (960, 560, 8, 14),
+          (790, 250, 6, 12), (965, 760, 10, 26)]
+# Broad islands further out, the turbine town of Pokitaru on them (scatter.town).
+TOWN = [(1010, 300, 46, 9), (1015, 690, 40, 11), (800, 70, 44, 8), (400, 70, 40, 12)]
+# Knolls on the island's low land, away from the house, the pad and the bridges.
+KNOLLS = [(760, 470, 22, 16), (735, 385, 16, 12), (520, 330, 18, 14), (690, 330, 20, 18), (780, 560, 15, 12)]
 
 
 def normal(x, y, e=0.5):

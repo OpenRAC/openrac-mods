@@ -12,7 +12,8 @@ OUT gets:
   collision/house.glb              the house's floors, walls, roofs, bridges
   layout.json                      where the scene's objects go (see place_museum.py)
 
-Every picture and model here is drawn by these scripts: nothing comes from the disc.
+Every model here is drawn by these scripts; the ground and wood pictures are Pokitaru's own, read
+from the extracted level (DISC_TEXTURES) when it is given, else drawn too.
 """
 
 import json
@@ -33,7 +34,7 @@ from build import Geo
 MATERIALS = {name: {"texture": name, "double": True} for name in (
     "om_sand", "om_grass", "om_rock", "om_basalt", "om_planks", "om_planks_dark", "om_planks_light",
     "om_thatch", "om_water", "om_foam", "om_falls", "om_stone", "om_lava", "om_gold", "om_white",
-    "om_rail", "om_red", "om_teal", "om_glass", "om_yellow", "om_orange")}
+    "om_rail", "om_red", "om_teal", "om_glass", "om_yellow", "om_orange", "om_cliff", "om_jungle", "om_wet_sand", "om_path")}
 
 
 def collision_glb(path, triangles):
@@ -66,11 +67,12 @@ def collision_glb(path, triangles):
     glb.write(str(path), [mesh], mats, {})
 
 
-def main(out):
+def main(out, disc_textures=None):
     out = Path(out)
     (out / "models").mkdir(parents=True, exist_ok=True)
     (out / "collision").mkdir(parents=True, exist_ok=True)
     tex = textures.all_textures()
+    tex.update(textures.from_disc(disc_textures))
 
     # The terrain: island, sea, horizon.
     land = ground.island_terrain()

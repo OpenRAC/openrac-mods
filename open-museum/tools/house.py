@@ -163,6 +163,7 @@ def build(geo, signs, posters):
         geo.box("om_planks_dark", (px - 0.6, py - 0.6, F0), (px + 0.6, py + 0.6, TOP + 6), solid=True)
 
     roofs(geo, x0, y0, x1, y1, ax0, ay0, ax1, ay1)
+    decorate(geo, x0, y0, x1, y1)
     tower(geo)
     bridges(geo)
 
@@ -193,6 +194,55 @@ def build(geo, signs, posters):
     # The atrium's centre: a round pool of light, the logo turns above it (an animated prop).
     geo.cylinder("om_gold", (CX, CY), 3.2, F0, F0 + 0.6, 24, solid=True)
     geo.cylinder("om_white", (CX, CY), 2.6, F0 + 0.6, F0 + 1.0, 24, solid=True)
+
+
+# Where the deck's planters stand (scatter.decor puts Pokitaru's bushes in them).
+def planters():
+    x0, y0, x1, y1 = CX - HALF, CY - HALF, CX + HALF, CY + HALF
+    out = []
+    for (px, py) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+        out.append((px + math.copysign(DECK - 3, px - CX), py + math.copysign(DECK - 3, py - CY)))
+    for d in (-1, 1):                      # beside the south and east doors
+        out.append((CX + d * 7, y0 - DECK + 2.5))
+        out.append((x1 + DECK - 2.5, CY + d * 7))
+    return out
+
+
+def torch(geo, x, y, z0, height=3.2):
+    """A tiki torch: a pole, a basket, a flame that glows."""
+    geo.cylinder("om_planks_dark", (x, y), 0.18, z0, z0 + height, 6)
+    geo.cylinder("om_thatch", (x, y), 0.4, z0 + height, z0 + height + 0.6, 8)
+    geo.cone("om_orange", (x, y), 0.36, z0 + height + 0.6, z0 + height + 1.6, 8, glow=[1.6, 1.1, 0.5])
+    geo.cone("om_yellow", (x, y), 0.2, z0 + height + 0.6, z0 + height + 1.25, 8, glow=[1.8, 1.6, 0.8])
+
+
+def decorate(geo, x0, y0, x1, y1):
+    """Planters, tiki torches and banners: the house's holiday look."""
+    for (px, py) in planters():
+        geo.box("om_planks_dark", (px - 1.3, py - 1.3, F0), (px + 1.3, py + 1.3, F0 + 0.9), solid=False)
+        geo.box("om_grass", (px - 1.1, py - 1.1, F0 + 0.9), (px + 1.1, py + 1.1, F0 + 0.95), solid=False)
+    # Torches on the deck's corners and by each bridge.
+    for (px, py) in ((x0 - DECK + 0.6, y0 - DECK + 0.6), (x1 + DECK - 0.6, y0 - DECK + 0.6),
+                     (x1 + DECK - 0.6, y1 + DECK - 0.6), (x0 - DECK + 0.6, y1 + DECK - 0.6),
+                     (CX - 4.6, y0 - DECK + 0.6), (CX + 4.6, y0 - DECK + 0.6),
+                     (x1 + DECK - 0.6, CY - 4.6), (x1 + DECK - 0.6, CY + 4.6)):
+        torch(geo, px, py, F0)
+    # Long banners between the upper windows, on every side, in the museum's colours.
+    colours = ("om_red", "om_teal", "om_yellow", "om_orange")
+    for side, (a, b, out) in enumerate((((x0, y0), (x1, y0), (0, -1)), ((x1, y0), (x1, y1), (1, 0)),
+                                        ((x1, y1), (x0, y1), (0, 1)), ((x0, y1), (x0, y0), (-1, 0)))):
+        a, b, out = np.array(a, float), np.array(b, float), np.array(out, float)
+        d = (b - a) / np.linalg.norm(b - a)
+        for k, s in enumerate((3.2, CELL * 3 - 3.2)):      # by the corners: clear of the windows and signs
+            p = a + d * s + out * (WALL + 0.12)
+            m = colours[(side + k) % 4]
+            geo.oriented_box(m, p - d * 1.1, p + d * 1.1, out, 0.06, F1 + 0.4, TOP - 0.8, solid=False)
+            geo.oriented_box("om_gold", p - d * 1.25, p + d * 1.25, out, 0.2, TOP - 0.8, TOP - 0.5, solid=False)
+    # Lanterns hung under the eaves on the porch corners: glowing balls of light.
+    for (px, py) in ((x0 - 2, y0 - 2), (x1 + 2, y0 - 2), (x1 + 2, y1 + 2), (x0 - 2, y1 + 2)):
+        geo.cylinder("om_planks_dark", (px, py), 0.05, TOP - 2.5, TOP, 4)
+        geo.cylinder("om_red", (px, py), 0.5, TOP - 3.6, TOP - 2.5, 8)
+        geo.cone("om_yellow", (px, py), 0.3, TOP - 3.4, TOP - 2.7, 8, glow=[1.8, 1.5, 0.8])
 
 
 def plinth(geo, p, z0):
