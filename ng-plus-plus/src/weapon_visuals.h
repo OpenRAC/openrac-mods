@@ -61,6 +61,8 @@ inline constexpr VisualClass kVisualClasses[] = {
     {4406u, 29u, true},   // Lava Gun's lingering blobs (lava_gun_update_blobs)
     {3146u, 28u, false},  // Plasma Coil
     {1482u, 28u, false},  // Plasma Storm, its Mega
+    {2715u, 28u, true},   // Plasma Coil's shot (thrown_shot_update), the hits' source
+    {2473u, 28u, true},   // Plasma Storm's shot (UpdateMovingEffectState), the same
     {1487u, 27u, false},  // Minirocket Tube
     {4100u, 27u, false},  // Megarocket Cannon, its Mega
     {1498u, 27u, true},   // Minirocket Tube's homing rocket (homing_l00_shot_update)
@@ -99,6 +101,7 @@ inline constexpr VisualClass kVisualClasses[] = {
     {3329u, 24u, true},   // its Mega's seeker
     {1483u, 23u, false},  // Pulse Rifle
     {3076u, 23u, false},  // Vaporizer, its Mega
+    {1494u, 23u, true},   // its beam (beam_spawn_moving), the hits' source
     {163u,  14u, false},  // Visibomb Gun
     {172u,  14u, true},   // its missile
     {192u,  12u, true},   // Bomb Glove's bomb

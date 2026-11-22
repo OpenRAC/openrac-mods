@@ -226,6 +226,10 @@ inline constexpr HitSource kHitSources[] = {
     {2652u, 45u},  // Shield Charger: tesla_barrier_update (L00_003C3D90), item 0x2D
     {4498u, 45u},  // Tesla Barrier, the Shield Charger's upgrade, the same update
     {177u, 18u},   // Tesla Claw: hero_tether_beam_update (the levels' *-tether files)
+    {2715u, 28u},  // Plasma Coil's shot: thrown_shot_update (L00_003C6298-shot), the hit's source
+    {2473u, 28u},  // Plasma Storm's shot: UpdateMovingEffectState (L00_003B9CB8-state), the same
+    {1494u, 23u},  // Pulse Rifle's beam: beam_spawn_moving (L00_003A7C30), item 0x17
+    {3800u, 9u},   // Clank Zapper's beam: its update (L00_0040BA30) posts the hit as itself
 };
 // clang-format on
 
