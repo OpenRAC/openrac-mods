@@ -16,6 +16,7 @@
 #include "perk_rules.h"
 #include "save_book.h"
 #include "tiers.h"
+#include "tuning_rules.h"
 
 namespace {
 
@@ -436,6 +437,104 @@ void test_status_perks() {
     CHECK(hit_perk(53, Stage::Epsilon).status_ticks > 0);
 }
 
+// Checks the Lava Gun's fire path (0.5.1): the burn from Alpha, the splash from Gamma, the
+// eruption from Epsilon, the storm at Omega, its colours and names, and the path switch.
+void test_fire_path() {
+    const FireEffect none = fire_effect(0);
+
+    CHECK(none.burn_ticks == 0);
+    CHECK(none.splash_radius == 0.0f);
+
+    for (int tier = 1; tier <= 8; ++tier) {
+        const FireEffect fire = fire_effect(tier);
+
+        CHECK(fire.burn_ticks > 0);
+        CHECK(fire.burn_share > 0.0f);
+        CHECK(fire.energy >= 0 && fire.energy <= 15);
+        CHECK((fire.splash_radius > 0.0f) == (tier >= 3));
+        CHECK((fire.erupt_radius > 0.0f) == (tier >= 5));
+        CHECK((fire.storm_every > 0) == (tier == 8));
+
+        // Each tier at least as strong as the one before.
+        if (tier > 1) {
+            const FireEffect before = fire_effect(tier - 1);
+            CHECK(fire.burn_share >= before.burn_share);
+            CHECK(fire.burn_ticks >= before.burn_ticks);
+            CHECK(fire.splash_share >= before.splash_share);
+        }
+    }
+
+    // About as strong as the Ice Gun's shatter at Omega.
+    CHECK(fire_effect(8).erupt_radius >= ice_effect(8).shatter_radius);
+
+    CHECK(!fire_tint_rgb(0, 0).has_value());
+
+    for (int tier = 1; tier <= 8; ++tier) {
+        CHECK(fire_tint_rgb(tier, 0).has_value());
+    }
+
+    bool moved = false;
+
+    for (std::uint32_t tick = 1; tick < 600 && !moved; ++tick) {
+        moved = fire_tint_rgb(8, tick) != fire_tint_rgb(8, 0);
+    }
+
+    CHECK(moved);
+
+    // The path: the Ice Gun by default, its names and colours; then the fire path's.
+    CHECK(lava_path() == LavaPath::Ice);
+    CHECK(std::string(lava_name(3)) == kIceGunName);
+    CHECK(weapon_tint_rgb(kLavaGun, 3, 7) == ice_tint_rgb(3, 7));
+
+    set_lava_path(LavaPath::Fire);
+    CHECK(!ice_gun_on());
+    CHECK(std::string(lava_name(1)) == "Meteor Gun");
+    CHECK(std::string(lava_name(4)) == "Magma Gun");
+    CHECK(std::string(lava_name(6)) == "Inferno Gun");
+    CHECK(std::string(lava_name(8)) == "Supernova Gun");
+    CHECK(display_name(lava_name(8), Kind::Four, 8) == "Omega Supernova Gun");
+
+    for (int level = 0; level <= 8; ++level) {
+        CHECK(weapon_tint_rgb(kLavaGun, level, 7) == fire_tint_rgb(level, 7));
+        CHECK(weapon_tint_rgb(kLancer, level, 7) == tint_rgb(Kind::Four, level, 7));
+    }
+
+    set_lava_path(LavaPath::Ice);
+    CHECK(ice_gun_on());
+}
+
+// Checks 0.5.1's weapon tuning: the Tesla Claw's steady hits, the Zodiac's boss damage and the
+// decoy's health.
+void test_tuning() {
+    // The steady claw: more damage a second than the game's one hit about every 51 frames, but not
+    // twice as much.
+    CHECK(tesla_gain(51.0f) > 1.0f);
+    CHECK(tesla_gain(51.0f) < 2.0f);
+    CHECK(kTeslaShare < 0.5f);
+    CHECK(kTeslaHitTicks < 10);
+
+    // The Zodiac: no boss, the game's drain; a boss more, the final boss less than the others, a
+    // tier more again.
+    CHECK(zodiac_vulnerability(30) == 1.0f);
+    CHECK(zodiac_vulnerability(3145) > 1.0f);
+    CHECK(zodiac_vulnerability(4576) > 1.0f);
+    CHECK(zodiac_vulnerability(4576) < zodiac_vulnerability(3145));
+    CHECK(zodiac_boss_drain(30, 0, 0, true, 1.0f) == kZodiacDrain);
+    CHECK(zodiac_boss_drain(3145, 0, 0, true, 1.0f) == kZodiacDrain * zodiac_vulnerability(3145));
+    CHECK(zodiac_boss_drain(3145, 8, 0, true, 1.0f) > zodiac_boss_drain(3145, 1, 0, true, 1.0f));
+
+    // NG++'s boss curve divides it as every weapon's hits.
+    CHECK(zodiac_boss_drain(3145, 8, 4, true, 1.0f) < zodiac_boss_drain(3145, 8, 4, false, 1.0f));
+
+    // The decoy: kDecoyBase with no tier, then a fifth more than the tier's damage factor.
+    CHECK(decoy_health(0) == kDecoyBase);
+    CHECK(decoy_health(1) > decoy_health(0));
+    CHECK(decoy_health(8) > damage(Kind::NoExp, 8) * kDecoyBase);
+
+    for (int level = 2; level <= 8; ++level) {
+        CHECK(decoy_health(level) > decoy_health(level - 1));
+    }
+}
 }  // namespace
 
 int main() try {
@@ -457,6 +556,8 @@ int main() try {
     test_shot_perks();
     test_refire_and_rate();
     test_status_perks();
+    test_fire_path();
+    test_tuning();
     return ng_plus_plus::test::result("ng_plus_plus_perks");
 } catch (...) {
     // A test that throws has failed.

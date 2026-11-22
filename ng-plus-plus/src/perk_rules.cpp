@@ -61,6 +61,21 @@ constexpr std::uint32_t kIceRgb[7] = {
 };
 constexpr std::uint32_t kAuroraRgb[] = {0x30FFE0u, 0x60C8FFu, 0xFFFFFFu, 0x4060FFu, 0x80FFB0u};
 
+// The fire path's colours, 0xRRGGBB, Alpha to Eta; Omega cycles the supernova.
+constexpr std::uint32_t kFireRgb[7] = {
+    0xFF7A30u,  // ember
+    0xFF9418u,  // flame
+    0xFF5410u,  // magma
+    0xFFB020u,  // blaze
+    0xFF2E08u,  // inferno
+    0xE01040u,  // scorch
+    0xFFD040u,  // solar
+};
+constexpr std::uint32_t kSupernovaRgb[] = {0xFF2000u, 0xFF8000u, 0xFFE040u, 0xFFFFF0u, 0xFF3070u};
+
+// The path the Lava Gun's tiers take (set_lava_path).
+LavaPath g_lava_path = LavaPath::Ice;
+
 // The armour's glows, 0xRRGGBB, Alpha to Eta; Omega cycles them.
 constexpr std::uint32_t kArmourRgb[7] = {
     0xB8C8E0u,  // steel
@@ -535,12 +550,116 @@ std::optional<std::uint32_t> ice_tint_rgb(int tier, std::uint32_t tick) {
     return swap_rb(kIceRgb[static_cast<std::size_t>(tier - 1)]);
 }
 
+void set_lava_path(LavaPath path) {
+    g_lava_path = path;
+}
+
+LavaPath lava_path() {
+    return g_lava_path;
+}
+
+FireEffect fire_effect(int tier) {
+    FireEffect fire;
+
+    // No tier: the game's meteors.
+    if (tier <= 0) {
+        return fire;
+    }
+
+    const Stage stage = stage_of_tier(tier);
+    fire.energy = std::min(kEffectTop, 4 + tier);
+
+    // Alpha and Beta: a burn, two seconds of a tenth of the hit every quarter second.
+    fire.burn_ticks = 120;
+    fire.burn_share = 0.1f;
+
+    // Gamma (the Magma Gun): a hotter, longer burn, and a splash of magma that sets fire to the
+    // enemies around the impact.
+    if (stage >= Stage::Gamma) {
+        fire.burn_ticks = 180;
+        fire.burn_share = 0.12f;
+        fire.splash_radius = 4.0f;
+        fire.splash_share = 0.4f;
+    }
+
+    // Epsilon (the Inferno Gun): a burning enemy killed erupts, setting its neighbours on fire.
+    if (stage >= Stage::Epsilon) {
+        fire.burn_share = 0.15f;
+        fire.splash_radius = 5.0f;
+        fire.splash_share = 0.5f;
+        fire.erupt_radius = 6.0f;
+        fire.erupt_share = 1.5f;
+    }
+
+    // Omega (the Supernova Gun): every fourth meteor calls down a storm of three more around its
+    // victim, the eruptions wider and stronger.
+    if (stage >= Stage::Omega) {
+        fire.burn_ticks = 240;
+        fire.burn_share = 0.18f;
+        fire.splash_radius = 6.0f;
+        fire.splash_share = 0.6f;
+        fire.erupt_radius = 8.0f;
+        fire.erupt_share = 2.0f;
+        fire.storm_every = 4;
+        fire.storm_meteors = 3;
+        fire.storm_radius = 4.0f;
+        fire.storm_share = 0.8f;
+    }
+
+    return fire;
+}
+
+std::optional<std::uint32_t> fire_tint_rgb(int tier, std::uint32_t tick) {
+    // No tier: the game's own colour.
+    if (tier <= 0) {
+        return std::nullopt;
+    }
+
+    // Omega: the supernova.
+    if (tier >= kOmegaTier) {
+        constexpr auto count =
+            static_cast<std::uint32_t>(sizeof kSupernovaRgb / sizeof kSupernovaRgb[0]);
+        return swap_rb(cycle_rgb(kSupernovaRgb, count, kCycleTicks, tick));
+    }
+
+    return swap_rb(kFireRgb[static_cast<std::size_t>(tier - 1)]);
+}
+
+const char* lava_name(int tier) {
+    // The ice path: one name for every tier.
+    if (ice_gun_on()) {
+        return kIceGunName;
+    }
+
+    switch (stage_of_tier(tier)) {
+        case Stage::None:
+            return "Meteor Gun";
+        case Stage::Gamma:
+            return "Magma Gun";
+        case Stage::Epsilon:
+            return "Inferno Gun";
+        case Stage::Omega:
+            return "Supernova Gun";
+    }
+
+    return "Meteor Gun";
+}
+
+namespace {
+
+// Returns the Lava Gun's tint at tier `tier` on the path in play.
+std::optional<std::uint32_t> lava_tint_rgb(int tier, std::uint32_t tick) {
+    return ice_gun_on() ? ice_tint_rgb(tier, tick) : fire_tint_rgb(tier, tick);
+}
+
+}  // namespace
+
 std::optional<std::uint32_t> weapon_tint_rgb(int item, int level, std::uint32_t tick) {
     const Kind kind = kind_of(item);
 
-    // The Lava Gun's tiers are the Ice Gun's.
+    // The Lava Gun's tiers are the Ice Gun's, or the fire path's.
     if (item == kLavaGun) {
-        return ice_tint_rgb(tier_of(kind, level), tick);
+        return lava_tint_rgb(tier_of(kind, level), tick);
     }
 
     return tint_rgb(kind, level, tick);
@@ -549,9 +668,9 @@ std::optional<std::uint32_t> weapon_tint_rgb(int item, int level, std::uint32_t 
 std::optional<std::uint32_t> weapon_effect_rgb(int item, int level, std::uint32_t tick) {
     const Kind kind = kind_of(item);
 
-    // The Ice Gun's colour, lifted as every tier's.
+    // The path's colour, lifted as every tier's.
     if (item == kLavaGun) {
-        const std::optional<std::uint32_t> tint = ice_tint_rgb(tier_of(kind, level), tick);
+        const std::optional<std::uint32_t> tint = lava_tint_rgb(tier_of(kind, level), tick);
         return tint ? std::optional<std::uint32_t>(effect_of_tint(*tint)) : std::nullopt;
     }
 

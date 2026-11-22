@@ -79,9 +79,10 @@ std::string Weapons::name_at(int item, int level) const {
 
     const Row row = named ? *named : m_view.current_row(item);
 
-    // The Lava Gun's tiers are the Ice Gun's (rac3's Lava Gun V5 is its Liquid Nitrogen Gun).
+    // The Lava Gun's tiers are the Ice Gun's (rac3's Lava Gun V5 is its Liquid Nitrogen Gun), or
+    // the fire path's own names.
     if (item == kLavaGun && level > 0) {
-        return display_name(kIceGunName, kind, level);
+        return display_name(lava_name(tier_of(kind, level)), kind, level);
     }
 
     const std::string base = m_view.text(row.name_id());

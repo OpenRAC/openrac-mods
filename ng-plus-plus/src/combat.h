@@ -17,6 +17,7 @@ namespace ng_plus_plus {
 class Armour;
 class Elites;
 class Perks;
+class WeaponTuning;
 
 // The enemies' curve, from the mod's settings.
 struct EnemySettings {
@@ -52,6 +53,19 @@ public:
         std::uint32_t request
     );
 
+    // Moby_PostHit's original: (victim, request).
+    using PostHitFn = void (*)(std::uint32_t, std::uint32_t);
+
+    // post_hit through the original `post`: for the hits the mod posts as the game's own (the
+    // Tesla Claw's steady hits), scaled and setting perks off as the game's.
+    void post_hit_with(PostHitFn post, std::uint32_t victim, std::uint32_t request);
+
+    // 0.5.1's weapon tuning (tuning.h): the Tesla Claw's hits, the decoy's.
+    void set_tuning(WeaponTuning* tuning) { m_tuning = tuning; }
+
+    // The curve's settings.
+    const EnemySettings& enemies() const { return m_enemies; }
+
     // A moby's death recorded (Moby_RecordDeath): the game's, then from cycle 2 the weapon
     // experience it gave (to whichever weapons: the killing one and the game's shares) times
     // kill_experience for the moby (an enemy's own bolts, a boss by its class).
@@ -78,6 +92,7 @@ private:
     Perks* m_perks = nullptr;
     Elites* m_elites = nullptr;
     Armour* m_armour = nullptr;
+    WeaponTuning* m_tuning = nullptr;
 };
 
 }  // namespace ng_plus_plus

@@ -202,6 +202,59 @@ IceEffect ice_effect(int tier);
 // polar, cobalt, and an aurora cycling at Omega (in place of the tiers' lime to rainbow).
 std::optional<std::uint32_t> ice_tint_rgb(int tier, std::uint32_t tick);
 
+// ---- The Lava Gun's path: the Ice Gun or the Meteor Gun's fire (0.5.1) ----
+
+// What the Lava Gun's tiers become: the Ice Gun (0.5.0's, the default) or the Meteor Gun's own
+// fire path (the "lava_gun" setting).
+enum class LavaPath : std::uint8_t {
+    Ice = 0,
+    Fire = 1
+};
+
+// Sets the path for the whole mod (at load, from the setting), and returns it.
+void set_lava_path(LavaPath path);
+LavaPath lava_path();
+
+// Returns whether the Lava Gun's tiers are the Ice Gun now.
+inline bool ice_gun_on() {
+    return lava_path() == LavaPath::Ice;
+}
+
+// What a fire-path meteor does to an enemy it hits.
+struct FireEffect {
+    int burn_ticks = 0;          // It burns this long after each hit...
+    float burn_share = 0.0f;     // ...taking this share of the hit every kBurnPulseTicks.
+    float splash_radius = 0.0f;  // Enemies within this of the impact...
+    float splash_share = 0.0f;   // ...take this share of the hit, and catch fire.
+    float erupt_radius = 0.0f;   // A burning enemy killed erupts: enemies within this...
+    float erupt_share = 0.0f;    // ...take this share of its last hit, and catch fire.
+    int storm_every = 0;         // Every this many meteors calls down a meteor storm...
+    int storm_meteors = 0;       // ...of this many blasts around the victim...
+    float storm_radius = 0.0f;   // ...each hitting the enemies within this...
+    float storm_share = 0.0f;    // ...for this share of the hit.
+    int energy = 0;              // The fiery glow's strength (OpenRAC's energy level).
+};
+
+// Ticks between two pulses of a burn.
+inline constexpr int kBurnPulseTicks = 15;
+
+// Returns the fire path's effect at tier `tier` (1 Alpha to 8 Omega): from Alpha a burn, a splash
+// of magma from Gamma, burning enemies that erupt as they die from Epsilon, and a meteor storm at
+// Omega.
+FireEffect fire_effect(int tier);
+
+// The fire path's colours by tier, 0x00BBGGRR as tint_rgb's: ember, flame, magma, blaze, inferno,
+// scorch, solar, and a supernova cycling at Omega.
+std::optional<std::uint32_t> fire_tint_rgb(int tier, std::uint32_t tick);
+
+// Returns the base name of the Lava Gun's tier `tier` on the fire path ("Meteor Gun" at Alpha and
+// Beta, "Magma Gun" at Gamma and Delta, "Inferno Gun" at Epsilon to Eta, "Supernova Gun" at
+// Omega); the Ice Gun's on the ice path.
+const char* lava_name(int tier);
+
+// The glow a burning enemy takes, 0xRRGGBB.
+inline constexpr std::uint32_t kBurningRgb = 0xFF6018u;
+
 // Returns item `item`'s icon tint at `level` (0x00BBGGRR): the Ice Gun's for the Lava Gun, else
 // tiers.h's tint_rgb.
 std::optional<std::uint32_t> weapon_tint_rgb(int item, int level, std::uint32_t tick);

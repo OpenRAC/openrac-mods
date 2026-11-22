@@ -12,6 +12,7 @@
 #include "armour.h"
 #include "elites.h"
 #include "perks.h"
+#include "tuning.h"
 
 namespace ng_plus_plus {
 
@@ -20,13 +21,22 @@ void Combat::post_hit(
     std::uint32_t victim,
     std::uint32_t request
 ) {
+    post_hit_with(original.get(), victim, request);
+}
+
+void Combat::post_hit_with(PostHitFn original, std::uint32_t victim, std::uint32_t request) {
     const GameView& view = m_weapons.view();
     float scale = 1.0f;
     int item = -1;
     const bool on_other = victim != view.hero_moby() && request != 0;
 
     // Only hits on others: the hero's own hits are the enemies' business (take_damage).
-    if (on_other) {
+    // A decoy: the enemies' hits on it as hard as on the hero (tuning.h), nothing of the tiers.
+    const bool decoy = on_other && m_tuning != nullptr && m_tuning->is_decoy(victim);
+
+    if (decoy) {
+        scale = m_tuning->decoy_hit_scale();
+    } else if (on_other) {
         item = fired_item(request);
         const Kind kind = item >= 0 && item < kItems ? kind_of(item) : Kind::None;
 
@@ -52,6 +62,11 @@ void Combat::post_hit(
         if (m_elites != nullptr) {
             scale /= m_elites->health(victim);
         }
+
+        // The Tesla Claw's own once-a-second hit, as small as its steady ones (tuning.h).
+        if (m_tuning != nullptr) {
+            scale *= m_tuning->claw_hit(original, victim, request);
+        }
     }
 
     const openrac::Memory memory = view.memory();
@@ -69,9 +84,9 @@ void Combat::post_hit(
     }
 
     // The weapon's perks, from the damage as it landed.
-    if (on_other && m_perks != nullptr) {
+    if (on_other && !decoy && m_perks != nullptr) {
         const auto source = memory.read<std::uint32_t>(request + kHitSource);
-        m_perks->hit(original.get(), victim, request, item, source, damage_now * scale);
+        m_perks->hit(original, victim, request, item, source, damage_now * scale);
     }
 }
 

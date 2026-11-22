@@ -29,6 +29,8 @@ add_library(ng_plus_plus_core STATIC
   src/perks.cpp
   src/armour.cpp
   src/shots.cpp
+  src/tuning_rules.cpp
+  src/tuning.cpp
   src/test_setup.cpp)
 target_include_directories(ng_plus_plus_core PUBLIC src)
 

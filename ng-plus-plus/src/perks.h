@@ -91,6 +91,10 @@ public:
     // stood for them.
     void set_shots(Shots* shots) { m_shots = shots; }
 
+    // The share of the game's hit each of the Tesla Claw's hits deals now (0.5.1's steady hits,
+    // tuning.h): its Omega storm stays as strong as the game's hits made it.
+    void set_claw_share(float share) { m_claw_share = share > 0.0f ? share : 1.0f; }
+
     // Returns `item`'s stage now (overdrive raises it), Stage::None with no tier.
     Stage stage_now(int item) const;
 
@@ -142,6 +146,17 @@ private:
         std::uint32_t when = 0;  // The tick it goes off.
         int fan = 0;             // Not every enemy within it: the `fan` nearest only.
         int blast_item = -1;     // The game's blast there in this weapon's look (1.29), -1 none.
+        int ignite_tier = 0;     // The fire path's: it sets what it hits on fire at this tier.
+    };
+
+    // An enemy the fire path's Lava Gun set burning.
+    struct Burning {
+        int moby_class = 0;
+        std::uint32_t until = 0;  // Ticks (the mod's count) it burns to.
+        std::uint32_t next = 0;   // Its next pulse.
+        float pulse = 0.0f;       // The damage of a pulse.
+        float last_hit = 0.0f;    // The meteor's hit that set it burning last.
+        int tier = 0;             // The Lava Gun's tier then.
     };
 
     // A field left at a place.
@@ -188,6 +203,13 @@ private:
     // Each chilled enemy: its slow after the freeze, its glow, its thaw.
     void thaw();
 
+    // The fire path's meteor hit on `victim` at tier `tier` (0.5.1): its burn, the splash, the
+    // storm. `splash` false for an enemy set on fire by a splash or an eruption (no splash again).
+    void ignite(const ScannedMoby& victim, int tier, float damage, bool splash);
+
+    // Each burning enemy: its pulses, its end.
+    void burn();
+
     // Slows `f`'s enemy for the chill it has left (OpenRAC 1.29).
     void slow(Frozen& f);
 
@@ -204,9 +226,10 @@ private:
     Elites& m_elites;
     MobyScan m_scan;
     bool m_on;
-    Shots* m_shots = nullptr;  // The 1.29 perks, or none.
-    int m_item_now = -1;       // The weapon whose hit's perks are being dealt.
-    int m_posted = 0;          // Hits posted since the last summary.
+    Shots* m_shots = nullptr;   // The 1.29 perks, or none.
+    float m_claw_share = 1.0f;  // The Tesla Claw's hits' share of the game's (set_claw_share).
+    int m_item_now = -1;        // The weapon whose hit's perks are being dealt.
+    int m_posted = 0;           // Hits posted since the last summary.
     std::uint32_t m_summary_tick = 0;
     MobyMaterialFn m_material = nullptr;
     bool m_energy = false;
@@ -224,6 +247,7 @@ private:
     std::uint32_t m_tick = 0;
     int m_level = -1;
     std::unordered_map<std::uint32_t, Frozen> m_frozen;
+    std::unordered_map<std::uint32_t, Burning> m_burning;
     std::unordered_map<std::uint32_t, Watched> m_watched;
     std::unordered_map<std::uint32_t, int> m_arena_seen;  // Arena enemies seen: address to class.
     std::vector<Later> m_later;
@@ -233,7 +257,8 @@ private:
     int m_kills = 0;
     int m_overdrive_item = -1;  // The weapon in overdrive, and until when.
     std::uint32_t m_overdrive_until = 0;
-    bool m_logged = false;  // The first perk hit was logged.
+    bool m_logged = false;       // The first perk hit was logged.
+    bool m_logged_fire = false;  // The first burn was logged.
 };
 
 }  // namespace ng_plus_plus

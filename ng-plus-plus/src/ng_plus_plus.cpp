@@ -23,6 +23,7 @@
 //   elites.h       elite enemies and the challenge modes' modifiers
 //   armour.h       the armour tiers: protection, glow, thorns, last stand, the vendor's entry
 //   shots.h        OpenRAC 1.29's: extra shots, split rockets, mini bombs, shot looks, statuses
+//   tuning.h       0.5.1's: the Tesla Claw's steady hits, the Zodiac on bosses, the decoy's health
 //
 // Each tick: the save's clock is watched (at the title too) and a level left forgets its platinum
 // coins; in a level, the steps by experience are taken, the last versions' rows written, the
@@ -53,6 +54,8 @@
 #include "shots.h"
 #include "test_setup.h"
 #include "text.h"
+#include "tuning.h"
+#include "tuning_rules.h"
 #include "vendor.h"
 #include "weapon_visuals.h"
 #include "weapons.h"
@@ -93,7 +96,8 @@ public:
           ),
           m_perks(mod, m_view, m_weapons, m_elites, mod.setting<bool>("weapon_perks")),
           m_armour(mod, m_view, m_tiers, m_perks),
-          m_shots(mod, m_view, m_weapons, m_perks)
+          m_shots(mod, m_view, m_weapons, m_perks),
+          m_tuning(mod, m_view, m_weapons, m_combat, mod.setting<bool>("tesla_steady"))
 #ifdef NGPP_TEST_SETUP
           ,
           m_test(mod, m_view, m_tiers, m_weapons)
@@ -104,6 +108,8 @@ public:
         m_vendor.set_armour(&m_armour);
         m_enemies.set_elites(&m_elites);
         m_bolts.set_elites(&m_elites);
+        m_combat.set_tuning(&m_tuning);
+        m_perks.set_claw_share(mod.setting<bool>("tesla_steady") ? kTeslaShare : 1.0f);
     }
 
     ~NgPlusPlus() = default;
@@ -172,6 +178,7 @@ private:
     Perks m_perks;             // The weapons' perks and the Ice Gun.
     Armour m_armour;           // The armour tiers.
     Shots m_shots;             // The perks of OpenRAC 1.29's weapon calls.
+    WeaponTuning m_tuning;     // 0.5.1's Tesla Claw, Zodiac and decoy.
 #ifdef NGPP_TEST_SETUP
     TestSetup m_test;          // Test runs only.
 #endif
@@ -304,6 +311,7 @@ void NgPlusPlus::take_optional() {
     m_perks.start();
     m_armour.start();
     m_shots.start();
+    m_tuning.start();
 
     // The hero's health from Omega weapons: an OpenRAC without the hook point goes without.
     try {
@@ -396,6 +404,7 @@ void NgPlusPlus::tick() {
     m_elites.tick();
     m_perks.tick(m_tick);
     m_shots.tick(m_tick);
+    m_tuning.tick(m_tick);
 #ifdef NGPP_TEST_SETUP
     m_test.tick();
 #endif
@@ -459,6 +468,10 @@ void load(openrac::Mod& mod) {
     // A load after an earlier one of the library starts afresh: the earlier state goes at the end
     // of this load. The new one is in place before its hooks are taken, so a refused load still
     // leaves them a live state.
+    // The Lava Gun's path, which the rules read everywhere (perk_rules.h).
+    const bool meteor = mod.setting<std::string>("lava_gun") == "meteor";
+    set_lava_path(meteor ? LavaPath::Fire : LavaPath::Ice);
+
     const std::unique_ptr<NgPlusPlus> earlier(g_state);
     g_state = std::make_unique<NgPlusPlus>(mod, *disc).release();
     g_state->start();
@@ -467,4 +480,4 @@ void load(openrac::Mod& mod) {
 }  // namespace
 }  // namespace ng_plus_plus
 
-OPENRAC_MOD_CPP("ng-plus-plus", "0.5.0", ng_plus_plus::load)
+OPENRAC_MOD_CPP("ng-plus-plus", "0.5.1", ng_plus_plus::load)

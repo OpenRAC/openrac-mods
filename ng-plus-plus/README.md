@@ -5,6 +5,8 @@ eight more upgrades for every weapon after its last version, Alpha to Omega (V5 
 own versions stay as they are; NG++ adds its tiers on top and keeps track of them itself.
 Version 0.5.0 adds weapon perks from Gamma on (the Lava Gun becomes the Ice Gun), eight armor tiers,
 elite enemies, a modifier for each new game, the RYNO II's Omega Prime and health from Omega weapons.
+Version 0.5.1 makes the Ice Gun a choice (or a fire path for the Meteor Gun), the Tesla Claw hit
+steadily, the Zodiac hurt bosses and the decoy last longer (see "Weapon tuning").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
@@ -172,7 +174,7 @@ is not done even on 1.29 (see "Not yet" at the end): the weapon only gets its ti
 |---|---|---|---|
 | Lancer | Each shot ricochets to the nearest other enemy within 8 units, for half the hit | Ricochets twice (each jump 85% of the one before) | Every 5th shot is a piercing round: full damage, 4 ricochets, and up to 2 enemies behind the victim within 10 units, also at full damage |
 | Blitz Gun | can't be done yet | can't be done yet | Each pellet that hits leaves a spark for 1 s: every quarter second the enemies within 2.5 units take a quarter of the hit. (More pellets: can't be done yet) |
-| Lava Gun | The Ice Gun (next section) | The Ice Gun | The Ice Gun |
+| Lava Gun | The Ice Gun (next section), or with the Meteor Gun setting the fire path (after it) | As Gamma | As Gamma |
 | Plasma Coil | The arc chains to 1 more enemy within 9 units, 60% of the hit | Chains to 3 more (each jump 90% of the one before). The enemies it reaches are slowed to half speed for 1.5 s (OpenRAC 1.29) | Chains to 6 more, slowed for 2.5 s (OpenRAC 1.29), and the last jump explodes: enemies within 5 units take 80% of the hit |
 | Minirocket Tube | 1 more rocket in every shot, fanned out (OpenRAC 1.29) | Each rocket splits in two half a second into its flight (OpenRAC 1.29) | 2 more rockets in every shot, and where a rocket ends it leaves 2 small blasts around it (OpenRAC 1.29) |
 | Gravity Bomb | The blast reaches 9 units, for half the bomb's hit | 4 mini bombs scatter from the blast, 5 units around it, a third of a second later (OpenRAC 1.29: real mini bombs; before, hits: each a blast of 4 units for half the hit) | 8 mini bombs; each throw is 2 bombs, and a second bomb drops where the first ended, a second later (OpenRAC 1.29; before, a second pull-and-blast of 9 units at the full hit) |
@@ -182,7 +184,7 @@ is not done even on 1.29 (see "Not yet" at the end): the weapon only gets its ti
 | Miniturret Glove | 1 more turret in every throw (OpenRAC 1.29) | As Gamma | 2 more turrets, 3 in every throw (OpenRAC 1.29). (Longer-lived turrets: can't be done yet) |
 | Hoverbomb Gun | 1 more hoverbomb in every throw (OpenRAC 1.29) | As Gamma | 3 more, 4 in every throw (OpenRAC 1.29). (Orbit and dive: can't be done yet) |
 | Shield Charger | The reflect: can't be done yet | Every second the shield zaps the nearest enemy within 8 units for 60% of Ratchet's last weapon hit | The shield zaps the 3 nearest, and bursts when it ends: enemies within 8 units take twice Ratchet's last weapon hit (OpenRAC 1.29: the burst is the game's own blast) |
-| Zodiac | can't be done yet | can't be done yet | Its shot leaves a field for 3 s: every quarter second the enemies within 6 units take 15% of the hit. (More stars: can't be done yet) |
+| Zodiac | can't be done yet | can't be done yet | Its shot leaves a field for 3 s: every quarter second the enemies within 6 units take 15% of the hit. (More stars: can't be done yet). At every tier it hurts bosses (see "Weapon tuning") |
 | RYNO II | Each rocket splits where it ends into 2 homing rockets (OpenRAC 1.29; before, the 2 nearest enemies within 15 units take 45% of the hit) | 3 split rockets | Each split rocket splits once more (at most 9 in all). See Omega Prime below |
 | Seeker Gun | 2 more seekers in every shot (OpenRAC 1.29) | A seeker that ends sends one more seeking the nearest enemy (OpenRAC 1.29) | 4 more seekers in every shot, and the seekers it sends seek again, twice over (at most 6 made from one seeker; OpenRAC 1.29) |
 | Pulse Rifle | Fires 1.25 times as fast (OpenRAC 1.29) | Fires 1.35 times as fast. Every 4th pulse explodes: enemies within 4 units take 60% of the hit | Fires 1.5 times as fast. Pulses pierce up to 2 enemies behind the victim within 12 units (80%) and chain to 2 more within 7 units (50%) |
@@ -190,7 +192,7 @@ is not done even on 1.29 (see "Not yet" at the end): the weapon only gets its ti
 | Bomb Glove | 1 more bomb in every throw (OpenRAC 1.29) | Bombs chain-blast: enemies within 5 units of the victim take half the hit | Each bomb also bursts into 4 mini bombs (OpenRAC 1.29), and the 4 nearest enemies within 8 units take 40% of the hit |
 | Decoy Glove | The taunt: can't be done yet | 1 more decoy in every throw (OpenRAC 1.29). The decoy explodes when it goes: enemies within 6 units take twice Ratchet's last weapon hit | 2 more decoys, 3 in every throw. The explosion reaches 9 units for three times, and goes off again half a second later |
 | Synthenoid | can't be done yet | can't be done yet | can't be done yet |
-| Tesla Claw | The beam arcs to 2 more enemies within 7 units, each arc one and a half times the beam's tick, falling by 15% a jump | Arcs to 5 more. The enemies the arcs reach are stunned (held still) for half a second (OpenRAC 1.29) | A storm: every third of a second an arc strikes an enemy within 10 units of Ratchet, one and a half times his last weapon hit. The stun lasts three quarters of a second (OpenRAC 1.29) |
+| Tesla Claw | The beam arcs to 2 more enemies within 7 units, each arc one and a half times the beam's hit, falling by 15% a jump (with the steady claw, see "Weapon tuning", an arc a hit at most every 8 ticks) | Arcs to 5 more. The enemies the arcs reach are stunned (held still) for half a second (OpenRAC 1.29) | A storm: every third of a second an arc strikes an enemy within 10 units of Ratchet, one and a half times his last weapon hit. The stun lasts three quarters of a second (OpenRAC 1.29) |
 | Walloper | A shockwave on each swing that lands: enemies within 4 units take half the hit | Wider: 6 units, 80%. The enemies it hits are staggered (held still) for a third of a second (OpenRAC 1.29) | The wave also chains to 3 more enemies within 8 units (70%) |
 | Sheepinator | A sheep explodes when it goes: enemies within 4 units take Ratchet's last weapon hit | 6 units, 1.5 times. The sheepify chain: can't be done yet | 8 units, twice. The sheepify chain: can't be done yet |
 | Clank Zapper | A wider zap: every other enemy within 4 units takes half the hit | Also the nearest enemy within 8 units, 80% | Chain lightning: 5 jumps within 8 units, 70% of the hit, falling by 10% a jump |
@@ -199,7 +201,7 @@ is not done even on 1.29 (see "Not yet" at the end): the weapon only gets its ti
 that weapon's perks act a stage higher (Gamma's as Epsilon's, Epsilon's as Omega's). Changing weapon
 starts the count again.
 
-The **Weapon perks** setting turns every perk off (and the Ice Gun back into the Lava Gun). Then
+The **Weapon perks** setting turns every perk off (the Ice Gun's and the fire path's too). Then
 the tiers give damage, ammo and colour only. In a multiplayer party the host's setting counts.
 
 ### The Ice Gun
@@ -233,6 +235,60 @@ by themselves:
 
 **Bosses** only glow: they are never slowed or frozen. Before OpenRAC 1.29 there is no freeze or
 slow: the gun only glows pale or ice blue on its victims, and the shatter's damage is dealt as hits.
+
+### The Meteor Gun's fire path
+
+With the **Lava Gun's tiers** setting at **Meteor Gun**, the Lava Gun keeps the Meteor Gun's look and
+its tiers burn instead of freezing, each stage with a name of its own: "Alpha Meteor Gun", "Beta
+Meteor Gun", "Gamma Magma Gun", "Delta Magma Gun", "Epsilon Inferno Gun" to "Eta Inferno Gun" and
+"Omega Supernova Gun". Its colours:
+
+| Tier | Color |
+|---|---|
+| Alpha | ember |
+| Beta | flame |
+| Gamma | magma |
+| Delta | blaze |
+| Epsilon | inferno |
+| Zeta | scorch |
+| Eta | solar |
+| Omega | supernova (cycles through red, orange, gold, white and rose) |
+
+What a meteor does (shares are of the meteor's hit as it landed):
+
+| Tier | Effect |
+|---|---|
+| Alpha, Beta | Burn: the enemy burns for 2 s, glowing orange, taking 10% every quarter second (+80% in all) |
+| Gamma, Delta | The Magma Gun: a 3 s burn at 12% (+144%), and a splash of magma: enemies within 4 units take 40% and catch fire too |
+| Epsilon to Eta | The Inferno Gun: the burn at 15% (+180%), a splash of 5 units at 50%, and a burning enemy killed erupts: the game's own blast goes off on it in the gun's colour, and enemies within 6 units take 1.5 times its last meteor and catch fire |
+| Omega | The Supernova Gun: a 4 s burn at 18% (+288%), a splash of 6 units at 60%, eruptions of 8 units at twice the meteor, and every 4th meteor calls down a meteor storm: 3 blasts fall around its victim over half a second, each hitting the enemies within 4 units for 80% and setting them on fire |
+
+Bosses burn too. Burns and splashes never set off another splash, so a crowd catches fire without
+the hits running away; the eruptions and the storm are where it spreads.
+
+### Weapon tuning
+
+0.5.1's changes to three weapons, from what their code does in the game:
+
+- **Tesla Claw.** The game's claw hits each enemy it holds once when it takes hold, then not again
+  until it lets go and takes hold again, about every 51 frames, while it spends ammo every 10: one
+  hit a second at an uneven moment, with the ammo in between wasted. And a second hit from the
+  same attacker inside 10 of the enemy's frames does nothing at all. With **Steady Tesla Claw** on
+  (the default) NG++ hits each enemy the claw holds every tenth of a second for 15% of the claw's
+  hit, its first hit made as small, each from the attacker the enemy did not see last, so every one
+  lands: about a quarter more damage a second than the game's claw, times its tier, and the enemy
+  flinches under it as under the Heavy Lancer's rounds (the game's flinch comes from hits landing,
+  whatever the weapon). The tier, the enemies' curve and the perks see each hit as the game's.
+- **Zodiac.** Its pulse posts no hit at all: each frame of it, it kills what has 100 health or less
+  and takes a flat 20 off anything with more, whatever its tier, and nothing off a boss the cone or
+  its class leaves out. Now each boss within the pulse's 40 units loses 4 times that a frame (the
+  final boss 3 times, Todano's flying boss and the Damosel mothership's parts 5 times), times the
+  Zodiac's tier and divided by the boss's health on NG++'s curve, as every other weapon's hits on
+  it are.
+- **Decoy.** The game gives a decoy 60 health with the upgraded glove, else 6. NG++ gives it 2.5
+  times that, and its tier a fifth more again on top of the tier's damage factor: x4.5 at Alpha up
+  to x21 at Omega. The enemies' hits on it count as their hits on Ratchet do each new game (they
+  used to be scaled as Ratchet's hits on an enemy).
 
 ### Armor tiers
 
@@ -385,6 +441,8 @@ then +0.25 a game. Before 0.2.1 the tiers gave x1.25 to x4 and enemy health went
 | Bolt scaling | normal | Platinum and obsidian bolts, bigger drops and the collectors' pay (below): off, normal or generous |
 | Extra enemies | on | Copies of each enemy from the second challenge mode (below) |
 | Weapon perks | on | What each tier does from Gamma, and the Ice Gun |
+| Lava Gun's tiers | Ice Gun | The Ice Gun, or the Meteor Gun's fire path (above) |
+| Steady Tesla Claw | on | The Tesla Claw's steady hits (Weapon tuning, above) |
 | Elite enemies | on | Elites among the copies and in the arenas |
 | Challenge mode modifiers | on | Swarm, Elite guard, Volatile and Bounty, one for each new game |
 
@@ -716,6 +774,7 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/weapon_api.h`, `src/moby_pool.h` | interface 1.29's weapon calls and 1.27's pool calls, read from the port's table |
 | `src/perks.h`, `src/armour.h`, `src/elites.h` | the perks and the Ice Gun, the armor tiers, the elites and modifiers in the game |
 | `src/combat.h` | the tiers' damage and the enemies across new games |
+| `src/tuning_rules.h`, `src/tuning.h` | 0.5.1's weapon tuning: its rules alone, then the Tesla Claw's steady hits, the Zodiac's boss damage and the decoy's health in the game |
 | `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness, the drop's scale and extra coins, the platinum and obsidian shares and the split into coins |
 | `src/platinum_bolts.h` | platinum and obsidian bolts and bolt scaling behind the bolt hook points |
 | `src/collectors.h` | Tabora's and Grelbin's collectors' pay and dialogs |

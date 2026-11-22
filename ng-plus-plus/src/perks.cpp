@@ -269,9 +269,20 @@ void Perks::hit(
         return;
     }
 
-    // The Ice Gun from Alpha on.
+    // The Ice Gun from Alpha on, or the fire path's meteors (the "lava_gun" setting).
     if (item == kLavaGun) {
-        chill(target, tier_of(weapon.kind, weapon.level), damage);
+        const int tier = tier_of(weapon.kind, weapon.level);
+
+        if (ice_gun_on()) {
+            chill(target, tier, damage);
+        } else {
+            m_request = request;
+            m_item_now = item;
+            ignite(target, tier, damage, true);
+            m_item_now = -1;
+            m_request = 0;
+        }
+
         return;
     }
 
@@ -521,6 +532,109 @@ void Perks::slow(Frozen& f) {
     }
 }
 
+void Perks::ignite(const ScannedMoby& victim, int tier, float damage, bool splash) {
+    const FireEffect fire = fire_effect(tier);
+
+    // No tier: the game's meteors.
+    if (fire.burn_ticks <= 0 || damage <= 0.0f) {
+        return;
+    }
+
+    auto [it, fresh] = m_burning.try_emplace(victim.address);
+    Burning& b = it->second;
+
+    // A moby new to the table, or a new one in its slot: its first pulse a pulse from now.
+    if (fresh || b.moby_class != victim.moby_class) {
+        b = Burning{};
+        b.moby_class = victim.moby_class;
+        b.next = m_tick + static_cast<std::uint32_t>(kBurnPulseTicks);
+        draw(victim.address, fire.energy, kBurningRgb);
+    }
+
+    // Once, for a player's log.
+    if (!m_logged_fire) {
+        m_logged_fire = true;
+        m_mod.info("first meteor burn: tier " + std::to_string(tier));
+    }
+
+    b.until = m_tick + static_cast<std::uint32_t>(fire.burn_ticks);
+    b.pulse = std::max(b.pulse, damage * fire.burn_share);
+    b.last_hit = std::max(b.last_hit, damage);
+    b.tier = tier;
+
+    // A meteor's own hit: the splash, and at Omega the storm.
+    if (!splash) {
+        return;
+    }
+
+    // The splash of magma: the enemies around the impact, set on fire too.
+    if (fire.splash_radius > 0.0f) {
+        const std::vector<std::uint32_t> hit =
+            burst(victim.position, fire.splash_radius, damage * fire.splash_share, victim.address);
+
+        for (const std::uint32_t moby : hit) {
+            const ScannedMoby* at = m_scan.find(moby);
+
+            // Still there.
+            if (at != nullptr) {
+                ignite(*at, tier, damage * fire.splash_share, false);
+            }
+        }
+    }
+
+    const auto n = static_cast<std::size_t>(kLavaGun);
+    ++m_count[n];
+
+    // The meteor storm: blasts falling around the victim, a little apart, each the game's own in
+    // the gun's colour (1.29), each setting fire to what it hits.
+    if (fire.storm_every > 0 && m_count[n] % static_cast<std::uint32_t>(fire.storm_every) == 0) {
+        for (int k = 0; k < fire.storm_meteors && m_later.size() < kLaterMost; ++k) {
+            const float angle =
+                6.2831853f * static_cast<float>(k) / static_cast<float>(fire.storm_meteors);
+            Later later;
+            later.at = victim.position;
+            later.at[0] += 3.5f * std::cos(angle);
+            later.at[1] += 3.5f * std::sin(angle);
+            later.radius = fire.storm_radius;
+            later.damage = damage * fire.storm_share;
+            later.when = m_tick + 10u + 8u * static_cast<std::uint32_t>(k);
+            later.blast_item = kLavaGun;
+            later.ignite_tier = tier;
+            m_later.push_back(later);
+        }
+    }
+}
+
+void Perks::burn() {
+    // Each burning enemy.
+    for (auto it = m_burning.begin(); it != m_burning.end();) {
+        const std::uint32_t moby = it->first;
+        Burning& b = it->second;
+
+        // Gone, or its slot holds another moby now.
+        if (!m_scan.alive(moby, b.moby_class)) {
+            it = m_burning.erase(it);
+            continue;
+        }
+
+        // Burnt out: its glow gone.
+        if (m_tick >= b.until) {
+            undraw(moby);
+            m_elites.redraw(moby);
+            it = m_burning.erase(it);
+            continue;
+        }
+
+        // A pulse of the burn.
+        if (m_tick >= b.next && m_budget > 0) {
+            b.next = m_tick + static_cast<std::uint32_t>(kBurnPulseTicks);
+            post(moby, b.pulse);
+        }
+
+        ++it;
+    }
+}
+
 void Perks::thaw() {
     // Each chilled enemy.
     for (auto it = m_frozen.begin(); it != m_frozen.end();) {
@@ -594,6 +708,32 @@ void Perks::death(std::uint32_t moby) {
             later.skip = moby;
             later.freeze_tier = ice.shatter_freezes ? f.tier : 0;
             later.when = m_tick + 1;
+            m_later.push_back(later);
+        }
+    }
+
+    // A burning enemy erupts from Epsilon (the fire path), setting its neighbours on fire.
+    const auto burning = m_burning.find(moby);
+
+    if (burning != m_burning.end()) {
+        const Burning b = burning->second;
+        const FireEffect fire = fire_effect(b.tier);
+        m_burning.erase(burning);
+
+        if (fire.erupt_radius > 0.0f && m_later.size() < kLaterMost) {
+            draw(moby, kEffectTop, kBurningRgb);
+
+            if (m_shots != nullptr) {
+                m_shots->blast(at, kLavaGun);
+            }
+
+            Later later;
+            later.at = at;
+            later.radius = fire.erupt_radius;
+            later.damage = b.last_hit * fire.erupt_share;
+            later.skip = moby;
+            later.when = m_tick + 1;
+            later.ignite_tier = b.tier;
             m_later.push_back(later);
         }
     }
@@ -747,7 +887,7 @@ void Perks::watch() {
         // The Tesla Claw's storm at Omega: an arc to anything near the hero.
         if (item == 18 && stage == Stage::Omega && m_tick >= w.next && m_reference > 0.0f) {
             w.next = m_tick + kStormTicks;
-            burst(hero_position(), 10.0f, m_reference * 1.5f, 0, 1);
+            burst(hero_position(), 10.0f, m_reference * 1.5f / m_claw_share, 0, 1);
         }
     }
 
@@ -827,6 +967,7 @@ void Perks::tick(std::uint32_t tick) {
     if (level != m_level) {
         m_level = level;
         m_frozen.clear();
+        m_burning.clear();
         m_watched.clear();
         m_arena_seen.clear();
         m_later.clear();
@@ -842,6 +983,7 @@ void Perks::tick(std::uint32_t tick) {
     }
 
     thaw();
+    burn();
     watch();
 
     // A summary for a player's log, about once a minute when the perks acted.
@@ -905,6 +1047,18 @@ void Perks::tick(std::uint32_t tick) {
                 // Still there.
                 if (at != nullptr) {
                     chill(*at, later.freeze_tier, later.damage * 0.25f);
+                }
+            }
+        }
+
+        // The fire path's eruptions and storm set fire to what they hit.
+        if (later.ignite_tier > 0) {
+            for (const std::uint32_t moby : hit) {
+                const ScannedMoby* at = m_scan.find(moby);
+
+                // Still there.
+                if (at != nullptr) {
+                    ignite(*at, later.ignite_tier, later.damage, false);
                 }
             }
         }
