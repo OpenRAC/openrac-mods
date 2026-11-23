@@ -27,6 +27,20 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.16
+
+- **Richer bolts, everywhere.** Every bolt reward pays half as much again on top of the run
+  scale: enemy drops (x2.25, x3.75, x6, x9 from the second challenge mode on, generous half as much
+  again; the cap on a drop's scale is x18), arena and race prizes, space mission pay, and
+  Tabora's crystal and Grelbin's moonstone trades. Platinum and obsidian shares are as before, so
+  their proportions of a drop are the same. Sellers' prices and the tiers' prices are unchanged (see
+  "Bigger drops" and "Prizes and prices").
+- **More enemies.** The extra copies come one at the second challenge mode, two at the third
+  and three from the fourth (Barlow's hounds stay at two); see "More enemies each new game".
+- **Busier space missions.** Extra waves: 1 at the second challenge mode, 2 at the third, 3 at the
+  fourth and 4 from the sixth; elite ships from 25% (up to 70%, Elite guard up to 90%); Feltzin's
+  targets keep their pace.
+
 ## What's new in 0.6.15
 
 - **The Zodiac costs an arm and a leg, as the RYNO II does.** Its bought steps now use the RYNO II's
@@ -289,8 +303,8 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   other weapons (`kRynoExpScale` in src/tiers.h). It is the strongest weapon, so it costs far more than
   the others' top tiers: 1,000,000 (its own price) times 6, 10, 16 and 25, about 2.5 to 2.8 times the
   ladder of 1.5M to 9M the others' biggest Mega prices reach. At the bolt scaling of the later
-  challenge modes (x4 to x6, platinum and obsidian bolts) a common enemy at a full streak pays 10,000
-  to 15,000, so Eta is a couple of thousand such kills:
+  challenge modes (x6 to x9, platinum and obsidian bolts) a common enemy at a full streak pays 14,400
+  to 21,600, so Eta is a couple of thousand such kills:
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
@@ -666,9 +680,10 @@ missions get more of everything; never fewer ships than the game's:
 | Challenge mode | Extra waves | Elite ships | Feltzin's targets |
 |---|---|---|---|
 | 1st | none | none | the game's pace |
-| 2nd, 3rd | 1 | 20%, 30% | x1.5 as often |
-| 4th, 5th | 2 | 40%, 50% | x2 as often |
-| 6th on | 3 | 60% | x2 as often |
+| 2nd | 1 | 25% | x1.5 as often |
+| 3rd | 2 | 35% | x1.5 as often |
+| 4th, 5th | 3 | 45%, 55% | x2 as often |
+| 6th on | 4 | 65% to 70% | x2 as often |
 
 - A wave: when a fight's ships are down to a quarter of the most it had at once, every ship of it
   that was destroyed comes back, as the game brings its own ships to life when a mission starts. A
@@ -676,7 +691,7 @@ missions get more of everything; never fewer ships than the game's:
   adds one more wave.
 - Elite ships are drawn in obsidian (OpenRAC 1.24; violet energy before) and have twice the health;
   the ships of a wave NG++ brings back are elites 15% more often. Elite guard doubles the share (at
-  most 80%).
+  most 90%).
 - Every enemy ship takes the enemies' health curve (below), the bosses and the Gorn capital ship the
   bosses' column too.
 - The **Space missions** setting turns the waves, elites and faster targets off (the health curve
@@ -797,11 +812,12 @@ damage dealt x0.5 and a Beta weapon in the second challenge mode a hit does x0.5
 ### More enemies each new game
 
 From the second challenge mode on, the enemies of the table below get a copy beside each of them
-when the level loads, and two from the fourth challenge mode (one for the big ones):
+when the level loads, two from the third challenge mode and three from the fourth (one for the big
+ones, and two for Barlow's hounds, whose copies are the port's biggest):
 
-| Challenge mode | 1st | 2nd and 3rd | 4th on |
-|---|---|---|---|
-| Copies of each enemy of the table | none | 1 | 2 (1 for those marked 1) |
+| Challenge mode | 1st | 2nd | 3rd | 4th on |
+|---|---|---|---|---|
+| Copies of each enemy of the table | none | 1 | 2 (at most the table's) | 3 (at most the table's) |
 
 A copy stands on its enemy's floor, in the open, 2.5 to 4 units away, and wakes, runs, fights and
 dies with its squad. It drops the bolts that enemy drops, once (with the run's bolt scaling,
@@ -820,39 +836,44 @@ or crashed the game). Bosses, turrets, spawners, the waves', arenas' and doors' 
 and Grelbin's crystal and moonstone creatures and the Y.E.T.I.s are never in the table, and
 OpenRAC refuses them too.
 
+**Pool headroom.** The pool is the game's 200 to 400 spare slots plus 1,024 asked for, and a copy is
+only made while 160 are free, so a crowded planet simply makes fewer third copies (the first and second of
+each enemy come first, as in 0.4.4). Barlow, the planet that filled the pool before (79 copies at two each, its hounds'
+big pvars), keeps its hounds at 2 and its class 2234 at 1; every other planet's table is at most 3.
+
 | Planet (level) | Enemy | Copies of each, at most |
 |---|---|---|
-| Aranos (0) | enemy (class 2460) | 2 |
-| Aranos (0) | enemy (class 2826) | 2 |
-| Aranos (0) | enemy (class 2827) | 2 |
-| Oozla (1) | Mutant Swamp Beast | 2 |
-| Oozla (1) | Mutant Firefly | 2 |
-| Oozla (1) | Mutant Muckdweller | 2 |
-| Maktar Nebula (2) | enemy (class 2501) | 2 |
-| Maktar Nebula (2) | Megacorp Chickenbot | 2 |
-| Endako (3) | Megacorp Rivet Bot | 2 |
-| Endako (3) | Megacorp Laser Bot | 2 |
+| Aranos (0) | enemy (class 2460) | 3 |
+| Aranos (0) | enemy (class 2826) | 3 |
+| Aranos (0) | enemy (class 2827) | 3 |
+| Oozla (1) | Mutant Swamp Beast | 3 |
+| Oozla (1) | Mutant Firefly | 3 |
+| Oozla (1) | Mutant Muckdweller | 3 |
+| Maktar Nebula (2) | enemy (class 2501) | 3 |
+| Maktar Nebula (2) | Megacorp Chickenbot | 3 |
+| Endako (3) | Megacorp Rivet Bot | 3 |
+| Endako (3) | Megacorp Laser Bot | 3 |
 | Barlow (4) | enemy (class 2234) | 1 |
 | Barlow (4) | Gadgetron Hound of Cuddly Death | 2 |
-| Notak (6) | enemy (class 3002) | 2 |
-| Notak (6) | enemy (class 3504) | 2 |
-| Siberius (7) | enemy (class 3369) | 2 |
-| Siberius (7) | enemy (class 3370) | 2 |
+| Notak (6) | enemy (class 3002) | 3 |
+| Notak (6) | enemy (class 3504) | 3 |
+| Siberius (7) | enemy (class 3369) | 3 |
+| Siberius (7) | enemy (class 3370) | 3 |
 | Dobbo (9) | enemy (class 3306) | 1 |
 | Dobbo (9) | Megacorp Trooper (class 3343) | 1 |
-| Dobbo (9) | enemy (class 3415) | 2 |
-| Dobbo (9) | enemy (class 3472) | 2 |
+| Dobbo (9) | enemy (class 3415) | 3 |
+| Dobbo (9) | enemy (class 3472) | 3 |
 | Joba (11) | Joba Tribesman | 1 |
 | Joba (11) | Jobian Saur-Beast | 1 |
-| Todano (12) | Mutant Test-Squirrel | 2 |
-| Boldan (13) | enemy (class 4587) | 2 |
+| Todano (12) | Mutant Test-Squirrel | 3 |
+| Boldan (13) | enemy (class 4587) | 3 |
 | Aranos's prison (14) | enemy (class 4395) | 1 |
 | Aranos's prison (14) | enemy (class 4396) | 1 |
-| Smolg (17) | Grulch | 2 |
-| Damosel (18) | Protopet | 2 |
-| Yeedil (20) | Protopet | 2 |
-| Yeedil (20) | Receiver Bot | 2 |
-| Jamming array (26) | Megacorp Chickenbot | 2 |
+| Smolg (17) | Grulch | 3 |
+| Damosel (18) | Protopet | 3 |
+| Yeedil (20) | Protopet | 3 |
+| Yeedil (20) | Receiver Bot | 3 |
+| Jamming array (26) | Megacorp Chickenbot | 3 |
 
 Each was tried in hidden runs of its planet (OpenRAC's `OPENRAC_PLAY_TRACE=copies=1,copywatch,copykill=F,origkill=F`,
 Ratchet placed beside the enemies at one to three spots): its copies woke when their originals did,
@@ -888,24 +909,24 @@ gold twin.
 x20, challenge mode's doubling, its pacing and its limit of three pickups for a kill (at most 3,000
 bolts; what doesn't fit goes to the game's reserve divided by your streak and trickles into later
 drops, as in the original). Then the mod multiplies what the pickups hold by the new game you are
-in, the same steps as the tier prices (x1.5, x2.5, x4, x6), so the tier you are saving for takes
-about as many kills in every new game:
+in, half as much again as the tier prices' steps (x1.5, x2.5, x4, x6; since 0.6.16 the bolts pay
+x2.25, x3.75, x6, x9), so the tier you are saving for takes about two thirds of the kills it took:
 
 | New game | Challenge mode | Bolts (normal) | Bolts (generous) | Platinum at x1 streak | Platinum at x20 streak |
 |---|---|---|---|---|---|
 | 1 | - | x1 | x1 | none | none |
 | 2 | 1st | x1 | x1 | 20% | 40% |
-| 3 | 2nd | x1.5 | x2.25 | 10% | 50% |
-| 4 | 3rd | x2.5 | x3.75 | 15% | 65% |
-| 5 | 4th | x4 | x6 | 20% | 80% |
-| 6 on | 5th on | x6 | x9 | 25% | 90% |
+| 3 | 2nd | x2.25 | x3.375 | 10% | 50% |
+| 4 | 3rd | x3.75 | x5.625 | 15% | 65% |
+| 5 | 4th | x6 | x9 | 20% | 80% |
+| 6 on | 5th on | x9 | x13.5 | 25% | 90% |
 
 **Every enemy pays its own.** Each enemy has its own bolts in the level's data (the game's drop for
 it, before your streak): on the disc, crates and small fry have under 20, the commonest enemies
 around 45, the bigger ones 100 to 500 and the biggest up to 984. The game pays in proportion to
 those up to its 3,000 limit; the mod pays a bigger enemy a little more on top of the run scale: x1
 up to 20 bolts, then the square root of its bolts over 20, up to x2 (45 bolts: x1.5, 80 or more:
-x2). The run scale and toughness together never pass x12 (generous included). A drop also gets more
+x2). The run scale and toughness together never pass x18 (generous included). A drop also gets more
 pickups the tougher the enemy: two more than the game's three per x1 of toughness (5 to 7). What
 the pickups can't hold is added to your bolts at once.
 
@@ -914,9 +935,9 @@ its roll of about a quarter up or down):
 
 | Enemy's own bolts | 3rd game (2nd challenge mode) | 4th (3rd) | 5th (4th) | 6th on (5th on) |
 |---|---|---|---|---|
-| 8 (small fry) | 450 | 750 | 1,200 | 1,800 |
-| 45 (common) | 3,600 | 6,000 | 9,600 | 14,400 |
-| 110 or more | 9,000 | 15,000 | 24,000 | 36,000 |
+| 8 (small fry) | 675 | 1,125 | 1,800 | 2,700 |
+| 45 (common) | 5,400 | 9,000 | 14,400 | 21,600 |
+| 110 or more | 13,500 | 22,500 | 36,000 | 54,000 |
 
 **Why 0.4.4 asks for more room.** The game makes every spawned moby (a bolt, a shot, an effect, an
 enemy copy) from a pool of spare slots its level's file sets, 200 to 400 (Barlow's is 398), and a spawn
@@ -990,28 +1011,27 @@ Within a drop's pickups each rarer kind keeps a place, so a small drop can still
 or platinum bolt. The biggest obsidian bolt a kill shows is a 2,500, from the fourth challenge mode
 at long streaks.
 
-**Collectors.** Tabora's crystals and Grelbin's moonstones pay the same x1.5, x2.5, x4 and x6 from
-the second challenge mode (generous half as much again), so collecting keeps up with the tier
-prices. The collector's dialog shows the total you will get.
+**Collectors.** Tabora's crystals and Grelbin's moonstones pay the same x2.25, x3.75, x6 and x9 from
+the second challenge mode (generous half as much again), so collecting keeps up with the tier prices with a margin. The collector's dialog shows the total you will get.
 
 **Prizes and prices.** From the second challenge mode the hoverbike races on Barlow and Joba, the
 space missions of Feltzin, Hrugis and Gorn (since 0.4.3) and the arena challenges on Maktar and
-Joba pay the same x1.5, x2.5, x4 and x6 (generous half as much again), and the characters who sell
+Joba pay the same x2.25, x3.75, x6 and x9 (generous half as much again), and the characters who sell
 for bolts ask half that rise: x1.25, x1.75, x2.5 and x3.5 (generous x1.63, x2.38, x3.5, x5). The
 race menu, the mission's reward panel, the arena menu and each seller's dialog show the new amount,
 and the log says once a level what its races or missions pay ("level 5: the space missions pay
-x4.00 (the second mission 5500 -> 22000)", before the game's own x10 in challenge mode). The weapon vendor's prices are the tiers' own and stay as they are.
+x6.00 (the second mission 5500 -> 33000)", before the game's own x10 in challenge mode). The weapon vendor's prices are the tiers' own and stay as they are.
 
-| | First challenge mode (the game's) | 2nd (x1.5; prices x1.25) | 3rd (x2.5; x1.75) | 4th (x4; x2.5) | 5th on (x6; x3.5) |
+| | First challenge mode (the game's) | 2nd (x2.25; prices x1.25) | 3rd (x3.75; x1.75) | 4th (x6; x2.5) | 5th on (x9; x3.5) |
 |---|---|---|---|---|---|
-| Barlow races, first win | 0 (the story race), 20,000, 30,000, 40,000, 60,000 | 30,000 to 90,000 | 50,000 to 150,000 | 80,000 to 240,000 | 120,000 to 360,000 |
-| Barlow races, second win | 2,500, 7,500, 10,000, 12,000, 20,000 | 3,750 to 30,000 | 6,250 to 50,000 | 10,000 to 80,000 | 15,000 to 120,000 |
-| Barlow races, later wins | 2,500, 2,500, 3,500, 4,000, 7,500 | 3,750 to 11,250 | 6,250 to 18,750 | 10,000 to 30,000 | 15,000 to 45,000 |
-| Joba races, first win | 0, 40,000, 50,000, 60,000, 80,000 | 60,000 to 120,000 | 100,000 to 200,000 | 160,000 to 320,000 | 240,000 to 480,000 |
-| Joba races, second win | 4,000, 12,000, 17,500, 20,000, 27,500 | 6,000 to 41,250 | 10,000 to 68,750 | 16,000 to 110,000 | 24,000 to 165,000 |
-| Joba races, later wins | 4,000, 4,000, 6,000, 7,500, 9,000 | 6,000 to 13,500 | 10,000 to 22,500 | 16,000 to 36,000 | 24,000 to 54,000 |
-| Maktar arena (first win) | 15,000 to 90,000 | 22,500 to 135,000 | 37,500 to 225,000 | 60,000 to 360,000 | 90,000 to 540,000 |
-| Joba arena (first win) | 50,000 to 125,000, and 2,000,000 | 75,000 to 187,500, 3,000,000 | 125,000 to 312,500, 5,000,000 | 200,000 to 500,000, 8,000,000 | 300,000 to 750,000, 12,000,000 |
+| Barlow races, first win | 0 (the story race), 20,000, 30,000, 40,000, 60,000 | 45,000 to 135,000 | 75,000 to 225,000 | 120,000 to 360,000 | 180,000 to 540,000 |
+| Barlow races, second win | 2,500, 7,500, 10,000, 12,000, 20,000 | 5,625 to 45,000 | 9,375 to 75,000 | 15,000 to 120,000 | 22,500 to 180,000 |
+| Barlow races, later wins | 2,500, 2,500, 3,500, 4,000, 7,500 | 5,625 to 16,875 | 9,375 to 28,125 | 15,000 to 45,000 | 22,500 to 67,500 |
+| Joba races, first win | 0, 40,000, 50,000, 60,000, 80,000 | 90,000 to 180,000 | 150,000 to 300,000 | 240,000 to 480,000 | 360,000 to 720,000 |
+| Joba races, second win | 4,000, 12,000, 17,500, 20,000, 27,500 | 9,000 to 61,875 | 15,000 to 103,125 | 24,000 to 165,000 | 36,000 to 247,500 |
+| Joba races, later wins | 4,000, 4,000, 6,000, 7,500, 9,000 | 9,000 to 20,250 | 15,000 to 33,750 | 24,000 to 54,000 | 36,000 to 81,000 |
+| Maktar arena (first win) | 15,000 to 90,000 | 33,750 to 202,500 | 56,250 to 337,500 | 90,000 to 540,000 | 135,000 to 810,000 |
+| Joba arena (first win) | 50,000 to 125,000, and 2,000,000 | 112,500 to 281,250, 4,500,000 | 187,500 to 468,750, 7,500,000 | 300,000 to 750,000, 12,000,000 | 450,000 to 1,125,000, 18,000,000 |
 | Notak's toll door | 6,000 | 7,500 | 10,500 | 15,000 | 21,000 |
 | Dobbo's seller | 10,000 | 12,500 | 17,500 | 25,000 | 35,000 |
 | Aranos prison's seller | 20,000 | 25,000 | 35,000 | 50,000 | 70,000 |
@@ -1026,7 +1046,7 @@ and the rest works.
 A drop is always the game's own pickups after its roll, kill streak, doubling, pacing and limit,
 times the scale. The first game is left alone; the first challenge mode gets a few platinum bolts,
 a taste of them, with drops the same size. **Bolt scaling** off leaves every drop to the game;
-generous pays half as much again as normal (the table's generous column, up to the x12 cap), with
+generous pays half as much again as normal (the table's generous column, up to the x18 cap), with
 the same platinum share.
 
 Platinum bolts need OpenRAC with interface 1.23 (the bolt hook points and the platinum look), and
@@ -1109,7 +1129,7 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve (a boss's, by the victim's class at +0xAA, by the boss column too, the final boss's by 1.5 more; the RYNO II's hits by its own rule, its tough enemies by their own bolts at +0xB4), the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Weapon experience | `rac2.moby.record_death` (`func_002A6C58`, `SetDeathBits`): every weapon's experience (the s32 table at `D_00139868`, << 5) read before the game's own award and after, each gain times the run's rate and the moby's (a boss by its class at +0xAA, an enemy's own bolts at +0xB4) |
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
-| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): the game's burst runs as it is (its amount, flags and coin limit: flag 8, `SetDeathBits` asks for three coins a kill, the rest going to the game's word at +0x1C of the save block, `D_001A7A14`, divided by the streak); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total, from the second challenge mode times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks), at most x12, is made again as obsidian, platinum and gold coins at those places (a coin the game can't make, which it puts in its word, is taken back out and paid at once), the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word divided by the streak, as the game does) |
+| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): the game's burst runs as it is (its amount, flags and coin limit: flag 8, `SetDeathBits` asks for three coins a kill, the rest going to the game's word at +0x1C of the save block, `D_001A7A14`, divided by the streak); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total, from the second challenge mode times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks), at most x18, is made again as obsidian, platinum and gold coins at those places (a coin the game can't make, which it puts in its word, is taken back out and paid at once), the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word divided by the streak, as the game does) |
 | Collectors | no hook point: their dialogs' texts (10135 Tabora's crystals, 10209 Grelbin's moonstones) through `rac2.text.by_id` get the scaled total in place of their second number; each tick a trade (the crystals at +0x22 of the save block, s16, or the moonstones at +0x24, s32, down to 0 in Tabora or Grelbin with the game's pay, 1,000 or 3,000 each, ten times in challenge mode, in the bolts at +0x00) gets the rest of the scaled pay through `openrac_api.bolts` |
 | Races | no hook point (the race's panel, `func_L04_0040AD28`, and its finish, `race_update_player_progress`, read the prize straight from the table): while Barlow or Joba is loaded, each race's three prizes (+0x08, +0x0C, +0x10 of its 0x40 bytes in the level's race table, `D_L04_002C63C0`, `D_L11_002B6D40` in Joba) are written at the run scale, the game's kept and written back when the run pays as the game does; the game's x10 in challenge mode comes on top |
 | Arenas | `rac2.arena.prize` (`func_L02_003FCDF8`, `moby_compute_scaled_entry_value`, one function in Maktar's and Joba's code): the game's prize times the run scale; the arena's menu prints it and the win pays it |

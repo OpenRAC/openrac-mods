@@ -14,7 +14,9 @@
 namespace ng_plus_plus {
 
 float price_scale(float run) {
-    return 1.0f + (run - 1.0f) * 0.5f;
+    // The sellers ask half the rise of the run scale as it was before the bolt boost.
+    const float before = run / kBoltBoost;
+    return before > 1.0f ? 1.0f + (before - 1.0f) * 0.5f : 1.0f;
 }
 
 std::int32_t scaled(std::int32_t value, float scale) {

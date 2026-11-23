@@ -1002,7 +1002,11 @@ void test_copy_table() {
     CHECK(copy_entry(4, 2000) == nullptr);
     CHECK(copies_of(4, 4022, 1) == 0);
     CHECK(copies_of(4, 4022, 2) == 1);
-    CHECK(copies_of(4, 4022, 4) == 2);
+    CHECK(copies_of(4, 4022, 3) == 2);
+    CHECK(copies_of(4, 4022, 4) == 2);  // the hounds' pvars are big: two at most
+    CHECK(copies_of(3, 4092, 2) == 1 && copies_of(3, 4092, 3) == 2);
+    CHECK(copies_of(3, 4092, 4) == 3 && copies_of(3, 4092, 9) == 3);
+    CHECK(extra_copies(1) == 0 && extra_copies(2) == 1 && extra_copies(3) == 2 && extra_copies(4) == 3);
     CHECK(copies_of(4, 2000, 4) == 0);
 
     // A big one at most once, whatever the run.
@@ -1021,7 +1025,7 @@ void test_copy_table() {
     for (int level = 0; level <= 30; ++level) {
         for (int oclass = 2000; oclass < 5000; ++oclass) {
             const CopyEntry* entry = copy_entry(level, oclass);
-            CHECK(entry == nullptr || (entry->most >= 1 && entry->most <= 2 && entry->what != nullptr));
+            CHECK(entry == nullptr || (entry->most >= 1 && entry->most <= 3 && entry->what != nullptr));
         }
     }
 

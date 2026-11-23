@@ -2309,36 +2309,36 @@ void test_platinum_drop() {
     g_materials.clear();
     port_spawn_pickups(kMobyEnemy, 1500, 9);
     CHECK(g_burst_high == 1500);
-    CHECK(g_coins.size() == 15);
-    CHECK(g_materials.size() == 7);
-    CHECK(coins_worth() == 15'000);
+    CHECK(g_coins.size() == 23);
+    CHECK(g_materials.size() == 9);
+    CHECK(coins_worth() == 22'500);
     CHECK(g_sp == kStackTop);
 
     // The biggest first: a platinum 5,000 (the 1,000 coin drawn as platinum), then gold 1,000s.
     CHECK(g_coins.size() > 1 && g_coins[0].value == 1000 && g_coins[1].value == 1000);
     CHECK(g_materials.count(g_coins[0].moby) == 1);
     CHECK(g_materials[g_coins[0].moby] == kMaterialPlatinum);
-    CHECK(g_materials.count(g_coins[1].moby) == 0);
+    CHECK(g_materials[g_coins[1].moby] == kMaterialPlatinum);
 
     // Each coin starts where one of the game's three did, round in turn.
     for (std::size_t n = 0; n < g_coins.size(); ++n) {
         CHECK(g_coins[n].x == static_cast<float>(n % 3));
     }
 
-    // The platinum 5,000, then a gold 1,000.
+    // The platinum 5,000, then a second one.
     g_bolts = 0;
     port_collect(g_coins[0].moby);
     CHECK(g_bolts == 5000);
     CHECK(g_materials.count(g_coins[0].moby) == 0);
     port_collect(g_coins[1].moby);
-    CHECK(g_bolts == 6000);
+    CHECK(g_bolts == 10'000);
 
     // The rest: the whole drop.
     for (std::size_t n = 2; n < g_coins.size(); ++n) {
         port_collect(g_coins[n].moby);
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     CHECK(g_materials.empty());
 }
 
@@ -2353,7 +2353,7 @@ void test_obsidian_drop() {
     g_materials.clear();
     g_glows.clear();
     port_spawn_pickups(kMobyEnemy, 1500, 9);
-    CHECK(coins_worth() == 15'000);
+    CHECK(coins_worth() == 22'500);
     CHECK(g_sp == kStackTop);
     CHECK(g_log.find("interface 1.24") == std::string::npos);
 
@@ -2378,7 +2378,7 @@ void test_obsidian_drop() {
         }
     }
 
-    CHECK(obsidian.size() == 3 && obsidian[20] == 2 && obsidian[5] == 1 && obsidian[1] == 3);
+    CHECK(obsidian.size() == 3 && obsidian[20] == 1 && obsidian[50] == 1 && obsidian[1] == 2);
     // A shade per size: the bigger coin redder, each a colour, not the default white.
     CHECK(glow_500 != glow_25 && glow_500 != kNoTint && glow_25 != kNoTint);
     CHECK((glow_500 >> 16) >= (glow_25 >> 16));
@@ -2411,7 +2411,7 @@ void test_obsidian_drop() {
         }
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     CHECK(g_materials.empty());
 
     // No streak: the 1% of a 7,500 drop at x1 is 75, three obsidian 25s.
@@ -2427,8 +2427,8 @@ void test_obsidian_drop() {
                                                                                              : 0;
     }
 
-    CHECK(obsidian_coins == 3);
-    CHECK(coins_worth() == 7'500);
+    CHECK(obsidian_coins == 4);
+    CHECK(coins_worth() >= 11'200 && coins_worth() <= 11'250);  // the obsidian coins' rounding
 }
 
 // Checks kills under the game's own coin limit (three coins, as SetDeathBits asks) in challenge
@@ -2453,7 +2453,7 @@ void test_kill_drops() {
     port_kill_drop(kMobyEnemy, 200);
     CHECK(g_burst_high == 200);
     CHECK(g_coins.size() <= 5);
-    CHECK(coins_worth() + g_bolts == 750);
+    CHECK(coins_worth() + g_bolts == 1125);
     CHECK(get<std::int32_t>(word) == credit + 5);
 
     // The big one.
@@ -2464,10 +2464,10 @@ void test_kill_drops() {
     port_kill_drop(kMobyEnemy, 6400);
     CHECK(g_burst_high == 6400);
     CHECK(g_coins.size() > 3 && g_coins.size() <= 7);
-    CHECK(coins_worth() + g_bolts == 15'000);
-    CHECK(coins_worth() == 12'000);  // a platinum 5,000 and 2,500, four 1,000s, an obsidian 500
+    CHECK(coins_worth() + g_bolts == 22'500);
+    CHECK(coins_worth() == 16'750);  // two platinum 5,000s, a 2,500, four 1,000s, an obsidian 1,250
     CHECK(get<std::int32_t>(word) == credit + 5 + 490);
-    bool obsidian_500 = false;
+    bool obsidian_1250 = false;
     bool platinum_5000 = false;
 
     // The rare coins.
@@ -2479,11 +2479,11 @@ void test_kill_drops() {
             continue;
         }
 
-        obsidian_500 |= found->second == kMaterialObsidian && coin.value == 20;
+        obsidian_1250 |= found->second == kMaterialObsidian && coin.value == 50;
         platinum_5000 |= found->second == kMaterialPlatinum && coin.value == 1000;
     }
 
-    CHECK(obsidian_500);
+    CHECK(obsidian_1250);
     CHECK(platinum_5000);
 
     // Collected, the coins pay what they showed: with what was added at once, the whole drop.
@@ -2491,7 +2491,7 @@ void test_kill_drops() {
         port_collect(coin.moby);
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     CHECK(g_materials.empty());
     set<std::int16_t>(kMobyEnemy + kMobyBolts, 80);
     set<std::int32_t>(word, credit);
@@ -2502,7 +2502,7 @@ void test_kill_drops() {
 // (0.4.1's runaway: coins it could not make went to the word, whose 2% a kill was scaled again). A
 // word of 1,000,000 in challenge mode's fourth run (x2.5) at x1: a small enemy's 10 bolts and
 // 20,000 of the word, doubled, fill the game's three 1,000s; all 3,000 are the word's, so the drop
-// is 3,000, not 7,500.
+// is 3,000, not 11,250.
 void test_word_not_scaled() {
     lay_out_enemy();
     set_run(3, 1);
@@ -2519,14 +2519,14 @@ void test_word_not_scaled() {
     CHECK(g_burst_high == 20'010);
     CHECK(coins_worth() + g_bolts == 3'000);
 
-    // A kill with no word to take from: its own drop is scaled (10 bolts, doubled 20, x2.5).
+    // A kill with no word to take from: its own drop is scaled (10 bolts, doubled 20, x3.75).
     set<std::int32_t>(word, 0);
     g_coins.clear();
     g_bolts = 0;
     g_death_bolts = 10;
     hooked<rac2::Moby_RecordDeath>()(kMobyEnemy, 0, 3);
     g_death_bolts = 0;
-    CHECK(coins_worth() + g_bolts == 50);
+    CHECK(coins_worth() + g_bolts == 75);
 
     // A word 0.4.1 filled is cut back to 100,000 at the next tick, and said.
     set<std::int32_t>(word, 1'500'000);
@@ -2573,13 +2573,13 @@ void test_drops_before_and_crates() {
     CHECK(g_materials.size() == 4);  // 80 as three platinum 25s and a platinum 5, 120 in gold
     g_materials.clear();
 
-    // A crate in challenge mode's third run (cycle 2), no streak: x1.5 the run, 10% platinum.
+    // A crate in challenge mode's third run (cycle 2), no streak: x2.25 the run, 10% platinum.
     set_run(2, 1);
     g_coins.clear();
     port_spawn_pickups(kMobyOther, 100, 9);
     CHECK(g_burst_high == 100);
-    CHECK(coins_worth() == 300);
-    CHECK(g_materials.size() == 2);  // 30 as a platinum 25 and a platinum 5
+    CHECK(coins_worth() == 450);
+    CHECK(g_materials.size() == 5);  // 45 as a platinum 25 and four platinum 5s
     g_materials.clear();
     set_run(1, 0);
 }
@@ -2615,16 +2615,16 @@ void test_collectors(bool scaled) {
     tick(1);
     CHECK(
         string_at(port_text(g_disc->crystal_trade))
-        == (scaled ? "Trade %d crystals for 100000 bolts?" : "Trade %d crystals for %d bolts?")
+        == (scaled ? "Trade %d crystals for 150000 bolts?" : "Trade %d crystals for %d bolts?")
     );
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 41'000);
     set<std::int16_t>(block + kProgressCrystals, 0);
     tick(1);
-    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    CHECK(g_bolts == (scaled ? 110'000 : 0));
     // Nothing more on the next tick, and no dialog of nothing.
     tick(1);
-    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    CHECK(g_bolts == (scaled ? 110'000 : 0));
     CHECK(string_at(port_text(g_disc->crystal_trade)) == "Trade %d crystals for %d bolts?");
 
     // Grelbin: the moonstones.
@@ -2632,13 +2632,13 @@ void test_collectors(bool scaled) {
     tick(1);
     CHECK(
         string_at(port_text(g_disc->moonstone_trade))
-        == (scaled ? "%d moonstones: 225000 bolts" : "%d moonstones: %d bolts")
+        == (scaled ? "%d moonstones: 337500 bolts" : "%d moonstones: %d bolts")
     );
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 131'000);
     set<std::int32_t>(block + kProgressMoonstones, 0);
     tick(1);
-    CHECK(g_bolts == (scaled ? 135'000 : 0));
+    CHECK(g_bolts == (scaled ? 247'500 : 0));
 
     // A count that drops with no pay (a save loaded): nothing.
     set<std::int32_t>(block + kProgressMoonstones, 5);
@@ -2733,21 +2733,21 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     g_level_now = kBarlow;
     tick(1);
     CHECK(race_prize(barlow, 0, 0) == 0);
-    CHECK(race_prize(barlow, 0, 1) == (scaled_run ? 625 : 250));
-    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
-    CHECK(race_prize(barlow, 1, 1) == (scaled_run ? 1'875 : 750));
-    CHECK(race_prize(barlow, 4, 2) == (scaled_run ? 875 : 350));
+    CHECK(race_prize(barlow, 0, 1) == (scaled_run ? 938 : 250));
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 7'500 : 2'000));
+    CHECK(race_prize(barlow, 1, 1) == (scaled_run ? 2'813 : 750));
+    CHECK(race_prize(barlow, 4, 2) == (scaled_run ? 1'313 : 350));
     CHECK(
-        (g_log.find("the races pay x2.50 (the second race 2000 -> 5000)") != std::string::npos)
+        (g_log.find("the races pay x3.75 (the second race 2000 -> 7500)") != std::string::npos)
         == scaled_run
     );
     // Not scaled twice.
     tick(3);
-    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 7'500 : 2'000));
     // The level loaded anew: the game's prize again, scaled again.
     set<std::int32_t>(table_word(barlow, kRaceBytes + kRacePrize), 2'000);
     tick(1);
-    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 7'500 : 2'000));
 
     // The first challenge mode: the game's prizes back.
     set_run(1, 1);
@@ -2770,10 +2770,10 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
         g_log.clear();
         g_level_now = table.level;
         tick(2);
-        CHECK(get<std::int32_t>(table_word(table, 0)) == (scaled_run ? 2'500 : 1'000));
-        CHECK(get<std::int32_t>(table_word(table, 44)) == (scaled_run ? 625 : 250));
+        CHECK(get<std::int32_t>(table_word(table, 0)) == (scaled_run ? 3'750 : 1'000));
+        CHECK(get<std::int32_t>(table_word(table, 44)) == (scaled_run ? 938 : 250));
         CHECK(
-            (g_log.find("the space missions pay x2.50 (the second mission 1000 -> 2500)")
+            (g_log.find("the space missions pay x3.75 (the second mission 1000 -> 3750)")
              != std::string::npos)
             == scaled_run
         );
@@ -2787,14 +2787,14 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     set<std::int32_t>(row(8) + kRowPrice, 20'000);
     g_level_now = kJoba;
     tick(1);
-    CHECK(race_prize(joba, 2, 0) == (scaled_run ? 7'500 : 3'000));
+    CHECK(race_prize(joba, 2, 0) == (scaled_run ? 11'250 : 3'000));
     CHECK(get<std::int32_t>(row(8) + kRowPrice) == (scaled_run ? 35'000 : 20'000));
     const auto prize = hooked<hooks::Arena_Prize>();
     CHECK((prize != nullptr) == arena);
 
     // The arena's prize, at the run's scale; the game's in the first challenge mode.
     if (prize != nullptr) {
-        CHECK(prize(3) == 125'000);
+        CHECK(prize(3) == 187'500);
         set_run(1, 1);
         CHECK(prize(3) == kArenaPrize);
         set_run(3, 1);
@@ -2915,7 +2915,7 @@ void test_pool_room() {
     lay_out_enemy();
     set_run(3, 20);
     g_level_now = 4;
-    int total_expected = 15'000;
+    int total_expected = 22'500;
     const auto drop = [&](int fake_coins, int free_slots, std::size_t most_coins) {
         g_fake_coins = fake_coins;
         g_pool_free = free_slots;
@@ -3014,7 +3014,7 @@ void test_fallback_caps() {
         port_collect(coin.moby);
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     g_fake_coins = 0;
     set_run(1, 0);
 }
