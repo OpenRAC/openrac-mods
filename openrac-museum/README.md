@@ -29,7 +29,7 @@ Adding a newer file updates the planet in place.
   matching (real code on the screens), the I-5 terminal, the 20-button codes on the floor, a map of
   the museum, mods, co-op, the speedrun record, the effects case, a handheld, a
   cutscene file, the test room, the devkit desk and a wall of everyone who made OpenRAC.
-- **Cut from the game**, round the fountain: the Revolverator (its model from your disc), the E3
+- **Cut from the game**, round the fountain: the Revolverator (its model from your disc; the Revolverator mod brings it back), the E3
   demo's old names, the Mackerel 1000, and the developers' notes to themselves over the doors.
 - **A gold tile before each exhibit**: stand on it and the OpenRAC Museum mod shows what you see
   and the story behind it.

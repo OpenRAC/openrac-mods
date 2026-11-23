@@ -94,8 +94,8 @@ WORDS = {
                "Going Commando's Insomniac Museum is its level 30, stored as LEVEL21.WAD. This door opens "
                "only between 3 and 4 in the morning, on your own clock."),
     "cut_revolverator": ("The Revolverator",
-                         "A cut weapon: a drill that grabbed an enemy and spun it over Ratchet's head. It left "
-                         "him open to the others, so it went. Its model is still on the disc, in Hoven's files."),
+                         "Cut from the game: a drill that spun enemies over Ratchet's head. Its model is still "
+                         "on the disc. The Revolverator mod for OpenRAC brings it back."),
     "cut_e3": ("The E3 demo",
                "At E3 in 2002 the game was not finished. Rilgar was called Talos, and the Decoy Glove was the "
                "Inflato-Ratchet Glove. The I-5 menu still calls it Inflato R."),
