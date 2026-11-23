@@ -69,6 +69,34 @@ struct Bolt_Collect {
     using fn = void (*)(std::uint32_t);
 };
 
+// The armour vendor's list (shop_rebuild_unlocked_slot_list, func_002F71B8): rows {text, price,
+// armour} at the vendor's +0x140 (discs.h, kArmourMode). OpenRAC 1.34.
+struct ArmorVendor_BuildList {
+    static constexpr const char* id = "rac2.armor_vendor.build_list";
+    static constexpr const char* name = "ArmorVendor_BuildList";
+    static constexpr const char* signature = "void()";
+    using fn = void (*)();
+};
+
+// The armour vendor's purchase dialog (func_L00_00373D40, each level's copy): `answer` the game
+// address of its i32 answer (1 yes), then a word it does not read; it decides at the vendor's
+// +0x84 = 3. OpenRAC 1.34.
+struct ArmorVendor_Buy {
+    static constexpr const char* id = "rac2.armor_vendor.buy";
+    static constexpr const char* name = "ArmorVendor_Buy";
+    static constexpr const char* signature = "void(u32,u32)";
+    using fn = void (*)(std::uint32_t, std::uint32_t);
+};
+
+// The vendor's preview of the row under the cursor (PrepareVendorSelectionPreview,
+// func_002FB1A0). OpenRAC 1.34.
+struct Vendor_Preview {
+    static constexpr const char* id = "rac2.vendor.preview";
+    static constexpr const char* name = "Vendor_Preview";
+    static constexpr const char* signature = "void()";
+    using fn = void (*)();
+};
+
 // The port's own slots for a mod's texts: the lookup returns the address of slot n for id
 // kTextSlot + n, kTextSlotBytes each, kTextSlots of them.
 inline constexpr std::int32_t kTextSlot = 0x7F10;

@@ -185,6 +185,8 @@ void TestSetup::apply() {
         hold = h == std::string::npos ? -1 : std::atoi(rest.c_str() + h + 5);
         m_near = rest.find("near=1") != std::string::npos;
         m_vendor = rest.find("vendor=1") != std::string::npos;
+        m_armour = rest.find("armour=1") != std::string::npos;
+        m_vendor = m_vendor || m_armour;
         const std::size_t a = rest.find("at=");
 
         // at=CLASS: held at another moby class than the vendor (the Ship Shack's button).
@@ -265,8 +267,27 @@ void TestSetup::bring_to_vendor() {
     const ScannedMoby* vendor = nullptr;
     float best = 1e30f;
 
-    // The nearest vendor.
+    // The nearest vendor (the armour vendor's: its pvars +0x94 is 2, the menu's mode 3).
     for (const ScannedMoby& moby : scan.mobys()) {
+        const std::uint32_t pvars =
+            moby.moby_class == m_at_class ? m_view.memory().read<std::uint32_t>(moby.address + 0x68u)
+                                          : 0u;
+        const std::int32_t action = GameView::is_memory(pvars + 0x94u, 4)
+                                        ? m_view.memory().read<std::int32_t>(pvars + 0x94u)
+                                        : -1;
+
+        if (m_armour && moby.moby_class == m_at_class) {
+            m_mod.info(
+                "test: class " + std::to_string(m_at_class) + " at "
+                + std::to_string(moby.position[0]) + "," + std::to_string(moby.position[1])
+                + ", its pvars +0x94 " + std::to_string(action)
+            );
+        }
+
+        if (m_armour && action != 2) {
+            continue;
+        }
+
         if (moby.moby_class == m_at_class && distance2(moby.position, hero) < best) {
             best = distance2(moby.position, hero);
             vendor = &moby;
@@ -328,6 +349,30 @@ std::string TestSetup::shown_text(std::int32_t id) const {
 
 void TestSetup::watch_vendor() {
     const int count = m_view.vendor_count();
+
+    // The armour vendor's list, each time it changes: its rows and the menu's state.
+    if (m_view.vendor_mode() == kArmourMode && count >= 0 && count <= kArmourRowsMax) {
+        std::string list = "open " + std::to_string(m_view.vendor_open() ? 1 : 0) + ", cursor "
+                           + std::to_string(m_view.vendor_cursor()) + ", dialog "
+                           + std::to_string(m_view.vendor_dialog()) + ", armour "
+                           + std::to_string(m_view.armour()) + ", tier "
+                           + std::to_string(m_tiers.own_level(kArmourItem)) + ", bolts "
+                           + std::to_string(m_view.bolts()) + ":";
+
+        for (int n = 0; n < count; ++n) {
+            const ArmourRow row = m_view.armour_row(n);
+            list += " ['" + shown_text(row.text) + "' " + std::to_string(row.price) + " armour "
+                    + std::to_string(row.armour) + "]";
+        }
+
+        if (list != m_armour_seen) {
+            m_armour_seen = list;
+            m_mod.info("test: armour vendor " + list + ", about '"
+                       + shown_text(m_view.armour_about_text()) + "'");
+        }
+
+        return;
+    }
 
     // The list as it is now, once each time it changes.
     if (count != m_vendor_seen && count >= 0 && count <= kVendorMaxEntries) {

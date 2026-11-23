@@ -7,6 +7,7 @@
 #include "perk_rules.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace ng_plus_plus {
@@ -796,6 +797,47 @@ int armour_energy(int tier) {
     // Faint at Alpha, the top at Omega.
     const int clamped = std::min(tier, kArmourTiers);
     return 1 + (clamped - 1) * (kEffectTop - 1) / (kArmourTiers - 1);
+}
+
+int armour_paint_level(int tier) {
+    constexpr int kTop = 15;
+
+    // No tier: no paint.
+    if (tier <= 0) {
+        return 0;
+    }
+
+    // Alpha a clean coat, Omega the brightest rim.
+    const int clamped = std::min(tier, kArmourTiers);
+    return (clamped - 1) * kTop / (kArmourTiers - 1);
+}
+
+std::string armour_about(int tier) {
+    // No tier: nothing to describe.
+    if (tier <= 0 || tier > kArmourTiers) {
+        return {};
+    }
+
+    const int off = static_cast<int>(std::lround((1.0f - armour_damage(tier)) * 100.0f));
+    const std::string head = armour_name(tier) + ": " + std::to_string(off) + "% less damage";
+    const Stage stage = stage_of_tier(tier);
+
+    // Omega: everything, at its strongest.
+    if (stage >= Stage::Omega) {
+        return head + ", strong thorns, a last stand every 30 s.";
+    }
+
+    // Epsilon to Eta: thorns and the last stand.
+    if (stage >= Stage::Epsilon) {
+        return head + ", thorns and a last stand.";
+    }
+
+    // Gamma and Delta: thorns.
+    if (stage >= Stage::Gamma) {
+        return head + ", and thorns shock enemies near you.";
+    }
+
+    return head + ", on top of Carbonox.";
 }
 
 ArmourPerk armour_perk(int tier) {

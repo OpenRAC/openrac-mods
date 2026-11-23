@@ -28,6 +28,7 @@ add_library(ng_plus_plus_core STATIC
   src/elites.cpp
   src/perks.cpp
   src/armour.cpp
+  src/armour_vendor.cpp
   src/shots.cpp
   src/tuning_rules.cpp
   src/tuning.cpp

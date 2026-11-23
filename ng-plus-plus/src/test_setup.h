@@ -7,11 +7,13 @@
 // (55 the armour tier, with the game's best armour; 54 the ship's tier), the weapon `hold` is
 // equipped, `cycle=N` sets the challenge mode counter, the nearest
 // enemies are logged, and with near=1 the hero is put 6 units from the nearest one every 20
-// seconds. Nothing is kept in the book (a test run's clock is zeros).
+// seconds. armour=1 holds him at the armour vendor (a class-11 vendor whose pvars +0x94 is 2) and
+// logs its list and the armour tiers' row. Nothing is kept in the book (a test run's clock is zeros).
 
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "game_view.h"
 #include "openrac/mod.hpp"
@@ -48,6 +50,8 @@ private:
     int m_ticks = 0;
     bool m_near = false;
     bool m_vendor = false;     // vendor=1: the hero held at the weapon vendor.
+    bool m_armour = false;     // armour=1: at the armour vendor (pvars +0x94 of 2).
+    std::string m_armour_seen;  // The armour list last logged.
     int m_at_class = 11;       // The class he is held at: the vendor's, or at=CLASS's.
     int m_buy = -1;            // buy=ITEM: the cursor kept on ITEM's tier entry.
     int m_xp_item = -1;        // xp=ITEM:N: N experience given to ITEM after the setup.

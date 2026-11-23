@@ -283,9 +283,10 @@ inline constexpr std::uint32_t kChilledRgb = 0xB0E8FFu;
 
 // ---- Armour tiers ----
 
-// The tiers of armour past the game's best (Carbonox, armour 4), bought at the weapon vendor: the
-// armour shop's list (shop_rebuild_unlocked_slot_list, func_002F71B8 on NTSC-U) is no hook point,
-// and its purchase sets the armour level its tables of five (names, models) are read by.
+// The tiers of armour past the game's best (Carbonox, armour 4), sold at the armour vendor after
+// Carbonox (armour_vendor.h): each is Carbonox repainted in its colour, its rim glowing brighter
+// tier by tier. The game's own armour stays 4: its tables of five (names, packs, descriptions) end
+// there, and its damage table reads it.
 inline constexpr int kArmourTiers = 8;
 
 // The game's best armour, Carbonox: the s16 armour level the hero's damage reads (g_player_stats
@@ -321,6 +322,14 @@ std::optional<std::uint32_t> armour_tint(int tier, std::uint32_t tick);
 // Returns the armour glow's strength (OpenRAC's energy level) at tier `tier`: a faint rim at Alpha,
 // kEffectTop at Omega.
 int armour_energy(int tier);
+
+// Returns the armour paint's rim glow (OpenRAC's paint level, 0 to 15) at tier `tier`: none at
+// Alpha, rising each tier to 15 at Omega.
+int armour_paint_level(int tier);
+
+// Returns the armour vendor's description of tier `tier`: what it takes off a hit and its perks,
+// short enough for the port's text slot.
+std::string armour_about(int tier);
 
 // The armour's perks at a tier.
 struct ArmourPerk {

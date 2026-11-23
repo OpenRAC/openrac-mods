@@ -5,12 +5,11 @@
 
 #include "text.h"
 
-#include "perk_rules.h"
-
 #include <algorithm>
 #include <vector>
 
 #include "hooks.h"
+#include "perk_rules.h"
 
 namespace ng_plus_plus {
 namespace {
@@ -147,9 +146,7 @@ std::optional<std::uint32_t> TextResolver::resolve(std::int32_t id) {
     if (const std::optional<NamedTier> entry = m_vendor.named_entry()) {
         const Row row = m_weapons.upgrade_row(entry->item);
         const std::optional<std::uint32_t> text =
-            entry->armour
-                ? row_text_named(row, id, armour_name(entry->level), kVendorSlot)
-                : row_text(row, id, entry->item, entry->level, kVendorSlot);
+            row_text(row, id, entry->item, entry->level, kVendorSlot);
 
         // Any other text the vendor shows meanwhile goes on to the weapons' own.
         if (text) {
@@ -223,14 +220,6 @@ std::optional<std::uint32_t> TextResolver::vendor_label(std::int32_t id) {
     }
 
     const std::optional<NamedTier> drawn = m_vendor.drawn_upgrade();
-
-    // The armour entry: its tier's name in place of the label.
-    if (drawn && drawn->armour) {
-        const std::string label = m_view.text(id);
-        const std::optional<std::string> told =
-            retell(label, {label}, armour_name(drawn->level), hooks::kTextSlotBytes);
-        return told ? m_view.write_slot(kLabelSlot, *told) : std::nullopt;
-    }
 
     const Step* step = drawn ? step_at(kind_of(drawn->item), drawn->level - 1) : nullptr;
 

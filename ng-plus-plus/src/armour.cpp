@@ -13,11 +13,17 @@ namespace ng_plus_plus {
 
 void Armour::start() {
     m_material = moby_material_of(m_mod.api());
+    m_material_class = material_class_of(m_mod.api());
     m_energy = m_material != nullptr && m_mod.api().api_minor >= kEnergyMinor;
 
     // What this port lacks, for a player's log.
-    if (!m_energy) {
-        m_mod.info("the armour tiers' glow needs OpenRAC 1.25; their protection does not");
+    if (m_material_class == nullptr) {
+        m_mod.info(
+            "the armour tiers are drawn as a glow, not repainted, and the armour vendor cannot "
+            "sell "
+            "them in this build: both need OpenRAC with mod interface 1.34; their protection does "
+            "not"
+        );
     }
 }
 
@@ -52,7 +58,8 @@ void Armour::hurt(std::int32_t amount) {
     // The last stand: a hit that ended him leaves 1 point, once in a while.
     if (perk.last_stand_ticks > 0 && m_view.hero_health() <= 0 && m_tick >= m_last_stand_ready) {
         m_view.set_hero_health(1);
-        m_last_stand_ready = m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.last_stand_ticks));
+        m_last_stand_ready =
+            m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.last_stand_ticks));
         m_mod.info("last stand: the armour kept Ratchet at 1 point");
         m_mod.api().play_notice(m_mod.handle(), "Last stand!");
     }
@@ -74,18 +81,70 @@ std::int32_t Armour::spare(std::int32_t points) {
     return health - 1;
 }
 
-void Armour::tick(std::uint32_t tick) {
+std::optional<Armour::Look> Armour::look_of(int tier, std::uint32_t tick) const {
+    const std::optional<std::uint32_t> rgb = armour_rgb(tier, m_view.sixtieths(tick));
+
+    // No tier: the game's Carbonox.
+    if (!rgb) {
+        return std::nullopt;
+    }
+
+    return Look{paint_at(armour_paint_level(tier)), *rgb};
+}
+
+void Armour::paint(
+    std::uint32_t scope, const std::optional<Look>& look, std::optional<Look>& sent
+) {
+    // Sent already.
+    if (look == sent) {
+        return;
+    }
+
+    // None: the mod's paint off the class; else the tier's.
+    const std::uint32_t material = look ? look->material : kMaterialNone;
+    const std::uint32_t rgb = look ? look->rgb : kNoTint;
+
+    if (m_material_class(m_mod.handle(), kHeroClass, scope, material, rgb) == OPENRAC_HOOK_OK) {
+        sent = look;
+    }
+}
+
+void Armour::tick(std::uint32_t tick, std::optional<int> previewed) {
     m_tick = tick;
     const int level = m_view.loaded_level();
 
-    // Another level: the port dropped the hero's look with the old one.
+    // Another level: the port dropped the looks with the old one.
     if (level != m_level) {
         m_level = level;
         m_drawn_moby = 0;
+        m_world.reset();
+        m_menu.reset();
     }
 
-    // A port without energy, no level, or no tier: the game's armour.
-    if (!m_energy || level < 0) {
+    // No level yet.
+    if (level < 0) {
+        return;
+    }
+
+    // An older port: a glow on the hero's moby.
+    if (m_material_class == nullptr) {
+        glow(tick);
+        return;
+    }
+
+    // Omega's cycle moves every other tick only.
+    if (tier() >= kArmourTiers && tick % 2u != 0) {
+        return;
+    }
+
+    // The hero in the world in the tier he wears; the vendor's picture of him in the tier it shows.
+    paint(kScopeWorld, look_of(tier(), tick), m_world);
+    paint(kScopeMenu, look_of(previewed.value_or(tier()), tick), m_menu);
+}
+
+void Armour::glow(std::uint32_t tick) {
+    // A port without energy: the game's armour.
+    if (!m_energy) {
         return;
     }
 

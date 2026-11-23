@@ -45,7 +45,11 @@ struct Disc {
     std::int32_t upgrade_label;  // The text id of "Mega" under an upgrade entry (func_002F9C80).
     std::int32_t crystal_trade;  // The text id of Tabora's crystal trade (its level's code).
     std::int32_t moonstone_trade;  // The text id of Grelbin's moonstone trade (its level's code).
-    int tick_rate;               // The game's ticks a second: PAL's code counts in fiftieths.
+    int tick_rate;                 // The game's ticks a second: PAL's code counts in fiftieths.
+    std::uint32_t game_mode;    // s32: the game's mode, kVendorGameMode in a vendor (D_001A8BB0).
+    std::int32_t armour_about;  // The text id of Carbonox's description at the armour vendor
+                                // (g_shop_armor_text_ids[4], D_001AD250).
+    std::int32_t armour_name;   // The text id of "Carbonox Armor", the vendor's name for it.
 };
 
 // clang-format off: one disc per row, the columns in the order of Disc's members.
@@ -53,13 +57,13 @@ struct Disc {
 inline constexpr Disc kDiscs[] = {
     {"ntsc",  0x00239BA0u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7AF8u, 0x00189E20u,
      0x0021F240u, 0x001A7360u, "func_00288FB8", 0x001A79F8u, "func_00288E18", "func_002B0A18",
-     "func_L00_0037E6A8", "func_002AD860", 0x325F, 10135, 10209, 60},
+     "func_L00_0037E6A8", "func_002AD860", 0x325F, 10135, 10209, 60, 0x001A8BB0u, 0x2FD5, 0x0AB0},
     {"pal",   0x00239BA0u, 0x001395E8u, 0x001398E8u, 0x00139708u, 0x001A7B80u, 0x00189EA0u,
      0x0021F240u, 0x001A73E0u, "func_002898E8", 0x001A7A80u, "func_00289730", "func_002B1588",
-     "func_L00_003813E0", "func_002AE3C0", 0x1B2D, 4841, 4915, 50},
+     "func_L00_003813E0", "func_002AE3C0", 0x1B2D, 4841, 4915, 50, 0x001A8C60u, 0x0EF9, 0x0AB0},
     {"ntsc2", 0x00239B20u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7B00u, 0x00189E20u,
      0x0021F1C0u, 0x001A7360u, "func_002899F8", 0x001A7A00u, "func_00289840", "func_002B1880",
-     "func_L00_0037FB10", "func_002AE6C8", 0x30F5, 4841, 4915, 60},
+     "func_L00_0037FB10", "func_002AE6C8", 0x30F5, 4841, 4915, 60, 0x001A8BB0u, 0x2E6B, 0x331B},
 };
 // clang-format on
 
@@ -129,17 +133,36 @@ inline constexpr RowTextField kRowTextFields[] = {
 };
 
 // The hero's fields (func_L00_002D5EB8, Moby_PostHit's callers).
-inline constexpr std::uint32_t kHeroReady = 0x0340u;  // s32: non-zero when he can play a level-up.
-inline constexpr std::uint32_t kHeroHeld = 0x1248u;   // s32: the item in hand.
-inline constexpr std::uint32_t kHeroMoby = 0x2290u;   // u32: his moby.
-inline constexpr std::uint32_t kHeroHealth = 0x24CCu; // s32: his health (AdjustPlayerHealth).
+inline constexpr std::uint32_t kHeroReady = 0x0340u;   // s32: non-zero when he can play a level-up.
+inline constexpr std::uint32_t kHeroHeld = 0x1248u;    // s32: the item in hand.
+inline constexpr std::uint32_t kHeroMoby = 0x2290u;    // u32: his moby.
+inline constexpr std::uint32_t kHeroHealth = 0x24CCu;  // s32: his health (AdjustPlayerHealth).
 
 // The vendor's state (func_002F6608, func_002F6510, func_002F8918).
+inline constexpr std::uint32_t kVendorState = 0x00u;       // s32: 2 once it closes.
+inline constexpr std::uint32_t kVendorMode = 0x50u;        // s32: kArmourMode at the armour vendor.
 inline constexpr std::uint32_t kVendorCursor = 0x80u;      // s32: the entry under the cursor.
+inline constexpr std::uint32_t kVendorDialog = 0x84u;      // s32: the purchase dialog's state.
 inline constexpr std::uint32_t kVendorEntries = 0x140u;    // The list.
 inline constexpr std::uint32_t kVendorEntryBytes = 0x18u;  // One entry's size.
 inline constexpr std::uint32_t kVendorCount = 0x740u;      // s32: the entries in the list.
 inline constexpr int kVendorMaxEntries = 64;               // The list's room.
+
+// The game's mode while a vendor is open (OpenVendorMenu, func_002F8178).
+inline constexpr std::int32_t kVendorGameMode = 5;
+
+// The armour vendor: the vendor in mode 3 (a Megacorp Vendor whose pvars +0x94 is 2), whose list
+// (shop_rebuild_unlocked_slot_list, func_002F71B8) is rows of three s32 at kVendorEntries: the
+// name's text id, the price in bolts and the armour (0 to 4) the row sells, which its preview
+// loads (PrepareVendorSelectionPreview, func_002FB1A0). Its purchase dialog (func_L00_00373D40)
+// decides at kDialogDecide.
+inline constexpr std::int32_t kArmourMode = 3;
+// The armours' icons: this plus the armour (0xEA96 Carbonox's), the row's first word.
+inline constexpr std::int32_t kArmourIcon = 0xEA92;
+inline constexpr std::uint32_t kArmourRowBytes = 12u;
+inline constexpr int kArmourRowsMax = 128;
+inline constexpr std::int32_t kDialogDecide = 3;
+inline constexpr std::int32_t kClosingState = 2;
 
 // A vendor entry's fields, each an s32.
 inline constexpr std::uint32_t kEntryItem = 0x00u;
@@ -195,7 +218,8 @@ inline constexpr std::uint32_t kMobyBolts = 0xB4u;
 
 // A hit request's fields (Moby_PostHit, QueueMobyImpact in rac2-decomp: src/game/002A7750.c,
 // L_A8E20Req; filled by make_hit_descriptor and part_init_effect_record).
-inline constexpr std::uint32_t kHitSource = 0x10u;  // u32: the moby that dealt it (the shot, blast...).
+inline constexpr std::uint32_t kHitSource =
+    0x10u;  // u32: the moby that dealt it (the shot, blast...).
 inline constexpr std::uint32_t kHitDamage = 0x1Cu;  // f32: the damage.
 
 // A moby's class, u16 (moby +0xAA: what the game's update dispatch and the ammo pickup key on).

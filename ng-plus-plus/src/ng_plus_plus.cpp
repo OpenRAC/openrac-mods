@@ -21,7 +21,8 @@
 //   perk_rules.h   0.5.0's rules: perks, the Ice Gun, armour tiers, elites, modifiers, overdrive
 //   perks.h        the perks in the game: chains, fans, bursts, fields, the Ice Gun's freeze
 //   elites.h       elite enemies and the challenge modes' modifiers
-//   armour.h       the armour tiers: protection, glow, thorns, last stand, the vendor's entry
+//   armour.h       the armour tiers: protection, look, thorns, last stand
+//   armour_vendor.h  their row at the armour vendor (OpenRAC 1.34)
 //   shots.h        OpenRAC 1.29's: extra shots, split rockets, mini bombs, shot looks, statuses
 //   tuning.h       0.5.1's: the Tesla Claw's steady hits, the Zodiac on bosses, the decoy's health
 //   ship_upgrades.h
@@ -40,21 +41,22 @@
 #include <string>
 
 #include "armour.h"
+#include "armour_vendor.h"
 #include "bolt_rules.h"
 #include "collectors.h"
-#include "elites.h"
-#include "perk_rules.h"
-#include "perks.h"
 #include "combat.h"
 #include "culling.h"
 #include "discs.h"
+#include "elites.h"
 #include "experience.h"
 #include "extra_enemies.h"
-#include "moby_pool.h"
 #include "game_view.h"
 #include "hooks.h"
+#include "moby_pool.h"
 #include "openrac/games/rac2.hpp"
 #include "openrac/mod.hpp"
+#include "perk_rules.h"
+#include "perks.h"
 #include "platinum_bolts.h"
 #include "rewards.h"
 #include "save_tiers.h"
@@ -94,18 +96,19 @@ public:
           m_combat(m_weapons, enemy_settings(mod)),
           m_text(m_view, m_weapons, m_vendor, m_experience),
           m_bolts(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
-          m_collectors(
-              mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))
-          ),
+          m_collectors(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
           m_rewards(mod, m_view, bolt_scaling_of(mod.setting<std::string>("bolt_scaling"))),
           m_visuals(mod, m_view, m_weapons),
           m_enemies(mod, m_view, m_tiers, mod.setting<bool>("extra_enemies")),
           m_elites(
-              mod, m_view, mod.setting<bool>("elite_enemies"),
+              mod,
+              m_view,
+              mod.setting<bool>("elite_enemies"),
               mod.setting<bool>("challenge_modifiers")
           ),
           m_perks(mod, m_view, m_weapons, m_elites, mod.setting<bool>("weapon_perks")),
           m_armour(mod, m_view, m_tiers, m_perks),
+          m_armour_vendor(mod, m_view, m_armour),
           m_shots(mod, m_view, m_weapons, m_perks),
           m_tuning(mod, m_view, m_weapons, m_combat, mod.setting<bool>("tesla_steady")),
           m_ship(mod, m_view, m_tiers, disc.progress, disc.vendor),
@@ -118,7 +121,6 @@ public:
     {
         m_perks.set_shots(&m_shots);
         m_combat.set_parts(&m_perks, &m_elites, &m_armour);
-        m_vendor.set_armour(&m_armour);
         m_enemies.set_elites(&m_elites);
         m_bolts.set_elites(&m_elites);
         m_combat.set_tuning(&m_tuning);
@@ -176,32 +178,35 @@ private:
     // weapons at Omega added to the count at game address `count`.
     std::int32_t nanotech_steps(
         openrac::Original<std::int32_t(std::uint32_t, std::uint32_t, std::uint32_t)> original,
-        std::uint32_t a0, std::uint32_t a1, std::uint32_t count
+        std::uint32_t a0,
+        std::uint32_t a1,
+        std::uint32_t count
     );
 
-    openrac::Mod& m_mod;       // The mod; the SDK keeps it for the program.
-    GameView m_view;           // The game on this disc.
-    SaveTiers m_tiers;         // The tiers in play and their book.
-    Weapons m_weapons;         // Which weapon, row and tier.
-    Experience m_experience;   // Steps by experience and the rows.
-    Vendor m_vendor;           // The vendor's entries.
-    Combat m_combat;           // Damage and the enemies.
-    TextResolver m_text;       // Weapon texts at their tiers.
-    PlatinumBolts m_bolts;     // Platinum bolts and the drops' scaling.
-    Collectors m_collectors;   // Tabora's and Grelbin's collectors' pay.
-    Rewards m_rewards;         // The races' and arenas' prizes and the sellers' prices.
-    WeaponVisuals m_visuals;   // The tiers' colours on the weapons' mobys.
-    ExtraEnemies m_enemies;    // More enemies each new game.
-    Elites m_elites;           // Elite enemies and the run's modifier.
-    Perks m_perks;             // The weapons' perks and the Ice Gun.
-    Armour m_armour;           // The armour tiers.
-    Shots m_shots;             // The perks of OpenRAC 1.29's weapon calls.
-    WeaponTuning m_tuning;     // 0.5.1's Tesla Claw, Zodiac and decoy.
-    ShipUpgrades m_ship;       // The ship's weapon tiers.
-    SpaceMissions m_space;     // The space missions.
-    ShipLooks m_ship_looks;    // The ship's glow.
+    openrac::Mod& m_mod;           // The mod; the SDK keeps it for the program.
+    GameView m_view;               // The game on this disc.
+    SaveTiers m_tiers;             // The tiers in play and their book.
+    Weapons m_weapons;             // Which weapon, row and tier.
+    Experience m_experience;       // Steps by experience and the rows.
+    Vendor m_vendor;               // The vendor's entries.
+    Combat m_combat;               // Damage and the enemies.
+    TextResolver m_text;           // Weapon texts at their tiers.
+    PlatinumBolts m_bolts;         // Platinum bolts and the drops' scaling.
+    Collectors m_collectors;       // Tabora's and Grelbin's collectors' pay.
+    Rewards m_rewards;             // The races' and arenas' prizes and the sellers' prices.
+    WeaponVisuals m_visuals;       // The tiers' colours on the weapons' mobys.
+    ExtraEnemies m_enemies;        // More enemies each new game.
+    Elites m_elites;               // Elite enemies and the run's modifier.
+    Perks m_perks;                 // The weapons' perks and the Ice Gun.
+    Armour m_armour;               // The armour tiers.
+    ArmourVendor m_armour_vendor;  // Their row at the armour vendor.
+    Shots m_shots;                 // The perks of OpenRAC 1.29's weapon calls.
+    WeaponTuning m_tuning;         // 0.5.1's Tesla Claw, Zodiac and decoy.
+    ShipUpgrades m_ship;           // The ship's weapon tiers.
+    SpaceMissions m_space;         // The space missions.
+    ShipLooks m_ship_looks;        // The ship's glow.
 #ifdef NGPP_TEST_SETUP
-    TestSetup m_test;          // Test runs only.
+    TestSetup m_test;  // Test runs only.
 #endif
     std::uint32_t m_tick = 0;  // Game ticks since load, for the animated tints.
 };
@@ -283,8 +288,10 @@ void NgPlusPlus::start() {
     const int granted = request_pool(m_mod);
     m_mod.info(
         granted > 0 ? "asked for " + std::to_string(granted) + " more spare moby slots"
-                    : std::string("this OpenRAC has no more moby slots to give (mod interface 1.27): "
-                                  "the bolts and copies keep to the game's pool")
+                    : std::string(
+                          "this OpenRAC has no more moby slots to give (mod interface 1.27): "
+                          "the bolts and copies keep to the game's pool"
+                      )
     );
 
     // Once a game tick, on the game's thread.
@@ -312,6 +319,27 @@ void NgPlusPlus::take_optional() {
         });
     } catch (const openrac::Error& error) {
         m_mod.info(std::string("no tint in the vendor's list: ") + error.what());
+    }
+
+    // The armour tiers at the armour vendor: an OpenRAC before 1.34 has no such hook points, and
+    // the tiers bought keep working.
+    try {
+        m_mod.hook<hooks::ArmorVendor_BuildList>([self](auto original) {
+            self->m_armour_vendor.build_list(original);
+        });
+        m_mod.hook<hooks::ArmorVendor_Buy>(
+            [self](auto original, std::uint32_t answer, std::uint32_t unused) {
+                self->m_armour_vendor.buy(original, answer, unused);
+            }
+        );
+    } catch (const openrac::Error& error) {
+        m_mod.info(
+            std::string(
+                "the armour vendor sells no armour tiers in this build (OpenRAC with mod "
+                "interface 1.34): "
+            )
+            + error.what()
+        );
     }
 
     // The tiers' names in the game's texts: an OpenRAC without it shows the game's.
@@ -419,6 +447,11 @@ std::int32_t NgPlusPlus::text_by_id(
         }
     }
 
+    // The armour vendor's row of the mod's: its description.
+    if (const std::optional<std::uint32_t> about = m_armour_vendor.text(id)) {
+        return static_cast<std::int32_t>(*about);
+    }
+
     const std::optional<std::uint32_t> text = m_text.resolve(id);
 
     // A game address, as the lookup returns it (the port's slots are negative as an i32).
@@ -447,7 +480,7 @@ void NgPlusPlus::tick() {
 #ifdef NGPP_TEST_SETUP
     m_test.tick();
 #endif
-    m_armour.tick(m_tick);
+    m_armour.tick(m_tick, m_armour_vendor.previewed_tier());
 
     // The rest only in a level.
     if (m_view.loaded_level() < 0) {
@@ -462,7 +495,9 @@ void NgPlusPlus::tick() {
 
 std::int32_t NgPlusPlus::nanotech_steps(
     openrac::Original<std::int32_t(std::uint32_t, std::uint32_t, std::uint32_t)> original,
-    std::uint32_t a0, std::uint32_t a1, std::uint32_t count
+    std::uint32_t a0,
+    std::uint32_t a1,
+    std::uint32_t count
 ) {
     const std::int32_t result = original(a0, a1, count);
     int omega = 0;

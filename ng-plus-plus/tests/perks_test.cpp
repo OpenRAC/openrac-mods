@@ -238,6 +238,19 @@ void test_armour_looks() {
         CHECK(armour_energy(tier) >= armour_energy(tier - 1));
     }
 
+    // The paint: a clean coat at Alpha, its rim brighter each tier, the top at Omega; the
+    // vendor's descriptions fit the port's text slot (96 bytes with the terminator).
+    CHECK(armour_paint_level(0) == 0 && armour_paint_level(1) == 0);
+    CHECK(armour_paint_level(8) == 15);
+    CHECK(armour_about(0).empty());
+    CHECK(armour_about(1) == "Alpha Armor: 10% less damage, on top of Carbonox.");
+    CHECK(armour_about(8).find("last stand") != std::string::npos);
+
+    for (int tier = 1; tier <= 8; ++tier) {
+        CHECK(armour_paint_level(tier) > armour_paint_level(tier - 1) || tier == 1);
+        CHECK(armour_about(tier).size() < 96u);
+    }
+
     for (int tier = 0; tier < 3; ++tier) {
         const ArmourPerk perk = armour_perk(tier);
 

@@ -7,8 +7,6 @@
 
 #include <string>
 
-#include "armour.h"
-
 namespace ng_plus_plus {
 namespace {
 
@@ -29,16 +27,8 @@ void Vendor::build_list(openrac::Original<void(std::int32_t)> original, std::int
         return;
     }
 
-    m_armour_place = -1;
-    m_armour_item = armour_carrier();
-    const bool armour = m_armour != nullptr && m_armour->for_sale() && m_armour_item >= 0;
-    log_armour(armour);
-
-    // The armour entry's room kept: the weapons' entries never crowd it out.
-    const int room = armour ? kVendorMaxEntries - 1 : kVendorMaxEntries;
-
     // Each weapon whose next tier is for sale, while the list has room.
-    for (int item = 0; item < kItems && count < room; ++item) {
+    for (int item = 0; item < kItems && count < kVendorMaxEntries; ++item) {
         // Nothing for sale: no entry.
         if (!m_weapons.for_sale(item)) {
             continue;
@@ -69,68 +59,7 @@ void Vendor::build_list(openrac::Original<void(std::int32_t)> original, std::int
         ++count;
     }
 
-    // The next armour tier, at the end of the list.
-    if (armour && count < kVendorMaxEntries) {
-        view.put_upgrade_entry(count, m_armour_item, m_weapons.upgrade_row(m_armour_item));
-        m_armour_place = count;
-        ++count;
-    }
-
     view.set_vendor_count(count);
-}
-
-void Vendor::log_armour(bool offered) {
-    // No armour tiers.
-    if (m_armour == nullptr) {
-        return;
-    }
-
-    const int worn = m_weapons.view().armour();
-    const int tier = m_armour->own_tier();
-
-    // Said once for each change: the vendor builds its list after every purchase.
-    if (worn == m_logged_worn && tier == m_logged_tier && offered == m_logged_offered) {
-        return;
-    }
-
-    m_logged_worn = worn;
-    m_logged_tier = tier;
-    m_logged_offered = offered;
-    m_weapons.view().mod().info(
-        "armour tiers: armour " + std::to_string(worn) + " worn (" + std::to_string(kBestArmour)
-        + " is Carbonox), tier " + std::to_string(tier) + ", "
-        + (offered ? armour_name(tier + 1) + " for sale at the end of the list"
-                   : std::string("none for sale"))
-    );
-}
-
-bool Vendor::armour_at(int place) const {
-    // No armour entry at the last build, or another place.
-    if (m_armour == nullptr || place < 0 || place != m_armour_place) {
-        return false;
-    }
-
-    // The place must still hold the mod's entry: the game may have rebuilt the list.
-    const VendorEntry entry = m_weapons.view().vendor_entry(place);
-    return entry.item == m_armour_item && entry.upgrade;
-}
-
-int Vendor::armour_carrier() const {
-    constexpr int kShieldCharger = 45;
-
-    // The Shield Charger, the closest to armour.
-    if (m_weapons.view().owned(kShieldCharger)) {
-        return kShieldCharger;
-    }
-
-    // Else the first weapon owned.
-    for (int item = 0; item < kItems; ++item) {
-        if (kind_of(item) != Kind::None && m_weapons.view().owned(item)) {
-            return item;
-        }
-    }
-
-    return -1;
 }
 
 int Vendor::added_item_at(int place) const {
@@ -153,11 +82,6 @@ int Vendor::added_item_at(int place) const {
 std::int32_t Vendor::price(openrac::Original<std::int32_t()> original) {
     const int cursor = m_weapons.view().vendor_cursor();
 
-    // The armour entry: the next tier's price.
-    if (armour_at(cursor) && m_armour->for_sale()) {
-        return m_armour->price();
-    }
-
     const int item = added_item_at(cursor);
 
     // The mod's entry: the tier's price, from the weapon's own Mega.
@@ -176,21 +100,11 @@ std::int32_t Vendor::upgrade(
     const int under = added_item_at(view.vendor_cursor());
     const bool is_item = id >= 0 && id < kItems;
 
-    // The armour entry, paid: the next armour tier.
-    if (armour_at(view.vendor_cursor()) && id == m_armour_item && m_armour->for_sale()) {
-        m_armour->buy();
-        m_bought = id;
-        m_bought_armour = true;
-        m_bought_ticks = m_weapons.view().ticks(kBoughtTicks);
-        return 1;
-    }
-
     // The vendor's purchase of the mod's entry, paid: the tier.
     if (is_item && under == id && m_weapons.for_sale(id)) {
         const int before = m_weapons.tiers().own_level(id);
         m_experience.take_step(id, StepCause::Bought);
         m_bought = id;
-        m_bought_armour = false;
         m_bought_ticks = m_weapons.view().ticks(kBoughtTicks);
         view.mod().info(
             "purchase: item " + std::to_string(id) + ", tier " + std::to_string(before) + " -> "
@@ -261,12 +175,6 @@ std::uint32_t Vendor::version_color(
     ++m_drawn;
     m_drawn_place = place;
 
-    // The armour entry: the tier for sale's colour.
-    if (armour_at(place)) {
-        const std::optional<std::uint32_t> rgb = armour_tint(m_armour->own_tier() + 1, m_weapons.view().sixtieths(tick));
-        return rgb ? (color & kColorAlpha) | *rgb : color;
-    }
-
     const int added = added_item_at(place);
 
     // The mod's entry: the tier for sale, the one after the weapon's level now.
@@ -300,11 +208,6 @@ std::optional<NamedTier> Vendor::drawn_upgrade() const {
         return std::nullopt;
     }
 
-    // The armour entry: the tier for sale.
-    if (armour_at(m_drawn_place)) {
-        return NamedTier{m_armour_item, m_armour->own_tier() + 1, true};
-    }
-
     const int item = added_item_at(m_drawn_place);
 
     // That row is not the mod's.
@@ -317,16 +220,6 @@ std::optional<NamedTier> Vendor::drawn_upgrade() const {
 
 std::optional<NamedTier> Vendor::named_entry() const {
     const int cursor = m_weapons.view().vendor_cursor();
-
-    // The armour entry under the cursor: the tier for sale.
-    if (armour_at(cursor) && m_armour->for_sale()) {
-        return NamedTier{m_armour_item, m_armour->own_tier() + 1, true};
-    }
-
-    // An armour tier bought moments ago.
-    if (m_bought_armour && m_bought >= 0 && m_bought_ticks > 0 && m_armour != nullptr) {
-        return NamedTier{m_bought, m_armour->own_tier(), true};
-    }
 
     const int item = added_item_at(cursor);
 

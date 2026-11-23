@@ -20,6 +20,7 @@
 //
 // Run with the library's path: ng_plus_plus_load_test <ng_plus_plus.dylib|.so|.dll>.
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -32,17 +33,19 @@
 #include <string>
 #include <vector>
 
+#include "armour_api.h"
 #include "bolt_api.h"
 #include "bolt_rules.h"
 #include "check.h"
+#include "culling.h"
 #include "discs.h"
 #include "extra_enemies.h"
-#include "moby_pool.h"
-#include "perk_rules.h"
 #include "hooks.h"
-#include "rewards.h"
+#include "moby_pool.h"
 #include "openrac/games/rac2.hpp"
 #include "openrac/openrac_mod.h"
+#include "perk_rules.h"
+#include "rewards.h"
 #include "weapon_visuals.h"
 
 #if defined(_WIN32)
@@ -95,7 +98,8 @@ constexpr std::uint32_t kVisualMobys = 0x00340000u;   // The weapons' mobys, as 
 
 // The ports the test plays: 1.23 with the bolt hook points, 1.22 without, 1.23 with the setting
 // off, 1.24, whose moby_material draws obsidian too, 1.25, which draws energy as well and makes
-// copies that never wake with their squad, and 1.26, whose copies do.
+// copies that never wake with their squad, 1.26, whose copies do, 1.27 with the pool, and 1.34
+// with the armour vendor's hook points and paint on a class.
 enum class Host {
     Bolts,
     Old,
@@ -103,17 +107,23 @@ enum class Host {
     Obsidian,
     Energy,
     Squads,
-    Pool
+    Pool,
+    Paint
 };
+
+// Whether the test's port has the pool (1.27 on).
+bool pool_host(Host host) {
+    return host == Host::Pool || host == Host::Paint;
+}
 
 // Whether the test's port draws energy (1.25 on).
 bool energy_host(Host host) {
-    return host == Host::Energy || host == Host::Squads || host == Host::Pool;
+    return host == Host::Energy || host == Host::Squads || pool_host(host);
 }
 
 // Whether the test's port makes copies that wake (1.26 on).
 bool squads_host(Host host) {
-    return host == Host::Squads || host == Host::Pool;
+    return host == Host::Squads || pool_host(host);
 }
 
 // One coin the test's game made: its moby and worth, and where the mod said it starts.
@@ -146,7 +156,7 @@ constexpr std::int32_t kAmmoManyText = 0x2001;     // "%d Mega Lancer rounds".
 constexpr std::int32_t kAmmoOneText = 0x2002;      // "1 Mega Lancer round".
 constexpr std::int32_t kAmmoFullText = 0x2003;     // "Ammo full": names no weapon.
 // The game's own shape of the message: the name in colour codes, between its words too.
-constexpr std::int32_t kAmmoCodedText = 0x2004;    // "Got %d \x0cMega \x0cLancer\x08\x08 ammo".
+constexpr std::int32_t kAmmoCodedText = 0x2004;  // "Got %d \x0cMega \x0cLancer\x08\x08 ammo".
 // The collectors' dialogs (collectors.h): Tabora's crystals and Grelbin's moonstones.
 // "Trade %d crystals for %d bolts?" and "%d moonstones: %d bolts": the disc's own ids
 // (kDiscs' crystal_trade and moonstone_trade).
@@ -288,6 +298,7 @@ int g_kill_item = 0;
 std::int32_t g_kill_xp = 0;
 std::int32_t g_death_bolts = 0;
 void port_kill_drop(std::uint32_t moby, std::int32_t amount);
+
 void game_record_death(std::uint32_t moby, std::int32_t /*flags*/, std::int32_t /*arg*/) {
     const std::uint32_t at = g_disc->exp + 4u * static_cast<std::uint32_t>(g_kill_item);
     set<std::int32_t>(at, get<std::int32_t>(at) + g_kill_xp);
@@ -607,8 +618,8 @@ double setting_float(openrac_mod* /*mod*/, const char* key) {
 // crystal creature of Tabora's (the port's table), slot 4 no enemy; slot 5 one the game made (key
 // -1), never asked about; slot 6 free to copy but of a class the table has not.
 constexpr int kListed = 7;
-constexpr int kTableClass = 4022;  // Barlow's Gadgetron Hounds of Cuddly Death.
-constexpr int kOtherClass = 2000;  // In no level's table.
+constexpr int kTableClass = 4022;                 // Barlow's Gadgetron Hounds of Cuddly Death.
+constexpr int kOtherClass = 2000;                 // In no level's table.
 constexpr std::uint32_t kCopiesAt = 0x00320000u;  // Where the test's port puts copies.
 constexpr int kCopySlots = 100;                   // The copies' slots, from 100.
 int g_loads = 0;                                  // The game's level loads.
@@ -632,9 +643,9 @@ std::uint32_t moby_at(int slot) {
     return slot == 0 ? kMobyEnemy : 0x00330000u + static_cast<std::uint32_t>(slot) * 0x100u;
 }
 
-int g_fake_coins = 0;  // Bolt pickups the test's level has alive besides the listed mobys.
-int g_pool_asked = 0;  // The spare slots the mod asked the port for.
-int g_pool_free = 500; // The free spare slots the test's pool reports.
+int g_fake_coins = 0;   // Bolt pickups the test's level has alive besides the listed mobys.
+int g_pool_asked = 0;   // The spare slots the mod asked the port for.
+int g_pool_free = 500;  // The free spare slots the test's pool reports.
 
 int host_moby_list(openrac_moby* out, int max) {
     // Each listed moby, as far as there is room.
@@ -706,6 +717,70 @@ void port_level_load() {
     CHECK((hook != nullptr ? hook(1, 0) : game_level_load(1, 0)) == 0);
 }
 
+// A call of the port's that refuses: OPENRAC_HOOK_UNKNOWN as its return type has it.
+template <class R, class... A>
+R refuse(A...) {
+    return static_cast<R>(OPENRAC_HOOK_UNKNOWN);
+}
+
+// ---- The armour vendor (1.34) ----
+
+// The game's armours' prices (g_shop_slot_value_table) and the first name's text id.
+constexpr std::int32_t kArmourPrices[5] = {0, 25'000, 100'000, 250'000, 1'000'000};
+constexpr std::int32_t kArmourNameText = 0xEA92;
+
+// The materials the mod put on classes, by class and scope: material and rgb.
+std::map<std::pair<int, std::uint32_t>, std::pair<std::uint32_t, std::uint32_t>> g_class_looks;
+std::int32_t g_dialog_answer = -1;  // The answer the game's dialog read last.
+
+// ArmorVendor_BuildList: the game's rows, each armour above the one worn.
+void game_armour_list() {
+    const int worn = get<std::int16_t>(g_disc->progress + kProgressArmour);
+    int count = 0;
+
+    // Each armour above the one worn, all unlocked in the test's game.
+    for (int armour = worn + 1; armour <= kBestArmour; ++armour, ++count) {
+        const std::uint32_t at = g_disc->vendor + kVendorEntries + count * kArmourRowBytes;
+        set<std::int32_t>(at, kArmourNameText + armour);
+        set<std::int32_t>(at + 4u, kArmourPrices[armour]);
+        set<std::int32_t>(at + 8u, armour);
+    }
+
+    set<std::int32_t>(g_disc->vendor + kVendorCount, count);
+}
+
+// ArmorVendor_Buy: the game's dialog at its decision reads the answer (it refuses every armour
+// with Carbonox worn, so a yes here would be the game's refusal) and closes.
+void game_armour_buy(std::uint32_t answer, std::uint32_t /*unused*/) {
+    g_dialog_answer = get<std::int32_t>(answer);
+    set<std::int32_t>(g_disc->vendor + kVendorDialog, 0);
+}
+
+int host_material_class(
+    openrac_mod* /*mod*/, int oclass, std::uint32_t scope, std::uint32_t material, std::uint32_t rgb
+) {
+    // What the port refuses.
+    if (oclass < 0 || scope == 0 || scope > (kScopeWorld | kScopeMenu) || (material & 0xFFu) > 5u
+        || rgb > kNoTint) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    // Each scope named: set, or taken off.
+    for (const std::uint32_t bit : {kScopeWorld, kScopeMenu}) {
+        if ((scope & bit) == 0) {
+            continue;
+        }
+
+        if (material == kMaterialNone) {
+            g_class_looks.erase({oclass, bit});
+        } else {
+            g_class_looks[{oclass, bit}] = {material, rgb};
+        }
+    }
+
+    return OPENRAC_HOOK_OK;
+}
+
 openrac_party_rules_fn g_rules = nullptr;
 void* g_rules_user = nullptr;
 
@@ -732,6 +807,8 @@ int host_hook(
         {hooks::Bolt_Collect::id, reinterpret_cast<void*>(&game_collect)},
         {hooks::Arena_Prize::id, reinterpret_cast<void*>(&game_arena_prize)},
         {rac2::Level_Load::id, reinterpret_cast<void*>(&game_level_load)},
+        {hooks::ArmorVendor_BuildList::id, reinterpret_cast<void*>(&game_armour_list)},
+        {hooks::ArmorVendor_Buy::id, reinterpret_cast<void*>(&game_armour_buy)},
     };
 
     // Each hook point the test's port has.
@@ -741,6 +818,11 @@ int host_hook(
 
         // A port of 1.22 has no bolt hook points, nor the arena's.
         if (bolt && g_host == Host::Old) {
+            continue;
+        }
+
+        // Only a port of 1.34 has the armour vendor's.
+        if (std::strncmp(point.id, "rac2.armor_vendor.", 18) == 0 && g_host != Host::Paint) {
             continue;
         }
 
@@ -831,8 +913,8 @@ int host_material(
     // What the port refuses: obsidian before 1.24, energy (with its level) before 1.25.
     const bool obsidian = g_host == Host::Obsidian || energy_host(g_host);
     const std::uint32_t most = energy_host(g_host) ? kMaterialEnergy
-                               : obsidian             ? kMaterialObsidian
-                                                      : kMaterialPlatinum;
+                               : obsidian          ? kMaterialObsidian
+                                                   : kMaterialPlatinum;
     const std::uint32_t kind = material & 0xFFu;
     const bool level_ok = material == kind || (kind == kMaterialEnergy && material <= 0xFFFu);
     if (moby == 0 || kind > most || !level_ok || rgb > kNoTint) {
@@ -975,7 +1057,15 @@ void set_experience(int item, std::int32_t points) {
 }
 
 // The table the port hands the mod: this SDK's, then the entries up to 1.25's copies.
-PoolApi g_table;
+// The table, with room past this SDK's for the entries of 1.34 the test's port of that minor puts in
+// (armour_api.h).
+struct WholeTable {
+    PoolApi table;
+    unsigned char later[2048];
+};
+
+WholeTable g_whole;
+PoolApi& g_table = g_whole.table;
 #if OPENRAC_MOD_API_MINOR < 27
 CopyApi& g_copy_table = g_table.upto_copy;
 #else
@@ -989,7 +1079,8 @@ openrac_api& g_api = g_copy_table;
 
 // Fills the port's table for the disc the test runs on.
 void make_api() {
-    g_table = PoolApi{};
+    g_whole = WholeTable{};
+    g_class_looks.clear();
     g_api.api_major = OPENRAC_MOD_API_MAJOR;
 
     // A port of 1.22 ends its table before moby_material; the others have it.
@@ -998,10 +1089,10 @@ void make_api() {
         g_api.api_minor = 22;
     } else {
         // A port before 1.27 ends its table at the copies.
-        g_api.size = static_cast<std::uint32_t>(
-            g_host == Host::Pool ? sizeof g_table : sizeof g_copy_table
-        );
-        g_api.api_minor = g_host == Host::Pool       ? kPoolMinor
+        g_api.size =
+            static_cast<std::uint32_t>(pool_host(g_host) ? sizeof g_table : sizeof g_copy_table);
+        g_api.api_minor = g_host == Host::Paint      ? kPaintMinor
+                          : g_host == Host::Pool     ? kPoolMinor
                           : g_host == Host::Squads   ? kSquadCopyMinor
                           : g_host == Host::Energy   ? kEnergyMinor
                           : g_host == Host::Obsidian ? kObsidianMinor
@@ -1022,11 +1113,40 @@ void make_api() {
     }
 
     // A port of 1.27 has the pool.
-    if (g_host == Host::Pool) {
+    if (pool_host(g_host)) {
         g_table.moby_pool_raise = host_pool_raise;
-        g_table.moby_pool_status = reinterpret_cast<decltype(g_table.moby_pool_status)>(host_pool_status);
+        g_table.moby_pool_status =
+            reinterpret_cast<decltype(g_table.moby_pool_status)>(host_pool_status);
     }
     g_api.moby_list = host_moby_list;
+
+    // A port of 1.34: the calls of 1.28 to 1.33 refuse (their own tests are in game runs), then
+    // moby_material_class, the table ending there.
+    if (g_host == Host::Paint) {
+        WeaponCallsTable calls{};
+        calls.on_weapon_fire = refuse;
+        calls.weapon_refire = refuse;
+        calls.on_shot_end = refuse;
+        calls.moby_spawn_live = refuse;
+        calls.weapon_look = refuse;
+        calls.moby_status = refuse;
+        calls.weapon_record = refuse;
+        std::memcpy(
+            reinterpret_cast<unsigned char*>(&g_api) + weapon_calls_offset(), &calls, sizeof calls
+        );
+        const IgnoreCullingFn culling = refuse;
+        std::memcpy(
+            reinterpret_cast<unsigned char*>(&g_api) + weapon_calls_offset() + sizeof calls,
+            &culling,
+            sizeof culling
+        );
+        const std::size_t at = weapon_calls_offset() + sizeof(WeaponCallsTable)
+                               + kMaterialClassAfterCulling * sizeof(void*);
+        const MaterialClassFn fn = host_material_class;
+        CHECK(at + sizeof fn <= sizeof g_whole);
+        std::memcpy(reinterpret_cast<unsigned char*>(&g_api) + at, &fn, sizeof fn);
+        g_api.size = static_cast<std::uint32_t>(at + sizeof fn);
+    }
 
     g_api.game = "rac2";
     g_api.version = g_disc->version;
@@ -1118,8 +1238,11 @@ void test_old_book_moved(openrac_mod_load_fn load) {
     second_now.replace(kRyno * 2, 2, "09");
     std::string third_now = zeros;
     third_now.replace(kRyno * 2, 2, "0a");
-    CHECK(moved == "ngpp-tiers 2\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
-                       + "\n0300000000000011 " + third_now + "\n");
+    CHECK(
+        moved
+        == "ngpp-tiers 2\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+               + "\n0300000000000011 " + third_now + "\n"
+    );
 
     // Loaded again: never moved twice.
     CHECK(reload(load));
@@ -1138,76 +1261,121 @@ void test_old_book_moved(openrac_mod_load_fn load) {
 constexpr std::int32_t kAlphaArmorPrice = 900'000;
 constexpr std::int32_t kBetaArmorPrice = 1'200'000;
 
-// Returns the vendor list place of the mod's armour entry (the last, an upgrade of the Lancer's,
-// the first weapon owned with no Shield Charger) after the list is built, or -1.
-int armour_place() {
-    hooked<rac2::Vendor_BuildList>()(0);
-    const int last = vendor_count() - 1;
-
-    // The armour entry is the list's last, an upgrade entry under the carrier's icon.
-    if (last < 0 || get<std::int32_t>(entry(last) + kEntryUpgrade) == 0
-        || get<std::int32_t>(entry(last) + kEntryItem) != kLancer) {
-        return -1;
-    }
-
-    set_cursor(last);
-    return hooked<rac2::Vendor_Price>()() == kAlphaArmorPrice ? last : -1;
+// Returns the armour vendor's row at `place`: text, price, armour.
+std::array<std::int32_t, 3> armour_row(int place) {
+    const std::uint32_t at = g_disc->vendor + kVendorEntries + place * kArmourRowBytes;
+    return {get<std::int32_t>(at), get<std::int32_t>(at + 4u), get<std::int32_t>(at + 8u)};
 }
 
-// Checks the armour tiers at the weapon vendor: none below Carbonox (armour 3, Electrosteel), Alpha
-// Armor as the list's last entry at Carbonox (armour 4), its label, price and purchase (the
-// game's Mega step left alone, Beta Armor next), a hit taken at Alpha's share, and the entry's
-// room kept in a full list.
-void test_armour_at_the_vendor() {
+// Returns the material and rgb the mod put on the hero's class in `scope` (0, 0 for none).
+std::pair<std::uint32_t, std::uint32_t> hero_look(std::uint32_t scope) {
+    const auto found = g_class_looks.find(std::make_pair(kHeroClass, scope));
+    return found != g_class_looks.end() ? found->second : std::make_pair(0u, 0u);
+}
+
+// The game's armour purchase dialog at its decision on the row under the cursor, the answer yes.
+void armour_dialog_yes() {
+    constexpr std::uint32_t kAnswerAt = 0x00300300u;
+    set<std::int32_t>(kAnswerAt, 1);
+    set<std::int32_t>(g_disc->vendor + kVendorDialog, kDialogDecide);
+    hooked<hooks::ArmorVendor_Buy>()(kAnswerAt, kAnswerAt + 4u);
+}
+
+// Checks the armour tiers: never at the weapon vendor; at the armour vendor (a port of 1.34, `sold`)
+// none below Carbonox, Alpha Armor after it as the game's next armour (its name, price, Carbonox's
+// preview and description), its purchase paid by the mod (too few bolts: none), Beta next, a hit at
+// Alpha's share, the hero and the preview repainted, and the row gone at Omega.
+void test_armour_at_the_vendor(bool sold) {
     const std::uint32_t worn = g_disc->progress + kProgressArmour;
+    const std::uint32_t bolts = g_disc->progress + kProgressBolts;
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
-    set<std::int16_t>(worn, 3);
-    CHECK(armour_place() == -1);
     set<std::int16_t>(worn, kBestArmour);
-    const int place = armour_place();
-    CHECK(place >= 0);
-    CHECK(g_log.find("armour 4 worn (4 is Carbonox), tier 0, Alpha Armor for sale")
-          != std::string::npos);
 
-    // Drawn with the cursor on it: its label names the tier.
-    g_drawn_label.clear();
-    g_drawing_vendor = g_disc->vendor;
-    hooked<hooks::Vendor_DrawList>()();
-    CHECK(g_drawn_label == "Alpha Armor");
-
-    // Bought: the tier, not the game's Mega step; Beta Armor for sale next, at the next price.
-    g_upgraded = -1;
-    std::int32_t money = 1'000'000;
-    CHECK(purchase(money) == kAlphaArmorPrice);
-    CHECK(money == 100'000);
-    CHECK(g_upgraded == -1);
-    CHECK(g_log.find("purchase: armour tier 0 -> 1") != std::string::npos);
+    // The weapon vendor has no armour entry.
     hooked<rac2::Vendor_BuildList>()(0);
+    CHECK(g_log.find("for sale at the end of the list") == std::string::npos);
     set_cursor(vendor_count() - 1);
-    CHECK(hooked<rac2::Vendor_Price>()() == kBetaArmorPrice);
+    CHECK(hooked<rac2::Vendor_Price>()() != kAlphaArmorPrice);
+
+    // An older port: no armour vendor's hook points, said once.
+    if (!sold) {
+        CHECK(hooked<hooks::ArmorVendor_BuildList>() == nullptr);
+        CHECK(g_log.find("mod interface 1.34") != std::string::npos);
+        set<std::int16_t>(worn, 0);
+        return;
+    }
+
+    // The armour vendor's menu up.
+    set<std::int32_t>(g_disc->game_mode, kVendorGameMode);
+    set<std::int32_t>(g_disc->vendor + kVendorMode, kArmourMode);
+    set<std::int32_t>(g_disc->vendor + kVendorState, 0);
+    set_cursor(0);
+
+    // Electrosteel worn: the game's Carbonox row alone.
+    set<std::int16_t>(worn, 3);
+    hooked<hooks::ArmorVendor_BuildList>()();
+    CHECK(vendor_count() == 1);
+    CHECK(armour_row(0)[0] == kArmourNameText + 4);
+
+    // Carbonox worn: the game has none, and Alpha Armor is the row, shown in Carbonox.
+    set<std::int16_t>(worn, kBestArmour);
+    hooked<hooks::ArmorVendor_BuildList>()();
+    CHECK(vendor_count() == 1);
+    const std::array<std::int32_t, 3> alpha = armour_row(0);
+    CHECK(alpha[1] == kAlphaArmorPrice && alpha[2] == kBestArmour);
+    CHECK(alpha[0] == kArmourNameText + 4);  // Carbonox's icon
+    CHECK(title(g_disc->armour_name) == "Alpha Armor");
+    CHECK(title(g_disc->armour_about) == "Alpha Armor: 10% less damage, on top of Carbonox.");
+
+    // The preview repainted in Alpha's steel, the hero (no tier yet) as the game draws him.
+    tick(2);
+    CHECK(g_class_looks.count(std::make_pair(0, kScopeWorld)) == 0);
+    CHECK(hero_look(kScopeMenu) == std::make_pair(paint_at(0), 0xB8C8E0u));
+
+    // Too few bolts: not bought, and the game's dialog closes as for a no.
+    set<std::int32_t>(bolts, 1'000);
+    armour_dialog_yes();
+    CHECK(g_dialog_answer == 0);
+    CHECK(get<std::int32_t>(bolts) == 1'000);
+    CHECK(title(g_disc->armour_name) == "Alpha Armor");
+
+    // Bought: paid by the mod, the dialog closed as for a no, Beta Armor next at its price.
+    set<std::int32_t>(bolts, 1'000'000);
+    armour_dialog_yes();
+    CHECK(g_dialog_answer == 0);
+    CHECK(get<std::int32_t>(bolts) == 1'000'000 - kAlphaArmorPrice);
+    CHECK(g_log.find("purchase: armour tier 0 -> 1") != std::string::npos);
+    CHECK(g_notice == "Alpha Armor");
+    CHECK(vendor_count() == 1);
+    CHECK(title(g_disc->armour_name) == "Beta Armor");
+    CHECK(armour_row(0)[1] == kBetaArmorPrice);
+
+    // The hero in Alpha's steel, the preview in Beta's azure with its rim.
+    tick(2);
+    CHECK(hero_look(kScopeWorld) == std::make_pair(paint_at(0), 0xB8C8E0u));
+    CHECK(hero_look(kScopeMenu) == std::make_pair(paint_at(2), 0x4090FFu));
 
     // A hit of ten at Alpha: nine.
     g_taken = 0;
     hooked<rac2::Hero_TakeDamage>()(10);
     CHECK(g_taken == 9);
 
-    // Without Carbonox no entry, whatever the tier.
-    set<std::int16_t>(worn, 0);
-    hooked<rac2::Vendor_BuildList>()(0);
-    const int count = vendor_count();
-    CHECK(count == 0 || get<std::int32_t>(entry(count - 1) + kEntryPrice) == kPriceText);
-    set_cursor(count > 0 ? count - 1 : 0);
-    CHECK(count == 0 || hooked<rac2::Vendor_Price>()() != kBetaArmorPrice);
+    // Every tier: the row goes after Omega, which the hero then wears.
+    for (int tier = 2; tier <= kArmourTiers; ++tier) {
+        set<std::int32_t>(bolts, 100'000'000);
+        armour_dialog_yes();
+    }
+    CHECK(g_log.find("purchase: armour tier 7 -> 8") != std::string::npos);
+    CHECK(vendor_count() == 0);
+    hooked<hooks::ArmorVendor_BuildList>()();
+    CHECK(vendor_count() == 0);
 
-    // A list the weapons' entries would fill: the armour entry keeps the last place.
-    set<std::int16_t>(worn, kBestArmour);
-    g_game_entries = kVendorMaxEntries - 1;
-    hooked<rac2::Vendor_BuildList>()(0);
-    CHECK(vendor_count() == kVendorMaxEntries);
-    set_cursor(kVendorMaxEntries - 1);
-    CHECK(get<std::int32_t>(entry(kVendorMaxEntries - 1) + kEntryItem) == kLancer);
-    CHECK(hooked<rac2::Vendor_Price>()() == kBetaArmorPrice);
-    g_game_entries = 2;
+    // The menu closed: the preview's scope shows the tier worn.
+    set<std::int32_t>(g_disc->game_mode, 0);
+    tick(2);
+    CHECK(hero_look(kScopeMenu).first == paint_at(15));
+    CHECK(hero_look(kScopeWorld).first == paint_at(15));
+
     set<std::int16_t>(worn, 0);
 }
 
@@ -1321,7 +1489,11 @@ void test_beta_by_experience() {
     // as one run of letters, found none and left the game's "Ultra". The tier's name takes its
     // place, the codes kept before it so each closing code still has its opener.
     set<std::int16_t>(row(kLancerV4) + kRowAmmoMany, kAmmoCodedText);
-    CHECK(ammo_message(kLancer, 12) == "Got %d \x0c\x0c" "Beta Heavy Lancer\x08\x08 ammo");
+    CHECK(
+        ammo_message(kLancer, 12)
+        == "Got %d \x0c\x0c"
+           "Beta Heavy Lancer\x08\x08 ammo"
+    );
     set<std::int16_t>(row(kLancerV4) + kRowAmmoMany, kAmmoManyText);
     CHECK(experience(kLancer) == 0);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
@@ -1643,7 +1815,11 @@ void test_in_hand_level_up() {
     CHECK(g_fx_item == kLancer);
     // Its own name in the HUD on the way, then the popup: the tier's name for the version's.
     CHECK(string_at(port_text(kMegaLancerText)) == "Delta Heavy Lancer");
-    CHECK(string_at(port_text(kLevelUpLineText)) == "\x0c" "Delta Heavy Lancer\x08 upgraded");
+    CHECK(
+        string_at(port_text(kLevelUpLineText))
+        == "\x0c"
+           "Delta Heavy Lancer\x08 upgraded"
+    );
     CHECK(string_at(port_text(0)).empty());  // the popup was named: text 0 is the game's
     set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
 }
@@ -1802,8 +1978,17 @@ int booked_lancer(std::uint8_t first) {
     const std::string text = file_text(g_dir / "tiers.txt");
     char clock[17];
     std::snprintf(
-        clock, sizeof clock, "%02x%02x%02x%02x%02x%02x%02x%02x", first, first + 1, first + 2,
-        first + 3, first + 4, first + 5, first + 6, first + 7
+        clock,
+        sizeof clock,
+        "%02x%02x%02x%02x%02x%02x%02x%02x",
+        first,
+        first + 1,
+        first + 2,
+        first + 3,
+        first + 4,
+        first + 5,
+        first + 6,
+        first + 7
     );
     const std::size_t at = text.rfind(std::string(clock) + " ");
 
@@ -1983,7 +2168,7 @@ std::int32_t coins_worth() {
     for (const Coin& coin : g_coins) {
         const auto found = g_materials.find(coin.moby);
         const bool rare = found != g_materials.end();
-        const std::int32_t times = !rare ? 1
+        const std::int32_t times = !rare                                ? 1
                                    : found->second == kMaterialObsidian ? kObsidianTimes
                                                                         : kPlatinumTimes;
         total += coin.value * times;
@@ -2116,10 +2301,9 @@ void test_obsidian_drop() {
 
     // The obsidian coins of the drop.
     for (const Coin& coin : g_coins) {
-        obsidian_coins += g_materials.count(coin.moby) != 0
-                                  && g_materials[coin.moby] == kMaterialObsidian
-                              ? 1
-                              : 0;
+        obsidian_coins +=
+            g_materials.count(coin.moby) != 0 && g_materials[coin.moby] == kMaterialObsidian ? 1
+                                                                                             : 0;
     }
 
     CHECK(obsidian_coins == 3);
@@ -2308,8 +2492,10 @@ void test_collectors(bool scaled) {
     // Tabora: the dialog, then the trade as the game makes it.
     g_level_now = 8;
     tick(1);
-    CHECK(string_at(port_text(g_disc->crystal_trade))
-          == (scaled ? "Trade %d crystals for 100000 bolts?" : "Trade %d crystals for %d bolts?"));
+    CHECK(
+        string_at(port_text(g_disc->crystal_trade))
+        == (scaled ? "Trade %d crystals for 100000 bolts?" : "Trade %d crystals for %d bolts?")
+    );
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 41'000);
     set<std::int16_t>(block + kProgressCrystals, 0);
@@ -2323,8 +2509,10 @@ void test_collectors(bool scaled) {
     // Grelbin: the moonstones.
     g_level_now = 19;
     tick(1);
-    CHECK(string_at(port_text(g_disc->moonstone_trade))
-          == (scaled ? "%d moonstones: 225000 bolts" : "%d moonstones: %d bolts"));
+    CHECK(
+        string_at(port_text(g_disc->moonstone_trade))
+        == (scaled ? "%d moonstones: 225000 bolts" : "%d moonstones: %d bolts")
+    );
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 131'000);
     set<std::int32_t>(block + kProgressMoonstones, 0);
@@ -2428,7 +2616,10 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
     CHECK(race_prize(barlow, 1, 1) == (scaled_run ? 1'875 : 750));
     CHECK(race_prize(barlow, 4, 2) == (scaled_run ? 875 : 350));
-    CHECK((g_log.find("the races pay x2.50 (the second race 2000 -> 5000)") != std::string::npos) == scaled_run);
+    CHECK(
+        (g_log.find("the races pay x2.50 (the second race 2000 -> 5000)") != std::string::npos)
+        == scaled_run
+    );
     // Not scaled twice.
     tick(3);
     CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
@@ -2572,7 +2763,9 @@ void test_extra_enemies() {
     g_materials.clear();
     g_bolts = 0;
     port_kill_drop(copy_made(2), 200);
-    CHECK(get<std::int16_t>(copy_made(2) + kMobyBolts) == get<std::int16_t>(kMobyEnemy + kMobyBolts));
+    CHECK(
+        get<std::int16_t>(copy_made(2) + kMobyBolts) == get<std::int16_t>(kMobyEnemy + kMobyBolts)
+    );
     CHECK(enemy > 200 && coins_worth() + g_bolts == enemy);
 
     // Oozla: its table has no Barlow hounds, so none of these is copied.
@@ -2738,19 +2931,20 @@ void run(const char* path, const Disc& disc, Host host) {
     CHECK(reload(load));
     CHECK(g_failed.empty());
     // The pool: asked for on a port of 1.27, a line in the log of an older one.
-    CHECK((g_pool_asked == kPoolExtra) == (host == Host::Pool));
+    CHECK((g_pool_asked == kPoolExtra) == pool_host(host));
     CHECK(
-        (g_log.find("asked for 1024 more spare moby slots") != std::string::npos)
-        == (host == Host::Pool)
+        (g_log.find("asked for 1024 more spare moby slots") != std::string::npos) == pool_host(host)
     );
-    CHECK(
-        (g_log.find("no more moby slots to give") != std::string::npos) == (host != Host::Pool)
-    );
+    CHECK((g_log.find("no more moby slots to give") != std::string::npos) == !pool_host(host));
     // The ten of before (the kills' experience among them), and the three bolt hook points and
     // the arena's on a port of 1.23 with the setting on.
     const bool bolts = host == Host::Bolts || host == Host::Obsidian || energy_host(host);
     // The level's load too on a port of 1.26, for the copies.
-    CHECK(g_hooks.size() == (bolts ? 14u : 10u) + (squads_host(host) ? 1u : 0u));
+    // The armour vendor's two on a port of 1.34.
+    CHECK(
+        g_hooks.size()
+        == (bolts ? 14u : 10u) + (squads_host(host) ? 1u : 0u) + (host == Host::Paint ? 2u : 0u)
+    );
     // A port before 1.26 makes no copies (1.25's never woke), and says so once.
     CHECK(
         (g_log.find("no extra enemies in this OpenRAC: they need mod interface 1.26")
@@ -2785,7 +2979,7 @@ void run(const char* path, const Disc& disc, Host host) {
         test_obsidian_drop();
 
         // A port that cannot count its pool keeps to the fixed caps.
-        if (host != Host::Pool) {
+        if (!pool_host(host)) {
             test_fallback_caps();
         }
 
@@ -2804,7 +2998,7 @@ void run(const char* path, const Disc& disc, Host host) {
         test_extra_enemies();
 
         // A port of 1.27: the pool's room.
-        if (host == Host::Pool) {
+        if (pool_host(host)) {
             test_pool_room();
         }
 
@@ -2817,7 +3011,7 @@ void run(const char* path, const Disc& disc, Host host) {
     }
 
     test_old_book_moved(load);
-    test_armour_at_the_vendor();
+    test_armour_at_the_vendor(host == Host::Paint);
 }
 
 }  // namespace
@@ -2842,7 +3036,14 @@ int main(int argc, char** argv) try {
     for (const Disc& disc : kDiscs) {
         // Each port: 1.23 with the bolts, 1.22 without, the setting off.
         for (const Host host :
-             {Host::Bolts, Host::Old, Host::Off, Host::Obsidian, Host::Energy, Host::Squads, Host::Pool}) {
+             {Host::Bolts,
+              Host::Old,
+              Host::Off,
+              Host::Obsidian,
+              Host::Energy,
+              Host::Squads,
+              Host::Pool,
+              Host::Paint}) {
             run(argv[1], disc, host);
         }
     }

@@ -3,12 +3,13 @@
 //
 // The armour tiers (README.md, "Armor tiers"): past the game's best armour (Carbonox, armour 4,
 // which the hero's damage reads from g_player_stats +0x18), eight tiers, Alpha Armor to Omega
-// Armor, bought at the weapon vendor (an entry of the mod's at the end of the list, under the
-// Shield Charger's icon, priced up perk_rules.h's armour ladder; the armour shop's list takes no
-// entry of a mod's, perk_rules.h). Each takes a share off every hit on the hero on
-// top of the game's armour, draws the hero's armour in the tier's colour with a glow (OpenRAC's
-// energy material on his moby, 1.25), and from Gamma shocks the enemies near him when he is hit
-// (thorns), from Epsilon leaves him 1 point of health once a minute when a hit would end him.
+// Armor, sold at the armour vendor after Carbonox (armour_vendor.h). Each takes a share off every
+// hit on the hero on top of the game's armour, and from Gamma shocks the enemies near him when he
+// is hit (thorns), from Epsilon leaves him 1 point of health once a minute when a hit would end him.
+// The look is Carbonox, the model the hero wears, repainted in the tier's colour with a rim that
+// glows brighter each tier (OpenRAC's paint material on his class, 1.34): in the world, and on the
+// armour vendor's picture of him, which shows the tier for sale. An OpenRAC before 1.34 draws the
+// tier as a glow over Carbonox instead (energy, 1.25).
 // Kept in NG++'s book (tiers.txt) as item byte kArmourItem.
 //
 // Only the game's thread uses it.
@@ -16,7 +17,9 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
+#include "armour_api.h"
 #include "bolt_api.h"
 #include "game_view.h"
 #include "openrac/mod.hpp"
@@ -36,7 +39,7 @@ public:
           m_tiers(tiers),
           m_perks(perks) {}
 
-    // Finds moby_material.
+    // Finds moby_material and moby_material_class.
     void start();
 
     // Returns the tier in play (the party host's in a party).
@@ -66,19 +69,42 @@ public:
     // points to deal.
     std::int32_t spare(std::int32_t points);
 
-    // Once a game tick: the hero's glow.
-    void tick(std::uint32_t tick);
+    // Once a game tick: the hero's look, and the armour vendor's picture of him in `previewed`, the
+    // tier it shows (none: the tier worn).
+    void tick(std::uint32_t tick, std::optional<int> previewed);
 
 private:
     openrac::Mod& m_mod;
     const GameView& m_view;
     SaveTiers& m_tiers;
     Perks& m_perks;
+
+    // The paint of tier `tier` at `tick`: its material and colour, or none for no tier.
+    struct Look {
+        std::uint32_t material = 0;
+        std::uint32_t rgb = 0;
+
+        bool operator==(const Look& other) const {
+            return material == other.material && rgb == other.rgb;
+        }
+    };
+
+    std::optional<Look> look_of(int tier, std::uint32_t tick) const;
+
+    // Puts `look` on the hero's class in `scope` when it is not what was sent there.
+    void paint(std::uint32_t scope, const std::optional<Look>& look, std::optional<Look>& sent);
+
+    // An OpenRAC before 1.34: the tier's glow on the hero's moby (energy).
+    void glow(std::uint32_t tick);
+
     MobyMaterialFn m_material = nullptr;
+    MaterialClassFn m_material_class = nullptr;
     bool m_energy = false;
     std::uint32_t m_tick = 0;
     std::uint32_t m_last_stand_ready = 0;  // The tick the next last stand is ready.
-    std::uint32_t m_drawn_moby = 0;        // The hero's moby drawn, and its look.
+    std::optional<Look> m_world;           // The look sent for the world, and for the menus.
+    std::optional<Look> m_menu;
+    std::uint32_t m_drawn_moby = 0;  // An older port's: the hero's moby drawn, and its look.
     std::uint32_t m_drawn_rgb = 0;
     int m_drawn_tier = 0;
     int m_level = -1;

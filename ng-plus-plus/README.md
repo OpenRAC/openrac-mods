@@ -357,18 +357,24 @@ the hits running away; the eruptions and the storm are where it spreads.
 
 ### Armor tiers
 
-Past the best armour (Carbonox) there are **8 more armor tiers**, Alpha Armor to Omega Armor. Once
-you own Carbonox, the **weapon vendor** (not the armour shop) sells the next tier as the **last
-entry** in its list, with the Shield Charger's icon (another weapon's you own when you don't have
-the Shield Charger). The armour shop only lists the game's four armours above the one you wear and
-gives a mod no way to add to that list, so the tiers stay with the weapons; they keep their place
-there even when the list is full. Each is bought, in order. Each takes a share off every hit on Ratchet, on top of the
-game's armour, and he glows in the tier's color. Ratchet's armour keeps the best armour's look,
-tinted and glowing in the tier's color (needs OpenRAC 1.25; without it the protection works but
-nothing glows). The tier is saved with the weapons in the mod's `tiers.txt`, and the launcher's save
-editor has an **Armor tier** picker.
+Past the best armour (Carbonox) there are **8 more armor tiers**, Alpha Armor to Omega Armor, sold
+at the **armor vendor**, the Megacorp Vendor that sells the game's armors. Its list shows the
+armors above the one you wear; once you wear Carbonox it has none of the game's left, and the next
+tier is its row, at the tier's price, with the vendor's preview of Ratchet in the armor (Carbonox,
+painted in the tier's color) and a line on what the tier does. Buy it as an armor (Cross, then
+yes): the bolts are paid and the next tier takes the row's place. Each is bought, in order. Each
+takes a share off every hit on Ratchet, on top of the game's armour.
 
-| Tier | Damage taken | Price | Glow | Perk |
+The look is Carbonox, the armor Ratchet wears, **repainted** in the tier's color (OpenRAC's paint
+material on his model, mod interface 1.34): the plates and their shading stay, the color is the
+tier's, and a rim glows in it, brighter each tier (none at Alpha, the brightest at Omega). The
+game's other armors share their textures with Ratchet's fur, so painting them would paint him too;
+Carbonox is the whole-body suit and the model the tiers build on. With an older OpenRAC (1.25 to
+1.33) the tiers glow over Carbonox instead and cannot be bought; their protection works with any.
+The tier is saved with the weapons in the mod's `tiers.txt`, and the launcher's save editor has an
+**Armor tier** picker.
+
+| Tier | Damage taken | Price | Paint | Perk |
 |---|---|---|---|---|
 | Alpha | x0.90 | 900,000 | steel | |
 | Beta | x0.82 | 1,200,000 | azure | |
@@ -916,7 +922,7 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | Ship tiers | the Ship Shack is the vendor's mode 2 (+0x50 of its state; `shop_build_vendor_list_by_flags`, `func_002F7738`): 0x1C-byte entries at +0x140, count at +0x740. NG++ appends its entry while the list shows (its name and description in the port's text slots 0 and 1); its value is the equipment word's unused bit 21 (`g_equipment_bits`, `0x1A7AF0`), which the game's confirm (`func_L00_00374348`) writes once it has taken the raritanium (the save block +4). NG++ then clears the bit and takes the tier: the book's item 54. The fire rate: the ship's five weapon timers (pvars +0x08, +0x0A, +0xA8 s16, +0x20C, +0x210 s32; `UpdateShipWeapons`) run faster |
 | Ship looks | `moby_material` (energy, interface 1.25; obsidian, 1.24) each tick on the ship's mobys: class 4031 and its parts (4305 to 4325, 4742 to 4744), the hub's hull 3412 and its own shots (4090) |
 | Health | `rac2.player.nanotech_steps`: the game's count of health steps plus one for every two Omega weapons (at most 12) |
-| Armor | the damage share in `rac2.player.take_damage` (the hit times the tier's share, Bounty's included); the armour level is read at `g_player_stats` +0x18; the tier is the book's item 55; the vendor's entry is built as a weapon's upgrade entry |
+| Armor | the damage share in `rac2.player.take_damage` (the hit times the tier's share, Bounty's included); the armour level is read at `g_player_stats` +0x18; the tier is the book's item 55; the armor vendor's row is added in `rac2.armor_vendor.build_list` (a row of armour 4, so the game's preview loads Carbonox) and bought in `rac2.armor_vendor.buy`; the look is `moby_material_class` with the paint material on Ratchet's class 0, in the world and on the vendor's picture (mod interface 1.34) |
 | Texts | `rac2.text.by_id` (`func_00288FB8`), one resolver for every text: a looked-up id that is a text field of a row the mod names at a tier (the vendor's entry being drawn or named, the level-up line the mod shows, or the row of the one owned tiered weapon that holds it) gets the game's string with the tier's name in it, written into the port's text slots; optional (an OpenRAC without it shows the game's texts) |
 | Off-screen targets | `weapon_ignore_culling` (interface 1.30) for the Zodiac (43) and the Plasma Coil (28), asked once at load unless `offscreen_targets` is off: the port's wrap of the game's target pick (`SelectBestTargetInCone`, `func_002AF580`) counts the enemies not drawn last frame as drawn for those weapons' gun and shots only |
 
@@ -939,6 +945,7 @@ The code (C++17, on the SDK's `openrac/mod.hpp`, laid out by OpenRAC's
 | `src/shots.h` | OpenRAC 1.29's weapon calls: extra shots, what a shot does as it ends, splits in flight, shot colours, the Pulse Rifle's fire rate, the statuses and blasts |
 | `src/weapon_api.h`, `src/moby_pool.h` | interface 1.29's weapon calls and 1.27's pool calls, read from the port's table |
 | `src/perks.h`, `src/armour.h`, `src/elites.h` | the perks and the Ice Gun, the armor tiers, the elites and modifiers in the game |
+| `src/armour_vendor.h`, `src/armour_api.h` | the armor tiers' row at the armor vendor, and the entries of mod interface 1.34 they use |
 | `src/combat.h` | the tiers' damage and the enemies across new games |
 | `src/tuning_rules.h`, `src/tuning.h` | 0.5.1's weapon tuning: its rules alone, then the Tesla Claw's steady hits, the Zodiac's boss damage and the decoy's health in the game |
 | `src/bolt_rules.h` | the bolt rules alone: the run scale, toughness, the drop's scale and extra coins, the platinum and obsidian shares and the split into coins |

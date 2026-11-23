@@ -81,6 +81,13 @@ private:
 };
 
 // A vendor list entry's fields.
+// A row of the armour vendor's list (discs.h, kArmourMode).
+struct ArmourRow {
+    std::int32_t text = 0;    // The name's text id.
+    std::int32_t price = 0;   // Bolts.
+    std::int32_t armour = 0;  // The armour it sells and shows, 0 to 4.
+};
+
 struct VendorEntry {
     std::int32_t item = -1;  // The item it sells.
     bool upgrade = false;    // An upgrade (its +0x14 is 1), not the item or its ammo.
@@ -241,6 +248,28 @@ public:
 
     // Moves the entries from `place` on (`count` in the list) one place down, making room at it.
     void open_vendor_place(int place, int count) const;
+
+    // Returns the vendor's mode (kArmourMode at the armour vendor) and its purchase dialog's state.
+    int vendor_mode() const;
+
+    int vendor_dialog() const;
+
+    // Returns whether a vendor's menu is up now (the game in its vendor mode, the menu not closing).
+    bool vendor_open() const;
+
+    // Returns, and writes, the armour vendor's row at `place`.
+    ArmourRow armour_row(int place) const;
+
+    void put_armour_row(int place, const ArmourRow& row) const;
+
+    // Sets the player's bolts.
+    void set_bolts(std::int32_t bolts) const;
+
+    // Returns the text id of Carbonox's description at the armour vendor on this disc.
+    std::int32_t armour_about_text() const { return m_disc.armour_about; }
+
+    // Returns the text id of "Carbonox Armor" on this disc, the armour vendor's name for it.
+    std::int32_t armour_name_text() const { return m_disc.armour_name; }
 
     // ---- Texts ----
 

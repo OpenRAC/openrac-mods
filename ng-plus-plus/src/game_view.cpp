@@ -236,6 +236,41 @@ void GameView::set_vendor_count(int count) const {
     memory().write(at(m_disc.vendor) + kVendorCount, static_cast<std::int32_t>(count));
 }
 
+int GameView::vendor_mode() const {
+    return memory().read<std::int32_t>(at(m_disc.vendor) + kVendorMode);
+}
+
+int GameView::vendor_dialog() const {
+    return memory().read<std::int32_t>(at(m_disc.vendor) + kVendorDialog);
+}
+
+bool GameView::vendor_open() const {
+    return memory().read<std::int32_t>(at(m_disc.game_mode)) == kVendorGameMode
+           && memory().read<std::int32_t>(at(m_disc.vendor) + kVendorState) != kClosingState;
+}
+
+ArmourRow GameView::armour_row(int place) const {
+    const openrac::gaddr row =
+        at(m_disc.vendor) + kVendorEntries + static_cast<std::uint32_t>(place) * kArmourRowBytes;
+    ArmourRow out;
+    out.text = memory().read<std::int32_t>(row);
+    out.price = memory().read<std::int32_t>(row + 4u);
+    out.armour = memory().read<std::int32_t>(row + 8u);
+    return out;
+}
+
+void GameView::put_armour_row(int place, const ArmourRow& in) const {
+    const openrac::gaddr row =
+        at(m_disc.vendor) + kVendorEntries + static_cast<std::uint32_t>(place) * kArmourRowBytes;
+    memory().write(row, in.text);
+    memory().write(row + 4u, in.price);
+    memory().write(row + 8u, in.armour);
+}
+
+void GameView::set_bolts(std::int32_t bolts) const {
+    memory().write(at(m_disc.progress) + kProgressBolts, bolts);
+}
+
 openrac::gaddr GameView::entry_address(int place) const {
     const auto offset = static_cast<std::uint32_t>(place) * kVendorEntryBytes;
     return at(m_disc.vendor) + kVendorEntries + offset;
