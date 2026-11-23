@@ -30,6 +30,11 @@ class Geo:
         self.solid = []        # triangles [(p0, p1, p2), surface]
         self.count = 0
         self.lights = []       # point lights for the bake: {"at", "colour", "radius"}
+        self.flames = []       # where the mod's live effects play: (kind, x, y, z)
+
+    def flame(self, kind, at):
+        """A place for the mod's effects: "torch" (embers), "fire" (embers and smoke), "mist"."""
+        self.flames.append((kind, *(round(float(v), 2) for v in at)))
 
     def light(self, at, colour=(1.5, 1.0, 0.5), radius=9.0):
         self.lights.append({"at": [float(v) for v in at], "colour": list(colour), "radius": float(radius)})

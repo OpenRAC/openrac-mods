@@ -86,6 +86,7 @@ def campfire(geo, p, z, yaw, r):
     geo.cone("om_orange", (p[0], p[1]), 0.7, z + 0.2, z + 1.7, 6, glow=[1.7, 1.0, 0.4])
     geo.cone("om_yellow", (p[0], p[1]), 0.4, z + 0.2, z + 1.2, 6, glow=[1.9, 1.7, 0.8])
     geo.light((p[0], p[1], z + 1.0), (1.7, 0.95, 0.4), 10)
+    geo.flame("fire", (p[0], p[1], z + 1.2))
     # Logs to sit on.
     for t in (-1, 1):
         q = p + f * 3.0 * t

@@ -42,6 +42,12 @@ ENEMIES = {"puffoid", "psytcopus", "sandmouse_house"}
 ZONE_WORD = {"psytcopus": 79, "puffoid": 140}
 
 
+# The level's fog: a light sea haze (the sky's colour at the horizon) that starts past the island's
+# middle and softens the far rocks, in place of Pokitaru's dark teal. Distances in 1/1024 units.
+HAZE = {"fog_colour": "[96, 160, 184]", "fog_near": "40960.0", "fog_far": "512000.0",
+        "fog_near_intensity": "255.0", "fog_far_intensity": "96.0"}
+
+
 def set_pvar(section, word, value):
     def put(m):
         vals = m.group(1).split(", ")
@@ -171,6 +177,11 @@ def write_museum(projects, tools):
         static_assets.import_asset(palm_source, project, LEVEL, "Palm_000", palms[0][:3])
 
     scene = Scene(scene_path.read_text(encoding="utf-8"))
+    for k, sec in enumerate(scene.sections):
+        if sec.startswith('[node name="LevelSettings"'):
+            for key, value in HAZE.items():
+                sec = re.sub(rf"^metadata/rc1_{key} = .*$", f"metadata/rc1_{key} = {value}", sec, count=1, flags=re.M)
+            scene.sections[k] = sec
 
     # 3. Remove Pokitaru: its ties and shrubs (but one of each kept as a model), its collision,
     #    its mobys (but the kept classes and one of each template).
@@ -285,7 +296,15 @@ def write_museum(projects, tools):
 
     # 7. Pokitaru's plants and rocks, scattered on the island.
     tie_count = shrub_count = 0
+    # None growing through a small scene: a campfire wants room round it, the rest a little.
+    scenes = [(x, y, 6.0 if name == "campfire" else 3.0) for name, x, y, _ in layout.get("vignettes", [])]
+
+    def in_scene(x, y):
+        return any(math.hypot(x - sx, y - sy) < r for sx, sy, r in scenes)
+
     for kind, number, x, y, z, yaw, scale in scatter.plants() + list(scatter.sea_islets()) + scatter.town() + scatter.decor():
+        if in_scene(x, y):
+            continue
         model = (tie_models if kind == "tie" else shrub_models).get(number)
         if model is None:
             continue

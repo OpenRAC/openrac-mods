@@ -620,5 +620,6 @@ def torch(geo, x, y, z0, height=3.2):
     geo.cone("om_orange", (x, y), 0.36, z0 + height + 0.6, z0 + height + 1.6, 8, glow=[1.6, 1.1, 0.5])
     geo.cone("om_yellow", (x, y), 0.2, z0 + height + 0.6, z0 + height + 1.25, 8, glow=[1.8, 1.6, 0.8])
     geo.light((x, y, z0 + height + 1.0), (1.5, 0.95, 0.45), 9)
+    geo.flame("torch", (x, y, z0 + height + 1.3))
 
 

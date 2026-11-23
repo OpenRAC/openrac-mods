@@ -7,6 +7,7 @@ plate, the effects case, the 3 AM door).
 """
 
 import argparse
+import json
 import sys
 import textwrap
 from pathlib import Path
@@ -65,6 +66,12 @@ def render():
             raise SystemExit(f"{key}: a character the HUD font has not")
         body = ", ".join(c_string(l) for l in lines)
         out.append(f"    {{{c_string(key)}, {x:.2f}f, {y:.2f}f, {z:.2f}f, {c_string(title)}, {len(lines)}, {{{body}}}}},")
+    out += ["};", ""]
+    # The places of the live effects, which the map's build writes (make_museum.py).
+    flames = json.loads((HERE / "effects.json").read_text(encoding="utf-8"))
+    out.append("static const museum_flame MUSEUM_FLAMES[] = {")
+    for kind, x, y, z in flames:
+        out.append(f"    {{MUSEUM_FLAME_{kind.upper()}, {x:.2f}f, {y:.2f}f, {z:.2f}f}},")
     out += ["};", ""]
     for name, (x, y, z, r) in sorted(exhibits.ZONES.items()):
         out.append(f"static const museum_zone MUSEUM_ZONE_{name.upper()} = {{{x:.2f}f, {y:.2f}f, {z:.2f}f, {r:.2f}f}};")

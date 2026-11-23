@@ -282,6 +282,8 @@ def build(geo: Geo, pictures, mats):
         pool = rp(f["angle"], f["r"] - 10)
         disc(foam, "om_foam", (pool[0], pool[1]), 9, SEA + 0.15, 24, [0.62, 0.62, 0.62])
         falls.append({"sheet": sheet, "foam": foam, "pool": pool})
+        foot = rp(f["angle"], f["r"] - 5)
+        geo.flame("mist", (foot[0], foot[1], SEA + 0.6))
     layout["falls"] = [{"pool": list(map(float, f["pool"]))} for f in falls]
 
     # --- The grotto behind the second fall ---

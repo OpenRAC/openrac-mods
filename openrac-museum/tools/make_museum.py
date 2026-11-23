@@ -203,6 +203,8 @@ def append(terrain, t, path):
             p.material = t.material_for(other.texture_uri(p.material))
         t.nodes.append([name, tr, prims])
 
+EFFECTS = Path(__file__).resolve().parent / "effects.json"
+
 MATERIALS = {name: {"texture": name, "double": True} for name in (
     "om_sand", "om_grass", "om_rock", "om_basalt", "om_planks", "om_planks_dark", "om_planks_light",
     "om_thatch", "om_water", "om_foam", "om_falls", "om_stone", "om_lava", "om_gold", "om_white",
@@ -331,6 +333,9 @@ def main(out, disc_textures=None):
         save(name, g)
 
     collision_glb(out / "collision" / "house.glb", geo.solid + marks.solid)
+    # Where the mod's live effects play (embers, smoke, mist): mod_data.py puts them in the mod.
+    flames = sorted(set(geo.flames + marks.flames))
+    EFFECTS.write_text(json.dumps(flames, indent=0) + "\n", encoding="utf-8")
     P, tris = ground.collision_mesh(inside)
     collision_glb(out / "collision" / "ground.glb", [((P[t[0]], P[t[1]], P[t[2]]), 0x1F) for t in tris])
     # The rock's collision: its own mesh again on a coarser grid, faces kept as they are (outward:

@@ -19,4 +19,12 @@ typedef struct museum_zone {
     float x, y, z, r;
 } museum_zone;
 
+/* A place of a live effect: a torch's embers, a campfire's embers and smoke, a waterfall's mist. */
+enum { MUSEUM_FLAME_TORCH, MUSEUM_FLAME_FIRE, MUSEUM_FLAME_MIST };
+
+typedef struct museum_flame {
+    int kind;
+    float x, y, z;
+} museum_flame;
+
 #endif

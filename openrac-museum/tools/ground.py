@@ -86,17 +86,29 @@ def split_cells(X, Y, P, Nf, col, vmat):
             mids[key] = new(P[i] * (1 - t) + P[j] * t, n / np.linalg.norm(n), col[i] * (1 - t) + col[j] * t)
         return mids[key]
 
+    count0 = len(P)
+
+    def point(m):
+        return P[m] if m < count0 else pts[m - count0 + 1][0]
+
+    def colour(m):
+        return col[m] if m < count0 else cls[m - count0 + 1][0]
+
     ft, fm = [], []
     for i, j, l, k in zip(a[~same], b[~same], d[~same], c[~same]):
         ring = (i, j, l, k)          # round the cell
-        n = Nf[list(ring)].sum(0)
-        centre = new(P[list(ring)].mean(0), n / np.linalg.norm(n), col[list(ring)].mean(0))
+        edge = {q: mid(ring[q], ring[(q + 1) % 4]) for q in range(4) if vmat[ring[q]] != vmat[ring[(q + 1) % 4]]}
+        # The centre on the line between the edges' crossings, so that line runs straight.
+        at = list(edge.values()) if len(edge) == 2 else list(ring)
+        n = sum(nrm[m - count0 + 1][0] if m >= count0 else Nf[m] for m in at)
+        centre = new(np.mean([point(m) for m in at], 0), n / np.linalg.norm(n),
+                     np.mean([colour(m) for m in at], 0))
         for q in range(4):
             p0, p1 = ring[q], ring[(q + 1) % 4]
-            if vmat[p0] == vmat[p1]:
+            if q not in edge:
                 ft.append((p0, p1, centre)); fm.append(vmat[p0])
             else:
-                m = mid(p0, p1)
+                m = edge[q]
                 ft += [(p0, m, centre), (m, p1, centre)]
                 fm += [vmat[p0], vmat[p1]]
     if ft:

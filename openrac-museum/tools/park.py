@@ -29,7 +29,7 @@ SIGN = (716.0, 477.6)
 
 def clear(x, y, margin=0.0):
     """False on the park and the ramp up to it: nothing grows there."""
-    return not (X0 - 4 - margin < x < X1 + 4 + margin and Y0 - 4 - margin < y < Y1 + 7 + margin)
+    return not (X0 - 4 - margin < x < X1 + 4 + margin and Y0 - 4 - margin < y < Y1 + 9 + margin)
 
 
 def station():
@@ -125,8 +125,17 @@ def build(geo, pictures, mats):
     low = float(min(island.height(x, y) for x in (X0, X1) for y in (Y0, Y1))) - 1.0
     geo.box("om_concrete", (X0, Y0, low), (X1, Y1, TOP))
     # The ramp up from the bridge's side.
-    gz = float(island.height(730.0, Y1 + 6.0))
-    geo.slope("om_concrete", 724.0, 736.0, Y1, Y1 + 6.0, TOP, min(gz, TOP) - 0.1, "y", 1.5)
+    # Its foot sinks just under the lowest ground along its end, and its sides go down into the
+    # ground, so no corner floats over the sloping sand.
+    rx0, rx1, ry1 = 724.0, 736.0, Y1 + 8.0
+    end = min(float(island.height(x, ry1)) for x in np.linspace(rx0, rx1, 7)) - 0.15
+    geo.slope("om_concrete", rx0, rx1, Y1, ry1, TOP, end, "y", 1.5)
+    deep = min(float(island.height(x, y)) for x in (rx0, rx1) for y in np.linspace(Y1, ry1, 5)) - 1.0
+    for x, sx in ((rx0, -1), (rx1, 1)):
+        side = np.array([[x, Y1, deep], [x, ry1, deep], [x, ry1, end], [x, Y1, TOP]])
+        if np.cross(side[1] - side[0], side[3] - side[0])[0] * sx < 0:
+            side = side[[0, 3, 2, 1]]
+        geo.tri_quad("om_concrete", side, [sx, 0, 0], np.array([[q[1] / 4, q[2] / 4] for q in side], np.float32))
 
     quarter_pipe(geo, X0 + 4.0, 1)     # west: rises towards -x
     quarter_pipe(geo, X1 - 4.0, -1)    # east: rises towards +x

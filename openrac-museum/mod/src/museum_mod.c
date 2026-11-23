@@ -9,6 +9,8 @@
  *     game's own menu code leaves it (Select or R3) and goes back to play.
  *   - The effects case: on the teal pad the game's own particle effects start in the case, with a
  *     camera shake.
+ *   - Live effects round the island: flames over the torches, flames and sparks over the
+ *     campfires, mist where the waterfalls land (the game's own particles, near Ratchet only).
  *   - The 20-button codes: in the Decompilation room, a code that gives something says so.
  *   - Door 21/30: between 3 and 4 in the morning (the player's clock), it takes Ratchet to the
  *     tower's secret room.
@@ -50,6 +52,9 @@ static const struct { uint32_t address, size; } CODE_FLAGS[] = {
 #define TILE_REACH 1.0f
 /* Ticks between two effects while the hero stands on the effects pad. */
 #define EFFECT_EVERY 25
+/* The live effects: how far from Ratchet they play, and at most how many start a tick. */
+#define AMBIENT_RANGE 45.0f
+#define AMBIENT_PER_TICK 8
 /* Ticks a code's notice stays. */
 #define NOTICE_TICKS 300
 /* The HUD: the title's and the words' places (0 to 1 down the screen) and sizes. */
@@ -229,6 +234,83 @@ static void effects(const float p[3]) {
     }
 }
 
+/* A small random number generator for the live effects: the same sequence every run. */
+static uint32_t s_seed = 12345u;
+static float rnd(void) {
+    s_seed = s_seed * 1664525u + 1013904223u;
+    return (float)(s_seed >> 8) / 16777216.0f;
+}
+
+/* The island's live effects near Ratchet: flames over the torches, flames and sparks over the
+ * campfires, mist where the waterfalls land. The game's own particles, a few a tick. */
+static void ambient(const float p[3]) {
+    int budget = AMBIENT_PER_TICK;
+    for (size_t k = 0; k < sizeof MUSEUM_FLAMES / sizeof MUSEUM_FLAMES[0] && budget > 0; ++k) {
+        const museum_flame* f = &MUSEUM_FLAMES[k];
+        const float dx = f->x - p[0], dy = f->y - p[1], dz = f->z - p[2];
+        if (dx * dx + dy * dy + dz * dz > AMBIENT_RANGE * AMBIENT_RANGE) {
+            continue;
+        }
+        openrac_particle_spawn sp;
+        memset(&sp, 0, sizeof sp);
+        sp.size = sizeof sp;
+        sp.texture = -1;
+        sp.blend = -1;
+        sp.position[0] = f->x + (rnd() - 0.5f) * 0.3f;
+        sp.position[1] = f->y + (rnd() - 0.5f) * 0.3f;
+        sp.position[2] = f->z;
+        switch (f->kind) {
+            case MUSEUM_FLAME_TORCH:   /* a flame licking up from the basket */
+                if (rnd() > 0.35f) continue;
+                sp.kind = OPENRAC_PARTICLE_SMOKE;
+                sp.particle_size = 16000.0f + rnd() * 10000.0f;
+                sp.life_ticks = 18 + (uint32_t)(rnd() * 10.0f);
+                sp.color = 0x7F1870FFu;
+                sp.velocity[0] = (rnd() - 0.5f) * 0.01f, sp.velocity[1] = (rnd() - 0.5f) * 0.01f;
+                sp.velocity[2] = 0.05f + rnd() * 0.03f;
+                break;
+            case MUSEUM_FLAME_FIRE:
+                if (rnd() < 0.5f) {   /* the fire's flames */
+                    sp.kind = OPENRAC_PARTICLE_SMOKE;
+                    sp.position[0] += (rnd() - 0.5f) * 0.6f;
+                    sp.position[1] += (rnd() - 0.5f) * 0.6f;
+                    sp.position[2] -= 0.2f;
+                    sp.particle_size = 30000.0f + rnd() * 16000.0f;
+                    sp.life_ticks = 24 + (uint32_t)(rnd() * 12.0f);
+                    sp.color = 0x7F1870FFu;
+                    sp.velocity[2] = 0.05f + rnd() * 0.04f;
+                    sp.rot = (rnd() - 0.5f) * 0.002f;
+                } else if (rnd() < 0.05f) {   /* a crackling spark */
+                    sp.kind = OPENRAC_PARTICLE_SPARK;
+                    sp.particle_size = 20000.0f;
+                    sp.life_ticks = 30;
+                    sp.color = 0x4F007FFFu;
+                    sp.color_end = 0x1F00007Fu;
+                    sp.velocity[0] = (rnd() - 0.5f) * 0.06f, sp.velocity[1] = (rnd() - 0.5f) * 0.06f;
+                    sp.velocity[2] = 0.08f + rnd() * 0.05f;
+                } else {
+                    continue;
+                }
+                break;
+            default:   /* spray where the falling water meets the pool */
+                if (rnd() > 0.25f) continue;
+                sp.kind = OPENRAC_PARTICLE_SMOKE;
+                sp.position[0] += (rnd() - 0.5f) * 5.0f;
+                sp.position[1] += (rnd() - 0.5f) * 5.0f;
+                sp.particle_size = 50000.0f + rnd() * 30000.0f;
+                sp.life_ticks = 60;
+                sp.color = 0x28F0F0E8u;
+                sp.color_end = 0x00FFFFFFu;
+                sp.velocity[0] = (rnd() - 0.5f) * 0.03f, sp.velocity[1] = (rnd() - 0.5f) * 0.03f;
+                sp.velocity[2] = 0.02f + rnd() * 0.02f;
+                sp.rot = (rnd() - 0.5f) * 0.001f;
+                break;
+        }
+        s_api->particle_spawn_ex(s_mod, &sp);
+        --budget;
+    }
+}
+
 /* Reads the flags the codes set into OUT, in CODE_FLAGS's order. */
 static void read_flags(uint8_t* out) {
     for (size_t k = 0; k < sizeof CODE_FLAGS / sizeof CODE_FLAGS[0]; ++k) {
@@ -319,6 +401,7 @@ static void tick(void* user) {
     show_station(station_at(p));
     i5_terminal(p, mode);
     effects(p);
+    ambient(p);
     door21(p, mode);
 }
 
