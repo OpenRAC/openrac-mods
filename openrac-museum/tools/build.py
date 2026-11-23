@@ -31,6 +31,7 @@ class Geo:
         self.count = 0
         self.lights = []       # point lights for the bake: {"at", "colour", "radius"}
         self.flames = []       # where the mod's live effects play: (kind, x, y, z)
+        self.props = []        # Pokitaru's own models to place: (kind, number, x, y, z, yaw, scale)
 
     def flame(self, kind, at):
         """A place for the mod's effects: "torch" (embers), "fire" (embers and smoke), "mist"."""
@@ -71,6 +72,15 @@ class Geo:
             uv = [[p[axis[0]] / uv_scale, -p[axis[1]] / uv_scale] for p in ps] if axis[1] == 2 else \
                  [[p[axis[0]] / uv_scale, p[axis[1]] / uv_scale] for p in ps]
             self.tri_quad(material, ps, list(map(float, normal)), np.array(uv, np.float32), solid, surface, glow)
+
+    def block(self, lo, hi, surface=0x1F):
+        """A box in the collision only: a round shape the hero bumps into like a box."""
+        corner = [np.array([hi[0] if i & 1 else lo[0], hi[1] if i & 2 else lo[1], hi[2] if i & 4 else lo[2]], np.float32)
+                  for i in range(8)]
+        for normal, order in FACES:
+            c = [corner[i] for i in order]
+            self.solid.append(((c[0], c[1], c[2]), surface))
+            self.solid.append(((c[0], c[2], c[3]), surface))
 
     def beam(self, material, a, b, size, solid=False, uv_scale=4.0, glow=None):
         """A square beam from A to B (any direction), SIZE thick."""
@@ -192,6 +202,134 @@ class Geo:
             n = np.cross(p[1] - p[0], p[2] - p[0]); n /= np.linalg.norm(n)
             uv = np.array([[k / sides * 4, 0], [(k + 1) / sides * 4, 0], [(k + 0.5) / sides * 4, 2]], np.float32)
             self.mesh.add(material, p, [n] * 3, uv, [glow or light(n)] * 3, [[0, 1, 2]])
+
+    # --- smooth shapes: a grid of points, smooth normals ---
+    def surface(self, material, P, uv, wrap=False, glow=None, flip=False):
+        """A smooth sheet through the grid P (rows x columns x 3), UV (rows x columns x 2). WRAP: the
+        columns close round. Normals are the grid's own, so curves light smoothly."""
+        P = np.asarray(P, np.float64)
+        rows, cols = P.shape[:2]
+        du = np.roll(P, -1, 1) - np.roll(P, 1, 1) if wrap else np.gradient(P, axis=1)
+        dv = np.gradient(P, axis=0)
+        N = np.cross(du, dv)
+        if flip:
+            N = -N
+        N /= np.maximum(np.linalg.norm(N, axis=-1, keepdims=True), 1e-9)
+        if wrap:   # the seam: one more column, the first again, its own UVs
+            P = np.concatenate([P, P[:, :1]], 1); N = np.concatenate([N, N[:, :1]], 1)
+            uv = np.concatenate([uv, uv[:, :1] + np.array([1.0, 0.0]) * (uv[0, 1, 0] - uv[0, 0, 0]) * cols], 1)
+            cols += 1
+        idx = np.arange(rows * cols).reshape(rows, cols)
+        a, b, c, d = idx[:-1, :-1], idx[:-1, 1:], idx[1:, :-1], idx[1:, 1:]
+        tris = np.concatenate([np.stack([a, b, d], -1).reshape(-1, 3), np.stack([a, d, c], -1).reshape(-1, 3)])
+        if flip:
+            tris = tris[:, ::-1]
+        Nf = N.reshape(-1, 3)
+        col = [glow] * len(Nf) if glow else [light(n) for n in Nf]
+        self.mesh.add(material, P.reshape(-1, 3).astype(np.float32), Nf.astype(np.float32),
+                      np.asarray(uv, np.float32).reshape(-1, 2), col, tris)
+
+    def lathe(self, material, centre, profile, sides=12, uv_scale=2.0, glow=None, wobble=0.0, seed=0):
+        """A turned shape round CENTRE (x, y): PROFILE is (radius, z) from the bottom up. WOBBLE
+        roughens the radius (a carved or hewn look)."""
+        rng = np.random.default_rng(seed)
+        a = np.linspace(0, 2 * np.pi, sides, endpoint=False)
+        rough = 1 + rng.uniform(-wobble, wobble, (len(profile), sides))
+        P = np.array([[[centre[0] + math.cos(t) * r * rough[i, j], centre[1] + math.sin(t) * r * rough[i, j], z]
+                       for j, t in enumerate(a)] for i, (r, z) in enumerate(profile)])
+        arc = 2 * np.pi * max(r for r, _ in profile) / uv_scale
+        uv = np.array([[[j / sides * arc, -z / uv_scale] for j in range(sides)] for _, z in profile])
+        self.surface(material, P, uv, wrap=True, glow=glow, flip=True)
+
+    def tube(self, material, path, radius, sides=8, uv_scale=2.0, glow=None, caps=True):
+        """A round tube along PATH (points), RADIUS one number or one per point: logs, branches,
+        ropes, posts."""
+        path = np.asarray(path, np.float64)
+        radii = np.broadcast_to(np.asarray(radius, np.float64), (len(path),))
+        t = np.gradient(path, axis=0)
+        t /= np.maximum(np.linalg.norm(t, axis=1, keepdims=True), 1e-9)
+        up = np.array([0, 0, 1.0]) if abs(t[0][2]) < 0.9 else np.array([1.0, 0, 0])
+        rings, n0 = [], None
+        for i, (p, d) in enumerate(zip(path, t)):
+            n = np.cross(d, up if n0 is None else n0)
+            n /= np.linalg.norm(n) or 1
+            n0 = np.cross(n, d)
+            a = np.linspace(0, 2 * np.pi, sides, endpoint=False)
+            rings.append([p + (np.cos(x) * n + np.sin(x) * n0) * radii[i] for x in a])
+        P = np.array(rings)
+        length = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))])
+        uv = np.array([[[j / sides * 2 * np.pi * radii.max() / uv_scale, -length[i] / uv_scale] for j in range(sides)]
+                       for i in range(len(path))])
+        self.surface(material, P, uv, wrap=True, glow=glow)
+        if caps:
+            for i, d in ((0, -t[0]), (-1, t[-1])):
+                ring = P[i]
+                c = ring.mean(0)
+                for j in range(sides):
+                    tri = np.array([c, ring[j], ring[(j + 1) % sides]], np.float32)
+                    if np.cross(tri[1] - tri[0], tri[2] - tri[0]) @ d < 0:
+                        tri = tri[[0, 2, 1]]
+                    self.mesh.add(material, tri, [d] * 3, (tri[:, :2] / uv_scale).astype(np.float32),
+                                  [glow or light(d)] * 3, [[0, 1, 2]])
+
+    def stone(self, material, at, size, seed, flat=0.6):
+        """A rounded, uneven stone sitting on AT (x, y, ground z): a lathe roughened by SEED."""
+        x, y, z = at
+        h = size * flat
+        prof = [(size * 0.75, z - h * 0.3), (size, z + h * 0.15), (size * 0.85, z + h * 0.6), (size * 0.45, z + h * 0.92),
+                (size * 0.05, z + h)]
+        self.lathe(material, (x, y), prof, sides=10, uv_scale=1.5, wobble=0.18, seed=seed)
+
+    def crystals(self, material, at, height, radius, seed, glow=None, count=4):
+        """A cluster of six-sided crystals leaning out of AT (x, y, z), the tallest HEIGHT."""
+        rng = np.random.default_rng(seed)
+        x, y, z = at
+        for k in range(count):
+            h = height * (1.0 if k == 0 else rng.uniform(0.4, 0.75))
+            r = radius * (1.0 if k == 0 else rng.uniform(0.45, 0.7))
+            a = rng.uniform(0, 2 * np.pi)
+            lean = 0.0 if k == 0 else rng.uniform(0.35, 0.7)
+            d = np.array([math.cos(a) * lean, math.sin(a) * lean, 1.0]); d /= np.linalg.norm(d)
+            base = np.array([x + math.cos(a) * radius * 0.6 * (k > 0), y + math.sin(a) * radius * 0.6 * (k > 0), z - 0.2])
+            self.tube(material, [base, base + d * h * 0.75, base + d * h], [r, r, 0.02], sides=6, glow=glow)
+
+    def paper_lantern(self, centre, z0, z1, radius, glow=(1.8, 1.4, 0.7)):
+        """A round paper lantern from Z0 to Z1 with dark caps, glowing."""
+        x, y = centre
+        h = z1 - z0
+        body = [(radius * s, z0 + h * f) for f, s in ((0.08, 0.55), (0.25, 0.9), (0.5, 1.0), (0.75, 0.9), (0.92, 0.55))]
+        self.lathe("om_red", (x, y), body, 12, glow=list(glow))
+        for zc, zz in ((z0, z0 + h * 0.08), (z1 - h * 0.08, z1)):
+            self.cylinder("om_planks_dark", (x, y), radius * 0.58, zc, zz, 12)
+
+    def slab(self, material, outline, normal, thick, uv_scale=2.0, glow=None):
+        """A flat plate of THICK through the convex OUTLINE (points round it, in its plane)."""
+        o = np.asarray(outline, np.float64)
+        n = np.asarray(normal, np.float64); n /= np.linalg.norm(n)
+        front, back = o + n * thick / 2, o - n * thick / 2
+        c = o.mean(0)
+        for pts, nn in ((front, n), (back[::-1], -n)):
+            cc = c + nn * thick / 2
+            for k in range(len(pts)):
+                tri = np.array([cc, pts[k], pts[(k + 1) % len(pts)]], np.float32)
+                if np.cross(tri[1] - tri[0], tri[2] - tri[0]) @ nn < 0:
+                    tri = tri[[0, 2, 1]]
+                uvv = (tri[:, :2] + tri[:, 2:3]) / uv_scale
+                self.mesh.add(material, tri, [nn] * 3, uvv.astype(np.float32), [glow or light(nn)] * 3, [[0, 1, 2]])
+        for k in range(len(o)):
+            a, b = k, (k + 1) % len(o)
+            q = [front[a], front[b], back[b], back[a]]
+            sn = np.cross(q[1] - q[0], q[3] - q[0])
+            if sn @ ((q[0] + q[1]) / 2 - c) < 0:
+                q = q[::-1]; sn = -sn
+            l = np.linalg.norm(q[1] - q[0]) / uv_scale
+            self.tri_quad(material, q, list(sn / (np.linalg.norm(sn) or 1)),
+                          np.array([[0, 0], [l, 0], [l, thick / uv_scale], [0, thick / uv_scale]], np.float32), False, glow=glow)
+
+    def prop(self, kind, number, at, yaw=0.0, scale=1.0):
+        """One of Pokitaru's own models placed here: kind "tie", "shrub" or a moby kind
+        (museum.TEMPLATES); museum.py places it."""
+        self.props.append((kind, number, *(round(float(v), 3) for v in at), round(float(yaw), 2), round(float(scale), 3)))
 
     def sign(self, material, centre, facing_deg, width, height, solid=False):
         """A flat picture (a sign, a poster) facing FACING_DEG, its middle at CENTRE."""

@@ -225,9 +225,9 @@ def platform(geo, centre, z, half, legs=True, rail=True, gaps=()):
                 gx, gy = x + sx * (half - 0.6), y + sy * (half - 0.6)
                 g = float(island.height(gx, gy))
                 cut = max(g - 1.5, SEA - 2)    # solid only where the hero can meet it
-                geo.box("om_planks_dark", (gx - 0.5, gy - 0.5, cut), (gx + 0.5, gy + 0.5, z - 0.5))
+                geo.cylinder("om_planks_dark", (gx, gy), 0.5, cut, z - 0.5, 10, solid=True)
                 if cut > g - 1.5:
-                    geo.box("om_planks_dark", (gx - 0.5, gy - 0.5, g - 1.5), (gx + 0.5, gy + 0.5, cut), solid=False)
+                    geo.cylinder("om_planks_dark", (gx, gy), 0.5, g - 1.5, cut, 10)
     if rail:
         edges = [((x - half, y - half), (x + half, y - half), "s"), ((x + half, y - half), (x + half, y + half), "e"),
                  ((x + half, y + half), (x - half, y + half), "n"), ((x - half, y + half), (x - half, y - half), "w")]
@@ -309,7 +309,7 @@ def build(geo: Geo, pictures, mats):
     # Glowing crystals in the grotto.
     for j in range(7):
         p = C + d * (g["r0"] + 3 + j * 2.6) + side * ((j % 2) * 2 - 1) * (half_w - 1.5)
-        geo.cone("om_teal", (p[0], p[1]), 0.6 + 0.2 * (j % 3), SEA + 2, SEA + 4 + (j % 3), 5, glow=[0.4, 0.95, 0.9])
+        geo.crystals("om_teal", (p[0], p[1], SEA + 2), 2 + (j % 3), 0.6 + 0.2 * (j % 3), 40 + j, glow=[0.4, 0.95, 0.9])
     # The crystals' light, so the cave and its sign can be seen.
     for t in (0.3, 0.8):
         p = C + d * (g["r0"] + t * (g["r1"] - g["r0"]))
@@ -338,7 +338,7 @@ def build(geo: Geo, pictures, mats):
     for t in np.linspace(0.1, 0.9, 4):
         p = a + (b - a) * t
         gz = float(island.height(*p))
-        geo.box("om_planks_dark", (p[0] - 0.4, p[1] - 0.4, gz - 1), (p[0] + 0.4, p[1] + 0.4, look[2] - 0.4))
+        geo.cylinder("om_planks_dark", (p[0], p[1]), 0.4, gz - 1, look[2] - 0.4, 10, solid=True)
     add_sign(geo, pictures, mats, "om_sign_lookout", "LOOKOUT", "Grindboots: tower  Swingshot: volcano",
              (look[0] + 5, look[1] + 7.6, look[2] + 2.2), -90, 6, 2.25, post=False)
     layout["lookout"] = list(map(float, look))
@@ -410,7 +410,7 @@ def build(geo: Geo, pictures, mats):
         p = rp(-95, 205 + k * 6, 0)
         geo.box("om_planks_light", (p[0] - 3, p[1] - 3, pier_z - 0.4), (p[0] + 3, p[1] + 3, pier_z))
         for s in (-1, 1):
-            geo.cylinder("om_planks_dark", (p[0] + s * 2.7, p[1]), 0.35, float(island.height(p[0] + s * 2.7, p[1])) - 1.5, pier_z + 1.0, 6)
+            geo.cylinder("om_planks_dark", (p[0] + s * 2.7, p[1]), 0.35, float(island.height(p[0] + s * 2.7, p[1])) - 1.5, pier_z + 1.0, 10)
     add_sign(geo, pictures, mats, "om_sign_pier", "OPENRAC MUSEUM", "this way to the house",
              (pier[0] + 4, pier[1] - 2, pier[2] + 2.8), -90)   # read walking in from the pier
 
@@ -439,8 +439,12 @@ def build(geo: Geo, pictures, mats):
     # --- The sunken chest by the house's west deck ---
     cx, cy = house.CX - house.HALF - 14, house.CY
     floor = float(island.height(cx, cy))
-    geo.box("om_planks_dark", (cx - 1.6, cy - 1.0, floor), (cx + 1.6, cy + 1.0, floor + 1.4))
-    geo.box("om_gold", (cx - 1.7, cy - 1.1, floor + 1.2), (cx + 1.7, cy + 1.1, floor + 1.5))
+    geo.box("om_planks_dark", (cx - 1.6, cy - 1.0, floor), (cx + 1.6, cy + 1.0, floor + 1.1))
+    # A rounded lid, held by gold bands.
+    geo.tube("om_planks_dark", [(cx - 1.6, cy, floor + 1.1), (cx + 1.6, cy, floor + 1.1)], 1.0, 14)
+    for bx in (-1.2, 0.0, 1.2):
+        geo.tube("om_gold", [(cx + bx - 0.1, cy, floor + 1.1), (cx + bx + 0.1, cy, floor + 1.1)], 1.06, 14)
+        geo.box("om_gold", (cx + bx - 0.1, cy - 1.05, floor), (cx + bx + 0.1, cy + 1.05, floor + 1.1), solid=False)
     add_sign(geo, pictures, mats, "om_egg_chest", "0x1F", "the ground under everything", (cx, cy + 2, floor + 3), 90, 3, 1.1)
 
     # --- The volcano's shrine, on a ledge high on its side: Swingshot from the lookout ---
@@ -504,15 +508,22 @@ def build(geo: Geo, pictures, mats):
     return layout
 
 
+def ball(r, z, rz=None, n=8):
+    """A lathe profile of a round ball (or an egg, RZ tall) resting on Z."""
+    rz = r if rz is None else rz
+    return [(max(r * math.sin(math.pi * k / n), 0.02), z + rz * (1 - math.cos(math.pi * k / n))) for k in range(n + 1)]
+
+
 def duck(geo, centre, z):
     """A rubber duck, the debugger's best friend."""
     x, y = centre
-    geo.box("om_yellow", (x - 1.2, y - 0.8, z), (x + 1.0, y + 0.8, z + 1.2))
-    geo.box("om_yellow", (x + 0.3, y - 0.55, z + 1.2), (x + 1.2, y + 0.55, z + 2.2))
-    geo.box("om_orange", (x + 1.2, y - 0.3, z + 1.45), (x + 1.8, y + 0.3, z + 1.75))
-    geo.box("om_basalt", (x + 0.9, y - 0.56, z + 1.8), (x + 1.05, y - 0.45, z + 1.95), solid=False)
-    geo.box("om_basalt", (x + 0.9, y + 0.45, z + 1.8), (x + 1.05, y + 0.56, z + 1.95), solid=False)
-    geo.box("om_yellow", (x - 1.5, y - 0.4, z + 0.8), (x - 1.1, y + 0.4, z + 1.5))
+    geo.lathe("om_yellow", (x - 0.2, y), ball(1.2, z, 0.65), 16)
+    geo.tube("om_yellow", [(x - 1.1, y, z + 0.6), (x - 1.6, y, z + 1.3)], [0.45, 0.12], 10)   # the tail
+    geo.lathe("om_yellow", (x + 0.75, y), ball(0.62, z + 0.95), 14)
+    geo.tube("om_orange", [(x + 1.2, y, z + 1.5), (x + 1.85, y, z + 1.45)], [0.3, 0.12], 10)  # the beak
+    for s in (-1, 1):
+        geo.lathe("om_basalt", (x + 1.12, y + s * 0.36), ball(0.1, z + 1.68), 8)
+    geo.block((x - 1.2, y - 1.0, z), (x + 1.2, y + 1.0, z + 1.3))
 
 
 def logo():

@@ -133,7 +133,7 @@ def deck_railing(geo):
             if gap and gap[0] < t < gap[1]:
                 continue
             p = a + d * t
-            geo.box("om_planks_dark", (p[0] - 0.15, p[1] - 0.15, F0), (p[0] + 0.15, p[1] + 0.15, rail_z))
+            geo.cylinder("om_planks_dark", (p[0], p[1]), 0.17, F0, rail_z, 8, solid=True)
         spans = [(0, gap[0]), (gap[1], length)] if gap else [(0, length)]
         for t0, t1 in spans:
             if t1 - t0 < 0.3:
@@ -204,29 +204,23 @@ FLOWER = ("om_red", "om_yellow", "om_orange", "om_white", "om_teal")
 
 
 def flowers_row(geo, a, b, z, seed):
-    """Little flowers along A-B at Z: green stems and leaves, bright heads."""
+    """Pokitaru's own flowers and leafy plants along A-B at Z (shrubs, placed by museum.py)."""
     r = np.random.default_rng(abs(int(seed)) + 900)
-    n = max(3, int(np.linalg.norm(b - a) / 0.55))
+    n = max(2, int(np.linalg.norm(b - a) / 1.3))
     for k in range(n):
         p = a + (b - a) * (k + 0.5) / n
-        h = 0.35 + r.random() * 0.35
-        geo.cone("om_grass", (p[0], p[1]), 0.22, z, z + h, 5)
-        c = FLOWER[int(r.integers(len(FLOWER)))]
-        geo.cone(c, (p[0], p[1]), 0.2, z + h - 0.05, z + h + 0.25, 5, glow=None)
+        geo.prop("shrub", (308, 306, 307)[int(r.integers(3))], (p[0], p[1], z), float(r.uniform(0, 360)),
+                 float(r.uniform(0.8, 1.2)))
 
 
 def flower_pot(geo, p, z, seed, size=1.0):
-    """A clay pot of flowers on the floor."""
+    """A turned clay pot with a rolled rim, one of Pokitaru's plants in it."""
     r = np.random.default_rng(abs(int(seed)))
-    geo.cylinder("om_orange", (p[0], p[1]), 0.55 * size, z, z + 0.8 * size, 10, solid=True)
-    geo.cylinder("om_planks_dark", (p[0], p[1]), 0.6 * size, z + 0.7 * size, z + 0.85 * size, 10)
-    for k in range(7):
-        a = r.random() * 2 * math.pi
-        d = r.random() * 0.35 * size
-        q = (p[0] + math.cos(a) * d, p[1] + math.sin(a) * d)
-        h = (0.6 + r.random() * 0.8) * size
-        geo.cone("om_grass", q, 0.28 * size, z + 0.8 * size, z + 0.8 * size + h, 5)
-        geo.cone(FLOWER[int(r.integers(len(FLOWER)))], q, 0.25 * size, z + 0.75 * size + h, z + 1.05 * size + h, 6)
+    k = size
+    geo.lathe("om_orange", (p[0], p[1]), [(0.001, z), (0.36 * k, z), (0.42 * k, z + 0.12 * k), (0.5 * k, z + 0.55 * k),
+                                          (0.6 * k, z + 0.72 * k), (0.64 * k, z + 0.8 * k), (0.6 * k, z + 0.86 * k),
+                                          (0.52 * k, z + 0.8 * k), (0.001, z + 0.72 * k)], sides=14, uv_scale=1.0)
+    geo.prop("shrub", (308, 306, 307)[int(r.integers(3))], (p[0], p[1], z + 0.72 * k), float(r.uniform(0, 360)), 0.9 * k)
 
 
 def gallery_railing(geo):
@@ -241,7 +235,7 @@ def gallery_railing(geo):
             if s == 4 and abs(t - length / 2) < 2.8:
                 continue
             p = a + d * t
-            geo.box("om_planks_light", (p[0] - 0.1, p[1] - 0.1, F1 + 1.15), (p[0] + 0.1, p[1] + 0.1, F1 + 1.5), solid=False)
+            geo.cylinder("om_planks_light", (p[0], p[1]), 0.11, F1 + 1.15, F1 + 1.5, 8)
         geo.beam("om_planks", (*a, F1 + 1.5), (*b, F1 + 1.5), 0.3)
 
 
@@ -310,8 +304,7 @@ def atrium(geo):
     for s in range(0, 8, 2):
         p = mid(s, R_IN - 2.5)
         geo.cylinder("om_planks_dark", (p[0], p[1]), 0.05, F1 + 3, TOP + 6, 4)
-        geo.cylinder("om_red", (p[0], p[1]), 0.6, F1 + 1.6, F1 + 3.0, 8)
-        geo.cone("om_yellow", (p[0], p[1]), 0.4, F1 + 1.9, F1 + 2.8, 8, glow=[1.8, 1.5, 0.8])
+        geo.paper_lantern((p[0], p[1]), F1 + 1.5, F1 + 3.1, 0.75)
         geo.light((p[0], p[1], F1 + 1.4), (1.1, 0.8, 0.45), 11)
 
 
@@ -364,7 +357,8 @@ def roofs(geo):
         geo.tri_quad("om_thatch", p, list(n), np.array([[0, 0], [4, 0], [2, 4], [2, 4]], np.float32), solid=True, both=True)
         geo.beam("om_planks_dark", tuple(a), tuple(peak), 0.45)
     geo.cylinder("om_gold", (CX, CY), 0.7, zs + 16.0, zs + 18.5, 10)
-    geo.cone("om_gold", (CX, CY), 1.2, zs + 18.5, zs + 21.0, 10, glow=[1.5, 1.3, 0.7])
+    geo.lathe("om_gold", (CX, CY), [(0.7, zs + 18.5), (1.15, zs + 18.9), (1.2, zs + 19.4), (0.9, zs + 19.9),
+                                     (0.35, zs + 20.3), (0.2, zs + 20.6), (0.02, zs + 21.0)], 14, glow=[1.5, 1.3, 0.7])
     geo.cylinder("om_planks_dark", (CX, CY), 0.08, zs + 21.0, zs + 25.0, 4)
     geo.oriented_box("om_red", np.array([CX + 0.1, CY]), np.array([CX + 3.6, CY]), np.array([0, 1.0]), 0.06, zs + 23.0, zs + 24.9, solid=False)
 
@@ -394,8 +388,7 @@ def decorate(geo):
     for s in range(8):
         p = vert(45 * s - 22.5, R_OUT + GALLERY + 1.6)
         geo.cylinder("om_planks_dark", (p[0], p[1]), 0.05, TOP - 2.8, TOP - 0.4, 4)
-        geo.cylinder("om_red", (p[0], p[1]), 0.5, TOP - 3.9, TOP - 2.8, 8)
-        geo.cone("om_yellow", (p[0], p[1]), 0.3, TOP - 3.7, TOP - 3.0, 8, glow=[1.8, 1.5, 0.8])
+        geo.paper_lantern((p[0], p[1]), TOP - 4.0, TOP - 2.8, 0.6)
         geo.light((p[0], p[1], TOP - 4.2), (1.0, 0.72, 0.4), 8)
 
 
@@ -421,10 +414,12 @@ def gateway(geo, signs):
     x0, x1 = g[0] - 9.5, g[0] + 9.5
     top = gz + 13.0
     for x in (x0, x1):
-        geo.box("om_planks_dark", (x - 0.9, g[1] - 0.9, gz - 2), (x + 0.9, g[1] + 0.9, top), solid=True)
-        geo.box("om_gold", (x - 1.1, g[1] - 1.1, gz + 0.0), (x + 1.1, g[1] + 1.1, gz + 0.5), solid=False)
-        geo.box("om_gold", (x - 1.1, g[1] - 1.1, top - 0.6), (x + 1.1, g[1] + 1.1, top), solid=False)
-        geo.cone("om_gold", (x, g[1]), 1.0, top, top + 2.2, 4, glow=[1.3, 1.1, 0.6])
+        # A turned column: gold foot and head, a glowing ball on top.
+        geo.cylinder("om_planks_dark", (x, g[1]), 0.85, gz - 2, top - 0.6, 14, solid=True)
+        geo.lathe("om_gold", (x, g[1]), [(1.25, gz - 0.1), (1.25, gz + 0.25), (1.0, gz + 0.5), (0.85, gz + 0.8)], 14)
+        geo.lathe("om_gold", (x, g[1]), [(0.85, top - 0.9), (1.0, top - 0.6), (1.25, top - 0.2), (1.25, top), (0.5, top + 0.05)], 14)
+        geo.lathe("om_gold", (x, g[1]), [(0.02, top), (0.5, top + 0.15), (0.75, top + 0.6), (0.7, top + 1.1),
+                                         (0.45, top + 1.45), (0.02, top + 1.6)], 14, glow=[1.3, 1.1, 0.6])
         torch(geo, x + (2.2 if x > g[0] else -2.2), g[1] - 1.5, gz, 3.4)
         for side in (-1, 1):
             gate.banner(geo, signs, "red" if side < 0 else "teal", x, g[1] + side * 0.97, side, 1.4, top - 8.5, top - 1.0)
@@ -447,8 +442,8 @@ def gateway(geo, signs):
         flower_pot(geo, (x, g[1] - 3.5), gz, int(x * 3), 1.3)
     for k, x in enumerate((g[0] - 14, g[0] + 14)):
         z = float(island.height(x, g[1] - 2))
-        geo.cylinder("om_planks_dark", (x, g[1] - 2), 0.18, z - 1, z + 14, 6)
-        geo.cone("om_gold", (x, g[1] - 2), 0.35, z + 14, z + 14.8, 6)
+        geo.cylinder("om_planks_dark", (x, g[1] - 2), 0.18, z - 1, z + 14, 10)
+        geo.lathe("om_gold", (x, g[1] - 2), [(0.02, z + 13.95), (0.25, z + 14.05), (0.36, z + 14.3), (0.25, z + 14.55), (0.02, z + 14.65)], 10)
         geo.beam("om_planks_dark", (x - 1.3, g[1] - 2.25, z + 13.2), (x + 1.3, g[1] - 2.25, z + 13.2), 0.12)
         gate.banner(geo, signs, ("red", "teal")[k], x, g[1] - 2.25, -1, 2.4, z + 7.6, z + 13.1)
 
@@ -512,7 +507,7 @@ def rooms(geo, signs, posters, art):
             geo.oriented_box("om_planks_dark", bc - tang * 2.0, bc + tang * 2.0, out, 0.9, z0 + 0.5, z0 + 0.8)
             for t in (-1.7, 1.7):
                 pp = bc + tang * t
-                geo.box("om_planks_dark", (pp[0] - 0.15, pp[1] - 0.15, z0), (pp[0] + 0.15, pp[1] + 0.15, z0 + 0.5), solid=False)
+                geo.cylinder("om_planks_dark", (pp[0], pp[1]), 0.15, z0, z0 + 0.5, 8)
 
 
 def frame(geo, c, n, d, z, w, h):
@@ -541,9 +536,9 @@ def plinth(geo, p, z0, seed, ornament=True):
         for k in range(8):
             a = 2 * math.pi * k / 8
             q = (p[0] + math.cos(a) * 0.65, p[1] + math.sin(a) * 0.65)
-            geo.box("om_rail", (q[0] - 0.12, q[1] - 0.12, z), (q[0] + 0.12, q[1] + 0.12, z + 0.25), solid=False)
+            geo.cylinder("om_rail", q, 0.12, z, z + 0.25, 8)
     elif kind == 2:    # a crystal
-        geo.cone("om_teal", (p[0], p[1]), 0.4, z, z + 1.4, 5, glow=[0.4, 0.95, 0.9])
+        geo.crystals("om_teal", (p[0], p[1], z), 1.4, 0.3, seed, glow=[0.4, 0.95, 0.9])
     elif kind == 3:    # a little planet with a ring
         geo.cylinder("om_orange", (p[0], p[1]), 0.45, z + 0.2, z + 1.0, 12)
         geo.cylinder("om_yellow", (p[0], p[1]), 0.8, z + 0.55, z + 0.62, 16)
@@ -573,7 +568,10 @@ def tower(geo):
                  ((tx + h, ty + h), (tx - h, ty + h)), ((tx - h, ty + h), (tx - h, ty - h))):
         geo.wall("om_planks_light", a, b, z0, z0 + 5.5, 0.5, [(h - 2.5, h + 2.5, 0, 4.2)])
     geo.box("om_planks_dark", (tx - h - 3.5, ty - h - 3.5, z0 + 5.5), (tx + h + 3.5, ty + h + 3.5, z0 + 6))
-    geo.cone("om_thatch", (tx, ty), h * 1.7, z0 + 6, z0 + 14, 4)
+    # A bell-shaped thatch roof, its eaves turned up a little.
+    R = h * 1.75
+    geo.lathe("om_thatch", (tx, ty), [(R, z0 + 6.0), (R * 0.93, z0 + 6.25), (R * 0.72, z0 + 7.8), (R * 0.48, z0 + 9.8),
+                                      (R * 0.25, z0 + 12.2), (R * 0.08, z0 + 13.7), (0.02, z0 + 14.0)], 16, uv_scale=3.0)
     # Its lantern: the room is under a deep roof, and the 3 AM door brings you here.
     geo.light((tx, ty, z0 + 4.6), (1.7, 1.3, 0.85), 11)
 
@@ -609,7 +607,8 @@ def bridges(geo):
             if i % 2 == 0:
                 for s in (-1, 1):
                     p = a + side * 3.2 * s
-                    geo.box("om_planks_dark", (p[0] - 0.15, p[1] - 0.15, z0 - 0.2), (p[0] + 0.15, p[1] + 0.15, z0 + 1.5))
+                    geo.cylinder("om_planks_dark", (p[0], p[1]), 0.17, z0 - 0.2, z0 + 1.5, 8, solid=True)
+                    geo.lathe("om_planks_dark", (p[0], p[1]), [(0.17, z0 + 1.5), (0.24, z0 + 1.58), (0.16, z0 + 1.72), (0.02, z0 + 1.76)], 8)
         # The bridge's ends onto the beach.
 
 

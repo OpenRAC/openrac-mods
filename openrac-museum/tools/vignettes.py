@@ -11,7 +11,7 @@ import numpy as np
 import house
 import island
 import scatter
-from house import flower_pot, flowers_row, torch
+from house import flower_pot, torch
 
 SEA = island.SEA
 C = island.CENTRE
@@ -47,32 +47,83 @@ def frame(yaw):
     return f, np.array([-f[1], f[0]])
 
 
+# --- helpers: organic parts and Pokitaru's own little things ---
+
+FLOWERS = (308, 306, 307)   # Pokitaru's white lily, red fruit, green leafy plant (shrubs)
+
+
+def log(geo, a, b, z, radius, r, material="om_planks_dark"):
+    """A round log from A to B at Z, a little bent, its ends cut."""
+    pts = [np.array([*(a + (b - a) * t), z + radius * 0.9 + math.sin(t * math.pi) * radius * 0.15]) for t in np.linspace(0, 1, 5)]
+    rad = [radius * (1.0 - 0.08 * abs(t - 0.5)) for t in np.linspace(0, 1, 5)]
+    geo.tube(material, pts, rad, sides=9, uv_scale=1.5)
+
+
+def flowers(geo, a, b, z, r, step=1.4):
+    """Pokitaru's own flowers and leafy plants along A-B (shrubs, placed by museum.py)."""
+    n = max(1, int(np.linalg.norm(b - a) / step))
+    for k in range(n):
+        q = a + (b - a) * (k + float(r.uniform(0.2, 0.8))) / n
+        g = float(island.height(*q))
+        geo.prop("shrub", FLOWERS[int(r.integers(len(FLOWERS)))], (q[0], q[1], g), float(r.uniform(0, 360)),
+                 float(r.uniform(0.8, 1.3)))
+
+
 def hut(geo, p, z, yaw, r):
+    """A round beach hut: six bent poles, a plank floor, a thick thatch roof with a hanging fringe."""
     f, s = frame(yaw)
-    w = 3.2
-    for a in (-1, 1):
-        for b in (-1, 1):
-            q = p + f * a * w + s * b * w
-            geo.cylinder("om_planks_dark", (q[0], q[1]), 0.28, z - 0.5, z + 3.6, 6)
-    geo.cylinder("om_planks_light", (p[0], p[1]), w * 1.2, z + 0.4, z + 0.7, 8)
-    geo.cone("om_thatch", (p[0], p[1]), w * 1.75, z + 3.4, z + 6.8, 8)
-    geo.cone("om_gold", (p[0], p[1]), 0.4, z + 6.6, z + 7.6, 5)
-    # A hammock-like bench and a pot inside, a lantern on a post.
-    geo.oriented_box("om_red", p - s * 1.8 - f * 0.6, p + s * 1.8 - f * 0.6, f, 1.0, z + 1.0, z + 1.2, solid=False)
-    flower_pot(geo, p + f * 1.6 + s * 1.6, z + 0.7, int(r.integers(1 << 30)), 0.8)
+    for k in range(6):
+        a = math.radians(yaw) + 2 * math.pi * k / 6 + math.pi / 6
+        q = p + np.array([math.cos(a), math.sin(a)]) * 3.3
+        lean = np.array([math.cos(a), math.sin(a)]) * 0.15
+        geo.tube("om_planks_dark", [(q[0], q[1], z - 0.4), (*(q + lean * 0.5), z + 1.8), (*(q - lean * 0.2), z + 3.7)],
+                 [0.24, 0.21, 0.19], sides=7)
+    geo.lathe("om_planks_light", (p[0], p[1]), [(3.75, z + 0.3), (3.8, z + 0.6), (3.6, z + 0.72), (0.05, z + 0.74)],
+              sides=14, uv_scale=2.0)
+    geo.lathe("om_thatch", (p[0], p[1]), [(4.9, z + 3.05), (4.8, z + 3.45), (4.0, z + 4.2), (2.9, z + 5.2), (1.7, z + 6.2),
+                                          (0.7, z + 7.0), (0.08, z + 7.35)], sides=16, uv_scale=1.6, wobble=0.035,
+              seed=int(r.integers(1 << 20)))
+    # The roof's underside, so it is not hollow from below.
+    geo.lathe("om_thatch", (p[0], p[1]), [(0.1, z + 3.7), (3.0, z + 3.75), (4.75, z + 3.1)], sides=16, uv_scale=1.6)
+    geo.lathe("om_planks_dark", (p[0], p[1]), [(0.22, z + 7.2), (0.3, z + 7.5), (0.18, z + 7.9), (0.02, z + 8.05)], sides=8)
+    # A bench of planks inside, a pot of Pokitaru's flowers.
+    q = p - f * 1.2
+    geo.slab("om_planks", [(*(q - s * 1.7 - f * 0.45), z + 1.25), (*(q + s * 1.7 - f * 0.45), z + 1.25),
+                           (*(q + s * 1.7 + f * 0.45), z + 1.25), (*(q - s * 1.7 + f * 0.45), z + 1.25)], (0, 0, 1), 0.12)
+    for t in (-1.4, 1.4):
+        geo.tube("om_planks_dark", [(*(q + s * t), z + 0.72), (*(q + s * t), z + 1.2)], 0.1, sides=6)
+    flower_pot(geo, p + f * 1.6 + s * 1.6, z + 0.72, int(r.integers(1 << 30)), 0.8)
 
 
 def canoe(geo, p, z, yaw, r):
+    """A dug-out canoe: a smooth hull, a painted rim, two thwarts, a paddle in the sand."""
     f, s = frame(yaw)
     col = ("om_red", "om_teal", "om_orange")[int(r.integers(3))]
-    for k in range(-3, 4):
-        w = 0.9 * (1 - (abs(k) / 4) ** 2)
-        q = p + f * k * 1.1
-        geo.oriented_box("om_planks_dark", q - f * 0.56, q + f * 0.56, s, w * 2, z, z + 0.7, solid=False)
-        geo.oriented_box(col, q - f * 0.56, q + f * 0.56, s, w * 2 + 0.1, z + 0.55, z + 0.75, solid=False)
-    paddle = p + s * 1.4
-    geo.beam("om_planks", (*(paddle - f * 1.6), z + 0.1), (*(paddle + f * 1.6), z + 0.3), 0.15)
-    geo.oriented_box("om_planks", paddle + f * 1.6 - s * 0.25, paddle + f * 2.4 - s * 0.25, s, 0.05, z + 0.05, z + 0.4, solid=False)
+    L, rows, cols = 7.6, 14, 9
+    P, uv = [], []
+    for i in range(rows):
+        t = i / (rows - 1)
+        w = 0.95 * math.sin(math.pi * t) ** 0.6
+        depth = 0.75 * math.sin(math.pi * t) ** 0.4
+        rise = 0.35 * (2 * t - 1) ** 4
+        row = []
+        for j in range(cols):
+            u = j / (cols - 1) * 2 - 1
+            q = p + f * (t - 0.5) * L + s * u * w
+            row.append((q[0], q[1], z + 0.8 + rise - depth * (1 - u * u)))
+        P.append(row)
+        uv.append([(t * L / 2, u) for u in np.linspace(0, 2, cols)])
+    geo.surface("om_planks_dark", np.array(P), np.array(uv))
+    for j in (0, cols - 1):
+        geo.tube(col, [P[i][j] for i in range(rows)], 0.07, sides=5, caps=False)
+    for t in (0.33, 0.66):
+        i = int(t * (rows - 1))
+        geo.tube("om_planks", [P[i][0], P[i][cols - 1]], 0.06, sides=5)
+    blade = p + s * 1.6 + f * 1.0
+    geo.tube("om_planks", [(blade[0], blade[1], z - 0.2), (*(blade + s * 0.4), z + 2.3)], 0.05, sides=6)
+    geo.slab("om_planks", [(blade[0] - f[0] * 0.18, blade[1] - f[1] * 0.18, z - 0.2), (blade[0] + f[0] * 0.18, blade[1] + f[1] * 0.18, z - 0.2),
+                           (blade[0] + f[0] * 0.24, blade[1] + f[1] * 0.24, z + 0.5), (blade[0] - f[0] * 0.24, blade[1] - f[1] * 0.24, z + 0.5)],
+             (s[0], s[1], 0), 0.05)
 
 
 def campfire(geo, p, z, yaw, r):
@@ -83,7 +134,7 @@ def campfire(geo, p, z, yaw, r):
         q = p + np.array([math.cos(a), math.sin(a)]) * float(r.uniform(1.2, 1.45))
         t = np.array([-math.sin(a), math.cos(a)]) * float(r.uniform(0.2, 0.32))
         lift = float(r.uniform(0.0, 0.12))
-        geo.beam("om_stone", (*(q - t), z + 0.05), (*(q + t), z + 0.12 + lift), float(r.uniform(0.32, 0.46)))
+        geo.stone("om_stone", (q[0], q[1], z + lift * 0.3), float(r.uniform(0.28, 0.4)), int(r.integers(1 << 20)))
     # The coals: small glowing chunks at every tilt, hotter in the middle.
     for k in range(14):
         rr = float(r.uniform(0, 0.75))
@@ -109,126 +160,183 @@ def campfire(geo, p, z, yaw, r):
     # Logs to sit on.
     for t in (-1, 1):
         q = p + f * 3.0 * t
-        geo.beam("om_planks_dark", (*(q - s * 1.4), z + 0.3), (*(q + s * 1.4), z + 0.3), 0.6)
+        log(geo, q - s * 1.5, q + s * 1.5, z + 0.32, 0.32, r)
 
 
 def totem(geo, p, z, yaw, r):
+    """A carved totem: three painted, bulging faces, wings at the top, a beaked head."""
     cols = ["om_red", "om_teal", "om_yellow", "om_orange"]
     r.shuffle(cols)
-    zz = z
+    f, s = frame(yaw)
+    zz = z - 0.3
+    seed = int(r.integers(1 << 20))
     for k, c in enumerate(cols[:3]):
-        h = 1.4
-        geo.box(c, (p[0] - 0.7, p[1] - 0.7, zz), (p[0] + 0.7, p[1] + 0.7, zz + h), solid=False)
-        f, s = frame(yaw)
-        eye = p + f * 0.72
+        h = 1.45
+        geo.lathe(c, (p[0], p[1]), [(0.62, zz), (0.78, zz + h * 0.3), (0.82, zz + h * 0.55), (0.7, zz + h * 0.85),
+                                    (0.6, zz + h)], sides=10, wobble=0.05, seed=seed + k)
+        eye = p + f * 0.74
         for t in (-0.3, 0.3):
             e = eye + s * t
-            geo.box("om_white", (e[0] - 0.12, e[1] - 0.12, zz + 0.8), (e[0] + 0.12, e[1] + 0.12, zz + 1.05), solid=False)
+            geo.lathe("om_white", (e[0], e[1]), [(0.001, zz + 0.82), (0.13, zz + 0.85), (0.13, zz + 1.02), (0.001, zz + 1.05)], sides=6)
+        geo.tube("om_planks_dark", [(*(p + f * 0.6), zz + 0.45), (*(p + f * 0.95), zz + 0.55)], [0.14, 0.06], sides=6)
         zz += h
-    geo.oriented_box("om_gold", p - frame(yaw)[1] * 1.8, p + frame(yaw)[1] * 1.8, frame(yaw)[0], 0.3, zz - 0.4, zz - 0.1, solid=False)
-    geo.cone("om_gold", (p[0], p[1]), 0.8, zz, zz + 1.2, 4)
+    for t in (-1, 1):
+        geo.slab("om_gold", [(*(p + s * t * 0.5), zz - 0.5), (*(p + s * t * 2.2), zz - 0.1), (*(p + s * t * 2.0), zz + 0.3),
+                             (*(p + s * t * 0.5), zz + 0.1)], (f[0], f[1], 0), 0.14)
+    geo.lathe("om_gold", (p[0], p[1]), [(0.6, zz), (0.7, zz + 0.4), (0.45, zz + 0.9), (0.05, zz + 1.3)], sides=10)
+    geo.tube("om_orange", [(*(p + f * 0.5), zz + 0.6), (*(p + f * 1.1), zz + 0.45)], [0.18, 0.02], sides=6)
 
 
 def sunshade(geo, p, z, yaw, r):
+    """A beach umbrella over two loungers, and a surfboard stuck in the sand."""
     f, s = frame(yaw)
-    geo.cylinder("om_white", (p[0], p[1]), 0.08, z - 0.5, z + 3.0, 6)
+    geo.tube("om_white", [(p[0], p[1], z - 0.5), (p[0], p[1], z + 3.3)], 0.07, sides=6)
     c = ("om_red", "om_teal", "om_yellow")[int(r.integers(3))]
-    geo.cone(c, (p[0], p[1]), 2.2, z + 2.4, z + 3.4, 8)
-    for t in (-1, 1):                      # two deck chairs
-        q = p + s * 1.4 * t - f * 0.8
-        geo.oriented_box("om_planks_light", q - f * 1.0, q + f * 0.6, s, 0.8, z + 0.25, z + 0.4, solid=False)
-        geo.beam("om_white", (*(q + f * 0.6), z + 0.4), (*(q + f * 1.2), z + 1.2), 0.75)
-    geo.oriented_box(("om_orange", "om_teal")[int(r.integers(2))], p + f * 2.4 - s * 0.3, p + f * 2.4 + s * 0.3, f, 0.12, z - 0.3, z + 2.2, solid=False)  # a surfboard
+    geo.lathe(c, (p[0], p[1]), [(2.45, z + 2.5), (2.1, z + 2.85), (1.3, z + 3.18), (0.5, z + 3.36), (0.03, z + 3.42)],
+              sides=16, wobble=0.03, seed=int(r.integers(1 << 20)))
+    geo.lathe("om_white", (p[0], p[1]), [(0.1, z + 3.35), (0.12, z + 3.5), (0.03, z + 3.6)], sides=6)
+    for t in (-1, 1):                      # two loungers: a curved bed on a frame
+        q = p + s * 1.45 * t - f * 0.6
+        rows = []
+        for i, u in enumerate(np.linspace(-1.0, 1.0, 9)):
+            back = max(0.0, u - 0.35) / 0.65
+            zz = z + 0.45 + back * back * 0.75
+            o = q + f * (u * 1.0 - back * 0.25)
+            rows.append([(*(o + s * v), zz) for v in (-0.38, 0.0, 0.38)])
+        geo.surface("om_white", np.array(rows), np.array([[(v, u) for v in (0, 0.5, 1)] for u in np.linspace(0, 3, 9)]))
+        for v in (-0.36, 0.36):
+            geo.tube("om_planks_light", [r_[:2] + (r_[2] - 0.06,) for r_ in [tuple(rows[i][1 if v == 0 else (0 if v < 0 else 2)]) for i in range(9)]], 0.05, sides=5)
+            for u in (-0.9, 0.3):
+                leg = q + f * u + s * v
+                geo.tube("om_planks_light", [(leg[0], leg[1], z), (leg[0], leg[1], z + 0.42)], 0.045, sides=5)
+    board = p + f * 2.5
+    out = np.array([*(f), 0.0])
+    pts = []
+    for a in np.linspace(0, 2 * np.pi, 14, endpoint=False):
+        pts.append((board[0] + s[0] * math.cos(a) * 0.32, board[1] + s[1] * math.cos(a) * 0.32,
+                    z + 1.0 + math.sin(a) * 1.35))
+    geo.slab(("om_orange", "om_teal")[int(r.integers(2))], pts, out, 0.1)
 
 
 def signpost(geo, p, z, yaw, r):
-    geo.box("om_planks_dark", (p[0] - 0.15, p[1] - 0.15, z - 0.4), (p[0] + 0.15, p[1] + 0.15, z + 3.2), solid=False)
+    """A post with three arrow boards, each a little askew."""
+    geo.tube("om_planks_dark", [(p[0], p[1], z - 0.4), (p[0], p[1], z + 3.1)], [0.16, 0.13], sides=7)
+    geo.lathe("om_planks_dark", (p[0], p[1]), [(0.14, z + 3.1), (0.18, z + 3.2), (0.02, z + 3.35)], sides=7)
     for k in range(3):
         a = yaw + k * 110 + float(r.uniform(-15, 15))
         f, s = frame(a)
         zz = z + 2.6 - k * 0.55
-        geo.oriented_box(("om_planks", "om_planks_light")[k % 2], p, p + f * 1.6, s, 0.1, zz - 0.2, zz + 0.2, solid=False)
-        geo.cone("om_planks", (*(p + f * 1.75),), 0.2, zz - 0.2, zz + 0.2, 3)
+        tilt = float(r.uniform(-0.06, 0.06))
+        out = [(*(p + f * 0.15), zz - 0.2 + tilt), (*(p + f * 1.5), zz - 0.2 - tilt), (*(p + f * 1.9), zz),
+               (*(p + f * 1.5), zz + 0.2 - tilt), (*(p + f * 0.15), zz + 0.2 + tilt)]
+        geo.slab(("om_planks", "om_planks_light")[k % 2], out, (s[0], s[1], 0), 0.08)
 
 
 def fence(geo, p, z, yaw, r):
+    """A rustic fence: round posts, sagging rails, Pokitaru's flowers along it."""
     f, s = frame(yaw)
     pts = [p + f * (k - 2) * 2.4 + s * float(r.uniform(-0.3, 0.3)) for k in range(5)]
-    for q in pts:
-        g = float(island.height(*q))
-        geo.box("om_planks_dark", (q[0] - 0.12, q[1] - 0.12, g - 0.3), (q[0] + 0.12, q[1] + 0.12, g + 1.3), solid=False)
-    for a, b in zip(pts, pts[1:]):
-        ga, gb = float(island.height(*a)), float(island.height(*b))
-        geo.beam("om_planks", (*a, ga + 1.1), (*b, gb + 1.1), 0.12)
-        geo.beam("om_planks", (*a, ga + 0.6), (*b, gb + 0.6), 0.12)
-    flowers_row(geo, pts[0] + s * 0.6, pts[-1] + s * 0.6, z, int(r.integers(1 << 20)))
+    gs = [float(island.height(*q)) for q in pts]
+    for q, g in zip(pts, gs):
+        geo.tube("om_planks_dark", [(q[0], q[1], g - 0.3), (q[0], q[1], g + 1.3)], [0.13, 0.11], sides=7)
+        geo.lathe("om_planks_dark", (q[0], q[1]), [(0.11, g + 1.3), (0.06, g + 1.4), (0.01, g + 1.43)], sides=7)
+    for (a, ga), (b, gb) in zip(zip(pts, gs), zip(pts[1:], gs[1:])):
+        for h in (1.1, 0.6):
+            mid = (a + b) / 2
+            geo.tube("om_planks", [(*a, ga + h), (*mid, (ga + gb) / 2 + h - 0.08), (*b, gb + h)], 0.07, sides=6)
+    flowers(geo, pts[0] + s * 0.7, pts[-1] + s * 0.7, z, r, 1.6)
 
 
 def flower_bed(geo, p, z, yaw, r):
+    """A ring of stones round Pokitaru's flowers and a flower patch."""
     f, s = frame(yaw)
-    for k in range(5):
-        q = p + f * float(r.uniform(-2.5, 2.5)) + s * float(r.uniform(-2.5, 2.5))
-        g = float(island.height(*q))
-        flowers_row(geo, q - f * 0.9, q + f * 0.9, g, int(r.integers(1 << 20)))
+    geo.prop("shrub", 49, (p[0], p[1], float(island.height(*p))), float(r.uniform(0, 360)), 0.55)
     for k in range(6):
-        a = 2 * math.pi * k / 6
+        q = p + f * float(r.uniform(-2.2, 2.2)) + s * float(r.uniform(-2.2, 2.2))
+        geo.prop("shrub", FLOWERS[int(r.integers(len(FLOWERS)))], (q[0], q[1], float(island.height(*q))),
+                 float(r.uniform(0, 360)), float(r.uniform(0.9, 1.4)))
+    for k in range(11):
+        a = 2 * math.pi * k / 11 + float(r.uniform(-0.1, 0.1))
         q = p + np.array([math.cos(a), math.sin(a)]) * 3.3
-        g = float(island.height(*q))
-        geo.box("om_stone", (q[0] - 0.4, q[1] - 0.4, g - 0.2), (q[0] + 0.4, q[1] + 0.4, g + 0.3), solid=False)
+        geo.stone("om_stone", (q[0], q[1], float(island.height(*q))), float(r.uniform(0.35, 0.5)), int(r.integers(1 << 20)))
 
 
 def driftwood(geo, p, z, yaw, r):
+    """A bleached, bent trunk with a broken branch, and Pokitaru's starfish beside it."""
     f, s = frame(yaw)
-    geo.beam("om_planks_dark", (*(p - f * 2.6), z + 0.2), (*(p + f * 2.6), z + 0.35), 0.55)
-    geo.beam("om_planks_dark", (*(p + f * 1.0), z + 0.3), (*(p + f * 1.8 + s * 1.2), z + 0.6), 0.25)
-    for k in range(3):
+    bend = s * float(r.uniform(-0.6, 0.6))
+    pts = [(*(p + f * t * 2.8 + bend * (1 - t * t)), z + 0.25 + 0.1 * t) for t in np.linspace(-1, 1, 6)]
+    geo.tube("om_planks_dark", pts, [0.32, 0.36, 0.34, 0.3, 0.26, 0.2], sides=8)
+    root = p - f * 2.8 + bend * 0
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + float(r.uniform(-0.4, 0.4))
+        d = np.array([math.cos(a), math.sin(a)])
+        geo.tube("om_planks_dark", [(*root, z + 0.3), (*(root - f * 0.4 + d * 0.5), z + 0.3 + d[1] * 0.4),
+                                    (*(root - f * 0.7 + d * 0.9), z + 0.2 + d[1] * 0.6)], [0.16, 0.1, 0.03], sides=5)
+    geo.tube("om_planks_dark", [(*(p + f * 1.0), z + 0.4), (*(p + f * 1.6 + s * 0.8), z + 0.75), (*(p + f * 2.0 + s * 1.3), z + 0.8)],
+             [0.14, 0.1, 0.06], sides=6)
+    for k in range(int(r.integers(1, 3))):
         q = p + s * float(r.uniform(1.5, 3)) + f * float(r.uniform(-2, 2))
-        geo.box("om_white", (q[0] - 0.15, q[1] - 0.15, z), (q[0] + 0.15, q[1] + 0.15, z + 0.15), solid=False)  # shells
+        geo.prop("shrub", (373, 371)[k % 2], (q[0], q[1], float(island.height(*q))), float(r.uniform(0, 360)), 1.0)
 
 
 def barrels(geo, p, z, yaw, r):
+    """Bulging barrels with iron hoops, one stacked, and one of the game's bolt crates."""
     f, s = frame(yaw)
-    for k, (a, b) in enumerate(((0, 0), (1.3, 0.2), (0.6, 1.2), (0.6, 0.5))):
+    for k, (a, b) in enumerate(((0, 0), (1.25, 0.2), (0.6, 1.15), (0.6, 0.45))):
         q = p + f * a + s * b
-        zz = z + (1.1 if k == 3 else 0)
-        geo.cylinder("om_planks", (q[0], q[1]), 0.55, zz, zz + 1.1, 10)
-        geo.cylinder("om_planks_dark", (q[0], q[1]), 0.58, zz + 0.25, zz + 0.35, 10, cap=False)
-        geo.cylinder("om_planks_dark", (q[0], q[1]), 0.58, zz + 0.75, zz + 0.85, 10, cap=False)
-    q = p - f * 1.6
-    geo.box("om_planks_light", (q[0] - 0.7, q[1] - 0.7, z), (q[0] + 0.7, q[1] + 0.7, z + 1.4), solid=False)
-    geo.box("om_planks_dark", (q[0] - 0.75, q[1] - 0.75, z + 0.6), (q[0] + 0.75, q[1] + 0.75, z + 0.8), solid=False)
+        zz = z + (1.12 if k == 3 else 0)
+        geo.lathe("om_planks", (q[0], q[1]), [(0.001, zz), (0.46, zz), (0.56, zz + 0.3), (0.6, zz + 0.55), (0.56, zz + 0.8),
+                                              (0.46, zz + 1.1), (0.001, zz + 1.1)], sides=12, uv_scale=1.2)
+        for h in (0.18, 0.92):
+            rr = 0.51 + 0.09 * math.sin(math.pi * h / 1.1)
+            geo.lathe("om_planks_dark", (q[0], q[1]), [(rr + 0.02, zz + h - 0.05), (rr + 0.03, zz + h + 0.05)], sides=12)
+    q = p - f * 1.8
+    geo.prop("bolt_crate", 0, (q[0], q[1], z), yaw, 1.0)
 
 
 def hammock(geo, p, z, yaw, r):
+    """A striped hammock slung on ropes between two posts with leafy Pokitaru plants at their feet."""
     f, s = frame(yaw)
     a, b = p - f * 3.0, p + f * 3.0
     for q in (a, b):
-        geo.cylinder("om_planks_dark", (q[0], q[1]), 0.22, z - 0.3, z + 2.4, 6)
-        geo.cone("om_grass", (q[0], q[1]), 1.3, z + 2.2, z + 3.4, 6)
-    pts = [a + (b - a) * t for t in np.linspace(0, 1, 7)]
-    zs = [z + 1.9 - 0.9 * math.sin(math.pi * t) for t in np.linspace(0, 1, 7)]
+        geo.tube("om_planks_dark", [(q[0], q[1], z - 0.3), (*(q + s * 0.05), z + 1.3), (q[0], q[1], z + 2.5)], [0.2, 0.18, 0.15], sides=7)
+        geo.lathe("om_planks_dark", (q[0], q[1]), [(0.15, z + 2.5), (0.08, z + 2.6), (0.01, z + 2.63)], sides=7)
+        geo.prop("shrub", 307, (q[0], q[1], float(island.height(*q))), float(r.uniform(0, 360)), 1.4)
     col = ("om_red", "om_teal", "om_yellow")[int(r.integers(3))]
-    for (q0, z0), (q1, z1) in zip(zip(pts, zs), zip(pts[1:], zs[1:])):
-        geo.oriented_box(col, q0, q1, s, 1.3, min(z0, z1) - 0.05, max(z0, z1) + 0.05, solid=False)
+    end_a, end_b = a + f * 0.9, b - f * 0.9
+    rows = []
+    for t in np.linspace(0, 1, 12):
+        c = end_a + (end_b - end_a) * t
+        sag = math.sin(math.pi * t)
+        w = 0.25 + 0.5 * sag
+        rows.append([(*(c + s * v * w), z + 1.85 - 0.85 * sag + 0.12 * v * v * sag) for v in np.linspace(-1, 1, 5)])
+    geo.surface(col, np.array(rows), np.array([[(v, t * 3) for v in np.linspace(0, 1, 5)] for t in np.linspace(0, 1, 12)]))
+    for q, e in ((a, end_a), (b, end_b)):
+        for v in (-1, 1):
+            geo.tube("om_white", [(q[0], q[1], z + 2.2), (*(e + s * v * 0.25), z + 1.85)], 0.025, sides=4, caps=False)
 
 
 def stone_lantern(geo, p, z, yaw, r):
-    geo.box("om_stone", (p[0] - 0.6, p[1] - 0.6, z - 0.2), (p[0] + 0.6, p[1] + 0.6, z + 0.4), solid=False)
-    geo.box("om_stone", (p[0] - 0.25, p[1] - 0.25, z + 0.4), (p[0] + 0.25, p[1] + 0.25, z + 1.4), solid=False)
-    geo.box("om_yellow", (p[0] - 0.4, p[1] - 0.4, z + 1.4), (p[0] + 0.4, p[1] + 0.4, z + 2.0), solid=False, glow=[1.8, 1.6, 0.9])
-    geo.light((p[0], p[1], z + 1.7), (1.3, 1.0, 0.55), 7)
-    geo.cone("om_stone", (p[0], p[1]), 0.9, z + 2.0, z + 2.7, 4)
+    """One of Pokitaru's own lamps, in a ring of stones."""
+    geo.prop("lamp", 0, (p[0], p[1], z), yaw, 1.0)
+    for k in range(5):
+        a = 2 * math.pi * k / 5 + float(r.uniform(-0.2, 0.2))
+        q = p + np.array([math.cos(a), math.sin(a)]) * 1.1
+        geo.stone("om_stone", (q[0], q[1], float(island.height(*q))), float(r.uniform(0.25, 0.4)), int(r.integers(1 << 20)))
 
 
 def tide_pool(geo, p, z, yaw, r):
-    for k in range(10):
-        a = 2 * math.pi * k / 10 + float(r.uniform(-0.2, 0.2))
-        d = float(r.uniform(2.0, 3.0))
+    """A rock pool: rounded stones round still water, Pokitaru's coral and starfish in it."""
+    for k in range(12):
+        a = 2 * math.pi * k / 12 + float(r.uniform(-0.15, 0.15))
+        d = float(r.uniform(2.0, 2.7))
         q = p + np.array([math.cos(a), math.sin(a)]) * d
-        g = float(island.height(*q))
-        s = float(r.uniform(0.3, 0.7))
-        geo.box("om_stone", (q[0] - s, q[1] - s, g - 0.3), (q[0] + s, q[1] + s, g + s * 0.8), solid=False)
-    geo.cylinder("om_water", (p[0], p[1]), 2.0, z - 0.1, z + 0.08, 12)
+        geo.stone("om_stone", (q[0], q[1], float(island.height(*q)) - 0.1), float(r.uniform(0.45, 0.8)), int(r.integers(1 << 20)))
+    geo.lathe("om_water", (p[0], p[1]), [(0.01, z + 0.06), (2.2, z + 0.06), (2.2, z - 0.1)], sides=18)
+    geo.prop("tie", 696, (p[0] + 0.6, p[1] - 0.4, z - 0.2), float(r.uniform(0, 360)), 0.12)
+    geo.prop("shrub", 373, (p[0] - 0.8, p[1] + 0.5, z + 0.05), float(r.uniform(0, 360)), 1.0)
+    geo.prop("shrub", 371, (p[0] + 0.2, p[1] + 1.0, z + 0.05), float(r.uniform(0, 360)), 0.6)
 
 
 ON_GRASS = (hut, campfire, totem, signpost, fence, flower_bed, barrels, hammock, stone_lantern, flower_bed, fence)
@@ -278,4 +386,4 @@ def stepping_stones(geo):
             if g < SEA + 0.3:
                 continue
             w = 0.8 + 0.25 * math.sin(k * 1.7)
-            geo.cylinder("om_stone", (q[0], q[1]), w, g - 0.2, g + 0.12, 7)
+            geo.stone("om_stone", (q[0], q[1], g - 0.25), w, 7000 + k, flat=0.45)

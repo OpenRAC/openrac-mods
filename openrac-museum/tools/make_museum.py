@@ -348,6 +348,7 @@ def main(out, disc_textures=None):
              np.zeros((len(rock_tris) * 3, 2)), np.ones((len(rock_tris) * 3, 3)) * 0.5, np.arange(len(rock_tris) * 3).reshape(-1, 3))
     glb.write(str(out / "collision" / "rocks.glb"), [mesh], {"rc1_surface_1f": {"colour": [0.5, 0.5, 0.5, 1]}}, {})
 
+    layout["props"] = geo.props + marks.props
     layout["house"] = {"centre": [house.CX, house.CY, 0.0]}
     layout["sea"] = island.SEA
     (out / "layout.json").write_text(json.dumps(layout, indent=1) + "\n", encoding="utf-8")

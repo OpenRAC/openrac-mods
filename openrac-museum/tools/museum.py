@@ -192,6 +192,9 @@ def write_museum(projects, tools):
     template_nodes, tie_models, shrub_models = {}, {}, {}
     keep_ties = set(scatter.TIES.values()) | set(scatter.TOWERS)
     keep_shrubs = set(scatter.SHRUBS.values())
+    props = layout.get("props", [])
+    keep_ties |= {p[1] for p in props if p[0] == "tie"}
+    keep_shrubs |= {p[1] for p in props if p[0] == "shrub"}
     drop = set()
     for i, s in scene.nodes():
         path = scene.path_of(s)
@@ -276,6 +279,9 @@ def write_museum(projects, tools):
     counts = {}
     for kind, at, yaw in exhibits.crates():
         layout["mobys"].append({"kind": kind, "position": at, "yaw": yaw})
+    for kind, number, x, y, z, yaw, scale in props:
+        if kind not in ("tie", "shrub"):
+            layout["mobys"].append({"kind": kind, "position": [x, y, z], "yaw": yaw})
     for m in layout["mobys"]:
         kind = m["kind"]
         if kind not in template_nodes:
@@ -302,8 +308,12 @@ def write_museum(projects, tools):
     def in_scene(x, y):
         return any(math.hypot(x - sx, y - sy) < r for sx, sy, r in scenes)
 
-    for kind, number, x, y, z, yaw, scale in scatter.plants() + list(scatter.sea_islets()) + scatter.town() + scatter.decor():
-        if in_scene(x, y):
+    # Props of the small scenes are part of them, so never filtered out.
+    scene_props = [tuple(p) + (True,) for p in props if p[0] in ("tie", "shrub")]
+    for kind, number, x, y, z, yaw, scale, *own in (
+            [p + (False,) for p in scatter.plants() + list(scatter.sea_islets()) + scatter.town() + scatter.decor()]
+            + scene_props):
+        if not own[0] and in_scene(x, y):
             continue
         model = (tie_models if kind == "tie" else shrub_models).get(number)
         if model is None:
