@@ -5,6 +5,7 @@
 // functions of mod_state.hpp for them. multiplayer.cpp's header says what each page is.
 
 #include "mod_state.hpp"
+#include "regions.hpp"
 
 namespace mpmod {
 
@@ -136,8 +137,10 @@ void show_pause() {
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
         in.where = text("port ") + std::to_string(g->connection->hosting().port);
     } else if (const std::string via = g->connection->game_server(); !via.empty()) {
-        // Through a hub: the game server it gave.
+        // Through a hub: the game server it gave, by its name and region.
+        const mp::ListedServer listed = g->connection->game_server_listing();
         in.where = via;
+        in.server = mp::server_text(listed.name, listed.region, mp::kServerValueChars);
     } else {
         in.where = g->connection->address();
     }

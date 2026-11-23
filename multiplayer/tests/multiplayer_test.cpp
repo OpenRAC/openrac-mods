@@ -34,6 +34,7 @@
 #include "direct.hpp"
 #include "menu.hpp"
 #include "party_mods.hpp"
+#include "regions.hpp"
 
 #if defined(_WIN32)
 #include <winsock2.h>
@@ -635,8 +636,10 @@ void the_hub_list_reads() {
     CHECK(m.servers[0].region == "Europe" && m.servers[0].host.empty());
     CHECK(m.servers[0].port == 7770 && m.servers[0].players == 2);
     CHECK(m.servers[1].host == "us.example.org" && m.servers[1].port == 7771);
-    // One cut short is not read.
-    CHECK(!mp::decode(Bytes(reply.begin() + 4, reply.end() - 2), m));
+    // The names after the list: none from servers without one.
+    CHECK(m.servers[0].name.empty() && m.servers[1].name.empty());
+    // One cut short in the list is not read.
+    CHECK(!mp::decode(Bytes(reply.begin() + 4, reply.end() - 6), m));
     // An empty list.
     const Bytes none = mp::regions_reply({});
     CHECK(mp::decode(Bytes(none.begin() + 4, none.end()), m) && m.servers.empty());
@@ -660,12 +663,100 @@ void the_hub_list_reads() {
     // The region asked for, in any case.
     CHECK(mp::pick_server(list, "us", "hub.example.org", host, port));
     CHECK(host == "us.example.org" && port == 7771);
+    // By its label or its name too, and an older hub's free text by its name.
+    CHECK(mp::pick_server(list, "USA", "hub.example.org", host, port) && port == 7771);
+    CHECK(mp::pick_server(list, "united states", "hub.example.org", host, port) && port == 7771);
+    CHECK(mp::pick_server(list, "EU", "hub.example.org", host, port) && port == 7770);
     // A region the hub does not list: the first; one with no port is no choice.
     CHECK(mp::pick_server(list, "Mars", "hub.example.org", host, port) && port == 7770);
     CHECK(mp::pick_server(list, "asia", "hub.example.org", host, port) && port == 7770);
     // Nothing to play on.
     CHECK(!mp::pick_server({}, "", "hub.example.org", host, port));
     CHECK(!mp::pick_server({{"Asia", "", 0, 0}}, "", "hub.example.org", host, port));
+}
+
+// A hub's REGIONS with region codes and server names: the names read after the list, an older
+// hub's list without them still reads, and the pick hands back the server it chose.
+void the_hub_list_names_its_servers() {
+    const Bytes reply = mp::regions_reply(
+        {{"DE", "", 7770, 1, "Kerwan"}, {"US", "us.example.org", 7771, 0, "Thyrannosis USA"}}
+    );
+    mp::Message m;
+    CHECK(mp::decode(Bytes(reply.begin() + 4, reply.end()), m) && m.servers.size() == 2);
+    CHECK(m.servers[0].region == "DE" && m.servers[0].name == "Kerwan");
+    CHECK(m.servers[1].region == "US" && m.servers[1].name == "Thyrannosis USA");
+
+    // An older hub stops after the list: the servers read, with no names.
+    const Bytes older =
+        mp::frame(mp::Writer().u8(8).u8(1).str("Europe").str("").i32(7770).i32(0).bytes());
+    CHECK(mp::decode(Bytes(older.begin() + 4, older.end()), m) && m.servers.size() == 1);
+    CHECK(m.servers[0].region == "Europe" && m.servers[0].name.empty());
+
+    // The pick names the server it chose: Germany asked for by name.
+    std::string host;
+    int port = 0;
+    mp::ListedServer picked;
+    CHECK(mp::pick_server(m.servers, "", "hub.example.org", host, port, &picked));
+    CHECK(mp::decode(Bytes(reply.begin() + 4, reply.end()), m));
+    CHECK(mp::pick_server(m.servers, "Germany", "hub.example.org", host, port, &picked));
+    CHECK(picked.name == "Kerwan" && picked.region == "DE" && port == 7770);
+    CHECK(mp::pick_server(m.servers, "us", "hub.example.org", host, port, &picked));
+    CHECK(picked.name == "Thyrannosis USA" && host == "us.example.org");
+}
+
+// The region table: every code once, the Server's forms, and how a server reads.
+void regions_read_as_names() {
+    // Two upper-case letters each, LOCAL aside, and no code twice.
+    for (std::size_t i = 0; i < mp::region_count(); ++i) {
+        const std::string code = mp::region_at(i).code;
+        CHECK(code == "LOCAL" || (code.size() == 2 && code[0] >= 'A' && code[0] <= 'Z'));
+
+        // Each later code differs from this one.
+        for (std::size_t j = i + 1; j < mp::region_count(); ++j) {
+            CHECK(code != mp::region_at(j).code);
+        }
+    }
+
+    // The ISO codes, EU and LOCAL, as the Server lists them.
+    CHECK(mp::region_count() == 251);
+
+    // A code, a label or a name, in any case; nothing else.
+    CHECK(mp::find_region("US") == mp::find_region(" usa ") && mp::find_region("US") != nullptr);
+    CHECK(mp::find_region("United States") == mp::find_region("us"));
+    CHECK(std::string(mp::find_region("ca")->name) == "Canada");
+    CHECK(std::string(mp::find_region("AU")->name) == "Australia");
+    CHECK(std::string(mp::find_region("de")->name) == "Germany");
+    CHECK(std::string(mp::find_region("GB")->label) == "GBR");
+    CHECK(std::string(mp::find_region("local")->label) == "LAN");
+    CHECK(mp::find_region("") == nullptr && mp::find_region("Mars") == nullptr);
+
+    // A region by its name or label; a code the table does not know, as it came.
+    CHECK(mp::region_text("US") == "United States" && mp::region_text("US", true) == "USA");
+    CHECK(mp::region_text("EU") == "Europe" && mp::region_text("JP", true) == "JPN");
+    CHECK(mp::region_text("XQ") == "XQ" && mp::region_text("Europe") == "Europe");
+
+    // A server: its name and region, or the region alone.
+    CHECK(mp::server_text("Thyrannosis USA", "US") == "Thyrannosis USA (United States)");
+    CHECK(mp::server_text("", "CA") == "Canada");
+    CHECK(mp::server_text("", "LOCAL") == "Local network");
+    // On a short line: the label, then the name cut.
+    CHECK(mp::server_text("Thyrannosis USA", "US", 22) == "Thyrannosis USA (USA)");
+    CHECK(mp::server_text("Kerwan", "DE", 22) == "Kerwan (Germany)");
+    CHECK(mp::server_text("A very long server name", "US", 22) == "A very long serv (USA)");
+    CHECK(mp::server_text("", "GS", 22) == "SGS");
+
+    // The pause page's Server line, through a hub only.
+    mp::PartyPageInput in;
+    in.in_party = true;
+    in.code = "ABC123";
+    in.server = mp::server_text("Thyrannosis USA", "US", mp::kServerValueChars);
+    std::vector<mp::PartyLine> lines = mp::party_lines(in);
+    CHECK(
+        lines.size() > 1 && lines[1].label == "Server" && lines[1].value == "Thyrannosis USA (USA)"
+    );
+    in.server.clear();
+    lines = mp::party_lines(in);
+    CHECK(lines.size() > 1 && lines[1].label == "Host's level");
 }
 
 // One player for the Direct connect tests: a connection, its session, and what came in, pumped
@@ -1857,6 +1948,8 @@ int main() {
     the_connection_asks_the_hub();
     the_connection_waits_for_a_listed_server();
     the_hub_list_reads();
+    the_hub_list_names_its_servers();
+    regions_read_as_names();
     host_frames_are_the_servers_bytes();
     direct_connect_plays_a_party();
     the_host_leaving_ends_hosting();

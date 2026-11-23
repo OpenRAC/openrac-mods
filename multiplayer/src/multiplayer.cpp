@@ -48,8 +48,9 @@
 //           address: the launcher's Multiplayer server (OPENRAC_SERVER), else
 //           game.openrac.dev:7770. A hub (hub.openrac.dev:7177) gives a game server from its list
 //           (connection.hpp).
-//   region  (string, default empty)  At a hub: the region of its list to play in; empty, or one it
-//           does not list: the first listed.
+//   region  (string, default empty)  At a hub: the region of its list to play in, as a code, a
+//           label or a name ("US", "USA", "United States"; regions.hpp); empty, or one it does not
+//           list: the first listed.
 //   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
 //           empty or invalid: the launcher's Multiplayer name.
 
@@ -59,6 +60,7 @@
 #include "mod_state.hpp"
 #include "pad_intent.hpp"
 #include "rac2/game.hpp"
+#include "regions.hpp"
 
 namespace mpmod {
 
@@ -511,8 +513,10 @@ void poll() {
 
         // Only a hub's pick is news; a cleared one is the link closing.
         if (!via.empty()) {
+            const mp::ListedServer listed = g->connection->game_server_listing();
             g->mod->info(
-                "multiplayer: the hub at " + g->connection->address() + " gave game server " + via
+                "multiplayer: the hub at " + g->connection->address() + " gave game server "
+                + mp::server_text(listed.name, listed.region) + " at " + via
             );
         }
     }

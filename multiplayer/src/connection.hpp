@@ -150,6 +150,9 @@ public:
     // The game server the hub gave, "host:port"; empty when the address is a game server itself
     // (or no hub answered yet).
     std::string game_server() const;
+    // That game server as the hub listed it: its region's code and its name (both empty with no
+    // hub's pick), for regions.hpp's server_text.
+    ListedServer game_server_listing() const;
 
     // The address linked to: the server's or the direct host's, "host:port"; empty when hosting.
     const std::string& address() const { return address_; }
@@ -197,8 +200,8 @@ private:
         kFailed     // No answer, or the connection went.
     };
     // On a fresh connection to the configured address: HELLO, then the UDP offer; a hub is asked
-    // REGIONS and its pick goes into `host` and `port`. The connection's thread only.
-    Probe probe(std::intptr_t fd, std::string& host, int& port);
+    // REGIONS and its pick goes into `host`, `port` and `picked`. The connection's thread only.
+    Probe probe(std::intptr_t fd, std::string& host, int& port, ListedServer& picked);
 
     // The server or direct host the thread connects to.
     std::string host_name_;
@@ -212,9 +215,10 @@ private:
     std::string hello_name_ = "Player";
     std::string family_;
     std::string region_;
-    // The game server the hub gave (game_server), under via_mutex_.
+    // The game server the hub gave (game_server, game_server_listing), under via_mutex_.
     mutable std::mutex via_mutex_;
     std::string via_;
+    ListedServer via_listing_;
     // Set to ask the thread to end.
     std::atomic<bool> stop_{false};
     // What the connection is doing; both threads read it.

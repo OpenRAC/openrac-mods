@@ -179,6 +179,7 @@ inline constexpr Words kWords[] = {
     {{"Joining...", "Connexion...", "Beitritt...", "Uniéndose...", "Accesso..."}},
     {{"Connecting...", "Connexion...", "Verbinde...", "Conectando...", "Connessione..."}},
     {{"Host offline", "Hôte absent", "Host offline", "Sin anfitrión", "Host offline"}},
+    {{"Server", "Serveur", "Server", "Servidor", "Server"}},
     {{"Server offline", "Serveur absent", "Server offline", "Sin servidor", "Server offline"}},
     {{"Server lost", "Serveur perdu", "Server weg", "Servidor perdido", "Server perso"}},
     {{"Waiting...", "Attente...", "Warte...", "Esperando...", "Attesa..."}},

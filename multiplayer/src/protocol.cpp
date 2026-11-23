@@ -10,6 +10,8 @@
 
 #include <algorithm>
 
+#include "regions.hpp"
+
 namespace mp {
 namespace {
 
@@ -274,7 +276,8 @@ bool pick_server(
     const std::string& region,
     const std::string& hub_host,
     std::string& host,
-    int& port
+    int& port,
+    ListedServer* picked
 ) {
     const auto lower = [](std::string text) {
         std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
@@ -283,6 +286,7 @@ bool pick_server(
         return text;
     };
     const ListedServer* chosen = nullptr;
+    const Region* wanted = find_region(region);
 
     // The region asked for, the first of it listed.
     for (const ListedServer& s : servers) {
@@ -296,8 +300,10 @@ bool pick_server(
             chosen = &s;
         }
 
-        // A region named and listed wins over the first.
-        if (!region.empty() && lower(s.region) == lower(region)) {
+        // A region named and listed wins over the first: by its code, or as an older hub wrote it.
+        if (!region.empty()
+            && ((wanted != nullptr && find_region(s.region) == wanted)
+                || lower(s.region) == lower(region))) {
             chosen = &s;
             break;
         }
@@ -310,6 +316,12 @@ bool pick_server(
 
     host = chosen->host.empty() ? hub_host : chosen->host;
     port = chosen->port;
+
+    // The caller that names the server wants all of it.
+    if (picked != nullptr) {
+        *picked = *chosen;
+    }
+
     return !host.empty();
 }
 
@@ -376,6 +388,16 @@ bool decode(const Bytes& body, Message& out) {
                 s.port = r.i32();
                 s.players = r.i32();
                 out.servers.push_back(std::move(s));
+            }
+
+            // Each one's name, after the list; an older hub stops before them.
+            for (ListedServer& s : out.servers) {
+                // A list cut short keeps the names that came.
+                if (!r.ok() || r.left() == 0) {
+                    break;
+                }
+
+                s.name = r.str();
             }
 
             return r.ok();
@@ -647,6 +669,11 @@ Bytes regions_reply(const std::vector<ListedServer>& servers) {
     // Each as the hub's Region.serialize writes it.
     for (std::size_t i = 0; i < count; ++i) {
         w.str(servers[i].region).str(servers[i].host).i32(servers[i].port).i32(servers[i].players);
+    }
+
+    // Then the names, in the same order, as the hub appends them.
+    for (std::size_t i = 0; i < count; ++i) {
+        w.str(servers[i].name);
     }
 
     return frame(w.bytes());

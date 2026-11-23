@@ -226,6 +226,11 @@ std::string Connection::game_server() const {
     return via_;
 }
 
+ListedServer Connection::game_server_listing() const {
+    const std::lock_guard lock(via_mutex_);
+    return via_listing_;
+}
+
 void Connection::start_thread(const std::string& host, int port, Mode mode) {
     embedded_ = nullptr;
     server_link_ = mode == Mode::kServer;
@@ -233,6 +238,7 @@ void Connection::start_thread(const std::string& host, int port, Mode mode) {
     {
         const std::lock_guard lock(via_mutex_);
         via_.clear();
+        via_listing_ = ListedServer{};
     }
     address_ = (host.find(':') != std::string::npos ? "[" + host + "]" : host) + ":"
                + std::to_string(port);
@@ -270,6 +276,7 @@ void Connection::close() {
     {
         const std::lock_guard lock(via_mutex_);
         via_.clear();
+        via_listing_ = ListedServer{};
     }
 }
 
@@ -495,7 +502,8 @@ void Connection::run() {
         if (fd != kNoSocket && server_link_ && !plain_) {
             std::string host;
             int port = 0;
-            const Probe found = probe(static_cast<std::intptr_t>(fd), host, port);
+            ListedServer picked;
+            const Probe found = probe(static_cast<std::intptr_t>(fd), host, port, picked);
             close_socket(fd);
             fd = kNoSocket;
 
@@ -509,6 +517,7 @@ void Connection::run() {
                     const std::lock_guard lock(via_mutex_);
                     via_ = (host.find(':') != std::string::npos ? "[" + host + "]" : host) + ":"
                            + std::to_string(port);
+                    via_listing_ = picked;
                 }
                 fd = connect_to(host, port, stop_);
             }
@@ -534,7 +543,9 @@ void Connection::run() {
     }
 }
 
-Connection::Probe Connection::probe(std::intptr_t handle, std::string& host, int& port) {
+Connection::Probe Connection::probe(
+    std::intptr_t handle, std::string& host, int& port, ListedServer& picked
+) {
     const auto fd = static_cast<socket_t>(handle);
     std::string version;
     std::string name;
@@ -615,8 +626,9 @@ Connection::Probe Connection::probe(std::intptr_t handle, std::string& host, int
 
                 deadline = static_cast<std::int64_t>(now_ms()) + kProbeMs;
             } else if (m.kind == Message::Kind::kRegions) {
-                return pick_server(m.servers, region, host_name_, host, port) ? Probe::kHub
-                                                                              : Probe::kNoServer;
+                return pick_server(m.servers, region, host_name_, host, port, &picked)
+                           ? Probe::kHub
+                           : Probe::kNoServer;
             } else if (m.kind == Message::Kind::kError) {
                 return Probe::kFailed;
             }

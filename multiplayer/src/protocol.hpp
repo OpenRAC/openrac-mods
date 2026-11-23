@@ -284,24 +284,29 @@ struct Listing {
     std::string description;
 };
 
-// A game server the hub lists (REGIONS' answer): its region, where players reach it (empty: the
-// hub's own host), its game port and how many play there.
+// A game server the hub lists (REGIONS' answer): its region's code (regions.hpp; an older hub's
+// free text), where players reach it (empty: the hub's own host), its game port, how many play
+// there, and its name (after the list; empty from an older hub, or for a server with none).
 struct ListedServer {
     std::string region;
     std::string host;
     std::int32_t port = 0;
     std::int32_t players = 0;
+    std::string name;
 };
 
-// The game server to play on from a hub's list: the first in `region` (any case) when one is
-// named and listed, else the first listed. Its host ("" in the list: `hub_host`) and port into
-// `host` and `port`; false for an empty list (or one with no usable port).
+// The game server to play on from a hub's list: the first in `region` when one is named and
+// listed, else the first listed. `region` is a code, a label or a name (regions.hpp: "US", "USA",
+// "United States"), or an older hub's free text, in any case. Its host ("" in the list:
+// `hub_host`) and port into `host` and `port`, and the server itself into `picked` when given;
+// false for an empty list (or one with no usable port).
 bool pick_server(
     const std::vector<ListedServer>& servers,
     const std::string& region,
     const std::string& hub_host,
     std::string& host,
-    int& port
+    int& port,
+    ListedServer* picked = nullptr
 );
 
 // What the server says, one frame of it.
@@ -412,7 +417,7 @@ Bytes error_reply(ErrorReason reason, const std::string& family = "");
 Bytes time_reply(std::int64_t client_ms, std::int64_t server_ms);
 // Returns the STATE datagram a server sends: the sender's id and `payload`.
 Bytes datagram_state_from(std::int32_t sender, const Bytes& payload);
-// Returns a hub's answer to REGIONS: at most 255 of `servers` (the tests' hub).
+// Returns a hub's answer to REGIONS: at most 255 of `servers`, then their names (the tests' hub).
 Bytes regions_reply(const std::vector<ListedServer>& servers);
 
 // A client's frame as the server reads it. kInvalid: an id or opcode a client never sends (ERROR,
