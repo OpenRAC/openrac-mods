@@ -96,6 +96,9 @@ public:
     // Zodiac's experience.
     void set_zodiac_credit(ZodiacCredit* credit) { m_credit = credit; }
 
+    // Where the reach counts what it does, for the Zodiac's summary (zodiac_credit.h).
+    void set_zodiac_stats(ZodiacStats* stats) { m_zodiac_stats = stats; }
+
     // The share of the game's hit each of the Tesla Claw's hits deals now (0.5.1's steady hits,
     // tuning.h): its Omega storm stays as strong as the game's hits made it.
     void set_claw_share(float share) { m_claw_share = share > 0.0f ? share : 1.0f; }
@@ -197,19 +200,16 @@ private:
         bool pulsing = false;    // The Zodiac's gun: its pulse under way.
     };
 
-    // An enemy the Zodiac's reach woke to take its hit: its update distance (+0x30) before, and
-    // the tick it is given back.
-    struct Woken {
-        std::uint8_t distance = 0;
-        std::uint32_t until = 0;
-    };
-
     // The Zodiac's pulse beyond the game's: every enemy within zodiac_reach of the gun at
-    // `gun` in sight of it that the game's pick left out (tuning_rules.h).
+    // `gun` in sight of it that the game's pick left out (tuning_rules.h), taken the gun's own way
+    // (0.6.12): one at 100 health or less, or drained to nothing, has its death recorded with the
+    // Zodiac named and is vaporized (or left to its owner, by its death path); the rest lose a
+    // pulse's drain off their health. No hit is posted.
     void zodiac_reach(const std::array<float, 3>& gun);
 
-    // Gives the woken enemies back their update distance when their time is up (`all`: now).
-    void let_sleep(bool all);
+    // The pulse's sparks on an enemy it vaporizes at `at`, facing `eye` (spark_effect_spawn's
+    // class 5022, kind 0, as the gun makes them). False when the pool or the class has none.
+    bool zodiac_spark(const std::array<float, 3>& at, const std::array<float, 3>& eye);
 
     // Posts a hit of `damage` on `target`: through the hit under way when there is one, else a
     // copy of the last request. False with no budget, no request or no original.
@@ -286,9 +286,18 @@ private:
     std::unordered_map<std::uint32_t, int> m_arena_seen;  // Arena enemies seen: address to class.
     std::vector<Later> m_later;
     std::vector<Field> m_fields;
-    std::unordered_map<std::uint32_t, Woken> m_woken;  // By address.
-    int m_zodiac_reached = 0;                          // Enemies its reach hit, for the log.
+    std::vector<std::array<float, 3>> m_reach_guns;    // Guns whose pulse began this tick.
     bool m_logged_reach = false;
+    bool m_logged_no_record = false;
+    // Moby_RecordDeath's entry (SetDeathBits as the game calls it, the mods' hooks first).
+    void (*m_record_death)(std::uint32_t, std::int32_t, std::int32_t) = nullptr;
+    ZodiacStats* m_zodiac_stats = nullptr;  // The Zodiac's summary (tuning.h).
+    ZodiacStats m_zodiac_scratch;           // Where the counts go without one (the tests).
+
+    // Returns the Zodiac's summary to count in.
+    ZodiacStats& zodiac_stats_or_scratch() {
+        return m_zodiac_stats != nullptr ? *m_zodiac_stats : m_zodiac_scratch;
+    }
 
     int m_kill_item = -1;  // The weapon of the kills in a row, and how many.
     int m_kills = 0;

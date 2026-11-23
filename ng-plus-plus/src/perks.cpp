@@ -11,6 +11,7 @@
 #include <string>
 
 #include "discs.h"
+#include "openrac/games/rac2.hpp"
 #include "shots.h"
 #include "tuning_rules.h"
 #include "weapon_visuals.h"
@@ -66,8 +67,31 @@ constexpr int kShieldZapTicks = 60;
 constexpr int kTrailTicks = 15;
 constexpr int kStormTicks = 20;
 
-// A moby's update distance (+0x30; 255 always run), as the moby loop reads it.
+// The Zodiac's sparks (spark_effect_spawn, func_L00_00412928's file): their class, how long they
+// last, and the most the reach makes in one pulse (the pool's room is the bolts' too).
+constexpr int kSparkClass = 5022;
+constexpr std::int32_t kSparkLife = 60;
+constexpr int kReachSparksMost = 24;
+
+// The most enemies the reach takes in one pulse.
+constexpr int kReachMost = 96;
+
+// A moby's fields the sparks set as spark_effect_spawn does: its update distance (+0x30, 255
+// always run), its draw distance (+0x32), its state (+0x20), its scale (+0x1C), its three axes
+// (+0xC0, +0xD0, +0xE0) and its pvars (+0x68: life, kind, parent).
 constexpr std::uint32_t kMobyUpdateDistance = 0x30u;
+constexpr std::uint32_t kMobyDrawDistance = 0x32u;
+constexpr std::uint32_t kMobyScale = 0x1Cu;
+constexpr std::uint32_t kMobyAxes = 0xC0u;
+constexpr std::uint32_t kMobyPvars = 0x68u;
+
+// The health record's aim height (+0x10): the pulse's sparks rise 1.5 times it.
+constexpr std::uint32_t kHealthAim = 0x10u;
+
+// Returns a × b.
+std::array<float, 3> cross(const std::array<float, 3>& a, const std::array<float, 3>& b) {
+    return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+}
 
 // The Zodiac's Omega fields: at most this many from one pulse, on the enemies nearest the gun.
 constexpr int kZodiacFieldsMost = 8;
@@ -87,6 +111,11 @@ constexpr std::uint32_t kShatterRgb = 0xD0F0FFu;
 void Perks::start() {
     m_material = moby_material_of(m_mod.api());
     m_energy = m_material != nullptr && m_mod.api().api_minor >= kEnergyMinor;
+
+    // SetDeathBits as the game calls it, for the Zodiac's reach (a table without the entry, as a
+    // test's, has none).
+    const bool entry = m_mod.has_hook_entry() && m_mod.api().hook_entry != nullptr;
+    m_record_death = entry ? m_mod.hook_entry<openrac::rac2::Moby_RecordDeath>() : nullptr;
 
     // What the setting and the build leave out, for a player's log.
     if (!m_on) {
@@ -845,13 +874,20 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
     const WeaponView zodiac = m_weapons.weapon(kZodiac);
     const int tier = zodiac.has_tier() ? tier_of(zodiac.kind, zodiac.level) : 0;
     const float reach = ng_plus_plus::zodiac_reach(tier);
-    const float hit_more = kZodiacDrain * static_cast<float>(kZodiacPulseFrames)
-                           * (zodiac.has_tier() ? damage(zodiac.kind, zodiac.level) : 1.0f);
+    const float drain = kZodiacDrain * static_cast<float>(kZodiacPulseFrames)
+                        * (zodiac.has_tier() ? damage(zodiac.kind, zodiac.level) : 1.0f);
     const std::uint32_t hero = m_view.hero_moby();
     const std::array<float, 3> eye{gun[0], gun[1], gun[2] + 1.0f};
-    int reached = 0;
+
+    // The enemies to take, chosen first: recording a death runs the hooks and deletes mobys.
+    std::vector<ScannedMoby> taken;
 
     for (const ScannedMoby& moby : m_scan.mobys()) {
+        // Enough for one pulse.
+        if (static_cast<int>(taken.size()) >= kReachMost) {
+            break;
+        }
+
         // Not an enemy, the hero, a boss (tuning.cpp drains those), out of reach, or not one a
         // shot may hit now (dead, dying, hidden, not out yet).
         if (!moby.enemy || moby.address == hero || is_boss(moby.moby_class)
@@ -877,63 +913,141 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
             continue;
         }
 
-        // As the game's pulse: 100 health or less dies, more loses the pulse's drain.
-        const TargetFacts facts = m_scan.facts(moby.address);
-        const float hit = facts.health <= 100.0f ? facts.health + 1.0f : hit_more;
-        // The kill is the Zodiac's: post() marks it first, since the copied hit names an earlier
-        // weapon.
-        const int before = m_post_item;
-        m_post_item = kZodiac;
-        const bool posted = post(moby.address, hit);
-        m_post_item = before;
+        taken.push_back(moby);
+    }
 
-        if (!posted) {
+    int sparks = 0;
+    int killed = 0;
+
+    // Each as the gun takes the ones it picks (charging_weapon_update): no hit is posted, so no
+    // earlier weapon's hit and no death of the enemy's own come of it.
+    for (const ScannedMoby& moby : taken) {
+        const std::uint32_t record = m_scan.health_record(moby.address);
+
+        // Gone meanwhile (an earlier one's death took it with it), or no health.
+        if (record == 0 || memory.read<std::uint8_t>(moby.address + kMobyStateByte) >= 0x80u) {
             continue;
         }
 
-        ++reached;
+        const auto health = memory.read<float>(record);
+        const auto path = memory.read<std::uint8_t>(record + kHealthDeathPath);
+        const ZodiacAction action = zodiac_action(health, path, drain);
 
-        // One the moby loop leaves asleep (far from the camera): run for a while, to take it.
-        if (known && run.ran == OPENRAC_MOBY_RUN_FAR && m_woken.count(moby.address) == 0) {
-            Woken woken;
-            woken.distance = memory.read<std::uint8_t>(moby.address + kMobyUpdateDistance);
-            woken.until = m_tick + static_cast<std::uint32_t>(m_view.ticks(90));
-            m_woken[moby.address] = woken;
-            memory.write(moby.address + kMobyUpdateDistance, std::uint8_t{0xFF});
+        // Over the line: a pulse's drain off its health.
+        if (action == ZodiacAction::Drain) {
+            memory.write(record, health - drain);
+            ++zodiac_stats_or_scratch().reach_drained;
+            continue;
         }
+
+        // Death path 3 (the gun leaves it too), one already left to its owner (recording it again
+        // would pay twice), or no way to record a death in this OpenRAC.
+        if (action == ZodiacAction::Skip || path == 2 || m_record_death == nullptr) {
+            ++zodiac_stats_or_scratch().reach_skipped;
+
+            // Once, for a player's log.
+            if (m_record_death == nullptr && !m_logged_no_record) {
+                m_logged_no_record = true;
+                m_mod.info("the Zodiac's reach kills nothing in this OpenRAC: no Moby_RecordDeath");
+            }
+
+            continue;
+        }
+
+        // The sparks, as the gun's: at the enemy, 1.5 times its aim height up.
+        std::array<float, 3> at = moby.position;
+        at[2] += memory.read<float>(record + kHealthAim) * 1.5f;
+        if (sparks < kReachSparksMost && zodiac_spark(at, eye)) {
+            ++sparks;
+        }
+
+        // Its death recorded, the Zodiac named (Combat::record_death's credit spends the mark).
+        if (m_credit != nullptr) {
+            m_credit->mark(moby.address, m_tick, kZodiac, 0);
+        }
+
+        m_record_death(moby.address, 0, 3);
+        ++killed;
+
+        // Its owner's (a part, a squad's): the gun leaves the death to it.
+        if (action == ZodiacAction::Owner) {
+            memory.write(record + kHealthDeathPath, std::uint8_t{2});
+            ++zodiac_stats_or_scratch().reach_owner;
+            continue;
+        }
+
+        // Vaporized: the moby goes, as the gun's DeleteMoby.
+        m_mod.moby_kill(moby.slot);
+        ++zodiac_stats_or_scratch().reach_vaporized;
     }
 
-    m_zodiac_reached += reached;
-
     // Once, for a player's log.
-    if (reached > 0 && !m_logged_reach) {
+    if (killed > 0 && !m_logged_reach) {
         m_logged_reach = true;
         m_mod.info(
             "the Zodiac's pulse reaches " + std::to_string(static_cast<int>(reach))
-            + " units: hit " + std::to_string(reached) + " enemies the game's pick left out"
+            + " units: took " + std::to_string(killed) + " enemies the game's pick left out"
         );
     }
 }
 
-void Perks::let_sleep(bool all) {
-    const openrac::Memory memory = m_view.memory();
+bool Perks::zodiac_spark(const std::array<float, 3>& at, const std::array<float, 3>& eye) {
+    openrac_moby pose{};
+    pose.size = sizeof pose;
+    pose.position[0] = at[0];
+    pose.position[1] = at[1];
+    pose.position[2] = at[2];
+    pose.scale = 1.0f;
+    const int slot = m_mod.moby_spawn(kSparkClass, pose);
 
-    for (auto it = m_woken.begin(); it != m_woken.end();) {
-        // Still its time.
-        if (!all && m_tick < it->second.until) {
-            ++it;
-            continue;
-        }
-
-        // Back as it was, unless it died meanwhile (its slot may hold another).
-        if (!all && GameView::is_memory(it->first, kMobyRecordBytes)
-            && memory.read<std::uint8_t>(it->first + kMobyStateByte) < 0x80u
-            && memory.read<std::uint8_t>(it->first + kMobyUpdateDistance) == 0xFFu) {
-            memory.write(it->first + kMobyUpdateDistance, it->second.distance);
-        }
-
-        it = m_woken.erase(it);
+    // No room, or the level has no such class.
+    if (slot < 0) {
+        return false;
     }
+
+    // The game's to update from here.
+    m_mod.moby_drive(slot, false);
+    const std::uint32_t spark = MobyScan::slot_address(m_view, slot);
+
+    if (!GameView::is_memory(spark, kMobyRecordBytes)) {
+        return false;
+    }
+
+    const openrac::Memory memory = m_view.memory();
+    memory.write(spark + kMobyUpdateDistance, std::uint8_t{0xFF});
+    memory.write(spark + kMobyDrawDistance, std::int16_t{0xFF});
+    memory.write(spark + kMobyStateByte, std::uint8_t{0});
+    memory.write(spark + kMobyScale, 1.0f);
+
+    // Its axes: forward toward the eye, side and up square to it.
+    const std::array<float, 3> forward = unit(
+        {eye[0] - at[0], eye[1] - at[1], eye[2] - at[2]}, std::array<float, 3>{1.0f, 0.0f, 0.0f}
+    );
+    const std::array<float, 3> side =
+        unit(cross(forward, {0.0f, 0.0f, 1.0f}), std::array<float, 3>{0.0f, 1.0f, 0.0f});
+    const std::array<float, 3> up = cross(side, forward);
+    const std::array<float, 3>* axes[] = {&forward, &side, &up};
+
+    for (std::uint32_t k = 0; k < 3; ++k) {
+        const std::uint32_t row = spark + kMobyAxes + 0x10u * k;
+
+        for (std::uint32_t c = 0; c < 3; ++c) {
+            memory.write(row + 4u * c, (*axes[k])[c]);
+        }
+
+        memory.write(row + 12u, 0.0f);
+    }
+
+    // Its life, its kind (0, the pulse's) and no parent.
+    const auto pvars = memory.read<std::uint32_t>(spark + kMobyPvars);
+
+    if (GameView::is_memory(pvars, 12)) {
+        memory.write(pvars, kSparkLife);
+        memory.write(pvars + 4u, std::int32_t{0});
+        memory.write(pvars + 8u, std::uint32_t{0});
+    }
+
+    return true;
 }
 
 bool Perks::strike(std::uint32_t target, int item) {
@@ -1039,9 +1153,10 @@ void Perks::watch() {
             const bool pulsing = m_view.memory().read<std::uint8_t>(moby.address + 0x20u)
                                  == static_cast<std::uint8_t>(kZodiacPulse);
 
-            // NG++'s reach, at every tier and without one: the enemies the game's pick left out.
+            // NG++'s reach, at every tier and without one: the enemies the game's pick left out,
+            // after the watch (recording their deaths runs the hooks).
             if (pulsing && !w.pulsing) {
-                zodiac_reach(moby.position);
+                m_reach_guns.push_back(moby.position);
             }
 
             if (pulsing && !w.pulsing && stage == Stage::Omega) {
@@ -1182,7 +1297,7 @@ void Perks::tick(std::uint32_t tick) {
         m_arena_seen.clear();
         m_later.clear();
         m_fields.clear();
-        m_woken.clear();
+        m_reach_guns.clear();
         m_have_snapshot = false;
         m_reference = 0.0f;
         m_last_damage = {};
@@ -1196,7 +1311,13 @@ void Perks::tick(std::uint32_t tick) {
     thaw();
     burn();
     watch();
-    let_sleep(false);
+
+    // The Zodiac's reach for each pulse that began.
+    for (const std::array<float, 3>& gun : m_reach_guns) {
+        zodiac_reach(gun);
+    }
+
+    m_reach_guns.clear();
 
     // A summary for a player's log, about once a minute when the perks acted.
     if (tick >= m_summary_tick + static_cast<std::uint32_t>(m_view.ticks(3600))) {

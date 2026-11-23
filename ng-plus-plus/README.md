@@ -27,6 +27,19 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.12
+
+The Zodiac keeps vaporizing enemies and earning XP after a big fight. Its reach (the enemies the
+game's own pulse leaves out) used to hit them with a copy of the last hit any other weapon landed,
+so they died their own death, a plain explosion, often after the Zodiac's credit had run out,
+and a large group sent more of those hits at once than the game's queue of 64 holds. Now the reach
+takes them the way the pulse itself does: an enemy at 100 health or less (or drained to nothing)
+is vaporized in the pulse's sparks and its kill recorded for the Zodiac on the spot, a part or a
+squad member is left to its owner as the game leaves it, and the rest lose the pulse's drain. An
+enemy the pulse itself drains to nothing keeps the Zodiac's credit until its death animation ends.
+Once a minute the log has a line saying what the Zodiac did: its pulses, its kills by how they
+died, how many were credited to it, the XP it gained and where its next step stands.
+
 ## What's new in 0.6.11
 
 Zodiac experience no longer stops at the higher tiers. The fields, blasts and chains NG++ posts
@@ -1017,8 +1030,9 @@ the Tesla Claw's held target, all within their own range and only in sight.
 The Zodiac's pulse also reaches the enemies the game's own pick leaves out (one round a corner, far
 from the camera, or more than 60 degrees above or below its view): every live, shown enemy within
 50 units of the gun without a tier, 4 more each tier up to 90, that no wall hides from the gun. It
-kills what has 100 health or less, as the game's pulse does, and takes the pulse's drain off the
-others; bosses keep their own drain ("Weapon tuning").
+takes them as the game's pulse does, without a hit: what has 100 health or less (or what a pulse's
+drain leaves with nothing) dies in the pulse's sparks, its kill the Zodiac's, and the others lose
+a pulse's drain; bosses keep their own drain ("Weapon tuning").
 
 ## How it works
 

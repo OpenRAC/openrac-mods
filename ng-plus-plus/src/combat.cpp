@@ -130,9 +130,13 @@ void Combat::record_death(
         m_tuning->credit_kill(moby);
     }
 
+    // The Zodiac's experience before the award, for the summary (0.6.12).
+    const std::int32_t zodiac_before = view.raw_experience(kZodiac);
+
     // Nothing to scale: the game's.
     if (scale == 1.0f) {
         original(moby, flags, arg);
+        count_zodiac_award(zodiac_before);
         return;
     }
 
@@ -155,6 +159,24 @@ void Combat::record_death(
             const double more = std::floor(static_cast<double>(gained) * (scale - 1.0f) + 0.5);
             view.add_raw_experience(item, static_cast<std::int32_t>(more));
         }
+    }
+
+    count_zodiac_award(zodiac_before);
+}
+
+void Combat::count_zodiac_award(std::int32_t before) {
+    // No tuning to count in.
+    if (m_tuning == nullptr) {
+        return;
+    }
+
+    const std::int32_t gained = m_weapons.view().raw_experience(kZodiac) - before;
+
+    // Only a gain (a step taken meanwhile starts the count again).
+    if (gained > 0) {
+        ZodiacStats& stats = m_tuning->zodiac_stats();
+        stats.experience += gained;
+        ++stats.awards;
     }
 }
 

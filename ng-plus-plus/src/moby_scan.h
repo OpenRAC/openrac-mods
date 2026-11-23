@@ -77,6 +77,10 @@ public:
     // Returns whether a shot may fly at the moby at `address` now (homing.h's targetable).
     bool targetable(std::uint32_t address) const { return ng_plus_plus::targetable(facts(address)); }
 
+    // Returns the game address of the health record of the moby at `address` (its pvars' first
+    // word, as moby_get_private_value_0), 0 for none.
+    std::uint32_t health_record(std::uint32_t address) const;
+
     // Returns the height above its position a shot aims at on the moby at `address` (its health
     // record's +0x10, as the game's pick aims), 0 for none.
     float aim_height(std::uint32_t address) const;

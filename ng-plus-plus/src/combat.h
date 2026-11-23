@@ -101,6 +101,9 @@ public:
     int fired_item(std::uint32_t request) const;
 
 private:
+    // Adds the Zodiac's gain since `before` (its raw experience) to the tuning's summary.
+    void count_zodiac_award(std::int32_t before);
+
     const Weapons& m_weapons;     // The weapons; outlive this.
     EnemySettings m_enemies;      // The curve's settings.
     float m_damage_carry = 0.0f;  // The fraction of a point carried to the hero's next hit.

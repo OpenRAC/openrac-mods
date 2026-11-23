@@ -10,6 +10,7 @@
 #include <iterator>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "discs.h"
 #include "perk_rules.h"
@@ -100,6 +101,7 @@ void WeaponTuning::credit_kill(std::uint32_t victim) {
     }
 
     const openrac::Memory memory = m_view.memory();
+    bool near_pulse = false;
 
     // Within a pulsing Zodiac's range: the pulse took it (it posts no hit, and the game's own
     // pick may run before or after the mod's tick, so the gun is read as the death is recorded).
@@ -113,6 +115,8 @@ void WeaponTuning::credit_kill(std::uint32_t victim) {
             if (gun.moby_class == kZodiacClass
                 && memory.read<std::uint8_t>(gun.address + kGunState) == kZodiacPulse
                 && distance2(moby.position, gun.position) <= kZodiacRange * kZodiacRange) {
+                near_pulse = true;
+
                 // Not over a perk's mark: that names its own weapon.
                 if (!m_credit.marked(victim, m_tick)) {
                     m_credit.mark(victim, m_tick);
@@ -125,10 +129,29 @@ void WeaponTuning::credit_kill(std::uint32_t victim) {
         break;
     }
 
+    // How it came, for the summary: the gun records its kills before it changes the record.
+    if (near_pulse) {
+        const ZodiacDeath death = zodiac_death(
+            memory.read<float>(record + kHealth), memory.read<std::uint8_t>(record + kHealthDeathPath)
+        );
+        int& count = death == ZodiacDeath::Vaporized ? m_stats.vaporized
+                     : death == ZodiacDeath::Owner   ? m_stats.owner
+                                                     : m_stats.own;
+        ++count;
+    }
+
     auto weapon = memory.read<std::uint8_t>(record + kHealthWeapon);
 
     if (credit_zodiac(m_credit, victim, m_tick, weapon)) {
         memory.write(record + kHealthWeapon, weapon);
+    }
+
+    // Named the Zodiac, or near a pulse and named another.
+    if (weapon == kZodiacItem) {
+        ++m_stats.credited;
+    } else if (near_pulse) {
+        ++m_stats.not_credited;
+        m_stats.last_other = weapon;
     }
 }
 
@@ -276,6 +299,8 @@ void WeaponTuning::zodiac() {
     const int level = m_weapons.tiers().level(kZodiac);
     const int cycle = m_view.cycle();
 
+    std::vector<std::uint32_t> pulsing;
+
     // Each Zodiac gun pulsing now.
     for (const ScannedMoby& gun : m_scan.mobys()) {
         if (gun.moby_class != kZodiacClass
@@ -283,7 +308,32 @@ void WeaponTuning::zodiac() {
             continue;
         }
 
+        pulsing.push_back(gun.address);
+
+        // A pulse started, for the summary.
+        if (std::find(m_pulsing.begin(), m_pulsing.end(), gun.address) == m_pulsing.end()) {
+            ++m_stats.pulses;
+        }
+
         const float reach2 = kZodiacRange * kZodiacRange;
+
+        // The enemies in its range it drained to nothing: they die their own death (an animation,
+        // then the explosion that records it), long after the pulse's 20 ticks, so their mark
+        // stands longer. Not over another weapon's mark.
+        for (const ScannedMoby& moby : m_scan.mobys()) {
+            if (!moby.enemy || is_boss(moby.moby_class)
+                || distance2(moby.position, gun.position) > reach2
+                || (m_credit.marked(moby.address, m_tick)
+                    && !m_credit.marked_for(moby.address, m_tick, kZodiacItem))) {
+                continue;
+            }
+
+            const std::uint32_t record = health_record(moby.address);
+
+            if (record != 0 && memory.read<float>(record + kHealth) <= 0.0f) {
+                m_credit.mark(moby.address, m_tick, kZodiacItem, kZodiacDrainCreditTicks);
+            }
+        }
 
         // Each boss in its reach, in front of the camera or not.
         for (const ScannedMoby& moby : m_scan.mobys()) {
@@ -333,6 +383,7 @@ void WeaponTuning::zodiac() {
         }
     }
 
+    m_pulsing = std::move(pulsing);
     m_credit.prune(m_tick);
 
     // Bosses not pulsed for a while are forgotten.

@@ -185,6 +185,25 @@ TargetFacts MobyScan::facts(std::uint32_t address) const {
     return out;
 }
 
+std::uint32_t MobyScan::health_record(std::uint32_t address) const {
+    // No moby there.
+    if (!GameView::is_memory(address, kMobyRecordBytes)) {
+        return 0;
+    }
+
+    const openrac::Memory memory = m_view.memory();
+
+    // No health record.
+    if ((memory.read<std::uint16_t>(address + kMobyFlags) & kMobyHasHealth) == 0) {
+        return 0;
+    }
+
+    const auto vars = memory.read<std::uint32_t>(address + kMobyVars);
+    const auto record =
+        GameView::is_memory(vars, 4) ? memory.read<std::uint32_t>(vars) : std::uint32_t{0};
+    return GameView::is_memory(record, kHealthRecordBytes) ? record : 0;
+}
+
 float MobyScan::aim_height(std::uint32_t address) const {
     // No moby there.
     if (!GameView::is_memory(address, kMobyRecordBytes)) {

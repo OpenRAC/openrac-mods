@@ -33,6 +33,11 @@ bool ZodiacCredit::marked(std::uint32_t moby, std::uint32_t tick) const {
            && tick - it->second.tick <= it->second.ticks;
 }
 
+bool ZodiacCredit::marked_for(std::uint32_t moby, std::uint32_t tick, int item) const {
+    const auto it = m_marks.find(moby);
+    return marked(moby, tick) && it->second.item == item;
+}
+
 int ZodiacCredit::take_item(std::uint32_t moby, std::uint32_t tick) {
     const auto it = m_marks.find(moby);
 
@@ -62,6 +67,53 @@ bool credit_zodiac(
 
     weapon = static_cast<std::uint8_t>(item);
     return true;
+}
+
+ZodiacAction zodiac_action(float health, std::uint8_t path, float drain) {
+    // Over the line, and still alive after the drain.
+    if (health > kZodiacKillHealth && health - drain > 0.0f) {
+        return ZodiacAction::Drain;
+    }
+
+    // The gun's own test, in its order: 1 or 2 its owner's, then anything but 3 vaporized.
+    if (path == 1 || path == 2) {
+        return ZodiacAction::Owner;
+    }
+
+    return path != 3 ? ZodiacAction::Vaporize : ZodiacAction::Skip;
+}
+
+ZodiacDeath zodiac_death(float health, std::uint8_t path) {
+    // The gun records a death with health left; a drained or hit enemy has none.
+    if (health <= 0.0f) {
+        return ZodiacDeath::Own;
+    }
+
+    return path == 1 || path == 2 ? ZodiacDeath::Owner : ZodiacDeath::Vaporized;
+}
+
+std::string zodiac_summary(const ZodiacStats& stats, const std::string& step) {
+    std::string line = "the Zodiac in the last minute: " + std::to_string(stats.pulses)
+                       + " pulses; kills " + std::to_string(stats.vaporized) + " vaporized, "
+                       + std::to_string(stats.owner) + " by their owner's explosion, "
+                       + std::to_string(stats.own) + " own deaths after the drain; reach "
+                       + std::to_string(stats.reach_vaporized) + " vaporized, "
+                       + std::to_string(stats.reach_owner) + " to their owner, "
+                       + std::to_string(stats.reach_drained) + " drained, "
+                       + std::to_string(stats.reach_skipped) + " left; "
+                       + std::to_string(stats.credited) + " deaths credited to item "
+                       + std::to_string(kZodiacItem) + ", " + std::to_string(stats.not_credited)
+                       + " near a pulse not";
+
+    // The weapon the last of those named instead.
+    if (stats.not_credited > 0) {
+        line += " (last named " + std::to_string(stats.last_other) + ")";
+    }
+
+    // The experience in the game's units (raw / 32, as the bar shows it).
+    line += "; experience +" + std::to_string(stats.experience / 32) + " in "
+            + std::to_string(stats.awards) + " awards; next step: " + step;
+    return line;
 }
 
 }  // namespace ng_plus_plus

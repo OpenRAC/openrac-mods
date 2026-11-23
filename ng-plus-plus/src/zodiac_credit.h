@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 
 namespace ng_plus_plus {
@@ -29,6 +30,70 @@ inline constexpr int kZodiacItem = 43;
 // The health record's last-weapon byte.
 inline constexpr std::uint32_t kHealthWeapon = 0x17u;
 
+// The health record's death path byte (charging_weapon_update, func_L00_00408E58): 0 (or any value
+// but 1 to 3) the pulse vaporizes the enemy (SetDeathBits, then the moby deleted); 1 or 2 it records
+// the death, sets 2 and leaves the moby to its owner or squad, which runs the death (the plain
+// explosion); 3 the pulse never kills it.
+inline constexpr std::uint32_t kHealthDeathPath = 0x0Eu;
+
+// 0.6.12: how long a mark stands on an enemy the pulse drained to nothing: its own death (its
+// animation, then the explosion that records it) comes well after the 20 ticks of a kill's.
+inline constexpr std::uint32_t kZodiacDrainCreditTicks = 600;
+
+// The pulse's health line: what has this much or less dies, more loses the drain.
+inline constexpr float kZodiacKillHealth = 100.0f;
+
+// What the pulse does to an enemy (the game's charging_weapon_update, and NG++'s reach the same).
+enum class ZodiacAction {
+    Skip,      // Death path 3: nothing.
+    Vaporize,  // Recorded and deleted, in the pulse's sparks.
+    Owner,     // Recorded, death path set to 2, its owner runs the death.
+    Drain,     // Over the line: health off, still alive.
+};
+
+// Returns what a pulse taking `drain` does to an enemy with `health` and death path byte `path`.
+// The game's pulse drains 20 a frame; NG++'s reach takes a whole pulse's drain at once, so an enemy
+// drained to nothing dies here, the gun's way, instead of later by its own death.
+ZodiacAction zodiac_action(float health, std::uint8_t path, float drain);
+
+// How a death recorded near a pulsing Zodiac came (Combat::record_death, as WeaponTuning sees it).
+enum class ZodiacDeath {
+    Vaporized,  // The gun's kill, death path 0: the sparks, the moby deleted.
+    Owner,      // The gun's kill, death path 1 or 2: its owner's plain explosion follows.
+    Own,        // Health gone (the drain, or a hit): the enemy's own death.
+};
+
+// Returns how a death near a pulsing gun came, from the health record's `health` and `path` as the
+// death is recorded (the gun records it before it changes either).
+ZodiacDeath zodiac_death(float health, std::uint8_t path);
+
+// What the Zodiac did since the last summary, for a player's log (0.6.12): each count since then.
+struct ZodiacStats {
+    int pulses = 0;             // Pulses started.
+    int vaporized = 0;          // The gun's kills, vaporized.
+    int owner = 0;              // The gun's kills left to their owner (the plain explosion).
+    int own = 0;                // Deaths of their own near a pulse (drained, or hit to nothing).
+    int reach_vaporized = 0;    // NG++'s reach: kills vaporized.
+    int reach_owner = 0;        // NG++'s reach: kills left to their owner.
+    int reach_drained = 0;      // NG++'s reach: drained, still alive.
+    int reach_skipped = 0;      // NG++'s reach: death path 3, or no way to record the death.
+    int credited = 0;           // Deaths recorded with the Zodiac named (item 43).
+    int not_credited = 0;       // Deaths near a pulse recorded for another weapon or none.
+    int last_other = -1;        // The weapon byte of the last of those.
+    std::int64_t experience = 0;  // The Zodiac's raw experience gained in deaths' awards.
+    int awards = 0;             // Deaths whose award raised the Zodiac's experience.
+
+    // Returns whether anything happened.
+    bool any() const {
+        return pulses + vaporized + owner + own + reach_vaporized + reach_owner + reach_drained
+                   + reach_skipped + credited + not_credited
+               > 0;
+    }
+};
+
+// Returns the summary line of `stats`, with `step` saying where the Zodiac's next step stands.
+std::string zodiac_summary(const ZodiacStats& stats, const std::string& step);
+
 // The marks of the enemies the Zodiac took. Only the game's thread uses it.
 class ZodiacCredit {
 public:
@@ -42,6 +107,9 @@ public:
 
     // Whether a mark of the moby stands at `tick`.
     bool marked(std::uint32_t moby, std::uint32_t tick) const;
+
+    // Whether a mark of the moby for `item` stands at `tick`.
+    bool marked_for(std::uint32_t moby, std::uint32_t tick, int item) const;
 
     // Returns whether the death of `moby` at `tick` is the Zodiac's, and spends the mark, so a
     // death is credited once.

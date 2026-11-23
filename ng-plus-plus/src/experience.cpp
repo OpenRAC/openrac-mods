@@ -148,6 +148,51 @@ void Experience::step_by_experience() {
     }
 }
 
+std::string Experience::step_note(int item) const {
+    const GameView& view = m_weapons.view();
+    const WeaponView weapon = m_weapons.weapon(item);
+
+    // Each reason step_by_experience passes it by, in its order.
+    if (m_tiers.party_on()) {
+        return "none in a party";
+    }
+
+    if (!m_tiers.clock_known()) {
+        return "the save's clock is not known yet";
+    }
+
+    if (weapon.kind == Kind::None || !weapon.owned) {
+        return "not owned";
+    }
+
+    if (!weapon.at_last) {
+        return "not at its last version";
+    }
+
+    if (!m_tiers.started(item)) {
+        return "its count starts next tick";
+    }
+
+    const int level = m_tiers.own_level(item);
+    const std::int32_t exp = view.experience(item);
+    const std::int32_t goal = exp_goal(weapon.kind, level);
+    const std::string count =
+        "level " + std::to_string(level) + ", experience " + std::to_string(exp) + " of "
+        + std::to_string(goal);
+
+    // The bar has no goal of its own, or fills toward a bought step's.
+    if (!exp_reached(weapon.kind, level, true, exp)) {
+        return count + (goal == 0 ? " (no step left)" : exp >= goal ? " (the next is bought)" : "");
+    }
+
+    // Reached, and waiting for the hero's animation.
+    if (item == view.held() && view.upgrade_fx() != nullptr && !view.hero_ready()) {
+        return count + " (reached: waiting for the hero to be ready)";
+    }
+
+    return count + " (reached: steps now)";
+}
+
 void Experience::write_rows() {
     // Every item the tables know.
     for (int item = 0; item < kItems; ++item) {
