@@ -930,7 +930,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.12") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.18") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -1262,7 +1262,17 @@ int main(int argc, char** argv) {
         );
     } else {
         CHECK(s_memory[D->owned + ITEM_BOMB_GLOVE] == 0);
-        CHECK(stock[0] == ITEM_BLASTER && stock[1] == 0xFF); /* the level's weapon, first */
+        /* The level's weapon first; then, when the reward was coordinates, their planet's
+         * vendor weapon (planet_vendor_stock.inc). */
+        int unlocked_weapon = 0xFF;
+        for (size_t i = 0; sr.kind == REWARD_PLANET && i < rando_location_count; ++i) {
+            if (rando_locations[i].kind == LOC_VENDOR && rando_locations[i].level == sr.value
+                && rando_locations[i].key != ITEM_BLASTER) {
+                unlocked_weapon = rando_locations[i].key;
+            }
+        }
+        CHECK(stock[0] == ITEM_BLASTER && stock[1] == unlocked_weapon);
+        CHECK(unlocked_weapon == 0xFF || stock[2] == 0xFF);
         CHECK(get32(s_memory + D->last_weapon) == 0);
         CHECK(sr.kind != REWARD_ITEM || s_memory[D->owned + sr.value] == 1);
 
@@ -1750,6 +1760,9 @@ int main(int argc, char** argv) {
         s_memory[D->obtained + ITEM_GLOVE_OF_DOOM] = 0;
         memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
 
+        uint8_t saved_planets[RANDO_PLANET_COUNT];
+        memcpy(saved_planets, s_memory + D->planets, sizeof saved_planets);
+        memset(s_memory + D->planets, 0, sizeof saved_planets); /* no planet's weapon joins */
         const uint32_t base_ptr = disc == 0 ? 0x160098 : 0x15FFD8;
         const uint32_t moby = 0x180000;
         set32(s_memory + base_ptr, moby);
@@ -1779,6 +1792,7 @@ int main(int argc, char** argv) {
         s_vendor_present = 0;
         set32(s_memory + base_ptr, 0);
         memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
+        memcpy(s_memory + D->planets, saved_planets, sizeof saved_planets);
 
         rando_options vo = {s_seed, 1, 1, 1, 1, 1, 1, "standard"};
         rando_settings vs;
