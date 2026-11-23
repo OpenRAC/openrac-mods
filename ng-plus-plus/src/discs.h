@@ -41,6 +41,7 @@ struct Disc {
     const char* banner;          // A HUD help popup by key (func_00288E18): the level-up's.
     const char* message;         // A message line by text id (func_002B0A18).
     const char* upgrade_fx;      // The in-hand level-up (func_L00_0037E6A8): (item, row).
+    const char* equip;           // Item_Equip (func_002AD860): (item), for the test runs.
     std::int32_t upgrade_label;  // The text id of "Mega" under an upgrade entry (func_002F9C80).
     std::int32_t crystal_trade;  // The text id of Tabora's crystal trade (its level's code).
     std::int32_t moonstone_trade;  // The text id of Grelbin's moonstone trade (its level's code).
@@ -52,13 +53,13 @@ struct Disc {
 inline constexpr Disc kDiscs[] = {
     {"ntsc",  0x00239BA0u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7AF8u, 0x00189E20u,
      0x0021F240u, 0x001A7360u, "func_00288FB8", 0x001A79F8u, "func_00288E18", "func_002B0A18",
-     "func_L00_0037E6A8", 0x325F, 10135, 10209, 60},
+     "func_L00_0037E6A8", "func_002AD860", 0x325F, 10135, 10209, 60},
     {"pal",   0x00239BA0u, 0x001395E8u, 0x001398E8u, 0x00139708u, 0x001A7B80u, 0x00189EA0u,
      0x0021F240u, 0x001A73E0u, "func_002898E8", 0x001A7A80u, "func_00289730", "func_002B1588",
-     "func_L00_003813E0", 0x1B2D, 4841, 4915, 50},
+     "func_L00_003813E0", "func_002AE3C0", 0x1B2D, 4841, 4915, 50},
     {"ntsc2", 0x00239B20u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7B00u, 0x00189E20u,
      0x0021F1C0u, 0x001A7360u, "func_002899F8", 0x001A7A00u, "func_00289840", "func_002B1880",
-     "func_L00_0037FB10", 0x30F5, 4841, 4915, 60},
+     "func_L00_0037FB10", "func_002AE6C8", 0x30F5, 4841, 4915, 60},
 };
 // clang-format on
 

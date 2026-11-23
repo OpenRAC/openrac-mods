@@ -108,6 +108,9 @@ public:
     // Returns the game's memory.
     openrac::Memory memory() const { return m_mod.memory(); }
 
+    // Returns the disc's row of kDiscs.
+    const Disc& disc() const { return m_disc; }
+
     // Returns the level loaded now, -1 at the title screen and in the galaxy map.
     int loaded_level() const { return m_mod.api().loaded_level(); }
 

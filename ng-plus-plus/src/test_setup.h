@@ -36,6 +36,9 @@ public:
 private:
     void apply();
     void bring_near();
+    void bring_to_vendor();
+    void watch_vendor();
+    std::string shown_text(std::int32_t id) const;
 
     openrac::Mod& m_mod;
     GameView& m_view;
@@ -44,6 +47,12 @@ private:
     int m_level = -1;
     int m_ticks = 0;
     bool m_near = false;
+    bool m_vendor = false;     // vendor=1: the hero held at the weapon vendor.
+    int m_at_class = 11;       // The class he is held at: the vendor's, or at=CLASS's.
+    int m_buy = -1;            // buy=ITEM: the cursor kept on ITEM's tier entry.
+    int m_xp_item = -1;        // xp=ITEM:N: N experience given to ITEM after the setup.
+    std::int32_t m_xp = 0;
+    int m_vendor_seen = -1;    // The vendor's count at the last dump.
     int m_hold_ticks = 0;
     float m_spot[3]{};
 };
