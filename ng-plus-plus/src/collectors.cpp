@@ -66,10 +66,10 @@ std::optional<std::string> Collectors::dialog(std::int32_t id) const {
     std::int32_t pay = 0;
 
     // Only the two dialogs, each with what it trades.
-    if (id == kCrystalTradeText) {
+    if (id == m_view.crystal_trade_text()) {
         count = m_view.crystals();
         pay = kCrystalPay;
-    } else if (id == kMoonstoneTradeText) {
+    } else if (id == m_view.moonstone_trade_text()) {
         count = m_view.moonstones();
         pay = kMoonstonePay;
     } else {

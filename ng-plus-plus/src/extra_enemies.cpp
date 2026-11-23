@@ -187,7 +187,7 @@ int ExtraEnemies::level_loaded() {
     m_pending.clear();
     m_pending_level = level;
     m_retries = 0;
-    m_wait = kRetryTicks;
+    m_wait = m_view.ticks(kRetryTicks);
 
     // Every enemy's first copy, then the second ones, until the pool is near its end or the port
     // has no room or spot for one: an OpenRAC before develop of 2026-11-22 kept 192 KB for the
@@ -268,7 +268,7 @@ void ExtraEnemies::tick() {
     }
 
     ++m_retries;
-    m_wait = kRetryTicks;
+    m_wait = m_view.ticks(kRetryTicks);
     std::vector<std::pair<int, int>> still;
     int made = 0;
 

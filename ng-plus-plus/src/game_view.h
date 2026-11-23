@@ -108,8 +108,32 @@ public:
     // Returns the game's memory.
     openrac::Memory memory() const { return m_mod.memory(); }
 
+    // Returns the disc's row of kDiscs.
+    const Disc& disc() const { return m_disc; }
+
     // Returns the level loaded now, -1 at the title screen and in the galaxy map.
     int loaded_level() const { return m_mod.api().loaded_level(); }
+
+    // Returns the disc's text id of the label under an upgrade entry's icon ("Mega").
+    std::int32_t upgrade_label_text() const { return m_disc.upgrade_label; }
+
+    // Returns the disc's text ids of Tabora's crystal and Grelbin's moonstone trades.
+    std::int32_t crystal_trade_text() const { return m_disc.crystal_trade; }
+
+    std::int32_t moonstone_trade_text() const { return m_disc.moonstone_trade; }
+
+    // ---- Time: NG++'s times are in sixtieths of a second (discs.h) ----
+
+    // Returns `sixtieths` in the game's ticks on this disc (PAL's are fiftieths).
+    int ticks(int sixtieths) const { return ticks_at(m_disc.tick_rate, sixtieths); }
+
+    // Returns tick count `ticks` in sixtieths of a second.
+    std::uint32_t sixtieths(std::uint32_t ticks) const {
+        return sixtieths_at(m_disc.tick_rate, ticks);
+    }
+
+    // Returns a speed of `per_sixtieth` units a sixtieth of a second in units a tick.
+    float per_tick(float per_sixtieth) const { return per_tick_at(m_disc.tick_rate, per_sixtieth); }
 
     // ---- The items ----
 

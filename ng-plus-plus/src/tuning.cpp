@@ -124,7 +124,7 @@ float WeaponTuning::claw_hit(Combat::PostHitFn post, std::uint32_t victim, std::
 
     // This lock's next steady hit a full step from now.
     Lock& lock = m_locks[victim];
-    lock.next = m_tick + static_cast<std::uint32_t>(kTeslaHitTicks);
+    lock.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kTeslaHitTicks));
     lock.seen = m_tick;
     return kTeslaShare;
 }
@@ -208,14 +208,14 @@ void WeaponTuning::tesla() {
 
             // A lock new to the mod, or one let go of too long ago: the game's own hit is now.
             if (fresh || m_tick > lock.seen + kLockGrace) {
-                lock.next = m_tick + static_cast<std::uint32_t>(kTeslaHitTicks);
+                lock.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kTeslaHitTicks));
             }
 
             lock.seen = m_tick;
 
             // Its steady hit.
             if (m_tick >= lock.next) {
-                lock.next = m_tick + static_cast<std::uint32_t>(kTeslaHitTicks);
+                lock.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kTeslaHitTicks));
                 steady_hit(target, gun.address);
             }
         }
@@ -361,7 +361,7 @@ void WeaponTuning::tick(std::uint32_t tick) {
     decoys();
 
     // A summary for a player's log, about once a minute when the claw hit steadily.
-    if (tick >= m_summary_tick + 3600u) {
+    if (tick >= m_summary_tick + static_cast<std::uint32_t>(m_view.ticks(3600))) {
         m_summary_tick = tick;
 
         if (m_steady > 0) {

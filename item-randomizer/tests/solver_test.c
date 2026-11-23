@@ -74,6 +74,7 @@ static void check_tables(void) {
 
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
             if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | (d == DIFFICULTY_RELAXED ? BIT(ITEM_HELI_PACK) : 0)));
+            if (!strcmp(a->name, "Rilgar: the bouncer, the coordinates of Umbris")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT) | (d == DIFFICULTY_RELAXED ? BIT(ITEM_HYDRODISPLACER) : 0)));
             if (!strcmp(a->name, "Oltanis: the Morph-o-Ray's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
@@ -319,19 +320,23 @@ static void check_rilgar_routes(void) {
     const int extra[] = {0, ITEM_SWINGSHOT, ITEM_HOVERBOARD};
     for (int route = 0; route < 3; ++route) {
         rando_plan p = {0};
-        int target = -1, start = -1, heli = -1, supplier = -1;
+        int target = -1, start = -1, heli = -1, supplier = -1, salesman = -1;
         int spheres[RANDO_MAX_LOCATIONS];
         for (size_t i = 0; i < rando_location_count; ++i) {
             const rando_location* l = &rando_locations[i];
             if (!strcmp(l->name, names[route])) target = (int)i;
+            if (!strcmp(l->name, names[0])) salesman = (int)i;
             if (l->kind == LOC_START) start = (int)i;
             if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
                 && l->vanilla.value == LEVEL_NOVALIS) heli = (int)i;
             if (l->kind == LOC_VENDOR && l->key == ITEM_MINE_GLOVE) supplier = (int)i;
         }
-        CHECK(target >= 0 && start >= 0 && heli >= 0 && supplier >= 0);
+        CHECK(target >= 0 && start >= 0 && heli >= 0 && supplier >= 0 && salesman >= 0);
         p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_RILGAR};
         if (extra[route]) p.reward[supplier] = (rando_reward){REWARD_ITEM, (uint8_t)extra[route]};
+        /* Relaxed asks the bouncer for the Hydrodisplacer too; the salesman needs only the
+         * Heli-Pack, so the route still opens with it. */
+        if (route == 1) p.reward[salesman] = (rando_reward){REWARD_ITEM, ITEM_HYDRODISPLACER};
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
             p.settings.difficulty = (uint8_t)d;
             p.reward[heli] = (rando_reward){REWARD_NONE, 0};

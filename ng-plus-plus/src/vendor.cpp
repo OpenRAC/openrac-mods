@@ -181,7 +181,7 @@ std::int32_t Vendor::upgrade(
         m_armour->buy();
         m_bought = id;
         m_bought_armour = true;
-        m_bought_ticks = kBoughtTicks;
+        m_bought_ticks = m_weapons.view().ticks(kBoughtTicks);
         return 1;
     }
 
@@ -191,7 +191,7 @@ std::int32_t Vendor::upgrade(
         m_experience.take_step(id, StepCause::Bought);
         m_bought = id;
         m_bought_armour = false;
-        m_bought_ticks = kBoughtTicks;
+        m_bought_ticks = m_weapons.view().ticks(kBoughtTicks);
         view.mod().info(
             "purchase: item " + std::to_string(id) + ", tier " + std::to_string(before) + " -> "
             + std::to_string(m_weapons.tiers().own_level(id))
@@ -263,7 +263,7 @@ std::uint32_t Vendor::version_color(
 
     // The armour entry: the tier for sale's colour.
     if (armour_at(place)) {
-        const std::optional<std::uint32_t> rgb = armour_tint(m_armour->own_tier() + 1, tick);
+        const std::optional<std::uint32_t> rgb = armour_tint(m_armour->own_tier() + 1, m_weapons.view().sixtieths(tick));
         return rgb ? (color & kColorAlpha) | *rgb : color;
     }
 

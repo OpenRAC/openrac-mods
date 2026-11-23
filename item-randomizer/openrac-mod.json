@@ -264,6 +264,18 @@
         "rac1"
       ],
       "description": "New games skip the Veldin tutorial and fly to a seeded planet with an item-free route, or a ship-side vendor selling the item needed for a route. Included in seed codes (R: prefix)."
+    },
+    {
+      "key": "return_to_ship_buttons",
+      "name": "Return to ship buttons",
+      "type": "string",
+      "default": "L1+R1+L2+R2+Start",
+      "max_length": 128,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Hold all buttons before the last +, then press the last button to return through this planet’s ship-arrival sequence. Default: hold L1+R1+L2+R2, press Start. Use Off to disable. Buttons: L1, R1, L2, R2, L3, R3, Start, Select, Up, Down, Left, Right, Triangle, Circle, Cross, Square. Gameplay only; unavailable while playing as Clank."
     }
   ]
 }

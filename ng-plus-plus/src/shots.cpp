@@ -15,10 +15,11 @@
 namespace ng_plus_plus {
 namespace {
 
-// A told shot with no speed of its own: the rockets' and seekers' speed then, units a tick.
+// A told shot with no speed of its own: the rockets' and seekers' speed then, units a sixtieth of a
+// second (GameView::per_tick turns it into the disc's ticks, as the other speeds here).
 constexpr float kDefaultSpeed = 0.6f;
 
-// Mini bombs: how fast they scatter (units a tick) and how high they are thrown.
+// Mini bombs: how fast they scatter (units a sixtieth of a second) and how high they are thrown.
 constexpr float kScatterSpeed = 0.22f;
 constexpr float kScatterUp = 0.18f;
 
@@ -53,7 +54,7 @@ constexpr float kEndClear = 2.0f;
 constexpr float kScatterClear = 1.0f;
 
 // The Gravity Bomb's mini bombs scatter a third of a second after its blast (README.md).
-constexpr std::uint32_t kGravityScatterTicks = 20;
+constexpr int kGravityScatterTicks = 20;
 
 // How far (on the ground plane) from the hero a rocket of `oclass` lives: the game removes a
 // Minirocket Tube rocket past 75 units on its update (func_L00_003ABEC8) and a RYNO II rocket past
@@ -162,7 +163,8 @@ void Shots::on_fire(const WeaponShot& shot) {
     }
 
     const int item = shot.item;
-    m_speed[static_cast<std::size_t>(item)] = shot.speed > 0.0f ? shot.speed : kDefaultSpeed;
+    m_speed[static_cast<std::size_t>(item)] =
+        shot.speed > 0.0f ? shot.speed : m_view.per_tick(kDefaultSpeed);
 
     // The shot kept for its end.
     Tracked tracked;
@@ -241,7 +243,7 @@ void Shots::on_end(const ShotEnd& end) {
     // A second shot of its own class where it ended (the Gravity Bomb's second pull), once.
     if (perk.end_again_ticks > 0 && tracked.generation == 0 && end.oclass == kGravityBomb) {
         Pending again;
-        again.when = m_tick + static_cast<std::uint32_t>(perk.end_again_ticks);
+        again.when = m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.end_again_ticks));
         again.oclass = kGravityBomb;
         again.item = tracked.item;
         again.at = at;
@@ -310,11 +312,14 @@ void Shots::on_end(const ShotEnd& end) {
             }
         }
     }
-    const float speed = tracked.speed > 0.0f ? tracked.speed : kDefaultSpeed;
+    const float speed = tracked.speed > 0.0f ? tracked.speed : m_view.per_tick(kDefaultSpeed);
 
     for (int n = 0; n < count; ++n) {
         Pending shot;
-        shot.when = m_tick + (tracked.item == 42 && !perk.end_homing ? kGravityScatterTicks : 0u);
+        shot.when = m_tick
+                    + (tracked.item == 42 && !perk.end_homing
+                           ? static_cast<std::uint32_t>(m_view.ticks(kGravityScatterTicks))
+                           : 0u);
         shot.oclass = perk.end_class;
         shot.item = tracked.item;
         shot.at = from;
@@ -340,7 +345,8 @@ void Shots::on_end(const ShotEnd& end) {
             shot.velocity = scaled({std::cos(angle), std::sin(angle), 0.15f}, speed);
         } else {
             shot.velocity =
-                {kScatterSpeed * std::cos(angle), kScatterSpeed * std::sin(angle), kScatterUp};
+                {m_view.per_tick(kScatterSpeed) * std::cos(angle),
+                 m_view.per_tick(kScatterSpeed) * std::sin(angle), m_view.per_tick(kScatterUp)};
         }
 
         // Out of the enemy or the ground it ended on.
@@ -477,7 +483,7 @@ int Shots::rockets_at(
         shot.root = 0;
         shot.velocity = scaled(
             {t.position[0] - at[0], t.position[1] - at[1], t.position[2] + 0.5f - at[2]},
-            kDefaultSpeed
+            m_view.per_tick(kDefaultSpeed)
         );
         shot.at = moved(at, shot.velocity, kEndClear);
         made += spawn(shot) >= 0 ? 1 : 0;
@@ -521,7 +527,7 @@ void Shots::tick(std::uint32_t tick) {
         for (auto& [slot, tracked] : m_tracked) {
             // Not a rocket the hero fired, split already, or not yet.
             if (tracked.oclass != kMiniRocket || tracked.split || tracked.generation != 0
-                || m_tick < tracked.born + static_cast<std::uint32_t>(mini.split_after)) {
+                || m_tick < tracked.born + static_cast<std::uint32_t>(m_view.ticks(mini.split_after))) {
                 continue;
             }
 
@@ -578,7 +584,7 @@ void Shots::looks(std::uint32_t tick) {
 
         const WeaponView weapon = m_weapons.weapon(item);
         const int level = weapon.has_tier() ? weapon.level : 0;
-        const std::optional<std::uint32_t> rgb = weapon_effect_rgb(item, level, tick);
+        const std::optional<std::uint32_t> rgb = weapon_effect_rgb(item, level, m_view.sixtieths(tick));
         const std::uint32_t material =
             rgb ? energy_at(effect_strength(kind, level)) : kMaterialNone;
         const std::uint64_t look = packed(material, rgb.value_or(kNoTint));
