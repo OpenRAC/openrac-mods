@@ -102,6 +102,9 @@ private:
     // The Zodiac's pulse on the bosses.
     void zodiac();
 
+    // The Shield Charger's and Tesla Barrier's charge and arc count, stretched by the tier.
+    void barrier();
+
     // The decoys that appeared.
     void decoys();
 
@@ -122,6 +125,13 @@ private:
     std::unordered_map<std::uint32_t, Lock> m_locks;
     std::unordered_map<std::uint32_t, Drained> m_drained;
     std::unordered_map<std::uint32_t, int> m_decoys;  // Decoys seen: address to class.
+    // The barrier being stretched.
+    bool m_barrier_up = false;
+    float m_barrier_shown = 0.0f;    // The charge as the mod last left it.
+    float m_barrier_virtual = 0.0f;  // The charge it would have had with no stretch.
+    int m_barrier_hits = 0;          // The arcs counted, unstretched.
+    int m_barrier_seen = 0;          // The count as the mod last left it.
+    bool m_logged_barrier = false;
     int m_steady = 0;                                 // Steady hits since the last summary.
     bool m_logged_tesla = false;                      // The first of each was logged.
     bool m_logged_zodiac = false;

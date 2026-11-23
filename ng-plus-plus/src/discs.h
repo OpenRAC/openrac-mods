@@ -50,6 +50,8 @@ struct Disc {
     std::int32_t armour_about;  // The text id of Carbonox's description at the armour vendor
                                 // (g_shop_armor_text_ids[4], D_001AD250).
     std::int32_t armour_name;   // The text id of "Carbonox Armor", the vendor's name for it.
+    std::uint32_t tesla_hits;   // s32: the barrier's arcs counted, it ends at 40 (g_tesla_hit_counter).
+    std::uint32_t fade_value;   // f32: the barrier's charge, it ends at 0 or less (g_fade_level).
 };
 
 // clang-format off: one disc per row, the columns in the order of Disc's members.
@@ -57,13 +59,13 @@ struct Disc {
 inline constexpr Disc kDiscs[] = {
     {"ntsc",  0x00239BA0u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7AF8u, 0x00189E20u,
      0x0021F240u, 0x001A7360u, "func_00288FB8", 0x001A79F8u, "func_00288E18", "func_002B0A18",
-     "func_L00_0037E6A8", "func_002AD860", 0x325F, 10135, 10209, 60, 0x001A8BB0u, 0x2FD5, 0x0AB0},
+     "func_L00_0037E6A8", "func_002AD860", 0x325F, 10135, 10209, 60, 0x001A8BB0u, 0x2FD5, 0x0AB0, 0x001AFF44u, 0x001B26B0u},
     {"pal",   0x00239BA0u, 0x001395E8u, 0x001398E8u, 0x00139708u, 0x001A7B80u, 0x00189EA0u,
      0x0021F240u, 0x001A73E0u, "func_002898E8", 0x001A7A80u, "func_00289730", "func_002B1588",
-     "func_L00_003813E0", "func_002AE3C0", 0x1B2D, 4841, 4915, 50, 0x001A8C60u, 0x0EF9, 0x0AB0},
+     "func_L00_003813E0", "func_002AE3C0", 0x1B2D, 4841, 4915, 50, 0x001A8C60u, 0x0EF9, 0x0AB0, 0x001AFF74u, 0x001B26D0u},
     {"ntsc2", 0x00239B20u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7B00u, 0x00189E20u,
      0x0021F1C0u, 0x001A7360u, "func_002899F8", 0x001A7A00u, "func_00289840", "func_002B1880",
-     "func_L00_0037FB10", "func_002AE6C8", 0x30F5, 4841, 4915, 60, 0x001A8BB0u, 0x2E6B, 0x331B},
+     "func_L00_0037FB10", "func_002AE6C8", 0x30F5, 4841, 4915, 60, 0x001A8BB0u, 0x2E6B, 0x331B, 0x001AFEF4u, 0x001B2630u},
 };
 // clang-format on
 

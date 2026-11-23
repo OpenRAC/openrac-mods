@@ -27,6 +27,11 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.8
+
+The Shield Charger and Tesla Barrier last longer, take more arcs before they collapse and hit
+harder with each tier (see "Weapon tuning", Shield Charger and Tesla Barrier).
+
 ## What's new in 0.6.7
 
 The Bomb Glove, Visibomb Gun, Tesla Claw, Walloper and Zodiac reach Alpha by XP: a full bar (6,000
@@ -435,6 +440,24 @@ the hits running away; the eruptions and the storm are where it spreads.
   times that, and its tier a fifth more again on top of the tier's damage factor: x4.5 at Alpha up
   to x21 at Omega. The enemies' hits on it count as their hits on Ratchet do each new game (they
   used to be scaled as Ratchet's hits on an enemy).
+
+- **Shield Charger and Tesla Barrier.** The game ends the barrier when its charge runs out (40 for the
+  Shield Charger, 100 for the Barrier, running down each frame) or when it has arced 40 times, so it
+  shocks a few enemies and is gone. NG++ stretches both by the tier: the charge runs down, and the arcs
+  are counted, that many times slower, and each arc hits harder on top of the tier's damage factor.
+  No tier: the game's barrier. It needs no new hook: the mod rewrites the barrier's two words as the
+  game updates it (`g_fade_level`, `g_tesla_hit_counter`).
+
+  | Tier | Lasts, and arcs taken before it breaks (game: 40) | Damage per arc, on top of the tier's |
+  |---|---|---|
+  | Alpha | x1.5 (60) | x1.1 |
+  | Beta | x1.86 (74) | x1.2 |
+  | Gamma | x2.21 (88) | x1.3 |
+  | Delta | x2.57 (102) | x1.4 |
+  | Epsilon | x2.93 (117) | x1.5 |
+  | Zeta | x3.29 (131) | x1.6 |
+  | Eta | x3.64 (145) | x1.7 |
+  | Omega | x4 (160) | x1.8 |
 
 ### Armor tiers
 

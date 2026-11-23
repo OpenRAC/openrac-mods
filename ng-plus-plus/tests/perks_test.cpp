@@ -602,6 +602,40 @@ void test_tuning() {
         CHECK(decoy_health(level) > decoy_health(level - 1));
     }
 }
+
+// The Shield Charger's and Tesla Barrier's endurance and arcs.
+void test_barrier() {
+    CHECK(barrier_endurance(0) == 1.0f);
+    CHECK(barrier_endurance(1) == 1.5f);
+    CHECK(barrier_endurance(8) == 4.0f);
+    CHECK(barrier_zap_gain(0) == 1.0f);
+    CHECK(barrier_zap_gain(8) > barrier_zap_gain(1));
+
+    for (int tier = 2; tier <= 8; ++tier) {
+        CHECK(barrier_endurance(tier) > barrier_endurance(tier - 1));
+        CHECK(barrier_zap_gain(tier) > barrier_zap_gain(tier - 1));
+    }
+
+    // The game ends the barrier at 40 arcs shown: at 40 times the endurance for real.
+    CHECK(barrier_shown_hits(39, 1.0f) == 39);
+    CHECK(barrier_shown_hits(59, 1.5f) == 39);
+    CHECK(barrier_shown_hits(60, 1.5f) == 40);
+    CHECK(barrier_shown_hits(159, 4.0f) == 39);
+    CHECK(barrier_shown_hits(160, 4.0f) == kBarrierHitLimit);
+    CHECK(barrier_shown_hits(-3, 2.0f) == 0);
+
+    // The charge runs down over the endurance: 100 lasts 400 steps of 1 at x4.
+    float charge = 100.0f;
+    int steps = 0;
+
+    while (charge > 0.0f && steps < 10000) {
+        charge = barrier_stretched_charge(charge, 1.0f, 4.0f);
+        ++steps;
+    }
+
+    CHECK(steps == 400);
+    CHECK(barrier_stretched_charge(10.0f, 2.0f, 1.0f) == 8.0f);
+}
 }  // namespace
 
 int main() try {
@@ -626,6 +660,7 @@ int main() try {
     test_status_perks();
     test_fire_path();
     test_tuning();
+    test_barrier();
     return ng_plus_plus::test::result("ng_plus_plus_perks");
 } catch (...) {
     // A test that throws has failed.

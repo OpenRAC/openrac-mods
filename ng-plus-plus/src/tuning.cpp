@@ -12,6 +12,7 @@
 #include <string>
 
 #include "discs.h"
+#include "perk_rules.h"
 #include "tuning_rules.h"
 
 namespace ng_plus_plus {
@@ -336,6 +337,73 @@ void WeaponTuning::zodiac() {
     }
 }
 
+void WeaponTuning::barrier() {
+    const openrac::Memory memory = m_view.memory();
+    bool up = false;
+
+    // A barrier alive.
+    for (const ScannedMoby& moby : m_scan.mobys()) {
+        // Its class.
+        if (moby.moby_class == kShieldClass || moby.moby_class == kBarrierClass) {
+            up = true;
+            break;
+        }
+    }
+
+    const int tier = tier_of(kind_of(kBarrierItem), m_weapons.tiers().level(kBarrierItem));
+    const float endurance = barrier_endurance(tier);
+
+    // None, or no tier: the game's own.
+    if (!up || endurance <= 1.0f) {
+        m_barrier_up = false;
+        return;
+    }
+
+    const openrac::gaddr value_at = m_view.address_of(m_view.disc().fade_value);
+    const openrac::gaddr hits_at = m_view.address_of(m_view.disc().tesla_hits);
+    const auto charge = memory.read<float>(value_at);
+    const auto hits = memory.read<std::int32_t>(hits_at);
+
+    // A new barrier: the charge it began with, no arcs.
+    if (!m_barrier_up || charge > m_barrier_shown + 0.5f) {
+        m_barrier_up = true;
+        m_barrier_shown = charge;
+        m_barrier_virtual = charge;
+        m_barrier_hits = hits > 0 ? hits : 0;
+        m_barrier_seen = hits;
+        return;
+    }
+
+    // The charge the game took off since the mod left it: it runs down that much slower.
+    if (charge < m_barrier_shown) {
+        m_barrier_virtual =
+            barrier_stretched_charge(m_barrier_virtual, m_barrier_shown - charge, endurance);
+        m_barrier_shown = m_barrier_virtual;
+        memory.write(value_at, m_barrier_shown);
+    }
+
+    // The arcs the game counted since: counted for real, shown over the endurance.
+    if (hits > m_barrier_seen) {
+        m_barrier_hits += hits - m_barrier_seen;
+    } else if (hits < m_barrier_seen) {
+        m_barrier_hits = hits > 0 ? hits : 0;
+    }
+
+    const int shown = barrier_shown_hits(m_barrier_hits, endurance);
+
+    if (shown != hits) {
+        memory.write(hits_at, static_cast<std::int32_t>(shown));
+    }
+
+    m_barrier_seen = shown;
+
+    // Once, for a player's log.
+    if (!m_logged_barrier) {
+        m_logged_barrier = true;
+        m_mod.info("barrier stretched x" + std::to_string(endurance));
+    }
+}
+
 void WeaponTuning::decoys() {
     const openrac::Memory memory = m_view.memory();
     const float factor = decoy_health(m_weapons.tiers().level(kDecoyGlove));
@@ -399,6 +467,7 @@ void WeaponTuning::tick(std::uint32_t tick) {
 
     tesla();
     zodiac();
+    barrier();
     decoys();
 
     // A summary for a player's log, about once a minute when the claw hit steadily.

@@ -11,8 +11,10 @@
 
 #include "armour.h"
 #include "elites.h"
+#include "perk_rules.h"
 #include "perks.h"
 #include "tuning.h"
+#include "tuning_rules.h"
 #include "space_missions.h"
 
 namespace ng_plus_plus {
@@ -50,6 +52,11 @@ void Combat::post_hit_with(PostHitFn original, std::uint32_t victim, std::uint32
         // The tier of the weapon that dealt the hit.
         if (item >= 0 && item < kItems) {
             scale *= damage(kind, m_weapons.tiers().level(item));
+        }
+
+        // The shield's and the barrier's arcs hit harder each tier (tuning_rules.h).
+        if (item == kBarrierItem) {
+            scale *= barrier_zap_gain(tier_of(kind, m_weapons.tiers().level(item)));
         }
 
         // Tougher enemies: their health times the cycle's (a boss's more, the final boss's more
