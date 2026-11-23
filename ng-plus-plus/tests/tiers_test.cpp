@@ -17,6 +17,7 @@
 #include "check.h"
 #include "discs.h"
 #include "extra_enemies.h"
+#include "perk_rules.h"
 #include "save_book.h"
 #include "save_tiers.h"
 #include "tiers.h"
@@ -51,7 +52,7 @@ void test_kinds() {
     CHECK(kind_of(10) == Kind::None);  // the wrench
     CHECK(step_count(Kind::Four) == 8);
     CHECK(step_count(Kind::Ryno) == 10);  // Heavy, the eight tiers, Ultima
-    CHECK(step_count(Kind::Ryno) == kMaxSteps);
+    CHECK(step_count(Kind::Ryno) == kRynoStepCount);
     CHECK(step_count(Kind::None) == 0);
 }
 
@@ -89,36 +90,68 @@ void test_mastery() {
     CHECK(can_buy(Kind::Zapper, 0, true, 0));  // V2 came by experience
 }
 
-// 0.6.13: the Zodiac levels on the RYNO II's experience: each step by experience needs what the
-// RYNO II's step at the same place does (Heavy's for Alpha, then Beta to Omega), five times the
-// usual; its bought tiers cost the RYNO II's prices of the same tiers.
+// 0.6.14: the Zodiac's path: Heavy (XP), Mega (bought), Ultra (XP), then Alpha to Omega on the RYNO
+// II's experience (0.6.13: five times the usual) and prices of the same tiers.
 void test_zodiac_as_ryno() {
     const Kind zodiac = Kind::Single;
+    CHECK(step_count(zodiac) == 11);
+    CHECK(step_count(zodiac) == kMaxSteps);
+    const char* names[] = {"Heavy", "Mega", "Ultra", "Alpha", "Beta", "Gamma",
+                           "Delta", "Epsilon", "Zeta", "Eta", "Omega"};
+    for (int n = 0; n < 11; ++n) {
+        CHECK(std::string(step_at(zodiac, n)->name) == names[n]);
+    }
+    CHECK(step_at(zodiac, 11) == nullptr);
+    CHECK(display_name("Zodiac", zodiac, 1) == "Heavy Zodiac");
+    CHECK(display_name("Zodiac", zodiac, 2) == "Mega Zodiac");
+    CHECK(display_name("Zodiac", zodiac, 3) == "Ultra Zodiac");
+    CHECK(display_name("Zodiac", zodiac, 4) == "Alpha Zodiac");
+    CHECK(display_name("Zodiac", zodiac, 11) == "Omega Zodiac");
+
+    // Heavy by XP, in line with the RYNO II's Heavy; Mega bought; Ultra by XP.
     CHECK(step_at(zodiac, 0)->how == How::Exp);
-    CHECK(std::string(step_at(zodiac, 0)->name) == "Alpha");
     CHECK(!exp_reached(zodiac, 0, true, 37'499));
     CHECK(exp_reached(zodiac, 0, true, 37'500));
-    CHECK(exp_goal(zodiac, 0) == exp_goal(Kind::Ryno, 0));  // Heavy RYNO II's
-    CHECK(exp_goal(zodiac, 1) == exp_goal(Kind::Ryno, 2));  // Beta: 50,000
-    CHECK(exp_goal(zodiac, 1) == 50'000);
-    CHECK(exp_goal(zodiac, 3) == exp_goal(Kind::Ryno, 4));  // Delta: 75,000
-    CHECK(exp_goal(zodiac, 5) == exp_goal(Kind::Ryno, 6));  // Zeta: 100,000
-    CHECK(exp_goal(zodiac, 7) == exp_goal(Kind::Ryno, 8));  // Omega: 150,000
-    CHECK(exp_goal(zodiac, 7) == 150'000);
-    CHECK(!exp_reached(zodiac, 1, true, 49'999));
-    CHECK(exp_reached(zodiac, 1, true, 50'000));
-
-    // Gamma, Epsilon and Eta: for sale once the step before is reached by experience.
-    CHECK(can_buy(zodiac, 2, true, 0));
-    CHECK(!can_buy(zodiac, 3, true, 1'000'000));
+    CHECK(exp_goal(zodiac, 0) == exp_goal(Kind::Ryno, 0));
+    CHECK(step_at(zodiac, 1)->how == How::Buy);
+    CHECK(can_buy(zodiac, 1, true, 0));  // for sale as soon as it is Heavy
+    CHECK(!can_buy(zodiac, 1, false, 0));
+    CHECK(price(zodiac, 1, 1'000'000) == price(Kind::Ryno, 1, 1'000'000));  // 6,000,000
+    CHECK(price(zodiac, 1, 1'000'000) == 6'000'000);
+    CHECK(step_at(zodiac, 2)->how == How::Exp);
+    CHECK(!can_buy(zodiac, 2, true, 1'000'000));
+    CHECK(exp_goal(zodiac, 2) == 50'000);
+    CHECK(!exp_reached(zodiac, 2, true, 49'999));
+    CHECK(exp_reached(zodiac, 2, true, 50'000));
     CHECK(price(zodiac, 0, 1'000'000) == 0);
-    CHECK(price(zodiac, 2, 1'000'000) == price(Kind::Ryno, 3, 1'000'000));  // 10,000,000
-    CHECK(price(zodiac, 4, 1'000'000) == price(Kind::Ryno, 5, 1'000'000));  // 16,000,000
-    CHECK(price(zodiac, 6, 1'000'000) == price(Kind::Ryno, 7, 1'000'000));  // 25,000,000
-    CHECK(price(zodiac, 6, 1'000'000) == 25'000'000);
+    CHECK(price(zodiac, 2, 1'000'000) == 0);
 
-    // Its damage and ammo stay the other weapons' tiers'.
-    CHECK(step_at(zodiac, 7)->damage == step_at(Kind::Two, 7)->damage);
+    // Alpha onward keeps 0.6.13's goals and prices.
+    CHECK(exp_goal(zodiac, 3) == exp_goal(Kind::Ryno, 0));  // Alpha: 37,500
+    CHECK(exp_goal(zodiac, 4) == exp_goal(Kind::Ryno, 2));  // Beta: 50,000
+    CHECK(exp_goal(zodiac, 6) == exp_goal(Kind::Ryno, 4));  // Delta: 75,000
+    CHECK(exp_goal(zodiac, 8) == exp_goal(Kind::Ryno, 6));  // Zeta: 100,000
+    CHECK(exp_goal(zodiac, 10) == exp_goal(Kind::Ryno, 8));  // Omega: 150,000
+    CHECK(can_buy(zodiac, 5, true, 0));
+    CHECK(!can_buy(zodiac, 6, true, 1'000'000));
+    CHECK(price(zodiac, 5, 1'000'000) == 10'000'000);
+    CHECK(price(zodiac, 7, 1'000'000) == 16'000'000);
+    CHECK(price(zodiac, 9, 1'000'000) == 25'000'000);
+
+    // The three new steps rise, below Alpha; Alpha and up keep the other weapons' tiers'.
+    for (int n = 1; n < 4; ++n) {
+        CHECK(step_at(zodiac, n)->damage > step_at(zodiac, n - 1)->damage);
+        CHECK(step_at(zodiac, n)->ammo > step_at(zodiac, n - 1)->ammo);
+    }
+    CHECK(step_at(zodiac, 2)->damage < step_at(zodiac, 3)->damage);
+    for (int n = 3; n < 11; ++n) {
+        CHECK(step_at(zodiac, n)->damage == step_at(Kind::Two, n - 3)->damage);
+    }
+
+    // Heavy, Mega and Ultra are no tier; Alpha is the first.
+    CHECK(tier_of(zodiac, 3) == 0);
+    CHECK(tier_of(zodiac, 4) == 1);
+    CHECK(tier_of(zodiac, 11) == 8);
 }
 
 // Checks that the Decoy Glove buys every tier, none waiting on experience, the bar full, on the
@@ -364,11 +397,15 @@ void test_scaling() {
     CHECK(ammo_max(Kind::Four, 0, 50) == 50);
     CHECK(ammo_max(Kind::Four, 1, 50) == 55);
     CHECK(ammo_max(Kind::Four, 8, 50) == 100);
-    // The Zodiac: a flat 4 rounds more at each tier.
-    for (int level = 0; level <= 8; ++level) {
-        CHECK(ammo_max(Kind::Single, level, 4) == 4 + 4 * level);
+    // The Zodiac: one round more at each of Heavy, Mega and Ultra, then a flat 4 at each tier.
+    for (int level = 0; level <= 3; ++level) {
+        CHECK(ammo_max(Kind::Single, level, 4) == 4 + level);
     }
-    CHECK(ammo_max(Kind::Single, 8, 4) == 36);
+    for (int level = 4; level <= 11; ++level) {
+        CHECK(ammo_max(Kind::Single, level, 4) == 4 + 4 * (level - 3));
+    }
+    CHECK(ammo_max(Kind::Single, 11, 4) == 36);
+    CHECK(ammo_max(Kind::Single, 3, 4) < ammo_max(Kind::Single, 4, 4));
     CHECK(ammo_max(Kind::Single, 3, 0) == 0);
     CHECK(ammo_max(Kind::Sheep, 3, 0) == 0);  // endless stays endless
     CHECK(ammo_max(Kind::Four, 8, 500) == 999);  // the HUD's three digits
@@ -650,10 +687,70 @@ void test_ryno_migration() {
     CHECK(again.find(clock_of(2))->levels[kRyno] == 10);
     CHECK(again.find(clock_of(1))->levels[kRyno] == (2 | kStartedBit));
 
+    // Layout 1 holds the Zodiac in layout 2's numbering: moved to layout 3's as well.
+    CHECK(book_layout(old_text) == 1);
+
     // The marker wherever the launcher's editor left it, and with a Windows line end.
     CHECK(book_current(old_text + std::string(kBookMarker) + "\r\n"));
     CHECK(!book_current("ngpp-tiers 1\n"));
     CHECK(!book_current(""));
+}
+
+// Checks the move of a book of layout 2 to the Zodiac's path now: none stays none (its XP counts
+// toward Heavy), a Zodiac at Alpha or above keeps its tier (Alpha 1 to 8 become 4 to 11), the started
+// bit, the other items (the RYNO II too) and the order stay, and a book with the marker is not moved.
+void test_zodiac_migration() {
+    constexpr std::size_t kZodiac = 43;
+
+    for (int old = 0; old <= 8; ++old) {
+        const auto bare = static_cast<std::uint8_t>(old);
+        const int want = old == 0 ? 0 : old + 3;
+        CHECK(zodiac_level_from_old(bare) == want);
+        CHECK(zodiac_level_from_old(static_cast<std::uint8_t>(bare | kStartedBit))
+              == (want | kStartedBit));
+
+        // The same tier by name: Alpha stays Alpha, Omega Omega.
+        if (old > 0) {
+            const std::string was = step_at(Kind::Two, old - 1)->name;
+            CHECK(display_name("Zodiac", Kind::Single, zodiac_level_from_old(bare))
+                  == was + " Zodiac");
+        }
+    }
+
+    SaveBook book;
+    LevelBytes first{};
+    first[kZodiac] = static_cast<std::uint8_t>(kStartedBit);  // base, counting its XP
+    first[kLancer] = 5;
+    first[kRyno] = 7;
+    LevelBytes second{};
+    second[kZodiac] = 1;  // Alpha
+    LevelBytes third{};
+    third[kZodiac] = static_cast<std::uint8_t>(8 | kStartedBit);  // Omega
+    book.put(clock_of(1), first);
+    book.put(clock_of(2), second);
+    book.put(clock_of(3), third);
+    const std::string old_text = std::string(kBookMarkerV2) + "\n" + book.write();
+    CHECK(book_layout(old_text) == 2);
+    CHECK(!book_current(old_text));
+
+    SaveBook read;
+    read.read(old_text);
+    migrate_book(read, 2);
+    CHECK(read.records().size() == 3);
+    CHECK(read.records()[0].clock == clock_of(1));
+    CHECK(read.find(clock_of(1))->levels[kZodiac] == kStartedBit);   // base stays base
+    CHECK(read.find(clock_of(1))->levels[kLancer] == 5);
+    CHECK(read.find(clock_of(1))->levels[kRyno] == 7);               // layout 2's RYNO II stays
+    CHECK(read.find(clock_of(2))->levels[kZodiac] == 4);             // Alpha
+    CHECK(read.find(clock_of(3))->levels[kZodiac] == (11 | kStartedBit));  // Omega
+
+    const std::string text = book_text(read);
+    CHECK(book_current(text));
+    CHECK(book_layout(text) == kBookLayout);
+    CHECK(text.find(std::string(kBookMarkerV2)) == std::string::npos);
+    SaveBook again;
+    CHECK(again.read(text) == 3);
+    CHECK(again.find(clock_of(2))->levels[kZodiac] == 4);
 }
 
 // Checks a kill's weapon experience: the game's up to cycle 1, then the run's x1.5, x2.5, x3.5 and
@@ -1022,6 +1119,7 @@ int main() try {
     test_buy_then_level();
     test_mastery();
     test_zodiac_as_ryno();
+    test_zodiac_migration();
     test_no_experience();
     test_naming();
     test_sheepinator();

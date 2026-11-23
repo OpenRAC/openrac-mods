@@ -27,6 +27,19 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.14
+
+- **The Zodiac follows the other weapons' shape.** Its path is now Heavy Zodiac (by XP, the RYNO
+  II Heavy's 37,500), Mega Zodiac (bought, the RYNO II's first price: 6,000,000 on a 1,000,000
+  price), Ultra Zodiac (by XP, 50,000), then Alpha to Omega as before (see the table under
+  "Tiers"). The names come from the game's own text, so every language works; each new step has
+  its own damage, max ammo (+1, +2, +3 rounds, then +4 a tier from Alpha, as 0.6.10) and color
+  (orange, gold, sky blue).
+- **Saves keep their Zodiac.** A Zodiac already at Alpha or above stays at the same tier; one at
+  the base weapon keeps its XP, which now counts toward Heavy. `tiers.txt` is moved over once when
+  the mod loads (the old file kept as that day's backup next to it), and its first line is now
+  `ngpp-tiers 3`.
+
 ## What's new in 0.6.13
 
 - **Every Zodiac kill earns it XP again.** The reach's kills were marked a tick ahead of the clock
@@ -211,7 +224,8 @@ the next one.
 Damage and max ammo are multiplied from the weapon's last real version; max ammo stops at 999,
 as many as the HUD's three digits show (the Omega Heavy Lancer's 1,000 made it crash). The
 Zodiac is the exception: its capacity is small, so each tier adds a flat 4 rounds to the game's
-(Alpha +4, Beta +8, up to Omega +32) instead of a multiplier. XP is the
+(Alpha +4, Beta +8, up to Omega +32) instead of a multiplier, and its Heavy, Mega and Ultra add 1, 2
+and 3. XP is the
 game's own weapon XP (the bar in the quick select). It starts again from 0 at each tier, and the
 first time the mod sees a weapon at its last version it resets the XP to 0, so XP from before the
 mod or from earlier games never gives a tier right away. The XP bar (weapons screen and quick select) fills toward the
@@ -230,21 +244,27 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   their last version is bought and the game has no XP level-up after it, so Alpha comes by XP:
   a full bar (6,000 XP) levels the weapon up to Alpha with the game's level-up popup, then Beta
   by XP, Gamma bought, and so on as the other weapons.
-- **Zodiac** (since 0.6.13): the same steps, but on the RYNO II's XP and prices, as it is just as
-  overpowered. Each step by XP needs the RYNO II's at the same place (Heavy's for Alpha), five times
-  the usual, and Gamma, Epsilon and Eta cost its own price times 10, 16 and 25, as the RYNO II's do
-  (10,000,000, 16,000,000 and 25,000,000 on a 1,000,000 price). Damage and ammo stay as below:
+- **Zodiac** (its path since 0.6.14): first **Heavy Zodiac** by XP, then **Mega Zodiac** bought and
+  **Ultra Zodiac** by XP, then Alpha to Omega, on the RYNO II's XP and prices, as it is just as
+  overpowered. Each step by XP needs the RYNO II's at the same place, five times the usual, and Mega,
+  Gamma, Epsilon and Eta cost the RYNO II's price times 6, 10, 16 and 25 (6,000,000, 10,000,000,
+  16,000,000 and 25,000,000 on a 1,000,000 price). Alpha to Omega keep the other weapons' damage and
+  ammo (below); the three new steps rise to meet them, and the max ammo gains 1, 2 and 3 rounds,
+  then a flat 4 a tier:
 
-  | Step | How | Price | XP |
-  |---|---|---|---|
-  | Alpha | level up | | 37,500 |
-  | Beta | level up | | 50,000 |
-  | Gamma | buy | x10 | |
-  | Delta | level up | | 75,000 |
-  | Epsilon | buy | x16 | |
-  | Zeta | level up | | 100,000 |
-  | Eta | buy | x25 | |
-  | Omega | level up | | 150,000 |
+  | Step | How | Price | XP | Damage | Max ammo | Color |
+  |---|---|---|---|---|---|---|
+  | Heavy | level up | | 37,500 | x1.15 | +1 | orange |
+  | Mega | buy | x6 | | x1.30 | +2 | gold |
+  | Ultra | level up | | 50,000 | x1.42 | +3 | sky blue |
+  | Alpha | level up | | 37,500 | x1.50 | +4 | lime |
+  | Beta | level up | | 50,000 | x2.00 | +8 | cyan |
+  | Gamma | buy | x10 | | x2.50 | +12 | emerald |
+  | Delta | level up | | 75,000 | x3.00 | +16 | teal |
+  | Epsilon | buy | x16 | | x3.75 | +20 | violet |
+  | Zeta | level up | | 100,000 | x4.50 | +24 | magenta |
+  | Eta | buy | x25 | | x5.50 | +28 | crimson |
+  | Omega | level up | | 150,000 | x7.00 | +32 | rainbow |
 - **Decoy Glove**: the game gives XP to the weapon that landed the killing hit, and the decoy deals
   no damage (it only draws fire), so it can never earn XP. All its tiers are bought instead, each
   for sale as soon as you buy the one before: Alpha, Gamma, Epsilon and Eta at the usual prices,
@@ -287,7 +307,8 @@ weapon had before its Mega. A four-version weapon uses its second version's name
 Gun", "Alpha Heavy Lancer" (not "Beta Lava Gun", nor the Mega's name). A two-version weapon uses
 its first: "Alpha Bomb Glove". The Clank Zapper uses its last, "Alpha Clank Shocker"; the
 Sheepinator its last XP version, "Alpha Black Sheepinator"; the Zodiac and the RYNO II their only
-one ("Heavy RYNO II", "Alpha RYNO II", "Ultima RYNO II"). The names come from the game's own text,
+one ("Heavy Zodiac", "Mega Zodiac", "Ultra Zodiac", "Heavy RYNO II", "Alpha RYNO II", "Ultima
+RYNO II"). The names come from the game's own text,
 so every language works. A tier reached by XP shows the game's own level-up popup and message with
 the new name; a bought one shows the vendor's usual purchase message. The name also shows at the
 top of the screen when you switch to a tiered weapon.
@@ -1029,9 +1050,11 @@ without saving. Each save gets only its own tiers, exactly as they were when it 
 A record with tiers is never overwritten with an empty one. Nothing is written to the memory card
 or its folder.
 
-The file's first line, `ngpp-tiers 2`, marks the RYNO II's path Heavy, Alpha to Omega, Ultima. A
-file without it is from before that path and is moved over once when the mod loads (see RYNO II
-above), then written with the line, so it is never moved twice.
+The file's first line, `ngpp-tiers 3`, marks the RYNO II's path Heavy, Alpha to Omega, Ultima and
+the Zodiac's Heavy, Mega, Ultra, Alpha to Omega. A file without it, or with `ngpp-tiers 2` (from
+before the Zodiac's path), is moved over once when the mod loads (see RYNO II above; each Zodiac level
+from Alpha up moves three up, so the tier stays), then written with the line, so it is never moved
+twice.
 
 The launcher's save editor shows each weapon's tier in its version picker for the save you open
 while the mod is on, and saves your changes to `tiers.txt`; close the game first. It also lets you

@@ -1287,7 +1287,7 @@ void test_old_book_moved(openrac_mod_load_fn load) {
     third_now.replace(kRyno * 2, 2, "0a");
     CHECK(
         moved
-        == "ngpp-tiers 2\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+        == "ngpp-tiers 3\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
                + "\n0300000000000011 " + third_now + "\n"
     );
 
@@ -1296,6 +1296,54 @@ void test_old_book_moved(openrac_mod_load_fn load) {
     CHECK(file_text(book) == moved);
 
     // The book before back, as the tests after it had it.
+    {
+        std::ofstream file(book, std::ios::binary | std::ios::trunc);
+        file << before;
+    }
+
+    CHECK(reload(load));
+}
+
+// Checks a book of layout 2 (the Zodiac's Alpha to Omega at levels 1 to 8) moved over once as the
+// mod loads: a Zodiac at base stays base with its started bit, Alpha (1) becomes the fourth step
+// (4), Omega (8) becomes 11, the RYNO II and the other items stay; the old book is kept as the
+// day's backup, and loaded again the book stays as it is. The book before is put back after.
+void test_zodiac_book_moved(openrac_mod_load_fn load) {
+    constexpr int kZodiacItem = 43;
+    const std::filesystem::path book = g_dir / "tiers.txt";
+    const std::string before = file_text(book);
+    const std::string zeros(112, '0');
+    std::string first = zeros;
+    first.replace(kZodiacItem * 2, 2, "80");  // base, counting
+    first.replace(kRyno * 2, 2, "07");
+    std::string second = zeros;
+    second.replace(kZodiacItem * 2, 2, "01");
+    second.replace(kLancer * 2, 2, "05");
+    std::string third = zeros;
+    third.replace(kZodiacItem * 2, 2, "88");
+    {
+        std::ofstream file(book, std::ios::binary | std::ios::trunc);
+        file << "ngpp-tiers 2\n0100000000000011 " << first << "\n0200000000000011 " << second
+             << "\n0300000000000011 " << third << "\n";
+    }
+
+    CHECK(reload(load));
+    const std::string moved = file_text(book);
+    std::string first_now = first;
+    std::string second_now = second;
+    second_now.replace(kZodiacItem * 2, 2, "04");
+    std::string third_now = third;
+    third_now.replace(kZodiacItem * 2, 2, "8b");
+    CHECK(
+        moved
+        == "ngpp-tiers 3\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+               + "\n0300000000000011 " + third_now + "\n"
+    );
+
+    // Loaded again: never moved twice.
+    CHECK(reload(load));
+    CHECK(file_text(book) == moved);
+
     {
         std::ofstream file(book, std::ios::binary | std::ios::trunc);
         file << before;
@@ -3213,6 +3261,7 @@ void run(const char* path, const Disc& disc, Host host) {
     }
 
     test_old_book_moved(load);
+    test_zodiac_book_moved(load);
     test_armour_at_the_vendor(host == Host::Paint);
 
     // The Zodiac's kills, on the newest port.

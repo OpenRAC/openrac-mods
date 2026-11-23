@@ -87,6 +87,12 @@ void back_up_book(const fs::path& book) {
 }  // namespace
 
 bool book_current(std::string_view text) {
+    return book_layout(text) >= kBookLayout;
+}
+
+int book_layout(std::string_view text) {
+    int layout = 1;
+
     // The marker's line, wherever it is (the launcher's editor keeps it in its place).
     while (!text.empty()) {
         const std::size_t end = text.find('\n');
@@ -99,13 +105,25 @@ bool book_current(std::string_view text) {
 
         // Found.
         if (line == kBookMarker) {
-            return true;
+            return kBookLayout;
+        }
+
+        if (line == kBookMarkerV2) {
+            layout = 2;
         }
 
         text = end == std::string_view::npos ? std::string_view() : text.substr(end + 1);
     }
 
-    return false;
+    return layout;
+}
+
+std::uint8_t zodiac_level_from_old(std::uint8_t old) {
+    constexpr std::size_t kZodiacItem = 43;
+    static_assert(kZodiacItem < kItems, "the Zodiac is an item");
+    const auto started = static_cast<std::uint8_t>(old & kStartedBit);
+    const int level = static_cast<int>(old & kLevelBits);
+    return static_cast<std::uint8_t>((level == 0 ? 0 : level + kZodiacOwn) | started);
 }
 
 std::uint8_t ryno_level_from_old(std::uint8_t old) {
@@ -119,14 +137,21 @@ std::uint8_t ryno_level_from_old(std::uint8_t old) {
     return static_cast<std::uint8_t>(now | started);
 }
 
-void migrate_book(SaveBook& book) {
+void migrate_book(SaveBook& book, int from) {
     constexpr std::size_t kRyno = 44;
+    constexpr std::size_t kZodiac = 43;
     SaveBook moved;
 
     // Oldest first, so the order stays.
     for (const Record& record : book.records()) {
         LevelBytes levels = record.levels;
-        levels[kRyno] = ryno_level_from_old(levels[kRyno]);
+
+        // Layout 1's RYNO II path.
+        if (from < 2) {
+            levels[kRyno] = ryno_level_from_old(levels[kRyno]);
+        }
+
+        levels[kZodiac] = zodiac_level_from_old(levels[kZodiac]);
         moved.put(record.clock, levels);
     }
 
@@ -161,9 +186,11 @@ void SaveTiers::load_book() {
 
     // A book of the layout before: moved over once, and written at once with the marker, so it is
     // never moved again.
+    // (save_book keeps the old book as that day's backup, tiers-YYYYMMDD.txt, first.)
     if (!book_current(text)) {
-        migrate_book(m_book);
-        m_mod.info("tiers.txt: the RYNO II's levels moved to its path Heavy, Alpha to Omega, Ultima");
+        migrate_book(m_book, book_layout(text));
+        m_mod.info("tiers.txt: moved to the layout with the Zodiac's Heavy, Mega and Ultra "
+                   "(a Zodiac at Alpha or above keeps its tier)");
         save_book();
     }
 }

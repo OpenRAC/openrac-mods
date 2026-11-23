@@ -164,8 +164,10 @@ int tier_of(Kind kind, int level) {
         return 0;
     }
 
-    // The RYNO II's Heavy comes first: no tier. Its Ultima, after Omega, is the 9th.
-    const int tier = kind == Kind::Ryno ? level - kRynoOwn : level;
+    // The RYNO II's Heavy comes first: no tier. Its Ultima, after Omega, is the 9th. The Zodiac's
+    // Heavy, Mega and Ultra come first: no tier.
+    const int own = kind == Kind::Ryno ? kRynoOwn : (kind == Kind::Single ? kZodiacOwn : 0);
+    const int tier = level - own;
     return std::clamp(tier, 0, kOmegaTier + 1);
 }
 
