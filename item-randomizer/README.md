@@ -361,6 +361,13 @@ remains available after buying her reward while the player lacks the Swingshot;
 receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
 and real item ownership remain separate.
 
+### Blarg: Fred's door to the shuttle
+
+Buying Fred's reward on Blarg closes the door back to the shuttle until you grind, as the
+game does after selling the Grindboots. When his reward is not the Grindboots and you do not
+own them, the door opens again once his purchase scene ends, so you can return to the ship.
+With the Grindboots owned, the game's own grind opens it.
+
 ### NPC reward interaction text
 
 The **Reward text** option (`reward_text`) defaults to on. Turn it off to keep
@@ -393,7 +400,7 @@ The Rilgar bouncer uses `Triangle: Bribe Bouncer with 4,000 bolts to get <reward
 The cost and insufficient-bolts message stay native; the name comes from his
 coordinate-reward location (or its vanilla reward when not shuffled).
 
-The reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools.
+The reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools. With Shuffle items on, Drek's Fleet's CodeBot pickup shows the model of its randomized reward until it is collected.
 
 ### Reward display options
 

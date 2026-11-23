@@ -148,8 +148,8 @@ constexpr std::int32_t kAmmoFullText = 0x2003;     // "Ammo full": names no weap
 // The game's own shape of the message: the name in colour codes, between its words too.
 constexpr std::int32_t kAmmoCodedText = 0x2004;    // "Got %d \x0cMega \x0cLancer\x08\x08 ammo".
 // The collectors' dialogs (collectors.h): Tabora's crystals and Grelbin's moonstones.
-constexpr std::int32_t kCrystalText = 10135;    // "Trade %d crystals for %d bolts?".
-constexpr std::int32_t kMoonstoneText = 10209;  // "%d moonstones: %d bolts".
+// "Trade %d crystals for %d bolts?" and "%d moonstones: %d bolts": the disc's own ids
+// (kDiscs' crystal_trade and moonstone_trade).
 // The game's level-up table's line for the Lancer at its last version (help_show_message_for_id).
 constexpr std::int32_t kLevelUpLineText = 0x2005;  // "\x0cMega Lancer\x08 upgraded".
 
@@ -308,10 +308,21 @@ void game_take_damage(std::int32_t amount) {
 
 // The game's text lookup: its strings by id.
 std::int32_t game_text(std::int32_t id) {
+    // The disc's own ids: the "Mega" label and the two trades.
+    if (id == g_disc->upgrade_label) {
+        return static_cast<std::int32_t>(kMegaAt);
+    }
+
+    if (id == g_disc->crystal_trade) {
+        return static_cast<std::int32_t>(kTextAt + 0x540);
+    }
+
+    if (id == g_disc->moonstone_trade) {
+        return static_cast<std::int32_t>(kTextAt + 0x580);
+    }
+
     // The test's strings by their ids.
     switch (id) {
-        case kUpgradeLabelText:
-            return static_cast<std::int32_t>(kMegaAt);
         case kMegaLancerText:
         case kMegaLabelText:
             return static_cast<std::int32_t>(kTextAt);
@@ -332,10 +343,6 @@ std::int32_t game_text(std::int32_t id) {
             return static_cast<std::int32_t>(kTextAt + 0x4C0);
         case kLevelUpLineText:
             return static_cast<std::int32_t>(kTextAt + 0x500);
-        case kCrystalText:
-            return static_cast<std::int32_t>(kTextAt + 0x540);
-        case kMoonstoneText:
-            return static_cast<std::int32_t>(kTextAt + 0x580);
         // Text 0: the game's empty string.
         case 0:
             return static_cast<std::int32_t>(kTextAt + 0x5F0);
@@ -383,7 +390,7 @@ void game_draw_list() {
         // An upgrade row draws its label too.
         if (upgrade) {
             g_drawn_tint = rgb;
-            g_drawn_label = string_at(port_text(kUpgradeLabelText));
+            g_drawn_label = string_at(port_text(g_disc->upgrade_label));
         }
     }
 }
@@ -1239,7 +1246,7 @@ void test_the_vendor_offers_alpha() {
     CHECK(g_drawn_label == "Alpha");
     CHECK(g_drawn_tint == 0x8020FFB0u);  // Alpha's lime
     // Outside the draw the game's own.
-    CHECK(port_text(kUpgradeLabelText) == static_cast<std::int32_t>(kMegaAt));
+    CHECK(port_text(g_disc->upgrade_label) == static_cast<std::int32_t>(kMegaAt));
     set_cursor(2);
 }
 
@@ -2301,7 +2308,7 @@ void test_collectors(bool scaled) {
     // Tabora: the dialog, then the trade as the game makes it.
     g_level_now = 8;
     tick(1);
-    CHECK(string_at(port_text(kCrystalText))
+    CHECK(string_at(port_text(g_disc->crystal_trade))
           == (scaled ? "Trade %d crystals for 100000 bolts?" : "Trade %d crystals for %d bolts?"));
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 41'000);
@@ -2311,12 +2318,12 @@ void test_collectors(bool scaled) {
     // Nothing more on the next tick, and no dialog of nothing.
     tick(1);
     CHECK(g_bolts == (scaled ? 60'000 : 0));
-    CHECK(string_at(port_text(kCrystalText)) == "Trade %d crystals for %d bolts?");
+    CHECK(string_at(port_text(g_disc->crystal_trade)) == "Trade %d crystals for %d bolts?");
 
     // Grelbin: the moonstones.
     g_level_now = 19;
     tick(1);
-    CHECK(string_at(port_text(kMoonstoneText))
+    CHECK(string_at(port_text(g_disc->moonstone_trade))
           == (scaled ? "%d moonstones: 225000 bolts" : "%d moonstones: %d bolts"));
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 131'000);
@@ -2337,7 +2344,7 @@ void test_collectors(bool scaled) {
     set<std::int16_t>(block + kProgressCrystals, 2);
     g_level_now = 8;
     tick(1);
-    CHECK(string_at(port_text(kCrystalText)) == "Trade %d crystals for %d bolts?");
+    CHECK(string_at(port_text(g_disc->crystal_trade)) == "Trade %d crystals for %d bolts?");
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 151'000);
     set<std::int16_t>(block + kProgressCrystals, 0);

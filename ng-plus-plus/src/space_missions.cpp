@@ -441,7 +441,7 @@ void SpaceMissions::run_fight(int level) {
 
     // None alive for a while: the fight is over, the next mission's is new.
     if (alive == 0 && m_pending.empty()) {
-        if (!m_fight.empty() && ++m_quiet > kFightOverTicks) {
+        if (!m_fight.empty() && ++m_quiet > m_view.ticks(kFightOverTicks)) {
             m_fight.clear();
             m_peak = 0;
             m_waves = 0;

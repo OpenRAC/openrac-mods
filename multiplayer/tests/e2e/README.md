@@ -20,6 +20,7 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 
 | Scenario | What it plays |
 |---|---|
+| `reach` | two games reach a game server by the address they are given and play a party in level 0: the game server's own (through the proxies), or with `--hub` the hub's, which lists the server: each game names the hub's pick, the hub heard both, and nothing it does not take reached it |
 | `cosave` | the party's saves: the game's own saves and Save the party land in each player's co-op slot, the host's reach the member byte for byte, every file of each player's own card stays the same by hash (`--seed-save FILE` puts a real save there first), the filter goes at the title, a member hosts from its slot |
 | `hostdrop` | three players, the crates broken from both sides; the host's link goes for good (`--link` applies): the members told and held within the server's idle time, a member hosts when the wait is up, nobody held, the crates, enemies and poses of those left the same, and a travel of the new host's followed (`notes` say how long each took). `--member-game` and its fellows make the new host one of another disc |
 | `hostback` | the same; the link comes back within the wait, a crate having gone meanwhile in the host's game: still the host at epoch 0, every member given the world again, the same crates |
@@ -50,6 +51,12 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 | `progress2` | the shared progress past the items, in `--level N` (0: Kerwan, 3): a gold weapon and a skill point each way, plain flags each way, a member's scene flag held from the host, the host's held from a member until it leaves the level (to `--level2 N`), then a late member with all of it and no banner |
 | `camera` | camera scripts, `--level 5` (Rilgar's lift) and `--level2 1` (Novalis's camera triggers): the host's lift shown to a member on it and not to one far off, a stick taking it back with no health lost, a member's trigger leaving the host's camera and hero alone (`notes.member_trigger` says whether a trigger fired: where a volume lies is the level's, the scenario stands the member at each trigger moby). Add `--member-game` and its fellows for a party of two discs |
 | `midjoin` | a party under rules in `--level N`, then a late member: under the rules, or with `--late-difficulty ... --late-refused`, no game |
+
+`--hub` runs the server's jar in `all` mode (a hub beside its game server, on 127.0.0.1 at ports of
+the run's own) and gives every game the hub's address. The game server the hub lists is reached
+directly, so there are no proxies: no `--link`, and the scenarios that cut a link fail at once.
+On Linux the server and every proxy share port 7770, each on an address of its own; `--port N` picks
+another when something on the machine holds 7770 on every address.
 
 `--mods-dir DIR` is a folder of packaged mods by id; `--difficulty JSON` gives every game the difficulty
 mod with those settings. The bolts scenario under `--difficulty '{"bolts": 3}'` reports each crate's

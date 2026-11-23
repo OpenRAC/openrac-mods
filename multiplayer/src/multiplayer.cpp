@@ -44,8 +44,13 @@
 // lasts until the game ends, reconnecting when the server goes; the session follows it every tick.
 //
 // Settings (openrac-mod.json):
-//   server  (string, default empty)  The OpenRAC server, host:port; empty or not an address: the
-//           launcher's Multiplayer server (OPENRAC_SERVER), else game.openrac.dev:7770.
+//   server  (string, default empty)  The OpenRAC server or hub, host:port; empty or not an
+//           address: the launcher's Multiplayer server (OPENRAC_SERVER), else
+//           game.openrac.dev:7770. A hub (hub.openrac.dev:7177) gives a game server from its list
+//           (connection.hpp).
+//   region  (string, default empty)  At a hub: the region of its list to play in, as a code, a
+//           label or a name ("US", "USA", "United States"; regions.hpp); empty, or one it does not
+//           list: the first listed.
 //   name    (string, default empty)  The player's name (3 to 16 letters, digits, underscores);
 //           empty or invalid: the launcher's Multiplayer name.
 
@@ -55,6 +60,7 @@
 #include "mod_state.hpp"
 #include "pad_intent.hpp"
 #include "rac2/game.hpp"
+#include "regions.hpp"
 
 namespace mpmod {
 
@@ -501,6 +507,20 @@ void poll() {
         g->session->disconnected();
     }
 
+    // The hub gave a game server (another, after a reconnect): a line in the log.
+    if (std::string via = g->connection->game_server(); via != g->game_server) {
+        g->game_server = via;
+
+        // Only a hub's pick is news; a cleared one is the link closing.
+        if (!via.empty()) {
+            const mp::ListedServer listed = g->connection->game_server_listing();
+            g->mod->info(
+                "multiplayer: the hub at " + g->connection->address() + " gave game server "
+                + mp::server_text(listed.name, listed.region) + " at " + via
+            );
+        }
+    }
+
     // Every message that arrived since the last tick goes to the session.
     for (const mp::Message& m : g->connection->receive()) {
         g->session->handle(m);
@@ -621,6 +641,9 @@ void load(openrac::Mod& mod) {
     g->session = std::make_unique<mp::Session>(
         *g->connection, session_version(), player_name(mod.setting<std::string>("name"))
     );
+    // What a hub is told: the session's hello, and the region to play in.
+    g->connection->set_hello(session_version(), g->session->name());
+    g->connection->set_region(mod.setting<std::string>("region"));
     g->mod = &mod;
     g->game = rac2 ? std::make_unique<Rac2Game>(mod) : std::make_unique<ModGame>(mod);
     g->coop = std::make_unique<mp::Coop>(*g->session, *g->game);
@@ -1122,6 +1145,7 @@ void load(openrac::Mod& mod) {
             );
             // The server keeps parties to one family: this game's, said with each party request.
             g->session->set_family(own.family);
+            g->connection->set_family(own.family);
             g->mods->set_own(std::move(own));
         }
 

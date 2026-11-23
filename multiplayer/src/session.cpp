@@ -594,6 +594,9 @@ void Session::handle(const Message& m) {
             }
 
             break;
+        case Message::Kind::kRegions:
+            // A hub's list is the connection's (it picks a game server before the session's link).
+            break;
     }
 }
 

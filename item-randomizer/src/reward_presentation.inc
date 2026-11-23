@@ -268,6 +268,12 @@ static int64_t moby_location(uint32_t moby) {
     if (OPENRAC_GREF(s_api, uint16_t, moby + 0x34) & 2) {
         return -1;
     }
+    /* Drek's Fleet's CodeBot is a world pickup (class 1428) for an Items-menu location: it shows
+     * its reward like the gadget pickups below, until it is had. */
+    if (cls == 1428 && level == LEVEL_FLEET) {
+        const int row = find_presentation_location(LOC_SPECIAL, LEVEL_FLEET, SPECIAL_CODEBOT);
+        return row >= 0 && !had(row) ? reward_location_id(&rando_locations[row]) : -1;
+    }
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
         /* NPC gifts have no preview before the transaction. Preserve their

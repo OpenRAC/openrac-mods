@@ -97,7 +97,8 @@ Row Weapons::upgrade_row(int item) const {
 }
 
 std::optional<std::uint32_t> Weapons::tint(int item, int level, std::uint32_t tick) const {
-    return weapon_tint_rgb(item, level, tick);
+    // The colours' clock in sixtieths of a second, so they cycle as fast on every disc.
+    return weapon_tint_rgb(item, level, m_view.sixtieths(tick));
 }
 
 }  // namespace ng_plus_plus

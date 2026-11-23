@@ -105,6 +105,12 @@ uint64_t rando_requirement(int difficulty, size_t location) {
         return l->hard | l->soft | BIT(ITEM_HELI_PACK);
     }
 
+    /* Relaxed keeps the conventional route to Rilgar's bouncer, through the Hydrodisplacer. */
+    if (difficulty == DIFFICULTY_RELAXED && l->kind == LOC_FIXED && l->level == LEVEL_RILGAR
+        && l->vanilla.kind == REWARD_PLANET && l->vanilla.value == LEVEL_UMBRIS) {
+        return l->hard | l->soft | BIT(ITEM_HYDRODISPLACER);
+    }
+
     // Expert counts only what a place cannot be done without.
     if (difficulty == DIFFICULTY_EXPERT) {
         return l->hard;
