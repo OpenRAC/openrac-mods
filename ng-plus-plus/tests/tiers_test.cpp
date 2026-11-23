@@ -138,6 +138,15 @@ void test_zodiac_as_ryno() {
     CHECK(price(zodiac, 7, 1'000'000) == 16'000'000);
     CHECK(price(zodiac, 9, 1'000'000) == 25'000'000);
 
+    // Absolute RYNO-level prices whatever the Zodiac's own row says (none, or a cheap one).
+    for (const std::int32_t row : {0, 1'000, 150'000, 1'000'000}) {
+        CHECK(price(zodiac, 1, row) == 6'000'000);
+        CHECK(price(zodiac, 5, row) == 10'000'000);
+        CHECK(price(zodiac, 7, row) == 16'000'000);
+        CHECK(price(zodiac, 9, row) == 25'000'000);
+    }
+    CHECK(price(zodiac, 1, 1'000'000) == price(Kind::Ryno, 1, 1'000'000));
+
     // The three new steps rise, below Alpha; Alpha and up keep the other weapons' tiers'.
     for (int n = 1; n < 4; ++n) {
         CHECK(step_at(zodiac, n)->damage > step_at(zodiac, n - 1)->damage);

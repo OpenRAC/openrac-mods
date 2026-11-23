@@ -49,6 +49,11 @@ inline constexpr std::int32_t kMasteryExp = 6000;
 // others': it levels slower.
 inline constexpr std::int32_t kRynoExpScale = 5;
 
+// The RYNO II's own price, the base of the Zodiac's prices whatever its row says: the Zodiac costs
+// kRynoPriceBase times 6, 10, 16 and 25 (6M, 10M, 16M, 25M) at least, as an arm and a leg like the
+// RYNO II.
+inline constexpr std::int32_t kRynoPriceBase = 1'000'000;
+
 // With no Mega price, the bought steps go from this; a Mega below the floor counts as the floor.
 inline constexpr std::int32_t kPriceLadder = 1'500'000;
 inline constexpr std::int32_t kPriceFloor = 150'000;

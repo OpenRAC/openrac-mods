@@ -27,6 +27,14 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.15
+
+- **The Zodiac costs an arm and a leg, as the RYNO II does.** Its bought steps now use the RYNO II's
+  absolute prices, whatever the Zodiac's own price in the game's table is (0.6.13 and 0.6.14 only
+  multiplied that price, which could come out cheap): Mega Zodiac 6,000,000, Gamma 10,000,000,
+  Epsilon 16,000,000 and Eta 25,000,000 (the RYNO II's 1,000,000 times 6, 10, 16 and 25; a higher
+  table price raises them). The Zodiac's own first purchase is left to the game.
+
 ## What's new in 0.6.14
 
 - **The Zodiac follows the other weapons' shape.** Its path is now Heavy Zodiac (by XP, the RYNO
@@ -247,8 +255,8 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 - **Zodiac** (its path since 0.6.14): first **Heavy Zodiac** by XP, then **Mega Zodiac** bought and
   **Ultra Zodiac** by XP, then Alpha to Omega, on the RYNO II's XP and prices, as it is just as
   overpowered. Each step by XP needs the RYNO II's at the same place, five times the usual, and Mega,
-  Gamma, Epsilon and Eta cost the RYNO II's price times 6, 10, 16 and 25 (6,000,000, 10,000,000,
-  16,000,000 and 25,000,000 on a 1,000,000 price). Alpha to Omega keep the other weapons' damage and
+  Gamma, Epsilon and Eta cost the RYNO II's prices, 6,000,000, 10,000,000, 16,000,000 and
+  25,000,000 (1,000,000 times 6, 10, 16 and 25, whatever the Zodiac's own table price is). Alpha to Omega keep the other weapons' damage and
   ammo (below); the three new steps rise to meet them, and the max ammo gains 1, 2 and 3 rounds,
   then a flat 4 a tier:
 

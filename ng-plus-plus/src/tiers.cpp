@@ -394,8 +394,14 @@ std::int32_t price(Kind kind, int level, std::int32_t mega) {
     }
 
     const std::int32_t floored = mega < kPriceFloor ? kPriceFloor : mega;
-    const std::int32_t base = mega <= 0 ? kPriceLadder : floored;
+    std::int32_t base = mega <= 0 ? kPriceLadder : floored;
     std::int32_t last = mega > 0 ? mega : base;
+
+    // The Zodiac: the RYNO II's absolute prices, never less (its row's own price may be lower).
+    if (kind == Kind::Single) {
+        base = mega <= 0 ? kRynoPriceBase : std::max(base, kRynoPriceBase);
+        last = std::max(last, base);
+    }
     // Alpha came by experience: the first bought step is the ladder's second.
     // The Zodiac's first bought step is its Mega, at the RYNO II's first price.
     int bought = kind == Kind::Two ? 1 : 0;
