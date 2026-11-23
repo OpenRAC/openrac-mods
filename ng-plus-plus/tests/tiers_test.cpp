@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "check.h"
+#include "discs.h"
 #include "extra_enemies.h"
 #include "save_book.h"
 #include "save_tiers.h"
@@ -877,7 +878,26 @@ void test_copy_table() {
     }
 }
 
+// Each disc's addresses and texts as checked against its own code: PAL's vendor state is v1.01's,
+// v2.00's moved; the functions by the port build's names; the texts' ids differ per disc.
+void test_discs() {
+    using namespace ng_plus_plus;
+    const Disc* ntsc = disc_of("ntsc");
+    const Disc* pal = disc_of("pal");
+    const Disc* ntsc2 = disc_of("ntsc2");
+    CHECK(ntsc != nullptr && pal != nullptr && ntsc2 != nullptr && disc_of("jp") == nullptr);
+    CHECK(pal->vendor == 0x0021F240u && ntsc2->vendor == 0x0021F1C0u);
+    CHECK(std::string(pal->banner) == "func_00289730" && std::string(pal->message) == "func_002B1588");
+    CHECK(std::string(ntsc2->banner) == "func_00289840");
+    CHECK(std::string(ntsc2->message) == "func_002B1880");
+    CHECK(ntsc->upgrade_label == 0x325F && pal->upgrade_label == 0x1B2D);
+    CHECK(ntsc2->upgrade_label == 0x30F5);
+    CHECK(ntsc->crystal_trade == 10135 && pal->crystal_trade == 4841);
+    CHECK(ntsc2->moonstone_trade == 4915);
+}
+
 int main() try {
+    test_discs();
     test_kinds();
     test_copy_table();
     test_buy_then_level();

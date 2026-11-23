@@ -111,6 +111,14 @@ public:
     // Returns the level loaded now, -1 at the title screen and in the galaxy map.
     int loaded_level() const { return m_mod.api().loaded_level(); }
 
+    // Returns the disc's text id of the label under an upgrade entry's icon ("Mega").
+    std::int32_t upgrade_label_text() const { return m_disc.upgrade_label; }
+
+    // Returns the disc's text ids of Tabora's crystal and Grelbin's moonstone trades.
+    std::int32_t crystal_trade_text() const { return m_disc.crystal_trade; }
+
+    std::int32_t moonstone_trade_text() const { return m_disc.moonstone_trade; }
+
     // ---- The items ----
 
     // Returns row `index` of the item table.
