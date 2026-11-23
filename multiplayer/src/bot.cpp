@@ -205,6 +205,7 @@ std::string Bot::status() {
       << ",\"driven\":" << parts_.world.driven() << ",\"spawned\":" << parts_.world.spawned()
       << ",\"mobys\":" << parts_.world.mobys() << ",\"bolts\":" << parts_.game.bolts(0)
       << ",\"udp\":" << parts_.connection.udp() << ",\"rtt\":" << session.rtt_ms()
+      << ",\"game_server\":\"" << parts_.connection.game_server() << "\""
       << ",\"joining\":" << parts_.coop.joining() << ",\"synced\":" << parts_.world.synced()
       << ",\"going\":" << parts_.coop.going() << ",\"shielded\":" << parts_.coop.shielded()
       << ",\"wait_kind\":" << static_cast<int>(parts_.coop.wait_kind())

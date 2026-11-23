@@ -1181,6 +1181,9 @@ static int aridia_reward_collected(void) {
 #include "aridia_access.inc"
 
 static int blarg_o2_access_active(void) { return rando_on(); }
+static openrac_gaddr blarg_moby_pool(void) {
+    return (openrac_gaddr)get32(level_byte_at(s_disc->moby_base));
+}
 #include "blarg_access.inc"
 #include "pickup_platforms.inc"
 #include "orxon_access.inc"

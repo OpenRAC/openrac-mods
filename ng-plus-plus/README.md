@@ -10,10 +10,27 @@ Version 0.5.1 makes the Ice Gun a choice (or a fire path for the Meteor Gun), th
 steadily, the Zodiac hurt bosses and the decoy last longer (see "Weapon tuning").
 Version 0.5.2 ties the tiers to your saves exactly as the game's own progress is, gives the RYNO II
 its new path and prices, and makes Clank's sections fair again (see "What's new in 0.5.2").
+Version 0.5.3 makes the PAL and NTSC-U v2.00 discs play as NTSC-U v1.01 does (see "What's new in
+0.5.3").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
+
+## What's new in 0.5.3
+
+- **PAL's vendor.** On the PAL disc the mod looked for the vendor's list at v2.00's address, so the
+  tier entries (and the armor's and the Ship Shack's) never showed and their writes landed in other
+  memory. It now uses PAL's own, checked against the disc's code.
+- **Level-up popups on PAL and v2.00.** The game's level-up popup and message line were looked up
+  under names those builds do not have, so a tier earned by XP only showed the mod's own notice
+  there; they now show the game's popup, naming the tier.
+- **The texts of each disc.** The vendor's "Mega" label under a tier entry and Tabora's and
+  Grelbin's trade lines have other text ids on PAL and v2.00: the tier names and the challenge mode
+  pay now show on those discs too.
+- **PAL's 50 Hz.** PAL's game ticks fifty times a second, so every NG++ time counted in ticks ran a
+  fifth longer there (overdrive, freezes, burns, slows, fields, the Tesla Claw's steady hits, last
+  stand, notices) and its own shot speeds were a fifth slower. They are now in seconds on every disc.
 
 ## What's new in 0.5.2
 

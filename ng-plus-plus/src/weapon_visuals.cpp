@@ -144,7 +144,7 @@ void WeaponVisuals::tick(std::uint32_t tick) {
         const WeaponView weapon = m_weapons.weapon(visual->item);
         const int tier = weapon.has_tier() ? weapon.level : 0;
         const std::optional<MobyLook> look =
-            look_for(*visual, weapon.kind, tier, m_energy, tick);
+            look_for(*visual, weapon.kind, tier, m_energy, m_view.sixtieths(tick));
         const auto drawn = m_drawn.find(moby);
         const bool known = drawn != m_drawn.end() && drawn->second.moby_class == moby_class;
 

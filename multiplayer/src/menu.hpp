@@ -157,6 +157,7 @@ struct PartyPageInput {
     bool direct = false;                   // a Direct connect party: no code, `where` instead
     std::string code;                      // the party's code
     std::string where;                     // a direct party's address ("192.168.1.5:7770")
+    std::string server;                    // the hub's game server ("Kerwan (USA)"), empty for none
     std::string host_level;                // the host's level's name, empty when it is in none
     std::vector<PartyMemberLine> members;  // the host first
     bool go_to_host = false;               // this player can ask to go to the host
@@ -193,11 +194,14 @@ inline std::string link_text(std::int32_t ping_ms, bool udp) {
     return ping + (udp ? " UDP" : " TCP");
 }
 
+// The most characters of the Server line's value: about what a level's name takes on its line.
+constexpr std::size_t kServerValueChars = 22;
+
 // The pause page's item that saves the party (cosave.hpp).
 constexpr const char* kSavePartyLabel = "Save the party";
 
 // The page's lines: out of a party, only that; in one, its code (or where a direct one is), the
-// host's level, a line per member (the host marked, the player's own), then Go to host (a member
+// game server a hub gave, the host's level, a line per member (the host marked, the player's own), then Go to host (a member
 // in the host's level), Party rules and Leave party.
 inline std::vector<PartyLine> party_lines(
     const PartyPageInput& in, Language language = Language::kEnglish
@@ -214,6 +218,12 @@ inline std::vector<PartyLine> party_lines(
         in.direct ? PartyLine{Kind::kInfo, translated("Direct", language), in.where}
                   : PartyLine{Kind::kInfo, translated("Party code", language), in.code}
     );
+
+    // Through a hub, the game server it gave, by its name and region.
+    if (!in.direct && !in.server.empty()) {
+        lines.push_back({Kind::kInfo, translated("Server", language), in.server});
+    }
+
     lines.push_back(
         {Kind::kInfo,
          translated("Host's level", language),

@@ -42,6 +42,8 @@ def row_rule(row: LocationData) -> Rule:
         rule = rule & (HasAll(*extra) | EXPERT)
     if row.name == "Oltanis: the PDA's seller":
         rule = rule & (Has("Heli-Pack") | OptionFilter(Logic, Logic.option_relaxed, "ne"))
+    if row.name == "Rilgar: the bouncer, the coordinates of Umbris":
+        rule = rule & (Has("Hydrodisplacer") | OptionFilter(Logic, Logic.option_relaxed, "ne"))
     return rule
 
 
