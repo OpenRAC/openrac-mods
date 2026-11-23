@@ -375,8 +375,11 @@ void close_socket(socket_t fd) {
 }
 #endif
 
-// A server on the loopback: takes one connection, checks the HELLO, answers with session id 7.
-void the_connection_talks_tcp() {
+// Whether the peer closes `fd` within `ms` (below, with the Direct connect tests).
+bool closed_within(socket_t fd, int ms);
+
+// A listening socket on the loopback at a port of its own; `port` says which.
+socket_t listen_loopback(int& port) {
 #if defined(_WIN32)
     WSADATA wsa;
     WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -387,49 +390,83 @@ void the_connection_talks_tcp() {
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     address.sin_port = 0;
     CHECK(bind(listener, reinterpret_cast<sockaddr*>(&address), sizeof address) == 0);
-    CHECK(listen(listener, 1) == 0);
+    CHECK(listen(listener, 4) == 0);
     socklen_t length = sizeof address;
     getsockname(listener, reinterpret_cast<sockaddr*>(&address), &length);
-    const int port = ntohs(address.sin_port);
+    port = ntohs(address.sin_port);
+    return listener;
+}
 
-    Bytes heard;
-    std::thread server_thread([&] {
-        const socket_t client = accept(listener, nullptr, nullptr);
-        const Bytes expected = mp::hello("v", "Tester");
-        heard.resize(expected.size());
-        std::size_t got = 0;
-
-        // The HELLO may arrive in pieces, so the server reads until all of it is in.
-        while (got < heard.size()) {
-            const auto n = recv(
-                client,
-                reinterpret_cast<char*>(heard.data() + got),
-                static_cast<int>(heard.size() - got),
-                0
-            );
-
-            // A closed or failed read ends the wait.
-            if (n <= 0) {
-                break;
-            }
-            got += static_cast<std::size_t>(n);
-        }
-        const Bytes answer = mp::frame(mp::Writer().u8(0).i32(7).bytes());
-        send(
-            client, reinterpret_cast<const char*>(answer.data()), static_cast<int>(answer.size()), 0
-        );
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        close_socket(client);
-    });
-
-    mp::Connection connection;
-    mp::Session session(connection, "v", "Tester");
-    connection.open("127.0.0.1", port);
-    std::uint32_t generation = 0;
+// Reads `size` bytes into `out` within 5 s; false when the socket closed, failed or kept quiet.
+bool read_exactly(socket_t fd, std::uint8_t* out, std::size_t size) {
+    std::size_t got = 0;
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
 
-    // As the page does each frame: hello on a new connection, then the messages.
-    while (!session.greeted() && std::chrono::steady_clock::now() < until) {
+    // The bytes may arrive in pieces.
+    while (got < size && std::chrono::steady_clock::now() < until) {
+#if defined(_WIN32)
+        WSAPOLLFD p{};
+        p.fd = fd;
+        p.events = POLLIN;
+        const int ready = WSAPoll(&p, 1, 20);
+#else
+        pollfd p{};
+        p.fd = fd;
+        p.events = POLLIN;
+        const int ready = poll(&p, 1, 20);
+#endif
+
+        // Nothing yet: look again.
+        if (ready <= 0) {
+            continue;
+        }
+
+        const auto n =
+            recv(fd, reinterpret_cast<char*>(out + got), static_cast<int>(size - got), 0);
+
+        // Closed or failed.
+        if (n <= 0) {
+            return false;
+        }
+
+        got += static_cast<std::size_t>(n);
+    }
+
+    return got == size;
+}
+
+// Reads one whole frame's body (its length prefix taken off); empty when none came.
+Bytes read_body(socket_t fd) {
+    std::uint8_t prefix[4];
+
+    // No frame: the peer closed or kept quiet.
+    if (!read_exactly(fd, prefix, sizeof prefix)) {
+        return {};
+    }
+
+    const std::size_t length = (std::size_t(prefix[0]) << 24) | (std::size_t(prefix[1]) << 16)
+                               | (std::size_t(prefix[2]) << 8) | std::size_t(prefix[3]);
+    Bytes body(length);
+    return length > 0 && length < mp::kMaxFrameBytes && read_exactly(fd, body.data(), length)
+               ? body
+               : Bytes{};
+}
+
+// Writes `bytes` whole.
+void send_all(socket_t fd, const Bytes& bytes) {
+    send(fd, reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()), 0);
+}
+
+// Pumps a connection and its session as the page does each frame (hello on a new connection,
+// then the messages) until `done` or 8 s.
+bool pump_session(
+    mp::Connection& connection, mp::Session& session, const std::function<bool()>& done
+) {
+    std::uint32_t generation = 0;
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+
+    // Each frame of the game's.
+    while (!done() && std::chrono::steady_clock::now() < until) {
         // Hello goes out once per new connection.
         if (connection.state() == mp::Connection::State::kConnected
             && connection.generation() != generation) {
@@ -444,12 +481,191 @@ void the_connection_talks_tcp() {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    CHECK(session.greeted() && session.id() == 7);
+    return done();
+}
+
+// A game server on the loopback, at a direct address: the link's first connection asks what it
+// is (HELLO, answered with an offer without the hub's bit) and closes; the session's own comes
+// next, its HELLO answered with session id 7.
+void the_connection_talks_tcp() {
+    int port = 0;
+    const socket_t listener = listen_loopback(port);
+    Bytes probed;
+    Bytes heard;
+    bool probe_closed = false;
+    std::thread server_thread([&] {
+        // What the link asks first: HELLO with the session's version and name.
+        const socket_t probe = accept(listener, nullptr, nullptr);
+        probed = read_body(probe);
+        send_all(probe, mp::hello_reply(3));
+        send_all(probe, mp::udp_offer(1, 0, mp::kFeatureKick | mp::kFeatureResume));
+        probe_closed = closed_within(probe, 5000);
+        close_socket(probe);
+
+        // The session's connection.
+        const socket_t client = accept(listener, nullptr, nullptr);
+        heard = read_body(client);
+        send_all(client, mp::hello_reply(7));
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        close_socket(client);
+    });
+
+    mp::Connection connection;
+    connection.set_hello("v", "Tester");
+    mp::Session session(connection, "v", "Tester");
+    connection.open("127.0.0.1", port);
+    CHECK(pump_session(connection, session, [&] { return session.greeted(); }));
+    CHECK(session.id() == 7);
     server_thread.join();
-    CHECK(heard == mp::hello("v", "Tester"));
+
+    // The first connection said HELLO and closed; the second is the session's, as ever.
+    const Bytes expected_probe = mp::hello("v", "Tester", 0);
+    CHECK(probed == Bytes(expected_probe.begin() + 4, expected_probe.end()));
+    CHECK(probe_closed);
+    const Bytes expected = mp::hello("v", "Tester");
+    CHECK(heard == Bytes(expected.begin() + 4, expected.end()));
+    CHECK(connection.game_server().empty());
     connection.close();
     CHECK(connection.state() == mp::Connection::State::kIdle);
     close_socket(listener);
+}
+
+// A hub on the loopback: it greets with the hub's offer, lists two game servers, and is never sent
+// anything past REGIONS. The link plays on the one of the region asked for, the hub's own host.
+void the_connection_asks_the_hub() {
+    int hub_port = 0;
+    int game_port = 0;
+    const socket_t hub = listen_loopback(hub_port);
+    const socket_t game = listen_loopback(game_port);
+    mp::Request hello_seen;
+    Bytes asked;
+    bool nothing_more = false;
+    Bytes heard;
+    std::thread hub_thread([&] {
+        const socket_t client = accept(hub, nullptr, nullptr);
+        hello_seen = mp::decode_request(read_body(client));
+        send_all(client, mp::hello_reply(1));
+        send_all(client, mp::udp_offer(0, 0, mp::kFeatureRegions | mp::kFeatureServers));
+        asked = read_body(client);
+        // Europe first, at a port nothing listens on; Local, the region asked for, second.
+        send_all(client, mp::regions_reply({{"Europe", "", 1, 3}, {"Local", "", game_port, 0}}));
+        // A PARTY (or anything else) here would close the hub's connection: nothing more comes.
+        nothing_more = read_body(client).empty();
+        close_socket(client);
+    });
+    std::thread game_thread([&] {
+        // The game server's: a plain one, which the link does not ask what it is.
+        const socket_t client = accept(game, nullptr, nullptr);
+        heard = read_body(client);
+        send_all(client, mp::hello_reply(9));
+        send_all(client, mp::udp_offer(5, 0, mp::kFeatureKick));
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        close_socket(client);
+    });
+
+    mp::Connection connection;
+    connection.set_hello("v", "Tester");
+    connection.set_family("rac2-pal-1");
+    connection.set_region("local");
+    mp::Session session(connection, "v", "Tester");
+    connection.open("127.0.0.1", hub_port);
+    CHECK(pump_session(connection, session, [&] { return session.greeted(); }));
+    CHECK(session.id() == 9);
+    CHECK(connection.game_server() == "127.0.0.1:" + std::to_string(game_port));
+    CHECK(connection.address() == "127.0.0.1:" + std::to_string(hub_port));
+    hub_thread.join();
+    game_thread.join();
+
+    // The hub heard HELLO and REGIONS with the family; the game server the session's HELLO.
+    CHECK(hello_seen.kind == mp::Request::Kind::kHello && hello_seen.text == "Tester");
+    const Bytes expected_ask = mp::regions("rac2-pal-1");
+    CHECK(asked == Bytes(expected_ask.begin() + 4, expected_ask.end()));
+    CHECK(nothing_more);
+    const Bytes expected = mp::hello("v", "Tester");
+    CHECK(heard == Bytes(expected.begin() + 4, expected.end()));
+    connection.close();
+    CHECK(connection.game_server().empty());
+    close_socket(hub);
+    close_socket(game);
+}
+
+// A hub with no game server listed: no connection for the session, the link unreachable.
+void the_connection_waits_for_a_listed_server() {
+    int hub_port = 0;
+    const socket_t hub = listen_loopback(hub_port);
+    std::thread hub_thread([&] {
+        const socket_t client = accept(hub, nullptr, nullptr);
+        read_body(client);
+        send_all(client, mp::hello_reply(1));
+        send_all(client, mp::udp_offer(0, 0, mp::kFeatureRegions | mp::kFeatureServers));
+        read_body(client);
+        send_all(client, mp::regions_reply({}));
+        closed_within(client, 3000);
+        close_socket(client);
+    });
+
+    mp::Connection connection;
+    connection.open("127.0.0.1", hub_port);
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+
+    // Until the hub's empty list has been read.
+    while (connection.state() != mp::Connection::State::kUnreachable
+           && std::chrono::steady_clock::now() < until) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    CHECK(connection.state() == mp::Connection::State::kUnreachable);
+    CHECK(connection.generation() == 0 && connection.game_server().empty());
+    connection.close();
+    hub_thread.join();
+    close_socket(hub);
+}
+
+// REGIONS, its answer and the choice among the listed game servers.
+void the_hub_list_reads() {
+    // REGIONS: the id, then the family.
+    CHECK(mp::regions("rac1-60-1") == mp::frame(mp::Writer().u8(8).str("rac1-60-1").bytes()));
+
+    // The hub's answer, as its Region.serialize writes it, decodes back.
+    const Bytes reply =
+        mp::regions_reply({{"Europe", "", 7770, 2}, {"US", "us.example.org", 7771, 0}});
+    mp::Message m;
+    CHECK(mp::decode(Bytes(reply.begin() + 4, reply.end()), m));
+    CHECK(m.kind == mp::Message::Kind::kRegions && m.servers.size() == 2);
+    CHECK(m.servers[0].region == "Europe" && m.servers[0].host.empty());
+    CHECK(m.servers[0].port == 7770 && m.servers[0].players == 2);
+    CHECK(m.servers[1].host == "us.example.org" && m.servers[1].port == 7771);
+    // One cut short is not read.
+    CHECK(!mp::decode(Bytes(reply.begin() + 4, reply.end() - 2), m));
+    // An empty list.
+    const Bytes none = mp::regions_reply({});
+    CHECK(mp::decode(Bytes(none.begin() + 4, none.end()), m) && m.servers.empty());
+
+    // The hub's offer has the hub's bit; a game server's has not.
+    const Bytes offer = mp::udp_offer(0, 0, mp::kFeatureRegions | mp::kFeatureServers);
+    CHECK(mp::decode(Bytes(offer.begin() + 4, offer.end()), m));
+    CHECK(m.kind == mp::Message::Kind::kUdp && (m.features & mp::kFeatureServers) != 0);
+    CHECK(mp::kFeatureServers == 64 && mp::kFeatureRegions == 16);
+    CHECK(static_cast<int>(mp::PacketId::kRegions) == 8);
+    CHECK(static_cast<int>(mp::PacketId::kServers) == 12);
+
+    // The first listed, the hub's host for an empty one.
+    const std::vector<mp::ListedServer> list{
+        {"Europe", "", 7770, 2}, {"US", "us.example.org", 7771, 0}, {"Asia", "", 0, 0}
+    };
+    std::string host;
+    int port = 0;
+    CHECK(mp::pick_server(list, "", "hub.example.org", host, port));
+    CHECK(host == "hub.example.org" && port == 7770);
+    // The region asked for, in any case.
+    CHECK(mp::pick_server(list, "us", "hub.example.org", host, port));
+    CHECK(host == "us.example.org" && port == 7771);
+    // A region the hub does not list: the first; one with no port is no choice.
+    CHECK(mp::pick_server(list, "Mars", "hub.example.org", host, port) && port == 7770);
+    CHECK(mp::pick_server(list, "asia", "hub.example.org", host, port) && port == 7770);
+    // Nothing to play on.
+    CHECK(!mp::pick_server({}, "", "hub.example.org", host, port));
+    CHECK(!mp::pick_server({{"Asia", "", 0, 0}}, "", "hub.example.org", host, port));
 }
 
 // One player for the Direct connect tests: a connection, its session, and what came in, pumped
@@ -1638,6 +1854,9 @@ int main() {
     match_finding_and_the_clock();
     names_and_addresses();
     the_connection_talks_tcp();
+    the_connection_asks_the_hub();
+    the_connection_waits_for_a_listed_server();
+    the_hub_list_reads();
     host_frames_are_the_servers_bytes();
     direct_connect_plays_a_party();
     the_host_leaving_ends_hosting();
