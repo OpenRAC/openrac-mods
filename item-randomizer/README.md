@@ -38,13 +38,13 @@ and start a **new game**.
 | Shuffle gold-weapon cases | off | RAC1 only: shuffle ten gold upgrades and their cases; open the Novalis shop without New Game+ |
 | Shuffle infobots | on | Pickup Infobots and NPC coordinate rewards join the pool in new RAC1 seeds |
 | Show what the vendor gives | on | A line above the picture says what buying a weapon at the vendor gives you. Off: buying is a surprise |
-| Keep the starting gear | on | Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too |
+| Starting weapons | Vanilla | RAC1: **Vanilla**: start with the Bomb Glove. **Shuffled**: shuffle the starting location, with no guaranteed weapon. **Non-Broken**: one random normal or gold weapon besides the R.Y.N.O. **Unrestricted**: any one normal or gold weapon. See [Starting weapons](#starting-weapons) |
 | Spoiler log | on | Writes where everything is, and a way through, to the data folder |
 
 The game's log names the seed's code at each start (`seed 4ZRJ-6HB7-H6Q5 (new), standard`): share
 that code. All placement settings are in it. New Game+ mode, the spoiler log and the vendor's line are selected separately.
 
-**The data folder** holds `seed.txt` (the seed a blank setting rolled) and `spoiler-<code>.txt`, one
+**The data folder** holds `seed.txt` (the seed a blank setting rolled) and `spoiler-<code>.txt` (a code's `:` written `_`), one
 per seed. It is the folder OpenRAC gives each mod, `mod-data/item-randomizer` beside the memory
 cards, never beside the game:
 
@@ -462,6 +462,25 @@ The trigger press is consumed until release so the default does not also pause t
 
 On Novalis, the ship is available before completing its normal quest. The quest’s
 randomized reward remains available separately; this grants no extra coordinates.
+
+### Starting weapons
+
+**Starting weapons** (RAC1 only) replaces the former **Keep the starting gear** switch:
+**Vanilla** is its on and **Shuffled** its off. A setting saved for the old switch is not read:
+the choice starts at Vanilla.
+
+- **Vanilla**: start with the Bomb Glove, as the game does.
+- **Shuffled**: the starting location joins the shuffle, with no guaranteed weapon.
+- **Non-Broken**: start with one random normal or gold weapon besides the R.Y.N.O.
+- **Unrestricted**: start with any one normal or gold weapon.
+
+With Non-Broken and Unrestricted the weapon is drawn from the seed, as the Archipelago world's
+`starting_weapons` does: the start gives it, and the place that gives that weapon in the game
+gives the Bomb Glove in its place (for a gold weapon, its case when gold cases are shuffled,
+else its base weapon's place). Gold weapons can be drawn even when gold cases are not shuffled;
+receiving one gives its base weapon and gold upgrade. The spoiler log names the weapon. Their seed
+codes add an `N:` (Non-Broken) or `U:` (Unrestricted) prefix, after `R:` for a random starting
+planet; Vanilla and Shuffled codes are unchanged.
 
 ### Random starting planet
 

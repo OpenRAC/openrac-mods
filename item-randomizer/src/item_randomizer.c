@@ -58,7 +58,8 @@
  *   - shuffle_gold_bolts: gold bolts join the pool, so one may hold a gadget and a gadget's place
  *     may hold a gold bolt;
  *   - shuffle_infobots: the planets' coordinates the infobots give join the pool;
- *   - keep_starting_gear: the Bomb Glove stays the start's, as in the game; off shuffles it too;
+ *   - starting_weapons: vanilla keeps the start's Bomb Glove, as in the game; shuffled shuffles
+ *     it too; non_broken and unrestricted give the start a weapon drawn from the seed (rando.h);
  *   - spoiler_log: write where everything is, and a way through, to the mod's data folder;
  *   - vendor_hints: the line above the picture names what a vendor slot holds.
  *
@@ -2027,6 +2028,10 @@ static void write_files(int source) {
         const size_t need = rando_spoiler(&s_plan, MOD_VERSION, text, sizeof text);
         char name[64];
         snprintf(name, sizeof name, "spoiler-%s.txt", s_code);
+        // A code's prefixes (R:, N:, U:) end in a colon, which Windows file names cannot hold.
+        for (char* p = name; *p != 0; ++p) {
+            if (*p == ':') *p = '_';
+        }
         rando_join(path, sizeof path, dir, name);
 
         // Written, and not cut short for want of room.
@@ -2235,12 +2240,13 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_gold_bolts"),
         api->setting_bool(mod, "shuffle_infobots"),
         api->setting_bool(mod, "shuffle_vendor"),
-        api->setting_bool(mod, "keep_starting_gear"),
+        1, /* the start kept unless starting_weapons names another choice */
         api->setting_string(mod, "difficulty"),
         api->setting_bool(mod, "shuffle_gold_weapons"),
         reward_save_host(api) != NULL,
         api->setting_bool(mod, "shuffle_items"),
         api->setting_bool(mod, "random_starting_planet"),
+        api->setting_string(mod, "starting_weapons"),
     };
     rando_settings settings;
     const int source =

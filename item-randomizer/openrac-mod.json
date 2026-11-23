@@ -2,7 +2,7 @@
   "format": 2,
   "id": "item-randomizer",
   "name": "Item randomizer",
-  "version": "2.6.16",
+  "version": "2.6.17",
   "author": "Keros",
   "description": "Shuffles what the game gives out (Ratchet & Clank, and Going Commando): the gadgets and weapons from NPCs and pickups, the vendor's weapons, the gold bolts and the infobots' coordinates, so each seed is a new route through the game. Every seed can be finished: what you need is only ever placed where you can get it without it. Share a seed's code and a friend plays the same game. Each seed writes a spoiler log to the mod's data folder. A save made with a seed belongs to that seed.",
   "license": "GPL-3.0-or-later",
@@ -205,11 +205,29 @@
       ]
     },
     {
-      "key": "keep_starting_gear",
-      "name": "Keep the starting gear",
-      "type": "bool",
-      "default": true,
-      "description": "Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too.",
+      "key": "starting_weapons",
+      "name": "Starting weapons",
+      "type": "choice",
+      "default": "vanilla",
+      "choices": [
+        {
+          "value": "vanilla",
+          "name": "Vanilla"
+        },
+        {
+          "value": "shuffled",
+          "name": "Shuffled"
+        },
+        {
+          "value": "non_broken",
+          "name": "Non-Broken"
+        },
+        {
+          "value": "unrestricted",
+          "name": "Unrestricted"
+        }
+      ],
+      "description": "Vanilla: start with the Bomb Glove, as the game does. Shuffled: shuffle the starting location, with no guaranteed weapon. Non-Broken: start with one random normal or gold weapon besides the R.Y.N.O. Unrestricted: start with any one normal or gold weapon. With Non-Broken and Unrestricted, the place that gives that weapon in the game gives the Bomb Glove instead, and gold weapons can be drawn even when gold cases are not shuffled. Seed codes carry the choice (N: or U: prefix).",
       "games": [
         "rac1"
       ]
