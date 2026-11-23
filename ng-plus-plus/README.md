@@ -27,6 +27,19 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.13
+
+- **Every Zodiac kill earns it XP again.** The reach's kills were marked a tick ahead of the clock
+  that read the marks, so nearly all of them (and the pulse's kills of enemies that had just come
+  out) kept whatever weapon hit the enemy before, or none. Now the pulse's vaporized kills and the
+  ones its owner's explosion finishes, and the reach's vaporized, owner and drained kills all name
+  the Zodiac before the game's award reads it. An enemy the reach drains keeps the Zodiac's credit
+  until its own death, unless another weapon hits it meanwhile; that weapon then gets the kill.
+- **The Zodiac levels as slowly as the RYNO II.** It is an overpowered weapon, so each of its XP
+  steps now needs what the RYNO II's step at the same place needs (Alpha 37,500 XP up to Omega
+  150,000), and its bought tiers cost the RYNO II's prices for the same tiers (see the table under
+  "Tiers").
+
 ## What's new in 0.6.12
 
 The Zodiac keeps vaporizing enemies and earning XP after a big fight. Its reach (the enemies the
@@ -217,6 +230,21 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   their last version is bought and the game has no XP level-up after it, so Alpha comes by XP:
   a full bar (6,000 XP) levels the weapon up to Alpha with the game's level-up popup, then Beta
   by XP, Gamma bought, and so on as the other weapons.
+- **Zodiac** (since 0.6.13): the same steps, but on the RYNO II's XP and prices, as it is just as
+  overpowered. Each step by XP needs the RYNO II's at the same place (Heavy's for Alpha), five times
+  the usual, and Gamma, Epsilon and Eta cost its own price times 10, 16 and 25, as the RYNO II's do
+  (10,000,000, 16,000,000 and 25,000,000 on a 1,000,000 price). Damage and ammo stay as below:
+
+  | Step | How | Price | XP |
+  |---|---|---|---|
+  | Alpha | level up | | 37,500 |
+  | Beta | level up | | 50,000 |
+  | Gamma | buy | x10 | |
+  | Delta | level up | | 75,000 |
+  | Epsilon | buy | x16 | |
+  | Zeta | level up | | 100,000 |
+  | Eta | buy | x25 | |
+  | Omega | level up | | 150,000 |
 - **Decoy Glove**: the game gives XP to the weapon that landed the killing hit, and the decoy deals
   no damage (it only draws fire), so it can never earn XP. All its tiers are bought instead, each
   for sale as soon as you buy the one before: Alpha, Gamma, Epsilon and Eta at the usual prices,

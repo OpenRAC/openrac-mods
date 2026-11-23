@@ -73,7 +73,7 @@ void test_buy_then_level() {
 // Checks that bought last versions need mastering first.
 void test_mastery() {
     // Alpha of a two-version weapon and the Zodiac comes by experience: a full bar levels up.
-    for (const Kind kind : {Kind::Two, Kind::Single}) {
+    for (const Kind kind : {Kind::Two}) {
         CHECK(step_at(kind, 0)->how == How::Exp);
         CHECK(!can_buy(kind, 0, true, 1'000'000));
         CHECK(!exp_reached(kind, 0, true, kMasteryExp - 1));
@@ -87,6 +87,38 @@ void test_mastery() {
         CHECK(price(kind, 0, 0) == 0);
     }
     CHECK(can_buy(Kind::Zapper, 0, true, 0));  // V2 came by experience
+}
+
+// 0.6.13: the Zodiac levels on the RYNO II's experience: each step by experience needs what the
+// RYNO II's step at the same place does (Heavy's for Alpha, then Beta to Omega), five times the
+// usual; its bought tiers cost the RYNO II's prices of the same tiers.
+void test_zodiac_as_ryno() {
+    const Kind zodiac = Kind::Single;
+    CHECK(step_at(zodiac, 0)->how == How::Exp);
+    CHECK(std::string(step_at(zodiac, 0)->name) == "Alpha");
+    CHECK(!exp_reached(zodiac, 0, true, 37'499));
+    CHECK(exp_reached(zodiac, 0, true, 37'500));
+    CHECK(exp_goal(zodiac, 0) == exp_goal(Kind::Ryno, 0));  // Heavy RYNO II's
+    CHECK(exp_goal(zodiac, 1) == exp_goal(Kind::Ryno, 2));  // Beta: 50,000
+    CHECK(exp_goal(zodiac, 1) == 50'000);
+    CHECK(exp_goal(zodiac, 3) == exp_goal(Kind::Ryno, 4));  // Delta: 75,000
+    CHECK(exp_goal(zodiac, 5) == exp_goal(Kind::Ryno, 6));  // Zeta: 100,000
+    CHECK(exp_goal(zodiac, 7) == exp_goal(Kind::Ryno, 8));  // Omega: 150,000
+    CHECK(exp_goal(zodiac, 7) == 150'000);
+    CHECK(!exp_reached(zodiac, 1, true, 49'999));
+    CHECK(exp_reached(zodiac, 1, true, 50'000));
+
+    // Gamma, Epsilon and Eta: for sale once the step before is reached by experience.
+    CHECK(can_buy(zodiac, 2, true, 0));
+    CHECK(!can_buy(zodiac, 3, true, 1'000'000));
+    CHECK(price(zodiac, 0, 1'000'000) == 0);
+    CHECK(price(zodiac, 2, 1'000'000) == price(Kind::Ryno, 3, 1'000'000));  // 10,000,000
+    CHECK(price(zodiac, 4, 1'000'000) == price(Kind::Ryno, 5, 1'000'000));  // 16,000,000
+    CHECK(price(zodiac, 6, 1'000'000) == price(Kind::Ryno, 7, 1'000'000));  // 25,000,000
+    CHECK(price(zodiac, 6, 1'000'000) == 25'000'000);
+
+    // Its damage and ammo stay the other weapons' tiers'.
+    CHECK(step_at(zodiac, 7)->damage == step_at(Kind::Two, 7)->damage);
 }
 
 // Checks that the Decoy Glove buys every tier, none waiting on experience, the bar full, on the
@@ -989,6 +1021,7 @@ int main() try {
     test_copy_table();
     test_buy_then_level();
     test_mastery();
+    test_zodiac_as_ryno();
     test_no_experience();
     test_naming();
     test_sheepinator();

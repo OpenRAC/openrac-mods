@@ -42,6 +42,23 @@ constexpr Step kMasterySteps[kTiers] = {
 // clang-format on
 
 // clang-format off: one step per row, as kTierSteps.
+// 0.6.13: the Zodiac's eight tiers (Kind::Single), as kMasterySteps but on the RYNO II's experience:
+// each step by experience the RYNO II's at the same place on its path (Heavy's 7,500 for Alpha, then
+// Beta's to Omega's, the +25% goals of 0.5.2), times kRynoExpScale (exp_scale), and its mastery
+// after a purchase the RYNO II's too. An overpowered weapon levels as slowly as the RYNO II.
+constexpr Step kZodiacSteps[kTiers] = {
+    {"Alpha",   How::Exp, 7'500,  1.50f, 1.10f, Tint::Lime},
+    {"Beta",    How::Exp, 10'000, 2.00f, 1.20f, Tint::Cyan},
+    {"Gamma",   How::Buy, 0,      2.50f, 1.30f, Tint::Emerald},
+    {"Delta",   How::Exp, 15'000, 3.00f, 1.40f, Tint::Teal},
+    {"Epsilon", How::Buy, 0,      3.75f, 1.50f, Tint::Violet},
+    {"Zeta",    How::Exp, 20'000, 4.50f, 1.60f, Tint::Magenta},
+    {"Eta",     How::Buy, 0,      5.50f, 1.80f, Tint::Crimson},
+    {"Omega",   How::Exp, 30'000, 7.00f, 2.00f, Tint::Prismatic},
+};
+// clang-format on
+
+// clang-format off: one step per row, as kTierSteps.
 // The eight tiers of a weapon that never earns experience (Kind::NoExp): all bought, the rest as
 // kTierSteps.
 constexpr Step kBoughtSteps[kTiers] = {
@@ -187,9 +204,10 @@ std::int32_t round_price(double x) {
     return static_cast<std::int32_t>(units * static_cast<std::int64_t>(unit));
 }
 
-// Returns the experience goals' multiplier of `kind`: kRynoExpScale for the RYNO II, else 1.
+// Returns the experience goals' multiplier of `kind`: kRynoExpScale for the RYNO II and (0.6.13) the
+// Zodiac, else 1.
 std::int32_t exp_scale(Kind kind) {
-    return kind == Kind::Ryno ? kRynoExpScale : 1;
+    return kind == Kind::Ryno || kind == Kind::Single ? kRynoExpScale : 1;
 }
 
 // Returns whether the version before the step at `level` was bought, so needs mastering. Never for
@@ -303,7 +321,12 @@ const Step* step_at(Kind kind, int level) {
         return &kRynoSteps[level];
     }
 
-    if (kind == Kind::Two || kind == Kind::Single) {
+    // The Zodiac's on the RYNO II's experience (0.6.13).
+    if (kind == Kind::Single) {
+        return &kZodiacSteps[level];
+    }
+
+    if (kind == Kind::Two) {
         return &kMasterySteps[level];
     }
 
@@ -373,9 +396,11 @@ std::int32_t price(Kind kind, int level, std::int32_t mega) {
             continue;
         }
 
+        // The Zodiac (0.6.13) on the RYNO II's ladder too: its Gamma, Epsilon and Eta at the
+        // RYNO II's prices of those tiers.
         const float times = kind == Kind::NoExp ? kPriceEvery[n]
-                            : kind == Kind::Ryno ? kRynoPriceTimes[bought]
-                                                 : kPriceTimes[bought];
+                            : kind == Kind::Ryno || kind == Kind::Single ? kRynoPriceTimes[bought]
+                                                                         : kPriceTimes[bought];
         ++bought;
         std::int32_t next = round_price(static_cast<double>(base) * times);
 
