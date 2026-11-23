@@ -27,6 +27,14 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.11
+
+Zodiac experience no longer stops at the higher tiers. The fields, blasts and chains NG++ posts
+for a weapon after the shot is gone were credited to whatever weapon was in hand when the enemy
+died, so a kill from the Zodiac's Omega fields (and from the decoy's, sheep's, shield's, Visibomb's,
+Gravity Bomb's, Lava Gun's and Tesla Claw's perk hits) earned nothing for the weapon that caused it.
+Now every such hit marks its victim with its own weapon, and the kill is credited to it.
+
 ## What's new in 0.6.10
 
 The Zodiac's max ammo grows by exactly 4 rounds with each tier (Alpha +4, Beta +8, up to Omega +32)

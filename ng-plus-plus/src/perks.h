@@ -161,6 +161,7 @@ private:
         int fan = 0;             // Not every enemy within it: the `fan` nearest only.
         int blast_item = -1;     // The game's blast there in this weapon's look (1.29), -1 none.
         int ignite_tier = 0;     // The fire path's: it sets what it hits on fire at this tier.
+        int item = -1;           // The weapon whose hit it is, for the kill's experience (-1: blast_item's).
     };
 
     // An enemy the fire path's Lava Gun set burning.
@@ -181,6 +182,7 @@ private:
         float damage = 0.0f;
         std::uint32_t until = 0;
         std::uint32_t next = 0;
+        int item = -1;  // The weapon whose hit left it, for the kill's experience.
     };
 
     // A weapon's moby the perks watch (a decoy, a sheep, the shield, the Visibomb's missile, the
@@ -260,6 +262,7 @@ private:
     ZodiacCredit* m_credit = nullptr;  // The Zodiac's kill marks, or none.
     float m_claw_share = 1.0f;  // The Tesla Claw's hits' share of the game's (set_claw_share).
     int m_item_now = -1;        // The weapon whose hit's perks are being dealt.
+    int m_post_item = -1;       // The weapon a later post (field, blast, pulse) is for, or -1.
     int m_posted = 0;           // Hits posted since the last summary.
     std::uint32_t m_summary_tick = 0;
     MobyMaterialFn m_material = nullptr;

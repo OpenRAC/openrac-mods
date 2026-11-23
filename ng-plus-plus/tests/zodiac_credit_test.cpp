@@ -78,9 +78,67 @@ void test_once_and_prune() {
     CHECK(credit.size() == 1u);
 }
 
+// 0.6.11: a Zodiac field's kill. The field's hits are posted later from a copy of the last request,
+// which names the weapon in hand (the Pulse Rifle here); each pulse's post marks the victim for the
+// Zodiac, so the kill on any pulse, long after the gun's own pulse window, is the Zodiac's.
+void test_field_kill() {
+    ZodiacCredit credit;
+    constexpr std::uint32_t kPulse = 15;  // kFieldPulseTicks.
+
+    // A field pulsing for 3 s (180 ticks): the mark follows each pulse.
+    for (std::uint32_t tick = 1000; tick < 1180; tick += kPulse) {
+        credit.mark(kEnemy, tick, kZodiac, 0);
+        credit.prune(tick);
+    }
+
+    std::uint8_t weapon = kPulseRifle;
+    CHECK(credit_zodiac(credit, kEnemy, 1180 - kPulse + 2, weapon));
+    CHECK((weapon) == (kZodiac));
+}
+
+// An explosion's kill: another weapon's blast posted later is credited to that weapon, not the one
+// in hand, and the Zodiac's mark on the same enemy is replaced by it.
+void test_explosion_kill() {
+    ZodiacCredit credit;
+    constexpr int kDecoy = 17;
+    std::uint8_t weapon = kZodiac;  // The weapon in hand when the blast went off.
+    credit.mark(kEnemy, 300, kDecoy, 0);
+    CHECK(credit_zodiac(credit, kEnemy, 301, weapon));
+    CHECK((weapon) == (kDecoy));
+
+    // A Zodiac mark, then a blast's: the later names the blast's weapon.
+    weapon = kPulseRifle;
+    credit.mark(kEnemy, 400, kZodiac, 0);
+    credit.mark(kEnemy, 402, kDecoy, 0);
+    CHECK(credit_zodiac(credit, kEnemy, 403, weapon));
+    CHECK((weapon) == (kDecoy));
+}
+
+// An expired mark credits nothing, whatever the item, and a longer stated mark stands longer.
+void test_expired_mark() {
+    ZodiacCredit credit;
+    std::uint8_t weapon = kPulseRifle;
+    credit.mark(kEnemy, 10, kZodiac, 0);
+    CHECK(!credit_zodiac(credit, kEnemy, 10 + kZodiacCreditTicks + 1, weapon));
+    CHECK((weapon) == (kPulseRifle));
+
+    credit.mark(kEnemy, 10, 17, 0);
+    CHECK(!credit_zodiac(credit, kEnemy, 10 + kZodiacCreditTicks + 1, weapon));
+    CHECK((weapon) == (kPulseRifle));
+
+    credit.mark(kEnemy, 10, kZodiac, 100);
+    CHECK(credit.marked(kEnemy, 110));
+    CHECK(!credit.marked(kEnemy, 111));
+    CHECK(credit_zodiac(credit, kEnemy, 60, weapon));
+    CHECK((weapon) == (kZodiac));
+}
+
 }  // namespace
 
 int main() {
+    test_field_kill();
+    test_explosion_kill();
+    test_expired_mark();
     test_pulse_kill();
     test_reach_kill();
     test_other_weapon_unchanged();

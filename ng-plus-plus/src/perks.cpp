@@ -134,6 +134,14 @@ bool Perks::post(std::uint32_t target, float damage) {
     ++m_posted;
     const openrac::Memory memory = m_view.memory();
 
+    // The kill is the weapon's whose perk this is: the game names the weapon in hand for a hit
+    // posted later, so the victim is marked and the death recorded under the right item.
+    const int credit_item = m_item_now >= 0 ? m_item_now : m_post_item;
+
+    if (m_credit != nullptr && credit_item >= 0) {
+        m_credit->mark(target, m_tick, credit_item, 0);
+    }
+
     // Inside a hit: its own request, as the game posts one request to several victims.
     if (m_request != 0) {
         const auto before = memory.read<float>(m_request + kHitDamage);
@@ -481,7 +489,8 @@ void Perks::apply(const HitPerk& perk, const ScannedMoby& victim, float damage, 
                 perk.field_radius,
                 damage * perk.field_share,
                 m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.field_ticks)),
-                m_tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks))
+                m_tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks)),
+                m_item_now
             }
         );
     }
@@ -650,7 +659,9 @@ void Perks::burn() {
         // A pulse of the burn.
         if (m_tick >= b.next && m_budget > 0) {
             b.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kBurnPulseTicks));
+            m_post_item = kLavaGun;
             post(moby, b.pulse);
+            m_post_item = -1;
         }
 
         ++it;
@@ -729,6 +740,7 @@ void Perks::death(std::uint32_t moby) {
                 f.last_hit * ice.shatter_share * 4.0f;  // A shard is a burst of a stream.
             later.skip = moby;
             later.freeze_tier = ice.shatter_freezes ? f.tier : 0;
+            later.item = kLavaGun;
             later.when = m_tick + 1;
             m_later.push_back(later);
         }
@@ -756,6 +768,7 @@ void Perks::death(std::uint32_t moby) {
             later.skip = moby;
             later.when = m_tick + 1;
             later.ignite_tier = b.tier;
+            later.item = kLavaGun;
             m_later.push_back(later);
         }
     }
@@ -867,12 +880,14 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
         // As the game's pulse: 100 health or less dies, more loses the pulse's drain.
         const TargetFacts facts = m_scan.facts(moby.address);
         const float hit = facts.health <= 100.0f ? facts.health + 1.0f : hit_more;
-        // The kill is the Zodiac's: marked first, since the copied hit names an earlier weapon.
-        if (m_credit != nullptr) {
-            m_credit->mark(moby.address, m_tick);
-        }
+        // The kill is the Zodiac's: post() marks it first, since the copied hit names an earlier
+        // weapon.
+        const int before = m_post_item;
+        m_post_item = kZodiac;
+        const bool posted = post(moby.address, hit);
+        m_post_item = before;
 
-        if (!post(moby.address, hit)) {
+        if (!posted) {
             continue;
         }
 
@@ -925,7 +940,10 @@ bool Perks::strike(std::uint32_t target, int item) {
     const float last = item >= 0 && item < kItems ? m_last_damage[static_cast<std::size_t>(item)]
                                                   : 0.0f;
     const float damage = last > 0.0f ? last : m_reference;
-    return active() && damage > 0.0f && post(target, damage);
+    m_post_item = item;
+    const bool posted = active() && damage > 0.0f && post(target, damage);
+    m_post_item = -1;
+    return posted;
 }
 
 bool Perks::burst_later(const std::array<float, 3>& at, float radius, float share) {
@@ -969,6 +987,7 @@ void Perks::watch() {
             // Epsilon, eight and a second pull at Omega.
             if (item == 42 && stage != Stage::None && base > 0.0f) {
                 m_later.push_back(Later{moby.position, 9.0f, base * 0.5f, 0, 0, m_tick + 1, 0});
+                m_later.back().item = item;
 
                 // With 1.29 the mini bombs and the second pull are the game's own (shots.cpp).
                 if (stage >= Stage::Epsilon && (m_shots == nullptr || !m_shots->active())) {
@@ -982,11 +1001,13 @@ void Perks::watch() {
                         at[0] += 5.0f * std::cos(angle);
                         at[1] += 5.0f * std::sin(angle);
                         m_later.push_back(Later{at, 4.0f, base * 0.5f, 0, 0, m_tick + 20, 0});
+                        m_later.back().item = item;
                     }
                 }
 
                 if (stage == Stage::Omega && (m_shots == nullptr || !m_shots->active())) {
                     m_later.push_back(Later{moby.position, 9.0f, base, 0, 0, m_tick + 60, 0});
+                    m_later.back().item = item;
                 }
             }
         }
@@ -998,13 +1019,17 @@ void Perks::watch() {
         // The shield zaps the nearest enemies every second from Epsilon.
         if (item == 45 && stage >= Stage::Epsilon && m_tick >= w.next && m_reference > 0.0f) {
             w.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kShieldZapTicks));
+            m_post_item = item;
             burst(w.at, 8.0f, m_reference * 0.6f, 0, stage == Stage::Omega ? 3 : 1);
+            m_post_item = -1;
         }
 
         // The Visibomb's missile burns a trail from Gamma.
         if (item == 14 && stage != Stage::None && m_tick >= w.next && m_reference > 0.0f) {
             w.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kTrailTicks));
+            m_post_item = item;
             burst(w.at, 3.0f, m_reference * 0.3f, 0);
+            m_post_item = -1;
         }
 
         // The Zodiac at Omega: its pulse posts no hit (tuning.h), so its field is left here, on
@@ -1041,7 +1066,8 @@ void Perks::watch() {
                             perk.field_radius,
                             hit * perk.field_share,
                             m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.field_ticks)),
-                            m_tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks))
+                            m_tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks)),
+                            kZodiac
                         }
                     );
                 }
@@ -1058,8 +1084,10 @@ void Perks::watch() {
 
         if (item == 18 && stage == Stage::Omega && m_tick >= w.next && claw_hit > 0.0f) {
             w.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kStormTicks));
+            m_post_item = item;
             const std::vector<std::uint32_t> hit =
                 burst(hero_position(), 10.0f, claw_hit * 1.5f, 0, 1);
+            m_post_item = -1;
 
             // The arcs' stun (1.29).
             for (const std::uint32_t struck : hit) {
@@ -1126,6 +1154,7 @@ void Perks::watch() {
 
             if (!real) {
                 m_later.push_back(Later{w.at, 12.0f, m_reference * 0.8f, 0, 0, m_tick, minis});
+                m_later.back().item = 14;
             }
         }
     }
@@ -1216,8 +1245,10 @@ void Perks::tick(std::uint32_t tick) {
             continue;
         }
 
+        m_post_item = later.item >= 0 ? later.item : later.blast_item;
         const std::vector<std::uint32_t> hit =
             burst(later.at, later.radius, later.damage, later.skip, later.fan);
+        m_post_item = -1;
 
         // The game's blast there, in the weapon's look (1.29).
         if (later.blast_item >= 0 && m_shots != nullptr) {
@@ -1262,7 +1293,9 @@ void Perks::tick(std::uint32_t tick) {
         // A pulse.
         if (tick >= it->next) {
             it->next = tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks));
+            m_post_item = it->item;
             burst(it->at, it->radius, it->damage, 0);
+            m_post_item = -1;
         }
 
         ++it;

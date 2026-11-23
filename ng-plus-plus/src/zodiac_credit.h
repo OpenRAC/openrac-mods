@@ -23,6 +23,9 @@ namespace ng_plus_plus {
 // reach's big hit stands for 30 pulse frames at once).
 inline constexpr std::uint32_t kZodiacCreditTicks = 20;
 
+// The Zodiac's item (tuning_rules.h's kZodiac).
+inline constexpr int kZodiacItem = 43;
+
 // The health record's last-weapon byte.
 inline constexpr std::uint32_t kHealthWeapon = 0x17u;
 
@@ -30,11 +33,22 @@ inline constexpr std::uint32_t kHealthWeapon = 0x17u;
 class ZodiacCredit {
 public:
     // The pulse or the reach took the moby at `moby` at tick `tick`.
-    void mark(std::uint32_t moby, std::uint32_t tick) { m_marks[moby] = tick; }
+    void mark(std::uint32_t moby, std::uint32_t tick) { mark(moby, tick, kZodiacItem, 0); }
+
+    // 0.6.11: a hit NG++ posts for `item` (a field, a blast, a chain hop, the reach) took it. The
+    // game names the weapon in hand for such a hit, so the mark names the right one. The mark
+    // stands `ticks` (0: kZodiacCreditTicks), and a later mark of another item replaces it.
+    void mark(std::uint32_t moby, std::uint32_t tick, int item, std::uint32_t ticks);
+
+    // Whether a mark of the moby stands at `tick`.
+    bool marked(std::uint32_t moby, std::uint32_t tick) const;
 
     // Returns whether the death of `moby` at `tick` is the Zodiac's, and spends the mark, so a
     // death is credited once.
-    bool take(std::uint32_t moby, std::uint32_t tick);
+    bool take(std::uint32_t moby, std::uint32_t tick) { return take_item(moby, tick) >= 0; }
+
+    // Returns the item the death of `moby` at `tick` is credited to and spends the mark, or -1.
+    int take_item(std::uint32_t moby, std::uint32_t tick);
 
     // Forgets the marks that ran out by `tick`.
     void prune(std::uint32_t tick);
@@ -46,11 +60,18 @@ public:
     std::size_t size() const { return m_marks.size(); }
 
 private:
-    std::unordered_map<std::uint32_t, std::uint32_t> m_marks;  // Moby address to the mark's tick.
+    struct Mark {
+        std::uint32_t tick = 0;
+        std::uint32_t ticks = 0;  // How long it stands.
+        int item = kZodiacItem;
+    };
+
+    std::unordered_map<std::uint32_t, Mark> m_marks;  // Moby address to its mark.
 };
 
 // The death of `moby` at `tick` with the health record's last-weapon byte `weapon`: sets it to the
-// Zodiac's item when the Zodiac took it, else leaves it. Returns whether it did.
+// marked item (the Zodiac's, or the weapon whose posted hit took it), else leaves it. Returns
+// whether it did.
 bool credit_zodiac(ZodiacCredit& credit, std::uint32_t moby, std::uint32_t tick, std::uint8_t& weapon);
 
 }  // namespace ng_plus_plus

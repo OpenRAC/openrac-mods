@@ -113,7 +113,11 @@ void WeaponTuning::credit_kill(std::uint32_t victim) {
             if (gun.moby_class == kZodiacClass
                 && memory.read<std::uint8_t>(gun.address + kGunState) == kZodiacPulse
                 && distance2(moby.position, gun.position) <= kZodiacRange * kZodiacRange) {
-                m_credit.mark(victim, m_tick);
+                // Not over a perk's mark: that names its own weapon.
+                if (!m_credit.marked(victim, m_tick)) {
+                    m_credit.mark(victim, m_tick);
+                }
+
                 break;
             }
         }
