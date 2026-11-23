@@ -12,10 +12,27 @@ Version 0.5.2 ties the tiers to your saves exactly as the game's own progress is
 its new path and prices, and makes Clank's sections fair again (see "What's new in 0.5.2").
 Version 0.5.3 makes the PAL and NTSC-U v2.00 discs play as NTSC-U v1.01 does (see "What's new in
 0.5.3").
+Version 0.6.0 sells the armor tiers at the game's armor vendor and draws each as Carbonox repainted
+in its color (see "What's new in 0.6.0").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
+
+## What's new in 0.6.0
+
+- **The armor tiers at the armor vendor.** The tiers left the weapon vendor's list: the armor
+  vendor (the Megacorp Vendor that sells Tetrafiber to Carbonox) now sells them, as the game's next
+  armor once you wear Carbonox, at their price, with the vendor's own preview of Ratchet in the
+  armor for sale and a description of what the tier does. Buy one as you buy an armor (Cross, then
+  yes); the next tier takes its place in the list.
+- **The tiers' look.** Each tier is Carbonox, the armor Ratchet wears, repainted in the tier's color:
+  the same model, plates and shading, in steel, azure, jade, gold, amethyst, rose, ember or Omega's
+  cycling colors, with a rim that glows brighter at each tier (none at Alpha). The vendor's preview
+  shows the tier for sale in its paint, so you see what you buy. The flat glow over the whole body
+  is gone.
+- Both need OpenRAC with mod interface 1.34. With an older OpenRAC the tiers you already have keep
+  protecting you and glow as before, but the armor vendor cannot sell them.
 
 ## What's new in 0.5.3
 
