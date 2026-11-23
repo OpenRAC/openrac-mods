@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <vector>
 
 #include "check.h"
 #include "homing.h"
@@ -201,6 +202,60 @@ void test_chase() {
     CHECK(dropped(longest, 1) && dropped(longest, 4));
 }
 
+void test_split_targets() {
+    // The parent flew at 0x100 and it is live and in sight: all three splits take it.
+    Chase parent;
+    retarget(parent, 0x100);
+    CHECK(inherited(parent) == 0x100);
+    const std::vector<std::uint32_t> own{0x200, 0x300, 0x400};
+    for (std::uint32_t t : split_targets(inherited(parent), true, own, 3)) {
+        CHECK(t == 0x100);
+    }
+
+    // The parent had none (or let go of it): each split takes its own pick.
+    Chase none;
+    CHECK(inherited(none) == 0);
+    const auto picks = split_targets(inherited(none), true, own, 3);
+    CHECK(picks[0] == 0x200 && picks[1] == 0x300 && picks[2] == 0x400);
+    Chase walled;
+    retarget(walled, 0x500);
+    drop(walled);
+    CHECK(inherited(walled) == 0);
+
+    // A parent that went off unhit on its target still passes it on.
+    Chase struck;
+    retarget(struck, 0x600);
+    strike(struck);
+    CHECK(inherited(struck) == 0x600 && struck.target == 0);
+
+    // The parent's target is not usable (dead, hidden, walled off): they pick their own.
+    const auto fallback = split_targets(0x100, false, own, 3);
+    CHECK(fallback[0] == 0x200 && fallback[2] == 0x400);
+
+    // Fewer candidates than splits: the rest have none.
+    const auto few = split_targets(0, false, {0x200}, 3);
+    CHECK(few[0] == 0x200 && few[1] == 0 && few[2] == 0);
+
+    // The inherited target dies on the way: the split lets go (as steer_rockets does), does not
+    // retake it, and goes on to another.
+    TargetFacts live;
+    live.state = 1;
+    live.enemy = true;
+    live.has_health = true;
+    live.health = 40.0f;
+    live.alpha = 0x80;
+    Chase split;
+    retarget(split, 0x100);
+    CHECK(targetable(live));
+    live.state = 0xFE;
+    CHECK(!targetable(live));
+    drop(split);
+    CHECK(split.target == 0 && dropped(split, 0x100));
+    CHECK(!dropped(split, 0x200));
+    retarget(split, 0x200);
+    CHECK(split.target == 0x200);
+}
+
 }  // namespace
 
 int main() {
@@ -209,5 +264,6 @@ int main() {
     test_steer();
     test_targets();
     test_chase();
+    test_split_targets();
     return ng_plus_plus::test::result("ng_plus_plus_homing");
 }

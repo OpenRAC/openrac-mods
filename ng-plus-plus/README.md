@@ -27,6 +27,12 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.9
+
+When a RYNO II rocket splits, the homing split rockets fly at the parent rocket's target if it had
+a live one in sight, so a single shot focuses all its damage on one enemy. With no such target
+(or once it dies) they pick their own as before.
+
 ## What's new in 0.6.8
 
 The Shield Charger and Tesla Barrier last longer, take more arcs before they collapse and hit

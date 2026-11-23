@@ -359,6 +359,22 @@ void Shots::on_end(const ShotEnd& end) {
             }
         }
     }
+
+    // A rocket that had a live target in sight passes it on: all its splits fly at it, so one shot
+    // deals the damage of all of them (the others pick their own only with no such target).
+    if (perk.end_homing) {
+        const std::uint32_t parent = inherited(tracked.chase);
+        const int parent_slot = parent != 0 ? MobyScan::slot_of(m_view, parent) : -1;
+        const bool usable = parent != 0 && parent_slot >= 0 && homes_on(parent)
+                            && !walled(from, aim_point(parent));
+        if (usable) {
+            Perks::Target focus;
+            focus.slot = parent_slot;
+            focus.address = parent;
+            focus.position = m_perks.position_of(parent);
+            targets.assign(static_cast<std::size_t>(count), focus);
+        }
+    }
     const float speed = tracked.speed > 0.0f ? tracked.speed : m_view.per_tick(kDefaultSpeed);
 
     for (int n = 0; n < count; ++n) {
@@ -872,7 +888,7 @@ void Shots::steer_rockets() {
                 m_perks.strike(target, tracked.item);
             }
             memory.write(pvars + kRocketLife, std::int16_t{1});
-            drop(chase);
+            strike(chase);
             memory.write(pvars + kRocketTarget, std::uint32_t{0});
             ++m_counts.strikes;
             continue;
