@@ -55,6 +55,9 @@ private:
     int m_vendor_seen = -1;    // The vendor's count at the last dump.
     int m_hold_ticks = 0;
     float m_spot[3]{};
+    float m_yaw = 0.0f;        // The heading held with the spot, when m_face.
+    bool m_face = false;
+    std::uint32_t m_vendor_moby = 0;  // The moby he is held at.
 };
 #endif
 

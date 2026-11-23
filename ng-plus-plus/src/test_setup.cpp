@@ -7,6 +7,7 @@
 
 #ifdef NGPP_TEST_SETUP
 
+#include <cmath>
 #include <cstdlib>
 #include <string>
 #include <string_view>
@@ -19,15 +20,16 @@
 namespace ng_plus_plus {
 namespace {
 
-// The hero's position (g_heroPos) from the hero's record.
+// The hero's position (g_heroPos) and his heading (g_heroOrientVec's z) from the hero's record.
 constexpr std::uint32_t kHeroPosition = 0x80u;
+constexpr std::uint32_t kHeroFacing = 0x98u;
 
 // Ticks into a level before the setup, and between two moves near an enemy.
 constexpr int kSetupTicks = 90;
 constexpr int kNearTicks = 1200;
 
 // How far from the weapon vendor (Megacorp Vendor, class 11) the hero stands.
-constexpr float kVendorStand = 3.0f;
+constexpr float kVendorStand = 2.5f;
 
 // The vendor's price of the entry under its cursor (rac2.vendor.price), per disc.
 const char* price_function(std::string_view version) {
@@ -87,6 +89,19 @@ void TestSetup::tick() {
 
         for (int c = 0; c < 3; ++c) {
             memory.write(m_mod.relocate(m_view.disc().hero + kHeroPosition) + 4u * static_cast<std::uint32_t>(c), m_spot[c]);
+        }
+
+        // Facing the vendor, which opens only to a hero who looks at it (g_heroOrientVec's z).
+        if (m_face) {
+            memory.write(m_mod.relocate(m_view.disc().hero + kHeroFacing), m_yaw);
+        }
+
+        // The vendor, once it sees him near (its state 2), opened as his button would (state 4,
+        // the vendor's update): no button to time against the spot.
+        if (m_face && m_vendor_moby != 0
+            && memory.read<std::uint8_t>(m_vendor_moby + kMobyStateByte) == 2) {
+            memory.write(m_vendor_moby + kMobyStateByte, std::uint8_t{4});
+            m_mod.info("test: vendor opened");
         }
     }
 }
@@ -265,14 +280,18 @@ void TestSetup::bring_to_vendor() {
         return;
     }
 
-    // Around it, a side a try, as its front is not known.
+    // Around it, a side a try, as its front is not known (it opens within 4 units and 2 of height,
+    // to a hero facing it: the vendor's update), turned toward it.
     const int side = (m_ticks / m_view.ticks(120)) % 4;
     const float dx[4] = {kVendorStand, 0.0f, -kVendorStand, 0.0f};
     const float dy[4] = {0.0f, kVendorStand, 0.0f, -kVendorStand};
     m_spot[0] = vendor->position[0] + dx[side];
     m_spot[1] = vendor->position[1] + dy[side];
-    m_spot[2] = vendor->position[2] + 0.5f;
-    m_hold_ticks = 10;
+    m_spot[2] = vendor->position[2] + 0.2f;
+    m_yaw = std::atan2(-dy[side], -dx[side]);
+    m_vendor_moby = vendor->address;
+    m_face = true;
+    m_hold_ticks = m_view.ticks(60);
     m_mod.info(
         "test: hero put at class " + std::to_string(m_at_class) + " (side " + std::to_string(side) + ") at "
         + std::to_string(m_spot[0]) + "," + std::to_string(m_spot[1]) + ","
@@ -386,6 +405,7 @@ void TestSetup::bring_near() {
     m_spot[1] = nearest->position[1];
     m_spot[2] = nearest->position[2] + 1.0f;
     m_hold_ticks = 10;
+    m_face = false;
     m_mod.info(
         "test: hero put near class " + std::to_string(nearest->moby_class) + " at "
         + std::to_string(m_spot[0]) + "," + std::to_string(m_spot[1]) + ","
