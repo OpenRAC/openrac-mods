@@ -14,10 +14,31 @@ Version 0.5.3 makes the PAL and NTSC-U v2.00 discs play as NTSC-U v1.01 does (se
 0.5.3").
 Version 0.6.0 sells the armor tiers at the game's armor vendor and draws each as Carbonox repainted
 in its color (see "What's new in 0.6.0").
+Version 0.6.1 keeps the RYNO II's homing rockets from hovering, widens the Zodiac's reach and lets
+the drones, the shield and the other auto-aiming weapons take enemies off screen (see "What's new
+in 0.6.1").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
+
+## What's new in 0.6.1
+
+- **RYNO II rockets no longer hover.** A homing rocket only turned by its target's own motion, so
+  near a target that stood still or shuffled in place it went back and forth over it like a
+  firefly, and it chose enemies the game still held hidden at their spawn points (Grelbin's Yetis
+  waiting to come out, enemies asleep far off, dying ones). Now each homing rocket flies at full
+  speed and NG++ steers it: it only takes live, shown enemies the game is running, in sight (no
+  wall between); it turns harder the nearer it gets, so it never circles; one that reaches its
+  target without the game's hit goes off on it; and one whose target goes, hides or can't be
+  reached flies straight on and takes the next enemy in sight at once.
+- **The Zodiac reaches farther.** The pulse also hits the enemies the game's pick leaves out: up to
+  50 units without a tier and 4 more each tier (90 at most), round corners and above or below the
+  camera, but never through a wall (see "Off-screen enemies").
+- **Off-screen targets for more weapons.** With OpenRAC from pull request 767 on, the Synthenoid
+  and Kilonoid drones, the Seeker Gun's seekers, the Miniturret Glove's turrets, the Shield Charger
+  and Tesla Barrier and the Tesla Claw also take the enemies around Ratchet that are not on screen,
+  in sight only. An older OpenRAC keeps their on-screen targets (one line in the log says so).
 
 ## What's new in 0.6.0
 
@@ -901,7 +922,16 @@ range, also the ones behind the camera or off screen. On the PlayStation 2 these
 their targets only among what the game drew in the last frame, so an enemy behind Ratchet was
 missed. Their range and how many enemies they hit stay the game's. This is on at every tier and in
 the first playthrough too; the setting **Zodiac and Plasma Coil hit off screen** turns it off. It
-needs OpenRAC with mod interface 1.30; an older OpenRAC keeps the game's targets.
+needs OpenRAC with mod interface 1.30; an older OpenRAC keeps the game's targets. With OpenRAC
+from pull request 767 on the same setting opens the picks of the Synthenoid and Kilonoid drones,
+the Seeker Gun's seekers, the Miniturret Glove's turrets, the Shield Charger and Tesla Barrier and
+the Tesla Claw's held target, all within their own range and only in sight.
+
+The Zodiac's pulse also reaches the enemies the game's own pick leaves out (one round a corner, far
+from the camera, or more than 60 degrees above or below its view): every live, shown enemy within
+50 units of the gun without a tier, 4 more each tier up to 90, that no wall hides from the gun. It
+kills what has 100 health or less, as the game's pulse does, and takes the pulse's drain off the
+others; bosses keep their own drain ("Weapon tuning").
 
 ## How it works
 
