@@ -34,6 +34,9 @@ def grid(x0, y0, x1, y1, step):
     return X, Y
 
 
+SAND_TOP = island.SEA + 4.5
+
+
 def material_of(z, n, x, y):
     """Pokitaru's look: grass on every flat ledge, layered rock with grass hanging over it on the
     risers, creepers here and there, sand and wet rock by the sea."""
@@ -41,7 +44,7 @@ def material_of(z, n, x, y):
     dv = np.hypot(x - island.VOLCANO[0], y - island.VOLCANO[1])
     creep = island.fbm(x, y, 40, 2, 3)
     m = np.full(z.shape, "om_grass", dtype=object)
-    m[z < island.SEA + 4.5] = "om_sand"
+    m[z < SAND_TOP] = "om_sand"
     steep = (slope > 0.22) & (z > island.SEA + 2)
     m[steep] = "om_cliff"
     m[steep & (creep > 0.5) & (z < island.SEA + 120)] = "om_jungle"
@@ -52,6 +55,60 @@ def material_of(z, n, x, y):
     return m
 
 
+def split_cells(X, Y, P, Nf, col, vmat):
+    """The grid's triangles. A cell whose corners share a material is two triangles; a cell where
+    they differ is a fan round its centre through the middles of its mixed edges, each corner
+    keeping the part nearest it, so edges between materials run smooth instead of in teeth.
+    Returns the points, normals, colours (new ones appended) and the triangles with their materials."""
+    h, w = X.shape
+    idx = np.arange(h * w).reshape(h, w)
+    a, b, c, d = (q.reshape(-1) for q in (idx[:-1, :-1], idx[:-1, 1:], idx[1:, :-1], idx[1:, 1:]))
+    same = (vmat[a] == vmat[b]) & (vmat[a] == vmat[c]) & (vmat[a] == vmat[d])
+    tris = [np.stack([a[same], b[same], d[same]], -1), np.stack([a[same], d[same], c[same]], -1)]
+    mats = [vmat[a[same]], vmat[a[same]]]
+    pts, nrm, cls = [P], [Nf], [col]
+    count = [len(P)]
+    mids = {}
+
+    def new(p, n, k):
+        pts.append(p[None]); nrm.append(n[None]); cls.append(k[None])
+        count[0] += 1
+        return count[0] - 1
+
+    def mid(i, j):
+        key = (min(i, j), max(i, j))
+        if key not in mids:
+            t = 0.5
+            # The shore line: where the ground crosses the sand's height, not the edge's middle.
+            if {vmat[i], vmat[j]} == {"om_sand", "om_grass"} and abs(P[j, 2] - P[i, 2]) > 1e-4:
+                t = float(np.clip((SAND_TOP - P[i, 2]) / (P[j, 2] - P[i, 2]), 0.15, 0.85))
+            n = Nf[i] * (1 - t) + Nf[j] * t
+            mids[key] = new(P[i] * (1 - t) + P[j] * t, n / np.linalg.norm(n), col[i] * (1 - t) + col[j] * t)
+        return mids[key]
+
+    ft, fm = [], []
+    for i, j, l, k in zip(a[~same], b[~same], d[~same], c[~same]):
+        ring = (i, j, l, k)          # round the cell
+        n = Nf[list(ring)].sum(0)
+        centre = new(P[list(ring)].mean(0), n / np.linalg.norm(n), col[list(ring)].mean(0))
+        for q in range(4):
+            p0, p1 = ring[q], ring[(q + 1) % 4]
+            if vmat[p0] == vmat[p1]:
+                ft.append((p0, p1, centre)); fm.append(vmat[p0])
+            else:
+                m = mid(p0, p1)
+                ft += [(p0, m, centre), (m, p1, centre)]
+                fm += [vmat[p0], vmat[p1]]
+    if ft:
+        tris.append(np.array(ft)); mats.append(np.array(fm, dtype=object))
+    return (np.concatenate(pts), np.concatenate(nrm), np.concatenate(cls),
+            np.concatenate(tris), np.concatenate(mats))
+
+
+# How big each ground picture lies (units a repeat): sand large, so its pattern does not show from far.
+UV_SCALE = {"om_sand": 7.0}
+
+
 def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=3.5):
     X, Y = grid(x0, y0, x1, y1, step)
     H = island.base_height
@@ -60,19 +117,15 @@ def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=3.5):
     # Ambient occlusion: lower than the blurred ground round it is darker.
     blur = H(X + 6, Y) + H(X - 6, Y) + H(X, Y + 6) + H(X, Y - 6)
     ao = np.clip(1 - np.maximum(blur / 4 - Z, 0) * 0.04, 0.6, 1)
-    h, w = X.shape
-    idx = np.arange(h * w).reshape(h, w)
-    a, b, c, d = idx[:-1, :-1], idx[:-1, 1:], idx[1:, :-1], idx[1:, 1:]
-    tris = np.concatenate([np.stack([a, b, d], -1).reshape(-1, 3), np.stack([a, d, c], -1).reshape(-1, 3)])
-    P = np.stack([X, Y, Z], -1).reshape(-1, 3)
-    Nf = N.reshape(-1, 3)
-    centre = P[tris].mean(1)
-    cn = Nf[tris].mean(1)
+    P0 = np.stack([X, Y, Z], -1).reshape(-1, 3)
+    N0 = N.reshape(-1, 3)
+    vmat = material_of(P0[:, 2], N0, P0[:, 0], P0[:, 1])
+    P, Nf, col, tris, mats = split_cells(X, Y, P0, N0, shade(N0, ao.reshape(-1)), vmat)
     if keep is not None:
-        tris = tris[keep(centre)]
-        centre = P[tris].mean(1); cn = Nf[tris].mean(1)
-    mats = material_of(centre[:, 2], cn, centre[:, 0], centre[:, 1])
-    col = shade(Nf, ao.reshape(-1))
+        k = keep(P[tris].mean(1))
+        tris, mats = tris[k], mats[k]
+    # Broad light and dark patches over the flat ground, so its repeating pictures do not line up.
+    patch = 0.86 + 0.28 * island.fbm(P[:, 0], P[:, 1], 55, 3, 11)
     mesh = Mesh()
     for name in sorted(set(mats)):
         t = tris[mats == name]
@@ -82,8 +135,12 @@ def heightfield_mesh(x0, y0, x1, y1, step, keep=None, uv_scale=3.5):
         # Walls: the picture runs along the slope, its top up (the hanging grass at each ledge).
         side = np.where(np.abs(n[:, 0]) > np.abs(n[:, 1]), p[:, 1], p[:, 0])
         tall = 4.0 if name in ("om_cliff", "om_jungle", "om_wet_sand") else uv_scale
-        uv = np.where(steep[:, None], np.stack([side / tall, -p[:, 2] / tall], -1), p[:, :2] / uv_scale)
-        cc = np.clip(col[used] * BRIGHT.get(name, 1.0) * WARM, 0, 2)
+        flat = UV_SCALE.get(name, uv_scale)
+        uv = np.where(steep[:, None], np.stack([side / tall, -p[:, 2] / tall], -1), p[:, :2] / flat)
+        cc = col[used] * BRIGHT.get(name, 1.0) * WARM
+        if name in ("om_sand", "om_grass"):
+            cc = cc * patch[used, None]
+        cc = np.clip(cc, 0, 2)
         if name == "om_lava":
             cc = np.full_like(cc, 0.9)
         mesh.add(name, p, n, uv, cc, inverse.reshape(-1, 3))

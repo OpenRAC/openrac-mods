@@ -49,8 +49,9 @@ def tint(noise, low, high):
 
 
 def sand():
-    n = fractal(SIZE, 1) * 0.7 + fractal(SIZE, 2, 3, 32) * 0.3
-    return to_png(tint(n, (196, 170, 120), (242, 222, 170)))
+    """Pokitaru's sand colours as soft noise with a fine grain: no blotch that repeats in rows."""
+    n = fractal(SIZE, 1) * 0.55 + fractal(SIZE, 2, 3, 32) * 0.3 + rng(21).random((SIZE, SIZE)) * 0.15
+    return to_png(tint(n, (150, 127, 99), (194, 171, 129)))
 
 
 def grass():
@@ -485,7 +486,6 @@ DISC = {
     "om_cliff": "terrain_0012.png",       # rock with grass hanging over its top: the layered cliffs
     "om_jungle": "terrain_0009.png",      # creepers over dark rock
     "om_rock": "terrain_0017.png",        # bare rock, the peaks
-    "om_sand": "terrain_0022.png",
     "om_wet_sand": "terrain_0027.png",    # rock with sand at its foot: the shore
     "om_basalt": "terrain_0016.png",
     "om_stone": "terrain_0006.png",       # cobbles
