@@ -48,8 +48,10 @@ class Client:
         self.name = name
         self.link = link
         self.dir = env.out / f"c{index}"
-        self.address = env.client_address(index)
-        self.game_port = env.client_port(index)
+        # Through the hub (--hub): every game is given the hub's address and no proxy, since the
+        # game server the hub lists is reached directly.
+        self.address = env.server_address if env.hub else env.client_address(index)
+        self.game_port = env.hub_port if env.hub else env.client_port(index)
         self.port = 21000 + 10 * env.base + index
         self.sock = None
         self.buffer = b""
@@ -93,7 +95,8 @@ class Client:
             )
         )
         (self.dir / "settings.ini").write_text("skip_cutscenes = 1\nvsync = off\n")
-        self.start_proxy()
+        if not self.env.hub:
+            self.start_proxy()
         env = dict(os.environ)
         env.update(
             {
@@ -104,7 +107,7 @@ class Client:
                 "OPENRAC_IDENTITY_KEY": self.env.key_of(self.index),
             }
         )
-        if self.env.one_address:
+        if self.env.one_address and not self.env.hub:
             env["OPENRAC_MP_BOT_UDP_AT_TCP"] = "1"
         env.update(self.env.game_env)
         self.proc = subprocess.Popen(
@@ -190,6 +193,8 @@ class Client:
 
     def cut(self):
         """This game's link gone at once, as a cable pulled: to the server, a connection closed."""
+        if self.proxy is None:
+            raise Failed("this scenario cuts a link, which needs the proxies (not --hub)")
         self.proxy.kill()
         self.proxy.wait(5)
         self.proxy = None
@@ -231,8 +236,16 @@ class Env:
         # Linux answers on all of 127/8, so each proxy has an address of its own at the server's port.
         # macOS answers on 127.0.0.1 alone: each has a port, and the bot sends its datagrams there.
         self.one_address = sys.platform == "darwin"
-        self.server_address = "127.0.0.1" if self.one_address else f"127.{args.base + 1}.0.2"
-        self.server_port = 27770 + args.base if self.one_address else 7770
+        # --hub: the server jar in "all" mode, a hub beside its game server. Its game server links
+        # to the hub at 127.0.0.1, so both listen there, at ports of the run's own.
+        self.hub = args.hub
+        local = self.one_address or self.hub
+        self.server_address = "127.0.0.1" if local else f"127.{args.base + 1}.0.2"
+        # Linux: one port for the server and every proxy, each on an address of its own (--port: not
+        # 7770, when something on the machine holds it on every address).
+        self.port = args.port
+        self.server_port = 27770 + args.base if local else args.port
+        self.hub_port = 27177 + args.base
         self.seed = args.seed
         self.trace = args.trace
         self.revive = args.scenario == "revive"
@@ -247,7 +260,7 @@ class Env:
         return "127.0.0.1" if self.one_address else f"127.{self.base + 1}.1.{index + 1}"
 
     def client_port(self, index):
-        return 22000 + 10 * self.base + index if self.one_address else 7770
+        return 22000 + 10 * self.base + index if self.one_address else self.port
 
     def game_of(self, index):
         return self.game if index == 0 else self.member_game
@@ -299,8 +312,12 @@ class Env:
                 "MAX_CONNECTIONS_PER_ADDRESS": "8",
             }
         )
+        if self.hub:
+            # Every game on 127.0.0.1 counts against one address: the hub's and the server's limits
+            # are raised for it.
+            env.update({"MODE": "all", "HUB_PORT": str(self.hub_port), "MAX_CONNECTIONS_PER_ADDRESS": "64"})
         self.server = subprocess.Popen(
-            [self.java, "-jar", str(self.server_jar)],
+            [self.java, "-jar", str(self.server_jar)] + (["--mode", "all"] if self.hub else []),
             cwd=self.server_jar.parents[4],  # the repository's root: its .env.defaults
             env=env,
             stdout=open(self.out / "server.log", "w"),
@@ -311,7 +328,9 @@ class Env:
         while time.monotonic() < limit:
             if self.server.poll() is not None:
                 raise Failed(f"the server stopped at once, see {self.out / 'server.log'}")
-            if "is listening on" in (self.out / "server.log").read_text(errors="replace"):
+            log = (self.out / "server.log").read_text(errors="replace")
+            # Through the hub: once its game server is on the hub's list.
+            if "is listening on" in log and (not self.hub or "Listed by the hub as server" in log):
                 return
             time.sleep(0.2)
         raise Failed("the server did not start")
@@ -577,6 +596,27 @@ def start_two(env, args, level_note=True):
     ok = skip_scenes(env, host, [member], 150)
     env.check("both games in control in level 0", ok, json.dumps([host.status(), member.status()]))
     return host, member
+
+
+def scenario_reach(env, args):
+    """Two games reach a game server by the address they are given (--hub: the hub's, which lists
+    the server; else the game server's own) and play a party there: the same on either address."""
+    host, member = start_two(env, args)
+    want = f"{env.server_address}:{env.server_port}" if env.hub else ""
+    for c in (host, member):
+        given = c.status().get("game_server", "")
+        env.check(f"{c.name}'s game server ({'the hub' if env.hub else 'direct'})", given == want, given)
+        log = (c.dir / "run.log").read_text(errors="replace")
+        env.check(
+            f"{c.name}'s log names the hub's pick",
+            ("gave game server" in log) == env.hub,
+        )
+    server_log = (env.out / "server.log").read_text(errors="replace")
+    env.check("nothing sent to the hub that it does not take", "which the hub does not take" not in server_log)
+    if env.hub:
+        guests = len(re.findall(r"Guest \d+ \(", server_log))
+        env.check("each game asked the hub", guests >= 2, f"{guests} hellos at the hub")
+    compare_poses(env, host, [member], "on the server")
 
 
 def scenario_tags(env, args):
@@ -2073,6 +2113,7 @@ def scenario_cosave(env, args):
 
 SCENARIOS = {
     "save": scenario_save,
+    "reach": scenario_reach,
     "smoke": scenario_smoke,
     "tags": scenario_tags,
     "look": scenario_look,
@@ -2140,6 +2181,8 @@ def main():
     parser.add_argument("--mod", required=True, help="the packaged mod's folder")
     parser.add_argument("--server-jar", required=True)
     parser.add_argument("--java", default="java")
+    parser.add_argument("--port", type=int, default=7770, help="Linux: the server's and the proxies' port")
+    parser.add_argument("--hub", action="store_true", help="the jar in all mode, every game given the hub's address (no proxies, no --link)")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--base", type=int, default=0, help="this run's address block, for runs at once")
     parser.add_argument("--trace", action="store_true")
@@ -2166,6 +2209,8 @@ def main():
     parser.add_argument("--game-env", action="append")
     args = parser.parse_args()
     args.link_args = link_args(args.link)
+    if args.hub and args.link:
+        parser.error("--hub has no proxies, so no --link")
     env = Env(args)
     failed = None
     try:

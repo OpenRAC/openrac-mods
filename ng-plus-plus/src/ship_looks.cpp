@@ -152,11 +152,11 @@ void ShipLooks::tick(std::uint32_t tick) {
         return;
     }
 
-    std::optional<ShipPaint> paint = ship_paint(m_look, m_ship.tier(), tick);
+    std::optional<ShipPaint> paint = ship_paint(m_look, m_ship.tier(), m_view.sixtieths(tick));
 
     // Obsidian refused by this port: the tier's colour.
     if (paint && paint->material == kMaterialObsidian && !m_obsidian) {
-        paint = ship_paint(ShipLook::Tier, m_ship.tier(), tick);
+        paint = ship_paint(ShipLook::Tier, m_ship.tier(), m_view.sixtieths(tick));
     }
 
     // Nothing to draw yet (before Alpha), or no mobys to draw.

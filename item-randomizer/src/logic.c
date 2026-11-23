@@ -288,7 +288,8 @@ const rando_location rando_locations[] = {
     GOLDBOLT("Blarg: gold bolt 2", LEVEL_BLARG, 1, 17),
 
     // Rilgar: "You need a Hoverboard to race", "Bribe Bouncer with 4,000 bolts"; "Purchase the
-    // R.Y.N.O." for 150,000 bolts.
+    // R.Y.N.O." for 150,000 bolts. Relaxed also asks the bouncer's route for the Hydrodisplacer
+    // (rando_requirement, solver.c).
     VENDOR("Rilgar: the vendor's Mine Glove", LEVEL_RILGAR, ITEM_MINE_GLOVE, 18, LOCF_PRICEY),
     GIVE_W("Rilgar: the shady salesman", LEVEL_RILGAR, ITEM_RYNO, 18, LOCF_COSTLY, HELI, 0),
     FIXED(

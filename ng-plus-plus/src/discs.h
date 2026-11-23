@@ -3,12 +3,15 @@
 //
 // Going Commando: what NG++ reads and writes of the game, per disc and in the game's records.
 //
-// Every address goes through relocate_data (below 0x1A7C80 every program shares the word; above
-// it the boot program's address stands for the loaded level's copy). NTSC-U v1.01's are
+// Every address goes through relocate_data (below the level's base every program shares the word;
+// above it the boot program's address stands for the loaded level's copy). NTSC-U v1.01's are
 // rac2-decomp's globals named in the comments; PAL's and USA v2.00's are the same globals at those
 // discs' addresses (rac2-decomp's symbol_addrs/eu and usa-v2, OpenRAC's
-// port/game/rac2-<disc>/host/rac2_addresses.h, and the discs' own code: the vendor's state is what
-// func_002F6510 loads on each). The records' layouts are the same on the three discs.
+// port/game/rac2-<disc>/release/release_names.json, and the discs' own code: the vendor's state is
+// what func_002F6510 loads on each, 0x21F240 on PAL as on v1.01, 0x21F1C0 on v2.00). The functions
+// are the names the port's build of each disc gives them (its function table: func_, not the
+// decompilation's FUN_). The records' layouts are the same on the three discs; the texts' ids are
+// not (kDiscs' upgrade_label).
 //
 // Sources: rac2-decomp's C (the functions named in the comments), seen in game code throughout.
 
@@ -18,6 +21,9 @@
 #include <string_view>
 
 namespace ng_plus_plus {
+
+// The ticks a second NG++'s times are written in (NTSC-U's).
+inline constexpr int kSixtieths = 60;
 
 // The game's addresses and functions on one disc.
 struct Disc {
@@ -35,6 +41,11 @@ struct Disc {
     const char* banner;          // A HUD help popup by key (func_00288E18): the level-up's.
     const char* message;         // A message line by text id (func_002B0A18).
     const char* upgrade_fx;      // The in-hand level-up (func_L00_0037E6A8): (item, row).
+    const char* equip;           // Item_Equip (func_002AD860): (item), for the test runs.
+    std::int32_t upgrade_label;  // The text id of "Mega" under an upgrade entry (func_002F9C80).
+    std::int32_t crystal_trade;  // The text id of Tabora's crystal trade (its level's code).
+    std::int32_t moonstone_trade;  // The text id of Grelbin's moonstone trade (its level's code).
+    int tick_rate;               // The game's ticks a second: PAL's code counts in fiftieths.
 };
 
 // clang-format off: one disc per row, the columns in the order of Disc's members.
@@ -42,13 +53,13 @@ struct Disc {
 inline constexpr Disc kDiscs[] = {
     {"ntsc",  0x00239BA0u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7AF8u, 0x00189E20u,
      0x0021F240u, 0x001A7360u, "func_00288FB8", 0x001A79F8u, "func_00288E18", "func_002B0A18",
-     "func_L00_0037E6A8"},
+     "func_L00_0037E6A8", "func_002AD860", 0x325F, 10135, 10209, 60},
     {"pal",   0x00239BA0u, 0x001395E8u, 0x001398E8u, 0x00139708u, 0x001A7B80u, 0x00189EA0u,
-     0x0021F1C0u, 0x001A73E0u, "func_002898E8", 0x001A7A80u, "FUN_00289730", "FUN_002B1588",
-     "func_L00_003813E0"},
+     0x0021F240u, 0x001A73E0u, "func_002898E8", 0x001A7A80u, "func_00289730", "func_002B1588",
+     "func_L00_003813E0", "func_002AE3C0", 0x1B2D, 4841, 4915, 50},
     {"ntsc2", 0x00239B20u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7B00u, 0x00189E20u,
-     0x0021F1C0u, 0x001A7360u, "func_002899F8", 0x001A7A00u, "FUN_00289840", "FUN_002B1880",
-     "func_L00_0037FB10"},
+     0x0021F1C0u, 0x001A7360u, "func_002899F8", 0x001A7A00u, "func_00289840", "func_002B1880",
+     "func_L00_0037FB10", "func_002AE6C8", 0x30F5, 4841, 4915, 60},
 };
 // clang-format on
 
@@ -140,9 +151,6 @@ inline constexpr std::uint32_t kEntryUpgrade = 0x14u;  // 1: an upgrade.
 
 // The price text an upgrade entry carries, as the game's Mega entry (func_002F6608).
 inline constexpr std::int32_t kPriceText = 0xCDB;
-
-// The label under an upgrade entry's icon in the vendor's list, "Mega" (func_002F9C80).
-inline constexpr std::int32_t kUpgradeLabelText = 0x325F;
 
 // The rows the vendor's list draws around its cursor, from kVendorDrawFirst to before
 // kVendorDrawEnd (func_002F9C80).
@@ -238,5 +246,35 @@ inline constexpr HitSource kHitSources[] = {
     {3800u, 9u},   // Clank Zapper's beam: its update (L00_0040BA30) posts the hit as itself
 };
 // clang-format on
+
+// NG++'s times are written in sixtieths of a second, NTSC-U's ticks; PAL's game ticks fifty times
+// a second. Returns `sixtieths` in ticks of a game that ticks `rate` times a second, rounded to the
+// nearest, and at least 1 when `sixtieths` is.
+constexpr int ticks_at(int rate, int sixtieths) {
+    if (sixtieths <= 0 || rate == kSixtieths) {
+        return sixtieths;
+    }
+
+    const int ticks = (sixtieths * rate + kSixtieths / 2) / kSixtieths;
+    return ticks > 0 ? ticks : 1;
+}
+
+// Returns tick count `ticks` of a game that ticks `rate` times a second in sixtieths of a second:
+// what the animated colours, written in sixtieths, take for their clock.
+constexpr std::uint32_t sixtieths_at(int rate, std::uint32_t ticks) {
+    return rate == kSixtieths || rate <= 0
+               ? ticks
+               : static_cast<std::uint32_t>(
+                     static_cast<std::uint64_t>(ticks) * kSixtieths / static_cast<unsigned>(rate)
+                 );
+}
+
+// Returns a speed of `per_sixtieth` units a sixtieth of a second in units a tick of a game that
+// ticks `rate` times a second.
+constexpr float per_tick_at(int rate, float per_sixtieth) {
+    return rate == kSixtieths || rate <= 0
+               ? per_sixtieth
+               : per_sixtieth * static_cast<float>(kSixtieths) / static_cast<float>(rate);
+}
 
 }  // namespace ng_plus_plus

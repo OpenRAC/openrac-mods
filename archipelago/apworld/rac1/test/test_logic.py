@@ -568,7 +568,14 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.assertTrue(self.can_reach_location("Rilgar: the shady salesman"))
 
     def test_rilgar_bouncer_does_not_require_hoverboard(self) -> None:
+        self.collect_by_name(["Rilgar Coordinates", "Heli-Pack", "Swingshot", "Hydrodisplacer"])
+        self.assertTrue(self.can_reach_location("Rilgar: the bouncer, the coordinates of Umbris"))
+
+    def test_rilgar_bouncer_hydrodisplacer_only_in_relaxed(self) -> None:
         self.collect_by_name(["Rilgar Coordinates", "Heli-Pack", "Swingshot"])
+        self.assertEqual(self.can_reach_location("Rilgar: the bouncer, the coordinates of Umbris"),
+                         self.world.options.logic != "relaxed")
+        self.collect_by_name("Hydrodisplacer")
         self.assertTrue(self.can_reach_location("Rilgar: the bouncer, the coordinates of Umbris"))
 
     def test_rilgar_race_does_not_require_swingshot(self) -> None:

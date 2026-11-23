@@ -5,7 +5,9 @@
 // test's own (openrac_mod.h): it loads on rac2 with no hook point taken (Ratchet & Clank's are its
 // own), its pages made, Multiplayer in the title's main menu under Load Game and in the pause menu,
 // a frame callback given, and its frames run in the title with no party; a port without the play
-// calls is refused, naming them, as is a game it is not for.
+// calls is refused, naming them, as is a game it is not for. It loads again with the launcher's
+// server a hub (OPENRAC_SERVER) and a region set, and with a server setting that is not an address
+// (said, and the launcher's used).
 // Slots the table leaves empty are ones the mod must not call here: a call would crash the test.
 //
 // Run with the library's path: multiplayer_rac2_load_test <multiplayer.dylib|.so|.dll>.
@@ -74,7 +76,27 @@ int g_phase = OPENRAC_PLAY_FRONT_END;
 std::vector<std::pair<openrac_frame_fn, void*>> g_frames;
 // The mod's string settings by key.
 std::map<std::string, std::string> g_strings =
-    {{"server", "127.0.0.1:7770"}, {"name", "Tester"}, {"verbose_log", ""}};
+    {{"server", "127.0.0.1:7770"}, {"name", "Tester"}, {"region", ""}, {"verbose_log", ""}};
+
+// Sets the variable `name` to `value` for the mod's getenv.
+void set_env(const char* name, const char* value) {
+#if defined(_WIN32)
+    _putenv_s(name, value);
+#else
+    setenv(name, value, 1);
+#endif
+}
+
+// Forgets what an earlier load recorded, for the next.
+void reset_records() {
+    g_failed.clear();
+    g_log.clear();
+    g_hooks.clear();
+    g_pages = 0;
+    g_main_items.clear();
+    g_pause_items.clear();
+    g_frames.clear();
+}
 
 // Keeps a line the mod logs.
 void host_log(openrac_mod*, int, const char* text) {
@@ -395,6 +417,42 @@ int main(int argc, char** argv) {
         CHECK(line.rfind("notice: ", 0) != 0);
     }
 
+    unload();
+
+    // The launcher's server a hub (OPENRAC_SERVER, the mod's own setting empty), a region set:
+    // loads as before, with no word about the address. A connection opens only with the pages.
+    g_strings["server"] = "";
+    g_strings["region"] = "Europe";
+    set_env("OPENRAC_SERVER", "127.0.0.1:7177");
+    reset_records();
+    openrac_api hub = make_api("rac2");
+    CHECK(load(&hub, handle) == 0 && g_failed.empty() && g_frames.size() == 1);
+
+    // Its frames in the title, as before.
+    for (int i = 0; i < 5; ++i) {
+        g_frames[0].first(g_frames[0].second);
+    }
+
+    // Nothing said about the address.
+    for (const std::string& line : g_log) {
+        CHECK(line.find("is not host:port") == std::string::npos);
+    }
+
+    unload();
+
+    // The mod's own setting not an address: said once, and the launcher's hub used instead.
+    g_strings["server"] = ":7770";
+    reset_records();
+    openrac_api direct = make_api("rac2");
+    CHECK(load(&direct, handle) == 0 && g_failed.empty());
+    bool said = false;
+
+    // The warning names the address it takes.
+    for (const std::string& line : g_log) {
+        said = said || line.find("using 127.0.0.1:7177") != std::string::npos;
+    }
+
+    CHECK(said);
     unload();
     std::puts("multiplayer rac2 load: all passed");
     return 0;
