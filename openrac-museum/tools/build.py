@@ -72,7 +72,7 @@ class Geo:
                  [[p[axis[0]] / uv_scale, p[axis[1]] / uv_scale] for p in ps]
             self.tri_quad(material, ps, list(map(float, normal)), np.array(uv, np.float32), solid, surface, glow)
 
-    def beam(self, material, a, b, size, solid=False, uv_scale=4.0):
+    def beam(self, material, a, b, size, solid=False, uv_scale=4.0, glow=None):
         """A square beam from A to B (any direction), SIZE thick."""
         a, b = np.asarray(a, np.float64), np.asarray(b, np.float64)
         d = b - a
@@ -92,13 +92,13 @@ class Geo:
             n = s * (s0 + s1) + u * (u0 + u1)
             uv = np.array([[0, 0], [size / uv_scale, 0], [size / uv_scale, length / uv_scale], [0, length / uv_scale]],
                           np.float32)
-            self.tri_quad(material, [p0, p1, p2, p3], list(n / np.linalg.norm(n)), uv, solid)
+            self.tri_quad(material, [p0, p1, p2, p3], list(n / np.linalg.norm(n)), uv, solid, glow=glow)
         # Ends.
         for end, sign in ((a, -1), (b, 1)):
             ps = [end + s * s0 + u * u0 for s0, u0 in ring]
             if sign < 0:
                 ps = ps[::-1]
-            self.tri_quad(material, ps, list(f * sign), np.zeros((4, 2), np.float32), solid)
+            self.tri_quad(material, ps, list(f * sign), np.zeros((4, 2), np.float32), solid, glow=glow)
 
     def slope(self, material, x0, x1, y0, y1, z0, z1, axis="y", thick=0.5, uv_scale=4.0, solid=True):
         """A ramp or roof plane between two heights along AXIS, with a thickness."""

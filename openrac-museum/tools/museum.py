@@ -43,9 +43,9 @@ ZONE_WORD = {"psytcopus": 79, "puffoid": 140}
 
 
 # The level's fog: a light sea haze (the sky's colour at the horizon) that starts past the island's
-# middle and softens the far rocks, in place of Pokitaru's dark teal. Distances in 1/1024 units.
-HAZE = {"fog_colour": "[96, 160, 184]", "fog_near": "40960.0", "fog_far": "512000.0",
-        "fog_near_intensity": "255.0", "fog_far_intensity": "96.0"}
+# middle and deepens towards the far jungle, in place of Pokitaru's dark teal. Distances in 1/1024 units.
+HAZE = {"fog_colour": "[96, 160, 184]", "fog_near": "61440.0", "fog_far": "1843200.0",
+        "fog_near_intensity": "255.0", "fog_far_intensity": "110.0"}
 
 
 def set_pvar(section, word, value):

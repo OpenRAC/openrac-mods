@@ -617,9 +617,15 @@ def torch(geo, x, y, z0, height=3.2):
     """A tiki torch: a pole, a basket, a flame that glows."""
     geo.cylinder("om_planks_dark", (x, y), 0.18, z0, z0 + height, 6)
     geo.cylinder("om_thatch", (x, y), 0.4, z0 + height, z0 + height + 0.6, 8)
-    geo.cone("om_orange", (x, y), 0.36, z0 + height + 0.6, z0 + height + 1.6, 8, glow=[1.6, 1.1, 0.5])
-    geo.cone("om_yellow", (x, y), 0.2, z0 + height + 0.6, z0 + height + 1.25, 8, glow=[1.8, 1.6, 0.8])
+    # Glowing coals heaped in the basket; the flame is the mod's live particles (geo.flame).
+    rng = np.random.default_rng(int(x * 131 + y * 17) & 0xFFFF)
+    for k in range(6):
+        a = 2 * math.pi * k / 6 + float(rng.uniform(-0.3, 0.3))
+        q = (x + math.cos(a) * 0.18, y + math.sin(a) * 0.18)
+        d = rng.uniform(-1, 1, 3); d = d / np.linalg.norm(d) * 0.1
+        geo.beam("om_planks_dark", (q[0] - d[0], q[1] - d[1], z0 + height + 0.62 - d[2]),
+                 (q[0] + d[0], q[1] + d[1], z0 + height + 0.66 + d[2]), 0.14, glow=[1.9, 1.0, 0.35])
     geo.light((x, y, z0 + height + 1.0), (1.5, 0.95, 0.45), 9)
-    geo.flame("torch", (x, y, z0 + height + 1.3))
+    geo.flame("torch", (x, y, z0 + height + 0.75))
 
 

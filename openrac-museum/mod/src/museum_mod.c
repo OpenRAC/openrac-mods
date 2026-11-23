@@ -54,7 +54,7 @@ static const struct { uint32_t address, size; } CODE_FLAGS[] = {
 #define EFFECT_EVERY 25
 /* The live effects: how far from Ratchet they play, and at most how many start a tick. */
 #define AMBIENT_RANGE 45.0f
-#define AMBIENT_PER_TICK 8
+#define AMBIENT_PER_TICK 10
 /* Ticks a code's notice stays. */
 #define NOTICE_TICKS 300
 /* The HUD: the title's and the words' places (0 to 1 down the screen) and sizes. */
@@ -261,20 +261,19 @@ static void ambient(const float p[3]) {
         sp.position[2] = f->z;
         switch (f->kind) {
             case MUSEUM_FLAME_TORCH:   /* a flame licking up from the basket */
-                if (rnd() > 0.35f) continue;
+                if (rnd() > 0.5f) continue;
                 sp.kind = OPENRAC_PARTICLE_SMOKE;
-                sp.particle_size = 16000.0f + rnd() * 10000.0f;
+                sp.particle_size = 22000.0f + rnd() * 12000.0f;
                 sp.life_ticks = 18 + (uint32_t)(rnd() * 10.0f);
                 sp.color = 0x7F1870FFu;
                 sp.velocity[0] = (rnd() - 0.5f) * 0.01f, sp.velocity[1] = (rnd() - 0.5f) * 0.01f;
                 sp.velocity[2] = 0.05f + rnd() * 0.03f;
                 break;
             case MUSEUM_FLAME_FIRE:
-                if (rnd() < 0.5f) {   /* the fire's flames */
+                if (rnd() < 0.7f) {   /* the fire's flames */
                     sp.kind = OPENRAC_PARTICLE_SMOKE;
                     sp.position[0] += (rnd() - 0.5f) * 0.6f;
                     sp.position[1] += (rnd() - 0.5f) * 0.6f;
-                    sp.position[2] -= 0.2f;
                     sp.particle_size = 30000.0f + rnd() * 16000.0f;
                     sp.life_ticks = 24 + (uint32_t)(rnd() * 12.0f);
                     sp.color = 0x7F1870FFu;

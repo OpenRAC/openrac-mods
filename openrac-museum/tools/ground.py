@@ -201,34 +201,51 @@ def sea(radius=6000, rings=24, segments=64, z=island.SEA - 0.4, uv=24.0):
     return mesh
 
 
-# Islands on the horizon: (angle, distance, radius, height).
-FAR = [(15, 1700, 380, 330), (60, 2300, 520, 520), (100, 1900, 300, 260), (150, 2600, 650, 620),
-       (205, 2100, 420, 300), (250, 2900, 700, 480), (300, 1800, 260, 180), (335, 2400, 500, 410)]
+# The jungle on the horizon: huge karst massifs in a ring round the island, (angle, distance,
+# radius, height). Nearer ones lower, the far ones towering, so the ring climbs into the haze.
+FAR = [(5, 1500, 420, 420), (32, 2300, 700, 950), (58, 1700, 380, 520), (84, 2700, 800, 1250),
+       (110, 1600, 360, 380), (138, 2400, 720, 1050), (165, 1800, 460, 600), (192, 2900, 900, 1400),
+       (220, 1550, 400, 460), (246, 2200, 650, 900), (272, 1750, 420, 560), (300, 2800, 850, 1300),
+       (326, 1650, 380, 500), (350, 2500, 700, 1000)]
+
+
+def massif(k, cx, cy, rad, hgt, rng):
+    """A massif's height function: a few towers, each a stack of tiers with sheer jungle walls,
+    their tops a rolling canopy."""
+    peaks = [(cx, cy, rad, hgt)] + [(cx + rng.uniform(-0.55, 0.55) * rad, cy + rng.uniform(-0.55, 0.55) * rad,
+                                      rad * rng.uniform(0.3, 0.55), hgt * rng.uniform(0.55, 1.3)) for _ in range(4)]
+
+    def H(X, Y):
+        Z = np.full(np.shape(X), island.SEA - 40.0)
+        for j, (px, py, pr, ph) in enumerate(peaks):
+            d = np.hypot(X - px, Y - py) + (island.fbm(X, Y, pr * 0.5, 3, k + j) - 0.5) * pr * 0.6
+            t = island.smooth(pr, pr * 0.1, d)
+            tiers = 4
+            q = t ** 0.7 * tiers
+            stairs = (np.floor(q) + island.smooth(0.7, 0.92, q - np.floor(q))) / tiers
+            Z = np.maximum(Z, island.SEA - 40 + (ph + 40) * stairs)
+        # The canopy: crowns of giant trees rolling over every flat top.
+        crowns = island.fbm(X, Y, 18.0, 3, k + 1) * 34.0
+        return Z + np.where(Z > island.SEA + 20, crowns, 0.0)
+    return H
 
 
 def far_islands():
-    """Islands on the horizon in Pokitaru's layers: rock walls, a grass top on every tier."""
+    """The far jungle in Pokitaru's layers: sheer creeper walls, a canopy on every tier, and great
+    waterfalls down the walls that face the island."""
     mesh = Mesh()
     rng = np.random.default_rng(7)
+    cx0, cy0 = island.CENTRE
     for k, (ang, dist, rad, hgt) in enumerate(FAR):
-        cx = 512 + math.cos(math.radians(ang)) * dist
-        cy = 512 + math.sin(math.radians(ang)) * dist
-        n_grid = 44
-        step = rad * 2.4 / n_grid
-        xs = cx - rad * 1.2 + np.arange(n_grid + 1) * step
-        ys = cy - rad * 1.2 + np.arange(n_grid + 1) * step
+        cx = cx0 + math.cos(math.radians(ang)) * dist
+        cy = cy0 + math.sin(math.radians(ang)) * dist
+        H = massif(k, cx, cy, rad, hgt, rng)
+        n_grid = 52
+        step = rad * 2.6 / n_grid
+        xs = cx - rad * 1.3 + np.arange(n_grid + 1) * step
+        ys = cy - rad * 1.3 + np.arange(n_grid + 1) * step
         X, Y = np.meshgrid(xs, ys, indexing="xy")
-        # A few peaks, each a stack of tiers.
-        peaks = [(cx, cy, rad, hgt)] + [(cx + rng.uniform(-0.5, 0.5) * rad, cy + rng.uniform(-0.5, 0.5) * rad,
-                                          rad * rng.uniform(0.3, 0.55), hgt * rng.uniform(0.5, 1.25)) for _ in range(3)]
-        Z = np.full(X.shape, island.SEA - 40.0)
-        for (px, py, pr, ph) in peaks:
-            d = np.hypot(X - px, Y - py) + (island.fbm(X, Y, pr * 0.6, 3, k) - 0.5) * pr * 0.5
-            t = island.smooth(pr, pr * 0.15, d)
-            tiers = 5
-            q = t ** 0.8 * tiers
-            stairs = (np.floor(q) + island.smooth(0.55, 0.85, q - np.floor(q))) / tiers
-            Z = np.maximum(Z, island.SEA - 40 + (ph + 40) * stairs)
+        Z = H(X, Y)
         hx = np.gradient(Z, step, axis=1); hy = np.gradient(Z, step, axis=0)
         N = np.stack([-hx, -hy, np.ones_like(hx)], -1)
         N /= np.linalg.norm(N, axis=-1, keepdims=True)
@@ -241,9 +258,12 @@ def far_islands():
         tris = tris[P[tris][:, :, 2].max(1) > island.SEA - 2]
         cn = Nf[tris].mean(1)
         cz = P[tris][:, :, 2].mean(1)
-        col = shade(Nf) * 0.8 + 0.12  # hazy
-        names = np.where(cn[:, 2] > 0.8, "om_grass", "om_cliff")
-        names[(cz < island.SEA + 6) & (cn[:, 2] > 0.8)] = "om_sand"
+        # Hazier the farther: the ring fades into the sky.
+        haze = np.clip((dist - 1400) / 2200, 0, 1) * 0.15
+        col = shade(Nf) * (0.85 - haze) + 0.08 + haze * np.array([0.25, 0.32, 0.38])
+        # (Not the creepers' picture: its holes let the sky through at this size.)
+        names = np.where(cn[:, 2] > 0.7, "om_grass", "om_cliff")
+        names[(cz < island.SEA + 6) & (cn[:, 2] > 0.7)] = "om_sand"
         for name in ("om_grass", "om_cliff", "om_sand"):
             t = tris[names == name]
             if not len(t):
@@ -251,10 +271,31 @@ def far_islands():
             used, inv = np.unique(t.reshape(-1), return_inverse=True)
             p = P[used]
             if name == "om_cliff":
-                uv = np.stack([(p[:, 0] + p[:, 1]) / 40, -p[:, 2] / (hgt / 5)], -1)
+                uv = np.stack([(p[:, 0] + p[:, 1]) / 40, -p[:, 2] / 40], -1)
             else:
-                uv = p[:, :2] / 40
-            mesh.add(name, p, Nf[used], uv, np.clip(col[used] * BRIGHT.get(name, 1.0) * WARM, 0, 2), inv.reshape(-1, 3))
+                uv = p[:, :2] / 60
+            bright = {"om_grass": 0.9}.get(name, BRIGHT.get(name, 1.0))
+            mesh.add(name, p, Nf[used], uv, np.clip(col[used] * bright * WARM, 0, 2), inv.reshape(-1, 3))
+        # A waterfall down the wall that faces the island, from the highest tier's lip.
+        if k % 2 == 1 or hgt >= 900:
+            towards = np.array([cx0 - cx, cy0 - cy]); towards /= np.linalg.norm(towards)
+            ts = np.linspace(0, rad * 1.3, 200)
+            line = np.array([cx, cy]) + towards[None] * ts[:, None]
+            zs = H(line[:, 0], line[:, 1])
+            top = zs.max()
+            lip = int(np.nonzero(zs > top * 0.0 + (island.SEA + (top - island.SEA) * 0.55))[0].max())
+            fx, fy = line[min(lip + 2, len(line) - 1)]
+            fz = float(zs[lip]) - 2.0
+            side = np.array([-towards[1], towards[0]])
+            width = rad * 0.08
+            q = np.array([[fx - side[0] * width, fy - side[1] * width, fz], [fx + side[0] * width, fy + side[1] * width, fz],
+                          [fx + side[0] * width * 1.4, fy + side[1] * width * 1.4, island.SEA],
+                          [fx - side[0] * width * 1.4, fy - side[1] * width * 1.4, island.SEA]], np.float32)
+            n = np.array([towards[0], towards[1], 0.0])
+            reps = max(1.0, (fz - island.SEA) / 80)
+            uv = np.array([[0, 0], [2, 0], [2, reps], [0, reps]], np.float32)
+            colf = np.full((4, 3), 0.62 - haze * 0.5)
+            mesh.add("om_falls", q, np.tile(n, (4, 1)), uv, colf, [[0, 1, 2], [0, 2, 3]])
     return mesh
 
 

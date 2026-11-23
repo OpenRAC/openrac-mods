@@ -76,17 +76,36 @@ def canoe(geo, p, z, yaw, r):
 
 
 def campfire(geo, p, z, yaw, r):
-    for k in range(9):
-        a = 2 * math.pi * k / 9
-        q = p + np.array([math.cos(a), math.sin(a)]) * 1.3
-        geo.box("om_stone", (q[0] - 0.3, q[1] - 0.3, z - 0.1), (q[0] + 0.3, q[1] + 0.3, z + 0.35), solid=False)
+    """A ring of tilted stones, a tepee of logs over a bed of glowing coals; its flames are the
+    mod's live particles (geo.flame)."""
+    for k in range(10):
+        a = 2 * math.pi * k / 10 + float(r.uniform(-0.15, 0.15))
+        q = p + np.array([math.cos(a), math.sin(a)]) * float(r.uniform(1.2, 1.45))
+        t = np.array([-math.sin(a), math.cos(a)]) * float(r.uniform(0.2, 0.32))
+        lift = float(r.uniform(0.0, 0.12))
+        geo.beam("om_stone", (*(q - t), z + 0.05), (*(q + t), z + 0.12 + lift), float(r.uniform(0.32, 0.46)))
+    # The coals: small glowing chunks at every tilt, hotter in the middle.
+    for k in range(14):
+        rr = float(r.uniform(0, 0.75))
+        a = float(r.uniform(0, 2 * math.pi))
+        q = p + np.array([math.cos(a), math.sin(a)]) * rr
+        d = np.array([float(r.uniform(-1, 1)), float(r.uniform(-1, 1)), float(r.uniform(-0.3, 0.3))])
+        d = d / np.linalg.norm(d) * float(r.uniform(0.1, 0.2))
+        hot = 1 - rr / 0.75
+        glow = [1.9, 0.55 + 0.7 * hot, 0.2 + 0.25 * hot]
+        geo.beam("om_planks_dark", (q[0] - d[0], q[1] - d[1], z + 0.08 - d[2]),
+                 (q[0] + d[0], q[1] + d[1], z + 0.12 + d[2]), float(r.uniform(0.12, 0.2)), glow=glow)
+    # The tepee: logs leaning in to a point over the coals, their feet charred.
+    top = (p[0], p[1], z + 1.25)
+    for k in range(6):
+        a = math.radians(yaw) + 2 * math.pi * k / 6 + float(r.uniform(-0.2, 0.2))
+        foot = p + np.array([math.cos(a), math.sin(a)]) * float(r.uniform(0.75, 0.95))
+        geo.beam("om_planks_dark", (*foot, z + 0.05), top, 0.16)
+        geo.beam("om_planks_dark", (*foot, z + 0.05), (*(foot + (p - foot) * 0.35), z + 0.45), 0.17,
+                 glow=[0.9, 0.35, 0.15])
     f, s = frame(yaw)
-    for d in (f, s, (f + s) * 0.7):
-        geo.beam("om_planks_dark", (*(p - d * 0.9), z + 0.15), (*(p + d * 0.9), z + 0.35), 0.25)
-    geo.cone("om_orange", (p[0], p[1]), 0.7, z + 0.2, z + 1.7, 6, glow=[1.7, 1.0, 0.4])
-    geo.cone("om_yellow", (p[0], p[1]), 0.4, z + 0.2, z + 1.2, 6, glow=[1.9, 1.7, 0.8])
     geo.light((p[0], p[1], z + 1.0), (1.7, 0.95, 0.4), 10)
-    geo.flame("fire", (p[0], p[1], z + 1.2))
+    geo.flame("fire", (p[0], p[1], z + 0.5))
     # Logs to sit on.
     for t in (-1, 1):
         q = p + f * 3.0 * t
