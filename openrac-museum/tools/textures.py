@@ -370,13 +370,17 @@ def board(title, paragraphs, seed, width=512, height=704, quote=None):
         f = font(f.size - 2)
     draw.text(((width - draw.textlength(title, font=f)) / 2, 30), title, font=f, fill=(255, 236, 190))
     draw.line([60, 100, width - 60, 100], fill=(244, 196, 74), width=3)
-    size = 30
+    size = 38
     while True:
         body = font(size)
         lines = []
         for p in paragraphs:
             lines += wrap(draw, p, body, width - 64) + [""]
-        need = len(lines) * (size + 8) + (0 if quote is None else 30 + len(wrap(draw, quote, font(size, serif=True), width - 96)) * (size + 8))
+        q = mono(size)
+        # A game string has long words (paths): its font shrinks until each line fits the box.
+        while quote is not None and q.size > 12 and max(draw.textlength(l, font=q) for l in wrap(draw, quote, q, width - 96)) > width - 96:
+            q = mono(q.size - 2)
+        need = len(lines) * (size + 8) + (0 if quote is None else 30 + len(wrap(draw, quote, q, width - 96)) * (q.size + 8))
         if need < height - 150 or size <= 14:
             break
         size -= 2
@@ -385,12 +389,11 @@ def board(title, paragraphs, seed, width=512, height=704, quote=None):
         draw.text((32, y), line, font=body, fill=(240, 232, 214))
         y += size + 8
     if quote is not None:
-        q = font(size, serif=True)
         ql = wrap(draw, quote, q, width - 96)
-        box_h = len(ql) * (size + 8) + 24
+        box_h = len(ql) * (q.size + 8) + 24
         draw.rectangle([32, y, width - 33, y + box_h], fill=(16, 14, 20), outline=(200, 190, 170), width=2)
         for k, line in enumerate(ql):
-            draw.text((48, y + 12 + k * (size + 8)), line, font=q, fill=(150, 240, 150))
+            draw.text((48, y + 12 + k * (q.size + 8)), line, font=q, fill=(150, 240, 150))
     return png(img)
 
 
@@ -416,10 +419,22 @@ def message(text, where, width=1024, height=192):
     img = Image.new("RGB", (width, height), (20, 22, 30))
     draw = ImageDraw.Draw(img)
     draw.rectangle([4, 4, width - 5, height - 5], outline=(244, 196, 74), width=6)
+    # One line while it stays big, else two; the same serif font for every message.
     f = font(72, serif=True)
-    while draw.textlength(text, font=f) > width - 60 and f.size > 14:
-        f = font(f.size - 2)
-    draw.text(((width - draw.textlength(text, font=f)) / 2, 30), text, font=f, fill=(240, 240, 232))
+    while draw.textlength(text, font=f) > width - 60 and f.size > 50:
+        f = font(f.size - 2, serif=True)
+    lines = [text]
+    if draw.textlength(text, font=f) > width - 60:
+        words = text.split(" ")
+        cut = min(range(1, len(words)), key=lambda k: abs(len(" ".join(words[:k])) - len(" ".join(words[k:]))))
+        lines = [" ".join(words[:cut]), " ".join(words[cut:])]
+        f = font(56, serif=True)
+        while max(draw.textlength(l, font=f) for l in lines) > width - 60 and f.size > 14:
+            f = font(f.size - 2, serif=True)
+    step = f.size + 6
+    top = (height - 60 - step * len(lines)) / 2 + 6
+    for k, line in enumerate(lines):
+        draw.text(((width - draw.textlength(line, font=f)) / 2, top + k * step), line, font=f, fill=(240, 240, 232))
     s = font(30)
     draw.text(((width - draw.textlength(where, font=s)) / 2, height - 56), where, font=s, fill=(244, 196, 74))
     return png(img)
@@ -589,7 +604,7 @@ def card(title, lines, width=1024, height=640, big=None):
     if big:
         b = font(96, serif=True)
         while draw.textlength(big, font=b) > width - 80 and b.size > 20:
-            b = font(b.size - 2)
+            b = font(b.size - 2, serif=True)
         if not lines:          # alone under the title: in the middle of the card
             y = (height + 110 - b.size) / 2
         draw.text(((width - draw.textlength(big, font=b)) / 2, y), big, font=b, fill=(255, 250, 240))
@@ -631,7 +646,12 @@ def names_wall(title, names, width=1024, height=1024):
     draw.text(((width - draw.textlength(title, font=f)) / 2, 40), title, font=f, fill=GOLD)
     cols = 2
     per = (len(names) + cols - 1) // cols
-    n = any_script(44)
+    size = 44
+    n = any_script(size)
+    # One size for every name: the longest fits its column with a margin.
+    while size > 20 and max(draw.textlength(name, font=n) for name in names) > width / cols - 60:
+        size -= 2
+        n = any_script(size)
     for k, name in enumerate(names):
         c, r = divmod(k, per)
         x = width * (c + 0.5) / cols

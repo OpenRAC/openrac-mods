@@ -29,6 +29,7 @@ static const museum_station MUSEUM_STATIONS[] = {
     {"cut_e3", 609.65f, 524.29f, 231.00f, "The E3 demo", 4, {"At E3 in 2002 the game was not finished.", "Rilgar was called Talos, and the Decoy Glove", "was the Inflato-Ratchet Glove. The I-5 menu", "still calls it Inflato R."}},
     {"cut_mackerel", 615.71f, 509.65f, 231.00f, "The Mackerel 1000", 3, {"A fish that was to replace the wrench. It", "was cut, and only its icon is left in the", "game's files."}},
     {"cut_messages", 630.35f, 515.71f, 231.00f, "Notes to themselves", 5, {"The lines over the doors are messages the", "developers wrote for themselves. The game", "sends them all to an empty printf, so nobody", "saw them, but the words are still on the", "disc."}},
+    {"jetboard", 740.00f, 471.40f, 231.70f, "The JET-Board", 4, {"Jak II's hover board, made for Ratchet by", "RAC-Board, a mod for OpenRAC. Turn the mod", "on and press D-pad Up to ride. Hold R1 with", "Cross by an edge to grind it."}},
 };
 
 static const museum_zone MUSEUM_ZONE_ARCHIVE = {642.00f, 542.00f, 268.50f, 0.00f};

@@ -559,7 +559,9 @@ def tower(geo):
     base = TOP - 0.5
     # Four legs and cross braces from the roof up.
     for (px, py) in ((tx - h, ty - h), (tx + h, ty - h), (tx + h, ty + h), (tx - h, ty + h)):
-        geo.box("om_planks_dark", (px - 0.6, py - 0.6, F0), (px + 0.6, py + 0.6, TOWER_TOP))
+        # The leg over the rooms stands on the roof: down to the floor it would hide two rooms' exhibits.
+        inside = math.hypot(px - CX, py - CY) < R_OUT * K
+        geo.box("om_planks_dark", (px - 0.6, py - 0.6, TOP if inside else F0), (px + 0.6, py + 0.6, TOWER_TOP))
     for z in np.arange(base, TOWER_TOP, 6):
         for a, b in (((tx - h, ty - h), (tx + h, ty - h)), ((tx + h, ty - h), (tx + h, ty + h)),
                      ((tx + h, ty + h), (tx - h, ty + h)), ((tx - h, ty + h), (tx - h, ty - h))):

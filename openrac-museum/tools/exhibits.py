@@ -11,6 +11,7 @@ import math
 import numpy as np
 
 import house
+import park
 import textures
 from house import CX, CY, F0, F1, R_IN, R_OUT, WALL, ang, mid
 
@@ -104,6 +105,9 @@ WORDS = {
     "cut_messages": ("Notes to themselves",
                      "The lines over the doors are messages the developers wrote for themselves. The game sends "
                      "them all to an empty printf, so nobody saw them, but the words are still on the disc."),
+    "jetboard": ("The JET-Board",
+                 "Jak II's hover board, made for Ratchet by RAC-Board, a mod for OpenRAC. Turn the mod on and "
+                 "press D-pad Up to ride. Hold R1 with Cross by an edge to grind it."),
 }
 
 # The tiles: (key, x, y, z), filled by build(); the mod's data comes from them.
@@ -274,6 +278,7 @@ def build(geo, signs):
     thanks(geo, signs)
     cut_content(geo, signs)
     ledge(geo, signs)
+    STATIONS.append(park.station())        # drawn with the park (landmarks)
 
 
 def wall_of_messages(geo, signs):

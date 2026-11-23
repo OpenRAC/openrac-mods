@@ -33,6 +33,9 @@ Adding a newer file updates the planet in place.
   demo's old names, the Mackerel 1000, and the developers' notes to themselves over the doors.
 - **A gold tile before each exhibit**: stand on it and the OpenRAC Museum mod shows what you see
   and the story behind it.
+- **The JET-Board park** past the east bridge: quarter pipes, a fun box, a rail and the board on
+  its stand. Ride it with the [RAC-Board](https://github.com/mateuszklysz/rac-board) mod (D-pad Up);
+  the board's model and picture here are RAC-Board's own (MIT).
 - **Gadget routes** (Swingshot): the north jetty to the tower's top room, the coast to the
   message-in-a-bottle islet, and the lookout up the volcano to its shrine.
 - **Easter eggs**: the Decomp Cave behind the second waterfall, a rubber duck in the tower, a

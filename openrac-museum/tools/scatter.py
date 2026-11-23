@@ -6,6 +6,7 @@ import numpy as np
 
 import house
 import island
+import park
 
 # Pokitaru's own models, by kind: the class numbers of the ties and shrubs used.
 TIES = {"mossy_dark_boulder": 1513, "mossy_dark_rock": 1519, "green_leafy_sprig": 880,
@@ -32,7 +33,7 @@ def clear(x, y, margin=0.0):
         return False
     if abs(y - house.CY) < 6 and house.CX < x < house.CX + 140:   # the east bridge
         return False
-    return True
+    return park.clear(x, y, margin)
 
 
 def palms():

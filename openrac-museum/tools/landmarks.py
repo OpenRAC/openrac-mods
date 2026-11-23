@@ -10,6 +10,7 @@ import numpy as np
 
 import house
 import island
+import park
 import textures
 import vignettes
 from build import Geo
@@ -349,6 +350,10 @@ def build(geo: Geo, pictures, mats):
     # A stand at its start to jump on from.
     platform(geo, (ramp_start[0] + 3, ramp_start[1] - 3), SEA + 8.5, 3.0, rail=False)
     geo.slope("om_planks_light", ramp_start[0] + 0, ramp_start[0] + 6, ramp_start[1] - 18, ramp_start[1] - 6, float(island.height(ramp_start[0] + 3, ramp_start[1] - 18)), SEA + 8.5, "y", 0.3)
+
+    # --- The JET-Board park on the east lowland ---
+    px, py = park.build(geo, pictures, mats)
+    add_sign(geo, pictures, mats, "om_sign_park", "JET-BOARD PARK", "", (px, py, float(island.height(px, py)) + 2.6), 90)
 
     # --- The swingshot rafts: north shore to the tower ---
     # A Versatarget pulls Ratchet up to it and lets go, so each one hangs 6 units over the raft
