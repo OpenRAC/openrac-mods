@@ -407,6 +407,19 @@ int main(int argc, char** argv) {
         }
         test_world=0;set32(s_memory+pool_word(),0);s_phase=OPENRAC_PLAY_PLAYING;
     }
+    /* Drek's Fleet's CodeBot pickup (1428) shows its reward only when the Items pool shuffles it;
+     * with it off (this test's settings) the CodeBot is its own reward and keeps its model. */
+    {
+        const uint32_t moby=0x180000;
+        const int16_t cls=1428;
+        const int row=location_of(LOC_SPECIAL,LEVEL_FLEET,SPECIAL_CODEBOT);
+        CHECK(row>=0&&!plan.shuffled[row]);
+        set32(s_memory+pool_word(),moby);set32(s_memory+D->level,LEVEL_FLEET);
+        memcpy(s_memory+moby+0xA6,&cls,2);
+        test_world=1;s_frame(NULL);
+        CHECK(visual_count==0);
+        test_world=0;set32(s_memory+pool_word(),0);
+    }
     /* Collection messages resolve the canonical reward even after shuttle travel. */
     {
         uint32_t (*message)(int) = (uint32_t (*)(int))hook_named("rac1.text.msg_string");

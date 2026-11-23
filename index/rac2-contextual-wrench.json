@@ -1,0 +1,27 @@
+{
+  "id": "rac2-contextual-wrench",
+  "repo": "https://github.com/Joebannerlord/openRAC-RC2-contextual-wrench-throw",
+  "path": "",
+  "description": "Throw the OmniWrench while running or jumping with R2 + Square. R2 fires the drawn weapon. L2 + R2 locks on and fires with the Lock-On upgrade enabled. Windows x64, Going Commando USA v1.01. Inspired by Christian's original RC1 wrench-throw mod.",
+  "tags": [
+    "gameplay",
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Joebannerlord/openRAC-RC2-contextual-wrench-throw/issues",
+    "docs": "https://github.com/Joebannerlord/openRAC-RC2-contextual-wrench-throw#controls"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "uuidZpA5jIk",
+        "caption": "Trailer"
+      }
+    ]
+  }
+}

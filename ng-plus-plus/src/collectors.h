@@ -29,10 +29,6 @@
 
 namespace ng_plus_plus {
 
-// The game's text ids of the two dialogs (the same on every disc).
-inline constexpr std::int32_t kCrystalTradeText = 10135;
-inline constexpr std::int32_t kMoonstoneTradeText = 10209;
-
 // What one crystal and one moonstone pay in the game, and how many times that in challenge mode.
 inline constexpr std::int32_t kCrystalPay = 1000;
 inline constexpr std::int32_t kMoonstonePay = 3000;

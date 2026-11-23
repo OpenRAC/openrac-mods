@@ -218,7 +218,7 @@ std::optional<std::uint32_t> TextResolver::level_up_popup(std::int32_t id) {
 
 std::optional<std::uint32_t> TextResolver::vendor_label(std::int32_t id) {
     // Only the label under an upgrade entry's icon.
-    if (id != kUpgradeLabelText) {
+    if (id != m_view.upgrade_label_text()) {
         return std::nullopt;
     }
 

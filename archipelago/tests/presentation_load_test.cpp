@@ -807,6 +807,9 @@ void serve(socket_t listener) {
                                     {{"location", ap_npc_id(3)},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
+                                    {{"location", location_id(LOC_SPECIAL, LEVEL_FLEET, SPECIAL_CODEBOT)},
+                                     {"item", AP_BASE + ITEM_DEVASTATOR},
+                                     {"player", 1}},
                                     {{"location", location_id(LOC_GIVE, LEVEL_BLARG, ITEM_HYDRODISPLACER)},
                                      {"item", AP_BASE + ITEM_DEVASTATOR},
                                      {"player", 1}},
@@ -946,7 +949,7 @@ int main(int argc, char** argv) {
         api.pickup_animation = acquisition_request;
     }
     CHECK(load(ap_visual_base(&api), reinterpret_cast<openrac_mod*>(1)) == 0);
-    CHECK(g_hooks == (g_acquisition_mode ? 60 : g_visual_mode ? 52 : 45) && g_frame != nullptr);
+    CHECK(g_hooks == (g_acquisition_mode ? 61 : g_visual_mode ? 53 : 46) && g_frame != nullptr);
     CHECK(replacement("rac1.moby.moby743.update") != nullptr);
     CHECK(replacement("rac1.moby.moby744.update") != nullptr);
     const std::uint32_t challenge = std::strcmp(D->version, "pal") == 0 ? 0x15EFA0 : 0x15EEA0;
@@ -1477,6 +1480,27 @@ int main(int argc, char** argv) {
         g_frame(g_frame_user);
         CHECK(g_visuals.empty());  // the handoff/cutscene remains native
         g_play_phase = OPENRAC_PLAY_PLAYING;
+
+        // Drek's Fleet's CodeBot pickup (1428) shows its scouted weapon until it is had.
+        set_level(LEVEL_FLEET);
+        const int16_t codebot_class = 1428;
+        std::memcpy(at(0x1800000 + 0xA6), &codebot_class, 2);
+        g_frame(g_frame_user);
+        CHECK(std::any_of(g_visuals.begin(), g_visuals.end(), [](const auto& v) {
+            return v.moby == 0x1800000 && v.oclass == 0x601 && v.height == 1;
+        }));
+        const uint32_t specials = std::strcmp(D->version, "pal") == 0 ? 0x13D490u : 0x13D388u;
+        const auto codebot_swapped = [] {
+            return std::any_of(g_visuals.begin(), g_visuals.end(),
+                               [](const auto& v) { return v.moby == 0x1800000; });
+        };
+        *at(specials + 2) = 1;  // the CodeBot had: its own model again
+        g_frame(g_frame_user);
+        CHECK(!codebot_swapped());
+        *at(specials + 2) = 0;
+        set_level(LEVEL_QUARTU);  // class 1428 elsewhere is not the Fleet's pickup
+        g_frame(g_frame_user);
+        CHECK(!codebot_swapped());
 
         g_test_mobys.clear();
         put(pool_pointer, 0);

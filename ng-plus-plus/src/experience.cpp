@@ -61,7 +61,7 @@ void Experience::show_earned(int item) {
     if (item == view.held() && view.upgrade_fx() != nullptr) {
         view.upgrade_fx()(item, view.slot(item));
         m_pending = item;
-        m_pending_ticks = kPendingTicks;
+        m_pending_ticks = m_weapons.view().ticks(kPendingTicks);
         return;
     }
 
@@ -239,7 +239,7 @@ void Experience::notice(int item) {
     const openrac::Mod& mod = m_weapons.view().mod();
     const std::string name = m_weapons.name_at(item, m_tiers.level(item));
     mod.api().play_notice(mod.handle(), name.c_str());
-    m_notice_ticks = kNoticeTicks;
+    m_notice_ticks = m_weapons.view().ticks(kNoticeTicks);
 }
 
 }  // namespace ng_plus_plus

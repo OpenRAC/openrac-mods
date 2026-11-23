@@ -91,6 +91,7 @@
     "rac1.moby.nanotech_vendor.update",
     "rac1.moby.pokitaru_vendor.update",
     "rac1.moby.class_1035.update",
+    "rac1.moby.moby1105.update",
     "rac1.moby.path_pickup.update",
     "rac1.player.update"
   ],
@@ -204,11 +205,29 @@
       ]
     },
     {
-      "key": "keep_starting_gear",
-      "name": "Keep the starting gear",
-      "type": "bool",
-      "default": true,
-      "description": "Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is shuffled too.",
+      "key": "starting_weapons",
+      "name": "Starting weapons",
+      "type": "choice",
+      "default": "vanilla",
+      "choices": [
+        {
+          "value": "vanilla",
+          "name": "Vanilla"
+        },
+        {
+          "value": "shuffled",
+          "name": "Shuffled"
+        },
+        {
+          "value": "non_broken",
+          "name": "Non-Broken"
+        },
+        {
+          "value": "unrestricted",
+          "name": "Unrestricted"
+        }
+      ],
+      "description": "Vanilla: start with the Bomb Glove, as the game does. Shuffled: shuffle the starting location, with no guaranteed weapon. Non-Broken: start with one random normal or gold weapon besides the R.Y.N.O. Unrestricted: start with any one normal or gold weapon. With Non-Broken and Unrestricted, the place that gives that weapon in the game gives the Bomb Glove instead, and gold weapons can be drawn even when gold cases are not shuffled. Seed codes carry the choice (N: or U: prefix).",
       "games": [
         "rac1"
       ]
@@ -263,6 +282,18 @@
         "rac1"
       ],
       "description": "New games skip the Veldin tutorial and fly to a seeded planet with an item-free route, or a ship-side vendor selling the item needed for a route. Included in seed codes (R: prefix)."
+    },
+    {
+      "key": "return_to_ship_buttons",
+      "name": "Return to ship buttons",
+      "type": "string",
+      "default": "L1+R1+L2+R2+Start",
+      "max_length": 128,
+      "multiplayer": "own",
+      "games": [
+        "rac1"
+      ],
+      "description": "Hold all buttons before the last +, then press the last button to return through this planet’s ship-arrival sequence. Default: hold L1+R1+L2+R2, press Start. Use Off to disable. Buttons: L1, R1, L2, R2, L3, R3, Start, Select, Up, Down, Left, Right, Triangle, Circle, Cross, Square. Gameplay only; unavailable while playing as Clank."
     }
   ]
 }

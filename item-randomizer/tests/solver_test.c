@@ -74,6 +74,7 @@ static void check_tables(void) {
 
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
             if (!strcmp(a->name, "Oltanis: the PDA's seller")) CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | (d == DIFFICULTY_RELAXED ? BIT(ITEM_HELI_PACK) : 0)));
+            if (!strcmp(a->name, "Rilgar: the bouncer, the coordinates of Umbris")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HELI_PACK) | BIT(ITEM_SWINGSHOT) | (d == DIFFICULTY_RELAXED ? BIT(ITEM_HYDRODISPLACER) : 0)));
             if (!strcmp(a->name, "Oltanis: the Morph-o-Ray's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Oltanis: Sam, the coordinates of Quartu")) CHECK(rando_requirement(d, i) == (BIT(ITEM_GRINDBOOTS) | BIT(ITEM_SWINGSHOT)));
             if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup")) CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
@@ -319,19 +320,23 @@ static void check_rilgar_routes(void) {
     const int extra[] = {0, ITEM_SWINGSHOT, ITEM_HOVERBOARD};
     for (int route = 0; route < 3; ++route) {
         rando_plan p = {0};
-        int target = -1, start = -1, heli = -1, supplier = -1;
+        int target = -1, start = -1, heli = -1, supplier = -1, salesman = -1;
         int spheres[RANDO_MAX_LOCATIONS];
         for (size_t i = 0; i < rando_location_count; ++i) {
             const rando_location* l = &rando_locations[i];
             if (!strcmp(l->name, names[route])) target = (int)i;
+            if (!strcmp(l->name, names[0])) salesman = (int)i;
             if (l->kind == LOC_START) start = (int)i;
             if (l->level == LEVEL_VELDIN && l->vanilla.kind == REWARD_PLANET
                 && l->vanilla.value == LEVEL_NOVALIS) heli = (int)i;
             if (l->kind == LOC_VENDOR && l->key == ITEM_MINE_GLOVE) supplier = (int)i;
         }
-        CHECK(target >= 0 && start >= 0 && heli >= 0 && supplier >= 0);
+        CHECK(target >= 0 && start >= 0 && heli >= 0 && supplier >= 0 && salesman >= 0);
         p.reward[start] = (rando_reward){REWARD_PLANET, LEVEL_RILGAR};
         if (extra[route]) p.reward[supplier] = (rando_reward){REWARD_ITEM, (uint8_t)extra[route]};
+        /* Relaxed asks the bouncer for the Hydrodisplacer too; the salesman needs only the
+         * Heli-Pack, so the route still opens with it. */
+        if (route == 1) p.reward[salesman] = (rando_reward){REWARD_ITEM, ITEM_HYDRODISPLACER};
         for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
             p.settings.difficulty = (uint8_t)d;
             p.reward[heli] = (rando_reward){REWARD_NONE, 0};
@@ -490,10 +495,70 @@ static void check_pokitaru_routes(void) {
     }
 }
 
+/* Random starting weapons: the start gives the drawn weapon, its place in the game the Bomb Glove;
+ * Non-Broken never draws the R.Y.N.O.; gold weapons are drawn with or without the gold cases;
+ * every seed is beatable and names its weapon in the spoiler log. */
+static int same_reward(rando_reward a, rando_reward b) { return a.kind == b.kind && a.value == b.value; }
+static void check_start_weapons(void) {
+    static rando_plan p;
+    static char text[1 << 16];
+    int start = -1;
+    for (size_t i = 0; i < rando_location_count; ++i)
+        if (rando_locations[i].kind == LOC_START) start = (int)i;
+    CHECK(start >= 0);
+    const rando_reward glove = {REWARD_ITEM, ITEM_BOMB_GLOVE};
+    for (int mode = RANDO_START_WEAPONS_NON_BROKEN; mode <= RANDO_START_WEAPONS_UNRESTRICTED; ++mode) {
+        for (int gold = 0; gold <= 1; ++gold) {
+            int golds = 0, rynos = 0, normals = 0;
+            for (uint64_t seed = 1; seed <= 150; ++seed) {
+                const rando_settings s = {seed * 0x9E3779B1ull & RANDO_SEED_MASK,
+                    (uint8_t)(POOL_ALL | POOL_ITEMS | (gold ? POOL_GOLD_WEAPONS : 0)), 1,
+                    DIFFICULTY_STANDARD, 0, (uint8_t)(seed % 4 == 0), (uint8_t)mode};
+                CHECK(rando_solve(&s, &p) == 0);
+                CHECK(rando_beatable(&p, NULL) && rando_stranded(&p) == 0);
+                const rando_reward w = p.start_weapon;
+                CHECK(w.kind == REWARD_ITEM || w.kind == REWARD_GOLD_WEAPON);
+                /* A drawn Bomb Glove leaves the start as the game has it. */
+                CHECK(same_reward(p.reward[start], w) && (p.shuffled[start] || same_reward(w, glove)));
+                if (mode == RANDO_START_WEAPONS_NON_BROKEN) CHECK(w.value != ITEM_RYNO);
+                golds += w.kind == REWARD_GOLD_WEAPON;
+                rynos += w.value == ITEM_RYNO;
+                normals += w.kind == REWARD_ITEM;
+                /* The weapon is given once (by the start); a gold one's base weapon with it when
+                 * the cases are not shuffled; the Bomb Glove once, unless the start's gold Bomb
+                 * Glove gives it. */
+                int weapon = 0, base = 0, gloves = 0;
+                for (size_t i = 0; i < rando_location_count; ++i) {
+                    weapon += same_reward(p.reward[i], w);
+                    base += w.kind == REWARD_GOLD_WEAPON && same_reward(p.reward[i], (rando_reward){REWARD_ITEM, w.value});
+                    gloves += same_reward(p.reward[i], glove);
+                }
+                CHECK(weapon == 1);
+                if (!gold && w.kind == REWARD_GOLD_WEAPON) CHECK(base == 0);
+                CHECK(gloves == (w.kind == REWARD_GOLD_WEAPON && w.value == ITEM_BOMB_GLOVE && !gold ? 0 : 1));
+                const size_t size = rando_spoiler(&p, "1", text, sizeof text);
+                CHECK(size > 0 && size < sizeof text);
+                CHECK(strstr(text, mode == RANDO_START_WEAPONS_NON_BROKEN ? "Start gear  non-broken: "
+                                                                          : "Start gear  unrestricted: ") != NULL);
+            }
+            printf("start weapons mode %d gold %d: %d normal, %d gold, %d R.Y.N.O.\n", mode, gold,
+                   normals, golds, rynos);
+            CHECK(golds > 0 && normals > 0);
+            if (mode == RANDO_START_WEAPONS_UNRESTRICTED) CHECK(rynos > 0);
+        }
+    }
+    /* A shuffled start draws no weapon, and a plain code's placement is untouched by the field. */
+    const rando_settings shuffled = {0x1234ull, POOL_ALL, 0, DIFFICULTY_STANDARD, 0, 0,
+                                     RANDO_START_WEAPONS_UNRESTRICTED};
+    CHECK(rando_solve(&shuffled, &p) == 0 && p.start_weapon.kind == REWARD_NONE
+          && p.settings.start_weapons == RANDO_START_WEAPONS_NONE);
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
     check_tables();
+    check_start_weapons();
     check_edwina_water_route();
     check_helga_without_heli_pack();
     check_eudora_warp_pad();
