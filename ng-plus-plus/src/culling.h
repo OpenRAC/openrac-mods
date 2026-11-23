@@ -23,8 +23,11 @@ namespace ng_plus_plus {
 inline constexpr std::uint16_t kCullingMinor = 30;
 
 // The weapons whose picks NG++ opens: the Zodiac and the Plasma Coil (its Mega, the Plasma Storm,
-// is the same item).
-inline constexpr std::int32_t kCullingItems[] = {43, 28};
+// is the same item), and since OpenRAC's next port (#767; an older one refuses them, and keeps the
+// game's picks) the Synthenoid and Kilonoid drones, the Seeker Gun's seekers, the Miniturret
+// Glove's turrets, the Shield Charger and Tesla Barrier, and the Tesla Claw's held target: all
+// round the hero by distance, in sight (no wall between), with the game's range and caps.
+inline constexpr std::int32_t kCullingItems[] = {43, 28, 31, 24, 41, 45, 18};
 
 using IgnoreCullingFn = int (*)(openrac_mod*, std::int32_t, std::int32_t);
 

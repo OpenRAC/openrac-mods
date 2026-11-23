@@ -577,6 +577,12 @@ void test_tuning() {
     // The Zodiac: no boss, the game's drain; a boss more, the final boss less than the others, a
     // tier more again.
     CHECK(zodiac_vulnerability(30) == 1.0f);
+
+    // 0.5.4's reach: past the game's 40 without a tier, more each tier, to its most.
+    CHECK(zodiac_reach(0) > kZodiacRange);
+    CHECK(zodiac_reach(5) > zodiac_reach(1));
+    CHECK(zodiac_reach(10) <= kZodiacReachMost);
+    CHECK(zodiac_reach(40) == kZodiacReachMost);
     CHECK(zodiac_vulnerability(3145) > 1.0f);
     CHECK(zodiac_vulnerability(4576) > 1.0f);
     CHECK(zodiac_vulnerability(4576) < zodiac_vulnerability(3145));

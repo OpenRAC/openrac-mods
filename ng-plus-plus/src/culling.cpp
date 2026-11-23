@@ -52,12 +52,18 @@ int start_culling(openrac::Mod& mod, bool enabled) {
     }
 
     int taken = 0;
+    std::string kept;
     for (const std::int32_t item : kCullingItems) {
         if (fn(mod.handle(), item, 1) == OPENRAC_HOOK_OK) {
             ++taken;
         } else {
-            mod.info("the port keeps the game's targets for weapon " + std::to_string(item));
+            kept += (kept.empty() ? "" : ", ") + std::to_string(item);
         }
+    }
+
+    // Refused (a port before the drones' and the shield's picks): one line.
+    if (!kept.empty()) {
+        mod.info("the port keeps the game's on-screen targets for weapons " + kept);
     }
     return taken;
 }

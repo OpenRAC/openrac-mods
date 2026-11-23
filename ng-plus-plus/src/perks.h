@@ -120,6 +120,15 @@ public:
         return m_scan.position(address);
     }
 
+    // Posts `item`'s last hit (else the last weapon hit) on the enemy at `target`: a homing shot
+    // that reached it unhit (shots.cpp). False with nothing to post.
+    bool strike(std::uint32_t target, int item);
+
+    // Returns whether a shot may fly at the moby at `address` now (homing.h), and the height above
+    // its position a shot aims at.
+    bool targetable(std::uint32_t address) const { return m_scan.targetable(address); }
+    float aim_height(std::uint32_t address) const { return m_scan.aim_height(address); }
+
 private:
     // An enemy the Ice Gun slowed or froze.
     struct Frozen {
@@ -180,6 +189,20 @@ private:
         std::uint32_t next = 0;  // Its next zap or pulse.
         bool pulsing = false;    // The Zodiac's gun: its pulse under way.
     };
+
+    // An enemy the Zodiac's reach woke to take its hit: its update distance (+0x30) before, and
+    // the tick it is given back.
+    struct Woken {
+        std::uint8_t distance = 0;
+        std::uint32_t until = 0;
+    };
+
+    // The Zodiac's pulse beyond the game's: every enemy within zodiac_reach of the gun at
+    // `gun` in sight of it that the game's pick left out (tuning_rules.h).
+    void zodiac_reach(const std::array<float, 3>& gun);
+
+    // Gives the woken enemies back their update distance when their time is up (`all`: now).
+    void let_sleep(bool all);
 
     // Posts a hit of `damage` on `target`: through the hit under way when there is one, else a
     // copy of the last request. False with no budget, no request or no original.
@@ -254,6 +277,9 @@ private:
     std::unordered_map<std::uint32_t, int> m_arena_seen;  // Arena enemies seen: address to class.
     std::vector<Later> m_later;
     std::vector<Field> m_fields;
+    std::unordered_map<std::uint32_t, Woken> m_woken;  // By address.
+    int m_zodiac_reached = 0;                          // Enemies its reach hit, for the log.
+    bool m_logged_reach = false;
 
     int m_kill_item = -1;  // The weapon of the kills in a row, and how many.
     int m_kills = 0;

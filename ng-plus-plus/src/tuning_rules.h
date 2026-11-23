@@ -53,6 +53,21 @@ inline constexpr int kZodiacPulse = 3;
 inline constexpr float kZodiacDrain = 20.0f;
 inline constexpr float kZodiacRange = 40.0f;
 
+// NG++'s reach of the pulse (0.5.4): the game's takes only the enemies its moby loop ran this
+// frame (near the camera or drawn), within 40 units and 60 degrees up or down of the camera's
+// forward, so one just round a corner or above is missed. NG++ hits the rest itself, by distance
+// alone, in sight of the gun (no wall between): kZodiacReachBase without a tier, kZodiacReachTier
+// more each tier, to kZodiacReachMost.
+inline constexpr float kZodiacReachBase = 50.0f;
+inline constexpr float kZodiacReachTier = 4.0f;
+inline constexpr float kZodiacReachMost = 90.0f;
+
+// The pulse's frames that NG++'s hit on an enemy with more than 100 health stands for.
+inline constexpr int kZodiacPulseFrames = 30;
+
+// Returns the reach of the Zodiac's pulse at NG++ tier `tier` (0 none).
+float zodiac_reach(int tier);
+
 // Returns how much more a boss of class `moby_class` takes from the Zodiac than the game's drain
 // (1.0 for a class that is no boss).
 float zodiac_vulnerability(int moby_class);

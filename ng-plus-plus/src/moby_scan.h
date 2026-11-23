@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "game_view.h"
+#include "homing.h"
 #include "openrac/mod.hpp"
 
 namespace ng_plus_plus {
@@ -55,6 +56,9 @@ public:
     // Returns the one at `address` in the last read, or null.
     const ScannedMoby* find(std::uint32_t address) const;
 
+    // Returns the slot of the moby at `address` in `view`'s level now, -1 for none.
+    static int slot_of(const GameView& view, std::uint32_t address);
+
     // Returns the address of the moby in `slot`, 0 for none read.
     std::uint32_t address_of(int slot) const;
 
@@ -66,6 +70,16 @@ public:
 
     // Returns the position of the moby at `address`, read now.
     std::array<float, 3> position(std::uint32_t address) const;
+
+    // Returns what decides whether a shot may fly at the moby at `address` (homing.h), read now.
+    TargetFacts facts(std::uint32_t address) const;
+
+    // Returns whether a shot may fly at the moby at `address` now (homing.h's targetable).
+    bool targetable(std::uint32_t address) const { return ng_plus_plus::targetable(facts(address)); }
+
+    // Returns the height above its position a shot aims at on the moby at `address` (its health
+    // record's +0x10, as the game's pick aims), 0 for none.
+    float aim_height(std::uint32_t address) const;
 
 private:
     const GameView& m_view;

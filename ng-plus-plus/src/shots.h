@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "game_view.h"
+#include "homing.h"
 #include "openrac/mod.hpp"
 #include "perk_rules.h"
 #include "weapon_api.h"
@@ -72,6 +73,9 @@ public:
         int spawns = 0;
         int statuses = 0;
         int blasts = 0;
+        int strikes = 0;    // Homing rockets that went off on a target they reached unhit.
+        int dropped = 0;    // Targets homing rockets let go of (gone, hidden, walled, too long).
+        int retargets = 0;  // Homing rockets that took a new target in flight.
     };
 
     Counts take_counts();
@@ -88,6 +92,8 @@ private:
         std::array<float, 3> direction{};
         float speed = 0.0f;
         bool split = false;  // Split in flight already.
+        bool homing = false;  // A RYNO II rocket that homes: a split, or one the game locked.
+        Chase chase;          // Its chase (homing.h).
     };
 
     // A shot to make at a later tick.
@@ -121,6 +127,24 @@ private:
 
     // The Pulse Rifle's fire rate in the level's record.
     void fire_rates();
+
+    // Each homing RYNO II rocket's target checked and its heading steered (homing.h).
+    void steer_rockets();
+
+    // Points the rocket at `moby` (its variables at `pvars`) at the enemy at `target`.
+    void lock(std::uint32_t pvars, std::uint32_t target, bool split) const;
+
+    // Returns whether the level's walls stand between `from` and `to` (false on a port without
+    // the query).
+    bool walled(const std::array<float, 3>& from, const std::array<float, 3>& to) const;
+
+    // Returns whether a homing shot may fly at the enemy at `target`: targetable (homing.h) and
+    // run by the game's moby loop in the last tick (an enemy it leaves asleep, a Yeti waiting at
+    // its spawn point, is not there to hit).
+    bool homes_on(std::uint32_t target) const;
+
+    // Returns where a homing shot aims on the enemy at `target`.
+    std::array<float, 3> aim_point(std::uint32_t target) const;
 
     openrac::Mod& m_mod;
     const GameView& m_view;

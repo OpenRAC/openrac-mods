@@ -44,6 +44,40 @@ constexpr float kVictimReach = 3.0f;
 constexpr float kBlockedAhead = 0.85f;
 constexpr float kWallAhead = 0.2f;
 
+// A homing RYNO II rocket (homing_l00_shot_update_3's state, its pvars): the point it seeks, its
+// target, the target's aim height, its speed, its wobble, its life (an s16), its homing byte, the
+// heading it keeps with no target, and the offset from the target it seeks. The moby's forward,
+// right and up rows.
+constexpr std::uint32_t kMobyVars = 0x68u;
+constexpr std::uint32_t kRocketSeek = 0x00u;
+constexpr std::uint32_t kRocketTarget = 0x10u;
+constexpr std::uint32_t kRocketHeight = 0x14u;
+constexpr std::uint32_t kRocketSpeed = 0x18u;
+constexpr std::uint32_t kRocketYaw = 0x1Cu;
+constexpr std::uint32_t kRocketLife = 0x24u;
+constexpr std::uint32_t kRocketHoming = 0x26u;
+constexpr std::uint32_t kRocketHeading = 0x30u;
+constexpr std::uint32_t kRocketOffset = 0x40u;
+constexpr std::uint32_t kRocketVarsBytes = 0x50u;
+constexpr std::uint32_t kMobyForward = 0xC0u;
+constexpr std::uint32_t kMobyRight = 0xD0u;
+constexpr std::uint32_t kMobyUp = 0xE0u;
+
+// The life past which the game's update steers a rocket (it steers under 295).
+constexpr std::int16_t kHomingLife = 294;
+
+// The aim height on an enemy with none of its own.
+constexpr float kDefaultAimHeight = 0.5f;
+
+// A homing rocket's least turn a tick (radians, a sixtieth of a second's), how near the point it
+// seeks counts as there (at least, or this many of its steps), how long it chases one target, and
+// how often it looks whether a wall stands in between (ticks).
+constexpr float kBaseTurn = 0.09f;
+constexpr float kReach = 2.0f;
+constexpr float kReachSteps = 2.5f;
+constexpr int kChaseTicks = 150;
+constexpr int kSightEvery = 6;
+
 // The yaw a rocket splitting in flight turns its half by.
 constexpr float kSplitYaw = 0.35f;
 
@@ -219,6 +253,18 @@ void Shots::on_end(const ShotEnd& end) {
         tracked.generation = (end.flags & kShotLive) != 0 ? 1 : 0;
     }
 
+#ifdef NGPP_TEST_SETUP
+    // Hidden test runs: each RYNO II rocket's life, for the log's lifetimes.
+    if (tracked.oclass == kRynoRocket && found != m_tracked.end()) {
+        m_mod.info(
+            "test: ryno rocket gen " + std::to_string(tracked.generation) + " lived "
+            + std::to_string(m_tick - tracked.born) + " ticks, end " + std::to_string(end.reason)
+            + (tracked.homing ? ", homing" : "") + ", chase " + std::to_string(tracked.chase.ticks)
+            + " ticks"
+        );
+    }
+#endif
+
     // A level left, off or a guest.
     if (end.reason == kEndLevel || !m_perks.active() || tracked.item < 0
         || tracked.item >= kItems) {
@@ -307,7 +353,8 @@ void Shots::on_end(const ShotEnd& end) {
             );
             const bool blocked =
                 impact && has_way && to[0] * way[0] + to[1] * way[1] + to[2] * way[2] > ahead;
-            if (!victim && !blocked && static_cast<int>(targets.size()) < count) {
+            if (!victim && !blocked && static_cast<int>(targets.size()) < count
+                && homes_on(t.address) && !walled(from, aim_point(t.address))) {
                 targets.push_back(t);
             }
         }
@@ -331,10 +378,9 @@ void Shots::on_end(const ShotEnd& end) {
         if (static_cast<std::size_t>(n) < targets.size()) {
             const Perks::Target& t = targets[static_cast<std::size_t>(n)];
             shot.target = t.slot;
-            shot.velocity = scaled(
-                {t.position[0] - from[0], t.position[1] - from[1], t.position[2] + 0.5f - from[2]},
-                speed
-            );
+            const std::array<float, 3> aim = aim_point(t.address);
+            shot.velocity =
+                scaled({aim[0] - from[0], aim[1] - from[1], aim[2] - from[2]}, speed);
         } else if (perk.end_homing && impact && has_way) {
             // No enemy to seek: fanned out back from what it hit, a little up.
             const float side =
@@ -519,6 +565,7 @@ void Shots::tick(std::uint32_t tick) {
     }
 
     fire_rates();
+    steer_rockets();
 
     // The Minirocket Tube's rockets split in flight from Epsilon.
     const ShotPerk mini = shot_perk(27, stage(27), tier(27));
@@ -636,6 +683,221 @@ void Shots::fire_rates() {
     if (want != m_rate.applied && m_rate.base > 0.0f) {
         memory.write(record + kRecordRate, m_rate.base * want);
         m_rate.applied = want;
+    }
+}
+
+bool Shots::walled(const std::array<float, 3>& from, const std::array<float, 3>& to) const {
+    bool blocked = false;
+    return m_mod.level_line(from.data(), to.data(), blocked) && blocked;
+}
+
+bool Shots::homes_on(std::uint32_t target) const {
+    // Dead, dying, hidden, no health.
+    if (!m_perks.targetable(target)) {
+        return false;
+    }
+
+    // Asleep: the moby loop left it out (a port without the call: taken as running).
+    openrac_moby_run run{};
+    run.size = sizeof run;
+    const int slot = MobyScan::slot_of(m_view, target);
+    return slot >= 0
+           && (!m_mod.moby_run(slot, run)
+               || (run.ran != OPENRAC_MOBY_RUN_FAR && run.ran != OPENRAC_MOBY_RUN_NONE));
+}
+
+std::array<float, 3> Shots::aim_point(std::uint32_t target) const {
+    std::array<float, 3> at = m_perks.position_of(target);
+    const float height = m_perks.aim_height(target);
+    at[2] += height > 0.0f ? height : kDefaultAimHeight;
+    return at;
+}
+
+void Shots::lock(std::uint32_t pvars, std::uint32_t target, bool split) const {
+    const openrac::Memory memory = m_view.memory();
+    const std::array<float, 3> aim = aim_point(target);
+    const float height = m_perks.aim_height(target);
+
+    // Its target, the height and point it seeks (no lead yet), no offset, homing, under the gate.
+    memory.write(pvars + kRocketTarget, target);
+    memory.write(pvars + kRocketHeight, height > 0.0f ? height : kDefaultAimHeight);
+    for (std::uint32_t c = 0; c < 3; ++c) {
+        memory.write(pvars + kRocketSeek + 4u * c, aim[c]);
+        memory.write(pvars + kRocketOffset + 4u * c, 0.0f);
+    }
+    memory.write(pvars + kRocketHoming, std::uint8_t{1});
+    if (memory.read<std::int16_t>(pvars + kRocketLife) > kHomingLife) {
+        memory.write(pvars + kRocketLife, kHomingLife);
+    }
+
+    // A split's wobble is off (the hero's own rockets keep their spiral).
+    if (split) {
+        memory.write(pvars + kRocketYaw, 0.0f);
+    }
+}
+
+void Shots::steer_rockets() {
+    const openrac::Memory memory = m_view.memory();
+
+#ifdef NGPP_TEST_SETUP
+    // Hidden test runs: what a homing rocket did with a target, and what the target was.
+    const auto note = [&](const char* what, std::uint32_t target, float distance) {
+        const std::optional<int> moby_class = m_view.moby_class(target);
+        m_mod.info(
+            std::string("test: ryno rocket ") + what + " target class "
+            + std::to_string(moby_class.value_or(-1)) + " state "
+            + std::to_string(memory.read<std::uint8_t>(target + kMobyStateByte)) + " at "
+            + std::to_string(distance)
+        );
+    };
+#else
+    const auto note = [](const char*, std::uint32_t, float) {};
+#endif
+
+    for (auto& [slot, tracked] : m_tracked) {
+        // Not a RYNO II rocket.
+        if (tracked.oclass != kRynoRocket) {
+            continue;
+        }
+
+        const std::uint32_t moby = MobyScan::slot_address(m_view, slot);
+
+        // Gone (its end comes through on_end).
+        if (moby == 0 || !m_perks.alive(moby, kRynoRocket)) {
+            continue;
+        }
+
+        const auto pvars = memory.read<std::uint32_t>(moby + kMobyVars);
+
+        // No variables to read.
+        if (!GameView::is_memory(pvars, kRocketVarsBytes)) {
+            continue;
+        }
+
+        auto target = memory.read<std::uint32_t>(pvars + kRocketTarget);
+
+        // A split homes; a rocket the hero fired homes once the game locked it on.
+        tracked.homing = tracked.homing || tracked.generation > 0 || target != 0;
+
+        // The hero's rockets fired with no lock fly as the game sends them.
+        if (!tracked.homing) {
+            continue;
+        }
+
+        // A split's wobble off: the game's spawn gives a rocket made with no target a pitch of 4 to
+        // 10 degrees a tick (the hero's unaimed rockets' corkscrew), which loops a split in place
+        // until its time runs out.
+        if (tracked.generation > 0 && memory.read<float>(pvars + kRocketYaw) != 0.0f) {
+            memory.write(pvars + kRocketYaw, 0.0f);
+        }
+
+        const std::array<float, 3> at = m_perks.position_of(moby);
+        const float speed = memory.read<float>(pvars + kRocketSpeed);
+        const Vec3 forward = unit(
+            {memory.read<float>(moby + kMobyForward), memory.read<float>(moby + kMobyForward + 4u),
+             memory.read<float>(moby + kMobyForward + 8u)},
+            {tracked.direction[0], tracked.direction[1], tracked.direction[2]}
+        );
+        Chase& chase = tracked.chase;
+
+        // A target the game (or the port) gave it: the chase's, unless given up before.
+        if (target != chase.target) {
+            if (target != 0 && dropped(chase, target)) {
+                memory.write(pvars + kRocketTarget, std::uint32_t{0});
+                target = 0;
+            }
+            retarget(chase, target);
+        }
+
+        // Its target gone, dying, hidden or not out yet: let go, straight on.
+        if (target != 0 && !homes_on(target)) {
+            note("let go of gone or hidden", target, 0.0f);
+            drop(chase);
+            memory.write(pvars + kRocketTarget, std::uint32_t{0});
+            target = 0;
+            ++m_counts.dropped;
+        }
+
+        // None: straight on (the heading the game keeps for a rocket with no target is its own),
+        // and the nearest enemy in reach and in sight taken at once.
+        if (target == 0) {
+            for (std::uint32_t c = 0; c < 3; ++c) {
+                memory.write(pvars + kRocketHeading + 4u * c, forward[c]);
+            }
+
+            for (const Perks::Target& t : m_perks.targets(at, kHomingRadius, 6, -1)) {
+                if (!dropped(chase, t.address) && homes_on(t.address)
+                    && !walled(at, aim_point(t.address))) {
+                    target = t.address;
+                    break;
+                }
+            }
+
+            if (target == 0) {
+                continue;
+            }
+
+            lock(pvars, target, tracked.generation > 0);
+            note("retargeted to", target, 0.0f);
+            retarget(chase, target);
+            ++m_counts.retargets;
+        }
+
+        const std::array<float, 3> aim = aim_point(target);
+        const Vec3 to{aim[0] - at[0], aim[1] - at[1], aim[2] - at[2]};
+        const float distance = std::sqrt(to[0] * to[0] + to[1] * to[1] + to[2] * to[2]);
+        const bool checked = (m_tick + static_cast<std::uint32_t>(slot)) % kSightEvery == 0;
+        ChaseLimits limits;
+        limits.reach = std::max(kReach, kReachSteps * speed);
+        limits.most_ticks = m_view.ticks(kChaseTicks);
+        const Verdict verdict = judge(chase, distance, checked, checked && walled(at, aim), limits);
+
+        // Unreachable: no target, straight on.
+        if (verdict == Verdict::Drop) {
+            note(chase.blocked > 0 ? "let go of walled" : "let go of unreached", target, distance);
+            drop(chase);
+            memory.write(pvars + kRocketTarget, std::uint32_t{0});
+            for (std::uint32_t c = 0; c < 3; ++c) {
+                memory.write(pvars + kRocketHeading + 4u * c, forward[c]);
+            }
+            ++m_counts.dropped;
+            continue;
+        }
+
+        // At its target and the game's hit has not come (the point it seeks is off what can be
+        // hit): it goes off there, and its time ends.
+        if (verdict == Verdict::Strike) {
+            note("went off unhit on", target, distance);
+            if (!blast(aim, tracked.item)) {
+                m_perks.strike(target, tracked.item);
+            }
+            memory.write(pvars + kRocketLife, std::int16_t{1});
+            drop(chase);
+            memory.write(pvars + kRocketTarget, std::uint32_t{0});
+            ++m_counts.strikes;
+            continue;
+        }
+
+        // Steered at it: a turn that grows as it closes, so it never circles (homing.h). The
+        // game's lead then turns it no further from the target, and no offset takes it off it.
+        const Vec3 heading =
+            steer(forward, to, turn_limit(speed, distance, m_view.per_tick(kBaseTurn)));
+        const Vec3 right = unit(
+            {heading[1] * 1.0f - heading[2] * 0.0f, heading[2] * 0.0f - heading[0] * 1.0f, 0.0f},
+            {0.0f, -1.0f, 0.0f}
+        );
+        const Vec3 up{
+            right[1] * heading[2] - right[2] * heading[1],
+            right[2] * heading[0] - right[0] * heading[2],
+            right[0] * heading[1] - right[1] * heading[0]
+        };
+        for (std::uint32_t c = 0; c < 3; ++c) {
+            memory.write(moby + kMobyForward + 4u * c, heading[c]);
+            memory.write(moby + kMobyRight + 4u * c, right[c]);
+            memory.write(moby + kMobyUp + 4u * c, up[c]);
+            memory.write(pvars + kRocketHeading + 4u * c, heading[c]);
+            memory.write(pvars + kRocketOffset + 4u * c, 0.0f);
+        }
     }
 }
 

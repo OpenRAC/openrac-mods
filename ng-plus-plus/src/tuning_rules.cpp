@@ -47,6 +47,11 @@ float tesla_gain(float game_frames) {
     return kTeslaShare * game_frames / static_cast<float>(kTeslaHitTicks);
 }
 
+float zodiac_reach(int tier) {
+    const float reach = kZodiacReachBase + kZodiacReachTier * static_cast<float>(tier > 0 ? tier : 0);
+    return reach < kZodiacReachMost ? reach : kZodiacReachMost;
+}
+
 float zodiac_vulnerability(int moby_class) {
     // The table is short.
     for (const ZodiacBoss& boss : kZodiacBosses) {

@@ -66,6 +66,9 @@ constexpr int kShieldZapTicks = 60;
 constexpr int kTrailTicks = 15;
 constexpr int kStormTicks = 20;
 
+// A moby's update distance (+0x30; 255 always run), as the moby loop reads it.
+constexpr std::uint32_t kMobyUpdateDistance = 0x30u;
+
 // The Zodiac's Omega fields: at most this many from one pulse, on the enemies nearest the gun.
 constexpr int kZodiacFieldsMost = 8;
 
@@ -173,8 +176,9 @@ const ScannedMoby* Perks::nearest(
 
         const float d2 = distance2(moby.position, at);
 
-        // Nearer than the best so far.
-        if (d2 <= best_d2) {
+        // Nearer than the best so far, and one a shot may fly at: alive, health left, shown (not
+        // held hidden at its spawn point, still underground or dying: homing.h).
+        if (d2 <= best_d2 && m_scan.targetable(moby.address)) {
             best_d2 = d2;
             best = &moby;
         }
@@ -823,6 +827,102 @@ std::vector<Perks::Target> Perks::targets(
     return out;
 }
 
+void Perks::zodiac_reach(const std::array<float, 3>& gun) {
+    const openrac::Memory memory = m_view.memory();
+    const WeaponView zodiac = m_weapons.weapon(kZodiac);
+    const int tier = zodiac.has_tier() ? tier_of(zodiac.kind, zodiac.level) : 0;
+    const float reach = ng_plus_plus::zodiac_reach(tier);
+    const float hit_more = kZodiacDrain * static_cast<float>(kZodiacPulseFrames)
+                           * (zodiac.has_tier() ? damage(zodiac.kind, zodiac.level) : 1.0f);
+    const std::uint32_t hero = m_view.hero_moby();
+    const std::array<float, 3> eye{gun[0], gun[1], gun[2] + 1.0f};
+    int reached = 0;
+
+    for (const ScannedMoby& moby : m_scan.mobys()) {
+        // Not an enemy, the hero, a boss (tuning.cpp drains those), out of reach, or not one a
+        // shot may hit now (dead, dying, hidden, not out yet).
+        if (!moby.enemy || moby.address == hero || is_boss(moby.moby_class)
+            || distance2(moby.position, gun) > reach * reach || !m_scan.targetable(moby.address)) {
+            continue;
+        }
+
+        // The game's own: one its moby loop ran (drawn or near the camera) within its range.
+        openrac_moby_run run{};
+        run.size = sizeof run;
+        const bool known = m_mod.moby_run(moby.slot, run);
+        const bool ran = known && run.ran != OPENRAC_MOBY_RUN_FAR;
+        if (ran && distance2(moby.position, gun) <= kZodiacRange * kZodiacRange) {
+            continue;
+        }
+
+        // A wall in between: another room.
+        std::array<float, 3> aim = moby.position;
+        const float height = m_scan.aim_height(moby.address);
+        aim[2] += height > 0.0f ? height : 0.5f;
+        bool blocked = false;
+        if (m_mod.level_line(eye.data(), aim.data(), blocked) && blocked) {
+            continue;
+        }
+
+        // As the game's pulse: 100 health or less dies, more loses the pulse's drain.
+        const TargetFacts facts = m_scan.facts(moby.address);
+        const float hit = facts.health <= 100.0f ? facts.health + 1.0f : hit_more;
+        if (!post(moby.address, hit)) {
+            continue;
+        }
+
+        ++reached;
+
+        // One the moby loop leaves asleep (far from the camera): run for a while, to take it.
+        if (known && run.ran == OPENRAC_MOBY_RUN_FAR && m_woken.count(moby.address) == 0) {
+            Woken woken;
+            woken.distance = memory.read<std::uint8_t>(moby.address + kMobyUpdateDistance);
+            woken.until = m_tick + static_cast<std::uint32_t>(m_view.ticks(90));
+            m_woken[moby.address] = woken;
+            memory.write(moby.address + kMobyUpdateDistance, std::uint8_t{0xFF});
+        }
+    }
+
+    m_zodiac_reached += reached;
+
+    // Once, for a player's log.
+    if (reached > 0 && !m_logged_reach) {
+        m_logged_reach = true;
+        m_mod.info(
+            "the Zodiac's pulse reaches " + std::to_string(static_cast<int>(reach))
+            + " units: hit " + std::to_string(reached) + " enemies the game's pick left out"
+        );
+    }
+}
+
+void Perks::let_sleep(bool all) {
+    const openrac::Memory memory = m_view.memory();
+
+    for (auto it = m_woken.begin(); it != m_woken.end();) {
+        // Still its time.
+        if (!all && m_tick < it->second.until) {
+            ++it;
+            continue;
+        }
+
+        // Back as it was, unless it died meanwhile (its slot may hold another).
+        if (!all && GameView::is_memory(it->first, kMobyRecordBytes)
+            && memory.read<std::uint8_t>(it->first + kMobyStateByte) < 0x80u
+            && memory.read<std::uint8_t>(it->first + kMobyUpdateDistance) == 0xFFu) {
+            memory.write(it->first + kMobyUpdateDistance, it->second.distance);
+        }
+
+        it = m_woken.erase(it);
+    }
+}
+
+bool Perks::strike(std::uint32_t target, int item) {
+    const float last = item >= 0 && item < kItems ? m_last_damage[static_cast<std::size_t>(item)]
+                                                  : 0.0f;
+    const float damage = last > 0.0f ? last : m_reference;
+    return active() && damage > 0.0f && post(target, damage);
+}
+
 bool Perks::burst_later(const std::array<float, 3>& at, float radius, float share) {
     // Nothing to scale it by yet, or too much waiting.
     if (!active() || m_reference <= 0.0f || m_later.size() >= kLaterMost) {
@@ -908,6 +1008,11 @@ void Perks::watch() {
         if (item == kZodiac) {
             const bool pulsing = m_view.memory().read<std::uint8_t>(moby.address + 0x20u)
                                  == static_cast<std::uint8_t>(kZodiacPulse);
+
+            // NG++'s reach, at every tier and without one: the enemies the game's pick left out.
+            if (pulsing && !w.pulsing) {
+                zodiac_reach(moby.position);
+            }
 
             if (pulsing && !w.pulsing && stage == Stage::Omega) {
                 const WeaponView zodiac = m_weapons.weapon(kZodiac);
@@ -1043,6 +1148,7 @@ void Perks::tick(std::uint32_t tick) {
         m_arena_seen.clear();
         m_later.clear();
         m_fields.clear();
+        m_woken.clear();
         m_have_snapshot = false;
         m_reference = 0.0f;
         m_last_damage = {};
@@ -1056,6 +1162,7 @@ void Perks::tick(std::uint32_t tick) {
     thaw();
     burn();
     watch();
+    let_sleep(false);
 
     // A summary for a player's log, about once a minute when the perks acted.
     if (tick >= m_summary_tick + static_cast<std::uint32_t>(m_view.ticks(3600))) {
@@ -1067,7 +1174,9 @@ void Perks::tick(std::uint32_t tick) {
                 "perks in the last minute: " + std::to_string(m_posted) + " extra hits, "
                 + std::to_string(shots.refires) + " extra shots, " + std::to_string(shots.spawns)
                 + " shots made (" + std::to_string(shots.blasts) + " blasts), "
-                + std::to_string(shots.statuses) + " freezes and slows"
+                + std::to_string(shots.statuses) + " freezes and slows; homing rockets "
+                + std::to_string(shots.retargets) + " retargeted, " + std::to_string(shots.dropped)
+                + " let go, " + std::to_string(shots.strikes) + " went off on a target unhit"
             );
         }
 

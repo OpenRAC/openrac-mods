@@ -29,6 +29,7 @@ add_library(ng_plus_plus_core STATIC
   src/perks.cpp
   src/armour.cpp
   src/armour_vendor.cpp
+  src/homing.cpp
   src/shots.cpp
   src/tuning_rules.cpp
   src/tuning.cpp
@@ -96,6 +97,12 @@ if(BUILD_TESTING)
   target_link_libraries(ng_plus_plus_text_test PRIVATE ng_plus_plus_core)
   set_target_properties(ng_plus_plus_text_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_text COMMAND ng_plus_plus_text_test)
+
+  # The homing rockets' rules alone: targets, turns, chases.
+  add_executable(ng_plus_plus_homing_test tests/homing_test.cpp)
+  target_link_libraries(ng_plus_plus_homing_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_homing_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_homing COMMAND ng_plus_plus_homing_test)
 
   # 0.5.1's off-screen picks: weapon_ignore_culling found in the port's table.
   add_executable(ng_plus_plus_culling_test tests/culling_test.cpp)
