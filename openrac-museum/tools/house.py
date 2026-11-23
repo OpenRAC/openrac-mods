@@ -486,7 +486,7 @@ def rooms(geo, signs, posters, art):
                         art.append((pkey, "painting", storey * 100 + s * 10 + edge * 2 + k))
                         frame(geo, c, n, d, z0 + 3.4, 4.2, 3.2)
                         signs.append((pkey, None, None, (c[0] + n[0] * 0.2, c[1] + n[1] * 0.2, z0 + 3.4), face, 3.6, 2.6))
-                    else:
+                    elif exhibits.has_board((storey, s), 0 if (edge, k) == (0, 1) else 1):
                         posters.append((f"{key}_b{edge}{k}", title, (c[0], c[1], z0 + 3.3), face, 3.2, 4.2))
             # The rug, the plinths with their exhibits, pots, a bench.
             rkey = f"om_rug_{storey}_{s}"

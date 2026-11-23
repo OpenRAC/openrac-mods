@@ -55,14 +55,13 @@ WORDS = {
              "Select leaves it."),
     "matching": ("Byte for byte",
                  "Matching means writing C that the original compiler turns into the very bytes of the game. "
-                 "When they match, the C is proven right. The I-5 menu's AMMO page still says Inflato R."),
+                 "When they match, the C is proven right."),
     "decomp": ("The 20-button codes",
-               "Found in the code: pause, hold R2 and L1, then press 20 buttons. 91 codes give items, planets "
-               "and skill points. The tiles spell one. What a code gives is saved with your game."),
+               "Found in the code: 20-button codes typed in the pause menu. 91 of them give items, planets "
+               "and skill points, and what a code gives is saved with your game."),
     "welcome": ("Welcome",
                 "This museum shows how OpenRAC runs Ratchet and Clank on your computer, one part in each room. "
-                "Step on a gold tile to read about what you see. The desk says Ratchett: that is how the "
-                "game's own code spells him."),
+                "Step on a gold tile to read about what you see."),
     "mods": ("Mods",
              "Mods change the game and never touch your disc. They are built on the OpenRAC SDK, and the "
              "launcher adds them from a link or a file. This museum is a mod too."),
@@ -71,7 +70,7 @@ WORDS = {
               "each with their own Ratchet."),
     "speedrun": ("Every bug kept",
                  "OpenRAC keeps the game's logic exactly as it was, bugs included, so every trick speedrunners "
-                 "use still works. The PS2 record is 36:36, and about eight minutes of it is loading."),
+                 "use still works. About eight minutes of the PS2 record is loading."),
     "enhanced": ("Effects",
                  "Stand on the teal pad: the museum mod starts the game's own sparks, smoke and bursts in the "
                  "case. Enhanced graphics adds light and sharper pictures. The base game stays as it was."),
@@ -124,66 +123,47 @@ MESSAGES = [
     ("Will just float there.", "Gaspar, the floating ship piece"),
 ]
 
-# Each room's two wall boards: (title, paragraphs, a game string or None).
+# Each room's two wall boards: (title, paragraphs, a game string or None), or None for no board.
+# A board says what the room's tile does not: the tile tells the story, the boards add facts.
 BOARDS = {
     LAUNCHER: [("Your own disc", ["PAL v2.00 and v1.00 (SCES_509.16), NTSC-U (SCUS_971.99), Japan (SCPS_150.37).",
-                                  "Going Commando, Up Your Arsenal and Deadlocked: early access."], None),
-               ("Built once", ["The first start builds the game from OpenRAC's code and your disc. It takes a "
-                               "few minutes, then never again."], None)],
+                                  "Going Commando, Up Your Arsenal and Deadlocked: early access."], None), None],
     RENDERER: [("Only when you look", ["Many mobys update only while they are drawn. Turn the camera away "
                                        "and they wait. OpenRAC keeps this: change it and the game plays "
-                                       "differently."], None),
-               ("GS to OpenGL and Vulkan", ["The same draw lists, a new back end. The picture is checked "
-                                            "against the PS2's."], None)],
-    HOSTGEN: [("C for your computer", ["Hostgen reads the decomp's C and writes C that runs on your PC, "
-                                       "Mac, Linux box or phone."], None),
-              ("update/mobyNNN.cpp", ["Insomniac kept each kind of moby in its own file, named by its number. "
-                                      "The names are still in the game's messages."], None)],
-    PORT: [("I-5", ["Pages: UPDATE, MODE, DRAW, AMMO, FOG, MISC.",
-                    "No button opens it in the shop game: it waits for game mode -1."], None),
+                                       "differently."], None), None],
+    HOSTGEN: [None, ("update/mobyNNN.cpp", ["Insomniac kept each kind of moby in its own file, named by its "
+                                            "number. The names are still in the game's messages."], None)],
+    PORT: [("I-5", ["Pages: UPDATE, MODE, DRAW, AMMO, FOG, MISC."], None),
            ("DRAW", ["The DRAW page shows what you never see: Darken, Env Coll, Moby Coll, Hero Coll, Bspheres, "
                      "Cameras, Cuboids, Samples, Text."], None)],
     MATCHING: [("Inflato R", ["The I-5 menu's AMMO page names some weapons as the team called them.",
                               "Morpha-Ray: the Morph-o-Ray. D. Droids: the Drone Device. Agents: the Decoy "
-                              "Glove. Inflato R: the Decoy Glove's name at E3."], None),
-               ("Byte for byte", ["Each matched function is proof that the C is right."], None)],
-    DECOMP: [("The 20-button codes", ["Pause, hold R2 and L1 (not L2 or R1), then press 20 buttons.",
-                                      "The tiles show one code: down, right, left, right, five times. It gives "
-                                      "skill point 1.",
-                                      "Warning: what a code gives is saved with your game. Try it on a spare "
-                                      "save."], None),
-             ("printf does nothing", ["The messages the developers wrote for themselves all go into an empty "
-                                      "printf. Read them over the atrium's doors."], None)],
+                              "Glove."], None), None],
+    DECOMP: [("One code", ["Hold R2 and L1 (not L2 or R1) in the pause menu.",
+                           "Down, right, left, right, five times: skill point 1.",
+                           "Try it on a spare save."], None), None],
     WELCOME: [("Ratchett", ["The debug menu's first row says Ratchett, and the memory map says:"], "ratchett seqs:"),
-              ("Welcome", ["Each room shows one part of how OpenRAC works. Upstairs: speedruns, the editor, "
-                           "cutscenes and more. In the atrium: things cut from the game."], None)],
-    MODS: [("The SDK", ["A mod is a small library on the OpenRAC SDK: it reads the game, adds pages and "
-                        "places, and changes what it is allowed to."], None),
-           ("A planet as a mod", ["This museum is a map file: the launcher adds it like any mod, and your disc "
-                                  "gives back the game's pictures and models."], None)],
-    MULTI: [("Together", ["Co-op puts two players in one galaxy, each with their own Ratchet."], None),
-            ("Co-op saves", ["A party's progress is kept in co-op saves. Your own saves stay as they are."], None)],
-    SPEEDRUN: [("The record", ["PS2 Any%: 36:36.196 by CptGallant (29 June 2025).",
-                               "On the NG+ board, 4th place: a runner called Insomniac, 28:07.687."], None),
-               ("Every bug kept", ["Every trick runners use still works in OpenRAC."], None)],
-    ENHANCED: [("Beyond the PS2", ["Enhanced adds what the PS2 could not: sharper pictures, more light, "
-                                   "longer views."], None),
-               ("Effects", ["The game's own sparks, smoke and bursts, started by the museum mod."], None)],
-    ANDROID: [("Pad or touch", ["Play with the handheld's own pad, or with touch buttons on the screen."], None),
-              ("One code", ["The game, the launcher and the mods build from the same code for every "
-                            "system."], None)],
+              None],
+    MODS: [None, ("A planet as a mod", ["This museum is a map file: the launcher adds it like any mod, and your "
+                                        "disc gives back the game's pictures and models."], None)],
+    MULTI: [None, ("Co-op saves", ["A party's progress is kept in co-op saves. Your own saves stay as they "
+                                   "are."], None)],
+    SPEEDRUN: [("NG+", ["On the NG+ board, 4th place: a runner called Insomniac, 28:07.687."], None), None],
+    ENHANCED: [None, None],
+    ANDROID: [None, None],
     CUTSCENES: [("Paradox", ["When the game asks for a message it does not have, it shows this:"],
-                 "Paradox: This message does not exist"),
-                ("Lights, camera, Clank", ["OpenRAC Editor makes new cutscenes for old levels."], None)],
-    EDITOR: [("The test room", ["Blocks 1, 2, 3 and 4 units high, ramps of 20, 35 and 50 degrees."], None),
-             ("This island", ["The museum, the island, its rocks and its light were all made with OpenRAC "
-                              "Editor and its tools."], None)],
-    DEVLOG: [("The devkit", ["The game still asks for files on the developers' PC:"], "host0:z:/i5/levels/level%d/"),
-             ("File names", ["Names from Insomniac's own code, left in the game: hud.cpp, loaders.cpp, "
-                             "hero1.cpp to hero8.cpp, walk.h."], "cdrom0:\\CODE\\I5\\PARAM.TXT;1")],
-    THANKS: [("Thank you", ["To everyone who wrote code, tested, reported a bug or made a mod."], None),
-             ("Door 21/30", ["Going Commando's Insomniac Museum is its level 30, stored as LEVEL21.WAD."], None)],
+                 "Paradox: This message does not exist"), None],
+    EDITOR: [None, ("This island", ["The museum, the island, its rocks and its light were all made with "
+                                    "OpenRAC Editor and its tools."], None)],
+    DEVLOG: [None, ("File names", ["Names from Insomniac's own code, left in the game: hud.cpp, loaders.cpp, "
+                                   "hero1.cpp to hero8.cpp, walk.h."], "cdrom0:\\CODE\\I5\\PARAM.TXT;1")],
+    THANKS: [None, None],
 }
+
+
+def has_board(room, which):
+    return room in BOARDS and BOARDS[room][which] is not None
+
 
 # The people on the Thank You wall: the authors in the projects' git history (bots left out).
 CONTRIBUTORS = ["Flavius", "ネオン神", "Kryštof Malinda", "Pezza", "Mateusz Kłysz", "Louis-Philippe Le Sieur",
@@ -310,11 +290,7 @@ def screens(geo, signs):
               "       0x0015F6BCu)) == 0))", "  {", "    func_L00_002781D8((int)(0));", "  }", "}"]
     shows = {
         LAUNCHER: ("om_scr_launcher", textures.photo("launcher-saves.jpg", 1024, 512, "Saves, help and crash reports"), 4.8, 2.4),
-        RENDERER: ("om_scr_renderer", textures.card("From the PS2 to your GPU",
-                                                    ["The game builds its draw lists as on the PS2.",
-                                                     "OpenRAC reads them and draws with OpenGL or Vulkan.",
-                                                     "The picture is checked against the PS2's."],
-                                                    big="GS  ->  OpenGL / Vulkan"), 4.8, 3.0),
+        RENDERER: ("om_scr_renderer", textures.card("PS2 Graphics Synthesizer", [], big="GS  ->  OpenGL / Vulkan"), 4.8, 3.0),
         HOSTGEN: ("om_scr_hostgen", textures.code_card([("The decomp's C", decomp_c), ("Hostgen's C", host_c)],
                                                        title="One function, twice",
                                                        note="Same function: the pause menu's pages."), 4.8, 3.0),
@@ -328,16 +304,13 @@ def screens(geo, signs):
                                                          note="Compiled with the original compiler, byte for byte."),
                      4.8, 3.0),
         MODS: ("om_scr_mods", textures.photo("launcher-mods.jpg", 1024, 900, "The launcher's Mods page"), 3.8, 3.34),
-        SPEEDRUN: ("om_scr_speedrun", textures.card("PS2 Any% world record", ["CptGallant, 29 June 2025.",
-                                                                               "About eight minutes of it is loading."],
+        SPEEDRUN: ("om_scr_speedrun", textures.card("PS2 Any% world record", ["CptGallant, 29 June 2025."],
                                                     big="36:36.196"), 4.8, 3.0),
         CUTSCENES: ("om_scr_cutscenes", textures.code_card([("meet-the-vendor.json", [
             '"format": "openrac-cutscene",', '"level": 3,', '"name": "Meet the vendor",', '"length": 720,',
             '"camera": { "keys": [', '  { "t": 0, "eye": [260, 147, 52],', '    "look_at": [262, 150, 50] }',
             "] },", '"actors": [ ... ],', '"subtitles": [ ... ]'])], title="A cutscene is a text file"), 4.8, 3.0),
-        MULTI: ("om_scr_multi", textures.card("Co-op", ["Two players, one galaxy, a Ratchet each.",
-                                                         "Your own saves stay as they are."],
-                                              big="2 players"), 4.8, 3.0),
+        MULTI: ("om_scr_multi", textures.card("Co-op", [], big="Player 1 + Player 2"), 4.8, 3.0),
         THANKS: ("om_scr_thanks", textures.names_wall("Made by", CONTRIBUTORS), 3.6, 3.6),
     }
     for room, (key, picture, w, h) in shows.items():
@@ -506,11 +479,9 @@ def cut_content(geo, signs):
     items = [("cut_revolverator", None), ("cut_e3", textures.renames([("Talos", "Rilgar"),
                                                                        ("Inflato-Ratchet Glove", "Decoy Glove"),
                                                                        ("Inflato R", "still in the I-5 menu")])),
-             ("cut_mackerel", textures.card("The Mackerel 1000", ["A fish to hit things with, in place of the wrench.",
-                                                                   "Cut: only its icon is left."], big="cut")),
-             ("cut_messages", textures.card("Notes to themselves", ["The lines over the doors were written by the "
-                                                                    "developers for themselves.",
-                                                                    "printf threw them away. The disc kept them."]))]
+             ("cut_mackerel", textures.card("Mackerel 1000", [], big="><(((('>")),
+             ("cut_messages", textures.code_card([("The game's printf", ["printf(const char *fmt, ...)", "{",
+                                                                                 "    /* nothing */", "}"])]))]
     for k, (key, picture) in enumerate(items):
         a = 45 * (2 * k + 1) + 22.5
         p = C2 + ang(a) * 9.0

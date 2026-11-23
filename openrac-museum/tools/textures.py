@@ -590,6 +590,8 @@ def card(title, lines, width=1024, height=640, big=None):
         b = font(96, serif=True)
         while draw.textlength(big, font=b) > width - 80 and b.size > 20:
             b = font(b.size - 2)
+        if not lines:          # alone under the title: in the middle of the card
+            y = (height + 110 - b.size) / 2
         draw.text(((width - draw.textlength(big, font=b)) / 2, y), big, font=b, fill=(255, 250, 240))
         y += b.size + 50
     body = font(34)
