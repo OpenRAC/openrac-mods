@@ -241,7 +241,10 @@ class Env:
         self.hub = args.hub
         local = self.one_address or self.hub
         self.server_address = "127.0.0.1" if local else f"127.{args.base + 1}.0.2"
-        self.server_port = 27770 + args.base if local else 7770
+        # Linux: one port for the server and every proxy, each on an address of its own (--port: not
+        # 7770, when something on the machine holds it on every address).
+        self.port = args.port
+        self.server_port = 27770 + args.base if local else args.port
         self.hub_port = 27177 + args.base
         self.seed = args.seed
         self.trace = args.trace
@@ -257,7 +260,7 @@ class Env:
         return "127.0.0.1" if self.one_address else f"127.{self.base + 1}.1.{index + 1}"
 
     def client_port(self, index):
-        return 22000 + 10 * self.base + index if self.one_address else 7770
+        return 22000 + 10 * self.base + index if self.one_address else self.port
 
     def game_of(self, index):
         return self.game if index == 0 else self.member_game
@@ -2178,6 +2181,7 @@ def main():
     parser.add_argument("--mod", required=True, help="the packaged mod's folder")
     parser.add_argument("--server-jar", required=True)
     parser.add_argument("--java", default="java")
+    parser.add_argument("--port", type=int, default=7770, help="Linux: the server's and the proxies' port")
     parser.add_argument("--hub", action="store_true", help="the jar in all mode, every game given the hub's address (no proxies, no --link)")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--base", type=int, default=0, help="this run's address block, for runs at once")

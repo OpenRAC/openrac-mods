@@ -55,6 +55,8 @@ python3 e2e.py --scenario crates --crates 8 --deaths --join --link loss=5,latenc
 `--hub` runs the server's jar in `all` mode (a hub beside its game server, on 127.0.0.1 at ports of
 the run's own) and gives every game the hub's address. The game server the hub lists is reached
 directly, so there are no proxies: no `--link`, and the scenarios that cut a link fail at once.
+On Linux the server and every proxy share port 7770, each on an address of its own; `--port N` picks
+another when something on the machine holds 7770 on every address.
 
 `--mods-dir DIR` is a folder of packaged mods by id; `--difficulty JSON` gives every game the difficulty
 mod with those settings. The bolts scenario under `--difficulty '{"bolts": 3}'` reports each crate's
