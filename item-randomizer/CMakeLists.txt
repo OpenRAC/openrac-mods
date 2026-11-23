@@ -63,6 +63,9 @@ if(BUILD_TESTING)
   add_dependencies(item_randomizer_load_test item_randomizer)
   add_test(NAME item_randomizer_load COMMAND item_randomizer_load_test $<TARGET_FILE:item_randomizer>)
   add_test(NAME item_randomizer_load_ntsc COMMAND item_randomizer_load_test $<TARGET_FILE:item_randomizer> ntsc)
+  # Both write and clear item-randomizer-load-test-data in the build folder: never at once.
+  set_tests_properties(item_randomizer_load item_randomizer_load_ntsc PROPERTIES
+                       RESOURCE_LOCK item_randomizer_load_test_data)
 
   # Going Commando's part of the library as the port loads it, against its own host and memory.
   add_executable(item_randomizer_rac2_load_test tests/rac2/load_test.c)
