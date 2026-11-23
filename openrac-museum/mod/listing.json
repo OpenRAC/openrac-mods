@@ -1,0 +1,23 @@
+{
+  "description": "The OpenRAC Museum planet's exhibits come alive: words on every gold tile, the I-5 debug menu, an effects case and a 3 AM door.",
+  "tags": [
+    "gameplay"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}

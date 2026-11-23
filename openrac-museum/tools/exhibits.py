@@ -1,9 +1,9 @@
-"""The museum's exhibits: the boards' words, the game's own objects on the plinths (classes from other
-levels, which the player's disc gives back), the wall of messages, and the small sets the rooms
-need (the help desk, the test room, the devkit desk, the code tiles).
+"""The museum's exhibits: one per room about how OpenRAC is made, things cut from the game in the
+atrium, and a gold tile before each exhibit. Standing on a tile, the OpenRAC Museum mod shows the
+exhibit's words (STATIONS; tools/mod_data.py writes them into the mod).
 
-Every game string on a board is written exactly as the game has it. Sources: rac1-decomp
-docs/kb/datamining.md, OpenRAC docs/port/speedrun/META.md.
+Every game string is written exactly as the game has it. Sources: rac1-decomp docs/kb/datamining.md,
+OpenRAC docs/port/speedrun/META.md, The Cutting Room Floor's Ratchet & Clank pages (cut content).
 """
 
 import math
@@ -11,144 +11,108 @@ import math
 import numpy as np
 
 import house
-import island
 import textures
 from house import CX, CY, F0, F1, R_IN, R_OUT, WALL, ang, mid
 
 # Pictures made here, by material name (make_museum adds them to the house's).
 PICTURES = {}
 
-# Imported classes: (class, its level, its name in the editor).
+# Classes from other levels: (class, its level, its name in the editor). Shown as they stand
+# ("look": their code never runs); the player's disc gives their models back.
 CLASSES = {
-    1377: (16, "Help desk lady"), 827: (6, "Frog"), 563: (4, "Woodcut Bot"), 217: (4, "Big Axebot"),
-    340: (4, "Circular saw enemy"), 623: (5, "Extermibot"), 998: (5, "Taxi"), 1048: (6, "Alien Snapper"),
-    750: (1, "Infobot"), 1465: (1, "Gold Morph-o-Ray"), 1462: (1, "Gold Decoy Glove"),
-    1456: (1, "Gold Bomb Glove"), 1463: (1, "Gold Tesla Claw"), 774: (1, "The Plumber"),
-    925: (5, "Shady Salesman"), 919: (5, "Qwark's Bouncer"), 1105: (6, "Fred"), 1184: (9, "Airship part"),
-    1210: (3, "Train carriage"), 1432: (18, "Class 1432"), 541: (16, "Test dummy"),
+    164: (12, "Revolverator"),
 }
 LEVELS = sorted({level for level, _ in CLASSES.values()})
 
 # Rooms: (storey, sector) as house.GROUND / house.UPPER list them.
 LAUNCHER, RENDERER, HOSTGEN, PORT, MATCHING, DECOMP, WELCOME, MODS = ((0, s) for s in range(8))
 MULTI, SPEEDRUN, ENHANCED, ANDROID, CUTSCENES, EDITOR, DEVLOG, THANKS = ((1, s) for s in range(8))
+ROOMS = [LAUNCHER, RENDERER, HOSTGEN, PORT, MATCHING, DECOMP, WELCOME, MODS,
+         MULTI, SPEEDRUN, ENHANCED, ANDROID, CUTSCENES, EDITOR, DEVLOG, THANKS]
 
-# Rooms whose three plinths go: their exhibits stand on their own.
-NO_PLINTHS = {HOSTGEN, MATCHING, DECOMP, EDITOR, THANKS}
-# Plinths that carry an exhibit, so no ornament: (storey, sector, k) with k in -1, 0, 1.
-PLAIN = {(*RENDERER, 0), (*CUTSCENES, 0), (*MODS, -1), (*MODS, 0), (*MODS, 1), (*PORT, 0), (*DEVLOG, 0)}
-# Rooms without a rug (the floor has its own picture).
+# No room has the house's plinths: each has its own exhibit.
+NO_PLINTHS = set(ROOMS)
+PLAIN = set()
+# Rooms without a rug (the floor has its own picture or shapes).
 NO_RUG = {DECOMP, EDITOR}
 
-# Each room's two boards: (title, paragraphs, a game string or None).
-BOARDS = {
-    LAUNCHER: [
-        ("Your own disc", ["OpenRAC reads Ratchet & Clank from your own disc. It never downloads the game.",
-                           "PAL v2.00 and v1.00 (SCES_509.16), NTSC-U (SCUS_971.99), Japan (SCPS_150.37).",
-                           "Going Commando, Up Your Arsenal and Deadlocked: early access."], None),
-        ("Before the discs", ["Going Commando: three 2003 builds measured. 6 Aug (NTSC preview), 7 Sep "
-                              "(NTSC review), 9 Sep (PAL review).",
-                              "Up Your Arsenal: a beta disc of 12 July 2004."], None),
-    ],
-    RENDERER: [
-        ("Only when you look", ["Many mobys update only while they are drawn. Turn the camera away and they wait, "
-                                "like the frogs of Blarg.",
-                                "OpenRAC keeps this: change it and the game plays differently."], None),
-        ("GS to OpenGL and Vulkan", ["The PS2 drew with its Graphics Synthesizer. OpenRAC turns the same "
-                                     "draw lists into OpenGL or Vulkan, so the picture matches the original."], None),
-    ],
-    HOSTGEN: [
-        ("The moby file cabinet", ["Insomniac kept each moby class in its own file: update/mobyNNN.cpp.",
-                                   "Six of them stand here, under their numbers. Hostgen turns their decompiled "
-                                   "code into C that runs on your PC."], None),
-        ("Who is who", ["563 Woodcut Bot (Eudora)", "217 Big Axebot (Eudora)", "340 Circular saw (Eudora)",
-                        "623 Extermibot (Rilgar)", "998 Taxi (Rilgar)", "1048 Alien Snapper (Blarg)"], None),
-    ],
-    PORT: [
-        ("I-5", ["Every level has Insomniac's own debug menu. Its title is I-5, the game's project code.",
-                 "Pages: UPDATE, MODE, DRAW, AMMO, FOG, MISC.",
-                 "No button opens it in the retail game: it waits for game mode -1."], None),
-        ("DRAW", ["The DRAW page shows what you never see: Darken, Env Coll, Moby Coll, Hero Coll, Bspheres, "
-                  "Cameras, Cuboids, Samples, Text.",
-                  "The terminal opens it with the OpenRAC Museum mod."], None),
-    ],
-    MATCHING: [
-        ("Inflato R", ["The I-5 menu's AMMO page names some weapons as the team called them.",
-                       "Morpha-Ray: the Morph-o-Ray.", "D. Droids: probably the Drone Device.",
-                       "Agents: probably the Decoy Glove.",
-                       "Inflato R: no weapon has this name. The empty plinth is for it."], None),
-        ("Byte for byte", ["Matching means writing C that compiles to exactly the bytes of the game's own "
-                           "program. Each matched function is proof that the C is right."], None),
-    ],
-    DECOMP: [
-        ("The 20-button codes", ["Pause, hold R2 and L1 (not L2 or R1), then press 20 buttons.",
-                                 "The tiles show one code: down, right, left, right, five times. It gives "
-                                 "skill point 1.",
-                                 "91 codes give items, planets and skill points. They were found in the code.",
-                                 "Warning: what a code gives is saved with your game. Try it on a spare save."], None),
-        ("printf does nothing", ["The messages the developers wrote for themselves all go into an empty "
-                                 "printf. The words are still on the disc: read them in the atrium."], None),
-    ],
-    WELCOME: [
-        ("Ratchett", ["The name plate on the desk is spelled the way the developers spelled it.",
-                      "The debug menu's first row says Ratchett, and the memory map says:"], "ratchett seqs:"),
-        ("Welcome", ["OpenRAC runs Ratchet & Clank natively, from your own disc.",
-                     "Each room shows one part of how. Upstairs: speedruns, the editor, cutscenes and more."], None),
-    ],
-    MODS: [
-        ("Archipelago", ["With the Archipelago mod, a crate can hold an item from another player's game, "
-                         "and yours can end up in theirs.", "The crate on the left is waiting for one."], None),
-        ("Barlow's gift", ["Going Commando gives you weapons from the first game when your memory card has "
-                           "a Ratchet & Clank save.",
-                           "Three of those weapons, in gold, are on the plinths."], None),
-    ],
-    MULTI: [
-        ("Together", ["Co-op puts two players in one galaxy, each with their own Ratchet."], None),
-        ("Big head booth", ["The game has a big head cheat. Stand on the gold plate and the OpenRAC Museum mod "
-                            "turns it on. Step off and it goes."], None),
-    ],
-    SPEEDRUN: [
-        ("The record", ["PS2 Any%: 36:36.196 by CptGallant (29 June 2025).",
-                        "About eight minutes of it is loading.",
-                        "On the NG+ board, 4th place: a runner called Insomniac, 28:07.687."], None),
-        ("Every bug kept", ["OpenRAC keeps the game's logic exactly as it was, bugs included, so every "
-                            "trick runners use still works."], None),
-    ],
-    ENHANCED: [
-        ("Beyond the PS2", ["Enhanced adds what the PS2 could not: sharper pictures, more light, longer "
-                            "views. The base game stays as it was."], None),
-        ("Effects", ["The game's own explosions, sparks and smoke, fired in the glass box with the "
-                     "OpenRAC Museum mod."], None),
-    ],
-    CUTSCENES: [
-        ("Paradox", ["The Infobot plays the game's movies. When the game asks for a message it does not "
-                     "have, it shows this instead:"], "Paradox: This message does not exist"),
-        ("Lights, camera, Clank", ["OpenRAC plays the game's cutscenes as they are, and OpenRAC Editor can "
-                                   "make new ones."], None),
-    ],
-    EDITOR: [
-        ("The test room", ["Going Commando's museum had a room like this: blocks a jump apart and ramps of "
-                           "rising slope.",
-                           "Here: blocks 1, 2, 3 and 4 units high, and ramps of 20, 35 and 50 degrees."], None),
-        ("Test dummies", ["Kalebo III's test dummies, brought here from their own level, where they "
-                          "wait for the level's own start."], None),
-    ],
-    DEVLOG: [
-        ("The devkit", ["The game still asks for files on the developers' PC, paths that lead nowhere on a "
-                        "retail PS2:"], "host0:z:/i5/levels/level%d/"),
-        ("File names", ["Names from Insomniac's own code, left in the game: hud.cpp, loaders.cpp, "
-                        "hero1.cpp to hero8.cpp, walk.h."], "cdrom0:\\CODE\\I5\\PARAM.TXT;1"),
-    ],
-    THANKS: [
-        ("Name tags", ["The game's own names for its people:",
-                       "The Plumber: Mystery 774", "Shady Salesman: Shifty Salesman",
-                       "Qwark's Bouncer: Bouncer", "Fred on Blarg: Scrawny Scientist"], None),
-        ("Door 21/30", ["Going Commando's Insomniac Museum is its level 30, stored as LEVEL21.WAD. "
-                        "This door is closed, for now."], None),
-    ],
+# The exhibits' words, one tile each: key -> (title, text). Short, plain English; the mod wraps them.
+# The HUD font has no & * = [ ] { } ~, so the words do without them.
+WORDS = {
+    "launcher": ("The launcher",
+                 "OpenRAC never downloads the game. The launcher reads Ratchet and Clank from your own disc "
+                 "and builds it for your computer, once. Your saves, mods and crash reports live here too."),
+    "renderer": ("From the PS2 to your GPU",
+                 "The PS2 drew with its Graphics Synthesizer. OpenRAC takes the very draw lists the game makes "
+                 "and draws them with OpenGL or Vulkan, so the picture matches the PS2."),
+    "hostgen": ("Hostgen",
+                "The decomp team writes the game's code as C. Hostgen turns that C into C for your computer: "
+                "each PS2 address becomes a place in OpenRAC's copy of the PS2's memory. The screen shows one "
+                "function, before and after."),
+    "port": ("I-5",
+             "Insomniac's own debug menu is still in every level. Its title is I-5, the game's project code. "
+             "No button opens it in the shop game. Stand on the teal pad and the museum mod opens it. "
+             "Select leaves it."),
+    "matching": ("Byte for byte",
+                 "Matching means writing C that the original compiler turns into the very bytes of the game. "
+                 "When they match, the C is proven right. The I-5 menu's AMMO page still says Inflato R."),
+    "decomp": ("The 20-button codes",
+               "Found in the code: pause, hold R2 and L1, then press 20 buttons. 91 codes give items, planets "
+               "and skill points. The tiles spell one. What a code gives is saved with your game."),
+    "welcome": ("Welcome",
+                "This museum shows how OpenRAC runs Ratchet and Clank on your computer, one part in each room. "
+                "Step on a gold tile to read about what you see. The desk says Ratchett: that is how the "
+                "game's own code spells him."),
+    "mods": ("Mods",
+             "Mods change the game and never touch your disc. They are built on the OpenRAC SDK, and the "
+             "launcher adds them from a link or a file. This museum is a mod too."),
+    "multi": ("Co-op",
+              "Ratchet and Clank was made for one player. OpenRAC's co-op puts two players in one galaxy, "
+              "each with their own Ratchet."),
+    "speedrun": ("Every bug kept",
+                 "OpenRAC keeps the game's logic exactly as it was, bugs included, so every trick speedrunners "
+                 "use still works. The PS2 record is 36:36, and about eight minutes of it is loading."),
+    "enhanced": ("Effects",
+                 "Stand on the teal pad: the museum mod starts the game's own sparks, smoke and bursts in the "
+                 "case. Enhanced graphics adds light and sharper pictures. The base game stays as it was."),
+    "android": ("In your pocket",
+                "OpenRAC runs on Android phones and handhelds, with a gamepad or touch buttons. The same code "
+                "builds for Windows, macOS and Linux."),
+    "cutscenes": ("Cutscenes",
+                  "OpenRAC plays the game's cutscenes as they are. OpenRAC Editor writes new ones: a camera, "
+                  "actors and lines in one text file, as on the screen."),
+    "editor": ("The test room",
+               "Going Commando's museum had a room like this. Blocks 1, 2, 3 and 4 units high, and ramps of "
+               "20, 35 and 50 degrees: try which ones Ratchet can climb. OpenRAC Editor built this island."),
+    "devlog": ("The devkit",
+               "The game still asks for files on the developers' PC, at host0:z:/i5/levels/. On a shop PS2 "
+               "these paths lead nowhere."),
+    "thanks": ("Thank you",
+               "OpenRAC is made by the people on this wall, and by the decomp team before them. Every name is "
+               "from the projects' own history."),
+    "door21": ("Door 21/30",
+               "Going Commando's Insomniac Museum is its level 30, stored as LEVEL21.WAD. This door opens "
+               "only between 3 and 4 in the morning, on your own clock."),
+    "cut_revolverator": ("The Revolverator",
+                         "A cut weapon: a drill that grabbed an enemy and spun it over Ratchet's head. It left "
+                         "him open to the others, so it went. Its model is still on the disc, in Hoven's files."),
+    "cut_e3": ("The E3 demo",
+               "At E3 in 2002 the game was not finished. Rilgar was called Talos, and the Decoy Glove was the "
+               "Inflato-Ratchet Glove. The I-5 menu still calls it Inflato R."),
+    "cut_mackerel": ("The Mackerel 1000",
+                     "A fish that was to replace the wrench. It was cut, and only its icon is left in the "
+                     "game's files."),
+    "cut_messages": ("Notes to themselves",
+                     "The lines over the doors are messages the developers wrote for themselves. The game sends "
+                     "them all to an empty printf, so nobody saw them, but the words are still on the disc."),
 }
 
-# The wall of messages: one line from the game's code over each way in from the atrium.
+# The tiles: (key, x, y, z), filled by build(); the mod's data comes from them.
+STATIONS = []
+# The mod's other places: name -> (x, y, z, radius).
+ZONES = {}
+
+# The museum's own words on the walls: one line from the game's code over each way in from the atrium.
 MESSAGES = [
     ("Why doesn't this work?", "every level"),
     ("main loop squirm! should never get here!", "every level"),
@@ -160,6 +124,72 @@ MESSAGES = [
     ("Will just float there.", "Gaspar, the floating ship piece"),
 ]
 
+# Each room's two wall boards: (title, paragraphs, a game string or None).
+BOARDS = {
+    LAUNCHER: [("Your own disc", ["PAL v2.00 and v1.00 (SCES_509.16), NTSC-U (SCUS_971.99), Japan (SCPS_150.37).",
+                                  "Going Commando, Up Your Arsenal and Deadlocked: early access."], None),
+               ("Built once", ["The first start builds the game from OpenRAC's code and your disc. It takes a "
+                               "few minutes, then never again."], None)],
+    RENDERER: [("Only when you look", ["Many mobys update only while they are drawn. Turn the camera away "
+                                       "and they wait. OpenRAC keeps this: change it and the game plays "
+                                       "differently."], None),
+               ("GS to OpenGL and Vulkan", ["The same draw lists, a new back end. The picture is checked "
+                                            "against the PS2's."], None)],
+    HOSTGEN: [("C for your computer", ["Hostgen reads the decomp's C and writes C that runs on your PC, "
+                                       "Mac, Linux box or phone."], None),
+              ("update/mobyNNN.cpp", ["Insomniac kept each kind of moby in its own file, named by its number. "
+                                      "The names are still in the game's messages."], None)],
+    PORT: [("I-5", ["Pages: UPDATE, MODE, DRAW, AMMO, FOG, MISC.",
+                    "No button opens it in the shop game: it waits for game mode -1."], None),
+           ("DRAW", ["The DRAW page shows what you never see: Darken, Env Coll, Moby Coll, Hero Coll, Bspheres, "
+                     "Cameras, Cuboids, Samples, Text."], None)],
+    MATCHING: [("Inflato R", ["The I-5 menu's AMMO page names some weapons as the team called them.",
+                              "Morpha-Ray: the Morph-o-Ray. D. Droids: the Drone Device. Agents: the Decoy "
+                              "Glove. Inflato R: the Decoy Glove's name at E3."], None),
+               ("Byte for byte", ["Each matched function is proof that the C is right."], None)],
+    DECOMP: [("The 20-button codes", ["Pause, hold R2 and L1 (not L2 or R1), then press 20 buttons.",
+                                      "The tiles show one code: down, right, left, right, five times. It gives "
+                                      "skill point 1.",
+                                      "Warning: what a code gives is saved with your game. Try it on a spare "
+                                      "save."], None),
+             ("printf does nothing", ["The messages the developers wrote for themselves all go into an empty "
+                                      "printf. Read them over the atrium's doors."], None)],
+    WELCOME: [("Ratchett", ["The debug menu's first row says Ratchett, and the memory map says:"], "ratchett seqs:"),
+              ("Welcome", ["Each room shows one part of how OpenRAC works. Upstairs: speedruns, the editor, "
+                           "cutscenes and more. In the atrium: things cut from the game."], None)],
+    MODS: [("The SDK", ["A mod is a small library on the OpenRAC SDK: it reads the game, adds pages and "
+                        "places, and changes what it is allowed to."], None),
+           ("A planet as a mod", ["This museum is a map file: the launcher adds it like any mod, and your disc "
+                                  "gives back the game's pictures and models."], None)],
+    MULTI: [("Together", ["Co-op puts two players in one galaxy, each with their own Ratchet."], None),
+            ("Co-op saves", ["A party's progress is kept in co-op saves. Your own saves stay as they are."], None)],
+    SPEEDRUN: [("The record", ["PS2 Any%: 36:36.196 by CptGallant (29 June 2025).",
+                               "On the NG+ board, 4th place: a runner called Insomniac, 28:07.687."], None),
+               ("Every bug kept", ["Every trick runners use still works in OpenRAC."], None)],
+    ENHANCED: [("Beyond the PS2", ["Enhanced adds what the PS2 could not: sharper pictures, more light, "
+                                   "longer views."], None),
+               ("Effects", ["The game's own sparks, smoke and bursts, started by the museum mod."], None)],
+    ANDROID: [("Pad or touch", ["Play with the handheld's own pad, or with touch buttons on the screen."], None),
+              ("One code", ["The game, the launcher and the mods build from the same code for every "
+                            "system."], None)],
+    CUTSCENES: [("Paradox", ["When the game asks for a message it does not have, it shows this:"],
+                 "Paradox: This message does not exist"),
+                ("Lights, camera, Clank", ["OpenRAC Editor makes new cutscenes for old levels."], None)],
+    EDITOR: [("The test room", ["Blocks 1, 2, 3 and 4 units high, ramps of 20, 35 and 50 degrees."], None),
+             ("This island", ["The museum, the island, its rocks and its light were all made with OpenRAC "
+                              "Editor and its tools."], None)],
+    DEVLOG: [("The devkit", ["The game still asks for files on the developers' PC:"], "host0:z:/i5/levels/level%d/"),
+             ("File names", ["Names from Insomniac's own code, left in the game: hud.cpp, loaders.cpp, "
+                             "hero1.cpp to hero8.cpp, walk.h."], "cdrom0:\\CODE\\I5\\PARAM.TXT;1")],
+    THANKS: [("Thank you", ["To everyone who wrote code, tested, reported a bug or made a mod."], None),
+             ("Door 21/30", ["Going Commando's Insomniac Museum is its level 30, stored as LEVEL21.WAD."], None)],
+}
+
+# The people on the Thank You wall: the authors in the projects' git history (bots left out).
+CONTRIBUTORS = ["Flavius", "ネオン神", "Kryštof Malinda", "Pezza", "Mateusz Kłysz", "Louis-Philippe Le Sieur",
+                "Adrien Girardeau", "Henning Berge", "SavedbyBlood9", "iborrowcheckbtw", "Clank700",
+                "Eric Cameracci", "Lynder063", "Ben Perry", "Doogie", "Lore", "momo1212221"]
+
 
 def board_picture(key, title, seed):
     """The picture of exhibit board KEY (house.rooms names them om_sign_<storey>_<sector>_b<edge><k>)."""
@@ -169,7 +199,7 @@ def board_picture(key, title, seed):
     if room in BOARDS:
         head, lines, quote = BOARDS[room][which]
         return textures.board(head, lines, seed, quote=quote)
-    return textures.poster(title, ["Exhibit " + str(seed % 4 + 1)], seed)
+    return textures.poster(title, [], seed)
 
 
 def frame_of(room):
@@ -181,27 +211,18 @@ def frame_of(room):
     return z0, out, tang, rc
 
 
-def plinth_top(room, k):
-    z0, out, tang, rc = frame_of(room)
-    p = rc + tang * k * 3.6 + out * 0.5
-    return (float(p[0]), float(p[1]), z0 + 1.22)
-
-
 def facing(room):
     """The yaw (degrees) that looks from the room towards the atrium."""
     return 45 * room[1] + 180.0
 
 
+def yaw(v):
+    return math.degrees(math.atan2(v[1], v[0]))
+
+
 def sign(geo, signs, key, picture, centre, face, w, h):
     PICTURES[key] = picture
     signs.append((key, "", "", centre, face, w, h))
-
-
-def label(geo, signs, key, text, sub, base, room, z):
-    """A brass plate on the atrium side of a stand at BASE (its middle), at height Z."""
-    out = ang(45 * room[1])
-    c = np.asarray(base[:2]) - out * 0.93
-    sign(geo, signs, key, textures.plate(text, sub), (c[0], c[1], z), facing(room), 1.6, 0.4)
 
 
 def pedestal(geo, p, z0, half=1.4, height=0.35):
@@ -210,19 +231,68 @@ def pedestal(geo, p, z0, half=1.4, height=0.35):
     return z0 + height + 0.08
 
 
+def floor_picture(geo, key, c, up, size, z):
+    """A square picture flat on the floor at C, its top towards UP (a unit 2D vector)."""
+    right = np.array([up[1], -up[0]])
+    q = np.array([[*(c - right * size / 2 - up * size / 2), z], [*(c + right * size / 2 - up * size / 2), z],
+                  [*(c + right * size / 2 + up * size / 2), z], [*(c - right * size / 2 + up * size / 2), z]])
+    uv = np.array([[0, 1], [1, 1], [1, 0], [0, 0]], np.float32)
+    if np.cross(q[1] - q[0], q[3] - q[0])[2] < 0:
+        q = q[[0, 3, 2, 1]]
+        uv = uv[[0, 3, 2, 1]]
+    geo.tri_quad(key, q, [0, 0, 1], uv, solid=False, glow=[0.7, 0.7, 0.7])
+
+
+def tile(geo, key, c, up, z0):
+    """An exhibit's gold tile: standing on it shows WORDS[key]."""
+    PICTURES.setdefault("om_info", textures.info_tile())
+    floor_picture(geo, "om_info", np.asarray(c, float), up, 1.6, z0 + 0.1)
+    STATIONS.append((key, float(c[0]), float(c[1]), float(z0)))
+
+
+def screen_stand(geo, signs, key, picture, c, n, z0, w, h, bottom=0.9):
+    """A framed picture on two legs at C, facing N: the exhibits' screens."""
+    c = np.asarray(c, float)
+    n = np.asarray(n, float) / np.linalg.norm(n)
+    d = np.array([-n[1], n[0]])
+    zb = z0 + bottom
+    geo.oriented_box("om_planks_dark", c - d * (w / 2 + 0.2) - n * 0.15, c + d * (w / 2 + 0.2) - n * 0.15, n, 0.2,
+                     zb - 0.2, zb + h + 0.2)
+    geo.oriented_box("om_gold", c - d * (w / 2 + 0.3) - n * 0.15, c + d * (w / 2 + 0.3) - n * 0.15, n, 0.3,
+                     zb + h + 0.2, zb + h + 0.35, solid=False)
+    for t in (-1, 1):
+        leg = c + d * t * (w / 2 - 0.2) - n * 0.15
+        geo.box("om_planks_dark", (leg[0] - 0.12, leg[1] - 0.12, z0), (leg[0] + 0.12, leg[1] + 0.12, zb - 0.2))
+    sign(geo, signs, key, picture, (c[0], c[1], zb + h / 2), yaw(n), w, h)
+
+
+def room_exhibit(room):
+    """Where a room's exhibit stands, which way it faces, and where its tile is. The two door rooms
+    keep their middle free: their exhibit stands at one side, facing the way through."""
+    z0, out, tang, rc = frame_of(room)
+    if room in (LAUNCHER, WELCOME):
+        side = 1 if room == LAUNCHER else -1
+        return z0, rc + tang * side * 6.2, -tang * side, rc + tang * side * 3.4, out
+    if room in (RENDERER, SPEEDRUN):    # the tower stands in the back of these two rooms
+        return z0, rc + out * 0.2, -out, rc - out * 3.4, out
+    return z0, rc + out * 3.6, -out, rc - out * 1.6, out
+
+
 def build(geo, signs):
-    """The exhibits' shapes and pictures; what they place is in placements()."""
+    """The exhibits' shapes, pictures and tiles; what they place is in placements()."""
+    STATIONS.clear()
+    ZONES.clear()
     wall_of_messages(geo, signs)
+    screens(geo, signs)
     welcome(geo, signs)
-    hostgen(geo, signs)
-    matching(geo, signs)
-    code_tiles(geo, signs)
     terminal(geo, signs)
+    code_tiles(geo, signs)
+    effects_case(geo, signs)
+    handheld(geo, signs)
     test_room(geo, signs)
     devkit(geo, signs)
     thanks(geo, signs)
-    plates(geo, signs)
-    booth(geo, signs)
+    cut_content(geo, signs)
     ledge(geo, signs)
 
 
@@ -232,8 +302,60 @@ def wall_of_messages(geo, signs):
         sign(geo, signs, f"om_msg_{s}", textures.message(text, where), (c[0], c[1], F0 + 6.55), 45 * s + 180, 5.6, 1.05)
 
 
+def screens(geo, signs):
+    """The rooms whose exhibit is a picture on a stand."""
+    decomp_c = ["void draw_page_contents(void) {", "    if (skip_frame == 0)",
+                "        draw_pause_menu_pages(0);", "}"]
+    host_c = ["void func_L00_001F92C0(void)", "{", "  if ((GREF(int,", "       OPENRAC_LDATA(0,",
+              "       0x0015F6BCu)) == 0))", "  {", "    func_L00_002781D8((int)(0));", "  }", "}"]
+    shows = {
+        LAUNCHER: ("om_scr_launcher", textures.photo("launcher-saves.jpg", 1024, 512, "Saves, help and crash reports"), 4.8, 2.4),
+        RENDERER: ("om_scr_renderer", textures.card("From the PS2 to your GPU",
+                                                    ["The game builds its draw lists as on the PS2.",
+                                                     "OpenRAC reads them and draws with OpenGL or Vulkan.",
+                                                     "The picture is checked against the PS2's."],
+                                                    big="GS  ->  OpenGL / Vulkan"), 4.8, 3.0),
+        HOSTGEN: ("om_scr_hostgen", textures.code_card([("The decomp's C", decomp_c), ("Hostgen's C", host_c)],
+                                                       title="One function, twice",
+                                                       note="Same function: the pause menu's pages."), 4.8, 3.0),
+        MATCHING: ("om_scr_matching", textures.code_card([("Written by hand", ["void frame_roll_counter(void) {",
+                                                                               "    char *p = frame_roll_counters_base;",
+                                                                               "    int t = *(int *)(p + 0x364);",
+                                                                               "    *(int *)(p + 0x364) = 0;",
+                                                                               "    *(int *)(p + 0x1B0) = 0;",
+                                                                               "    *(int *)(p + 0x368) = t;", "}"])],
+                                                         title="MATCH: the same bytes as the game",
+                                                         note="Compiled with the original compiler, byte for byte."),
+                     4.8, 3.0),
+        MODS: ("om_scr_mods", textures.photo("launcher-mods.jpg", 1024, 900, "The launcher's Mods page"), 3.8, 3.34),
+        SPEEDRUN: ("om_scr_speedrun", textures.card("PS2 Any% world record", ["CptGallant, 29 June 2025.",
+                                                                               "About eight minutes of it is loading."],
+                                                    big="36:36.196"), 4.8, 3.0),
+        CUTSCENES: ("om_scr_cutscenes", textures.code_card([("meet-the-vendor.json", [
+            '"format": "openrac-cutscene",', '"level": 3,', '"name": "Meet the vendor",', '"length": 720,',
+            '"camera": { "keys": [', '  { "t": 0, "eye": [260, 147, 52],', '    "look_at": [262, 150, 50] }',
+            "] },", '"actors": [ ... ],', '"subtitles": [ ... ]'])], title="A cutscene is a text file"), 4.8, 3.0),
+        MULTI: ("om_scr_multi", textures.card("Co-op", ["Two players, one galaxy, a Ratchet each.",
+                                                         "Your own saves stay as they are."],
+                                              big="2 players"), 4.8, 3.0),
+        THANKS: ("om_scr_thanks", textures.names_wall("Made by", CONTRIBUTORS), 3.6, 3.6),
+    }
+    for room, (key, picture, w, h) in shows.items():
+        z0, c, n, t, up = room_exhibit(room)
+        screen_stand(geo, signs, key, picture, c, n, z0, w, h)
+        tile(geo, room_key(room), t, -n, z0)
+
+
+def room_key(room):
+    return {LAUNCHER: "launcher", RENDERER: "renderer", HOSTGEN: "hostgen", PORT: "port", MATCHING: "matching",
+            DECOMP: "decomp", WELCOME: "welcome", MODS: "mods", MULTI: "multi", SPEEDRUN: "speedrun",
+            ENHANCED: "enhanced", ANDROID: "android", CUTSCENES: "cutscenes", EDITOR: "editor", DEVLOG: "devlog",
+            THANKS: "thanks"}[room]
+
+
 def welcome(geo, signs):
-    """The help desk by the south door, its name plate spelled Ratchett."""
+    """The help desk by the south door, its name plate spelled Ratchett, and the museum's map."""
+    from house import GROUND, UPPER
     z0, out, tang, rc = frame_of(WELCOME)
     d = mid(WELCOME[1], R_OUT - 7.0) + tang * 5.5
     geo.oriented_box("om_planks_dark", d - tang * 2.2, d + tang * 2.2, out, 1.2, z0, z0 + 1.3)
@@ -241,40 +363,9 @@ def welcome(geo, signs):
     c = d - out * 0.75
     sign(geo, signs, "om_plate_ratchett", textures.plate("RATCHETT", "museum of the game"), (c[0], c[1], z0 + 0.8),
          facing(WELCOME), 2.6, 0.65)
-
-
-def hostgen_spots():
-    z0, out, tang, rc = frame_of(HOSTGEN)
-    return [(rc + tang * t * 5.0 + out * o, z0) for o in (3.2, -2.8) for t in (-1, 0, 1)]
-
-
-HOSTGEN_ROW = [563, 217, 340, 623, 998, 1048]
-
-
-def hostgen(geo, signs):
-    for k, (p, z0) in enumerate(hostgen_spots()):
-        pedestal(geo, p, z0, 1.5)
-        cls = HOSTGEN_ROW[k]
-        label(geo, signs, f"om_plate_hostgen_{k}", f"update/moby{cls}.cpp", CLASSES[cls][1], (*p, z0), HOSTGEN, z0 + 0.22)
-
-
-def matching_spots():
-    z0, out, tang, rc = frame_of(MATCHING)
-    return [(rc + tang * t + out * 0.5, z0) for t in (-5.4, -1.8, 1.8, 5.4)]
-
-
-MATCHING_ROW = [(1465, "Morpha-Ray"), (None, "D. Droids"), (1462, "Agents"), (None, "Inflato R")]
-
-
-def matching(geo, signs):
-    for k, (p, z0) in enumerate(matching_spots()):
-        house.plinth(geo, p, z0, 0, ornament=False)
-        cls, name = MATCHING_ROW[k]
-        label(geo, signs, f"om_plate_matching_{k}", name, "AMMO page" if cls else "", (*p, z0), MATCHING, z0 + 0.75)
-        if k == 1:      # no gold Drone Device: a picture of its name stands on the plinth
-            c = np.asarray(p)
-            sign(geo, signs, "om_card_droids", textures.plate("D. Droids", "the Drone Device, no gold model"),
-                 (c[0], c[1], z0 + 1.9), facing(MATCHING), 1.6, 0.5)
+    z0, c, n, t, up = room_exhibit(WELCOME)
+    screen_stand(geo, signs, "om_scr_map", textures.floor_plan(GROUND, UPPER, here=WELCOME), c, n, z0, 4.8, 2.7)
+    tile(geo, "welcome", t, -n, z0)
 
 
 def code_tiles(geo, signs):
@@ -288,29 +379,60 @@ def code_tiles(geo, signs):
         for col in range(4):
             # Seen from the atrium (facing OUT), +tang is to the left: the first column there.
             c = rc + out * ((row - 2) * (size + 0.2)) + tang * ((1.5 - col) * (size + 0.2))
-            q = np.array([[*(c - tang * size / 2 - out * size / 2), z0 + 0.05], [*(c + tang * size / 2 - out * size / 2), z0 + 0.05],
-                          [*(c + tang * size / 2 + out * size / 2), z0 + 0.05], [*(c - tang * size / 2 + out * size / 2), z0 + 0.05]])
-            # Upright for someone walking in from the atrium (facing OUT): the picture's top is OUT.
-            uv = np.array([[1, 1], [0, 1], [0, 0], [1, 0]], np.float32)
-            if np.cross(q[1] - q[0], q[3] - q[0])[2] < 0:
-                q = q[[0, 3, 2, 1]]
-                uv = uv[[0, 3, 2, 1]]
-            key = f"om_tile_{ord(seq[col])}"
-            geo.tri_quad(key, q, [0, 0, 1], uv, solid=False, glow=[0.6, 0.6, 0.6])
+            floor_picture(geo, f"om_tile_{ord(seq[col])}", c, out, size, z0 + 0.05)
+    tile(geo, "decomp", rc - out * 6.0, out, z0)
+    ZONES["codes"] = (float(rc[0]), float(rc[1]), float(z0), 12.0)
 
 
 def terminal(geo, signs):
-    """The I-5 terminal: a console on the middle plinth's spot, and a pad before it."""
-    z0, out, tang, rc = frame_of(PORT)
-    p = np.asarray(plinth_top(PORT, 0)[:2])
-    geo.oriented_box("om_rail", p - tang * 1.2 + out * 0.6, p + tang * 1.2 + out * 0.6, out, 0.6, z0 + 1.22, z0 + 3.4)
-    c = p + out * 0.25
+    """The I-5 terminal: a console on a desk at the back, and the teal pad before it that opens the menu."""
+    z0, c, n, t, out = room_exhibit(PORT)
+    d = np.array([-n[1], n[0]])
+    geo.oriented_box("om_white", c - d * 1.4, c + d * 1.4, n, 1.4, z0, z0 + 1.1)
+    geo.oriented_box("om_gold", c - d * 1.5, c + d * 1.5, n, 1.5, z0 + 1.1, z0 + 1.22, solid=False)
+    p = c - n * 0.1
+    geo.oriented_box("om_rail", p - d * 1.2, p + d * 1.2, n, 0.6, z0 + 1.22, z0 + 3.4)
+    s = p + n * 0.32
     sign(geo, signs, "om_screen_i5", textures.screen(["I-5", "", "UPDATE  MODE  DRAW", "AMMO  FOG  MISC", "",
                                                        "Ratchett   on", "Mobys     on", "Parts     on",
                                                        "Camera    on", "Step      off"]),
-         (c[0], c[1], z0 + 2.4), facing(PORT), 2.0, 1.5)
-    pad = p - out * 3.0
-    geo.cylinder("om_teal", (pad[0], pad[1]), 1.3, z0, z0 + 0.12, 16, solid=True)
+         (s[0], s[1], z0 + 2.4), yaw(n), 2.0, 1.5)
+    pad = c + n * 2.3
+    geo.cylinder("om_teal", (pad[0], pad[1]), 1.2, z0, z0 + 0.12, 16, solid=True)
+    ZONES["i5"] = (float(pad[0]), float(pad[1]), float(z0 + 0.12), 1.2)
+    tile(geo, "port", t, -n, z0)
+
+
+def effects_case(geo, signs):
+    """A glass case for the effects: gold posts on a low pedestal, and the teal pad before it."""
+    z0, c, n, t, out = room_exhibit(ENHANCED)
+    top = pedestal(geo, c, z0, 1.3, 0.4)
+    for dx, dy in ((-1.2, -1.2), (1.2, -1.2), (1.2, 1.2), (-1.2, 1.2)):
+        geo.box("om_gold", (c[0] + dx - 0.07, c[1] + dy - 0.07, top), (c[0] + dx + 0.07, c[1] + dy + 0.07, top + 2.6), solid=False)
+    geo.box("om_gold", (c[0] - 1.27, c[1] - 1.27, top + 2.6), (c[0] + 1.27, c[1] + 1.27, top + 2.7), solid=False)
+    ZONES["effects_case"] = (float(c[0]), float(c[1]), float(top), 1.2)
+    pad = c + n * 2.6
+    geo.cylinder("om_teal", (pad[0], pad[1]), 1.1, z0, z0 + 0.12, 16, solid=True)
+    ZONES["effects"] = (float(pad[0]), float(pad[1]), float(z0 + 0.12), 1.1)
+    tile(geo, "enhanced", t, -n, z0)
+
+
+def handheld(geo, signs):
+    """A handheld on a stand: a dark body with two sticks round the launcher on its screen."""
+    z0, c, n, t, out = room_exhibit(ANDROID)
+    d = np.array([-n[1], n[0]])
+    zb = z0 + 1.0
+    geo.box("om_planks_dark", (c[0] - 0.15, c[1] - 0.15, z0), (c[0] + 0.15, c[1] + 0.15, zb))
+    geo.oriented_box("om_rail", c - d * 2.6, c + d * 2.6, n, 0.35, zb, zb + 2.2)
+    for side in (-1, 1):
+        stick = c + d * side * 2.05 + n * 0.2
+        geo.cylinder("om_planks_dark", (stick[0], stick[1]), 0.22, zb + 1.3, zb + 1.5, 10)
+        button = c + d * side * 2.05 + n * 0.2
+        geo.box("om_gold", (button[0] - 0.1, button[1] - 0.1, zb + 0.55), (button[0] + 0.1, button[1] + 0.1, zb + 0.75), solid=False)
+    s = c + n * 0.18
+    sign(geo, signs, "om_scr_android", textures.photo("launcher-saves.jpg", 1024, 576), (s[0], s[1], zb + 1.1),
+         yaw(n), 3.4, 1.9)
+    tile(geo, "android", t, -n, z0)
 
 
 def test_room(geo, signs):
@@ -329,12 +451,12 @@ def test_room(geo, signs):
         rise = length * math.tan(math.radians(deg))
         q = np.array([[*(base - tang * 1.4), z0], [*(base + tang * 1.4), z0],
                       [*(top + tang * 1.4), z0 + rise], [*(top - tang * 1.4), z0 + rise]])
-        n = np.cross(q[1] - q[0], q[3] - q[0])
-        if n[2] < 0:
+        nn = np.cross(q[1] - q[0], q[3] - q[0])
+        if nn[2] < 0:
             q = q[[0, 3, 2, 1]]
-            n = -n
-        n /= np.linalg.norm(n)
-        geo.tri_quad("om_planks_light", q, list(n), np.array([[0, 0], [1, 0], [1, 2], [0, 2]], np.float32), solid=True)
+            nn = -nn
+        nn /= np.linalg.norm(nn)
+        geo.tri_quad("om_planks_light", q, list(nn), np.array([[0, 0], [1, 0], [1, 2], [0, 2]], np.float32), solid=True)
         geo.oriented_box("om_planks_dark", top - tang * 1.4, top + tang * 1.4, out, 0.3, z0, z0 + rise, solid=True)
         for side in (-1, 1):
             a, b = base + tang * 1.4 * side, top + tang * 1.4 * side
@@ -343,36 +465,27 @@ def test_room(geo, signs):
                          np.zeros((4, 2), np.float32), solid=False)
         f = base - out * 0.3
         sign(geo, signs, f"om_plate_ramp_{k}", textures.plate(f"{deg} degrees"), (f[0], f[1], z0 + 0.5), facing(EDITOR), 1.2, 0.3)
+    tile(geo, "editor", rc + tang * 7.2 - out * 1.5, out, z0)
 
 
 def devkit(geo, signs):
     """The devkit desk: an old monitor with the dead paths on its screen."""
-    z0, out, tang, rc = frame_of(DEVLOG)
-    p = np.asarray(plinth_top(DEVLOG, 0)[:2])
+    z0, c, n, t, out = room_exhibit(DEVLOG)
+    d = np.array([-n[1], n[0]])
+    geo.oriented_box("om_white", c - d * 1.6, c + d * 1.6, n, 1.6, z0, z0 + 1.1)
+    geo.oriented_box("om_gold", c - d * 1.7, c + d * 1.7, n, 1.7, z0 + 1.1, z0 + 1.22, solid=False)
     z = z0 + 1.22
-    geo.oriented_box("om_planks_dark", p - tang * 0.9 + out * 0.2, p + tang * 0.9 + out * 0.2, out, 1.3, z, z + 1.4)
-    c = p - out * 0.47
+    geo.oriented_box("om_planks_dark", c - d * 0.9, c + d * 0.9, n, 1.3, z, z + 1.4)
+    s = c + n * 0.67
     sign(geo, signs, "om_screen_devkit", textures.screen(["host0:z:/i5/levels/", "  level%d/...", "",
                                                            "cdrom0:\\CODE\\I5\\", "  PARAM.TXT;1", "",
                                                            "file not found_"]),
-         (c[0], c[1], z + 0.75), facing(DEVLOG), 1.5, 1.1)
-
-
-def thanks_spots():
-    z0, out, tang, rc = frame_of(THANKS)
-    return [(rc + tang * t + out * 1.5, z0) for t in (-5.4, -1.8, 1.8, 5.4)]
-
-
-THANKS_ROW = [(774, "Mystery 774", "The Plumber"), (925, "Shifty Salesman", "Shady Salesman"),
-              (919, "Bouncer", "Qwark's Bouncer"), (1105, "Scrawny Scientist", "Fred")]
+         (s[0], s[1], z + 0.75), yaw(n), 1.5, 1.1)
+    tile(geo, "devlog", t, -n, z0)
 
 
 def thanks(geo, signs):
-    for k, (p, z0) in enumerate(thanks_spots()):
-        pedestal(geo, p, z0, 1.1)
-        _, tag, name = THANKS_ROW[k]
-        label(geo, signs, f"om_plate_thanks_{k}", tag, name, (*p, z0), THANKS, z0 + 0.22)
-    # Door 21/30: a closed door in the outer wall's inside, right of the windows.
+    """Door 21/30: a closed door in the outer wall's inside, right of the windows; it opens at 3 AM."""
     z0, out, tang, rc = frame_of(THANKS)
     d = mid(THANKS[1], R_OUT - WALL / 2 - 0.1) - tang * 6.2
     geo.oriented_box("om_planks_dark", d - tang * 1.3, d + tang * 1.3, out, 0.2, z0, z0 + 4.0, solid=False)
@@ -380,29 +493,35 @@ def thanks(geo, signs):
     c = d - out * 0.15
     sign(geo, signs, "om_plate_door21", textures.plate("LEVEL21.WAD", "level 30"), (c[0], c[1], z0 + 3.2),
          facing(THANKS), 1.6, 0.4)
+    door = d - out * 1.1
+    ZONES["door21"] = (float(door[0]), float(door[1]), float(z0), 1.4)
+    tile(geo, "door21", d - out * 3.0, out, z0)
+    # Where the door leads: the tower's secret room.
+    tx, ty = house.TOWER
+    ZONES["archive"] = (float(tx - 2.0), float(ty - 2.0), float(house.TOWER_TOP + 0.5), 0.0)
 
 
-def plates(geo, signs):
-    """Name plates under the exhibits on plinths."""
-    for room, k, text, sub in ((RENDERER, 0, "Frog", "Blarg"),
-                               (CUTSCENES, 0, "Infobot", "Paradox"),
-                               (MODS, -1, "Archipelago crate", ""), (MODS, 0, "Gold Bomb Glove", "Barlow's gift"),
-                               (MODS, 1, "Gold Tesla Claw", "Barlow's gift"),
-                               (SPEEDRUN, 0, "Insomniac", "NG+ 28:07.687, 4th")):
-        p = plinth_top(room, k)
-        label(geo, signs, f"om_plate_{room[0]}{room[1]}_{k + 1}", text, sub, p, room, p[2] - 0.5)
-    # The frog's glass case: four gold posts and a frame.
-    x, y, z = plinth_top(RENDERER, 0)
-    for dx, dy in ((-0.8, -0.8), (0.8, -0.8), (0.8, 0.8), (-0.8, 0.8)):
-        geo.box("om_gold", (x + dx - 0.06, y + dy - 0.06, z), (x + dx + 0.06, y + dy + 0.06, z + 1.6), solid=False)
-    geo.box("om_gold", (x - 0.86, y - 0.86, z + 1.6), (x + 0.86, y + 0.86, z + 1.68), solid=False)
+def cut_content(geo, signs):
+    """Things cut from the game, round the fountain: each on a plinth, between the ways to the rooms."""
+    items = [("cut_revolverator", None), ("cut_e3", textures.renames([("Talos", "Rilgar"),
+                                                                       ("Inflato-Ratchet Glove", "Decoy Glove"),
+                                                                       ("Inflato R", "still in the I-5 menu")])),
+             ("cut_mackerel", textures.card("The Mackerel 1000", ["A fish to hit things with, in place of the wrench.",
+                                                                   "Cut: only its icon is left."], big="cut")),
+             ("cut_messages", textures.card("Notes to themselves", ["The lines over the doors were written by the "
+                                                                    "developers for themselves.",
+                                                                    "printf threw them away. The disc kept them."]))]
+    for k, (key, picture) in enumerate(items):
+        a = 45 * (2 * k + 1) + 22.5
+        p = C2 + ang(a) * 9.0
+        n = ang(a)                                 # facing out, towards the rooms' doors
+        house.plinth(geo, p, F0, 0, ornament=False)
+        if picture is not None:
+            screen_stand(geo, signs, f"om_scr_{key}", picture, p - n * 0.2, n, F0 + 1.22, 2.4, 1.5, bottom=0.25)
+        tile(geo, key, p + n * 2.2, -n, F0)
 
 
-def booth(geo, signs):
-    """The big head booth's plate in the Multiplayer room."""
-    z0, out, tang, rc = frame_of(MULTI)
-    p = rc + out * 4.5
-    geo.cylinder("om_gold", (p[0], p[1]), 1.4, z0, z0 + 0.1, 20, solid=True)
+C2 = np.array([CX, CY])
 
 
 def ledge(geo, signs):
@@ -418,43 +537,15 @@ def placements():
     """The game's objects the exhibits place: dicts of class, level, at (x, y, z), yaw, scale
     (over the class's own) and how it moves ("look": stands, its code never runs)."""
     out = []
-
-    def put(cls, at, yaw, scale=1.0, look=True, **more):
-        out.append(dict({"class": cls, "level": CLASSES[cls][0], "name": CLASSES[cls][1], "at": [float(v) for v in at],
-                         "yaw": float(yaw), "scale": scale, "look": look}, **more))
-
-    # Welcome: the help desk lady behind her desk, facing the room.
-    z0, o, tang, rc = frame_of(WELCOME)
-    d = mid(WELCOME[1], R_OUT - 7.0) + tang * 5.5 + o * 1.6
-    put(1377, (*d, z0), facing(WELCOME))
-    put(827, plinth_top(RENDERER, 0), facing(RENDERER))
-    for k, (p, z) in enumerate(hostgen_spots()):
-        put(HOSTGEN_ROW[k], (*p, z + 0.43), facing(HOSTGEN), scale=0.5 if HOSTGEN_ROW[k] in (217, 998) else 1.0)
-    for k, (p, z) in enumerate(matching_spots()):
-        cls = MATCHING_ROW[k][0]
-        if cls:
-            put(cls, (*p, z + 1.5), facing(MATCHING))
-    put(750, plinth_top(CUTSCENES, 0), facing(CUTSCENES))
-    put(1456, np.array(plinth_top(MODS, 0)) + [0, 0, 0.3], facing(MODS))
-    put(1463, np.array(plinth_top(MODS, 1)) + [0, 0, 0.3], facing(MODS))
-    for k, (p, z) in enumerate(thanks_spots()):
-        put(THANKS_ROW[k][0], (*p, z + 0.43), facing(THANKS))
-    # The test room's dummies, between the blocks and the ramps.
-    z0, o, tang, rc = frame_of(EDITOR)
-    for t in (-4.5, 4.5):
-        p = rc + o * 2.0 + tang * t
-        put(541, (*p, z0), facing(EDITOR))
-    # Over the fountain, high in the atrium: the floating ship piece.
-    put(1184, (CX, CY, F1 + 5.0), 30.0)
-    # The train carriage alone at the end of the pier.
-    pier = np.array([island.CENTRE[0] + math.cos(math.radians(-95)) * 205, island.CENTRE[1] + math.sin(math.radians(-95)) * 205])
-    put(1210, (pier[0] + 10, pier[1] - 6, island.SEA + 3.5), 90.0)
-    # The tower's secret room: the laziest moby.
-    tx, ty = house.TOWER
-    put(1432, (tx + 2.0, ty + 2.0, house.TOWER_TOP), 225.0)
+    for k in range(4):
+        a = 45 * (2 * k + 1) + 22.5
+        if k == 0:
+            p = C2 + ang(a) * 9.0
+            out.append({"class": 164, "level": CLASSES[164][0], "name": CLASSES[164][1],
+                        "at": [float(p[0]), float(p[1]), F0 + 1.22 + 0.9], "yaw": a + 90.0, "scale": 2.5, "look": True})
     return out
 
 
 def crates():
     """Our own copies of Pokitaru's objects for the exhibits: (kind, position, yaw)."""
-    return [("bolt_crate", list(plinth_top(MODS, -1)), facing(MODS))]
+    return []

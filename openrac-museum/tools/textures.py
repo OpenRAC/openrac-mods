@@ -492,3 +492,194 @@ def from_disc(folder):
         if path.is_file():
             out[name] = path.read_bytes()
     return out
+
+
+# ---- The exhibits' own pictures ----
+
+GOLD = (244, 196, 74)
+INK = (240, 232, 214)
+PICTURES_DIR = Path(__file__).resolve().parent.parent / "pictures"
+
+
+def mono(size):
+    """A monospaced font for code; the first one found on Linux or Windows."""
+    for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", "consolab.ttf", "courbd.ttf"):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            pass
+    return font(size)
+
+
+def any_script(size):
+    """A font that also has Japanese letters (for names); the first one found."""
+    for path in ("/usr/share/fonts/truetype/fonts-japanese-gothic.ttf", "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf",
+                 "YuGothB.ttc", "msgothic.ttc", "meiryob.ttc"):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            pass
+    return font(size)
+
+
+def framed(img, border=10):
+    """IMG with the museum's gold border."""
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
+    draw.rectangle([border // 2, border // 2, w - 1 - border // 2, h - 1 - border // 2], outline=GOLD, width=border)
+    return img
+
+
+def photo(name, width=1024, height=640, caption=None):
+    """A picture from pictures/ fitted on a dark mount, with an optional CAPTION under it."""
+    img = Image.new("RGB", (width, height), (24, 22, 26))
+    pic = Image.open(PICTURES_DIR / name).convert("RGB")
+    room_h = height - (70 if caption else 30)
+    scale = min((width - 40) / pic.width, room_h / pic.height)
+    pic = pic.resize((int(pic.width * scale), int(pic.height * scale)), Image.LANCZOS)
+    img.paste(pic, ((width - pic.width) // 2, 15 + (room_h - pic.height) // 2))
+    if caption:
+        draw = ImageDraw.Draw(img)
+        f = font(30)
+        draw.text(((width - draw.textlength(caption, font=f)) / 2, height - 52), caption, font=f, fill=GOLD)
+    return png(framed(img))
+
+
+def code_card(panels, title=None, width=1024, height=640, note=None):
+    """Code side by side: PANELS is a list of (heading, lines), each drawn in its own column."""
+    img = Image.new("RGB", (width, height), (18, 20, 28))
+    draw = ImageDraw.Draw(img)
+    top = 24
+    if title:
+        f = font(40)
+        draw.text(((width - draw.textlength(title, font=f)) / 2, 20), title, font=f, fill=GOLD)
+        top = 80
+    # The panels one under the other, each as tall as its lines.
+    longest = max(max(len(l) for l in lines) for _, lines in panels)
+    rows = sum(len(lines) for _, lines in panels)
+    room = height - top - (90 if note else 30) - len(panels) * 62
+    size = 40
+    while size > 10 and (mono(size).getlength("M" * longest) > width - 100 or rows * (size + 6) > room):
+        size -= 1
+    m = mono(size)
+    hf = font(26)
+    y = top
+    for head, lines in panels:
+        h = 50 + len(lines) * (size + 6)
+        draw.rectangle([26, y, width - 27, y + h], fill=(8, 10, 14), outline=(90, 90, 100), width=2)
+        draw.text((44, y + 10), head, font=hf, fill=(150, 200, 255))
+        for n, line in enumerate(lines):
+            draw.text((44, y + 46 + n * (size + 6)), line, font=m, fill=(200, 235, 190))
+        y += h + 12
+    if note:
+        f = font(30)
+        draw.text(((width - draw.textlength(note, font=f)) / 2, height - 66), note, font=f, fill=INK)
+    return png(framed(img))
+
+
+def card(title, lines, width=1024, height=640, big=None):
+    """A dark card: TITLE in gold, BIG (one line, large) when given, and short LINES under it."""
+    img = Image.new("RGB", (width, height), (26, 24, 32))
+    draw = ImageDraw.Draw(img)
+    f = font(56)
+    while draw.textlength(title, font=f) > width - 80 and f.size > 20:
+        f = font(f.size - 2)
+    draw.text(((width - draw.textlength(title, font=f)) / 2, 40), title, font=f, fill=GOLD)
+    y = 140
+    if big:
+        b = font(96, serif=True)
+        while draw.textlength(big, font=b) > width - 80 and b.size > 20:
+            b = font(b.size - 2)
+        draw.text(((width - draw.textlength(big, font=b)) / 2, y), big, font=b, fill=(255, 250, 240))
+        y += b.size + 50
+    body = font(34)
+    for line in lines:
+        for part in wrap(draw, line, body, width - 120):
+            draw.text(((width - draw.textlength(part, font=body)) / 2, y), part, font=body, fill=INK)
+            y += 46
+        y += 10
+    return png(framed(img))
+
+
+def renames(rows, width=1024, height=640):
+    """Names then and now: ROWS of (old name, final name)."""
+    img = Image.new("RGB", (width, height), (26, 24, 32))
+    draw = ImageDraw.Draw(img)
+    f = font(50)
+    t = "E3 2002 demo  ->  the game"
+    draw.text(((width - draw.textlength(t, font=f)) / 2, 40), t, font=f, fill=GOLD)
+    size = 46
+    while size > 16 and (max(draw.textlength(o, font=font(size, serif=True)) for o, _ in rows) > width / 2 - 70
+                         or max(draw.textlength(n, font=font(size)) for _, n in rows) > width / 2 - 80):
+        size -= 2
+    a, b = font(size, serif=True), font(size)
+    for k, (old, new) in enumerate(rows):
+        y = 150 + k * 110
+        draw.text((width / 2 - 40 - draw.textlength(old, font=a), y), old, font=a, fill=(255, 210, 150))
+        draw.text((width / 2 - 16, y), "->", font=b, fill=(160, 160, 170))
+        draw.text((width / 2 + 50, y), new, font=b, fill=INK)
+    return png(framed(img))
+
+
+def names_wall(title, names, width=1024, height=1024):
+    """A wall of names, in columns, under TITLE."""
+    img = Image.new("RGB", (width, height), (30, 24, 20))
+    draw = ImageDraw.Draw(img)
+    f = font(64)
+    draw.text(((width - draw.textlength(title, font=f)) / 2, 40), title, font=f, fill=GOLD)
+    cols = 2
+    per = (len(names) + cols - 1) // cols
+    n = any_script(44)
+    for k, name in enumerate(names):
+        c, r = divmod(k, per)
+        x = width * (c + 0.5) / cols
+        y = 160 + r * min(70, (height - 220) / max(per, 1))
+        draw.text((x - draw.textlength(name, font=n) / 2, y), name, font=n, fill=INK)
+    return png(framed(img))
+
+
+def floor_plan(ground, upper, here=None, width=1024, height=576):
+    """The museum's two floors as two octagons of room names; HERE is (storey, sector)."""
+    img = Image.new("RGB", (width, height), (24, 30, 36))
+    draw = ImageDraw.Draw(img)
+    f = font(44)
+    t = "Museum map"
+    draw.text(((width - draw.textlength(t, font=f)) / 2, 20), t, font=f, fill=GOLD)
+    small = font(20)
+    for storey, names in ((0, ground), (1, upper)):
+        cx, cy, r = width * (0.27 + 0.46 * storey), height * 0.57, 190
+        head = "Ground floor" if storey == 0 else "Upper floor"
+        hf = font(28)
+        draw.text((cx - draw.textlength(head, font=hf) / 2, cy - r - 52), head, font=hf, fill=(150, 200, 255))
+        draw.ellipse([cx - 38, cy - 38, cx + 38, cy + 38], outline=(120, 170, 200), width=3)
+        for s, (name, _) in enumerate(names):
+            # East at the right, as the map is drawn with north up; sectors count anticlockwise.
+            a = math.radians(45 * s)
+            x, y = cx + math.cos(a) * r * 0.72, cy - math.sin(a) * r * 0.72
+            fill = (255, 230, 120) if here == (storey, s) else INK
+            lines = wrap(draw, name, small, 120)
+            for k, line in enumerate(lines):
+                draw.text((x - draw.textlength(line, font=small) / 2, y - 12 * len(lines) + k * 24), line, font=small, fill=fill)
+            if here == (storey, s):
+                draw.ellipse([x - 70, y - 34, x + 70, y + 34], outline=(255, 210, 80), width=3)
+    if here is not None:
+        hf = font(24)
+        draw.text((30, height - 44), "You are here: the gold ring", font=hf, fill=(255, 210, 80))
+    return png(framed(img))
+
+
+def info_tile(size=256):
+    """The floor tile that shows an exhibit's words: a gold i on a dark disc, and STEP HERE."""
+    img = Image.new("RGB", (size, size), (34, 30, 40))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([6, 6, size - 7, size - 7], outline=GOLD, width=10)
+    r = size * 0.3
+    c = size / 2
+    draw.ellipse([c - r, c - r - 18, c + r, c + r - 18], fill=(20, 60, 70), outline=GOLD, width=6)
+    f = font(int(size * 0.42), serif=True)
+    box = draw.textbbox((0, 0), "i", font=f)
+    draw.text((c - (box[2] - box[0]) / 2 - box[0], c - 18 - (box[3] - box[1]) / 2 - box[1]), "i", font=f, fill=(255, 236, 190))
+    s = font(int(size * 0.1))
+    t = "STEP HERE"
+    draw.text((c - draw.textlength(t, font=s) / 2, size - 52), t, font=s, fill=GOLD)
+    return png(img)

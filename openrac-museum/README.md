@@ -24,19 +24,29 @@ Adding a newer file updates the planet in place.
 - **The island** in Pokitaru's style: rock walls with grass over every ledge, sea stacks, rock and
   grass islets out at sea, and turbine towers on the far islands.
 - **The house** in the lagoon: an octagonal pavilion on stilts with two rings of 8 rooms round a
-  tall atrium, a gallery reached by a double stair, and a gateway with a carved sign. Ground floor:
-  Launcher, Renderer, Hostgen, The Port, Matching, Decompilation, Welcome, Mods and SDK. Upper
-  floor: Multiplayer, Speedrun Corner, Enhanced, Android, Cutscenes, OpenRAC Editor, Devlog, Thank
-  You. The rooms have signs, paintings and exhibit boards, ready for real exhibits.
-- **Little scenes** on every patch of land: huts, canoes, campfires, totems, hammocks, fences,
-  tide pools, stone lanterns.
+  tall atrium, a gallery reached by a double stair, and a gateway with a carved sign.
+- **One exhibit in each room**, about how OpenRAC is made: the launcher, the renderer, hostgen and
+  matching (real code on the screens), the I-5 terminal, the 20-button codes on the floor, a map of
+  the museum, mods, co-op, the speedrun record, the effects case, a handheld, a
+  cutscene file, the test room, the devkit desk and a wall of everyone who made OpenRAC.
+- **Cut from the game**, round the fountain: the Revolverator (its model from your disc), the E3
+  demo's old names, the Mackerel 1000, and the developers' notes to themselves over the doors.
+- **A gold tile before each exhibit**: stand on it and the OpenRAC Museum mod shows what you see
+  and the story behind it.
 - **Gadget routes** (Swingshot): the north jetty to the tower's top room, the coast to the
   message-in-a-bottle islet, and the lookout up the volcano to its shrine.
-- **Handrails** on posts from the lookout to the tower and round the lagoon.
 - **Easter eggs**: the Decomp Cave behind the second waterfall, a rubber duck in the tower, a
-  sunken chest marked 0x1F, the volcano's "undefined behaviour" shrine, and bolt crates that spell
-  OPENRAC on the east beach. Four gold bolts hide in the cave, the tower, on the islet and at the
-  shrine.
+  sunken chest marked 0x1F, the volcano's "undefined behaviour" shrine, bolt crates that spell
+  OPENRAC on the east beach, and a door that opens only at 3 AM. Four gold bolts hide in the cave, the
+  tower, on the islet and at the shrine.
+- **Handrails** on posts from the lookout to the tower and round the lagoon.
+
+## The mod
+
+The OpenRAC Museum mod (`mod/`, on the mod hub as `openrac-museum`) makes the exhibits work: the
+tiles' words, the I-5 menu (Select leaves it), the effects case, a notice when
+a 20-button code works, and the 3 AM door. Turn it on with the map. Its data is written from the
+exhibits by `python3 tools/mod_data.py`.
 
 ## Notes
 
