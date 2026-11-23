@@ -124,6 +124,7 @@ public:
         m_enemies.set_elites(&m_elites);
         m_bolts.set_elites(&m_elites);
         m_combat.set_tuning(&m_tuning);
+        m_perks.set_zodiac_credit(&m_tuning.zodiac_credit());
         m_perks.set_claw_share(mod.setting<bool>("tesla_steady") ? kTeslaShare : 1.0f);
         m_combat.set_space(&m_space);
         m_space.set_elites(&m_elites);

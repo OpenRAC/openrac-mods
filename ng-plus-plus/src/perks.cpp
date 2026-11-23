@@ -867,6 +867,11 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
         // As the game's pulse: 100 health or less dies, more loses the pulse's drain.
         const TargetFacts facts = m_scan.facts(moby.address);
         const float hit = facts.health <= 100.0f ? facts.health + 1.0f : hit_more;
+        // The kill is the Zodiac's: marked first, since the copied hit names an earlier weapon.
+        if (m_credit != nullptr) {
+            m_credit->mark(moby.address, m_tick);
+        }
+
         if (!post(moby.address, hit)) {
             continue;
         }

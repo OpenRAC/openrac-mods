@@ -25,6 +25,7 @@
 #include "moby_scan.h"
 #include "openrac/mod.hpp"
 #include "weapons.h"
+#include "zodiac_credit.h"
 
 namespace ng_plus_plus {
 
@@ -63,6 +64,14 @@ public:
     // returns what its damage is multiplied by, kTeslaShare for the claw's own hit on a lock (and
     // keeps it, for the steady hits), else 1.
     float claw_hit(Combat::PostHitFn post, std::uint32_t victim, std::uint32_t request);
+
+    // The marks of the enemies the Zodiac's pulse and reach took (zodiac_credit.h); the perks'
+    // reach adds to them.
+    ZodiacCredit& zodiac_credit() { return m_credit; }
+
+    // A death recorded (Combat::record_death): when the Zodiac took the moby at `victim`, its health
+    // record's last-weapon byte names the Zodiac, so the game's own award gives it the experience.
+    void credit_kill(std::uint32_t victim);
 
 private:
     // One of the claw's locks.
@@ -105,6 +114,7 @@ private:
 
     std::uint32_t m_tick = 0;
     int m_level = -1;
+    ZodiacCredit m_credit;  // The enemies the Zodiac took.
 
     Combat::PostHitFn m_post = nullptr;           // Moby_PostHit's original, from the claw's hit.
     std::array<std::uint8_t, 0x40> m_claw_hit{};  // The claw's last own hit's request.

@@ -19,12 +19,23 @@ the drones, the shield and the other auto-aiming weapons take enemies off screen
 in 0.6.1").
 Version 0.6.3 carries a save's tiers over when its clock moved while the mod was not running (see
 "What's new in 0.6.3").
+Version 0.6.4 makes the Zodiac earn experience from its kills (see "What's new in 0.6.4").
 Version 0.6.2 is built against the mod SDK 1.34 and needs OpenRAC with mod interface 1.34 (see
 "What's new in 0.6.2").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
+
+## What's new in 0.6.4
+
+- **The Zodiac earns XP from its kills.** The game gives a kill's experience to the weapon named
+  in the dead enemy's health record, which a landed hit sets. The Zodiac's pulse posts no hit, and
+  NG++'s reach (0.6.1) posts a copy of an earlier weapon's hit, so the Zodiac's kills went to
+  another weapon or to none, and its Alpha tier ("on sale after 6,000 more XP") never unlocked.
+  Now an enemy killed by the pulse, its drain or the reach names the Zodiac as its death is
+  recorded, and the game's own award gives the Zodiac the usual experience (times the new game's
+  and an elite's multiplier), once. Other weapons' kills are unchanged.
 
 ## What's new in 0.6.3
 

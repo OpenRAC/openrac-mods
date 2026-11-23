@@ -32,6 +32,7 @@ add_library(ng_plus_plus_core STATIC
   src/homing.cpp
   src/shots.cpp
   src/tuning_rules.cpp
+  src/zodiac_credit.cpp
   src/tuning.cpp
   src/ship_upgrades.cpp
   src/space_missions.cpp
@@ -109,6 +110,12 @@ if(BUILD_TESTING)
   target_link_libraries(ng_plus_plus_culling_test PRIVATE ng_plus_plus_core)
   set_target_properties(ng_plus_plus_culling_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_culling COMMAND ng_plus_plus_culling_test)
+
+  # 0.6.4's Zodiac kill credit: the pulse's and the reach's kills earn the Zodiac's experience.
+  add_executable(ng_plus_plus_zodiac_credit_test tests/zodiac_credit_test.cpp)
+  target_link_libraries(ng_plus_plus_zodiac_credit_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_zodiac_credit_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_zodiac_credit COMMAND ng_plus_plus_zodiac_credit_test)
 
   # The library as the port loads it, against a host table and game memory of the test's own.
   add_executable(ng_plus_plus_load_test tests/load_test.cpp)

@@ -118,6 +118,11 @@ void Combat::record_death(
         m_perks->death(moby);
     }
 
+    // What the Zodiac's pulse or reach took names the Zodiac, so its kill's experience is its own.
+    if (m_tuning != nullptr) {
+        m_tuning->credit_kill(moby);
+    }
+
     // Nothing to scale: the game's.
     if (scale == 1.0f) {
         original(moby, flags, arg);

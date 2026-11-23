@@ -35,6 +35,7 @@
 #include "openrac/mod.hpp"
 #include "perk_rules.h"
 #include "weapons.h"
+#include "zodiac_credit.h"
 
 namespace ng_plus_plus {
 
@@ -90,6 +91,10 @@ public:
     // The 1.29 perks (shots.h): statuses, the game's blasts, real shots in place of the hits that
     // stood for them.
     void set_shots(Shots* shots) { m_shots = shots; }
+
+    // Where the Zodiac's reach marks the enemies it takes (zodiac_credit.h): their kills earn the
+    // Zodiac's experience.
+    void set_zodiac_credit(ZodiacCredit* credit) { m_credit = credit; }
 
     // The share of the game's hit each of the Tesla Claw's hits deals now (0.5.1's steady hits,
     // tuning.h): its Omega storm stays as strong as the game's hits made it.
@@ -252,6 +257,7 @@ private:
     MobyScan m_scan;
     bool m_on;
     Shots* m_shots = nullptr;   // The 1.29 perks, or none.
+    ZodiacCredit* m_credit = nullptr;  // The Zodiac's kill marks, or none.
     float m_claw_share = 1.0f;  // The Tesla Claw's hits' share of the game's (set_claw_share).
     int m_item_now = -1;        // The weapon whose hit's perks are being dealt.
     int m_posted = 0;           // Hits posted since the last summary.

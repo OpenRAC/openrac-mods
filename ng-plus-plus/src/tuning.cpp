@@ -89,6 +89,44 @@ std::uint32_t WeaponTuning::health_record(std::uint32_t moby) const {
     return GameView::is_memory(record, kHealthRecordBytes) ? record : 0;
 }
 
+void WeaponTuning::credit_kill(std::uint32_t victim) {
+    const std::uint32_t record = health_record(victim);
+
+    // No health record: not a kill the game awards experience for (its mark is spent anyway).
+    if (record == 0) {
+        m_credit.take(victim, m_tick);
+        return;
+    }
+
+    const openrac::Memory memory = m_view.memory();
+
+    // Within a pulsing Zodiac's range: the pulse took it (it posts no hit, and the game's own
+    // pick may run before or after the mod's tick, so the gun is read as the death is recorded).
+    // The reach marks its own.
+    for (const ScannedMoby& moby : m_scan.mobys()) {
+        if (moby.address != victim) {
+            continue;
+        }
+
+        for (const ScannedMoby& gun : m_scan.mobys()) {
+            if (gun.moby_class == kZodiacClass
+                && memory.read<std::uint8_t>(gun.address + kGunState) == kZodiacPulse
+                && distance2(moby.position, gun.position) <= kZodiacRange * kZodiacRange) {
+                m_credit.mark(victim, m_tick);
+                break;
+            }
+        }
+
+        break;
+    }
+
+    auto weapon = memory.read<std::uint8_t>(record + kHealthWeapon);
+
+    if (credit_zodiac(m_credit, victim, m_tick, weapon)) {
+        memory.write(record + kHealthWeapon, weapon);
+    }
+}
+
 bool WeaponTuning::is_decoy(std::uint32_t victim) const {
     const std::optional<int> moby_class = m_view.moby_class(victim);
     return moby_class && *moby_class == kDecoyClass;
@@ -290,6 +328,8 @@ void WeaponTuning::zodiac() {
         }
     }
 
+    m_credit.prune(m_tick);
+
     // Bosses not pulsed for a while are forgotten.
     for (auto it = m_drained.begin(); it != m_drained.end();) {
         it = m_tick > it->second.tick + 600u ? m_drained.erase(it) : std::next(it);
@@ -346,6 +386,7 @@ void WeaponTuning::tick(std::uint32_t tick) {
         m_level = level;
         m_locks.clear();
         m_drained.clear();
+        m_credit.clear();
         m_decoys.clear();
         m_post = nullptr;
         m_claw_damage = 0.0f;
