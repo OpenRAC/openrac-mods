@@ -361,6 +361,13 @@ remains available after buying her reward while the player lacks the Swingshot;
 receiving the Swingshot elsewhere also disables that taxi. NPC collection flags
 and real item ownership remain separate.
 
+### Blarg: Fred's door to the shuttle
+
+Buying Fred's reward on Blarg closes the door back to the shuttle until you grind, as the
+game does after selling the Grindboots. When his reward is not the Grindboots and you do not
+own them, the door opens again once his purchase scene ends, so you can return to the ship.
+With the Grindboots owned, the game's own grind opens it.
+
 ### NPC reward interaction text
 
 The **Reward text** option (`reward_text`) defaults to on. Turn it off to keep

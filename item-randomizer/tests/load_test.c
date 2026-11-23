@@ -930,7 +930,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.14") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.15") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -952,7 +952,7 @@ int main(int argc, char** argv) {
     D = &k_rando_discs[1];
     api = make_api("rac1", "ntsc");
     s_failed[0] = 0;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 31 && s_frame != NULL);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 32 && s_frame != NULL);
     CHECK(hook_named("rac1.moby.moby743.update") != NULL);
     CHECK(hook_named("rac1.moby.moby744.update") != NULL);
     s_hook_count = 0;
@@ -970,12 +970,13 @@ int main(int argc, char** argv) {
 
     D = &k_rando_discs[argc > 2 && strcmp(argv[2], "ntsc") == 0 ? 1 : 0];
     api = make_api("rac1", D->version);
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && (printf("AFTER LOAD: %d\n", s_hook_count), s_hook_count == 31));
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && (printf("AFTER LOAD: %d\n", s_hook_count), s_hook_count == 32));
     static const char* const points[][2] = {
         {"rac1.player.update", "void()"},
         {"rac1.moby.moby743.update", "void(u32)"},
         {"rac1.moby.moby744.update", "void(u32)"},
         {"rac1.moby.class_1035.update", "void(u32)"},
+        {"rac1.moby.moby1105.update", "void(u32)"},
         {"rac1.moby.drawbridge.update", "void(u32)"},
         {"rac1.moby.elevator_651.update", "void(u32)"},
         {"rac1.moby.path_pickup.update", "void(u32)"},
@@ -1546,7 +1547,7 @@ int main(int argc, char** argv) {
         s_keep_start = 1;
         s_seed = "new games only";
         s_hook_count = 0;
-        CHECK(load(&api, mod) == 0 && (printf("AFTER LOAD: %d\n", s_hook_count), s_hook_count == 31));
+        CHECK(load(&api, mod) == 0 && (printf("AFTER LOAD: %d\n", s_hook_count), s_hook_count == 32));
         openrac_rac1_Item_Give g = (openrac_rac1_Item_Give)hook_named("Item_Give");
         void (*new_game)(void) = (void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame);
         void (*new_game_plus)(int32_t) =
