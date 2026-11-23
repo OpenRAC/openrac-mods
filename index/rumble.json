@@ -14,6 +14,9 @@
   "links": {
     "bugs": "https://github.com/Promises/rac1-rumble/issues"
   },
+  "suggests": [
+    "thruster-charge"
+  ],
   "media": {
     "icon": "docs/icon.png",
     "banner": "docs/banner.png"

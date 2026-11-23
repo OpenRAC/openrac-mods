@@ -14,6 +14,9 @@
   "links": {
     "bugs": "https://github.com/Promises/rac1-thruster-charge/issues"
   },
+  "suggests": [
+    "rumble"
+  ],
   "media": {
     "screenshots": [
       {
