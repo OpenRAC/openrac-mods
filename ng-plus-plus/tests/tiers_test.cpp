@@ -907,7 +907,65 @@ void test_ticks() {
     CHECK(std::fabs(per_tick_at(50, 0.6f) - 0.72f) < 1e-6f && per_tick_at(60, 0.6f) == 0.6f);
 }
 
+// Checks the carry across a clock the book never saw: the closest earlier record, never a later one.
+void test_carry() {
+    SaveBook book;
+    const Clock early = {0, 10, 5, 3, 0, 20, 11, 0x26};
+    const Clock mid = {0, 30, 5, 3, 0, 21, 11, 0x26};
+    const Clock late = {0, 40, 5, 3, 0, 22, 11, 0x26};
+    const Clock other_slot_later = {0, 59, 9, 3, 0, 25, 11, 0x26};
+    const Clock moved = {0, 1, 1, 4, 0, 23, 11, 0x26};
+    LevelBytes first{};
+    LevelBytes second{};
+    SavePrint now;
+    now.exp[29] = 5 * kExpUnit;
+
+    first[29] = 0x81;
+    second[29] = 0x83;
+    book.put(early, first);
+    book.put(mid, second);
+    book.put(other_slot_later, first);
+
+    // Another slot's save, whose tiered weapon (item 29) has no experience: nothing carried, though
+    // the clock is later than the records'.
+    SavePrint other = now;
+    other.exp = {};
+    other.exp[3] = kExpUnit;
+    CHECK(carry_record(book, moved, other) == nullptr);
+
+    CHECK(clock_earlier(early, mid) && !clock_earlier(mid, early) && !clock_earlier(mid, mid));
+
+    // The closest earlier record is taken: mid, not early nor the later slot's.
+    const Record* from = carry_record(book, moved, now);
+    CHECK(from != nullptr && from->clock == mid && from->levels[29] == 0x83);
+
+    // Nothing earlier: a later record is another slot's or a newer save, never taken.
+    SaveBook only_later;
+    only_later.put(other_slot_later, first);
+    CHECK(carry_record(only_later, moved, now) == nullptr);
+    CHECK(carry_record(only_later, late, now) == nullptr);
+
+    // A clock the book has, zeros and a new game (no experience): nothing carried.
+    CHECK(carry_record(book, mid, now) == nullptr);
+    CHECK(carry_record(book, Clock{}, now) == nullptr);
+    CHECK(carry_record(book, moved, SavePrint{}) == nullptr);
+
+    // Records with no level are skipped.
+    SaveBook empty_between = book;
+    empty_between.put(late, LevelBytes{});
+    from = carry_record(empty_between, moved, now);
+    CHECK(from != nullptr && from->clock == mid);
+
+    // Recording under the new clock leaves every other entry as it was.
+    const std::size_t before = book.records().size();
+    book.put(moved, from->levels);
+    CHECK(book.records().size() == before + 1);
+    CHECK(book.find(early) != nullptr && book.find(mid) != nullptr);
+    CHECK(book.find(moved) != nullptr && book.find(moved)->levels[29] == 0x83);
+}
+
 int main() try {
+    test_carry();
     test_discs();
     test_ticks();
     test_kinds();

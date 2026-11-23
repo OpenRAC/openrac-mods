@@ -1913,8 +1913,9 @@ void test_each_save_has_its_own() {
     // experience counted from 0 as for any save new to the mod.
     g_level_now = -1;
     tick(1);
-    set_experience(kRyno, 50'000);
-    set_experience(kLancer, 9'000);
+    // Another slot's save: its tiered weapons hold no experience, so A's tiers do not carry to it.
+    set_experience(kRyno, 0);
+    set_experience(kLancer, 0);
     set<std::int32_t>(g_disc->progress, 123);
     set_clock(0x60);
     tick(2);
@@ -1999,6 +2000,31 @@ int booked_lancer(std::uint8_t first) {
 
     const std::string hex = text.substr(at + 17 + 2 * static_cast<std::size_t>(kLancer), 2);
     return static_cast<int>(std::strtol(hex.c_str(), nullptr, 16)) & 0x7F;
+}
+
+// Checks a save whose clock moved while the mod was not running: the closest earlier record's
+// levels carry to it and are booked under the new clock, and the book is backed up for the day.
+void test_clock_moved_unseen() {
+    g_level_now = -1;
+    set_clock(0);
+    tick(1);
+    load_save_s(4'000'000);
+    const int before = booked_lancer(0x90);
+    CHECK(before >= 1);
+    CHECK(booked_lancer(0xB0) == -1);
+    set_clock(0xB0);
+    tick(2);
+    CHECK(g_log.find("carried the levels of the book's clock") != std::string::npos);
+    CHECK(booked_lancer(0xB0) == before);
+    CHECK(booked_lancer(0x90) == before);
+
+    // One dated backup next to the book.
+    int backups = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(g_dir)) {
+        const std::string name = entry.path().filename().string();
+        backups += name.rfind("tiers-", 0) == 0 && name.size() == 18 ? 1 : 0;
+    }
+    CHECK(backups == 1);
 }
 
 // Checks that the tiers follow the saves as the bolts do (0.5.2): a tier bought after the last save
@@ -2970,6 +2996,7 @@ void run(const char* path, const Disc& disc, Host host) {
     test_in_hand_level_up();
     test_ryno_to_ultima();
     test_kill_experience();
+    test_clock_moved_unseen();
 
     test_collectors(host != Host::Off);
     test_prizes_and_prices(host != Host::Off, bolts);

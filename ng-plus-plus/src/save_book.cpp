@@ -185,6 +185,51 @@ bool is_zero(const Clock& clock) {
     return std::all_of(clock.begin(), clock.end(), [](std::uint8_t byte) { return byte == 0; });
 }
 
+bool clock_earlier(const Clock& a, const Clock& b) {
+    // Year, month, day, hour, minute, second, then the first byte; the weekday-like byte 4 is no
+    // part of the time.
+    constexpr std::size_t kOrder[] = {7, 6, 5, 3, 2, 1, 0};
+
+    for (const std::size_t n : kOrder) {
+        if (a[n] != b[n]) {
+            return a[n] < b[n];
+        }
+    }
+
+    return false;
+}
+
+const Record* carry_record(const SaveBook& book, const Clock& clock, const SavePrint& now) {
+    const bool progress = std::any_of(now.exp.begin(), now.exp.end(), [](std::int32_t exp) {
+        return exp != 0;
+    });
+
+    // Zeros, a save the book has, or a new game (nothing earned yet): nothing to carry.
+    if (is_zero(clock) || book.find(clock) != nullptr || !progress) {
+        return nullptr;
+    }
+
+    const Record* best = nullptr;
+
+    // The closest earlier record that fits the save: a tier counts experience, so the save must
+    // show experience on at least one weapon the record has a tier on. A save of another slot, whose
+    // weapons hold none of that, is not this playthrough's.
+    for (const Record& record : book.records()) {
+        bool fits = false;
+
+        for (std::size_t n = 0; n < kItems; ++n) {
+            fits = fits || ((record.levels[n] & kLevelBits) != 0 && now.exp[n] != 0);
+        }
+
+        if (fits && clock_earlier(record.clock, clock)
+            && (best == nullptr || clock_earlier(best->clock, record.clock))) {
+            best = &record;
+        }
+    }
+
+    return best;
+}
+
 ClockVerdict clock_case_of(const SaveBook& book, const Clock& clock, const ClockMove& move) {
     // Zeros: the title or a new game, nothing to look up.
     if (is_zero(clock)) {

@@ -17,12 +17,25 @@ in its color (see "What's new in 0.6.0").
 Version 0.6.1 keeps the RYNO II's homing rockets from hovering, widens the Zodiac's reach and lets
 the drones, the shield and the other auto-aiming weapons take enemies off screen (see "What's new
 in 0.6.1").
+Version 0.6.3 carries a save's tiers over when its clock moved while the mod was not running (see
+"What's new in 0.6.3").
 Version 0.6.2 is built against the mod SDK 1.34 and needs OpenRAC with mod interface 1.34 (see
 "What's new in 0.6.2").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
+
+## What's new in 0.6.3
+
+- **Tiers survive sessions the mod missed.** When the mod did not load for a while, the saves'
+  clocks advanced without NG++ recording them, and the next load found "a save never seen" and
+  showed no tiers. Now a loaded save whose clock the book does not have (and that shows weapon
+  experience, so it is no new game) takes the levels of the book's closest earlier record, which
+  is recorded under the new clock; the log names both clocks. Records with a later clock are
+  never taken, and no entry is dropped or overwritten.
+- Before tiers.txt is rewritten, one dated backup a day is kept next to it (tiers-YYYYMMDD.txt),
+  the last 7.
 
 ## What's new in 0.6.2
 

@@ -151,6 +151,20 @@ struct ClockVerdict {
 // returned points into `book` and lives until the book changes.
 ClockVerdict clock_case_of(const SaveBook& book, const Clock& clock, const ClockMove& move);
 
+// Returns whether clock `a` is earlier than `b`. The clock is the game's wall time in BCD (seen in
+// the book: second, minute, hour, a weekday-like byte, day, month, year), so it is compared year
+// first.
+bool clock_earlier(const Clock& a, const Clock& b);
+
+// Returns the book's record to carry over to the save `clock`, which the book has not seen, when
+// the save's data is `now`: the record with levels whose clock is the closest earlier one (the
+// same playthrough's last record, as saves only go forward), or null. Null too for a new game, a
+// save whose data shows no weapon experience at all, and when `clock` is in the book or zeros. A
+// record with a later clock is never taken: it is another slot's, or a newer save of this one. A
+// record also needs a fit: the save shows experience on a weapon the record has a tier on, which a
+// save of another slot, with those weapons at none, does not.
+const Record* carry_record(const SaveBook& book, const Clock& clock, const SavePrint& now);
+
 // Returns whether `clock` is all zeros: the title screen or a new game before its first stamp.
 bool is_zero(const Clock& clock);
 

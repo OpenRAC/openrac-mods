@@ -7,10 +7,13 @@
 
 #include "perk_rules.h"
 
+#include <algorithm>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <system_error>
+#include <vector>
 
 namespace ng_plus_plus {
 namespace {
@@ -26,6 +29,56 @@ constexpr std::size_t kBookLimit = kRecords * 160;
 // The names of the clock's cases, for the log, in ClockCase's order.
 constexpr const char* kCaseNames[] =
     {"zeros", "the book's", "the save in play's", "carried on", "none: a save never seen"};
+
+// Returns `clock` as 16 hex digits, as the book writes it.
+std::string clock_hex(const Clock& clock) {
+    SaveBook one;
+    LevelBytes none{};
+    none[0] = 1;
+    one.put(clock, none);
+    return one.write().substr(0, 16);
+}
+
+// Keeps one backup of the book a day next to it, tiers-YYYYMMDD.txt, and the last 7 of them.
+void back_up_book(const fs::path& book) {
+    std::error_code error;
+
+    // Nothing to back up yet.
+    if (!fs::exists(book, error)) {
+        return;
+    }
+
+    char day[16] = {};
+    const std::time_t now = std::time(nullptr);
+    std::tm local{};
+    localtime_r(&now, &local);
+    std::strftime(day, sizeof day, "%Y%m%d", &local);
+    const fs::path backup = book.parent_path() / (std::string("tiers-") + day + ".txt");
+
+    // The first rewrite of the day keeps the book as it was.
+    if (!fs::exists(backup, error)) {
+        fs::copy_file(book, backup, error);
+    }
+
+    std::vector<std::string> names;
+
+    for (const auto& entry : fs::directory_iterator(book.parent_path(), error)) {
+        const std::string name = entry.path().filename().string();
+
+        // tiers- and 8 digits and .txt.
+        if (name.size() == 18 && name.rfind("tiers-", 0) == 0 && name.substr(14) == ".txt"
+            && name.find_first_not_of("0123456789", 6) == 14) {
+            names.push_back(name);
+        }
+    }
+
+    std::sort(names.begin(), names.end());
+
+    // The oldest go, 7 stay.
+    for (std::size_t n = 0; n + 7 < names.size(); ++n) {
+        fs::remove(book.parent_path() / names[n], error);
+    }
+}
 
 }  // namespace
 
@@ -187,6 +240,7 @@ void SaveTiers::save_book() const {
         }
     }
 
+    back_up_book(path);
     fs::rename(temp, path, error);
 
     // The old book stays when the new one cannot take its place.
@@ -269,10 +323,25 @@ void SaveTiers::clock_moved(const Clock& clock, const SavePrint& now, const Game
             break;
         // Its own levels only: none, and its weapons' experience counted from the first tick the
         // mod sees them at their last version.
-        case ClockCase::New:
+        case ClockCase::New: {
             m_level = {};
             m_started = {};
+
+            // A save whose clock the book never saw (the mod was not running when it was made):
+            // the levels of the closest earlier record go on, and keep() records them below under
+            // this clock, so the next load finds them directly.
+            const Record* from = carry_record(m_book, clock, now);
+
+            if (from != nullptr) {
+                take_levels(from->levels);
+                m_mod.info(
+                    "carried the levels of the book's clock " + clock_hex(from->clock)
+                    + " to the save's new clock " + clock_hex(clock)
+                );
+            }
+
             break;
+        }
     }
 
     m_from_nothing = false;
