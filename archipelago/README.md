@@ -163,6 +163,11 @@ including weapons received before their normal planet. The original selector
 still prioritizes weapons below maximum ammo and falls back to the Bomb Glove
 when there are no owned candidates. The real vendor stock is restored afterward.
 
+A planet's new vendor weapon is for sale as soon as its coordinates are received,
+at whichever vendor Ratchet is at: receiving Kerwan's coordinates on Aridia puts
+the Blaster in Aridia's vendor, without travelling to Kerwan. Landing there later
+does not list it twice.
+
 Shuffled gold cases can be purchased without the original base weapon. Enabling
 `shuffle_gold_weapons` opens the Novalis shop teleporter without requiring New Game+.
 Both currency costs still apply; no upgrades or completed-save inventory are granted.

@@ -1307,6 +1307,8 @@ static void guard_unowned_bomb_glove(void) {
     }
 }
 
+#include "planet_vendor_stock.inc"
+
 /* After the game gave the Bomb Glove at a level start and the reward was another, undoes what
  * the game did for the glove: its place first in the stock, and as the weapon a double tap goes
  * back to. before: the stock as it was; last_before: that weapon as it was. */
@@ -1383,6 +1385,8 @@ static void init_level_stock(void) {
 
     give_lost_rewards();
     guard_unowned_bomb_glove();
+    planet_vendor_stock_dedupe(byte_at(s_disc->vendor_stock));
+    planet_vendor_stock_sync();
     sync_seen();
 }
 
@@ -1862,6 +1866,8 @@ static void each_tick(void* user) {
     }
 
     guard_unowned_bomb_glove();
+    // Coordinates just unlocked: their planet's new weapon is for sale here already.
+    planet_vendor_stock_sync();
     guard_empty_vendor();
     run_notices();
     reward_case_hint_tick();

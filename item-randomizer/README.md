@@ -237,6 +237,10 @@ the normal menu closing transition. The Gadgetron PDA opens only when ammunition
 including ammunition generated for owned weapons. These protections cover NTSC-U and PAL v2.00
 and require an OpenRAC build with `Vendor_OpenMenu` (OpenRAC/OpenRAC#422).
 
+A planet's new vendor weapon is for sale as soon as its coordinates are unlocked, at whichever
+vendor Ratchet is at: finding Kerwan's coordinates on Aridia puts the Blaster in Aridia's vendor,
+without travelling to Kerwan. Landing there later does not list it twice.
+
 When Bomb Glove is not owned, stale starting equipment and Circle/Triangle shortcuts fall back
 to the wrench. An owned Bomb Glove (kept starting gear or a reward) works normally. This guard
 also respects the save/seed gate.

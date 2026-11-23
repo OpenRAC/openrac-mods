@@ -873,6 +873,9 @@ int main(int argc, char** argv) {
         uint8_t saved_owned[RANDO_ITEM_COUNT], saved_stock[VENDOR_STOCK_SIZE];
         std::memcpy(saved_owned, at(D->owned), sizeof saved_owned);
         std::memcpy(saved_stock, at(D->vendor_stock), sizeof saved_stock);
+        uint8_t saved_planets[RANDO_PLANET_COUNT];
+        std::memcpy(saved_planets, at(D->planets), sizeof saved_planets);
+        std::memset(at(D->planets), 0, sizeof saved_planets); // no planet's weapon joins the stock
         std::memset(at(D->owned), 0, sizeof saved_owned);
         std::memset(at(D->vendor_stock), 0xFF, sizeof saved_stock);
         const uint32_t pool = std::strcmp(D->version, "pal") == 0 ? 0x160098 : 0x15FFD8;
@@ -901,6 +904,7 @@ int main(int argc, char** argv) {
         std::memset(at(pool), 0, 4);
         std::memcpy(at(D->owned), saved_owned, sizeof saved_owned);
         std::memcpy(at(D->vendor_stock), saved_stock, sizeof saved_stock);
+        std::memcpy(at(D->planets), saved_planets, sizeof saved_planets);
         g_phase = OPENRAC_PLAY_PLAYING;
     }
 

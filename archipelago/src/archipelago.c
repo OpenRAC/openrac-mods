@@ -84,7 +84,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.5.14"
+#define MOD_VERSION "2.5.15"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -930,6 +930,8 @@ static void take_back_bomb_glove(
     }
 }
 
+#include "planet_vendor_stock.inc"
+
 /* Hook for VendorStockLevelInit: the starting Bomb Glove is its location's. */
 static void init_level_stock(void) {
     sync_seen();
@@ -948,6 +950,12 @@ static void init_level_stock(void) {
         guard_unowned_bomb_glove();
     } else {
         s_init_level_stock();
+    }
+
+    // A slot's save: unlocked planets' new weapons are for sale here already.
+    if (!s_from_title && !s_judge_wait) {
+        planet_vendor_stock_dedupe(byte_at(s_disc->vendor_stock));
+        planet_vendor_stock_sync();
     }
 
     sync_seen();
@@ -1542,6 +1550,10 @@ static void each_tick(void* user) {
     }
 
     guard_unowned_bomb_glove();
+    // Coordinates just received: their planet's new weapon is for sale here already.
+    if (!s_from_title && !s_judge_wait) {
+        planet_vendor_stock_sync();
+    }
     guard_empty_vendor();
 
     if (phase==OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
