@@ -1,4 +1,4 @@
-"""Builds Open Museum's own models into a level project of the editor.
+"""Builds OpenRAC Museum's own models into a level project of the editor.
 
     python3 make_museum.py OUT
 
@@ -254,8 +254,10 @@ def main(out, disc_textures=None):
 
     def save(name, g):
         used = set(g.mesh.parts)
+        # Pictures beside the model, not inside it: the disc's own then stay byte for byte the
+        # disc's files, which a shared map names instead of holding.
         glb.write(str(out / "models" / f"{name}.glb"), [g.mesh], {k: mats[k] for k in used},
-                  {k: all_tex[k] for k in used})
+                  {k: all_tex[k] for k in used}, external="textures")
 
     save("house", geo)
     save("landmarks", marks)

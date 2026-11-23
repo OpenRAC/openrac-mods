@@ -104,7 +104,7 @@ def write(path, meshes, materials, textures, node_names=None, external=None):
         gl_meshes.append({"primitives": prims})
         nodes.append({"mesh": n, "name": (node_names[n] if node_names else f"Mesh_{n:03}")})
 
-    doc = {"asset": {"version": "2.0", "generator": "open-museum"},
+    doc = {"asset": {"version": "2.0", "generator": "openrac-museum"},
            "scene": 0, "scenes": [{"nodes": list(range(len(nodes)))}], "nodes": nodes,
            "meshes": gl_meshes, "accessors": accessors, "bufferViews": views,
            "buffers": [{"byteLength": len(blob)}]}

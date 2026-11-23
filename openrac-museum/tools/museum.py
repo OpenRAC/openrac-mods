@@ -1,17 +1,10 @@
-"""Turns a fresh Pokitaru project (level 11, Europe disc) into Open Museum.
+"""Writes OpenRAC Museum into a fresh Pokitaru project (level 11): build_map.py calls it on a copy
+read from the disc, never on the player's own levels.
 
-    python3 install.py PROJECTS [--editor OPENRAC_EDITOR_CHECKOUT]
-
-PROJECTS is the folder of level projects the launcher made (Extract the levels): Open Museum is
-written into PROJECTS/level_11, after a backup of its scene (.openrac-backups/open-museum). Aridia's palms (PROJECTS/level_02) and
-Pokitaru's own plants, rocks, lamps and gadget targets come from your disc; the island, the house,
-the signs and every other model are drawn by these scripts.
-
-Then open level 11 in OpenRAC Editor, and Add as a new planet in the launcher (the planet's name is
-set here: Open Museum).
+Aridia's palm (level_02) and Pokitaru's own plants, rocks, lamps and gadget targets come from the
+disc; the island, the house, the signs and every other model are drawn by these scripts.
 """
 
-import argparse
 import json
 import math
 import os
@@ -20,7 +13,6 @@ import shutil
 import sys
 from pathlib import Path
 
-import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -31,8 +23,8 @@ import make_museum  # noqa: E402
 import scatter  # noqa: E402
 
 LEVEL = 11
-PLANET = "Open Museum"
-FOLDER = "open_museum"     # inside the project: res://open_museum/
+PLANET = "OpenRAC Museum"
+FOLDER = "openrac_museum"     # inside the project: res://openrac_museum/
 
 # Pokitaru's mobys kept as they are: Ratchet, the vendor, the ship's landing helper and the ocean.
 KEEP_CLASSES = {0, 11, 832, 1111}
@@ -102,37 +94,17 @@ def copy_node(section, name, xform):
     return out
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("projects", type=Path)
-    parser.add_argument("--editor", type=Path, default=None,
-                        help="OpenRAC Editor's checkout or install (its openrac/tools); default: beside OpenRAC")
-    args = parser.parse_args()
-    project = args.projects / f"level_{LEVEL:02}"
+def write_museum(projects, tools):
+    """Turn PROJECTS/level_11, a fresh Pokitaru project, into the museum. TOOLS is OpenRAC
+    Editor's openrac/tools (its static imports)."""
+    project = projects / f"level_{LEVEL:02}"
     level_dir = project / "levels" / f"level_{LEVEL:02}"
     scene_path = level_dir / f"level_{LEVEL:02}.tscn"
     if not scene_path.is_file():
-        raise SystemExit(f"{scene_path} not found: extract the levels first (Mods > Level editor)")
-    tools = (args.editor / "openrac" / "tools") if args.editor else None
-    if tools is None:
-        for candidate in (HERE.parents[2] / "OpenRAC-Editor", HERE.parents[2] / "openrac-editor"):
-            if (candidate / "openrac" / "tools").is_dir():
-                tools = candidate / "openrac" / "tools"
-    if tools is None or not (tools / "static_assets.py").is_file():
-        raise SystemExit("OpenRAC Editor's tools not found: pass --editor")
-    sys.path.insert(0, str(tools))
+        raise SystemExit(f"{scene_path} not found")
+    if str(tools) not in sys.path:
+        sys.path.insert(0, str(tools))
     import static_assets  # noqa: E402
-
-    # In a folder of its own: the editor's import rotates the level_11-*.tscn files next to it.
-    backup = project / ".openrac-backups" / "open-museum" / "level_11-pokitaru.tscn"
-    backup.parent.mkdir(parents=True, exist_ok=True)
-    if not backup.exists():
-        shutil.copyfile(scene_path, backup)
-    original_terrain = level_dir / "terrain-pokitaru.glb"
-    if not original_terrain.exists():
-        shutil.copyfile(level_dir / "terrain.glb", original_terrain)
-    # Always start from Pokitaru as extracted, so running this again gives the same museum.
-    scene_path.write_text(backup.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
 
     # 1. Our own models, collision and terrain.
     built = project / FOLDER
@@ -149,7 +121,7 @@ def main():
     cx, cy = island.CENTRE
     static_assets.import_asset(built / "models" / "house.glb", project, LEVEL, "Museum", [0, 0, 0])
     static_assets.import_asset(built / "models" / "landmarks.glb", project, LEVEL, "Landmarks", [0, 0, 0])
-    palm_source = args.projects / "level_02" / "levels" / "level_02" / "ties" / "tie_586.glb"
+    palm_source = projects / "level_02" / "levels" / "level_02" / "ties" / "tie_586.glb"
     palms = scatter.palms()
     if palm_source.is_file():
         static_assets.import_asset(palm_source, project, LEVEL, "Palm_000", palms[0][:3])
@@ -291,18 +263,8 @@ def main():
         x, y, z, yaw, scale = palms[0]
         sections[i] = copy_node(palm_node, "Palm_000", transform(x, y, z, yaw, scale))
 
-    # 9. The grind rails.
-    for k, rail in enumerate(layout["grind_paths"]):
-        pts = resample(rail["points"], 0.5)
-        sid = f"om_grind_{k}"
-        flat = ", ".join(f"0, 0, 0, 0, 0, 0, {p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}" for p in pts)
-        new_subs.append(f'[sub_resource type="Curve3D" id="{sid}"]\n_data = {{\n"points": PackedVector3Array({flat}),\n'
-                        f'"tilts": PackedFloat32Array({", ".join("0" for _ in pts)})\n}}\npoint_count = {len(pts)}\n\n')
-        w = [math.dist(a, b) for a, b in zip(pts, pts[1:])]
-        w.append(w[-1])
-        new_nodes.append(f'[node name="OM_Grind_{rail["name"]}" type="Path3D" parent="Game/GrindPaths"]\n'
-                         f'curve = SubResource("{sid}")\nmetadata/rc1_w = [{", ".join(f"{v:.5f}" for v in w)}]\n'
-                         f'metadata/rc1_flag = 0\n\n')
+    # The rails' posts and bars stay as handrails: Pokitaru's own code has no grinding, so a grind
+    # path in this level is never caught (levels with rails carry the code for them).
 
     # Put the resources before the first sub_resource/node, the nodes at the end.
     first = next(i for i, s in enumerate(sections) if s.startswith("[sub_resource") or s.startswith("[node "))
@@ -324,26 +286,8 @@ def main():
     scene_path.write_text(text, encoding="utf-8", newline="\n")
 
     set_planet(project)
-    print(f"Open Museum written into {project}: {len(layout['mobys'])} objects, {tie_count} rocks, "
-          f"{shrub_count} plants, {len(palms)} palms, {len(layout['grind_paths'])} grind rails.")
-
-
-def resample(points, step):
-    pts = [np.asarray(p, np.float64) for p in points]
-    out = [pts[0]]
-    carry = 0.0
-    for a, b in zip(pts, pts[1:]):
-        seg = np.linalg.norm(b - a)
-        if seg == 0:
-            continue
-        t = step - carry
-        while t <= seg:
-            out.append(a + (b - a) * (t / seg))
-            t += step
-        carry = seg - (t - step)
-    if np.linalg.norm(out[-1] - pts[-1]) > 1e-3:
-        out.append(pts[-1])
-    return [list(map(float, p)) for p in out]
+    print(f"OpenRAC Museum written into {project}: {len(layout['mobys'])} objects, {tie_count} rocks, "
+          f"{shrub_count} plants, {len(palms)} palms.")
 
 
 def set_planet(project):
@@ -354,7 +298,3 @@ def set_planet(project):
         text = text.rstrip("\n") + "\n\n[openrac]\n"
     text = text.replace("[openrac]\n", f'[openrac]\n\nplanet/name="{PLANET}"\n', 1)
     godot.write_text(text, encoding="utf-8", newline="\n")
-
-
-if __name__ == "__main__":
-    main()

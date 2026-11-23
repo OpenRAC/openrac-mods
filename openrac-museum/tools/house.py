@@ -34,7 +34,7 @@ K = 1 / math.cos(math.radians(22.5))   # vertex radius over apothem
 GROUND = [("Launcher", "Tauri, Svelte, Rust"), ("Renderer", "GS to OpenGL and Vulkan"),
           ("Hostgen", "decomp C on the PC"), ("The Port", "native, no emulation"),
           ("Matching", "byte for byte"), ("Decompilation", "from MIPS to C"),
-          ("Welcome", "Open Museum foyer"), ("Mods and SDK", "make the game yours")]
+          ("Welcome", "OpenRAC Museum foyer"), ("Mods and SDK", "make the game yours")]
 UPPER = [("Multiplayer", "co-op across the galaxy"), ("Speedrun Corner", "every bug kept"),
          ("Enhanced", "graphics beyond the PS2"), ("Android", "the galaxy in your pocket"),
          ("Cutscenes", "lights, camera, Clank"), ("OpenRAC Editor", "levels and cutscenes"),

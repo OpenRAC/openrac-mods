@@ -374,7 +374,7 @@ def build(geo: Geo, pictures, mats):
         geo.box("om_planks_light", (p[0] - 3, p[1] - 3, pier_z - 0.4), (p[0] + 3, p[1] + 3, pier_z))
         for s in (-1, 1):
             geo.cylinder("om_planks_dark", (p[0] + s * 2.7, p[1]), 0.35, float(island.height(p[0] + s * 2.7, p[1])) - 1.5, pier_z + 1.0, 6)
-    add_sign(geo, pictures, mats, "om_sign_pier", "OPEN MUSEUM", "this way to the house",
+    add_sign(geo, pictures, mats, "om_sign_pier", "OPENRAC MUSEUM", "this way to the house",
              (pier[0] + 4, pier[1] - 2, pier[2] + 2.8), 90)
 
     # --- Message in a bottle, on the far west islet: swingshot over the sea ---
