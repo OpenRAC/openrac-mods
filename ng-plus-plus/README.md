@@ -17,10 +17,17 @@ in its color (see "What's new in 0.6.0").
 Version 0.6.1 keeps the RYNO II's homing rockets from hovering, widens the Zodiac's reach and lets
 the drones, the shield and the other auto-aiming weapons take enemies off screen (see "What's new
 in 0.6.1").
+Version 0.6.2 is built against the mod SDK 1.34 and needs OpenRAC with mod interface 1.34 (see
+"What's new in 0.6.2").
 From the second challenge mode on, enemies get tougher, drops pay more bolts and part of each drop
 comes as platinum bolts, worth five times the gold ones, and obsidian bolts, worth 25 times.
 
 With the mod off, the game plays exactly as on the PlayStation 2.
+
+## What's new in 0.6.2
+
+- Built against the mod SDK 1.34.0 and declared for mod interface 1.34: it loads only on an
+  OpenRAC with that interface or later, as the armor vendor's tiers need.
 
 ## What's new in 0.6.1
 
