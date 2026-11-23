@@ -117,7 +117,53 @@ ROCKY = {"om_rock", "om_cliff", "om_basalt", "om_jungle", "om_wet_sand"}
 
 
 MODEL_TINT = 0.58     # the models' colours are half the terrain's scale in the port
-SUBDIVIDE = 2.2        # model faces split to this size, so their light shows shadows
+SUBDIVIDE = 3.0        # model faces split to this size, so their light shows shadows
+
+
+def strips(p, size):
+    """Splits P's long thin faces (beams, posts, rails, trims) into a strip of pieces along their
+    length: the light still changes along them, at a tenth of the triangles an even split makes.
+    Faces it leaves are split evenly afterwards (terrain.subdivide)."""
+    F, P = p.faces, p.pos
+    step = size * 0.7          # so a piece's diagonal stays under SIZE: the even split leaves it
+    corner = P[F]                                                    # (T, 3, 3)
+    edge = np.stack([np.linalg.norm(corner[:, (k + 1) % 3] - corner[:, k], axis=1) for k in range(3)], 1)
+    short = edge.argmin(1)                    # the short edge runs from corner k to k + 1
+    longest = edge.max(1)
+    n = np.clip(np.ceil(longest / step), 1, 64).astype(int)
+    thin = (edge.min(1) < step) & (n > 1)
+    if not thin.any():
+        return
+    new_attrs = {k: [] for k in p.attrs}
+    new_faces = [F[~thin]]
+    mask = getattr(p, "keep", None)
+    new_keep = [] if mask is not None else None
+    base = len(P)
+    for f in np.nonzero(thin)[0]:
+        k = short[f]
+        u, v, w = F[f, k], F[f, (k + 1) % 3], F[f, (k + 2) % 3]     # u-v short, w the far corner
+        m = n[f]
+        t = np.arange(m + 1) / m
+        # Rungs from the short edge to the far corner: u..w on one side, v..w on the other.
+        for key, val in p.attrs.items():
+            side_u = val[u][None] * (1 - t[:, None]) + val[w][None] * t[:, None]
+            side_v = val[v][None] * (1 - t[:, None]) + val[w][None] * t[:, None]
+            new_attrs[key].append(np.concatenate([side_u, side_v[:-1]]))   # the far corner once
+        iu = base + np.arange(m + 1)
+        iv = np.concatenate([base + m + 1 + np.arange(m), [base + m]])     # v side ends at w
+        tris = []
+        for i in range(m):
+            tris.append((iu[i], iv[i], iu[i + 1]))
+            if i < m - 1:
+                tris.append((iv[i], iv[i + 1], iu[i + 1]))
+        new_faces.append(np.array(tris))
+        if new_keep is not None:
+            new_keep.append(np.repeat(mask[u], 2 * m + 1))
+        base += 2 * m + 1
+    p.attrs = {k: np.concatenate([v] + new_attrs[k]) for k, v in p.attrs.items()}
+    p.faces = np.concatenate(new_faces)
+    if new_keep is not None:
+        p.keep = np.concatenate([mask] + new_keep)
 
 
 def bake(terrain, t, models=(), lights=()):
@@ -142,6 +188,7 @@ def bake(terrain, t, models=(), lights=()):
         for _, _, p in mt.prims():
             c = p.attrs["COLOR_0"]
             p.keep = c[:, :3].max(1) > 0.9
+            strips(p, SUBDIVIDE)
             terrain.subdivide(p, SUBDIVIDE)
             c = p.attrs["COLOR_0"]
             c[~p.keep, :3] = MODEL_TINT

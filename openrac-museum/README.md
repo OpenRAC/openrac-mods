@@ -42,7 +42,11 @@ Adding a newer file updates the planet in place.
   sunken chest marked 0x1F, the volcano's "undefined behaviour" shrine, bolt crates that spell
   OPENRAC on the east beach, and a door that opens only at 3 AM. Four gold bolts hide in the cave, the
   tower, on the islet and at the shrine.
-- **Handrails** on posts from the lookout to the tower and round the lagoon.
+- **Handrails** on posts from the lookout to the tower and round the lagoon; the JET-Board grinds
+  them.
+- **Enemies outside**: puffoids and a psytcopus guard the foot of the lookout stair, the north
+  jetty, the coast before the bottle islet and the beach behind the OPENRAC crates. The house
+  and its rooms stay quiet.
 
 ## The mod
 

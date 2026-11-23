@@ -574,6 +574,8 @@ def tower(geo):
         geo.wall("om_planks_light", a, b, z0, z0 + 5.5, 0.5, [(h - 2.5, h + 2.5, 0, 4.2)])
     geo.box("om_planks_dark", (tx - h - 3.5, ty - h - 3.5, z0 + 5.5), (tx + h + 3.5, ty + h + 3.5, z0 + 6))
     geo.cone("om_thatch", (tx, ty), h * 1.7, z0 + 6, z0 + 14, 4)
+    # Its lantern: the room is under a deep roof, and the 3 AM door brings you here.
+    geo.light((tx, ty, z0 + 4.6), (1.7, 1.3, 0.85), 11)
 
 
 def bridges(geo):

@@ -57,7 +57,8 @@ def add_sign(geo, pictures, mats, key, title, sub, centre, facing, w=6, h=2.25, 
                      centre[2] - h / 2 - 0.15, centre[2] + h / 2 + 0.15, solid=False)
     if post:
         f = math.radians(facing)
-        back = np.array(centre) - np.array([math.cos(f), math.sin(f), 0]) * 0.2
+        # Well behind the picture: half its width (0.25) nearer would poke through the letters.
+        back = np.array(centre) - np.array([math.cos(f), math.sin(f), 0]) * 0.5
         ground = float(island.height(back[0], back[1]))
         geo.box("om_planks_dark", (back[0] - 0.25, back[1] - 0.25, min(ground, back[2]) - 1),
                 (back[0] + 0.25, back[1] + 0.25, back[2] + h / 2), solid=False)
@@ -239,12 +240,24 @@ def platform(geo, centre, z, half, legs=True, rail=True, gaps=()):
 
 
 def rail_model(geo, points, post_every=8, solid_posts=False):
+    # Solid: the JET-Board (RAC-Board mod) grinds its edges; on foot Ratchet can walk it.
     for a, b in zip(points, points[1:]):
-        geo.beam("om_rail", a, b, 0.35)
+        geo.beam("om_rail", a, b, 0.35, solid=True)
     for k in range(0, len(points), post_every):
         p = np.asarray(points[k], float)
         g = float(island.height(p[0], p[1]))
         geo.beam("om_planks_dark", (p[0], p[1], g - 1.5), (p[0], p[1], p[2] - 0.3), 0.45, solid=solid_posts)
+
+
+# Enemy groups: where they stand, and who. Each guards a zone ZONE_R round its place and fights
+# only while Ratchet is in it. Kept to the side places: the house and the way to it stay calm.
+ZONE_R = 16.0
+ENEMY_GROUPS = [
+    ((479.0, 571.0), ("puffoid", "psytcopus", "puffoid")),               # the foot of the lookout stair
+    ((630.0, 615.0), ("puffoid", "psytcopus", "puffoid")),               # the north jetty (swing to the tower)
+    ((445.0, 722.0), ("puffoid", "puffoid", "psytcopus", "puffoid")),    # the coast before the bottle islet
+    ((792.0, 440.0), ("puffoid", "puffoid", "puffoid")),                 # behind the OPENRAC letters
+]
 
 
 def build(geo: Geo, pictures, mats):
@@ -295,6 +308,10 @@ def build(geo: Geo, pictures, mats):
     for j in range(7):
         p = C + d * (g["r0"] + 3 + j * 2.6) + side * ((j % 2) * 2 - 1) * (half_w - 1.5)
         geo.cone("om_teal", (p[0], p[1]), 0.6 + 0.2 * (j % 3), SEA + 2, SEA + 4 + (j % 3), 5, glow=[0.4, 0.95, 0.9])
+    # The crystals' light, so the cave and its sign can be seen.
+    for t in (0.3, 0.8):
+        p = C + d * (g["r0"] + t * (g["r1"] - g["r0"]))
+        geo.light((p[0], p[1], SEA + 6.0), (0.5, 1.2, 1.1), 14)
     moby("gold_bolt", C + d * (g["r1"] - 1), note="grotto: behind the second waterfall")
     for j in range(3):
         moby("bolt_crate", np.append(C + d * (g["r0"] + 6) + side * (j - 1) * 2.2, SEA + 2.0))
@@ -347,13 +364,26 @@ def build(geo: Geo, pictures, mats):
     loop.insert(0, [float(ramp_start[0]), float(ramp_start[1]), SEA + 9.5])
     rail_model(geo, loop, 6)
     layout["grind_paths"].append({"name": "lagoon_loop", "points": loop})
-    # A stand at its start to jump on from.
+    # A stand at its start to jump on from, at the JET-Board park's north-west corner (its pad
+    # leads onto it).
     platform(geo, (ramp_start[0] + 3, ramp_start[1] - 3), SEA + 8.5, 3.0, rail=False)
-    geo.slope("om_planks_light", ramp_start[0] + 0, ramp_start[0] + 6, ramp_start[1] - 18, ramp_start[1] - 6, float(island.height(ramp_start[0] + 3, ramp_start[1] - 18)), SEA + 8.5, "y", 0.3)
 
     # --- The JET-Board park on the east lowland ---
     px, py = park.build(geo, pictures, mats)
     add_sign(geo, pictures, mats, "om_sign_park", "JET-BOARD PARK", "", (px, py, float(island.height(px, py)) + 2.6), 90)
+
+    # --- Pokitaru's enemies on the way to the side places (never near the house) ---
+    layout["zones"] = []
+    for centre, kinds in ENEMY_GROUPS:
+        zone = len(layout["zones"])
+        cz = float(island.height(*centre))
+        layout["zones"].append([[float(centre[0] + math.cos(a) * ZONE_R), float(centre[1] + math.sin(a) * ZONE_R), cz]
+                                for a in np.radians(np.arange(0, 360, 45))])
+        for k, kind in enumerate(kinds):
+            a = math.radians(k * 360 / len(kinds) + 20)
+            p = (centre[0] + math.cos(a) * 4.0, centre[1] + math.sin(a) * 4.0)
+            mobys.append({"kind": kind, "position": [float(p[0]), float(p[1]), float(island.height(*p)) + 0.1],
+                          "yaw": math.degrees(a) + 180, "note": "enemy", "zone": zone})
 
     # --- The swingshot rafts: north shore to the tower ---
     # A Versatarget pulls Ratchet up to it and lets go, so each one hangs 6 units over the raft
@@ -380,7 +410,7 @@ def build(geo: Geo, pictures, mats):
         for s in (-1, 1):
             geo.cylinder("om_planks_dark", (p[0] + s * 2.7, p[1]), 0.35, float(island.height(p[0] + s * 2.7, p[1])) - 1.5, pier_z + 1.0, 6)
     add_sign(geo, pictures, mats, "om_sign_pier", "OPENRAC MUSEUM", "this way to the house",
-             (pier[0] + 4, pier[1] - 2, pier[2] + 2.8), 90)
+             (pier[0] + 4, pier[1] - 2, pier[2] + 2.8), -90)   # read walking in from the pier
 
     # --- Message in a bottle, on the far west islet: swingshot over the sea ---
     islet = island.ISLETS[3]

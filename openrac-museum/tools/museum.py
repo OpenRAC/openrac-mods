@@ -32,7 +32,49 @@ KEEP_CLASSES = {0, 11, 832, 1111}
 VENDOR = 11
 # Pokitaru mobys to copy: one of each class is kept as the model for the copies.
 TEMPLATES = {"gold_bolt": 1134, "bolt_crate": 500, "swing_target": 758, "swing_swinging": 803,
-             "lamp": 1859, "nanotech_crate": 501, "ammo_crate": 511}
+             "lamp": 1859, "nanotech_crate": 501, "ammo_crate": 511,
+             "puffoid": 1246, "psytcopus": 1231, "sandmouse_house": 604, "sandmouse": 1818}
+# Enemies: their models are not kept under the sea (they would live there); only their copies are
+# placed. The sandmouse stays, far off: the houses make sandmice of its class.
+ENEMIES = {"puffoid", "psytcopus", "sandmouse_house"}
+# The pvar word that holds an enemy's zone: a closed path it guards; it fights only while Ratchet
+# is inside (psytcopus f13C, puffoid f230 in the decomp).
+ZONE_WORD = {"psytcopus": 79, "puffoid": 140}
+
+
+def set_pvar(section, word, value):
+    def put(m):
+        vals = m.group(1).split(", ")
+        vals[word] = str(value)
+        return "metadata/rc1_pvar = [" + ", ".join(vals) + "]"
+    return re.sub(r"^metadata/rc1_pvar = \[(.*)\]$", put, section, count=1, flags=re.M)
+
+
+def path_node(name, parent, curve_id, pts, meta):
+    """A Path3D node and its curve through PTS (game coordinates)."""
+    flat = ", ".join(f"0, 0, 0, 0, 0, 0, {x:.4f}, {y:.4f}, {z:.4f}" for x, y, z in pts)
+    sub = (f'[sub_resource type="Curve3D" id="{curve_id}"]\n_data = {{\n"points": PackedVector3Array({flat}),\n'
+           f'"tilts": PackedFloat32Array({", ".join("0" for _ in pts)})\n}}\npoint_count = {len(pts)}\n')
+    node = f'[node name="{name}" type="Path3D" parent="{parent}"]\ncurve = SubResource("{curve_id}")\n' + meta
+    return sub, node
+
+
+def zone_path(index, points):
+    """A closed zone (an enemy's) as a path after the level's own."""
+    pts = list(points) + [points[0]]
+    return path_node(f"Path_{index:04}", "Game/Paths", f"om_zone_{index}", pts,
+                     f'metadata/rc1_index = {index}\nmetadata/rc1_w = [{", ".join("-1.0" for _ in pts)}]\n')
+
+
+def grind_path(k, points):
+    """A rail of ours in the level's grind table: Pokitaru's own hero code never grinds, but the
+    RAC-Board mod's JET-Board grinds every rail in that table."""
+    pts = [tuple(float(v) for v in p[:3]) for p in points]
+    centre = [(min(p[a] for p in pts) + max(p[a] for p in pts)) / 2 for a in range(3)]
+    radius = max(math.dist(centre, p) for p in pts) + 1.0
+    sphere = ", ".join(f"{v:.4f}" for v in centre + [radius])
+    return path_node(f"OM_Rail_{k:02}", "Game/GrindPaths", f"om_rail_{k}", pts,
+                     f"metadata/rc1_bounding_sphere = [{sphere}]\n")
 
 
 class Scene:
@@ -202,9 +244,24 @@ def write_museum(projects, tools):
     # 4. The templates themselves stay (moved under the sea, out of sight): the copies take after them.
     hidden = (island.CENTRE[0] - 380, island.CENTRE[1] - 380, island.SEA - 30)
     for kind, (s, _) in template_nodes.items():
+        if kind in ENEMIES:
+            continue
         new_nodes.append(copy_node(s, Scene.attr(s, "name"), transform(*hidden, basis=basis_of(s))))
 
-    # 5. Copies of the game's own objects.
+    # 5. The enemies' zones: new paths after Pokitaru's own.
+    first_path = 1 + max([int(v) for s in sections if 'parent="Game/Paths"' in s.split("\n")[0]
+                          for v in re.findall(r"^metadata/rc1_index = (\d+)$", s, re.M)] or [-1])
+    for k, poly in enumerate(layout.get("zones", [])):
+        sub, node = zone_path(first_path + k, poly)
+        new_subs.append(sub)
+        new_nodes.append(node)
+
+    for k, rail in enumerate(layout.get("grind_paths", [])):
+        sub, node = grind_path(k, rail["points"])
+        new_subs.append(sub)
+        new_nodes.append(node)
+
+    # 6. Copies of the game's own objects.
     counts = {}
     for kind, at, yaw in exhibits.crates():
         layout["mobys"].append({"kind": kind, "position": at, "yaw": yaw})
@@ -217,13 +274,16 @@ def write_museum(projects, tools):
         counts[kind] = counts.get(kind, 0) + 1
         name = f"OM_{''.join(w.title() for w in kind.split('_'))}_{counts[kind]:03}"
         x, y, z = m["position"]
-        new_nodes.append(copy_node(s, name, transform(x, y, z, basis=turned(basis_of(s), m["yaw"]))))
+        node = copy_node(s, name, transform(x, y, z, basis=turned(basis_of(s), m["yaw"])))
+        if "zone" in m:
+            node = set_pvar(node, ZONE_WORD[kind], first_path + m["zone"])
+        new_nodes.append(node)
     if "lamp" in template_nodes:
         s = template_nodes["lamp"][0]
         for k, (x, y, z) in enumerate(layout["lamps"]):
             new_nodes.append(copy_node(s, f"OM_Lamp_{k + 1:03}", transform(x, y, z, basis=basis_of(s))))
 
-    # 6. Pokitaru's plants and rocks, scattered on the island.
+    # 7. Pokitaru's plants and rocks, scattered on the island.
     tie_count = shrub_count = 0
     for kind, number, x, y, z, yaw, scale in scatter.plants() + list(scatter.sea_islets()) + scatter.town() + scatter.decor():
         model = (tie_models if kind == "tie" else shrub_models).get(number)
@@ -239,14 +299,14 @@ def write_museum(projects, tools):
     # The models themselves are not kept where Pokitaru had them.
     # (Their copies keep the model's index, so they pack as copies of it; the model node goes.)
 
-    # 7. Our collision.
+    # 8. Our collision.
     for name in ("ground", "rocks", "house"):
         rid = f"om_collision_{name}"
         new_ext.append(f'[ext_resource type="PackedScene" path="res://{FOLDER}/collision/{name}.glb" id="{rid}"]\n\n')
         new_nodes.append(f'[node name="OM_{name.title()}" parent="Game/Collision" instance=ExtResource("{rid}")]\n'
                          f'metadata/rc1_surface = 31\n\n')
 
-    # 8. The animated props: the waterfalls flow, the foam turns, the logo turns.
+    # 9. The animated props: the waterfalls flow, the foam turns, the logo turns.
     anim = [("logo", layout["animated"]["logo"]["position"], dict(spin_z=1.0, spin_speed=0.6))]
     for k in range(len(island.FALLS)):
         anim.append((f"falls_{k}", [0, 0, 0], dict(spin_z=1.0, spin_speed=0.0, move_z=-1.0,
@@ -275,7 +335,7 @@ def write_museum(projects, tools):
         x, y, z, yaw, scale = palms[0]
         sections[i] = copy_node(palm_node, "Palm_000", transform(x, y, z, yaw, scale))
 
-    # 9. The exhibits' objects from other levels.
+    # 10. The exhibits' objects from other levels.
     for k, item in enumerate(exhibits.placements()):
         rid = foreign_model(project, projects, item["level"], item["class"])
         if rid is None:
@@ -285,8 +345,8 @@ def write_museum(projects, tools):
             new_ext.append(rid)
         new_nodes.append(foreign_node(item, k))
 
-    # The rails' posts and bars stay as handrails: Pokitaru's own code has no grinding, so a grind
-    # path in this level is never caught (levels with rails carry the code for them).
+    # The rails are in the grind table (5. above): Pokitaru's own code has no grinding, so on foot
+    # they are handrails; the RAC-Board mod's board grinds them.
 
     # Put the resources before the first sub_resource/node, the nodes at the end.
     first = next(i for i, s in enumerate(sections) if s.startswith("[sub_resource") or s.startswith("[node "))

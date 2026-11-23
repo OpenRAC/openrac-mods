@@ -32,7 +32,6 @@ OPENRAC_MOD_DEFINE("openrac-museum", "1.0.0")
 #define GAME_MODE 0x0015F6A8u
 #define GAME_MODE_I5 (-1)
 #define GAME_MODE_PLAY 0
-#define GAME_MODE_PAUSE 3
 /* Level 0's program's debug menu; +0xA4 the mode the menu goes back to when it closes. */
 #define DEBUG_MENU 0x0016C158u
 #define DEBUG_MENU_RETURN_MODE 0xA4u
@@ -54,8 +53,9 @@ static const struct { uint32_t address, size; } CODE_FLAGS[] = {
 /* Ticks a code's notice stays. */
 #define NOTICE_TICKS 300
 /* The HUD: the title's and the words' places (0 to 1 down the screen) and sizes. */
-#define HUD_TOP 0.70f
-#define HUD_STEP 0.045f
+/* The words sit low on the screen, their last line at HUD_BOTTOM: fewer lines, lower. */
+#define HUD_BOTTOM 0.935f
+#define HUD_STEP 0.042f
 
 static const openrac_api* s_api;
 static openrac_mod* s_mod;
@@ -125,7 +125,8 @@ static void show_station(int k) {
     memset(lines, 0, sizeof lines);
     snprintf(lines[0].text, sizeof lines[0].text, "%s", st->title);
     lines[0].x = 0.5f;
-    lines[0].y = HUD_TOP;
+    const float top = HUD_BOTTOM - HUD_STEP * (float)(st->line_count - 1) - HUD_STEP * 1.3f;
+    lines[0].y = top;
     lines[0].scale = 1.0f;
     lines[0].rgba[0] = 255, lines[0].rgba[1] = 200, lines[0].rgba[2] = 90, lines[0].rgba[3] = 255;
     lines[0].flags = OPENRAC_HUD_SHADOW;
@@ -133,9 +134,9 @@ static void show_station(int k) {
         openrac_hud_text* l = &lines[1 + i];
         snprintf(l->text, sizeof l->text, "%s", st->lines[i]);
         l->x = 0.5f;
-        l->y = HUD_TOP + HUD_STEP * 1.3f + HUD_STEP * (float)i;
+        l->y = top + HUD_STEP * 1.3f + HUD_STEP * (float)i;
         l->scale = 1.0f;
-        l->rgba[0] = 170, l->rgba[1] = 170, l->rgba[2] = 170, l->rgba[3] = 255;
+        l->rgba[0] = 190, l->rgba[1] = 190, l->rgba[2] = 190, l->rgba[3] = 255;
         l->flags = OPENRAC_HUD_SMALL | OPENRAC_HUD_SHADOW;
     }
     s_api->hud_text_set(s_mod, lines, 1 + st->line_count);
@@ -236,7 +237,7 @@ static void read_flags(uint8_t* out) {
     }
 }
 
-static void codes(const float p[3], int mode) {
+static void codes(const float p[3]) {
     uint8_t now[CODE_FLAG_BYTES];
     if (s_notice_ticks > 0 && --s_notice_ticks == 0) {
         s_api->play_notice(s_mod, "");
@@ -246,7 +247,8 @@ static void codes(const float p[3], int mode) {
         return;
     }
     read_flags(now);
-    if (s_flags_read && mode == GAME_MODE_PAUSE) {
+    /* The game sets a code's flag as its menu closes: any mode counts. */
+    if (s_flags_read) {
         for (int k = 0; k < CODE_FLAG_BYTES; ++k) {
             if (now[k] != 0 && s_flags[k] == 0) {
                 s_api->play_notice(s_mod, "A 20-button code worked. What it gave is saved with your game.");
@@ -309,7 +311,7 @@ static void tick(void* user) {
     }
     const int mode = get_s32(s_api->relocate_level_data(0, GAME_MODE));
     const float* p = pose.position;
-    codes(p, mode);
+    codes(p);
     if (mode != GAME_MODE_PLAY) {
         show_station(-1);
         return;

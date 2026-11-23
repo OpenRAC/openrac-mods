@@ -29,8 +29,22 @@ class Null:
         return lambda *a, **k: None
 
 
+# Button names in the words, drawn as the player's device shows the button (the SDK's button
+# tokens, OPENRAC_UI_CROSS ...): one glyph wide each.
+TOKENS = {"{Cross}": "\x10", "{Circle}": "\x11", "{Triangle}": "\x12", "{Square}": "\x13",
+          "{L1}": "\x14", "{R1}": "\x15", "{L2}": "\x16", "{R2}": "\x17"}
+
+
+def tokens(text):
+    for name, code in TOKENS.items():
+        text = text.replace(name, code)
+    return text
+
+
 def c_string(text):
-    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    text = text.replace("\\", "\\\\").replace('"', '\\"')
+    # Octal escapes: always three digits, so a digit after one is never read into it.
+    return '"' + "".join(f"\\{ord(ch):03o}" if ord(ch) < 32 else ch for ch in text) + '"'
 
 
 def render():
@@ -43,6 +57,7 @@ def render():
            "static const museum_station MUSEUM_STATIONS[] = {"]
     for key, x, y, z in exhibits.STATIONS:
         title, text = exhibits.WORDS[key]
+        text = tokens(text)
         lines = textwrap.wrap(text, LINE)
         if len(lines) > LINES_MAX:
             raise SystemExit(f"{key}: {len(lines)} lines, at most {LINES_MAX}")
