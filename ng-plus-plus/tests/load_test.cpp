@@ -294,14 +294,27 @@ void game_post_hit(std::uint32_t /*victim*/, std::uint32_t request) {
 // Moby_RecordDeath as the game's: g_kill_xp of experience (<< 5) to the item g_kill_item.
 // With g_death_bolts set, it also drops them as SetDeathBits does: 2% of the game's word (rounded
 // up) taken out of it and added to the drop.
+// With g_kill_from_record set, the item is the dead moby's health record's last-weapon byte
+// (+0x17), as SetDeathBits reads it: 255 names none.
 int g_kill_item = 0;
 std::int32_t g_kill_xp = 0;
 std::int32_t g_death_bolts = 0;
+bool g_kill_from_record = false;
 void port_kill_drop(std::uint32_t moby, std::int32_t amount);
 
 void game_record_death(std::uint32_t moby, std::int32_t /*flags*/, std::int32_t /*arg*/) {
-    const std::uint32_t at = g_disc->exp + 4u * static_cast<std::uint32_t>(g_kill_item);
-    set<std::int32_t>(at, get<std::int32_t>(at) + g_kill_xp);
+    int item = g_kill_item;
+
+    // The health record's byte (+0x34 bit 0x20: it has one, +0x68's first word).
+    if (g_kill_from_record && (get<std::uint16_t>(moby + 0x34u) & 0x20u) != 0) {
+        item = get<std::uint8_t>(get<std::uint32_t>(get<std::uint32_t>(moby + 0x68u)) + 0x17u);
+    }
+
+    // Named a weapon: its experience.
+    if (item != 255) {
+        const std::uint32_t at = g_disc->exp + 4u * static_cast<std::uint32_t>(item);
+        set<std::int32_t>(at, get<std::int32_t>(at) + g_kill_xp);
+    }
 
     // A drop too.
     if (g_death_bolts > 0) {
@@ -591,9 +604,11 @@ void host_fail(openrac_mod* /*mod*/, const char* reason) {
 
 // The "extra_enemies" setting as the test plays it.
 bool g_extra_enemies = true;
+bool g_weapon_perks = false;  // The "weapon_perks" setting: on for the Zodiac's test.
 
 int setting_bool(openrac_mod* /*mod*/, const char* key) {
-    return std::strcmp(key, "notices") == 0 || std::strcmp(key, "enemy_scaling") == 0
+    return std::strcmp(key, "notices") == 0
+           || (std::strcmp(key, "weapon_perks") == 0 && g_weapon_perks) || std::strcmp(key, "enemy_scaling") == 0
            || std::strcmp(key, "gentle_clank") == 0
            || (std::strcmp(key, "extra_enemies") == 0 && g_extra_enemies);
 }
@@ -778,6 +793,31 @@ int host_material_class(
         }
     }
 
+    return OPENRAC_HOOK_OK;
+}
+
+// ---- The Zodiac's reach (hook_entry, 1.21) ----
+
+// The port's entry of Moby_RecordDeath: the mod's replacement, then the game's.
+void port_record_death(std::uint32_t moby, std::int32_t flags, std::int32_t arg) {
+    const auto hook = hooked<rac2::Moby_RecordDeath>();
+
+    if (hook != nullptr) {
+        hook(moby, flags, arg);
+    } else {
+        game_record_death(moby, flags, arg);
+    }
+}
+
+void* host_hook_entry(const char* name, const char* /*signature*/) {
+    return std::strcmp(name, rac2::Moby_RecordDeath::id) == 0
+               ? reinterpret_cast<void*>(&port_record_death)
+               : nullptr;
+}
+
+// moby_kill: the moby in `slot` of the level's table (kVisualMobys) gone.
+int host_moby_kill(openrac_mod* /*mod*/, int slot) {
+    g_memory[kVisualMobys + static_cast<std::uint32_t>(slot) * 0x100u + 0x20u] = 0xFFu;
     return OPENRAC_HOOK_OK;
 }
 
@@ -1171,6 +1211,13 @@ void make_api() {
     g_api.data_dir = host_data_dir;
     g_api.party_rules_publish = host_publish;
     g_api.on_party_rules = host_on_rules;
+    // The calls the Zodiac's reach makes: the death's entry and the moby's end; the rest refuse.
+    g_api.hook_entry = host_hook_entry;
+    g_api.moby_kill = host_moby_kill;
+    g_api.moby_spawn = refuse;
+    g_api.moby_run = refuse;
+    g_api.play_status = refuse;
+    g_api.level_line = refuse;
 }
 
 // Loads the library's entry point into `load`, or reports why not.
@@ -2924,6 +2971,134 @@ void test_fallback_caps() {
     set_run(1, 0);
 }
 
+// ---- The Zodiac's kills (0.6.13) ----
+
+constexpr std::uint32_t kZodiacRecords = 0x00350000u;  // The enemies' variables and records.
+
+// Returns the moby in slot `n` of the level's table.
+std::uint32_t table_moby(int n) {
+    return kVisualMobys + static_cast<std::uint32_t>(n) * 0x100u;
+}
+
+// Returns the health record of the moby in slot `n`.
+std::uint32_t zodiac_record(int n) {
+    return kZodiacRecords + static_cast<std::uint32_t>(n) * 0x40u + 0x10u;
+}
+
+// Makes slot `n` an enemy at (x, y): `health`, death path `path`, last weapon `weapon`, alive or
+// not yet out.
+void zodiac_enemy(int n, float x, float y, float health, std::uint8_t path, std::uint8_t weapon) {
+    const std::uint32_t moby = table_moby(n);
+    const std::uint32_t vars = kZodiacRecords + static_cast<std::uint32_t>(n) * 0x40u;
+    const std::uint32_t record = zodiac_record(n);
+    set<std::uint16_t>(moby + kMobyClass, static_cast<std::uint16_t>(kOtherClass));
+    set<float>(moby + 0x10u, x);
+    set<float>(moby + 0x14u, y);
+    set<float>(moby + 0x18u, 0.0f);
+    g_memory[moby + 0x20u] = 0x01u;
+    g_memory[moby + 0x23u] = 0x80u;
+    set<std::uint32_t>(moby + kMobyClassInfo, kEnemyClassAt);
+    set<std::int16_t>(moby + kMobyBolts, 20);
+    set<std::uint16_t>(moby + 0x34u, 0x20u);
+    set<std::uint32_t>(moby + 0x68u, vars);
+    set<std::uint32_t>(vars, record);
+    set<float>(record, health);
+    g_memory[record + 0x0Eu] = path;
+    set<float>(record + 0x10u, 1.0f);
+    g_memory[record + 0x17u] = weapon;
+}
+
+// Returns the last-weapon byte of slot `n`'s record.
+int zodiac_byte(int n) {
+    return g_memory[zodiac_record(n) + 0x17u];
+}
+
+// Checks that every kill of the Zodiac's earns it the experience through the game's own death
+// record (Moby_RecordDeath, the award reading +0x17): the reach's vaporized ones (beyond the gun's
+// 40 units and within them), its owner's one and its drained one dying later; the game's pulse's
+// vaporized and owner's kills; and not a drained enemy another weapon hit since, nor a kill far
+// from any pulse. Before 0.6.13 the reach marked with the perks' clock a tick ahead of the one that
+// read the marks, and nearly every one of its kills kept the weapon named before.
+void test_zodiac_kills(openrac_mod_load_fn load) {
+    constexpr int kZodiacItem = 43;
+    constexpr std::uint8_t kLancerByte = kLancer;
+    const auto cycle = get<std::int16_t>(g_disc->progress + kProgressCycle);
+    set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
+    g_weapon_perks = true;
+    CHECK(reload(load));
+    set<std::int16_t>(kEnemyClassAt + kClassKind, kKindEnemy);
+
+    // The gun, then the enemies (slots 6 and 7 not out yet as the pulse starts).
+    lay_out_mobys({3784, 1, 1, 1, 1, 1, 1, 1, 1});
+    set<float>(table_moby(0) + 0x10u, 0.0f);
+    zodiac_enemy(1, 45.0f, 0.0f, 50.0f, 0, 255);           // The reach: vaporized, far.
+    zodiac_enemy(2, 30.0f, 0.0f, 50.0f, 0, kLancerByte);   // The reach: vaporized, within 40.
+    zodiac_enemy(3, 0.0f, 45.0f, 50.0f, 1, 255);           // The reach: its owner's.
+    zodiac_enemy(4, 0.0f, -45.0f, 1000.0f, 0, kLancerByte);  // The reach: drained.
+    zodiac_enemy(5, -45.0f, 0.0f, 1000.0f, 0, kLancerByte);  // Drained, then the RYNO's hit.
+    zodiac_enemy(6, 20.0f, 0.0f, 50.0f, 0, 255);           // The pulse: vaporized.
+    zodiac_enemy(7, 0.0f, 20.0f, 50.0f, 1, kLancerByte);   // The pulse: its owner's.
+    zodiac_enemy(8, 200.0f, 0.0f, 50.0f, 0, kLancerByte);  // Far from it: the Lancer's.
+    g_memory[table_moby(6) + 0x20u] = 0xFFu;
+    g_memory[table_moby(7) + 0x20u] = 0xFFu;
+    g_kill_from_record = true;
+    g_kill_item = 0;
+    g_kill_xp = 100;
+    set<std::int32_t>(g_disc->exp + 4u * kZodiacItem, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kRyno, 0);
+
+    // The gun seen, then its pulse: the reach takes its enemies in the mod's tick.
+    tick(1);
+    g_memory[table_moby(0) + 0x20u] = 3;
+    tick(1);
+    CHECK(zodiac_byte(1) == kZodiacItem);
+    CHECK(zodiac_byte(2) == kZodiacItem);
+    CHECK(zodiac_byte(3) == kZodiacItem);
+    CHECK(g_memory[table_moby(1) + 0x20u] == 0xFFu && g_memory[table_moby(2) + 0x20u] == 0xFFu);
+    CHECK(g_memory[zodiac_record(3) + 0x0Eu] == 2);
+    CHECK(get<float>(zodiac_record(4)) == 400.0f);
+    CHECK(experience(kZodiacItem) == 300);
+
+    // The game's pulse in its frame: its picks out now, each recorded as the gun does.
+    g_memory[table_moby(6) + 0x20u] = 0x01u;
+    g_memory[table_moby(7) + 0x20u] = 0x01u;
+    port_record_death(table_moby(6), 0, 3);
+    port_record_death(table_moby(7), 0, 3);
+    g_memory[zodiac_record(7) + 0x0Eu] = 2;
+    CHECK(zodiac_byte(6) == kZodiacItem);
+    CHECK(zodiac_byte(7) == kZodiacItem);
+    CHECK(experience(kZodiacItem) == 500);
+
+    // The pulse over; seconds on, the drained ones die their own deaths, one after the RYNO's hit,
+    // and one far from any pulse by the Lancer's.
+    g_memory[table_moby(0) + 0x20u] = 0;
+    g_memory[zodiac_record(5) + 0x17u] = kRyno;
+    tick(120);
+    set<float>(zodiac_record(4), 0.0f);
+    set<float>(zodiac_record(5), 0.0f);
+    port_record_death(table_moby(4), 0, 3);
+    port_record_death(table_moby(5), 0, 3);
+    port_record_death(table_moby(8), 0, 3);
+    CHECK(zodiac_byte(4) == kZodiacItem);
+    CHECK(zodiac_byte(5) == kRyno);
+    CHECK(zodiac_byte(8) == kLancerByte);
+    CHECK(experience(kZodiacItem) == 600);
+    CHECK(experience(kRyno) == 100);
+    CHECK(experience(kLancer) == 100);
+
+    // Back as the other tests left it.
+    g_kill_from_record = false;
+    g_kill_xp = 0;
+    set<std::int32_t>(g_disc->exp + 4u * kZodiacItem, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kRyno, 0);
+    set<std::int16_t>(g_disc->progress + kProgressCycle, cycle);
+    lay_out_mobys({});
+    g_weapon_perks = false;
+    CHECK(reload(load));
+}
+
 void run(const char* path, const Disc& disc, Host host) {
     g_disc = &disc;
     g_host = host;
@@ -3039,6 +3214,11 @@ void run(const char* path, const Disc& disc, Host host) {
 
     test_old_book_moved(load);
     test_armour_at_the_vendor(host == Host::Paint);
+
+    // The Zodiac's kills, on the newest port.
+    if (host == Host::Paint) {
+        test_zodiac_kills(load);
+    }
 }
 
 }  // namespace

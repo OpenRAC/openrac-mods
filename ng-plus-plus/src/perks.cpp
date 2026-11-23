@@ -933,9 +933,23 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
         const auto path = memory.read<std::uint8_t>(record + kHealthDeathPath);
         const ZodiacAction action = zodiac_action(health, path, drain);
 
-        // Over the line: a pulse's drain off its health.
+        // Over the line: a pulse's drain off its health. Its own death later is the Zodiac's
+        // too, as the pulse's drained ones are (tuning.cpp), unless another weapon hits it since.
         if (action == ZodiacAction::Drain) {
             memory.write(record, health - drain);
+
+            if (m_credit != nullptr
+                && (!m_credit->marked(moby.address, m_tick)
+                    || m_credit->marked_for(moby.address, m_tick, kZodiac))) {
+                m_credit->mark(
+                    moby.address,
+                    m_tick,
+                    kZodiac,
+                    kZodiacDrainCreditTicks,
+                    memory.read<std::uint8_t>(record + kHealthWeapon)
+                );
+            }
+
             ++zodiac_stats_or_scratch().reach_drained;
             continue;
         }
@@ -966,7 +980,17 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
             m_credit->mark(moby.address, m_tick, kZodiac, 0);
         }
 
+        // Recorded as the reach's, not the pulse's (tuning.cpp's count).
+        if (m_credit != nullptr) {
+            m_credit->set_reaching(true);
+        }
+
         m_record_death(moby.address, 0, 3);
+
+        if (m_credit != nullptr) {
+            m_credit->set_reaching(false);
+        }
+
         ++killed;
 
         // Its owner's (a part, a squad's): the gun leaves the death to it.

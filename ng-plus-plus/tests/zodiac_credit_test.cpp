@@ -219,9 +219,48 @@ void test_summary() {
     CHECK(line.find("next step: level 2, experience 10 of 6000") != std::string::npos);
 }
 
+// 0.6.13: the reach marks with the perks' tick, which runs before the tuning's has moved on: a
+// mark a tick or two ahead of the reading clock still credits, one further ahead does not.
+void test_mark_ahead_of_clock() {
+    ZodiacCredit credit;
+    std::uint8_t weapon = kPulseRifle;
+    credit.mark(kEnemy, 101, kZodiac, 0);
+    CHECK(credit.marked(kEnemy, 100));
+    CHECK(credit_zodiac(credit, kEnemy, 100, weapon));
+    CHECK((weapon) == (kZodiac));
+
+    weapon = kPulseRifle;
+    credit.mark(kEnemy, 100 + kZodiacCreditSkew + 1, kZodiac, 0);
+    CHECK(!credit_zodiac(credit, kEnemy, 100, weapon));
+    CHECK((weapon) == (kPulseRifle));
+}
+
+// 0.6.13: a drain's mark remembers the byte as drained: the enemy's own death credits the Zodiac
+// while the byte is unchanged, and another weapon's hit since keeps that weapon's kill.
+void test_drain_then_other_hit() {
+    ZodiacCredit credit;
+    std::uint8_t weapon = kPulseRifle;
+    credit.mark(kEnemy, 10, kZodiac, kZodiacDrainCreditTicks, kPulseRifle);
+    CHECK(credit_zodiac(credit, kEnemy, 300, weapon));
+    CHECK((weapon) == (kZodiac));
+
+    weapon = 44;
+    credit.mark(kEnemy, 10, kZodiac, kZodiacDrainCreditTicks, kPulseRifle);
+    CHECK(!credit_zodiac(credit, kEnemy, 300, weapon));
+    CHECK((weapon) == (44));
+
+    // The same item's renewal keeps the byte the first mark expected.
+    weapon = 44;
+    credit.mark(kEnemy, 10, kZodiac, kZodiacDrainCreditTicks, kPulseRifle);
+    credit.mark(kEnemy, 11, kZodiac, kZodiacDrainCreditTicks, 44);
+    CHECK(!credit_zodiac(credit, kEnemy, 300, weapon));
+}
+
 }  // namespace
 
 int main() {
+    test_mark_ahead_of_clock();
+    test_drain_then_other_hit();
     test_reach_action();
     test_reach_kill_recorded_at_once();
     test_death_paths();

@@ -13,13 +13,22 @@ namespace ng_plus_plus {
 
 static_assert(kZodiacItem == kZodiac, "the Zodiac's item");
 
-void ZodiacCredit::mark(std::uint32_t moby, std::uint32_t tick, int item, std::uint32_t ticks) {
-    Mark& mark = m_marks[moby];
+void ZodiacCredit::mark(
+    std::uint32_t moby, std::uint32_t tick, int item, std::uint32_t ticks, int expect
+) {
+    const auto [it, fresh] = m_marks.try_emplace(moby);
+    Mark& mark = it->second;
     const std::uint32_t length = ticks > 0 ? ticks : kZodiacCreditTicks;
+    const bool same = !fresh && mark.item == item && stands(mark, tick);
 
     // A mark of another item that still stands is replaced; the same item's only grows.
-    if (mark.item == item && mark.tick + mark.ticks > tick + length) {
+    if (same && mark.tick + mark.ticks > tick + length) {
         return;
+    }
+
+    // The same item's standing mark keeps the byte it expects; a new one takes this one's.
+    if (!same) {
+        mark.expect = expect;
     }
 
     mark.tick = tick;
@@ -29,8 +38,7 @@ void ZodiacCredit::mark(std::uint32_t moby, std::uint32_t tick, int item, std::u
 
 bool ZodiacCredit::marked(std::uint32_t moby, std::uint32_t tick) const {
     const auto it = m_marks.find(moby);
-    return it != m_marks.end() && tick >= it->second.tick
-           && tick - it->second.tick <= it->second.ticks;
+    return it != m_marks.end() && stands(it->second, tick);
 }
 
 bool ZodiacCredit::marked_for(std::uint32_t moby, std::uint32_t tick, int item) const {
@@ -38,7 +46,7 @@ bool ZodiacCredit::marked_for(std::uint32_t moby, std::uint32_t tick, int item) 
     return marked(moby, tick) && it->second.item == item;
 }
 
-int ZodiacCredit::take_item(std::uint32_t moby, std::uint32_t tick) {
+int ZodiacCredit::take_item(std::uint32_t moby, std::uint32_t tick, int weapon) {
     const auto it = m_marks.find(moby);
 
     if (it == m_marks.end()) {
@@ -47,7 +55,13 @@ int ZodiacCredit::take_item(std::uint32_t moby, std::uint32_t tick) {
 
     const Mark mark = it->second;
     m_marks.erase(it);
-    return tick >= mark.tick && tick - mark.tick <= mark.ticks ? mark.item : -1;
+
+    // Run out, or a drain's mark on an enemy another weapon has hit since.
+    if (!stands(mark, tick) || (mark.expect >= 0 && weapon >= 0 && weapon != mark.expect)) {
+        return -1;
+    }
+
+    return mark.item;
 }
 
 void ZodiacCredit::prune(std::uint32_t tick) {
@@ -59,7 +73,7 @@ void ZodiacCredit::prune(std::uint32_t tick) {
 bool credit_zodiac(
     ZodiacCredit& credit, std::uint32_t moby, std::uint32_t tick, std::uint8_t& weapon
 ) {
-    const int item = credit.take_item(moby, tick);
+    const int item = credit.take_item(moby, tick, weapon);
 
     if (item < 0) {
         return false;

@@ -474,6 +474,8 @@ void NgPlusPlus::tick() {
     m_rewards.tick();
     m_visuals.tick(m_tick);
     m_elites.tick();
+    // The tuning's clock first: the perks' reach records deaths the tuning credits (0.6.13).
+    m_tuning.set_tick(m_tick);
     m_perks.tick(m_tick);
     m_shots.tick(m_tick);
     m_tuning.tick(m_tick);

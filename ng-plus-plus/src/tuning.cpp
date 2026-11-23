@@ -6,6 +6,7 @@
 #include "tuning.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <iterator>
 #include <optional>
@@ -53,6 +54,9 @@ constexpr std::uint32_t kLockGrace = 3u;
 // The Zodiac's gun's state byte.
 constexpr std::uint32_t kGunState = 0x20u;
 
+// A little past the pulse's 40 units: the gun's pick and the mod read positions a frame apart.
+constexpr float kPulseMargin = 2.0f;
+
 // The decoy's health in its variables (decoy_create_projectile).
 constexpr std::uint32_t kDecoyHealth = 0x24u;
 
@@ -91,6 +95,29 @@ std::uint32_t WeaponTuning::health_record(std::uint32_t moby) const {
     return GameView::is_memory(record, kHealthRecordBytes) ? record : 0;
 }
 
+bool WeaponTuning::near_pulse(std::uint32_t victim) {
+    // The guns as the tick read them (one made since is read again with the next tick's).
+    if (!m_scan.read(m_tick)) {
+        return false;
+    }
+
+    const openrac::Memory memory = m_view.memory();
+    const std::array<float, 3> at = m_scan.position(victim);
+    const float reach = kZodiacRange + kPulseMargin;
+
+    // A Zodiac gun pulsing now, read live: its state and where it is as the gun's own pick
+    // measures (its position, charging_weapon_update's SelectBestTargetInCone at 40 units).
+    for (const ScannedMoby& gun : m_scan.mobys()) {
+        if (gun.moby_class == kZodiacClass && m_scan.alive(gun.address, kZodiacClass)
+            && memory.read<std::uint8_t>(gun.address + kGunState) == kZodiacPulse
+            && distance2(at, m_scan.position(gun.address)) <= reach * reach) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void WeaponTuning::credit_kill(std::uint32_t victim) {
     const std::uint32_t record = health_record(victim);
 
@@ -101,36 +128,20 @@ void WeaponTuning::credit_kill(std::uint32_t victim) {
     }
 
     const openrac::Memory memory = m_view.memory();
-    bool near_pulse = false;
 
-    // Within a pulsing Zodiac's range: the pulse took it (it posts no hit, and the game's own
-    // pick may run before or after the mod's tick, so the gun is read as the death is recorded).
-    // The reach marks its own.
-    for (const ScannedMoby& moby : m_scan.mobys()) {
-        if (moby.address != victim) {
-            continue;
-        }
+    // The reach's own deaths carry its mark; any other near a pulsing Zodiac is the pulse's (it
+    // posts no hit), read as the death is recorded: the game's pick may run before or after the
+    // mod's tick, and the victim need not be in the tick's read.
+    const bool reach = m_credit.reaching();
+    const bool pulse = !reach && near_pulse(victim);
 
-        for (const ScannedMoby& gun : m_scan.mobys()) {
-            if (gun.moby_class == kZodiacClass
-                && memory.read<std::uint8_t>(gun.address + kGunState) == kZodiacPulse
-                && distance2(moby.position, gun.position) <= kZodiacRange * kZodiacRange) {
-                near_pulse = true;
-
-                // Not over a perk's mark: that names its own weapon.
-                if (!m_credit.marked(victim, m_tick)) {
-                    m_credit.mark(victim, m_tick);
-                }
-
-                break;
-            }
-        }
-
-        break;
+    // Not over a perk's mark: that names its own weapon.
+    if (pulse && !m_credit.marked(victim, m_tick)) {
+        m_credit.mark(victim, m_tick);
     }
 
     // How it came, for the summary: the gun records its kills before it changes the record.
-    if (near_pulse) {
+    if (pulse) {
         const ZodiacDeath death = zodiac_death(
             memory.read<float>(record + kHealth), memory.read<std::uint8_t>(record + kHealthDeathPath)
         );
@@ -140,16 +151,17 @@ void WeaponTuning::credit_kill(std::uint32_t victim) {
         ++count;
     }
 
+    // Named as the award will read it: written before the game's SetDeathBits runs.
     auto weapon = memory.read<std::uint8_t>(record + kHealthWeapon);
 
     if (credit_zodiac(m_credit, victim, m_tick, weapon)) {
         memory.write(record + kHealthWeapon, weapon);
     }
 
-    // Named the Zodiac, or near a pulse and named another.
+    // Named the Zodiac, or the pulse's or the reach's and named another.
     if (weapon == kZodiacItem) {
         ++m_stats.credited;
-    } else if (near_pulse) {
+    } else if (pulse || reach) {
         ++m_stats.not_credited;
         m_stats.last_other = weapon;
     }
@@ -330,8 +342,15 @@ void WeaponTuning::zodiac() {
 
             const std::uint32_t record = health_record(moby.address);
 
+            // The byte as drained: another weapon's hit after it takes the death.
             if (record != 0 && memory.read<float>(record + kHealth) <= 0.0f) {
-                m_credit.mark(moby.address, m_tick, kZodiacItem, kZodiacDrainCreditTicks);
+                m_credit.mark(
+                    moby.address,
+                    m_tick,
+                    kZodiacItem,
+                    kZodiacDrainCreditTicks,
+                    memory.read<std::uint8_t>(record + kHealthWeapon)
+                );
             }
         }
 
