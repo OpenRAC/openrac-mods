@@ -1350,9 +1350,9 @@ void test_armour_at_the_vendor(bool sold) {
     CHECK(title(g_disc->armour_name) == "Beta Armor");
     CHECK(armour_row(0)[1] == kBetaArmorPrice);
 
-    // The hero in Alpha's steel, the preview in Beta's azure with its rim.
+    // The vendor is not normal play: the hero stays stock; the preview in Beta's azure with its rim.
     tick(2);
-    CHECK(hero_look(kScopeWorld) == std::make_pair(paint_at(0), 0xB8C8E0u));
+    CHECK(g_class_looks.count(std::make_pair(0, kScopeWorld)) == 0);
     CHECK(hero_look(kScopeMenu) == std::make_pair(paint_at(2), 0x4090FFu));
 
     // A hit of ten at Alpha: nine.

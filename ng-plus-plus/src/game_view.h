@@ -195,6 +195,9 @@ public:
     // Returns the challenge mode counter of the game in progress.
     int cycle() const;
 
+    // Returns the game's mode (g_current_game_mode): 0 in normal play, another in a scene.
+    std::int32_t game_mode() const;
+
     // Return the player's bolts, Tabora's crystals and Grelbin's moonstones held.
     std::int32_t bolts() const;
 

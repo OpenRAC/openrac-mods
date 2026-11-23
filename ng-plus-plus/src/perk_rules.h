@@ -294,6 +294,21 @@ inline constexpr int kArmourTiers = 8;
 // 2 Duraplate, 3 Electrosteel, 4 Carbonox (the armour shop lists the levels above it, 1 to 4).
 inline constexpr int kBestArmour = 4;
 
+// The game's mode in normal play (g_current_game_mode): a cutscene or scene is another value.
+inline constexpr std::int32_t kPlayGameMode = 0;
+
+// Returns whether the tier's paint is on the hero in the world: normal play (`mode`, not a
+// cutscene), Carbonox worn (`worn_armour`, the save's armour) and a tier owned.
+constexpr bool armour_paints_world(std::int32_t mode, int worn_armour, int tier) {
+    return mode == kPlayGameMode && worn_armour >= kBestArmour && tier > 0;
+}
+
+// Returns whether a menu's picture of the hero is painted with the tier it shows: Carbonox worn
+// and a tier shown (the vendor's preview is a menu, not play).
+constexpr bool armour_paints_menu(int worn_armour, int shown_tier) {
+    return worn_armour >= kBestArmour && shown_tier > 0;
+}
+
 // The item byte NG++'s book keeps the armour tier in: no item of the game's (none of its rows is
 // item 55), so the weapons' rules never see it.
 inline constexpr int kArmourItem = 55;

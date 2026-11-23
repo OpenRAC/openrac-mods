@@ -27,6 +27,12 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.6
+
+The armor tier's paint is only on Ratchet in normal play while he wears Carbonox and owns a tier:
+in cutscenes, and without Carbonox, he looks as in the stock game. The armor vendor's preview keeps
+its paint.
+
 ## What's new in 0.6.4
 
 - **The Zodiac earns XP from its kills.** The game gives a kill's experience to the weapon named

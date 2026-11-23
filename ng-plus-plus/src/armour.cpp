@@ -138,8 +138,20 @@ void Armour::tick(std::uint32_t tick, std::optional<int> previewed) {
     }
 
     // The hero in the world in the tier he wears; the vendor's picture of him in the tier it shows.
-    paint(kScopeWorld, look_of(tier(), tick), m_world);
-    paint(kScopeMenu, look_of(previewed.value_or(tier()), tick), m_menu);
+    // Stock in a scene, or without Carbonox or a tier.
+    const int worn = m_view.armour();
+    const int shown = previewed.value_or(tier());
+    paint(
+        kScopeWorld,
+        armour_paints_world(m_view.game_mode(), worn, tier()) ? look_of(tier(), tick)
+                                                              : std::nullopt,
+        m_world
+    );
+    paint(
+        kScopeMenu,
+        armour_paints_menu(worn, shown) ? look_of(shown, tick) : std::nullopt,
+        m_menu
+    );
 }
 
 void Armour::glow(std::uint32_t tick) {
@@ -148,7 +160,7 @@ void Armour::glow(std::uint32_t tick) {
         return;
     }
 
-    const int now = tier();
+    const int now = armour_paints_world(m_view.game_mode(), m_view.armour(), tier()) ? tier() : 0;
     const std::uint32_t hero = m_view.hero_moby();
 
     // No tier now: taken off where the mod drew one.

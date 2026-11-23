@@ -117,6 +117,12 @@ if(BUILD_TESTING)
   set_target_properties(ng_plus_plus_zodiac_credit_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_zodiac_credit COMMAND ng_plus_plus_zodiac_credit_test)
 
+  # 0.6.6's armour paint: none in a scene, none without Carbonox, the tier's in play.
+  add_executable(ng_plus_plus_paint_test tests/paint_test.cpp)
+  target_link_libraries(ng_plus_plus_paint_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_paint_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_paint COMMAND ng_plus_plus_paint_test)
+
   # The library as the port loads it, against a host table and game memory of the test's own.
   add_executable(ng_plus_plus_load_test tests/load_test.cpp)
   target_include_directories(ng_plus_plus_load_test PRIVATE src)
