@@ -22,6 +22,16 @@
 // come back (UDP is confirmed, udp()), so blocked UDP never loses state; once confirmed, UDP only.
 // Without a UDP offer (an older server), state goes as DATA.
 //
+// The hub (the server's README, The hub): the address a server link names may be the hub, which
+// lists game servers and runs no parties (a PARTY sent to it closes the connection). So a server
+// link first says HELLO there on a connection of its own and reads the UDP offer: without
+// kFeatureServers it is a game server, and the link connects to it again as before (once per
+// open: a reconnect goes straight there). With it, the link asks REGIONS, picks a game server
+// (pick_server: the region set_region names, else the first listed; an empty host is the hub's)
+// and connects there instead; each reconnect asks the hub again. Only that game server's
+// connection is a generation the session sees. A hub that lists none, or does not answer, is
+// kUnreachable until the next try. No login: the player plays under its HELLO name.
+//
 // Testing a bad link: OPENRAC_MP_LAG="<ms>[,<jitter ms>]" holds each message the server sent for
 // that long more before receive() hands it on, plus a random extra of about the jitter (mostly
 // less, now and then several times it), in the order they came (a TCP stream's stall and burst).
@@ -130,6 +140,17 @@ public:
     // Returns how the session is linked now.
     Mode mode() const { return mode_; }
 
+    // What a server link says to a hub: the HELLO's version and name (the session's), and the game
+    // family REGIONS names. Set before open; a later change counts from the next connection.
+    void set_hello(const std::string& version, const std::string& name);
+    void set_family(const std::string& family);
+    // The region of the hub's list to play in, any case; empty: the first listed.
+    void set_region(const std::string& region);
+
+    // The game server the hub gave, "host:port"; empty when the address is a game server itself
+    // (or no hub answered yet).
+    std::string game_server() const;
+
     // The address linked to: the server's or the direct host's, "host:port"; empty when hosting.
     const std::string& address() const { return address_; }
 
@@ -168,9 +189,32 @@ private:
     // Starts the thread for host:port in `mode`.
     void start_thread(const std::string& host, int port, Mode mode);
 
+    // What a connection to the configured address turned out to be (probe).
+    enum class Probe {
+        kPlain,     // A game server: connect to it again and play there.
+        kHub,       // A hub that gave a game server.
+        kNoServer,  // A hub that lists no game server to play on.
+        kFailed     // No answer, or the connection went.
+    };
+    // On a fresh connection to the configured address: HELLO, then the UDP offer; a hub is asked
+    // REGIONS and its pick goes into `host` and `port`. The connection's thread only.
+    Probe probe(std::intptr_t fd, std::string& host, int& port);
+
     // The server or direct host the thread connects to.
     std::string host_name_;
     int port_ = 0;
+    // Set by start_thread for a server link, which may name a hub; and, on the thread, once the
+    // address proved to be a game server, so a reconnect skips the hub's questions.
+    bool server_link_ = false;
+    bool plain_ = false;
+    // What a hub is told (set_hello, set_family, set_region), under mutex_.
+    std::string hello_version_ = "openrac-multiplayer";
+    std::string hello_name_ = "Player";
+    std::string family_;
+    std::string region_;
+    // The game server the hub gave (game_server), under via_mutex_.
+    mutable std::mutex via_mutex_;
+    std::string via_;
     // Set to ask the thread to end.
     std::atomic<bool> stop_{false};
     // What the connection is doing; both threads read it.

@@ -47,11 +47,11 @@
 namespace mpmod {
 
 // The version HELLO gives the server: the mod's (at most 32 characters).
-constexpr const char* kModVersion = "0.13.0";
+constexpr const char* kModVersion = "0.14.0";
 // The version HELLO gives the server for Ratchet & Clank: the mod's, with the game's name.
-constexpr const char* kVersion = "rac1-multiplayer/0.13.0";
+constexpr const char* kVersion = "rac1-multiplayer/0.14.0";
 // Going Commando's: its parties are its own (a party's description names the game).
-constexpr const char* kVersionRac2 = "rac2-multiplayer/0.13.0";
+constexpr const char* kVersionRac2 = "rac2-multiplayer/0.14.0";
 
 // The question's tag: leaving the party (or hosting it).
 constexpr std::uint32_t kAskLeave = 1;
@@ -127,6 +127,8 @@ struct State {
     std::string host;
     // The server's port, from the same setting.
     int port = mp::kDefaultPort;
+    // The game server the hub gave last (Connection::game_server), as logged.
+    std::string game_server;
     // The link to the server or to a direct party: its thread connects and reads, the game's side
     // queues and takes messages (connection.hpp).
     std::unique_ptr<mp::Connection> connection;

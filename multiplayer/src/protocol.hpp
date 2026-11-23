@@ -53,7 +53,12 @@ constexpr int kDefaultPort = 7770;
 // codes, so INFO carries this instead (a lobby shows the host's address in its place).
 constexpr const char* kDirectCode = "DIRECT";
 
-// The packet ids (Packets.java), the PARTY opcodes and the ERROR reasons (Opcodes.java).
+// The hub's port when an address names none on its way there (the server's HUB_PORT).
+constexpr int kHubPort = 7177;
+
+// The packet ids (Packets.java), the PARTY opcodes and the ERROR reasons (Opcodes.java). REGIONS
+// and SERVERS are the hub's (the server's README, The hub): this client asks REGIONS only, and
+// never sends PARTY, CHAT or DATA to a hub, which closes a client that does.
 enum class PacketId : std::uint8_t {
     kHello = 0,
     kParty = 1,
@@ -61,7 +66,17 @@ enum class PacketId : std::uint8_t {
     kData = 3,
     kError = 4,
     kTime = 5,
-    kUdp = 6
+    kUdp = 6,
+    kRegions = 8,
+    kServers = 12
+};
+// The SERVERS opcodes: WATCH from a client, the list's changes from the hub. Unused here (REGIONS'
+// snapshot is all a connect needs), named so the ids stay the server's.
+enum class ServersOp : std::uint8_t {
+    kWatch = 0,
+    kAdded = 1,
+    kChanged = 2,
+    kRemoved = 3
 };
 enum class PartyOp : std::uint8_t {
     kCreate = 0,
@@ -92,6 +107,10 @@ enum class ErrorReason : std::uint8_t {
 // and a request it does not know closes the connection.
 constexpr std::uint8_t kFeatureKick = 1;
 constexpr std::uint8_t kFeatureResume = 2;
+// The hub's offer (token and port 0) carries these two: it answers REGIONS and streams SERVERS. A
+// game server sends neither, so kFeatureServers says the address is a hub.
+constexpr std::uint8_t kFeatureRegions = 16;
+constexpr std::uint8_t kFeatureServers = 64;
 // HELLO's bits after the name: what this client does. A server that does not know them stops at the
 // name, and a client without kClientResumes leaves its party when its connection goes.
 constexpr std::uint8_t kClientResumes = 1;
@@ -240,6 +259,8 @@ Bytes chat(const std::string& message);
 Bytes data(std::int32_t target, const Bytes& payload);
 // Returns TIME with the client's clock.
 Bytes time(std::int64_t client_ms);
+// Returns REGIONS, to a hub: the game servers it lists, for this game's family.
+Bytes regions(const std::string& family);
 
 // The client's datagrams (no frame): BIND, and STATE for `target`.
 Bytes datagram_bind(std::int32_t session, std::int64_t token);
@@ -263,6 +284,26 @@ struct Listing {
     std::string description;
 };
 
+// A game server the hub lists (REGIONS' answer): its region, where players reach it (empty: the
+// hub's own host), its game port and how many play there.
+struct ListedServer {
+    std::string region;
+    std::string host;
+    std::int32_t port = 0;
+    std::int32_t players = 0;
+};
+
+// The game server to play on from a hub's list: the first in `region` (any case) when one is
+// named and listed, else the first listed. Its host ("" in the list: `hub_host`) and port into
+// `host` and `port`; false for an empty list (or one with no usable port).
+bool pick_server(
+    const std::vector<ListedServer>& servers,
+    const std::string& region,
+    const std::string& hub_host,
+    std::string& host,
+    int& port
+);
+
 // What the server says, one frame of it.
 struct Message {
     // Which frame a Message holds.
@@ -280,7 +321,8 @@ struct Message {
         kData,
         kError,
         kTime,
-        kUdp
+        kUdp,
+        kRegions  // A hub's list of game servers.
     };
     // Which frame this is; the fields below say what each kind fills.
     Kind kind = Kind::kHello;
@@ -315,6 +357,8 @@ struct Message {
     std::int64_t resume_token = 0;
     std::int32_t udp_port = 0;
     std::uint8_t features = 0;
+    // REGIONS: the game servers the hub lists.
+    std::vector<ListedServer> servers;
 };
 
 // Reads a frame's body the server sent into `out`; false for one the client does not know (an
@@ -368,6 +412,8 @@ Bytes error_reply(ErrorReason reason, const std::string& family = "");
 Bytes time_reply(std::int64_t client_ms, std::int64_t server_ms);
 // Returns the STATE datagram a server sends: the sender's id and `payload`.
 Bytes datagram_state_from(std::int32_t sender, const Bytes& payload);
+// Returns a hub's answer to REGIONS: at most 255 of `servers` (the tests' hub).
+Bytes regions_reply(const std::vector<ListedServer>& servers);
 
 // A client's frame as the server reads it. kInvalid: an id or opcode a client never sends (ERROR,
 // UDP, the server's party notices, unknown ones) or a body cut short, which closes a connection.

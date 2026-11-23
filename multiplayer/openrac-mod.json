@@ -2,9 +2,9 @@
   "format": 2,
   "id": "multiplayer",
   "name": "Multiplayer",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "author": "Keros",
-  "description": "Online co-op: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) list the games others host, create one from a save or a new game, join one by its code, or play without a server with Direct connect. The host's Start starts the game for everyone: all play in the host's level, see each other's Ratchets, and share its world (its enemies go for the nearest player, a hit on one counts for all, crates and kills are shared, bolts go to whoever collects them). Includes co-op rescue, host rally points and a team-tools page in the existing Multiplayer menu, whose pages speak the game's five PAL languages. In Going Commando, the same Multiplayer item and pages: everyone plays in the host's level and sees each other.",
+  "description": "Online co-op: a Multiplayer item in the title's main menu, under Load Game, whose pages (the game's own menus) list the games others host, create one from a save or a new game, join one by its code, or play without a server with Direct connect. It reaches the OpenRAC hub (hub.openrac.dev), which gives it a game server from its list, or a game server named directly. The host's Start starts the game for everyone: all play in the host's level, see each other's Ratchets, and share its world (its enemies go for the nearest player, a hit on one counts for all, crates and kills are shared, bolts go to whoever collects them). Includes co-op rescue, host rally points and a team-tools page in the existing Multiplayer menu, whose pages speak the game's five PAL languages. In Going Commando, the same Multiplayer item and pages: everyone plays in the host's level and sees each other.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/multiplayer",
   "api": "1.14",
@@ -17,7 +17,15 @@
       "type": "string",
       "default": "",
       "max_length": 255,
-      "description": "Empty: the launcher's Multiplayer server (Settings, General; the official game.openrac.dev:7770 unless changed there). Otherwise the OpenRAC server to connect to, as host:port (7770 when no port is given)."
+      "description": "Empty: the launcher's Multiplayer server (Settings, General; the official hub unless changed there). Otherwise the OpenRAC hub or game server to connect to, as host:port (7770 when no port is given). A hub gives the game a game server from its list."
+    },
+    {
+      "key": "region",
+      "name": "Region",
+      "type": "string",
+      "default": "",
+      "max_length": 32,
+      "description": "At a hub: the region of its list to play in, such as Europe. Empty, or one the hub does not list: the first game server it lists."
     },
     {
       "key": "name",

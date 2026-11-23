@@ -37,6 +37,11 @@ constexpr std::int64_t kServerSilentMs = 6000;
 // How long one select waits in connect_to, so a stop is noticed.
 constexpr int kWaitSliceMs = 50;
 
+// How long a hub, or a game server, may take to answer HELLO and offer UDP, then REGIONS; and how
+// long past the HELLO answer an offer may still come (a server from before offers never sends one).
+constexpr std::int64_t kProbeMs = 5000;
+constexpr std::int64_t kOfferMs = 1500;
+
 // The bytes one read takes at most.
 constexpr std::size_t kReadChunkBytes = 4096;
 
@@ -200,8 +205,35 @@ void Connection::open(const std::string& host, int port) {
     start_thread(host, port, Mode::kServer);
 }
 
+void Connection::set_hello(const std::string& version, const std::string& name) {
+    const std::lock_guard lock(mutex_);
+    hello_version_ = version.empty() ? hello_version_ : version;
+    hello_name_ = name.empty() ? hello_name_ : name;
+}
+
+void Connection::set_family(const std::string& family) {
+    const std::lock_guard lock(mutex_);
+    family_ = family;
+}
+
+void Connection::set_region(const std::string& region) {
+    const std::lock_guard lock(mutex_);
+    region_ = region;
+}
+
+std::string Connection::game_server() const {
+    const std::lock_guard lock(via_mutex_);
+    return via_;
+}
+
 void Connection::start_thread(const std::string& host, int port, Mode mode) {
     embedded_ = nullptr;
+    server_link_ = mode == Mode::kServer;
+    plain_ = false;
+    {
+        const std::lock_guard lock(via_mutex_);
+        via_.clear();
+    }
     address_ = (host.find(':') != std::string::npos ? "[" + host + "]" : host) + ":"
                + std::to_string(port);
     host_name_ = host;
@@ -235,6 +267,10 @@ void Connection::close() {
     mode_ = Mode::kNone;
     address_.clear();
     state_ = State::kIdle;
+    {
+        const std::lock_guard lock(via_mutex_);
+        via_.clear();
+    }
 }
 
 void Connection::connect_server(const std::string& host, int port) {
@@ -453,7 +489,30 @@ void Connection::run() {
     // Connect, serve the connection while it lasts, wait, and again, until stopped.
     while (!stop_.load()) {
         state_ = State::kConnecting;
-        const socket_t fd = connect_to(host_name_, port_, stop_);
+        socket_t fd = connect_to(host_name_, port_, stop_);
+
+        // A server link's address may be the hub: asked first, on a connection of its own.
+        if (fd != kNoSocket && server_link_ && !plain_) {
+            std::string host;
+            int port = 0;
+            const Probe found = probe(static_cast<std::intptr_t>(fd), host, port);
+            close_socket(fd);
+            fd = kNoSocket;
+
+            // A game server: played on as ever, on a connection of its own.
+            if (found == Probe::kPlain) {
+                plain_ = true;
+                fd = connect_to(host_name_, port_, stop_);
+            } else if (found == Probe::kHub) {
+                // The hub's pick: the game server's own connection.
+                {
+                    const std::lock_guard lock(via_mutex_);
+                    via_ = (host.find(':') != std::string::npos ? "[" + host + "]" : host) + ":"
+                           + std::to_string(port);
+                }
+                fd = connect_to(host, port, stop_);
+            }
+        }
 
         // Connected: a new session on the server.
         if (fd != kNoSocket) {
@@ -473,6 +532,103 @@ void Connection::run() {
         std::unique_lock lock(mutex_);
         wake_.wait_for(lock, std::chrono::milliseconds(kRetryMs), [this] { return stop_.load(); });
     }
+}
+
+Connection::Probe Connection::probe(std::intptr_t handle, std::string& host, int& port) {
+    const auto fd = static_cast<socket_t>(handle);
+    std::string version;
+    std::string name;
+    std::string family;
+    std::string region;
+    {
+        const std::lock_guard lock(mutex_);
+        version = hello_version_;
+        name = hello_name_;
+        family = family_;
+        region = region_;
+    }
+
+    // HELLO with no bits: neither a hub nor a game server keeps this connection's slot.
+    if (!write_all(fd, hello(version, name, 0))) {
+        return Probe::kFailed;
+    }
+
+    FrameReader frames;
+    std::uint8_t chunk[kReadChunkBytes];
+    bool greeted = false;
+    bool hub = false;
+    auto deadline = static_cast<std::int64_t>(now_ms()) + kProbeMs;
+
+    // Until the answers are in, the time is up or the thread is stopped.
+    while (!stop_.load()) {
+        const auto now = static_cast<std::int64_t>(now_ms());
+
+        // The time is up: a greeting without an offer is a server from before offers; a hub
+        // that has not listed its servers is no use yet.
+        if (now >= deadline) {
+            return greeted && !hub ? Probe::kPlain : Probe::kFailed;
+        }
+
+        const auto slice = static_cast<int>(std::min<std::int64_t>(deadline - now, kSliceMs * 5));
+
+        // Nothing yet: look again (wait returns within its slice for a stop).
+        if (!wait(fd, false, slice, stop_)) {
+            continue;
+        }
+
+        const auto n = recv(fd, reinterpret_cast<char*>(chunk), static_cast<int>(sizeof chunk), 0);
+
+        // Closed or failed before it said what it is.
+        if (n <= 0) {
+            return Probe::kFailed;
+        }
+
+        frames.feed(chunk, static_cast<std::size_t>(n));
+        Bytes body;
+
+        // Every whole frame.
+        while (frames.next(body)) {
+            Message m;
+
+            // A frame this client does not know is passed over, as on the game's link.
+            if (!decode(body, m)) {
+                continue;
+            }
+
+            // The HELLO answer: the offer follows at once, if it comes.
+            if (m.kind == Message::Kind::kHello) {
+                greeted = true;
+                deadline = std::min(deadline, static_cast<std::int64_t>(now_ms()) + kOfferMs);
+            } else if (m.kind == Message::Kind::kUdp) {
+                // A game server's offer: play there.
+                if ((m.features & kFeatureServers) == 0) {
+                    return Probe::kPlain;
+                }
+
+                // The hub: its list of game servers, for this game.
+                hub = true;
+
+                // The request goes, or the hub is gone.
+                if (!write_all(fd, regions(family))) {
+                    return Probe::kFailed;
+                }
+
+                deadline = static_cast<std::int64_t>(now_ms()) + kProbeMs;
+            } else if (m.kind == Message::Kind::kRegions) {
+                return pick_server(m.servers, region, host_name_, host, port) ? Probe::kHub
+                                                                              : Probe::kNoServer;
+            } else if (m.kind == Message::Kind::kError) {
+                return Probe::kFailed;
+            }
+        }
+
+        // A length no server sends.
+        if (frames.broken()) {
+            return Probe::kFailed;
+        }
+    }
+
+    return Probe::kFailed;
 }
 
 void Connection::serve(std::intptr_t handle) {

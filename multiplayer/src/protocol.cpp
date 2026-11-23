@@ -265,6 +265,54 @@ Bytes time(std::int64_t client_ms) {
     return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kTime)).i64(client_ms).bytes());
 }
 
+Bytes regions(const std::string& family) {
+    return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kRegions)).str(family).bytes());
+}
+
+bool pick_server(
+    const std::vector<ListedServer>& servers,
+    const std::string& region,
+    const std::string& hub_host,
+    std::string& host,
+    int& port
+) {
+    const auto lower = [](std::string text) {
+        std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
+            return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
+        });
+        return text;
+    };
+    const ListedServer* chosen = nullptr;
+
+    // The region asked for, the first of it listed.
+    for (const ListedServer& s : servers) {
+        // Only a server players can reach counts.
+        if (s.port < 1 || s.port > 65535) {
+            continue;
+        }
+
+        // The first reachable one is the choice when no region matches.
+        if (chosen == nullptr) {
+            chosen = &s;
+        }
+
+        // A region named and listed wins over the first.
+        if (!region.empty() && lower(s.region) == lower(region)) {
+            chosen = &s;
+            break;
+        }
+    }
+
+    // Nothing listed that a game can reach.
+    if (chosen == nullptr) {
+        return false;
+    }
+
+    host = chosen->host.empty() ? hub_host : chosen->host;
+    port = chosen->port;
+    return !host.empty();
+}
+
 bool decode(const Bytes& body, Message& out) {
     out = Message{};
     Reader r(body.data(), body.size());
@@ -316,6 +364,22 @@ bool decode(const Bytes& body, Message& out) {
             out.features = r.left() > 0 ? r.u8() : 0;
             out.resume_token = r.left() >= 8 ? r.i64() : 0;
             return r.ok();
+        case PacketId::kRegions: {
+            out.kind = Message::Kind::kRegions;
+            const std::uint8_t count = r.u8();
+
+            // Each game server: its region, host, port and players.
+            for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
+                ListedServer s;
+                s.region = r.str();
+                s.host = r.str();
+                s.port = r.i32();
+                s.players = r.i32();
+                out.servers.push_back(std::move(s));
+            }
+
+            return r.ok();
+        }
         case PacketId::kParty:
             break;
         default:
@@ -573,6 +637,19 @@ Bytes datagram_state_from(std::int32_t sender, const Bytes& payload) {
         .i32(sender)
         .raw(payload)
         .bytes();
+}
+
+Bytes regions_reply(const std::vector<ListedServer>& servers) {
+    const std::size_t count = std::min<std::size_t>(servers.size(), 255);
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(PacketId::kRegions)).u8(static_cast<std::uint8_t>(count));
+
+    // Each as the hub's Region.serialize writes it.
+    for (std::size_t i = 0; i < count; ++i) {
+        w.str(servers[i].region).str(servers[i].host).i32(servers[i].port).i32(servers[i].players);
+    }
+
+    return frame(w.bytes());
 }
 
 Request decode_request(const Bytes& body) {

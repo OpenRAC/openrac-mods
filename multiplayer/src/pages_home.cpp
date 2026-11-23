@@ -135,6 +135,9 @@ void show_pause() {
     // A hosting game says its port; a joining one, the address it joined.
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
         in.where = text("port ") + std::to_string(g->connection->hosting().port);
+    } else if (const std::string via = g->connection->game_server(); !via.empty()) {
+        // Through a hub: the game server it gave.
+        in.where = via;
     } else {
         in.where = g->connection->address();
     }
