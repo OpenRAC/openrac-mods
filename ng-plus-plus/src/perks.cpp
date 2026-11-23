@@ -59,17 +59,22 @@ int watched_item(int moby_class) {
     return -1;
 }
 
-// The shield's zaps, the Visibomb's trail and the Tesla Claw's storm: ticks apart.
-constexpr std::uint32_t kShieldZapTicks = 60;
-constexpr std::uint32_t kTrailTicks = 15;
-constexpr std::uint32_t kStormTicks = 20;
+// The shield's zaps, the Visibomb's trail and the Tesla Claw's storm: ticks apart. Every time in
+// NG++ is in sixtieths of a second (NTSC-U's ticks), turned into the disc's ticks where it is used
+// (GameView::ticks): PAL's game ticks fifty times a second.
+constexpr int kShieldZapTicks = 60;
+constexpr int kTrailTicks = 15;
+constexpr int kStormTicks = 20;
 
 // The Zodiac's Omega fields: at most this many from one pulse, on the enemies nearest the gun.
 constexpr int kZodiacFieldsMost = 8;
 
 // A fire-path meteor's splash and storm count rest this long on one enemy (the lingering blobs
 // hit every few ticks).
-constexpr std::uint32_t kSplashRestTicks = 6;
+constexpr int kSplashRestTicks = 6;
+
+// A freeze comes again only this long after the last one thawed.
+constexpr int kRefreezeTicks = 60;
 
 // The Ice Gun's shatter glow on a dying enemy.
 constexpr std::uint32_t kShatterRgb = 0xD0F0FFu;
@@ -313,7 +318,7 @@ void Perks::hit(
         return;
     }
 
-    m_cooldown[n] = m_tick + static_cast<std::uint32_t>(perk.cooldown);
+    m_cooldown[n] = m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.cooldown));
     ++m_count[n];
     const bool nth = perk.nth > 0 && m_count[n] % static_cast<std::uint32_t>(perk.nth) == 0;
 
@@ -352,7 +357,7 @@ void Perks::apply(const HitPerk& perk, const ScannedMoby& victim, float damage, 
 
         // Slowed or stunned by it (1.29).
         if (perk.status != Status::None && m_shots != nullptr) {
-            m_shots->status(next->slot, perk.status, perk.status_ticks);
+            m_shots->status(next->slot, perk.status, m_view.ticks(perk.status_ticks));
         }
 
         from = next->position;
@@ -406,7 +411,7 @@ void Perks::apply(const HitPerk& perk, const ScannedMoby& victim, float damage, 
             const ScannedMoby* at = m_scan.find(moby);
 
             if (perk.status != Status::None && m_shots != nullptr && at != nullptr) {
-                m_shots->status(at->slot, perk.status, perk.status_ticks);
+                m_shots->status(at->slot, perk.status, m_view.ticks(perk.status_ticks));
             }
         }
 
@@ -471,8 +476,8 @@ void Perks::apply(const HitPerk& perk, const ScannedMoby& victim, float damage, 
                 victim.position,
                 perk.field_radius,
                 damage * perk.field_share,
-                m_tick + static_cast<std::uint32_t>(perk.field_ticks),
-                m_tick + static_cast<std::uint32_t>(kFieldPulseTicks)
+                m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.field_ticks)),
+                m_tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks))
             }
         );
     }
@@ -499,13 +504,15 @@ void Perks::chill(const ScannedMoby& victim, int tier, float damage) {
     f.tier = tier;
     f.last_hit = damage;
     f.chill_every = ice.chill_every;
-    f.chill_until = std::max(f.chill_until, m_tick + static_cast<std::uint32_t>(ice.chill_ticks));
+    f.chill_until =
+        std::max(f.chill_until, m_tick + static_cast<std::uint32_t>(m_view.ticks(ice.chill_ticks)));
     bool fresh = false;
 
     // Frozen solid from Epsilon, a fresh freeze only once the last one has thawed into its chill,
     // so a stream holds it slowed, frozen again and again, never for good.
-    if (ice.freeze_ticks > 0 && m_tick >= f.freeze_until + 60u) {
-        f.freeze_until = m_tick + static_cast<std::uint32_t>(ice.freeze_ticks);
+    if (ice.freeze_ticks > 0
+        && m_tick >= f.freeze_until + static_cast<std::uint32_t>(m_view.ticks(kRefreezeTicks))) {
+        f.freeze_until = m_tick + static_cast<std::uint32_t>(m_view.ticks(ice.freeze_ticks));
         fresh = true;
     }
 
@@ -514,11 +521,11 @@ void Perks::chill(const ScannedMoby& victim, int tier, float damage) {
 
     // The status (OpenRAC 1.29): frozen solid, else slowed, renewed while the chill lasts.
     if (statuses && fresh) {
-        m_shots->status(f.slot, Status::Freeze, ice.freeze_ticks);
+        m_shots->status(f.slot, Status::Freeze, m_view.ticks(ice.freeze_ticks));
         f.slowed_until = 0;
     } else if (
         statuses && !frozen
-        && f.slowed_until < m_tick + static_cast<std::uint32_t>(ice.chill_ticks / 2)
+        && f.slowed_until < m_tick + static_cast<std::uint32_t>(m_view.ticks(ice.chill_ticks / 2))
     ) {
         slow(f);
     }
@@ -556,7 +563,7 @@ void Perks::ignite(const ScannedMoby& victim, int tier, float damage, bool splas
     if (fresh || b.moby_class != victim.moby_class) {
         b = Burning{};
         b.moby_class = victim.moby_class;
-        b.next = m_tick + static_cast<std::uint32_t>(kBurnPulseTicks);
+        b.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kBurnPulseTicks));
         draw(victim.address, fire.energy, kBurningRgb);
     }
 
@@ -566,7 +573,7 @@ void Perks::ignite(const ScannedMoby& victim, int tier, float damage, bool splas
         m_mod.info("first meteor burn: tier " + std::to_string(tier));
     }
 
-    b.until = m_tick + static_cast<std::uint32_t>(fire.burn_ticks);
+    b.until = m_tick + static_cast<std::uint32_t>(m_view.ticks(fire.burn_ticks));
     b.pulse = std::max(b.pulse, damage * fire.burn_share);
     b.last_hit = std::max(b.last_hit, damage);
     b.tier = tier;
@@ -576,7 +583,7 @@ void Perks::ignite(const ScannedMoby& victim, int tier, float damage, bool splas
         return;
     }
 
-    b.splash_next = m_tick + kSplashRestTicks;
+    b.splash_next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kSplashRestTicks));
 
     // The splash of magma: the enemies around the impact, set on fire too.
     if (fire.splash_radius > 0.0f) {
@@ -638,7 +645,7 @@ void Perks::burn() {
 
         // A pulse of the burn.
         if (m_tick >= b.next && m_budget > 0) {
-            b.next = m_tick + static_cast<std::uint32_t>(kBurnPulseTicks);
+            b.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kBurnPulseTicks));
             post(moby, b.pulse);
         }
 
@@ -763,7 +770,7 @@ void Perks::death(std::uint32_t moby) {
         if (stage_now(held) != Stage::None && ++m_kills >= kOverdriveKills) {
             m_kills = 0;
             m_overdrive_item = held;
-            m_overdrive_until = m_tick + static_cast<std::uint32_t>(kOverdriveTicks);
+            m_overdrive_until = m_tick + static_cast<std::uint32_t>(m_view.ticks(kOverdriveTicks));
             const WeaponView weapon = m_weapons.weapon(held);
             const std::string text = "Overdrive: " + m_weapons.name_at(held, weapon.level);
             m_mod.api().play_notice(m_mod.handle(), text.c_str());
@@ -885,13 +892,13 @@ void Perks::watch() {
 
         // The shield zaps the nearest enemies every second from Epsilon.
         if (item == 45 && stage >= Stage::Epsilon && m_tick >= w.next && m_reference > 0.0f) {
-            w.next = m_tick + kShieldZapTicks;
+            w.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kShieldZapTicks));
             burst(w.at, 8.0f, m_reference * 0.6f, 0, stage == Stage::Omega ? 3 : 1);
         }
 
         // The Visibomb's missile burns a trail from Gamma.
         if (item == 14 && stage != Stage::None && m_tick >= w.next && m_reference > 0.0f) {
-            w.next = m_tick + kTrailTicks;
+            w.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kTrailTicks));
             burst(w.at, 3.0f, m_reference * 0.3f, 0);
         }
 
@@ -923,8 +930,8 @@ void Perks::watch() {
                             next->position,
                             perk.field_radius,
                             hit * perk.field_share,
-                            m_tick + static_cast<std::uint32_t>(perk.field_ticks),
-                            m_tick + static_cast<std::uint32_t>(kFieldPulseTicks)
+                            m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.field_ticks)),
+                            m_tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks))
                         }
                     );
                 }
@@ -940,7 +947,7 @@ void Perks::watch() {
                                                         : m_reference;
 
         if (item == 18 && stage == Stage::Omega && m_tick >= w.next && claw_hit > 0.0f) {
-            w.next = m_tick + kStormTicks;
+            w.next = m_tick + static_cast<std::uint32_t>(m_view.ticks(kStormTicks));
             const std::vector<std::uint32_t> hit =
                 burst(hero_position(), 10.0f, claw_hit * 1.5f, 0, 1);
 
@@ -1051,7 +1058,7 @@ void Perks::tick(std::uint32_t tick) {
     watch();
 
     // A summary for a player's log, about once a minute when the perks acted.
-    if (tick >= m_summary_tick + 3600u) {
+    if (tick >= m_summary_tick + static_cast<std::uint32_t>(m_view.ticks(3600))) {
         m_summary_tick = tick;
         const Shots::Counts shots = m_shots != nullptr ? m_shots->take_counts() : Shots::Counts{};
 
@@ -1140,7 +1147,7 @@ void Perks::tick(std::uint32_t tick) {
 
         // A pulse.
         if (tick >= it->next) {
-            it->next = tick + static_cast<std::uint32_t>(kFieldPulseTicks);
+            it->next = tick + static_cast<std::uint32_t>(m_view.ticks(kFieldPulseTicks));
             burst(it->at, it->radius, it->damage, 0);
         }
 

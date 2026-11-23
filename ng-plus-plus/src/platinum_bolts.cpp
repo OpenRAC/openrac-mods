@@ -346,7 +346,7 @@ void PlatinumBolts::tick() {
 
     // About once a minute of play, every bolt the mod paid since, when it paid any: the first few
     // drops alone are logged one by one.
-    if (++m_summary.ticks >= kSummaryTicks) {
+    if (++m_summary.ticks >= m_view.ticks(kSummaryTicks)) {
         const Summary& s = m_summary;
 
         // Something paid.

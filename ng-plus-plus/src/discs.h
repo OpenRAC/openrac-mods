@@ -22,6 +22,9 @@
 
 namespace ng_plus_plus {
 
+// The ticks a second NG++'s times are written in (NTSC-U's).
+inline constexpr int kSixtieths = 60;
+
 // The game's addresses and functions on one disc.
 struct Disc {
     const char* version;         // openrac_api.version.
@@ -41,6 +44,7 @@ struct Disc {
     std::int32_t upgrade_label;  // The text id of "Mega" under an upgrade entry (func_002F9C80).
     std::int32_t crystal_trade;  // The text id of Tabora's crystal trade (its level's code).
     std::int32_t moonstone_trade;  // The text id of Grelbin's moonstone trade (its level's code).
+    int tick_rate;               // The game's ticks a second: PAL's code counts in fiftieths.
 };
 
 // clang-format off: one disc per row, the columns in the order of Disc's members.
@@ -48,13 +52,13 @@ struct Disc {
 inline constexpr Disc kDiscs[] = {
     {"ntsc",  0x00239BA0u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7AF8u, 0x00189E20u,
      0x0021F240u, 0x001A7360u, "func_00288FB8", 0x001A79F8u, "func_00288E18", "func_002B0A18",
-     "func_L00_0037E6A8", 0x325F, 10135, 10209},
+     "func_L00_0037E6A8", 0x325F, 10135, 10209, 60},
     {"pal",   0x00239BA0u, 0x001395E8u, 0x001398E8u, 0x00139708u, 0x001A7B80u, 0x00189EA0u,
      0x0021F240u, 0x001A73E0u, "func_002898E8", 0x001A7A80u, "func_00289730", "func_002B1588",
-     "func_L00_003813E0", 0x1B2D, 4841, 4915},
+     "func_L00_003813E0", 0x1B2D, 4841, 4915, 50},
     {"ntsc2", 0x00239B20u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7B00u, 0x00189E20u,
      0x0021F1C0u, 0x001A7360u, "func_002899F8", 0x001A7A00u, "func_00289840", "func_002B1880",
-     "func_L00_0037FB10", 0x30F5, 4841, 4915},
+     "func_L00_0037FB10", 0x30F5, 4841, 4915, 60},
 };
 // clang-format on
 
@@ -241,5 +245,35 @@ inline constexpr HitSource kHitSources[] = {
     {3800u, 9u},   // Clank Zapper's beam: its update (L00_0040BA30) posts the hit as itself
 };
 // clang-format on
+
+// NG++'s times are written in sixtieths of a second, NTSC-U's ticks; PAL's game ticks fifty times
+// a second. Returns `sixtieths` in ticks of a game that ticks `rate` times a second, rounded to the
+// nearest, and at least 1 when `sixtieths` is.
+constexpr int ticks_at(int rate, int sixtieths) {
+    if (sixtieths <= 0 || rate == kSixtieths) {
+        return sixtieths;
+    }
+
+    const int ticks = (sixtieths * rate + kSixtieths / 2) / kSixtieths;
+    return ticks > 0 ? ticks : 1;
+}
+
+// Returns tick count `ticks` of a game that ticks `rate` times a second in sixtieths of a second:
+// what the animated colours, written in sixtieths, take for their clock.
+constexpr std::uint32_t sixtieths_at(int rate, std::uint32_t ticks) {
+    return rate == kSixtieths || rate <= 0
+               ? ticks
+               : static_cast<std::uint32_t>(
+                     static_cast<std::uint64_t>(ticks) * kSixtieths / static_cast<unsigned>(rate)
+                 );
+}
+
+// Returns a speed of `per_sixtieth` units a sixtieth of a second in units a tick of a game that
+// ticks `rate` times a second.
+constexpr float per_tick_at(int rate, float per_sixtieth) {
+    return rate == kSixtieths || rate <= 0
+               ? per_sixtieth
+               : per_sixtieth * static_cast<float>(kSixtieths) / static_cast<float>(rate);
+}
 
 }  // namespace ng_plus_plus

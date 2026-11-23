@@ -894,10 +894,22 @@ void test_discs() {
     CHECK(ntsc2->upgrade_label == 0x30F5);
     CHECK(ntsc->crystal_trade == 10135 && pal->crystal_trade == 4841);
     CHECK(ntsc2->moonstone_trade == 4915);
+    CHECK(ntsc->tick_rate == 60 && pal->tick_rate == 50 && ntsc2->tick_rate == 60);
+}
+
+// NG++'s times, in sixtieths, in a disc's ticks: PAL's fiftieths.
+void test_ticks() {
+    using namespace ng_plus_plus;
+    CHECK(ticks_at(60, 600) == 600 && ticks_at(50, 600) == 500);
+    CHECK(ticks_at(50, 15) == 13 && ticks_at(50, 6) == 5 && ticks_at(50, 1) == 1);
+    CHECK(ticks_at(50, 0) == 0);
+    CHECK(sixtieths_at(50, 50) == 60u && sixtieths_at(60, 77) == 77u);
+    CHECK(std::fabs(per_tick_at(50, 0.6f) - 0.72f) < 1e-6f && per_tick_at(60, 0.6f) == 0.6f);
 }
 
 int main() try {
     test_discs();
+    test_ticks();
     test_kinds();
     test_copy_table();
     test_buy_then_level();

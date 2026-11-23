@@ -119,6 +119,19 @@ public:
 
     std::int32_t moonstone_trade_text() const { return m_disc.moonstone_trade; }
 
+    // ---- Time: NG++'s times are in sixtieths of a second (discs.h) ----
+
+    // Returns `sixtieths` in the game's ticks on this disc (PAL's are fiftieths).
+    int ticks(int sixtieths) const { return ticks_at(m_disc.tick_rate, sixtieths); }
+
+    // Returns tick count `ticks` in sixtieths of a second.
+    std::uint32_t sixtieths(std::uint32_t ticks) const {
+        return sixtieths_at(m_disc.tick_rate, ticks);
+    }
+
+    // Returns a speed of `per_sixtieth` units a sixtieth of a second in units a tick.
+    float per_tick(float per_sixtieth) const { return per_tick_at(m_disc.tick_rate, per_sixtieth); }
+
     // ---- The items ----
 
     // Returns row `index` of the item table.

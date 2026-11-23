@@ -52,7 +52,7 @@ void Armour::hurt(std::int32_t amount) {
     // The last stand: a hit that ended him leaves 1 point, once in a while.
     if (perk.last_stand_ticks > 0 && m_view.hero_health() <= 0 && m_tick >= m_last_stand_ready) {
         m_view.set_hero_health(1);
-        m_last_stand_ready = m_tick + static_cast<std::uint32_t>(perk.last_stand_ticks);
+        m_last_stand_ready = m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.last_stand_ticks));
         m_mod.info("last stand: the armour kept Ratchet at 1 point");
         m_mod.api().play_notice(m_mod.handle(), "Last stand!");
     }
@@ -68,7 +68,7 @@ std::int32_t Armour::spare(std::int32_t points) {
         return points;
     }
 
-    m_last_stand_ready = m_tick + static_cast<std::uint32_t>(perk.last_stand_ticks);
+    m_last_stand_ready = m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.last_stand_ticks));
     m_mod.info("last stand: the armour kept Ratchet at 1 point");
     m_mod.api().play_notice(m_mod.handle(), "Last stand!");
     return health - 1;
@@ -107,7 +107,7 @@ void Armour::tick(std::uint32_t tick) {
         return;
     }
 
-    const std::optional<std::uint32_t> rgb = armour_rgb(now, tick);
+    const std::optional<std::uint32_t> rgb = armour_rgb(now, m_view.sixtieths(tick));
     const bool same = m_drawn_moby == hero && m_drawn_tier == now && rgb && m_drawn_rgb == *rgb;
 
     // The same look as sent (Omega's cycle moves every other tick only).
