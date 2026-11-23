@@ -400,7 +400,7 @@ The Rilgar bouncer uses `Triangle: Bribe Bouncer with 4,000 bolts to get <reward
 The cost and insufficient-bolts message stay native; the name comes from his
 coordinate-reward location (or its vanilla reward when not shuffled).
 
-The reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools.
+The reward-presentation engine includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special rewards use their native Items-menu icons. These display profiles do not add special items to the shuffle pools. With Shuffle items on, Drek's Fleet's CodeBot pickup shows the model of its randomized reward until it is collected.
 
 ### Reward display options
 

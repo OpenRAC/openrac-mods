@@ -209,7 +209,8 @@ are probed at runtime: `rac1.vendor.draw_icons`, `rac1.vendor.draw_details`,
 includes the approved Zoomerator, Raritanium, Codebot, Premium Nanotech and Ultra Nanotech
 profiles for vendors, world pickups, Infobot pickups and gold cases. Same-game special
 rewards use their native Items-menu icons. These display profiles do not add special
-items to the shuffle pools.
+items to the shuffle pools. Drek's Fleet's CodeBot pickup shows the model of its scouted
+reward until it is collected.
 
 ### Saves during NPC rewards
 
