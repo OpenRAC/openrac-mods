@@ -72,9 +72,20 @@ void test_buy_then_level() {
 
 // Checks that bought last versions need mastering first.
 void test_mastery() {
-    CHECK(!can_buy(Kind::Two, 0, true, kMasteryExp - 1));
-    CHECK(can_buy(Kind::Two, 0, true, kMasteryExp));
-    CHECK(!can_buy(Kind::Single, 0, true, 0));
+    // Alpha of a two-version weapon and the Zodiac comes by experience: a full bar levels up.
+    for (const Kind kind : {Kind::Two, Kind::Single}) {
+        CHECK(step_at(kind, 0)->how == How::Exp);
+        CHECK(!can_buy(kind, 0, true, 1'000'000));
+        CHECK(!exp_reached(kind, 0, true, kMasteryExp - 1));
+        CHECK(exp_reached(kind, 0, true, kMasteryExp));
+        CHECK(!exp_reached(kind, 0, false, kMasteryExp));
+        CHECK(exp_goal(kind, 0) == kMasteryExp);
+        CHECK(std::string(step_at(kind, 0)->name) == "Alpha");
+        CHECK(!can_buy(kind, 1, true, 1'000'000));  // Beta by experience, Gamma bought
+        CHECK(exp_reached(kind, 1, true, 8'000));
+        CHECK(can_buy(kind, 2, true, 0));
+        CHECK(price(kind, 0, 0) == 0);
+    }
     CHECK(can_buy(Kind::Zapper, 0, true, 0));  // V2 came by experience
 }
 
@@ -150,7 +161,7 @@ void test_prices() {
     CHECK(price(Kind::Four, 4, 150'000) == 600'000);
     CHECK(price(Kind::Four, 6, 150'000) == 900'000);
     CHECK(price(Kind::Four, 0, 375'000) == 565'000);
-    CHECK(price(Kind::Two, 0, 1'000) == 225'000);          // the floor
+    CHECK(price(Kind::Two, 2, 1'000) == 375'000);          // the floor, Gamma (Alpha is by exp)
     CHECK(price(Kind::Ryno, 0, 1'000'000) == 0);           // Heavy: by experience
     CHECK(price(Kind::Ryno, 1, 1'000'000) == 6'000'000);   // Alpha
     CHECK(price(Kind::Ryno, 3, 1'000'000) == 10'000'000);  // Gamma

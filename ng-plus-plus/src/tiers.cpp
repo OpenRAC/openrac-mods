@@ -27,6 +27,21 @@ constexpr Step kTierSteps[kTiers] = {
 // clang-format on
 
 // clang-format off: one step per row, as kTierSteps.
+// The eight tiers of a weapon whose last real version is bought (Kind::Two, Kind::Single): Alpha
+// by experience, kMasteryExp more at that version, then as kTierSteps. A full bar levels it up.
+constexpr Step kMasterySteps[kTiers] = {
+    {"Alpha",   How::Exp, kMasteryExp, 1.50f, 1.10f, Tint::Lime},
+    {"Beta",    How::Exp, 8'000,       2.00f, 1.20f, Tint::Cyan},
+    {"Gamma",   How::Buy, 0,           2.50f, 1.30f, Tint::Emerald},
+    {"Delta",   How::Exp, 12'000,      3.00f, 1.40f, Tint::Teal},
+    {"Epsilon", How::Buy, 0,           3.75f, 1.50f, Tint::Violet},
+    {"Zeta",    How::Exp, 16'000,      4.50f, 1.60f, Tint::Magenta},
+    {"Eta",     How::Buy, 0,           5.50f, 1.80f, Tint::Crimson},
+    {"Omega",   How::Exp, 24'000,      7.00f, 2.00f, Tint::Prismatic},
+};
+// clang-format on
+
+// clang-format off: one step per row, as kTierSteps.
 // The eight tiers of a weapon that never earns experience (Kind::NoExp): all bought, the rest as
 // kTierSteps.
 constexpr Step kBoughtSteps[kTiers] = {
@@ -288,6 +303,10 @@ const Step* step_at(Kind kind, int level) {
         return &kRynoSteps[level];
     }
 
+    if (kind == Kind::Two || kind == Kind::Single) {
+        return &kMasterySteps[level];
+    }
+
     return kind == Kind::NoExp ? &kBoughtSteps[level] : &kTierSteps[level];
 }
 
@@ -342,7 +361,8 @@ std::int32_t price(Kind kind, int level, std::int32_t mega) {
     const std::int32_t floored = mega < kPriceFloor ? kPriceFloor : mega;
     const std::int32_t base = mega <= 0 ? kPriceLadder : floored;
     std::int32_t last = mega > 0 ? mega : base;
-    int bought = 0;
+    // Alpha came by experience: the first bought step is the ladder's second.
+    int bought = kind == Kind::Two || kind == Kind::Single ? 1 : 0;
 
     // Each bought step up to this one, so each is priced above the one before.
     for (int n = 0; n <= level; ++n) {

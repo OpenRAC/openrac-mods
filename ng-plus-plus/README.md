@@ -27,6 +27,11 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.7
+
+The Bomb Glove, Visibomb Gun, Tesla Claw, Walloper and Zodiac reach Alpha by XP: a full bar (6,000
+XP) levels them up instead of leaving the bar full with nothing to buy.
+
 ## What's new in 0.6.6
 
 The armor tier's paint is only on Ratchet in normal play while he wears Carbonox and owns a tier:
@@ -170,8 +175,9 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 
 - **Four-version weapons** (Lancer, Chopper, ...): Alpha is for sale as soon as the weapon is V4.
 - **Two-version weapons** (Bomb Glove, Visibomb Gun, Tesla Claw, Walloper) and the **Zodiac**:
-  their last version is bought and the game has no XP level-up after it, so Alpha goes on sale
-  after 6,000 more XP.
+  their last version is bought and the game has no XP level-up after it, so Alpha comes by XP:
+  a full bar (6,000 XP) levels the weapon up to Alpha with the game's level-up popup, then Beta
+  by XP, Gamma bought, and so on as the other weapons.
 - **Decoy Glove**: the game gives XP to the weapon that landed the killing hit, and the decoy deals
   no damage (it only draws fire), so it can never earn XP. All its tiers are bought instead, each
   for sale as soon as you buy the one before: Alpha, Gamma, Epsilon and Eta at the usual prices,
