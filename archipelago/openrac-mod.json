@@ -2,7 +2,7 @@
   "format": 2,
   "id": "archipelago",
   "name": "Archipelago",
-  "version": "2.5.11",
+  "version": "2.5.12",
   "author": "Lynder063",
   "description": "Plays the game in an Archipelago multiworld (archipelago.gg): the gadgets, weapons, vendor slots, gold bolts and infobots are locations, and what they hold may be another player's item, in another game. What the others find for you comes to you as you play. Beat Drek to finish your part. Needs a room made with the rac1.apworld from this mod's release.",
   "license": "GPL-3.0-or-later",
@@ -69,6 +69,7 @@
     "rac1.moby.nanotech_vendor.update",
     "rac1.moby.pokitaru_vendor.update",
     "rac1.moby.class_1035.update",
+    "rac1.moby.moby1105.update",
     "rac1.moby.path_pickup.update",
     "rac1.player.update"
   ],

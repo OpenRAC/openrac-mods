@@ -84,7 +84,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.5.11"
+#define MOD_VERSION "2.5.12"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -682,6 +682,9 @@ static int aridia_reward_collected(void) {
 #include "aridia_access.inc"
 
 static int blarg_o2_access_active(void) { return kerwan_randomizer_active(); }
+static openrac_gaddr blarg_moby_pool(void) {
+    return (openrac_gaddr)get32(level_byte_at(s_disc->moby_base));
+}
 #include "blarg_access.inc"
 #include "pickup_platforms.inc"
 #include "orxon_access.inc"
