@@ -173,7 +173,7 @@ def island_terrain(inside=None):
         k = (c[:, 2] > island.SEA - 14) | (r < 420)
         k[k] = ~inside_rock(c[k], inside)
         return k
-    mesh, _, _ = heightfield_mesh(-120, -120, 1144, 1144, 4, keep)
+    mesh, _, _ = heightfield_mesh(island.GRID_LO, island.GRID_LO, 1144, 1144, island.GRID_STEP, keep)
     return mesh
 
 

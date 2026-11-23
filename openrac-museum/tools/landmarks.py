@@ -8,6 +8,7 @@ import math
 
 import numpy as np
 
+import clutter
 import house
 import island
 import park
@@ -505,6 +506,7 @@ def build(geo: Geo, pictures, mats):
                                     {"position": [0, 0, 0], "move": [0, 0, -1], "distance": 1.5, "speed": 2.6}]}
     build.falls = falls
     layout["vignettes"] = vignettes.place(geo, layout)
+    clutter.place(geo, layout)
     return layout
 
 

@@ -15,7 +15,7 @@ TIES = {"mossy_dark_boulder": 1513, "mossy_dark_rock": 1519, "green_leafy_sprig"
 # Pokitaru's turbine towers, for the town on the far islands (scale as Pokitaru has them).
 TOWERS = [1493, 1487, 1481, 1486, 1485, 1488, 1491, 1492, 1484]
 SHRUBS = {"green_leafy_plant": 307, "white_lily": 308, "green_grass_bush": 369, "yellow_green_fern": 372,
-          "red_fruit": 306, "brown_starfish": 373, "sand_coral_rings": 371}
+          "red_fruit": 306, "brown_starfish": 373, "sand_coral_rings": 371, "flower_patch": 49, "pebbles": 345}
 
 SEA = island.SEA
 C = island.CENTRE
@@ -104,8 +104,8 @@ def plants():
                 out.append(("tie", kind, x + n[0] * 4, y + n[1] * 4, below - 1.5, yaw, float(rng.uniform(0.6, 1.2))))
     # The rock's tops: bushes, ferns and trees on every mesa and stack, so none is a bare lawn.
     added = 0
-    for _ in range(9000):
-        if added >= 320:
+    for _ in range(20000):
+        if added >= 700:
             break
         x, y = rng.uniform(C[0] - 470, C[0] + 470), rng.uniform(C[1] - 470, C[1] + 470)
         top = float(island.rock_top(x, y))
@@ -125,6 +125,7 @@ def plants():
         else:
             out.append(("shrub", SHRUBS["green_grass_bush"], x, y, top, yaw, float(rng.uniform(1.0, 1.6))))
         added += 1
+    out += meadows(rng)
     # Lilies on the lagoon, round the house.
     for _ in range(60):
         a = rng.uniform(0, 360)
@@ -132,6 +133,66 @@ def plants():
         x, y = C[0] + math.cos(math.radians(a)) * r, C[1] + math.sin(math.radians(a)) * r
         if clear(x, y):
             out.append(("shrub", SHRUBS["white_lily"], x, y, SEA + 0.05, float(rng.uniform(0, 360)), 1.0))
+    return out
+
+
+def meadows(rng):
+    """Thick patches of grass, ferns and flowers on the grass, and tufts along the beach's top, so
+    no stretch of ground lies bare: each patch a few Pokitaru plants close round one spot."""
+    out = []
+    grass = [(SHRUBS["green_grass_bush"], 0.5, (0.7, 1.4)), (SHRUBS["yellow_green_fern"], 0.18, (0.8, 1.5)),
+             (SHRUBS["green_leafy_plant"], 0.14, (0.8, 1.3)), (SHRUBS["flower_patch"], 0.08, (0.5, 0.9)),
+             (SHRUBS["white_lily"], 0.04, (0.8, 1.1)), (SHRUBS["red_fruit"], 0.03, (0.8, 1.0)),
+             (SHRUBS["pebbles"], 0.03, (0.8, 1.2))]
+    kinds = [g[0] for g in grass]; p = np.array([g[1] for g in grass]); p /= p.sum()
+    sizes = {g[0]: g[2] for g in grass}
+    centres = 0
+    for _ in range(30000):
+        if centres >= 1100:
+            break
+        x, y = rng.uniform(C[0] - 330, C[0] + 330), rng.uniform(C[1] - 330, C[1] + 340)
+        if not clear(x, y):
+            continue
+        z = float(island.height(x, y))
+        if z < SEA + 3.8 or island.normal(x, y)[2] < 0.86:
+            continue
+        on_sand = z < SEA + 4.6
+        centres += 1
+        for _ in range(int(rng.integers(2, 5) if on_sand else rng.integers(3, 8))):
+            q = np.array([x, y]) + rng.normal(0, 1.4, 2)
+            if not clear(*q):
+                continue
+            gz = float(island.height(*q))
+            if gz < SEA + 3.6 or island.normal(*q)[2] < 0.82:
+                continue
+            k = SHRUBS["green_grass_bush"] if on_sand else int(rng.choice(kinds, p=p))
+            lo, hi = sizes[k]
+            out.append(("shrub", k, float(q[0]), float(q[1]), gz, float(rng.uniform(0, 360)), float(rng.uniform(lo, hi))))
+        # Now and then a tree or a bush over the patch.
+        if not on_sand and rng.random() < 0.1:
+            kind = TIES["leafy_tree"] if rng.random() < 0.6 else TIES["round_bush"]
+            out.append(("tie", kind, x, y, z - 0.4, float(rng.uniform(0, 360)), float(rng.uniform(0.9, 1.5))))
+    # The beach: pebbles, shells, starfish and tufts of beach grass here and there.
+    beach = [(SHRUBS["pebbles"], (0.7, 1.2)), (SHRUBS["brown_starfish"], (0.9, 1.1)),
+             (SHRUBS["sand_coral_rings"], (0.8, 1.2)), (SHRUBS["green_grass_bush"], (0.4, 0.7))]
+    spots = 0
+    for _ in range(20000):
+        if spots >= 600:
+            break
+        x, y = rng.uniform(C[0] - 330, C[0] + 330), rng.uniform(C[1] - 330, C[1] + 340)
+        if not clear(x, y):
+            continue
+        z = float(island.height(x, y))
+        if not (SEA + 0.6 < z < SEA + 4.0) or island.normal(x, y)[2] < 0.9:
+            continue
+        spots += 1
+        for _ in range(int(rng.integers(1, 4))):
+            q = np.array([x, y]) + rng.normal(0, 1.0, 2)
+            gz = float(island.height(*q))
+            if gz < SEA + 0.4:
+                continue
+            k, (lo, hi) = beach[int(rng.integers(len(beach)))]
+            out.append(("shrub", k, float(q[0]), float(q[1]), gz, float(rng.uniform(0, 360)), float(rng.uniform(lo, hi))))
     return out
 
 

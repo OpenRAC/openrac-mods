@@ -32,7 +32,7 @@ KEEP_CLASSES = {0, 11, 832, 1111}
 VENDOR = 11
 # Pokitaru mobys to copy: one of each class is kept as the model for the copies.
 TEMPLATES = {"gold_bolt": 1134, "bolt_crate": 500, "swing_target": 758, "swing_swinging": 803,
-             "lamp": 1859, "nanotech_crate": 501, "ammo_crate": 511,
+             "lamp": 1859, "nanotech_crate": 501, "ammo_crate": 511, "bolt": 13, "bolt_hexnut": 14,
              "puffoid": 1246, "psytcopus": 1231, "sandmouse_house": 604, "sandmouse": 1818}
 # Enemies: their models are not kept under the sea (they would live there); only their copies are
 # placed. The sandmouse stays, far off: the houses make sandmice of its class.

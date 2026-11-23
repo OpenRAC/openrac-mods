@@ -37,7 +37,7 @@ def flat_spot(x, y, r):
     zs = [float(island.height(x + dx, y + dy)) for dx, dy in ((0, 0), (r, 0), (-r, 0), (0, r), (0, -r))]
     if max(zs) - min(zs) > 1.2:
         return None
-    return float(np.mean(zs))
+    return zs[0]            # the middle's own height: the scene stands on it, not over a hollow
 
 
 # --- the little scenes (each at P = (x, y), ground Z, turned YAW degrees) ---

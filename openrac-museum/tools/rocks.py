@@ -98,21 +98,36 @@ def recipe():
                          "shore": "textures/om_wet_sand.png"}}
 
 
-def top_raster(V, F, cell=1.0, lo=-150.0, size=1400):
-    """The rock's highest upward surface over each CELL (NaN where there is no rock)."""
+def top_raster(V, F, cell=0.5, lo=-150.0, size=2800):
+    """The rock's highest upward surface over each CELL's middle (-inf where there is no rock):
+    each upward triangle is read exactly at the cell middles it covers, so things set on it
+    neither float nor sink."""
     fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
     nz = fn[:, 2] / np.maximum(np.linalg.norm(fn, axis=1), 1e-9)
-    T = V[F[nz > 0.15]]
+    T = V[F[nz > 0.15]].astype(np.float64)
     grid = np.full((size, size), -np.inf, np.float32)
-    w = [(1 / 3, 1 / 3, 1 / 3), (1, 0, 0), (0, 1, 0), (0, 0, 1), (0.5, 0.5, 0), (0, 0.5, 0.5), (0.5, 0, 0.5),
-         (0.66, 0.17, 0.17), (0.17, 0.66, 0.17), (0.17, 0.17, 0.66)]
-    for a, b, c in w:
-        p = T[:, 0] * a + T[:, 1] * b + T[:, 2] * c
-        i = np.clip(((p[:, 0] - lo) / cell).astype(int), 0, size - 1)
-        j = np.clip(((p[:, 1] - lo) / cell).astype(int), 0, size - 1)
-        np.maximum.at(grid, (i, j), p[:, 2].astype(np.float32))
-    # Fill the holes left between samples: a cell takes its neighbours' highest when it has none.
-    pad = np.pad(grid, 1, constant_values=-np.inf)
-    near = np.max([pad[1 + a:size + 1 + a, 1 + b:size + 1 + b] for a in (-1, 0, 1) for b in (-1, 0, 1)], axis=0)
-    grid = np.where(np.isfinite(grid), grid, near)
+    i0 = np.floor((T[:, :, 0].min(1) - lo) / cell - 0.5).astype(int)
+    i1 = np.ceil((T[:, :, 0].max(1) - lo) / cell - 0.5).astype(int)
+    j0 = np.floor((T[:, :, 1].min(1) - lo) / cell - 0.5).astype(int)
+    j1 = np.ceil((T[:, :, 1].max(1) - lo) / cell - 0.5).astype(int)
+    span = np.maximum(i1 - i0, j1 - j0) + 1
+    for n in np.unique(span):
+        sel = np.nonzero(span == n)[0]
+        di, dj = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+        di, dj = di.ravel(), dj.ravel()
+        for c in range(0, len(sel), max(1, 400000 // (n * n))):
+            s = sel[c:c + max(1, 400000 // (n * n))]
+            I = i0[s, None] + di[None]; J = j0[s, None] + dj[None]
+            px = lo + (I + 0.5) * cell; py = lo + (J + 0.5) * cell
+            a, b, cc = T[s, 0], T[s, 1], T[s, 2]
+            v0x = b[:, 0] - a[:, 0]; v0y = b[:, 1] - a[:, 1]
+            v1x = cc[:, 0] - a[:, 0]; v1y = cc[:, 1] - a[:, 1]
+            den = v0x * v1y - v1x * v0y
+            den = np.where(np.abs(den) < 1e-12, 1e-12, den)
+            wx = px - a[:, 0, None]; wy = py - a[:, 1, None]
+            u = (wx * v1y[:, None] - v1x[:, None] * wy) / den[:, None]
+            v = (v0x[:, None] * wy - wx * v0y[:, None]) / den[:, None]
+            ok = (u >= -1e-6) & (v >= -1e-6) & (u + v <= 1 + 1e-6) & (I >= 0) & (J >= 0) & (I < size) & (J < size)
+            z = a[:, 2, None] + u * (b[:, 2] - a[:, 2])[:, None] + v * (cc[:, 2] - a[:, 2])[:, None]
+            np.maximum.at(grid, (I[ok], J[ok]), z[ok].astype(np.float32))
     return {"grid": grid, "lo": lo, "cell": cell}

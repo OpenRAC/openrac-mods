@@ -60,8 +60,11 @@ from the exhibits and the map's `tools/effects.json` by `python3 tools/mod_data.
 
 - A new-planet session starts without a save, so it has no gadgets: start it with your own save,
   or with `--unlock-all-gadgets`.
-- The light is baked (sun, shadows, sky, every torch and lantern), so it costs nothing in the game.
-  A light sea haze softens the far rocks.
+- The light is baked (sun, shadows of the house and the trees, sky, every torch and lantern), so it
+  costs nothing in the game. A light sea haze softens the far rocks.
+- Crates to break and loose bolts lie all over the island (`tools/clutter.py`), with buoys, rafts,
+  old posts and a wreck in the sea. Grass, ferns and flowers grow in patches everywhere
+  (`tools/scatter.py`); all of them are Pokitaru's own.
 - Collision covers where you can walk and where the gadget routes go. The high mountains away from
   the routes have none.
 

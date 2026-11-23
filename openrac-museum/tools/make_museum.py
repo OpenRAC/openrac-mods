@@ -117,6 +117,8 @@ ROCKY = {"om_rock", "om_cliff", "om_basalt", "om_jungle", "om_wet_sand"}
 
 
 MODEL_TINT = 0.58     # the models' colours are half the terrain's scale in the port
+# Pictures too dark for small things on the ground: lit up more (stones read as black holes).
+MODEL_BOOST = {"om_stone": 1.8}
 SUBDIVIDE = 3.0        # model faces split to this size, so their light shows shadows
 
 
@@ -182,7 +184,7 @@ def bake(terrain, t, models=(), lights=()):
         col = tint * warm[None] * patch[:, None]
         p.attrs["COLOR_0"] = np.concatenate([col, np.ones((len(P), 1))], 1)
     args = types.SimpleNamespace(sun=[-35.0, 40.0], region=[230.0, -20.0, 1100.0, 920.0], ao=20, cell=0.9, bias=0.8,
-                                 strength=1.0, ambient=0.22, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.72, 0.7, 0.68],
+                                 strength=1.0, ambient=0.22, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.6, 0.7, 0.86],
                                  bounce_colour=[0.32, 0.27, 0.16], keep_tint=True, lights=list(lights))
     for mt in models:
         for _, _, p in mt.prims():
@@ -191,8 +193,60 @@ def bake(terrain, t, models=(), lights=()):
             strips(p, SUBDIVIDE)
             terrain.subdivide(p, SUBDIVIDE)
             c = p.attrs["COLOR_0"]
-            c[~p.keep, :3] = MODEL_TINT
-    return terrain.bake_light(t, args, models)
+            c[~p.keep, :3] = MODEL_TINT * MODEL_BOOST.get(mt.materials[p.material].get("name", ""), 1.0)
+    result = terrain.bake_light(t, args, models)
+    # Small things on the ground (stones, barrels, logs) are shut in by the ground round them and
+    # come out black: no model part goes darker than a soft shade.
+    for mt in models:
+        for _, _, p in mt.prims():
+            c = p.attrs["COLOR_0"]
+            k = ~p.keep if getattr(p, "keep", None) is not None else np.ones(len(c), bool)
+            c[k, :3] = np.maximum(c[k, :3], MODEL_TINT * 0.5)
+    return result
+
+
+def casters(terrain, out, level_dir):
+    """Pokitaru's trees and Aridia's palms as they stand on the island (scatter), into a model only
+    the bake sees: their shadows fall on the ground. Never saved into the map."""
+    import scatter
+    if level_dir is None:
+        return None
+    ties = Path(level_dir) / "ties"
+    palm = Path(level_dir).parents[1] / "level_02" / "levels" / "level_02" / "ties" / "tie_586.glb"
+    shapes = {}
+
+    def shape(path):
+        if path not in shapes:
+            shapes[path] = None
+            if path.is_file():
+                m = terrain.Terrain(path)
+                parts = [(p.pos + off, p.faces) for _, off, p in m.prims()]
+                if parts:
+                    P = np.concatenate([q for q, _ in parts])
+                    base = np.cumsum([0] + [len(q) for q, _ in parts[:-1]])
+                    shapes[path] = (P, np.concatenate([f + b for (_, f), b in zip(parts, base)]))
+        return shapes[path]
+
+    stand = [(palm, x, y, z, yaw, scale) for x, y, z, yaw, scale in scatter.palms()]
+    stand += [(ties / f"tie_{n}.glb", x, y, z, yaw, scale) for kind, n, x, y, z, yaw, scale in scatter.plants()
+              if kind == "tie" and n in (scatter.TIES["leafy_tree"], scatter.TIES["round_bush"], scatter.TIES["green_leafy_sprig"])]
+    mesh = glb.Mesh()
+    for path, x, y, z, yaw, scale in stand:
+        s = shape(path)
+        if s is None:
+            continue
+        P, F = s
+        c, w = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+        Q = np.stack([P[:, 0] * c - P[:, 1] * w, P[:, 0] * w + P[:, 1] * c, P[:, 2]], 1) * scale + np.array([x, y, z])
+        mesh.add("om_planks_dark", Q.astype(np.float32), np.tile([0, 0, 1.0], (len(Q), 1)),
+                 np.zeros((len(Q), 2), np.float32), np.full((len(Q), 3), 0.5), F)
+    if not mesh.parts:
+        return None
+    path = out / "casters.glb"
+    glb.write(str(path), [mesh], {"om_planks_dark": {"colour": [0.3, 0.3, 0.3, 1]}}, {})
+    model = terrain.Terrain(path)
+    path.unlink()
+    return model
 
 
 def append(terrain, t, path):
@@ -318,7 +372,8 @@ def main(out, disc_textures=None):
     lights = geo.lights + marks.lights + [{"at": [x, y, z + 4.0], "colour": [1.2, 0.95, 0.6], "radius": 9.0}
                                           for x, y, z in layout["lamps"]]
     models = [terrain.Terrain(out / "models" / f"{n}.glb") for n in ("house", "landmarks")]
-    light = bake(terrain, t, models, lights)
+    shade = casters(terrain, out, Path(disc_textures).parent if disc_textures else None)
+    light = bake(terrain, t, models + ([shade] if shade is not None else []), lights)
     for mt in models:
         mt.save()
     horizon = ground.sea()

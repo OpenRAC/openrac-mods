@@ -137,11 +137,28 @@ def rock_top(x, y):
     return g[i, j].astype(np.float64)
 
 
+# The low ground is drawn as a grid of this step from GRID_LO (ground.island_terrain).
+GRID_LO, GRID_STEP = -120.0, 4.0
+
+
+def mesh_base(x, y):
+    """The low ground as drawn: base_height on the grid, flat between its points on the grid's
+    two triangles per cell, so a thing set on it touches the drawn ground."""
+    x = np.asarray(x, np.float64); y = np.asarray(y, np.float64)
+    gx = (x - GRID_LO) / GRID_STEP; gy = (y - GRID_LO) / GRID_STEP
+    i = np.floor(gx); j = np.floor(gy)
+    fx = gx - i; fy = gy - j
+    x0 = GRID_LO + i * GRID_STEP; y0 = GRID_LO + j * GRID_STEP
+    za = base_height(x0, y0); zb = base_height(x0 + GRID_STEP, y0)
+    zc = base_height(x0, y0 + GRID_STEP); zd = base_height(x0 + GRID_STEP, y0 + GRID_STEP)
+    return np.where(fx >= fy, za + fx * (zb - za) + fy * (zd - zb), za + fy * (zc - za) + fx * (zd - zc))
+
+
 def height(x, y):
     """The ground's height at game X, Y (arrays or numbers): the rock's top where there is rock
-    (but the grotto's floor inside it), else the low ground."""
+    (but the grotto's floor inside it), else the low ground as drawn."""
     x = np.asarray(x, np.float64); y = np.asarray(y, np.float64)
-    base = base_height(x, y)
+    base = mesh_base(x, y)
     top = rock_top(x, y)
     return np.where(in_grotto(x, y) | ~np.isfinite(top), base, np.maximum(base, top))
 
