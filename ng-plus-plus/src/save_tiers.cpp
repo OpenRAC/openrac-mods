@@ -51,7 +51,11 @@ void back_up_book(const fs::path& book) {
     char day[16] = {};
     const std::time_t now = std::time(nullptr);
     std::tm local{};
+#ifdef _WIN32
+    localtime_s(&local, &now);
+#else
     localtime_r(&now, &local);
+#endif
     std::strftime(day, sizeof day, "%Y%m%d", &local);
     const fs::path backup = book.parent_path() / (std::string("tiers-") + day + ".txt");
 
