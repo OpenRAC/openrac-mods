@@ -1,0 +1,27 @@
+{
+  "id": "rac2-auto-gadgets",
+  "repo": "https://github.com/Joebannerlord/openRAC-RC2-AutoGadget",
+  "path": "",
+  "description": "Press Circle at eligible targets to temporarily equip Dynamo, Tractor Beam, Thermanator or Hypnomatic in Going Commando. Tractor Beam stays connected after releasing Circle. Thermanator has an adjustable return delay.",
+  "tags": [
+    "gameplay",
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Joebannerlord/openRAC-RC2-AutoGadget/issues",
+    "docs": "https://github.com/Joebannerlord/openRAC-RC2-AutoGadget#readme"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "PTKtSp15eL8",
+        "caption": "Trailer"
+      }
+    ]
+  }
+}
