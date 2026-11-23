@@ -457,6 +457,13 @@ std::int32_t ammo_max(Kind kind, int level, std::int32_t base) {
         return base;
     }
 
+    // The Zodiac's capacity is small, so a multiplier barely moves it: each tier adds a flat
+    // kZodiacAmmoPerTier rounds to the game's (Alpha base + 4, Beta base + 8, ... Omega base + 32).
+    if (kind == Kind::Single) {
+        const int tier = level < 0 ? 0 : level;
+        return base + kZodiacAmmoPerTier * tier;
+    }
+
     const float exact = static_cast<float>(base) * ammo(kind, level);
     const auto most = static_cast<std::int32_t>(std::floor(exact + 0.5f));
     const std::int32_t cap = base > kMostAmmo ? base : kMostAmmo;

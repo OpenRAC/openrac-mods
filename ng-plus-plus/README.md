@@ -27,6 +27,11 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.10
+
+The Zodiac's max ammo grows by exactly 4 rounds with each tier (Alpha +4, Beta +8, up to Omega +32)
+and is filled to the new most on each level-up, as the other weapons' is.
+
 ## What's new in 0.6.9
 
 When a RYNO II rocket splits, the homing split rockets fly at the parent rocket's target if it had
@@ -170,7 +175,9 @@ the next one.
 | V12 | Omega | level up | | 24,000 | x7.00 | x2.00 | rainbow (cycles through all the colors) |
 
 Damage and max ammo are multiplied from the weapon's last real version; max ammo stops at 999,
-as many as the HUD's three digits show (the Omega Heavy Lancer's 1,000 made it crash). XP is the
+as many as the HUD's three digits show (the Omega Heavy Lancer's 1,000 made it crash). The
+Zodiac is the exception: its capacity is small, so each tier adds a flat 4 rounds to the game's
+(Alpha +4, Beta +8, up to Omega +32) instead of a multiplier. XP is the
 game's own weapon XP (the bar in the quick select). It starts again from 0 at each tier, and the
 first time the mod sees a weapon at its last version it resets the XP to 0, so XP from before the
 mod or from earlier games never gives a tier right away. The XP bar (weapons screen and quick select) fills toward the

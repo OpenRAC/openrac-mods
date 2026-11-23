@@ -48,6 +48,9 @@ inline constexpr std::int32_t kPriceLadder = 1'500'000;
 inline constexpr std::int32_t kPriceFloor = 150'000;
 
 // How a weapon reached its last real version, which decides how its first step is unlocked.
+// The rounds the Zodiac's most ammo grows by with each tier.
+inline constexpr std::int32_t kZodiacAmmoPerTier = 4;
+
 enum class Kind : std::uint8_t {
     None,    // not a weapon the mod knows (gadgets, the wrench)
     Four,    // four versions, V4 by experience: Alpha is for sale at V4

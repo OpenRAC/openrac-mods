@@ -332,6 +332,12 @@ void test_scaling() {
     CHECK(ammo_max(Kind::Four, 0, 50) == 50);
     CHECK(ammo_max(Kind::Four, 1, 50) == 55);
     CHECK(ammo_max(Kind::Four, 8, 50) == 100);
+    // The Zodiac: a flat 4 rounds more at each tier.
+    for (int level = 0; level <= 8; ++level) {
+        CHECK(ammo_max(Kind::Single, level, 4) == 4 + 4 * level);
+    }
+    CHECK(ammo_max(Kind::Single, 8, 4) == 36);
+    CHECK(ammo_max(Kind::Single, 3, 0) == 0);
     CHECK(ammo_max(Kind::Sheep, 3, 0) == 0);  // endless stays endless
     CHECK(ammo_max(Kind::Four, 8, 500) == 999);  // the HUD's three digits
     CHECK(ammo_max(Kind::Four, 8, 60'000) == 60'000);
