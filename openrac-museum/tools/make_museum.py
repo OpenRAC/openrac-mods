@@ -25,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
+import exhibits
 import gate
 import glb
 import house
@@ -231,6 +232,9 @@ def main(out, disc_textures=None):
     for key, kind, seed in art:
         pictures[key] = textures.painting(seed) if kind == "painting" else textures.rug(seed)
         mats[key] = {"texture": key, "double": True}
+    pictures.update(exhibits.PICTURES)
+    for key in exhibits.PICTURES:
+        mats[key] = {"texture": key, "double": True}
     for key, title, sub, centre, facing, w, h in signs:
         if centre is None:            # a picture for a shape of its own (the gate's board)
             pictures[key] = gate.picture(key, title, sub)
@@ -242,7 +246,7 @@ def main(out, disc_textures=None):
         mats[key] = {"texture": key, "double": True}
         geo.sign(key, centre, facing, w, h)
     for n, (key, title, centre, facing, w, h) in enumerate(posters):
-        pictures[key] = textures.poster(title, ["Exhibit " + str(n % 4 + 1)], n)
+        pictures[key] = exhibits.board_picture(key, title, n)
         mats[key] = {"texture": key, "double": True}
         geo.sign(key, centre, facing, w, h)
 

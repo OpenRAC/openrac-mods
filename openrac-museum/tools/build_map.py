@@ -2,8 +2,8 @@
 
     python3 build_map.py DISC OUT_FOLDER [--editor OPENRAC_EDITOR_CHECKOUT]
 
-DISC is a Ratchet & Clank disc image (.iso). Level 11 (Pokitaru) and level 2 (Aridia) are read
-from it into a temporary folder, the museum is written into that copy of level 11, and the copy is
+DISC is a Ratchet & Clank disc image (.iso). Level 11 (Pokitaru), level 2 (Aridia) and the levels
+the exhibits come from are read from it into a temporary folder, the museum is written into that copy of level 11, and the copy is
 exported with OpenRAC Editor's `map export`. Your own level projects are never touched.
 
 The map holds only what these scripts made. Textures and models of the game are named by level,
@@ -20,10 +20,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import exhibits  # noqa: E402
 import museum  # noqa: E402
 
 MAP_ID = "openrac-museum"
-ABOUT = "A wooden museum on a tropical island, about how OpenRAC is made."
+ABOUT = ("A new planet in the ship's menu: a wooden museum on a tropical island, with rooms about how "
+         "OpenRAC is made. Pokitaru and every other planet stay as they are.")
 
 
 def editor_tools(given):
@@ -44,8 +46,9 @@ def main():
     disc = args.disc.resolve()
     with tempfile.TemporaryDirectory(prefix="openrac-museum-") as temp:
         projects = Path(temp) / "levels"
+        levels = sorted({museum.LEVEL, 2} | set(exhibits.LEVELS))
         subprocess.run([sys.executable, str(tools / "openrac_editor.py"), "projects", str(disc), str(projects),
-                        "--split", "--anywhere", "--level", str(museum.LEVEL), "--level", "2"], check=True)
+                        "--split", "--anywhere"] + [a for n in levels for a in ("--level", str(n))], check=True)
         museum.write_museum(projects, tools)
         sys.path.insert(0, str(tools))
         import planet

@@ -116,6 +116,8 @@ def build(geo, signs, posters, art=None):
     bridges(geo)
     gateway(geo, signs)
     rooms(geo, signs, posters, art)
+    import exhibits
+    exhibits.build(geo, signs)
 
 
 def deck_railing(geo):
@@ -454,6 +456,7 @@ def gateway(geo, signs):
 def rooms(geo, signs, posters, art):
     """Each room: its sign over the way to the atrium, framed paintings and exhibit boards on the
     side walls, a rug, plinths with exhibits, flower pots in its corners, a bench."""
+    import exhibits
     for storey, names in ((0, GROUND), (1, UPPER)):
         z0 = F0 if storey == 0 else F1
         for s, (title, sub) in enumerate(names):
@@ -496,11 +499,12 @@ def rooms(geo, signs, posters, art):
                 uvq = np.array([[0, 0], [0, 1], [1, 1], [1, 0]], np.float32)
             else:
                 uvq = np.array([[0, 0], [1, 0], [1, 1], [0, 1]], np.float32)
-            geo.tri_quad(rkey, q, [0, 0, 1], uvq, solid=False, glow=[0.62, 0.62, 0.62])
-            if not (storey == 0 and s in DOORS):
+            if (storey, s) not in exhibits.NO_RUG:
+                geo.tri_quad(rkey, q, [0, 0, 1], uvq, solid=False, glow=[0.62, 0.62, 0.62])
+            if not (storey == 0 and s in DOORS) and (storey, s) not in exhibits.NO_PLINTHS:
                 for k in (-1, 0, 1):
                     pp = rc + tang * k * 3.6 + out * 0.5
-                    plinth(geo, pp, z0, storey * 31 + s * 3 + k)
+                    plinth(geo, pp, z0, storey * 31 + s * 3 + k, ornament=(storey, s, k) not in exhibits.PLAIN)
             for t in (-1, 1):
                 pp = mid(s, R_OUT - 2.2) + tang * t * (side_len(R_OUT - 2.2) / 2 - 1.6)
                 flower_pot(geo, pp, z0, storey * 97 + s * 11 + t)
@@ -521,11 +525,13 @@ def frame(geo, c, n, d, z, w, h):
     geo.oriented_box("om_planks_dark", c - d * w / 2, c + d * w / 2, n, 0.15, z - h / 2, z + h / 2, solid=False)
 
 
-def plinth(geo, p, z0, seed):
-    """A white plinth with a gold top and an exhibit on it: one of a few small things."""
+def plinth(geo, p, z0, seed, ornament=True):
+    """A white plinth with a gold top and, with ORNAMENT, one of a few small things on it."""
     geo.box("om_white", (p[0] - 0.8, p[1] - 0.8, z0), (p[0] + 0.8, p[1] + 0.8, z0 + 1.1))
     geo.box("om_gold", (p[0] - 0.9, p[1] - 0.9, z0 + 1.1), (p[0] + 0.9, p[1] + 0.9, z0 + 1.22))
     z = z0 + 1.22
+    if not ornament:
+        return
     kind = seed % 5
     if kind == 0:      # a giant bolt
         geo.cylinder("om_gold", (p[0], p[1]), 0.5, z, z + 0.35, 6)

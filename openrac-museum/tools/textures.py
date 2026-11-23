@@ -336,6 +336,117 @@ def poster(title, lines, seed, width=256, height=384):
     return buf.getvalue()
 
 
+def wrap(draw, text, f, width):
+    """TEXT cut into lines no wider than WIDTH pixels in font F."""
+    lines = []
+    for paragraph in text.split("\n"):
+        line = ""
+        for word in paragraph.split(" "):
+            test = (line + " " + word).strip()
+            if line and draw.textlength(test, font=f) > width:
+                lines.append(line)
+                line = word
+            else:
+                line = test
+        lines.append(line)
+    return lines
+
+
+def png(img):
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def board(title, paragraphs, seed, width=512, height=704, quote=None):
+    """An exhibit board: a title, short paragraphs, and a game string in a box when QUOTE."""
+    r = rng(seed)
+    hue = r.random(3) * 50 + 30
+    img = Image.new("RGB", (width, height), tuple(int(v) for v in hue * 0.45))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([8, 8, width - 9, height - 9], outline=(244, 196, 74), width=8)
+    f = font(48)
+    while draw.textlength(title, font=f) > width - 60 and f.size > 16:
+        f = font(f.size - 2)
+    draw.text(((width - draw.textlength(title, font=f)) / 2, 30), title, font=f, fill=(255, 236, 190))
+    draw.line([60, 100, width - 60, 100], fill=(244, 196, 74), width=3)
+    size = 30
+    while True:
+        body = font(size)
+        lines = []
+        for p in paragraphs:
+            lines += wrap(draw, p, body, width - 64) + [""]
+        need = len(lines) * (size + 8) + (0 if quote is None else 30 + len(wrap(draw, quote, font(size, serif=True), width - 96)) * (size + 8))
+        if need < height - 150 or size <= 14:
+            break
+        size -= 2
+    y = 120
+    for line in lines:
+        draw.text((32, y), line, font=body, fill=(240, 232, 214))
+        y += size + 8
+    if quote is not None:
+        q = font(size, serif=True)
+        ql = wrap(draw, quote, q, width - 96)
+        box_h = len(ql) * (size + 8) + 24
+        draw.rectangle([32, y, width - 33, y + box_h], fill=(16, 14, 20), outline=(200, 190, 170), width=2)
+        for k, line in enumerate(ql):
+            draw.text((48, y + 12 + k * (size + 8)), line, font=q, fill=(150, 240, 150))
+    return png(img)
+
+
+def plate(text, sub="", width=512, height=128):
+    """A small brass name plate."""
+    img = Image.new("RGB", (width, height), (198, 156, 70))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([4, 4, width - 5, height - 5], outline=(110, 76, 24), width=6)
+    f = font(int(height * (0.4 if sub else 0.5)))
+    while draw.textlength(text, font=f) > width - 30 and f.size > 10:
+        f = font(f.size - 2)
+    draw.text(((width - draw.textlength(text, font=f)) / 2, height * (0.12 if sub else 0.22)), text, font=f, fill=(40, 24, 6))
+    if sub:
+        s = font(int(height * 0.24))
+        while draw.textlength(sub, font=s) > width - 30 and s.size > 8:
+            s = font(s.size - 2)
+        draw.text(((width - draw.textlength(sub, font=s)) / 2, height * 0.6), sub, font=s, fill=(60, 36, 10))
+    return png(img)
+
+
+def message(text, where, width=1024, height=192):
+    """A line from the game's code, white on dark, with where it is from under it."""
+    img = Image.new("RGB", (width, height), (20, 22, 30))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([4, 4, width - 5, height - 5], outline=(244, 196, 74), width=6)
+    f = font(72, serif=True)
+    while draw.textlength(text, font=f) > width - 60 and f.size > 14:
+        f = font(f.size - 2)
+    draw.text(((width - draw.textlength(text, font=f)) / 2, 30), text, font=f, fill=(240, 240, 232))
+    s = font(30)
+    draw.text(((width - draw.textlength(where, font=s)) / 2, height - 56), where, font=s, fill=(244, 196, 74))
+    return png(img)
+
+
+def screen(lines, width=512, height=384):
+    """An old monitor's screen: green text on black."""
+    img = Image.new("RGB", (width, height), (6, 14, 8))
+    draw = ImageDraw.Draw(img)
+    f = font(22)
+    for k, line in enumerate(lines):
+        draw.text((18, 18 + k * 30), line, font=f, fill=(120, 255, 140))
+    return png(img)
+
+
+def arrow(symbol, size=128):
+    """A floor tile with one of the code's buttons on it."""
+    img = Image.new("RGB", (size, size), (40, 46, 70))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([4, 4, size - 5, size - 5], outline=(244, 196, 74), width=6)
+    f = font(int(size * 0.7))
+    box = draw.textbbox((0, 0), symbol, font=f)
+    draw.text(((size - (box[2] - box[0])) / 2 - box[0], (size - (box[3] - box[1])) / 2 - box[1]), symbol, font=f,
+              fill=(255, 240, 200))
+    return png(img)
+
+
 def all_textures():
     return {
         "om_sand": sand(), "om_grass": grass(), "om_rock": rock(), "om_basalt": basalt(),

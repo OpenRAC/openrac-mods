@@ -17,6 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import exhibits  # noqa: E402
 import island  # noqa: E402
 import landmarks  # noqa: E402
 import make_museum  # noqa: E402
@@ -28,6 +29,7 @@ FOLDER = "openrac_museum"     # inside the project: res://openrac_museum/
 
 # Pokitaru's mobys kept as they are: Ratchet, the vendor, the ship's landing helper and the ocean.
 KEEP_CLASSES = {0, 11, 832, 1111}
+VENDOR = 11
 # Pokitaru mobys to copy: one of each class is kept as the model for the copies.
 TEMPLATES = {"gold_bolt": 1134, "bolt_crate": 500, "swing_target": 758, "swing_swinging": 803,
              "lamp": 1859, "nanotech_crate": 501, "ammo_crate": 511}
@@ -159,6 +161,14 @@ def write_museum(projects, tools):
             m = re.search(r"moby_(\d+)", inst.group(1)) if inst else None
             cls = int(m.group(1)) if m else -1
             if cls in KEEP_CLASSES:
+                if cls == VENDOR:
+                    # Stood on our ground, which is not Pokitaru's where it stood.
+                    b = basis_of(s)
+                    m = re.search(r"^transform = Transform3D\(([^)]*)\)", s, re.M)
+                    x, y, z = [float(v) for v in m.group(1).split(",")][9:12]
+                    ground = float(island.height(x, y))
+                    print(f"vendor at ({x:.1f}, {y:.1f}): z {z:.2f} -> {ground:.2f}")
+                    scene.sections[i] = copy_node(s, Scene.attr(s, "name"), transform(x, y, ground, basis=b))
                 continue
             for kind, tcls in TEMPLATES.items():
                 group = re.search(r"^metadata/rc1_group = (-?\d+)", s, re.M)
@@ -196,6 +206,8 @@ def write_museum(projects, tools):
 
     # 5. Copies of the game's own objects.
     counts = {}
+    for kind, at, yaw in exhibits.crates():
+        layout["mobys"].append({"kind": kind, "position": at, "yaw": yaw})
     for m in layout["mobys"]:
         kind = m["kind"]
         if kind not in template_nodes:
@@ -263,6 +275,16 @@ def write_museum(projects, tools):
         x, y, z, yaw, scale = palms[0]
         sections[i] = copy_node(palm_node, "Palm_000", transform(x, y, z, yaw, scale))
 
+    # 9. The exhibits' objects from other levels.
+    for k, item in enumerate(exhibits.placements()):
+        rid = foreign_model(project, projects, item["level"], item["class"])
+        if rid is None:
+            print(f"level {item['level']:02} has no class {item['class']}: {item['name']} skipped")
+            continue
+        if rid not in {e for e in new_ext}:
+            new_ext.append(rid)
+        new_nodes.append(foreign_node(item, k))
+
     # The rails' posts and bars stay as handrails: Pokitaru's own code has no grinding, so a grind
     # path in this level is never caught (levels with rails carry the code for them).
 
@@ -288,6 +310,56 @@ def write_museum(projects, tools):
     set_planet(project)
     print(f"OpenRAC Museum written into {project}: {len(layout['mobys'])} objects, {tie_count} rocks, "
           f"{shrub_count} plants, {len(palms)} palms.")
+
+
+def class_scale(projects, level, cls):
+    """The class scale its level's class scene gives the model (as the editor's Library reads it)."""
+    scene = projects / f"level_{level:02}" / "levels" / f"level_{level:02}" / "mobys" / f"moby_{cls}.tscn"
+    text = scene.read_text(encoding="utf-8")
+    m = re.search(r'\[node name="Model"[^\n]*\]\ntransform = Transform3D\(([^,]+),', text)
+    return float(m.group(1)) if m else 1.0
+
+
+def foreign_model(project, projects, level, cls):
+    """Copies class CLS's model and its pictures from PROJECTS/level_LEVEL into PROJECT's library,
+    byte for byte (a shared map then names them from the disc), and gives its ext_resource."""
+    source_dir = projects / f"level_{level:02}" / "levels" / f"level_{level:02}" / "mobys"
+    source = source_dir / f"moby_{cls}.glb"
+    if not source.is_file():
+        return None
+    target_dir = project / "library" / "rac1" / "pal" / f"level_{level:02}" / "mobys"
+    target = target_dir / source.name
+    if not target.is_file():
+        target_dir.mkdir(parents=True, exist_ok=True)
+        data = source.read_bytes()
+        shutil.copyfile(source, target)
+        length = int.from_bytes(data[12:16], "little")
+        for image in json.loads(data[20:20 + length]).get("images", []):
+            uri = image.get("uri", "")
+            if uri and not uri.startswith("data:"):
+                to = (target_dir / uri).resolve()
+                to.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile((source_dir / uri).resolve(), to)
+        note = {"format": 1, "game": "rac1", "disc": "pal", "level": level, "kind": "mobys", "class": cls}
+        target.with_suffix(".source.json").write_text(json.dumps(note, indent=2) + "\n", encoding="utf-8")
+    FOREIGN_SCALE[cls] = class_scale(projects, level, cls)
+    return (f'[ext_resource type="PackedScene" path="res://library/rac1/pal/level_{level:02}/mobys/moby_{cls}.glb" '
+            f'id="om_foreign_{cls}"]\n\n')
+
+
+FOREIGN_SCALE = {}
+
+
+def foreign_node(item, k):
+    cls = item["class"]
+    scale = FOREIGN_SCALE[cls]
+    name = "OM_" + re.sub(r"[^A-Za-z0-9]", "", item["name"].title()) + f"_{k:02}"
+    body = f'[node name="{name}" parent="Game/Mobys" instance=ExtResource("om_foreign_{cls}")]\n'
+    body += "transform = " + transform(*item["at"], item["yaw"], scale * item["scale"]) + "\n"
+    body += f"metadata/rc1_foreign_level = {item['level']}\nmetadata/rc1_foreign_class_scale = {scale:.7g}\n"
+    if item["look"]:
+        body += 'metadata/rc1_behaviour = "spin"\nmetadata/rc1_behaviour_speed = 0.0\n'
+    return body + "\n"
 
 
 def set_planet(project):
