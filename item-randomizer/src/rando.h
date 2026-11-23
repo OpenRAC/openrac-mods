@@ -209,13 +209,24 @@ typedef struct rando_settings {
     uint8_t difficulty; /* DIFFICULTY_* */
     uint8_t legacy_items; /* decoded format-2 seeds retain their original gadget pools */
     uint8_t random_start; /* skip the tutorial and choose a logic-safe first planet */
+    uint8_t start_weapons; /* RANDO_START_WEAPONS_*: with keep_start, a random starting weapon */
 } rando_settings;
+
+/* The "starting_weapons" setting: Vanilla is keep_start 1, Shuffled keep_start 0; the other two
+ * keep the start out of the shuffle and give it a weapon drawn from the seed, which takes the
+ * Bomb Glove's place: the place that gives that weapon in the game gives the Bomb Glove. */
+enum {
+    RANDO_START_WEAPONS_NONE = 0,         /* Vanilla or Shuffled, by keep_start */
+    RANDO_START_WEAPONS_NON_BROKEN = 1,   /* any normal or gold weapon but the R.Y.N.O. */
+    RANDO_START_WEAPONS_UNRESTRICTED = 2, /* any normal or gold weapon */
+};
 
 #define RANDO_SEED_BITS 40
 #define RANDO_SEED_MASK ((((uint64_t)1) << RANDO_SEED_BITS) - 1)
 #define RANDO_CODE_FORMAT 2
-/* Ordinary codes are "XXXX-XXXX-XXXX"; random-start codes add the "R:" prefix. */
-#define RANDO_CODE_SIZE 17 /* optional R: prefix identifies random-start seeds */
+/* Ordinary codes are "XXXX-XXXX-XXXX"; random-start codes add the "R:" prefix, random starting
+ * weapons "N:" (Non-Broken) or "U:" (Unrestricted), in that order: "R:N:XXXX-XXXX-XXXX". */
+#define RANDO_CODE_SIZE 19
 
 /* The settings' code: format, difficulty, starting gear, pools, seed and a checksum, 60 bits. */
 void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]);
@@ -255,6 +266,7 @@ typedef struct rando_plan {
     rando_reward reward[RANDO_MAX_LOCATIONS]; /* what each location gives with this seed */
     int start_level; /* selected first planet, or Veldin for a normal start */
     int attempts;                             /* fills tried before one held */
+    rando_reward start_weapon; /* the start's weapon with random starting weapons, else none */
 } rando_plan;
 
 /* Whether a location is shuffled with these settings. */

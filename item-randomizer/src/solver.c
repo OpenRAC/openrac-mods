@@ -239,6 +239,56 @@ static void shuffle(rando_rng* r, rando_reward* a, size_t n) {
     }
 }
 
+/* ---- the starting weapon ---- */
+
+/* The weapons a random starting weapon is drawn from, as the Archipelago world's: the normal
+ * weapons, then the gold ones (the gold cases' rewards, whether or not the cases are shuffled);
+ * Non-Broken leaves out the R.Y.N.O. Returns how many are in out. */
+static size_t start_weapon_choices(int mode, rando_reward* out) {
+    static const uint8_t k_weapons[] = {
+        ITEM_SUCK_CANNON, ITEM_BOMB_GLOVE,   ITEM_DEVASTATOR,    ITEM_VISIBOMB,
+        ITEM_TAUNTER,     ITEM_BLASTER,      ITEM_PYROCITOR,     ITEM_MINE_GLOVE,
+        ITEM_WALLOPER,    ITEM_TESLA_CLAW,   ITEM_GLOVE_OF_DOOM, ITEM_MORPH_O_RAY,
+        ITEM_RYNO,        ITEM_DRONE_DEVICE, ITEM_DECOY_GLOVE,
+    };
+    size_t n = 0;
+    for (size_t i = 0; i < sizeof k_weapons; ++i) {
+        if (mode == RANDO_START_WEAPONS_NON_BROKEN && k_weapons[i] == ITEM_RYNO) continue;
+        out[n++] = (rando_reward){REWARD_ITEM, k_weapons[i]};
+    }
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (l->kind != LOC_GOLD_CASE || l->vanilla.kind != REWARD_GOLD_WEAPON) continue;
+        if (mode == RANDO_START_WEAPONS_NON_BROKEN && l->vanilla.value == ITEM_RYNO) continue;
+        out[n++] = l->vanilla;
+    }
+    return n;
+}
+
+/* The reward a location gives in place of its own, once the start's weapon took the Bomb Glove's
+ * place: the start gives the weapon, and the place that gives it in the game the Bomb Glove. A
+ * gold weapon's place is its case when the cases are shuffled, else its base weapon's (receiving
+ * a gold weapon gives the base weapon too). Returns 1 when that is not the location's own. */
+static int start_weapon_swap(
+    const rando_settings* s, const rando_plan* plan, const rando_location* l, rando_reward* r
+) {
+    const rando_reward w = plan->start_weapon;
+    if (w.kind == REWARD_NONE) return 0;
+    if (l->kind == LOC_START) {
+        const int changed = r->kind != w.kind || r->value != w.value;
+        *r = w;
+        return changed;
+    }
+    rando_reward place = w;
+    if (w.kind == REWARD_GOLD_WEAPON && !(s->pools & POOL_GOLD_WEAPONS)) place.kind = REWARD_ITEM;
+    if (r->kind != place.kind || r->value != place.value
+        || (place.kind == REWARD_ITEM && place.value == ITEM_BOMB_GLOVE)) {
+        return 0;
+    }
+    *r = (rando_reward){REWARD_ITEM, ITEM_BOMB_GLOVE};
+    return 1;
+}
+
 /* ---- the fill ---- */
 
 /* One try at a placement: the assumed fill described at the top. 0 when every reward found a
@@ -255,6 +305,7 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
         if (s->random_start && plan->start_level != LEVEL_NOVALIS
             && original.kind == REWARD_PLANET && original.value == plan->start_level)
             original.value = LEVEL_NOVALIS;
+        const int weapon_swapped = start_weapon_swap(s, plan, l, &original);
         plan->reward[i] = original;
         if (s->random_start && l->level == LEVEL_VELDIN && l->kind == LOC_FIXED)
             plan->reward[i].value = (uint8_t)plan->start_level;
@@ -277,6 +328,8 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
         // A fixed coordinate exchange still uses source collection state at runtime.
         if (!plan->shuffled[i] && original.kind == REWARD_PLANET
             && original.value != l->vanilla.value) plan->shuffled[i] = 1;
+        // So does the start's weapon, and the Bomb Glove at its place: each gives the other.
+        if (!plan->shuffled[i] && weapon_swapped) plan->shuffled[i] = 1;
     }
 
     shuffle(rng, prog, np);
@@ -393,10 +446,22 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
         plan->settings.difficulty = DIFFICULTY_STANDARD;
     }
 
+    // A starting weapon is only given at a start kept out of the shuffle.
+    if (!plan->settings.keep_start || plan->settings.start_weapons > RANDO_START_WEAPONS_UNRESTRICTED) {
+        plan->settings.start_weapons = RANDO_START_WEAPONS_NONE;
+    }
+
     // The stream: the code's payload, so that every setting changes the whole placement.
     char code[RANDO_CODE_SIZE];
     rando_encode(&plan->settings, code);
     rando_rng rng = {rando_seed_of_text(code) ^ (plan->settings.seed << STREAM_SEED_SHIFT)};
+
+    // The starting weapon, drawn once, before any planet or fill (other codes draw nothing here).
+    if (plan->settings.start_weapons != RANDO_START_WEAPONS_NONE) {
+        rando_reward choices[RANDO_MAX_LOCATIONS];
+        const size_t n = start_weapon_choices(plan->settings.start_weapons, choices);
+        plan->start_weapon = choices[rando_below(&rng, (uint32_t)n)];
+    }
 
     int starts[LEVEL_COUNT], count = 0;
     if (s->random_start) {
@@ -576,7 +641,15 @@ static void put_header(out* o, const rando_plan* plan, const char* mod_version) 
         (s->pools & POOL_GOLD_WEAPONS) ? "gold-cases " : "",
         (s->pools & POOL_ITEMS) ? "items " : "");
     if (s->random_start) put(o, "Start planet %s\n", rando_planet_name(plan->start_level));
-    put(o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
+    if (plan->start_weapon.kind != REWARD_NONE) {
+        char weapon[64];
+        rando_reward_name(plan->start_weapon, weapon, sizeof weapon);
+        put(o, "Start gear  %s: %s\n\n",
+            s->start_weapons == RANDO_START_WEAPONS_NON_BROKEN ? "non-broken" : "unrestricted",
+            weapon);
+    } else {
+        put(o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
+    }
 }
 
 /* Every shuffled location's reward, grouped by planet; * marks a reward that opens the way. */

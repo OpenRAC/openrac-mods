@@ -109,6 +109,7 @@ static openrac_frame_fn s_frame;
 static int s_gives, s_unlocks, s_banners, s_list_builds, s_counted;
 static uint8_t s_helga_saw = 0xEE;
 static int s_keep_start = 1;
+static const char* s_start_weapons; /* the starting_weapons choice; null: s_keep_start's */
 static int32_t s_last_equip = -1;
 static uint8_t s_ship_saw = 0xEE, s_class22_saw = 0xEE;
 static int s_helps;
@@ -415,8 +416,7 @@ static int setting_bool(openrac_mod* mod, const char* key) {
         return s_new_game_only;
     }
 
-    return (strcmp(key, "keep_starting_gear") == 0 && s_keep_start)
-           || strncmp(key, "shuffle_", 8) == 0 || strcmp(key, "spoiler_log") == 0;
+    return strncmp(key, "shuffle_", 8) == 0 || strcmp(key, "spoiler_log") == 0;
 }
 
 static int64_t setting_int(openrac_mod* mod, const char* key) {
@@ -434,6 +434,10 @@ static const char* setting_string(openrac_mod* mod, const char* key) {
 
     if (strcmp(key, "seed") == 0) {
         return s_seed;
+    }
+
+    if (strcmp(key, "starting_weapons") == 0) {
+        return s_start_weapons ? s_start_weapons : s_keep_start ? "vanilla" : "shuffled";
     }
 
     return strcmp(key, "difficulty") == 0 ? "standard" : "";
@@ -930,7 +934,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.12") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.13") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);

@@ -91,6 +91,37 @@ int main(int argc, char** argv) {
     CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_CODE && s.random_start);
     o.seed=items_code; o.random_start=1;
     CHECK(rando_settings_of(&o,NULL,0,&s)==SEED_FROM_CODE && !s.random_start);
+    o.random_start=0;
+
+    /* Starting weapons: each choice, and keep_start when the choice names none. */
+    {
+        static const struct { const char* name; int keep, mode; } choices[] = {
+            {"vanilla", 1, RANDO_START_WEAPONS_NONE},
+            {"shuffled", 0, RANDO_START_WEAPONS_NONE},
+            {"non_broken", 1, RANDO_START_WEAPONS_NON_BROKEN},
+            {"unrestricted", 1, RANDO_START_WEAPONS_UNRESTRICTED},
+        };
+        o.seed = "weapons";
+        for (size_t i = 0; i < sizeof choices / sizeof choices[0]; ++i) {
+            o.keep_start = !choices[i].keep;
+            o.starting_weapons = choices[i].name;
+            CHECK(rando_settings_of(&o, NULL, 0, &s) == SEED_FROM_WORD
+                  && s.keep_start == choices[i].keep && s.start_weapons == choices[i].mode);
+        }
+        /* The choice travels in a code, whatever the other side's setting. */
+        o.starting_weapons = "unrestricted";
+        CHECK(rando_settings_of(&o, NULL, 0, &s) == SEED_FROM_WORD);
+        char weapon_code[RANDO_CODE_SIZE]; rando_encode(&s, weapon_code);
+        CHECK(strncmp(weapon_code, "U:", 2) == 0);
+        o.seed = weapon_code; o.starting_weapons = "vanilla";
+        CHECK(rando_settings_of(&o, NULL, 0, &s) == SEED_FROM_CODE
+              && s.keep_start == 1 && s.start_weapons == RANDO_START_WEAPONS_UNRESTRICTED);
+        o.seed = "weapons";
+        o.starting_weapons = NULL; o.keep_start = 0;
+        CHECK(rando_settings_of(&o, NULL, 0, &s) && s.keep_start == 0 && s.start_weapons == 0);
+        o.starting_weapons = "nonsense"; o.keep_start = 1;
+        CHECK(rando_settings_of(&o, NULL, 0, &s) && s.keep_start == 1 && s.start_weapons == 0);
+    }
 
     /* The manifest declares what the mod reads. */
 
@@ -110,7 +141,9 @@ int main(int argc, char** argv) {
              "\"shuffle_vendor\"",
              "\"shuffle_gold_bolts\"",
              "\"shuffle_infobots\"",
-             "\"keep_starting_gear\"",
+             "\"starting_weapons\"",
+             "\"non_broken\"",
+             "\"unrestricted\"",
              "\"spoiler_log\"",
              "\"new_game_only\"",
              "\"start_in_new_game_plus\"",

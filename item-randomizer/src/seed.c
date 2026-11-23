@@ -19,8 +19,9 @@
  *   40 bits the seed
  *   8 bits  a checksum of the 52 above (a mistyped character is caught)
  *
- * Random-start codes wrap this unchanged payload in an R: prefix. Normal codes retain their
- * original encoding and placement stream.
+ * Random-start codes wrap this unchanged payload in an R: prefix, and random starting weapons in
+ * N: (Non-Broken) or U: (Unrestricted) after it; their payload has the starting gear's bit set.
+ * Normal codes retain their original encoding and placement stream.
  *
  * So a code says the whole game: two players with the same code get the same placement, whatever
  * their other settings.
@@ -127,6 +128,11 @@ void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]) {
     const uint64_t bits = (payload << CODE_CHECKSUM_BITS) | checksum(payload);
     int o = 0;
     if (s->random_start) { out[o++] = 'R'; out[o++] = ':'; }
+    if (s->keep_start && s->start_weapons == RANDO_START_WEAPONS_NON_BROKEN) {
+        out[o++] = 'N'; out[o++] = ':';
+    } else if (s->keep_start && s->start_weapons == RANDO_START_WEAPONS_UNRESTRICTED) {
+        out[o++] = 'U'; out[o++] = ':';
+    }
 
     // One base 32 character at a time, from the top of the code.
     for (int i = 0; i < CODE_CHARS; ++i) {
@@ -172,6 +178,12 @@ int rando_decode(const char* text, rando_settings* s) {
     if ((text[0] == 'R' || text[0] == 'r') && text[1] == ':') {
         random_start = 1; text += 2;
     }
+    int start_weapons = RANDO_START_WEAPONS_NONE;
+    if ((text[0] == 'N' || text[0] == 'n') && text[1] == ':') {
+        start_weapons = RANDO_START_WEAPONS_NON_BROKEN; text += 2;
+    } else if ((text[0] == 'U' || text[0] == 'u') && text[1] == ':') {
+        start_weapons = RANDO_START_WEAPONS_UNRESTRICTED; text += 2;
+    }
     int n = 0;
 
     // Each character of the text, read as a base 32 digit.
@@ -213,9 +225,17 @@ int rando_decode(const char* text, rando_settings* s) {
         return 0;
     }
 
+    const int keep_start = (int)((payload >> CODE_KEEP_SHIFT) & CODE_KEEP_MASK);
+
+    // A starting weapon is given at a start that is not shuffled.
+    if (start_weapons != RANDO_START_WEAPONS_NONE && !keep_start) {
+        return 0;
+    }
+
     s->random_start = (uint8_t)random_start;
+    s->start_weapons = (uint8_t)start_weapons;
     s->difficulty = (uint8_t)difficulty;
-    s->keep_start = (uint8_t)((payload >> CODE_KEEP_SHIFT) & CODE_KEEP_MASK);
+    s->keep_start = (uint8_t)keep_start;
     s->pools = (uint8_t)((payload >> CODE_POOLS_SHIFT) & POOL_ALL);
     const unsigned format = (unsigned)(payload >> CODE_FORMAT_SHIFT);
     s->legacy_items = format < CODE_FORMAT_ITEMS;
