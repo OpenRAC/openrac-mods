@@ -10,7 +10,8 @@
  *   - The effects case: on the teal pad the game's own particle effects start in the case, with a
  *     camera shake.
  *   - Live effects round the island: flames over the torches, flames and sparks over the
- *     campfires, mist where the waterfalls land (the game's own particles, near Ratchet only).
+ *     campfires, mist and spray where the waterfalls land, spray off the rocks in the surf (the
+ *     game's own particles, near Ratchet only); the drawn effects are museum_fx.c's.
  *   - The 20-button codes: in the Decompilation room, a code that gives something says so.
  *   - Door 21/30: between 3 and 4 in the morning (the player's clock), it takes Ratchet to the
  *     tower's secret room.
@@ -22,6 +23,7 @@
 #include <time.h>
 
 #include "museum_data.h"
+#include "museum_fx.h"
 #include "openrac/openrac_mod.h"
 
 OPENRAC_MOD_DEFINE("openrac-museum", "1.0.0")
@@ -247,6 +249,9 @@ static void ambient(const float p[3]) {
     int budget = AMBIENT_PER_TICK;
     for (size_t k = 0; k < sizeof MUSEUM_FLAMES / sizeof MUSEUM_FLAMES[0] && budget > 0; ++k) {
         const museum_flame* f = &MUSEUM_FLAMES[k];
+        if (f->kind > MUSEUM_FLAME_FOAM || (f->kind == MUSEUM_FLAME_FOAM && f->b < 0.5f)) {
+            continue;                       /* drawn by museum_fx.c, or a beach: no spray */
+        }
         const float dx = f->x - p[0], dy = f->y - p[1], dz = f->z - p[2];
         if (dx * dx + dy * dy + dz * dz > AMBIENT_RANGE * AMBIENT_RANGE) {
             continue;
@@ -291,7 +296,36 @@ static void ambient(const float p[3]) {
                     continue;
                 }
                 break;
-            default:   /* spray where the falling water meets the pool */
+            case MUSEUM_FLAME_FOAM:   /* now and then a wave breaks on the rock: white spray */
+                if (rnd() > 0.012f) continue;
+                sp.kind = OPENRAC_PARTICLE_SPARK;
+                sp.particle_size = 30000.0f;
+                sp.life_ticks = 34;
+                sp.color = 0x5AFFF8F0u;
+                sp.color_end = 0x00FFFFFFu;
+                for (int j = 0; j < 7; ++j) {
+                    const float a = f->a + (rnd() - 0.5f) * 2.4f;
+                    sp.position[0] = f->x + (rnd() - 0.5f) * 1.5f;
+                    sp.position[1] = f->y + (rnd() - 0.5f) * 1.5f;
+                    sp.velocity[0] = -cosf(a) * 0.03f, sp.velocity[1] = -sinf(a) * 0.03f;
+                    sp.velocity[2] = 0.12f + rnd() * 0.08f;
+                    s_api->particle_spawn_ex(s_mod, &sp);
+                }
+                --budget;
+                continue;
+            default:   /* spray where the falling water meets the pool, and white drops thrown up */
+                if (rnd() < 0.08f) {
+                    sp.kind = OPENRAC_PARTICLE_SPARK;
+                    sp.position[0] += (rnd() - 0.5f) * 3.0f;
+                    sp.position[1] += (rnd() - 0.5f) * 3.0f;
+                    sp.particle_size = 24000.0f;
+                    sp.life_ticks = 30;
+                    sp.color = 0x50FFF8F0u;
+                    sp.color_end = 0x00FFFFFFu;
+                    sp.velocity[0] = (rnd() - 0.5f) * 0.08f, sp.velocity[1] = (rnd() - 0.5f) * 0.08f;
+                    sp.velocity[2] = 0.1f + rnd() * 0.08f;
+                    break;
+                }
                 if (rnd() > 0.25f) continue;
                 sp.kind = OPENRAC_PARTICLE_SMOKE;
                 sp.position[0] += (rnd() - 0.5f) * 5.0f;
@@ -376,12 +410,16 @@ static void tick(void* user) {
         s_station = -1;
         s_flags_read = 0;
         s_i5_used = 0;
+        museum_fx_new_level();
     }
     if (!s_in_museum && status.level == MUSEUM_LEVEL && status.phase == OPENRAC_PLAY_PLAYING && s_loads == status.loads) {
         s_in_museum = is_museum(status.level);
     }
     if (!s_in_museum) {
         return;
+    }
+    if (status.phase != OPENRAC_PLAY_PLAYING) {
+        museum_fx_hide();
     }
     openrac_pose pose;
     memset(&pose, 0, sizeof pose);
@@ -395,9 +433,13 @@ static void tick(void* user) {
     codes(p);
     if (mode != GAME_MODE_PLAY) {
         show_station(-1);
+        museum_fx_hide();
         return;
     }
     show_station(station_at(p));
+    if (status.phase == OPENRAC_PLAY_PLAYING) {
+        museum_fx_tick(p, s_station);
+    }
     i5_terminal(p, mode);
     effects(p);
     ambient(p);
@@ -416,11 +458,15 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         return 1;
     }
     s_ready = 1;
+    museum_fx_init(api, mod);
     return api->on_frame(mod, tick, NULL);
 }
 
 OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
     if (s_ready && s_station >= 0) {
         leave();
+    }
+    if (s_ready) {
+        museum_fx_hide();
     }
 }

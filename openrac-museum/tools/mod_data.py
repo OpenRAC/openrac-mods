@@ -16,6 +16,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import exhibits  # noqa: E402
+import fx  # noqa: E402
 
 OUT = HERE.parent / "mod" / "src" / "museum_data.h"
 # Characters a HUD line holds in the game's small font at the mod's scale.
@@ -49,7 +50,8 @@ def c_string(text):
 
 
 def render():
-    exhibits.build(Null(), [])
+    signs = []
+    exhibits.build(Null(), signs)
     out = ["/* SPDX-License-Identifier: GPL-3.0-or-later",
            " * Written by tools/mod_data.py from tools/exhibits.py: do not edit by hand. */",
            "#ifndef MUSEUM_DATA_H", "#define MUSEUM_DATA_H", "",
@@ -70,8 +72,18 @@ def render():
     # The places of the live effects, which the map's build writes (make_museum.py).
     flames = json.loads((HERE / "effects.json").read_text(encoding="utf-8"))
     out.append("static const museum_flame MUSEUM_FLAMES[] = {")
-    for kind, x, y, z in flames:
-        out.append(f"    {{MUSEUM_FLAME_{kind.upper()}, {x:.2f}f, {y:.2f}f, {z:.2f}f}},")
+    for kind, x, y, z, *more in flames:
+        a, b, c, d = (list(more) + [0, 0, 0, 0])[:4]
+        out.append(f"    {{MUSEUM_FLAME_{kind.upper()}, {x:.2f}f, {y:.2f}f, {z:.2f}f, {a:.3f}f, {b:.3f}f, {c:.3f}f, {d:.3f}f}},")
+    out += ["};", ""]
+    # The house's sunbeams and the exhibits' screens (fx.py).
+    out.append("static const museum_beam MUSEUM_BEAMS[] = {")
+    for x, y, z, dx, dy, dz, w, length in fx.shafts():
+        out.append(f"    {{{x:.2f}f, {y:.2f}f, {z:.2f}f, {dx:.4f}f, {dy:.4f}f, {dz:.4f}f, {w:.2f}f, {length:.2f}f}},")
+    out += ["};", ""]
+    out.append("static const museum_screen MUSEUM_SCREENS[] = {")
+    for x, y, z, face, w, h in fx.screens(signs):
+        out.append(f"    {{{x:.2f}f, {y:.2f}f, {z:.2f}f, {face:.1f}f, {w:.2f}f, {h:.2f}f}},")
     out += ["};", ""]
     for name, (x, y, z, r) in sorted(exhibits.ZONES.items()):
         out.append(f"static const museum_zone MUSEUM_ZONE_{name.upper()} = {{{x:.2f}f, {y:.2f}f, {z:.2f}f, {r:.2f}f}};")

@@ -4,7 +4,7 @@
   "name": "OpenRAC Museum",
   "version": "1.0.0",
   "author": "OpenRAC",
-  "description": "What the OpenRAC Museum planet's exhibits do: the gold tiles show each exhibit's words, the I-5 terminal opens Insomniac's debug menu, the effects case and a door that opens only at 3 AM. Add the OpenRAC Museum map too.",
+  "description": "What the OpenRAC Museum planet's exhibits do: the gold tiles show each exhibit's words, the I-5 terminal opens Insomniac's debug menu, the effects case and a door that opens only at 3 AM, and the island's live effects (foam, sunbeams, glows, fireflies). Add the OpenRAC Museum map too.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/openrac-museum",
   "api": "1.35",
@@ -14,5 +14,6 @@
       "pal"
     ]
   },
+  "assets": "fx",
   "settings": []
 }

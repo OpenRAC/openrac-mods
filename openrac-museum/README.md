@@ -53,8 +53,12 @@ Adding a newer file updates the planet in place.
 The OpenRAC Museum mod (`mod/`, on the mod hub as `openrac-museum`) makes the exhibits work: the
 tiles' words, the I-5 menu (Select leaves it), the effects case, a notice when
 a 20-button code works, the 3 AM door, and live flames over the campfires and torches with mist
-where the waterfalls land (the game's own particles). Turn it on with the map. Its data is written
-from the exhibits and the map's `tools/effects.json` by `python3 tools/mod_data.py`.
+where the waterfalls land (the game's own particles). Near Ratchet it also draws foam on the
+waterline, sun glints on the sea, sunbeams with dust through the house's windows, a glow round
+lamps and flames, fireflies, heat haze over the fires, glowing tiles, flickering screens, bolt
+glints and a flash when a crate breaks. Turn it on with the map. Its data is written from the
+exhibits and the map's `tools/effects.json` by `python3 tools/mod_data.py`; its sprites (`mod/fx/`)
+by `python3 tools/fx.py`.
 
 ## Notes
 

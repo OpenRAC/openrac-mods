@@ -33,6 +33,7 @@ import island
 import landmarks
 import ground
 import rocks
+import scatter
 import textures
 from build import Geo
 
@@ -259,6 +260,24 @@ def append(terrain, t, path):
 
 EFFECTS = Path(__file__).resolve().parent / "effects.json"
 
+
+def live_effects(flames, lamps):
+    """The places of the mod's live effects, each [kind, x, y, z, a, b, c, d]: the flames and mist
+    (a-d unused), foam on the waterline (a: the way out to sea, b: steep rock), the lamps' glow
+    (z the lamp's head) and fireflies over the meadows by the trees."""
+    import fx
+    out = [[k, x, y, z, 0, 0, 0, 0] for k, x, y, z in flames]
+    out += [["foam", round(x, 2), round(y, 2), island.SEA, round(a, 3), s, 0, 0] for x, y, a, s in fx.coast()]
+    out += [["lamp", round(float(x), 2), round(float(y), 2), round(float(z) + 4.0, 2), 0, 0, 0, 0] for x, y, z in lamps]
+    rng = np.random.default_rng(11)
+    trees = [(x, y, z) for x, y, z, _yaw, _scale in scatter.palms()]
+    for k in rng.permutation(len(trees))[:28]:
+        x, y, z = trees[k]
+        a = rng.uniform(0, 2 * math.pi)
+        out.append(["firefly", round(x + math.cos(a) * 3.0, 2), round(y + math.sin(a) * 3.0, 2), round(z + 1.2, 2),
+                    0, 0, 0, 0])
+    return out
+
 MATERIALS = {name: {"texture": name, "double": True} for name in (
     "om_sand", "om_grass", "om_rock", "om_basalt", "om_planks", "om_planks_dark", "om_planks_light",
     "om_thatch", "om_water", "om_foam", "om_falls", "om_stone", "om_lava", "om_gold", "om_white",
@@ -390,7 +409,7 @@ def main(out, disc_textures=None):
     collision_glb(out / "collision" / "house.glb", geo.solid + marks.solid)
     # Where the mod's live effects play (embers, smoke, mist): mod_data.py puts them in the mod.
     flames = sorted(set(geo.flames + marks.flames))
-    EFFECTS.write_text(json.dumps(flames, indent=0) + "\n", encoding="utf-8")
+    EFFECTS.write_text(json.dumps(live_effects(flames, layout["lamps"])) + "\n", encoding="utf-8")
     P, tris = ground.collision_mesh(inside)
     collision_glb(out / "collision" / "ground.glb", [((P[t[0]], P[t[1]], P[t[2]]), 0x1F) for t in tris])
     # The rock's collision: its own mesh again on a coarser grid, faces kept as they are (outward:
