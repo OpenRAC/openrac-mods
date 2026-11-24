@@ -37,10 +37,12 @@ def grid():
     return np.meshgrid(t, t)
 
 
-def picture(alpha, rgb=(255, 255, 255)):
+def picture(alpha, rgb=(255, 255, 255), added=True):
+    """ALPHA as the picture's alpha; for an ADDED sprite its colour fades with it too, so the
+    square's edges stay black however the alpha is used."""
     a = np.clip(alpha, 0, 1)
     img = np.zeros((SIZE, SIZE, 4), np.uint8)
-    img[..., :3] = rgb
+    img[..., :3] = (np.array(rgb)[None, None] * a[..., None]).round() if added else rgb
     img[..., 3] = (a * 255).round().astype(np.uint8)
     return Image.fromarray(img, "RGBA")
 
@@ -48,7 +50,8 @@ def picture(alpha, rgb=(255, 255, 255)):
 def glow():
     x, y = grid()
     r = np.hypot(x, y)
-    return picture(np.exp(-(r * 2.2) ** 2) * (r < 1))
+    # Squared by the colour times the alpha: exp(-(2.2 r)^2), and nothing left at the edge.
+    return picture(np.exp(-(r * 1.55) ** 2) * np.clip(1 - r * r, 0, 1) ** 2)
 
 
 def star():
@@ -78,21 +81,21 @@ def foam():
     edge = np.exp(-((y - 0.35) * 2.6) ** 2)
     lace = np.clip((noise - 0.36) * 4.0, 0, 1) * np.clip((0.8 - np.abs(y + 0.1)) * 2.0, 0, 1)
     ends = np.clip((1 - np.abs(x)) * 3, 0, 1)
-    return picture(np.clip(edge * (0.55 + 0.6 * noise) + lace * 0.8, 0, 1) * ends)
+    return picture(np.clip(edge * (0.55 + 0.6 * noise) + lace * 0.8, 0, 1) * ends, added=False)
 
 
 def rect():
     """A screen's face: even, soft only at its very edge."""
     x, y = grid()
     edge = np.clip((1 - np.maximum(np.abs(x), np.abs(y))) * 12, 0, 1)
-    return picture(edge)
+    return picture(edge, added=False)
 
 
 def tile():
     """A gold tile's glow: a soft square ring, brightest at its edge."""
     x, y = grid()
     d = np.maximum(np.abs(x), np.abs(y))
-    return picture(np.exp(-((d - 0.82) * 9) ** 2) + 0.25 * (d < 0.82), (255, 214, 120))
+    return picture(np.exp(-((d - 0.82) * 9) ** 2) + 0.25 * (d < 0.82), (255, 214, 120), added=False)
 
 
 SPRITES = {"glow": glow, "star": star, "shaft": shaft, "foam": foam, "rect": rect, "tile": tile}

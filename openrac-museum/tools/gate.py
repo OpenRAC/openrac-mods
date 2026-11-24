@@ -5,7 +5,7 @@ the shore's and the house's."""
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 import textures
 from build import light
@@ -16,6 +16,7 @@ SUBTITLE = ""
 # OpenRAC's logo for dark backgrounds (OpenRAC's docs/assets/openrac-logo-dark.svg, drawn to a picture).
 LOGO = Path(__file__).resolve().parent.parent / "pictures" / "openrac-logo.png"
 BOARD = "om_gate_board"
+INTER_SEMIBOLD = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
 
 
 def slab(geo, material, poly, y0, y1, uv=None, side_material=None, glow=None, mirror_back=False):
@@ -92,43 +93,38 @@ def build(geo, signs, gx, gy, top):
 
 
 def board_picture(sub, width=1024, height=400):
-    """The board's face: black-blue lacquer under a gold frame, OpenRAC's logo in the middle and
-    MUSEUM under it in spaced gold letters (the crest is the top 0.7 of 6.7 units)."""
+    """The board's face in OpenRAC's look (the launcher's STYLE.md): the darkest ink, a soft gold
+    light from the top, OpenRAC's logo and MUSEUM in a picked chip under it. Centred on the
+    letters "OpenRAC" alone: the feathers over the O would pull it to the left and up."""
     k = 2
     W, H = width * k, height * k
-    crest = int(H * 0.7 / 6.7)
-    y = np.linspace(0, 1, H)[:, None, None]
-    x = np.linspace(-1, 1, W)[None, :, None]
-    arr = (np.array([30, 40, 62]) * (1 - y) + np.array([10, 13, 24]) * y) * (1 - 0.3 * x ** 2)
+    top = int(H * 0.7 / 6.7)                     # the crest's part of the picture
+    ink, amber = np.array([18, 18, 18]), np.array([245, 192, 64])
+    yy, xx = np.mgrid[0:H, 0:W]
+    light = np.exp(-(((xx - W / 2) / (W * 0.45)) ** 2 + ((yy - top) / (H * 0.5)) ** 2)) * 0.15
+    arr = 255 - (255 - ink[None, None]) * (1 - light[..., None] * amber / 255)
     img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
     d = ImageDraw.Draw(img)
-    gold, deep = (246, 200, 84), (120, 78, 20)
-    top = crest + 18
-    d.rectangle([22, top, W - 23, H - 23], outline=gold, width=16)
-    d.rectangle([52, top + 30, W - 53, H - 53], outline=deep, width=4)
-    for cx, cy, sx, sy in ((52, top + 30, 1, 1), (W - 53, top + 30, -1, 1), (52, H - 53, 1, -1), (W - 53, H - 53, -1, -1)):
-        d.line([cx, cy + sy * 60, cx, cy, cx + sx * 60, cy], fill=gold, width=10)
-    # The logo, with a soft shadow under it.
     logo = Image.open(LOGO).convert("RGBA")
-    lw = int(W * 0.72)
-    logo = logo.resize((lw, int(logo.height * lw / logo.width)), Image.LANCZOS)
-    lx, ly = (W - lw) // 2, top + 70
-    shadow = Image.new("RGBA", logo.size, (0, 0, 0, 0))
-    shadow.putalpha(logo.getchannel("A").point(lambda a: a * 0.7))
-    img.paste((2, 4, 10), (lx + 8, ly + 10), shadow)
-    img.paste(logo, (lx, ly), logo)
-    # MUSEUM under it, spaced out, between two gold rules.
-    word = "M U S E U M"
-    f = textures.font(118, serif=True)
-    tw = d.textlength(word, font=f)
-    ty = ly + logo.height + 50
-    d.text(((W - tw) / 2 + 4, ty + 5), word, font=f, fill=(2, 4, 10))
-    d.text(((W - tw) / 2, ty), word, font=f, fill=gold)
-    mid = ty + 62
-    for a, b in ((110, (W - tw) / 2 - 50), ((W + tw) / 2 + 50, W - 110)):
-        d.line([a, mid, b, mid], fill=gold, width=6)
-    for cx in (110, W - 110):
-        d.polygon([(cx - 18, mid), (cx, mid - 18), (cx + 18, mid), (cx, mid + 18)], fill=gold)
+    # The letters' box in the logo picture: the O's ring (x 330-819, y 160-654) to the C.
+    lx0, lx1, ly0, ly1 = 330, logo.width, 160, 654
+    s = W * 0.46 / (lx1 - lx0)
+    logo = logo.resize((int(logo.width * s), int(logo.height * s)), Image.LANCZOS)
+    f = ImageFont.truetype(INTER_SEMIBOLD, 112) if Path(INTER_SEMIBOLD).exists() else textures.font(160)
+    word, spacing = "MUSEUM", 44
+    tw = sum(d.textlength(c, font=f) for c in word) + spacing * (len(word) - 1)
+    chip_h, gap = 170, 70
+    block = (ly1 - ly0) * s + gap + chip_h
+    y0 = top + (H - top - block) / 2                 # the letters' top
+    x0 = (W - (lx1 - lx0) * s) / 2                  # the O's left edge
+    img.paste(logo, (int(round(x0 - lx0 * s)), int(round(y0 - ly0 * s))), logo)
+    cy = y0 + (ly1 - ly0) * s + gap + chip_h / 2
+    on = tuple(int(25 * 0.78 + c * 0.22) for c in amber)
+    d.rounded_rectangle([W / 2 - tw / 2 - 80, cy - chip_h / 2, W / 2 + tw / 2 + 80, cy + chip_h / 2], 24, fill=on)
+    x = W / 2 - tw / 2
+    for c in word:
+        d.text((x, cy), c, font=f, fill=tuple(int(v) for v in amber), anchor="lm")
+        x += d.textlength(c, font=f) + spacing
     import io
     buf = io.BytesIO()
     img.resize((width, height), Image.LANCZOS).save(buf, "PNG", optimize=True)

@@ -341,110 +341,111 @@ CODE_WORD = re.compile(r"^[(\[]?([A-Z0-9][A-Z0-9_./-]*[_0-9./][A-Za-z0-9_./-]*|[
 GOLD, GOLD_DARK, CREAM, CODE = (246, 200, 84), (120, 78, 20), (244, 236, 218), (120, 226, 255)
 
 
+# OpenRAC's own colours (the launcher's docs/STYLE.md): the page, a line, the gold and the text.
+STYLE = {"ink": (25, 25, 25), "line": (44, 44, 44), "amber": (245, 192, 64), "gold": (255, 224, 143),
+         "brand": (214, 160, 32), "text": (230, 230, 235), "dim": (139, 139, 152), "deep": (18, 18, 18)}
+
+
+def inter(weight, size):
+    """OpenRAC's typeface, Inter, in WEIGHT (Medium, SemiBold, Bold); a bold sans where it is not."""
+    for path in (f"/usr/share/fonts/opentype/inter/Inter-{weight}.otf", f"Inter-{weight}.otf", f"Inter-{weight}.ttf"):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            pass
+    return font(size)
+
+
+def code_font(size):
+    """A monospaced font for the code words; the first one found."""
+    for path in ("/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Bold.ttf", "JetBrainsMono-Bold.ttf"):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            pass
+    return mono(size)
+
+
+def style_ground(width, height, x=0.5, reach=0.22):
+    """OpenRAC's page: its ink with a soft gold light from the top (at X of the width)."""
+    ink, amber = np.array(STYLE["ink"]), np.array(STYLE["amber"])
+    yy, xx = np.mgrid[0:height, 0:width]
+    light = np.exp(-(((xx - width * x) / (width * 0.6)) ** 2 + (yy / (height * reach)) ** 2)) * 0.14
+    arr = 255 - (255 - ink[None, None]) * (1 - light[..., None] * amber / 255)
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
+
+
 def rich_lines(draw, text, body, code, width):
-    """TEXT cut into lines no wider than WIDTH: each a list of (word, font, colour), a code word in
-    the code font and colour."""
+    """TEXT cut into lines no wider than WIDTH: each a list of (word, font, is_code)."""
     lines, line, used = [], [], 0.0
     space = draw.textlength(" ", font=body)
     for word in text.split(" "):
-        is_code = bool(CODE_WORD.match(word)) and len(word) > 1
-        f, colour = (code, CODE) if is_code else (body, CREAM)
+        is_code = bool(CODE_WORD.match(word)) and len(word.strip(".,:;()")) > 1
+        f = code if is_code else body
         w = draw.textlength(word, font=f)
         if line and used + space + w > width:
             lines.append(line)
             line, used = [], 0.0
         used += (space if line else 0) + w
-        line.append((word, f, colour))
+        line.append((word, f, is_code))
     if line:
         lines.append(line)
     return lines
 
 
 def board(title, paragraphs, seed, width=512, height=704, quote=None):
-    """An exhibit board: a gold title plate, each paragraph a point of its own (code words in their
-    own colour), a game string in a screen when QUOTE, and the museum's mark at the foot. Drawn at
-    twice the size and scaled down, so the letters stay sharp."""
+    """An exhibit board in OpenRAC's look: the page's ink with a soft gold light from the top,
+    EXHIBIT and the title in gold, each paragraph a row split by a thin line (code words in the
+    gold code font), a game string on the darkest ink when QUOTE, and the museum's name at the
+    foot. Drawn at twice the size and scaled down, so the letters stay sharp."""
     k = 2
     W, H = width * k, height * k
-    y_axis = np.linspace(0, 1, H)[:, None, None]
-    x_axis = np.linspace(-1, 1, W)[None, :, None]
-    top, bottom = np.array([28, 40, 64]), np.array([10, 14, 26])
-    arr = top * (1 - y_axis) + bottom * y_axis
-    arr = arr * (1 - 0.35 * x_axis ** 2)                                  # darker at the sides
-    r = rng(seed)
-    grain = r.random((H // 8, W // 8))
-    arr = arr * (0.94 + 0.06 * np.kron(grain, np.ones((8, 8)))[:, :, None][:H, :W])
-    img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
+    img = style_ground(W, H, 0.25)
     d = ImageDraw.Draw(img)
-    # Faint lines like a circuit board behind the words.
-    for _ in range(14):
-        x0, y0 = int(r.integers(80, W - 80)), int(r.integers(H // 4, H - 360))
-        x1 = int(np.clip(x0 + int(r.integers(-260, 260)), 80, W - 80))
-        d.line([x0, y0, x1, y0, x1, y0 + int(r.integers(40, 200))], fill=(32, 46, 72), width=4)
-        d.ellipse([x1 - 9, y0 - 9 + 0, x1 + 9, y0 + 9], outline=(36, 52, 80), width=4)
-    # The frame: gold, a thin inner line and corner brackets.
-    d.rectangle([6, 6, W - 7, H - 7], outline=GOLD, width=14)
-    d.rectangle([34, 34, W - 35, H - 35], outline=(150, 112, 40), width=3)
-    for cx, cy, sx, sy in ((34, 34, 1, 1), (W - 35, 34, -1, 1), (34, H - 35, 1, -1), (W - 35, H - 35, -1, -1)):
-        d.line([cx, cy + sy * 70, cx, cy, cx + sx * 70, cy], fill=GOLD, width=10)
-    # The title on a gold plate.
-    plate_top, plate_h = 64, 150
-    plate = np.linspace(1.0, 0.72, plate_h)[:, None, None] * np.array([250, 206, 96])
-    img.paste(Image.fromarray(np.clip(np.repeat(plate, W - 128, 1), 0, 255).astype(np.uint8)), (64, plate_top))
-    d.rectangle([64, plate_top, W - 65, plate_top + plate_h], outline=GOLD_DARK, width=5)
-    for rx in (88, W - 89):
-        d.ellipse([rx - 10, plate_top + plate_h / 2 - 10, rx + 10, plate_top + plate_h / 2 + 10], fill=GOLD_DARK)
-    f = font(96, serif=True)
-    while d.textlength(title, font=f) > W - 260 and f.size > 30:
-        f = font(f.size - 4, serif=True)
-    tx = (W - d.textlength(title, font=f)) / 2
-    box = d.textbbox((0, 0), title, font=f)
-    ty = plate_top + (plate_h - (box[3] - box[1])) / 2 - box[1]
-    d.text((tx, ty + 3), title, font=f, fill=(255, 238, 180))
-    d.text((tx, ty), title, font=f, fill=(46, 26, 6))
-    # The points: as big as the room allows.
-    left, right = 104, W - 88
-    area_top, area_bottom = plate_top + plate_h + 60, H - 150
-    size = 64
+    u = W / 1024                                   # the layout is set for a board 1024 wide
+    left, right = int(80 * u), int(W - 80 * u)
+    d.text((left, 120 * u), "EXHIBIT", font=inter("Bold", int(34 * u)), fill=STYLE["brand"], anchor="ls")
+    size = int(96 * u)
+    tf = inter("Bold", size)
+    while d.textlength(title, font=tf) > right - left and size > 30:
+        size -= 4
+        tf = inter("Bold", size)
+    d.text((left, 230 * u), title, font=tf, fill=STYLE["gold"], anchor="ls")
+    # The rows: as big as the room allows.
+    area_top, area_bottom = 300 * u, H - 150 * u
+    size = int(88 * u)
     while True:
-        body, code = font(size), mono(int(size * 0.92))
-        points = [rich_lines(d, p, body, code, right - left) for p in paragraphs]
-        q = mono(size)
-        while quote is not None and q.size > 16 and max(d.textlength(l, font=q) for l in wrap(d, quote, q, W - 240)) > W - 240:
-            q = mono(q.size - 2)
-        ql = wrap(d, quote, q, W - 240) if quote is not None else []
-        step = int(size * 1.3)
-        need = sum(len(pl) * step for pl in points) + max(len(points) - 1, 0) * int(size * 0.7)
-        need += (len(ql) * (q.size + 14) + 90) if ql else 0
-        if need < area_bottom - area_top or size <= 24:
+        body, code = inter("Medium", size), code_font(int(size * 0.9))
+        rows = [rich_lines(d, p, body, code, right - left) for p in paragraphs]
+        lead, gap = size * 1.32, size * 1.1
+        q = code_font(int(size * 0.8))
+        while quote is not None and q.size > 16 and \
+                max(d.textlength(w, font=q) for w in quote.split(" ")) > right - left - 80 * u:
+            q = code_font(q.size - 2)
+        ql = wrap(d, quote, q, right - left - 80 * u) if quote is not None else []
+        need = sum(len(r) for r in rows) * lead + max(len(rows) - 1, 0) * gap
+        need += (len(ql) * q.size * 1.35 + 100 * u + (gap if rows else 0)) if ql else 0
+        if need <= area_bottom - area_top or size <= 24:
             break
         size -= 2
-    y = area_top + max(0, (area_bottom - area_top - need) // 3)
-    for pl in points:
-        mid = y + step / 2 - 4
-        d.polygon([(left - 44, mid), (left - 30, mid - 14), (left - 16, mid), (left - 30, mid + 14)], fill=GOLD)
-        for line in pl:
-            x = left
-            base = y + size     # one baseline for the words and the code words
-            for word, wf, colour in line:
-                d.text((x + 2, base + 3), word, font=wf, fill=(4, 6, 12), anchor="ls")
-                d.text((x, base), word, font=wf, fill=colour, anchor="ls")
+    y = area_top
+    for n, row in enumerate(rows):
+        for line in row:
+            x, base = left, y + size
+            for word, wf, is_code in line:
+                d.text((x, base), word, font=wf, fill=STYLE["amber"] if is_code else STYLE["text"], anchor="ls")
                 x += d.textlength(word + " ", font=wf)
-            y += step
-        y += int(size * 0.7)
+            y += lead
+        if n < len(rows) - 1 or ql:
+            d.line([left, y + size * 0.45, right, y + size * 0.45], fill=STYLE["line"], width=max(2, int(3 * u)))
+            y += size * 1.1
     if ql:
-        y += 20
-        box_h = len(ql) * (q.size + 14) + 44
-        d.rounded_rectangle([88, y, W - 89, y + box_h], radius=18, fill=(6, 12, 10), outline=(90, 200, 120), width=4)
+        y += size * 0.3
+        box_h = len(ql) * q.size * 1.35 + 60 * u
+        d.rounded_rectangle([left, y, right, y + box_h], radius=int(24 * u), fill=STYLE["deep"])
         for n, line in enumerate(ql):
-            d.text((120, y + 22 + n * (q.size + 14)), line, font=q, fill=(140, 245, 160))
-    # The museum's mark at the foot.
-    mark = "OPENRAC  MUSEUM"
-    mf = font(34)
-    mw = d.textlength(mark, font=mf)
-    d.line([100, H - 92, (W - mw) / 2 - 30, H - 92], fill=(150, 112, 40), width=3)
-    d.line([(W + mw) / 2 + 30, H - 92, W - 100, H - 92], fill=(150, 112, 40), width=3)
-    d.text(((W - mw) / 2, H - 112), mark, font=mf, fill=GOLD)
+            d.text((left + 40 * u, y + 30 * u + n * q.size * 1.35), line, font=q, fill=STYLE["amber"])
+    d.text((W / 2, H - 70 * u), "OPENRAC MUSEUM", font=inter("SemiBold", int(30 * u)), fill=STYLE["dim"], anchor="ms")
     return png(img.resize((width, height), Image.LANCZOS))
 
 
@@ -471,28 +472,26 @@ def plate(text, sub="", width=512, height=128):
 
 
 def message(text, where, width=1024, height=192):
-    """A line from the game's code, white on dark, with where it is from under it."""
-    img = Image.new("RGB", (width, height), (20, 22, 30))
+    """A line from the game's code in OpenRAC's look: the text in Inter on the page's ink, where it
+    is from under it in gold."""
+    img = style_ground(width, height, 0.5, 0.6)
     draw = ImageDraw.Draw(img)
-    draw.rectangle([4, 4, width - 5, height - 5], outline=(244, 196, 74), width=6)
-    # One line while it stays big, else two; the same serif font for every message.
-    f = font(72, serif=True)
-    while draw.textlength(text, font=f) > width - 60 and f.size > 50:
-        f = font(f.size - 2, serif=True)
+    f = inter("SemiBold", 72)
+    while draw.textlength(text, font=f) > width - 80 and f.size > 50:
+        f = inter("SemiBold", f.size - 2)
     lines = [text]
-    if draw.textlength(text, font=f) > width - 60:
+    if draw.textlength(text, font=f) > width - 80:
         words = text.split(" ")
         cut = min(range(1, len(words)), key=lambda k: abs(len(" ".join(words[:k])) - len(" ".join(words[k:]))))
         lines = [" ".join(words[:cut]), " ".join(words[cut:])]
-        f = font(56, serif=True)
-        while max(draw.textlength(l, font=f) for l in lines) > width - 60 and f.size > 14:
-            f = font(f.size - 2, serif=True)
-    step = f.size + 6
-    top = (height - 60 - step * len(lines)) / 2 + 6
+        f = inter("SemiBold", 48)
+        while max(draw.textlength(l, font=f) for l in lines) > width - 80 and f.size > 14:
+            f = inter("SemiBold", f.size - 2)
+    step = f.size * 1.2
+    top = (height - 50 - step * len(lines)) / 2
     for k, line in enumerate(lines):
-        draw.text(((width - draw.textlength(line, font=f)) / 2, top + k * step), line, font=f, fill=(240, 240, 232))
-    s = font(30)
-    draw.text(((width - draw.textlength(where, font=s)) / 2, height - 56), where, font=s, fill=(244, 196, 74))
+        draw.text((width / 2, top + (k + 0.8) * step), line, font=f, fill=STYLE["text"], anchor="ms")
+    draw.text((width / 2, height - 26), where.upper(), font=inter("Bold", 26), fill=STYLE["brand"], anchor="ms")
     return png(img)
 
 
@@ -648,29 +647,30 @@ def code_card(panels, title=None, width=1024, height=640, note=None):
 
 
 def card(title, lines, width=1024, height=640, big=None):
-    """A dark card: TITLE in gold, BIG (one line, large) when given, and short LINES under it."""
-    img = Image.new("RGB", (width, height), (26, 24, 32))
+    """A card in OpenRAC's look: TITLE in gold, BIG (one line, large) when given, and short LINES
+    under it, on the page's ink."""
+    img = style_ground(width, height)
     draw = ImageDraw.Draw(img)
-    f = font(56)
-    while draw.textlength(title, font=f) > width - 80 and f.size > 20:
-        f = font(f.size - 2)
-    draw.text(((width - draw.textlength(title, font=f)) / 2, 40), title, font=f, fill=GOLD)
-    y = 140
+    f = inter("Bold", 60)
+    while draw.textlength(title, font=f) > width - 100 and f.size > 20:
+        f = inter("Bold", f.size - 2)
+    draw.text((width / 2, 100), title, font=f, fill=STYLE["gold"], anchor="ms")
+    y = 170
     if big:
-        b = font(96, serif=True)
-        while draw.textlength(big, font=b) > width - 80 and b.size > 20:
-            b = font(b.size - 2, serif=True)
+        b = inter("Bold", 104)
+        while draw.textlength(big, font=b) > width - 100 and b.size > 20:
+            b = inter("Bold", b.size - 2)
         if not lines:          # alone under the title: in the middle of the card
-            y = (height + 110 - b.size) / 2
-        draw.text(((width - draw.textlength(big, font=b)) / 2, y), big, font=b, fill=(255, 250, 240))
+            y = (height + 60 - b.size) / 2
+        draw.text((width / 2, y + b.size * 0.8), big, font=b, fill=STYLE["text"], anchor="ms")
         y += b.size + 50
-    body = font(34)
+    body = inter("Medium", 36)
     for line in lines:
-        for part in wrap(draw, line, body, width - 120):
-            draw.text(((width - draw.textlength(part, font=body)) / 2, y), part, font=body, fill=INK)
-            y += 46
-        y += 10
-    return png(framed(img))
+        for part in wrap(draw, line, body, width - 140):
+            draw.text((width / 2, y + 36), part, font=body, fill=STYLE["text"], anchor="ms")
+            y += 48
+        y += 12
+    return png(img)
 
 
 def renames(rows, width=1024, height=640):
