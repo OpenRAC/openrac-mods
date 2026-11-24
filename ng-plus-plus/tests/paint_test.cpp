@@ -38,7 +38,10 @@ void test_play_carbonox_tier_paints() {
 // the paint with its glow level, the accent's flag, and the top nibble of each channel in bits 12
 // to 23 (red highest).
 void test_accent_packs_as_the_sdk() {
-    CHECK(paint_accent_at(9, 0xFF2010) == (5u | 9u << 8 | 0x1000000u | 0xFu << 20 | 0x2u << 16 | 0x1u << 12));
+    CHECK(
+        paint_accent_at(9, 0xFF2010)
+        == (5u | 9u << 8 | 0x1000000u | 0xFu << 20 | 0x2u << 16 | 0x1u << 12)
+    );
     CHECK(paint_accent_at(0, 0) == (kMaterialPaint | kPaintAccentBit));
     // The level and the flag stay put, whatever the accent's channels.
     CHECK((paint_accent_at(15, 0xFFFFFF) & 0xFFFu) == (kMaterialPaint | 15u << 8));
