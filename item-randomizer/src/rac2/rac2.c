@@ -538,6 +538,7 @@ static int play_settings(const rando_settings* settings) {
     s.pools &= (uint8_t)(POOL_GADGETS | POOL_WEAPONS | POOL_VENDOR);
     s.keep_start = 1;
     s.start_weapons = RANDO_START_WEAPONS_NONE; /* Ratchet & Clank's choice */
+    s.gold_progression = 0; /* Ratchet & Clank's choice */
 
     if (r2_solve(&s, &s_plan) != 0) {
         return 0;

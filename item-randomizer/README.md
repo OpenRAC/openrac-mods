@@ -34,7 +34,8 @@ and start a **new game**.
 | Shuffle weapons | on | The Suck Cannon, the Morph-o-Ray, the R.Y.N.O. |
 | Shuffle the vendor | on | Each weapon the vendor sells is a slot: buying it, at its price, gives what the seed put there |
 | Shuffle items | off | RAC1: shuffle every entry in the Items menu (listed below), independently of gadgets. Requires OpenRAC interface 1.16 or newer. |
-| Shuffle gold bolts | on | A gold bolt may be anywhere, and a gold bolt's place may hold a weapon or a useful extra, never something you need to go on. The pause screen counts the gold bolts you have found, wherever they were |
+| Shuffle gold bolts | on | A gold bolt may be anywhere, and a gold bolt's place may hold any other reward. The pause screen counts the gold bolts you have found, wherever they were |
+| Mandatory items on gold bolts | on | RAC1, with Shuffle gold bolts: a gold bolt's place may hold something you need to go on, only where that bolt's own requirements are met. Four hard-to-reach bolts (Rilgar 2, Orxon 1, Gemlik, Oltanis 1) stay free of it on Relaxed and Standard. Off: no gold bolt holds what you need to go on, as before. Carried in seed codes as a `G:` prefix |
 | Shuffle gold-weapon cases | off | RAC1 only: shuffle ten gold upgrades and their cases; open the Novalis shop without New Game+ |
 | Shuffle infobots | on | Pickup Infobots and NPC coordinate rewards join the pool in new RAC1 seeds |
 | Show what the vendor gives | on | A line above the picture says what buying a weapon at the vendor gives you. Off: buying is a surprise |
@@ -134,8 +135,10 @@ help messages, and they say it: "Destroy Blarg ships for O2 Mask", "You need a H
 "To progress any further in this area, you must have a Gadgetron Hydrodisplacer". Each row of
 logic.c quotes what it rests on. A row asks for too much rather than too little: asking for too much
 narrows the shuffle, too little strands a player. What the game does not say is taken from what its
-route carries there (`WALK`). Nothing says what each gold bolt takes, so a gold bolt counts as needing
-every gadget that opens a way, and holds nothing the way on needs.
+route carries there (`WALK`). Nothing says what each gold bolt takes, so each gold bolt's row asks
+for what reaching it takes in play (the number is its slot in the level data: "gold bolt 1" is slot
+0, and collecting one logs its name). With **Mandatory items on gold bolts** a gold bolt may hold what
+the way on needs, except the ones marked `NOPROG` below Expert; without it none does.
 
 **What a location's "had" state is.** The game keeps it, in its save:
 
@@ -200,7 +203,8 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 - `solver`: the tables hold together, the game's own placement can be finished at every difficulty,
   every seed of every setting is solved, beatable and strands nothing, the same seed gives the same
   placement, a placement only moves the shuffled rewards among the shuffled places, progression keeps
-  out of gold bolts and of the purchases each difficulty rules out, and one fixed seed's placement
+  out of the purchases each difficulty rules out and out of gold bolts unless the setting lets it in
+  (and out of the marked ones but on expert), and one fixed seed's placement
   hash (the same on macOS, Linux and Windows); `solver_sweep` does that for 5,000 seeds of each of the
   192 settings;
 - `table`: every infobot and gold bolt of both discs has its row and every row its moby; the
@@ -218,7 +222,8 @@ build/item-randomizer/item_randomizer_solver_test 100000 0    # more seeds: COUN
 
 ## What is not known
 
-- What each gold bolt really takes: the rows assume all, so none holds what the way on needs.
+- What each gold bolt really takes is from play, not the game's words: a row that asks for too little
+  could strand a player when a gold bolt holds what the way on needs.
 - Rows without the game's own words are the route's (`WALK`): they may ask for more than a place takes.
 - In a party, a gold bolt given by a place that is not a gold bolt's counts in the finder's game only:
   the game has no byte for it that a party shares.
@@ -437,7 +442,7 @@ and Pokitaru Persuader trade can now give any shuffled reward. Retail costs and
 Raritanium consumption remain in place. Ultra Nanotech grants eight maximum health;
 receiving Premium afterward never lowers it. The solver requires the actual
 Zoomerator for Skid's agent, Raritanium for the trade and CodeBot for Quartu vault access
-(conservatively required for both Quartu Gold Bolts).
+(Quartu's gold bolt 2). The CodeBot itself needs the Hydro-Pack and the O2 Mask, not the Hologuise.
 
 Collection checks are stored through OpenRAC interface 1.16's save-scoped mod data,
 separately from inventory, in the same record as the gold-case and NPC checks. Keep the `.moddata` sidecar with the game save. New RAC1

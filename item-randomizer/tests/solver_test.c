@@ -63,7 +63,7 @@ static void check_tables(void) {
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_MAGNEBOOTS) | BIT(ITEM_O2_MASK) | swing | BIT(ITEM_HOLOGUISE)
                     | soft(d, heli | BIT(ITEM_HYDRO_PACK))));
             if (!strcmp(a->name, "Drek's Fleet: the CodeBot"))
-                CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK) | BIT(ITEM_HOLOGUISE)));
+                CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
             if (!strcmp(a->name, "Quartu: the Bolt Grabber's pickup"))
                 CHECK(rando_requirement(d, i) == (BIT(ITEM_HYDRO_PACK) | BIT(ITEM_O2_MASK)));
             if (!strcmp(a->name, "Veldin (return): Drek"))
@@ -554,11 +554,72 @@ static void check_start_weapons(void) {
           && p.settings.start_weapons == RANDO_START_WEAPONS_NONE);
 }
 
+/* Gold bolts: their own requirements; progression on them only with gold_progression, never on
+ * the NOPROG ones but on expert; and none at all with it off, as before. */
+static void check_gold_bolt_progression(void) {
+    static rando_plan p;
+    static char text[1 << 16];
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (l->kind != LOC_GOLD) continue;
+        /* No gold bolt asks for the whole gadget set any more. */
+        CHECK((l->hard & BIT(ITEM_SONIC_SUMMONER)) == 0 && (l->hard & BIT(ITEM_HOVERBOARD)) == 0);
+        if (!strcmp(l->name, "Quartu: gold bolt 2"))
+            CHECK(l->hard == (BIT(ITEM_SWINGSHOT) | SPECIAL_BIT(SPECIAL_CODEBOT)));
+        if (!strcmp(l->name, "Novalis: gold bolt 3"))
+            CHECK(l->hard == 0
+                  && l->any == (BIT(ITEM_BOMB_GLOVE) | BIT(ITEM_DEVASTATOR) | BIT(ITEM_VISIBOMB)));
+        if (!strcmp(l->name, "Drek's Fleet: gold bolt 2"))
+            CHECK(l->soft == BIT(ITEM_HELI_PACK) && (l->hard & BIT(ITEM_HOLOGUISE)));
+        const int marked = !strcmp(l->name, "Rilgar: gold bolt 2") || !strcmp(l->name, "Orxon: gold bolt 1")
+                           || !strcmp(l->name, "Gemlik: gold bolt") || !strcmp(l->name, "Oltanis: gold bolt 1");
+        CHECK(!!(l->flags & LOCF_NO_PROGRESSION) == marked);
+    }
+    for (size_t i = 0; i < rando_location_count; ++i)
+        if (!strcmp(rando_locations[i].name, "Drek's Fleet: the CodeBot"))
+            CHECK((rando_requirement(DIFFICULTY_STANDARD, i) & BIT(ITEM_HOLOGUISE)) == 0);
+    for (int d = DIFFICULTY_RELAXED; d <= DIFFICULTY_EXPERT; ++d) {
+        for (int on = 0; on <= 1; ++on) {
+            int on_bolts = 0, on_marked = 0;
+            for (uint64_t seed = 1; seed <= 120; ++seed) {
+                rando_settings s = {seed * 0x9E3779B1ull & RANDO_SEED_MASK,
+                    (uint8_t)(POOL_ALL | POOL_ITEMS | POOL_NPC_INFOBOTS), 1, (uint8_t)d};
+                s.gold_progression = (uint8_t)on;
+                CHECK(rando_solve(&s, &p) == 0);
+                CHECK(rando_beatable(&p, NULL) && rando_stranded(&p) == 0);
+                CHECK(p.settings.gold_progression == on);
+                for (size_t i = 0; i < rando_location_count; ++i) {
+                    const rando_location* l = &rando_locations[i];
+                    const rando_reward r = p.reward[i];
+                    const int prog = is_progression(r) || (r.kind == REWARD_SPECIAL
+                        && (r.value == SPECIAL_RARITANIUM || r.value == SPECIAL_CODEBOT
+                            || r.value == SPECIAL_ZOOMERATOR));
+                    if (l->kind != LOC_GOLD || !prog) continue;
+                    ++on_bolts;
+                    on_marked += (l->flags & LOCF_NO_PROGRESSION) != 0;
+                }
+                const size_t size = rando_spoiler(&p, "1", text, sizeof text);
+                CHECK(size > 0 && size < sizeof text);
+                CHECK((strstr(text, "Gold bolts  may hold") != NULL) == on);
+            }
+            printf("gold bolt progression difficulty %d on %d: %d on gold bolts, %d on marked ones\n",
+                   d, on, on_bolts, on_marked);
+            CHECK(on ? on_bolts > 0 : on_bolts == 0);
+            if (d != DIFFICULTY_EXPERT || !on) CHECK(on_marked == 0);
+        }
+    }
+    /* With the gold bolts not shuffled the setting is dropped (no G: code for it). */
+    rando_settings s = {0x55ull, (uint8_t)(POOL_ALL & ~POOL_GOLD), 1, DIFFICULTY_STANDARD};
+    s.gold_progression = 1;
+    CHECK(rando_solve(&s, &p) == 0 && p.settings.gold_progression == 0);
+}
+
 int main(int argc, char** argv) {
     const long n = argc > 1 ? atol(argv[1]) : 200;
     const long first = argc > 2 ? atol(argv[2]) : 0;
     check_tables();
     check_start_weapons();
+    check_gold_bolt_progression();
     check_edwina_water_route();
     check_helga_without_heli_pack();
     check_eudora_warp_pad();

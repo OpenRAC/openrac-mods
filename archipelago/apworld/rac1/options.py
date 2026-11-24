@@ -46,6 +46,13 @@ class ShuffleGoldBolts(DefaultOnToggle):
     display_name = "Shuffle gold bolts"
 
 
+class GoldBoltProgression(DefaultOnToggle):
+    """With gold bolts shuffled, a gold bolt may hold progression, where its own requirements are
+    met. A few hard-to-reach gold bolts hold progression only on expert logic. Off: gold bolts
+    never hold progression."""
+    display_name = "Progression on gold bolts"
+
+
 class ShuffleInfobots(DefaultOnToggle):
     """Shuffle Infobots and NPC coordinate rewards, including the Plumber and Batalia purchases.
     The first flight from Veldin to Novalis remains fixed."""
@@ -101,6 +108,7 @@ class RAC1Options(PerGameCommonOptions):
     shuffle_weapons: ShuffleWeapons
     shuffle_vendor: ShuffleVendor
     shuffle_gold_bolts: ShuffleGoldBolts
+    gold_bolt_progression: GoldBoltProgression
     shuffle_infobots: ShuffleInfobots
     shuffle_skill_points: ShuffleSkillPoints
     shuffle_gold_weapons: ShuffleGoldWeapons
@@ -114,7 +122,7 @@ OPTION_GROUPS = [
     OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus, RandomStartingPlanet]),
     OptionGroup(
         "Pools",
-        [ShuffleGadgets, ShuffleItems, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],
+        [ShuffleGadgets, ShuffleItems, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, GoldBoltProgression, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],
     ),
 ]
 

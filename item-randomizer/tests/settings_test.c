@@ -123,6 +123,24 @@ int main(int argc, char** argv) {
         CHECK(rando_settings_of(&o, NULL, 0, &s) && s.keep_start == 1 && s.start_weapons == 0);
     }
 
+    /* Gold bolts that may hold progression: the option, only with the gold bolts shuffled, and
+     * carried by a code. */
+    {
+        o.seed = "gold";
+        o.starting_weapons = NULL;
+        o.gold_bolts = 1; o.gold_progression = 1;
+        CHECK(rando_settings_of(&o, NULL, 0, &s) == SEED_FROM_WORD && s.gold_progression == 1);
+        char gold_code[RANDO_CODE_SIZE]; rando_encode(&s, gold_code);
+        CHECK(strncmp(gold_code, "G:", 2) == 0);
+        o.gold_progression = 0;
+        CHECK(rando_settings_of(&o, NULL, 0, &s) == SEED_FROM_WORD && s.gold_progression == 0);
+        o.seed = gold_code;
+        CHECK(rando_settings_of(&o, NULL, 0, &s) == SEED_FROM_CODE && s.gold_progression == 1);
+        o.seed = "gold"; o.gold_progression = 1; o.gold_bolts = 0;
+        CHECK(rando_settings_of(&o, NULL, 0, &s) == SEED_FROM_WORD && s.gold_progression == 0);
+        o.gold_bolts = 1; o.gold_progression = 0;
+    }
+
     /* The manifest declares what the mod reads. */
 
     if (argc > 1) {
@@ -142,6 +160,7 @@ int main(int argc, char** argv) {
              "\"shuffle_gold_bolts\"",
              "\"shuffle_infobots\"",
              "\"starting_weapons\"",
+             "\"gold_bolt_progression\"",
              "\"non_broken\"",
              "\"unrestricted\"",
              "\"spoiler_log\"",

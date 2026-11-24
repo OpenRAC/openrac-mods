@@ -245,7 +245,42 @@ class TestRelaxed(RAC1TestBase):
             self.assertTrue(location.item_rule(self.world.create_item("Gold Bolt")), row.name)
 
 
+MARKED_GOLD_BOLTS = {"Rilgar: gold bolt 2", "Orxon: gold bolt 1", "Gemlik: gold bolt", "Oltanis: gold bolt 1"}
+
+
 class TestGoldBolts(RAC1TestBase):
+    # Progression on gold bolts is on by default; the marked ones hold it only on expert.
+    expert = False
+
+    def test_gold_bolts_hold_progression_but_the_marked(self) -> None:
+        key = self.world.create_item("Swingshot")
+        rows = [row for row in LOCATIONS if row.kind == "gold"]
+        self.assertEqual({row.name for row in rows if row.no_progression}, MARKED_GOLD_BOLTS)
+        for row in rows:
+            allowed = self.expert or row.name not in MARKED_GOLD_BOLTS
+            self.assertEqual(self.multiworld.get_location(row.name, self.player).item_rule(key), allowed, row.name)
+
+    def test_a_gold_bolt_needs_its_own_items(self) -> None:
+        location = "Kalebo III: gold bolt 1"
+        self.collect_by_name("Kalebo III Coordinates")
+        self.sweep()
+        self.assertFalse(self.can_reach_location(location))
+        self.collect_by_name("Grindboots")
+        self.assertTrue(self.can_reach_location(location))
+
+    def test_codebot_needs_no_hologuise(self) -> None:
+        row = next(row for row in LOCATIONS if row.name == "Drek's Fleet: the CodeBot")
+        self.assertNotIn("Hologuise", row.hard)
+
+
+class TestGoldBoltsExpert(TestGoldBolts):
+    options = {"logic": "expert"}
+    expert = True
+
+
+class TestGoldBoltsWithoutProgression(RAC1TestBase):
+    options = {"gold_bolt_progression": False}
+
     def test_gold_bolts_hold_no_progression(self) -> None:
         key = self.world.create_item("Swingshot")
         for row in LOCATIONS:
@@ -269,7 +304,8 @@ class TestMultiworldKeepsProgressionShared(RAC1TestBase):
 
 
 class TestMultiworldShortOfPlaces(RAC1TestBase):
-    options = {"shuffle_vendor": False}
+    # Gold bolts that may hold progression would give it room enough.
+    options = {"shuffle_vendor": False, "gold_bolt_progression": False}
     # Short of places, the main fill can dead-end (seed 49127562165134269560): the base tests run
     # the world as it plays, placing its own progression.
     place_progression = True
@@ -403,15 +439,17 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name(["Kalebo III Coordinates", "Swingshot", "Grindboots"])
         self.assertTrue(self.can_reach_location("Kalebo III: the help desk"))
 
-    def test_fleet_always_requires_hologuise(self) -> None:
+    def test_fleet_needs_hologuise_only_where_its_rows_ask(self) -> None:
+        # Flying to the Fleet takes its coordinates only; the infobot and gold bolt 2 ask for the
+        # Hologuise, the CodeBot and gold bolt 1 do not.
         self.collect_all_but(["Hologuise"])
-        self.assertFalse(self.can_reach_region("Drek's Fleet"))
-        for name in ["Drek's Fleet: the infobot", "Drek's Fleet: the CodeBot",
-                     "Drek's Fleet: gold bolt 1", "Drek's Fleet: gold bolt 2"]:
-            if name in {location.name for location in self.multiworld.get_locations(self.player)}:
-                self.assertFalse(self.can_reach_location(name))
-        self.collect_by_name("Hologuise")
         self.assertTrue(self.can_reach_region("Drek's Fleet"))
+        names = {location.name for location in self.multiworld.get_locations(self.player)}
+        for name, needs in [("Drek's Fleet: the infobot", True), ("Drek's Fleet: the CodeBot", False),
+                            ("Drek's Fleet: gold bolt 1", False), ("Drek's Fleet: gold bolt 2", True)]:
+            if name in names:
+                self.assertEqual(self.can_reach_location(name), not needs, name)
+        self.collect_by_name("Hologuise")
         self.assertTrue(self.can_reach_location("Drek's Fleet: the infobot"))
 
     def test_fleet_infobot_heli_pack_is_required_outside_expert(self) -> None:
@@ -424,8 +462,8 @@ class TestEdwinaHydrodisplacer(RAC1TestBase):
         self.collect_by_name("Hydro-Pack")  # the tanker's hint: soft
         self.assertTrue(self.can_reach_location("Drek's Fleet: the infobot"))
 
-    def test_fleet_codebot_needs_water_equipment_and_hologuise(self) -> None:
-        self.collect_by_name(["Drek's Fleet Coordinates", "Hydro-Pack", "Hologuise"])
+    def test_fleet_codebot_needs_water_equipment(self) -> None:
+        self.collect_by_name(["Drek's Fleet Coordinates", "Hydro-Pack"])
         self.assertFalse(self.can_reach_location("Drek's Fleet: the CodeBot"))
         self.collect_by_name("O2 Mask")
         self.assertTrue(self.can_reach_location("Drek's Fleet: the CodeBot"))

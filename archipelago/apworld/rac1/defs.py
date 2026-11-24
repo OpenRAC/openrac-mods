@@ -24,3 +24,4 @@ class LocationData(NamedTuple):
     costly: bool  # bought for more bolts than a player has early on
     pricey: bool  # a purchase to save up for
     goal: bool  # beating Drek
+    no_progression: bool = False  # a gold bolt that holds progression only on expert

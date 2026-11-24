@@ -2253,6 +2253,7 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_items"),
         api->setting_bool(mod, "random_starting_planet"),
         api->setting_string(mod, "starting_weapons"),
+        api->setting_bool(mod, "gold_bolt_progression"),
     };
     rando_settings settings;
     const int source =

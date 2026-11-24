@@ -24,7 +24,36 @@
 
 static int same(const rando_settings* a, const rando_settings* b) {
     return a->seed == b->seed && a->pools == b->pools && a->keep_start == b->keep_start
-           && a->difficulty == b->difficulty && a->start_weapons == b->start_weapons;
+           && a->difficulty == b->difficulty && a->start_weapons == b->start_weapons
+           && a->gold_progression == b->gold_progression;
+}
+
+/* Gold bolts that may hold progression: a G: prefix, last, on the unchanged payload; refused on a
+ * payload whose gold bolts are not shuffled. */
+static void gold_progression_codes(void) {
+    rando_settings s = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD, 0};
+    char plain[RANDO_CODE_SIZE], code[RANDO_CODE_SIZE];
+    rando_encode(&s, plain);
+    s.gold_progression = 1;
+    rando_encode(&s, code);
+    CHECK(strncmp(code, "G:", 2) == 0 && strcmp(code + 2, plain) == 0);
+    rando_settings back = {0};
+    CHECK(rando_decode(code, &back) && same(&s, &back));
+    s.random_start = 1;
+    s.start_weapons = RANDO_START_WEAPONS_NON_BROKEN;
+    rando_encode(&s, code);
+    CHECK(strncmp(code, "R:N:G:", 6) == 0 && strcmp(code + 6, plain) == 0
+          && strlen(code) < RANDO_CODE_SIZE);
+    CHECK(rando_decode(code, &back) && same(&s, &back) && back.random_start == 1);
+    for (char* p = code; *p; ++p) *p = (char)(*p >= 'A' && *p <= 'Z' ? *p - 'A' + 'a' : *p);
+    CHECK(rando_decode(code, &back) && same(&s, &back));
+    /* A plain code has none; G: on a payload without shuffled gold bolts is no code. */
+    CHECK(rando_decode(plain, &back) && back.gold_progression == 0);
+    rando_settings off = {0x123456789Aull, (uint8_t)(POOL_ALL & ~POOL_GOLD), 1, DIFFICULTY_STANDARD, 0};
+    char bare[RANDO_CODE_SIZE], bad[RANDO_CODE_SIZE + 2];
+    rando_encode(&off, bare);
+    snprintf(bad, sizeof bad, "G:%s", bare);
+    CHECK(!rando_decode(bad, &back));
 }
 
 /* Random starting weapons: an N: or U: prefix (after R:) on the unchanged payload; a code with
@@ -100,6 +129,7 @@ static void a_code_places_the_same_everywhere(void) {
 int main(void) {
     a_code_places_the_same_everywhere();
     starting_weapon_codes();
+    gold_progression_codes();
     /* Round trips: every pool set, both start choices, each difficulty, seeds across 40 bits. */
     rando_rng r = {1};
     int codes = 0;
