@@ -292,6 +292,14 @@
       }
     }
   ],
+  "rac1-hd-achievements": [
+    {
+      "version": "0.5.2",
+      "sha256": {
+        "windows-x86_64": "97c41dc276cbefa8fceef71fcba3d5c6afd234b7542d4d1df5ffa1ba2c10d658"
+      }
+    }
+  ],
   "rac1-travel-anywhere": [
     {
       "version": "0.1.0",
