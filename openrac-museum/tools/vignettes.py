@@ -346,6 +346,7 @@ def tide_pool(geo, p, z, yaw, r):
 
 ON_GRASS = (hut, campfire, totem, signpost, fence, flower_bed, barrels, hammock, stone_lantern, flower_bed, fence)
 ON_SAND = (canoe, sunshade, driftwood, tide_pool, campfire, barrels, sunshade, driftwood)
+FIRE_SPACING = 90.0     # campfires at least this far apart
 ON_ROCK = (totem, stone_lantern, flower_bed, hut, signpost, campfire)
 
 
@@ -353,6 +354,7 @@ def place(geo, layout, cell=22.0):
     """One scene per patch of land (CELL units): grass, sand or a rock's top each get their own."""
     busy = busy_points(layout)
     out = []
+    fires = []      # campfires stand far apart: one now and then, not one in every bay
     for gx in np.arange(C[0] - 470, C[0] + 470, cell):
         for gy in np.arange(C[1] - 470, C[1] + 470, cell):
             seed = int((gx * 7919 + gy * 104729) % 1000003)
@@ -366,6 +368,11 @@ def place(geo, layout, cell=22.0):
                 on_rock = np.isfinite(top) and top >= z - 0.5 and z > SEA + 10
                 kinds = ON_ROCK if on_rock else (ON_SAND if z < SEA + 4.6 else ON_GRASS)
                 fn = kinds[int(r.integers(len(kinds)))]
+                if fn is campfire and any(math.hypot(x - fx, y - fy) < FIRE_SPACING for fx, fy in fires):
+                    rest = [k for k in kinds if k is not campfire]
+                    fn = rest[int(r.integers(len(rest)))]
+                if fn is campfire:
+                    fires.append((x, y))
                 yaw = float(r.uniform(0, 360))
                 # Face the scene towards the house, half the time: things look placed, not thrown.
                 if r.random() < 0.5:
