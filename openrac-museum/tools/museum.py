@@ -20,6 +20,7 @@ sys.path.insert(0, str(HERE))
 import exhibits  # noqa: E402
 import island  # noqa: E402
 import landmarks  # noqa: E402
+import museum_light  # noqa: E402
 import make_museum  # noqa: E402
 import scatter  # noqa: E402
 
@@ -142,6 +143,44 @@ def copy_node(section, name, xform):
     else:
         out = out.replace("]\n", "]\ntransform = " + xform + "\n", 1)
     return out
+
+
+def light_nodes(text, layout):
+    """The level's light sets and light zones (museum_light.py, measured from the bake) into the scene,
+    and each placed moby's light set and colour from the zone it stands in."""
+    sets, zones = layout.get("light_sets"), layout.get("light_zones")
+    if not sets or not zones:
+        return text
+    scene = Scene(text)
+    keep = []
+    for s in scene.sections:
+        head = s.split("\n")[0]
+        if s.startswith("[node ") and (Scene.attr(s, "name") in ("LightSets", "LightZones")
+                                       and Scene.attr(s, "parent") == "Game"
+                                       or Scene.attr(s, "parent") == "Game/LightZones"):
+            continue
+        if s.startswith("[node ") and Scene.attr(s, "parent") == "Game/Mobys" and "moby_0.tscn" not in head:
+            m = re.search(r"^transform = Transform3D\(([^)]*)\)", s, re.M)
+            got = museum_light.moby_light(zones, [float(v) for v in m.group(1).split(",")][9:12]) if m else None
+            if got is not None:
+                light_set, rgb = got
+                s = re.sub(r"^metadata/rc1_colour = .*\n", "", s, flags=re.M)
+                s = re.sub(r"^metadata/rc1_light = .*\n", "", s, flags=re.M)
+                s = s.rstrip("\n") + f"\nmetadata/rc1_colour = [{rgb[0]}, {rgb[1]}, {rgb[2]}]\nmetadata/rc1_light = {light_set}\n"
+        keep.append(s)
+    nodes = ['[node name="LightSets" parent="Game" type="Node"]\n'
+             + "".join(f"metadata/rc1_set_{i} = [{', '.join(f'{v:.6g}' for v in values)}]\n" for i, values in enumerate(sets)),
+             '[node name="LightZones" parent="Game" type="Node3D"]\nvisible = false\n']
+    for z in zones:
+        x, y, zz, c = z["x"], z["y"], z["z"], z["centre"]
+        rows = [x[0], y[0], zz[0], x[1], y[1], zz[1], x[2], y[2], zz[2], *c]
+        nodes.append(f'[node name="{z["name"]}" parent="Game/LightZones" type="Node3D"]\n'
+                     f"transform = Transform3D({', '.join(f'{v:.6g}' for v in rows)})\n"
+                     f"metadata/rc1_colour_a = {z['colour_a']}\nmetadata/rc1_colour_b = {z['colour_b']}\n"
+                     f"metadata/rc1_set_a = {z['set_a']}\nmetadata/rc1_set_b = {z['set_b']}\n"
+                     f"metadata/rc1_on = true\nmetadata/rc1_reach = {float(z['reach']):.6g}\n")
+    scene.sections = keep + nodes
+    return scene.text()
 
 
 def settle(project, scene_path):
@@ -421,6 +460,9 @@ def write_museum(projects, tools):
     text = "".join(out)
     scene_path.write_text(text, encoding="utf-8", newline="\n")
     settle(project, scene_path)
+    # After the mobys are set down: the light each takes from where it stands.
+    scene_path.write_text(light_nodes(scene_path.read_text(encoding="utf-8"), layout), encoding="utf-8",
+                          newline="\n")
 
     set_planet(project)
     print(f"OpenRAC Museum written into {project}: {len(layout['mobys'])} objects, {tie_count} rocks, "

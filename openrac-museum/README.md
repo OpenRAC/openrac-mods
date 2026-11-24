@@ -83,5 +83,6 @@ python3 tools/build_map.py DISC.iso OUT_FOLDER --editor path/to/OpenRAC-Editor
 
 It reads levels 11 and 2 from the disc into a temporary folder, writes the museum there
 (`tools/museum.py`), sets every crate, lamp, rock and plant down on the ground with OpenRAC
-Editor's placement (`placement.py`), and exports it with OpenRAC Editor's `map export`. Upload the
+Editor's placement (`placement.py`), bakes the light with bounced light and a soft sun, gives the
+hero light zones from that bake (darker in the house and in shade, `tools/museum_light.py`), and exports it with OpenRAC Editor's `map export`. Upload the
 `.openrac-map` it writes to a release. Never commit it with disc files.

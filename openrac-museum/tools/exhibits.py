@@ -130,7 +130,7 @@ MESSAGES = [
 # Each room's two wall boards: (title, paragraphs, a game string or None), or None for no board.
 # A board says what the room's tile does not: the tile tells the story, the boards add facts.
 BOARDS = {
-    LAUNCHER: [("Your own disc", ["PAL v2.00 and v1.00 (SCES_509.16), NTSC-U (SCUS_971.99), Japan (SCPS_150.37).",
+    LAUNCHER: [("Your own disc", ["PAL v2.00 and v1.00: SCES_509.16", "NTSC-U: SCUS_971.99", "Japan: SCPS_150.37",
                                   "Going Commando, Up Your Arsenal and Deadlocked: early access."], None), None],
     RENDERER: [("Only when you look", ["Many mobys update only while they are drawn. Turn the camera away "
                                        "and they wait. OpenRAC keeps this: change it and the game plays "

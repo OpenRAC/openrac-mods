@@ -31,6 +31,7 @@ import glb
 import house
 import island
 import landmarks
+import museum_light
 import ground
 import rocks
 import scatter
@@ -169,7 +170,22 @@ def strips(p, size):
         p.keep = np.concatenate([mask] + new_keep)
 
 
-def bake(terrain, t, models=(), lights=()):
+def picture_means(tex):
+    """Each picture's mean colour (0 to 1, by its opacity): how much light its surface sends on."""
+    import io
+    from PIL import Image
+    out = {}
+    for name, data in tex.items():
+        try:
+            a = np.asarray(Image.open(io.BytesIO(data)).convert("RGBA"), np.float64) / 255
+        except Exception:
+            continue
+        w = a[..., 3:4]
+        out[name] = (a[..., :3] * w).sum((0, 1)) / max(float(w.sum()), 1e-6)
+    return out
+
+
+def bake(terrain, t, models=(), lights=(), albedo=None):
     """Sun, shadows, sky light and point lights into the ground's and the models' colours (the
     editor's bake: all of them together, so the house shades the deck and the deck the stilts),
     each picture's own brightness kept as a tint (Pokitaru's pictures are dark, its ground lit up
@@ -184,9 +200,13 @@ def bake(terrain, t, models=(), lights=()):
         patch = 0.8 + 0.4 * (terrain.value_noise3(P / 38.0, 21, 3) * 0.7 + terrain.value_noise3(P / 11.0, 22, 2) * 0.3)
         col = tint * warm[None] * patch[:, None]
         p.attrs["COLOR_0"] = np.concatenate([col, np.ones((len(P), 1))], 1)
-    args = types.SimpleNamespace(sun=[-35.0, 40.0], region=[230.0, -20.0, 1100.0, 920.0], ao=20, cell=0.9, bias=0.8,
-                                 strength=1.0, ambient=0.22, sun_colour=[1.25, 1.1, 0.82], sky_colour=[0.6, 0.7, 0.86],
-                                 bounce_colour=[0.32, 0.27, 0.16], keep_tint=True, lights=list(lights))
+    # Soft sun shadows, the sky from 64 directions and one bounce of light off the ground, the rock
+    # and the house (each surface's picture colour), so shut-in places come out dark and lit ones
+    # throw their colour round.
+    args = types.SimpleNamespace(sun=[-35.0, 40.0], region=[230.0, -20.0, 1100.0, 920.0], ao=64, cell=0.7, bias=0.7,
+                                 strength=1.0, ambient=0.05, sun_colour=[1.3, 1.14, 0.85], sky_colour=[0.62, 0.72, 0.88],
+                                 bounce_colour=[0.32, 0.27, 0.16], bounce=1.0, sun_samples=8, sun_soft=1.2,
+                                 keep_tint=True, lights=list(lights))
     for mt in models:
         for _, _, p in mt.prims():
             c = p.attrs["COLOR_0"]
@@ -195,6 +215,14 @@ def bake(terrain, t, models=(), lights=()):
             terrain.subdivide(p, SUBDIVIDE)
             c = p.attrs["COLOR_0"]
             c[~p.keep, :3] = MODEL_TINT * MODEL_BOOST.get(mt.materials[p.material].get("name", ""), 1.0)
+    before = []
+    for mt in [t, *models]:
+        for _, _, p in mt.prims():
+            c = p.attrs["COLOR_0"][:, :3].copy()
+            before.append((p, c))
+            mean = (albedo or {}).get(mt.materials[p.material].get("name", ""))
+            if mean is not None:
+                p.albedo = np.clip(mean[None] * np.clip(c, 0, 2), 0, 0.95)
     result = terrain.bake_light(t, args, models)
     # Small things on the ground (stones, barrels, logs) are shut in by the ground round them and
     # come out black: no model part goes darker than a soft shade.
@@ -203,7 +231,7 @@ def bake(terrain, t, models=(), lights=()):
             c = p.attrs["COLOR_0"]
             k = ~p.keep if getattr(p, "keep", None) is not None else np.ones(len(c), bool)
             c[k, :3] = np.maximum(c[k, :3], MODEL_TINT * 0.5)
-    return result
+    return result, before
 
 
 def casters(terrain, out, level_dir):
@@ -392,7 +420,12 @@ def main(out, disc_textures=None):
                                           for x, y, z in layout["lamps"]]
     models = [terrain.Terrain(out / "models" / f"{n}.glb") for n in ("house", "landmarks")]
     shade = casters(terrain, out, Path(disc_textures).parent if disc_textures else None)
-    light = bake(terrain, t, models + ([shade] if shade is not None else []), lights)
+    light, baked = bake(terrain, t, models + ([shade] if shade is not None else []), lights, picture_means(all_tex))
+    # The hero's and the mobys' light, measured from the bake (museum_light.py).
+    P, L = museum_light.baked_light([(p, c) for p, c in baked if shade is None or not any(p is q for _, _, q in shade.prims())])
+    zones, levels = museum_light.zones(P, L, [(x, y) for _, x, y, _ in layout.get("vignettes", [])])
+    layout["light_sets"] = museum_light.sets(levels)
+    layout["light_zones"] = zones
     for mt in models:
         mt.save()
     horizon = ground.sea()

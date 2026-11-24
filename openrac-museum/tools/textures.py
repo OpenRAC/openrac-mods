@@ -2,6 +2,7 @@
 
 import io
 import math
+import re
 from pathlib import Path
 
 import numpy as np
@@ -312,31 +313,6 @@ def rug(seed, width=256, height=180):
     return buf.getvalue()
 
 
-def poster(title, lines, seed, width=256, height=384):
-    """An empty exhibit board: a title and a frame for content added later."""
-    r = rng(seed)
-    hue = r.random(3) * 80 + 40
-    img = Image.new("RGB", (width, height), tuple(int(v) for v in hue * 0.4))
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([10, 10, width - 11, height - 11], outline=(244, 196, 74), width=6)
-    f = font(28)
-    box = draw.textbbox((0, 0), title, font=f)
-    while box[2] - box[0] > width - 40 and f.size > 10:
-        f = font(f.size - 2)
-        box = draw.textbbox((0, 0), title, font=f)
-    draw.text(((width - (box[2] - box[0])) / 2, 26), title, font=f, fill=(255, 240, 210))
-    small = font(16)
-    y = 80
-    for line in lines:
-        draw.text((24, y), line, font=small, fill=(230, 220, 200))
-        y += 24
-    draw.rectangle([24, height - 170, width - 25, height - 30], outline=(200, 190, 170), width=2)
-    draw.text((40, height - 110), "(exhibit coming soon)", font=small, fill=(200, 190, 170))
-    buf = io.BytesIO()
-    img.save(buf, "PNG", optimize=True)
-    return buf.getvalue()
-
-
 def wrap(draw, text, f, width):
     """TEXT cut into lines no wider than WIDTH pixels in font F."""
     lines = []
@@ -359,43 +335,122 @@ def png(img):
     return buf.getvalue()
 
 
+# A word that is a code, a file or a disc number (SCES_509.16, update/mobyNNN.cpp, I-5, UPDATE):
+# drawn in the code colour.
+CODE_WORD = re.compile(r"^[(\[]?([A-Z0-9][A-Z0-9_./-]*[_0-9./][A-Za-z0-9_./-]*|[A-Z][A-Z0-9-]*[A-Z0-9]|[a-z_]+/[A-Za-z0-9_./]+)[)\],.:;]*$")
+GOLD, GOLD_DARK, CREAM, CODE = (246, 200, 84), (120, 78, 20), (244, 236, 218), (120, 226, 255)
+
+
+def rich_lines(draw, text, body, code, width):
+    """TEXT cut into lines no wider than WIDTH: each a list of (word, font, colour), a code word in
+    the code font and colour."""
+    lines, line, used = [], [], 0.0
+    space = draw.textlength(" ", font=body)
+    for word in text.split(" "):
+        is_code = bool(CODE_WORD.match(word)) and len(word) > 1
+        f, colour = (code, CODE) if is_code else (body, CREAM)
+        w = draw.textlength(word, font=f)
+        if line and used + space + w > width:
+            lines.append(line)
+            line, used = [], 0.0
+        used += (space if line else 0) + w
+        line.append((word, f, colour))
+    if line:
+        lines.append(line)
+    return lines
+
+
 def board(title, paragraphs, seed, width=512, height=704, quote=None):
-    """An exhibit board: a title, short paragraphs, and a game string in a box when QUOTE."""
+    """An exhibit board: a gold title plate, each paragraph a point of its own (code words in their
+    own colour), a game string in a screen when QUOTE, and the museum's mark at the foot. Drawn at
+    twice the size and scaled down, so the letters stay sharp."""
+    k = 2
+    W, H = width * k, height * k
+    y_axis = np.linspace(0, 1, H)[:, None, None]
+    x_axis = np.linspace(-1, 1, W)[None, :, None]
+    top, bottom = np.array([28, 40, 64]), np.array([10, 14, 26])
+    arr = top * (1 - y_axis) + bottom * y_axis
+    arr = arr * (1 - 0.35 * x_axis ** 2)                                  # darker at the sides
     r = rng(seed)
-    hue = r.random(3) * 50 + 30
-    img = Image.new("RGB", (width, height), tuple(int(v) for v in hue * 0.45))
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([8, 8, width - 9, height - 9], outline=(244, 196, 74), width=8)
-    f = font(48)
-    while draw.textlength(title, font=f) > width - 60 and f.size > 16:
-        f = font(f.size - 2)
-    draw.text(((width - draw.textlength(title, font=f)) / 2, 30), title, font=f, fill=(255, 236, 190))
-    draw.line([60, 100, width - 60, 100], fill=(244, 196, 74), width=3)
-    size = 38
+    grain = r.random((H // 8, W // 8))
+    arr = arr * (0.94 + 0.06 * np.kron(grain, np.ones((8, 8)))[:, :, None][:H, :W])
+    img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
+    d = ImageDraw.Draw(img)
+    # Faint lines like a circuit board behind the words.
+    for _ in range(14):
+        x0, y0 = int(r.integers(80, W - 80)), int(r.integers(H // 4, H - 360))
+        x1 = int(np.clip(x0 + int(r.integers(-260, 260)), 80, W - 80))
+        d.line([x0, y0, x1, y0, x1, y0 + int(r.integers(40, 200))], fill=(32, 46, 72), width=4)
+        d.ellipse([x1 - 9, y0 - 9 + 0, x1 + 9, y0 + 9], outline=(36, 52, 80), width=4)
+    # The frame: gold, a thin inner line and corner brackets.
+    d.rectangle([6, 6, W - 7, H - 7], outline=GOLD, width=14)
+    d.rectangle([34, 34, W - 35, H - 35], outline=(150, 112, 40), width=3)
+    for cx, cy, sx, sy in ((34, 34, 1, 1), (W - 35, 34, -1, 1), (34, H - 35, 1, -1), (W - 35, H - 35, -1, -1)):
+        d.line([cx, cy + sy * 70, cx, cy, cx + sx * 70, cy], fill=GOLD, width=10)
+    # The title on a gold plate.
+    plate_top, plate_h = 64, 150
+    plate = np.linspace(1.0, 0.72, plate_h)[:, None, None] * np.array([250, 206, 96])
+    img.paste(Image.fromarray(np.clip(np.repeat(plate, W - 128, 1), 0, 255).astype(np.uint8)), (64, plate_top))
+    d.rectangle([64, plate_top, W - 65, plate_top + plate_h], outline=GOLD_DARK, width=5)
+    for rx in (88, W - 89):
+        d.ellipse([rx - 10, plate_top + plate_h / 2 - 10, rx + 10, plate_top + plate_h / 2 + 10], fill=GOLD_DARK)
+    f = font(96, serif=True)
+    while d.textlength(title, font=f) > W - 260 and f.size > 30:
+        f = font(f.size - 4, serif=True)
+    tx = (W - d.textlength(title, font=f)) / 2
+    box = d.textbbox((0, 0), title, font=f)
+    ty = plate_top + (plate_h - (box[3] - box[1])) / 2 - box[1]
+    d.text((tx, ty + 3), title, font=f, fill=(255, 238, 180))
+    d.text((tx, ty), title, font=f, fill=(46, 26, 6))
+    # The points: as big as the room allows.
+    left, right = 104, W - 88
+    area_top, area_bottom = plate_top + plate_h + 60, H - 150
+    size = 64
     while True:
-        body = font(size)
-        lines = []
-        for p in paragraphs:
-            lines += wrap(draw, p, body, width - 64) + [""]
+        body, code = font(size), mono(int(size * 0.92))
+        points = [rich_lines(d, p, body, code, right - left) for p in paragraphs]
         q = mono(size)
-        # A game string has long words (paths): its font shrinks until each line fits the box.
-        while quote is not None and q.size > 12 and max(draw.textlength(l, font=q) for l in wrap(draw, quote, q, width - 96)) > width - 96:
+        while quote is not None and q.size > 16 and max(d.textlength(l, font=q) for l in wrap(d, quote, q, W - 240)) > W - 240:
             q = mono(q.size - 2)
-        need = len(lines) * (size + 8) + (0 if quote is None else 30 + len(wrap(draw, quote, q, width - 96)) * (q.size + 8))
-        if need < height - 150 or size <= 14:
+        ql = wrap(d, quote, q, W - 240) if quote is not None else []
+        step = int(size * 1.3)
+        need = sum(len(pl) * step for pl in points) + max(len(points) - 1, 0) * int(size * 0.7)
+        need += (len(ql) * (q.size + 14) + 90) if ql else 0
+        if need < area_bottom - area_top or size <= 24:
             break
         size -= 2
-    y = 120
-    for line in lines:
-        draw.text((32, y), line, font=body, fill=(240, 232, 214))
-        y += size + 8
-    if quote is not None:
-        ql = wrap(draw, quote, q, width - 96)
-        box_h = len(ql) * (q.size + 8) + 24
-        draw.rectangle([32, y, width - 33, y + box_h], fill=(16, 14, 20), outline=(200, 190, 170), width=2)
-        for k, line in enumerate(ql):
-            draw.text((48, y + 12 + k * (q.size + 8)), line, font=q, fill=(150, 240, 150))
-    return png(img)
+    y = area_top + max(0, (area_bottom - area_top - need) // 3)
+    for pl in points:
+        mid = y + step / 2 - 4
+        d.polygon([(left - 44, mid), (left - 30, mid - 14), (left - 16, mid), (left - 30, mid + 14)], fill=GOLD)
+        for line in pl:
+            x = left
+            base = y + size     # one baseline for the words and the code words
+            for word, wf, colour in line:
+                d.text((x + 2, base + 3), word, font=wf, fill=(4, 6, 12), anchor="ls")
+                d.text((x, base), word, font=wf, fill=colour, anchor="ls")
+                x += d.textlength(word + " ", font=wf)
+            y += step
+        y += int(size * 0.7)
+    if ql:
+        y += 20
+        box_h = len(ql) * (q.size + 14) + 44
+        d.rounded_rectangle([88, y, W - 89, y + box_h], radius=18, fill=(6, 12, 10), outline=(90, 200, 120), width=4)
+        for n, line in enumerate(ql):
+            d.text((120, y + 22 + n * (q.size + 14)), line, font=q, fill=(140, 245, 160))
+    # The museum's mark at the foot.
+    mark = "OPENRAC  MUSEUM"
+    mf = font(34)
+    mw = d.textlength(mark, font=mf)
+    d.line([100, H - 92, (W - mw) / 2 - 30, H - 92], fill=(150, 112, 40), width=3)
+    d.line([(W + mw) / 2 + 30, H - 92, W - 100, H - 92], fill=(150, 112, 40), width=3)
+    d.text(((W - mw) / 2, H - 112), mark, font=mf, fill=GOLD)
+    return png(img.resize((width, height), Image.LANCZOS))
+
+
+def poster(title, lines, seed, width=256, height=384):
+    """A board with a title and LINES only, in the boards' look."""
+    return board(title, lines, seed, width=width * 2, height=height * 2)
 
 
 def plate(text, sub="", width=512, height=128):
