@@ -385,9 +385,34 @@ void test_bar_goals() {
     }
 }
 
-// Checks the RYNO II's colours along its path: Heavy orange, the tiers' tints, Ultima black and red.
+// Checks that the steps before Alpha (the Zodiac's and the RYNO II's Heavy, Mega and Ultra) look as
+// the game draws them: no tint, no effect colour, no strength, no movement. The colours start at
+// Alpha.
+void test_pre_tier_look_is_stock() {
+    for (const Kind kind : {Kind::Ryno, Kind::Single}) {
+        for (int level = 0; level <= 3; ++level) {
+            for (const std::uint32_t tick : {0u, 30u, 77u}) {
+                CHECK(!tint_rgb(kind, level, tick));
+                CHECK(!effect_rgb(kind, level, tick));
+            }
+
+            CHECK(!tint_moves(kind, level));
+            CHECK(tier_of(kind, level) == 0);
+        }
+
+        // Alpha, the fourth step, is the first with a colour.
+        CHECK(tint_rgb(kind, 4, 0) == 0x20FFB0u);
+        CHECK(effect_rgb(kind, 4, 0) == 0xB0FF20u);
+    }
+
+    // The stat steps stay: Heavy still hits harder than the base.
+    CHECK(damage(Kind::Ryno, 1) > damage(Kind::Ryno, 0));
+}
+
+// Checks the RYNO II's colours along its path: Heavy to Ultra stock, the tiers' tints, Ultima black
+// and red.
 void test_ryno_colours() {
-    CHECK(tint_rgb(Kind::Ryno, 1, 0) == 0x0080FFu);  // Heavy's orange
+    CHECK(!tint_rgb(Kind::Ryno, 1, 0));  // Heavy keeps the game's look
 
     // Alpha to Omega: the tiers' own tints.
     for (int tier = 1; tier <= kTiers; ++tier) {
@@ -445,7 +470,7 @@ void test_scaling() {
     CHECK(effect_rgb(Kind::Four, 3, 0) == 0x1AFF80u);  // emerald, raised
     CHECK(effect_rgb(Kind::Four, 4, 0) == 0x00FFFFu);  // teal, raised
     CHECK(effect_rgb(Kind::Four, 8, 0) != effect_rgb(Kind::Four, 8, 100));
-    CHECK(effect_rgb(Kind::Ryno, 1, 0) == 0xFF8000u);  // Heavy's orange
+    CHECK(!effect_rgb(Kind::Ryno, 1, 0));  // Heavy: the game's own
     CHECK(effect_rgb(Kind::Ryno, 4, 0) == 0xB0FF20u);  // Alpha's lime
     CHECK(effect_rgb(Kind::Ryno, 12, 0) == 0xFF1A1Au);  // Ultima, bright
     CHECK(effect_rgb(Kind::Ryno, 12, 30) == 0x600000u);  // Ultima, deep
@@ -453,7 +478,6 @@ void test_scaling() {
     CHECK(effect_strength(Kind::Four, 0) == 0);
     CHECK(effect_strength(Kind::Four, 1) == kEffectFirst);
     CHECK(effect_strength(Kind::Four, 8) == kEffectTop);
-    CHECK(effect_strength(Kind::Ryno, 1) == kEffectFirst);
     CHECK(effect_strength(Kind::Ryno, 11) < kEffectTop);
     CHECK(effect_strength(Kind::Ryno, 12) == kEffectTop);  // Ultima
     CHECK(effect_strength(Kind::None, 3) == 0);
@@ -1188,6 +1212,7 @@ int main() try {
     test_prices_rise();
     test_ryno();
     test_bar_goals();
+    test_pre_tier_look_is_stock();
     test_ryno_colours();
     test_ryno_migration();
     test_scaling();

@@ -27,6 +27,13 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.19
+
+- **Only Alpha and up change how a weapon looks.** Heavy, Mega and Ultra (the Zodiac's and the
+  RYNO II's) no longer tint the icon or name, recolor the shots, add a glow, change the vendor's
+  version colour or touch the weapon's mobys: they look completely stock. Their damage and ammo
+  are unchanged.
+
 ## What's new in 0.6.18
 
 - **The Zodiac and the RYNO II share one path, XP and purchase in turn all the way.** Heavy (XP),
@@ -81,8 +88,8 @@ With the mod off, the game plays exactly as on the PlayStation 2.
   II Heavy's 37,500), Mega Zodiac (bought, the RYNO II's first price: 6,000,000 on a 1,000,000
   price), Ultra Zodiac (by XP, 50,000), then Alpha to Omega as before (see the table under
   "Tiers"). The names come from the game's own text, so every language works; each new step has
-  its own damage, max ammo (+1, +2, +3 rounds, then +4 a tier from Alpha, as 0.6.10) and color
-  (orange, gold, sky blue).
+  its own damage and max ammo (+1, +2, +3 rounds, then +4 a tier from Alpha, as 0.6.10). Heavy,
+  Mega and Ultra have no color (0.6.19): only Alpha and up change how a weapon looks.
 - **Saves keep their Zodiac.** A Zodiac already at Alpha or above stays at the same tier; one at
   the base weapon keeps its XP, which now counts toward Heavy. `tiers.txt` is moved over once when
   the mod loads (the old file kept as that day's backup next to it), and its first line is now
@@ -303,9 +310,9 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
-  | Heavy | level up | | 37,500 | x1.15 | +1 | orange |
-  | Mega | buy | 6,000,000 | | x1.30 | +2 | gold |
-  | Ultra | level up | | 50,000 | x1.42 | +3 | sky blue |
+  | Heavy | level up | | 37,500 | x1.15 | +1 | none |
+  | Mega | buy | 6,000,000 | | x1.30 | +2 | none |
+  | Ultra | level up | | 50,000 | x1.42 | +3 | none |
   | Alpha | buy | 8,000,000 | | x1.50 | +4 | lime |
   | Beta | level up | | 50,000 | x2.00 | +8 | cyan |
   | Gamma | buy | 10,000,000 | | x2.50 | +12 | emerald |
@@ -338,9 +345,9 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
-  | Heavy | level up | | 37,500 | x1.40 | x1.50 | orange |
-  | Mega | buy | 6,000,000 | | x1.60 | x1.55 | gold |
-  | Ultra | level up | | 43,750 | x1.80 | x1.60 | sky blue |
+  | Heavy | level up | | 37,500 | x1.40 | x1.50 | none |
+  | Mega | buy | 6,000,000 | | x1.60 | x1.55 | none |
+  | Ultra | level up | | 43,750 | x1.80 | x1.60 | none |
   | Alpha | buy | 8,000,000 | | x2.00 | x1.65 | lime |
   | Beta | level up | | 50,000 | x2.70 | x1.80 | cyan |
   | Gamma | buy | 10,000,000 | | x3.45 | x1.95 | emerald |
@@ -400,8 +407,9 @@ its own colors with a touch of the tier's and gets a glowing edge in it, and its
 effects tied to it (sparks, flashes, arcs, trails, halos) are drawn in the tier's color instead of
 the game's. Each tier is a little stronger than the one before: the effects are brighter and the
 sparks and flashes larger, up to about half again as bright and a third larger at Omega. Omega's
-effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange, Mega RYNO II gold, Ultra RYNO II sky blue, Alpha to Omega RYNO II
-in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
+effects cycle through the rainbow, like its icon. Heavy, Mega and Ultra (the Zodiac's and the RYNO II's) change nothing: the weapon, its shots and its
+icon look as the game draws them, and the tint, shot color, glow, vendor color and every other
+visual start at Alpha. Alpha to Omega RYNO II are in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
 
 This is only how things look: shots fly, spread and hit exactly as at the tier's damage.
 

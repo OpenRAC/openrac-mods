@@ -112,13 +112,6 @@ constexpr std::uint32_t kTintRgb[] = {
 // How many steady tints there are.
 constexpr std::uint32_t kTintCount = sizeof kTintRgb / sizeof kTintRgb[0];
 
-// RYNO II Heavy's orange (the Zodiac's Heavy too), 0x00BBGGRR.
-constexpr std::uint32_t kOrangeRgb = 0x0080FFu;
-
-// Zodiac Mega's gold and Ultra's sky blue, 0x00BBGGRR.
-constexpr std::uint32_t kGoldRgb = 0x00C0FFu;
-constexpr std::uint32_t kSkyRgb = 0xFFB060u;
-
 // RYNO II Ultima's two colours: a red that sinks to near black and back, 0x00BBGGRR.
 constexpr std::uint32_t kUltimaRed = 0x0000E0u;
 constexpr std::uint32_t kUltimaBlack = 0x080808u;
@@ -541,12 +534,12 @@ std::optional<std::uint32_t> tint_rgb(Kind kind, int level, std::uint32_t tick) 
             const std::uint32_t t = (tick % kPrismTicks) * kMixSteps / kPrismTicks;
             return mix(kTintRgb[at], kTintRgb[(at + 1u) % kTintCount], t);
         }
+        // Heavy, Mega and Ultra (the Zodiac's and the RYNO II's) keep the game's own look: the
+        // colours start at Alpha.
         case Tint::Orange:
-            return kOrangeRgb;
         case Tint::Gold:
-            return kGoldRgb;
         case Tint::Sky:
-            return kSkyRgb;
+            return std::nullopt;
         // Red that sinks to near black and back.
         case Tint::Ultima: {
             const std::uint32_t phase = tick % kUltimaTicks;
@@ -601,7 +594,7 @@ std::optional<std::uint32_t> effect_rgb(Kind kind, int level, std::uint32_t tick
 
     const std::optional<std::uint32_t> tint = tint_rgb(kind, level, tick);
 
-    // Every other tint has a colour; none would be a step without one.
+    // The steps before Alpha have none: the game's own effects.
     if (!tint) {
         return std::nullopt;
     }
