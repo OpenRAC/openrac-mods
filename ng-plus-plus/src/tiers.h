@@ -28,11 +28,17 @@ inline constexpr int kItems = 56;
 // The eight tiers every weapon gets, V5 to V12.
 inline constexpr int kTiers = 8;
 
-// The RYNO II's steps: Heavy, the eight tiers and Ultima, its last.
-inline constexpr int kRynoStepCount = kTiers + 2;
+// The RYNO II's steps (0.6.18, the Zodiac's path): Heavy, Mega, Ultra, the eight tiers and Ultima.
+inline constexpr int kRynoStepCount = kTiers + 4;
 
-// The most steps a weapon has: the RYNO II's.
-inline constexpr int kMaxSteps = kRynoStepCount;
+// The Zodiac's own steps before its tiers (0.6.14): Heavy, Mega and Ultra, so Alpha is its fourth.
+inline constexpr int kZodiacOwn = 3;
+
+// The Zodiac's steps: Heavy, Mega, Ultra, the eight tiers and Ultima.
+inline constexpr int kZodiacStepCount = kRynoStepCount;
+
+// The most steps a weapon has: the Zodiac's.
+inline constexpr int kMaxSteps = kZodiacStepCount;
 
 // The experience (>> 5) a weapon needs at a bought version before the next purchase opens, where
 // the game has no experience step of its own there (the two-version weapons' Mega, the Zodiac and
@@ -43,11 +49,19 @@ inline constexpr std::int32_t kMasteryExp = 6000;
 // others': it levels slower.
 inline constexpr std::int32_t kRynoExpScale = 5;
 
+// The RYNO II's own price, the base of the Zodiac's prices whatever its row says: the Zodiac costs
+// kRynoPriceBase times 6, 10, 16 and 25 (6M, 10M, 16M, 25M) at least, as an arm and a leg like the
+// RYNO II.
+inline constexpr std::int32_t kRynoPriceBase = 1'000'000;
+
 // With no Mega price, the bought steps go from this; a Mega below the floor counts as the floor.
 inline constexpr std::int32_t kPriceLadder = 1'500'000;
 inline constexpr std::int32_t kPriceFloor = 150'000;
 
 // How a weapon reached its last real version, which decides how its first step is unlocked.
+// The rounds the Zodiac's most ammo grows by with each tier.
+inline constexpr std::int32_t kZodiacAmmoPerTier = 4;
+
 enum class Kind : std::uint8_t {
     None,    // not a weapon the mod knows (gadgets, the wrench)
     Four,    // four versions, V4 by experience: Alpha is for sale at V4
@@ -55,7 +69,7 @@ enum class Kind : std::uint8_t {
     NoExp,   // as Two, but it deals no damage, so never earns experience: every tier is bought
     Zapper,  // the Clank Zapper: V2 by experience
     Sheep,   // the Sheepinator: V4 by experience, no Mega: Alpha is for sale at V4
-    Single,  // one version, bought (the Zodiac)
+    Single,  // one version, bought (the Zodiac): Heavy, Mega, Ultra, the eight tiers, Ultima
     Ryno,    // the RYNO II: Heavy by experience, the tiers, then Ultima by experience last
 };
 
@@ -77,6 +91,8 @@ enum class Tint : std::uint8_t {
     Prismatic,  // cycles through the seven above
     Orange,     // RYNO II Heavy
     Ultima,     // RYNO II Ultima, its last step: black and red, beating
+    Gold,       // Zodiac Mega
+    Sky,        // Zodiac Ultra
 };
 
 // One step: its name, put before the weapon's ("Alpha"), how it is reached, what it needs and what

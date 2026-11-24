@@ -11,8 +11,10 @@
 
 #include "armour.h"
 #include "elites.h"
+#include "perk_rules.h"
 #include "perks.h"
 #include "tuning.h"
+#include "tuning_rules.h"
 #include "space_missions.h"
 
 namespace ng_plus_plus {
@@ -50,6 +52,11 @@ void Combat::post_hit_with(PostHitFn original, std::uint32_t victim, std::uint32
         // The tier of the weapon that dealt the hit.
         if (item >= 0 && item < kItems) {
             scale *= damage(kind, m_weapons.tiers().level(item));
+        }
+
+        // The shield's and the barrier's arcs hit harder each tier (tuning_rules.h).
+        if (item == kBarrierItem) {
+            scale *= barrier_zap_gain(tier_of(kind, m_weapons.tiers().level(item)));
         }
 
         // Tougher enemies: their health times the cycle's (a boss's more, the final boss's more
@@ -123,9 +130,13 @@ void Combat::record_death(
         m_tuning->credit_kill(moby);
     }
 
+    // The Zodiac's experience before the award, for the summary (0.6.12).
+    const std::int32_t zodiac_before = view.raw_experience(kZodiac);
+
     // Nothing to scale: the game's.
     if (scale == 1.0f) {
         original(moby, flags, arg);
+        count_zodiac_award(zodiac_before);
         return;
     }
 
@@ -148,6 +159,24 @@ void Combat::record_death(
             const double more = std::floor(static_cast<double>(gained) * (scale - 1.0f) + 0.5);
             view.add_raw_experience(item, static_cast<std::int32_t>(more));
         }
+    }
+
+    count_zodiac_award(zodiac_before);
+}
+
+void Combat::count_zodiac_award(std::int32_t before) {
+    // No tuning to count in.
+    if (m_tuning == nullptr) {
+        return;
+    }
+
+    const std::int32_t gained = m_weapons.view().raw_experience(kZodiac) - before;
+
+    // Only a gain (a step taken meanwhile starts the count again).
+    if (gained > 0) {
+        ZodiacStats& stats = m_tuning->zodiac_stats();
+        stats.experience += gained;
+        ++stats.awards;
     }
 }
 

@@ -93,4 +93,35 @@ inline constexpr float kDecoyBase = 2.5f;
 // more than the tier's damage factor (x1.8 at Alpha to x8.4 at Omega).
 float decoy_health(int level);
 
+// ---- Shield Charger and Tesla Barrier (item 45, classes 2652 and 4498) ----
+//
+// tesla_barrier_update ends the barrier when its charge (g_fade_level, 40 for the Shield Charger
+// and 100 for the Barrier) is used up, or when it has arced 40 times (g_tesla_hit_counter). NG++
+// stretches both by the tier's gain: the charge runs down that much slower, the arc count reaches
+// 40 that much later. Each arc's damage is the tier's (Combat) times a gain of its own.
+
+// The barrier's weapon, and its two classes.
+inline constexpr int kBarrierItem = 45;
+inline constexpr int kShieldClass = 2652;
+inline constexpr int kBarrierClass = 4498;
+
+// The game's arc count that ends a barrier.
+inline constexpr int kBarrierHitLimit = 40;
+
+// Returns how many times longer a barrier of tier `tier` (1 Alpha to 8 Omega; 0 none) lasts and how
+// many times as many arcs it takes: x1.5 at Alpha to x4 at Omega, 1 at no tier.
+float barrier_endurance(int tier);
+
+// Returns what each arc's damage is multiplied by on top of the tier's damage factor: x1.1 at
+// Alpha to x1.8 at Omega, 1 at no tier.
+float barrier_zap_gain(int tier);
+
+// Returns the arc count to show the game after `real_hits` arcs at endurance `endurance`: the
+// game ends the barrier when it reads kBarrierHitLimit.
+int barrier_shown_hits(int real_hits, float endurance);
+
+// Returns the charge to show the game: `virtual_charge` less `drop` (what the game took off since
+// the last tick) over `endurance`.
+float barrier_stretched_charge(float virtual_charge, float drop, float endurance);
+
 }  // namespace ng_plus_plus

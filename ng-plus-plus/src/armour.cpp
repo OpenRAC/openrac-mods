@@ -15,6 +15,7 @@ void Armour::start() {
     m_material = moby_material_of(m_mod.api());
     m_material_class = material_class_of(m_mod.api());
     m_energy = m_material != nullptr && m_mod.api().api_minor >= kEnergyMinor;
+    m_accent = m_material_class != nullptr && m_mod.api().api_minor >= kPaintAccentMinor;
 
     // What this port lacks, for a player's log.
     if (m_material_class == nullptr) {
@@ -89,7 +90,15 @@ std::optional<Armour::Look> Armour::look_of(int tier, std::uint32_t tick) const 
         return std::nullopt;
     }
 
-    return Look{paint_at(armour_paint_level(tier)), *rgb};
+    const int level = armour_paint_level(tier);
+    const std::optional<std::uint32_t> accent = armour_accent(tier, m_view.sixtieths(tick));
+
+    // A port with the accent: the visor and lamps in the tier's own accent, the suit in its colour.
+    if (m_accent && accent) {
+        return Look{paint_accent_at(level, *accent), *rgb};
+    }
+
+    return Look{paint_at(level), *rgb};
 }
 
 void Armour::paint(
@@ -138,8 +147,20 @@ void Armour::tick(std::uint32_t tick, std::optional<int> previewed) {
     }
 
     // The hero in the world in the tier he wears; the vendor's picture of him in the tier it shows.
-    paint(kScopeWorld, look_of(tier(), tick), m_world);
-    paint(kScopeMenu, look_of(previewed.value_or(tier()), tick), m_menu);
+    // Stock in a scene, or without Carbonox or a tier.
+    const int worn = m_view.armour();
+    const int shown = previewed.value_or(tier());
+    paint(
+        kScopeWorld,
+        armour_paints_world(m_view.game_mode(), worn, tier()) ? look_of(tier(), tick)
+                                                              : std::nullopt,
+        m_world
+    );
+    paint(
+        kScopeMenu,
+        armour_paints_menu(worn, shown) ? look_of(shown, tick) : std::nullopt,
+        m_menu
+    );
 }
 
 void Armour::glow(std::uint32_t tick) {
@@ -148,7 +169,7 @@ void Armour::glow(std::uint32_t tick) {
         return;
     }
 
-    const int now = tier();
+    const int now = armour_paints_world(m_view.game_mode(), m_view.armour(), tier()) ? tier() : 0;
     const std::uint32_t hero = m_view.hero_moby();
 
     // No tier now: taken off where the mod drew one.

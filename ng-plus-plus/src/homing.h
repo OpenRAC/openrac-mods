@@ -17,6 +17,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace ng_plus_plus {
 
@@ -57,6 +58,7 @@ struct Chase {
     int near_ticks = 0;         // Ticks within reach of it without a hit.
     int blocked = 0;            // Sight checks in a row a wall stood between them.
     std::uint32_t dropped[4]{};  // Targets it gave up: it does not take them again.
+    std::uint32_t struck = 0;    // The target it went off on unhit (strike): its splits take it.
 };
 
 // What a rocket does with its target this tick.
@@ -80,6 +82,21 @@ Verdict judge(Chase& chase, float distance, bool checked, bool blocked, const Ch
 
 // Records that `chase` gave its target up (it is not taken again) and clears it.
 void drop(Chase& chase);
+
+// Records that `chase` went off on its target (a strike): this rocket does not take it again, but
+// `inherited` still names it for the splits the rocket makes where it ended.
+void strike(Chase& chase);
+
+// Returns the moby a rocket that ended with `parent`'s chase passes on to its splits: the target it
+// was flying at, or the one it struck, 0 for none. A target the parent let go of (walled, out of
+// reach, gone) is none. The caller still checks it is live and in sight (`targetable`, a wall).
+std::uint32_t inherited(const Chase& parent);
+
+// Returns the targets for `count` splits of one rocket: all `parent` if it is nonzero and `usable`,
+// else each takes its own candidate from `own` (in the rules' order; 0, none, past its end).
+std::vector<std::uint32_t> split_targets(
+    std::uint32_t parent, bool usable, const std::vector<std::uint32_t>& own, int count
+);
 
 // Returns whether `chase` gave up the moby at `address`.
 bool dropped(const Chase& chase, std::uint32_t address);

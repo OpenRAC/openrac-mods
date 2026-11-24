@@ -20,15 +20,19 @@ namespace {
 
 // The cycles from which a fight gets one, two and three more waves.
 constexpr int kOneWaveCycle = 2;
-constexpr int kTwoWavesCycle = 4;
-constexpr int kThreeWavesCycle = 6;
+constexpr int kTwoWavesCycle = 3;
+constexpr int kThreeWavesCycle = 4;
+constexpr int kFourWavesCycle = 6;
+
+// Feltzin's targets come twice as often from this cycle.
+constexpr int kFastTargetsCycle = 4;
 
 // The elites' share: from cycle 2, its first share, its step a run, its most, Elite guard's most.
 constexpr int kSpaceEliteCycle = 2;
-constexpr int kSpaceEliteFirst = 20;
+constexpr int kSpaceEliteFirst = 25;
 constexpr int kSpaceEliteStep = 10;
-constexpr int kSpaceEliteMost = 60;
-constexpr int kSpaceEliteGuardMost = 80;
+constexpr int kSpaceEliteMost = 70;
+constexpr int kSpaceEliteGuardMost = 90;
 
 // The ticks a fight has none alive before it is over (the next mission is a new one).
 constexpr int kFightOverTicks = 90;
@@ -95,7 +99,8 @@ bool is_space_level(int level) {
 }
 
 int extra_waves(int cycle, Modifier modifier) {
-    const int base = cycle >= kThreeWavesCycle ? 3
+    const int base = cycle >= kFourWavesCycle    ? 4
+                     : cycle >= kThreeWavesCycle ? 3
                      : cycle >= kTwoWavesCycle ? 2
                      : cycle >= kOneWaveCycle  ? 1
                                                : 0;
@@ -124,7 +129,7 @@ bool wave_due(int peak, int alive, int done, int extra) {
 }
 
 float target_spawn_rate(int cycle) {
-    return cycle >= kTwoWavesCycle ? 2.0f : cycle >= kOneWaveCycle ? 1.5f : 1.0f;
+    return cycle >= kFastTargetsCycle ? 2.0f : cycle >= kOneWaveCycle ? 1.5f : 1.0f;
 }
 
 const ShipClass* ship_class_of(int level, int moby_class) {

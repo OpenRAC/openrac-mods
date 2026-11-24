@@ -128,6 +128,14 @@ private:
     // The Pulse Rifle's fire rate in the level's record.
     void fire_rates();
 
+    // Keeps the Bouncer's bomblet in `slot` (fired, refired or made for weapon `item`) to fly
+    // faster by its tier (bouncer_speed), from the next tick.
+    void note_bomblet(int slot, int item);
+
+    // Each kept bomblet: its velocity scaled once, and the gravity it falls by raised to the square
+    // of its speed, so it flies the game's arc faster.
+    void haste_bomblets();
+
     // Each homing RYNO II rocket's target checked and its heading steered (homing.h).
     void steer_rockets();
 
@@ -151,12 +159,23 @@ private:
     const Weapons& m_weapons;
     Perks& m_perks;
     const WeaponCallsTable* m_calls = nullptr;
+    bool m_paint_effects = false;  // weapon_look takes paint that colours the effects (1.39).
     std::uint32_t m_tick = 0;
     int m_level = -1;
     int m_budget = kShotsPerTick;
     std::unordered_map<int, Tracked> m_tracked;          // By the shot's slot.
     std::unordered_map<std::uint32_t, int> m_root_made;  // Shots made from each first shot.
     std::vector<Pending> m_pending;
+
+    // A Bouncer bomblet flying faster (note_bomblet): its moby, its speed, whether its velocity is
+    // scaled yet.
+    struct Hasted {
+        std::uint32_t moby = 0;
+        float speed = 1.0f;
+        bool scaled = false;
+    };
+
+    std::unordered_map<int, Hasted> m_hasted;     // By the bomblet's slot.
     std::array<std::uint64_t, kItems> m_looks{};  // Each item's look sent (material, rgb).
     std::array<float, kItems> m_speed{};          // Each weapon's last told shot's speed.
 

@@ -125,6 +125,7 @@ public:
         m_bolts.set_elites(&m_elites);
         m_combat.set_tuning(&m_tuning);
         m_perks.set_zodiac_credit(&m_tuning.zodiac_credit());
+        m_perks.set_zodiac_stats(&m_tuning.zodiac_stats());
         m_perks.set_claw_share(mod.setting<bool>("tesla_steady") ? kTeslaShare : 1.0f);
         m_combat.set_space(&m_space);
         m_space.set_elites(&m_elites);
@@ -203,6 +204,7 @@ private:
     ArmourVendor m_armour_vendor;  // Their row at the armour vendor.
     Shots m_shots;                 // The perks of OpenRAC 1.29's weapon calls.
     WeaponTuning m_tuning;         // 0.5.1's Tesla Claw, Zodiac and decoy.
+    std::uint32_t m_zodiac_summary_tick = 0;  // The tick of the Zodiac's last summary.
     ShipUpgrades m_ship;           // The ship's weapon tiers.
     SpaceMissions m_space;         // The space missions.
     ShipLooks m_ship_looks;        // The ship's glow.
@@ -472,6 +474,8 @@ void NgPlusPlus::tick() {
     m_rewards.tick();
     m_visuals.tick(m_tick);
     m_elites.tick();
+    // The tuning's clock first: the perks' reach records deaths the tuning credits (0.6.13).
+    m_tuning.set_tick(m_tick);
     m_perks.tick(m_tick);
     m_shots.tick(m_tick);
     m_tuning.tick(m_tick);
@@ -492,6 +496,19 @@ void NgPlusPlus::tick() {
     m_experience.write_rows();
     m_tiers.publish();
     m_experience.name_weapon_in_hand();
+
+    // The Zodiac's summary, about once a minute when it did anything (0.6.12): its pulses, its
+    // kills by path, their credit and experience, and where its next step stands.
+    if (m_tick >= m_zodiac_summary_tick + static_cast<std::uint32_t>(m_view.ticks(3600))) {
+        m_zodiac_summary_tick = m_tick;
+        ZodiacStats& stats = m_tuning.zodiac_stats();
+
+        if (stats.any()) {
+            m_mod.info(zodiac_summary(stats, m_experience.step_note(kZodiac)));
+        }
+
+        stats = ZodiacStats{};
+    }
 }
 
 std::int32_t NgPlusPlus::nanotech_steps(

@@ -164,6 +164,24 @@ inline constexpr int kSeeker = 3329;
 inline constexpr int kMiniBomb = 121;
 inline constexpr int kGravityBomb = 3300;
 
+// ---- The Bouncer's speed ----
+
+// The Bouncer's item and its bomblet's class (bouncer_spawn_debris_object, func_L00_003FED60).
+inline constexpr int kBouncer = 37;
+inline constexpr int kBomblet = 3684;
+
+// The gravity a bomblet falls by, units a sixtieth of a second each sixtieth
+// (bouncing_l00_shot_update, func_L00_003FEEA0, takes it off the velocity once a tick; PAL's is
+// the same per second, 0.00584 a fiftieth).
+inline constexpr float kBombletGravity = 0.0040555559f;
+
+// Returns how many times faster the Bouncer's bomblets fly at tier `tier` (1 Alpha to 8 Omega):
+// 1 with no tier, then up by 7.5% a tier to 1.6 at Omega. The bomblet flies the same arc, only
+// faster (its gravity grows with the square), so its aim at the target stays the game's; at the
+// top its step is about 0.4 units a tick, under its own hit radius, so it never jumps over an enemy
+// and its swept sphere keeps it out of the walls.
+float bouncer_speed(int tier);
+
 // Returns what item `item`'s shots do at `stage` (`tier` the RYNO II's, 9 Ultima): the
 // Minirocket Tube, Seeker Gun, Hoverbomb Gun, Bomb Glove, Gravity Bomb, Bouncer, Decoy Glove,
 // Miniturret Glove and the RYNO II; nothing for the others (no shot moby of their own).
@@ -200,14 +218,25 @@ struct IceEffect {
     int energy = 0;                // The icy glow's strength (OpenRAC's energy level).
 };
 
-// Returns the Ice Gun's effect at tier `tier` (1 Alpha to 8 Omega): from Alpha a light chill and
-// the icy glow, a deeper chill at Gamma, a freeze from Epsilon that shatters on the kill, a long
-// freeze at Omega whose shards freeze their neighbours.
+// Returns the Ice Gun's effect at tier `tier` (1 Alpha to 8 Omega): from Alpha a short freeze on
+// each hit, then a chill, and a shatter on the kill, as Up Your Arsenal's Liquid Nitrogen Gun
+// (0.6.21; before it the freeze came only at Epsilon); longer and wider at Gamma and Epsilon, a
+// long freeze at Omega whose shards freeze their neighbours.
 IceEffect ice_effect(int tier);
 
 // The Ice Gun's colours by tier, 0x00BBGGRR as tint_rgb's: frost, glacier, ice, arctic, deep ice,
 // polar, cobalt, and an aurora cycling at Omega (in place of the tiers' lime to rainbow).
 std::optional<std::uint32_t> ice_tint_rgb(int tier, std::uint32_t tick);
+
+// The colour the Ice Gun's shots, their trails and sparks and the gun's effects take at tier
+// `tier`, 0xRRGGBB: a clear ice blue at every tier, deeper with each, the aurora's at Omega. The
+// icon's pale frost would turn the meteors' fire grey, not blue (0.6.21).
+std::optional<std::uint32_t> ice_shot_rgb(int tier, std::uint32_t tick);
+
+// The pale ice a frozen enemy is painted in, and the deep blue of the Ice Gun's accents (the
+// Meteor Gun's glowing lava parts), 0xRRGGBB.
+inline constexpr std::uint32_t kIcePaintRgb = 0xB0E4FFu;
+inline constexpr std::uint32_t kIceAccentRgb = 0x2060FFu;
 
 // ---- The Lava Gun's path: the Ice Gun or the Meteor Gun's fire (0.5.1) ----
 
@@ -277,9 +306,10 @@ bool weapon_tint_moves(int item, int level);
 // else the weapon's steps.
 int max_level(int item);
 
-// The icy blue a frozen enemy glows in, 0xRRGGBB, and a chilled one's, paler.
+// The icy blue a frozen enemy glows in, 0xRRGGBB, and a chilled one's, lighter (a port without
+// paint: the frozen one is painted in kIcePaintRgb where it has).
 inline constexpr std::uint32_t kFrozenRgb = 0x60C8FFu;
-inline constexpr std::uint32_t kChilledRgb = 0xB0E8FFu;
+inline constexpr std::uint32_t kChilledRgb = 0x80D4FFu;
 
 // ---- Armour tiers ----
 
@@ -293,6 +323,21 @@ inline constexpr int kArmourTiers = 8;
 // +0x18, the save block's +0x20; AdjustPlayerHealth clamps it to 0..4), 0 none, 1 Tetrafiber,
 // 2 Duraplate, 3 Electrosteel, 4 Carbonox (the armour shop lists the levels above it, 1 to 4).
 inline constexpr int kBestArmour = 4;
+
+// The game's mode in normal play (g_current_game_mode): a cutscene or scene is another value.
+inline constexpr std::int32_t kPlayGameMode = 0;
+
+// Returns whether the tier's paint is on the hero in the world: normal play (`mode`, not a
+// cutscene), Carbonox worn (`worn_armour`, the save's armour) and a tier owned.
+constexpr bool armour_paints_world(std::int32_t mode, int worn_armour, int tier) {
+    return mode == kPlayGameMode && worn_armour >= kBestArmour && tier > 0;
+}
+
+// Returns whether a menu's picture of the hero is painted with the tier it shows: Carbonox worn
+// and a tier shown (the vendor's preview is a menu, not play).
+constexpr bool armour_paints_menu(int worn_armour, int shown_tier) {
+    return worn_armour >= kBestArmour && shown_tier > 0;
+}
 
 // The item byte NG++'s book keeps the armour tier in: no item of the game's (none of its rows is
 // item 55), so the weapons' rules never see it.
@@ -322,6 +367,12 @@ std::optional<std::uint32_t> armour_tint(int tier, std::uint32_t tick);
 // Returns the armour glow's strength (OpenRAC's energy level) at tier `tier`: a faint rim at Alpha,
 // kEffectTop at Omega.
 int armour_energy(int tier);
+
+// Returns the accent of the armour paint at tier `tier`, 0xRRGGBB: the colour the visor and lamps
+// of Carbonox take (OpenRAC's paint accent, 1.38), a bright shade against the tier's own colour
+// (armour_rgb): red against Alpha's steel, orange against azure, and so on; Omega cycles with the
+// body. None at 0.
+std::optional<std::uint32_t> armour_accent(int tier, std::uint32_t tick);
 
 // Returns the armour paint's rim glow (OpenRAC's paint level, 0 to 15) at tier `tier`: none at
 // Alpha, rising each tier to 15 at Omega.

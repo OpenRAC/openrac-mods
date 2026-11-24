@@ -36,7 +36,7 @@ class Elites;
 namespace ng_plus_plus {
 
 // The copies each enemy gets in challenge mode cycle `cycle` (the save's counter: 0 the first game,
-// 1 the first challenge mode): none up to cycle 1, one from cycle 2, two from cycle 4.
+// 1 the first challenge mode): none up to cycle 1, one from cycle 2, two from cycle 3, three from cycle 4.
 int extra_copies(int cycle);
 
 // One enemy of the per-planet table: a class a level's copies may be of, at most how many copies of

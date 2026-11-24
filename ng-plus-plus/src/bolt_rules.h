@@ -53,6 +53,10 @@ inline constexpr int kTopStreak = 20;
 // The largest drop the mod makes, far inside an s32.
 inline constexpr std::int32_t kMostDrop = 1'000'000;
 
+// Every bolt reward (drops, prizes, mission pay, trades) pays this many times the run scale that
+// follows the tiers' prices (0.6.16); prices of sellers do not take it (rewards.cpp).
+inline constexpr float kBoltBoost = 1.5f;
+
 // Generous bolt scaling pays this many times the normal run scale.
 inline constexpr float kGenerous = 1.5f;
 
@@ -63,9 +67,9 @@ inline constexpr float kGenerous = 1.5f;
 inline constexpr std::int32_t kToughBase = 20;
 inline constexpr float kToughMost = 2.0f;
 
-// The most a drop is ever scaled, run and toughness together: normal's x6 times x2 (generous goes
+// The most a drop is ever scaled, run and toughness together: normal's x9 times x2 (generous goes
 // no further).
-inline constexpr float kMostScale = 12.0f;
+inline constexpr float kMostScale = 18.0f;
 
 // A drop of the mod's may hold this many more coins per x1 of the enemy's toughness than the game
 // allows it (three for a kill), rounded: 2 more for a crate or small enemy, up to 4 for the
@@ -97,7 +101,7 @@ BoltScaling bolt_scaling_of(std::string_view value);
 
 // Returns how much more every drop pays in challenge mode cycle `cycle` (the save's counter: 0 the
 // first game, 1 the first challenge mode): 1.0 up to cycle 1, then in step with the tiers' prices
-// (x1.5, x2.5, x4, x6). Generous is half as much again; Off is 1.0.
+// (x2.25, x3.75, x6, x9). Generous is half as much again; Off is 1.0.
 float run_scale(int cycle, BoltScaling scaling);
 
 // Returns how much more an enemy whose own bolts (its base drop, before the kill streak) are

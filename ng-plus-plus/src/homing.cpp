@@ -111,6 +111,27 @@ bool dropped(const Chase& chase, std::uint32_t address) {
                   != std::end(chase.dropped);
 }
 
+void strike(Chase& chase) {
+    const std::uint32_t target = chase.target;
+    drop(chase);
+    chase.struck = target;
+}
+
+std::uint32_t inherited(const Chase& parent) {
+    return parent.target != 0 ? parent.target : parent.struck;
+}
+
+std::vector<std::uint32_t> split_targets(
+    std::uint32_t parent, bool usable, const std::vector<std::uint32_t>& own, int count
+) {
+    std::vector<std::uint32_t> out;
+    for (int n = 0; n < count; ++n) {
+        const auto i = static_cast<std::size_t>(n);
+        out.push_back(parent != 0 && usable ? parent : (i < own.size() ? own[i] : 0u));
+    }
+    return out;
+}
+
 void retarget(Chase& chase, std::uint32_t address) {
     chase.target = address;
     chase.ticks = 0;

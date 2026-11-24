@@ -84,4 +84,32 @@ float decoy_health(int level) {
     return kDecoyBase * tier;
 }
 
+float barrier_endurance(int tier) {
+    // No tier: the game's.
+    if (tier <= 0) {
+        return 1.0f;
+    }
+
+    const int step = tier > 8 ? 7 : tier - 1;
+    return 1.5f + 2.5f * static_cast<float>(step) / 7.0f;
+}
+
+float barrier_zap_gain(int tier) {
+    return tier <= 0 ? 1.0f : 1.0f + 0.1f * static_cast<float>(tier > 8 ? 8 : tier);
+}
+
+int barrier_shown_hits(int real_hits, float endurance) {
+    // Nothing to stretch: the real count.
+    if (endurance <= 1.0f || real_hits <= 0) {
+        return real_hits < 0 ? 0 : real_hits;
+    }
+
+    // Rounded down, so the game's 40 comes at 40 times the endurance.
+    return static_cast<int>(static_cast<float>(real_hits) / endurance + 0.0001f);
+}
+
+float barrier_stretched_charge(float virtual_charge, float drop, float endurance) {
+    return virtual_charge - (endurance > 1.0f ? drop / endurance : drop);
+}
+
 }  // namespace ng_plus_plus

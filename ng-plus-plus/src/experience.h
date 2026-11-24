@@ -17,6 +17,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
 
 #include "save_tiers.h"
 #include "weapons.h"
@@ -76,6 +77,10 @@ public:
 
     // The pending level-up's popup was named: the next lookups are the game's again.
     void level_up_shown() { m_pending = -1; }
+
+    // Returns where item `item`'s next step by experience stands now, for a player's log: its
+    // experience and goal, or why step_by_experience would pass it by.
+    std::string step_note(int item) const;
 
 private:
     // What the mod found and wrote in one last version's row.

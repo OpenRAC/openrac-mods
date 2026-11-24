@@ -15,8 +15,9 @@ namespace {
 constexpr int kFirstCycle = 2;
 
 // The run scale from kFirstCycle on, one a cycle; the last holds past the table. In step with the
-// tiers' prices: the four bought tiers' factors over the Mega price (tiers.cpp, kPriceTimes).
-constexpr float kRunScale[] = {1.5f, 2.5f, 4.0f, 6.0f};
+// tiers' prices (x1.5, x2.5, x4, x6, tiers.cpp kPriceTimes) times kBoltBoost: bolts come in half
+// again as rich as the tiers need, so the tier you save for takes about two thirds of the kills.
+constexpr float kRunScale[] = {2.25f, 3.75f, 6.0f, 9.0f};
 
 // The platinum share from kFirstCycle on at a streak of x1, and at x20; the last holds past them.
 constexpr float kShareLeast[] = {0.10f, 0.15f, 0.20f, 0.25f};

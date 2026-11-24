@@ -19,6 +19,7 @@
 #include <array>
 #include <cstdint>
 #include <unordered_map>
+#include <vector>
 
 #include "combat.h"
 #include "game_view.h"
@@ -54,6 +55,10 @@ public:
     // Once a game tick (`tick` the mod's count).
     void tick(std::uint32_t tick);
 
+    // 0.6.13: moves the clock to `tick` before the other parts' ticks, so the marks the perks
+    // make in this tick (the reach's) are read with the same clock.
+    void set_tick(std::uint32_t tick) { m_tick = tick; }
+
     // Returns whether the moby at `victim` is a decoy.
     bool is_decoy(std::uint32_t victim) const;
 
@@ -68,6 +73,10 @@ public:
     // The marks of the enemies the Zodiac's pulse and reach took (zodiac_credit.h); the perks'
     // reach adds to them.
     ZodiacCredit& zodiac_credit() { return m_credit; }
+
+    // What the Zodiac did since the last summary (zodiac_credit.h, 0.6.12); the reach and the
+    // deaths' awards add to it, NgPlusPlus logs and clears it once a minute.
+    ZodiacStats& zodiac_stats() { return m_stats; }
 
     // A death recorded (Combat::record_death): when the Zodiac took the moby at `victim`, its health
     // record's last-weapon byte names the Zodiac, so the game's own award gives it the experience.
@@ -102,6 +111,12 @@ private:
     // The Zodiac's pulse on the bosses.
     void zodiac();
 
+    // Returns whether the moby at `victim` is within a pulsing Zodiac gun's reach now.
+    bool near_pulse(std::uint32_t victim);
+
+    // The Shield Charger's and Tesla Barrier's charge and arc count, stretched by the tier.
+    void barrier();
+
     // The decoys that appeared.
     void decoys();
 
@@ -115,6 +130,8 @@ private:
     std::uint32_t m_tick = 0;
     int m_level = -1;
     ZodiacCredit m_credit;  // The enemies the Zodiac took.
+    ZodiacStats m_stats;    // What it did since the last summary.
+    std::vector<std::uint32_t> m_pulsing;  // The guns pulsing last tick, for the count.
 
     Combat::PostHitFn m_post = nullptr;           // Moby_PostHit's original, from the claw's hit.
     std::array<std::uint8_t, 0x40> m_claw_hit{};  // The claw's last own hit's request.
@@ -122,6 +139,13 @@ private:
     std::unordered_map<std::uint32_t, Lock> m_locks;
     std::unordered_map<std::uint32_t, Drained> m_drained;
     std::unordered_map<std::uint32_t, int> m_decoys;  // Decoys seen: address to class.
+    // The barrier being stretched.
+    bool m_barrier_up = false;
+    float m_barrier_shown = 0.0f;    // The charge as the mod last left it.
+    float m_barrier_virtual = 0.0f;  // The charge it would have had with no stretch.
+    int m_barrier_hits = 0;          // The arcs counted, unstretched.
+    int m_barrier_seen = 0;          // The count as the mod last left it.
+    bool m_logged_barrier = false;
     int m_steady = 0;                                 // Steady hits since the last summary.
     bool m_logged_tesla = false;                      // The first of each was logged.
     bool m_logged_zodiac = false;

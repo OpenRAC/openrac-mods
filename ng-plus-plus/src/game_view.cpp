@@ -170,6 +170,10 @@ std::int32_t GameView::bolts() const {
     return memory().read<std::int32_t>(at(m_disc.progress) + kProgressBolts);
 }
 
+std::int32_t GameView::game_mode() const {
+    return memory().read<std::int32_t>(at(m_disc.game_mode));
+}
+
 int GameView::armour() const {
     return memory().read<std::int16_t>(at(m_disc.progress) + kProgressArmour);
 }
