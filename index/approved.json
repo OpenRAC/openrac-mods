@@ -556,7 +556,18 @@
     }
   ],
   "weapon-wheel-pause": [
-    "0.1.0"
+    "0.1.0",
+    {
+      "version": "1.0.3",
+      "sha256": {
+        "android-arm64": "5e637a75993c4b5ae34bddf79ad882f9cc07b002b9f0ca48d97f358dc8671ed5",
+        "linux-aarch64": "56e299968f2f29a32b57ff3f1308361d967b93e5525e60fa6c34dd22d8c43c0f",
+        "linux-x86_64": "1daebdbcec69f6e53bfb8f2dabfba531bc2bad17638cf0a33d02840ce1953aaa",
+        "macos-arm64": "ce0c1645938b53020383a04752d75997f7851b2cc757733fe542a86620925773",
+        "macos-x86_64": "9d07eb60d5fd43e36758eb2d21d303caf65b7bf4050ae380672a2066ae6718b0",
+        "windows-x86_64": "ce4e86e610e9d171c19b2803b9b2554d5a22856804d40146e12be0fe4d251070"
+      }
+    }
   ],
   "wrench-throw": [
     "1.0.0",
