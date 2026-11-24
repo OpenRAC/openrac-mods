@@ -119,8 +119,8 @@ ROCKY = {"om_rock", "om_cliff", "om_basalt", "om_jungle", "om_wet_sand"}
 
 
 MODEL_TINT = 0.58     # the models' colours are half the terrain's scale in the port
-# Pictures too dark for small things on the ground: lit up more (stones read as black holes).
-MODEL_BOOST = {"om_stone": 1.8}
+# Dark pictures lit up more: stones read as black holes, and bare rock matches the island's rock.
+MODEL_BOOST = {"om_stone": 1.8, "om_rock": 3.5}
 SUBDIVIDE = 3.0        # model faces split to this size, so their light shows shadows
 
 

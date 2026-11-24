@@ -112,7 +112,9 @@ def spiral(geo, centre, z0, z1, half=6.0, width=4.0):
     rise = 4.0
     flights = int(math.ceil((z1 - z0) / rise))
     rise = (z1 - z0) / flights
-    geo.box("om_stone", (cx - half, cy - half, z0 - 2), (cx + half, cy + half, z1 + 3))
+    # Bare rock, its picture spread wide: a cobble picture with grass repeats as a grid up a core this tall.
+    geo.box("om_rock", (cx - half, cy - half, z0 - 2), (cx + half, cy + half, z1 + 3), uv_scale=6.0,
+            skip=((0, 0, -1),))
     geo.box("om_planks_dark", (cx - half - 0.3, cy - half - 0.3, z1 + 3), (cx + half + 0.3, cy + half + 0.3, z1 + 3.6))
     z = z0
     hw = width / 2
@@ -343,6 +345,7 @@ def build(geo: Geo, pictures, mats):
     add_sign(geo, pictures, mats, "om_sign_lookout", "LOOKOUT", "Grindboots: tower  Swingshot: volcano",
              (look[0] + 5, look[1] + 7.6, look[2] + 2.2), -90, 6, 2.25, post=False)
     layout["lookout"] = list(map(float, look))
+    layout["stair"] = [float(base[0]), float(base[1]), float(base[2])]
     layout["lamps"] += [list(map(float, (look[0] + sx * 7, look[1] + sy * 7, look[2]))) for sx in (-1, 1) for sy in (-1, 1)]
     layout["lamps"].append([float(base[0]) + 11, float(base[1]) - 11, float(base[2])])
 
