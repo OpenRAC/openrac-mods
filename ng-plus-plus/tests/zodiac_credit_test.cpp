@@ -157,6 +157,33 @@ void test_reach_action() {
     CHECK(zodiac_action(400.0f, 3, kDrain) == ZodiacAction::Skip);
 }
 
+// 0.6.17: the reach takes only what the gun could. Siberius's cart riders (3369) set their death path
+// to 1 as they start: one the reach killed before that (state 0, never run, far up the track) came
+// back alive with its body hidden, waiting to be thrown onto the cart, and only its claws drawn.
+// And a death left to an owner the moby loop does not run is never run: paid for, still alive.
+void test_reach_takes_what_the_gun_could() {
+    constexpr float kDrain = 600.0f;
+
+    // Started and run: the gun's way, every byte.
+    CHECK(zodiac_reach_action(50.0f, 0, kDrain, true, true) == ZodiacAction::Vaporize);
+    CHECK(zodiac_reach_action(50.0f, 1, kDrain, true, true) == ZodiacAction::Owner);
+    CHECK(zodiac_reach_action(50.0f, 2, kDrain, true, true) == ZodiacAction::Owner);
+    CHECK(zodiac_reach_action(50.0f, 3, kDrain, true, true) == ZodiacAction::Skip);
+    CHECK(zodiac_reach_action(700.5f, 1, kDrain, true, true) == ZodiacAction::Drain);
+
+    // Not started: nothing, whatever its byte or health.
+    for (std::uint8_t path = 0; path < 4; ++path) {
+        CHECK(zodiac_reach_action(50.0f, path, kDrain, false, false) == ZodiacAction::Skip);
+        CHECK(zodiac_reach_action(700.5f, path, kDrain, false, false) == ZodiacAction::Skip);
+    }
+
+    // Started, its owner not run: its owner's death waits; the rest as the gun.
+    CHECK(zodiac_reach_action(50.0f, 1, kDrain, true, false) == ZodiacAction::Skip);
+    CHECK(zodiac_reach_action(50.0f, 2, kDrain, true, false) == ZodiacAction::Skip);
+    CHECK(zodiac_reach_action(50.0f, 0, kDrain, true, false) == ZodiacAction::Vaporize);
+    CHECK(zodiac_reach_action(700.5f, 1, kDrain, true, false) == ZodiacAction::Drain);
+}
+
 // A reach kill is credited as its death is recorded: the mark is made right before the reach
 // records the death itself, whatever the byte named before (here an earlier weapon).
 void test_reach_kill_recorded_at_once() {
@@ -219,10 +246,50 @@ void test_summary() {
     CHECK(line.find("next step: level 2, experience 10 of 6000") != std::string::npos);
 }
 
+// 0.6.13: the reach marks with the perks' tick, which runs before the tuning's has moved on: a
+// mark a tick or two ahead of the reading clock still credits, one further ahead does not.
+void test_mark_ahead_of_clock() {
+    ZodiacCredit credit;
+    std::uint8_t weapon = kPulseRifle;
+    credit.mark(kEnemy, 101, kZodiac, 0);
+    CHECK(credit.marked(kEnemy, 100));
+    CHECK(credit_zodiac(credit, kEnemy, 100, weapon));
+    CHECK((weapon) == (kZodiac));
+
+    weapon = kPulseRifle;
+    credit.mark(kEnemy, 100 + kZodiacCreditSkew + 1, kZodiac, 0);
+    CHECK(!credit_zodiac(credit, kEnemy, 100, weapon));
+    CHECK((weapon) == (kPulseRifle));
+}
+
+// 0.6.13: a drain's mark remembers the byte as drained: the enemy's own death credits the Zodiac
+// while the byte is unchanged, and another weapon's hit since keeps that weapon's kill.
+void test_drain_then_other_hit() {
+    ZodiacCredit credit;
+    std::uint8_t weapon = kPulseRifle;
+    credit.mark(kEnemy, 10, kZodiac, kZodiacDrainCreditTicks, kPulseRifle);
+    CHECK(credit_zodiac(credit, kEnemy, 300, weapon));
+    CHECK((weapon) == (kZodiac));
+
+    weapon = 44;
+    credit.mark(kEnemy, 10, kZodiac, kZodiacDrainCreditTicks, kPulseRifle);
+    CHECK(!credit_zodiac(credit, kEnemy, 300, weapon));
+    CHECK((weapon) == (44));
+
+    // The same item's renewal keeps the byte the first mark expected.
+    weapon = 44;
+    credit.mark(kEnemy, 10, kZodiac, kZodiacDrainCreditTicks, kPulseRifle);
+    credit.mark(kEnemy, 11, kZodiac, kZodiacDrainCreditTicks, 44);
+    CHECK(!credit_zodiac(credit, kEnemy, 300, weapon));
+}
+
 }  // namespace
 
 int main() {
+    test_mark_ahead_of_clock();
+    test_drain_then_other_hit();
     test_reach_action();
+    test_reach_takes_what_the_gun_could();
     test_reach_kill_recorded_at_once();
     test_death_paths();
     test_drained_own_death();

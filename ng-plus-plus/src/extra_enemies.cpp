@@ -19,9 +19,10 @@ namespace ng_plus_plus {
 
 namespace {
 
-// The cycles from which each enemy gets one copy, then two.
+// The cycles from which each enemy gets one copy, then two, then three.
 constexpr int kOneCopyCycle = 2;
-constexpr int kTwoCopiesCycle = 4;
+constexpr int kTwoCopiesCycle = 3;
+constexpr int kThreeCopiesCycle = 4;
 
 // The free spare slots a copy leaves: the bolts of a long streak and what the level spawns need
 // them (the port keeps 128 itself; this is the mod's own, above it, with the pool's status).
@@ -30,52 +31,52 @@ constexpr int kKeepFree = 160;
 // The per-planet table (README.md, "More enemies"; filled from hidden test runs of each level).
 constexpr CopyEntry kCopyTable[] = {
     // Aranos.
-    {0, 2460, 2, "Aranos: enemy (class 2460)"},
-    {0, 2826, 2, "Aranos: enemy (class 2826)"},
-    {0, 2827, 2, "Aranos: enemy (class 2827)"},
+    {0, 2460, 3, "Aranos: enemy (class 2460)"},
+    {0, 2826, 3, "Aranos: enemy (class 2826)"},
+    {0, 2827, 3, "Aranos: enemy (class 2827)"},
     // Oozla.
-    {1, 2466, 2, "Oozla: Mutant Swamp Beast"},
-    {1, 2633, 2, "Oozla: Mutant Firefly"},
-    {1, 2859, 2, "Oozla: Mutant Muckdweller"},
+    {1, 2466, 3, "Oozla: Mutant Swamp Beast"},
+    {1, 2633, 3, "Oozla: Mutant Firefly"},
+    {1, 2859, 3, "Oozla: Mutant Muckdweller"},
     // Maktar Nebula.
-    {2, 2501, 2, "Maktar Nebula: enemy (class 2501)"},
-    {2, 2638, 2, "Maktar Nebula: Megacorp Chickenbot"},
+    {2, 2501, 3, "Maktar Nebula: enemy (class 2501)"},
+    {2, 2638, 3, "Maktar Nebula: Megacorp Chickenbot"},
     // Endako.
-    {3, 4092, 2, "Endako: Megacorp Rivet Bot"},
-    {3, 4093, 2, "Endako: Megacorp Laser Bot"},
+    {3, 4092, 3, "Endako: Megacorp Rivet Bot"},
+    {3, 4093, 3, "Endako: Megacorp Laser Bot"},
     // Barlow.
     {4, 2234, 1, "Barlow: enemy (class 2234)"},
     {4, 4022, 2, "Barlow: Gadgetron Hound of Cuddly Death"},
     // Notak.
-    {6, 3002, 2, "Notak: enemy (class 3002)"},
-    {6, 3504, 2, "Notak: enemy (class 3504)"},
+    {6, 3002, 3, "Notak: enemy (class 3002)"},
+    {6, 3504, 3, "Notak: enemy (class 3504)"},
     // Siberius.
-    {7, 3369, 2, "Siberius: enemy (class 3369)"},
-    {7, 3370, 2, "Siberius: enemy (class 3370)"},
+    {7, 3369, 3, "Siberius: enemy (class 3369)"},
+    {7, 3370, 3, "Siberius: enemy (class 3370)"},
     // Dobbo.
     {9, 3306, 1, "Dobbo: enemy (class 3306)"},
     {9, 3343, 1, "Dobbo: Megacorp Trooper (class 3343)"},
-    {9, 3415, 2, "Dobbo: enemy (class 3415)"},
-    {9, 3472, 2, "Dobbo: enemy (class 3472)"},
+    {9, 3415, 3, "Dobbo: enemy (class 3415)"},
+    {9, 3472, 3, "Dobbo: enemy (class 3472)"},
     // Joba.
     {11, 3317, 1, "Joba: Joba Tribesman"},
     {11, 3335, 1, "Joba: Jobian Saur-Beast"},
     // Todano.
-    {12, 4020, 2, "Todano: Mutant Test-Squirrel"},
+    {12, 4020, 3, "Todano: Mutant Test-Squirrel"},
     // Boldan.
-    {13, 4587, 2, "Boldan: enemy (class 4587)"},
+    {13, 4587, 3, "Boldan: enemy (class 4587)"},
     // Aranos's prison.
     {14, 4395, 1, "Aranos's prison: enemy (class 4395)"},
     {14, 4396, 1, "Aranos's prison: enemy (class 4396)"},
     // Smolg.
-    {17, 2952, 2, "Smolg: Grulch"},
+    {17, 2952, 3, "Smolg: Grulch"},
     // Damosel.
-    {18, 2921, 2, "Damosel: Protopet"},
+    {18, 2921, 3, "Damosel: Protopet"},
     // Yeedil.
-    {20, 2921, 2, "Yeedil: Protopet"},
-    {20, 3809, 2, "Yeedil: Receiver Bot"},
+    {20, 2921, 3, "Yeedil: Protopet"},
+    {20, 3809, 3, "Yeedil: Receiver Bot"},
     // Jamming array.
-    {26, 2638, 2, "Jamming array: Megacorp Chickenbot"},
+    {26, 2638, 3, "Jamming array: Megacorp Chickenbot"},
 };
 
 }  // namespace
@@ -105,7 +106,12 @@ int copies_of(int level, int oclass, int cycle) {
 }
 
 int extra_copies(int cycle) {
-    // The fourth challenge mode on: two.
+    // The fourth challenge mode on: three.
+    if (cycle >= kThreeCopiesCycle) {
+        return 3;
+    }
+
+    // The third: two.
     if (cycle >= kTwoCopiesCycle) {
         return 2;
     }

@@ -292,6 +292,14 @@
       }
     }
   ],
+  "rac1-hd-achievements": [
+    {
+      "version": "0.5.2",
+      "sha256": {
+        "windows-x86_64": "97c41dc276cbefa8fceef71fcba3d5c6afd234b7542d4d1df5ffa1ba2c10d658"
+      }
+    }
+  ],
   "rac1-travel-anywhere": [
     {
       "version": "0.1.0",
@@ -324,6 +332,22 @@
         "macos-arm64": "fdd90fb1e5c4b77ff346d8d51c25200d2f5acc0096583b337c17cae01042cd15",
         "macos-x86_64": "50aee13ebecc9b7a99cc6af0c20b4b54e462c2a9cf666453d4a8b2ccfe25eed8",
         "windows-x86_64": "44b26dea1dede80f5d5936d8e5d2d845d8363b2da967746fc21bae47366b1ad7"
+      }
+    }
+  ],
+  "rac2-auto-gadgets": [
+    {
+      "version": "0.1.4",
+      "sha256": {
+        "windows-x86_64": "6551462cee4af529c20c2d66928ca0b31fbdcfc3d2a889bb2bab2a882c091d82"
+      }
+    }
+  ],
+  "rac2-contextual-wrench": [
+    {
+      "version": "0.1.1",
+      "sha256": {
+        "windows-x86_64": "403aaa935c909d7d355aa88f7ce03274cdf58879ae623e3f62a8e35d6c234f27"
       }
     }
   ],
@@ -532,7 +556,18 @@
     }
   ],
   "weapon-wheel-pause": [
-    "0.1.0"
+    "0.1.0",
+    {
+      "version": "1.0.3",
+      "sha256": {
+        "android-arm64": "5e637a75993c4b5ae34bddf79ad882f9cc07b002b9f0ca48d97f358dc8671ed5",
+        "linux-aarch64": "56e299968f2f29a32b57ff3f1308361d967b93e5525e60fa6c34dd22d8c43c0f",
+        "linux-x86_64": "1daebdbcec69f6e53bfb8f2dabfba531bc2bad17638cf0a33d02840ce1953aaa",
+        "macos-arm64": "ce0c1645938b53020383a04752d75997f7851b2cc757733fe542a86620925773",
+        "macos-x86_64": "9d07eb60d5fd43e36758eb2d21d303caf65b7bf4050ae380672a2066ae6718b0",
+        "windows-x86_64": "ce4e86e610e9d171c19b2803b9b2554d5a22856804d40146e12be0fe4d251070"
+      }
+    }
   ],
   "wrench-throw": [
     "1.0.0",

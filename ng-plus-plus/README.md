@@ -27,6 +27,105 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.21
+
+- **The Ice Gun is ice.** Its tiers didn't act at all: the Meteor Gun's shot is a meteor of its
+  own (class 2862) that the mod didn't know as the Lava Gun's, so its hits never froze or slowed
+  anything, and its tier's colour was the pale frost of the icon, which left the meteors orange.
+  Now every tier freezes, as Up Your Arsenal's Liquid Nitrogen Gun does: a hit freezes the enemy
+  solid (it stops moving, attacking and animating, painted in ice with a bright rim), then it is
+  slowed for a moment; one killed while frozen or chilled shatters into shards that hurt the
+  enemies around it. Alpha freezes for two thirds of a second, Gamma longer, Epsilon a second and
+  Omega two (the table is under "The Ice Gun"). With OpenRAC's mod interface 1.39 the gun is
+  repainted in pale ice with its glowing lava parts in deep blue, its meteors become shards of ice
+  in the tier's blue and their trails, sparks and the fire they leave on enemies come out blue;
+  with an older OpenRAC the shots and their effects glow in a clear ice blue (no longer grey).
+- **The Bouncer's bomblets fly faster each tier**: 7.5% a tier, 1.6 times the game's speed at
+  Omega. They fly the same arc (their fall grows with them), so they still land where the game
+  aimed them, and at the top they move less in a tick than their own hit radius, so they never
+  skip over an enemy.
+
+## What's new in 0.6.19
+
+- **Only Alpha and up change how a weapon looks.** Heavy, Mega and Ultra (the Zodiac's and the
+  RYNO II's) no longer tint the icon or name, recolor the shots, add a glow, change the vendor's
+  version colour or touch the weapon's mobys: they look completely stock. Their damage and ammo
+  are unchanged.
+
+## What's new in 0.6.18
+
+- **The Zodiac and the RYNO II share one path, XP and purchase in turn all the way.** Heavy (XP),
+  Mega (bought), Ultra (XP), Alpha (bought), Beta (XP), Gamma (bought), Delta (XP), Epsilon
+  (bought), Zeta (XP), Eta (bought), Omega (XP) and, last, **Ultima** (bought): twelve steps. The
+  Zodiac's Alpha is now bought instead of earned (0.6.17 had it by XP) and it gains Ultima Zodiac
+  (x8.50 damage, +36 max ammo, black and red). The RYNO II gains Mega RYNO II and Ultra RYNO II
+  after Heavy, its Alpha is bought as before, and its Ultima is bought after Omega instead of
+  earned. Both cost the same: Mega 6,000,000, Alpha 8,000,000, Gamma 10,000,000, Epsilon
+  16,000,000, Eta 25,000,000 and Ultima 40,000,000 (see the tables under "Tiers").
+- **Saves keep their tiers.** The Zodiac's numbering is unchanged: a Zodiac at Ultra stays Ultra,
+  with Alpha now for sale. The RYNO II's Alpha to Ultima move up two places to make room, so each
+  keeps its name; Heavy stays. `tiers.txt` is moved over once when the mod loads (the old file kept
+  as that day's backup next to it), and its first line is now `ngpp-tiers 4`. The launcher's save
+  editor reads layouts 1 to 4, shows the Zodiac and the RYNO II as None, Heavy, Mega, Ultra, Alpha
+  to Omega, Ultima, and writes layout 4.
+
+## What's new in 0.6.17
+
+- **No more half-dead enemies from the Zodiac's reach.** The reach beyond the gun's own pulse now
+  takes only what the gun itself could: never an enemy whose update has not run yet (far up
+  Siberius's cart track, a rider killed before it started came back alive with its body hidden and
+  only its claws drawn), and an enemy whose death the gun leaves to its owner only when the game
+  runs that owner, so the death always follows. Such enemies far off are simply left for when they
+  come near.
+
+## What's new in 0.6.16
+
+- **Richer bolts, everywhere.** Every bolt reward pays half as much again on top of the run
+  scale: enemy drops (x2.25, x3.75, x6, x9 from the second challenge mode on, generous half as much
+  again; the cap on a drop's scale is x18), arena and race prizes, space mission pay, and
+  Tabora's crystal and Grelbin's moonstone trades. Platinum and obsidian shares are as before, so
+  their proportions of a drop are the same. Sellers' prices and the tiers' prices are unchanged (see
+  "Bigger drops" and "Prizes and prices").
+- **More enemies.** The extra copies come one at the second challenge mode, two at the third
+  and three from the fourth (Barlow's hounds stay at two); see "More enemies each new game".
+- **Busier space missions.** Extra waves: 1 at the second challenge mode, 2 at the third, 3 at the
+  fourth and 4 from the sixth; elite ships from 25% (up to 70%, Elite guard up to 90%); Feltzin's
+  targets keep their pace.
+
+## What's new in 0.6.15
+
+- **The Zodiac costs an arm and a leg, as the RYNO II does.** Its bought steps now use the RYNO II's
+  absolute prices, whatever the Zodiac's own price in the game's table is (0.6.13 and 0.6.14 only
+  multiplied that price, which could come out cheap): Mega Zodiac 6,000,000, Gamma 10,000,000,
+  Epsilon 16,000,000 and Eta 25,000,000 (the RYNO II's 1,000,000 times 6, 10, 16 and 25; a higher
+  table price raises them). The Zodiac's own first purchase is left to the game.
+
+## What's new in 0.6.14
+
+- **The Zodiac follows the other weapons' shape.** Its path is now Heavy Zodiac (by XP, the RYNO
+  II Heavy's 37,500), Mega Zodiac (bought, the RYNO II's first price: 6,000,000 on a 1,000,000
+  price), Ultra Zodiac (by XP, 50,000), then Alpha to Omega as before (see the table under
+  "Tiers"). The names come from the game's own text, so every language works; each new step has
+  its own damage and max ammo (+1, +2, +3 rounds, then +4 a tier from Alpha, as 0.6.10). Heavy,
+  Mega and Ultra have no color (0.6.19): only Alpha and up change how a weapon looks.
+- **Saves keep their Zodiac.** A Zodiac already at Alpha or above stays at the same tier; one at
+  the base weapon keeps its XP, which now counts toward Heavy. `tiers.txt` is moved over once when
+  the mod loads (the old file kept as that day's backup next to it), and its first line is now
+  `ngpp-tiers 3`.
+
+## What's new in 0.6.13
+
+- **Every Zodiac kill earns it XP again.** The reach's kills were marked a tick ahead of the clock
+  that read the marks, so nearly all of them (and the pulse's kills of enemies that had just come
+  out) kept whatever weapon hit the enemy before, or none. Now the pulse's vaporized kills and the
+  ones its owner's explosion finishes, and the reach's vaporized, owner and drained kills all name
+  the Zodiac before the game's award reads it. An enemy the reach drains keeps the Zodiac's credit
+  until its own death, unless another weapon hits it meanwhile; that weapon then gets the kill.
+- **The Zodiac levels as slowly as the RYNO II.** It is an overpowered weapon, so each of its XP
+  steps now needs what the RYNO II's step at the same place needs (Alpha 37,500 XP up to Omega
+  150,000), and its bought tiers cost the RYNO II's prices for the same tiers (see the table under
+  "Tiers").
+
 ## What's new in 0.6.12
 
 The Zodiac keeps vaporizing enemies and earning XP after a big fight. Its reach (the enemies the
@@ -157,9 +256,9 @@ its paint.
   longer gives you the tier and your bolts back; a tier you saved stays with that save, through
   other saves, a restart and the launcher's export (see "Saves"). The armor and ship weapon tiers
   and the weapons' XP counts follow the same rule.
-- **The RYNO II's path** is Heavy (by XP), then Alpha to Omega, then Ultima (by XP after Omega);
-  older `tiers.txt` files are moved over once. Its bought tiers cost 6, 10, 16 and 25 million
-  (Alpha, Gamma, Epsilon, Eta) and its XP goals rise by a quarter. Its rockets split by chance at the low
+- **The RYNO II's path** (the Zodiac's too since 0.6.18) alternates XP and purchase: Heavy, Mega,
+  Ultra, Alpha to Omega, Ultima (bought after Omega); older `tiers.txt` files are moved over once. Its
+  bought tiers cost 6, 8, 10, 16, 25 and 40 million (Mega, Alpha, Gamma, Epsilon, Eta, Ultima) and its XP goals rise by a quarter. Its rockets split by chance at the low
   tiers (25% at Alpha up to 80% at Epsilon, always from Zeta), into homing rockets that split again
   at Omega and Ultima, and the split rockets fly, home in and leave their trails (the trails need
   OpenRAC develop with #712).
@@ -198,7 +297,8 @@ the next one.
 Damage and max ammo are multiplied from the weapon's last real version; max ammo stops at 999,
 as many as the HUD's three digits show (the Omega Heavy Lancer's 1,000 made it crash). The
 Zodiac is the exception: its capacity is small, so each tier adds a flat 4 rounds to the game's
-(Alpha +4, Beta +8, up to Omega +32) instead of a multiplier. XP is the
+(Alpha +4, Beta +8, up to Omega +32) instead of a multiplier, and its Heavy, Mega and Ultra add 1, 2
+and 3. XP is the
 game's own weapon XP (the bar in the quick select). It starts again from 0 at each tier, and the
 first time the mod sees a weapon at its last version it resets the XP to 0, so XP from before the
 mod or from earlier games never gives a tier right away. The XP bar (weapons screen and quick select) fills toward the
@@ -217,6 +317,30 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   their last version is bought and the game has no XP level-up after it, so Alpha comes by XP:
   a full bar (6,000 XP) levels the weapon up to Alpha with the game's level-up popup, then Beta
   by XP, Gamma bought, and so on as the other weapons.
+- **Zodiac** (its path since 0.6.14, the RYNO II's since 0.6.18): XP and purchase in turn, Heavy
+  Zodiac (XP), **Mega Zodiac** (bought), **Ultra Zodiac** (XP), Alpha (bought), Beta (XP), Gamma
+  (bought), Delta (XP), Epsilon (bought), Zeta (XP), Eta (bought), Omega (XP) and **Ultima Zodiac**
+  (bought). Each step by XP needs what the RYNO II's step at the same place needs, five times the
+  usual, and the bought steps cost 6,000,000, 8,000,000, 10,000,000, 16,000,000, 25,000,000 and
+  40,000,000 (1,000,000 times 6, 8, 10, 16, 25 and 40, whatever the Zodiac's own table price is).
+  Alpha to Omega keep the other weapons' damage and ammo (below); Heavy, Mega and Ultra rise to
+  meet them, Ultima tops Omega, and the max ammo gains 1, 2 and 3 rounds, then a flat 4 a tier:
+
+  | Step | How | Price | XP | Damage | Max ammo | Color |
+  |---|---|---|---|---|---|---|
+  | Heavy | level up | | 37,500 | x1.15 | +1 | none |
+  | Mega | buy | 6,000,000 | | x1.30 | +2 | none |
+  | Ultra | level up | | 50,000 | x1.42 | +3 | none |
+  | Alpha | buy | 8,000,000 | | x1.50 | +4 | lime |
+  | Beta | level up | | 50,000 | x2.00 | +8 | cyan |
+  | Gamma | buy | 10,000,000 | | x2.50 | +12 | emerald |
+  | Delta | level up | | 75,000 | x3.00 | +16 | teal |
+  | Epsilon | buy | 16,000,000 | | x3.75 | +20 | violet |
+  | Zeta | level up | | 100,000 | x4.50 | +24 | magenta |
+  | Eta | buy | 25,000,000 | | x5.50 | +28 | crimson |
+  | Omega | level up | | 150,000 | x7.00 | +32 | rainbow |
+  | Ultima | buy | 40,000,000 | | x8.50 | +36 | black and red, beating |
+
 - **Decoy Glove**: the game gives XP to the weapon that landed the killing hit, and the decoy deals
   no damage (it only draws fire), so it can never earn XP. All its tiers are bought instead, each
   for sale as soon as you buy the one before: Alpha, Gamma, Epsilon and Eta at the usual prices,
@@ -227,19 +351,22 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 - **Clank Zapper**: Alpha is for sale once it is V2.
 - **Sheepinator**: like the four-version weapons, Alpha is for sale once it is V4 (it has no Mega,
   so its prices start from 1,500,000).
-- **RYNO II**: first **Heavy RYNO II** at 37,500 XP, then Alpha to Omega (Alpha for sale as soon as
-  it is Heavy), and last **Ultima RYNO II**, by XP after Omega: ten steps, Ultima the final one. The
+- **RYNO II**: first **Heavy RYNO II** at 37,500 XP, then Mega (bought), Ultra (XP), Alpha to Omega
+  in turn (bought and XP), and last **Ultima RYNO II**, bought after Omega: twelve steps, Ultima the
+  final one, on the Zodiac's path and prices. The
   RYNO II has its own curve, rising from Heavy to Ultima, and levels up five times slower than
   other weapons (`kRynoExpScale` in src/tiers.h). It is the strongest weapon, so it costs far more than
-  the others' top tiers: 1,000,000 (its own price) times 6, 10, 16 and 25, about 2.5 to 2.8 times the
+  the others' top tiers: 1,000,000 (its own price) times 6, 8, 10, 16, 25 and 40, about 2.5 to 2.8 times the
   ladder of 1.5M to 9M the others' biggest Mega prices reach. At the bolt scaling of the later
-  challenge modes (x4 to x6, platinum and obsidian bolts) a common enemy at a full streak pays 10,000
-  to 15,000, so Eta is a couple of thousand such kills:
+  challenge modes (x6 to x9, platinum and obsidian bolts) a common enemy at a full streak pays 14,400
+  to 21,600, so Eta is a couple of thousand such kills:
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
-  | Heavy | level up | | 37,500 | x1.40 | x1.50 | orange |
-  | Alpha | buy | 6,000,000 | | x2.00 | x1.65 | lime |
+  | Heavy | level up | | 37,500 | x1.40 | x1.50 | none |
+  | Mega | buy | 6,000,000 | | x1.60 | x1.55 | none |
+  | Ultra | level up | | 43,750 | x1.80 | x1.60 | none |
+  | Alpha | buy | 8,000,000 | | x2.00 | x1.65 | lime |
   | Beta | level up | | 50,000 | x2.70 | x1.80 | cyan |
   | Gamma | buy | 10,000,000 | | x3.45 | x1.95 | emerald |
   | Delta | level up | | 75,000 | x4.30 | x2.15 | teal |
@@ -247,19 +374,21 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   | Zeta | level up | | 100,000 | x6.20 | x2.55 | magenta |
   | Eta | buy | 25,000,000 | | x7.30 | x2.75 | crimson |
   | Omega | level up | | 150,000 | x8.45 | x2.95 | rainbow |
-  | Ultima | level up | | 187,500 | x9.70 | x3.20 | black and red, beating |
+  | Ultima | buy | 40,000,000 | | x9.70 | x3.20 | black and red, beating |
 
   At Ultima the XP bar shows full: there is nothing past it. Saves from before the path changed, when
-  the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, are moved over once: Heavy
-  stays Heavy, the old Ultima becomes Alpha, Alpha to Omega keep their tier, and Omega Prime becomes
-  Ultima.
+  the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, or (0.6.14 to 0.6.17)
+  Heavy, Alpha to Omega, Ultima, are moved over once: Heavy stays Heavy, the old Ultima becomes
+  Alpha, Alpha to Omega keep their name, and Omega Prime (or the last Ultima) becomes Ultima, each
+  placed after the new Mega and Ultra.
 
 **Names**: the tier replaces the game's top version in the weapon's name, in front of the name the
 weapon had before its Mega. A four-version weapon uses its second version's name: "Beta Meteor
 Gun", "Alpha Heavy Lancer" (not "Beta Lava Gun", nor the Mega's name). A two-version weapon uses
 its first: "Alpha Bomb Glove". The Clank Zapper uses its last, "Alpha Clank Shocker"; the
 Sheepinator its last XP version, "Alpha Black Sheepinator"; the Zodiac and the RYNO II their only
-one ("Heavy RYNO II", "Alpha RYNO II", "Ultima RYNO II"). The names come from the game's own text,
+one ("Heavy Zodiac", "Mega Zodiac", "Ultra Zodiac", "Ultima Zodiac", "Heavy RYNO II", "Mega RYNO II", "Ultima
+RYNO II"). The names come from the game's own text,
 so every language works. A tier reached by XP shows the game's own level-up popup and message with
 the new name; a bought one shows the vendor's usual purchase message. The name also shows at the
 top of the screen when you switch to a tiered weapon.
@@ -296,8 +425,9 @@ its own colors with a touch of the tier's and gets a glowing edge in it, and its
 effects tied to it (sparks, flashes, arcs, trails, halos) are drawn in the tier's color instead of
 the game's. Each tier is a little stronger than the one before: the effects are brighter and the
 sparks and flashes larger, up to about half again as bright and a third larger at Omega. Omega's
-effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange, Alpha to Omega RYNO II
-in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
+effects cycle through the rainbow, like its icon. Heavy, Mega and Ultra (the Zodiac's and the RYNO II's) change nothing: the weapon, its shots and its
+icon look as the game draws them, and the tint, shot color, glow, vendor color and every other
+visual start at Alpha. Alpha to Omega RYNO II are in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
 
 This is only how things look: shots fly, spread and hit exactly as at the tier's damage.
 
@@ -308,10 +438,10 @@ This is only how things look: shots fly, spread and hit exactly as at the tier's
 | Chopper / Multi-Star | the spinning blades, body and glow |
 | Blitz Gun / Blitz Cannon | the gun's glowing edge and the effects tied to it |
 | Plasma Coil / Plasma Storm | the gun's glowing edge and the effects tied to it |
-| Lava Gun / Meteor Gun (the Ice Gun) | the gun, and the blobs it leaves on the ground. Its tiers are icy: frost, glacier, ice, arctic, deep ice, polar, cobalt, and aurora at Omega (see The Ice Gun) |
+| Lava Gun / Meteor Gun (the Ice Gun) | the gun, its meteors with their trails and sparks, and the blobs it leaves on the ground. Its tiers are icy: frost, glacier, ice, arctic, deep ice, polar, cobalt, and aurora at Omega (see The Ice Gun); with mod interface 1.39 the gun is painted pale ice with deep blue where its lava glowed and the meteors are painted as shards of ice |
 | Minirocket Tube / Megarocket Cannon | the tube, and each homing rocket (its body, glow and trail) |
 | Spiderbot / Tankbot Glove | the bot itself (body and glow) and its exploding trail |
-| Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts |
+| Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts. The bomblets also fly 7.5% faster each tier (x1.6 at Omega) along the game's arc |
 | Miniturret / Megaturret Glove | each turret you put down (body and glow) |
 | Hoverbomb / Tetrabomb Gun | the gun, and each hoverbomb (body and glow) |
 | Shield Charger / Tesla Barrier | the shield: its electric arcs and sparkles. It no longer turns green for good at the Mega: Alpha is lime, Beta cyan, Gamma emerald, Delta teal, Epsilon violet, Zeta magenta, Eta crimson, and Omega's shield cycles through them all |
@@ -392,7 +522,10 @@ the tiers give damage, ammo and colour only. In a multiplayer party the host's s
 ### The Ice Gun
 
 The Lava Gun's tiers are the **Ice Gun**: "Alpha Ice Gun" up to "Omega Ice Gun". The gun keeps
-the Meteor Gun's model for now.
+the Meteor Gun's model, repainted in pale ice with deep blue where its lava glowed, and its meteors
+are painted as shards of ice in the tier's blue, their trails, sparks and the fire they leave on an
+enemy blue too (OpenRAC with mod interface 1.39; an older one draws the shots and their effects in
+a clear ice blue over the meteors' own look).
 The idea follows Up Your Arsenal's Liquid Nitrogen Gun (the Lava Gun's V5 there). Its colours:
 
 | Tier | Color |
@@ -413,13 +546,13 @@ by themselves:
 
 | Tier | Effect |
 |---|---|
-| Alpha, Beta | Chill: slowed to half speed for 1 s after each hit, glowing pale blue |
-| Gamma, Delta | Deeper chill: slowed to a third for 2 s |
-| Epsilon to Eta | Freeze: after each hit it is frozen solid for 1 s, glowing ice blue, then slowed to a third for the rest of 2 s. A fresh freeze comes only after it has thawed for a second, so a stream holds it slowed and never stuck for good. An enemy killed while frozen or chilled shatters: the game's own blast goes off on it in ice blue, and enemies within 5 units take the killing hit, counted as four hits of the stream (60% of each) |
+| Alpha, Beta | Freeze: after each hit it is frozen solid for 2/3 s, painted in ice (glowing ice blue before mod interface 1.34), then slowed to half speed for the rest of 1.5 s, glowing blue. A fresh freeze comes only after it has thawed for half a second, so a stream holds it frozen most of the time, never for good. An enemy killed while frozen or chilled shatters: the game's own blast goes off on it in ice, and enemies within 3 units take the killing hit, counted as four hits of the stream (30% of each) |
+| Gamma, Delta | Longer freeze: 5/6 s, then slowed to a third for the rest of 2 s; the shatter reaches 4 units at 45% |
+| Epsilon to Eta | Freeze for 1 s, then slowed to a third for the rest of 2.5 s; the shatter reaches 5 units at 60% |
 | Omega | Long freeze: 2 s, then slowed to a third for the rest of 3 s. The shatter reaches 8 units at full share, and the shards freeze what they hit |
 
 **Bosses** only glow: they are never slowed or frozen. Before OpenRAC 1.29 there is no freeze or
-slow: the gun only glows pale or ice blue on its victims, and the shatter's damage is dealt as hits.
+slow: the gun only glows blue on its victims, and the shatter's damage is dealt as hits.
 
 ### The Meteor Gun's fire path
 
@@ -506,6 +639,11 @@ takes a share off every hit on Ratchet, on top of the game's armour.
 The look is Carbonox, the armor Ratchet wears, **repainted** in the tier's color (OpenRAC's paint
 material on his model, mod interface 1.34): the plates and their shading stay, the color is the
 tier's, and a rim glows in it, brighter each tier (none at Alpha, the brightest at Omega). The
+visor and the lamps (the model's own strongly colored details) are not flattened into the
+suit's color: they take a bright **accent** of the tier's own, a shade against the suit's (red
+against Alpha's steel, orange against azure, magenta against jade, sky against gold, lime against
+amethyst, aqua against rose, yellow against ember, and Omega's cycles with its body); needs mod
+interface 1.38, an older OpenRAC paints the whole suit in the tier's color. The
 game's other armors share their textures with Ratchet's fur, so painting them would paint him too;
 Carbonox is the whole-body suit and the model the tiers build on. With an older OpenRAC (1.25 to
 1.33) the tiers glow over Carbonox instead and cannot be bought; their protection works with any.
@@ -528,11 +666,11 @@ is not sold in a multiplayer party.
 
 ### RYNO II split rockets
 
-From its first tier, **Alpha RYNO II**, on, a RYNO II rocket may split where it ends into smaller
+From its first tier, **Alpha RYNO II** (after Heavy, Mega and Ultra, which don't split), on, a RYNO II rocket may split where it ends into smaller
 homing rockets (OpenRAC 1.29): by chance at the low tiers, always from Zeta, and more of them up
 the tiers. They start just clear of what the rocket hit, fly at the nearest other enemies within 40
 units, home on them as the game's own rockets do and explode like them, in the tier's colour.
-Heavy RYNO II, its first step, doesn't split.
+Heavy, Mega and Ultra RYNO II don't split.
 
 | Tier | Chance a rocket splits | Split rockets | They split again |
 |---|---|---|---|
@@ -554,8 +692,8 @@ instead (3 from Epsilon).
 
 ### Ultima RYNO II
 
-The RYNO II's final step, after Omega, is **Ultima RYNO II**, reached by experience, not bought:
-37,500 x5 = 187,500 XP (the RYNO II's goals are five times the usual). It does x9.7 damage and
+The RYNO II's final step, after Omega, is **Ultima RYNO II**, bought for 40,000,000 (reached by
+experience until 0.6.17). It does x9.7 damage and
 x3.2 max ammo, and beats between black and red. Its rockets split in 4 and each split rocket
 splits in 2 twice more (OpenRAC 1.29: real homing rockets, at most 16 from one rocket; before 1.29,
 hits at 60% on at most 9 enemies). Nothing comes after it: its XP bar shows full.
@@ -609,9 +747,10 @@ missions get more of everything; never fewer ships than the game's:
 | Challenge mode | Extra waves | Elite ships | Feltzin's targets |
 |---|---|---|---|
 | 1st | none | none | the game's pace |
-| 2nd, 3rd | 1 | 20%, 30% | x1.5 as often |
-| 4th, 5th | 2 | 40%, 50% | x2 as often |
-| 6th on | 3 | 60% | x2 as often |
+| 2nd | 1 | 25% | x1.5 as often |
+| 3rd | 2 | 35% | x1.5 as often |
+| 4th, 5th | 3 | 45%, 55% | x2 as often |
+| 6th on | 4 | 65% to 70% | x2 as often |
 
 - A wave: when a fight's ships are down to a quarter of the most it had at once, every ship of it
   that was destroyed comes back, as the game brings its own ships to life when a mission starts. A
@@ -619,7 +758,7 @@ missions get more of everything; never fewer ships than the game's:
   adds one more wave.
 - Elite ships are drawn in obsidian (OpenRAC 1.24; violet energy before) and have twice the health;
   the ships of a wave NG++ brings back are elites 15% more often. Elite guard doubles the share (at
-  most 80%).
+  most 90%).
 - Every enemy ship takes the enemies' health curve (below), the bosses and the Gorn capital ship the
   bosses' column too.
 - The **Space missions** setting turns the waves, elites and faster targets off (the health curve
@@ -740,11 +879,12 @@ damage dealt x0.5 and a Beta weapon in the second challenge mode a hit does x0.5
 ### More enemies each new game
 
 From the second challenge mode on, the enemies of the table below get a copy beside each of them
-when the level loads, and two from the fourth challenge mode (one for the big ones):
+when the level loads, two from the third challenge mode and three from the fourth (one for the big
+ones, and two for Barlow's hounds, whose copies are the port's biggest):
 
-| Challenge mode | 1st | 2nd and 3rd | 4th on |
-|---|---|---|---|
-| Copies of each enemy of the table | none | 1 | 2 (1 for those marked 1) |
+| Challenge mode | 1st | 2nd | 3rd | 4th on |
+|---|---|---|---|---|
+| Copies of each enemy of the table | none | 1 | 2 (at most the table's) | 3 (at most the table's) |
 
 A copy stands on its enemy's floor, in the open, 2.5 to 4 units away, and wakes, runs, fights and
 dies with its squad. It drops the bolts that enemy drops, once (with the run's bolt scaling,
@@ -763,39 +903,44 @@ or crashed the game). Bosses, turrets, spawners, the waves', arenas' and doors' 
 and Grelbin's crystal and moonstone creatures and the Y.E.T.I.s are never in the table, and
 OpenRAC refuses them too.
 
+**Pool headroom.** The pool is the game's 200 to 400 spare slots plus 1,024 asked for, and a copy is
+only made while 160 are free, so a crowded planet simply makes fewer third copies (the first and second of
+each enemy come first, as in 0.4.4). Barlow, the planet that filled the pool before (79 copies at two each, its hounds'
+big pvars), keeps its hounds at 2 and its class 2234 at 1; every other planet's table is at most 3.
+
 | Planet (level) | Enemy | Copies of each, at most |
 |---|---|---|
-| Aranos (0) | enemy (class 2460) | 2 |
-| Aranos (0) | enemy (class 2826) | 2 |
-| Aranos (0) | enemy (class 2827) | 2 |
-| Oozla (1) | Mutant Swamp Beast | 2 |
-| Oozla (1) | Mutant Firefly | 2 |
-| Oozla (1) | Mutant Muckdweller | 2 |
-| Maktar Nebula (2) | enemy (class 2501) | 2 |
-| Maktar Nebula (2) | Megacorp Chickenbot | 2 |
-| Endako (3) | Megacorp Rivet Bot | 2 |
-| Endako (3) | Megacorp Laser Bot | 2 |
+| Aranos (0) | enemy (class 2460) | 3 |
+| Aranos (0) | enemy (class 2826) | 3 |
+| Aranos (0) | enemy (class 2827) | 3 |
+| Oozla (1) | Mutant Swamp Beast | 3 |
+| Oozla (1) | Mutant Firefly | 3 |
+| Oozla (1) | Mutant Muckdweller | 3 |
+| Maktar Nebula (2) | enemy (class 2501) | 3 |
+| Maktar Nebula (2) | Megacorp Chickenbot | 3 |
+| Endako (3) | Megacorp Rivet Bot | 3 |
+| Endako (3) | Megacorp Laser Bot | 3 |
 | Barlow (4) | enemy (class 2234) | 1 |
 | Barlow (4) | Gadgetron Hound of Cuddly Death | 2 |
-| Notak (6) | enemy (class 3002) | 2 |
-| Notak (6) | enemy (class 3504) | 2 |
-| Siberius (7) | enemy (class 3369) | 2 |
-| Siberius (7) | enemy (class 3370) | 2 |
+| Notak (6) | enemy (class 3002) | 3 |
+| Notak (6) | enemy (class 3504) | 3 |
+| Siberius (7) | enemy (class 3369) | 3 |
+| Siberius (7) | enemy (class 3370) | 3 |
 | Dobbo (9) | enemy (class 3306) | 1 |
 | Dobbo (9) | Megacorp Trooper (class 3343) | 1 |
-| Dobbo (9) | enemy (class 3415) | 2 |
-| Dobbo (9) | enemy (class 3472) | 2 |
+| Dobbo (9) | enemy (class 3415) | 3 |
+| Dobbo (9) | enemy (class 3472) | 3 |
 | Joba (11) | Joba Tribesman | 1 |
 | Joba (11) | Jobian Saur-Beast | 1 |
-| Todano (12) | Mutant Test-Squirrel | 2 |
-| Boldan (13) | enemy (class 4587) | 2 |
+| Todano (12) | Mutant Test-Squirrel | 3 |
+| Boldan (13) | enemy (class 4587) | 3 |
 | Aranos's prison (14) | enemy (class 4395) | 1 |
 | Aranos's prison (14) | enemy (class 4396) | 1 |
-| Smolg (17) | Grulch | 2 |
-| Damosel (18) | Protopet | 2 |
-| Yeedil (20) | Protopet | 2 |
-| Yeedil (20) | Receiver Bot | 2 |
-| Jamming array (26) | Megacorp Chickenbot | 2 |
+| Smolg (17) | Grulch | 3 |
+| Damosel (18) | Protopet | 3 |
+| Yeedil (20) | Protopet | 3 |
+| Yeedil (20) | Receiver Bot | 3 |
+| Jamming array (26) | Megacorp Chickenbot | 3 |
 
 Each was tried in hidden runs of its planet (OpenRAC's `OPENRAC_PLAY_TRACE=copies=1,copywatch,copykill=F,origkill=F`,
 Ratchet placed beside the enemies at one to three spots): its copies woke when their originals did,
@@ -831,24 +976,24 @@ gold twin.
 x20, challenge mode's doubling, its pacing and its limit of three pickups for a kill (at most 3,000
 bolts; what doesn't fit goes to the game's reserve divided by your streak and trickles into later
 drops, as in the original). Then the mod multiplies what the pickups hold by the new game you are
-in, the same steps as the tier prices (x1.5, x2.5, x4, x6), so the tier you are saving for takes
-about as many kills in every new game:
+in, half as much again as the tier prices' steps (x1.5, x2.5, x4, x6; since 0.6.16 the bolts pay
+x2.25, x3.75, x6, x9), so the tier you are saving for takes about two thirds of the kills it took:
 
 | New game | Challenge mode | Bolts (normal) | Bolts (generous) | Platinum at x1 streak | Platinum at x20 streak |
 |---|---|---|---|---|---|
 | 1 | - | x1 | x1 | none | none |
 | 2 | 1st | x1 | x1 | 20% | 40% |
-| 3 | 2nd | x1.5 | x2.25 | 10% | 50% |
-| 4 | 3rd | x2.5 | x3.75 | 15% | 65% |
-| 5 | 4th | x4 | x6 | 20% | 80% |
-| 6 on | 5th on | x6 | x9 | 25% | 90% |
+| 3 | 2nd | x2.25 | x3.375 | 10% | 50% |
+| 4 | 3rd | x3.75 | x5.625 | 15% | 65% |
+| 5 | 4th | x6 | x9 | 20% | 80% |
+| 6 on | 5th on | x9 | x13.5 | 25% | 90% |
 
 **Every enemy pays its own.** Each enemy has its own bolts in the level's data (the game's drop for
 it, before your streak): on the disc, crates and small fry have under 20, the commonest enemies
 around 45, the bigger ones 100 to 500 and the biggest up to 984. The game pays in proportion to
 those up to its 3,000 limit; the mod pays a bigger enemy a little more on top of the run scale: x1
 up to 20 bolts, then the square root of its bolts over 20, up to x2 (45 bolts: x1.5, 80 or more:
-x2). The run scale and toughness together never pass x12 (generous included). A drop also gets more
+x2). The run scale and toughness together never pass x18 (generous included). A drop also gets more
 pickups the tougher the enemy: two more than the game's three per x1 of toughness (5 to 7). What
 the pickups can't hold is added to your bolts at once.
 
@@ -857,9 +1002,9 @@ its roll of about a quarter up or down):
 
 | Enemy's own bolts | 3rd game (2nd challenge mode) | 4th (3rd) | 5th (4th) | 6th on (5th on) |
 |---|---|---|---|---|
-| 8 (small fry) | 450 | 750 | 1,200 | 1,800 |
-| 45 (common) | 3,600 | 6,000 | 9,600 | 14,400 |
-| 110 or more | 9,000 | 15,000 | 24,000 | 36,000 |
+| 8 (small fry) | 675 | 1,125 | 1,800 | 2,700 |
+| 45 (common) | 5,400 | 9,000 | 14,400 | 21,600 |
+| 110 or more | 13,500 | 22,500 | 36,000 | 54,000 |
 
 **Why 0.4.4 asks for more room.** The game makes every spawned moby (a bolt, a shot, an effect, an
 enemy copy) from a pool of spare slots its level's file sets, 200 to 400 (Barlow's is 398), and a spawn
@@ -933,28 +1078,27 @@ Within a drop's pickups each rarer kind keeps a place, so a small drop can still
 or platinum bolt. The biggest obsidian bolt a kill shows is a 2,500, from the fourth challenge mode
 at long streaks.
 
-**Collectors.** Tabora's crystals and Grelbin's moonstones pay the same x1.5, x2.5, x4 and x6 from
-the second challenge mode (generous half as much again), so collecting keeps up with the tier
-prices. The collector's dialog shows the total you will get.
+**Collectors.** Tabora's crystals and Grelbin's moonstones pay the same x2.25, x3.75, x6 and x9 from
+the second challenge mode (generous half as much again), so collecting keeps up with the tier prices with a margin. The collector's dialog shows the total you will get.
 
 **Prizes and prices.** From the second challenge mode the hoverbike races on Barlow and Joba, the
 space missions of Feltzin, Hrugis and Gorn (since 0.4.3) and the arena challenges on Maktar and
-Joba pay the same x1.5, x2.5, x4 and x6 (generous half as much again), and the characters who sell
+Joba pay the same x2.25, x3.75, x6 and x9 (generous half as much again), and the characters who sell
 for bolts ask half that rise: x1.25, x1.75, x2.5 and x3.5 (generous x1.63, x2.38, x3.5, x5). The
 race menu, the mission's reward panel, the arena menu and each seller's dialog show the new amount,
 and the log says once a level what its races or missions pay ("level 5: the space missions pay
-x4.00 (the second mission 5500 -> 22000)", before the game's own x10 in challenge mode). The weapon vendor's prices are the tiers' own and stay as they are.
+x6.00 (the second mission 5500 -> 33000)", before the game's own x10 in challenge mode). The weapon vendor's prices are the tiers' own and stay as they are.
 
-| | First challenge mode (the game's) | 2nd (x1.5; prices x1.25) | 3rd (x2.5; x1.75) | 4th (x4; x2.5) | 5th on (x6; x3.5) |
+| | First challenge mode (the game's) | 2nd (x2.25; prices x1.25) | 3rd (x3.75; x1.75) | 4th (x6; x2.5) | 5th on (x9; x3.5) |
 |---|---|---|---|---|---|
-| Barlow races, first win | 0 (the story race), 20,000, 30,000, 40,000, 60,000 | 30,000 to 90,000 | 50,000 to 150,000 | 80,000 to 240,000 | 120,000 to 360,000 |
-| Barlow races, second win | 2,500, 7,500, 10,000, 12,000, 20,000 | 3,750 to 30,000 | 6,250 to 50,000 | 10,000 to 80,000 | 15,000 to 120,000 |
-| Barlow races, later wins | 2,500, 2,500, 3,500, 4,000, 7,500 | 3,750 to 11,250 | 6,250 to 18,750 | 10,000 to 30,000 | 15,000 to 45,000 |
-| Joba races, first win | 0, 40,000, 50,000, 60,000, 80,000 | 60,000 to 120,000 | 100,000 to 200,000 | 160,000 to 320,000 | 240,000 to 480,000 |
-| Joba races, second win | 4,000, 12,000, 17,500, 20,000, 27,500 | 6,000 to 41,250 | 10,000 to 68,750 | 16,000 to 110,000 | 24,000 to 165,000 |
-| Joba races, later wins | 4,000, 4,000, 6,000, 7,500, 9,000 | 6,000 to 13,500 | 10,000 to 22,500 | 16,000 to 36,000 | 24,000 to 54,000 |
-| Maktar arena (first win) | 15,000 to 90,000 | 22,500 to 135,000 | 37,500 to 225,000 | 60,000 to 360,000 | 90,000 to 540,000 |
-| Joba arena (first win) | 50,000 to 125,000, and 2,000,000 | 75,000 to 187,500, 3,000,000 | 125,000 to 312,500, 5,000,000 | 200,000 to 500,000, 8,000,000 | 300,000 to 750,000, 12,000,000 |
+| Barlow races, first win | 0 (the story race), 20,000, 30,000, 40,000, 60,000 | 45,000 to 135,000 | 75,000 to 225,000 | 120,000 to 360,000 | 180,000 to 540,000 |
+| Barlow races, second win | 2,500, 7,500, 10,000, 12,000, 20,000 | 5,625 to 45,000 | 9,375 to 75,000 | 15,000 to 120,000 | 22,500 to 180,000 |
+| Barlow races, later wins | 2,500, 2,500, 3,500, 4,000, 7,500 | 5,625 to 16,875 | 9,375 to 28,125 | 15,000 to 45,000 | 22,500 to 67,500 |
+| Joba races, first win | 0, 40,000, 50,000, 60,000, 80,000 | 90,000 to 180,000 | 150,000 to 300,000 | 240,000 to 480,000 | 360,000 to 720,000 |
+| Joba races, second win | 4,000, 12,000, 17,500, 20,000, 27,500 | 9,000 to 61,875 | 15,000 to 103,125 | 24,000 to 165,000 | 36,000 to 247,500 |
+| Joba races, later wins | 4,000, 4,000, 6,000, 7,500, 9,000 | 9,000 to 20,250 | 15,000 to 33,750 | 24,000 to 54,000 | 36,000 to 81,000 |
+| Maktar arena (first win) | 15,000 to 90,000 | 33,750 to 202,500 | 56,250 to 337,500 | 90,000 to 540,000 | 135,000 to 810,000 |
+| Joba arena (first win) | 50,000 to 125,000, and 2,000,000 | 112,500 to 281,250, 4,500,000 | 187,500 to 468,750, 7,500,000 | 300,000 to 750,000, 12,000,000 | 450,000 to 1,125,000, 18,000,000 |
 | Notak's toll door | 6,000 | 7,500 | 10,500 | 15,000 | 21,000 |
 | Dobbo's seller | 10,000 | 12,500 | 17,500 | 25,000 | 35,000 |
 | Aranos prison's seller | 20,000 | 25,000 | 35,000 | 50,000 | 70,000 |
@@ -969,7 +1113,7 @@ and the rest works.
 A drop is always the game's own pickups after its roll, kill streak, doubling, pacing and limit,
 times the scale. The first game is left alone; the first challenge mode gets a few platinum bolts,
 a taste of them, with drops the same size. **Bolt scaling** off leaves every drop to the game;
-generous pays half as much again as normal (the table's generous column, up to the x12 cap), with
+generous pays half as much again as normal (the table's generous column, up to the x18 cap), with
 the same platinum share.
 
 Platinum bolts need OpenRAC with interface 1.23 (the bolt hook points and the platinum look), and
@@ -1001,9 +1145,11 @@ without saving. Each save gets only its own tiers, exactly as they were when it 
 A record with tiers is never overwritten with an empty one. Nothing is written to the memory card
 or its folder.
 
-The file's first line, `ngpp-tiers 2`, marks the RYNO II's path Heavy, Alpha to Omega, Ultima. A
-file without it is from before that path and is moved over once when the mod loads (see RYNO II
-above), then written with the line, so it is never moved twice.
+The file's first line, `ngpp-tiers 4`, marks the RYNO II's and the Zodiac's path Heavy, Mega, Ultra,
+Alpha to Omega, Ultima. A file without it, or with `ngpp-tiers 2` or `3` (from before the path), is
+moved over once when the mod loads (see RYNO II above: its Alpha to Ultima move up two places; the
+Zodiac's levels from layout 3 stay, and from layouts 1 and 2 move up three from Alpha), then written
+with the line, so it is never moved twice.
 
 The launcher's save editor shows each weapon's tier in its version picker for the save you open
 while the mod is on, and saves your changes to `tiers.txt`; close the game first. It also lets you
@@ -1045,12 +1191,12 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | For sale | `rac2.vendor.build_list` (`func_002F6608`): an upgrade entry for each weapon whose next tier is for sale, right after that weapon's own entry and built as the game builds its Mega entry; `rac2.vendor.price` (`func_002F6510`) prices it; `rac2.item.upgrade` (`func_002887B0`), which the vendor's purchase calls once it is paid, takes the tier instead of the game's Mega step |
 | Experience | each tick, a weapon at its last version whose experience (which the game keeps adding up there) reaches the tier's takes it; its experience starts again from 0, as the game's own Mega purchase does |
 | Experience bar | the last version's row (+0x6C, the experience to the next version, which the game leaves at 0 there: a full bar) set each tick to the next tier's goal, and back to the game's when none is left; the game's own level check skips every last version, so it never acts on it |
-| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw, the Plasma Coil's and Plasma Storm's shots, the Pulse Rifle's beam, the Clank Zapper), else the weapon in Ratchet's hand |
+| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, the Meteor Gun's meteors, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw, the Plasma Coil's and Plasma Storm's shots, the Pulse Rifle's beam, the Clank Zapper), else the weapon in Ratchet's hand |
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve (a boss's, by the victim's class at +0xAA, by the boss column too, the final boss's by 1.5 more; the RYNO II's hits by its own rule, its tough enemies by their own bolts at +0xB4), the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Weapon experience | `rac2.moby.record_death` (`func_002A6C58`, `SetDeathBits`): every weapon's experience (the s32 table at `D_00139868`, << 5) read before the game's own award and after, each gain times the run's rate and the moby's (a boss by its class at +0xAA, an enemy's own bolts at +0xB4) |
 | Color | `rac2.item.colors` (`func_00336F20`): the quick select's and the weapons screen's icons and names; `rac2.vendor.draw_list` (`func_002F9C80`) and `rac2.item.version_color` (`func_00336EF8`): the tier for sale's icon in the vendor's list (an OpenRAC without these two keeps the game's gold there) |
-| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): the game's burst runs as it is (its amount, flags and coin limit: flag 8, `SetDeathBits` asks for three coins a kill, the rest going to the game's word at +0x1C of the save block, `D_001A7A14`, divided by the streak); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total, from the second challenge mode times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks), at most x12, is made again as obsidian, platinum and gold coins at those places (a coin the game can't make, which it puts in its word, is taken back out and paid at once), the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word divided by the streak, as the game does) |
+| Bolts | `rac2.bolt.spawn_pickups` (`func_002ADB78` and its copy in every level's code): the game's burst runs as it is (its amount, flags and coin limit: flag 8, `SetDeathBits` asks for three coins a kill, the rest going to the game's word at +0x1C of the save block, `D_001A7A14`, divided by the streak); the coins it makes through `rac2.bolt.spawn_pickup` (`func_00302470`) are only written down (worth, start, speed), and their total, from the second challenge mode times the run scale and the enemy's toughness (its own bolts, s16 at +0xB4, when its class record at +0x24 says kind 5 at +0x46, as `SetDeathBits` checks), at most x18, is made again as obsidian, platinum and gold coins at those places (a coin the game can't make, which it puts in its word, is taken back out and paid at once), the rarer ones drawn with `moby_material` (platinum from interface 1.23; obsidian from 1.24, its glow colour per class in the call's rgb); `rac2.bolt.collect` (`func_00301D10`) adds four times a platinum coin's class (24 times an obsidian one's) after the game's own and takes its look off. The kill streak is the byte at +0x3A of the save block (`D_001A7A32`); the mod's own coin limit is the game's plus two per x1 of toughness, and what it leaves goes to the bolts at once through `openrac_api.bolts` (in the first challenge mode, unscaled, to the game's word divided by the streak, as the game does) |
 | Collectors | no hook point: their dialogs' texts (10135 Tabora's crystals, 10209 Grelbin's moonstones) through `rac2.text.by_id` get the scaled total in place of their second number; each tick a trade (the crystals at +0x22 of the save block, s16, or the moonstones at +0x24, s32, down to 0 in Tabora or Grelbin with the game's pay, 1,000 or 3,000 each, ten times in challenge mode, in the bolts at +0x00) gets the rest of the scaled pay through `openrac_api.bolts` |
 | Races | no hook point (the race's panel, `func_L04_0040AD28`, and its finish, `race_update_player_progress`, read the prize straight from the table): while Barlow or Joba is loaded, each race's three prizes (+0x08, +0x0C, +0x10 of its 0x40 bytes in the level's race table, `D_L04_002C63C0`, `D_L11_002B6D40` in Joba) are written at the run scale, the game's kept and written back when the run pays as the game does; the game's x10 in challenge mode comes on top |
 | Arenas | `rac2.arena.prize` (`func_L02_003FCDF8`, `moby_compute_scaled_entry_value`, one function in Maktar's and Joba's code): the game's prize times the run scale; the arena's menu prints it and the win pays it |
@@ -1134,9 +1280,10 @@ Not yet:
   the hit perks in the table. Before OpenRAC 1.29 (an older port) the perks that need it are not
   done at all, and the RYNO II's split rockets and the Gravity Bomb's mini bombs come as hits and
   blasts on the nearest enemies; there is no freeze or slow either.
-- The Ice Gun keeps the Meteor Gun's model.
-- The weapons' looks change only how things are drawn: shots are no faster and blasts reach no
-  farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
+- The Ice Gun keeps the Meteor Gun's model (repainted) and fires its meteors (painted as ice), not
+  Up Your Arsenal's stream.
+- The weapons' looks change only how things are drawn: shots are no faster (but the Bouncer's
+  bomblets) and blasts reach no farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
   game's item rows keep the shots' speed and size in fields that mean different things for each
   weapon, so changing them waits until each weapon's fields are traced.
 - An effect the game draws on its own, not tied to the gun or the shot that made it, keeps the

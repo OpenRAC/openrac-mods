@@ -55,6 +55,10 @@ public:
     // Once a game tick (`tick` the mod's count).
     void tick(std::uint32_t tick);
 
+    // 0.6.13: moves the clock to `tick` before the other parts' ticks, so the marks the perks
+    // make in this tick (the reach's) are read with the same clock.
+    void set_tick(std::uint32_t tick) { m_tick = tick; }
+
     // Returns whether the moby at `victim` is a decoy.
     bool is_decoy(std::uint32_t victim) const;
 
@@ -106,6 +110,9 @@ private:
 
     // The Zodiac's pulse on the bosses.
     void zodiac();
+
+    // Returns whether the moby at `victim` is within a pulsing Zodiac gun's reach now.
+    bool near_pulse(std::uint32_t victim);
 
     // The Shield Charger's and Tesla Barrier's charge and arc count, stretched by the tier.
     void barrier();

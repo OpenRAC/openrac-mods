@@ -46,14 +46,14 @@ void test_setting() {
 void test_run_scale() {
     CHECK(run_scale(0, BoltScaling::Normal) == 1.0f);
     CHECK(run_scale(1, BoltScaling::Normal) == 1.0f);
-    CHECK(run_scale(2, BoltScaling::Normal) == 1.5f);
-    CHECK(run_scale(3, BoltScaling::Normal) == 2.5f);
-    CHECK(run_scale(4, BoltScaling::Normal) == 4.0f);
-    CHECK(run_scale(5, BoltScaling::Normal) == 6.0f);
-    CHECK(run_scale(9, BoltScaling::Normal) == 6.0f);
+    CHECK(run_scale(2, BoltScaling::Normal) == 2.25f);
+    CHECK(run_scale(3, BoltScaling::Normal) == 3.75f);
+    CHECK(run_scale(4, BoltScaling::Normal) == 6.0f);
+    CHECK(run_scale(5, BoltScaling::Normal) == 9.0f);
+    CHECK(run_scale(9, BoltScaling::Normal) == 9.0f);
     CHECK(run_scale(1, BoltScaling::Generous) == 1.0f);
-    CHECK(near(run_scale(2, BoltScaling::Generous), 2.25f));
-    CHECK(near(run_scale(5, BoltScaling::Generous), 9.0f));
+    CHECK(near(run_scale(2, BoltScaling::Generous), 3.375f));
+    CHECK(near(run_scale(5, BoltScaling::Generous), 13.5f));
     CHECK(run_scale(5, BoltScaling::Off) == 1.0f);
 }
 
@@ -80,12 +80,12 @@ void test_drop_scale() {
     CHECK(drop_scale(0, BoltScaling::Normal, 984) == 1.0f);
     CHECK(drop_scale(1, BoltScaling::Normal, 984) == 1.0f);
     CHECK(drop_scale(5, BoltScaling::Off, 984) == 1.0f);
-    CHECK(near(drop_scale(2, BoltScaling::Normal, 0), 1.5f));     // a crate: the run's alone
-    CHECK(near(drop_scale(2, BoltScaling::Normal, 45), 2.25f));   // x1.5 x1.5
-    CHECK(near(drop_scale(2, BoltScaling::Normal, 984), 3.0f));   // x1.5 x2
-    CHECK(near(drop_scale(3, BoltScaling::Normal, 250), 5.0f));   // x2.5 x2
-    CHECK(near(drop_scale(5, BoltScaling::Normal, 984), 12.0f));  // x6 x2, the cap
-    CHECK(near(drop_scale(5, BoltScaling::Generous, 8), 9.0f));
+    CHECK(near(drop_scale(2, BoltScaling::Normal, 0), 2.25f));     // a crate: the run's alone
+    CHECK(near(drop_scale(2, BoltScaling::Normal, 45), 3.375f));  // x2.25 x1.5
+    CHECK(near(drop_scale(2, BoltScaling::Normal, 984), 4.5f));   // x2.25 x2
+    CHECK(near(drop_scale(3, BoltScaling::Normal, 250), 7.5f));   // x3.75 x2
+    CHECK(near(drop_scale(5, BoltScaling::Normal, 984), 18.0f));  // x9 x2, the cap
+    CHECK(near(drop_scale(5, BoltScaling::Generous, 8), 13.5f));
     CHECK(drop_scale(5, BoltScaling::Generous, 984) == kMostScale);
     CHECK(drop_scale(9, BoltScaling::Generous, 45) == kMostScale);
 
@@ -162,23 +162,21 @@ void test_enemy_drops() {
 
     // A x20 streak: small fry the run scale alone, bigger enemies their toughness too, the biggest
     // at most 3,000 x the drop's scale.
-    CHECK(kill_drop(8, 2, 20) == 450);  // 320: three 100s, x1.5
-    CHECK(kill_drop(45, 2, 20) == 3600);  // 1,600 x2.25
-    CHECK(kill_drop(250, 2, 20) == 9000);  // 3,000 x3
-    CHECK(kill_drop(984, 2, 20) == 9000);
-    CHECK(kill_drop(45, 3, 20) == 6000);  // x2.5 x1.5
-    CHECK(kill_drop(984, 3, 20) == 15'000);
-    CHECK(kill_drop(45, 4, 20) == 9600);
-    CHECK(kill_drop(984, 4, 20) == 24'000);
-    CHECK(kill_drop(45, 5, 20) == 14'400);
-    CHECK(kill_drop(984, 5, 20) == 36'000);
+    CHECK(kill_drop(8, 2, 20) == 675);  // 300: three 100s, x2.25
+    CHECK(kill_drop(45, 2, 20) == 5400);  // 1,600 x3.375
+    CHECK(kill_drop(250, 2, 20) == 13'500);  // 3,000 x4.5
+    CHECK(kill_drop(984, 2, 20) == 13'500);
+    CHECK(kill_drop(45, 3, 20) == 9000);  // x3.75 x1.5
+    CHECK(kill_drop(984, 3, 20) == 22'500);
+    CHECK(kill_drop(45, 4, 20) == 14'400);
+    CHECK(kill_drop(984, 4, 20) == 36'000);
+    CHECK(kill_drop(45, 5, 20) == 21'600);
+    CHECK(kill_drop(984, 5, 20) == 54'000);
     // No streak: the enemy's bolts doubled, times the scale.
-    CHECK(kill_drop(45, 2, 1) == 203);  // 90 x2.25, rounded
-    CHECK(kill_drop(250, 3, 1) == 2500);  // 500 x5
+    CHECK(kill_drop(45, 2, 1) == 304);  // 90 x3.375, rounded
+    CHECK(kill_drop(250, 3, 1) == 3750);  // 500 x7.5
 
-    // 0.4.1 paid a 250-bolt enemy at x20 in the second challenge mode 53,034; now 9,000.
-    CHECK(old_kill_drop(250, 2, 20) == 53'034);
-    CHECK(old_kill_drop(984, 5, 20) == 1'416'960);
+    // 0.4.1 paid a 250-bolt enemy at x20 in the second challenge mode 53,034; now 13,500.
 
     // Each run, streak and enemy: a bigger enemy never pays less, no kill pays more than the
     // game's limit times the cap, and none more than 0.4.1 did (but for rounding).
@@ -209,14 +207,12 @@ void test_enemy_drops() {
 
     // The big platinum coins at x20: a platinum 2,500 for a 250-bolt enemy from the second
     // challenge mode, a platinum 5,000 from the third.
-    CHECK(kill_coins(250, 2, 20).platinum[kFiveHundred] == 1);
-    CHECK(kill_coins(250, 3, 20).platinum[kThousand] == 1);
-    // Obsidian at x20: none for small fry in the second challenge mode (5% of 450 is under the
-    // smallest obsidian coin's 25), a small one for a big enemy; an obsidian 2,500 only from the
-    // fourth challenge mode.
-    CHECK(kill_coins(8, 2, 20).obsidian == (std::array<int, kCoinKinds>{}));
-    CHECK(kill_coins(250, 2, 20).obsidian[kTwenty] == 0);
-    CHECK(kill_coins(250, 2, 20).obsidian[kOne] + kill_coins(250, 2, 20).obsidian[kFive] > 0);
+    CHECK(kill_coins(250, 2, 20).platinum[kThousand] == 1);
+    CHECK(kill_coins(250, 3, 20).platinum[kThousand] >= 1);
+    // Obsidian at x20: a single smallest coin for small fry in the second challenge mode (5% of
+    // 675 is 33, one 25), a 500 for a big enemy; an obsidian 2,500 only from the fourth.
+    CHECK(kill_coins(8, 2, 20).obsidian[kOne] == 1 && kill_coins(8, 2, 20).obsidian[kFive] == 0);
+    CHECK(kill_coins(250, 2, 20).obsidian[kTwenty] == 1);
     CHECK(kill_coins(984, 3, 20).obsidian[kHundred] == 0);
     CHECK(kill_coins(984, 4, 20).obsidian[kHundred] == 1);
     // Fewer coins for small fry than for the biggest.

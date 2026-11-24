@@ -26,9 +26,10 @@ void test_waves() {
     CHECK(extra_waves(1, Modifier::Swarm) == 0);
     CHECK(extra_waves(2, Modifier::None) == 1);
     CHECK(extra_waves(2, Modifier::Swarm) == 2);
-    CHECK(extra_waves(4, Modifier::None) == 2);
-    CHECK(extra_waves(6, Modifier::None) == 3);
-    CHECK(extra_waves(20, Modifier::Bounty) == 3);
+    CHECK(extra_waves(3, Modifier::None) == 2);
+    CHECK(extra_waves(4, Modifier::None) == 3);
+    CHECK(extra_waves(6, Modifier::None) == 4);
+    CHECK(extra_waves(20, Modifier::Bounty) == 4);
 
     // Mayhem only grows.
     for (int cycle = 0; cycle < 12; ++cycle) {
@@ -60,13 +61,13 @@ void test_wave_due() {
 void test_space_elites() {
     CHECK(space_elite_percent(1, Modifier::None, 0) == 0);
     CHECK(space_elite_percent(1, Modifier::None, 1) == 0);
-    CHECK(space_elite_percent(2, Modifier::None, 0) == 20);
-    CHECK(space_elite_percent(3, Modifier::None, 0) == 30);
-    CHECK(space_elite_percent(9, Modifier::None, 0) == 60);
-    CHECK(space_elite_percent(2, Modifier::Elite, 0) == 40);
-    CHECK(space_elite_percent(9, Modifier::Elite, 0) == 80);
-    CHECK(space_elite_percent(2, Modifier::None, 1) == 35);
-    CHECK(space_elite_percent(9, Modifier::Elite, 2) == 95);
+    CHECK(space_elite_percent(2, Modifier::None, 0) == 25);
+    CHECK(space_elite_percent(3, Modifier::None, 0) == 35);
+    CHECK(space_elite_percent(9, Modifier::None, 0) == 70);
+    CHECK(space_elite_percent(2, Modifier::Elite, 0) == 50);
+    CHECK(space_elite_percent(9, Modifier::Elite, 0) == 90);
+    CHECK(space_elite_percent(2, Modifier::None, 1) == 40);
+    CHECK(space_elite_percent(9, Modifier::Elite, 2) == 100);
 }
 
 // The levels and the classes.

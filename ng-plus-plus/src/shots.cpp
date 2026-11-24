@@ -63,6 +63,15 @@ constexpr std::uint32_t kMobyForward = 0xC0u;
 constexpr std::uint32_t kMobyRight = 0xD0u;
 constexpr std::uint32_t kMobyUp = 0xE0u;
 
+// The state byte's value from which a moby's slot is dead or free (moby_scan.h's kMobyStateByte),
+// and a bomblet's state (bouncing_l00_shot_update's: its velocity first, then its spin axis and
+// words).
+constexpr std::uint8_t kMobyGone = 0x80u;
+constexpr std::uint32_t kBombletVarsBytes = 0x34u;
+
+// The most bomblets kept flying faster at once (the game's pool has room for far fewer).
+constexpr std::size_t kHastedMost = 256;
+
 // The life past which the game's update steers a rocket (it steers under 295).
 constexpr std::int16_t kHomingLife = 294;
 
@@ -142,6 +151,7 @@ std::uint64_t packed(std::uint32_t material, std::uint32_t rgb) {
 
 void Shots::start() {
     m_calls = weapon_calls_of(m_mod.api());
+    m_paint_effects = m_mod.api().api_minor >= kPaintEffectsMinor;
 
     // A port before 1.29: the perks of 1.28.
     if (m_calls == nullptr) {
@@ -190,6 +200,11 @@ int Shots::tier(int item) const {
 }
 
 void Shots::on_fire(const WeaponShot& shot) {
+    // The Bouncer's bomblets fly faster by its tier, perks or not (only the host's game).
+    if (shot.oclass == kBomblet && shot.slot >= 0 && !m_weapons.tiers().party_on()) {
+        note_bomblet(shot.slot, shot.item);
+    }
+
     // Off, a guest, or a weapon with no shot moby (its rounds only).
     if (!m_perks.active() || (shot.flags & kShotRounds) != 0 || shot.item < 0
         || shot.item >= kItems) {
@@ -232,6 +247,11 @@ void Shots::on_fire(const WeaponShot& shot) {
 
         --m_budget;
         ++m_counts.refires;
+
+        if (shot.oclass == kBomblet) {
+            note_bomblet(copy, item);
+        }
+
         Tracked copied = tracked;
         copied.direction = turned(tracked.direction, refire_yaw(n, perk.spread));
         m_tracked[copy] = copied;
@@ -462,6 +482,11 @@ int Shots::spawn(const Pending& shot) {
 
     ++m_counts.spawns;
 
+    // A bomblet made for the Bouncer flies as fast as its others.
+    if (shot.oclass == kBomblet && (shot.flags & kSpawnDetonate) == 0) {
+        note_bomblet(slot, shot.item);
+    }
+
     // A RYNO II split rocket is a smaller one: its moby's scale (+0x2C), which the game's matrix
     // step multiplies its rows by each tick.
     if (shot.oclass == kRynoRocket && shot.generation > 0 && (shot.flags & kSpawnDetonate) == 0) {
@@ -571,9 +596,17 @@ void Shots::tick(std::uint32_t tick) {
         m_tracked.clear();
         m_root_made.clear();
         m_pending.clear();
+        m_hasted.clear();
     }
 
     looks(tick);
+
+    // The Bouncer's bomblets, in a level of the host's game.
+    if (level >= 0 && !m_weapons.tiers().party_on()) {
+        haste_bomblets();
+    } else {
+        m_hasted.clear();
+    }
 
     // Outside a level, off or a guest.
     if (level < 0 || !m_perks.active()) {
@@ -647,9 +680,17 @@ void Shots::looks(std::uint32_t tick) {
 
         const WeaponView weapon = m_weapons.weapon(item);
         const int level = weapon.has_tier() ? weapon.level : 0;
-        const std::optional<std::uint32_t> rgb = weapon_effect_rgb(item, level, m_view.sixtieths(tick));
-        const std::uint32_t material =
-            rgb ? energy_at(effect_strength(kind, level)) : kMaterialNone;
+        std::optional<std::uint32_t> rgb = weapon_effect_rgb(item, level, m_view.sixtieths(tick));
+        std::uint32_t material = rgb ? energy_at(effect_strength(kind, level)) : kMaterialNone;
+
+        // The Ice Gun's shots painted as ice, their trails and sparks blue (OpenRAC 1.39).
+        if (item == kLavaGun && ice_gun_on() && m_paint_effects) {
+            const std::optional<MobyLook> ice =
+                ice_look(kind, level, false, m_view.sixtieths(tick));
+            rgb = ice ? std::optional<std::uint32_t>(ice->rgb) : std::nullopt;
+            material = ice ? ice->material : kMaterialNone;
+        }
+
         const std::uint64_t look = packed(material, rgb.value_or(kNoTint));
         std::uint64_t& sent = m_looks[static_cast<std::size_t>(item)];
 
@@ -669,6 +710,68 @@ void Shots::looks(std::uint32_t tick) {
             == OPENRAC_HOOK_OK) {
             sent = rgb ? look : 0;
         }
+    }
+}
+
+void Shots::note_bomblet(int slot, int item) {
+    const float speed = item == kBouncer ? bouncer_speed(tier(kBouncer)) : 1.0f;
+    const std::uint32_t moby = MobyScan::slot_address(m_view, slot);
+
+    // No tier, or no moby there.
+    if (speed <= 1.0f || moby == 0 || m_hasted.size() >= kHastedMost) {
+        return;
+    }
+
+    m_hasted[slot] = Hasted{moby, speed, false};
+}
+
+void Shots::haste_bomblets() {
+    const openrac::Memory memory = m_view.memory();
+
+    // The gravity a tick takes off a bomblet's velocity on this disc (twice the tick's share of a
+    // sixtieth: an acceleration).
+    const float gravity = m_view.per_tick(m_view.per_tick(kBombletGravity));
+
+    for (auto it = m_hasted.begin(); it != m_hasted.end();) {
+        Hasted& h = it->second;
+
+        // Gone (dead, or its slot holds another moby now).
+        if (!GameView::is_memory(h.moby, kMobyRecordBytes)
+            || memory.read<std::uint8_t>(h.moby + kMobyStateByte) >= kMobyGone
+            || memory.read<std::uint16_t>(h.moby + kMobyClass) != kBomblet) {
+            it = m_hasted.erase(it);
+            continue;
+        }
+
+        const auto pvars = memory.read<std::uint32_t>(h.moby + kMobyVars);
+
+        // No state of its own.
+        if (!GameView::is_memory(pvars, kBombletVarsBytes)) {
+            it = m_hasted.erase(it);
+            continue;
+        }
+
+        std::array<float, 3> v{};
+        for (std::uint32_t c = 0; c < 3; ++c) {
+            v[c] = memory.read<float>(pvars + 4u * c);
+        }
+
+        // Its throw, faster once.
+        if (!h.scaled) {
+            for (float& c : v) {
+                c *= h.speed;
+            }
+            h.scaled = true;
+        }
+
+        // The arc's gravity at the square of its speed: the game takes 1 of it, NG++ the rest.
+        v[2] -= gravity * (h.speed * h.speed - 1.0f);
+
+        for (std::uint32_t c = 0; c < 3; ++c) {
+            memory.write(pvars + 4u * c, v[c]);
+        }
+
+        ++it;
     }
 }
 

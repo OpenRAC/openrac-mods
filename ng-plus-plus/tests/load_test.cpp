@@ -294,14 +294,27 @@ void game_post_hit(std::uint32_t /*victim*/, std::uint32_t request) {
 // Moby_RecordDeath as the game's: g_kill_xp of experience (<< 5) to the item g_kill_item.
 // With g_death_bolts set, it also drops them as SetDeathBits does: 2% of the game's word (rounded
 // up) taken out of it and added to the drop.
+// With g_kill_from_record set, the item is the dead moby's health record's last-weapon byte
+// (+0x17), as SetDeathBits reads it: 255 names none.
 int g_kill_item = 0;
 std::int32_t g_kill_xp = 0;
 std::int32_t g_death_bolts = 0;
+bool g_kill_from_record = false;
 void port_kill_drop(std::uint32_t moby, std::int32_t amount);
 
 void game_record_death(std::uint32_t moby, std::int32_t /*flags*/, std::int32_t /*arg*/) {
-    const std::uint32_t at = g_disc->exp + 4u * static_cast<std::uint32_t>(g_kill_item);
-    set<std::int32_t>(at, get<std::int32_t>(at) + g_kill_xp);
+    int item = g_kill_item;
+
+    // The health record's byte (+0x34 bit 0x20: it has one, +0x68's first word).
+    if (g_kill_from_record && (get<std::uint16_t>(moby + 0x34u) & 0x20u) != 0) {
+        item = get<std::uint8_t>(get<std::uint32_t>(get<std::uint32_t>(moby + 0x68u)) + 0x17u);
+    }
+
+    // Named a weapon: its experience.
+    if (item != 255) {
+        const std::uint32_t at = g_disc->exp + 4u * static_cast<std::uint32_t>(item);
+        set<std::int32_t>(at, get<std::int32_t>(at) + g_kill_xp);
+    }
 
     // A drop too.
     if (g_death_bolts > 0) {
@@ -591,9 +604,11 @@ void host_fail(openrac_mod* /*mod*/, const char* reason) {
 
 // The "extra_enemies" setting as the test plays it.
 bool g_extra_enemies = true;
+bool g_weapon_perks = false;  // The "weapon_perks" setting: on for the Zodiac's test.
 
 int setting_bool(openrac_mod* /*mod*/, const char* key) {
-    return std::strcmp(key, "notices") == 0 || std::strcmp(key, "enemy_scaling") == 0
+    return std::strcmp(key, "notices") == 0
+           || (std::strcmp(key, "weapon_perks") == 0 && g_weapon_perks) || std::strcmp(key, "enemy_scaling") == 0
            || std::strcmp(key, "gentle_clank") == 0
            || (std::strcmp(key, "extra_enemies") == 0 && g_extra_enemies);
 }
@@ -723,6 +738,42 @@ R refuse(A...) {
     return static_cast<R>(OPENRAC_HOOK_UNKNOWN);
 }
 
+// The moby loop's last run as the port tells it (moby_run): the slots listed here ran (near the
+// camera), every other one was left out (far). Off (refused) unless a test lists some.
+std::vector<int> g_run_slots;
+bool g_run_known = false;
+
+int host_moby_run(int slot, openrac_moby_run* out) {
+    if (!g_run_known || out == nullptr) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    *out = {};
+    out->size = sizeof *out;
+    out->update_dist = 64;
+    out->ran = OPENRAC_MOBY_RUN_FAR;
+
+    for (const int run : g_run_slots) {
+        if (run == slot) {
+            out->ran = OPENRAC_MOBY_RUN_NEAR;
+        }
+    }
+
+    return OPENRAC_HOOK_OK;
+}
+
+// The play calls answer only while a test lists run slots (moby_run needs them, as the port's).
+int host_play_status(openrac_play_status* out) {
+    if (!g_run_known || out == nullptr) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    const std::uint32_t size = out->size;
+    *out = {};
+    out->size = size;
+    return OPENRAC_HOOK_OK;
+}
+
 // ---- The armour vendor (1.34) ----
 
 // The game's armours' prices (g_shop_slot_value_table) and the first name's text id.
@@ -778,6 +829,31 @@ int host_material_class(
         }
     }
 
+    return OPENRAC_HOOK_OK;
+}
+
+// ---- The Zodiac's reach (hook_entry, 1.21) ----
+
+// The port's entry of Moby_RecordDeath: the mod's replacement, then the game's.
+void port_record_death(std::uint32_t moby, std::int32_t flags, std::int32_t arg) {
+    const auto hook = hooked<rac2::Moby_RecordDeath>();
+
+    if (hook != nullptr) {
+        hook(moby, flags, arg);
+    } else {
+        game_record_death(moby, flags, arg);
+    }
+}
+
+void* host_hook_entry(const char* name, const char* /*signature*/) {
+    return std::strcmp(name, rac2::Moby_RecordDeath::id) == 0
+               ? reinterpret_cast<void*>(&port_record_death)
+               : nullptr;
+}
+
+// moby_kill: the moby in `slot` of the level's table (kVisualMobys) gone.
+int host_moby_kill(openrac_mod* /*mod*/, int slot) {
+    g_memory[kVisualMobys + static_cast<std::uint32_t>(slot) * 0x100u + 0x20u] = 0xFFu;
     return OPENRAC_HOOK_OK;
 }
 
@@ -1171,6 +1247,13 @@ void make_api() {
     g_api.data_dir = host_data_dir;
     g_api.party_rules_publish = host_publish;
     g_api.on_party_rules = host_on_rules;
+    // The calls the Zodiac's reach makes: the death's entry and the moby's end; the rest refuse.
+    g_api.hook_entry = host_hook_entry;
+    g_api.moby_kill = host_moby_kill;
+    g_api.moby_spawn = refuse;
+    g_api.moby_run = host_moby_run;
+    g_api.play_status = host_play_status;
+    g_api.level_line = refuse;
 }
 
 // Loads the library's entry point into `load`, or reports why not.
@@ -1209,7 +1292,8 @@ std::string file_text(const std::filesystem::path& path) {
 
 // Checks a book of the layout before the RYNO II's path changed (Heavy, Ultima, Alpha to Omega,
 // Omega Prime) moved over once as the mod loads: old Ultima (2) to Alpha, old Omega (10) to Omega
-// (9), Omega Prime (11) to Ultima (10), the started bit and the other items kept; loaded again, the
+// (11), Omega Prime (11) to Ultima (12), old Ultima to Alpha (4), the started bit and the other
+// items kept; loaded again, the
 // book stays as it is. The book before is put back after.
 void test_old_book_moved(openrac_mod_load_fn load) {
     const std::filesystem::path book = g_dir / "tiers.txt";
@@ -1232,15 +1316,15 @@ void test_old_book_moved(openrac_mod_load_fn load) {
     CHECK(reload(load));
     const std::string moved = file_text(book);
     std::string first_now = zeros;
-    first_now.replace(kRyno * 2, 2, "82");
+    first_now.replace(kRyno * 2, 2, "84");
     first_now.replace(kLancer * 2, 2, "05");
     std::string second_now = zeros;
-    second_now.replace(kRyno * 2, 2, "09");
+    second_now.replace(kRyno * 2, 2, "0b");
     std::string third_now = zeros;
-    third_now.replace(kRyno * 2, 2, "0a");
+    third_now.replace(kRyno * 2, 2, "0c");
     CHECK(
         moved
-        == "ngpp-tiers 2\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+        == "ngpp-tiers 4\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
                + "\n0300000000000011 " + third_now + "\n"
     );
 
@@ -1249,6 +1333,55 @@ void test_old_book_moved(openrac_mod_load_fn load) {
     CHECK(file_text(book) == moved);
 
     // The book before back, as the tests after it had it.
+    {
+        std::ofstream file(book, std::ios::binary | std::ios::trunc);
+        file << before;
+    }
+
+    CHECK(reload(load));
+}
+
+// Checks a book of layout 2 (the Zodiac's Alpha to Omega at levels 1 to 8) moved over once as the
+// mod loads: a Zodiac at base stays base with its started bit, Alpha (1) becomes the fourth step
+// (4), Omega (8) becomes 11, the RYNO II and the other items stay; the old book is kept as the
+// day's backup, and loaded again the book stays as it is. The book before is put back after.
+void test_zodiac_book_moved(openrac_mod_load_fn load) {
+    constexpr int kZodiacItem = 43;
+    const std::filesystem::path book = g_dir / "tiers.txt";
+    const std::string before = file_text(book);
+    const std::string zeros(112, '0');
+    std::string first = zeros;
+    first.replace(kZodiacItem * 2, 2, "80");  // base, counting
+    first.replace(kRyno * 2, 2, "07");
+    std::string second = zeros;
+    second.replace(kZodiacItem * 2, 2, "01");
+    second.replace(kLancer * 2, 2, "05");
+    std::string third = zeros;
+    third.replace(kZodiacItem * 2, 2, "88");
+    {
+        std::ofstream file(book, std::ios::binary | std::ios::trunc);
+        file << "ngpp-tiers 2\n0100000000000011 " << first << "\n0200000000000011 " << second
+             << "\n0300000000000011 " << third << "\n";
+    }
+
+    CHECK(reload(load));
+    const std::string moved = file_text(book);
+    std::string first_now = first;
+    first_now.replace(kRyno * 2, 2, "09");  // layout 2's RYNO II moves up two as well
+    std::string second_now = second;
+    second_now.replace(kZodiacItem * 2, 2, "04");
+    std::string third_now = third;
+    third_now.replace(kZodiacItem * 2, 2, "8b");
+    CHECK(
+        moved
+        == "ngpp-tiers 4\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+               + "\n0300000000000011 " + third_now + "\n"
+    );
+
+    // Loaded again: never moved twice.
+    CHECK(reload(load));
+    CHECK(file_text(book) == moved);
+
     {
         std::ofstream file(book, std::ios::binary | std::ios::trunc);
         file << before;
@@ -1674,7 +1807,7 @@ void test_ryno_heavy_and_kept() {
     tick(1);
     CHECK(g_notice == "Heavy RYNO II");
     CHECK(get<std::uint16_t>(row(kRyno) + kRowAmmoMax) == 150);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Alpha is for sale at once
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Mega is for sale at once
 
     // Saved (a new clock): kept. A new game (zeros) has none; the save loaded again has them.
     set_clock(0x20);
@@ -1729,23 +1862,25 @@ void level_ryno(std::int32_t exp, const std::string& name) {
     CHECK(g_notice == name);
 }
 
-// Checks the RYNO II at the vendor after the Lancer's Gamma, from Heavy: Alpha for sale at once
-// (named by its own row's text, having no version 2 row), then the bar toward Beta.
+// Checks the RYNO II at the vendor after the Lancer's Gamma, from Heavy: Mega for sale at once
+// (named by its own row's text, having no version 2 row), then the bar toward Ultra.
 void test_ryno_at_the_vendor() {
     set<std::int32_t>(row(kRyno) + kRowLabel, kRynoLabelText);
-    buy_ryno("Alpha RYNO II");
-    CHECK(title(kRynoLabelText) == "Alpha RYNO II");
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);  // toward Beta
+    buy_ryno("Mega RYNO II");
+    CHECK(title(kRynoLabelText) == "Mega RYNO II");
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);  // toward Ultra
 }
 
-// Checks the rest of the RYNO II's path, from Beta (reached in hand): Gamma for sale at once,
-// Delta, Epsilon, Zeta and Eta in turn, Omega by experience, and Ultima, its last, by experience
-// after Omega, with a full bar and nothing for sale or to level after it.
+// Checks the rest of the RYNO II's path, from Ultra (reached in hand): Alpha for sale at once,
+// Beta by experience, Gamma, Delta, Epsilon, Zeta and Eta in turn, Omega by experience, and Ultima,
+// its last, bought after Omega, with a full bar and nothing for sale or to level after it.
 void test_ryno_to_ultima() {
     set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
     set_experience(kRyno, 0);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Gamma for sale at once
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Alpha for sale at once
+    buy_ryno("Alpha RYNO II");
+    level_ryno(50'000, "Beta RYNO II");
     buy_ryno("Gamma RYNO II");
     level_ryno(75'000, "Delta RYNO II");
     buy_ryno("Epsilon RYNO II");
@@ -1753,7 +1888,7 @@ void test_ryno_to_ultima() {
     buy_ryno("Eta RYNO II");
     level_ryno(150'000, "Omega RYNO II");
     tick(1);
-    level_ryno(187'500, "Ultima RYNO II");
+    buy_ryno("Ultima RYNO II");
     tick(1);
     // The last step: a full bar, no goal, nothing at the vendor, no step for more experience.
     CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);
@@ -1842,7 +1977,7 @@ void buy_lancer_gamma() {
 // stamps a new one; a step bought after the last save is gone, as the bolts it cost come back with
 // the save; then a new game has none.
 void test_a_restart_keeps_the_saved_steps(openrac_mod_load_fn load) {
-    // Saved after the RYNO II's Alpha (a new clock), then the Lancer's Gamma bought and not saved.
+    // Saved after the RYNO II's Mega (a new clock), then the Lancer's Gamma bought and not saved.
     set<std::int32_t>(g_disc->progress, 9'000'000);
     set_clock(0x30);
     tick(1);
@@ -1866,7 +2001,7 @@ void test_a_restart_keeps_the_saved_steps(openrac_mod_load_fn load) {
         g_level_now = 1;
         set_clock(static_cast<std::uint8_t>(0x50 + restart));
         tick(1);
-        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
         CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);  // Beta: Gamma unsaved
     }
 
@@ -1905,7 +2040,7 @@ void test_each_save_has_its_own() {
     g_level_now = 1;
     set_clock(0x52);  // stamped again as its level starts
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);  // started: kept
 
@@ -1936,7 +2071,7 @@ void test_saves_from_inside_a_level() {
     load_save_a();
     set_clock(0x52);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);
 
@@ -1954,7 +2089,7 @@ void test_saves_from_inside_a_level() {
     load_save_a();
     set_clock(0x52);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
     set_clock(0);
     tick(1);
@@ -1962,7 +2097,7 @@ void test_saves_from_inside_a_level() {
     CHECK(experience(kRyno) == 1234 * kExpUnit);                   // not zeroed while zeros
     set_clock(0x70);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
@@ -2054,7 +2189,7 @@ void test_tiers_follow_the_saves(openrac_mod_load_fn load) {
     set_clock(0x80);
     tick(1);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);  // the RYNO II's Alpha kept
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);  // the RYNO II's Mega kept
 
     // Bought again, then S loaded again at once: the clock stays S's, its data comes back.
     buy_lancer_gamma();
@@ -2214,36 +2349,36 @@ void test_platinum_drop() {
     g_materials.clear();
     port_spawn_pickups(kMobyEnemy, 1500, 9);
     CHECK(g_burst_high == 1500);
-    CHECK(g_coins.size() == 15);
-    CHECK(g_materials.size() == 7);
-    CHECK(coins_worth() == 15'000);
+    CHECK(g_coins.size() == 23);
+    CHECK(g_materials.size() == 9);
+    CHECK(coins_worth() == 22'500);
     CHECK(g_sp == kStackTop);
 
     // The biggest first: a platinum 5,000 (the 1,000 coin drawn as platinum), then gold 1,000s.
     CHECK(g_coins.size() > 1 && g_coins[0].value == 1000 && g_coins[1].value == 1000);
     CHECK(g_materials.count(g_coins[0].moby) == 1);
     CHECK(g_materials[g_coins[0].moby] == kMaterialPlatinum);
-    CHECK(g_materials.count(g_coins[1].moby) == 0);
+    CHECK(g_materials[g_coins[1].moby] == kMaterialPlatinum);
 
     // Each coin starts where one of the game's three did, round in turn.
     for (std::size_t n = 0; n < g_coins.size(); ++n) {
         CHECK(g_coins[n].x == static_cast<float>(n % 3));
     }
 
-    // The platinum 5,000, then a gold 1,000.
+    // The platinum 5,000, then a second one.
     g_bolts = 0;
     port_collect(g_coins[0].moby);
     CHECK(g_bolts == 5000);
     CHECK(g_materials.count(g_coins[0].moby) == 0);
     port_collect(g_coins[1].moby);
-    CHECK(g_bolts == 6000);
+    CHECK(g_bolts == 10'000);
 
     // The rest: the whole drop.
     for (std::size_t n = 2; n < g_coins.size(); ++n) {
         port_collect(g_coins[n].moby);
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     CHECK(g_materials.empty());
 }
 
@@ -2258,7 +2393,7 @@ void test_obsidian_drop() {
     g_materials.clear();
     g_glows.clear();
     port_spawn_pickups(kMobyEnemy, 1500, 9);
-    CHECK(coins_worth() == 15'000);
+    CHECK(coins_worth() == 22'500);
     CHECK(g_sp == kStackTop);
     CHECK(g_log.find("interface 1.24") == std::string::npos);
 
@@ -2283,7 +2418,7 @@ void test_obsidian_drop() {
         }
     }
 
-    CHECK(obsidian.size() == 3 && obsidian[20] == 2 && obsidian[5] == 1 && obsidian[1] == 3);
+    CHECK(obsidian.size() == 3 && obsidian[20] == 1 && obsidian[50] == 1 && obsidian[1] == 2);
     // A shade per size: the bigger coin redder, each a colour, not the default white.
     CHECK(glow_500 != glow_25 && glow_500 != kNoTint && glow_25 != kNoTint);
     CHECK((glow_500 >> 16) >= (glow_25 >> 16));
@@ -2316,7 +2451,7 @@ void test_obsidian_drop() {
         }
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     CHECK(g_materials.empty());
 
     // No streak: the 1% of a 7,500 drop at x1 is 75, three obsidian 25s.
@@ -2332,8 +2467,8 @@ void test_obsidian_drop() {
                                                                                              : 0;
     }
 
-    CHECK(obsidian_coins == 3);
-    CHECK(coins_worth() == 7'500);
+    CHECK(obsidian_coins == 4);
+    CHECK(coins_worth() >= 11'200 && coins_worth() <= 11'250);  // the obsidian coins' rounding
 }
 
 // Checks kills under the game's own coin limit (three coins, as SetDeathBits asks) in challenge
@@ -2358,7 +2493,7 @@ void test_kill_drops() {
     port_kill_drop(kMobyEnemy, 200);
     CHECK(g_burst_high == 200);
     CHECK(g_coins.size() <= 5);
-    CHECK(coins_worth() + g_bolts == 750);
+    CHECK(coins_worth() + g_bolts == 1125);
     CHECK(get<std::int32_t>(word) == credit + 5);
 
     // The big one.
@@ -2369,10 +2504,10 @@ void test_kill_drops() {
     port_kill_drop(kMobyEnemy, 6400);
     CHECK(g_burst_high == 6400);
     CHECK(g_coins.size() > 3 && g_coins.size() <= 7);
-    CHECK(coins_worth() + g_bolts == 15'000);
-    CHECK(coins_worth() == 12'000);  // a platinum 5,000 and 2,500, four 1,000s, an obsidian 500
+    CHECK(coins_worth() + g_bolts == 22'500);
+    CHECK(coins_worth() == 16'750);  // two platinum 5,000s, a 2,500, four 1,000s, an obsidian 1,250
     CHECK(get<std::int32_t>(word) == credit + 5 + 490);
-    bool obsidian_500 = false;
+    bool obsidian_1250 = false;
     bool platinum_5000 = false;
 
     // The rare coins.
@@ -2384,11 +2519,11 @@ void test_kill_drops() {
             continue;
         }
 
-        obsidian_500 |= found->second == kMaterialObsidian && coin.value == 20;
+        obsidian_1250 |= found->second == kMaterialObsidian && coin.value == 50;
         platinum_5000 |= found->second == kMaterialPlatinum && coin.value == 1000;
     }
 
-    CHECK(obsidian_500);
+    CHECK(obsidian_1250);
     CHECK(platinum_5000);
 
     // Collected, the coins pay what they showed: with what was added at once, the whole drop.
@@ -2396,7 +2531,7 @@ void test_kill_drops() {
         port_collect(coin.moby);
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     CHECK(g_materials.empty());
     set<std::int16_t>(kMobyEnemy + kMobyBolts, 80);
     set<std::int32_t>(word, credit);
@@ -2407,7 +2542,7 @@ void test_kill_drops() {
 // (0.4.1's runaway: coins it could not make went to the word, whose 2% a kill was scaled again). A
 // word of 1,000,000 in challenge mode's fourth run (x2.5) at x1: a small enemy's 10 bolts and
 // 20,000 of the word, doubled, fill the game's three 1,000s; all 3,000 are the word's, so the drop
-// is 3,000, not 7,500.
+// is 3,000, not 11,250.
 void test_word_not_scaled() {
     lay_out_enemy();
     set_run(3, 1);
@@ -2424,14 +2559,14 @@ void test_word_not_scaled() {
     CHECK(g_burst_high == 20'010);
     CHECK(coins_worth() + g_bolts == 3'000);
 
-    // A kill with no word to take from: its own drop is scaled (10 bolts, doubled 20, x2.5).
+    // A kill with no word to take from: its own drop is scaled (10 bolts, doubled 20, x3.75).
     set<std::int32_t>(word, 0);
     g_coins.clear();
     g_bolts = 0;
     g_death_bolts = 10;
     hooked<rac2::Moby_RecordDeath>()(kMobyEnemy, 0, 3);
     g_death_bolts = 0;
-    CHECK(coins_worth() + g_bolts == 50);
+    CHECK(coins_worth() + g_bolts == 75);
 
     // A word 0.4.1 filled is cut back to 100,000 at the next tick, and said.
     set<std::int32_t>(word, 1'500'000);
@@ -2478,13 +2613,13 @@ void test_drops_before_and_crates() {
     CHECK(g_materials.size() == 4);  // 80 as three platinum 25s and a platinum 5, 120 in gold
     g_materials.clear();
 
-    // A crate in challenge mode's third run (cycle 2), no streak: x1.5 the run, 10% platinum.
+    // A crate in challenge mode's third run (cycle 2), no streak: x2.25 the run, 10% platinum.
     set_run(2, 1);
     g_coins.clear();
     port_spawn_pickups(kMobyOther, 100, 9);
     CHECK(g_burst_high == 100);
-    CHECK(coins_worth() == 300);
-    CHECK(g_materials.size() == 2);  // 30 as a platinum 25 and a platinum 5
+    CHECK(coins_worth() == 450);
+    CHECK(g_materials.size() == 5);  // 45 as a platinum 25 and four platinum 5s
     g_materials.clear();
     set_run(1, 0);
 }
@@ -2520,16 +2655,16 @@ void test_collectors(bool scaled) {
     tick(1);
     CHECK(
         string_at(port_text(g_disc->crystal_trade))
-        == (scaled ? "Trade %d crystals for 100000 bolts?" : "Trade %d crystals for %d bolts?")
+        == (scaled ? "Trade %d crystals for 150000 bolts?" : "Trade %d crystals for %d bolts?")
     );
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 41'000);
     set<std::int16_t>(block + kProgressCrystals, 0);
     tick(1);
-    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    CHECK(g_bolts == (scaled ? 110'000 : 0));
     // Nothing more on the next tick, and no dialog of nothing.
     tick(1);
-    CHECK(g_bolts == (scaled ? 60'000 : 0));
+    CHECK(g_bolts == (scaled ? 110'000 : 0));
     CHECK(string_at(port_text(g_disc->crystal_trade)) == "Trade %d crystals for %d bolts?");
 
     // Grelbin: the moonstones.
@@ -2537,13 +2672,13 @@ void test_collectors(bool scaled) {
     tick(1);
     CHECK(
         string_at(port_text(g_disc->moonstone_trade))
-        == (scaled ? "%d moonstones: 225000 bolts" : "%d moonstones: %d bolts")
+        == (scaled ? "%d moonstones: 337500 bolts" : "%d moonstones: %d bolts")
     );
     g_bolts = 0;
     set<std::int32_t>(block + kProgressBolts, 131'000);
     set<std::int32_t>(block + kProgressMoonstones, 0);
     tick(1);
-    CHECK(g_bolts == (scaled ? 135'000 : 0));
+    CHECK(g_bolts == (scaled ? 247'500 : 0));
 
     // A count that drops with no pay (a save loaded): nothing.
     set<std::int32_t>(block + kProgressMoonstones, 5);
@@ -2638,21 +2773,21 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     g_level_now = kBarlow;
     tick(1);
     CHECK(race_prize(barlow, 0, 0) == 0);
-    CHECK(race_prize(barlow, 0, 1) == (scaled_run ? 625 : 250));
-    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
-    CHECK(race_prize(barlow, 1, 1) == (scaled_run ? 1'875 : 750));
-    CHECK(race_prize(barlow, 4, 2) == (scaled_run ? 875 : 350));
+    CHECK(race_prize(barlow, 0, 1) == (scaled_run ? 938 : 250));
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 7'500 : 2'000));
+    CHECK(race_prize(barlow, 1, 1) == (scaled_run ? 2'813 : 750));
+    CHECK(race_prize(barlow, 4, 2) == (scaled_run ? 1'313 : 350));
     CHECK(
-        (g_log.find("the races pay x2.50 (the second race 2000 -> 5000)") != std::string::npos)
+        (g_log.find("the races pay x3.75 (the second race 2000 -> 7500)") != std::string::npos)
         == scaled_run
     );
     // Not scaled twice.
     tick(3);
-    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 7'500 : 2'000));
     // The level loaded anew: the game's prize again, scaled again.
     set<std::int32_t>(table_word(barlow, kRaceBytes + kRacePrize), 2'000);
     tick(1);
-    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 5'000 : 2'000));
+    CHECK(race_prize(barlow, 1, 0) == (scaled_run ? 7'500 : 2'000));
 
     // The first challenge mode: the game's prizes back.
     set_run(1, 1);
@@ -2675,10 +2810,10 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
         g_log.clear();
         g_level_now = table.level;
         tick(2);
-        CHECK(get<std::int32_t>(table_word(table, 0)) == (scaled_run ? 2'500 : 1'000));
-        CHECK(get<std::int32_t>(table_word(table, 44)) == (scaled_run ? 625 : 250));
+        CHECK(get<std::int32_t>(table_word(table, 0)) == (scaled_run ? 3'750 : 1'000));
+        CHECK(get<std::int32_t>(table_word(table, 44)) == (scaled_run ? 938 : 250));
         CHECK(
-            (g_log.find("the space missions pay x2.50 (the second mission 1000 -> 2500)")
+            (g_log.find("the space missions pay x3.75 (the second mission 1000 -> 3750)")
              != std::string::npos)
             == scaled_run
         );
@@ -2692,14 +2827,14 @@ void test_prizes_and_prices(bool scaled_run, bool arena) {
     set<std::int32_t>(row(8) + kRowPrice, 20'000);
     g_level_now = kJoba;
     tick(1);
-    CHECK(race_prize(joba, 2, 0) == (scaled_run ? 7'500 : 3'000));
+    CHECK(race_prize(joba, 2, 0) == (scaled_run ? 11'250 : 3'000));
     CHECK(get<std::int32_t>(row(8) + kRowPrice) == (scaled_run ? 35'000 : 20'000));
     const auto prize = hooked<hooks::Arena_Prize>();
     CHECK((prize != nullptr) == arena);
 
     // The arena's prize, at the run's scale; the game's in the first challenge mode.
     if (prize != nullptr) {
-        CHECK(prize(3) == 125'000);
+        CHECK(prize(3) == 187'500);
         set_run(1, 1);
         CHECK(prize(3) == kArenaPrize);
         set_run(3, 1);
@@ -2820,7 +2955,7 @@ void test_pool_room() {
     lay_out_enemy();
     set_run(3, 20);
     g_level_now = 4;
-    int total_expected = 15'000;
+    int total_expected = 22'500;
     const auto drop = [&](int fake_coins, int free_slots, std::size_t most_coins) {
         g_fake_coins = fake_coins;
         g_pool_free = free_slots;
@@ -2919,9 +3054,149 @@ void test_fallback_caps() {
         port_collect(coin.moby);
     }
 
-    CHECK(g_bolts == 15'000);
+    CHECK(g_bolts == 22'500);
     g_fake_coins = 0;
     set_run(1, 0);
+}
+
+// ---- The Zodiac's kills (0.6.13) ----
+
+constexpr std::uint32_t kZodiacRecords = 0x00350000u;  // The enemies' variables and records.
+
+// Returns the moby in slot `n` of the level's table.
+std::uint32_t table_moby(int n) {
+    return kVisualMobys + static_cast<std::uint32_t>(n) * 0x100u;
+}
+
+// Returns the health record of the moby in slot `n`.
+std::uint32_t zodiac_record(int n) {
+    return kZodiacRecords + static_cast<std::uint32_t>(n) * 0x40u + 0x10u;
+}
+
+// Makes slot `n` an enemy at (x, y): `health`, death path `path`, last weapon `weapon`, alive or
+// not yet out.
+void zodiac_enemy(int n, float x, float y, float health, std::uint8_t path, std::uint8_t weapon) {
+    const std::uint32_t moby = table_moby(n);
+    const std::uint32_t vars = kZodiacRecords + static_cast<std::uint32_t>(n) * 0x40u;
+    const std::uint32_t record = zodiac_record(n);
+    set<std::uint16_t>(moby + kMobyClass, static_cast<std::uint16_t>(kOtherClass));
+    set<float>(moby + 0x10u, x);
+    set<float>(moby + 0x14u, y);
+    set<float>(moby + 0x18u, 0.0f);
+    g_memory[moby + 0x20u] = 0x01u;
+    g_memory[moby + 0x23u] = 0x80u;
+    set<std::uint32_t>(moby + kMobyClassInfo, kEnemyClassAt);
+    set<std::int16_t>(moby + kMobyBolts, 20);
+    set<std::uint16_t>(moby + 0x34u, 0x20u);
+    set<std::uint32_t>(moby + 0x68u, vars);
+    set<std::uint32_t>(vars, record);
+    set<float>(record, health);
+    g_memory[record + 0x0Eu] = path;
+    set<float>(record + 0x10u, 1.0f);
+    g_memory[record + 0x17u] = weapon;
+}
+
+// Returns the last-weapon byte of slot `n`'s record.
+int zodiac_byte(int n) {
+    return g_memory[zodiac_record(n) + 0x17u];
+}
+
+// Checks that every kill of the Zodiac's earns it the experience through the game's own death
+// record (Moby_RecordDeath, the award reading +0x17): the reach's vaporized ones (beyond the gun's
+// 40 units and within them), its owner's one and its drained one dying later; the game's pulse's
+// vaporized and owner's kills; and not a drained enemy another weapon hit since, nor a kill far
+// from any pulse. Before 0.6.13 the reach marked with the perks' clock a tick ahead of the one that
+// read the marks, and nearly every one of its kills kept the weapon named before.
+void test_zodiac_kills(openrac_mod_load_fn load) {
+    constexpr int kZodiacItem = 43;
+    constexpr std::uint8_t kLancerByte = kLancer;
+    const auto cycle = get<std::int16_t>(g_disc->progress + kProgressCycle);
+    set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
+    g_weapon_perks = true;
+    CHECK(reload(load));
+    set<std::int16_t>(kEnemyClassAt + kClassKind, kKindEnemy);
+
+    // The gun, then the enemies (slots 6 and 7 not out yet as the pulse starts). The moby loop ran
+    // the owner's one (3) and the gun's own picks; 9 and 10 it left out (0.6.17): the reach leaves
+    // an owner's death whose owner does not run, and one that has not started.
+    lay_out_mobys({3784, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1});
+    g_run_known = true;
+    g_run_slots = {0, 3, 6, 7};
+    set<float>(table_moby(0) + 0x10u, 0.0f);
+    zodiac_enemy(1, 45.0f, 0.0f, 50.0f, 0, 255);           // The reach: vaporized, far.
+    zodiac_enemy(2, 30.0f, 0.0f, 50.0f, 0, kLancerByte);   // The reach: vaporized, within 40.
+    zodiac_enemy(3, 0.0f, 45.0f, 50.0f, 1, 255);           // The reach: its owner's.
+    zodiac_enemy(4, 0.0f, -45.0f, 1000.0f, 0, kLancerByte);  // The reach: drained.
+    zodiac_enemy(5, -45.0f, 0.0f, 1000.0f, 0, kLancerByte);  // Drained, then the RYNO's hit.
+    zodiac_enemy(6, 20.0f, 0.0f, 50.0f, 0, 255);           // The pulse: vaporized.
+    zodiac_enemy(7, 0.0f, 20.0f, 50.0f, 1, kLancerByte);   // The pulse: its owner's.
+    zodiac_enemy(8, 200.0f, 0.0f, 50.0f, 0, kLancerByte);  // Far from it: the Lancer's.
+    zodiac_enemy(9, -31.0f, 31.0f, 50.0f, 1, kLancerByte); // Its owner's, not run: left.
+    zodiac_enemy(10, 31.0f, -31.0f, 50.0f, 0, kLancerByte); // Not started (state 0): left.
+    g_memory[table_moby(10) + 0x20u] = 0;
+    g_memory[table_moby(6) + 0x20u] = 0xFFu;
+    g_memory[table_moby(7) + 0x20u] = 0xFFu;
+    g_kill_from_record = true;
+    g_kill_item = 0;
+    g_kill_xp = 100;
+    set<std::int32_t>(g_disc->exp + 4u * kZodiacItem, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kRyno, 0);
+
+    // The gun seen, then its pulse: the reach takes its enemies in the mod's tick.
+    tick(1);
+    g_memory[table_moby(0) + 0x20u] = 3;
+    tick(1);
+    CHECK(zodiac_byte(1) == kZodiacItem);
+    CHECK(zodiac_byte(2) == kZodiacItem);
+    CHECK(zodiac_byte(3) == kZodiacItem);
+    CHECK(g_memory[table_moby(1) + 0x20u] == 0xFFu && g_memory[table_moby(2) + 0x20u] == 0xFFu);
+    CHECK(g_memory[zodiac_record(3) + 0x0Eu] == 2);
+    CHECK(get<float>(zodiac_record(4)) == 400.0f);
+    CHECK(experience(kZodiacItem) == 300);
+    CHECK(zodiac_byte(9) == kLancerByte && g_memory[zodiac_record(9) + 0x0Eu] == 1);
+    CHECK(zodiac_byte(10) == kLancerByte && g_memory[table_moby(10) + 0x20u] == 0);
+    CHECK(get<float>(zodiac_record(9)) == 50.0f && get<float>(zodiac_record(10)) == 50.0f);
+
+    // The game's pulse in its frame: its picks out now, each recorded as the gun does.
+    g_memory[table_moby(6) + 0x20u] = 0x01u;
+    g_memory[table_moby(7) + 0x20u] = 0x01u;
+    port_record_death(table_moby(6), 0, 3);
+    port_record_death(table_moby(7), 0, 3);
+    g_memory[zodiac_record(7) + 0x0Eu] = 2;
+    CHECK(zodiac_byte(6) == kZodiacItem);
+    CHECK(zodiac_byte(7) == kZodiacItem);
+    CHECK(experience(kZodiacItem) == 500);
+
+    // The pulse over; seconds on, the drained ones die their own deaths, one after the RYNO's hit,
+    // and one far from any pulse by the Lancer's.
+    g_memory[table_moby(0) + 0x20u] = 0;
+    g_memory[zodiac_record(5) + 0x17u] = kRyno;
+    tick(120);
+    set<float>(zodiac_record(4), 0.0f);
+    set<float>(zodiac_record(5), 0.0f);
+    port_record_death(table_moby(4), 0, 3);
+    port_record_death(table_moby(5), 0, 3);
+    port_record_death(table_moby(8), 0, 3);
+    CHECK(zodiac_byte(4) == kZodiacItem);
+    CHECK(zodiac_byte(5) == kRyno);
+    CHECK(zodiac_byte(8) == kLancerByte);
+    CHECK(experience(kZodiacItem) == 600);
+    CHECK(experience(kRyno) == 100);
+    CHECK(experience(kLancer) == 100);
+
+    // Back as the other tests left it.
+    g_run_known = false;
+    g_run_slots.clear();
+    g_kill_from_record = false;
+    g_kill_xp = 0;
+    set<std::int32_t>(g_disc->exp + 4u * kZodiacItem, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kLancer, 0);
+    set<std::int32_t>(g_disc->exp + 4u * kRyno, 0);
+    set<std::int16_t>(g_disc->progress + kProgressCycle, cycle);
+    lay_out_mobys({});
+    g_weapon_perks = false;
+    CHECK(reload(load));
 }
 
 void run(const char* path, const Disc& disc, Host host) {
@@ -3038,7 +3313,13 @@ void run(const char* path, const Disc& disc, Host host) {
     }
 
     test_old_book_moved(load);
+    test_zodiac_book_moved(load);
     test_armour_at_the_vendor(host == Host::Paint);
+
+    // The Zodiac's kills, on the newest port.
+    if (host == Host::Paint) {
+        test_zodiac_kills(load);
+    }
 }
 
 }  // namespace

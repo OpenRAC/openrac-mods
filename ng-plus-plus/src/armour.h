@@ -7,7 +7,8 @@
 // hit on the hero on top of the game's armour, and from Gamma shocks the enemies near him when he
 // is hit (thorns), from Epsilon leaves him 1 point of health once a minute when a hit would end him.
 // The look is Carbonox, the model the hero wears, repainted in the tier's colour with a rim that
-// glows brighter each tier (OpenRAC's paint material on his class, 1.34): in the world, and on the
+// glows brighter each tier (OpenRAC's paint material on his class, 1.34), with the visor and lamps
+// in an accent of the tier's own (the paint's accent, 1.38, armour_accent): in the world, and on the
 // armour vendor's picture of him, which shows the tier for sale. An OpenRAC before 1.34 draws the
 // tier as a glow over Carbonox instead (energy, 1.25).
 // Kept in NG++'s book (tiers.txt) as item byte kArmourItem.
@@ -100,6 +101,7 @@ private:
     MobyMaterialFn m_material = nullptr;
     MaterialClassFn m_material_class = nullptr;
     bool m_energy = false;
+    bool m_accent = false;  // The port's paint takes an accent (1.38).
     std::uint32_t m_tick = 0;
     std::uint32_t m_last_stand_ready = 0;  // The tick the next last stand is ready.
     std::optional<Look> m_world;           // The look sent for the world, and for the menus.
