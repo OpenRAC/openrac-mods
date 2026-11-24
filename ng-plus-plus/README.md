@@ -27,6 +27,23 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.18
+
+- **The Zodiac and the RYNO II share one path, XP and purchase in turn all the way.** Heavy (XP),
+  Mega (bought), Ultra (XP), Alpha (bought), Beta (XP), Gamma (bought), Delta (XP), Epsilon
+  (bought), Zeta (XP), Eta (bought), Omega (XP) and, last, **Ultima** (bought): twelve steps. The
+  Zodiac's Alpha is now bought instead of earned (0.6.17 had it by XP) and it gains Ultima Zodiac
+  (x8.50 damage, +36 max ammo, black and red). The RYNO II gains Mega RYNO II and Ultra RYNO II
+  after Heavy, its Alpha is bought as before, and its Ultima is bought after Omega instead of
+  earned. Both cost the same: Mega 6,000,000, Alpha 8,000,000, Gamma 10,000,000, Epsilon
+  16,000,000, Eta 25,000,000 and Ultima 40,000,000 (see the tables under "Tiers").
+- **Saves keep their tiers.** The Zodiac's numbering is unchanged: a Zodiac at Ultra stays Ultra,
+  with Alpha now for sale. The RYNO II's Alpha to Ultima move up two places to make room, so each
+  keeps its name; Heavy stays. `tiers.txt` is moved over once when the mod loads (the old file kept
+  as that day's backup next to it), and its first line is now `ngpp-tiers 4`. The launcher's save
+  editor reads layouts 1 to 4, shows the Zodiac and the RYNO II as None, Heavy, Mega, Ultra, Alpha
+  to Omega, Ultima, and writes layout 4.
+
 ## What's new in 0.6.17
 
 - **No more half-dead enemies from the Zodiac's reach.** The reach beyond the gun's own pulse now
@@ -214,9 +231,9 @@ its paint.
   longer gives you the tier and your bolts back; a tier you saved stays with that save, through
   other saves, a restart and the launcher's export (see "Saves"). The armor and ship weapon tiers
   and the weapons' XP counts follow the same rule.
-- **The RYNO II's path** is Heavy (by XP), then Alpha to Omega, then Ultima (by XP after Omega);
-  older `tiers.txt` files are moved over once. Its bought tiers cost 6, 10, 16 and 25 million
-  (Alpha, Gamma, Epsilon, Eta) and its XP goals rise by a quarter. Its rockets split by chance at the low
+- **The RYNO II's path** (the Zodiac's too since 0.6.18) alternates XP and purchase: Heavy, Mega,
+  Ultra, Alpha to Omega, Ultima (bought after Omega); older `tiers.txt` files are moved over once. Its
+  bought tiers cost 6, 8, 10, 16, 25 and 40 million (Mega, Alpha, Gamma, Epsilon, Eta, Ultima) and its XP goals rise by a quarter. Its rockets split by chance at the low
   tiers (25% at Alpha up to 80% at Epsilon, always from Zeta), into homing rockets that split again
   at Omega and Ultima, and the split rockets fly, home in and leave their trails (the trails need
   OpenRAC develop with #712).
@@ -275,27 +292,30 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   their last version is bought and the game has no XP level-up after it, so Alpha comes by XP:
   a full bar (6,000 XP) levels the weapon up to Alpha with the game's level-up popup, then Beta
   by XP, Gamma bought, and so on as the other weapons.
-- **Zodiac** (its path since 0.6.14): first **Heavy Zodiac** by XP, then **Mega Zodiac** bought and
-  **Ultra Zodiac** by XP, then Alpha to Omega, on the RYNO II's XP and prices, as it is just as
-  overpowered. Each step by XP needs the RYNO II's at the same place, five times the usual, and Mega,
-  Gamma, Epsilon and Eta cost the RYNO II's prices, 6,000,000, 10,000,000, 16,000,000 and
-  25,000,000 (1,000,000 times 6, 10, 16 and 25, whatever the Zodiac's own table price is). Alpha to Omega keep the other weapons' damage and
-  ammo (below); the three new steps rise to meet them, and the max ammo gains 1, 2 and 3 rounds,
-  then a flat 4 a tier:
+- **Zodiac** (its path since 0.6.14, the RYNO II's since 0.6.18): XP and purchase in turn, Heavy
+  Zodiac (XP), **Mega Zodiac** (bought), **Ultra Zodiac** (XP), Alpha (bought), Beta (XP), Gamma
+  (bought), Delta (XP), Epsilon (bought), Zeta (XP), Eta (bought), Omega (XP) and **Ultima Zodiac**
+  (bought). Each step by XP needs what the RYNO II's step at the same place needs, five times the
+  usual, and the bought steps cost 6,000,000, 8,000,000, 10,000,000, 16,000,000, 25,000,000 and
+  40,000,000 (1,000,000 times 6, 8, 10, 16, 25 and 40, whatever the Zodiac's own table price is).
+  Alpha to Omega keep the other weapons' damage and ammo (below); Heavy, Mega and Ultra rise to
+  meet them, Ultima tops Omega, and the max ammo gains 1, 2 and 3 rounds, then a flat 4 a tier:
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
   | Heavy | level up | | 37,500 | x1.15 | +1 | orange |
-  | Mega | buy | x6 | | x1.30 | +2 | gold |
+  | Mega | buy | 6,000,000 | | x1.30 | +2 | gold |
   | Ultra | level up | | 50,000 | x1.42 | +3 | sky blue |
-  | Alpha | level up | | 37,500 | x1.50 | +4 | lime |
+  | Alpha | buy | 8,000,000 | | x1.50 | +4 | lime |
   | Beta | level up | | 50,000 | x2.00 | +8 | cyan |
-  | Gamma | buy | x10 | | x2.50 | +12 | emerald |
+  | Gamma | buy | 10,000,000 | | x2.50 | +12 | emerald |
   | Delta | level up | | 75,000 | x3.00 | +16 | teal |
-  | Epsilon | buy | x16 | | x3.75 | +20 | violet |
+  | Epsilon | buy | 16,000,000 | | x3.75 | +20 | violet |
   | Zeta | level up | | 100,000 | x4.50 | +24 | magenta |
-  | Eta | buy | x25 | | x5.50 | +28 | crimson |
+  | Eta | buy | 25,000,000 | | x5.50 | +28 | crimson |
   | Omega | level up | | 150,000 | x7.00 | +32 | rainbow |
+  | Ultima | buy | 40,000,000 | | x8.50 | +36 | black and red, beating |
+
 - **Decoy Glove**: the game gives XP to the weapon that landed the killing hit, and the decoy deals
   no damage (it only draws fire), so it can never earn XP. All its tiers are bought instead, each
   for sale as soon as you buy the one before: Alpha, Gamma, Epsilon and Eta at the usual prices,
@@ -306,11 +326,12 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 - **Clank Zapper**: Alpha is for sale once it is V2.
 - **Sheepinator**: like the four-version weapons, Alpha is for sale once it is V4 (it has no Mega,
   so its prices start from 1,500,000).
-- **RYNO II**: first **Heavy RYNO II** at 37,500 XP, then Alpha to Omega (Alpha for sale as soon as
-  it is Heavy), and last **Ultima RYNO II**, by XP after Omega: ten steps, Ultima the final one. The
+- **RYNO II**: first **Heavy RYNO II** at 37,500 XP, then Mega (bought), Ultra (XP), Alpha to Omega
+  in turn (bought and XP), and last **Ultima RYNO II**, bought after Omega: twelve steps, Ultima the
+  final one, on the Zodiac's path and prices. The
   RYNO II has its own curve, rising from Heavy to Ultima, and levels up five times slower than
   other weapons (`kRynoExpScale` in src/tiers.h). It is the strongest weapon, so it costs far more than
-  the others' top tiers: 1,000,000 (its own price) times 6, 10, 16 and 25, about 2.5 to 2.8 times the
+  the others' top tiers: 1,000,000 (its own price) times 6, 8, 10, 16, 25 and 40, about 2.5 to 2.8 times the
   ladder of 1.5M to 9M the others' biggest Mega prices reach. At the bolt scaling of the later
   challenge modes (x6 to x9, platinum and obsidian bolts) a common enemy at a full streak pays 14,400
   to 21,600, so Eta is a couple of thousand such kills:
@@ -318,7 +339,9 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
   | Heavy | level up | | 37,500 | x1.40 | x1.50 | orange |
-  | Alpha | buy | 6,000,000 | | x2.00 | x1.65 | lime |
+  | Mega | buy | 6,000,000 | | x1.60 | x1.55 | gold |
+  | Ultra | level up | | 43,750 | x1.80 | x1.60 | sky blue |
+  | Alpha | buy | 8,000,000 | | x2.00 | x1.65 | lime |
   | Beta | level up | | 50,000 | x2.70 | x1.80 | cyan |
   | Gamma | buy | 10,000,000 | | x3.45 | x1.95 | emerald |
   | Delta | level up | | 75,000 | x4.30 | x2.15 | teal |
@@ -326,19 +349,20 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   | Zeta | level up | | 100,000 | x6.20 | x2.55 | magenta |
   | Eta | buy | 25,000,000 | | x7.30 | x2.75 | crimson |
   | Omega | level up | | 150,000 | x8.45 | x2.95 | rainbow |
-  | Ultima | level up | | 187,500 | x9.70 | x3.20 | black and red, beating |
+  | Ultima | buy | 40,000,000 | | x9.70 | x3.20 | black and red, beating |
 
   At Ultima the XP bar shows full: there is nothing past it. Saves from before the path changed, when
-  the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, are moved over once: Heavy
-  stays Heavy, the old Ultima becomes Alpha, Alpha to Omega keep their tier, and Omega Prime becomes
-  Ultima.
+  the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, or (0.6.14 to 0.6.17)
+  Heavy, Alpha to Omega, Ultima, are moved over once: Heavy stays Heavy, the old Ultima becomes
+  Alpha, Alpha to Omega keep their name, and Omega Prime (or the last Ultima) becomes Ultima, each
+  placed after the new Mega and Ultra.
 
 **Names**: the tier replaces the game's top version in the weapon's name, in front of the name the
 weapon had before its Mega. A four-version weapon uses its second version's name: "Beta Meteor
 Gun", "Alpha Heavy Lancer" (not "Beta Lava Gun", nor the Mega's name). A two-version weapon uses
 its first: "Alpha Bomb Glove". The Clank Zapper uses its last, "Alpha Clank Shocker"; the
 Sheepinator its last XP version, "Alpha Black Sheepinator"; the Zodiac and the RYNO II their only
-one ("Heavy Zodiac", "Mega Zodiac", "Ultra Zodiac", "Heavy RYNO II", "Alpha RYNO II", "Ultima
+one ("Heavy Zodiac", "Mega Zodiac", "Ultra Zodiac", "Ultima Zodiac", "Heavy RYNO II", "Mega RYNO II", "Ultima
 RYNO II"). The names come from the game's own text,
 so every language works. A tier reached by XP shows the game's own level-up popup and message with
 the new name; a bought one shows the vendor's usual purchase message. The name also shows at the
@@ -376,7 +400,7 @@ its own colors with a touch of the tier's and gets a glowing edge in it, and its
 effects tied to it (sparks, flashes, arcs, trails, halos) are drawn in the tier's color instead of
 the game's. Each tier is a little stronger than the one before: the effects are brighter and the
 sparks and flashes larger, up to about half again as bright and a third larger at Omega. Omega's
-effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange, Alpha to Omega RYNO II
+effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange, Mega RYNO II gold, Ultra RYNO II sky blue, Alpha to Omega RYNO II
 in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
 
 This is only how things look: shots fly, spread and hit exactly as at the tier's damage.
@@ -608,11 +632,11 @@ is not sold in a multiplayer party.
 
 ### RYNO II split rockets
 
-From its first tier, **Alpha RYNO II**, on, a RYNO II rocket may split where it ends into smaller
+From its first tier, **Alpha RYNO II** (after Heavy, Mega and Ultra, which don't split), on, a RYNO II rocket may split where it ends into smaller
 homing rockets (OpenRAC 1.29): by chance at the low tiers, always from Zeta, and more of them up
 the tiers. They start just clear of what the rocket hit, fly at the nearest other enemies within 40
 units, home on them as the game's own rockets do and explode like them, in the tier's colour.
-Heavy RYNO II, its first step, doesn't split.
+Heavy, Mega and Ultra RYNO II don't split.
 
 | Tier | Chance a rocket splits | Split rockets | They split again |
 |---|---|---|---|
@@ -634,8 +658,8 @@ instead (3 from Epsilon).
 
 ### Ultima RYNO II
 
-The RYNO II's final step, after Omega, is **Ultima RYNO II**, reached by experience, not bought:
-37,500 x5 = 187,500 XP (the RYNO II's goals are five times the usual). It does x9.7 damage and
+The RYNO II's final step, after Omega, is **Ultima RYNO II**, bought for 40,000,000 (reached by
+experience until 0.6.17). It does x9.7 damage and
 x3.2 max ammo, and beats between black and red. Its rockets split in 4 and each split rocket
 splits in 2 twice more (OpenRAC 1.29: real homing rockets, at most 16 from one rocket; before 1.29,
 hits at 60% on at most 9 enemies). Nothing comes after it: its XP bar shows full.
@@ -1087,11 +1111,11 @@ without saving. Each save gets only its own tiers, exactly as they were when it 
 A record with tiers is never overwritten with an empty one. Nothing is written to the memory card
 or its folder.
 
-The file's first line, `ngpp-tiers 3`, marks the RYNO II's path Heavy, Alpha to Omega, Ultima and
-the Zodiac's Heavy, Mega, Ultra, Alpha to Omega. A file without it, or with `ngpp-tiers 2` (from
-before the Zodiac's path), is moved over once when the mod loads (see RYNO II above; each Zodiac level
-from Alpha up moves three up, so the tier stays), then written with the line, so it is never moved
-twice.
+The file's first line, `ngpp-tiers 4`, marks the RYNO II's and the Zodiac's path Heavy, Mega, Ultra,
+Alpha to Omega, Ultima. A file without it, or with `ngpp-tiers 2` or `3` (from before the path), is
+moved over once when the mod loads (see RYNO II above: its Alpha to Ultima move up two places; the
+Zodiac's levels from layout 3 stay, and from layouts 1 and 2 move up three from Alpha), then written
+with the line, so it is never moved twice.
 
 The launcher's save editor shows each weapon's tier in its version picker for the save you open
 while the mod is on, and saves your changes to `tiers.txt`; close the game first. It also lets you

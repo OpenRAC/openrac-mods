@@ -29,35 +29,42 @@ using Levels = std::array<std::uint8_t, kItems>;
 // ---- The book's layout ----
 
 // The first line of tiers.txt in the book's layout now: the RYNO II's path Heavy, Alpha to Omega,
-// Ultima (README.md, "RYNO II") and the Zodiac's Heavy, Mega, Ultra, Alpha to Omega (0.6.14). A book
+// Ultima (README.md, "RYNO II") and the Zodiac's Heavy, Mega, Ultra, Alpha to Omega, Ultima. A book
 // without a marker is layout 1, whose RYNO II went Heavy, Ultima, Alpha to Omega, Omega Prime; one
-// marked "ngpp-tiers 2" is layout 2, whose Zodiac went Alpha to Omega. Each is moved over once, as it
-// is read. Lines that are no record are skipped by SaveBook::read and kept by the launcher's save
+// marked "ngpp-tiers 2" is layout 2, whose Zodiac went Alpha to Omega; "ngpp-tiers 3" is layout 3
+// (0.6.14 to 0.6.17), whose Zodiac already had its Mega and Ultra but whose RYNO II went Heavy,
+// Alpha to Omega, Ultima. Each is moved over once, as it is read. Lines that are no record are skipped by SaveBook::read and kept by the launcher's save
 // editor.
-inline constexpr std::string_view kBookMarker = "ngpp-tiers 3";
+inline constexpr std::string_view kBookMarker = "ngpp-tiers 4";
+inline constexpr std::string_view kBookMarkerV3 = "ngpp-tiers 3";
 inline constexpr std::string_view kBookMarkerV2 = "ngpp-tiers 2";
 
 // The layout now.
-inline constexpr int kBookLayout = 3;
+inline constexpr int kBookLayout = 4;
 
 // Returns whether the book `text` has kBookMarker: the layout now.
 bool book_current(std::string_view text);
 
-// Returns the layout of the book `text`: 1 with no marker, 2 or kBookLayout by its marker.
+// Returns the layout of the book `text`: 1 with no marker, else 2, 3 or kBookLayout by its marker.
 int book_layout(std::string_view text);
 
-// Returns the Zodiac's level now for its level `old` in layout 2: none stays none, each step moves
+// Returns the Zodiac's level now for its level `old` in layout 1 or 2: none stays none, each step moves
 // up by kZodiacOwn (Alpha, the first, is the fourth now), so a Zodiac at Alpha or above keeps its
 // tier. The started bit stays as it is.
 std::uint8_t zodiac_level_from_old(std::uint8_t old);
 
-// Returns the RYNO II's level now for its level `old` in the layout before: Heavy stays Heavy, the
+// Returns the RYNO II's level in layout 3 for its level `old` in layout 1: Heavy stays Heavy, the
 // old Ultima (2) becomes Alpha, Alpha to Omega keep their tier (3 to 10 become 2 to 9), Omega Prime
 // (11) becomes Ultima (10). The started bit stays as it is.
 std::uint8_t ryno_level_from_old(std::uint8_t old);
 
-// Moves every record of `book`, read from layout `from` (1 or 2), to the layout now, in their order:
-// the RYNO II's levels from layout 1, the Zodiac's from layouts 1 and 2.
+// Returns the RYNO II's level now for its level `old` in layout 3 (0.6.18 put its Mega and Ultra
+// after Heavy): none and Heavy stay, every step from Alpha up moves up two (2 to 10 become 4 to 12),
+// so each keeps its name. The started bit stays as it is.
+std::uint8_t ryno_level_from_v3(std::uint8_t old);
+
+// Moves every record of `book`, read from layout `from` (1 to 3), to the layout now, in their order:
+// the RYNO II's levels from layouts 1 to 3, the Zodiac's from layouts 1 and 2.
 void migrate_book(SaveBook& book, int from = 1);
 
 // Returns `book` as tiers.txt keeps it: kBookMarker, then a line a record.

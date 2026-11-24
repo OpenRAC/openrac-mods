@@ -28,14 +28,14 @@ inline constexpr int kItems = 56;
 // The eight tiers every weapon gets, V5 to V12.
 inline constexpr int kTiers = 8;
 
-// The RYNO II's steps: Heavy, the eight tiers and Ultima, its last.
-inline constexpr int kRynoStepCount = kTiers + 2;
+// The RYNO II's steps (0.6.18, the Zodiac's path): Heavy, Mega, Ultra, the eight tiers and Ultima.
+inline constexpr int kRynoStepCount = kTiers + 4;
 
 // The Zodiac's own steps before its tiers (0.6.14): Heavy, Mega and Ultra, so Alpha is its fourth.
 inline constexpr int kZodiacOwn = 3;
 
-// The Zodiac's steps: Heavy, Mega, Ultra and the eight tiers.
-inline constexpr int kZodiacStepCount = kTiers + kZodiacOwn;
+// The Zodiac's steps: Heavy, Mega, Ultra, the eight tiers and Ultima.
+inline constexpr int kZodiacStepCount = kRynoStepCount;
 
 // The most steps a weapon has: the Zodiac's.
 inline constexpr int kMaxSteps = kZodiacStepCount;
@@ -69,7 +69,7 @@ enum class Kind : std::uint8_t {
     NoExp,   // as Two, but it deals no damage, so never earns experience: every tier is bought
     Zapper,  // the Clank Zapper: V2 by experience
     Sheep,   // the Sheepinator: V4 by experience, no Mega: Alpha is for sale at V4
-    Single,  // one version, bought (the Zodiac): Heavy, Mega, Ultra, then the eight tiers
+    Single,  // one version, bought (the Zodiac): Heavy, Mega, Ultra, the eight tiers, Ultima
     Ryno,    // the RYNO II: Heavy by experience, the tiers, then Ultima by experience last
 };
 

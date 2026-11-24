@@ -1292,7 +1292,8 @@ std::string file_text(const std::filesystem::path& path) {
 
 // Checks a book of the layout before the RYNO II's path changed (Heavy, Ultima, Alpha to Omega,
 // Omega Prime) moved over once as the mod loads: old Ultima (2) to Alpha, old Omega (10) to Omega
-// (9), Omega Prime (11) to Ultima (10), the started bit and the other items kept; loaded again, the
+// (11), Omega Prime (11) to Ultima (12), old Ultima to Alpha (4), the started bit and the other
+// items kept; loaded again, the
 // book stays as it is. The book before is put back after.
 void test_old_book_moved(openrac_mod_load_fn load) {
     const std::filesystem::path book = g_dir / "tiers.txt";
@@ -1315,15 +1316,15 @@ void test_old_book_moved(openrac_mod_load_fn load) {
     CHECK(reload(load));
     const std::string moved = file_text(book);
     std::string first_now = zeros;
-    first_now.replace(kRyno * 2, 2, "82");
+    first_now.replace(kRyno * 2, 2, "84");
     first_now.replace(kLancer * 2, 2, "05");
     std::string second_now = zeros;
-    second_now.replace(kRyno * 2, 2, "09");
+    second_now.replace(kRyno * 2, 2, "0b");
     std::string third_now = zeros;
-    third_now.replace(kRyno * 2, 2, "0a");
+    third_now.replace(kRyno * 2, 2, "0c");
     CHECK(
         moved
-        == "ngpp-tiers 3\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+        == "ngpp-tiers 4\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
                + "\n0300000000000011 " + third_now + "\n"
     );
 
@@ -1366,13 +1367,14 @@ void test_zodiac_book_moved(openrac_mod_load_fn load) {
     CHECK(reload(load));
     const std::string moved = file_text(book);
     std::string first_now = first;
+    first_now.replace(kRyno * 2, 2, "09");  // layout 2's RYNO II moves up two as well
     std::string second_now = second;
     second_now.replace(kZodiacItem * 2, 2, "04");
     std::string third_now = third;
     third_now.replace(kZodiacItem * 2, 2, "8b");
     CHECK(
         moved
-        == "ngpp-tiers 3\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
+        == "ngpp-tiers 4\n0100000000000011 " + first_now + "\n0200000000000011 " + second_now
                + "\n0300000000000011 " + third_now + "\n"
     );
 
@@ -1805,7 +1807,7 @@ void test_ryno_heavy_and_kept() {
     tick(1);
     CHECK(g_notice == "Heavy RYNO II");
     CHECK(get<std::uint16_t>(row(kRyno) + kRowAmmoMax) == 150);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Alpha is for sale at once
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Mega is for sale at once
 
     // Saved (a new clock): kept. A new game (zeros) has none; the save loaded again has them.
     set_clock(0x20);
@@ -1860,23 +1862,25 @@ void level_ryno(std::int32_t exp, const std::string& name) {
     CHECK(g_notice == name);
 }
 
-// Checks the RYNO II at the vendor after the Lancer's Gamma, from Heavy: Alpha for sale at once
-// (named by its own row's text, having no version 2 row), then the bar toward Beta.
+// Checks the RYNO II at the vendor after the Lancer's Gamma, from Heavy: Mega for sale at once
+// (named by its own row's text, having no version 2 row), then the bar toward Ultra.
 void test_ryno_at_the_vendor() {
     set<std::int32_t>(row(kRyno) + kRowLabel, kRynoLabelText);
-    buy_ryno("Alpha RYNO II");
-    CHECK(title(kRynoLabelText) == "Alpha RYNO II");
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);  // toward Beta
+    buy_ryno("Mega RYNO II");
+    CHECK(title(kRynoLabelText) == "Mega RYNO II");
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);  // toward Ultra
 }
 
-// Checks the rest of the RYNO II's path, from Beta (reached in hand): Gamma for sale at once,
-// Delta, Epsilon, Zeta and Eta in turn, Omega by experience, and Ultima, its last, by experience
-// after Omega, with a full bar and nothing for sale or to level after it.
+// Checks the rest of the RYNO II's path, from Ultra (reached in hand): Alpha for sale at once,
+// Beta by experience, Gamma, Delta, Epsilon, Zeta and Eta in turn, Omega by experience, and Ultima,
+// its last, bought after Omega, with a full bar and nothing for sale or to level after it.
 void test_ryno_to_ultima() {
     set<std::int32_t>(g_disc->hero + kHeroHeld, -1);
     set_experience(kRyno, 0);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Gamma for sale at once
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);  // Alpha for sale at once
+    buy_ryno("Alpha RYNO II");
+    level_ryno(50'000, "Beta RYNO II");
     buy_ryno("Gamma RYNO II");
     level_ryno(75'000, "Delta RYNO II");
     buy_ryno("Epsilon RYNO II");
@@ -1884,7 +1888,7 @@ void test_ryno_to_ultima() {
     buy_ryno("Eta RYNO II");
     level_ryno(150'000, "Omega RYNO II");
     tick(1);
-    level_ryno(187'500, "Ultima RYNO II");
+    buy_ryno("Ultima RYNO II");
     tick(1);
     // The last step: a full bar, no goal, nothing at the vendor, no step for more experience.
     CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 0);
@@ -1973,7 +1977,7 @@ void buy_lancer_gamma() {
 // stamps a new one; a step bought after the last save is gone, as the bolts it cost come back with
 // the save; then a new game has none.
 void test_a_restart_keeps_the_saved_steps(openrac_mod_load_fn load) {
-    // Saved after the RYNO II's Alpha (a new clock), then the Lancer's Gamma bought and not saved.
+    // Saved after the RYNO II's Mega (a new clock), then the Lancer's Gamma bought and not saved.
     set<std::int32_t>(g_disc->progress, 9'000'000);
     set_clock(0x30);
     tick(1);
@@ -1997,7 +2001,7 @@ void test_a_restart_keeps_the_saved_steps(openrac_mod_load_fn load) {
         g_level_now = 1;
         set_clock(static_cast<std::uint8_t>(0x50 + restart));
         tick(1);
-        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+        CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
         CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);  // Beta: Gamma unsaved
     }
 
@@ -2036,7 +2040,7 @@ void test_each_save_has_its_own() {
     g_level_now = 1;
     set_clock(0x52);  // stamped again as its level starts
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);  // started: kept
 
@@ -2067,7 +2071,7 @@ void test_saves_from_inside_a_level() {
     load_save_a();
     set_clock(0x52);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);
 
@@ -2085,7 +2089,7 @@ void test_saves_from_inside_a_level() {
     load_save_a();
     set_clock(0x52);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 2);
     set_clock(0);
     tick(1);
@@ -2093,7 +2097,7 @@ void test_saves_from_inside_a_level() {
     CHECK(experience(kRyno) == 1234 * kExpUnit);                   // not zeroed while zeros
     set_clock(0x70);
     tick(1);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
     CHECK(experience(kRyno) == 1234 * kExpUnit);
     set<std::int16_t>(g_disc->progress + kProgressCycle, 1);
@@ -2185,7 +2189,7 @@ void test_tiers_follow_the_saves(openrac_mod_load_fn load) {
     set_clock(0x80);
     tick(1);
     CHECK(get<std::uint16_t>(row(kLancerV4) + kRowAmmoMax) == 600);
-    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 50'000);  // the RYNO II's Alpha kept
+    CHECK(get<std::int32_t>(row(kRyno) + kRowExpGoal) == 43'750);  // the RYNO II's Mega kept
 
     // Bought again, then S loaded again at once: the clock stays S's, its data comes back.
     buy_lancer_gamma();

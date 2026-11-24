@@ -13,8 +13,8 @@
 namespace ng_plus_plus {
 namespace {
 
-// The RYNO II's own step before its tiers (Heavy).
-constexpr int kRynoOwn = 1;
+// The RYNO II's own steps before its tiers (Heavy, Mega, Ultra, 0.6.18).
+constexpr int kRynoOwn = 3;
 
 // The tiers each stage starts at.
 constexpr int kGammaTier = 3;
