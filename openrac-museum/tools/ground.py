@@ -50,7 +50,7 @@ def material_of(z, n, x, y):
     m[steep & (creep > 0.5) & (z < island.SEA + 120)] = "om_jungle"
     m[steep & (z < island.SEA + 7)] = "om_wet_sand"
     m[(z > island.SEA + 150) & (slope > 0.12)] = "om_rock"
-    m[(dv < 70) & (z > island.SEA + 70) & (slope > 0.12)] = "om_basalt"
+    m[(dv < 58) & (z > island.SEA + 70) & (slope > 0.12)] = "om_basalt"
     m[(dv < 16) & (z < island.VOLCANO_TOP - 8)] = "om_lava"
     return m
 
@@ -231,8 +231,7 @@ def massif(k, cx, cy, rad, hgt, rng):
 
 
 def far_islands():
-    """The far jungle in Pokitaru's layers: sheer creeper walls, a canopy on every tier, and great
-    waterfalls down the walls that face the island."""
+    """The far jungle in Pokitaru's layers: sheer creeper walls and a canopy on every tier."""
     mesh = Mesh()
     rng = np.random.default_rng(7)
     cx0, cy0 = island.CENTRE
@@ -276,26 +275,6 @@ def far_islands():
                 uv = p[:, :2] / 60
             bright = {"om_grass": 0.9}.get(name, BRIGHT.get(name, 1.0))
             mesh.add(name, p, Nf[used], uv, np.clip(col[used] * bright * WARM, 0, 2), inv.reshape(-1, 3))
-        # A waterfall down the wall that faces the island, from the highest tier's lip.
-        if k % 2 == 1 or hgt >= 900:
-            towards = np.array([cx0 - cx, cy0 - cy]); towards /= np.linalg.norm(towards)
-            ts = np.linspace(0, rad * 1.3, 200)
-            line = np.array([cx, cy]) + towards[None] * ts[:, None]
-            zs = H(line[:, 0], line[:, 1])
-            top = zs.max()
-            lip = int(np.nonzero(zs > top * 0.0 + (island.SEA + (top - island.SEA) * 0.55))[0].max())
-            fx, fy = line[min(lip + 2, len(line) - 1)]
-            fz = float(zs[lip]) - 2.0
-            side = np.array([-towards[1], towards[0]])
-            width = rad * 0.08
-            q = np.array([[fx - side[0] * width, fy - side[1] * width, fz], [fx + side[0] * width, fy + side[1] * width, fz],
-                          [fx + side[0] * width * 1.4, fy + side[1] * width * 1.4, island.SEA],
-                          [fx - side[0] * width * 1.4, fy - side[1] * width * 1.4, island.SEA]], np.float32)
-            n = np.array([towards[0], towards[1], 0.0])
-            reps = max(1.0, (fz - island.SEA) / 80)
-            uv = np.array([[0, 0], [2, 0], [2, reps], [0, reps]], np.float32)
-            colf = np.full((4, 3), 0.62 - haze * 0.5)
-            mesh.add("om_falls", q, np.tile(n, (4, 1)), uv, colf, [[0, 1, 2], [0, 2, 3]])
     return mesh
 
 

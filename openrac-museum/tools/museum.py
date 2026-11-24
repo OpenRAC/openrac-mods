@@ -23,6 +23,7 @@ import landmarks  # noqa: E402
 import museum_light  # noqa: E402
 import make_museum  # noqa: E402
 import scatter  # noqa: E402
+import tie_collision  # noqa: E402
 
 LEVEL = 11
 PLANET = "OpenRAC Museum"
@@ -206,6 +207,39 @@ def settle(project, scene_path):
             print(f"{r['node']}: {r['problem']}")
     scene_path.write_text(text, encoding="utf-8", newline="\n")
     print(f"Set down on the ground; {len(dropped)} crate(s) with no level spot left out.")
+
+
+def add_tie_collision(scene_path, built, level_dir):
+    """The scattered ties' collision (tie_collision.py) as one more collision node of the scene."""
+    text = scene_path.read_text(encoding="utf-8")
+    ext = dict(re.findall(r'\[ext_resource [^\]]*path="[^"]*/tie_(\d+)\.glb" id="([^"]+)"\]', text))
+    ext = {rid: int(n) for n, rid in ext.items()}
+    terrain = make_museum.editor_terrain()
+    models, tris = {}, []
+    for m in re.finditer(r'^\[node name="(OM_Tie_\d+|Palm_\d+)"[^\n]*?(?:instance=ExtResource\("([^"]+)"\))?\]\n'
+                         r'transform = Transform3D\(([^)]*)\)', text, re.M):
+        values = [float(v) for v in m.group(3).split(",")]
+        basis, at = values[:9], values[9:12]
+        if m.group(1).startswith("Palm_"):
+            tris += tie_collision.triangles(None, 586, None, at, palm=True)
+            continue
+        number = ext.get(m.group(2))
+        if number is None:
+            continue
+        if number not in models:
+            path = level_dir / "ties" / f"tie_{number}.glb"
+            models[number] = tie_collision.load(terrain, path) if path.is_file() else None
+        if models[number] is not None:
+            tris += tie_collision.triangles(models[number], number, basis, at)
+    make_museum.collision_glb(built / "collision" / "ties.glb", tris)
+    rid = "om_collision_ties"
+    res = f'[ext_resource type="PackedScene" path="res://{FOLDER}/collision/ties.glb" id="{rid}"]\n\n'
+    node = (f'[node name="OM_Ties" parent="Game/Collision" instance=ExtResource("{rid}")]\n'
+            f'metadata/rc1_surface = 31\n\n')
+    first = re.search(r"(?m)^\[(sub_resource|node) ", text).start()
+    text = text[:first] + res + text[first:].rstrip("\n") + "\n\n" + node
+    scene_path.write_text(text, encoding="utf-8", newline="\n")
+    print(f"ties' collision: {len(tris)} triangles")
 
 
 def write_museum(projects, tools):
@@ -460,6 +494,8 @@ def write_museum(projects, tools):
     text = "".join(out)
     scene_path.write_text(text, encoding="utf-8", newline="\n")
     settle(project, scene_path)
+    # Where the ties stand now: their collision (after the settling, which must not stand them on it).
+    add_tie_collision(scene_path, built, level_dir)
     # After the mobys are set down: the light each takes from where it stands.
     scene_path.write_text(light_nodes(scene_path.read_text(encoding="utf-8"), layout), encoding="utf-8",
                           newline="\n")

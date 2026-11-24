@@ -1,5 +1,5 @@
-"""Everything round the museum: the waterfalls and the grotto behind one, the spiral stair and the
-lookout, the grind rail, the swingshot rafts, the pier, and the easter eggs.
+"""Everything round the museum: the waterfalls and the grotto behind one, the climb of jumps up to
+the lookout, the grind rail, the swingshot rafts, the pier, and the easter eggs.
 
 build() adds the drawn and solid shapes to a Geo and returns the layout: where place_museum.py puts
 the game's own objects (swingshot targets, gold bolts, crates, lamps, grind paths, Ratchet)."""
@@ -104,47 +104,55 @@ def pole_raft(geo, centre, z, size=3.2):
     geo.box("om_gold", (x - size - 0.1, y - size - 0.1, z - 0.7), (x + size + 0.1, y + size + 0.1, z - 0.5), solid=False)
 
 
-def spiral(geo, centre, z0, z1, half=6.0, width=4.0):
-    """A square spiral stair round a stone core, from Z0 up to Z1. Returns its top landing."""
-    cx, cy = centre
-    c = half + width / 2
-    corners = [(-c, -c), (c, -c), (c, c), (-c, c)]
-    rise = 4.0
-    flights = int(math.ceil((z1 - z0) / rise))
-    rise = (z1 - z0) / flights
-    # Bare rock, its picture spread wide: a cobble picture with grass repeats as a grid up a core this tall.
-    geo.box("om_rock", (cx - half, cy - half, z0 - 2), (cx + half, cy + half, z1 + 3), uv_scale=6.0,
-            skip=((0, 0, -1),))
-    geo.box("om_planks_dark", (cx - half - 0.3, cy - half - 0.3, z1 + 3), (cx + half + 0.3, cy + half + 0.3, z1 + 3.6))
-    z = z0
-    hw = width / 2
-    for k in range(flights):
-        a = np.array(corners[k % 4]); b = np.array(corners[(k + 1) % 4])
-        # The landing at the corner.
-        geo.box("om_planks", (cx + a[0] - hw, cy + a[1] - hw, z - 0.4), (cx + a[0] + hw, cy + a[1] + hw, z))
-        d = (b - a) / np.linalg.norm(b - a)
-        s0 = np.array([cx, cy]) + a + d * hw
-        s1 = np.array([cx, cy]) + b - d * hw
-        side = np.array([-d[1], d[0]]) * hw
-        q = np.array([[*(s0 - side), z], [*(s1 - side), z + rise], [*(s1 + side), z + rise], [*(s0 + side), z]])
-        n = np.cross(q[1] - q[0], q[3] - q[0]); n /= np.linalg.norm(n)
-        if n[2] < 0:
-            q = q[[0, 3, 2, 1]]; n = -n
-        uv = np.array([[0, 0], [3, 0], [3, 1], [0, 1]], np.float32)
-        geo.tri_quad("om_planks_light", q, list(n), uv)
-        under = q - np.array([0, 0, 0.4])
-        geo.tri_quad("om_planks_dark", under[::-1], list(-n), uv[::-1], solid=False)
-        # An outer handrail (drawn), posts at both ends.
-        outer = side * (1 if np.dot(side, a) > 0 else -1)
-        for p, zz in ((s0, z), (s1, z + rise)):
-            o = p + outer * 1.0
-            geo.box("om_planks_dark", (o[0] - 0.12, o[1] - 0.12, zz), (o[0] + 0.12, o[1] + 0.12, zz + 1.3), solid=False)
-        geo.beam("om_planks_dark", (*(s0 + outer), z + 1.3), (*(s1 + outer), z + rise + 1.3), 0.2)
-        z += rise
-    a = np.array(corners[flights % 4])
-    top = (cx + a[0], cy + a[1], z)
-    geo.box("om_planks", (top[0] - hw, top[1] - hw, z - 0.4), (top[0] + hw, top[1] + hw, z))
-    return top
+def climb(geo, moby, path, z1, spacing=3.8):
+    """A climb of jumps along PATH (switchbacks on the ground, its last point at the lookout's
+    edge) up to Z1: hops SPACING apart, each a little higher, stumps and plank tops on posts in
+    turn, now and then a log to run up to the next one, a bolt here and there. Returns every hop's
+    (middle, height)."""
+    path = [np.asarray(p, np.float64) for p in path]
+    pts = []
+    for a, b in zip(path, path[1:]):
+        length = float(np.linalg.norm(b - a))
+        for t in np.arange(0.0, length, spacing / 4):
+            pts.append(a + (b - a) * t / length)
+    pts.append(path[-1])
+    # Even steps along the way.
+    run = np.concatenate([[0], np.cumsum([np.linalg.norm(q - p) for p, q in zip(pts, pts[1:])])])
+    n = max(3, int(run[-1] / spacing))
+    z0 = float(island.height(*path[0])) + 1.0
+    hops = []
+    for k in range(n):
+        d = run[-1] * (k + 0.5) / n
+        i = min(int(np.searchsorted(run, d)), len(pts) - 1)
+        hops.append((pts[i], z0 + (z1 - 0.3 - z0) * (k + 1) / n))
+    for k, (p, z) in enumerate(hops):
+        ground = float(island.height(*p))
+        if k % 2 == 0:
+            # A round pad on a post, a gold rim round it.
+            geo.cylinder("om_planks_dark", (p[0], p[1]), 0.4, ground - 1.0, z - 0.5, 8, solid=True)
+            geo.cylinder("om_planks_light", (p[0], p[1]), 1.5, z - 0.5, z, 12, solid=True)
+            geo.cylinder("om_gold", (p[0], p[1]), 1.58, z - 0.65, z - 0.45, 12)
+        else:
+            geo.cylinder("om_planks_dark", (p[0], p[1]), 0.35, ground - 1.0, z - 0.4, 8, solid=True)
+            geo.box("om_planks_light", (p[0] - 1.6, p[1] - 1.6, z - 0.4), (p[0] + 1.6, p[1] + 1.6, z))
+            geo.box("om_gold", (p[0] - 1.7, p[1] - 1.7, z - 0.55), (p[0] + 1.7, p[1] + 1.7, z - 0.4), solid=False)
+        if k % 4 == 3 and k + 1 < len(hops):
+            # A log up to the next hop, to run instead of jump.
+            q, zq = hops[k + 1]
+            geo.tube("om_planks_dark", [(p[0], p[1], z - 0.4), (q[0], q[1], zq - 0.4)], 0.35, 10)
+            d = q - p
+            length = float(np.linalg.norm(d)); d = d / length
+            w = np.array([-d[1], d[0]]) * 0.5
+            top = np.array([[*(p - w), z - 0.02], [*(q - w), zq - 0.02], [*(q + w), zq - 0.02], [*(p + w), z - 0.02]])
+            if np.cross(top[1] - top[0], top[3] - top[0])[2] < 0:
+                top = top[[0, 3, 2, 1]]
+            geo.solid.append(((top[0], top[1], top[2]), 0x1F))
+            geo.solid.append(((top[0], top[2], top[3]), 0x1F))
+        if k % 3 == 2:
+            moby("bolt", (p[0], p[1], z + 0.6), note="the lookout climb")
+    mid, mz = hops[len(hops) // 2]
+    moby("bolt_crate", (mid[0], mid[1], mz), note="the lookout climb")
+    return hops
 
 
 def lip_r(angle, lip):
@@ -255,11 +263,13 @@ def rail_model(geo, points, post_every=8, solid_posts=False):
 # Enemy groups: where they stand, and who. Each guards a zone ZONE_R round its place and fights
 # only while Ratchet is in it. Kept to the side places: the house and the way to it stay calm.
 ZONE_R = 16.0
+# The OPENRAC crates' first letter's corner, on the north-east lowland (read from the tower's top).
+LETTERS = (C[0] + math.cos(math.radians(22)) * 125, C[1] + math.sin(math.radians(22)) * 125)
 ENEMY_GROUPS = [
-    ((479.0, 571.0), ("puffoid", "psytcopus", "puffoid")),               # the foot of the lookout stair
+    (island.pull(479.0, 571.0), ("puffoid", "psytcopus", "puffoid")),    # the foot of the lookout stair
     ((630.0, 615.0), ("puffoid", "psytcopus", "puffoid")),               # the north jetty (swing to the tower)
-    ((445.0, 722.0), ("puffoid", "puffoid", "psytcopus", "puffoid")),    # the coast before the bottle islet
-    ((792.0, 440.0), ("puffoid", "puffoid", "puffoid")),                 # behind the OPENRAC letters
+    (island.pull(445.0, 722.0), ("puffoid", "puffoid", "psytcopus", "puffoid")),  # the coast before the bottle islet
+    ((LETTERS[0] + 20, LETTERS[1] - 25), ("puffoid", "puffoid", "puffoid")),     # beside the OPENRAC letters
 ]
 
 
@@ -321,39 +331,40 @@ def build(geo: Geo, pictures, mats):
     for j in range(3):
         moby("bolt_crate", np.append(C + d * (g["r0"] + 6) + side * (j - 1) * 2.2, SEA + 2.0))
 
-    # --- The spiral stair and the lookout ---
-    base = rp(166, 172)
-    top = spiral(geo, (base[0], base[1]), float(base[2]), SEA + 82.0)
-    look = rp(150, 192)
-    look[2] = SEA + 82.0
-    platform(geo, (look[0], look[1]), look[2], 8.0, gaps=("w", "e", "s"))
-    # The bridge from the stair's top to the lookout.
-    a = np.array(top[:2]); b = np.array([look[0], look[1]])
-    dd = (b - a) / np.linalg.norm(b - a)
-    sd = np.array([-dd[1], dd[0]]) * 2.2
-    q = np.array([[*(a - sd), look[2]], [*(b - sd), look[2]], [*(b + sd), look[2]], [*(a + sd), look[2]]])
-    if np.cross(q[1] - q[0], q[3] - q[0])[2] < 0:
-        q = q[[0, 3, 2, 1]]
-    geo.tri_quad("om_planks_light", q, [0, 0, 1], np.array([[0, 0], [8, 0], [8, 1], [0, 1]], np.float32))
-    for s in (-1, 1):
-        geo.beam("om_planks_dark", (*(a + sd * s * 1.1), look[2] + 1.2), (*(b + sd * s * 1.1), look[2] + 1.2), 0.2)
-        geo.wall("om_planks_dark", a + sd * s * 1.1, b + sd * s * 1.1, look[2], look[2] + 1.0, 0.2)
-    for t in np.linspace(0.1, 0.9, 4):
-        p = a + (b - a) * t
-        gz = float(island.height(*p))
-        geo.cylinder("om_planks_dark", (p[0], p[1]), 0.4, gz - 1, look[2] - 0.4, 10, solid=True)
+    # --- The lookout and the climb of jumps up to it ---
+    look = rp(150, island.pr(192))
+    look[2] = island.LOOKOUT_Z
+    base = rp(166, island.pr(172))
+    # Switchbacks up the slope before the lookout's rock, to its south side.
+    lx, ly = look[0], look[1]
+    side = "s"
+    path = [(lx - 14, ly - 44), (lx + 10, ly - 44), (lx + 10, ly - 31), (lx - 13, ly - 31),
+            (lx - 13, ly - 18), (lx + 4, ly - 18), (lx, ly - 10)]
+    hops = climb(geo, moby, path, look[2])
+    edge = np.array([lx, ly - 8.0])
+    last, lz = hops[-1]
+    platform(geo, (look[0], look[1]), look[2], 8.0, gaps=tuple(sorted({"w", "e", "s", side})))
+    a = last; b = edge
+    if np.linalg.norm(b - a) > 1.0:
+        dd = (b - a) / np.linalg.norm(b - a)
+        sd = np.array([-dd[1], dd[0]]) * 1.2
+        q = np.array([[*(a - sd), lz], [*(b - sd), look[2]], [*(b + sd), look[2]], [*(a + sd), lz]])
+        n = np.cross(q[1] - q[0], q[3] - q[0]); n /= np.linalg.norm(n)
+        if n[2] < 0:
+            q = q[[0, 3, 2, 1]]; n = -n
+        geo.tri_quad("om_planks_light", q, list(n), np.array([[0, 0], [4, 0], [4, 1], [0, 1]], np.float32))
     add_sign(geo, pictures, mats, "om_sign_lookout", "LOOKOUT", "Grindboots: tower  Swingshot: volcano",
              (look[0] + 5, look[1] + 7.6, look[2] + 2.2), -90, 6, 2.25, post=False)
     layout["lookout"] = list(map(float, look))
-    layout["stair"] = [float(base[0]), float(base[1]), float(base[2])]
+    layout["climb"] = [[float(p[0]), float(p[1]), float(z)] for p, z in hops]
     layout["lamps"] += [list(map(float, (look[0] + sx * 7, look[1] + sy * 7, look[2]))) for sx in (-1, 1) for sy in (-1, 1)]
-    layout["lamps"].append([float(base[0]) + 11, float(base[1]) - 11, float(base[2])])
+    layout["lamps"].append([float(base[0]) + 5, float(base[1]) - 5, float(base[2])])
 
     # --- The grind rail: lookout to the tower's top room ---
     tx, ty = house.TOWER
     start = [look[0] + 4.0, look[1] + 1, look[2] + 1.0]   # over the lookout's floor: jump up onto it
-    ctrl = [start, [look[0] + 40, look[1] + 6, look[2] - 4], [C[0] - 30, C[1] + 105, SEA + 64],
-            [C[0] + 20, C[1] + 92, SEA + 58], [tx + 14, ty + 36, SEA + 52], [tx + 2, ty + 15, house.TOWER_TOP + 1.2]]
+    ctrl = [start, [look[0] + 40, look[1] + 6, look[2] - 4], [C[0] - 30, C[1] + 105, SEA + 42],
+            [C[0] + 20, C[1] + 92, SEA + 44], [tx + 14, ty + 36, SEA + 46], [tx + 2, ty + 15, house.TOWER_TOP + 1.2]]
     rail = catmull(ctrl, 2.0)
     rail_model(geo, rail)
     layout["grind_paths"].append({"name": "lookout_to_tower", "points": rail})
@@ -408,10 +419,10 @@ def build(geo: Geo, pictures, mats):
     moby("gold_bolt", (tx - 2, ty + 2, house.TOWER_TOP + 0.5), note="tower top")
 
     # --- The pier on the south beach, with the welcome sign ---
-    pier = rp(-95, 205)
+    pier = rp(-95, island.pr(205))
     pier_z = SEA + 3.5
     for k in range(7):
-        p = rp(-95, 205 + k * 6, 0)
+        p = rp(-95, island.pr(205) + k * 6, 0)
         geo.box("om_planks_light", (p[0] - 3, p[1] - 3, pier_z - 0.4), (p[0] + 3, p[1] + 3, pier_z))
         for s in (-1, 1):
             geo.cylinder("om_planks_dark", (p[0] + s * 2.7, p[1]), 0.35, float(island.height(p[0] + s * 2.7, p[1])) - 1.5, pier_z + 1.0, 10)
@@ -422,7 +433,7 @@ def build(geo: Geo, pictures, mats):
     islet = island.ISLETS[3]
     ix, iy = islet[0], islet[1]
     iz = float(island.height(ix, iy))
-    coast = np.array([430.0, 735.0])
+    coast = np.array(island.pull(430.0, 735.0))
     cz = max(float(island.height(*coast)), SEA + 6)
     hops = []
     n = 7
@@ -455,7 +466,7 @@ def build(geo: Geo, pictures, mats):
     v = island.VOLCANO
     d = np.array(look[:2]) - v
     d /= np.linalg.norm(d)
-    ledge = v + d * 60.0
+    ledge = v + d * 55.0
     lz = max(coarse_height(ledge + np.array([a, b])) for a in (-4, 4) for b in (-4, 4)) + 0.6
     platform(geo, ledge, lz, 4.5, legs=False, rail=False)
     add_sign(geo, pictures, mats, "om_egg_volcano", "UNDEFINED BEHAVIOUR", "do not feed the volcano",
@@ -478,7 +489,7 @@ def build(geo: Geo, pictures, mats):
                "R": ["110", "101", "110", "101", "101"], "A": ["010", "101", "111", "101", "101"],
                "C": ["111", "100", "100", "100", "111"]}
     word = "OPENRAC"
-    origin = np.array([C[0] + 150, C[1] - 60])
+    origin = np.array(LETTERS)
     for i, ch in enumerate(word):
         for row, bits in enumerate(letters[ch]):
             for col, bit in enumerate(bits):

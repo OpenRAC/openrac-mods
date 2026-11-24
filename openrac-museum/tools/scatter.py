@@ -43,7 +43,7 @@ def palms():
     while len(out) < 70 and tries < 5000:
         tries += 1
         a = rng.uniform(0, 360)
-        r = rng.choice([rng.uniform(island.LAGOON_R + 10, island.LAGOON_R + 30), rng.uniform(170, 238)])
+        r = rng.choice([rng.uniform(island.LAGOON_R + 10, island.LAGOON_R + 30), rng.uniform(island.pr(170), island.pr(238))])
         x = C[0] + math.cos(math.radians(a)) * r
         y = C[1] + math.sin(math.radians(a)) * r
         z = float(island.height(x, y))
@@ -200,10 +200,10 @@ def sea_islets():
     """Pokitaru's own rock and grass islets out in the sea, between the island and the horizon."""
     rng = np.random.default_rng(11)
     out = []
-    routes = [((411, 744), (300, 800))]
+    routes = [(island.pull(411, 744), island.pull(300, 800))]
     while len(out) < 22:
         a = rng.uniform(0, 360)
-        r = rng.uniform(330, 560)
+        r = rng.uniform(island.pr(330), island.pr(560))
         x, y = C[0] + math.cos(math.radians(a)) * r, C[1] + math.sin(math.radians(a)) * r
         if island.height(x, y) > SEA - 12 or any(math.hypot(x - p[0], y - p[1]) < 70 for p in out):
             continue

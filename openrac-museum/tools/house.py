@@ -609,7 +609,31 @@ def bridges(geo):
                     p = a + side * 3.2 * s
                     geo.cylinder("om_planks_dark", (p[0], p[1]), 0.17, z0 - 0.2, z0 + 1.5, 8, solid=True)
                     geo.lathe("om_planks_dark", (p[0], p[1]), [(0.17, z0 + 1.5), (0.24, z0 + 1.58), (0.16, z0 + 1.72), (0.02, z0 + 1.76)], 8)
-        # The bridge's ends onto the beach.
+            # Piles under the deck, down into the lagoon's floor or the beach.
+            if i % 3 == 1:
+                for s in (-1, 1):
+                    p = b + side * 2.6 * s
+                    geo.cylinder("om_planks_dark", (p[0], p[1]), 0.35, float(island.height(*p)) - 1.5, z1 - 0.1, 8, solid=True)
+            end, end_z = b, z1
+        # The bridge's end onto the beach: a ramp down to the ground, so its end never hangs in the air.
+        ground = float(min(island.height(*(end + side * s)) for s in (-3, 0, 3)))
+        if end_z > ground + 0.2:
+            length = max(3.0, (end_z - ground) / 0.3)
+            far = end + d * length
+            low = float(min(island.height(*(far + side * s)) for s in (-3, 0, 3))) - 0.15
+            q = np.array([[*(end - side * 3), end_z], [*(far - side * 3), low], [*(far + side * 3), low], [*(end + side * 3), end_z]])
+            n = np.cross(q[1] - q[0], q[3] - q[0]); n /= np.linalg.norm(n)
+            if n[2] < 0:
+                q = q[[0, 3, 2, 1]]; n = -n
+            geo.tri_quad("om_planks_light", q, list(n), np.array([[0, 0], [0.5, 0], [0.5, length / 4], [0, length / 4]], np.float32), solid=True)
+            # Its sides down to the ground.
+            for s in (-1, 1):
+                a2, b2 = end + side * 3 * s, far + side * 3 * s
+                sq = np.array([[*a2, end_z], [*b2, low], [*b2, low - 1.0], [*a2, ground - 1.0]])
+                sn = np.append(side * s, 0.0)
+                if np.cross(sq[1] - sq[0], sq[3] - sq[0]) @ sn < 0:
+                    sq = sq[[0, 3, 2, 1]]
+                geo.tri_quad("om_planks_dark", sq, list(sn), np.array([[0, 0], [length / 4, 0], [length / 4, 0.3], [0, 0.3]], np.float32), solid=False)
 
 
 def torch(geo, x, y, z0, height=3.2):

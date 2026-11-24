@@ -23,10 +23,9 @@ def busy_points(layout):
     pts += [tuple(p[:2]) for g in layout["grind_paths"] for p in g["points"][::3]]
     pts += [tuple(f["pool"][:2]) for f in layout["falls"]]
     pts += [tuple(layout["lookout"][:2]), tuple(layout["islet"][:2]), tuple(layout["volcano_rim"][:2]), (490, 403)]
-    # The spiral stair: its stone core and the flights round it (12 out from its middle).
-    if "stair" in layout:
-        sx, sy = layout["stair"][:2]
-        pts += [(sx + dx, sy + dy) for dx in (-8, 0, 8) for dy in (-8, 0, 8)]
+    # The climb up to the lookout: every hop.
+    for hx, hy, _ in layout.get("climb", []):
+        pts += [(hx + dx, hy + dy) for dx in (-4, 0, 4) for dy in (-4, 0, 4)]
     return np.array(pts)
 
 

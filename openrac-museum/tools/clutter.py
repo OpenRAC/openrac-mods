@@ -101,7 +101,7 @@ def coast_points(rng, count, depth_lo, depth_hi, spots, gap, r_lo=200, r_hi=330)
         if len(out) >= count:
             break
         a = rng.uniform(0, 2 * math.pi)
-        r = rng.uniform(r_lo, r_hi)
+        r = rng.uniform(island.pr(r_lo), island.pr(r_hi))
         x, y = C[0] + math.cos(a) * r, C[1] + math.sin(a) * r
         d = SEA - ground(x, y)
         if not (depth_lo < d < depth_hi) or taken(x, y, spots, gap) or not scatter.clear(x, y, 6):

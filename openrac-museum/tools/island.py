@@ -12,18 +12,37 @@ CENTRE = np.array([620.0, 520.0])  # east of the ship's take-off path (path 59)
 SEA = 223.0           # the sea's and the lagoon's surface (Pokitaru's ocean is at 223)
 LAGOON_R = 78.0       # the lagoon around the house
 HOUSE_FLOOR = SEA + 8.0
+# Everything past NEAR_R from the house is drawn in closer (PULL of its distance there), so the
+# places round the island are a short walk apart. The ship's pad stays where the game sets him down.
+NEAR_R, PULL = 110.0, 0.62
+PAD = (498.0, 412.0)
+
+
+def pr(r):
+    """A distance from CENTRE drawn in: as it is up to NEAR_R, PULL of the rest past it."""
+    return r if r <= NEAR_R else NEAR_R + (r - NEAR_R) * PULL
+
+
+def pull(x, y):
+    """A point drawn in towards CENTRE by pr()."""
+    u, v = x - CENTRE[0], y - CENTRE[1]
+    r = math.hypot(u, v)
+    k = pr(r) / r if r > 1e-9 else 1.0
+    return (float(CENTRE[0] + u * k), float(CENTRE[1] + v * k))
+
 
 # The two waterfalls: where each falls from the cliff (angle in degrees from +x, about CENTRE).
-FALLS = [{"angle": 68.0, "lip": SEA + 62.0, "r": 150.0},
-         {"angle": 118.0, "lip": SEA + 48.0, "r": 146.0}]
-GROTTO = {"angle": 118.0, "r0": 146.0, "r1": 168.0, "half": 7.0, "roof": SEA + 13.0}
-VOLCANO = CENTRE + np.array([-40.0, 232.0])
+FALLS = [{"angle": 68.0, "lip": SEA + 62.0, "r": pr(150.0)},
+         {"angle": 118.0, "lip": SEA + 48.0, "r": pr(146.0)}]
+GROTTO = {"angle": 118.0, "r0": pr(146.0), "r1": pr(168.0), "half": 7.0, "roof": SEA + 13.0}
+VOLCANO = np.array(pull(CENTRE[0] - 40.0, CENTRE[1] + 232.0))
 VOLCANO_TOP = SEA + 205.0
 # The lookout on the mountain (its platform's middle) and the shrine's ledge high on the volcano.
-LOOKOUT = (float(CENTRE[0] + math.cos(math.radians(150)) * 192), float(CENTRE[1] + math.sin(math.radians(150)) * 192))
+LOOKOUT = (float(CENTRE[0] + math.cos(math.radians(150)) * pr(192)), float(CENTRE[1] + math.sin(math.radians(150)) * pr(192)))
 _d = np.array(LOOKOUT) - VOLCANO
-VOLCANO_LEDGE = tuple(VOLCANO + _d / np.linalg.norm(_d) * 60.0)
-LEDGE_Z = SEA + 145.0  # a terrace cut into the volcano's side for the shrine
+VOLCANO_LEDGE = tuple(VOLCANO + _d / np.linalg.norm(_d) * 55.0)
+LEDGE_Z = SEA + 95.0  # a terrace cut into the volcano's side for the shrine
+LOOKOUT_Z = SEA + 40.0  # the lookout's floor: a short climb of jumps up from the ground
 
 
 def _noise_table(seed):
@@ -65,8 +84,8 @@ def angle_of(x, y):
 
 # The low ground: lobes of land round the lagoon (x, y, radius), not one round island. The rock
 # (rocks.py) stands on and round them.
-LOBES = [(620, 520, 128), (515, 425, 58), (603, 352, 40), (765, 445, 52), (468, 585, 46), (442, 725, 26),
-         (700, 420, 40), (540, 610, 40), (720, 600, 36)]
+LOBES = [(620, 520, 128), (515, 425, 58)] + [(*pull(x, y), r) for (x, y, r) in [
+    (603, 352, 40), (765, 445, 52), (468, 585, 46), (442, 725, 26), (700, 420, 40), (540, 610, 40), (720, 600, 36)]]
 
 
 def base_height(x, y):
@@ -177,15 +196,15 @@ def terraced(h, x, y, step):
 
 
 # Small islands around: (x, y, radius, height above SEA).
-ISLETS = [(870, 250, 26, 6), (330, 250, 20, 14), (600, 140, 18, 4), (300, 800, 30, 38)]
+ISLETS = [(*pull(x, y), r, h) for (x, y, r, h) in [(870, 250, 26, 6), (330, 250, 20, 14), (600, 140, 18, 4), (300, 800, 30, 38)]]
 # Tall stacks in the sea round the island, out of the gadget routes.
-STACKS = [(905, 400, 10, 24), (930, 470, 7, 16), (880, 640, 12, 30), (845, 800, 9, 20), (760, 860, 14, 34),
+STACKS = [(*pull(x, y), r, h) for (x, y, r, h) in [(905, 400, 10, 24), (930, 470, 7, 16), (880, 640, 12, 30), (845, 800, 9, 20), (760, 860, 14, 34),
           (520, 860, 8, 18), (690, 175, 9, 22), (470, 160, 11, 26), (395, 300, 7, 18), (960, 560, 8, 14),
-          (790, 250, 6, 12), (965, 760, 10, 26)]
+          (790, 250, 6, 12), (965, 760, 10, 26)]]
 # Broad islands further out, the turbine town of Pokitaru on them (scatter.town).
-TOWN = [(1010, 300, 46, 9), (1015, 690, 40, 11), (800, 70, 44, 8), (400, 70, 40, 12)]
+TOWN = [(*pull(x, y), r, h) for (x, y, r, h) in [(1010, 300, 46, 9), (1015, 690, 40, 11), (800, 70, 44, 8), (400, 70, 40, 12)]]
 # Knolls on the island's low land, away from the house, the pad and the bridges.
-KNOLLS = [(760, 470, 22, 16), (735, 385, 16, 12), (520, 330, 18, 14), (690, 330, 20, 18), (780, 560, 15, 12)]
+KNOLLS = [(*pull(x, y), r, h) for (x, y, r, h) in [(760, 470, 22, 16), (735, 385, 16, 12), (520, 330, 18, 14), (690, 330, 20, 18), (780, 560, 15, 12)]]
 
 
 def normal(x, y, e=0.5, fn=None):
