@@ -84,7 +84,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.5.15"
+#define MOD_VERSION "2.5.16"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -1739,7 +1739,6 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         return 1;
     }
 
-    novalis_ship_init();
     return_ship_init();
     api->on_frame(mod, each_tick, NULL);
 

@@ -2309,7 +2309,6 @@ int rac1_mod_load(const openrac_api* api, openrac_mod* mod) {
             return 1;
         }
 
-        novalis_ship_init();
         return_ship_init();
         api->on_frame(mod, each_tick, NULL);
     }

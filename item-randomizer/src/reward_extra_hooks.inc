@@ -43,8 +43,13 @@ static void npc_update_0(uint32_t moby) {
     run_npc_infobot(0, moby);
 }
 
-static void npc_update_1(uint32_t moby) {
+static void npc_run_1(uint32_t moby) {
     run_npc_infobot(1, moby);
+}
+
+/* Agnogg's ship: it hides the player's ship on Novalis every frame until its quest is done. */
+static void npc_update_1(uint32_t moby) {
+    novalis_ship_around_agnogg(npc_run_1, moby);
 }
 
 static void npc_update_2(uint32_t moby) {
