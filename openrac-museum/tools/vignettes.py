@@ -155,7 +155,8 @@ def campfire(geo, p, z, yaw, r):
         geo.beam("om_planks_dark", (*foot, z + 0.05), (*(foot + (p - foot) * 0.35), z + 0.45), 0.17,
                  glow=[0.9, 0.35, 0.15])
     f, s = frame(yaw)
-    geo.light((p[0], p[1], z + 1.0), (1.7, 0.95, 0.4), 10)
+    # Over the tepee's point, where the flames are: from inside it the logs would throw spokes.
+    geo.light((p[0], p[1], z + 1.6), (2.6, 1.4, 0.5), 11, size=0.6)
     geo.flame("fire", (p[0], p[1], z + 0.5))
     # Logs to sit on.
     for t in (-1, 1):

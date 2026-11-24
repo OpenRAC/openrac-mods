@@ -320,6 +320,12 @@ static void light(const float p[3], float t) {
             billboard(
                 SPR_GLOW, at, fire ? 3.6f : 1.8f, 1.0f, 0.55f, 0.2f, (fire ? 0.6f : 0.5f) * flick
             );
+            if (fire) {
+                /* Its light on the ground: a round warm pool, flickering with the flames. */
+                const float ground[3] = {f->x, f->y, f->z - 0.15f};
+                flat(SPR_GLOW, ground, 9.0f, 0.0f, 0.0f, 9.0f, 1.0f, 0.5f, 0.16f, 0.4f * flick,
+                     OPENRAC_PROP_ADD);
+            }
             if (hazes < HAZE_MOST && s_near[k].d2 < 30.0f * 30.0f) {
                 haze[hazes].position[0] = f->x, haze[hazes].position[1] = f->y;
                 haze[hazes].position[2] = f->z + (fire ? 1.8f : 0.9f);

@@ -37,8 +37,10 @@ class Geo:
         """A place for the mod's effects: "torch" (embers), "fire" (embers and smoke), "mist"."""
         self.flames.append((kind, *(round(float(v), 2) for v in at)))
 
-    def light(self, at, colour=(1.5, 1.0, 0.5), radius=9.0):
-        self.lights.append({"at": [float(v) for v in at], "colour": list(colour), "radius": float(radius)})
+    def light(self, at, colour=(1.5, 1.0, 0.5), radius=9.0, size=0.5):
+        """A point light for the bake; SIZE the ball it shines from (soft shadows)."""
+        self.lights.append({"at": [float(v) for v in at], "colour": list(colour), "radius": float(radius),
+                            "size": float(size)})
 
     # --- the drawn and solid shapes ---
     def tri_quad(self, material, corners, normal, uv, solid=True, surface=0x1F, glow=None, both=False):

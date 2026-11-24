@@ -185,28 +185,56 @@ def picture_means(tex):
     return out
 
 
-def subdivide_near(terrain, p, lights, size=1.4):
-    """Splits P's faces round the point LIGHTS (out to a little past each one's reach) to SIZE:
-    the ground's own faces are 4 units wide, and a fire's pool of light on them came out square."""
-    if not lights:
+def split_faces(terrain, p, mask, size):
+    """Splits P's faces in MASK to SIZE (terrain.subdivide), the others left as they are."""
+    if not mask.any():
         return
     F = p.faces
-    mid = p.pos[F].mean(1)
-    near = np.zeros(len(F), bool)
-    for l in lights:
-        near |= np.linalg.norm(mid - np.array(l["at"]), axis=1) < l.get("radius", 8.0) + 3.0
-    if not near.any():
-        return
-    q = terrain.Prim(p.material, dict(p.attrs), F[near])
+    q = terrain.Prim(p.material, dict(p.attrs), F[mask])
     terrain.subdivide(q, size)
     n = len(p.pos)
     p.attrs = {k: np.concatenate([v, q.attrs[k]]) for k, v in p.attrs.items()}
-    p.faces = np.concatenate([F[~near], q.faces + n])
+    p.faces = np.concatenate([F[~mask], q.faces + n])
     used = np.zeros(len(p.pos), bool)
     used[p.faces.ravel()] = True
     remap = np.cumsum(used) - 1
     p.attrs = {k: v[used] for k, v in p.attrs.items()}
     p.faces = remap[p.faces]
+
+
+def refine_ground(terrain, t, models, args, size=1.0):
+    """The ground's faces are 4 units wide, and a light's corners alone draw a shadow's edge or a
+    fire's pool as blocky squares. A quick sun-only bake finds the faces a shadow's edge crosses
+    (one corner in the sun, another in shade), and those and the faces near a point light are
+    split to SIZE before the bake."""
+    saved = [(p, p.attrs["COLOR_0"].copy()) for mt in [t, *models] for _, _, p in mt.prims()]
+    quick = types.SimpleNamespace(**{**vars(args), "ao": 4, "bounce": 0.0, "sun_samples": 1, "keep_tint": False,
+                                     "sky_colour": [0.0, 0.0, 0.0], "ambient": 0.0, "lights": [],
+                                     "sun_colour": [1.0, 1.0, 1.0], "strength": 1.0})
+    terrain.bake_light(t, quick, models)
+    az, el = (math.radians(v) for v in args.sun)
+    sun = np.array([math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el)])
+    lit = {}
+    for _, _, p in t.prims():
+        facing = np.clip(p.attrs["NORMAL"] @ sun, 0, 1)
+        got = p.attrs["COLOR_0"][:, 0]
+        # In the sun or not, where the ground faces the sun at all.
+        lit[id(p)] = np.where(facing > 0.15, got / np.maximum(facing, 1e-6) > 0.5, False), facing > 0.15
+    for p, c in saved:
+        p.attrs["COLOR_0"] = c
+    split = total = 0
+    for _, _, p in t.prims():
+        F = p.faces
+        sunny, faces_sun = lit[id(p)]
+        edge = faces_sun[F].all(1) & (sunny[F].any(1) != sunny[F].all(1))
+        mid = p.pos[F].mean(1)
+        mask = edge.copy()
+        for l in args.lights:
+            mask |= np.linalg.norm(mid - np.array(l["at"]), axis=1) < l.get("radius", 8.0) + 2.0
+        split += int(mask.sum())
+        total += len(F)
+        split_faces(terrain, p, mask, size)
+    print(f"ground: {split} of {total} faces split for the light")
 
 
 def bake(terrain, t, models=(), lights=(), albedo=None):
@@ -224,7 +252,6 @@ def bake(terrain, t, models=(), lights=(), albedo=None):
         patch = 0.8 + 0.4 * (terrain.value_noise3(P / 38.0, 21, 3) * 0.7 + terrain.value_noise3(P / 11.0, 22, 2) * 0.3)
         col = tint * warm[None] * patch[:, None]
         p.attrs["COLOR_0"] = np.concatenate([col, np.ones((len(P), 1))], 1)
-        subdivide_near(terrain, p, lights)
     # Soft sun shadows, the sky from 64 directions and one bounce of light off the ground, the rock
     # and the house (each surface's picture colour), so shut-in places come out dark and lit ones
     # throw their colour round.
@@ -240,6 +267,7 @@ def bake(terrain, t, models=(), lights=(), albedo=None):
             terrain.subdivide(p, SUBDIVIDE)
             c = p.attrs["COLOR_0"]
             c[~p.keep, :3] = MODEL_TINT * MODEL_BOOST.get(mt.materials[p.material].get("name", ""), 1.0)
+    refine_ground(terrain, t, models, args)
     before = []
     for mt in [t, *models]:
         for _, _, p in mt.prims():
