@@ -351,6 +351,14 @@
       }
     }
   ],
+  "rac2-hd-achievements": [
+    {
+      "version": "0.1.3",
+      "sha256": {
+        "windows-x86_64": "19db9a6daca58d431d7adb14af406c0e1b03c6a48b25f93604a8c973c45cfc2c"
+      }
+    }
+  ],
   "rac2-seeker-fix": [
     {
       "version": "0.1.0",
