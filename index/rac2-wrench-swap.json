@@ -1,0 +1,16 @@
+{
+  "id": "rac2-wrench-swap",
+  "repo": "https://github.com/slimcognitohimself/slim-gc-wrench-swap",
+  "path": "",
+  "description": "Adds Wrench Swap sub-menu in Pause - Settings which detects your unlocked wrenches on Playthrough 1 and allows switching. Unlocks all by default on Playthrough 2, 3, etc. Has toggle for cheat mode giving all wrenches from the start of Playthrough 1.",
+  "tags": [
+    "qol",
+    "cosmetic",
+    "gameplay"
+  ],
+  "impact": [
+    "cosmetic",
+    "gameplay"
+  ],
+  "aiAssisted": true
+}

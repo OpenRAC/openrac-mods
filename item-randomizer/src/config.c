@@ -9,14 +9,44 @@
  */
 #include "config.h"
 
+#include <string.h>
+
+/* The starting_weapons choice into the settings; 0 when it names none. */
+static int starting_weapons_of(const char* name, rando_settings* s) {
+    static const struct {
+        const char* name;
+        uint8_t keep_start, start_weapons;
+    } k_choices[] = {
+        {"vanilla", 1, RANDO_START_WEAPONS_NONE},
+        {"shuffled", 0, RANDO_START_WEAPONS_NONE},
+        {"non_broken", 1, RANDO_START_WEAPONS_NON_BROKEN},
+        {"unrestricted", 1, RANDO_START_WEAPONS_UNRESTRICTED},
+    };
+    for (size_t i = 0; name != NULL && i < sizeof k_choices / sizeof k_choices[0]; ++i) {
+        if (strcmp(name, k_choices[i].name) == 0) {
+            s->keep_start = k_choices[i].keep_start;
+            s->start_weapons = k_choices[i].start_weapons;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* The settings the options give; returns SEED_FROM_* (see config.h). */
 int rando_settings_of(
     const rando_options* o, const char* remembered, uint64_t fresh, rando_settings* s
 ) {
     s->pools = (uint8_t)((o->weapons ? POOL_WEAPONS : 0) | (o->gadgets ? POOL_GADGETS : 0)
                          | (o->gold_bolts ? POOL_GOLD : 0) | (o->planets ? POOL_PLANETS : 0)
-                         | (o->vendor ? POOL_VENDOR : 0));
+                         | (o->vendor ? POOL_VENDOR : 0)
+                         | (o->gold_weapons ? POOL_GOLD_WEAPONS : 0)
+                         | (o->npc_infobots && o->planets ? POOL_NPC_INFOBOTS : 0)
+                         | (o->items ? POOL_ITEMS : 0));
+    s->legacy_items = 0;
+    s->random_start = (uint8_t)(o->random_start != 0);
     s->keep_start = (uint8_t)(o->keep_start != 0);
+    s->start_weapons = RANDO_START_WEAPONS_NONE;
+    starting_weapons_of(o->starting_weapons, s);
     const int d = rando_difficulty_of_name(o->difficulty);
     s->difficulty = (uint8_t)(d < 0 ? DIFFICULTY_STANDARD : d);
 

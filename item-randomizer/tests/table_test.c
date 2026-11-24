@@ -29,7 +29,8 @@ static int row_of(int kind, int level, int key) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
 
-        if (l->kind == kind && l->level == level && l->key == key) {
+        if (l->level == level && ((l->kind == kind && l->key == key)
+            || (kind == LOC_INFOBOT && rando_infobot_mission(l) == key))) {
             return (int)i;
         }
     }
@@ -94,7 +95,7 @@ static void check_disc(const char* path, const char* want) {
 /* The game's words, row by row. */
 static void check_words(void) {
 #define NEEDS(name, item) CHECK(rando_locations[named(name)].hard& BIT(item))
-    NEEDS("Aridia: Skid's agent, after the race", ITEM_HOVERBOARD);
+    CHECK(rando_locations[named("Aridia: Skid's agent, after the race")].hard & SPECIAL_BIT(SPECIAL_ZOOMERATOR));
     CHECK(
         rando_locations[named("Aridia: Skid's agent, after the race")].planets
         & (1u << LEVEL_RILGAR)
@@ -102,21 +103,29 @@ static void check_words(void) {
     NEEDS("Aridia: the Trespasser's pickup", ITEM_SWINGSHOT);
     NEEDS("Eudora: the coordinates of Blarg", ITEM_TRESPASSER);
     NEEDS("Blarg: the Hydrodisplacer's pickup", ITEM_TRESPASSER);
-    NEEDS("Kerwan: Helga", ITEM_HELI_PACK);
+    CHECK(rando_locations[named("Kerwan: Helga")].hard == 0);
     NEEDS("Kerwan: the infobot", ITEM_SWINGSHOT);
-    NEEDS("Rilgar: the bouncer, the coordinates of Umbris", ITEM_HOVERBOARD);
-    NEEDS("Umbris: the infobot", ITEM_HYDRODISPLACER);
-    NEEDS("Batalia: the commando, the coordinates of Orxon", ITEM_GRINDBOOTS);
+    NEEDS("Rilgar: the bouncer, the coordinates of Umbris", ITEM_HELI_PACK);
+    CHECK(!(rando_locations[named("Rilgar: the bouncer, the coordinates of Umbris")].hard & BIT(ITEM_HOVERBOARD)));
+    NEEDS("Umbris: the coordinates of Batalia", ITEM_HYDRODISPLACER);
+    CHECK(rando_locations[named("Batalia: the commando, the coordinates of Orxon")].hard == 0);
+    NEEDS("Batalia: the deserter, the coordinates of Gaspar", ITEM_GRINDBOOTS);
     NEEDS("Pokitaru: the resort owner", ITEM_PILOTS_HELMET);
     NEEDS("Pokitaru: the resort owner", ITEM_THRUSTER_PACK);
     NEEDS("Orxon: Ratchet's infobot", ITEM_O2_MASK);
-    NEEDS("Hoven: the coordinates of Gemlik", ITEM_HYDRO_PACK);
+    CHECK(!(rando_locations[named("Hoven: the coordinates of Gemlik")].hard & BIT(ITEM_HYDRO_PACK)));
     NEEDS("Gemlik: the coordinates of Oltanis", ITEM_MAGNEBOOTS);
     NEEDS("Gemlik: the coordinates of Oltanis", ITEM_PILOTS_HELMET);
     NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_HOLOGUISE);
-    NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_HYDRO_PACK);
+    NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_THRUSTER_PACK);
     NEEDS("Kalebo III: the Gadgetron CEO's race", ITEM_HOVERBOARD);
-    NEEDS("Drek's Fleet: the infobot", ITEM_HYDRO_PACK);
+    /* A randomized Fleet coordinate cannot bypass Hologuise, even in Expert. */
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        if (rando_locations[i].level != LEVEL_FLEET) continue;
+        for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) CHECK(rando_requirement(d, i) & BIT(ITEM_HOLOGUISE));
+    }
+
+    CHECK(!(rando_locations[named("Drek's Fleet: the infobot")].hard & BIT(ITEM_HYDRO_PACK)));
 #undef NEEDS
     CHECK(
         rando_locations[named("Gemlik: the coordinates of Oltanis")].any
@@ -185,7 +194,7 @@ static long mutate(const rando_plan* solved) {
  * O2 Mask's place behind the Thruster-Pack it takes, Skid's agent holding what the race takes... */
 static void check_old_softlocks(void) {
     static rando_plan p;
-    const rando_settings s = {12345, POOL_ALL, 1, DIFFICULTY_EXPERT};
+    const rando_settings s = {12345, POOL_ALL, 1, DIFFICULTY_EXPERT, 1};
     CHECK(rando_solve(&s, &p) == 0);
 
     /* The Thruster-Pack behind Orxon's Ratchet side, with the O2 Mask at the resort owner. */
@@ -204,9 +213,9 @@ static void check_old_softlocks(void) {
     );
     CHECK(!rando_beatable(&p, NULL) || rando_stranded(&p) > 0);
 
-    /* The Hydro-Pack on Drek's Fleet, whose tanker it swims. */
+    /* The Hydro-Pack behind the CodeBot's swimming route. */
     CHECK(rando_solve(&s, &p) == 0);
-    swap_rewards(&p, where(&p, REWARD_ITEM, ITEM_HYDRO_PACK), named("Drek's Fleet: the infobot"));
+    swap_rewards(&p, where(&p, REWARD_ITEM, ITEM_HYDRO_PACK), named("Drek's Fleet: the CodeBot"));
     CHECK(!rando_beatable(&p, NULL) || rando_stranded(&p) > 0);
 
     /* Gemlik's towers, on the game's own placement: either weapon before it will do, neither will

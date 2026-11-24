@@ -9,12 +9,19 @@
  * A code is 60 bits written as 12 characters of Crockford's base 32 (0-9 and the letters but
  * I, L, O and U), in three groups: "7KQ2-9XMB-4TRA". From the top bit down:
  *
- *   4 bits  the format (RANDO_CODE_FORMAT): a later mod refuses a code it does not know
+ *   4 bits  the format (RANDO_CODE_FORMAT and on): a later mod refuses a code it does not know.
+ *           2 to 5 are codes made before the Items-menu pool, which keep its gadget rows: 2 plus
+ *           1 for NPC coordinates and 2 for gold cases. 6 to 13 are the codes made since: 6
+ *           plus 1 for the Items-menu pool, 2 for NPC coordinates and 4 for gold cases.
  *   2 bits  the difficulty
  *   1 bit   keep the starting gear
  *   5 bits  the pools
  *   40 bits the seed
  *   8 bits  a checksum of the 52 above (a mistyped character is caught)
+ *
+ * Random-start codes wrap this unchanged payload in an R: prefix, and random starting weapons in
+ * N: (Non-Broken) or U: (Unrestricted) after it; their payload has the starting gear's bit set.
+ * Normal codes retain their original encoding and placement stream.
  *
  * So a code says the whole game: two players with the same code get the same placement, whatever
  * their other settings.
@@ -39,6 +46,8 @@
 #define CODE_KEEP_SHIFT 45       /* keep the starting gear, one bit at 45 */
 #define CODE_KEEP_MASK 1u        /* one bit */
 #define CODE_POOLS_SHIFT 40      /* the pools at 40..44; the seed fills 0..39 */
+#define CODE_FORMAT_ITEMS 6      /* the first format with the Items-menu pool's rows */
+#define CODE_FORMAT_LAST 13      /* the last format this mod knows */
 
 /* The checksum's salt: "RAC1" in ASCII, mixed with the payload before the hash (assumed). */
 #define CODE_CHECKSUM_SALT 0x52414331u
@@ -96,9 +105,18 @@ static uint8_t checksum(uint64_t payload) {
     return (uint8_t)(rando_next(&r) >> 56);
 }
 
+/* The format of the settings' code: the pools past POOL_ALL, and which rows the code means. */
+static unsigned code_format(const rando_settings* s) {
+    if (s->legacy_items) {
+        return RANDO_CODE_FORMAT + ((s->pools >> 5) & 3u);
+    }
+    return CODE_FORMAT_ITEMS + ((s->pools & POOL_ITEMS) ? 1u : 0u)
+           + ((s->pools & POOL_NPC_INFOBOTS) ? 2u : 0u) + ((s->pools & POOL_GOLD_WEAPONS) ? 4u : 0u);
+}
+
 /* The 52 bits above the checksum: format, difficulty, starting gear, pools and seed. */
 static uint64_t payload_of(const rando_settings* s) {
-    return ((uint64_t)RANDO_CODE_FORMAT << CODE_FORMAT_SHIFT)
+    return ((uint64_t)code_format(s) << CODE_FORMAT_SHIFT)
            | ((uint64_t)(s->difficulty & CODE_DIFFICULTY_MASK) << CODE_DIFFICULTY_SHIFT)
            | ((uint64_t)(s->keep_start & CODE_KEEP_MASK) << CODE_KEEP_SHIFT)
            | ((uint64_t)(s->pools & POOL_ALL) << CODE_POOLS_SHIFT) | (s->seed & RANDO_SEED_MASK);
@@ -109,6 +127,12 @@ void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]) {
     const uint64_t payload = payload_of(s);
     const uint64_t bits = (payload << CODE_CHECKSUM_BITS) | checksum(payload);
     int o = 0;
+    if (s->random_start) { out[o++] = 'R'; out[o++] = ':'; }
+    if (s->keep_start && s->start_weapons == RANDO_START_WEAPONS_NON_BROKEN) {
+        out[o++] = 'N'; out[o++] = ':';
+    } else if (s->keep_start && s->start_weapons == RANDO_START_WEAPONS_UNRESTRICTED) {
+        out[o++] = 'U'; out[o++] = ':';
+    }
 
     // One base 32 character at a time, from the top of the code.
     for (int i = 0; i < CODE_CHARS; ++i) {
@@ -149,6 +173,17 @@ static int digit(char c) {
  * *s is left alone on 0. */
 int rando_decode(const char* text, rando_settings* s) {
     uint64_t bits = 0;
+    int random_start = 0;
+    while (*text == ' ') ++text;
+    if ((text[0] == 'R' || text[0] == 'r') && text[1] == ':') {
+        random_start = 1; text += 2;
+    }
+    int start_weapons = RANDO_START_WEAPONS_NONE;
+    if ((text[0] == 'N' || text[0] == 'n') && text[1] == ':') {
+        start_weapons = RANDO_START_WEAPONS_NON_BROKEN; text += 2;
+    } else if ((text[0] == 'U' || text[0] == 'u') && text[1] == ':') {
+        start_weapons = RANDO_START_WEAPONS_UNRESTRICTED; text += 2;
+    }
     int n = 0;
 
     // Each character of the text, read as a base 32 digit.
@@ -178,7 +213,8 @@ int rando_decode(const char* text, rando_settings* s) {
 
     // A wrong checksum is a mistyped character; a wrong format is a code of a later mod.
     if ((uint8_t)(bits & CODE_CHECKSUM_MASK) != checksum(payload)
-        || (payload >> CODE_FORMAT_SHIFT) != RANDO_CODE_FORMAT) {
+        || (payload >> CODE_FORMAT_SHIFT) < RANDO_CODE_FORMAT
+        || (payload >> CODE_FORMAT_SHIFT) > CODE_FORMAT_LAST) {
         return 0;
     }
 
@@ -189,9 +225,27 @@ int rando_decode(const char* text, rando_settings* s) {
         return 0;
     }
 
+    const int keep_start = (int)((payload >> CODE_KEEP_SHIFT) & CODE_KEEP_MASK);
+
+    // A starting weapon is given at a start that is not shuffled.
+    if (start_weapons != RANDO_START_WEAPONS_NONE && !keep_start) {
+        return 0;
+    }
+
+    s->random_start = (uint8_t)random_start;
+    s->start_weapons = (uint8_t)start_weapons;
     s->difficulty = (uint8_t)difficulty;
-    s->keep_start = (uint8_t)((payload >> CODE_KEEP_SHIFT) & CODE_KEEP_MASK);
+    s->keep_start = (uint8_t)keep_start;
     s->pools = (uint8_t)((payload >> CODE_POOLS_SHIFT) & POOL_ALL);
+    const unsigned format = (unsigned)(payload >> CODE_FORMAT_SHIFT);
+    s->legacy_items = format < CODE_FORMAT_ITEMS;
+    if (s->legacy_items) {
+        s->pools |= (uint8_t)((format - RANDO_CODE_FORMAT) << 5); /* NPC coordinates, gold cases */
+    } else {
+        const unsigned extra = format - CODE_FORMAT_ITEMS;
+        s->pools |= (uint8_t)(((extra & 1u) ? POOL_ITEMS : 0) | ((extra & 2u) ? POOL_NPC_INFOBOTS : 0)
+                              | ((extra & 4u) ? POOL_GOLD_WEAPONS : 0));
+    }
     s->seed = payload & RANDO_SEED_MASK;
     return 1;
 }

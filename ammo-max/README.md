@@ -1,48 +1,96 @@
-# Ammo at the most
+# Ammo at the most + Buy All
 
-At the Gadgetron vendor in Ratchet & Clank, for OpenRAC's native port (PAL and NTSC-U discs),
-buying ammo starts at the most you can buy instead of 1: the rounds the weapon has room for, or
-as many as your bolts pay for when they pay for fewer.
+Two complementary ways to buy ammunition at the Gadgetron or Megacorp vendor in
+[OpenRAC](https://github.com/OpenRAC/OpenRAC):
 
-With the mod off, the game is the PlayStation 2 game.
+1. **Individual purchase (RAC1):** opening the usual ammo purchase dialog starts
+   the count at the most rounds you have room for and can afford, rather than 1.
+   **Down** still reduces the count, and **Up** increases it again as usual.
+2. **Buy All (RAC1 and RAC2):** while browsing the vendor's main weapon list,
+   press the control mapped to **Square** (PlayStation) or **X** (Xbox) to refill
+   ammunition across your owned weapons in one purchase.
 
-## Playing
+The existing Ammo at the most behaviour and its setting are preserved.
 
-Install it from the launcher's **Mods** tab (**Add from a link**:
-`https://github.com/OpenRAC/openrac-mods`), switch it on and play. At the vendor, choose a weapon's
-ammo as usual: the count already says the most.
+## Buy All behaviour
 
-| You have | Your bolts pay for | The count starts at |
+- Uses the currently offered vendor prices and remaining ammo capacity.
+- Only buys ammo for owned weapons; skips unowned weapons and unavailable stock.
+- If bolts are limited, buys as much as possible in vendor-list order.
+- Excludes weapon purchases and confirmation dialogs. Normal individual purchases
+  keep working alongside the Buy All action.
+- Plays the vendor's normal purchase or rejection sound.
+- Displays a contextual HUD prompt with the cost, an ammo-full / insufficient-bolts
+  status, partial refill notice, or purchase confirmation.
+- Adds a contextual Square button to Android vendor touch controls.
+
+**Supported discs:** RAC1 PAL and NTSC-U; RAC2 NTSC-U, PAL and NTSC-U v2.00.
+**Requires:** OpenRAC mod SDK/API 1.20 or later.
+
+### RAC1 HUD
+
+The Buy All prompt appears between the Buy and Exit monitors. Keyboard activity
+shows `F` (the default Square binding); gamepad activity switches back to `X` or
+`Square`, according to the mod setting. The mod cannot automatically identify
+the controller brand. Custom keyboard layouts may use a different key.
+
+The RAC1 SDK's independent HUD text path cannot access native controller glyphs
+or draw a filled rectangle while the vendor menu is active, so it uses readable
+text with a dark outline.
+
+### RAC2 HUD
+
+The Buy All prompt is drawn near the vendor controls with native button glyphs.
+The **RAC2 vendor HUD position** setting offers three positions.
+
+## Settings
+
+| Setting | Default | Purpose |
 |---|---|---|
-| 0 of 160 | 160 rounds or more | 160 |
-| 0 of 160 | 40 rounds | 40 |
-| 150 of 160 | any number | 10 |
+| Detailed log | Off | Logs each RAC1 individual-dialog count adjustment |
+| Show vendor ammo HUD | On | Show Buy All prompts and feedback |
+| RAC1 controller button label | Xbox X | Switch between Xbox X and PlayStation Square text |
+| RAC2 vendor HUD position | Below vendor controls | Change the Buy All prompt location |
 
-**Down** lowers it, **Up** raises it again up to that most, **Square** buys and **Triangle**
-leaves, as in the game. When the game lets you buy no round (the weapon is full, or your bolts
-do not pay for one), the dialog is the game's.
+## Compatibility and migration
 
-| Setting | Default | |
-|---|---|---|
-| Trace | off | For bug reports: a line in the game's log each time the count is set, with the weapon's ammo, the bolts and the price of a round |
+The mod keeps the ID `ammo-max`, so existing Ammo at the most installations
+can update without losing their identity. If you have the separate
+`vendor-buy-all` or older `rac2-buy-all-ammo` mod installed, **disable it**
+when using this combined mod to avoid duplicate Square actions.
 
-It works with the [difficulty](../difficulty-mod/README.md) mod's ammo prices and max ammo: the
-count is from the prices and the maximum the vendor has at that moment.
+The RAC1 individual-dialog feature uses the vendor's own current ammo limits
+and price (including the alternate PDA price), retaining its compatibility with
+the difficulty mod's pricing changes. Buy All also uses the vendor's current
+price and capacity records.
 
-## How it works
+## Technical notes
 
-The vendor's buy dialog (VendorBuyDialogUpdate: PAL `func_L00_0029CDE0`, NTSC-U
-`FUN_L00_0029ba78`) sets its count to 1 when it opens, and lets Up raise it only to the rounds
-the bolts pay for and the weapon has room for. After each game tick the mod reads the dialog's
-state; the tick it has just opened on ammo that Up may raise, the mod sets the count to that
-same most, once. It patches no code and takes no hook point; with the dialog closed it only
-reads one word a tick.
+The RAC1 dialog watcher is the original `ammo-max` implementation and still
+only sets the game's dialog count once when it opens. The Buy All purchase
+planner is separate and executes transactions only from the main vendor list.
+Each registers its own frame callback using the SDK's supported callback list.
+The original count tests, library load test, purchase planning tests and RAC1
+vendor/runtime tests are included.
 
-The [tests](tests/) check the count (room, bolts, the dialog's second price, nothing to buy) and
-the library as the port loads it, on a vendor laid out in memory at each disc's addresses: the
-count set once each time the dialog opens, kept when the player lowers it, and left at the
-game's 1 where the game allows no more.
+## Building and testing
 
-## Building
+From the [repository root](../README.md#building):
 
-From the repository's top (see [README.md](../README.md#building)).
+```sh
+python3 tools/fetch_sdk.py
+cmake -S . -B build -G Ninja
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+## Credits and licences
+
+- **Keros / OpenRAC contributors:** original Ammo at the most feature,
+  disc mappings and tests (GPL-3.0-or-later).
+- **glawks:** Vendor Buy All RAC1/RAC2 purchase logic, HUD, input/touch
+  integration and tests (MIT); incorporated with permission of its MIT licence.
+
+The combined module is distributed under **GPL-3.0-or-later**. The contributed
+MIT-licensed components retain their SPDX headers and full notice in
+[LICENSE-VENDOR-BUY-ALL](LICENSE-VENDOR-BUY-ALL).

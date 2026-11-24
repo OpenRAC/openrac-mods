@@ -1,0 +1,26 @@
+{
+  "id": "gc-magneboots",
+  "repo": "https://github.com/Promises/rac1-gc-magneboots",
+  "path": "",
+  "description": "Going Commando's Gravity Boots in place of the Magneboots: on magnetic surfaces Ratchet walks, runs, jumps and fights as on any ground, and a jump, a double jump or a step off an edge comes back down onto the surface. Needs OpenRAC with mod interface 1.22 or later.",
+  "tags": [
+    "gameplay",
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Promises/rac1-gc-magneboots/issues"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "https://youtu.be/TKqdbXuQDlA",
+        "caption": "Running and fighting upside down on a magnetic track."
+      }
+    ]
+  }
+}

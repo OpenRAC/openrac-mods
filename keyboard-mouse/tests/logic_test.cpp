@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
 // The keyboard and mouse mod's logic (src/kbm.hpp) alone: binds read from settings, conflicts,
 // the keys' stick, the mouse's stick, the Quick Select's direction, the report the game reads and
 // the weapon wheel; and the manifest's keys and defaults against the action table.
@@ -28,13 +30,15 @@ int g_failures = 0;
         }                                                                                          \
     } while (0)
 
+// Returns whether `a` is within `within` of `b`.
 bool near(float a, float b, float within = 0.02f) {
     return std::fabs(a - b) <= within;
 }
 
 using kbm::Action;
 
-void parsing() {
+// Checks that binds are read from the setting strings, and bad ones are refused.
+void test_binds_are_parsed_from_the_settings() {
     kbm::Binds b;
     CHECK(kbm::parse_binds("KeyW", b) && b[0] == 26 && b[1] == 0);
     CHECK(kbm::parse_binds("KeyW,ArrowUp", b) && b[0] == 26 && b[1] == 82);
@@ -62,7 +66,8 @@ void parsing() {
     CHECK(bindings.of(Action::MoveForward)[0] == 26);                // "?": the default, W
 }
 
-void conflicts() {
+// Checks that actions of one group sharing an input are reported, and those of two groups are not.
+void test_two_actions_sharing_a_bind_conflict() {
     // The defaults conflict nowhere.
     const kbm::Bindings defaults = kbm::read_bindings([](const char*) { return std::string("?"); });
     CHECK(kbm::conflicts(defaults).empty());
@@ -85,7 +90,8 @@ void conflicts() {
     }
 }
 
-void key_stick() {
+// Checks that the movement keys push the left stick over the ramp's ticks and let it go.
+void test_the_keys_ramp_the_left_stick() {
     kbm::MoveTuning t;
     t.rise_ticks = 4.0f;
     kbm::KeyStick s;
@@ -93,6 +99,7 @@ void key_stick() {
     s.step(true, false, false, false, false, t);
     CHECK(near(s.y, -0.25f) && s.x == 0.0f);
 
+    // Five ticks of the key held: the stick climbs by the ramp.
     for (int i = 0; i < 5; ++i) {
         s.step(true, false, false, false, false, t);
     }
@@ -124,7 +131,8 @@ void key_stick() {
     CHECK(s.y == 0.0f);
 }
 
-void mouse_stick() {
+// Checks that the mouse's motion becomes the right stick, with its smoothing and dead zone.
+void test_the_mouse_moves_the_right_stick() {
     kbm::LookTuning t;
     kbm::MouseLook m;
     // A tick's motion at sensitivity 1: eased over two ticks, then proportional.
@@ -149,7 +157,8 @@ void mouse_stick() {
     // Acceleration: a fast motion goes further than twice a slow one's.
     t.sensitivity = 1.0f;
     t.acceleration = 1.0f;
-    kbm::MouseLook slow, fast;
+    kbm::MouseLook slow;
+    kbm::MouseLook fast;
     slow.step(2.0f, 0.0f, false, t);
     slow.step(2.0f, 0.0f, false, t);
     fast.step(4.0f, 0.0f, false, t);
@@ -175,6 +184,7 @@ void mouse_stick() {
     m.reset();
     m.step(0.0f, 80.0f, false, t);
 
+    // Sixty ticks with the mouse still.
     for (int i = 0; i < 60; ++i) {
         m.step(0.0f, 0.0f, false, t);
     }
@@ -194,6 +204,7 @@ float game_follow_target(float stick_y, bool game_inverts, bool* fallback) {
     float b = game_inverts ? -stick_y : stick_y;
     *fallback = b == 0.0f;
 
+    // The game rescales a y below -0.3 by 1 over 0.7.
     if (b < -0.3f) {
         b = (b + 0.3f) * 1.4285715f;
     } else if (0.3f < b) {
@@ -210,7 +221,9 @@ kbm::Vec3 view_of(kbm::Vec3 orbit) {
     return kbm::scaled(orbit, -1.0f);
 }
 
-void direct_look() {
+// Checks that the mouse turns the follow camera and the first-person view, against the game's own
+// stick reading.
+void test_the_mouse_turns_the_camera_itself() {
     using kbm::Vec3;
     kbm::LookTuning t;
     const Vec3 up = kbm::kWorldUp;
@@ -296,11 +309,13 @@ void direct_look() {
         && near(kbm::follow_target_of(-limit), -1.0f, 1e-4f)
     );
 
+    // Every elevation within the limit, in steps of 0.05.
     for (float e = -limit; e <= limit; e += 0.05f) {
         const float w = kbm::follow_target_of(e);
         // The game aims the eye at atan(sin(elevation)) = w * 40 degrees.
         CHECK(near(std::atan(std::sin(e)), w * kbm::kFollowTiltRange, 1e-4f));
 
+        // Both settings of the game's invert option.
         for (bool inverts : {false, true}) {
             bool fallback = true;
             const float stick = kbm::follow_stick_for(w, inverts);
@@ -317,7 +332,8 @@ void direct_look() {
     CHECK(kbm::follow_stick_for(0.5f, true) == -kbm::follow_stick_for(0.5f, false));
 }
 
-void quick_select() {
+// Checks that the mouse points at the Quick Select's slots, clockwise from the top.
+void test_the_mouse_points_the_quick_select_ring() {
     // The game's ring: slot 0 at the top, clockwise.
     CHECK(kbm::ring_slot(0.0f, -1.0f) == 0);
     CHECK(kbm::ring_slot(0.7071f, -0.7071f) == 1);
@@ -331,7 +347,8 @@ void quick_select() {
     const float dead = 30.0f;
 
     struct Case {
-        float dx, dy;
+        float dx;
+        float dy;
         int slot;
     };
 
@@ -348,12 +365,14 @@ void quick_select() {
          {45, -10, 2},
          {-5, 45, 4}};
 
+    // Each case's mouse motion and the slot it points at.
     for (const Case& c : cases) {
         kbm::RingPointer p;
         p.add(c.dx, c.dy, dead);
         const auto [x, y] = p.stick(dead);
         CHECK(kbm::ring_slot(x, y) == c.slot);
 
+        // A slot pointed at puts the stick on the unit circle.
         if (c.slot >= 0) {
             CHECK(near(std::sqrt(x * x + y * y), 1.0f, 1e-4f));  // past the game's 0.9
         }
@@ -363,12 +382,14 @@ void quick_select() {
     // answers soon: a long way right, then a little left, points left.
     kbm::RingPointer p;
 
+    // Eight small moves inside the dead zone.
     for (int i = 0; i < 8; ++i) {
         p.add(5.0f, 0.0f, dead);
     }
 
     CHECK(kbm::ring_slot(p.stick(dead).first, p.stick(dead).second) == 2);
 
+    // A hundred more moves toward the right.
     for (int i = 0; i < 100; ++i) {
         p.add(10.0f, 0.0f, dead);
     }
@@ -378,20 +399,23 @@ void quick_select() {
     CHECK(kbm::ring_slot(p.stick(dead).first, p.stick(dead).second) == 6);
 }
 
-void report() {
-    // The game reads our stick bytes back as what we meant, dead zone and all.
+// Checks that the report's stick bytes read back as what was meant, and its buttons are active low.
+void test_the_report_holds_the_buttons_and_sticks() {
+    // The game reads the mod's stick bytes back as what was meant, dead zone and all.
     CHECK(kbm::stick_byte(0.0f) == 0x80);
     CHECK(kbm::game_axis(kbm::stick_byte(1.0f)) == 1.0f);
     CHECK(kbm::game_axis(kbm::stick_byte(-1.0f)) == -1.0f);
 
+    // Every stick value in steps of 0.05 comes back through its byte.
     for (float v = 0.05f; v <= 1.0f; v += 0.05f) {
         CHECK(near(kbm::game_axis(kbm::stick_byte(v)), v, 0.02f));
         CHECK(near(kbm::game_axis(kbm::stick_byte(-v)), -v, 0.02f));
     }
 
-    // Buttons held on top of the pad's; a pad's stick kept where ours rests.
+    // Buttons held on top of the pad's; a pad's stick kept where the mod's rests.
     std::uint8_t r[18];
 
+    // Start with every report byte zero.
     for (std::uint8_t& b : r) {
         b = 0;
     }
@@ -414,14 +438,16 @@ void report() {
     CHECK(r[12] == 0xFF);  // Cross's pressure
     CHECK(r[13] == 0x00);  // Square's: the pad's own report says what it says
     CHECK(near(kbm::game_axis(r[2]), 0.5f) && r[3] == 0x80);
-    CHECK(r[4] == 0x10 && r[5] == 0x80);  // ours at rest: the gamepad's
+    CHECK(r[4] == 0x10 && r[5] == 0x80);  // the mod's at rest: the gamepad's
     v = kbm::Virtual{};
     v.left_y = -1.0f;
     kbm::merge(v, r, 18);
     CHECK(r[4] == 0x10 && kbm::game_axis(r[5]) == -1.0f);
 }
 
-void weapon_wheel() {
+// Checks that the wheel steps through the filled slots, wraps, and starts from the ring's end for
+// an item outside it.
+void test_the_wheel_cycles_the_quick_selects_items() {
     const std::array<std::int32_t, 8> slots = {0x0F, 0, 0x0A, 0x10, 0, 0, 0, 0x17};
     CHECK(kbm::cycle_item(slots, 0x0F, 1) == 0x0A);  // skips the empty slot
     CHECK(kbm::cycle_item(slots, 0x17, 1) == 0x0F);  // wraps
@@ -434,7 +460,8 @@ void weapon_wheel() {
     CHECK(kbm::cycle_item(none, 0x08, 1) == 0x08);
 }
 
-void contexts() {
+// Checks that the game's mode words, with and without a level loaded, name where it is.
+void test_where_the_game_is_follows_its_mode_words() {
     using kbm::Context;
     // A level's mode word with a level loaded; the boot program's without one.
     CHECK(kbm::context_of(3, 0, 99) == Context::Play);
@@ -453,11 +480,13 @@ void contexts() {
     CHECK(kbm::context_of(-1, 0, 1) == Context::Movie);
 }
 
-void buttons() {
+// Checks which pad buttons each action presses in each context.
+void test_each_context_presses_its_own_buttons() {
     using kbm::Context;
     const auto b = [](Context c, std::initializer_list<Action> actions, int kind = 2) {
         kbm::ActionSet set = 0;
 
+        // Press the actions of the case.
         for (Action a : actions) {
             set |= kbm::bit(a);
         }
@@ -494,6 +523,7 @@ void buttons() {
     const auto map = [](std::initializer_list<Action> actions) {
         kbm::ActionSet set = 0;
 
+        // Press the actions of the case.
         for (Action a : actions) {
             set |= kbm::bit(a);
         }
@@ -505,8 +535,8 @@ void buttons() {
     CHECK(map({Action::Pause}) == kbm::kTriangle && map({Action::MenuBack}) == kbm::kTriangle);
     CHECK(b(Context::Play, {Action::MenuCircle}) == 0);
 
-    // Dialogs: "Quit?" (1, 4): Escape goes on (Cross), Backspace quits (Triangle); "Quit race?" (0):
-    // Escape goes on (Start), Backspace Circle; a message: confirm Cross, back Triangle.
+    // Dialogs: "Quit?" (1, 4): Escape goes on (Cross), Backspace quits (Triangle); "Quit race?"
+    // (0): Escape goes on (Start), Backspace Circle; a message: confirm Cross, back Triangle.
     for (int kind : {1, 4}) {
         CHECK(b(Context::Dialog, {Action::Pause}, kind) == kbm::kCross);
         CHECK(b(Context::Dialog, {Action::MenuBack}, kind) == kbm::kTriangle);
@@ -527,6 +557,7 @@ void buttons() {
     // Scenes, movies, slideshows: everything that confirms or goes back skips (Start); the ship
     // Start and Cross.
     for (Context c : {Context::Cutscene, Context::Movie, Context::Slideshow}) {
+        // Each of the four actions.
         for (Action a : {Action::Jump, Action::MenuConfirm, Action::Pause, Action::MenuBack}) {
             CHECK(b(c, {a}) == kbm::kStart);
         }
@@ -537,9 +568,11 @@ void buttons() {
     CHECK(b(Context::Flight, {Action::Pause}) == (kbm::kStart | kbm::kCross));
 }
 
-void press_edges() {
+// Checks that a held key is blocked across a change of context, queued presses go out one at a
+// time, and a held arrow repeats.
+void test_latch_pulses_and_key_repeat() {
     using kbm::Context;
-    // Held across a change of where the game is: out until let go. Pressed just then: in.
+    // Held across a change of where the game is: out until let go. Pressed at that moment: in.
     kbm::Latch latch;
     const kbm::ActionSet esc = kbm::bit(Action::Pause);
     CHECK(latch.filter(Context::Play, esc) == esc);
@@ -549,7 +582,7 @@ void press_edges() {
     CHECK(latch.filter(Context::Menu, esc) == esc);
     const kbm::ActionSet enter = kbm::bit(Action::MenuConfirm);
     CHECK(latch.filter(Context::Menu, 0) == 0);
-    CHECK(latch.filter(Context::Cutscene, enter) == enter);  // down this very tick
+    CHECK(latch.filter(Context::Cutscene, enter) == enter);  // down this tick
     // Pulses: each one a tick down and a tick up, in order.
     kbm::Pulser p;
     p.push(kbm::kDown);
@@ -558,6 +591,7 @@ void press_edges() {
     CHECK(p.step() == kbm::kDown && p.step() == 0 && p.step() == kbm::kDown && p.step() == 0);
     CHECK(p.step() == kbm::kCross && !p.idle() && p.step() == 0 && p.idle());
 
+    // Push more presses than the queue holds.
     for (int i = 0; i < 9; ++i) {
         p.push(kbm::kUp);
     }
@@ -568,11 +602,13 @@ void press_edges() {
     int edges = 0;
     bool was = false;
 
+    // Sixty ticks with the key held.
     for (int t = 1; t <= 60; ++t) {
         const bool now = r.step(true);
         edges += now && !was ? 1 : 0;
         was = now;
 
+        // The key repeats while it is held: pressed for the first 24 ticks.
         if (t <= 24) {
             CHECK(now);
         }
@@ -582,7 +618,8 @@ void press_edges() {
     CHECK(!r.step(false) && r.step(true));  // let go: the next press is at once
 }
 
-void menu_mouse() {
+// Checks the widget and grid cell under the mouse, and the d-pad steps that reach them.
+void test_the_mouse_picks_menu_widgets_and_cells() {
     // The widget under the point.
     const kbm::Rect rects[3] = {{100, 100, 200, 30}, {100, 140, 200, 30}, {0, 0, 0, 0}};
     CHECK(kbm::hit_widget(rects, 3, 150.0f, 110.0f) == 0);
@@ -595,6 +632,7 @@ void menu_mouse() {
     {
         const std::uint32_t page[5] = {1, 2, 3, 4, 5};
         const auto links = [](std::uint32_t w, std::uint32_t* out) {
+            // The links of each widget in the test's page.
             switch (w) {
                 case 1:
                     out[0] = 2;
@@ -697,17 +735,19 @@ void menu_mouse() {
 }
 
 // Each action's setting in the manifest, with the table's default and group.
-void manifest(const char* path) {
+void test_the_manifest_matches_the_action_table(const char* path) {
     std::ifstream f(path);
     CHECK(f.good());
     std::stringstream s;
     s << f.rdbuf();
     const std::string text = s.str();
 
+    // Each action's key and default in the manifest.
     for (const kbm::ActionInfo& a : kbm::kActions) {
         const std::size_t at = text.find(std::string("\"key\": \"") + a.key + "\"");
         CHECK(at != std::string::npos);
 
+        // A key the manifest lacks is already reported; skip its default.
         if (at == std::string::npos) {
             continue;
         }
@@ -726,23 +766,25 @@ void manifest(const char* path) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    parsing();
-    conflicts();
-    key_stick();
-    mouse_stick();
-    direct_look();
-    quick_select();
-    report();
-    weapon_wheel();
-    contexts();
-    buttons();
-    press_edges();
-    menu_mouse();
+    test_binds_are_parsed_from_the_settings();
+    test_two_actions_sharing_a_bind_conflict();
+    test_the_keys_ramp_the_left_stick();
+    test_the_mouse_moves_the_right_stick();
+    test_the_mouse_turns_the_camera_itself();
+    test_the_mouse_points_the_quick_select_ring();
+    test_the_report_holds_the_buttons_and_sticks();
+    test_the_wheel_cycles_the_quick_selects_items();
+    test_where_the_game_is_follows_its_mode_words();
+    test_each_context_presses_its_own_buttons();
+    test_latch_pulses_and_key_repeat();
+    test_the_mouse_picks_menu_widgets_and_cells();
 
+    // The manifest is checked when its path is given.
     if (argc > 1) {
-        manifest(argv[1]);
+        test_the_manifest_matches_the_action_table(argv[1]);
     }
 
+    // All checks passed, or the failures were counted already.
     if (g_failures == 0) {
         std::puts("keyboard-mouse logic: all passed");
     }

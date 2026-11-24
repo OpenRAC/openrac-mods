@@ -21,8 +21,15 @@ typedef struct rando_options {
     int gold_bolts;         /* "shuffle_gold_bolts" */
     int planets;            /* "shuffle_infobots" */
     int vendor;             /* "shuffle_vendor" */
-    int keep_start;         /* "keep_starting_gear" */
+    int keep_start;         /* the start kept when starting_weapons names no choice */
     const char* difficulty; /* "difficulty": relaxed, standard, expert */
+    int gold_weapons;       /* RAC1 launcher switch: shuffled gold cases and upgrades */
+    int npc_infobots;       /* RAC1 new seeds: NPC coordinates follow Shuffle Infobots */
+    int items;              /* "shuffle_items": every Items-menu entry */
+    int random_start;
+    /* "starting_weapons": vanilla, shuffled, non_broken, unrestricted; null or another word
+     * leaves keep_start as it is */
+    const char* starting_weapons;
 } rando_options;
 
 /* Where the seed came from. */

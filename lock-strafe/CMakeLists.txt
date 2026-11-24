@@ -2,10 +2,10 @@
 # The lock-strafe (README.md): the mod's library (C++, on the SDK's openrac/mod.hpp) and its tests.
 #
 # Laid out as docs/MULTI_GAME.md has it: the entry point (src/mod.cpp) picks the game's part;
-# Ratchet & Clank's is src/rac1/lock_strafe.cpp over a header of plain C (src/rac1/strafe.h) that
-# holds the decision of when and how the hero strafes, and src/common/spring.h the joints' spring.
-# The tests are C programs registered with CTest: the decision alone, and the built library loaded
-# the way the port loads it.
+# Ratchet & Clank's is src/rac1/lock_strafe.cpp over a header with no game memory
+# (src/rac1/strafe.hpp) that holds the decision of when and how the hero strafes, and
+# src/common/spring.hpp the joints' spring. The tests are C++ programs registered with CTest: the
+# decision alone, and the built library loaded the way the port loads it.
 
 # The mod's library and the manifest it is packaged with.
 openrac_add_mod(lock_strafe MANIFEST openrac-mod.json SOURCES src/mod.cpp src/rac1/lock_strafe.cpp)
@@ -18,9 +18,9 @@ endif()
 
 # The tests build only when testing is on.
 if(BUILD_TESTING)
-  # The strafe decision alone: it includes src/rac1/strafe.h and src/common/spring.h, no host.
-  add_executable(hero_strafe_test tests/rac1/hero_strafe_test.c)
-  set_target_properties(hero_strafe_test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+  # The strafe decision alone: it includes src/rac1/strafe.hpp and src/common/spring.hpp, no host.
+  add_executable(hero_strafe_test tests/rac1/hero_strafe_test.cpp)
+  set_target_properties(hero_strafe_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   # The decision compares angles the way the game computes them: no fused multiply-adds.
   if(MSVC)
     target_compile_options(hero_strafe_test PRIVATE /fp:precise)
@@ -34,8 +34,8 @@ if(BUILD_TESTING)
   add_test(NAME hero_strafe COMMAND hero_strafe_test)
 
   # The library as the port loads it, against a host table of the test's own.
-  add_executable(lock_strafe_load_test tests/rac1/load_test.c)
-  set_target_properties(lock_strafe_load_test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+  add_executable(lock_strafe_load_test tests/rac1/load_test.cpp)
+  set_target_properties(lock_strafe_load_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   target_link_libraries(lock_strafe_load_test PRIVATE OpenRAC::mod ${CMAKE_DL_LIBS})
   add_dependencies(lock_strafe_load_test lock_strafe)
   add_test(NAME lock_strafe_load COMMAND lock_strafe_load_test $<TARGET_FILE:lock_strafe>)

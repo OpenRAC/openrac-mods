@@ -1,13 +1,13 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's pages: Lobby (multiplayer.cpp's header says what each page is).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's pages: Lobby (multiplayer.cpp's header says what each page is).
+
 #include "mod_state.hpp"
 
 namespace mpmod {
 
-/* Whether this player, a member, is refused the host's game, or still waits to hear. */
+// Whether this player, a member, is refused the host's game, or still waits to hear.
 bool refused() {
     return !g->session->is_host() && !g->mods->differences().empty();
 }
@@ -16,11 +16,11 @@ bool checking() {
     return !g->session->is_host() && !g->mods->heard_host();
 }
 
-/* Lobby: Ready or Start, Leave, Party rules, then the members (the host marked, each ready or not,
- * whether its mods match, the player). Start is dim until every member is ready; a member whose
- * mods differ cannot be, its button says why instead, and the host has a line saying why. A direct
- * party's title says where it is: the host's own addresses (all that fit, the first in the title),
- * or the address joined. */
+// Lobby: Ready or Start, Leave, Party rules, then the members (the host marked, each ready or not,
+// whether its mods match, the player). Start is dim until every member is ready; a member whose
+// mods differ cannot be, its button says why instead, and the host has a line saying why. A direct
+// party's title says where it is: the host's own addresses (all that fit, the first in the title),
+// or the address joined.
 openrac::UiContent lobby_content() {
     const mp::Session& s = *g->session;
     openrac::UiContent c;
@@ -28,8 +28,8 @@ openrac::UiContent lobby_content() {
     // game is on, back in the title, joins it again.
     const bool title = g->game->status().phase == mp::kPhaseFrontEnd;
     const bool rejoin = !s.is_host() && g->coop->playing() && title;
-    const std::string first = s.is_host()              ? text(g->coop->starts_again() ? "Start again" : "Start")
-                              : refused()              ? text("Why can't I join?")
+    const std::string first = s.is_host() ? text(g->coop->starts_again() ? "Start again" : "Start")
+                              : refused() ? text("Why can't I join?")
                               : g->mods->host_silent() ? text("Host too old")
                               : checking()             ? text("Checking mods...")
                               : rejoin                 ? text("Join game")
@@ -52,8 +52,11 @@ openrac::UiContent lobby_content() {
     // Why a member cannot play, for the host.
     std::vector<std::string> why;
 
+    // Only the host sees why a member cannot play.
     if (s.is_host()) {
+        // Every member is checked against the host's mods.
         for (const mp::Member& m : s.members()) {
+            // Only a member whose mods differ gets a line.
             if (g->mods->fit(m.id) == mp::Fit::kDiffers) {
                 why.push_back(mp::lobby_why_line(m.name, g->mods->why(m.id)));
             }
@@ -69,9 +72,11 @@ openrac::UiContent lobby_content() {
         // the title.
         const std::size_t used = c.items.size() + why.size() + s.members().size() + 2;
         const std::size_t room = OPENRAC_UI_ITEMS_MAX > used ? OPENRAC_UI_ITEMS_MAX - used : 0;
-        const std::vector<std::string> lines = mp::hosting_lines(h.addresses, h.port, room, g_language);
+        const std::vector<std::string> lines =
+            mp::hosting_lines(h.addresses, h.port, room, language());
         c.title = text("Hosting");
 
+        // One line per address the host can be reached at, as many as fit.
         for (std::size_t i = 0; i < lines.size(); ++i) {
             c.items.push_back(openrac::UiItem::text(lines[i]));
         }
@@ -81,23 +86,28 @@ openrac::UiContent lobby_content() {
     }
 
     // What the party plays: the host's save (or a new game), as its INFO said.
-    const std::string playing = s.is_host() ? g->coop->description() : mp::plain_description(s.description());
+    const std::string playing =
+        s.is_host() ? g->coop->description() : mp::plain_description(s.description());
 
+    // A party with no save described yet has no line.
     if (!playing.empty()) {
         c.items.push_back(openrac::UiItem::text(text("Playing: ") + playing));
     }
 
+    // While the host's save is on its way, the page says so.
     if (g->coop->receiving()) {
         c.items.push_back(openrac::UiItem::text(text("Receiving...")));
     }
 
     // Where its saves go: never over a player's own.
-    if (g->game->has_card_filter() && c.items.size() + s.members().size() + why.size() + 1 < OPENRAC_UI_ITEMS_MAX) {
+    if (g->game->has_card_filter()
+        && c.items.size() + s.members().size() + why.size() + 1 < OPENRAC_UI_ITEMS_MAX) {
         c.items.push_back(openrac::UiItem::text(text(mp::kCoSavesLine)));
     }
 
     g->lobby_rows.clear();
 
+    // One line per member: who it is, whether it is ready, and whether its mods fit.
     for (const mp::Member& m : s.members()) {
         const mp::Fit fit = g->mods->fit(m.id);
         mp::LobbyMemberInput line;
@@ -107,15 +117,17 @@ openrac::UiContent lobby_content() {
         line.ready = s.ready(m.id);
         line.differs = m.id == s.id() ? refused() : fit == mp::Fit::kDiffers;
         line.checking = m.id == s.id() ? checking() : fit == mp::Fit::kUnknown;
+
         // The host's way to anyone who holds the party up.
         if (s.is_host() && m.id != s.id()) {
             g->lobby_rows.emplace_back(static_cast<int>(c.items.size()), m.id);
-            c.items.push_back(openrac::UiItem::button(mp::lobby_member_line(line, g_language)));
+            c.items.push_back(openrac::UiItem::button(mp::lobby_member_line(line, language())));
         } else {
-            c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line, g_language)));
+            c.items.push_back(openrac::UiItem::text(mp::lobby_member_line(line, language())));
         }
     }
 
+    // The host's lines of why a member cannot play come after the members.
     for (const std::string& line : why) {
         c.items.push_back(openrac::UiItem::text(line));
     }
@@ -133,6 +145,7 @@ openrac::UiContent lobby_content() {
 
     c.footer = {status(), text(mp::kSelectLeaveHints)};
 
+    // The Remove hint shows only when the host has a member to remove.
     if (!g->lobby_rows.empty()) {
         c.footer.insert(c.footer.begin() + 1, text(mp::kRemoveHint));
     }
@@ -145,13 +158,13 @@ void show_lobby() {
     set_content(g->lobby, c);
 }
 
-/* Lobby's events: Ready or Start, and Leave or Triangle asking first; out of the party, back. A
- * host's Leave stops hosting. */
+// Lobby's events: Ready or Start, and Leave or Triangle asking first; out of the party, back. A
+// host's Leave stops hosting.
 void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Session& s = *g->session;
     const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
-    const bool direct_party = s.direct() || hosting
-                              || g->connection->mode() == mp::Connection::Mode::kDirect;
+    const bool direct_party =
+        s.direct() || hosting || g->connection->mode() == mp::Connection::Mode::kDirect;
 
     // Ready or Start; Leave and Triangle ask before the party is left.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->lobby_tools && g->lobby_tools >= 0) {
@@ -163,6 +176,7 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
         // The host starts the game for everyone; a member says it is ready, or no longer, and one
         // that is refused sees why.
         if (s.is_host()) {
+            // The host's Start is refused until the party can begin; the denied sound says so.
             if (!g->coop->start()) {
                 page.sound(OPENRAC_UI_SOUND_DENIED);
             }
@@ -180,8 +194,10 @@ void on_lobby(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (const std::int32_t member = row_member(g->lobby_rows, e); member != 0) {
         open_remove(member);
     } else if ((e.is(OPENRAC_UI_CHOOSE) && e.item() == kLeaveItem) || e.is(OPENRAC_UI_BACK)) {
-        const char* question = hosting       ? "Stop hosting?"
-                               : !s.is_host() ? "Leave party?"
+        // A direct host stops hosting, a member leaves, and a host nobody would follow ends the
+        // party.
+        const char* question = hosting                  ? "Stop hosting?"
+                               : !s.is_host()           ? "Leave party?"
                                : g->migrate->followed() ? "Leave party?"
                                                         : "End the party?";
         page.confirm(text(question), kAskLeave);

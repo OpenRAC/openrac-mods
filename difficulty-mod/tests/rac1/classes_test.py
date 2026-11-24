@@ -26,8 +26,8 @@ HOSTILE = re.compile(r"bot|blarg|trooper|turret|mine|commando|amoeboid|shark|gun
 # The player's own things and the game's projectiles and pickups, which the names above also match.
 NOT_A_FOE = re.compile(r"rocket$|missile|glove|ammo|crate|infobot|^gold_|^visibomb|^bomb$|^ryno|_ship_?\d*$|"
                        r"^ship$|ship_rear|ship_front|ship_back|^shuttle")
-ROLES = {"enemy": "DM_ENEMY", "roamer": "DM_ROAMER", "turret": "DM_TURRET", "boss": "DM_BOSS",
-         "excluded": "DM_EXCLUDED"}
+ROLES = {"enemy": "Enemy", "roamer": "Roamer", "turret": "Turret", "boss": "Boss",
+         "excluded": "Excluded"}
 
 
 def main() -> int:
@@ -60,13 +60,13 @@ def main() -> int:
         if HOSTILE.search(n) and not NOT_A_FOE.search(n) and cid not in rows:
             errors.append(f"class {cid} ({n}) is not classified in classes.tsv")
     header = (HERE / "src" / "rac1" / "classes.h").read_text()
-    entries = dict((int(i), r) for i, r in re.findall(r"\{(\d+), (DM_[A-Z]+), ", header))
+    entries = dict((int(i), r) for i, r in re.findall(r"\{(\d+), ClassRole::([A-Za-z]+), ", header))
     for cid, (role, name, _reason) in rows.items():
         if entries.get(cid) != ROLES[role]:
             errors.append(f"class {cid}: src/rac1/classes.h is stale (python3 tools/gen_classes.py)")
     if set(entries) != set(rows):
         errors.append("src/rac1/classes.h and classes.tsv list other classes (python3 tools/gen_classes.py)")
-    hooks = header.split("k_dm_update_hooks")[1]
+    hooks = header.split("kUpdateHooks")[1]
     timed = sum(1 for r in rows.values() if r[0] in ("enemy", "roamer", "turret"))
     if not hooks.count('"rac1.moby.') or hooks.count('"rac1.moby.') > timed:
         errors.append("src/rac1/classes.h's update hook points do not follow classes.tsv")

@@ -29,3 +29,12 @@ logic, a gold bolt holds no progression. Every location's rule is in the world's
 With few places for progression (vendor slots off, or Relaxed logic), this world keeps its own
 progression among its own locations, so generation can't run out of places. Its other items still
 go to the multiworld.
+
+## Items-menu pool
+
+Enable **Shuffle items** to include all nine entries in the game's Items category:
+Hoverboard, Persuader, Bolt Grabber, Map-o-Matic, Platinum Zoomerator, Raritanium,
+CodeBot, Premium Nanotech and Ultra Nanotech. It is off by default; off keeps all
+nine at their original checks. This option is separate from Shuffle gadgets.
+Both Nanotech purchases keep their costs, and the Persuader trade still consumes
+Raritanium. The native mod needs OpenRAC interface 1.16 or newer and its save sidecar.

@@ -1,14 +1,14 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's pages: Refused (multiplayer.cpp's header says what each page is).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's pages: Refused (multiplayer.cpp's header says what each page is).
+
 #include "mod_state.hpp"
 
 namespace mpmod {
 
-/* Why this game is refused: what differs from the host's, or the mod that cannot be played in a
- * party, and what to do. */
+// Why this game is refused: what differs from the host's, or the mod that cannot be played in a
+// party, and what to do.
 openrac::UiContent refused_content() {
     const mp::Session& s = *g->session;
 
@@ -17,7 +17,7 @@ openrac::UiContent refused_content() {
         openrac::UiContent c;
         c.title = text("Can't join");
         c.items.push_back(openrac::UiItem::button(text("Back")));
-        c.items.push_back(openrac::UiItem::text(mp::localized_notice(g->refusal, g_language)));
+        c.items.push_back(openrac::UiItem::text(mp::localized_notice(g->refusal, language())));
         c.footer = {text(mp::kBackHints)};
         return c;
     }
@@ -27,19 +27,26 @@ openrac::UiContent refused_content() {
     const bool solo = !mp::solo_mods(g->mods->own()).empty();
     openrac::UiContent c;
     c.title = s.in_party() ? text("Can't join") : text("Can't play");
-    c.items.push_back(openrac::UiItem::button(s.in_party() ? text(mp::kLeavePartyLabel) : text("Back")));
+    c.items.push_back(
+        openrac::UiItem::button(s.in_party() ? text(mp::kLeavePartyLabel) : text("Back"))
+    );
 
     // The host's mod code: what gets this game the host's mods.
     const std::string code = s.in_party() ? g->mods->host_list().modcode : "";
 
+    // A host with a mod code gives this player buttons to open it in the launcher or copy it.
     if (!code.empty()) {
         c.items.push_back(openrac::UiItem::button(text(mp::kOpenInLauncher)));
-        c.items.push_back(openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel)));
+        c.items.push_back(
+            openrac::UiItem::button(text(g->code_copied ? mp::kCopiedLabel : mp::kCopyCodeLabel))
+        );
         c.items.push_back(openrac::UiItem::text(text(mp::kModCodeLabel) + code));
         c.items.push_back(openrac::UiItem::text(text(mp::kModCodeHint)));
     }
 
+    // The lines of what differs, as many as the page has room for.
     for (const std::string& line : mp::refusal_lines(differences)) {
+        // The page holds a fixed number of items; the rest are not shown.
         if (c.items.size() == OPENRAC_UI_ITEMS_MAX) {
             break;
         }
@@ -47,8 +54,10 @@ openrac::UiContent refused_content() {
         c.items.push_back(openrac::UiItem::text(line));
     }
 
-    c.footer = {text(solo ? mp::kSoloHint1 : mp::kMatchHint1), text(solo ? mp::kSoloHint2 : mp::kMatchHint2),
-                text(mp::kBackHints)};
+    c.footer =
+        {text(solo ? mp::kSoloHint1 : mp::kMatchHint1),
+         text(solo ? mp::kSoloHint2 : mp::kMatchHint2),
+         text(mp::kBackHints)};
     return c;
 }
 
@@ -57,12 +66,13 @@ void show_refused() {
     set_content(g->refused, c);
 }
 
-/* The page of why a game is refused: Leave party (or Back, out of one); Triangle goes back to the
- * lobby, or Home. */
+// The page of why a game is refused: Leave party (or Back, out of one); Triangle goes back to the
+// lobby, or Home.
 void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const bool in_party = g->session->in_party();
     const bool chose = e.is(OPENRAC_UI_CHOOSE) && e.item() == 0;
 
+    // Showing: note whether the page was opened in a party, and start with the code not copied.
     if (e.is(OPENRAC_UI_SHOW)) {
         g->refused_in_party = in_party;
         g->code_copied = false;
@@ -73,6 +83,7 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
         g->refusal.clear();
     }
 
+    // Open in launcher and Copy act on the host's mod code; item 0 is Leave party or Back.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kRefusedOpenItem) {
         // The player's own choice, on this page: the launcher then asks to close the game.
         g->mod->open_link(mp::mod_code_link(g->mods->host_list().modcode));
@@ -82,6 +93,7 @@ void on_refused(const openrac::UiPage& page, const openrac::UiEvent& e) {
     } else if (chose && in_party) {
         leave_party();
     } else if (chose || e.is(OPENRAC_UI_BACK)) {
+        // Back from a party's refusal returns to the lobby; with no party, to the page before.
         if (in_party) {
             g->lobby.open();
         } else {

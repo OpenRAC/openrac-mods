@@ -3,6 +3,7 @@
 //
 // Playing together, without the game or a socket: the names over the figures, and the mod code a
 // party's pages show.
+
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -14,45 +15,57 @@
 namespace mpt {
 namespace {
 
+// One thing the painter was asked to draw: a rectangle (empty text) or a line of text.
 struct Drawn {
     float x, y, w, h;
     std::uint32_t colour;
     std::string text;
 };
 
-/* The middle of the picture for every point, unless told otherwise; the port's fade; a character
- * 6 wide at height 8. */
+// The middle of the picture for every point, unless told otherwise; the port's fade; a character
+// 6 wide at height 8.
 class FakePainter : public mp::TagPainter {
 public:
+    // Whether `project` puts a point on the picture, and the screen position it gives it.
     bool on_picture = true;
     float at_x = 256;
     float at_y = 224;
+    // What was drawn, in order.
     std::vector<Drawn> drawn;
 
+    // Puts every point at (`at_x`, `at_y`) and returns `on_picture`.
     bool project(const float[3], float& x, float& y) override {
         x = at_x;
         y = at_y;
         return on_picture;
     }
 
+    // Records a rectangle.
     void rect(float x, float y, float w, float h, std::uint32_t colour) override {
         drawn.push_back({x, y, w, h, colour, ""});
     }
 
-    void text(float x, float y, float height, std::uint32_t colour, const std::string& line) override {
+    // Records a line of text.
+    void text(
+        float x, float y, float height, std::uint32_t colour, const std::string& line
+    ) override {
         drawn.push_back({x, y, 0, height, colour, line});
     }
 
+    // Returns the width of `line` at `height`, the character width being 0.75 of the height.
     float text_width(float height, const std::string& line) override {
         return height * 0.75f * static_cast<float>(line.size());
     }
 
+    // Returns 1 up to `near_distance`, 0 from `far_distance`, and a straight line between.
     float fade(float distance, float near_distance, float far_distance) override {
-        return distance >= far_distance  ? 0.0f
-               : distance <= near_distance ? 1.0f
-                                           : (far_distance - distance) / (far_distance - near_distance);
+        return distance >= far_distance ? 0.0f
+               : distance <= near_distance
+                   ? 1.0f
+                   : (far_distance - distance) / (far_distance - near_distance);
     }
 
+    // Returns the first text drawn, or null when only rectangles were.
     const Drawn* text_drawn() const {
         for (const Drawn& d : drawn) {
             if (!d.text.empty()) {
@@ -64,7 +77,7 @@ public:
     }
 };
 
-/* A tag `distance` from a camera at the origin. */
+// A tag `distance` from a camera at the origin.
 mp::NameTag tag_at(float distance, int slot = 1) {
     mp::NameTag tag;
     tag.name = "RATCHET";
@@ -74,8 +87,10 @@ mp::NameTag tag_at(float distance, int slot = 1) {
     return tag;
 }
 
+// The camera's position, at the origin.
 const float kCamera[3] = {0, 0, 0};
 
+// Checks that a near tag draws the name in the player's colour, centred, on a dark backing.
 void a_tag_up_close_says_the_name_in_the_players_colour() {
     FakePainter p;
     const mp::TagStats stats = mp::draw_name_tags(p, kCamera, {tag_at(5.0f)});
@@ -90,6 +105,7 @@ void a_tag_up_close_says_the_name_in_the_players_colour() {
     CHECK(p.drawn[0].y <= text->y && p.drawn[0].h >= text->h);
 }
 
+// Checks that a tag past the distance where tags go draws nothing.
 void far_away_there_is_nothing_at_all() {
     FakePainter p;
     const mp::TagStats stats = mp::draw_name_tags(p, kCamera, {tag_at(mp::kTagGone + 1)});
@@ -97,7 +113,8 @@ void far_away_there_is_nothing_at_all() {
 
     // On the way out, the text is at its smallest and half faded, its backing with it.
     FakePainter between;
-    const mp::TagStats mid = mp::draw_name_tags(between, kCamera, {tag_at((mp::kTagFadeFrom + mp::kTagGone) / 2)});
+    const mp::TagStats mid =
+        mp::draw_name_tags(between, kCamera, {tag_at((mp::kTagFadeFrom + mp::kTagGone) / 2)});
     const Drawn* text = between.text_drawn();
     CHECK(mid.drawn == 1 && text != nullptr && text->h == mp::kTagTextFar);
     const std::uint32_t alpha = text->colour & 0xFFu;
@@ -105,9 +122,11 @@ void far_away_there_is_nothing_at_all() {
     CHECK((between.drawn[0].colour & 0xFFu) < (0xA0u + 2) / 2 + 2 && between.drawn.size() == 2);
 }
 
+// Checks that a tag's alpha falls to zero in small steps as distance grows and never rises.
 void the_fade_is_smooth_and_only_goes_down() {
     std::uint32_t last = 0xFFu;
 
+    // The distance sweeps from where the fade starts to where tags are gone, in quarter steps.
     for (float d = mp::kTagFadeFrom - 1; d < mp::kTagGone + 1; d += 0.25f) {
         FakePainter p;
         mp::draw_name_tags(p, kCamera, {tag_at(d)});
@@ -119,6 +138,7 @@ void the_fade_is_smooth_and_only_goes_down() {
     CHECK(last == 0u);
 }
 
+// Checks that a tag with no sight draws nothing and one half seen draws at half strength.
 void a_tag_out_of_sight_draws_nothing_and_half_seen_is_faint() {
     mp::NameTag tag = tag_at(5.0f);
     tag.sight = 0.0f;
@@ -132,6 +152,7 @@ void a_tag_out_of_sight_draws_nothing_and_half_seen_is_faint() {
     CHECK(alpha >= 0x7Fu && alpha <= 0x80u);
 }
 
+// Checks that a tag's sight eases in and out and holds its value across a short break.
 void sight_comes_and_goes_smoothly_and_holds_at_a_corner() {
     mp::TagSight sight;
     double t = 1000;
@@ -143,6 +164,7 @@ void sight_comes_and_goes_smoothly_and_holds_at_a_corner() {
     const float first = sight.advance(t += 16);
     CHECK(first > 0.0f && first < 0.2f);
 
+    // Sight is asked for whenever it is due and eases in over a few frames until it is full.
     for (int i = 0; i < 12; ++i) {
         if (sight.due(t)) {
             sight.asked(true, t);
@@ -156,6 +178,7 @@ void sight_comes_and_goes_smoothly_and_holds_at_a_corner() {
     sight.asked(true, t);
     const double clear_at = t;
 
+    // Blocked for less than the hold, the sight stays full.
     while (t < clear_at + mp::kTagHoldMs - 20) {
         sight.asked(false, t);
         CHECK(sight.advance(t += 16) == 1.0f);
@@ -167,6 +190,7 @@ void sight_comes_and_goes_smoothly_and_holds_at_a_corner() {
     float last = 1.0f;
     double blocked_from = t;
 
+    // Blocked for good, the sight holds, then fades in small steps to zero and stays there.
     while (t < blocked_from + mp::kTagHoldMs + mp::kTagSightFadeMs + 50) {
         sight.asked(false, t);
         const float now = sight.advance(t += 16);
@@ -177,8 +201,9 @@ void sight_comes_and_goes_smoothly_and_holds_at_a_corner() {
     CHECK(last == 0.0f);
 }
 
-/* The game's side: the figure seen, then a wall; a low wall leaves its head in view; a game that cannot
- * say leaves the tag on; a figure beyond any tag costs no line. */
+// The game's side: the figure seen, then a wall; a low wall leaves its head in view; a game that cannot
+// say leaves the tag on; a figure beyond any tag costs no line.
+// Checks that a wall between two players takes the tag's sight away in a running game.
 void a_wall_between_takes_the_tag_away_in_the_game() {
     Party party;
     auto run = [&](int ticks) {
@@ -215,6 +240,7 @@ void a_wall_between_takes_the_tag_away_in_the_game() {
     CHECK(party.a.game.lines_asked == 0);
 }
 
+// Checks that the name's text height falls with distance, between its near and far sizes.
 void the_text_shrinks_with_distance() {
     FakePainter near_one, mid;
     mp::draw_name_tags(near_one, kCamera, {tag_at(mp::kTagNear)});
@@ -223,6 +249,7 @@ void the_text_shrinks_with_distance() {
     CHECK(mid.text_drawn()->h < mp::kTagTextNear && mid.text_drawn()->h > mp::kTagTextFar);
 }
 
+// Checks that a tag whose point is off the picture draws nothing.
 void off_the_picture_there_is_no_tag() {
     FakePainter p;
     p.on_picture = false;
@@ -230,6 +257,7 @@ void off_the_picture_there_is_no_tag() {
     CHECK(stats.tags == 1 && stats.on_picture == 0 && p.drawn.empty());
 }
 
+// Checks that a tag near the picture's right or top edge is moved to stay inside it.
 void a_tag_stays_on_the_picture() {
     FakePainter right, top;
     right.at_x = 510;
@@ -241,6 +269,7 @@ void a_tag_stays_on_the_picture() {
     CHECK(top.text_drawn()->y >= 0);
 }
 
+// Checks that a late player's tag gets one extra mark, drawn after the name in another colour.
 void a_lagging_player_has_a_mark() {
     mp::NameTag tag = tag_at(5.0f);
     FakePainter fine, late;
@@ -252,7 +281,9 @@ void a_lagging_player_has_a_mark() {
     CHECK(late.drawn.back().x > text->x && late.drawn.back().colour != text->colour);
 }
 
+// Checks that the first four slots have distinct colours and other slots wrap round to them.
 void each_slot_has_its_colour() {
+    // Every pair of the first four slots must differ.
     for (int a = 0; a < 4; ++a) {
         for (int b = a + 1; b < 4; ++b) {
             CHECK(mp::tag_colour(a) != mp::tag_colour(b));
@@ -262,10 +293,12 @@ void each_slot_has_its_colour() {
     CHECK(mp::tag_colour(5) == mp::tag_colour(1) && mp::tag_colour(-1) == mp::tag_colour(3));
 }
 
-/* The figures shown are the tags: each player's name at its figure, in the party's order, in every
- * game; none for one hidden by a scene or gone. */
+// The figures shown are the tags: each player's name at its figure, in the party's order, in every
+// game; none for one hidden by a scene or gone.
 void the_shown_figures_have_their_names() {
     Party party;
+
+    // Thirty ticks give the poses time to make the figures that the tags follow.
     for (int i = 0; i < 30; ++i) {
         tick(party.players(), 16);
     }
@@ -278,6 +311,7 @@ void the_shown_figures_have_their_names() {
     CHECK(!party.a.game.figures.empty());
     bool at_a_figure = false;
 
+    // A tag's position must be where one of the figures stands.
     for (const auto& f : party.a.game.figures) {
         at_a_figure = at_a_figure || std::fabs(f.second.position[0] - tags[0].position[0]) < 1e-3f;
     }
@@ -292,7 +326,7 @@ void the_shown_figures_have_their_names() {
     CHECK(party.a.coop.name_tags().empty());
 }
 
-/* What the launcher writes (modset.rs, write_game_file). */
+// What the launcher writes (modset.rs, write_game_file).
 const char* const kFile = R"({
   "code": "K7M2-9QXR",
   "created": "2026-10-31T12:00:00Z",
@@ -305,6 +339,7 @@ const char* const kFile = R"({
 }
 )";
 
+// Returns a mod list with the given (id, version) pairs.
 mp::ModList list_of(std::vector<std::pair<std::string, std::string>> mods) {
     mp::ModList list;
 
@@ -318,28 +353,51 @@ mp::ModList list_of(std::vector<std::pair<std::string, std::string>> mods) {
     return list;
 }
 
+// Checks that the launcher's mod set file is read into its code, link and mods.
 void the_launchers_file_is_read() {
     mp::ModSetFile file;
     CHECK(mp::parse_modset(kFile, file));
     CHECK(file.code == "K7M2-9QXR" && file.link == "openrac://modset/K7M2-9QXR");
-    CHECK(file.mods.size() == 2 && file.mods[1].first == "item-randomizer" && file.mods[1].second == "0.3.1");
+    CHECK(
+        file.mods.size() == 2 && file.mods[1].first == "item-randomizer"
+        && file.mods[1].second == "0.3.1"
+    );
     // The server could not be reached: no short code, the long link.
-    CHECK(mp::parse_modset(R"({"format":1,"code":null,"link":"openrac://modset/ORMS1.abc","mods":[]})", file));
+    CHECK(
+        mp::parse_modset(
+            R"({"format":1,"code":null,"link":"openrac://modset/ORMS1.abc","mods":[]})", file
+        )
+    );
     CHECK(file.code.empty() && file.link == "openrac://modset/ORMS1.abc" && file.mods.empty());
     // Keys of a later file are passed over.
-    CHECK(mp::parse_modset(R"({"format":1,"future":{"a":[1,"}",null]},"mods":[{"id":"a","version":"1","x":2}]})", file));
+    CHECK(
+        mp::parse_modset(
+            R"({"format":1,"future":{"a":[1,"}",null]},"mods":[{"id":"a","version":"1","x":2}]})",
+            file
+        )
+    );
     CHECK(file.mods.size() == 1);
 
-    for (const char* bad : {"", "[]", "{", "{}", R"({"format":2,"mods":[]})", R"({"format":1})",
-                            R"({"mods":[]})", R"({"format":1,"mods":[{"id":"a"}]})",
-                            R"({"format":1,"mods":[]} x)", R"({"format":1,"mods":[}")",
-                            R"({"format":1,"code":7,"mods":[]})"}) {
+    // None of these texts is a valid mod set file.
+    for (const char* bad :
+         {"",
+          "[]",
+          "{",
+          "{}",
+          R"({"format":2,"mods":[]})",
+          R"({"format":1})",
+          R"({"mods":[]})",
+          R"({"format":1,"mods":[{"id":"a"}]})",
+          R"({"format":1,"mods":[]} x)",
+          R"({"format":1,"mods":[}")",
+          R"({"format":1,"code":7,"mods":[]})"}) {
         CHECK(!mp::parse_modset(bad, file));
     }
 
     CHECK(!mp::parse_modset(std::string(70000, ' ') + kFile, file));
 }
 
+// Checks that the code shows only when the player's mods are the ones the file names.
 void the_code_shows_only_for_the_mods_it_names() {
     mp::ModSetFile file;
     CHECK(mp::parse_modset(kFile, file));
@@ -353,11 +411,16 @@ void the_code_shows_only_for_the_mods_it_names() {
     same.mods.push_back(input);
     CHECK(mp::modset_matches(file, same));
     // Another version, a mod more, a mod less: not this code.
-    CHECK(!mp::modset_matches(file, list_of({{"item-randomizer", "0.3.2"}, {"difficulty-mod", "1.4.0"}})));
+    CHECK(!mp::modset_matches(
+        file, list_of({{"item-randomizer", "0.3.2"}, {"difficulty-mod", "1.4.0"}})
+    ));
     CHECK(!mp::modset_matches(file, list_of({{"difficulty-mod", "1.4.0"}})));
-    CHECK(!mp::modset_matches(file, list_of({{"item-randomizer", "0.3.1"}, {"difficulty-mod", "1.4.0"}, {"x", "1"}})));
+    CHECK(!mp::modset_matches(
+        file, list_of({{"item-randomizer", "0.3.1"}, {"difficulty-mod", "1.4.0"}, {"x", "1"}})
+    ));
 }
 
+// Checks that the launcher's join request is taken once and only when it is fresh and well formed.
 void a_join_request_is_for_one_start() {
     CHECK(mp::mod_code_with_party("K7M2-9QXR", "") == "K7M2-9QXR");
     CHECK(mp::mod_code_with_party("K7M2-9QXR", "ABC234") == "K7M2-9QXR?party=ABC234");
@@ -375,6 +438,7 @@ void a_join_request_is_for_one_start() {
     // Gone: the next start joins nothing.
     CHECK(!std::filesystem::exists(folder / "modset-join.json"));
     CHECK(mp::take_join_request(folder.string(), now).empty());
+
     // Stale, from the future, no party code, another format, not JSON: nothing, and gone too.
     for (const std::string& bad : {
              std::string(R"({"format": 1, "party": "ABC234", "written": 1})"),
@@ -390,9 +454,11 @@ void a_join_request_is_for_one_start() {
         CHECK(mp::take_join_request(folder.string(), now).empty());
         CHECK(!std::filesystem::exists(folder / "modset-join.json"));
     }
+
     std::filesystem::remove_all(folder);
 }
 
+// Checks that the mod set file is found in the folder and shared only when the mods match.
 void the_file_is_found_in_the_folder() {
     const std::filesystem::path folder =
         std::filesystem::temp_directory_path() / ("mp_modcode_" + std::to_string(std::rand()));
@@ -420,16 +486,28 @@ void the_file_is_found_in_the_folder() {
     std::filesystem::remove_all(folder, ignored);
 }
 
+// Checks that only a text of the code's exact shape is taken as a code.
 void only_a_codes_shape_is_a_code() {
     CHECK(mp::valid_mod_code("K7M2-9QXR"));
     CHECK(mp::mod_code_link("K7M2-9QXR") == "openrac://modset/K7M2-9QXR");
 
-    for (const char* bad : {"", "K7M29QXR", "K7M2-9QX", "K7M2-9QXRR", "K0M2-9QXR", "k7m2-9qxr", "K7M2_9QXR",
-                            "K7M2/9QXR", "../../x.", "https://x"}) {
+    // None of these texts is of a code's shape.
+    for (const char* bad :
+         {"",
+          "K7M29QXR",
+          "K7M2-9QX",
+          "K7M2-9QXRR",
+          "K0M2-9QXR",
+          "k7m2-9qxr",
+          "K7M2_9QXR",
+          "K7M2/9QXR",
+          "../../x.",
+          "https://x"}) {
         CHECK(!mp::valid_mod_code(bad) && mp::mod_code_link(bad).empty());
     }
 }
 
+// Checks that the host's mod code reaches a member whose mods differ, and goes when it is cleared.
 void the_hosts_code_reaches_a_refused_member() {
     Player host(1), member(2);
     const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
@@ -455,6 +533,7 @@ void the_hosts_code_reaches_a_refused_member() {
     CHECK(member.mods.host_list().modcode.empty());
 }
 
+// Checks that a mod code read from the wire that is not a code's shape is dropped.
 void a_code_on_the_wire_is_only_a_code() {
     mp::ModList list = sample_list();
     list.modcode = "K7M2-9QXR";
@@ -468,10 +547,15 @@ void a_code_on_the_wire_is_only_a_code() {
     CHECK(mp::decode_mod_list(evil, back) && back.modcode.empty());
 }
 
+// Checks that the code's texts name no region and fit the pause menu's line.
 void the_words_name_no_region() {
-    for (const std::string& line : {std::string(mp::kModCodeLabel), std::string(mp::kModCodeHint),
-                                    std::string(mp::kModCodeInLauncher), std::string(mp::kOpenInLauncher),
-                                    std::string(mp::kDifferentDisc)}) {
+    // Each text names no region and fits a pause menu line, with a little margin.
+    for (const std::string& line :
+         {std::string(mp::kModCodeLabel),
+          std::string(mp::kModCodeHint),
+          std::string(mp::kModCodeInLauncher),
+          std::string(mp::kOpenInLauncher),
+          std::string(mp::kDifferentDisc)}) {
         CHECK(line.find("PAL") == std::string::npos && line.find("NTSC") == std::string::npos);
         CHECK(line.size() <= mp::kPauseLine + 10);
     }

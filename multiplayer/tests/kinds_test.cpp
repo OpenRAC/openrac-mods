@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The wire registry (kinds.hpp): the kinds in use share no value and lie in their owner's place,
- * the reserved ranges do not overlap each other or a kind in use, and the router sends every
- * possible first byte where the chain of tests it replaced did.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The wire registry (kinds.hpp): the kinds in use share no value and lie in their owner's place,
+// the reserved ranges do not overlap each other or a kind in use, and the router sends every
+// possible first byte where the chain of tests it replaced did.
+
 #include <cstdint>
 #include <cstdio>
 #include <vector>
@@ -27,12 +27,19 @@ using mp::Owner;
 
 constexpr std::size_t kCount = sizeof(mp::kKinds) / sizeof(mp::kKinds[0]);
 
+// Checks that no two kinds in the registry share a value.
 void no_two_kinds_share_a_value() {
     for (std::size_t i = 0; i < kCount; ++i) {
         for (std::size_t j = i + 1; j < kCount; ++j) {
+            // The clashing kinds are named first, since CHECK prints only its expression.
             if (mp::kKinds[i].value == mp::kKinds[j].value) {
-                std::fprintf(stderr, "kinds %s and %s share %d\n", mp::kKinds[i].name, mp::kKinds[j].name,
-                             mp::kKinds[i].value);
+                std::fprintf(
+                    stderr,
+                    "kinds %s and %s share %d\n",
+                    mp::kKinds[i].name,
+                    mp::kKinds[j].name,
+                    mp::kKinds[i].value
+                );
             }
 
             CHECK(mp::kKinds[i].value != mp::kKinds[j].value);
@@ -40,6 +47,7 @@ void no_two_kinds_share_a_value() {
     }
 }
 
+// Checks that the reserved ranges are ordered, do not overlap and hold only their owner's kinds.
 void reserved_ranges_are_well_formed_and_apart() {
     constexpr std::size_t n = sizeof(mp::kReservedRanges) / sizeof(mp::kReservedRanges[0]);
 
@@ -61,6 +69,7 @@ void reserved_ranges_are_well_formed_and_apart() {
     }
 }
 
+// Checks that the planned ranges belong to their owners and that the free values belong to none.
 void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(32) == Owner::kSave && mp::owner_of(35) == Owner::kSave);
     CHECK(mp::owner_of(36) == Owner::kShare && mp::owner_of(39) == Owner::kShare);
@@ -71,7 +80,10 @@ void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(56) == Owner::kTether && mp::owner_of(59) == Owner::kTether);
     CHECK(mp::owner_of(60) == Owner::kPartyRules && mp::owner_of(63) == Owner::kPartyRules);
     // The lobby's, all read by the Session and never handed to the game's data.
-    CHECK(mp::owner_of(64) == Owner::kLobby && mp::owner_of(67) == Owner::kLobby && mp::owner_of(70) == Owner::kLobby);
+    CHECK(
+        mp::owner_of(64) == Owner::kLobby && mp::owner_of(67) == Owner::kLobby
+        && mp::owner_of(70) == Owner::kLobby
+    );
     CHECK(mp::owner_of(71) == Owner::kWorld && mp::owner_of(72) == Owner::kWorld);
     // The team tools' (comfort.hpp): 80 is multiplayer 0.8.0's kind, 81 to 83 kept for them.
     CHECK(mp::kind::kComfort == 80);
@@ -82,9 +94,9 @@ void the_plans_ranges_are_held_by_their_owners() {
     CHECK(mp::owner_of(84) == Owner::kCount && mp::owner_of(127) == Owner::kCount);
 }
 
-/* The chain the registry replaced: the lobby's kinds (session.cpp), then the team tools' 80
- * (multiplayer 0.8.0's chain tested it first), mods 29 to 31, the world's 9 to 17, 22, 24, 26 to
- * 28, 71 and 72, progress 23, and the co-op for the rest. */
+// The chain the registry replaced: the lobby's kinds (session.cpp), then the team tools' 80
+// (multiplayer 0.8.0's chain tested it first), mods 29 to 31, the world's 9 to 17, 22, 24, 26 to
+// 28, 71 and 72, progress 23, and the co-op for the rest.
 Owner old_route(std::uint8_t k) {
     if ((k >= 1 && k <= 3) || k == 64 || k == 65 || k == 66) {
         return Owner::kLobby;
@@ -111,17 +123,24 @@ Owner old_route(std::uint8_t k) {
     return Owner::kCoop;
 }
 
+// Checks that the router sends every possible first byte where the old chain of tests sent it.
 void the_router_sends_every_kind_where_the_old_chain_did() {
     mp::Router router;
     std::vector<Owner> got;
     Owner reached = Owner::kCount;
 
+    // The four owners with a handler each record that they were reached.
     for (const Owner o : {Owner::kMods, Owner::kWorld, Owner::kProgress, Owner::kComfort}) {
-        router.route(o, [&reached, o](std::int32_t, const std::vector<std::uint8_t>&) { reached = o; });
+        router.route(o, [&reached, o](std::int32_t, const std::vector<std::uint8_t>&) {
+            reached = o;
+        });
     }
 
-    router.fallback([&reached](std::int32_t, const std::vector<std::uint8_t>&) { reached = Owner::kCoop; });
+    router.fallback([&reached](std::int32_t, const std::vector<std::uint8_t>&) {
+        reached = Owner::kCoop;
+    });
 
+    // Every possible first byte goes through the router.
     for (unsigned k = 0; k < 256; ++k) {
         reached = Owner::kCount;
         router.dispatch(1, {static_cast<std::uint8_t>(k), 0});
@@ -151,6 +170,7 @@ int main() {
     the_plans_ranges_are_held_by_their_owners();
     the_router_sends_every_kind_where_the_old_chain_did();
 
+    // The failures are reported once, at the end.
     if (failures != 0) {
         std::fprintf(stderr, "%d checks failed\n", failures);
         return 1;

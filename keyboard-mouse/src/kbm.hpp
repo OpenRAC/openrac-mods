@@ -5,8 +5,8 @@
 // the actions and their binds, conflicts between them, the keys to the left stick, the mouse to
 // the right stick and to the camera itself, the mouse to the Quick Select ring's direction, and
 // the DualShock report the game reads. keyboard_mouse.cpp joins it to the game.
-#ifndef KBM_HPP
-#define KBM_HPP
+
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -75,8 +75,8 @@ enum class Group : int {
 
 // One row of the action table: the setting that binds the action and which group it counts in.
 struct ActionInfo {
-    const char* key;       // the setting's key in openrac-mod.json
-    const char* fallback;  // its default, as the manifest's
+    const char* key;       // The setting's key in openrac-mod.json.
+    const char* fallback;  // Its default, as the manifest's.
     Group group;
 };
 
@@ -201,7 +201,8 @@ inline std::vector<Conflict> conflicts(const Bindings& b) {
     for (int x = 0; x < kActionCount; ++x) {
         // Pair it with each later action, so a conflict is reported once.
         for (int y = x + 1; y < kActionCount; ++y) {
-            // Only actions of the same group conflict: a play bind and a menu bind never count together.
+            // Only actions of the same group conflict: a play bind and a menu bind never count
+            // together.
             if (kActions[static_cast<std::size_t>(x)].group
                 != kActions[static_cast<std::size_t>(y)].group) {
                 continue;
@@ -232,8 +233,8 @@ inline bool is_mouse(int bind) {
 
 // The player's settings for the movement keys.
 struct MoveTuning {
-    float walk = 0.5f;        // how far the stick goes while walking (0..1)
-    float rise_ticks = 4.0f;  // ticks from rest to full (0: at once)
+    float walk = 0.5f;        // How far the stick goes while walking (0..1).
+    float rise_ticks = 4.0f;  // Ticks from rest to full (0: at once).
 };
 
 // Digital keys to an analog stick: the four directions as a vector (diagonals on the circle, not
@@ -250,7 +251,8 @@ struct KeyStick {
         float ty = (back ? 1.0f : 0.0f) - (forward ? 1.0f : 0.0f);
         const float length = std::sqrt(tx * tx + ty * ty);
 
-        // Two keys held for a diagonal reach past the unit circle: scale back so a diagonal is no faster.
+        // Two keys held for a diagonal reach past the unit circle: scale back so a diagonal is no
+        // faster.
         if (length > 1.0f) {
             tx /= length;
             ty /= length;
@@ -286,10 +288,10 @@ struct KeyStick {
 
 // The player's settings for the mouse's look.
 struct LookTuning {
-    float sensitivity = 1.0f;   // the mouse's turn, 1 the default
-    float acceleration = 0.0f;  // 0: none; more turns a fast flick further than a slow drag
+    float sensitivity = 1.0f;   // The mouse's turn, 1 the default.
+    float acceleration = 0.0f;  // 0 for none; more turns a fast flick further than a slow drag.
     bool invert_y = false;
-    bool pitch_holds = true;  // the camera's tilt stays where the mouse leaves it
+    bool pitch_holds = true;  // The camera's tilt stays where the mouse leaves it.
 };
 
 // The mouse's motion over a tick, at sensitivity 1, that pushes the stick all the way.
@@ -309,7 +311,7 @@ inline constexpr float kTiltSnap = 0.01f;
 struct MouseLook {
     float x = 0.0f;
     float y = 0.0f;
-    float tilt = 0.0f;  // the held elevation, -1 (up) .. 1 (down)
+    float tilt = 0.0f;  // The held elevation, -1 (up) to 1 (down).
     float last_dx = 0.0f;
 
     // The gain for a tick's motion of `speed` pixels: 1 without acceleration.
@@ -374,30 +376,37 @@ struct Vec3 {
     float z = 0.0f;
 };
 
+// Returns the dot product of two vectors.
 inline float dot(Vec3 a, Vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+// Returns the cross product of `a` and `b`.
 inline Vec3 cross(Vec3 a, Vec3 b) {
     return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
 
+// Returns `a` scaled by `k`.
 inline Vec3 scaled(Vec3 a, float k) {
     return {a.x * k, a.y * k, a.z * k};
 }
 
+// Returns the sum of two vectors.
 inline Vec3 plus(Vec3 a, Vec3 b) {
     return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
 
+// Returns `a` less `b`.
 inline Vec3 minus(Vec3 a, Vec3 b) {
     return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
+// Returns the length of a vector.
 inline float length(Vec3 a) {
     return std::sqrt(dot(a, a));
 }
 
+// Returns `v` held within `lo` and `hi`.
 inline float clamp(float v, float lo, float hi) {
     return std::max(lo, std::min(hi, v));
 }
@@ -499,7 +508,9 @@ inline float follow_target_of(float e) {
 // Never 0: a stick at rest makes the game use its own resting height instead.
 inline float follow_stick_for(float w, bool game_inverts) {
     w = std::max(-1.0f, std::min(1.0f, w));
-    float in = kFollowDeadZone;  // just at the dead zone's edge: w = 0
+
+    // Start at the dead zone's edge, which is w = 0.
+    float in = kFollowDeadZone;
 
     // Past the dead zone's edge on the side the target is on, so that the game reads it as w.
     if (w > 0.0f) {
@@ -559,7 +570,8 @@ struct RingPointer {
 
 // The slot the game's ring gives a stick pointing (x, y), y down: its slots are 45 degrees apart,
 // slot 0 at the top and going clockwise (slot i's icon is at angle i * pi / 4 - pi / 2), each
-// taking the 45 degrees around it. -1 for a stick at rest. What the tests check the pointer against.
+// taking the 45 degrees around it. -1 for a stick at rest. What the tests check the pointer
+// against.
 inline int ring_slot(float x, float y) {
     // A stick at rest points at no slot.
     if (x == 0.0f && y == 0.0f) {
@@ -567,7 +579,9 @@ inline int ring_slot(float x, float y) {
     }
 
     const float pi = 3.14159265f;
-    float a = std::atan2(y, x) + pi / 2.0f;  // 0 at the top, clockwise
+
+    // The angle is 0 at the top and grows clockwise.
+    float a = std::atan2(y, x) + pi / 2.0f;
 
     // Bring the angle into 0 to 2 pi.
     while (a < 0.0f) {
@@ -652,8 +666,8 @@ struct Virtual {
 };
 
 // Into the game's report (18 bytes: buttons, right stick, left stick, twelve pressures), on top of
-// the gamepad's: our buttons are held as well as the pad's, and each stick axis of ours that is
-// off centre takes that axis's place.
+// the gamepad's: the mod's buttons are held as well as the pad's, and each of the mod's stick axes
+// that is off centre takes that axis's place.
 inline void merge(const Virtual& v, std::uint8_t* report, int size) {
     // A report too short for the sticks is left alone.
     if (size < 6) {
@@ -666,7 +680,7 @@ inline void merge(const Virtual& v, std::uint8_t* report, int size) {
     report[1] = static_cast<std::uint8_t>(buttons >> 8);
     const float axes[4] = {v.right_x, v.right_y, v.left_x, v.left_y};
 
-    // Each of our axes that is off centre takes the place of the gamepad's.
+    // Each of the mod's axes that is off centre takes the place of the gamepad's.
     for (int i = 0; i < 4; ++i) {
         // An axis at rest leaves the gamepad's byte as it is.
         if (axes[i] != 0.0f) {
@@ -674,7 +688,7 @@ inline void merge(const Virtual& v, std::uint8_t* report, int size) {
         }
     }
 
-    // Each button of ours that has a pressure byte in the report presses it fully.
+    // Each of the mod's buttons that has a pressure byte in the report presses it fully.
     for (int i = 0; i < 12 && 6 + i < size; ++i) {
         // Only held buttons press their pressure byte.
         if ((v.held >> kPressureBits[static_cast<std::size_t>(i)]) & 1u) {
@@ -837,25 +851,36 @@ inline std::uint16_t buttons_for(
                 set(confirm, kCross);
             }
 
-            set(on(Action::MenuCircle),
-                kCircle);  // Circle where a page reads it (quit, a value back)
+            // Circle where a page reads it (quit, a value back).
+            set(on(Action::MenuCircle), kCircle);
             set(back || escape, kTriangle);
-            set(on(Action::Fire), kCircle);  // the map's Circle: go to the planet
+
+            // The map's Circle: go to the planet.
+            set(on(Action::Fire), kCircle);
             set(on(Action::Wrench), kSquare);
-            set(on(Action::Crouch), kR1);  // next slot, next planet
+
+            // Next slot, next planet.
+            set(on(Action::Crouch), kR1);
             set(on(Action::FirstPerson), kL1);
-            set(on(Action::Map), kSelect);  // closes the pause menu
+
+            // Select closes the pause menu.
+            set(on(Action::Map), kSelect);
             break;
         case Context::Dialog:
             set(confirm, kCross);
-            set(on(Action::MenuCircle), kCircle);  // the memory card's yes (create, format)
 
-            // The race dialog goes on with Start and quits with Circle; the others go on with Cross.
+            // The memory card's yes (create, format).
+            set(on(Action::MenuCircle), kCircle);
+
+            // The race dialog goes on with Start and quits with Circle; the others go on with
+            // Cross.
             if (dialog_kind == kDialogQuitRace) {
-                set(escape, kStart);  // goes on racing
+                // Start goes on racing.
+                set(escape, kStart);
                 set(back, kCircle);
             } else {
-                set(escape, kCross);  // goes on
+                // Cross goes on.
+                set(escape, kCross);
                 set(back, kTriangle);
             }
 
@@ -877,11 +902,11 @@ inline std::uint16_t buttons_for(
 // paused does not also go back in the menu it opened, Space that confirmed does not jump.
 struct Latch {
     ActionSet blocked = 0;
-    ActionSet before = 0;  // what was held the tick before
+    ActionSet before = 0;  // What was held the tick before.
     Context last = Context::Play;
     bool first = true;
 
-    // A key pressed just as the game changes (down this tick, not the last) is a new press, and
+    // A key pressed as the game changes (down this tick, not the last) is a new press, and
     // counts.
     ActionSet filter(Context now, ActionSet held) {
         // The first tick, or a change of where the game is, starts a new block.
@@ -892,7 +917,9 @@ struct Latch {
         }
 
         before = held;
-        blocked &= held;  // let go: free again
+
+        // An action let go is free again.
+        blocked &= held;
         return held & ~blocked;
     }
 };
@@ -922,7 +949,7 @@ struct Pulser {
 
     // This tick's buttons.
     std::uint16_t step() {
-        // A pulse just sent rests for one tick, so that the game sees the button let go.
+        // A pulse that was sent rests for one tick, so that the game sees the button let go.
         if (resting || count == 0) {
             resting = false;
             return 0;
@@ -970,7 +997,8 @@ struct Stepper {
 
         // The mouse went mostly sideways.
         if (std::fabs(x) >= std::fabs(y)) {
-            y *= 0.5f;  // across the way it goes: forgotten slowly
+            // The motion across the way it goes is forgotten slowly.
+            y *= 0.5f;
 
             // Far enough right: one step of the d-pad.
             if (x >= distance) {
@@ -1079,6 +1107,7 @@ std::uint32_t reachable_widgets(
 
         // Each link that leads to one of the page's widgets not reached yet.
         for (int l = 0; l < n; ++l) {
+            // Find the link's widget among the page's.
             for (int i = 0; i < count; ++i) {
                 // Not this widget, or reached already.
                 if (widgets[i] != out[l] || (found & (1u << i)) != 0) {
@@ -1207,9 +1236,11 @@ inline int grid_cell_at(const GridLayout& g, float px, float py) {
     // The column whose icon (with half the gap each side) holds the point.
     int column = -1;
 
+    // Test each column's icon span in turn.
     for (int j = 0; j < g.cols && column < 0; ++j) {
         const float left = (start_x + column_step * static_cast<float>(j)) * scale;
 
+        // The point is inside this column's span, gaps included.
         if (lx >= left - gap_x && lx < left + icon_w + gap_x) {
             column = j;
         }
@@ -1218,9 +1249,11 @@ inline int grid_cell_at(const GridLayout& g, float px, float py) {
     // The row, the same way.
     int row = -1;
 
+    // Test each row's icon span in turn.
     for (int i = 0; i < g.rows && row < 0; ++i) {
         const float top = (start_y + row_step * static_cast<float>(i)) * scale;
 
+        // The point is inside this row's span, gaps included.
         if (ly >= top - gap_y && ly < top + icon_h + gap_y) {
             row = i;
         }
@@ -1247,5 +1280,3 @@ inline std::uint16_t grid_step(int from, int to, int rows, int cols) {
 }
 
 }  // namespace kbm
-
-#endif  // KBM_HPP

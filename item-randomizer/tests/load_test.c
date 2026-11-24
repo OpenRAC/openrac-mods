@@ -95,9 +95,12 @@ static struct {
     const char* name;
     const char* signature;
     void* replacement;
-} s_hooks[32];
+} s_hooks[128];
 
 static int s_hook_count;
+static int s_menu_opens;
+static int s_vendor_present;
+static uint32_t s_loads = 1;
 static const char* s_refused_hook; /* the hook point this "OpenRAC" lacks; NULL for none */
 static openrac_frame_fn s_frame;
 
@@ -106,10 +109,12 @@ static openrac_frame_fn s_frame;
 static int s_gives, s_unlocks, s_banners, s_list_builds, s_counted;
 static uint8_t s_helga_saw = 0xEE;
 static int s_keep_start = 1;
+static const char* s_start_weapons; /* the starting_weapons choice; null: s_keep_start's */
 static int32_t s_last_equip = -1;
 static uint8_t s_ship_saw = 0xEE, s_class22_saw = 0xEE;
 static int s_helps;
-static int s_drop_saw;
+static uint8_t s_drop_stock[VENDOR_STOCK_SIZE];
+static openrac_gaddr s_drop_moby;
 static char s_notice[128];
 static int s_phase = OPENRAC_PLAY_PLAYING;
 static int s_new_game_only; /* the "new_game_only" setting the host gives */
@@ -268,10 +273,52 @@ static int32_t game_count(void) {
     return 123;
 }
 
+/* Save inside an NPC update, while its ownership test is substituted. The save
+ * entry points can call each other; every snapshot must see the true inventory. */
+static void* hook_named(const char* name);
+static int s_save_probe, s_save_snapshots;
+static uint8_t s_saved_inventory[RANDO_ITEM_COUNT];
+static void snapshot_inventory(void) {
+    memcpy(s_saved_inventory, s_memory + D->owned, sizeof s_saved_inventory);
+    ++s_save_snapshots;
+}
+static void game_save_serialize(openrac_gaddr out) {
+    CHECK(out == 0x1234u);
+    snapshot_inventory();
+}
+static void game_save_prepare(int32_t buffer, int32_t slot) {
+    CHECK(buffer == 0x1234 && slot == 7);
+    snapshot_inventory();
+    void (*serialize)(openrac_gaddr) = (void (*)(openrac_gaddr))hook_named("rac1.save.serialize");
+    if (serialize) serialize(0x1234u); else game_save_serialize(0x1234u);
+    CHECK(memcmp(s_saved_inventory, s_memory + D->owned, sizeof s_saved_inventory) == 0);
+}
+static int32_t game_request_autosave(int32_t slot, int32_t flags) {
+    CHECK(slot == 7 && flags == -1);
+    snapshot_inventory();
+    void (*prepare)(int32_t, int32_t) = (void (*)(int32_t, int32_t))hook_named("rac1.save.prepare");
+    if (prepare) prepare(0x1234, 7); else game_save_prepare(0x1234, 7);
+    CHECK(memcmp(s_saved_inventory, s_memory + D->owned, sizeof s_saved_inventory) == 0);
+    return 99;
+}
+
+static int s_hero_saw_heli;
+static void game_hero_update(void) {
+    s_hero_saw_heli = s_memory[D->owned + ITEM_HELI_PACK];
+    ((void (*)(int32_t, int32_t))hook_named("rac1.save.prepare"))(0x1234, 7);
+    CHECK(s_memory[D->owned + ITEM_HELI_PACK] == s_hero_saw_heli);
+}
+
 /* Helga: what she sees of the Swingshot; then she gives it when she is not done. */
 static void game_helga(openrac_gaddr moby) {
     (void)moby;
     s_helga_saw = s_memory[D->owned + ITEM_SWINGSHOT];
+    if (s_save_probe) {
+        int32_t (*save)(int32_t, int32_t) = (int32_t (*)(int32_t, int32_t))hook_named("rac1.save.request_autosave");
+        CHECK((save ? save(7, -1) : game_request_autosave(7, -1)) == 99);
+        /* Saving must not change what the remainder of the NPC's update sees. */
+        CHECK(s_memory[D->owned + ITEM_SWINGSHOT] == s_helga_saw);
+    }
 }
 
 /* An infobot: unlocks its planet when its planet's flag is clear, and marks its trigger slot. */
@@ -286,6 +333,11 @@ static void game_infobot(openrac_gaddr moby) {
         s_unlock_hook(planet);
         s_memory[D->triggers + s_memory[moby + MOBY_MISSION] + 16u * s_memory[D->level]] = 0xFF;
     }
+}
+
+static void game_open_menu(openrac_gaddr moby) {
+    (void)moby;
+    ++s_menu_opens;
 }
 
 static void game_moby(openrac_gaddr moby) {
@@ -316,9 +368,14 @@ static int32_t game_help(int32_t message, int32_t slot) {
 }
 
 static int32_t game_drop(openrac_gaddr moby, openrac_gaddr out_item) {
-    (void)moby, (void)out_item;
-    s_drop_saw = s_memory[D->vendor_stock];
-    return 1;
+    s_drop_moby = moby;
+    memcpy(s_drop_stock, s_memory + D->vendor_stock, sizeof s_drop_stock);
+    if (out_item && get32(s_memory + out_item) <= 0) {
+        set32(
+            s_memory + out_item, s_drop_stock[0] == 0xFF ? ITEM_BOMB_GLOVE : s_drop_stock[0] & 0x3F
+        );
+    }
+    return 2;
 }
 
 static void game_helmet(openrac_gaddr moby) {
@@ -340,8 +397,16 @@ static void host_fail(openrac_mod* mod, const char* reason) {
     snprintf(s_failed, sizeof s_failed, "%s", reason);
 }
 
+static int s_start_in_new_game_plus;
+
 static int setting_bool(openrac_mod* mod, const char* key) {
     (void)mod;
+
+    if(strcmp(key,"shuffle_gold_weapons")==0)return 0;
+    if (strcmp(key, "start_in_new_game_plus") == 0) {
+        return s_start_in_new_game_plus;
+    }
+    if (strcmp(key, "shuffle_items") == 0) return 0;
 
     if (strcmp(key, "vendor_hints") == 0) {
         return 1;
@@ -351,8 +416,7 @@ static int setting_bool(openrac_mod* mod, const char* key) {
         return s_new_game_only;
     }
 
-    return (strcmp(key, "keep_starting_gear") == 0 && s_keep_start)
-           || strncmp(key, "shuffle_", 8) == 0 || strcmp(key, "spoiler_log") == 0;
+    return strncmp(key, "shuffle_", 8) == 0 || strcmp(key, "spoiler_log") == 0;
 }
 
 static int64_t setting_int(openrac_mod* mod, const char* key) {
@@ -372,6 +436,10 @@ static const char* setting_string(openrac_mod* mod, const char* key) {
         return s_seed;
     }
 
+    if (strcmp(key, "starting_weapons") == 0) {
+        return s_start_weapons ? s_start_weapons : s_keep_start ? "vanilla" : "shuffled";
+    }
+
     return strcmp(key, "difficulty") == 0 ? "standard" : "";
 }
 
@@ -381,12 +449,14 @@ static uint32_t tag_word(void) {
     memcpy(&v, s_memory + D->save_tag, 4);
     return v;
 }
+
 static void set_tag_word(uint32_t v) {
     memcpy(s_memory + D->save_tag, &v, 4);
 }
 
 /* NewGameInit as the game's: the disc's starting save, whose tag word is 0, nothing owned. */
 static int s_new_games;
+
 static void game_new_game(void) {
     ++s_new_games;
     set_tag_word(0);
@@ -396,6 +466,7 @@ static void game_new_game(void) {
 
 /* Challenge mode's start as the game's: NewGameInit (through its hook), the progress kept. */
 static void* hook_named(const char* name);
+
 static void game_new_game_plus(int32_t slot) {
     (void)slot;
     uint8_t owned[RANDO_ITEM_COUNT];
@@ -405,6 +476,9 @@ static void game_new_game_plus(int32_t slot) {
 }
 
 static void* original_for(const char* name) {
+    if (strcmp(name, "rac1.save.prepare") == 0) return (void*)game_save_prepare;
+    if (strcmp(name, "rac1.save.request_autosave") == 0) return (void*)game_request_autosave;
+    if (strcmp(name, "rac1.save.serialize") == 0) return (void*)game_save_serialize;
     if (strcmp(name, ITEM_RANDOMIZER_HOOK_Save_NewGame) == 0) {
         return (void*)game_new_game;
     }
@@ -437,6 +511,8 @@ static void* original_for(const char* name) {
         return (void*)game_helga;
     }
 
+    if (strcmp(name, "rac1.player.update") == 0) return (void*)game_hero_update;
+
     if (strcmp(name, OPENRAC_RAC1_HOOK_Moby_Infobot_Update) == 0) {
         return (void*)game_infobot;
     }
@@ -461,6 +537,9 @@ static void* original_for(const char* name) {
         return (void*)game_drop;
     }
 
+    if (strcmp(name, OPENRAC_RAC1_HOOK_Vendor_OpenMenu) == 0) {
+        return (void*)game_open_menu;
+    }
     return (void*)game_moby;
 }
 
@@ -474,7 +553,7 @@ static int host_hook(
         return OPENRAC_HOOK_UNKNOWN;
     }
 
-    CHECK(s_hook_count < 32);
+    CHECK(s_hook_count < (int)(sizeof s_hooks/sizeof s_hooks[0]));
     s_hooks[s_hook_count].name = name;
     s_hooks[s_hook_count].signature = signature;
     s_hooks[s_hook_count].replacement = replacement;
@@ -554,6 +633,7 @@ static int host_replaying(void) {
 
 static int host_play_status(openrac_play_status* out) {
     out->phase = s_phase;
+    out->loads = s_loads;
     return OPENRAC_HOOK_OK;
 }
 
@@ -561,6 +641,16 @@ static int host_play_notice(openrac_mod* mod, const char* text) {
     (void)mod;
     snprintf(s_notice, sizeof s_notice, "%s", text != NULL ? text : "");
     return OPENRAC_HOOK_OK;
+}
+
+static int host_moby_list(openrac_moby* out, int capacity) {
+    if (!s_vendor_present || capacity < 1) {
+        return 0;
+    }
+    memset(out, 0, sizeof *out);
+    out->oclass = 0xB;
+    out->slot = 0;
+    return 1;
 }
 
 static openrac_api make_api(const char* game, const char* version) {
@@ -593,6 +683,7 @@ static openrac_api make_api(const char* game, const char* version) {
     api.party_rules_publish = host_rules_publish;
     api.on_party_rules = host_on_rules;
     api.party_replaying = host_replaying;
+    api.moby_list = host_moby_list;
     api.play_status = host_play_status;
     api.play_notice = host_play_notice;
     return api;
@@ -760,6 +851,28 @@ static int check_vendor(
         s_gives = s_unlocks = s_banners = 0;
         build(0);
         CHECK(s_gives + s_unlocks + s_banners == 0);
+
+        /* Buying the sole row with no ammunition reward starts a safe close. */
+        if (vr.kind != REWARD_ITEM || !has_ammo(vr.value)) {
+            memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+            memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+            memset(stock, 0xFF, VENDOR_STOCK_SIZE);
+            stock[0] = (uint8_t)x;
+            build(0);
+            CHECK(get32(menu + VENDOR_COUNT) == 1);
+            const uint32_t close = strcmp(D->version, "pal") == 0 ? 0x161F14 : 0x161E14;
+            set32(s_memory + close, 0);
+            set32(s_memory + close + 4, 0);
+            game_buy(give, build, 0);
+            CHECK(get32(menu + VENDOR_COUNT) == 1);
+            CHECK(get32(menu + VENDOR_CURSOR) == 0);
+            CHECK(get32(menu + VENDOR_ENTRIES) == x);
+            CHECK(get32(menu + VENDOR_ENTRIES + 4) == 0);
+            CHECK(get32(s_memory + close) == 1 && get32(s_memory + close + 4) == 1);
+            CHECK(stock[0] == x); /* real stock remains intact */
+            build(0);             /* after the transition, there is no fabricated ammo row */
+            CHECK(get32(menu + VENDOR_COUNT) == 0);
+        }
     }
 
     memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
@@ -770,8 +883,46 @@ static int check_vendor(
     return vendor_slots;
 }
 
+/* Selector spy assertions: test the wrapper, not a duplicate of retail selection. */
+static void check_ammo_drop(void) {
+    openrac_rac1_Ammo_ChooseDrop drop = (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
+    uint8_t saved_owned[RANDO_ITEM_COUNT], saved_prices[VENDOR_ITEM_COUNT * 0x18];
+    uint8_t saved_stock[VENDOR_STOCK_SIZE], real[VENDOR_STOCK_SIZE];
+    const openrac_gaddr output = 0x120000, moby = 0x121000;
+    memcpy(saved_owned, s_memory + D->owned, sizeof saved_owned);
+    memcpy(saved_prices, s_memory + D->item_price_table, sizeof saved_prices);
+    memcpy(saved_stock, s_memory + D->vendor_stock, sizeof saved_stock);
+    memset(s_memory + D->owned, 0, sizeof saved_owned);
+    memset(s_memory + D->item_price_table, 0, sizeof saved_prices);
+    memset(real, 0xFF, sizeof real);
+    real[0] = ITEM_BOMB_GLOVE | 0x40;
+    memcpy(s_memory + D->vendor_stock, real, sizeof real);
+    s_memory[D->owned + ITEM_DEVASTATOR] = 1;
+    s_memory[D->owned + ITEM_HELI_PACK] = 1;
+    set32(s_memory + D->item_price_table + ITEM_DEVASTATOR * 0x18 + 8, 1);
+    set32(s_memory + D->item_price_table + ITEM_BOMB_GLOVE * 0x18 + 8, 1);
+    set32(s_memory + output, -1);
+    CHECK(drop(moby, output) == 2 && s_drop_moby == moby);
+    CHECK(get32(s_memory + output) == ITEM_DEVASTATOR);
+    CHECK(s_drop_stock[0] == (ITEM_DEVASTATOR | 0x40));
+    for (int i = 1; i < VENDOR_STOCK_SIZE; ++i) {
+        CHECK(s_drop_stock[i] == 0xFF);
+    }
+    CHECK(memcmp(s_memory + D->vendor_stock, real, sizeof real) == 0);
+    set32(s_memory + output, ITEM_BOMB_GLOVE);
+    CHECK(drop(moby, output) == 2 && get32(s_memory + output) == ITEM_BOMB_GLOVE);
+    s_memory[D->owned + ITEM_DEVASTATOR] = 0;
+    set32(s_memory + output, -1);
+    CHECK(drop(0, output) == 2 && get32(s_memory + output) == ITEM_BOMB_GLOVE);
+    CHECK(s_drop_stock[0] == 0xFF && s_drop_moby == 0);
+    CHECK(memcmp(s_memory + D->vendor_stock, real, sizeof real) == 0);
+    memcpy(s_memory + D->owned, saved_owned, sizeof saved_owned);
+    memcpy(s_memory + D->item_price_table, saved_prices, sizeof saved_prices);
+    memcpy(s_memory + D->vendor_stock, saved_stock, sizeof saved_stock);
+}
+
 int main(int argc, char** argv) {
-    CHECK(argc == 2);
+    CHECK(argc == 2 || (argc == 3 && strcmp(argv[2], "ntsc") == 0));
     void* lib = open_library(argv[1]);
     CHECK(lib != NULL);
     openrac_mod_query_fn query = (openrac_mod_query_fn)symbol(lib, OPENRAC_MOD_QUERY);
@@ -783,7 +934,7 @@ int main(int argc, char** argv) {
     query(&info);
     /* The interface its manifest names (1.14), whatever the SDK it was built with. */
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 14);
-    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.4.1") == 0);
+    CHECK(strcmp(info.id, "item-randomizer") == 0 && strcmp(info.version, "2.6.18") == 0);
 
     s_memory = calloc(1, MEMORY_SIZE);
     CHECK(s_memory != NULL);
@@ -805,22 +956,35 @@ int main(int argc, char** argv) {
     D = &k_rando_discs[1];
     api = make_api("rac1", "ntsc");
     s_failed[0] = 0;
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 20 && s_frame != NULL);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 32 && s_frame != NULL);
+    CHECK(hook_named("rac1.moby.moby743.update") != NULL);
+    CHECK(hook_named("rac1.moby.moby744.update") != NULL);
     s_hook_count = 0;
 
     /* An OpenRAC older than a hook point: the load fails and says which. */
-    for (int i = 0; i < 2; ++i) {
-        s_refused_hook = i == 0 ? "Help_Request" : "Ship_InitTransition";
+    for (int i = 0; i < 3; ++i) {
+        s_refused_hook = i == 0   ? "Help_Request"
+                         : i == 1 ? "Ship_InitTransition"
+                                  : "Vendor_OpenMenu";
         CHECK(load(&api, mod) != 0 && strstr(s_failed, s_refused_hook) != NULL);
         s_refused_hook = NULL;
         s_failed[0] = 0;
         s_hook_count = 0;
     }
 
-    D = &k_rando_discs[0];
-    api = make_api("rac1", "pal");
-    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && s_hook_count == 20);
+    D = &k_rando_discs[argc > 2 && strcmp(argv[2], "ntsc") == 0 ? 1 : 0];
+    api = make_api("rac1", D->version);
+    CHECK(load(&api, mod) == 0 && s_failed[0] == 0 && (printf("AFTER LOAD: %d\n", s_hook_count), s_hook_count == 32));
     static const char* const points[][2] = {
+        {"rac1.player.update", "void()"},
+        {"rac1.moby.moby743.update", "void(u32)"},
+        {"rac1.moby.moby744.update", "void(u32)"},
+        {"rac1.moby.class_1035.update", "void(u32)"},
+        {"rac1.moby.moby1105.update", "void(u32)"},
+        {"rac1.moby.drawbridge.update", "void(u32)"},
+        {"rac1.moby.elevator_651.update", "void(u32)"},
+        {"rac1.moby.path_pickup.update", "void(u32)"},
+        {OPENRAC_RAC1_HOOK_Vendor_OpenMenu, OPENRAC_RAC1_SIG_Vendor_OpenMenu},
         {OPENRAC_RAC1_HOOK_Item_Give, OPENRAC_RAC1_SIG_Item_Give},
         {OPENRAC_RAC1_HOOK_Planet_Unlock, OPENRAC_RAC1_SIG_Planet_Unlock},
         {OPENRAC_RAC1_HOOK_Vendor_InitLevelStock, OPENRAC_RAC1_SIG_Vendor_InitLevelStock},
@@ -841,9 +1005,12 @@ int main(int argc, char** argv) {
         {OPENRAC_RAC1_HOOK_Ship_InitTransition, OPENRAC_RAC1_SIG_Ship_InitTransition},
         {ITEM_RANDOMIZER_HOOK_Save_NewGame, ITEM_RANDOMIZER_SIG_Save_NewGame},
         {ITEM_RANDOMIZER_HOOK_Save_NewGamePlus, ITEM_RANDOMIZER_SIG_Save_NewGamePlus},
+        {ITEM_RANDOMIZER_HOOK_Save_Prepare, ITEM_RANDOMIZER_SIG_Save_Prepare},
+        {ITEM_RANDOMIZER_HOOK_Save_RequestAutosave, ITEM_RANDOMIZER_SIG_Save_RequestAutosave},
+        {ITEM_RANDOMIZER_HOOK_Save_Serialize, ITEM_RANDOMIZER_SIG_Save_Serialize},
     };
 
-    for (int i = 0; i < 20; ++i) {
+    for (size_t i = 0; i < sizeof points / sizeof points[0]; ++i) {
         CHECK(
             strcmp(s_hooks[i].name, points[i][0]) == 0
             && strcmp(s_hooks[i].signature, points[i][1]) == 0
@@ -885,6 +1052,22 @@ int main(int argc, char** argv) {
     memset(s_memory + D->vendor_stock, 0xFF, 12);
     init();
 
+    /* Each pack combination: movement sees a pack, saves keep actual ownership. */
+    uint8_t pack_inventory[2] = {s_memory[D->owned + ITEM_HELI_PACK], s_memory[D->owned + ITEM_THRUSTER_PACK]};
+    for (int heli = 0; heli <= 1; ++heli) {
+        for (int thrust = 0; thrust <= 1; ++thrust) {
+            s_memory[D->owned + ITEM_HELI_PACK] = (uint8_t)heli;
+            s_memory[D->owned + ITEM_THRUSTER_PACK] = (uint8_t)thrust;
+            ((void (*)(void))hook_named("rac1.player.update"))();
+            CHECK(s_hero_saw_heli == (heli || thrust));
+            CHECK(s_saved_inventory[ITEM_HELI_PACK] == heli);
+            CHECK(s_saved_inventory[ITEM_THRUSTER_PACK] == thrust);
+            CHECK(s_memory[D->owned + ITEM_HELI_PACK] == heli);
+        }
+    }
+    s_memory[D->owned + ITEM_HELI_PACK] = pack_inventory[0];
+    s_memory[D->owned + ITEM_THRUSTER_PACK] = pack_inventory[1];
+
     /* Helga's place: she sees her place unhad though the Swingshot is owned from elsewhere. */
     const int helga_place = location_of(LOC_GIVE, 0, ITEM_SWINGSHOT);
     CHECK(helga_place >= 0 && plan.shuffled[helga_place]);
@@ -913,6 +1096,27 @@ int main(int argc, char** argv) {
     }
 
     printf("Helga gave %d/%d\n", r.kind, r.value);
+    /* A save made by the NPC must not persist the displayed owned byte. */
+    if (r.kind != REWARD_ITEM || r.value != ITEM_SWINGSHOT) {
+        uint8_t real_inventory[RANDO_ITEM_COUNT];
+        memcpy(real_inventory, s_memory + D->owned, sizeof real_inventory);
+        s_save_probe = 1;
+        s_save_snapshots = 0;
+        helga(0x00100000u);
+        CHECK(s_save_snapshots == 3);
+        CHECK(s_saved_inventory[ITEM_SWINGSHOT] == 0);
+        CHECK(memcmp(real_inventory, s_saved_inventory, sizeof real_inventory) == 0);
+        CHECK(memcmp(real_inventory, s_memory + D->owned, sizeof real_inventory) == 0);
+        /* Simulate the inventory packet's reload: reward kept, no original gadget. */
+        memcpy(s_memory + D->owned, s_saved_inventory, sizeof s_saved_inventory);
+        CHECK(s_memory[D->owned + ITEM_SWINGSHOT] == 0);
+        s_memory[D->owned + ITEM_SWINGSHOT] = 1;
+        helga(0x00100000u);
+        CHECK(s_saved_inventory[ITEM_SWINGSHOT] == 1); /* legitimately owned */
+        s_save_probe = 0;
+        s_memory[D->owned + ITEM_SWINGSHOT] = 0;
+    }
+
     /* Now had: she sees it so. */
     helga(0x00100000u);
     CHECK(s_helga_saw == 1);
@@ -1063,9 +1267,25 @@ int main(int argc, char** argv) {
         );
     } else {
         CHECK(s_memory[D->owned + ITEM_BOMB_GLOVE] == 0);
-        CHECK(stock[0] == ITEM_BLASTER && stock[1] == 0xFF); /* the level's weapon, first */
+        /* The level's weapon first; then, when the reward was coordinates, their planet's
+         * vendor weapon (planet_vendor_stock.inc). */
+        int unlocked_weapon = 0xFF;
+        for (size_t i = 0; sr.kind == REWARD_PLANET && i < rando_location_count; ++i) {
+            if (rando_locations[i].kind == LOC_VENDOR && rando_locations[i].level == sr.value
+                && rando_locations[i].key != ITEM_BLASTER) {
+                unlocked_weapon = rando_locations[i].key;
+            }
+        }
+        CHECK(stock[0] == ITEM_BLASTER && stock[1] == unlocked_weapon);
+        CHECK(unlocked_weapon == 0xFF || stock[2] == 0xFF);
         CHECK(get32(s_memory + D->last_weapon) == 0);
         CHECK(sr.kind != REWARD_ITEM || s_memory[D->owned + sr.value] == 1);
+
+        /* A saved/default glove selection must be removed even when the start is already
+         * checked and the game's stock initializer does not add a fresh ammo row. */
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        init();
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_WRENCH);
     }
 
     printf("the start gave %d/%d\n", sr.kind, sr.value);
@@ -1314,14 +1534,6 @@ int main(int argc, char** argv) {
     CHECK(help(other_help, 1) == 1 && s_helps == 0);
     CHECK(help(0x1234, 1) == 1 && s_helps == 1);
 
-    /* A crate's drop sees the list's stock, the real one back after. */
-    openrac_rac1_Ammo_ChooseDrop drop = (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
-    memset(s_memory + D->vendor_stock, 0xFF, 12);
-    s_memory[D->vendor_stock] = ITEM_PYROCITOR;
-    s_memory[D->owned + ITEM_PYROCITOR] = 1;
-    CHECK(drop(0, 0) == 1);
-    CHECK(s_memory[D->vendor_stock] == ITEM_PYROCITOR && s_drop_saw == ITEM_PYROCITOR);
-
     /* The line over the vendor: the slot under the cursor, gone when the menu closes. */
     openrac_rac1_Vendor_MenuUpdate menu_update =
         (openrac_rac1_Vendor_MenuUpdate)hook_named("Vendor_MenuUpdate");
@@ -1349,7 +1561,7 @@ int main(int argc, char** argv) {
         s_keep_start = 1;
         s_seed = "new games only";
         s_hook_count = 0;
-        CHECK(load(&api, mod) == 0 && s_hook_count == 20);
+        CHECK(load(&api, mod) == 0 && (printf("AFTER LOAD: %d\n", s_hook_count), s_hook_count == 32));
         openrac_rac1_Item_Give g = (openrac_rac1_Item_Give)hook_named("Item_Give");
         void (*new_game)(void) = (void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame);
         void (*new_game_plus)(int32_t) =
@@ -1369,7 +1581,8 @@ int main(int argc, char** argv) {
         int x = -1, xr = -1;
         for (size_t i = 0; i < rando_location_count && x < 0; ++i) {
             if (np.shuffled[i] && rando_locations[i].kind == LOC_GIVE
-                && np.reward[i].kind == REWARD_ITEM && np.reward[i].value != rando_locations[i].key) {
+                && np.reward[i].kind == REWARD_ITEM
+                && np.reward[i].value != rando_locations[i].key) {
                 x = rando_locations[i].key;
                 xr = np.reward[i].value;
             }
@@ -1387,8 +1600,14 @@ int main(int argc, char** argv) {
         s_frame(NULL);
         CHECK(s_memory[D->owned + x] == 1 && s_memory[D->owned + xr] == 0);
         CHECK(tag_word() == 0);
-        /* Its vendor list is the game's own. */
+        /* Its vendor list and ammo selection are the game's own. */
         build(0);
+        openrac_rac1_Ammo_ChooseDrop unchanged_drop =
+            (openrac_rac1_Ammo_ChooseDrop)hook_named("Ammo_ChooseDrop");
+        uint8_t unchanged_stock[VENDOR_STOCK_SIZE];
+        memcpy(unchanged_stock, s_memory + D->vendor_stock, sizeof unchanged_stock);
+        CHECK(unchanged_drop(0, 0) == 2);
+        CHECK(memcmp(s_drop_stock, unchanged_stock, sizeof unchanged_stock) == 0);
 
         /* Another seed's save: the game's own as well. */
         memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
@@ -1450,6 +1669,216 @@ int main(int argc, char** argv) {
         snprintf(path, sizeof path, "%s/spoiler-%s.txt", dir, ncode);
         remove(path);
     }
+
+    /* Empty physical vendors and the PDA, on both supported RAC1 discs. */
+    s_keep_start = 1;
+    for (int disc = 0; disc < 2; ++disc) {
+        D = &k_rando_discs[disc];
+        api = make_api("rac1", D->version);
+        s_hook_count = 0;
+        CHECK(load(&api, mod) == 0);
+        openrac_rac1_Vendor_OpenMenu open =
+            (openrac_rac1_Vendor_OpenMenu)hook_named("Vendor_OpenMenu");
+        memset(s_memory + D->owned, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->obtained, 0, RANDO_ITEM_COUNT);
+        memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
+        memset(s_memory + D->item_price_table, 0, 37 * 0x18);
+        set32(s_memory + D->item_price_table + ITEM_BOMB_GLOVE * 0x18 + 8, 1);
+        s_frame(NULL); /* claim the save for this seed */
+        check_ammo_drop();
+
+        /* Circle and Triangle use remembered selections without checking ownership, even
+         * when stock init did not insert a Bomb Glove ammunition row. */
+        const uint32_t hero = disc == 0 ? 0x13F450 : 0x13F350;
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        set32(s_memory + D->level + 8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x10B8, ITEM_WRENCH);
+        set32(s_memory + hero + 0x20B8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20F0, ITEM_BOMB_GLOVE);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_WRENCH);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_WRENCH);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_WRENCH);
+        CHECK(get32(s_memory + hero + 0x20F0) == ITEM_WRENCH);
+
+        /* A stale equipped/selected glove requests the normal switch, leaving the live
+         * item moby to the game. A valid incoming selection must not be replaced. */
+        set32(s_memory + hero + 0x10B8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20D4, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20B8, 0);
+        s_frame(NULL);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_WRENCH);
+        CHECK(get32(s_memory + hero + 0x10B8) == ITEM_BOMB_GLOVE);
+        s_memory[D->owned + ITEM_TESLA_CLAW] = 1;
+        set32(s_memory + D->last_weapon, ITEM_TESLA_CLAW);
+        set32(s_memory + D->level + 8, ITEM_TESLA_CLAW);
+        set32(s_memory + hero + 0x20B8, ITEM_TESLA_CLAW);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_TESLA_CLAW);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_TESLA_CLAW);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_TESLA_CLAW);
+        s_memory[D->owned + ITEM_TESLA_CLAW] = 0;
+
+        /* Once actually owned (kept starting gear or a reward), the glove stays usable. */
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 1;
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        set32(s_memory + D->level + 8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20B8, ITEM_BOMB_GLOVE);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_BOMB_GLOVE);
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 0;
+        s_menu_opens = 0;
+        open(0);
+        CHECK(s_menu_opens == 0); /* empty PDA */
+        /* Malformed stock IDs must never index beyond the 37-entry price table. */
+        for (int item = VENDOR_ITEM_COUNT; item <= 0x3F; ++item) {
+            s_memory[D->vendor_stock] = (uint8_t)item;
+            open(0);
+            CHECK(s_menu_opens == 0);
+        }
+        s_memory[D->vendor_stock] = ITEM_BLASTER;
+        open(0);
+        CHECK(s_menu_opens == 0); /* an unflagged weapon is not a PDA row */
+        s_memory[D->vendor_stock] = ITEM_BOMB_GLOVE | 0x40;
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 1;
+        open(0);
+        CHECK(s_menu_opens == 1); /* explicit ammunition */
+        memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
+        open(0);
+        CHECK(s_menu_opens == 2); /* automatically generated ammunition */
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 0;
+        open(0x180000);
+        CHECK(s_menu_opens == 2); /* empty physical vendor also blocked */
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 1;
+        open(0x180000);
+        CHECK(s_menu_opens == 3); /* physical vendor still sells owned-weapon ammo */
+        s_memory[D->owned + ITEM_BOMB_GLOVE] = 0;
+        s_memory[D->vendor_stock] = ITEM_GLOVE_OF_DOOM;
+        s_memory[D->obtained + ITEM_GLOVE_OF_DOOM] = 0;
+        open(0x180000);
+        CHECK(s_menu_opens == 4); /* one unchecked randomized reward */
+        s_memory[D->obtained + ITEM_GLOVE_OF_DOOM] = 1;
+        open(0x180000);
+        CHECK(s_menu_opens == 4); /* last reward bought: reopen blocked before any tick */
+        s_memory[D->obtained + ITEM_GLOVE_OF_DOOM] = 0;
+        memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
+
+        uint8_t saved_planets[RANDO_PLANET_COUNT];
+        memcpy(saved_planets, s_memory + D->planets, sizeof saved_planets);
+        memset(s_memory + D->planets, 0, sizeof saved_planets); /* no planet's weapon joins */
+        const uint32_t base_ptr = disc == 0 ? 0x160098 : 0x15FFD8;
+        const uint32_t moby = 0x180000;
+        set32(s_memory + base_ptr, moby);
+        s_memory[moby + 0xA6] = 0xB;
+        s_memory[moby + 0xA7] = 0;
+        s_memory[moby + 0x52] = 7;
+        s_vendor_present = 1;
+        ++s_loads;
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 0);
+        s_frame(NULL); /* repeated empty frames retain the original flags */
+        /* A starting Glove of Doom has ammo even though this planet never stocked it. */
+        set32(s_memory + D->item_price_table + ITEM_GLOVE_OF_DOOM * 0x18 + 8, 1);
+        s_memory[D->owned + ITEM_GLOVE_OF_DOOM] = 1;
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 7);
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 7); /* stays available after the last reward */
+        s_memory[D->owned + ITEM_GLOVE_OF_DOOM] = 0;
+        s_memory[D->owned + ITEM_WALLOPER] = 1; /* no purchasable ammunition */
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 0);
+        s_memory[D->owned + ITEM_WALLOPER] = 0;
+        s_memory[D->vendor_stock] = ITEM_BLASTER;
+        s_frame(NULL);
+        CHECK(s_memory[moby + 0x52] == 7);
+        s_vendor_present = 0;
+        set32(s_memory + base_ptr, 0);
+        memset(s_memory + D->vendor_stock, 0xFF, VENDOR_STOCK_SIZE);
+        memcpy(s_memory + D->planets, saved_planets, sizeof saved_planets);
+
+        rando_options vo = {s_seed, 1, 1, 1, 1, 1, 1, "standard"};
+        rando_settings vs;
+        static rando_plan vp;
+        rando_settings_of(&vo, NULL, 0, &vs);
+        CHECK(rando_solve(&vs, &vp) == 0);
+        CHECK(
+            check_vendor(
+                &vp,
+                (openrac_rac1_Item_Give)hook_named("Item_Give"),
+                (openrac_rac1_Vendor_BuildItemList)hook_named("Vendor_BuildItemList")
+            )
+            > 0
+        );
+
+        /* An untagged save with New games only enabled delegates even an empty PDA. */
+        s_new_game_only = 1;
+        set_tag_word(0);
+        s_hook_count = 0;
+        CHECK(load(&api, mod) == 0);
+        set32(s_memory + D->last_weapon, ITEM_BOMB_GLOVE);
+        set32(s_memory + D->level + 8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20B8, ITEM_BOMB_GLOVE);
+        set32(s_memory + hero + 0x20F0, ITEM_BOMB_GLOVE);
+        s_frame(NULL);
+        CHECK(get32(s_memory + D->last_weapon) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + D->level + 8) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + hero + 0x20B8) == ITEM_BOMB_GLOVE);
+        CHECK(get32(s_memory + hero + 0x20F0) == ITEM_BOMB_GLOVE);
+        open = (openrac_rac1_Vendor_OpenMenu)hook_named("Vendor_OpenMenu");
+        open(0);
+        CHECK(s_menu_opens == 5);
+        s_new_game_only = 0;
+    }
+
+    /* NG+ is independently selected, PAL/NTSC, and respects the save gate. */
+    for (int disc = 0; disc < 2; ++disc) {
+        D = &k_rando_discs[disc];
+        api = make_api("rac1", D->version);
+        const uint32_t challenge = D->level + 0x11Cu;
+        for (int enabled = 0; enabled <= 1; ++enabled) {
+            s_start_in_new_game_plus = enabled;
+            s_new_game_only = 1;
+            s_hook_count = 0;
+            CHECK(load(&api, mod) == 0);
+            set32(s_memory + D->level, LEVEL_NOVALIS);
+            set32(s_memory + challenge, 0);
+            set_tag_word(0);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 0); /* untagged save */
+            set_tag_word(0x12345678u);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 0); /* foreign seed */
+            ((void (*)(void))hook_named(ITEM_RANDOMIZER_HOOK_Save_NewGame))();
+            set32(s_memory + D->level, -1);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 0); /* front end */
+            set32(s_memory + D->level, LEVEL_NOVALIS);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == enabled);
+            if (enabled) {
+                CHECK(strcmp(s_notice, "Item randomizer: New Game+ enabled") == 0);
+                const int duration = disc == 0 ? 150 : 180;
+                // Expiration continues outside gameplay, without re-enabling NG+.
+                set32(s_memory + D->level, -1);
+                for (int tick = 0; tick < duration - 1; ++tick) s_frame(NULL);
+                CHECK(s_notice[0] != 0);
+                s_frame(NULL);
+                CHECK(s_notice[0] == 0);
+                set32(s_memory + D->level, LEVEL_NOVALIS);
+            }
+            CHECK(s_memory[D->owned + ITEM_RYNO] == 0);
+            CHECK(get32(s_memory + D->level + 0x9Cu) == 0); /* no postgame shop flag */
+            set32(s_memory + challenge, 1);
+            s_frame(NULL);
+            CHECK(get32(s_memory + challenge) == 1); /* never downgrade */
+            set32(s_memory + challenge, 0);
+        }
+    }
+    s_start_in_new_game_plus = 0;
+    s_new_game_only = 0;
 
     /* The remembered seed: a blank seed rolls one and keeps it. */
     s_seed = "";

@@ -1,6 +1,6 @@
 # The difficulty mod's moby classes: what it does with each (README.md, "Which mobys count as enemies").
-# tools/gen_classes.py writes src/classes.h from this table and the SDK's behaviour catalogue
-# (catalogue/rac1/classes.json); tests/classes_test.cpp checks that every catalogue class whose name
+# tools/gen_classes.py writes src/rac1/classes.h from this table and the SDK's behaviour catalogue
+# (catalogue/rac1/classes.json); tests/rac1/classes_test.py checks that every catalogue class whose name
 # says enemy, turret, mine, boss, ship or thief is here.
 #
 # role:
@@ -13,7 +13,7 @@
 # id	role	name	reason
 28	enemy	plasmabot	-
 211	enemy	plasmabot	-
-31	enemy	minibomber	-
+31	roamer	minibomber	its update puts it at its path's start: a copy would sit inside the original
 35	enemy	sharkigator	-
 1059	enemy	sharkigator	-
 44	enemy	sentrybot	-
@@ -30,12 +30,12 @@
 427	enemy	blarg_trooper	-
 333	enemy	blarg_bombthrower	-
 340	enemy	circular_saw_enemy	-
-459	enemy	birdbot	-
+459	roamer	birdbot	its update puts it at its path's start: a copy sat inside the original and blocked its shots
 563	enemy	woodcut_bot	-
 573	enemy	robot_dog	-
 1382	enemy	robot_dog	-
 577	enemy	peckbot	-
-578	enemy	mine_layer	-
+578	roamer	mine_layer	its update puts it at its path's start: a copy would sit inside the original
 580	enemy	sand_shark	-
 623	enemy	extermibot	-
 625	enemy	extermitank	-
@@ -61,8 +61,6 @@
 36	turret	blarg_gunner	a gun emplacement (its update is the gem lock turret's)
 344	turret	blarg_gun	fixed to the level
 347	turret	dreks_fleet_turret	fixed to the ship
-1201	turret	turret	fixed to the level
-1267	turret	hoven_turret	fixed to the level
 1346	turret	gun	fixed to the level
 1051	boss	alien_queen	a boss
 1106	boss	snagglebeast	a boss
@@ -71,6 +69,8 @@
 1454	boss	rocket_tank	a boss's vehicle on Veldin
 491	excluded	ultramech_unlimited	the Ultramech fight's scripted boss on Quartu: its timing is the fight's
 419	excluded	giant_clank	the player's own giant Clank
+1201	excluded	turret	Gaspar's turret the player rides: sped up, it fired no shots
+1267	excluded	hoven_turret	Hoven's turret the player rides
 1440	excluded	veldin_robot_enemy	its update is shared with the vendor's
 8	excluded	blarg_heavy_interceptor	space combat: the ship levels are left as they are
 1417	excluded	blarg_heavy_interceptor	space combat

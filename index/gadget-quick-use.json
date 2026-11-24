@@ -1,0 +1,25 @@
+{
+  "id": "gadget-quick-use",
+  "repo": "https://github.com/ParadoxEpoch/rac1-gadget-quick-use",
+  "path": "",
+  "tags": [
+    "gameplay",
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/ParadoxEpoch/rac1-gadget-quick-use/issues",
+    "docs": "https://github.com/ParadoxEpoch/rac1-gadget-quick-use/blob/main/README.md"
+  },
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/gadget-quick-use/bf933caf0736.png"
+      }
+    ]
+  }
+}

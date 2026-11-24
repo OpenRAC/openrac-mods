@@ -1,29 +1,30 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The player's session and party (session.hpp), from the server's packets: INFO gives the whole
- * party, JOINED and LEFT change it, END means the host left and the party is gone, ERROR refuses
- * the last action.
- */
-#include "session.hpp"
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The player's session and party (session.hpp), from the server's packets: INFO gives the whole
+// party, JOINED and LEFT change it, END means the host left and the party is gone, ERROR refuses
+// the last action.
 
-#include "party_mods.hpp"
+#include "session.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <utility>
 
+#include "party_mods.hpp"
+
 namespace mp {
 namespace {
 
-/* The launcher's name limits (launcher/core/src/multiplayer.rs). */
+// The launcher's name limits (launcher/core/src/multiplayer.rs).
 constexpr std::size_t kMinName = 3;
 constexpr std::size_t kMaxName = 16;
 
 }  // namespace
 
 double Pacer::level(std::uint64_t now) {
+    // Time only moves forward here; a clock that went back adds no tokens.
     if (now > last_) {
         tokens_ = std::min(capacity_, tokens_ + static_cast<double>(now - last_) * per_ms_);
         last_ = now;
@@ -33,6 +34,7 @@ double Pacer::level(std::uint64_t now) {
 }
 
 bool Pacer::take(std::uint64_t now) {
+    // A token is one message; less than one means the bucket is empty.
     if (level(now) < 1.0) {
         return false;
     }
@@ -68,6 +70,7 @@ void Session::connected() {
     // The new connection may come before anyone saw the old one go.
     drop();
 
+    // A game whose connection dropped asks for its slot back, and keeps its party and id.
     if (dropped_) {
         resume_asked_ = false;
         transport_.send(hello(version_, name_));
@@ -84,6 +87,7 @@ void Session::connected() {
 void Session::disconnected() {
     drop();
 
+    // A game waiting for its slot keeps its party; any other loses it with the connection.
     if (!dropped_) {
         id_ = 0;
         reset_party();
@@ -91,6 +95,7 @@ void Session::disconnected() {
 }
 
 void Session::drop() {
+    // Only a game in a party, on a server that takes RESUME, waits for its slot, and only once.
     if (dropped_ || !in_party() || !server_resumes_) {
         return;
     }
@@ -103,24 +108,31 @@ void Session::drop() {
 }
 
 void Session::name_successors(const std::vector<std::int32_t>& members) {
+    // Only the host of a party that can outlive it, with a live connection, names who follows.
     if (is_host() && can_change_host() && !dropped_) {
         transport_.send(party_successors(members));
     }
 }
 
 void Session::decline_host() {
+    // Only the same host, on a live connection, can decline.
     if (is_host() && can_change_host() && !dropped_) {
         transport_.send(party_decline());
     }
 }
 
 Bytes Session::stamped(const Bytes& bytes) const {
+    // Only a host of a party that has changed hosts stamps its messages; the first host sends none.
     if (!is_host() || role_.epoch() == 0) {
         return bytes;
     }
 
     Writer w;
-    w.u8(kind::kEpoch).u8(static_cast<std::uint8_t>(role_.epoch() >> 8)).u8(static_cast<std::uint8_t>(role_.epoch())).raw(bytes);
+    // EPOCH, the epoch as two bytes with the high one first, then the message.
+    w.u8(kind::kEpoch)
+        .u8(static_cast<std::uint8_t>(role_.epoch() >> 8))
+        .u8(static_cast<std::uint8_t>(role_.epoch()))
+        .raw(bytes);
     return w.bytes();
 }
 
@@ -214,11 +226,18 @@ bool Session::kick(std::int32_t member, KickReason reason) {
         return m.id == member;
     });
 
+    // Only the host removes a member, never itself, one in the party, and each only once.
     if (!is_host() || member == id_ || !found || !kicking_.insert(member).second) {
         return false;
     }
 
-    send_lobby(member, Writer().u8(static_cast<std::uint8_t>(LobbyKind::kKick)).u8(static_cast<std::uint8_t>(reason)).bytes());
+    send_lobby(
+        member,
+        Writer()
+            .u8(static_cast<std::uint8_t>(LobbyKind::kKick))
+            .u8(static_cast<std::uint8_t>(reason))
+            .bytes()
+    );
 
     // An embedded host always takes it; of a server, its offer says.
     if (server_kicks_ || direct()) {
@@ -235,7 +254,10 @@ void Session::toggle_ready() {
     }
 
     const bool now = !ready(id_);
-    send_lobby(role_.host_id(), Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes());
+    send_lobby(
+        role_.host_id(),
+        Writer().u8(static_cast<std::uint8_t>(LobbyKind::kReady)).u8(now ? 1 : 0).bytes()
+    );
 
     // Shown at once; the host's STATE confirms it.
     if (now) {
@@ -248,7 +270,8 @@ void Session::toggle_ready() {
 bool Session::all_ready() const {
     // Out of a party nobody is; in one, each member but the host.
     return in_party() && std::all_of(members_.begin(), members_.end(), [&](const Member& m) {
-               return m.id == role_.host_id() || (ready(m.id) && (!is_host() || !ready_gate_ || ready_gate_(m.id)));
+               return m.id == role_.host_id()
+                      || (ready(m.id) && (!is_host() || !ready_gate_ || ready_gate_(m.id)));
            });
 }
 
@@ -268,10 +291,14 @@ void Session::on_data(std::function<void(std::int32_t, const Bytes&)> callback) 
     on_data_ = std::move(callback);
 }
 
-/* Whether a DATA's first byte is one of the lobby's kinds. */
-static bool lobby_kind(std::uint8_t kind) {
+namespace {
+
+// Whether a DATA's first byte is one of the lobby's kinds.
+bool lobby_kind(std::uint8_t kind) {
     return owner_of(kind) == Owner::kLobby;
 }
+
+}  // namespace
 
 bool Session::game_bytes(const Bytes& bytes) const {
     // Game data goes only inside a party, and never as one of the lobby's kinds; a game whose
@@ -280,10 +307,12 @@ bool Session::game_bytes(const Bytes& bytes) const {
 }
 
 void Session::report_link(std::int64_t ping_ms, bool udp) {
+    // A link only matters to a party; out of one nobody listens.
     if (!in_party()) {
         return;
     }
 
+    // A ping is kept between -1 (not known) and 99999 ms.
     const Link own{static_cast<std::int32_t>(std::clamp<std::int64_t>(ping_ms, -1, 99999)), udp};
     links_[id_] = own;
 
@@ -328,6 +357,7 @@ void Session::send_lobby(std::int32_t target, const Bytes& bytes) {
 }
 
 void Session::send_data(std::int32_t target, const Bytes& bytes) {
+    // Lobby kinds, and anything outside a party, are not queued.
     if (game_bytes(bytes)) {
         NetCounts::Kind& k = counts_.events_out[bytes[0]];
         ++k.messages;
@@ -350,7 +380,9 @@ void Session::flush() {
         return;
     }
 
+    // Sends the queue until it is empty or the bucket runs out; the rest waits for the next flush.
     while (!queue_.empty()) {
+        // The server drops DATA over its rate, so what the bucket refuses waits.
         if (!data_bucket_.take(now)) {
             ++counts_.waited;
             return;
@@ -362,6 +394,8 @@ void Session::flush() {
         queue_.pop_front();
         ++counts_.data_frames;
 
+        // A message with no neighbour for the same target, or one that would overfill a BATCH, goes
+        // alone. A BATCH costs a kind byte and 2 length bytes for each message.
         if (queue_.empty() || queue_.front().target != target
             || one.size() + 2 + queue_.front().bytes.size() + 3 > kBatchBytes) {
             transport_.send(data(target, stamped(one)));
@@ -370,11 +404,15 @@ void Session::flush() {
 
         Writer w;
         w.u8(static_cast<std::uint8_t>(LobbyKind::kBatch));
+        // Appends one message behind its length, two bytes with the high one first.
         const auto put = [&w](const Bytes& b) {
-            w.u8(static_cast<std::uint8_t>(b.size() >> 8)).u8(static_cast<std::uint8_t>(b.size())).raw(b);
+            w.u8(static_cast<std::uint8_t>(b.size() >> 8))
+                .u8(static_cast<std::uint8_t>(b.size()))
+                .raw(b);
         };
         put(one);
 
+        // Adds the messages that follow for the same target until the BATCH is full.
         while (!queue_.empty() && queue_.front().target == target
                && w.bytes().size() + 2 + queue_.front().bytes.size() <= kBatchBytes) {
             put(queue_.front().bytes);
@@ -386,6 +424,7 @@ void Session::flush() {
 }
 
 bool Session::send_state(std::int32_t target, const Bytes& bytes) {
+    // State is game data too: not outside a party, not a lobby kind, not while dropped.
     if (!game_bytes(bytes)) {
         return false;
     }
@@ -393,6 +432,7 @@ bool Session::send_state(std::int32_t target, const Bytes& bytes) {
     const Bytes out = stamped(bytes);
     const std::uint64_t now = clock_();
 
+    // State over its own bucket is refused, and the caller sends the next one instead.
     if (!state_bucket_.take(now)) {
         ++counts_.state_held;
         return false;
@@ -401,6 +441,8 @@ bool Session::send_state(std::int32_t target, const Bytes& bytes) {
     // Until UDP is known to work, the state goes as DATA too, from what events leave.
     bool tcp = false;
 
+    // While UDP is unconfirmed, or when the state does not fit a datagram, a copy goes as DATA from
+    // what the events leave.
     if (transport_.state_needs_tcp(out.size())) {
         tcp = data_bucket_.level(now) > kStateReserve && data_bucket_.take(now);
         counts_.state_tcp += tcp ? 1 : 0;
@@ -435,6 +477,7 @@ void Session::handle(const Message& m) {
         case Message::Kind::kHello:
             // Greeted on a new connection, this game's slot first; its id is the old one all along.
             if (dropped_) {
+                // RESUME goes once for each connection.
                 if (!resume_asked_) {
                     resume_asked_ = true;
                     transport_.send(party_resume(code_, id_, resume_token_));
@@ -451,6 +494,7 @@ void Session::handle(const Message& m) {
             const auto now = static_cast<std::int64_t>(clock_());
             rtt_ms_ = std::max<std::int64_t>(0, now - m.client_ms);
             const double sample = static_cast<double>(m.server_ms - (m.client_ms + rtt_ms_ / 2));
+            // The first answer sets the offset as it is; each later one moves it a step.
             offset_ms_ = clock_samples_ == 0
                              ? sample
                              : offset_ms_ + kOffsetSmoothing * (sample - offset_ms_);
@@ -461,6 +505,7 @@ void Session::handle(const Message& m) {
             take_info(m);
             break;
         case Message::Kind::kPartyAway:
+            // A member that came back no longer has its slot waiting; one that dropped has.
             if (m.back) {
                 away_.erase(m.id);
             } else {
@@ -549,6 +594,9 @@ void Session::handle(const Message& m) {
             }
 
             break;
+        case Message::Kind::kRegions:
+            // A hub's list is the connection's (it picks a game server before the session's link).
+            break;
     }
 }
 
@@ -567,6 +615,8 @@ void Session::take_info(const Message& m) {
         return x.id == role_.host_id();
     });
 
+    // INFO answering RESUME gives this game its slot again; any other INFO is a new party, with
+    // nobody ready.
     if (back) {
         dropped_ = false;
         events_.push_back({PartyEvent::Kind::kResumed, id_});
@@ -581,6 +631,7 @@ void Session::handle_data(const Message& m) {
         return;
     }
 
+    // Host traffic of a party that has changed hosts starts with EPOCH; anything else is unstamped.
     if (m.bytes[0] != kind::kEpoch) {
         // Unstamped from the host of a party that has changed hosts: the first host, come back.
         if (role_.epoch() == 0 || m.id != role_.host_id()) {
@@ -593,9 +644,12 @@ void Session::handle_data(const Message& m) {
     }
 
     Reader stamp(m.bytes.data() + 1, m.bytes.size() - 1);
+    // The epoch is two bytes, high first, read in that order.
     const std::uint8_t high = stamp.u8();
     const auto epoch = static_cast<std::uint16_t>(high << 8 | stamp.u8());
 
+    // A cut-short stamp, a stamp with no message, or an epoch older than this game's is the old
+    // host's, and refused.
     if (!stamp.ok() || stamp.left() == 0
         || static_cast<std::int16_t>(static_cast<std::uint16_t>(epoch - role_.epoch())) < 0) {
         ++stale_;
@@ -674,6 +728,7 @@ void Session::take_data(const Message& m) {
         const std::uint8_t count = r.u8();
         std::map<std::int32_t, Link> links;
 
+        // Each member: its id, ping and flag.
         for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
             const std::int32_t member = r.i32();
             const std::int32_t ping = r.i32();
@@ -687,6 +742,7 @@ void Session::take_data(const Message& m) {
 
         // A cut-short message is ignored.
         if (r.ok()) {
+            // This game's own link stays as it reported it, not as the host last heard it.
             if (const auto own = links_.find(id_); own != links_.end()) {
                 links[id_] = own->second;
             }
@@ -695,15 +751,18 @@ void Session::take_data(const Message& m) {
         }
     } else if (kind == LobbyKind::kKick && m.id == role_.host_id() && !is_host()) {
         // The host's word on why; the server's KICKED does the rest, or there is none to.
-        const auto reason = r.u8() == static_cast<std::uint8_t>(KickReason::kBanned) ? KickReason::kBanned
-                                                                                      : KickReason::kRemoved;
+        const auto reason = r.u8() == static_cast<std::uint8_t>(KickReason::kBanned)
+                                ? KickReason::kBanned
+                                : KickReason::kRemoved;
 
+        // A cut-short message is ignored.
         if (!r.ok()) {
             return;
         }
 
         kick_reason_ = reason;
 
+        // Without a server KICK nothing else removes this member, so it leaves by itself.
         if (!server_kicks_ && !direct()) {
             leave();
             notice_ = reason == KickReason::kBanned ? kBannedNotice : kKickedNotice;
@@ -711,8 +770,11 @@ void Session::take_data(const Message& m) {
     } else if (kind == LobbyKind::kBatch) {
         // Several of the game's messages in one DATA: each as if it came alone.
         while (r.left() >= 2) {
+            // Each message is its length (two bytes, high first) and its bytes.
             const std::size_t size = static_cast<std::size_t>(r.u8()) << 8 | r.u8();
 
+            // A message of no bytes, or longer than what is left, is malformed; the rest of the
+            // batch goes.
             if (size == 0 || size > r.left()) {
                 return;
             }
@@ -725,6 +787,7 @@ void Session::take_data(const Message& m) {
 
             note_in(one);
 
+            // A BATCH holds the game's messages only; a lobby kind in one is dropped.
             if (on_data_ && !lobby_kind(one[0])) {
                 on_data_(m.id, one);
             }
@@ -778,6 +841,18 @@ std::string choose_name(const std::string& setting, const std::string& launcher)
     return valid_name(launcher) ? launcher : std::string();
 }
 
+std::string choose_server(const std::string& setting, const std::string& launcher) {
+    // The mod's own setting first, then the launcher's; one that does not read is passed over.
+    std::string host;
+    int port = 0;
+
+    if (parse_address(setting, host, port)) {
+        return setting;
+    }
+
+    return parse_address(launcher, host, port) ? launcher : std::string(kOfficialServer);
+}
+
 const char* error_text(ErrorReason reason) {
     // Each reason its own words.
     switch (reason) {
@@ -802,18 +877,59 @@ const char* error_text(ErrorReason reason) {
 
 const char* other_game_text(const std::string& own, const std::string& theirs) {
     // A family's game is its first word: "rac1-60-1", "rac2-pal-1".
-    const auto game = [](const std::string& family) { return family.substr(0, family.find('-')); };
+    const auto game = [](const std::string& family) {
+        return family.substr(0, family.find('-'));
+    };
     const std::string host = game(theirs);
 
+    // A party of the other game names the game it is for; one of the same game is a different disc.
     if (host != game(own) && host == kGameRac1) {
         return kForRac1Notice;
     }
 
+    // The same for the second game.
     if (host != game(own) && host == kGameRac2) {
         return kForRac2Notice;
     }
 
     return kDifferentDisc;
+}
+
+// Kept with the session, whose server choice uses it, so the tests that link the session without
+// the sockets (connection.cpp) find it.
+bool parse_address(const std::string& text, std::string& host, int& port) {
+    port = kDefaultPort;
+    std::string rest = text;
+    std::string port_text;
+
+    // "[v6]:port" or "[v6]".
+    if (!rest.empty() && rest.front() == '[') {
+        const auto close = rest.find(']');
+
+        // An opening bracket alone is no address.
+        if (close == std::string::npos) {
+            return false;
+        }
+
+        host = rest.substr(1, close - 1);
+        port_text = close + 1 < rest.size() && rest[close + 1] == ':' ? rest.substr(close + 2) : "";
+    } else if (const auto colon = rest.rfind(':');
+               colon != std::string::npos && rest.find(':') == colon) {
+        // "host:port": one colon (more is a bare IPv6 address).
+        host = rest.substr(0, colon);
+        port_text = rest.substr(colon + 1);
+    } else {
+        host = rest;
+    }
+
+    // A port of digits from 1 to 65535; anything else keeps the default.
+    if (!port_text.empty() && port_text.size() <= 5
+        && port_text.find_first_not_of("0123456789") == std::string::npos) {
+        const int p = std::stoi(port_text);
+        port = p >= 1 && p <= 65535 ? p : kDefaultPort;
+    }
+
+    return !host.empty();
 }
 
 }  // namespace mp

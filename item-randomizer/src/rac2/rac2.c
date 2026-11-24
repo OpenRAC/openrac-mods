@@ -272,12 +272,15 @@ static void standins_read(void) {
 
 /* ---- giving ---- */
 
+static int s_notice_ticks;
+
 static void notice(const char* text) {
     char line[NOTICE_SIZE];
     snprintf(line, sizeof line, "Item randomizer: %s", text);
     log_line(OPENRAC_LOG_INFO, line);
     if (s_api->play_notice != NULL) {
         s_api->play_notice(s_mod, line);
+        s_notice_ticks = strcmp(s_api->version, "pal") == 0 ? 150 : 180;
     }
 }
 
@@ -486,6 +489,9 @@ static void endako_sets(void) {
 
 static void each_tick(void* user) {
     (void)user;
+    if (s_notice_ticks > 0 && --s_notice_ticks == 0) {
+        s_api->play_notice(s_mod, NULL);
+    }
     openrac_play_status st;
     memset(&st, 0, sizeof st);
     st.size = sizeof st;
@@ -531,6 +537,7 @@ static int play_settings(const rando_settings* settings) {
     rando_settings s = *settings;
     s.pools &= (uint8_t)(POOL_GADGETS | POOL_WEAPONS | POOL_VENDOR);
     s.keep_start = 1;
+    s.start_weapons = RANDO_START_WEAPONS_NONE; /* Ratchet & Clank's choice */
 
     if (r2_solve(&s, &s_plan) != 0) {
         return 0;
@@ -647,6 +654,7 @@ static void write_files(int source) {
 
 int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
+    s_notice_ticks = 0;
     s_mod = mod;
     s_give = NULL;
     s_equip = NULL;
@@ -683,11 +691,16 @@ int rac2_mod_load(const openrac_api* api, openrac_mod* mod) {
         api->setting_bool(mod, "shuffle_vendor"),
         1,
         api->setting_string(mod, "difficulty"),
+        0,
+        0,
+        0,
     };
     rando_settings settings;
     const int source =
         rando_settings_of(&options, have_remembered ? remembered : NULL, fresh_seed(), &settings);
 
+    settings.legacy_items = 1;
+    settings.pools &= POOL_ALL;
     if (!play_settings(&settings)) {
         api->fail(mod, "no placement for these settings (please report them)");
         return 1;

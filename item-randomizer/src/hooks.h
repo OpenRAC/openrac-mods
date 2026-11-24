@@ -38,6 +38,13 @@ typedef void (*openrac_rac1_Vendor_InitLevelStock)(void);
 #define OPENRAC_RAC1_SIG_Vendor_BuildItemList "void(i32)"
 typedef void (*openrac_rac1_Vendor_BuildItemList)(int32_t skip_unflagged);
 #endif
+/* SDK 1.14.6 exposes this hook in rac1.hpp, but omits it from rac1.h.
+ * Keep the C declaration until the generated C header also provides it. */
+#ifndef OPENRAC_RAC1_HOOK_Vendor_OpenMenu
+#define OPENRAC_RAC1_HOOK_Vendor_OpenMenu "Vendor_OpenMenu"
+#define OPENRAC_RAC1_SIG_Vendor_OpenMenu "void(u32)"
+typedef void (*openrac_rac1_Vendor_OpenMenu)(openrac_gaddr moby);
+#endif
 #ifndef OPENRAC_RAC1_HOOK_GoldBolts_CountCollected
 #define OPENRAC_RAC1_HOOK_GoldBolts_CountCollected "GoldBolts_CountCollected"
 #define OPENRAC_RAC1_SIG_GoldBolts_CountCollected "i32()"
@@ -118,5 +125,13 @@ typedef void (*item_randomizer_Save_NewGame)(void);
 #define ITEM_RANDOMIZER_HOOK_Save_NewGamePlus "rac1.save.new_game_plus"
 #define ITEM_RANDOMIZER_SIG_Save_NewGamePlus "void(i32)"
 typedef void (*item_randomizer_Save_NewGamePlus)(int32_t slot);
+
+/* Save entry points serialize immediately, even when called inside a moby update. */
+#define ITEM_RANDOMIZER_HOOK_Save_Prepare "rac1.save.prepare"
+#define ITEM_RANDOMIZER_SIG_Save_Prepare "void(i32,i32)"
+#define ITEM_RANDOMIZER_HOOK_Save_RequestAutosave "rac1.save.request_autosave"
+#define ITEM_RANDOMIZER_SIG_Save_RequestAutosave "i32(i32,i32)"
+#define ITEM_RANDOMIZER_HOOK_Save_Serialize "rac1.save.serialize"
+#define ITEM_RANDOMIZER_SIG_Save_Serialize "void(u32)"
 
 #endif /* ITEM_RANDOMIZER_HOOKS_H */

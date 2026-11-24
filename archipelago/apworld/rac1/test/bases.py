@@ -19,6 +19,13 @@ class RAC1TestBase(WorldTestBase):
         with mock.patch.object(RAC1World, "places_own_progression", lambda world: False):
             super().world_setup(seed)
 
+    def test_fill(self) -> None:
+        # Fill as a real game would: alone, this world places its own progression in pre_fill.
+        if not self.place_progression:
+            self.place_progression = True
+            self.world_setup(self.multiworld.seed)
+        super().test_fill()
+
     def sweep(self) -> None:
         # The story's events (an NPC's coordinates) as the player would have them.
         self.multiworld.state.sweep_for_advancements()

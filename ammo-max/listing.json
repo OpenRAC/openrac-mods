@@ -1,5 +1,5 @@
 {
-  "description": "At the Gadgetron vendor, buying ammo starts at the most you can buy instead of 1. Down still lowers it.",
+  "description": "Start individual ammo purchases at the most you can afford, or press Square / Xbox X to refill all owned weapons at once in RAC1 and RAC2.",
   "tags": [
     "qol"
   ],

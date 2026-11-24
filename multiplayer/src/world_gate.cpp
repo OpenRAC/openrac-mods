@@ -1,10 +1,7 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world (world.hpp): the gate of a moby's own game logic and the hits.
- */
-#include "world.hpp"
-#include "world_util.hpp"
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world (world.hpp): the gate of a moby's own game logic and the hits.
 
 #include <algorithm>
 #include <cmath>
@@ -12,12 +9,15 @@
 #include <cstring>
 #include <utility>
 
+#include "world.hpp"
+#include "world_util.hpp"
+
 namespace mp {
 
 using namespace wire;
 
 bool World::gate(int slot, int phase) {
-    // The level being made again this very frame: every slot known is another moby's now.
+    // The level being made again this frame: every slot known is another moby's now.
     if (game_.status().loads != loads_) {
         standing_ = 0;
         return false;
@@ -29,10 +29,12 @@ bool World::gate(int slot, int phase) {
         return false;
     }
 
+    // A member's game, or a host with nobody to stand in for, runs every update as the game has it.
     if (!hosting_ || members_.empty()) {
         return false;
     }
 
+    // After an update: settle what the stand-in did to the host's state.
     if (phase != 0) {
         // The bolts a member's stand-in collected are that member's.
         if (standing_ != 0) {
@@ -40,6 +42,8 @@ bool World::gate(int slot, int phase) {
 
             const int delta = game_.bolts(0) - bolts_before_;
 
+            // Bolts the stand-in's update added to the host's count belong to that member, so they
+            // come off.
             if (delta > 0) {
                 game_.bolts(-delta);
                 members_[standing_].bolts += delta;
@@ -70,6 +74,7 @@ bool World::gate(int slot, int phase) {
     Pose at;
     const std::int32_t target = pick_target(slot, it->second, at);
 
+    // Only a member is stood in for (the host is 0); the update then sees his figure as the hero.
     if (target > 0 && stand_for(it->second, target, at)) {
         standing_ = target;
         bolts_before_ = game_.bolts(0);
@@ -81,6 +86,7 @@ bool World::gate(int slot, int phase) {
 std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
     // A grab holds its victim, however long and however near the others stand.
     if (const auto held = holds_.find(slot); held != holds_.end()) {
+        // The host himself is held.
         if (held->second.player == 0) {
             return 0;
         }
@@ -90,12 +96,14 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
 
     const GrabClass* grab = grab_class(moby.oclass);
 
-    // The nearest player to it who can be fought: the host, or a member in this level. One in another
-    // enemy's grip is no prey for a second.
+    // The nearest player to it who can be fought: the host, or a member in this level. One in
+    // another enemy's grip is no prey for a second.
     Pose hero;
+    // Larger than any squared distance, so the first player in reach wins.
     float best = 1e30f;
     std::int32_t nearest = -1;
 
+    // The host's hero is a candidate while alive and not in another grab.
     if (game_.hero(hero) && hero.health > 0 && (grab == nullptr || !held_elsewhere(0, slot))) {
         best = distance2(hero.position, moby.pose.position);
         nearest = 0;
@@ -106,18 +114,22 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
     float kept = current == 0 && nearest == 0 ? best : -1.0f;
     Pose kept_at;
 
+    // Each member in this level is a candidate.
     for (const auto& [id, member] : members_) {
         Pose p;
 
+        // Only members who are alive and not in another moby's grab count.
         if (member.level == level_ && coop_.latest(id, p) && p.health > 0
             && (grab == nullptr || !held_elsewhere(id, slot))) {
             const float d2 = distance2(p.position, moby.pose.position);
 
+            // The distance of the current target is kept to weigh it against the nearest.
             if (id == current) {
                 kept = d2;
                 kept_at = p;
             }
 
+            // The nearest player so far wins.
             if (d2 < best) {
                 best = d2;
                 nearest = id;
@@ -133,6 +145,7 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
 
     Aim& aim = aims_[slot];
 
+    // A new state starts the attack's stick time again.
     if (aim.player < 0 || moby.state != aim.state) {
         aim.state = moby.state;
         aim.state_ms = tick_ms_;
@@ -147,6 +160,7 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
         grab != nullptr && moby.state >= grab->lunge_first && moby.state <= grab->lunge_last;
     const bool sticking = grab == nullptr && tick_ms_ - aim.state_ms < kAttackStickMs;
 
+    // Keep the current target while one of those holds; otherwise the nearest takes it.
     if (kept >= 0.0f
         && (lunging || sticking || keeps_hero_class(moby.oclass)
             || best >= kept * kTargetBand * kTargetBand)) {
@@ -159,6 +173,7 @@ std::int32_t World::pick_target(int slot, const MobyState& moby, Pose& at) {
 }
 
 bool World::member_hit_ok(std::int32_t sender, const Hit& h) const {
+    // A message that makes no sense is refused.
     if (!hit_makes_sense(h)) {
         return false;
     }
@@ -168,6 +183,7 @@ bool World::member_hit_ok(std::int32_t sender, const Hit& h) const {
     Pose at;
     const auto moby = mobys_.find(h.victim);
 
+    // With no word of where the sender is, or no such moby here, the hit is taken.
     if (moby == mobys_.end() || !coop_.latest(sender, at)) {
         return true;
     }
@@ -177,11 +193,13 @@ bool World::member_hit_ok(std::int32_t sender, const Hit& h) const {
 }
 
 bool World::hit(const Hit& h) {
+    // The host takes only hits on a member's figure, which go to that member.
     if (hosting_) {
         // A hit on a member's figure (an enemy that stood the hero in there): that member's.
         for (const auto& [id, member] : members_) {
             const int figure = coop_.figure_of(id);
 
+            // Only the figure of the member whose slot is the victim.
             if (figure < 0 || game_.figure_slot(figure) != h.victim) {
                 continue;
             }
@@ -196,6 +214,7 @@ bool World::hit(const Hit& h) {
             session_.send_data(id, w.bytes());
             ++counts_.damage;
 
+            // The attacker hit that player a moment ago, so its attack stick starts again.
             if (const auto aim = aims_.find(h.attacker); aim != aims_.end()) {
                 aim->second.state_ms = tick_ms_;
             }
@@ -211,12 +230,14 @@ bool World::hit(const Hit& h) {
         return false;
     }
 
+    // A hit between two driven mobys is the host's world acting on itself: it is not sent.
     if (driven_.count(h.attacker) != 0) {
         return true;
     }
 
     const std::uint16_t id = id_of(h.victim);
 
+    // A victim with no name on the wire cannot be told to the host; the hit is still taken.
     if (id != kNoId) {
         Writer w;
         w.u8(static_cast<std::uint8_t>(WorldKind::kHit));

@@ -1,19 +1,15 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Playing together (coop.hpp): the PLAY sent, the joining and the rejoin, being put beside the host
- * and starting again.
- *
- * The place (the host's word, and only its word: the member's game finds the spot itself, as a
- * spot means something only against a level as it stands, and asks the port to put the hero
- * there). The host keeps its last safe pose and answers what is asked; each asking has a ticket, so
- * an answer to an earlier one moves nobody. Ways out, for a joiner: its own Start, the host's ship
- * leaving, kPlaceMostMs; all leave it where the ship or the level's start put it, which is its
- * fallback too when no spot exists. For Go to host, the fallback is that landing place.
- */
-#include "coop.hpp"
-#include "coop_util.hpp"
-#include "world_util.hpp"
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Playing together (coop.hpp): the PLAY sent, the joining and the rejoin, being put beside the host
+// and starting again.
+//
+// The place (the host's word, and only its word: the member's game finds the spot itself, as a
+// spot means something only against a level as it stands, and asks the port to put the hero
+// there). The host keeps its last safe pose and answers what is asked; each asking has a ticket, so
+// an answer to an earlier one moves nobody. Ways out, for a joiner: its own Start, the host's ship
+// leaving, kPlaceMostMs; all leave it where the ship or the level's start put it, which is its
+// fallback too when no spot exists. For Go to host, the fallback is that landing place.
 
 #include <algorithm>
 #include <cmath>
@@ -21,12 +17,17 @@
 #include <cstdlib>
 #include <utility>
 
+#include "coop.hpp"
+#include "coop_util.hpp"
+#include "world_util.hpp"
+
 namespace mp {
 
 using namespace coop_util;
 using wire::f32;
 
 bool Coop::rejoin() {
+    // Only a member of a game that is on, with no PLAY half received, can ask for it again.
     if (session_.role().host() || play_ == 0 || pending_) {
         return false;
     }
@@ -100,6 +101,7 @@ void Coop::host_changed() {
 }
 
 bool Coop::can_take_over() const {
+    // A party with no game on has nothing to lose: anyone can take over.
     if (play_ == 0) {
         return true;
     }
@@ -149,7 +151,9 @@ void Coop::take_over(std::uint16_t travel, std::uint16_t scene, Bytes save, std:
     start_ms_ = start_ms_ != 0 ? start_ms_ : now;
     told_.clear();
 
+    // The members already in the game stay told, so none is sent a PLAY again.
     for (const Member& m : session_.members()) {
+        // The host's own id is not a member to tell.
         if (m.id != session_.id()) {
             told_.push_back(m.id);
         }
@@ -167,6 +171,7 @@ void Coop::demoted() {
 }
 
 void Coop::send_play(std::int32_t target, const Bytes& save, int level, bool joining) {
+    // The party's saves hear of the target before a PLAY reaches it.
     if (announce_) {
         announce_(target);
     }
@@ -191,13 +196,16 @@ void Coop::send_play(std::int32_t target, const Bytes& save, int level, bool joi
         w.u8(static_cast<std::uint8_t>(GameKind::kChunk))
             .i32(play_)
             .i32(static_cast<std::int32_t>(at))
-            .raw(Bytes(save.begin() + static_cast<std::ptrdiff_t>(at),
-                       save.begin() + static_cast<std::ptrdiff_t>(at + n)));
+            .raw(Bytes(
+                save.begin() + static_cast<std::ptrdiff_t>(at),
+                save.begin() + static_cast<std::ptrdiff_t>(at + n)
+            ));
         session_.send_data(target, w.bytes());
     }
 }
 
 void Coop::tick_joining(std::uint64_t now, const GameStatus& status) {
+    // Only a member coming into a game that is on has anything to do here.
     if (!joining_) {
         return;
     }
@@ -211,11 +219,14 @@ void Coop::tick_joining(std::uint64_t now, const GameStatus& status) {
 
     const bool there = status.phase == kPhasePlaying && status.level == host_level_ && world_ready_;
 
+    // In the host's level with its world, a game that can place its hero asks to be put beside the
+    // host.
     if (there && game_.can_place() && !arriving_) {
         begin_place(PlaceFor::kJoin, now);
         return;
     }
 
+    // Joining ends when the joiner is in place, or after kJoiningMs.
     if (there || now - joining_since_ >= kJoiningMs) {
         joining_ = joining_hold_ = false;
         quiet_until_ = now + kQuietMs;
@@ -234,9 +245,11 @@ void Coop::tick_joining(std::uint64_t now, const GameStatus& status) {
 
 namespace {
 
+// Returns whether the points `a` and `b` are closer than kPlaceNear.
 bool near(const float* a, const float* b) {
     float sum = 0;
 
+    // Squared distances, so no root is taken.
     for (int i = 0; i < 3; ++i) {
         sum += (a[i] - b[i]) * (a[i] - b[i]);
     }
@@ -267,6 +280,8 @@ void Coop::tick_again(std::uint64_t now) {
         log("the host started again: leaving for the title");
     }
 
+    // The way to the title is asked at once, then again every kTravelMs while the game has not
+    // gone.
     if (again_ms_ == 0 || now - again_ms_ >= kTravelMs) {
         again_ms_ = now;
         game_.travel(-1);
@@ -297,7 +312,9 @@ void Coop::clear_game() {
     reset_scenes();
 }
 
-bool Coop::shielded() const { return joining_ || clock_() < shield_until_; }
+bool Coop::shielded() const {
+    return joining_ || clock_() < shield_until_;
+}
 
 bool Coop::can_go() const {
     const GameStatus status = game_.status();
@@ -307,6 +324,7 @@ bool Coop::can_go() const {
 }
 
 bool Coop::go_to_host(std::uint64_t now) {
+    // Go to host works only when allowed, and not again within kGoAgainMs.
     if (!can_go() || now < go_again_ms_) {
         return false;
     }
@@ -331,6 +349,7 @@ void Coop::end_place(std::uint64_t now, const std::string& how) {
     place_moving_ = false;
     log("place: " + how);
 
+    // A joiner that is put in place is no joiner any more.
     if (why == PlaceFor::kJoin) {
         joining_ = joining_hold_ = false;
         quiet_until_ = now + kQuietMs;
@@ -343,7 +362,9 @@ void Coop::place_at(const float* position, float yaw, bool beside, std::uint64_t
     float turn = 0;
     const std::vector<Member>& members = session_.members();
 
+    // Members are counted in party order, the host left out, to find this game's side.
     for (std::size_t i = 0, seen = 0; beside && i < members.size(); ++i) {
+        // This game's own place in that order gives its angle.
         if (members[i].id == session_.id()) {
             turn = static_cast<float>(seen) * 1.5707964f;
         } else if (members[i].id != session_.host()) {
@@ -351,6 +372,7 @@ void Coop::place_at(const float* position, float yaw, bool beside, std::uint64_t
         }
     }
 
+    // The game found no spot to put the hero; no_place says what happens then.
     if (!game_.place(position, yaw + turn, beside)) {
         no_place(now);
         return;
@@ -387,12 +409,15 @@ void Coop::on_place(bool from_host, Reader& r) {
     const std::uint8_t answer = r.u8();
     float at[3];
 
+    // The spot is three floats: x, y and z.
     for (float& v : at) {
         v = f32(r);
     }
 
     const float yaw = f32(r);
 
+    // An answer counts only whole, from the host, to the ask now open, and not while the hero
+    // moves.
     if (!from_host || !r.ok() || play != play_ || placing_ == PlaceFor::kNone || place_moving_
         || ticket != place_ticket_) {
         return;
@@ -400,10 +425,12 @@ void Coop::on_place(bool from_host, Reader& r) {
 
     const auto now = clock_();
 
+    // The host has no spot at all in this level load.
     if (answer == kPlaceNone) {
         no_place(now);
     } else if (answer == kPlaceHere || answer == kPlaceLast) {
-        log(answer == kPlaceHere ? "place: beside the host" : "place: at the host's last safe spot");
+        log(answer == kPlaceHere ? "place: beside the host"
+                                 : "place: at the host's last safe spot");
         place_at(at, yaw, true, now);
     }
 }
@@ -419,6 +446,7 @@ void Coop::tick_place(std::uint64_t now, const GameStatus& status) {
         landing_loads_ = status.loads;
     }
 
+    // Past here only a game being put somewhere has work to do.
     if (placing_ == PlaceFor::kNone) {
         return;
     }
@@ -429,6 +457,7 @@ void Coop::tick_place(std::uint64_t now, const GameStatus& status) {
         return;
     }
 
+    // The game was asked to move the hero: wait for it to arrive or to fail.
     if (place_moving_) {
         // The port moves him once the player is in control: the time counts from there.
         if (status.phase != kPhasePlaying) {
@@ -445,6 +474,7 @@ void Coop::tick_place(std::uint64_t now, const GameStatus& status) {
         return;
     }
 
+    // No answer in kPlaceMostMs ends the whole request.
     if (now - place_began_ >= kPlaceMostMs) {
         no_place(now);
         return;
@@ -455,6 +485,7 @@ void Coop::tick_place(std::uint64_t now, const GameStatus& status) {
         place_since_ = now;
     }
 
+    // Asks go out at most every kPlaceAskMs.
     if (place_ask_ms_ != 0 && now - place_ask_ms_ < kPlaceAskMs) {
         return;
     }
@@ -474,6 +505,7 @@ void Coop::tick_place(std::uint64_t now, const GameStatus& status) {
 }
 
 void Coop::tick_safe(std::uint64_t now, const GameStatus& status) {
+    // A new level load makes the old safe spot meaningless.
     if (status.loads != safe_loads_) {
         safe_loads_ = status.loads;
         safe_ms_ = 0;
@@ -481,6 +513,7 @@ void Coop::tick_safe(std::uint64_t now, const GameStatus& status) {
 
     Pose hero;
 
+    // A safe spot is the hero standing on steady ground in control (kPoseSteady).
     if (status.phase == kPhasePlaying && game_.hero(hero) && (hero.flags & kPoseSteady) != 0) {
         safe_ = hero;
         safe_ms_ = now;
@@ -496,8 +529,9 @@ void Coop::on_place_ask(std::int32_t sender, Reader& r) {
     const auto ticket = static_cast<std::uint16_t>(high << 8 | r.u8());
     const bool last = r.u8() != 0;
 
-    if (!session_.role().host() || !r.ok() || play == 0 || play != play_ || !member_of(session_, sender)
-        || !may_play(sender)) {
+    // Only the host answers, and only a member of the party that may play.
+    if (!session_.role().host() || !r.ok() || play == 0 || play != play_
+        || !member_of(session_, sender) || !may_play(sender)) {
         return;
     }
 
@@ -507,6 +541,7 @@ void Coop::on_place_ask(std::int32_t sender, Reader& r) {
     const bool known = safe_ms_ != 0 && status.loads == safe_loads_;
     std::uint8_t answer = kPlaceWait;
 
+    // A fresh safe spot answers `here`; with `last` asked, the last one will do, or none is left.
     if (can && known && now - safe_ms_ < kSafeFreshMs) {
         answer = kPlaceHere;
     } else if (can && last) {
@@ -520,6 +555,7 @@ void Coop::on_place_ask(std::int32_t sender, Reader& r) {
         .u8(static_cast<std::uint8_t>(ticket))
         .u8(answer);
 
+    // The spot goes in every answer; only a place answer uses it.
     for (const float v : safe_.position) {
         f32(w, v);
     }

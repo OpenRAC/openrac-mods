@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's game, for the co-op (coop.hpp's Game, on interface 1.8's play calls and the
- * ones after): what each of the co-op's questions asks the SDK. Its definitions are in
- * game_adapter.cpp.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The multiplayer mod's game, for the co-op (coop.hpp's Game, on interface 1.8's play calls and the
+// ones after): what each of the co-op's questions asks the SDK. Its definitions are in
+// game_adapter.cpp.
+
 #ifndef MULTIPLAYER_GAME_ADAPTER_H
 #define MULTIPLAYER_GAME_ADAPTER_H
 
@@ -20,14 +20,19 @@
 
 namespace mpmod {
 
-/* Where each disc keeps the progress a party shares (see game_adapter.cpp). */
+// Where each disc keeps the progress a party shares (see game_adapter.cpp).
 struct ProgressDisc;
 
+// The multiplayer mod's game: the co-op's questions answered by the SDK's play calls on the running
+// game.
+//
+// Holds the mod by reference, and it outlives this object. Only the game's thread calls it.
 class ModGame : public mp::Game {
 public:
-    /* The title's Multiplayer page (Home), once made. */
+    // The title's Multiplayer page (Home), once made.
     openrac::UiPage* home = nullptr;
 
+    // Creates it over `mod`, which outlives it.
     explicit ModGame(openrac::Mod& mod) : mod_(mod) {}
 
     mp::GameStatus status() override;
@@ -45,6 +50,8 @@ public:
     void card_note_write(int slot, const std::string& text) override;
     std::int64_t wall_seconds() override;
 #ifdef MULTIPLAYER_BOT
+    // Calls the game's own save, as a gold bolt's pickup does. False for a disc it has no such
+    // function for.
     bool game_save();
 #endif
 
@@ -116,12 +123,13 @@ public:
 
     bool shared_give(int tag, const mp::Bytes& data) override;
 
-    /* The mods of this run but this one, with their settings: once they have all loaded. */
+    // The mods of this run but this one, with their settings: once they have all loaded.
     mp::ModList mod_list();
 
     std::vector<mp::PartyRules> party_rules() override;
 
     bool deliver_rules(const std::string& id, const mp::Bytes& data) override;
+    bool hand_over_rules(const std::string& id) override;
 
     void overlay_pause(bool on) override;
 
@@ -132,16 +140,19 @@ public:
     bool camera_play(int id) override;
     bool camera_show(const float* eye, const float* rotation) override;
 
+    // Returns `p` as the SDK's moby record: position, rotation, scale and animation.
     static openrac_moby moby_of(const mp::Pose& p);
 
-    /* The two poses are the same fields: one after its size, the other alone. */
+    // The two poses are the same fields: one after its size, the other alone.
     static mp::Pose from_sdk(const openrac_pose& p);
 
-    /* The pieces: the same fields, the SDK's in openrac_held. */
+    // The pieces: the same fields, the SDK's in openrac_held.
     static void held_from_sdk(const openrac_held& h, mp::Pose& out);
 
+    // Returns the held pieces of `p` as the SDK's record, at most OPENRAC_HELD_MAX of them.
     static openrac_held held_to_sdk(const mp::Pose& p);
 
+    // Returns `p` as the SDK's pose.
     static openrac_pose to_sdk(const mp::Pose& p);
 
     bool open_home() override;
@@ -154,6 +165,7 @@ public:
     std::string level_name(int level) override;
 
     void quiet_gifts(bool on) override { quiet_ = on; }
+
     // --- end WP-JOIN ---
 
     // --- WP-DEATH ---
@@ -172,12 +184,17 @@ public:
     // --- end WP-DEATH ---
 
 private:
-    /* This disc's progress places, null for a disc it does not know. */
+    // This disc's progress places, null for a disc it does not know.
     const ProgressDisc* progress_disc() const;
 
-    static void read_bytes(const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n);
+    // Reads `n` bytes of game memory at `at` into `out`.
+    static void read_bytes(
+        const openrac::Memory& memory, openrac::gaddr at, std::uint8_t* out, std::size_t n
+    );
 
+    // The mod, whose SDK calls this game makes.
     openrac::Mod& mod_;
+    // The index of each mod by id, filled by mod_list, for the rules calls.
     std::map<std::string, int> indices_;
     bool quiet_ = false;  // gifts without the game's banners (WP-JOIN)
 };

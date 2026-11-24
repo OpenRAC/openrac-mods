@@ -1,0 +1,17 @@
+{
+  "contexts": {
+    "vendor": {
+      "actions": [
+        {
+          "id": "buy_all_ammo",
+          "icon": "buy",
+          "press": [
+            "square"
+          ],
+          "at": 4,
+          "when": "buy_all_ammo"
+        }
+      ]
+    }
+  }
+}

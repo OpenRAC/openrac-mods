@@ -23,7 +23,10 @@
 #include <time.h>
 
 #include "ap_bridge.h"
+#include "ap_visual_api.h"
 #include "ap_ids.h"
+#include "ap_gold_weapons.h"
+#include "ap_npc_infobots.h"
 #include "ap_skills.h"
 #include "discs.h"
 #include "hooks.h"
@@ -73,14 +76,15 @@
 #define JUDGE_WAIT_TICKS 120
 
 /* How long a line stays at the top of the screen, in ticks (60 a second). */
-#define NOTICE_TICKS 300
+#define NOTICE_TICKS (strcmp(s_disc->version, "pal") == 0 ? 150 : 180)
 #define NOTICE_SIZE 256
 
 /* The items the game side reads at once; a longer list is read into a larger buffer. */
 #define RECEIVED_CHUNK 1024
+#define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.2.0"
+#define MOD_VERSION "2.5.15"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 
@@ -98,6 +102,11 @@ typedef struct swap {
 static const openrac_api* s_api;
 static openrac_mod* s_mod;
 static const rando_disc* s_disc;
+static int acquisition_infobot(uint32_t moby,int row);
+static void acquisition_run(uint32_t moby,void (*original)(uint32_t));
+static void acquisition_item(int row);
+static int acquisition_vendor(int row);
+static int acquisition_case(int base,uint32_t moby);
 
 /* Each location's row by its key (as item_randomizer.c's); -1 for none. */
 static int s_by_item[RANDO_ITEM_COUNT];
@@ -119,13 +128,32 @@ static int s_bought = -1;
 static int s_infobot = -1;
 
 /* What the server has sent this slot: each item and planet, and the gold bolts. */
+static uint8_t s_received_special[SPECIAL_COUNT];
 static uint8_t s_received_item[RANDO_ITEM_COUNT];
+static uint8_t s_received_gold_weapon[RANDO_ITEM_COUNT];
+static int s_gold_case = -1;
+static int s_npc_running = -1;
+static uint8_t s_gold_real_upgrade;
+static openrac_rac1_GoldBolts_CountUnspent s_count_unspent;
+static openrac_rac1_Moby_GoldWeaponCase_Update s_gold_case_update;
+static item_randomizer_Save_NewGamePlus s_new_game_plus;
+static item_randomizer_Save_NewGame s_new_game;
+static void (*s_save_update)(void);
+static int32_t (*s_restore_data)(uint32_t, int32_t, uint32_t);
+static int s_in_game_reset;
+static int s_restoring_save;
+static int s_has_gold_currency_hook;
+static int s_gold_hook_warned;
+static int64_t s_gold_hint_location = -1;
+static float s_gold_hint_distance = 9.0f;
+static unsigned s_gold_hint_price;
 static uint8_t s_received_planet[LEVEL_COUNT];
 static int s_received_gold;
 static uint32_t s_generation = UINT32_MAX;
 
 /* The line at the top of the screen and the ticks it has left. */
 static int s_notice_ticks;
+static int s_menu_notice_warned;
 
 /* The save's memory card slot (interface 1.11): the game came from the title since the last level
  * start; its save waits to be judged until its slot is known; the slot known in this game. */
@@ -144,6 +172,8 @@ static openrac_rac1_Item_Give s_item_give;
 static openrac_rac1_Planet_Unlock s_planet_unlock;
 static openrac_rac1_Vendor_InitLevelStock s_init_level_stock;
 static openrac_rac1_Vendor_BuildItemList s_build_item_list;
+static openrac_rac1_Ammo_ChooseDrop s_choose_drop;
+static openrac_rac1_Vendor_OpenMenu s_open_vendor_menu;
 static openrac_rac1_GoldBolts_CountCollected s_count_gold_bolts;
 static openrac_rac1_Moby_Infobot_Update s_infobot_update;
 static openrac_rac1_Moby_PilotsHelmet_Update s_helmet_update;
@@ -231,6 +261,25 @@ static void log_line(int level, const char* text) {
     s_api->log(s_mod, level, text);
 }
 
+/* Chunk 24 is unused by retail (discs.h save_tag). Keep purchase checks separate from the
+ * gold-upgrade ownership bytes: a received upgrade never spends currency or buys its case. */
+#define GOLD_CHECK_MAGIC 0xA7500000u /* legacy: ten case bits */
+#define AP_CHECK_MAGIC 0xA8000000u
+static uint32_t saved_checks(void) {
+    const uint32_t word = (uint32_t)get32(byte_at(s_disc->save_tag));
+    if ((word & ~0x3FFu) == GOLD_CHECK_MAGIC) return word & 0x3FFu;
+    return (word & 0xFF000000u) == AP_CHECK_MAGIC ? word & 0x7FFFFFu : 0;
+}
+static void save_checks(uint32_t bits) { set32(byte_at(s_disc->save_tag), (int32_t)(AP_CHECK_MAGIC | bits)); }
+static uint32_t gold_case_checks(void) { return saved_checks() & 0x3FFu; }
+static int npc_had(int index) { return (saved_checks() >> (10 + index)) & 1u; }
+static void npc_set_had(int index) { save_checks(saved_checks() | (1u << (10 + index))); }
+static uint8_t* gold_owned(int base) {
+    return byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013E620u + base : 0x0013E520u + base);
+}
+
+#include "menu_items_runtime.inc"
+
 /* ---- locations ---- */
 
 /* Whether the location has been had, by the game's own bytes (rando.h says which for each kind). */
@@ -243,6 +292,9 @@ static int had(int location) {
     const rando_location* l = &rando_locations[location];
 
     switch (l->kind) {
+        case LOC_SPECIAL:
+            return menu_mode()==1 ? menu_had(l->key)
+                : (l->key==5 ? *owned(ITEM_PERSUADER)!=0 : *menu_owned(l->key)!=0);
         case LOC_GIVE:
         case LOC_VENDOR:
         case LOC_START:
@@ -259,6 +311,10 @@ static int had(int location) {
                        + (uint32_t)l->key
                    )
                    != 0;
+        case LOC_FIXED: {
+            const int npc = l->vanilla.kind == REWARD_PLANET ? ap_npc_index(l->level,l->vanilla.value) : -1;
+            return npc >= 0 && npc_had(npc);
+        }
         default:
             return 0;
     }
@@ -272,6 +328,11 @@ static int skill_had(int skill) {
 
 /* The location had: the server is told (now, or when the client is next connected). */
 static void found(int location) {
+    const rando_location* l = &rando_locations[location];
+    if (l->kind == LOC_FIXED && l->vanilla.kind == REWARD_PLANET) {
+        const int npc = ap_npc_index(l->level, l->vanilla.value);
+        if (npc >= 0) npc_set_had(npc);
+    }
     s_seen[location] = 1;
     ap_client_check(ap_location_id(&rando_locations[location]));
 }
@@ -289,7 +350,7 @@ static void swap_push(uint8_t* at, int location) {
     w->at = at;
     w->real = *at;
     w->location = location;
-    *at = (uint8_t)had(location);
+    *at = (uint8_t)(location == SWAP_FORCE_OWNED || had(location));
 }
 
 static void swap_pop(void) {
@@ -308,8 +369,32 @@ static void swaps_resume(void) {
     // In the order pushed: what the game's routine changed is the new real value.
     for (int i = 0; i < s_swap_count; ++i) {
         s_swaps[i].real = *s_swaps[i].at;
-        *s_swaps[i].at = (uint8_t)had(s_swaps[i].location);
+        *s_swaps[i].at = (uint8_t)(s_swaps[i].location == SWAP_FORCE_OWNED || had(s_swaps[i].location));
     }
+}
+
+/* An NPC may save before its update returns. Never serialize the ownership
+ * bytes shown only to its collection test. Nested save calls must not resume
+ * the substitutions until the outermost save has finished. */
+static unsigned s_save_depth;
+static void (*s_save_prepare)(int32_t, int32_t);
+static int32_t (*s_request_autosave)(int32_t, int32_t);
+static void save_scope_enter(void) {
+    if (s_save_depth++ == 0) { menu_suspend(); swaps_suspend(); }
+}
+static void save_scope_leave(void) {
+    if (--s_save_depth == 0) { swaps_resume(); menu_resume(); }
+}
+static void save_prepare(int32_t buffer, int32_t slot) {
+    save_scope_enter();
+    s_save_prepare(buffer, slot);
+    save_scope_leave();
+}
+static int32_t request_autosave(int32_t slot, int32_t flags) {
+    save_scope_enter();
+    const int32_t result = s_request_autosave(slot, flags);
+    save_scope_leave();
+    return result;
 }
 
 /* ---- giving what the server sent ---- */
@@ -391,15 +476,25 @@ static void read_received(void) {
     }
 
     s_generation = generation;
+    memset(s_received_special, 0, sizeof s_received_special);
     memset(s_received_item, 0, sizeof s_received_item);
+    memset(s_received_gold_weapon, 0, sizeof s_received_gold_weapon);
     memset(s_received_planet, 0, sizeof s_received_planet);
     s_received_gold = 0;
 
     // Each item by its kind.
     for (size_t i = 0; i < n; ++i) {
+        const int gold_base = ap_gold_weapon_base(ids[i]);
+        if (gold_base >= 0) {
+            s_received_gold_weapon[gold_base] = 1;
+            s_received_item[gold_base] = 1;
+            continue;
+        }
         const rando_reward r = ap_reward_of(ids[i]);
 
-        if (r.kind == REWARD_ITEM) {
+        if (r.kind == REWARD_SPECIAL) {
+            s_received_special[r.value] = 1;
+        } else if (r.kind == REWARD_ITEM) {
             s_received_item[r.value] = 1;
         } else if (r.kind == REWARD_PLANET) {
             s_received_planet[r.value] = 1;
@@ -411,6 +506,13 @@ static void read_received(void) {
 
 /* Gives what the server sent that the hero lacks: in a level, with the player in control. */
 static void give_received(void) {
+    for (int i=0;i<SPECIAL_COUNT;++i) if (s_received_special[i]) menu_give_special(i);
+    /* Set the variant before GiveItem so initial ammo/model setup sees the gold weapon. */
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
+        const int base = k_ap_gold_bases[i];
+        if (s_received_gold_weapon[base]) *gold_owned(base) = 1;
+    }
+
     // Each item sent and not owned.
     for (int item = 0; item < RANDO_ITEM_COUNT; ++item) {
         if (s_received_item[item] && !*owned(item)) {
@@ -427,6 +529,12 @@ static void give_received(void) {
             banner_put_back(&banner);
         }
     }
+}
+
+static int menu_mode(void) { return ap_client_shuffle_items(); }
+static void menu_collected(int index) {
+    const int row=menu_location_row(index);
+    if (row>=0) { found(row); }
 }
 
 /* ---- the hooks (item_randomizer.c's, the reward always nothing) ---- */
@@ -461,13 +569,19 @@ static void item_give(int32_t id, int32_t equip) {
     }
 
     uint8_t* entry = vendor_purchase(id);
+    if (!entry) acquisition_item(location);
     *obtained(id) = 1; /* the location's own byte, which its place tests and the save keeps */
     found(location);
 
-    // A vendor purchase: the dialog takes the entry's item as the one bought, whose demo plays and
-    // which the hero is handed: the one bought before, as nothing was given here.
+    // The dialog copies this entry into its last-bought slot after GiveItem returns.
+    // Older hosts retain their previous demo; new hosts play the actual reward on exit.
     if (entry != NULL) {
-        set32(entry, get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT));
+        /* New hosts present the last actual reward after the vendor closes.
+         * Suppress retail's source-weapon demo, which would play the wrong item. */
+        if (acquisition_vendor(location)) {
+            set32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT,-1);
+            set32(entry,-1);
+        } else set32(entry, get32(level_byte_at(s_disc->vendor_menu) + VENDOR_LAST_BOUGHT));
         s_bought = id;
     }
 }
@@ -480,6 +594,13 @@ static void planet_unlock(int32_t planet) {
         return;
     }
 
+    if (s_npc_running >= 0 && ap_client_npc_infobots() == 1
+        && planet == k_ap_npcs[s_npc_running].planet) {
+        npc_set_had(s_npc_running);
+        *planet_flag(planet) = 1; /* only the NPC sees this; saves serialize real ownership */
+        ap_client_check(ap_npc_id(s_npc_running));
+        return;
+    }
     s_planet_unlock(planet);
 }
 
@@ -499,6 +620,12 @@ static void infobot_update(openrac_gaddr moby) {
         s_infobot_update(moby);
         return;
     }
+    if (rando_locations[location].kind == LOC_FIXED) {
+        const int mode = ap_client_npc_infobots();
+        if (mode < 0) return; /* wait for the same save/room check as the NPC path */
+        if (!mode) { s_infobot_update(moby); return; }
+    }
+    if (acquisition_infobot(moby,location)) return;
 
     int64_t item = -1;
     int own = 0;
@@ -530,12 +657,12 @@ static void run_shown(void (*update)(openrac_gaddr), openrac_gaddr moby, int ite
     const int location = s_by_item[item];
 
     if (location < 0) {
-        update(moby);
+        acquisition_run(moby,update);
         return;
     }
 
     swap_push(owned(item), location);
-    update(moby);
+    acquisition_run(moby,update);
     swap_pop();
 }
 
@@ -543,13 +670,30 @@ static void helmet_update(openrac_gaddr moby) {
     run_shown(s_helmet_update, moby, ITEM_PILOTS_HELMET);
 }
 
-static void helga_update(openrac_gaddr moby) {
-    run_shown(s_helga_update, moby, ITEM_SWINGSHOT);
-}
+static int kerwan_randomizer_active(void) { return !s_from_title && !s_judge_wait && ap_client_new_game_plus() >= 0; }
+#include "kerwan_access.inc"
+static int return_ship_active(void) { return !s_from_title && !s_judge_wait && ap_client_new_game_plus() >= 0; }
+#include "return_ship.inc"
+#include "novalis_ship.inc"
 
-static void big_al_update(openrac_gaddr moby) {
-    run_shown(s_big_al_update, moby, ITEM_HELI_PACK);
+static int aridia_reward_collected(void) {
+    return kerwan_randomizer_active() && had(s_by_item[ITEM_TRESPASSER]);
 }
+#include "aridia_access.inc"
+
+static int blarg_o2_access_active(void) { return kerwan_randomizer_active(); }
+static openrac_gaddr blarg_moby_pool(void) {
+    return (openrac_gaddr)get32(level_byte_at(s_disc->moby_base));
+}
+#include "blarg_access.inc"
+#include "pickup_platforms.inc"
+#include "orxon_access.inc"
+static int kalebo_taxi_mode(void) {
+    if (s_from_title || s_judge_wait || ap_client_new_game_plus() < 0) return -1;
+    return 1;
+}
+#include "kalebo_taxi.inc"
+
 
 static void bob_update(openrac_gaddr moby) {
     run_shown(s_bob_update, moby, ITEM_THRUSTER_PACK);
@@ -644,7 +788,7 @@ static int save_slot_now(void) {
 
 /* The locations the game has had, sent to the client with the save's memory card slot. */
 static void send_save(int card_slot) {
-    static int64_t ids[RANDO_MAX_LOCATIONS + AP_SKILL_POINT_COUNT];
+    static int64_t ids[RANDO_MAX_LOCATIONS + AP_SKILL_POINT_COUNT + AP_GOLD_WEAPON_COUNT + AP_NPC_COUNT];
     size_t n = 0;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
@@ -660,10 +804,15 @@ static void send_save(int card_slot) {
         }
     }
 
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) {
+        if (gold_case_checks() & (1u << i)) ids[n++] = ap_gold_case_id(k_ap_gold_bases[i]);
+    }
+    for (int i = 0; i < AP_NPC_COUNT; ++i) if (npc_had(i)) ids[n++] = ap_npc_id(i);
     ap_client_save_loaded(ids, n, card_slot);
 }
 
 static void sync_seen(void) {
+    s_restoring_save = 0;
     for (size_t i = 0; i < rando_location_count; ++i) {
         s_seen[i] = (uint8_t)(ap_is_location(&rando_locations[i]) && had((int)i));
     }
@@ -713,7 +862,41 @@ static void watch_save_slot(int phase) {
 
     if (slot >= 0 && slot != s_slot_known) {
         s_slot_known = slot;
-        ap_client_save_written(slot);
+        /* A changed slot alone does not prove a successful overwrite. */
+    }
+}
+
+/* Ownership does not gate Circle or Triangle: hero_switch_item reads last_weapon_id directly,
+ * and the double-tap path also reads quick_swap_item. initialize_hero defaults a zero last
+ * weapon to Bomb Glove, so use the wrench rather than zero until a real weapon is selected.
+ * The hero's pending/selected/saved slot-0 items are +0x20B8/+0x20D4/+0x20F0 in struct Hero;
+ * its current item is +0x10B8. Queue a normal switch instead of editing a live item's moby. */
+static void guard_unowned_bomb_glove(void) {
+    if (*owned(ITEM_BOMB_GLOVE)) {
+        return;
+    }
+
+    uint8_t* last = byte_at(s_disc->last_weapon);
+    uint8_t* quick_swap = byte_at(s_disc->level + 8u); /* D_0015EE8C / D_0015ED8C */
+    uint8_t* hero = byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013F450u : 0x0013F350u);
+    uint8_t* pending = hero + 0x20B8u;
+    uint8_t* saved = hero + 0x20F0u;
+
+    if (get32(last) == ITEM_BOMB_GLOVE) {
+        set32(last, ITEM_WRENCH);
+    }
+    if (get32(quick_swap) == ITEM_BOMB_GLOVE) {
+        set32(quick_swap, ITEM_WRENCH);
+    }
+    if (get32(saved) == ITEM_BOMB_GLOVE) {
+        set32(saved, ITEM_WRENCH);
+    }
+
+    const int32_t next = get32(pending);
+    if (next == ITEM_BOMB_GLOVE
+        || (next == 0 && (get32(hero + 0x10B8u) == ITEM_BOMB_GLOVE
+                          || get32(hero + 0x20D4u) == ITEM_BOMB_GLOVE))) {
+        set32(pending, ITEM_WRENCH);
     }
 }
 
@@ -747,6 +930,8 @@ static void take_back_bomb_glove(
     }
 }
 
+#include "planet_vendor_stock.inc"
+
 /* Hook for VendorStockLevelInit: the starting Bomb Glove is its location's. */
 static void init_level_stock(void) {
     sync_seen();
@@ -762,12 +947,20 @@ static void init_level_stock(void) {
         s_init_level_stock();
         swap_pop();
         take_back_bomb_glove(stock, before, last, last_before);
+        guard_unowned_bomb_glove();
     } else {
         s_init_level_stock();
     }
 
+    // A slot's save: unlocked planets' new weapons are for sale here already.
+    if (!s_from_title && !s_judge_wait) {
+        planet_vendor_stock_dedupe(byte_at(s_disc->vendor_stock));
+        planet_vendor_stock_sync();
+    }
+
     sync_seen();
 }
+
 
 /* The vendor's stock as the menu is built from it: a slot not bought, its weapon for sale; a slot
  * bought, its weapon's ammo when the hero owns it (from wherever), else nothing; a weapon owned
@@ -814,7 +1007,22 @@ static void vendor_stock_shown(
     memset(shown + m, STOCK_END, (size_t)(VENDOR_STOCK_SIZE - m));
 }
 
-/* Prevent opening a vendor whose Archipelago-filtered stock is empty. */
+/* The retail list builder also appends ammunition for owned weapons, even when
+ * they never appeared in this planet's stock (for example, a starting weapon).
+ * These are the weapons with a nonzero retail ammunition purchase price. */
+static int has_vendor_ammunition(void) {
+    const uint8_t* prices = level_byte_at(s_disc->item_price_table);
+    for (int item = 0; item < VENDOR_ITEM_COUNT; ++item) {
+        uint16_t ammo_price;
+        memcpy(&ammo_price, prices + item * 0x18 + 0x08, sizeof ammo_price);
+        if (*owned(item) && ammo_price != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Prevent opening a vendor only when neither rewards nor ammunition remain. */
 static void guard_empty_vendor(void) {
     if (s_disc == NULL || (strcmp(s_disc->version, "ntsc") != 0
         && strcmp(s_disc->version, "pal") != 0))
@@ -825,7 +1033,7 @@ static void guard_empty_vendor(void) {
     memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
     vendor_stock_shown(real, shown);
 
-    const int empty = shown[0] == STOCK_END;
+    const int empty = shown[0] == STOCK_END && !has_vendor_ammunition();
 
     const openrac_gaddr base =
         (openrac_gaddr)get32(level_byte_at(
@@ -907,8 +1115,73 @@ static void settle_menu_after_purchase(void) {
     s_bought = -1;
 }
 
+static void open_vendor_menu_hook(uint32_t moby) {
+    if (s_disc != NULL) {
+        uint8_t real[VENDOR_STOCK_SIZE];
+        uint8_t shown[VENDOR_STOCK_SIZE];
+
+        memcpy(real, byte_at(s_disc->vendor_stock), sizeof real);
+        vendor_stock_shown(real, shown);
+
+        int has_stock = 0;
+        uint8_t* item_info = level_byte_at(s_disc->item_price_table);
+
+        for (int i = 0; i < VENDOR_STOCK_SIZE && shown[i] != STOCK_END; ++i) {
+            const int item = shown[i] & 0x3F;
+            if (item >= VENDOR_ITEM_COUNT) {
+                continue;
+            }
+            /* Physical vendors sell unchecked reward rows; the PDA sells ammunition only. */
+            if (moby != 0 && !(shown[i] & STOCK_AMMO)) {
+                has_stock = 1;
+                break;
+            }
+            uint16_t ammo_supported;
+            memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
+
+            if ((shown[i] & STOCK_AMMO) && ammo_supported != 0) {
+                has_stock = 1;
+                break;
+            }
+        }
+
+        for (int item = 0; item < VENDOR_ITEM_COUNT && !has_stock; ++item) {
+            uint16_t ammo_supported;
+            memcpy(&ammo_supported, item_info + item * 0x18 + 0x08, sizeof ammo_supported);
+
+            if (*owned(item) != 0 && ammo_supported != 0)
+                has_stock = 1;
+        }
+
+        if (!has_stock)
+            return;
+    }
+
+    s_open_vendor_menu(moby);
+}
+
+static int32_t choose_drop(openrac_gaddr moby, openrac_gaddr out_item) {
+    uint8_t* stock = byte_at(s_disc->vendor_stock);
+    uint8_t real[VENDOR_STOCK_SIZE];
+    const uint8_t* prices = level_byte_at(s_disc->item_price_table);
+    int count = 0;
+    memcpy(real, stock, sizeof real);
+    memset(stock, STOCK_END, VENDOR_STOCK_SIZE);
+    for (int item = 0; item < VENDOR_ITEM_COUNT && count < VENDOR_STOCK_SIZE - 1; ++item) {
+        uint16_t ammo_supported;
+        memcpy(&ammo_supported, prices + item * 0x18 + 0x08, sizeof ammo_supported);
+        if (*owned(item) && ammo_supported != 0) {
+            stock[count++] = (uint8_t)(item | STOCK_AMMO);
+        }
+    }
+    const int32_t result = s_choose_drop(moby, out_item);
+    memcpy(stock, real, sizeof real);
+    return result;
+}
+
 /* Hook for VendorBuildItemList: built from the stock as the menu should see it. */
 static void build_item_list(int32_t skip_unflagged) {
+
     uint8_t* stock = byte_at(s_disc->vendor_stock);
     uint8_t real[VENDOR_STOCK_SIZE], shown[VENDOR_STOCK_SIZE];
     memcpy(real, stock, sizeof real);
@@ -951,6 +1224,154 @@ static void build_item_list(int32_t skip_unflagged) {
 static int32_t count_gold_bolts_hook(void) {
     read_received();
     return s_received_gold < MAX_GOLD_BOLTS ? s_received_gold : MAX_GOLD_BOLTS;
+}
+
+/* Retail still performs affordability checks and charges bolts. Only its bought/owned flag
+ * is swapped while the case runs, because the random reward belongs to the AP server. */
+/* Defined in ap_presentation.inc, included after the acquisition helpers. */
+static int gold_case_base(uint32_t moby);
+
+static void gold_case_update(openrac_gaddr moby) {
+    const int mode = ap_client_shuffle_gold_weapons();
+    if (mode < 0) return; /* no purchases before the room settings/save are known */
+    if (!mode) { s_gold_case_update(moby); return; }
+    if (!s_has_gold_currency_hook) return;
+    uint8_t* m = (uint8_t*)OPENRAC_G(s_api, moby);
+    int16_t oclass;
+    memcpy(&oclass, m + 0xA6, sizeof oclass);
+    const uint32_t pvars = (uint32_t)get32(m + MOBY_PVARS);
+    if (oclass >= 0x5B0 && oclass < 0x5B0 + AP_GOLD_WEAPON_COUNT) {
+        const int base = gold_case_base(moby);
+        const int index = ap_gold_weapon_index(base);
+        if (index < 0) {
+            s_gold_case_update(moby);
+            return;
+        }
+        const uint8_t real = *gold_owned(base);
+        *gold_owned(base) = (uint8_t)((gold_case_checks() >> index) & 1u);
+        s_gold_case_update(moby);
+        *gold_owned(base) = real;
+        return;
+    }
+    if (oclass != 304 || !pvars) { s_gold_case_update(moby); return; }
+    const int slot = i32_at(pvars + 0x40u);
+    if (slot < 0 || slot >= 20) { s_gold_case_update(moby); return; }
+    const uint32_t table = strcmp(s_disc->version, "pal") == 0 ? 0x001DEDE0u : 0x001DEB10u;
+    uint8_t* entries = (uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, table));
+    const int base = get32(entries + slot * 4);
+    const int index = ap_gold_weapon_index(base);
+    if (index < 0) { s_gold_case_update(moby); return; }
+    const uint32_t bit = 1u << index;
+    const int had_case = (gold_case_checks() & bit) != 0;
+    if (!had_case && s_api->hero_pose) {
+        openrac_pose pose = {0};
+        pose.size = sizeof pose;
+        if (s_api->hero_pose(&pose) == OPENRAC_HOOK_OK) {
+            float position[3];
+            memcpy(position, m + 0x10, sizeof position);
+            float distance = 0;
+            for (int axis = 0; axis < 3; ++axis) {
+                const float d = pose.position[axis] - position[axis];
+                distance += d * d;
+            }
+            if (distance < s_gold_hint_distance) {
+                const uint32_t prices = strcmp(s_disc->version, "pal") == 0 ? 0x001C47B0u : 0x001C4530u;
+                uint8_t* price_table = (uint8_t*)OPENRAC_G(s_api, s_api->relocate_level_data(1, prices));
+                uint16_t price;
+                memcpy(&price, price_table + base * 0x18 + 0x14, sizeof price);
+                s_gold_hint_location = ap_gold_case_id(base);
+                s_gold_hint_distance = distance;
+                s_gold_hint_price = price;
+            }
+        }
+    }
+    const uint8_t upgrade = *gold_owned(base);
+    const int previous = s_gold_case;
+    const uint8_t previous_upgrade = s_gold_real_upgrade;
+    s_gold_real_upgrade = upgrade;
+    s_gold_case = index;
+    *gold_owned(base) = (uint8_t)had_case;
+    swap_push(owned(base), SWAP_FORCE_OWNED);
+    s_gold_case_update(moby);
+    swap_pop();
+    const int bought = *gold_owned(base) != 0 && !had_case;
+    *gold_owned(base) = upgrade;
+    s_gold_case = previous;
+    s_gold_real_upgrade = previous_upgrade;
+    if (bought) {
+        save_checks(saved_checks() | bit);
+        ap_client_check(ap_gold_case_id(base));
+        if(acquisition_case(base,moby)) {
+            /* An instant case dialogue must not be finished again when the
+             * purchased Infobot's movie ends. This affects only this case. */
+            const uint32_t context=s_api->relocate_level_data(0,
+                strcmp(s_disc->version,"pal")==0?0x179200u:0x179100u);
+            if(OPENRAC_GREF(s_api,uint32_t,context+8)==moby
+                && OPENRAC_GREF(s_api,uint32_t,context+12)==pvars) {
+                OPENRAC_GREF(s_api,uint32_t,context+8)=0;
+                OPENRAC_GREF(s_api,uint32_t,context+12)=0;
+            }
+        }
+    }
+}
+
+static int32_t count_unspent_hook(void) {
+    if (ap_client_shuffle_gold_weapons() != 1) return s_count_unspent();
+    read_received();
+    uint32_t checks = gold_case_checks();
+    if (s_gold_case >= 0 && *gold_owned(k_ap_gold_bases[s_gold_case])) checks |= 1u << s_gold_case;
+    int bought = 0;
+    for (int i = 0; i < AP_GOLD_WEAPON_COUNT; ++i) bought += (checks >> i) & 1u;
+    const int total = s_received_gold < MAX_GOLD_BOLTS ? s_received_gold : MAX_GOLD_BOLTS;
+    const int remaining = total - 4 * bought;
+    return remaining < 0 ? 0 : remaining > MAX_GOLD_BOLTS ? MAX_GOLD_BOLTS : remaining;
+}
+
+static void begin_game(int fresh) {
+    ap_client_start_game(fresh);
+    s_slot_known = -1;
+    s_from_title = 1;
+    s_judge_wait = 0;
+    s_generation = UINT32_MAX;
+    s_goal = 0;
+}
+
+static void new_game(void) {
+    ++s_in_game_reset;
+    s_new_game();
+    --s_in_game_reset;
+
+    if (!s_in_game_reset) { s_restoring_save = 0; begin_game(1); }
+}
+
+static int32_t restore_data(uint32_t data, int32_t index, uint32_t table) {
+    if (!s_in_game_reset && !s_restoring_save) {
+        s_restoring_save = 1;
+        begin_game(0);
+    }
+    return s_restore_data(data, index, table);
+}
+
+static void save_update(void) {
+    /* memcard_update_state: state 20/substate 3 consumes the completed close.
+     * A busy tick only polls I/O. A failed write/close never reaches this success. */
+    uint8_t* mc = byte_at(strcmp(s_disc->version, "pal") == 0 ? 0x0013D390u : 0x0013D290u);
+    const int done = get32(mc + 0xDC) == 20 && get32(mc + 0xE0) == 3
+        && get32(mc + 0xD4) == 0 && get32(mc + 0xC4) == 0 && get32(mc + 0xCC) == 0;
+    const int slot = get32(mc + 0x14);
+    s_save_update();
+    if (done && slot >= 0 && slot < 5 && get32(mc + 0xDC) == 0) {
+        s_slot_known = slot;
+        ap_client_save_written(slot);
+    }
+}
+
+static void new_game_plus(int32_t slot) {
+    const uint32_t checks = saved_checks();
+    ++s_in_game_reset;
+    s_new_game_plus(slot);
+    --s_in_game_reset;
+    if (checks) save_checks(checks);
 }
 
 /* ---- the goal ---- */
@@ -1016,20 +1437,79 @@ static void show_notices(void) {
     }
 }
 
+#include "ap_npc_infobots.inc"
+#include "npc_reward_label.inc"
+#include "npc_reward_text.inc"
+#include "ap_presentation.inc"
+#include "ap_acquisition.inc"
+
 /* Each tick: a location had without passing through a hook (a gold bolt, a route that writes the
  * bytes itself) is told to the server, and the place's own item, when it wrote it as owned and the
  * server has not sent it, is taken back; then what the server sent is given; then the goal. */
+static int random_start_level(void) { return !s_from_title && !s_judge_wait ? ap_client_starting_planet() : -1; }
+#include "random_start.inc"
+
 static void each_tick(void* user) {
     (void)user;
+    menu_refresh();
     uint32_t loads = 0;
     const int phase = play_phase(&loads);
+
     show_notices();
+    const int unsupported_items = menu_mode() == 1 && !s_menu_save;
+    if (unsupported_items && !s_menu_notice_warned) {
+        s_api->play_notice(s_mod, "Shuffle items requires OpenRAC interface 1.16 or newer");
+        s_notice_ticks = NOTICE_TICKS;
+    }
+    s_menu_notice_warned = unsupported_items;
     read_received();
     watch_save_slot(phase);
+    presentation_tick(phase);
+    novalis_ship_tick(phase, loads);
+    return_ship_tick(phase, loads);
+    random_start_tick(phase, loads);
+    if (phase!=OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
 
     if (!playing_level()) {
+        orxon_access_tick(phase, loads, 0);
         return;
     }
+
+
+    /* The game's challenge_mode flag (PAL D_0015EFA0, NTSC-U D_0015EEA0).
+     * The server is authoritative; do not touch an unjudged or foreign save. A false/missing
+     * option leaves a normally earned New Game+ save alone rather than downgrading it. */
+    if (!s_from_title && !s_judge_wait && ap_client_new_game_plus() == 1) {
+        uint8_t* challenge_mode = byte_at(s_disc->level + 0x11Cu);
+        if (get32(challenge_mode) == 0) {
+            set32(challenge_mode, 1);
+            log_line(OPENRAC_LOG_INFO, "Archipelago: New Game+ enabled for this slot");
+            s_api->play_notice(s_mod, "Archipelago: New Game+ enabled");
+            s_notice_ticks = NOTICE_TICKS;
+        }
+    }
+    /* Shop access is independent of challenge mode and grants no inventory. */
+    if (!s_from_title && !s_judge_wait && ap_client_shuffle_gold_weapons() == 1) {
+        set32(byte_at(s_disc->level + 0x9Cu), 1);
+    }
+
+    if (ap_client_shuffle_gold_weapons() == 1 && !s_has_gold_currency_hook && !s_gold_hook_warned) {
+        s_api->play_notice(s_mod, "Gold weapon shuffle needs an updated OpenRAC (gold-bolt spending hook)");
+        s_notice_ticks = NOTICE_TICKS;
+        s_gold_hook_warned = 1;
+        log_line(OPENRAC_LOG_WARN, "Gold weapon case purchases disabled: this OpenRAC lacks GoldBolts_CountUnspent");
+    }
+
+    if (phase == OPENRAC_PLAY_PLAYING && s_notice_ticks == 0 && s_gold_hint_location >= 0) {
+        char reward[160], line[NOTICE_SIZE];
+        if (ap_client_location_hint(s_gold_hint_location, reward, sizeof reward)) {
+            snprintf(line, sizeof line, "%s - %u bolts + 4 gold bolts", reward, s_gold_hint_price);
+            s_api->play_notice(s_mod, line);
+            s_notice_ticks = 120;
+        }
+    }
+    s_gold_hint_location = -1;
+    s_gold_hint_distance = 9.0f;
 
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (!ap_is_location(&rando_locations[i])) {
@@ -1069,14 +1549,22 @@ static void each_tick(void* user) {
         give_received();
     }
 
+    guard_unowned_bomb_glove();
+    // Coordinates just received: their planet's new weapon is for sale here already.
+    if (!s_from_title && !s_judge_wait) {
+        planet_vendor_stock_sync();
+    }
     guard_empty_vendor();
 
+    if (phase==OPENRAC_PLAY_PLAYING) acquisition_tick(phase,loads);
     // The goal, once.
     if (!s_goal && current_level() == LEVEL_VELDIN2 && drek_beaten(loads)) {
         s_goal = 1;
         ap_client_goal();
         log_line(OPENRAC_LOG_INFO, "Drek is beaten: the goal is sent");
     }
+    kerwan_access_tick();
+    orxon_access_tick(phase, loads, kerwan_randomizer_active());
 }
 
 /* ---- loading ---- */
@@ -1110,10 +1598,46 @@ static int take(int result, const char* point) {
         #point                                                                                     \
     )
 
+/* Retail glide input checks Heli-Pack ownership even with the Thruster-Pack equipped.
+ * Borrow that flag only during movement; the existing swap/save scopes keep inventory real. */
+#include "hoverboard_races.inc"
+
+static void (*s_hero_update)(void);
+static void hero_update(void) {
+    const int borrow = *owned(ITEM_THRUSTER_PACK) && !*owned(ITEM_HELI_PACK);
+    if (borrow) swap_push(owned(ITEM_HELI_PACK), SWAP_FORCE_OWNED);
+    hoverboard_race_player(s_hero_update);
+    if (borrow) swap_pop();
+}
+
 static int install_hooks(void) {
-    return HOOK(Item_Give, item_give, &s_item_give)
+    if (!take(s_api->hook(s_mod, "rac1.player.update", "void()", (void*)hero_update,
+                          (void**)&s_hero_update), "rac1.player.update")) return 0;
+    /* Older ports still support every other option. Never permit randomized purchases
+     * without independent currency accounting; the player gets a clear update notice. */
+    s_has_gold_currency_hook = s_api->hook(
+        s_mod, OPENRAC_RAC1_HOOK_GoldBolts_CountUnspent, OPENRAC_RAC1_SIG_GoldBolts_CountUnspent,
+        (void*)count_unspent_hook, (void**)&s_count_unspent) == OPENRAC_HOOK_OK;
+    s_gold_hook_warned = 0;
+    if (!aridia_access_hooks() || !blarg_access_hooks() || !pickup_platform_hooks() || !kalebo_taxi_hooks() || !presentation_hooks() || !npc_infobot_hooks() || !acquisition_hooks()) return 0;
+    /* The reward presentation, when it takes the dialog and text hooks, routes NPC prompts to
+     * the NPC reward text itself; otherwise that text takes them on its own. */
+    if (!s_presentation_text) npc_reward_text_hooks();
+    if (!take(s_api->hook(s_mod, "rac1.save.update_state", "void()", (void*)save_update,
+        (void**)&s_save_update), "rac1.save.update_state")
+        || !take(s_api->hook(s_mod, "rac1.save.restore_data", "i32(u32,i32,u32)", (void*)restore_data,
+        (void**)&s_restore_data), "rac1.save.restore_data")
+        || !take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGame, ITEM_RANDOMIZER_SIG_Save_NewGame,
+        (void*)new_game, (void**)&s_new_game), ITEM_RANDOMIZER_HOOK_Save_NewGame)) return 0;
+    return take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_NewGamePlus,
+                            ITEM_RANDOMIZER_SIG_Save_NewGamePlus, (void*)new_game_plus,
+                            (void**)&s_new_game_plus), ITEM_RANDOMIZER_HOOK_Save_NewGamePlus)
+           && HOOK(Moby_GoldWeaponCase_Update, gold_case_update, &s_gold_case_update)
+           && HOOK(Item_Give, item_give, &s_item_give)
            && HOOK(Planet_Unlock, planet_unlock, &s_planet_unlock)
            && HOOK(Vendor_InitLevelStock, init_level_stock, &s_init_level_stock)
+           && HOOK(Ammo_ChooseDrop, choose_drop, &s_choose_drop)
+           && HOOK(Vendor_OpenMenu, open_vendor_menu_hook, &s_open_vendor_menu)
            && HOOK(Vendor_BuildItemList, build_item_list, &s_build_item_list)
            && HOOK(GoldBolts_CountCollected, count_gold_bolts_hook, &s_count_gold_bolts)
            && HOOK(Moby_Infobot_Update, infobot_update, &s_infobot_update)
@@ -1124,7 +1648,13 @@ static int install_hooks(void) {
            && HOOK(Moby_Edwina_Update, edwina_update, &s_edwina_update)
            && HOOK(Moby_Class22_Update, orxon_start_update, &s_orxon_start_update)
            && HOOK(Ship_InitTransition, ship_transition, &s_ship_transition)
-           && HOOK(Help_Request, help_request, &s_help_request);
+           && HOOK(Help_Request, help_request, &s_help_request)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_Prepare,
+                              ITEM_RANDOMIZER_SIG_Save_Prepare, (void*)save_prepare,
+                              (void**)&s_save_prepare), ITEM_RANDOMIZER_HOOK_Save_Prepare)
+           && take(s_api->hook(s_mod, ITEM_RANDOMIZER_HOOK_Save_RequestAutosave,
+                              ITEM_RANDOMIZER_SIG_Save_RequestAutosave, (void*)request_autosave,
+                              (void**)&s_request_autosave), ITEM_RANDOMIZER_HOOK_Save_RequestAutosave);
 }
 
 /* Every row that is a location, found by its key. */
@@ -1138,14 +1668,10 @@ static void index_locations(void) {
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
 
-        if (!ap_is_location(l)) {
-            continue;
-        }
-
-        // Infobots by level and mission; items by id; gold bolts by the check each tick.
-        if (l->kind == LOC_INFOBOT) {
-            s_by_infobot[l->level][l->key] = (int)i;
-        } else if (l->kind != LOC_GOLD) {
+        const int mission = rando_infobot_mission(l);
+        if (mission >= 0) {
+            s_by_infobot[l->level][mission] = (int)i;
+        } else if (ap_is_location(l) && l->kind != LOC_GOLD) {
             s_by_item[l->key] = (int)i;
         }
     }
@@ -1174,6 +1700,8 @@ static int has_calls(const openrac_api* api) {
 
 OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod) {
     s_api = api;
+    s_notice_ticks = 0;
+    s_menu_notice_warned = 0;
     s_mod = mod;
     s_disc = NULL;
 
@@ -1207,11 +1735,14 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
 
     index_locations();
 
-    if (!install_hooks()) {
+    if (!menu_init() || !install_hooks() || (s_menu_save && !menu_hooks())) {
         return 1;
     }
 
+    novalis_ship_init();
+    return_ship_init();
     api->on_frame(mod, each_tick, NULL);
+
 
     char uuid[33];
     make_uuid(uuid);
@@ -1240,5 +1771,6 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
 }
 
 OPENRAC_MOD_EXPORT void openrac_mod_unload(void) {
+    if (s_disc && s_visual_api) vendor_restore_placement();
     ap_client_stop();
 }
