@@ -529,6 +529,17 @@
         "macos-x86_64": "662f32a178d4a2becf2d5220a37b9e8fbbfdf975d9fe7790155bed1dfb522512",
         "windows-x86_64": "771711288e02ceb4819d292a9a2b34a61ffd89e5a3185f0b3d82f52b302dc326"
       }
+    },
+    {
+      "version": "1.1.0",
+      "sha256": {
+        "android-arm64": "ac8f1ddbf3c4dcdbda6823992186579ad0c2e2b9cb4799128647394b71778da5",
+        "linux-aarch64": "b1752912b7d5639ca00021f7dc881a515c92d21ef07cde490f54a09f69a00818",
+        "linux-x86_64": "170cd5f90901abb69cb987e6d916c76758641cf33330b895ba4b4a13c4076bda",
+        "macos-arm64": "633542d60ee4ff94e1bce03ba071f617094c1abca7a7a08786f6ab27875ac934",
+        "macos-x86_64": "d4df773765971c3d0e2c276989e2a130c2cc2ccaec6f09444bcb1ae9ac98cf29",
+        "windows-x86_64": "10f62635c0049b4c71f517e376902848ffdc06819a587aa28eab07988a79ba09"
+      }
     }
   ],
   "vendor-buy-all": [
