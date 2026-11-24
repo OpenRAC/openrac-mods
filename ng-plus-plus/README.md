@@ -618,6 +618,11 @@ takes a share off every hit on Ratchet, on top of the game's armour.
 The look is Carbonox, the armor Ratchet wears, **repainted** in the tier's color (OpenRAC's paint
 material on his model, mod interface 1.34): the plates and their shading stay, the color is the
 tier's, and a rim glows in it, brighter each tier (none at Alpha, the brightest at Omega). The
+visor and the lamps (the model's own strongly colored details) are not flattened into the
+suit's color: they take a bright **accent** of the tier's own, a shade against the suit's (red
+against Alpha's steel, orange against azure, magenta against jade, sky against gold, lime against
+amethyst, aqua against rose, yellow against ember, and Omega's cycles with its body); needs mod
+interface 1.38, an older OpenRAC paints the whole suit in the tier's color. The
 game's other armors share their textures with Ratchet's fur, so painting them would paint him too;
 Carbonox is the whole-body suit and the model the tiers build on. With an older OpenRAC (1.25 to
 1.33) the tiers glow over Carbonox instead and cannot be bought; their protection works with any.

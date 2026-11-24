@@ -338,6 +338,12 @@ std::optional<std::uint32_t> armour_tint(int tier, std::uint32_t tick);
 // kEffectTop at Omega.
 int armour_energy(int tier);
 
+// Returns the accent of the armour paint at tier `tier`, 0xRRGGBB: the colour the visor and lamps
+// of Carbonox take (OpenRAC's paint accent, 1.38), a bright shade against the tier's own colour
+// (armour_rgb): red against Alpha's steel, orange against azure, and so on; Omega cycles with the
+// body. None at 0.
+std::optional<std::uint32_t> armour_accent(int tier, std::uint32_t tick);
+
 // Returns the armour paint's rim glow (OpenRAC's paint level, 0 to 15) at tier `tier`: none at
 // Alpha, rising each tier to 15 at Omega.
 int armour_paint_level(int tier);

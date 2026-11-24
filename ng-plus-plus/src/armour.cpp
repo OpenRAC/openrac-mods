@@ -15,6 +15,7 @@ void Armour::start() {
     m_material = moby_material_of(m_mod.api());
     m_material_class = material_class_of(m_mod.api());
     m_energy = m_material != nullptr && m_mod.api().api_minor >= kEnergyMinor;
+    m_accent = m_material_class != nullptr && m_mod.api().api_minor >= kPaintAccentMinor;
 
     // What this port lacks, for a player's log.
     if (m_material_class == nullptr) {
@@ -89,7 +90,15 @@ std::optional<Armour::Look> Armour::look_of(int tier, std::uint32_t tick) const 
         return std::nullopt;
     }
 
-    return Look{paint_at(armour_paint_level(tier)), *rgb};
+    const int level = armour_paint_level(tier);
+    const std::optional<std::uint32_t> accent = armour_accent(tier, m_view.sixtieths(tick));
+
+    // A port with the accent: the visor and lamps in the tier's own accent, the suit in its colour.
+    if (m_accent && accent) {
+        return Look{paint_accent_at(level, *accent), *rgb};
+    }
+
+    return Look{paint_at(level), *rgb};
 }
 
 void Armour::paint(

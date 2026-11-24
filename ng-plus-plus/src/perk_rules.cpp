@@ -119,6 +119,19 @@ constexpr std::uint32_t kArmourRgb[7] = {
     0xFF3010u,  // ember
 };
 
+// The accents of those colours (the visor and the lamps), 0xRRGGBB, bright and each against its
+// body's: Alpha keeps Carbonox's own red. Each channel is one the port keeps whole (it keeps the
+// top 3 bits: 0x00, 0x20 ... 0xE0, 0xFF).
+constexpr std::uint32_t kArmourAccent[7] = {
+    0xFF2020u,  // red against steel
+    0xFFA020u,  // orange against azure
+    0xFF40C0u,  // magenta against jade
+    0x20C0FFu,  // sky against gold
+    0xC0FF20u,  // lime against amethyst
+    0x20FFE0u,  // aqua against rose
+    0xFFE040u,  // yellow against ember
+};
+
 // Ticks a cycling colour takes from one colour to the next.
 constexpr std::uint32_t kCycleTicks = 45u;
 
@@ -783,6 +796,20 @@ std::optional<std::uint32_t> armour_rgb(int tier, std::uint32_t tick) {
     }
 
     return kArmourRgb[static_cast<std::size_t>(tier - 1)];
+}
+
+std::optional<std::uint32_t> armour_accent(int tier, std::uint32_t tick) {
+    // No tier: the game's look.
+    if (tier <= 0) {
+        return std::nullopt;
+    }
+
+    // Omega: every accent in turn, with its body.
+    if (tier >= kArmourTiers) {
+        return cycle_rgb(kArmourAccent, 7u, kCycleTicks, tick);
+    }
+
+    return kArmourAccent[static_cast<std::size_t>(tier - 1)];
 }
 
 std::optional<std::uint32_t> armour_tint(int tier, std::uint32_t tick) {
