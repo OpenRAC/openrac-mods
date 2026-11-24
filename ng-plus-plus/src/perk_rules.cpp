@@ -93,6 +93,19 @@ constexpr std::uint32_t kIceRgb[7] = {
 };
 constexpr std::uint32_t kAuroraRgb[] = {0x30FFE0u, 0x60C8FFu, 0xFFFFFFu, 0x4060FFu, 0x80FFB0u};
 
+// The Ice Gun's shots' colours, 0xRRGGBB, Alpha to Eta (ice_shot_rgb): each a clear blue, so the
+// meteors' orange fire comes out as ice; Omega cycles the aurora's, saturated.
+constexpr std::uint32_t kIceShotRgb[7] = {
+    0x70D0FFu,  // frost
+    0x60C4FFu,  // glacier
+    0x48C8FFu,  // ice
+    0x40B0FFu,  // arctic
+    0x2E90FFu,  // deep ice
+    0x30E8FFu,  // polar
+    0x3868FFu,  // cobalt
+};
+constexpr std::uint32_t kAuroraShotRgb[] = {0x30FFE0u, 0x48B8FFu, 0x90E0FFu, 0x3860FFu, 0x50FFC0u};
+
 // The fire path's colours, 0xRRGGBB, Alpha to Eta; Omega cycles the supernova.
 constexpr std::uint32_t kFireRgb[7] = {
     0xFF7A30u,  // ember
@@ -576,18 +589,26 @@ IceEffect ice_effect(int tier) {
     const Stage stage = stage_of_tier(tier);
     ice.energy = std::min(kEffectTop, 4 + tier);
 
-    // Alpha and Beta: a light chill.
-    ice.chill_ticks = 60;
+    // Alpha and Beta: frozen solid for two thirds of a second, then chilled to half speed; a kill
+    // while it lasts shatters into a small burst of shards.
+    ice.chill_ticks = 90;
     ice.chill_every = 2;
+    ice.freeze_ticks = 40;
+    ice.shatter_radius = 3.0f;
+    ice.shatter_share = 0.3f;
 
-    // Gamma: a deeper chill.
+    // Gamma: a longer freeze, a deeper chill, wider shards.
     if (stage >= Stage::Gamma) {
         ice.chill_ticks = 120;
         ice.chill_every = 3;
+        ice.freeze_ticks = 50;
+        ice.shatter_radius = 4.0f;
+        ice.shatter_share = 0.45f;
     }
 
-    // Epsilon: frozen solid for a moment, shattering on the kill.
+    // Epsilon: frozen solid for a second, the shards wider and harder.
     if (stage >= Stage::Epsilon) {
+        ice.chill_ticks = 150;
         ice.freeze_ticks = 60;
         ice.shatter_radius = 5.0f;
         ice.shatter_share = 0.6f;
@@ -618,6 +639,33 @@ std::optional<std::uint32_t> ice_tint_rgb(int tier, std::uint32_t tick) {
     }
 
     return swap_rb(kIceRgb[static_cast<std::size_t>(tier - 1)]);
+}
+
+std::optional<std::uint32_t> ice_shot_rgb(int tier, std::uint32_t tick) {
+    // No tier: the game's own colour.
+    if (tier <= 0) {
+        return std::nullopt;
+    }
+
+    // Omega: the aurora's own, saturated.
+    if (tier >= kOmegaTier) {
+        constexpr auto count =
+            static_cast<std::uint32_t>(sizeof kAuroraShotRgb / sizeof kAuroraShotRgb[0]);
+        return cycle_rgb(kAuroraShotRgb, count, kCycleTicks, tick);
+    }
+
+    return kIceShotRgb[static_cast<std::size_t>(tier - 1)];
+}
+
+float bouncer_speed(int tier) {
+    constexpr float kStep = 0.075f;
+
+    // No tier: the game's.
+    if (tier <= 0) {
+        return 1.0f;
+    }
+
+    return 1.0f + kStep * static_cast<float>(std::min(tier, kOmegaTier));
 }
 
 void set_lava_path(LavaPath path) {
@@ -738,7 +786,11 @@ std::optional<std::uint32_t> weapon_tint_rgb(int item, int level, std::uint32_t 
 std::optional<std::uint32_t> weapon_effect_rgb(int item, int level, std::uint32_t tick) {
     const Kind kind = kind_of(item);
 
-    // The path's colour, lifted as every tier's.
+    // The Ice Gun's own clear blue; the fire path's colour, lifted as every tier's.
+    if (item == kLavaGun && ice_gun_on()) {
+        return ice_shot_rgb(tier_of(kind, level), tick);
+    }
+
     if (item == kLavaGun) {
         const std::optional<std::uint32_t> tint = lava_tint_rgb(tier_of(kind, level), tick);
         return tint ? std::optional<std::uint32_t>(effect_of_tint(*tint)) : std::nullopt;

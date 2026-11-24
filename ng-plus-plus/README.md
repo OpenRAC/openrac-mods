@@ -27,6 +27,24 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.21
+
+- **The Ice Gun is ice.** Its tiers didn't act at all: the Meteor Gun's shot is a meteor of its
+  own (class 2862) that the mod didn't know as the Lava Gun's, so its hits never froze or slowed
+  anything, and its tier's colour was the pale frost of the icon, which left the meteors orange.
+  Now every tier freezes, as Up Your Arsenal's Liquid Nitrogen Gun does: a hit freezes the enemy
+  solid (it stops moving, attacking and animating, painted in ice with a bright rim), then it is
+  slowed for a moment; one killed while frozen or chilled shatters into shards that hurt the
+  enemies around it. Alpha freezes for two thirds of a second, Gamma longer, Epsilon a second and
+  Omega two (the table is under "The Ice Gun"). With OpenRAC's mod interface 1.39 the gun is
+  repainted in pale ice with its glowing lava parts in deep blue, its meteors become shards of ice
+  in the tier's blue and their trails, sparks and the fire they leave on enemies come out blue;
+  with an older OpenRAC the shots and their effects glow in a clear ice blue (no longer grey).
+- **The Bouncer's bomblets fly faster each tier**: 7.5% a tier, 1.6 times the game's speed at
+  Omega. They fly the same arc (their fall grows with them), so they still land where the game
+  aimed them, and at the top they move less in a tick than their own hit radius, so they never
+  skip over an enemy.
+
 ## What's new in 0.6.19
 
 - **Only Alpha and up change how a weapon looks.** Heavy, Mega and Ultra (the Zodiac's and the
@@ -420,10 +438,10 @@ This is only how things look: shots fly, spread and hit exactly as at the tier's
 | Chopper / Multi-Star | the spinning blades, body and glow |
 | Blitz Gun / Blitz Cannon | the gun's glowing edge and the effects tied to it |
 | Plasma Coil / Plasma Storm | the gun's glowing edge and the effects tied to it |
-| Lava Gun / Meteor Gun (the Ice Gun) | the gun, and the blobs it leaves on the ground. Its tiers are icy: frost, glacier, ice, arctic, deep ice, polar, cobalt, and aurora at Omega (see The Ice Gun) |
+| Lava Gun / Meteor Gun (the Ice Gun) | the gun, its meteors with their trails and sparks, and the blobs it leaves on the ground. Its tiers are icy: frost, glacier, ice, arctic, deep ice, polar, cobalt, and aurora at Omega (see The Ice Gun); with mod interface 1.39 the gun is painted pale ice with deep blue where its lava glowed and the meteors are painted as shards of ice |
 | Minirocket Tube / Megarocket Cannon | the tube, and each homing rocket (its body, glow and trail) |
 | Spiderbot / Tankbot Glove | the bot itself (body and glow) and its exploding trail |
-| Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts |
+| Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts. The bomblets also fly 7.5% faster each tier (x1.6 at Omega) along the game's arc |
 | Miniturret / Megaturret Glove | each turret you put down (body and glow) |
 | Hoverbomb / Tetrabomb Gun | the gun, and each hoverbomb (body and glow) |
 | Shield Charger / Tesla Barrier | the shield: its electric arcs and sparkles. It no longer turns green for good at the Mega: Alpha is lime, Beta cyan, Gamma emerald, Delta teal, Epsilon violet, Zeta magenta, Eta crimson, and Omega's shield cycles through them all |
@@ -504,7 +522,10 @@ the tiers give damage, ammo and colour only. In a multiplayer party the host's s
 ### The Ice Gun
 
 The Lava Gun's tiers are the **Ice Gun**: "Alpha Ice Gun" up to "Omega Ice Gun". The gun keeps
-the Meteor Gun's model for now.
+the Meteor Gun's model, repainted in pale ice with deep blue where its lava glowed, and its meteors
+are painted as shards of ice in the tier's blue, their trails, sparks and the fire they leave on an
+enemy blue too (OpenRAC with mod interface 1.39; an older one draws the shots and their effects in
+a clear ice blue over the meteors' own look).
 The idea follows Up Your Arsenal's Liquid Nitrogen Gun (the Lava Gun's V5 there). Its colours:
 
 | Tier | Color |
@@ -525,13 +546,13 @@ by themselves:
 
 | Tier | Effect |
 |---|---|
-| Alpha, Beta | Chill: slowed to half speed for 1 s after each hit, glowing pale blue |
-| Gamma, Delta | Deeper chill: slowed to a third for 2 s |
-| Epsilon to Eta | Freeze: after each hit it is frozen solid for 1 s, glowing ice blue, then slowed to a third for the rest of 2 s. A fresh freeze comes only after it has thawed for a second, so a stream holds it slowed and never stuck for good. An enemy killed while frozen or chilled shatters: the game's own blast goes off on it in ice blue, and enemies within 5 units take the killing hit, counted as four hits of the stream (60% of each) |
+| Alpha, Beta | Freeze: after each hit it is frozen solid for 2/3 s, painted in ice (glowing ice blue before mod interface 1.34), then slowed to half speed for the rest of 1.5 s, glowing blue. A fresh freeze comes only after it has thawed for half a second, so a stream holds it frozen most of the time, never for good. An enemy killed while frozen or chilled shatters: the game's own blast goes off on it in ice, and enemies within 3 units take the killing hit, counted as four hits of the stream (30% of each) |
+| Gamma, Delta | Longer freeze: 5/6 s, then slowed to a third for the rest of 2 s; the shatter reaches 4 units at 45% |
+| Epsilon to Eta | Freeze for 1 s, then slowed to a third for the rest of 2.5 s; the shatter reaches 5 units at 60% |
 | Omega | Long freeze: 2 s, then slowed to a third for the rest of 3 s. The shatter reaches 8 units at full share, and the shards freeze what they hit |
 
 **Bosses** only glow: they are never slowed or frozen. Before OpenRAC 1.29 there is no freeze or
-slow: the gun only glows pale or ice blue on its victims, and the shatter's damage is dealt as hits.
+slow: the gun only glows blue on its victims, and the shatter's damage is dealt as hits.
 
 ### The Meteor Gun's fire path
 
@@ -1170,7 +1191,7 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | For sale | `rac2.vendor.build_list` (`func_002F6608`): an upgrade entry for each weapon whose next tier is for sale, right after that weapon's own entry and built as the game builds its Mega entry; `rac2.vendor.price` (`func_002F6510`) prices it; `rac2.item.upgrade` (`func_002887B0`), which the vendor's purchase calls once it is paid, takes the tier instead of the game's Mega step |
 | Experience | each tick, a weapon at its last version whose experience (which the game keeps adding up there) reaches the tier's takes it; its experience starts again from 0, as the game's own Mega purchase does |
 | Experience bar | the last version's row (+0x6C, the experience to the next version, which the game leaves at 0 there: a full bar) set each tick to the next tier's goal, and back to the game's when none is left; the game's own level check skips every last version, so it never acts on it |
-| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw, the Plasma Coil's and Plasma Storm's shots, the Pulse Rifle's beam, the Clank Zapper), else the weapon in Ratchet's hand |
+| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, the Meteor Gun's meteors, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw, the Plasma Coil's and Plasma Storm's shots, the Pulse Rifle's beam, the Clank Zapper), else the weapon in Ratchet's hand |
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve (a boss's, by the victim's class at +0xAA, by the boss column too, the final boss's by 1.5 more; the RYNO II's hits by its own rule, its tough enemies by their own bolts at +0xB4), the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Weapon experience | `rac2.moby.record_death` (`func_002A6C58`, `SetDeathBits`): every weapon's experience (the s32 table at `D_00139868`, << 5) read before the game's own award and after, each gain times the run's rate and the moby's (a boss by its class at +0xAA, an enemy's own bolts at +0xB4) |
@@ -1259,9 +1280,10 @@ Not yet:
   the hit perks in the table. Before OpenRAC 1.29 (an older port) the perks that need it are not
   done at all, and the RYNO II's split rockets and the Gravity Bomb's mini bombs come as hits and
   blasts on the nearest enemies; there is no freeze or slow either.
-- The Ice Gun keeps the Meteor Gun's model.
-- The weapons' looks change only how things are drawn: shots are no faster and blasts reach no
-  farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
+- The Ice Gun keeps the Meteor Gun's model (repainted) and fires its meteors (painted as ice), not
+  Up Your Arsenal's stream.
+- The weapons' looks change only how things are drawn: shots are no faster (but the Bouncer's
+  bomblets) and blasts reach no farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
   game's item rows keep the shots' speed and size in fields that mean different things for each
   weapon, so changing them waits until each weapon's fields are traced.
 - An effect the game draws on its own, not tied to the gun or the shot that made it, keeps the

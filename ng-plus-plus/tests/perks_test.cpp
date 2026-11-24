@@ -132,22 +132,58 @@ void test_ice_effect() {
     CHECK(none.shatter_radius == 0.0f);
     CHECK(none.energy == 0);
 
+    IceEffect last;
+
+    // A freeze and a shatter from Alpha (0.6.21), each tier at least as strong as the one before.
     for (int tier = 1; tier <= 8; ++tier) {
         const IceEffect effect = ice_effect(tier);
 
-        CHECK(effect.chill_ticks > 0);
+        CHECK(effect.chill_ticks > effect.freeze_ticks);
         CHECK(effect.energy >= 0 && effect.energy <= 15);
-
-        if (tier < 5) {
-            CHECK(effect.freeze_ticks == 0);
-        } else {
-            CHECK(effect.freeze_ticks > 0);
-            CHECK(effect.shatter_radius > 0.0f);
-            CHECK(effect.shatter_share > 0.0f);
-        }
-
+        CHECK(effect.freeze_ticks >= 30);
+        CHECK(effect.shatter_radius > 0.0f);
+        CHECK(effect.shatter_share > 0.0f);
+        CHECK(effect.freeze_ticks >= last.freeze_ticks);
+        CHECK(effect.chill_ticks >= last.chill_ticks);
+        CHECK(effect.shatter_radius >= last.shatter_radius);
         CHECK(effect.shatter_freezes == (tier == 8));
+        last = effect;
     }
+
+    CHECK(ice_effect(8).freeze_ticks > ice_effect(1).freeze_ticks);
+}
+
+// Checks the Ice Gun's shots' colour: clearly blue at every tier (blue the strongest channel, red
+// well under it), the aurora moving at Omega, and the Lava Gun's effects taking it on the ice path.
+void test_ice_shot_rgb() {
+    CHECK(!ice_shot_rgb(0, 0).has_value());
+
+    for (int tier = 1; tier <= 8; ++tier) {
+        for (std::uint32_t tick = 0; tick < 300; tick += 37) {
+            const std::optional<std::uint32_t> rgb = ice_shot_rgb(tier, tick);
+            CHECK(rgb.has_value());
+            const std::uint32_t red = *rgb >> 16 & 0xFFu;
+            const std::uint32_t blue = *rgb & 0xFFu;
+            CHECK(blue >= 0xC0u && red <= 0x90u);
+        }
+    }
+
+    set_lava_path(LavaPath::Ice);
+    CHECK(weapon_effect_rgb(kLavaGun, 1, 7) == ice_shot_rgb(1, 7));
+}
+
+// Checks the Bouncer's speed: the game's with no tier, faster each tier, at most 1.6.
+void test_bouncer_speed() {
+    CHECK(bouncer_speed(0) == 1.0f);
+    float last = 1.0f;
+
+    for (int tier = 1; tier <= 8; ++tier) {
+        CHECK(bouncer_speed(tier) > last);
+        last = bouncer_speed(tier);
+    }
+
+    CHECK(bouncer_speed(8) <= 1.6f + 1e-4f);
+    CHECK(bouncer_speed(9) == bouncer_speed(8));
 }
 
 // Checks the Ice Gun's colours and the weapon colour dispatch.
@@ -651,6 +687,8 @@ int main() try {
     test_ryno_perk();
     test_ice_effect();
     test_ice_tint();
+    test_ice_shot_rgb();
+    test_bouncer_speed();
     test_armour_numbers();
     test_armour_looks();
     test_modifiers();

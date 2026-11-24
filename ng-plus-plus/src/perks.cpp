@@ -10,6 +10,7 @@
 #include <cstring>
 #include <string>
 
+#include "armour_api.h"
 #include "discs.h"
 #include "openrac/games/rac2.hpp"
 #include "shots.h"
@@ -100,8 +101,12 @@ constexpr int kZodiacFieldsMost = 8;
 // hit every few ticks).
 constexpr int kSplashRestTicks = 6;
 
-// A freeze comes again only this long after the last one thawed.
-constexpr int kRefreezeTicks = 60;
+// A freeze comes again only this long after the last one thawed: half a second, so a stream holds
+// an enemy frozen most of the time, never for good.
+constexpr int kRefreezeTicks = 30;
+
+// The rim glow of a frozen enemy's paint (0 to 15).
+constexpr int kFrozenPaintLevel = 12;
 
 // The Ice Gun's shatter glow on a dying enemy.
 constexpr std::uint32_t kShatterRgb = 0xD0F0FFu;
@@ -111,6 +116,8 @@ constexpr std::uint32_t kShatterRgb = 0xD0F0FFu;
 void Perks::start() {
     m_material = moby_material_of(m_mod.api());
     m_energy = m_material != nullptr && m_mod.api().api_minor >= kEnergyMinor;
+    m_paint = m_material != nullptr && m_mod.api().api_minor >= kPaintMinor;
+    m_paint_effects = m_paint && m_mod.api().api_minor >= kPaintEffectsMinor;
 
     // SetDeathBits as the game calls it, for the Zodiac's reach (a table without the entry, as a
     // test's, has none).
@@ -558,7 +565,7 @@ void Perks::chill(const ScannedMoby& victim, int tier, float damage) {
         fresh = true;
     }
 
-    const bool frozen = m_tick < f.freeze_until;
+    const bool frozen = m_tick < f.freeze_until && !f.boss;  // A boss only glows.
     const bool statuses = m_shots != nullptr && m_shots->active() && !f.boss;
 
     // The status (OpenRAC 1.29): frozen solid, else slowed, renewed while the chill lasts.
@@ -572,9 +579,9 @@ void Perks::chill(const ScannedMoby& victim, int tier, float damage) {
         slow(f);
     }
 
-    // Its glow: icy blue while frozen, paler while chilled.
+    // Its look: frozen solid in ice, a blue glow while chilled.
     if (!f.drawn || f.drawn_frozen != frozen) {
-        draw(victim.address, ice.energy, frozen ? kFrozenRgb : kChilledRgb);
+        draw_ice(victim.address, ice.energy, frozen);
         f.drawn = true;
         f.drawn_frozen = frozen;
     }
@@ -709,7 +716,7 @@ void Perks::thaw() {
             continue;
         }
 
-        const bool frozen = m_tick < f.freeze_until;
+        const bool frozen = m_tick < f.freeze_until && !f.boss;  // A boss only glows.
 
         // Thawed: its glow gone (the port ends the status by itself).
         if (m_tick >= f.chill_until) {
@@ -725,9 +732,9 @@ void Perks::thaw() {
             slow(f);
         }
 
-        // Its glow follows the freeze.
+        // Its look follows the freeze.
         if (f.drawn_frozen != frozen) {
-            draw(moby, ice_effect(f.tier).energy, frozen ? kFrozenRgb : kChilledRgb);
+            draw_ice(moby, ice_effect(f.tier).energy, frozen);
             f.drawn_frozen = frozen;
         }
 
@@ -1463,6 +1470,19 @@ void Perks::draw(std::uint32_t moby, int level, std::uint32_t rgb) const {
     }
 
     m_material(m_mod.handle(), moby, energy_at(std::clamp(level, 0, kEffectTop)), rgb);
+}
+
+void Perks::draw_ice(std::uint32_t moby, int energy, bool frozen) const {
+    // Chilled, or a port without paint: the glow.
+    if (!frozen || !m_paint) {
+        draw(moby, energy, frozen ? kFrozenRgb : kChilledRgb);
+        return;
+    }
+
+    // Frozen solid: painted ice, what it makes (the meteors' fire on it) blue too with 1.39.
+    const std::uint32_t material =
+        paint_at(kFrozenPaintLevel) | (m_paint_effects ? kPaintEffectsBit : 0u);
+    m_material(m_mod.handle(), moby, material, kIcePaintRgb);
 }
 
 void Perks::undraw(std::uint32_t moby) const {

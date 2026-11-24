@@ -14,6 +14,7 @@
 #include <string>
 #include <utility>
 
+#include "armour_api.h"
 #include "check.h"
 #include "discs.h"
 #include "extra_enemies.h"
@@ -1065,6 +1066,33 @@ void test_weapon_looks() {
     const VisualClass* bot = visual_class(2904);
     const std::optional<MobyLook> tinted = look_for(*bot, kind_of(bot->item), 3, false, 0);
     CHECK(tinted && tinted->material == kMaterialTint && tinted->rgb == effect_rgb(Kind::Four, 3, 0));
+
+    // The Ice Gun (0.6.21): its meteor is the Lava Gun's, painted ice with its effects where the
+    // port paints them (1.39), else energy in the shots' clear blue; its gun pale ice with a deep
+    // blue accent; the other weapons unchanged by the paint.
+    set_lava_path(LavaPath::Ice);
+    const VisualClass* meteor = visual_class(2862);
+    const VisualClass* meteor_gun = visual_class(3161);
+    CHECK(meteor != nullptr && meteor->item == kLavaGun && meteor->body);
+    CHECK(meteor_gun != nullptr && !meteor_gun->body);
+    const Kind lava = kind_of(kLavaGun);
+    const int alpha = 1;
+    CHECK(!look_for(*meteor, lava, 0, true, 0, true));
+    const std::optional<MobyLook> shard = look_for(*meteor, lava, alpha, true, 0, true);
+    CHECK(shard && (shard->material & 0xFFu) == kMaterialPaint);
+    CHECK(shard && (shard->material & kPaintEffectsBit) != 0);
+    CHECK(shard && (shard->material & kPaintAccentBit) == 0);
+    CHECK(shard && shard->rgb == ice_shot_rgb(1, 0));
+    const std::optional<MobyLook> gun = look_for(*meteor_gun, lava, alpha, true, 0, true);
+    CHECK(gun && (gun->material & kPaintAccentBit) != 0 && (gun->material & kPaintEffectsBit) != 0);
+    CHECK(gun && gun->rgb == kIcePaintRgb);
+    const std::optional<MobyLook> glow = look_for(*meteor, lava, alpha, true, 0, false);
+    CHECK(glow && (glow->material & 0xFFu) == kMaterialEnergy && glow->rgb == ice_shot_rgb(1, 0));
+    CHECK(look_for(*shield, kind, 3, true, 0, true) == look_for(*shield, kind, 3, true, 0));
+    set_lava_path(LavaPath::Fire);
+    const std::optional<MobyLook> fire = look_for(*meteor, lava, alpha, true, 0, true);
+    CHECK(fire && (fire->material & 0xFFu) == kMaterialEnergy);
+    set_lava_path(LavaPath::Ice);
 }
 
 // Checks the per-planet table: only its classes, each in its own level, at most its entry's copies.

@@ -251,6 +251,8 @@ inline constexpr HitSource kHitSources[] = {
     {2801u, 26u},  // Blitz Cannon: UpdateSpreadWeapon (L00_003D1D28), item 0x1A
     {1481u, 29u},  // Lava Gun: lava_gun_update (L00_00419C98), item 0x1D
     {4406u, 29u},  // Lava Gun's lingering blobs: lava_gun_update_blobs (L00_00412928), item 0x1D
+    {2862u, 29u},  // Meteor Gun's meteor: UpdateCollidingTrailProjectile (L00_003DB118) posts its hit
+                   // as itself; only meteor_gun_update's projectile_spawn_small makes the class
     {1486u, 24u},  // Seeker Gun
     {1497u, 24u},  // Seeker Projectile: seeker_apply_projectile_hit (L00_003AB388), item 0x18
     {3329u, 24u},  // Seeker Projectile (the Mega's), the same hit code

@@ -254,6 +254,11 @@ private:
     void draw(std::uint32_t moby, int level, std::uint32_t rgb) const;
     void undraw(std::uint32_t moby) const;
 
+    // Draws `moby` as an Ice Gun's enemy: frozen solid (painted pale ice with a bright rim, its
+    // effects blue too where the port has paint, else energy in ice blue) or chilled (energy in a
+    // lighter blue).
+    void draw_ice(std::uint32_t moby, int energy, bool frozen) const;
+
     openrac::Mod& m_mod;
     const GameView& m_view;
     const Weapons& m_weapons;
@@ -269,6 +274,8 @@ private:
     std::uint32_t m_summary_tick = 0;
     MobyMaterialFn m_material = nullptr;
     bool m_energy = false;
+    bool m_paint = false;          // The port paints (1.34)...
+    bool m_paint_effects = false;  // ...and paints the effects too (1.39).
 
     PostHitFn m_post = nullptr;                   // Moby_PostHit's original, from the first hit.
     std::uint32_t m_request = 0;                  // The hit under way's request, 0 outside one.
