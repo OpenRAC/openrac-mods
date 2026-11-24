@@ -33,14 +33,17 @@ void test_tiers_and_stages() {
         CHECK(tier_of(Kind::Four, level) == level);
     }
 
-    CHECK(tier_of(Kind::Ryno, 1) == 0);  // Heavy
-
-    // Alpha to Omega.
-    for (int level = 2; level <= 9; ++level) {
-        CHECK(tier_of(Kind::Ryno, level) == level - 1);
+    // Heavy, Mega and Ultra are no tier.
+    for (int level = 1; level <= 3; ++level) {
+        CHECK(tier_of(Kind::Ryno, level) == 0);
     }
 
-    CHECK(tier_of(Kind::Ryno, 10) == 9);  // Ultima
+    // Alpha to Omega.
+    for (int level = 4; level <= 11; ++level) {
+        CHECK(tier_of(Kind::Ryno, level) == level - 3);
+    }
+
+    CHECK(tier_of(Kind::Ryno, 12) == 9);  // Ultima
 
     CHECK(stage_of_tier(0) == Stage::None);
     CHECK(stage_of_tier(2) == Stage::None);
@@ -53,9 +56,9 @@ void test_tiers_and_stages() {
 
     CHECK(stage_of(Kind::Four, 3) == Stage::Gamma);
     CHECK(stage_of(Kind::Four, 8) == Stage::Omega);
-    CHECK(stage_of(Kind::Ryno, 4) == Stage::Gamma);
-    CHECK(stage_of(Kind::Ryno, 9) == Stage::Omega);
-    CHECK(stage_of(Kind::Ryno, 10) == Stage::Omega);
+    CHECK(stage_of(Kind::Ryno, 6) == Stage::Gamma);
+    CHECK(stage_of(Kind::Ryno, 11) == Stage::Omega);
+    CHECK(stage_of(Kind::Ryno, 12) == Stage::Omega);
 
     CHECK(raised(Stage::None) == Stage::Gamma);
     CHECK(raised(Stage::Gamma) == Stage::Epsilon);
@@ -129,22 +132,58 @@ void test_ice_effect() {
     CHECK(none.shatter_radius == 0.0f);
     CHECK(none.energy == 0);
 
+    IceEffect last;
+
+    // A freeze and a shatter from Alpha (0.6.21), each tier at least as strong as the one before.
     for (int tier = 1; tier <= 8; ++tier) {
         const IceEffect effect = ice_effect(tier);
 
-        CHECK(effect.chill_ticks > 0);
+        CHECK(effect.chill_ticks > effect.freeze_ticks);
         CHECK(effect.energy >= 0 && effect.energy <= 15);
-
-        if (tier < 5) {
-            CHECK(effect.freeze_ticks == 0);
-        } else {
-            CHECK(effect.freeze_ticks > 0);
-            CHECK(effect.shatter_radius > 0.0f);
-            CHECK(effect.shatter_share > 0.0f);
-        }
-
+        CHECK(effect.freeze_ticks >= 30);
+        CHECK(effect.shatter_radius > 0.0f);
+        CHECK(effect.shatter_share > 0.0f);
+        CHECK(effect.freeze_ticks >= last.freeze_ticks);
+        CHECK(effect.chill_ticks >= last.chill_ticks);
+        CHECK(effect.shatter_radius >= last.shatter_radius);
         CHECK(effect.shatter_freezes == (tier == 8));
+        last = effect;
     }
+
+    CHECK(ice_effect(8).freeze_ticks > ice_effect(1).freeze_ticks);
+}
+
+// Checks the Ice Gun's shots' colour: clearly blue at every tier (blue the strongest channel, red
+// well under it), the aurora moving at Omega, and the Lava Gun's effects taking it on the ice path.
+void test_ice_shot_rgb() {
+    CHECK(!ice_shot_rgb(0, 0).has_value());
+
+    for (int tier = 1; tier <= 8; ++tier) {
+        for (std::uint32_t tick = 0; tick < 300; tick += 37) {
+            const std::optional<std::uint32_t> rgb = ice_shot_rgb(tier, tick);
+            CHECK(rgb.has_value());
+            const std::uint32_t red = *rgb >> 16 & 0xFFu;
+            const std::uint32_t blue = *rgb & 0xFFu;
+            CHECK(blue >= 0xC0u && red <= 0x90u);
+        }
+    }
+
+    set_lava_path(LavaPath::Ice);
+    CHECK(weapon_effect_rgb(kLavaGun, 1, 7) == ice_shot_rgb(1, 7));
+}
+
+// Checks the Bouncer's speed: the game's with no tier, faster each tier, at most 1.6.
+void test_bouncer_speed() {
+    CHECK(bouncer_speed(0) == 1.0f);
+    float last = 1.0f;
+
+    for (int tier = 1; tier <= 8; ++tier) {
+        CHECK(bouncer_speed(tier) > last);
+        last = bouncer_speed(tier);
+    }
+
+    CHECK(bouncer_speed(8) <= 1.6f + 1e-4f);
+    CHECK(bouncer_speed(9) == bouncer_speed(8));
 }
 
 // Checks the Ice Gun's colours and the weapon colour dispatch.
@@ -171,7 +210,7 @@ void test_ice_tint() {
     }
 
     CHECK(max_level(55) == 8);
-    CHECK(max_level(44) == 10);
+    CHECK(max_level(44) == 12);
     CHECK(max_level(30) == 8);
     CHECK(max_level(13) == 0);
 }
@@ -329,30 +368,30 @@ void test_arenas_and_health() {
     CHECK(omega_health(25) == 12);
 }
 
-// Checks the RYNO II's Ultima: its last step, by experience after Omega, with no step past it.
+// Checks the RYNO II's Ultima: its last step, bought after Omega, with no step past it.
 void test_ultima_last() {
-    const Step* step = step_at(Kind::Ryno, 9);
+    const Step* step = step_at(Kind::Ryno, 11);
 
     CHECK(step != nullptr);
 
     if (step != nullptr) {
         CHECK(std::strcmp(step->name, "Ultima") == 0);
-        CHECK(step->how == How::Exp);
+        CHECK(step->how == How::Buy);
         CHECK(step->tint == Tint::Ultima);
     }
 
-    CHECK(step_at(Kind::Ryno, 10) == nullptr);
-    CHECK(max_level(kRyno) == 10);
-    CHECK(exp_goal(Kind::Ryno, 9) == 37500 * kRynoExpScale);
-    CHECK(exp_goal(Kind::Ryno, 10) == 0);  // at Ultima: a full bar, nothing past it
-    CHECK(damage(Kind::Ryno, 10) > damage(Kind::Ryno, 9));
-    CHECK(price(Kind::Ryno, 9, 1'000'000) == 0);
-    CHECK(price(Kind::Ryno, 9, 0) == 0);
-    CHECK(display_name("RYNO II", Kind::Ryno, 10) == "Ultima RYNO II");
+    CHECK(step_at(Kind::Ryno, 12) == nullptr);
+    CHECK(max_level(kRyno) == 12);
+    CHECK(exp_goal(Kind::Ryno, 11) == 0);  // bought: for sale as soon as Omega is reached
+    CHECK(exp_goal(Kind::Ryno, 12) == 0);  // at Ultima: a full bar, nothing past it
+    CHECK(damage(Kind::Ryno, 12) > damage(Kind::Ryno, 11));
+    CHECK(price(Kind::Ryno, 11, 1'000'000) == 40'000'000);
+    CHECK(price(Kind::Ryno, 11, 0) == 40'000'000);
+    CHECK(display_name("RYNO II", Kind::Ryno, 12) == "Ultima RYNO II");
 }
 
 // Checks the RYNO II's split rockets along its path, as Shots takes them (its tier and stage at
-// each level): none at Heavy; by chance from Alpha (1 rocket at 25%) rising to always at Zeta (3);
+// each level): none at Heavy, Mega, Ultra; by chance from Alpha (1 rocket at 25%) rising to always at Zeta (3);
 // 4 at Omega, each splitting in 2 once more, twice at Ultima, at most 16.
 void test_ryno_splits() {
     // Returns the shots' perk of the RYNO II at `level`.
@@ -361,22 +400,24 @@ void test_ryno_splits() {
     };
 
     CHECK(at(0).end_shots == 0);
-    CHECK(at(1).end_shots == 0);  // Heavy
+    for (int level = 1; level <= 3; ++level) {
+        CHECK(at(level).end_shots == 0);  // Heavy, Mega, Ultra
+    }
 
-    // Alpha to Ultima (levels 2 to 10): the chance, the splits, their splits, the most.
+    // Alpha to Ultima (levels 4 to 12): the chance, the splits, their splits, the most.
     constexpr int kChance[] = {25, 35, 50, 65, 80, 100, 100, 100, 100};
     constexpr int kShots[] = {1, 1, 2, 2, 3, 3, 3, 4, 4};
     constexpr int kAgain[] = {0, 0, 0, 0, 0, 0, 0, 1, 2};
-    for (int level = 2; level <= 10; ++level) {
+    for (int level = 4; level <= 12; ++level) {
         const ShotPerk perk = at(level);
-        CHECK(perk.end_chance == kChance[level - 2]);
-        CHECK(perk.end_shots == kShots[level - 2]);
-        CHECK(perk.end_generations == kAgain[level - 2]);
+        CHECK(perk.end_chance == kChance[level - 4]);
+        CHECK(perk.end_shots == kShots[level - 4]);
+        CHECK(perk.end_generations == kAgain[level - 4]);
         CHECK(perk.end_again_shots == 2);
         CHECK(perk.end_class == kRynoRocket && perk.end_homing);
     }
-    CHECK(at(9).end_most == 12);   // Omega: 4 and 8
-    CHECK(at(10).end_most == 16);  // Ultima: 4, 8, then 4 of the 16 more
+    CHECK(at(11).end_most == 12);   // Omega: 4 and 8
+    CHECK(at(12).end_most == 16);  // Ultima: 4, 8, then 4 of the 16 more
 
     // The roll: fixed for a serial, about its chance over many, never or always at the ends.
     int hits = 0;
@@ -392,7 +433,7 @@ void test_ryno_splits() {
 void test_book_new_levels() {
     LevelBytes levels{};
 
-    levels[kRyno] = 10;
+    levels[kRyno] = 12;
     levels[55] = 8;
     levels[3] = static_cast<std::uint8_t>(kStartedBit | 2);
 
@@ -410,7 +451,7 @@ void test_book_new_levels() {
     CHECK(record != nullptr);
 
     if (record != nullptr) {
-        CHECK(record->levels[kRyno] == 10);
+        CHECK(record->levels[kRyno] == 12);
         CHECK(record->levels[55] == 8);
         CHECK((record->levels[3] & kStartedBit) != 0);
         CHECK(record->levels == levels);
@@ -646,6 +687,8 @@ int main() try {
     test_ryno_perk();
     test_ice_effect();
     test_ice_tint();
+    test_ice_shot_rgb();
+    test_bouncer_speed();
     test_armour_numbers();
     test_armour_looks();
     test_modifiers();

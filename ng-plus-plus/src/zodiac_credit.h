@@ -61,6 +61,18 @@ enum class ZodiacAction {
 // drained to nothing dies here, the gun's way, instead of later by its own death.
 ZodiacAction zodiac_action(float health, std::uint8_t path, float drain);
 
+// 0.6.17: what NG++'s reach does to an enemy, the gun's way (zodiac_action) but only to one the gun
+// itself could take. The gun takes only what the moby loop ran this tick: `started` false (state 0
+// and not run: its update has not run yet) is skipped, as its start-up would undo the death
+// (Siberius's cart riders, class 3369, set their death path to 1 there, so one the reach had killed
+// before came back alive with only its claws drawn, its hidden body waiting to be thrown on). An
+// enemy whose death the gun leaves to its owner (path 1 or 2) is skipped unless `owner_runs` (the
+// loop ran it this tick, so its next update runs the death): far from the camera its owner never
+// would, and the enemy stayed half dead, paid for but alive.
+ZodiacAction zodiac_reach_action(
+    float health, std::uint8_t path, float drain, bool started, bool owner_runs
+);
+
 // How a death recorded near a pulsing Zodiac came (Combat::record_death, as WeaponTuning sees it).
 enum class ZodiacDeath {
     Vaporized,  // The gun's kill, death path 0: the sparks, the moby deleted.

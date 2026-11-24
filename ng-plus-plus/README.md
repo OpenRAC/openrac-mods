@@ -27,6 +27,57 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.21
+
+- **The Ice Gun is ice.** Its tiers didn't act at all: the Meteor Gun's shot is a meteor of its
+  own (class 2862) that the mod didn't know as the Lava Gun's, so its hits never froze or slowed
+  anything, and its tier's colour was the pale frost of the icon, which left the meteors orange.
+  Now every tier freezes, as Up Your Arsenal's Liquid Nitrogen Gun does: a hit freezes the enemy
+  solid (it stops moving, attacking and animating, painted in ice with a bright rim), then it is
+  slowed for a moment; one killed while frozen or chilled shatters into shards that hurt the
+  enemies around it. Alpha freezes for two thirds of a second, Gamma longer, Epsilon a second and
+  Omega two (the table is under "The Ice Gun"). With OpenRAC's mod interface 1.39 the gun is
+  repainted in pale ice with its glowing lava parts in deep blue, its meteors become shards of ice
+  in the tier's blue and their trails, sparks and the fire they leave on enemies come out blue;
+  with an older OpenRAC the shots and their effects glow in a clear ice blue (no longer grey).
+- **The Bouncer's bomblets fly faster each tier**: 7.5% a tier, 1.6 times the game's speed at
+  Omega. They fly the same arc (their fall grows with them), so they still land where the game
+  aimed them, and at the top they move less in a tick than their own hit radius, so they never
+  skip over an enemy.
+
+## What's new in 0.6.19
+
+- **Only Alpha and up change how a weapon looks.** Heavy, Mega and Ultra (the Zodiac's and the
+  RYNO II's) no longer tint the icon or name, recolor the shots, add a glow, change the vendor's
+  version colour or touch the weapon's mobys: they look completely stock. Their damage and ammo
+  are unchanged.
+
+## What's new in 0.6.18
+
+- **The Zodiac and the RYNO II share one path, XP and purchase in turn all the way.** Heavy (XP),
+  Mega (bought), Ultra (XP), Alpha (bought), Beta (XP), Gamma (bought), Delta (XP), Epsilon
+  (bought), Zeta (XP), Eta (bought), Omega (XP) and, last, **Ultima** (bought): twelve steps. The
+  Zodiac's Alpha is now bought instead of earned (0.6.17 had it by XP) and it gains Ultima Zodiac
+  (x8.50 damage, +36 max ammo, black and red). The RYNO II gains Mega RYNO II and Ultra RYNO II
+  after Heavy, its Alpha is bought as before, and its Ultima is bought after Omega instead of
+  earned. Both cost the same: Mega 6,000,000, Alpha 8,000,000, Gamma 10,000,000, Epsilon
+  16,000,000, Eta 25,000,000 and Ultima 40,000,000 (see the tables under "Tiers").
+- **Saves keep their tiers.** The Zodiac's numbering is unchanged: a Zodiac at Ultra stays Ultra,
+  with Alpha now for sale. The RYNO II's Alpha to Ultima move up two places to make room, so each
+  keeps its name; Heavy stays. `tiers.txt` is moved over once when the mod loads (the old file kept
+  as that day's backup next to it), and its first line is now `ngpp-tiers 4`. The launcher's save
+  editor reads layouts 1 to 4, shows the Zodiac and the RYNO II as None, Heavy, Mega, Ultra, Alpha
+  to Omega, Ultima, and writes layout 4.
+
+## What's new in 0.6.17
+
+- **No more half-dead enemies from the Zodiac's reach.** The reach beyond the gun's own pulse now
+  takes only what the gun itself could: never an enemy whose update has not run yet (far up
+  Siberius's cart track, a rider killed before it started came back alive with its body hidden and
+  only its claws drawn), and an enemy whose death the gun leaves to its owner only when the game
+  runs that owner, so the death always follows. Such enemies far off are simply left for when they
+  come near.
+
 ## What's new in 0.6.16
 
 - **Richer bolts, everywhere.** Every bolt reward pays half as much again on top of the run
@@ -55,8 +106,8 @@ With the mod off, the game plays exactly as on the PlayStation 2.
   II Heavy's 37,500), Mega Zodiac (bought, the RYNO II's first price: 6,000,000 on a 1,000,000
   price), Ultra Zodiac (by XP, 50,000), then Alpha to Omega as before (see the table under
   "Tiers"). The names come from the game's own text, so every language works; each new step has
-  its own damage, max ammo (+1, +2, +3 rounds, then +4 a tier from Alpha, as 0.6.10) and color
-  (orange, gold, sky blue).
+  its own damage and max ammo (+1, +2, +3 rounds, then +4 a tier from Alpha, as 0.6.10). Heavy,
+  Mega and Ultra have no color (0.6.19): only Alpha and up change how a weapon looks.
 - **Saves keep their Zodiac.** A Zodiac already at Alpha or above stays at the same tier; one at
   the base weapon keeps its XP, which now counts toward Heavy. `tiers.txt` is moved over once when
   the mod loads (the old file kept as that day's backup next to it), and its first line is now
@@ -205,9 +256,9 @@ its paint.
   longer gives you the tier and your bolts back; a tier you saved stays with that save, through
   other saves, a restart and the launcher's export (see "Saves"). The armor and ship weapon tiers
   and the weapons' XP counts follow the same rule.
-- **The RYNO II's path** is Heavy (by XP), then Alpha to Omega, then Ultima (by XP after Omega);
-  older `tiers.txt` files are moved over once. Its bought tiers cost 6, 10, 16 and 25 million
-  (Alpha, Gamma, Epsilon, Eta) and its XP goals rise by a quarter. Its rockets split by chance at the low
+- **The RYNO II's path** (the Zodiac's too since 0.6.18) alternates XP and purchase: Heavy, Mega,
+  Ultra, Alpha to Omega, Ultima (bought after Omega); older `tiers.txt` files are moved over once. Its
+  bought tiers cost 6, 8, 10, 16, 25 and 40 million (Mega, Alpha, Gamma, Epsilon, Eta, Ultima) and its XP goals rise by a quarter. Its rockets split by chance at the low
   tiers (25% at Alpha up to 80% at Epsilon, always from Zeta), into homing rockets that split again
   at Omega and Ultima, and the split rockets fly, home in and leave their trails (the trails need
   OpenRAC develop with #712).
@@ -266,27 +317,30 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   their last version is bought and the game has no XP level-up after it, so Alpha comes by XP:
   a full bar (6,000 XP) levels the weapon up to Alpha with the game's level-up popup, then Beta
   by XP, Gamma bought, and so on as the other weapons.
-- **Zodiac** (its path since 0.6.14): first **Heavy Zodiac** by XP, then **Mega Zodiac** bought and
-  **Ultra Zodiac** by XP, then Alpha to Omega, on the RYNO II's XP and prices, as it is just as
-  overpowered. Each step by XP needs the RYNO II's at the same place, five times the usual, and Mega,
-  Gamma, Epsilon and Eta cost the RYNO II's prices, 6,000,000, 10,000,000, 16,000,000 and
-  25,000,000 (1,000,000 times 6, 10, 16 and 25, whatever the Zodiac's own table price is). Alpha to Omega keep the other weapons' damage and
-  ammo (below); the three new steps rise to meet them, and the max ammo gains 1, 2 and 3 rounds,
-  then a flat 4 a tier:
+- **Zodiac** (its path since 0.6.14, the RYNO II's since 0.6.18): XP and purchase in turn, Heavy
+  Zodiac (XP), **Mega Zodiac** (bought), **Ultra Zodiac** (XP), Alpha (bought), Beta (XP), Gamma
+  (bought), Delta (XP), Epsilon (bought), Zeta (XP), Eta (bought), Omega (XP) and **Ultima Zodiac**
+  (bought). Each step by XP needs what the RYNO II's step at the same place needs, five times the
+  usual, and the bought steps cost 6,000,000, 8,000,000, 10,000,000, 16,000,000, 25,000,000 and
+  40,000,000 (1,000,000 times 6, 8, 10, 16, 25 and 40, whatever the Zodiac's own table price is).
+  Alpha to Omega keep the other weapons' damage and ammo (below); Heavy, Mega and Ultra rise to
+  meet them, Ultima tops Omega, and the max ammo gains 1, 2 and 3 rounds, then a flat 4 a tier:
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
-  | Heavy | level up | | 37,500 | x1.15 | +1 | orange |
-  | Mega | buy | x6 | | x1.30 | +2 | gold |
-  | Ultra | level up | | 50,000 | x1.42 | +3 | sky blue |
-  | Alpha | level up | | 37,500 | x1.50 | +4 | lime |
+  | Heavy | level up | | 37,500 | x1.15 | +1 | none |
+  | Mega | buy | 6,000,000 | | x1.30 | +2 | none |
+  | Ultra | level up | | 50,000 | x1.42 | +3 | none |
+  | Alpha | buy | 8,000,000 | | x1.50 | +4 | lime |
   | Beta | level up | | 50,000 | x2.00 | +8 | cyan |
-  | Gamma | buy | x10 | | x2.50 | +12 | emerald |
+  | Gamma | buy | 10,000,000 | | x2.50 | +12 | emerald |
   | Delta | level up | | 75,000 | x3.00 | +16 | teal |
-  | Epsilon | buy | x16 | | x3.75 | +20 | violet |
+  | Epsilon | buy | 16,000,000 | | x3.75 | +20 | violet |
   | Zeta | level up | | 100,000 | x4.50 | +24 | magenta |
-  | Eta | buy | x25 | | x5.50 | +28 | crimson |
+  | Eta | buy | 25,000,000 | | x5.50 | +28 | crimson |
   | Omega | level up | | 150,000 | x7.00 | +32 | rainbow |
+  | Ultima | buy | 40,000,000 | | x8.50 | +36 | black and red, beating |
+
 - **Decoy Glove**: the game gives XP to the weapon that landed the killing hit, and the decoy deals
   no damage (it only draws fire), so it can never earn XP. All its tiers are bought instead, each
   for sale as soon as you buy the one before: Alpha, Gamma, Epsilon and Eta at the usual prices,
@@ -297,19 +351,22 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
 - **Clank Zapper**: Alpha is for sale once it is V2.
 - **Sheepinator**: like the four-version weapons, Alpha is for sale once it is V4 (it has no Mega,
   so its prices start from 1,500,000).
-- **RYNO II**: first **Heavy RYNO II** at 37,500 XP, then Alpha to Omega (Alpha for sale as soon as
-  it is Heavy), and last **Ultima RYNO II**, by XP after Omega: ten steps, Ultima the final one. The
+- **RYNO II**: first **Heavy RYNO II** at 37,500 XP, then Mega (bought), Ultra (XP), Alpha to Omega
+  in turn (bought and XP), and last **Ultima RYNO II**, bought after Omega: twelve steps, Ultima the
+  final one, on the Zodiac's path and prices. The
   RYNO II has its own curve, rising from Heavy to Ultima, and levels up five times slower than
   other weapons (`kRynoExpScale` in src/tiers.h). It is the strongest weapon, so it costs far more than
-  the others' top tiers: 1,000,000 (its own price) times 6, 10, 16 and 25, about 2.5 to 2.8 times the
+  the others' top tiers: 1,000,000 (its own price) times 6, 8, 10, 16, 25 and 40, about 2.5 to 2.8 times the
   ladder of 1.5M to 9M the others' biggest Mega prices reach. At the bolt scaling of the later
   challenge modes (x6 to x9, platinum and obsidian bolts) a common enemy at a full streak pays 14,400
   to 21,600, so Eta is a couple of thousand such kills:
 
   | Step | How | Price | XP | Damage | Max ammo | Color |
   |---|---|---|---|---|---|---|
-  | Heavy | level up | | 37,500 | x1.40 | x1.50 | orange |
-  | Alpha | buy | 6,000,000 | | x2.00 | x1.65 | lime |
+  | Heavy | level up | | 37,500 | x1.40 | x1.50 | none |
+  | Mega | buy | 6,000,000 | | x1.60 | x1.55 | none |
+  | Ultra | level up | | 43,750 | x1.80 | x1.60 | none |
+  | Alpha | buy | 8,000,000 | | x2.00 | x1.65 | lime |
   | Beta | level up | | 50,000 | x2.70 | x1.80 | cyan |
   | Gamma | buy | 10,000,000 | | x3.45 | x1.95 | emerald |
   | Delta | level up | | 75,000 | x4.30 | x2.15 | teal |
@@ -317,19 +374,20 @@ Chopper (Mega 150,000): 225,000, 375,000, 600,000, 900,000. Gravity Bomb (1,500,
   | Zeta | level up | | 100,000 | x6.20 | x2.55 | magenta |
   | Eta | buy | 25,000,000 | | x7.30 | x2.75 | crimson |
   | Omega | level up | | 150,000 | x8.45 | x2.95 | rainbow |
-  | Ultima | level up | | 187,500 | x9.70 | x3.20 | black and red, beating |
+  | Ultima | buy | 40,000,000 | | x9.70 | x3.20 | black and red, beating |
 
   At Ultima the XP bar shows full: there is nothing past it. Saves from before the path changed, when
-  the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, are moved over once: Heavy
-  stays Heavy, the old Ultima becomes Alpha, Alpha to Omega keep their tier, and Omega Prime becomes
-  Ultima.
+  the RYNO II went Heavy, Ultima (bought), Alpha to Omega and Omega Prime, or (0.6.14 to 0.6.17)
+  Heavy, Alpha to Omega, Ultima, are moved over once: Heavy stays Heavy, the old Ultima becomes
+  Alpha, Alpha to Omega keep their name, and Omega Prime (or the last Ultima) becomes Ultima, each
+  placed after the new Mega and Ultra.
 
 **Names**: the tier replaces the game's top version in the weapon's name, in front of the name the
 weapon had before its Mega. A four-version weapon uses its second version's name: "Beta Meteor
 Gun", "Alpha Heavy Lancer" (not "Beta Lava Gun", nor the Mega's name). A two-version weapon uses
 its first: "Alpha Bomb Glove". The Clank Zapper uses its last, "Alpha Clank Shocker"; the
 Sheepinator its last XP version, "Alpha Black Sheepinator"; the Zodiac and the RYNO II their only
-one ("Heavy Zodiac", "Mega Zodiac", "Ultra Zodiac", "Heavy RYNO II", "Alpha RYNO II", "Ultima
+one ("Heavy Zodiac", "Mega Zodiac", "Ultra Zodiac", "Ultima Zodiac", "Heavy RYNO II", "Mega RYNO II", "Ultima
 RYNO II"). The names come from the game's own text,
 so every language works. A tier reached by XP shows the game's own level-up popup and message with
 the new name; a bought one shows the vendor's usual purchase message. The name also shows at the
@@ -367,8 +425,9 @@ its own colors with a touch of the tier's and gets a glowing edge in it, and its
 effects tied to it (sparks, flashes, arcs, trails, halos) are drawn in the tier's color instead of
 the game's. Each tier is a little stronger than the one before: the effects are brighter and the
 sparks and flashes larger, up to about half again as bright and a third larger at Omega. Omega's
-effects cycle through the rainbow, like its icon. Heavy RYNO II glows orange, Alpha to Omega RYNO II
-in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
+effects cycle through the rainbow, like its icon. Heavy, Mega and Ultra (the Zodiac's and the RYNO II's) change nothing: the weapon, its shots and its
+icon look as the game draws them, and the tint, shot color, glow, vendor color and every other
+visual start at Alpha. Alpha to Omega RYNO II are in the tiers' colors, and Ultima RYNO II beats between bright and deep red.
 
 This is only how things look: shots fly, spread and hit exactly as at the tier's damage.
 
@@ -379,10 +438,10 @@ This is only how things look: shots fly, spread and hit exactly as at the tier's
 | Chopper / Multi-Star | the spinning blades, body and glow |
 | Blitz Gun / Blitz Cannon | the gun's glowing edge and the effects tied to it |
 | Plasma Coil / Plasma Storm | the gun's glowing edge and the effects tied to it |
-| Lava Gun / Meteor Gun (the Ice Gun) | the gun, and the blobs it leaves on the ground. Its tiers are icy: frost, glacier, ice, arctic, deep ice, polar, cobalt, and aurora at Omega (see The Ice Gun) |
+| Lava Gun / Meteor Gun (the Ice Gun) | the gun, its meteors with their trails and sparks, and the blobs it leaves on the ground. Its tiers are icy: frost, glacier, ice, arctic, deep ice, polar, cobalt, and aurora at Omega (see The Ice Gun); with mod interface 1.39 the gun is painted pale ice with deep blue where its lava glowed and the meteors are painted as shards of ice |
 | Minirocket Tube / Megarocket Cannon | the tube, and each homing rocket (its body, glow and trail) |
 | Spiderbot / Tankbot Glove | the bot itself (body and glow) and its exploding trail |
-| Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts |
+| Bouncer / Heavy Bouncer | the gun, and the bouncing bomblets with their blasts. The bomblets also fly 7.5% faster each tier (x1.6 at Omega) along the game's arc |
 | Miniturret / Megaturret Glove | each turret you put down (body and glow) |
 | Hoverbomb / Tetrabomb Gun | the gun, and each hoverbomb (body and glow) |
 | Shield Charger / Tesla Barrier | the shield: its electric arcs and sparkles. It no longer turns green for good at the Mega: Alpha is lime, Beta cyan, Gamma emerald, Delta teal, Epsilon violet, Zeta magenta, Eta crimson, and Omega's shield cycles through them all |
@@ -463,7 +522,10 @@ the tiers give damage, ammo and colour only. In a multiplayer party the host's s
 ### The Ice Gun
 
 The Lava Gun's tiers are the **Ice Gun**: "Alpha Ice Gun" up to "Omega Ice Gun". The gun keeps
-the Meteor Gun's model for now.
+the Meteor Gun's model, repainted in pale ice with deep blue where its lava glowed, and its meteors
+are painted as shards of ice in the tier's blue, their trails, sparks and the fire they leave on an
+enemy blue too (OpenRAC with mod interface 1.39; an older one draws the shots and their effects in
+a clear ice blue over the meteors' own look).
 The idea follows Up Your Arsenal's Liquid Nitrogen Gun (the Lava Gun's V5 there). Its colours:
 
 | Tier | Color |
@@ -484,13 +546,13 @@ by themselves:
 
 | Tier | Effect |
 |---|---|
-| Alpha, Beta | Chill: slowed to half speed for 1 s after each hit, glowing pale blue |
-| Gamma, Delta | Deeper chill: slowed to a third for 2 s |
-| Epsilon to Eta | Freeze: after each hit it is frozen solid for 1 s, glowing ice blue, then slowed to a third for the rest of 2 s. A fresh freeze comes only after it has thawed for a second, so a stream holds it slowed and never stuck for good. An enemy killed while frozen or chilled shatters: the game's own blast goes off on it in ice blue, and enemies within 5 units take the killing hit, counted as four hits of the stream (60% of each) |
+| Alpha, Beta | Freeze: after each hit it is frozen solid for 2/3 s, painted in ice (glowing ice blue before mod interface 1.34), then slowed to half speed for the rest of 1.5 s, glowing blue. A fresh freeze comes only after it has thawed for half a second, so a stream holds it frozen most of the time, never for good. An enemy killed while frozen or chilled shatters: the game's own blast goes off on it in ice, and enemies within 3 units take the killing hit, counted as four hits of the stream (30% of each) |
+| Gamma, Delta | Longer freeze: 5/6 s, then slowed to a third for the rest of 2 s; the shatter reaches 4 units at 45% |
+| Epsilon to Eta | Freeze for 1 s, then slowed to a third for the rest of 2.5 s; the shatter reaches 5 units at 60% |
 | Omega | Long freeze: 2 s, then slowed to a third for the rest of 3 s. The shatter reaches 8 units at full share, and the shards freeze what they hit |
 
 **Bosses** only glow: they are never slowed or frozen. Before OpenRAC 1.29 there is no freeze or
-slow: the gun only glows pale or ice blue on its victims, and the shatter's damage is dealt as hits.
+slow: the gun only glows blue on its victims, and the shatter's damage is dealt as hits.
 
 ### The Meteor Gun's fire path
 
@@ -577,6 +639,11 @@ takes a share off every hit on Ratchet, on top of the game's armour.
 The look is Carbonox, the armor Ratchet wears, **repainted** in the tier's color (OpenRAC's paint
 material on his model, mod interface 1.34): the plates and their shading stay, the color is the
 tier's, and a rim glows in it, brighter each tier (none at Alpha, the brightest at Omega). The
+visor and the lamps (the model's own strongly colored details) are not flattened into the
+suit's color: they take a bright **accent** of the tier's own, a shade against the suit's (red
+against Alpha's steel, orange against azure, magenta against jade, sky against gold, lime against
+amethyst, aqua against rose, yellow against ember, and Omega's cycles with its body); needs mod
+interface 1.38, an older OpenRAC paints the whole suit in the tier's color. The
 game's other armors share their textures with Ratchet's fur, so painting them would paint him too;
 Carbonox is the whole-body suit and the model the tiers build on. With an older OpenRAC (1.25 to
 1.33) the tiers glow over Carbonox instead and cannot be bought; their protection works with any.
@@ -599,11 +666,11 @@ is not sold in a multiplayer party.
 
 ### RYNO II split rockets
 
-From its first tier, **Alpha RYNO II**, on, a RYNO II rocket may split where it ends into smaller
+From its first tier, **Alpha RYNO II** (after Heavy, Mega and Ultra, which don't split), on, a RYNO II rocket may split where it ends into smaller
 homing rockets (OpenRAC 1.29): by chance at the low tiers, always from Zeta, and more of them up
 the tiers. They start just clear of what the rocket hit, fly at the nearest other enemies within 40
 units, home on them as the game's own rockets do and explode like them, in the tier's colour.
-Heavy RYNO II, its first step, doesn't split.
+Heavy, Mega and Ultra RYNO II don't split.
 
 | Tier | Chance a rocket splits | Split rockets | They split again |
 |---|---|---|---|
@@ -625,8 +692,8 @@ instead (3 from Epsilon).
 
 ### Ultima RYNO II
 
-The RYNO II's final step, after Omega, is **Ultima RYNO II**, reached by experience, not bought:
-37,500 x5 = 187,500 XP (the RYNO II's goals are five times the usual). It does x9.7 damage and
+The RYNO II's final step, after Omega, is **Ultima RYNO II**, bought for 40,000,000 (reached by
+experience until 0.6.17). It does x9.7 damage and
 x3.2 max ammo, and beats between black and red. Its rockets split in 4 and each split rocket
 splits in 2 twice more (OpenRAC 1.29: real homing rockets, at most 16 from one rocket; before 1.29,
 hits at 60% on at most 9 enemies). Nothing comes after it: its XP bar shows full.
@@ -1078,11 +1145,11 @@ without saving. Each save gets only its own tiers, exactly as they were when it 
 A record with tiers is never overwritten with an empty one. Nothing is written to the memory card
 or its folder.
 
-The file's first line, `ngpp-tiers 3`, marks the RYNO II's path Heavy, Alpha to Omega, Ultima and
-the Zodiac's Heavy, Mega, Ultra, Alpha to Omega. A file without it, or with `ngpp-tiers 2` (from
-before the Zodiac's path), is moved over once when the mod loads (see RYNO II above; each Zodiac level
-from Alpha up moves three up, so the tier stays), then written with the line, so it is never moved
-twice.
+The file's first line, `ngpp-tiers 4`, marks the RYNO II's and the Zodiac's path Heavy, Mega, Ultra,
+Alpha to Omega, Ultima. A file without it, or with `ngpp-tiers 2` or `3` (from before the path), is
+moved over once when the mod loads (see RYNO II above: its Alpha to Ultima move up two places; the
+Zodiac's levels from layout 3 stay, and from layouts 1 and 2 move up three from Alpha), then written
+with the line, so it is never moved twice.
 
 The launcher's save editor shows each weapon's tier in its version picker for the save you open
 while the mod is on, and saves your changes to `tiers.txt`; close the game first. It also lets you
@@ -1124,7 +1191,7 @@ material of 1.24 and the energy material of 1.25 (the addresses are NTSC-U v1.01
 | For sale | `rac2.vendor.build_list` (`func_002F6608`): an upgrade entry for each weapon whose next tier is for sale, right after that weapon's own entry and built as the game builds its Mega entry; `rac2.vendor.price` (`func_002F6510`) prices it; `rac2.item.upgrade` (`func_002887B0`), which the vendor's purchase calls once it is paid, takes the tier instead of the game's Mega step |
 | Experience | each tick, a weapon at its last version whose experience (which the game keeps adding up there) reaches the tier's takes it; its experience starts again from 0, as the game's own Mega purchase does |
 | Experience bar | the last version's row (+0x6C, the experience to the next version, which the game leaves at 0 there: a full bar) set each tick to the next tier's goal, and back to the game's when none is left; the game's own level check skips every last version, so it never acts on it |
-| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw, the Plasma Coil's and Plasma Storm's shots, the Pulse Rifle's beam, the Clank Zapper), else the weapon in Ratchet's hand |
+| Damage | `rac2.combat.post_hit` (`func_002A8E20`): a hit posted to anyone but Ratchet has its damage (+0x1C) scaled for that call by the tier of the weapon that dealt it: the weapon whose own moby is the request's source (+0x10, its class at +0xAA; `kHitSources` in src/discs.h: the Lancer, Blitz Gun and Cannon, Lava Gun and its pools, the Meteor Gun's meteors, Seeker and Minirocket shots, Gravity Bomb blasts, Bouncer blasts, Spiderbot trails, Shield Charger and Tesla Barrier, Tesla Claw, the Plasma Coil's and Plasma Storm's shots, the Pulse Rifle's beam, the Clank Zapper), else the weapon in Ratchet's hand |
 | Max ammo | the last version's row (+0x8E) in the item table, rewritten each tick from what the game (or another mod) has there; a tier fills the ammo |
 | Enemies | the save's challenge mode counter (+0x12 of its block); their health as the damage they take in `rac2.combat.post_hit` divided by the curve (a boss's, by the victim's class at +0xAA, by the boss column too, the final boss's by 1.5 more; the RYNO II's hits by its own rule, its tough enemies by their own bolts at +0xB4), the damage they deal in `rac2.player.take_damage` (`func_L00_002A4EF8`) times it, a fraction of a point carried to the next hit |
 | Weapon experience | `rac2.moby.record_death` (`func_002A6C58`, `SetDeathBits`): every weapon's experience (the s32 table at `D_00139868`, << 5) read before the game's own award and after, each gain times the run's rate and the moby's (a boss by its class at +0xAA, an enemy's own bolts at +0xB4) |
@@ -1213,9 +1280,10 @@ Not yet:
   the hit perks in the table. Before OpenRAC 1.29 (an older port) the perks that need it are not
   done at all, and the RYNO II's split rockets and the Gravity Bomb's mini bombs come as hits and
   blasts on the nearest enemies; there is no freeze or slow either.
-- The Ice Gun keeps the Meteor Gun's model.
-- The weapons' looks change only how things are drawn: shots are no faster and blasts reach no
-  farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
+- The Ice Gun keeps the Meteor Gun's model (repainted) and fires its meteors (painted as ice), not
+  Up Your Arsenal's stream.
+- The weapons' looks change only how things are drawn: shots are no faster (but the Bouncer's
+  bomblets) and blasts reach no farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
   game's item rows keep the shots' speed and size in fields that mean different things for each
   weapon, so changing them waits until each weapon's fields are traced.
 - An effect the game draws on its own, not tied to the gun or the shot that made it, keeps the

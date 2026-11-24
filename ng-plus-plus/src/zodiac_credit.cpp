@@ -97,6 +97,24 @@ ZodiacAction zodiac_action(float health, std::uint8_t path, float drain) {
     return path != 3 ? ZodiacAction::Vaporize : ZodiacAction::Skip;
 }
 
+ZodiacAction zodiac_reach_action(
+    float health, std::uint8_t path, float drain, bool started, bool owner_runs
+) {
+    // Not started: its start-up would undo whatever the pulse did.
+    if (!started) {
+        return ZodiacAction::Skip;
+    }
+
+    const ZodiacAction action = zodiac_action(health, path, drain);
+
+    // Its owner's, with no update to run the death: left until the loop runs it.
+    if (action == ZodiacAction::Owner && !owner_runs) {
+        return ZodiacAction::Skip;
+    }
+
+    return action;
+}
+
 ZodiacDeath zodiac_death(float health, std::uint8_t path) {
     // The gun records a death with health left; a drained or hit enemy has none.
     if (health <= 0.0f) {

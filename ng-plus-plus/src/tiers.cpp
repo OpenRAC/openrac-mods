@@ -42,16 +42,15 @@ constexpr Step kMasterySteps[kTiers] = {
 // clang-format on
 
 // clang-format off: one step per row, as kTierSteps.
-// The Zodiac's path (Kind::Single), as the RYNO II's Heavy shaped it: Heavy by experience (the RYNO
-// II Heavy's goal), Mega bought (the RYNO II's first price) and Ultra by experience, then the eight
-// tiers on the RYNO II's experience and prices (0.6.13: each step by experience the RYNO II's at the
-// same place, times kRynoExpScale, its mastery after a purchase too). An overpowered weapon levels
-// as slowly as the RYNO II. The three new steps rise below Alpha's x1.50.
+// The Zodiac's path (Kind::Single): experience and purchase alternate all the way: Heavy (XP), Mega
+// (bought), Ultra (XP), Alpha (bought, 0.6.18), Beta (XP) ... Omega (XP), Ultima (bought, 0.6.18).
+// Each step by experience is the RYNO II's goal at the same place, times kRynoExpScale (0.6.13); the
+// prices rise from the RYNO II's. The first three steps rise below Alpha's x1.50, Ultima above Omega.
 constexpr Step kZodiacSteps[kZodiacStepCount] = {
     {"Heavy",   How::Exp, 7'500,  1.15f, 1.03f, Tint::Orange},
     {"Mega",    How::Buy, 0,      1.30f, 1.06f, Tint::Gold},
     {"Ultra",   How::Exp, 10'000, 1.42f, 1.09f, Tint::Sky},
-    {"Alpha",   How::Exp, 7'500,  1.50f, 1.10f, Tint::Lime},
+    {"Alpha",   How::Buy, 0,      1.50f, 1.10f, Tint::Lime},
     {"Beta",    How::Exp, 10'000, 2.00f, 1.20f, Tint::Cyan},
     {"Gamma",   How::Buy, 0,      2.50f, 1.30f, Tint::Emerald},
     {"Delta",   How::Exp, 15'000, 3.00f, 1.40f, Tint::Teal},
@@ -59,6 +58,7 @@ constexpr Step kZodiacSteps[kZodiacStepCount] = {
     {"Zeta",    How::Exp, 20'000, 4.50f, 1.60f, Tint::Magenta},
     {"Eta",     How::Buy, 0,      5.50f, 1.80f, Tint::Crimson},
     {"Omega",   How::Exp, 30'000, 7.00f, 2.00f, Tint::Prismatic},
+    {"Ultima",  How::Buy, 0,      8.50f, 2.20f, Tint::Ultima},
 };
 // clang-format on
 
@@ -78,10 +78,13 @@ constexpr Step kBoughtSteps[kTiers] = {
 // clang-format on
 
 // clang-format off: one step per row, as kTierSteps.
-// The RYNO II's path: Heavy by experience, the eight tiers on it, and Ultima last, by experience at
-// Omega. Its own curve, rising from Heavy's x1.4 to Ultima's x9.7, each step above the one before.
+// The RYNO II's path (0.6.18, the Zodiac's): experience and purchase alternate, Heavy (XP), Mega
+// (bought), Ultra (XP), Alpha (bought), Beta (XP) ... Omega (XP), Ultima (bought). Its own curve,
+// rising from Heavy's x1.4 to Ultima's x9.7, each step above the one before.
 constexpr Step kRynoSteps[kRynoStepCount] = {
     {"Heavy",   How::Exp, 7'500,  1.40f, 1.50f, Tint::Orange},
+    {"Mega",    How::Buy, 0,      1.60f, 1.55f, Tint::Gold},
+    {"Ultra",   How::Exp, 8'750,  1.80f, 1.60f, Tint::Sky},
     {"Alpha",   How::Buy, 0,      2.00f, 1.65f, Tint::Lime},
     {"Beta",    How::Exp, 10'000, 2.70f, 1.80f, Tint::Cyan},
     {"Gamma",   How::Buy, 0,      3.45f, 1.95f, Tint::Emerald},
@@ -90,7 +93,7 @@ constexpr Step kRynoSteps[kRynoStepCount] = {
     {"Zeta",    How::Exp, 20'000, 6.20f, 2.55f, Tint::Magenta},
     {"Eta",     How::Buy, 0,      7.30f, 2.75f, Tint::Crimson},
     {"Omega",   How::Exp, 30'000, 8.45f, 2.95f, Tint::Prismatic},
-    {"Ultima",  How::Exp, 37'500, 9.70f, 3.20f, Tint::Ultima},
+    {"Ultima",  How::Buy, 0,      9.70f, 3.20f, Tint::Ultima},
 };
 // clang-format on
 
@@ -108,13 +111,6 @@ constexpr std::uint32_t kTintRgb[] = {
 
 // How many steady tints there are.
 constexpr std::uint32_t kTintCount = sizeof kTintRgb / sizeof kTintRgb[0];
-
-// RYNO II Heavy's orange (the Zodiac's Heavy too), 0x00BBGGRR.
-constexpr std::uint32_t kOrangeRgb = 0x0080FFu;
-
-// Zodiac Mega's gold and Ultra's sky blue, 0x00BBGGRR.
-constexpr std::uint32_t kGoldRgb = 0x00C0FFu;
-constexpr std::uint32_t kSkyRgb = 0xFFB060u;
 
 // RYNO II Ultima's two colours: a red that sinks to near black and back, 0x00BBGGRR.
 constexpr std::uint32_t kUltimaRed = 0x0000E0u;
@@ -139,7 +135,10 @@ constexpr float kPriceTimes[] = {1.5f, 2.5f, 4.0f, 6.0f};
 // The RYNO II's: its four bought tiers (Alpha, Gamma, Epsilon, Eta), far up the ladder (the
 // strongest weapon: about 2.5 to 2.8 times the other weapons' top ladder, 6 to 25 million on its 1
 // million).
-constexpr float kRynoPriceTimes[] = {6.0f, 10.0f, 16.0f, 25.0f};
+
+// The six bought steps of the RYNO II and the Zodiac (Mega, Alpha, Gamma, Epsilon, Eta, Ultima),
+// times the RYNO II's price base: 6M, 8M, 10M, 16M, 25M, 40M.
+constexpr float kRynoPriceTimes[] = {6.0f, 8.0f, 10.0f, 16.0f, 25.0f, 40.0f};
 
 // For a weapon that buys every tier (Kind::NoExp): the ladder above at Alpha, Gamma, Epsilon and
 // Eta, the tiers between in between, Omega at the RYNO II's top.
@@ -398,7 +397,7 @@ std::int32_t price(Kind kind, int level, std::int32_t mega) {
     std::int32_t last = mega > 0 ? mega : base;
 
     // The Zodiac: the RYNO II's absolute prices, never less (its row's own price may be lower).
-    if (kind == Kind::Single) {
+    if (kind == Kind::Single || kind == Kind::Ryno) {
         base = mega <= 0 ? kRynoPriceBase : std::max(base, kRynoPriceBase);
         last = std::max(last, base);
     }
@@ -415,8 +414,8 @@ std::int32_t price(Kind kind, int level, std::int32_t mega) {
             continue;
         }
 
-        // The Zodiac on the RYNO II's ladder too: its Mega at the RYNO II's Alpha price, then
-        // Gamma, Epsilon and Eta at the prices of those tiers.
+        // The Zodiac on its own ladder: Mega at the RYNO II's Alpha price, Alpha 8M, then Gamma,
+        // Epsilon and Eta at the RYNO II's prices, Ultima 40M.
         const float times = kind == Kind::NoExp ? kPriceEvery[n]
                             : kind == Kind::Ryno || kind == Kind::Single ? kRynoPriceTimes[bought]
                                                                          : kPriceTimes[bought];
@@ -503,7 +502,7 @@ std::int32_t ammo_max(Kind kind, int level, std::int32_t base) {
 
     // The Zodiac's capacity is small, so a multiplier barely moves it: Heavy, Mega and Ultra add
     // one round each to the game's (+1, +2, +3), then each tier a flat kZodiacAmmoPerTier (Alpha
-    // base + 4, Beta base + 8, ... Omega base + 32).
+    // base + 4, Beta base + 8, ... Omega base + 32, Ultima base + 36).
     if (kind == Kind::Single) {
         // Up to Ultra one round a step; from Alpha the flat 4 a tier, nothing more.
         if (level <= kZodiacOwn) {
@@ -535,12 +534,12 @@ std::optional<std::uint32_t> tint_rgb(Kind kind, int level, std::uint32_t tick) 
             const std::uint32_t t = (tick % kPrismTicks) * kMixSteps / kPrismTicks;
             return mix(kTintRgb[at], kTintRgb[(at + 1u) % kTintCount], t);
         }
+        // Heavy, Mega and Ultra (the Zodiac's and the RYNO II's) keep the game's own look: the
+        // colours start at Alpha.
         case Tint::Orange:
-            return kOrangeRgb;
         case Tint::Gold:
-            return kGoldRgb;
         case Tint::Sky:
-            return kSkyRgb;
+            return std::nullopt;
         // Red that sinks to near black and back.
         case Tint::Ultima: {
             const std::uint32_t phase = tick % kUltimaTicks;
@@ -595,7 +594,7 @@ std::optional<std::uint32_t> effect_rgb(Kind kind, int level, std::uint32_t tick
 
     const std::optional<std::uint32_t> tint = tint_rgb(kind, level, tick);
 
-    // Every other tint has a colour; none would be a step without one.
+    // The steps before Alpha have none: the game's own effects.
     if (!tint) {
         return std::nullopt;
     }

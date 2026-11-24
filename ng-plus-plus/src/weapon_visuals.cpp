@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "armour_api.h"
 #include "bolt_api.h"
 #include "discs.h"
 #include "perk_rules.h"
@@ -54,9 +55,37 @@ const VisualClass* visual_class(int moby_class) {
     return nullptr;
 }
 
+std::optional<MobyLook> ice_look(Kind kind, int level, bool gun, std::uint32_t tick) {
+    const std::optional<std::uint32_t> rgb = weapon_effect_rgb(kLavaGun, level, tick);
+
+    // No tier: the game's look.
+    if (!rgb) {
+        return std::nullopt;
+    }
+
+    const int strength = effect_strength(kind, level);
+
+    // The gun: pale ice, its lava in deep blue, its effects in the tier's blue.
+    if (gun) {
+        return MobyLook{paint_accent_at(strength, kIceAccentRgb) | kPaintEffectsBit, kIcePaintRgb};
+    }
+
+    return MobyLook{paint_at(strength) | kPaintEffectsBit, *rgb};
+}
+
 std::optional<MobyLook> look_for(
-    const VisualClass& visual, Kind kind, int level, bool energy, std::uint32_t tick
+    const VisualClass& visual,
+    Kind kind,
+    int level,
+    bool energy,
+    std::uint32_t tick,
+    bool paint_effects
 ) {
+    // The Ice Gun painted where the port paints effects too.
+    if (paint_effects && visual.item == kLavaGun && ice_gun_on()) {
+        return ice_look(kind, level, !visual.body, tick);
+    }
+
     const std::optional<std::uint32_t> rgb = weapon_effect_rgb(visual.item, level, tick);
 
     // No tier: the game's own look.
@@ -81,6 +110,7 @@ void WeaponVisuals::start() {
     const openrac_api& api = m_mod.api();
     m_material = moby_material_of(api) != nullptr;
     m_energy = m_material && api.api_minor >= kEnergyMinor;
+    m_paint_effects = m_material && api.api_minor >= kPaintEffectsMinor;
 
     // What this port lacks, for a player's log.
     if (!m_material) {
@@ -144,7 +174,7 @@ void WeaponVisuals::tick(std::uint32_t tick) {
         const WeaponView weapon = m_weapons.weapon(visual->item);
         const int tier = weapon.has_tier() ? weapon.level : 0;
         const std::optional<MobyLook> look =
-            look_for(*visual, weapon.kind, tier, m_energy, m_view.sixtieths(tick));
+            look_for(*visual, weapon.kind, tier, m_energy, m_view.sixtieths(tick), m_paint_effects);
         const auto drawn = m_drawn.find(moby);
         const bool known = drawn != m_drawn.end() && drawn->second.moby_class == moby_class;
 

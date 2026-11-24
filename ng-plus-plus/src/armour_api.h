@@ -24,6 +24,11 @@ using MaterialClassFn = int (*)(openrac_mod*, int, std::uint32_t, std::uint32_t,
 // The interface minor with paint and moby_material_class.
 inline constexpr std::uint16_t kPaintMinor = 34;
 
+// The interface minor whose paint takes an accent colour for the model's strongly saturated texels
+// (OPENRAC_MOBY_MATERIAL_PAINT_ACCENT_AT): Carbonox's red visor and teal lamps. An older port
+// refuses it, so the paint goes without.
+inline constexpr std::uint16_t kPaintAccentMinor = 38;
+
 // OPENRAC_MOBY_MATERIAL_PAINT and its rim glow's level in bits 8 to 11 (0 to kPaintTop).
 inline constexpr std::uint32_t kMaterialPaint = 5;
 inline constexpr int kPaintTop = 15;
@@ -38,9 +43,20 @@ inline constexpr int kHeroClass = 0;
 // The entries from weapon_ignore_culling to moby_material_class in the table.
 inline constexpr std::size_t kMaterialClassAfterCulling = 17;
 
+// The bit of a paint that says it has an accent, whose colour is in bits 12 to 23 (4 bits a
+// channel, red highest; OPENRAC_MOBY_MATERIAL_PAINT_ACCENT of interface 1.38).
+inline constexpr std::uint32_t kPaintAccentBit = 0x1000000u;
+
 // Returns the paint material with its rim glowing at `level` (0 to kPaintTop).
 constexpr std::uint32_t paint_at(int level) {
     return kMaterialPaint | (static_cast<std::uint32_t>(level) & 0xFu) << 8;
+}
+
+// Returns the paint material at `level` with the accent colour `accent` (0xRRGGBB), as
+// OPENRAC_MOBY_MATERIAL_PAINT_ACCENT_AT packs it: the top nibble of each channel.
+constexpr std::uint32_t paint_accent_at(int level, std::uint32_t accent) {
+    return paint_at(level) | kPaintAccentBit | ((accent >> 20) & 0xFu) << 20
+           | ((accent >> 12) & 0xFu) << 16 | ((accent >> 4) & 0xFu) << 12;
 }
 
 #if OPENRAC_MOD_API_MINOR >= 34

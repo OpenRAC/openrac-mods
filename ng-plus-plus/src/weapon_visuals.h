@@ -59,6 +59,7 @@ inline constexpr VisualClass kVisualClasses[] = {
     {1481u, 29u, false},  // Lava Gun
     {3161u, 29u, false},  // Meteor Gun, its Mega
     {4406u, 29u, true},   // Lava Gun's lingering blobs (lava_gun_update_blobs)
+    {2862u, 29u, true},   // Meteor Gun's meteor (projectile_spawn_small, UpdateCollidingTrailProjectile)
     {3146u, 28u, false},  // Plasma Coil
     {1482u, 28u, false},  // Plasma Storm, its Mega
     {2715u, 28u, true},   // Plasma Coil's shot (thrown_shot_update), the hits' source
@@ -131,12 +132,28 @@ struct MobyLook {
     bool operator!=(const MobyLook& other) const { return !(*this == other); }
 };
 
+// The interface minor whose paint draws the moby's effects in its colour too and whose weapon_look
+// takes paint (OPENRAC_MOBY_MATERIAL_PAINT_EFFECTS), and the bit.
+inline constexpr std::uint16_t kPaintEffectsMinor = 39;
+inline constexpr std::uint32_t kPaintEffectsBit = 0x2000000u;
+
+// Returns the Ice Gun's look on a moby of the Lava Gun at tier `level` (Kind `kind`), at game
+// tick `tick`, where the port paints effects (1.39): its shots and what they make painted in the
+// tier's ice blue, their trails and sparks in it too (a meteor becomes a shard of ice); the gun
+// itself (`gun`) painted pale ice with its glowing lava parts in deep blue. None at level 0.
+std::optional<MobyLook> ice_look(Kind kind, int level, bool gun, std::uint32_t tick);
+
 // Returns the look of a moby of `visual` whose weapon is of `kind` at tier `level`, at game tick
-// `tick`: energy in the tier's colour at its strength where the port has it (`energy`), else a
-// tint in the tier's colour on a body (`visual.body`); none at level 0, or for a gun without
-// energy.
+// `tick`: the Ice Gun's paint where the port has it (`paint_effects`, ice_look), else energy in
+// the tier's colour at its strength where the port has it (`energy`), else a tint in the tier's
+// colour on a body (`visual.body`); none at level 0, or for a gun without energy.
 std::optional<MobyLook> look_for(
-    const VisualClass& visual, Kind kind, int level, bool energy, std::uint32_t tick
+    const VisualClass& visual,
+    Kind kind,
+    int level,
+    bool energy,
+    std::uint32_t tick,
+    bool paint_effects = false
 );
 
 // The weapons' mobys drawn in their tiers.
@@ -167,6 +184,7 @@ private:
     const Weapons& m_weapons;
     bool m_material = false;  // The port has moby_material (1.23).
     bool m_energy = false;    // It draws energy (1.25).
+    bool m_paint_effects = false;  // It paints effects (1.39).
     int m_level = -1;         // The level the drawn mobys are in.
     std::unordered_map<std::uint32_t, Drawn> m_drawn;  // By moby address.
 };
