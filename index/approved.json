@@ -343,6 +343,14 @@
       }
     }
   ],
+  "rac2-contextual-wrench": [
+    {
+      "version": "0.1.1",
+      "sha256": {
+        "windows-x86_64": "403aaa935c909d7d355aa88f7ce03274cdf58879ae623e3f62a8e35d6c234f27"
+      }
+    }
+  ],
   "rac2-seeker-fix": [
     {
       "version": "0.1.0",
