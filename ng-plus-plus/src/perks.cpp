@@ -879,8 +879,10 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
     const std::uint32_t hero = m_view.hero_moby();
     const std::array<float, 3> eye{gun[0], gun[1], gun[2] + 1.0f};
 
-    // The enemies to take, chosen first: recording a death runs the hooks and deletes mobys.
+    // The enemies to take, chosen first: recording a death runs the hooks and deletes mobys. Each
+    // with whether the moby loop ran it this tick (its update runs the death the gun leaves to it).
     std::vector<ScannedMoby> taken;
+    std::vector<bool> taken_ran;
 
     for (const ScannedMoby& moby : m_scan.mobys()) {
         // Enough for one pulse.
@@ -899,7 +901,7 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
         openrac_moby_run run{};
         run.size = sizeof run;
         const bool known = m_mod.moby_run(moby.slot, run);
-        const bool ran = known && run.ran != OPENRAC_MOBY_RUN_FAR;
+        const bool ran = known && run.ran > OPENRAC_MOBY_RUN_FAR;
         if (ran && distance2(moby.position, gun) <= kZodiacRange * kZodiacRange) {
             continue;
         }
@@ -914,6 +916,7 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
         }
 
         taken.push_back(moby);
+        taken_ran.push_back(ran);
     }
 
     int sparks = 0;
@@ -921,17 +924,23 @@ void Perks::zodiac_reach(const std::array<float, 3>& gun) {
 
     // Each as the gun takes the ones it picks (charging_weapon_update): no hit is posted, so no
     // earlier weapon's hit and no death of the enemy's own come of it.
-    for (const ScannedMoby& moby : taken) {
+    for (std::size_t k = 0; k < taken.size(); ++k) {
+        const ScannedMoby& moby = taken[k];
         const std::uint32_t record = m_scan.health_record(moby.address);
+        const auto state = memory.read<std::uint8_t>(moby.address + kMobyStateByte);
 
         // Gone meanwhile (an earlier one's death took it with it), or no health.
-        if (record == 0 || memory.read<std::uint8_t>(moby.address + kMobyStateByte) >= 0x80u) {
+        if (record == 0 || state >= 0x80u) {
             continue;
         }
 
+        // Only what the gun itself could take (zodiac_reach_action): started, and, for a death
+        // left to its owner, one whose owner runs.
+        const bool ran = taken_ran[k];
         const auto health = memory.read<float>(record);
         const auto path = memory.read<std::uint8_t>(record + kHealthDeathPath);
-        const ZodiacAction action = zodiac_action(health, path, drain);
+        const ZodiacAction action =
+            zodiac_reach_action(health, path, drain, state != 0 || ran, ran);
 
         // Over the line: a pulse's drain off its health. Its own death later is the Zodiac's
         // too, as the pulse's drained ones are (tuning.cpp), unless another weapon hits it since.

@@ -738,6 +738,42 @@ R refuse(A...) {
     return static_cast<R>(OPENRAC_HOOK_UNKNOWN);
 }
 
+// The moby loop's last run as the port tells it (moby_run): the slots listed here ran (near the
+// camera), every other one was left out (far). Off (refused) unless a test lists some.
+std::vector<int> g_run_slots;
+bool g_run_known = false;
+
+int host_moby_run(int slot, openrac_moby_run* out) {
+    if (!g_run_known || out == nullptr) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    *out = {};
+    out->size = sizeof *out;
+    out->update_dist = 64;
+    out->ran = OPENRAC_MOBY_RUN_FAR;
+
+    for (const int run : g_run_slots) {
+        if (run == slot) {
+            out->ran = OPENRAC_MOBY_RUN_NEAR;
+        }
+    }
+
+    return OPENRAC_HOOK_OK;
+}
+
+// The play calls answer only while a test lists run slots (moby_run needs them, as the port's).
+int host_play_status(openrac_play_status* out) {
+    if (!g_run_known || out == nullptr) {
+        return OPENRAC_HOOK_UNKNOWN;
+    }
+
+    const std::uint32_t size = out->size;
+    *out = {};
+    out->size = size;
+    return OPENRAC_HOOK_OK;
+}
+
 // ---- The armour vendor (1.34) ----
 
 // The game's armours' prices (g_shop_slot_value_table) and the first name's text id.
@@ -1215,8 +1251,8 @@ void make_api() {
     g_api.hook_entry = host_hook_entry;
     g_api.moby_kill = host_moby_kill;
     g_api.moby_spawn = refuse;
-    g_api.moby_run = refuse;
-    g_api.play_status = refuse;
+    g_api.moby_run = host_moby_run;
+    g_api.play_status = host_play_status;
     g_api.level_line = refuse;
 }
 
@@ -3076,8 +3112,12 @@ void test_zodiac_kills(openrac_mod_load_fn load) {
     CHECK(reload(load));
     set<std::int16_t>(kEnemyClassAt + kClassKind, kKindEnemy);
 
-    // The gun, then the enemies (slots 6 and 7 not out yet as the pulse starts).
-    lay_out_mobys({3784, 1, 1, 1, 1, 1, 1, 1, 1});
+    // The gun, then the enemies (slots 6 and 7 not out yet as the pulse starts). The moby loop ran
+    // the owner's one (3) and the gun's own picks; 9 and 10 it left out (0.6.17): the reach leaves
+    // an owner's death whose owner does not run, and one that has not started.
+    lay_out_mobys({3784, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1});
+    g_run_known = true;
+    g_run_slots = {0, 3, 6, 7};
     set<float>(table_moby(0) + 0x10u, 0.0f);
     zodiac_enemy(1, 45.0f, 0.0f, 50.0f, 0, 255);           // The reach: vaporized, far.
     zodiac_enemy(2, 30.0f, 0.0f, 50.0f, 0, kLancerByte);   // The reach: vaporized, within 40.
@@ -3087,6 +3127,9 @@ void test_zodiac_kills(openrac_mod_load_fn load) {
     zodiac_enemy(6, 20.0f, 0.0f, 50.0f, 0, 255);           // The pulse: vaporized.
     zodiac_enemy(7, 0.0f, 20.0f, 50.0f, 1, kLancerByte);   // The pulse: its owner's.
     zodiac_enemy(8, 200.0f, 0.0f, 50.0f, 0, kLancerByte);  // Far from it: the Lancer's.
+    zodiac_enemy(9, -31.0f, 31.0f, 50.0f, 1, kLancerByte); // Its owner's, not run: left.
+    zodiac_enemy(10, 31.0f, -31.0f, 50.0f, 0, kLancerByte); // Not started (state 0): left.
+    g_memory[table_moby(10) + 0x20u] = 0;
     g_memory[table_moby(6) + 0x20u] = 0xFFu;
     g_memory[table_moby(7) + 0x20u] = 0xFFu;
     g_kill_from_record = true;
@@ -3107,6 +3150,9 @@ void test_zodiac_kills(openrac_mod_load_fn load) {
     CHECK(g_memory[zodiac_record(3) + 0x0Eu] == 2);
     CHECK(get<float>(zodiac_record(4)) == 400.0f);
     CHECK(experience(kZodiacItem) == 300);
+    CHECK(zodiac_byte(9) == kLancerByte && g_memory[zodiac_record(9) + 0x0Eu] == 1);
+    CHECK(zodiac_byte(10) == kLancerByte && g_memory[table_moby(10) + 0x20u] == 0);
+    CHECK(get<float>(zodiac_record(9)) == 50.0f && get<float>(zodiac_record(10)) == 50.0f);
 
     // The game's pulse in its frame: its picks out now, each recorded as the gun does.
     g_memory[table_moby(6) + 0x20u] = 0x01u;
@@ -3136,6 +3182,8 @@ void test_zodiac_kills(openrac_mod_load_fn load) {
     CHECK(experience(kLancer) == 100);
 
     // Back as the other tests left it.
+    g_run_known = false;
+    g_run_slots.clear();
     g_kill_from_record = false;
     g_kill_xp = 0;
     set<std::int32_t>(g_disc->exp + 4u * kZodiacItem, 0);

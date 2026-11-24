@@ -204,7 +204,9 @@ private:
     // `gun` in sight of it that the game's pick left out (tuning_rules.h), taken the gun's own way
     // (0.6.12): one at 100 health or less, or drained to nothing, has its death recorded with the
     // Zodiac named and is vaporized (or left to its owner, by its death path); the rest lose a
-    // pulse's drain off their health. No hit is posted.
+    // pulse's drain off their health. No hit is posted. Only what the gun could take (0.6.17,
+    // zodiac_reach_action): never one whose update has not run yet, and a death left to its owner
+    // only when the moby loop runs that owner.
     void zodiac_reach(const std::array<float, 3>& gun);
 
     // The pulse's sparks on an enemy it vaporizes at `at`, facing `eye` (spark_effect_spawn's

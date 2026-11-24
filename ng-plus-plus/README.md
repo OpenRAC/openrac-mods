@@ -27,6 +27,15 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.17
+
+- **No more half-dead enemies from the Zodiac's reach.** The reach beyond the gun's own pulse now
+  takes only what the gun itself could: never an enemy whose update has not run yet (far up
+  Siberius's cart track, a rider killed before it started came back alive with its body hidden and
+  only its claws drawn), and an enemy whose death the gun leaves to its owner only when the game
+  runs that owner, so the death always follows. Such enemies far off are simply left for when they
+  come near.
+
 ## What's new in 0.6.16
 
 - **Richer bolts, everywhere.** Every bolt reward pays half as much again on top of the run
