@@ -144,6 +144,31 @@ def copy_node(section, name, xform):
     return out
 
 
+def settle(project, scene_path):
+    """Sets every thing we placed down on the ground with OpenRAC Editor's placement (its whole
+    underside: none floats, sinks or stands in a wall; a crate off a slope goes to level ground
+    near by). A crate with no good spot near is left out."""
+    try:
+        import placement
+    except ImportError:
+        raise SystemExit("OpenRAC Editor's tools have no placement.py: update OpenRAC Editor")
+    text = scene_path.read_text(encoding="utf-8")
+    report = []
+    for _ in range(3):                                    # crates on crates settle in turn
+        text, report = placement.place_scene(project, text, names=["OM_*"], water=island.SEA, move=True)
+        if not any(r["done"] for r in report):
+            break
+    dropped = [r["node"] for r in report if r["problem"] and "Crate" in r["node"]]
+    if dropped:
+        parts = re.split(r"(?m)^(?=\[)", text)
+        text = "".join(t for t in parts if not any(t.startswith(f'[node name="{n}"') for n in dropped))
+    for r in report:
+        if r["problem"] and r["node"] not in dropped:
+            print(f"{r['node']}: {r['problem']}")
+    scene_path.write_text(text, encoding="utf-8", newline="\n")
+    print(f"Set down on the ground; {len(dropped)} crate(s) with no level spot left out.")
+
+
 def write_museum(projects, tools):
     """Turn PROJECTS/level_11, a fresh Pokitaru project, into the museum. TOOLS is OpenRAC
     Editor's openrac/tools (its static imports)."""
@@ -395,6 +420,7 @@ def write_museum(projects, tools):
         out.append(s)
     text = "".join(out)
     scene_path.write_text(text, encoding="utf-8", newline="\n")
+    settle(project, scene_path)
 
     set_planet(project)
     print(f"OpenRAC Museum written into {project}: {len(layout['mobys'])} objects, {tie_count} rocks, "

@@ -132,7 +132,7 @@ def raft(geo, x, y, rng):
     yaw = float(rng.uniform(0, 180))
     f = np.array([math.cos(math.radians(yaw)), math.sin(math.radians(yaw))])
     s = np.array([-f[1], f[0]])
-    z = SEA + 0.05
+    z = SEA - 0.1                               # the logs half under water
     for k in range(-3, 4):
         a = np.array([x, y]) + s * k * 0.42 - f * 1.6
         b = a + f * 3.2 + f * float(rng.uniform(-0.2, 0.2))
