@@ -185,6 +185,30 @@ def picture_means(tex):
     return out
 
 
+def subdivide_near(terrain, p, lights, size=1.4):
+    """Splits P's faces round the point LIGHTS (out to a little past each one's reach) to SIZE:
+    the ground's own faces are 4 units wide, and a fire's pool of light on them came out square."""
+    if not lights:
+        return
+    F = p.faces
+    mid = p.pos[F].mean(1)
+    near = np.zeros(len(F), bool)
+    for l in lights:
+        near |= np.linalg.norm(mid - np.array(l["at"]), axis=1) < l.get("radius", 8.0) + 3.0
+    if not near.any():
+        return
+    q = terrain.Prim(p.material, dict(p.attrs), F[near])
+    terrain.subdivide(q, size)
+    n = len(p.pos)
+    p.attrs = {k: np.concatenate([v, q.attrs[k]]) for k, v in p.attrs.items()}
+    p.faces = np.concatenate([F[~near], q.faces + n])
+    used = np.zeros(len(p.pos), bool)
+    used[p.faces.ravel()] = True
+    remap = np.cumsum(used) - 1
+    p.attrs = {k: v[used] for k, v in p.attrs.items()}
+    p.faces = remap[p.faces]
+
+
 def bake(terrain, t, models=(), lights=(), albedo=None):
     """Sun, shadows, sky light and point lights into the ground's and the models' colours (the
     editor's bake: all of them together, so the house shades the deck and the deck the stilts),
@@ -200,6 +224,7 @@ def bake(terrain, t, models=(), lights=(), albedo=None):
         patch = 0.8 + 0.4 * (terrain.value_noise3(P / 38.0, 21, 3) * 0.7 + terrain.value_noise3(P / 11.0, 22, 2) * 0.3)
         col = tint * warm[None] * patch[:, None]
         p.attrs["COLOR_0"] = np.concatenate([col, np.ones((len(P), 1))], 1)
+        subdivide_near(terrain, p, lights)
     # Soft sun shadows, the sky from 64 directions and one bounce of light off the ground, the rock
     # and the house (each surface's picture colour), so shut-in places come out dark and lit ones
     # throw their colour round.
