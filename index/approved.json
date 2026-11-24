@@ -516,6 +516,19 @@
     "0.1.0",
     "0.2.0"
   ],
+  "stadia-icons": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "85071f831b8a38d4f9b91cf833638b4dc71a165f9ac6db43c87f23a5e260a35b",
+        "linux-aarch64": "bb6c9504de1aa3b7d76a0b4878eba405fc5ab55aa7432b6daaed99fe75eb4665",
+        "linux-x86_64": "341d8628647ec41b88d6208ef272ef6366aa77ea073989a2dd977485b3869dab",
+        "macos-arm64": "9f23992f2b07131fb6b0347325b38a4605e398996ced438669962fb096b2f872",
+        "macos-x86_64": "f77c8f955901d6b774d3f969826f21d8d3fd37813856a24ebbeaaa94f5a9e332",
+        "windows-x86_64": "19c69f0b8ab35a648bb12f26ff3e15b8072eb2f00283d7904b0bab630f9331ed"
+      }
+    }
+  ],
   "steam-deck-pack": [
     "0.3.0"
   ],
