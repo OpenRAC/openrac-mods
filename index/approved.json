@@ -335,6 +335,14 @@
       }
     }
   ],
+  "rac2-auto-gadgets": [
+    {
+      "version": "0.1.4",
+      "sha256": {
+        "windows-x86_64": "6551462cee4af529c20c2d66928ca0b31fbdcfc3d2a889bb2bab2a882c091d82"
+      }
+    }
+  ],
   "rac2-seeker-fix": [
     {
       "version": "0.1.0",
