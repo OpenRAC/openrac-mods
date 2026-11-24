@@ -79,7 +79,7 @@ MAX_CD = 2 * 1024 * 1024
 COOL_DOWN = 3600  # seconds a new external native version waits
 INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json")
 LISTING_KEYS = {"id", "description", "tags", "impact", "links", "recommends", "suggests", "aliases", "featured",
-                "media", "aiAssisted"}
+                "media", "aiAssisted", "readmeFile"}
 ENTRY_KEYS = LISTING_KEYS | {"repo", "path", "type", "name", "author", "license", "homepage", "games", "readme",
                              "versions"}
 
@@ -374,6 +374,10 @@ def check_listing(d: dict, where: str, extra_keys=frozenset()) -> None:
         raise EntryError(f"{where}: featured must be true or false")
     if not isinstance(d.get("aiAssisted", False), bool):
         raise EntryError(f"{where}: aiAssisted must be true or false")
+    if "readmeFile" in d:
+        check_src(d["readmeFile"], f"{where}: readmeFile")
+        if not d["readmeFile"].endswith(".md"):
+            raise EntryError(f"{where}: readmeFile must be a Markdown file (.md)")
     m = d.get("media", {})
     if not isinstance(m, dict) or set(m) - {"icon", "banner", "screenshots", "videos"}:
         raise EntryError(f"{where}: media may have icon, banner, screenshots, videos")
@@ -485,6 +489,8 @@ def _check_pack(d: dict, where: str) -> None:
     for key in ("name", "author", "description"):
         if not isinstance(d.get(key), str) or not d[key]:
             raise EntryError(f"{where}: a pack needs {key}")
+    if "readmeFile" in d:
+        raise EntryError(f"{where}: a pack's page is its readme text, not a readmeFile")
     if len(d["description"]) > MAX_DESCRIPTION:
         raise EntryError(f"{where}: description over {MAX_DESCRIPTION} characters")
     vs = d.get("versions")
@@ -786,8 +792,15 @@ def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None
         log(f"{mid}: no release yet; not listed")
         return None, downloads
     readme_ref = unique[0]["tag"] or "HEAD"
-    readme = gh.raw(owner, repo, readme_ref, join(entry["path"], "README.md"), limit=MAX_TEXT * 4) or b""
-    return mod_record(entry, head, head_f["type"], unique, clip(readme.decode("utf-8", "replace"))), downloads
+    # The listing's readmeFile, if any, is the page; README.md when it names nothing or is not there.
+    default = join(entry["path"], "README.md")
+    page = join(entry["path"], entry["listing"].get("readmeFile", "README.md"))
+    readme = gh.raw(owner, repo, readme_ref, page, limit=MAX_TEXT * 4)
+    if readme is None and page != default:
+        log(f"{mid}: no {page} at {readme_ref}; the page shows README.md")
+        readme = gh.raw(owner, repo, readme_ref, default, limit=MAX_TEXT * 4)
+    text = clip((readme or b"").decode("utf-8", "replace"))
+    return mod_record(entry, head, head_f["type"], unique, text), downloads
 
 
 def build_pack(entry: dict) -> dict:

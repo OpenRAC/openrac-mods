@@ -168,7 +168,7 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   by mod and shown on its page), links, mods it recommends or suggests, and
   media (`icon`, `banner`,
   `screenshots: [{src, caption}]`, `videos: [{youtube, caption}]`, paths inside
-  the folder; videos are YouTube links only).
+  the folder; videos are YouTube links only), and `readmeFile` (below).
 - **A mod in your own repository** is a pull request adding
   `index/<id>.json`: the same fields plus `repo` and `path` (the mod's folder,
   `""` for the top). Your releases need `<id>-v<version>` (or `v<version>`)
@@ -196,6 +196,23 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
 - If publishing fails, the bot opens an `index-broken` issue (and closes it once a
   publish works again). With the repository secret `DISCORD_WEBHOOK_MAINTAINERS`
   (a Discord channel webhook), both are also posted there.
+
+The mod's page shows its `README.md`, read at the newest release's tag. A
+README written for developers can leave the page to one written for players:
+`readmeFile` is a Markdown file (`.md`) in the mod's folder, a path from it
+(no `..`, not absolute), read at the same tag.
+
+```json
+{
+  "id": "my-mod",
+  "repo": "https://github.com/you/my-mod",
+  "path": "",
+  "readmeFile": "HUB.md"
+}
+```
+
+If that tag has no such file, the page shows `README.md` and the index build
+warns.
 
 Tags and impact come from fixed lists, in [`index/schema.json`](index/schema.json).
 Check before you open the pull request:

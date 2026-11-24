@@ -121,7 +121,7 @@ class Forms(unittest.TestCase):
             self.assertEqual({label: fid for fid, label in pairs}, bot.FORMS[form], name)
         ids = re.findall(r"^    id: (\S+)$", (ROOT / ".github/ISSUE_TEMPLATE/submit-mod.yml").read_text(), re.M)
         self.assertEqual(ids, ["kind", "repo", "mods", "name", "description", "tags", "impact", "ai", "bugs", "discord",
-                               "docs", "video", "screenshots", "rules"])
+                               "docs", "page", "video", "screenshots", "rules"])
         self.assertIn("info@openrac.dev", (ROOT / ".github/ISSUE_TEMPLATE/report-mod.yml").read_text())
 
     def test_md_cell_is_inert(self):
@@ -161,6 +161,15 @@ class Submit(Base):
             self.check(event({**self.fields, "ai": answer}))
             entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
             self.assertIs(entry["aiAssisted"], value)
+
+    def test_mod_page_file(self):
+        self.fx.raw("https://raw.githubusercontent.com/someone/ext-hud/v0.2.0/HUB.md", "# Extra HUD for players\n")
+        r = self.check(event({**self.fields, "page": " HUB.md "}))
+        self.assertTrue(r["ok"], self.failed(r))
+        entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
+        self.assertEqual(entry["readmeFile"], "HUB.md")
+        r = self.check(event({**self.fields, "page": "../HUB.md"}))
+        self.assertIn("Description, tags, impact and links are valid", self.failed(r))
 
     def test_unchanged_listing_only_comments(self):
         first = self.check(event(self.fields))
@@ -364,6 +373,12 @@ class OtherForms(Base):
         self.check(event({"mod": "ext-hud", "ai": "No"}, form="listing-update"))
         entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
         self.assertIs(entry["aiAssisted"], False)
+
+    def test_update_sets_mod_page_file(self):
+        r = self.check(event({"mod": "ext-hud", "page": "HUB.md"}, form="listing-update"))
+        self.assertTrue(r["ok"], self.failed(r))
+        entry = json.loads((self.out / "files" / "index/ext-hud.json").read_text())
+        self.assertEqual((entry["readmeFile"], entry["tags"]), ("HUB.md", ["ui"]))
 
     def test_update_refused_for_stranger(self):
         r = self.check(event({"mod": "ext-hud", "tags": "ui"}, user="stranger", form="listing-update"))

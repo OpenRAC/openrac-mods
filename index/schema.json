@@ -118,6 +118,12 @@
         "aiAssisted": {
           "type": "boolean"
         },
+        "readmeFile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))(?!.*://)[^\\\\]*\\.md$"
+        },
         "media": {
           "type": "object",
           "additionalProperties": false,
@@ -276,6 +282,12 @@
         },
         "aiAssisted": {
           "type": "boolean"
+        },
+        "readmeFile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))(?!.*://)[^\\\\]*\\.md$"
         },
         "media": {
           "type": "object",
