@@ -115,16 +115,11 @@ static const char* item_group(rando_reward r, uint8_t pool) {
     return pool == POOL_ITEMS ? "Items" : pool == POOL_GADGETS ? "Gadgets" : "Weapons";
 }
 
-/* The items some rule asks for: the table's, every row's (a gold bolt may ask for a weapon the
- * solver does not place first, such as the Taunter), and what a skill point's code tests. A
- * world's state counts only progression items, so a rule's item must be one. */
+/* The items some rule asks for: the table's, and what a skill point's code tests. A gold bolt
+ * may also ask for a weapon outside these (the Bomb Glove, the Taunter): rules.py leaves such an
+ * item out of the rule, and keeps progression off a place whose rule needed one. */
 static uint64_t progression_items(void) {
     uint64_t items = rando_progression_items;
-
-    for (size_t i = 0; i < rando_location_count; ++i) {
-        const rando_location* l = &rando_locations[i];
-        items |= (l->hard | l->soft | l->any) & ((((uint64_t)1) << RANDO_ITEM_COUNT) - 1);
-    }
 
     for (int i = 0; i < AP_SKILL_POINT_COUNT; ++i) {
         items |= ap_skill_hard(&k_ap_skill_points[i]);

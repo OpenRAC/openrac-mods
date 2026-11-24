@@ -257,7 +257,9 @@ class TestGoldBolts(RAC1TestBase):
         rows = [row for row in LOCATIONS if row.kind == "gold"]
         self.assertEqual({row.name for row in rows if row.no_progression}, MARKED_GOLD_BOLTS)
         for row in rows:
-            allowed = self.expert or row.name not in MARKED_GOLD_BOLTS
+            # Veldin (return) gold bolt 1 needs the Taunter, which no state holds: never progression.
+            allowed = ((self.expert or row.name not in MARKED_GOLD_BOLTS)
+                       and row.name != "Veldin (return): gold bolt 1")
             self.assertEqual(self.multiworld.get_location(row.name, self.player).item_rule(key), allowed, row.name)
 
     def test_a_gold_bolt_needs_its_own_items(self) -> None:
@@ -267,6 +269,25 @@ class TestGoldBolts(RAC1TestBase):
         self.assertFalse(self.can_reach_location(location))
         self.collect_by_name("Grindboots")
         self.assertTrue(self.can_reach_location(location))
+
+    def test_bomb_glove_choice_asks_for_a_progression_weapon(self) -> None:
+        # The Bomb Glove is not progression (a random start moves it where progression cannot go),
+        # so a gold bolt that takes one of it, the Devastator or the Visibomb Gun takes one of the
+        # other two.
+        self.assertFalse(self.world.create_item("Bomb Glove").advancement)
+        location = "Aridia: gold bolt 1"
+        self.collect_by_name("Aridia Coordinates")
+        self.sweep()
+        self.assertFalse(self.can_reach_location(location))
+        self.collect_by_name("Visibomb Gun")
+        self.assertTrue(self.can_reach_location(location))
+
+    def test_taunter_bolt_holds_no_progression(self) -> None:
+        # Veldin (return) gold bolt 1 needs the Taunter, which is not progression: it is ruled
+        # without it, so it never holds progression, nor the Gold Bolt currency.
+        location = self.multiworld.get_location("Veldin (return): gold bolt 1", self.player)
+        self.assertFalse(location.item_rule(self.world.create_item("Swingshot")))
+        self.assertTrue(location.item_rule(self.world.create_item("Taunter")))
 
     def test_codebot_needs_no_hologuise(self) -> None:
         row = next(row for row in LOCATIONS if row.name == "Drek's Fleet: the CodeBot")
@@ -376,11 +397,16 @@ class TestPresets(unittest.TestCase):
 
 class TestData(unittest.TestCase):
     def test_rules_name_known_items(self) -> None:
-        # Every item a rule asks for is in the pool, so a rule can never be impossible.
+        # Every item a rule asks for is in the pool, so a rule can never be impossible. Only gold
+        # bolts ask for one that is not progression (the Bomb Glove, the Taunter), which the rule
+        # leaves out; one of `any` stays progression.
         for row in LOCATIONS:
             for name in row.hard + row.soft + row.any:
                 self.assertIn(name, ITEM_TABLE, row.name)
-                self.assertTrue(ITEM_TABLE[name].progression, f"{row.name}: {name}")
+                if not ITEM_TABLE[name].progression:
+                    self.assertEqual(row.kind, "gold", f"{row.name}: {name}")
+            if row.any:
+                self.assertTrue(any(ITEM_TABLE[name].progression for name in row.any), row.name)
 
     def test_every_planet_opens(self) -> None:
         for planet in PLANETS[1:]:

@@ -32,13 +32,26 @@ def coordinates(planet: str) -> list[str]:
     return [name for name in names if name in ITEM_TABLE or name in events]
 
 
+def is_progression(name: str) -> bool:
+    return ITEM_TABLE[name].progression
+
+
+def needs_filler(row: LocationData) -> bool:
+    # A state holds only progression items, so a rule cannot ask for another (a gold bolt's
+    # Taunter): such a place is ruled without it, and holds no progression.
+    return any(not is_progression(name) for name in row.hard + row.soft)
+
+
 def row_rule(row: LocationData) -> Rule:
-    rule: Rule = HasAll(*row.hard) if row.hard else True_()
+    hard = [name for name in row.hard if is_progression(name)]
+    rule: Rule = HasAll(*hard) if hard else True_()
+    # One of a row's `any` that is not progression (the Bomb Glove) is left out: it only asks for
+    # more.
     if row.any:
-        rule = rule & HasAny(*row.any)
+        rule = rule & HasAny(*[name for name in row.any if is_progression(name)])
     for planet in row.planets:
         rule = rule & HasAny(*coordinates(planet))
-    extra = [name for name in row.soft if name not in row.hard]
+    extra = [name for name in row.soft if name not in row.hard and is_progression(name)]
     if extra:
         rule = rule & (HasAll(*extra) | EXPERT)
     if row.name == "Oltanis: the PDA's seller":
@@ -81,7 +94,7 @@ def set_rules(world: "RAC1World") -> None:
         world.set_rule(location, rule)
         if row.kind == "gold_vendor":
             add_item_rule(location, lambda item: not (item.player == world.player and item.name == "Gold Bolt"))
-        if not holds_progression(row, logic, bool(world.options.gold_bolt_progression)):
+        if needs_filler(row) or not holds_progression(row, logic, bool(world.options.gold_bolt_progression)):
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
             add_item_rule(location, lambda item, row=row: not item.advancement
