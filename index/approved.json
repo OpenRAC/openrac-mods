@@ -488,6 +488,19 @@
       }
     }
   ],
+  "rumble": [
+    {
+      "version": "1.0.0",
+      "sha256": {
+        "android-arm64": "7ad3ca13d19b0e5accde1e239af0608768d82c3a977ae707330901cebceb7e8e",
+        "linux-aarch64": "e7a39e937673f6fb5d252b4b1f52ef52dea011c776488f07cab8efc8121091e5",
+        "linux-x86_64": "9b2afb458393e1cecc42014fe209d13c280d6ddfc1a5d132ee1938fab80843f8",
+        "macos-arm64": "b99b67ff8e4747b4e28fb2c4d41c591e5eadc2d5f151689bf68990744f068fc8",
+        "macos-x86_64": "1fd5e6304b336abb26702d2f3630d1b70724f057b1db679be4a499f7aedbb7c3",
+        "windows-x86_64": "41ef99f10503d0e13cb0e8a6b0f4b3ff7029f2ed9c6fd0b6f66780436fa15987"
+      }
+    }
+  ],
   "ryno-ammo-drops": [
     {
       "version": "0.1.2",
