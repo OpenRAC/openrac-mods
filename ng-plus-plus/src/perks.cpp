@@ -571,6 +571,7 @@ void Perks::chill(const ScannedMoby& victim, int tier, float damage) {
     // The status (OpenRAC 1.29): frozen solid, else slowed, renewed while the chill lasts.
     if (statuses && fresh) {
         m_shots->status(f.slot, Status::Freeze, m_view.ticks(ice.freeze_ticks));
+        m_ice.freeze(victim.address, victim.moby_class, tier, m_view.ticks(ice.freeze_ticks));
         f.slowed_until = 0;
     } else if (
         statuses && !frozen
@@ -752,6 +753,9 @@ void Perks::death(std::uint32_t moby) {
     const std::array<float, 3> at = GameView::is_memory(moby, kMobyRecordBytes)
                                         ? m_scan.position(moby)
                                         : std::array<float, 3>{};
+
+    // The block of ice it was in breaks (the Ice Gun's look).
+    m_ice.killed(moby);
 
     // An Ice Gun's victim shatters from Epsilon, its glow flaring as it goes.
     const auto frozen = m_frozen.find(moby);
@@ -1351,6 +1355,7 @@ void Perks::tick(std::uint32_t tick) {
     thaw();
     burn();
     watch();
+    m_ice.tick(tick);
 
     // The Zodiac's reach for each pulse that began.
     for (const std::array<float, 3>& gun : m_reach_guns) {
