@@ -29,6 +29,7 @@ section 11):
 | [cheats](cheats/README.md) | native | Invincibility, infinite ammo, infinite oxygen under water and a bolt multiplier (x2 to x100), switched from Cheats in the pause menu's Options or from OpenRAC's own menu, with buttons that refill every weapon's ammo and give 10,000 bolts; a HUD line says what is on | PAL, NTSC-U |
 | [archipelago](archipelago/README.md) | native | Plays in an [Archipelago](https://archipelago.gg/) multiworld: the gadgets, weapons, vendor slots, gold bolts and infobots are locations, what they hold may be another game's item, and what others find for you comes to you; beat Drek to finish. With `rac1.apworld` from the release. Needs OpenRAC's mod interface 1.9 | PAL, NTSC-U |
 | [NG++](ng-plus-plus/README.md) | native | New Game++: Alpha to Omega: eight more tiers for every Going Commando weapon past its last version, bought then levelled with experience, each hitting harder, holding more ammo and with its own tint; an upgrade path for the RYNO II; enemies tougher with each challenge mode; bigger bolt drops, part of them as platinum bolts worth five times the gold ones | Going Commando: NTSC-U, PAL, NTSC-U v2.00 |
+| [boldan-nanotech](boldan-nanotech/README.md) | native | Boldan's Nanotech Upgrade, which the game shows only on an even-numbered hour of the console's clock, can be collected at any hour; the clock tower keeps its own time | Going Commando: NTSC-U, PAL, NTSC-U v2.00 |
 
 ## Installing a mod
 

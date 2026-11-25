@@ -1,0 +1,20 @@
+{
+  "format": 2,
+  "id": "boldan-nanotech",
+  "name": "Boldan Nanotech at any hour",
+  "version": "1.0.0",
+  "author": "SavedbyBlood9",
+  "description": "Going Commando: the Nanotech Upgrade on Boldan, which the game shows only on an even-numbered hour of the console's clock, can be collected at any hour. The clock tower keeps its own time, hands and chimes.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/boldan-nanotech",
+  "api": "1.9",
+  "multiplayer": "gameplay",
+  "games": {
+    "rac2": [
+      "ntsc",
+      "pal",
+      "ntsc2"
+    ]
+  },
+  "settings": []
+}

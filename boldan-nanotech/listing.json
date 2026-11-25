@@ -1,0 +1,24 @@
+{
+  "description": "Going Commando: Boldan's Nanotech Upgrade can be collected at any hour, not only on even-numbered hours of the console's clock.",
+  "tags": [
+    "gameplay",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}
