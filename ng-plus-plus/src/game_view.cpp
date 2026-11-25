@@ -84,7 +84,10 @@ GameView::GameView(const openrac::Mod& mod, const Disc& disc)
       m_text(mod.function<TextFn>(disc.text)),
       m_banner(mod.function<BannerFn>(disc.banner)),
       m_message(mod.function<MessageFn>(disc.message)),
-      m_upgrade_fx(mod.function<UpgradeFxFn>(disc.upgrade_fx)) {}
+      m_upgrade_fx(mod.function<UpgradeFxFn>(disc.upgrade_fx)),
+      m_notices([&mod](const std::string& text) {
+          mod.api().play_notice(mod.handle(), text.c_str());
+      }) {}
 
 openrac::gaddr GameView::at(std::uint32_t address) const {
     return m_mod.relocate(address);

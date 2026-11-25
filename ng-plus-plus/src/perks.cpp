@@ -826,7 +826,7 @@ void Perks::death(std::uint32_t moby) {
             m_overdrive_until = m_tick + static_cast<std::uint32_t>(m_view.ticks(kOverdriveTicks));
             const WeaponView weapon = m_weapons.weapon(held);
             const std::string text = "Overdrive: " + m_weapons.name_at(held, weapon.level);
-            m_mod.api().play_notice(m_mod.handle(), text.c_str());
+            m_view.notice(text);
         }
     }
 
