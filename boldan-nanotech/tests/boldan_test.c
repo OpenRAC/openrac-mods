@@ -3,11 +3,13 @@
  *
  * The mod (src/mod.c) against a host table and game memory of the test's own, on each of Going
  * Commando's discs: a Boldan moby array laid at that disc's g_mobyTableBase, with the clock (its
- * pvars naming its two hands and the Nanotech Upgrade), as UpdateBoldanClock leaves them. On an
- * odd hour the upgrade the clock hid is shown again, after the clock's update (the gate) and on
- * the tick; on an even hour, once collected, off Boldan, without the clock's hands or at another
- * disc's address it is left as it is. A game or disc the mod does not know is refused, and with the
- * gate taken by another mod the tick still does it.
+ * pvars naming its two hands and the Nanotech Upgrade), as UpdateBoldanClock leaves them. With the
+ * clock's hook point, the upgrade the clock's own update hid on an odd hour is shown again once it
+ * returns, and nothing else is taken; on an even hour or once collected it is left as it is.
+ * Without the hook point, it is shown again after the clock's update (the gate) and on the tick;
+ * on an even hour, once collected, off Boldan, without the clock's hands or at another disc's
+ * address it is left as it is. A game or disc the mod does not know is refused, and with the gate
+ * taken by another mod the tick still does it.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +37,8 @@
 
 static uint8_t* s_memory;
 static char s_failed[256];
-static int s_lines, s_level, s_gate_result;
+static int s_lines, s_level, s_gate_result, s_hook_result, s_updates;
+static void* s_clock_hook;
 static openrac_frame_fn s_tick;
 static openrac_moby_update_fn s_gate;
 
@@ -60,6 +63,19 @@ static int host_on_moby_update(openrac_mod* m, openrac_moby_update_fn fn, void* 
     }
     return s_gate_result;
 }
+/* The game's clock update, as the hook's original: it hides the upgrade (the test's odd hours). */
+static void game_clock_update(uint32_t clock);
+static int host_hook(openrac_mod* m, const char* name, const char* signature, void* replacement,
+                     void** original) {
+    (void)m;
+    CHECK(strcmp(name, "rac2.moby.boldan_clock.update") == 0);
+    CHECK(strcmp(signature, "void(u32)") == 0);
+    if (s_hook_result == OPENRAC_HOOK_OK) {
+        s_clock_hook = replacement;
+        *original = (void*)game_clock_update;
+    }
+    return s_hook_result;
+}
 static int host_moby_slot_of(openrac_gaddr moby) {
     return moby >= FIRST && moby < FIRST + COUNT * BN_MOBY_SIZE
                ? (int)((moby - FIRST) / BN_MOBY_SIZE) + SLOT_BIAS
@@ -83,6 +99,7 @@ static openrac_api make_api(const char* game, const char* version) {
     api.memory = s_memory;
     api.log = host_log;
     api.fail = host_fail;
+    api.hook = host_hook;
     api.on_frame = host_on_frame;
     api.on_moby_update = host_on_moby_update;
     api.moby_slot_of = host_moby_slot_of;
@@ -113,6 +130,15 @@ static void set_hour(int32_t hour) {
     memcpy(s_memory + VARS + BN_CLOCK_HOUR, &hour, 4);
 }
 
+static void game_clock_update(uint32_t clock) {
+    CHECK(clock == moby(CLOCK));
+    ++s_updates;
+    hide();
+}
+static void run_clock(uint32_t clock) {
+    ((void (*)(uint32_t))s_clock_hook)(clock);
+}
+
 /* Boldan's mobys at the moby table `table`, the upgrade hidden at 3 o'clock. */
 static void lay_boldan(uint32_t table) {
     bn_put_u32(s_memory, table, FIRST);
@@ -137,7 +163,13 @@ static void lay_boldan(uint32_t table) {
     hide();
 }
 
+static void load_hooked(const char* game, const char* version, int hook_result, int gate_result,
+                       int expect);
 static void load(const char* game, const char* version, int gate_result, int expect) {
+    load_hooked(game, version, OPENRAC_HOOK_UNKNOWN, gate_result, expect);
+}
+static void load_hooked(const char* game, const char* version, int hook_result, int gate_result,
+                       int expect) {
     openrac_mod* m = (openrac_mod*)1;
     openrac_api api = make_api(game, version);
     static openrac_api kept;
@@ -146,8 +178,45 @@ static void load(const char* game, const char* version, int gate_result, int exp
     s_tick = NULL;
     s_gate = NULL;
     s_gate_result = gate_result;
+    s_hook_result = hook_result;
+    s_clock_hook = NULL;
     CHECK(openrac_mod_load(&kept, m) == expect);
     CHECK((s_failed[0] != 0) == (expect != 0));
+}
+
+/* With the clock's hook point: shown once the game's update returns; no tick, no gate. */
+static void play_hooked(const bn_disc* d) {
+    memset(s_memory, 0, BN_RAM);
+    s_lines = 0;
+    load_hooked("rac2", d->version, OPENRAC_HOOK_OK, OPENRAC_HOOK_OK, 0);
+    CHECK(s_clock_hook != NULL && s_tick == NULL && s_gate == NULL && s_lines == 0);
+    lay_boldan(d->moby_table);
+    s_level = BN_LEVEL_BOLDAN;
+
+    /* 3 o'clock, then 13:00 (1 on the dial): the game's update hid it, the mod shows it. */
+    s_updates = 0;
+    run_clock(moby(CLOCK));
+    CHECK(s_updates == 1 && shown() && (flags() & 0x0400u));
+    set_hour(13);
+    run_clock(moby(CLOCK));
+    CHECK(s_updates == 2 && shown());
+
+    /* An even hour is the game's own: left as its update leaves it. */
+    for (int32_t h = 0; h < 24; h += 2) {
+        set_hour(h);
+        run_clock(moby(CLOCK));
+        CHECK(!shown());
+    }
+
+    /* Collected: left alone. */
+    set_hour(5);
+    s_memory[moby(UPGRADE) + BN_MOBY_STATE] = 2;
+    run_clock(moby(CLOCK));
+    CHECK(!shown());
+    s_memory[moby(UPGRADE) + BN_MOBY_STATE] = 1;
+    run_clock(moby(CLOCK));
+    CHECK(shown());
+    printf("%s: hooked, shown at odd hours, left alone otherwise\n", d->version);
 }
 
 static void play(const bn_disc* d) {
@@ -221,7 +290,7 @@ static void play(const bn_disc* d) {
     memset(s_memory, 0, BN_RAM);
     s_lines = 0;
     load("rac2", d->version, OPENRAC_HOOK_TAKEN, 0);
-    CHECK(s_gate == NULL && s_lines == 1);
+    CHECK(s_gate == NULL && s_lines == 2);
     lay_boldan(d->moby_table);
     s_tick(NULL);
     CHECK(shown());
@@ -233,6 +302,7 @@ int main(void) {
     CHECK(s_memory != NULL);
     for (size_t i = 0; i < sizeof k_bn_discs / sizeof k_bn_discs[0]; ++i) {
         play(&k_bn_discs[i]);
+        play_hooked(&k_bn_discs[i]);
     }
     load("rac2", "jp", OPENRAC_HOOK_OK, 1);
     load("rac1", "ntsc", OPENRAC_HOOK_OK, 1);

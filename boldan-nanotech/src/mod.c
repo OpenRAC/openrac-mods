@@ -3,11 +3,13 @@
  *
  * Boldan Nanotech at any hour, a mod of OpenRAC's native port for Going Commando (README.md): the
  * Nanotech Upgrade on Boldan, which the game shows only on an even hour of the console's clock,
- * can be collected at any hour. On Boldan the mod finds the level's clock (boldan.h) and, right
- * after each of its updates (the moby gate, on_moby_update), shows the upgrade again while the
- * clock's hour is odd, as the clock itself does on an even hour; so it is never drawn hidden. A
- * port without the gate, or another mod holding it, leaves the tick (on_frame) to do it, a frame
- * later. The clock, its hands and its chimes are the game's own throughout.
+ * can be collected at any hour. The mod takes the clock's update (the hook point
+ * rac2.moby.boldan_clock.update, Moby_BoldanClock_Update), runs the game's own and then, while the
+ * clock's hour is odd, shows the upgrade again as the clock itself does on an even hour; so it is
+ * never drawn hidden. A port without that hook point finds the clock in the moby array (boldan.h)
+ * and does the same right after its update (the moby gate, on_moby_update), or, without the gate
+ * or with another mod holding it, on the tick (on_frame), a frame later. The clock, its hands and
+ * its chimes are the game's own throughout.
  */
 #include <stddef.h>
 #include <stdio.h>
@@ -26,6 +28,8 @@ static uint32_t s_clock;   /* the clock's moby, 0 until found on this Boldan loa
 static int s_clock_slot;   /* its slot, as the gate names it; -1 for none */
 static uint32_t s_first;   /* the moby array it was found in */
 static int s_said;         /* the clock's finding said once a load */
+/* The game's Moby_BoldanClock_Update, the hook point's original. */
+static void (*s_clock_update)(uint32_t);
 
 static void forget(void) {
     s_clock = 0;
@@ -85,6 +89,16 @@ static void tick(void* user) {
     keep_shown(clock_now(&first, &count), first, count);
 }
 
+/* The clock's update, the hook point's replacement: the game's own, then the upgrade shown. */
+static void clock_hook(uint32_t clock) {
+    s_clock_update(clock);
+    uint32_t first = 0, count = 0;
+    if (bn_mobys(s_api->memory, s_api->relocate_data(s_disc->moby_table), &first, &count)
+        && clock >= first && clock < first + count * BN_MOBY_SIZE) {
+        keep_shown(clock, first, count);
+    }
+}
+
 /* After the clock's own update: before the frame is drawn. */
 static int gate(void* user, int slot, int phase) {
     (void)user;
@@ -112,6 +126,16 @@ OPENRAC_MOD_EXPORT int openrac_mod_load(const openrac_api* api, openrac_mod* mod
         api->fail(mod, reason);
         return 1;
     }
+    const int hooked = api->hook(mod, "rac2.moby.boldan_clock.update", "void(u32)",
+                                 (void*)clock_hook, (void**)&s_clock_update);
+    if (hooked == OPENRAC_HOOK_OK) {
+        return 0;
+    }
+    char line[112];
+    snprintf(line, sizeof line,
+             "Boldan's clock is no hook point of this OpenRAC's (%d): the mod finds the clock itself",
+             hooked);
+    api->log(mod, OPENRAC_LOG_INFO, line);
     if (api->on_frame(mod, tick, NULL) != 0) {
         api->fail(mod, "no tick callback in this OpenRAC");
         return 1;
