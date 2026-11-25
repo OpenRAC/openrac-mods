@@ -5,6 +5,7 @@ Aridia's palm (level_02) and Pokitaru's own plants, rocks, lamps and gadget targ
 disc; the island, the house, the signs and every other model are drawn by these scripts.
 """
 
+import inspect
 import json
 import math
 import os
@@ -185,21 +186,42 @@ def light_nodes(text, layout):
     return scene.text()
 
 
+def drop_overlapping_crates(text, placement):
+    """TEXT without a crate that stands in another one (centres under a crate's width apart at
+    the same height; one on top of another is a stack and stays): two such crates push each
+    other up when set down."""
+    parts = re.split(r"(?m)^(?=\[)", text)
+    kept, drop = [], set()
+    for part in parts:
+        head = re.match(r'\[node name="(OM_[A-Za-z]*Crate[^"]*)"', part)
+        line = re.search(r"(?m)^transform = (.*)$", part) if head else None
+        if not line:
+            continue
+        _basis, at = placement.read_matrix(placement.TRANSFORM.match(line.group(0)).group(1))
+        if any(math.hypot(at[0] - k[0], at[1] - k[1]) < 1.0 and abs(at[2] - k[2]) < 0.8 for k in kept):
+            drop.add(head.group(1))
+        else:
+            kept.append(at)
+    return "".join(t for t in parts if not any(t.startswith(f'[node name="{n}"') for n in drop))
+
+
 def settle(project, scene_path):
     """Sets every thing we placed down on the ground with OpenRAC Editor's placement (its whole
     underside: none floats, sinks or stands in a wall; a crate off a slope goes to level ground
-    near by). A crate with no good spot near is left out."""
+    near by). A crate or lamp with no good spot near is left out."""
     try:
         import placement
     except ImportError:
         raise SystemExit("OpenRAC Editor's tools have no placement.py: update OpenRAC Editor")
-    text = scene_path.read_text(encoding="utf-8")
+    text = drop_overlapping_crates(scene_path.read_text(encoding="utf-8"), placement)
+    drawn = {"drawn_only": True} if "drawn_only" in inspect.signature(placement.place_scene).parameters else {}
     report = []
     for _ in range(3):                                    # crates on crates settle in turn
-        text, report = placement.place_scene(project, text, names=["OM_*"], water=island.SEA, move=True)
+        # On the drawn ground only, as the editor's map check sets things down.
+        text, report = placement.place_scene(project, text, names=["OM_*"], water=island.SEA, move=True, **drawn)
         if not any(r["done"] for r in report):
             break
-    dropped = [r["node"] for r in report if r["problem"] and "Crate" in r["node"]]
+    dropped = [r["node"] for r in report if r["problem"] and ("Crate" in r["node"] or "Lamp" in r["node"])]
     if dropped:
         parts = re.split(r"(?m)^(?=\[)", text)
         text = "".join(t for t in parts if not any(t.startswith(f'[node name="{n}"') for n in dropped))
@@ -398,8 +420,9 @@ def write_museum(projects, tools):
         new_nodes.append(node)
     if "lamp" in template_nodes:
         s = template_nodes["lamp"][0]
-        for k, (x, y, z) in enumerate(layout["lamps"]):
-            new_nodes.append(copy_node(s, f"OM_Lamp_{k + 1:03}", transform(x, y, z, basis=basis_of(s))))
+        for x, y, z in layout["lamps"]:
+            counts["lamp"] = counts.get("lamp", 0) + 1          # after the scenes' own lamps: names stay unique
+            new_nodes.append(copy_node(s, f"OM_Lamp_{counts['lamp']:03}", transform(x, y, z, basis=basis_of(s))))
 
     # 7. Pokitaru's plants and rocks, scattered on the island.
     tie_count = shrub_count = 0
