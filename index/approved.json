@@ -499,6 +499,17 @@
         "macos-x86_64": "1fd5e6304b336abb26702d2f3630d1b70724f057b1db679be4a499f7aedbb7c3",
         "windows-x86_64": "41ef99f10503d0e13cb0e8a6b0f4b3ff7029f2ed9c6fd0b6f66780436fa15987"
       }
+    },
+    {
+      "version": "1.0.1",
+      "sha256": {
+        "android-arm64": "e13a9bec3353b2f90e8956da22c8154a41acc2d514307e9a84b4d0a22d0a845e",
+        "linux-aarch64": "31a20050a5ae7b49cc1b278b18efc06640f99d669cc007a816b43b37793ece40",
+        "linux-x86_64": "d641fe460d61d7c36e44e54ebefb49a9f5720ad5751deb0423d83d6f79e734f1",
+        "macos-arm64": "674ca5f6c262d000af50e7d97fa174eda81b8893bdf6e51dceb41361814f9c29",
+        "macos-x86_64": "c4e1fc686d00c81e090e70b97de5acdf0e7873e1253abba19d94b69a196de417",
+        "windows-x86_64": "cb5807e2710288dc32337bc205f520c01c0ac5310ec99e5a96877680fdf999bd"
+      }
     }
   ],
   "ryno-ammo-drops": [
