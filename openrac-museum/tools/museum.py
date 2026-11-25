@@ -18,6 +18,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import exhibits  # noqa: E402
+import flight  # noqa: E402
 import island  # noqa: E402
 import landmarks  # noqa: E402
 import museum_light  # noqa: E402
@@ -263,6 +264,8 @@ def write_museum(projects, tools):
     (level_dir / "textures").mkdir(exist_ok=True)
     for png in (built / "textures").glob("*.png"):
         shutil.copyfile(png, level_dir / "textures" / png.name)
+    # The flight there: our planet and name in place of Pokitaru's.
+    flight.write(level_dir / "textures")
     layout = json.loads((built / "layout.json").read_text(encoding="utf-8"))
 
     # 2. Static models: the house, the landmarks, and Aridia's palm (from your disc).
