@@ -86,7 +86,8 @@ static void keep_shown(uint32_t clock, uint32_t first, uint32_t count) {
 static void tick(void* user) {
     (void)user;
     uint32_t first = 0, count = 0;
-    keep_shown(clock_now(&first, &count), first, count);
+    const uint32_t clock = clock_now(&first, &count); /* before first and count are read */
+    keep_shown(clock, first, count);
 }
 
 /* The clock's update, the hook point's replacement: the game's own, then the upgrade shown. */
@@ -104,7 +105,8 @@ static int gate(void* user, int slot, int phase) {
     (void)user;
     if (phase == OPENRAC_MOBY_AFTER && slot == s_clock_slot && s_clock != 0) {
         uint32_t first = 0, count = 0;
-        keep_shown(clock_now(&first, &count), first, count);
+        const uint32_t clock = clock_now(&first, &count); /* before first and count are read */
+        keep_shown(clock, first, count);
     }
     return 0;
 }
