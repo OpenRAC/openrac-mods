@@ -1,0 +1,24 @@
+{
+  "description": "Aim over Ratchet's shoulder in Going Commando: a key (or the pad's L2) brings the camera in behind him while he strafes, with a crosshair where the shots go; and a camera distance.",
+  "tags": [
+    "camera",
+    "controls"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/OpenRAC/openrac-mods/issues"
+  },
+  "recommends": [],
+  "suggests": [],
+  "aliases": [],
+  "featured": false,
+  "media": {
+    "icon": null,
+    "banner": null,
+    "screenshots": [],
+    "videos": []
+  }
+}
