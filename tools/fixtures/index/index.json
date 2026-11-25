@@ -65,6 +65,7 @@
    "recommends": [],
    "suggests": [],
    "readme": "# Ammo max\n\nRaises every weapon's ammo cap. Revoked 1.0.0 broke saves.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "a3e5b83a275b",
@@ -216,6 +217,7 @@
    "recommends": [],
    "suggests": [],
    "readme": "# Archipelago\n\nPlay Ratchet & Clank in an Archipelago multiworld with other games.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "7c4840c8bc30",
@@ -353,6 +355,7 @@
    "recommends": [],
    "suggests": [],
    "readme": "# Camera base\n\nShared camera helpers other mods build on.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "c6bf3d641933",
@@ -505,6 +508,7 @@
    ],
    "suggests": [],
    "readme": "# Camera tweaks\n\nSmoother camera with adjustable distance and field of view.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "4a4c065fedc7",
@@ -629,6 +633,7 @@
    "recommends": [],
    "suggests": [],
    "readme": "# Classic controls\n\nRestores the original strafe-less control scheme with remappable buttons.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "55b89a7ceb29",
@@ -755,6 +760,7 @@
    "recommends": [],
    "suggests": [],
    "readme": "# Item randomizer\n\nShuffles gadgets, weapons and gold bolts with a seed you can share.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "713602e4840c",
@@ -994,6 +1000,7 @@
     "xbox-icons"
    ],
    "readme": "# Lock-strafe\n\nStrafe as in the later games: hold L2 or R2 to lock your facing.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "4865db9e1df4",
@@ -1324,6 +1331,7 @@
    "recommends": [],
    "suggests": [],
    "readme": "# Xbox icons\n\nShows Xbox button icons instead of PlayStation ones.\n\n## Settings\n\nNone yet.\n",
+   "readmeFile": "README.md",
    "media": {
     "icon": {
      "hash": "738e9b4a38cb",

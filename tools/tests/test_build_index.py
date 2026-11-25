@@ -265,7 +265,11 @@ class Builder(unittest.TestCase):
         self.assertEqual(mod(index, "ext-hud")["readme"], "# Extra HUD for players\n")
         self.assertEqual(mod(index, "lock-strafe")["readme"], "# Lock-strafe for players\n")
         self.assertFalse(any("the page shows README.md" in w for w in warnings), warnings)
-        self.assertNotIn("readmeFile", mod(index, "ext-hud"))
+        # The record names the file the text came from, as the listing gave it (from the mod's folder).
+        self.assertEqual(mod(index, "ext-hud")["readmeFile"], "HUB.md")
+        self.assertEqual(mod(index, "lock-strafe")["readmeFile"], "docs/PLAYERS.md")
+        self.assertEqual(mod(index, "button-swap")["readmeFile"], "README.md")
+        self.assertEqual(b.validate_index(index), [])
 
     def test_readme_file_missing_falls_back_to_readme(self):
         self.fx.edit("index/ext-hud.json", lambda d: d.update(readmeFile="HUB.md"))
@@ -273,6 +277,16 @@ class Builder(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(mod(index, "ext-hud")["readme"], "# Extra HUD\n")
         self.assertIn("ext-hud: no HUB.md at v0.2.0; the page shows README.md", warnings)
+        self.assertEqual(mod(index, "ext-hud")["readmeFile"], "README.md")
+
+    def test_readme_file_recorded_for_every_mod_but_packs(self):
+        index, errors, _ = self.fx.build()
+        self.assertEqual(errors, [])
+        for m in index["mods"]:
+            if m["type"] == "pack":
+                self.assertNotIn("readmeFile", m, m["id"])  # a pack's readme is its entry's own text
+            else:
+                self.assertEqual(m["readmeFile"], "README.md", m["id"])
 
     def test_without_readme_file_only_readme_is_read(self):
         pages = [u for u in self._seen() if u.startswith("https://raw.githubusercontent.com/") and u.endswith(".md")]
@@ -396,7 +410,8 @@ class Contract(unittest.TestCase):
         ver_keys = set(shared["mods"][0]["versions"][0])
         for m in index["mods"]:
             self.assertLessEqual(set(m), mod_keys | {"discussion"}, m["id"])
-            self.assertLessEqual(mod_keys - set(m), {"license", "homepage"}, m["id"])
+            optional = {"license", "homepage"} | ({"readmeFile"} if m["type"] == "pack" else set())
+            self.assertLessEqual(mod_keys - set(m), optional, m["id"])
             for v in m["versions"]:
                 self.assertEqual(set(v), ver_keys, m["id"])
         json.dumps(index, allow_nan=False)
@@ -408,6 +423,16 @@ class Contract(unittest.TestCase):
         errs = b.validate_index(ix)
         self.assertTrue(any("sorted" in e for e in errs))
         self.assertTrue(any("platform amiga" in e for e in errs))
+
+    def test_validate_checks_readme_file(self):
+        for bad in ("../README.md", "/README.md", "HUB.txt", "", 3):
+            ix = json.loads(SHARED.read_text())
+            ix["mods"][0]["readmeFile"] = bad
+            self.assertTrue(any("readmeFile" in e for e in b.validate_index(ix)), bad)
+        ix = json.loads(SHARED.read_text())
+        pack = next(m for m in ix["mods"] if m["type"] == "pack")
+        pack["readmeFile"] = "README.md"
+        self.assertTrue(any("readmeFile" in e for e in b.validate_index(ix)))
 
 
 class Retry(unittest.TestCase):

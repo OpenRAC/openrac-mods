@@ -212,7 +212,9 @@ README written for developers can leave the page to one written for players:
 ```
 
 If that tag has no such file, the page shows `README.md` and the index build
-warns.
+warns. The index records the file the page came from as the mod's
+`readmeFile` (`README.md` when the listing names none or it was not there), so
+the page's relative links and images resolve against that file's folder.
 
 Tags and impact come from fixed lists, in [`index/schema.json`](index/schema.json).
 Check before you open the pull request:
