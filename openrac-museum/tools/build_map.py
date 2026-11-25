@@ -12,6 +12,7 @@ OPENRAC_ROOT must point at an OpenRAC checkout (the editor's tools use its extra
 """
 
 import argparse
+import inspect
 import subprocess
 import sys
 import tempfile
@@ -55,10 +56,17 @@ def main():
         import shared_map
         project = projects / f"level_{museum.LEVEL:02}"
         planet.set_setting(project, planet.ID, MAP_ID)
+        # The sea's height for the editor's map check, then its fixes (cracks welded, collision made
+        # from the drawn ground, things set down). What Fix leaves is printed and shipped as it is.
+        import island
+        planet.set_setting(project, "map/water", f"{island.SEA:g}")
+        subprocess.run([sys.executable, str(tools / "openrac_editor.py"), "check-map", str(project), "--fix",
+                        "--report", str(Path(temp) / "map-check")], check=False)
         args.out.mkdir(parents=True, exist_ok=True)
         version = disc_version(disc)
         out = args.out.resolve() / f"openrac-museum-{version}{shared_map.SUFFIX}"
-        done = shared_map.export(project, out, author="OpenRAC", about=ABOUT, disc_path=disc)
+        extra = {"keep_problems": True} if "keep_problems" in inspect.signature(shared_map.export).parameters else {}
+        done = shared_map.export(project, out, author="OpenRAC", about=ABOUT, disc_path=disc, **extra)
     print(f"{done['out']}: {done['scenes']} scene(s), {done['patches']} patch(es), {done['game']} game file(s) "
           f"named, {len(done['own'])} of our own files")
 
