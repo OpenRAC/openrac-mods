@@ -1,0 +1,21 @@
+{
+  "id": "rac2-seeker-fix",
+  "repo": "https://github.com/slimcognitohimself/slim-gc-seeker-fix",
+  "path": "",
+  "description": "Seeker Gun and HK-22 Gun missiles no longer back away from their target while they lock on, so they stop blowing up on walls and floors. Delay and other stats are unchanged. Tested alongside NG++",
+  "tags": [
+    "gameplay",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/rac2-seeker-fix/719d2f35bd1c.png"
+      }
+    ]
+  }
+}

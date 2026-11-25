@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include "rando.h"
+#include "reward_pools.h"
 
 /* ---- constants ---- */
 
@@ -51,7 +52,8 @@
 
 /* A playthrough's state: what the player holds and which locations it has had. */
 typedef struct sweep {
-    uint64_t items;                   /* BIT(item) of every item held */
+    uint64_t items; /* BIT(item) of every item held */
+    int gold;
     uint32_t planets;                 /* 1 << level of every planet unlocked */
     uint8_t had[RANDO_MAX_LOCATIONS]; /* 1 for each location reached */
 } sweep;
@@ -60,20 +62,29 @@ typedef struct sweep {
  * runs while the mod loads (and in the tests), one caller at a time, so these need no locking. */
 static uint64_t s_need[DIFFICULTY_COUNT][RANDO_MAX_LOCATIONS];
 static int s_need_ready;
+static int s_legacy_items;
+
+#include "starting_planet.h"
 
 /* ---- the rules ---- */
 
 /* Whether the reward opens the way somewhere: a planet, or one of the progression items. */
 static int is_progression(rando_reward r) {
-    return r.kind == REWARD_PLANET
+    return (r.kind == REWARD_SPECIAL && (r.value == SPECIAL_RARITANIUM
+                || r.value == SPECIAL_CODEBOT || r.value == SPECIAL_ZOOMERATOR))
+           || r.kind == REWARD_PLANET
            || (r.kind == REWARD_ITEM && (rando_progression_items & BIT(r.value)) != 0);
 }
 
 /* Whether the settings shuffle the location. */
 int rando_location_shuffled(const rando_settings* s, const rando_location* l) {
+    if (l->pool == POOL_ITEMS && s->legacy_items)
+        return l->kind == LOC_GIVE && (s->pools & POOL_GADGETS) != 0;
+
     // Some places are never shuffled (an NPC's coordinates, the goal).
     if (l->kind == LOC_FIXED) {
-        return 0;
+        return (s->pools & POOL_NPC_INFOBOTS) && l->vanilla.kind == REWARD_PLANET
+               && rando_npc_index(l->level, l->vanilla.value) >= 0;
     }
 
     // The starting Bomb Glove is the player's own when the starting gear is kept.
@@ -87,6 +98,18 @@ int rando_location_shuffled(const rando_settings* s, const rando_location* l) {
 /* The items the location needs at this difficulty. */
 uint64_t rando_requirement(int difficulty, size_t location) {
     const rando_location* l = &rando_locations[location];
+
+    /* Relaxed keeps the conventional approach to Oltanis's PDA seller. */
+    if (difficulty == DIFFICULTY_RELAXED && l->kind == LOC_GIVE
+        && l->level == LEVEL_OLTANIS && l->key == ITEM_PDA) {
+        return l->hard | l->soft | BIT(ITEM_HELI_PACK);
+    }
+
+    /* Relaxed keeps the conventional route to Rilgar's bouncer, through the Hydrodisplacer. */
+    if (difficulty == DIFFICULTY_RELAXED && l->kind == LOC_FIXED && l->level == LEVEL_RILGAR
+        && l->vanilla.kind == REWARD_PLANET && l->vanilla.value == LEVEL_UMBRIS) {
+        return l->hard | l->soft | BIT(ITEM_HYDRODISPLACER);
+    }
 
     // Expert counts only what a place cannot be done without.
     if (difficulty == DIFFICULTY_EXPERT) {
@@ -117,18 +140,33 @@ static void prepare(void) {
 static int reachable(const sweep* w, int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
+    uint64_t need=s_need[difficulty][i];
+    uint32_t planets=l->planets;
+    if (s_legacy_items) {
+        if (l->kind==LOC_SPECIAL && l->key!=5) return 0;
+        if (l->kind==LOC_SPECIAL && l->key==5) {
+            need=BIT(ITEM_HELI_PACK) | BIT(ITEM_TRESPASSER); planets=1u<<LEVEL_HOVEN;
+        }
+        if (l->kind==LOC_GIVE && l->key==ITEM_SONIC_SUMMONER) need=BIT(ITEM_HOVERBOARD);
+        need &= ~(SPECIAL_BIT(SPECIAL_ZOOMERATOR) | SPECIAL_BIT(SPECIAL_CODEBOT));
+    }
     // Its planet and any other it takes, what it needs, and one of what it takes one of.
-    return (w->planets & (1u << l->level)) != 0 && (l->planets & ~w->planets) == 0
-           && (s_need[difficulty][i] & ~w->items) == 0 && (l->any == 0 || (l->any & w->items) != 0);
+    return (l->kind != LOC_GOLD_CASE || w->gold >= 40) && (w->planets & (1u << l->level)) != 0
+           && (planets & ~w->planets) == 0 && (need & ~w->items) == 0
+           && (l->any == 0 || (l->any & w->items) != 0);
 }
 
 /* Adds a reward to what the player in w holds (a gold bolt adds nothing that opens a way). */
 static void take(sweep* w, rando_reward r) {
     // An item goes into the item set, a planet into the planet set.
-    if (r.kind == REWARD_ITEM) {
+    if (r.kind == REWARD_ITEM || r.kind == REWARD_GOLD_WEAPON) {
         w->items |= BIT(r.value);
+    } else if (r.kind == REWARD_SPECIAL) {
+        w->items |= SPECIAL_BIT(r.value);
     } else if (r.kind == REWARD_PLANET) {
         w->planets |= 1u << r.value;
+    } else if (r.kind == REWARD_GOLD_BOLT) {
+        ++w->gold;
     }
 }
 
@@ -153,10 +191,10 @@ static void play(sweep* w, int difficulty, const rando_reward* reward) {
     }
 }
 
-/* A new game's state: Veldin unlocked and the OmniWrench in hand. */
-static void start(sweep* w) {
+/* The tutorial checks remain logically reachable; the selected first planet is unlocked too. */
+static void start(sweep* w, const rando_plan* plan) {
     memset(w, 0, sizeof *w);
-    w->planets = 1u << LEVEL_VELDIN;
+    w->planets = (1u << LEVEL_VELDIN) | (1u << plan->start_level);
     w->items = BIT(ITEM_WRENCH);
 }
 
@@ -179,7 +217,7 @@ static int fits(int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
     // A gold bolt is a hidden corner: what the way on needs is never in one.
-    if (l->kind == LOC_GOLD) {
+    if (l->kind == LOC_GOLD || l->kind == LOC_GOLD_CASE) {
         return 0;
     }
 
@@ -207,6 +245,56 @@ static void shuffle(rando_rng* r, rando_reward* a, size_t n) {
     }
 }
 
+/* ---- the starting weapon ---- */
+
+/* The weapons a random starting weapon is drawn from, as the Archipelago world's: the normal
+ * weapons, then the gold ones (the gold cases' rewards, whether or not the cases are shuffled);
+ * Non-Broken leaves out the R.Y.N.O. Returns how many are in out. */
+static size_t start_weapon_choices(int mode, rando_reward* out) {
+    static const uint8_t k_weapons[] = {
+        ITEM_SUCK_CANNON, ITEM_BOMB_GLOVE,   ITEM_DEVASTATOR,    ITEM_VISIBOMB,
+        ITEM_TAUNTER,     ITEM_BLASTER,      ITEM_PYROCITOR,     ITEM_MINE_GLOVE,
+        ITEM_WALLOPER,    ITEM_TESLA_CLAW,   ITEM_GLOVE_OF_DOOM, ITEM_MORPH_O_RAY,
+        ITEM_RYNO,        ITEM_DRONE_DEVICE, ITEM_DECOY_GLOVE,
+    };
+    size_t n = 0;
+    for (size_t i = 0; i < sizeof k_weapons; ++i) {
+        if (mode == RANDO_START_WEAPONS_NON_BROKEN && k_weapons[i] == ITEM_RYNO) continue;
+        out[n++] = (rando_reward){REWARD_ITEM, k_weapons[i]};
+    }
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        if (l->kind != LOC_GOLD_CASE || l->vanilla.kind != REWARD_GOLD_WEAPON) continue;
+        if (mode == RANDO_START_WEAPONS_NON_BROKEN && l->vanilla.value == ITEM_RYNO) continue;
+        out[n++] = l->vanilla;
+    }
+    return n;
+}
+
+/* The reward a location gives in place of its own, once the start's weapon took the Bomb Glove's
+ * place: the start gives the weapon, and the place that gives it in the game the Bomb Glove. A
+ * gold weapon's place is its case when the cases are shuffled, else its base weapon's (receiving
+ * a gold weapon gives the base weapon too). Returns 1 when that is not the location's own. */
+static int start_weapon_swap(
+    const rando_settings* s, const rando_plan* plan, const rando_location* l, rando_reward* r
+) {
+    const rando_reward w = plan->start_weapon;
+    if (w.kind == REWARD_NONE) return 0;
+    if (l->kind == LOC_START) {
+        const int changed = r->kind != w.kind || r->value != w.value;
+        *r = w;
+        return changed;
+    }
+    rando_reward place = w;
+    if (w.kind == REWARD_GOLD_WEAPON && !(s->pools & POOL_GOLD_WEAPONS)) place.kind = REWARD_ITEM;
+    if (r->kind != place.kind || r->value != place.value
+        || (place.kind == REWARD_ITEM && place.value == ITEM_BOMB_GLOVE)) {
+        return 0;
+    }
+    *r = (rando_reward){REWARD_ITEM, ITEM_BOMB_GLOVE};
+    return 1;
+}
+
 /* ---- the fill ---- */
 
 /* One try at a placement: the assumed fill described at the top. 0 when every reward found a
@@ -219,7 +307,17 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
     for (size_t i = 0; i < rando_location_count; ++i) {
         const rando_location* l = &rando_locations[i];
         plan->shuffled[i] = (uint8_t)rando_location_shuffled(s, l);
-        plan->reward[i] = l->vanilla;
+        rando_reward original = l->vanilla;
+        if (s->random_start && plan->start_level != LEVEL_NOVALIS
+            && original.kind == REWARD_PLANET && original.value == plan->start_level)
+            original.value = LEVEL_NOVALIS;
+        const int weapon_swapped = start_weapon_swap(s, plan, l, &original);
+        plan->reward[i] = original;
+        if (s->random_start && l->level == LEVEL_VELDIN && l->kind == LOC_FIXED)
+            plan->reward[i].value = (uint8_t)plan->start_level;
+        if (l->kind == LOC_GOLD_CASE && !plan->shuffled[i]) {
+            plan->reward[i].kind = REWARD_NONE;
+        }
 
         // A shuffled location starts empty, and its vanilla reward joins the pool to hand out.
         if (plan->shuffled[i]) {
@@ -227,12 +325,17 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
             plan->reward[i].value = 0;
 
             // Rewards that open the way are placed first; the rest fill what is left.
-            if (is_progression(l->vanilla)) {
-                prog[np++] = l->vanilla;
+            if (is_progression(original)) {
+                prog[np++] = original;
             } else {
-                rest[nr++] = l->vanilla;
+                rest[nr++] = original;
             }
         }
+        // A fixed coordinate exchange still uses source collection state at runtime.
+        if (!plan->shuffled[i] && original.kind == REWARD_PLANET
+            && original.value != l->vanilla.value) plan->shuffled[i] = 1;
+        // So does the start's weapon, and the Bomb Glove at its place: each gives the other.
+        if (!plan->shuffled[i] && weapon_swapped) plan->shuffled[i] = 1;
     }
 
     shuffle(rng, prog, np);
@@ -244,7 +347,7 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
     while (np > 0) {
         const rando_reward r = prog[--np];
         sweep w;
-        start(&w);
+        start(&w, plan);
 
         // Assume the player holds every progression reward not yet placed, so this one goes only
         // where the game can be reached without it.
@@ -285,6 +388,28 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
         plan->reward[at] = r;
     }
 
+    // Cases cannot contain their own Gold Bolt currency. Fill them first from
+    // non-currency filler; progression is already outside the postgame shop.
+    if (s->pools & POOL_GOLD_WEAPONS) {
+        for (size_t i = 0; i < rando_location_count; ++i) {
+            if (rando_locations[i].kind != LOC_GOLD_CASE || !plan->shuffled[i]) {
+                continue;
+            }
+            size_t choices[RANDO_MAX_LOCATIONS], count = 0;
+            for (size_t j = 0; j < nr; ++j) {
+                if (rest[j].kind != REWARD_GOLD_BOLT) {
+                    choices[count++] = j;
+                }
+            }
+            if (!count) {
+                return -1;
+            }
+            size_t pick = choices[rando_below(rng, (uint32_t)count)];
+            plan->reward[i] = rest[pick];
+            memmove(rest + pick, rest + pick + 1, (nr - pick - 1) * sizeof rest[0]);
+            --nr;
+        }
+    }
     size_t k = 0;
 
     // The other rewards go to the places still empty, in the order they were shuffled.
@@ -298,17 +423,38 @@ static int fill(const rando_settings* s, rando_rng* rng, rando_plan* plan, int e
     return k == nr ? 0 : -1;
 }
 
+int rando_start_safe(const rando_plan* plan) {
+    if (!plan->settings.random_start) return plan->start_level == LEVEL_VELDIN;
+    const int level = plan->start_level, difficulty = plan->settings.difficulty;
+    if (level <= LEVEL_VELDIN || level >= LEVEL_VELDIN2) return 0;
+    if (start_route_open(level, difficulty, BIT(ITEM_WRENCH))) return 1;
+    if (!start_ship_vendor(level)) return 0;
+    for (size_t i = 0; i < rando_location_count; ++i) {
+        const rando_location* l = &rando_locations[i];
+        const rando_reward reward = plan->reward[i];
+        if (l->kind == LOC_VENDOR && l->level == level && reward.kind == REWARD_ITEM
+            && start_route_open(level, difficulty, BIT(ITEM_WRENCH) | BIT(reward.value))) return 1;
+    }
+    return 0;
+}
+
 /* Fills plan for the settings, trying again until a fill holds; 0, or -1 when none did. */
 int rando_solve(const rando_settings* s, rando_plan* plan) {
+    s_legacy_items=s->legacy_items;
     prepare();
     memset(plan, 0, sizeof *plan);
     plan->settings = *s;
     plan->settings.seed &= RANDO_SEED_MASK;
-    plan->settings.pools &= POOL_ALL;
+    plan->settings.pools &= POOL_EXTENDED_ALL;
 
     // A difficulty out of range is read as standard.
     if (plan->settings.difficulty > DIFFICULTY_EXPERT) {
         plan->settings.difficulty = DIFFICULTY_STANDARD;
+    }
+
+    // A starting weapon is only given at a start kept out of the shuffle.
+    if (!plan->settings.keep_start || plan->settings.start_weapons > RANDO_START_WEAPONS_UNRESTRICTED) {
+        plan->settings.start_weapons = RANDO_START_WEAPONS_NONE;
     }
 
     // The stream: the code's payload, so that every setting changes the whole placement.
@@ -316,13 +462,42 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
     rando_encode(&plan->settings, code);
     rando_rng rng = {rando_seed_of_text(code) ^ (plan->settings.seed << STREAM_SEED_SHIFT)};
 
+    // The starting weapon, drawn once, before any planet or fill (other codes draw nothing here).
+    if (plan->settings.start_weapons != RANDO_START_WEAPONS_NONE) {
+        rando_reward choices[RANDO_MAX_LOCATIONS];
+        const size_t n = start_weapon_choices(plan->settings.start_weapons, choices);
+        plan->start_weapon = choices[rando_below(&rng, (uint32_t)n)];
+    }
+
+    int starts[LEVEL_COUNT], count = 0;
+    if (s->random_start) {
+        for (int level = 1; level < LEVEL_VELDIN2; ++level) {
+            int allowed = start_route_open(level, plan->settings.difficulty, BIT(ITEM_WRENCH));
+            if (start_ship_vendor(level)) {
+                for (size_t i = 0; !allowed && i < rando_location_count; ++i) {
+                    const rando_location* l = &rando_locations[i];
+                    if (!rando_location_shuffled(s, l) || l->vanilla.kind != REWARD_ITEM) continue;
+                    for (size_t j = 0; j < rando_location_count; ++j) {
+                        if (rando_locations[j].level == level && rando_locations[j].kind == LOC_VENDOR
+                            && rando_location_shuffled(s, &rando_locations[j]) && fits(s->difficulty, j)
+                            && start_route_open(level, s->difficulty, BIT(ITEM_WRENCH) | BIT(l->vanilla.value)))
+                            allowed = 1;
+                    }
+                }
+            }
+            if (allowed) starts[count++] = level;
+        }
+        if (!count) return -1;
+    }
+
     // A new fill each attempt, from the stream's next numbers, until one holds.
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; ++attempt) {
         plan->attempts = attempt;
+        if (s->random_start) plan->start_level = starts[rando_below(&rng, (uint32_t)count)];
 
         // A fill that placed everything is played through once more from the start, to be sure.
         if (fill(&plan->settings, &rng, plan, attempt <= RELAXED_EARLY_ATTEMPTS) == 0
-            && rando_beatable(plan, 0) && rando_stranded(plan) == 0) {
+            && rando_start_safe(plan) && rando_beatable(plan, 0) && rando_stranded(plan) == 0) {
             return 0;
         }
     }
@@ -335,10 +510,11 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
 /* Plays plan through from the start, sphere by sphere; 1 when the goal is reached. spheres, when
  * not null, gets each location's sphere (0 for the start, -1 for never). */
 int rando_beatable(const rando_plan* plan, int* spheres) {
+    s_legacy_items=plan->settings.legacy_items;
     prepare();
     const int d = plan->settings.difficulty;
     sweep w;
-    start(&w);
+    start(&w, plan);
 
     // Locations never reached stay at -1.
     if (spheres) {
@@ -385,9 +561,10 @@ int rando_beatable(const rando_plan* plan, int* spheres) {
 
 /* How many shuffled locations the playthrough never reaches. */
 int rando_stranded(const rando_plan* plan) {
+    s_legacy_items=plan->settings.legacy_items;
     prepare();
     sweep w;
-    start(&w);
+    start(&w, plan);
     play(&w, plan->settings.difficulty, plan->reward);
     int n = 0;
 
@@ -428,8 +605,15 @@ static void put(out* o, const char* fmt, ...) {
 
 /* The reward in words, into buf. */
 void rando_reward_name(rando_reward r, char* buf, size_t n) {
+    if (r.kind == REWARD_GOLD_WEAPON) {
+        snprintf(buf, n, "Gold %s", rando_item_name(r.value));
+        return;
+    }
     // The reward's kind picks its wording.
     switch (r.kind) {
+        case REWARD_SPECIAL:
+            snprintf(buf, n, "%s", rando_special_name(r.value));
+            break;
         case REWARD_ITEM:
             snprintf(buf, n, "%s", rando_item_name(r.value));
             break;
@@ -453,13 +637,25 @@ static void put_header(out* o, const rando_plan* plan, const char* mod_version) 
     put(o, "Seed code   %s\n", code);
     put(o, "Difficulty  %s\n", rando_difficulty_name(s->difficulty));
     put(o,
-        "Shuffled    %s%s%s%s%s\n",
+        "Shuffled    %s%s%s%s%s%s%s%s\n",
         (s->pools & POOL_WEAPONS) ? "weapons " : "",
         (s->pools & POOL_GADGETS) ? "gadgets " : "",
         (s->pools & POOL_GOLD) ? "gold-bolts " : "",
         (s->pools & POOL_PLANETS) ? "infobots " : "",
-        (s->pools & POOL_VENDOR) ? "vendor " : "");
-    put(o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
+        (s->pools & POOL_VENDOR) ? "vendor " : "",
+        (s->pools & POOL_NPC_INFOBOTS) ? "NPC-infobots " : "",
+        (s->pools & POOL_GOLD_WEAPONS) ? "gold-cases " : "",
+        (s->pools & POOL_ITEMS) ? "items " : "");
+    if (s->random_start) put(o, "Start planet %s\n", rando_planet_name(plan->start_level));
+    if (plan->start_weapon.kind != REWARD_NONE) {
+        char weapon[64];
+        rando_reward_name(plan->start_weapon, weapon, sizeof weapon);
+        put(o, "Start gear  %s: %s\n\n",
+            s->start_weapons == RANDO_START_WEAPONS_NON_BROKEN ? "non-broken" : "unrestricted",
+            weapon);
+    } else {
+        put(o, "Start gear  %s\n\n", s->keep_start ? "kept" : "shuffled");
+    }
 }
 
 /* Every shuffled location's reward, grouped by planet; * marks a reward that opens the way. */

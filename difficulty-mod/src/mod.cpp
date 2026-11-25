@@ -5,6 +5,7 @@
 // Going Commando. openrac_api.game says which game loaded it, and that game's part takes over:
 // src/rac1 and src/rac2, each with its own hook points and addresses, over the rules, Chaos and the
 // party's rules every game shares (src/common).
+
 #include "openrac/mod.hpp"
 
 #include <string>
@@ -18,13 +19,13 @@ namespace {
 void load(openrac::Mod& mod) {
     // Ratchet & Clank.
     if (mod.game() == "rac1") {
-        rac1_load(mod);
+        difficulty::rac1::load(mod);
         return;
     }
 
     // Going Commando.
     if (mod.game() == "rac2") {
-        rac2_load(mod);
+        difficulty::rac2::load(mod);
         return;
     }
 
@@ -36,4 +37,4 @@ void load(openrac::Mod& mod) {
 
 }  // namespace
 
-OPENRAC_MOD_CPP("difficulty", "1.5.0", load)
+OPENRAC_MOD_CPP("difficulty", "1.5.1", load)

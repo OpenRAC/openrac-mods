@@ -45,12 +45,14 @@ body:
     id: tags
     attributes:
       label: Tags
-      description: "Comma-separated, from: gameplay, controls, cosmetic, qol, speedrun, randomizer, multiplayer, accessibility, camera, audio, ui, tools."
+      description: "Must be chosen strictly from this allowed list (custom tags are not supported): gameplay, controls, cosmetic, qol, speedrun, randomizer, multiplayer, accessibility, camera, audio, ui, tools. Comma-separated."
+      placeholder: gameplay, qol
   - type: input
     id: impact
     attributes:
       label: Impact
-      description: "Comma-separated, from: cosmetic, gameplay, speedrun-safe, touches-saves, online."
+      description: "Must be chosen strictly from this allowed list (custom values are not supported): cosmetic, gameplay, speedrun-safe, touches-saves, online. Comma-separated."
+      placeholder: gameplay
   - type: dropdown
     id: ai
     attributes:

@@ -25,6 +25,7 @@ typedef struct rando_disc {
     uint32_t triggers;   /* u8[20][16]: the levels' trigger slots, 0xFF done (D_0014C150) */
     uint32_t level;      /* i32: the level loaded (D_0015EE84) */
     uint32_t vendor_stock; /* u8[12]: the vendor's stock, 0xFF-terminated (D_0015EED0) */
+    uint32_t item_price_table; /* VendorItemInfo[37], 0x18-byte entries; h8 at +0x08 indicates ammo support */
     uint32_t
         last_weapon; /* i32: the weapon a double tap with the wrench goes back to (D_00141760) */
     uint32_t
@@ -42,6 +43,11 @@ typedef struct rando_disc {
     uint32_t save_tag;     /* u32: chunk 24 of the save, which no code of the disc reads or writes
                             * (D_0015EE9C; the save table's entry, scanned in the executable and every
                             * level program): the seed's tag (README.md, New games only) */
+    uint32_t hero;                   /* Hero structure base */
+    uint32_t quick_swap;             /* i32: Triangle's previous weapon */
+    uint32_t moby_base;              /* u32: level's moby array pointer */
+    uint32_t vendor_close_countdown; /* i32: vendor menu close timer */
+    uint32_t vendor_close_request;   /* i32: vendor menu close flag */
 } rando_disc;
 
 /* The discs the mod knows, by openrac_api.version; the fields are in the order of the struct. */
@@ -54,6 +60,7 @@ static const rando_disc k_rando_discs[] = {
      0x0014C150u,
      0x0015EE84u,
      0x0015EED0u,
+     0x001C43B0u,
      0x00141760u,
      0x001CA7C0u,
      0x00161F34u,
@@ -65,7 +72,12 @@ static const rando_disc k_rando_discs[] = {
      0x001414F4u,
      0x00141510u,
      0x00141445u,
-     0x0015EE9Cu},
+     0x0015EE9Cu,
+     0x0013F450u,
+     0x0015EE8Cu,
+     0x00160098u,
+     0x00161F14u,
+     0x00161F18u},
     {"ntsc",
      0x0013D4C0u,
      0x0013D4E8u,
@@ -74,6 +86,7 @@ static const rando_disc k_rando_discs[] = {
      0x0014C050u,
      0x0015ED84u,
      0x0015EDD0u,
+     0x001C40B0u,
      0x00141660u,
      0x001CA4C0u,
      0x00161E38u,
@@ -85,7 +98,12 @@ static const rando_disc k_rando_discs[] = {
      0x001413F4u,
      0x00141410u,
      0x00141345u,
-     0x0015ED9Cu},
+     0x0015ED9Cu,
+     0x0013F350u,
+     0x0015ED8Cu,
+     0x0015FFD8u,
+     0x00161E14u,
+     0x00161E18u},
 };
 
 /* The moby's fields it reads (games/rac1/include/moby.h; the same on both discs). */
@@ -101,6 +119,7 @@ static const rando_disc k_rando_discs[] = {
  * item bought last, whose demo plays as the menu closes; the entry under the cursor; the buy
  * dialog's state (4: the purchase); the list's entries, each its item and whether it sells the
  * item's ammo (1) or the item (0); how many there are. */
+#define VENDOR_ITEM_COUNT 37 /* entries in item_price_table */
 #define VENDOR_STOCK_SIZE 12     /* the stock's bytes */
 #define VENDOR_LAST_BOUGHT 0x48u /* i32 */
 #define VENDOR_CURSOR 0x58u      /* i32 */

@@ -24,6 +24,13 @@ class ShuffleGadgets(DefaultOnToggle):
     display_name = "Shuffle gadgets"
 
 
+class ShuffleItems(Toggle):
+    """Shuffle every entry in the game's Items menu: Hoverboard, Persuader, Bolt Grabber,
+    Map-o-Matic, Platinum Zoomerator, Raritanium, CodeBot, Premium Nanotech and Ultra Nanotech.
+    When off, all nine stay at their original locations. Requires OpenRAC interface 1.16+."""
+    display_name = "Shuffle items"
+
+
 class ShuffleWeapons(DefaultOnToggle):
     """The weapons NPCs and pickups give: the Suck Cannon, the Morph-o-Ray, the R.Y.N.O."""
     display_name = "Shuffle weapons"
@@ -40,40 +47,74 @@ class ShuffleGoldBolts(DefaultOnToggle):
 
 
 class ShuffleInfobots(DefaultOnToggle):
-    """The planets' coordinates the infobots give are items."""
+    """Shuffle Infobots and NPC coordinate rewards, including the Plumber and Batalia purchases.
+    The first flight from Veldin to Novalis remains fixed."""
     display_name = "Shuffle infobots"
 
 
 class ShuffleSkillPoints(Toggle):
     """The 30 skill points are locations too, and as many gold bolts join the items. The game's own
-    challenges, and optional: a skill point never holds progression, of any world."""
+    challenges. With gold-weapon cases shuffled, their gold bolts can finance those purchases;
+    otherwise skill points never hold progression."""
     display_name = "Shuffle skill points"
 
 
-class KeepStartingGear(DefaultOnToggle):
-    """Start with the Bomb Glove, as the game does. Off: what Veldin gives at the start is
-    shuffled too."""
-    display_name = "Keep the starting gear"
+class ShuffleGoldWeapons(Toggle):
+    """Shuffle the ten gold-weapon case purchases into the multiworld. Each case still costs
+    its retail bolts and four gold bolts. Gold weapons grant their base weapon and upgrade."""
+    display_name = "Shuffle gold weapons"
+
+
+class StartInNewGamePlus(Toggle):
+    """Enable the game's New Game+ (challenge mode) after connecting to this slot.
+    Start with a fresh Archipelago inventory; this does not import a completed save."""
+    display_name = "Start in New Game+"
+
+
+class StartingWeapons(Choice):
+    """Choose your starting weapon.
+    Vanilla: start with Bomb Glove.
+    Shuffled: shuffle the starting location, with no guaranteed weapon.
+    Non-Broken: one random normal or gold weapon besides the R.Y.N.O.
+    Unrestricted: any one normal or gold weapon.
+    Non-Broken and Unrestricted include gold weapons even when gold cases are not shuffled."""
+    display_name = "Starting weapons"
+    option_vanilla = 0
+    option_shuffled = 3
+    option_non_broken = 1
+    option_unrestricted = 2
+    default = 0
+
+
+class RandomStartingPlanet(Toggle):
+    """Skip Veldin and fly to a seeded planet with an item-free route. A ship-side
+    vendor may instead hold a guaranteed local item that opens a route.
+    The starting planet is fixed when the world is generated, including on reconnect."""
+    display_name = "Random starting planet"
 
 
 @dataclass
 class RAC1Options(PerGameCommonOptions):
     logic: Logic
     shuffle_gadgets: ShuffleGadgets
+    shuffle_items: ShuffleItems
     shuffle_weapons: ShuffleWeapons
     shuffle_vendor: ShuffleVendor
     shuffle_gold_bolts: ShuffleGoldBolts
     shuffle_infobots: ShuffleInfobots
     shuffle_skill_points: ShuffleSkillPoints
-    keep_starting_gear: KeepStartingGear
+    shuffle_gold_weapons: ShuffleGoldWeapons
+    random_starting_planet: RandomStartingPlanet
+    starting_weapons: StartingWeapons
+    start_in_new_game_plus: StartInNewGamePlus
     start_inventory_from_pool: StartInventoryPool
 
 
 OPTION_GROUPS = [
+    OptionGroup("Starting game", [StartingWeapons, StartInNewGamePlus, RandomStartingPlanet]),
     OptionGroup(
         "Pools",
-        [ShuffleGadgets, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints,
-         KeepStartingGear],
+        [ShuffleGadgets, ShuffleItems, ShuffleWeapons, ShuffleVendor, ShuffleGoldBolts, ShuffleInfobots, ShuffleSkillPoints, ShuffleGoldWeapons],
     ),
 ]
 

@@ -24,11 +24,31 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Detect index changes
+        if: github.event_name == 'pull_request'
+        id: index_changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: python
+        run: |
+          import os, subprocess
+          paths = subprocess.check_output(
+              ["git", "diff", "--name-only", os.environ["BASE_SHA"], os.environ["HEAD_SHA"]],
+              text=True).splitlines()
+          changed = any(path.startswith(("index/", "tools/")) for path in paths)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"changed={str(changed).lower()}\n")
+          print("Live release checks needed:", changed)
       - name: Unit tests
         run: python3 -m unittest discover -s tools/tests
       - name: Check the fixture index offline
         run: python3 tools/build_index.py --check --offline tools/tests/fixtures/github
+      # Source-only PRs cannot change the published index. Avoid spending API requests
+      # on every mod build; master pushes and index/tool changes still check live releases.
       - name: Check the index
+        if: github.event_name != 'pull_request' || steps.index_changes.outputs.changed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 tools/build_index.py --check

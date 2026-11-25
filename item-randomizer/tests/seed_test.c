@@ -20,11 +20,47 @@
         }                                                                                          \
     } while (0)
 
-#define PINNED_HASH 0xB5F6AF4Bu
+#define PINNED_HASH 0x8B545936u
 
 static int same(const rando_settings* a, const rando_settings* b) {
     return a->seed == b->seed && a->pools == b->pools && a->keep_start == b->keep_start
-           && a->difficulty == b->difficulty;
+           && a->difficulty == b->difficulty && a->start_weapons == b->start_weapons;
+}
+
+/* Random starting weapons: an N: or U: prefix (after R:) on the unchanged payload; a code with
+ * one and a shuffled start is not a code. */
+static void starting_weapon_codes(void) {
+    rando_settings s = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD, 0};
+    char plain[RANDO_CODE_SIZE], code[RANDO_CODE_SIZE];
+    rando_encode(&s, plain);
+    for (int mode = RANDO_START_WEAPONS_NON_BROKEN; mode <= RANDO_START_WEAPONS_UNRESTRICTED; ++mode) {
+        for (int random_start = 0; random_start <= 1; ++random_start) {
+            s.start_weapons = (uint8_t)mode;
+            s.random_start = (uint8_t)random_start;
+            rando_encode(&s, code);
+            const char* prefix = mode == RANDO_START_WEAPONS_NON_BROKEN
+                                     ? (random_start ? "R:N:" : "N:")
+                                     : (random_start ? "R:U:" : "U:");
+            CHECK(strncmp(code, prefix, strlen(prefix)) == 0);
+            CHECK(strcmp(code + strlen(prefix), plain) == 0 && strlen(code) < RANDO_CODE_SIZE);
+            rando_settings back = {0};
+            CHECK(rando_decode(code, &back) && same(&s, &back) && back.random_start == random_start);
+            for (char* p = code; *p; ++p) *p = (char)(*p >= 'A' && *p <= 'Z' ? *p - 'A' + 'a' : *p);
+            CHECK(rando_decode(code, &back) && same(&s, &back));
+        }
+    }
+    /* A shuffled start writes no prefix; a prefix on a shuffled start's payload is refused. */
+    s.keep_start = 0;
+    s.random_start = 0;
+    s.start_weapons = RANDO_START_WEAPONS_NON_BROKEN;
+    rando_encode(&s, code);
+    CHECK(code[1] != ':');
+    char bad[RANDO_CODE_SIZE + 2];
+    snprintf(bad, sizeof bad, "N:%s", code);
+    rando_settings back = {0};
+    CHECK(!rando_decode(bad, &back));
+    /* A plain code has no starting weapon. */
+    CHECK(rando_decode(plain, &back) && back.start_weapons == RANDO_START_WEAPONS_NONE);
 }
 
 /* A party's seed plays on any disc: the host's code gives every member its placement, and what
@@ -35,6 +71,7 @@ static void a_code_places_the_same_everywhere(void) {
     rando_settings host = {0};
     host.seed = 0x12345678u;
     host.pools = POOL_ALL;
+    host.legacy_items = 1;
     char code[RANDO_CODE_SIZE];
     rando_encode(&host, code);
     rando_settings a, b;
@@ -54,6 +91,7 @@ static void a_code_places_the_same_everywhere(void) {
         hash = (hash ^ (unsigned char)text_one[i]) * 16777619u;
     }
 
+    printf("fixed spoiler hash %08x\n", hash);
     CHECK(hash == PINNED_HASH);
     free(one);
     free(two);
@@ -61,11 +99,12 @@ static void a_code_places_the_same_everywhere(void) {
 
 int main(void) {
     a_code_places_the_same_everywhere();
+    starting_weapon_codes();
     /* Round trips: every pool set, both start choices, each difficulty, seeds across 40 bits. */
     rando_rng r = {1};
     int codes = 0;
 
-    for (int pools = 0; pools <= (int)POOL_ALL; ++pools) {
+    for (int pools = 0; pools <= (int)POOL_EXTENDED_ALL; ++pools) {
         for (int keep = 0; keep <= 1; ++keep) {
             for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) {
                 for (int k = 0; k < 40; ++k) {
@@ -77,17 +116,17 @@ int main(void) {
                     rando_encode(&s, code);
                     CHECK(strlen(code) == 14 && code[4] == '-' && code[9] == '-');
                     rando_settings back = {0, 0, 0, 0};
-                    CHECK(rando_decode(code, &back) && same(&s, &back));
+                    CHECK(rando_decode(code, &back) && same(&s, &back) && !back.legacy_items);
                     ++codes;
                 }
             }
         }
     }
 
-    CHECK(codes == 32 * 2 * 3 * 40);
+    CHECK(codes == 256 * 2 * 3 * 40);
 
     /* The format is fixed: this code is these settings on every system and in every later 1.x. */
-    const rando_settings fixed = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD};
+    const rando_settings fixed = {0x123456789Aull, POOL_ALL, 1, DIFFICULTY_STANDARD, 1};
     char code[RANDO_CODE_SIZE];
     rando_encode(&fixed, code);
     printf("fixed code %s\n", code);

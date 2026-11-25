@@ -2,17 +2,22 @@
   "format": 2,
   "id": "ammo-max",
   "name": "Ammo at the most",
-  "version": "1.0.3",
-  "author": "Keros",
-  "description": "At the Gadgetron vendor, buying ammo starts at the most you can buy (the rounds the weapon has room for, or as many as your bolts pay for) instead of 1. Down still lowers it, Up raises it again, Square buys as before.",
+  "version": "1.1.0",
+  "author": "Keros, glawks",
+  "description": "Individual ammo purchases start at the maximum affordable amount; Square (Xbox X) on the vendor list also buys ammo for all owned weapons in one action, with normal prices and HUD feedback.",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ammo-max",
-  "api": "1.1",
+  "api": "1.20",
   "multiplayer": "gameplay",
   "games": {
     "rac1": [
       "pal",
       "ntsc"
+    ],
+    "rac2": [
+      "ntsc",
+      "pal",
+      "ntsc2"
     ]
   },
   "settings": [
@@ -23,6 +28,55 @@
       "type": "bool",
       "default": false,
       "description": "For bug reports: a line in the game's log each time the count is set (the weapon, its ammo, the bolts and the price)."
+    },
+    {
+      "key": "show_hud",
+      "name": "Show vendor ammo HUD",
+      "type": "bool",
+      "default": true,
+      "description": "Show the Square / Xbox X buy-all prompt, price and purchase feedback in the weapon vendor."
+    },
+    {
+      "key": "rac1_controller_label",
+      "name": "RAC1 controller button label",
+      "type": "choice",
+      "default": "xbox",
+      "choices": [
+        {
+          "value": "xbox",
+          "name": "Xbox X"
+        },
+        {
+          "value": "playstation",
+          "name": "PlayStation Square"
+        }
+      ],
+      "description": "RAC1 shows F for keyboard input automatically. Choose Xbox X or PlayStation Square for controller input; SDK 1.20 does not identify the controller model."
+    },
+    {
+      "key": "prompt_position",
+      "name": "RAC2 vendor HUD position",
+      "type": "choice",
+      "default": "vendor_left",
+      "choices": [
+        {
+          "value": "vendor_left",
+          "name": "Below vendor controls"
+        },
+        {
+          "value": "bottom_right",
+          "name": "Bottom right"
+        },
+        {
+          "value": "top_right",
+          "name": "Top right"
+        }
+      ],
+      "description": "RAC2 prompt placement. RAC1 uses a compact input-aware text prompt with a dark outline between the vendor controls."
     }
-  ]
+  ],
+  "hooks": [
+    "rac2.vendor.draw_list"
+  ],
+  "touch": "touch.json"
 }

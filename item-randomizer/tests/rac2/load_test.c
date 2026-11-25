@@ -329,6 +329,11 @@ static void play_disc(openrac_mod_load_fn load, openrac_mod* mod, const r2_disc*
     CHECK(reward == R2_DYNAMO || s_memory[OWNED + R2_DYNAMO] == 0);
     CHECK((get32(MARK_BITS) >> dynamo) & 1u);
     CHECK(strstr(s_notice, r2_item_name(reward)) != NULL);
+    const int notice_duration = strcmp(disc->version, "pal") == 0 ? 150 : 180;
+    for (int tick = 0; tick < notice_duration - 1; ++tick) s_frame(NULL);
+    CHECK(s_notice[0] != 0);
+    s_frame(NULL);
+    CHECK(s_notice[0] == 0);
     memset(s_memory + OWNED, 0, R2_ITEM_COUNT);
     give(R2_DYNAMO);
     CHECK(s_memory[OWNED + (uint32_t)reward] == 0);

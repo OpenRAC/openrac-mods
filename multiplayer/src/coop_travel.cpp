@@ -1,16 +1,16 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Playing together (coop.hpp): the level followed, the barrier and the ship's travel.
- */
-#include "coop.hpp"
-#include "coop_util.hpp"
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Playing together (coop.hpp): the level followed, the barrier and the ship's travel.
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <utility>
+
+#include "coop.hpp"
+#include "coop_util.hpp"
 
 namespace mp {
 
@@ -20,6 +20,7 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     // The scene's start and end in the log, and whether a skip ended it.
     const bool scene = status.phase == kPhaseScene;
 
+    // A scene's start is logged once, when this game enters it.
     if (scene && !in_scene_) {
         log(std::string("scene started (") + (session_.role().host() ? "host" : "member")
             + (host_scene_ && !session_.role().host() ? ", the host's too" : "") + ")");
@@ -31,10 +32,12 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
     in_scene_ = scene;
     bool waiting = false;
 
+    // The host waits on its members' scenes; a member on the host's (below).
     if (session_.role().host() && play_ != 0) {
         // The host out of a scene while a member in its level still plays one.
         for (const auto& [id, r] : remotes_) {
             Pose p;
+            // A member counts as in a scene while its poses are under 2 seconds old.
             waiting = waiting
                       || (r.scene && r.poses.newest(p) && p.level == status.level
                           && r.poses.silence_ms(static_cast<double>(now)) < 2000.0);
@@ -61,8 +64,9 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
 
     waiting = waiting && status.phase == kPhasePlaying && !joining_ && barrier_;
 
+    // With nothing to wait for, control comes back and the end of a hold is logged.
     if (!waiting) {
-        // (Into a scene of its own meanwhile: nobody is out yet, the hold just ends.)
+        // (Into a scene of its own meanwhile: nobody is out yet, the hold ends.)
         if (hold_since_ != 0 && status.phase == kPhasePlaying) {
             log("everyone is out of the scene: going on");
         }
@@ -70,17 +74,22 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
         hold_since_ = 0;
         hold_ = false;
     } else {
+        // The log says what the player waits for once, when the wait starts.
         if (hold_since_ == 0) {
             hold_since_ = now;
-            log(arrival ? (session_.role().host() ? "waiting for " + std::to_string(waiting_for_.size())
-                                                    + " players to arrive in level " + std::to_string(status.level)
-                                              : "waiting for the party to arrive in level " + std::to_string(status.level))
+            log(arrival                  ? (session_.role().host()
+                                                ? "waiting for " + std::to_string(waiting_for_.size())
+                                     + " players to arrive in level " + std::to_string(status.level)
+                                                : "waiting for the party to arrive in level "
+                                     + std::to_string(status.level))
                 : session_.role().host() ? "waiting for the members to leave their scene"
-                                     : "waiting for the host's scene to end");
+                                         : "waiting for the host's scene to end");
         }
 
         // The arrival's own limit is kArriveMs (it ends the wait itself).
-        const std::uint64_t most = arrival ? kArriveMs : session_.role().host() ? kBarrierMs : kHostSceneMs;
+        const std::uint64_t most = arrival                  ? kArriveMs
+                                   : session_.role().host() ? kBarrierMs
+                                                            : kHostSceneMs;
         hold_ = now - hold_since_ < most;
     }
 
@@ -96,6 +105,7 @@ void Coop::update_barrier(std::uint64_t now, const GameStatus& status) {
 }
 
 void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
+    // The host has no game on yet.
     if (play_ == 0) {
         return;
     }
@@ -112,14 +122,17 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
     for (const Member& m : session_.members()) {
         const bool told = std::find(told_.begin(), told_.end(), m.id) != told_.end();
 
+        // A member is given the game once the host is in a level, and only if its mods match.
         if (m.id == session_.id() || told || !in_level(status.phase) || !may_play(m.id)) {
             continue;
         }
 
         const Bytes live = joiner_save_ ? joiner_save_() : game_.capture();
 
+        // A game that could not be captured is tried again on the next tick.
         if (!live.empty()) {
-            log("player " + std::to_string(m.id) + " joins the game in level " + std::to_string(status.level));
+            log("player " + std::to_string(m.id) + " joins the game in level "
+                + std::to_string(status.level));
             send_play(m.id, live, status.level, true);
             told_.push_back(m.id);
         }
@@ -135,6 +148,7 @@ void Coop::tick_host(std::uint64_t now, const GameStatus& status) {
     const bool scene = status.phase == kPhaseScene;
     host_scene_ = scene;
 
+    // LEVEL goes when what it says changed, and at least once a second.
     if (level != sent_level_ || scene != sent_scene_ || arriving_ != sent_arriving_
         || now - level_ms_ >= kLevelMs) {
         send_level(now, level, scene);
@@ -170,14 +184,17 @@ bool Coop::ship_travel(int dest, int here) {
         return true;
     }
 
+    // A member's ship travel is refused: only the host flies the ship.
     if (!session_.role().host()) {
+        // A member outside the host's game flies its own ship, as the game does.
         if (applied_ != play_) {
             return true;
         }
 
         notice_ = "Only the host can fly";
         refused_until_ = clock_() + kRefusedMs;
-        log("the ship's travel to level " + std::to_string(dest) + " refused: only the host flies it");
+        log("the ship's travel to level " + std::to_string(dest)
+            + " refused: only the host flies it");
         return false;
     }
 
@@ -190,7 +207,9 @@ bool Coop::ship_travel(int dest, int here) {
     depart_loads_ = game_.status().loads;
     waiting_for_.clear();
 
+    // The departure waits for every member whose poses are still coming in.
     for (const auto& [id, r] : remotes_) {
+        // A member silent for kGoneMs has left and is not waited for.
         if (member_of(session_, id) && r.poses.silence_ms(static_cast<double>(now)) < kGoneMs) {
             waiting_for_.push_back(id);
         }
@@ -203,24 +222,29 @@ bool Coop::ship_travel(int dest, int here) {
 }
 
 std::string Coop::banner(std::uint64_t now) const {
+    // The refusal of a ship travel shows for kRefusedMs.
     if (now < refused_until_) {
         return "Only the host can fly";
     }
 
+    // The refusal of a skip shows for kSkipRefusedMs.
     if (now < skip_refused_until_) {
         return "Only the host can skip";
     }
 
+    // Until the host's ship takes this game along, the banner says where it goes.
     if (leave_dest_ >= 0 && now < leave_at_) {
         const std::string planet = game_.level_name(leave_dest_);
-        const std::string leaving = planet.empty() ? "The host is leaving" : "The host is leaving for " + planet;
+        const std::string leaving =
+            planet.empty() ? "The host is leaving" : "The host is leaving for " + planet;
         return ship_held_ ? leaving + ": press Start when you are ready" : leaving;
     }
 
+    // A player held by a wait for others sees what it waits for and what Start does.
     if (hold_ && wait_.kind != kWaitNone) {
-        const std::string what = arriving_ ? "Waiting for players"
-                                           : "Waiting for the scene to end";
+        const std::string what = arriving_ ? "Waiting for players" : "Waiting for the scene to end";
 
+        // The host's Start goes on at once; a member's is a vote.
         if (session_.role().host()) {
             return what + ": Start goes on";
         }
@@ -229,23 +253,28 @@ std::string Coop::banner(std::uint64_t now) const {
                + std::to_string(wait_.voters) + ")";
     }
 
+    // Held for the arrival before the host's wait word (WAIT_VOTE) has come: only says it waits.
     if (arriving_ && hold_) {
         return "Waiting for players";
     }
 
+    // A joiner waiting to be put beside the host says so.
     if (placing_ == PlaceFor::kJoin) {
         return host_scene_ ? "Waiting for the host's scene to end: Start goes in now"
                            : "Joining...";
     }
 
+    // A member sent to the host (Go to host) says so.
     if (placing_ == PlaceFor::kHost) {
         return "Going to the host";
     }
 
+    // A game still joining says so.
     if (joining_) {
         return "Joining...";
     }
 
+    // A joiner for whom the host had no safe spot is told so for a while.
     if (now < no_spot_until_) {
         return "No safe spot near the host";
     }
@@ -254,6 +283,7 @@ std::string Coop::banner(std::uint64_t now) const {
 }
 
 void Coop::tick_arrival(std::uint64_t now, const GameStatus& status) {
+    // Without an arrival there is nothing to count.
     if (!arriving_) {
         return;
     }
@@ -263,19 +293,25 @@ void Coop::tick_arrival(std::uint64_t now, const GameStatus& status) {
         std::remove_if(
             waiting_for_.begin(),
             waiting_for_.end(),
+            // Called by remove_if once per member waited for; true takes it off the list.
             [&](std::int32_t id) {
                 const auto it = remotes_.find(id);
                 Pose p;
+                // A member is in once its newest pose is in the new level and under 2 seconds old.
                 return !member_of(session_, id) || session_.away(id)
-                       || (it != remotes_.end() && it->second.poses.newest(p) && p.level == travel_dest_
+                       || (it != remotes_.end() && it->second.poses.newest(p)
+                           && p.level == travel_dest_
                            && it->second.poses.silence_ms(static_cast<double>(now)) < 2000.0);
             }
         ),
         waiting_for_.end()
     );
 
-    const bool here = in_level(status.phase) && status.level == travel_dest_ && status.loads != depart_loads_;
+    const bool here =
+        in_level(status.phase) && status.level == travel_dest_ && status.loads != depart_loads_;
 
+    // Everyone is in once this game plays the new level after a load and no member is still on its
+    // way.
     if (here && waiting_for_.empty()) {
         arriving_ = false;
         log("everyone is in level " + std::to_string(travel_dest_) + ": going on ("
@@ -283,7 +319,8 @@ void Coop::tick_arrival(std::uint64_t now, const GameStatus& status) {
     } else if (now - depart_ms_ >= kArriveMs) {
         arriving_ = false;
         waiting_for_.clear();
-        log("going on in level " + std::to_string(status.level) + " without the players still on their way");
+        log("going on in level " + std::to_string(status.level)
+            + " without the players still on their way");
     }
 }
 

@@ -5,22 +5,27 @@
 // the special items, merged upward through the host; the flags a player's own scene sets kept from a
 // game still to play it; the mission rows the same in every game after a scripted mission, over a
 // bad link too; and a late joiner taking what it lacks without a banner (progress.hpp).
+
 #include "test_support.hpp"
 
 namespace mpt {
 
 namespace {
 
+// The interval, in milliseconds, at which the shared progress is read.
 constexpr int kReadMs = static_cast<int>(mp::kProgressReadMs);
 
 // A party of a host and two members, all in `level`.
 struct Three : Party {
+    // Puts the host and both members in `level`.
     explicit Three(int level = 4) {
+        // Every player is in the same level, playing.
         for (Player* p : players()) {
             p->game.now = {mp::kPhasePlaying, level, 2};
         }
     }
 
+    // Runs four reads of the shared progress, enough for every change to reach every game.
     void settle() {
         for (int i = 0; i < 4; ++i) {
             tick(players(), kReadMs);
@@ -28,10 +33,13 @@ struct Three : Party {
     }
 };
 
+// Returns flag `index` of `level` in `bits`.
 std::uint8_t& flag(mp::SharedBits& bits, int level, int index) {
-    return bits.flags[static_cast<std::size_t>(level) * mp::kFlagsPerLevel + static_cast<std::size_t>(index)];
+    return bits.flags
+        [static_cast<std::size_t>(level) * mp::kFlagsPerLevel + static_cast<std::size_t>(index)];
 }
 
+// Checks that the shared progress encodes and decodes with every field intact.
 void wire_round_trip() {
     mp::SharedBits bits;
     bits.gold_weapons[0] = bits.gold_weapons[39] = 1;
@@ -48,7 +56,9 @@ void wire_round_trip() {
     // Cut short anywhere: nothing taken.
     for (std::size_t n = 0; n < wire.size(); ++n) {
         mp::SharedBits kept;
-        CHECK(!mp::decode_shared(Bytes(wire.begin(), wire.begin() + static_cast<std::ptrdiff_t>(n)), kept));
+        CHECK(!mp::decode_shared(
+            Bytes(wire.begin(), wire.begin() + static_cast<std::ptrdiff_t>(n)), kept
+        ));
     }
 
     // A section of the wrong length: refused. A tag unknown here: passed over.
@@ -64,28 +74,36 @@ void wire_round_trip() {
     row[3] = 0xFF;
     int level = -1;
     std::array<std::uint8_t, mp::kFlagsPerLevel> back{};
-    CHECK(mp::decode_mission(mp::encode_mission(7, row.data()), level, back) && level == 7 && back == row);
+    CHECK(
+        mp::decode_mission(mp::encode_mission(7, row.data()), level, back) && level == 7
+        && back == row
+    );
     Bytes off_the_end = mp::encode_mission(7, row.data());
     off_the_end[1] = 20;
     CHECK(!mp::decode_mission(off_the_end, level, back));
     CHECK(!mp::decode_shared_ask({mp::kSharedAskKind, 20}, level));
 }
 
+// Checks that a gold weapon or a skill point one player gets reaches everyone, quietly.
 void a_gold_weapon_and_a_skill_point_reach_everyone() {
     Three party;
     party.a.game.sections.gold_weapons[10] = 1;
     party.host.game.sections.skills[3] = 1;
     party.settle();
 
+    // Every player ends with the same gold weapon and the same skill point.
     for (Player* p : party.players()) {
         CHECK(p->game.sections.gold_weapons[10] == 1);
         CHECK(p->game.sections.skills[3] == 1);
     }
 
     // Silent: nothing was given as the game gives things.
-    CHECK(party.a.game.given.empty() && party.host.game.given.empty() && party.b.game.given.empty());
+    CHECK(
+        party.a.game.given.empty() && party.host.game.given.empty() && party.b.game.given.empty()
+    );
 }
 
+// Checks that sharing never takes an item away and an item already spent is not given again.
 void nothing_is_taken_and_a_spent_item_stays_spent() {
     Three party;
     party.a.game.sections.specials[7] = 1;
@@ -112,6 +130,7 @@ void nothing_is_taken_and_a_spent_item_stays_spent() {
     CHECK(party.a.game.sections.skills[1] == 1 && party.a.game.sections.skills[2] == 1);
 }
 
+// Checks that a nanotech upgrade stays with the player who got it.
 void nanotech_upgrades_stay_each_players() {
     Three party;
     party.host.game.sections.specials[4] = 1;
@@ -122,6 +141,7 @@ void nanotech_upgrades_stay_each_players() {
     CHECK(party.b.game.sections.specials[4] == 0 && party.b.game.sections.specials[5] == 0);
 }
 
+// Checks that a shared flag is raised and lowered in every game as the game wrote it.
 void a_flag_goes_up_and_comes_down_as_the_game_writes_it() {
     Three party;
     // A checkpoint a member reached: not a scene's. It is the party's, as 0xFF in every game.
@@ -132,6 +152,7 @@ void a_flag_goes_up_and_comes_down_as_the_game_writes_it() {
     CHECK(flag(party.b.game.sections, 4, 0) == 0xFF);
 }
 
+// Checks that a scene flag a member sets is not shared to the host.
 void a_members_scene_flag_never_reaches_the_host() {
     // Level 3's Helga, talked to by a member first.
     Three party(3);
@@ -140,16 +161,19 @@ void a_members_scene_flag_never_reaches_the_host() {
     party.settle();
     CHECK(flag(party.host.game.sections, 3, 2) == 0);
     CHECK(flag(party.b.game.sections, 3, 2) == 0);
+
     // Not from another level either: the host is still to play it there.
     for (Player* p : party.players()) {
         p->game.now = {mp::kPhasePlaying, 4, 3};
     }
+
     party.settle();
     CHECK(flag(party.host.game.sections, 3, 2) == 0);
     // Its own game keeps it.
     CHECK(flag(party.a.game.sections, 3, 2) == 0xFF);
 }
 
+// Checks that the host's scene flag reaches a member only after the member leaves that level.
 void the_hosts_scene_flag_waits_for_a_member_to_leave_the_level() {
     Three party(3);
     flag(party.host.game.sections, 3, 2) = 0xFF;
@@ -171,6 +195,7 @@ void the_hosts_scene_flag_waits_for_a_member_to_leave_the_level() {
     CHECK(flag(party.b.game.sections, 3, 2) == 0);
 }
 
+// Checks that a change in the level the host is in is sent at once.
 void a_change_in_the_hosts_level_goes_out_at_once() {
     Three party(4);
     party.settle();
@@ -179,6 +204,7 @@ void a_change_in_the_hosts_level_goes_out_at_once() {
     flag(party.host.game.sections, 4, 5) = 0xFF;
     std::vector<int> rows;
     party.a.session.on_data([&](std::int32_t sender, const Bytes& bytes) {
+        // Record the mission rows sent, and pass every message on to the router as the game would.
         if (!bytes.empty() && bytes[0] == mp::kMissionKind) {
             rows.push_back(bytes[1]);
         }
@@ -191,6 +217,7 @@ void a_change_in_the_hosts_level_goes_out_at_once() {
     CHECK(flag(party.a.game.sections, 4, 5) == 0xFF);
 }
 
+// Checks that a scene flag of the host's level waits for a member still on its way there.
 void a_flag_of_the_hosts_level_waits_for_a_member_on_its_way() {
     Three party(4);
     party.settle();
@@ -212,11 +239,13 @@ void a_flag_of_the_hosts_level_waits_for_a_member_on_its_way() {
     CHECK(flag(party.a.game.sections, 6, 8) == 0xFF);
 }
 
+// Checks that a member arriving in a level asks the host for that level's row.
 void a_member_arriving_asks_for_its_levels_row() {
     Three party(4);
     party.settle();
     std::vector<int> asked;
     party.host.session.on_data([&](std::int32_t sender, const Bytes& bytes) {
+        // Record the rows members ask for, and pass every message on to the router.
         if (!bytes.empty() && bytes[0] == mp::kSharedAskKind) {
             asked.push_back(bytes[1]);
         }
@@ -238,6 +267,7 @@ void a_scripted_mission_ends_the_same_everywhere() {
     Three party(5);
     const int script[][2] = {{5, 0}, {5, 1}, {5, 3}, {5, 5}, {2, 0}};
 
+    // The host sets flags one by one, five in level 5 and one in level 2, settling after each.
     for (const auto& step : script) {
         flag(party.host.game.sections, step[0], step[1]) = 0xFF;
         party.settle();
@@ -249,7 +279,9 @@ void a_scripted_mission_ends_the_same_everywhere() {
     CHECK(party.b.game.sections.flags == party.host.game.sections.flags);
 }
 
+// Checks that shared progress still agrees across a link that delays, loses and reorders.
 void the_same_over_a_bad_link() {
+    // Five seeds give five different patterns of loss, delay and reordering.
     for (unsigned seed = 1; seed <= 5; ++seed) {
         Player host(1), member(2), other(3);
         std::vector<Player*> all = {&host, &member, &other};
@@ -266,12 +298,14 @@ void the_same_over_a_bad_link() {
         SimNet net(all, link, seed);
         net.shared = true;
 
+        // Every game is in level 5.
         for (Player* p : all) {
             p->game.now = {mp::kPhasePlaying, 5, 2};
         }
 
         std::mt19937 random(seed);
 
+        // Random players change random flags and skills, with time between for the link to deliver.
         for (int i = 0; i < 40; ++i) {
             Player* who = all[random() % all.size()];
             const int level = static_cast<int>(random() % 19);
@@ -285,11 +319,13 @@ void the_same_over_a_bad_link() {
             who->game.sections.gold_weapons[random() % mp::kGoldWeapons] = 1;
             who->game.sections.skills[random() % 30] = 1;
 
+            // Each change gets 40 ticks to travel before the next one.
             for (int s = 0; s < 40; ++s) {
                 net.step(16);
             }
         }
 
+        // A long quiet end lets every late or resent word arrive before the games are compared.
         for (int s = 0; s < 1500; ++s) {
             net.step(16);
         }
@@ -300,6 +336,7 @@ void the_same_over_a_bad_link() {
     }
 }
 
+// Checks that a game without shared progress is left unchanged and the others still share.
 void a_game_without_it_changes_nothing() {
     Three party;
     party.a.game.has_shared = false;
@@ -325,6 +362,7 @@ void a_late_joiner_catches_up_silently() {
     host.game.sections.gold_weapons[12] = 1;
     host.game.sections.skills[9] = 1;
 
+    // Four reads let the host's gains reach the member who was already there.
     for (int i = 0; i < 4; ++i) {
         tick({&host, &member}, kReadMs);
     }
@@ -347,6 +385,7 @@ void a_late_joiner_catches_up_silently() {
     CHECK(late.game.started_save == host.game.live_save);
     late.game.now = {mp::kPhaseScene, 4, 2};
 
+    // Four reads while a scene plays: nothing holds back the joiner's catching up.
     for (int i = 0; i < 4; ++i) {
         tick(all, kReadMs);
     }
@@ -364,6 +403,7 @@ void a_late_joiner_catches_up_silently() {
     CHECK(late.game.quiet.back() == false);
     host.game.owned.items[13] = 1;
 
+    // Four reads let the host's new item reach the late joiner.
     for (int i = 0; i < 4; ++i) {
         tick(all, kReadMs);
     }

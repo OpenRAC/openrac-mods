@@ -1,0 +1,24 @@
+{
+  "id": "rumble",
+  "repo": "https://github.com/Promises/rac1-rumble",
+  "path": "",
+  "description": "Controller rumble for Ratchet & Clank, which never had any, in the style of Going Commando and with its vibration mixer: hits, Thruster-Pack long jumps and wall jumps, the wrench slam, the swim dash, weapon fire and explosions. Strength and each kind of rumble in the settings.",
+  "tags": [
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "cosmetic"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Promises/rac1-rumble/issues"
+  },
+  "suggests": [
+    "thruster-charge"
+  ],
+  "media": {
+    "icon": "docs/icon.png",
+    "banner": "docs/banner.png"
+  }
+}

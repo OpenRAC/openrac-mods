@@ -5,8 +5,9 @@
 // unevenly, out of order and some not at all, shown 60 times a second as the game does, and how
 // smoothly what is shown moves:
 //   - a figure (its poses carry velocities, 20 a second) and a moby or a bolt of the host's world
-//     (WORLD carries no velocity, up to 15 a second) at 50 to 250 ms one way, with jitter, reordering and
-//     loss, and the stamps off the receiver's clock by a constant (the clock estimates' error):
+//     (WORLD carries no velocity, up to 15 a second) at 50 to 250 ms one way, with jitter,
+//     reordering and loss, and the stamps off the receiver's clock by a constant (the clock
+//     estimates' error):
 //     never back, every frame's step close to the run's, hardly ever past the newest pose;
 //   - the arrivals recorded in a session through game.openrac.dev (tests/data/world_internet.csv);
 //   - the delay following the link: up when its jitter grows, slowly down when it calms, a
@@ -16,6 +17,7 @@
 //   - a Ratchet standing still, whose velocity says he falls (the game's gravity, which the ground
 //     takes back: tests/data/pose_stall.csv), with poses now and then late enough that the cursor
 //     runs past the newest: he does not bob; and his jump drawn along its arc all the same.
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -42,8 +44,10 @@ int g_failures = 0;
 struct Random {
     std::uint64_t s;
 
+    // Seeds the generator, mixing the seed so that near seeds give different streams.
     explicit Random(std::uint64_t seed) : s(seed * 2862933555777941757ull + 3037000493ull) {}
 
+    // Returns the next number from 0 up to 1.
     double uniform() {
         s = s * 6364136223846793005ull + 1442695040888963407ull;
         return static_cast<double>(s >> 11) / 9007199254740992.0;
@@ -65,6 +69,7 @@ struct Packet {
 struct Path {
     double speed = 8.0;
 
+    // Fills `p` with the thing's pose at `t` ms, with its velocity when `with_velocity`.
     void at(double t, mp::Pose& p, bool with_velocity) const {
         const double s = t / 1000.0;
         p.level = 3;
@@ -73,6 +78,7 @@ struct Path {
         p.position[2] = 0.0f;
         p.rotation[2] = static_cast<float>(0.3 * std::sin(s * 0.7));
 
+        // A figure's pose carries a velocity; a moby of the host's world does not.
         if (with_velocity) {
             // The game's own velocity is not quite the step from one pose to the next: off by
             // up to a tenth either way.
@@ -83,16 +89,23 @@ struct Path {
     }
 };
 
+// A network link's traits: the one-way delay, its jitter, the loss and the stamps' clock error.
 struct Link {
-    double one_way = 100.0;  // ms
-    double jitter = 10.0;    // ms, the scale of the extra delay
-    double loss = 0.0;       // 0 to 1
+    double one_way = 100.0;    // ms
+    double jitter = 10.0;      // ms, the scale of the extra delay
+    double loss = 0.0;         // 0 to 1
     double clock_error = 0.0;  // the stamps' error in the receiver's clock, ms
 };
 
 // Poses sent every `interval` ms for `length` ms over `link`, in the order they arrive.
-std::vector<Packet> stream(const Path& path, const Link& link, double interval, double length,
-                           bool with_velocity, std::uint64_t seed) {
+std::vector<Packet> stream(
+    const Path& path,
+    const Link& link,
+    double interval,
+    double length,
+    bool with_velocity,
+    std::uint64_t seed
+) {
     Random r(seed);
     std::vector<Packet> out;
     std::uint16_t sequence = 0;
@@ -106,6 +119,7 @@ std::vector<Packet> stream(const Path& path, const Link& link, double interval, 
         p.stamp = std::floor(p.stamp / (1000.0 / 60.0)) * (1000.0 / 60.0);
         p.arrival = t + link.one_way + r.jitter(link.jitter);
 
+        // A lost packet never arrives.
         if (r.uniform() >= link.loss) {
             out.push_back(p);
         }
@@ -131,16 +145,29 @@ struct Smooth {
     double worst_delay = 0;  // the largest delay on the way
 };
 
+// Prints one line saying how smoothly a stream was shown.
 void print(const char* name, const Smooth& s) {
-    std::printf("%-34s frames %5d back %3d (worst %.3f)  step %.2f..%.2f of the run's, rough %.3f, "
-                "kink %.2f, past %d, delay %.0f ms (most %.0f)\n",
-                name, s.frames, s.backs, s.worst_back, s.low, s.high, s.rough, s.kink, s.past, s.delay,
-                s.worst_delay);
+    std::printf(
+        "%-34s frames %5d back %3d (worst %.3f)  step %.2f..%.2f of the run's, rough %.3f, "
+        "kink %.2f, past %d, delay %.0f ms (most %.0f)\n",
+        name,
+        s.frames,
+        s.backs,
+        s.worst_back,
+        s.low,
+        s.high,
+        s.rough,
+        s.kink,
+        s.past,
+        s.delay,
+        s.worst_delay
+    );
 }
 
 // The packets played into a buffer and shown every 1/60 s from `from` ms of the stream.
-Smooth show(const Path& path, const std::vector<Packet>& packets, double from, double until,
-           bool derive) {
+Smooth show(
+    const Path& path, const std::vector<Packet>& packets, double from, double until, bool derive
+) {
     mp::Interpolator in(derive);
     Smooth out;
     std::size_t next = 0;
@@ -153,7 +180,9 @@ Smooth show(const Path& path, const std::vector<Packet>& packets, double from, d
     const double frame = 1000.0 / 60.0;
     const double run = path.speed * frame / 1000.0;
 
+    // The game draws 60 frames a second.
     for (double t = 0; t <= until; t += frame) {
+        // A packet reaches the buffer at its arrival time and no sooner.
         for (; next < packets.size() && packets[next].arrival <= t; ++next) {
             const Packet& p = packets[next];
             in.add(p.pose, p.sequence, p.stamp, t, false);
@@ -161,6 +190,7 @@ Smooth show(const Path& path, const std::vector<Packet>& packets, double from, d
 
         mp::Pose p;
 
+        // Nothing is shown until the buffer has poses.
         if (!in.at(t, p)) {
             continue;
         }
@@ -170,26 +200,38 @@ Smooth show(const Path& path, const std::vector<Packet>& packets, double from, d
         const double dx = p.position[0] - last_x;
         const double dy = p.position[1] - last_y;
 
+        // A frame past the newest pose shows a guess, not a pose, so it is counted.
         if (t >= from && (in.shown() == mp::Shown::kAhead || in.shown() == mp::Shown::kHeld)) {
             ++out.past;
         }
 
+        // A kink compares a step with the one before it, so it needs two earlier frames.
         if (have >= 2 && t >= from) {
             out.kink = std::max(out.kink, std::hypot(dx - last_dx, dy - last_dy) / run);
         }
 
+        // A step needs one earlier frame, and the warm-up before `from` is left out.
         if (have >= 1 && t >= from) {
             const double step = dx;
             ++out.frames;
 
+            // A frame that moved back is counted with how far it went.
             if (step < -1e-4) {
                 ++out.backs;
                 out.worst_back = std::max(out.worst_back, -step);
             }
 
+            // SMOOTH_DEBUG prints the frames whose step strays far from the run's.
             if (std::getenv("SMOOTH_DEBUG") != nullptr && (step / run < 0.5 || step / run > 1.6)) {
-                std::printf("  t %.0f step %.2f shown %s ahead %.1f delay %.0f size %zu\n", t, step / run,
-                            mp::shown_name(in.shown()), in.ahead_ms(), in.delay_ms(), in.size());
+                std::printf(
+                    "  t %.0f step %.2f shown %s ahead %.1f delay %.0f size %zu\n",
+                    t,
+                    step / run,
+                    mp::shown_name(in.shown()),
+                    in.ahead_ms(),
+                    in.delay_ms(),
+                    in.size()
+                );
             }
 
             out.low = std::min(out.low, step / run);
@@ -220,7 +262,8 @@ void figures_over_the_internet() {
         link.jitter = 8.0 + one_way * 0.08;
         link.loss = 0.02;
         link.clock_error = 23.0;
-        const Smooth s = show(path, stream(path, link, 50.0, 20000.0, true, 1), 3000.0, 20000.0, false);
+        const Smooth s =
+            show(path, stream(path, link, 50.0, 20000.0, true, 1), 3000.0, 20000.0, false);
         char name[64];
         std::snprintf(name, sizeof name, "figure, %3.0f ms one way", one_way);
         print(name, s);
@@ -242,8 +285,8 @@ void world_mobys_over_the_internet() {
         link.jitter = 8.0 + one_way * 0.08;
         link.loss = 0.02;
         link.clock_error = -17.0;
-        const Smooth s = show(path, stream(path, link, 1000.0 / 15.0, 20000.0, false, 2), 3000.0, 20000.0,
-                               true);
+        const Smooth s =
+            show(path, stream(path, link, 1000.0 / 15.0, 20000.0, false, 2), 3000.0, 20000.0, true);
         char name[64];
         std::snprintf(name, sizeof name, "moby, %3.0f ms one way", one_way);
         print(name, s);
@@ -259,6 +302,7 @@ void the_recorded_session() {
     std::FILE* f = std::fopen(path_name.c_str(), "r");
     CHECK(f != nullptr);
 
+    // Without the file there is nothing to play.
     if (f == nullptr) {
         return;
     }
@@ -269,6 +313,7 @@ void the_recorded_session() {
     while (std::fgets(line, sizeof line, f) != nullptr) {
         double sent = 0, arrival = 0;
 
+        // Lines starting with # are comments in the file.
         if (line[0] != '#' && std::sscanf(line, "%lf,%lf", &sent, &arrival) == 2) {
             times.emplace_back(sent, arrival);
         }
@@ -277,6 +322,7 @@ void the_recorded_session() {
     std::fclose(f);
     CHECK(times.size() > 300);
 
+    // Once for a figure, which carries velocity, and once for a moby.
     for (const bool with_velocity : {false, true}) {
         Path path;
         path.speed = with_velocity ? 8.0 : 5.0;
@@ -302,7 +348,6 @@ void the_recorded_session() {
     }
 }
 
-
 // Every tenth pose overtaken by the next one (UDP), and each pose twice (the copy 40 ms later):
 // the late ones dropped, what is shown as smooth as without.
 void reordered_and_repeated() {
@@ -312,12 +357,14 @@ void reordered_and_repeated() {
     link.jitter = 15.0;
     std::vector<Packet> packets = stream(path, link, 50.0, 12000.0, true, 3);
 
+    // Every tenth pose is overtaken by the one after it.
     for (std::size_t i = 10; i < packets.size(); i += 10) {
         packets[i - 1].arrival = packets[i].arrival + 5.0;
     }
 
     std::vector<Packet> mixed;
 
+    // Each pose arrives twice.
     for (const Packet& p : packets) {
         mixed.push_back(p);
         Packet copy = p;
@@ -330,6 +377,7 @@ void reordered_and_repeated() {
     });
     int out_of_order = 0;
 
+    // A pose is out of order when its stamp is older than the one that arrived before it.
     for (std::size_t i = 1; i < mixed.size(); ++i) {
         out_of_order += mixed[i].stamp < mixed[i - 1].stamp ? 1 : 0;
     }
@@ -353,6 +401,7 @@ void the_delay_follows_the_link() {
     double calm = 0, rough = 0, after = 0, later = 0;
     std::vector<Packet> packets;
 
+    // One packet every 1/15 s, as WORLD sends them.
     for (double t = 0; t <= 24000; t += 1000.0 / 15.0) {
         Packet p;
         p.stamp = t;
@@ -376,6 +425,8 @@ void the_delay_follows_the_link() {
         mp::Pose p;
         in.at(t, p);
 
+        // The delay is read just before the jitter starts, just before it ends, a second after, and
+        // ten after.
         if (std::fabs(t - 7900) < 9) {
             calm = in.delay_ms();
         } else if (std::fabs(t - 13900) < 9) {
@@ -387,8 +438,13 @@ void the_delay_follows_the_link() {
         }
     }
 
-    std::printf("delay: calm %.0f ms, jittery %.0f, a second after %.0f, ten after %.0f\n", calm, rough,
-                after, later);
+    std::printf(
+        "delay: calm %.0f ms, jittery %.0f, a second after %.0f, ten after %.0f\n",
+        calm,
+        rough,
+        after,
+        later
+    );
     // Calm: past the 80 ms in transit by two sends and a little.
     CHECK(calm > 80.0 + 2 * 66.0 && calm < 80.0 + 2 * 66.0 + 60.0);
     // Jittery: well up; then down, slowly (not at once), back near the calm one.
@@ -410,6 +466,7 @@ void a_moby_stops_and_goes_on() {
     };
     std::vector<double> sends;
 
+    // WORLD sends nothing while the moby stands.
     for (double t = 0; t <= 8000; t += 1000.0 / 15.0) {
         const bool standing = t > 2000 && t < 5000;
 
@@ -425,6 +482,7 @@ void a_moby_stops_and_goes_on() {
     double worst_past = 0, last = 0, worst_step = 0;
 
     for (double t = 0; t <= 8500; t += frame) {
+        // Each send reaches the buffer 100 ms after it went.
         for (; next < sends.size() && sends[next] + 100.0 <= t; ++next) {
             mp::Pose p;
             p.level = 3;
@@ -438,10 +496,12 @@ void a_moby_stops_and_goes_on() {
             continue;
         }
 
+        // The first half second is warm-up.
         if (t > 500) {
             worst_step = std::max(worst_step, std::fabs(p.position[0] - last));
         }
 
+        // While the stop is still being shown, the moby must not go past it.
         if (t < 5000 + in.delay_ms()) {
             worst_past = std::max(worst_past, p.position[0] - 10.0);
         }
@@ -449,8 +509,12 @@ void a_moby_stops_and_goes_on() {
         last = p.position[0];
     }
 
-    std::printf("a moby stops and goes on: past the stop by %.3f, worst step %.3f (a frame's run %.3f)\n",
-                worst_past, worst_step, speed * frame / 1000.0);
+    std::printf(
+        "a moby stops and goes on: past the stop by %.3f, worst step %.3f (a frame's run %.3f)\n",
+        worst_past,
+        worst_step,
+        speed * frame / 1000.0
+    );
     CHECK(worst_past < 0.01);
     CHECK(worst_step < 2.0 * speed * frame / 1000.0);
 }
@@ -463,7 +527,8 @@ void standing_still_and_a_jump() {
     const double air = 2.0 * up / gravity * 1000.0;
     const auto z_at = [&](double t) {
         const double tau = (t - start) / 1000.0;
-        return t < start || t > start + air ? ground : ground + up * tau - gravity * tau * tau / 2.0;
+        return t < start || t > start + air ? ground
+                                            : ground + up * tau - gravity * tau * tau / 2.0;
     };
     const auto vz_at = [&](double t) {
         return t < start || t > start + air ? -0.749 : up - gravity * (t - start) / 1000.0;
@@ -501,6 +566,7 @@ void standing_still_and_a_jump() {
 
         mp::Pose p;
 
+        // The first second is warm-up.
         if (!in.at(t, p) || t < 1000) {
             continue;
         }
@@ -517,8 +583,12 @@ void standing_still_and_a_jump() {
         }
     }
 
-    std::printf("standing: bob %.4f units over %d frames past the newest; the jump off its arc by %.4f\n",
-                bob, past, arc);
+    std::printf(
+        "standing: bob %.4f units over %d frames past the newest; the jump off its arc by %.4f\n",
+        bob,
+        past,
+        arc
+    );
     CHECK(past > 5);
     CHECK(bob < 0.002);
     CHECK(arc < 0.05);
@@ -535,6 +605,7 @@ int main() {
     a_moby_stops_and_goes_on();
     standing_still_and_a_jump();
 
+    // A pass is announced; a failure has already printed its own line.
     if (g_failures == 0) {
         std::puts("smooth: all passed");
     }

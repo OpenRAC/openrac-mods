@@ -1,17 +1,18 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * Two discs in one party: the check goes by the world the disc belongs to, a player never reads of a
- * disc that plays, and a level that does not agree is caught as it loads.
- */
-#include "test_support.hpp"
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Two discs in one party: the check goes by the world the disc belongs to, a player never reads of a
+// disc that plays, and a level that does not agree is caught as it loads.
 
 #include <algorithm>
+
+#include "test_support.hpp"
 
 namespace mpt {
 
 namespace {
 
+// Returns the mod list of a player on `disc`, of world `family`, with fixed versions.
 mp::ModList list_of(const std::string& disc, const std::string& family) {
     mp::ModList list;
     list.multiplayer = "0.9.0";
@@ -21,14 +22,16 @@ mp::ModList list_of(const std::string& disc, const std::string& family) {
     return list;
 }
 
-/* Text a player could read, with nothing of a region or of a disc that plays. */
+// Text a player could read, with nothing of a region or of a disc that plays.
 void says_no_region(const std::vector<std::string>& lines) {
+    // Every line a player could read is checked for the name of a region or disc.
     for (const std::string& line : lines) {
         CHECK(line.find("PAL") == std::string::npos && line.find("NTSC") == std::string::npos);
         CHECK(line.find("pal") == std::string::npos && line.find("ntsc") == std::string::npos);
     }
 }
 
+// Checks that two discs of one world compare equal and that other differences still refuse.
 void two_discs_of_a_world_fit() {
     const mp::ModList pal = list_of("pal", "rac1-60-1");
     const mp::ModList ntsc = list_of("ntsc", "rac1-60-1");
@@ -57,6 +60,7 @@ void two_discs_of_a_world_fit() {
     says_no_region(mp::refusal_lines(d));
 }
 
+// Checks that discs of different worlds are refused.
 void a_truly_different_disc_is_refused() {
     const mp::ModList host = list_of("pal", "rac1-60-1");
     const mp::ModList other = list_of("jp", "rac1-50-1");
@@ -79,6 +83,7 @@ void a_truly_different_disc_is_refused() {
     CHECK(mp::decode_mod_list(r, old) && old.family == "ntsc");
 }
 
+// Checks that the rules page says the host's game runs the enemies only when the discs differ.
 void the_rules_say_whose_enemies() {
     const mp::ModList pal = list_of("pal", "rac1-60-1");
     const mp::ModList ntsc = list_of("ntsc", "rac1-60-1");
@@ -91,10 +96,12 @@ void the_rules_say_whose_enemies() {
     says_no_region(mp::rules_lines(pal, {}, ntsc, mp::kTitleLine));
 }
 
-/* The party in a level, each game with its digest of it. */
+// The party in a level, each game with its digest of it.
 struct InLevel {
+    // The host and the member.
     Player host{1}, member{2};
 
+    // Starts the party in level 0; the games report `host_digest` and `member_digest` for it.
     InLevel(std::uint32_t host_digest, std::uint32_t member_digest) {
         const std::vector<mp::Member> both = {{1, "P1"}, {2, "P2"}};
         host.session.handle(info(both));
@@ -110,6 +117,7 @@ struct InLevel {
         host.game.level = {moby(0, 10, 100, mp::kMobyUpdates, 1.0f)};
         member.game.level = {moby(0, 10, 100, mp::kMobyUpdates, 1.0f)};
 
+        // Run until the first world exchange has happened and the level digests were compared.
         for (int i = 0; i < 6; ++i) {
             tick({&host, &member}, 200);
             route({&host, &member});
@@ -117,12 +125,14 @@ struct InLevel {
     }
 };
 
+// Checks that a member whose level digest matches the host's syncs the world.
 void levels_that_agree_are_shared() {
     InLevel party(0xDD9BEA77u, 0xDD9BEA77u);
     CHECK(party.member.world.synced());
     CHECK(!party.member.world.take_level_differs());
 }
 
+// Checks that a member whose level digest differs does not sync and is told once.
 void a_level_that_does_not_agree_is_not() {
     InLevel party(0xDD9BEA77u, 0x12345678u);
     CHECK(!party.member.world.synced());
@@ -131,6 +141,7 @@ void a_level_that_does_not_agree_is_not() {
     CHECK(!party.member.world.take_level_differs());
 }
 
+// Checks that a game that reports no level digest is let through.
 void a_game_that_does_not_know_is_let_through() {
     InLevel old_host(0, 0x12345678u);
     CHECK(old_host.member.world.synced() && !old_host.member.world.take_level_differs());

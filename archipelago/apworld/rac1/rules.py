@@ -40,6 +40,10 @@ def row_rule(row: LocationData) -> Rule:
     extra = [name for name in row.soft if name not in row.hard]
     if extra:
         rule = rule & (HasAll(*extra) | EXPERT)
+    if row.name == "Oltanis: the PDA's seller":
+        rule = rule & (Has("Heli-Pack") | OptionFilter(Logic, Logic.option_relaxed, "ne"))
+    if row.name == "Rilgar: the bouncer, the coordinates of Umbris":
+        rule = rule & (Has("Hydrodisplacer") | OptionFilter(Logic, Logic.option_relaxed, "ne"))
     return rule
 
 
@@ -56,16 +60,27 @@ def set_rules(world: "RAC1World") -> None:
     for index, planet in enumerate(PLANETS):
         region = world.get_region(planet)
         # Veldin, where the game starts, needs nothing.
-        rule = True_() if index == 0 else HasAny(*coordinates(planet))
+        rule = True_() if index == 0 or planet == world.starting_planet else HasAny(*coordinates(planet))
+        if planet == "Drek's Fleet":
+            rule = rule & Has("Hologuise")
         world.create_entrance(ship, region, rule, name=f"Fly to {planet}", force_creation=True)
 
     logic = world.options.logic
     for row in world.location_rows() + EVENT_ROWS:
         location = world.get_location(row.name)
-        world.set_rule(location, row_rule(row))
+        rule = row_rule(row)
+        if row.kind == "gold_vendor":
+            rule = rule & Has("Gold Bolt", 40)
+            if not world.options.start_in_new_game_plus:
+                rule = rule & Has(VICTORY)
+        world.set_rule(location, rule)
+        if row.kind == "gold_vendor":
+            add_item_rule(location, lambda item: not (item.player == world.player and item.name == "Gold Bolt"))
         if not holds_progression(row, logic):
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
-            add_item_rule(location, lambda item: not item.advancement)
+            add_item_rule(location, lambda item, row=row: not item.advancement
+                          or (world.options.shuffle_gold_weapons and row.kind in ("gold", "skill")
+                              and item.player == world.player and item.name == "Gold Bolt"))
 
     world.set_completion_rule(Has(VICTORY))

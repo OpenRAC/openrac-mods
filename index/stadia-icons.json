@@ -1,0 +1,22 @@
+{
+  "id": "stadia-icons",
+  "repo": "https://github.com/Promises/rac-stadia-icons",
+  "path": "",
+  "description": "The game's PlayStation 2 button icons as a Stadia controller's, drawn from the real Stadia button art: A, B, X and Y, the L1/R1 shoulders, the L2/R2 triggers and the sticks, everywhere the game prints a button. Sharp at any resolution. For Ratchet & Clank and Going Commando.",
+  "tags": [
+    "cosmetic",
+    "ui",
+    "controls"
+  ],
+  "impact": [
+    "cosmetic"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Promises/rac-stadia-icons/issues"
+  },
+  "media": {
+    "icon": "docs/icon.png",
+    "banner": "docs/banner.png"
+  }
+}

@@ -1,16 +1,16 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The shared world (world.hpp): the messages received.
- */
-#include "world.hpp"
-#include "world_util.hpp"
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The shared world (world.hpp): the messages received.
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <utility>
+
+#include "world.hpp"
+#include "world_util.hpp"
 
 namespace mp {
 
@@ -23,10 +23,13 @@ void World::land(std::uint16_t net, int slot) {
     loose_.insert(net);
     poses_.erase(id);
     hidden_.erase(id);
-    trace_line("bolts", "host's bolt net " + std::to_string(net) + " landed: runs here, " + moby_name(slot));
+    trace_line(
+        "bolts", "host's bolt net " + std::to_string(net) + " landed: runs here, " + moby_name(slot)
+    );
 }
 
 void World::hear_world(std::uint16_t sequence) {
+    // The first WORLD starts the window: its sequence is the newest and nothing older was heard.
     if (!world_heard_) {
         world_heard_ = true;
         world_newest_ = sequence;
@@ -37,9 +40,12 @@ void World::hear_world(std::uint16_t sequence) {
         const std::uint32_t moved = step >= 32 ? 0 : world_bits_ << step;
         world_bits_ = step > 32 ? 0 : moved | 1u << (step - 1);
         world_newest_ = sequence;
+        // Each new datagram moves the loss estimate 5% toward missed / (missed + 1); a gap counts
+        // for at most 4.
         const double missed = std::min(step - 1, 4);
         world_loss_ += 0.05 * (missed / (missed + 1.0) - world_loss_);
-    } else if (const int back = static_cast<std::uint16_t>(world_newest_ - sequence); back >= 1 && back <= 32) {
+    } else if (const int back = static_cast<std::uint16_t>(world_newest_ - sequence);
+               back >= 1 && back <= 32) {
         world_bits_ |= 1u << (back - 1);
     }
 
@@ -47,6 +53,7 @@ void World::hear_world(std::uint16_t sequence) {
 }
 
 void World::handle(std::int32_t sender, const Bytes& bytes) {
+    // Nothing is read outside a party.
     if (bytes.empty() || !session_.in_party()) {
         return;
     }
@@ -65,14 +72,18 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         const int level = static_cast<std::int8_t>(r.u8());
         const std::uint16_t key = u16(r);
         const bool back = r.left() > 0 && r.u8() != 0;
-        trace_line("msg", "received BROKE from " + std::to_string(sender) + " level " + std::to_string(level) + " key "
-                              + std::to_string(key));
+        trace_line(
+            "msg",
+            "received BROKE from " + std::to_string(sender) + " level " + std::to_string(level)
+                + " key " + std::to_string(key)
+        );
 
         // Held for the next listing: the reliable stream's word may come as this game's level is
         // being made again, with no mobys known, and is the only word there will be.
         if (r.ok() && session_.role().host() && level == level_) {
             broke_[key] = sender;
 
+            // A crate that comes back is kept apart: its break is not a death.
             if (back) {
                 broke_back_.insert(key);
             }
@@ -89,9 +100,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         const int level = static_cast<std::int8_t>(r.u8());
         const std::uint16_t id = u16(r);
         const bool dig = r.left() > 0 && r.u8() == 1;
-        trace_line("msg", "received CLAIM from " + std::to_string(sender) + " level " + std::to_string(level) + " id "
-                              + std::to_string(id));
+        trace_line(
+            "msg",
+            "received CLAIM from " + std::to_string(sender) + " level " + std::to_string(level)
+                + " id " + std::to_string(id)
+        );
 
+        // A dig claim names a pile of buried bolts by key; the other claims name a bolt by id.
         if (r.ok() && session_.role().host() && dig) {
             claim_dig(sender, level, id);
         } else if (r.ok() && session_.role().host()) {
@@ -106,19 +121,25 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         const int level = static_cast<std::int8_t>(r.u8());
         const auto load = static_cast<std::uint32_t>(r.i32());
         const auto digest = static_cast<std::uint32_t>(r.left() >= 4 ? r.i32() : 0);
-        trace_line("msg", "received HELLO from " + std::to_string(sender) + " level " + std::to_string(level) + " load "
-                              + std::to_string(load));
+        trace_line(
+            "msg",
+            "received HELLO from " + std::to_string(sender) + " level " + std::to_string(level)
+                + " load " + std::to_string(load)
+        );
 
+        // Only the host, in the level it is in, answers a HELLO.
         if (r.ok() && hosting_ && level == level_) {
             // A level that does not agree with the member's gets no world: told, and it leaves.
             const std::uint32_t own = game_.sim_digest(level_);
 
+            // The levels disagree only when both games have a digest and the digests differ.
             if (own != 0 && digest != 0 && own != digest) {
                 log("player " + std::to_string(sender) + "'s level " + std::to_string(level)
                     + " does not agree with this game's: refused");
                 members_.erase(sender);
                 Writer w;
-                w.u8(static_cast<std::uint8_t>(WorldKind::kReset)).u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level)));
+                w.u8(static_cast<std::uint8_t>(WorldKind::kReset))
+                    .u8(static_cast<std::uint8_t>(static_cast<std::int8_t>(level)));
                 w.u8(1);
                 session_.send_data(sender, w.bytes());
                 return;
@@ -143,13 +164,18 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         vec(r, h.velocity);
         h.victim = slot_of(id);
 
+        // Only the host, for a moby it knows, takes a member's hit.
         if (!hosting_ || !r.ok() || h.victim < 0) {
             return;
         }
 
+        // A hit that cannot be right is counted and refused.
         if (!member_hit_ok(sender, h)) {
             ++hits_refused_;
-            trace_line("msg", "HIT of " + moby_name(h.victim) + " from " + std::to_string(sender) + " refused");
+            trace_line(
+                "msg",
+                "HIT of " + moby_name(h.victim) + " from " + std::to_string(sender) + " refused"
+            );
             return;
         }
 
@@ -163,10 +189,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         return;
     }
 
+    // Everything below is the host's word; another member's is ignored.
     if (!from_host) {
         return;
     }
 
+    // Each kind the host sends to a member has its own case.
     switch (kind) {
         case WorldKind::kWorld: {
             int level = -1;
@@ -174,6 +202,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             std::uint16_t heard = 0;
             std::vector<WorldEntry> entries;
 
+            // A datagram of another level, or one that does not decode, says nothing.
             if (!decode_world(bytes, level, stamp, entries, &heard) || level != level_) {
                 return;
             }
@@ -183,23 +212,35 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             hear_world(heard);
 
             const auto now = static_cast<double>(clock_());
-            const double time =
-                session_.has_clock() ? static_cast<double>(stamp) - session_.clock_offset_ms() : now;
+            const double time = session_.has_clock()
+                                    ? static_cast<double>(stamp) - session_.clock_offset_ms()
+                                    : now;
             const auto sequence = static_cast<std::uint16_t>(stamp >> 4);
 
+            // The timing line is built only when the verbose log is on.
             if (tracing()) {
                 char text[160];
-                std::snprintf(text, sizeof text, "received stamp %lld local %.0f arrival %.0f transit %.0f n=%zu",
-                              static_cast<long long>(stamp), time, now, now - time, entries.size());
+                std::snprintf(
+                    text,
+                    sizeof text,
+                    "received stamp %lld local %.0f arrival %.0f transit %.0f n=%zu",
+                    static_cast<long long>(stamp),
+                    time,
+                    now,
+                    now - time,
+                    entries.size()
+                );
                 trace_line("snap", text);
             }
 
+            // Each entry goes into its moby's buffer, unless it says the bolt landed.
             for (const WorldEntry& e : entries) {
                 const auto net = static_cast<std::uint16_t>(e.id & ~kSpawnedId);
                 const bool spawned = (e.id & kSpawnedId) != 0;
 
                 // A datagram overtaken by a newer one has nothing to say of this moby.
-                if (const auto last = stamps_.find(e.id); last != stamps_.end() && last->second > stamp) {
+                if (const auto last = stamps_.find(e.id);
+                    last != stamps_.end() && last->second > stamp) {
                     continue;
                 }
 
@@ -211,6 +252,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                     continue;
                 }
 
+                // The host says this bolt landed there, so it runs here from now on.
                 if (spawned && e.loose) {
                     const auto it = net_slot_.find(net);
 
@@ -233,10 +275,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 host_ms_[e.id] = clock_();
             }
 
+            // The verbose log lists what the snapshot added and what it left out.
             if (tracing()) {
                 std::set<std::uint16_t> ids;
                 std::string hidden;
 
+                // The ids of the snapshot, and which of them are hidden.
                 for (const WorldEntry& e : entries) {
                     ids.insert(e.id);
                     hidden += e.hidden ? " " + std::to_string(e.id) : "";
@@ -244,6 +288,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
                 trace_snapshot("received from " + std::to_string(sender), traced_.received, ids);
 
+                // A snapshot with none hidden writes no hidden line.
                 if (!hidden.empty()) {
                     trace_line("snap", "received hidden ids [" + hidden.substr(1) + "]");
                 }
@@ -255,13 +300,20 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         case WorldKind::kKilled: {
             const int level = static_cast<std::int8_t>(r.u8());
             const std::uint16_t count = u16(r);
-            trace_line("msg", "received KILLED from " + std::to_string(sender) + " level " + std::to_string(level) + " n="
-                                  + std::to_string(count));
+            trace_line(
+                "msg",
+                "received KILLED from " + std::to_string(sender) + " level " + std::to_string(level)
+                    + " n=" + std::to_string(count)
+            );
 
+            // One key at a time, until the message ends or is cut short.
             for (std::uint16_t i = 0; i < count && r.ok(); ++i) {
                 const std::uint16_t key = u16(r);
                 const int slot = level == level_ ? slot_of(key) : -1;
-                trace_line("msg", "received KILLED key " + std::to_string(key) + " slot " + std::to_string(slot));
+                trace_line(
+                    "msg",
+                    "received KILLED key " + std::to_string(key) + " slot " + std::to_string(slot)
+                );
                 const auto moby = mobys_.find(slot);
 
                 // The pile this game was told to dig goes by its own dig.
@@ -300,6 +352,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             vec(r, pose.position);
             pose.rotation[2] = static_cast<float>(static_cast<std::int16_t>(u16(r))) / 10000.0f;
 
+            // A SPAWN of another level, or of a net id this game already made, is ignored.
             if (!r.ok() || level != level_ || net_slot_.count(net) != 0) {
                 return;
             }
@@ -309,15 +362,20 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             int slot = own_copy_of(oclass, pose.position);
             spawn_classes_.insert(oclass);
 
+            // A copy this game already has is taken over and driven; otherwise a moby is made.
             if (slot >= 0) {
                 game_.moby_drive(slot, true);
             } else {
                 slot = game_.moby_spawn(oclass, pose);
             }
 
-            trace_line("msg", "received SPAWN from " + std::to_string(sender) + " net " + std::to_string(net) + " class "
-                                  + std::to_string(oclass) + " at " + xyz(pose.position) + " made slot " + std::to_string(slot)
-                                  + (loot_class(oclass) ? " (loot, this game's own)" : ""));
+            trace_line(
+                "msg",
+                "received SPAWN from " + std::to_string(sender) + " net " + std::to_string(net)
+                    + " class " + std::to_string(oclass) + " at " + xyz(pose.position)
+                    + " made slot " + std::to_string(slot)
+                    + (loot_class(oclass) ? " (loot, this game's own)" : "")
+            );
 
             // Loot (ammo, health) an enemy dropped there is this game's own to collect.
             if (slot >= 0 && loot_class(oclass)) {
@@ -329,6 +387,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 driven_.insert(slot);
                 ++counts_.spawns;
 
+                // A bolt that WORLD said had landed before this SPAWN came lands now.
                 if (landed_early_.erase(net) != 0) {
                     land(net, slot);
                 }
@@ -340,12 +399,17 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const int level = static_cast<std::int8_t>(r.u8());
             const std::uint16_t count = u16(r);
 
+            // Each net id of the message is deleted, unless it is loot.
             for (std::uint16_t i = 0; i < count && r.ok(); ++i) {
                 const std::uint16_t net = u16(r);
                 const auto it = net_slot_.find(net);
-                trace_line("msg", "received DESPAWN from " + std::to_string(sender) + " level " + std::to_string(level) + " net "
-                                      + std::to_string(net) + " slot " + std::to_string(it != net_slot_.end() ? it->second : -1)
-                                      + (loot_.count(net) != 0 ? " (loot: kept)" : ""));
+                trace_line(
+                    "msg",
+                    "received DESPAWN from " + std::to_string(sender) + " level "
+                        + std::to_string(level) + " net " + std::to_string(net) + " slot "
+                        + std::to_string(it != net_slot_.end() ? it->second : -1)
+                        + (loot_.count(net) != 0 ? " (loot: kept)" : "")
+                );
 
                 // Loot stays until this game's player collects it.
                 if (loot_.erase(net) != 0) {
@@ -356,9 +420,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 landed_early_.erase(net);
                 ++counts_.despawns;
 
+                // A taken bolt has its flight to finish; any other spawned moby goes now.
                 if (level == level_ && it != net_slot_.end() && flights_.count(it->second) != 0) {
                     // Taken there, flying to whoever took it: it goes on arrival.
-                    trace_line("bolts", "DESPAWN of " + moby_name(it->second) + " left to its flight");
+                    trace_line(
+                        "bolts", "DESPAWN of " + moby_name(it->second) + " left to its flight"
+                    );
                     driven_.erase(it->second);
                     net_slot_.erase(it);
                 } else if (level == level_ && it != net_slot_.end()) {
@@ -378,6 +445,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const std::uint16_t id = u16(r);
             const std::int32_t player = r.i32();
 
+            // Another level's word, or a message cut short, is ignored.
             if (!r.ok() || level != level_) {
                 return;
             }
@@ -393,6 +461,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 break;
             }
 
+            // A spawned bolt's slot is found by its net id, a placed one's by its key.
             if ((id & kSpawnedId) != 0) {
                 const auto net = static_cast<std::uint16_t>(id & ~kSpawnedId);
                 const auto it = net_slot_.find(net);
@@ -401,9 +470,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
                 slot = game_.moby_slot(id);
             }
 
-            trace_line("msg", "received TAKEN from " + std::to_string(sender) + " id " + std::to_string(id) + " by "
-                                  + std::to_string(player) + " slot " + std::to_string(slot));
+            trace_line(
+                "msg",
+                "received TAKEN from " + std::to_string(sender) + " id " + std::to_string(id)
+                    + " by " + std::to_string(player) + " slot " + std::to_string(slot)
+            );
 
+            // Only a bolt that runs by itself here flies; one the host drives shows the host's way.
             if (slot >= 0 && driven_.count(slot) == 0 && flights_.count(slot) == 0) {
                 fly(slot, id, player, clock_());
             }
@@ -415,9 +488,13 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const std::uint16_t records = u16(r);
             const Bytes bits = r.rest();
 
-            trace_line("msg", "received DEAD from " + std::to_string(sender) + " level " + std::to_string(level) + " records "
-                                  + std::to_string(records));
+            trace_line(
+                "msg",
+                "received DEAD from " + std::to_string(sender) + " level " + std::to_string(level)
+                    + " records " + std::to_string(records)
+            );
 
+            // Another level's DEAD, or one with fewer bits than records, is ignored.
             if (level != level_ || bits.size() < static_cast<std::size_t>((records + 7) / 8)) {
                 return;
             }
@@ -426,14 +503,18 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             // here too.
             int killed = 0;
 
+            // Each placed moby the host lists dead is dead here too.
             for (const auto& [slot, moby] : mobys_) {
-                const bool dead = moby.key >= 0 && moby.key < records
-                                  && (bits[static_cast<std::size_t>(moby.key / 8)] >> (moby.key % 8)) & 1;
+                const bool dead =
+                    moby.key >= 0 && moby.key < records
+                    && (bits[static_cast<std::size_t>(moby.key / 8)] >> (moby.key % 8)) & 1;
 
+                // The despawn log names the sync as the cause.
                 if (dead) {
                     note(slot, "DEAD", sender);
                 }
 
+                // Only a deletion the game accepted counts as killed.
                 if (dead && kill(slot, "DEAD from " + std::to_string(sender))) {
                     driven_.erase(slot);
                     host_killed_.insert(moby.key);
@@ -451,10 +532,12 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const bool rules = r.left() > 0;
             const std::uint8_t rule_bits = rules ? r.u8() : 0;
 
+            // The revive rule is bit 0 of the optional byte.
             if (r.ok() && rules) {
                 revive_rule_ = (rule_bits & 1) != 0;
             }
 
+            // Only a SYNCED for this load of this level means the world is here.
             if (r.ok() && level == level_ && load == loads_) {
                 synced_ = true;
                 drop_own_copies();
@@ -467,15 +550,19 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             const int level = static_cast<std::int8_t>(r.u8());
             const std::uint8_t how = r.left() > 0 ? r.u8() : 0;
 
+            // How 1 is a level that does not agree: this game cannot share it.
             if (r.ok() && level == level_ && how == 1) {
-                log("the host's level " + std::to_string(level) + " does not agree with this game's: leaving");
+                log("the host's level " + std::to_string(level)
+                    + " does not agree with this game's: leaving");
                 level_differs_ = true;
             } else if (r.ok() && level == level_) {
-                log(how == 2 ? "a full wipe: back to the host's checkpoint" : "the host's level was made again: asking for its world");
+                log(how == 2 ? "a full wipe: back to the host's checkpoint"
+                             : "the host's level was made again: asking for its world");
                 drop_spawned();
                 synced_ = false;
                 hello_ms_ = 0;
 
+                // How 2 is a full wipe: this game goes through its own respawn too.
                 if (how == 2) {
                     wipe_until_ = clock_() + kWipePlaceMs;
                     game_.respawn();
@@ -487,6 +574,8 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         case WorldKind::kRevive: {
             const std::uint8_t how = r.u8();
 
+            // REVIVE 0 stands the hero up where he lies; any other value respawns him at his
+            // checkpoint.
             if (r.ok()) {
                 how == 0 ? game_.revive() : game_.respawn();
             }
@@ -508,13 +597,19 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             pose.rotation[2] = static_cast<float>(static_cast<std::int16_t>(u16(r))) / 10000.0f;
 
             // This game's own copy, if it has one (a respawn of its own brought it), stands.
-            if (!r.ok() || level != level_ || alive_keys_.count(key) != 0 || restored_.count(key) != 0) {
+            if (!r.ok() || level != level_ || alive_keys_.count(key) != 0
+                || restored_.count(key) != 0) {
                 return;
             }
 
             const int slot = game_.moby_spawn(oclass, pose);
-            trace_line("msg", "received RESTORE key " + std::to_string(key) + " class " + std::to_string(oclass) + " made slot " + std::to_string(slot));
+            trace_line(
+                "msg",
+                "received RESTORE key " + std::to_string(key) + " class " + std::to_string(oclass)
+                    + " made slot " + std::to_string(slot)
+            );
 
+            // A failed spawn leaves nothing to record.
             if (slot >= 0) {
                 restored_[key] = slot;
                 driven_.insert(slot);
@@ -533,13 +628,14 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
             vec(r, h.velocity);
             h.victim = game_.figure_slot(-1);
 
+            // A hit with numbers that make no sense is refused and counted.
             if (r.ok() && !hit_makes_sense(h)) {
                 ++hits_refused_;
                 trace_line("msg", "DAMAGE from " + std::to_string(sender) + " refused");
                 break;
             }
 
-            // A joiner not in yet, or just put beside the host: it comes to no harm.
+            // A joiner not in yet, or only now put beside the host: it comes to no harm.
             if (r.ok() && h.victim >= 0 && !coop_.shielded()) {
                 game_.hit(h);
                 ++counts_.damage;
@@ -550,6 +646,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
         case WorldKind::kBolts: {
             const std::int32_t n = r.i32();
 
+            // A credit must be above 0 and below a million (a sanity cap).
             if (r.ok() && n > 0 && n < 1000000) {
                 game_.bolts(n);
                 counts_.bolts += n;
@@ -558,6 +655,7 @@ void World::handle(std::int32_t sender, const Bytes& bytes) {
 
             break;
         }
+        // Any other kind is ignored.
         default:
             break;
     }

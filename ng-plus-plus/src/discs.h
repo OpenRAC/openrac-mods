@@ -1,0 +1,308 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// Going Commando: what NG++ reads and writes of the game, per disc and in the game's records.
+//
+// Every address goes through relocate_data (below the level's base every program shares the word;
+// above it the boot program's address stands for the loaded level's copy). NTSC-U v1.01's are
+// rac2-decomp's globals named in the comments; PAL's and USA v2.00's are the same globals at those
+// discs' addresses (rac2-decomp's symbol_addrs/eu and usa-v2, OpenRAC's
+// port/game/rac2-<disc>/release/release_names.json, and the discs' own code: the vendor's state is
+// what func_002F6510 loads on each, 0x21F240 on PAL as on v1.01, 0x21F1C0 on v2.00). The functions
+// are the names the port's build of each disc gives them (its function table: func_, not the
+// decompilation's FUN_). The records' layouts are the same on the three discs; the texts' ids are
+// not (kDiscs' upgrade_label).
+//
+// Sources: rac2-decomp's C (the functions named in the comments), seen in game code throughout.
+
+#pragma once
+
+#include <cstdint>
+#include <string_view>
+
+namespace ng_plus_plus {
+
+// The ticks a second NG++'s times are written in (NTSC-U's).
+inline constexpr int kSixtieths = 60;
+
+// The game's addresses and functions on one disc.
+struct Disc {
+    const char* version;         // openrac_api.version.
+    std::uint32_t weapon_table;  // The items' rows, kRowBytes each (g_weaponTable, D_00239BA0).
+    std::uint32_t slot;          // u8 per item: its row (g_itemEquippedSlot, D_00139568).
+    std::uint32_t exp;           // s32 per item: its experience, << 5 (g_weaponXp, D_00139868).
+    std::uint32_t ammo;          // s32 per item: its ammo (g_weaponAmmo, D_00139688).
+    std::uint32_t owned;         // u8 per item: non-zero when owned (g_inventoryOwned, D_001A7AF8).
+    std::uint32_t hero;          // The hero (D_00189E20); his fields are kHero*.
+    std::uint32_t vendor;        // The vendor's state (g_vendorUi, D_0021F240); fields kVendor*.
+    std::uint32_t clock;         // u8[8]: the save's chunk 4, stamped when it saves (D_001A7360).
+    const char* text;            // The game's text by id (func_00288FB8): its string's address.
+    std::uint32_t progress;      // The save block (g_boltCount): +kProgressCycle the cycle.
+    const char* banner;          // A HUD help popup by key (func_00288E18): the level-up's.
+    const char* message;         // A message line by text id (func_002B0A18).
+    const char* upgrade_fx;      // The in-hand level-up (func_L00_0037E6A8): (item, row).
+    const char* equip;           // Item_Equip (func_002AD860): (item), for the test runs.
+    std::int32_t upgrade_label;  // The text id of "Mega" under an upgrade entry (func_002F9C80).
+    std::int32_t crystal_trade;  // The text id of Tabora's crystal trade (its level's code).
+    std::int32_t moonstone_trade;  // The text id of Grelbin's moonstone trade (its level's code).
+    int tick_rate;                 // The game's ticks a second: PAL's code counts in fiftieths.
+    std::uint32_t game_mode;    // s32: the game's mode, kVendorGameMode in a vendor (D_001A8BB0).
+    std::int32_t armour_about;  // The text id of Carbonox's description at the armour vendor
+                                // (g_shop_armor_text_ids[4], D_001AD250).
+    std::int32_t armour_name;   // The text id of "Carbonox Armor", the vendor's name for it.
+    std::uint32_t tesla_hits;   // s32: the barrier's arcs counted, it ends at 40 (g_tesla_hit_counter).
+    std::uint32_t fade_value;   // f32: the barrier's charge, it ends at 0 or less (g_fade_level).
+};
+
+// clang-format off: one disc per row, the columns in the order of Disc's members.
+// The three discs NG++ knows.
+inline constexpr Disc kDiscs[] = {
+    {"ntsc",  0x00239BA0u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7AF8u, 0x00189E20u,
+     0x0021F240u, 0x001A7360u, "func_00288FB8", 0x001A79F8u, "func_00288E18", "func_002B0A18",
+     "func_L00_0037E6A8", "func_002AD860", 0x325F, 10135, 10209, 60, 0x001A8BB0u, 0x2FD5, 0x0AB0, 0x001AFF44u, 0x001B26B0u},
+    {"pal",   0x00239BA0u, 0x001395E8u, 0x001398E8u, 0x00139708u, 0x001A7B80u, 0x00189EA0u,
+     0x0021F240u, 0x001A73E0u, "func_002898E8", 0x001A7A80u, "func_00289730", "func_002B1588",
+     "func_L00_003813E0", "func_002AE3C0", 0x1B2D, 4841, 4915, 50, 0x001A8C60u, 0x0EF9, 0x0AB0, 0x001AFF74u, 0x001B26D0u},
+    {"ntsc2", 0x00239B20u, 0x00139568u, 0x00139868u, 0x00139688u, 0x001A7B00u, 0x00189E20u,
+     0x0021F1C0u, 0x001A7360u, "func_002899F8", 0x001A7A00u, "func_00289840", "func_002B1880",
+     "func_L00_0037FB10", "func_002AE6C8", 0x30F5, 4841, 4915, 60, 0x001A8BB0u, 0x2E6B, 0x331B, 0x001AFEF4u, 0x001B2630u},
+};
+// clang-format on
+
+// Returns the disc of openrac_api.version `version`, or null for one NG++ does not know.
+inline const Disc* disc_of(std::string_view version) {
+    // The port names its discs as the table does.
+    for (const Disc& disc : kDiscs) {
+        // The port names its discs as the table does.
+        if (version == disc.version) {
+            return &disc;
+        }
+    }
+
+    return nullptr;
+}
+
+// What the game's level-up of a weapon not in hand shows (func_00288508): its popup's key and
+// selection.
+inline constexpr std::int32_t kLevelUpKey = 0x9AA;
+inline constexpr std::int32_t kLevelUpSelection = 1;
+
+// An item's row in the item table: its size and fields (func_00288870, func_002F6608).
+inline constexpr std::uint32_t kRowBytes = 0xE0u;
+inline constexpr std::uint32_t kRowVersion = 0x04u;  // u8: its version, from 0.
+inline constexpr std::uint32_t kRowClass = 0x14u;    // s32: the class the vendor shows.
+inline constexpr std::uint32_t kRowNext = 0x4Au;     // s16: the next version's row, 0 at the last.
+inline constexpr std::uint32_t kRowParent =
+    0x4Cu;  // s16: the version before's row, 0 at the first.
+inline constexpr std::uint32_t kRowExpGoal =
+    0x6Cu;                                         // s32: experience (>> 5) to the next; <= 0 full.
+inline constexpr std::uint32_t kRowPrice = 0x80u;  // s32: its price (the Mega's: the upgrade's).
+inline constexpr std::uint32_t kRowAmmoMax = 0x8Eu;  // u16: the most ammo.
+
+// The two fields of a row that hold its name's text id.
+inline constexpr std::uint32_t kRowLabel = 0x08u;  // s32: the name the vendor and the menus print.
+inline constexpr std::uint32_t kRowName = 0x48u;   // s16: the name the weapon wheel prints.
+
+// The width of a text id field of a row.
+enum class TextWidth : std::uint8_t {
+    S16,
+    S32,
+};
+
+// A field of a row that holds a text id, and what the game shows it on.
+struct RowTextField {
+    std::uint32_t offset;  // From the row's start.
+    TextWidth width;       // s16 or s32.
+    const char* shown;     // The screens that print it.
+};
+
+// Every field of an item's row the game looks up as a text, by offset. Each screen reads its own
+// text id from the row and prints the game's finished, translated string (seen in game code).
+inline constexpr RowTextField kRowTextFields[] = {
+    // DrawVendorPurchasePrompt (vendor dialog title and buy prompt), item_menu_draw,
+    // UpdateItemGridMenu, the weapons screen's grid label (func_00337210), the upgrade shop's price
+    // line (shop_draw_upgrade_price_lines).
+    {kRowLabel, TextWidth::S32, "the name in the vendor's dialog, the menus and the weapons grid"},
+    // The ammo pickup (func_0031F210, ammo_pickup_update): a format filled with the count.
+    {0x38u, TextWidth::S16, "the ammo pickup's message for several rounds"},
+    {0x3Au, TextWidth::S16, "the ammo pickup's message for one round"},
+    // grid_menu_get_selected_text_id: the pause menu's weapon panel (its blurb, by its use).
+    {0x42u, TextWidth::S16, "the pause menu's weapon panel text"},
+    // The vendor's preview (func_002F9BC0): shop_set_message_text.
+    {0x46u, TextWidth::S16, "the vendor's description of the weapon"},
+    // weapon_wheel_draw.
+    {kRowName, TextWidth::S16, "the name on the weapon wheel"},
+};
+
+// The hero's fields (func_L00_002D5EB8, Moby_PostHit's callers).
+inline constexpr std::uint32_t kHeroReady = 0x0340u;   // s32: non-zero when he can play a level-up.
+inline constexpr std::uint32_t kHeroHeld = 0x1248u;    // s32: the item in hand.
+inline constexpr std::uint32_t kHeroMoby = 0x2290u;    // u32: his moby.
+inline constexpr std::uint32_t kHeroHealth = 0x24CCu;  // s32: his health (AdjustPlayerHealth).
+
+// The vendor's state (func_002F6608, func_002F6510, func_002F8918).
+inline constexpr std::uint32_t kVendorState = 0x00u;       // s32: 2 once it closes.
+inline constexpr std::uint32_t kVendorMode = 0x50u;        // s32: kArmourMode at the armour vendor.
+inline constexpr std::uint32_t kVendorCursor = 0x80u;      // s32: the entry under the cursor.
+inline constexpr std::uint32_t kVendorDialog = 0x84u;      // s32: the purchase dialog's state.
+inline constexpr std::uint32_t kVendorEntries = 0x140u;    // The list.
+inline constexpr std::uint32_t kVendorEntryBytes = 0x18u;  // One entry's size.
+inline constexpr std::uint32_t kVendorCount = 0x740u;      // s32: the entries in the list.
+inline constexpr int kVendorMaxEntries = 64;               // The list's room.
+
+// The game's mode while a vendor is open (OpenVendorMenu, func_002F8178).
+inline constexpr std::int32_t kVendorGameMode = 5;
+
+// The armour vendor: the vendor in mode 3 (a Megacorp Vendor whose pvars +0x94 is 2), whose list
+// (shop_rebuild_unlocked_slot_list, func_002F71B8) is rows of three s32 at kVendorEntries: the
+// name's text id, the price in bolts and the armour (0 to 4) the row sells, which its preview
+// loads (PrepareVendorSelectionPreview, func_002FB1A0). Its purchase dialog (func_L00_00373D40)
+// decides at kDialogDecide.
+inline constexpr std::int32_t kArmourMode = 3;
+// The armours' icons: this plus the armour (0xEA96 Carbonox's), the row's first word.
+inline constexpr std::int32_t kArmourIcon = 0xEA92;
+inline constexpr std::uint32_t kArmourRowBytes = 12u;
+inline constexpr int kArmourRowsMax = 128;
+inline constexpr std::int32_t kDialogDecide = 3;
+inline constexpr std::int32_t kClosingState = 2;
+
+// A vendor entry's fields, each an s32.
+inline constexpr std::uint32_t kEntryItem = 0x00u;
+inline constexpr std::uint32_t kEntryKind = 0x04u;   // 1: the item's ammo.
+inline constexpr std::uint32_t kEntryClass = 0x08u;  // The preview model's class.
+inline constexpr std::uint32_t kEntryPrice = 0x0Cu;  // The price's text id.
+inline constexpr std::uint32_t kEntryMarked = 0x10u;
+inline constexpr std::uint32_t kEntryUpgrade = 0x14u;  // 1: an upgrade.
+
+// The price text an upgrade entry carries, as the game's Mega entry (func_002F6608).
+inline constexpr std::int32_t kPriceText = 0xCDB;
+
+// The rows the vendor's list draws around its cursor, from kVendorDrawFirst to before
+// kVendorDrawEnd (func_002F9C80).
+inline constexpr int kVendorDrawFirst = -5;
+inline constexpr int kVendorDrawEnd = 7;
+
+// The alpha byte of a colour the game draws with, which a tint keeps from the game's colour.
+inline constexpr std::uint32_t kColorAlpha = 0xFF000000u;
+
+// The challenge mode counter in the save block, s16 (+1 at each new game in challenge mode,
+// func_002DE990).
+inline constexpr std::uint32_t kProgressCycle = 0x12u;
+
+// The bolts, s32 (+0x00, D_001A79F8 on NTSC-U v1.01), Tabora's crystals, s16 (+0x22, D_001A7A1A),
+// and Grelbin's moonstones, s32 (+0x24, D_001A7A1C), of the save block.
+inline constexpr std::uint32_t kProgressBolts = 0x00u;
+// The raritanium, s32 (+0x04: the Ship Shack's confirm takes its price from it).
+inline constexpr std::uint32_t kProgressRaritanium = 0x04u;
+// The hero's armour, s16 (g_player_stats +0x18: 0 none to 4, the best; AdjustPlayerHealth,
+// func_L00_002A4EF8, clamps it and scales each hit by g_player_damage_scale's entry for it).
+inline constexpr std::uint32_t kProgressArmour = 0x20u;
+inline constexpr std::uint32_t kProgressCrystals = 0x22u;
+inline constexpr std::uint32_t kProgressMoonstones = 0x24u;
+
+// The kill streak's multiplier in the save block, u8 (g_bolt_multiplier, D_001A7A32 on NTSC-U:
+// 1 to 20, shown as "x2" to "x20"; moby_spawn_bolt_pickups and SetDeathBits).
+inline constexpr std::uint32_t kProgressStreak = 0x3Au;
+
+// The bolts a burst could not make into coins, s32 (D_001A7A14 on NTSC-U: the word
+// moby_spawn_bolt_pickups adds a coin limit's rest to, divided by the streak).
+inline constexpr std::uint32_t kProgressBoltCredit = 0x1Cu;
+
+// A moby's class record, u32 (+0x24), and the record's kind, s16 (+0x46), 5 for an enemy: what
+// SetDeathBits checks before it counts a kill toward the streak (rac2-decomp src/game/002A0430.c).
+inline constexpr std::uint32_t kMobyClassInfo = 0x24u;
+inline constexpr std::uint32_t kClassKind = 0x46u;
+inline constexpr std::int16_t kKindEnemy = 5;
+
+// A moby's own bolts, s16 (+0xB4: its drop before the repeat-kill falloff and the streak, set per
+// moby in the level's data; SetDeathBits).
+inline constexpr std::uint32_t kMobyBolts = 0xB4u;
+
+// A hit request's fields (Moby_PostHit, QueueMobyImpact in rac2-decomp: src/game/002A7750.c,
+// L_A8E20Req; filled by make_hit_descriptor and part_init_effect_record).
+inline constexpr std::uint32_t kHitSource =
+    0x10u;  // u32: the moby that dealt it (the shot, blast...).
+inline constexpr std::uint32_t kHitDamage = 0x1Cu;  // f32: the damage.
+
+// A moby's class, u16 (moby +0xAA: what the game's update dispatch and the ammo pickup key on).
+inline constexpr std::uint32_t kMobyClass = 0xAAu;
+
+// The hero moby's class while the player is Clank (Aranos Prison and the other Clank sections;
+// Ratchet's is another): what the port's rac2 profile keys Clank's shadow on.
+inline constexpr int kClankHeroClass = 87;
+
+// A moby class whose hits are one weapon's, and that weapon's item.
+struct HitSource {
+    std::uint16_t moby_class;  // The source moby's class.
+    std::uint8_t item;         // The item whose row its update reads its damage from.
+};
+
+// The weapons' own mobies that post their hits with themselves as the source, by the item row
+// their update code reads the damage from (g_weapon_table[g_item_slot_to_record[item]], a literal
+// item in each): a shot or blast still in flight, a lava pool or a barrier still hurting after the
+// player switched weapons is the weapon that fired it, not the one in hand. Every other source
+// (the hero himself, a class not listed) takes the weapon in hand. Sources: rac2-decomp's level
+// code (src/levels/shared, the function named) and docs/game/moby-dispatch.tsv's classes.
+// clang-format off: one class per row.
+inline constexpr HitSource kHitSources[] = {
+    {1490u, 30u},  // Lancer: lancer_update (L00_003A6C30), item 0x1E
+    {3077u, 30u},  // Heavy Lancer, the Lancer's upgrade model
+    {1489u, 26u},  // Blitz Gun: blitz_gun_update (L00_003A53E8), item 0x1A
+    {2801u, 26u},  // Blitz Cannon: UpdateSpreadWeapon (L00_003D1D28), item 0x1A
+    {1481u, 29u},  // Lava Gun: lava_gun_update (L00_00419C98), item 0x1D
+    {4406u, 29u},  // Lava Gun's lingering blobs: lava_gun_update_blobs (L00_00412928), item 0x1D
+    {2862u, 29u},  // Meteor Gun's meteor: UpdateCollidingTrailProjectile (L00_003DB118) posts its hit
+                   // as itself; only meteor_gun_update's projectile_spawn_small makes the class
+    {1486u, 24u},  // Seeker Gun
+    {1497u, 24u},  // Seeker Projectile: seeker_apply_projectile_hit (L00_003AB388), item 0x18
+    {3329u, 24u},  // Seeker Projectile (the Mega's), the same hit code
+    {1498u, 27u},  // Minirocket Tube's homing shot: homing_l00_shot_update (L00_003ABEC0), item 0x1B
+    {3799u, 44u},  // RYNO II's rocket (OpenRAC 1.29's on_weapon_fire classes)
+    {3300u, 42u},  // the gravity bomb in flight (the same)
+    {121u, 12u},   // Bomb Glove's bomb (the same)
+    {3684u, 37u},  // Bouncer's bomblet (the same)
+    {3070u, 42u},  // Gravity Bomb's blast: mini_nuke_blast_update (L00_003E3258), item 0x2A
+    {3301u, 42u},  // Gravity Bomb's blast: blast_l00_update (L00_003EEE90), item 0x2A
+    {3790u, 37u},  // Bouncer's bouncing blast: UpdateBouncingBlastProjectile (L00_004096B0), 0x25
+    {3755u, 32u},  // Spiderbot's exploding trail: UpdateExplodingTrailProjectile (L00_004045E8), 0x20
+    {2652u, 45u},  // Shield Charger: tesla_barrier_update (L00_003C3D90), item 0x2D
+    {4498u, 45u},  // Tesla Barrier, the Shield Charger's upgrade, the same update
+    {177u, 18u},   // Tesla Claw: hero_tether_beam_update (the levels' *-tether files)
+    {2715u, 28u},  // Plasma Coil's shot: thrown_shot_update (L00_003C6298-shot), the hit's source
+    {2473u, 28u},  // Plasma Storm's shot: UpdateMovingEffectState (L00_003B9CB8-state), the same
+    {1494u, 23u},  // Pulse Rifle's beam: beam_spawn_moving (L00_003A7C30), item 0x17
+    {3800u, 9u},   // Clank Zapper's beam: its update (L00_0040BA30) posts the hit as itself
+};
+// clang-format on
+
+// NG++'s times are written in sixtieths of a second, NTSC-U's ticks; PAL's game ticks fifty times
+// a second. Returns `sixtieths` in ticks of a game that ticks `rate` times a second, rounded to the
+// nearest, and at least 1 when `sixtieths` is.
+constexpr int ticks_at(int rate, int sixtieths) {
+    if (sixtieths <= 0 || rate == kSixtieths) {
+        return sixtieths;
+    }
+
+    const int ticks = (sixtieths * rate + kSixtieths / 2) / kSixtieths;
+    return ticks > 0 ? ticks : 1;
+}
+
+// Returns tick count `ticks` of a game that ticks `rate` times a second in sixtieths of a second:
+// what the animated colours, written in sixtieths, take for their clock.
+constexpr std::uint32_t sixtieths_at(int rate, std::uint32_t ticks) {
+    return rate == kSixtieths || rate <= 0
+               ? ticks
+               : static_cast<std::uint32_t>(
+                     static_cast<std::uint64_t>(ticks) * kSixtieths / static_cast<unsigned>(rate)
+                 );
+}
+
+// Returns a speed of `per_sixtieth` units a sixtieth of a second in units a tick of a game that
+// ticks `rate` times a second.
+constexpr float per_tick_at(int rate, float per_sixtieth) {
+    return rate == kSixtieths || rate <= 0
+               ? per_sixtieth
+               : per_sixtieth * static_cast<float>(kSixtieths) / static_cast<float>(rate);
+}
+
+}  // namespace ng_plus_plus

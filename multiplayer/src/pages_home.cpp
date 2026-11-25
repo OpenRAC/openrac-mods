@@ -1,16 +1,19 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The multiplayer mod's pages: Home, Code, Direct connect and the pause menu's page (multiplayer.cpp's header says what each page is).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The pages of Home, Code, Direct connect and the pause menu's Multiplayer page: the show_ and on_
+// functions of mod_state.hpp for them. multiplayer.cpp's header says what each page is.
+
 #include "mod_state.hpp"
+#include "regions.hpp"
 
 namespace mpmod {
 
-/* The code as the server reads it, a character per slot. */
+// The code as the server reads it, a character per slot.
 std::string code_text() {
     std::string code;
 
+    // The code is kept as one index into the alphabet per character.
     for (const int i : g->code) {
         code += mp::kCodeAlphabet[i];
     }
@@ -20,11 +23,10 @@ std::string code_text() {
 
 // ---- The pages, in the game's own menus ----
 
-/* Home: Browse games, Create match, Join by code (usable once the server said hello), Direct
- * connect (always: it needs no server), the name. */
+// Home: Browse games, Create match, Join by code (usable once the server said hello), Direct
+// connect (always: it needs no server), the name.
 void show_home() {
-    const bool usable =
-        mp::server_items_enabled(g->connection->mode(), g->session->greeted());
+    const bool usable = mp::server_items_enabled(g->connection->mode(), g->session->greeted());
     openrac::UiContent c;
     c.title = text("Multiplayer");
     c.items = {
@@ -38,11 +40,12 @@ void show_home() {
     set_content(g->home, c);
 }
 
-/* Code: a choice of the code alphabet per character, then Join. */
+// Code: a choice of the code alphabet per character, then Join.
 void show_code() {
     const std::string alphabet = mp::kCodeAlphabet;
     std::vector<std::string> letters;
 
+    // A choice row lists the alphabet one character at a time.
     for (const char c : alphabet) {
         letters.emplace_back(1, c);
     }
@@ -50,6 +53,7 @@ void show_code() {
     openrac::UiContent c;
     c.title = text("Party code ") + code_text();
 
+    // One choice row per character of the code.
     for (std::size_t i = 0; i < mp::kCodeLength; ++i) {
         c.items.push_back(
             openrac::UiItem::choice_of(
@@ -65,33 +69,33 @@ void show_code() {
     set_content(g->code_page, c);
 }
 
-/* A ring row (direct.hpp): its window of values around `value`, the current one in the middle. */
+// A ring row (direct.hpp): its window of values around `value`, the current one in the middle.
 openrac::UiItem ring_row(const std::string& label, int value, const mp::Ring& ring) {
     return openrac::UiItem::choice_of(
         label, mp::ring_choices(value, ring), static_cast<std::uint32_t>(mp::kRingCentre)
     );
 }
 
-/* Direct: Host directly and Join by address; or, in Join by address's place, the address's rows
- * and Join. The footer: the connection, the last failure, the buttons. */
+// Direct: Host directly and Join by address; or, in Join by address's place, the address's rows
+// and Join. The footer: the connection, the last failure, the buttons.
 void show_direct() {
     openrac::UiContent c;
     std::string hints;
 
+    // Which view is up decides whether the page shows its buttons or the address rows.
     if (g->view == DirectView::kMenu) {
         c.title = text("Direct connect");
         c.items = {
             openrac::UiItem::button(text("Host directly")),
             openrac::UiItem::button(text("Join by address")),
-            openrac::UiItem::text(
-                text("No server: port ") + std::to_string(mp::kDefaultPort)
-            ),
+            openrac::UiItem::text(text("No server: port ") + std::to_string(mp::kDefaultPort)),
         };
         hints = text(mp::kSelectBackHints);
     } else {
         const mp::DirectAddress& a = g->address;
         c.title = text("Join by address");
 
+        // One row per octet of the address.
         for (std::size_t i = 0; i < a.octets.size(); ++i) {
             c.items.push_back(
                 ring_row(text("Address part ") + std::to_string(i + 1), a.octets[i], mp::kOctetRing)
@@ -110,17 +114,18 @@ void show_direct() {
         mode == mp::Connection::Mode::kDirect || mode == mp::Connection::Mode::kHosting;
     c.footer = {linked ? status() : text("No server")};
 
+    // The reason the last host or join failed, until the next try.
     if (!g->direct_error.empty()) {
-        c.footer.push_back(mp::localized_notice(g->direct_error, g_language));
+        c.footer.push_back(mp::localized_notice(g->direct_error, language()));
     }
 
     c.footer.push_back(hints);
     set_content(g->direct_page, c);
 }
 
-/* The pause menu's Multiplayer page (Options, in a level; menu.hpp's party_lines): the party's code
- * (or where a direct one is), the host's level, each member with its round trip and UDP or TCP
- * (the host marked), and Leave party; out of a party, that it is in none. */
+// The pause menu's Multiplayer page (Options, in a level; menu.hpp's party_lines): the party's code
+// (or where a direct one is), the host's level, each member with its round trip and UDP or TCP
+// (the host marked), and Leave party; out of a party, that it is in none.
 void show_pause() {
     const mp::Session& s = *g->session;
     mp::PartyPageInput in;
@@ -128,22 +133,31 @@ void show_pause() {
     in.direct = s.direct();
     in.code = s.code();
 
+    // A hosting game says its port; a joining one, the address it joined.
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
         in.where = text("port ") + std::to_string(g->connection->hosting().port);
+    } else if (const std::string via = g->connection->game_server(); !via.empty()) {
+        // Through a hub: the game server it gave, by its name and region.
+        const mp::ListedServer listed = g->connection->game_server_listing();
+        in.where = via;
+        in.server = mp::server_text(listed.name, listed.region, mp::kServerValueChars);
     } else {
         in.where = g->connection->address();
     }
 
     // The host's level: the host's own, a member's as the host's LEVEL said.
     const mp::GameStatus status = g->game->status();
-    const int level = s.is_host() ? (mp::in_level(status.phase) ? status.level : -1)
-                                  : g->coop->host_level();
+    const int level =
+        s.is_host() ? (mp::in_level(status.phase) ? status.level : -1) : g->coop->host_level();
     in.host_level = level >= 0 ? g->mod->level_name(level) : "";
     in.go_to_host = g->coop->can_go();
 
+    // One line per member, with the host marked and the player's own.
     for (const mp::Member& m : s.members()) {
         const mp::Link link = s.link(m.id);
-        in.members.push_back({m.name, m.id == s.host(), m.id == s.id(), link.ping_ms, link.udp, m.id});
+        in.members.push_back(
+            {m.name, m.id == s.host(), m.id == s.id(), link.ping_ms, link.udp, m.id}
+        );
     }
 
     in.removes = s.is_host();
@@ -164,7 +178,10 @@ void show_pause() {
         c.items.push_back(openrac::UiItem::button(text(mp::kSavePartyLabel)));
     }
 
-    for (const mp::PartyLine& line : mp::party_lines(in, g_language)) {
+    // Each line of the party page becomes an item; the buttons are remembered by item number for
+    // on_pause.
+    for (const mp::PartyLine& line : mp::party_lines(in, language())) {
+        // The kind of line says whether it is text or which button it is.
         switch (line.kind) {
             case mp::PartyLine::Kind::kInfo:
                 c.items.push_back(openrac::UiItem::choice_of(line.label, {line.value}, 0));
@@ -200,8 +217,8 @@ void show_pause() {
     set_content(g->pause_page, c);
 }
 
-/* Leaves the party (Lobby's and the pause page's Leave): a host of a direct party stops hosting
- * (its clients get END); anyone else leaves. */
+// Leaves the party (Lobby's and the pause page's Leave): a host of a direct party stops hosting
+// (its clients get END); anyone else leaves.
 void leave_party() {
     g->notice.clear();
     g->leaving = true;
@@ -210,6 +227,7 @@ void leave_party() {
     g->migrate->leaving();
     g->session->flush();
 
+    // A direct host runs the party's server itself, so leaving means stopping it.
     if (g->connection->mode() == mp::Connection::Mode::kHosting) {
         g->connection->stop_hosting();
         poll();
@@ -218,17 +236,19 @@ void leave_party() {
     }
 }
 
-/* The pause page's events: Leave party asks first; the page follows the party each tick. */
+// The pause page's events: Leave party asks first; the page follows the party each tick.
 void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     const mp::Session& s = *g->session;
 
+    // Each item is told apart by the item number show_pause noted; -1 means it is not there.
     if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_tools && g->pause_tools >= 0) {
         show_comfort();
         g->comfort_page.open();
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_leave && g->pause_leave >= 0) {
         const bool hosting = g->connection->mode() == mp::Connection::Mode::kHosting;
         page.confirm(
-            mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed(), g_language), kAskLeave
+            mp::pause_leave_question(hosting, s.is_host(), g->migrate->followed(), language()),
+            kAskLeave
         );
     } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == g->pause_save && g->pause_save >= 0) {
         page.sound(g->cosave->save_party() ? OPENRAC_UI_SOUND_SELECT : OPENRAC_UI_SOUND_DENIED);
@@ -250,11 +270,13 @@ void on_pause(const openrac::UiPage& page, const openrac::UiEvent& e) {
     show_pause();
 }
 
-/* Back to the configured server, from a direct link or none (a host stopped, a join given up), so
- * Find, Create and Join by code work again. Nothing while linked to the server already. */
+// Back to the configured server, from a direct link or none (a host stopped, a join given up), so
+// Find, Create and Join by code work again. Nothing while linked to the server already.
 void back_to_server() {
     const mp::Connection::Mode mode = g->connection->mode();
 
+    // No link yet: open the server's. A direct or hosting link is switched to it in the next
+    // branch.
     if (mode == mp::Connection::Mode::kNone) {
         g->connection->open(g->host, g->port);
     } else if (mode != mp::Connection::Mode::kServer) {
@@ -263,9 +285,10 @@ void back_to_server() {
     }
 }
 
-/* Stops the server link and its reconnecting (a hosted or direct party is the only link then),
- * nothing when hosting already. Home links to the server again when it shows. */
+// Stops the server link and its reconnecting (a hosted or direct party is the only link then),
+// nothing when hosting already. Home links to the server again when it shows.
 void stop_server_loop() {
+    // Only a server link (with its reconnecting) or a direct one needs closing; hosting stays.
     if (mp::server_loop_wanted(g->connection->mode())
         || g->connection->mode() == mp::Connection::Mode::kDirect) {
         g->connection->close();
@@ -273,8 +296,8 @@ void stop_server_loop() {
     }
 }
 
-/* Home's events: the connection opens the first time it shows (and goes back to the server after
- * Direct connect); in a party, the lobby. */
+// Home's events: the connection opens the first time it shows (and goes back to the server after
+// Direct connect); in a party, the lobby.
 void on_home(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Session& s = *g->session;
 
@@ -325,7 +348,7 @@ void on_home(const openrac::UiPage& page, const openrac::UiEvent& e) {
     show_home();
 }
 
-/* Code's events: a character stepped, Join; once in the party, the lobby in this page's place. */
+// Code's events: a character stepped, Join; once in the party, the lobby in this page's place.
 void on_code(const openrac::UiPage& page, const openrac::UiEvent& e) {
     // A character's choice is its index in the alphabet.
     if (e.is(OPENRAC_UI_CHANGE) && e.item() >= 0 && e.item() < kJoinItem) {
@@ -347,11 +370,12 @@ void on_code(const openrac::UiPage& page, const openrac::UiEvent& e) {
     (void)page;
 }
 
-/* Join by address's row `item` changed to `choice`: the octet or the port it steps. */
+// Join by address's row `item` changed to `choice`: the octet or the port it steps.
 void step_address(int item, int choice) {
     mp::DirectAddress& a = g->address;
     const int times = g->acceleration.times(item, mp::now_ms());
 
+    // The first rows are the octets; the next two are the port by one and by a hundred.
     if (item >= 0 && item < static_cast<int>(a.octets.size())) {
         int& octet = a.octets[static_cast<std::size_t>(item)];
         octet = mp::ring_step(octet, choice, mp::kOctetRing, times);
@@ -362,8 +386,8 @@ void step_address(int item, int choice) {
     }
 }
 
-/* The Direct page's view changes in place, with the game's page-change sound, the cursor on
- * `item`. */
+// The Direct page's view changes in place, with the game's page-change sound, the cursor on
+// `item`.
 void switch_view(const openrac::UiPage& page, DirectView view, int item) {
     g->view = view;
     g->direct_error.clear();
@@ -373,10 +397,10 @@ void switch_view(const openrac::UiPage& page, DirectView view, int item) {
     page.sound(OPENRAC_UI_SOUND_PAGE);
 }
 
-/* Direct's events: Host directly hosts at once; Join by address shows the address's rows, whose
- * Join connects; once in the party (the hello answered), the lobby in this page's place. Triangle
- * goes from the rows back to the two buttons (giving up a join that is connecting), and from the
- * buttons back to Home. */
+// Direct's events: Host directly hosts at once; Join by address shows the address's rows, whose
+// Join connects; once in the party (the hello answered), the lobby in this page's place. Triangle
+// goes from the rows back to the two buttons (giving up a join that is connecting), and from the
+// buttons back to Home.
 void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
     mp::Connection& connection = *g->connection;
 
@@ -385,6 +409,7 @@ void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
         stop_server_loop();
     }
 
+    // Triangle goes one view back, or out to Home.
     if (e.is(OPENRAC_UI_BACK)) {
         // From the rows: the two buttons again, and no join pending.
         if (g->view == DirectView::kJoin) {
@@ -399,6 +424,7 @@ void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
         return;
     }
 
+    // The menu view has two buttons; the join view's rows are handled below.
     if (g->view == DirectView::kMenu && e.is(OPENRAC_UI_CHOOSE)) {
         // Host directly: this game hosts; a port taken stays here, saying so.
         if (e.item() == kHostItem && g->mods->solo()) {
@@ -416,6 +442,7 @@ void on_direct(const openrac::UiPage& page, const openrac::UiEvent& e) {
             return;
         }
     } else if (g->view == DirectView::kJoin) {
+        // A ring row steps its value; the Join row connects.
         if (e.is(OPENRAC_UI_CHANGE)) {
             step_address(e.item(), e.value());
         } else if (e.is(OPENRAC_UI_CHOOSE) && e.item() == kJoinAddressItem) {

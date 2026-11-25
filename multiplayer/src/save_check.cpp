@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * A save a party starts from, checked (save_check.hpp): the SDK's check, in the co-op's names.
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// A save a party starts from, checked (save_check.hpp): the SDK's check, in the co-op's names.
+
 #include "save_check.hpp"
 
 namespace mp {
@@ -26,6 +26,7 @@ SaveFault check_save(const Bytes& save) {
 }
 
 const char* save_fault_name(SaveFault fault) {
+    // Each fault has one word in the log.
     switch (fault) {
         case SaveFault::kNone:
             return "none";

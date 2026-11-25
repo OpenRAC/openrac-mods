@@ -23,10 +23,12 @@ section 11):
 | [difficulty](difficulty-mod/README.md) | native | A slider for everything: enemy count, damage both ways, enemy and Ratchet speed, weapon and ammo prices, ammo per shot, max ammo, bolt drops, health; presets Easy, Retail, Hard, Brutal and a seeded Chaos | PAL, NTSC-U; Going Commando: NTSC-U, PAL, NTSC-U v2.00 (no enemy count, enemy speed or health pickups there) |
 | [live-splits](live-splits/README.md) | native | Splits a LiveSplit timer as the player goes from planet to planet: the mod talks to LiveSplit's own server and splits at every planet, so a speedrunner does not touch the timer | PAL, NTSC-U |
 | [dualsense](dualsense/README.md) | native | A PlayStation 5 DualSense's own buttons as extra PlayStation 2 buttons (the touchpad, the microphone button, the DualSense Edge's paddles), its light bar showing Ratchet's health, a vibration when Ratchet is hit, hits something, breaks a crate, picks something up or finds a gold bolt, and a feel of its own for each weapon in the motors | PAL, NTSC-U |
-| [ammo-max](ammo-max/README.md) | native | At the vendor, buying ammo starts at the most you can buy (the rounds the weapon has room for, or as many as your bolts pay for) instead of 1; Down still lowers it | PAL, NTSC-U |
+| [ammo-max](ammo-max/README.md) | native | Starts individual RAC1 ammo purchases at the maximum affordable amount; Square / Xbox X also refills ammunition across owned weapons in one action | RAC1 PAL, NTSC-U; RAC2 NTSC-U, PAL, NTSC-U v2.00 |
 | [xbox-icons](xbox-icons/README.md) | native | The game's PlayStation 2 button icons as an Xbox controller's, in the game's own style: A, B, X, Y on its dark buttons, LB, RB, LT, RT; in Ratchet & Clank and Going Commando | PAL, NTSC-U; Going Commando: NTSC-U, PAL, NTSC-U v2.00 |
 | [multiplayer](multiplayer/README.md) | native | Online co-op for up to 4 players, through an OpenRAC server or Direct connect: a Multiplayer item in the main menu, whose pages are the game's own menus. Everyone plays in the host's level and shares its world, progress and co-op saves; a dropped player keeps its place, and another player takes over from a host that goes. Players on different discs of the game play together. Team tools add co-op rescue and host rally points, and the pages speak the game's five PAL languages. Needs OpenRAC's mod interface 1.14 | PAL, NTSC-U; Going Commando: NTSC-U, PAL, NTSC-U v2.00 (a first co-op chosen in the settings: the host's level, the others seen) |
+| [cheats](cheats/README.md) | native | Invincibility, infinite ammo, infinite oxygen under water and a bolt multiplier (x2 to x100), switched from Cheats in the pause menu's Options or from OpenRAC's own menu, with buttons that refill every weapon's ammo and give 10,000 bolts; a HUD line says what is on | PAL, NTSC-U |
 | [archipelago](archipelago/README.md) | native | Plays in an [Archipelago](https://archipelago.gg/) multiworld: the gadgets, weapons, vendor slots, gold bolts and infobots are locations, what they hold may be another game's item, and what others find for you comes to you; beat Drek to finish. With `rac1.apworld` from the release. Needs OpenRAC's mod interface 1.9 | PAL, NTSC-U |
+| [NG++](ng-plus-plus/README.md) | native | New Game++: Alpha to Omega: eight more tiers for every Going Commando weapon past its last version, bought then levelled with experience, each hitting harder, holding more ammo and with its own tint; an upgrade path for the RYNO II; enemies tougher with each challenge mode; bigger bolt drops, part of them as platinum bolts worth five times the gold ones | Going Commando: NTSC-U, PAL, NTSC-U v2.00 |
 
 ## Installing a mod
 
@@ -120,6 +122,25 @@ which the workflow finds by itself. Commits follow
 [Conventional Commits](https://www.conventionalcommits.org/), with the mod's
 id as the scope: `feat(lock-strafe): ...`.
 
+A native mod's code follows OpenRAC's
+[coding conventions](https://github.com/OpenRAC/OpenRAC/blob/develop/port/docs/CODING_CONVENTIONS.md)
+(layout by the port's `.clang-format`, comments and documentation, names,
+ownership, errors, file-local code in an anonymous namespace, state in
+objects), adapted to a mod:
+
+- C++17, through the SDK's `openrac/mod.hpp`, where the port's rules ask for
+  C++20 (`std::span` and `std::format` are not there; use views, pointers and
+  sizes, and `std::string` or `std::to_string`).
+- The game is reached only through the SDK's C ABI (`openrac/openrac_mod.h`)
+  and its hook points; no exception leaves a hook or a callback (the SDK's
+  layer catches them).
+- A mod keeps what it saves in its own data folder (`data_dir`), never in the
+  memory card or the game's files.
+- No game data in a mod: no code, text or bytes of the discs, in sources,
+  tests or logs.
+
+[ng-plus-plus](ng-plus-plus/README.md) is laid out this way.
+
 What a mod may use of the game is what the port offers it: the hook points
 of the SDK's `openrac/games/rac1.h` (and, for scripts, `types/rac1.d.luau`). One it needs and the port lacks is a
 change to OpenRAC first (a `hook` row in the disc's `libraries.tsv`).
@@ -162,7 +183,12 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   mod's repository.
 - A new version of a native mod from another repository reaches players 24 h
   after its release, once a maintainer has approved it on its review issue
-  (`index/approved.json`).
+  (`index/approved.json`). The approval holds the archives' SHA-256: if an
+  archive changes later, that version goes back to review. The issue also lists
+  what the libraries can reach past the game (network, other programs, other
+  processes, keyboard hooks, saved secrets, URLs), read from their import
+  tables and strings by `tools/binary_scan.py`, and what is new since the
+  published version.
 - The bot is **openrac-bot**, a GitHub App of the organization, installed on this
   repository only. Its App id and private key are the repository secrets
   `OPENRAC_BOT_APP_ID` and `OPENRAC_BOT_PRIVATE_KEY`; each job asks it for a

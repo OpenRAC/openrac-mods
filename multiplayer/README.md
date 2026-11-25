@@ -27,9 +27,13 @@ What is still to be decided, and what already is, is in [DECISIONS.md](DECISIONS
 
 ## Playing
 
-1. Install the mod from the launcher's **Mods** tab, switch it on, and set **Server** to the
-   OpenRAC server you play on (`game.openrac.dev:7770` by default, the public OpenRAC server;
-   `localhost:7770` for a server on your own computer).
+1. Install the mod from the launcher's **Mods** tab and switch it on. It plays on the launcher's
+   **Multiplayer server** (Settings, General: the public OpenRAC hub, `hub.openrac.dev:7177`, by
+   default, or the game server `game.openrac.dev:7770` in older launchers; `localhost:7177` for a
+   hub on your own computer, `localhost:7770` for a game server), which every game's online play
+   shares. The mod's own **Server** setting, left empty, follows it; set, it wins. A hub lists game
+   servers: the mod plays on the first it lists, or the first of the **Region** setting's region
+   (see [Servers and the hub](#servers-and-the-hub)).
 2. Your name is the mod's **Name** setting, or, while that is empty, `${player_name}` (the default) or not a valid name, the
    launcher's **Multiplayer name** (Settings, General), which the launcher makes up at its first
    start. Either way it is 3 to 16 letters, digits and underscores. Without either (the game started
@@ -219,9 +223,35 @@ server's state; leaving a direct party goes back to Home, which tries the server
 
 | Setting | Default | |
 |---|---|---|
-| Server | `game.openrac.dev:7770` | The OpenRAC server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given |
+| Server | empty (the launcher's Multiplayer server) | The OpenRAC hub or game server, as host:port (`[::1]:7770` for an IPv6 address); 7770 when no port is given. Empty or not an address: the launcher's **Multiplayer server** (Settings, General), which the game gets as `OPENRAC_SERVER`; without one (the game started without the launcher, or a launcher older than the setting), `game.openrac.dev:7770` |
+| Region | empty | At a hub: the region of its list to play in, in any case, as a code, a short label or a name (`US`, `USA` or `United States`; `DE`, `DEU` or `Germany`; `EU` or `Europe`; `LOCAL`, `LAN` or `Local network`); empty, or one the hub does not list: the first game server it lists. Not used with a game server's address |
 | Name | `${player_name}` (the launcher's Multiplayer name) | Your name in multiplayer, 3 to 16 letters, digits or underscores; empty, `${player_name}` or not valid: the launcher's Multiplayer name |
 | Verbose log | off | For reports of the party's world going wrong (mobys lost when a player pauses): an `[mp-trace]` line for each event, one a line, in `mp-trace.log` in the mod's data folder (`mod-data/multiplayer` beside the memory cards; on Android the Files app's **OpenRAC > Mod files > multiplayer**; with an OpenRAC older than 1.11 the game's working directory; the game's log says where, once), on either side; also on with `OPENRAC_MP_TRACE=1`. Each line is `[mp-trace] f=<frame> t=<ms> <host, member or solo> <what> ...`, `what` one of: `pause` (the phase and the level's game mode changing, a menu entered and left, and each tick a menu is open: the camera mods read, the camera the game's run list measured from, the level's camera the pause menu puts up and what the menu's update did with the world), `run` (a moby the run list left out by distance while a menu is open, one going in or out of range, with its distance and its update and draw distances; once a second under a menu how many ran), `vis` (a moby hidden, shown, dead, gone from the listing, or drawn or not under a menu), `net` (every 5 seconds, what went through the session so far: DATA frames and state sent, what the buckets held back, the most events queued, then per DATA kind `e` events, `s` state and `r` received as `e7=messages/bytes`), `despawn` (a moby gone or hidden: its class, key, slot, driven, shared or local, who removed it, the sync for a message and its sender, this game's own update or another moby's, a mod, or vanished with no deletion seen, its last place, its distance from the hero and the camera, its state and flags, and on a member when the host last sent it; each moby_kill of the sync's), `eyes` (the points the host's game runs the world around), `snap` (each snapshot sent or received: its count, the ids added and missing since the last), `drive` (a moby driven from the host's or let go), `msg` (KILLED, DEAD, DESPAWN, BROKE and SPAWN sent or received) and `census` (every second, the live mobys by class and the ones that came and went). At most 2,000 lines a second, the rest counted in one line. Off: none of them |
+
+## Servers and the hub
+
+The address the mod connects to (the Server setting, or the launcher's) is either a **game server**,
+which runs the parties, or the **hub** (OpenRAC/Server, The hub), which lists game servers by region
+and runs no parties: it closes a client that sends it PARTY. The mod finds out which on a connection
+of its own: it says HELLO and reads the UDP offer. Without the hub's feature bit (64, `SERVERS`) it
+is a game server, and the mod plays there as before. With it, the mod asks `REGIONS` with its game
+family, takes the first listed server of the Region setting's region (else the first listed; an empty
+host is the hub's own) and plays there: HELLO, the party pages, everything as on a game server named
+directly. Every reconnect asks the hub again, so a game server that closed is replaced by another.
+There is no login: the player plays under its HELLO name. A hub with no game server listed reads
+**Server offline**, and the mod asks again every few seconds. The game's log says which game server
+the hub gave (`the hub at ... gave game server ... at host:port`), and the pause menu's page shows
+it.
+
+A hub lists each game server under a region code (the Server's docs/configuration.md, Region
+codes): every ISO 3166-1 alpha-2 country code (`US`, `CA`, `AU`, `DE`, `GB`, `FR`, `JP`, `BR` and
+the rest), `EU` for Europe as a whole and `LOCAL` for a LAN or development box. `REGIONS` gives each
+server's name after the list; an older hub sends none. The mod's table (src/regions.cpp) turns a
+code into a name (`United States`) and a short label (the ISO alpha-3 code, `USA`; `EU`, and `LAN`
+for `LOCAL`); a code it does not know reads as it came. The game's log and the pause page's
+**Server** line show the server as `<server name> (<region>)`, or the region alone for a server
+without a name: `Thyrannosis USA (United States)` in the log, `Thyrannosis USA (USA)` on the pause
+page when the region's name does not fit there (22 characters; past that the server's name is cut).
 
 ## Team tools: rescue and rally points
 
@@ -249,10 +279,16 @@ joining a game that is on. Mods declare what they are in their `openrac-mod.json
 | `gameplay` (also a mod that says nothing) | Difficulty, Item Randomizer, Ammo Max | Must match the host's. A player with one the host lacks differs too |
 | `input` | Keyboard and Mouse, DualSense, Lock-strafe, Button Swap | Each player's own |
 | `cosmetic` | Xbox Icons, Live Splits | Each player's own |
-| `solo` | Archipelago | Cannot be played in a party: its checks and items belong to one Archipelago slot, and a party shares its items. It can neither host nor join: turn it off to play |
+| `solo` | Archipelago, Cheats | Cannot be played in a party: Archipelago's checks and items belong to one Archipelago slot, and a party shares its items; Cheats' bolts, health and ammo would differ from the host's world. It can neither host nor join: turn it off to play |
 
 A setting of a gameplay mod may say `"multiplayer": "own"`, each player's (Detailed log, Spoiler
 log), or `"multiplayer": "host"`, which the host's rules bring (the seeds). Neither is compared.
+
+When another player takes over as host, the party's rules stay as they were. Its game tells each
+of its mods that took them that it hosts now (an empty delivery: 0 bytes, which no host publishes),
+and passes on the rules a mod publishes after that: Difficulty then runs the events and the enemy
+copies the old host ran, by the same rules. A mod that publishes nothing new keeps the old host's
+rules (the Item Randomizer's seed).
 
 **A player who does not match** can't say Ready, and the host can't Start while that player is in
 the party: the player leaves or fixes it, or the host removes it. The page says how, and shows by
@@ -485,7 +521,7 @@ for an empty one). The mod speaks all of it:
 
 | Packet | The mod sends | The mod reads |
 |---|---|---|
-| 0 HELLO | its version (`rac1-multiplayer/0.12.3`; `rac2-multiplayer/0.12.3` in Going Commando) and the player's name, on every connection | the session id |
+| 0 HELLO | its version (`rac1-multiplayer/0.14.1`; `rac2-multiplayer/0.14.1` in Going Commando) and the player's name, on every connection | the session id |
 | 1 PARTY | CREATE (0) with the party's description (the save's words, then `|` and four hex digits of the host's mods' digest; Going Commando's `Pokitaru, 3 platinum bolts|3fa9/rac2`, the game's id after a slash), JOIN code (1), LEAVE (2), LIST (8); CREATE, JOIN, LIST and FIND end with the world family (string), HOST_CHANGED (9: who may follow the host, or a new host that cannot), RESUME (10: back in a kept place), KICK (11); FIND (7) is still understood | INFO (3, with the description), JOINED (4), LEFT (5), END (6), LIST (8: per party its code, host's name, members, size and description), HOST_CHANGED (9), RESUME (10: a member gone or back), KICKED (12) |
 | 2 CHAT | (nothing yet) | sender and message (not shown yet) |
 | 3 DATA | the lobby's Ready and Start, below | the same, and anything else for the game data to come |
@@ -548,7 +584,7 @@ DATA reaches the host only, the host's goes to everyone or to one), a kind byte 
 | 4 PLAY | the host, to all or one | play i32, mode u8 (0 new game, 1 save), level i32 (-1: the save's), save size i32, build string, joining u8 | play this game; a save follows in CHUNKs. `play` names the host's game. A member whose build (the mod's version, OpenRAC's, the disc's world family, the gameplay mods' digest) differs refuses it: "You can't join: your game differs from the host's". `joining`: the game is on and this member comes into it |
 | 5 CHUNK | the host | play i32, offset i32, up to 16,000 bytes | a piece of PLAY's save (a Ratchet & Clank save is 59,912 bytes: four pieces) |
 | 6 LEVEL | the host, to all | play i32, level i32, scene u8, travel u16, dest i32, arriving u8, ship held u8 | the level the host plays (-1 none) and whether it plays a scene, once a second and at each change; its last ship travel (a count and the planet) and whether the party still arrives there. A member in another level travels there, a member in a scene the host is out of skips it, a member that has not left for the host's newest travel leaves at once (a LEVEL without the travel fields, an older mod, travels as before) |
-| 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene, 8 in a menu, 16 airborne), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing |
+| 7 POSE | a member, as state; the host's own with one member in the party | owner i32, sequence u16, stamp i64 (the server's clock, ms), level i8, flags u8 (1 blending, 2 teleport, 4 in a scene, 8 in a menu, 16 airborne, 32 scale at the end), position, rotation and velocity (3 x f32 each), state, health and item (i16 each), seq, frame and next frame (u8 each), anim time u8 (/255), anim speed i16 (/1000); then what it wears and holds: count u8, per piece slot u8, part u8, item u8, class i16, joint u8, flags u8 (1 hidden, 2 blending, 4 loose), seq, frame, next frame, anim time (u8 each), anim speed i16, and for a loose piece its position and rotation (3 x f32 each) | a player's Ratchet, 20 a second (65 bytes, then 13 a piece); a member's goes to the host, who passes it on in POSES. A pose that ends after 65 bytes (an older mod) wears nothing. With flag 32 its last 4 bytes are the hero's scale (f32), after the world's ack |
 | 8 WANT | a member | play i32 | in the title without the host's game: asks for it again |
 | 9 WORLD | the host to a member, as state | level i8, stamp i64, sequence u16, count u8, then per moby: id u16 (its key; 0x8000 \| a net id for one spawned), position 3 x f32, rotation 3 x i16 (1/10,000 rad), seq, frame, anim time and speed (u8 each), flags u8 (1: hidden; 2: loose, a bolt landed in the host's game, which the member's game now runs as its own) | the 46 mobys that member most needs of those it does not have yet, 7 to 15 times a second (WORLD and lost datagrams, What goes first, above; a landed bolt until it is heard) |
 | 10 KILLED | the host | level i8, count u16, keys u16... | placed mobys gone in the host's game |
@@ -724,6 +760,30 @@ without a game disc. Dynamic fields are shortened without splitting a UTF-8 char
 
 ## History
 
+- 0.14.1: **Regions and server names**: a hub lists game servers by region code and with a server
+  name; the game's log and a new **Server** line on the pause page show the hub's pick as
+  `Thyrannosis USA (United States)`, or the region alone. The **Region** setting takes a code
+  (`US`) as well as a name (`United States`) or a short label (`USA`). See
+  [Servers and the hub](#servers-and-the-hub).
+- 0.14.0: **The hub**: the launcher's Multiplayer server can be the OpenRAC hub
+  (`hub.openrac.dev:7177`), which lists game servers. The mod asks the address what it is first and,
+  at a hub, plays on the first game server it lists, or the first of the new **Region** setting's
+  region; a game server's address plays as before. No login is needed. See
+  [Servers and the hub](#servers-and-the-hub).
+- 0.13.0: **The launcher's server**: the Server setting is empty by default and then follows the
+  launcher's **Multiplayer server** (Settings, General; `OPENRAC_SERVER`), so a self-hosted
+  OpenRAC server is named once for every game. A server typed into the setting still wins; without
+  either, `game.openrac.dev:7770`.
+- 0.12.6: no change in what the mod does: the source follows OpenRAC's C++ coding conventions
+  (layout, `//` comments with doc comments, anonymous namespaces, the mod's state in one object).
+- 0.12.5: **A Ratchet at his own size**: a pose now carries the hero's scale. A player's figure
+  kept the scale the hero had when it was made, so after Go to host the other player could look wide.
+- 0.12.4: **The stick on the pause menu's pages**: moving the cursor with the left stick no longer
+  chooses the row it arrives at. The game takes a stick leaning a little to the side as Left or
+  Right too, and OpenRAC chose a row's button (or a question's Yes) on those: pushing the stick down
+  could save the party, go to the host, give up a rescue, remove a member or leave the party. Each
+  event is now checked against the pad (src/pad_intent.hpp): the stick pushed more up or down than
+  sideways changes nothing, and only Cross chooses or answers Yes.
 - 0.12.3: the verbose log's `mp-trace.log` is in the mod's data folder, so on Android it can be
   opened from the Files app (OpenRAC > Mod files).
 - 0.12.2: **One game per party**: each party request says the game's world family, so the server
@@ -786,12 +846,16 @@ and that each game keeps to its own parties: Ratchet & Clank's untagged and dige
 its own, Going Commando's only those tagged rac2. `tests/rac2/load_test.cpp`
 (`multiplayer_rac2_load`) loads the library as the port does in Going Commando: no hook point taken
 (Ratchet & Clank's are its own), the pages made, Multiplayer under Load Game and in the pause menu,
-frames run in the title, a port without the play calls and another game refused.
+frames run in the title, a port without the play calls and another game refused; then again with
+the launcher's server a hub and a region set, and with a Server setting that is not an address.
 
 `tests/e2e` does the same with the real game: see its README.
 
 `tests/multiplayer_test.cpp` checks the frames byte for byte against the server's encoding, the
-lobby's logic against a recorder, the connection against a small server on the loopback, and
+lobby's logic against a recorder, the connection against a small game server and a small hub on
+the loopback (a direct address asked and played on, a hub's list read and the region's server
+played on with nothing past REGIONS sent to the hub, a hub listing none), the hub's list and the
+choice from it, and
 Direct connect: a host and two clients on the loopback (the party, chat, DATA both ways, UDP state,
 leaving, the host stopping) and the server's limits held by the host; and the pages' own logic:
 the address rows stepping around their ends and faster when held, the hosting lines, and the name

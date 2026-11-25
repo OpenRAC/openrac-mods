@@ -34,7 +34,7 @@ list(APPEND MULTIPLAYER_PLAY_TESTS tests/play_sync_test.cpp tests/play_migrate_t
 openrac_add_mod(multiplayer MANIFEST openrac-mod.json
                 SOURCES src/multiplayer.cpp src/comfort.cpp src/game_adapter.cpp src/pages_home.cpp src/pages_browse.cpp src/pages_saves.cpp
                         src/pages_lobby.cpp src/pages_refused.cpp src/pages_rules.cpp src/pages_remove.cpp src/session.cpp src/connection.cpp src/host.cpp
-                        src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
+                        src/direct.cpp src/protocol.cpp src/regions.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
 # The sources include each other's headers from src/.
 target_include_directories(multiplayer PRIVATE src)
 # The end-to-end tests' driver (src/bot.hpp, tests/e2e): a development build's, never a release's.
@@ -62,7 +62,7 @@ if(BUILD_TESTING)
   # The protocol's bytes and the session's lobby, against a recorder; then the connection against
   # a server the test makes on the loopback, and Direct connect: a host and clients on the loopback.
   add_executable(multiplayer_test tests/multiplayer_test.cpp src/session.cpp src/connection.cpp src/host.cpp
-                 src/direct.cpp src/protocol.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
+                 src/direct.cpp src/protocol.cpp src/regions.cpp ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_test PRIVATE src "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   target_link_libraries(multiplayer_test PRIVATE Threads::Threads)
@@ -73,7 +73,7 @@ if(BUILD_TESTING)
   add_test(NAME multiplayer COMMAND multiplayer_test)
   # Playing together, without the game: the poses' bytes, the interpolation buffer, and the co-op
   # of a host and members through a router that does what the server does with DATA.
-  add_executable(multiplayer_play_test ${MULTIPLAYER_PLAY_TESTS} src/session.cpp src/protocol.cpp
+  add_executable(multiplayer_play_test ${MULTIPLAYER_PLAY_TESTS} src/session.cpp src/protocol.cpp src/regions.cpp
                  ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_play_test PRIVATE src "${OPENRAC_MOD_SDK_DIR}/include")
   # Poses recorded from two games (a walk with stops, a stall of the sender's), replayed.
@@ -83,7 +83,7 @@ if(BUILD_TESTING)
   # The party on a seeded network over many seeds (the head of tests/sim_sweep_test.cpp): a few a
   # cell in every build; MULTIPLAYER_HEAVY_SWEEP adds the sweep a change of the sync is judged by.
   option(MULTIPLAYER_HEAVY_SWEEP "Run the many-seed sweep of the sync with the tests" OFF)
-  add_executable(multiplayer_sweep_test tests/sim_sweep_test.cpp src/session.cpp src/protocol.cpp
+  add_executable(multiplayer_sweep_test tests/sim_sweep_test.cpp src/session.cpp src/protocol.cpp src/regions.cpp
                  ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_sweep_test PRIVATE src tests "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_sweep_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
@@ -95,7 +95,7 @@ if(BUILD_TESTING)
   endif()
   # The interpolation buffer over a real network: late, uneven, reordered and lost poses, and the
   # arrivals of a session through the public server, shown as smoothly as they should be.
-  add_executable(multiplayer_smooth_test tests/smooth_test.cpp src/play.cpp src/protocol.cpp)
+  add_executable(multiplayer_smooth_test tests/smooth_test.cpp src/play.cpp src/protocol.cpp src/regions.cpp)
   target_include_directories(multiplayer_smooth_test PRIVATE src)
   target_compile_definitions(multiplayer_smooth_test PRIVATE MP_TEST_DATA="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
   set_target_properties(multiplayer_smooth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
@@ -106,8 +106,15 @@ if(BUILD_TESTING)
   target_include_directories(multiplayer_kinds_test PRIVATE src)
   set_target_properties(multiplayer_kinds_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_kinds COMMAND multiplayer_kinds_test)
+  # The pages' events as the player meant them (src/pad_intent.hpp): the stick moving the cursor
+  # chooses nothing.
+  add_executable(multiplayer_pad_intent_test tests/pad_intent_test.cpp)
+  target_include_directories(multiplayer_pad_intent_test PRIVATE src)
+  target_link_libraries(multiplayer_pad_intent_test PRIVATE OpenRAC::mod)
+  set_target_properties(multiplayer_pad_intent_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME multiplayer_pad_intent COMMAND multiplayer_pad_intent_test)
   # The five PAL languages, the pages' words in each, the game font's letters and UTF-8-safe bounds.
-  add_executable(multiplayer_words_test tests/words_test.cpp src/session.cpp src/protocol.cpp src/direct.cpp
+  add_executable(multiplayer_words_test tests/words_test.cpp src/session.cpp src/protocol.cpp src/regions.cpp src/direct.cpp
                  ${MULTIPLAYER_COOP_SOURCES} src/coop_scenes.cpp src/play.cpp ${MULTIPLAYER_WORLD_SOURCES} src/party_mods.cpp src/modcode.cpp src/save_check.cpp src/progress.cpp src/shared.cpp src/camscripts.cpp src/despawn.cpp src/trace.cpp src/world_trace.cpp src/migrate.cpp)
   target_include_directories(multiplayer_words_test PRIVATE src "${OPENRAC_MOD_SDK_DIR}/include")
   set_target_properties(multiplayer_words_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
@@ -120,7 +127,7 @@ if(BUILD_TESTING)
   add_dependencies(multiplayer_rac2_load_test multiplayer)
   add_test(NAME multiplayer_rac2_load COMMAND multiplayer_rac2_load_test $<TARGET_FILE:multiplayer>)
   # Team tools (src/comfort.hpp): rescue, its window and rally points among a party's games.
-  add_executable(multiplayer_comfort_test tests/comfort_test.cpp src/comfort.cpp src/protocol.cpp)
+  add_executable(multiplayer_comfort_test tests/comfort_test.cpp src/comfort.cpp src/protocol.cpp src/regions.cpp)
   target_include_directories(multiplayer_comfort_test PRIVATE src)
   set_target_properties(multiplayer_comfort_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME multiplayer_comfort COMMAND multiplayer_comfort_test)

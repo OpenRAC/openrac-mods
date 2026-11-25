@@ -4,24 +4,30 @@
 // Playing together, without the game or a socket: WORLD's delivery (acks, what goes again), its
 // priority, its share of the state budget and each stream's margin. A pair of games whose datagrams
 // the test delivers one by one, so a loss is the one the test means.
+
 #include "test_support.hpp"
 
 namespace mpt {
 namespace {
 
+// The first byte of a WORLD datagram, to tell it from the other kinds.
 constexpr std::uint8_t kWorldByte = static_cast<std::uint8_t>(mp::WorldKind::kWorld);
 
 // A host and `members` members in level 3, with UDP, every datagram at the next step unless `drop`
 // says so. What went is kept for the test to read.
 struct Pair {
+    // The players, owned here; `all` points at them and `host` and `member` name the first two.
     std::vector<std::unique_ptr<Player>> keep;
     std::vector<Player*> all;
     Player& host;
     Player& member;
+    // Decides, per datagram, whether the link loses it; empty means nothing is lost.
     std::function<bool(const Player& from, const Bytes&)> drop;
     std::vector<std::pair<std::int32_t, Bytes>> worlds;  // the WORLDs the host sent, by member
+    // How many datagrams each player sent, by first byte (plus 256 for a member's).
     std::map<int, long> state_out;
 
+    // Returns the host (id 1) and `members` members (ids 2 and up), not yet joined.
     static std::vector<std::unique_ptr<Player>> make(int members) {
         std::vector<std::unique_ptr<Player>> out;
 
@@ -32,7 +38,11 @@ struct Pair {
         return out;
     }
 
-    explicit Pair(std::vector<mp::MobyState> level, int members = 1) : keep(make(members)), host(*keep[0]), member(*keep[1]) {
+    // Starts a game for the host and members, all in level 3 holding `level`'s mobys, over UDP.
+    explicit Pair(std::vector<mp::MobyState> level, int members = 1)
+        : keep(make(members)),
+          host(*keep[0]),
+          member(*keep[1]) {
         std::vector<mp::Member> list;
 
         for (auto& p : keep) {
@@ -45,6 +55,7 @@ struct Pair {
         CHECK(start_ready(host));
         route(all);
 
+        // Every game starts in level 3 with the same mobys and a UDP link.
         for (Player* p : all) {
             p->game.now = {mp::kPhasePlaying, 3, 2};
             p->game.level = level;
@@ -52,6 +63,7 @@ struct Pair {
         }
     }
 
+    // Advances every player's clock by `ms`, runs its coop tick and delivers what that sent.
     void step(std::uint64_t ms = 16) {
         for (Player* p : all) {
             p->clock += ms;
@@ -62,6 +74,7 @@ struct Pair {
 
         route(all);
 
+        // Datagrams a game sent this step are taken from its link and delivered below.
         for (Player* from : all) {
             std::vector<std::pair<std::int32_t, Bytes>> out;
             out.swap(from->link.datagrams);
@@ -69,16 +82,21 @@ struct Pair {
             for (const auto& [target, bytes] : out) {
                 ++state_out[bytes[0] | (from == &host ? 0 : 256)];
 
+                // Only the host's WORLDs are kept, for told() to count.
                 if (from == &host && bytes[0] == kWorldByte) {
                     worlds.emplace_back(target, bytes);
                 }
 
+                // The test's drop rule decides which datagrams the link loses.
                 if (drop && drop(*from, bytes)) {
                     continue;
                 }
 
+                // The host's datagrams go to the member they name, or to all; a member's go to the host.
                 for (Player* to : all) {
-                    const bool reaches = to != from && (from == &host ? target == 0 || target == to->id : to == &host);
+                    const bool reaches =
+                        to != from
+                        && (from == &host ? target == 0 || target == to->id : to == &host);
 
                     if (reaches) {
                         mp::Message m;
@@ -92,6 +110,7 @@ struct Pair {
         }
     }
 
+    // Runs `steps` ticks of 16 ms.
     void run(int steps) {
         for (int i = 0; i < steps; ++i) {
             step();
@@ -123,7 +142,7 @@ struct Pair {
     }
 };
 
-
+// Returns whether `bytes` is a WORLD datagram with an entry for moby `id`.
 bool names(const Bytes& bytes, std::uint16_t id) {
     if (bytes[0] != kWorldByte) {
         return false;
@@ -133,27 +152,30 @@ bool names(const Bytes& bytes, std::uint16_t id) {
     std::int64_t stamp = 0;
     std::vector<mp::WorldEntry> entries;
     return mp::decode_world(bytes, level, stamp, entries)
-           && std::any_of(entries.begin(), entries.end(), [id](const mp::WorldEntry& e) { return e.id == id; });
+           && std::any_of(entries.begin(), entries.end(), [id](const mp::WorldEntry& e) {
+                  return e.id == id;
+              });
 }
 
-
+// Returns whether `bytes` is a pose datagram sent by a player other than the host.
 bool pose_from_member(const Player& from, const Bytes& bytes) {
     return from.id != 1 && bytes[0] == mp::kPoseKind;
 }
 
-
+// Returns `count` creature mobys that run on their own, `spread` units apart along x.
 std::vector<mp::MobyState> enemies(int count, float spread = 2.0f) {
     std::vector<mp::MobyState> out;
 
     for (int i = 0; i < count; ++i) {
-        mp::MobyState m = moby(i, i, 300, SimWorld::kRuns | mp::kMobyCreature, static_cast<float>(i) * spread);
+        mp::MobyState m =
+            moby(i, i, 300, SimWorld::kRuns | mp::kMobyCreature, static_cast<float>(i) * spread);
         out.push_back(m);
     }
 
     return out;
 }
 
-
+// Checks that a WORLD datagram's bytes carry its sequence and the acknowledgement.
 void the_bytes_say_the_sequence_and_the_ack() {
     mp::WorldEntry e;
     e.id = 7;
@@ -167,7 +189,10 @@ void the_bytes_say_the_sequence_and_the_ack() {
     CHECK(mp::decode_world(b, level, stamp, out, &sequence));
     CHECK(sequence == 65000 && out.size() == 1 && out[0].id == 7);
     // Within a datagram at its fullest, so it never falls back on the stream.
-    CHECK(1 + 1 + 8 + 2 + 1 + mp::kWorldEntries * mp::kWorldEntryBytes + mp::kClientStateHeader <= mp::kMaxDatagramBytes);
+    CHECK(
+        1 + 1 + 8 + 2 + 1 + mp::kWorldEntries * mp::kWorldEntryBytes + mp::kClientStateHeader
+        <= mp::kMaxDatagramBytes
+    );
 
     mp::PoseMessage m;
     m.owner = 2;
@@ -186,7 +211,7 @@ void the_bytes_say_the_sequence_and_the_ack() {
     CHECK(mp::decode_pose(plain, heard) && !heard.world_ack);
 }
 
-
+// Checks that a member's acknowledgement goes to the host and a third player never sees it.
 void the_ack_stays_between_the_member_and_the_host() {
     // A third player hears the member's pose by way of the host, without its word on WORLD.
     Pair p(enemies(1), 2);
@@ -194,11 +219,13 @@ void the_ack_stays_between_the_member_and_the_host() {
     Player& third = *p.all[2];
     bool passed_on = false;
     p.drop = [&](const Player& from, const Bytes& bytes) {
+        // Only the host's pose datagrams are read.
         if (&from == &p.host && bytes[0] == static_cast<std::uint8_t>(mp::GameKind::kPoses)) {
             passed_on = true;
             mp::Reader r(bytes.data() + 1, bytes.size() - 1);
             const std::uint8_t count = r.u8();
 
+            // A pose datagram holds a count, then each pose with its 16-bit size.
             for (std::uint8_t i = 0; i < count; ++i) {
                 const std::uint8_t high = r.u8();
                 const std::size_t size = static_cast<std::size_t>(high) << 8 | r.u8();
@@ -221,7 +248,7 @@ void the_ack_stays_between_the_member_and_the_host() {
     CHECK(third.coop.latest(2, seen));
 }
 
-
+// Checks that a change that arrived is not sent again.
 void a_delivered_change_goes_once() {
     Pair p(enemies(2));
     p.settle();
@@ -233,7 +260,7 @@ void a_delivered_change_goes_once() {
     CHECK(p.told(1) == 0);
 }
 
-
+// Checks that a change undone while its word is in flight is sent as well.
 void a_change_undone_on_the_way_goes_too() {
     // It hides and the word goes; before that word is known to have come it shows again, as the
     // member was last known to have it. The word on its way will hide it there all the same.
@@ -244,6 +271,7 @@ void a_change_undone_on_the_way_goes_too() {
     p.drop = pose_from_member;
     p.host.game.level[0].flags |= mp::kMobyHidden;
 
+    // Run until the host's WORLD first names the hidden moby.
     while (p.told(0) == 0) {
         p.step();
     }
@@ -256,7 +284,7 @@ void a_change_undone_on_the_way_goes_too() {
     CHECK((by_key(p.member.game, 0)->flags & mp::kMobyHidden) == 0);
 }
 
-
+// Checks that a word given up for lost still counts when it arrives late.
 void a_word_given_up_for_lost_can_still_come() {
     // The word is late, not lost: given up, the moby changed back, and then the word comes.
     std::vector<mp::MobyState> level = enemies(1);
@@ -270,6 +298,7 @@ void a_word_given_up_for_lost_can_still_come() {
     };
     p.host.game.level[0].flags |= mp::kMobyHidden;
 
+    // Run until the first WORLD naming the moby has been held back.
     while (late.empty()) {
         p.step();
     }
@@ -286,7 +315,7 @@ void a_word_given_up_for_lost_can_still_come() {
     CHECK((by_key(p.member.game, 0)->flags & mp::kMobyHidden) == 0);
 }
 
-
+// Checks that a change whose datagram is known lost goes again as soon as newer ones are heard.
 void a_lost_change_goes_again_at_once() {
     // Far away, where the old world came back to it every 3 seconds: a moby 300 units off.
     std::vector<mp::MobyState> level = enemies(2);
@@ -314,7 +343,7 @@ void a_lost_change_goes_again_at_once() {
     CHECK(std::fabs(by_key(p.member.game, 1)->pose.position[1] - 5.0f) < 0.01f);
 }
 
-
+// Checks that a lost change with no newer datagram goes again after the time-out.
 void a_lost_change_with_nothing_after_it_goes_again_in_time() {
     std::vector<mp::MobyState> level = enemies(1);
     level[0].pose.position[0] = 300.0f;
@@ -334,7 +363,7 @@ void a_lost_change_with_nothing_after_it_goes_again_in_time() {
     CHECK(std::fabs(by_key(p.member.game, 0)->pose.position[1] - 5.0f) < 0.01f);
 }
 
-
+// Checks that missing acknowledgements make the host resend once per time-out and no faster.
 void acks_that_never_come_slow_nothing_down() {
     // No word back at all: each moby goes again each time-out, and no faster.
     Pair p(enemies(1));
@@ -348,7 +377,7 @@ void acks_that_never_come_slow_nothing_down() {
     CHECK(std::fabs(by_key(p.member.game, 0)->pose.position[1] - 5.0f) < 0.01f);
 }
 
-
+// Checks that a moby that does not move is still sent once each keep-alive period.
 void a_moby_that_stands_goes_now_and_then() {
     // For whatever the host cannot see: one more word each kWorldKeepMs, no more.
     Pair p(enemies(1));
@@ -357,7 +386,7 @@ void a_moby_that_stands_goes_now_and_then() {
     CHECK(p.told(0) == 2);
 }
 
-
+// Checks that an acknowledgement from before the member's level was made again is ignored.
 void a_word_from_before_a_hello_says_nothing() {
     // The moby is told where it stands, and that datagram's fate is still open when the member's
     // level is made again: everything it heard is gone with its load.
@@ -384,6 +413,7 @@ void a_word_from_before_a_hello_says_nothing() {
         return drop || pose;
     };
 
+    // Run until the first WORLD to the new load has been lost.
     while (!lost) {
         p.step();
     }
@@ -404,7 +434,7 @@ void a_word_from_before_a_hello_says_nothing() {
     CHECK(std::fabs(by_key(p.member.game, 0)->pose.position[1] - 7.0f) < 0.01f);
 }
 
-
+// Checks that the member acknowledges only the WORLDs of its own level.
 void only_what_was_taken_is_said_heard() {
     // A WORLD of another level changes nothing here, and the host must not take it as heard.
     Pair p(enemies(1));
@@ -438,7 +468,7 @@ void only_what_was_taken_is_said_heard() {
     CHECK(said.world_ack && said.world_newest == next);
 }
 
-
+// Checks that a datagram arriving after newer ones is still acknowledged.
 void a_late_datagram_still_counts_as_heard() {
     // Sequences 2 and 3 first, then 1: all three said heard, and the bit field right.
     Pair p(enemies(1));
@@ -456,7 +486,9 @@ void a_late_datagram_still_counts_as_heard() {
     e.id = 0;
     e.pose.level = 3;
 
-    for (const std::uint16_t sequence : {std::uint16_t{5002}, std::uint16_t{5003}, std::uint16_t{5001}}) {
+    // Sequences 2 and 3 arrive first and 1 later, out of order.
+    for (const std::uint16_t sequence :
+         {std::uint16_t{5002}, std::uint16_t{5003}, std::uint16_t{5001}}) {
         m.bytes = mp::encode_world(3, 100 + sequence, {e}, sequence);
         p.member.session.handle(m);
     }
@@ -467,7 +499,7 @@ void a_late_datagram_still_counts_as_heard() {
     CHECK(said.world_ack && said.world_newest == 5003 && (said.world_bits & 3u) == 3u);
 }
 
-
+// Checks that a bolt's landing word that arrives before its spawn still takes effect.
 void a_bolt_that_lands_ahead_of_its_spawn_still_lands() {
     // UDP's WORLD overtakes TCP's SPAWN: the one word that it landed must not go for nothing,
     // since it is heard, and the host will not say it again.
@@ -486,6 +518,7 @@ void a_bolt_that_lands_ahead_of_its_spawn_still_lands() {
     mp::Writer w;
     w.u8(static_cast<std::uint8_t>(mp::WorldKind::kSpawn)).u8(3).u8(0).u8(5).u8(0).u8(13);
 
+    // The rest of the spawn word is zero: the test uses none of those fields.
     for (int i = 0; i < 14; ++i) {
         w.u8(0);
     }
@@ -499,7 +532,7 @@ void a_bolt_that_lands_ahead_of_its_spawn_still_lands() {
     CHECK(p.member.world.driven() == driven);
 }
 
-
+// Checks that a moby's send weight falls with distance and rises with what makes it matter.
 void the_weight_reads_distance_and_what_matters() {
     mp::WorldSight near;
     near.distance = 5.0f;
@@ -528,7 +561,11 @@ void the_weight_reads_distance_and_what_matters() {
     CHECK(mp::world_weight(mid) < 1.0f && mp::world_weight(midfar) < mp::world_weight(mid));
 
     // What can hurt, what it faces, what it hit, what flies: each up. Unseen: down.
-    for (const auto term : {&mp::WorldSight::creature, &mp::WorldSight::ahead, &mp::WorldSight::hit, &mp::WorldSight::flying}) {
+    for (const auto term :
+         {&mp::WorldSight::creature,
+          &mp::WorldSight::ahead,
+          &mp::WorldSight::hit,
+          &mp::WorldSight::flying}) {
         mp::WorldSight up = mid;
         up.*term = true;
         CHECK(mp::world_weight(up) > mp::world_weight(mid));
@@ -539,7 +576,7 @@ void the_weight_reads_distance_and_what_matters() {
     CHECK(mp::world_weight(unseen) < mp::world_weight(mid));
 }
 
-
+// Checks that a far moby still gets its share of WORLD when many others move.
 void a_far_moby_cannot_starve() {
     // Far more moving by the member than WORLD can hold, and one moby far away: it gets its share.
     std::vector<mp::MobyState> level = enemies(300, 0.1f);
@@ -548,6 +585,7 @@ void a_far_moby_cannot_starve() {
     p.settle();
     std::uint64_t last = p.host.clock, worst = 0;
     p.drop = [&](const Player&, const Bytes& b) {
+        // Record the longest time between two WORLDs that name the far moby.
         if (names(b, 300)) {
             worst = std::max(worst, p.host.clock - last);
             last = p.host.clock;
@@ -556,6 +594,7 @@ void a_far_moby_cannot_starve() {
         return false;
     };
 
+    // Everything moves each tick, so WORLD always has more to send than it can hold.
     for (int t = 0; t < 1250; ++t) {
         for (mp::MobyState& m : p.host.game.level) {
             m.pose.position[1] += 0.05f;
@@ -566,18 +605,21 @@ void a_far_moby_cannot_starve() {
 
     // Everything moves: 575 entries a second for 301 mobys, the close ones each worth 8 of the far
     // one (the old rank made that 9 seconds).
-    std::printf("the far moby among 300 moving: unheard for %llu ms at the most\n", static_cast<unsigned long long>(worst));
+    std::printf(
+        "the far moby among 300 moving: unheard for %llu ms at the most\n",
+        static_cast<unsigned long long>(worst)
+    );
     CHECK(worst > 0 && worst < 5000);
     CHECK(p.host.clock - last < 5000);
 }
 
-
+// Checks that the moby a member last hit goes ahead of its neighbours when WORLD is full.
 void a_moby_it_just_hit_comes_first() {
     // More to send than a datagram holds: the moby this member hit goes ahead of its neighbours.
     std::vector<mp::MobyState> level = enemies(100, 0.5f);
 
     for (mp::MobyState& m : level) {
-        m.pose.position[0] += 300.0f;   // all far off, at the floor
+        m.pose.position[0] += 300.0f;  // all far off, at the floor
     }
 
     Pair p(level);
@@ -585,6 +627,7 @@ void a_moby_it_just_hit_comes_first() {
     mp::Writer hit;
     hit.u8(static_cast<std::uint8_t>(mp::WorldKind::kHit)).u8(0).u8(50);
 
+    // The rest of the hit word is zero: the test uses none of those fields.
     for (int i = 0; i < 32; ++i) {
         hit.u8(0);
     }
@@ -595,6 +638,7 @@ void a_moby_it_just_hit_comes_first() {
     m.bytes = hit.bytes();
     p.host.session.handle(m);
 
+    // Run with everything moving, so WORLD has more to send than a datagram holds.
     for (int t = 0; t < 60; ++t) {
         for (mp::MobyState& e : p.host.game.level) {
             e.pose.position[1] += 0.05f;
@@ -606,13 +650,14 @@ void a_moby_it_just_hit_comes_first() {
     CHECK(p.told(50) > p.told(51) + 1);
 }
 
-
+// Checks that a near moby is sent each snapshot and a far one at the floor rate.
 void the_near_goes_each_snapshot_and_the_far_less_often() {
     std::vector<mp::MobyState> level = enemies(2, 1.0f);
     level[1].pose.position[0] = 400.0f;
     Pair p(level);
     p.settle();
 
+    // Both mobys move every tick, so each has a new state to send.
     for (int t = 0; t < 125; ++t) {
         p.host.game.level[0].pose.position[1] += 0.05f;
         p.host.game.level[1].pose.position[1] += 0.05f;
@@ -625,7 +670,7 @@ void the_near_goes_each_snapshot_and_the_far_less_often() {
     CHECK(p.told(1) >= 7 && p.told(1) <= 9);
 }
 
-
+// Checks that a firing party lowers WORLD's rate while its poses and shots keep theirs.
 void firing_takes_its_share_of_world() {
     // Three members and everything moving: WORLD at its 30 a second until the party fires.
     Pair p(enemies(60, 1.0f), 3);
@@ -634,11 +679,13 @@ void firing_takes_its_share_of_world() {
         p.state_out.clear();
         std::uint64_t held = p.host.session.counts().state_held;
 
+        // Ten seconds with everything moving, enough to measure WORLD's rate.
         for (int t = 0; t < 625; ++t) {
             for (mp::MobyState& e : p.host.game.level) {
                 e.pose.position[1] += 0.02f;
             }
 
+            // When the party fires, a shot goes out every sixth tick, about ten a second.
             if (fire && t % 6 == 0) {
                 mp::Shot s;
                 s.item = 2;
@@ -665,7 +712,6 @@ void firing_takes_its_share_of_world() {
     CHECK(shots >= 10 * 8);
 }
 
-
 // A stream every `interval` ms, each lost by `lost`, a constant link; how far the delay stands past
 // the transit, and the frames shown past the newest pose.
 struct Margin {
@@ -673,6 +719,10 @@ struct Margin {
     int past = 0, frames = 0;
 };
 
+// Feeds an interpolator a stream and returns how far its delay stands past the transit.
+//
+// `derive` sets whether the delay is derived from the stream's own timing. `lost_each` drops
+// every that-many-th pose; `loss` is the loss rate the interpolator is told of.
 Margin margin_of(bool derive, double interval, int lost_each = 0, double loss = 0) {
     mp::Interpolator in(derive);
     Margin out;
@@ -680,21 +730,31 @@ Margin margin_of(bool derive, double interval, int lost_each = 0, double loss = 
     int n = 0;
     double next = 0;
 
+    // The stream is sampled 60 times a second for 12 seconds.
     for (double t = 0; t < 12000; t += 1000.0 / 60.0) {
+        // Each pose that is due by now arrives, one every `interval` ms.
         for (; next <= t; next += interval) {
             ++n;
 
+            // Every `lost_each`-th pose is lost: its sequence number is used but it never arrives.
             if (lost_each != 0 && n % lost_each == 0) {
                 ++sequence;
                 continue;
             }
 
             in.set_loss(derive ? loss : in.loss());
-            in.add(pose_at(static_cast<float>(next) / 100.0f, derive ? 0.0f : 10.0f), ++sequence, next, t, false);
+            in.add(
+                pose_at(static_cast<float>(next) / 100.0f, derive ? 0.0f : 10.0f),
+                ++sequence,
+                next,
+                t,
+                false
+            );
         }
 
         mp::Pose p;
 
+        // Only frames after 4 seconds count, once the delay has settled.
         if (in.at(t + 30, p) && t > 4000) {
             ++out.frames;
             out.past += in.shown() == mp::Shown::kHeld || in.shown() == mp::Shown::kAhead ? 1 : 0;
@@ -705,7 +765,7 @@ Margin margin_of(bool derive, double interval, int lost_each = 0, double loss = 
     return out;
 }
 
-
+// Checks that each stream's delay stands about two intervals behind its newest data.
 void every_stream_keeps_two_intervals() {
     // WORLD's snapshots at each rate it can come to: 15 a second, its 10, the 7 of a firing party,
     // a far moby's 4. Poses, slowed too, though they have no reason to be.
@@ -719,6 +779,7 @@ void every_stream_keeps_two_intervals() {
         CHECK(lossy.past == 0);
     }
 
+    // Without the derived delay, the delay still stands two intervals behind, less 3 ms.
     for (const double interval : {50.0, 66.0, 100.0, 150.0}) {
         CHECK(margin_of(false, interval).behind >= 2.0 * interval - 3.0);
     }

@@ -1,0 +1,31 @@
+{
+  "id": "rac2-hd-achievements",
+  "repo": "https://github.com/Joebannerlord/openRAC-RC2-PS3-HD-Achievements",
+  "path": "",
+  "description": "Tracks all 35 Going Commando HD trophies, credits progress from existing saves, and shows in-game unlock popups and a trophy collection in the launcher.",
+  "tags": [
+    "qol",
+    "ui"
+  ],
+  "impact": [
+    "cosmetic"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Joebannerlord/openRAC-RC2-PS3-HD-Achievements/issues",
+    "docs": "https://github.com/Joebannerlord/openRAC-RC2-PS3-HD-Achievements/blob/main/README.md"
+  },
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/rac2-hd-achievements/7984d18f0253.png"
+      },
+      {
+        "src": "index/media/rac2-hd-achievements/50663e457535.png"
+      },
+      {
+        "src": "index/media/rac2-hd-achievements/71b22563ea47.png"
+      }
+    ]
+  }
+}

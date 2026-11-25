@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The party's shared progress past the items, gold bolts and planets (shared.hpp).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The party's shared progress past the items, gold bolts and planets (shared.hpp).
+
 #include "shared.hpp"
 
 #include <algorithm>
@@ -13,34 +13,52 @@ namespace mp {
 
 namespace {
 
+// The value of a mission byte that is done, as the game keeps the story's flags.
 constexpr std::uint8_t kDone = 0xFF;
 
-/* The flags a player's own copy of a person or pickup sets as its scene ends (local_class in
- * world.hpp; the mission byte of the placed moby, in the record's second word or, for two, its
- * pvars; the same on both discs).
- *   level 1 flag 2: the plumber (774)
- *   level 3 flag 0: Al (909); 2: Helga (890); 3: the infobot (750)
- *   level 4 flag 1: the lieutenant (1190)
- *   level 6 flag 0: the infobots (750) and the shuttle's first ride (1109)
- *   level 7 flag 3: the infobot (750)
- *   level 8 flag 4: the plumber (1283)
- *   level 10 flags 2, 4: the infobots (750)
- *   level 11 flag 3: the resort owner (114)
- *   level 14 flag 2: the morph-o-ray (1354)
- *   level 16 flag 3: the help desk (1377)
- *   level 17 flag 3: the infobot (750) */
+// The flags a player's own copy of a person or pickup sets as its scene ends (local_class in
+// world.hpp; the mission byte of the placed moby, in the record's second word or, for two, its
+// pvars; the same on both discs).
+//   level 1 flag 2: the plumber (774)
+//   level 3 flag 0: Al (909); 2: Helga (890); 3: the infobot (750)
+//   level 4 flag 1: the lieutenant (1190)
+//   level 6 flag 0: the infobots (750) and the shuttle's first ride (1109)
+//   level 7 flag 3: the infobot (750)
+//   level 8 flag 4: the plumber (1283)
+//   level 10 flags 2, 4: the infobots (750)
+//   level 11 flag 3: the resort owner (114)
+//   level 14 flag 2: the morph-o-ray (1354)
+//   level 16 flag 3: the help desk (1377)
+//   level 17 flag 3: the infobot (750)
+//
+// One entry of that list: a level and a flag of its row.
 struct SceneFlag {
     int level;
     int flag;
 };
 
 constexpr SceneFlag kSceneFlags[] = {
-    {1, 2}, {3, 0}, {3, 2}, {3, 3}, {4, 1}, {6, 0}, {7, 3}, {8, 4}, {10, 2}, {10, 4}, {11, 3}, {14, 2}, {16, 3}, {17, 3},
+    {1, 2},
+    {3, 0},
+    {3, 2},
+    {3, 3},
+    {4, 1},
+    {6, 0},
+    {7, 3},
+    {8, 4},
+    {10, 2},
+    {10, 4},
+    {11, 3},
+    {14, 2},
+    {16, 3},
+    {17, 3},
 };
 
-/* The nanotech upgrades (gSpecialItems 4 and 5: hero_max_health follows them). */
+// The nanotech upgrades (gSpecialItems 4 and 5: hero_max_health follows them).
 constexpr int kOwnSpecials[] = {4, 5};
 
+// Writes a section: its tag, its length in bytes (high byte first), then the flags packed eight to
+// a byte.
 template <std::size_t N>
 void put_section(Writer& w, int tag, const std::array<std::uint8_t, N>& bytes) {
     w.u8(static_cast<std::uint8_t>(tag));
@@ -48,9 +66,12 @@ void put_section(Writer& w, int tag, const std::array<std::uint8_t, N>& bytes) {
     w.u8(static_cast<std::uint8_t>(length >> 8)).u8(static_cast<std::uint8_t>(length));
     std::uint8_t bits = 0;
 
+    // Flags are packed eight to a byte, lowest bit first; a last byte that is not full goes out
+    // too.
     for (std::size_t i = 0; i < N; ++i) {
         bits = static_cast<std::uint8_t>(bits | (bytes[i] != 0 ? 1u << (i % 8) : 0u));
 
+        // A byte is full after eight flags, or at the last flag.
         if (i % 8 == 7 || i + 1 == N) {
             w.u8(bits);
             bits = 0;
@@ -58,13 +79,15 @@ void put_section(Writer& w, int tag, const std::array<std::uint8_t, N>& bytes) {
     }
 }
 
-/* A section's bytes into `out`; false for a length that is not the section's. */
+// A section's bytes into `out`; false for a length that is not the section's.
 template <std::size_t N>
 bool take_section(const Bytes& section, std::array<std::uint8_t, N>& out) {
+    // A section of another length is a different build's.
     if (section.size() != (N + 7) / 8) {
         return false;
     }
 
+    // Bit `i % 8` of byte `i / 8` is flag `i`.
     for (std::size_t i = 0; i < N; ++i) {
         out[i] = (section[i / 8] >> (i % 8)) & 1;
     }
@@ -72,11 +95,12 @@ bool take_section(const Bytes& section, std::array<std::uint8_t, N>& out) {
     return true;
 }
 
-/* In `out`, what `bytes` has now, read through the game's call; false for none. */
+// In `out`, what `bytes` has now, read through the game's call; false for none.
 template <std::size_t N>
 bool read_section(Game& game, int tag, std::array<std::uint8_t, N>& out) {
     Bytes bytes;
 
+    // The game gives one byte for each flag; any other size is a different build's.
     if (!game.shared_read(tag, bytes) || bytes.size() != N) {
         return false;
     }
@@ -85,14 +109,19 @@ bool read_section(Game& game, int tag, std::array<std::uint8_t, N>& out) {
     return true;
 }
 
+// Returns how many flags are set.
 template <std::size_t N>
 std::size_t count_of(const std::array<std::uint8_t, N>& bytes) {
-    return static_cast<std::size_t>(std::count_if(bytes.begin(), bytes.end(), [](std::uint8_t b) { return b != 0; }));
+    return static_cast<std::size_t>(std::count_if(bytes.begin(), bytes.end(), [](std::uint8_t b) {
+        return b != 0;
+    }));
 }
 
+// Returns the log's words for how many flags each section has set.
 std::string count_text(const SharedBits& bits) {
-    return std::to_string(count_of(bits.gold_weapons)) + " gold weapons, " + std::to_string(count_of(bits.skills))
-           + " skill points, " + std::to_string(count_of(bits.flags)) + " flags, "
+    return std::to_string(count_of(bits.gold_weapons)) + " gold weapons, "
+           + std::to_string(count_of(bits.skills)) + " skill points, "
+           + std::to_string(count_of(bits.flags)) + " flags, "
            + std::to_string(count_of(bits.specials)) + " special items";
 }
 
@@ -105,7 +134,8 @@ bool scene_flag(int level, int flag) {
 }
 
 bool own_special(int item) {
-    return std::find(std::begin(kOwnSpecials), std::end(kOwnSpecials), item) != std::end(kOwnSpecials);
+    return std::find(std::begin(kOwnSpecials), std::end(kOwnSpecials), item)
+           != std::end(kOwnSpecials);
 }
 
 Bytes encode_shared(const SharedBits& bits) {
@@ -120,6 +150,7 @@ Bytes encode_shared(const SharedBits& bits) {
 }
 
 bool decode_shared(const Bytes& bytes, SharedBits& out) {
+    // Anything but a SHARED with its count byte is refused.
     if (bytes.size() < 2 || bytes[0] != kSharedKind) {
         return false;
     }
@@ -127,17 +158,20 @@ bool decode_shared(const Bytes& bytes, SharedBits& out) {
     Reader r(bytes.data() + 2, bytes.size() - 2);
     SharedBits bits;
 
+    // Every section is read whatever its tag, so one of an unknown tag is skipped.
     for (std::uint8_t i = 0; i < bytes[1]; ++i) {
         const int tag = r.u8();
         const std::size_t high = r.u8();
         const std::size_t length = high << 8 | r.u8();
 
+        // A message cut short, or a length past its end, is refused.
         if (!r.ok() || r.left() < length) {
             return false;
         }
 
         Bytes section(length);
 
+        // The section is read whole before its tag is checked, so an unknown tag is skipped.
         for (std::uint8_t& b : section) {
             b = r.u8();
         }
@@ -151,6 +185,7 @@ bool decode_shared(const Bytes& bytes, SharedBits& out) {
         }
     }
 
+    // A message cut short is refused whole.
     if (!r.ok()) {
         return false;
     }
@@ -172,6 +207,7 @@ Bytes encode_mission(int level, const std::uint8_t* row) {
 }
 
 bool decode_mission(const Bytes& bytes, int& level, std::array<std::uint8_t, kFlagsPerLevel>& row) {
+    // A MISSION is its kind, a level that exists and the row's 16 bytes.
     if (bytes.size() != 2 + kFlagsPerLevel || bytes[0] != kMissionKind || bytes[1] >= kFlagLevels) {
         return false;
     }
@@ -189,6 +225,7 @@ Bytes encode_shared_ask(int level) {
 }
 
 bool decode_shared_ask(const Bytes& bytes, int& level) {
+    // A SHARED_ASK is its kind and a level that exists.
     if (bytes.size() != 2 || bytes[0] != kSharedAskKind || bytes[1] >= kFlagLevels) {
         return false;
     }
@@ -197,7 +234,10 @@ bool decode_shared_ask(const Bytes& bytes, int& level) {
     return true;
 }
 
-Shared::Shared(Session& session, Game& game, Coop& coop) : session_(session), game_(game), coop_(coop) {}
+Shared::Shared(Session& session, Game& game, Coop& coop)
+    : session_(session),
+      game_(game),
+      coop_(coop) {}
 
 void Shared::reset() {
     read_ = false;
@@ -220,15 +260,18 @@ void Shared::reset() {
 }
 
 void Shared::handle(std::int32_t sender, const Bytes& bytes) {
+    // Outside a party, and for an empty message, nothing is kept.
     if (!session_.in_party() || bytes.empty()) {
         return;
     }
 
     const bool from_host = sender == session_.host();
 
+    // A SHARED is somebody's progress.
     if (bytes[0] == kSharedKind) {
         SharedBits bits;
 
+        // A message that does not decode is dropped.
         if (!decode_shared(bytes, bits)) {
             return;
         }
@@ -247,11 +290,14 @@ void Shared::handle(std::int32_t sender, const Bytes& bytes) {
         int level = -1;
         std::array<std::uint8_t, kFlagsPerLevel> row{};
 
+        // A row that does not decode is dropped.
         if (decode_mission(bytes, level, row)) {
             trace_line("received MISSION of level " + std::to_string(level));
 
+            // A row only adds: a flag it has is set in the party's, none is cleared.
             for (std::size_t i = 0; i < kFlagsPerLevel; ++i) {
-                std::uint8_t& flag = party_.flags[static_cast<std::size_t>(level) * kFlagsPerLevel + i];
+                std::uint8_t& flag =
+                    party_.flags[static_cast<std::size_t>(level) * kFlagsPerLevel + i];
                 flag = static_cast<std::uint8_t>(flag | (row[i] != 0 ? 1 : 0));
             }
 
@@ -261,6 +307,7 @@ void Shared::handle(std::int32_t sender, const Bytes& bytes) {
     } else if (bytes[0] == kSharedAskKind && session_.is_host()) {
         int level = -1;
 
+        // The host remembers who asked for which level and answers at its next tick.
         if (decode_shared_ask(bytes, level)) {
             asked_.insert({sender, level});
         }
@@ -270,6 +317,7 @@ void Shared::handle(std::int32_t sender, const Bytes& bytes) {
 bool Shared::read() {
     SharedBits bits;
 
+    // The game does not give its sections yet (a load), so there is nothing to read.
     if (!read_section(game_, kSharedGoldWeapons, bits.gold_weapons)
         || !read_section(game_, kSharedSkillPoints, bits.skills)
         || !read_section(game_, kSharedFlags, bits.flags)
@@ -304,30 +352,41 @@ bool Shared::merge(const SharedBits& want, int level, bool all_scenes, const std
     bool took = false;
 
     // Only what this game has never had; what is held back stays in `want` for a later reading.
-    const auto fresh = [&](int tag, const auto& asked, const auto& never, auto& have, auto&& allowed) {
-        Bytes bytes(asked.size(), 0);
-        std::size_t count = 0;
+    const auto fresh =
+        [&](int tag, const auto& asked, const auto& never, auto& have, auto&& allowed) {
+            Bytes bytes(asked.size(), 0);
+            std::size_t count = 0;
 
-        for (std::size_t i = 0; i < asked.size(); ++i) {
-            if (asked[i] != 0 && never[i] == 0 && allowed(i)) {
-                bytes[i] = 1;
-                ++count;
+            for (std::size_t i = 0; i < asked.size(); ++i) {
+                // A flag is asked for only if the party has it, this game never had it, and
+                // `allowed` lets it.
+                if (asked[i] != 0 && never[i] == 0 && allowed(i)) {
+                    bytes[i] = 1;
+                    ++count;
+                }
             }
-        }
 
-        if (count == 0 || !game_.shared_give(tag, bytes)) {
-            return;
-        }
+            // Nothing new, or the game refused: nothing is marked as had.
+            if (count == 0 || !game_.shared_give(tag, bytes)) {
+                return;
+            }
 
-        for (std::size_t i = 0; i < asked.size(); ++i) {
-            have[i] = static_cast<std::uint8_t>(have[i] | bytes[i]);
-        }
+            // Only what the game took is marked as had.
+            for (std::size_t i = 0; i < asked.size(); ++i) {
+                have[i] = static_cast<std::uint8_t>(have[i] | bytes[i]);
+            }
 
-        took = true;
-        log("shared progress: section " + std::to_string(tag) + ", " + std::to_string(count) + " new (" + from + ")");
-        trace_line("merged section " + std::to_string(tag) + ", " + std::to_string(count) + " new (" + from + ")");
+            took = true;
+            log("shared progress: section " + std::to_string(tag) + ", " + std::to_string(count)
+                + " new (" + from + ")");
+            trace_line(
+                "merged section " + std::to_string(tag) + ", " + std::to_string(count) + " new ("
+                + from + ")"
+            );
+        };
+    const auto any = [](std::size_t) {
+        return true;
     };
-    const auto any = [](std::size_t) { return true; };
 
     fresh(kSharedGoldWeapons, want.gold_weapons, once_.gold_weapons, here_.gold_weapons, any);
     fresh(kSharedSkillPoints, want.skills, once_.skills, here_.skills, any);
@@ -360,6 +419,7 @@ void Shared::send(std::int32_t target, const std::string& to) {
 void Shared::tick(std::uint64_t now) {
     // Only while the party plays its game.
     if (!session_.in_party() || !coop_.playing()) {
+        // A party that is gone drops what was kept, once.
         if (read_ || heard_ || !reports_.empty()) {
             reset();
         }
@@ -367,10 +427,12 @@ void Shared::tick(std::uint64_t now) {
         return;
     }
 
+    // A reading is taken a few times a second, not every tick.
     if (read_ && now - read_ms_ < kProgressReadMs) {
         return;
     }
 
+    // The game does not give its sections right now.
     if (!read()) {
         return;
     }
@@ -380,6 +442,7 @@ void Shared::tick(std::uint64_t now) {
     const GameStatus status = game_.status();
     const int level = in_level(status.phase) ? status.level : -1;
 
+    // The host merges the members' words, sends its own and tells the level's row.
     if (session_.is_host()) {
         // A member's flags: never one of a scene the host's game is still to play.
         for (const auto& report : reports_) {
@@ -389,7 +452,9 @@ void Shared::tick(std::uint64_t now) {
         reports_.clear();
         const std::size_t members = session_.members().size();
 
-        if (!sent_any_ || here_ != sent_ || members != members_ || now - sent_ms_ >= kProgressResendMs) {
+        // Due at a change, at a new member, or when the resend time has gone by.
+        if (!sent_any_ || here_ != sent_ || members != members_
+            || now - sent_ms_ >= kProgressResendMs) {
             members_ = members;
             sent_ms_ = now;
             send(kBroadcast, "all");
@@ -400,10 +465,12 @@ void Shared::tick(std::uint64_t now) {
             std::array<std::uint8_t, kFlagsPerLevel> row{};
             const std::size_t first = static_cast<std::size_t>(level) * kFlagsPerLevel;
 
+            // A flag the host has is a done mission byte in the row, as the game keeps them.
             for (std::size_t i = 0; i < kFlagsPerLevel; ++i) {
                 row[i] = here_.flags[first + i] != 0 ? kDone : 0;
             }
 
+            // The row goes out at once when the level or the row changes.
             if (level != row_level_ || row != row_) {
                 row_level_ = level;
                 row_ = row;
@@ -412,6 +479,7 @@ void Shared::tick(std::uint64_t now) {
             }
         }
 
+        // Each member that asked gets the row of the level it came to.
         for (const auto& ask : asked_) {
             std::array<std::uint8_t, kFlagsPerLevel> row{};
             const std::size_t first = static_cast<std::size_t>(ask.second) * kFlagsPerLevel;
@@ -421,15 +489,20 @@ void Shared::tick(std::uint64_t now) {
             }
 
             session_.send_data(ask.first, encode_mission(ask.second, row.data()));
-            trace_line("sent MISSION of level " + std::to_string(ask.second) + " to " + std::to_string(ask.first));
+            trace_line(
+                "sent MISSION of level " + std::to_string(ask.second) + " to "
+                + std::to_string(ask.first)
+            );
         }
 
         asked_.clear();
         return;
     }
 
-    // A member: what the host's has that this one lacks, a scene's flag of this level left for later.
+    // A member: what the host's has that this one lacks, a scene's flag of this level left for
+    // later.
     if (heard_) {
+        // Playing in the host's level marks it as arrived, and its flags may then be taken.
         if (level >= 0 && level == coop_.host_level()) {
             arrived_level_ = level;
         }
@@ -444,6 +517,7 @@ void Shared::tick(std::uint64_t now) {
         session_.send_data(session_.host(), encode_shared_ask(level));
     }
 
+    // A member tells the host at a change and now and then.
     if (!sent_any_ || here_ != sent_ || now - sent_ms_ >= kProgressResendMs) {
         sent_ms_ = now;
         send(session_.host(), "the host");

@@ -1,25 +1,27 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later
- * Copyright (c) 2026 the OpenRAC contributors
- *
- * The OpenRAC server's wire format (protocol.hpp), written as the server's OutputBuffer writes it
- * and read as its InputBuffer reads it: big-endian integers, strings behind a signed 16-bit length
- * that is -1 for an empty one, and a frame's length counting what follows it (Netty's
- * LengthFieldPrepender and LengthFieldBasedFrameDecoder with a 4-byte field, no adjustment).
- */
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 the OpenRAC contributors
+//
+// The OpenRAC server's wire format (protocol.hpp), written as the server's OutputBuffer writes it
+// and read as its InputBuffer reads it: big-endian integers, strings behind a signed 16-bit length
+// that is -1 for an empty one, and a frame's length counting what follows it (Netty's
+// LengthFieldPrepender and LengthFieldBasedFrameDecoder with a 4-byte field, no adjustment).
+
 #include "protocol.hpp"
 
 #include <algorithm>
 
+#include "regions.hpp"
+
 namespace mp {
 namespace {
 
-/* The 16-bit length an empty string is written with (OutputBuffer.writeString). */
+// The 16-bit length an empty string is written with (OutputBuffer.writeString).
 constexpr std::uint16_t kEmptyString = 0xFFFFu;
 
-/* The longest string a 16-bit signed length holds. */
+// The longest string a 16-bit signed length holds.
 constexpr std::size_t kMaxStringBytes = 0x7FFF;
 
-/* A PARTY body's start: the id and the opcode. */
+// A PARTY body's start: the id and the opcode.
 Writer party(PartyOp op) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(PacketId::kParty)).u8(static_cast<std::uint8_t>(op));
@@ -176,9 +178,10 @@ void FrameReader::reset() {
 }
 
 bool valid_key(const std::string& key) {
-    return !key.empty() && key.size() <= kMaxKeyLength && std::all_of(key.begin(), key.end(), [](char c) {
-        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-    });
+    return !key.empty() && key.size() <= kMaxKeyLength
+           && std::all_of(key.begin(), key.end(), [](char c) {
+                  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+              });
 }
 
 Bytes hello(const std::string& version, const std::string& name, std::uint8_t features) {
@@ -194,8 +197,9 @@ Bytes hello(const std::string& version, const std::string& name, std::uint8_t fe
 
 namespace {
 
-/* A request's family at its end: none is no bytes at all, as from a client before families. */
+// A request's family at its end: none is no bytes at all, as from a client before families.
 Bytes with_family(Writer w, const std::string& family) {
+    // Only a family that is set goes on the wire.
     if (!family.empty()) {
         w.str(family);
     }
@@ -233,6 +237,7 @@ Bytes party_successors(const std::vector<std::int32_t>& members) {
     Writer w = party(PartyOp::kHostChanged);
     w.u8(0).u8(static_cast<std::uint8_t>(members.size()));
 
+    // The first choice first, as the server reads them.
     for (const std::int32_t id : members) {
         w.i32(id);
     }
@@ -260,6 +265,64 @@ Bytes data(std::int32_t target, const Bytes& payload) {
 
 Bytes time(std::int64_t client_ms) {
     return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kTime)).i64(client_ms).bytes());
+}
+
+Bytes regions(const std::string& family) {
+    return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kRegions)).str(family).bytes());
+}
+
+bool pick_server(
+    const std::vector<ListedServer>& servers,
+    const std::string& region,
+    const std::string& hub_host,
+    std::string& host,
+    int& port,
+    ListedServer* picked
+) {
+    const auto lower = [](std::string text) {
+        std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) {
+            return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
+        });
+        return text;
+    };
+    const ListedServer* chosen = nullptr;
+    const Region* wanted = find_region(region);
+
+    // The region asked for, the first of it listed.
+    for (const ListedServer& s : servers) {
+        // Only a server players can reach counts.
+        if (s.port < 1 || s.port > 65535) {
+            continue;
+        }
+
+        // The first reachable one is the choice when no region matches.
+        if (chosen == nullptr) {
+            chosen = &s;
+        }
+
+        // A region named and listed wins over the first: by its code, or as an older hub wrote it.
+        if (!region.empty()
+            && ((wanted != nullptr && find_region(s.region) == wanted)
+                || lower(s.region) == lower(region))) {
+            chosen = &s;
+            break;
+        }
+    }
+
+    // Nothing listed that a game can reach.
+    if (chosen == nullptr) {
+        return false;
+    }
+
+    host = chosen->host.empty() ? hub_host : chosen->host;
+    port = chosen->port;
+
+    // The caller that names the server wants all of it.
+    if (picked != nullptr) {
+        *picked = *chosen;
+    }
+
+    return !host.empty();
 }
 
 bool decode(const Bytes& body, Message& out) {
@@ -313,6 +376,32 @@ bool decode(const Bytes& body, Message& out) {
             out.features = r.left() > 0 ? r.u8() : 0;
             out.resume_token = r.left() >= 8 ? r.i64() : 0;
             return r.ok();
+        case PacketId::kRegions: {
+            out.kind = Message::Kind::kRegions;
+            const std::uint8_t count = r.u8();
+
+            // Each game server: its region, host, port and players.
+            for (std::uint8_t i = 0; i < count && r.ok(); ++i) {
+                ListedServer s;
+                s.region = r.str();
+                s.host = r.str();
+                s.port = r.i32();
+                s.players = r.i32();
+                out.servers.push_back(std::move(s));
+            }
+
+            // Each one's name, after the list; an older hub stops before them.
+            for (ListedServer& s : out.servers) {
+                // A list cut short keeps the names that came.
+                if (!r.ok() || r.left() == 0) {
+                    break;
+                }
+
+                s.name = r.str();
+            }
+
+            return r.ok();
+        }
         case PacketId::kParty:
             break;
         default:
@@ -346,6 +435,7 @@ bool decode(const Bytes& body, Message& out) {
                 out.epoch = r.i32();
                 const std::uint8_t away = r.u8();
 
+                // One id for each member whose connection dropped.
                 for (std::uint8_t i = 0; i < away && r.ok(); ++i) {
                     out.away.push_back(r.i32());
                 }
@@ -446,7 +536,9 @@ Bytes hello_reply(std::int32_t session) {
     return frame(Writer().u8(static_cast<std::uint8_t>(PacketId::kHello)).i32(session).bytes());
 }
 
-Bytes udp_offer(std::int64_t token, std::int32_t port, std::uint8_t features, std::int64_t resume_token) {
+Bytes udp_offer(
+    std::int64_t token, std::int32_t port, std::uint8_t features, std::int64_t resume_token
+) {
     return frame(
         Writer()
             .u8(static_cast<std::uint8_t>(PacketId::kUdp))
@@ -480,6 +572,7 @@ Bytes party_info(
     if (epoch != 0 || !away.empty()) {
         w.i32(epoch).u8(static_cast<std::uint8_t>(away.size()));
 
+        // One id for each member whose connection dropped.
         for (const std::int32_t id : away) {
             w.i32(id);
         }
@@ -542,6 +635,7 @@ Bytes error_reply(ErrorReason reason, const std::string& family) {
     Writer w;
     w.u8(static_cast<std::uint8_t>(PacketId::kError)).u8(static_cast<std::uint8_t>(reason));
 
+    // Only this refusal names the party's family.
     if (reason == ErrorReason::kOtherGame) {
         w.str(family);
     }
@@ -565,6 +659,24 @@ Bytes datagram_state_from(std::int32_t sender, const Bytes& payload) {
         .i32(sender)
         .raw(payload)
         .bytes();
+}
+
+Bytes regions_reply(const std::vector<ListedServer>& servers) {
+    const std::size_t count = std::min<std::size_t>(servers.size(), 255);
+    Writer w;
+    w.u8(static_cast<std::uint8_t>(PacketId::kRegions)).u8(static_cast<std::uint8_t>(count));
+
+    // Each as the hub's Region.serialize writes it.
+    for (std::size_t i = 0; i < count; ++i) {
+        w.str(servers[i].region).str(servers[i].host).i32(servers[i].port).i32(servers[i].players);
+    }
+
+    // Then the names, in the same order, as the hub appends them.
+    for (std::size_t i = 0; i < count; ++i) {
+        w.str(servers[i].name);
+    }
+
+    return frame(w.bytes());
 }
 
 Request decode_request(const Bytes& body) {
@@ -636,6 +748,7 @@ Request decode_request(const Bytes& body) {
                 default:
                     break;
             }
+
             break;
         default:
             // ERROR and UDP are the server's, and any other id is unknown.
@@ -681,6 +794,7 @@ std::size_t utf16_length(const std::string& text) {
     for (const char c : text) {
         const auto b = static_cast<unsigned char>(c);
 
+        // A continuation byte (one starting with bits 10) belongs to a code point already counted.
         if ((b & 0xC0u) != 0x80u) {
             units += b >= 0xF0u ? 2 : 1;
         }

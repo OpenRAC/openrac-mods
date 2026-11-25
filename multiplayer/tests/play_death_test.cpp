@@ -3,28 +3,35 @@
 //
 // Playing together, without the game or a socket: what a death leaves (missions, bolts, a full
 // wipe, the revive rule), crates that come back, buried bolts, and who an enemy goes for.
+
 #include "test_support.hpp"
 
 namespace mpt {
 namespace {
 
+// The flags of a moby that runs its update and was placed by the level.
 constexpr std::uint32_t kRuns = mp::kMobyUpdates | mp::kMobyPlaced;
 
-/* A party in level 3, its games' mobys `w`'s; the host far from the member. */
+// A party in level 3, its games' mobys `w`'s; the host far from the member.
 struct Party {
+    // The host, the member and the third player, who takes part only when asked for.
     Player host{1}, member{2}, third{3};
+    // The list of the players, and the simulated world their games' mobys come from.
     std::vector<Player*> all;
     SimWorld w;
 
+    // Starts a party in level 3 over `world`'s mobys, with a third player when `three` is set.
     explicit Party(SimWorld world, bool three = false) : w(world) {
         all = {&host, &member};
 
+        // The third player takes part only when a test asks for one.
         if (three) {
             all.push_back(&third);
         }
 
         std::vector<mp::Member> members = {{1, "P1"}, {2, "P2"}};
 
+        // The third player joins the member list only when asked for.
         if (three) {
             members.push_back({3, "P3"});
         }
@@ -35,6 +42,7 @@ struct Party {
         route(all);
         tick(all, 16);
 
+        // Every game gets the simulated world's level, in level 3.
         for (Player* p : all) {
             p->game.now = {mp::kPhasePlaying, 3, 2};
             p->game.level = w.made(0);
@@ -46,14 +54,18 @@ struct Party {
         CHECK(member.world.synced());
     }
 
+    // Runs `ticks` ticks of `ms` for every player.
     void run(int ticks, int ms = 50) {
+        // Each tick advances every player's clock and runs its co-op layer.
         for (int i = 0; i < ticks; ++i) {
             tick(all, ms);
         }
     }
 };
 
+// Returns the moby of `game` with `key`, or null when it has none.
 mp::MobyState* find_key(FakeGame& game, int key) {
+    // Mobys are found by key, not by slot, because slots change when a level is packed again.
     for (mp::MobyState& m : game.level) {
         if (m.key == key) {
             return &m;
@@ -63,15 +75,17 @@ mp::MobyState* find_key(FakeGame& game, int key) {
     return nullptr;
 }
 
-/* The fake's made() again, with `mission` on `key`. */
+// The fake's made() again, with `mission` on `key`.
 void remake_with_mission(Player& p, const SimWorld& w, int key, int mission) {
     remake(p, w);
     find_key(p.game, key)->mission = mission;
 }
 
+// Returns how many spawned mobys (no key) of class `oclass` `game` holds.
 int driven_spawns(const FakeGame& game, int oclass) {
     int n = 0;
 
+    // A moby spawned in the game has no key, so spawns are counted by class.
     for (const mp::MobyState& m : game.level) {
         n += m.key < 0 && m.oclass == oclass ? 1 : 0;
     }
@@ -79,11 +93,13 @@ int driven_spawns(const FakeGame& game, int oclass) {
     return n;
 }
 
+// Returns whether the moby with `key` is gone from `game` or marked dead.
 bool dead(FakeGame& game, int key) {
     const mp::MobyState* m = find_key(game, key);
     return m == nullptr || (m->flags & mp::kMobyDead) != 0;
 }
 
+// Checks that the host's spawned mobys reach a member again after the member dies.
 void the_hosts_spawned_mobys_reach_a_member_again_after_its_death() {
     Party p(SimWorld{3, 0});
     const mp::MobyState copy = moby(700, -1, 872, mp::kMobyUpdates | mp::kMobyCreature, 40.0f);
@@ -100,6 +116,7 @@ void the_hosts_spawned_mobys_reach_a_member_again_after_its_death() {
     CHECK(driven_spawns(p.member.game, 872) == 1);
 }
 
+// Checks that a moby tied to a mission comes back after a death while the mission is open.
 void a_missions_moby_comes_back_with_the_mission() {
     Party p(SimWorld{3, 0});
     find_key(p.host.game, 1)->mission = 2;
@@ -120,6 +137,7 @@ void a_missions_moby_comes_back_with_the_mission() {
     p.run(20);
     bool posed = false;
 
+    // The member's copy of the host's spawned moby has no key and stands at the host's place.
     for (const mp::MobyState& m : p.member.game.level) {
         posed = posed || (m.key < 0 && std::fabs(m.pose.position[1] - 33.0f) < 1.0f);
     }
@@ -174,6 +192,7 @@ void a_missions_moby_comes_back_with_the_mission() {
     CHECK(dead(s.host.game, 1) && driven_spawns(s.member.game, 300) == 0);
 }
 
+// Checks that bolts lying about stay after the host's death, and a taken one is not made again.
 void a_hosts_death_keeps_the_bolts_lying_about() {
     Party p(SimWorld{1, 2});
     p.host.game.level.push_back(moby(300, -1, 13, mp::kMobyUpdates, 11.0f));
@@ -181,13 +200,17 @@ void a_hosts_death_keeps_the_bolts_lying_about() {
     p.run(10);
     CHECK(p.member.world.spawned() == 2);
     // One of them taken: it is not made again.
-    CHECK(p.member.world.collect(p.member.world.spawned() != 0 ? p.member.game.level.back().slot : -1) == false);
+    CHECK(
+        p.member.world.collect(p.member.world.spawned() != 0 ? p.member.game.level.back().slot : -1)
+        == false
+    );
     p.run(4);
     p.host.game.die(301);
     remake(p.host, p.w);
     p.run(20);
     int bolts = 0;
 
+    // Count the bolt spawns the host's game was asked for; one or two are allowed.
     for (const std::string& call : p.host.game.world_calls) {
         bolts += call == "spawn 13" || call == "spawn 16" ? 1 : 0;
     }
@@ -196,6 +219,7 @@ void a_hosts_death_keeps_the_bolts_lying_about() {
     CHECK(p.member.world.spawned() == static_cast<std::size_t>(bolts));
 }
 
+// Checks that when everyone is dead the party goes back to the host's checkpoint.
 void a_full_wipe_goes_back_to_the_hosts_checkpoint() {
     Party p(SimWorld{2, 3});
     p.host.game.placeable = p.member.game.placeable = true;
@@ -226,6 +250,7 @@ void a_full_wipe_goes_back_to_the_hosts_checkpoint() {
     CHECK(dead(q.host.game, 1) && q.member.game.respawns == 0);
 }
 
+// Checks that the revive rule, off by default, lets a living player raise a downed one.
 void the_revive_rule() {
     // Off by default: nobody is held.
     {
@@ -277,6 +302,7 @@ void the_revive_rule() {
     CHECK(p.member.game.respawns == 2);
 }
 
+// Checks that a crate that comes back is broken and returns together in every game.
 void a_crate_that_comes_back_is_shared() {
     Party p(SimWorld{1, 3}, true);
     // Key 1: broken in the member's game; the others break theirs, and no one deletes it.
@@ -336,10 +362,12 @@ void a_crate_that_comes_back_is_shared() {
     CHECK(!dead(p.member.game, 3));
 }
 
+// Checks that a pile of buried bolts goes to one digger and goes from every game.
 void one_pile_of_buried_bolts_one_digger() {
     constexpr int kPile = 605;
     Party p(SimWorld{1, 0}, true);
 
+    // Every game holds the same two piles of buried bolts, one per key.
     for (Player* player : p.all) {
         player->game.level.push_back(moby(1, 7, kPile, kRuns, 5.0f));
         player->game.level.push_back(moby(2, 8, kPile, kRuns, 9.0f));
@@ -383,6 +411,7 @@ void one_pile_of_buried_bolts_one_digger() {
     CHECK(dead(p.third.game, 9));
 }
 
+// Checks that an enemy keeps its target until another player is clearly nearer.
 void an_enemy_keeps_its_target() {
     Party p(SimWorld{1, 0});
     const int slot = p.host.game.moby_slot(0);
@@ -434,7 +463,9 @@ void an_enemy_keeps_its_target() {
     CHECK(!aimed_at());
 }
 
+// Checks the class lists that say which mobys are local to a game and which the host runs.
 void class_lists_after_reading_the_updates() {
+    // These classes are the player's own in every game.
     for (const int oclass : {280, 615, 1005, 1016}) {
         CHECK(mp::interactable_class(oclass) && mp::local_class(oclass));
     }
@@ -445,6 +476,7 @@ void class_lists_after_reading_the_updates() {
     }
 }
 
+// Checks that class 152's moby and the bolts its update adds reach a member.
 void class_152_reaches_a_member() {
     Party p(SimWorld{1, 0});
     p.host.game.level.push_back(moby(300, -1, 152, mp::kMobyUpdates, 11.0f));

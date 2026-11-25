@@ -101,7 +101,9 @@ enum {
     REWARD_NONE = 0,
     REWARD_ITEM,
     REWARD_PLANET,
-    REWARD_GOLD_BOLT
+    REWARD_GOLD_BOLT,
+    REWARD_GOLD_WEAPON,
+    REWARD_SPECIAL
 };
 
 typedef struct rando_reward {
@@ -112,12 +114,15 @@ typedef struct rando_reward {
 /* ---- locations (logic.c) ---- */
 
 enum {
-    LOC_GIVE,    /* an NPC or a pickup: the game calls GiveItem(key), key its own item */
-    LOC_VENDOR,  /* the vendor's slot for item key, in the stock from level `level` on */
-    LOC_START,   /* the Bomb Glove the game gives at the first level start (key 0x0A) */
-    LOC_INFOBOT, /* an infobot: key its moby's mission slot on `level` */
-    LOC_GOLD,    /* a gold bolt: key its slot (0..3) on `level` */
-    LOC_FIXED,   /* never shuffled: an NPC's planet coordinates, the Persuader, the goal */
+    LOC_GIVE,      /* an NPC or a pickup: the game calls GiveItem(key), key its own item */
+    LOC_VENDOR,    /* the vendor's slot for item key, in the stock from level `level` on */
+    LOC_START,     /* the Bomb Glove the game gives at the first level start (key 0x0A) */
+    LOC_INFOBOT,   /* an infobot: key its moby's mission slot on `level` */
+    LOC_GOLD,      /* a gold bolt: key its slot (0..3) on `level` */
+    LOC_FIXED,     /* fixed story rewards (NPC coordinates: the NPC pool) and the goal */
+    LOC_SPECIAL,   /* Items-menu rewards with direct native ownership writes (its Archipelago
+                    * location ids carry this value) */
+    LOC_GOLD_CASE, /* RAC1 only, enabled separately from ordinary vendor slots */
 };
 
 /* The pools (the settings), each a set of locations whose rewards are shuffled together. */
@@ -126,7 +131,16 @@ enum {
 #define POOL_GOLD 0x04u    /* the gold bolts */
 #define POOL_PLANETS 0x08u /* the infobots */
 #define POOL_VENDOR 0x10u  /* the vendor's weapons */
-#define POOL_ALL 0x1Fu
+#define POOL_ALL 0x1Fu     /* legacy pool mask: keep seed format 2 unchanged */
+#define POOL_NPC_INFOBOTS 0x20u
+#define POOL_GOLD_WEAPONS 0x40u
+#define POOL_ITEMS 0x80u   /* RAC1 Items-menu entries */
+#define POOL_EXTENDED_ALL 0xFFu
+
+enum { SPECIAL_ZOOMERATOR, SPECIAL_RARITANIUM, SPECIAL_CODEBOT,
+       SPECIAL_PREMIUM_NANOTECH, SPECIAL_ULTRA_NANOTECH, SPECIAL_COUNT };
+#define SPECIAL_BIT(i) BIT(37 + (i))
+const char* rando_special_name(int item);
 
 /* A location's flags. */
 #define LOCF_COSTLY 0x01u /* bought for more bolts than a player has early on */
@@ -193,13 +207,26 @@ typedef struct rando_settings {
     uint8_t pools;      /* POOL_* */
     uint8_t keep_start; /* 1: the starting Bomb Glove stays where it is */
     uint8_t difficulty; /* DIFFICULTY_* */
+    uint8_t legacy_items; /* decoded format-2 seeds retain their original gadget pools */
+    uint8_t random_start; /* skip the tutorial and choose a logic-safe first planet */
+    uint8_t start_weapons; /* RANDO_START_WEAPONS_*: with keep_start, a random starting weapon */
 } rando_settings;
+
+/* The "starting_weapons" setting: Vanilla is keep_start 1, Shuffled keep_start 0; the other two
+ * keep the start out of the shuffle and give it a weapon drawn from the seed, which takes the
+ * Bomb Glove's place: the place that gives that weapon in the game gives the Bomb Glove. */
+enum {
+    RANDO_START_WEAPONS_NONE = 0,         /* Vanilla or Shuffled, by keep_start */
+    RANDO_START_WEAPONS_NON_BROKEN = 1,   /* any normal or gold weapon but the R.Y.N.O. */
+    RANDO_START_WEAPONS_UNRESTRICTED = 2, /* any normal or gold weapon */
+};
 
 #define RANDO_SEED_BITS 40
 #define RANDO_SEED_MASK ((((uint64_t)1) << RANDO_SEED_BITS) - 1)
 #define RANDO_CODE_FORMAT 2
-/* "XXXX-XXXX-XXXX": 12 characters of Crockford's base 32 and two hyphens, and the terminator. */
-#define RANDO_CODE_SIZE 15
+/* Ordinary codes are "XXXX-XXXX-XXXX"; random-start codes add the "R:" prefix, random starting
+ * weapons "N:" (Non-Broken) or "U:" (Unrestricted), in that order: "R:N:XXXX-XXXX-XXXX". */
+#define RANDO_CODE_SIZE 19
 
 /* The settings' code: format, difficulty, starting gear, pools, seed and a checksum, 60 bits. */
 void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]);
@@ -237,7 +264,9 @@ typedef struct rando_plan {
     rando_settings settings;
     uint8_t shuffled[RANDO_MAX_LOCATIONS];    /* 1: in a pool the settings shuffle */
     rando_reward reward[RANDO_MAX_LOCATIONS]; /* what each location gives with this seed */
+    int start_level; /* selected first planet, or Veldin for a normal start */
     int attempts;                             /* fills tried before one held */
+    rando_reward start_weapon; /* the start's weapon with random starting weapons, else none */
 } rando_plan;
 
 /* Whether a location is shuffled with these settings. */
@@ -249,6 +278,7 @@ uint64_t rando_requirement(int difficulty, size_t location);
 /* How many shuffled locations of plan cannot be had even at the end of the game; 0 for a placement
  * with no reward locked behind itself. */
 int rando_stranded(const rando_plan* plan);
+int rando_start_safe(const rando_plan* plan);
 
 /* Fills plan for its settings. 0 on success; -1 when no placement was found (never, for the
  * tables here: the tests try many seeds of every setting). */
@@ -265,6 +295,9 @@ void rando_reward_name(rando_reward r, char* buf, size_t n);
 /* The spoiler log: settings, code, where everything is (by planet) and a playthrough. Writes at
  * most size bytes with the terminator; returns the length it needed. */
 size_t rando_spoiler(const rando_plan* plan, const char* mod_version, char* out, size_t size);
+
+/* Native infobot trigger for a canonical coordinate source, or -1. */
+int rando_infobot_mission(const rando_location* location);
 
 #ifdef __cplusplus
 }

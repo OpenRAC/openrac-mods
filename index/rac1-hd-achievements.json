@@ -1,0 +1,27 @@
+{
+  "id": "rac1-hd-achievements",
+  "repo": "https://github.com/Joebannerlord/openRAC-RC1-PS3-HD-Achievements",
+  "path": "",
+  "description": "Simple mod that ports the PS3 HD ratchet collection achivements for RAC1 into openRAC. Provides a overview under the mods details in the launcher and gives popups in game when you achieve them.",
+  "tags": [
+    "qol",
+    "ui"
+  ],
+  "impact": [
+    "cosmetic"
+  ],
+  "aiAssisted": true,
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/rac1-hd-achievements/190124f6e9fa.png"
+      },
+      {
+        "src": "index/media/rac1-hd-achievements/882db6fca584.png"
+      },
+      {
+        "src": "index/media/rac1-hd-achievements/1bfc11b77c72.png"
+      }
+    ]
+  }
+}

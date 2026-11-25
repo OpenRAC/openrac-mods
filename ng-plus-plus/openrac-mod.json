@@ -1,0 +1,841 @@
+{
+  "format": 2,
+  "id": "ng-plus-plus",
+  "name": "NG++",
+  "version": "0.6.23",
+  "author": "Keros",
+  "description": "New Game++ for Going Commando: eight more upgrades for every weapon after its last version, Alpha to Omega (V5 to V12). Like the game's own Mega and V4, you buy one from the vendor, then level the next one up with XP: Alpha bought, Beta by XP, Gamma bought, and so on up to Omega. Each tier does more damage, has more max ammo and its own color; Omega cycles through a rainbow. From Gamma the tiers change how weapons behave (ricochets, chain arcs, split rockets, exploding decoys and sheep, shield zaps, shockwaves, fields), stronger at Epsilon and Omega, and the Lava Gun becomes the Ice Gun, a stream of liquid nitrogen as in Up Your Arsenal that sets enemies in blocks of ice, slows them and shatters them, and is painted as ice with mod interface 1.39 (or, by a setting, the Meteor Gun burns, splashes magma and calls down meteor storms). The Bouncer's bomblets fly faster each tier. The Tesla Claw hits steadily and makes enemies flinch, the Zodiac hurts bosses and the decoy lasts longer. 20 kills in a row with one tiered weapon set off ten seconds of overdrive. Eight armor tiers past the best armor (Carbonox), Alpha Armor to Omega Armor, are sold at the armor vendor once you wear Carbonox, as its next armor, with the vendor's own preview: each takes more off every hit and repaints Carbonox in its color with a rim that glows brighter each tier, its visor and lamps in an accent of the tier's own (with mod interface 1.38, otherwise the whole suit takes the color), Gamma adds thorns and Epsilon a last stand (OpenRAC with mod interface 1.34). Every two weapons at Omega give Ratchet one more health step. The extra shots, the RYNO II's and Gravity Bomb's real split rockets and mini bombs, the shots' colors and glow, and the Ice Gun's freeze and the other slows and stuns need OpenRAC with mod interface 1.29 (develop 9753743cd or later); with 1.28 the other perks work and the splits come as hits. The weapon's shots, bombs, bots, blasts and effects (the Shield Charger's shield too) glow in its tier's color, brighter with each tier (OpenRAC with mod interface 1.25). The RYNO II gets Heavy RYNO II by XP first, then Alpha to Omega, and last, by XP after Omega, Ultima RYNO II, black and red, whose rockets split into homing rockets that split twice more. Prices follow each weapon's own Mega price. Your tiers are saved with each save, in the mod's own data folder. From the second challenge mode on, enemies get more health and hit harder each new game, but stay behind the damage of your tiers, and drops pay more bolts each new game (x2.25 up to x9, more from tough enemies), part of them as platinum bolts worth five times the gold ones and, rarely at first, obsidian bolts worth 25 times: the longer your kill streak, the more of both. The first challenge mode already drops a few platinum bolts. From the third challenge mode some extra enemies are elites, drawn in obsidian, tougher and richer, and each new game from the second challenge mode has a modifier (Swarm, Elite guard, Volatile, Bounty). Tabora's crystals and Grelbin's moonstones, the hoverbike races and the arenas pay more each new game too, and the characters who sell for bolts ask a little more. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24. The ship gets eight weapon tiers too, Alpha to Omega, sold for raritanium at Slim Cognito's Ship Shack (80 to 360): each hits harder and fires faster, Gamma overcharges every fourth hit, Epsilon finishes off damaged ships and Omega's hits arc to the next ship, and the ship glows in its tier's colour or a look its tier unlocks. From the second challenge mode the space missions send more waves of ships, with elites among them.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/ng-plus-plus",
+  "api": "1.34",
+  "multiplayer": "gameplay",
+  "games": {
+    "rac2": [
+      "ntsc",
+      "pal",
+      "ntsc2"
+    ]
+  },
+  "hooks": [
+    "rac2.vendor.build_list",
+    "rac2.vendor.price",
+    "rac2.item.upgrade",
+    "rac2.item.colors",
+    "rac2.combat.post_hit",
+    "rac2.player.take_damage",
+    "rac2.moby.record_death",
+    "rac2.item.version_color",
+    "rac2.text.by_id",
+    "rac2.vendor.draw_list",
+    "rac2.level.load",
+    "rac2.player.nanotech_steps",
+    "rac2.armor_vendor.build_list",
+    "rac2.armor_vendor.buy"
+  ],
+  "settings": [
+    {
+      "key": "weapon_perks",
+      "multiplayer": "host",
+      "name": "Weapon perks",
+      "type": "bool",
+      "default": true,
+      "description": "From Gamma each tiered weapon does more than damage: the Lancer's shots ricochet, the Plasma Coil, Tesla Claw and Clank Zapper chain, the Walloper sends a shockwave, the RYNO II's rockets split, decoys and sheep explode, the shield zaps, and the Lava Gun becomes the Ice Gun, which slows, freezes and shatters enemies. Stronger at Epsilon, its signature at Omega (the tables are in the README). Off: the tiers give damage, ammo and colour only."
+    },
+    {
+      "key": "lava_gun",
+      "multiplayer": "host",
+      "name": "Lava Gun's tiers",
+      "type": "choice",
+      "default": "ice",
+      "choices": [
+        { "value": "ice", "name": "Ice Gun" },
+        { "value": "meteor", "name": "Meteor Gun" }
+      ],
+      "description": "What the Lava Gun's tiers become. Ice Gun: it slows, freezes and shatters enemies (0.5.0's). Meteor Gun: it keeps the Meteor Gun's look and burns: its meteors set enemies on fire, a splash of magma from Gamma (the Magma Gun), burning enemies erupt as they die from Epsilon (the Inferno Gun), and at Omega (the Supernova Gun) every fourth meteor calls down a meteor storm, all in fire colours."
+    },
+    {
+      "key": "tesla_steady",
+      "multiplayer": "host",
+      "name": "Steady Tesla Claw",
+      "type": "bool",
+      "default": true,
+      "description": "The Tesla Claw hits each enemy it holds ten times a second for a small share of its hit, instead of the game's one big hit about every second, so enemies flinch under it as they do under the Heavy Lancer and no ammo goes to waste. About a quarter more damage a second than the game's claw, times its tier. Off: the game's claw."
+    },
+    {
+      "key": "elite_enemies",
+      "multiplayer": "host",
+      "name": "Elite enemies",
+      "type": "bool",
+      "default": true,
+      "description": "From the third challenge mode some of the extra enemies are elites (15%, 5% more each run up to 35%), and in the Maktar and Joba arenas every fourth enemy the waves send: drawn in obsidian, with two and a half times the health, three times the bolts and twice the weapon experience. Needs OpenRAC with mod interface 1.26 (extra enemies) and 1.24 to draw them."
+    },
+    {
+      "key": "challenge_modifiers",
+      "multiplayer": "host",
+      "name": "Challenge mode modifiers",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode each new game has a modifier, named on screen at its first planet, in turn: Swarm (one more copy of each enemy), Elite guard (twice as many elites), Volatile (every enemy bursts when it dies, hurting the enemies around it) and Bounty (enemies hit a fifth harder and drop a quarter more bolts)."
+    },
+    {
+      "key": "extra_enemies",
+      "multiplayer": "host",
+      "name": "Extra enemies",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode, the common enemies of each planet (a table tested on every planet) get a copy beside them, two from the fourth (one for big ones). A copy wakes and fights with its squad, drops its bolts once, counts for your kill streak and is gone when it dies. Bosses, turrets, spawners, Tabora's and Grelbin's crystal creatures, the Y.E.T.I.s and the enemies a level's waves, arenas and doors count are never copied. Needs OpenRAC with mod interface 1.26."
+    },
+    {
+      "key": "notices",
+      "multiplayer": "own",
+      "name": "Tier names on screen",
+      "type": "bool",
+      "default": true,
+      "description": "Shows the weapon's full name (\"Beta Heavy Lancer\") at the top of the screen when it reaches a tier and when you switch to a tiered weapon."
+    },
+    {
+      "key": "enemy_scaling",
+      "multiplayer": "host",
+      "name": "Tougher enemies each new game",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode on, enemies have more health and hit harder each new game (x3.75 health in the second challenge mode, up to x10.5): even with the tier you should have by then a fight takes a quarter to a half more hits. Bosses have two to three times more on top, the final boss half as much again; the RYNO II has its own rule. Kills give more weapon experience to match (the tables are in the README). The first challenge mode is unchanged."
+    },
+    {
+      "key": "enemy_strength",
+      "multiplayer": "host",
+      "name": "How much tougher",
+      "type": "float",
+      "default": 1.0,
+      "min": 0.0,
+      "max": 3.0,
+      "step": 0.25,
+      "description": "Multiplies how much tougher enemies get: 1 as in the README's table, 0.5 half as much, 2 twice as much."
+    },
+    {
+      "key": "gentle_clank",
+      "multiplayer": "host",
+      "name": "Gentler Clank sections",
+      "type": "bool",
+      "default": true,
+      "description": "While you play as Clank (Aranos Prison and the other Clank sections), every hit takes at most one of his four health points, after the challenge modes' tougher enemies and modifiers: he only has his punch, and with two points a hit swarms could not be beaten. Ratchet is not affected. Off: Clank takes the scaled hits too."
+    },
+    {
+      "key": "bolt_scaling",
+      "multiplayer": "host",
+      "name": "Bolt scaling",
+      "type": "choice",
+      "default": "normal",
+      "choices": [
+        { "value": "off", "name": "Off" },
+        { "value": "normal", "name": "Normal" },
+        { "value": "generous", "name": "Generous" }
+      ],
+      "description": "From the second challenge mode on, drops pay more bolts each new game (x1.5, x2.5, x4, then x6), tough enemies up to twice that, and part of each drop comes as platinum bolts worth five times the gold ones and obsidian bolts worth 25 times (more of both with a longer kill streak); the first challenge mode already drops a few platinum bolts. Tabora's crystals and Grelbin's moonstones, the hoverbike races and the arena challenges pay the same x1.5 to x6, and the characters who sell for bolts (not the weapon vendor) ask half that rise. Generous pays half as much again. Off leaves the game's drops, collectors, prizes and prices as they are. Platinum bolts need OpenRAC with mod interface 1.23, obsidian bolts 1.24."
+    },
+    {
+      "key": "space_missions",
+      "multiplayer": "host",
+      "name": "Space missions",
+      "type": "bool",
+      "default": true,
+      "description": "From the second challenge mode Feltzin's, Hrugis's and Gorn's space missions send more waves of enemy ships (one more wave, two from the fourth challenge mode, three from the sixth, one more under Swarm), Feltzin's targets come faster, and a share of the ships are elites drawn in obsidian with twice the health (20% at the second challenge mode, up to 60%). The ships also get the enemies' health curve. Off: the game's missions, with only the health curve."
+    },
+    {
+      "key": "ship_look",
+      "multiplayer": "own",
+      "name": "Ship look",
+      "type": "choice",
+      "default": "tier",
+      "choices": [
+        { "value": "tier", "name": "Ship tier's colour" },
+        { "value": "ion", "name": "Ion (Alpha)" },
+        { "value": "plasma", "name": "Plasma (Beta)" },
+        { "value": "solar", "name": "Solar (Gamma)" },
+        { "value": "inferno", "name": "Inferno (Epsilon)" },
+        { "value": "obsidian", "name": "Obsidian (Eta)" },
+        { "value": "prismatic", "name": "Prismatic (Omega)" },
+        { "value": "off", "name": "Off" }
+      ],
+      "description": "How the ship glows over its paint: in its ship weapon tier's colour, or in a look its tier has unlocked (the tier in brackets; before that, the tier's colour). Off leaves the game's paint alone. Needs OpenRAC with mod interface 1.25."
+    },
+    {
+      "key": "offscreen_targets",
+      "multiplayer": "host",
+      "name": "Zodiac and Plasma Coil hit off screen",
+      "type": "bool",
+      "default": true,
+      "description": "The Zodiac's blast and the arcs of the Plasma Coil and Plasma Storm hit every enemy in their range, also the ones behind the camera or off screen, which the PS2 game skips because it picks their targets among what it drew. Their range and the number they hit stay the game's. On at every tier and in the first playthrough too. Needs OpenRAC with mod interface 1.30."
+    }
+  ],
+  "save_data": {
+    "file": "tiers.txt",
+    "records": "clock-hex",
+    "size": 56,
+    "title": "Weapon tiers",
+    "fields": [
+      {
+        "key": "item_26",
+        "name": "Blitz Gun",
+        "offset": 26,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 26,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_12",
+        "name": "Bomb Glove",
+        "offset": 12,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 12,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_37",
+        "name": "Bouncer",
+        "offset": 37,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 37,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_22",
+        "name": "Chopper",
+        "offset": 22,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 22,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_9",
+        "name": "Clank Zapper",
+        "offset": 9,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 9,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_17",
+        "name": "Decoy Glove",
+        "offset": 17,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 17,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_42",
+        "name": "Gravity Bomb",
+        "offset": 42,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 42,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_25",
+        "name": "Hoverbomb Gun",
+        "offset": 25,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 25,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_30",
+        "name": "Lancer",
+        "offset": 30,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 30,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_29",
+        "name": "Lava Gun",
+        "offset": 29,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 29,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_27",
+        "name": "Minirocket Tube",
+        "offset": 27,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 27,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_41",
+        "name": "Miniturret Glove",
+        "offset": 41,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 41,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_28",
+        "name": "Plasma Coil",
+        "offset": 28,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 28,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_23",
+        "name": "Pulse Rifle",
+        "offset": 23,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 23,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_44",
+        "name": "RYNO II",
+        "offset": 44,
+        "mask": 127,
+        "max": 10,
+        "choices": [
+          "None",
+          "Heavy",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega",
+          "Ultima"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 44,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_24",
+        "name": "Seeker Gun",
+        "offset": 24,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 24,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_16",
+        "name": "Sheepinator",
+        "offset": 16,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 16,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_45",
+        "name": "Shield Charger",
+        "offset": 45,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 45,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_32",
+        "name": "Spiderbot Glove",
+        "offset": 32,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 32,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_31",
+        "name": "Synthenoid",
+        "offset": 31,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 31,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_18",
+        "name": "Tesla Claw",
+        "offset": 18,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 18,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_14",
+        "name": "Visibomb Gun",
+        "offset": 14,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 14,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_53",
+        "name": "Walloper",
+        "offset": 53,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 53,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "item_43",
+        "name": "Zodiac",
+        "offset": 43,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ],
+        "attach": {
+          "to": "item",
+          "id": 43,
+          "as": "version"
+        },
+        "requires": {
+          "version": "last"
+        }
+      },
+      {
+        "key": "armour",
+        "name": "Armor tier",
+        "offset": 55,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      },
+      {
+        "key": "ship_weapons",
+        "name": "Ship weapons tier",
+        "offset": 54,
+        "mask": 127,
+        "max": 8,
+        "choices": [
+          "None",
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta",
+          "Epsilon",
+          "Zeta",
+          "Eta",
+          "Omega"
+        ]
+      }
+    ]
+  }
+}
