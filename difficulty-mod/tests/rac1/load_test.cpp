@@ -132,9 +132,26 @@ float g_tick_seen;
 // refresh.
 std::string g_loop;
 
-void game_update(std::uint32_t) {
+// Each update adds one draw callback, as an enemy's beam or glow does (AddDrawCallback).
+void game_update(std::uint32_t moby) {
     g_tick_seen = get<float>(disc().tick + 12u);
     g_loop += 'U';
+    const std::int32_t n = get<std::int32_t>(disc().draw_count);
+    put<std::uint32_t>(disc().draw_funcs + 4u * n, 0xD0u);
+    put<std::uint32_t>(disc().draw_args + 4u * n, moby);
+    put<std::int32_t>(disc().draw_count, n + 1);
+}
+
+// The frame's draw callbacks: how many, and whether each is the update's for moby.
+int draws_of(std::uint32_t moby) {
+    const std::int32_t n = get<std::int32_t>(disc().draw_count);
+    for (std::int32_t i = 0; i < n; ++i) {
+        if (get<std::uint32_t>(disc().draw_funcs + 4u * i) != 0xD0u
+            || get<std::uint32_t>(disc().draw_args + 4u * i) != moby) {
+            return -1;
+        }
+    }
+    return n;
 }
 
 void game_step_anim(std::uint32_t) {
@@ -759,10 +776,13 @@ int main(int argc, char** argv) {
     // game's moby loop runs one (bounds, animation step, update). Nothing of a tick is scaled: the
     // clock and the animation's speed are the game's, so an attack on an exact frame still fires.
     put<float>(enemy + 0x58u, 1.0f);
+    put<std::int32_t>(d.draw_count, 0);
     g_loop.clear();
     update(enemy);
     CHECK(g_loop == "URAU" && g_tick_seen == 0.02f && get<float>(d.tick + 12u) == 0.02f);
     CHECK(get<float>(enemy + 0x58u) == 1.0f);
+    // The frame draws it once: only the last run's draw callbacks are kept.
+    CHECK(draws_of(enemy) == 1);
     g_loop.clear();
     update(enemy);
     CHECK(g_loop == "URAU" && get<float>(enemy + 0x58u) == 1.0f);
@@ -796,14 +816,19 @@ int main(int argc, char** argv) {
 
     // Four game ticks: it runs, skips, runs, skips; before each skipped tick its animation is
     // held still (the loop steps it before the update), and given back in the skipped tick.
+    std::string drawn;
     for (int i = 0; i < 4; ++i) {
         g_loop.clear();
+        put<std::int32_t>(disc().draw_count, 0);
         update(enemy);
         ticks += g_loop.empty() ? "-" : g_loop;
         held[i] = get<float>(enemy + 0x58u);
+        drawn += std::to_string(draws_of(enemy));
     }
 
     CHECK(ticks == "U-U-");
+    // A skipped tick still draws what its last run drew (a beam does not blink).
+    CHECK(drawn == "1111");
     CHECK(held[0] == 0.0f && held[1] == 1.0f && held[2] == 0.0f && held[3] == 1.0f);
     // A hold its update never ends (the moby left the update range) is ended two frames on.
     update(enemy);
