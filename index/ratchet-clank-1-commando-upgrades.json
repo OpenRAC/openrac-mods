@@ -1,0 +1,56 @@
+{
+  "id": "ratchet-clank-1-commando-upgrades",
+  "repo": "https://github.com/OpenRAC/openrac-mods",
+  "path": "",
+  "type": "pack",
+  "name": "Ratchet & Clank 1: Commando Upgrades",
+  "author": "Promises",
+  "description": "Going Commando's features in the first Ratchet & Clank: Gravity Boots on magnetic surfaces, Charge Boots on the Thruster-Pack, Going Commando running and strafe with its camera and Clank, helmets and gadgets that work without equipping them, Going Commando-style rumble, and a paused weapon wheel.",
+  "tags": [
+    "qol",
+    "gameplay",
+    "controls"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "versions": [
+    {
+      "version": "1.0.0",
+      "released": "2026-11-26T21:02:51Z",
+      "requires": [
+        {
+          "id": "gc-magneboots",
+          "version": ">=1.0.3"
+        },
+        {
+          "id": "thruster-charge",
+          "version": ">=1.1.0"
+        },
+        {
+          "id": "rac1-enhanced-movement",
+          "version": ">=1.0.1",
+          "settings": {
+            "camera": "rac2",
+            "clank": "rac2"
+          }
+        },
+        {
+          "id": "auto-head-gear",
+          "version": ">=1.1.0"
+        },
+        {
+          "id": "gadget-quick-use",
+          "version": ">=1.0.1"
+        },
+        {
+          "id": "rumble",
+          "version": ">=1.0.1"
+        },
+        {
+          "id": "weapon-wheel-pause"
+        }
+      ]
+    }
+  ]
+}
