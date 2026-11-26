@@ -14,6 +14,17 @@
         "macos-x86_64": "434b6f4b93a7abdeda464f6e2db7d45a0498f30e69dd09b8cf30933ab4a53501",
         "windows-x86_64": "7e12f56152dfce659ab5d730a8aec9f9b4edda2715120ec960f78b60e159b410"
       }
+    },
+    {
+      "version": "1.1.0",
+      "sha256": {
+        "android-arm64": "d7aac482ee27cd2c50e30751b987ef03360aef1d6d29811200e4955bf94afc22",
+        "linux-aarch64": "97d91033b2dbc7a690046f3052f2367400448c94c858391ae2ad5c0bd9e55a9c",
+        "linux-x86_64": "e1b242dda12e21e608732352e22fcb9c4eff6d11853d0821d8bf0822c0e45e7b",
+        "macos-arm64": "fabaff4eb1288108a36b8c4cc178a7cfeb69544d9186eaaf02b101e7601d5f53",
+        "macos-x86_64": "c464f0391df87c45be75c7a19f0f5cb8dcb866f310f98ecde9a4ef9695917baf",
+        "windows-x86_64": "4b1403a2a706885d2a2f25b5d1ad4369d51aaa26c7f313802c26afa904fa2e3a"
+      }
     }
   ],
   "auto-swingshot": [
