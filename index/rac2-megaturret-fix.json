@@ -1,0 +1,18 @@
+{
+  "id": "rac2-megaturret-fix",
+  "repo": "https://github.com/SavedbyBlood9/rac2-megaturret-fix",
+  "path": "",
+  "description": "PAL only: Megaturret Glove turrets no longer bob without firing. PAL's faster animations made their unfold and fold skip the frame they wait for; the mod finishes them as the game would, so turrets unfold, fold and fire rockets as on NTSC-U.",
+  "tags": [
+    "gameplay",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/SavedbyBlood9/rac2-megaturret-fix/issues",
+    "docs": "https://github.com/SavedbyBlood9/rac2-megaturret-fix#readme"
+  }
+}
