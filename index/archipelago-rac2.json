@@ -1,0 +1,21 @@
+{
+  "id": "archipelago-rac2",
+  "repo": "https://github.com/SavedbyBlood9/ArchipelagoRAC2",
+  "path": "",
+  "description": "Archipelago multiworld for Going Commando (USA v1.01 and v2.00) and Locked & Loaded (PAL), based on APRac2. Needs the release's APWorld, the repository's Pyth",
+  "tags": [
+    "gameplay",
+    "randomizer",
+    "multiplayer"
+  ],
+  "impact": [
+    "gameplay",
+    "online",
+    "touches-saves"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/SavedbyBlood9/ArchipelagoRAC2/issues",
+    "docs": "https://github.com/SavedbyBlood9/ArchipelagoRAC2#readme"
+  }
+}
