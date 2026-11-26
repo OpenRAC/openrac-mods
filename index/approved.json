@@ -214,7 +214,18 @@
   ],
   "modern-controls": [
     "0.3.0",
-    "0.3.3"
+    "0.3.3",
+    {
+      "version": "0.3.4",
+      "sha256": {
+        "android-arm64": "e59a14c9d06d6f2f541ccf5ab9dcfe74aed319ab8f6b5d08461fd73f7c1e6d1c",
+        "linux-aarch64": "4d504883821b6f1ede80008ba3ff081be244e983ff73d0bff5fdc66109ef5cae",
+        "linux-x86_64": "577eb48109279495203368bf2c7ab3c4ea1ef2d759b86b09a11db4189a945eca",
+        "macos-arm64": "cad193ef7eb5752ac3785adee5c2b5c7ded54865a116b8d3dccc3eb2c6c61d1a",
+        "macos-x86_64": "aee51b43c0d666e72ef9153300931d6c2fdfea32a26f8e2be2f1ff56f7119a3c",
+        "windows-x86_64": "0b64c3c8880d844200467e38c138676dbdd58b97d87ee58411e3aaf4102c23d9"
+      }
+    }
   ],
   "pause-weapon-wheel": [
     "1.0.1",
