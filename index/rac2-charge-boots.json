@@ -1,0 +1,19 @@
+{
+  "id": "rac2-charge-boots",
+  "repo": "https://github.com/ModdedFun/rac2-charge-boots",
+  "path": "",
+  "description": "Steer the Charge Boots from launch, hold their launch speed, and choose which weapons can fire without ending the charge.",
+  "tags": [
+    "gameplay",
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/ModdedFun/rac2-charge-boots/issues",
+    "docs": "https://github.com/ModdedFun/rac2-charge-boots#readme"
+  }
+}
