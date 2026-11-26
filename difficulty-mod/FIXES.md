@@ -27,7 +27,7 @@ is held still.
 |---|---|---|---|---|
 | 1 | Gaspar turret fires no shots | The turret you ride was sped up like an enemy; its shot waits for a frame window that a sped-up animation skips | Left out of the speed slider (#166). It never reached players: 1.5.1 was never tagged, so the launcher still gives 1.5.0 | Load test: the class gets the game's one plain call |
 | 2 | Hoven turret too fast | Same: the turret you ride was sped up | Left out (#166), same release problem | Load test, as above |
-| 3 | Blarg bomb throwers (Batalia) never throw | Throw only on frame exactly 19.0; the scaled animation never lands on it | Ticks of its own | Load test; in game: see below |
+| 3 | Blarg bomb throwers (Batalia) never throw | Throw only on frame exactly 19.0; the scaled animation never lands on it | Ticks of its own | Load test; in game (Batalia, NTSC): 3 of 3 throws at 1.4, was 0 of 3 |
 | 4 | Small floating robots cannot shock | Same family: attack on an animation frame | Ticks of its own | In game: see below |
 | 5 | Elite Blarg fires 1 rocket of 3 | Rockets on frame windows 2, 17, 32; the window is one tick of animation, but the mod gave the game the unscaled speed, so later frames were skipped | Ticks of its own | Load test; in game: see below |
 | 6 | (found) Bombs and rockets fly wrong when sped up | Their speed, gravity and fuse were set from scaled values | Nothing is scaled now | By design |
@@ -60,4 +60,7 @@ check deeper down could be missed. The tick model does not depend on the scan.
   at 0.5 it runs every other tick and its animation is held on the skipped
   tick; a turret you ride gets one plain call; at 1.0 one plain call. The old
   code fails this test.
-- Not tested in this change: a play session with a disc on the user's machine.
+- In game (container, NTSC Batalia, hero held near a bomb thrower, 2400 frames):
+  throws per throw animation, old / new mod: 1.0 2/2 and 2/2, 1.4 0/3 and 3/3,
+  0.7 0/1 and 1/1. No crash.
+- Not tested in game: Elite Blarg (Kalebo III), the floating robots, the turrets.
