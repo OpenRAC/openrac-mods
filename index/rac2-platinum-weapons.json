@@ -1,0 +1,49 @@
+{
+  "id": "rac2-platinum-weapons",
+  "repo": "https://github.com/slimcognitohimself/slim-gc-platinum-weapons-NGplusplus-version",
+  "path": "",
+  "description": "Platinum RaC 2 Weapons, vendor included with thanks to Glawks, 16 weapons can be made Platinum with unique effects, compatible with NG plus plus, Platinum Weapons Vendor on Todano, Platinum Bolt weapon mods now cost Raritanium, Raritanium x3 when mining on Tabora and Grelbin, tankier Mining Vehicle.",
+  "tags": [
+    "gameplay",
+    "cosmetic",
+    "ui"
+  ],
+  "impact": [
+    "touches-saves"
+  ],
+  "aiAssisted": true,
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/rac2-platinum-weapons/1f4c16860e8b.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/7c8db6181037.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/38127690681c.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/f8a137e888a6.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/46728a73958c.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/ac15428dd83a.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/184f9530d691.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/66ff26d66896.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/b5e88ef59f4a.png"
+      },
+      {
+        "src": "index/media/rac2-platinum-weapons/95b784c9b7d9.png"
+      }
+    ]
+  }
+}
