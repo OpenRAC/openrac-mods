@@ -1,0 +1,18 @@
+{
+  "id": "boldan-nanotech",
+  "repo": "https://github.com/SavedbyBlood9/boldan-nanotech",
+  "path": "",
+  "description": "Going Commando: Boldan's Nanotech Upgrade can be collected at any hour, not only on even-numbered hours of the console's clock. The clock tower keeps its own time, hands and chimes.",
+  "tags": [
+    "gameplay",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/SavedbyBlood9/boldan-nanotech/issues",
+    "docs": "https://github.com/SavedbyBlood9/boldan-nanotech#readme"
+  }
+}
