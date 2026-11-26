@@ -32,7 +32,7 @@ is held still.
 | 5 | Elite Blarg fires 1 rocket of 3 | Rockets on frame windows 2, 17, 32; the window is one tick of animation, but the mod gave the game the unscaled speed, so later frames were skipped | Ticks of its own | Load test; in game (Veldin 2): at 1.4 6 rockets in 6 volleys, now 39 in 13 |
 | 6 | (found) Bombs and rockets fly wrong when sped up | Their speed, gravity and fuse were set from scaled values | Nothing is scaled now | By design |
 | 8 | Floating robots: the shock hits but its beam does not show | The beam is a draw callback the robot adds on its attack frames. A skipped tick (below 1.0) added none, so the beam showed on half its frames at 0.5; a second run (above 1.0) added it twice | A frame keeps the draw callbacks of the last run only; a skipped tick draws again what the last run drew | Load test (one draw at 2.0, one each tick at 0.5); in game (Batalia): beam on 20 of 20 frames at 0.5 (was 10), once per frame at 2.0 |
-| 7 | (found) Fix not released | Tags make releases; difficulty-v1.5.1 was never pushed | Push tag `difficulty-v1.5.2` after merge | - |
+| 7 | (found) Fix not released | Tags make releases; difficulty-v1.5.1 was never pushed | Tag `difficulty-v1.5.2` pushed; the beam fix (#8) ships with tag `difficulty-v1.5.3` | - |
 
 ## Other enemies checked
 
