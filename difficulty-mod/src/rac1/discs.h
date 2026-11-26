@@ -61,6 +61,11 @@ struct Disc {
     const char* delete_moby;
     // void (u32 moby): MobyBuildMatrix (rows, sphere, grid cells).
     const char* build_matrix;
+    // void (u32 moby): the moby loop's animation step before each update (advance_moby_animation).
+    const char* step_anim;
+    // void (u32 moby): the moby loop's bounds' refresh after each update
+    // (refresh_moby_spatial_bounds).
+    const char* refresh_bounds;
     // f32 (u32 pos, i32 flags, f32 up): ProbeGroundHeight.
     const char* ground;
     // i32 (u32 from, u32 to, i32 flags, u32 skip, u32 hit): the line test.
@@ -86,6 +91,8 @@ inline constexpr Disc kDiscs[] = {
         "func_0020D348",
         "func_0020D678",
         "func_L00_00251E30",
+        "func_0020E3D0",
+        "func_0020ED48",
         "func_00214358",
         "func_L00_001EFFF0",
     },
@@ -106,6 +113,8 @@ inline constexpr Disc kDiscs[] = {
         "FUN_0020c4f8",
         "FUN_0020c828",
         "FUN_L00_00250df8",
+        "FUN_0020d580",
+        "FUN_0020def8",
         "FUN_00213508",
         "func_L00_001EFC70",  // The port's C (rac1/host/collision.c), not FUN_L00_001efc70.
     },

@@ -128,9 +128,21 @@ void game_approach_speed(float up, float down) {
 }
 
 float g_tick_seen;
+// The moby loop's steps as the mod runs them: U an update, A an animation step, R a bounds'
+// refresh.
+std::string g_loop;
 
 void game_update(std::uint32_t) {
     g_tick_seen = get<float>(disc().tick + 12u);
+    g_loop += 'U';
+}
+
+void game_step_anim(std::uint32_t) {
+    g_loop += 'A';
+}
+
+void game_refresh(std::uint32_t) {
+    g_loop += 'R';
 }
 
 void game_ball(std::uint32_t) {
@@ -294,6 +306,14 @@ void* host_function(const char* name) {
 
     if (std::strcmp(name, d.ground) == 0) {
         return (void*)game_ground;
+    }
+
+    if (std::strcmp(name, d.step_anim) == 0) {
+        return (void*)game_step_anim;
+    }
+
+    if (std::strcmp(name, d.refresh_bounds) == 0) {
+        return (void*)game_refresh;
     }
 
     if (std::strcmp(name, d.line) == 0) {
@@ -562,7 +582,7 @@ int main(int argc, char** argv) {
     query(&info);
     // The interface its manifest names (1.12), whatever the SDK it was built with.
     CHECK(info.api_major == OPENRAC_MOD_API_MAJOR && info.api_minor == 12);
-    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.5.1") == 0);
+    CHECK(std::strcmp(info.id, "difficulty") == 0 && std::strcmp(info.version, "1.5.2") == 0);
     g_mem = static_cast<std::uint8_t*>(std::calloc(1, kMemory));
     CHECK(g_mem != nullptr);
     g_handle = reinterpret_cast<openrac_mod*>(&info);
@@ -651,8 +671,10 @@ int main(int argc, char** argv) {
     approach(0.25f, 0.5f);
     CHECK(g_approach_seen[0] == 0.25f && g_approach_seen[1] == 0.5f && g_approach_seen[2] == 0.1f);
     put<float>(d.tick + 12u, 0.02f);
+    put<float>(enemy + 0x58u, 1.0f);
+    g_loop.clear();
     update(enemy);
-    CHECK(g_tick_seen == 0.02f);
+    CHECK(g_tick_seen == 0.02f && g_loop == "U" && get<float>(enemy + 0x58u) == 1.0f);
 
     // The items' table and the level: as they were.
     for (std::uint32_t id = 0; id < 37; ++id) {
@@ -733,13 +755,23 @@ int main(int argc, char** argv) {
     approach(0.25f, 0.5f);
     CHECK(std::fabs(g_approach_seen[2] - 0.15f) < 1e-6f && g_approach_seen[0] == 0.375f);
     CHECK(get<float>(d.hero + 0x190u) == 0.1f);
-    // An enemy's update on twice the clock, the clock put back after; its animation twice as fast.
+    // An enemy at twice the speed: two ticks of its own each game tick, the second run as the
+    // game's moby loop runs one (bounds, animation step, update). Nothing of a tick is scaled: the
+    // clock and the animation's speed are the game's, so an attack on an exact frame still fires.
     put<float>(enemy + 0x58u, 1.0f);
+    g_loop.clear();
     update(enemy);
-    CHECK(std::fabs(g_tick_seen - 0.04f) < 1e-7f && get<float>(d.tick + 12u) == 0.02f);
-    CHECK(get<float>(enemy + 0x58u) == 2.0f);
+    CHECK(g_loop == "URAU" && g_tick_seen == 0.02f && get<float>(d.tick + 12u) == 0.02f);
+    CHECK(get<float>(enemy + 0x58u) == 1.0f);
+    g_loop.clear();
     update(enemy);
-    CHECK(get<float>(enemy + 0x58u) == 2.0f);  // from the game's 1.0 again, not 4.0
+    CHECK(g_loop == "URAU" && get<float>(enemy + 0x58u) == 1.0f);
+    // An excluded class (the turrets the player rides on Gaspar and Hoven): the game's one call.
+    const std::uint32_t ridden = 0x00640000u;
+    put<std::int16_t>(ridden + 0xA6u, 1201);
+    g_loop.clear();
+    update(ridden);
+    CHECK(g_loop == "U");
     // The items' table: from the level's own values at each load, never twice.
     lay_level(std::vector<Placed>(10, Placed{427, 0xFF, 0, 0x40}), 256);
     load_gameplay(1);
@@ -753,6 +785,33 @@ int main(int argc, char** argv) {
         get<std::uint16_t>(d.item_table + 3u * 0x18u + 8u) == 0
         && get<std::uint16_t>(d.item_table + 3u * 0x18u + 0xEu) == 0
     );
+
+    // ---- Enemies at half the speed: a tick of their own every other game tick ----
+    g_floats = {{"enemy_speed", 0.5}};
+    CHECK(load_with("pal"));
+    update = (void (*)(std::uint32_t))hook(kUpdateHooks[0]);
+    put<float>(enemy + 0x58u, 1.0f);
+    std::string ticks;
+    float held[4];
+
+    // Four game ticks: it runs, skips, runs, skips; before each skipped tick its animation is
+    // held still (the loop steps it before the update), and given back in the skipped tick.
+    for (int i = 0; i < 4; ++i) {
+        g_loop.clear();
+        update(enemy);
+        ticks += g_loop.empty() ? "-" : g_loop;
+        held[i] = get<float>(enemy + 0x58u);
+    }
+
+    CHECK(ticks == "U-U-");
+    CHECK(held[0] == 0.0f && held[1] == 1.0f && held[2] == 0.0f && held[3] == 1.0f);
+    // A hold its update never ends (the moby left the update range) is ended two frames on.
+    update(enemy);
+    CHECK(get<float>(enemy + 0x58u) == 0.0f);
+    for (int i = 0; i < 3; ++i) {
+        g_frame(g_frame_user);
+    }
+    CHECK(get<float>(enemy + 0x58u) == 1.0f);
 
     // ---- The enemy count: within the pool's budget ----
     g_floats = {{"enemy_count", 4.0}};
