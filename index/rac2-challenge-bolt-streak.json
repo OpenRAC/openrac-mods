@@ -1,0 +1,17 @@
+{
+  "id": "rac2-challenge-bolt-streak",
+  "repo": "https://github.com/ModdedFun/rac2-challenge-bolt-streak",
+  "path": "",
+  "description": "Sets how Challenge Mode damage affects the bolt streak and how its cap and gain rate grow on later runs.",
+  "tags": [
+    "gameplay"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/ModdedFun/rac2-challenge-bolt-streak/issues",
+    "docs": "https://github.com/ModdedFun/rac2-challenge-bolt-streak#readme"
+  }
+}
