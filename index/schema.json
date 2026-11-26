@@ -424,6 +424,23 @@
                     "version": {
                       "type": "string",
                       "pattern": "^(>=|=)\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*)?$"
+                    },
+                    "settings": {
+                      "description": "Values the pack gives this mod's settings, by key (the mod's manifest's settings). The launcher writes one only where the player has not chosen a value.",
+                      "type": "object",
+                      "maxProperties": 64,
+                      "propertyNames": {
+                        "pattern": "^[a-z0-9_]+$",
+                        "maxLength": 64
+                      },
+                      "additionalProperties": {
+                        "type": [
+                          "boolean",
+                          "number",
+                          "string"
+                        ],
+                        "maxLength": 200
+                      }
                     }
                   }
                 }

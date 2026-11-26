@@ -37,6 +37,12 @@ body:
       label: Modpack name
       description: Modpacks only. Its id is made from this name.
   - type: textarea
+    id: settings
+    attributes:
+      label: Modpack settings
+      description: "Modpacks only, optional: values the pack gives its mods' settings, one per line as mod-id.key = value (true or false, a number, or text). Each is checked against the mod's openrac-mod.json. The launcher sets them when the pack is installed or updated, never over a value the player chose. Changing them makes a new version of the pack."
+      placeholder: "rac1-enhanced-movement.camera = rac2"
+  - type: textarea
     id: description
     attributes:
       label: Short description

@@ -63,6 +63,15 @@ def mod(index, mid):
     return next(m for m in index["mods"] if m["id"] == mid)
 
 
+# Settings for button-swap's manifest, for the packs' values.
+SETTINGS = [
+    {"key": "layout", "name": "Layout", "type": "choice", "default": "normal",
+     "choices": [{"value": "normal", "name": "Normal"}, {"value": "swapped", "name": "Swapped"}]},
+    {"key": "hold", "name": "Hold", "type": "bool", "default": False},
+    {"key": "speed", "name": "Speed", "type": "int", "default": 1, "min": 0, "max": 5},
+]
+
+
 class Builder(unittest.TestCase):
     def setUp(self):
         self.fx = Fixture()
@@ -275,6 +284,52 @@ class Builder(unittest.TestCase):
         self.assertNotIn("starter-pack", [m["id"] for m in index["mods"]])
         self.assertTrue(any("no-such-mod" in w for w in warnings))
 
+    def test_pack_settings_checked_against_the_manifest(self):
+        self.fx.edit("button-swap/openrac-mod.json", lambda d: d.update(settings=SETTINGS))
+
+        def values(d):
+            d["versions"][0]["requires"][0]["settings"] = {"anything": 1}
+            d["versions"][0]["requires"][1]["settings"] = {"layout": "swapped", "hold": True, "speed": 9,
+                                                           "nope": "x"}
+        self.fx.edit("index/starter-pack.json", values)
+        index, errors, warnings = self.fx.build()
+        self.assertEqual(errors, [])
+        lock, swap = mod(index, "starter-pack")["versions"][0]["requires"]
+        self.assertEqual(lock, {"id": "lock-strafe", "version": ">=1.1.0"})
+        self.assertEqual(swap, {"id": "button-swap", "settings": {"layout": "swapped", "hold": True}})
+        for line in ("starter-pack: 1.0.0: setting lock-strafe.anything dropped: the mod has no such setting",
+                     "starter-pack: 1.0.0: setting button-swap.speed dropped: 9 is not a value of this int setting",
+                     "starter-pack: 1.0.0: setting button-swap.nope dropped: the mod has no such setting"):
+            self.assertIn(line, warnings)
+        self.assertEqual(b.validate_index(index), [])
+
+    def test_pack_settings_malformed_refused(self):
+        for values in ({"Bad-Key": 1}, {"k": [1]}, {"k": None}, {"k": "x" * 201}, [1], {"k": float("nan")}):
+            fx = Fixture()
+            try:
+                fx.edit("index/starter-pack.json", lambda d: d["versions"][0]["requires"][1].update(settings=values))
+                _, errors, _ = fx.build(check=True)
+                self.assertTrue(any("starter-pack" in e and "setting" in e for e in errors), (values, errors))
+            finally:
+                fx.close()
+        self.fx.edit("index/starter-pack.json", lambda d: d["versions"][0]["requires"].append({"id": "button-swap"}))
+        _, errors, _ = self.fx.build(check=True)
+        self.assertTrue(any("twice" in e for e in errors), errors)
+
+    def test_settings_only_on_a_packs_requires(self):
+        self.fx.edit("button-swap/openrac-mod.json", lambda d: d.update(settings=SETTINGS))
+        self.fx.edit("index/starter-pack.json",
+                     lambda d: d["versions"][0]["requires"][1].update(settings={"layout": "swapped"}))
+        index, _, _ = self.fx.build()
+        ix = json.loads(json.dumps(index))
+        self.assertEqual(b.validate_index(ix), [])
+        lock = mod(ix, "lock-strafe")
+        lock["versions"][0]["requires"] = [{"id": "button-swap", "settings": {"layout": "swapped"}}]
+        mod(ix, "starter-pack")["versions"][0]["requires"][1]["settings"] = {"layout": ["x"]}
+        errs = b.validate_index(ix)
+        self.assertTrue(any("lock-strafe" in e and "bad settings" in e for e in errs), errs)
+        self.assertTrue(any("starter-pack" in e and "bad settings" in e for e in errs), errs)
+
     def test_cycle_refused(self):
         (self.fx.repo / "index/pack-b.json").write_text(json.dumps({
             "id": "pack-b", "repo": b.SOURCE, "path": "", "type": "pack", "name": "B", "author": "x",
@@ -433,8 +488,11 @@ class Schema(unittest.TestCase):
             return [] if len(ok) == 1 else [f"{path}: matches {len(ok)} of oneOf"]
         errs = []
         t = s.get("type")
-        types = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None)}
-        if t and not isinstance(value, types[t]):
+        types = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None),
+                 "number": (int, float)}
+        wanted = t if isinstance(t, list) else [t] if t else []
+        is_a = [k for k in wanted if isinstance(value, types[k]) and not (k == "number" and isinstance(value, bool))]
+        if wanted and not is_a:
             return [f"{path}: not {t}"]
         if "enum" in s and value not in s["enum"]:
             errs.append(f"{path}: {value!r} not in enum")
@@ -484,6 +542,13 @@ class Schema(unittest.TestCase):
         self.assertTrue(self.check(bad, self.schema))
         with self.assertRaises(b.EntryError):
             b.check_listing(bad, "x")
+
+    def test_pack_settings_follow_schema(self):
+        entry = json.loads((FIXTURE / "repo" / "index" / "starter-pack.json").read_text())
+        entry["versions"][0]["requires"][1]["settings"] = {"layout": "swapped", "hold": True, "speed": 2.5}
+        self.assertEqual(self.check(entry, self.schema), [])
+        entry["versions"][0]["requires"][1]["settings"] = {"layout": ["swapped"]}
+        self.assertTrue(self.check(entry, self.schema))
 
     def test_repo_entries_load(self):
         entries, errors = b.load_entries(ROOT)
