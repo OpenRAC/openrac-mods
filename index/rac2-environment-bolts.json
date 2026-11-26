@@ -1,0 +1,17 @@
+{
+  "id": "rac2-environment-bolts",
+  "repo": "https://github.com/ModdedFun/rac2-environment-bolts",
+  "path": "",
+  "description": "Gives direct and scripted scenery bolt drops a partial streak bonus in Challenge Mode and works with NG++ run scaling.",
+  "tags": [
+    "gameplay"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/ModdedFun/rac2-environment-bolts/issues",
+    "docs": "https://github.com/ModdedFun/rac2-environment-bolts#readme"
+  }
+}
