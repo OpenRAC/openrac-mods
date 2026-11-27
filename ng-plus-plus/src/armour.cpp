@@ -40,7 +40,7 @@ void Armour::buy() {
         "purchase: armour tier " + std::to_string(before) + " -> " + std::to_string(own_tier())
     );
     const std::string text = armour_name(own_tier());
-    m_mod.api().play_notice(m_mod.handle(), text.c_str());
+    m_view.notice(text);
 }
 
 void Armour::hurt(std::int32_t amount) {
@@ -62,7 +62,7 @@ void Armour::hurt(std::int32_t amount) {
         m_last_stand_ready =
             m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.last_stand_ticks));
         m_mod.info("last stand: the armour kept Ratchet at 1 point");
-        m_mod.api().play_notice(m_mod.handle(), "Last stand!");
+        m_view.notice("Last stand!");
     }
 }
 
@@ -78,7 +78,7 @@ std::int32_t Armour::spare(std::int32_t points) {
 
     m_last_stand_ready = m_tick + static_cast<std::uint32_t>(m_view.ticks(perk.last_stand_ticks));
     m_mod.info("last stand: the armour kept Ratchet at 1 point");
-    m_mod.api().play_notice(m_mod.handle(), "Last stand!");
+    m_view.notice("Last stand!");
     return health - 1;
 }
 

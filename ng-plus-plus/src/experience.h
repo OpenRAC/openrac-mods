@@ -105,7 +105,6 @@ private:
     bool m_text_hooked = false;  // The mod's text lookup is in place.
 
     std::array<RowWrite, kItems> m_rows{};  // Per item, its last version's row.
-    int m_notice_ticks = 0;                 // Ticks the line at the top stays up.
     int m_held = -1;                        // The item in hand at the last tick.
     int m_announcing = -1;                  // The item of the level-up line being shown; -1 none.
     int m_pending = -1;                     // The in-hand level-up waiting for its popup; -1 none.

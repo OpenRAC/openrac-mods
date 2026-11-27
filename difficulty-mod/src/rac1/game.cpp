@@ -15,8 +15,10 @@
 //                       average (an accumulator: 0.5 is a cell every other hit)
 //   damage to enemies   Moby_GetHitMessage: the hit an enemy reads has its damage (+0x2C) scaled,
 //                       once a hit however often it is read
-//   enemy speed         each enemy class's update (the behaviour catalogue's hook points) runs with
-//                       the tick's time constants scaled, and its animation speed (+0x58) scaled
+//   enemy speed         each enemy class's update (the behaviour catalogue's hook points) runs k of
+//                       its own ticks per game tick on average, each as the game's moby loop runs
+//                       it (animation step, update, bounds); a skipped tick holds its animation
+//                       and redraws its last draw callbacks; a frame keeps one run's draw callbacks
 //   Ratchet's speed     Hero_ApproachSpeed: his ground speed eases toward a scaled target
 //   prices, max ammo    the items' table (level 0's D_L00_001C43B0), rewritten from the level's
 //                       own values at each level's load
@@ -108,10 +110,8 @@ constexpr int kCellsUltra = 8;
 // The game mode that is play (documented: discs.h: Disc.level_mode).
 constexpr std::int32_t kModePlay = 0;
 
-// The tick constants (discs.h: Disc.tick): 8 floats of which this is the count, the one that is
-// an int and left alone, and the seconds of the tick's duration (documented: discs.h).
-constexpr int kTickConstants = 8;
-constexpr int kTickIntSlot = 6;
+// The tick constants (discs.h: Disc.tick): the seconds of the tick's duration (documented:
+// discs.h).
 constexpr std::uint32_t kTickSeconds = 12u;
 
 // A moby (the game's 0x100-byte object: difficulty::kMobySize). Offsets are from its address.
@@ -125,8 +125,16 @@ constexpr std::uint32_t kMobyState = 0x20u;
 // Its group byte: 0xFF for none (assumed).
 constexpr std::uint32_t kMobyGroup = 0x21u;
 constexpr std::uint8_t kNoGroup = 0xFF;
-// Its animation speed, f32 (documented: this file's header).
+// Its flags, u16: 0x40 skips its animation's step and 0x4 its bounds' refresh in the game's moby
+// loop (documented: OpenRAC's port/game/rac1-pal/hand/matched_moby_update_loop.c).
+constexpr std::uint32_t kMobyFlags = 0x34u;
+constexpr std::uint16_t kFlagNoAnim = 0x40u;
+constexpr std::uint16_t kFlagNoBounds = 0x4u;
+// Its animation speed, f32: 0 holds its animation still (documented: the decomp's
+// func_L00_002514B8, the animation step).
 constexpr std::uint32_t kMobyAnimSpeed = 0x58u;
+// Its update, u32: the function the game's moby loop calls each tick (documented: the same loop).
+constexpr std::uint32_t kMobyUpdate = 0x74u;
 // Its pvars' address, u32 (assumed).
 constexpr std::uint32_t kMobyPvars = 0x78u;
 // Its class, s16 (documented: classes.h: oclass, moby +0xA6).
@@ -331,6 +339,29 @@ struct Watched {
     float spot[3];
 };
 
+// A timed moby's clock: the ticks of its own it is owed (below 1: none yet), and its animation's
+// speed while the mod holds the animation still for a tick it skips.
+// The draw callbacks a moby's run may add that are kept for its skipped ticks.
+constexpr int kDrawsKept = 8;
+// The game's draw callback list's size.
+constexpr int kDrawListSize = 64;
+
+struct Clock {
+    std::int16_t cls = 0;
+    double owed = 0.0;
+    bool held = false;
+    float speed = 0.0f;
+    // The frame the hold began (State.frames), so that one the moby's update never comes back
+    // to (it left the update range, or took another update) is given back all the same.
+    std::uint64_t held_at = 0;
+    // The draw callbacks its last run added (function, argument), drawn again on a skipped tick.
+    std::uint32_t draws[kDrawsKept][2] = {};
+    int draw_count = 0;
+};
+
+// The frames after which a hold its update did not end is ended by on_frame.
+constexpr std::uint64_t kHoldFrames = 2;
+
 // Everything the mod keeps while it runs in rac1: what it loaded, what it carries between calls,
 // and the game's functions it calls. Made by load and read by every hook, all on the game's
 // thread.
@@ -360,8 +391,9 @@ struct State {
     float hit_value[kHits] = {};
     std::uint32_t hit_owner[kHits] = {};
 
-    // The animation speed each timed moby had from the game, and what the mod wrote over it.
-    std::unordered_map<std::uint32_t, std::pair<float, float>> anim;
+    // Each timed moby's own clock (Clock), and the frames counted so far.
+    std::unordered_map<std::uint32_t, Clock> clocks;
+    std::uint64_t frames = 0;
 
     // The copies made at this level's load, watched until their first moves.
     std::vector<Watched> watch;
@@ -383,6 +415,11 @@ struct State {
     std::uint32_t (*create_moby)(std::int32_t) = nullptr;
     void (*delete_moby)(std::uint32_t) = nullptr;
     void (*build_matrix)(std::uint32_t) = nullptr;
+    // The two steps of the game's moby loop around each update: the animation's step before it
+    // and the bounds' refresh after it. Null when this OpenRAC does not name them: an enemy then
+    // runs one tick per tick when sped up.
+    void (*step_anim)(std::uint32_t) = nullptr;
+    void (*refresh_bounds)(std::uint32_t) = nullptr;
     float (*ground)(std::uint32_t, std::int32_t, float) = nullptr;
     std::int32_t (*line)(std::uint32_t, std::uint32_t, std::int32_t, std::uint32_t, std::uint32_t) =
         nullptr;
@@ -636,51 +673,91 @@ void approach_speed(Original original, float up, float down) {
     }
 }
 
-// Runs the game's `original(moby)` with the tick's time constants scaled by `k`, each by its own
-// power of it, then puts the game's own constants back for everything else that runs this tick.
-void run_with_scaled_tick(void (*original)(std::uint32_t), std::uint32_t moby, double k) {
-    const gaddr tick = exe(state().disc->tick);
-    float saved[kTickConstants];
+// A moby that is alive and of class `cls`.
+bool alive_as(std::uint32_t moby, std::int16_t cls);
 
-    // Every one of the tick's constants, as it was before the update.
-    for (int i = 0; i < kTickConstants; ++i) {
-        saved[i] = get<float>(tick + kWord * static_cast<std::uint32_t>(i));
+// Gives a held animation its speed back: the speed is still the 0 the mod wrote, and the slot
+// still holds the same moby (else the game has written its own since, which stays).
+void release(std::uint32_t moby, Clock& clock) {
+    if (clock.held && alive_as(moby, clock.cls) && get<float>(moby + kMobyAnimSpeed) == 0.0f) {
+        put<float>(moby + kMobyAnimSpeed, clock.speed);
     }
+    clock.held = false;
+}
 
-    const double scale[kTickConstants] = {k, k * k, 1.0 / k, k, k * k, k * k * k, 1.0, k};
-
-    // Every constant but the int one scaled by its own power of the multiplier.
-    for (int i = 0; i < kTickConstants; ++i) {
-        // All but the int slot, which is not a time and stays as it is.
-        if (i != kTickIntSlot) {
-            put<float>(
-                tick + kWord * static_cast<std::uint32_t>(i),
-                static_cast<float>(saved[i] * scale[i])
-            );
-        }
+// The next tick is one the moby skips (it is owed less than a tick then): its animation is held
+// still for it, as the game's loop steps it before the update the mod will not call. Only while it
+// is alive, of its class and on the update it came in with (else this hook is not called again).
+void hold_if_skipping(std::uint32_t moby, Clock& clock, double k, std::uint32_t update) {
+    if (clock.owed + k < 1.0 && alive_as(moby, clock.cls)
+        && get<std::uint32_t>(moby + kMobyUpdate) == update) {
+        clock.speed = get<float>(moby + kMobyAnimSpeed);
+        clock.held = true;
+        clock.held_at = state().frames;
+        put<float>(moby + kMobyAnimSpeed, 0.0f);
     }
+}
 
-    ++state().timed_depth;
-    original(moby);
-    --state().timed_depth;
+// Each frame: a hold its moby's update did not end within kHoldFrames is ended here.
+void release_stale_holds() {
+    ++state().frames;
 
-    // The game's own constants back, for everything else that runs this tick.
-    for (int i = 0; i < kTickConstants; ++i) {
-        // All but the int slot, as when they were scaled.
-        if (i != kTickIntSlot) {
-            put<float>(tick + kWord * static_cast<std::uint32_t>(i), saved[i]);
+    // Each clock with a hold left too long.
+    for (auto& [moby, clock] : state().clocks) {
+        if (clock.held && state().frames - clock.held_at > kHoldFrames) {
+            release(moby, clock);
         }
     }
 }
 
-// An enemy's update with its time scaled: the tick's constants (seconds, and the ratio to NTSC's
-// tick, with their squares and cubes as the game keeps them) for the call, and its animation speed
-// after it, which the next tick's animation advance reads.
+// An enemy's update at its speed `k`: it runs whole ticks of its own, each as the game runs it
+// (the animation's step, the update, the bounds' refresh), k of them per game tick on average.
+// Faster, a tick may run two; slower, a tick may run none and its animation is held still. Nothing
+// of a tick is scaled, so every attack that waits for an exact animation frame or a timer still
+// comes out, and what it throws flies as in the game.
+// Keeps the draw callbacks the moby's last run added, from position `from` of the list, for
+// the ticks it skips.
+void keep_draws(Clock& clock, int from) {
+    const Disc& d = *state().disc;
+    const int count = std::min(get<std::int32_t>(exe(d.draw_count)), kDrawListSize);
+    clock.draw_count = 0;
+    for (int i = std::max(from, 0); i < count && clock.draw_count < kDrawsKept; ++i) {
+        clock.draws[clock.draw_count][0] = get<std::uint32_t>(exe(d.draw_funcs) + 4u * i);
+        clock.draws[clock.draw_count][1] = get<std::uint32_t>(exe(d.draw_args) + 4u * i);
+        ++clock.draw_count;
+    }
+}
+
+// A skipped tick: the moby is still drawn as on its last run (a beam, a glow), as the game's
+// add_draw_callback adds them, while the list has room.
+void redraw(const Clock& clock) {
+    const Disc& d = *state().disc;
+    const gaddr count_at = exe(d.draw_count);
+    for (int i = 0; i < clock.draw_count; ++i) {
+        const int count = get<std::int32_t>(count_at);
+        if (count < 0 || count >= kDrawListSize) {
+            return;
+        }
+        put<std::uint32_t>(exe(d.draw_funcs) + 4u * count, clock.draws[i][0]);
+        put<std::uint32_t>(exe(d.draw_args) + 4u * count, clock.draws[i][1]);
+        put<std::int32_t>(count_at, count + 1);
+    }
+}
+
 void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
     const double k = state().session.active[difficulty::kEnemySpeed];
     const ClassInfo* c = class_of(moby);
+    auto it = state().clocks.find(moby);
 
-    // The slider is at retail, this is an update inside another's (the time is scaled already), or
+    // A clock of a moby the slot no longer holds, or of a speed back at retail: its animation
+    // back, the clock gone.
+    if (it != state().clocks.end() && (c == nullptr || it->second.cls != c->id || k == 1.0)) {
+        release(moby, it->second);
+        state().clocks.erase(it);
+        it = state().clocks.end();
+    }
+
+    // The slider is at retail, this is an update inside another's (that one runs the ticks), or
     // the moby is not an enemy, a roamer or a turret: the game's own call.
     if (k == 1.0 || state().timed_depth > 0 || c == nullptr
         || (c->role != ClassRole::Enemy && c->role != ClassRole::Roamer
@@ -689,28 +766,61 @@ void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
         return;
     }
 
-    const gaddr anim = moby + kMobyAnimSpeed;
-    auto it = state().anim.find(moby);
-
-    // Its animation speed is what the mod wrote last tick: give back the game's own, which the
-    // update may read or advance from.
-    if (it != state().anim.end() && get<float>(anim) == it->second.second) {
-        put<float>(anim, it->second.first);
+    // A moby seen first: its first tick runs.
+    if (it == state().clocks.end()) {
+        Clock fresh;
+        fresh.cls = c->id;
+        fresh.owed = k < 1.0 ? 1.0 - k : 0.0;
+        it = state().clocks.emplace(moby, fresh).first;
     }
 
-    run_with_scaled_tick(original, moby, k);
+    Clock& clock = it->second;
+    release(moby, clock);
+    clock.owed += k;
+    const int runs = static_cast<int>(clock.owed);
+    clock.owed -= runs;
 
-    // The moby is still alive and still the same class (its update may have freed or reused the
-    // slot): scale its animation speed, and remember what it was.
-    if (static_cast<std::int8_t>(get<std::uint8_t>(moby + kMobyState)) >= 0
-        && get<std::int16_t>(moby + kMobyClass) == c->id) {
-        const float base = get<float>(anim);
-        const float scaled = static_cast<float>(base * k);
-        put<float>(anim, scaled);
-        state().anim[moby] = {base, scaled};
+    ++state().timed_depth;
+    const std::uint32_t update = get<std::uint32_t>(moby + kMobyUpdate);
+    const gaddr draw_count = exe(state().disc->draw_count);
+    int run_draws = get<std::int32_t>(draw_count);
+
+    // Each tick it is owed: the first is the game's own (the loop stepped its animation before
+    // it and refreshes its bounds after); each further one as the loop would run it again, while
+    // the moby is alive, of its class and on the same update.
+    for (int i = 0; i < runs; ++i) {
+        if (i > 0) {
+            if (state().step_anim == nullptr || !alive_as(moby, c->id)
+                || get<std::uint32_t>(moby + kMobyUpdate) != update) {
+                break;
+            }
+            const std::uint16_t flags = get<std::uint16_t>(moby + kMobyFlags);
+
+            // The bounds' refresh after the last run, unless the moby has none.
+            if ((flags & kFlagNoBounds) == 0) {
+                state().refresh_bounds(moby);
+            }
+
+            // The animation's step before this run, unless the moby has none.
+            if ((flags & kFlagNoAnim) == 0) {
+                state().step_anim(moby);
+            }
+
+            // The frame draws one tick: the draw callbacks of the run before are dropped.
+            put<std::int32_t>(draw_count, run_draws);
+        }
+        run_draws = get<std::int32_t>(draw_count);
+        original(moby);
+    }
+    --state().timed_depth;
+
+    if (runs > 0) {
+        keep_draws(clock, run_draws);
     } else {
-        state().anim.erase(moby);
+        redraw(clock);
     }
+
+    hold_if_skipping(moby, clock, k, update);
 }
 
 // A moby that is alive and of class `cls`.
@@ -1545,7 +1655,7 @@ std::uint32_t load_gameplay(Original original, std::int32_t full) {
     // This level's values (the host's in a party, rolled with Chaos), logged as Chaos or the trace
     // asks.
     const std::uint64_t seed = difficulty::level_values(state().session, level);
-    state().anim.clear();
+    state().clocks.clear();
     state().watch.clear();
     std::memset(state().hit_owner, 0, sizeof state().hit_owner);
     state().rng =
@@ -1695,9 +1805,12 @@ void check_copies() {
     }
 }
 
-// Each frame: the events' clock (in play, with the events on), then max health. A party's member
+// Each frame: the timed mobys' stale holds, the copies watched, the events' clock (in play, with
+// the events on), then max health. A party's member
 // has no clock of its own: the host decides the events (session.cpp: advance_events).
 void on_frame() {
+    release_stale_holds();
+
     // Copies made at this level's load and not yet moved on their own.
     if (!state().watch.empty()) {
         check_copies();
@@ -1763,6 +1876,17 @@ void load(openrac::Mod& mod) {
     state().delete_moby = mod.required_function<void (*)(std::uint32_t)>(state().disc->delete_moby);
     state().build_matrix =
         mod.required_function<void (*)(std::uint32_t)>(state().disc->build_matrix);
+    state().step_anim = mod.function<void (*)(std::uint32_t)>(state().disc->step_anim);
+    state().refresh_bounds = mod.function<void (*)(std::uint32_t)>(state().disc->refresh_bounds);
+
+    // Without the loop's two steps, an enemy can run no second tick in one.
+    if (state().step_anim == nullptr || state().refresh_bounds == nullptr) {
+        state().step_anim = nullptr;
+        mod.warn(
+            "this OpenRAC does not name the moby loop's steps: enemies faster than 1.0 keep the "
+            "game's pace"
+        );
+    }
     state().ground =
         mod.required_function<float (*)(std::uint32_t, std::int32_t, float)>(state().disc->ground);
     state().line = mod.required_function<

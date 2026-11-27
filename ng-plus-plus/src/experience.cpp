@@ -10,9 +10,6 @@
 namespace ng_plus_plus {
 namespace {
 
-// Ticks the line at the top of the screen stays up: two and a half seconds at 60 Hz.
-constexpr int kNoticeTicks = 150;
-
 // Ticks an in-hand level-up waits for the game's popup at its animation's end: ten seconds, far
 // past the animation, after which a lookup is the game's again.
 constexpr int kPendingTicks = 600;
@@ -246,17 +243,8 @@ void Experience::count_down_notice() {
         m_pending = -1;
     }
 
-    // No line up.
-    if (m_notice_ticks == 0) {
-        return;
-    }
-
-    --m_notice_ticks;
-
-    // The line's time is up: cleared.
-    if (m_notice_ticks == 0) {
-        m_weapons.view().mod().api().play_notice(m_weapons.view().mod().handle(), "");
-    }
+    // The line at the top: its time counts down, and it clears itself.
+    m_weapons.view().tick_notice();
 }
 
 void Experience::name_weapon_in_hand() {
@@ -270,7 +258,7 @@ void Experience::name_weapon_in_hand() {
     m_held = held;
 
     // A tiered weapon, and not over a step's line still up.
-    if (held >= 0 && held < kItems && m_tiers.level(held) != 0 && m_notice_ticks == 0) {
+    if (held >= 0 && held < kItems && m_tiers.level(held) != 0 && !m_weapons.view().notice_up()) {
         notice(held);
     }
 }
@@ -281,10 +269,7 @@ void Experience::notice(int item) {
         return;
     }
 
-    const openrac::Mod& mod = m_weapons.view().mod();
-    const std::string name = m_weapons.name_at(item, m_tiers.level(item));
-    mod.api().play_notice(mod.handle(), name.c_str());
-    m_notice_ticks = m_weapons.view().ticks(kNoticeTicks);
+    m_weapons.view().notice(m_weapons.name_at(item, m_tiers.level(item)));
 }
 
 }  // namespace ng_plus_plus

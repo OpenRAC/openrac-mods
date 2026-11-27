@@ -175,6 +175,14 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
   tags with the archives the SDK's workflow makes (`SHA256SUMS` is optional when
   GitHub gives each archive a digest); new
   releases are picked up by themselves.
+- **A modpack** is `index/<id>.json` with `type: pack`, `name`, `author`,
+  `description` and `versions: [{version, released, requires}]`: it installs
+  the mods its `requires` names. A `requires` item may give that mod's settings
+  values, by key: `{"id": "rac1-enhanced-movement", "settings": {"camera":
+  "rac2"}}`. The index keeps only the keys the mod's manifest declares, with
+  values it takes. The launcher sets them when the pack is installed or
+  updated, never over a value the player chose. A change of mods or settings is
+  a new pack version.
 
 - **Without git**: the [Submit a mod](https://github.com/OpenRAC/openrac-mods/issues/new?template=submit-mod.yml)
   issue form. A bot checks it, takes the pictures you add, and opens the pull

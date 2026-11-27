@@ -35,6 +35,11 @@ struct Disc {
     std::uint32_t item_in_hand;
     // The special items' bytes: [4] Premium, [5] Ultra Nanotech.
     std::uint32_t upgrades;
+    // The frame's draw callbacks (AddDrawCallback): the count (s32, at most 64), then the
+    // functions and their arguments, u32[64] each.
+    std::uint32_t draw_count;
+    std::uint32_t draw_funcs;
+    std::uint32_t draw_args;
 
     // Level 0's program's, through relocate_level_data(0, ...).
 
@@ -61,6 +66,11 @@ struct Disc {
     const char* delete_moby;
     // void (u32 moby): MobyBuildMatrix (rows, sphere, grid cells).
     const char* build_matrix;
+    // void (u32 moby): the moby loop's animation step before each update (advance_moby_animation).
+    const char* step_anim;
+    // void (u32 moby): the moby loop's bounds' refresh after each update
+    // (refresh_moby_spatial_bounds).
+    const char* refresh_bounds;
     // f32 (u32 pos, i32 flags, f32 up): ProbeGroundHeight.
     const char* ground;
     // i32 (u32 from, u32 to, i32 flags, u32 skip, u32 hit): the line test.
@@ -77,6 +87,9 @@ inline constexpr Disc kDiscs[] = {
         0x0013D530u,
         0x00140508u,
         0x0013D490u,
+        0x0015F564u,
+        0x0018DC40u,
+        0x0018DD40u,
         0x0015F6A8u,
         0x001C43B0u,
         0x00173F00u,
@@ -86,6 +99,8 @@ inline constexpr Disc kDiscs[] = {
         "func_0020D348",
         "func_0020D678",
         "func_L00_00251E30",
+        "func_0020E3D0",
+        "func_0020ED48",
         "func_00214358",
         "func_L00_001EFFF0",
     },
@@ -97,6 +112,9 @@ inline constexpr Disc kDiscs[] = {
         0x0013D428u,
         0x00140408u,
         0x0013D388u,
+        0x0015F464u,
+        0x0018DB40u,
+        0x0018DC40u,
         0x0015F5C4u,
         0x001C40B0u,
         0x00173E00u,
@@ -106,6 +124,8 @@ inline constexpr Disc kDiscs[] = {
         "FUN_0020c4f8",
         "FUN_0020c828",
         "FUN_L00_00250df8",
+        "FUN_0020d580",
+        "FUN_0020def8",
         "FUN_00213508",
         "func_L00_001EFC70",  // The port's C (rac1/host/collision.c), not FUN_L00_001efc70.
     },

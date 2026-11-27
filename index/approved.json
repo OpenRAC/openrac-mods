@@ -14,6 +14,17 @@
         "macos-x86_64": "434b6f4b93a7abdeda464f6e2db7d45a0498f30e69dd09b8cf30933ab4a53501",
         "windows-x86_64": "7e12f56152dfce659ab5d730a8aec9f9b4edda2715120ec960f78b60e159b410"
       }
+    },
+    {
+      "version": "1.1.0",
+      "sha256": {
+        "android-arm64": "d7aac482ee27cd2c50e30751b987ef03360aef1d6d29811200e4955bf94afc22",
+        "linux-aarch64": "97d91033b2dbc7a690046f3052f2367400448c94c858391ae2ad5c0bd9e55a9c",
+        "linux-x86_64": "e1b242dda12e21e608732352e22fcb9c4eff6d11853d0821d8bf0822c0e45e7b",
+        "macos-arm64": "fabaff4eb1288108a36b8c4cc178a7cfeb69544d9186eaaf02b101e7601d5f53",
+        "macos-x86_64": "c464f0391df87c45be75c7a19f0f5cb8dcb866f310f98ecde9a4ef9695917baf",
+        "windows-x86_64": "4b1403a2a706885d2a2f25b5d1ad4369d51aaa26c7f313802c26afa904fa2e3a"
+      }
     }
   ],
   "auto-swingshot": [
@@ -71,7 +82,18 @@
   ],
   "cutscene-manager": [
     "0.1.0",
-    "0.2.0"
+    "0.2.0",
+    {
+      "version": "0.2.1",
+      "sha256": {
+        "android-arm64": "d583f026704b4ce5478728a2c47162a13fded26cf30182a9784c9589e1c2153e",
+        "linux-aarch64": "564082d7f6706da5c60697455ebd53c14d36486f8295822e0551678d3173ab89",
+        "linux-x86_64": "0885870fbf2bbca855c44655f3652e42bc10c0ca5647c2ee01c0aa559af9e8d8",
+        "macos-arm64": "6e8b6ef7c5c8f66edbcf98c55c0984573c544fc8220d80a099558882f08e2028",
+        "macos-x86_64": "1f4c619d97f1976a319cbf3962276e27daf0db8ae8ade4a1bef99933f023a693",
+        "windows-x86_64": "ce4d931d4e3cef8508f71b4607f600695468b3111d64341738a79c7bd50ad712"
+      }
+    }
   ],
   "damage-numbers": [
     "0.7.1",
@@ -203,7 +225,29 @@
   ],
   "modern-controls": [
     "0.3.0",
-    "0.3.3"
+    "0.3.3",
+    {
+      "version": "0.3.4",
+      "sha256": {
+        "android-arm64": "e59a14c9d06d6f2f541ccf5ab9dcfe74aed319ab8f6b5d08461fd73f7c1e6d1c",
+        "linux-aarch64": "4d504883821b6f1ede80008ba3ff081be244e983ff73d0bff5fdc66109ef5cae",
+        "linux-x86_64": "577eb48109279495203368bf2c7ab3c4ea1ef2d759b86b09a11db4189a945eca",
+        "macos-arm64": "cad193ef7eb5752ac3785adee5c2b5c7ded54865a116b8d3dccc3eb2c6c61d1a",
+        "macos-x86_64": "aee51b43c0d666e72ef9153300931d6c2fdfea32a26f8e2be2f1ff56f7119a3c",
+        "windows-x86_64": "0b64c3c8880d844200467e38c138676dbdd58b97d87ee58411e3aaf4102c23d9"
+      }
+    },
+    {
+      "version": "0.3.5",
+      "sha256": {
+        "android-arm64": "dde411caa4450ff372afe92986f5e5d874e6eafd1a92efa6db4b9e10fcf9d355",
+        "linux-aarch64": "611482fa7013dbfc6f3a1502d7386adb8e98d4b18e2d943f60a3170a4bc2a5c9",
+        "linux-x86_64": "1fd32a7bb0444723e3207bddc5a9004421601a5881bdc59f569030097bd7f389",
+        "macos-arm64": "3bfb10e8c46330fe766f6e8391228efa60831b38aefc7891275b0ec7432a733f",
+        "macos-x86_64": "2838e0bdd2642f1f9433236a84e35c19b02a260e1ff3723ef3fc9e628d907aa9",
+        "windows-x86_64": "bc86bdf088017cd56ef9b0342e5376897adc9d1b6a788d5bfbacb8899ad80c27"
+      }
+    }
   ],
   "pause-weapon-wheel": [
     "1.0.1",
@@ -499,6 +543,17 @@
         "macos-x86_64": "1fd5e6304b336abb26702d2f3630d1b70724f057b1db679be4a499f7aedbb7c3",
         "windows-x86_64": "41ef99f10503d0e13cb0e8a6b0f4b3ff7029f2ed9c6fd0b6f66780436fa15987"
       }
+    },
+    {
+      "version": "1.0.1",
+      "sha256": {
+        "android-arm64": "e13a9bec3353b2f90e8956da22c8154a41acc2d514307e9a84b4d0a22d0a845e",
+        "linux-aarch64": "31a20050a5ae7b49cc1b278b18efc06640f99d669cc007a816b43b37793ece40",
+        "linux-x86_64": "d641fe460d61d7c36e44e54ebefb49a9f5720ad5751deb0423d83d6f79e734f1",
+        "macos-arm64": "674ca5f6c262d000af50e7d97fa174eda81b8893bdf6e51dceb41361814f9c29",
+        "macos-x86_64": "c4e1fc686d00c81e090e70b97de5acdf0e7873e1253abba19d94b69a196de417",
+        "windows-x86_64": "cb5807e2710288dc32337bc205f520c01c0ac5310ec99e5a96877680fdf999bd"
+      }
     }
   ],
   "ryno-ammo-drops": [
@@ -530,7 +585,18 @@
     }
   ],
   "steam-deck-pack": [
-    "0.3.0"
+    "0.3.0",
+    {
+      "version": "0.3.1",
+      "sha256": {
+        "android-arm64": "c6946cf4a3ad39ca02e7f6348f47f8df32748a5a9ffc4eabc3425bb4af6e1acb",
+        "linux-aarch64": "c28d2ae63ebb05991f4245c7284b234f5cd13de4bdccc41c6fd7750c1c8d996b",
+        "linux-x86_64": "958f444fa98b3711ba91a7990be8d300a2c199c43535ecd0c9361874b02c84cd",
+        "macos-arm64": "9f77330c7d02cbeed4a54201360d336650607dccea091c75fd93e4b0ea103ef9",
+        "macos-x86_64": "e81a641561853d4bd4b9a0112222182cfa1eaadba47830158dd9ea01b114c580",
+        "windows-x86_64": "e47337e2bd4047b0e486e445dc4243b4ab0e74dd3c89808c51cdb8fafffbc81d"
+      }
+    }
   ],
   "thruster-charge": [
     {

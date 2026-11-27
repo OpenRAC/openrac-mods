@@ -56,7 +56,7 @@ COMMON = {"Short description": "description", "Tags": "tags", "Impact": "impact"
           "Screenshots": "screenshots"}
 FORMS = {
     "mod-submission": {"Kind": "kind", "Repository": "repo", "Mod ids": "mods", "Modpack name": "name",
-                       **COMMON, "Content rules": "rules"},
+                       "Modpack settings": "settings", **COMMON, "Content rules": "rules"},
     "listing-update": {"Mod id": "mod", **COMMON},
     "mod-removal": {"Mod id": "mod", "Reason": "reason"},
     "mod-revoke": {"Mod id": "mod", "Versions": "versions", "Reason": "reason"},
@@ -118,6 +118,38 @@ def pictures(text: str) -> tuple[list[tuple[str, str]], list[str]]:
             continue
         found.append((urls[0], " ".join(caption.split())[:b.MAX_CAPTION]))
     return found, bad
+
+
+SETTING_LINE = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*)\.([a-z0-9_]+)\s*=\s*(\S(?:.*\S)?)\s*$")
+
+
+def setting_lines(text: str) -> tuple[dict[str, dict], list[str]]:
+    """The modpack settings field's `mod-id.key = value` lines as {mod id: {key: value}}, and the
+    lines that are not. A value is true or false, a number, or text (quoted to keep "true" text)."""
+    out: dict[str, dict] = {}
+    bad = []
+    for n, line in enumerate((text or "").split("\n"), 1):
+        line = line.strip()
+        if not line:
+            continue
+        m = SETTING_LINE.match(line)
+        if not m:
+            bad.append(f"line {n}")
+            continue
+        out.setdefault(m.group(1), {})[m.group(2)] = setting_value(m.group(3))
+    return out, bad
+
+
+def setting_value(text: str):
+    if text in ("true", "false"):
+        return text == "true"
+    if re.fullmatch(r"-?\d+", text):
+        return int(text)
+    if re.fullmatch(r"-?\d+\.\d+", text):
+        return float(text)
+    if len(text) >= 2 and text[0] == text[-1] == '"':
+        return text[1:-1]
+    return text
 
 
 def slug(name: str) -> str:
@@ -324,7 +356,7 @@ class Bot:
                   "; ".join(md(e) for e in mine[:3]) or "")
         held = [r for r in review if r["id"] == mid]
         skipped = [w.removeprefix(f"{mid}: skipped ") for w in logged if w.startswith(f"{mid}: skipped ")]
-        return {"index": index, "held": held, "skipped": skipped}
+        return {"index": index, "held": held, "skipped": skipped, "logged": logged}
 
     def newest_release_usable(self, owner: str, repo: str, mid: str, skipped: list[str]) -> None:
         """The build leaves a broken release out and lists an older one: say so, or the author is
@@ -448,6 +480,18 @@ class Bot:
         self.item(bool(requires) and not bad, "Every mod of the pack is in the index",
                   (f"Not found: {', '.join(md(x) for x in bad)}. " if bad else "") +
                   "List mods of the index as id or id@>=1.0.0.")
+        values, bad_lines = setting_lines(form.get("settings"))
+        if values or bad_lines:
+            problems = [f"{md(x)} is not mod-id.key = value" for x in bad_lines]
+            problems += [f"{md(x)} is not a mod of the pack" for x in values if x not in [r["id"] for r in requires]]
+            for r in requires:
+                if r["id"] in values:
+                    try:
+                        r["settings"] = b.setting_values(values[r["id"]], r["id"])
+                    except b.ReleaseError as e:
+                        problems.append(md(e))
+            self.item(not problems, "The settings are mod-id.key = value lines for mods of the pack",
+                      "; ".join(problems[:5]))
         desc = " ".join((form.get("description") or "").split())
         self.item(0 < len(desc) <= b.MAX_DESCRIPTION, "The description is 1 to 300 characters",
                   "Write a short description of the pack.")
@@ -468,7 +512,13 @@ class Bot:
                                          "description": desc,
                                          **{k: v for k, v in listing.items() if k not in ("id", "description")},
                                          "versions": versions})
-        self.index_check(mid, f"index/{mid}.json")
+        res = self.index_check(mid, f"index/{mid}.json")
+        if any("settings" in r for r in requires):
+            # The build drops what the mods' manifests do not take: the launcher would skip it.
+            head = f"{mid}: {versions[0]['version']}: setting "
+            dropped = [w.removeprefix(head) for w in res["logged"] if w.startswith(head)]
+            self.item(not dropped, "Each setting is one its mod has, with a value it takes",
+                      "; ".join(md(d) for d in dropped[:5]) + ". See the mod's openrac-mod.json settings.")
         return {"id": mid, "title": f"List the modpack {mid}"}
 
     def owned(self, mid: str, user: str) -> dict | None:

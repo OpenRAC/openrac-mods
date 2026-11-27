@@ -2,7 +2,7 @@
   "id": "cutscene-manager",
   "repo": "https://github.com/momo1212221/cutscene-manager",
   "path": "",
-  "description": "Conservative RAC1 cutscene manager that can skip only repeated scenes proven safe after natural completion; progression scenes are never auto-skipped.",
+  "description": "Conservative cutscene manager for Ratchet & Clank and Going Commando that can skip only repeated scenes proven safe after natural completion; progression scenes are never auto-skipped.",
   "tags": [
     "qol",
     "speedrun"

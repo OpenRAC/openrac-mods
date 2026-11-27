@@ -19,7 +19,7 @@ sys.path.insert(0, str(HERE))
 import build_index as b  # noqa: E402
 import submit_bot as bot  # noqa: E402
 from make_fixtures import png  # noqa: E402
-from test_build_index import NOW, Fixture  # noqa: E402
+from test_build_index import NOW, SETTINGS, Fixture  # noqa: E402
 
 ROOT = HERE.parent.parent
 SHOT = "https://github.com/user-attachments/assets/0f1e2d3c-aaaa-bbbb-cccc-1234567890ab"
@@ -120,9 +120,16 @@ class Forms(unittest.TestCase):
             pairs = re.findall(r"^    id: (\S+)\n    attributes:\n      label: (.+)$", text, re.M)
             self.assertEqual({label: fid for fid, label in pairs}, bot.FORMS[form], name)
         ids = re.findall(r"^    id: (\S+)$", (ROOT / ".github/ISSUE_TEMPLATE/submit-mod.yml").read_text(), re.M)
-        self.assertEqual(ids, ["kind", "repo", "mods", "name", "description", "tags", "impact", "ai", "bugs", "discord",
-                               "docs", "page", "video", "screenshots", "rules"])
+        self.assertEqual(ids, ["kind", "repo", "mods", "name", "settings", "description", "tags", "impact", "ai",
+                               "bugs", "discord", "docs", "page", "video", "screenshots", "rules"])
         self.assertIn("info@openrac.dev", (ROOT / ".github/ISSUE_TEMPLATE/report-mod.yml").read_text())
+
+    def test_setting_lines(self):
+        values, bad = bot.setting_lines('a-mod.camera = rac2\n\n  a-mod.on=true\nb.n = -3\nb.f = 0.5\n'
+                                        'b.t = "false"\nb.text = two words\nno key = 1\nb.k =\n')
+        self.assertEqual(values, {"a-mod": {"camera": "rac2", "on": True},
+                                  "b": {"n": -3, "f": 0.5, "t": "false", "text": "two words"}})
+        self.assertEqual(bad, ["line 8", "line 9"])
 
     def test_md_cell_is_inert(self):
         self.assertEqual(bot.md("a|b\n@x <img>"), "a\\|b @​x &lt;img>")
@@ -344,6 +351,45 @@ class Pack(Base):
         self.assertEqual(entry["versions"][0]["requires"], [{"id": "lock-strafe", "version": ">=1.1.0"},
                                                            {"id": "button-swap"}])
         self.assertEqual(entry["versions"][0]["version"], "1.0.0")
+
+    def test_pack_with_settings(self):
+        self.fx.edit("button-swap/openrac-mod.json", lambda d: d.update(settings=SETTINGS))
+        r = self.check(event({"kind": "Modpack", "name": "Night pack", "mods": "lock-strafe, button-swap",
+                              "settings": "button-swap.layout = swapped\nbutton-swap.hold = true",
+                              "description": "Two mods.", "rules": True}, user="anyone"))
+        self.assertEqual(self.failed(r), [])
+        entry = json.loads((self.out / "files" / "index/night-pack.json").read_text())
+        self.assertEqual(entry["versions"][0]["requires"],
+                         [{"id": "lock-strafe"}, {"id": "button-swap", "settings": {"layout": "swapped", "hold": True}}])
+
+    def test_pack_settings_must_fit_the_pack_and_the_mods(self):
+        r = self.check(event({"kind": "Modpack", "name": "Night pack", "mods": "button-swap",
+                              "settings": "lock-strafe.x = 1\nnot a setting", "description": "x", "rules": True},
+                             user="anyone"))
+        self.assertIn("The settings are mod-id.key = value lines for mods of the pack", self.failed(r))
+        self.assertFalse((self.out / "files" / "index/night-pack.json").exists())
+        self.fx.edit("button-swap/openrac-mod.json", lambda d: d.update(settings=SETTINGS))
+        r = self.check(event({"kind": "Modpack", "name": "Night pack", "mods": "button-swap",
+                              "settings": "button-swap.speed = 9", "description": "x", "rules": True},
+                             user="anyone"))
+        self.assertIn("Each setting is one its mod has, with a value it takes", self.failed(r))
+        self.assertFalse(r["ok"])
+
+    def test_changed_settings_make_a_new_version(self):
+        self.fx.edit("button-swap/openrac-mod.json", lambda d: d.update(settings=SETTINGS))
+        fields = {"kind": "Modpack", "name": "Starter pack", "mods": "lock-strafe@>=1.1.0, button-swap",
+                  "description": "Lock-strafe and button swap together.", "rules": True}
+
+        def versions():
+            return json.loads((self.out / "files" / "index/starter-pack.json").read_text())["versions"]
+
+        r = self.check(event(fields, user="boss"))
+        self.assertEqual(self.failed(r), [])
+        self.assertEqual([v["version"] for v in versions()], ["1.0.0"])
+        r = self.check(event({**fields, "settings": "button-swap.hold = true"}, user="boss"))
+        self.assertEqual(self.failed(r), [])
+        self.assertEqual([v["version"] for v in versions()], ["1.1.0", "1.0.0"])
+        self.assertEqual(versions()[0]["requires"][1], {"id": "button-swap", "settings": {"hold": True}})
 
     def test_pack_needs_known_mods(self):
         r = self.check(event({"kind": "Modpack", "name": "Bad", "mods": "lock-strafe, nope", "description": "x",

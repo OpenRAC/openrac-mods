@@ -15,6 +15,7 @@
 #include <string_view>
 
 #include "discs.h"
+#include "notices.h"
 #include "openrac/mod.hpp"
 #include "save_book.h"
 
@@ -128,6 +129,20 @@ public:
     std::int32_t crystal_trade_text() const { return m_disc.crystal_trade; }
 
     std::int32_t moonstone_trade_text() const { return m_disc.moonstone_trade; }
+
+    // ---- The line at the top of the picture ----
+
+    // Shows `text` there for `sixtieths` (the port keeps a line until it is replaced or cleared, so
+    // NG++ never calls play_notice itself).
+    void notice(const std::string& text, int sixtieths = kNoticeSixtieths) const {
+        m_notices.show(text, ticks(sixtieths));
+    }
+
+    // Counts a game tick for the line; clears it when its time is up.
+    void tick_notice() const { m_notices.tick(); }
+
+    // Returns whether a line is up.
+    bool notice_up() const { return m_notices.up(); }
 
     // ---- Time: NG++'s times are in sixtieths of a second (discs.h) ----
 
@@ -318,6 +333,7 @@ private:
     BannerFn m_banner;              // The level-up popup (null: none).
     MessageFn m_message;            // The message line (null: none).
     UpgradeFxFn m_upgrade_fx;       // The in-hand level-up (null: none).
+    mutable Notices m_notices;      // The line at the top of the picture.
     mutable int m_own_lookups = 0;  // The view's own text lookups under way.
     bool m_slot_logged = false;     // The first slot write has been logged.
 };

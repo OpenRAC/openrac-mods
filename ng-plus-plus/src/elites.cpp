@@ -127,7 +127,7 @@ void Elites::enter(int level) {
         m_named_cycle = m_view.cycle();
         const std::string text = std::string("Challenge: ") + modifier_name(now);
         m_mod.info("this run's modifier: " + std::string(modifier_name(now)));
-        m_mod.api().play_notice(m_mod.handle(), text.c_str());
+        m_view.notice(text);
     }
 }
 

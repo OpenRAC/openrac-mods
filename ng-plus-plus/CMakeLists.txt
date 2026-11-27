@@ -26,6 +26,7 @@ add_library(ng_plus_plus_core STATIC
   src/perk_rules.cpp
   src/moby_scan.cpp
   src/elites.cpp
+  src/ice_fx.cpp
   src/perks.cpp
   src/armour.cpp
   src/armour_vendor.cpp
@@ -59,6 +60,14 @@ set_target_properties(ng_plus_plus_core PROPERTIES
 # The mod's library: the entry point and the parts, packaged with the manifest.
 openrac_add_mod(ng_plus_plus MANIFEST openrac-mod.json SOURCES src/ng_plus_plus.cpp)
 target_link_libraries(ng_plus_plus PRIVATE ng_plus_plus_core)
+
+# The Ice Gun's meshes and pictures (tools/make_ice_meshes.py), beside the manifest in the package:
+# the props read them from the mod's folder.
+get_target_property(ngpp_package ng_plus_plus OPENRAC_MOD_PACKAGE_DIR)
+add_custom_command(TARGET ng_plus_plus POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "${ngpp_package}/assets"
+  COMMENT "Packaging the Ice Gun's meshes"
+  VERBATIM)
 
 # The warnings of OpenRAC's own C++ (port/cmake/Warnings.cmake), for compilers that take them.
 if(NOT MSVC)
@@ -122,6 +131,19 @@ if(BUILD_TESTING)
   target_link_libraries(ng_plus_plus_paint_test PRIVATE ng_plus_plus_core)
   set_target_properties(ng_plus_plus_paint_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
   add_test(NAME ng_plus_plus_paint COMMAND ng_plus_plus_paint_test)
+
+  # 0.6.22's Ice Gun look: its meshes and pictures are there and well formed.
+  add_executable(ng_plus_plus_ice_assets_test tests/ice_assets_test.cpp)
+  target_link_libraries(ng_plus_plus_ice_assets_test PRIVATE ng_plus_plus_core)
+  target_compile_definitions(ng_plus_plus_ice_assets_test PRIVATE NGPP_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+  set_target_properties(ng_plus_plus_ice_assets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_ice_assets COMMAND ng_plus_plus_ice_assets_test)
+
+  # 0.6.22's line at the top of the picture: every line clears itself when its time is up.
+  add_executable(ng_plus_plus_notices_test tests/notices_test.cpp)
+  target_link_libraries(ng_plus_plus_notices_test PRIVATE ng_plus_plus_core)
+  set_target_properties(ng_plus_plus_notices_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+  add_test(NAME ng_plus_plus_notices COMMAND ng_plus_plus_notices_test)
 
   # The library as the port loads it, against a host table and game memory of the test's own.
   add_executable(ng_plus_plus_load_test tests/load_test.cpp)

@@ -2,7 +2,7 @@
   "id": "modern-controls",
   "repo": "https://github.com/momo1212221/modern-controls",
   "path": "",
-  "description": "Direct mouse and controller camera controls with adjustable turn and aim speed, separate axis sensitivity, radial deadzone, movement speed, and acceleration/braking.",
+  "description": "Direct mouse and controller camera with adjustable turn/aim speed, radial deadzone, movement speed, acceleration/braking, RaC2-style L2/R2 lock-strafe (for RAC1), and compatibility with Steam Deck, Xbox, DualSense, Button Swap, and Keyboard & Mouse.",
   "tags": [
     "controls",
     "camera",
@@ -15,5 +15,13 @@
   "links": {
     "bugs": "https://github.com/momo1212221/modern-controls/issues",
     "docs": "https://github.com/momo1212221/modern-controls#readme"
+  },
+  "media": {
+    "screenshots": [
+      {
+        "src": "index/media/modern-controls/e912379bc2c4.jpeg",
+        "caption": "In-game Camera options menu with 1-100 rotation speed"
+      }
+    ]
   }
 }

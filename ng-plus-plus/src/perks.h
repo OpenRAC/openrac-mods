@@ -31,6 +31,7 @@
 #include "bolt_api.h"
 #include "elites.h"
 #include "game_view.h"
+#include "ice_fx.h"
 #include "moby_scan.h"
 #include "openrac/mod.hpp"
 #include "perk_rules.h"
@@ -55,6 +56,7 @@ public:
           m_weapons(weapons),
           m_elites(elites),
           m_scan(view),
+          m_ice(mod, view, weapons, m_scan),
           m_on(on) {}
 
     // Finds moby_material and says what this build lacks.
@@ -264,6 +266,7 @@ private:
     const Weapons& m_weapons;
     Elites& m_elites;
     MobyScan m_scan;
+    IceFx m_ice;  // The Ice Gun's look (ice_fx.h).
     bool m_on;
     Shots* m_shots = nullptr;   // The 1.29 perks, or none.
     ZodiacCredit* m_credit = nullptr;  // The Zodiac's kill marks, or none.

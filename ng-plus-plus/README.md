@@ -27,6 +27,26 @@ comes as platinum bolts, worth five times the gold ones, and obsidian bolts, wor
 
 With the mod off, the game plays exactly as on the PlayStation 2.
 
+## What's new in 0.6.23
+
+- **The Ice Gun is a stream of liquid nitrogen, not meteors.** Up Your Arsenal's Lava Gun is a
+  stream at every version, and its V5 (the Liquid Nitrogen Gun) turns it from a lava stream into a
+  blue one that freezes what it hits. NG++ now draws that. The meteors the game fires are no longer
+  drawn: each flies as a ribbon of added light through its last points (a white core in a bright
+  band in a wide glow, in the tier's ice colour, thinner and dimmer as it ages) with a glow at its
+  head, so a held trigger is one continuous blue stream. Where it lands, a cold glow lies on the
+  ground for a second (the lava pool's place) and cold puffs are thrown up. An enemy it freezes is
+  set in a block of ice: a crystal that fades in over half a second to about half its opacity, with
+  cold puffs rising from the enemy as it begins; when the freeze ends, or the enemy dies in it, the
+  block shatters into shards that fly out, tumble, fall and fade. The game's meteor still does the
+  hitting (its damage, its blast, the tiers' freeze and shatter are as in 0.6.21); only how it
+  looks changes. All of it is drawn with the mod SDK's props (OpenRAC with mod interface 1.12 or
+  newer; no new OpenRAC is needed) and made procedurally by `tools/make_ice_meshes.py`: nothing is
+  copied from any game's files. What Up Your Arsenal does, from its code, is in
+  `docs/rac3-liquid-nitrogen-gun.md`. The game's own trails and sparks of the meteor stay, in the
+  tier's blue with interface 1.39. Needs no new Going Commando build: the files are in the package's
+  `assets` folder.
+
 ## What's new in 0.6.21
 
 - **The Ice Gun is ice.** Its tiers didn't act at all: the Meteor Gun's shot is a meteor of its
@@ -522,11 +542,15 @@ the tiers give damage, ammo and colour only. In a multiplayer party the host's s
 ### The Ice Gun
 
 The Lava Gun's tiers are the **Ice Gun**: "Alpha Ice Gun" up to "Omega Ice Gun". The gun keeps
-the Meteor Gun's model, repainted in pale ice with deep blue where its lava glowed, and its meteors
-are painted as shards of ice in the tier's blue, their trails, sparks and the fire they leave on an
-enemy blue too (OpenRAC with mod interface 1.39; an older one draws the shots and their effects in
-a clear ice blue over the meteors' own look).
-The idea follows Up Your Arsenal's Liquid Nitrogen Gun (the Lava Gun's V5 there). Its colours:
+the Meteor Gun's model, repainted in pale ice with deep blue where its lava glowed (OpenRAC with
+mod interface 1.39; an older one draws the shots and their effects in a clear ice blue over the
+meteors' own look). It copies Up Your Arsenal's Liquid Nitrogen Gun (the Lava Gun's V5 there; what
+that gun does is in `docs/rac3-liquid-nitrogen-gun.md`): the meteors the game fires are drawn as a
+**stream of liquid nitrogen**, a ribbon of added light (a white core in a bright band in a wide
+glow, in the tier's colour) with a glow at its head, cold puffs and a cold glow where it lands in
+the place of the lava, and a **block of ice** around every enemy it freezes, which shatters into
+shards when the freeze ends or the enemy dies in it (props of the mod SDK, interface 1.12 and up).
+Its colours:
 
 | Tier | Color |
 |---|---|
@@ -1280,8 +1304,10 @@ Not yet:
   the hit perks in the table. Before OpenRAC 1.29 (an older port) the perks that need it are not
   done at all, and the RYNO II's split rockets and the Gravity Bomb's mini bombs come as hits and
   blasts on the nearest enemies; there is no freeze or slow either.
-- The Ice Gun keeps the Meteor Gun's model (repainted) and fires its meteors (painted as ice), not
-  Up Your Arsenal's stream.
+- The Ice Gun keeps the Meteor Gun's model (repainted) and the game's meteors do the hitting; they
+  are drawn as a stream of liquid nitrogen (0.6.23), but they are still meteors: they fly the
+  game's arc, one every few ticks, and blast where they land. Up Your Arsenal's stream is a ring of
+  points the gun moves itself, which Going Commando's gun does not have.
 - The weapons' looks change only how things are drawn: shots are no faster (but the Bouncer's
   bomblets) and blasts reach no farther at a higher tier (the larger sparks and flashes are drawn larger, nothing more). The
   game's item rows keep the shots' speed and size in fields that mean different things for each

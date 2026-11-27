@@ -82,7 +82,7 @@ The full table, slider by slider:
 | **Enemy count** | Above 1: copies of the level's enemies beside them when the level loads (3 means about two copies of each). Below 1: that share of the free-roaming enemies left out (0.5: about half). Only enemies free of the level's scripts are copied or left out: never bosses, turrets, mines, spawners, the enemies of a wave or of a "defeat them all" door, nor any the story or another object needs (see [which mobys count as enemies](#which-mobys-count-as-enemies)). A copy stands on the same floor, in the open, 2.5 to 4 units from its original and at least 2 from every other enemy of its class (a big one: its own size, up to 4); where there is no such spot, it is not made. When its AI takes it that near an enemy of its class (the same path or cover point, or one a spawner made later), it is moved apart a little each tick, never through a wall or, walking, off a ledge; the level's own enemies are never moved. Copies drop no bolts and are not remembered as killed. How many copies a level gets is limited by room: see [how many enemies](#how-many-enemies) |
 | **Damage to Ratchet** | How many cells of health a hit takes, on average: 2 is two cells a hit, 0.5 a cell every other hit, 1.5 one then two. Falls, crushers and other instant deaths are the game's |
 | **Damage to enemies** | The damage of every hit on an enemy, a turret or a boss: your weapons, the wrench, explosions |
-| **Enemy speed** | How fast enemies and turrets move, turn, animate, aim and fire: the clock their own code runs on. Bosses keep their own pace |
+| **Enemy speed** | How fast enemies and turrets move, turn, animate, aim and fire. Each one runs more (or fewer) ticks of its own: at 1.5, three ticks for every two of the game. Every tick runs exactly as in the game, so every attack still comes out. Bosses and the turrets you ride keep their own pace |
 | **Ratchet's speed** | His walking and running speed (jumps and gravity are the game's) |
 | **Weapon prices** | What the Gadgetron vendor asks for each weapon, and what NPCs ask for the gadgets they sell. The nanotech upgrades on Orxon cost what the game says |
 | **Ammo prices** | The vendor's price for each round of ammo |
@@ -206,7 +206,7 @@ did.
 |---|---|
 | Damage to Ratchet | `rac1.player.take_damage` (Hero_TakeDamage, which takes one cell a call): called that many times on average |
 | Damage to enemies | `rac1.combat.get_hit` (MobyGetHitMessage, how every enemy reads the hit it takes): the hit's damage scaled once, however often it is read |
-| Enemy speed | Each timed class's update, `rac1.moby.<class>.update` (the behaviour catalogue's hook points): the tick's time constants scaled for the call (the game's movement and timers are written in them), and the moby's animation speed |
+| Enemy speed | Each timed class's update, `rac1.moby.<class>.update` (the behaviour catalogue's hook points): run k times per game tick on average. An extra run does what the game's moby loop does around an update (bounds refresh, animation step, then the update); a skipped tick holds the animation still. See [FIXES.md](FIXES.md) |
 | Ratchet's speed | `rac1.player.approach_speed` (Hero_ApproachSpeed): his ground speed eases toward his target speed scaled |
 | Prices, max ammo | The items' table (`D_L00_001C43B0` on PAL), rewritten from the level's own values at each level's load (`rac1.level.load_gameplay`): never scaled twice |
 | Ammo per shot | `rac1.weapon.take_ammo` (TakeAmmo) |

@@ -23,6 +23,7 @@ import datetime as dt
 import email.utils
 import hashlib
 import json
+import math
 import os
 import random
 import re
@@ -65,6 +66,7 @@ API_RE = re.compile(r"^\d+\.\d+$")
 CONSTRAINT_RE = re.compile(r"^(>=|=)" + SEMVER + "$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 REPO_RE = re.compile(r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$")
+SETTING_KEY_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 
 MAX_ID = 64
 MAX_DESCRIPTION = 300
@@ -74,6 +76,8 @@ MAX_SCREENSHOTS = 12
 MAX_VIDEOS = 4
 MAX_CAPTION = 200
 MAX_ALIASES = 10
+MAX_SETTINGS = 64  # values a pack gives one mod
+MAX_SETTING_TEXT = 200
 MAX_SUMS = 256 * 1024
 MAX_CD = 2 * 1024 * 1024
 COOL_DOWN = 3600  # seconds a new external native version waits
@@ -509,10 +513,12 @@ def _check_pack(d: dict, where: str) -> None:
             raise EntryError(f"{where}: a pack version needs a semver version")
         if not norm_time(v.get("released")):
             raise EntryError(f"{where}: pack {v.get('version')} needs released (ISO time)")
-        reqs(v.get("requires", []), where)
+        reqs(v.get("requires", []), where, pack=True)
 
 
-def reqs(value, where: str) -> list[dict]:
+def reqs(value, where: str, pack: bool = False) -> list[dict]:
+    """A requires list. A pack's items may also give the mod's settings values (`settings`); a
+    manifest's never do."""
     if not isinstance(value, list):
         raise ReleaseError(f"{where}: requires must be a list")
     out = []
@@ -524,8 +530,56 @@ def reqs(value, where: str) -> list[dict]:
             if not isinstance(r["version"], str) or not CONSTRAINT_RE.match(r["version"]):
                 raise ReleaseError(f"{where}: requires {item['id']}: version must be >=X.Y.Z or =X.Y.Z")
             item["version"] = r["version"]
+        if pack and r.get("settings"):
+            item["settings"] = setting_values(r["settings"], f"{where}: requires {item['id']}")
         out.append(item)
+    if pack and len({r["id"] for r in out}) != len(out):
+        raise ReleaseError(f"{where}: requires names a mod twice")
     return out
+
+
+def setting_values(value, where: str) -> dict:
+    """A pack's values for one mod's settings: {key: bool, number or text}."""
+    if not isinstance(value, dict) or len(value) > MAX_SETTINGS:
+        raise ReleaseError(f"{where}: settings must be {{key: value}}, at most {MAX_SETTINGS}")
+    for key, v in value.items():
+        if not SETTING_KEY_RE.match(key):
+            raise ReleaseError(f"{where}: setting {key!r}: keys are [a-z0-9_]+")
+        if isinstance(v, float) and not math.isfinite(v):
+            raise ReleaseError(f"{where}: setting {key}: not a finite number")
+        if not isinstance(v, (bool, int, float, str)) or (isinstance(v, str) and len(v) > MAX_SETTING_TEXT):
+            raise ReleaseError(f"{where}: setting {key}: a value is true/false, a number or text "
+                               f"of at most {MAX_SETTING_TEXT} characters")
+    return dict(value)
+
+
+def setting_problem(spec, value) -> str | None:
+    """Why a mod's setting (a manifest `settings` item) does not take `value`, or None: the
+    launcher's rule (plugins.rs check_value)."""
+    if not isinstance(spec, dict):
+        return "the manifest's setting is malformed"
+    kind = spec.get("type")
+    number = isinstance(value, (int, float)) and not isinstance(value, bool)
+    lo, hi = spec.get("min"), spec.get("max")
+    in_range = number and (not isinstance(lo, (int, float)) or value >= lo) and (
+        not isinstance(hi, (int, float)) or value <= hi)
+    if kind == "bool":
+        ok = isinstance(value, bool)
+    elif kind == "int":
+        ok = isinstance(value, int) and in_range
+    elif kind == "float":
+        ok = in_range
+    elif kind == "choice":
+        choices = [c.get("value") for c in spec.get("choices", []) if isinstance(c, dict)]
+        ok = isinstance(value, str) and value in choices
+    elif kind == "string":
+        most = spec.get("maxLength", spec.get("max_length"))
+        ok = isinstance(value, str) and (not isinstance(most, int) or len(value) <= most)
+    elif kind == "keybind":
+        ok = isinstance(value, str)
+    else:
+        return f"the manifest's setting has an unknown type {kind!r}"
+    return None if ok else f"{json.dumps(value)} is not a value of this {kind} setting"
 
 
 # ------------------------------------------------------------------------------------------------
@@ -738,6 +792,7 @@ def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None
             raise EntryError(f"{entry['where']}: openrac-mod.json: {err}") from None
     if head.get("id") != mid:
         raise EntryError(f"{entry['where']}: the manifest's id is {head.get('id')!r}, not {mid!r}")
+    entry["manifest"] = head  # its settings check the packs' values (check_pack_settings)
     try:
         head_f = manifest_fields(head, entry["where"])
     except ReleaseError as err:
@@ -820,7 +875,8 @@ def build_pack(entry: dict) -> dict:
     versions = []
     for v in e["versions"]:
         versions.append({
-            "version": v["version"], "api": None, "games": games, "requires": reqs(v.get("requires", []), entry["where"]),
+            "version": v["version"], "api": None, "games": games,
+            "requires": reqs(v.get("requires", []), entry["where"], pack=True),
             "conflicts": [], "hooks": [], "tag": "", "released": norm_time(v["released"]),
             "prerelease": "-" in v["version"], "changelog": clip(v.get("changelog", "")), "size": 0, "files": [],
             "platforms": {}})
@@ -902,6 +958,27 @@ def check_dependencies(mods: dict[str, dict], log) -> None:
             if not keep:
                 log(f"{mid}: no usable version left; not listed")
                 del mods[mid]
+
+
+def check_pack_settings(mods: dict[str, dict], entries: dict[str, dict], log) -> None:
+    """Drops each value a pack gives a mod's setting that the mod's manifest (its default branch's)
+    does not declare or does not take. The launcher would skip it; the submit bot reports it."""
+    for pid in sorted(mods):
+        if mods[pid]["type"] != "pack":
+            continue
+        for v in mods[pid]["versions"]:
+            for r in v["requires"]:
+                if "settings" not in r:
+                    continue
+                manifest = entries.get(r["id"], {}).get("manifest") or {}
+                specs = {s.get("key"): s for s in manifest.get("settings", []) if isinstance(s, dict)}
+                for key, value in list(r["settings"].items()):
+                    why = "the mod has no such setting" if key not in specs else setting_problem(specs[key], value)
+                    if why:
+                        log(f"{pid}: {v['version']}: setting {r['id']}.{key} dropped: {why}")
+                        del r["settings"][key]
+                if not r["settings"]:
+                    del r["settings"]
 
 
 def find_cycle(mods: dict[str, dict]) -> list[str] | None:
@@ -1195,6 +1272,10 @@ def validate_index(ix: dict) -> list[str]:
             for r in v.get("requires", []):
                 need(r.get("id") in ids, f"{vw}: requires {r.get('id')}, not in the index")
                 need("version" not in r or CONSTRAINT_RE.match(r["version"]), f"{vw}: bad constraint")
+                values = r.get("settings", {})
+                need(("settings" not in r or m.get("type") == "pack") and isinstance(values, dict) and all(
+                    SETTING_KEY_RE.match(k) and isinstance(x, (bool, int, float, str)) for k, x in values.items()),
+                     f"{vw}: requires {r.get('id')}: bad settings")
             for c in v.get("conflicts", []):
                 need(c.get("id") in ids, f"{vw}: conflicts with {c.get('id')}, not in the index")
             need(isinstance(v.get("hooks"), list), f"{vw}: hooks")
@@ -1280,6 +1361,7 @@ def build(root: Path, http: Http, now: float, out: Path | None, check: bool, ext
             mod["downloads"] = downloads
             mods[e["id"]] = mod
     check_dependencies(mods, log)
+    check_pack_settings(mods, by_id, log)
     cycle = find_cycle(mods)
     if cycle:
         errors.append("dependency cycle: " + " -> ".join(cycle))
