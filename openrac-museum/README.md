@@ -1,0 +1,88 @@
+# OpenRAC Museum
+
+A new planet for Ratchet & Clank on OpenRAC: a wooden museum house on a tropical island, with a
+lagoon, mountains, two waterfalls, a volcano and small islets. Like the Insomniac Museum of the
+later games, but about how OpenRAC is made. It is added as its own planet in the ship's menu;
+Pokitaru and every other planet stay as they are.
+
+## Install
+
+1. Download `openrac-museum-pal.openrac-map` from this repository's
+   [Releases](https://github.com/OpenRAC/openrac-mods/releases).
+2. In the OpenRAC launcher, open **Mods** and add the file like any mod (pick it or drop it).
+   OpenRAC Editor must be downloaded: it builds the map from your own disc.
+3. Turn on **Mods** and play. Board the ship and pick **OpenRAC Museum**.
+
+The file holds no game data. The plants, rocks, lamps, gadget targets and the ground and wood
+pictures are named in it, and your disc gives them back when you add it. The map is made for the
+Europe disc (PAL).
+
+Adding a newer file updates the planet in place.
+
+## What is in it
+
+- **The island** in Pokitaru's style: rock walls with grass over every ledge, sea stacks, rock and
+  grass islets out at sea, and turbine towers on the far islands.
+- **The house** in the lagoon: an octagonal pavilion on stilts with two rings of 8 rooms round a
+  tall atrium, a gallery reached by a double stair, and a gateway with a carved sign.
+- **One exhibit in each room**, about how OpenRAC is made: the launcher, the renderer, hostgen and
+  matching (real code on the screens), the I-5 terminal, the 20-button codes on the floor, a map of
+  the museum, mods, co-op, the speedrun record, the effects case, a handheld, a
+  cutscene file, the test room, the devkit desk and a wall of everyone who made OpenRAC.
+- **Cut from the game**, round the fountain: the Revolverator (its model from your disc; the Revolverator mod brings it back), the E3
+  demo's old names, the Mackerel 1000, and the developers' notes to themselves over the doors.
+- **A gold tile before each exhibit**: stand on it and the OpenRAC Museum mod shows what you see
+  and the story behind it.
+- **The JET-Board park** past the east bridge: quarter pipes, a fun box, a rail and the board on
+  its stand. Ride it with the [RAC-Board](https://github.com/mateuszklysz/rac-board) mod (D-pad Up);
+  the board's model and picture here are RAC-Board's own (MIT).
+- **Gadget routes** (Swingshot): the north jetty to the tower's top room, the coast to the
+  message-in-a-bottle islet, and the lookout up the volcano to its shrine.
+- **Easter eggs**: the Decomp Cave behind the second waterfall, a rubber duck in the tower, a
+  sunken chest marked 0x1F, the volcano's "undefined behaviour" shrine, bolt crates that spell
+  OPENRAC on the east beach, and a door that opens only at 3 AM. Four gold bolts hide in the cave, the
+  tower, on the islet and at the shrine.
+- **Handrails** on posts from the lookout to the tower and round the lagoon; the JET-Board grinds
+  them.
+- **Enemies outside**: puffoids and a psytcopus guard the foot of the lookout stair, the north
+  jetty, the coast before the bottle islet and the beach behind the OPENRAC crates. The house
+  and its rooms stay quiet.
+
+## The mod
+
+The OpenRAC Museum mod (`mod/`, on the mod hub as `openrac-museum`) makes the exhibits work: the
+tiles' words, the I-5 menu (Select leaves it), the effects case, a notice when
+a 20-button code works, the 3 AM door, and live flames over the campfires and torches with mist
+where the waterfalls land (the game's own particles). Near Ratchet it also draws foam on the
+waterline, sun glints on the sea, sunbeams with dust through the house's windows, a glow round
+lamps and flames, fireflies, heat haze over the fires, glowing tiles, flickering screens, bolt
+glints and a flash when a crate breaks. Turn it on with the map. Its data is written from the
+exhibits and the map's `tools/effects.json` by `python3 tools/mod_data.py`; its sprites (`mod/fx/`)
+by `python3 tools/fx.py`.
+
+## Notes
+
+- A new-planet session starts without a save, so it has no gadgets: start it with your own save,
+  or with `--unlock-all-gadgets`.
+- The light is baked (sun, shadows of the house and the trees, sky, every torch and lantern), so it
+  costs nothing in the game. A light sea haze softens the far rocks.
+- Crates to break and loose bolts lie all over the island (`tools/clutter.py`), with buoys, rafts,
+  old posts and a wreck in the sea. Grass, ferns and flowers grow in patches everywhere
+  (`tools/scatter.py`); all of them are Pokitaru's own.
+- Collision covers where you can walk and where the gadget routes go. The high mountains away from
+  the routes have none.
+
+## Build the map file
+
+For maintainers. Needs Python 3 with numpy and Pillow, an OpenRAC checkout and an OpenRAC Editor
+checkout side by side, and a PAL disc image:
+
+```
+python3 tools/build_map.py DISC.iso OUT_FOLDER --editor path/to/OpenRAC-Editor
+```
+
+It reads levels 11 and 2 from the disc into a temporary folder, writes the museum there
+(`tools/museum.py`), sets every crate, lamp, rock and plant down on the ground with OpenRAC
+Editor's placement (`placement.py`), bakes the light with bounced light and a soft sun, gives the
+hero light zones from that bake (darker in the house and in shade, `tools/museum_light.py`), and exports it with OpenRAC Editor's `map export`. Upload the
+`.openrac-map` it writes to a release. Never commit it with disc files.
