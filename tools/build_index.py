@@ -83,7 +83,7 @@ MAX_CD = 2 * 1024 * 1024
 COOL_DOWN = 3600  # seconds a new external native version waits
 INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json")
 LISTING_KEYS = {"id", "description", "tags", "impact", "links", "recommends", "suggests", "aliases", "featured",
-                "media", "aiAssisted"}
+                "media", "aiAssisted", "readmeFile"}
 ENTRY_KEYS = LISTING_KEYS | {"repo", "path", "type", "name", "author", "license", "homepage", "games", "readme",
                              "versions"}
 
@@ -378,6 +378,10 @@ def check_listing(d: dict, where: str, extra_keys=frozenset()) -> None:
         raise EntryError(f"{where}: featured must be true or false")
     if not isinstance(d.get("aiAssisted", False), bool):
         raise EntryError(f"{where}: aiAssisted must be true or false")
+    if "readmeFile" in d:
+        check_src(d["readmeFile"], f"{where}: readmeFile")
+        if not d["readmeFile"].endswith(".md"):
+            raise EntryError(f"{where}: readmeFile must be a Markdown file (.md)")
     m = d.get("media", {})
     if not isinstance(m, dict) or set(m) - {"icon", "banner", "screenshots", "videos"}:
         raise EntryError(f"{where}: media may have icon, banner, screenshots, videos")
@@ -409,6 +413,14 @@ def check_src(src, where: str) -> None:
     if not isinstance(src, str) or not src or src.startswith("/") or "\\" in src or ".." in src.split("/") \
             or "://" in src or len(src) > 200:
         raise EntryError(f"{where}: {src!r} must be a path inside the mod's folder")
+
+
+def readme_file_ok(src) -> bool:
+    try:
+        check_src(src, "readmeFile")
+    except EntryError:
+        return False
+    return src.endswith(".md")
 
 
 def check_caption(c, where: str) -> None:
@@ -489,6 +501,8 @@ def _check_pack(d: dict, where: str) -> None:
     for key in ("name", "author", "description"):
         if not isinstance(d.get(key), str) or not d[key]:
             raise EntryError(f"{where}: a pack needs {key}")
+    if "readmeFile" in d:
+        raise EntryError(f"{where}: a pack's page is its readme text, not a readmeFile")
     if len(d["description"]) > MAX_DESCRIPTION:
         raise EntryError(f"{where}: description over {MAX_DESCRIPTION} characters")
     vs = d.get("versions")
@@ -841,8 +855,18 @@ def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None
         log(f"{mid}: no release yet; not listed")
         return None, downloads
     readme_ref = unique[0]["tag"] or "HEAD"
-    readme = gh.raw(owner, repo, readme_ref, join(entry["path"], "README.md"), limit=MAX_TEXT * 4) or b""
-    return mod_record(entry, head, head_f["type"], unique, clip(readme.decode("utf-8", "replace"))), downloads
+    # The listing's readmeFile, if any, is the page; README.md when it names nothing or is not there.
+    # The record names the file the text came from, so the page can resolve its relative links.
+    default = join(entry["path"], "README.md")
+    page_file = entry["listing"].get("readmeFile", "README.md")
+    page = join(entry["path"], page_file)
+    readme = gh.raw(owner, repo, readme_ref, page, limit=MAX_TEXT * 4)
+    if readme is None and page != default:
+        log(f"{mid}: no {page} at {readme_ref}; the page shows README.md")
+        page_file = "README.md"
+        readme = gh.raw(owner, repo, readme_ref, default, limit=MAX_TEXT * 4)
+    text = clip((readme or b"").decode("utf-8", "replace"))
+    return mod_record(entry, head, head_f["type"], unique, text, page_file), downloads
 
 
 def build_pack(entry: dict) -> dict:
@@ -861,7 +885,10 @@ def build_pack(entry: dict) -> dict:
     return mod_record(entry, head, "pack", versions, clip(e.get("readme", "")))
 
 
-def mod_record(entry: dict, head: dict, kind: str, versions: list[dict], readme: str) -> dict:
+def mod_record(entry: dict, head: dict, kind: str, versions: list[dict], readme: str,
+               readme_file: str | None = None) -> dict:
+    """The index record. readme_file is the file the readme text was read from, a path from the mod's
+    folder; None for a pack, whose readme is its entry's own text."""
     listing = entry["listing"]
     games: dict[str, list[str]] = {}
     for v in versions:
@@ -900,6 +927,7 @@ def mod_record(entry: dict, head: dict, kind: str, versions: list[dict], readme:
         "recommends": list(listing.get("recommends", [])),
         "suggests": list(listing.get("suggests", [])),
         "readme": readme,
+        **({"readmeFile": readme_file} if readme_file is not None else {}),
         "media": {"icon": None, "banner": None, "screenshots": [], "videos": []},
         "versions": versions,
     })
@@ -1216,6 +1244,8 @@ def validate_index(ix: dict) -> list[str]:
         need(isinstance(m.get("featured"), bool), f"{w}: featured")
         need(isinstance(m.get("aiAssisted", False), bool), f"{w}: aiAssisted")
         need("discussion" not in m or (isinstance(m["discussion"], int) and m["discussion"] > 0), f"{w}: discussion")
+        need("readmeFile" not in m or (m.get("type") != "pack" and readme_file_ok(m["readmeFile"])),
+             f"{w}: readmeFile")
         for k in ("recommends", "suggests"):
             need(isinstance(m.get(k), list) and all(x in ids for x in m[k]), f"{w}: {k} names a mod not here")
         md = m.get("media") or {}

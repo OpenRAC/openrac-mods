@@ -44,6 +44,13 @@ class Fixture:
         self.routes[url] = {"file": name, **extra}
         (self.dir / "routes.json").write_text(json.dumps(self.routes))
 
+    def raw(self, url, text):
+        name = f"extra/{len(self.routes)}.md"
+        (self.dir / "extra").mkdir(exist_ok=True)
+        (self.dir / name).write_text(text)
+        self.routes[url] = name
+        (self.dir / "routes.json").write_text(json.dumps(self.routes))
+
     def edit(self, rel, change):
         path = self.repo / rel
         d = json.loads(path.read_text()) if path.exists() else {}
@@ -256,6 +263,63 @@ class Builder(unittest.TestCase):
         self.assertIs(mod(index, "button-swap")["aiAssisted"], True)
         self.assertNotIn("aiAssisted", mod(index, "lock-strafe"))  # same repository, not stated
 
+    def test_readme_file_is_the_page(self):
+        self.fx.edit("index/ext-hud.json", lambda d: d.update(readmeFile="HUB.md"))
+        self.fx.edit("lock-strafe/listing.json", lambda d: d.update(readmeFile="docs/PLAYERS.md"))
+        self.fx.raw("https://raw.githubusercontent.com/someone/ext-hud/v0.2.0/HUB.md", "# Extra HUD for players\n")
+        self.fx.raw("https://raw.githubusercontent.com/OpenRAC/openrac-mods/lock-strafe-v2.0.0-beta.1/"
+                    "lock-strafe/docs/PLAYERS.md", "# Lock-strafe for players\n")
+        index, errors, warnings = self.fx.build()
+        self.assertEqual(errors, [])
+        self.assertEqual(mod(index, "ext-hud")["readme"], "# Extra HUD for players\n")
+        self.assertEqual(mod(index, "lock-strafe")["readme"], "# Lock-strafe for players\n")
+        self.assertFalse(any("the page shows README.md" in w for w in warnings), warnings)
+        # The record names the file the text came from, as the listing gave it (from the mod's folder).
+        self.assertEqual(mod(index, "ext-hud")["readmeFile"], "HUB.md")
+        self.assertEqual(mod(index, "lock-strafe")["readmeFile"], "docs/PLAYERS.md")
+        self.assertEqual(mod(index, "button-swap")["readmeFile"], "README.md")
+        self.assertEqual(b.validate_index(index), [])
+
+    def test_readme_file_missing_falls_back_to_readme(self):
+        self.fx.edit("index/ext-hud.json", lambda d: d.update(readmeFile="HUB.md"))
+        index, errors, warnings = self.fx.build()
+        self.assertEqual(errors, [])
+        self.assertEqual(mod(index, "ext-hud")["readme"], "# Extra HUD\n")
+        self.assertIn("ext-hud: no HUB.md at v0.2.0; the page shows README.md", warnings)
+        self.assertEqual(mod(index, "ext-hud")["readmeFile"], "README.md")
+
+    def test_readme_file_recorded_for_every_mod_but_packs(self):
+        index, errors, _ = self.fx.build()
+        self.assertEqual(errors, [])
+        for m in index["mods"]:
+            if m["type"] == "pack":
+                self.assertNotIn("readmeFile", m, m["id"])  # a pack's readme is its entry's own text
+            else:
+                self.assertEqual(m["readmeFile"], "README.md", m["id"])
+
+    def test_without_readme_file_only_readme_is_read(self):
+        pages = [u for u in self._seen() if u.startswith("https://raw.githubusercontent.com/") and u.endswith(".md")]
+        self.assertEqual(sorted(pages), [
+            "https://raw.githubusercontent.com/OpenRAC/openrac-mods/button-swap-v1.1.0/button-swap/README.md",
+            "https://raw.githubusercontent.com/OpenRAC/openrac-mods/camera-base-v1.0.0/camera-data/README.md",
+            "https://raw.githubusercontent.com/OpenRAC/openrac-mods/lock-strafe-v2.0.0-beta.1/lock-strafe/README.md",
+            "https://raw.githubusercontent.com/someone/ext-hud/v0.2.0/README.md"])
+
+    def test_bad_readme_file_refused(self):
+        for value in ("../x.md", "docs/../../x.md", "/HUB.md", "HUB.txt", "HUB", "https://x/HUB.md", "a\\b.md", "", 3):
+            fx = Fixture()
+            try:
+                fx.edit("index/ext-hud.json", lambda d: d.update(readmeFile=value))
+                _, errors, _ = fx.build(check=True)
+                self.assertTrue(any("readmeFile" in e for e in errors), (value, errors))
+            finally:
+                fx.close()
+
+    def test_pack_readme_file_refused(self):
+        self.fx.edit("index/starter-pack.json", lambda d: d.update(readmeFile="HUB.md"))
+        _, errors, _ = self.fx.build(check=True)
+        self.assertTrue(any("readmeFile" in e for e in errors), errors)
+
     def test_bad_ids_and_lists_refused(self):
         for change, needle in ((lambda d: d.update(tags=["gameplay", "bogus"]), "tags"),
                                (lambda d: d.update(impact=["safe"]), "impact"),
@@ -401,7 +465,8 @@ class Contract(unittest.TestCase):
         ver_keys = set(shared["mods"][0]["versions"][0])
         for m in index["mods"]:
             self.assertLessEqual(set(m), mod_keys | {"discussion"}, m["id"])
-            self.assertLessEqual(mod_keys - set(m), {"license", "homepage"}, m["id"])
+            optional = {"license", "homepage"} | ({"readmeFile"} if m["type"] == "pack" else set())
+            self.assertLessEqual(mod_keys - set(m), optional, m["id"])
             for v in m["versions"]:
                 self.assertEqual(set(v), ver_keys, m["id"])
         json.dumps(index, allow_nan=False)
@@ -413,6 +478,16 @@ class Contract(unittest.TestCase):
         errs = b.validate_index(ix)
         self.assertTrue(any("sorted" in e for e in errs))
         self.assertTrue(any("platform amiga" in e for e in errs))
+
+    def test_validate_checks_readme_file(self):
+        for bad in ("../README.md", "/README.md", "HUB.txt", "", 3):
+            ix = json.loads(SHARED.read_text())
+            ix["mods"][0]["readmeFile"] = bad
+            self.assertTrue(any("readmeFile" in e for e in b.validate_index(ix)), bad)
+        ix = json.loads(SHARED.read_text())
+        pack = next(m for m in ix["mods"] if m["type"] == "pack")
+        pack["readmeFile"] = "README.md"
+        self.assertTrue(any("readmeFile" in e for e in b.validate_index(ix)))
 
 
 class Retry(unittest.TestCase):
@@ -542,6 +617,15 @@ class Schema(unittest.TestCase):
         self.assertTrue(self.check(bad, self.schema))
         with self.assertRaises(b.EntryError):
             b.check_listing(bad, "x")
+
+    def test_schema_and_builder_agree_on_readme_file(self):
+        for value in ("HUB.md", "docs/PLAYERS.md"):
+            self.assertEqual(self.check({"readmeFile": value}, self.schema), [], value)
+            b.check_listing({"readmeFile": value}, "x")
+        for value in ("../x.md", "docs/../../x.md", "/HUB.md", "HUB.txt", "https://x/HUB.md", "a\\b.md", ""):
+            self.assertTrue(self.check({"readmeFile": value}, self.schema), value)
+            with self.assertRaises(b.EntryError):
+                b.check_listing({"readmeFile": value}, "x")
 
     def test_pack_settings_follow_schema(self):
         entry = json.loads((FIXTURE / "repo" / "index" / "starter-pack.json").read_text())

@@ -83,6 +83,12 @@ body:
       label: Docs
       placeholder: https://...
   - type: input
+    id: page
+    attributes:
+      label: Mod page file
+      description: "A Markdown file, such as a page written for players, that the mod's page shows instead of README.md: a path from the folder of its openrac-mod.json. Empty shows README.md. Not needed for a modpack."
+      placeholder: HUB.md
+  - type: input
     id: video
     attributes:
       label: YouTube video

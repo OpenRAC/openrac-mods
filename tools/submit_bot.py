@@ -52,7 +52,8 @@ ATTACHMENT = re.compile(r"https://github\.com/user-attachments/assets/[0-9A-Za-z
 # Each form's headings (the templates' labels) to field ids.
 COMMON = {"Short description": "description", "Tags": "tags", "Impact": "impact", "AI assistance": "ai",
           "Bug tracker": "bugs",
-          "Discord": "discord", "Docs": "docs", "YouTube video": "video", "Screenshots": "screenshots"}
+          "Discord": "discord", "Docs": "docs", "Mod page file": "page", "YouTube video": "video",
+          "Screenshots": "screenshots"}
 FORMS = {
     "mod-submission": {"Kind": "kind", "Repository": "repo", "Mod ids": "mods", "Modpack name": "name",
                        "Modpack settings": "settings", **COMMON, "Content rules": "rules"},
@@ -264,6 +265,8 @@ class Bot:
                 links[key] = form[key].strip()
         if links:
             listing["links"] = links
+        if form.get("page"):
+            listing["readmeFile"] = form["page"].strip()
         m = dict(listing.get("media", {}))
         if form.get("video"):
             try:
@@ -492,7 +495,7 @@ class Bot:
         desc = " ".join((form.get("description") or "").split())
         self.item(0 < len(desc) <= b.MAX_DESCRIPTION, "The description is 1 to 300 characters",
                   "Write a short description of the pack.")
-        listing = self.listing_fields({k: v for k, v in form.items() if k not in ("description", "video")}, mid,
+        listing = self.listing_fields({k: v for k, v in form.items() if k not in ("description", "video", "page")}, mid,
                                       {k: v for k, v in old_entry.items() if k in b.LISTING_KEYS})
         versions = sorted(old_entry.get("versions", []), key=lambda v: b.semver_key(v["version"]), reverse=True)
         if not versions or versions[0].get("requires") != requires:
