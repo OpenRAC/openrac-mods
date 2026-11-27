@@ -1,6 +1,6 @@
-# The listing bot (tools/submit_bot.py): the issue forms submit-mod, update-listing, remove-mod
-# and revoke become pull requests, with one checklist comment on the issue; the `approved` label
-# on a review issue publishes a held version. The issue text is read by Python from the event file
+# The listing bot (tools/submit_bot.py): the issue forms submit-mod, remove-mod and revoke become
+# pull requests, with one checklist comment on the issue (a trusted author's merges by itself once
+# its checks pass); `cleared` or `revoke` on a held issue answers a scan's finding. The issue text is read by Python from the event file
 # only, never put into a command line. Every action is pinned to a commit.
 name: submit
 
@@ -88,10 +88,13 @@ jobs:
         run: python3 tools/submit_bot.py apply --event "$GITHUB_EVENT_PATH" --result "$RUNNER_TEMP/bot"
 
   # A maintainer's `approved` label on a "Review <id> <version>" issue (index/approved.json).
+  # `approved` on a review issue (policy review "approve"), `cleared` or `revoke` on a held issue.
   approve:
     if: >-
-      github.event.action == 'labeled' && github.event.label.name == 'approved' &&
-      contains(github.event.issue.labels.*.name, 'mod-review')
+      github.event.action == 'labeled' && (
+      (github.event.label.name == 'approved' && contains(github.event.issue.labels.*.name, 'mod-review')) ||
+      ((github.event.label.name == 'cleared' || github.event.label.name == 'revoke') &&
+      contains(github.event.issue.labels.*.name, 'held')))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

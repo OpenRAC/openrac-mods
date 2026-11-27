@@ -199,6 +199,8 @@ def main() -> None:
                       [("ext-hud-0.2.0-linux-x86_64.zip", z_lin, 40),
                        ("SHA256SUMS", sums([("ext-hud-0.2.0-linux-x86_64.zip", z_lin)]), 40)], rid=20)
     route(f"{EXT_API}/releases?per_page=100&page=1", "api/ext-hud/releases-1.json", [ext_rel])
+    route(EXT_API, "api/ext-hud/repo.json", {"full_name": "someone/ext-hud", "private": False,
+                                             "owner": {"login": "someone", "id": 4242}})
     route(f"{EXT_RAW}/HEAD/openrac-mod.json", "raw/ext-hud/HEAD/openrac-mod.json", ext)
     route(f"{EXT_RAW}/v0.2.0/openrac-mod.json", "raw/ext-hud/v0.2.0/openrac-mod.json", ext)
     route(f"{EXT_RAW}/v0.2.0/README.md", "raw/ext-hud/v0.2.0/README.md", "# Extra HUD\n")

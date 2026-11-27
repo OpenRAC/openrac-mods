@@ -4,12 +4,17 @@
 """The mod index: every mod of this repository and every listed external mod, in one index.json.
 
     python3 tools/build_index.py [--out DIR] [--check] [--offline FIXTURE_DIR] [--check-entry FILE]
-    python3 tools/build_index.py --validate index.json
+    python3 tools/build_index.py --validate index.json [--with index.json]
 
 Lists the in-repo mods (each top-level folder with an openrac-mod.json, plus its optional
 listing.json) and the external entries index/<id>.json, reads their GitHub releases (tags
 <id>-v<version> or v<version>), and writes DIR/index.json (format 1, INDEX_FORMAT), DIR/stats.json
 (daily download totals) and DIR/media-src/ (the pictures for tools/media.py).
+
+Every mod gets a trust label (tools/trust.py: index/verified.json, index/trusted.json), every new
+native version is scanned (tools/binary_scan.py); a dangerous finding not in index/cleared.json
+holds the version (DIR/held.json, one issue each). Also writes DIR/details/details-<id>.json,
+DIR/picks.json and, with index/policy.json community on, DIR/community.json.
 
 --check only validates (PR CI). A broken release skips only that version (the last good one stays);
 a broken entry fails. --offline reads recorded responses (FIXTURE_DIR/routes.json) instead of the
@@ -36,7 +41,9 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import binary_scan  # noqa: E402
 import media  # noqa: E402
+import trust  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = "https://github.com/OpenRAC/openrac-mods"
@@ -81,7 +88,13 @@ MAX_SETTING_TEXT = 200
 MAX_SUMS = 256 * 1024
 MAX_CD = 2 * 1024 * 1024
 COOL_DOWN = 3600  # seconds a new external native version waits
-INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json")
+INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json", "verified.json", "trusted.json",
+               "cleared.json", "policy.json", "picks-pin.json")
+SCAN_LIMIT = 256 * 1024 * 1024  # the largest archive downloaded for the scan
+SCANS_PER_RUN = 20  # full archive scans in one build; the rest wait for the next hour
+GONE_RUNS = 3  # hourly builds a deleted or private repo's mod stays listed
+AUTHOR_LISTING = "openrac-listing.json"  # listing fields the author keeps in their own repo
+AUTHOR_REVOKED = "openrac-revoked.json"  # versions the author pulled: [{versions, reason}]
 LISTING_KEYS = {"id", "description", "tags", "impact", "links", "recommends", "suggests", "aliases", "featured",
                 "media", "aiAssisted"}
 ENTRY_KEYS = LISTING_KEYS | {"repo", "path", "type", "name", "author", "license", "homepage", "games", "readme",
@@ -94,6 +107,10 @@ class EntryError(Exception):
 
 class ReleaseError(Exception):
     """One release that is broken: only its version is skipped."""
+
+
+class RepoGone(Exception):
+    """The repo of an external entry is deleted or private."""
 
 
 class NetError(Exception):
@@ -759,14 +776,141 @@ def held(entry: dict, v: dict, kind: str, hold: dict | None) -> str | None:
     return None
 
 
+def scan_release(repo: str, tag: str, platforms: dict, http) -> dict | None:
+    """binary_scan's view of a release's archives (all platforms together), each checked against
+    its SHA-256 first; None when one cannot be downloaded."""
+    merged = {"libraries": {}, "urls": set(), "ips": set(), "telling": set(), "problems": []}
+    for plat, a in sorted(platforms.items()):
+        r = http.get(f"{repo}/releases/download/{tag}/{a['asset']}", limit=SCAN_LIMIT)
+        if r.status != 200 or hashlib.sha256(r.body).hexdigest() != a["sha256"]:
+            return None
+        one = binary_scan.scan_archive(r.body)
+        merged["libraries"].update({f"{plat}: {k}": v for k, v in one["libraries"].items()})
+        for key in ("urls", "ips", "telling"):
+            merged[key] |= one[key]
+        merged["problems"] += [f"{plat}: {p}" for p in one["problems"]]
+    return merged
+
+
+def version_scan(entry: dict, v: dict, gh: GitHub, hold: dict) -> tuple[list[str], list[str]] | None:
+    """(labels, dangerous findings) of a native version's archives: from the last build's
+    held.json when the archives are the same, else scanned now. None: not scanned in this run."""
+    key = f"{entry['id']}@{v['tag']}"
+    hashes = archive_hashes(v)
+    cached = hold["cache"].get(key)
+    if isinstance(cached, dict) and cached.get("sha256") == hashes:
+        return list(cached.get("labels", [])), list(cached.get("danger", []))
+    if hold["scans"] <= 0:
+        return None
+    hold["scans"] -= 1
+    try:
+        found = scan_release(entry["repo"], v["tag"], v["platforms"], gh.http)
+    except (NetError, OSError, ValueError):
+        found = None
+    if found is None:
+        return None
+    labels, danger = trust.findings(found)
+    hold["cache"][key] = {"sha256": hashes, "labels": labels, "danger": danger}
+    return labels, danger
+
+
+def attested(entry: dict, v: dict, gh: GitHub) -> str | None:
+    """"ci" when GitHub's build attestation of the version's first archive says a workflow of the
+    mod's repo built it from its tag, "hand" when not, None when GitHub did not answer."""
+    if entry["local"] is not None:
+        return "ci"
+    if not v.get("platforms"):
+        return None
+    owner, repo = owner_repo(entry["repo"])
+    sha = next(iter(sorted(v["platforms"].items())))[1]["sha256"]
+    try:
+        att = gh.api(f"repos/{owner}/{repo}/attestations/sha256:{sha}")
+    except NetError:
+        return None
+    return "ci" if trust.built_by_ci(att, entry["repo"], v["tag"]) else "hand"
+
+
+def gate(entry: dict, v: dict, kind: str, hold: dict | None, gh: GitHub) -> str | None:
+    """Why a new version is not published in this run, or None. With index/policy.json review
+    "scan": an external native version waits 1 h, every native version is scanned, and a
+    dangerous finding not in index/cleared.json holds it for a maintainer (v["danger"])."""
+    if hold is None:
+        return None
+    if hold["policy"]["review"] == "approve":
+        return held(entry, v, kind, hold)
+    if kind != "native" or not v.get("platforms"):
+        return None
+    if entry["local"] is None:
+        released = dt.datetime.fromisoformat(v["released"].replace("Z", "+00:00")).timestamp() if v["released"] else 0
+        if hold["now"] - released < COOL_DOWN:
+            return "is less than 1 h old"
+        if hold["policy"]["provenanceRequired"]:
+            v["built"] = attested(entry, v, gh)
+            if v["built"] != "ci":
+                return "was not built by a workflow of its repo from its tag (build provenance)"
+    got = version_scan(entry, v, gh, hold)
+    if got is None:
+        return "is not scanned yet"
+    labels, danger = got
+    v["scan"] = {"labels": labels, "new": []}
+    left = [] if entry["local"] is not None else trust.not_cleared(danger, entry["id"], hold["lists"])
+    if left:
+        v["danger"] = left
+        return "is held for review: the scan found " + ", ".join(left)
+    return None
+
+
+def author_files(entry: dict, gh: GitHub, log) -> None:
+    """The listing fields (openrac-listing.json) and pulled versions (openrac-revoked.json) the
+    author keeps in their repo, read at its default branch. A broken file is skipped with a warning."""
+    owner, repo = owner_repo(entry["repo"])
+    mid, where = entry["id"], f"{entry['repo']}: "
+    try:
+        raw = gh.raw(owner, repo, "HEAD", join(entry["path"], AUTHOR_LISTING))
+        if raw is not None:
+            d = json.loads(raw)
+            check_listing(d, where + AUTHOR_LISTING)
+            if d.get("id", mid) != mid or "featured" in d:
+                raise EntryError(f"{where}{AUTHOR_LISTING}: id must be {mid!r}; featured is not the author's to set")
+            entry["listing"] = {**entry["listing"], **{k: x for k, x in d.items() if k != "id"}}
+    except (EntryError, ValueError, NetError) as err:
+        log(f"{mid}: {AUTHOR_LISTING} skipped: {err}")
+    try:
+        raw = gh.raw(owner, repo, "HEAD", join(entry["path"], AUTHOR_REVOKED))
+        if raw is not None:
+            d = json.loads(raw)
+            out = []
+            for r in d if isinstance(d, list) else [None]:
+                vs = r.get("versions") if isinstance(r, dict) else None
+                if not isinstance(vs, list) or not vs or not all(isinstance(x, str) and (x == "*" or SEMVER_RE.match(x))
+                                                                 for x in vs):
+                    raise EntryError(f"{where}{AUTHOR_REVOKED}: each item is {{versions: [semver or \"*\"], reason}}")
+                reason = str(r.get("reason") or "pulled by the author")
+                out.append({"id": mid, "versions": list(vs), "reason": ("By the author: " + reason)[:MAX_DESCRIPTION]})
+            entry["author_revoked"] = out
+    except (EntryError, ValueError, NetError) as err:
+        log(f"{mid}: {AUTHOR_REVOKED} skipped: {err}")
+
+
 def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None = None) -> tuple[dict | None, int]:
     """The Mod of one entry (None when it has no usable version yet), and its download total. With
     `hold`, new versions of external native mods wait for review and 1 h."""
     mid = entry["id"]
     owner, repo = owner_repo(entry["repo"])
     e = entry.get("entry", {})
+    lists = (hold or {}).get("lists")
     if e.get("type") == "pack" or ("versions" in e and "type" not in e):
+        entry["trust"] = trust.label(mid, entry["local"] is not None or entry["repo"] == SOURCE, {"login": owner},
+                                     lists) if lists else None
         return build_pack(entry), 0
+    if entry["local"] is None and lists is not None:
+        info = gh.api(f"repos/{owner}/{repo}")
+        if info is None:
+            raise RepoGone(f"{entry['where']}: {entry['repo']} is not found (deleted or private)")
+        entry["owner"] = {"login": (info.get("owner") or {}).get("login", owner), "id": (info.get("owner") or {}).get("id")}
+        author_files(entry, gh, log)
+    if lists is not None:
+        entry["trust"] = trust.label(mid, entry["local"] is not None or entry["repo"] == SOURCE, entry.get("owner"), lists)
     head = entry.get("manifest")
     if head is None:
         raw = gh.raw(owner, repo, "HEAD", join(entry["path"], "openrac-mod.json"))
@@ -813,14 +957,18 @@ def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None
             # External archives swapped after they were indexed: keep the hashes first seen.
             log(f"{mid}: {tag}'s archives changed after they were indexed; kept the first ones")
             v = old
-        why = None if old else held(entry, v, info["type"], hold)
+        why = None if old else gate(entry, v, info["type"], hold, gh)
         if why:
             log(f"{mid}: {v['version']} not published yet: it {why}")
-            hold["review"].append({"id": mid, "name": head.get("name", mid), "repo": entry["repo"],
-                                   "version": v["version"], "tag": tag, "released": v["released"],
-                                   "changelog": v["changelog"], "platforms": v["platforms"],
-                                   "changed": approval(hold["approved"].get(mid, []), v["version"]) is not None,
-                                   "previous": published_before(prev, v["version"])})
+            item = {"id": mid, "name": head.get("name", mid), "repo": entry["repo"],
+                    "version": v["version"], "tag": tag, "released": v["released"],
+                    "changelog": v["changelog"], "platforms": v["platforms"],
+                    "changed": approval(hold["approved"].get(mid, []), v["version"]) is not None,
+                    "previous": published_before(prev, v["version"])}
+            if v.get("danger"):
+                item["findings"] = v["danger"]
+                entry["held"] = {"version": v["version"], "reasons": v["danger"]}
+            hold["review"].append(item)
             continue
         versions.append(v)
     if not versions and head_f["type"] == "script":
@@ -840,6 +988,19 @@ def build_mod(entry: dict, gh: GitHub, prev: dict | None, log, hold: dict | None
     if not unique:
         log(f"{mid}: no release yet; not listed")
         return None, downloads
+    if hold is not None and head_f["type"] == "native" and unique[0].get("platforms"):
+        top = unique[0]
+        if "scan" not in top:  # published before every version was scanned: its labels, once
+            got = version_scan(entry, top, gh, hold)
+            if got is not None:
+                top["scan"] = {"labels": got[0], "new": []}
+        built = attested(entry, top, gh)  # checked every hour: an attestation can come or go
+        if built is not None:
+            top["built"] = built
+    for i, v in enumerate(unique):  # what a version can do that the one before it could not
+        before = unique[i + 1].get("scan") if i + 1 < len(unique) else None
+        if v.get("scan") is not None and before is not None:
+            v["scan"]["new"] = [x for x in v["scan"]["labels"] if x not in before.get("labels", [])]
     readme_ref = unique[0]["tag"] or "HEAD"
     readme = gh.raw(owner, repo, readme_ref, join(entry["path"], "README.md"), limit=MAX_TEXT * 4) or b""
     return mod_record(entry, head, head_f["type"], unique, clip(readme.decode("utf-8", "replace"))), downloads
@@ -894,6 +1055,8 @@ def mod_record(entry: dict, head: dict, kind: str, versions: list[dict], readme:
         "created": min(v["released"] for v in versions),
         "updated": versions[0]["released"],
         "featured": bool(listing.get("featured", False)),
+        **({"trust": entry["trust"]} if entry.get("trust") else {}),
+        **({"held": entry["held"]} if entry.get("held") else {}),
         # What the author stated; left out when they have not said, which is not the same as "no".
         **({"aiAssisted": listing["aiAssisted"]} if "aiAssisted" in listing else {}),
         **({"discussion": entry["discussion"]} if entry.get("discussion") else {}),
@@ -1174,8 +1337,9 @@ def collect_media(entry: dict, mod: dict, gh: GitHub, http: Http, root: Path, ou
 # Index shape (the contract), used before writing and before publishing
 # ------------------------------------------------------------------------------------------------
 
-def validate_index(ix: dict) -> list[str]:
-    """What is wrong with an index.json against format 1; [] when it is fine."""
+def validate_index(ix: dict, outside: set | frozenset = frozenset()) -> list[str]:
+    """What is wrong with an index.json (or community.json) against format 1; [] when it is fine.
+    `outside`: ids of the other file a mod here may need (community.json's mods need index.json's)."""
     errs: list[str] = []
 
     def need(cond, msg):
@@ -1199,6 +1363,7 @@ def validate_index(ix: dict) -> list[str]:
     mods = mods if isinstance(mods, list) else []
     ids = [m.get("id") for m in mods]
     need(ids == sorted(ids) and len(set(ids)) == len(ids), "mods must be sorted by id, each once")
+    known = set(ids) | set(outside)
     for m in mods:
         w = f"mods[{m.get('id')}]"
         need(isinstance(m.get("id"), str) and ID_RE.match(m["id"]) and len(m["id"]) <= MAX_ID, f"{w}: bad id")
@@ -1216,8 +1381,14 @@ def validate_index(ix: dict) -> list[str]:
         need(isinstance(m.get("featured"), bool), f"{w}: featured")
         need(isinstance(m.get("aiAssisted", False), bool), f"{w}: aiAssisted")
         need("discussion" not in m or (isinstance(m["discussion"], int) and m["discussion"] > 0), f"{w}: discussion")
+        need("trust" not in m or m["trust"] in trust.LABELS, f"{w}: trust")
+        need("held" not in m or (isinstance(m["held"], dict) and isinstance(m["held"].get("version"), str)
+                                 and isinstance(m["held"].get("reasons"), list)), f"{w}: held")
+        need("details" not in m or (isinstance(m["details"], dict) and HEX64.match(str(m["details"].get("sha256")))
+                                    and m["details"].get("asset") == f"details-{m.get('id')}.json"), f"{w}: details")
+        need("unreachable" not in m or isinstance(m["unreachable"], int), f"{w}: unreachable")
         for k in ("recommends", "suggests"):
-            need(isinstance(m.get(k), list) and all(x in ids for x in m[k]), f"{w}: {k} names a mod not here")
+            need(isinstance(m.get(k), list) and all(x in known for x in m[k]), f"{w}: {k} names a mod not here")
         md = m.get("media") or {}
         need(set(md) >= {"icon", "banner", "screenshots", "videos"}, f"{w}: media")
         for img in [md.get("icon"), md.get("banner")] + list(md.get("screenshots") or []):
@@ -1239,15 +1410,19 @@ def validate_index(ix: dict) -> list[str]:
             need(isinstance(v.get("version"), str) and SEMVER_RE.match(v["version"]), f"{vw}: bad version")
             need(v.get("api") is None or (isinstance(v["api"], str) and API_RE.match(v["api"])), f"{vw}: bad api")
             need(m.get("type") not in ("data", "pack") or v.get("api") is None, f"{vw}: a {m.get('type')} has api null")
+            sc = v.get("scan")
+            need(sc is None or (isinstance(sc, dict) and isinstance(sc.get("labels"), list)
+                                and isinstance(sc.get("new", []), list)), f"{vw}: scan")
+            need(v.get("built") in (None, "ci", "hand"), f"{vw}: built")
             for r in v.get("requires", []):
-                need(r.get("id") in ids, f"{vw}: requires {r.get('id')}, not in the index")
+                need(r.get("id") in known, f"{vw}: requires {r.get('id')}, not in the index")
                 need("version" not in r or CONSTRAINT_RE.match(r["version"]), f"{vw}: bad constraint")
                 values = r.get("settings", {})
                 need(("settings" not in r or m.get("type") == "pack") and isinstance(values, dict) and all(
                     SETTING_KEY_RE.match(k) and isinstance(x, (bool, int, float, str)) for k, x in values.items()),
                      f"{vw}: requires {r.get('id')}: bad settings")
             for c in v.get("conflicts", []):
-                need(c.get("id") in ids, f"{vw}: conflicts with {c.get('id')}, not in the index")
+                need(c.get("id") in known, f"{vw}: conflicts with {c.get('id')}, not in the index")
             need(isinstance(v.get("hooks"), list), f"{vw}: hooks")
             need(isinstance(v.get("tag"), str), f"{vw}: tag")
             need(is_time(v.get("released")), f"{vw}: released")
@@ -1299,12 +1474,25 @@ def build(root: Path, http: Http, now: float, out: Path | None, check: bool, ext
     except EntryError as e:
         errors.append(str(e))
         approved, numbers = {}, {}
+    try:
+        lists = trust.load_lists(root)
+    except trust.ListError as e:
+        errors.append(str(e))
+        lists = trust.load_lists(Path("/nonexistent"))
+    policy = lists["policy"]
     for e in entries:
         if numbers.get(e["id"]):
             e["discussion"] = numbers[e["id"]]
-    hold = {"approved": approved, "now": now, "review": review if review is not None else []}
+        if e["local"] is None and trust.reserved_name(e["id"], e.get("entry", {}).get("name", "")):
+            errors.append(f"{e['where']}: ids and names with \"openrac\" are for the mods of {SOURCE}")
+    prev_held = previous(http, "held.json")
+    cache = prev_held.get("cache", {}) if isinstance(prev_held, dict) and isinstance(prev_held.get("cache"), dict) else {}
+    hold = {"approved": approved, "now": now, "review": review if review is not None else [], "lists": lists,
+            "policy": policy, "cache": cache, "scans": SCANS_PER_RUN}
     prev_index = previous(http, "index.json")
-    prev_mods = {m["id"]: m for m in (prev_index or {}).get("mods", []) if isinstance(m, dict)}
+    prev_community = previous(http, "community.json")
+    prev_mods = {m["id"]: m for m in ((prev_index or {}).get("mods", []) + (prev_community or {}).get("mods", []))
+                 if isinstance(m, dict)}
     entry_ids = {e["id"] for e in entries}
     others = other_index_ids(http, log)
     for e in entries:
@@ -1320,12 +1508,23 @@ def build(root: Path, http: Http, now: float, out: Path | None, check: bool, ext
     for e in entries:
         try:
             mod, downloads = build_mod(e, gh, prev_mods.get(e["id"]), log, hold)
+        except RepoGone as err:
+            old = prev_mods.get(e["id"])
+            runs = int((old or {}).get("unreachable", 0)) + 1
+            if old and runs < GONE_RUNS:
+                log(f"{err}; kept listed ({runs} of {GONE_RUNS - 1} runs)")
+                mods[e["id"]] = {**old, "unreachable": runs}
+                totals[e["id"]] = int(old.get("downloads", 0))
+            else:
+                log(f"{err}; not listed")
+            continue
         except EntryError as err:
             errors.append(str(err))
             continue
         except NetError as err:
             errors.append(f"{e['where']}: {err}")
             continue
+        revoked += e.get("author_revoked", [])
         totals[e["id"]] = downloads
         if mod is not None:
             mod["downloads"] = downloads
@@ -1357,31 +1556,86 @@ def build(root: Path, http: Http, now: float, out: Path | None, check: bool, ext
     stats, growth = update_stats(previous(http, "stats.json"), totals, when)
     for mid, mod in mods.items():
         mod["downloads7d"] = growth.get(mid, 0)
-    serial = int(now)
-    if prev_index and isinstance(prev_index.get("serial"), int) and prev_index["serial"] >= serial:
-        serial = prev_index["serial"] + 1
-    index = {
-        "format": FORMAT,
-        "serial": serial,
-        "generated": iso(when),
-        "expires": iso(when + EXPIRES),
-        "source": SOURCE,
-        "media": MEDIA_BASE,
-        "ports": ports,
-        "tags": TAGS,
-        "mods": [mods[k] for k in sorted(mods)],
-        "revoked": revoked,
-    }
+    revoked = sorted(revoked, key=lambda r: r["id"])
+    # Details: the long texts, in details-<id>.json, each named in index.json by its SHA-256 (so the
+    # signature of index.json covers them).
+    details = {}
+    for mid, mod in mods.items():
+        d = {"id": mid, "readme": mod["readme"],
+             "versions": [{"version": v["version"], "changelog": v["changelog"]} for v in mod["versions"]]}
+        data = json_bytes(d)
+        details[f"details-{mid}.json"] = data
+        mod["details"] = {"asset": f"details-{mid}.json", "sha256": hashlib.sha256(data).hexdigest()}
+        if policy["slimIndex"]:
+            mod["readme"] = ""
+            for v in mod["versions"]:
+                v["changelog"] = ""
+    # Old launchers read only index.json. With policy community on, a Not checked mod that was not in
+    # index.json before goes to community.json, which only launchers that show the labels read.
+    old_ids = {m["id"] for m in (prev_index or {}).get("mods", []) if isinstance(m, dict)}
+    community = {k for k, m in mods.items()
+                 if policy["community"] and m.get("trust") == "unchecked" and k not in old_ids}
+    main = {k: m for k, m in mods.items() if k not in community}
+    check_dependencies(main, log)  # a mod of index.json cannot need one only in community.json
+    side = {k: mods[k] for k in community}
+    for mod in main.values():
+        for key in ("recommends", "suggests"):
+            mod[key] = [x for x in mod[key] if x in main]
+    picked, picks_file = None, None
+    if policy["picks"]:
+        for mid, mod in main.items():
+            m = by_id[mid]["listing"].get("media", {})
+            mod["pictures"] = bool(m.get("banner") or m.get("screenshots"))
+        picks_file = trust.picks(list(main.values()), stats["days"], when, ports, revoked, previous(http, "picks.json"),
+                                 lists["pins"])
+        for mod in main.values():
+            mod.pop("pictures", None)
+        picked = {"week": picks_file["week"], "games": picks_file["games"]}
+
+    def serial_after(prev):
+        n = int(now)
+        if prev and isinstance(prev.get("serial"), int) and prev["serial"] >= n:
+            n = prev["serial"] + 1
+        return n
+
+    def make(chosen, prev):
+        return {
+            "format": FORMAT,
+            "serial": serial_after(prev),
+            "generated": iso(when),
+            "expires": iso(when + EXPIRES),
+            "source": SOURCE,
+            "media": MEDIA_BASE,
+            "ports": ports,
+            "tags": TAGS,
+            "mods": [chosen[k] for k in sorted(chosen)],
+            "revoked": revoked,
+        }
+    index = make(main, prev_index)
+    if picked:
+        index["picks"] = picked
+    community_index = make(side, prev_community) if side else None
     if errors:
         return None, errors, warnings
     shape = validate_index(index)
+    if community_index:
+        shape += validate_index(community_index, set(main))
     if shape:
         return None, shape, warnings
+    held_items = [r for r in hold["review"] if r.get("findings")]
     if out is not None and not check:
         out.mkdir(parents=True, exist_ok=True)
         write_json(out / "index.json", index)
+        if community_index:
+            write_json(out / "community.json", community_index)
         write_json(out / "stats.json", stats)
-        write_json(out / "review.json", hold["review"])
+        write_json(out / "review.json", hold["review"] if policy["review"] == "approve" else [])
+        write_json(out / "held.json", {"held": held_items, "cache": hold["cache"], "policy": policy})
+        if picks_file:
+            write_json(out / "picks.json", picks_file)
+        (out / "details").mkdir(exist_ok=True)
+        for name, data in details.items():
+            (out / "details" / name).write_bytes(data)
         (out / "media-src").mkdir(exist_ok=True)
         write_json(out / "media-src" / "requests.json", requests)
         write_json(out / "media-src" / "cache.json", previous(http, "media-cache.json") or {})
@@ -1395,8 +1649,12 @@ def build(root: Path, http: Http, now: float, out: Path | None, check: bool, ext
     return index, errors, warnings
 
 
+def json_bytes(data) -> bytes:
+    return (json.dumps(data, indent=1, ensure_ascii=False) + "\n").encode("utf-8")
+
+
 def write_json(path: Path, data) -> None:
-    path.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    path.write_bytes(json_bytes(data))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1407,10 +1665,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", type=Path, help="the repository to list (default this one, or FIXTURE_DIR/repo)")
     ap.add_argument("--check-entry", type=Path, metavar="FILE", help="check one index entry file as if added")
     ap.add_argument("--validate", type=Path, metavar="INDEX", help="check a built index.json's shape and exit")
+    ap.add_argument("--with", dest="with_index", type=Path, metavar="INDEX",
+                    help="with --validate: the index.json whose mods the checked file (community.json) may need")
     ap.add_argument("--now", type=float, help="build time, unix seconds (for tests)")
     args = ap.parse_args(argv)
     if args.validate:
-        errs = validate_index(json.loads(args.validate.read_text()))
+        outside = {m.get("id") for m in json.loads(args.with_index.read_text()).get("mods", [])} if args.with_index else set()
+        errs = validate_index(json.loads(args.validate.read_text()), outside)
         for e in errs:
             print(f"error: {e}", file=sys.stderr)
         print(f"{args.validate}: {'ok' if not errs else f'{len(errs)} error(s)'}")

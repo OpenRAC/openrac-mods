@@ -517,9 +517,10 @@ def youtube_uploaded(video_id: str, fetch) -> str | None:
 # ------------------------------------------------------------------------------------------------
 
 def process_out(out: Path, run=run_vips, vips_present=None) -> int:
-    """Fills OUT/index.json's pictures from OUT/media-src. Returns the exit code."""
-    index_path = out / "index.json"
-    index = json.loads(index_path.read_text())
+    """Fills the pictures of OUT/index.json (and OUT/community.json, when there is one) from
+    OUT/media-src. Returns the exit code."""
+    paths = [p for p in (out / "index.json", out / "community.json") if p == out / "index.json" or p.exists()]
+    files = {p: json.loads(p.read_text()) for p in paths}
     req_path = out / "media-src" / "requests.json"
     requests = json.loads(req_path.read_text()) if req_path.exists() else []
     cache_path = out / "media-src" / "cache.json"
@@ -529,7 +530,7 @@ def process_out(out: Path, run=run_vips, vips_present=None) -> int:
     if vips_present is None:
         vips_present = have_vips()
     media_dir = out / "media"
-    mods = {m["id"]: m for m in index["mods"]}
+    mods = {m["id"]: m for index in files.values() for m in index["mods"]}
     new_cache, report, skipped = {}, [], 0
     for r in requests:
         mod = mods.get(r["mod"])
@@ -569,7 +570,8 @@ def process_out(out: Path, run=run_vips, vips_present=None) -> int:
     if skipped:
         print(f"media: vips is not installed; {skipped} picture(s) skipped. Install libvips-tools to make them.",
               file=sys.stderr)
-    index_path.write_text(json.dumps(index, indent=1, ensure_ascii=False) + "\n")
+    for path, index in files.items():
+        path.write_text(json.dumps(index, indent=1, ensure_ascii=False) + "\n")
     (out / "media-cache.json").write_text(json.dumps(dict(sorted(new_cache.items())), indent=1) + "\n")
     (out / "media-report.json").write_text(json.dumps(report, indent=1) + "\n")
     return 0

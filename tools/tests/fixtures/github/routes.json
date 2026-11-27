@@ -1,5 +1,6 @@
 {
  "https://api.github.com/repos/OpenRAC/openrac-mods/releases?per_page=100&page=1": "api/openrac-mods/releases-1.json",
+ "https://api.github.com/repos/someone/ext-hud": "api/ext-hud/repo.json",
  "https://api.github.com/repos/someone/ext-hud/releases?per_page=100&page=1": "api/ext-hud/releases-1.json",
  "https://example.org/rac2/index.json": "other-index.json",
  "https://github.com/OpenRAC/OpenRAC/releases/download/launcher-dev-develop/latest.json": "ports/dev-latest.json",

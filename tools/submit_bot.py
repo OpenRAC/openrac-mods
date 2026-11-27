@@ -6,10 +6,13 @@
     python3 tools/submit_bot.py check   --event FILE --out DIR   # read-only: checks, files to change
     python3 tools/submit_bot.py apply   --event FILE --result DIR  # write: branch, PR, the comment
     python3 tools/submit_bot.py approve --event FILE             # a maintainer's `approved` label
-    python3 tools/submit_bot.py review  --file out/review.json   # review issues for held versions
+    python3 tools/submit_bot.py approve --event FILE             # `cleared` / `revoke` on a held issue
+    python3 tools/submit_bot.py review  --file out/review.json   # review issues (policy review "approve")
+    python3 tools/submit_bot.py held    --file out/held.json     # held issues: the scan found something
     python3 tools/submit_bot.py discussions --index out/index.json  # one Discussion per mod
 
-Forms (by label): mod-submission, listing-update, mod-removal, mod-revoke (maintainers only).
+Forms (by label): mod-submission, mod-removal, mod-revoke (maintainers only). listing-update has no
+form any more (authors keep their listing in openrac-listing.json); issues that have it still work.
 The issue text is read from the event file only and is never run: it goes into files, JSON and
 command arguments, not into a shell. Stdlib only, plus `git` and `gh` for the write steps.
 """
@@ -30,9 +33,11 @@ import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import alert  # noqa: E402
 import binary_scan  # noqa: E402
 import build_index as b  # noqa: E402
 import media  # noqa: E402
+import trust  # noqa: E402
 
 
 # Who the bot's commits are by: openrac-bot, set by the workflow from its GitHub App (its avatar shows
@@ -47,6 +52,7 @@ MARKER = "<!-- openrac-listing-bot -->"
 SITE = "https://openrac.dev/mods/"
 WRITERS = {"admin", "maintain", "write"}
 MAINTAIN = {"admin", "maintain"}
+MAX_OPEN_SUBMISSIONS = 3
 ATTACHMENT = re.compile(r"https://github\.com/user-attachments/assets/[0-9A-Za-z-]+")
 
 # Each form's headings (the templates' labels) to field ids.
@@ -397,11 +403,19 @@ class Bot:
         else:
             self.item(perm in WRITERS, f"You can push to {owner}/{repo}",
                       "Open this issue from an account with write access to the repository, or ask its owner to.")
+        try:
+            found = self.gh.api(f"search/issues?q=repo:{REPO_SLUG}+is:issue+is:open+label:mod-submission+author:{user}")
+        except b.NetError:
+            found = None
+        if found and int(found.get("total_count", 0)) > MAX_OPEN_SUBMISSIONS:
+            self.item(False, f"At most {MAX_OPEN_SUBMISSIONS} open submissions per account",
+                      "Wait until your other submissions are merged or closed.")
         ids = split_list(form.get("mods"))
         if not self.item(bool(ids), "Mod ids are given", "List the ids of the mods to list, comma-separated."):
             return {}
         entries = self.entries()
         first = None
+        danger = False
         for mid in ids:
             try:
                 b.check_id(mid, "id")
@@ -413,6 +427,10 @@ class Bot:
                              f"Put {mid}'s openrac-mod.json at the top of the repository or in a folder of its own."):
                 continue
             path, manifest = found
+            if repo_url != b.SOURCE and not self.item(
+                    not trust.reserved_name(mid, manifest.get("name", "")), f"{mid}: the name is free to use",
+                    "Ids and names with \"OpenRAC\" are for the mods of OpenRAC/openrac-mods. Pick another."):
+                continue
             try:
                 b.manifest_fields(manifest, "openrac-mod.json")
                 self.item(True, f"{mid}: the manifest is valid")
@@ -441,14 +459,28 @@ class Bot:
             res = self.index_check(mid, mid)
             self.newest_release_usable(owner, repo, mid, res["skipped"])
             listed = res["index"] and any(m["id"] == mid for m in res["index"]["mods"])
-            if res["held"]:
+            flagged = [h for h in res["held"] if h.get("findings")]
+            if flagged:
+                danger = True
+                self.item(True, f"{mid}: the scan found {', '.join(flagged[0]['findings'])} in {flagged[0]['version']}: "
+                                "a maintainer looks at it before this is merged")
+            elif res["held"]:
                 vs = ", ".join(h["version"] for h in res["held"])
                 self.item(True, f"{mid}: releases found; {vs} wait for a maintainer's review "
                                 "(native mods from other repositories: 1 h and an approval)")
             else:
                 self.item(bool(listed) or res["index"] is None, f"{mid}: a release with its archives is found",
                           f"Push a tag {mid}-v<version>: the SDK's workflow publishes the archives and SHA256SUMS.")
-        return {"id": first or (ids[0] if ids else ""), "title": f"List {', '.join(ids)}", "confirm": confirm}
+        auto = False
+        if repo_url != b.SOURCE and not danger and not confirm:
+            try:
+                lists = trust.load_lists(self.root)
+                owner_info = {"login": (info.get("owner") or {}).get("login", owner), "id": (info.get("owner") or {}).get("id")}
+                auto = lists["policy"]["selfMerge"] and trust.label("", False, owner_info, lists) in ("verified", "trusted")
+            except trust.ListError:
+                auto = False
+        return {"id": first or (ids[0] if ids else ""), "title": f"List {', '.join(ids)}", "confirm": confirm,
+                "auto": auto}
 
     def submit_pack(self, form: dict, user: str) -> dict:
         mid = slug(form.get("name"))
@@ -609,7 +641,7 @@ def check(event: dict, root: Path, http: b.Http, now: float, out: Path, vips=Non
     result.update({"skip": False, "form": form_name, "id": mid, "ok": bot.ok and bool(bot.changed or bot.deleted),
                    "items": bot.items, "media": bot.media_rows, "title": meta.get("title", mid),
                    "branch": meta.get("branch") or f"listing/{mid}", "changed": bot.changed,
-                   "deleted": bot.deleted, "confirm": meta.get("confirm", ""),
+                   "deleted": bot.deleted, "confirm": meta.get("confirm", ""), "auto": bool(meta.get("auto")),
                    "unchanged": bot.ok and bool(bot.items) and not bot.changed and not bot.deleted})
     for rel in bot.changed:
         dst = out / "files" / rel
@@ -634,6 +666,8 @@ def render(result: dict, pr_url: str | None = None, run: str = "") -> str:
                 "You do not need to do anything.")
     if result.get("unchanged"):
         head = "✅ Nothing to change: the listing already says this."
+    elif result.get("ok") and pr_url and result.get("auto"):
+        head = f"✅ Ready: {pr_url}. You are a trusted author: it merges by itself once its checks pass."
     elif result.get("ok") and pr_url:
         head = f"✅ Ready: {pr_url}. A maintainer reviews and merges it; the mod is live within the hour."
     else:
@@ -703,6 +737,9 @@ def apply(result: dict, files: Path, repo: Path, run=run_cmd, run_id: str = "") 
         else:
             pr_url = run(["gh", "pr", "create", "--base", "master", "--head", branch, "--title",
                           result["title"][:100], "--body", body]).strip()
+        if result.get("auto"):
+            # A trusted author's listing: merged once CI passes (index/trusted.json, policy selfMerge).
+            run(["gh", "pr", "merge", pr_url, "--auto", "--squash"], check=False)
     upsert_comment(issue, render(result, pr_url, run_id), run)
     return 0
 
@@ -756,25 +793,11 @@ def review_title(item: dict) -> str:
     return f"Review {item['id']} {item['version']}"
 
 
-SCAN_LIMIT = 256 * 1024 * 1024  # the largest archive downloaded for the scan
 SCAN_TITLE = binary_scan.TITLE
 REVIEW_BY_HAND = "review by hand"
 
 
-def scan_release(repo: str, tag: str, platforms: dict, http) -> dict | None:
-    """binary_scan's view of a release's archives (all platforms together), each checked against
-    its SHA-256 first; None when one cannot be downloaded."""
-    merged = {"libraries": {}, "urls": set(), "ips": set(), "telling": set(), "problems": []}
-    for plat, a in sorted(platforms.items()):
-        r = http.get(f"{repo}/releases/download/{tag}/{a['asset']}", limit=SCAN_LIMIT)
-        if r.status != 200 or hashlib.sha256(r.body).hexdigest() != a["sha256"]:
-            return None
-        one = binary_scan.scan_archive(r.body)
-        merged["libraries"].update({f"{plat}: {k}": v for k, v in one["libraries"].items()})
-        for key in ("urls", "ips", "telling"):
-            merged[key] |= one[key]
-        merged["problems"] += [f"{plat}: {p}" for p in one["problems"]]
-    return merged
+scan_release = b.scan_release
 
 
 def scan_section(item: dict, http) -> str:
@@ -922,6 +945,130 @@ def approve(event: dict, repo: Path, http: b.Http, run=run_cmd) -> int:
 
 
 # ------------------------------------------------------------------------------------------------
+# Held for review: the scan found something dangerous in a new version
+# ------------------------------------------------------------------------------------------------
+
+HELD_MARK = "<!-- openrac-held "
+
+
+def held_title(item: dict) -> str:
+    return f"Held: {item['id']} {item['version']}"
+
+
+def held_body(item: dict, scan: str) -> str:
+    found = "\n".join(f"- {md(f)}" for f in item["findings"])
+    return (f"The scan of a new version found something that needs a person. The version is not published, "
+            f"and the mod is hidden on the site and in the launcher until this is answered. Players who have "
+            f"an earlier version keep it, with no update.\n\n"
+            f"- Mod: `{item['id']}` ({md(item.get('name', ''))}), {item['repo']}\n"
+            f"- Release: {item['repo']}/releases/tag/{item['tag']} ({item['released']})\n\n"
+            f"Found:\n\n{found}\n\n{scan}\n"
+            f"{MAINTAINERS}: label `cleared` if these findings are fine for this mod (the version is published at "
+            f"the next index build, and later versions with the same findings pass), or `revoke` to pull this "
+            f"version.\n\n"
+            f"{HELD_MARK}{json.dumps({'findings': item['findings']})} -->\n")
+
+
+def held_findings(body: str | None) -> list[str] | None:
+    """The findings a held issue shows, from its last line (written by the bot)."""
+    lines = (body or "").strip().splitlines()
+    last = lines[-1] if lines else ""
+    if not (last.startswith(HELD_MARK) and last.endswith(" -->")):
+        return None
+    try:
+        data = json.loads(last[len(HELD_MARK):-4])
+    except ValueError:
+        return None
+    f = data.get("findings") if isinstance(data, dict) else None
+    return f if isinstance(f, list) and f and all(isinstance(x, str) for x in f) else None
+
+
+def held(data: dict, run=run_cmd, http=None) -> int:
+    """Opens or updates one issue per held version (label `held`). With policy review "scan", the
+    open review issues of the old per-version review are closed: their versions publish by themselves."""
+    http = http or b.Http()
+    run(["gh", "label", "create", "held", "--color", "D93F0B", "--description",
+         "The scan found something in a mod version: a maintainer clears or revokes it", "--force"], check=False)
+    for item in data.get("held", []):
+        title = held_title(item)
+        found = json.loads(run(["gh", "issue", "list", "--label", "held", "--state", "all", "--search",
+                                f"\"{title}\" in:title", "--json", "number,title,state,body"]) or "[]")
+        same = [i for i in found if i["title"] == title]
+        if same and held_findings(same[0].get("body")) == item["findings"]:
+            continue  # already says this; a closed one was answered
+        body = held_body(item, scan_section(item, http))
+        if same:
+            run(["gh", "issue", "edit", str(same[0]["number"]), "--body-file", "-"], input=body)
+            if same[0]["state"] != "OPEN":
+                run(["gh", "issue", "reopen", str(same[0]["number"])])
+        else:
+            url = run(["gh", "issue", "create", "--title", title, "--label", "held", "--body-file", "-"],
+                      input=body).strip()
+            alert.main(["alert", f"A mod version is held for review: {url}"])
+    if (data.get("policy") or {}).get("review") == "scan":
+        open_reviews = json.loads(run(["gh", "issue", "list", "--label", "mod-review", "--state", "open",
+                                       "--json", "number"]) or "[]")
+        for i in open_reviews:
+            run(["gh", "issue", "close", str(i["number"]), "--comment",
+                 "Versions are no longer reviewed one by one: this one is published after 1 h and the automatic "
+                 "checks. A dangerous finding of the scan opens a `held` issue instead."])
+    return 0
+
+
+def answer_held(event: dict, repo: Path, http: b.Http, run=run_cmd) -> int:
+    """A maintainer's `cleared` or `revoke` label on a held issue."""
+    issue = event.get("issue") or {}
+    name = (event.get("label") or {}).get("name")
+    m = re.match(rf"^Held: ([a-z0-9]+(?:-[a-z0-9]+)*) ({b.SEMVER})$", issue.get("title", ""))
+    if name not in ("cleared", "revoke") or not m:
+        return 0
+    sender = (event.get("sender") or {}).get("login", "")
+    num = str(issue["number"])
+    if Bot(repo, http, time.time()).permission(*REPO_SLUG.split("/"), sender) not in MAINTAIN:
+        run(["gh", "issue", "comment", num, "--body", "Only maintainers can answer a held version."])
+        run(["gh", "issue", "edit", num, "--remove-label", name], check=False)
+        return 0
+    mid, version = m.group(1), m.group(2)
+    findings = held_findings(issue.get("body"))
+    if name == "cleared":
+        if findings is None:
+            run(["gh", "issue", "comment", num, "--body", "This issue shows no findings. Apply the label again "
+                                                         "after the next index build."])
+            run(["gh", "issue", "edit", num, "--remove-label", name], check=False)
+            return 0
+        path, rel = repo / "index" / "cleared.json", "index/cleared.json"
+
+        def write() -> bool:
+            data = json.loads(path.read_text()) if path.is_file() else {}
+            have = data.get(mid, [])
+            if all(f in have for f in findings):
+                return False
+            data[mid] = sorted(set(have) | set(findings))
+            path.write_text(json.dumps(dict(sorted(data.items())), indent=2) + "\n")
+            return True
+        message, done = f"chore(index): clear {mid}'s scan findings", "Cleared"
+    else:
+        path, rel = repo / "index" / "revoked.json", "index/revoked.json"
+
+        def write() -> bool:
+            data = json.loads(path.read_text()) if path.is_file() else []
+            item = {"id": mid, "versions": [version], "reason": "The scan found something a maintainer did not clear."}
+            if any(r.get("id") == mid and version in r.get("versions", []) for r in data):
+                return False
+            data.append(item)
+            path.write_text(json.dumps(sorted(data, key=lambda r: r["id"]), indent=2) + "\n")
+            return True
+        message, done = f"chore(index): revoke {mid} {version}", "Revoked"
+    where = push_master(repo, [rel], message, f"held/{mid}-{version}", run, write, num)
+    if where == "master":
+        run(["gh", "workflow", "run", "index.yml", "--ref", "master"], check=False)
+        run(["gh", "issue", "close", num, "--comment", f"{done} by {sender}: the next index build follows it."])
+    else:
+        run(["gh", "issue", "comment", num, "--body", f"{done} by {sender}; merge {where} to apply it."])
+    return 0
+
+
+# ------------------------------------------------------------------------------------------------
 # Discussions: one per mod, numbers in index/discussions.json
 # ------------------------------------------------------------------------------------------------
 
@@ -1006,6 +1153,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--event", type=Path, required=True)
     r = sub.add_parser("review")
     r.add_argument("--file", type=Path, required=True)
+    h = sub.add_parser("held")
+    h.add_argument("--file", type=Path, required=True)
     d = sub.add_parser("discussions")
     d.add_argument("--index", type=Path, required=True)
     args = ap.parse_args(argv)
@@ -1030,7 +1179,12 @@ def main(argv: list[str] | None = None) -> int:
             upsert_comment(number, render({"error": True}, run=run_id))
             return 1
     if args.cmd == "approve":
-        return approve(json.loads(args.event.read_text()), ROOT, http)
+        event = json.loads(args.event.read_text())
+        if (event.get("label") or {}).get("name") in ("cleared", "revoke"):
+            return answer_held(event, ROOT, http)
+        return approve(event, ROOT, http)
+    if args.cmd == "held":
+        return held(json.loads(args.file.read_text()) if args.file.is_file() else {})
     if args.cmd == "review":
         return review(json.loads(args.file.read_text()) if args.file.is_file() else [])
     return discussions(json.loads(args.index.read_text()), ROOT)

@@ -177,7 +177,12 @@
       }
      }
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-ammo-max.json",
+    "sha256": "78a5cc31514cbbcdd8263c9965953316c3199e099176769dbf3d9a5052dda43a"
+   }
   },
   {
    "id": "archipelago",
@@ -314,9 +319,23 @@
        "sha256": "c0f44bd83a9fbf5d6c03e37955459e6f620a0effaff0fda445d804f5f64ef816",
        "size": 811000
       }
-     }
+     },
+     "scan": {
+      "labels": [
+       "Network"
+      ],
+      "new": [
+       "Network"
+      ]
+     },
+     "built": "ci"
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-archipelago.json",
+    "sha256": "dbc0c9c361b1f0fe683de0551d6159f6b10bd080ad9ee434977842d5c3cec105"
+   }
   },
   {
    "id": "camera-base",
@@ -465,7 +484,12 @@
       }
      }
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-camera-base.json",
+    "sha256": "df450a20f6c616493d7b1f3d5360452e4a78bf820c11a8e2bfea830fe6e146e6"
+   }
   },
   {
    "id": "camera-tweaks",
@@ -593,7 +617,12 @@
       }
      }
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-camera-tweaks.json",
+    "sha256": "36856e8df06c55bbe87a4b799a25fa0af494528806356bc3d449d2a74ede105a"
+   }
   },
   {
    "id": "classic-controls",
@@ -717,7 +746,12 @@
       }
      }
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-classic-controls.json",
+    "sha256": "4405a86c95da578b01c5d3a8b422054fd886db070d578aace3bc2d299e95c7b0"
+   }
   },
   {
    "id": "item-randomizer",
@@ -868,7 +902,12 @@
        "sha256": "2be906ff849887a59f8a939aa1dacb07614ce2f310bd87473722d423c1e6543c",
        "size": 811000
       }
-     }
+     },
+     "scan": {
+      "labels": [],
+      "new": []
+     },
+     "built": "ci"
     },
     {
      "version": "1.4.0",
@@ -909,7 +948,12 @@
        "sha256": "43e892c92257cf8561464cae247e143677779128602110ae6cf234e5f3a35d88",
        "size": 811000
       }
-     }
+     },
+     "scan": {
+      "labels": [],
+      "new": []
+     },
+     "built": "ci"
     },
     {
      "version": "1.3.0",
@@ -950,9 +994,19 @@
        "sha256": "ec51d1990aa7f681b596d8854d0b2a55e265d4964c9b9dc9baf7ce96f2481c44",
        "size": 811000
       }
-     }
+     },
+     "scan": {
+      "labels": [],
+      "new": []
+     },
+     "built": "ci"
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-item-randomizer.json",
+    "sha256": "8212451f0f184490a86cfd132e7a0dedad636942b5471f9fbf8ce6cf7922a0cd"
+   }
   },
   {
    "id": "lock-strafe",
@@ -1120,7 +1174,12 @@
        "sha256": "81555090626882fa6f0d9b4e7366000a946f8fdac5c47d00809f419bc98b6565",
        "size": 811000
       }
-     }
+     },
+     "scan": {
+      "labels": [],
+      "new": []
+     },
+     "built": "ci"
     },
     {
      "version": "1.1.0",
@@ -1161,9 +1220,19 @@
        "sha256": "40c825e78c5b97ffb0fb2b87dcadc95387bd2f2290383b7052d634979a697797",
        "size": 811000
       }
-     }
+     },
+     "scan": {
+      "labels": [],
+      "new": []
+     },
+     "built": "ci"
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-lock-strafe.json",
+    "sha256": "3f17394553f4f9e31e6dec9e400060819bd81f086bca9e8b350a73831d903d12"
+   }
   },
   {
    "id": "randomizer-pack",
@@ -1285,7 +1354,12 @@
      "files": [],
      "platforms": {}
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-randomizer-pack.json",
+    "sha256": "f89c7c4b8b71066f9302189dcea6e1c9701ed03bb0db147ac9795a5257cecc3e"
+   }
   },
   {
    "id": "xbox-icons",
@@ -1398,7 +1472,12 @@
      "files": [],
      "platforms": {}
     }
-   ]
+   ],
+   "trust": "openrac",
+   "details": {
+    "asset": "details-xbox-icons.json",
+    "sha256": "8c25b65597b4539ffdee389d0241c2a172d03b00b606db43aa4cb674372374ea"
+   }
   }
  ],
  "revoked": [
@@ -1409,5 +1488,15 @@
    ],
    "reason": "1.0.0 could corrupt save files. Use 1.0.1."
   }
- ]
+ ],
+ "picks": {
+  "week": "2026-10-26",
+  "games": {
+   "rac1": [
+    "ammo-max",
+    "archipelago",
+    "camera-base"
+   ]
+  }
+ }
 }
