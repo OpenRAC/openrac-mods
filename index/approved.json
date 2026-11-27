@@ -82,7 +82,18 @@
   ],
   "cutscene-manager": [
     "0.1.0",
-    "0.2.0"
+    "0.2.0",
+    {
+      "version": "0.2.1",
+      "sha256": {
+        "android-arm64": "d583f026704b4ce5478728a2c47162a13fded26cf30182a9784c9589e1c2153e",
+        "linux-aarch64": "564082d7f6706da5c60697455ebd53c14d36486f8295822e0551678d3173ab89",
+        "linux-x86_64": "0885870fbf2bbca855c44655f3652e42bc10c0ca5647c2ee01c0aa559af9e8d8",
+        "macos-arm64": "6e8b6ef7c5c8f66edbcf98c55c0984573c544fc8220d80a099558882f08e2028",
+        "macos-x86_64": "1f4c619d97f1976a319cbf3962276e27daf0db8ae8ade4a1bef99933f023a693",
+        "windows-x86_64": "ce4d931d4e3cef8508f71b4607f600695468b3111d64341738a79c7bd50ad712"
+      }
+    }
   ],
   "damage-numbers": [
     "0.7.1",
