@@ -35,6 +35,11 @@ struct Disc {
     std::uint32_t item_in_hand;
     // The special items' bytes: [4] Premium, [5] Ultra Nanotech.
     std::uint32_t upgrades;
+    // The frame's draw callbacks (AddDrawCallback): the count (s32, at most 64), then the
+    // functions and their arguments, u32[64] each.
+    std::uint32_t draw_count;
+    std::uint32_t draw_funcs;
+    std::uint32_t draw_args;
 
     // Level 0's program's, through relocate_level_data(0, ...).
 
@@ -82,6 +87,9 @@ inline constexpr Disc kDiscs[] = {
         0x0013D530u,
         0x00140508u,
         0x0013D490u,
+        0x0015F564u,
+        0x0018DC40u,
+        0x0018DD40u,
         0x0015F6A8u,
         0x001C43B0u,
         0x00173F00u,
@@ -104,6 +112,9 @@ inline constexpr Disc kDiscs[] = {
         0x0013D428u,
         0x00140408u,
         0x0013D388u,
+        0x0015F464u,
+        0x0018DB40u,
+        0x0018DC40u,
         0x0015F5C4u,
         0x001C40B0u,
         0x00173E00u,

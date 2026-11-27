@@ -18,6 +18,7 @@
 //   enemy speed         each enemy class's update (the behaviour catalogue's hook points) runs k of
 //                       its own ticks per game tick on average, each as the game's moby loop runs
 //                       it (animation step, update, bounds); a skipped tick holds its animation
+//                       and redraws its last draw callbacks; a frame keeps one run's draw callbacks
 //   Ratchet's speed     Hero_ApproachSpeed: his ground speed eases toward a scaled target
 //   prices, max ammo    the items' table (level 0's D_L00_001C43B0), rewritten from the level's
 //                       own values at each level's load
@@ -340,6 +341,11 @@ struct Watched {
 
 // A timed moby's clock: the ticks of its own it is owed (below 1: none yet), and its animation's
 // speed while the mod holds the animation still for a tick it skips.
+// The draw callbacks a moby's run may add that are kept for its skipped ticks.
+constexpr int kDrawsKept = 8;
+// The game's draw callback list's size.
+constexpr int kDrawListSize = 64;
+
 struct Clock {
     std::int16_t cls = 0;
     double owed = 0.0;
@@ -348,6 +354,9 @@ struct Clock {
     // The frame the hold began (State.frames), so that one the moby's update never comes back
     // to (it left the update range, or took another update) is given back all the same.
     std::uint64_t held_at = 0;
+    // The draw callbacks its last run added (function, argument), drawn again on a skipped tick.
+    std::uint32_t draws[kDrawsKept][2] = {};
+    int draw_count = 0;
 };
 
 // The frames after which a hold its update did not end is ended by on_frame.
@@ -706,6 +715,35 @@ void release_stale_holds() {
 // Faster, a tick may run two; slower, a tick may run none and its animation is held still. Nothing
 // of a tick is scaled, so every attack that waits for an exact animation frame or a timer still
 // comes out, and what it throws flies as in the game.
+// Keeps the draw callbacks the moby's last run added, from position `from` of the list, for
+// the ticks it skips.
+void keep_draws(Clock& clock, int from) {
+    const Disc& d = *state().disc;
+    const int count = std::min(get<std::int32_t>(exe(d.draw_count)), kDrawListSize);
+    clock.draw_count = 0;
+    for (int i = std::max(from, 0); i < count && clock.draw_count < kDrawsKept; ++i) {
+        clock.draws[clock.draw_count][0] = get<std::uint32_t>(exe(d.draw_funcs) + 4u * i);
+        clock.draws[clock.draw_count][1] = get<std::uint32_t>(exe(d.draw_args) + 4u * i);
+        ++clock.draw_count;
+    }
+}
+
+// A skipped tick: the moby is still drawn as on its last run (a beam, a glow), as the game's
+// add_draw_callback adds them, while the list has room.
+void redraw(const Clock& clock) {
+    const Disc& d = *state().disc;
+    const gaddr count_at = exe(d.draw_count);
+    for (int i = 0; i < clock.draw_count; ++i) {
+        const int count = get<std::int32_t>(count_at);
+        if (count < 0 || count >= kDrawListSize) {
+            return;
+        }
+        put<std::uint32_t>(exe(d.draw_funcs) + 4u * count, clock.draws[i][0]);
+        put<std::uint32_t>(exe(d.draw_args) + 4u * count, clock.draws[i][1]);
+        put<std::int32_t>(count_at, count + 1);
+    }
+}
+
 void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
     const double k = state().session.active[difficulty::kEnemySpeed];
     const ClassInfo* c = class_of(moby);
@@ -744,6 +782,8 @@ void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
 
     ++state().timed_depth;
     const std::uint32_t update = get<std::uint32_t>(moby + kMobyUpdate);
+    const gaddr draw_count = exe(state().disc->draw_count);
+    int run_draws = get<std::int32_t>(draw_count);
 
     // Each tick it is owed: the first is the game's own (the loop stepped its animation before
     // it and refreshes its bounds after); each further one as the loop would run it again, while
@@ -765,10 +805,20 @@ void timed_update(void (*original)(std::uint32_t), std::uint32_t moby) {
             if ((flags & kFlagNoAnim) == 0) {
                 state().step_anim(moby);
             }
+
+            // The frame draws one tick: the draw callbacks of the run before are dropped.
+            put<std::int32_t>(draw_count, run_draws);
         }
+        run_draws = get<std::int32_t>(draw_count);
         original(moby);
     }
     --state().timed_depth;
+
+    if (runs > 0) {
+        keep_draws(clock, run_draws);
+    } else {
+        redraw(clock);
+    }
 
     hold_if_skipping(moby, clock, k, update);
 }
