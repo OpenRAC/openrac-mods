@@ -1,0 +1,29 @@
+{
+  "id": "spiral-weapon-wheel",
+  "repo": "https://github.com/Promises/openrac-spiral-weapon-wheel",
+  "path": "",
+  "description": "Prey (2017)'s spiral weapon wheel for Ratchet & Clank, drawn as the game's own menu panels: every weapon and gadget on one spiral, your quick select first. Hold Triangle to slow and pause, turn the stick, let go to equip. Other mods can add their items' icons with a spiral-wheel-icons folder.",
+  "tags": [
+    "ui",
+    "controls",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/Promises/openrac-spiral-weapon-wheel/issues",
+    "docs": "https://github.com/Promises/openrac-spiral-weapon-wheel/blob/main/ICONS.md"
+  },
+  "media": {
+    "icon": "docs/icon.png",
+    "banner": "docs/banner.png",
+    "videos": [
+      {
+        "youtube": "https://youtu.be/TsFeHlWv1F8",
+        "caption": "The spiral in game: opening on the quick select, turning through the loops, picking a weapon."
+      }
+    ]
+  }
+}
