@@ -1,0 +1,79 @@
+{
+  "format": 2,
+  "id": "shoulder-camera",
+  "name": "Shoulder camera",
+  "version": "1.0.0",
+  "author": "Wasabules",
+  "description": "Aim over Ratchet's shoulder in Going Commando, as in a modern third-person shooter: while the aim key (or the pad's L2) is held, or toggled, Ratchet strafes (L2) and the camera slides in along the line it looks along, the screen's edges darken and a crosshair shows where the shots go. And how far behind him the camera stays the rest of the time.",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/OpenRAC/openrac-mods/tree/master/shoulder-camera",
+  "api": "1.40",
+  "multiplayer": "input",
+  "games": {
+    "rac2": [
+      "ntsc",
+      "pal",
+      "ntsc2"
+    ]
+  },
+  "hooks": [
+    "rac2.camera.follow.read_stick"
+  ],
+  "settings": [
+    {
+      "key": "aim",
+      "name": "Aim over the shoulder",
+      "type": "keybind",
+      "default": "",
+      "description": "The key or mouse button that aims over the shoulder, on foot. Unbound at first: pick one, such as the right click. With the built-in keyboard and mouse's Modern preset the right click is its own Aim (first person): give that another key, or none."
+    },
+    {
+      "key": "pad_l2",
+      "name": "The pad's L2 aims too",
+      "type": "bool",
+      "default": false,
+      "description": "Holding L2 (Going Commando's strafe) brings the camera in and shows the crosshair as well. The built-in keyboard and mouse's strafe key, its dodge and its strafe while firing press L2 too, so they would also bring the camera in."
+    },
+    {
+      "key": "aim_toggle",
+      "name": "Aim toggles",
+      "type": "bool",
+      "default": false,
+      "description": "A press aims and another stops, rather than aiming while it is held."
+    },
+    {
+      "key": "shoulder_distance",
+      "name": "Distance while aiming",
+      "type": "float",
+      "default": 0.6,
+      "min": 0.4,
+      "max": 0.9,
+      "step": 0.05,
+      "description": "How far behind Ratchet the camera comes while you aim, as a share of where it was."
+    },
+    {
+      "key": "crosshair",
+      "name": "Crosshair",
+      "type": "bool",
+      "default": true,
+      "description": "While you aim, a crosshair where the shots go: they fly level, the way Ratchet faces, so it sits ahead of his gun (the game's own aim still lifts them to an enemy)."
+    },
+    {
+      "key": "vignette",
+      "name": "Vignette",
+      "type": "bool",
+      "default": true,
+      "description": "The screen's edges darken while you aim."
+    },
+    {
+      "key": "camera_distance",
+      "name": "Camera distance",
+      "type": "float",
+      "default": 1.0,
+      "min": 0.6,
+      "max": 1.15,
+      "step": 0.05,
+      "description": "How far behind Ratchet the camera stays when you do not aim, as a share of the game's: below 1 closer, up to 1.15 farther (farther still, the game's camera pulls in). Where the game places the camera itself (scenes, set pieces) it stays the game's."
+    }
+  ]
+}
