@@ -1,0 +1,51 @@
+{
+  "id": "rac2-dead-aim",
+  "repo": "https://github.com/gytdoo/rac2-dead-aim",
+  "path": "",
+  "tags": [
+    "controls",
+    "camera",
+    "gameplay",
+    "qol"
+  ],
+  "impact": [
+    "gameplay"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/gytdoo/rac2-dead-aim/issues",
+    "docs": "https://github.com/gytdoo/rac2-dead-aim#readme"
+  },
+  "media": {
+    "videos": [
+      {
+        "youtube": "5teKYFX7wrM",
+        "caption": "Trailer"
+      }
+    ],
+    "icon": "index/media/rac2-dead-aim/c9b9cc2fad2b.png",
+    "banner": "index/media/rac2-dead-aim/619110d48137.png",
+    "screenshots": [
+      {
+        "src": "index/media/rac2-dead-aim/4b5c8bebceca.png",
+        "caption": "Classic and Modern side by side: the free camera, with each weapon's own crosshair"
+      },
+      {
+        "src": "index/media/rac2-dead-aim/c9d7b7bf63bd.png",
+        "caption": "Pause > Options > Dead Aim: lock-strafe, Crouch Behavior, the shoulder buttons and Auto Gadgets"
+      },
+      {
+        "src": "index/media/rac2-dead-aim/fbe5dbdb3d2a.png",
+        "caption": "The Camera tab: aim control, crosshair size, camera speed, vertical sensitivity and aim assist"
+      },
+      {
+        "src": "index/media/rac2-dead-aim/8122d4ea9817.jpeg",
+        "caption": "First person on the planetoids: level with the ground, firing where you aim"
+      },
+      {
+        "src": "index/media/rac2-dead-aim/bbb1b5b17c97.png",
+        "caption": "Auto Gadgets (adapted from Joebannerlord's): Fire at a bomb, the Tractor Beam carries it, then your weapon is back"
+      }
+    ]
+  }
+}
