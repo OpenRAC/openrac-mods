@@ -1,0 +1,19 @@
+{
+  "id": "rac2-ng-plus-minigames",
+  "repo": "https://github.com/ModdedFun/rac2-ng-plus-minigames",
+  "path": "",
+  "description": "Skips enabled minigame types in Challenge Mode using the game's own completion transitions.",
+  "tags": [
+    "gameplay",
+    "qol"
+  ],
+  "impact": [
+    "gameplay",
+    "touches-saves"
+  ],
+  "aiAssisted": true,
+  "links": {
+    "bugs": "https://github.com/ModdedFun/rac2-ng-plus-minigames/issues",
+    "docs": "https://github.com/ModdedFun/rac2-ng-plus-minigames#readme"
+  }
+}
