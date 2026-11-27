@@ -225,6 +225,17 @@
         "macos-x86_64": "aee51b43c0d666e72ef9153300931d6c2fdfea32a26f8e2be2f1ff56f7119a3c",
         "windows-x86_64": "0b64c3c8880d844200467e38c138676dbdd58b97d87ee58411e3aaf4102c23d9"
       }
+    },
+    {
+      "version": "0.3.5",
+      "sha256": {
+        "android-arm64": "dde411caa4450ff372afe92986f5e5d874e6eafd1a92efa6db4b9e10fcf9d355",
+        "linux-aarch64": "611482fa7013dbfc6f3a1502d7386adb8e98d4b18e2d943f60a3170a4bc2a5c9",
+        "linux-x86_64": "1fd32a7bb0444723e3207bddc5a9004421601a5881bdc59f569030097bd7f389",
+        "macos-arm64": "3bfb10e8c46330fe766f6e8391228efa60831b38aefc7891275b0ec7432a733f",
+        "macos-x86_64": "2838e0bdd2642f1f9433236a84e35c19b02a260e1ff3723ef3fc9e628d907aa9",
+        "windows-x86_64": "bc86bdf088017cd56ef9b0342e5376897adc9d1b6a788d5bfbacb8899ad80c27"
+      }
     }
   ],
   "pause-weapon-wheel": [
