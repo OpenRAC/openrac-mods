@@ -63,6 +63,7 @@ typedef struct sweep {
 static uint64_t s_need[DIFFICULTY_COUNT][RANDO_MAX_LOCATIONS];
 static int s_need_ready;
 static int s_legacy_items;
+static int s_gold_progression; /* the plan's settings.gold_progression, for fits */
 
 #include "starting_planet.h"
 
@@ -212,12 +213,20 @@ static size_t goal(void) {
 }
 
 /* Whether a progression reward may go to location i at this difficulty: relaxed keeps them out of
- * costly and pricey purchases, standard out of costly purchases. */
+ * costly and pricey purchases, standard out of costly purchases. A gold bolt takes one only with
+ * gold_progression, and one marked LOCF_NO_PROGRESSION only on expert. */
 static int fits(int difficulty, size_t i) {
     const rando_location* l = &rando_locations[i];
 
-    // A gold bolt is a hidden corner: what the way on needs is never in one.
-    if (l->kind == LOC_GOLD || l->kind == LOC_GOLD_CASE) {
+    // A gold case is the postgame shop: what the way on needs is never in one.
+    if (l->kind == LOC_GOLD_CASE) {
+        return 0;
+    }
+
+    // A gold bolt holds what the way on needs only when the settings let it.
+    if (l->kind == LOC_GOLD
+        && (!s_gold_progression
+            || ((l->flags & LOCF_NO_PROGRESSION) && difficulty != DIFFICULTY_EXPERT))) {
         return 0;
     }
 
@@ -457,6 +466,11 @@ int rando_solve(const rando_settings* s, rando_plan* plan) {
         plan->settings.start_weapons = RANDO_START_WEAPONS_NONE;
     }
 
+    // Gold bolts hold progression only when they are shuffled.
+    plan->settings.gold_progression =
+        (uint8_t)(plan->settings.gold_progression && (plan->settings.pools & POOL_GOLD));
+    s_gold_progression = plan->settings.gold_progression;
+
     // The stream: the code's payload, so that every setting changes the whole placement.
     char code[RANDO_CODE_SIZE];
     rando_encode(&plan->settings, code);
@@ -646,6 +660,7 @@ static void put_header(out* o, const rando_plan* plan, const char* mod_version) 
         (s->pools & POOL_NPC_INFOBOTS) ? "NPC-infobots " : "",
         (s->pools & POOL_GOLD_WEAPONS) ? "gold-cases " : "",
         (s->pools & POOL_ITEMS) ? "items " : "");
+    if (s->gold_progression) put(o, "Gold bolts  may hold what the way on needs\n");
     if (s->random_start) put(o, "Start planet %s\n", rando_planet_name(plan->start_level));
     if (plan->start_weapon.kind != REWARD_NONE) {
         char weapon[64];

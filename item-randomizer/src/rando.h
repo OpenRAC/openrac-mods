@@ -146,6 +146,7 @@ const char* rando_special_name(int item);
 #define LOCF_COSTLY 0x01u /* bought for more bolts than a player has early on */
 #define LOCF_GOAL 0x02u   /* beating the game: what every seed must reach */
 #define LOCF_PRICEY 0x04u /* a purchase a player saves up for: out of "relaxed"'s progression */
+#define LOCF_NO_PROGRESSION 0x08u /* a gold bolt kept out of relaxed's and standard's progression */
 
 typedef struct rando_location {
     const char* name;     /* for the spoiler log: "Kerwan: Helga" */
@@ -210,6 +211,7 @@ typedef struct rando_settings {
     uint8_t legacy_items; /* decoded format-2 seeds retain their original gadget pools */
     uint8_t random_start; /* skip the tutorial and choose a logic-safe first planet */
     uint8_t start_weapons; /* RANDO_START_WEAPONS_*: with keep_start, a random starting weapon */
+    uint8_t gold_progression; /* gold bolts may hold progression (G: codes); 0: never, as before */
 } rando_settings;
 
 /* The "starting_weapons" setting: Vanilla is keep_start 1, Shuffled keep_start 0; the other two
@@ -225,8 +227,9 @@ enum {
 #define RANDO_SEED_MASK ((((uint64_t)1) << RANDO_SEED_BITS) - 1)
 #define RANDO_CODE_FORMAT 2
 /* Ordinary codes are "XXXX-XXXX-XXXX"; random-start codes add the "R:" prefix, random starting
- * weapons "N:" (Non-Broken) or "U:" (Unrestricted), in that order: "R:N:XXXX-XXXX-XXXX". */
-#define RANDO_CODE_SIZE 19
+ * weapons "N:" (Non-Broken) or "U:" (Unrestricted), and gold bolts that may hold progression
+ * "G:", in that order: "R:N:G:XXXX-XXXX-XXXX". */
+#define RANDO_CODE_SIZE 21
 
 /* The settings' code: format, difficulty, starting gear, pools, seed and a checksum, 60 bits. */
 void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]);

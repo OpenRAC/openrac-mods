@@ -47,6 +47,7 @@ int rando_settings_of(
     s->keep_start = (uint8_t)(o->keep_start != 0);
     s->start_weapons = RANDO_START_WEAPONS_NONE;
     starting_weapons_of(o->starting_weapons, s);
+    s->gold_progression = (uint8_t)(o->gold_progression != 0 && o->gold_bolts);
     const int d = rando_difficulty_of_name(o->difficulty);
     s->difficulty = (uint8_t)(d < 0 ? DIFFICULTY_STANDARD : d);
 

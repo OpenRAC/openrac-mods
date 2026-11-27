@@ -2,7 +2,8 @@
 # The logic. A planet opens with its coordinates (the shuffled item, or the NPC's event); a
 # location needs its row's hard items, and in standard and relaxed logic its soft items too.
 # Standard and relaxed keep progression out of an expensive purchase, relaxed out of one to save up for.
-# No logic puts progression on a gold bolt or a skill point.
+# No logic puts progression on a skill point; a gold bolt holds it only with gold_bolt_progression
+# (the marked ones only on expert).
 from typing import TYPE_CHECKING
 
 from rule_builder.options import OptionFilter
@@ -31,13 +32,26 @@ def coordinates(planet: str) -> list[str]:
     return [name for name in names if name in ITEM_TABLE or name in events]
 
 
+def is_progression(name: str) -> bool:
+    return ITEM_TABLE[name].progression
+
+
+def needs_filler(row: LocationData) -> bool:
+    # A state holds only progression items, so a rule cannot ask for another (a gold bolt's
+    # Taunter): such a place is ruled without it, and holds no progression.
+    return any(not is_progression(name) for name in row.hard + row.soft)
+
+
 def row_rule(row: LocationData) -> Rule:
-    rule: Rule = HasAll(*row.hard) if row.hard else True_()
+    hard = [name for name in row.hard if is_progression(name)]
+    rule: Rule = HasAll(*hard) if hard else True_()
+    # One of a row's `any` that is not progression (the Bomb Glove) is left out: it only asks for
+    # more.
     if row.any:
-        rule = rule & HasAny(*row.any)
+        rule = rule & HasAny(*[name for name in row.any if is_progression(name)])
     for planet in row.planets:
         rule = rule & HasAny(*coordinates(planet))
-    extra = [name for name in row.soft if name not in row.hard]
+    extra = [name for name in row.soft if name not in row.hard and is_progression(name)]
     if extra:
         rule = rule & (HasAll(*extra) | EXPERT)
     if row.name == "Oltanis: the PDA's seller":
@@ -47,12 +61,18 @@ def row_rule(row: LocationData) -> Rule:
     return rule
 
 
-def holds_progression(row: LocationData, logic: Logic) -> bool:
+def holds_progression(row: LocationData, logic: Logic, gold_progression: bool = False) -> bool:
     costly = row.costly and logic != logic.option_expert
     pricey = row.pricey and logic == logic.option_relaxed
     # A skill point stays optional: no world's way on, nor the goal, waits behind a challenge.
-    # A gold bolt takes every gadget, so a way on there can leave the fill with no place to go.
-    return not (costly or pricey or row.kind in ("skill", "gold"))
+    if row.kind == "skill":
+        return False
+    # A gold bolt holds progression only with gold_bolt_progression; one marked no_progression
+    # (its hardest corners) only on expert.
+    if row.kind == "gold" and not (
+            gold_progression and (not row.no_progression or logic == logic.option_expert)):
+        return False
+    return not (costly or pricey)
 
 
 def set_rules(world: "RAC1World") -> None:
@@ -61,8 +81,6 @@ def set_rules(world: "RAC1World") -> None:
         region = world.get_region(planet)
         # Veldin, where the game starts, needs nothing.
         rule = True_() if index == 0 or planet == world.starting_planet else HasAny(*coordinates(planet))
-        if planet == "Drek's Fleet":
-            rule = rule & Has("Hologuise")
         world.create_entrance(ship, region, rule, name=f"Fly to {planet}", force_creation=True)
 
     logic = world.options.logic
@@ -76,7 +94,7 @@ def set_rules(world: "RAC1World") -> None:
         world.set_rule(location, rule)
         if row.kind == "gold_vendor":
             add_item_rule(location, lambda item: not (item.player == world.player and item.name == "Gold Bolt"))
-        if not holds_progression(row, logic):
+        if needs_filler(row) or not holds_progression(row, logic, bool(world.options.gold_bolt_progression)):
             # An item rule, not EXCLUDED: EXCLUDED also keeps useful items out, and needs a filler
             # item for each such place, which a pool with the gold bolts off does not have.
             add_item_rule(location, lambda item, row=row: not item.advancement

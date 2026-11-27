@@ -30,6 +30,7 @@ typedef struct rando_options {
     /* "starting_weapons": vanilla, shuffled, non_broken, unrestricted; null or another word
      * leaves keep_start as it is */
     const char* starting_weapons;
+    int gold_progression; /* "gold_bolt_progression": gold bolts may hold what the way on needs */
 } rando_options;
 
 /* Where the seed came from. */

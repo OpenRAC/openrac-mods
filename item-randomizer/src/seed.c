@@ -21,6 +21,7 @@
  *
  * Random-start codes wrap this unchanged payload in an R: prefix, and random starting weapons in
  * N: (Non-Broken) or U: (Unrestricted) after it; their payload has the starting gear's bit set.
+ * Gold bolts that may hold progression add G: last.
  * Normal codes retain their original encoding and placement stream.
  *
  * So a code says the whole game: two players with the same code get the same placement, whatever
@@ -133,6 +134,7 @@ void rando_encode(const rando_settings* s, char out[RANDO_CODE_SIZE]) {
     } else if (s->keep_start && s->start_weapons == RANDO_START_WEAPONS_UNRESTRICTED) {
         out[o++] = 'U'; out[o++] = ':';
     }
+    if (s->gold_progression) { out[o++] = 'G'; out[o++] = ':'; }
 
     // One base 32 character at a time, from the top of the code.
     for (int i = 0; i < CODE_CHARS; ++i) {
@@ -184,6 +186,10 @@ int rando_decode(const char* text, rando_settings* s) {
     } else if ((text[0] == 'U' || text[0] == 'u') && text[1] == ':') {
         start_weapons = RANDO_START_WEAPONS_UNRESTRICTED; text += 2;
     }
+    int gold_progression = 0;
+    if ((text[0] == 'G' || text[0] == 'g') && text[1] == ':') {
+        gold_progression = 1; text += 2;
+    }
     int n = 0;
 
     // Each character of the text, read as a base 32 digit.
@@ -232,8 +238,14 @@ int rando_decode(const char* text, rando_settings* s) {
         return 0;
     }
 
+    // Gold bolts that may hold progression are shuffled ones.
+    if (gold_progression && !((payload >> CODE_POOLS_SHIFT) & POOL_GOLD)) {
+        return 0;
+    }
+
     s->random_start = (uint8_t)random_start;
     s->start_weapons = (uint8_t)start_weapons;
+    s->gold_progression = (uint8_t)gold_progression;
     s->difficulty = (uint8_t)difficulty;
     s->keep_start = (uint8_t)keep_start;
     s->pools = (uint8_t)((payload >> CODE_POOLS_SHIFT) & POOL_ALL);

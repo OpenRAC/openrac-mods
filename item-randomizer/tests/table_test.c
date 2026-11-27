@@ -119,10 +119,13 @@ static void check_words(void) {
     NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_HOLOGUISE);
     NEEDS("Quartu: in disguise, the coordinates of Drek's Fleet", ITEM_THRUSTER_PACK);
     NEEDS("Kalebo III: the Gadgetron CEO's race", ITEM_HOVERBOARD);
-    /* A randomized Fleet coordinate cannot bypass Hologuise, even in Expert. */
-    for (size_t i = 0; i < rando_location_count; ++i) {
-        if (rando_locations[i].level != LEVEL_FLEET) continue;
-        for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) CHECK(rando_requirement(d, i) & BIT(ITEM_HOLOGUISE));
+    /* On the Fleet the infobot and gold bolt 2 need the Hologuise, even in Expert; the CodeBot and
+     * gold bolt 1 do not. */
+    for (int d = 0; d <= DIFFICULTY_EXPERT; ++d) {
+        CHECK(rando_requirement(d, named("Drek's Fleet: the infobot")) & BIT(ITEM_HOLOGUISE));
+        CHECK(rando_requirement(d, named("Drek's Fleet: gold bolt 2")) & BIT(ITEM_HOLOGUISE));
+        CHECK(!(rando_requirement(d, named("Drek's Fleet: the CodeBot")) & BIT(ITEM_HOLOGUISE)));
+        CHECK(!(rando_requirement(d, named("Drek's Fleet: gold bolt 1")) & BIT(ITEM_HOLOGUISE)));
     }
 
     CHECK(!(rando_locations[named("Drek's Fleet: the infobot")].hard & BIT(ITEM_HYDRO_PACK)));
@@ -135,11 +138,13 @@ static void check_words(void) {
     CHECK(rando_locations[named("Orxon: Clank's infobot")].hard == 0);
     CHECK(rando_locations[named("Orxon: Clank finds the Magneboots")].hard == 0);
 
-    /* No gold bolt is ever reachable before all that opens a way. */
-
+    /* Each gold bolt asks for its own items, not every gadget that opens a way. */
+    CHECK(rando_locations[named("Novalis: gold bolt 1")].hard == 0);
+    CHECK(rando_locations[named("Kalebo III: gold bolt 1")].hard == BIT(ITEM_GRINDBOOTS));
+    CHECK(rando_locations[named("Veldin (return): gold bolt 1")].hard & BIT(ITEM_TAUNTER));
     for (size_t i = 0; i < rando_location_count; ++i) {
         if (rando_locations[i].kind == LOC_GOLD) {
-            CHECK(rando_locations[i].hard & BIT(ITEM_MAGNEBOOTS));
+            CHECK(!(rando_locations[i].hard & BIT(ITEM_SONIC_SUMMONER)));
         }
     }
 }

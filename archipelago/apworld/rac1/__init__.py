@@ -173,7 +173,7 @@ class RAC1World(World):
         if self.multiworld.players == 1:
             return True
         rows = [row for row in self.location_rows() if self.shuffled(row)]
-        places = sum(holds_progression(row, self.options.logic)
+        places = sum(holds_progression(row, self.options.logic, bool(self.options.gold_bolt_progression))
                      or (self.options.shuffle_gold_weapons and row.kind in ("gold", "skill"))
                      for row in rows)
         keys = sum(self.create_item(self.vanilla_item(row)).advancement for row in rows)

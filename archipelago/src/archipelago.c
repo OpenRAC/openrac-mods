@@ -84,7 +84,7 @@
 #define SWAP_FORCE_OWNED (-2)
 
 #define MOD_ID "archipelago"
-#define MOD_VERSION "2.5.15"
+#define MOD_VERSION "2.5.17"
 
 OPENRAC_MOD_DEFINE(MOD_ID, MOD_VERSION)
 

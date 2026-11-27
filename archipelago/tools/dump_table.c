@@ -115,7 +115,9 @@ static const char* item_group(rando_reward r, uint8_t pool) {
     return pool == POOL_ITEMS ? "Items" : pool == POOL_GADGETS ? "Gadgets" : "Weapons";
 }
 
-/* The items some rule asks for: the table's, and what a skill point's code tests. */
+/* The items some rule asks for: the table's, and what a skill point's code tests. A gold bolt
+ * may also ask for a weapon outside these (the Bomb Glove, the Taunter): rules.py leaves such an
+ * item out of the rule, and keeps progression off a place whose rule needed one. */
 static uint64_t progression_items(void) {
     uint64_t items = rando_progression_items;
 
@@ -174,7 +176,7 @@ static void dump(void) {
         "# Every row of the table. A row with an id is a location; one without (an NPC's coordinates,\n"
         "# the Persuader, Drek) is an event. hard: the items the place cannot be done without; soft:\n"
         "# the items the game's own route has there. costly: bought for more bolts than a player has\n"
-        "# early on.\n"
+        "# early on. no_progression: a gold bolt that holds progression only on expert.\n"
         "LOCATIONS = (\n"
     );
 
@@ -230,10 +232,11 @@ static void dump(void) {
 
         printf(planets == 1 ? ",)" : ")");
         printf(
-            ",\n        costly=%s,\n        pricey=%s,\n        goal=%s,\n    ),\n",
+            ",\n        costly=%s,\n        pricey=%s,\n        goal=%s,\n%s    ),\n",
             (l->flags & LOCF_COSTLY) ? "True" : "False",
             (l->flags & LOCF_PRICEY) ? "True" : "False",
-            (l->flags & LOCF_GOAL) ? "True" : "False"
+            (l->flags & LOCF_GOAL) ? "True" : "False",
+            (l->flags & LOCF_NO_PROGRESSION) ? "        no_progression=True,\n" : ""
         );
     }
 
