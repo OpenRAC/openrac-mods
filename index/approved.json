@@ -563,7 +563,18 @@
     }
   ],
   "steam-deck-pack": [
-    "0.3.0"
+    "0.3.0",
+    {
+      "version": "0.3.1",
+      "sha256": {
+        "android-arm64": "c6946cf4a3ad39ca02e7f6348f47f8df32748a5a9ffc4eabc3425bb4af6e1acb",
+        "linux-aarch64": "c28d2ae63ebb05991f4245c7284b234f5cd13de4bdccc41c6fd7750c1c8d996b",
+        "linux-x86_64": "958f444fa98b3711ba91a7990be8d300a2c199c43535ecd0c9361874b02c84cd",
+        "macos-arm64": "9f77330c7d02cbeed4a54201360d336650607dccea091c75fd93e4b0ea103ef9",
+        "macos-x86_64": "e81a641561853d4bd4b9a0112222182cfa1eaadba47830158dd9ea01b114c580",
+        "windows-x86_64": "e47337e2bd4047b0e486e445dc4243b4ab0e74dd3c89808c51cdb8fafffbc81d"
+      }
+    }
   ],
   "thruster-charge": [
     {
