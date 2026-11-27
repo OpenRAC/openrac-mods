@@ -328,6 +328,8 @@ The trigger press is consumed until release so the default does not also pause t
 
 On Novalis, the ship is available before completing its normal quest. The quest’s
 randomized reward remains available separately; this grants no extra coordinates.
+Until that quest is done, Agnogg's ship hides Ratchet's ship every frame; the mod shows it
+again right after, so it is drawn and solid, and leaves the take-off's camera to the level.
 
 ### Random starting planet
 
