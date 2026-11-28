@@ -11,7 +11,7 @@ listing.json) and the external entries index/<id>.json, reads their GitHub relea
 <id>-v<version> or v<version>), and writes DIR/index.json (format 1, INDEX_FORMAT), DIR/stats.json
 (daily download totals) and DIR/media-src/ (the pictures for tools/media.py).
 
-Every mod gets a trust label (tools/trust.py: index/verified.json, index/trusted.json), every new
+Every mod gets a trust label (tools/trust.py: trust/verified.json, trust/trusted.json), every new
 native version is scanned (tools/binary_scan.py); a dangerous finding not in index/cleared.json
 holds the version (DIR/held.json, one issue each). Also writes DIR/details/details-<id>.json,
 DIR/picks.json and, with index/policy.json community on, DIR/community.json.
@@ -88,7 +88,7 @@ MAX_SETTING_TEXT = 200
 MAX_SUMS = 256 * 1024
 MAX_CD = 2 * 1024 * 1024
 COOL_DOWN = 3600  # seconds a new external native version waits
-INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json", "verified.json", "trusted.json",
+INDEX_FILES = ("schema.json", "revoked.json", "approved.json", "discussions.json",
                "cleared.json", "policy.json", "picks-pin.json")
 SCAN_LIMIT = 256 * 1024 * 1024  # the largest archive downloaded for the scan
 SCANS_PER_RUN = 20  # full archive scans in one build; the rest wait for the next hour

@@ -35,6 +35,7 @@ def route(fx, url, data):
 
 
 def write(fx, rel, data):
+    (fx.repo / rel).parent.mkdir(parents=True, exist_ok=True)
     (fx.repo / rel).write_text(json.dumps(data))
 
 
@@ -52,20 +53,20 @@ class Labels(unittest.TestCase):
         self.assertEqual(mod(index, "ext-hud")["trust"], "unchecked")
 
     def test_lists_give_labels(self):
-        write(self.fx, "index/trusted.json", {"owners": {"Someone": {"since": "2026-11-27"}}})
+        write(self.fx, "trust/trusted.json", {"owners": {"Someone": {"since": "2026-11-27"}}})
         index, _, _ = self.fx.build()
         self.assertEqual(mod(index, "ext-hud")["trust"], "trusted")
-        write(self.fx, "index/verified.json", {"mods": {"ext-hud": {"since": "2026-11-27"}}})
+        write(self.fx, "trust/verified.json", {"mods": {"ext-hud": {"since": "2026-11-27"}}})
         index, _, _ = self.fx.build()
         self.assertEqual(mod(index, "ext-hud")["trust"], "verified")
 
     def test_numeric_id_follows_a_renamed_account(self):
-        write(self.fx, "index/trusted.json", {"owners": {"old-name": {"since": "2026-11-27", "id": 4242}}})
+        write(self.fx, "trust/trusted.json", {"owners": {"old-name": {"since": "2026-11-27", "id": 4242}}})
         index, _, _ = self.fx.build()
         self.assertEqual(mod(index, "ext-hud")["trust"], "trusted")
 
     def test_bad_list_fails(self):
-        write(self.fx, "index/trusted.json", {"owners": ["someone"]})
+        write(self.fx, "trust/trusted.json", {"owners": ["someone"]})
         index, errors, _ = self.fx.build()
         self.assertIsNone(index)
         self.assertTrue(any("trusted.json" in e for e in errors))
@@ -340,14 +341,14 @@ class SelfMerge(Base):
         r = self.check(event(self.fields))
         self.assertTrue(r["ok"], self.failed(r))
         self.assertFalse(r["auto"])
-        write(self.fx, "index/trusted.json", {"owners": {"someone": {"since": "2026-11-27"}}})
+        write(self.fx, "trust/trusted.json", {"owners": {"someone": {"since": "2026-11-27"}}})
         r = self.check(event(self.fields))
         self.assertTrue(r["auto"])
         write(self.fx, "index/policy.json", {"selfMerge": False})
         self.assertFalse(self.check(event(self.fields))["auto"])
 
     def test_apply_turns_on_auto_merge(self):
-        write(self.fx, "index/trusted.json", {"owners": {"someone": {"since": "2026-11-27"}}})
+        write(self.fx, "trust/trusted.json", {"owners": {"someone": {"since": "2026-11-27"}}})
         r = self.check(event(self.fields))
         repo = Path(tempfile.mkdtemp())
         try:

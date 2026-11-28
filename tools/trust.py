@@ -5,7 +5,7 @@
 Used by tools/build_index.py (hourly) and tools/submit_bot.py. Stdlib only.
 
 - Labels: openrac (the mod's folder is in this repository), verified (its id or its GitHub owner
-  is in index/verified.json), trusted (its owner is in index/trusted.json), unchecked (none).
+  is in trust/verified.json), trusted (its owner is in trust/trusted.json), unchecked (none).
 - Scan: tools/binary_scan.py on each new native version. Some findings only label the version
   (Network, ...); the dangerous ones hold it back until a maintainer clears them
   (index/cleared.json) or revokes it.
@@ -53,7 +53,7 @@ class ListError(Exception):
 
 
 # ------------------------------------------------------------------------------------------------
-# Lists in index/
+# Lists in trust/ (who is checked) and index/ (cleared findings, policy)
 # ------------------------------------------------------------------------------------------------
 
 LOGIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
@@ -64,7 +64,7 @@ def _read(path: Path):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        raise ListError(f"index/{path.name}: {e}") from None
+        raise ListError(f"{path.parent.name}/{path.name}: {e}") from None
 
 
 def _people(value, where: str) -> dict:
@@ -80,25 +80,26 @@ def _people(value, where: str) -> dict:
 
 
 def load_lists(root: Path) -> dict:
-    """index/verified.json ({mods: {id: {...}}, owners: {login: {...}}}), index/trusted.json
+    """trust/verified.json ({mods: {id: {...}}, owners: {login: {...}}}), trust/trusted.json
     ({owners: {login: {...}}}), index/cleared.json ({id: [finding]}) and index/policy.json."""
     idx = Path(root) / "index"
+    lists = Path(root) / "trust"
     out = {"verified_mods": {}, "verified_owners": {}, "trusted_owners": {}, "cleared": {},
            "policy": dict(POLICY_DEFAULT), "pins": []}
-    if (idx / "verified.json").is_file():
-        d = _read(idx / "verified.json")
+    if (lists / "verified.json").is_file():
+        d = _read(lists / "verified.json")
         if not isinstance(d, dict) or set(d) - {"mods", "owners"}:
-            raise ListError("index/verified.json: must be {\"mods\": {...}, \"owners\": {...}}")
+            raise ListError("trust/verified.json: must be {\"mods\": {...}, \"owners\": {...}}")
         mods = d.get("mods", {})
         if not isinstance(mods, dict) or not all(ID_RE.match(k) and isinstance(v, dict) for k, v in mods.items()):
-            raise ListError("index/verified.json: mods is {\"<id>\": {\"since\": ..., \"note\": ...}}")
+            raise ListError("trust/verified.json: mods is {\"<id>\": {\"since\": ..., \"note\": ...}}")
         out["verified_mods"] = mods
-        out["verified_owners"] = _people(d.get("owners", {}), "index/verified.json: owners")
-    if (idx / "trusted.json").is_file():
-        d = _read(idx / "trusted.json")
+        out["verified_owners"] = _people(d.get("owners", {}), "trust/verified.json: owners")
+    if (lists / "trusted.json").is_file():
+        d = _read(lists / "trusted.json")
         if not isinstance(d, dict) or set(d) - {"owners"}:
-            raise ListError("index/trusted.json: must be {\"owners\": {...}}")
-        out["trusted_owners"] = _people(d.get("owners", {}), "index/trusted.json: owners")
+            raise ListError("trust/trusted.json: must be {\"owners\": {...}}")
+        out["trusted_owners"] = _people(d.get("owners", {}), "trust/trusted.json: owners")
     if (idx / "cleared.json").is_file():
         d = _read(idx / "cleared.json")
         if not isinstance(d, dict) or not all(

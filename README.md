@@ -204,12 +204,13 @@ Every mod carries one label (`trust` in `index.json`), the first that applies:
 | Label | When |
 |---|---|
 | OpenRAC | the mod's folder is in this repository (its code came in by reviewed PRs) |
-| Verified | its id is in `index/verified.json` `mods`, or its GitHub owner in `owners`: a maintainer looked at it when it was added |
-| Trusted author | its GitHub owner is in `index/trusted.json`: not checked by a person |
+| Verified | its id is in `trust/verified.json` `mods`, or its GitHub owner in `owners`: a maintainer looked at it when it was added |
+| Trusted author | its GitHub owner is in `trust/trusted.json`: not checked by a person |
 | Not checked | none of these |
 
-The lists change only by a pull request a maintainer merges; removing a line
-takes the label back. An owner may carry its numeric GitHub `id`, which keeps
+The lists change only by a pull request a maintainer merges (`.github/CODEOWNERS`
+asks for their review); removing a line takes the label back. They hold GitHub
+logins only, no names. An owner may carry its numeric GitHub `id`, which keeps
 the label when the account is renamed. A trusted or verified author's listing
 pull request merges by itself once its checks pass.
 

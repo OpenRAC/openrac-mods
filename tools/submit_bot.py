@@ -738,7 +738,7 @@ def apply(result: dict, files: Path, repo: Path, run=run_cmd, run_id: str = "") 
             pr_url = run(["gh", "pr", "create", "--base", "master", "--head", branch, "--title",
                           result["title"][:100], "--body", body]).strip()
         if result.get("auto"):
-            # A trusted author's listing: merged once CI passes (index/trusted.json, policy selfMerge).
+            # A trusted author's listing: merged once CI passes (trust/trusted.json, policy selfMerge).
             run(["gh", "pr", "merge", pr_url, "--auto", "--squash"], check=False)
     upsert_comment(issue, render(result, pr_url, run_id), run)
     return 0
