@@ -18,6 +18,16 @@ files, its listing (text, pictures, videos) and anything it downloads.
 - **NSFW content** in the mod or its listing, and harassment in listings or
   comments.
 
+## What OpenRAC checks
+
+Every mod shows a label: **OpenRAC** (made in this repository, its code reviewed),
+**Verified** (a maintainer looked at it when it was added), **Trusted author**
+(from an author on the maintainers' list, not checked by a person) or **Not
+checked**. Every new native version is scanned by a machine; a dangerous
+finding hides the mod until a maintainer looks at it. OpenRAC takes no
+responsibility for what any mod does, checked or not: players install mods at
+their own risk.
+
 ## Reporting a mod
 
 Open an issue in this repository named *Report a mod: `<id>`*, with what

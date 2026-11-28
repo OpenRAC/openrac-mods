@@ -398,12 +398,14 @@ class Contract(unittest.TestCase):
         self.assertEqual(list(index), list(shared))
         self.assertEqual(index["tags"], shared["tags"])
         mod_keys = set(shared["mods"][0])
-        ver_keys = set(shared["mods"][0]["versions"][0])
+        ver_keys = {k for sm in shared["mods"] for sv in sm["versions"] for k in sv}
         for m in index["mods"]:
-            self.assertLessEqual(set(m), mod_keys | {"discussion"}, m["id"])
+            self.assertLessEqual(set(m), mod_keys | {"discussion", "held", "unreachable"}, m["id"])
             self.assertLessEqual(mod_keys - set(m), {"license", "homepage"}, m["id"])
             for v in m["versions"]:
-                self.assertEqual(set(v), ver_keys, m["id"])
+                # scan and built: native versions only
+                self.assertLessEqual(set(v), ver_keys, m["id"])
+                self.assertLessEqual(ver_keys - set(v), {"scan", "built"}, m["id"])
         json.dumps(index, allow_nan=False)
 
     def test_validate_catches_breakage(self):

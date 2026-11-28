@@ -112,8 +112,8 @@ class Forms(unittest.TestCase):
         self.assertEqual(bot.pictures("![](https://github.com/a/b/blob/main/docs/shot.jpg)")[1], ["line 1"])
 
     def test_templates_match_the_bot_and_the_contract(self):
-        files = {"mod-submission": "submit-mod.yml", "listing-update": "update-listing.yml",
-                 "mod-removal": "remove-mod.yml", "mod-revoke": "revoke.yml"}
+        # listing-update has no template: authors keep their listing in openrac-listing.json.
+        files = {"mod-submission": "submit-mod.yml", "mod-removal": "remove-mod.yml", "mod-revoke": "revoke.yml"}
         for form, name in files.items():
             text = (ROOT / ".github" / "ISSUE_TEMPLATE" / name).read_text()
             self.assertIn(f"labels: [{form}]", text)
@@ -123,6 +123,8 @@ class Forms(unittest.TestCase):
         self.assertEqual(ids, ["kind", "repo", "mods", "name", "settings", "description", "tags", "impact", "ai",
                                "bugs", "discord", "docs", "video", "screenshots", "rules"])
         self.assertIn("info@openrac.dev", (ROOT / ".github/ISSUE_TEMPLATE/report-mod.yml").read_text())
+        self.assertFalse((ROOT / ".github/ISSUE_TEMPLATE/update-listing.yml").exists())
+        self.assertIn("blank_issues_enabled: false", (ROOT / ".github/ISSUE_TEMPLATE/config.yml").read_text())
 
     def test_setting_lines(self):
         values, bad = bot.setting_lines('a-mod.camera = rac2\n\n  a-mod.on=true\nb.n = -3\nb.f = 0.5\n'
@@ -451,6 +453,12 @@ class OtherForms(Base):
 
 
 class CoolDown(Base):
+    """index/policy.json review "approve": each external native version waits for an approval."""
+
+    def setUp(self):
+        super().setUp()
+        (self.fx.repo / "index/policy.json").write_text('{"review": "approve"}')
+
     def build(self, now=NOW):
         review = []
         index, errors, warnings = b.build(self.fx.repo, b.Offline(self.fx.dir), now, None, True,

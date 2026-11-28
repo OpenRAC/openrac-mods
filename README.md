@@ -186,17 +186,75 @@ by [`index.yml`](.github/workflows/index.yml) and signed.
 
 - **Without git**: the [Submit a mod](https://github.com/OpenRAC/openrac-mods/issues/new?template=submit-mod.yml)
   issue form. A bot checks it, takes the pictures you add, and opens the pull
-  request; *Update a
-  listing* and *Remove my mod* work the same way. You need write access to the
-  mod's repository.
-- A new version of a native mod from another repository reaches players 24 h
-  after its release, once a maintainer has approved it on its review issue
-  (`index/approved.json`). The approval holds the archives' SHA-256: if an
-  archive changes later, that version goes back to review. The issue also lists
-  what the libraries can reach past the game (network, other programs, other
-  processes, keyboard hooks, saved secrets, URLs), read from their import
-  tables and strings by `tools/binary_scan.py`, and what is new since the
-  published version.
+  request; a maintainer merges it. *Remove my mod* works the same way. You need
+  write access to the mod's repository. At most 3 open submissions per account;
+  ids and names with "OpenRAC" are only for the mods of this repository.
+- **Your listing lives in your repo**: `openrac-listing.json` next to your
+  `openrac-mod.json` takes the same fields as `listing.json` (not `id` or
+  `featured`). It is read every hour and wins over `index/<id>.json`.
+  `openrac-revoked.json` (`[{"versions": ["1.2.0"], "reason": "..."}]`) pulls
+  versions: launchers turn them off.
+- **New versions publish by themselves**: every hour, 1 h after the release, once
+  the checks pass. Nobody reviews each version.
+
+### Labels
+
+Every mod carries one label (`trust` in `index.json`), the first that applies:
+
+| Label | When |
+|---|---|
+| OpenRAC | the mod's folder is in this repository (its code came in by reviewed PRs) |
+| Verified | its id is in `trust/verified.json` `mods`, or its GitHub owner in `owners`: a maintainer looked at it when it was added |
+| Trusted author | its GitHub owner is in `trust/trusted.json`: not checked by a person |
+| Not checked | none of these |
+
+The lists change only by a pull request a maintainer merges (`.github/CODEOWNERS`
+asks for their review); removing a line takes the label back. They hold GitHub
+logins only, no names. An owner may carry its numeric GitHub `id`, which keeps
+the label when the account is renamed. A trusted or verified author's listing
+pull request merges by itself once its checks pass.
+
+### The scan
+
+`tools/binary_scan.py` reads every new native version's libraries (import
+tables and strings; nothing is run):
+
+- **Labels** (`scan.labels` on the version, `scan.new` for what the version before
+  could not do): Network, Starts programs, Loads code, Executable memory, Clipboard.
+- **Held for review**: reads saved passwords or keys, reaches other processes,
+  watches the keyboard or screen, changes system settings, telling strings
+  (`cmd.exe`, PowerShell, browser password files, Discord or Telegram API,
+  `.onion`, wallets, `.ssh`, mining pools), or a file that cannot be read. The
+  version is not published, the mod gets `held` (the site and the launcher hide
+  it; players keep the version they have) and the bot opens a `held` issue. A
+  maintainer labels it `cleared` (the findings go into `index/cleared.json`;
+  later versions with the same findings pass) or `revoke`.
+
+`built` on the newest native version says `ci` when GitHub's build
+attestation shows a workflow of the mod's repo built it from its tag, else
+`hand`. It is checked every hour.
+
+### What is published
+
+On the `index` pre-release: `index.json` (signed), `details-<id>.json` (readme
+and changelogs, each named with its SHA-256 in `index.json`), `picks.json`
+(the weekly picks: three mods per game, Monday 00:00 UTC, OpenRAC, Verified or
+Trusted only, at most one per author and one OpenRAC mod, none picked in the
+last 4 weeks; `index/picks-pin.json` pins one until a date), `held.json` and,
+once launchers read it, `community.json` (signed): new Not checked mods, which
+older launchers never see.
+
+`index/policy.json` turns each part on or off without a revert:
+
+| Key | Default | |
+|---|---|---|
+| `review` | `"scan"` | `"approve"`: external native versions wait for `approved` on a review issue (`index/approved.json`) |
+| `community` | `false` | new Not checked mods go to `community.json` |
+| `selfMerge` | `true` | a trusted author's listing PR merges by itself |
+| `slimIndex` | `false` | readme and changelogs only in `details-<id>.json` |
+| `picks` | `true` | the weekly picks |
+| `provenanceRequired` | `false` | an external native version must be built by CI |
+
 - The bot is **openrac-bot**, a GitHub App of the organization, installed on this
   repository only. Its App id and private key are the repository secrets
   `OPENRAC_BOT_APP_ID` and `OPENRAC_BOT_PRIVATE_KEY`; each job asks it for a

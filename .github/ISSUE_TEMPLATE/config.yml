@@ -1,5 +1,11 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
+  - name: A bug in a mod
+    url: https://openrac.dev/mods
+    about: Each mod's page links to its own bug tracker. Report it there, to the mod's author.
+  - name: A bug in OpenRAC (the game or the launcher)
+    url: https://github.com/OpenRAC/OpenRAC/issues
+    about: Bugs in the port itself go to the OpenRAC repository.
   - name: Content rules
     url: https://github.com/OpenRAC/openrac-mods/blob/master/CONTENT.md
     about: What may be listed, how to report a mod, and legal notices (info@openrac.dev).
